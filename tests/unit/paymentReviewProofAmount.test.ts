@@ -4,6 +4,7 @@ import {
   isRentDoubleCountCorruption,
   proofAmountPaiseFromReviewItem,
   resolveVerifiedProofAmountPaise,
+  shouldApplyProofAmountSelfHeal,
   shouldFreezeSubmittedSnapshotOnRepair,
 } from '@/src/lib/operations/paymentReviewProofAmount';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
@@ -103,5 +104,66 @@ describe('paymentReviewProofAmount', () => {
     assert.equal(resolution.shouldRepairStoredAmount, false);
     assert.equal(resolution.repairReason, null);
     assert.equal(resolution.isAmbiguousRepair, false);
+  });
+
+  test('APG-2026-0082 — corrupt submitted double-count is not trusted for display', () => {
+    const resolution = resolveVerifiedProofAmountPaise({
+      storedAmountPaise: 1_236_200,
+      proofSnapshotSubmittedPaise: 1_236_200,
+      rentDuePaise: 412_100,
+      expectedCheckoutPaise: 824_200,
+    });
+    assert.notEqual(resolution.verifiedAmountPaise, 1_236_200);
+    assert.equal(resolution.verifiedAmountPaise, 824_100);
+    assert.equal(resolution.isAmbiguousRepair, true);
+  });
+
+  test('APG-2026-0082 — admin-corrected amount_paise wins over corrupt submitted snapshot', () => {
+    const resolution = resolveVerifiedProofAmountPaise({
+      storedAmountPaise: 618_000,
+      proofSnapshotSubmittedPaise: 1_236_200,
+      rentDuePaise: 412_100,
+      expectedCheckoutPaise: 824_200,
+    });
+    assert.equal(resolution.verifiedAmountPaise, 618_000);
+    assert.equal(resolution.shouldRepairStoredAmount, false);
+    assert.equal(resolution.shouldRepairSubmittedSnapshot, true);
+    assert.equal(resolution.repairReason, 'admin_correction');
+  });
+
+  test('shouldApplyProofAmountSelfHeal does not revert admin correction toward corrupt submitted', () => {
+    const resolution = resolveVerifiedProofAmountPaise({
+      storedAmountPaise: 618_000,
+      proofSnapshotSubmittedPaise: 1_236_200,
+      rentDuePaise: 412_100,
+      expectedCheckoutPaise: 824_200,
+    });
+    assert.equal(
+      shouldApplyProofAmountSelfHeal({
+        resolution,
+        storedAmountPaise: 618_000,
+        proofSnapshotSubmittedPaise: 1_236_200,
+        expectedCheckoutPaise: 824_200,
+        rentDuePaise: 412_100,
+      }),
+      true,
+    );
+    const revertResolution = {
+      verifiedAmountPaise: 1_236_200,
+      shouldRepairStoredAmount: true,
+      shouldRepairSubmittedSnapshot: false,
+      repairReason: 'submitted_snapshot' as const,
+      isAmbiguousRepair: false,
+    };
+    assert.equal(
+      shouldApplyProofAmountSelfHeal({
+        resolution: revertResolution,
+        storedAmountPaise: 618_000,
+        proofSnapshotSubmittedPaise: 1_236_200,
+        expectedCheckoutPaise: 824_200,
+        rentDuePaise: 412_100,
+      }),
+      false,
+    );
   });
 });

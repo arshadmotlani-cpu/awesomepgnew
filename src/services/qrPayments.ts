@@ -563,7 +563,7 @@ export async function getQrBookingPaymentReview(recordId: string) {
     buildBookingPaymentProofSnapshot,
     resolveBookingProofExpectedCheckout,
   } = await import('@/src/lib/billing/bookingPaymentProofSnapshot');
-  const { resolveVerifiedProofAmountPaise, shouldFreezeSubmittedSnapshotOnRepair } = await import(
+  const { resolveVerifiedProofAmountPaise, shouldApplyProofAmountSelfHeal, shouldFreezeSubmittedSnapshotOnRepair } = await import(
     '@/src/lib/operations/paymentReviewProofAmount'
   );
 
@@ -585,7 +585,16 @@ export async function getQrBookingPaymentReview(recordId: string) {
     expectedCheckoutPaise: expected.checkoutTotalPaise,
   });
 
-  if (record.status === 'pending' && resolution.shouldRepairStoredAmount) {
+  if (
+    record.status === 'pending' &&
+    shouldApplyProofAmountSelfHeal({
+      resolution,
+      storedAmountPaise: record.amountPaise,
+      proofSnapshotSubmittedPaise: record.proofSnapshotSubmittedPaise,
+      expectedCheckoutPaise: expected.checkoutTotalPaise,
+      rentDuePaise: expected.rentDuePaise,
+    })
+  ) {
     if (record.snapshotColumnsAvailable) {
       const patch: {
         amountPaise: number;
@@ -601,6 +610,8 @@ export async function getQrBookingPaymentReview(recordId: string) {
           record.proofSnapshotSubmittedPaise,
         )
       ) {
+        patch.proofSnapshotSubmittedPaise = resolution.verifiedAmountPaise;
+      } else if (resolution.shouldRepairSubmittedSnapshot) {
         patch.proofSnapshotSubmittedPaise = resolution.verifiedAmountPaise;
       }
       await db.update(pgPaymentRecords).set(patch).where(eq(pgPaymentRecords.id, recordId));

@@ -48,15 +48,15 @@ describe('paymentProofCorrection', () => {
     assert.equal(diff.verifiedAmountPaise, 618_000);
   });
 
-  test('correctPendingPaymentProofAmount uses transaction + non-blocking audit', () => {
+  test('correctPendingPaymentProofAmount uses transaction + read-back verification', () => {
     const src = readFileSync(
       join(process.cwd(), 'src/services/paymentProofCorrection.ts'),
       'utf8',
     );
 
     assert.match(src, /db\.transaction\(async \(tx\)/);
+    assert.match(src, /readBackCorrectedProofAmount/);
     assert.match(src, /writeAuditLogNonBlocking/);
     assert.doesNotMatch(src, /db\.insert\(auditLog\)/);
-    assert.match(src, /updatePendingProofAmount/);
   });
 });

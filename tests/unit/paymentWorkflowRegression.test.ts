@@ -242,8 +242,27 @@ describe('payment workflow regression', () => {
     const qr = read('src/services/qrPayments.ts');
     assert.match(qr, /proofSnapshotRowValues\(proofSnapshot, input\.amountPaise\)/);
     assert.match(qr, /proofSnapshotSubmittedPaise/);
-    assert.match(qr, /shouldFreezeSubmittedSnapshotOnRepair/);
+    assert.match(qr, /shouldApplyProofAmountSelfHeal/);
     assert.match(qr, /correctPendingPaymentProofAmount/);
+  });
+
+  test('APG admin-corrected proof amount is ₹6180 not corrupt ₹12362', () => {
+    const resolution = resolveVerifiedProofAmountPaise({
+      storedAmountPaise: PARTIAL_PROOF,
+      proofSnapshotSubmittedPaise: 1_236_200,
+      rentDuePaise: RENT,
+      expectedCheckoutPaise: EXPECTED,
+    });
+    assert.equal(resolution.verifiedAmountPaise, PARTIAL_PROOF);
+    assert.equal(
+      proofAmountPaiseFromReviewItem(
+        reviewItem({
+          amountPaise: PARTIAL_PROOF,
+          verifiedProofAmountPaise: PARTIAL_PROOF,
+        }),
+      ),
+      PARTIAL_PROOF,
+    );
   });
 
   test('admin proof correction projects partial deposit outstanding', () => {

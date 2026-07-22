@@ -67,7 +67,7 @@ async function updatePendingProofAmount(
     verifiedAmountPaise: number;
     snapshotColumnsAvailable: boolean;
   },
-): Promise<void> {
+): Promise<{ submittedSnapshotUpdated: boolean }> {
   const basePatch = {
     amountPaise: input.verifiedAmountPaise,
     updatedAt: new Date(),
@@ -78,7 +78,7 @@ async function updatePendingProofAmount(
       .update(pgPaymentRecords)
       .set(basePatch)
       .where(eq(pgPaymentRecords.id, input.recordId));
-    return;
+    return { submittedSnapshotUpdated: false };
   }
 
   try {
@@ -89,6 +89,7 @@ async function updatePendingProofAmount(
         proofSnapshotSubmittedPaise: input.verifiedAmountPaise,
       })
       .where(eq(pgPaymentRecords.id, input.recordId));
+    return { submittedSnapshotUpdated: true };
   } catch (err) {
     if (!isDatabaseSchemaMismatchError(err)) throw err;
     console.error(
@@ -99,6 +100,47 @@ async function updatePendingProofAmount(
       .update(pgPaymentRecords)
       .set(basePatch)
       .where(eq(pgPaymentRecords.id, input.recordId));
+    return { submittedSnapshotUpdated: false };
+  }
+}
+
+async function readBackCorrectedProofAmount(recordId: string): Promise<{
+  amountPaise: number;
+  proofSnapshotSubmittedPaise: number | null;
+  snapshotColumnsAvailable: boolean;
+}> {
+  try {
+    const [row] = await db
+      .select({
+        amountPaise: pgPaymentRecords.amountPaise,
+        proofSnapshotSubmittedPaise: pgPaymentRecords.proofSnapshotSubmittedPaise,
+      })
+      .from(pgPaymentRecords)
+      .where(eq(pgPaymentRecords.id, recordId))
+      .limit(1);
+    if (!row) {
+      return { amountPaise: 0, proofSnapshotSubmittedPaise: null, snapshotColumnsAvailable: true };
+    }
+    return {
+      amountPaise: guardPlainPaise(row.amountPaise, 'correction.readBackAmount'),
+      proofSnapshotSubmittedPaise:
+        row.proofSnapshotSubmittedPaise == null
+          ? null
+          : guardPlainPaise(row.proofSnapshotSubmittedPaise, 'correction.readBackSubmitted'),
+      snapshotColumnsAvailable: true,
+    };
+  } catch (err) {
+    if (!isDatabaseSchemaMismatchError(err)) throw err;
+    const [row] = await db
+      .select({ amountPaise: pgPaymentRecords.amountPaise })
+      .from(pgPaymentRecords)
+      .where(eq(pgPaymentRecords.id, recordId))
+      .limit(1);
+    return {
+      amountPaise: row ? guardPlainPaise(row.amountPaise, 'correction.readBackAmount') : 0,
+      proofSnapshotSubmittedPaise: null,
+      snapshotColumnsAvailable: false,
+    };
   }
 }
 
@@ -178,13 +220,40 @@ export async function correctPendingPaymentProofAmount(input: {
       ? null
       : guardPlainPaise(record.proofSnapshotSubmittedPaise, 'correction.previousSubmitted');
 
+  let submittedSnapshotUpdated = false;
+
   await db.transaction(async (tx) => {
-    await updatePendingProofAmount(tx, {
+    const writeResult = await updatePendingProofAmount(tx, {
       recordId: input.recordId,
       verifiedAmountPaise,
       snapshotColumnsAvailable,
     });
+    submittedSnapshotUpdated = writeResult.submittedSnapshotUpdated;
   });
+
+  const readBack = await readBackCorrectedProofAmount(input.recordId);
+  if (readBack.amountPaise !== verifiedAmountPaise) {
+    return {
+      ok: false,
+      reason: `Proof amount did not persist (expected ₹${(verifiedAmountPaise / 100).toFixed(0)}, got ₹${(readBack.amountPaise / 100).toFixed(0)}).`,
+    };
+  }
+  if (
+    snapshotColumnsAvailable &&
+    readBack.snapshotColumnsAvailable &&
+    readBack.proofSnapshotSubmittedPaise !== verifiedAmountPaise
+  ) {
+    return {
+      ok: false,
+      reason: `Submitted proof snapshot did not persist (expected ₹${(verifiedAmountPaise / 100).toFixed(0)}, got ₹${((readBack.proofSnapshotSubmittedPaise ?? 0) / 100).toFixed(0)}). Run migration 0122 or retry.`,
+    };
+  }
+  if (snapshotColumnsAvailable && !submittedSnapshotUpdated && !readBack.snapshotColumnsAvailable) {
+    console.error(
+      '[payment-proof-correction] proof_snapshot_submitted_paise column unavailable — only amount_paise updated',
+      schemaMismatchHint(new Error('column proof_snapshot_submitted_paise does not exist')),
+    );
+  }
 
   const auditResult = await writeAuditLogNonBlocking(db, {
     actorType: 'admin',
