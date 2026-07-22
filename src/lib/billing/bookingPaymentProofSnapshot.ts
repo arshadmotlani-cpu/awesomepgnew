@@ -4,6 +4,7 @@
  */
 
 import type { PriorOutstandingItem } from '@/src/lib/billing/bookingCheckoutTotals';
+import { isRentDoubleCountCorruption } from '@/src/lib/operations/paymentReviewProofAmount';
 
 export type BookingPaymentProofSnapshot = {
   checkoutTotalPaise: number;
@@ -58,27 +59,109 @@ export function proofSnapshotRowValues(
   };
 }
 
-/** Pending proofs: prefer frozen snapshot over live recomputation. */
+function frozenSnapshotFromRecord(
+  record: PgPaymentRecordProofSnapshotFields,
+): BookingPaymentProofSnapshot | null {
+  if (record.proofSnapshotCheckoutTotalPaise == null || record.proofSnapshotCheckoutTotalPaise < 0) {
+    return null;
+  }
+  return {
+    checkoutTotalPaise: record.proofSnapshotCheckoutTotalPaise,
+    rentDuePaise: Math.max(0, record.proofSnapshotRentDuePaise ?? 0),
+    depositDuePaise: Math.max(0, record.proofSnapshotDepositDuePaise ?? 0),
+    priorOutstandingPaise: Math.max(0, record.proofSnapshotPriorOutstandingPaise ?? 0),
+    priorOutstandingItems: Array.isArray(record.proofSnapshotPriorOutstandingJson)
+      ? record.proofSnapshotPriorOutstandingJson
+      : [],
+  };
+}
+
+/** True when a frozen expected snapshot was derived from a corrupt proof amount, not booking data. */
+export function isProofContaminatedExpectedSnapshot(input: {
+  frozen: BookingPaymentProofSnapshot;
+  live: BookingPaymentProofSnapshot;
+  storedProofAmountPaise?: number | null;
+}): boolean {
+  const { frozen, live, storedProofAmountPaise } = input;
+  const componentSum =
+    frozen.rentDuePaise + frozen.depositDuePaise + frozen.priorOutstandingPaise;
+
+  if (Math.abs(componentSum - frozen.checkoutTotalPaise) > PROOF_AMOUNT_TOLERANCE_PAISE) {
+    return true;
+  }
+
+  if (
+    storedProofAmountPaise != null &&
+    storedProofAmountPaise > 0 &&
+    Math.abs(frozen.checkoutTotalPaise - storedProofAmountPaise) <= PROOF_AMOUNT_TOLERANCE_PAISE &&
+    Math.abs(live.checkoutTotalPaise - storedProofAmountPaise) > PROOF_AMOUNT_TOLERANCE_PAISE
+  ) {
+    return true;
+  }
+
+  if (
+    isRentDoubleCountCorruption({
+      storedAmountPaise: frozen.checkoutTotalPaise,
+      rentDuePaise: live.rentDuePaise,
+      expectedCheckoutPaise: live.checkoutTotalPaise,
+    })
+  ) {
+    return true;
+  }
+
+  if (
+    storedProofAmountPaise != null &&
+    storedProofAmountPaise > 0 &&
+    Math.abs(frozen.rentDuePaise - storedProofAmountPaise) <= PROOF_AMOUNT_TOLERANCE_PAISE &&
+    live.rentDuePaise > 0 &&
+    Math.abs(frozen.rentDuePaise - live.rentDuePaise) > PROOF_AMOUNT_TOLERANCE_PAISE
+  ) {
+    return true;
+  }
+
+  if (
+    frozen.rentDuePaise > 0 &&
+    frozen.depositDuePaise === 0 &&
+    frozen.priorOutstandingPaise === 0 &&
+    Math.abs(frozen.rentDuePaise - frozen.checkoutTotalPaise) <= PROOF_AMOUNT_TOLERANCE_PAISE &&
+    live.depositDuePaise > 0 &&
+    Math.abs(frozen.checkoutTotalPaise - live.checkoutTotalPaise) > PROOF_AMOUNT_TOLERANCE_PAISE
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Pending proofs: prefer frozen snapshot over live recomputation when trustworthy.
+ * Falls back to live booking financial data when the snapshot was proof-contaminated.
+ */
 export function resolveBookingProofExpectedCheckout(
   record: PgPaymentRecordProofSnapshotFields,
   liveFallback: BookingPaymentProofSnapshot,
+  options?: { storedProofAmountPaise?: number | null },
 ): BookingPaymentProofSnapshot {
-  if (
-    record.status === 'pending' &&
-    record.proofSnapshotCheckoutTotalPaise != null &&
-    record.proofSnapshotCheckoutTotalPaise >= 0
-  ) {
-    return {
-      checkoutTotalPaise: record.proofSnapshotCheckoutTotalPaise,
-      rentDuePaise: Math.max(0, record.proofSnapshotRentDuePaise ?? 0),
-      depositDuePaise: Math.max(0, record.proofSnapshotDepositDuePaise ?? 0),
-      priorOutstandingPaise: Math.max(0, record.proofSnapshotPriorOutstandingPaise ?? 0),
-      priorOutstandingItems: Array.isArray(record.proofSnapshotPriorOutstandingJson)
-        ? record.proofSnapshotPriorOutstandingJson
-        : [],
-    };
+  if (record.status !== 'pending') {
+    return liveFallback;
   }
-  return liveFallback;
+
+  const frozen = frozenSnapshotFromRecord(record);
+  if (!frozen) {
+    return liveFallback;
+  }
+
+  if (
+    isProofContaminatedExpectedSnapshot({
+      frozen,
+      live: liveFallback,
+      storedProofAmountPaise: options?.storedProofAmountPaise,
+    })
+  ) {
+    return liveFallback;
+  }
+
+  return frozen;
 }
 
 export function validateSubmittedAmountAgainstProofSnapshot(

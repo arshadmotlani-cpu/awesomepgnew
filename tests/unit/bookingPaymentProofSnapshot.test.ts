@@ -4,6 +4,7 @@ import {
   buildBookingPaymentProofSnapshot,
   detectStalePriorOutstandingMismatch,
   inferProofSnapshotFromPaidAmount,
+  isProofContaminatedExpectedSnapshot,
   resolveBookingProofExpectedCheckout,
   validateSubmittedAmountAgainstProofSnapshot,
 } from '@/src/lib/billing/bookingPaymentProofSnapshot';
@@ -102,5 +103,43 @@ describe('bookingPaymentProofSnapshot', () => {
       validateSubmittedAmountAgainstProofSnapshot(1_236_200, snapshot).ok,
       false,
     );
+  });
+
+  test('resolveBookingProofExpectedCheckout rejects proof-contaminated frozen snapshot', () => {
+    const live = buildBookingPaymentProofSnapshot({
+      rentDuePaise: 412_100,
+      depositCashDuePaise: 412_100,
+      priorOutstandingPaise: 0,
+      priorOutstandingItems: [],
+    });
+    const contaminated = inferProofSnapshotFromPaidAmount({
+      amountPaise: 1_236_200,
+      rentDuePaise: 412_100,
+      depositDuePaise: 412_100,
+    });
+
+    assert.equal(
+      isProofContaminatedExpectedSnapshot({
+        frozen: contaminated,
+        live,
+        storedProofAmountPaise: 1_236_200,
+      }),
+      true,
+    );
+
+    const resolved = resolveBookingProofExpectedCheckout(
+      {
+        status: 'pending',
+        proofSnapshotCheckoutTotalPaise: contaminated.checkoutTotalPaise,
+        proofSnapshotRentDuePaise: contaminated.rentDuePaise,
+        proofSnapshotDepositDuePaise: contaminated.depositDuePaise,
+        proofSnapshotPriorOutstandingPaise: contaminated.priorOutstandingPaise,
+      },
+      live,
+      { storedProofAmountPaise: 1_236_200 },
+    );
+
+    assert.equal(resolved.checkoutTotalPaise, live.checkoutTotalPaise);
+    assert.equal(resolved.rentDuePaise, 412_100);
   });
 });

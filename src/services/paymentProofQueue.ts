@@ -39,6 +39,7 @@ import { paymentCategoryBusinessLabel, stayTypeBusinessLabel } from '@/src/lib/s
 import { titleCase } from '@/src/lib/format';
 import { formatDate as formatIsoDate } from '@/src/lib/dates';
 import { dedupePendingPaymentReviews } from '@/src/lib/operations/dedupePendingPaymentReviews';
+import { expectedCheckoutFromBookingDetails } from '@/src/lib/operations/paymentReviewBreakdown';
 import { isBookingCheckoutEligibleForPaymentReview } from '@/src/lib/operations/paymentReviewSsot';
 import { reconcileBookingPaymentReviewQueue } from '@/src/services/paymentReviewReconciliation';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
@@ -307,6 +308,63 @@ function buildOutstandingSummary(args: {
   return `₹${(args.outstandingAfterApprovalPaise / 100).toLocaleString('en-IN')} still due after approval`;
 }
 
+function buildQrExpectedTotals(input: {
+  isBookingCheckout: boolean;
+  bookingPaymentReview: Awaited<ReturnType<typeof getQrBookingPaymentReview>> | null;
+  bookingDetails: PaymentReviewBookingDetails | null;
+  fallbackAmountPaise: number;
+  paymentTypeLabel: string;
+}): {
+  expectedLines: PaymentReviewExpectedLine[];
+  expectedTotalPaise: number;
+} {
+  if (input.bookingPaymentReview) {
+    const review = input.bookingPaymentReview;
+    const lines: PaymentReviewExpectedLine[] = [
+      { label: 'Rent', amountPaise: review.rentDuePaise },
+      { label: 'Deposit', amountPaise: review.depositCashDuePaise },
+    ];
+    if ((review.priorOutstandingDuePaise ?? 0) > 0) {
+      lines.push({
+        label: 'Prior outstanding',
+        amountPaise: review.priorOutstandingDuePaise ?? 0,
+      });
+    }
+    return {
+      expectedLines: lines,
+      expectedTotalPaise:
+        review.rentDuePaise +
+        review.depositCashDuePaise +
+        (review.priorOutstandingDuePaise ?? 0),
+    };
+  }
+
+  if (input.isBookingCheckout && input.bookingDetails) {
+    const checkout = expectedCheckoutFromBookingDetails(input.bookingDetails);
+    if (checkout) {
+      const lines: PaymentReviewExpectedLine[] = [
+        { label: 'Rent', amountPaise: checkout.rentDuePaise },
+        { label: 'Deposit', amountPaise: checkout.depositCashDuePaise },
+      ];
+      if (checkout.priorOutstandingPaise > 0) {
+        lines.push({
+          label: 'Prior outstanding',
+          amountPaise: checkout.priorOutstandingPaise,
+        });
+      }
+      return {
+        expectedLines: lines,
+        expectedTotalPaise: checkout.checkoutTotalPaise,
+      };
+    }
+  }
+
+  return {
+    expectedLines: [{ label: input.paymentTypeLabel, amountPaise: input.fallbackAmountPaise }],
+    expectedTotalPaise: input.fallbackAmountPaise,
+  };
+}
+
 function buildQrReviewItem(
   p: Awaited<ReturnType<typeof listOwnerPayments>>[number],
   bookingPaymentReview: Awaited<ReturnType<typeof getQrBookingPaymentReview>> | null,
@@ -350,22 +408,29 @@ function buildQrReviewItem(
       p.amountPaise)
     : p.amountPaise;
 
+  const expectedTotals = buildQrExpectedTotals({
+    isBookingCheckout,
+    bookingPaymentReview,
+    bookingDetails,
+    fallbackAmountPaise: p.amountPaise,
+    paymentTypeLabel,
+  });
+  expectedLines = expectedTotals.expectedLines;
+  expectedTotalPaise = expectedTotals.expectedTotalPaise;
+
   if (bookingPaymentReview) {
-    expectedLines = [
-      { label: 'Rent', amountPaise: bookingPaymentReview.rentDuePaise },
-      { label: 'Deposit', amountPaise: bookingPaymentReview.depositCashDuePaise },
-    ];
-    if ((bookingPaymentReview.priorOutstandingDuePaise ?? 0) > 0) {
-      expectedLines.push({
-        label: 'Prior outstanding',
-        amountPaise: bookingPaymentReview.priorOutstandingDuePaise ?? 0,
-      });
-    }
-    expectedTotalPaise = bookingPaymentReview.bookingTotalDuePaise;
-    receivedPaise = verifiedProofAmountPaise;
     outstandingAfterApprovalPaise = bookingPaymentReview.depositDuePaise;
     overpaidPaise = Math.max(0, verifiedProofAmountPaise - expectedTotalPaise);
     canPartialApprove = bookingPaymentReview.canPartialApprove;
+    outstandingSummary = buildOutstandingSummary({
+      outstandingAfterApprovalPaise,
+      overpaidPaise,
+    });
+  } else if (isBookingCheckout) {
+    receivedPaise = verifiedProofAmountPaise;
+    outstandingAfterApprovalPaise = Math.max(0, expectedTotalPaise - verifiedProofAmountPaise);
+    overpaidPaise = Math.max(0, verifiedProofAmountPaise - expectedTotalPaise);
+    canPartialApprove = verifiedProofAmountPaise < expectedTotalPaise;
     outstandingSummary = buildOutstandingSummary({
       outstandingAfterApprovalPaise,
       overpaidPaise,

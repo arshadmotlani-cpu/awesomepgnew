@@ -264,4 +264,78 @@ describe('buildPaymentReviewBreakdown', () => {
     assert.equal(b.extraReceivedPaise, 0);
     assert.equal(b.priorOutstandingDuePaise, 412_100);
   });
+
+  test('APG corrupt proof — expected amount uses booking rent+deposit, not proof total', () => {
+    const RENT = 412_100;
+    const DEPOSIT = 412_100;
+    const EXPECTED = RENT + DEPOSIT;
+    const CORRUPT_PROOF = 1_236_200;
+    const VERIFIED_PROOF = 618_000;
+
+    const item = baseItem({
+      kind: 'qr',
+      amountPaise: CORRUPT_PROOF,
+      verifiedProofAmountPaise: VERIFIED_PROOF,
+      expectedTotalPaise: CORRUPT_PROOF,
+      submittedAmountPaise: VERIFIED_PROOF,
+      receivedPaise: VERIFIED_PROOF,
+      bookingDetails: {
+        moveInDate: null,
+        moveOutDate: null,
+        durationLabel: 'Monthly',
+        roomType: null,
+        bedCode: 'B2',
+        roomNumber: '204',
+        monthlyRentPaise: RENT,
+        depositRequiredPaise: DEPOSIT,
+        durationMode: 'monthly',
+        stayType: 'monthly_stay',
+        bookingStatus: 'pending_payment',
+        subtotalPaise: RENT,
+        discountPaise: 0,
+        rentDuePaise: RENT,
+      },
+    });
+
+    const b = buildPaymentReviewBreakdown(item);
+    assert.equal(b.proofAmountPaise, VERIFIED_PROOF);
+    assert.equal(b.totalExpectedPaise, EXPECTED);
+    assert.equal(b.roomChargesDuePaise, RENT);
+    assert.equal(b.securityDepositDuePaise, DEPOSIT);
+    assert.notEqual(b.totalExpectedPaise, CORRUPT_PROOF);
+    assert.notEqual(b.roomChargesDuePaise, CORRUPT_PROOF);
+  });
+
+  test('booking checkout without review context still avoids proof-derived expected total', () => {
+    const RENT = 412_100;
+    const DEPOSIT = 412_100;
+    const item = baseItem({
+      kind: 'qr',
+      amountPaise: 1_236_200,
+      verifiedProofAmountPaise: 618_000,
+      expectedTotalPaise: 1_236_200,
+      submittedAmountPaise: 618_000,
+      receivedPaise: 618_000,
+      bookingDetails: {
+        moveInDate: null,
+        moveOutDate: null,
+        durationLabel: 'Monthly',
+        roomType: null,
+        bedCode: 'B2',
+        roomNumber: '204',
+        monthlyRentPaise: RENT,
+        depositRequiredPaise: DEPOSIT,
+        durationMode: 'monthly',
+        stayType: 'monthly_stay',
+        bookingStatus: 'pending_payment',
+        subtotalPaise: RENT,
+        discountPaise: 0,
+        rentDuePaise: RENT,
+      },
+    });
+
+    const b = buildPaymentReviewBreakdown(item);
+    assert.equal(b.totalExpectedPaise, RENT + DEPOSIT);
+    assert.equal(b.roomChargesDuePaise, RENT);
+  });
 });

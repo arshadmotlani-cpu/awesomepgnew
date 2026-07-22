@@ -2,8 +2,82 @@
  * Admin payment-review breakdown — presentation only (client-safe).
  * Uses precomputed review splits / invoice amounts; never import server services here.
  */
-import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
+import { breakdownBookingCheckoutPayment } from '@/src/lib/billing/bookingCheckoutTotals';
+import type {
+  PaymentReviewBookingDetails,
+  PendingPaymentReviewItem,
+} from '@/src/lib/operations/paymentReviewTypes';
 import { proofAmountPaiseFromReviewItem } from '@/src/lib/operations/paymentReviewProofAmount';
+
+export type BookingExpectedCheckoutLines = {
+  rentDuePaise: number;
+  depositCashDuePaise: number;
+  priorOutstandingPaise: number;
+  checkoutTotalPaise: number;
+};
+
+export function expectedCheckoutFromBookingDetails(
+  details: PaymentReviewBookingDetails,
+): BookingExpectedCheckoutLines | null {
+  if (details.subtotalPaise == null) return null;
+
+  const priorItems = details.priorOutstandingItems ?? [];
+  const priorOutstandingPaise = priorItems.reduce((sum, item) => sum + item.amountPaise, 0);
+  const breakdown = breakdownBookingCheckoutPayment({
+    subtotalPaise: details.subtotalPaise,
+    discountPaise: details.discountPaise ?? 0,
+    depositPaise: details.depositRequiredPaise ?? 0,
+    pricingSnapshot: {
+      depositCredit:
+        (details.depositCreditAppliedPaise ?? 0) > 0
+          ? {
+              appliedPaise: details.depositCreditAppliedPaise,
+              adminTransferred: true,
+            }
+          : undefined,
+      priorOutstanding:
+        priorOutstandingPaise > 0
+          ? { totalPaise: priorOutstandingPaise, items: priorItems }
+          : undefined,
+    },
+  });
+
+  return {
+    rentDuePaise: breakdown.rentDuePaise,
+    depositCashDuePaise: breakdown.depositCashDuePaise,
+    priorOutstandingPaise: breakdown.priorOutstandingPaise,
+    checkoutTotalPaise: breakdown.bookingTotalDuePaise,
+  };
+}
+
+/** SSOT — expected checkout lines from booking financial data, never the payment proof amount. */
+export function resolveBookingExpectedCheckoutLines(
+  item: PendingPaymentReviewItem,
+): BookingExpectedCheckoutLines | null {
+  const review = item.bookingPaymentReview;
+  if (review) {
+    const priorOutstandingPaise = Math.max(
+      0,
+      review.priorOutstandingDuePaise ??
+        item.expectedLines?.find((line) => line.label.toLowerCase().includes('prior'))?.amountPaise ??
+        0,
+    );
+    const rentDuePaise = review.rentDuePaise;
+    const depositCashDuePaise = review.depositCashDuePaise;
+    return {
+      rentDuePaise,
+      depositCashDuePaise,
+      priorOutstandingPaise,
+      checkoutTotalPaise: rentDuePaise + depositCashDuePaise + priorOutstandingPaise,
+    };
+  }
+
+  if (item.bookingDetails) {
+    return expectedCheckoutFromBookingDetails(item.bookingDetails);
+  }
+
+  return null;
+}
 
 export type PaymentReviewBreakdown = {
   bookingType: string;
@@ -58,27 +132,20 @@ export function buildPaymentReviewBreakdown(
     null;
 
   const proofAmountPaise = proofAmountPaiseFromReviewItem(item);
+  const expectedCheckout = resolveBookingExpectedCheckoutLines(item);
 
-  if (item.kind === 'qr' && item.bookingPaymentReview) {
+  if (item.kind === 'qr' && expectedCheckout) {
+    const rentDue = expectedCheckout.rentDuePaise;
+    const depositDue = expectedCheckout.depositCashDuePaise;
+    const priorDue = expectedCheckout.priorOutstandingPaise;
     const review = item.bookingPaymentReview;
-    const rentDue = review.rentDuePaise;
-    const depositDue = review.depositCashDuePaise;
-    const roomChargesPaid = review.rentPaisePaid;
-    const depositPaid = review.depositPaisePaid;
-    const depositRemaining = review.depositDuePaise;
-    const priorDue = Math.max(
-      0,
-      review.priorOutstandingDuePaise ??
-        item.expectedLines?.find((l) => l.label.toLowerCase().includes('prior'))?.amountPaise ??
-        0,
-    );
+    const roomChargesPaid = review?.rentPaisePaid ?? 0;
+    const depositPaid = review?.depositPaisePaid ?? 0;
+    const depositRemaining = review?.depositDuePaise ?? Math.max(0, depositDue - depositPaid);
     const allocatedCore = roomChargesPaid + depositPaid;
     const priorPaid = Math.min(priorDue, Math.max(0, proofAmountPaise - allocatedCore));
     const extra = Math.max(0, proofAmountPaise - allocatedCore - priorPaid);
-    const totalExpected =
-      item.expectedTotalPaise > 0
-        ? item.expectedTotalPaise
-        : rentDue + depositDue + priorDue;
+    const totalExpected = expectedCheckout.checkoutTotalPaise;
     const difference = proofAmountPaise - totalExpected;
     const remaining = Math.max(0, totalExpected - proofAmountPaise);
 

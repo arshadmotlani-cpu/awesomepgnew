@@ -574,7 +574,9 @@ export async function getQrBookingPaymentReview(recordId: string) {
     priorOutstandingItems: ctx.priorOutstanding?.items ?? [],
   });
 
-  const expected = resolveBookingProofExpectedCheckout(record, liveSnapshot);
+  const expected = resolveBookingProofExpectedCheckout(record, liveSnapshot, {
+    storedProofAmountPaise: record.amountPaise,
+  });
 
   const resolution = resolveVerifiedProofAmountPaise({
     storedAmountPaise: record.amountPaise,
