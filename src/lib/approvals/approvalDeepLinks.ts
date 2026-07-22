@@ -1,21 +1,22 @@
 /**
  * Approval deep-link SSOT — every surface must use these builders.
- * Operations Waiting for Approval uses `filter=waiting_for_approval&focus={paymentReviewKey}`.
+ * Payment Review Workspace is the canonical approval surface.
  */
 
 import type { ActionItem } from '@/src/db/schema/actionItems';
 import type { ActionItemMetadata } from '@/src/lib/actionCenter/constants';
+import { paymentReviewWorkspaceHref } from '@/src/lib/operations/paymentReviewLinks';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 
-/** Open a specific payment proof in Operations → Waiting for approval. */
+/** Open a specific payment proof in the Payment Review Workspace. */
 export function paymentApprovalDeepLink(paymentReviewKey: string): string {
-  return operationsFilterHref('waiting_for_approval', paymentReviewKey);
+  return paymentReviewWorkspaceHref(paymentReviewKey);
 }
 
 export function paymentProofWorkflowHref(item: PendingPaymentReviewItem): string {
-  return paymentApprovalDeepLink(item.key);
+  return paymentReviewWorkspaceHref(item.key);
 }
 
 /** Unified deep links for action items and notifications. */

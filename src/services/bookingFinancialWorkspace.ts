@@ -23,6 +23,7 @@ import {
 } from '@/src/services/checkoutSettlement';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 import type { BookingMoneyBalances } from '@/src/lib/billing/bookingMoneyBalances';
+import { pendingPaymentReviewHrefForBooking } from '@/src/lib/operations/paymentReviewLinks';
 
 export type BookingFinancialWorkspaceData = {
   bookingId: string;
@@ -53,6 +54,7 @@ export type BookingFinancialWorkspaceData = {
   rentInvoices: Awaited<ReturnType<typeof listRentInvoicesForBooking>>;
   electricityInvoices: Awaited<ReturnType<typeof listElectricityInvoicesForBooking>>;
   rentInvoiceHrefMap: Record<string, string>;
+  pendingPaymentReviewHref: string | null;
 };
 
 export async function loadBookingFinancialWorkspace(
@@ -163,6 +165,7 @@ export async function loadBookingFinancialWorkspace(
 
   const settlementId = checkoutDetail?.id ?? null;
   const settlementHref = settlementId ? `#checkout` : null;
+  const pendingPaymentReviewHref = await pendingPaymentReviewHrefForBooking(bookingId);
 
   return {
     ok: true,
@@ -187,6 +190,7 @@ export async function loadBookingFinancialWorkspace(
       rentInvoices,
       electricityInvoices,
       rentInvoiceHrefMap,
+      pendingPaymentReviewHref,
     },
   };
 }

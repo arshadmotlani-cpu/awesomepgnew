@@ -12,7 +12,7 @@ test('paymentProofWorkflowHref encodes review key', () => {
     paymentProofWorkflowHref({
       key: 'rent:abc',
     } as Parameters<typeof paymentProofWorkflowHref>[0]),
-    '/admin/operations?filter=waiting_for_approval&focus=rent%3Aabc',
+    '/admin/payment-review/rent%3Aabc',
   );
 });
 

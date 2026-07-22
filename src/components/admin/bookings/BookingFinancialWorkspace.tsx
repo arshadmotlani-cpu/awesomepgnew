@@ -78,6 +78,21 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
         </nav>
       </header>
 
+      {data.pendingPaymentReviewHref ? (
+        <div className="mb-6 rounded-2xl border border-apg-orange/30 bg-apg-orange/10 px-5 py-4">
+          <p className="text-sm font-medium text-white">Payment awaiting admin review</p>
+          <p className="mt-1 text-sm text-apg-silver">
+            Approve or reject in the Payment Review Workspace — not from this financial summary.
+          </p>
+          <Link
+            href={data.pendingPaymentReviewHref}
+            className="mt-3 inline-flex rounded-lg bg-apg-orange px-4 py-2 text-sm font-semibold text-white hover:brightness-110"
+          >
+            Open payment review →
+          </Link>
+        </div>
+      ) : null}
+
       <FinancialSectionCard
         id="accounting"
         title="Accounting"

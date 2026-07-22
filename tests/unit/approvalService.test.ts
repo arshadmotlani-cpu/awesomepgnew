@@ -29,10 +29,9 @@ test('billing invoice review is separate from payment proof queue', () => {
   assert.ok(!BILLING_INVOICE_REVIEW_HREF.includes('waiting_for_approval'));
 });
 
-test('paymentApprovalDeepLink uses operations focus', () => {
+test('paymentApprovalDeepLink uses Payment Review Workspace', () => {
   const href = paymentApprovalDeepLink('rent:abc-123');
-  assert.ok(href.includes('filter=waiting_for_approval'));
-  assert.ok(href.includes('focus=rent%3Aabc-123'));
+  assert.equal(href, '/admin/payment-review/rent%3Aabc-123');
 });
 
 test('finalizeApprovalNotificationDeepLink never keeps billing href for proofs', () => {
@@ -41,7 +40,7 @@ test('finalizeApprovalNotificationDeepLink never keeps billing href for proofs',
     '/admin/billing?tab=approvals',
     { paymentReviewKey: 'elec:xyz' },
   );
-  assert.ok(href.includes('/admin/operations'));
+  assert.ok(href.includes('/admin/payment-review/'));
   assert.ok(!href.includes('/admin/billing'));
 });
 

@@ -35,11 +35,77 @@ export function adminStayTypeLabel(input: {
   stayType?: StayType | string | null;
   durationMode?: string | null;
 }): string {
+  return stayTypeBusinessLabel(input, 'admin');
+}
+
+export type StayLabelAudience = 'customer' | 'admin' | 'ops';
+
+/** Unified business stay type labels — never expose internal workflow terms. */
+export function stayTypeBusinessLabel(
+  input: {
+    stayType?: StayType | string | null;
+    durationMode?: string | null;
+  },
+  audience: StayLabelAudience = 'admin',
+): string {
+  const mode = input.durationMode ?? null;
+  if (mode === 'reserve') return 'Bed Hold';
+
+  if (mode === 'daily') return 'Daily Stay';
+  if (mode === 'weekly') return 'Weekly Stay';
+
   const stay =
     input.stayType && isStayType(String(input.stayType))
       ? (input.stayType as StayType)
-      : stayTypeFromPricingMode(input.durationMode ?? 'open_ended');
-  return stay === 'monthly_stay' ? 'Monthly' : 'Fixed date';
+      : stayTypeFromPricingMode(mode ?? 'open_ended');
+
+  if (stay === 'monthly_stay') {
+    return audience === 'customer' ? 'Live here (Monthly)' : 'Monthly Stay';
+  }
+  return audience === 'customer' ? 'Short Stay' : 'Short Stay';
+}
+
+/** Payment category label (separate from stay type). */
+export function paymentCategoryBusinessLabel(kind: string): string {
+  switch (kind) {
+    case 'rent':
+      return 'Rent collection';
+    case 'electricity':
+      return 'Electricity';
+    case 'extension':
+      return 'Extension';
+    case 'deposit_link':
+      return 'Deposit collection';
+    case 'qr':
+      return 'New stay payment';
+    default:
+      return 'Payment';
+  }
+}
+
+/** Admin-facing booking lifecycle status — no raw enum values. */
+export function adminBookingStatusLabel(status: string | null | undefined): string {
+  if (!status) return 'Unknown';
+  switch (status) {
+    case 'draft':
+      return 'Draft';
+    case 'pending_payment':
+      return 'Awaiting payment';
+    case 'pending_approval':
+      return 'Awaiting review';
+    case 'confirmed':
+      return 'Confirmed';
+    case 'completed':
+      return 'Completed';
+    case 'cancelled':
+      return 'Cancelled';
+    case 'superseded':
+      return 'Superseded';
+    case 'refunded':
+      return 'Refunded';
+    default:
+      return status.replace(/_/g, ' ');
+  }
 }
 
 export function stayTypeBillingTag(stayType: StayType): string {

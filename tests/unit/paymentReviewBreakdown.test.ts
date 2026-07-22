@@ -19,7 +19,7 @@ function baseItem(
     bookingCode: 'APG-1',
     roomNumber: '204',
     bedCode: 'B2',
-    paymentTypeLabel: 'Reservation Request',
+    paymentTypeLabel: 'Short Stay',
     title: 'Reservation',
     subtitle: 'Booking checkout',
     screenshotUrl: '',
@@ -55,11 +55,26 @@ describe('buildPaymentReviewBreakdown', () => {
         monthlyRentPaise: null,
         depositRequiredPaise: 33_000,
         durationMode: 'fixed_stay',
-        stayType: null,
+        stayType: 'fixed_date_stay',
         bookingStatus: 'pending_payment',
         subtotalPaise: 66_000,
         discountPaise: 0,
         rentDuePaise: 66_000,
+      },
+      bookingContext: {
+        bookingCode: 'APG-1',
+        bookingType: 'Short Stay',
+        pgName: 'Shanti Nagar - Awesome PG',
+        roomNumber: '204',
+        bedCode: 'B2',
+        moveInDate: '2026-07-01',
+        moveOutDate: '2026-07-03',
+        duration: '2 Days',
+        pricingRule: 'Daily',
+        rentCalculation: 'Quoted rent for stay',
+        rentAmountPaise: 66_000,
+        depositPolicy: '50% deposit required',
+        requiredDepositPaise: 33_000,
       },
       bookingPaymentReview: {
         bookingCode: 'APG-1',
@@ -76,7 +91,7 @@ describe('buildPaymentReviewBreakdown', () => {
     });
 
     const b = buildPaymentReviewBreakdown(item);
-    assert.equal(b.bookingType, 'Reservation Booking');
+    assert.equal(b.bookingType, 'Short Stay');
     assert.equal(b.roomBed, '204 • Bed B2');
     assert.equal(b.stayDuration, '2 Days');
     assert.equal(b.roomChargesDuePaise, 66_000);
@@ -211,5 +226,40 @@ describe('buildPaymentReviewBreakdown', () => {
     assert.equal(snap.roomChargesPaidPaise, 66_000);
     assert.equal(snap.securityDepositPaidPaise, 33_000);
     assert.equal(snap.totalAmountReceivedPaise, 99_000);
+  });
+
+  test('proof snapshot prior does not create false excess when received matches frozen total', () => {
+    const item = baseItem({
+      kind: 'qr',
+      amountPaise: 511_100,
+      expectedTotalPaise: 511_100,
+      submittedAmountPaise: 511_100,
+      expectedLines: [
+        { label: 'Rent', amountPaise: 66_000 },
+        { label: 'Deposit', amountPaise: 33_000 },
+        { label: 'Prior outstanding', amountPaise: 412_100 },
+      ],
+      bookingPaymentReview: {
+        bookingCode: 'APG-1',
+        bookingTotalDuePaise: 511_100,
+        amountSubmittedPaise: 511_100,
+        rentDuePaise: 66_000,
+        depositCashDuePaise: 33_000,
+        priorOutstandingDuePaise: 412_100,
+        rentPaisePaid: 66_000,
+        depositPaisePaid: 33_000,
+        depositDuePaise: 0,
+        isFullPayment: true,
+        canPartialApprove: false,
+        liveCheckoutTotalPaise: 99_000,
+        proofSnapshotFrozen: true,
+      },
+    });
+
+    const b = buildPaymentReviewBreakdown(item);
+    assert.equal(b.totalExpectedPaise, 511_100);
+    assert.equal(b.differenceTone, 'exact');
+    assert.equal(b.extraReceivedPaise, 0);
+    assert.equal(b.priorOutstandingDuePaise, 412_100);
   });
 });

@@ -99,12 +99,14 @@ describe('booking payment review acceptance contract', () => {
     assert.equal(isPaymentRecordEligibleForReview('approved', true), false);
   });
 
-  test('4 — stale deep link shows already-approved message without crashing', () => {
-    const page = read('app/(admin)/admin/operations/page.tsx');
-    assert.match(page, /staleFocusReview/);
-    assert.match(page, /PAYMENT_ALREADY_APPROVED_MESSAGE/);
-    assert.match(page, /AdminSectionErrorBoundary/);
-    assert.doesNotMatch(page, /throw new Error/);
+  test('4 — stale deep link redirects safely without crashing', () => {
+    const operationsPage = read('app/(admin)/admin/operations/page.tsx');
+    assert.match(operationsPage, /paymentReviewWorkspaceHref\(focus\)/);
+
+    const reviewPage = read('app/(admin)/admin/payment-review/[reviewKey]/page.tsx');
+    assert.match(reviewPage, /already_processed/);
+    assert.match(reviewPage, /AdminSectionErrorBoundary/);
+    assert.doesNotMatch(reviewPage, /throw new Error/);
   });
 
   test('5 — re-approve returns already-approved message (no throw)', () => {
@@ -171,7 +173,7 @@ describe('payment already approved message SSOT', () => {
     assert.equal(PAYMENT_ALREADY_APPROVED_MESSAGE, 'This payment has already been approved.');
     assert.match(read('app/api/payment-record/[id]/route.ts'), /PAYMENT_ALREADY_APPROVED_MESSAGE/);
     assert.match(
-      read('src/components/admin/operations/OperationsPaymentReviewsPanel.tsx'),
+      read('app/(admin)/admin/payments/actions.ts'),
       /PAYMENT_ALREADY_APPROVED_MESSAGE/,
     );
   });

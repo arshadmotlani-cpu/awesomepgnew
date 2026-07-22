@@ -304,6 +304,31 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
     transactionRef: input.transactionRef,
   };
 
+  const { getBookingPaymentContext } = await import('./depositCollection');
+  const paymentCtx = await getBookingPaymentContext(booking.id);
+  if (!paymentCtx) throw new Error('Could not load booking payment context.');
+
+  const {
+    buildBookingPaymentProofSnapshot,
+    proofSnapshotRowValues,
+    validateSubmittedAmountAgainstProofSnapshot,
+  } = await import('@/src/lib/billing/bookingPaymentProofSnapshot');
+
+  const proofSnapshot = buildBookingPaymentProofSnapshot({
+    rentDuePaise: paymentCtx.breakdown.rentDuePaise,
+    depositCashDuePaise: paymentCtx.breakdown.depositCashDuePaise,
+    priorOutstandingPaise: paymentCtx.priorOutstanding?.totalPaise ?? 0,
+    priorOutstandingItems: paymentCtx.priorOutstanding?.items ?? [],
+  });
+
+  const amountCheck = validateSubmittedAmountAgainstProofSnapshot(
+    input.amountPaise,
+    proofSnapshot,
+  );
+  if (!amountCheck.ok) throw new Error(amountCheck.message);
+
+  const snapshotValues = proofSnapshotRowValues(proofSnapshot);
+
   const row = await db.transaction(async (tx) => {
     const [dupInTx] = await tx
       .select({
@@ -330,6 +355,7 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
           amountPaise: input.amountPaise,
           paymentScreenshotUrl: proof.paymentScreenshotUrl,
           transactionRef: proof.transactionRef?.trim() || null,
+          ...snapshotValues,
           reviewedByAdminId: null,
           reviewedAt: null,
           updatedAt: new Date(),
@@ -350,6 +376,7 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
           transactionRef: proof.transactionRef?.trim() || null,
           status: 'pending',
           bookingId: booking.id,
+          ...snapshotValues,
         })
         .returning();
       if (!inserted) throw new Error('Could not create payment record.');
@@ -464,6 +491,12 @@ export async function getQrBookingPaymentReview(recordId: string) {
       id: pgPaymentRecords.id,
       bookingId: pgPaymentRecords.bookingId,
       amountPaise: pgPaymentRecords.amountPaise,
+      status: pgPaymentRecords.status,
+      proofSnapshotCheckoutTotalPaise: pgPaymentRecords.proofSnapshotCheckoutTotalPaise,
+      proofSnapshotRentDuePaise: pgPaymentRecords.proofSnapshotRentDuePaise,
+      proofSnapshotDepositDuePaise: pgPaymentRecords.proofSnapshotDepositDuePaise,
+      proofSnapshotPriorOutstandingPaise: pgPaymentRecords.proofSnapshotPriorOutstandingPaise,
+      proofSnapshotPriorOutstandingJson: pgPaymentRecords.proofSnapshotPriorOutstandingJson,
     })
     .from(pgPaymentRecords)
     .where(eq(pgPaymentRecords.id, recordId))
@@ -474,20 +507,53 @@ export async function getQrBookingPaymentReview(recordId: string) {
   const ctx = await getBookingPaymentContext(record.bookingId);
   if (!ctx) return null;
 
+  const {
+    buildBookingPaymentProofSnapshot,
+    resolveBookingProofExpectedCheckout,
+  } = await import('@/src/lib/billing/bookingPaymentProofSnapshot');
+
+  const liveSnapshot = buildBookingPaymentProofSnapshot({
+    rentDuePaise: ctx.breakdown.rentDuePaise,
+    depositCashDuePaise: ctx.breakdown.depositCashDuePaise,
+    priorOutstandingPaise: ctx.priorOutstanding?.totalPaise ?? 0,
+    priorOutstandingItems: ctx.priorOutstanding?.items ?? [],
+  });
+
+  const expected = resolveBookingProofExpectedCheckout(record, liveSnapshot);
+
   const bookingPaymentPaise = record.amountPaise;
-  const split = splitBookingPayment(ctx, bookingPaymentPaise);
+  const split = splitBookingPayment(
+    {
+      ...ctx,
+      pricingSnapshot: {
+        ...(ctx.pricingSnapshot ?? {}),
+        priorOutstanding:
+          expected.priorOutstandingPaise > 0
+            ? {
+                totalPaise: expected.priorOutstandingPaise,
+                items: expected.priorOutstandingItems,
+              }
+            : undefined,
+      },
+    },
+    bookingPaymentPaise,
+  );
 
   return {
     bookingCode: ctx.bookingCode,
-    bookingTotalDuePaise: ctx.bookingTotalDuePaise,
+    bookingTotalDuePaise: expected.checkoutTotalPaise,
     amountSubmittedPaise: record.amountPaise,
-    rentDuePaise: split.rentDuePaise,
-    depositCashDuePaise: split.depositCashDuePaise,
+    rentDuePaise: expected.rentDuePaise,
+    depositCashDuePaise: expected.depositDuePaise,
+    priorOutstandingDuePaise: expected.priorOutstandingPaise,
+    priorOutstandingItems: expected.priorOutstandingItems,
     rentPaisePaid: split.rentPaisePaid,
     depositPaisePaid: split.depositPaisePaid,
     depositDuePaise: split.depositDuePaise,
-    isFullPayment: split.isFullPayment,
+    isFullPayment: bookingPaymentPaise >= expected.checkoutTotalPaise,
     canPartialApprove: !split.isFullPayment && split.depositPaisePaid > 0,
+    liveCheckoutTotalPaise: liveSnapshot.checkoutTotalPaise,
+    proofSnapshotFrozen: record.proofSnapshotCheckoutTotalPaise != null,
   };
 }
 

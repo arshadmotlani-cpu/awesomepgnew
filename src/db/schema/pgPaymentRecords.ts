@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
-import { bigint, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { bigint, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import type { PriorOutstandingItem } from '@/src/lib/billing/bookingCheckoutTotals';
 import { pgPaymentRecordStatusEnum } from './enums';
 import { bookings } from './bookings';
 import { customers } from './customers';
@@ -27,6 +28,17 @@ export const pgPaymentRecords = pgTable(
     status: pgPaymentRecordStatusEnum('status').notNull().default('pending'),
     paymentScreenshotUrl: text('payment_screenshot_url'),
     transactionRef: text('transaction_ref'),
+    proofSnapshotCheckoutTotalPaise: bigint('proof_snapshot_checkout_total_paise', {
+      mode: 'number',
+    }),
+    proofSnapshotRentDuePaise: bigint('proof_snapshot_rent_due_paise', { mode: 'number' }),
+    proofSnapshotDepositDuePaise: bigint('proof_snapshot_deposit_due_paise', { mode: 'number' }),
+    proofSnapshotPriorOutstandingPaise: bigint('proof_snapshot_prior_outstanding_paise', {
+      mode: 'number',
+    }),
+    proofSnapshotPriorOutstandingJson: jsonb('proof_snapshot_prior_outstanding_json').$type<
+      PriorOutstandingItem[]
+    >(),
     reviewedByAdminId: uuid('reviewed_by_admin_id'),
     reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

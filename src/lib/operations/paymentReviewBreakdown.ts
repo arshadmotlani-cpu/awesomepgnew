@@ -27,9 +27,13 @@ export type PaymentReviewBreakdown = {
 };
 
 function differenceTone(diff: number): PaymentReviewBreakdown['differenceTone'] {
-  if (diff === 0) return 'exact';
+  if (Math.abs(diff) <= 100) return 'exact';
   if (diff < 0) return 'short';
   return 'excess';
+}
+
+function resolveBookingTypeLabel(item: PendingPaymentReviewItem): string {
+  return item.bookingContext?.bookingType ?? item.paymentTypeLabel;
 }
 
 export function buildPaymentReviewBreakdown(
@@ -42,11 +46,7 @@ export function buildPaymentReviewBreakdown(
     .filter(Boolean)
     .join(' • ');
 
-  const bookingType =
-    item.bookingContext?.bookingType ??
-    (item.lifecycleState === 'reservation_request'
-      ? 'Reservation Booking'
-      : item.paymentTypeLabel);
+  const bookingType = resolveBookingTypeLabel(item);
 
   const stayDuration =
     item.bookingContext?.duration ??
@@ -61,8 +61,6 @@ export function buildPaymentReviewBreakdown(
 
   if (item.kind === 'qr' && item.bookingPaymentReview) {
     const review = item.bookingPaymentReview;
-    const details = item.bookingDetails;
-    // Prefer review splits (already computed from snapshot-aware dues).
     const rentDue = review.rentDuePaise;
     const depositDue = review.depositCashDuePaise;
     const roomChargesPaid = review.rentPaisePaid;
@@ -70,22 +68,22 @@ export function buildPaymentReviewBreakdown(
     const depositRemaining = review.depositDuePaise;
     const priorDue = Math.max(
       0,
-      (details?.priorOutstandingItems ?? []).reduce((s, i) => s + i.amountPaise, 0),
+      review.priorOutstandingDuePaise ??
+        item.expectedLines?.find((l) => l.label.toLowerCase().includes('prior'))?.amountPaise ??
+        0,
     );
     const allocatedCore = roomChargesPaid + depositPaid;
     const priorPaid = Math.min(priorDue, Math.max(0, receivedPaise - allocatedCore));
     const extra = Math.max(0, receivedPaise - allocatedCore - priorPaid);
-    const expectedFromDues = rentDue + depositDue + priorDue;
     const totalExpected =
-      item.expectedTotalPaise > 0 ? item.expectedTotalPaise : expectedFromDues;
+      item.expectedTotalPaise > 0
+        ? item.expectedTotalPaise
+        : rentDue + depositDue + priorDue;
     const difference = receivedPaise - totalExpected;
     const remaining = Math.max(0, totalExpected - receivedPaise);
 
     return {
-      bookingType:
-        item.lifecycleState === 'reservation_request'
-          ? 'Reservation Booking'
-          : item.bookingContext?.bookingType ?? 'Booking Payment',
+      bookingType,
       pgName: item.pgName,
       roomBed: roomBed || '—',
       stayDuration,
@@ -96,7 +94,7 @@ export function buildPaymentReviewBreakdown(
       receivedPaise,
       differencePaise: difference,
       differenceTone: differenceTone(difference),
-      statusLabel: 'Awaiting Approval',
+      statusLabel: 'Awaiting review',
       roomChargesPaidPaise: roomChargesPaid,
       depositPaidPaise: depositPaid,
       depositRemainingPaise: depositRemaining,
@@ -107,7 +105,6 @@ export function buildPaymentReviewBreakdown(
     };
   }
 
-  // Rent / electricity / extension / deposit_link
   const totalExpected =
     item.invoiceAmountPaise != null
       ? item.invoiceAmountPaise
@@ -121,7 +118,7 @@ export function buildPaymentReviewBreakdown(
   const depositPaid = Math.min(remainder, depositDue || (isDepositOnly ? totalExpected : 0));
 
   return {
-    bookingType: item.paymentTypeLabel,
+    bookingType,
     pgName: item.pgName,
     roomBed: roomBed || '—',
     stayDuration,
@@ -132,7 +129,7 @@ export function buildPaymentReviewBreakdown(
     receivedPaise,
     differencePaise: difference,
     differenceTone: differenceTone(difference),
-    statusLabel: 'Awaiting Approval',
+    statusLabel: 'Awaiting review',
     roomChargesPaidPaise: roomChargesPaid,
     depositPaidPaise: isDepositOnly ? Math.min(receivedPaise, totalExpected) : depositPaid,
     depositRemainingPaise: isDepositOnly
@@ -163,24 +160,62 @@ export function allocationSnapshotForApproval(item: PendingPaymentReviewItem): {
 
 /** Manual allocation UI only when payment cannot be auto-approved with the suggested split. */
 export function paymentReviewNeedsManualAllocation(item: PendingPaymentReviewItem): boolean {
-  if (item.kind !== 'qr' || !item.bookingId || !item.bookingPaymentReview) {
+  if (!item.bookingId && item.kind === 'qr') return true;
+  if (item.kind === 'qr' && item.bookingPaymentReview) {
+    const breakdown = buildPaymentReviewBreakdown(item);
+    if (breakdown.differenceTone !== 'exact') return true;
+    if (item.bookingPaymentReview.canPartialApprove) return true;
     return false;
   }
   const breakdown = buildPaymentReviewBreakdown(item);
-  if (breakdown.differenceTone !== 'exact') return true;
-  if (item.overpaidPaise > 0) return true;
-  if (item.bookingPaymentReview.canPartialApprove) return true;
-  return false;
+  return breakdown.differenceTone !== 'exact';
 }
 
 export function paymentReviewSuggestedAllocation(item: PendingPaymentReviewItem): {
   rentPaise: number;
   depositPaise: number;
+  priorOutstandingPaise: number;
+  electricityPaise: number;
+  otherPaise: number;
 } {
   const breakdown = buildPaymentReviewBreakdown(item);
   const review = item.bookingPaymentReview;
+  const rentPaise = review?.rentPaisePaid ?? review?.rentDuePaise ?? breakdown.roomChargesDuePaise;
+  const depositPaise =
+    review?.depositPaisePaid ?? review?.depositCashDuePaise ?? breakdown.securityDepositDuePaise;
+  const priorOutstandingPaise = Math.min(
+    breakdown.priorOutstandingDuePaise,
+    Math.max(0, breakdown.receivedPaise - rentPaise - depositPaise),
+  );
+
+  if (item.kind === 'electricity') {
+    return {
+      rentPaise: 0,
+      depositPaise: 0,
+      priorOutstandingPaise: 0,
+      electricityPaise: Math.min(breakdown.receivedPaise, breakdown.totalExpectedPaise),
+      otherPaise: 0,
+    };
+  }
+
+  if (item.kind === 'deposit_link') {
+    return {
+      rentPaise: 0,
+      depositPaise: Math.min(breakdown.receivedPaise, breakdown.totalExpectedPaise),
+      priorOutstandingPaise: 0,
+      electricityPaise: 0,
+      otherPaise: 0,
+    };
+  }
+
   return {
-    rentPaise: review?.rentDuePaise ?? breakdown.roomChargesDuePaise,
-    depositPaise: review?.depositCashDuePaise ?? breakdown.securityDepositDuePaise,
+    rentPaise,
+    depositPaise,
+    priorOutstandingPaise,
+    electricityPaise: 0,
+    otherPaise: Math.max(
+      0,
+      breakdown.receivedPaise - rentPaise - depositPaise - priorOutstandingPaise,
+    ),
   };
 }

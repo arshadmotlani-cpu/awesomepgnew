@@ -8,7 +8,10 @@ import {
 import { diffDays, parseDate } from '@/src/lib/dates';
 import { titleCase } from '@/src/lib/format';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
-import { stayTypeLabel, type StayType } from '@/src/lib/stayType';
+import {
+  paymentCategoryBusinessLabel,
+  stayTypeBusinessLabel,
+} from '@/src/lib/stayType';
 
 export type PaymentBookingContextView = {
   bookingCode: string | null;
@@ -64,34 +67,18 @@ function bookingTypeForItem(
 ): string {
   switch (item.kind) {
     case 'rent':
-      return 'Rent Payment';
     case 'electricity':
-      return 'Electricity Payment';
     case 'extension':
-      return 'Stay Extension';
     case 'deposit_link':
-      return 'Deposit Collection';
+      return paymentCategoryBusinessLabel(item.kind);
     case 'qr':
-      if (details?.durationMode === 'reserve') return 'Booking Hold';
-      if (
-        details?.stayType === 'monthly_stay' ||
-        details?.durationMode === 'open_ended' ||
-        details?.durationMode === 'monthly'
-      ) {
-        return 'Monthly Stay';
+      if (details) {
+        return stayTypeBusinessLabel(
+          { stayType: details.stayType, durationMode: details.durationMode },
+          'ops',
+        );
       }
-      if (
-        details?.stayType === 'fixed_date_stay' ||
-        details?.durationMode === 'fixed_stay' ||
-        details?.durationMode === 'daily' ||
-        details?.durationMode === 'weekly'
-      ) {
-        return 'Fixed Stay';
-      }
-      if (details?.stayType && (details.stayType === 'monthly_stay' || details.stayType === 'fixed_date_stay')) {
-        return stayTypeLabel(details.stayType as StayType);
-      }
-      return item.paymentTypeLabel === 'Partial payment' ? 'New Booking (partial)' : 'New Booking';
+      return paymentCategoryBusinessLabel('qr');
   }
 }
 

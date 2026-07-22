@@ -26,6 +26,7 @@ function revalidatePaymentReviewSurfaces(pgId: string) {
   revalidatePath('/admin/billing');
   revalidatePath(PAYMENT_REVIEW_PATH, 'page');
   revalidatePath(PAYMENT_REVIEW_PATH, 'layout');
+  revalidatePath('/admin/payment-review', 'layout');
   revalidatePath('/admin/revenue');
   revalidatePath('/admin/revenue/billing');
   revalidatePath(`/admin/pgs/${pgId}/collections`);

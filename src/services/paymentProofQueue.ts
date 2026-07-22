@@ -35,6 +35,7 @@ import {
   buildPaymentBookingContext,
   type BookingDetailsInput,
 } from '@/src/lib/operations/paymentBookingContextView';
+import { paymentCategoryBusinessLabel, stayTypeBusinessLabel } from '@/src/lib/stayType';
 import { titleCase } from '@/src/lib/format';
 import { formatDate as formatIsoDate } from '@/src/lib/dates';
 import { dedupePendingPaymentReviews } from '@/src/lib/operations/dedupePendingPaymentReviews';
@@ -314,11 +315,27 @@ function buildQrReviewItem(
 ): PendingPaymentReviewItem {
   const priorBookingDeposits = priorBookingDepositsInput ?? [];
   const isBookingCheckout = Boolean(p.bookingCode);
+  const stayLabel =
+    bookingDetails?.stayType || bookingDetails?.durationMode
+      ? stayTypeBusinessLabel(
+          {
+            stayType: bookingDetails?.stayType,
+            durationMode: bookingDetails?.durationMode,
+          },
+          'ops',
+        )
+      : null;
   const paymentTypeLabel = isBookingCheckout
     ? bookingPaymentReview?.canPartialApprove
-      ? 'Partial payment'
-      : 'Reservation Request'
-    : p.categoryName;
+      ? `${stayLabel ?? 'New stay'} · Partial payment`
+      : (stayLabel ?? paymentCategoryBusinessLabel('qr'))
+    : paymentCategoryBusinessLabel(
+        p.categoryName?.toLowerCase().includes('electric')
+          ? 'electricity'
+          : p.categoryName?.toLowerCase().includes('deposit')
+            ? 'deposit_link'
+            : 'rent',
+      );
 
   let expectedLines: PaymentReviewExpectedLine[] = [];
   let expectedTotalPaise = p.amountPaise;
@@ -333,6 +350,12 @@ function buildQrReviewItem(
       { label: 'Rent', amountPaise: bookingPaymentReview.rentDuePaise },
       { label: 'Deposit', amountPaise: bookingPaymentReview.depositCashDuePaise },
     ];
+    if ((bookingPaymentReview.priorOutstandingDuePaise ?? 0) > 0) {
+      expectedLines.push({
+        label: 'Prior outstanding',
+        amountPaise: bookingPaymentReview.priorOutstandingDuePaise ?? 0,
+      });
+    }
     expectedTotalPaise = bookingPaymentReview.bookingTotalDuePaise;
     receivedPaise = bookingPaymentReview.amountSubmittedPaise;
     outstandingAfterApprovalPaise = bookingPaymentReview.depositDuePaise;
@@ -379,7 +402,7 @@ function buildQrReviewItem(
       bedCode,
       paymentTypeLabel,
       subtitle: isBookingCheckout
-        ? 'Booking checkout — rent, deposit & reservation'
+        ? 'New stay checkout — rent, deposit & prior balance'
         : p.month
           ? `Month ${p.month}`
           : 'QR payment',
@@ -401,10 +424,10 @@ function buildQrReviewItem(
     bedCode,
     paymentTypeLabel,
     title: isBookingCheckout
-      ? `${p.customerName} · Reservation Request ${p.bookingCode}`
+      ? `${p.customerName} · ${stayLabel ?? paymentCategoryBusinessLabel('qr')} ${p.bookingCode ?? ''}`.trim()
       : `${p.customerName} · ${p.categoryName}`,
     subtitle: isBookingCheckout
-      ? 'Booking checkout — rent, deposit & reservation'
+      ? 'New stay checkout — rent, deposit & prior balance'
       : p.month
         ? `Month ${p.month}`
         : 'QR payment',
@@ -429,6 +452,7 @@ function buildQrReviewItem(
     bookingContext,
     lifecycleState: isBookingCheckout ? 'reservation_request' : 'payment_collection',
     submittedAmountPaise: receivedPaise,
+    referenceNumber: p.transactionRef ?? null,
     proofSubmittedAt: p.createdAt?.toISOString?.() ?? null,
   };
 }
@@ -856,6 +880,14 @@ export async function listPendingPaymentReviews(
   session: AdminSession,
 ): Promise<PendingPaymentReviewItem[]> {
   return getPendingPaymentReviewsForRequest(session);
+}
+
+export async function getPendingPaymentReviewByKey(
+  session: AdminSession,
+  reviewKey: string,
+): Promise<PendingPaymentReviewItem | null> {
+  const items = await listPendingPaymentReviews(session);
+  return items.find((i) => i.key === reviewKey) ?? null;
 }
 
 /** Next item in FIFO review queue after the current key (excludes current). */

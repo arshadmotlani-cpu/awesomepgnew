@@ -73,7 +73,7 @@ describe('buildPaymentBookingContext', () => {
       },
     );
 
-    assert.equal(context.bookingType, 'Fixed Stay');
+    assert.equal(context.bookingType, 'Short Stay');
     assert.equal(context.pricingRule, 'Weekly');
     assert.equal(context.duration, '7 nights');
     assert.equal(context.depositPolicy, '50% deposit required');
