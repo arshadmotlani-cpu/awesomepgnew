@@ -47,8 +47,6 @@ export type PaymentReviewWorkspaceBookingContext = {
   occupancyLabel: string | null;
   monthlyRentPaise: number | null;
   depositRequiredPaise: number;
-  depositReceivedPaise: number;
-  depositOutstandingPaise: number;
   checkInDate: string | null;
   expectedMoveInDate: string | null;
   expectedCheckoutDate: string | null;
@@ -138,8 +136,6 @@ async function loadBookingContext(
           : row.reservationStatus,
     monthlyRentPaise: Math.max(0, row.subtotalPaise - row.discountPaise),
     depositRequiredPaise: balances?.deposit.requiredPaise ?? row.depositPaise,
-    depositReceivedPaise: balances?.deposit.receivedPaise ?? 0,
-    depositOutstandingPaise: balances?.deposit.outstandingPaise ?? 0,
     checkInDate,
     expectedMoveInDate: checkInDate,
     expectedCheckoutDate: row.expectedCheckoutDate,

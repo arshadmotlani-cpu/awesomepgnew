@@ -147,10 +147,10 @@ export function PaymentAllocationEditor({
             onChange={setAmountReceivedRupees}
           />
           {showRent ? (
-            <AllocationField label="Rent" value={rentRupees} onChange={setRentRupees} />
+            <AllocationField label="Rent received" value={rentRupees} onChange={setRentRupees} />
           ) : null}
           {showDeposit ? (
-            <AllocationField label="Deposit" value={depositRupees} onChange={setDepositRupees} />
+            <AllocationField label="Deposit received" value={depositRupees} onChange={setDepositRupees} />
           ) : null}
           {showElectricity ? (
             <AllocationField

@@ -92,6 +92,30 @@ export async function getBookingMoneyBalancesForReviewAction(bookingId: string) 
   return { ok: true as const, balances };
 }
 
+export async function savePendingPaymentProofCorrectionAction(
+  recordId: string,
+  pgId: string,
+  allocation: AdminPaymentAllocationInput,
+) {
+  const session = await requireAdminPermission('payments:write');
+  const { savePendingPaymentProofCorrection } = await import(
+    '@/src/services/paymentProofCorrection'
+  );
+  const result = await savePendingPaymentProofCorrection(session, {
+    recordId,
+    pgId,
+    allocation,
+  });
+  if (!result.ok) return result;
+  revalidatePaymentReviewSurfaces(pgId);
+  revalidatePath('/admin/collections');
+  revalidatePath('/admin/deposits');
+  if (result.ok) {
+    revalidatePath(`/admin/payment-review`, 'layout');
+  }
+  return result;
+}
+
 export async function approvePaymentProofWithAllocationAction(
   kind: PendingPaymentReviewItem['kind'],
   entityId: string,

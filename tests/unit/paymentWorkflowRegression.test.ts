@@ -15,6 +15,7 @@ import {
   shouldFreezeSubmittedSnapshotOnRepair,
 } from '@/src/lib/operations/paymentReviewProofAmount';
 import { suggestPaymentAllocation } from '@/src/lib/billing/bookingMoneyBalances';
+import { projectBalancesAfterAllocation } from '@/src/services/paymentProofCorrection';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 
 const RENT = 412_100;
@@ -242,5 +243,18 @@ describe('payment workflow regression', () => {
     assert.match(qr, /proofSnapshotRowValues\(proofSnapshot, input\.amountPaise\)/);
     assert.match(qr, /proofSnapshotSubmittedPaise/);
     assert.match(qr, /shouldFreezeSubmittedSnapshotOnRepair/);
+    assert.match(qr, /correctPendingPaymentProofAmount/);
+  });
+
+  test('admin proof correction projects partial deposit outstanding', () => {
+    const projected = projectBalancesAfterAllocation({
+      rentRequiredPaise: RENT,
+      depositRequiredPaise: DEPOSIT,
+      rentAllocatedPaise: RENT,
+      depositAllocatedPaise: PARTIAL_DEPOSIT_PAID,
+    });
+    assert.equal(projected.rent.outstandingPaise, 0);
+    assert.equal(projected.deposit.receivedPaise, PARTIAL_DEPOSIT_PAID);
+    assert.equal(projected.deposit.outstandingPaise, PARTIAL_DEPOSIT_OUTSTANDING);
   });
 });

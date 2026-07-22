@@ -874,11 +874,22 @@ export async function reviewPaymentRecord(
           );
         }
 
+        const { correctPendingPaymentProofAmount } = await import('./paymentProofCorrection');
+        const correction = await correctPendingPaymentProofAmount({
+          recordId,
+          verifiedAmountPaise: confirmedReceivedPaise,
+          adminId: session.adminId,
+          reason: allocation.allocationNotes ?? 'Admin allocation approval',
+        });
+        if (!correction.ok) {
+          throw new Error(correction.reason);
+        }
+
         const paymentResult = await recordPaymentSuccess({
           provider: 'upi_manual',
           providerPaymentId: `qr_record_${recordId}`,
           providerOrderId: record.transactionRef ?? recordId,
-          amountPaise: record.amountPaise,
+          amountPaise: confirmedReceivedPaise,
           bookingCode: booking.bookingCode,
           rawPayload: {
             pgPaymentRecordId: recordId,
