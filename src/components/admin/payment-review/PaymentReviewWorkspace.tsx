@@ -16,6 +16,7 @@ import { buildPaymentReviewVerification } from '@/src/lib/operations/paymentRevi
 import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import type { PaymentReviewWorkspaceData } from '@/src/services/paymentReviewWorkspace';
 
+import { refreshAdminNavBadges } from '@/src/lib/admin/refreshAdminNavBadges';
 import { stashOperationsApprovedToast } from '@/src/lib/operations/operationsActionToastFlash';
 
 function differenceDisplay(differencePaise: number, tone: 'exact' | 'short' | 'excess'): {
@@ -109,6 +110,7 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
       showToast(successMessage, 'success');
 
       stashOperationsApprovedToast(successMessage);
+      refreshAdminNavBadges();
 
       const redirectTo = operationsFilterHref('waiting_for_approval');
 
@@ -165,6 +167,7 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
           onClose={() => setRejectOpen(false)}
           onRejected={({ nextKey }) => {
             setRejectOpen(false);
+            refreshAdminNavBadges();
             if (nextKey) {
               router.push(paymentReviewWorkspaceHref(nextKey));
             } else {
@@ -288,51 +291,51 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
             />
           </aside>
         </div>
-      </div>
 
-      <footer className="sticky bottom-0 z-10 mt-2 shrink-0 rounded-2xl border border-white/10 bg-[#1A1F27]/95 shadow-[0_-12px_32px_rgba(0,0,0,0.35)] backdrop-blur-sm">
-        <div className="flex w-full items-center justify-between gap-4 px-4 py-2.5 sm:px-5">
-          <Link
-            href={operationsFilterHref('waiting_for_approval')}
-            aria-disabled={actionsDisabled}
-            className={`rounded-lg border border-white/10 px-3.5 py-2 text-sm font-medium text-apg-silver transition hover:bg-white/5 hover:text-white ${
-              actionsDisabled ? 'pointer-events-none opacity-50' : ''
-            }`}
-            onClick={(e) => {
-              if (actionsDisabled) e.preventDefault();
-            }}
-          >
-            Back to queue
-          </Link>
-          <div className="flex shrink-0 items-center gap-2">
-            {item.canReject ? (
+        <footer className="rounded-2xl border border-white/10 bg-[#1A1F27] p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <Link
+              href={operationsFilterHref('waiting_for_approval')}
+              aria-disabled={actionsDisabled}
+              className={`rounded-lg border border-white/10 px-3.5 py-2 text-sm font-medium text-apg-silver transition hover:bg-white/5 hover:text-white ${
+                actionsDisabled ? 'pointer-events-none opacity-50' : ''
+              }`}
+              onClick={(e) => {
+                if (actionsDisabled) e.preventDefault();
+              }}
+            >
+              Back to queue
+            </Link>
+            <div className="flex shrink-0 items-center gap-2">
+              {item.canReject ? (
+                <button
+                  type="button"
+                  disabled={actionsDisabled}
+                  onClick={() => setRejectOpen(true)}
+                  className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-200 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Reject
+                </button>
+              ) : null}
               <button
                 type="button"
                 disabled={actionsDisabled}
-                onClick={() => setRejectOpen(true)}
-                className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-200 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => void handleApprove()}
+                className="inline-flex min-w-[120px] items-center justify-center gap-2 rounded-lg bg-apg-orange px-5 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Reject
+                {busy && !approved ? (
+                  <>
+                    <ApproveSpinner />
+                    Approving…
+                  </>
+                ) : (
+                  'Approve'
+                )}
               </button>
-            ) : null}
-            <button
-              type="button"
-              disabled={actionsDisabled}
-              onClick={() => void handleApprove()}
-              className="inline-flex min-w-[120px] items-center justify-center gap-2 rounded-lg bg-apg-orange px-5 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {busy && !approved ? (
-                <>
-                  <ApproveSpinner />
-                  Approving…
-                </>
-              ) : (
-                'Approve'
-              )}
-            </button>
+            </div>
           </div>
-        </div>
-      </footer>
+        </footer>
+      </div>
     </div>
   );
 }

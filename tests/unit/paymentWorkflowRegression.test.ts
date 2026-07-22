@@ -229,9 +229,17 @@ describe('payment workflow regression', () => {
   test('Payment Review footer stays within main content column', () => {
     const workspace = read('src/components/admin/payment-review/PaymentReviewWorkspace.tsx');
     assert.doesNotMatch(workspace, /fixed inset-x-0 bottom-0/);
+    assert.doesNotMatch(workspace, /sticky bottom-0/);
     assert.doesNotMatch(workspace, /ml-auto[\s\S]*Back to queue/);
     assert.match(workspace, /Back to queue[\s\S]*Reject[\s\S]*Approve/);
     assert.match(workspace, /justify-between/);
+  });
+
+  test('Payment Review approval triggers immediate badge refresh', () => {
+    const workspace = read('src/components/admin/payment-review/PaymentReviewWorkspace.tsx');
+    const provider = read('src/components/admin/AdminLiveRefreshProvider.tsx');
+    assert.match(workspace, /refreshAdminNavBadges\(\)/);
+    assert.match(provider, /ADMIN_BADGES_REFRESH_EVENT/);
   });
 
   test('queue loader does not call getQrBookingPaymentReview on page load', () => {

@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { ADMIN_BADGES_REFRESH_EVENT } from '@/src/lib/admin/refreshAdminNavBadges';
 import type { AdminNavBadges } from '@/src/services/adminNavBadges';
 
 const BADGE_POLL_MS = 60_000;
@@ -73,11 +74,17 @@ export function AdminLiveRefreshProvider({
       if (document.visibilityState === 'visible') void pollBadges();
     }, BADGE_POLL_MS);
 
+    const onBadgesRefresh = () => {
+      void pollBadges();
+    };
+
     document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener(ADMIN_BADGES_REFRESH_EVENT, onBadgesRefresh);
 
     return () => {
       window.clearInterval(badgeTimer);
       document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener(ADMIN_BADGES_REFRESH_EVENT, onBadgesRefresh);
     };
   }, [pollBadges]);
 
