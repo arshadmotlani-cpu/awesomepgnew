@@ -27,6 +27,8 @@ import {
 import {
   defaultOperationsFilter,
   operationsFilterHref,
+  OPS_QUEUE_FILTERS,
+  OPS_QUEUE_LABELS,
   parseOperationsFilter,
   type OpsQueueFilter,
 } from '@/src/lib/operations/operationsFilterLinks';
@@ -37,10 +39,11 @@ import type { ResidentOpsQueueCategory } from '@/src/lib/residents/residentOpera
 import {
   isDismissedFromOperationsQueue,
   loadOperationsQueueDismissalIndex,
+  type OperationsQueueDismissalIndex,
 } from '@/src/services/operationsQueueDismissals';
 import { listPipelineCheckoutSettlements } from '@/src/services/checkoutSettlement';
 import { getPendingPaymentReviewsForRequest } from '@/src/services/paymentProofQueue';
-import { loadMoveOutPipelineBundle } from '@/src/services/moveOutPipelineService';
+import { loadMoveOutPipelineBundle, type MoveOutPipelineBundle } from '@/src/services/moveOutPipelineService';
 import { loadResidentOperationsResidentsPage } from '@/src/services/residentOperationsResidentsPage';
 import { repairTerminalCheckoutOperations } from '@/src/services/terminalCheckoutOperationsRepair';
 import { resolveTerminalCheckoutUnresolvedActions } from '@/src/services/unresolvedActionSync';
@@ -100,6 +103,64 @@ export type UnifiedOperationsQueue = {
   focusReviewKey: string | null;
   totalCount: number;
 };
+
+const EMPTY_MOVE_OUT_BUNDLE: MoveOutPipelineBundle = {
+  activeItems: [],
+  approvalItems: [],
+  settlementItems: [],
+  moveOutNoticeItems: [],
+  bedsReleasingItems: [],
+  counts: {
+    moveOutApprovalRequests: 0,
+    moveOutNotices: 0,
+    bedsReleasing30Days: 0,
+    activeCheckoutSettlements: 0,
+  },
+  activeVacatingRequestIds: [],
+  vacatingRows: [],
+  settlements: [],
+  depositHeldByBooking: {},
+  pipeline: [],
+};
+
+const EMPTY_DISMISSAL_INDEX: OperationsQueueDismissalIndex = {
+  customerIds: new Set(),
+  bookingIds: new Set(),
+  vacatingIds: new Set(),
+  settlementIds: new Set(),
+};
+
+function emptyOperationsFilterCounts(): Array<{ id: OpsQueueFilter; label: string; count: number }> {
+  return OPS_QUEUE_FILTERS.map((id) => ({ id, label: OPS_QUEUE_LABELS[id], count: 0 }));
+}
+
+/** Safe fallback when unified queue assembly fails — keeps admin shell pages alive. */
+export function emptyUnifiedOperationsQueue(
+  filterInput?: OpsQueueFilter | null,
+): UnifiedOperationsQueue {
+  const filterCounts = emptyOperationsFilterCounts();
+  return {
+    items: [],
+    filter: filterInput ?? 'waiting_for_approval',
+    filterCounts,
+    paymentReviews: [],
+    focusReviewKey: null,
+    totalCount: 0,
+  };
+}
+
+async function loadOperationsQueueSlice<T>(
+  label: string,
+  fallback: T,
+  load: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await load();
+  } catch (err) {
+    console.error(`[operations-queue] ${label} failed`, err);
+    return fallback;
+  }
+}
 
 function overdueReason(daysOverdue: number): string {
   if (daysOverdue <= 0) return 'Awaiting resident payment';
@@ -383,14 +444,41 @@ async function buildUnifiedOperationsQueue(
     checkoutSettlements,
     moveOutBundle,
   ] = await Promise.all([
-    loadResidentOperationsResidentsPage(session, null),
-    listPendingBookingApprovalsForSync(session),
-    getPendingPaymentReviewsForRequest(session),
-    loadOperationsQueueDismissalIndex(),
-    import('@/src/services/depositExpress').then((m) => m.listDepositDueBookings(session)),
-    listAdminElectricityInvoicesForReminders(),
-    listPipelineCheckoutSettlements(session),
-    loadMoveOutPipelineBundle(session, { syncSettlements: false }),
+    loadOperationsQueueSlice(
+      'residents queue',
+      {
+        commandCards: [],
+        queue: [],
+        allQueueCount: 0,
+        nextQueueItem: null,
+        journeyCounts: [],
+        blockedResidents: [],
+        recentActivity: [],
+        activeFilter: null,
+      } as unknown as Awaited<ReturnType<typeof loadResidentOperationsResidentsPage>>,
+      () => loadResidentOperationsResidentsPage(session, null),
+    ),
+    loadOperationsQueueSlice('booking approvals', [], () =>
+      listPendingBookingApprovalsForSync(session),
+    ),
+    loadOperationsQueueSlice('payment reviews', [], () =>
+      getPendingPaymentReviewsForRequest(session),
+    ),
+    loadOperationsQueueSlice('dismissals', EMPTY_DISMISSAL_INDEX, () =>
+      loadOperationsQueueDismissalIndex(),
+    ),
+    loadOperationsQueueSlice('deposit due', [], () =>
+      import('@/src/services/depositExpress').then((m) => m.listDepositDueBookings(session)),
+    ),
+    loadOperationsQueueSlice('electricity reminders', { ok: false as const, error: '' }, () =>
+      listAdminElectricityInvoicesForReminders(),
+    ),
+    loadOperationsQueueSlice('checkout settlements', [], () =>
+      listPipelineCheckoutSettlements(session),
+    ),
+    loadOperationsQueueSlice('move-out pipeline', EMPTY_MOVE_OUT_BUNDLE, () =>
+      loadMoveOutPipelineBundle(session, { syncSettlements: false }),
+    ),
   ]);
 
   const vacatingPgByRequestId = new Map(
@@ -596,10 +684,12 @@ export function getUnifiedOperationsQueueForRequest(
   filterInput?: OpsQueueFilter | null,
   focusReviewKey?: string | null,
 ): Promise<UnifiedOperationsQueue> {
-  return buildUnifiedOperationsQueueBaseCached(
-    adminRequestScopeKey(session),
-    session,
-  ).then((base) => applyUnifiedOperationsFilter(base, filterInput, focusReviewKey ?? null));
+  return buildUnifiedOperationsQueueBaseCached(adminRequestScopeKey(session), session)
+    .then((base) => applyUnifiedOperationsFilter(base, filterInput, focusReviewKey ?? null))
+    .catch((err) => {
+      console.error('[operations-queue] unified queue unavailable', err);
+      return emptyUnifiedOperationsQueue(filterInput);
+    });
 }
 
 let unifiedQueueBuildCount = 0;

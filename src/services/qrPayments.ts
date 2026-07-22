@@ -12,6 +12,8 @@ import {
   pgs,
   rooms,
 } from '@/src/db/schema';
+import { isDatabaseSchemaMismatchError, schemaMismatchHint } from '@/src/lib/db/schemaMismatchError';
+import type { PriorOutstandingItem } from '@/src/lib/billing/bookingCheckoutTotals';
 import { isBookingCheckoutEligibleForPaymentReview } from '@/src/lib/operations/paymentReviewSsot';
 import type { OverpaymentDisposition } from '@/src/lib/operations/paymentReviewTypes';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
@@ -484,24 +486,73 @@ export async function getPendingBookingPaymentRecord(bookingId: string, customer
   return row ?? null;
 }
 
+type QrPaymentReviewRecord = {
+  id: string;
+  bookingId: string | null;
+  amountPaise: number;
+  status: string;
+  proofSnapshotCheckoutTotalPaise: number | null;
+  proofSnapshotRentDuePaise: number | null;
+  proofSnapshotDepositDuePaise: number | null;
+  proofSnapshotPriorOutstandingPaise: number | null;
+  proofSnapshotPriorOutstandingJson: PriorOutstandingItem[] | null;
+  proofSnapshotSubmittedPaise: number | null;
+  snapshotColumnsAvailable: boolean;
+};
+
+async function loadQrPaymentRecordForReview(recordId: string): Promise<QrPaymentReviewRecord | null> {
+  try {
+    const [record] = await db
+      .select({
+        id: pgPaymentRecords.id,
+        bookingId: pgPaymentRecords.bookingId,
+        amountPaise: pgPaymentRecords.amountPaise,
+        status: pgPaymentRecords.status,
+        proofSnapshotCheckoutTotalPaise: pgPaymentRecords.proofSnapshotCheckoutTotalPaise,
+        proofSnapshotRentDuePaise: pgPaymentRecords.proofSnapshotRentDuePaise,
+        proofSnapshotDepositDuePaise: pgPaymentRecords.proofSnapshotDepositDuePaise,
+        proofSnapshotPriorOutstandingPaise: pgPaymentRecords.proofSnapshotPriorOutstandingPaise,
+        proofSnapshotPriorOutstandingJson: pgPaymentRecords.proofSnapshotPriorOutstandingJson,
+        proofSnapshotSubmittedPaise: pgPaymentRecords.proofSnapshotSubmittedPaise,
+      })
+      .from(pgPaymentRecords)
+      .where(eq(pgPaymentRecords.id, recordId))
+      .limit(1);
+    if (!record) return null;
+    return { ...record, snapshotColumnsAvailable: true };
+  } catch (err) {
+    if (!isDatabaseSchemaMismatchError(err)) throw err;
+    console.error(
+      '[payment-review] proof snapshot columns unavailable — using legacy record load.',
+      schemaMismatchHint(err),
+    );
+    const [record] = await db
+      .select({
+        id: pgPaymentRecords.id,
+        bookingId: pgPaymentRecords.bookingId,
+        amountPaise: pgPaymentRecords.amountPaise,
+        status: pgPaymentRecords.status,
+      })
+      .from(pgPaymentRecords)
+      .where(eq(pgPaymentRecords.id, recordId))
+      .limit(1);
+    if (!record) return null;
+    return {
+      ...record,
+      proofSnapshotCheckoutTotalPaise: null,
+      proofSnapshotRentDuePaise: null,
+      proofSnapshotDepositDuePaise: null,
+      proofSnapshotPriorOutstandingPaise: null,
+      proofSnapshotPriorOutstandingJson: null,
+      proofSnapshotSubmittedPaise: null,
+      snapshotColumnsAvailable: false,
+    };
+  }
+}
+
 /** Booking checkout context for admin payment review (rent/deposit split). */
 export async function getQrBookingPaymentReview(recordId: string) {
-  const [record] = await db
-    .select({
-      id: pgPaymentRecords.id,
-      bookingId: pgPaymentRecords.bookingId,
-      amountPaise: pgPaymentRecords.amountPaise,
-      status: pgPaymentRecords.status,
-      proofSnapshotCheckoutTotalPaise: pgPaymentRecords.proofSnapshotCheckoutTotalPaise,
-      proofSnapshotRentDuePaise: pgPaymentRecords.proofSnapshotRentDuePaise,
-      proofSnapshotDepositDuePaise: pgPaymentRecords.proofSnapshotDepositDuePaise,
-      proofSnapshotPriorOutstandingPaise: pgPaymentRecords.proofSnapshotPriorOutstandingPaise,
-      proofSnapshotPriorOutstandingJson: pgPaymentRecords.proofSnapshotPriorOutstandingJson,
-      proofSnapshotSubmittedPaise: pgPaymentRecords.proofSnapshotSubmittedPaise,
-    })
-    .from(pgPaymentRecords)
-    .where(eq(pgPaymentRecords.id, recordId))
-    .limit(1);
+  const record = await loadQrPaymentRecordForReview(recordId);
   if (!record?.bookingId) return null;
 
   const { getBookingPaymentContext, splitBookingPayment } = await import('./depositCollection');
@@ -533,23 +584,30 @@ export async function getQrBookingPaymentReview(recordId: string) {
   });
 
   if (record.status === 'pending' && resolution.shouldRepairStoredAmount) {
-    const patch: {
-      amountPaise: number;
-      updatedAt: Date;
-      proofSnapshotSubmittedPaise?: number;
-    } = {
-      amountPaise: resolution.verifiedAmountPaise,
-      updatedAt: new Date(),
-    };
-    if (
-      shouldFreezeSubmittedSnapshotOnRepair(
-        resolution,
-        record.proofSnapshotSubmittedPaise,
-      )
-    ) {
-      patch.proofSnapshotSubmittedPaise = resolution.verifiedAmountPaise;
+    if (record.snapshotColumnsAvailable) {
+      const patch: {
+        amountPaise: number;
+        updatedAt: Date;
+        proofSnapshotSubmittedPaise?: number;
+      } = {
+        amountPaise: resolution.verifiedAmountPaise,
+        updatedAt: new Date(),
+      };
+      if (
+        shouldFreezeSubmittedSnapshotOnRepair(
+          resolution,
+          record.proofSnapshotSubmittedPaise,
+        )
+      ) {
+        patch.proofSnapshotSubmittedPaise = resolution.verifiedAmountPaise;
+      }
+      await db.update(pgPaymentRecords).set(patch).where(eq(pgPaymentRecords.id, recordId));
+    } else {
+      await db
+        .update(pgPaymentRecords)
+        .set({ amountPaise: resolution.verifiedAmountPaise, updatedAt: new Date() })
+        .where(eq(pgPaymentRecords.id, recordId));
     }
-    await db.update(pgPaymentRecords).set(patch).where(eq(pgPaymentRecords.id, recordId));
   }
 
   const bookingPaymentPaise = resolution.verifiedAmountPaise;

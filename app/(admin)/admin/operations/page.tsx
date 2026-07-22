@@ -12,7 +12,7 @@ import {
   operationsFilterHref,
   parseOperationsFilter,
 } from '@/src/lib/operations/operationsFilterLinks';
-import { loadUnifiedOperationsQueue } from '@/src/services/unifiedOperationsQueue';
+import { loadUnifiedOperationsQueue, emptyUnifiedOperationsQueue } from '@/src/services/unifiedOperationsQueue';
 import { listRecentPaymentProofRejectionsForAdmin } from '@/src/services/paymentProofRejectionService';
 
 export const dynamic = 'force-dynamic';
@@ -35,14 +35,26 @@ export default async function OperationsPage({
   }
 
   if (!filter) {
-    const preview = await loadUnifiedOperationsQueue(session, 'waiting_for_approval', focus);
+    let preview;
+    try {
+      preview = await loadUnifiedOperationsQueue(session, 'waiting_for_approval', focus);
+    } catch (err) {
+      console.error('[operations] queue preview failed', err);
+      preview = emptyUnifiedOperationsQueue('waiting_for_approval');
+    }
     const counts = Object.fromEntries(
       preview.filterCounts.map((c) => [c.id, c.count]),
     ) as Record<(typeof preview.filterCounts)[number]['id'], number>;
     redirect(operationsFilterHref(defaultOperationsFilter(counts)));
   }
 
-  const data = await loadUnifiedOperationsQueue(session, filter, focus);
+  let data;
+  try {
+    data = await loadUnifiedOperationsQueue(session, filter, focus);
+  } catch (err) {
+    console.error('[operations] queue load failed', err);
+    data = emptyUnifiedOperationsQueue(filter);
+  }
 
   const recentRejections =
     filter === 'waiting_for_approval'

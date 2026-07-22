@@ -4,6 +4,7 @@
  */
 
 import { eq } from 'drizzle-orm';
+import { isDatabaseSchemaMismatchError, schemaMismatchHint } from '@/src/lib/db/schemaMismatchError';
 import { db } from '@/src/db/client';
 import { auditLog, bookings, pgPaymentRecords } from '@/src/db/schema';
 import {
@@ -46,18 +47,50 @@ export async function correctPendingPaymentProofAmount(input: {
     return { ok: false, reason: 'Verified proof amount must be greater than zero.' };
   }
 
-  const [record] = await db
-    .select({
-      id: pgPaymentRecords.id,
-      pgId: pgPaymentRecords.pgId,
-      bookingId: pgPaymentRecords.bookingId,
-      status: pgPaymentRecords.status,
-      amountPaise: pgPaymentRecords.amountPaise,
-      proofSnapshotSubmittedPaise: pgPaymentRecords.proofSnapshotSubmittedPaise,
-    })
-    .from(pgPaymentRecords)
-    .where(eq(pgPaymentRecords.id, input.recordId))
-    .limit(1);
+  let record:
+    | {
+        id: string;
+        pgId: string;
+        bookingId: string | null;
+        status: string;
+        amountPaise: number;
+        proofSnapshotSubmittedPaise: number | null;
+      }
+    | undefined;
+  let snapshotColumnsAvailable = true;
+
+  try {
+    [record] = await db
+      .select({
+        id: pgPaymentRecords.id,
+        pgId: pgPaymentRecords.pgId,
+        bookingId: pgPaymentRecords.bookingId,
+        status: pgPaymentRecords.status,
+        amountPaise: pgPaymentRecords.amountPaise,
+        proofSnapshotSubmittedPaise: pgPaymentRecords.proofSnapshotSubmittedPaise,
+      })
+      .from(pgPaymentRecords)
+      .where(eq(pgPaymentRecords.id, input.recordId))
+      .limit(1);
+  } catch (err) {
+    if (!isDatabaseSchemaMismatchError(err)) throw err;
+    console.error('[payment-review] correction read failed — snapshot column missing', schemaMismatchHint(err));
+    snapshotColumnsAvailable = false;
+    const [legacyRecord] = await db
+      .select({
+        id: pgPaymentRecords.id,
+        pgId: pgPaymentRecords.pgId,
+        bookingId: pgPaymentRecords.bookingId,
+        status: pgPaymentRecords.status,
+        amountPaise: pgPaymentRecords.amountPaise,
+      })
+      .from(pgPaymentRecords)
+      .where(eq(pgPaymentRecords.id, input.recordId))
+      .limit(1);
+    record = legacyRecord
+      ? { ...legacyRecord, proofSnapshotSubmittedPaise: null }
+      : undefined;
+  }
 
   if (!record) return { ok: false, reason: 'Payment record not found.' };
   if (record.status !== 'pending') {
@@ -71,11 +104,18 @@ export async function correctPendingPaymentProofAmount(input: {
 
   await db
     .update(pgPaymentRecords)
-    .set({
-      amountPaise: input.verifiedAmountPaise,
-      proofSnapshotSubmittedPaise: input.verifiedAmountPaise,
-      updatedAt: new Date(),
-    })
+    .set(
+      snapshotColumnsAvailable
+        ? {
+            amountPaise: input.verifiedAmountPaise,
+            proofSnapshotSubmittedPaise: input.verifiedAmountPaise,
+            updatedAt: new Date(),
+          }
+        : {
+            amountPaise: input.verifiedAmountPaise,
+            updatedAt: new Date(),
+          },
+    )
     .where(eq(pgPaymentRecords.id, input.recordId));
 
   await db.insert(auditLog).values({

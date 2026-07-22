@@ -794,8 +794,23 @@ async function fetchPendingPaymentReviews(
 ): Promise<PendingPaymentReviewItem[]> {
   paymentReviewFetchCount += 1;
 
-  await reconcileBookingPaymentReviewQueue();
+  try {
+    await reconcileBookingPaymentReviewQueue();
+  } catch (err) {
+    console.error('[payment-review] reconciliation failed — continuing with queue read', err);
+  }
 
+  try {
+    return await loadPendingPaymentReviewItems(session);
+  } catch (err) {
+    console.error('[payment-review] queue load failed — returning empty queue', err);
+    return [];
+  }
+}
+
+async function loadPendingPaymentReviewItems(
+  session: AdminSession,
+): Promise<PendingPaymentReviewItem[]> {
   const items: PendingPaymentReviewItem[] = [];
 
   const qrRows = await listOwnerPayments(session, { status: 'pending' });
@@ -818,7 +833,12 @@ async function fetchPendingPaymentReviews(
             }
           }
           const bookingPaymentReview =
-            isBookingCheckout && p.bookingId ? await getQrBookingPaymentReview(p.id) : null;
+            isBookingCheckout && p.bookingId
+              ? await getQrBookingPaymentReview(p.id).catch((err) => {
+                  console.error('[payment-review] booking review context failed', p.id, err);
+                  return null;
+                })
+              : null;
           const priorBookingDeposits =
             isBookingCheckout && p.customerId
               ? await listPriorBookingDepositsForReview(p.customerId, p.bookingId)

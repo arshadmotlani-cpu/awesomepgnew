@@ -2,6 +2,14 @@
 export function friendlyDbError(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err);
 
+  if (/proof_snapshot_submitted_paise/i.test(message)) {
+    return 'Database schema is outdated (missing payment proof snapshot column). Run migrations 0121–0122, then redeploy.';
+  }
+
+  if (/proof_snapshot_/i.test(message)) {
+    return 'Database schema is outdated (missing payment proof snapshot columns). Run migration 0121, then redeploy.';
+  }
+
   if (/contact_phone|contact_email|column .* does not exist/i.test(message)) {
     return 'Database schema is outdated (missing PG contact columns). Deploy the latest version, then try again.';
   }

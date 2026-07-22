@@ -23,7 +23,7 @@ import {
 import { getMoveOutPipelineSnapshot } from '@/src/services/moveOutPipelineService';
 import { getUpcomingCheckinsCount } from '@/src/services/operationsCenter';
 import { getRevenueCommandCenterData, type RevenueCommandCenterData } from '@/src/services/revenueCommandCenter';
-import { getUnifiedOperationsQueueForRequest } from '@/src/services/unifiedOperationsQueue';
+import { getUnifiedOperationsQueueForRequest, emptyUnifiedOperationsQueue } from '@/src/services/unifiedOperationsQueue';
 import { getActiveTenantCount } from '@/src/services/visitorAnalytics';
 
 export type OperationsQueueCounts = Record<OpsQueueFilter, number>;
@@ -104,7 +104,10 @@ export async function loadOverviewReportingSnapshot(
       invoiceSnapshot,
     }),
     loadBillingCommandCenterSnapshot(session, billingMonth, opts),
-    getUnifiedOperationsQueueForRequest(session, null),
+    getUnifiedOperationsQueueForRequest(session, null).catch((err) => {
+      console.error('[overview] operations queue failed', err);
+      return emptyUnifiedOperationsQueue(null);
+    }),
     getCachedDashboardStats().catch(() => ({ ok: false as const, error: '' })),
     getCachedVisitorCountSummary().catch((err) => {
       console.error('[overview] visitor analytics query failed', err);
@@ -112,7 +115,23 @@ export async function loadOverviewReportingSnapshot(
     }),
     getActiveTenantCount().catch(() => 0),
     getUpcomingCheckinsCount(session).catch(() => 0),
-    getMoveOutPipelineSnapshot(session),
+    getMoveOutPipelineSnapshot(session).catch((err) => {
+      console.error('[overview] move-out pipeline failed', err);
+      return {
+        activeItems: [],
+        approvalItems: [],
+        settlementItems: [],
+        moveOutNoticeItems: [],
+        bedsReleasingItems: [],
+        counts: {
+          moveOutApprovalRequests: 0,
+          moveOutNotices: 0,
+          bedsReleasing30Days: 0,
+          activeCheckoutSettlements: 0,
+        },
+        activeVacatingRequestIds: [],
+      };
+    }),
     listPgs().catch(() => ({ ok: false as const, error: '' })),
   ]);
 

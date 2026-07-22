@@ -79,8 +79,19 @@ async function loadOverviewContextImpl(
     await reconcileStaleFinancialInvoices({ billingMonth }).catch(() => undefined);
   }
 
-  const [reporting, summary, metrics, executiveMetrics] = await Promise.all([
-    loadOverviewReportingSnapshot(session, billingMonth, { reconcile }),
+  let reporting: Awaited<ReturnType<typeof loadOverviewReportingSnapshot>>;
+  try {
+    reporting = await loadOverviewReportingSnapshot(session, billingMonth, { reconcile });
+  } catch (err) {
+    console.error('[overview] reporting snapshot failed', err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Overview data unavailable',
+      partial: { billingMonth, monthLabel },
+    };
+  }
+
+  const [summary, metrics, executiveMetrics] = await Promise.all([
     getCachedBusinessMetricsSummary(billingMonth),
     getCachedPgBusinessMetrics(billingMonth),
     import('@/src/services/executiveMetrics').then((m) =>

@@ -73,13 +73,23 @@ export async function loadApprovalCounts(session: AdminSession): Promise<Approva
 }
 
 export async function getWaitingForApprovalCount(session: AdminSession): Promise<number> {
-  const queue = await getUnifiedOperationsQueueForRequest(session, 'waiting_for_approval');
-  return operationsFilterCount(queue, 'waiting_for_approval');
+  try {
+    const queue = await getUnifiedOperationsQueueForRequest(session, 'waiting_for_approval');
+    return operationsFilterCount(queue, 'waiting_for_approval');
+  } catch (err) {
+    console.error('[approval-queue] waiting-for-approval count failed', err);
+    return 0;
+  }
 }
 
 export async function countAllPendingPaymentReviews(session: AdminSession): Promise<number> {
-  const items = await getPendingPaymentReviewsForRequest(session);
-  return items.length;
+  try {
+    const items = await getPendingPaymentReviewsForRequest(session);
+    return items.length;
+  } catch (err) {
+    console.error('[approval-queue] pending payment review count failed', err);
+    return 0;
+  }
 }
 
 export async function countVisiblePaymentProofs(session: AdminSession): Promise<number> {
