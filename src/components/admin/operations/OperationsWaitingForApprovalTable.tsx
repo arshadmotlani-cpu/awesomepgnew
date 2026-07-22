@@ -44,7 +44,7 @@ export function OperationsWaitingForApprovalTable({
             <th className="px-4 py-3 font-medium">Resident</th>
             <th className="px-4 py-3 font-medium">Payment type</th>
             <th className="px-4 py-3 font-medium">Expected</th>
-            <th className="px-4 py-3 font-medium">Received</th>
+            <th className="px-4 py-3 font-medium">Proof amount</th>
             <th className="px-4 py-3 font-medium">Billing month</th>
             <th className="px-4 py-3 font-medium">Upload time</th>
             <th className="px-4 py-3 font-medium text-right">Actions</th>
@@ -61,7 +61,7 @@ export function OperationsWaitingForApprovalTable({
                   {paiseToInr(breakdown.totalExpectedPaise)}
                 </td>
                 <td className="px-4 py-4 text-emerald-300">
-                  {paiseToInr(breakdown.receivedPaise)}
+                  {paiseToInr(breakdown.proofAmountPaise)}
                 </td>
                 <td className="px-4 py-4 text-apg-silver">
                   {formatBillingMonth(item.billingMonth)}

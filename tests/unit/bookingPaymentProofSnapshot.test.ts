@@ -81,19 +81,25 @@ describe('bookingPaymentProofSnapshot', () => {
     );
   });
 
-  test('validateSubmittedAmountAgainstProofSnapshot allows ±₹1', () => {
+  test('validateSubmittedAmountAgainstProofSnapshot allows partial payment', () => {
     const snapshot = buildBookingPaymentProofSnapshot({
-      rentDuePaise: 66_000,
-      depositCashDuePaise: 33_000,
+      rentDuePaise: 412_100,
+      depositCashDuePaise: 412_100,
+      priorOutstandingPaise: 0,
+      priorOutstandingItems: [],
+    });
+    assert.equal(validateSubmittedAmountAgainstProofSnapshot(618_000, snapshot).ok, true);
+  });
+
+  test('validateSubmittedAmountAgainstProofSnapshot rejects rent double-count', () => {
+    const snapshot = buildBookingPaymentProofSnapshot({
+      rentDuePaise: 412_000,
+      depositCashDuePaise: 412_000,
       priorOutstandingPaise: 0,
       priorOutstandingItems: [],
     });
     assert.equal(
-      validateSubmittedAmountAgainstProofSnapshot(99_100, snapshot).ok,
-      true,
-    );
-    assert.equal(
-      validateSubmittedAmountAgainstProofSnapshot(98_000, snapshot).ok,
+      validateSubmittedAmountAgainstProofSnapshot(1_236_200, snapshot).ok,
       false,
     );
   });

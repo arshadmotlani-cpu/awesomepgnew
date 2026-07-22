@@ -258,6 +258,8 @@ describe('buildPaymentReviewBreakdown', () => {
 
     const b = buildPaymentReviewBreakdown(item);
     assert.equal(b.totalExpectedPaise, 511_100);
+    assert.equal(b.proofAmountPaise, 511_100);
+    assert.equal(b.receivedPaise, 511_100);
     assert.equal(b.differenceTone, 'exact');
     assert.equal(b.extraReceivedPaise, 0);
     assert.equal(b.priorOutstandingDuePaise, 412_100);

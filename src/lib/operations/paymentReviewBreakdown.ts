@@ -3,6 +3,10 @@
  * Uses precomputed review splits / invoice amounts; never import server services here.
  */
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
+import {
+  detectProofAmountCorruption,
+  proofAmountPaiseFromReviewItem,
+} from '@/src/lib/operations/paymentReviewProofAmount';
 
 export type PaymentReviewBreakdown = {
   bookingType: string;
@@ -13,6 +17,9 @@ export type PaymentReviewBreakdown = {
   securityDepositDuePaise: number;
   priorOutstandingDuePaise: number;
   totalExpectedPaise: number;
+  /** The single payment proof under review — NOT lifetime received. */
+  proofAmountPaise: number;
+  /** @deprecated Use proofAmountPaise — kept for queue tables/tests. */
   receivedPaise: number;
   differencePaise: number;
   differenceTone: 'exact' | 'short' | 'excess';
@@ -24,6 +31,7 @@ export type PaymentReviewBreakdown = {
   extraReceivedPaise: number;
   remainingBalancePaise: number;
   paymentCategoryLabel: string;
+  proofAmountCorruptionWarning: string | null;
 };
 
 function differenceTone(diff: number): PaymentReviewBreakdown['differenceTone'] {
@@ -53,11 +61,7 @@ export function buildPaymentReviewBreakdown(
     item.bookingDetails?.durationLabel ??
     null;
 
-  const receivedPaise =
-    item.submittedAmountPaise ??
-    item.receivedPaise ??
-    item.amountPaise ??
-    0;
+  const proofAmountPaise = proofAmountPaiseFromReviewItem(item);
 
   if (item.kind === 'qr' && item.bookingPaymentReview) {
     const review = item.bookingPaymentReview;
@@ -73,14 +77,20 @@ export function buildPaymentReviewBreakdown(
         0,
     );
     const allocatedCore = roomChargesPaid + depositPaid;
-    const priorPaid = Math.min(priorDue, Math.max(0, receivedPaise - allocatedCore));
-    const extra = Math.max(0, receivedPaise - allocatedCore - priorPaid);
+    const priorPaid = Math.min(priorDue, Math.max(0, proofAmountPaise - allocatedCore));
+    const extra = Math.max(0, proofAmountPaise - allocatedCore - priorPaid);
     const totalExpected =
       item.expectedTotalPaise > 0
         ? item.expectedTotalPaise
         : rentDue + depositDue + priorDue;
-    const difference = receivedPaise - totalExpected;
-    const remaining = Math.max(0, totalExpected - receivedPaise);
+    const difference = proofAmountPaise - totalExpected;
+    const remaining = Math.max(0, totalExpected - proofAmountPaise);
+    const proofAmountCorruptionWarning = detectProofAmountCorruption({
+      proofAmountPaise,
+      rentDuePaise: rentDue,
+      depositDuePaise: depositDue,
+      expectedCheckoutPaise: totalExpected,
+    });
 
     return {
       bookingType,
@@ -91,7 +101,8 @@ export function buildPaymentReviewBreakdown(
       securityDepositDuePaise: depositDue,
       priorOutstandingDuePaise: priorDue,
       totalExpectedPaise: totalExpected,
-      receivedPaise,
+      proofAmountPaise,
+      receivedPaise: proofAmountPaise,
       differencePaise: difference,
       differenceTone: differenceTone(difference),
       statusLabel: 'Awaiting review',
@@ -102,6 +113,7 @@ export function buildPaymentReviewBreakdown(
       extraReceivedPaise: extra,
       remainingBalancePaise: remaining,
       paymentCategoryLabel: item.paymentTypeLabel,
+      proofAmountCorruptionWarning,
     };
   }
 
@@ -109,12 +121,12 @@ export function buildPaymentReviewBreakdown(
     item.invoiceAmountPaise != null
       ? item.invoiceAmountPaise
       : item.expectedTotalPaise;
-  const difference = receivedPaise - totalExpected;
+  const difference = proofAmountPaise - totalExpected;
   const isDepositOnly = item.kind === 'deposit_link';
   const roomChargesDue = isDepositOnly ? 0 : totalExpected;
   const depositDue = isDepositOnly ? totalExpected : 0;
-  const roomChargesPaid = Math.min(receivedPaise, roomChargesDue);
-  const remainder = Math.max(0, receivedPaise - roomChargesPaid);
+  const roomChargesPaid = Math.min(proofAmountPaise, roomChargesDue);
+  const remainder = Math.max(0, proofAmountPaise - roomChargesPaid);
   const depositPaid = Math.min(remainder, depositDue || (isDepositOnly ? totalExpected : 0));
 
   return {
@@ -126,19 +138,21 @@ export function buildPaymentReviewBreakdown(
     securityDepositDuePaise: depositDue,
     priorOutstandingDuePaise: 0,
     totalExpectedPaise: totalExpected,
-    receivedPaise,
+    proofAmountPaise,
+    receivedPaise: proofAmountPaise,
     differencePaise: difference,
     differenceTone: differenceTone(difference),
     statusLabel: 'Awaiting review',
     roomChargesPaidPaise: roomChargesPaid,
-    depositPaidPaise: isDepositOnly ? Math.min(receivedPaise, totalExpected) : depositPaid,
+    depositPaidPaise: isDepositOnly ? Math.min(proofAmountPaise, totalExpected) : depositPaid,
     depositRemainingPaise: isDepositOnly
-      ? Math.max(0, totalExpected - receivedPaise)
+      ? Math.max(0, totalExpected - proofAmountPaise)
       : 0,
     priorPaidPaise: 0,
     extraReceivedPaise: Math.max(0, difference),
-    remainingBalancePaise: Math.max(0, totalExpected - receivedPaise),
+    remainingBalancePaise: Math.max(0, totalExpected - proofAmountPaise),
     paymentCategoryLabel: item.paymentTypeLabel,
+    proofAmountCorruptionWarning: null,
   };
 }
 
@@ -153,7 +167,7 @@ export function allocationSnapshotForApproval(item: PendingPaymentReviewItem): {
   return {
     roomChargesPaidPaise: b.roomChargesPaidPaise,
     securityDepositPaidPaise: b.depositPaidPaise,
-    totalAmountReceivedPaise: b.receivedPaise,
+    totalAmountReceivedPaise: b.proofAmountPaise,
     paymentCategoryLabel: b.paymentCategoryLabel,
   };
 }
@@ -185,7 +199,7 @@ export function paymentReviewSuggestedAllocation(item: PendingPaymentReviewItem)
     review?.depositPaisePaid ?? review?.depositCashDuePaise ?? breakdown.securityDepositDuePaise;
   const priorOutstandingPaise = Math.min(
     breakdown.priorOutstandingDuePaise,
-    Math.max(0, breakdown.receivedPaise - rentPaise - depositPaise),
+    Math.max(0, breakdown.proofAmountPaise - rentPaise - depositPaise),
   );
 
   if (item.kind === 'electricity') {
@@ -193,7 +207,7 @@ export function paymentReviewSuggestedAllocation(item: PendingPaymentReviewItem)
       rentPaise: 0,
       depositPaise: 0,
       priorOutstandingPaise: 0,
-      electricityPaise: Math.min(breakdown.receivedPaise, breakdown.totalExpectedPaise),
+      electricityPaise: Math.min(breakdown.proofAmountPaise, breakdown.totalExpectedPaise),
       otherPaise: 0,
     };
   }
@@ -201,7 +215,7 @@ export function paymentReviewSuggestedAllocation(item: PendingPaymentReviewItem)
   if (item.kind === 'deposit_link') {
     return {
       rentPaise: 0,
-      depositPaise: Math.min(breakdown.receivedPaise, breakdown.totalExpectedPaise),
+      depositPaise: Math.min(breakdown.proofAmountPaise, breakdown.totalExpectedPaise),
       priorOutstandingPaise: 0,
       electricityPaise: 0,
       otherPaise: 0,
@@ -215,7 +229,7 @@ export function paymentReviewSuggestedAllocation(item: PendingPaymentReviewItem)
     electricityPaise: 0,
     otherPaise: Math.max(
       0,
-      breakdown.receivedPaise - rentPaise - depositPaise - priorOutstandingPaise,
+      breakdown.proofAmountPaise - rentPaise - depositPaise - priorOutstandingPaise,
     ),
   };
 }

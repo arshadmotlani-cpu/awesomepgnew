@@ -69,11 +69,11 @@ function reviewItem(
   };
 }
 
-test('buildAllocationDefaultsFromReviewItem splits booking payment rent then deposit', () => {
-  const defaults = buildAllocationDefaultsFromReviewItem(reviewItem({}), balances());
+test('buildAllocationDefaultsFromReviewItem splits this proof rent then deposit', () => {
+  const defaults = buildAllocationDefaultsFromReviewItem(reviewItem({}));
   assert.equal(defaults.confirmedReceivedPaise, 618_000);
-  assert.equal(defaults.rentAllocatedPaise, 412_100);
-  assert.equal(defaults.depositAllocatedPaise, 205_900);
+  assert.equal(defaults.rentAllocatedPaise, 412_000);
+  assert.equal(defaults.depositAllocatedPaise, 206_000);
 });
 
 test('buildAllocationDefaultsFromReviewItem prefills rent invoice payments to rent', () => {
@@ -118,10 +118,10 @@ test('validatePaymentProofAllocation rejects partial allocation', () => {
   assert.equal(result.ok, false);
 });
 
-test('residentPaidPaiseFromReviewItem prefers submitted amount', () => {
+test('residentPaidPaiseFromReviewItem uses proof row amount', () => {
   assert.equal(
     residentPaidPaiseFromReviewItem(reviewItem({ submittedAmountPaise: 700_000, amountPaise: 618_000 })),
-    700_000,
+    618_000,
   );
 });
 

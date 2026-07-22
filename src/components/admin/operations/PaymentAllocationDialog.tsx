@@ -98,7 +98,7 @@ export function PaymentAllocationDialog({
 
   useEffect(() => {
     if (!open) return;
-    const defaults = buildAllocationDefaultsFromReviewItem(item, balances);
+    const defaults = buildAllocationDefaultsFromReviewItem(item);
     setConfirmedRupees(rupeesFromPaise(defaults.confirmedReceivedPaise));
     setRentRupees(rupeesFromPaise(defaults.rentAllocatedPaise));
     setDepositRupees(rupeesFromPaise(defaults.depositAllocatedPaise));

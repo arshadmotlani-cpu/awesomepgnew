@@ -357,7 +357,7 @@ function buildQrReviewItem(
       });
     }
     expectedTotalPaise = bookingPaymentReview.bookingTotalDuePaise;
-    receivedPaise = bookingPaymentReview.amountSubmittedPaise;
+    receivedPaise = p.amountPaise;
     outstandingAfterApprovalPaise = bookingPaymentReview.depositDuePaise;
     overpaidPaise = Math.max(0, receivedPaise - expectedTotalPaise);
     canPartialApprove = bookingPaymentReview.canPartialApprove;

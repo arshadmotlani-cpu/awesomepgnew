@@ -1,38 +1,26 @@
 /**
  * Client-safe payment allocation UX — admin must fully allocate before approve.
+ * Uses ONLY the single proof under review — never lifetime booking balances.
  */
 
-import type {
-  BookingMoneyBalances,
-  PaymentAllocationInput,
-} from '@/src/lib/billing/bookingMoneyBalances';
+import type { PaymentAllocationInput } from '@/src/lib/billing/bookingMoneyBalances';
 import {
   suggestPaymentAllocation,
   totalAllocatedPaise,
   unallocatedPaymentPaise,
 } from '@/src/lib/billing/bookingMoneyBalances';
 import { buildPaymentReviewBreakdown } from '@/src/lib/operations/paymentReviewBreakdown';
+import { proofAmountPaiseFromReviewItem } from '@/src/lib/operations/paymentReviewProofAmount';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 
 export function residentPaidPaiseFromReviewItem(item: PendingPaymentReviewItem): number {
-  return item.submittedAmountPaise ?? item.receivedPaise ?? item.amountPaise ?? 0;
+  return proofAmountPaiseFromReviewItem(item);
 }
 
 export function buildAllocationDefaultsFromReviewItem(
   item: PendingPaymentReviewItem,
-  balances?: BookingMoneyBalances | null,
 ): PaymentAllocationInput {
-  const confirmedReceivedPaise = residentPaidPaiseFromReviewItem(item);
-
-  if (balances) {
-    return suggestPaymentAllocation({
-      confirmedReceivedPaise,
-      rentOutstandingPaise: balances.rent.outstandingPaise,
-      depositOutstandingPaise: balances.deposit.outstandingPaise,
-      electricityOutstandingPaise: balances.electricity.outstandingPaise,
-    });
-  }
-
+  const confirmedReceivedPaise = proofAmountPaiseFromReviewItem(item);
   const breakdown = buildPaymentReviewBreakdown(item);
   const base = {
     confirmedReceivedPaise,
@@ -41,6 +29,26 @@ export function buildAllocationDefaultsFromReviewItem(
     electricityAllocatedPaise: 0,
     otherAllocatedPaise: 0,
   };
+
+  if (item.kind === 'qr' && item.bookingPaymentReview) {
+    const review = item.bookingPaymentReview;
+    const rentAllocatedPaise = Math.min(confirmedReceivedPaise, review.rentPaisePaid);
+    const depositAllocatedPaise = Math.min(
+      Math.max(0, confirmedReceivedPaise - rentAllocatedPaise),
+      review.depositPaisePaid,
+    );
+    const otherAllocatedPaise = Math.max(
+      0,
+      confirmedReceivedPaise - rentAllocatedPaise - depositAllocatedPaise,
+    );
+    return {
+      confirmedReceivedPaise,
+      rentAllocatedPaise,
+      depositAllocatedPaise,
+      electricityAllocatedPaise: 0,
+      otherAllocatedPaise,
+    };
+  }
 
   switch (item.kind) {
     case 'rent':
@@ -89,7 +97,6 @@ export function allocationSummaryLines(
 export function needsManualPaymentAllocation(input: {
   submittedAmountPaise: number;
   confirmedReceivedPaise: number;
-  balances: BookingMoneyBalances;
   adminAdjustOpen?: boolean;
 }): boolean {
   void input;

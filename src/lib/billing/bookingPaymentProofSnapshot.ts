@@ -80,14 +80,27 @@ export function validateSubmittedAmountAgainstProofSnapshot(
   submittedPaise: number,
   snapshot: BookingPaymentProofSnapshot,
 ): { ok: true } | { ok: false; message: string } {
-  const diff = Math.abs(submittedPaise - snapshot.checkoutTotalPaise);
-  if (diff <= PROOF_AMOUNT_TOLERANCE_PAISE) return { ok: true };
-  const expectedInr = (snapshot.checkoutTotalPaise / 100).toFixed(0);
-  const submittedInr = (submittedPaise / 100).toFixed(0);
-  return {
-    ok: false,
-    message: `Payment amount ₹${submittedInr} does not match expected checkout ₹${expectedInr}. Please pay the exact amount shown.`,
-  };
+  if (submittedPaise <= 0) {
+    return { ok: false, message: 'Payment amount must be greater than zero.' };
+  }
+  if (submittedPaise > snapshot.checkoutTotalPaise + PROOF_AMOUNT_TOLERANCE_PAISE) {
+    const expectedInr = (snapshot.checkoutTotalPaise / 100).toFixed(0);
+    const submittedInr = (submittedPaise / 100).toFixed(0);
+    return {
+      ok: false,
+      message: `Payment amount ₹${submittedInr} exceeds expected checkout ₹${expectedInr}.`,
+    };
+  }
+  const rentPlusExpected =
+    snapshot.rentDuePaise + snapshot.checkoutTotalPaise;
+  if (Math.abs(submittedPaise - rentPlusExpected) <= PROOF_AMOUNT_TOLERANCE_PAISE) {
+    return {
+      ok: false,
+      message:
+        'Payment amount looks like rent plus checkout total — rent was counted twice. Enter the screenshot amount only.',
+    };
+  }
+  return { ok: true };
 }
 
 /**
