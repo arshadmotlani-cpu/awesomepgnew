@@ -862,6 +862,13 @@
       "when": 1793600000000,
       "tag": "0122_proof_snapshot_submitted_paise",
       "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1793700000000,
+      "tag": "0123_checkout_settlement_v2",
+      "breakpoints": true
     }
   ]
 }

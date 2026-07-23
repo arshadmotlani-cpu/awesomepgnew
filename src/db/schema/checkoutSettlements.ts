@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   bigint,
   boolean,
+  date,
   index,
   integer,
   jsonb,
@@ -11,6 +12,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+import type { CheckoutSettlementWaterfall } from '@/src/lib/checkout/checkoutSettlementEngineV2';
 import { adminUsers } from './adminUsers';
 import { bookings } from './bookings';
 import { customers } from './customers';
@@ -94,6 +96,33 @@ export const checkoutSettlements = pgTable(
       onDelete: 'set null',
     }),
     checkoutSource: text('checkout_source').notNull().default('resident_vacating'),
+    settlementEngineVersion: integer('settlement_engine_version').notNull().default(1),
+    stayCheckInDate: date('stay_check_in_date'),
+    stayCheckoutDate: date('stay_checkout_date'),
+    stayDays: integer('stay_days'),
+    rentPaidPaise: bigint('rent_paid_paise', { mode: 'number' }).notNull().default(0),
+    rentConsumedPaise: bigint('rent_consumed_paise', { mode: 'number' }).notNull().default(0),
+    unusedRentPaise: bigint('unused_rent_paise', { mode: 'number' }).notNull().default(0),
+    noticeDeductionFullPaise: bigint('notice_deduction_full_paise', { mode: 'number' })
+      .notNull()
+      .default(0),
+    noticeFromUnusedRentPaise: bigint('notice_from_unused_rent_paise', { mode: 'number' })
+      .notNull()
+      .default(0),
+    noticeFromDepositPaise: bigint('notice_from_deposit_paise', { mode: 'number' })
+      .notNull()
+      .default(0),
+    unusedRentAfterNoticePaise: bigint('unused_rent_after_notice_paise', { mode: 'number' })
+      .notNull()
+      .default(0),
+    electricityFromDepositPaise: bigint('electricity_from_deposit_paise', { mode: 'number' })
+      .notNull()
+      .default(0),
+    otherFromDepositPaise: bigint('other_from_deposit_paise', { mode: 'number' }).notNull().default(0),
+    depositRefundablePaise: bigint('deposit_refundable_paise', { mode: 'number' }),
+    unusedRentRefundPaise: bigint('unused_rent_refund_paise', { mode: 'number' }).notNull().default(0),
+    totalRefundPaise: bigint('total_refund_paise', { mode: 'number' }),
+    settlementWaterfallJson: jsonb('settlement_waterfall_json').$type<CheckoutSettlementWaterfall>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

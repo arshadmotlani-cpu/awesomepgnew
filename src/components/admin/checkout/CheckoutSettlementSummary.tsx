@@ -14,6 +14,8 @@ export function CheckoutSettlementSummary({ detail }: { detail: CheckoutSettleme
     noticeDeductionPaise: detail.preview.noticeDeductionPaise,
   });
 
+  const usesV2 = Boolean(detail.waterfall) || (detail.settlementEngineVersion ?? 1) >= 2;
+
   return (
     <section className="mb-8">
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -25,12 +27,21 @@ export function CheckoutSettlementSummary({ detail }: { detail: CheckoutSettleme
         </div>
         <Badge tone={statusBadgeTone(detail.status)}>{statusLabel}</Badge>
       </header>
-      {noticeBreakdown ? (
+      {noticeBreakdown && !usesV2 ? (
         <NoticeSettlementPanel settlement={noticeBreakdown} variant="admin" />
       ) : null}
       <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
         <Stat label="Security deposit held" value={paiseToInr(detail.depositRefundablePaise)} />
-        <Stat label="Final refund" value={paiseToInr(detail.preview.finalRefundPaise)} accent="emerald" />
+        {usesV2 && detail.waterfall ? (
+          <>
+            <Stat label="Unused rent credit" value={paiseToInr(detail.waterfall.rentBucket.unusedPaise)} />
+            <Stat
+              label="Deposit refund portion"
+              value={paiseToInr(detail.waterfall.refund.depositPortionPaise)}
+            />
+          </>
+        ) : null}
+        <Stat label="Total refund" value={paiseToInr(detail.preview.finalRefundPaise)} accent="emerald" />
         {detail.preview.electricityDeductionPaise > 0 ? (
           <Stat
             label="Electricity deduction"

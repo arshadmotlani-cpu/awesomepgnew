@@ -183,6 +183,8 @@ export async function loadMoveOutPipelineBundle(
       electricitySharePaise: s.electricitySharePaise,
       electricityDeductFromDeposit: s.electricityDeductFromDeposit,
       finalRefundPaise: s.finalRefundPaise,
+      totalRefundPaise: s.totalRefundPaise,
+      settlementEngineVersion: s.settlementEngineVersion,
       amountsLocked: s.amountsLocked,
     })),
   });

@@ -19,6 +19,8 @@ import { runFinancialHealthAudit } from '../src/services/financialAudit';
 import { runSystemHealthAudit } from '../src/services/systemHealthAudit';
 import { runProductionAudit } from '../src/services/productionAudit';
 import { repairVacatingAuditIssues, runVacatingAudit } from '../src/services/vacatingAudit';
+import { discoverCheckoutRentProrationGaps } from '../src/services/checkoutRentAccounting';
+import { paiseToInr } from '../src/lib/format';
 
 function mockSuperAdminSession(): AdminSession {
   return {
@@ -83,6 +85,19 @@ async function main() {
     console.log(`Repaired: ${repair.repaired}`);
   }
 
+  console.log('\n=== CHECKOUT RENT ACCOUNTING (P0) ===\n');
+  const checkoutRentGaps = await discoverCheckoutRentProrationGaps();
+  const checkoutRentGapTotal = checkoutRentGaps.reduce((a, r) => a + r.differencePaise, 0);
+  const checkoutRentPass = checkoutRentGaps.length === 0;
+  console.log(
+    `  [${checkoutRentPass ? 'PASS' : 'FAIL'}] checkout rent proration gaps: ${checkoutRentGaps.length} booking(s), trapped ${paiseToInr(checkoutRentGapTotal)}`,
+  );
+  for (const gap of checkoutRentGaps.slice(0, 10)) {
+    console.log(
+      `      - ${gap.bookingCode} ${gap.resident}: diff ${paiseToInr(gap.differencePaise)} outstanding ${paiseToInr(gap.outstandingRentPaise)}`,
+    );
+  }
+
   console.log('\n=== PRODUCTION AUDIT (unified) ===\n');
   const prod = await runProductionAudit(session);
   for (const gate of prod.gates) {
@@ -92,8 +107,8 @@ async function main() {
     }
   }
 
-  console.log(`\n=== OVERALL: ${prod.allPass ? 'PRODUCTION READY' : 'NOT READY'} ===\n`);
-  process.exit(prod.allPass ? 0 : 1);
+  console.log(`\n=== OVERALL: ${prod.allPass && checkoutRentPass ? 'PRODUCTION READY' : 'NOT READY'} ===\n`);
+  process.exit(prod.allPass && checkoutRentPass ? 0 : 1);
 }
 
 main()

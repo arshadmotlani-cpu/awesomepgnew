@@ -214,6 +214,18 @@ export async function applyBookingRentInvoiceOnPaymentSuccess(input: {
     });
   }
 
+  const { assertCheckoutRentAccountingClosed } = await import(
+    '@/src/services/checkoutRentAccounting'
+  );
+  await assertCheckoutRentAccountingClosed({
+    bookingId: input.booking.id,
+    bookingCode: input.booking.bookingCode,
+    paymentId: input.paymentId,
+    rentPaisePaidFromPayment: rentPaisePaid,
+    invoiceId: ensured.invoiceId,
+    advanceRentCreditPaise: proration.advanceRentCreditPaise,
+  });
+
   const financialInvoiceId = await syncRentInvoiceToUnified(ensured.invoiceId);
   if (!financialInvoiceId) {
     return { ok: false, reason: 'Unified invoice sync failed after booking rent invoice.' };

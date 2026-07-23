@@ -133,6 +133,8 @@ export function estimateVacateDepositPreview(args: {
   vacatingDate: string;
   noticeGivenDate?: string;
   noticeBreakdown?: NoticeSettlementDisplay | null;
+  /** When checkout settlement V2 snapshot exists, prefer this over deposit-only math. */
+  settlementTotalRefundPaise?: number | null;
 }) {
   const noticeGivenDate = args.noticeGivenDate ?? todayString();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(args.vacatingDate)) {
@@ -144,8 +146,19 @@ export function estimateVacateDepositPreview(args: {
       noticeBreakdown: null as NoticeSettlementDisplay | null,
     };
   }
+  if (args.settlementTotalRefundPaise != null) {
+    const total = Math.max(0, args.settlementTotalRefundPaise);
+    return {
+      daysUntilVacate: tryDiffDays(noticeGivenDate, args.vacatingDate) ?? 0,
+      earlyVacate: total < args.depositHeldPaise,
+      estimatedDeductionPaise: Math.max(0, args.depositHeldPaise - total),
+      estimatedRefundablePaise: total,
+      noticeBreakdown: args.noticeBreakdown ?? null,
+    };
+  }
   const daysUntilVacate = tryDiffDays(noticeGivenDate, args.vacatingDate) ?? 0;
   const breakdown = args.noticeBreakdown;
+  /** @deprecated Legacy deposit-only notice preview — superseded by checkout settlement V2 waterfall. */
   const estimatedDeductionPaise =
     breakdown?.noticeDeductionPaise ??
     computeNoticeDeduction(args.monthlyRentPaise, {

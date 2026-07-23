@@ -7,6 +7,7 @@ import { paiseToInr } from '@/src/lib/format';
 import { formatBillingMonthLabel } from '@/src/lib/billing/formatBillingMonth';
 import type { CheckoutSettlementImageEvidence } from '@/src/lib/checkout/checkoutSettlementImages';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
+import { CheckoutSettlementWaterfall } from '@/src/components/admin/checkout/CheckoutSettlementWaterfall';
 
 export type RefundSummaryOverrides = {
   electricityDeductionPaise?: number;
@@ -29,13 +30,14 @@ export function CheckoutRefundSummaryRail({
   className?: string;
 }) {
   const preview = detail.preview;
+  const usesV2 = Boolean(detail.waterfall) || (detail.settlementEngineVersion ?? 1) >= 2;
   const electricityDeduction =
     overrides?.electricityDeductionPaise ?? preview.electricityDeductionPaise;
   const damagePaise = preview.damageChargePaise ?? 0;
   const otherCharges =
     (preview.cleaningChargePaise ?? 0) + (preview.customChargePaise ?? 0);
   const finalRefund =
-    overrides?.electricityDeductionPaise != null
+    overrides?.electricityDeductionPaise != null && !usesV2
       ? Math.max(
           0,
           detail.depositRefundablePaise -
@@ -54,80 +56,65 @@ export function CheckoutRefundSummaryRail({
         className
       }
     >
-      <p className="text-xs font-medium uppercase tracking-wider text-apg-silver">Refund summary</p>
+      <p className="text-xs font-medium uppercase tracking-wider text-apg-silver">
+        {usesV2 ? 'Settlement waterfall' : 'Refund summary'}
+      </p>
 
-      <dl className="mt-5 space-y-3 text-sm">
-        <SummaryRow label="Deposit (escrow)" value={paiseToInr(detail.depositRefundablePaise)} />
-        {detail.creditBalancePaise > 0 ? (
+      {detail.waterfall ? (
+        <div className="mt-5">
+          <CheckoutSettlementWaterfall waterfall={detail.waterfall} />
+        </div>
+      ) : (
+        <dl className="mt-5 space-y-3 text-sm">
+          <SummaryRow label="Deposit (escrow)" value={paiseToInr(detail.depositRefundablePaise)} />
+          {detail.creditBalancePaise > 0 ? (
+            <SummaryRow
+              label="Credit balance"
+              value={paiseToInr(detail.creditBalancePaise)}
+              hint="Separate from deposit — may auto-apply to future invoices"
+            />
+          ) : null}
           <SummaryRow
-            label="Credit balance"
-            value={paiseToInr(detail.creditBalancePaise)}
-            hint="Separate from deposit — may auto-apply to future invoices"
+            label="Notice fee"
+            value={`−${paiseToInr(preview.noticeDeductionPaise)}`}
+            muted
+            hint={
+              detail.noticeChargeableDays != null && detail.noticeChargeableDays > 0
+                ? `${detail.noticeChargeableDays} chargeable · ${detail.noticeRentCoveredDays ?? 0} prepaid`
+                : undefined
+            }
           />
-        ) : null}
-        <SummaryRow
-          label="Notice fee"
-          value={`−${paiseToInr(preview.noticeDeductionPaise)}`}
-          muted
-          hint={
-            detail.noticeChargeableDays != null && detail.noticeChargeableDays > 0
-              ? `${detail.noticeChargeableDays} chargeable · ${detail.noticeRentCoveredDays ?? 0} prepaid`
-              : undefined
-          }
-        />
-        <SummaryRow
-          label="Electricity"
-          value={`−${paiseToInr(preview.electricityDeductFromDeposit ? electricityDeduction : 0)}`}
-          muted
-        />
-        {preview.electricityDeductFromDeposit && electricityDeduction > 0 ? (
-          <div className="rounded-2xl bg-white/[0.03] px-3 py-3 text-xs text-apg-silver">
-            <p>
-              This amount will automatically be credited toward this room&apos;s electricity bill
-              {detail.roomElectricityLedger
-                ? ` for ${formatBillingMonthLabel(detail.roomElectricityLedger.billingMonth)}`
-                : ''}
-              .
-            </p>
-            {detail.roomElectricityLedger ? (
-              <dl className="mt-3 space-y-1.5">
-                <div className="flex justify-between gap-3">
-                  <dt>Room electricity collected</dt>
-                  <dd className="font-medium text-white">
-                    {paiseToInr(detail.roomElectricityLedger.collectedPaise)}
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt>Remaining</dt>
-                  <dd className="font-medium text-white">
-                    {paiseToInr(detail.roomElectricityLedger.remainingPaise)}
-                  </dd>
-                </div>
-              </dl>
-            ) : null}
-          </div>
-        ) : null}
-        {preview.outstandingRentDeductionPaise > 0 ? (
           <SummaryRow
-            label="Outstanding rent"
-            value={`−${paiseToInr(preview.outstandingRentDeductionPaise)}`}
+            label="Electricity"
+            value={`−${paiseToInr(preview.electricityDeductFromDeposit ? electricityDeduction : 0)}`}
             muted
           />
-        ) : null}
-        <SummaryRow
-          label="Damage"
-          value={`−${paiseToInr(damagePaise)}`}
-          muted
-        />
-        <SummaryRow label="Other charges" value={`−${paiseToInr(otherCharges)}`} muted />
-      </dl>
+          {preview.electricityDeductFromDeposit && electricityDeduction > 0 ? (
+            <ElectricityLedgerNote detail={detail} />
+          ) : null}
+          {preview.outstandingRentDeductionPaise > 0 ? (
+            <SummaryRow
+              label="Outstanding rent"
+              value={`−${paiseToInr(preview.outstandingRentDeductionPaise)}`}
+              muted
+            />
+          ) : null}
+          <SummaryRow label="Damage" value={`−${paiseToInr(damagePaise)}`} muted />
+          <SummaryRow label="Other charges" value={`−${paiseToInr(otherCharges)}`} muted />
+        </dl>
+      )}
 
       <div className="my-5 border-t border-white/[0.08]" />
 
       <div className="flex items-end justify-between gap-3">
-        <p className="text-sm font-medium text-apg-silver">Final refund</p>
+        <p className="text-sm font-medium text-apg-silver">Total refund</p>
         <p className="text-3xl font-semibold tracking-tight text-white">{paiseToInr(finalRefund)}</p>
       </div>
+      {usesV2 && preview.unusedRentRefundPaise != null && preview.unusedRentRefundPaise > 0 ? (
+        <p className="mt-2 text-xs text-apg-silver">
+          Includes {paiseToInr(preview.unusedRentRefundPaise)} unused rent credit (single UPI payout).
+        </p>
+      ) : null}
 
       {showPayment ? (
         <PaymentDestination
@@ -138,6 +125,36 @@ export function CheckoutRefundSummaryRail({
         />
       ) : null}
     </aside>
+  );
+}
+
+function ElectricityLedgerNote({ detail }: { detail: CheckoutSettlementDetail }) {
+  return (
+    <div className="rounded-2xl bg-white/[0.03] px-3 py-3 text-xs text-apg-silver">
+      <p>
+        This amount will automatically be credited toward this room&apos;s electricity bill
+        {detail.roomElectricityLedger
+          ? ` for ${formatBillingMonthLabel(detail.roomElectricityLedger.billingMonth)}`
+          : ''}
+        .
+      </p>
+      {detail.roomElectricityLedger ? (
+        <dl className="mt-3 space-y-1.5">
+          <div className="flex justify-between gap-3">
+            <dt>Room electricity collected</dt>
+            <dd className="font-medium text-white">
+              {paiseToInr(detail.roomElectricityLedger.collectedPaise)}
+            </dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt>Remaining</dt>
+            <dd className="font-medium text-white">
+              {paiseToInr(detail.roomElectricityLedger.remainingPaise)}
+            </dd>
+          </div>
+        </dl>
+      ) : null}
+    </div>
   );
 }
 

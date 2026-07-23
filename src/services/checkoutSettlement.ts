@@ -22,7 +22,7 @@ import type { AdminSession } from '@/src/lib/auth/session';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import type { CheckoutSource } from '@/src/lib/checkout/checkoutSource';
-import { diffDays, formatDate, parseDate, todayString } from '@/src/lib/dates';
+import { diffDays, formatDate, normalizeIsoDateOnly, parseDate, todayString } from '@/src/lib/dates';
 import { asPlainNumber } from '@/src/lib/format';
 import {
   DEPOSIT_REFUND_MISSING_DETAILS_MESSAGE,
@@ -75,6 +75,18 @@ import {
   resolveCheckoutElectricitySharePaise,
 } from '@/src/lib/checkout/electricitySettlementCalc';
 import type { ElectricityCalculationMethod } from '@/src/lib/checkout/electricitySettlementCalc';
+import type { CheckoutSettlementWaterfall } from '@/src/lib/checkout/checkoutSettlementEngineV2';
+import { buildCheckoutSettlementV2DeductionPlan, checkoutSettlementV2ColumnPatch } from '@/src/lib/checkout/checkoutSettlementEngineV2';
+import {
+  computeWaterfallForSettlement,
+  persistWaterfallForSettlement,
+  resolveStayCheckInDate,
+  waterfallToLegacyPreview,
+} from '@/src/lib/checkout/checkoutSettlementV2Compute';
+import {
+  isCheckoutSettlementV2Enabled,
+  settlementUsesEngineV2,
+} from '@/src/lib/checkout/checkoutSettlementV2Flag';
 
 /** Statuses shown in operational queues (excludes archived). */
 const OPERATIONAL_SETTLEMENT_STATUSES: CheckoutSettlementStatus[] = [
@@ -145,7 +157,11 @@ export type CheckoutSettlementDetail = CheckoutSettlementRow & {
     outstandingRentDeductionPaise: number;
     electricityDeductFromDeposit: boolean;
     electricitySharePaise: number;
+    totalRefundPaise?: number;
+    depositRefundablePaise?: number;
+    unusedRentRefundPaise?: number;
   };
+  waterfall?: CheckoutSettlementWaterfall | null;
 };
 
 export { hasCheckoutElectricityEvidence } from '@/src/lib/checkout/checkoutElectricityEvidence';
@@ -364,6 +380,67 @@ function buildPreview(
   };
 }
 
+async function buildSettlementPreview(args: {
+  settlement: CheckoutSettlement;
+  depositHeldPaise: number;
+  outstandingRentAtCheckoutPaise?: number;
+  stayCheckInDate?: string | null;
+  stayCheckoutDate: string;
+  stayType?: string | null;
+  durationMode?: string | null;
+}): Promise<{
+  preview: CheckoutSettlementDetail['preview'];
+  waterfall: CheckoutSettlementWaterfall | null;
+}> {
+  const waterfall = await computeWaterfallForSettlement({
+    settlement: args.settlement,
+    depositHeldPaise: args.depositHeldPaise,
+    stayCheckInDate: args.stayCheckInDate,
+    stayCheckoutDate: args.stayCheckoutDate,
+    stayType: args.stayType,
+    durationMode: args.durationMode,
+  });
+
+  if (waterfall) {
+    return {
+      waterfall,
+      preview: waterfallToLegacyPreview(waterfall, args.depositHeldPaise, args.settlement),
+    };
+  }
+
+  return {
+    waterfall: null,
+    preview: buildPreview(
+      args.settlement,
+      args.depositHeldPaise,
+      args.outstandingRentAtCheckoutPaise ?? 0,
+    ),
+  };
+}
+
+async function recomputeAndPersistV2Snapshot(args: {
+  settlement: CheckoutSettlement;
+  stayCheckoutDate: string;
+  stayType?: string | null;
+  durationMode?: string | null;
+}): Promise<void> {
+  if (!settlementUsesEngineV2(args.settlement) || args.settlement.amountsLocked) return;
+
+  const wallet = await getDepositSummaryForBooking(args.settlement.bookingId);
+  const checkIn =
+    args.settlement.stayCheckInDate ?? (await resolveStayCheckInDate(args.settlement.bookingId));
+  const waterfall = await computeWaterfallForSettlement({
+    settlement: args.settlement,
+    depositHeldPaise: wallet?.refundableBalancePaise ?? 0,
+    stayCheckInDate: checkIn,
+    stayCheckoutDate: args.stayCheckoutDate,
+    stayType: args.stayType,
+    durationMode: args.durationMode,
+  });
+  if (!waterfall) return;
+  await persistWaterfallForSettlement(args.settlement.id, waterfall);
+}
+
 type SettlementJoinRow = {
   id: string;
   vacating_request_id: string;
@@ -413,6 +490,23 @@ type SettlementJoinRow = {
   refund_paid_by_admin_id: string | null;
   deposit_settlement_id: string | null;
   checkout_source: string;
+  settlement_engine_version?: number | null;
+  stay_check_in_date?: string | null;
+  stay_checkout_date?: string | null;
+  stay_days?: number | null;
+  rent_paid_paise?: number | null;
+  rent_consumed_paise?: number | null;
+  unused_rent_paise?: number | null;
+  notice_deduction_full_paise?: number | null;
+  notice_from_unused_rent_paise?: number | null;
+  notice_from_deposit_paise?: number | null;
+  unused_rent_after_notice_paise?: number | null;
+  electricity_from_deposit_paise?: number | null;
+  other_from_deposit_paise?: number | null;
+  deposit_refundable_paise?: number | null;
+  unused_rent_refund_paise?: number | null;
+  total_refund_paise?: number | null;
+  settlement_waterfall_json?: CheckoutSettlementWaterfall | null;
   created_at: Date;
   updated_at: Date;
   customer_name: string;
@@ -483,6 +577,24 @@ function mapDbSettlement(row: SettlementJoinRow): CheckoutSettlement {
     refundPaidByAdminId: row.refund_paid_by_admin_id,
     depositSettlementId: row.deposit_settlement_id,
     checkoutSource: row.checkout_source ?? 'resident_vacating',
+    settlementEngineVersion: asPlainNumber(row.settlement_engine_version ?? 1),
+    stayCheckInDate: row.stay_check_in_date ?? null,
+    stayCheckoutDate: row.stay_checkout_date ?? null,
+    stayDays: row.stay_days != null ? asPlainNumber(row.stay_days) : null,
+    rentPaidPaise: paiseField(row.rent_paid_paise ?? 0),
+    rentConsumedPaise: paiseField(row.rent_consumed_paise ?? 0),
+    unusedRentPaise: paiseField(row.unused_rent_paise ?? 0),
+    noticeDeductionFullPaise: paiseField(row.notice_deduction_full_paise ?? 0),
+    noticeFromUnusedRentPaise: paiseField(row.notice_from_unused_rent_paise ?? 0),
+    noticeFromDepositPaise: paiseField(row.notice_from_deposit_paise ?? 0),
+    unusedRentAfterNoticePaise: paiseField(row.unused_rent_after_notice_paise ?? 0),
+    electricityFromDepositPaise: paiseField(row.electricity_from_deposit_paise ?? 0),
+    otherFromDepositPaise: paiseField(row.other_from_deposit_paise ?? 0),
+    depositRefundablePaise:
+      row.deposit_refundable_paise != null ? paiseField(row.deposit_refundable_paise) : null,
+    unusedRentRefundPaise: paiseField(row.unused_rent_refund_paise ?? 0),
+    totalRefundPaise: row.total_refund_paise != null ? paiseField(row.total_refund_paise) : null,
+    settlementWaterfallJson: row.settlement_waterfall_json ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -652,6 +764,27 @@ export async function createCheckoutSettlementFromVacating(input: {
     action: 'created',
     diff: { vacatingRequestId: vr.id, bookingId: vr.bookingId },
   });
+
+  if (isCheckoutSettlementV2Enabled()) {
+    const checkIn = await resolveStayCheckInDate(vr.bookingId);
+    const vacatingDate =
+      normalizeIsoDateOnly(String(vr.vacatingDate)) || formatDate(parseDate(vr.vacatingDate));
+    if (checkIn) {
+      const [fresh] = await db
+        .select()
+        .from(checkoutSettlements)
+        .where(eq(checkoutSettlements.id, created.id))
+        .limit(1);
+      if (fresh) {
+        await recomputeAndPersistV2Snapshot({
+          settlement: fresh,
+          stayCheckoutDate: vacatingDate,
+          stayType: booking?.stayType,
+          durationMode: booking?.durationMode,
+        });
+      }
+    }
+  }
 
   scheduleAdminNotificationSync();
   return { ok: true, settlementId: created.id };
@@ -1116,6 +1249,16 @@ async function buildCheckoutSettlementDetailFromJoinRow(
       ? { ...settlement, electricitySharePaise: resolvedSharePaise }
       : settlement;
 
+  const { preview, waterfall } = await buildSettlementPreview({
+    settlement: previewSettlement,
+    depositHeldPaise: depositHeld,
+    outstandingRentAtCheckoutPaise,
+    stayCheckInDate: row.move_in_date,
+    stayCheckoutDate: row.vacating_date,
+    stayType: row.stay_type,
+    durationMode: row.duration_mode,
+  });
+
   let roomElectricityLedger: RoomElectricityLedgerCycleView | null = null;
   if (row.room_id && resolvedSharePaise > 0) {
     try {
@@ -1164,7 +1307,8 @@ async function buildCheckoutSettlementDetailFromJoinRow(
     electricityTotalBillPaise,
     roomElectricityAllocation,
     roomElectricityLedger,
-    preview: buildPreview(previewSettlement, depositHeld, outstandingRentAtCheckoutPaise),
+    preview,
+    waterfall,
   });
 }
 
@@ -1689,6 +1833,31 @@ export async function updateCheckoutElectricitySettlement(input: {
     })
     .where(eq(checkoutSettlements.id, input.settlementId));
 
+  const [booking] = await db
+    .select({ stayType: bookings.stayType, durationMode: bookings.durationMode })
+    .from(bookings)
+    .where(eq(bookings.id, current.bookingId))
+    .limit(1);
+  const [vacatingRow] = await db
+    .select({ vacatingDate: vacatingRequests.vacatingDate })
+    .from(vacatingRequests)
+    .where(eq(vacatingRequests.id, current.vacatingRequestId))
+    .limit(1);
+  if (vacatingRow?.vacatingDate) {
+    await recomputeAndPersistV2Snapshot({
+      settlement: {
+        ...current,
+        electricitySharePaise: finalSharePaise,
+        electricityDeductFromDeposit: input.deductFromDeposit,
+      },
+      stayCheckoutDate:
+        normalizeIsoDateOnly(String(vacatingRow.vacatingDate)) ||
+        formatDate(parseDate(vacatingRow.vacatingDate)),
+      stayType: booking?.stayType,
+      durationMode: booking?.durationMode,
+    });
+  }
+
   await db.insert(auditLog).values({
     actorType: 'admin',
     actorId: input.adminId,
@@ -1755,6 +1924,27 @@ export async function updateCheckoutSettlementAdminFields(input: {
     .set(patch)
     .where(eq(checkoutSettlements.id, input.settlementId));
 
+  const [booking] = await db
+    .select({ stayType: bookings.stayType, durationMode: bookings.durationMode })
+    .from(bookings)
+    .where(eq(bookings.id, current.bookingId))
+    .limit(1);
+  const [vacatingRow] = await db
+    .select({ vacatingDate: vacatingRequests.vacatingDate })
+    .from(vacatingRequests)
+    .where(eq(vacatingRequests.id, current.vacatingRequestId))
+    .limit(1);
+  if (vacatingRow?.vacatingDate) {
+    await recomputeAndPersistV2Snapshot({
+      settlement: { ...current, ...patch },
+      stayCheckoutDate:
+        normalizeIsoDateOnly(String(vacatingRow.vacatingDate)) ||
+        formatDate(parseDate(vacatingRow.vacatingDate)),
+      stayType: booking?.stayType,
+      durationMode: booking?.durationMode,
+    });
+  }
+
   return { ok: true };
 }
 
@@ -1798,7 +1988,26 @@ export async function approveCheckoutSettlement(input: {
 
   const wallet = await getDepositSummaryForBooking(current.bookingId);
   const depositHeld = wallet?.refundableBalancePaise ?? 0;
-  const preview = buildPreview(current, depositHeld);
+
+  const [vacatingRow] = await db
+    .select({ vacatingDate: vacatingRequests.vacatingDate })
+    .from(vacatingRequests)
+    .where(eq(vacatingRequests.id, current.vacatingRequestId))
+    .limit(1);
+  const stayCheckoutDate = vacatingRow?.vacatingDate
+    ? normalizeIsoDateOnly(String(vacatingRow.vacatingDate)) ||
+      formatDate(parseDate(vacatingRow.vacatingDate))
+    : current.stayCheckoutDate ?? todayString();
+
+  const { preview, waterfall } = await buildSettlementPreview({
+    settlement: current,
+    depositHeldPaise: depositHeld,
+    stayCheckInDate: current.stayCheckInDate,
+    stayCheckoutDate,
+    stayType: booking?.stayType,
+    durationMode: booking?.durationMode,
+  });
+
   const zeroRefund = preview.finalRefundPaise <= 0;
 
   const allowedStatuses: CheckoutSettlementStatus[] = zeroRefund
@@ -1822,18 +2031,22 @@ export async function approveCheckoutSettlement(input: {
     };
   }
 
-  const deductions = buildCheckoutSettlementDeductionPlan({
-    noticeDeductionPaise: current.noticeDeductionPaise,
-    noticeShortfallDays: current.noticeShortfallDays,
-    noticeChargeableDays: current.noticeChargeableDays,
-    noticeRentCoveredDays: current.noticeRentCoveredDays,
-    electricitySharePaise: resolveCheckoutElectricitySharePaise(current),
-    electricityDeductFromDeposit: current.electricityDeductFromDeposit !== false,
-    damageChargePaise: current.damageChargePaise,
-    cleaningChargePaise: current.cleaningChargePaise,
-    customChargePaise: current.customChargePaise,
-    customChargeLabel: current.customChargeLabel,
-  });
+  const deductions = waterfall
+    ? buildCheckoutSettlementV2DeductionPlan(waterfall, {
+        customChargeLabel: current.customChargeLabel,
+      })
+    : buildCheckoutSettlementDeductionPlan({
+        noticeDeductionPaise: current.noticeDeductionPaise,
+        noticeShortfallDays: current.noticeShortfallDays,
+        noticeChargeableDays: current.noticeChargeableDays,
+        noticeRentCoveredDays: current.noticeRentCoveredDays,
+        electricitySharePaise: resolveCheckoutElectricitySharePaise(current),
+        electricityDeductFromDeposit: current.electricityDeductFromDeposit !== false,
+        damageChargePaise: current.damageChargePaise,
+        cleaningChargePaise: current.cleaningChargePaise,
+        customChargePaise: current.customChargePaise,
+        customChargeLabel: current.customChargeLabel,
+      });
 
   try {
     await db.transaction(async (tx) => {
@@ -1872,7 +2085,12 @@ export async function approveCheckoutSettlement(input: {
 
   const balanceAfter = (await getDepositSummaryForBooking(current.bookingId))
     ?.refundableBalancePaise ?? 0;
-  const finalRefundPaise = Math.min(preview.finalRefundPaise, balanceAfter);
+  const depositPortionRefund = waterfall
+    ? waterfall.refund.depositPortionPaise
+    : Math.min(preview.finalRefundPaise, balanceAfter);
+  const finalRefundPaise = waterfall
+    ? preview.finalRefundPaise
+    : Math.min(preview.finalRefundPaise, balanceAfter);
 
   await db
     .update(checkoutSettlements)
@@ -1880,9 +2098,12 @@ export async function approveCheckoutSettlement(input: {
       status: finalRefundPaise <= 0 ? 'completed' : 'refund_pending',
       amountsLocked: true,
       finalRefundPaise,
+      totalRefundPaise: finalRefundPaise,
+      depositRefundablePaise: depositPortionRefund,
       deductionsSnapshot: preview,
       approvedAt: new Date(),
       approvedByAdminId: input.adminId,
+      ...(waterfall ? checkoutSettlementV2ColumnPatch(waterfall) : {}),
       ...(finalRefundPaise <= 0
         ? {
             refundNotes: 'Deposit fully applied to deductions — no payout due.',
@@ -1959,11 +2180,16 @@ export async function markCheckoutRefundPaid(input: {
   }
 
   const refundPaise = current.finalRefundPaise;
+  const depositLedgerRefundPaise = settlementUsesEngineV2(current)
+    ? (current.depositRefundablePaise ??
+      current.settlementWaterfallJson?.refund.depositPortionPaise ??
+      refundPaise)
+    : refundPaise;
   const idempotencyKey = `checkout:${current.id}`;
 
   const wallet = await getDepositSummaryForBooking(current.bookingId);
   const ledgerBalance = wallet?.refundableBalancePaise ?? 0;
-  if (refundPaise > ledgerBalance) {
+  if (depositLedgerRefundPaise > ledgerBalance) {
     return {
       ok: false,
       error:
@@ -1971,7 +2197,7 @@ export async function markCheckoutRefundPaid(input: {
     };
   }
 
-  if (refundPaise > 0) {
+  if (depositLedgerRefundPaise > 0) {
     const settled = await settleDepositRefund({
       bookingId: current.bookingId,
       customerId: current.customerId,
@@ -1979,8 +2205,11 @@ export async function markCheckoutRefundPaid(input: {
       source: 'checkout',
       sourceId: current.id,
       adminId: input.adminId,
-      reason: 'Checkout settlement refund',
-      refundPaise,
+      reason:
+        refundPaise > depositLedgerRefundPaise
+          ? `Checkout settlement refund (deposit ₹${(depositLedgerRefundPaise / 100).toFixed(0)} + unused rent ₹${((refundPaise - depositLedgerRefundPaise) / 100).toFixed(0)})`
+          : 'Checkout settlement refund',
+      refundPaise: depositLedgerRefundPaise,
       deductionsSnapshot: current.deductionsSnapshot ?? undefined,
       relatedVacatingId: current.vacatingRequestId,
       refundAudit: {

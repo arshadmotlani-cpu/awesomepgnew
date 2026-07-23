@@ -135,6 +135,8 @@ type SettlementInput = {
   electricitySharePaise?: number;
   electricityDeductFromDeposit?: boolean;
   finalRefundPaise?: number | null;
+  totalRefundPaise?: number | null;
+  settlementEngineVersion?: number | null;
   amountsLocked?: boolean;
 };
 
@@ -150,6 +152,14 @@ function computeEstimatedRefundPaise(
     settlement.finalRefundPaise != null
   ) {
     return guardDepositPaise(settlement.finalRefundPaise);
+  }
+
+  if (
+    settlement &&
+    (settlement.settlementEngineVersion ?? 0) >= 2 &&
+    settlement.totalRefundPaise != null
+  ) {
+    return guardDepositPaise(settlement.totalRefundPaise);
   }
 
   return computeCheckoutRefundPreview({
