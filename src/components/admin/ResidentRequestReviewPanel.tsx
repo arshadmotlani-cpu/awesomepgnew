@@ -57,9 +57,6 @@ export function ResidentRequestReviewPanel({
 
   const [elecCost, setElecCost] = useState('12');
   const [elecUnits, setElecUnits] = useState('');
-  const [calcUseAverage, setCalcUseAverage] = useState(
-    Boolean(request.useAverageBillingFallback),
-  );
   const [damage, setDamage] = useState('');
   const [cleaning, setCleaning] = useState('');
   const [penalty, setPenalty] = useState('');
@@ -79,8 +76,13 @@ export function ResidentRequestReviewPanel({
     (request.amountPaise ?? 0);
 
   const submissionValid = useMemo(
-    () => validateDepositRefundSubmission(request),
-    [request],
+    () =>
+      validateDepositRefundSubmission({
+        meterReadingPhotoUrl: request.meterReadingPhotoUrl,
+        payoutUpiId: request.payoutUpiId,
+        payoutQrUrl: request.payoutQrUrl,
+      }),
+    [request.meterReadingPhotoUrl, request.payoutUpiId, request.payoutQrUrl],
   );
 
   const preview = useMemo(
@@ -152,9 +154,7 @@ export function ResidentRequestReviewPanel({
             <ul className="mt-2 space-y-1 text-xs text-apg-silver">
               <li>
                 Meter photo:{' '}
-                {request.useAverageBillingFallback ? (
-                  <span className="text-amber-300">Average billing fallback selected</span>
-                ) : request.meterReadingPhotoUrl ? (
+                {request.meterReadingPhotoUrl ? (
                   <a
                     href={adminResidentRequestImageUrl(request.id, 'meter')}
                     target="_blank"
@@ -201,22 +201,11 @@ export function ResidentRequestReviewPanel({
           <div className="rounded-xl border border-white/10 bg-[#12161C] p-4">
             <p className="text-sm font-semibold text-white">Electricity before approval</p>
             <p className="mt-1 text-xs text-apg-silver">
-              Fetch meter readings or apply room-average estimate, then generate the electricity
-              invoice before deducting from the deposit wallet.
+              Fetch meter readings from the room history, then generate the electricity invoice
+              before deducting from the deposit wallet.
             </p>
             <form action={elecAction} className="mt-3 space-y-3">
               <input type="hidden" name="bookingId" value={request.bookingId} />
-              <label className="flex items-center gap-2 text-xs text-apg-silver">
-                <input
-                  type="checkbox"
-                  name="useAverageFallback"
-                  value="1"
-                  checked={calcUseAverage}
-                  onChange={(e) => setCalcUseAverage(e.target.checked)}
-                  className="rounded border-white/20"
-                />
-                Auto average calculation per room (no meter photo)
-              </label>
               <button
                 type="submit"
                 disabled={elecPending}

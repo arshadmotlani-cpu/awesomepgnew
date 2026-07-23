@@ -571,11 +571,13 @@ export async function approveVacatingRequest(input: {
     '@/src/services/continuousResidency'
   );
   const checkoutDecision = await evaluateResidencyCheckoutOnBookingEnd(updated.bookingId);
+  let checkoutSuppressed = false;
   if (checkoutDecision.action === 'KEEP_RESIDENCY_ACTIVE') {
     await db
       .update(vacatingRequests)
       .set({ checkoutSettlementSuppressed: true, updatedAt: new Date() })
       .where(eq(vacatingRequests.id, updated.id));
+    checkoutSuppressed = true;
   }
 
   scheduleAdminNotificationSync();
@@ -734,6 +736,70 @@ export async function cancelVacatingRequestByCustomer(input: {
 
   scheduleAdminNotificationSync();
 
+  return { ok: true, bookingId: current.bookingId };
+}
+
+/** Resident withdraws an approved move-out to submit a fresh notice (e.g. non-compliant date). */
+export async function cancelApprovedVacatingByCustomer(input: {
+  requestId: string;
+  customerId: string;
+}): Promise<
+  | { ok: true; bookingId: string }
+  | { ok: false; kind: 'not_found' | 'forbidden' | 'wrong_status'; status?: VacatingRequest['status'] }
+  | { ok: false; kind: 'cannot_restore'; message: string }
+> {
+  const [current] = await db
+    .select()
+    .from(vacatingRequests)
+    .where(eq(vacatingRequests.id, input.requestId))
+    .limit(1);
+  if (!current) return { ok: false, kind: 'not_found' };
+  if (current.customerId !== input.customerId) return { ok: false, kind: 'forbidden' };
+  if (current.status !== 'approved') {
+    return { ok: false, kind: 'wrong_status', status: current.status };
+  }
+
+  const restored = await restoreOpenEndedStay(current.bookingId);
+  if (!restored.ok) {
+    return { ok: false, kind: 'cannot_restore', message: restored.reason };
+  }
+
+  await restoreCheckoutRentAfterVacatingCancel({
+    bookingId: current.bookingId,
+    context: 'customer_cancel_approved',
+  });
+
+  const { cancelVacatingDateChangeRequest } = await import('@/src/services/vacatingDateChange');
+  const { vacatingDateChangeRequests } = await import('@/src/db/schema');
+  const pendingChanges = await db
+    .select({ id: vacatingDateChangeRequests.id })
+    .from(vacatingDateChangeRequests)
+    .where(
+      and(
+        eq(vacatingDateChangeRequests.vacatingRequestId, current.id),
+        eq(vacatingDateChangeRequests.status, 'pending'),
+      ),
+    );
+  for (const row of pendingChanges) {
+    await cancelVacatingDateChangeRequest({ requestId: row.id, customerId: input.customerId });
+  }
+
+  await db.delete(vacatingRequests).where(eq(vacatingRequests.id, current.id));
+
+  await db.insert(auditLog).values({
+    actorType: 'customer',
+    actorId: input.customerId,
+    entity: 'vacating_request',
+    entityId: current.id,
+    action: 'cancelled_by_customer',
+    diff: {
+      bookingId: current.bookingId,
+      vacatingDate: current.vacatingDate,
+      fromStatus: 'approved',
+    },
+  });
+
+  scheduleAdminNotificationSync();
   return { ok: true, bookingId: current.bookingId };
 }
 
@@ -1309,6 +1375,12 @@ export async function revertVacatingApproval(input: {
     context: 'revert_approval',
   });
 
+  const { cleanupCheckoutSettlementForVacating } = await import('./checkoutSettlement');
+  await cleanupCheckoutSettlementForVacating({
+    vacatingRequestId: current.id,
+    adminId: input.resolvedByAdminId ?? null,
+  });
+
   const [updated] = await db
     .update(vacatingRequests)
     .set({
@@ -1358,6 +1430,17 @@ export async function extendVacatingDate(input: {
     .limit(1);
 
   if (vacating) {
+    if (vacating.status === 'approved') {
+      const { applyApprovedVacatingDateChange } = await import('@/src/services/vacatingDateChange');
+      await applyApprovedVacatingDateChange({
+        vacating,
+        newVacatingDate: newDate,
+        resolvedByAdminId: input.resolvedByAdminId,
+      });
+      scheduleAdminNotificationSync();
+      return { ok: true, requestId: vacating.id };
+    }
+
     const noticeCompliant = isNoticeCompliant({
       noticeGivenDate: vacating.noticeGivenDate,
       vacatingDate: newDate,

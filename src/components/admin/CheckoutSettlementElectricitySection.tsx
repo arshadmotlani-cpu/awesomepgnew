@@ -8,7 +8,6 @@ import {
 } from '@/app/(admin)/admin/checkout-settlements/actions';
 import { CheckoutRoomElectricityBreakdown } from '@/src/components/admin/checkout/CheckoutRoomElectricityBreakdown';
 import {
-  calculateAverageBillingElectricity,
   calculateCheckoutElectricity,
   calculateManualElectricityCharge,
   effectiveSharingCount,
@@ -28,7 +27,6 @@ export type ElectricityLivePreview = {
 
 const METHOD_OPTIONS: { value: ElectricityCalculationMethod; label: string }[] = [
   { value: 'meter_reading', label: 'Meter Reading' },
-  { value: 'average_billing', label: 'Average Billing' },
   { value: 'manual_amount', label: 'Manual Amount' },
 ];
 
@@ -59,13 +57,11 @@ export function CheckoutSettlementElectricitySection({
   const [timelineLoading, setTimelineLoading] = useState(false);
 
   const [method, setMethod] = useState<ElectricityCalculationMethod>(() => {
-    if (detail.electricityUseAverage && detail.electricityCalculationMethod === 'meter_reading') {
-      return 'average_billing';
-    }
+    if (detail.electricityUseAverage) return 'manual_amount';
     return (detail.electricityCalculationMethod as ElectricityCalculationMethod) ?? 'meter_reading';
   });
   const [meterPhotoMissing, setMeterPhotoMissing] = useState(
-    detail.meterPhotoMissing || (!detail.electricityMeterPhotoUrl && !detail.electricityUseAverage),
+    detail.meterPhotoMissing || !detail.electricityMeterPhotoUrl,
   );
   const [sharingOverride, setSharingOverride] = useState(detail.electricitySharingOverride);
   const [sharingCountOverride, setSharingCountOverride] = useState(
@@ -81,9 +77,6 @@ export function CheckoutSettlementElectricitySection({
     detail.electricityUnitRatePaise != null
       ? (detail.electricityUnitRatePaise / 100).toFixed(2)
       : '16',
-  );
-  const [averageBillInr, setAverageBillInr] = useState(
-    detail.averageBillPaise != null ? (detail.averageBillPaise / 100).toFixed(2) : '',
   );
   const [manualChargeInr, setManualChargeInr] = useState(
     detail.manualChargePaise != null
@@ -106,7 +99,7 @@ export function CheckoutSettlementElectricitySection({
     let cancelled = false;
     void fetch(`/api/admin/rooms/${detail.roomId}/last-electricity-reading`)
       .then((res) => res.json())
-      .then((body: { ok?: boolean; data?: { previousReadingUnits?: number; ratePerUnitPaise?: number; estimatedAverageBillPaise?: number } }) => {
+      .then((body: { ok?: boolean; data?: { previousReadingUnits?: number; ratePerUnitPaise?: number } }) => {
         if (cancelled || !body.ok || !body.data) return;
         const d = body.data;
         if (!previousReading && d.previousReadingUnits != null && d.previousReadingUnits > 0) {
@@ -115,20 +108,7 @@ export function CheckoutSettlementElectricitySection({
         if (d.ratePerUnitPaise != null && ratePerUnitInr === '16') {
           setRatePerUnitInr((d.ratePerUnitPaise / 100).toFixed(2));
         }
-        if (
-          detail.electricityUseAverage &&
-          !averageBillInr &&
-          d.estimatedAverageBillPaise != null &&
-          d.estimatedAverageBillPaise > 0
-        ) {
-          setAverageBillInr((d.estimatedAverageBillPaise / 100).toFixed(2));
-          setMethod('average_billing');
-        }
-        setRoomDataHint(
-          d.estimatedAverageBillPaise
-            ? `Room history loaded — suggested average bill ₹${(d.estimatedAverageBillPaise / 100).toFixed(0)}`
-            : 'Room meter history loaded',
-        );
+        setRoomDataHint('Room meter history loaded');
       })
       .catch(() => undefined);
     return () => {
@@ -136,12 +116,6 @@ export function CheckoutSettlementElectricitySection({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- prefetch once per room
   }, [detail.roomId, editable]);
-
-  useEffect(() => {
-    if (meterPhotoMissing && method === 'meter_reading') {
-      setMethod('average_billing');
-    }
-  }, [meterPhotoMissing, method]);
 
   useEffect(() => {
     if (settlementIdRef.current !== detail.id) {
@@ -177,15 +151,6 @@ export function CheckoutSettlementElectricitySection({
         roomOccupants: occupants,
       });
     }
-    if (method === 'average_billing') {
-      const bill = Number(averageBillInr);
-      if (!Number.isFinite(bill) || bill <= 0) return null;
-      return calculateAverageBillingElectricity({
-        averageBillPaise: Math.round(bill * 100),
-        roomOccupants: occupants,
-        autoDetectedOccupants: detail.roomOccupancy.autoDetectedCount,
-      });
-    }
     const charge = Number(manualChargeInr);
     if (!Number.isFinite(charge) || charge < 0) return null;
     return calculateManualElectricityCharge({
@@ -198,7 +163,6 @@ export function CheckoutSettlementElectricitySection({
     previousReading,
     currentReading,
     ratePerUnitInr,
-    averageBillInr,
     manualChargeInr,
     occupants,
     detail.roomOccupancy.autoDetectedCount,
@@ -258,7 +222,6 @@ export function CheckoutSettlementElectricitySection({
         previousReading,
         currentReading,
         ratePerUnitInr,
-        averageBillInr,
         manualChargeInr,
         deductFromDeposit,
       }),
@@ -270,7 +233,6 @@ export function CheckoutSettlementElectricitySection({
       previousReading,
       currentReading,
       ratePerUnitInr,
-      averageBillInr,
       manualChargeInr,
       deductFromDeposit,
     ],
@@ -279,9 +241,7 @@ export function CheckoutSettlementElectricitySection({
   const baselineSavedSnapshot = useMemo(
     () =>
       JSON.stringify({
-        method: detail.electricityUseAverage && detail.electricityCalculationMethod === 'meter_reading'
-          ? 'average_billing'
-          : detail.electricityCalculationMethod,
+        method: detail.electricityUseAverage ? 'manual_amount' : detail.electricityCalculationMethod,
         meterPhotoMissing: detail.meterPhotoMissing,
         sharingOverride: detail.electricitySharingOverride,
         sharingCountOverride: String(
@@ -293,8 +253,6 @@ export function CheckoutSettlementElectricitySection({
           detail.electricityUnitRatePaise != null
             ? (detail.electricityUnitRatePaise / 100).toFixed(2)
             : '16',
-        averageBillInr:
-          detail.averageBillPaise != null ? (detail.averageBillPaise / 100).toFixed(2) : '',
         manualChargeInr:
           detail.manualChargePaise != null
             ? (detail.manualChargePaise / 100).toFixed(2)
@@ -428,21 +386,6 @@ export function CheckoutSettlementElectricitySection({
                   />
                 </label>
               </div>
-            ) : null}
-
-            {method === 'average_billing' ? (
-              <label className="block text-sm">
-                <span className="text-apg-silver">Average room electricity bill (₹)</span>
-                <input
-                  name="averageBillInr"
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={averageBillInr}
-                  onChange={(e) => setAverageBillInr(e.target.value)}
-                  className={FIELD}
-                />
-              </label>
             ) : null}
 
             {method === 'manual_amount' ? (
@@ -633,39 +576,6 @@ export function CheckoutSettlementElectricitySection({
                   className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-white"
                 />
               </label>
-            </div>
-          ) : null}
-
-          {method === 'average_billing' ? (
-            <div className="space-y-2">
-              <label className="block text-sm">
-                <span className="text-apg-silver">Average room electricity bill (₹)</span>
-                <input
-                  name="averageBillInr"
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={averageBillInr}
-                  onChange={(e) => setAverageBillInr(e.target.value)}
-                  className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-white"
-                />
-              </label>
-              {detail.roomId ? (
-                <button
-                  type="button"
-                  className="rounded-lg border border-sky-400/40 px-3 py-1.5 text-xs font-semibold text-sky-200 hover:bg-sky-500/10"
-                  onClick={() => {
-                    void fetch(`/api/admin/rooms/${detail.roomId}/last-electricity-reading`)
-                      .then((res) => res.json())
-                      .then((body: { ok?: boolean; data?: { estimatedAverageBillPaise?: number } }) => {
-                        if (!body.ok || !body.data?.estimatedAverageBillPaise) return;
-                        setAverageBillInr((body.data.estimatedAverageBillPaise / 100).toFixed(2));
-                      });
-                  }}
-                >
-                  Suggest room average from history
-                </button>
-              ) : null}
             </div>
           ) : null}
 

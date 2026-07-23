@@ -74,11 +74,15 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
     (detail.status === 'awaiting_admin_review' || detail.status === 'awaiting_resident_details');
 
   const noticeBreakdown = breakdownFromStoredNoticeSnapshot({
+    noticeRequiredDays: detail.noticeRequiredDays,
     noticeGivenDays: detail.noticeGivenDays,
+    noticeGivenDate: detail.noticeGivenDate,
+    vacatingDate: detail.vacatingDate,
     noticeShortfallDays: detail.noticeShortfallDays,
     noticeRentCoveredDays: detail.noticeRentCoveredDays,
     noticeChargeableDays: detail.noticeChargeableDays,
     noticeDeductionPaise: detail.noticeDeductionPaise,
+    noticeBreakdownJson: detail.noticeBreakdownJson,
   });
 
   return (

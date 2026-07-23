@@ -12,7 +12,15 @@ import {
   listRentInvoicesForBooking,
 } from '@/src/db/queries/customer';
 import type { AdminSession } from '@/src/lib/auth/session';
-import { buildVacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
+import {
+  buildVacatingApprovalPreviewAsync,
+  type VacatingApprovalPreview,
+} from '@/src/lib/vacating/approvalPreview';
+import {
+  estimatedSettlementFromCheckoutWaterfall,
+  loadEstimatedSettlementForVacating,
+  type EstimatedSettlementPreview,
+} from '@/src/lib/vacating/estimatedSettlementPreview';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import { buildAdminInvoiceHrefMap } from '@/src/lib/billing/invoiceHrefMap';
 import { loadDepositPageData } from '@/src/lib/deposits/loadDepositPageData';
@@ -24,6 +32,11 @@ import {
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 import type { BookingMoneyBalances } from '@/src/lib/billing/bookingMoneyBalances';
 import { pendingPaymentReviewHrefForBooking } from '@/src/lib/operations/paymentReviewLinks.server';
+import {
+  getPendingVacatingDateChangeForBooking,
+  type VacatingDateChangePreview,
+} from '@/src/services/vacatingDateChange';
+import type { VacatingDateChangeRequest } from '@/src/db/schema/vacatingDateChangeRequests';
 
 export type BookingFinancialWorkspaceData = {
   bookingId: string;
@@ -46,8 +59,12 @@ export type BookingFinancialWorkspaceData = {
     noticeGivenDate: string;
     noticeCompliant: boolean;
     deductionPaise: number;
-    approvalPreview: ReturnType<typeof buildVacatingApprovalPreview> | null;
+    approvalPreview: VacatingApprovalPreview | null;
+    estimatedSettlement: EstimatedSettlementPreview | null;
   } | null;
+  pendingDateChange: (VacatingDateChangeRequest & {
+    preview?: VacatingDateChangePreview | null;
+  }) | null;
   checkoutDetail: CheckoutSettlementDetail | null;
   checkoutSettlementId: string | null;
   settlementHref: string | null;
@@ -110,48 +127,96 @@ export async function loadBookingFinancialWorkspace(
   const vacatingRow = vacatingRes.ok ? vacatingRes.data : null;
   const depositHeld = guardDepositPaise(moneyBalances.deposit.refundablePaise ?? moneyBalances.deposit.receivedPaise);
 
-  const vacating = vacatingRow
-    ? {
-        id: vacatingRow.id,
-        status: vacatingRow.status,
-        vacatingDate: vacatingRow.vacatingDate,
+  let vacating: BookingFinancialWorkspaceData['vacating'] = null;
+  if (vacatingRow) {
+    const previewRow = {
+      id: vacatingRow.id,
+      bookingId,
+      bookingCode: b.bookingCode,
+      customerId: b.customer.id,
+      customerFullName: b.customer.fullName,
+      customerPhone: b.customer.phone,
+      pgId: null,
+      pgName: primaryRes.pgName,
+      roomNumber: primaryRes.roomNumber,
+      bedCode: primaryRes.bedCode,
+      noticeGivenDate: vacatingRow.noticeGivenDate,
+      vacatingDate: vacatingRow.vacatingDate,
+      noticeCompliant: vacatingRow.noticeCompliant,
+      status: vacatingRow.status,
+      deductionPaise: vacatingRow.deductionPaise,
+      depositRefundPaise: vacatingRow.depositRefundPaise,
+      monthlyRentPaiseSnapshot: vacatingRow.monthlyRentPaiseSnapshot,
+      noticeRentCoveredDays: vacatingRow.noticeRentCoveredDays,
+      noticeChargeableDays: vacatingRow.noticeChargeableDays,
+      noticeBreakdownJson: vacatingRow.noticeBreakdownJson,
+      durationMode: b.durationMode,
+      stayType: b.stayType,
+      resolvedAt: vacatingRow.resolvedAt,
+      createdAt: vacatingRow.createdAt,
+      updatedAt: vacatingRow.createdAt,
+    };
+
+    const approvalPreview =
+      vacatingRow.status === 'pending'
+        ? await buildVacatingApprovalPreviewAsync(previewRow, depositHeld)
+        : null;
+
+    let estimatedSettlement: EstimatedSettlementPreview | null =
+      approvalPreview?.estimatedSettlement ?? null;
+
+    if (
+      !estimatedSettlement &&
+      checkoutDetail?.waterfall &&
+      checkoutDetail.approvalBaselineLocked
+    ) {
+      estimatedSettlement = estimatedSettlementFromCheckoutWaterfall({
+        detail: {
+          bookingId,
+          noticeGivenDate: vacatingRow.noticeGivenDate,
+          vacatingDate: vacatingRow.vacatingDate,
+          monthlyRentPaiseSnapshot: vacatingRow.monthlyRentPaiseSnapshot,
+          noticeRentCoveredDays: vacatingRow.noticeRentCoveredDays,
+          noticeChargeableDays: vacatingRow.noticeChargeableDays,
+          noticeDeductionPaise: checkoutDetail.noticeDeductionPaise,
+          noticeBreakdownJson: checkoutDetail.noticeBreakdownJson,
+          stayType: b.stayType,
+          durationMode: b.durationMode,
+          depositRefundablePaise: checkoutDetail.depositRefundablePaise,
+          preview: checkoutDetail.preview,
+          approvalBaselineLocked: checkoutDetail.approvalBaselineLocked,
+          amountsLocked: checkoutDetail.amountsLocked,
+        },
+        waterfall: checkoutDetail.waterfall,
+      });
+    }
+
+    if (!estimatedSettlement && ['pending', 'approved'].includes(vacatingRow.status)) {
+      estimatedSettlement = await loadEstimatedSettlementForVacating({
+        bookingId,
         noticeGivenDate: vacatingRow.noticeGivenDate,
-        noticeCompliant: vacatingRow.noticeCompliant,
+        vacatingDate: vacatingRow.vacatingDate,
+        monthlyRentPaiseSnapshot: vacatingRow.monthlyRentPaiseSnapshot,
+        noticeRentCoveredDays: vacatingRow.noticeRentCoveredDays,
+        noticeChargeableDays: vacatingRow.noticeChargeableDays,
         deductionPaise: vacatingRow.deductionPaise,
-        approvalPreview:
-          vacatingRow.status === 'pending'
-            ? buildVacatingApprovalPreview(
-                {
-                  id: vacatingRow.id,
-                  bookingId,
-                  bookingCode: b.bookingCode,
-                  customerId: b.customer.id,
-                  customerFullName: b.customer.fullName,
-                  customerPhone: b.customer.phone,
-                  pgId: null,
-                  pgName: primaryRes.pgName,
-                  roomNumber: primaryRes.roomNumber,
-                  bedCode: primaryRes.bedCode,
-                  noticeGivenDate: vacatingRow.noticeGivenDate,
-                  vacatingDate: vacatingRow.vacatingDate,
-                  noticeCompliant: vacatingRow.noticeCompliant,
-                  status: vacatingRow.status,
-                  deductionPaise: vacatingRow.deductionPaise,
-                  depositRefundPaise: vacatingRow.depositRefundPaise,
-                  monthlyRentPaiseSnapshot: vacatingRow.monthlyRentPaiseSnapshot,
-                  noticeRentCoveredDays: vacatingRow.noticeRentCoveredDays,
-                  noticeChargeableDays: vacatingRow.noticeChargeableDays,
-                  durationMode: b.durationMode,
-                  stayType: b.stayType,
-                  resolvedAt: vacatingRow.resolvedAt,
-                  createdAt: vacatingRow.createdAt,
-                  updatedAt: vacatingRow.createdAt,
-                },
-                depositHeld,
-              )
-            : null,
-      }
-    : null;
+        noticeBreakdownJson: vacatingRow.noticeBreakdownJson,
+        stayType: b.stayType,
+        durationMode: b.durationMode,
+      });
+    }
+
+    vacating = {
+      id: vacatingRow.id,
+      status: vacatingRow.status,
+      vacatingDate: vacatingRow.vacatingDate,
+      noticeGivenDate: vacatingRow.noticeGivenDate,
+      noticeCompliant: vacatingRow.noticeCompliant,
+      deductionPaise: vacatingRow.deductionPaise,
+      approvalPreview,
+      estimatedSettlement,
+    };
+  }
 
   const rentInvoiceHrefMap =
     rentInvoices.ok && rentInvoices.data.length > 0
@@ -166,6 +231,10 @@ export async function loadBookingFinancialWorkspace(
   const settlementId = checkoutDetail?.id ?? null;
   const settlementHref = settlementId ? `#checkout` : null;
   const pendingPaymentReviewHref = await pendingPaymentReviewHrefForBooking(bookingId);
+  const pendingDateChange =
+    vacatingRow && ['approved'].includes(vacatingRow.status)
+      ? await getPendingVacatingDateChangeForBooking(bookingId)
+      : null;
 
   return {
     ok: true,
@@ -184,6 +253,7 @@ export async function loadBookingFinancialWorkspace(
       moneyBalances,
       depositPage,
       vacating,
+      pendingDateChange,
       checkoutDetail,
       checkoutSettlementId: settlementId,
       settlementHref,

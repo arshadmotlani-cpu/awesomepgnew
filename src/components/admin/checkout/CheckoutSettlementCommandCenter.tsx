@@ -1,5 +1,6 @@
 import { Badge } from '@/src/components/admin/Badge';
 import { CheckoutSettlementEvidenceCard } from '@/src/components/admin/checkout/CheckoutSettlementEvidenceCard';
+import { CheckoutSettlementAuditBreakdown } from '@/src/components/admin/checkout/CheckoutSettlementAuditBreakdown';
 import {
   assessCheckoutSettlementReadiness,
   type CheckoutSettlementReadiness,
@@ -14,6 +15,7 @@ export function CheckoutSettlementCommandCenter({
 }) {
   const readiness = assessCheckoutSettlementReadiness(detail);
   const preview = detail.preview;
+  const waterfall = detail.waterfall;
 
   return (
     <section className="mb-8 space-y-4">
@@ -28,32 +30,49 @@ export function CheckoutSettlementCommandCenter({
         </p>
       </header>
 
-      <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-6">
+        <Metric
+          label="Monthly rent"
+          value={paiseToInr(detail.monthlyRentPaiseSnapshot)}
+        />
         <Metric label="Deposit held" value={paiseToInr(detail.depositRefundablePaise)} />
+        {waterfall ? (
+          <>
+            <Metric label="Unused rent" value={paiseToInr(waterfall.rentBucket.unusedPaise)} />
+            <Metric
+              label="Notice deduction"
+              value={paiseToInr(waterfall.notice.fullPaise)}
+            />
+          </>
+        ) : null}
         <Metric
           label="Electricity deduction"
           value={paiseToInr(preview.electricityDeductionPaise)}
         />
-        <Metric label="Other deductions" value={paiseToInr(otherDeductions(preview))} />
         <Metric label="Final refund" value={paiseToInr(preview.finalRefundPaise)} accent />
       </dl>
 
-      {!readiness.isFixedStay && preview.noticeDeductionPaise > 0 ? (
-        <p className="text-sm text-amber-200">
-          Notice fee {paiseToInr(preview.noticeDeductionPaise)} (monthly resident)
-        </p>
+      {detail.roomElectricityLedger ? (
+        <div className="rounded-2xl border border-white/10 bg-[#1A1F27] p-4 text-sm text-apg-silver">
+          <h3 className="font-semibold text-white">Room electricity history</h3>
+          <p className="mt-1">
+            Last recorded room reading: {detail.electricityPreviousReading ?? '—'}
+          </p>
+          {detail.electricityCurrentReading ? (
+            <p className="mt-1">
+              Resident upload (current): {detail.electricityCurrentReading}
+              {detail.electricityUnits ? ` · ${detail.electricityUnits} units` : ''}
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <CheckoutSettlementEvidenceCard
-          title="Meter photo"
+          title="Final AC meter photo"
           evidence={detail.meterPhotoEvidence}
           fallback={
-            detail.electricityUseAverage
-              ? 'Average billing selected'
-              : detail.meterPhotoMissing
-                ? 'Marked as missing'
-                : 'Not uploaded'
+            detail.meterPhotoMissing ? 'Marked as missing' : 'Not uploaded by resident'
           }
         />
         <CheckoutSettlementEvidenceCard
@@ -62,6 +81,13 @@ export function CheckoutSettlementCommandCenter({
           fallback={detail.payoutUpiId?.trim() ? `UPI: ${detail.payoutUpiId}` : 'Not submitted'}
         />
       </div>
+
+      {waterfall ? (
+        <CheckoutSettlementAuditBreakdown
+          detail={detail}
+          className="rounded-2xl border border-white/10 bg-[#1A1F27] p-4"
+        />
+      ) : null}
 
       <div className="rounded-2xl border border-white/10 bg-[#1A1F27] p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -109,15 +135,6 @@ function Metric({
         {value}
       </dd>
     </div>
-  );
-}
-
-function otherDeductions(preview: CheckoutSettlementDetail['preview']) {
-  return (
-    preview.noticeDeductionPaise +
-    (preview.damageChargePaise ?? 0) +
-    (preview.cleaningChargePaise ?? 0) +
-    (preview.customChargePaise ?? 0)
   );
 }
 

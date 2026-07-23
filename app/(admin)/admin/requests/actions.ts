@@ -92,7 +92,6 @@ export async function calculateRefundElectricityAction(
 ): Promise<RefundElectricityActionState> {
   const session = await requireAdminPermission('bookings:write');
   const bookingId = formData.get('bookingId')?.toString() ?? '';
-  const useAverageFallback = formData.get('useAverageFallback')?.toString() === '1';
 
   if (!bookingId) return { ok: false, error: 'Booking required.' };
 
@@ -107,7 +106,6 @@ export async function calculateRefundElectricityAction(
 
   const result = await calculateRefundElectricityForBooking(session, {
     bookingId,
-    useAverageFallback,
   });
 
   if (!result.ok) return { ok: false, error: result.error };

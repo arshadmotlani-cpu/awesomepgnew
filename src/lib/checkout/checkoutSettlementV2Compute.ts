@@ -36,6 +36,33 @@ export type ComputeWaterfallForSettlementArgs = {
   depositHeldPaise?: number;
 };
 
+export function computeWaterfallWithApprovalBaseline(args: {
+  baseline: CheckoutSettlementWaterfall;
+  settlement: CheckoutSettlement;
+  depositHeldPaise: number;
+  stayType?: string | null;
+  durationMode?: string | null;
+}): CheckoutSettlementWaterfall {
+  const electricityShare = resolveCheckoutElectricitySharePaise(args.settlement);
+  return computeCheckoutSettlementV2({
+    stayCheckInDate: args.baseline.stay.checkInDate,
+    stayCheckoutDate: args.baseline.stay.checkoutDate,
+    rentPaidPaise: args.baseline.rentBucket.paidPaise,
+    monthlyRentPaise: args.settlement.monthlyRentPaiseSnapshot,
+    depositCollectedPaise: args.depositHeldPaise,
+    missingNoticeDays: args.baseline.notice.missingNoticeDays,
+    electricityPaise: electricityShare,
+    electricityDeductFromDeposit: args.settlement.electricityDeductFromDeposit !== false,
+    damageChargePaise: args.settlement.damageChargePaise,
+    cleaningChargePaise: args.settlement.cleaningChargePaise,
+    customChargePaise: args.settlement.customChargePaise,
+    noticeApplies: noticeDeductionAppliesToBooking({
+      stayType: args.stayType,
+      durationMode: args.durationMode,
+    }),
+  });
+}
+
 export async function computeWaterfallForSettlement(
   args: ComputeWaterfallForSettlementArgs,
 ): Promise<CheckoutSettlementWaterfall | null> {
@@ -47,12 +74,6 @@ export async function computeWaterfallForSettlement(
     return args.settlement.settlementWaterfallJson;
   }
 
-  const checkIn =
-    args.stayCheckInDate ??
-    args.settlement.stayCheckInDate ??
-    (await resolveStayCheckInDate(args.settlement.bookingId));
-  if (!checkIn) return null;
-
   const checkout = args.stayCheckoutDate ?? args.settlement.stayCheckoutDate;
   if (!checkout) return null;
 
@@ -61,6 +82,26 @@ export async function computeWaterfallForSettlement(
     getDepositSummaryForBooking(args.settlement.bookingId),
   ]);
 
+  const depositHeld =
+    args.depositHeldPaise ?? wallet?.refundableBalancePaise ?? args.settlement.depositReceivedPaise;
+
+  const baseline = args.settlement.settlementWaterfallJson;
+  if (args.settlement.approvalBaselineLocked && baseline) {
+    return computeWaterfallWithApprovalBaseline({
+      baseline,
+      settlement: args.settlement,
+      depositHeldPaise: depositHeld,
+      stayType: args.stayType,
+      durationMode: args.durationMode,
+    });
+  }
+
+  const checkIn =
+    args.stayCheckInDate ??
+    args.settlement.stayCheckInDate ??
+    (await resolveStayCheckInDate(args.settlement.bookingId));
+  if (!checkIn) return null;
+
   const electricityShare = resolveCheckoutElectricitySharePaise(args.settlement);
 
   return computeCheckoutSettlementV2({
@@ -68,8 +109,7 @@ export async function computeWaterfallForSettlement(
     stayCheckoutDate: checkout,
     rentPaidPaise: money?.rent.receivedPaise ?? 0,
     monthlyRentPaise: args.settlement.monthlyRentPaiseSnapshot,
-    depositCollectedPaise:
-      args.depositHeldPaise ?? wallet?.refundableBalancePaise ?? args.settlement.depositReceivedPaise,
+    depositCollectedPaise: depositHeld,
     missingNoticeDays: args.settlement.noticeShortfallDays,
     electricityPaise: electricityShare,
     electricityDeductFromDeposit: args.settlement.electricityDeductFromDeposit !== false,
@@ -86,6 +126,7 @@ export async function computeWaterfallForSettlement(
 export async function persistWaterfallForSettlement(
   settlementId: string,
   waterfall: CheckoutSettlementWaterfall,
+  opts?: { lockApprovalBaseline?: boolean },
 ): Promise<void> {
   const { checkoutSettlements } = await import('@/src/db/schema');
   const { db: database } = await import('@/src/db/client');
@@ -93,6 +134,7 @@ export async function persistWaterfallForSettlement(
     .update(checkoutSettlements)
     .set({
       ...checkoutSettlementV2ColumnPatch(waterfall),
+      ...(opts?.lockApprovalBaseline ? { approvalBaselineLocked: true } : {}),
       updatedAt: new Date(),
     })
     .where(eq(checkoutSettlements.id, settlementId));

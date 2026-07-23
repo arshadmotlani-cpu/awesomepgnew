@@ -10,6 +10,7 @@ import type { ResidentBookingRow } from '@/src/db/queries/customer';
 import type { DepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
 import type { DepositLedgerEntry } from '@/src/db/schema/depositLedger';
 import type { DepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
+import type { CheckoutSettlementWaterfall } from '@/src/lib/checkout/checkoutSettlementEngineV2';
 
 type ReferralSummary = {
   lockedPaise: number;
@@ -42,6 +43,10 @@ type Props = {
   refundEligibility: DepositRefundEligibility;
   settlementPreview: DepositRefundSettlementPreview | null;
   referralSummary?: ReferralSummary;
+  vacatingStatus?: string | null;
+  checkoutStatus?: string | null;
+  vacatingDate?: string | null;
+  settlementWaterfall?: CheckoutSettlementWaterfall | null;
 };
 
 export function ResidentProfileHub({
@@ -69,6 +74,10 @@ export function ResidentProfileHub({
   refundEligibility,
   settlementPreview,
   referralSummary,
+  vacatingStatus = null,
+  checkoutStatus = null,
+  vacatingDate = null,
+  settlementWaterfall = null,
 }: Props) {
   const subNav = [
     { id: 'overview', label: 'Overview', href: residentProfileHref('overview') },
@@ -91,6 +100,10 @@ export function ResidentProfileHub({
             roommatesCount={roommatesCount}
             roomCapacity={roomCapacity}
             ps4Active={ps4Active}
+            vacatingStatus={vacatingStatus}
+            checkoutStatus={checkoutStatus}
+            vacatingDate={vacatingDate}
+            settlementWaterfall={settlementWaterfall}
           />
           <div className="mt-4">
             <ProfileEditSection

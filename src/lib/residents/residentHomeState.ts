@@ -1,5 +1,6 @@
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import { accountProfileHref, legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
+import { VACATING_JOURNEY_STAGES, vacatingStageIndex } from '@/src/lib/residents/vacatingJourney';
 import type { UpcomingPaymentRow } from '@/src/components/customer/account/resident/ResidentUpcomingPayments';
 
 export type ResidentHomePhase =
@@ -94,16 +95,11 @@ function moveOutStepLabel(
   vacatingStatus: string | null,
   checkoutStatus: string | null,
 ): string {
-  if (checkoutStatus === 'refund_paid') return 'Your refund has been sent.';
-  if (checkoutStatus === 'refund_pending' || checkoutStatus === 'awaiting_admin_review') {
-    return 'We are reviewing your refund.';
-  }
-  if (checkoutStatus === 'awaiting_resident_details') {
-    return 'We need your UPI or bank details for the refund.';
-  }
-  if (vacatingStatus === 'approved') return 'We are settling your final bills.';
-  if (vacatingStatus === 'pending') return 'Waiting for the office to approve your notice.';
-  return 'Track each step on the Move-out page.';
+  const index = vacatingStageIndex({
+    vacatingStatus,
+    checkoutStatus,
+  });
+  return VACATING_JOURNEY_STAGES[index]?.residentHint ?? 'Track each step on the Move-out page.';
 }
 
 export function deriveResidentHomePrimaryAction(input: {

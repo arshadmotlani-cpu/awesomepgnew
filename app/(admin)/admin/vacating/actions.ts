@@ -248,3 +248,29 @@ export async function extendVacatingDateAction(
   await revalidateVacatingLifecycleForBooking(bookingId);
   return { status: 'ok', message: 'Vacate / end date updated — occupancy and revenue synced.' };
 }
+
+export async function approveVacatingDateChangeAction(requestId: string): Promise<ActionState> {
+  const admin = await requireAdminPermission('vacating:write');
+  const { approveVacatingDateChangeRequest } = await import('@/src/services/vacatingDateChange');
+  const result = await approveVacatingDateChangeRequest({
+    requestId,
+    resolvedByAdminId: admin.adminId,
+  });
+  if (!result.ok) return { status: 'error', message: result.error };
+  return { status: 'ok', message: 'Leaving date updated.' };
+}
+
+export async function rejectVacatingDateChangeAction(
+  requestId: string,
+  adminNotes?: string,
+): Promise<ActionState> {
+  const admin = await requireAdminPermission('vacating:write');
+  const { rejectVacatingDateChangeRequest } = await import('@/src/services/vacatingDateChange');
+  const result = await rejectVacatingDateChangeRequest({
+    requestId,
+    resolvedByAdminId: admin.adminId,
+    adminNotes,
+  });
+  if (!result.ok) return { status: 'error', message: result.error };
+  return { status: 'ok', message: 'Date change rejected.' };
+}

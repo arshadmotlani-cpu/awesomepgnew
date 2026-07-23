@@ -97,7 +97,7 @@ function deriveMoveOutPriority(
   const residentChecks: WorkflowChecklistItem[] = [
     {
       label: 'Meter photo',
-      done: Boolean(settlement?.electricityMeterPhotoUrl) || Boolean(settlement?.electricityUseAverage),
+      done: Boolean(settlement?.electricityMeterPhotoUrl) || Boolean(settlement?.meterPhotoMissing),
       who: 'resident',
     },
     {
@@ -113,7 +113,6 @@ function deriveMoveOutPriority(
 
   const electricityDone =
     (settlement.electricitySharePaise ?? 0) > 0 ||
-    settlement.electricityUseAverage ||
     settlement.electricityCalculationMethod !== 'meter_reading' ||
     settlement.meterPhotoMissing;
 
@@ -284,7 +283,7 @@ export function buildTodaysWorkCards(
       ...summaryForSettlement(settlement),
       ...(residentSubmitted && settlement
         ? [
-            settlement.electricityMeterPhotoUrl || settlement.electricityUseAverage
+            settlement.electricityMeterPhotoUrl || settlement.meterPhotoMissing
               ? 'Resident submitted meter photo'
               : null,
             settlement.payoutQrUrl || settlement.payoutUpiId

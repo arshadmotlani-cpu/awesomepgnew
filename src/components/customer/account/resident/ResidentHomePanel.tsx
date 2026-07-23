@@ -22,6 +22,7 @@ import {
   deriveWhatHappensNext,
 } from '@/src/lib/residents/residentHomeState';
 import type { ResidentFinancialSummary } from '@/src/lib/billing/residentFinancialTypes';
+import type { CheckoutSettlementWaterfall } from '@/src/lib/checkout/checkoutSettlementEngineV2';
 import type { ResidentBookingRow } from '@/src/db/queries/customer';
 import type { PlaystationMembership } from '@/src/db/schema/playstationMemberships';
 import type { ComponentProps } from 'react';
@@ -48,6 +49,7 @@ export function ResidentHomePanel({
   vacatingStatus,
   checkoutStatus,
   vacatingDate,
+  settlementWaterfall = null,
   residentBriefing,
   ps4Membership,
   tenantActive,
@@ -69,6 +71,7 @@ export function ResidentHomePanel({
   vacatingStatus: string | null;
   checkoutStatus: string | null;
   vacatingDate: string | null;
+  settlementWaterfall?: CheckoutSettlementWaterfall | null;
   settlementLines: Array<{ label: string; amountPaise: number; tone?: 'deduction' | 'credit' | 'neutral' }>;
   residentBriefing: BriefingProps | null;
   ps4Membership: PlaystationMembership | null;
@@ -155,6 +158,7 @@ export function ResidentHomePanel({
           vacatingStatus={vacatingStatus}
           checkoutStatus={checkoutStatus}
           vacatingDate={vacatingDate}
+          settlementWaterfall={settlementWaterfall}
         />
       )}
 

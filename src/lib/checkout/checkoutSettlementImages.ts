@@ -137,7 +137,7 @@ export async function enrichCheckoutSettlementImageEvidence<
   T extends {
     id: string;
     electricityMeterPhotoUrl?: string | null;
-    electricityUseAverage?: boolean | null;
+    meterPhotoMissing?: boolean | null;
     payoutQrUrl?: string | null;
     payoutUpiId?: string | null;
   },
@@ -152,8 +152,8 @@ export async function enrichCheckoutSettlementImageEvidence<
       settlementId: detail.id,
       kind: 'meter',
       storedUrl: detail.electricityMeterPhotoUrl,
-      alternativePresent: Boolean(detail.electricityUseAverage),
-      alternativeLabel: 'Average billing selected',
+      alternativePresent: Boolean(detail.meterPhotoMissing),
+      alternativeLabel: 'Meter photo marked missing',
     }),
     resolveCheckoutSettlementImageEvidence({
       settlementId: detail.id,

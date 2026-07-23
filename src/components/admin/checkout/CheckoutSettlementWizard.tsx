@@ -171,8 +171,8 @@ function CheckoutSettlementWizardInner({ detail }: { detail: CheckoutSettlementD
                   title="Meter photo"
                   evidence={detail.meterPhotoEvidence}
                   emptyLabel={
-                    detail.electricityUseAverage
-                      ? 'Resident chose average billing'
+                    detail.meterPhotoMissing
+                      ? 'Resident marked meter photo as missing'
                       : 'Meter photo not uploaded yet'
                   }
                 />

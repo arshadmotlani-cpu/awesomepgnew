@@ -7,11 +7,15 @@ import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement
 export function CheckoutSettlementSummary({ detail }: { detail: CheckoutSettlementDetail }) {
   const statusLabel = plainStatus(detail.status);
   const noticeBreakdown = breakdownFromStoredNoticeSnapshot({
+    noticeRequiredDays: detail.noticeRequiredDays,
     noticeGivenDays: detail.noticeGivenDays,
+    noticeGivenDate: detail.noticeGivenDate,
+    vacatingDate: detail.vacatingDate,
     noticeShortfallDays: detail.noticeShortfallDays,
     noticeRentCoveredDays: detail.noticeRentCoveredDays,
     noticeChargeableDays: detail.noticeChargeableDays,
     noticeDeductionPaise: detail.preview.noticeDeductionPaise,
+    noticeBreakdownJson: detail.noticeBreakdownJson,
   });
 
   const usesV2 = Boolean(detail.waterfall) || (detail.settlementEngineVersion ?? 1) >= 2;
@@ -27,7 +31,7 @@ export function CheckoutSettlementSummary({ detail }: { detail: CheckoutSettleme
         </div>
         <Badge tone={statusBadgeTone(detail.status)}>{statusLabel}</Badge>
       </header>
-      {noticeBreakdown && !usesV2 ? (
+      {noticeBreakdown ? (
         <NoticeSettlementPanel settlement={noticeBreakdown} variant="admin" />
       ) : null}
       <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">

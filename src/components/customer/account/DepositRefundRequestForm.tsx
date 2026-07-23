@@ -10,6 +10,7 @@ import {
 import { ImageFileInputInline } from '@/src/components/shared/ImageFileInput';
 import { logResidentClientError } from '@/src/lib/client/residentClientLogger';
 import { coerceNonNegativePaise, paiseToInr } from '@/src/lib/format';
+import { primaryBtn } from '@/src/lib/design-system/tokens';
 import type { DepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
 
 const idle: RequestActionState = { ok: false };
@@ -21,6 +22,7 @@ export function DepositRefundRequestForm({
   estimatedDeductionPaise = 0,
   settlementPreview = null,
   onSubmitted,
+  compact = false,
 }: {
   bookingId: string;
   customerId?: string;
@@ -28,26 +30,22 @@ export function DepositRefundRequestForm({
   estimatedDeductionPaise?: number;
   settlementPreview?: DepositRefundSettlementPreview | null;
   onSubmitted?: () => void;
+  compact?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(submitDepositRefundRequestAction, idle);
   const [meterUrl, setMeterUrl] = useState('');
   const [qrUrl, setQrUrl] = useState('');
   const [payoutUpiId, setPayoutUpiId] = useState('');
-  const [remarks, setRemarks] = useState('');
   const [uploadingMeter, setUploadingMeter] = useState(false);
   const [uploadingQr, setUploadingQr] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const [useAverage, setUseAverage] = useState(false);
   const depositHeld = coerceNonNegativePaise(
     settlementPreview?.depositBalancePaise ?? refundableBalancePaise,
   );
-  const electricityAdjustment = settlementPreview?.electricityAdjustmentPaise ?? null;
-  const projectedRefund = settlementPreview?.refundAmountPaise ?? null;
-  const electricityPending = settlementPreview?.electricityPending ?? false;
   const noticeDeduction = coerceNonNegativePaise(estimatedDeductionPaise);
   const hasPayoutDetails = Boolean(qrUrl.trim() || payoutUpiId.trim());
-  const canSubmit = Boolean((meterUrl || useAverage) && hasPayoutDetails && depositHeld > 0);
+  const canSubmit = Boolean(meterUrl.trim() && hasPayoutDetails && depositHeld > 0);
 
   useEffect(() => {
     if (state.ok) onSubmitted?.();
@@ -100,82 +98,32 @@ export function DepositRefundRequestForm({
   }
 
   return (
-    <form action={formAction} className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+    <form
+      action={formAction}
+      className={compact ? 'rounded-xl border border-zinc-200 bg-white p-5' : 'rounded-lg border border-zinc-200 bg-zinc-50 p-4'}
+    >
       <input type="hidden" name="bookingId" value={bookingId} />
       <input type="hidden" name="meterReadingPhotoUrl" value={meterUrl} />
       <input type="hidden" name="payoutQrUrl" value={qrUrl} />
       <input type="hidden" name="payoutUpiId" value={payoutUpiId.trim()} />
-      <input type="hidden" name="remarks" value={remarks.trim()} />
 
       <h4 className="text-sm font-semibold text-zinc-900">Request deposit refund</h4>
-
-      <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-        <div>
-          <dt className="text-xs text-zinc-500">Deposit balance</dt>
-          <dd className="font-semibold text-zinc-900">{paiseToInr(depositHeld)}</dd>
-        </div>
-        {electricityPending ? (
-          <div className="sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            Electricity pending. Final refund will be calculated after billing
-            {settlementPreview?.electricityBillingMonth
-              ? ` (${settlementPreview.electricityBillingMonth}).`
-              : '.'}
-          </div>
-        ) : electricityAdjustment != null && electricityAdjustment > 0 ? (
-          <>
-            <div>
-              <dt className="text-xs text-zinc-500">Electricity adjustment</dt>
-              <dd className="font-semibold text-rose-700">{paiseToInr(electricityAdjustment)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-zinc-500">Refund amount</dt>
-              <dd className="font-semibold text-emerald-800">
-                {paiseToInr(projectedRefund ?? Math.max(0, depositHeld - electricityAdjustment))}
-              </dd>
-            </div>
-          </>
-        ) : projectedRefund != null ? (
-          <div>
-            <dt className="text-xs text-zinc-500">Refund amount</dt>
-            <dd className="font-semibold text-emerald-800">{paiseToInr(projectedRefund)}</dd>
-          </div>
-        ) : null}
-        {noticeDeduction > 0 ? (
-          <>
-            <div>
-              <dt className="text-xs text-zinc-500">Notice penalty (est.)</dt>
-              <dd className="font-semibold text-rose-700">{paiseToInr(noticeDeduction)}</dd>
-            </div>
-            <div className="sm:col-span-2">
-              <dt className="text-xs text-zinc-500">Est. refundable after deductions</dt>
-              <dd className="font-semibold text-emerald-800">
-                {paiseToInr(Math.max(0, depositHeld - noticeDeduction))}
-              </dd>
-            </div>
-          </>
-        ) : null}
-      </dl>
-
-      <p className="mt-3 text-xs leading-relaxed text-zinc-600">
-        Final electricity charges will be calculated after meter verification and deducted from
-        your refundable deposit balance. Use average billing only if meter photo is unavailable.
+      <p className="mt-1 text-xs text-zinc-600">
+        Upload your final AC meter photo and UPI QR code. Admin will verify and calculate your final
+        refund.
       </p>
 
-      <label className="mt-3 flex items-center gap-2 text-xs text-zinc-700">
-        <input
-          type="checkbox"
-          name="useAverageBillingFallback"
-          value="1"
-          checked={useAverage}
-          onChange={(e) => setUseAverage(e.target.checked)}
-        />
-        Use property average electricity bill (no meter photo)
-      </label>
+      {noticeDeduction > 0 && !compact ? (
+        <p className="mt-2 text-xs text-zinc-600">
+          Estimated notice deduction: {paiseToInr(noticeDeduction)} (final amount confirmed at
+          settlement).
+        </p>
+      ) : null}
 
       <div className="mt-4 space-y-4">
         <label className="block">
           <span className="text-xs font-semibold text-zinc-800">
-            Electricity meter photo {!useAverage ? <span className="text-rose-600">*</span> : null}
+            Final AC meter photo <span className="text-rose-600">*</span>
           </span>
           <ImageFileInputInline
             disabled={uploadingMeter}
@@ -187,7 +135,7 @@ export function DepositRefundRequestForm({
 
         <label className="block">
           <span className="text-xs font-semibold text-zinc-800">
-            QR code for refund payment <span className="text-zinc-500">(or UPI ID below)</span>
+            UPI QR code for refund <span className="text-rose-600">*</span>
           </span>
           <ImageFileInputInline
             disabled={uploadingQr}
@@ -198,7 +146,9 @@ export function DepositRefundRequestForm({
         </label>
 
         <label className="block">
-          <span className="text-xs font-semibold text-zinc-800">UPI ID for refund</span>
+          <span className="text-xs font-semibold text-zinc-800">
+            Or enter UPI ID <span className="text-zinc-500">(if no QR)</span>
+          </span>
           <input
             type="text"
             inputMode="email"
@@ -209,29 +159,20 @@ export function DepositRefundRequestForm({
             className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900"
           />
         </label>
-
-        <label className="block">
-          <span className="text-xs font-semibold text-zinc-800">Remarks (optional)</span>
-          <textarea
-            value={remarks}
-            onChange={(e) => setRemarks(e.target.value)}
-            rows={2}
-            placeholder="Anything else we should know for your refund…"
-            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900"
-          />
-        </label>
       </div>
 
       {uploadError ? <p className="mt-2 text-xs text-rose-600">{uploadError}</p> : null}
       {state.error ? <p className="mt-2 text-xs text-rose-600">{state.error}</p> : null}
       {state.ok ? (
-        <p className="mt-2 text-xs text-emerald-700">Refund review pending — admin will verify and process.</p>
+        <p className="mt-2 text-xs text-emerald-700">
+          Refund request submitted — we will review and confirm your final amount.
+        </p>
       ) : null}
 
       <button
         type="submit"
         disabled={pending || !canSubmit || uploadingMeter || uploadingQr}
-        className="mt-4 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+        className={`${primaryBtn} mt-4 w-full`}
       >
         {pending ? 'Submitting…' : 'Submit refund request'}
       </button>

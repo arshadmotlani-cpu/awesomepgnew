@@ -1,15 +1,24 @@
+/**
+ * Resident move-out journey — 6-stage SSOT.
+ *
+ * Design defaults (2026-07-23):
+ * - Stage 5 label "Refund Approved" covers admin approval through payout.
+ * - Stage 3 shows notice estimate only; full breakdown after refund submit (stage 4+).
+ * - Suppressed checkout: resident sees office-handled copy (see vacatingNextStep).
+ * - Revert vacating approval archives open settlement (vacating.ts).
+ */
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 import { todayString } from '@/src/lib/dates';
 import { fixedStayRefundUnlockLabel, isPastFixedStayCheckout } from '@/src/lib/dates/ist';
 import { formatDate } from '@/src/lib/format';
+import { isFixedStayDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
 
 export type VacatingStageId =
-  | 'request'
-  | 'notice'
-  | 'electricity'
-  | 'deposit'
-  | 'refund_review'
-  | 'refund_paid'
+  | 'requested'
+  | 'admin_approval'
+  | 'refund_request'
+  | 'settlement_review'
+  | 'refund_approved'
   | 'completed';
 
 export type VacatingStage = {
@@ -20,63 +29,145 @@ export type VacatingStage = {
 
 export const VACATING_JOURNEY_STAGES: VacatingStage[] = [
   {
-    id: 'request',
-    label: 'Request vacate',
-    residentHint: 'Choose your vacate date and upload required photos.',
+    id: 'requested',
+    label: 'Move-out Requested',
+    residentHint: 'Submit your move-out date with room and electricity meter photos.',
   },
   {
-    id: 'notice',
-    label: 'Admin review',
-    residentHint: 'Waiting for admin approval of your vacate request.',
+    id: 'admin_approval',
+    label: 'Waiting for Admin Approval',
+    residentHint: 'The office is reviewing your move-out date and notice period.',
   },
   {
-    id: 'electricity',
-    label: 'Electricity settled',
-    residentHint: 'Final room electricity bill is cleared.',
+    id: 'refund_request',
+    label: 'Waiting for Refund Request',
+    residentHint: 'After your move-out date, submit your UPI QR and final AC meter photo here.',
   },
   {
-    id: 'deposit',
-    label: 'Deposit review',
-    residentHint: 'We confirm your deposit balance and any deductions.',
+    id: 'settlement_review',
+    label: 'Settlement Under Review',
+    residentHint: 'We are verifying your meter reading and calculating your final refund.',
   },
   {
-    id: 'refund_review',
-    label: 'Refund approved',
-    residentHint: 'Your refund amount is confirmed.',
-  },
-  {
-    id: 'refund_paid',
-    label: 'Refund sent',
-    residentHint: 'Money is on its way to your account.',
+    id: 'refund_approved',
+    label: 'Refund Approved',
+    residentHint: 'Your refund amount is confirmed. Payout is being processed.',
   },
   {
     id: 'completed',
-    label: 'Move-out complete',
-    residentHint: 'Your stay is closed and refund is done.',
+    label: 'Move-out Completed',
+    residentHint: 'Your stay is closed and any refund has been sent.',
   },
 ];
 
-export function vacatingStageIndex(
-  vacatingStatus: string | null,
-  checkoutStatus: string | null,
-  vacatingDate?: string | null,
-  today?: string,
-): number {
-  const todayStr = today ?? todayString();
+export type VacatingStageIndexInput = {
+  vacatingStatus: string | null;
+  checkoutStatus: string | null;
+  vacatingDate?: string | null;
+  today?: string;
+  /** Fixed-stay skips admin approval stage. */
+  durationMode?: string | null;
+  /** When true, checkout is suppressed after approval — timeline pauses at refund request. */
+  checkoutSettlementSuppressed?: boolean;
+  /** Used to skip Refund Approved when refund is zero. */
+  finalRefundPaise?: number | null;
+};
 
-  if (checkoutStatus === 'completed' || checkoutStatus === 'archived') return 6;
+export function vacatingStageIndex(input: VacatingStageIndexInput): number {
+  const {
+    vacatingStatus,
+    checkoutStatus,
+    vacatingDate,
+    durationMode,
+    checkoutSettlementSuppressed,
+    finalRefundPaise,
+  } = input;
+  const todayStr = input.today ?? todayString();
+  const fixedStay = isFixedStayDurationMode(durationMode ?? undefined);
+
+  if (checkoutStatus === 'completed' || checkoutStatus === 'archived') return 5;
   if (checkoutStatus === 'refund_paid') return 5;
-  if (checkoutStatus === 'refund_pending' || checkoutStatus === 'awaiting_admin_review') return 4;
+  if (vacatingStatus === 'completed') return 5;
 
-  if (vacatingStatus === 'approved' && vacatingDate && todayStr < vacatingDate) {
+  if (checkoutStatus === 'refund_pending') {
+    if (finalRefundPaise != null && finalRefundPaise <= 0) return 5;
+    return 4;
+  }
+
+  if (checkoutStatus === 'awaiting_admin_review') return 3;
+
+  // Pending vacating never advances past admin approval — even if orphan settlement exists.
+  if (vacatingStatus === 'pending') return 1;
+
+  if (checkoutSettlementSuppressed && vacatingStatus === 'approved') {
     return 2;
   }
 
-  if (checkoutStatus === 'awaiting_resident_details') return 3;
-  if (vacatingStatus === 'approved') return 2;
-  if (vacatingStatus === 'pending') return 1;
-  if (vacatingStatus === 'completed') return 6;
-  return 0;
+  if (vacatingStatus === 'approved') {
+    if (checkoutStatus === 'awaiting_resident_details') {
+      return 2;
+    }
+    const vacDate = vacatingDate?.slice(0, 10);
+    if (vacDate && todayStr < vacDate) return 2;
+    if (!checkoutStatus) return 2;
+  }
+
+  if (fixedStay && !vacatingStatus && checkoutStatus === 'awaiting_resident_details') {
+    return 2;
+  }
+
+  if (!vacatingStatus) return 0;
+
+  if (vacatingStatus === 'rejected') return 0;
+
+  return fixedStay && vacatingStatus === 'approved' ? 2 : 0;
+}
+
+export function canRequestMoveOutRefund(input: {
+  vacatingStatus: string | null;
+  vacatingDate?: string | null;
+  checkoutStatus: string | null;
+  checkoutSettlementSuppressed?: boolean;
+  today?: string;
+}): { allowed: boolean; reason: string | null } {
+  if (input.checkoutSettlementSuppressed) {
+    return {
+      allowed: false,
+      reason: 'Your checkout is being handled by the office. Contact management if you have questions.',
+    };
+  }
+  if (input.vacatingStatus === 'pending') {
+    return {
+      allowed: false,
+      reason: 'Move-out must be approved before you can request a refund.',
+    };
+  }
+  if (input.vacatingStatus !== 'approved' && input.vacatingStatus !== 'completed') {
+    return {
+      allowed: false,
+      reason: 'Submit and get your move-out request approved first.',
+    };
+  }
+  const vacDate = input.vacatingDate?.slice(0, 10);
+  const todayStr = input.today ?? todayString();
+  if (vacDate && todayStr < vacDate) {
+    return {
+      allowed: false,
+      reason: `Refund request unlocks on your approved move-out date (${formatDate(vacDate)}).`,
+    };
+  }
+  if (
+    input.checkoutStatus === 'awaiting_admin_review' ||
+    input.checkoutStatus === 'refund_pending' ||
+    input.checkoutStatus === 'refund_paid' ||
+    input.checkoutStatus === 'completed'
+  ) {
+    return {
+      allowed: false,
+      reason: 'Your refund request is already submitted and under review.',
+    };
+  }
+  return { allowed: true, reason: null };
 }
 
 export function vacatingStatusLabel(status: VacatingForBookingRow['status'] | null): string {
@@ -100,12 +191,27 @@ export function vacatingNextStep(args: {
   durationMode?: string;
   expectedCheckoutDate?: string | null;
   estimatedFinalRefundPaise?: number | null;
+  checkoutSettlementSuppressed?: boolean;
 }): { headline: string; detail: string } {
-  const { vacating, checkoutStatus, durationMode, expectedCheckoutDate, estimatedFinalRefundPaise } =
-    args;
+  const {
+    vacating,
+    checkoutStatus,
+    durationMode,
+    expectedCheckoutDate,
+    estimatedFinalRefundPaise,
+    checkoutSettlementSuppressed,
+  } = args;
   const zeroRefundDue =
     estimatedFinalRefundPaise != null && estimatedFinalRefundPaise <= 0;
   const fixedStay = durationMode && ['fixed_stay', 'daily', 'weekly'].includes(durationMode);
+
+  if (checkoutSettlementSuppressed && vacating?.status === 'approved') {
+    return {
+      headline: 'Checkout handled by the office',
+      detail:
+        'Your continuous stay checkout does not use the self-service refund flow. Contact management for your deposit settlement.',
+    };
+  }
 
   if (fixedStay && expectedCheckoutDate) {
     if (checkoutStatus === 'awaiting_resident_details') {
@@ -118,8 +224,7 @@ export function vacatingNextStep(args: {
       }
       return {
         headline: 'Request deposit refund',
-        detail:
-          'Your stay checkout is complete. Submit your final electricity meter photo and UPI details for deposit refund.',
+        detail: 'Submit your final AC meter photo and UPI QR code to request your deposit refund.',
       };
     }
     if (!isPastFixedStayCheckout(expectedCheckoutDate)) {
@@ -130,13 +235,13 @@ export function vacatingNextStep(args: {
     }
     if (checkoutStatus === 'awaiting_admin_review' || checkoutStatus === 'refund_pending') {
       return {
-        headline: 'Refund in progress',
-        detail: 'We are finalising your deposit refund. No action needed from you right now.',
+        headline: 'Settlement under review',
+        detail: 'We are finalising your refund. No action needed from you right now.',
       };
     }
     if (checkoutStatus === 'refund_paid' || checkoutStatus === 'completed') {
       return {
-        headline: 'Refund complete',
+        headline: 'Move-out complete',
         detail: 'Your stay is closed. Check your payment history for the refund receipt.',
       };
     }
@@ -144,15 +249,15 @@ export function vacatingNextStep(args: {
 
   if (!vacating) {
     return {
-      headline: 'Request vacate',
+      headline: 'Request move-out',
       detail: 'Submit your vacate date with room and electricity meter photos. Admin approves before settlement.',
     };
   }
 
   if (vacating.status === 'pending') {
     return {
-      headline: 'Vacate request submitted',
-      detail: 'Pending admin approval. Refund and final charges are calculated only after the office reviews your request.',
+      headline: 'Waiting for admin approval',
+      detail: 'Your move-out request is pending. Refund and final charges are calculated only after the office approves your date.',
     };
   }
 
@@ -171,40 +276,37 @@ export function vacatingNextStep(args: {
     if (today < vacating.vacatingDate) {
       return {
         headline: 'Vacate approved',
-        detail: `Your move-out on ${formatDate(vacating.vacatingDate)} is confirmed. Deposit refund and meter photo unlock on that date.`,
+        detail: `Your move-out on ${formatDate(vacating.vacatingDate)} is confirmed. Refund request unlocks on that date.`,
       };
     }
     if (checkoutStatus === 'awaiting_resident_details') {
       if (zeroRefundDue) {
         return {
-          headline: 'Vacate approved',
+          headline: 'Submit checkout details',
           detail:
-            'Deductions use your full deposit — no refund is due. Admin will complete checkout shortly.',
+            'Upload your final AC meter photo so admin can complete your zero-refund checkout.',
         };
       }
       return {
-        headline: 'Vacate approved',
-        detail: 'Submit your final electricity meter photo and UPI details for deposit refund.',
+        headline: 'Request your refund',
+        detail: 'Submit your UPI QR code and final AC meter photo below.',
       };
     }
-    if (
-      checkoutStatus === 'awaiting_admin_review' ||
-      checkoutStatus === 'refund_pending'
-    ) {
+    if (checkoutStatus === 'awaiting_admin_review' || checkoutStatus === 'refund_pending') {
       return {
-        headline: 'Refund in progress',
-        detail: 'We are finalising your deposit refund. No action needed from you right now.',
+        headline: 'Settlement under review',
+        detail: 'We are finalising your refund. No action needed from you right now.',
       };
     }
     return {
       headline: 'Vacate approved',
-      detail: 'Deposit refund unlocks on your vacate date. Final settlement happens after move-out.',
+      detail: 'Submit your refund request with UPI QR and final meter photo when you are ready.',
     };
   }
 
   if (vacating.status === 'completed' || checkoutStatus === 'refund_paid') {
     return {
-      headline: 'Refund complete',
+      headline: 'Move-out complete',
       detail: 'Your move-out is finished. Check your payment history for the refund receipt.',
     };
   }

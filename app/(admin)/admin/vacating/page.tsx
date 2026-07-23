@@ -5,6 +5,7 @@ import { EmptyState } from '@/src/components/admin/EmptyState';
 import { IconDoor } from '@/src/components/admin/icons';
 import { MoveOutAdvancedTools } from '@/src/components/admin/moveOut/MoveOutAdvancedTools';
 import { MoveOutWorkflowPanel } from '@/src/components/admin/moveOut/MoveOutWorkflowPanel';
+import { VacatingDateChangeApprovalPanel } from '@/src/components/admin/vacating/VacatingDateChangeApprovalPanel';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { evaluateNotificationDeepLink } from '@/src/lib/admin/notificationDeepLinkGuard';
@@ -83,6 +84,7 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
     commandStats,
     rowErrors,
     settlementsLoadError,
+    pendingDateChanges,
   } = data;
 
   if (legacy) {
@@ -122,6 +124,15 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
       />
 
       <VacatingPartialLoadBanner rowErrors={rowErrors} settlementsLoadError={settlementsLoadError} />
+
+      {pendingDateChanges.length > 0 ? (
+        <section className="mb-8 space-y-3">
+          <h2 className="text-sm font-semibold text-white">Leaving date changes awaiting approval</h2>
+          {pendingDateChanges.map((request) => (
+            <VacatingDateChangeApprovalPanel key={request.id} request={request} />
+          ))}
+        </section>
+      ) : null}
 
       {vacatingRows.length > 0 && activeItems.length === 0 ? (
         <div className="mb-6 rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">

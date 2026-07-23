@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { NoticeSettlementPanel } from '@/src/components/shared/NoticeDeductionBreakdown';
+import { EstimatedSettlementBreakdown } from '@/src/components/admin/vacating/EstimatedSettlementBreakdown';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
 
@@ -32,12 +32,11 @@ export function ApproveVacatingPreview({ preview }: { preview: VacatingApprovalP
         />
         <DetailRow label="Bed status" value={preview.bedStatus} />
         <DetailRow label="Deposit held" value={paiseToInr(preview.depositHeldPaise)} />
-        <DetailRow label="Expected refund" value={paiseToInr(preview.estimatedRefundPaise)} />
       </div>
 
-      {preview.noticeBreakdown ? (
-        <NoticeSettlementPanel settlement={preview.noticeBreakdown} variant="admin" />
-      ) : noticeShort ? (
+      {preview.estimatedSettlement ? (
+        <EstimatedSettlementBreakdown preview={preview.estimatedSettlement} />
+      ) : preview.noticeBreakdown && noticeShort ? (
         <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
           <p className="font-semibold">Notice period shorter than required</p>
           <p className="mt-1 text-xs text-amber-200/90">No deposit deduction — compliant or fully covered.</p>

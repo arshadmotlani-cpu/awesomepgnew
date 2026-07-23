@@ -85,7 +85,6 @@ export async function submitDepositRefundRequest(input: {
 
   const submission = validateDepositRefundSubmission({
     meterReadingPhotoUrl: input.meterReadingPhotoUrl,
-    useAverageBillingFallback: input.useAverageBillingFallback,
     payoutUpiId: input.payoutUpiId,
     payoutQrUrl: input.payoutQrUrl,
   });

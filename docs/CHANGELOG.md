@@ -256,19 +256,44 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-23 07:33:55 UTC
+### Pending pre-commit sync · 2026-07-23 18:07:24 UTC
 
-**Areas touched:** [[Vacating]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Vacating]], [[Residents]], [[Bookings]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `DATABASE.md` — review for accuracy
 - `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
+- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (1):**
+**Staged code files (23):**
+- `app/(admin)/admin/requests/actions.ts`
+- `app/(admin)/admin/vacating/actions.ts`
+- `app/(admin)/admin/vacating/page.tsx`
+- `app/(customer)/account/resident/request-actions.ts`
+- `app/(customer)/account/resident/vacating-date-change-actions.ts`
+- `src/db/migrations/0124_approval_baseline.sql`
+- `src/db/migrations/0125_vacating_date_change_requests.sql`
+- `src/db/schema/checkoutSettlements.ts`
+- `src/db/schema/index.ts`
+- `src/db/schema/vacatingDateChangeRequests.ts`
+- `src/lib/billing/depositRefundRequirements.ts`
+- `src/lib/moveOut/moveOutAdvancedToolsProps.ts`
+- `src/lib/residents/requestCenter.ts`
+- `src/lib/residents/residentHomeState.ts`
+- `src/lib/residents/residentPortalPresentation.ts`
+- `src/lib/residents/vacatingJourney.ts`
+- `src/lib/residents/vacatingPresentation.ts`
+- `src/lib/vacating/approvalPreview.ts`
+- `src/lib/vacating/estimatedSettlementPreview.ts`
+- `src/lib/vacating/loadAdminVacatingPageData.ts`
+- `src/services/bookingFinancialWorkspace.ts`
 - `src/services/checkoutSettlement.ts`
+- `src/services/vacating.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

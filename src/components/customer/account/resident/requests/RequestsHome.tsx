@@ -42,11 +42,21 @@ type Props = {
   expectedCheckoutDate?: string | null;
   bookingCreatedAt?: Date | string;
   checkoutSettlementStatus?: string | null;
-  checkoutSettlement?: { status: string; rejectionReason?: string | null } | null;
+  checkoutSettlement?: {
+    status: string;
+    rejectionReason?: string | null;
+    waterfall?: import('@/src/lib/checkout/checkoutSettlementEngineV2').CheckoutSettlementWaterfall | null;
+    totalRefundPaise?: number | null;
+    payoutUpiId?: string | null;
+    refundPaidAt?: Date | string | null;
+  } | null;
+  checkoutSettlementSuppressed?: boolean;
   monthlyRentPaise?: number;
   depositHeldPaise?: number;
   moveInDate?: string;
   developerTestEmail?: string | null;
+  estimatedSettlement?: import('@/src/lib/vacating/estimatedSettlementPreview').EstimatedSettlementPreview | null;
+  pendingDateChangeRequestId?: string | null;
 };
 
 export function RequestsHome({
@@ -69,10 +79,13 @@ export function RequestsHome({
   bookingCreatedAt,
   checkoutSettlementStatus = null,
   checkoutSettlement = null,
+  checkoutSettlementSuppressed = false,
   monthlyRentPaise = 0,
   depositHeldPaise = 0,
   moveInDate = '',
   developerTestEmail = null,
+  estimatedSettlement = null,
+  pendingDateChangeRequestId = null,
 }: Props) {
   const router = useRouter();
   const normalizedInitial = normalizeRequestCategoryId(initialCategory ?? undefined);
@@ -116,18 +129,21 @@ export function RequestsHome({
         bookingId={bookingId}
         bookingCode={bookingCode ?? ''}
         roomLabel={roomLabel}
+        customerId={customerId}
         vacating={vacating}
         checkoutStatus={checkoutSettlementStatus}
         checkoutSettlement={checkoutSettlement}
+        settlementWaterfall={checkoutSettlement?.waterfall ?? null}
+        totalRefundPaise={checkoutSettlement?.totalRefundPaise ?? null}
+        payoutUpiId={checkoutSettlement?.payoutUpiId ?? null}
+        refundPaidAt={checkoutSettlement?.refundPaidAt ?? null}
+        checkoutSettlementSuppressed={checkoutSettlementSuppressed}
         depositHeldPaise={depositHeldPaise}
         durationMode={durationMode}
         expectedCheckoutDate={expectedCheckoutDate}
-        bookingStatus={bookingStatus}
-        bookingCreatedAt={
-          bookingCreatedAt instanceof Date ? bookingCreatedAt : new Date(String(bookingCreatedAt))
-        }
         monthlyRentPaise={monthlyRentPaise}
-        developerTestEmail={developerTestEmail}
+        estimatedSettlement={estimatedSettlement}
+        pendingDateChangeRequestId={pendingDateChangeRequestId}
       />
     );
   }

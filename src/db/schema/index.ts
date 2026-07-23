@@ -28,6 +28,7 @@ export * from './depositSettlements';
 export * from './webhookReplayGuard';
 export * from './checkoutSettlements';
 export * from './vacatingRequests';
+export * from './vacatingDateChangeRequests';
 export * from './authSessions';
 export * from './adminPasswordResetTokens';
 export * from './emailOtpChallenges';

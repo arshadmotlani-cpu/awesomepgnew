@@ -3,13 +3,15 @@ import { listAdminVacatingRequests } from '@/src/db/queries/admin';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import type { MoveOutAdvancedToolsRow } from '@/src/lib/moveOut/moveOutAdvancedToolsProps';
-import { toMoveOutAdvancedToolsRow } from '@/src/lib/moveOut/moveOutAdvancedToolsProps';
+import { toMoveOutAdvancedToolsRowAsync } from '@/src/lib/moveOut/moveOutAdvancedToolsProps';
 import { toClientMoveOutPipelineItem, type MoveOutPipelineItemClient } from '@/src/lib/moveOut/moveOutPipeline';
 import {
   buildMoveOutCommandStats,
   type MoveOutCommandStats,
 } from '@/src/lib/moveOut/moveOutPipelineUi';
 import { loadMoveOutPipelineBundle } from '@/src/services/moveOutPipelineService';
+import { listPendingVacatingDateChanges } from '@/src/services/vacatingDateChange';
+import type { VacatingDateChangeRequest } from '@/src/db/schema/vacatingDateChangeRequests';
 
 export type VacatingRowLoadError = {
   vacatingRequestId: string;
@@ -28,6 +30,7 @@ export type AdminVacatingPageData = {
   commandStats: MoveOutCommandStats;
   rowErrors: VacatingRowLoadError[];
   settlementsLoadError: string | null;
+  pendingDateChanges: VacatingDateChangeRequest[];
 };
 
 /** Resilient loader — one corrupt vacating row must not crash `/admin/vacating`. */
@@ -50,6 +53,8 @@ export async function loadAdminVacatingPageData(session: AdminSession): Promise<
     return { vacatingRes, data: null };
   }
 
+  const pendingDateChanges = await listPendingVacatingDateChanges(50);
+
   if (!bundle) {
     return { vacatingRes, data: null };
   }
@@ -64,7 +69,7 @@ export async function loadAdminVacatingPageData(session: AdminSession): Promise<
   for (const v of bundle.vacatingRows) {
     const held = guardDepositPaise(bundle.depositHeldByBooking[v.bookingId] ?? 0);
     try {
-      advancedToolRows.push(toMoveOutAdvancedToolsRow(v, held));
+      advancedToolRows.push(await toMoveOutAdvancedToolsRowAsync(v, held));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error('[admin/vacating] row skipped', v.id, v.bookingCode, err);
@@ -129,6 +134,7 @@ export async function loadAdminVacatingPageData(session: AdminSession): Promise<
       commandStats: buildMoveOutCommandStats(clientPipeline),
       rowErrors,
       settlementsLoadError,
+      pendingDateChanges,
     },
   };
 }

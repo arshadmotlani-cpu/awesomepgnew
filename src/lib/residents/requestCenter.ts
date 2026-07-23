@@ -1,4 +1,5 @@
 import type { TimelineStage } from '@/src/components/customer/design-system';
+import { VACATING_JOURNEY_STAGES } from '@/src/lib/residents/vacatingJourney';
 
 /** V2 primary request categories — five only. */
 export type RequestCategoryId =
@@ -55,7 +56,7 @@ export const REQUEST_CATEGORIES: RequestCategory[] = [
     title: 'Move-out',
     description: 'Submit your move-out notice and track deposit refund steps.',
     confirmSentence: () =>
-      'You will submit a move-out request. Deposit refund is handled from Profile → Wallet after approval.',
+      'You will submit a move-out request. After approval, submit your refund request from the Move-out page.',
     wired: 'move_out',
     primaryVisible: true,
   },
@@ -98,11 +99,11 @@ export const REQUEST_TIMELINE_STAGES: TimelineStage[] = [
   { id: 'completed', label: 'Completed', description: 'Everything is done' },
 ];
 
-export const VACATING_TIMELINE_STAGES: TimelineStage[] = [
-  { id: 'pending', label: 'Submitted', description: 'Move-out notice received' },
-  { id: 'approved', label: 'Approved', description: 'Office approved your notice' },
-  { id: 'completed', label: 'Completed', description: 'Move-out finished' },
-];
+export const VACATING_TIMELINE_STAGES: TimelineStage[] = VACATING_JOURNEY_STAGES.map((s) => ({
+  id: s.id,
+  label: s.label,
+  description: s.residentHint,
+}));
 
 export type ActiveRequestItem = {
   id: string;

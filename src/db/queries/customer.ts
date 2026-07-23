@@ -39,6 +39,7 @@ import type { DepositCollectionStatus } from '../schema/enums';
 import { classifyDatabaseError } from '@/src/lib/db/connectionOptions';
 import { getDatabaseHost, getDatabaseUrlSource } from '@/src/lib/db/env';
 import { todayString } from '@/src/lib/dates';
+import type { NoticeDeductionBreakdown } from '@/src/lib/vacating/noticeDeductionEngine';
 import { resolveBedOccupancy } from '@/src/lib/bedOccupancyResolve';
 import {
   RESERVATION_REQUEST_INTEREST_PAIR_SQL,
@@ -1750,8 +1751,10 @@ export type VacatingForBookingRow = {
   monthlyRentPaiseSnapshot: number;
   noticeRentCoveredDays: number;
   noticeChargeableDays: number;
+  noticeBreakdownJson?: Partial<NoticeDeductionBreakdown> | null;
   status: 'pending' | 'approved' | 'completed' | 'rejected';
   notes: string | null;
+  checkoutSettlementSuppressed?: boolean;
   resolvedAt: Date | null;
   createdAt: Date;
 };

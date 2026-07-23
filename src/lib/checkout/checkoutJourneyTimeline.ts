@@ -16,7 +16,6 @@ export function buildCheckoutJourneyTimeline(detail: CheckoutSettlementDetail): 
   const meterUploaded =
     Boolean(detail.meterPhotoEvidence.fetchable) ||
     Boolean(detail.electricityMeterPhotoUrl) ||
-    Boolean(detail.electricityUseAverage) ||
     Boolean(detail.meterPhotoMissing);
   const qrUploaded =
     Boolean(detail.refundQrEvidence.fetchable) ||

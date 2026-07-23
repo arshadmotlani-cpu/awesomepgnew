@@ -7,7 +7,8 @@ import { CheckoutRefundReceiptFromDetail } from '@/src/components/admin/checkout
 import { DepositActivitySection } from '@/src/components/admin/deposits/DepositActivitySection';
 import { DepositSummaryCard } from '@/src/components/admin/deposits/DepositSummaryCard';
 import { VacatingRowActions } from '@/src/components/admin/vacating/VacatingRowActions';
-import { NoticeSettlementPanel } from '@/src/components/shared/NoticeDeductionBreakdown';
+import { EstimatedSettlementBreakdown } from '@/src/components/admin/vacating/EstimatedSettlementBreakdown';
+import { VacatingDateChangeApprovalPanel } from '@/src/components/admin/vacating/VacatingDateChangeApprovalPanel';
 import { bookingFinancialWorkspaceSectionHref } from '@/src/lib/bookings/bookingFinancialLinks';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
@@ -130,29 +131,11 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
                 approvalPreview={data.vacating.approvalPreview ?? undefined}
               />
             </div>
-            {data.vacating.approvalPreview?.noticeBreakdown ? (
-              <NoticeSettlementPanel
-                settlement={data.vacating.approvalPreview.noticeBreakdown}
-                variant="admin"
-              />
+            {data.pendingDateChange ? (
+              <VacatingDateChangeApprovalPanel request={data.pendingDateChange} />
             ) : null}
-            {data.vacating.approvalPreview ? (
-              <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <MiniStat
-                  label="Deposit held"
-                  value={paiseToInr(data.vacating.approvalPreview.depositHeldPaise)}
-                />
-                <MiniStat
-                  label="Est. refund"
-                  value={paiseToInr(data.vacating.approvalPreview.estimatedRefundPaise)}
-                />
-                {data.checkoutDetail ? (
-                  <MiniStat
-                    label="Electricity deduction"
-                    value={paiseToInr(data.checkoutDetail.preview.electricityDeductionPaise ?? 0)}
-                  />
-                ) : null}
-              </dl>
+            {data.vacating.estimatedSettlement ? (
+              <EstimatedSettlementBreakdown preview={data.vacating.estimatedSettlement} />
             ) : null}
           </div>
         ) : (

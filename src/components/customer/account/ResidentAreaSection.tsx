@@ -47,7 +47,9 @@ import { ResidentConciergeChat } from '@/src/components/customer/account/Residen
 import { ResidentHubShell } from '@/src/components/customer/account/ResidentHubShell';
 import type { ConciergeContext } from '@/src/lib/concierge/answers';
 import type { ResidentTab, ResidentProfileSub, ResidentPaymentsSub } from '@/src/lib/accountNavigation';
-import { getCheckoutSettlementForCustomer, getLatestCheckoutSettlementStatusForCustomer, getRefundEligibilitySettlementForCustomer } from '@/src/services/checkoutSettlement';
+import { getCheckoutSettlementForCustomer, getLatestCheckoutSettlementStatusForCustomer, getRefundEligibilitySettlementForCustomer, getResidentMoveOutSettlementContext } from '@/src/services/checkoutSettlement';
+import { loadEstimatedSettlementForVacating, type EstimatedSettlementPreview } from '@/src/lib/vacating/estimatedSettlementPreview';
+import { getPendingVacatingDateChangeForBooking } from '@/src/services/vacatingDateChange';
 import { getLatestKycSubmission } from '@/src/services/kyc';
 import type { PaidHistoryRow } from '@/src/components/customer/account/resident/ResidentPaymentsV2Hub';
 import type { PaymentDueRow } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
@@ -494,9 +496,26 @@ export async function ResidentAreaSection({
   const checkoutByBooking = new Map<string, string>();
   const checkoutSettlementByBooking = new Map<
     string,
-    { status: string; rejectionReason?: string | null; checkoutSource?: string | null }
+    {
+      status: string;
+      rejectionReason?: string | null;
+      checkoutSource?: string | null;
+      waterfall?: import('@/src/lib/checkout/checkoutSettlementEngineV2').CheckoutSettlementWaterfall | null;
+      totalRefundPaise?: number | null;
+      payoutUpiId?: string | null;
+      refundPaidAt?: Date | null;
+    }
   >();
   for (const d of detail) {
+    const moveOutCtx = await getResidentMoveOutSettlementContext(
+      session.customerId,
+      d.bookingId,
+    );
+    if (moveOutCtx) {
+      checkoutByBooking.set(d.bookingId, moveOutCtx.status);
+      checkoutSettlementByBooking.set(d.bookingId, moveOutCtx);
+      continue;
+    }
     const eligibilitySettlement = await getRefundEligibilitySettlementForCustomer(
       session.customerId,
       d.bookingId,
@@ -556,6 +575,32 @@ export async function ResidentAreaSection({
   const hasOpenVacating = Boolean(
     primaryVacating && ['pending', 'approved'].includes(primaryVacating.status),
   );
+
+  let primaryEstimatedSettlement: EstimatedSettlementPreview | null = null;
+  let primaryPendingDateChangeRequestId: string | null = null;
+  if (
+    primaryBooking &&
+    primaryVacating &&
+    ['pending', 'approved'].includes(primaryVacating.status)
+  ) {
+    const [estimatedSettlement, pendingDateChange] = await Promise.all([
+      loadEstimatedSettlementForVacating({
+        bookingId: primaryBooking.bookingId,
+        noticeGivenDate: primaryVacating.noticeGivenDate,
+        vacatingDate: primaryVacating.vacatingDate,
+        monthlyRentPaiseSnapshot: primaryVacating.monthlyRentPaiseSnapshot,
+        noticeRentCoveredDays: primaryVacating.noticeRentCoveredDays,
+        noticeChargeableDays: primaryVacating.noticeChargeableDays,
+        deductionPaise: primaryVacating.deductionPaise,
+        noticeBreakdownJson: primaryVacating.noticeBreakdownJson,
+        stayType: primaryBooking.booking.stayType,
+        durationMode: effectiveDurationMode ?? primaryBooking.booking.durationMode,
+      }),
+      getPendingVacatingDateChangeForBooking(primaryBooking.bookingId),
+    ]);
+    primaryEstimatedSettlement = estimatedSettlement;
+    primaryPendingDateChangeRequestId = pendingDateChange?.id ?? null;
+  }
 
   const activeRejectionsRaw = await listActiveRejectionsForCustomer(session.customerId);
   const activeRejections = new Map(
@@ -693,6 +738,10 @@ export async function ResidentAreaSection({
     checkoutStatus: checkoutByBooking.get(primaryBooking?.bookingId ?? '') ?? null,
   });
 
+  const primaryCheckoutSettlement = primaryBooking
+    ? checkoutSettlementByBooking.get(primaryBooking.bookingId) ?? null
+    : null;
+
   const depositEntries =
     walletBooking?.deposit?.entries ?? primaryBooking?.deposit?.entries ?? [];
 
@@ -781,6 +830,10 @@ export async function ResidentAreaSection({
             availablePaise: referralSummary.availablePaise,
             withdrawnPaise: referralSummary.withdrawnPaise,
           }}
+          vacatingStatus={primaryVacating?.status ?? null}
+          checkoutStatus={checkoutByBooking.get(primaryBooking.bookingId) ?? null}
+          vacatingDate={primaryVacating?.vacatingDate ?? null}
+          settlementWaterfall={primaryCheckoutSettlement?.waterfall ?? null}
         />
       ) : null}
       {activeTab === 'requests' && primaryBooking ? (
@@ -810,10 +863,15 @@ export async function ResidentAreaSection({
             bookingCreatedAt={primaryBooking.booking.createdAt}
             checkoutSettlementStatus={checkoutByBooking.get(primaryBooking.bookingId) ?? null}
             checkoutSettlement={checkoutSettlementByBooking.get(primaryBooking.bookingId) ?? null}
+            checkoutSettlementSuppressed={
+              primaryVacating?.checkoutSettlementSuppressed === true
+            }
             monthlyRentPaise={primaryBooking.booking.monthlyRentPaise}
             depositHeldPaise={walletDepositHeldPaise}
             moveInDate={primaryBooking.booking.checkInDate}
             developerTestEmail={developerTestMode ? session.email : null}
+            estimatedSettlement={primaryEstimatedSettlement}
+            pendingDateChangeRequestId={primaryPendingDateChangeRequestId}
           />
         </ResidentSectionErrorBoundary>
       ) : null}

@@ -53,15 +53,13 @@ export function assessCheckoutSettlementReadiness(
   const items: CheckoutReadinessItem[] = [
     {
       id: 'meter',
-      label: 'Final AC meter photo (or average billing)',
+      label: 'Final AC meter photo',
       ok: electricityReady,
       detail: electricityReady
-        ? detail.electricityUseAverage
-          ? 'Average billing selected'
-          : detail.meterPhotoMissing
-            ? 'Meter photo marked missing'
-            : 'Meter photo uploaded'
-        : 'Waiting for meter photo or average billing choice',
+        ? detail.meterPhotoMissing
+          ? 'Meter photo marked missing'
+          : 'Meter photo uploaded'
+        : 'Waiting for resident meter photo',
     },
     {
       id: 'electricity',

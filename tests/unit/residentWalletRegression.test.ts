@@ -55,17 +55,10 @@ test('wallet sub-tab wires deposit balance, ledger, policy, and refund tracking'
   assert.match(residentAreaSection, /refundableBalancePaise/);
 });
 
-test('request money lives only in wallet', () => {
-  assert.match(profileWalletPanel, /RequestMoneySheet/);
-  const requestMoneySheet = readFileSync(
-    join(process.cwd(), 'src/components/customer/account/RequestMoneySheet.tsx'),
-    'utf8',
-  );
-  assert.match(requestMoneySheet, /Request money/);
+test('move-out refund is inline on vacating home', () => {
+  assert.match(vacatingHome, /DepositRefundRequestForm/);
+  assert.doesNotMatch(vacatingHome, /residentProfileHref\('wallet'\)/);
   assert.doesNotMatch(requestsHome, /Request deposit refund/);
-  assert.doesNotMatch(vacatingHome, /Request refund</);
-  assert.match(vacatingHome, /residentProfileHref\('wallet'\)/);
-  assert.match(requestsHome, /residentProfileHref\('wallet'\)/);
 });
 
 test('financial engine falls back to latest booking for wallet SSOT', () => {

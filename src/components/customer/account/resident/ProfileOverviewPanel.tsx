@@ -2,8 +2,10 @@
 
 import Link from 'next/link';
 import { ApgCard } from '@/src/components/customer/design-system';
+import { ResidentHomeMoveOutStatus } from '@/src/components/customer/account/resident/ResidentHomeMoveOutStatus';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import { residentPaymentsHref } from '@/src/lib/accountNavigation';
+import type { CheckoutSettlementWaterfall } from '@/src/lib/checkout/checkoutSettlementEngineV2';
 import type { ResidentBookingRow } from '@/src/db/queries/customer';
 
 type Props = {
@@ -16,6 +18,10 @@ type Props = {
   roommatesCount: number;
   roomCapacity: number;
   ps4Active?: boolean;
+  vacatingStatus?: string | null;
+  checkoutStatus?: string | null;
+  vacatingDate?: string | null;
+  settlementWaterfall?: CheckoutSettlementWaterfall | null;
 };
 
 function StatRow({ label, value }: { label: string; value: string }) {
@@ -37,9 +43,15 @@ export function ProfileOverviewPanel({
   roommatesCount,
   roomCapacity,
   ps4Active = false,
+  vacatingStatus = null,
+  checkoutStatus = null,
+  vacatingDate = null,
+  settlementWaterfall = null,
 }: Props) {
   const sharingLabel =
     roomCapacity <= 1 ? 'Private room' : `${roomCapacity}-sharing (${roommatesCount} roommate${roommatesCount === 1 ? '' : 's'})`;
+
+  const showMoveOutCard = Boolean(vacatingStatus || checkoutStatus);
 
   return (
     <div className="space-y-4 pb-2 max-md:space-y-5">
@@ -59,6 +71,15 @@ export function ProfileOverviewPanel({
           <StatRow label="Room sharing" value={sharingLabel} />
         </dl>
       </ApgCard>
+
+      {showMoveOutCard ? (
+        <ResidentHomeMoveOutStatus
+          vacatingStatus={vacatingStatus}
+          checkoutStatus={checkoutStatus}
+          vacatingDate={vacatingDate}
+          settlementWaterfall={settlementWaterfall}
+        />
+      ) : null}
 
       {ps4Active ? (
         <ApgCard tier="resident">

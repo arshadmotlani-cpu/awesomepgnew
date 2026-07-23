@@ -123,6 +123,8 @@ export const checkoutSettlements = pgTable(
     unusedRentRefundPaise: bigint('unused_rent_refund_paise', { mode: 'number' }).notNull().default(0),
     totalRefundPaise: bigint('total_refund_paise', { mode: 'number' }),
     settlementWaterfallJson: jsonb('settlement_waterfall_json').$type<CheckoutSettlementWaterfall>(),
+    /** When true, rent/notice buckets are frozen from move-out approval; checkout only updates pending deductions. */
+    approvalBaselineLocked: boolean('approval_baseline_locked').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

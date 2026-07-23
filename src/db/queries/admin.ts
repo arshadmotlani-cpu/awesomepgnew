@@ -21,6 +21,7 @@ import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import { normalizeIsoDateOnly, todayString } from '@/src/lib/dates';
 import { asPlainNumber } from '@/src/lib/format';
 import { sanitizeAdminQueryError } from '@/src/lib/admin/productionDbError';
+import type { NoticeDeductionBreakdown } from '@/src/lib/vacating/noticeDeductionEngine';
 import type { DepositCollectionStatus } from '@/src/db/schema/enums';
 import { isProductionElectricityBillFilter } from '@/src/lib/billing/electricityProductionFilter';
 import { operationsElectricityInvoiceFilter } from '@/src/lib/billing/electricityOperationsFilter';
@@ -1835,6 +1836,7 @@ export type AdminVacatingRow = {
   monthlyRentPaiseSnapshot: number;
   noticeRentCoveredDays: number;
   noticeChargeableDays: number;
+  noticeBreakdownJson?: Partial<NoticeDeductionBreakdown> | null;
   durationMode: string;
   stayType: string;
   status: 'pending' | 'approved' | 'completed' | 'rejected';
@@ -1867,6 +1869,7 @@ export function listAdminVacatingRequests(filter?: {
       monthly_rent_paise_snapshot: number;
       notice_rent_covered_days: number;
       notice_chargeable_days: number;
+      notice_breakdown_json: Record<string, unknown> | null;
       duration_mode: string;
       stay_type: string;
       status: AdminVacatingRow['status'];
@@ -1893,6 +1896,7 @@ export function listAdminVacatingRequests(filter?: {
         vr.monthly_rent_paise_snapshot::bigint::int AS monthly_rent_paise_snapshot,
         vr.notice_rent_covered_days,
         vr.notice_chargeable_days,
+        vr.notice_breakdown_json,
         b.duration_mode,
         b.stay_type,
         vr.status,
@@ -1945,6 +1949,7 @@ export function listAdminVacatingRequests(filter?: {
             monthlyRentPaiseSnapshot: guardDepositPaise(r.monthly_rent_paise_snapshot),
             noticeRentCoveredDays: r.notice_rent_covered_days ?? 0,
             noticeChargeableDays: r.notice_chargeable_days ?? 0,
+            noticeBreakdownJson: r.notice_breakdown_json ?? null,
             durationMode: r.duration_mode,
             stayType: r.stay_type,
             status: r.status,

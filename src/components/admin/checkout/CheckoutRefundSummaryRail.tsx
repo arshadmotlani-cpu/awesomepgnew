@@ -7,7 +7,9 @@ import { paiseToInr } from '@/src/lib/format';
 import { formatBillingMonthLabel } from '@/src/lib/billing/formatBillingMonth';
 import type { CheckoutSettlementImageEvidence } from '@/src/lib/checkout/checkoutSettlementImages';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
-import { CheckoutSettlementWaterfall } from '@/src/components/admin/checkout/CheckoutSettlementWaterfall';
+import { CheckoutSettlementAuditBreakdown } from '@/src/components/admin/checkout/CheckoutSettlementAuditBreakdown';
+import { NoticeSettlementPanel } from '@/src/components/shared/NoticeDeductionBreakdown';
+import { breakdownFromStoredNoticeSnapshot } from '@/src/lib/vacating/noticeDeductionPresentation';
 
 export type RefundSummaryOverrides = {
   electricityDeductionPaise?: number;
@@ -49,6 +51,21 @@ export function CheckoutRefundSummaryRail({
         )
       : preview.finalRefundPaise;
 
+  const noticeBreakdown =
+    !detail.waterfall
+      ? breakdownFromStoredNoticeSnapshot({
+          noticeRequiredDays: detail.noticeRequiredDays,
+          noticeGivenDays: detail.noticeGivenDays,
+          noticeGivenDate: detail.noticeGivenDate,
+          vacatingDate: detail.vacatingDate,
+          noticeShortfallDays: detail.noticeShortfallDays,
+          noticeRentCoveredDays: detail.noticeRentCoveredDays,
+          noticeChargeableDays: detail.noticeChargeableDays,
+          noticeDeductionPaise: detail.noticeDeductionPaise,
+          noticeBreakdownJson: detail.noticeBreakdownJson,
+        })
+      : null;
+
   return (
     <aside
       className={
@@ -57,15 +74,21 @@ export function CheckoutRefundSummaryRail({
       }
     >
       <p className="text-xs font-medium uppercase tracking-wider text-apg-silver">
-        {usesV2 ? 'Settlement waterfall' : 'Refund summary'}
+        {usesV2 ? 'Settlement audit' : 'Refund summary'}
       </p>
 
       {detail.waterfall ? (
         <div className="mt-5">
-          <CheckoutSettlementWaterfall waterfall={detail.waterfall} />
+          <CheckoutSettlementAuditBreakdown detail={detail} />
         </div>
       ) : (
-        <dl className="mt-5 space-y-3 text-sm">
+        <>
+          {noticeBreakdown ? (
+            <div className="mt-5">
+              <NoticeSettlementPanel settlement={noticeBreakdown} variant="admin" compact />
+            </div>
+          ) : null}
+          <dl className="mt-5 space-y-3 text-sm">
           <SummaryRow label="Deposit (escrow)" value={paiseToInr(detail.depositRefundablePaise)} />
           {detail.creditBalancePaise > 0 ? (
             <SummaryRow
@@ -102,6 +125,7 @@ export function CheckoutRefundSummaryRail({
           <SummaryRow label="Damage" value={`−${paiseToInr(damagePaise)}`} muted />
           <SummaryRow label="Other charges" value={`−${paiseToInr(otherCharges)}`} muted />
         </dl>
+        </>
       )}
 
       <div className="my-5 border-t border-white/[0.08]" />

@@ -1,5 +1,6 @@
 import { billingDayFromMoveIn } from '@/src/services/billing';
 import { titleCase } from '@/src/lib/format';
+import { residentMoveOutChipLabel } from '@/src/lib/residents/vacatingPresentation';
 
 export function billingCycleLabel(moveInDate: string): string {
   const day = billingDayFromMoveIn(moveInDate);
@@ -12,14 +13,7 @@ export function moveOutStatusLabel(input: {
   vacatingStatus: string | null;
   checkoutStatus: string | null;
 }): string {
-  if (input.checkoutStatus === 'paid' || input.checkoutStatus === 'completed') {
-    return 'Completed';
-  }
-  if (input.vacatingStatus === 'approved') return 'Approved — awaiting vacate date';
-  if (input.vacatingStatus === 'pending') return 'Notice submitted — under review';
-  if (input.vacatingStatus === 'completed') return 'Move-out completed';
-  if (input.vacatingStatus === 'rejected') return 'Notice declined';
-  return 'Not started';
+  return residentMoveOutChipLabel(input);
 }
 
 export function enrichBillDueRow(

@@ -1,12 +1,20 @@
 import { normalizeIsoDateOnly, tryDiffDays } from '@/src/lib/dates';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import type { AdminVacatingRow } from '@/src/db/queries/admin';
+import type { NoticeDeductionBreakdown } from '@/src/lib/vacating/noticeDeductionEngine';
 import {
   breakdownFromStoredNoticeSnapshot,
-  toNoticeSettlementDisplay,
   type NoticeSettlementDisplay,
 } from '@/src/lib/vacating/noticeDeductionPresentation';
+import {
+  loadEstimatedSettlementForVacating,
+  type EstimatedSettlementPreview,
+} from '@/src/lib/vacating/estimatedSettlementPreview';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
+
+export type VacatingApprovalPreviewRow = AdminVacatingRow & {
+  noticeBreakdownJson?: Partial<NoticeDeductionBreakdown> | null;
+};
 
 export type VacatingBedStatus = 'Occupied' | 'Scheduled for Release' | 'Available';
 
@@ -23,7 +31,9 @@ export type VacatingApprovalPreview = {
   estimatedDeductionPaise: number;
   estimatedRefundPaise: number;
   bedStatus: VacatingBedStatus;
+  /** @deprecated Use estimatedSettlement */
   noticeBreakdown: NoticeSettlementDisplay | null;
+  estimatedSettlement: EstimatedSettlementPreview | null;
 };
 
 export function vacatingBedStatus(
@@ -35,7 +45,7 @@ export function vacatingBedStatus(
 }
 
 export function buildVacatingApprovalPreview(
-  row: AdminVacatingRow,
+  row: VacatingApprovalPreviewRow,
   depositHeldPaise: number,
 ): VacatingApprovalPreview {
   const noticeGivenDate = normalizeIsoDateOnly(row.noticeGivenDate);
@@ -51,7 +61,8 @@ export function buildVacatingApprovalPreview(
     vacatingDate,
     noticeRentCoveredDays: row.noticeRentCoveredDays,
     noticeChargeableDays: row.noticeChargeableDays,
-    deductionPaise: estimatedDeductionPaise,
+    noticeDeductionPaise: estimatedDeductionPaise,
+    noticeBreakdownJson: row.noticeBreakdownJson,
   });
 
   return {
@@ -68,7 +79,28 @@ export function buildVacatingApprovalPreview(
     estimatedRefundPaise,
     bedStatus: vacatingBedStatus(row.status),
     noticeBreakdown,
+    estimatedSettlement: null,
   };
+}
+
+export async function buildVacatingApprovalPreviewAsync(
+  row: VacatingApprovalPreviewRow,
+  depositHeldPaise: number,
+): Promise<VacatingApprovalPreview> {
+  const sync = buildVacatingApprovalPreview(row, depositHeldPaise);
+  const estimatedSettlement = await loadEstimatedSettlementForVacating({
+    bookingId: row.bookingId,
+    noticeGivenDate: row.noticeGivenDate,
+    vacatingDate: row.vacatingDate,
+    monthlyRentPaiseSnapshot: row.monthlyRentPaiseSnapshot,
+    noticeRentCoveredDays: row.noticeRentCoveredDays,
+    noticeChargeableDays: row.noticeChargeableDays,
+    deductionPaise: row.deductionPaise,
+    noticeBreakdownJson: row.noticeBreakdownJson,
+    stayType: row.stayType,
+    durationMode: row.durationMode,
+  });
+  return { ...sync, estimatedSettlement };
 }
 
 export type MoveOutUrgency = 'high' | 'medium' | 'normal';

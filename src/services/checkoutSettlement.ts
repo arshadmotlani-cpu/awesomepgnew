@@ -275,6 +275,30 @@ async function resolvePolicyNoticeFields(args: {
   };
 }
 
+function noticeFieldsFromVacatingRow(
+  vr: typeof vacatingRequests.$inferSelect,
+  policy: Awaited<ReturnType<typeof resolvePolicyNoticeFields>>,
+): Awaited<ReturnType<typeof resolvePolicyNoticeFields>> {
+  const noticeGivenDays = diffDays(String(vr.noticeGivenDate), String(vr.vacatingDate));
+  const stored = vr.noticeBreakdownJson as Partial<NoticeDeductionBreakdown> | null;
+  if (stored && typeof stored === 'object' && stored.vacatingDate) {
+    return {
+      noticeGivenDays,
+      noticeShortfallDays: stored.missingNoticeDays ?? vr.noticeChargeableDays ?? policy.noticeShortfallDays,
+      noticeDeductionPaise:
+        stored.noticeDeductionPaise ?? vr.deductionPaise ?? policy.noticeDeductionPaise,
+      noticeRentCoveredDays:
+        stored.rentCoveredDays ??
+        stored.noticeCoveredByPrepaidRent ??
+        vr.noticeRentCoveredDays ??
+        policy.noticeRentCoveredDays,
+      noticeChargeableDays: stored.chargeableNoticeDays ?? vr.noticeChargeableDays ?? policy.noticeChargeableDays,
+      noticeBreakdownJson: (vr.noticeBreakdownJson as Record<string, unknown> | null) ?? policy.noticeBreakdownJson,
+    };
+  }
+  return { ...policy, noticeGivenDays };
+}
+
 /** Repair open settlements still on the legacy fixed 5-day notice formula. */
 async function reconcileCheckoutSettlementNoticePolicy(
   settlement: CheckoutSettlement,
@@ -422,6 +446,7 @@ async function recomputeAndPersistV2Snapshot(args: {
   stayCheckoutDate: string;
   stayType?: string | null;
   durationMode?: string | null;
+  lockApprovalBaseline?: boolean;
 }): Promise<void> {
   if (!settlementUsesEngineV2(args.settlement) || args.settlement.amountsLocked) return;
 
@@ -437,7 +462,42 @@ async function recomputeAndPersistV2Snapshot(args: {
     durationMode: args.durationMode,
   });
   if (!waterfall) return;
-  await persistWaterfallForSettlement(args.settlement.id, waterfall);
+  await persistWaterfallForSettlement(args.settlement.id, waterfall, {
+    lockApprovalBaseline: args.lockApprovalBaseline,
+  });
+}
+
+async function lockApprovalBaselineIfNeeded(settlementId: string): Promise<void> {
+  const [row] = await db
+    .select()
+    .from(checkoutSettlements)
+    .where(eq(checkoutSettlements.id, settlementId))
+    .limit(1);
+  if (!row || row.approvalBaselineLocked || row.amountsLocked) return;
+
+  const [vr] = await db
+    .select()
+    .from(vacatingRequests)
+    .where(eq(vacatingRequests.id, row.vacatingRequestId))
+    .limit(1);
+  if (!vr) return;
+
+  const [booking] = await db
+    .select({ stayType: bookings.stayType, durationMode: bookings.durationMode })
+    .from(bookings)
+    .where(eq(bookings.id, row.bookingId))
+    .limit(1);
+
+  const vacatingDate =
+    normalizeIsoDateOnly(String(vr.vacatingDate)) || formatDate(parseDate(vr.vacatingDate));
+
+  await recomputeAndPersistV2Snapshot({
+    settlement: row,
+    stayCheckoutDate: vacatingDate,
+    stayType: booking?.stayType,
+    durationMode: booking?.durationMode,
+    lockApprovalBaseline: true,
+  });
 }
 
 type SettlementJoinRow = {
@@ -506,6 +566,7 @@ type SettlementJoinRow = {
   unused_rent_refund_paise?: number | null;
   total_refund_paise?: number | null;
   settlement_waterfall_json?: CheckoutSettlementWaterfall | null;
+  approval_baseline_locked?: boolean | null;
   created_at: Date;
   updated_at: Date;
   customer_name: string;
@@ -594,6 +655,7 @@ function mapDbSettlement(row: SettlementJoinRow): CheckoutSettlement {
     unusedRentRefundPaise: paiseField(row.unused_rent_refund_paise ?? 0),
     totalRefundPaise: row.total_refund_paise != null ? paiseField(row.total_refund_paise) : null,
     settlementWaterfallJson: row.settlement_waterfall_json ?? null,
+    approvalBaselineLocked: row.approval_baseline_locked === true,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -671,6 +733,7 @@ async function loadSettlementRow(
 export async function createCheckoutSettlementFromVacating(input: {
   vacatingRequestId: string;
   checkoutSource?: string;
+  lockApprovalBaseline?: boolean;
 }): Promise<{ ok: true; settlementId: string } | { ok: false; error: string }> {
   const [vr] = await db
     .select()
@@ -682,12 +745,41 @@ export async function createCheckoutSettlementFromVacating(input: {
     return { ok: false, error: 'Checkout settlement is suppressed for this vacating request.' };
   }
 
+  const [booking] = await db
+    .select({
+      depositPaise: bookings.depositPaise,
+      stayType: bookings.stayType,
+      durationMode: bookings.durationMode,
+    })
+    .from(bookings)
+    .where(eq(bookings.id, vr.bookingId))
+    .limit(1);
+
+  const fixedStay = isFixedStayDurationMode(booking?.durationMode);
+  if (!fixedStay && vr.status === 'pending') {
+    return {
+      ok: false,
+      error: 'Move-out must be approved before checkout settlement can be created.',
+    };
+  }
+  if (!fixedStay && vr.status !== 'approved' && vr.status !== 'completed') {
+    return {
+      ok: false,
+      error: 'Checkout settlement requires an approved move-out request.',
+    };
+  }
+
   const [existing] = await db
     .select({ id: checkoutSettlements.id })
     .from(checkoutSettlements)
     .where(eq(checkoutSettlements.vacatingRequestId, vr.id))
     .limit(1);
-  if (existing) return { ok: true, settlementId: existing.id };
+  if (existing) {
+    if (input.lockApprovalBaseline) {
+      await lockApprovalBaselineIfNeeded(existing.id);
+    }
+    return { ok: true, settlementId: existing.id };
+  }
 
   const [existingForBooking] = await db
     .select({ id: checkoutSettlements.id })
@@ -705,20 +797,13 @@ export async function createCheckoutSettlementFromVacating(input: {
     )
     .limit(1);
   if (existingForBooking) {
+    if (input.lockApprovalBaseline) {
+      await lockApprovalBaselineIfNeeded(existingForBooking.id);
+    }
     return { ok: true, settlementId: existingForBooking.id };
   }
 
-  const [booking] = await db
-    .select({
-      depositPaise: bookings.depositPaise,
-      stayType: bookings.stayType,
-      durationMode: bookings.durationMode,
-    })
-    .from(bookings)
-    .where(eq(bookings.id, vr.bookingId))
-    .limit(1);
-
-  const policy = await resolvePolicyNoticeFields({
+  const policyFallback = await resolvePolicyNoticeFields({
     bookingId: vr.bookingId,
     monthlyRentPaiseSnapshot: vr.monthlyRentPaiseSnapshot,
     noticeGivenDate: vr.noticeGivenDate,
@@ -726,6 +811,7 @@ export async function createCheckoutSettlementFromVacating(input: {
     stayType: booking?.stayType,
     durationMode: booking?.durationMode,
   });
+  const policy = noticeFieldsFromVacatingRow(vr, policyFallback);
 
   const wallet = await getDepositSummaryForBooking(vr.bookingId);
   const depositReceivedPaise = wallet?.collectedPaise ?? 0;
@@ -779,6 +865,7 @@ export async function createCheckoutSettlementFromVacating(input: {
         stayCheckoutDate: vacatingDate,
         stayType: booking?.stayType,
         durationMode: booking?.durationMode,
+        lockApprovalBaseline: input.lockApprovalBaseline,
       });
     }
   }
@@ -1402,6 +1489,51 @@ export async function getCheckoutSettlementForCustomer(
   );
 }
 
+/** Latest non-archived settlement snapshot for resident move-out UI. */
+export async function getResidentMoveOutSettlementContext(
+  customerId: string,
+  bookingId: string,
+): Promise<{
+  status: string;
+  rejectionReason: string | null;
+  checkoutSource: string | null;
+  waterfall: CheckoutSettlementWaterfall | null;
+  totalRefundPaise: number | null;
+  payoutUpiId: string | null;
+  refundPaidAt: Date | null;
+} | null> {
+  const [row] = await db
+    .select({
+      status: checkoutSettlements.status,
+      refundNotes: checkoutSettlements.refundNotes,
+      checkoutSource: checkoutSettlements.checkoutSource,
+      settlementWaterfallJson: checkoutSettlements.settlementWaterfallJson,
+      totalRefundPaise: checkoutSettlements.totalRefundPaise,
+      payoutUpiId: checkoutSettlements.payoutUpiId,
+      refundPaidAt: checkoutSettlements.refundPaidAt,
+    })
+    .from(checkoutSettlements)
+    .where(
+      and(
+        eq(checkoutSettlements.customerId, customerId),
+        eq(checkoutSettlements.bookingId, bookingId),
+        sql`${checkoutSettlements.status} <> 'archived'`,
+      ),
+    )
+    .orderBy(desc(checkoutSettlements.updatedAt))
+    .limit(1);
+  if (!row) return null;
+  return {
+    status: row.status,
+    rejectionReason: row.refundNotes,
+    checkoutSource: row.checkoutSource,
+    waterfall: row.settlementWaterfallJson ?? null,
+    totalRefundPaise: row.totalRefundPaise,
+    payoutUpiId: row.payoutUpiId,
+    refundPaidAt: row.refundPaidAt,
+  };
+}
+
 /** Latest checkout settlement status for resident vacating timeline (any non-archived row). */
 export async function getLatestCheckoutSettlementStatusForCustomer(
   customerId: string,
@@ -1489,7 +1621,6 @@ export async function submitResidentCheckoutDetails(input: {
   const validation = validateDepositRefundSubmission(
     {
       meterReadingPhotoUrl: draft.electricityMeterPhotoUrl,
-      useAverageBillingFallback: draft.electricityUseAverage,
       payoutUpiId: draft.payoutUpiId,
       payoutQrUrl: draft.payoutQrUrl,
     },
@@ -1714,7 +1845,28 @@ export async function ensureCheckoutSettlementForBooking(input: {
     }
   }
 
-  const created = await createCheckoutSettlementFromVacating({ vacatingRequestId });
+  if (!isFixedStayDurationMode(booking.durationMode)) {
+    const [vrDates] = await db
+      .select({ vacatingDate: vacatingRequests.vacatingDate, status: vacatingRequests.status })
+      .from(vacatingRequests)
+      .where(eq(vacatingRequests.id, vacatingRequestId))
+      .limit(1);
+    const vacDate = vrDates?.vacatingDate
+      ? String(vrDates.vacatingDate).slice(0, 10)
+      : null;
+    const today = todayString();
+    if (vacDate && today < vacDate) {
+      return {
+        ok: false,
+        error: `Refund request unlocks on your approved move-out date (${vacDate}).`,
+      };
+    }
+  }
+
+  const created = await createCheckoutSettlementFromVacating({
+    vacatingRequestId,
+    lockApprovalBaseline: true,
+  });
   if (!created.ok) return { ok: false, error: created.error };
   return { ok: true, settlementId: created.settlementId };
 }
@@ -1748,6 +1900,12 @@ export async function updateCheckoutElectricitySettlement(input: {
   if (!['awaiting_admin_review', 'awaiting_resident_details'].includes(current.status)) {
     return { ok: false, error: 'Settlement cannot be edited in this status.' };
   }
+  if (input.calculationMethod === 'average_billing') {
+    return {
+      ok: false,
+      error: 'Average billing is no longer supported. Use meter reading or manual amount.',
+    };
+  }
 
   const roomOccupancy = await resolveRoomOccupancyContext(current.bookingId);
   const effectiveOccupants = effectiveSharingCount({
@@ -1774,15 +1932,6 @@ export async function updateCheckoutElectricitySettlement(input: {
       currentReading: input.currentReading,
       ratePerUnitPaise: Math.round(input.ratePerUnitInr * 100),
       roomOccupants: effectiveOccupants,
-    });
-  } else if (input.calculationMethod === 'average_billing') {
-    if (input.averageBillInr == null) {
-      return { ok: false, error: 'Enter average room electricity bill.' };
-    }
-    computed = calculateAverageBillingElectricity({
-      averageBillPaise: Math.round(input.averageBillInr * 100),
-      roomOccupants: effectiveOccupants,
-      autoDetectedOccupants: roomOccupancy.autoDetectedCount,
     });
   } else {
     if (input.manualChargeInr == null) {
@@ -1841,10 +1990,7 @@ export async function updateCheckoutElectricitySettlement(input: {
       autoDetectedSharingCount: roomOccupancy.autoDetectedCount,
       electricitySharingOverride: input.sharingOverride,
       electricityUnitRatePaise: computed.calc.ratePerUnitPaise,
-      averageBillPaise:
-        input.calculationMethod === 'average_billing' && input.averageBillInr != null
-          ? Math.round(input.averageBillInr * 100)
-          : null,
+      averageBillPaise: null,
       manualChargePaise:
         input.calculationMethod === 'manual_amount' && input.manualChargeInr != null
           ? Math.round(input.manualChargeInr * 100)
@@ -1852,7 +1998,7 @@ export async function updateCheckoutElectricitySettlement(input: {
       electricitySharePaise: finalSharePaise,
       electricityDeductFromDeposit: input.deductFromDeposit,
       meterPhotoMissing: input.meterPhotoMissing,
-      electricityUseAverage: input.calculationMethod === 'average_billing',
+      electricityUseAverage: false,
       updatedAt: new Date(),
     })
     .where(eq(checkoutSettlements.id, input.settlementId));
@@ -2360,12 +2506,6 @@ export async function backfillCheckoutSettlementsFromVacating(input?: {
           WHERE b.id = vr.booking_id
             AND b.duration_mode IN ('fixed_stay', 'daily', 'weekly')
             AND vr.status IN ('approved', 'completed')
-        )
-        OR EXISTS (
-          SELECT 1 FROM resident_requests rr
-          WHERE rr.booking_id = vr.booking_id
-            AND rr.type = 'deposit_refund'
-            AND rr.status IN ('submitted', 'under_review', 'approved')
         )
       )
     ORDER BY vr.created_at ASC

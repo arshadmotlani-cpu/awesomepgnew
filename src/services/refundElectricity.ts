@@ -106,7 +106,7 @@ function toPreview(
 
 export async function calculateRefundElectricityForBooking(
   session: AdminSession,
-  input: { bookingId: string; useAverageFallback?: boolean },
+  input: { bookingId: string },
 ): Promise<RefundElectricityPreview> {
   const ctx = await bookingRoomContext(input.bookingId);
   if (!ctx) {
@@ -131,7 +131,6 @@ export async function calculateRefundElectricityForBooking(
     );
   }
 
-  void input.useAverageFallback;
   return {
     ok: false,
     error:
