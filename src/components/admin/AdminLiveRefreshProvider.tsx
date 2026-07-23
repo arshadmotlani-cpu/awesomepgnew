@@ -10,6 +10,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { usePathname } from 'next/navigation';
 import {
   ADMIN_BADGES_REFRESH_COMPLETE_EVENT,
   ADMIN_BADGES_REFRESH_EVENT,
@@ -28,6 +29,18 @@ function operationsBadgeCount(badges: AdminNavBadges): number {
   return badges.operations ?? badges.overview ?? 0;
 }
 
+function mergeBadgesPreferLowerOperations(
+  current: AdminNavBadges,
+  incoming: AdminNavBadges,
+): AdminNavBadges {
+  const currentOps = operationsBadgeCount(current);
+  const incomingOps = operationsBadgeCount(incoming);
+  if (currentOps > 0 && incomingOps > 0 && incomingOps > currentOps) {
+    return { ...incoming, operations: currentOps, overview: currentOps };
+  }
+  return incoming;
+}
+
 /**
  * Polls sidebar badge counts client-side only.
  * Does not call router.refresh() — that raced with Link navigation and blocked clicks
@@ -40,8 +53,9 @@ export function AdminLiveRefreshProvider({
   initialBadges: AdminNavBadges;
   children: ReactNode;
 }) {
+  const pathname = usePathname();
   const [badges, setBadges] = useState<AdminNavBadges>(initialBadges);
-  const lastPollRef = useRef<{ badges: AdminNavBadges; at: number } | null>(null);
+  const hasPolledRef = useRef(false);
 
   const pollBadges = useCallback(async () => {
     try {
@@ -53,8 +67,8 @@ export function AdminLiveRefreshProvider({
         unreadCount?: number;
       };
       if (!json.ok || !json.badges) return;
-      lastPollRef.current = { badges: json.badges, at: Date.now() };
-      setBadges(json.badges);
+      hasPolledRef.current = true;
+      setBadges((prev) => mergeBadgesPreferLowerOperations(prev, json.badges!));
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
           new CustomEvent('admin-badges-updated', {
@@ -64,7 +78,6 @@ export function AdminLiveRefreshProvider({
         window.dispatchEvent(new CustomEvent(ADMIN_BADGES_REFRESH_COMPLETE_EVENT));
       }
     } catch {
-      // ignore transient network errors
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent(ADMIN_BADGES_REFRESH_COMPLETE_EVENT));
       }
@@ -72,18 +85,8 @@ export function AdminLiveRefreshProvider({
   }, []);
 
   useEffect(() => {
-    const polled = lastPollRef.current;
-    if (!polled) {
+    if (!hasPolledRef.current) {
       setBadges(initialBadges);
-      return;
-    }
-
-    const polledOps = operationsBadgeCount(polled.badges);
-    const nextOps = operationsBadgeCount(initialBadges);
-    // Never let stale layout SSR inflate counts after a fresher poll.
-    if (nextOps <= polledOps) {
-      setBadges(initialBadges);
-      lastPollRef.current = { badges: initialBadges, at: Date.now() };
     }
   }, [initialBadges]);
 
@@ -113,6 +116,10 @@ export function AdminLiveRefreshProvider({
       window.removeEventListener(ADMIN_BADGES_REFRESH_EVENT, onBadgesRefresh);
     };
   }, [pollBadges]);
+
+  useEffect(() => {
+    void pollBadges();
+  }, [pathname, pollBadges]);
 
   const value = useMemo(() => badges, [badges]);
 

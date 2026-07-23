@@ -5,7 +5,7 @@ import {
   operationsFilterCount,
   operationsTotalPendingCount,
 } from '@/src/lib/operations/operationsQueueCounts';
-import { getUnifiedOperationsQueueForRequest } from '@/src/services/unifiedOperationsQueue';
+import { getUnifiedOperationsQueueForBadges } from '@/src/services/unifiedOperationsQueue';
 import { countUnreadForAdmin } from '@/src/services/notificationEngine';
 import { profileAdminStep } from '@/src/lib/admin/adminProfile';
 
@@ -15,7 +15,7 @@ export type AdminNavBadges = Partial<
 >;
 
 function badgeFromFilterCount(
-  queue: Awaited<ReturnType<typeof getUnifiedOperationsQueueForRequest>>,
+  queue: Awaited<ReturnType<typeof getUnifiedOperationsQueueForBadges>>,
   filter: OpsQueueFilter,
 ): number | undefined {
   const count = operationsFilterCount(queue, filter);
@@ -29,7 +29,7 @@ function badgeFromFilterCount(
 export async function loadAdminNavBadges(session: AdminSession): Promise<AdminNavBadges> {
   try {
     return await profileAdminStep('loadAdminNavBadges', async () => {
-      const operationsQueue = await getUnifiedOperationsQueueForRequest(session, null);
+      const operationsQueue = await getUnifiedOperationsQueueForBadges(session);
       const badges: AdminNavBadges = {};
 
       const pendingTotal = operationsTotalPendingCount(operationsQueue);

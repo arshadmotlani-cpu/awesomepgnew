@@ -140,6 +140,26 @@ const EMPTY_DISMISSAL_INDEX: OperationsQueueDismissalIndex = {
   settlementIds: new Set(),
 };
 
+type ResidentsPageSnapshot = Awaited<ReturnType<typeof loadResidentOperationsResidentsPage>>;
+
+const EMPTY_RESIDENTS_PAGE = {
+  commandCards: [],
+  queue: [],
+  allQueueCount: 0,
+  nextQueueItem: null,
+  journeyCounts: [],
+  blockedResidents: [],
+  recentActivity: [],
+  activeFilter: null,
+} as unknown as ResidentsPageSnapshot;
+
+type BuildUnifiedOperationsQueueOptions = {
+  /** Badge polls must stay fast — skip terminal repair passes. */
+  skipRepairs?: boolean;
+  /** Rent/KYC rows from residents dashboard — badge path skips the heavy page load. */
+  skipResidents?: boolean;
+};
+
 function emptyOperationsFilterCounts(): Array<{ id: OpsQueueFilter; label: string; count: number }> {
   return OPS_QUEUE_FILTERS.map((id) => ({ id, label: OPS_QUEUE_LABELS[id], count: 0 }));
 }
@@ -367,6 +387,22 @@ function residentsRowToItem(row: ResidentsQueueRow): UnifiedOpsItem | null {
   return null;
 }
 
+/** Bookings with an approved checkout payment proof — deposit-due must not double-count. */
+async function loadBookingIdsWithApprovedCheckoutProof(): Promise<Set<string>> {
+  const rows = await db
+    .select({ bookingId: pgPaymentRecords.bookingId })
+    .from(pgPaymentRecords)
+    .where(
+      and(
+        eq(pgPaymentRecords.status, 'approved'),
+        sql`${pgPaymentRecords.bookingId} IS NOT NULL`,
+        sql`${pgPaymentRecords.paymentScreenshotUrl} IS NOT NULL`,
+        sql`trim(${pgPaymentRecords.paymentScreenshotUrl}) <> ''`,
+      ),
+    );
+  return new Set(rows.map((r) => r.bookingId).filter(Boolean) as string[]);
+}
+
 export async function listPendingBookingApprovalsForSync(session: AdminSession) {
   const rows = await db
     .select({
@@ -439,6 +475,7 @@ async function buildUnifiedOperationsQueue(
   session: AdminSession,
   _filterInput?: OpsQueueFilter | null,
   _focusReviewKey?: string | null,
+  options?: BuildUnifiedOperationsQueueOptions,
 ): Promise<{
   allItems: UnifiedOpsItem[];
   paymentReviews: PendingPaymentReviewItem[];
@@ -446,18 +483,11 @@ async function buildUnifiedOperationsQueue(
 }> {
   unifiedQueueBuildCount += 1;
 
-  try {
-    const { resolveStalePaymentReviewArtifacts } = await import(
-      '@/src/services/paymentReviewIntegrity'
-    );
-    await resolveStalePaymentReviewArtifacts(session);
-  } catch (err) {
-    console.error('[operations-queue] stale payment review cleanup failed', err);
+  if (!options?.skipRepairs) {
+    // Close terminal checkout rows that still inflate vacating / refund queue counts.
+    await repairTerminalCheckoutOperations();
+    await resolveTerminalCheckoutUnresolvedActions();
   }
-
-  // Close terminal checkout rows that still inflate vacating / refund queue counts.
-  await repairTerminalCheckoutOperations();
-  await resolveTerminalCheckoutUnresolvedActions();
 
   const [
     residentsPage,
@@ -469,20 +499,13 @@ async function buildUnifiedOperationsQueue(
     checkoutSettlements,
     moveOutBundle,
   ] = await Promise.all([
-    loadOperationsQueueSlice(
-      'residents queue',
-      {
-        commandCards: [],
-        queue: [],
-        allQueueCount: 0,
-        nextQueueItem: null,
-        journeyCounts: [],
-        blockedResidents: [],
-        recentActivity: [],
-        activeFilter: null,
-      } as unknown as Awaited<ReturnType<typeof loadResidentOperationsResidentsPage>>,
-      () => loadResidentOperationsResidentsPage(session, null),
-    ),
+    options?.skipResidents
+      ? Promise.resolve(EMPTY_RESIDENTS_PAGE)
+      : loadOperationsQueueSlice(
+          'residents queue',
+          EMPTY_RESIDENTS_PAGE,
+          () => loadResidentOperationsResidentsPage(session, null),
+        ),
     loadOperationsQueueSlice('booking approvals', [], () =>
       listPendingBookingApprovalsForSync(session),
     ),
@@ -525,6 +548,8 @@ async function buildUnifiedOperationsQueue(
   const bookingIdsWithPaymentProof = new Set(
     paymentReviews.map((p) => p.bookingId).filter(Boolean) as string[],
   );
+
+  const approvedCheckoutBookingIds = await loadBookingIdsWithApprovedCheckoutProof();
 
   const pendingElecInvoiceIds = new Set(
     paymentReviews
@@ -616,6 +641,8 @@ async function buildUnifiedOperationsQueue(
   }
 
   for (const row of depositDueRows) {
+    if (row.bookingId && approvedCheckoutBookingIds.has(row.bookingId)) continue;
+    if (row.bookingId && bookingIdsWithPaymentProof.has(row.bookingId)) continue;
     items.push({
       id: `deposit-due-${row.bookingId}`,
       queue: 'deposit_due',
@@ -703,6 +730,23 @@ const buildUnifiedOperationsQueueBaseCached = cache(
   },
 );
 
+const buildUnifiedOperationsQueueBadgesCached = cache(
+  async (
+    scopeKey: string,
+    session: AdminSession,
+  ): Promise<{
+    allItems: UnifiedOpsItem[];
+    paymentReviews: PendingPaymentReviewItem[];
+    filterCounts: Array<{ id: OpsQueueFilter; label: string; count: number }>;
+  }> => {
+    void scopeKey;
+    return buildUnifiedOperationsQueue(session, null, null, {
+      skipRepairs: true,
+      skipResidents: true,
+    });
+  },
+);
+
 /** Deduped within a single admin RSC request (layout + page). */
 export function getUnifiedOperationsQueueForRequest(
   session: AdminSession,
@@ -714,6 +758,18 @@ export function getUnifiedOperationsQueueForRequest(
     .catch((err) => {
       console.error('[operations-queue] unified queue unavailable', err);
       return emptyUnifiedOperationsQueue(filterInput);
+    });
+}
+
+/** Fast path for sidebar badge polls — skips terminal repairs and residents dashboard load. */
+export function getUnifiedOperationsQueueForBadges(
+  session: AdminSession,
+): Promise<UnifiedOperationsQueue> {
+  return buildUnifiedOperationsQueueBadgesCached(adminRequestScopeKey(session), session)
+    .then((base) => applyUnifiedOperationsFilter(base, null, null))
+    .catch((err) => {
+      console.error('[operations-queue] badge queue unavailable', err);
+      return emptyUnifiedOperationsQueue(null);
     });
 }
 

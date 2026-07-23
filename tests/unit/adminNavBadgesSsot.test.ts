@@ -51,7 +51,7 @@ test('empty booking approval does not keep a phantom pending total', () => {
 
 test('adminNavBadges uses unified queue total — never residents parallel queue', () => {
   const src = read('src/services/adminNavBadges.ts');
-  assert.match(src, /getUnifiedOperationsQueueForRequest/);
+  assert.match(src, /getUnifiedOperationsQueueForBadges/);
   assert.match(src, /operationsTotalPendingCount/);
   assert.doesNotMatch(src, /loadResidentOperationsResidentsPage/);
   assert.doesNotMatch(src, /allQueueCount/);
