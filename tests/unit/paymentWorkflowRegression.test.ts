@@ -228,11 +228,16 @@ describe('payment workflow regression', () => {
 
   test('Payment Review footer stays within main content column', () => {
     const workspace = read('src/components/admin/payment-review/PaymentReviewWorkspace.tsx');
+    const page = read('app/(admin)/admin/payment-review/[reviewKey]/page.tsx');
+    const css = read('app/(admin)/admin/payment-review/payment-review.module.css');
     assert.doesNotMatch(workspace, /fixed inset-x-0 bottom-0/);
     assert.doesNotMatch(workspace, /sticky bottom-0/);
     assert.doesNotMatch(workspace, /ml-auto[\s\S]*Back to queue/);
-    assert.match(workspace, /<article className="overflow-hidden rounded-2xl/);
-    assert.match(workspace, /<footer className="border-t border-white\/10/);
+    assert.match(workspace, /data-payment-review-article/);
+    assert.match(workspace, /min-h-0 flex-1 overflow-y-auto overscroll-y-contain/);
+    assert.match(workspace, /<footer className="shrink-0 border-t border-white\/10/);
+    assert.match(page, /data-payment-review-workspace/);
+    assert.match(css, /apg-admin-scroll:has\(\[data-payment-review-workspace\]\)/);
     assert.match(workspace, /Back to queue[\s\S]*Reject[\s\S]*Approve/);
     assert.match(workspace, /justify-between/);
   });
@@ -245,7 +250,7 @@ describe('payment workflow regression', () => {
     assert.match(workspace, /router\.refresh\(\)/);
     assert.match(provider, /ADMIN_BADGES_REFRESH_EVENT/);
     assert.match(provider, /ADMIN_BADGES_REFRESH_COMPLETE_EVENT/);
-    assert.match(provider, /nextOps <= polledOps/);
+    assert.match(provider, /mergeBadgesPreferLowerOperations/);
     assert.match(flash, /refreshAdminNavBadges\(\)/);
   });
 

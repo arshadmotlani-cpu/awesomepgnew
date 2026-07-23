@@ -6,26 +6,40 @@ function read(rel: string): string {
   return readFileSync(rel, 'utf8');
 }
 
-test('AdminLiveRefreshProvider does not blindly overwrite polled badges with stale layout SSR', () => {
+test('AdminLiveRefreshProvider polls on pathname change and guards against badge inflation', () => {
   const provider = read('src/components/admin/AdminLiveRefreshProvider.tsx');
-  assert.match(provider, /lastPollRef/);
-  assert.match(provider, /nextOps <= polledOps/);
-  assert.doesNotMatch(provider, /setBadges\(initialBadges\);\s*\}, \[initialBadges\]\);/);
+  assert.match(provider, /usePathname/);
+  assert.match(provider, /mergeBadgesPreferLowerOperations/);
+  assert.match(provider, /hasPolledRef/);
 });
 
-test('PaymentReviewWorkspace refreshes layout before badge poll and redirect', () => {
+test('PaymentReviewWorkspace uses internal scroll with pinned action footer', () => {
   const workspace = read('src/components/admin/payment-review/PaymentReviewWorkspace.tsx');
-  assert.match(workspace, /router\.refresh\(\)/);
+  const page = read('app/(admin)/admin/payment-review/[reviewKey]/page.tsx');
+  const css = read('app/(admin)/admin/payment-review/payment-review.module.css');
+  assert.match(workspace, /relative flex min-h-0 flex-1 flex-col/);
+  assert.match(workspace, /min-h-0 flex-1 overflow-y-auto overscroll-y-contain/);
+  assert.match(workspace, /<footer className="shrink-0 border-t border-white\/10/);
+  assert.match(page, /data-payment-review-workspace/);
+  assert.match(css, /apg-admin-scroll:has\(\[data-payment-review-workspace\]\)/);
+});
+
+test('deposit_due excludes bookings with approved checkout payment proof', () => {
+  const queue = read('src/services/unifiedOperationsQueue.ts');
+  assert.match(queue, /loadBookingIdsWithApprovedCheckoutProof/);
+  assert.match(queue, /approvedCheckoutBookingIds\.has\(row\.bookingId\)/);
+});
+
+test('loadAdminNavBadges uses fast badge queue path', () => {
+  const badges = read('src/services/adminNavBadges.ts');
+  const queue = read('src/services/unifiedOperationsQueue.ts');
+  assert.match(badges, /getUnifiedOperationsQueueForBadges/);
+  assert.match(queue, /getUnifiedOperationsQueueForBadges/);
+  assert.match(queue, /skipResidents: true/);
+});
+
+test('PaymentReviewWorkspace refreshes badges once after approve', () => {
+  const workspace = read('src/components/admin/payment-review/PaymentReviewWorkspace.tsx');
   assert.match(workspace, /await refreshAdminNavBadges\(\)/);
-  assert.doesNotMatch(workspace, /setTimeout\(\(\) => \{\s*router\.push/);
-});
-
-test('buildUnifiedOperationsQueue resolves stale payment review artifacts on load', () => {
-  const src = read('src/services/unifiedOperationsQueue.ts');
-  assert.match(src, /resolveStalePaymentReviewArtifacts\(session\)/);
-});
-
-test('revalidateAdminSurfaces invalidates admin layout for sidebar badges', () => {
-  const src = read('src/lib/admin/revalidateSurfaces.ts');
-  assert.match(src, /revalidatePath\('\/admin', 'layout'\)/);
+  assert.doesNotMatch(workspace, /setTimeout/);
 });

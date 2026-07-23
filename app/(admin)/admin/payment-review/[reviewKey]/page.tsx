@@ -7,6 +7,7 @@ import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
 import { loadPaymentReviewWorkspace } from '@/src/services/paymentReviewWorkspace';
+import styles from '../payment-review.module.css';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,9 +34,11 @@ export default async function PaymentReviewPage(props: PageProps<'/admin/payment
           { label: 'Payment review' },
         ]}
       />
-      <AdminSectionErrorBoundary title="Payment review">
-        <PaymentReviewWorkspace data={result.data} />
-      </AdminSectionErrorBoundary>
+      <div data-payment-review-workspace className={styles.workspace}>
+        <AdminSectionErrorBoundary title="Payment review">
+          <PaymentReviewWorkspace data={result.data} />
+        </AdminSectionErrorBoundary>
+      </div>
     </>
   );
 }
