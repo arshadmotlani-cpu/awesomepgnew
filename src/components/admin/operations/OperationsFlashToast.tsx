@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useOperationsActionToast } from '@/src/components/admin/operations/OperationsActionToast';
+import { refreshAdminNavBadges } from '@/src/lib/admin/refreshAdminNavBadges';
 import { consumeOperationsApprovedToast } from '@/src/lib/operations/operationsActionToastFlash';
 
 /** Shows a one-shot success toast after redirect from Payment Review approve. */
@@ -11,6 +12,7 @@ export function OperationsFlashToast() {
   useEffect(() => {
     const message = consumeOperationsApprovedToast();
     if (message) showToast(message, 'success');
+    void refreshAdminNavBadges();
   }, [showToast]);
 
   return toastNode;

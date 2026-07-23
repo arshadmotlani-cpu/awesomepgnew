@@ -7,10 +7,18 @@ import { db } from '@/src/db/client';
 import { actionItems, bookings, pgPaymentRecords, unresolvedActions } from '@/src/db/schema';
 import { resolveAction } from '@/src/services/unresolvedActions';
 
+/** Extract pg_payment_record id from review keys like `qr-{uuid}`. */
+function paymentRecordIdFromReviewKey(reviewKey: string): string | null {
+  if (!reviewKey.startsWith('qr-')) return null;
+  const recordId = reviewKey.slice(3);
+  return recordId.length > 0 ? recordId : null;
+}
+
 /** Close action_items, unresolved_actions, and admin notifications for one review key. */
 export async function resolvePaymentReviewArtifactsForKey(reviewKey: string): Promise<void> {
   const actionSourceKey = `payment_review:${reviewKey}`;
   const unresolvedSourceKey = `unresolved:payment_review:${reviewKey}`;
+  const paymentRecordId = paymentRecordIdFromReviewKey(reviewKey);
   const now = new Date();
 
   await db
@@ -27,11 +35,20 @@ export async function resolvePaymentReviewArtifactsForKey(reviewKey: string): Pr
 
   await db.execute(sql`
     UPDATE notifications
-    SET is_archived = true
+    SET is_archived = true,
+        is_read = true,
+        read_at = ${now}
     WHERE audience = 'admin'
       AND type IN ('payment_proof_uploaded', 'payment_received')
       AND NOT is_archived
-      AND dedupe_key = ${actionSourceKey}
+      AND (
+        dedupe_key = ${actionSourceKey}
+        OR (
+          ${paymentRecordId} IS NOT NULL
+          AND entity_type = 'pg_payment_record'
+          AND entity_id = ${paymentRecordId}
+        )
+      )
   `);
 }
 

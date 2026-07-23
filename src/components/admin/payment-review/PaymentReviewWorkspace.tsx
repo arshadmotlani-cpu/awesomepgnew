@@ -10,14 +10,13 @@ import { PaymentProofRejectionDialog } from '@/src/components/admin/operations/P
 import { PaymentProofRejectionHistory } from '@/src/components/admin/operations/PaymentProofRejectionHistory';
 import { PaymentScreenshotPreview } from '@/src/components/admin/PaymentScreenshotPreview';
 import { paiseToInr, titleCase } from '@/src/lib/format';
+import { refreshAdminNavBadges } from '@/src/lib/admin/refreshAdminNavBadges';
 import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
 import { paymentReviewWorkspaceHref } from '@/src/lib/operations/paymentReviewLinks';
+import { stashOperationsApprovedToast } from '@/src/lib/operations/operationsActionToastFlash';
 import { buildPaymentReviewVerification } from '@/src/lib/operations/paymentReviewVerification';
 import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import type { PaymentReviewWorkspaceData } from '@/src/services/paymentReviewWorkspace';
-
-import { refreshAdminNavBadges } from '@/src/lib/admin/refreshAdminNavBadges';
-import { stashOperationsApprovedToast } from '@/src/lib/operations/operationsActionToastFlash';
 
 function differenceDisplay(differencePaise: number, tone: 'exact' | 'short' | 'excess'): {
   text: string;
@@ -110,7 +109,7 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
       showToast(successMessage, 'success');
 
       stashOperationsApprovedToast(successMessage);
-      refreshAdminNavBadges();
+      await refreshAdminNavBadges();
 
       const redirectTo = operationsFilterHref('waiting_for_approval');
 
@@ -167,19 +166,20 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
           onClose={() => setRejectOpen(false)}
           onRejected={({ nextKey }) => {
             setRejectOpen(false);
-            refreshAdminNavBadges();
-            if (nextKey) {
-              router.push(paymentReviewWorkspaceHref(nextKey));
-            } else {
-              router.push(operationsFilterHref('waiting_for_approval'));
-            }
-            router.refresh();
+            void refreshAdminNavBadges().then(() => {
+              if (nextKey) {
+                router.push(paymentReviewWorkspaceHref(nextKey));
+              } else {
+                router.push(operationsFilterHref('waiting_for_approval'));
+              }
+              router.refresh();
+            });
           }}
         />
       ) : null}
 
-      <div className="flex-1 space-y-6 pb-4">
-        <header className="rounded-2xl border border-white/10 bg-[#1A1F27] p-5">
+      <article className="overflow-hidden rounded-2xl border border-white/10 bg-[#1A1F27]">
+        <header className="border-b border-white/10 p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-apg-silver">
@@ -218,15 +218,15 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
         </header>
 
         {error ? (
-          <p className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+          <p className="border-b border-rose-400/20 bg-rose-500/10 px-5 py-3 text-sm text-rose-200">
             {error}
           </p>
         ) : null}
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)]">
+        <div className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)]">
           <div className="space-y-6">
             {booking || verification.monthlyRentPaise > 0 || verification.depositRequiredPaise > 0 ? (
-              <section className="rounded-2xl border border-white/10 bg-[#1A1F27] p-5">
+              <section>
                 <h2 className="text-base font-semibold text-white">Booking</h2>
                 <dl className="mt-4 space-y-3">
                   {booking?.bookingCode ? (
@@ -245,7 +245,7 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
             ) : null}
 
             <section
-              className={`rounded-2xl border p-5 ${
+              className={`rounded-xl border p-5 ${
                 verification.differenceTone === 'exact'
                   ? 'border-emerald-500/30 bg-emerald-500/5'
                   : 'border-rose-400/30 bg-rose-500/5'
@@ -273,7 +273,7 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
             </section>
 
             {rejectionHistory.length > 0 ? (
-              <section className="rounded-2xl border border-white/10 bg-[#1A1F27] p-5">
+              <section className="border-t border-white/10 pt-6">
                 <h2 className="text-base font-semibold text-white">Approval history</h2>
                 <div className="mt-4">
                   <PaymentProofRejectionHistory rows={rejectionHistory} />
@@ -292,7 +292,7 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
           </aside>
         </div>
 
-        <footer className="rounded-2xl border border-white/10 bg-[#1A1F27] p-4 sm:p-5">
+        <footer className="border-t border-white/10 px-4 py-2.5 sm:px-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <Link
               href={operationsFilterHref('waiting_for_approval')}
@@ -335,7 +335,7 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
             </div>
           </div>
         </footer>
-      </div>
+      </article>
     </div>
   );
 }

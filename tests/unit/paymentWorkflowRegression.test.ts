@@ -231,6 +231,8 @@ describe('payment workflow regression', () => {
     assert.doesNotMatch(workspace, /fixed inset-x-0 bottom-0/);
     assert.doesNotMatch(workspace, /sticky bottom-0/);
     assert.doesNotMatch(workspace, /ml-auto[\s\S]*Back to queue/);
+    assert.match(workspace, /<article className="overflow-hidden rounded-2xl/);
+    assert.match(workspace, /<footer className="border-t border-white\/10/);
     assert.match(workspace, /Back to queue[\s\S]*Reject[\s\S]*Approve/);
     assert.match(workspace, /justify-between/);
   });
@@ -238,8 +240,23 @@ describe('payment workflow regression', () => {
   test('Payment Review approval triggers immediate badge refresh', () => {
     const workspace = read('src/components/admin/payment-review/PaymentReviewWorkspace.tsx');
     const provider = read('src/components/admin/AdminLiveRefreshProvider.tsx');
-    assert.match(workspace, /refreshAdminNavBadges\(\)/);
+    const flash = read('src/components/admin/operations/OperationsFlashToast.tsx');
+    assert.match(workspace, /await refreshAdminNavBadges\(\)/);
     assert.match(provider, /ADMIN_BADGES_REFRESH_EVENT/);
+    assert.match(provider, /ADMIN_BADGES_REFRESH_COMPLETE_EVENT/);
+    assert.match(flash, /refreshAdminNavBadges\(\)/);
+  });
+
+  test('payment review approve syncs admin notifications', () => {
+    const qr = read('src/services/qrPayments.ts');
+    assert.match(qr, /scheduleAdminNotificationSync/);
+  });
+
+  test('payment review cleanup marks notifications read and archived', () => {
+    const cleanup = read('src/services/paymentProofReviewCleanup.ts');
+    assert.match(cleanup, /is_archived = true/);
+    assert.match(cleanup, /is_read = true/);
+    assert.match(cleanup, /entity_id = \$\{paymentRecordId\}/);
   });
 
   test('queue loader does not call getQrBookingPaymentReview on page load', () => {

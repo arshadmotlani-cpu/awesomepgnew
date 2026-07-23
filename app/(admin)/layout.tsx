@@ -15,6 +15,8 @@ import { NotificationReadOnArrival } from '@/src/components/admin/NotificationRe
 
 export const maxDuration = 60;
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Admin · Awesome PG',
   description: 'Property management console for Awesome PG.',

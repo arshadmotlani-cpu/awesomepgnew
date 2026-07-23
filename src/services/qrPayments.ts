@@ -1115,6 +1115,10 @@ export async function reviewPaymentRecord(
     pgId: record.pgId,
     bookingId: record.bookingId,
   });
+
+  const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
+  scheduleAdminNotificationSync();
+
   return outcome;
 }
 

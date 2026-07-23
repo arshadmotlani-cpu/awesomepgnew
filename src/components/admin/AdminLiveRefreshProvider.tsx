@@ -9,7 +9,10 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { ADMIN_BADGES_REFRESH_EVENT } from '@/src/lib/admin/refreshAdminNavBadges';
+import {
+  ADMIN_BADGES_REFRESH_COMPLETE_EVENT,
+  ADMIN_BADGES_REFRESH_EVENT,
+} from '@/src/lib/admin/refreshAdminNavBadges';
 import type { AdminNavBadges } from '@/src/services/adminNavBadges';
 
 const BADGE_POLL_MS = 60_000;
@@ -51,9 +54,13 @@ export function AdminLiveRefreshProvider({
             detail: { unreadCount: json.unreadCount ?? json.badges?.notifications ?? 0 },
           }),
         );
+        window.dispatchEvent(new CustomEvent(ADMIN_BADGES_REFRESH_COMPLETE_EVENT));
       }
     } catch {
       // ignore transient network errors
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent(ADMIN_BADGES_REFRESH_COMPLETE_EVENT));
+      }
     }
   }, []);
 
