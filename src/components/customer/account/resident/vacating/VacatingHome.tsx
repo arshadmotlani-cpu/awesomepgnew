@@ -138,7 +138,9 @@ export function VacatingHome({
   });
 
   const settlementLines = buildVacatingSettlementLines(vacating);
-  const refundEstimate = estimateRefundPaise(depositHeldPaise, vacating);
+  const v2RefundEstimate = estimatedSettlement?.estimatedRefundPaise ?? null;
+  const refundEstimate =
+    v2RefundEstimate ?? estimateRefundPaise(depositHeldPaise, vacating);
   const completionLabel = expectedCompletionLabel({ vacating, checkoutStatus });
   const stageLabel = currentStageLabel(
     vacating?.status ?? null,
@@ -167,10 +169,17 @@ export function VacatingHome({
       vacating.status === 'completed' ||
       activeIndex >= 2);
 
+  const showV2Estimate =
+    estimatedSettlement != null &&
+    !settlementWaterfall &&
+    activeIndex < 4 &&
+    !isMoveOutComplete;
+
   const showEstimateStats =
     (refundEstimate != null || completionLabel) &&
     !isMoveOutComplete &&
-    activeIndex <= 3;
+    activeIndex <= 3 &&
+    !showV2Estimate;
 
   const beforeVacateDate =
     vacating?.status === 'approved' &&
@@ -181,12 +190,6 @@ export function VacatingHome({
     vacating?.status === 'approved' &&
     !checkoutSettlementSuppressed &&
     !checkoutStatus &&
-    !isMoveOutComplete;
-
-  const showV2Estimate =
-    estimatedSettlement != null &&
-    !settlementWaterfall &&
-    activeIndex < 4 &&
     !isMoveOutComplete;
 
   const showRefundLockedCard =

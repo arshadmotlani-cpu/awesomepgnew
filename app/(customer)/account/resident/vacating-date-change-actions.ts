@@ -83,9 +83,11 @@ export async function cancelApprovedVacatingAction(
     const message =
       result.kind === 'cannot_restore'
         ? result.message
-        : result.kind === 'wrong_status'
-          ? 'This move-out can no longer be cancelled.'
-          : 'Could not cancel move-out.';
+        : result.kind === 'settlement_started'
+          ? result.message
+          : result.kind === 'wrong_status'
+            ? 'This move-out can no longer be cancelled.'
+            : 'Could not cancel move-out.';
     return { ok: false, error: message };
   }
 

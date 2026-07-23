@@ -441,6 +441,19 @@ export async function cancelVacatingDateChangeRequest(input: {
     .set({ status: 'cancelled', updatedAt: new Date() })
     .where(eq(vacatingDateChangeRequests.id, row.id));
 
+  await db.insert(auditLog).values({
+    actorType: 'customer',
+    actorId: input.customerId,
+    entity: 'vacating_date_change_request',
+    entityId: row.id,
+    action: 'cancelled',
+    diff: {
+      vacatingRequestId: row.vacatingRequestId,
+      fromDate: row.currentVacatingDate,
+      toDate: row.requestedVacatingDate,
+    },
+  });
+
   return { ok: true };
 }
 

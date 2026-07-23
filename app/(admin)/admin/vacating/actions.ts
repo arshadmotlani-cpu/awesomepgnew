@@ -1,5 +1,7 @@
 'use server';
 
+import { eq } from 'drizzle-orm';
+import { db } from '@/src/db/client';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import {
   revalidateVacatingLifecycleForBooking,
@@ -252,11 +254,22 @@ export async function extendVacatingDateAction(
 export async function approveVacatingDateChangeAction(requestId: string): Promise<ActionState> {
   const admin = await requireAdminPermission('vacating:write');
   const { approveVacatingDateChangeRequest } = await import('@/src/services/vacatingDateChange');
+  const { vacatingDateChangeRequests } = await import('@/src/db/schema');
   const result = await approveVacatingDateChangeRequest({
     requestId,
     resolvedByAdminId: admin.adminId,
   });
   if (!result.ok) return { status: 'error', message: result.error };
+
+  const [row] = await db
+    .select({ bookingId: vacatingDateChangeRequests.bookingId })
+    .from(vacatingDateChangeRequests)
+    .where(eq(vacatingDateChangeRequests.id, requestId))
+    .limit(1);
+  if (row?.bookingId) {
+    await revalidateVacatingLifecycleForBooking(row.bookingId);
+  }
+
   return { status: 'ok', message: 'Leaving date updated.' };
 }
 

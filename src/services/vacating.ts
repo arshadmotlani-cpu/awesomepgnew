@@ -39,6 +39,7 @@ import {
   rentInvoices,
   residentBillingProfiles,
   vacatingRequests,
+  checkoutSettlements,
   type VacatingRequest,
 } from '../db/schema';
 import type { PricingSnapshot } from '../db/schema/bookings';
@@ -747,6 +748,7 @@ export async function cancelApprovedVacatingByCustomer(input: {
   | { ok: true; bookingId: string }
   | { ok: false; kind: 'not_found' | 'forbidden' | 'wrong_status'; status?: VacatingRequest['status'] }
   | { ok: false; kind: 'cannot_restore'; message: string }
+  | { ok: false; kind: 'settlement_started'; message: string }
 > {
   const [current] = await db
     .select()
@@ -757,6 +759,25 @@ export async function cancelApprovedVacatingByCustomer(input: {
   if (current.customerId !== input.customerId) return { ok: false, kind: 'forbidden' };
   if (current.status !== 'approved') {
     return { ok: false, kind: 'wrong_status', status: current.status };
+  }
+
+  const [anySettlement] = await db
+    .select({ id: checkoutSettlements.id })
+    .from(checkoutSettlements)
+    .where(
+      and(
+        eq(checkoutSettlements.vacatingRequestId, current.id),
+        sql`${checkoutSettlements.status} <> 'archived'`,
+      ),
+    )
+    .orderBy(desc(checkoutSettlements.updatedAt))
+    .limit(1);
+  if (anySettlement) {
+    return {
+      ok: false,
+      kind: 'settlement_started',
+      message: 'Move-out cannot be cancelled after checkout settlement has started.',
+    };
   }
 
   const restored = await restoreOpenEndedStay(current.bookingId);

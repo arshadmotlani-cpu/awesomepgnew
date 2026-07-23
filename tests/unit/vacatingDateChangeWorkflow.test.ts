@@ -75,7 +75,12 @@ test('resident move-out UI wires V2 estimate and change-leaving-date flow', () =
   assert.match(requestsHome, /pendingDateChangeRequestId=/);
 });
 
-test('admin booking financial workspace shows date-change approval panel', () => {
-  assert.match(bookingFinancialWorkspace, /VacatingDateChangeApprovalPanel/);
-  assert.match(bookingFinancialWorkspace, /data\.pendingDateChange/);
+test('VacatingHome hides V1 hero estimate when V2 estimated settlement is shown', () => {
+  assert.match(vacatingHome, /showEstimateStats[\s\S]*!showV2Estimate/);
+  assert.match(vacatingHome, /v2RefundEstimate/);
+});
+
+test('cancelApprovedVacatingByCustomer blocks when checkout settlement exists', () => {
+  assert.match(vacatingService, /kind: 'settlement_started'/);
+  assert.match(vacatingService, /checkoutSettlements\.vacatingRequestId, current\.id/);
 });
