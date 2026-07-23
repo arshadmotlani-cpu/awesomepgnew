@@ -119,7 +119,8 @@ function paiseField(value: unknown): number {
   return asPlainNumber(value);
 }
 
-export type CheckoutSettlementRow = CheckoutSettlement & {
+export type CheckoutSettlementRow = Omit<CheckoutSettlement, 'noticeBreakdownJson'> & {
+  noticeBreakdownJson?: Partial<NoticeDeductionBreakdown> | null;
   customerName: string;
   customerPhone: string;
   bookingCode: string;
@@ -597,7 +598,7 @@ function mapDbSettlement(row: SettlementJoinRow): CheckoutSettlement {
     noticeDeductionPaise: paiseField(row.notice_deduction_paise),
     noticeRentCoveredDays: asPlainNumber(row.notice_rent_covered_days ?? 0),
     noticeChargeableDays: asPlainNumber(row.notice_chargeable_days ?? 0),
-    noticeBreakdownJson: row.notice_breakdown_json,
+    noticeBreakdownJson: row.notice_breakdown_json as Partial<NoticeDeductionBreakdown> | null,
     monthlyRentPaiseSnapshot: paiseField(row.monthly_rent_paise_snapshot),
     depositRequiredPaise: paiseField(row.deposit_required_paise),
     depositReceivedPaise: paiseField(row.deposit_received_paise ?? 0),
@@ -662,8 +663,10 @@ function mapDbSettlement(row: SettlementJoinRow): CheckoutSettlement {
 }
 
 function mapJoinRow(row: SettlementJoinRow): CheckoutSettlementRow {
+  const settlement = mapDbSettlement(row);
   return {
-    ...mapDbSettlement(row),
+    ...settlement,
+    noticeBreakdownJson: settlement.noticeBreakdownJson as Partial<NoticeDeductionBreakdown> | null | undefined,
     customerName: row.customer_name,
     customerPhone: row.customer_phone,
     bookingCode: row.booking_code,

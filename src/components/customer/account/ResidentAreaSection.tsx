@@ -593,7 +593,6 @@ export async function ResidentAreaSection({
         noticeChargeableDays: primaryVacating.noticeChargeableDays,
         deductionPaise: primaryVacating.deductionPaise,
         noticeBreakdownJson: primaryVacating.noticeBreakdownJson,
-        stayType: primaryBooking.booking.stayType,
         durationMode: effectiveDurationMode ?? primaryBooking.booking.durationMode,
       }),
       getPendingVacatingDateChangeForBooking(primaryBooking.bookingId),

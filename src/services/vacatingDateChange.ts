@@ -147,7 +147,7 @@ export async function previewVacatingDateChange(input: {
   if (!noticeCompliant) {
     return {
       ok: false,
-      error: `The new date must still give at least ${VACATING_NOTICE_MIN_DAYS} days notice from when you submitted (${formatDate(String(loaded.vacating.noticeGivenDate))}). Cancel this move-out and submit a new request instead.`,
+      error: `The new date must still give at least ${VACATING_NOTICE_MIN_DAYS} days notice from when you submitted (${formatDate(parseDate(String(loaded.vacating.noticeGivenDate)))}). Cancel this move-out and submit a new request instead.`,
     };
   }
 

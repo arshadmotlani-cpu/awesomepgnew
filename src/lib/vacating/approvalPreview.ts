@@ -6,17 +6,22 @@ import {
   breakdownFromStoredNoticeSnapshot,
   type NoticeSettlementDisplay,
 } from '@/src/lib/vacating/noticeDeductionPresentation';
+import type { EstimatedSettlementPreview } from '@/src/lib/vacating/estimatedSettlementPreview';
 import {
-  loadEstimatedSettlementForVacating,
-  type EstimatedSettlementPreview,
-} from '@/src/lib/vacating/estimatedSettlementPreview';
+  moveOutDaysRemaining,
+  moveOutUrgency,
+  vacatingBedStatus,
+  type MoveOutUrgency,
+  type VacatingBedStatus,
+} from '@/src/lib/vacating/moveOutPreviewUtils';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
+
+export type { MoveOutUrgency, VacatingBedStatus };
+export { moveOutDaysRemaining, moveOutUrgency, vacatingBedStatus };
 
 export type VacatingApprovalPreviewRow = AdminVacatingRow & {
   noticeBreakdownJson?: Partial<NoticeDeductionBreakdown> | null;
 };
-
-export type VacatingBedStatus = 'Occupied' | 'Scheduled for Release' | 'Available';
 
 export type VacatingApprovalPreview = {
   residentName: string;
@@ -35,14 +40,6 @@ export type VacatingApprovalPreview = {
   noticeBreakdown: NoticeSettlementDisplay | null;
   estimatedSettlement: EstimatedSettlementPreview | null;
 };
-
-export function vacatingBedStatus(
-  status: AdminVacatingRow['status'],
-): VacatingBedStatus {
-  if (status === 'completed') return 'Available';
-  if (status === 'approved') return 'Scheduled for Release';
-  return 'Occupied';
-}
 
 export function buildVacatingApprovalPreview(
   row: VacatingApprovalPreviewRow,
@@ -88,6 +85,9 @@ export async function buildVacatingApprovalPreviewAsync(
   depositHeldPaise: number,
 ): Promise<VacatingApprovalPreview> {
   const sync = buildVacatingApprovalPreview(row, depositHeldPaise);
+  const { loadEstimatedSettlementForVacating } = await import(
+    '@/src/lib/vacating/estimatedSettlementPreview'
+  );
   const estimatedSettlement = await loadEstimatedSettlementForVacating({
     bookingId: row.bookingId,
     noticeGivenDate: row.noticeGivenDate,
@@ -101,18 +101,4 @@ export async function buildVacatingApprovalPreviewAsync(
     durationMode: row.durationMode,
   });
   return { ...sync, estimatedSettlement };
-}
-
-export type MoveOutUrgency = 'high' | 'medium' | 'normal';
-
-/** 0–3 days → high, 4–7 → medium, 8+ → normal. Overdue counts as high. */
-export function moveOutUrgency(daysRemaining: number): MoveOutUrgency {
-  if (daysRemaining <= 3) return 'high';
-  if (daysRemaining <= 7) return 'medium';
-  return 'normal';
-}
-
-export function moveOutDaysRemaining(vacatingDate: string, today?: string): number {
-  const ref = today ?? new Date().toISOString().slice(0, 10);
-  return tryDiffDays(ref, normalizeIsoDateOnly(vacatingDate)) ?? 0;
 }

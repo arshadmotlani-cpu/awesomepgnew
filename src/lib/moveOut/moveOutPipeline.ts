@@ -10,8 +10,8 @@ import {
 import { computeCheckoutRefundPreview } from '@/src/lib/billing/checkoutRefundPreview';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import type { CheckoutSettlementStatus } from '@/src/db/schema/enums';
-import type { MoveOutUrgency, VacatingBedStatus } from '@/src/lib/vacating/approvalPreview';
-import { moveOutDaysRemaining, moveOutUrgency } from '@/src/lib/vacating/approvalPreview';
+import type { MoveOutUrgency, VacatingBedStatus } from '@/src/lib/vacating/moveOutPreviewUtils';
+import { moveOutDaysRemaining, moveOutUrgency } from '@/src/lib/vacating/moveOutPreviewUtils';
 
 export const MOVE_OUT_STAGES = [
   { id: 'requested', label: 'Requested move-out' },

@@ -9,6 +9,7 @@ import { CancelVacatingForm } from '@/src/components/customer/CancelVacatingForm
 import { MoveOutRefundSuccess } from '@/src/components/customer/account/resident/vacating/MoveOutRefundSuccess';
 import { ChangeLeavingDateForm } from '@/src/components/customer/account/resident/vacating/ChangeLeavingDateForm';
 import { ResidentEstimatedSettlementBreakdown } from '@/src/components/customer/account/resident/vacating/ResidentEstimatedSettlementBreakdown';
+import { ResidentSettlementBreakdown } from '@/src/components/customer/account/resident/vacating/ResidentSettlementBreakdown';
 import { cancelApprovedVacatingAction } from '@/app/(customer)/account/resident/vacating-date-change-actions';
 import {
   buildVacatingSettlementLines,

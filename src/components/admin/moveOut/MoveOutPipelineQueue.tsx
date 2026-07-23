@@ -540,5 +540,6 @@ function pipelineApprovalPreview(row: MoveOutPipelineItemClient): VacatingApprov
     estimatedRefundPaise: row.estimatedRefundPaise,
     bedStatus: row.bedStatus,
     noticeBreakdown,
+    estimatedSettlement: null,
   };
 }

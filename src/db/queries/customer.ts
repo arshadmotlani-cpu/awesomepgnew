@@ -1772,7 +1772,11 @@ export function getVacatingForBooking(
         desc(vacatingRequests.createdAt),
       )
       .limit(1);
-    return row ?? null;
+    if (!row) return null;
+    return {
+      ...row,
+      noticeBreakdownJson: row.noticeBreakdownJson as Partial<NoticeDeductionBreakdown> | null | undefined,
+    };
   });
 }
 
