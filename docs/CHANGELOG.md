@@ -256,7 +256,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-23 07:27:43 UTC
+### Pending pre-commit sync · 2026-07-23 07:33:55 UTC
 
 **Areas touched:** [[Vacating]]
 

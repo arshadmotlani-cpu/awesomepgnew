@@ -1473,16 +1473,19 @@ export async function submitResidentCheckoutDetails(input: {
     (vr?.vacatingDate
       ? normalizeIsoDateOnly(String(vr.vacatingDate)) || formatDate(parseDate(vr.vacatingDate))
       : null);
-  const { preview } = stayCheckoutDate
-    ? await buildSettlementPreview({
-        settlement: draft,
-        depositHeldPaise: wallet?.refundableBalancePaise ?? 0,
-        stayCheckInDate: current.stayCheckInDate,
-        stayCheckoutDate,
-        stayType: booking?.stayType,
-        durationMode: booking?.durationMode,
-      })
-    : { preview: buildPreview(draft, wallet?.refundableBalancePaise ?? 0), waterfall: null };
+  let preview;
+  if (stayCheckoutDate) {
+    ({ preview } = await buildSettlementPreview({
+      settlement: draft,
+      depositHeldPaise: wallet?.refundableBalancePaise ?? 0,
+      stayCheckInDate: current.stayCheckInDate,
+      stayCheckoutDate,
+      stayType: booking?.stayType,
+      durationMode: booking?.durationMode,
+    }));
+  } else {
+    preview = buildPreview(draft, wallet?.refundableBalancePaise ?? 0);
+  }
   const validation = validateDepositRefundSubmission(
     {
       meterReadingPhotoUrl: draft.electricityMeterPhotoUrl,
