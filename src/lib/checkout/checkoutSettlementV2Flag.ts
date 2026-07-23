@@ -1,7 +1,9 @@
-/** Feature flag — new checkout settlements use Engine V2 when enabled. */
+/**
+ * Checkout Settlement Engine V2 is the single source of truth for all new settlements.
+ * Legacy V1 preview applies only to amounts-locked rows with settlement_engine_version < 2.
+ */
 export function isCheckoutSettlementV2Enabled(): boolean {
-  const raw = process.env.CHECKOUT_SETTLEMENT_V2?.trim().toLowerCase();
-  return raw === '1' || raw === 'true' || raw === 'yes';
+  return true;
 }
 
 export function settlementUsesEngineV2(row: {
@@ -11,6 +13,5 @@ export function settlementUsesEngineV2(row: {
   if (row.amountsLocked) {
     return (row.settlementEngineVersion ?? 1) >= 2;
   }
-  if ((row.settlementEngineVersion ?? 1) >= 2) return true;
-  return isCheckoutSettlementV2Enabled();
+  return true;
 }

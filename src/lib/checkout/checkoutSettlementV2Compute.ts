@@ -11,7 +11,6 @@ import {
   computeCheckoutSettlementV2,
   type CheckoutSettlementWaterfall,
 } from '@/src/lib/checkout/checkoutSettlementEngineV2';
-import { isCheckoutSettlementV2Enabled } from '@/src/lib/checkout/checkoutSettlementV2Flag';
 import { resolveCheckoutElectricitySharePaise } from '@/src/lib/checkout/electricitySettlementCalc';
 import { getBookingMoneyBalances } from '@/src/services/bookingMoneyBalances';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
@@ -41,8 +40,7 @@ export async function computeWaterfallForSettlement(
   args: ComputeWaterfallForSettlementArgs,
 ): Promise<CheckoutSettlementWaterfall | null> {
   const version = args.settlement.settlementEngineVersion ?? 1;
-  const usesV2 =
-    version >= 2 || (isCheckoutSettlementV2Enabled() && !args.settlement.amountsLocked);
+  const usesV2 = version >= 2 || !args.settlement.amountsLocked;
   if (!usesV2) return null;
 
   if (args.settlement.amountsLocked && args.settlement.settlementWaterfallJson) {

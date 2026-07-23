@@ -84,7 +84,6 @@ import {
   waterfallToLegacyPreview,
 } from '@/src/lib/checkout/checkoutSettlementV2Compute';
 import {
-  isCheckoutSettlementV2Enabled,
   settlementUsesEngineV2,
 } from '@/src/lib/checkout/checkoutSettlementV2Flag';
 
@@ -765,24 +764,22 @@ export async function createCheckoutSettlementFromVacating(input: {
     diff: { vacatingRequestId: vr.id, bookingId: vr.bookingId },
   });
 
-  if (isCheckoutSettlementV2Enabled()) {
-    const checkIn = await resolveStayCheckInDate(vr.bookingId);
-    const vacatingDate =
-      normalizeIsoDateOnly(String(vr.vacatingDate)) || formatDate(parseDate(vr.vacatingDate));
-    if (checkIn) {
-      const [fresh] = await db
-        .select()
-        .from(checkoutSettlements)
-        .where(eq(checkoutSettlements.id, created.id))
-        .limit(1);
-      if (fresh) {
-        await recomputeAndPersistV2Snapshot({
-          settlement: fresh,
-          stayCheckoutDate: vacatingDate,
-          stayType: booking?.stayType,
-          durationMode: booking?.durationMode,
-        });
-      }
+  const checkIn = await resolveStayCheckInDate(vr.bookingId);
+  const vacatingDate =
+    normalizeIsoDateOnly(String(vr.vacatingDate)) || formatDate(parseDate(vr.vacatingDate));
+  if (checkIn) {
+    const [fresh] = await db
+      .select()
+      .from(checkoutSettlements)
+      .where(eq(checkoutSettlements.id, created.id))
+      .limit(1);
+    if (fresh) {
+      await recomputeAndPersistV2Snapshot({
+        settlement: fresh,
+        stayCheckoutDate: vacatingDate,
+        stayType: booking?.stayType,
+        durationMode: booking?.durationMode,
+      });
     }
   }
 
@@ -1461,7 +1458,31 @@ export async function submitResidentCheckoutDetails(input: {
     payoutQrUrl: input.payoutQrUrl ?? current.payoutQrUrl,
   };
   const wallet = await getDepositSummaryForBooking(current.bookingId);
-  const preview = buildPreview(draft, wallet?.refundableBalancePaise ?? 0);
+  const [vr] = await db
+    .select({ vacatingDate: vacatingRequests.vacatingDate })
+    .from(vacatingRequests)
+    .where(eq(vacatingRequests.id, current.vacatingRequestId))
+    .limit(1);
+  const [booking] = await db
+    .select({ stayType: bookings.stayType, durationMode: bookings.durationMode })
+    .from(bookings)
+    .where(eq(bookings.id, current.bookingId))
+    .limit(1);
+  const stayCheckoutDate =
+    current.stayCheckoutDate ??
+    (vr?.vacatingDate
+      ? normalizeIsoDateOnly(String(vr.vacatingDate)) || formatDate(parseDate(vr.vacatingDate))
+      : null);
+  const { preview } = stayCheckoutDate
+    ? await buildSettlementPreview({
+        settlement: draft,
+        depositHeldPaise: wallet?.refundableBalancePaise ?? 0,
+        stayCheckInDate: current.stayCheckInDate,
+        stayCheckoutDate,
+        stayType: booking?.stayType,
+        durationMode: booking?.durationMode,
+      })
+    : { preview: buildPreview(draft, wallet?.refundableBalancePaise ?? 0), waterfall: null };
   const validation = validateDepositRefundSubmission(
     {
       meterReadingPhotoUrl: draft.electricityMeterPhotoUrl,

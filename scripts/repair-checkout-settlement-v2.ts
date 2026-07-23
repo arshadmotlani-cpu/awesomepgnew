@@ -2,8 +2,8 @@
  * Recompute V2 waterfall snapshots for in-flight (unlocked) checkout settlements.
  *
  * Usage:
- *   CHECKOUT_SETTLEMENT_V2=1 npx tsx scripts/repair-checkout-settlement-v2.ts
- *   CHECKOUT_SETTLEMENT_V2=1 npx tsx scripts/repair-checkout-settlement-v2.ts --dry-run
+ *   npx tsx scripts/repair-checkout-settlement-v2.ts
+ *   npx tsx scripts/repair-checkout-settlement-v2.ts --dry-run
  */
 import { sql } from 'drizzle-orm';
 import { db } from '../src/db/client';
@@ -13,16 +13,11 @@ import {
   computeWaterfallForSettlement,
   persistWaterfallForSettlement,
 } from '../src/lib/checkout/checkoutSettlementV2Compute';
-import { isCheckoutSettlementV2Enabled } from '../src/lib/checkout/checkoutSettlementV2Flag';
 import { formatDate } from '../src/lib/dates';
 import { getDepositSummaryForBooking } from '../src/services/deposits';
 
 async function main() {
   const dryRun = process.argv.includes('--dry-run');
-  if (!isCheckoutSettlementV2Enabled()) {
-    console.error('Set CHECKOUT_SETTLEMENT_V2=1 before running repair.');
-    process.exit(1);
-  }
 
   const rows = await db.execute(sql`
     SELECT cs.*
