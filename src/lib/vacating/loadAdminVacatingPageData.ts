@@ -12,6 +12,8 @@ import {
 import { loadMoveOutPipelineBundle } from '@/src/services/moveOutPipelineService';
 import { listPendingVacatingDateChanges } from '@/src/services/vacatingDateChange';
 import type { VacatingDateChangeRequest } from '@/src/db/schema/vacatingDateChangeRequests';
+import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
+import type { VacatingDateChangeBookingContext } from '@/src/components/admin/vacating/VacatingDateChangeApprovalPanel';
 
 export type VacatingRowLoadError = {
   vacatingRequestId: string;
@@ -31,6 +33,8 @@ export type AdminVacatingPageData = {
   rowErrors: VacatingRowLoadError[];
   settlementsLoadError: string | null;
   pendingDateChanges: VacatingDateChangeRequest[];
+  approvalPreviewByRequestId: Record<string, VacatingApprovalPreview>;
+  dateChangeBookingContextByRequestId: Record<string, VacatingDateChangeBookingContext>;
 };
 
 /** Resilient loader — one corrupt vacating row must not crash `/admin/vacating`. */
@@ -121,6 +125,31 @@ export async function loadAdminVacatingPageData(session: AdminSession): Promise<
     })
     .filter((item): item is MoveOutPipelineItemClient => item != null);
 
+  const approvalPreviewByRequestId = Object.fromEntries(
+    advancedToolRows
+      .filter((row) => row.approvalPreview)
+      .map((row) => [row.id, row.approvalPreview!]),
+  );
+
+  const vacatingById = new Map(bundle.vacatingRows.map((v) => [v.id, v]));
+  const dateChangeBookingContextByRequestId: Record<string, VacatingDateChangeBookingContext> = {};
+  for (const change of pendingDateChanges) {
+    const v = vacatingById.get(change.vacatingRequestId);
+    if (!v) continue;
+    dateChangeBookingContextByRequestId[change.vacatingRequestId] = {
+      vacatingRequestId: change.vacatingRequestId,
+      bookingId: change.bookingId,
+      customerName: v.customerFullName,
+      customerPhone: v.customerPhone,
+      bookingCode: v.bookingCode,
+      pgName: v.pgName,
+      roomNumber: v.roomNumber,
+      bedCode: v.bedCode,
+      noticeGivenDate: String(v.noticeGivenDate),
+      vacatingDate: String(change.requestedVacatingDate),
+    };
+  }
+
   return {
     vacatingRes,
     data: {
@@ -135,6 +164,8 @@ export async function loadAdminVacatingPageData(session: AdminSession): Promise<
       rowErrors,
       settlementsLoadError,
       pendingDateChanges,
+      approvalPreviewByRequestId,
+      dateChangeBookingContextByRequestId,
     },
   };
 }

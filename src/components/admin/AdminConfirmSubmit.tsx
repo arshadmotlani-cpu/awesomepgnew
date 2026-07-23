@@ -15,7 +15,7 @@ type Props = {
   children: ReactNode;
   /** Optional extra validation before opening the dialog (e.g. required fields). */
   beforeConfirm?: () => boolean;
-  dialogSize?: 'default' | 'wide';
+  dialogSize?: 'default' | 'wide' | 'statement';
 };
 
 export function AdminConfirmSubmit({

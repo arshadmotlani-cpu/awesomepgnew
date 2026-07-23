@@ -9,6 +9,7 @@ import { CancelVacatingForm } from '@/src/components/customer/CancelVacatingForm
 import { MoveOutRefundSuccess } from '@/src/components/customer/account/resident/vacating/MoveOutRefundSuccess';
 import { ChangeLeavingDateForm } from '@/src/components/customer/account/resident/vacating/ChangeLeavingDateForm';
 import { ResidentEstimatedSettlementBreakdown } from '@/src/components/customer/account/resident/vacating/ResidentEstimatedSettlementBreakdown';
+import type { ResidentSettlementStatementContext } from '@/src/components/customer/account/resident/vacating/ResidentEstimatedSettlementBreakdown';
 import { ResidentSettlementBreakdown } from '@/src/components/customer/account/resident/vacating/ResidentSettlementBreakdown';
 import { cancelApprovedVacatingAction } from '@/app/(customer)/account/resident/vacating-date-change-actions';
 import {
@@ -64,6 +65,7 @@ type Props = {
   monthlyRentPaise?: number;
   estimatedSettlement?: EstimatedSettlementPreview | null;
   pendingDateChangeRequestId?: string | null;
+  settlementContext?: ResidentSettlementStatementContext | null;
 };
 
 function safeDateString(value: unknown): string | null {
@@ -90,6 +92,7 @@ export function VacatingHome({
   expectedCheckoutDate = null,
   estimatedSettlement = null,
   pendingDateChangeRequestId = null,
+  settlementContext = null,
 }: Props) {
   const router = useRouter();
   const fixedStay = isFixedStayDurationMode(durationMode);
@@ -361,11 +364,14 @@ export function VacatingHome({
             </div>
           </ApgCard>
 
-          {showV2Estimate && estimatedSettlement ? (
+          {showV2Estimate && estimatedSettlement && settlementContext ? (
             <ApgCard tier="account" className="p-5">
               <h3 className="text-sm font-semibold text-zinc-900">Estimated settlement</h3>
               <div className="mt-3">
-                <ResidentEstimatedSettlementBreakdown preview={estimatedSettlement} />
+                <ResidentEstimatedSettlementBreakdown
+                  preview={estimatedSettlement}
+                  context={settlementContext}
+                />
               </div>
             </ApgCard>
           ) : null}
@@ -375,6 +381,7 @@ export function VacatingHome({
               bookingId={bookingId}
               currentVacatingDate={vacatingDate}
               pendingRequestId={pendingDateChangeRequestId}
+              settlementContext={settlementContext}
               onSubmitted={() => router.refresh()}
             />
           ) : null}

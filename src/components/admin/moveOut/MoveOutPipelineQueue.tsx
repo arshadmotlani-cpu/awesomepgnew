@@ -47,11 +47,13 @@ export function MoveOutPipelineQueue({
   items,
   filter = 'all',
   completedSection,
+  approvalPreviewByRequestId,
 }: {
   items: MoveOutPipelineItemClient[];
   filter?: MoveOutFilterBucket;
   /** When true, render as a completed-only section (no overdue split). */
   completedSection?: boolean;
+  approvalPreviewByRequestId?: Record<string, VacatingApprovalPreview>;
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -121,6 +123,7 @@ export function MoveOutPipelineQueue({
                 row={row}
                 expanded={expandedId === row.id}
                 onToggle={() => setExpandedId((id) => (id === row.id ? null : row.id))}
+                approvalPreviewByRequestId={approvalPreviewByRequestId}
               />
             ))}
           </div>
@@ -138,6 +141,7 @@ export function MoveOutPipelineQueue({
                 expanded={expandedId === row.id}
                 onToggle={() => setExpandedId((id) => (id === row.id ? null : row.id))}
                 showOverdueMeta
+                approvalPreviewByRequestId={approvalPreviewByRequestId}
               />
             ))}
           </div>
@@ -159,6 +163,7 @@ export function MoveOutPipelineQueue({
                 row={row}
                 expanded={expandedId === row.id}
                 onToggle={() => setExpandedId((id) => (id === row.id ? null : row.id))}
+                approvalPreviewByRequestId={approvalPreviewByRequestId}
               />
             ))}
           </div>
@@ -201,11 +206,13 @@ function MoveOutCard({
   expanded,
   onToggle,
   showOverdueMeta,
+  approvalPreviewByRequestId,
 }: {
   row: MoveOutPipelineItemClient;
   expanded: boolean;
   onToggle: () => void;
   showOverdueMeta?: boolean;
+  approvalPreviewByRequestId?: Record<string, VacatingApprovalPreview>;
 }) {
   const actionLabel = moveOutPrimaryActionLabel(row);
   const isComplete = row.stage === 'bed_released';
@@ -257,7 +264,13 @@ function MoveOutCard({
             ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
-            {!expanded ? <MoveOutPrimaryButton row={row} label={actionLabel} /> : null}
+            {!expanded ? (
+              <MoveOutPrimaryButton
+                row={row}
+                label={actionLabel}
+                approvalPreviewByRequestId={approvalPreviewByRequestId}
+              />
+            ) : null}
             <span className="text-apg-silver/60">{expanded ? '▴' : '▾'}</span>
           </div>
         </div>
@@ -267,7 +280,11 @@ function MoveOutCard({
       {expanded ? (
         <div className="border-t border-white/10 px-4 pb-4 pt-3">
           {!isComplete ? (
-            <NextActionHero row={row} actionLabel={actionLabel} />
+            <NextActionHero
+              row={row}
+              actionLabel={actionLabel}
+              approvalPreviewByRequestId={approvalPreviewByRequestId}
+            />
           ) : (
             <div className="mb-4 rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3">
               <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-200/80">
@@ -358,7 +375,15 @@ function FinancialSummary({
   );
 }
 
-function NextActionHero({ row, actionLabel }: { row: MoveOutPipelineItemClient; actionLabel: string }) {
+function NextActionHero({
+  row,
+  actionLabel,
+  approvalPreviewByRequestId,
+}: {
+  row: MoveOutPipelineItemClient;
+  actionLabel: string;
+  approvalPreviewByRequestId?: Record<string, VacatingApprovalPreview>;
+}) {
   const zeroRefund = moveOutIsZeroRefundCheckout(row);
 
   return (
@@ -376,7 +401,12 @@ function NextActionHero({ row, actionLabel }: { row: MoveOutPipelineItemClient; 
       </p>
       <p className="mt-1 text-sm text-apg-silver">{moveOutHeroSubtitle(row)}</p>
       <div className="mt-4">
-        <MoveOutPrimaryButton row={row} label={actionLabel} prominent />
+        <MoveOutPrimaryButton
+          row={row}
+          label={actionLabel}
+          prominent
+          approvalPreviewByRequestId={approvalPreviewByRequestId}
+        />
       </div>
     </div>
   );
@@ -386,20 +416,26 @@ function MoveOutPrimaryButton({
   row,
   label,
   prominent,
+  approvalPreviewByRequestId,
 }: {
   row: MoveOutPipelineItemClient;
   label: string;
   prominent?: boolean;
+  approvalPreviewByRequestId?: Record<string, VacatingApprovalPreview>;
 }) {
   const className = prominent ? PRIMARY + ' px-5 py-2.5 text-sm' : PRIMARY;
 
   if (row.continueKind === 'approve') {
+    const preview =
+      approvalPreviewByRequestId?.[row.vacatingRequestId] ?? pipelineApprovalPreview(row);
     return (
       <ApproveVacatingButton
         requestId={row.vacatingRequestId}
         className={className}
         label={label}
-        preview={pipelineApprovalPreview(row)}
+        preview={preview}
+        bookingId={row.bookingId}
+        bookingCode={row.bookingCode}
       />
     );
   }

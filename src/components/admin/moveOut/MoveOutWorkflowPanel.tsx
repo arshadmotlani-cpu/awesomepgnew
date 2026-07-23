@@ -5,15 +5,18 @@ import { MoveOutCommandCenter } from '@/src/components/admin/moveOut/MoveOutComm
 import { MoveOutPipelineQueue } from '@/src/components/admin/moveOut/MoveOutPipelineQueue';
 import type { MoveOutPipelineItemClient } from '@/src/lib/moveOut/moveOutPipeline';
 import type { MoveOutCommandStats, MoveOutFilterBucket } from '@/src/lib/moveOut/moveOutPipelineUi';
+import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
 
 export function MoveOutWorkflowPanel({
   activeItems,
   completedRecently,
   commandStats,
+  approvalPreviewByRequestId,
 }: {
   activeItems: MoveOutPipelineItemClient[];
   completedRecently: MoveOutPipelineItemClient[];
   commandStats: MoveOutCommandStats;
+  approvalPreviewByRequestId?: Record<string, VacatingApprovalPreview>;
 }) {
   const [filter, setFilter] = useState<MoveOutFilterBucket>('all');
 
@@ -38,7 +41,11 @@ export function MoveOutWorkflowPanel({
         onFilterChange={setFilter}
       />
 
-      <MoveOutPipelineQueue items={activeQueueItems} filter={filter} />
+      <MoveOutPipelineQueue
+        items={activeQueueItems}
+        filter={filter}
+        approvalPreviewByRequestId={approvalPreviewByRequestId}
+      />
 
       {showCompletedSection && completedItems.length > 0 ? (
         <section className="mb-8">
@@ -48,7 +55,12 @@ export function MoveOutWorkflowPanel({
               Move-outs finished — bed released and checkout closed.
             </p>
           </header>
-          <MoveOutPipelineQueue items={completedItems} filter={filter} completedSection />
+          <MoveOutPipelineQueue
+            items={completedItems}
+            filter={filter}
+            completedSection
+            approvalPreviewByRequestId={approvalPreviewByRequestId}
+          />
         </section>
       ) : null}
     </>

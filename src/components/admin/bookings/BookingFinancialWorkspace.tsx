@@ -6,10 +6,11 @@ import { CheckoutSettlementWizard } from '@/src/components/admin/checkout/Checko
 import { CheckoutRefundReceiptFromDetail } from '@/src/components/admin/checkout/CheckoutRefundReceipt';
 import { DepositActivitySection } from '@/src/components/admin/deposits/DepositActivitySection';
 import { DepositSummaryCard } from '@/src/components/admin/deposits/DepositSummaryCard';
+import { SettlementStatementDocument } from '@/src/components/billing/SettlementStatementDocument';
 import { VacatingRowActions } from '@/src/components/admin/vacating/VacatingRowActions';
-import { EstimatedSettlementBreakdown } from '@/src/components/admin/vacating/EstimatedSettlementBreakdown';
 import { VacatingDateChangeApprovalPanel } from '@/src/components/admin/vacating/VacatingDateChangeApprovalPanel';
 import { bookingFinancialWorkspaceSectionHref } from '@/src/lib/bookings/bookingFinancialLinks';
+import { settlementStatementPageHref } from '@/src/lib/billing/settlementStatementPdfLinks';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import type { BookingFinancialWorkspaceData } from '@/src/services/bookingFinancialWorkspace';
@@ -129,13 +130,45 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
                 settlementHref={data.settlementHref}
                 depositHeldPaise={data.moneyBalances.deposit.receivedPaise}
                 approvalPreview={data.vacating.approvalPreview ?? undefined}
+                bookingId={data.bookingId}
+                bookingCode={data.bookingCode}
               />
             </div>
             {data.pendingDateChange ? (
-              <VacatingDateChangeApprovalPanel request={data.pendingDateChange} />
+              <VacatingDateChangeApprovalPanel
+                request={data.pendingDateChange}
+                bookingContext={{
+                  vacatingRequestId: data.vacating.id,
+                  bookingId: data.bookingId,
+                  customerName: data.customerName,
+                  customerPhone: data.customerPhone,
+                  bookingCode: data.bookingCode,
+                  pgName: data.pgName,
+                  roomNumber: data.roomNumber,
+                  bedCode: data.bedCode,
+                  noticeGivenDate: String(data.vacating.noticeGivenDate),
+                  vacatingDate: String(data.pendingDateChange.requestedVacatingDate),
+                }}
+              />
             ) : null}
-            {data.vacating.estimatedSettlement ? (
-              <EstimatedSettlementBreakdown preview={data.vacating.estimatedSettlement} />
+            {data.vacating.settlementStatement ? (
+              <div className="space-y-2">
+                <SettlementStatementDocument
+                  document={data.vacating.settlementStatement}
+                  variant="admin"
+                  embed="page"
+                />
+                <p className="text-xs text-apg-silver">
+                  <Link
+                    href={settlementStatementPageHref(data.vacating.id)}
+                    className="font-medium text-apg-orange hover:underline"
+                  >
+                    Open full statement
+                  </Link>
+                  {' · '}
+                  Print or download PDF from the statement page.
+                </p>
+              </div>
             ) : null}
           </div>
         ) : (

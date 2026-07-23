@@ -21,6 +21,11 @@ import {
   loadEstimatedSettlementForVacating,
   type EstimatedSettlementPreview,
 } from '@/src/lib/vacating/estimatedSettlementPreview';
+import { buildFallbackPgLetterhead } from '@/src/lib/billing/pgLetterheadFallback';
+import {
+  buildSettlementStatementModel,
+  type SettlementStatementDocumentModel,
+} from '@/src/lib/vacating/settlementStatementModel';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import { buildAdminInvoiceHrefMap } from '@/src/lib/billing/invoiceHrefMap';
 import { loadDepositPageData } from '@/src/lib/deposits/loadDepositPageData';
@@ -61,6 +66,7 @@ export type BookingFinancialWorkspaceData = {
     deductionPaise: number;
     approvalPreview: VacatingApprovalPreview | null;
     estimatedSettlement: EstimatedSettlementPreview | null;
+    settlementStatement: SettlementStatementDocumentModel | null;
   } | null;
   pendingDateChange: (VacatingDateChangeRequest & {
     preview?: VacatingDateChangePreview | null;
@@ -206,6 +212,25 @@ export async function loadBookingFinancialWorkspace(
       });
     }
 
+    let settlementStatement: SettlementStatementDocumentModel | null = null;
+    if (estimatedSettlement) {
+      const letterhead = buildFallbackPgLetterhead(primaryRes.pgName);
+      settlementStatement = buildSettlementStatementModel({
+        preview: estimatedSettlement,
+        vacatingRequestId: vacatingRow.id,
+        bookingId,
+        customerName: b.customer.fullName,
+        customerPhone: b.customer.phone,
+        bookingCode: b.bookingCode,
+        pgName: primaryRes.pgName,
+        roomNumber: primaryRes.roomNumber,
+        bedCode: primaryRes.bedCode,
+        noticeGivenDate: String(vacatingRow.noticeGivenDate),
+        vacatingDate: String(vacatingRow.vacatingDate),
+        letterhead,
+      });
+    }
+
     vacating = {
       id: vacatingRow.id,
       status: vacatingRow.status,
@@ -215,6 +240,7 @@ export async function loadBookingFinancialWorkspace(
       deductionPaise: vacatingRow.deductionPaise,
       approvalPreview,
       estimatedSettlement,
+      settlementStatement,
     };
   }
 

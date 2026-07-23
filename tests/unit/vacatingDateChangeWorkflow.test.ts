@@ -67,17 +67,42 @@ test('date change compliance uses fixed noticeGivenDate with 14-day minimum', ()
 
 test('resident move-out UI wires V2 estimate and change-leaving-date flow', () => {
   assert.match(vacatingHome, /ResidentEstimatedSettlementBreakdown/);
+  assert.match(vacatingHome, /settlementContext/);
   assert.match(vacatingHome, /ChangeLeavingDateForm/);
   assert.match(vacatingHome, /showV2Estimate/);
   assert.match(residentAreaSection, /loadEstimatedSettlementForVacating/);
+  assert.match(residentAreaSection, /primarySettlementContext/);
   assert.match(residentAreaSection, /getPendingVacatingDateChangeForBooking/);
   assert.match(requestsHome, /estimatedSettlement=/);
+  assert.match(requestsHome, /settlementContext=/);
   assert.match(requestsHome, /pendingDateChangeRequestId=/);
 });
 
 test('VacatingHome hides V1 hero estimate when V2 estimated settlement is shown', () => {
   assert.match(vacatingHome, /showEstimateStats[\s\S]*!showV2Estimate/);
   assert.match(vacatingHome, /v2RefundEstimate/);
+});
+
+test('booking financial workspace wires settlement statement document', () => {
+  assert.match(bookingFinancialWorkspace, /SettlementStatementDocument/);
+  assert.match(bookingFinancialWorkspace, /settlementStatementPageHref/);
+  assert.match(bookingFinancialWorkspace, /VacatingDateChangeApprovalPanel/);
+  assert.doesNotMatch(bookingFinancialWorkspace, /EstimatedSettlementBreakdown/);
+});
+
+test('move-out pipeline passes server approval preview with estimated settlement', () => {
+  const pipelineQueue = readFileSync(
+    join(process.cwd(), 'src/components/admin/moveOut/MoveOutPipelineQueue.tsx'),
+    'utf8',
+  );
+  assert.match(pipelineQueue, /approvalPreviewByRequestId/);
+  assert.match(pipelineQueue, /bookingId=\{row\.bookingId\}/);
+
+  const vacatingPage = readFileSync(
+    join(process.cwd(), 'app/(admin)/admin/vacating/page.tsx'),
+    'utf8',
+  );
+  assert.match(vacatingPage, /approvalPreviewByRequestId/);
 });
 
 test('cancelApprovedVacatingByCustomer blocks when checkout settlement exists', () => {

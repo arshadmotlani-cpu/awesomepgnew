@@ -48,7 +48,11 @@ import { ResidentHubShell } from '@/src/components/customer/account/ResidentHubS
 import type { ConciergeContext } from '@/src/lib/concierge/answers';
 import type { ResidentTab, ResidentProfileSub, ResidentPaymentsSub } from '@/src/lib/accountNavigation';
 import { getCheckoutSettlementForCustomer, getLatestCheckoutSettlementStatusForCustomer, getRefundEligibilitySettlementForCustomer, getResidentMoveOutSettlementContext } from '@/src/services/checkoutSettlement';
-import { loadEstimatedSettlementForVacating, type EstimatedSettlementPreview } from '@/src/lib/vacating/estimatedSettlementPreview';
+import type { ResidentSettlementStatementContext } from '@/src/components/customer/account/resident/vacating/ResidentEstimatedSettlementBreakdown';
+import {
+  loadEstimatedSettlementForVacating,
+  type EstimatedSettlementPreview,
+} from '@/src/lib/vacating/estimatedSettlementPreview';
 import { getPendingVacatingDateChangeForBooking } from '@/src/services/vacatingDateChange';
 import { getLatestKycSubmission } from '@/src/services/kyc';
 import type { PaidHistoryRow } from '@/src/components/customer/account/resident/ResidentPaymentsV2Hub';
@@ -578,6 +582,7 @@ export async function ResidentAreaSection({
 
   let primaryEstimatedSettlement: EstimatedSettlementPreview | null = null;
   let primaryPendingDateChangeRequestId: string | null = null;
+  let primarySettlementContext: ResidentSettlementStatementContext | null = null;
   if (
     primaryBooking &&
     primaryVacating &&
@@ -599,6 +604,18 @@ export async function ResidentAreaSection({
     ]);
     primaryEstimatedSettlement = estimatedSettlement;
     primaryPendingDateChangeRequestId = pendingDateChange?.id ?? null;
+    primarySettlementContext = {
+      vacatingRequestId: primaryVacating.id,
+      bookingId: primaryBooking.bookingId,
+      customerName: session.fullName || customer?.fullName || 'Resident',
+      customerPhone: customer?.phone ?? undefined,
+      bookingCode: primaryBooking.bookingCode,
+      pgName: primaryBooking.booking.pgName,
+      roomNumber: primaryBooking.booking.roomNumber,
+      bedCode: primaryBooking.booking.bedCode,
+      noticeGivenDate: String(primaryVacating.noticeGivenDate),
+      vacatingDate: String(primaryVacating.vacatingDate),
+    };
   }
 
   const activeRejectionsRaw = await listActiveRejectionsForCustomer(session.customerId);
@@ -871,6 +888,7 @@ export async function ResidentAreaSection({
             developerTestEmail={developerTestMode ? session.email : null}
             estimatedSettlement={primaryEstimatedSettlement}
             pendingDateChangeRequestId={primaryPendingDateChangeRequestId}
+            settlementContext={primarySettlementContext}
           />
         </ResidentSectionErrorBoundary>
       ) : null}

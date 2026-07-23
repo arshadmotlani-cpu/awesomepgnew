@@ -16,17 +16,26 @@ export function VacatingRowActions({
   settlementHref,
   depositHeldPaise: _depositHeldPaise = 0,
   approvalPreview,
+  bookingId,
+  bookingCode,
 }: {
   requestId: string;
   status: string;
   settlementHref?: string | null;
   depositHeldPaise?: number;
   approvalPreview?: VacatingApprovalPreview;
+  bookingId?: string;
+  bookingCode?: string;
 }) {
   return (
     <div className="flex flex-col items-end gap-2">
       {status === 'pending' ? (
-        <ApproveVacatingButton requestId={requestId} preview={approvalPreview} />
+        <ApproveVacatingButton
+          requestId={requestId}
+          preview={approvalPreview}
+          bookingId={bookingId}
+          bookingCode={bookingCode}
+        />
       ) : null}
       {status === 'approved' ? (
         settlementHref ? (

@@ -12,7 +12,7 @@ type Props = {
   cancelLabel?: string;
   tone?: AdminConfirmTone;
   pending?: boolean;
-  size?: 'default' | 'wide';
+  size?: 'default' | 'wide' | 'statement';
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -58,15 +58,35 @@ export function AdminConfirmDialog({
         aria-modal
         aria-labelledby="admin-confirm-title"
         className={
-          'w-full rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl ' +
-          (size === 'wide' ? 'max-w-lg' : 'max-w-md')
+          'flex w-full flex-col rounded-2xl border border-zinc-200 bg-white shadow-2xl ' +
+          (size === 'statement'
+            ? 'max-h-[min(90vh,calc(100dvh-2rem))] max-w-3xl'
+            : size === 'wide'
+              ? 'max-w-lg'
+              : 'max-w-md') +
+          (size === 'statement' ? ' p-0' : ' p-5')
         }
       >
-        <h2 id="admin-confirm-title" className="text-lg font-semibold text-zinc-900">
-          {title}
-        </h2>
-        <div className="mt-2 text-sm leading-relaxed text-zinc-600">{description}</div>
-        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <div className={size === 'statement' ? 'border-b border-zinc-200 px-5 py-4' : ''}>
+          <h2 id="admin-confirm-title" className="text-lg font-semibold text-zinc-900">
+            {title}
+          </h2>
+        </div>
+        <div
+          className={
+            size === 'statement'
+              ? 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 text-sm leading-relaxed text-zinc-600'
+              : 'mt-2 text-sm leading-relaxed text-zinc-600'
+          }
+        >
+          {description}
+        </div>
+        <div
+          className={
+            'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end ' +
+            (size === 'statement' ? 'border-t border-zinc-200 px-5 py-4' : 'mt-5')
+          }
+        >
           <button
             type="button"
             onClick={onCancel}

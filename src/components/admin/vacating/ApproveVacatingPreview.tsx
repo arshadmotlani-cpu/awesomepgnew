@@ -1,51 +1,60 @@
 'use client';
 
-import type { ReactNode } from 'react';
-import { EstimatedSettlementBreakdown } from '@/src/components/admin/vacating/EstimatedSettlementBreakdown';
-import { formatDate, paiseToInr } from '@/src/lib/format';
+import Link from 'next/link';
+import { SettlementStatementDocument } from '@/src/components/billing/SettlementStatementDocument';
+import { settlementStatementPageHref } from '@/src/lib/billing/settlementStatementPdfLinks';
 import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
+import { buildSettlementStatementFromApprovalPreview } from '@/src/lib/vacating/settlementStatementModel';
 
-function DetailRow({ label, value }: { label: string; value: ReactNode }) {
+export function ApproveVacatingPreview({
+  preview,
+  vacatingRequestId,
+  bookingCode,
+  bookingId,
+}: {
+  preview: VacatingApprovalPreview;
+  vacatingRequestId: string;
+  bookingCode?: string;
+  bookingId?: string;
+}) {
+  const statement = buildSettlementStatementFromApprovalPreview({
+    preview,
+    vacatingRequestId,
+    bookingCode,
+    bookingId,
+  });
+
+  const noticeShort = preview.noticeCompletedDays < preview.noticeRequiredDays;
+
   return (
-    <div className="grid grid-cols-[9rem_1fr] gap-x-3 gap-y-0.5 text-sm">
-      <span className="text-apg-silver">{label}</span>
-      <span className="font-medium text-white">{value}</span>
-    </div>
-  );
-}
-
-export function ApproveVacatingPreview({ preview }: { preview: VacatingApprovalPreview }) {
-  const noticeShort =
-    preview.noticeCompletedDays < preview.noticeRequiredDays;
-
-  return (
-    <div className="space-y-4">
-      <div className="space-y-2 rounded-2xl border border-white/10 bg-[#1A1F27] p-4">
-        <DetailRow label="Resident" value={preview.residentName} />
-        <DetailRow label="PG" value={preview.pgName} />
-        <DetailRow label="Room" value={`${preview.roomNumber} · ${preview.bedCode}`} />
-        <DetailRow label="Notice submitted" value={formatDate(preview.noticeSubmittedDate)} />
-        <DetailRow label="Move-out requested" value={formatDate(preview.moveOutDate)} />
-        <DetailRow
-          label="Notice period"
-          value={`${preview.noticeCompletedDays} days (required ${preview.noticeRequiredDays})`}
-        />
-        <DetailRow label="Bed status" value={preview.bedStatus} />
-        <DetailRow label="Deposit held" value={paiseToInr(preview.depositHeldPaise)} />
-      </div>
-
-      {preview.estimatedSettlement ? (
-        <EstimatedSettlementBreakdown preview={preview.estimatedSettlement} />
+    <div className="space-y-3">
+      {statement ? (
+        <>
+          <SettlementStatementDocument document={statement} variant="admin" embed="modal" />
+          <p className="text-xs text-zinc-500">
+            <Link
+              href={settlementStatementPageHref(vacatingRequestId)}
+              target="_blank"
+              className="font-medium text-[#FF5A1F] hover:underline"
+            >
+              Open full statement
+            </Link>
+            {' · '}
+            Share or download PDF from the statement page.
+          </p>
+        </>
       ) : preview.noticeBreakdown && noticeShort ? (
-        <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
           <p className="font-semibold">Notice period shorter than required</p>
-          <p className="mt-1 text-xs text-amber-200/90">No deposit deduction — compliant or fully covered.</p>
+          <p className="mt-1 text-xs text-amber-900/80">
+            Estimated settlement preview is unavailable. Review notice details before approving.
+          </p>
         </div>
       ) : null}
 
-      <p className="text-xs text-apg-silver">
+      <p className="text-xs text-zinc-500">
         After approval the bed opens for website pre-booking from the move-out date. The tenant stays
-        until then.
+        until then. Checkout settlement is created when the resident submits refund details.
       </p>
     </div>
   );

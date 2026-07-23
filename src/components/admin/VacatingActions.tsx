@@ -45,7 +45,7 @@ function MicroForm({
   confirmLabel: string;
   tone?: 'default' | 'danger';
   extraFields?: ReactNode;
-  dialogSize?: 'default' | 'wide';
+  dialogSize?: 'default' | 'wide' | 'statement';
 }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(action, idle);
@@ -84,13 +84,18 @@ export function ApproveVacatingButton({
   className,
   label = 'Approve',
   preview,
+  bookingCode,
+  bookingId,
 }: {
   requestId: string;
   pgId?: string;
   className?: string;
   label?: string;
   preview?: VacatingApprovalPreview;
+  bookingCode?: string;
+  bookingId?: string;
 }) {
+  const hasStatement = Boolean(preview?.estimatedSettlement);
   return (
     <MicroForm
       formId={`approve-vacating-${requestId}`}
@@ -105,13 +110,18 @@ export function ApproveVacatingButton({
       title="Approve move-out notice?"
       description={
         preview ? (
-          <ApproveVacatingPreview preview={preview} />
+          <ApproveVacatingPreview
+            preview={preview}
+            vacatingRequestId={requestId}
+            bookingCode={bookingCode}
+            bookingId={bookingId}
+          />
         ) : (
           'The bed will open for website pre-booking from the vacating date. The tenant stays until then.'
         )
       }
       confirmLabel="Approve notice"
-      dialogSize={preview ? 'wide' : 'default'}
+      dialogSize={hasStatement ? 'statement' : preview ? 'wide' : 'default'}
     />
   );
 }

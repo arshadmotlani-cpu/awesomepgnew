@@ -85,6 +85,8 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
     rowErrors,
     settlementsLoadError,
     pendingDateChanges,
+    approvalPreviewByRequestId,
+    dateChangeBookingContextByRequestId,
   } = data;
 
   if (legacy) {
@@ -129,7 +131,11 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
         <section className="mb-8 space-y-3">
           <h2 className="text-sm font-semibold text-white">Leaving date changes awaiting approval</h2>
           {pendingDateChanges.map((request) => (
-            <VacatingDateChangeApprovalPanel key={request.id} request={request} />
+            <VacatingDateChangeApprovalPanel
+              key={request.id}
+              request={request}
+              bookingContext={dateChangeBookingContextByRequestId[request.vacatingRequestId]}
+            />
           ))}
         </section>
       ) : null}
@@ -162,6 +168,7 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
             activeItems={activeItems}
             completedRecently={completedRecently}
             commandStats={commandStats}
+            approvalPreviewByRequestId={approvalPreviewByRequestId}
           />
 
           <MoveOutAdvancedTools

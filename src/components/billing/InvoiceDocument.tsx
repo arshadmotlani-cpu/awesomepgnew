@@ -7,6 +7,11 @@ import type { FinancialInvoiceStatus } from '@/src/db/schema/enums';
 import { ElectricityBillCalculationBreakdownPanel } from '@/src/components/billing/ElectricityBillCalculationBreakdownPanel';
 import { RentInvoiceBreakdownPanel } from '@/src/components/billing/RentInvoiceBreakdownPanel';
 import { personalizeElectricityBreakdown } from '@/src/lib/billing/electricityBillBreakdownPure';
+import {
+  dividerClass,
+  mutedClass,
+  shellClasses,
+} from '@/src/lib/billing/financialDocumentTheme';
 
 type Variant = 'admin' | 'resident';
 
@@ -72,21 +77,6 @@ const STATUS_STYLES: Record<
 
 function statusStyle(status: FinancialInvoiceStatus) {
   return STATUS_STYLES[status] ?? STATUS_STYLES.default;
-}
-
-function shellClasses(variant: Variant): string {
-  if (variant === 'resident') {
-    return 'rounded-2xl border border-zinc-200 bg-white text-zinc-900 shadow-sm print:border-zinc-300 print:shadow-none';
-  }
-  return 'rounded-2xl border border-white/10 bg-[#1A1F27] text-white shadow-lg print:border-zinc-300 print:bg-white print:text-zinc-900 print:shadow-none';
-}
-
-function mutedClass(variant: Variant): string {
-  return variant === 'resident' ? 'text-zinc-500' : 'text-apg-silver print:text-zinc-500';
-}
-
-function dividerClass(variant: Variant): string {
-  return variant === 'resident' ? 'border-zinc-200' : 'border-white/10 print:border-zinc-200';
 }
 
 export function InvoiceDocument({ document: doc, variant = 'admin', className = '' }: Props) {

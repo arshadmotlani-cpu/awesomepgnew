@@ -57,6 +57,7 @@ type Props = {
   developerTestEmail?: string | null;
   estimatedSettlement?: import('@/src/lib/vacating/estimatedSettlementPreview').EstimatedSettlementPreview | null;
   pendingDateChangeRequestId?: string | null;
+  settlementContext?: import('@/src/components/customer/account/resident/vacating/ResidentEstimatedSettlementBreakdown').ResidentSettlementStatementContext | null;
 };
 
 export function RequestsHome({
@@ -86,6 +87,7 @@ export function RequestsHome({
   developerTestEmail = null,
   estimatedSettlement = null,
   pendingDateChangeRequestId = null,
+  settlementContext = null,
 }: Props) {
   const router = useRouter();
   const normalizedInitial = normalizeRequestCategoryId(initialCategory ?? undefined);
@@ -144,6 +146,7 @@ export function RequestsHome({
         monthlyRentPaise={monthlyRentPaise}
         estimatedSettlement={estimatedSettlement}
         pendingDateChangeRequestId={pendingDateChangeRequestId}
+        settlementContext={settlementContext}
       />
     );
   }
