@@ -67,8 +67,8 @@ export function VacatingDateChangeApprovalPanel({
         {formatDate(String(request.requestedVacatingDate))}
       </p>
       <p className="mt-1 text-xs text-amber-200/80">
-        Refund delta: {paiseToInr(request.refundDeltaPaise)} ({request.refundDeltaPaise >= 0 ? '+' : ''}
-        {request.refundDeltaPaise} paise)
+        Refund delta: {paiseToInr(request.refundDeltaPaise)}
+        {request.refundDeltaPaise >= 0 ? ' (increase)' : ' (decrease)'}
       </p>
       {request.residentNotes ? (
         <p className="mt-2 text-xs text-amber-100/80">Resident note: {request.residentNotes}</p>
@@ -76,7 +76,7 @@ export function VacatingDateChangeApprovalPanel({
 
       {statementDocument ? (
         <div className="mt-4 space-y-2">
-          <SettlementStatementDocument document={statementDocument} variant="admin" embed="modal" />
+          <SettlementStatementDocument document={statementDocument} surface="adminModal" embed="modal" />
           <p className="text-xs text-amber-200/70">
             <Link
               href={settlementStatementPageHref(bookingContext!.vacatingRequestId)}

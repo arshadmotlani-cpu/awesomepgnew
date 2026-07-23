@@ -4,25 +4,23 @@ import { formatDate, paiseToInr } from '@/src/lib/format';
 import {
   PENDING_DAMAGES_LABEL,
   PENDING_ELECTRICITY_LABEL,
+  type SettlementDisplayRow,
 } from '@/src/lib/checkout/settlementDisplayFormat';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
-import {
-  type EstimatedSettlementPreview,
-} from '@/src/lib/vacating/estimatedSettlementPreview';
+import { type EstimatedSettlementPreview } from '@/src/lib/vacating/estimatedSettlementPreview';
 
-export type SettlementStatementSummaryKpi = {
+export type SettlementStatementHeroMetric = {
   id: string;
   label: string;
   value: string;
   tone?: 'default' | 'positive' | 'deduct' | 'pending';
+  large?: boolean;
 };
 
-export type SettlementStatementLineItem = {
-  section: string;
-  label: string;
-  detail: string | null;
-  amount: string;
-  deduct?: boolean;
+export type SettlementStatementSection = {
+  id: string;
+  title: string;
+  rows: SettlementDisplayRow[];
 };
 
 export type SettlementStatementDocumentModel = {
@@ -42,10 +40,13 @@ export type SettlementStatementDocumentModel = {
   bedCode: string;
   noticeGivenDate: string;
   vacatingDate: string;
-  summaryKpis: SettlementStatementSummaryKpi[];
-  lineItems: SettlementStatementLineItem[];
+  heroMetrics: SettlementStatementHeroMetric[];
+  rentSummary: SettlementStatementSection;
+  collapsedSections: SettlementStatementSection[];
+  auditTrace: Array<{ id: string; label: string; value: string }>;
   estimatedRefundPaise: number;
   estimatedUnusedRentCreditPaise: number;
+  refundTotalLabel: string;
 };
 
 function modeLabel(mode: EstimatedSettlementPreview['mode']): string {
@@ -54,15 +55,20 @@ function modeLabel(mode: EstimatedSettlementPreview['mode']): string {
   return 'Estimated Settlement Statement';
 }
 
-function modeBadge(mode: EstimatedSettlementPreview['mode']): string {
+export function modeBadge(mode: EstimatedSettlementPreview['mode']): string {
   if (mode === 'final') return 'Final';
   if (mode === 'baseline') return 'Baseline';
   return 'Estimated';
 }
 
-function pendingLabel(paise: number, pending: boolean, pendingText: string): string {
-  if (pending) return pendingText;
-  return paise > 0 ? `−${paiseToInr(paise)}` : paiseToInr(0);
+export { modeBadge as settlementStatementModeBadge };
+
+function findSection(preview: EstimatedSettlementPreview, title: string) {
+  return preview.sections.find((s) => s.title === title);
+}
+
+function mapRowsWithHints(rows: SettlementDisplayRow[]): SettlementDisplayRow[] {
+  return rows.map((row) => ({ ...row }));
 }
 
 export function buildSettlementStatementModel(args: {
@@ -88,16 +94,27 @@ export function buildSettlementStatementModel(args: {
     mode === 'estimate' || (mode === 'baseline' && w.depositBucket.otherPaise === 0);
 
   const noticeDeductionPaise = guardDepositPaise(w.notice.fullPaise);
-  const rentConsumedPaise = guardDepositPaise(w.rentBucket.consumedPaise);
   const electricityPaise = guardDepositPaise(w.depositBucket.electricityPaise);
   const damagePaise = guardDepositPaise(w.depositBucket.otherPaise);
 
-  const summaryKpis: SettlementStatementSummaryKpi[] = [
+  const pendingElectricityLabel = pendingElectricity
+    ? PENDING_ELECTRICITY_LABEL
+    : electricityPaise > 0
+      ? `−${paiseToInr(electricityPaise)}`
+      : paiseToInr(0);
+  const pendingDamageLabel = pendingDamage
+    ? PENDING_DAMAGES_LABEL
+    : damagePaise > 0
+      ? `−${paiseToInr(damagePaise)}`
+      : paiseToInr(0);
+
+  const heroMetrics: SettlementStatementHeroMetric[] = [
     {
       id: 'estimated_refund',
       label: mode === 'final' ? 'Final refund' : 'Estimated refund',
       value: paiseToInr(args.preview.estimatedRefundPaise),
       tone: 'positive',
+      large: true,
     },
     {
       id: 'deposit_held',
@@ -111,37 +128,38 @@ export function buildSettlementStatementModel(args: {
       tone: noticeDeductionPaise > 0 ? 'deduct' : 'default',
     },
     {
-      id: 'rent_consumed',
-      label: 'Rent consumed',
-      value: paiseToInr(rentConsumedPaise),
-    },
-    {
-      id: 'pending_charges',
-      label: 'Pending electricity / damages',
-      value:
-        pendingElectricity && pendingDamage
-          ? `${PENDING_ELECTRICITY_LABEL} · ${PENDING_DAMAGES_LABEL}`
-          : pendingElectricity
-            ? PENDING_ELECTRICITY_LABEL
-            : pendingDamage
-              ? PENDING_DAMAGES_LABEL
-              : pendingLabel(electricityPaise + damagePaise, false, 'Pending'),
+      id: 'pending',
+      label: 'Pending',
+      value: `${pendingElectricityLabel} · ${pendingDamageLabel}`,
       tone: pendingElectricity || pendingDamage ? 'pending' : 'default',
     },
   ];
 
-  const lineItems: SettlementStatementLineItem[] = [];
-  for (const section of args.preview.sections) {
-    for (const row of section.rows) {
-      lineItems.push({
-        section: section.title,
-        label: row.label,
-        detail: row.hint ?? null,
-        amount: row.value,
-        deduct: row.deduct,
-      });
-    }
-  }
+  const rentSection = findSection(args.preview, 'Rent');
+  const rentSummary: SettlementStatementSection = {
+    id: 'rent_summary',
+    title: 'Rent summary',
+    rows: rentSection ? mapRowsWithHints(rentSection.rows) : [],
+  };
+
+  const billing = findSection(args.preview, 'Billing & dates');
+  const notice = findSection(args.preview, 'Notice');
+  const deposit = findSection(args.preview, 'Deposit');
+  const pending =
+    findSection(args.preview, 'Pending deductions') ?? findSection(args.preview, 'Deductions');
+
+  const collapsedSections: SettlementStatementSection[] = [
+    billing ? { id: 'billing_dates', title: 'Billing & dates', rows: mapRowsWithHints(billing.rows) } : null,
+    notice ? { id: 'notice_calculation', title: 'Notice calculation', rows: mapRowsWithHints(notice.rows) } : null,
+    deposit ? { id: 'detailed_calculation', title: 'Detailed calculation', rows: mapRowsWithHints(deposit.rows) } : null,
+    pending
+      ? {
+          id: 'pending_deductions',
+          title: pending.title === 'Deductions' ? 'Deductions' : 'Pending deductions',
+          rows: mapRowsWithHints(pending.rows),
+        }
+      : null,
+  ].filter((s): s is SettlementStatementSection => s != null);
 
   const shortId = args.vacatingRequestId.slice(0, 8).toUpperCase();
 
@@ -162,10 +180,13 @@ export function buildSettlementStatementModel(args: {
     bedCode: args.bedCode,
     noticeGivenDate: args.noticeGivenDate,
     vacatingDate: args.vacatingDate,
-    summaryKpis,
-    lineItems,
+    heroMetrics,
+    rentSummary,
+    collapsedSections,
+    auditTrace: args.preview.auditTrace ?? [],
     estimatedRefundPaise: args.preview.estimatedRefundPaise,
     estimatedUnusedRentCreditPaise: args.preview.estimatedUnusedRentCreditPaise,
+    refundTotalLabel: mode === 'final' ? 'Final refund' : 'Estimated refund',
   };
 }
 
@@ -200,5 +221,3 @@ export function buildSettlementStatementFromApprovalPreview(args: {
     letterhead: buildFallbackPgLetterhead(args.preview.pgName),
   });
 }
-
-export { modeBadge as settlementStatementModeBadge };

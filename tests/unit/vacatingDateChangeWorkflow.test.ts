@@ -85,9 +85,28 @@ test('VacatingHome hides V1 hero estimate when V2 estimated settlement is shown'
 
 test('booking financial workspace wires settlement statement document', () => {
   assert.match(bookingFinancialWorkspace, /SettlementStatementDocument/);
+  assert.match(bookingFinancialWorkspace, /surface="adminPage"/);
   assert.match(bookingFinancialWorkspace, /settlementStatementPageHref/);
   assert.match(bookingFinancialWorkspace, /VacatingDateChangeApprovalPanel/);
   assert.doesNotMatch(bookingFinancialWorkspace, /EstimatedSettlementBreakdown/);
+});
+
+test('approve preview uses light modal surface for settlement statement', () => {
+  const approvePreview = readFileSync(
+    join(process.cwd(), 'src/components/admin/vacating/ApproveVacatingPreview.tsx'),
+    'utf8',
+  );
+  assert.match(approvePreview, /surface="adminModal"/);
+  assert.match(approvePreview, /FinancialDocumentLayout|SettlementStatementDocument/);
+});
+
+test('date change panel does not expose paise in UI copy', () => {
+  const panel = readFileSync(
+    join(process.cwd(), 'src/components/admin/vacating/VacatingDateChangeApprovalPanel.tsx'),
+    'utf8',
+  );
+  assert.doesNotMatch(panel, /refundDeltaPaise\} paise/);
+  assert.match(panel, /surface="adminModal"/);
 });
 
 test('move-out pipeline passes server approval preview with estimated settlement', () => {

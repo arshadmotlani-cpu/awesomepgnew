@@ -79,6 +79,7 @@ test('generateSettlementStatementPdf returns non-empty PDF bytes', async () => {
 });
 
 test('settlement statement PDF pipeline files exist', () => {
+  assert.match(read('src/lib/billing/financialDocumentPdf.ts'), /formatInrPdf/);
   assert.match(read('src/lib/billing/settlementStatementPdfDownload.ts'), /application\/pdf/);
   assert.match(read('src/lib/billing/settlementStatementPdfLinks.ts'), /settlementStatementPdfDownloadHref/);
   assert.match(
@@ -89,4 +90,5 @@ test('settlement statement PDF pipeline files exist', () => {
     read('app/(admin)/admin/vacating/[requestId]/settlement-statement/page.tsx'),
     /FinancialDocumentToolbar/,
   );
+  assert.match(read('src/components/billing/FinancialDocumentLayout.tsx'), /FinancialDocumentHeroGrid/);
 });

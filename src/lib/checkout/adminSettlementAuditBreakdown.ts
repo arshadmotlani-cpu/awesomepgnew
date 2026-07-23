@@ -6,6 +6,7 @@ import { diffDays } from '@/src/lib/dates';
 import { paiseToInr } from '@/src/lib/format';
 import {
   formatDualDaysAndPaise,
+  formatRentConsumedHint,
   formatSettlementDate,
   formatSettlementDays,
   formatSettlementPaise,
@@ -134,7 +135,7 @@ export function buildAdminSettlementAuditBreakdown(
         id: 'days_paid',
         label: 'Days paid',
         value: daysPaid.value,
-        hint: daysPaid.hint,
+        hint: daysPaid.auditHint ?? daysPaid.hint,
       },
     ],
   };
@@ -159,7 +160,7 @@ export function buildAdminSettlementAuditBreakdown(
         value: formatSettlementPaise(rentConsumedPaise),
         hint:
           stayDays != null && dailyRentPaise > 0
-            ? `${stayDays} days × ${dailyRentPaise} paise/day`
+            ? formatRentConsumedHint(stayDays, dailyRentPaise)
             : undefined,
       },
       {

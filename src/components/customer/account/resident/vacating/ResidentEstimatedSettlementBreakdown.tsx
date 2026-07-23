@@ -45,7 +45,7 @@ export function ResidentEstimatedSettlementBreakdown({
   return (
     <SettlementStatementDocument
       document={document}
-      variant="resident"
+      surface="resident"
       embed="page"
       className={className}
     />

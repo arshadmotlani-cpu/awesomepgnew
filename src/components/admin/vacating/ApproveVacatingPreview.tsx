@@ -30,7 +30,7 @@ export function ApproveVacatingPreview({
     <div className="space-y-3">
       {statement ? (
         <>
-          <SettlementStatementDocument document={statement} variant="admin" embed="modal" />
+          <SettlementStatementDocument document={statement} surface="adminModal" embed="modal" />
           <p className="text-xs text-zinc-500">
             <Link
               href={settlementStatementPageHref(vacatingRequestId)}

@@ -50,7 +50,7 @@ export default async function VacatingSettlementStatementPage({
         }
       />
       <div className="max-w-4xl">
-        <SettlementStatementDocument document={document} variant="admin" embed="page" />
+        <SettlementStatementDocument document={document} surface="adminPage" embed="page" />
       </div>
       <p className="mt-4 text-sm text-apg-silver">
         <Link href={`/admin/bookings/${document.bookingId}`} className="text-apg-orange hover:underline">

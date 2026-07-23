@@ -57,7 +57,7 @@ export function EstimatedSettlementBreakdown({
   return (
     <SettlementStatementDocument
       document={document}
-      variant="admin"
+      surface={compact ? 'adminModal' : 'adminPage'}
       embed={compact ? 'modal' : 'page'}
       className={className}
     />

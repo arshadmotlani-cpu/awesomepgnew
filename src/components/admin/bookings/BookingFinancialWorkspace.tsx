@@ -155,7 +155,7 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
               <div className="space-y-2">
                 <SettlementStatementDocument
                   document={data.vacating.settlementStatement}
-                  variant="admin"
+                  surface="adminPage"
                   embed="page"
                 />
                 <p className="text-xs text-apg-silver">

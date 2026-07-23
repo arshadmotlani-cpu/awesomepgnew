@@ -24,7 +24,28 @@ function kunalLikeWaterfall() {
   });
 }
 
-test('buildSettlementStatementModel maps summary KPIs from waterfall', () => {
+function collectDisplayStrings(document: ReturnType<typeof buildSettlementStatementModel>): string[] {
+  const strings: string[] = [];
+  for (const metric of document.heroMetrics) {
+    strings.push(metric.label, metric.value);
+  }
+  for (const row of document.rentSummary.rows) {
+    strings.push(row.label, row.value, row.hint ?? '');
+  }
+  for (const section of document.collapsedSections) {
+    strings.push(section.title);
+    for (const row of section.rows) {
+      strings.push(row.label, row.value, row.hint ?? '');
+    }
+  }
+  for (const row of document.auditTrace) {
+    strings.push(row.label, row.value);
+  }
+  strings.push(document.refundTotalLabel, document.disclaimer);
+  return strings;
+}
+
+test('buildSettlementStatementModel maps hero metrics from waterfall', () => {
   const waterfall = kunalLikeWaterfall();
   const preview = estimatedSettlementFromCheckoutWaterfall({
     detail: {
@@ -60,23 +81,28 @@ test('buildSettlementStatementModel maps summary KPIs from waterfall', () => {
 
   assert.equal(document.mode, 'baseline');
   assert.equal(document.statementNumber, 'EST-VAC-1234');
-  assert.equal(document.summaryKpis.length, 5);
+  assert.equal(document.heroMetrics.length, 4);
 
-  const refundKpi = document.summaryKpis.find((k) => k.id === 'estimated_refund');
-  assert.ok(refundKpi);
-  assert.match(refundKpi!.value, /₹/);
+  const refundMetric = document.heroMetrics.find((k) => k.id === 'estimated_refund');
+  assert.ok(refundMetric?.large);
+  assert.match(refundMetric!.value, /₹/);
 
-  const depositKpi = document.summaryKpis.find((k) => k.id === 'deposit_held');
-  assert.ok(depositKpi);
-  assert.match(depositKpi!.value, /₹4,121/);
+  const pendingMetric = document.heroMetrics.find((k) => k.id === 'pending');
+  assert.ok(pendingMetric);
+  assert.match(pendingMetric!.value, new RegExp(PENDING_ELECTRICITY_LABEL));
+  assert.match(pendingMetric!.value, new RegExp(PENDING_DAMAGES_LABEL));
 
-  const pendingKpi = document.summaryKpis.find((k) => k.id === 'pending_charges');
-  assert.ok(pendingKpi);
-  assert.match(pendingKpi!.value, new RegExp(PENDING_ELECTRICITY_LABEL));
-  assert.match(pendingKpi!.value, new RegExp(PENDING_DAMAGES_LABEL));
-  assert.equal(pendingKpi!.tone, 'pending');
+  assert.equal(document.rentSummary.title, 'Rent summary');
+  assert.ok(document.rentSummary.rows.length >= 3);
+  assert.ok(document.collapsedSections.some((s) => s.id === 'billing_dates'));
+  assert.ok(document.collapsedSections.some((s) => s.id === 'notice_calculation'));
+  assert.ok(document.collapsedSections.some((s) => s.id === 'pending_deductions'));
+  assert.ok(document.auditTrace.length > 0);
 
-  assert.ok(document.lineItems.length > 0);
+  for (const text of collectDisplayStrings(document)) {
+    assert.doesNotMatch(text, /paise/i);
+  }
+
   assert.equal(document.estimatedRefundPaise, preview.estimatedRefundPaise);
 });
 
@@ -112,6 +138,5 @@ test('buildSettlementStatementModel uses final mode label when amounts locked', 
   });
 
   assert.equal(document.modeLabel, 'Final Settlement Statement');
-  const refundKpi = document.summaryKpis.find((k) => k.id === 'estimated_refund');
-  assert.equal(refundKpi?.label, 'Final refund');
+  assert.equal(document.refundTotalLabel, 'Final refund');
 });

@@ -256,9 +256,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-23 21:32:03 UTC
+### Pending pre-commit sync · 2026-07-23 21:56:36 UTC
 
-**Areas touched:** [[ROUTES]], [[Billing]], [[Vacating]], [[Bookings]]
+**Areas touched:** [[ROUTES]], [[Billing]], [[Vacating]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
@@ -269,21 +269,14 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (14):**
+**Staged code files (7):**
 - `app/(admin)/admin/vacating/[requestId]/settlement-statement/page.tsx`
 - `app/(admin)/admin/vacating/[requestId]/settlement-statement/print/page.tsx`
-- `app/(admin)/admin/vacating/page.tsx`
-- `app/api/vacating/[requestId]/settlement-statement/pdf/route.ts`
+- `src/lib/billing/financialDocumentPdf.ts`
 - `src/lib/billing/financialDocumentTheme.ts`
-- `src/lib/billing/pgLetterhead.ts`
-- `src/lib/billing/pgLetterheadFallback.ts`
 - `src/lib/billing/settlementStatementPdf.ts`
-- `src/lib/billing/settlementStatementPdfDownload.ts`
-- `src/lib/billing/settlementStatementPdfLinks.ts`
-- `src/lib/vacating/loadAdminVacatingPageData.ts`
-- `src/lib/vacating/settlementStatementLoader.ts`
+- `src/lib/vacating/estimatedSettlementPreview.ts`
 - `src/lib/vacating/settlementStatementModel.ts`
-- `src/services/bookingFinancialWorkspace.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

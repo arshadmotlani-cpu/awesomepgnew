@@ -11,6 +11,7 @@ import { resolveStayCheckInDate } from '@/src/lib/checkout/checkoutSettlementV2C
 import {
   ESTIMATED_REFUND_DISCLAIMER,
   formatDualDaysAndPaise,
+  formatRentConsumedHint,
   formatSettlementDate,
   formatSettlementDays,
   formatSettlementPaise,
@@ -42,6 +43,7 @@ export type EstimatedSettlementVacatingInput = {
 
 export type EstimatedSettlementPreview = {
   sections: SettlementDisplaySection[];
+  auditTrace: Array<{ id: string; label: string; value: string }>;
   waterfall: CheckoutSettlementWaterfall;
   estimatedRefundPaise: number;
   estimatedUnusedRentCreditPaise: number;
@@ -110,6 +112,16 @@ export async function buildEstimatedSettlementPreview(
   const hasPendingDamage =
     mode === 'estimate' || (mode === 'baseline' && waterfall.depositBucket.otherPaise === 0);
 
+  const auditTrace: EstimatedSettlementPreview['auditTrace'] = [];
+  if (daysPaid.auditHint) {
+    auditTrace.push({ id: 'days_paid_audit', label: 'Days paid (calculation)', value: daysPaid.auditHint });
+  }
+  auditTrace.push({
+    id: 'rent_consumed_audit',
+    label: 'Rent consumed (calculation)',
+    value: formatRentConsumedHint(waterfall.stay.stayDays, dailyRentPaise),
+  });
+
   const sections: SettlementDisplaySection[] = [
     {
       title: 'Billing & dates',
@@ -155,7 +167,6 @@ export async function buildEstimatedSettlementPreview(
           id: 'rent_consumed',
           label: 'Rent consumed',
           value: formatSettlementPaise(waterfall.rentBucket.consumedPaise),
-          hint: `${waterfall.stay.stayDays} days × ${dailyRentPaise} paise/day`,
         },
         {
           id: 'unused_prepaid_rent',
@@ -238,6 +249,7 @@ export async function buildEstimatedSettlementPreview(
 
   return {
     sections,
+    auditTrace,
     waterfall,
     estimatedRefundPaise: waterfall.refund.totalPaise,
     estimatedUnusedRentCreditPaise: waterfall.refund.unusedRentPortionPaise,
@@ -310,6 +322,16 @@ export function estimatedSettlementFromCheckoutWaterfall(args: {
 
   const electricityPending = mode !== 'final' && w.depositBucket.electricityPaise === 0;
   const damagePending = mode !== 'final' && w.depositBucket.otherPaise === 0;
+
+  const auditTrace: EstimatedSettlementPreview['auditTrace'] = [];
+  if (daysPaid.auditHint) {
+    auditTrace.push({ id: 'days_paid_audit', label: 'Days paid (calculation)', value: daysPaid.auditHint });
+  }
+  auditTrace.push({
+    id: 'rent_consumed_audit',
+    label: 'Rent consumed (calculation)',
+    value: formatRentConsumedHint(w.stay.stayDays, dailyRentPaise),
+  });
 
   return {
     sections: [
@@ -410,6 +432,7 @@ export function estimatedSettlementFromCheckoutWaterfall(args: {
         ],
       },
     ],
+    auditTrace,
     waterfall: w,
     estimatedRefundPaise: w.refund.totalPaise,
     estimatedUnusedRentCreditPaise: w.refund.unusedRentPortionPaise,
