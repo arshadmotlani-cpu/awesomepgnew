@@ -245,7 +245,7 @@ export async function discoverCheckoutRentProrationGaps(input?: {
     ORDER BY sc.paid_at ASC
   `);
 
-  return (rows as typeof rows extends infer T ? T[] : never).map((r) => ({
+  return [...rows].map((r) => ({
     bookingId: r.booking_id,
     bookingCode: r.booking_code,
     resident: r.resident,
