@@ -4,21 +4,44 @@
  */
 import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { actionItems, bookings, pgPaymentRecords, unresolvedActions } from '@/src/db/schema';
+import {
+  actionItems,
+  bookings,
+  notifications,
+  pgPaymentRecords,
+  unresolvedActions,
+} from '@/src/db/schema';
+import {
+  extractPostgresError,
+  formatPostgresError,
+} from '@/src/lib/db/postgresError';
 import { resolveAction } from '@/src/services/unresolvedActions';
 
-/** Extract pg_payment_record id from review keys like `qr-{uuid}`. */
-function paymentRecordIdFromReviewKey(reviewKey: string): string | null {
-  if (!reviewKey.startsWith('qr-')) return null;
-  const recordId = reviewKey.slice(3);
-  return recordId.length > 0 ? recordId : null;
+/** Archive admin notifications for one payment review key — dedupe_key SSOT. */
+export async function archivePaymentReviewNotificationsForKey(
+  reviewKey: string,
+): Promise<number> {
+  const actionSourceKey = `payment_review:${reviewKey}`;
+  const now = new Date();
+  const rows = await db
+    .update(notifications)
+    .set({ isArchived: true, isRead: true, readAt: now })
+    .where(
+      and(
+        eq(notifications.audience, 'admin'),
+        inArray(notifications.type, ['payment_proof_uploaded', 'payment_received']),
+        eq(notifications.isArchived, false),
+        eq(notifications.dedupeKey, actionSourceKey),
+      ),
+    )
+    .returning({ id: notifications.id });
+  return rows.length;
 }
 
 /** Close action_items, unresolved_actions, and admin notifications for one review key. */
 export async function resolvePaymentReviewArtifactsForKey(reviewKey: string): Promise<void> {
   const actionSourceKey = `payment_review:${reviewKey}`;
   const unresolvedSourceKey = `unresolved:payment_review:${reviewKey}`;
-  const paymentRecordId = paymentRecordIdFromReviewKey(reviewKey);
   const now = new Date();
 
   await db
@@ -33,23 +56,16 @@ export async function resolvePaymentReviewArtifactsForKey(reviewKey: string): Pr
 
   await resolveAction({ sourceKey: unresolvedSourceKey });
 
-  await db.execute(sql`
-    UPDATE notifications
-    SET is_archived = true,
-        is_read = true,
-        read_at = ${now}
-    WHERE audience = 'admin'
-      AND type IN ('payment_proof_uploaded', 'payment_received')
-      AND NOT is_archived
-      AND (
-        dedupe_key = ${actionSourceKey}
-        OR (
-          ${paymentRecordId} IS NOT NULL
-          AND entity_type = 'pg_payment_record'
-          AND entity_id = ${paymentRecordId}
-        )
-      )
-  `);
+  try {
+    const archived = await archivePaymentReviewNotificationsForKey(reviewKey);
+    console.info('[payment-review] archived notifications', { reviewKey, archived });
+  } catch (err) {
+    console.error('[payment-review] notification archive failed (non-blocking)', {
+      reviewKey,
+      error: formatPostgresError(err),
+      pg: extractPostgresError(err),
+    });
+  }
 }
 
 /**

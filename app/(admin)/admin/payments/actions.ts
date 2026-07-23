@@ -92,7 +92,7 @@ export async function approvePaymentReviewVerificationAction(
   } catch (err) {
     return {
       ok: false as const,
-      message: err instanceof Error ? err.message : 'Approval failed.',
+      message: formatPostgresError(err),
     };
   }
 }
@@ -127,7 +127,7 @@ export async function approveQrPaymentAction(
   } catch (err) {
     return {
       ok: false as const,
-      message: err instanceof Error ? err.message : 'Approval failed.',
+      message: formatPostgresError(err),
     };
   }
 }
@@ -237,7 +237,7 @@ export async function approvePaymentProofWithAllocationAction(
   } catch (err) {
     return {
       ok: false as const,
-      message: err instanceof Error ? err.message : 'Allocation approval failed.',
+      message: formatPostgresError(err),
     };
   }
 }

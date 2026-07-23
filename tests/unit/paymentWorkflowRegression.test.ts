@@ -259,11 +259,29 @@ describe('payment workflow regression', () => {
     assert.match(qr, /scheduleAdminNotificationSync/);
   });
 
-  test('payment review cleanup marks notifications read and archived', () => {
+  test('payment review cleanup marks notifications read and archived via typed Drizzle', () => {
     const cleanup = read('src/services/paymentProofReviewCleanup.ts');
-    assert.match(cleanup, /is_archived = true/);
-    assert.match(cleanup, /is_read = true/);
-    assert.match(cleanup, /entity_id = \$\{paymentRecordId\}/);
+    assert.match(cleanup, /archivePaymentReviewNotificationsForKey/);
+    assert.match(cleanup, /isArchived: true, isRead: true, readAt: now/);
+    assert.match(cleanup, /eq\(notifications\.dedupeKey, actionSourceKey\)/);
+    assert.doesNotMatch(cleanup, /db\.execute\(sql`[\s\S]*UPDATE notifications/);
+    assert.doesNotMatch(cleanup, /entity_id = \$\{paymentRecordId\}/);
+  });
+
+  test('payment review notification archive is non-blocking', () => {
+    const cleanup = read('src/services/paymentProofReviewCleanup.ts');
+    assert.match(cleanup, /notification archive failed \(non-blocking\)/);
+    assert.match(cleanup, /formatPostgresError\(err\)/);
+    assert.match(cleanup, /extractPostgresError\(err\)/);
+  });
+
+  test('approvePaymentReviewVerificationAction surfaces full PostgreSQL errors', () => {
+    const actions = read('app/(admin)/admin/payments/actions.ts');
+    const fn = actions.slice(
+      actions.indexOf('export async function approvePaymentReviewVerificationAction'),
+      actions.indexOf('export async function approveQrPaymentAction'),
+    );
+    assert.match(fn, /formatPostgresError\(err\)/);
   });
 
   test('queue loader does not call getQrBookingPaymentReview on page load', () => {
