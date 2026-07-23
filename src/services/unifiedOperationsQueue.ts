@@ -4,7 +4,17 @@
 
 import { and, eq, inArray, not, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { bedReserveHolds, bedReservations, beds, bookings, customers, floors, pgs, rooms } from '@/src/db/schema';
+import {
+  bedReserveHolds,
+  bedReservations,
+  beds,
+  bookings,
+  customers,
+  floors,
+  pgPaymentRecords,
+  pgs,
+  rooms,
+} from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import { buildCollectionsQueue, type CollectionQueueItem } from '@/src/lib/billing/collectionsQueue';
@@ -394,6 +404,12 @@ export async function listPendingBookingApprovalsForSync(session: AdminSession) 
           WHERE brh.booking_id = ${bookings.id}
             AND brh.status::text IN ('cancelled', 'expired')
         )`,
+        sql`NOT EXISTS (
+          SELECT 1 FROM ${pgPaymentRecords} ppr
+          WHERE ppr.booking_id = ${bookings.id}
+            AND ppr.status::text = 'approved'
+            AND ppr.payment_screenshot_url IS NOT NULL
+        )`,
       ),
     );
 
@@ -429,6 +445,15 @@ async function buildUnifiedOperationsQueue(
   filterCounts: Array<{ id: OpsQueueFilter; label: string; count: number }>;
 }> {
   unifiedQueueBuildCount += 1;
+
+  try {
+    const { resolveStalePaymentReviewArtifacts } = await import(
+      '@/src/services/paymentReviewIntegrity'
+    );
+    await resolveStalePaymentReviewArtifacts(session);
+  } catch (err) {
+    console.error('[operations-queue] stale payment review cleanup failed', err);
+  }
 
   // Close terminal checkout rows that still inflate vacating / refund queue counts.
   await repairTerminalCheckoutOperations();

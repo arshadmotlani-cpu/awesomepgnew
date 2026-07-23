@@ -242,8 +242,10 @@ describe('payment workflow regression', () => {
     const provider = read('src/components/admin/AdminLiveRefreshProvider.tsx');
     const flash = read('src/components/admin/operations/OperationsFlashToast.tsx');
     assert.match(workspace, /await refreshAdminNavBadges\(\)/);
+    assert.match(workspace, /router\.refresh\(\)/);
     assert.match(provider, /ADMIN_BADGES_REFRESH_EVENT/);
     assert.match(provider, /ADMIN_BADGES_REFRESH_COMPLETE_EVENT/);
+    assert.match(provider, /nextOps <= polledOps/);
     assert.match(flash, /refreshAdminNavBadges\(\)/);
   });
 

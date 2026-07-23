@@ -108,4 +108,6 @@ test('listPendingBookingApprovalsForSync stays pending_approval-only', () => {
   // Active holds are excluded (NOT EXISTS), not selected as queue rows.
   assert.match(fn, /brh\.status::text = 'active'/);
   assert.match(fn, /NOT EXISTS/);
+  assert.match(fn, /pgPaymentRecords/);
+  assert.match(fn, /ppr\.status::text = 'approved'/);
 });

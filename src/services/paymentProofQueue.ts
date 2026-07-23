@@ -27,6 +27,7 @@ import type {
 } from '@/src/lib/operations/paymentReviewTypes';
 import { resolveBookingDepositCreditAppliedPaise } from '@/src/lib/billing/bookingCheckoutTotals';
 import { resolveFinancialInvoiceIdForSource } from '@/src/services/adminCashSettlement';
+import { resolvePaymentReviewBillingMonth } from '@/src/lib/operations/paymentReviewBillingMonth';
 import {
   buildSimplePaymentExplanation,
 } from '@/src/lib/operations/paymentExplanationView';
@@ -425,6 +426,11 @@ function buildQrReviewItem(
     bookingDetails,
   );
 
+  const billingMonth = resolvePaymentReviewBillingMonth({
+    moveInDate: bookingDetails?.moveInDate,
+    month: p.month,
+  });
+
   return {
     key: `qr-${p.id}`,
     kind: 'qr',
@@ -466,6 +472,7 @@ function buildQrReviewItem(
     submittedAmountPaise: p.proofSnapshotSubmittedPaise ?? null,
     referenceNumber: p.transactionRef ?? null,
     proofSubmittedAt: p.createdAt?.toISOString?.() ?? null,
+    billingMonth,
   };
 }
 

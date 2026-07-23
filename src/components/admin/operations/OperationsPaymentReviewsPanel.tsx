@@ -16,6 +16,7 @@ import { OPS_ORANGE, OPS_PANEL } from '@/src/components/admin/residentOps/reside
 import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 import { PAYMENT_ALREADY_APPROVED_MESSAGE } from '@/src/lib/operations/paymentReviewMessages';
+import { formatPaymentReviewBillingMonth } from '@/src/lib/operations/paymentReviewBillingMonth';
 import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
 
 function formatUploadTime(iso: string | null | undefined): string {
@@ -27,9 +28,8 @@ function formatUploadTime(iso: string | null | undefined): string {
   }
 }
 
-function formatBillingMonth(value: string | null | undefined): string {
-  if (!value) return '—';
-  return value.slice(0, 7);
+function formatBillingMonth(item: PendingPaymentReviewItem): string {
+  return formatPaymentReviewBillingMonth(item);
 }
 
 export function OperationsPaymentReviewsPanel({
@@ -179,7 +179,7 @@ export function OperationsPaymentReviewsPanel({
                       <div>
                         <dt className="uppercase tracking-wide">Billing month</dt>
                         <dd className="mt-0.5 font-medium text-white">
-                          {formatBillingMonth(item.billingMonth)}
+                          {formatBillingMonth(item)}
                         </dd>
                       </div>
                     ) : null}

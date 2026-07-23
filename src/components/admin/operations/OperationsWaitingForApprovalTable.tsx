@@ -1,15 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
+import { formatPaymentReviewBillingMonth } from '@/src/lib/operations/paymentReviewBillingMonth';
 import { formatDateTime, paiseToInr } from '@/src/lib/format';
 import { buildPaymentReviewBreakdown } from '@/src/lib/operations/paymentReviewBreakdown';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 import { paymentReviewWorkspaceHref } from '@/src/lib/operations/paymentReviewLinks';
 
-function formatBillingMonth(value: string | null | undefined): string {
-  if (!value) return '—';
-  return billingMonthLabel(value) || value.slice(0, 7);
+function formatBillingMonth(item: PendingPaymentReviewItem): string {
+  return formatPaymentReviewBillingMonth(item);
 }
 
 function formatUploadTime(iso: string | null | undefined): string {
@@ -64,7 +63,7 @@ export function OperationsWaitingForApprovalTable({
                   {paiseToInr(breakdown.proofAmountPaise)}
                 </td>
                 <td className="px-4 py-4 text-apg-silver">
-                  {formatBillingMonth(item.billingMonth)}
+                  {formatBillingMonth(item)}
                 </td>
                 <td className="px-4 py-4 text-apg-silver">
                   {formatUploadTime(item.proofSubmittedAt)}

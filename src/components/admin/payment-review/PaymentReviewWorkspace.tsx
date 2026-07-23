@@ -105,18 +105,18 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
       }
 
       const successMessage = 'Payment approved successfully.';
+      stashOperationsApprovedToast(successMessage);
       setApproved(true);
       showToast(successMessage, 'success');
 
-      stashOperationsApprovedToast(successMessage);
+      router.refresh();
+      await refreshAdminNavBadges();
+      await new Promise((resolve) => window.setTimeout(resolve, 250));
       await refreshAdminNavBadges();
 
       const redirectTo = operationsFilterHref('waiting_for_approval');
-
-      window.setTimeout(() => {
-        router.push(redirectTo);
-        router.refresh();
-      }, 900);
+      router.push(redirectTo);
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Approval failed.');
       setBusy(false);

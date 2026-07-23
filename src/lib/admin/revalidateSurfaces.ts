@@ -19,6 +19,7 @@ const ADMIN_PATHS = [
 
 export function revalidateAdminSurfaces(): void {
   try {
+    revalidatePath('/admin', 'layout');
     for (const path of ADMIN_PATHS) {
       revalidatePath(path);
     }

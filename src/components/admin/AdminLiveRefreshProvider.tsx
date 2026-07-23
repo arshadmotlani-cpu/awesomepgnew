@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -23,6 +24,10 @@ export function useAdminNavBadges(): AdminNavBadges {
   return useContext(AdminBadgesContext);
 }
 
+function operationsBadgeCount(badges: AdminNavBadges): number {
+  return badges.operations ?? badges.overview ?? 0;
+}
+
 /**
  * Polls sidebar badge counts client-side only.
  * Does not call router.refresh() — that raced with Link navigation and blocked clicks
@@ -36,6 +41,7 @@ export function AdminLiveRefreshProvider({
   children: ReactNode;
 }) {
   const [badges, setBadges] = useState<AdminNavBadges>(initialBadges);
+  const lastPollRef = useRef<{ badges: AdminNavBadges; at: number } | null>(null);
 
   const pollBadges = useCallback(async () => {
     try {
@@ -47,6 +53,7 @@ export function AdminLiveRefreshProvider({
         unreadCount?: number;
       };
       if (!json.ok || !json.badges) return;
+      lastPollRef.current = { badges: json.badges, at: Date.now() };
       setBadges(json.badges);
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
@@ -65,7 +72,19 @@ export function AdminLiveRefreshProvider({
   }, []);
 
   useEffect(() => {
-    setBadges(initialBadges);
+    const polled = lastPollRef.current;
+    if (!polled) {
+      setBadges(initialBadges);
+      return;
+    }
+
+    const polledOps = operationsBadgeCount(polled.badges);
+    const nextOps = operationsBadgeCount(initialBadges);
+    // Never let stale layout SSR inflate counts after a fresher poll.
+    if (nextOps <= polledOps) {
+      setBadges(initialBadges);
+      lastPollRef.current = { badges: initialBadges, at: Date.now() };
+    }
   }, [initialBadges]);
 
   useEffect(() => {
