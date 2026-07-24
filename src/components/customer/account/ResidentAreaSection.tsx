@@ -593,22 +593,28 @@ export async function ResidentAreaSection({
     primaryVacating &&
     ['pending', 'approved'].includes(primaryVacating.status)
   ) {
-    const { loadVacatingBillingPresentation } = await import(
+    const { loadVacatingBillingPresentationBundle } = await import(
       '@/src/lib/vacating/loadVacatingBillingPresentation'
     );
-    const [presentation, pendingDateChange] = await Promise.all([
-      loadVacatingBillingPresentation({
+    const [bundle, pendingDateChange] = await Promise.all([
+      loadVacatingBillingPresentationBundle({
         bookingId: primaryBooking.bookingId,
         noticeGivenDate: primaryVacating.noticeGivenDate,
         vacatingDate: primaryVacating.vacatingDate,
         monthlyRentPaiseSnapshot: primaryVacating.monthlyRentPaiseSnapshot,
         durationMode: effectiveDurationMode ?? primaryBooking.booking.durationMode,
         mode: 'estimate',
+        treatAsApprovedForTail: true,
+        explanationMeta: {
+          bookingCode: primaryBooking.bookingCode,
+          residentName: session.fullName || customer?.fullName || 'Resident',
+          vacatingRequestId: primaryVacating.id,
+        },
       }),
       getPendingVacatingDateChangeForBooking(primaryBooking.bookingId),
     ]);
-    primaryEstimatedSettlement = presentation?.estimatedSettlement ?? null;
-    primaryNoticeDisplay = presentation?.noticeDisplay ?? null;
+    primaryEstimatedSettlement = bundle?.estimatedSettlement ?? null;
+    primaryNoticeDisplay = bundle?.noticeDisplay ?? null;
     primaryPendingDateChangeRequestId = pendingDateChange?.id ?? null;
     primarySettlementContext = {
       vacatingRequestId: primaryVacating.id,
@@ -625,6 +631,7 @@ export async function ResidentAreaSection({
     if (primaryEstimatedSettlement) {
       primarySettlementDocument = buildSettlementStatementModel({
         preview: primaryEstimatedSettlement,
+        explanations: bundle?.settlementExplanations ?? null,
         vacatingRequestId: primaryVacating.id,
         bookingId: primaryBooking.bookingId,
         customerName: primarySettlementContext.customerName,

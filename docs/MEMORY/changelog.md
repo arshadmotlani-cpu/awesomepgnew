@@ -7,6 +7,11 @@
 
 ---
 
+## 2026-07-24
+
+- **BILLING-SETTLEMENT-FINAL** — Unified `billingEngineValidation.ts`, `settlementRuleRegistry.ts`, 11-line explainability + INV-E4 zero reasons, prod scripts `validate-active-moveout-billing-engine.ts` + policy spot-checks, `alignCoverageToLockedWaterfall` for locked checkout (TAIL_MISMATCH fix), bundle wired to approval/financial/resident; 14/14 prod pass; `BILLING_SETTLEMENT_ENGINE_FINAL_REPORT.md`, `SETTLEMENT_REPAIR_POLICY.md`, UI audit doc
+- **BILLING-PHASE0-VALIDATION** — Added `BILLING_SETTLEMENT_BUSINESS_RULES.md`, `BILLING_ENGINE_INVARIANTS.md`, prod matrix script + `docs/validation/ACTIVE_MOVEOUT_PHASE0_MATRIX.md`, `PHASE0_VERDICT.md` (8/8 active move-outs pass automatable INV-*); cross-links in `BILLING_COVERAGE_MODEL.md`; Phase 1 proposal = unified validator only (no prod failure signatures)
+
 ## 2026-07-11
 
 - **CAPITAL-PARTNERSHIP-MODEL** — Net Vehicle Cost funding gate; Sufii Settings cut + Investor Pool by stake; sale price/date only; dealEconomics SSOT; migration `0008`; Business/My View + My Investment KPI
@@ -210,3 +215,70 @@ Files:
 - **OPS-MOVEOUT-REVIEW-GATE** — Operations Move-out tab loads `loadPendingVacatingApprovalPreviews`; list CTA **Review move-out**; **Approve move-out** only inside settlement dialog when BCM statement present; bed map links to Operations instead of bare approve
 - **SETTLEMENT-UI-DAYS-PAID** — Removed internal “Days paid” row from Billing & dates on move-out review/statement surfaces; rent bucket + paid until remain for approval decisions
 - **SETTLEMENT-EXPLAINABILITY** — `moveOutSettlementExplanation.ts` + prod audit script; “Why these numbers” on settlement statement; approval preview attaches explanations
+
+<!-- SEMANTIC_2026-07-24T11:35:38Z -->
+---
+Time: 2026-07-24T11:35:38Z
+Type: MIXED
+Impact: HIGH
+Reason: Move-out and checkout documentation is evolving — likely reflecting vacating ops or refund workflow changes.
+Files:
+- ARCHITECTURE.md
+- AWESOME_PG_MASTER_DOCUMENTATION.md
+- BILLING_COVERAGE_MODEL.md
+- BILLING_ENGINE.md
+- BILLING_ENGINE_INVARIANTS.md
+- BILLING_SETTLEMENT_BUSINESS_RULES.md
+- Billing.md
+- CHANGELOG.md
+- CURRENT_STATE.md
+- DATABASE.md
+- DECISIONS.md
+- Deposits.md
+- FINANCIAL_RECEIVED_AMOUNT_ARCHITECTURE.md
+- HANDOVER.md
+- MASTER_TEST_MATRIX.md
+- MEMORY/active_memory.md
+- MEMORY/changelog.md
+- MEMORY/decisions.md
+- MEMORY/tasks.md
+- NOTICE_DEDUCTION_MIGRATION.md
+- NOTICE_DEDUCTION_MIGRATION_REPORT.md
+- PROJECT/features.md
+- ROUTES.md
+- START_HERE.md
+- SYSTEM/AI_CONTEXT.md
+- SYSTEM/CURRENT_STATE.md
+- SYSTEM/WORKFLOWS.md
+- SYSTEM_TRUTH_MAP.md
+- Vacating.md
+- automotive-capital/DATABASE.md
+- automotive-capital/DECISIONS.md
+- automotive-capital/FEATURES.md
+- automotive-capital/TASKS.md
+- automotive-capital/WORKFLOWS.md
+- validation/ACTIVE_MOVEOUT_PHASE0_MATRIX.md
+- validation/PHASE0_VERDICT.md
+
+---
+
+<!-- SEMANTIC_2026-07-24T11:57:20Z -->
+---
+Time: 2026-07-24T11:57:20Z
+Type: MIXED
+Impact: HIGH
+Reason: The AI memory / intelligence automation layer is being extended — cognition pipeline or MEMORY structure changed.
+Files:
+- BILLING_COVERAGE_MODEL.md
+- BILLING_ENGINE_INVARIANTS.md
+- BILLING_SETTLEMENT_BUSINESS_RULES.md
+- BILLING_SETTLEMENT_ENGINE_FINAL_REPORT.md
+- MEMORY/changelog.md
+- MEMORY/decisions.md
+- SETTLEMENT_REPAIR_POLICY.md
+- validation/FINAL_PRODUCTION_VALIDATION.md
+- validation/POLICY_SPOTCHECKS.md
+- validation/UI_BILLING_AUDIT.md
+- validation/final-production-validation.json
+
+---

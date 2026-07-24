@@ -18,7 +18,6 @@ import {
 } from '@/src/lib/vacating/approvalPreview';
 import {
   estimatedSettlementFromCheckoutWaterfall,
-  loadEstimatedSettlementForVacating,
   type EstimatedSettlementPreview,
 } from '@/src/lib/vacating/estimatedSettlementPreview';
 import { buildFallbackPgLetterhead } from '@/src/lib/billing/pgLetterheadFallback';
@@ -208,19 +207,53 @@ export async function loadBookingFinancialWorkspace(
       });
     }
 
+    let settlementExplanations: import('@/src/lib/vacating/moveOutSettlementExplanation').MoveOutSettlementExplanationReport | null =
+      null;
+
     if (!estimatedSettlement && ['pending', 'approved'].includes(vacatingRow.status)) {
-      estimatedSettlement = await loadEstimatedSettlementForVacating({
+      const { loadVacatingBillingPresentationBundle } = await import(
+        '@/src/lib/vacating/loadVacatingBillingPresentation'
+      );
+      const bundle = await loadVacatingBillingPresentationBundle({
         bookingId,
         noticeGivenDate: vacatingRow.noticeGivenDate,
         vacatingDate: vacatingRow.vacatingDate,
         monthlyRentPaiseSnapshot: vacatingRow.monthlyRentPaiseSnapshot,
-        noticeRentCoveredDays: vacatingRow.noticeRentCoveredDays,
-        noticeChargeableDays: vacatingRow.noticeChargeableDays,
-        deductionPaise: vacatingRow.deductionPaise,
-        noticeBreakdownJson: vacatingRow.noticeBreakdownJson,
         stayType: b.stayType,
         durationMode: b.durationMode,
+        mode: 'estimate',
+        treatAsApprovedForTail: true,
+        explanationMeta: {
+          bookingCode: b.bookingCode,
+          residentName: b.customer.fullName,
+          vacatingRequestId: vacatingRow.id,
+        },
       });
+      estimatedSettlement = bundle?.estimatedSettlement ?? null;
+      settlementExplanations = bundle?.settlementExplanations ?? null;
+    }
+
+    if (estimatedSettlement && !settlementExplanations && checkoutDetail?.waterfall) {
+      const { loadVacatingBillingPresentationBundle } = await import(
+        '@/src/lib/vacating/loadVacatingBillingPresentation'
+      );
+      const bundle = await loadVacatingBillingPresentationBundle({
+        bookingId,
+        noticeGivenDate: vacatingRow.noticeGivenDate,
+        vacatingDate: vacatingRow.vacatingDate,
+        monthlyRentPaiseSnapshot: vacatingRow.monthlyRentPaiseSnapshot,
+        stayType: b.stayType,
+        durationMode: b.durationMode,
+        waterfall: checkoutDetail.waterfall,
+        mode: checkoutDetail.amountsLocked ? 'final' : 'baseline',
+        treatAsApprovedForTail: true,
+        explanationMeta: {
+          bookingCode: b.bookingCode,
+          residentName: b.customer.fullName,
+          vacatingRequestId: vacatingRow.id,
+        },
+      });
+      settlementExplanations = bundle?.settlementExplanations ?? null;
     }
 
     let settlementStatement: SettlementStatementDocumentModel | null = null;
@@ -228,6 +261,7 @@ export async function loadBookingFinancialWorkspace(
       const letterhead = buildFallbackPgLetterhead(primaryRes.pgName);
       settlementStatement = buildSettlementStatementModel({
         preview: estimatedSettlement,
+        explanations: settlementExplanations,
         vacatingRequestId: vacatingRow.id,
         bookingId,
         customerName: b.customer.fullName,
@@ -307,7 +341,11 @@ export async function loadBookingFinancialWorkspace(
 
   let moveOutWorkflow: BookingFinancialWorkspaceData['moveOutWorkflow'] = null;
   if (vacatingRow) {
-    const estimatedRefundPaise = checkoutDetail?.finalRefundPaise ?? checkoutDetail?.totalRefundPaise ??
+    const estimatedRefundPaise =
+      estimatedSettlement?.estimatedRefundPaise ??
+      checkoutDetail?.waterfall?.refund.totalPaise ??
+      checkoutDetail?.finalRefundPaise ??
+      checkoutDetail?.totalRefundPaise ??
       Math.max(0, depositHeld - (vacatingRow.deductionPaise ?? 0));
     const presentation = moveOutWorkflowPresentationFromPipelineLike({
       stage: vacatingRow.status === 'completed' ? 'bed_released' : 'requested',

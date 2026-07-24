@@ -3,6 +3,8 @@
 **Status:** Permanent architecture for move-out money surfaces.  
 **Code:** [`src/lib/billing/billingCoverageModel.ts`](../src/lib/billing/billingCoverageModel.ts) · **Loader:** [`loadBillingCoverageModel`](../src/services/billingCoverage.ts) · **Presentation bundle:** [`loadVacatingBillingPresentation`](../src/lib/vacating/loadVacatingBillingPresentation.ts)
 
+**Settlement rules & validation:** [BILLING_SETTLEMENT_BUSINESS_RULES.md](./BILLING_SETTLEMENT_BUSINESS_RULES.md) · [BILLING_ENGINE_INVARIANTS.md](./BILLING_ENGINE_INVARIANTS.md) · [Final engine report](./BILLING_SETTLEMENT_ENGINE_FINAL_REPORT.md)
+
 Do **not** add parallel billing calculators for vacating, notice, tail rent, or settlement display. Extend this model and its loader only.
 
 ---
@@ -81,7 +83,12 @@ Every amount shown on move-out review (rent paid/consumed, unused rent, notice, 
 
 If the engine cannot produce a complete explanation, or validation fails (waterfall vs UI vs BCM), treat as a **bug**. Run against all active non-terminal move-outs:
 
-`USE_PRODUCTION_DB=1 npx tsx scripts/audit-active-moveout-settlement-explanations.ts`
+```bash
+USE_PRODUCTION_DB=1 npx tsx scripts/audit-active-moveout-settlement-explanations.ts
+USE_PRODUCTION_DB=1 npx tsx scripts/report-phase0-moveout-validation-matrix.ts
+```
+
+Full invariant registry and Phase 0 report: [BILLING_ENGINE_INVARIANTS.md](./BILLING_ENGINE_INVARIANTS.md), [validation/PHASE0_VERDICT.md](./validation/PHASE0_VERDICT.md).
 
 Review UI shows a collapsible **Why these numbers** section on the settlement statement (admin approve modal).
 

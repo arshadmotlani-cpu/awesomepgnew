@@ -42,6 +42,25 @@ export type VacatingBillingPresentation = {
   billingCoverageDaysPaid: DaysPaidDisplayRow;
 };
 
+/** When checkout amounts are locked, BCM live tail can drift from stored waterfall — align for display/validation. */
+export function alignCoverageToLockedWaterfall(
+  coverage: BillingCoverageModel,
+  locked: CheckoutSettlementWaterfall,
+): BillingCoverageModel {
+  const tailPaise = locked.depositBucket.tailRentPaise;
+  return {
+    ...coverage,
+    tailRentPaise: tailPaise,
+    finalInvoiceSuppression: tailPaise > 0 ? true : coverage.finalInvoiceSuppression,
+    tailRent: {
+      ...coverage.tailRent,
+      tailRentPaise: tailPaise,
+      tailDays: tailPaise > 0 ? coverage.tailRent.tailDays : 0,
+      shouldSuppressFinalInvoice: tailPaise > 0,
+    },
+  };
+}
+
 export function noticeDisplayFromBillingCoverage(
   coverage: BillingCoverageModel,
 ): NoticeSettlementDisplay {
@@ -107,6 +126,15 @@ export async function loadVacatingBillingPresentation(
     (ctx ? computeVacatingSettlementWaterfallFromContext(ctx) : null);
   if (!waterfall || !ctx) return null;
 
+  if (precomputedWaterfall) {
+    coverage = alignCoverageToLockedWaterfall(coverage, precomputedWaterfall);
+    ctx = {
+      ...ctx,
+      checkoutTailRentPaise: precomputedWaterfall.depositBucket.tailRentPaise,
+      missingNoticeDays: precomputedWaterfall.notice.missingNoticeDays,
+    };
+  }
+
   const noticeDisplay = noticeDisplayFromBillingCoverage(coverage);
   const billingCoverageDaysPaid = resolveDaysPaidFromBillingCoverage(coverage);
   const noticeGivenDays =
@@ -144,4 +172,54 @@ export async function loadVacatingBillingPresentation(
     estimatedSettlement,
     billingCoverageDaysPaid,
   };
+}
+
+export type VacatingBillingPresentationBundle = VacatingBillingPresentation & {
+  settlementExplanations: import('@/src/lib/vacating/moveOutSettlementExplanation').MoveOutSettlementExplanationReport;
+};
+
+/** Presentation + explainability report; validates when BILLING_ENGINE_STRICT=1. */
+export async function loadVacatingBillingPresentationBundle(
+  input: LoadVacatingBillingPresentationInput & {
+    explanationMeta?: {
+      bookingCode: string;
+      residentName: string;
+      vacatingRequestId?: string;
+    };
+  },
+): Promise<VacatingBillingPresentationBundle | null> {
+  const presentation = await loadVacatingBillingPresentation(input);
+  if (!presentation) return null;
+
+  const {
+    buildMoveOutSettlementExplanations,
+  } = await import('@/src/lib/vacating/moveOutSettlementExplanation');
+  const { billingEngineStrictEnabled, validateBillingEngineSettlement } = await import(
+    '@/src/lib/billing/billingEngineValidation'
+  );
+
+  const meta = input.explanationMeta ?? {
+    bookingCode: input.bookingId,
+    residentName: '—',
+  };
+
+  const settlementExplanations = buildMoveOutSettlementExplanations(presentation, {
+    bookingId: input.bookingId,
+    bookingCode: meta.bookingCode,
+    residentName: meta.residentName,
+    vacatingRequestId: meta.vacatingRequestId,
+  });
+
+  if (billingEngineStrictEnabled()) {
+    const validation = validateBillingEngineSettlement(settlementExplanations, presentation, {
+      lockedWaterfall: input.waterfall ?? null,
+    });
+    if (!validation.ok) {
+      throw new Error(
+        `Billing engine validation failed: ${validation.failures.map((f) => f.signature).join(', ')}`,
+      );
+    }
+  }
+
+  return { ...presentation, settlementExplanations };
 }

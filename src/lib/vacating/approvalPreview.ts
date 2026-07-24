@@ -96,10 +96,10 @@ export async function buildVacatingApprovalPreviewAsync(
   depositHeldPaise: number,
 ): Promise<VacatingApprovalPreview> {
   const sync = buildVacatingApprovalPreview(row, depositHeldPaise);
-  const { loadVacatingBillingPresentation } = await import(
+  const { loadVacatingBillingPresentationBundle } = await import(
     '@/src/lib/vacating/loadVacatingBillingPresentation'
   );
-  const presentation = await loadVacatingBillingPresentation({
+  const bundle = await loadVacatingBillingPresentationBundle({
     bookingId: row.bookingId,
     noticeGivenDate: row.noticeGivenDate,
     vacatingDate: row.vacatingDate,
@@ -107,21 +107,18 @@ export async function buildVacatingApprovalPreviewAsync(
     stayType: row.stayType,
     durationMode: row.durationMode,
     mode: 'estimate',
+    treatAsApprovedForTail: true,
+    explanationMeta: {
+      bookingCode: row.bookingCode,
+      residentName: row.customerFullName,
+      vacatingRequestId: row.id,
+    },
   });
   const base = applyEstimatedSettlementToApprovalPreview(
     sync,
-    presentation?.estimatedSettlement ?? null,
-    presentation?.noticeDisplay ?? null,
+    bundle?.estimatedSettlement ?? null,
+    bundle?.noticeDisplay ?? null,
   );
-  if (!presentation?.estimatedSettlement) return base;
-  const { buildMoveOutSettlementExplanations } = await import(
-    '@/src/lib/vacating/moveOutSettlementExplanation'
-  );
-  const settlementExplanations = buildMoveOutSettlementExplanations(presentation, {
-    bookingId: row.bookingId,
-    bookingCode: row.bookingCode,
-    residentName: row.customerFullName,
-    vacatingRequestId: row.id,
-  });
-  return { ...base, settlementExplanations };
+  if (!bundle?.estimatedSettlement) return base;
+  return { ...base, settlementExplanations: bundle.settlementExplanations };
 }

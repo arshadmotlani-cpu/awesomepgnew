@@ -1,0 +1,41 @@
+{
+  "profiles": [
+    {
+      "bookingCode": "APG-2026-0048",
+      "residentLabel": "Krishna",
+      "policyTags": ["pending_request", "short_notice", "tail_preview"],
+      "objective": {
+        "noticeApplies": true,
+        "whenVacateInsidePaidPeriod": { "tailRentPaiseMax": 0 }
+      }
+    },
+    {
+      "bookingCode": "APG-2026-0045",
+      "residentLabel": "Approved tail regression",
+      "policyTags": ["waiting_vacating_date", "approved", "tail_case_b"],
+      "objective": {
+        "finalInvoiceSuppressionWhenTailPositive": true
+      }
+    },
+    {
+      "bookingCode": "APG-REGRESSION-C",
+      "residentLabel": "Synthetic Case C (unit fixture)",
+      "policyTags": ["no_tail", "inside_paid_period"],
+      "syntheticVacatingDate": "2026-08-03",
+      "objective": {
+        "tailRentPaise": 0,
+        "finalInvoiceSuppression": false
+      }
+    },
+    {
+      "bookingCode": "APG-REGRESSION-B",
+      "residentLabel": "Synthetic Case B (unit fixture)",
+      "policyTags": ["tail_case_b", "one_tail_day"],
+      "syntheticVacatingDate": "2026-08-08",
+      "objective": {
+        "tailRentPaiseMin": 1,
+        "finalInvoiceSuppression": true
+      }
+    }
+  ]
+}

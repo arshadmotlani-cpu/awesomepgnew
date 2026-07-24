@@ -1,0 +1,152 @@
+{
+  "generatedAt": "2026-07-24T12:13:11.610Z",
+  "completedLimit": 12,
+  "summary": {
+    "total": 14,
+    "pass": 14,
+    "fail": 0
+  },
+  "rows": [
+    {
+      "bookingCode": "APG-2026-0033",
+      "workflowStage": "waiting_vacating_date",
+      "pipelineStage": "notice_verified",
+      "cohort": "active",
+      "ok": true,
+      "signatures": [],
+      "failures": [],
+      "refundTotalPaise": 13800
+    },
+    {
+      "bookingCode": "APG-2026-0032",
+      "workflowStage": "waiting_vacating_date",
+      "pipelineStage": "notice_verified",
+      "cohort": "active",
+      "ok": true,
+      "signatures": [],
+      "failures": [],
+      "refundTotalPaise": 44600
+    },
+    {
+      "bookingCode": "APG-2026-0036",
+      "workflowStage": "waiting_vacating_date",
+      "pipelineStage": "notice_verified",
+      "cohort": "active",
+      "ok": true,
+      "signatures": [],
+      "failures": [],
+      "refundTotalPaise": 81200
+    },
+    {
+      "bookingCode": "APG-2026-0076",
+      "workflowStage": "waiting_vacating_date",
+      "pipelineStage": "notice_verified",
+      "cohort": "active",
+      "ok": true,
+      "signatures": [],
+      "failures": [],
+      "refundTotalPaise": 44056
+    },
+    {
+      "bookingCode": "APG-2026-0045",
+      "workflowStage": "waiting_vacating_date",
+      "pipelineStage": "notice_verified",
+      "cohort": "active",
+      "ok": true,
+      "signatures": [],
+      "failures": [],
+      "refundTotalPaise": 151096
+    },
+    {
+      "bookingCode": "APG-2026-0048",
+      "workflowStage": "pending_request",
+      "pipelineStage": "requested",
+      "cohort": "active",
+      "ok": true,
+      "signatures": [],
+      "failures": [],
+      "refundTotalPaise": 412080
+    },
+    {
+      "bookingCode": "APG-2026-0082",
+      "workflowStage": "pending_request",
+      "pipelineStage": "requested",
+      "cohort": "active",
+      "ok": true,
+      "signatures": [],
+      "failures": [],
+      "refundTotalPaise": 0
+    },
+    {
+      "bookingCode": "APG-2026-0083",
+      "workflowStage": "pending_request",
+      "pipelineStage": "requested",
+      "cohort": "active",
+      "ok": true,
+      "signatures": [],
+      "failures": [],
+      "refundTotalPaise": 0
+    },
+    {
+      "bookingCode": "APG-2026-0015",
+      "workflowStage": "completed",
+      "pipelineStage": "—",
+      "cohort": "completed",
+      "ok": true,
+      "signatures": [],
+      "failures": [],
+      "refundTotalPaise": 200000
+    },
+    {
+      "bookingCode": "APG-2026-0035",
+      "workflowStage": "completed",
+      "pipelineStage": "—",
+      "cohort": "completed",
+      "ok": true,
+      "signatures": [],
+      "failures": [],
+      "refundTotalPaise": 81200
+    },
+    {
+      "bookingCode": "APG-2026-0006",
+      "workflowStage": "completed",
+      "pipelineStage": "—",
+      "cohort": "completed",
+      "ok": true,
+      "signatures": [],
+      "failures": [],
+      "refundTotalPaise": 0
+    },
+    {
+      "bookingCode": "APG-2026-0016",
+      "workflowStage": "completed",
+      "pipelineStage": "—",
+      "cohort": "completed",
+      "ok": true,
+      "signatures": [],
+      "failures": [],
+      "refundTotalPaise": 0
+    },
+    {
+      "bookingCode": "APG-2026-0027",
+      "workflowStage": "completed",
+      "pipelineStage": "—",
+      "cohort": "completed",
+      "ok": true,
+      "signatures": [],
+      "failures": [],
+      "refundTotalPaise": 0
+    },
+    {
+      "bookingCode": "APG-2026-0010",
+      "workflowStage": "completed",
+      "pipelineStage": "—",
+      "cohort": "completed",
+      "ok": true,
+      "signatures": [],
+      "failures": [],
+      "refundTotalPaise": 628600
+    }
+  ],
+  "failuresBySignature": {}
+}
