@@ -9,7 +9,6 @@ import type { CheckoutSettlementImageEvidence } from '@/src/lib/checkout/checkou
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 import { CheckoutSettlementAuditBreakdown } from '@/src/components/admin/checkout/CheckoutSettlementAuditBreakdown';
 import { NoticeSettlementPanel } from '@/src/components/shared/NoticeDeductionBreakdown';
-import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 
 export type RefundSummaryOverrides = {
   electricityDeductionPaise?: number;
