@@ -66,7 +66,7 @@ function mapRowToPlainLanguage(row: SettlementDisplayRow): SettlementDisplayRow 
   return {
     ...row,
     label: plainLabel ?? row.label,
-    hint: null,
+    hint: undefined,
   };
 }
 
@@ -95,7 +95,6 @@ function collectPlainAffectsRefundRows(model: SettlementStatementDocumentModel):
       label: 'Held from deposit for notice period',
       value: noticeHero.value,
       deduct: true,
-      hint: null,
     });
   }
 
@@ -106,7 +105,6 @@ function collectPlainAffectsRefundRows(model: SettlementStatementDocumentModel):
       label: 'Still being finalized',
       value: pendingHero.value,
       deduct: false,
-      hint: null,
     });
   }
 
@@ -134,6 +132,7 @@ export function applySettlementPresentationAudience(
     return {
       ...model,
       audience,
+      explanations: model.explanations ?? null,
       affectsRefundSection: null,
       showRentSummary: true,
       showCollapsedSections: true,

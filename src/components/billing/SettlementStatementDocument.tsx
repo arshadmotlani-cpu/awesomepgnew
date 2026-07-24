@@ -237,7 +237,7 @@ export function SettlementStatementDocument({
               <FinancialDocumentCollapsibleSection surface={surface} title="Accountant audit trail">
                 <FinancialDocumentRowList
                   surface={surface}
-                  rows={doc.auditTrace.map((row) => ({ ...row, hint: null, deduct: false }))}
+                  rows={doc.auditTrace.map((row) => ({ ...row, deduct: false }))}
                 />
               </FinancialDocumentCollapsibleSection>
             ) : null}

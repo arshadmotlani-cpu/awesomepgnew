@@ -342,7 +342,7 @@ export async function loadBookingFinancialWorkspace(
   let moveOutWorkflow: BookingFinancialWorkspaceData['moveOutWorkflow'] = null;
   if (vacatingRow) {
     const estimatedRefundPaise =
-      estimatedSettlement?.estimatedRefundPaise ??
+      vacating?.estimatedSettlement?.estimatedRefundPaise ??
       checkoutDetail?.waterfall?.refund.totalPaise ??
       checkoutDetail?.finalRefundPaise ??
       checkoutDetail?.totalRefundPaise ??

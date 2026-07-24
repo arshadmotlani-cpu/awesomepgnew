@@ -256,21 +256,21 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-24 13:49:08 UTC
+### Pending pre-commit sync · 2026-07-24 14:43:11 UTC
 
-**Areas touched:** [[ROUTES]], [[Vacating]]
+**Areas touched:** [[Vacating]], [[Bookings]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
 - `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (2):**
-- `app/(customer)/dev/resident-move-out-stages/page.tsx`
+**Staged code files (3):**
 - `src/lib/vacating/residentMoveOutStageFixtures.ts`
+- `src/lib/vacating/settlementPresentationAudience.ts`
+- `src/services/bookingFinancialWorkspace.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed
