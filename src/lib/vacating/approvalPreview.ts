@@ -2,10 +2,7 @@ import { normalizeIsoDateOnly, tryDiffDays } from '@/src/lib/dates';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import type { AdminVacatingRow } from '@/src/db/queries/admin';
 import type { NoticeDeductionBreakdown } from '@/src/lib/vacating/noticeDeductionEngine';
-import {
-  breakdownFromStoredNoticeSnapshot,
-  type NoticeSettlementDisplay,
-} from '@/src/lib/vacating/noticeDeductionPresentation';
+import type { NoticeSettlementDisplay } from '@/src/lib/vacating/noticeDeductionPresentation';
 import type { EstimatedSettlementPreview } from '@/src/lib/vacating/estimatedSettlementPreview';
 import {
   moveOutDaysRemaining,
@@ -36,7 +33,7 @@ export type VacatingApprovalPreview = {
   estimatedDeductionPaise: number;
   estimatedRefundPaise: number;
   bedStatus: VacatingBedStatus;
-  /** @deprecated Use estimatedSettlement */
+  /** Coverage-derived notice display — same source as estimatedSettlement; never from stored JSON. */
   noticeBreakdown: NoticeSettlementDisplay | null;
   estimatedSettlement: EstimatedSettlementPreview | null;
 };
@@ -52,15 +49,6 @@ export function buildVacatingApprovalPreview(
   const estimatedDeductionPaise = guardDepositPaise(row.deductionPaise);
   const held = guardDepositPaise(depositHeldPaise);
   const estimatedRefundPaise = Math.max(0, held - estimatedDeductionPaise);
-  const noticeBreakdown = breakdownFromStoredNoticeSnapshot({
-    noticeGivenDays: noticeCompletedDays,
-    noticeGivenDate,
-    vacatingDate,
-    noticeRentCoveredDays: row.noticeRentCoveredDays,
-    noticeChargeableDays: row.noticeChargeableDays,
-    noticeDeductionPaise: estimatedDeductionPaise,
-    noticeBreakdownJson: row.noticeBreakdownJson,
-  });
 
   return {
     residentName: row.customerFullName,
@@ -75,8 +63,28 @@ export function buildVacatingApprovalPreview(
     estimatedDeductionPaise,
     estimatedRefundPaise,
     bedStatus: vacatingBedStatus(row.status),
-    noticeBreakdown,
+    noticeBreakdown: null,
     estimatedSettlement: null,
+  };
+}
+
+export function applyEstimatedSettlementToApprovalPreview(
+  sync: VacatingApprovalPreview,
+  estimatedSettlement: EstimatedSettlementPreview | null,
+  noticeBreakdown?: NoticeSettlementDisplay | null,
+): VacatingApprovalPreview {
+  if (!estimatedSettlement) return sync;
+  const w = estimatedSettlement.waterfall;
+  const depositHeld = estimatedSettlement.depositHeldPaise;
+  const estimatedRefundPaise = estimatedSettlement.estimatedRefundPaise;
+  const estimatedDeductionPaise = Math.max(0, depositHeld - w.depositBucket.refundablePaise);
+  return {
+    ...sync,
+    estimatedSettlement,
+    noticeBreakdown: noticeBreakdown ?? sync.noticeBreakdown,
+    estimatedRefundPaise,
+    estimatedDeductionPaise,
+    depositHeldPaise: depositHeld,
   };
 }
 
@@ -85,20 +93,21 @@ export async function buildVacatingApprovalPreviewAsync(
   depositHeldPaise: number,
 ): Promise<VacatingApprovalPreview> {
   const sync = buildVacatingApprovalPreview(row, depositHeldPaise);
-  const { loadEstimatedSettlementForVacating } = await import(
-    '@/src/lib/vacating/estimatedSettlementPreview'
+  const { loadVacatingBillingPresentation } = await import(
+    '@/src/lib/vacating/loadVacatingBillingPresentation'
   );
-  const estimatedSettlement = await loadEstimatedSettlementForVacating({
+  const presentation = await loadVacatingBillingPresentation({
     bookingId: row.bookingId,
     noticeGivenDate: row.noticeGivenDate,
     vacatingDate: row.vacatingDate,
     monthlyRentPaiseSnapshot: row.monthlyRentPaiseSnapshot,
-    noticeRentCoveredDays: row.noticeRentCoveredDays,
-    noticeChargeableDays: row.noticeChargeableDays,
-    deductionPaise: row.deductionPaise,
-    noticeBreakdownJson: row.noticeBreakdownJson,
     stayType: row.stayType,
     durationMode: row.durationMode,
+    mode: 'estimate',
   });
-  return { ...sync, estimatedSettlement };
+  return applyEstimatedSettlementToApprovalPreview(
+    sync,
+    presentation?.estimatedSettlement ?? null,
+    presentation?.noticeDisplay ?? null,
+  );
 }

@@ -287,7 +287,7 @@ export function buildVacatingTimelineStages(input: {
 }
 
 export const ESTIMATED_REFUND_HELPER =
-  'Final refund will be confirmed after electricity verification.';
+  'Final refund will be calculated after your final electricity reading and room inspection.';
 
 export const SETTLEMENT_BREAKDOWN_PLACEHOLDER =
   'The detailed calculation will appear after your meter reading has been verified.';

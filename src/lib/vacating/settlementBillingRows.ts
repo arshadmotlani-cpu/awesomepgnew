@@ -1,7 +1,7 @@
 import {
   formatSettlementDate,
   formatSettlementDays,
-  resolveDaysPaidDisplay,
+  type DaysPaidDisplayRow,
   type SettlementDisplaySection,
 } from '@/src/lib/checkout/settlementDisplayFormat';
 import type { NoticeSettlementDisplay } from '@/src/lib/vacating/noticeDeductionPresentation';
@@ -13,7 +13,7 @@ export function buildSettlementBillingDatesSectionRows(args: {
   stayDays: number;
   checkInDate: string;
   checkoutDate: string;
-  daysPaid: ReturnType<typeof resolveDaysPaidDisplay>;
+  daysPaid: DaysPaidDisplayRow;
 }): SettlementDisplaySection['rows'] {
   return [
     {

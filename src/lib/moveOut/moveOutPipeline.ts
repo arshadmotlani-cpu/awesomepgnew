@@ -271,6 +271,16 @@ export function deriveMoveOutStage(
     return stageMeta('bed_released', 'Move-out complete', settlementContinue, 'view');
   }
 
+  if (vacating.status === 'pending') {
+    const vacatingReadHref = vacatingWorkflowHref(vacating.id);
+    return stageMeta(
+      'requested',
+      'Verify notice period and approve move-out',
+      vacatingReadHref,
+      'approve',
+    );
+  }
+
   if (settlementStatus === 'refund_pending') {
     return stageMeta(
       'deposit_approved',
@@ -304,16 +314,6 @@ export function deriveMoveOutStage(
       'Move-out approved — resident refund unlocks on vacate date',
       null,
       'view',
-    );
-  }
-
-  if (vacating.status === 'pending') {
-    const vacatingReadHref = vacatingWorkflowHref(vacating.id);
-    return stageMeta(
-      'requested',
-      'Verify notice period and approve move-out',
-      vacatingReadHref,
-      'approve',
     );
   }
 
@@ -372,7 +372,7 @@ function buildStageTimestamps(
     ts.notice_verified = settled?.createdAt ?? updatedAt;
   }
 
-  if (settled) {
+  if (settled && vacating.status !== 'pending') {
     ts.room_inspection = settled.createdAt;
 
     if (

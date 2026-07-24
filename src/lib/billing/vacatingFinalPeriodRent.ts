@@ -2,10 +2,7 @@
  * Approved move-out — final anniversary period rent (suppress invoice + tail in settlement).
  */
 import { addDays, addMonths, diffDays, formatDate, parseDate, type DateLike } from '@/src/lib/dates';
-import {
-  resolvePaidThroughDate,
-  type PaidRentCoveragePeriod,
-} from '@/src/lib/vacating/noticeDeductionEngine';
+import type { PaidRentCoveragePeriod } from '@/src/lib/vacating/noticeDeductionEngine';
 import {
   anniversaryBillingPeriod,
   dailyRateFromMonthly,
@@ -105,6 +102,14 @@ export function computeVacatingFinalPeriodRentDecision(input: {
   });
   if (!period) return empty;
 
+  if (
+    input.paidPeriods.some(
+      (p) => p.periodStart <= vacatingDate && vacatingDate <= p.periodEnd,
+    )
+  ) {
+    return empty;
+  }
+
   if (isAnniversaryPeriodPaid(period, input.paidPeriods)) return empty;
 
   if (vacatingDate >= period.periodEnd) {
@@ -117,15 +122,30 @@ export function computeVacatingFinalPeriodRentDecision(input: {
     };
   }
 
-  const { paidUntilDate } = resolvePaidThroughDate(vacatingDate, input.paidPeriods);
-  const dayAfterPaidUntil = paidUntilDate ? formatDate(addDays(paidUntilDate, 1)) : null;
+  const lastPaidPeriodEndBeforeVacate = input.paidPeriods.reduce<string | null>((best, p) => {
+    if (p.periodEnd >= vacatingDate) return best;
+    if (!best || p.periodEnd > best) return p.periodEnd;
+    return best;
+  }, null);
+  const dayAfterPaidUntil = lastPaidPeriodEndBeforeVacate
+    ? formatDate(addDays(lastPaidPeriodEndBeforeVacate, 1))
+    : null;
   let tailPeriodStart = period.periodStart;
   if (dayAfterPaidUntil && dayAfterPaidUntil > tailPeriodStart) {
     tailPeriodStart = dayAfterPaidUntil;
   }
   const tailPeriodEnd = vacatingDate;
-  const tailDays =
-    tailPeriodStart <= tailPeriodEnd ? diffDays(tailPeriodStart, tailPeriodEnd) + 1 : 0;
+  let tailDays = 0;
+  if (tailPeriodStart <= tailPeriodEnd) {
+    const daysFromFirstUnpaidToVacate =
+      dayAfterPaidUntil != null ? diffDays(dayAfterPaidUntil, vacatingDate) : null;
+    // Vacate exactly one calendar day after first unpaid day → single tail day (vacating date only).
+    if (daysFromFirstUnpaidToVacate === 1) {
+      tailDays = 1;
+    } else {
+      tailDays = diffDays(tailPeriodStart, tailPeriodEnd) + 1;
+    }
+  }
   const dailyRentPaise = dailyRateFromMonthly(input.monthlyRentPaise);
   const tailRentPaise = Math.max(0, tailDays * dailyRentPaise);
 

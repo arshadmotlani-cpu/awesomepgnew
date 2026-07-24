@@ -256,9 +256,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-24 07:24:54 UTC
+### Pending pre-commit sync · 2026-07-24 10:37:45 UTC
 
-**Areas touched:** [[ROUTES]], [[Vacating]], [[Residents]], [[Action Center]], [[Bookings]]
+**Areas touched:** [[ROUTES]], [[Billing]], [[Vacating]], [[Residents]], [[Bookings]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
@@ -269,19 +269,26 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (12):**
-- `app/(admin)/admin/bookings/[bookingId]/page.tsx`
+**Staged code files (19):**
 - `app/(admin)/admin/operations/page.tsx`
-- `app/(admin)/admin/vacating/page.tsx`
+- `src/lib/billing/billingCoverageModel.ts`
+- `src/lib/billing/monthlyBillingSnapshot.ts`
+- `src/lib/billing/vacatingFinalPeriodRent.ts`
 - `src/lib/moveOut/moveOutPipeline.ts`
 - `src/lib/moveOut/moveOutPipelineUi.ts`
-- `src/lib/moveOut/moveOutWorkflowStages.ts`
-- `src/lib/residents/vacatingJourney.ts`
+- `src/lib/residents/checkoutOpsQueueCopy.ts`
+- `src/lib/residents/residentMoveOutSettlementStory.ts`
 - `src/lib/residents/vacatingPresentation.ts`
-- `src/services/actionItems.ts`
+- `src/lib/vacating/approvalPreview.ts`
+- `src/lib/vacating/checkoutSettlementEligibility.ts`
+- `src/lib/vacating/computeVacatingSettlementPreview.ts`
+- `src/lib/vacating/estimatedSettlementPreview.ts`
+- `src/lib/vacating/loadAdminVacatingPageData.ts`
+- `src/lib/vacating/loadVacatingBillingPresentation.ts`
+- `src/lib/vacating/settlementBillingRows.ts`
 - `src/services/bookingFinancialWorkspace.ts`
 - `src/services/checkoutSettlement.ts`
-- `src/services/vacating.ts`
+- `src/services/vacatingCheckoutBilling.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

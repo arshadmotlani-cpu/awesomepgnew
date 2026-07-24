@@ -101,6 +101,9 @@ export async function previewCheckoutSettlementRepair(): Promise<CheckoutSettlem
       vr.status::text AS vacating_status,
       cs.status::text AS settlement_status,
       CASE
+        WHEN vr.status = 'pending'
+          AND cs.status NOT IN ('archived', 'completed', 'refund_paid')
+          THEN 'Premature settlement — vacating still pending'
         WHEN vr.status = 'rejected' THEN 'Orphan — vacating rejected'
         WHEN cs.status = 'archived' AND vr.status IN ('pending', 'approved') THEN 'Archived settlement on active vacating'
         WHEN cs.status NOT IN ('archived', 'completed', 'refund_paid')
@@ -115,6 +118,10 @@ export async function previewCheckoutSettlementRepair(): Promise<CheckoutSettlem
     FROM checkout_settlements cs
     INNER JOIN vacating_requests vr ON vr.id = cs.vacating_request_id
     WHERE vr.status = 'rejected'
+       OR (
+         vr.status = 'pending'
+         AND cs.status NOT IN ('archived', 'completed', 'refund_paid')
+       )
        OR (
          cs.status = 'archived'
          AND vr.status IN ('pending', 'approved')
@@ -185,6 +192,8 @@ export async function executeCheckoutSettlementRepair(input: {
     if (input.dryRun) {
       if (TERMINAL_VACATING.includes(row.vacatingStatus as 'rejected')) {
         result.removed += 1;
+      } else if (row.issue.startsWith('Premature settlement')) {
+        result.archived += 1;
       } else if (row.issue.startsWith('Archived')) {
         result.rebuilt += 1;
       } else if (row.issue.startsWith('Duplicate')) {
@@ -203,6 +212,22 @@ export async function executeCheckoutSettlementRepair(input: {
         if (cleaned.action === 'deleted') result.removed += 1;
         else if (cleaned.action === 'archived') result.archived += 1;
         else result.skipped += 1;
+        continue;
+      }
+
+      if (row.issue.startsWith('Premature settlement')) {
+        const { archivePrematureCheckoutSettlementForVacating } = await import(
+          '@/src/services/checkoutSettlement'
+        );
+        const repaired = await archivePrematureCheckoutSettlementForVacating({
+          vacatingRequestId: row.vacatingRequestId,
+          adminId: input.adminId,
+          reason: row.issue,
+        });
+        if (repaired.ok) result.archived += 1;
+        else {
+          result.failed.push({ settlementId: row.settlementId, error: repaired.error });
+        }
         continue;
       }
 

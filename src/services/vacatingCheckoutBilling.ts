@@ -15,7 +15,7 @@ import {
 } from '@/src/lib/billing/vacatingFinalPeriodRent';
 import { formatDate, parseDate } from '@/src/lib/dates';
 import { firstOfMonth } from '@/src/services/billing';
-import { loadPaidRentCoveragePeriods } from '@/src/services/noticeDeduction';
+import { loadBillingCoverageModel } from '@/src/services/billingCoverage';
 
 export type VacatingCheckoutBillingResult = {
   checkoutMonth: string;
@@ -209,32 +209,35 @@ export async function syncVacatingCheckoutRentBilling(input: {
   let finalPeriodInvoiceRestored = false;
 
   if (approved) {
-    const { periods, billingDay, moveInDate } = await loadPaidRentCoveragePeriods(
-      input.bookingId,
-    );
-    if (moveInDate) {
-      const decision = computeVacatingFinalPeriodRentDecision({
-        vacatingApproved: true,
-        vacatingDate,
-        billingDay,
-        moveInDate,
-        monthlyRentPaise: approved.monthlyRentPaiseSnapshot,
-        paidPeriods: periods,
-      });
+    const coverage = await loadBillingCoverageModel({
+      bookingId: input.bookingId,
+      vacatingDate,
+      monthlyRentPaise: approved.monthlyRentPaiseSnapshot,
+      treatAsApprovedForTail: true,
+    });
+    const decision = coverage?.tailRent ?? computeVacatingFinalPeriodRentDecision({
+      vacatingApproved: false,
+      vacatingDate,
+      billingDay: 5,
+      moveInDate: vacatingDate,
+      monthlyRentPaise: 0,
+      paidPeriods: [],
+    });
 
-      if (decision.shouldSuppressFinalInvoice && decision.invoiceBillingMonth) {
-        finalPeriodInvoiceCancelled = await cancelFinalPeriodInvoice({
-          bookingId: input.bookingId,
-          billingMonth: decision.invoiceBillingMonth,
-          reason: decision.cancellationReason ?? `${VACATING_CANCEL_REASON_PREFIX} — ${VACATING_FINAL_PERIOD_CANCEL_REASON_SUFFIX}`,
-          vacatingDate,
-        });
-      } else {
-        finalPeriodInvoiceRestored = await restoreFinalPeriodInvoicesWhenNotSuppressing({
-          bookingId: input.bookingId,
-          adminId: input.actorId,
-        });
-      }
+    if (decision.shouldSuppressFinalInvoice && decision.invoiceBillingMonth) {
+      finalPeriodInvoiceCancelled = await cancelFinalPeriodInvoice({
+        bookingId: input.bookingId,
+        billingMonth: decision.invoiceBillingMonth,
+        reason:
+          decision.cancellationReason ??
+          `${VACATING_CANCEL_REASON_PREFIX} — ${VACATING_FINAL_PERIOD_CANCEL_REASON_SUFFIX}`,
+        vacatingDate,
+      });
+    } else {
+      finalPeriodInvoiceRestored = await restoreFinalPeriodInvoicesWhenNotSuppressing({
+        bookingId: input.bookingId,
+        adminId: input.actorId,
+      });
     }
   }
 
@@ -314,15 +317,11 @@ export async function resolveVacatingFinalPeriodInvoiceSuppression(
   if (!approved) return null;
 
   const vacatingDate = formatDate(parseDate(String(approved.vacatingDate)));
-  const { periods, billingDay, moveInDate } = await loadPaidRentCoveragePeriods(bookingId);
-  if (!moveInDate) return null;
-
-  return computeVacatingFinalPeriodRentDecision({
-    vacatingApproved: true,
+  const coverage = await loadBillingCoverageModel({
+    bookingId,
     vacatingDate,
-    billingDay,
-    moveInDate,
     monthlyRentPaise: approved.monthlyRentPaiseSnapshot,
-    paidPeriods: periods,
+    treatAsApprovedForTail: true,
   });
+  return coverage?.tailRent ?? null;
 }

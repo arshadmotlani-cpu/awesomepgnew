@@ -555,6 +555,7 @@ export async function runProductionDataConsistencyRepair(
           vacatingRequestId: vacating.id,
           checkoutSource:
             vacating.status === 'completed' ? 'admin_force_checkout' : 'resident_vacating',
+          callerContext: 'productionDataConsistencyAudit',
         });
         if (created.ok) {
           checkoutSettlementsCreated += 1;

@@ -134,5 +134,17 @@
 ## DECISION — Vacating final-period rent billing (2026-07-24)
 - **Approved move-out only:** suppress the next pending anniversary rent invoice when vacating falls inside an unpaid billing period before period end; collect tail rent (inclusive calendar days from tail start through vacate) in checkout settlement V2 deposit deductions — not as a separate monthly invoice. SSOT: `src/lib/billing/vacatingFinalPeriodRent.ts`; sync via `syncVacatingCheckoutRentBilling`; generation gate in `generateRentInvoicesForMonth`. Pending notices do not suppress.
 
+## DECISION — Settlement preview tail simulation (2026-07-24)
+- **Invoice suppression** stays gated on approved vacating (unchanged). **Settlement estimates** (approval dialog, financial workspace, resident portal) use `treatAsApprovedForTail: true` via `src/lib/vacating/computeVacatingSettlementPreview.ts` so projected tail rent and refundable deposit match post-approval V2 waterfall. Single SSOT: `buildVacatingSettlementPreview` / `computeVacatingSettlementWaterfall`; legacy `estimatedRefundPaise = deposit − row.deduction` overwritten from waterfall on async approval preview.
+
+## DECISION — Billing coverage model (2026-07-24)
+- **SSOT:** `src/lib/billing/billingCoverageModel.ts` + `loadBillingCoverageModel` in `src/services/billingCoverage.ts`. Separates: clamped **paid invoice coverage**, **current billing period**, **paid until / prepaid after vacate** (notice), **days paid for settlement**, **tail rent / final invoice suppression**. Invoice-derived periods are clamped to `moveInDate` — never display coverage starting before check-in. All move-out/settlement/notice/tail/monthly snapshot loaders consume this model; no surface derives its own coverage list.
+
+## DECISION — Billing coverage cleanup complete (2026-07-24)
+- **`loadVacatingBillingPresentation`** bundles coverage + notice display + V2 waterfall + `EstimatedSettlementPreview`. UI never reads `notice_breakdown_json` for display. **`loadPaidRentCoveragePeriods`** removed; tail Case B = one day when vacate is one day after first unpaid day. Docs: `docs/BILLING_COVERAGE_MODEL.md`.
+
 ## DECISION — Krishna post-approve E2E gate (2026-07-24)
 - **Feature sign-off for Krishna (APG-2026-0048)** requires `./scripts/run-krishna-post-approve-e2e.sh` exit 0 after admin approve (10 DB checks + Playwright). As of 2026-07-24 vacating still **pending** — Playwright clean; full tail/suppression checks blocked until approve. Regression: approved APG-2026-0045 passed all 10 DB checks on prod DB.
+
+## DECISION — Move-out approval requires settlement review dialog (2026-07-24)
+- **No direct approve** from Operations list label: primary CTA is **Review move-out** → modal with `SettlementStatementDocument` (BCM / V2 waterfall). **Approve move-out** confirm disabled until `estimatedSettlement` loads. Operations and `/admin/vacating` share `loadPendingVacatingApprovalPreviews` / async preview SSOT. Bed map deep-links to Operations Move-out queue instead of `ApproveVacatingButton` without preview.

@@ -1,22 +1,11 @@
 import { Badge } from '@/src/components/admin/Badge';
 import { NoticeSettlementPanel } from '@/src/components/shared/NoticeDeductionBreakdown';
 import { paiseToInr, titleCase } from '@/src/lib/format';
-import { breakdownFromStoredNoticeSnapshot } from '@/src/lib/vacating/noticeDeductionPresentation';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 
 export function CheckoutSettlementSummary({ detail }: { detail: CheckoutSettlementDetail }) {
   const statusLabel = plainStatus(detail.status);
-  const noticeBreakdown = breakdownFromStoredNoticeSnapshot({
-    noticeRequiredDays: detail.noticeRequiredDays,
-    noticeGivenDays: detail.noticeGivenDays,
-    noticeGivenDate: detail.noticeGivenDate,
-    vacatingDate: detail.vacatingDate,
-    noticeShortfallDays: detail.noticeShortfallDays,
-    noticeRentCoveredDays: detail.noticeRentCoveredDays,
-    noticeChargeableDays: detail.noticeChargeableDays,
-    noticeDeductionPaise: detail.preview.noticeDeductionPaise,
-    noticeBreakdownJson: detail.noticeBreakdownJson,
-  });
+  const noticeBreakdown = detail.settlementNoticeDisplay ?? null;
 
   const usesV2 = Boolean(detail.waterfall) || (detail.settlementEngineVersion ?? 1) >= 2;
 

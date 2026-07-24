@@ -83,11 +83,42 @@ function inclusivePeriodDays(periodStart: string, periodEnd: string): number {
   return Math.max(1, diffDays(periodStart, periodEnd) + 1);
 }
 
+export type DaysPaidDisplayRow = {
+  value: string;
+  hint?: string;
+  auditHint?: string;
+  days?: number;
+};
+
+/** Days paid row from BillingCoverageModel SSOT (settlement surfaces). */
+export function resolveDaysPaidFromBillingCoverage(coverage: {
+  daysPaidForSettlement: number;
+  daysPaidSettlementPeriod: { periodStart: string; periodEnd: string } | null;
+}): DaysPaidDisplayRow {
+  const period = coverage.daysPaidSettlementPeriod;
+  if (period?.periodStart && period?.periodEnd) {
+    const days = coverage.daysPaidForSettlement;
+    return {
+      days,
+      value: formatSettlementDays(days),
+      hint: `${period.periodStart} → ${period.periodEnd}`,
+      auditHint: `Paid invoice coverage ∩ stay through vacate (${days} day${days === 1 ? '' : 's'})`,
+    };
+  }
+  if (coverage.daysPaidForSettlement > 0) {
+    return {
+      days: coverage.daysPaidForSettlement,
+      value: formatSettlementDays(coverage.daysPaidForSettlement),
+    };
+  }
+  return { value: '—' };
+}
+
 export function resolveDaysPaidDisplay(
   noticeBreakdownJson: Partial<NoticeDeductionBreakdown> | null | undefined,
   rentPaidPaise: number,
   dailyRentPaise: number,
-): { value: string; hint?: string; auditHint?: string; days?: number } {
+): DaysPaidDisplayRow {
   const periodUsed = noticeBreakdownJson?.paidPeriodUsed ?? null;
 
   if (periodUsed?.periodStart && periodUsed?.periodEnd) {

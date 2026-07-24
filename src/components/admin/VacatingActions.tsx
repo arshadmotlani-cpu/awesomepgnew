@@ -32,6 +32,7 @@ function MicroForm({
   tone = 'default',
   extraFields,
   dialogSize,
+  confirmDisabled,
 }: {
   formId: string;
   requestId: string;
@@ -46,6 +47,7 @@ function MicroForm({
   tone?: 'default' | 'danger';
   extraFields?: ReactNode;
   dialogSize?: 'default' | 'wide' | 'statement';
+  confirmDisabled?: boolean;
 }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(action, idle);
@@ -67,6 +69,7 @@ function MicroForm({
         tone={tone}
         pending={pending}
         dialogSize={dialogSize}
+        confirmDisabled={confirmDisabled}
         className={className + ' disabled:opacity-50'}
       >
         {pending ? pendingLabel ?? '…' : label}
@@ -82,7 +85,7 @@ export function ApproveVacatingButton({
   requestId,
   pgId,
   className,
-  label = 'Approve',
+  label = 'Review move-out',
   preview,
   bookingCode,
   bookingId,
@@ -107,7 +110,7 @@ export function ApproveVacatingButton({
         className ??
         'rounded-lg bg-[#FF5A1F] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110'
       }
-      title="Approve move-out notice?"
+      title="Review move-out"
       description={
         preview ? (
           <ApproveVacatingPreview
@@ -117,10 +120,11 @@ export function ApproveVacatingButton({
             bookingId={bookingId}
           />
         ) : (
-          'The bed will open for website pre-booking from the vacating date. The tenant stays until then.'
+          'Settlement preview is required before approval. Open the move-out pipeline or refresh this page.'
         )
       }
-      confirmLabel="Approve notice"
+      confirmLabel="Approve move-out"
+      confirmDisabled={!hasStatement}
       dialogSize={hasStatement ? 'statement' : preview ? 'wide' : 'default'}
     />
   );

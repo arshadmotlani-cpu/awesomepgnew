@@ -61,3 +61,20 @@ test('filter buckets match workflow stage', () => {
   assert.ok(moveOutMatchesFilter(zeroRefundCheckout, 'settlement_review'));
   assert.equal(moveOutMatchesFilter(zeroRefundCheckout, 'waiting_vacating_date'), false);
 });
+
+test('pending move-out request uses Review move-out label', () => {
+  const pending = toClientMoveOutPipelineItem({
+    ...zeroRefundCheckout,
+    vacatingStatus: 'pending',
+    settlementId: null,
+    settlementStatus: null,
+    stage: 'requested',
+    stageIndex: 0,
+    stageLabel: 'Requested move-out',
+    nextAction: 'Approve or reject move-out notice',
+    continueHref: null,
+    continueKind: 'approve',
+  });
+  assert.equal(moveOutPrimaryActionLabel(pending), 'Review move-out');
+  assert.equal(moveOutHeroTitle(pending), 'Review move-out');
+});

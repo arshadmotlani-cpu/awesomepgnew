@@ -26,6 +26,7 @@ import {
 } from '@/src/lib/billing/vacatingFinalPeriodRent';
 import { getVacatingForBooking } from '@/src/db/queries/customer';
 import { loadEstimatedSettlementForVacating } from '@/src/lib/vacating/estimatedSettlementPreview';
+import { buildResidentMoveOutSettlementStory } from '@/src/lib/residents/residentMoveOutSettlementStory';
 import { loadResidentAccountContextSafe } from '@/src/services/residentAccountContextSafe';
 import {
   getResidentFinancialAccount,
@@ -38,7 +39,8 @@ import {
   getPendingVacatingDateChangeForBooking,
   previewVacatingDateChange,
 } from '@/src/services/vacatingDateChange';
-import { computeNoticeDeductionForBooking, loadPaidRentCoveragePeriods } from '@/src/services/noticeDeduction';
+import { computeNoticeDeductionForBooking } from '@/src/services/noticeDeduction';
+import { loadPaidInvoiceCoveragePeriods } from '@/src/services/billingCoverage';
 import { db } from '@/src/db/client';
 
 type CheckResult = { id: string; pass: boolean; detail: string };
@@ -210,7 +212,7 @@ async function loadFinalPeriodDecision(subject: Subject): Promise<{
   billingDay: number;
   moveInDate: string;
 } | null> {
-  const { periods, billingDay, moveInDate } = await loadPaidRentCoveragePeriods(subject.bookingId);
+  const { periods, billingDay, moveInDate } = await loadPaidInvoiceCoveragePeriods(subject.bookingId);
   if (!moveInDate) return null;
   const decision = computeVacatingFinalPeriodRentDecision({
     vacatingApproved: subject.vacatingStatus === 'approved',
@@ -314,6 +316,29 @@ async function check5EstimatedSettlement(subject: Subject): Promise<{
       estimated != null &&
       Number.isFinite(estimated.waterfall.refund.totalPaise) &&
       estimated.estimatedRefundPaise === estimated.waterfall.refund.totalPaise;
+    const story =
+      estimated != null
+        ? buildResidentMoveOutSettlementStory({
+            noticeGivenDate: subject.noticeGivenDate,
+            vacatingDate: subject.vacatingDate,
+            vacatingStatus: subject.vacatingStatus,
+            depositHeldPaise: estimated.depositHeldPaise,
+            monthlyRentPaiseSnapshot: subject.monthlyRentPaiseSnapshot,
+            waterfall: estimated.waterfall,
+            mode: estimated.mode,
+            noticeRentCoveredDays: subject.noticeRentCoveredDays,
+            noticeChargeableDays: subject.noticeChargeableDays,
+            deductionPaise: subject.deductionPaise,
+            durationMode: subject.durationMode,
+          })
+        : null;
+    record(
+      '5b.resident_story_model',
+      story != null,
+      story
+        ? `expected deposit refund ₹${(story.refund.expectedDepositRefundPaise / 100).toFixed(2)} · ${story.moneyFlowSteps.length} flow steps`
+        : 'story model null',
+    );
     record(
       '5.estimated_settlement',
       pass,

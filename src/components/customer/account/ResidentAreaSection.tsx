@@ -54,10 +54,7 @@ import {
   buildSettlementStatementModel,
   type SettlementStatementDocumentModel,
 } from '@/src/lib/vacating/settlementStatementModel';
-import {
-  loadEstimatedSettlementForVacating,
-  type EstimatedSettlementPreview,
-} from '@/src/lib/vacating/estimatedSettlementPreview';
+import type { EstimatedSettlementPreview } from '@/src/lib/vacating/estimatedSettlementPreview';
 import { getPendingVacatingDateChangeForBooking } from '@/src/services/vacatingDateChange';
 import { getLatestKycSubmission } from '@/src/services/kyc';
 import type { PaidHistoryRow } from '@/src/components/customer/account/resident/ResidentPaymentsV2Hub';
@@ -586,6 +583,8 @@ export async function ResidentAreaSection({
   );
 
   let primaryEstimatedSettlement: EstimatedSettlementPreview | null = null;
+  let primaryNoticeDisplay: import('@/src/lib/vacating/noticeDeductionPresentation').NoticeSettlementDisplay | null =
+    null;
   let primaryPendingDateChangeRequestId: string | null = null;
   let primarySettlementContext: ResidentSettlementStatementContext | null = null;
   let primarySettlementDocument: SettlementStatementDocumentModel | null = null;
@@ -594,21 +593,22 @@ export async function ResidentAreaSection({
     primaryVacating &&
     ['pending', 'approved'].includes(primaryVacating.status)
   ) {
-    const [estimatedSettlement, pendingDateChange] = await Promise.all([
-      loadEstimatedSettlementForVacating({
+    const { loadVacatingBillingPresentation } = await import(
+      '@/src/lib/vacating/loadVacatingBillingPresentation'
+    );
+    const [presentation, pendingDateChange] = await Promise.all([
+      loadVacatingBillingPresentation({
         bookingId: primaryBooking.bookingId,
         noticeGivenDate: primaryVacating.noticeGivenDate,
         vacatingDate: primaryVacating.vacatingDate,
         monthlyRentPaiseSnapshot: primaryVacating.monthlyRentPaiseSnapshot,
-        noticeRentCoveredDays: primaryVacating.noticeRentCoveredDays,
-        noticeChargeableDays: primaryVacating.noticeChargeableDays,
-        deductionPaise: primaryVacating.deductionPaise,
-        noticeBreakdownJson: primaryVacating.noticeBreakdownJson,
         durationMode: effectiveDurationMode ?? primaryBooking.booking.durationMode,
+        mode: 'estimate',
       }),
       getPendingVacatingDateChangeForBooking(primaryBooking.bookingId),
     ]);
-    primaryEstimatedSettlement = estimatedSettlement;
+    primaryEstimatedSettlement = presentation?.estimatedSettlement ?? null;
+    primaryNoticeDisplay = presentation?.noticeDisplay ?? null;
     primaryPendingDateChangeRequestId = pendingDateChange?.id ?? null;
     primarySettlementContext = {
       vacatingRequestId: primaryVacating.id,
@@ -622,9 +622,9 @@ export async function ResidentAreaSection({
       noticeGivenDate: String(primaryVacating.noticeGivenDate),
       vacatingDate: String(primaryVacating.vacatingDate),
     };
-    if (estimatedSettlement) {
+    if (primaryEstimatedSettlement) {
       primarySettlementDocument = buildSettlementStatementModel({
-        preview: estimatedSettlement,
+        preview: primaryEstimatedSettlement,
         vacatingRequestId: primaryVacating.id,
         bookingId: primaryBooking.bookingId,
         customerName: primarySettlementContext.customerName,
@@ -916,6 +916,7 @@ export async function ResidentAreaSection({
             pendingDateChangeRequestId={primaryPendingDateChangeRequestId}
             settlementContext={primarySettlementContext}
             settlementDocument={primarySettlementDocument}
+            settlementNoticeDisplay={primaryNoticeDisplay}
           />
         </ResidentSectionErrorBoundary>
       ) : null}

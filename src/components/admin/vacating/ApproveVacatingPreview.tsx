@@ -43,11 +43,11 @@ export function ApproveVacatingPreview({
             Share or download PDF from the statement page.
           </p>
         </>
-      ) : preview.noticeBreakdown && noticeShort ? (
+      ) : noticeShort ? (
         <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
           <p className="font-semibold">Notice period shorter than required</p>
           <p className="mt-1 text-xs text-amber-900/80">
-            Estimated settlement preview is unavailable. Review notice details before approving.
+            Estimated settlement preview could not be loaded. Refresh and try again before approving.
           </p>
         </div>
       ) : null}

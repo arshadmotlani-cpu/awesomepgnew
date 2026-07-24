@@ -18,9 +18,10 @@ export function isTerminalVacatingPipelineItem(
 
 export function moveOutRequiresAdminActionNow(item: MoveOutPipelineItem): boolean {
   if (isTerminalVacatingPipelineItem(item)) return false;
-  if (item.settlementStatus === 'awaiting_resident_details') return false;
 
   if (item.vacatingStatus === 'pending') return true;
+
+  if (item.settlementStatus === 'awaiting_resident_details') return false;
 
   if (item.settlementStatus === 'awaiting_admin_review') return true;
 

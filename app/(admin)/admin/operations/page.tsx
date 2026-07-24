@@ -16,6 +16,8 @@ import { loadUnifiedOperationsQueue, emptyUnifiedOperationsQueue } from '@/src/s
 import { loadMoveOutPipelineBundle } from '@/src/services/moveOutPipelineService';
 import { toClientMoveOutPipelineItem } from '@/src/lib/moveOut/moveOutPipeline';
 import type { MoveOutPipelineItemClient } from '@/src/lib/moveOut/moveOutPipeline';
+import { loadPendingVacatingApprovalPreviews } from '@/src/lib/vacating/loadAdminVacatingPageData';
+import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
 import { listRecentPaymentProofRejectionsForAdmin } from '@/src/services/paymentProofRejectionService';
 
 export const dynamic = 'force-dynamic';
@@ -65,15 +67,29 @@ export default async function OperationsPage({
       : [];
 
   let moveOutPipelineActiveItems: MoveOutPipelineItemClient[] | undefined;
+  let approvalPreviewByRequestId: Record<string, VacatingApprovalPreview> | undefined;
   if (filter === 'vacating_requests') {
     try {
       const bundle = await loadMoveOutPipelineBundle(session);
-      moveOutPipelineActiveItems = bundle.activeItems.map((item) =>
-        toClientMoveOutPipelineItem(item),
-      );
+      approvalPreviewByRequestId = await loadPendingVacatingApprovalPreviews({
+        vacatingRows: bundle.vacatingRows,
+        depositHeldByBooking: bundle.depositHeldByBooking,
+      });
+      moveOutPipelineActiveItems = bundle.activeItems.map((item) => {
+        const client = toClientMoveOutPipelineItem(item);
+        const preview = approvalPreviewByRequestId![item.vacatingRequestId];
+        if (preview?.estimatedSettlement) {
+          return {
+            ...client,
+            estimatedRefundPaise: preview.estimatedSettlement.estimatedRefundPaise,
+          };
+        }
+        return client;
+      });
     } catch (err) {
       console.error('[operations] move-out pipeline load failed', err);
       moveOutPipelineActiveItems = [];
+      approvalPreviewByRequestId = {};
     }
   }
 
@@ -92,6 +108,7 @@ export default async function OperationsPage({
           isSuperAdmin={session.role === 'super_admin'}
           recentRejections={recentRejections}
           moveOutPipelineActiveItems={moveOutPipelineActiveItems}
+          approvalPreviewByRequestId={approvalPreviewByRequestId}
         />
       </AdminSectionErrorBoundary>
     </>

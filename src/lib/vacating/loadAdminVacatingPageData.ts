@@ -21,6 +21,27 @@ export type VacatingRowLoadError = {
   message: string;
 };
 
+/** Async settlement previews for pending notices — shared by vacating page and Operations move-out tab. */
+export async function loadPendingVacatingApprovalPreviews(input: {
+  vacatingRows: AdminVacatingRow[];
+  depositHeldByBooking: Record<string, number>;
+}): Promise<Record<string, VacatingApprovalPreview>> {
+  const entries: Array<[string, VacatingApprovalPreview]> = [];
+  for (const row of input.vacatingRows) {
+    if (row.status !== 'pending') continue;
+    const held = guardDepositPaise(input.depositHeldByBooking[row.bookingId] ?? 0);
+    try {
+      const toolRow = await toMoveOutAdvancedToolsRowAsync(row, held);
+      if (toolRow.approvalPreview) {
+        entries.push([row.id, toolRow.approvalPreview]);
+      }
+    } catch (err) {
+      console.error('[vacating] approval preview skipped', row.id, row.bookingCode, err);
+    }
+  }
+  return Object.fromEntries(entries);
+}
+
 export type AdminVacatingPageData = {
   vacatingRows: AdminVacatingRow[];
   settlements: Awaited<ReturnType<typeof loadMoveOutPipelineBundle>>['settlements'];
@@ -131,6 +152,20 @@ export async function loadAdminVacatingPageData(session: AdminSession): Promise<
       .map((row) => [row.id, row.approvalPreview!]),
   );
 
+  const withPreviewRefund = (item: MoveOutPipelineItemClient): MoveOutPipelineItemClient => {
+    const preview = approvalPreviewByRequestId[item.vacatingRequestId];
+    if (preview?.estimatedSettlement) {
+      return {
+        ...item,
+        estimatedRefundPaise: preview.estimatedSettlement.estimatedRefundPaise,
+      };
+    }
+    return item;
+  };
+
+  const activeItemsWithRefund = activeItems.map(withPreviewRefund);
+  const clientPipelineWithRefund = clientPipeline.map(withPreviewRefund);
+
   const vacatingById = new Map(bundle.vacatingRows.map((v) => [v.id, v]));
   const dateChangeBookingContextByRequestId: Record<string, VacatingDateChangeBookingContext> = {};
   for (const change of pendingDateChanges) {
@@ -158,9 +193,9 @@ export async function loadAdminVacatingPageData(session: AdminSession): Promise<
       settlementHrefByRequest,
       depositHeldByBooking: bundle.depositHeldByBooking,
       advancedToolRows,
-      activeItems,
+      activeItems: activeItemsWithRefund,
       completedRecently,
-      commandStats: buildMoveOutCommandStats(clientPipeline),
+      commandStats: buildMoveOutCommandStats(clientPipelineWithRefund),
       rowErrors,
       settlementsLoadError,
       pendingDateChanges,

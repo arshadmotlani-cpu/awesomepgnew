@@ -269,7 +269,10 @@ export async function expireFixedStayBooking(bookingId: string): Promise<ExpireF
     pricingSnapshot: booking.pricingSnapshot as PricingSnapshot | null,
   });
 
-  const settlement = await createCheckoutSettlementFromVacating({ vacatingRequestId });
+  const settlement = await createCheckoutSettlementFromVacating({
+    vacatingRequestId,
+    callerContext: 'fixedStayAutoExpiry',
+  });
   const settlementId = settlement.ok ? settlement.settlementId : null;
 
   if (location) {

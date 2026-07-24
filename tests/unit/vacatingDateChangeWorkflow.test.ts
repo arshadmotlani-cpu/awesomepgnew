@@ -65,12 +65,12 @@ test('date change compliance uses fixed noticeGivenDate with 14-day minimum', ()
   );
 });
 
-test('resident move-out UI wires V2 estimate and change-leaving-date flow', () => {
-  assert.match(vacatingHome, /ResidentEstimatedSettlementBreakdown/);
+test('resident move-out UI wires settlement story and change-leaving-date flow', () => {
+  assert.match(vacatingHome, /ResidentMoveOutSettlementStory/);
   assert.match(vacatingHome, /settlementContext/);
   assert.match(vacatingHome, /ChangeLeavingDateForm/);
-  assert.match(vacatingHome, /showV2Estimate/);
-  assert.match(residentAreaSection, /loadEstimatedSettlementForVacating/);
+  assert.match(vacatingHome, /showSettlementStory/);
+  assert.match(residentAreaSection, /loadVacatingBillingPresentation/);
   assert.match(residentAreaSection, /primarySettlementContext/);
   assert.match(residentAreaSection, /getPendingVacatingDateChangeForBooking/);
   assert.match(requestsHome, /estimatedSettlement=/);
@@ -78,9 +78,10 @@ test('resident move-out UI wires V2 estimate and change-leaving-date flow', () =
   assert.match(requestsHome, /pendingDateChangeRequestId=/);
 });
 
-test('VacatingHome hides V1 hero estimate when V2 estimated settlement is shown', () => {
-  assert.match(vacatingHome, /showEstimateStats[\s\S]*!showV2Estimate/);
-  assert.match(vacatingHome, /v2RefundEstimate/);
+test('VacatingHome uses settlement story instead of legacy estimate hero', () => {
+  assert.match(vacatingHome, /showSettlementStory/);
+  assert.doesNotMatch(vacatingHome, /Estimated Refund ≈/);
+  assert.doesNotMatch(vacatingHome, /<ResidentEstimatedSettlementBreakdown/);
 });
 
 test('booking financial workspace wires settlement statement document', () => {
@@ -124,6 +125,37 @@ test('move-out pipeline passes server approval preview with estimated settlement
     'utf8',
   );
   assert.match(vacatingPage, /approvalPreviewByRequestId/);
+});
+
+test('operations move-out tab loads approval previews for review dialog', () => {
+  const operationsPage = readFileSync(
+    join(process.cwd(), 'app/(admin)/admin/operations/page.tsx'),
+    'utf8',
+  );
+  assert.match(operationsPage, /loadPendingVacatingApprovalPreviews/);
+  assert.match(operationsPage, /approvalPreviewByRequestId/);
+
+  const masterQueue = readFileSync(
+    join(process.cwd(), 'src/components/admin/operations/OperationsMasterQueue.tsx'),
+    'utf8',
+  );
+  assert.match(masterQueue, /approvalPreviewByRequestId=\{approvalPreviewByRequestId\}/);
+});
+
+test('approve move-out requires settlement statement before confirm', () => {
+  const vacatingActions = readFileSync(
+    join(process.cwd(), 'src/components/admin/VacatingActions.tsx'),
+    'utf8',
+  );
+  assert.match(vacatingActions, /confirmDisabled=\{!hasStatement\}/);
+  assert.match(vacatingActions, /title="Review move-out"/);
+  assert.match(vacatingActions, /confirmLabel="Approve move-out"/);
+
+  const pipelineQueue = readFileSync(
+    join(process.cwd(), 'src/components/admin/moveOut/MoveOutPipelineQueue.tsx'),
+    'utf8',
+  );
+  assert.match(pipelineQueue, /!preview\?\.estimatedSettlement/);
 });
 
 test('cancelApprovedVacatingByCustomer blocks when checkout settlement exists', () => {

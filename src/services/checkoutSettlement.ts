@@ -38,8 +38,13 @@ import { computeNoticeDeductionForBooking } from '@/src/services/noticeDeduction
 import { noticeDeductionLedgerReason } from '@/src/lib/vacating/noticeDeductionEngine';
 import type { NoticeDeductionBreakdown } from '@/src/lib/vacating/noticeDeductionEngine';
 import type { NoticeSettlementDisplay } from '@/src/lib/vacating/noticeDeductionPresentation';
-import { resolveNoticeSettlementDisplayForVacating } from '@/src/services/noticeSettlementDisplay';
+import { loadVacatingBillingPresentation } from '@/src/lib/vacating/loadVacatingBillingPresentation';
+import type { DaysPaidDisplayRow } from '@/src/lib/checkout/settlementDisplayFormat';
 import { isFixedStayDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
+import {
+  CHECKOUT_SETTLEMENT_BLOCKED_VACATING_MESSAGE,
+  vacatingStatusAllowsCheckoutSettlement,
+} from '@/src/lib/vacating/checkoutSettlementEligibility';
 import { noticeDeductionAppliesToBooking } from '@/src/lib/checkout/noticeDeductionPolicy';
 import { hasCheckoutElectricityEvidence } from '@/src/lib/checkout/checkoutElectricityEvidence';
 import {
@@ -167,6 +172,8 @@ export type CheckoutSettlementDetail = CheckoutSettlementRow & {
   waterfall?: CheckoutSettlementWaterfall | null;
   /** Resolved notice + billing labels for settlement audit UI. */
   settlementNoticeDisplay?: NoticeSettlementDisplay | null;
+  /** Days paid row from BillingCoverageModel (settlement audit SSOT). */
+  billingCoverageDaysPaid?: DaysPaidDisplayRow;
 };
 
 export { hasCheckoutElectricityEvidence } from '@/src/lib/checkout/checkoutElectricityEvidence';
@@ -767,10 +774,41 @@ async function loadSettlementRow(
   return { ...row, ...mapJoinRow(row) };
 }
 
+async function logBlockedPrematureCheckoutSettlement(args: {
+  vacatingRequestId: string;
+  bookingId: string;
+  vacatingStatus: string;
+  callerContext?: string;
+  existingSettlementId?: string;
+}): Promise<void> {
+  console.warn('[checkoutSettlement] blocked premature create', args);
+  await db.insert(auditLog).values({
+    actorType: 'system',
+    entity: 'checkout_settlement',
+    entityId: args.existingSettlementId ?? args.vacatingRequestId,
+    action: 'create_blocked_pending_vacating',
+    diff: {
+      vacatingRequestId: args.vacatingRequestId,
+      bookingId: args.bookingId,
+      vacatingStatus: args.vacatingStatus,
+      callerContext: args.callerContext ?? null,
+      existingSettlementId: args.existingSettlementId ?? null,
+    },
+  });
+}
+
+function prematureCheckoutSettlementError(vacatingStatus: string): { ok: false; error: string } {
+  if (vacatingStatus === 'pending' || vacatingStatus === 'rejected') {
+    return { ok: false, error: CHECKOUT_SETTLEMENT_BLOCKED_VACATING_MESSAGE };
+  }
+  return { ok: false, error: 'Checkout settlement requires an approved move-out request.' };
+}
+
 export async function createCheckoutSettlementFromVacating(input: {
   vacatingRequestId: string;
   checkoutSource?: string;
   lockApprovalBaseline?: boolean;
+  callerContext?: string;
 }): Promise<{ ok: true; settlementId: string } | { ok: false; error: string }> {
   const [vr] = await db
     .select()
@@ -793,30 +831,13 @@ export async function createCheckoutSettlementFromVacating(input: {
     .limit(1);
 
   const fixedStay = isFixedStayDurationMode(booking?.durationMode);
-  if (!fixedStay && vr.status === 'pending') {
-    return {
-      ok: false,
-      error: 'Move-out must be approved before checkout settlement can be created.',
-    };
-  }
-  if (!fixedStay && vr.status !== 'approved' && vr.status !== 'completed') {
-    return {
-      ok: false,
-      error: 'Checkout settlement requires an approved move-out request.',
-    };
-  }
+  const monthlyRequiresApproval = !fixedStay && !vacatingStatusAllowsCheckoutSettlement(vr.status);
 
   const [existing] = await db
     .select({ id: checkoutSettlements.id })
     .from(checkoutSettlements)
     .where(eq(checkoutSettlements.vacatingRequestId, vr.id))
     .limit(1);
-  if (existing) {
-    if (input.lockApprovalBaseline) {
-      await lockApprovalBaselineIfNeeded(existing.id);
-    }
-    return { ok: true, settlementId: existing.id };
-  }
 
   const [existingForBooking] = await db
     .select({ id: checkoutSettlements.id })
@@ -833,6 +854,25 @@ export async function createCheckoutSettlementFromVacating(input: {
       ),
     )
     .limit(1);
+
+  if (monthlyRequiresApproval) {
+    await logBlockedPrematureCheckoutSettlement({
+      vacatingRequestId: vr.id,
+      bookingId: vr.bookingId,
+      vacatingStatus: vr.status,
+      callerContext: input.callerContext,
+      existingSettlementId: existing?.id ?? existingForBooking?.id,
+    });
+    return prematureCheckoutSettlementError(vr.status);
+  }
+
+  if (existing) {
+    if (input.lockApprovalBaseline) {
+      await lockApprovalBaselineIfNeeded(existing.id);
+    }
+    return { ok: true, settlementId: existing.id };
+  }
+
   if (existingForBooking) {
     if (input.lockApprovalBaseline) {
       await lockApprovalBaselineIfNeeded(existingForBooking.id);
@@ -884,7 +924,11 @@ export async function createCheckoutSettlementFromVacating(input: {
     entity: 'checkout_settlement',
     entityId: created.id,
     action: 'created',
-    diff: { vacatingRequestId: vr.id, bookingId: vr.bookingId },
+    diff: {
+      vacatingRequestId: vr.id,
+      bookingId: vr.bookingId,
+      callerContext: input.callerContext ?? null,
+    },
   });
 
   const checkIn = await resolveStayCheckInDate(vr.bookingId);
@@ -1072,6 +1116,7 @@ export async function ensureEmergencyCheckoutForBooking(input: {
   const settlement = await createCheckoutSettlementFromVacating({
     vacatingRequestId: vacatingRequestId!,
     checkoutSource,
+    callerContext: 'ensureEmergencyCheckoutForBooking',
   });
   if (!settlement.ok) return { ok: false, error: settlement.error };
 
@@ -1430,21 +1475,23 @@ async function buildCheckoutSettlementDetailFromJoinRow(
     roomElectricityLedger,
     preview,
     waterfall,
-    settlementNoticeDisplay: await resolveNoticeSettlementDisplayForVacating({
-      bookingId: row.booking_id,
-      noticeGivenDate: row.notice_given_date,
-      vacatingDate: row.vacating_date,
-      monthlyRentPaiseSnapshot: row.monthly_rent_paise_snapshot,
-      noticeRequiredDays: settlement.noticeRequiredDays,
-      noticeGivenDays: settlement.noticeGivenDays,
-      noticeShortfallDays: settlement.noticeShortfallDays,
-      noticeRentCoveredDays: settlement.noticeRentCoveredDays,
-      noticeChargeableDays: settlement.noticeChargeableDays,
-      noticeDeductionPaise: settlement.noticeDeductionPaise,
-      noticeBreakdownJson: settlement.noticeBreakdownJson as Partial<NoticeDeductionBreakdown> | null,
-      stayType: row.stay_type,
-      durationMode: row.duration_mode,
-    }),
+    ...(await (async () => {
+      const presentation = await loadVacatingBillingPresentation({
+        bookingId: row.booking_id,
+        noticeGivenDate: row.notice_given_date,
+        vacatingDate: row.vacating_date,
+        monthlyRentPaiseSnapshot: row.monthly_rent_paise_snapshot,
+        stayType: row.stay_type,
+        durationMode: row.duration_mode,
+        waterfall,
+        mode: row.amounts_locked ? 'final' : 'baseline',
+      });
+      if (!presentation) return {};
+      return {
+        settlementNoticeDisplay: presentation.noticeDisplay,
+        billingCoverageDaysPaid: presentation.billingCoverageDaysPaid,
+      };
+    })()),
   });
 }
 
@@ -1934,6 +1981,7 @@ export async function ensureCheckoutSettlementForBooking(input: {
   const created = await createCheckoutSettlementFromVacating({
     vacatingRequestId,
     lockApprovalBaseline: true,
+    callerContext: 'ensureCheckoutSettlementForBooking',
   });
   if (!created.ok) return { ok: false, error: created.error };
   return { ok: true, settlementId: created.settlementId };
@@ -2815,6 +2863,75 @@ export async function cleanupCheckoutSettlementForVacating(input: {
   return { removed: true, settlementId: lastId, action: lastAction };
 }
 
+/** Archive an active settlement tied to a still-pending vacating request (preserves V2 snapshot row). */
+export async function archivePrematureCheckoutSettlementForVacating(input: {
+  vacatingRequestId: string;
+  adminId: string;
+  reason?: string;
+}): Promise<
+  | { ok: true; archivedSettlementId: string }
+  | { ok: false; error: string }
+> {
+  const [vr] = await db
+    .select()
+    .from(vacatingRequests)
+    .where(eq(vacatingRequests.id, input.vacatingRequestId))
+    .limit(1);
+  if (!vr) return { ok: false, error: 'Vacating request not found.' };
+  if (vr.status !== 'pending') {
+    return { ok: false, error: 'Vacating request is not pending.' };
+  }
+
+  const [settlement] = await db
+    .select()
+    .from(checkoutSettlements)
+    .where(
+      and(
+        eq(checkoutSettlements.vacatingRequestId, input.vacatingRequestId),
+        sql`${checkoutSettlements.status} <> 'archived'`,
+      ),
+    )
+    .orderBy(desc(checkoutSettlements.updatedAt))
+    .limit(1);
+
+  if (!settlement) {
+    return { ok: false, error: 'No active checkout settlement for this vacating request.' };
+  }
+
+  const archived = await archiveCheckoutSettlement({
+    settlementId: settlement.id,
+    adminId: input.adminId,
+  });
+  if (!archived.ok) return archived;
+
+  await db
+    .update(vacatingRequests)
+    .set({ checkoutSettlementSuppressed: false, updatedAt: new Date() })
+    .where(eq(vacatingRequests.id, input.vacatingRequestId));
+
+  await db.insert(auditLog).values({
+    actorType: 'admin',
+    actorId: input.adminId,
+    entity: 'checkout_settlement',
+    entityId: settlement.id,
+    action: 'archived_premature_pending_vacating',
+    diff: {
+      vacatingRequestId: input.vacatingRequestId,
+      bookingId: vr.bookingId,
+      archivedSettlementId: settlement.id,
+      totalRefundPaise: settlement.totalRefundPaise,
+      settlementEngineVersion: settlement.settlementEngineVersion,
+      reason: input.reason ?? 'Premature settlement while vacating still pending',
+    },
+  });
+
+  scheduleAdminNotificationSync();
+  const { syncActionItemsForCron } = await import('@/src/services/actionItems');
+  await syncActionItemsForCron().catch(() => undefined);
+
+  return { ok: true, archivedSettlementId: settlement.id };
+}
+
 export async function archiveCheckoutSettlement(input: {
   settlementId: string;
   adminId: string;
@@ -2879,7 +2996,10 @@ export async function rebuildCheckoutSettlement(input: {
     diff: { vacatingRequestId, bookingId, previousStatus: row.status },
   });
 
-  const created = await createCheckoutSettlementFromVacating({ vacatingRequestId });
+  const created = await createCheckoutSettlementFromVacating({
+    vacatingRequestId,
+    callerContext: 'rebuildCheckoutSettlement',
+  });
   if (!created.ok) {
     return { ok: false, error: created.error };
   }

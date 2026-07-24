@@ -50,6 +50,16 @@ test('pending move-out notice appears in pending_request filter', () => {
   assert.equal(moveOutMatchesFilter(pendingNotice, 'waiting_vacating_date'), false);
 });
 
+test('pending with orphan settlement stays pending_request not waiting_vacating_date', () => {
+  const orphan = toClientMoveOutPipelineItem({
+    ...pendingNotice,
+    settlementId: 'cs-orphan',
+    settlementStatus: 'awaiting_resident_details',
+  });
+  assert.equal(moveOutMatchesFilter(orphan, 'pending_request'), true);
+  assert.equal(moveOutMatchesFilter(orphan, 'waiting_vacating_date'), false);
+});
+
 test('pending approval items are extracted for pinned admin section', () => {
   const approved = { ...pendingNotice, id: 'vr-2', vacatingStatus: 'approved' as const };
   const items = moveOutPendingApprovalItems([pendingNotice, approved]);

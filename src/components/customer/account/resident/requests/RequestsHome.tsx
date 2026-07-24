@@ -59,6 +59,7 @@ type Props = {
   pendingDateChangeRequestId?: string | null;
   settlementContext?: import('@/src/components/customer/account/resident/vacating/ResidentEstimatedSettlementBreakdown').ResidentSettlementStatementContext | null;
   settlementDocument?: import('@/src/lib/vacating/settlementStatementModel').SettlementStatementDocumentModel | null;
+  settlementNoticeDisplay?: import('@/src/lib/vacating/noticeDeductionPresentation').NoticeSettlementDisplay | null;
 };
 
 export function RequestsHome({
@@ -90,6 +91,7 @@ export function RequestsHome({
   pendingDateChangeRequestId = null,
   settlementContext = null,
   settlementDocument = null,
+  settlementNoticeDisplay = null,
 }: Props) {
   const router = useRouter();
   const normalizedInitial = normalizeRequestCategoryId(initialCategory ?? undefined);
@@ -150,6 +152,7 @@ export function RequestsHome({
         pendingDateChangeRequestId={pendingDateChangeRequestId}
         settlementContext={settlementContext}
         settlementDocument={settlementDocument}
+        settlementNoticeDisplay={settlementNoticeDisplay}
       />
     );
   }

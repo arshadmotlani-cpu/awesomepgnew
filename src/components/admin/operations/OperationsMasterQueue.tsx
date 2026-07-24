@@ -8,6 +8,7 @@ import { MoveOutOpsActionPipeline } from '@/src/components/admin/moveOut/MoveOut
 import { moveOutClientRequiresAdminActionNow } from '@/src/lib/operations/moveOutAdminAction';
 import type { MoveOutPipelineItemClient } from '@/src/lib/moveOut/moveOutPipeline';
 import type { UnifiedOpsItem, UnifiedOperationsQueue } from '@/src/services/unifiedOperationsQueue';
+import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
 import type { PaymentProofRejectionHistoryRow } from '@/src/services/paymentProofRejectionService';
 import { paiseToInr } from '@/src/lib/format';
 import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
@@ -32,11 +33,13 @@ export function OperationsMasterQueue({
   isSuperAdmin = false,
   recentRejections = [],
   moveOutPipelineActiveItems,
+  approvalPreviewByRequestId,
 }: {
   data: UnifiedOperationsQueue;
   isSuperAdmin?: boolean;
   recentRejections?: PaymentProofRejectionHistoryRow[];
   moveOutPipelineActiveItems?: MoveOutPipelineItemClient[];
+  approvalPreviewByRequestId?: Record<string, VacatingApprovalPreview>;
 }) {
   const activeFilter = data.filter;
 
@@ -69,7 +72,10 @@ export function OperationsMasterQueue({
         <QueueHeader activeFilter={activeFilter} filterCounts={data.filterCounts} />
 
         {hasMoveOutActions ? (
-          <MoveOutOpsActionPipeline items={pipelineItems} />
+          <MoveOutOpsActionPipeline
+            items={pipelineItems}
+            approvalPreviewByRequestId={approvalPreviewByRequestId}
+          />
         ) : (
           <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-8 py-16 text-center">
             <p className="text-xl font-semibold text-emerald-100">Nothing in this queue</p>

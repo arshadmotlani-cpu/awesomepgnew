@@ -87,6 +87,24 @@ function kunalLikeDetail(): CheckoutSettlementDetail {
       unusedRentRefundPaise: waterfall.refund.unusedRentPortionPaise,
     },
     waterfall,
+    settlementNoticeDisplay: {
+      noticeRequiredDays: 14,
+      noticeGivenDays: 0,
+      missingNoticeDays: 14,
+      billingDay: 5,
+      billingCycleLabel: '5 Jul 2026 – 4 Aug 2026',
+      paidUntilDate: '2026-08-04',
+      vacatingDate: '2026-07-21',
+      unusedPrepaidRentDays: 14,
+      noticeCoveredByPrepaidRent: 0,
+      chargeableNoticeDays: 14,
+      noticeDeductionPaise: 27_472,
+    },
+    billingCoverageDaysPaid: {
+      value: '31 days',
+      hint: '2026-07-05 → 2026-08-04',
+      days: 31,
+    },
   } as CheckoutSettlementDetail;
 }
 
@@ -190,18 +208,19 @@ test('notice from deposit shows deduction when rent bucket exhausted', () => {
   assert.ok(waterfall.notice.fromDepositPaise > 0);
 });
 
-test('days paid falls back to implied formula when paidPeriodUsed missing', () => {
+test('days paid uses billing coverage SSOT when JSON missing paidPeriodUsed', () => {
   const detail = kunalLikeDetail();
-  detail.noticeBreakdownJson = {
-    ...(detail.noticeBreakdownJson as object),
-    paidPeriodUsed: null,
+  detail.billingCoverageDaysPaid = {
+    value: '18 days',
+    hint: '2026-07-04 → 2026-07-21',
+    days: 18,
   };
 
   const audit = buildAdminSettlementAuditBreakdown(detail);
   const daysPaid = findRow(audit, 'days_paid');
   assert.ok(daysPaid);
-  assert.match(daysPaid!.hint ?? '', /Implied: floor/);
-  assert.match(daysPaid!.value, /day/);
+  assert.match(daysPaid!.value, /18 day/);
+  assert.match(daysPaid!.hint ?? '', /2026-07-04/);
 });
 
 test('damage, cleaning, and custom appear as separate deduction rows', () => {

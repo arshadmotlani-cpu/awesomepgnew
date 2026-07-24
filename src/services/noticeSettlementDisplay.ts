@@ -1,18 +1,11 @@
 /**
- * Server-only notice + billing display for settlement loaders (DB-backed recompute).
+ * Server-only notice + billing display for settlement loaders (BillingCoverageModel SSOT).
  */
 import type { NoticeDeductionBreakdown } from '@/src/lib/vacating/noticeDeductionEngine';
-import {
-  billingCycleLabelFromDay,
-  loadMonthlyBillingSnapshotForBooking,
-} from '@/src/lib/billing/monthlyBillingSnapshot';
-import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
-import { computeNoticeDeductionForBooking } from '@/src/services/noticeDeduction';
-import {
-  breakdownFromStoredNoticeSnapshot,
-  toNoticeSettlementDisplay,
-  type NoticeSettlementDisplay,
-} from '@/src/lib/vacating/noticeDeductionPresentation';
+import type { BillingCoverageModel } from '@/src/lib/billing/billingCoverageModel';
+import { loadBillingCoverageModel } from '@/src/services/billingCoverage';
+import { noticeDisplayFromBillingCoverage } from '@/src/lib/vacating/loadVacatingBillingPresentation';
+import type { NoticeSettlementDisplay } from '@/src/lib/vacating/noticeDeductionPresentation';
 
 export type ResolveNoticeSettlementInput = {
   bookingId: string;
@@ -26,74 +19,40 @@ export type ResolveNoticeSettlementInput = {
   noticeChargeableDays?: number;
   noticeDeductionPaise?: number;
   deductionPaise?: number;
+  /** Ignored for display — persisted audit only. */
   noticeBreakdownJson?: Partial<NoticeDeductionBreakdown> | null;
   stayType?: string | null;
   durationMode?: string | null;
+  treatAsApprovedForTail?: boolean;
+  /** When caller already loaded coverage, pass it to avoid duplicate DB work. */
+  billingCoverage?: BillingCoverageModel | null;
 };
 
-/** Full notice + billing display for settlement UIs — recomputes when snapshot JSON is incomplete. */
+/** Notice + billing labels from BillingCoverageModel only. */
 export async function resolveNoticeSettlementDisplayForVacating(
   row: ResolveNoticeSettlementInput,
 ): Promise<NoticeSettlementDisplay | null> {
-  let notice = breakdownFromStoredNoticeSnapshot(row);
-
-  const needsRecompute =
-    !notice ||
-    notice.billingCycleLabel === '—' ||
-    !notice.paidUntilDate;
+  let coverage = row.billingCoverage ?? null;
 
   if (
-    needsRecompute &&
+    !coverage &&
     row.bookingId &&
     row.noticeGivenDate &&
     row.vacatingDate &&
     (row.monthlyRentPaiseSnapshot ?? 0) > 0
   ) {
-    const computed = await computeNoticeDeductionForBooking({
+    coverage = await loadBillingCoverageModel({
       bookingId: row.bookingId,
-      noticeGivenDate: row.noticeGivenDate,
       vacatingDate: row.vacatingDate,
+      noticeGivenDate: row.noticeGivenDate,
       monthlyRentPaise: row.monthlyRentPaiseSnapshot ?? 0,
       stayType: row.stayType,
       durationMode: row.durationMode,
+      treatAsApprovedForTail: row.treatAsApprovedForTail,
     });
-    notice = toNoticeSettlementDisplay(computed);
   }
 
-  const billing = await loadMonthlyBillingSnapshotForBooking({
-    bookingId: row.bookingId,
-    vacatingDate: row.vacatingDate ?? null,
-  });
+  if (!coverage) return null;
 
-  if (billing) {
-    const base = notice ?? {
-      noticeRequiredDays: row.noticeRequiredDays ?? VACATING_NOTICE_MIN_DAYS,
-      noticeGivenDays: row.noticeGivenDays ?? 0,
-      missingNoticeDays: row.noticeShortfallDays ?? 0,
-      billingDay: billing.billingDay,
-      billingCycleLabel: billing.billingCycleLabel,
-      paidUntilDate: billing.paidUntilDate,
-      vacatingDate: row.vacatingDate ?? '',
-      unusedPrepaidRentDays: row.noticeRentCoveredDays ?? 0,
-      noticeCoveredByPrepaidRent: row.noticeRentCoveredDays ?? 0,
-      chargeableNoticeDays: row.noticeChargeableDays ?? 0,
-      noticeDeductionPaise: row.noticeDeductionPaise ?? row.deductionPaise ?? 0,
-    };
-    return {
-      ...base,
-      billingCycleLabel:
-        base.billingCycleLabel === '—' ? billing.billingCycleLabel : base.billingCycleLabel,
-      paidUntilDate: base.paidUntilDate ?? billing.paidUntilDate,
-      billingDay: base.billingDay || billing.billingDay,
-    };
-  }
-
-  if (notice && notice.billingCycleLabel === '—' && notice.billingDay) {
-    return {
-      ...notice,
-      billingCycleLabel: billingCycleLabelFromDay(notice.billingDay),
-    };
-  }
-
-  return notice;
+  return noticeDisplayFromBillingCoverage(coverage);
 }

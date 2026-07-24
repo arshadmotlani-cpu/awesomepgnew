@@ -13,6 +13,7 @@ type Props = {
   tone?: AdminConfirmTone;
   pending?: boolean;
   size?: 'default' | 'wide' | 'statement';
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -26,6 +27,7 @@ export function AdminConfirmDialog({
   tone = 'default',
   pending = false,
   size = 'default',
+  confirmDisabled = false,
   onConfirm,
   onCancel,
 }: Props) {
@@ -99,7 +101,7 @@ export function AdminConfirmDialog({
             ref={confirmRef}
             type="button"
             onClick={onConfirm}
-            disabled={pending}
+            disabled={pending || confirmDisabled}
             className={`rounded-lg px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${confirmClass}`}
           >
             {pending ? 'Working…' : confirmLabel}

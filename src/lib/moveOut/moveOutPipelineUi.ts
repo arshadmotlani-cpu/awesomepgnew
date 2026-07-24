@@ -92,7 +92,7 @@ export function moveOutActionableItems(
 
 export function moveOutPrimaryActionLabel(item: MoveOutPipelineItemClient): string {
   const workflow = deriveMoveOutWorkflowStage(item);
-  if (workflow.id === 'pending_request') return 'Approve move-out';
+  if (workflow.id === 'pending_request') return 'Review move-out';
   if (moveOutIsZeroRefundCheckout(item)) return 'Complete checkout';
   if (workflow.id === 'settlement_review') return 'Review settlement';
   if (workflow.id === 'refund_ready') return 'Refund of Deposit';
@@ -104,7 +104,7 @@ export function moveOutPrimaryActionLabel(item: MoveOutPipelineItemClient): stri
 export function moveOutHeroTitle(item: MoveOutPipelineItemClient): string {
   const workflow = deriveMoveOutWorkflowStage(item);
   if (moveOutIsZeroRefundCheckout(item)) return 'Complete checkout';
-  if (workflow.id === 'pending_request') return 'Approve move-out';
+  if (workflow.id === 'pending_request') return 'Review move-out';
   if (workflow.id === 'settlement_review') return 'Settlement Review';
   if (workflow.id === 'refund_ready') return 'Refund Ready';
   if (workflow.id === 'waiting_vacating_date') return workflow.label;

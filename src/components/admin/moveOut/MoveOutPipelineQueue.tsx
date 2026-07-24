@@ -10,9 +10,6 @@ import {
 } from '@/src/components/admin/VacatingActions';
 import { NoticeSettlementPanel } from '@/src/components/shared/NoticeDeductionBreakdown';
 import { formatDate, formatDateTime, paiseToInr } from '@/src/lib/format';
-import { breakdownFromStoredNoticeSnapshot } from '@/src/lib/vacating/noticeDeductionPresentation';
-import { tryDiffDays, normalizeIsoDateOnly } from '@/src/lib/dates';
-import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
 import type { MoveOutUrgency } from '@/src/lib/vacating/approvalPreview';
 import type { MoveOutPipelineItemClient } from '@/src/lib/moveOut/moveOutPipeline';
@@ -317,20 +314,10 @@ function MoveOutCard({
           {row.deductionPaise > 0 ? (
             <div className="mb-4">
               {(() => {
-                const breakdown = breakdownFromStoredNoticeSnapshot({
-                  noticeGivenDate: row.noticeGivenDate,
-                  vacatingDate: row.vacatingDate,
-                  noticeGivenDays: noticeCompletedDaysForRow(row),
-                  noticeShortfallDays: Math.max(
-                    0,
-                    VACATING_NOTICE_MIN_DAYS - noticeCompletedDaysForRow(row),
-                  ),
-                  noticeRentCoveredDays: row.noticeRentCoveredDays,
-                  noticeChargeableDays: row.noticeChargeableDays,
-                  deductionPaise: row.deductionPaise,
-                });
-                return breakdown ? (
-                  <NoticeSettlementPanel settlement={breakdown} variant="admin" compact />
+                const preview = approvalPreviewByRequestId?.[row.vacatingRequestId];
+                const settlement = preview?.noticeBreakdown;
+                return settlement ? (
+                  <NoticeSettlementPanel settlement={settlement} variant="admin" compact />
                 ) : null;
               })()}
             </div>
@@ -432,8 +419,22 @@ function MoveOutPrimaryButton({
   const className = prominent ? PRIMARY + ' px-5 py-2.5 text-sm' : PRIMARY;
 
   if (row.continueKind === 'approve') {
-    const preview =
-      approvalPreviewByRequestId?.[row.vacatingRequestId] ?? pipelineApprovalPreview(row);
+    const preview = approvalPreviewByRequestId?.[row.vacatingRequestId];
+    if (!preview?.estimatedSettlement) {
+      return (
+        <span
+          className={className + ' cursor-not-allowed opacity-50'}
+          aria-disabled
+          title={
+            preview
+              ? 'Settlement preview could not be loaded — refresh or open move-out pipeline'
+              : 'Loading settlement preview…'
+          }
+        >
+          {label}
+        </span>
+      );
+    }
     return (
       <ApproveVacatingButton
         requestId={row.vacatingRequestId}
@@ -558,41 +559,4 @@ function StageTimeline({ row }: { row: MoveOutPipelineItemClient }) {
       })}
     </div>
   );
-}
-
-function noticeCompletedDaysForRow(row: MoveOutPipelineItemClient): number {
-  const noticeGivenDate = normalizeIsoDateOnly(row.noticeGivenDate);
-  const moveOutDate = normalizeIsoDateOnly(row.vacatingDate);
-  return Math.max(0, tryDiffDays(noticeGivenDate, moveOutDate) ?? 0);
-}
-
-function pipelineApprovalPreview(row: MoveOutPipelineItemClient): VacatingApprovalPreview {
-  const noticeGivenDate = normalizeIsoDateOnly(row.noticeGivenDate);
-  const moveOutDate = normalizeIsoDateOnly(row.vacatingDate);
-  const noticeCompletedDays = noticeCompletedDaysForRow(row);
-  const noticeBreakdown = breakdownFromStoredNoticeSnapshot({
-    noticeGivenDate,
-    vacatingDate: moveOutDate,
-    noticeGivenDays: noticeCompletedDays,
-    noticeShortfallDays: Math.max(0, VACATING_NOTICE_MIN_DAYS - noticeCompletedDays),
-    noticeRentCoveredDays: row.noticeRentCoveredDays,
-    noticeChargeableDays: row.noticeChargeableDays,
-    deductionPaise: row.deductionPaise,
-  });
-  return {
-    residentName: row.customerFullName,
-    pgName: row.pgName,
-    roomNumber: row.roomNumber,
-    bedCode: row.bedCode,
-    noticeSubmittedDate: noticeGivenDate,
-    moveOutDate,
-    noticeRequiredDays: VACATING_NOTICE_MIN_DAYS,
-    noticeCompletedDays,
-    depositHeldPaise: row.depositHeldPaise,
-    estimatedDeductionPaise: row.deductionPaise,
-    estimatedRefundPaise: row.estimatedRefundPaise,
-    bedStatus: row.bedStatus,
-    noticeBreakdown,
-    estimatedSettlement: null,
-  };
 }

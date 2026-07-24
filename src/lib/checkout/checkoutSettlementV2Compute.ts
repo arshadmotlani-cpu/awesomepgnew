@@ -19,43 +19,36 @@ export async function resolveCheckoutTailRentPaiseForBooking(args: {
   bookingId: string;
   vacatingDate: string;
   monthlyRentPaise: number;
+  treatAsApprovedForTail?: boolean;
 }): Promise<number> {
-  const { computeVacatingFinalPeriodRentDecision } = await import(
-    '@/src/lib/billing/vacatingFinalPeriodRent'
-  );
-  const { loadPaidRentCoveragePeriods } = await import('@/src/services/noticeDeduction');
-  const { db } = await import('@/src/db/client');
-  const { vacatingRequests } = await import('@/src/db/schema');
-  const { and, eq, desc, sql } = await import('drizzle-orm');
+  const { loadBillingCoverageModel } = await import('@/src/services/billingCoverage');
 
-  const [approved] = await db
-    .select({
-      vacatingDate: vacatingRequests.vacatingDate,
-      monthlyRentPaiseSnapshot: vacatingRequests.monthlyRentPaiseSnapshot,
-    })
-    .from(vacatingRequests)
-    .where(
-      and(eq(vacatingRequests.bookingId, args.bookingId), eq(vacatingRequests.status, 'approved')),
-    )
-    .orderBy(desc(vacatingRequests.updatedAt))
-    .limit(1);
+  if (!args.treatAsApprovedForTail) {
+    const { db } = await import('@/src/db/client');
+    const { vacatingRequests } = await import('@/src/db/schema');
+    const { and, eq, desc } = await import('drizzle-orm');
+    const [approved] = await db
+      .select({ id: vacatingRequests.id })
+      .from(vacatingRequests)
+      .where(
+        and(
+          eq(vacatingRequests.bookingId, args.bookingId),
+          eq(vacatingRequests.status, 'approved'),
+        ),
+      )
+      .orderBy(desc(vacatingRequests.updatedAt))
+      .limit(1);
+    if (!approved) return 0;
+  }
 
-  if (!approved) return 0;
-
-  const vacatingDate = args.vacatingDate;
-  const { periods, billingDay, moveInDate } = await loadPaidRentCoveragePeriods(args.bookingId);
-  if (!moveInDate) return 0;
-
-  const decision = computeVacatingFinalPeriodRentDecision({
-    vacatingApproved: true,
-    vacatingDate,
-    billingDay,
-    moveInDate,
-    monthlyRentPaise: args.monthlyRentPaise ?? approved.monthlyRentPaiseSnapshot,
-    paidPeriods: periods,
+  const coverage = await loadBillingCoverageModel({
+    bookingId: args.bookingId,
+    vacatingDate: args.vacatingDate,
+    monthlyRentPaise: args.monthlyRentPaise,
+    treatAsApprovedForTail: true,
   });
 
-  return decision.shouldSuppressFinalInvoice ? decision.tailRentPaise : 0;
+  return coverage?.tailRentPaise ?? 0;
 }
 
 export async function resolveStayCheckInDate(bookingId: string): Promise<string | null> {

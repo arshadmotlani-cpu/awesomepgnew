@@ -34,7 +34,7 @@ duration_mode = reserve                           → Pre-arrival (no billing)
 **Monthly:** anniversary rent, vacating + 14-day notice, monthly room electricity (Workflow A).  
 **Fixed-stay:** upfront rent quote, checkout/refund-only exit, checkout-only electricity (Workflow B).
 
-**Approved move-out (monthly):** When the vacating date falls inside an unpaid anniversary period before that period ends, the system suppresses the pending anniversary rent invoice for that period and charges only tail days (move-out date inclusive) in checkout settlement V2 (`vacatingFinalPeriodRent` SSOT). Paid historical invoices are never altered.
+**Approved move-out (monthly):** When the vacating date falls inside an unpaid anniversary period before that period ends, the system suppresses the pending anniversary rent invoice for that period and charges tail rent in checkout settlement V2. **Move-out coverage, notice, tail, and settlement display** use a single model — see [BILLING_COVERAGE_MODEL.md](./BILLING_COVERAGE_MODEL.md). Paid historical invoices are never altered.
 
 ---
 
@@ -47,6 +47,7 @@ duration_mode = reserve                           → Pre-arrival (no billing)
 | Late fee math | `src/services/billing.ts` | Uses `invoice.due_date` |
 | Meter timeline | `src/services/meterTimelineService.ts` | Only API for official baseline advance |
 | Room electricity ledger | `src/services/roomElectricityLedger.ts` | Workflow A SSOT per room+month |
+| Move-out billing coverage | `src/lib/billing/billingCoverageModel.ts` | SSOT for paid coverage, notice, tail, settlement days — [BILLING_COVERAGE_MODEL.md](./BILLING_COVERAGE_MODEL.md) |
 | Resident credit | `src/services/residentCreditLedger.ts` | Credit balance (not deposit) |
 | Billing health | `src/services/billingHealth.ts` | Health score 0–100 + snapshot metrics |
 

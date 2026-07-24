@@ -12,7 +12,8 @@ describe('checkoutOpsQueueCopy', () => {
       settlementStatus: null,
       finalRefundPaise: null,
     });
-    assert.match(copy.nextAction, /Approve move-out notice/);
+    assert.match(copy.nextAction, /Review move-out notice/);
+    assert.equal(copy.primaryActionLabel, 'Review move-out');
   });
 
   test('awaiting resident details shows specific blocker', () => {

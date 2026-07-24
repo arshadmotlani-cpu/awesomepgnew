@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { ApproveVacatingButton } from '@/src/components/admin/VacatingActions';
 import type { PgBedMapBed } from '@/src/services/pgBedMap';
+import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
 
 const PRIMARY =
   'flex items-center justify-between rounded-lg bg-[#FF5A1F] px-3 py-2.5 text-sm font-semibold text-white hover:brightness-110';
@@ -51,7 +51,10 @@ export function BedDetailPrimaryActions({
         {bed.vacating?.status === 'pending' ? (
           <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 p-3">
             <p className="mb-2 text-xs text-amber-100">Move-out waiting for approval</p>
-            <ApproveVacatingButton requestId={bed.vacating.requestId} pgId={pgId} />
+            <Link href={operationsFilterHref('vacating_requests')} className={PRIMARY + ' w-full'}>
+              Review move-out
+              <span aria-hidden>→</span>
+            </Link>
           </div>
         ) : null}
         {isOccupant && !bed.vacating ? (

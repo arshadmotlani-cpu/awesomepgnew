@@ -84,6 +84,27 @@ test('estimateVacateDepositPreview handles empty vacating date without throwing'
   assert.equal(preview.estimatedRefundablePaise, 100000);
 });
 
+test('pending vacating with orphan settlement stays in approval stage', () => {
+  const [item] = buildMoveOutPipeline({
+    vacatingRows: [baseVacatingRow],
+    settlements: [
+      {
+        id: 'cs-orphan',
+        vacatingRequestId: 'vr-1',
+        status: 'awaiting_resident_details',
+        createdAt: new Date('2026-07-23'),
+        updatedAt: new Date('2026-07-23'),
+        approvedAt: null,
+        refundPaidAt: null,
+      },
+    ],
+  });
+  assert.ok(item);
+  assert.equal(item.vacatingStatus, 'pending');
+  assert.equal(item.stage, 'requested');
+  assert.equal(item.continueKind, 'approve');
+});
+
 test('buildMoveOutPipeline uses settlement electricity and locked final refund', () => {
   const [item] = buildMoveOutPipeline({
     vacatingRows: [

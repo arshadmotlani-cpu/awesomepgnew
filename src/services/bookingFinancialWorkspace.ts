@@ -201,6 +201,8 @@ export async function loadBookingFinancialWorkspace(
           preview: checkoutDetail.preview,
           approvalBaselineLocked: checkoutDetail.approvalBaselineLocked,
           amountsLocked: checkoutDetail.amountsLocked,
+          settlementNoticeDisplay: checkoutDetail.settlementNoticeDisplay,
+          billingCoverageDaysPaid: checkoutDetail.billingCoverageDaysPaid,
         },
         waterfall: checkoutDetail.waterfall,
       });

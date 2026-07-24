@@ -6,6 +6,47 @@ import {
 } from '@/src/lib/billing/vacatingFinalPeriodRent';
 import { dailyRateFromMonthly } from '@/src/services/billing';
 
+describe('vacatingFinalPeriodRent — Jul 7 check-in, vacate after period end', () => {
+  const moveIn = '2026-07-07';
+  const billingDay = 7;
+  const monthlyRentPaise = 387_000;
+  const paidFirstPeriod = {
+    periodStart: '2026-07-07',
+    periodEnd: '2026-08-06',
+    source: 'rent_invoice' as const,
+  };
+
+  test('vacate on anniversary period end (7 Aug) → no tail suppression', () => {
+    const decision = computeVacatingFinalPeriodRentDecision({
+      vacatingApproved: true,
+      vacatingDate: '2026-08-07',
+      billingDay,
+      moveInDate: moveIn,
+      monthlyRentPaise,
+      paidPeriods: [paidFirstPeriod],
+    });
+    assert.equal(decision.shouldSuppressFinalInvoice, false);
+    assert.equal(decision.tailRentPaise, 0);
+  });
+
+  test('vacate 8 Aug inside next unpaid period → one tail day (vacating date)', () => {
+    const decision = computeVacatingFinalPeriodRentDecision({
+      vacatingApproved: true,
+      vacatingDate: '2026-08-08',
+      billingDay,
+      moveInDate: moveIn,
+      monthlyRentPaise,
+      paidPeriods: [paidFirstPeriod],
+    });
+
+    assert.equal(decision.shouldSuppressFinalInvoice, true);
+    assert.equal(decision.tailDays, 1);
+    assert.equal(decision.tailPeriodStart, '2026-08-07');
+    assert.equal(decision.tailPeriodEnd, '2026-08-08');
+    assert.equal(decision.tailRentPaise, dailyRateFromMonthly(monthlyRentPaise));
+  });
+});
+
 describe('vacatingFinalPeriodRent — Jul 5 check-in, vacate Aug 7', () => {
   const moveIn = '2026-07-05';
   const billingDay = 5;

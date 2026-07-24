@@ -15,7 +15,8 @@ export type CheckoutAuditIssue = {
     | 'missing_settlement'
     | 'stale_zero_refund_in_queue'
     | 'approved_without_vacating'
-    | 'duplicate_settlement';
+    | 'duplicate_settlement'
+    | 'premature_settlement_pending_vacating';
   detail: string;
   settlementId?: string;
   vacatingRequestId?: string;
@@ -126,6 +127,27 @@ export async function runCheckoutAudit(session: AdminSession): Promise<CheckoutA
       code: 'approved_without_vacating',
       detail: `Settlement ${row.id} approved but no vacating_request_id`,
       settlementId: row.id,
+    });
+  }
+
+  const prematureRows = await db.execute<{
+    settlement_id: string;
+    vacating_request_id: string;
+  }>(sql`
+    SELECT cs.id::text AS settlement_id, cs.vacating_request_id::text AS vacating_request_id
+    FROM checkout_settlements cs
+    INNER JOIN vacating_requests vr ON vr.id = cs.vacating_request_id
+    WHERE vr.status = 'pending'
+      AND cs.status NOT IN ('archived', 'completed', 'refund_paid')
+    LIMIT 20
+  `);
+
+  for (const row of Array.from(prematureRows)) {
+    issues.push({
+      code: 'premature_settlement_pending_vacating',
+      detail: `Settlement ${row.settlement_id} exists while vacating ${row.vacating_request_id} is still pending`,
+      settlementId: row.settlement_id,
+      vacatingRequestId: row.vacating_request_id,
     });
   }
 

@@ -13,8 +13,6 @@ import { CheckoutSettlementElectricitySection } from '@/src/components/admin/Che
 import { NoticeSettlementPanel } from '@/src/components/shared/NoticeDeductionBreakdown';
 import { assessCheckoutSettlementReadiness } from '@/src/lib/checkout/checkoutSettlementReadiness';
 import { paiseToInr } from '@/src/lib/format';
-import { breakdownFromStoredNoticeSnapshot } from '@/src/lib/vacating/noticeDeductionPresentation';
-import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 
 const idle: CheckoutSettlementActionState = { status: 'idle' };
@@ -73,17 +71,7 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
     !locked &&
     (detail.status === 'awaiting_admin_review' || detail.status === 'awaiting_resident_details');
 
-  const noticeBreakdown = breakdownFromStoredNoticeSnapshot({
-    noticeRequiredDays: detail.noticeRequiredDays,
-    noticeGivenDays: detail.noticeGivenDays,
-    noticeGivenDate: detail.noticeGivenDate,
-    vacatingDate: detail.vacatingDate,
-    noticeShortfallDays: detail.noticeShortfallDays,
-    noticeRentCoveredDays: detail.noticeRentCoveredDays,
-    noticeChargeableDays: detail.noticeChargeableDays,
-    noticeDeductionPaise: detail.noticeDeductionPaise,
-    noticeBreakdownJson: detail.noticeBreakdownJson,
-  });
+  const noticeBreakdown = detail.settlementNoticeDisplay ?? null;
 
   return (
     <div className="space-y-4">

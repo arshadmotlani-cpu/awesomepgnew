@@ -6,7 +6,7 @@ import { db } from '@/src/db/client';
 import { bedReservations, bookings, rentInvoices } from '@/src/db/schema';
 import { formatDate, todayString } from '@/src/lib/dates';
 import { isMonthlyStayType, stayTypeFromPricingMode } from '@/src/lib/stayType';
-import { resolvePaidThroughDate } from '@/src/lib/vacating/noticeDeductionEngine';
+import type { BillingCoverageModel } from '@/src/lib/billing/billingCoverageModel';
 import {
   anniversaryBillingPeriod,
   billingDayFromMoveIn,
@@ -14,7 +14,7 @@ import {
   dailyRateFromMonthly,
   formatAnniversaryBillingPeriodLabel,
 } from '@/src/services/billing';
-import { loadPaidRentCoveragePeriods } from '@/src/services/noticeDeduction';
+import { loadBillingCoverageModel } from '@/src/services/billingCoverage';
 import {
   ensureBillingProfileForBooking,
   getResidentBillingFormDefaults,
@@ -67,8 +67,8 @@ async function moveInDateForBooking(bookingId: string): Promise<string | null> {
 export async function loadMonthlyBillingSnapshotForBooking(args: {
   bookingId: string;
   customerId?: string;
-  /** Used for paid-until when computing rent coverage at vacate. */
   vacatingDate?: string | null;
+  coverageModel?: BillingCoverageModel | null;
 }): Promise<MonthlyBillingSnapshot | null> {
   const [booking] = await db
     .select({
@@ -136,8 +136,15 @@ export async function loadMonthlyBillingSnapshotForBooking(args: {
   const period = anniversaryBillingPeriod(periodAnchor, billingDay);
 
   const coverageAsOf = args.vacatingDate ?? today;
-  const { periods } = await loadPaidRentCoveragePeriods(args.bookingId);
-  const { paidUntilDate } = resolvePaidThroughDate(coverageAsOf, periods);
+  const coverage =
+    args.coverageModel ??
+    (await loadBillingCoverageModel({
+      bookingId: args.bookingId,
+      vacatingDate: coverageAsOf,
+      asOfDate: coverageAsOf,
+    }));
+  const paidUntilDate = coverage?.paidUntilDate ?? null;
+  const currentPeriod = coverage?.currentBillingPeriod;
 
   const monthlyRentPaise = defaults?.rentAmountPaise ?? profile.rentAmountPaise;
 
@@ -149,8 +156,10 @@ export async function loadMonthlyBillingSnapshotForBooking(args: {
     nextRentDueDate,
     dailyRentPaise: dailyRateFromMonthly(monthlyRentPaise),
     monthlyRentPaise,
-    billingPeriodStart: period.periodStart,
-    billingPeriodEnd: period.periodEnd,
-    billingPeriodLabel: formatAnniversaryBillingPeriodLabel(period.periodStart, period.periodEnd),
+    billingPeriodStart: currentPeriod?.periodStart ?? period.periodStart,
+    billingPeriodEnd: currentPeriod?.periodEnd ?? period.periodEnd,
+    billingPeriodLabel:
+      currentPeriod?.label ??
+      formatAnniversaryBillingPeriodLabel(period.periodStart, period.periodEnd),
   };
 }

@@ -4,25 +4,21 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ApgCard, StatusChip, StatusTimeline } from '@/src/components/customer/design-system';
 import { DepositRefundRequestForm } from '@/src/components/customer/account/DepositRefundRequestForm';
-import { NoticeSettlementPanel } from '@/src/components/shared/NoticeDeductionBreakdown';
 import { CancelVacatingForm } from '@/src/components/customer/CancelVacatingForm';
 import { MoveOutRefundSuccess } from '@/src/components/customer/account/resident/vacating/MoveOutRefundSuccess';
 import { ChangeLeavingDateForm } from '@/src/components/customer/account/resident/vacating/ChangeLeavingDateForm';
-import { ResidentEstimatedSettlementBreakdown } from '@/src/components/customer/account/resident/vacating/ResidentEstimatedSettlementBreakdown';
 import type { ResidentSettlementStatementContext } from '@/src/components/customer/account/resident/vacating/ResidentEstimatedSettlementBreakdown';
-import { ResidentSettlementBreakdown } from '@/src/components/customer/account/resident/vacating/ResidentSettlementBreakdown';
+import { ResidentMoveOutSettlementStory } from '@/src/components/customer/account/resident/vacating/ResidentMoveOutSettlementStory';
 import { cancelApprovedVacatingAction } from '@/app/(customer)/account/resident/vacating-date-change-actions';
 import {
   buildVacatingSettlementLines,
   canRequestMoveOutRefund,
   vacatingNextStep,
   vacatingStageIndex,
-  VACATING_JOURNEY_STAGES,
 } from '@/src/lib/residents/vacatingJourney';
 import {
   buildVacatingTimelineStages,
   currentStageLabel,
-  ESTIMATED_REFUND_HELPER,
   estimateRefundPaise,
   expectedCompletionLabel,
   isBeforeVacatingDate,
@@ -34,9 +30,6 @@ import { isFixedStayDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
 import type { CheckoutSettlementWaterfall } from '@/src/lib/checkout/checkoutSettlementEngineV2';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 import { formatDate, paiseToInr } from '@/src/lib/format';
-import { tryDiffDays } from '@/src/lib/dates';
-import { breakdownFromStoredNoticeSnapshot } from '@/src/lib/vacating/noticeDeductionPresentation';
-import { noticeShortfallDays } from '@/src/services/billing';
 import { primaryBtn } from '@/src/lib/design-system/tokens';
 import type { EstimatedSettlementPreview } from '@/src/lib/vacating/estimatedSettlementPreview';
 
@@ -67,12 +60,56 @@ type Props = {
   pendingDateChangeRequestId?: string | null;
   settlementContext?: ResidentSettlementStatementContext | null;
   settlementDocument?: import('@/src/lib/vacating/settlementStatementModel').SettlementStatementDocumentModel | null;
+  settlementNoticeDisplay?: import('@/src/lib/vacating/noticeDeductionPresentation').NoticeSettlementDisplay | null;
 };
 
 function safeDateString(value: unknown): string | null {
   if (value == null) return null;
   const s = String(value).slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+}
+
+function SettlementStoryBlock({
+  vacating,
+  vacatingDate,
+  noticeGiven,
+  depositHeldPaise,
+  monthlyRentPaise,
+  durationMode,
+  resolvedWaterfall,
+  settlementMode,
+  settlementDocument,
+  notice,
+}: {
+  vacating: VacatingForBookingRow;
+  vacatingDate: string | null;
+  noticeGiven: string | null;
+  depositHeldPaise: number;
+  monthlyRentPaise?: number;
+  durationMode: string;
+  resolvedWaterfall: CheckoutSettlementWaterfall;
+  settlementMode: EstimatedSettlementPreview['mode'];
+  settlementDocument: Props['settlementDocument'];
+  notice: Props['settlementNoticeDisplay'];
+}) {
+  return (
+    <ResidentMoveOutSettlementStory
+      noticeGivenDate={noticeGiven}
+      vacatingDate={vacatingDate}
+      vacatingStatus={vacating.status}
+      durationMode={durationMode}
+      depositHeldPaise={depositHeldPaise}
+      monthlyRentPaise={monthlyRentPaise}
+      monthlyRentPaiseSnapshot={vacating.monthlyRentPaiseSnapshot}
+      waterfall={resolvedWaterfall}
+      mode={settlementMode}
+      settlementDocument={settlementDocument}
+      noticeRentCoveredDays={vacating.noticeRentCoveredDays}
+      noticeChargeableDays={vacating.noticeChargeableDays}
+      deductionPaise={vacating.deductionPaise}
+      notice={notice}
+    />
+  );
 }
 
 export function VacatingHome({
@@ -93,15 +130,26 @@ export function VacatingHome({
   expectedCheckoutDate = null,
   estimatedSettlement = null,
   pendingDateChangeRequestId = null,
-  settlementContext = null,
   settlementDocument = null,
+  settlementNoticeDisplay = null,
+  monthlyRentPaise,
 }: Props) {
   const router = useRouter();
   const fixedStay = isFixedStayDurationMode(durationMode);
 
   const vacatingDate = safeDateString(vacating?.vacatingDate);
+  const noticeGiven = safeDateString(vacating?.noticeGivenDate);
   const resolvedPayoutUpiId = payoutUpiId ?? checkoutSettlement?.payoutUpiId ?? null;
   const resolvedRefundPaidAt = refundPaidAt ?? checkoutSettlement?.refundPaidAt ?? null;
+
+  const resolvedWaterfall = settlementWaterfall ?? estimatedSettlement?.waterfall ?? null;
+  const settlementMode: EstimatedSettlementPreview['mode'] =
+    estimatedSettlement?.mode ?? (settlementWaterfall != null ? 'final' : 'estimate');
+
+  const showSettlementStory =
+    vacating != null &&
+    ['pending', 'approved', 'completed'].includes(vacating.status) &&
+    resolvedWaterfall != null;
 
   const refundGate = canRequestMoveOutRefund({
     vacatingStatus: vacating?.status ?? null,
@@ -145,8 +193,7 @@ export function VacatingHome({
 
   const settlementLines = buildVacatingSettlementLines(vacating);
   const v2RefundEstimate = estimatedSettlement?.estimatedRefundPaise ?? null;
-  const refundEstimate =
-    v2RefundEstimate ?? estimateRefundPaise(depositHeldPaise, vacating);
+  const refundEstimate = v2RefundEstimate ?? estimateRefundPaise(depositHeldPaise, vacating);
   const completionLabel = expectedCompletionLabel({ vacating, checkoutStatus });
   const stageLabel = currentStageLabel(
     vacating?.status ?? null,
@@ -169,23 +216,8 @@ export function VacatingHome({
     !checkoutSettlementSuppressed &&
     !isMoveOutComplete;
 
-  const showBreakdownPanel =
-    vacating != null &&
-    (vacating.status === 'approved' ||
-      vacating.status === 'completed' ||
-      activeIndex >= 2);
-
-  const showV2Estimate =
-    estimatedSettlement != null &&
-    !settlementWaterfall &&
-    activeIndex < 4 &&
-    !isMoveOutComplete;
-
-  const showEstimateStats =
-    (refundEstimate != null || completionLabel) &&
-    !isMoveOutComplete &&
-    activeIndex <= 3 &&
-    !showV2Estimate;
+  const showHeroCompletion =
+    completionLabel && !isMoveOutComplete && !showSettlementStory && activeIndex <= 3;
 
   const beforeVacateDate =
     vacating?.status === 'approved' &&
@@ -217,28 +249,27 @@ export function VacatingHome({
         ? unlockCountdown.headline
         : nextStep.detail;
 
-  const noticeGiven = safeDateString(vacating?.noticeGivenDate);
-  const noticeBreakdown =
-    vacating != null && noticeGiven && vacatingDate
-      ? breakdownFromStoredNoticeSnapshot({
-          noticeGivenDate: noticeGiven,
-          vacatingDate,
-          noticeGivenDays: Math.max(0, tryDiffDays(noticeGiven, vacatingDate) ?? 0),
-          noticeShortfallDays: noticeShortfallDays({
-            noticeGivenDate: noticeGiven,
-            vacatingDate,
-          }),
-          noticeRentCoveredDays: vacating.noticeRentCoveredDays,
-          noticeChargeableDays: vacating.noticeChargeableDays,
-          deductionPaise: vacating.deductionPaise,
-        })
-      : null;
-
   const successRefundPaise =
     totalRefundPaise ??
     settlementWaterfall?.refund.totalPaise ??
     refundEstimate ??
     0;
+
+  const storyBlock =
+    showSettlementStory && vacating && resolvedWaterfall ? (
+      <SettlementStoryBlock
+        vacating={vacating}
+        vacatingDate={vacatingDate}
+        noticeGiven={noticeGiven}
+        depositHeldPaise={depositHeldPaise}
+        monthlyRentPaise={monthlyRentPaise}
+        durationMode={durationMode}
+        resolvedWaterfall={resolvedWaterfall}
+        settlementMode={settlementMode}
+        settlementDocument={settlementDocument}
+        notice={settlementNoticeDisplay}
+      />
+    ) : null;
 
   if (fixedStay) {
     return (
@@ -261,9 +292,7 @@ export function VacatingHome({
             </div>
           </ApgCard>
         )}
-        {showBreakdownPanel ? (
-          <ResidentSettlementBreakdown waterfall={settlementWaterfall} />
-        ) : null}
+        {storyBlock}
         {showRefundForm ? (
           <DepositRefundRequestForm
             bookingId={bookingId}
@@ -311,25 +340,12 @@ export function VacatingHome({
               ) : null}
             </div>
           </div>
-          {showEstimateStats ? (
+          {showHeroCompletion ? (
             <dl className="grid grid-cols-1 gap-px bg-zinc-100 sm:grid-cols-2">
-              {refundEstimate != null ? (
-                <div className="bg-white px-4 py-3 sm:col-span-2">
-                  <dt className="text-[10px] font-medium uppercase text-zinc-500">
-                    Estimated Refund ≈
-                  </dt>
-                  <dd className="mt-1 text-lg font-bold tabular-nums text-emerald-700">
-                    {paiseToInr(refundEstimate)}
-                  </dd>
-                  <p className="mt-1 text-xs text-zinc-500">{ESTIMATED_REFUND_HELPER}</p>
-                </div>
-              ) : null}
-              {completionLabel ? (
-                <div className={`bg-white px-4 py-3 ${refundEstimate == null ? 'sm:col-span-2' : ''}`}>
-                  <dt className="text-[10px] font-medium uppercase text-zinc-500">Expected</dt>
-                  <dd className="mt-1 text-sm font-medium text-zinc-900">{completionLabel}</dd>
-                </div>
-              ) : null}
+              <div className="bg-white px-4 py-3 sm:col-span-2">
+                <dt className="text-[10px] font-medium uppercase text-zinc-500">Expected</dt>
+                <dd className="mt-1 text-sm font-medium text-zinc-900">{completionLabel}</dd>
+              </div>
             </dl>
           ) : null}
         </ApgCard>
@@ -366,14 +382,7 @@ export function VacatingHome({
             </div>
           </ApgCard>
 
-          {showV2Estimate && settlementDocument ? (
-            <ApgCard tier="account" className="p-5">
-              <h3 className="text-sm font-semibold text-zinc-900">Estimated settlement</h3>
-              <div className="mt-3">
-                <ResidentEstimatedSettlementBreakdown document={settlementDocument} />
-              </div>
-            </ApgCard>
-          ) : null}
+          {storyBlock}
 
           {showChangeLeavingDate && vacatingDate ? (
             <ChangeLeavingDateForm
@@ -382,19 +391,6 @@ export function VacatingHome({
               pendingRequestId={pendingDateChangeRequestId}
               onSubmitted={() => router.refresh()}
             />
-          ) : null}
-
-          {showBreakdownPanel && settlementWaterfall ? (
-            <ResidentSettlementBreakdown waterfall={settlementWaterfall} />
-          ) : null}
-
-          {vacating && noticeBreakdown && vacating.deductionPaise > 0 && activeIndex < 4 && !showV2Estimate ? (
-            <ApgCard tier="account" className="p-5">
-              <h3 className="text-sm font-semibold text-zinc-900">Notice period estimate</h3>
-              <div className="mt-3">
-                <NoticeSettlementPanel settlement={noticeBreakdown} variant="resident" compact />
-              </div>
-            </ApgCard>
           ) : null}
 
           {checkoutSettlement?.rejectionReason ? (
@@ -441,27 +437,7 @@ export function VacatingHome({
             </ApgCard>
           ) : null}
 
-          {vacating && (
-            <ApgCard tier="account" className="p-5">
-              <h3 className="text-sm font-semibold text-zinc-900">Move-out details</h3>
-              <dl className="mt-3 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2">
-                {noticeGiven ? (
-                  <div>
-                    <dt className="text-zinc-600">Request submitted</dt>
-                    <dd className="font-medium text-zinc-900">{formatDate(noticeGiven)}</dd>
-                  </div>
-                ) : null}
-                {vacatingDate ? (
-                  <div>
-                    <dt className="text-zinc-600">Move-out date</dt>
-                    <dd className="font-medium text-zinc-900">{formatDate(vacatingDate)}</dd>
-                  </div>
-                ) : null}
-              </dl>
-            </ApgCard>
-          )}
-
-          {settlementLines.length > 0 ? (
+          {!showSettlementStory && settlementLines.length > 0 ? (
             <ApgCard tier="account" className="p-5">
               <h3 className="text-sm font-semibold text-zinc-900">Final settlement</h3>
               <ul className="mt-3 space-y-2">
@@ -515,9 +491,7 @@ export function VacatingHome({
               />
             </div>
           </ApgCard>
-          {showBreakdownPanel ? (
-            <ResidentSettlementBreakdown waterfall={settlementWaterfall} />
-          ) : null}
+          {storyBlock}
         </>
       ) : null}
     </div>

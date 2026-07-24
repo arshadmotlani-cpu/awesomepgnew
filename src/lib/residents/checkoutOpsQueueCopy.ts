@@ -11,8 +11,8 @@ export function deriveCheckoutOpsNextAction(input: {
   if (vacatingStatus === 'pending') {
     return {
       issue: 'Move-out notice awaiting approval',
-      nextAction: 'Approve move-out notice before checkout can start',
-      primaryActionLabel: 'Approve move-out',
+      nextAction: 'Review move-out notice and settlement before checkout can start',
+      primaryActionLabel: 'Review move-out',
     };
   }
 

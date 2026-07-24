@@ -178,6 +178,31 @@ test('waiting for resident excluded from move-out ops queue', () => {
   assert.equal(vacatingOperationsQueueTarget(pipeline[0]!), null);
 });
 
+test('pending vacating with premature settlement stays in move-out ops queue', () => {
+  const pipeline = buildMoveOutPipeline({
+    vacatingRows: [
+      {
+        ...baseVacating,
+        id: 'vr-pending-orphan',
+        vacatingDate: '2026-07-21',
+        status: 'pending',
+      },
+    ],
+    settlements: [
+      {
+        id: 'cs-premature',
+        vacatingRequestId: 'vr-pending-orphan',
+        status: 'awaiting_resident_details',
+        createdAt: new Date('2026-07-23'),
+        updatedAt: new Date('2026-07-23'),
+        approvedAt: null,
+        refundPaidAt: null,
+      },
+    ],
+  });
+  assert.equal(vacatingOperationsQueueTarget(pipeline[0]!), 'vacating_requests');
+});
+
 test('refund pending maps to vacating_requests move-out queue', () => {
   const pipeline = buildMoveOutPipeline({
     vacatingRows: [

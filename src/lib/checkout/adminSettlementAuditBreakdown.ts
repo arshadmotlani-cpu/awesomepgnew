@@ -13,12 +13,9 @@ import {
   PENDING_DAMAGES_LABEL,
   PENDING_ELECTRICITY_LABEL,
   PENDING_OTHER_LABEL,
-  resolveDaysPaidDisplay,
   type SettlementDisplayRow,
   type SettlementDisplaySection,
 } from '@/src/lib/checkout/settlementDisplayFormat';
-import type { NoticeDeductionBreakdown } from '@/src/lib/vacating/noticeDeductionEngine';
-import { breakdownFromStoredNoticeSnapshot } from '@/src/lib/vacating/noticeDeductionPresentation';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 
 export type AdminSettlementAuditRow = SettlementDisplayRow;
@@ -35,28 +32,13 @@ export {
   isSettlementDisplayEmpty as isAuditEmpty,
 } from '@/src/lib/checkout/settlementDisplayFormat';
 
-function noticeSnapshotFromDetail(detail: CheckoutSettlementDetail) {
-  return breakdownFromStoredNoticeSnapshot({
-    noticeRequiredDays: detail.noticeRequiredDays,
-    noticeGivenDays: detail.noticeGivenDays,
-    noticeGivenDate: detail.noticeGivenDate,
-    vacatingDate: detail.vacatingDate,
-    noticeShortfallDays: detail.noticeShortfallDays,
-    noticeRentCoveredDays: detail.noticeRentCoveredDays,
-    noticeChargeableDays: detail.noticeChargeableDays,
-    noticeDeductionPaise: detail.noticeDeductionPaise,
-    noticeBreakdownJson: detail.noticeBreakdownJson as Partial<NoticeDeductionBreakdown> | null,
-  });
-}
-
 export function buildAdminSettlementAuditBreakdown(
   detail: CheckoutSettlementDetail,
 ): AdminSettlementAuditBreakdown {
   const waterfall = detail.waterfall ?? null;
   const usesV2 = Boolean(waterfall) || (detail.settlementEngineVersion ?? 1) >= 2;
   const preview = detail.preview;
-  const notice =
-    detail.settlementNoticeDisplay ?? noticeSnapshotFromDetail(detail);
+  const notice = detail.settlementNoticeDisplay ?? null;
 
   const rentPaidPaise = waterfall?.rentBucket.paidPaise ?? detail.rentPaidPaise ?? 0;
   const dailyRentPaise =
@@ -108,11 +90,7 @@ export function buildAdminSettlementAuditBreakdown(
         ? 'Estimated refund (at approval)'
         : 'Final refund';
 
-  const daysPaid = resolveDaysPaidDisplay(
-    detail.noticeBreakdownJson as Partial<NoticeDeductionBreakdown> | null,
-    rentPaidPaise,
-    dailyRentPaise,
-  );
+  const daysPaid = detail.billingCoverageDaysPaid ?? { value: '—' };
 
   const billing: AdminSettlementAuditSection = {
     title: 'Billing & dates',
