@@ -49,6 +49,11 @@ import type { ConciergeContext } from '@/src/lib/concierge/answers';
 import type { ResidentTab, ResidentProfileSub, ResidentPaymentsSub } from '@/src/lib/accountNavigation';
 import { getCheckoutSettlementForCustomer, getLatestCheckoutSettlementStatusForCustomer, getRefundEligibilitySettlementForCustomer, getResidentMoveOutSettlementContext } from '@/src/services/checkoutSettlement';
 import type { ResidentSettlementStatementContext } from '@/src/components/customer/account/resident/vacating/ResidentEstimatedSettlementBreakdown';
+import { buildFallbackPgLetterhead } from '@/src/lib/billing/pgLetterheadFallback';
+import {
+  buildSettlementStatementModel,
+  type SettlementStatementDocumentModel,
+} from '@/src/lib/vacating/settlementStatementModel';
 import {
   loadEstimatedSettlementForVacating,
   type EstimatedSettlementPreview,
@@ -583,6 +588,7 @@ export async function ResidentAreaSection({
   let primaryEstimatedSettlement: EstimatedSettlementPreview | null = null;
   let primaryPendingDateChangeRequestId: string | null = null;
   let primarySettlementContext: ResidentSettlementStatementContext | null = null;
+  let primarySettlementDocument: SettlementStatementDocumentModel | null = null;
   if (
     primaryBooking &&
     primaryVacating &&
@@ -616,6 +622,22 @@ export async function ResidentAreaSection({
       noticeGivenDate: String(primaryVacating.noticeGivenDate),
       vacatingDate: String(primaryVacating.vacatingDate),
     };
+    if (estimatedSettlement) {
+      primarySettlementDocument = buildSettlementStatementModel({
+        preview: estimatedSettlement,
+        vacatingRequestId: primaryVacating.id,
+        bookingId: primaryBooking.bookingId,
+        customerName: primarySettlementContext.customerName,
+        customerPhone: primarySettlementContext.customerPhone ?? '—',
+        bookingCode: primarySettlementContext.bookingCode,
+        pgName: primarySettlementContext.pgName,
+        roomNumber: primarySettlementContext.roomNumber,
+        bedCode: primarySettlementContext.bedCode,
+        noticeGivenDate: primarySettlementContext.noticeGivenDate,
+        vacatingDate: primarySettlementContext.vacatingDate,
+        letterhead: buildFallbackPgLetterhead(primarySettlementContext.pgName),
+      });
+    }
   }
 
   const activeRejectionsRaw = await listActiveRejectionsForCustomer(session.customerId);
@@ -889,6 +911,7 @@ export async function ResidentAreaSection({
             estimatedSettlement={primaryEstimatedSettlement}
             pendingDateChangeRequestId={primaryPendingDateChangeRequestId}
             settlementContext={primarySettlementContext}
+            settlementDocument={primarySettlementDocument}
           />
         </ResidentSectionErrorBoundary>
       ) : null}

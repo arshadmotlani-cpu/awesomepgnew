@@ -11,12 +11,12 @@ import {
   rejectVacatingAction,
   undoVacatingApprovalAction,
   undoVacatingCompletionAction,
-  type ActionState,
 } from '@/app/(admin)/admin/vacating/actions';
 import { ApproveVacatingPreview } from '@/src/components/admin/vacating/ApproveVacatingPreview';
 import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
+import type { VacatingActionState } from '@/src/lib/vacating/vacatingActionTypes';
 
-const idle: ActionState = { status: 'idle' };
+const idle: VacatingActionState = { status: 'idle' };
 
 function MicroForm({
   formId,
@@ -36,7 +36,7 @@ function MicroForm({
   formId: string;
   requestId: string;
   pgId?: string;
-  action: (prev: ActionState, fd: FormData) => Promise<ActionState>;
+  action: (prev: VacatingActionState, fd: FormData) => Promise<VacatingActionState>;
   label: string;
   pendingLabel?: string;
   className: string;

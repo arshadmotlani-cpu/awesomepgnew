@@ -66,6 +66,7 @@ type Props = {
   estimatedSettlement?: EstimatedSettlementPreview | null;
   pendingDateChangeRequestId?: string | null;
   settlementContext?: ResidentSettlementStatementContext | null;
+  settlementDocument?: import('@/src/lib/vacating/settlementStatementModel').SettlementStatementDocumentModel | null;
 };
 
 function safeDateString(value: unknown): string | null {
@@ -93,6 +94,7 @@ export function VacatingHome({
   estimatedSettlement = null,
   pendingDateChangeRequestId = null,
   settlementContext = null,
+  settlementDocument = null,
 }: Props) {
   const router = useRouter();
   const fixedStay = isFixedStayDurationMode(durationMode);
@@ -364,14 +366,11 @@ export function VacatingHome({
             </div>
           </ApgCard>
 
-          {showV2Estimate && estimatedSettlement && settlementContext ? (
+          {showV2Estimate && settlementDocument ? (
             <ApgCard tier="account" className="p-5">
               <h3 className="text-sm font-semibold text-zinc-900">Estimated settlement</h3>
               <div className="mt-3">
-                <ResidentEstimatedSettlementBreakdown
-                  preview={estimatedSettlement}
-                  context={settlementContext}
-                />
+                <ResidentEstimatedSettlementBreakdown document={settlementDocument} />
               </div>
             </ApgCard>
           ) : null}
@@ -381,7 +380,6 @@ export function VacatingHome({
               bookingId={bookingId}
               currentVacatingDate={vacatingDate}
               pendingRequestId={pendingDateChangeRequestId}
-              settlementContext={settlementContext}
               onSubmitted={() => router.refresh()}
             />
           ) : null}

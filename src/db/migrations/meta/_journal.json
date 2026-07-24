@@ -869,6 +869,20 @@
       "when": 1793700000000,
       "tag": "0123_checkout_settlement_v2",
       "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1793800000000,
+      "tag": "0124_approval_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1793900000000,
+      "tag": "0125_vacating_date_change_requests",
+      "breakpoints": true
     }
   ]
 }

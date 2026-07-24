@@ -8,20 +8,16 @@ import {
   cancelVacatingDateChangeRequestAction,
 } from '@/app/(customer)/account/resident/vacating-date-change-actions';
 import type { VacatingDateChangePreview } from '@/src/services/vacatingDateChange';
-import { ResidentEstimatedSettlementBreakdown } from '@/src/components/customer/account/resident/vacating/ResidentEstimatedSettlementBreakdown';
-import type { ResidentSettlementStatementContext } from '@/src/components/customer/account/resident/vacating/ResidentEstimatedSettlementBreakdown';
 
 export function ChangeLeavingDateForm({
   bookingId,
   currentVacatingDate,
   pendingRequestId,
-  settlementContext,
   onSubmitted,
 }: {
   bookingId: string;
   currentVacatingDate: string;
   pendingRequestId?: string | null;
-  settlementContext?: ResidentSettlementStatementContext | null;
   onSubmitted?: () => void;
 }) {
   const [newDate, setNewDate] = useState('');
@@ -136,15 +132,6 @@ export function ChangeLeavingDateForm({
             Current estimate {paiseToInr(preview.currentEstimatedRefundPaise)} → New estimate{' '}
             {paiseToInr(preview.requestedEstimatedRefundPaise)}
           </p>
-          {preview && settlementContext ? (
-            <ResidentEstimatedSettlementBreakdown
-              preview={preview.requestedEstimatedSettlement}
-              context={{
-                ...settlementContext,
-                vacatingDate: preview.requestedVacatingDate,
-              }}
-            />
-          ) : null}
         </div>
       ) : null}
     </div>

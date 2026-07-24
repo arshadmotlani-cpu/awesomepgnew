@@ -149,6 +149,7 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
                   noticeGivenDate: String(data.vacating.noticeGivenDate),
                   vacatingDate: String(data.pendingDateChange.requestedVacatingDate),
                 }}
+                statementDocument={data.pendingDateChange.statementDocument}
               />
             ) : null}
             {data.vacating.settlementStatement ? (

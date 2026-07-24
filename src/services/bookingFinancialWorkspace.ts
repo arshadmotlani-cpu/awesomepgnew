@@ -39,8 +39,8 @@ import type { BookingMoneyBalances } from '@/src/lib/billing/bookingMoneyBalance
 import { pendingPaymentReviewHrefForBooking } from '@/src/lib/operations/paymentReviewLinks.server';
 import {
   getPendingVacatingDateChangeForBooking,
-  type VacatingDateChangePreview,
 } from '@/src/services/vacatingDateChange';
+import type { VacatingDateChangePreview } from '@/src/services/vacatingDateChange';
 import type { VacatingDateChangeRequest } from '@/src/db/schema/vacatingDateChangeRequests';
 
 export type BookingFinancialWorkspaceData = {
@@ -70,6 +70,7 @@ export type BookingFinancialWorkspaceData = {
   } | null;
   pendingDateChange: (VacatingDateChangeRequest & {
     preview?: VacatingDateChangePreview | null;
+    statementDocument?: SettlementStatementDocumentModel | null;
   }) | null;
   checkoutDetail: CheckoutSettlementDetail | null;
   checkoutSettlementId: string | null;
@@ -257,10 +258,36 @@ export async function loadBookingFinancialWorkspace(
   const settlementId = checkoutDetail?.id ?? null;
   const settlementHref = settlementId ? `#checkout` : null;
   const pendingPaymentReviewHref = await pendingPaymentReviewHrefForBooking(bookingId);
-  const pendingDateChange =
-    vacatingRow && ['approved'].includes(vacatingRow.status)
-      ? await getPendingVacatingDateChangeForBooking(bookingId)
-      : null;
+  let pendingDateChange: BookingFinancialWorkspaceData['pendingDateChange'] = null;
+  if (vacatingRow && vacatingRow.status === 'approved') {
+    const dateChangeRow = await getPendingVacatingDateChangeForBooking(bookingId);
+    if (dateChangeRow) {
+      const preview =
+        (dateChangeRow.previewSnapshot as VacatingDateChangePreview | null) ?? null;
+      let dateChangeStatement: SettlementStatementDocumentModel | null = null;
+      if (preview?.requestedEstimatedSettlement) {
+        dateChangeStatement = buildSettlementStatementModel({
+          preview: preview.requestedEstimatedSettlement,
+          vacatingRequestId: vacatingRow.id,
+          bookingId,
+          customerName: b.customer.fullName,
+          customerPhone: b.customer.phone,
+          bookingCode: b.bookingCode,
+          pgName: primaryRes.pgName,
+          roomNumber: primaryRes.roomNumber,
+          bedCode: primaryRes.bedCode,
+          noticeGivenDate: String(vacatingRow.noticeGivenDate),
+          vacatingDate: String(dateChangeRow.requestedVacatingDate),
+          letterhead: buildFallbackPgLetterhead(primaryRes.pgName),
+        });
+      }
+      pendingDateChange = {
+        ...dateChangeRow,
+        preview,
+        statementDocument: dateChangeStatement,
+      };
+    }
+  }
 
   return {
     ok: true,

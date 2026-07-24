@@ -107,6 +107,8 @@ test('date change panel does not expose paise in UI copy', () => {
   );
   assert.doesNotMatch(panel, /refundDeltaPaise\} paise/);
   assert.match(panel, /surface="adminModal"/);
+  assert.match(panel, /dateChangeActions/);
+  assert.doesNotMatch(panel, /buildSettlementStatementModel/);
 });
 
 test('move-out pipeline passes server approval preview with estimated settlement', () => {

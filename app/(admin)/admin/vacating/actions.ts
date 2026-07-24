@@ -1,7 +1,5 @@
 'use server';
 
-import { eq } from 'drizzle-orm';
-import { db } from '@/src/db/client';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import {
   revalidateVacatingLifecycleForBooking,
@@ -20,11 +18,7 @@ import {
   revertVacatingApproval,
   revertVacatingCompletion,
 } from '@/src/services/vacating';
-
-export type ActionState =
-  | { status: 'idle' }
-  | { status: 'ok'; message: string }
-  | { status: 'error'; message: string };
+import type { VacatingActionState } from '@/src/lib/vacating/vacatingActionTypes';
 
 function completeErrorMessage(kind: string, message?: string): string {
   if (kind === 'bed_not_occupied') {
@@ -40,9 +34,9 @@ function completeErrorMessage(kind: string, message?: string): string {
 }
 
 export async function approveVacatingAction(
-  _prev: ActionState,
+  _prev: VacatingActionState,
   formData: FormData,
-): Promise<ActionState> {
+): Promise<VacatingActionState> {
   const admin = await requireAdminPermission('vacating:write');
   const requestId = String(formData.get('requestId') ?? '');
   try {
@@ -68,9 +62,9 @@ export async function approveVacatingAction(
 }
 
 export async function rejectVacatingAction(
-  _prev: ActionState,
+  _prev: VacatingActionState,
   formData: FormData,
-): Promise<ActionState> {
+): Promise<VacatingActionState> {
   const admin = await requireAdminPermission('vacating:write');
   const requestId = String(formData.get('requestId') ?? '');
   try {
@@ -98,9 +92,9 @@ export async function rejectVacatingAction(
 }
 
 export async function completeVacatingAction(
-  _prev: ActionState,
+  _prev: VacatingActionState,
   formData: FormData,
-): Promise<ActionState> {
+): Promise<VacatingActionState> {
   const admin = await requireAdminPermission('vacating:write');
   const requestId = String(formData.get('requestId') ?? '');
   try {
@@ -132,9 +126,9 @@ export async function completeVacatingAction(
 }
 
 export async function undoVacatingCompletionAction(
-  _prev: ActionState,
+  _prev: VacatingActionState,
   formData: FormData,
-): Promise<ActionState> {
+): Promise<VacatingActionState> {
   const admin = await requireAdminPermission('vacating:write');
   const requestId = String(formData.get('requestId') ?? '');
   const pgId = String(formData.get('pgId') ?? '');
@@ -168,9 +162,9 @@ export async function undoVacatingCompletionAction(
 }
 
 export async function cancelVacatingNoticeAction(
-  _prev: ActionState,
+  _prev: VacatingActionState,
   formData: FormData,
-): Promise<ActionState> {
+): Promise<VacatingActionState> {
   const admin = await requireAdminPermission('vacating:write');
   const requestId = String(formData.get('requestId') ?? '');
   const pgId = String(formData.get('pgId') ?? '');
@@ -195,9 +189,9 @@ export async function cancelVacatingNoticeAction(
 }
 
 export async function undoVacatingApprovalAction(
-  _prev: ActionState,
+  _prev: VacatingActionState,
   formData: FormData,
-): Promise<ActionState> {
+): Promise<VacatingActionState> {
   const admin = await requireAdminPermission('vacating:write');
   const requestId = String(formData.get('requestId') ?? '');
   const pgId = String(formData.get('pgId') ?? '');
@@ -225,9 +219,9 @@ export async function undoVacatingApprovalAction(
 }
 
 export async function extendVacatingDateAction(
-  _prev: ActionState,
+  _prev: VacatingActionState,
   formData: FormData,
-): Promise<ActionState> {
+): Promise<VacatingActionState> {
   const admin = await requireAdminPermission('vacating:write');
   const bookingId = String(formData.get('bookingId') ?? '');
   const newDate = String(formData.get('newVacatingDate') ?? '');
@@ -249,41 +243,4 @@ export async function extendVacatingDateAction(
   }
   await revalidateVacatingLifecycleForBooking(bookingId);
   return { status: 'ok', message: 'Vacate / end date updated — occupancy and revenue synced.' };
-}
-
-export async function approveVacatingDateChangeAction(requestId: string): Promise<ActionState> {
-  const admin = await requireAdminPermission('vacating:write');
-  const { approveVacatingDateChangeRequest } = await import('@/src/services/vacatingDateChange');
-  const { vacatingDateChangeRequests } = await import('@/src/db/schema');
-  const result = await approveVacatingDateChangeRequest({
-    requestId,
-    resolvedByAdminId: admin.adminId,
-  });
-  if (!result.ok) return { status: 'error', message: result.error };
-
-  const [row] = await db
-    .select({ bookingId: vacatingDateChangeRequests.bookingId })
-    .from(vacatingDateChangeRequests)
-    .where(eq(vacatingDateChangeRequests.id, requestId))
-    .limit(1);
-  if (row?.bookingId) {
-    await revalidateVacatingLifecycleForBooking(row.bookingId);
-  }
-
-  return { status: 'ok', message: 'Leaving date updated.' };
-}
-
-export async function rejectVacatingDateChangeAction(
-  requestId: string,
-  adminNotes?: string,
-): Promise<ActionState> {
-  const admin = await requireAdminPermission('vacating:write');
-  const { rejectVacatingDateChangeRequest } = await import('@/src/services/vacatingDateChange');
-  const result = await rejectVacatingDateChangeRequest({
-    requestId,
-    resolvedByAdminId: admin.adminId,
-    adminNotes,
-  });
-  if (!result.ok) return { status: 'error', message: result.error };
-  return { status: 'ok', message: 'Date change rejected.' };
 }

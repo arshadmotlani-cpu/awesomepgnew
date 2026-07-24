@@ -8,12 +8,11 @@ import { settlementStatementPageHref } from '@/src/lib/billing/settlementStateme
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import type { VacatingDateChangeRequest } from '@/src/db/schema/vacatingDateChangeRequests';
 import type { VacatingDateChangePreview } from '@/src/services/vacatingDateChange';
-import { buildSettlementStatementModel } from '@/src/lib/vacating/settlementStatementModel';
-import { buildFallbackPgLetterhead } from '@/src/lib/billing/pgLetterheadFallback';
+import type { SettlementStatementDocumentModel } from '@/src/lib/vacating/settlementStatementModel';
 import {
   approveVacatingDateChangeAction,
   rejectVacatingDateChangeAction,
-} from '@/app/(admin)/admin/vacating/actions';
+} from '@/app/(admin)/admin/vacating/dateChangeActions';
 
 export type VacatingDateChangeBookingContext = {
   vacatingRequestId: string;
@@ -31,33 +30,16 @@ export type VacatingDateChangeBookingContext = {
 export function VacatingDateChangeApprovalPanel({
   request,
   bookingContext,
+  statementDocument,
 }: {
   request: VacatingDateChangeRequest & {
     preview?: VacatingDateChangePreview | null;
   };
   bookingContext?: VacatingDateChangeBookingContext;
+  statementDocument?: SettlementStatementDocumentModel | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const preview = (request.previewSnapshot as VacatingDateChangePreview | null) ?? request.preview;
-
-  const statementDocument =
-    preview?.requestedEstimatedSettlement && bookingContext
-      ? buildSettlementStatementModel({
-          preview: preview.requestedEstimatedSettlement,
-          vacatingRequestId: bookingContext.vacatingRequestId,
-          bookingId: bookingContext.bookingId,
-          customerName: bookingContext.customerName,
-          customerPhone: bookingContext.customerPhone ?? '—',
-          bookingCode: bookingContext.bookingCode,
-          pgName: bookingContext.pgName,
-          roomNumber: bookingContext.roomNumber,
-          bedCode: bookingContext.bedCode,
-          noticeGivenDate: bookingContext.noticeGivenDate,
-          vacatingDate: bookingContext.vacatingDate,
-          letterhead: buildFallbackPgLetterhead(bookingContext.pgName),
-        })
-      : null;
 
   return (
     <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4">
@@ -74,12 +56,12 @@ export function VacatingDateChangeApprovalPanel({
         <p className="mt-2 text-xs text-amber-100/80">Resident note: {request.residentNotes}</p>
       ) : null}
 
-      {statementDocument ? (
+      {statementDocument && bookingContext ? (
         <div className="mt-4 space-y-2">
           <SettlementStatementDocument document={statementDocument} surface="adminModal" embed="modal" />
           <p className="text-xs text-amber-200/70">
             <Link
-              href={settlementStatementPageHref(bookingContext!.vacatingRequestId)}
+              href={settlementStatementPageHref(bookingContext.vacatingRequestId)}
               target="_blank"
               className="font-medium text-amber-100 hover:underline"
             >

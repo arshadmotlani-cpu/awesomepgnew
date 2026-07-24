@@ -12,10 +12,7 @@ import {
   cancelVacatingDateChangeRequest,
   type VacatingDateChangePreview,
 } from '@/src/services/vacatingDateChange';
-
-export type VacatingDateChangeActionState =
-  | { ok: true; preview?: VacatingDateChangePreview }
-  | { ok: false; error: string };
+import type { VacatingDateChangeActionState } from '@/src/lib/vacating/vacatingDateChangeActionTypes';
 
 export async function previewVacatingDateChangeAction(
   bookingId: string,

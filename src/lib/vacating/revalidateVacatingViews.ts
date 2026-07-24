@@ -45,6 +45,7 @@ export function revalidateVacatingLifecycleViews(ctx?: VacatingLifecycleRevalida
   }
   if (ctx?.bookingId) {
     revalidatePath(`/admin/bookings/${ctx.bookingId}`);
+    revalidatePath(`/admin/bookings/${ctx.bookingId}/financial`);
     revalidatePath(`/admin/deposits/${ctx.bookingId}`);
   }
   if (ctx?.pgId) {
