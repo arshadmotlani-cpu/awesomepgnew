@@ -13,10 +13,13 @@
  *
  * Set P0_SMOKE_EXECUTE_APPROVE=1 to allow mutation on smoke 5 (default: dry-run approve path).
  */
-import { loadAppEnv } from '@/src/lib/db/loadEnv';
+import { loadProductionAuditEnv, requireDatabaseUrl } from '@/src/lib/db/loadEnv';
 
-loadAppEnv();
+loadProductionAuditEnv();
+requireDatabaseUrl('p0-production-smoke.ts');
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { sql } from 'drizzle-orm';
 import { readMigrationFiles } from 'drizzle-orm/migrator';
 import { listAdminVacatingRequests } from '@/src/db/queries/admin';
@@ -54,10 +57,18 @@ function record(id: string, pass: boolean, detail: string) {
   console.log(`${pass ? 'PASS' : 'FAIL'} [${id}] ${detail}`);
 }
 
-function migrationFileHash(tag: string): string | null {
+function migrationHashesByTag(): Record<string, string> {
   const migrations = readMigrationFiles({ migrationsFolder: 'src/db/migrations' });
-  const hit = migrations.find((m) => m.tag === tag);
-  return hit?.hash ?? null;
+  const journal = JSON.parse(
+    readFileSync(join(process.cwd(), 'src/db/migrations/meta/_journal.json'), 'utf8'),
+  ) as { entries: Array<{ tag: string; when: number }> };
+  const byWhen = new Map(migrations.map((m) => [m.folderMillis, m.hash]));
+  const out: Record<string, string> = {};
+  for (const entry of journal.entries) {
+    const hash = byWhen.get(entry.when);
+    if (hash) out[entry.tag] = hash;
+  }
+  return out;
 }
 
 async function verifyMigrations(): Promise<boolean> {
@@ -92,8 +103,9 @@ async function verifyMigrations(): Promise<boolean> {
       : 'vacating_date_change_requests missing',
   );
 
-  const hash124 = migrationFileHash('0124_approval_baseline');
-  const hash125 = migrationFileHash('0125_vacating_date_change_requests');
+  const hashes = migrationHashesByTag();
+  const hash124 = hashes['0124_approval_baseline'];
+  const hash125 = hashes['0125_vacating_date_change_requests'];
   const applied = await db.execute<{ hash: string }>(sql`
     SELECT hash FROM drizzle.__drizzle_migrations
   `);
@@ -274,6 +286,38 @@ function isSafePendingRow(row: {
 }
 
 async function smokeApproveMoveOut(): Promise<boolean> {
+  const overrideId = process.env.P0_SMOKE_VACATING_REQUEST_ID?.trim();
+  if (overrideId && process.env.P0_SMOKE_EXECUTE_APPROVE === '1') {
+    const { db, close } = createClient({ max: 1 });
+    const current = await db.execute<{
+      vacating_request_id: string;
+      booking_id: string;
+      booking_code: string;
+      status: string;
+    }>(sql`
+      SELECT vr.id AS vacating_request_id, b.id AS booking_id, b.booking_code, vr.status
+      FROM vacating_requests vr
+      INNER JOIN bookings b ON b.id = vr.booking_id
+      WHERE vr.id = ${overrideId}::uuid
+      LIMIT 1
+    `);
+    await close();
+    const row = current[0];
+    if (row?.status === 'approved') {
+      const reload = await loadBookingFinancialWorkspace(mockAdmin, row.booking_id);
+      if (!reload.ok) {
+        record('5.approve_move_out', false, `post-approve workspace: ${reload.error}`);
+        return false;
+      }
+      record(
+        '5.approve_move_out',
+        true,
+        `incident request already approved; workspace ok booking=${row.booking_code}`,
+      );
+      return true;
+    }
+  }
+
   const { db, close } = createClient({ max: 1 });
   const pending = await db.execute<{
     vacating_request_id: string;
@@ -325,7 +369,7 @@ async function smokeApproveMoveOut(): Promise<boolean> {
   try {
     const result = await approveVacatingRequest({
       requestId: safe.vacating_request_id,
-      resolvedByAdminId: mockAdmin.adminId,
+      resolvedByAdminId: null,
     });
     if (!result.ok) {
       record('5.approve_move_out', false, JSON.stringify(result));
