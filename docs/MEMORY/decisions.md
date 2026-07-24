@@ -146,8 +146,11 @@
 ## DECISION — Krishna post-approve E2E gate (2026-07-24)
 - **Feature sign-off for Krishna (APG-2026-0048)** requires `./scripts/run-krishna-post-approve-e2e.sh` exit 0 after admin approve (10 DB checks + Playwright). As of 2026-07-24 vacating still **pending** — Playwright clean; full tail/suppression checks blocked until approve. Regression: approved APG-2026-0045 passed all 10 DB checks on prod DB.
 
+## DECISION — Settlement presentation audiences (2026-07-24)
+- **One screen, one audience.** Same `SettlementStatementDocumentModel`; presentation via `applySettlementPresentationAudience` in `src/lib/vacating/settlementPresentationAudience.ts`. **Resident:** refund + leaving (+ pending checklist); optional plain “what affects refund” only. **Admin review:** `AdminReviewSettlementScan` (refund, leaving, notice status, link to statement) — no full statement scroll in approve modal. **Accountant:** financial workspace + statement page/PDF + checkout audit — full explainability and audit trail. Forbidden in default resident/admin UI: rent consumed, waterfall, BR-* IDs, formulas, engine trace. Guide: `docs/validation/SETTLEMENT_UX_GUIDE.md`.
+
 ## DECISION — Move-out approval requires settlement review dialog (2026-07-24)
-- **No direct approve** from Operations list label: primary CTA is **Review move-out** → modal with `SettlementStatementDocument` (BCM / V2 waterfall). **Approve move-out** confirm disabled until `estimatedSettlement` loads. Operations and `/admin/vacating` share `loadPendingVacatingApprovalPreviews` / async preview SSOT. Bed map deep-links to Operations Move-out queue instead of `ApproveVacatingButton` without preview.
+- **No direct approve** from Operations list label: primary CTA is **Review move-out** → modal with **AdminReviewSettlementScan** (refund, leaving, notice) and link to full statement for accounting. **Approve move-out** confirm disabled until `estimatedSettlement` loads. Operations and `/admin/vacating` share `loadPendingVacatingApprovalPreviews` / async preview SSOT. Bed map deep-links to Operations Move-out queue instead of `ApproveVacatingButton` without preview.
 
 ## DECISION — Move-out settlement explainability SSOT (2026-07-24)
 - Every displayed settlement amount must expose value, formula, business rule, and source via `buildMoveOutSettlementExplanations`. `validateMoveOutSettlementExplanations` checks waterfall, BCM tail/notice wiring, and UI row parity. Unexplainable or inconsistent values are bugs. Production audit: `scripts/audit-active-moveout-settlement-explanations.ts` (all non-terminal active move-outs).
@@ -157,3 +160,6 @@
 
 ## DECISION — Settlement invalid if any invariant fails (2026-07-24)
 - **SSOT validator:** `src/lib/billing/billingEngineValidation.ts` + `validateBillingEngineSettlement`. All move-out surfaces load `loadVacatingBillingPresentationBundle` with explainability. Production gate: `scripts/validate-active-moveout-billing-engine.ts` (14/14 pass post `alignCoverageToLockedWaterfall`). No resident-specific settlement SQL — `docs/SETTLEMENT_REPAIR_POLICY.md`. Final report: `docs/BILLING_SETTLEMENT_ENGINE_FINAL_REPORT.md`.
+
+## DECISION — Settlement engine frozen; UX-only phase (2026-07-24)
+- Billing & Settlement Engine is **feature complete**. Do not change settlement mathematics unless invariant/prod validation fails or a **BR-*** rule changes. Ongoing work: UX tiering (15s resident / 10s admin approve / accountant expandables). Policy: `docs/SETTLEMENT_ENGINE_FREEZE.md`, `docs/validation/SETTLEMENT_UX_GUIDE.md`, Cursor rule `.cursor/rules/settlement-engine-freeze.mdc`.

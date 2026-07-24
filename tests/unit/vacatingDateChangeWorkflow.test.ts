@@ -87,18 +87,19 @@ test('VacatingHome uses settlement story instead of legacy estimate hero', () =>
 test('booking financial workspace wires settlement statement document', () => {
   assert.match(bookingFinancialWorkspace, /SettlementStatementDocument/);
   assert.match(bookingFinancialWorkspace, /surface="adminPage"/);
+  assert.match(bookingFinancialWorkspace, /audience="accountant"/);
   assert.match(bookingFinancialWorkspace, /settlementStatementPageHref/);
   assert.match(bookingFinancialWorkspace, /VacatingDateChangeApprovalPanel/);
   assert.doesNotMatch(bookingFinancialWorkspace, /EstimatedSettlementBreakdown/);
 });
 
-test('approve preview uses light modal surface for settlement statement', () => {
+test('approve preview uses admin review scan (no full statement in modal)', () => {
   const approvePreview = readFileSync(
     join(process.cwd(), 'src/components/admin/vacating/ApproveVacatingPreview.tsx'),
     'utf8',
   );
-  assert.match(approvePreview, /surface="adminModal"/);
-  assert.match(approvePreview, /FinancialDocumentLayout|SettlementStatementDocument/);
+  assert.match(approvePreview, /AdminReviewSettlementScan/);
+  assert.doesNotMatch(approvePreview, /SettlementStatementDocument/);
 });
 
 test('date change panel does not expose paise in UI copy', () => {
@@ -107,9 +108,9 @@ test('date change panel does not expose paise in UI copy', () => {
     'utf8',
   );
   assert.doesNotMatch(panel, /refundDeltaPaise\} paise/);
-  assert.match(panel, /surface="adminModal"/);
+  assert.match(panel, /AdminReviewSettlementScan/);
   assert.match(panel, /dateChangeActions/);
-  assert.doesNotMatch(panel, /buildSettlementStatementModel/);
+  assert.doesNotMatch(panel, /<SettlementStatementDocument/);
 });
 
 test('move-out pipeline passes server approval preview with estimated settlement', () => {

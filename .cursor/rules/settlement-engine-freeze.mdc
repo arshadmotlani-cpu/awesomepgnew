@@ -1,0 +1,28 @@
+---
+description: Frozen billing/settlement engine — UX-only unless validation or BR change
+globs: src/lib/billing/**,src/lib/checkout/**,src/lib/vacating/computeVacatingSettlementPreview.ts,src/lib/vacating/loadVacatingBillingPresentation.ts,src/lib/vacating/moveOutSettlementExplanation.ts,src/services/checkoutSettlement.ts,src/services/bookingMoneyBalances.ts
+alwaysApply: false
+---
+
+# Settlement engine freeze
+
+Billing & Settlement Engine is **feature complete**. See `docs/SETTLEMENT_ENGINE_FREEZE.md`.
+
+## Do not modify settlement mathematics unless
+
+- An invariant or production validation script fails, OR
+- A documented **BR-*** business rule change was approved
+
+Never fix a single resident in code or SQL.
+
+## Default work mode
+
+- **UX only:** copy, layout, collapsibles, hero metrics, admin/resident tiers
+- Load money via `loadVacatingBillingPresentation` / `loadVacatingBillingPresentationBundle` only
+- Do not add alternate refund or notice formulas in components
+
+## If engine change is required
+
+1. Reproduce failure signature  
+2. One fix in mapped SSOT module (`docs/BILLING_ENGINE_INVARIANTS.md`)  
+3. Regression test + re-run `npm run test:billing-settlement` and prod validator

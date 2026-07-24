@@ -27,6 +27,7 @@ export function ResidentEstimatedSettlementBreakdown({
     <SettlementStatementDocument
       document={document}
       surface="resident"
+      audience="resident"
       embed="page"
       className={className}
     />

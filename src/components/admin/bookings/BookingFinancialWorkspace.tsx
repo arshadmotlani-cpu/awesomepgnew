@@ -211,11 +211,20 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
             ) : null}
             {data.vacating.settlementStatement ? (
               <div className="space-y-2">
-                <SettlementStatementDocument
-                  document={data.vacating.settlementStatement}
-                  surface="adminPage"
-                  embed="page"
-                />
+                <details open className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                  <summary className="cursor-pointer text-sm font-semibold text-white">
+                    Settlement statement (accounting) ·{' '}
+                    {paiseToInr(data.vacating.settlementStatement.estimatedRefundPaise)} estimated refund
+                  </summary>
+                  <div className="mt-4">
+                    <SettlementStatementDocument
+                      document={data.vacating.settlementStatement}
+                      surface="adminPage"
+                      audience="accountant"
+                      embed="page"
+                    />
+                  </div>
+                </details>
                 <p className="text-xs text-apg-silver">
                   <Link
                     href={settlementStatementPageHref(data.vacating.id)}

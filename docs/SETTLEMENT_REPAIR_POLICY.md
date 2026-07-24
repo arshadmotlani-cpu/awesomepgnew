@@ -21,5 +21,9 @@
 
 ## Validation gates
 
-- Local: `npx tsx --test tests/unit/billingEngineValidation.test.ts tests/unit/moveOutSettlementExplanation.test.ts tests/unit/billingCoverageRegression.test.ts tests/unit/settlementRuleRegistry.test.ts`
+- Local: `npm run test:billing-settlement`
 - Production (read-only): `scripts/validate-active-moveout-billing-engine.ts`
+
+## Engine freeze
+
+Settlement mathematics are **frozen** — see [SETTLEMENT_ENGINE_FREEZE.md](./SETTLEMENT_ENGINE_FREEZE.md). UX-only changes unless validation fails.

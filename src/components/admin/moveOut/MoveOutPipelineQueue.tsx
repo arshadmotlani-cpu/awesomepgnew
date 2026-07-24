@@ -312,15 +312,28 @@ function MoveOutCard({
           </div>
 
           {row.deductionPaise > 0 ? (
-            <div className="mb-4">
-              {(() => {
-                const preview = approvalPreviewByRequestId?.[row.vacatingRequestId];
-                const settlement = preview?.noticeBreakdown;
-                return settlement ? (
-                  <NoticeSettlementPanel settlement={settlement} variant="admin" compact />
-                ) : null;
-              })()}
-            </div>
+            <details className="mb-4 rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+              <summary className="cursor-pointer text-xs font-medium text-apg-silver">
+                Settlement detail (accounting)
+              </summary>
+              <div className="mt-3 space-y-2">
+                {(() => {
+                  const preview = approvalPreviewByRequestId?.[row.vacatingRequestId];
+                  const settlement = preview?.noticeBreakdown;
+                  return settlement ? (
+                    <NoticeSettlementPanel settlement={settlement} variant="admin" compact />
+                  ) : null;
+                })()}
+                <p className="text-[10px] text-apg-silver">
+                  <Link
+                    href={bookingFinancialWorkspaceSectionHref(row.bookingId, 'move-out')}
+                    className="font-medium text-apg-orange hover:underline"
+                  >
+                    Open financial workspace
+                  </Link>
+                </p>
+              </div>
+            </details>
           ) : null}
 
           <DirectLinks row={row} />

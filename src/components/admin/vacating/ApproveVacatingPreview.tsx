@@ -1,8 +1,7 @@
 'use client';
 
-import Link from 'next/link';
-import { SettlementStatementDocument } from '@/src/components/billing/SettlementStatementDocument';
-import { settlementStatementPageHref } from '@/src/lib/billing/settlementStatementPdfLinks';
+import { AdminReviewSettlementScan } from '@/src/components/admin/vacating/AdminReviewSettlementScan';
+import { formatDate } from '@/src/lib/format';
 import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
 import { buildSettlementStatementFromApprovalPreview } from '@/src/lib/vacating/settlementStatementModel';
 
@@ -29,20 +28,14 @@ export function ApproveVacatingPreview({
   return (
     <div className="space-y-3">
       {statement ? (
-        <>
-          <SettlementStatementDocument document={statement} surface="adminModal" embed="modal" />
-          <p className="text-xs text-zinc-500">
-            <Link
-              href={settlementStatementPageHref(vacatingRequestId)}
-              target="_blank"
-              className="font-medium text-[#FF5A1F] hover:underline"
-            >
-              Open full statement
-            </Link>
-            {' · '}
-            Share or download PDF from the statement page.
-          </p>
-        </>
+        <AdminReviewSettlementScan
+          statement={statement}
+          vacatingRequestId={vacatingRequestId}
+          noticeCompletedDays={preview.noticeCompletedDays}
+          noticeRequiredDays={preview.noticeRequiredDays}
+          moveOutDate={preview.moveOutDate}
+          estimatedDeductionPaise={preview.estimatedDeductionPaise}
+        />
       ) : noticeShort ? (
         <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
           <p className="font-semibold">Notice period shorter than required</p>
@@ -53,8 +46,9 @@ export function ApproveVacatingPreview({
       ) : null}
 
       <p className="text-xs text-zinc-500">
-        After approval the bed opens for website pre-booking from the move-out date. The tenant stays
-        until then. Checkout settlement is created when the resident submits refund details.
+        After approval the bed opens for website pre-booking from{' '}
+        {formatDate(preview.moveOutDate)}. The tenant stays until then. Checkout settlement is created when
+        the resident submits refund details.
       </p>
     </div>
   );

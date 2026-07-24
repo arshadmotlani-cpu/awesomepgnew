@@ -9,6 +9,8 @@
 
 ## 2026-07-24
 
+- **SETTLEMENT-THREE-AUDIENCES** — `settlementPresentationAudience.ts` (`resident` | `adminReview` | `accountant`); admin approve uses `AdminReviewSettlementScan` (no full statement in modal); resident story refund-first; workspace statement expanded accountant tier; docs `SETTLEMENT_UX_GUIDE.md` rewritten
+- **BILLING-SETTLEMENT-FROZEN-UX** — Engine math frozen (`SETTLEMENT_ENGINE_FREEZE.md`); quick vs accountant UI tiers on settlement statement; resident refund-first story; admin approve scan bar; workspace statement collapsed by default; Cursor rule `settlement-engine-freeze.mdc`
 - **BILLING-SETTLEMENT-FINAL** — Unified `billingEngineValidation.ts`, `settlementRuleRegistry.ts`, 11-line explainability + INV-E4 zero reasons, prod scripts `validate-active-moveout-billing-engine.ts` + policy spot-checks, `alignCoverageToLockedWaterfall` for locked checkout (TAIL_MISMATCH fix), bundle wired to approval/financial/resident; 14/14 prod pass; `BILLING_SETTLEMENT_ENGINE_FINAL_REPORT.md`, `SETTLEMENT_REPAIR_POLICY.md`, UI audit doc
 - **BILLING-PHASE0-VALIDATION** — Added `BILLING_SETTLEMENT_BUSINESS_RULES.md`, `BILLING_ENGINE_INVARIANTS.md`, prod matrix script + `docs/validation/ACTIVE_MOVEOUT_PHASE0_MATRIX.md`, `PHASE0_VERDICT.md` (8/8 active move-outs pass automatable INV-*); cross-links in `BILLING_COVERAGE_MODEL.md`; Phase 1 proposal = unified validator only (no prod failure signatures)
 

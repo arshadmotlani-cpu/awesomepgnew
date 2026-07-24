@@ -17,7 +17,7 @@ export default async function VacatingSettlementStatementPrintPage({
 
   return (
     <div className="min-h-screen bg-white p-6 print:p-0">
-      <SettlementStatementDocument document={document} surface="adminModal" embed="page" />
+      <SettlementStatementDocument document={document} surface="adminPage" audience="accountant" embed="page" />
     </div>
   );
 }

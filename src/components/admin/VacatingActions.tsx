@@ -125,7 +125,7 @@ export function ApproveVacatingButton({
       }
       confirmLabel="Approve move-out"
       confirmDisabled={!hasStatement}
-      dialogSize={hasStatement ? 'statement' : preview ? 'wide' : 'default'}
+      dialogSize={hasStatement ? 'wide' : preview ? 'wide' : 'default'}
     />
   );
 }

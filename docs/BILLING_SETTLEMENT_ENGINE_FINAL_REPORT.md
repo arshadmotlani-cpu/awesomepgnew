@@ -116,5 +116,6 @@ No per-booking SQL patches.
 - Regression tests cover Cases A–E, rule registry, and invariant failures.  
 - Production audit script exits non-zero on any signature.  
 - Repair policy forbids resident-specific settlement patches ([SETTLEMENT_REPAIR_POLICY.md](./SETTLEMENT_REPAIR_POLICY.md)).
+- **Engine frozen** for UX-only phase — [SETTLEMENT_ENGINE_FREEZE.md](./SETTLEMENT_ENGINE_FREEZE.md).
 
 Optional: set `BILLING_ENGINE_STRICT=1` in dev/CI to throw on loader validation failure.

@@ -1,10 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
-import { SettlementStatementDocument } from '@/src/components/billing/SettlementStatementDocument';
-import { settlementStatementPageHref } from '@/src/lib/billing/settlementStatementPdfLinks';
+import { AdminReviewSettlementScan } from '@/src/components/admin/vacating/AdminReviewSettlementScan';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import type { VacatingDateChangeRequest } from '@/src/db/schema/vacatingDateChangeRequests';
 import type { VacatingDateChangePreview } from '@/src/services/vacatingDateChange';
@@ -57,17 +55,21 @@ export function VacatingDateChangeApprovalPanel({
       ) : null}
 
       {statementDocument && bookingContext ? (
-        <div className="mt-4 space-y-2">
-          <SettlementStatementDocument document={statementDocument} surface="adminModal" embed="modal" />
-          <p className="text-xs text-amber-200/70">
-            <Link
-              href={settlementStatementPageHref(bookingContext.vacatingRequestId)}
-              target="_blank"
-              className="font-medium text-amber-100 hover:underline"
-            >
-              Open full statement
-            </Link>
-          </p>
+        <div className="mt-4">
+          <AdminReviewSettlementScan
+            statement={statementDocument}
+            vacatingRequestId={bookingContext.vacatingRequestId}
+            moveOutDate={bookingContext.vacatingDate}
+            noticeLine={
+              request.preview
+                ? request.preview.noticeCompliant
+                  ? 'Notice period met for requested date'
+                  : 'Notice may be short for requested date — review full statement before approving'
+                : undefined
+            }
+            tone="amber"
+            linkClassName="font-medium text-amber-100 hover:underline"
+          />
         </div>
       ) : null}
 
