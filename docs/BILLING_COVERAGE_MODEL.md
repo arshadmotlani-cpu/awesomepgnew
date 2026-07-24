@@ -44,7 +44,7 @@ Raw invoice periods are **clamped** to `moveInDate` before any display or notice
 | UI label | Source | Notes |
 |----------|--------|--------|
 | **Days stayed** | V2 `waterfall.stay.stayDays` | Check-in through vacating (inclusive) |
-| **Days paid** | `daysPaidForSettlement` | Invoice coverage in stay — can differ from days stayed |
+| **`daysPaidForSettlement`** | Billing coverage model | **Internal only** — not shown on move-out review/statement UI (confusing vs rent paid/consumed) |
 | **Rent consumed** | V2 `rentBucket.consumedPaise` | Money, not day count |
 | **Billing cycle / Paid until** | `currentBillingPeriod` / `paidUntilDate` | Different business meanings |
 | **Unused prepaid rent (days)** | Notice display | Prepaid **after vacate** applied to notice |
