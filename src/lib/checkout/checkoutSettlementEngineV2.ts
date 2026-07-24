@@ -39,6 +39,7 @@ export type CheckoutSettlementWaterfall = {
   depositBucket: {
     collectedPaise: number;
     electricityPaise: number;
+    tailRentPaise: number;
     otherPaise: number;
     refundablePaise: number;
   };
@@ -64,6 +65,8 @@ export type CheckoutSettlementV2Input = {
   customChargePaise?: number;
   /** When false (fixed-stay), notice step is skipped. */
   noticeApplies?: boolean;
+  /** Tail rent for suppressed final anniversary period (approved move-out). */
+  checkoutTailRentPaise?: number;
 };
 
 function stayDaysInclusive(checkIn: string, checkout: string): number {
@@ -107,9 +110,11 @@ export function computeCheckoutSettlementV2(
     guardDepositPaise(input.damageChargePaise ?? 0) +
     guardDepositPaise(input.cleaningChargePaise ?? 0) +
     guardDepositPaise(input.customChargePaise ?? 0);
+  const tailRentPaise = guardDepositPaise(input.checkoutTailRentPaise ?? 0);
 
   let depositRemaining = depositCollectedPaise;
   depositRemaining -= noticeFromDepositPaise;
+  depositRemaining -= tailRentPaise;
   depositRemaining -= electricityPaise;
   depositRemaining -= otherPaise;
   const depositRefundablePaise = Math.max(0, guardDepositPaise(depositRemaining));
@@ -176,6 +181,16 @@ export function computeCheckoutSettlementV2(
       amountPaise: depositCollectedPaise,
       explanation: 'Deposit escrow balance before checkout deductions',
     },
+    ...(tailRentPaise > 0
+      ? [
+          {
+            step: 5,
+            label: 'Rent through vacate date',
+            amountPaise: tailRentPaise,
+            explanation: 'Final anniversary period (tail days) — no separate rent invoice',
+          } satisfies CheckoutSettlementWaterfallLine,
+        ]
+      : []),
     {
       step: 5,
       label: 'Electricity deduction',
@@ -225,6 +240,7 @@ export function computeCheckoutSettlementV2(
     depositBucket: {
       collectedPaise: depositCollectedPaise,
       electricityPaise,
+      tailRentPaise,
       otherPaise,
       refundablePaise: depositRefundablePaise,
     },
@@ -273,6 +289,12 @@ export function buildCheckoutSettlementV2DeductionPlan(
     deductions.push({
       amountPaise: waterfall.notice.fromDepositPaise,
       reason: `Notice period fee (${waterfall.notice.missingNoticeDays} missing day${waterfall.notice.missingNoticeDays === 1 ? '' : 's'} — deposit portion)`,
+    });
+  }
+  if (waterfall.depositBucket.tailRentPaise > 0) {
+    deductions.push({
+      amountPaise: waterfall.depositBucket.tailRentPaise,
+      reason: 'Rent through vacate date (final billing period)',
     });
   }
   if (waterfall.depositBucket.electricityPaise > 0) {

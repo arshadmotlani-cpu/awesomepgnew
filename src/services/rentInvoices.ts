@@ -809,6 +809,26 @@ export async function generateRentInvoicesForMonth(
       billingPeriod.periodEnd,
     );
 
+    const { resolveVacatingFinalPeriodInvoiceSuppression } = await import(
+      './vacatingCheckoutBilling'
+    );
+    const { shouldSuppressAnniversaryInvoiceForVacating } = await import(
+      '@/src/lib/billing/vacatingFinalPeriodRent'
+    );
+    const vacatingDecision = await resolveVacatingFinalPeriodInvoiceSuppression(c.bookingId);
+    if (
+      vacatingDecision &&
+      shouldSuppressAnniversaryInvoiceForVacating({
+        decision: vacatingDecision,
+        billingMonth,
+        billingDay,
+        anniversaryDueDate: anniversaryDate,
+      })
+    ) {
+      skipped += 1;
+      continue;
+    }
+
     // Look up pgId for the bed (so we can index by PG cheaply).
     const [pgRow] = await db.execute<{ pg_id: string }>(sql`
       SELECT f.pg_id AS pg_id

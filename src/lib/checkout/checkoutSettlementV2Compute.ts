@@ -15,6 +15,49 @@ import { resolveCheckoutElectricitySharePaise } from '@/src/lib/checkout/electri
 import { getBookingMoneyBalances } from '@/src/services/bookingMoneyBalances';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 
+export async function resolveCheckoutTailRentPaiseForBooking(args: {
+  bookingId: string;
+  vacatingDate: string;
+  monthlyRentPaise: number;
+}): Promise<number> {
+  const { computeVacatingFinalPeriodRentDecision } = await import(
+    '@/src/lib/billing/vacatingFinalPeriodRent'
+  );
+  const { loadPaidRentCoveragePeriods } = await import('@/src/services/noticeDeduction');
+  const { db } = await import('@/src/db/client');
+  const { vacatingRequests } = await import('@/src/db/schema');
+  const { and, eq, desc, sql } = await import('drizzle-orm');
+
+  const [approved] = await db
+    .select({
+      vacatingDate: vacatingRequests.vacatingDate,
+      monthlyRentPaiseSnapshot: vacatingRequests.monthlyRentPaiseSnapshot,
+    })
+    .from(vacatingRequests)
+    .where(
+      and(eq(vacatingRequests.bookingId, args.bookingId), eq(vacatingRequests.status, 'approved')),
+    )
+    .orderBy(desc(vacatingRequests.updatedAt))
+    .limit(1);
+
+  if (!approved) return 0;
+
+  const vacatingDate = args.vacatingDate;
+  const { periods, billingDay, moveInDate } = await loadPaidRentCoveragePeriods(args.bookingId);
+  if (!moveInDate) return 0;
+
+  const decision = computeVacatingFinalPeriodRentDecision({
+    vacatingApproved: true,
+    vacatingDate,
+    billingDay,
+    moveInDate,
+    monthlyRentPaise: args.monthlyRentPaise ?? approved.monthlyRentPaiseSnapshot,
+    paidPeriods: periods,
+  });
+
+  return decision.shouldSuppressFinalInvoice ? decision.tailRentPaise : 0;
+}
+
 export async function resolveStayCheckInDate(bookingId: string): Promise<string | null> {
   const [row] = await db
     .select({
@@ -60,6 +103,7 @@ export function computeWaterfallWithApprovalBaseline(args: {
       stayType: args.stayType,
       durationMode: args.durationMode,
     }),
+    checkoutTailRentPaise: args.baseline.depositBucket.tailRentPaise ?? 0,
   });
 }
 
@@ -104,6 +148,12 @@ export async function computeWaterfallForSettlement(
 
   const electricityShare = resolveCheckoutElectricitySharePaise(args.settlement);
 
+  const checkoutTailRentPaise = await resolveCheckoutTailRentPaiseForBooking({
+    bookingId: args.settlement.bookingId,
+    vacatingDate: checkout,
+    monthlyRentPaise: args.settlement.monthlyRentPaiseSnapshot,
+  });
+
   return computeCheckoutSettlementV2({
     stayCheckInDate: checkIn,
     stayCheckoutDate: checkout,
@@ -120,6 +170,7 @@ export async function computeWaterfallForSettlement(
       stayType: args.stayType,
       durationMode: args.durationMode,
     }),
+    checkoutTailRentPaise,
   });
 }
 
@@ -160,7 +211,7 @@ export function waterfallToLegacyPreview(
     electricityDeductionPaise: waterfall.depositBucket.electricityPaise,
     electricitySharePaise: waterfall.depositBucket.electricityPaise,
     electricityDeductFromDeposit: row?.electricityDeductFromDeposit !== false,
-    outstandingRentDeductionPaise: 0,
+    outstandingRentDeductionPaise: waterfall.depositBucket.tailRentPaise,
     damageChargePaise,
     cleaningChargePaise,
     penaltyChargePaise: waterfall.notice.fromDepositPaise,
@@ -168,6 +219,7 @@ export function waterfallToLegacyPreview(
     customChargeLabel: row?.customChargeLabel ?? undefined,
     totalDeductionsPaise:
       waterfall.notice.fromDepositPaise +
+      waterfall.depositBucket.tailRentPaise +
       waterfall.depositBucket.electricityPaise +
       waterfall.depositBucket.otherPaise,
     finalRefundPaise: waterfall.refund.totalPaise,

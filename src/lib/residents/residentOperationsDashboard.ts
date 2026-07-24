@@ -2,6 +2,7 @@ import { formatDate as formatDisplayDate } from '@/src/lib/format';
 import { diffDays, formatDate } from '@/src/lib/dates';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import { deriveCheckoutOpsNextAction } from '@/src/lib/residents/checkoutOpsQueueCopy';
+import { vacatingRowRequiresAdminOpsAction } from '@/src/lib/operations/moveOutAdminAction';
 import { isActiveCheckoutSettlement } from '@/src/lib/residents/residentLifecycleState';
 import type { CollectionQueueItem } from '@/src/lib/billing/collectionsQueue';
 import type { KycSubmissionListRow } from '@/src/services/kyc';
@@ -368,6 +369,7 @@ export function buildResidentOperationsDashboard(input: {
   }
 
   for (const v of input.vacatingRows) {
+    if (!vacatingRowRequiresAdminOpsAction(v)) continue;
     const copy = deriveCheckoutOpsNextAction({
       vacatingStatus: v.status,
       settlementStatus: v.settlementStatus as Parameters<

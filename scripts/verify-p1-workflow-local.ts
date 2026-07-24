@@ -284,6 +284,47 @@ async function main() {
     );
   }
 
+  const reviewFixture = buildMoveOutPipeline({
+    vacatingRows: [
+      {
+        id: 'sim-review',
+        bookingId: '00000000-0000-0000-0000-000000000005',
+        bookingCode: 'SIM-REVIEW',
+        customerId: '00000000-0000-0000-0000-000000000006',
+        customerFullName: 'Sim Review',
+        customerPhone: '+910000000002',
+        pgName: 'PG',
+        bedCode: 'B3',
+        roomNumber: '103',
+        noticeGivenDate: '2026-06-01',
+        vacatingDate: '2026-07-10',
+        noticeCompliant: true,
+        status: 'approved',
+        resolvedAt: null,
+        createdAt: new Date('2026-06-01'),
+        updatedAt: new Date('2026-06-02'),
+        deductionPaise: 0,
+        depositHeldPaise: 50_000,
+      },
+    ],
+    settlements: [
+      {
+        id: 'cs-sim-review',
+        vacatingRequestId: 'sim-review',
+        status: 'awaiting_admin_review',
+        createdAt: new Date('2026-07-08'),
+        updatedAt: new Date('2026-07-09'),
+        approvedAt: null,
+        refundPaidAt: null,
+        finalRefundPaise: 10_000,
+      },
+    ],
+  });
+  if (vacatingOperationsQueueTarget(reviewFixture[0]!) !== 'refund_due') {
+    fail('awaiting_admin_review must route to refund_due not move-out');
+  }
+  pass('1. Checkout review queue', 'awaiting_admin_review → refund_due');
+
   const monthlyBooking = await db.execute<{
     booking_id: string;
     customer_id: string;

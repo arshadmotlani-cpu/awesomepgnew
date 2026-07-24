@@ -127,6 +127,24 @@ test('deduction plan uses deposit notice portion only', () => {
   );
 });
 
+test('tail rent deducted from deposit after notice', () => {
+  const tailRent = 30_000;
+  const w = computeCheckoutSettlementV2({
+    stayCheckInDate: '2026-07-05',
+    stayCheckoutDate: '2026-08-07',
+    rentPaidPaise: 500_000,
+    monthlyRentPaise: 150_000,
+    depositCollectedPaise: 412_100,
+    missingNoticeDays: 0,
+    checkoutTailRentPaise: tailRent,
+    electricityPaise: 0,
+  });
+  assert.equal(w.depositBucket.tailRentPaise, tailRent);
+  assert.equal(w.depositBucket.refundablePaise, 412_100 - tailRent);
+  const plan = buildCheckoutSettlementV2DeductionPlan(w);
+  assert.ok(plan.some((d) => d.reason.includes('Rent through vacate date')));
+});
+
 test('fixed-stay skips notice', () => {
   const w = computeCheckoutSettlementV2({
     stayCheckInDate: '2026-01-01',

@@ -121,3 +121,9 @@
 
 ## DECISION — Profit sharing (2026-07-11)
 - Each sale/manual profit stores its own split. Business ROI = gross ÷ purchase volume. My ROI = my share ÷ capital invested. Existing deals backfilled 100% to investor.
+
+## DECISION — Move-out Operations action queue (2026-07-24)
+- Operations must not list approved move-outs waiting on residents. Admin work returns only for pending notice approval or post-resident checkout (`awaiting_admin_review` / `refund_pending`). SSOT: `moveOutRequiresAdminActionNow` in `src/lib/operations/moveOutAdminAction.ts`. Move-out Pipeline remains tracking-only for approved stays.
+
+## DECISION — Vacating final-period rent billing (2026-07-24)
+- **Approved move-out only:** suppress the next pending anniversary rent invoice when vacating falls inside an unpaid billing period before period end; collect tail rent (inclusive calendar days from tail start through vacate) in checkout settlement V2 deposit deductions — not as a separate monthly invoice. SSOT: `src/lib/billing/vacatingFinalPeriodRent.ts`; sync via `syncVacatingCheckoutRentBilling`; generation gate in `generateRentInvoicesForMonth`. Pending notices do not suppress.

@@ -543,6 +543,118 @@ async function syncVacatingAlerts(session: AdminSession): Promise<void> {
   }
 }
 
+/** Immediately clear pending move-out approval tasks after admin approves notice. */
+export async function resolveVacatingApprovalActionItems(
+  vacatingRequestId: string,
+): Promise<{ resolved: number }> {
+  const sourceKey = `vacating:${vacatingRequestId}`;
+  const rows = await db.execute<{ id: string }>(sql`
+    UPDATE action_items
+    SET status = 'resolved', updated_at = now()
+    WHERE source_key = ${sourceKey}
+      AND type = 'vacating_alert'
+      AND status IN ('open', 'in_progress')
+    RETURNING id
+  `);
+  await resolveAction({ sourceKey: `unresolved:${sourceKey}` }).catch(() => undefined);
+  return { resolved: rows.length };
+}
+
+export async function upsertCheckoutReviewActionItem(input: {
+  settlementId: string;
+  vacatingRequestId: string;
+  bookingId: string;
+  customerId: string;
+  residentName: string;
+  pgId: string;
+}): Promise<void> {
+  await upsertActionItem({
+    type: 'refund_request_submitted',
+    title: `Resident submitted checkout details · ${input.residentName}`,
+    pgId: input.pgId,
+    residentId: input.customerId,
+    priority: 'high',
+    sourceKey: `checkout_review:${input.settlementId}`,
+    metadata: {
+      bookingId: input.bookingId,
+      settlementId: input.settlementId,
+      vacatingRequestId: input.vacatingRequestId,
+      residentName: input.residentName,
+    },
+  });
+}
+
+async function syncCheckoutReviewActionItems(session: AdminSession): Promise<void> {
+  const rows = await db.execute<{
+    settlement_id: string;
+    booking_id: string;
+    customer_id: string;
+    vacating_request_id: string;
+    customer_name: string;
+    pg_id: string;
+  }>(sql`
+    SELECT
+      cs.id AS settlement_id,
+      cs.booking_id,
+      cs.customer_id,
+      cs.vacating_request_id,
+      c.full_name AS customer_name,
+      loc.pg_id
+    FROM checkout_settlements cs
+    INNER JOIN customers c ON c.id = cs.customer_id
+    INNER JOIN vacating_requests vr ON vr.id = cs.vacating_request_id
+      AND COALESCE(vr.checkout_settlement_suppressed, false) = false
+    LEFT JOIN LATERAL (
+      SELECT p.id::text AS pg_id
+      FROM bed_reservations br
+      INNER JOIN beds bd ON bd.id = br.bed_id
+      INNER JOIN rooms r ON r.id = bd.room_id
+      INNER JOIN floors f ON f.id = r.floor_id
+      INNER JOIN pgs p ON p.id = f.pg_id
+      WHERE br.booking_id = cs.booking_id AND br.kind = 'primary'
+      ORDER BY br.created_at DESC
+      LIMIT 1
+    ) loc ON true
+    WHERE cs.status = 'awaiting_admin_review'
+  `);
+
+  const activeKeys = new Set<string>();
+
+  for (const row of rows) {
+    if (!row.pg_id || !sessionCanAccessPg(session, row.pg_id)) continue;
+    const sourceKey = `checkout_review:${row.settlement_id}`;
+    activeKeys.add(sourceKey);
+    await upsertCheckoutReviewActionItem({
+      settlementId: row.settlement_id,
+      vacatingRequestId: row.vacating_request_id,
+      bookingId: row.booking_id,
+      customerId: row.customer_id,
+      residentName: row.customer_name,
+      pgId: row.pg_id,
+    });
+  }
+
+  const stale = await db
+    .select({ sourceKey: actionItems.sourceKey })
+    .from(actionItems)
+    .where(
+      and(
+        eq(actionItems.type, 'refund_request_submitted'),
+        sql`${actionItems.sourceKey} LIKE 'checkout_review:%'`,
+        inArray(actionItems.status, ['open', 'in_progress']),
+      ),
+    );
+
+  for (const item of stale) {
+    if (!activeKeys.has(item.sourceKey)) {
+      await db
+        .update(actionItems)
+        .set({ status: 'resolved', updatedAt: new Date() })
+        .where(eq(actionItems.sourceKey, item.sourceKey));
+    }
+  }
+}
+
 async function syncRefundsPending(session: AdminSession): Promise<void> {
   const today = todayString();
   const rows = await db
@@ -869,6 +981,7 @@ export async function syncActionItems(session: AdminSession): Promise<void> {
     syncElectricityDue(session),
     syncKycPending(session),
     syncVacatingAlerts(session),
+    syncCheckoutReviewActionItems(session),
     syncRefundsPending(session),
     syncDepositCollectionDue(session),
     syncPaymentReviews(session),
@@ -1178,12 +1291,18 @@ export async function getActionItemDetail(
     (base.type === 'deposit_refund_request' ||
       base.type === 'refund_request_submitted' ||
       base.type === 'extension_request') &&
-    meta.requestId
+    (meta.requestId || meta.settlementId)
   ) {
+    const settlementId =
+      typeof meta.settlementId === 'string' && meta.settlementId.length > 0
+        ? meta.settlementId
+        : null;
     availableActions.push({
       type: 'view_ledger',
-      label: 'Review request',
-      href: '/admin/requests',
+      label: settlementId ? 'Review checkout' : 'Review request',
+      href: settlementId
+        ? `/admin/checkout-settlements/${settlementId}`
+        : '/admin/requests',
     });
   }
   if (base.status !== 'resolved') {

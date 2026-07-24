@@ -11,6 +11,7 @@ import {
   bookings,
   checkoutSettlements,
   type CheckoutSettlement,
+  customers,
   floors,
   pgs,
   rooms,
@@ -469,6 +470,35 @@ async function recomputeAndPersistV2Snapshot(args: {
   if (!waterfall) return;
   await persistWaterfallForSettlement(args.settlement.id, waterfall, {
     lockApprovalBaseline: args.lockApprovalBaseline,
+  });
+}
+
+/** Recompute unlocked V2 settlement after vacating date / rent sync changes. */
+export async function recomputeCheckoutSettlementV2ForVacating(args: {
+  vacatingRequestId: string;
+  stayCheckoutDate: string;
+  stayType?: string | null;
+  durationMode?: string | null;
+}): Promise<void> {
+  const [settlement] = await db
+    .select()
+    .from(checkoutSettlements)
+    .where(
+      and(
+        eq(checkoutSettlements.vacatingRequestId, args.vacatingRequestId),
+        sql`${checkoutSettlements.status} <> 'archived'`,
+      ),
+    )
+    .orderBy(desc(checkoutSettlements.updatedAt))
+    .limit(1);
+
+  if (!settlement) return;
+
+  await recomputeAndPersistV2Snapshot({
+    settlement,
+    stayCheckoutDate: args.stayCheckoutDate,
+    stayType: args.stayType,
+    durationMode: args.durationMode,
   });
 }
 
@@ -1692,6 +1722,22 @@ export async function submitResidentCheckoutDetails(input: {
     .where(eq(bookings.id, current.bookingId))
     .limit(1);
   const pgId = pgRow?.pgId ?? null;
+  if (pgId) {
+    const { upsertCheckoutReviewActionItem } = await import('@/src/services/actionItems');
+    const [customer] = await db
+      .select({ fullName: customers.fullName })
+      .from(customers)
+      .where(eq(customers.id, current.customerId))
+      .limit(1);
+    await upsertCheckoutReviewActionItem({
+      settlementId: current.id,
+      vacatingRequestId: current.vacatingRequestId,
+      bookingId: current.bookingId,
+      customerId: current.customerId,
+      residentName: customer?.fullName ?? 'Resident',
+      pgId,
+    });
+  }
   if (input.electricityMeterPhotoUrl?.trim()) {
     await linkResidentUpload({
       storagePath: input.electricityMeterPhotoUrl.trim(),

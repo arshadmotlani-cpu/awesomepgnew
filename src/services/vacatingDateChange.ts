@@ -313,6 +313,22 @@ export async function applyApprovedVacatingDateChange(args: {
     }).catch((err) => console.error('[vacatingDateChange] rent sync failed', err));
   }
 
+  const [bookingRow] = await db
+    .select({ stayType: bookings.stayType, durationMode: bookings.durationMode })
+    .from(bookings)
+    .where(eq(bookings.id, updated.bookingId))
+    .limit(1);
+
+  const { recomputeCheckoutSettlementV2ForVacating } = await import(
+    '@/src/services/checkoutSettlement'
+  );
+  await recomputeCheckoutSettlementV2ForVacating({
+    vacatingRequestId: updated.id,
+    stayCheckoutDate: newDate,
+    stayType: bookingRow?.stayType,
+    durationMode: bookingRow?.durationMode,
+  }).catch((err) => console.error('[vacatingDateChange] settlement recompute failed', err));
+
   await reconcileBookingOccupancy(updated.bookingId);
 
   await db.insert(auditLog).values({

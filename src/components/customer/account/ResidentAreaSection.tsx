@@ -898,7 +898,11 @@ export async function ResidentAreaSection({
             bookingStatus={primaryBooking.booking.status}
             durationMode={effectiveDurationMode ?? primaryBooking.booking.durationMode}
             expectedCheckoutDate={primaryBooking.booking.expectedCheckoutDate}
-            bookingCreatedAt={primaryBooking.booking.createdAt}
+            bookingCreatedAt={
+              primaryBooking.booking.createdAt instanceof Date
+                ? primaryBooking.booking.createdAt.toISOString()
+                : String(primaryBooking.booking.createdAt)
+            }
             checkoutSettlementStatus={checkoutByBooking.get(primaryBooking.bookingId) ?? null}
             checkoutSettlement={checkoutSettlementByBooking.get(primaryBooking.bookingId) ?? null}
             checkoutSettlementSuppressed={

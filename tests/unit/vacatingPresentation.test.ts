@@ -59,6 +59,7 @@ test('resident settlement status never exposes internal codes', () => {
         depositBucket: {
           collectedPaise: 5000,
           electricityPaise: 0,
+          tailRentPaise: 0,
           otherPaise: 0,
           refundablePaise: 5000,
         },

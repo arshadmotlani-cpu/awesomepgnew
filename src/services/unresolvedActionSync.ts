@@ -6,6 +6,7 @@ import { db } from '@/src/db/client';
 import { actionItems, unresolvedActions } from '@/src/db/schema';
 import { paymentApprovalDeepLink } from '@/src/lib/approvals/approvalDeepLinks';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
+import { bookingFinancialWorkspaceSectionHref } from '@/src/lib/bookings/bookingFinancialLinks';
 import type { ActionItemMetadata } from '@/src/lib/actionCenter/constants';
 import { isResidentBedAssignmentEligible } from '@/src/lib/residentBedAssignment';
 import type { AdminSession } from '@/src/lib/auth/session';
@@ -43,6 +44,7 @@ function parseEntityFromSourceKey(
   const [prefix, id] = sourceKey.split(':');
   if (prefix === 'kyc') return { entityType: 'kyc_submission', entityId: id };
   if (prefix === 'payment_review') return { entityType: 'payment_proof', entityId: id };
+  if (prefix === 'checkout_review') return { entityType: 'checkout_settlement', entityId: id };
   if (prefix === 'vacating') return { entityType: 'vacating_request', entityId: id };
   if (prefix === 'refund') return { entityType: 'booking', entityId: id };
   if (prefix === 'rent') return { entityType: 'rent_invoice', entityId: id };
@@ -80,7 +82,13 @@ function hrefForAction(
         ? `/admin/checkout-settlements/${meta.settlementId}`
         : '/admin/checkout-settlements';
     case 'deposit_refund_approval':
-      return meta.bookingId ? refundConsoleHref(meta.bookingId) : '/admin/refunds';
+      if (meta.settlementId) {
+        return `/admin/checkout-settlements/${meta.settlementId}`;
+      }
+      if (meta.bookingId) {
+        return bookingFinancialWorkspaceSectionHref(meta.bookingId, 'checkout');
+      }
+      return '/admin/refunds';
     case 'invoice_review':
       return meta.residentId ? `/admin/residents/${meta.residentId}` : '/admin/invoices';
     case 'room_transfer_approval':

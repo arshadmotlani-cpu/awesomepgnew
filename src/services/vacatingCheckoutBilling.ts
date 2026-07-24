@@ -1,16 +1,21 @@
 /**
  * Vacating rent billing — anniversary model.
  *
- * When a resident gives notice, cancel future rent invoices only.
- * Never recalculate or pro-rate the checkout-month invoice; the resident
- * has already paid through their billing anniversary.
+ * Approved move-out: cancel future invoices and, when vacating falls inside an
+ * unpaid anniversary period before period end, cancel that period's pending
+ * invoice and collect tail rent in checkout settlement instead.
  */
 
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { auditLog, rentInvoices } from '@/src/db/schema';
+import { auditLog, rentInvoices, vacatingRequests } from '@/src/db/schema';
+import {
+  computeVacatingFinalPeriodRentDecision,
+  VACATING_FINAL_PERIOD_CANCEL_REASON_SUFFIX,
+} from '@/src/lib/billing/vacatingFinalPeriodRent';
 import { formatDate, parseDate } from '@/src/lib/dates';
 import { firstOfMonth } from '@/src/services/billing';
+import { loadPaidRentCoveragePeriods } from '@/src/services/noticeDeduction';
 
 export type VacatingCheckoutBillingResult = {
   checkoutMonth: string;
@@ -20,9 +25,31 @@ export type VacatingCheckoutBillingResult = {
   invoiceCreated: boolean;
   invoiceUpdated: boolean;
   futureMonthsCancelled: number;
+  finalPeriodInvoiceCancelled: boolean;
+  finalPeriodInvoiceRestored: boolean;
 };
 
 const VACATING_CANCEL_REASON_PREFIX = 'Vacating notice';
+
+async function loadApprovedVacatingForBilling(bookingId: string) {
+  const [row] = await db
+    .select({
+      id: vacatingRequests.id,
+      status: vacatingRequests.status,
+      vacatingDate: vacatingRequests.vacatingDate,
+      monthlyRentPaiseSnapshot: vacatingRequests.monthlyRentPaiseSnapshot,
+    })
+    .from(vacatingRequests)
+    .where(
+      and(
+        eq(vacatingRequests.bookingId, bookingId),
+        eq(vacatingRequests.status, 'approved'),
+      ),
+    )
+    .orderBy(sql`${vacatingRequests.updatedAt} DESC`)
+    .limit(1);
+  return row ?? null;
+}
 
 /** Cancel pending/overdue rent invoices strictly after the checkout month. */
 export async function cancelRentInvoicesAfterCheckoutMonth(
@@ -69,8 +96,98 @@ export async function cancelRentInvoicesAfterCheckoutMonth(
   return { cancelled: rows.length, ids: rows.map((r) => r.id) };
 }
 
+async function cancelFinalPeriodInvoice(args: {
+  bookingId: string;
+  billingMonth: string;
+  reason: string;
+  vacatingDate: string;
+}): Promise<boolean> {
+  const rows = await db
+    .update(rentInvoices)
+    .set({
+      status: 'cancelled',
+      cancelledAt: new Date(),
+      cancellationReason: args.reason,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(rentInvoices.bookingId, args.bookingId),
+        eq(rentInvoices.billingMonth, args.billingMonth),
+        eq(rentInvoices.isAdhoc, false),
+        inArray(rentInvoices.status, ['pending', 'overdue']),
+      ),
+    )
+    .returning({ id: rentInvoices.id });
+
+  if (rows.length === 0) return false;
+
+  await db.insert(auditLog).values(
+    rows.map((r) => ({
+      actorType: 'system' as const,
+      actorId: null,
+      entity: 'rent_invoice',
+      entityId: r.id,
+      action: 'cancelled',
+      diff: {
+        reason: args.reason,
+        vacatingDate: args.vacatingDate,
+        billingMonth: args.billingMonth,
+        finalPeriod: true,
+      },
+    })),
+  );
+  const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
+  await syncManyToUnified(
+    rows.map((r) => r.id),
+    'rent',
+  );
+  return true;
+}
+
+async function restoreFinalPeriodInvoicesWhenNotSuppressing(args: {
+  bookingId: string;
+  adminId?: string | null;
+}): Promise<boolean> {
+  const rows = await db
+    .update(rentInvoices)
+    .set({
+      status: 'pending',
+      cancelledAt: null,
+      cancellationReason: null,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(rentInvoices.bookingId, args.bookingId),
+        eq(rentInvoices.isAdhoc, false),
+        eq(rentInvoices.status, 'cancelled'),
+        sql`${rentInvoices.cancellationReason} LIKE ${`%${VACATING_FINAL_PERIOD_CANCEL_REASON_SUFFIX}%`}`,
+      ),
+    )
+    .returning({ id: rentInvoices.id });
+
+  if (rows.length === 0) return false;
+
+  const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
+  await syncManyToUnified(
+    rows.map((r) => r.id),
+    'rent',
+  );
+
+  const { recalculateBillingAfterVacatingRestore } = await import(
+    '@/src/services/residentFinancialEngine'
+  );
+  await recalculateBillingAfterVacatingRestore({
+    bookingId: args.bookingId,
+    adminId: args.adminId,
+  });
+
+  return true;
+}
+
 /**
- * Cancel future invoices when vacating is filed — no checkout-month rent adjustment.
+ * Sync rent invoices when vacating is approved or vacating date changes.
  */
 export async function syncVacatingCheckoutRentBilling(input: {
   bookingId: string;
@@ -86,6 +203,40 @@ export async function syncVacatingCheckoutRentBilling(input: {
     vacatingDate,
     `${VACATING_CANCEL_REASON_PREFIX} — checkout ${vacatingDate}`,
   );
+
+  const approved = await loadApprovedVacatingForBilling(input.bookingId);
+  let finalPeriodInvoiceCancelled = false;
+  let finalPeriodInvoiceRestored = false;
+
+  if (approved) {
+    const { periods, billingDay, moveInDate } = await loadPaidRentCoveragePeriods(
+      input.bookingId,
+    );
+    if (moveInDate) {
+      const decision = computeVacatingFinalPeriodRentDecision({
+        vacatingApproved: true,
+        vacatingDate,
+        billingDay,
+        moveInDate,
+        monthlyRentPaise: approved.monthlyRentPaiseSnapshot,
+        paidPeriods: periods,
+      });
+
+      if (decision.shouldSuppressFinalInvoice && decision.invoiceBillingMonth) {
+        finalPeriodInvoiceCancelled = await cancelFinalPeriodInvoice({
+          bookingId: input.bookingId,
+          billingMonth: decision.invoiceBillingMonth,
+          reason: decision.cancellationReason ?? `${VACATING_CANCEL_REASON_PREFIX} — ${VACATING_FINAL_PERIOD_CANCEL_REASON_SUFFIX}`,
+          vacatingDate,
+        });
+      } else {
+        finalPeriodInvoiceRestored = await restoreFinalPeriodInvoicesWhenNotSuppressing({
+          bookingId: input.bookingId,
+          adminId: input.actorId,
+        });
+      }
+    }
+  }
 
   const [existing] = await db
     .select({ id: rentInvoices.id, rentPaise: rentInvoices.rentPaise })
@@ -107,6 +258,8 @@ export async function syncVacatingCheckoutRentBilling(input: {
     invoiceCreated: false,
     invoiceUpdated: false,
     futureMonthsCancelled: future.cancelled,
+    finalPeriodInvoiceCancelled,
+    finalPeriodInvoiceRestored,
   };
 }
 
@@ -151,4 +304,25 @@ export async function restoreRentBillingAfterVacatingCancel(args: {
   });
 
   return { uncancelled: uncancelledRows.length, recalculated: updatedCount };
+}
+
+/** Approved vacating final-period suppression for anniversary generation. */
+export async function resolveVacatingFinalPeriodInvoiceSuppression(
+  bookingId: string,
+): Promise<import('@/src/lib/billing/vacatingFinalPeriodRent').VacatingFinalPeriodRentDecision | null> {
+  const approved = await loadApprovedVacatingForBilling(bookingId);
+  if (!approved) return null;
+
+  const vacatingDate = formatDate(parseDate(String(approved.vacatingDate)));
+  const { periods, billingDay, moveInDate } = await loadPaidRentCoveragePeriods(bookingId);
+  if (!moveInDate) return null;
+
+  return computeVacatingFinalPeriodRentDecision({
+    vacatingApproved: true,
+    vacatingDate,
+    billingDay,
+    moveInDate,
+    monthlyRentPaise: approved.monthlyRentPaiseSnapshot,
+    paidPeriods: periods,
+  });
 }

@@ -88,6 +88,15 @@ export async function buildEstimatedSettlementPreview(
 
   const missingNoticeDays = notice?.missingNoticeDays ?? 0;
 
+  const { resolveCheckoutTailRentPaiseForBooking } = await import(
+    '@/src/lib/checkout/checkoutSettlementV2Compute'
+  );
+  const checkoutTailRentPaise = await resolveCheckoutTailRentPaiseForBooking({
+    bookingId: input.bookingId,
+    vacatingDate,
+    monthlyRentPaise,
+  });
+
   const waterfall =
     opts?.waterfall ??
     computeCheckoutSettlementV2({
@@ -106,6 +115,7 @@ export async function buildEstimatedSettlementPreview(
         stayType: input.stayType,
         durationMode: input.durationMode,
       }),
+      checkoutTailRentPaise,
     });
 
   const dailyRentPaise = waterfall.rentBucket.dailyRentPaise;
@@ -197,6 +207,16 @@ export async function buildEstimatedSettlementPreview(
           label: 'Deposit held',
           value: formatSettlementPaise(depositHeldPaise),
         },
+        ...(waterfall.depositBucket.tailRentPaise > 0
+          ? [
+              {
+                id: 'tail_rent_through_vacate',
+                label: 'Rent through vacate date',
+                value: formatSettlementPaise(waterfall.depositBucket.tailRentPaise, true),
+                deduct: true,
+              },
+            ]
+          : []),
         {
           id: 'estimated_refundable_deposit',
           label: 'Estimated refundable deposit',

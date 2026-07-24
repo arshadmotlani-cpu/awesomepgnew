@@ -583,6 +583,9 @@ export async function approveVacatingRequest(input: {
 
   scheduleAdminNotificationSync();
 
+  const { resolveVacatingApprovalActionItems } = await import('@/src/services/actionItems');
+  await resolveVacatingApprovalActionItems(updated.id);
+
   return { ok: true, request: updated };
 }
 

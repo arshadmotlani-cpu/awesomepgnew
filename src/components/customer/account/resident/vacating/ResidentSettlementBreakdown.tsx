@@ -64,6 +64,13 @@ export function ResidentSettlementBreakdown({
               amountPaise={waterfall.depositBucket.electricityPaise}
               deduct
             />
+            {waterfall.depositBucket.tailRentPaise > 0 ? (
+              <Line
+                label="Rent through vacate date"
+                amountPaise={waterfall.depositBucket.tailRentPaise}
+                deduct
+              />
+            ) : null}
             {damagePaise > 0 ? (
               <Line label="Damage Charges" amountPaise={damagePaise} deduct />
             ) : null}

@@ -1,4 +1,5 @@
 import type { MoveOutPipelineItemClient } from '@/src/lib/moveOut/moveOutPipeline';
+import { moveOutClientRequiresAdminActionNow } from '@/src/lib/operations/moveOutAdminAction';
 
 export type MoveOutFilterBucket =
   | 'all'
@@ -50,11 +51,7 @@ export function moveOutItemBuckets(item: MoveOutPipelineItemClient): MoveOutFilt
     buckets.push('refunds_to_send');
   }
 
-  if (
-    item.continueKind === 'approve' ||
-    item.settlementStatus === 'awaiting_admin_review' ||
-    (item.continueKind === 'settlement' && item.settlementStatus !== 'awaiting_resident_details')
-  ) {
+  if (moveOutClientRequiresAdminActionNow(item)) {
     buckets.push('needs_action');
   }
 

@@ -34,6 +34,8 @@ duration_mode = reserve                           → Pre-arrival (no billing)
 **Monthly:** anniversary rent, vacating + 14-day notice, monthly room electricity (Workflow A).  
 **Fixed-stay:** upfront rent quote, checkout/refund-only exit, checkout-only electricity (Workflow B).
 
+**Approved move-out (monthly):** When the vacating date falls inside an unpaid anniversary period before that period ends, the system suppresses the pending anniversary rent invoice for that period and charges only tail days (move-out date inclusive) in checkout settlement V2 (`vacatingFinalPeriodRent` SSOT). Paid historical invoices are never altered.
+
 ---
 
 ## Core modules

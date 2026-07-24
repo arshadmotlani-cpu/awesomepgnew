@@ -8,59 +8,21 @@ import {
   bookingFinancialWorkspaceSectionHref,
 } from '@/src/lib/bookings/bookingFinancialLinks';
 import type { MoveOutPipelineItem } from '@/src/lib/moveOut/moveOutPipeline';
-import { isStaleZeroRefundSettlement } from '@/src/lib/residents/checkoutOpsQueueCopy';
+import { moveOutOperationsQueueTarget } from '@/src/lib/operations/moveOutAdminAction';
+
+export { isTerminalVacatingPipelineItem } from '@/src/lib/operations/moveOutAdminAction';
+
 import type { UnifiedOpsItem } from '@/src/services/unifiedOperationsQueue';
 import {
   isDismissedFromOperationsQueue,
   type OperationsQueueDismissalIndex,
 } from '@/src/services/operationsQueueDismissals';
 
-export function isTerminalVacatingPipelineItem(
-  item: Pick<MoveOutPipelineItem, 'stage' | 'vacatingStatus' | 'settlementStatus'>,
-): boolean {
-  return (
-    item.stage === 'bed_released' ||
-    item.vacatingStatus === 'completed' ||
-    item.vacatingStatus === 'rejected' ||
-    item.settlementStatus === 'completed' ||
-    item.settlementStatus === 'refund_paid'
-  );
-}
-
 /** Which Operations queue this pipeline row belongs in, if any. */
 export function vacatingOperationsQueueTarget(
   item: MoveOutPipelineItem,
 ): 'vacating_requests' | 'refund_due' | null {
-  if (isTerminalVacatingPipelineItem(item)) return null;
-
-  if (item.settlementStatus === 'awaiting_resident_details') return null;
-
-  if (item.settlementStatus === 'refund_pending') {
-    if (
-      isStaleZeroRefundSettlement({
-        status: item.settlementStatus,
-        finalRefundPaise: item.estimatedRefundPaise,
-      })
-    ) {
-      return null;
-    }
-    return 'refund_due';
-  }
-
-  if (item.vacatingStatus === 'pending') return 'vacating_requests';
-  if (item.settlementStatus === 'awaiting_admin_review') return 'vacating_requests';
-  if (item.continueKind === 'approve') return 'vacating_requests';
-
-  if (
-    item.estimatedRefundPaise <= 0 &&
-    item.continueKind === 'settlement' &&
-    item.settlementStatus &&
-    item.settlementStatus !== 'completed'
-  ) {
-    return 'vacating_requests';
-  }
-
-  return null;
+  return moveOutOperationsQueueTarget(item);
 }
 
 /** Same visibility rules as `buildUnifiedOperationsQueue` vacating rows (Move-out tab only). */
@@ -109,20 +71,24 @@ export function mapVacatingPipelineItemToOpsItem(
   const queue = vacatingOperationsQueueTarget(item);
   if (!queue) return null;
 
+  const checkoutHref = bookingFinancialWorkspaceSectionHref(item.bookingId, 'checkout');
   const openHref =
     queue === 'refund_due'
-      ? bookingFinancialWorkspaceSectionHref(item.bookingId, 'refund')
+      ? item.settlementStatus === 'awaiting_admin_review'
+        ? checkoutHref
+        : bookingFinancialWorkspaceSectionHref(item.bookingId, 'refund')
       : (item.continueHref ?? bookingFinancialWorkspaceHref(item.bookingId));
 
-  const openLabel =
-    queue === 'refund_due' ? 'Review finances' : 'Review finances';
+  const openLabel = 'Review finances';
 
   const reason =
-    queue === 'refund_due'
-      ? 'Settlement approved — refund due'
-      : item.vacatingStatus === 'pending'
-        ? `Move-out notice · leaves ${item.vacatingDate}`
-        : item.nextAction;
+    item.settlementStatus === 'awaiting_admin_review'
+      ? 'Resident submitted checkout details'
+      : queue === 'refund_due'
+        ? 'Settlement approved — refund due'
+        : item.vacatingStatus === 'pending'
+          ? `Move-out notice · leaves ${item.vacatingDate}`
+          : item.nextAction;
 
   return {
     id: `moveout-${item.vacatingRequestId}`,
@@ -140,7 +106,12 @@ export function mapVacatingPipelineItemToOpsItem(
     category: queue === 'refund_due' ? 'refund' : 'move_out',
     bookingId: item.bookingId,
     vacatingRequestId: item.vacatingRequestId,
-    statusLabel: queue === 'refund_due' ? 'Refund due' : undefined,
+    statusLabel:
+      queue === 'refund_due'
+        ? item.settlementStatus === 'awaiting_admin_review'
+          ? 'Checkout review'
+          : 'Refund due'
+        : undefined,
     amountPaise: queue === 'refund_due' ? item.estimatedRefundPaise : undefined,
   };
 }

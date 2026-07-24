@@ -32,7 +32,6 @@ export function computeMoveOutPipelineCounts(
   const activeCheckoutSettlements = checkoutSettlementPipelineItems(activeItems).filter(
     (item) =>
       item.settlementStatus === 'awaiting_admin_review' ||
-      item.settlementStatus === 'awaiting_resident_details' ||
       item.settlementStatus === 'refund_pending',
   ).length;
 
