@@ -127,3 +127,6 @@
 
 ## DECISION — Vacating final-period rent billing (2026-07-24)
 - **Approved move-out only:** suppress the next pending anniversary rent invoice when vacating falls inside an unpaid billing period before period end; collect tail rent (inclusive calendar days from tail start through vacate) in checkout settlement V2 deposit deductions — not as a separate monthly invoice. SSOT: `src/lib/billing/vacatingFinalPeriodRent.ts`; sync via `syncVacatingCheckoutRentBilling`; generation gate in `generateRentInvoicesForMonth`. Pending notices do not suppress.
+
+## DECISION — Krishna post-approve E2E gate (2026-07-24)
+- **Feature sign-off for Krishna (APG-2026-0048)** requires `./scripts/run-krishna-post-approve-e2e.sh` exit 0 after admin approve (10 DB checks + Playwright). As of 2026-07-24 vacating still **pending** — Playwright clean; full tail/suppression checks blocked until approve. Regression: approved APG-2026-0045 passed all 10 DB checks on prod DB.

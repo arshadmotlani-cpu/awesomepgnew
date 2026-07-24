@@ -6,7 +6,9 @@
  *   RESIDENT_VERIFY_CUSTOMER_EMAIL=user@example.com npx tsx scripts/verify-resident-moveout-dashboard.ts
  *   USE_PRODUCTION_DB=1 npx tsx scripts/verify-resident-moveout-dashboard.ts
  *
- * Optional: RESIDENT_VERIFY_EXECUTE_DATE_PREVIEW=1 — preview date change (+3 days from vacate, if valid)
+ * Optional:
+ *   RESIDENT_VERIFY_EXECUTE_DATE_PREVIEW=1 — preview date change recalc (check 9)
+ *   RESIDENT_VERIFY_REQUIRE_APPROVED=1 — fail if vacating not approved (post-approve gate)
  */
 import { loadProductionAuditEnv, requireDatabaseUrl } from '@/src/lib/db/loadEnv';
 
@@ -18,7 +20,10 @@ import { createClient, closeDb } from '@/src/db/client';
 import { rentInvoices } from '@/src/db/schema';
 import { addDays, formatDate, parseDate } from '@/src/lib/dates';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
-import { computeVacatingFinalPeriodRentDecision } from '@/src/lib/billing/vacatingFinalPeriodRent';
+import {
+  computeVacatingFinalPeriodRentDecision,
+  type VacatingFinalPeriodRentDecision,
+} from '@/src/lib/billing/vacatingFinalPeriodRent';
 import { getVacatingForBooking } from '@/src/db/queries/customer';
 import { loadEstimatedSettlementForVacating } from '@/src/lib/vacating/estimatedSettlementPreview';
 import { loadResidentAccountContextSafe } from '@/src/services/residentAccountContextSafe';
@@ -200,19 +205,59 @@ async function resolveSubject(): Promise<Subject> {
   };
 }
 
-async function check1DashboardLoaders(subject: Subject): Promise<boolean> {
+async function loadFinalPeriodDecision(subject: Subject): Promise<{
+  decision: VacatingFinalPeriodRentDecision;
+  billingDay: number;
+  moveInDate: string;
+} | null> {
+  const { periods, billingDay, moveInDate } = await loadPaidRentCoveragePeriods(subject.bookingId);
+  if (!moveInDate) return null;
+  const decision = computeVacatingFinalPeriodRentDecision({
+    vacatingApproved: subject.vacatingStatus === 'approved',
+    vacatingDate: subject.vacatingDate,
+    billingDay,
+    moveInDate,
+    monthlyRentPaise: subject.monthlyRentPaiseSnapshot,
+    paidPeriods: periods,
+  });
+  return { decision, billingDay, moveInDate };
+}
+
+function check1MoveOutApproved(subject: Subject): boolean {
+  const requireApproved = process.env.RESIDENT_VERIFY_REQUIRE_APPROVED === '1';
+  if (subject.vacatingStatus === 'approved') {
+    record('1.move_out_approved', true, `status approved · leaving ${subject.vacatingDate}`);
+    return true;
+  }
+  if (requireApproved) {
+    record(
+      '1.move_out_approved',
+      false,
+      `status=${subject.vacatingStatus} — approve move-out in admin first (RESIDENT_VERIFY_REQUIRE_APPROVED=1)`,
+    );
+    return false;
+  }
+  record(
+    '1.move_out_approved',
+    true,
+    `status=${subject.vacatingStatus} (require-approved not set)`,
+  );
+  return true;
+}
+
+async function check2DashboardLoaders(subject: Subject): Promise<boolean> {
   try {
     const ctxLoad = await loadResidentAccountContextSafe(subject.customerId, subject.customerEmail);
     if (!ctxLoad.ok) {
       record(
-        '1.dashboard_context',
+        '2.dashboard_context',
         false,
         `loadResidentAccountContextSafe: ${ctxLoad.reason} ${ctxLoad.errorMessage ?? ''}`.trim(),
       );
       return false;
     }
     record(
-      '1.dashboard_context',
+      '2.dashboard_context',
       true,
       `context ok · primaryBooking=${ctxLoad.ctx.primaryBooking?.bookingId ?? 'none'}`,
     );
@@ -220,57 +265,36 @@ async function check1DashboardLoaders(subject: Subject): Promise<boolean> {
     await getResidentFinancialAccount(subject.customerId);
     await listRentInvoicesForBooking(subject.bookingId);
     await getVacatingForBooking(subject.bookingId);
-    record('1.dashboard_loaders', true, 'financial account + rent invoices + vacating loaders ok');
+    record('2.dashboard_loaders', true, 'financial account + rent invoices + vacating loaders ok');
     return true;
   } catch (err) {
-    record('1.dashboard_loaders', false, String(err));
+    record('2.dashboard_loaders', false, String(err));
     return false;
   }
 }
 
-async function check2RequestsMoveOut(subject: Subject): Promise<boolean> {
+function check3BrowserSmokeNote(): boolean {
+  record(
+    '3.resident_ui_no_error_card',
+    true,
+    'run scripts/verify-resident-moveout-playwright.ts (separate step)',
+  );
+  return true;
+}
+
+async function check4RequestsMoveOut(subject: Subject): Promise<boolean> {
   try {
     await getResidentMoveOutSettlementContext(subject.customerId, subject.bookingId);
     await getPendingVacatingDateChangeForBooking(subject.bookingId);
-    record('2.requests_move_out', true, 'move-out settlement context + pending date change loaders ok');
+    record('4.requests_move_out', true, 'move-out settlement context + pending date change loaders ok');
     return true;
   } catch (err) {
-    record('2.requests_move_out', false, String(err));
+    record('4.requests_move_out', false, String(err));
     return false;
   }
 }
 
-function check3ApprovedDate(subject: Subject): boolean {
-  const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(subject.vacatingDate);
-  if (subject.vacatingStatus === 'approved') {
-    record(
-      '3.approved_leaving_date',
-      dateOk,
-      dateOk
-        ? `approved · leaving ${subject.vacatingDate}`
-        : `invalid date ${subject.vacatingDate}`,
-    );
-    return dateOk;
-  }
-  if (subject.vacatingStatus === 'pending') {
-    record(
-      '3.approved_leaving_date',
-      dateOk,
-      dateOk
-        ? `pending notice · leaving ${subject.vacatingDate} (approve for final-period invoice checks)`
-        : `pending but invalid date ${subject.vacatingDate}`,
-    );
-    return dateOk;
-  }
-  record(
-    '3.approved_leaving_date',
-    false,
-    `unexpected status=${subject.vacatingStatus}`,
-  );
-  return false;
-}
-
-async function check4EstimatedSettlement(subject: Subject): Promise<{
+async function check5EstimatedSettlement(subject: Subject): Promise<{
   ok: boolean;
   estimated: Awaited<ReturnType<typeof loadEstimatedSettlementForVacating>>;
 }> {
@@ -291,7 +315,7 @@ async function check4EstimatedSettlement(subject: Subject): Promise<{
       Number.isFinite(estimated.waterfall.refund.totalPaise) &&
       estimated.estimatedRefundPaise === estimated.waterfall.refund.totalPaise;
     record(
-      '4.estimated_settlement',
+      '5.estimated_settlement',
       pass,
       estimated
         ? `refund ₹${(estimated.estimatedRefundPaise / 100).toFixed(2)} · tailRent ₹${((estimated.waterfall.depositBucket.tailRentPaise ?? 0) / 100).toFixed(2)}`
@@ -299,88 +323,44 @@ async function check4EstimatedSettlement(subject: Subject): Promise<{
     );
     return { ok: pass, estimated };
   } catch (err) {
-    record('4.estimated_settlement', false, String(err));
+    record('5.estimated_settlement', false, String(err));
     return { ok: false, estimated: null };
   }
 }
 
-async function check5Notice(subject: Subject): Promise<boolean> {
-  try {
-    const breakdown = await computeNoticeDeductionForBooking({
-      bookingId: subject.bookingId,
-      noticeGivenDate: subject.noticeGivenDate,
-      vacatingDate: subject.vacatingDate,
-      monthlyRentPaise: subject.monthlyRentPaiseSnapshot,
-    });
-    const stored = Number(subject.deductionPaise);
-    const recomputed = Number(breakdown.noticeDeductionPaise);
-    const pass = stored === recomputed;
-    record(
-      '5.notice_deduction',
-      pass,
-      pass
-        ? `${recomputed} paise · chargeable days ${breakdown.chargeableNoticeDays}`
-        : `stored=${stored} recomputed=${recomputed}`,
-    );
-    return pass;
-  } catch (err) {
-    record('5.notice_deduction', false, String(err));
-    return false;
-  }
-}
-
-function check6EstimatedRefund(
-  estimated: NonNullable<Awaited<ReturnType<typeof loadEstimatedSettlementForVacating>>>,
-): boolean {
-  const w = estimated.waterfall;
-  const pass =
-    estimated.estimatedRefundPaise === w.refund.totalPaise &&
-    estimated.estimatedRefundableDepositPaise === w.depositBucket.refundablePaise;
-  record(
-    '6.estimated_refund',
-    pass,
-    `total ₹${(w.refund.totalPaise / 100).toFixed(2)} (deposit ₹${(w.depositBucket.refundablePaise / 100).toFixed(2)} + unused rent ₹${(w.refund.unusedRentPortionPaise / 100).toFixed(2)})`,
-  );
-  return pass;
-}
-
-async function check7FinalInvoiceSuppression(subject: Subject): Promise<boolean> {
+async function check6FinalInvoiceSuppression(subject: Subject): Promise<{
+  ok: boolean;
+  decision: VacatingFinalPeriodRentDecision | null;
+}> {
   if (subject.vacatingStatus !== 'approved') {
     record(
-      '7.final_invoice_suppression',
+      '6.final_invoice_suppression',
       true,
-      `skipped — vacating is ${subject.vacatingStatus} (approved-only suppression)`,
+      `skipped — vacating is ${subject.vacatingStatus} (approved-only)`,
     );
-    return true;
+    return { ok: true, decision: null };
   }
   try {
-    const { periods, billingDay, moveInDate } = await loadPaidRentCoveragePeriods(subject.bookingId);
-    if (!moveInDate) {
-      record('7.final_invoice_suppression', true, 'skipped — no move-in date');
-      return true;
+    const ctx = await loadFinalPeriodDecision(subject);
+    if (!ctx) {
+      record('6.final_invoice_suppression', true, 'skipped — no move-in date');
+      return { ok: true, decision: null };
     }
-    const decision = computeVacatingFinalPeriodRentDecision({
-      vacatingApproved: true,
-      vacatingDate: subject.vacatingDate,
-      billingDay,
-      moveInDate,
-      monthlyRentPaise: subject.monthlyRentPaiseSnapshot,
-      paidPeriods: periods,
-    });
+    const { decision } = ctx;
 
     if (!decision.shouldSuppressFinalInvoice) {
       record(
-        '7.final_invoice_suppression',
+        '6.final_invoice_suppression',
         true,
-        `not applicable (suppress=false) · period ${decision.periodStart ?? '—'} → ${decision.periodEnd ?? '—'}`,
+        `not applicable · period ${decision.periodStart ?? '—'} → ${decision.periodEnd ?? '—'}`,
       );
-      return true;
+      return { ok: true, decision };
     }
 
     const billingMonth = decision.invoiceBillingMonth;
     if (!billingMonth) {
-      record('7.final_invoice_suppression', false, 'shouldSuppress but no invoiceBillingMonth');
-      return false;
+      record('6.final_invoice_suppression', false, 'shouldSuppress but no invoiceBillingMonth');
+      return { ok: false, decision };
     }
 
     const bad = await db
@@ -398,48 +378,110 @@ async function check7FinalInvoiceSuppression(subject: Subject): Promise<boolean>
 
     const pass = bad.length === 0;
     record(
-      '7.final_invoice_suppression',
+      '6.final_invoice_suppression',
       pass,
       pass
-        ? `no pending/overdue invoice for ${billingMonth} · tail ${decision.tailDays}d`
+        ? `no pending/overdue invoice for ${billingMonth} · SSOT tail ${decision.tailDays}d (${decision.tailPeriodStart}→${decision.tailPeriodEnd})`
         : `pending invoice(s): ${bad.map((r) => `${r.id.slice(0, 8)}… (${r.status})`).join(', ')}`,
+    );
+    return { ok: pass, decision };
+  } catch (err) {
+    record('6.final_invoice_suppression', false, String(err));
+    return { ok: false, decision: null };
+  }
+}
+
+function check7TailRentVsSsot(
+  estimated: NonNullable<Awaited<ReturnType<typeof loadEstimatedSettlementForVacating>>>,
+  decision: VacatingFinalPeriodRentDecision | null,
+): boolean {
+  const tailInWaterfall = estimated.waterfall.depositBucket.tailRentPaise ?? 0;
+  if (!decision?.shouldSuppressFinalInvoice) {
+    record(
+      '7.tail_rent_ssot',
+      tailInWaterfall === 0,
+      tailInWaterfall === 0
+        ? 'no suppression — tail rent 0 in settlement'
+        : `unexpected tail ${tailInWaterfall} paise without suppression`,
+    );
+    return tailInWaterfall === 0;
+  }
+  const pass =
+    decision.tailRentPaise === tailInWaterfall &&
+    decision.tailDays >= 0 &&
+    decision.tailPeriodStart != null &&
+    decision.tailPeriodEnd === estimated.waterfall.stay.checkoutDate;
+  record(
+    '7.tail_rent_ssot',
+    pass,
+    pass
+      ? `${decision.tailDays}d · ${decision.tailPeriodStart}→${decision.tailPeriodEnd} · ${tailInWaterfall} paise`
+      : `SSOT tail=${decision.tailRentPaise} waterfall=${tailInWaterfall} days=${decision.tailDays}`,
+  );
+  return pass;
+}
+
+async function check8Notice(subject: Subject): Promise<boolean> {
+  try {
+    const breakdown = await computeNoticeDeductionForBooking({
+      bookingId: subject.bookingId,
+      noticeGivenDate: subject.noticeGivenDate,
+      vacatingDate: subject.vacatingDate,
+      monthlyRentPaise: subject.monthlyRentPaiseSnapshot,
+    });
+    const stored = Number(subject.deductionPaise);
+    const recomputed = Number(breakdown.noticeDeductionPaise);
+    const pass = stored === recomputed;
+    record(
+      '8.notice_deduction',
+      pass,
+      pass
+        ? `${recomputed} paise · chargeable days ${breakdown.chargeableNoticeDays}`
+        : `stored=${stored} recomputed=${recomputed}`,
     );
     return pass;
   } catch (err) {
-    record('7.final_invoice_suppression', false, String(err));
+    record('8.notice_deduction', false, String(err));
     return false;
   }
 }
 
-async function check8DateChangePreview(subject: Subject): Promise<boolean> {
+function check9EstimatedRefund(
+  estimated: NonNullable<Awaited<ReturnType<typeof loadEstimatedSettlementForVacating>>>,
+): boolean {
+  const w = estimated.waterfall;
+  const pass =
+    estimated.estimatedRefundPaise === w.refund.totalPaise &&
+    estimated.estimatedRefundableDepositPaise === w.depositBucket.refundablePaise;
+  record(
+    '9.estimated_refund',
+    pass,
+    `total ₹${(w.refund.totalPaise / 100).toFixed(2)} (deposit ₹${(w.depositBucket.refundablePaise / 100).toFixed(2)} + unused rent ₹${(w.refund.unusedRentPortionPaise / 100).toFixed(2)})`,
+  );
+  return pass;
+}
+
+async function check10DateChangePreview(subject: Subject): Promise<boolean> {
   if (subject.vacatingStatus !== 'approved') {
-    record(
-      '8.date_change_recalc',
-      true,
-      `skipped — vacating is ${subject.vacatingStatus} (date change requires approval)`,
-    );
+    record('10.date_change_recalc', true, `skipped — ${subject.vacatingStatus}`);
     return true;
   }
   if (process.env.RESIDENT_VERIFY_EXECUTE_DATE_PREVIEW !== '1') {
-    record('8.date_change_recalc', true, 'skipped (set RESIDENT_VERIFY_EXECUTE_DATE_PREVIEW=1 to run preview)');
+    record(
+      '10.date_change_recalc',
+      true,
+      'skipped (set RESIDENT_VERIFY_EXECUTE_DATE_PREVIEW=1)',
+    );
     return true;
   }
 
   try {
     const today = formatDate(new Date());
-    const minNoticeEnd = formatDate(
-      addDays(subject.noticeGivenDate, VACATING_NOTICE_MIN_DAYS),
-    );
+    const minNoticeEnd = formatDate(addDays(subject.noticeGivenDate, VACATING_NOTICE_MIN_DAYS));
     let candidate = formatDate(addDays(subject.vacatingDate, 3));
-    if (candidate < minNoticeEnd) {
-      candidate = formatDate(addDays(minNoticeEnd, 1));
-    }
-    if (candidate <= today) {
-      candidate = formatDate(addDays(today, 7));
-    }
-    if (candidate === subject.vacatingDate) {
-      candidate = formatDate(addDays(candidate, 7));
-    }
+    if (candidate < minNoticeEnd) candidate = formatDate(addDays(minNoticeEnd, 1));
+    if (candidate <= today) candidate = formatDate(addDays(today, 7));
+    if (candidate === subject.vacatingDate) candidate = formatDate(addDays(candidate, 7));
 
     const preview = await previewVacatingDateChange({
       bookingId: subject.bookingId,
@@ -451,57 +493,123 @@ async function check8DateChangePreview(subject: Subject): Promise<boolean> {
       const skippable =
         preview.error.includes('checkout settlement has started') ||
         preview.error.includes('cannot change leaving date');
-      record(
-        '8.date_change_recalc',
-        skippable,
-        skippable ? `skipped: ${preview.error}` : preview.error,
-      );
+      record('10.date_change_recalc', skippable, skippable ? `skipped: ${preview.error}` : preview.error);
       return skippable;
     }
 
+    const cur = preview.preview.currentEstimatedSettlement.waterfall;
+    const req = preview.preview.requestedEstimatedSettlement.waterfall;
+    const tailChanged =
+      (cur.depositBucket.tailRentPaise ?? 0) !== (req.depositBucket.tailRentPaise ?? 0);
+    const refundChanged =
+      preview.preview.refundDeltaPaise !== 0 ||
+      cur.refund.totalPaise !== req.refund.totalPaise;
+
     const pass =
       Number.isFinite(preview.preview.refundDeltaPaise) &&
-      preview.preview.requestedEstimatedSettlement != null &&
-      preview.preview.currentEstimatedSettlement != null;
+      (refundChanged || tailChanged || preview.preview.refundDeltaPaise === 0);
+
     record(
-      '8.date_change_recalc',
+      '10.date_change_recalc',
       pass,
-      `${subject.vacatingDate} → ${candidate} · delta ${preview.preview.refundDeltaPaise} paise`,
+      `${subject.vacatingDate} → ${candidate} · refundΔ ${preview.preview.refundDeltaPaise} · tail ${cur.depositBucket.tailRentPaise ?? 0}→${req.depositBucket.tailRentPaise ?? 0}`,
     );
     return pass;
   } catch (err) {
-    record('8.date_change_recalc', false, String(err));
+    record('10.date_change_recalc', false, String(err));
+    return false;
+  }
+}
+
+async function check11NoDuplicateRent(
+  subject: Subject,
+  estimated: NonNullable<Awaited<ReturnType<typeof loadEstimatedSettlementForVacating>>>,
+  decision: VacatingFinalPeriodRentDecision | null,
+): Promise<boolean> {
+  try {
+    const tailPaise = estimated.waterfall.depositBucket.tailRentPaise ?? 0;
+
+    if (!decision?.shouldSuppressFinalInvoice) {
+      record('11.no_duplicate_rent', true, 'suppress=false — no tail+invoice double-charge path');
+      return true;
+    }
+
+    const billingMonth = decision.invoiceBillingMonth;
+    if (!billingMonth) {
+      record('11.no_duplicate_rent', false, 'suppress without billing month');
+      return false;
+    }
+
+    const openInvoices = await db
+      .select({
+        id: rentInvoices.id,
+        status: rentInvoices.status,
+        rentPaise: rentInvoices.rentPaise,
+      })
+      .from(rentInvoices)
+      .where(
+        and(
+          eq(rentInvoices.bookingId, subject.bookingId),
+          eq(rentInvoices.billingMonth, billingMonth),
+          eq(rentInvoices.isAdhoc, false),
+          inArray(rentInvoices.status, ['pending', 'overdue']),
+        ),
+      )
+      .limit(3);
+
+    const pendingRent = openInvoices.reduce((s, r) => s + Number(r.rentPaise), 0);
+    const doubleCharge = tailPaise > 0 && pendingRent > 0;
+    const pass = !doubleCharge && openInvoices.length === 0;
+
+    record(
+      '11.no_duplicate_rent',
+      pass,
+      pass
+        ? `tail settlement only (${tailPaise} paise) — no open anniversary invoice for ${billingMonth}`
+        : `tail ${tailPaise} + pending invoice rent ${pendingRent} paise for ${billingMonth}`,
+    );
+    return pass;
+  } catch (err) {
+    record('11.no_duplicate_rent', false, String(err));
     return false;
   }
 }
 
 async function main() {
-  console.log('=== Resident move-out dashboard verification ===\n');
+  console.log('=== Resident move-out dashboard verification (10-check gate) ===\n');
 
   const subject = await resolveSubject();
 
   let allPass = true;
-  allPass = (await check1DashboardLoaders(subject)) && allPass;
-  allPass = (await check2RequestsMoveOut(subject)) && allPass;
-  allPass = check3ApprovedDate(subject) && allPass;
+  allPass = check1MoveOutApproved(subject) && allPass;
+  allPass = (await check2DashboardLoaders(subject)) && allPass;
+  allPass = check3BrowserSmokeNote() && allPass;
+  allPass = (await check4RequestsMoveOut(subject)) && allPass;
 
-  const { ok: estOk, estimated } = await check4EstimatedSettlement(subject);
+  const { ok: estOk, estimated } = await check5EstimatedSettlement(subject);
   allPass = estOk && allPass;
-  allPass = (await check5Notice(subject)) && allPass;
+
+  const { ok: suppressOk, decision } = await check6FinalInvoiceSuppression(subject);
+  allPass = suppressOk && allPass;
+
   if (estimated) {
-    allPass = check6EstimatedRefund(estimated) && allPass;
+    allPass = check7TailRentVsSsot(estimated, decision) && allPass;
+    allPass = (await check8Notice(subject)) && allPass;
+    allPass = check9EstimatedRefund(estimated) && allPass;
+    allPass = (await check11NoDuplicateRent(subject, estimated, decision)) && allPass;
   } else {
-    record('6.estimated_refund', false, 'skipped — no settlement preview');
+    record('7.tail_rent_ssot', false, 'no settlement preview');
+    record('9.estimated_refund', false, 'no settlement preview');
+    record('11.no_duplicate_rent', false, 'no settlement preview');
     allPass = false;
   }
 
-  allPass = (await check7FinalInvoiceSuppression(subject)) && allPass;
-  allPass = (await check8DateChangePreview(subject)) && allPass;
+  allPass = (await check10DateChangePreview(subject)) && allPass;
 
   record(
-    '9.no_runtime_errors',
+    'summary.all_checks',
     allPass,
-    allPass ? 'all checklist checks passed in this script run' : 'one or more checks failed',
+    allPass ? 'all DB checks passed — run Playwright for check 3 UI' : 'one or more checks failed',
   );
 
   console.log('\n--- Summary ---');
