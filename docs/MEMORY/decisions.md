@@ -163,3 +163,8 @@
 
 ## DECISION — Settlement engine frozen; UX-only phase (2026-07-24)
 - Billing & Settlement Engine is **feature complete**. Do not change settlement mathematics unless invariant/prod validation fails or a **BR-*** rule changes. Ongoing work: UX tiering (15s resident / 10s admin approve / accountant expandables). Policy: `docs/SETTLEMENT_ENGINE_FREEZE.md`, `docs/validation/SETTLEMENT_UX_GUIDE.md`, Cursor rule `.cursor/rules/settlement-engine-freeze.mdc`.
+
+## DECISION — Move-in checkout rent coverage vs tail (APG-2026-0082, 2026-07-24)
+- **Problem:** First rent invoice due on move-in day maps to a pre-move-in anniversary window; after `clampPaidPeriodToMoveIn` paid coverage can collapse to a single day while checkout collected **full monthly rent**. V2 **rent consumed** funds the full stay; **tail rent** still charged overlapping days from deposit → double charge (0082: ₹0 refund on ₹2,059 deposit).
+- **Rule (BR-MOVEIN-COVERAGE):** When checkout paid **≥ one full month** rent and clamped invoice coverage is only move-in day with raw period ending on move-in, expand paid coverage to the **move-in anniversary period** `[moveIn, periodEnd]` for tail/notice SSOT. Do **not** zero tail globally when `rentConsumed === rentPaid` (Case B still needs tail after paid period ends).
+- **SSOT:** `expandMoveInCheckoutPeriodCoverage` in `billingCoverageModel.ts`; regression Case F in `billingCoverageRegression.test.ts`. Govind Kumar payout: normal settlement after fix, not a code exception.

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   buildBillingCoverageModel,
+  rawPeriodFromInvoiceDueDate,
 } from '@/src/lib/billing/billingCoverageModel';
 import { validateBillingEngineSettlement } from '@/src/lib/billing/billingEngineValidation';
 import { computeCheckoutSettlementV2 } from '@/src/lib/checkout/checkoutSettlementEngineV2';
@@ -85,6 +86,73 @@ test('validateBillingEngineSettlement passes Case C fixture', () => {
   });
   const result = validateBillingEngineSettlement(report, presentation);
   assert.equal(result.ok, true, result.failures.map((f) => f.message).join('; '));
+});
+
+test('validateBillingEngineSettlement passes Case F (0082 move-in checkout)', () => {
+  const moveInJul21 = '2026-07-21';
+  const monthly412080 = 412_080;
+  const rawFirst = rawPeriodFromInvoiceDueDate('2026-07-21', 21, 'inv-0082');
+  const coverage = buildBillingCoverageModel({
+    bookingId: 'bk-0082',
+    moveInDate: moveInJul21,
+    billingDay: 21,
+    rawPaidPeriods: [rawFirst],
+    vacatingDate: '2026-08-20',
+    noticeGivenDate: '2026-07-23',
+    monthlyRentPaise: monthly412080,
+    rentReceivedPaise: monthly412080,
+    treatAsApprovedForTail: true,
+    noticeApplies: true,
+  });
+  const ctx = {
+    checkInDate: moveInJul21,
+    vacatingDate: '2026-08-20',
+    rentPaidPaise: monthly412080,
+    depositHeldPaise: 205_900,
+    monthlyRentPaise: monthly412080,
+    missingNoticeDays: coverage.noticeBreakdown?.missingNoticeDays ?? 0,
+    noticeApplies: true,
+    checkoutTailRentPaise: coverage.tailRentPaise,
+  };
+  const waterfall = computeVacatingSettlementWaterfallFromContext(ctx);
+  const noticeDisplay = noticeDisplayFromBillingCoverage(coverage);
+  const noticeGivenDays = Math.max(0, diffDays('2026-07-23', '2026-08-20'));
+  const { sections, auditTrace, depositHeldPaise } = buildVacatingSettlementPreviewSections({
+    notice: noticeDisplay,
+    vacatingDate: '2026-08-20',
+    noticeGivenDate: '2026-07-23',
+    noticeGivenDays,
+    waterfall,
+    coverage,
+    depositHeldPaise: ctx.depositHeldPaise,
+    mode: 'estimate',
+  });
+  const presentation: VacatingBillingPresentation = {
+    coverage,
+    noticeDisplay,
+    ctx,
+    waterfall,
+    estimatedSettlement: {
+      sections,
+      auditTrace,
+      waterfall,
+      estimatedRefundPaise: waterfall.refund.totalPaise,
+      estimatedUnusedRentCreditPaise: waterfall.refund.unusedRentPortionPaise,
+      estimatedRefundableDepositPaise: waterfall.depositBucket.refundablePaise,
+      depositHeldPaise,
+      disclaimer: ESTIMATED_REFUND_DISCLAIMER,
+      mode: 'estimate',
+    },
+    billingCoverageDaysPaid: { label: '—', value: '—' },
+  };
+  const report = buildMoveOutSettlementExplanations(presentation, {
+    bookingId: 'bk-0082',
+    bookingCode: 'APG-2026-0082',
+    residentName: 'Govind Kumar',
+  });
+  const result = validateBillingEngineSettlement(report, presentation);
+  assert.equal(result.ok, true, result.failures.map((f) => f.message).join('; '));
+  assert.equal(waterfall.refund.totalPaise, 205_900);
 });
 
 test('INV-N1 detects notice split mismatch', () => {

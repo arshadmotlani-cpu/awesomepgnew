@@ -1,7 +1,7 @@
 /**
  * Billing coverage SSOT — separates invoice coverage, notice prepaid, settlement days, tail rent.
  */
-import { diffDays, formatDate, parseDate } from '@/src/lib/dates';
+import { diffDays, formatDate, parseDate, addDays } from '@/src/lib/dates';
 import {
   computeNoticeDeductionBreakdown,
   resolvePaidThroughDate,
@@ -59,6 +59,10 @@ export type BuildBillingCoverageInput = {
   asOfDate?: string | null;
   noticeGivenDate?: string | null;
   monthlyRentPaise?: number;
+  /** Total rent received on booking — used for BR-MOVEIN-COVERAGE expansion. */
+  rentReceivedPaise?: number;
+  /** Audit only — skip BR-MOVEIN-COVERAGE expansion (pre-fix behavior). */
+  skipMoveInCoverageExpansion?: boolean;
   treatAsApprovedForTail?: boolean;
   noticeApplies?: boolean;
 };
@@ -89,6 +93,60 @@ export function clampPaidInvoiceCoverage(
   for (const p of periods) {
     const clamped = clampPaidPeriodToMoveIn(p, moveInDate);
     if (clamped) out.push(clamped);
+  }
+  return out.sort((a, b) => a.periodStart.localeCompare(b.periodStart));
+}
+
+/**
+ * BR-MOVEIN-COVERAGE — first checkout invoice due on move-in day: expand single-day clamped
+ * coverage to the full move-in anniversary period when full monthly rent was collected.
+ */
+export function expandMoveInCheckoutPeriodCoverage(
+  clamped: BillingCoveragePeriod[],
+  rawPeriods: BillingCoveragePeriod[],
+  args: {
+    moveInDate: string;
+    billingDay: number;
+    monthlyRentPaise: number;
+    rentReceivedPaise?: number;
+  },
+): BillingCoveragePeriod[] {
+  const monthlyRentPaise = Math.max(0, args.monthlyRentPaise);
+  if (monthlyRentPaise <= 0) return clamped;
+  if (args.rentReceivedPaise != null && args.rentReceivedPaise < monthlyRentPaise) {
+    return clamped;
+  }
+
+  const moveIn = formatDate(parseDate(args.moveInDate));
+  /** Day after move-in lies in the first residency anniversary period (not the pre-move-in window ending on move-in). */
+  const residencyAnchor = resolveAnniversaryPeriodContainingDate({
+    date: formatDate(addDays(moveIn, 1)),
+    billingDay: args.billingDay,
+    moveInDate: moveIn,
+  });
+  if (!residencyAnchor || residencyAnchor.periodStart !== moveIn) return clamped;
+
+  const out: BillingCoveragePeriod[] = [];
+  for (const p of clamped) {
+    if (p.periodStart !== moveIn || p.periodEnd !== moveIn) {
+      out.push(p);
+      continue;
+    }
+    const raw = rawPeriods.find((r) => r.sourceId === p.sourceId);
+    if (!raw) {
+      out.push(p);
+      continue;
+    }
+    const rawEnd = formatDate(parseDate(raw.periodEnd));
+    if (rawEnd !== moveIn) {
+      out.push(p);
+      continue;
+    }
+    out.push({
+      ...p,
+      periodStart: moveIn,
+      periodEnd: residencyAnchor.periodEnd,
+    });
   }
   return out.sort((a, b) => a.periodStart.localeCompare(b.periodStart));
 }
@@ -133,7 +191,20 @@ export function computeDaysPaidForSettlement(args: {
 export function buildBillingCoverageModel(input: BuildBillingCoverageInput): BillingCoverageModel {
   const moveInDate = formatDate(parseDate(input.moveInDate));
   const billingDay = Math.min(Math.max(1, input.billingDay), 31);
-  const paidInvoiceCoverage = clampPaidInvoiceCoverage(input.rawPaidPeriods, moveInDate);
+  const monthlyRentPaise = Math.max(0, input.monthlyRentPaise ?? 0);
+  let paidInvoiceCoverage = clampPaidInvoiceCoverage(input.rawPaidPeriods, moveInDate);
+  if (!input.skipMoveInCoverageExpansion) {
+    paidInvoiceCoverage = expandMoveInCheckoutPeriodCoverage(
+      paidInvoiceCoverage,
+      input.rawPaidPeriods,
+      {
+        moveInDate,
+        billingDay,
+        monthlyRentPaise,
+        rentReceivedPaise: input.rentReceivedPaise,
+      },
+    );
+  }
 
   const vacatingDate = input.vacatingDate
     ? formatDate(parseDate(input.vacatingDate))
@@ -167,7 +238,6 @@ export function buildBillingCoverageModel(input: BuildBillingCoverageInput): Bil
   const prepaidAfterVacatingDays = vacatingDate
     ? unusedPrepaidRentDaysAfterVacating(vacatingDate, paidUntilDate)
     : 0;
-  const monthlyRentPaise = Math.max(0, input.monthlyRentPaise ?? 0);
   const dailyRentPaise = monthlyRentPaise > 0 ? dailyRateFromMonthly(monthlyRentPaise) : 0;
   const prepaidAfterVacatingPaise = dailyRentPaise * prepaidAfterVacatingDays;
 

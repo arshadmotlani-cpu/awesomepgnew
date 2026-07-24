@@ -1,0 +1,719 @@
+{
+  "generatedAt": "2026-07-24T19:36:23.855Z",
+  "rule": "BR-MOVEIN-COVERAGE",
+  "summary": {
+    "riskBookingsScanned": 16,
+    "withVacating": 15,
+    "expansionAppliedCount": 5,
+    "refundChangedCount": 3
+  },
+  "refundChanged": [
+    {
+      "bookingCode": "APG-2026-0045",
+      "tags": [
+        "legacy_movein_invoice",
+        "first_cycle_invoice",
+        "movein_day_clamp_candidate",
+        "moveout_in_first_billing_cycle"
+      ],
+      "vacatingDate": "2026-07-21",
+      "depositHeldPaise": 412080,
+      "refundBeforePaise": 151096,
+      "refundAfterPaise": 384608,
+      "refundDeltaPaise": 233512,
+      "tailBeforePaise": 233512,
+      "tailAfterPaise": 0,
+      "paidCoverageBefore": [
+        {
+          "periodStart": "2026-07-04",
+          "periodEnd": "2026-07-04",
+          "source": "rent_invoice",
+          "sourceId": "ec372d5f-5d8c-4fa5-9cd4-8750168b7a2d"
+        }
+      ],
+      "paidCoverageAfter": [
+        {
+          "periodStart": "2026-07-04",
+          "periodEnd": "2026-08-04",
+          "source": "rent_invoice",
+          "sourceId": "ec372d5f-5d8c-4fa5-9cd4-8750168b7a2d"
+        }
+      ],
+      "coverageNotes": [
+        "Invoice window 2026-06-04→2026-07-04 ends on move-in",
+        "BR-MOVEIN-COVERAGE expanded paid window"
+      ]
+    },
+    {
+      "bookingCode": "APG-2026-0082",
+      "tags": [
+        "partial_deposit",
+        "custom_deposit_below_contract",
+        "legacy_movein_invoice",
+        "first_cycle_invoice",
+        "movein_day_clamp_candidate",
+        "moveout_in_first_billing_cycle"
+      ],
+      "vacatingDate": "2026-08-20",
+      "depositHeldPaise": 205900,
+      "refundBeforePaise": 0,
+      "refundAfterPaise": 205900,
+      "refundDeltaPaise": 205900,
+      "tailBeforePaise": 412080,
+      "tailAfterPaise": 0,
+      "paidCoverageBefore": [
+        {
+          "periodStart": "2026-07-21",
+          "periodEnd": "2026-07-21",
+          "source": "rent_invoice",
+          "sourceId": "a44308b0-182a-4c4d-97a1-f1a25aacf636"
+        }
+      ],
+      "paidCoverageAfter": [
+        {
+          "periodStart": "2026-07-21",
+          "periodEnd": "2026-08-21",
+          "source": "rent_invoice",
+          "sourceId": "a44308b0-182a-4c4d-97a1-f1a25aacf636"
+        }
+      ],
+      "coverageNotes": [
+        "Invoice window 2026-06-21→2026-07-21 ends on move-in",
+        "BR-MOVEIN-COVERAGE expanded paid window"
+      ]
+    },
+    {
+      "bookingCode": "APG-2026-0083",
+      "tags": [
+        "legacy_movein_invoice",
+        "first_cycle_invoice",
+        "movein_day_clamp_candidate",
+        "moveout_in_first_billing_cycle"
+      ],
+      "vacatingDate": "2026-08-20",
+      "depositHeldPaise": 412080,
+      "refundBeforePaise": 0,
+      "refundAfterPaise": 412080,
+      "refundDeltaPaise": 412080,
+      "tailBeforePaise": 412080,
+      "tailAfterPaise": 0,
+      "paidCoverageBefore": [
+        {
+          "periodStart": "2026-07-21",
+          "periodEnd": "2026-07-21",
+          "source": "rent_invoice",
+          "sourceId": "a72fcd38-90b4-4f92-b6e8-93b27c21f6a4"
+        }
+      ],
+      "paidCoverageAfter": [
+        {
+          "periodStart": "2026-07-21",
+          "periodEnd": "2026-08-21",
+          "source": "rent_invoice",
+          "sourceId": "a72fcd38-90b4-4f92-b6e8-93b27c21f6a4"
+        }
+      ],
+      "coverageNotes": [
+        "Invoice window 2026-06-21→2026-07-21 ends on move-in",
+        "BR-MOVEIN-COVERAGE expanded paid window"
+      ]
+    }
+  ],
+  "allRiskBookings": [
+    {
+      "bookingCode": "APG-2026-0006",
+      "bookingId": "8071b983-d3a0-406e-b1b0-5ccd7e7e2f14",
+      "moveInDate": "2026-06-01",
+      "billingDay": 1,
+      "depositRequiredPaise": 400000,
+      "depositReceivedPaise": 400000,
+      "depositDuePaise": 0,
+      "rentReceivedPaise": 0,
+      "monthlyRentPaise": 408000,
+      "tags": [
+        "moveout_in_first_billing_cycle"
+      ],
+      "paidCoverageBefore": [],
+      "paidCoverageAfter": [],
+      "expansionApplied": false,
+      "vacatingDate": "2026-06-29",
+      "vacatingStatus": "completed",
+      "refundBeforePaise": 0,
+      "refundAfterPaise": 0,
+      "refundDeltaPaise": 0,
+      "tailBeforePaise": 394400,
+      "tailAfterPaise": 394400,
+      "coverageNotes": []
+    },
+    {
+      "bookingCode": "APG-2026-0007",
+      "bookingId": "a1d02da1-6784-4680-9b6a-5da161aadfec",
+      "moveInDate": "2026-06-01",
+      "billingDay": 1,
+      "depositRequiredPaise": 0,
+      "depositReceivedPaise": 1000000,
+      "depositDuePaise": 0,
+      "rentReceivedPaise": 0,
+      "monthlyRentPaise": 510000,
+      "tags": [
+        "moveout_in_first_billing_cycle"
+      ],
+      "paidCoverageBefore": [],
+      "paidCoverageAfter": [],
+      "expansionApplied": false,
+      "vacatingDate": "2026-06-26",
+      "vacatingStatus": "completed",
+      "refundBeforePaise": 0,
+      "refundAfterPaise": 0,
+      "refundDeltaPaise": 0,
+      "tailBeforePaise": 442000,
+      "tailAfterPaise": 442000,
+      "coverageNotes": []
+    },
+    {
+      "bookingCode": "APG-2026-0010",
+      "bookingId": "6b9852ae-43b4-4aaa-94d4-206c05172b1a",
+      "moveInDate": "2026-06-01",
+      "billingDay": 1,
+      "depositRequiredPaise": 150000,
+      "depositReceivedPaise": 700000,
+      "depositDuePaise": 0,
+      "rentReceivedPaise": 0,
+      "monthlyRentPaise": 357000,
+      "tags": [
+        "moveout_in_first_billing_cycle"
+      ],
+      "paidCoverageBefore": [],
+      "paidCoverageAfter": [],
+      "expansionApplied": false,
+      "vacatingDate": "2026-06-20",
+      "vacatingStatus": "completed",
+      "refundBeforePaise": 390600,
+      "refundAfterPaise": 390600,
+      "refundDeltaPaise": 0,
+      "tailBeforePaise": 238000,
+      "tailAfterPaise": 238000,
+      "coverageNotes": []
+    },
+    {
+      "bookingCode": "APG-2026-0015",
+      "bookingId": "0e5a3f6d-2840-40d1-b2f4-36746ed1918b",
+      "moveInDate": "2026-06-01",
+      "billingDay": 1,
+      "depositRequiredPaise": 250000,
+      "depositReceivedPaise": 250000,
+      "depositDuePaise": 0,
+      "rentReceivedPaise": 0,
+      "monthlyRentPaise": 255000,
+      "tags": [
+        "moveout_in_first_billing_cycle"
+      ],
+      "paidCoverageBefore": [],
+      "paidCoverageAfter": [],
+      "expansionApplied": false,
+      "vacatingDate": "2026-06-30",
+      "vacatingStatus": "completed",
+      "refundBeforePaise": 0,
+      "refundAfterPaise": 0,
+      "refundDeltaPaise": 0,
+      "tailBeforePaise": 255000,
+      "tailAfterPaise": 255000,
+      "coverageNotes": []
+    },
+    {
+      "bookingCode": "APG-2026-0016",
+      "bookingId": "c42000d7-e50b-40ca-82be-4c0d9bb027d5",
+      "moveInDate": "2026-06-01",
+      "billingDay": 1,
+      "depositRequiredPaise": 150000,
+      "depositReceivedPaise": 150000,
+      "depositDuePaise": 0,
+      "rentReceivedPaise": 0,
+      "monthlyRentPaise": 357000,
+      "tags": [
+        "moveout_in_first_billing_cycle"
+      ],
+      "paidCoverageBefore": [],
+      "paidCoverageAfter": [],
+      "expansionApplied": false,
+      "vacatingDate": "2026-06-18",
+      "vacatingStatus": "completed",
+      "refundBeforePaise": 0,
+      "refundAfterPaise": 0,
+      "refundDeltaPaise": 0,
+      "tailBeforePaise": 214200,
+      "tailAfterPaise": 214200,
+      "coverageNotes": []
+    },
+    {
+      "bookingCode": "APG-2026-0027",
+      "bookingId": "090692ca-71a6-44ab-9f11-9dbdc9366114",
+      "moveInDate": "2026-06-01",
+      "billingDay": 1,
+      "depositRequiredPaise": 150000,
+      "depositReceivedPaise": 700000,
+      "depositDuePaise": 0,
+      "rentReceivedPaise": 0,
+      "monthlyRentPaise": 357000,
+      "tags": [
+        "moveout_in_first_billing_cycle"
+      ],
+      "paidCoverageBefore": [],
+      "paidCoverageAfter": [],
+      "expansionApplied": false,
+      "vacatingDate": "2026-06-16",
+      "vacatingStatus": "completed",
+      "refundBeforePaise": 0,
+      "refundAfterPaise": 0,
+      "refundDeltaPaise": 0,
+      "tailBeforePaise": 190400,
+      "tailAfterPaise": 190400,
+      "coverageNotes": []
+    },
+    {
+      "bookingCode": "APG-2026-0032",
+      "bookingId": "efcbbf09-3753-471a-b6ed-42d30e1bce0f",
+      "moveInDate": "2026-06-20",
+      "billingDay": 5,
+      "depositRequiredPaise": 49500,
+      "depositReceivedPaise": 49500,
+      "depositDuePaise": 0,
+      "rentReceivedPaise": 99000,
+      "monthlyRentPaise": 408000,
+      "tags": [
+        "legacy_movein_invoice",
+        "first_cycle_invoice",
+        "movein_day_clamp_candidate"
+      ],
+      "paidCoverageBefore": [
+        {
+          "periodStart": "2026-06-20",
+          "periodEnd": "2026-06-20",
+          "source": "rent_invoice",
+          "sourceId": "6644df0f-866b-4a05-808e-391747290759"
+        }
+      ],
+      "paidCoverageAfter": [
+        {
+          "periodStart": "2026-06-20",
+          "periodEnd": "2026-06-20",
+          "source": "rent_invoice",
+          "sourceId": "6644df0f-866b-4a05-808e-391747290759"
+        }
+      ],
+      "expansionApplied": false,
+      "vacatingDate": "2026-06-23",
+      "vacatingStatus": "approved",
+      "refundBeforePaise": 44600,
+      "refundAfterPaise": 44600,
+      "refundDeltaPaise": 0,
+      "tailBeforePaise": 40800,
+      "tailAfterPaise": 40800,
+      "coverageNotes": [
+        "Invoice window 2026-05-05→2026-06-20 ends on move-in"
+      ]
+    },
+    {
+      "bookingCode": "APG-2026-0033",
+      "bookingId": "d9e06934-905b-44ef-a0c1-db78f501eb90",
+      "moveInDate": "2026-06-22",
+      "billingDay": 22,
+      "depositRequiredPaise": 16500,
+      "depositReceivedPaise": 16500,
+      "depositDuePaise": 0,
+      "rentReceivedPaise": 33000,
+      "monthlyRentPaise": 357000,
+      "tags": [
+        "legacy_movein_invoice",
+        "first_cycle_invoice",
+        "movein_day_clamp_candidate",
+        "moveout_in_first_billing_cycle"
+      ],
+      "paidCoverageBefore": [
+        {
+          "periodStart": "2026-06-22",
+          "periodEnd": "2026-06-22",
+          "source": "rent_invoice",
+          "sourceId": "73892ef3-e075-41d6-b81f-685484bbe2b9"
+        }
+      ],
+      "paidCoverageAfter": [
+        {
+          "periodStart": "2026-06-22",
+          "periodEnd": "2026-06-22",
+          "source": "rent_invoice",
+          "sourceId": "73892ef3-e075-41d6-b81f-685484bbe2b9"
+        }
+      ],
+      "expansionApplied": false,
+      "vacatingDate": "2026-06-23",
+      "vacatingStatus": "approved",
+      "refundBeforePaise": 13800,
+      "refundAfterPaise": 13800,
+      "refundDeltaPaise": 0,
+      "tailBeforePaise": 11900,
+      "tailAfterPaise": 11900,
+      "coverageNotes": [
+        "Invoice window 2026-05-22→2026-06-22 ends on move-in"
+      ]
+    },
+    {
+      "bookingCode": "APG-2026-0035",
+      "bookingId": "54ab92e3-4221-4c4f-95c3-ff1867c3bf92",
+      "moveInDate": "2026-06-23",
+      "billingDay": 23,
+      "depositRequiredPaise": 95000,
+      "depositReceivedPaise": 95000,
+      "depositDuePaise": 0,
+      "rentReceivedPaise": 190000,
+      "monthlyRentPaise": 408000,
+      "tags": [
+        "legacy_movein_invoice",
+        "first_cycle_invoice",
+        "movein_day_clamp_candidate",
+        "moveout_in_first_billing_cycle"
+      ],
+      "paidCoverageBefore": [
+        {
+          "periodStart": "2026-06-23",
+          "periodEnd": "2026-06-23",
+          "source": "rent_invoice",
+          "sourceId": "5226fab0-4424-4e73-854e-e4175dc0d577"
+        }
+      ],
+      "paidCoverageAfter": [
+        {
+          "periodStart": "2026-06-23",
+          "periodEnd": "2026-06-23",
+          "source": "rent_invoice",
+          "sourceId": "5226fab0-4424-4e73-854e-e4175dc0d577"
+        }
+      ],
+      "expansionApplied": false,
+      "vacatingDate": "2026-06-30",
+      "vacatingStatus": "completed",
+      "refundBeforePaise": 81200,
+      "refundAfterPaise": 81200,
+      "refundDeltaPaise": 0,
+      "tailBeforePaise": 95200,
+      "tailAfterPaise": 95200,
+      "coverageNotes": [
+        "Invoice window 2026-05-23→2026-06-23 ends on move-in"
+      ]
+    },
+    {
+      "bookingCode": "APG-2026-0036",
+      "bookingId": "61e6104a-8291-4971-99a7-90b013a2e3de",
+      "moveInDate": "2026-06-23",
+      "billingDay": 23,
+      "depositRequiredPaise": 95000,
+      "depositReceivedPaise": 95000,
+      "depositDuePaise": 0,
+      "rentReceivedPaise": 190000,
+      "monthlyRentPaise": 408000,
+      "tags": [
+        "legacy_movein_invoice",
+        "first_cycle_invoice",
+        "movein_day_clamp_candidate",
+        "moveout_in_first_billing_cycle"
+      ],
+      "paidCoverageBefore": [
+        {
+          "periodStart": "2026-06-23",
+          "periodEnd": "2026-06-23",
+          "source": "rent_invoice",
+          "sourceId": "c52e51ed-8de7-4150-8f25-896e54185a74"
+        }
+      ],
+      "paidCoverageAfter": [
+        {
+          "periodStart": "2026-06-23",
+          "periodEnd": "2026-06-23",
+          "source": "rent_invoice",
+          "sourceId": "c52e51ed-8de7-4150-8f25-896e54185a74"
+        }
+      ],
+      "expansionApplied": false,
+      "vacatingDate": "2026-06-30",
+      "vacatingStatus": "approved",
+      "refundBeforePaise": 81200,
+      "refundAfterPaise": 81200,
+      "refundDeltaPaise": 0,
+      "tailBeforePaise": 95200,
+      "tailAfterPaise": 95200,
+      "coverageNotes": [
+        "Invoice window 2026-05-23→2026-06-23 ends on move-in"
+      ]
+    },
+    {
+      "bookingCode": "APG-2026-0040",
+      "bookingId": "70debd82-4c80-4fd7-a368-0cd7c40f7fbd",
+      "moveInDate": "2026-07-01",
+      "billingDay": 1,
+      "depositRequiredPaise": 412080,
+      "depositReceivedPaise": 412080,
+      "depositDuePaise": 0,
+      "rentReceivedPaise": 412080,
+      "monthlyRentPaise": 412080,
+      "tags": [
+        "legacy_movein_invoice",
+        "first_cycle_invoice",
+        "movein_day_clamp_candidate"
+      ],
+      "paidCoverageBefore": [
+        {
+          "periodStart": "2026-07-01",
+          "periodEnd": "2026-07-01",
+          "source": "rent_invoice",
+          "sourceId": "1bed4f89-791c-47fe-8610-59ebb7d71c58"
+        }
+      ],
+      "paidCoverageAfter": [
+        {
+          "periodStart": "2026-07-01",
+          "periodEnd": "2026-08-01",
+          "source": "rent_invoice",
+          "sourceId": "1bed4f89-791c-47fe-8610-59ebb7d71c58"
+        }
+      ],
+      "expansionApplied": true,
+      "vacatingDate": null,
+      "vacatingStatus": null,
+      "refundBeforePaise": null,
+      "refundAfterPaise": null,
+      "refundDeltaPaise": null,
+      "tailBeforePaise": null,
+      "tailAfterPaise": null,
+      "coverageNotes": [
+        "Invoice window 2026-06-01→2026-07-01 ends on move-in",
+        "BR-MOVEIN-COVERAGE expanded paid window"
+      ]
+    },
+    {
+      "bookingCode": "APG-2026-0045",
+      "bookingId": "28520507-32da-4d80-84d5-b35db3e01963",
+      "moveInDate": "2026-07-04",
+      "billingDay": 4,
+      "depositRequiredPaise": 412080,
+      "depositReceivedPaise": 412080,
+      "depositDuePaise": 0,
+      "rentReceivedPaise": 412080,
+      "monthlyRentPaise": 412080,
+      "tags": [
+        "legacy_movein_invoice",
+        "first_cycle_invoice",
+        "movein_day_clamp_candidate",
+        "moveout_in_first_billing_cycle"
+      ],
+      "paidCoverageBefore": [
+        {
+          "periodStart": "2026-07-04",
+          "periodEnd": "2026-07-04",
+          "source": "rent_invoice",
+          "sourceId": "ec372d5f-5d8c-4fa5-9cd4-8750168b7a2d"
+        }
+      ],
+      "paidCoverageAfter": [
+        {
+          "periodStart": "2026-07-04",
+          "periodEnd": "2026-08-04",
+          "source": "rent_invoice",
+          "sourceId": "ec372d5f-5d8c-4fa5-9cd4-8750168b7a2d"
+        }
+      ],
+      "expansionApplied": true,
+      "vacatingDate": "2026-07-21",
+      "vacatingStatus": "approved",
+      "refundBeforePaise": 151096,
+      "refundAfterPaise": 384608,
+      "refundDeltaPaise": 233512,
+      "tailBeforePaise": 233512,
+      "tailAfterPaise": 0,
+      "coverageNotes": [
+        "Invoice window 2026-06-04→2026-07-04 ends on move-in",
+        "BR-MOVEIN-COVERAGE expanded paid window"
+      ]
+    },
+    {
+      "bookingCode": "APG-2026-0048",
+      "bookingId": "34e5149a-86ac-4c52-8ebc-83af7be6a042",
+      "moveInDate": "2026-07-07",
+      "billingDay": 7,
+      "depositRequiredPaise": 412080,
+      "depositReceivedPaise": 412080,
+      "depositDuePaise": 0,
+      "rentReceivedPaise": 412080,
+      "monthlyRentPaise": 412080,
+      "tags": [
+        "legacy_movein_invoice",
+        "first_cycle_invoice",
+        "movein_day_clamp_candidate",
+        "moveout_in_first_billing_cycle"
+      ],
+      "paidCoverageBefore": [
+        {
+          "periodStart": "2026-07-07",
+          "periodEnd": "2026-07-07",
+          "source": "rent_invoice",
+          "sourceId": "d582ee63-23d9-4252-93cf-8e0ba25326dd"
+        }
+      ],
+      "paidCoverageAfter": [
+        {
+          "periodStart": "2026-07-07",
+          "periodEnd": "2026-08-07",
+          "source": "rent_invoice",
+          "sourceId": "d582ee63-23d9-4252-93cf-8e0ba25326dd"
+        }
+      ],
+      "expansionApplied": true,
+      "vacatingDate": "2026-08-07",
+      "vacatingStatus": "pending",
+      "refundBeforePaise": 412080,
+      "refundAfterPaise": 412080,
+      "refundDeltaPaise": 0,
+      "tailBeforePaise": 0,
+      "tailAfterPaise": 0,
+      "coverageNotes": [
+        "Invoice window 2026-06-07→2026-07-07 ends on move-in",
+        "BR-MOVEIN-COVERAGE expanded paid window"
+      ]
+    },
+    {
+      "bookingCode": "APG-2026-0076",
+      "bookingId": "a8786731-b99e-4118-8c33-83dbff7e90c5",
+      "moveInDate": "2026-07-15",
+      "billingDay": 15,
+      "depositRequiredPaise": 33000,
+      "depositReceivedPaise": 33000,
+      "depositDuePaise": 0,
+      "rentReceivedPaise": 66000,
+      "monthlyRentPaise": 412080,
+      "tags": [
+        "legacy_movein_invoice",
+        "first_cycle_invoice",
+        "movein_day_clamp_candidate",
+        "moveout_in_first_billing_cycle"
+      ],
+      "paidCoverageBefore": [
+        {
+          "periodStart": "2026-07-15",
+          "periodEnd": "2026-07-15",
+          "source": "rent_invoice",
+          "sourceId": "69aed04e-93c4-4494-97b3-91d70283b27d"
+        }
+      ],
+      "paidCoverageAfter": [
+        {
+          "periodStart": "2026-07-15",
+          "periodEnd": "2026-07-15",
+          "source": "rent_invoice",
+          "sourceId": "69aed04e-93c4-4494-97b3-91d70283b27d"
+        }
+      ],
+      "expansionApplied": false,
+      "vacatingDate": "2026-07-17",
+      "vacatingStatus": "approved",
+      "refundBeforePaise": 44056,
+      "refundAfterPaise": 44056,
+      "refundDeltaPaise": 0,
+      "tailBeforePaise": 13736,
+      "tailAfterPaise": 13736,
+      "coverageNotes": [
+        "Invoice window 2026-06-15→2026-07-15 ends on move-in"
+      ]
+    },
+    {
+      "bookingCode": "APG-2026-0082",
+      "bookingId": "43a5ce09-ddc3-4ddc-a7b9-f55db6d585e4",
+      "moveInDate": "2026-07-21",
+      "billingDay": 21,
+      "depositRequiredPaise": 412080,
+      "depositReceivedPaise": 205900,
+      "depositDuePaise": 206180,
+      "rentReceivedPaise": 412080,
+      "monthlyRentPaise": 412080,
+      "tags": [
+        "partial_deposit",
+        "custom_deposit_below_contract",
+        "legacy_movein_invoice",
+        "first_cycle_invoice",
+        "movein_day_clamp_candidate",
+        "moveout_in_first_billing_cycle"
+      ],
+      "paidCoverageBefore": [
+        {
+          "periodStart": "2026-07-21",
+          "periodEnd": "2026-07-21",
+          "source": "rent_invoice",
+          "sourceId": "a44308b0-182a-4c4d-97a1-f1a25aacf636"
+        }
+      ],
+      "paidCoverageAfter": [
+        {
+          "periodStart": "2026-07-21",
+          "periodEnd": "2026-08-21",
+          "source": "rent_invoice",
+          "sourceId": "a44308b0-182a-4c4d-97a1-f1a25aacf636"
+        }
+      ],
+      "expansionApplied": true,
+      "vacatingDate": "2026-08-20",
+      "vacatingStatus": "pending",
+      "refundBeforePaise": 0,
+      "refundAfterPaise": 205900,
+      "refundDeltaPaise": 205900,
+      "tailBeforePaise": 412080,
+      "tailAfterPaise": 0,
+      "coverageNotes": [
+        "Invoice window 2026-06-21→2026-07-21 ends on move-in",
+        "BR-MOVEIN-COVERAGE expanded paid window"
+      ]
+    },
+    {
+      "bookingCode": "APG-2026-0083",
+      "bookingId": "ef64e4ca-af58-4a2e-8cae-38eed5a936cf",
+      "moveInDate": "2026-07-21",
+      "billingDay": 21,
+      "depositRequiredPaise": 412080,
+      "depositReceivedPaise": 412080,
+      "depositDuePaise": 0,
+      "rentReceivedPaise": 412080,
+      "monthlyRentPaise": 412080,
+      "tags": [
+        "legacy_movein_invoice",
+        "first_cycle_invoice",
+        "movein_day_clamp_candidate",
+        "moveout_in_first_billing_cycle"
+      ],
+      "paidCoverageBefore": [
+        {
+          "periodStart": "2026-07-21",
+          "periodEnd": "2026-07-21",
+          "source": "rent_invoice",
+          "sourceId": "a72fcd38-90b4-4f92-b6e8-93b27c21f6a4"
+        }
+      ],
+      "paidCoverageAfter": [
+        {
+          "periodStart": "2026-07-21",
+          "periodEnd": "2026-08-21",
+          "source": "rent_invoice",
+          "sourceId": "a72fcd38-90b4-4f92-b6e8-93b27c21f6a4"
+        }
+      ],
+      "expansionApplied": true,
+      "vacatingDate": "2026-08-20",
+      "vacatingStatus": "pending",
+      "refundBeforePaise": 0,
+      "refundAfterPaise": 412080,
+      "refundDeltaPaise": 412080,
+      "tailBeforePaise": 412080,
+      "tailAfterPaise": 0,
+      "coverageNotes": [
+        "Invoice window 2026-06-21→2026-07-21 ends on move-in",
+        "BR-MOVEIN-COVERAGE expanded paid window"
+      ]
+    }
+  ]
+}

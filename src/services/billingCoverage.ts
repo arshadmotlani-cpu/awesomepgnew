@@ -23,6 +23,7 @@ import {
   dueDateForBillingDay,
   firstOfMonth,
 } from '@/src/services/billing';
+import { getBookingMoneyBalances } from '@/src/services/bookingMoneyBalances';
 
 export type { BillingCoverageModel, BillingCoveragePeriod };
 
@@ -124,6 +125,8 @@ export async function loadBillingCoverageModel(
     durationMode: args.durationMode,
   });
 
+  const money = await getBookingMoneyBalances(args.bookingId);
+
   return buildBillingCoverageModel({
     bookingId: args.bookingId,
     moveInDate,
@@ -133,6 +136,7 @@ export async function loadBillingCoverageModel(
     asOfDate: args.asOfDate,
     noticeGivenDate: args.noticeGivenDate,
     monthlyRentPaise: args.monthlyRentPaise,
+    rentReceivedPaise: money?.rent.receivedPaise,
     treatAsApprovedForTail: args.treatAsApprovedForTail,
     noticeApplies,
   });

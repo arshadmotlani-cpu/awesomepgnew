@@ -15,6 +15,7 @@ Every engine calculation must map to exactly one **BR-*** rule below. Implementa
 |----|---------|
 | BR-ANCHOR | Anniversary billing day anchored to move-in; periods clamped to check-in |
 | BR-FIRST-MONTH | First rent period / checkout proration at move-in |
+| BR-MOVEIN-COVERAGE | Expand move-in-day clamped invoice coverage when full month rent collected at checkout |
 | BR-LAST-MONTH | Final anniversary period, invoice suppression, tail rent |
 | BR-RENT-PAID | Total rent collected on booking |
 | BR-RENT-CONSUMED | Stay-based rent usage capped at paid |
@@ -57,6 +58,18 @@ Every engine calculation must map to exactly one **BR-*** rule below. Implementa
 
 ---
 
+## BR-MOVEIN-COVERAGE — Move-in checkout invoice coverage
+
+**Rule:** When the first paid rent invoice’s anniversary window **ends on move-in day** (due date = move-in), `clampPaidPeriodToMoveIn` can leave **one day** of paid coverage while checkout collected **≥ one full month** of rent. Expand clamped coverage to the **move-in anniversary period** `[moveInDate, periodEnd]` so tail/notice SSOT matches checkout rent collected. Prevents double-charging the same stay days via **rent consumed** and **tail rent** (regression Case F / APG-2026-0082).
+
+**Does not apply:** Partial first-month rent received &lt; monthly rent; multiple invoices; fixed-stay.
+
+**SSOT:** `expandMoveInCheckoutPeriodCoverage` in [`billingCoverageModel.ts`](../src/lib/billing/billingCoverageModel.ts); `rentReceivedPaise` on `buildBillingCoverageModel` input (from `getBookingMoneyBalances` in loader).
+
+**Regression:** Case F in [`billingCoverageRegression.test.ts`](../tests/unit/billingCoverageRegression.test.ts).
+
+---
+
 ## BR-LAST-MONTH — Last month (final period)
 
 **Rule:** For **approved** monthly move-out, if vacating falls in an **unpaid** anniversary period before that period’s end, the platform **suppresses** the pending anniversary rent invoice for that period and collects **tail rent** through checkout deposit deductions instead of a separate invoice.
@@ -90,7 +103,7 @@ Every engine calculation must map to exactly one **BR-*** rule below. Implementa
 - Vacating **not approved** and not in preview mode (no suppression).  
 - Fixed-stay product (no anniversary tail path).
 
-**Regression fixtures:** [`tests/unit/billingCoverageRegression.test.ts`](../tests/unit/billingCoverageRegression.test.ts) Cases A–C.
+**Regression fixtures:** [`tests/unit/billingCoverageRegression.test.ts`](../tests/unit/billingCoverageRegression.test.ts) Cases A–C, **F** (move-in checkout / 0082).
 
 ---
 

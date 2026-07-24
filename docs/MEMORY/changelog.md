@@ -9,6 +9,8 @@
 
 ## 2026-07-24
 
+- **BR-MOVEIN-COVERAGE (APG-2026-0082)** — `expandMoveInCheckoutPeriodCoverage` fixes tail double-charge when move-in equals invoice period end and full month rent collected at checkout; Case F regression + prod preview refund ₹2,059; ops `docs/validation/APG-2026-0082-settlement.md`
+- **MOVEIN-COVERAGE-PROD-AUDIT** — `scripts/audit-movein-coverage-production.ts`; 16 risk bookings, 3 refund deltas (0045, 0082, 0083); report `docs/validation/MOVEIN_COVERAGE_PRODUCTION_AUDIT.md`
 - **SETTLEMENT-THREE-AUDIENCES** — `settlementPresentationAudience.ts` (`resident` | `adminReview` | `accountant`); admin approve uses `AdminReviewSettlementScan` (no full statement in modal); resident story refund-first; workspace statement expanded accountant tier; docs `SETTLEMENT_UX_GUIDE.md` rewritten
 - **BILLING-SETTLEMENT-FROZEN-UX** — Engine math frozen (`SETTLEMENT_ENGINE_FREEZE.md`); quick vs accountant UI tiers on settlement statement; resident refund-first story; admin approve scan bar; workspace statement collapsed by default; Cursor rule `settlement-engine-freeze.mdc`
 - **BILLING-SETTLEMENT-FINAL** — Unified `billingEngineValidation.ts`, `settlementRuleRegistry.ts`, 11-line explainability + INV-E4 zero reasons, prod scripts `validate-active-moveout-billing-engine.ts` + policy spot-checks, `alignCoverageToLockedWaterfall` for locked checkout (TAIL_MISMATCH fix), bundle wired to approval/financial/resident; 14/14 prod pass; `BILLING_SETTLEMENT_ENGINE_FINAL_REPORT.md`, `SETTLEMENT_REPAIR_POLICY.md`, UI audit doc

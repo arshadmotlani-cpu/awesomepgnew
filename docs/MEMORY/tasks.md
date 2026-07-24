@@ -47,6 +47,10 @@
 
 ## Done
 
+## 2026-07-24
+
+- [x] **APG-2026-0082 tail rent bug** — BR-MOVEIN-COVERAGE in `billingCoverageModel.ts`; Case F + validator test; ops guide `docs/validation/APG-2026-0082-settlement.md` (approve vacating → checkout → elec → payout ~₹2,059 minus meter)
+
 ## 2026-06-21
 
 - [x] Create second brain docs (12 core files + domain hubs)

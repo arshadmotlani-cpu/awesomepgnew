@@ -6,6 +6,7 @@ import { SETTLEMENT_BUSINESS_RULES } from '@/src/lib/vacating/moveOutSettlementE
 export type SettlementBusinessRuleId =
   | 'BR-ANCHOR'
   | 'BR-FIRST-MONTH'
+  | 'BR-MOVEIN-COVERAGE'
   | 'BR-LAST-MONTH'
   | 'BR-INVOICE-SUPPRESS'
   | 'BR-RENT-PAID'
@@ -49,6 +50,13 @@ export const SETTLEMENT_RULE_REGISTRY: Record<SettlementBusinessRuleId, Settleme
     ssotModule: 'src/lib/billing/checkoutRentProration.ts',
     invariantIds: ['INV-W1'],
     explanationRuleIds: ['RULE_RENT_PAID_TOTAL'],
+  },
+  'BR-MOVEIN-COVERAGE': {
+    id: 'BR-MOVEIN-COVERAGE',
+    summary: 'Expand move-in-day clamped invoice coverage when full month rent collected at checkout',
+    ssotModule: 'src/lib/billing/billingCoverageModel.ts',
+    invariantIds: ['INV-C3', 'INV-C4'],
+    explanationRuleIds: ['RULE_TAIL_FROM_FINAL_PERIOD'],
   },
   'BR-LAST-MONTH': {
     id: 'BR-LAST-MONTH',

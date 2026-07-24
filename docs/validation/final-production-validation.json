@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-24T12:13:11.610Z",
+  "generatedAt": "2026-07-24T19:40:47.488Z",
   "completedLimit": 12,
   "summary": {
     "total": 14,
@@ -55,7 +55,7 @@
       "ok": true,
       "signatures": [],
       "failures": [],
-      "refundTotalPaise": 151096
+      "refundTotalPaise": 384608
     },
     {
       "bookingCode": "APG-2026-0048",
@@ -75,7 +75,7 @@
       "ok": true,
       "signatures": [],
       "failures": [],
-      "refundTotalPaise": 0
+      "refundTotalPaise": 205900
     },
     {
       "bookingCode": "APG-2026-0083",
@@ -85,7 +85,7 @@
       "ok": true,
       "signatures": [],
       "failures": [],
-      "refundTotalPaise": 0
+      "refundTotalPaise": 412080
     },
     {
       "bookingCode": "APG-2026-0015",

@@ -119,3 +119,48 @@ test('waterfall tail matches coverage for Case B', () => {
   const waterfall = computeVacatingSettlementWaterfallFromContext(ctx);
   assert.equal(waterfall.depositBucket.tailRentPaise, model.tailRentPaise);
 });
+
+/** APG-2026-0082 — move-in on invoice period end; full month rent at checkout; partial deposit. */
+const moveInJul21 = '2026-07-21';
+const billingDay21 = 21;
+const monthly412080 = 412_080;
+const deposit205900 = 205_900;
+
+test('Case F — move-in checkout (0082): expand coverage, vacate in paid window, no tail', () => {
+  const rawFirstInvoice = rawPeriodFromInvoiceDueDate('2026-07-21', billingDay21, 'inv-0082');
+  assert.equal(rawFirstInvoice.periodEnd, moveInJul21);
+
+  const model = buildBillingCoverageModel({
+    bookingId: 'bk-0082',
+    moveInDate: moveInJul21,
+    billingDay: billingDay21,
+    rawPaidPeriods: [rawFirstInvoice],
+    vacatingDate: '2026-08-20',
+    noticeGivenDate: '2026-07-23',
+    monthlyRentPaise: monthly412080,
+    rentReceivedPaise: monthly412080,
+    treatAsApprovedForTail: true,
+    noticeApplies: true,
+  });
+
+  assert.equal(model.paidInvoiceCoverage.length, 1);
+  assert.equal(model.paidInvoiceCoverage[0]!.periodStart, moveInJul21);
+  assert.equal(model.paidInvoiceCoverage[0]!.periodEnd, '2026-08-21');
+  assert.equal(model.tailRentPaise, 0);
+  assert.equal(model.finalInvoiceSuppression, false);
+
+  const ctx: VacatingSettlementWaterfallContext = {
+    checkInDate: moveInJul21,
+    vacatingDate: '2026-08-20',
+    rentPaidPaise: monthly412080,
+    depositHeldPaise: deposit205900,
+    monthlyRentPaise: monthly412080,
+    missingNoticeDays: model.noticeBreakdown?.missingNoticeDays ?? 0,
+    noticeApplies: true,
+    checkoutTailRentPaise: model.tailRentPaise,
+  };
+  const waterfall = computeVacatingSettlementWaterfallFromContext(ctx);
+  assert.equal(waterfall.depositBucket.tailRentPaise, 0);
+  assert.equal(waterfall.depositBucket.refundablePaise, deposit205900);
+  assert.equal(waterfall.refund.totalPaise, deposit205900);
+});
