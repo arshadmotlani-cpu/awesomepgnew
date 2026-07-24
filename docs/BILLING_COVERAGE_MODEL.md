@@ -62,8 +62,28 @@ Raw invoice periods are **clamped** to `moveInDate` before any display or notice
 - Tail rent in checkout V2 — `checkoutTailRentPaise` from coverage
 - Audit breakdown — `settlementNoticeDisplay` + `billingCoverageDaysPaid` on detail
 - Settlement PDF — `EstimatedSettlementPreview` sections only
+- **Explainability audit** — `buildMoveOutSettlementExplanations` + `validateMoveOutSettlementExplanations`; production gate `scripts/audit-active-moveout-settlement-explanations.ts`
 
 `notice_breakdown_json` on vacating/checkout rows is an **audit snapshot at write time** — not used for UI display after this migration.
+
+---
+
+## Settlement explainability contract
+
+Every amount shown on move-out review (rent paid/consumed, unused rent, notice, tail, deposit remaining, refund) must have a structured explanation from [`moveOutSettlementExplanation.ts`](../src/lib/vacating/moveOutSettlementExplanation.ts):
+
+| Field | Required |
+|-------|----------|
+| Value | Paise + INR (must match `CheckoutSettlementEngineV2` waterfall) |
+| Formula | Calculation with substituted inputs |
+| Business rule | Stable rule id + prose (`SETTLEMENT_BUSINESS_RULES`) |
+| Source | `BookingMoneyBalances`, `BillingCoverageModel`, `CheckoutSettlementEngineV2`, or `NoticeDeductionEngine` |
+
+If the engine cannot produce a complete explanation, or validation fails (waterfall vs UI vs BCM), treat as a **bug**. Run against all active non-terminal move-outs:
+
+`USE_PRODUCTION_DB=1 npx tsx scripts/audit-active-moveout-settlement-explanations.ts`
+
+Review UI shows a collapsible **Why these numbers** section on the settlement statement (admin approve modal).
 
 ---
 

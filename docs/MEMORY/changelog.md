@@ -209,3 +209,4 @@ Files:
 - **BILLING-COVERAGE-CLEANUP** — `loadVacatingBillingPresentation`; legacy JSON notice display removed from product UI; tail Case B one-day rule; `docs/BILLING_COVERAGE_MODEL.md`; regression tests A–E
 - **OPS-MOVEOUT-REVIEW-GATE** — Operations Move-out tab loads `loadPendingVacatingApprovalPreviews`; list CTA **Review move-out**; **Approve move-out** only inside settlement dialog when BCM statement present; bed map links to Operations instead of bare approve
 - **SETTLEMENT-UI-DAYS-PAID** — Removed internal “Days paid” row from Billing & dates on move-out review/statement surfaces; rent bucket + paid until remain for approval decisions
+- **SETTLEMENT-EXPLAINABILITY** — `moveOutSettlementExplanation.ts` + prod audit script; “Why these numbers” on settlement statement; approval preview attaches explanations

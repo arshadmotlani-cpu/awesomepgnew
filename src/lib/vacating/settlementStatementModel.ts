@@ -8,6 +8,7 @@ import {
 } from '@/src/lib/checkout/settlementDisplayFormat';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import { type EstimatedSettlementPreview } from '@/src/lib/vacating/estimatedSettlementPreview';
+import type { MoveOutSettlementExplanationReport } from '@/src/lib/vacating/moveOutSettlementExplanation';
 
 export type SettlementStatementHeroMetric = {
   id: string;
@@ -44,6 +45,7 @@ export type SettlementStatementDocumentModel = {
   rentSummary: SettlementStatementSection;
   collapsedSections: SettlementStatementSection[];
   auditTrace: Array<{ id: string; label: string; value: string }>;
+  explanations?: MoveOutSettlementExplanationReport | null;
   estimatedRefundPaise: number;
   estimatedUnusedRentCreditPaise: number;
   refundTotalLabel: string;
@@ -85,6 +87,7 @@ export function buildSettlementStatementModel(args: {
   vacatingDate: string;
   letterhead: InvoiceDocumentLetterhead;
   issuedAt?: string;
+  explanations?: MoveOutSettlementExplanationReport | null;
 }): SettlementStatementDocumentModel {
   const w = args.preview.waterfall;
   const mode = args.preview.mode;
@@ -184,6 +187,7 @@ export function buildSettlementStatementModel(args: {
     rentSummary,
     collapsedSections,
     auditTrace: args.preview.auditTrace ?? [],
+    explanations: args.explanations ?? null,
     estimatedRefundPaise: args.preview.estimatedRefundPaise,
     estimatedUnusedRentCreditPaise: args.preview.estimatedUnusedRentCreditPaise,
     refundTotalLabel: mode === 'final' ? 'Final refund' : 'Estimated refund',
@@ -199,6 +203,7 @@ export function buildSettlementStatementFromApprovalPreview(args: {
     noticeSubmittedDate: string;
     moveOutDate: string;
     estimatedSettlement: EstimatedSettlementPreview | null;
+    settlementExplanations?: MoveOutSettlementExplanationReport | null;
   };
   vacatingRequestId: string;
   bookingCode?: string;
@@ -208,6 +213,7 @@ export function buildSettlementStatementFromApprovalPreview(args: {
   if (!args.preview.estimatedSettlement) return null;
   return buildSettlementStatementModel({
     preview: args.preview.estimatedSettlement,
+    explanations: args.preview.settlementExplanations ?? null,
     vacatingRequestId: args.vacatingRequestId,
     bookingId: args.bookingId ?? args.vacatingRequestId,
     customerName: args.preview.residentName,

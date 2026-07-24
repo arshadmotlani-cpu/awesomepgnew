@@ -256,7 +256,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-24 10:55:48 UTC
+### Pending pre-commit sync · 2026-07-24 11:13:14 UTC
 
 **Areas touched:** [[Vacating]]
 
@@ -268,9 +268,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
 **Staged code files (3):**
-- `src/lib/vacating/computeVacatingSettlementPreview.ts`
-- `src/lib/vacating/estimatedSettlementPreview.ts`
-- `src/lib/vacating/settlementBillingRows.ts`
+- `src/lib/vacating/approvalPreview.ts`
+- `src/lib/vacating/moveOutSettlementExplanation.ts`
+- `src/lib/vacating/settlementStatementModel.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

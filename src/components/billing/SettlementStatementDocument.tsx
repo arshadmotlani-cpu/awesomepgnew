@@ -143,6 +143,36 @@ export function SettlementStatementDocument({
           </FinancialDocumentCollapsibleSection>
         ))}
 
+        {doc.explanations?.lines.length ? (
+          <FinancialDocumentCollapsibleSection surface={surface} title="Why these numbers">
+            <ul className={`space-y-4 text-sm ${muted}`}>
+              {doc.explanations.lines.map((line) => (
+                <li key={line.id} className="rounded-lg border border-zinc-200/80 bg-zinc-50/80 p-3">
+                  <p className="font-semibold text-zinc-900">
+                    {line.label}: {line.valueDisplay}
+                  </p>
+                  {line.reasonLines.length > 0 ? (
+                    <ul className="mt-1 list-inside list-disc text-xs text-zinc-600">
+                      {line.reasonLines.map((r) => (
+                        <li key={r}>{r}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  <p className="mt-2 text-xs text-zinc-700">
+                    <span className="font-medium">Formula:</span> {line.formula}
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-600">
+                    <span className="font-medium">Rule:</span> {line.businessRule}
+                  </p>
+                  <p className="mt-1 text-[10px] uppercase tracking-wide text-zinc-500">
+                    Source: {line.source} · {line.businessRuleId}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </FinancialDocumentCollapsibleSection>
+        ) : null}
+
         {doc.auditTrace.length > 0 ? (
           <FinancialDocumentCollapsibleSection surface={surface} title="Audit / engine trace">
             <FinancialDocumentRowList

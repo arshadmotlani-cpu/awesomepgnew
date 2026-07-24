@@ -148,3 +148,6 @@
 
 ## DECISION — Move-out approval requires settlement review dialog (2026-07-24)
 - **No direct approve** from Operations list label: primary CTA is **Review move-out** → modal with `SettlementStatementDocument` (BCM / V2 waterfall). **Approve move-out** confirm disabled until `estimatedSettlement` loads. Operations and `/admin/vacating` share `loadPendingVacatingApprovalPreviews` / async preview SSOT. Bed map deep-links to Operations Move-out queue instead of `ApproveVacatingButton` without preview.
+
+## DECISION — Move-out settlement explainability SSOT (2026-07-24)
+- Every displayed settlement amount must expose value, formula, business rule, and source via `buildMoveOutSettlementExplanations`. `validateMoveOutSettlementExplanations` checks waterfall, BCM tail/notice wiring, and UI row parity. Unexplainable or inconsistent values are bugs. Production audit: `scripts/audit-active-moveout-settlement-explanations.ts` (all non-terminal active move-outs).

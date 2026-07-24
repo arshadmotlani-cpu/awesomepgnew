@@ -4,6 +4,7 @@ import type { AdminVacatingRow } from '@/src/db/queries/admin';
 import type { NoticeDeductionBreakdown } from '@/src/lib/vacating/noticeDeductionEngine';
 import type { NoticeSettlementDisplay } from '@/src/lib/vacating/noticeDeductionPresentation';
 import type { EstimatedSettlementPreview } from '@/src/lib/vacating/estimatedSettlementPreview';
+import type { MoveOutSettlementExplanationReport } from '@/src/lib/vacating/moveOutSettlementExplanation';
 import {
   moveOutDaysRemaining,
   moveOutUrgency,
@@ -36,6 +37,8 @@ export type VacatingApprovalPreview = {
   /** Coverage-derived notice display — same source as estimatedSettlement; never from stored JSON. */
   noticeBreakdown: NoticeSettlementDisplay | null;
   estimatedSettlement: EstimatedSettlementPreview | null;
+  /** Per-amount explainability for review UI (formula, rule, source). */
+  settlementExplanations?: MoveOutSettlementExplanationReport | null;
 };
 
 export function buildVacatingApprovalPreview(
@@ -105,9 +108,20 @@ export async function buildVacatingApprovalPreviewAsync(
     durationMode: row.durationMode,
     mode: 'estimate',
   });
-  return applyEstimatedSettlementToApprovalPreview(
+  const base = applyEstimatedSettlementToApprovalPreview(
     sync,
     presentation?.estimatedSettlement ?? null,
     presentation?.noticeDisplay ?? null,
   );
+  if (!presentation?.estimatedSettlement) return base;
+  const { buildMoveOutSettlementExplanations } = await import(
+    '@/src/lib/vacating/moveOutSettlementExplanation'
+  );
+  const settlementExplanations = buildMoveOutSettlementExplanations(presentation, {
+    bookingId: row.bookingId,
+    bookingCode: row.bookingCode,
+    residentName: row.customerFullName,
+    vacatingRequestId: row.id,
+  });
+  return { ...base, settlementExplanations };
 }
