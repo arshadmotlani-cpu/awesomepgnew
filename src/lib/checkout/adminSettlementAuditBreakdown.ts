@@ -90,8 +90,6 @@ export function buildAdminSettlementAuditBreakdown(
         ? 'Estimated refund (at approval)'
         : 'Final refund';
 
-  const daysPaid = detail.billingCoverageDaysPaid ?? { value: '—' };
-
   const billing: AdminSettlementAuditSection = {
     title: 'Billing & dates',
     rows: [
@@ -109,12 +107,6 @@ export function buildAdminSettlementAuditBreakdown(
         id: 'vacating_date',
         label: 'Vacating date',
         value: formatSettlementDate(detail.vacatingDate),
-      },
-      {
-        id: 'days_paid',
-        label: 'Days paid',
-        value: daysPaid.value,
-        hint: daysPaid.auditHint ?? daysPaid.hint,
       },
     ],
   };

@@ -103,13 +103,11 @@ test('estimated settlement from checkout waterfall shows pending deduction label
   assert.ok(electricity);
   assert.equal(electricity!.value, PENDING_ELECTRICITY_LABEL);
 
-  const daysPaid = findRow(preview, 'days_paid');
-  assert.ok(daysPaid);
-  assert.match(daysPaid!.value, /31 day/);
-
   const billingCycle = findRow(preview, 'billing_cycle');
   assert.ok(billingCycle);
   assert.match(billingCycle!.value, /Jul 2026/);
+
+  assert.equal(findRow(preview, 'days_paid'), undefined);
 });
 
 test('estimated settlement switches to final mode when amounts locked', () => {

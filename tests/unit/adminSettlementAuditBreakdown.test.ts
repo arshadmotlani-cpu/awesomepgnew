@@ -135,10 +135,7 @@ test('Kunal-like V2 audit populates all required fields', () => {
   assert.ok(vacating);
   assert.notEqual(vacating!.value, '—');
 
-  const daysPaid = findRow(audit, 'days_paid');
-  assert.ok(daysPaid);
-  assert.match(daysPaid!.value, /31 day/);
-  assert.match(daysPaid!.hint ?? '', /2026-07-05/);
+  assert.equal(findRow(audit, 'days_paid'), undefined);
 
   const daysStayed = findRow(audit, 'days_stayed');
   assert.ok(daysStayed);
@@ -206,21 +203,6 @@ test('notice from deposit shows deduction when rent bucket exhausted', () => {
   assert.ok(noticeDeposit);
   assert.match(noticeDeposit!.value, /^−₹/);
   assert.ok(waterfall.notice.fromDepositPaise > 0);
-});
-
-test('days paid uses billing coverage SSOT when JSON missing paidPeriodUsed', () => {
-  const detail = kunalLikeDetail();
-  detail.billingCoverageDaysPaid = {
-    value: '18 days',
-    hint: '2026-07-04 → 2026-07-21',
-    days: 18,
-  };
-
-  const audit = buildAdminSettlementAuditBreakdown(detail);
-  const daysPaid = findRow(audit, 'days_paid');
-  assert.ok(daysPaid);
-  assert.match(daysPaid!.value, /18 day/);
-  assert.match(daysPaid!.hint ?? '', /2026-07-04/);
 });
 
 test('damage, cleaning, and custom appear as separate deduction rows', () => {

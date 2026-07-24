@@ -208,3 +208,4 @@ Files:
 - **BILLING-COVERAGE-MODEL** — SSOT `billingCoverageModel.ts` + `loadBillingCoverageModel`; paid invoice periods clamped to move-in; separate prepaid-after-vacate, days paid for settlement, tail/suppression; all move-out money surfaces migrated
 - **BILLING-COVERAGE-CLEANUP** — `loadVacatingBillingPresentation`; legacy JSON notice display removed from product UI; tail Case B one-day rule; `docs/BILLING_COVERAGE_MODEL.md`; regression tests A–E
 - **OPS-MOVEOUT-REVIEW-GATE** — Operations Move-out tab loads `loadPendingVacatingApprovalPreviews`; list CTA **Review move-out**; **Approve move-out** only inside settlement dialog when BCM statement present; bed map links to Operations instead of bare approve
+- **SETTLEMENT-UI-DAYS-PAID** — Removed internal “Days paid” row from Billing & dates on move-out review/statement surfaces; rent bucket + paid until remain for approval decisions

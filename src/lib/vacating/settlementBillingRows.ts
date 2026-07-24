@@ -1,7 +1,6 @@
 import {
   formatSettlementDate,
   formatSettlementDays,
-  type DaysPaidDisplayRow,
   type SettlementDisplaySection,
 } from '@/src/lib/checkout/settlementDisplayFormat';
 import type { NoticeSettlementDisplay } from '@/src/lib/vacating/noticeDeductionPresentation';
@@ -13,7 +12,6 @@ export function buildSettlementBillingDatesSectionRows(args: {
   stayDays: number;
   checkInDate: string;
   checkoutDate: string;
-  daysPaid: DaysPaidDisplayRow;
 }): SettlementDisplaySection['rows'] {
   return [
     {
@@ -36,12 +34,6 @@ export function buildSettlementBillingDatesSectionRows(args: {
       label: 'Days stayed',
       value: formatSettlementDays(args.stayDays),
       hint: `${args.checkInDate} → ${args.checkoutDate}`,
-    },
-    {
-      id: 'days_paid',
-      label: 'Days paid',
-      value: args.daysPaid.value,
-      hint: args.daysPaid.hint,
     },
   ];
 }

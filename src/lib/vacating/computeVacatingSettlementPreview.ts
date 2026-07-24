@@ -11,7 +11,6 @@ import { resolveStayCheckInDate } from '@/src/lib/checkout/checkoutSettlementV2C
 import { loadBillingCoverageModel } from '@/src/services/billingCoverage';
 import type { BillingCoverageModel } from '@/src/lib/billing/billingCoverageModel';
 import {
-  resolveDaysPaidFromBillingCoverage,
   formatDualDaysAndPaise,
   formatRentConsumedHint,
   formatSettlementDays,
@@ -49,9 +48,8 @@ export function buildVacatingSettlementPreviewSections(
   auditTrace: EstimatedSettlementPreview['auditTrace'];
   depositHeldPaise: number;
 } {
-  const { waterfall, coverage, mode } = args;
+  const { waterfall, mode } = args;
   const dailyRentPaise = waterfall.rentBucket.dailyRentPaise;
-  const daysPaid = resolveDaysPaidFromBillingCoverage(coverage);
 
   const hasPendingElectricity =
     mode === 'estimate' || (mode === 'baseline' && waterfall.depositBucket.electricityPaise === 0);
@@ -59,9 +57,6 @@ export function buildVacatingSettlementPreviewSections(
     mode === 'estimate' || (mode === 'baseline' && waterfall.depositBucket.otherPaise === 0);
 
   const auditTrace: EstimatedSettlementPreview['auditTrace'] = [];
-  if (daysPaid.auditHint) {
-    auditTrace.push({ id: 'days_paid_audit', label: 'Days paid (calculation)', value: daysPaid.auditHint });
-  }
   auditTrace.push({
     id: 'rent_consumed_audit',
     label: 'Rent consumed (calculation)',
@@ -77,7 +72,6 @@ export function buildVacatingSettlementPreviewSections(
         stayDays: waterfall.stay.stayDays,
         checkInDate: waterfall.stay.checkInDate,
         checkoutDate: waterfall.stay.checkoutDate,
-        daysPaid,
       }),
     },
     {

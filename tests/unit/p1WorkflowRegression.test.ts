@@ -5,7 +5,6 @@ import { computeMoveOutPipelineCounts } from '@/src/lib/moveOut/moveOutPipelineC
 import { vacatingOperationsQueueTarget } from '@/src/lib/operations/operationsQueueVacating';
 import { billingCycleLabelFromDay } from '@/src/lib/billing/monthlyBillingSnapshot';
 import { buildSettlementBillingDatesSectionRows } from '@/src/lib/vacating/settlementBillingRows';
-import { resolveDaysPaidDisplay } from '@/src/lib/checkout/settlementDisplayFormat';
 
 test('approved without settlement is not in pending move-out ops queue', () => {
   const pipeline = buildMoveOutPipeline({
@@ -62,7 +61,6 @@ test('settlement billing rows use notice labels when present', () => {
     stayDays: 30,
     checkInDate: '2026-06-01',
     checkoutDate: '2026-07-15',
-    daysPaid: resolveDaysPaidDisplay(null, 30_000, 1000),
   });
   const cycle = rows.find((r) => r.id === 'billing_cycle');
   assert.equal(cycle?.value, '5th of each month');

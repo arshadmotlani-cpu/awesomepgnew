@@ -100,7 +100,6 @@ export function estimatedSettlementFromCheckoutWaterfall(args: {
 
   const w = args.waterfall;
   const dailyRentPaise = w.rentBucket.dailyRentPaise;
-  const daysPaid = args.detail.billingCoverageDaysPaid ?? { value: '—' };
   const noticeGivenDays =
     notice?.noticeGivenDays ??
     Math.max(0, diffDays(args.detail.noticeGivenDate, args.detail.vacatingDate));
@@ -109,9 +108,6 @@ export function estimatedSettlementFromCheckoutWaterfall(args: {
   const damagePending = mode !== 'final' && w.depositBucket.otherPaise === 0;
 
   const auditTrace: EstimatedSettlementPreview['auditTrace'] = [];
-  if (daysPaid.auditHint) {
-    auditTrace.push({ id: 'days_paid_audit', label: 'Days paid (calculation)', value: daysPaid.auditHint });
-  }
   auditTrace.push({
     id: 'rent_consumed_audit',
     label: 'Rent consumed (calculation)',
@@ -128,7 +124,6 @@ export function estimatedSettlementFromCheckoutWaterfall(args: {
           stayDays: w.stay.stayDays,
           checkInDate: w.stay.checkInDate,
           checkoutDate: w.stay.checkoutDate,
-          daysPaid,
         }),
       },
       {
