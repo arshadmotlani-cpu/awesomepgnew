@@ -48,6 +48,7 @@ import {
   getResidentFinancialAccount,
 } from '@/src/services/residentFinancialEngine';
 import { getResidentBillingFormDefaults } from '@/src/services/residentBillingProfiles';
+import { loadMonthlyBillingSnapshotForBooking } from '@/src/lib/billing/monthlyBillingSnapshot';
 import { getResidencyAdminView } from '@/src/services/continuousResidency';
 import {
   getCustomerVerificationStatus,
@@ -433,7 +434,7 @@ export async function loadResidentCommandCenter(
   const pendingKycSubmissionId =
     latestKyc?.status === 'pending' ? latestKyc.id : null;
 
-  const [financialAccount, depositSummary, billingDefaults, invoiceHistory, pendingReviews, timeline, bookingDeposits] =
+  const [financialAccount, depositSummary, billingDefaults, billingSnapshot, invoiceHistory, pendingReviews, timeline, bookingDeposits] =
     await Promise.all([
       isVacated && settledTenancy
         ? getBookingFinancialAccount({
@@ -452,6 +453,12 @@ export async function loadResidentCommandCenter(
       bookingId ? getDepositSummaryForBooking(bookingId) : Promise.resolve(null),
       activeTenancy
         ? getResidentBillingFormDefaults(customerId, activeTenancy.bookingId)
+        : Promise.resolve(null),
+      activeTenancy
+        ? loadMonthlyBillingSnapshotForBooking({
+            bookingId: activeTenancy.bookingId,
+            customerId,
+          })
         : Promise.resolve(null),
       listResidentInvoiceHistory(customerId, 40),
       buildPendingReviews(session, customerId, pendingKycSubmissionId, customer.fullName),
@@ -479,6 +486,7 @@ export async function loadResidentCommandCenter(
     depositSummary,
     bookingDeposits,
     billingDefaults,
+    billingSnapshot,
     invoiceHistory,
     pendingReviews,
     bookingHistory,

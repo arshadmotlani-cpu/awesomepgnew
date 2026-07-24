@@ -20,6 +20,7 @@ import {
 } from '@/src/lib/operations/operationsQueueVacating';
 import type { UnifiedOperationsQueue, UnifiedOpsItem } from '@/src/services/unifiedOperationsQueue';
 import { buildMoveOutCommandStats } from '@/src/lib/moveOut/moveOutPipelineUi';
+import { computeMoveOutPipelineCounts } from '@/src/lib/moveOut/moveOutPipelineCounts';
 import { toClientMoveOutPipelineItem } from '@/src/lib/moveOut/moveOutPipeline';
 
 const baseVacating = {
@@ -100,6 +101,41 @@ test('completed checkout pipeline row excluded from move-out ops queue', () => {
   const item = pipeline[0]!;
   assert.equal(vacatingOperationsQueueTarget(item), null);
   assert.equal(mapVacatingPipelineItemToOpsItem(item, 'pg-1'), null);
+});
+
+test('approved move-out without settlement excluded from pending move-out ops queue', () => {
+  const pipeline = buildMoveOutPipeline({
+    vacatingRows: [
+      {
+        ...baseVacating,
+        id: 'vr-approved',
+        vacatingDate: '2026-07-15',
+        status: 'approved',
+      },
+    ],
+    settlements: [],
+  });
+  const item = pipeline[0]!;
+  assert.equal(item.vacatingStatus, 'approved');
+  assert.equal(vacatingOperationsQueueTarget(item), null);
+  assert.equal(mapVacatingPipelineItemToOpsItem(item, 'pg-1'), null);
+});
+
+test('approved within 30 days counts as beds releasing not pending approval', () => {
+  const pipeline = buildMoveOutPipeline({
+    vacatingRows: [
+      {
+        ...baseVacating,
+        id: 'vr-approved-soon',
+        vacatingDate: '2026-07-20',
+        status: 'approved',
+      },
+    ],
+    settlements: [],
+  });
+  const counts = computeMoveOutPipelineCounts(pipeline, '2026-07-01');
+  assert.equal(counts.moveOutApprovalRequests, 0);
+  assert.equal(counts.bedsReleasing30Days, 1);
 });
 
 test('rejected vacating never enters pipeline or ops queue', () => {

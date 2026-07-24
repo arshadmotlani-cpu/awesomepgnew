@@ -25,6 +25,7 @@ import {
 import { loadAdminNavBadges } from '@/src/services/adminNavBadges';
 import { syncActionItemsForCron } from '@/src/services/actionItems';
 import { getResidentBillingFormDefaults } from '@/src/services/residentBillingProfiles';
+import { loadMonthlyBillingSnapshotForBooking } from '@/src/lib/billing/monthlyBillingSnapshot';
 import { loadResidentOperationsResidentsPage } from '@/src/services/residentOperationsResidentsPage';
 import { getOpenActionsForResident } from '@/src/services/unresolvedActions';
 import { formatDate } from '@/src/lib/dates';
@@ -88,6 +89,31 @@ async function main() {
       nextDueFails === 0
         ? `${activeResidents.length} active monthly residents checked`
         : `${nextDueFails} residents with past nextRentDueDate`,
+  });
+
+  let snapshotBlankFails = 0;
+  for (const r of activeResidents) {
+    const snapshot = await loadMonthlyBillingSnapshotForBooking({
+      bookingId: r.bookingId,
+      customerId: r.customerId,
+    });
+    if (!snapshot) continue;
+    if (
+      snapshot.billingCycleLabel === '—' ||
+      !snapshot.nextRentDueDate ||
+      snapshot.billingPeriodLabel === '—'
+    ) {
+      snapshotBlankFails += 1;
+      console.error(`  FAIL billing snapshot blanks for ${r.fullName}`);
+    }
+  }
+  results.push({
+    name: 'Monthly billing snapshot has cycle, period, next due',
+    pass: snapshotBlankFails === 0,
+    detail:
+      snapshotBlankFails === 0
+        ? 'Active monthly bookings sampled'
+        : `${snapshotBlankFails} bookings with blank billing snapshot fields`,
   });
 
   // 2. Last invoice appears when rent invoices exist

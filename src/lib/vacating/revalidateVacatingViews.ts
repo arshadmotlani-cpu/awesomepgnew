@@ -25,6 +25,7 @@ const ADMIN_LAYOUT_PATHS = [
   '/admin/beds',
   '/admin',
   '/admin/panel',
+  '/admin/notifications',
 ] as const;
 
 /** Invalidate admin + finance views after vacate/refund lifecycle changes. */
@@ -63,4 +64,14 @@ export async function revalidateVacatingLifecycleForBooking(
     customerId,
     pgId: pgId ?? undefined,
   });
+}
+
+/** Sync action items / notification badges, then revalidate admin notification surfaces. */
+export async function revalidateVacatingLifecycleAndNotifications(
+  bookingId: string,
+  customerId?: string,
+): Promise<void> {
+  await revalidateVacatingLifecycleForBooking(bookingId, customerId);
+  const { triggerAdminNotificationSync } = await import('@/src/services/adminLiveSync');
+  await triggerAdminNotificationSync();
 }

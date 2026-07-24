@@ -55,7 +55,8 @@ export function buildAdminSettlementAuditBreakdown(
   const waterfall = detail.waterfall ?? null;
   const usesV2 = Boolean(waterfall) || (detail.settlementEngineVersion ?? 1) >= 2;
   const preview = detail.preview;
-  const notice = noticeSnapshotFromDetail(detail);
+  const notice =
+    detail.settlementNoticeDisplay ?? noticeSnapshotFromDetail(detail);
 
   const rentPaidPaise = waterfall?.rentBucket.paidPaise ?? detail.rentPaidPaise ?? 0;
   const dailyRentPaise =

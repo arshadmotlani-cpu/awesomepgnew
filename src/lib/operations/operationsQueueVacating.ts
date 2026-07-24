@@ -51,8 +51,6 @@ export function vacatingOperationsQueueTarget(
   if (item.settlementStatus === 'awaiting_admin_review') return 'vacating_requests';
   if (item.continueKind === 'approve') return 'vacating_requests';
 
-  if (item.vacatingStatus === 'approved' && !item.settlementId) return 'vacating_requests';
-
   if (
     item.estimatedRefundPaise <= 0 &&
     item.continueKind === 'settlement' &&

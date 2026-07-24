@@ -50,6 +50,11 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
             <Badge tone={toneForStatus(data.bookingStatus)}>
               {titleCase(data.bookingStatus.replace(/_/g, ' '))}
             </Badge>
+            {data.vacating?.status === 'approved' ? (
+              <Badge tone="emerald">Move-out approved</Badge>
+            ) : data.vacating?.status === 'pending' ? (
+              <Badge tone="amber">Move-out pending approval</Badge>
+            ) : null}
             {data.depositCollectionStatus === 'closed_uncollected' ? (
               <Badge tone="zinc">Deposit closed · uncollected</Badge>
             ) : null}
@@ -101,6 +106,28 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
         subtitle="Required · Received · Outstanding — ongoing rent, deposit, and electricity balances."
       >
         <MoneyBalancesGrid balances={data.moneyBalances} />
+        {data.monthlyBillingSnapshot ? (
+          <dl className="mt-4 grid gap-3 border-t border-white/10 pt-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MiniStat label="Billing cycle" value={data.monthlyBillingSnapshot.billingCycleLabel} />
+            <MiniStat
+              label="Paid until"
+              value={
+                data.monthlyBillingSnapshot.paidUntilDate
+                  ? formatDate(data.monthlyBillingSnapshot.paidUntilDate)
+                  : '—'
+              }
+            />
+            <MiniStat
+              label="Next rent due"
+              value={formatDate(data.monthlyBillingSnapshot.nextRentDueDate)}
+            />
+            <MiniStat
+              label="Daily rent"
+              value={paiseToInr(data.monthlyBillingSnapshot.dailyRentPaise)}
+            />
+            <MiniStat label="Billing period" value={data.monthlyBillingSnapshot.billingPeriodLabel} />
+          </dl>
+        ) : null}
       </FinancialSectionCard>
 
       <FinancialSectionCard
@@ -123,6 +150,16 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
                   <span className="font-medium">{titleCase(data.vacating.status)}</span>
                   {data.vacating.noticeCompliant ? ' · notice compliant' : ' · notice shortfall'}
                 </p>
+                {data.moveOutWorkflow ? (
+                  <div className="mt-3 space-y-1 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm">
+                    <p className="text-white">
+                      Pipeline:{' '}
+                      <span className="font-medium">{data.moveOutWorkflow.stageLabel}</span>
+                    </p>
+                    <p className="text-apg-silver">{data.moveOutWorkflow.nextAction}</p>
+                    <p className="text-xs text-apg-silver">{data.moveOutWorkflow.checkoutReadiness}</p>
+                  </div>
+                ) : null}
               </div>
               <VacatingRowActions
                 requestId={data.vacating.id}

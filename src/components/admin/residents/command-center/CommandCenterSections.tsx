@@ -39,7 +39,33 @@ export function CommandCenterCurrentStay({ data }: { data: ResidentCommandCenter
             <Fact label="Monthly rent" value={paiseToInr(t.monthlyRentPaise)} />
             <Fact
               label="Billing anchor"
-              value={t.billingAnchorDate ? formatDate(t.billingAnchorDate) : '—'}
+              value={
+                data.billingSnapshot?.checkInDate
+                  ? formatDate(data.billingSnapshot.checkInDate)
+                  : t.billingAnchorDate
+                    ? formatDate(t.billingAnchorDate)
+                    : formatDate(t.moveInDate)
+              }
+            />
+            <Fact
+              label="Billing cycle"
+              value={data.billingSnapshot?.billingCycleLabel ?? '—'}
+            />
+            <Fact
+              label="Next rent due"
+              value={
+                data.billingSnapshot?.nextRentDueDate
+                  ? formatDate(data.billingSnapshot.nextRentDueDate)
+                  : '—'
+              }
+            />
+            <Fact
+              label="Paid until"
+              value={
+                data.billingSnapshot?.paidUntilDate
+                  ? formatDate(data.billingSnapshot.paidUntilDate)
+                  : '—'
+              }
             />
           </>
         ) : (
@@ -130,6 +156,28 @@ export function CommandCenterFinancialSummary({ data }: { data: ResidentCommandC
         </dl>
       ) : null}
 
+      {data.billingSnapshot && data.activeTenancy && isMonthlyStayType(data.activeTenancy.stayType) ? (
+        <dl className="mt-5 grid grid-cols-2 gap-3 border-t border-white/5 pt-5 sm:grid-cols-3 lg:grid-cols-4">
+          <MoneyStat
+            label="Daily rent"
+            value={data.billingSnapshot.dailyRentPaise}
+            positive
+          />
+          <FactBlock
+            label="Billing period"
+            value={data.billingSnapshot.billingPeriodLabel}
+          />
+          <FactBlock
+            label="Period start"
+            value={formatDate(data.billingSnapshot.billingPeriodStart)}
+          />
+          <FactBlock
+            label="Period end"
+            value={formatDate(data.billingSnapshot.billingPeriodEnd)}
+          />
+        </dl>
+      ) : null}
+
       {data.bookingDeposits.length > 0 ? (
         <div className={fin ? 'mt-5 space-y-3 border-t border-white/5 pt-5' : 'space-y-3'}>
           <p className="text-[10px] font-semibold uppercase tracking-wide text-apg-silver">
@@ -187,6 +235,15 @@ function DepositFact({
       <dd className={`mt-0.5 text-sm font-medium ${accent ? 'text-sky-300' : 'text-white'}`}>
         {paiseToInr(value)}
       </dd>
+    </div>
+  );
+}
+
+function FactBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-white/5 bg-[#12161C] px-3 py-2.5">
+      <dt className="text-[10px] font-semibold uppercase tracking-wide text-apg-silver">{label}</dt>
+      <dd className="mt-1 text-sm font-semibold text-white">{value}</dd>
     </div>
   );
 }

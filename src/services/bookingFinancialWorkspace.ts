@@ -27,6 +27,11 @@ import {
   type SettlementStatementDocumentModel,
 } from '@/src/lib/vacating/settlementStatementModel';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
+import {
+  loadMonthlyBillingSnapshotForBooking,
+  type MonthlyBillingSnapshot,
+} from '@/src/lib/billing/monthlyBillingSnapshot';
+import { deriveMoveOutStage } from '@/src/lib/moveOut/moveOutPipeline';
 import { buildAdminInvoiceHrefMap } from '@/src/lib/billing/invoiceHrefMap';
 import { loadDepositPageData } from '@/src/lib/deposits/loadDepositPageData';
 import { getBookingMoneyBalances } from '@/src/services/bookingMoneyBalances';
@@ -79,6 +84,12 @@ export type BookingFinancialWorkspaceData = {
   electricityInvoices: Awaited<ReturnType<typeof listElectricityInvoicesForBooking>>;
   rentInvoiceHrefMap: Record<string, string>;
   pendingPaymentReviewHref: string | null;
+  monthlyBillingSnapshot: MonthlyBillingSnapshot | null;
+  moveOutWorkflow: {
+    stageLabel: string;
+    nextAction: string;
+    checkoutReadiness: string;
+  } | null;
 };
 
 export async function loadBookingFinancialWorkspace(
@@ -289,6 +300,63 @@ export async function loadBookingFinancialWorkspace(
     }
   }
 
+  const monthlyBillingSnapshot = await loadMonthlyBillingSnapshotForBooking({
+    bookingId,
+    customerId: b.customer.id,
+    vacatingDate: vacatingRow?.vacatingDate ?? null,
+  });
+
+  let moveOutWorkflow: BookingFinancialWorkspaceData['moveOutWorkflow'] = null;
+  if (vacatingRow) {
+    const stage = deriveMoveOutStage(
+      {
+        id: vacatingRow.id,
+        bookingId,
+        bookingCode: b.bookingCode,
+        customerId: b.customer.id,
+        customerFullName: b.customer.fullName,
+        customerPhone: b.customer.phone,
+        pgName: primaryRes.pgName,
+        bedCode: primaryRes.bedCode,
+        roomNumber: primaryRes.roomNumber,
+        noticeGivenDate: vacatingRow.noticeGivenDate,
+        vacatingDate: vacatingRow.vacatingDate,
+        noticeCompliant: vacatingRow.noticeCompliant,
+        status: vacatingRow.status,
+        resolvedAt: vacatingRow.resolvedAt,
+        createdAt: vacatingRow.createdAt,
+        updatedAt: vacatingRow.createdAt,
+        deductionPaise: vacatingRow.deductionPaise,
+        depositHeldPaise: depositHeld,
+        noticeRentCoveredDays: vacatingRow.noticeRentCoveredDays,
+        noticeChargeableDays: vacatingRow.noticeChargeableDays,
+        durationMode: b.durationMode,
+        stayType: b.stayType,
+      },
+      checkoutDetail
+        ? {
+            id: checkoutDetail.id,
+            vacatingRequestId: vacatingRow.id,
+            status: checkoutDetail.status,
+            createdAt: checkoutDetail.createdAt,
+            updatedAt: checkoutDetail.updatedAt,
+            approvedAt: checkoutDetail.approvedAt,
+            refundPaidAt: checkoutDetail.refundPaidAt,
+          }
+        : null,
+    );
+    moveOutWorkflow = {
+      stageLabel: stage.stageLabel,
+      nextAction: stage.nextAction,
+      checkoutReadiness:
+        checkoutDetail != null
+          ? `Checkout settlement · ${checkoutDetail.status.replace(/_/g, ' ')}`
+          : vacatingRow.status === 'approved'
+            ? 'Approved — resident refund unlocks on vacate date; checkout opens when they submit details'
+            : 'Checkout opens after you approve this move-out notice',
+    };
+  }
+
   return {
     ok: true,
     data: {
@@ -314,6 +382,8 @@ export async function loadBookingFinancialWorkspace(
       electricityInvoices,
       rentInvoiceHrefMap,
       pendingPaymentReviewHref,
+      monthlyBillingSnapshot,
+      moveOutWorkflow,
     },
   };
 }

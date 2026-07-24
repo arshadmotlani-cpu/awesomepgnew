@@ -25,6 +25,8 @@ import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import { paiseToInr } from '@/src/lib/format';
 import type { NoticeDeductionBreakdown } from '@/src/lib/vacating/noticeDeductionEngine';
 import { breakdownFromStoredNoticeSnapshot } from '@/src/lib/vacating/noticeDeductionPresentation';
+import { resolveNoticeSettlementDisplayForVacating } from '@/src/services/noticeSettlementDisplay';
+import { buildSettlementBillingDatesSectionRows } from '@/src/lib/vacating/settlementBillingRows';
 import { getBookingMoneyBalances } from '@/src/services/bookingMoneyBalances';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 
@@ -71,13 +73,17 @@ export async function buildEstimatedSettlementPreview(
   const depositHeldPaise = guardDepositPaise(wallet?.refundableBalancePaise ?? 0);
   const monthlyRentPaise = guardDepositPaise(input.monthlyRentPaiseSnapshot);
 
-  const notice = breakdownFromStoredNoticeSnapshot({
+  const notice = await resolveNoticeSettlementDisplayForVacating({
+    bookingId: input.bookingId,
     noticeGivenDate,
     vacatingDate,
+    monthlyRentPaiseSnapshot: monthlyRentPaise,
     noticeRentCoveredDays: input.noticeRentCoveredDays,
     noticeChargeableDays: input.noticeChargeableDays,
     noticeDeductionPaise: input.deductionPaise,
     noticeBreakdownJson: input.noticeBreakdownJson,
+    stayType: input.stayType,
+    durationMode: input.durationMode,
   });
 
   const missingNoticeDays = notice?.missingNoticeDays ?? 0;
@@ -125,35 +131,14 @@ export async function buildEstimatedSettlementPreview(
   const sections: SettlementDisplaySection[] = [
     {
       title: 'Billing & dates',
-      rows: [
-        {
-          id: 'billing_cycle',
-          label: 'Billing cycle',
-          value: notice?.billingCycleLabel ?? '—',
-        },
-        {
-          id: 'paid_until',
-          label: 'Paid until',
-          value: notice?.paidUntilDate ? formatSettlementDate(notice.paidUntilDate) : '—',
-        },
-        {
-          id: 'vacating_date',
-          label: 'Vacating date',
-          value: formatSettlementDate(vacatingDate),
-        },
-        {
-          id: 'days_stayed',
-          label: 'Days stayed',
-          value: formatSettlementDays(waterfall.stay.stayDays),
-          hint: `${waterfall.stay.checkInDate} → ${waterfall.stay.checkoutDate}`,
-        },
-        {
-          id: 'days_paid',
-          label: 'Days paid',
-          value: daysPaid.value,
-          hint: daysPaid.hint,
-        },
-      ],
+      rows: buildSettlementBillingDatesSectionRows({
+        notice,
+        vacatingDate,
+        stayDays: waterfall.stay.stayDays,
+        checkInDate: waterfall.stay.checkInDate,
+        checkoutDate: waterfall.stay.checkoutDate,
+        daysPaid,
+      }),
     },
     {
       title: 'Rent',

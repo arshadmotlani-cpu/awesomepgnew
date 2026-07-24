@@ -3,6 +3,7 @@ import type { ResidentFinancialAccount } from '@/src/lib/billing/residentFinanci
 import type { ResidentTimelineResult } from '@/src/lib/admin/residentTimelineTypes';
 import type { DepositSummary } from '@/src/services/deposits';
 import type { ResidentBillingFormDefaults } from '@/src/services/residentBillingProfiles';
+import type { MonthlyBillingSnapshot } from '@/src/lib/billing/monthlyBillingSnapshot';
 import type { SettledTenancy } from '@/src/services/residentAdmin';
 import type { ResidencyAdminView } from '@/src/services/continuousResidency';
 
@@ -108,6 +109,7 @@ export type ResidentCommandCenterData = {
   depositSummary: DepositSummary | null;
   bookingDeposits: CommandCenterBookingDepositRow[];
   billingDefaults: ResidentBillingFormDefaults | null;
+  billingSnapshot: MonthlyBillingSnapshot | null;
   invoiceHistory: CommandCenterBillRow[];
   pendingReviews: CommandCenterPendingItem[];
   bookingHistory: CommandCenterBookingHistoryRow[];

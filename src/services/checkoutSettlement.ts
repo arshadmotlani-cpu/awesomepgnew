@@ -36,6 +36,8 @@ import {
 import { computeNoticeDeductionForBooking } from '@/src/services/noticeDeduction';
 import { noticeDeductionLedgerReason } from '@/src/lib/vacating/noticeDeductionEngine';
 import type { NoticeDeductionBreakdown } from '@/src/lib/vacating/noticeDeductionEngine';
+import type { NoticeSettlementDisplay } from '@/src/lib/vacating/noticeDeductionPresentation';
+import { resolveNoticeSettlementDisplayForVacating } from '@/src/services/noticeSettlementDisplay';
 import { isFixedStayDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
 import { noticeDeductionAppliesToBooking } from '@/src/lib/checkout/noticeDeductionPolicy';
 import { hasCheckoutElectricityEvidence } from '@/src/lib/checkout/checkoutElectricityEvidence';
@@ -162,6 +164,8 @@ export type CheckoutSettlementDetail = CheckoutSettlementRow & {
     unusedRentRefundPaise?: number;
   };
   waterfall?: CheckoutSettlementWaterfall | null;
+  /** Resolved notice + billing labels for settlement audit UI. */
+  settlementNoticeDisplay?: NoticeSettlementDisplay | null;
 };
 
 export { hasCheckoutElectricityEvidence } from '@/src/lib/checkout/checkoutElectricityEvidence';
@@ -1396,6 +1400,21 @@ async function buildCheckoutSettlementDetailFromJoinRow(
     roomElectricityLedger,
     preview,
     waterfall,
+    settlementNoticeDisplay: await resolveNoticeSettlementDisplayForVacating({
+      bookingId: row.booking_id,
+      noticeGivenDate: row.notice_given_date,
+      vacatingDate: row.vacating_date,
+      monthlyRentPaiseSnapshot: row.monthly_rent_paise_snapshot,
+      noticeRequiredDays: settlement.noticeRequiredDays,
+      noticeGivenDays: settlement.noticeGivenDays,
+      noticeShortfallDays: settlement.noticeShortfallDays,
+      noticeRentCoveredDays: settlement.noticeRentCoveredDays,
+      noticeChargeableDays: settlement.noticeChargeableDays,
+      noticeDeductionPaise: settlement.noticeDeductionPaise,
+      noticeBreakdownJson: settlement.noticeBreakdownJson as Partial<NoticeDeductionBreakdown> | null,
+      stayType: row.stay_type,
+      durationMode: row.duration_mode,
+    }),
   });
 }
 

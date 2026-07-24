@@ -1,6 +1,7 @@
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import { adminStayTypeLabel, isMonthlyStayType } from '@/src/lib/stayType';
 import type { ResidentBillingFormDefaults, ResidentLastInvoiceSnapshot } from '@/src/services/residentBillingProfiles';
+import type { MonthlyBillingSnapshot } from '@/src/lib/billing/monthlyBillingSnapshot';
 import type { DepositSummary } from '@/src/services/deposits';
 import type { ResidentFinancialSummary } from '@/src/lib/billing/residentFinancialTypes';
 
@@ -8,6 +9,7 @@ const SURFACE = 'rounded-2xl border border-white/10 bg-[#1A1F27] p-5';
 
 export function ResidentFinancialScheduleCard({
   billingDefaults,
+  billingSnapshot,
   financialSummary,
   depositSummary,
   moveInDate,
@@ -16,6 +18,7 @@ export function ResidentFinancialScheduleCard({
   expectedCheckoutDate,
 }: {
   billingDefaults: ResidentBillingFormDefaults | null;
+  billingSnapshot?: MonthlyBillingSnapshot | null;
   financialSummary: ResidentFinancialSummary | null;
   depositSummary: DepositSummary | null;
   moveInDate: string;
@@ -47,17 +50,35 @@ export function ResidentFinancialScheduleCard({
           <>
             <Stat
               label="Next rent due"
-              value={
-                billingDefaults?.nextRentDueDate
-                  ? formatDate(billingDefaults.nextRentDueDate)
-                  : '—'
-              }
+              value={formatDate(
+                billingSnapshot?.nextRentDueDate ??
+                  billingDefaults?.nextRentDueDate ??
+                  moveInDate,
+              )}
               accent
             />
-            <Stat label="Billing cycle" value="Monthly" />
+            <Stat
+              label="Billing cycle"
+              value={billingSnapshot?.billingCycleLabel ?? 'Monthly'}
+            />
+            <Stat
+              label="Paid until"
+              value={
+                billingSnapshot?.paidUntilDate
+                  ? formatDate(billingSnapshot.paidUntilDate)
+                  : '—'
+              }
+            />
             <Stat
               label="Rent due day"
-              value={billingDefaults ? `${billingDefaults.billingDay} of each month` : '—'}
+              value={
+                billingSnapshot?.billingCycleLabel ??
+                (billingDefaults ? `${billingDefaults.billingDay} of each month` : '—')
+              }
+            />
+            <Stat
+              label="Billing period"
+              value={billingSnapshot?.billingPeriodLabel ?? '—'}
             />
             {billingDefaults?.lastInvoice ? (
               <LastInvoiceStat invoice={billingDefaults.lastInvoice} />

@@ -256,13 +256,13 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-24 04:40:42 UTC
+### Pending pre-commit sync · 2026-07-24 05:35:01 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Vacating]], [[Bookings]]
+**Areas touched:** [[ROUTES]], [[Billing]], [[Residents]], [[Vacating]], [[Bookings]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
 - `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
@@ -271,13 +271,13 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 
 **Staged code files (8):**
 - `app/(admin)/admin/vacating/actions.ts`
-- `app/(admin)/admin/vacating/dateChangeActions.ts`
-- `app/(customer)/account/resident/vacating-date-change-actions.ts`
-- `src/db/migrations/meta/_journal.json`
+- `src/lib/billing/monthlyBillingSnapshot.ts`
+- `src/lib/residents/commandCenterTypes.ts`
+- `src/lib/vacating/estimatedSettlementPreview.ts`
 - `src/lib/vacating/revalidateVacatingViews.ts`
-- `src/lib/vacating/vacatingActionTypes.ts`
-- `src/lib/vacating/vacatingDateChangeActionTypes.ts`
+- `src/lib/vacating/settlementBillingRows.ts`
 - `src/services/bookingFinancialWorkspace.ts`
+- `src/services/checkoutSettlement.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

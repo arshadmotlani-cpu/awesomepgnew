@@ -2,6 +2,7 @@
 
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import {
+  revalidateVacatingLifecycleAndNotifications,
   revalidateVacatingLifecycleForBooking,
   revalidateVacatingLifecycleViews,
 } from '@/src/lib/vacating/revalidateVacatingViews';
@@ -54,7 +55,7 @@ export async function approveVacatingAction(
   if (!result.ok) {
     return { status: 'error', message: `Failed: ${result.kind}` };
   }
-  await revalidateVacatingLifecycleForBooking(
+  await revalidateVacatingLifecycleAndNotifications(
     result.request.bookingId,
     result.request.customerId,
   );
@@ -84,7 +85,7 @@ export async function rejectVacatingAction(
   if (!result.ok) {
     return { status: 'error', message: `Failed: ${result.kind}` };
   }
-  await revalidateVacatingLifecycleForBooking(
+  await revalidateVacatingLifecycleAndNotifications(
     result.request.bookingId,
     result.request.customerId,
   );
@@ -183,7 +184,7 @@ export async function cancelVacatingNoticeAction(
   if (!result.ok) {
     return { status: 'error', message: `Cancel failed: ${result.kind}` };
   }
-  await revalidateVacatingLifecycleForBooking(result.bookingId);
+  await revalidateVacatingLifecycleAndNotifications(result.bookingId);
   if (pgId) revalidateVacatingLifecycleViews({ pgId });
   return { status: 'ok', message: 'Vacating notice removed.' };
 }
@@ -210,7 +211,7 @@ export async function undoVacatingApprovalAction(
   if (!result.ok) {
     return { status: 'error', message: `Undo failed: ${result.kind}` };
   }
-  await revalidateVacatingLifecycleForBooking(
+  await revalidateVacatingLifecycleAndNotifications(
     result.request.bookingId,
     result.request.customerId,
   );
