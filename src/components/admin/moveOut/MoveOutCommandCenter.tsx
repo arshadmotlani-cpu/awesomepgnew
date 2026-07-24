@@ -1,7 +1,7 @@
 'use client';
 
-import type { MoveOutCommandStats, MoveOutFilterBucket } from '@/src/lib/moveOut/moveOutPipelineUi';
-import { MOVE_OUT_FILTER_BUCKETS } from '@/src/lib/moveOut/moveOutPipelineUi';
+import type { MoveOutCommandStats, MoveOutWorkflowFilter } from '@/src/lib/moveOut/moveOutPipelineUi';
+import { MOVE_OUT_WORKFLOW_FILTER_TABS } from '@/src/lib/moveOut/moveOutPipelineUi';
 
 export function MoveOutCommandCenter({
   stats,
@@ -9,19 +9,19 @@ export function MoveOutCommandCenter({
   onFilterChange,
 }: {
   stats: MoveOutCommandStats;
-  activeFilter: MoveOutFilterBucket;
-  onFilterChange: (filter: MoveOutFilterBucket) => void;
+  activeFilter: MoveOutWorkflowFilter;
+  onFilterChange: (filter: MoveOutWorkflowFilter) => void;
 }) {
-  const countFor = (id: MoveOutFilterBucket): number => {
+  const countFor = (id: MoveOutWorkflowFilter): number => {
     switch (id) {
-      case 'needs_action':
-        return stats.needsAction;
-      case 'waiting_resident':
-        return stats.waitingResident;
-      case 'overdue':
-        return stats.overdue;
-      case 'refunds_to_send':
-        return stats.refundsToSend;
+      case 'pending_request':
+        return stats.pendingRequest;
+      case 'waiting_vacating_date':
+        return stats.waitingVacatingDate;
+      case 'settlement_review':
+        return stats.settlementReview;
+      case 'refund_ready':
+        return stats.refundReady;
       case 'completed':
         return stats.completed;
       default:
@@ -32,12 +32,20 @@ export function MoveOutCommandCenter({
   return (
     <section className="mb-8">
       <header className="mb-4">
-        <h2 className="text-xl font-bold text-white">Move-out command center</h2>
+        <h2 className="text-xl font-bold text-white">Move-out pipeline</h2>
         <p className="mt-1 text-sm text-apg-silver">
-          Operator task buckets — filter the queue by what needs you today.
-          {stats.pendingApproval > 0 ? (
+          Track every move-out from approval through completion. Operations and notifications only
+          surface stages that need admin action now.
+          {stats.pendingRequest > 0 ? (
             <span className="ml-1 text-amber-200">
-              {stats.pendingApproval} awaiting move-out approval.
+              {stats.pendingRequest} pending move-out request
+              {stats.pendingRequest === 1 ? '' : 's'}.
+            </span>
+          ) : null}
+          {stats.needsAction > stats.pendingRequest ? (
+            <span className="ml-1 text-[#FF5A1F]">
+              {stats.needsAction - stats.pendingRequest} checkout action
+              {stats.needsAction - stats.pendingRequest === 1 ? '' : 's'} required.
             </span>
           ) : null}
         </p>
@@ -49,14 +57,14 @@ export function MoveOutCommandCenter({
           active={activeFilter === 'all'}
           onClick={() => onFilterChange('all')}
         />
-        {MOVE_OUT_FILTER_BUCKETS.map((bucket) => (
+        {MOVE_OUT_WORKFLOW_FILTER_TABS.map((bucket) => (
           <FilterTab
             key={bucket.id}
             label={bucket.label}
             count={countFor(bucket.id)}
             active={activeFilter === bucket.id}
             onClick={() => onFilterChange(bucket.id)}
-            accent={bucketAccent(bucket.id)}
+            accent={stageAccent(bucket.id)}
           />
         ))}
       </div>
@@ -64,17 +72,16 @@ export function MoveOutCommandCenter({
   );
 }
 
-function bucketAccent(
-  id: MoveOutFilterBucket,
-): 'action' | 'wait' | 'overdue' | 'refund' | 'done' | undefined {
+function stageAccent(
+  id: MoveOutWorkflowFilter,
+): 'action' | 'wait' | 'refund' | 'done' | undefined {
   switch (id) {
-    case 'needs_action':
+    case 'pending_request':
+    case 'settlement_review':
       return 'action';
-    case 'waiting_resident':
+    case 'waiting_vacating_date':
       return 'wait';
-    case 'overdue':
-      return 'overdue';
-    case 'refunds_to_send':
+    case 'refund_ready':
       return 'refund';
     case 'completed':
       return 'done';
@@ -94,18 +101,16 @@ function FilterTab({
   count: number;
   active: boolean;
   onClick: () => void;
-  accent?: 'action' | 'wait' | 'overdue' | 'refund' | 'done';
+  accent?: 'action' | 'wait' | 'refund' | 'done';
 }) {
   const countTone =
-    accent === 'overdue'
-      ? 'text-rose-300'
-      : accent === 'refund'
-        ? 'text-amber-200'
-        : accent === 'done'
-          ? 'text-emerald-300'
-          : accent === 'action'
-            ? 'text-[#FF5A1F]'
-            : 'text-white';
+    accent === 'refund'
+      ? 'text-amber-200'
+      : accent === 'done'
+        ? 'text-emerald-300'
+        : accent === 'action'
+          ? 'text-[#FF5A1F]'
+          : 'text-white';
 
   return (
     <button

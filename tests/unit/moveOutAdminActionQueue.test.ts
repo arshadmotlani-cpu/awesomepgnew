@@ -87,7 +87,7 @@ test('zero-refund settlement waiting on resident stays out of move-out ops', () 
   assert.equal(moveOutOperationsQueueTarget(item), null);
 });
 
-test('awaiting_admin_review maps to refund_due with checkout copy', () => {
+test('awaiting_admin_review maps to vacating_requests with checkout copy', () => {
   const pipeline = buildMoveOutPipeline({
     vacatingRows: [
       {
@@ -112,11 +112,11 @@ test('awaiting_admin_review maps to refund_due with checkout copy', () => {
   });
   const item = pipeline[0]!;
   assert.equal(moveOutRequiresAdminActionNow(item), true);
-  assert.equal(moveOutOperationsQueueTarget(item), 'refund_due');
-  assert.equal(vacatingOperationsQueueTarget(item), 'refund_due');
+  assert.equal(moveOutOperationsQueueTarget(item), 'vacating_requests');
+  assert.equal(vacatingOperationsQueueTarget(item), 'vacating_requests');
   const mapped = mapVacatingPipelineItemToOpsItem(item, 'pg-1');
-  assert.equal(mapped?.queue, 'refund_due');
-  assert.equal(mapped?.reason, 'Resident submitted checkout details');
+  assert.equal(mapped?.queue, 'vacating_requests');
+  assert.match(mapped?.reason ?? '', /settlement review/i);
 });
 
 test('vacatingRowRequiresAdminOpsAction matches pipeline SSOT', () => {
@@ -169,5 +169,5 @@ test('needsAction stats count only pending and admin checkout work', () => {
   const clientItems = pipeline.map((item) => toClientMoveOutPipelineItem(item));
   const stats = buildMoveOutCommandStats(clientItems);
   assert.equal(stats.needsAction, 1);
-  assert.equal(stats.pendingApproval, 1);
+  assert.equal(stats.pendingRequest, 1);
 });

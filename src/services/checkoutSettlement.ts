@@ -2363,10 +2363,6 @@ export async function approveCheckoutSettlement(input: {
       '@/src/services/residentRequestActions'
     );
     await syncResidentRequestActionItems();
-    const { refreshAdminNotificationsFromActionItems } = await import(
-      '@/src/services/actionItems'
-    );
-    await refreshAdminNotificationsFromActionItems().catch(() => undefined);
   }
 
   await db.insert(auditLog).values({
@@ -2379,6 +2375,10 @@ export async function approveCheckoutSettlement(input: {
   });
 
   scheduleAdminNotificationSync();
+  const { resolveCheckoutReviewActionItems, refreshAdminNotificationsFromActionItems } =
+    await import('@/src/services/actionItems');
+  await resolveCheckoutReviewActionItems(input.settlementId);
+  await refreshAdminNotificationsFromActionItems().catch(() => undefined);
   await recordCheckoutElectricityCollectionFromSettlementId(current.id, {
     totalBillPaise: current.electricityCalculationMethod === 'manual_amount'
       ? resolvedSharePaise
@@ -2496,6 +2496,8 @@ export async function markCheckoutRefundPaid(input: {
   });
 
   scheduleAdminNotificationSync();
+  const { refreshAdminNotificationsFromActionItems } = await import('@/src/services/actionItems');
+  await refreshAdminNotificationsFromActionItems().catch(() => undefined);
 
   const { closeUncollectedDepositDue } = await import('./depositCollection');
   await closeUncollectedDepositDue({

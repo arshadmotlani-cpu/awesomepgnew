@@ -8,6 +8,7 @@ import {
   bookingFinancialWorkspaceSectionHref,
 } from '@/src/lib/bookings/bookingFinancialLinks';
 import type { MoveOutPipelineItem } from '@/src/lib/moveOut/moveOutPipeline';
+import { deriveMoveOutWorkflowStage } from '@/src/lib/moveOut/moveOutWorkflowStages';
 import { moveOutOperationsQueueTarget } from '@/src/lib/operations/moveOutAdminAction';
 
 export { isTerminalVacatingPipelineItem } from '@/src/lib/operations/moveOutAdminAction';
@@ -64,6 +65,38 @@ export function countVacatingOperationsQueueItems(
   ).length;
 }
 
+function moveOutOpsOpenHref(item: MoveOutPipelineItem): string {
+  if (item.settlementStatus === 'awaiting_admin_review') {
+    return bookingFinancialWorkspaceSectionHref(item.bookingId, 'checkout');
+  }
+  if (item.settlementStatus === 'refund_pending') {
+    return bookingFinancialWorkspaceSectionHref(item.bookingId, 'refund');
+  }
+  return item.continueHref ?? bookingFinancialWorkspaceHref(item.bookingId);
+}
+
+function moveOutOpsReason(item: MoveOutPipelineItem): string {
+  const workflow = deriveMoveOutWorkflowStage(item);
+  if (workflow.id === 'pending_request') {
+    return `Move-out notice · leaves ${item.vacatingDate}`;
+  }
+  if (workflow.id === 'settlement_review') {
+    return 'Action required — settlement review';
+  }
+  if (workflow.id === 'refund_ready') {
+    return 'Action required — refund ready';
+  }
+  return workflow.nextAction;
+}
+
+function moveOutOpsStatusLabel(item: MoveOutPipelineItem): string | undefined {
+  const workflow = deriveMoveOutWorkflowStage(item);
+  if (workflow.id === 'pending_request') return 'Approve or reject';
+  if (workflow.id === 'settlement_review') return 'Action required';
+  if (workflow.id === 'refund_ready') return 'Action required';
+  return undefined;
+}
+
 export function mapVacatingPipelineItemToOpsItem(
   item: MoveOutPipelineItem,
   pgId: string | null,
@@ -71,24 +104,7 @@ export function mapVacatingPipelineItemToOpsItem(
   const queue = vacatingOperationsQueueTarget(item);
   if (!queue) return null;
 
-  const checkoutHref = bookingFinancialWorkspaceSectionHref(item.bookingId, 'checkout');
-  const openHref =
-    queue === 'refund_due'
-      ? item.settlementStatus === 'awaiting_admin_review'
-        ? checkoutHref
-        : bookingFinancialWorkspaceSectionHref(item.bookingId, 'refund')
-      : (item.continueHref ?? bookingFinancialWorkspaceHref(item.bookingId));
-
-  const openLabel = 'Review finances';
-
-  const reason =
-    item.settlementStatus === 'awaiting_admin_review'
-      ? 'Resident submitted checkout details'
-      : queue === 'refund_due'
-        ? 'Settlement approved — refund due'
-        : item.vacatingStatus === 'pending'
-          ? `Move-out notice · leaves ${item.vacatingDate}`
-          : item.nextAction;
+  const workflow = deriveMoveOutWorkflowStage(item);
 
   return {
     id: `moveout-${item.vacatingRequestId}`,
@@ -100,18 +116,16 @@ export function mapVacatingPipelineItemToOpsItem(
     pgName: item.pgName,
     roomNumber: item.roomNumber,
     bedCode: item.bedCode,
-    reason,
-    openHref,
-    openLabel,
-    category: queue === 'refund_due' ? 'refund' : 'move_out',
+    reason: moveOutOpsReason(item),
+    openHref: moveOutOpsOpenHref(item),
+    openLabel: 'Review finances',
+    category: 'move_out',
     bookingId: item.bookingId,
     vacatingRequestId: item.vacatingRequestId,
-    statusLabel:
-      queue === 'refund_due'
-        ? item.settlementStatus === 'awaiting_admin_review'
-          ? 'Checkout review'
-          : 'Refund due'
+    statusLabel: moveOutOpsStatusLabel(item),
+    amountPaise:
+      workflow.id === 'refund_ready' || workflow.id === 'settlement_review'
+        ? item.estimatedRefundPaise
         : undefined,
-    amountPaise: queue === 'refund_due' ? item.estimatedRefundPaise : undefined,
   };
 }

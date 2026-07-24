@@ -12,6 +12,11 @@ import { todayString } from '@/src/lib/dates';
 import { fixedStayRefundUnlockLabel, isPastFixedStayCheckout } from '@/src/lib/dates/ist';
 import { formatDate } from '@/src/lib/format';
 import { isFixedStayDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
+import {
+  RESIDENT_MOVE_OUT_COMPLETED,
+  RESIDENT_WAITING_METER_UPI_ON_VACATE_DATE,
+  RESIDENT_WAITING_PG_VERIFICATION,
+} from '@/src/lib/moveOut/moveOutWorkflowStages';
 
 export type VacatingStageId =
   | 'requested'
@@ -273,10 +278,22 @@ export function vacatingNextStep(args: {
 
   if (vacating.status === 'approved') {
     const today = todayString();
+    if (checkoutStatus === 'awaiting_admin_review') {
+      return {
+        headline: 'Waiting for PG verification',
+        detail: RESIDENT_WAITING_PG_VERIFICATION,
+      };
+    }
+    if (checkoutStatus === 'refund_pending') {
+      return {
+        headline: 'Settlement under review',
+        detail: 'We are finalising your refund. No action needed from you right now.',
+      };
+    }
     if (today < vacating.vacatingDate) {
       return {
         headline: 'Vacate approved',
-        detail: `Your move-out on ${formatDate(vacating.vacatingDate)} is confirmed. Refund request unlocks on that date.`,
+        detail: RESIDENT_WAITING_METER_UPI_ON_VACATE_DATE,
       };
     }
     if (checkoutStatus === 'awaiting_resident_details') {
@@ -289,25 +306,19 @@ export function vacatingNextStep(args: {
       }
       return {
         headline: 'Request your refund',
-        detail: 'Submit your UPI QR code and final AC meter photo below.',
-      };
-    }
-    if (checkoutStatus === 'awaiting_admin_review' || checkoutStatus === 'refund_pending') {
-      return {
-        headline: 'Settlement under review',
-        detail: 'We are finalising your refund. No action needed from you right now.',
+        detail: RESIDENT_WAITING_METER_UPI_ON_VACATE_DATE,
       };
     }
     return {
       headline: 'Vacate approved',
-      detail: 'Submit your refund request with UPI QR and final meter photo when you are ready.',
+      detail: RESIDENT_WAITING_METER_UPI_ON_VACATE_DATE,
     };
   }
 
   if (vacating.status === 'completed' || checkoutStatus === 'refund_paid') {
     return {
       headline: 'Move-out complete',
-      detail: 'Your move-out is finished. Check your payment history for the refund receipt.',
+      detail: RESIDENT_MOVE_OUT_COMPLETED,
     };
   }
 

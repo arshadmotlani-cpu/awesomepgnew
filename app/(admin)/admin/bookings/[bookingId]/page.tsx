@@ -22,6 +22,7 @@ import { getAdminBookingDetail } from '@/src/db/queries/admin';
 import {
   listElectricityInvoicesForBooking,
   listRentInvoicesForBooking,
+  getVacatingForBooking,
 } from '@/src/db/queries/customer';
 import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
 import { isBookingStatus, labelBookingStatus } from '@/src/lib/booking/bookingStatus';
@@ -40,6 +41,7 @@ import { parseDaterange } from '@/src/services/availability';
 import { formatDate as formatDateIso } from '@/src/lib/dates';
 import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
 import { CheckoutRefundReceiptFromDetail } from '@/src/components/admin/checkout/CheckoutRefundReceipt';
+import { vacatingWorkflowHref } from '@/src/lib/residents/commandCenterLinks';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,7 +75,7 @@ export default async function AdminBookingDetailPage(
 
   const b = res.data;
   const primaryRes = b.reservations.find((r) => r.kind === 'primary') ?? b.reservations[0];
-  const [rentInvoices, electricityInvoices, financialAccount, paymentVerificationAudit] =
+  const [rentInvoices, electricityInvoices, financialAccount, paymentVerificationAudit, vacatingRes] =
     await Promise.all([
     listRentInvoicesForBooking(bookingId),
     listElectricityInvoicesForBooking(bookingId),
@@ -92,7 +94,12 @@ export default async function AdminBookingDetailPage(
         })
       : Promise.resolve(null),
     loadBookingPaymentVerificationAudit(bookingId),
+    getVacatingForBooking(bookingId),
   ]);
+  const activeVacating =
+    vacatingRes.ok && vacatingRes.data && ['pending', 'approved'].includes(vacatingRes.data.status)
+      ? vacatingRes.data
+      : null;
   const rentInvoiceHrefMap =
     rentInvoices.ok && rentInvoices.data.length > 0
       ? await buildAdminInvoiceHrefMap(
@@ -188,6 +195,17 @@ export default async function AdminBookingDetailPage(
             >
               Financial workspace
             </Link>
+            {activeVacating ? (
+              <>
+                <span className="mx-2 text-white/30">·</span>
+                <Link
+                  href={vacatingWorkflowHref(activeVacating.id)}
+                  className="text-[#FF5A1F] hover:underline"
+                >
+                  Move-out pipeline
+                </Link>
+              </>
+            ) : null}
             <span className="mx-2 text-white/30">·</span>
             Customer link:{' '}
             <Link

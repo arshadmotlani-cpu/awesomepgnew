@@ -50,6 +50,7 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
   const sp = await props.searchParams;
   const readParam = typeof sp.read === 'string' ? sp.read : undefined;
   const legacy = sp.legacy === '1';
+  const stageParam = typeof sp.stage === 'string' ? sp.stage : undefined;
   await ensureAdminPageNotificationsSeen('/admin/vacating', '/admin/vacating', readParam);
 
   const deepLink = await evaluateNotificationDeepLink(readParam);
@@ -169,6 +170,15 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
             completedRecently={completedRecently}
             commandStats={commandStats}
             approvalPreviewByRequestId={approvalPreviewByRequestId}
+            initialStage={
+              stageParam === 'pending_request' ||
+              stageParam === 'waiting_vacating_date' ||
+              stageParam === 'settlement_review' ||
+              stageParam === 'refund_ready' ||
+              stageParam === 'completed'
+                ? stageParam
+                : undefined
+            }
           />
 
           <MoveOutAdvancedTools

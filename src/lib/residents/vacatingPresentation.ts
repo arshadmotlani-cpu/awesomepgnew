@@ -3,8 +3,38 @@ import { todayString, tryDiffDays } from '@/src/lib/dates';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 import type { CheckoutSettlementWaterfall } from '@/src/lib/checkout/checkoutSettlementEngineV2';
 import { VACATING_JOURNEY_STAGES, vacatingStageIndex } from '@/src/lib/residents/vacatingJourney';
+import {
+  RESIDENT_MOVE_OUT_COMPLETED,
+  RESIDENT_WAITING_METER_UPI_ON_VACATE_DATE,
+  RESIDENT_WAITING_PG_VERIFICATION,
+} from '@/src/lib/moveOut/moveOutWorkflowStages';
 
-/** Display-only helpers for vacating journey UI. */
+/** Single resident status line aligned with admin workflow SSOT. */
+export function residentWorkflowStatusLine(input: {
+  vacatingStatus: string | null;
+  checkoutStatus: string | null;
+  vacatingDate?: string | null;
+  today?: string;
+}): string | null {
+  const { vacatingStatus, checkoutStatus } = input;
+  if (
+    checkoutStatus === 'refund_paid' ||
+    checkoutStatus === 'completed' ||
+    vacatingStatus === 'completed'
+  ) {
+    return RESIDENT_MOVE_OUT_COMPLETED;
+  }
+  if (checkoutStatus === 'awaiting_admin_review') {
+    return RESIDENT_WAITING_PG_VERIFICATION;
+  }
+  if (vacatingStatus === 'approved') {
+    if (checkoutStatus === 'awaiting_resident_details' || !checkoutStatus) {
+      return RESIDENT_WAITING_METER_UPI_ON_VACATE_DATE;
+    }
+  }
+  return null;
+}
+
 export function estimateRefundPaise(
   depositHeldPaise: number,
   vacating: VacatingForBookingRow | null,
@@ -156,8 +186,16 @@ export function residentHomeMoveOutDetail(input: {
     checkoutStatus === 'completed' ||
     vacatingStatus === 'completed'
   ) {
-    return 'Your deposit refund has been sent.';
+    return RESIDENT_MOVE_OUT_COMPLETED;
   }
+
+  const workflowLine = residentWorkflowStatusLine({
+    vacatingStatus,
+    checkoutStatus,
+    vacatingDate,
+    today: input.today,
+  });
+  if (workflowLine) return workflowLine;
 
   const settlementLabel = residentSettlementStatusLabel({ checkoutStatus, waterfall });
   if (settlementLabel) return settlementLabel;
@@ -230,7 +268,15 @@ export function buildVacatingTimelineStages(input: {
     }
     let description: string | undefined;
     if (i === activeIndex) {
-      if (i >= 3 && settlementStatus) {
+      const workflowLine = residentWorkflowStatusLine({
+        vacatingStatus: input.vacatingStatus,
+        checkoutStatus: input.checkoutStatus,
+        vacatingDate: input.vacatingDate,
+        today: input.today,
+      });
+      if (workflowLine) {
+        description = workflowLine;
+      } else if (i >= 3 && settlementStatus) {
         description = settlementStatus;
       } else {
         description = s.residentHint;

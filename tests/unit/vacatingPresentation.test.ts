@@ -103,15 +103,14 @@ test('currentStageLabel matches dynamic stage 3', () => {
   );
 });
 
-test('resident home move-out detail uses countdown before vacate date', () => {
+test('resident home move-out detail uses permanent workflow copy before vacate date', () => {
   const detail = residentHomeMoveOutDetail({
     vacatingStatus: 'approved',
     checkoutStatus: null,
     vacatingDate: '2026-08-20',
     today: '2026-08-08',
   });
-  assert.match(detail, /Refund request opens in 12 days/);
-  assert.match(detail, /Approved move-out date/);
+  assert.match(detail, /upload meter photo & UPI QR on your vacating date/);
 });
 
 test('resident home move-out detail uses settlement label during review', () => {
@@ -121,5 +120,5 @@ test('resident home move-out detail uses settlement label during review', () => 
     vacatingDate: '2026-08-01',
     waterfall: null,
   });
-  assert.equal(detail, 'Waiting for meter verification');
+  assert.equal(detail, 'Waiting for PG verification.');
 });

@@ -4,6 +4,9 @@ import { OperationsOpsRowActions } from '@/src/components/admin/operations/Opera
 import { OperationsWaitingForApprovalTable } from '@/src/components/admin/operations/OperationsWaitingForApprovalTable';
 import { OperationsRejectedPaymentsSection } from '@/src/components/admin/operations/OperationsRejectedPaymentsSection';
 import { OPS_QUEUE_LABELS, operationsFilterHref, type OpsQueueFilter } from '@/src/lib/operations/operationsFilterLinks';
+import { MoveOutOpsActionPipeline } from '@/src/components/admin/moveOut/MoveOutOpsActionPipeline';
+import { moveOutClientRequiresAdminActionNow } from '@/src/lib/operations/moveOutAdminAction';
+import type { MoveOutPipelineItemClient } from '@/src/lib/moveOut/moveOutPipeline';
 import type { UnifiedOpsItem, UnifiedOperationsQueue } from '@/src/services/unifiedOperationsQueue';
 import type { PaymentProofRejectionHistoryRow } from '@/src/services/paymentProofRejectionService';
 import { paiseToInr } from '@/src/lib/format';
@@ -28,10 +31,12 @@ export function OperationsMasterQueue({
   data,
   isSuperAdmin = false,
   recentRejections = [],
+  moveOutPipelineActiveItems,
 }: {
   data: UnifiedOperationsQueue;
   isSuperAdmin?: boolean;
   recentRejections?: PaymentProofRejectionHistoryRow[];
+  moveOutPipelineActiveItems?: MoveOutPipelineItemClient[];
 }) {
   const activeFilter = data.filter;
 
@@ -45,6 +50,63 @@ export function OperationsMasterQueue({
           focusKey={data.focusReviewKey}
         />
         <OperationsRejectedPaymentsSection rows={recentRejections} />
+      </div>
+    );
+  }
+
+  if (activeFilter === 'vacating_requests') {
+    const ancillaryItems = data.items.filter(
+      (item) => item.queue === 'vacating_requests' && !item.vacatingRequestId,
+    );
+    const pipelineItems = moveOutPipelineActiveItems ?? [];
+    const hasMoveOutActions = pipelineItems.some((item) =>
+      moveOutClientRequiresAdminActionNow(item),
+    );
+
+    return (
+      <div className="space-y-8">
+        <OperationsFlashToast />
+        <QueueHeader activeFilter={activeFilter} filterCounts={data.filterCounts} />
+
+        {hasMoveOutActions ? (
+          <MoveOutOpsActionPipeline items={pipelineItems} />
+        ) : (
+          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-8 py-16 text-center">
+            <p className="text-xl font-semibold text-emerald-100">Nothing in this queue</p>
+            <p className="mt-2 text-sm text-emerald-200/80">No admin action required right now.</p>
+          </div>
+        )}
+
+        {ancillaryItems.length > 0 ? (
+          <div className="overflow-hidden rounded-2xl border border-white/10">
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-white/10 bg-[#141820] text-[10px] uppercase tracking-wide text-apg-silver">
+                <tr>
+                  {columnsForFilter('vacating_requests').map((col) => (
+                    <th
+                      key={col}
+                      className={
+                        'px-4 py-3 font-medium' + (col === 'actions' ? ' text-right' : '')
+                      }
+                    >
+                      {columnLabel(col, 'vacating_requests')}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5 bg-[#1A1F27]">
+                {ancillaryItems.map((item) => (
+                  <OpsRow
+                    key={item.id}
+                    item={item}
+                    filter={activeFilter}
+                    isSuperAdmin={isSuperAdmin}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
       </div>
     );
   }

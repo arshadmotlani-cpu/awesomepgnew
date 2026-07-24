@@ -45,9 +45,9 @@ const pendingNotice = toClientMoveOutPipelineItem({
   stageTimestamps: {},
 });
 
-test('pending move-out notice appears in needs_action filter', () => {
-  assert.equal(moveOutMatchesFilter(pendingNotice, 'needs_action'), true);
-  assert.equal(moveOutMatchesFilter(pendingNotice, 'waiting_resident'), false);
+test('pending move-out notice appears in pending_request filter', () => {
+  assert.equal(moveOutMatchesFilter(pendingNotice, 'pending_request'), true);
+  assert.equal(moveOutMatchesFilter(pendingNotice, 'waiting_vacating_date'), false);
 });
 
 test('pending approval items are extracted for pinned admin section', () => {
@@ -59,7 +59,7 @@ test('pending approval items are extracted for pinned admin section', () => {
 
 test('command stats count pending approval separately', () => {
   const stats = buildMoveOutCommandStats([pendingNotice]);
-  assert.equal(stats.pendingApproval, 1);
+  assert.equal(stats.pendingRequest, 1);
   assert.equal(stats.needsAction, 1);
 });
 

@@ -1,4 +1,5 @@
 import { bookingFinancialWorkspaceSectionHref } from '@/src/lib/bookings/bookingFinancialLinks';
+import { vacatingWorkflowHref } from '@/src/lib/residents/commandCenterLinks';
 import type { CheckoutWorkflowKind } from '@/src/lib/checkout/checkoutWorkflow';
 import { checkoutWorkflowKind } from '@/src/lib/checkout/checkoutWorkflow';
 import {
@@ -307,7 +308,13 @@ export function deriveMoveOutStage(
   }
 
   if (vacating.status === 'pending') {
-    return stageMeta('requested', 'Verify notice period and approve move-out', workspaceMoveOut, 'approve');
+    const vacatingReadHref = vacatingWorkflowHref(vacating.id);
+    return stageMeta(
+      'requested',
+      'Verify notice period and approve move-out',
+      vacatingReadHref,
+      'approve',
+    );
   }
 
   return stageMeta('bed_released', 'Move-out complete', settlementContinue, 'view');

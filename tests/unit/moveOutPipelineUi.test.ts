@@ -6,7 +6,6 @@ import {
   moveOutHeroTitle,
   moveOutMatchesFilter,
   moveOutPrimaryActionLabel,
-  partitionMoveOutItems,
 } from '../../src/lib/moveOut/moveOutPipelineUi';
 
 const zeroRefundCheckout = toClientMoveOutPipelineItem({
@@ -51,23 +50,14 @@ test('zero-refund checkout uses Complete checkout action label', () => {
   assert.equal(moveOutHeroTitle(zeroRefundCheckout), 'Complete checkout');
 });
 
-test('overdue items partition to top section', () => {
-  const onTime = { ...zeroRefundCheckout, id: 'vr-2', daysRemaining: 3, urgency: 'normal' as const };
-  const { overdue, active } = partitionMoveOutItems([zeroRefundCheckout, onTime]);
-  assert.equal(overdue.length, 1);
-  assert.equal(active.length, 1);
-  assert.equal(overdue[0]?.customerFullName, 'Harish');
-});
-
-test('command stats count operator buckets', () => {
+test('command stats count workflow stages', () => {
   const stats = buildMoveOutCommandStats([zeroRefundCheckout]);
-  assert.equal(stats.overdue, 1);
+  assert.equal(stats.settlementReview, 1);
   assert.equal(stats.needsAction, 1);
-  assert.equal(stats.refundsToSend, 0);
+  assert.equal(stats.refundReady, 0);
 });
 
-test('filter buckets match without changing pipeline stage logic', () => {
-  assert.ok(moveOutMatchesFilter(zeroRefundCheckout, 'overdue'));
-  assert.ok(moveOutMatchesFilter(zeroRefundCheckout, 'needs_action'));
-  assert.equal(moveOutMatchesFilter(zeroRefundCheckout, 'waiting_resident'), false);
+test('filter buckets match workflow stage', () => {
+  assert.ok(moveOutMatchesFilter(zeroRefundCheckout, 'settlement_review'));
+  assert.equal(moveOutMatchesFilter(zeroRefundCheckout, 'waiting_vacating_date'), false);
 });

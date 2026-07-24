@@ -7,11 +7,12 @@ import { CheckoutRefundReceiptFromDetail } from '@/src/components/admin/checkout
 import { DepositActivitySection } from '@/src/components/admin/deposits/DepositActivitySection';
 import { DepositSummaryCard } from '@/src/components/admin/deposits/DepositSummaryCard';
 import { SettlementStatementDocument } from '@/src/components/billing/SettlementStatementDocument';
-import { VacatingRowActions } from '@/src/components/admin/vacating/VacatingRowActions';
 import { VacatingDateChangeApprovalPanel } from '@/src/components/admin/vacating/VacatingDateChangeApprovalPanel';
 import { bookingFinancialWorkspaceSectionHref } from '@/src/lib/bookings/bookingFinancialLinks';
 import { settlementStatementPageHref } from '@/src/lib/billing/settlementStatementPdfLinks';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
+import { moveOutWorkflowWaitingOnLabel } from '@/src/lib/moveOut/moveOutWorkflowStages';
+import { vacatingWorkflowHref } from '@/src/lib/residents/commandCenterLinks';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import type { BookingFinancialWorkspaceData } from '@/src/services/bookingFinancialWorkspace';
 import type { BookingMoneyBalances } from '@/src/lib/billing/bookingMoneyBalances';
@@ -70,6 +71,14 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
             >
               Resident profile
             </Link>
+            {data.vacating ? (
+              <Link
+                href={vacatingWorkflowHref(data.vacating.id)}
+                className="rounded-lg border border-[#FF5A1F]/40 px-3 py-1.5 text-xs font-medium text-[#FF5A1F] hover:bg-[#FF5A1F]/10"
+              >
+                Move-out pipeline
+              </Link>
+            ) : null}
           </div>
         </div>
         <nav className="mt-4 flex flex-wrap gap-2">
@@ -153,23 +162,34 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
                 {data.moveOutWorkflow ? (
                   <div className="mt-3 space-y-1 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm">
                     <p className="text-white">
-                      Pipeline:{' '}
-                      <span className="font-medium">{data.moveOutWorkflow.stageLabel}</span>
+                      Workflow stage:{' '}
+                      <span className="font-medium">{data.moveOutWorkflow.label}</span>
                     </p>
                     <p className="text-apg-silver">{data.moveOutWorkflow.nextAction}</p>
+                    <p className="text-xs text-apg-silver">
+                      {moveOutWorkflowWaitingOnLabel(data.moveOutWorkflow.waitingOn)}
+                      {data.moveOutWorkflow.expectedDate
+                        ? ` · Expected vacate ${formatDate(data.moveOutWorkflow.expectedDate)}`
+                        : ''}
+                    </p>
                     <p className="text-xs text-apg-silver">{data.moveOutWorkflow.checkoutReadiness}</p>
+                    <p className="pt-1 text-xs">
+                      <Link
+                        href={vacatingWorkflowHref(data.vacating.id)}
+                        className="font-medium text-[#FF5A1F] hover:underline"
+                      >
+                        Open move-out tracker →
+                      </Link>
+                    </p>
                   </div>
                 ) : null}
               </div>
-              <VacatingRowActions
-                requestId={data.vacating.id}
-                status={data.vacating.status}
-                settlementHref={data.settlementHref}
-                depositHeldPaise={data.moneyBalances.deposit.receivedPaise}
-                approvalPreview={data.vacating.approvalPreview ?? undefined}
-                bookingId={data.bookingId}
-                bookingCode={data.bookingCode}
-              />
+              <Link
+                href={vacatingWorkflowHref(data.vacating.id)}
+                className="shrink-0 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/5"
+              >
+                Move-out pipeline
+              </Link>
             </div>
             {data.pendingDateChange ? (
               <VacatingDateChangeApprovalPanel

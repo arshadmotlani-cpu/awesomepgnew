@@ -1,90 +1,72 @@
 import type { MoveOutPipelineItemClient } from '@/src/lib/moveOut/moveOutPipeline';
+import {
+  MOVE_OUT_WORKFLOW_STAGES,
+  deriveMoveOutWorkflowStage,
+  moveOutMatchesWorkflowFilter,
+  type MoveOutWorkflowFilter,
+  type MoveOutWorkflowStageId,
+} from '@/src/lib/moveOut/moveOutWorkflowStages';
 import { moveOutClientRequiresAdminActionNow } from '@/src/lib/operations/moveOutAdminAction';
 
-export type MoveOutFilterBucket =
-  | 'all'
-  | 'needs_action'
-  | 'waiting_resident'
-  | 'overdue'
-  | 'refunds_to_send'
-  | 'completed';
+export type { MoveOutWorkflowFilter, MoveOutWorkflowStageId };
+export { MOVE_OUT_WORKFLOW_STAGES, deriveMoveOutWorkflowStage, moveOutMatchesWorkflowFilter };
+
+/** @deprecated Use MoveOutWorkflowFilter — kept for gradual migration */
+export type MoveOutFilterBucket = MoveOutWorkflowFilter | 'overdue';
 
 export type MoveOutCommandStats = {
-  needsAction: number;
-  waitingResident: number;
-  overdue: number;
-  refundsToSend: number;
+  pendingRequest: number;
+  waitingVacatingDate: number;
+  settlementReview: number;
+  refundReady: number;
   completed: number;
-  pendingApproval: number;
+  /** Rows requiring admin action now (pending + settlement + refund) */
+  needsAction: number;
   activeCount: number;
 };
 
-export const MOVE_OUT_FILTER_BUCKETS: Array<{
-  id: MoveOutFilterBucket;
+export const MOVE_OUT_WORKFLOW_FILTER_TABS: Array<{
+  id: MoveOutWorkflowFilter;
   label: string;
 }> = [
-  { id: 'needs_action', label: 'Needs Action' },
-  { id: 'waiting_resident', label: 'Waiting Resident' },
-  { id: 'overdue', label: 'Overdue' },
-  { id: 'refunds_to_send', label: 'Refunds To Send' },
+  ...MOVE_OUT_WORKFLOW_STAGES.filter((s) => s.id !== 'completed').map((s) => ({
+    id: s.id as MoveOutWorkflowFilter,
+    label: s.label,
+  })),
   { id: 'completed', label: 'Completed' },
 ];
 
-export function moveOutItemBuckets(item: MoveOutPipelineItemClient): MoveOutFilterBucket[] {
-  const buckets: MoveOutFilterBucket[] = [];
-
-  if (item.stage === 'bed_released') {
-    buckets.push('completed');
-    return buckets;
-  }
-
-  if (item.daysRemaining < 0) buckets.push('overdue');
-
-  if (item.settlementStatus === 'awaiting_resident_details') {
-    buckets.push('waiting_resident');
-  }
-
-  if (
-    item.settlementStatus === 'refund_pending' ||
-    (item.stage === 'deposit_approved' && item.estimatedRefundPaise > 0)
-  ) {
-    buckets.push('refunds_to_send');
-  }
-
-  if (moveOutClientRequiresAdminActionNow(item)) {
-    buckets.push('needs_action');
-  }
-
-  return buckets;
-}
-
 export function moveOutMatchesFilter(
   item: MoveOutPipelineItemClient,
-  filter: MoveOutFilterBucket,
+  filter: MoveOutWorkflowFilter,
 ): boolean {
-  if (filter === 'all') return true;
-  return moveOutItemBuckets(item).includes(filter);
+  return moveOutMatchesWorkflowFilter(item, filter);
 }
 
-function countForMoveOutFilter(
+function countForWorkflowFilter(
   items: MoveOutPipelineItemClient[],
-  filter: MoveOutFilterBucket,
+  filter: MoveOutWorkflowFilter,
 ): number {
   if (filter === 'all') {
-    return items.filter((item) => item.stage !== 'bed_released').length;
+    return items.filter((item) => deriveMoveOutWorkflowStage(item).id !== 'completed').length;
   }
-  return items.filter((item) => moveOutMatchesFilter(item, filter)).length;
+  return items.filter((item) => moveOutMatchesWorkflowFilter(item, filter)).length;
 }
 
 export function buildMoveOutCommandStats(items: MoveOutPipelineItemClient[]): MoveOutCommandStats {
-  const activeItems = items.filter((item) => item.stage !== 'bed_released');
+  const activeItems = items.filter(
+    (item) => deriveMoveOutWorkflowStage(item).id !== 'completed',
+  );
+  const completedItems = items.filter(
+    (item) => deriveMoveOutWorkflowStage(item).id === 'completed',
+  );
   return {
-    needsAction: countForMoveOutFilter(activeItems, 'needs_action'),
-    waitingResident: countForMoveOutFilter(activeItems, 'waiting_resident'),
-    overdue: countForMoveOutFilter(activeItems, 'overdue'),
-    refundsToSend: countForMoveOutFilter(activeItems, 'refunds_to_send'),
-    completed: countForMoveOutFilter(items, 'completed'),
-    pendingApproval: moveOutPendingApprovalItems(activeItems).length,
+    pendingRequest: countForWorkflowFilter(activeItems, 'pending_request'),
+    waitingVacatingDate: countForWorkflowFilter(activeItems, 'waiting_vacating_date'),
+    settlementReview: countForWorkflowFilter(activeItems, 'settlement_review'),
+    refundReady: countForWorkflowFilter(activeItems, 'refund_ready'),
+    completed: completedItems.length,
+    needsAction: activeItems.filter((item) => moveOutClientRequiresAdminActionNow(item)).length,
     activeCount: activeItems.length,
   };
 }
@@ -95,31 +77,50 @@ export function moveOutPendingApprovalItems(
   return items.filter((item) => item.vacatingStatus === 'pending');
 }
 
+export function moveOutItemsForWorkflowStage(
+  items: MoveOutPipelineItemClient[],
+  stageId: MoveOutWorkflowStageId,
+): MoveOutPipelineItemClient[] {
+  return items.filter((item) => deriveMoveOutWorkflowStage(item).id === stageId);
+}
+
+export function moveOutActionableItems(
+  items: MoveOutPipelineItemClient[],
+): MoveOutPipelineItemClient[] {
+  return items.filter((item) => moveOutClientRequiresAdminActionNow(item));
+}
+
 export function moveOutPrimaryActionLabel(item: MoveOutPipelineItemClient): string {
-  if (item.continueKind === 'approve') return 'Approve move-out';
+  const workflow = deriveMoveOutWorkflowStage(item);
+  if (workflow.id === 'pending_request') return 'Approve move-out';
   if (moveOutIsZeroRefundCheckout(item)) return 'Complete checkout';
-  if (item.settlementStatus === 'awaiting_admin_review') return 'Review settlement';
-  if (item.settlementStatus === 'refund_pending') return 'Refund of Deposit';
+  if (workflow.id === 'settlement_review') return 'Review settlement';
+  if (workflow.id === 'refund_ready') return 'Refund of Deposit';
   if (item.continueKind === 'settlement') return 'Open checkout';
   if (item.continueKind === 'view') return 'View settlement';
   return 'Continue';
 }
 
 export function moveOutHeroTitle(item: MoveOutPipelineItemClient): string {
+  const workflow = deriveMoveOutWorkflowStage(item);
   if (moveOutIsZeroRefundCheckout(item)) return 'Complete checkout';
-  if (item.continueKind === 'approve') return 'Approve move-out';
-  if (item.settlementStatus === 'awaiting_admin_review') return 'Review settlement';
-  if (item.settlementStatus === 'refund_pending') return 'Refund of Deposit';
-  if (item.settlementStatus === 'awaiting_resident_details') return 'Waiting for resident';
-  if (item.stage === 'bed_released') return 'Move-out complete';
-  return item.stageLabel;
+  if (workflow.id === 'pending_request') return 'Approve move-out';
+  if (workflow.id === 'settlement_review') return 'Settlement Review';
+  if (workflow.id === 'refund_ready') return 'Refund Ready';
+  if (workflow.id === 'waiting_vacating_date') return workflow.label;
+  if (workflow.id === 'completed') return 'Move-out complete';
+  return workflow.label;
 }
 
 export function moveOutHeroSubtitle(item: MoveOutPipelineItemClient): string {
   if (item.estimatedRefundPaise === 0 && item.continueKind === 'settlement') {
     return 'Deposit fully consumed. No refund due.';
   }
-  return item.nextAction;
+  return deriveMoveOutWorkflowStage(item).nextAction;
+}
+
+export function moveOutRequiresActionChip(item: MoveOutPipelineItemClient): boolean {
+  return deriveMoveOutWorkflowStage(item).requiresAdminAction;
 }
 
 export function moveOutIsZeroRefundCheckout(item: MoveOutPipelineItemClient): boolean {
@@ -130,20 +131,7 @@ export function moveOutOverdueDays(item: MoveOutPipelineItemClient): number {
   return item.daysRemaining < 0 ? Math.abs(item.daysRemaining) : 0;
 }
 
-export function partitionMoveOutItems(items: MoveOutPipelineItemClient[]): {
-  overdue: MoveOutPipelineItemClient[];
-  active: MoveOutPipelineItemClient[];
-} {
-  const overdue: MoveOutPipelineItemClient[] = [];
-  const active: MoveOutPipelineItemClient[] = [];
-
-  for (const item of items) {
-    if (item.daysRemaining < 0 && item.stage !== 'bed_released') {
-      overdue.push(item);
-    } else {
-      active.push(item);
-    }
-  }
-
-  return { overdue, active };
+export function vacatingPipelineHref(stage?: MoveOutWorkflowStageId): string {
+  if (!stage) return '/admin/vacating';
+  return `/admin/vacating?stage=${stage}`;
 }

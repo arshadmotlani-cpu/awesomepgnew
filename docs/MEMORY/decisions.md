@@ -125,6 +125,12 @@
 ## DECISION — Move-out Operations action queue (2026-07-24)
 - Operations must not list approved move-outs waiting on residents. Admin work returns only for pending notice approval or post-resident checkout (`awaiting_admin_review` / `refund_pending`). SSOT: `moveOutRequiresAdminActionNow` in `src/lib/operations/moveOutAdminAction.ts`. Move-out Pipeline remains tracking-only for approved stays.
 
+## DECISION — Move-out workflow permanent rules (2026-07-24)
+- **Operations:** admin-action-now only; row leaves the moment the action completes (not history). **Notifications:** same — notify only when attention required; resolve/archive on handle. **`/admin/vacating`:** lifecycle tracker from creation through completion (where / who waits / expected date / next step). **Booking financial workspace:** settlement and money only — workflow stage display reads `deriveMoveOutWorkflowStage`; approve/reject only on pipeline/Operations. **Resident:** simplified stage copy (meter+UPI on vacate date → PG verification → completed). SSOT: [`moveOutWorkflowStages.ts`](src/lib/moveOut/moveOutWorkflowStages.ts) + [`moveOutRequiresAdminActionNow`](src/lib/operations/moveOutAdminAction.ts).
+
+## DECISION — Move-out five-stage workflow pipeline (2026-07-24)
+- **Operations / notifications:** admin-action-now only (pending notice, settlement review, refund ready). **`/admin/vacating`:** full pipeline — Pending → Waiting for Vacating Date → Settlement Review → Refund Ready → Completed. Display SSOT: `deriveMoveOutWorkflowStage` in `src/lib/moveOut/moveOutWorkflowStages.ts`. Checkout settlement ops rows route to Operations **Move-out** chip (`vacating_requests`), not `refund_due`. Waiting stage next action copy: meter photo + UPI upload.
+
 ## DECISION — Vacating final-period rent billing (2026-07-24)
 - **Approved move-out only:** suppress the next pending anniversary rent invoice when vacating falls inside an unpaid billing period before period end; collect tail rent (inclusive calendar days from tail start through vacate) in checkout settlement V2 deposit deductions — not as a separate monthly invoice. SSOT: `src/lib/billing/vacatingFinalPeriodRent.ts`; sync via `syncVacatingCheckoutRentBilling`; generation gate in `generateRentInvoicesForMonth`. Pending notices do not suppress.
 

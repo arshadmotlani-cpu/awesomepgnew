@@ -4,6 +4,7 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   actionItems,
+  adminUsers,
   beds,
   bedReservations,
   bookings,
@@ -543,6 +544,18 @@ async function syncVacatingAlerts(session: AdminSession): Promise<void> {
   }
 }
 
+async function archiveAdminNotificationsForSourceKeys(sourceKeys: string[]): Promise<void> {
+  if (sourceKeys.length === 0) return;
+  const adminRows = await db
+    .select({ id: adminUsers.id })
+    .from(adminUsers)
+    .where(eq(adminUsers.isActive, true));
+  const adminIds = adminRows.map((a) => a.id);
+  if (adminIds.length === 0) return;
+  const { archiveNotificationsByDedupeKeys } = await import('@/src/services/notificationEngine');
+  await archiveNotificationsByDedupeKeys('admin', adminIds, sourceKeys);
+}
+
 /** Immediately clear pending move-out approval tasks after admin approves notice. */
 export async function resolveVacatingApprovalActionItems(
   vacatingRequestId: string,
@@ -557,6 +570,24 @@ export async function resolveVacatingApprovalActionItems(
     RETURNING id
   `);
   await resolveAction({ sourceKey: `unresolved:${sourceKey}` }).catch(() => undefined);
+  await archiveAdminNotificationsForSourceKeys([sourceKey]);
+  return { resolved: rows.length };
+}
+
+/** Clear settlement review tasks when admin finishes review. */
+export async function resolveCheckoutReviewActionItems(
+  settlementId: string,
+): Promise<{ resolved: number }> {
+  const sourceKey = `checkout_review:${settlementId}`;
+  const rows = await db.execute<{ id: string }>(sql`
+    UPDATE action_items
+    SET status = 'resolved', updated_at = now()
+    WHERE source_key = ${sourceKey}
+      AND type = 'refund_request_submitted'
+      AND status IN ('open', 'in_progress')
+    RETURNING id
+  `);
+  await archiveAdminNotificationsForSourceKeys([sourceKey]);
   return { resolved: rows.length };
 }
 
@@ -570,7 +601,7 @@ export async function upsertCheckoutReviewActionItem(input: {
 }): Promise<void> {
   await upsertActionItem({
     type: 'refund_request_submitted',
-    title: `Resident submitted checkout details · ${input.residentName}`,
+    title: `Action required — settlement review · ${input.residentName}`,
     pgId: input.pgId,
     residentId: input.customerId,
     priority: 'high',

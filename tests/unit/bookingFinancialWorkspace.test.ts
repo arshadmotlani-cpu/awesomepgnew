@@ -6,6 +6,7 @@ import {
 } from '@/src/lib/bookings/bookingFinancialLinks';
 import { depositExpressHref } from '@/src/lib/deposits/depositExpressLinks';
 import { buildMoveOutPipeline } from '@/src/lib/moveOut/moveOutPipeline';
+import { vacatingWorkflowHref } from '@/src/lib/residents/commandCenterLinks';
 import { mapVacatingPipelineItemToOpsItem } from '@/src/lib/operations/operationsQueueVacating';
 
 test('bookingFinancialWorkspaceHref is canonical admin financial route', () => {
@@ -23,7 +24,7 @@ test('depositExpressHref routes to financial workspace when booking is known', (
   assert.equal(depositExpressHref('bk-1'), '/admin/bookings/bk-1/financial');
 });
 
-test('pending move-out pipeline links to financial workspace move-out section', () => {
+test('pending move-out pipeline links to vacating tracker for approval', () => {
   const [item] = buildMoveOutPipeline({
     vacatingRows: [
       {
@@ -52,7 +53,7 @@ test('pending move-out pipeline links to financial workspace move-out section', 
     settlements: [],
   });
   assert.ok(item);
-  assert.equal(item.continueHref, '/admin/bookings/bk-1/financial#move-out');
+  assert.equal(item.continueHref, vacatingWorkflowHref('vr-1'));
 });
 
 test('operations vacating queue uses financial workspace links', () => {
@@ -78,7 +79,7 @@ test('operations vacating queue uses financial workspace links', () => {
       stageIndex: 0,
       stageLabel: 'Requested',
       nextAction: 'Approve',
-      continueHref: '/admin/bookings/bk-1/financial#move-out',
+      continueHref: vacatingWorkflowHref('vr-1'),
       continueKind: 'approve',
       sortPriority: 0,
       resolvedAt: null,
@@ -96,6 +97,6 @@ test('operations vacating queue uses financial workspace links', () => {
     'pg-1',
   );
   assert.ok(ops);
-  assert.equal(ops.openHref, '/admin/bookings/bk-1/financial#move-out');
+  assert.equal(ops.openHref, vacatingWorkflowHref('vr-1'));
   assert.equal(ops.openLabel, 'Review finances');
 });

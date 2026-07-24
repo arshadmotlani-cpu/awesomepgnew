@@ -583,8 +583,10 @@ export async function approveVacatingRequest(input: {
 
   scheduleAdminNotificationSync();
 
-  const { resolveVacatingApprovalActionItems } = await import('@/src/services/actionItems');
+  const { resolveVacatingApprovalActionItems, refreshAdminNotificationsFromActionItems } =
+    await import('@/src/services/actionItems');
   await resolveVacatingApprovalActionItems(updated.id);
+  await refreshAdminNotificationsFromActionItems();
 
   return { ok: true, request: updated };
 }
@@ -664,6 +666,10 @@ export async function rejectVacatingRequest(input: {
     reason: 'Occupant vacating notice was rejected — scheduled room transfer is on hold.',
   });
 
+  const { resolveVacatingApprovalActionItems, refreshAdminNotificationsFromActionItems } =
+    await import('@/src/services/actionItems');
+  await resolveVacatingApprovalActionItems(input.requestId);
+  await refreshAdminNotificationsFromActionItems();
   scheduleAdminNotificationSync();
 
   return { ok: true, request: updated };

@@ -15,20 +15,26 @@ import { tryDiffDays, normalizeIsoDateOnly } from '@/src/lib/dates';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
 import type { MoveOutUrgency } from '@/src/lib/vacating/approvalPreview';
+import type { MoveOutPipelineItemClient } from '@/src/lib/moveOut/moveOutPipeline';
+import { bookingFinancialWorkspaceSectionHref } from '@/src/lib/bookings/bookingFinancialLinks';
 import {
-  MOVE_OUT_STAGES,
-  type MoveOutPipelineItemClient,
-} from '@/src/lib/moveOut/moveOutPipeline';
+  MOVE_OUT_WORKFLOW_STAGES,
+  deriveMoveOutWorkflowStage,
+  moveOutWorkflowStageIndex,
+  moveOutWorkflowWaitingOnLabel,
+  type MoveOutWorkflowStageId,
+} from '@/src/lib/moveOut/moveOutWorkflowStages';
 import {
   moveOutHeroSubtitle,
   moveOutHeroTitle,
   moveOutIsZeroRefundCheckout,
+  moveOutItemsForWorkflowStage,
   moveOutMatchesFilter,
   moveOutOverdueDays,
-  moveOutPendingApprovalItems,
   moveOutPrimaryActionLabel,
-  partitionMoveOutItems,
-  type MoveOutFilterBucket,
+  moveOutRequiresActionChip,
+  vacatingPipelineHref,
+  type MoveOutWorkflowFilter,
 } from '@/src/lib/moveOut/moveOutPipelineUi';
 
 const PRIMARY =
@@ -43,51 +49,51 @@ const URGENCY_RING: Record<MoveOutUrgency, string> = {
   normal: 'ring-white/10',
 };
 
+const ACTIVE_STAGE_ORDER: MoveOutWorkflowStageId[] = [
+  'pending_request',
+  'waiting_vacating_date',
+  'settlement_review',
+  'refund_ready',
+];
+
 export function MoveOutPipelineQueue({
   items,
   filter = 'all',
   completedSection,
   approvalPreviewByRequestId,
+  opsActionOnly,
 }: {
   items: MoveOutPipelineItemClient[];
-  filter?: MoveOutFilterBucket;
-  /** When true, render as a completed-only section (no overdue split). */
+  filter?: MoveOutWorkflowFilter;
   completedSection?: boolean;
   approvalPreviewByRequestId?: Record<string, VacatingApprovalPreview>;
+  /** Operations Move-out tab: actionable rows only, grouped by workflow stage. */
+  opsActionOnly?: boolean;
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  const sourceItems = useMemo(() => {
+    if (!opsActionOnly) return items;
+    return items.filter((item) => deriveMoveOutWorkflowStage(item).requiresAdminAction);
+  }, [items, opsActionOnly]);
+
   const filtered = useMemo(
-    () => items.filter((item) => moveOutMatchesFilter(item, filter)),
-    [items, filter],
+    () => sourceItems.filter((item) => moveOutMatchesFilter(item, filter)),
+    [sourceItems, filter],
   );
 
-  const { overdue, active, pendingApproval } = useMemo(() => {
+  const stageSections = useMemo(() => {
     if (completedSection || filter === 'completed') {
-      return {
-        overdue: [] as MoveOutPipelineItemClient[],
-        active: filtered,
-        pendingApproval: [] as MoveOutPipelineItemClient[],
-      };
+      return [{ stageId: 'completed' as const, rows: filtered }];
     }
-    if (filter === 'overdue') {
-      return {
-        overdue: filtered,
-        active: [] as MoveOutPipelineItemClient[],
-        pendingApproval: [] as MoveOutPipelineItemClient[],
-      };
+    if (filter !== 'all') {
+      const stageId = filter as MoveOutWorkflowStageId;
+      return [{ stageId, rows: filtered }];
     }
-    const pending = moveOutPendingApprovalItems(filtered);
-    const pendingIds = new Set(pending.map((p) => p.id));
-    const partitioned = partitionMoveOutItems(filtered.filter((i) => !pendingIds.has(i.id)));
-    if (filter !== 'all' && filter !== 'needs_action') {
-      return { overdue: partitioned.overdue, active: partitioned.active, pendingApproval: [] };
-    }
-    return {
-      overdue: partitioned.overdue,
-      active: partitioned.active,
-      pendingApproval: pending,
-    };
+    return ACTIVE_STAGE_ORDER.map((stageId) => ({
+      stageId,
+      rows: moveOutItemsForWorkflowStage(filtered, stageId),
+    })).filter((section) => section.rows.length > 0);
   }, [filtered, filter, completedSection]);
 
   if (items.length === 0) {
@@ -113,62 +119,37 @@ export function MoveOutPipelineQueue({
 
   return (
     <section className="mb-8 space-y-6">
-      {!completedSection && pendingApproval.length > 0 ? (
-        <div>
-          <SectionHeader title="Awaiting approval" count={pendingApproval.length} tone="pending" />
-          <div className="space-y-2">
-            {pendingApproval.map((row) => (
-              <MoveOutCard
-                key={row.id}
-                row={row}
-                expanded={expandedId === row.id}
-                onToggle={() => setExpandedId((id) => (id === row.id ? null : row.id))}
-                approvalPreviewByRequestId={approvalPreviewByRequestId}
-              />
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {!completedSection && overdue.length > 0 ? (
-        <div>
-          <SectionHeader title="Overdue" count={overdue.length} tone="overdue" />
-          <div className="space-y-2">
-            {overdue.map((row) => (
-              <MoveOutCard
-                key={row.id}
-                row={row}
-                expanded={expandedId === row.id}
-                onToggle={() => setExpandedId((id) => (id === row.id ? null : row.id))}
-                showOverdueMeta
-                approvalPreviewByRequestId={approvalPreviewByRequestId}
-              />
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {active.length > 0 ? (
-        <div>
-          {!completedSection ? (
+      {stageSections.map(({ stageId, rows }) => {
+        const stageDef = MOVE_OUT_WORKFLOW_STAGES.find((s) => s.id === stageId);
+        const title = stageDef?.label ?? 'Move-outs';
+        return (
+          <div key={stageId}>
             <SectionHeader
-              title={completedSection ? 'Recently completed' : 'Move-outs'}
-              count={active.length}
+              title={title}
+              count={rows.length}
+              tone={
+                stageId === 'pending_request'
+                  ? 'pending'
+                  : stageId === 'settlement_review' || stageId === 'refund_ready'
+                    ? 'action'
+                    : undefined
+              }
+              pipelineHref={opsActionOnly ? vacatingPipelineHref(stageId) : undefined}
             />
-          ) : null}
-          <div className="space-y-2">
-            {active.map((row) => (
-              <MoveOutCard
-                key={row.id}
-                row={row}
-                expanded={expandedId === row.id}
-                onToggle={() => setExpandedId((id) => (id === row.id ? null : row.id))}
-                approvalPreviewByRequestId={approvalPreviewByRequestId}
-              />
-            ))}
+            <div className="space-y-2">
+              {rows.map((row) => (
+                <MoveOutCard
+                  key={row.id}
+                  row={row}
+                  expanded={expandedId === row.id}
+                  onToggle={() => setExpandedId((id) => (id === row.id ? null : row.id))}
+                  approvalPreviewByRequestId={approvalPreviewByRequestId}
+                />
+              ))}
+            </div>
           </div>
-        </div>
-      ) : null}
+        );
+      })}
     </section>
   );
 }
@@ -177,26 +158,35 @@ function SectionHeader({
   title,
   count,
   tone,
+  pipelineHref,
 }: {
   title: string;
   count: number;
-  tone?: 'overdue' | 'pending';
+  tone?: 'pending' | 'action';
+  pipelineHref?: string;
 }) {
   return (
-    <header className="mb-3 flex items-baseline gap-2">
-      <h3
-        className={
-          'text-sm font-bold uppercase tracking-wide ' +
-          (tone === 'overdue'
-            ? 'text-rose-200'
-            : tone === 'pending'
+    <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+      <div className="flex items-baseline gap-2">
+        <h3
+          className={
+            'text-sm font-bold uppercase tracking-wide ' +
+            (tone === 'pending'
               ? 'text-amber-200'
-              : 'text-white')
-        }
-      >
-        {title}
-      </h3>
-      <span className="text-sm font-semibold text-apg-silver">({count})</span>
+              : tone === 'action'
+                ? 'text-[#FF5A1F]'
+                : 'text-white')
+          }
+        >
+          {title}
+        </h3>
+        <span className="text-sm font-semibold text-apg-silver">({count})</span>
+      </div>
+      {pipelineHref ? (
+        <Link href={pipelineHref} className={LINK}>
+          View full pipeline
+        </Link>
+      ) : null}
     </header>
   );
 }
@@ -205,18 +195,19 @@ function MoveOutCard({
   row,
   expanded,
   onToggle,
-  showOverdueMeta,
   approvalPreviewByRequestId,
 }: {
   row: MoveOutPipelineItemClient;
   expanded: boolean;
   onToggle: () => void;
-  showOverdueMeta?: boolean;
   approvalPreviewByRequestId?: Record<string, VacatingApprovalPreview>;
 }) {
+  const workflow = deriveMoveOutWorkflowStage(row);
   const actionLabel = moveOutPrimaryActionLabel(row);
-  const isComplete = row.stage === 'bed_released';
+  const isComplete = workflow.id === 'completed';
   const overdueDays = moveOutOverdueDays(row);
+  const showPrimary = workflow.requiresAdminAction;
+  const trackingOnly = workflow.id === 'waiting_vacating_date';
 
   return (
     <article
@@ -233,25 +224,29 @@ function MoveOutCard({
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-white">
-              {row.customerFullName}
-              <span className="mx-1.5 text-apg-silver/60">•</span>
-              <span className="font-normal text-apg-silver">
-                {row.roomNumber}-{row.bedCode}
-              </span>
-              <span className="mx-1.5 text-apg-silver/60">•</span>
-              <span
-                className={
-                  row.estimatedRefundPaise === 0 ? 'text-apg-silver' : 'text-emerald-200/90'
-                }
-              >
-                Refund {paiseToInr(row.estimatedRefundPaise)}
-              </span>
-            </p>
-            {showOverdueMeta ? (
-              <p className="mt-1 text-xs text-rose-200/90">
-                {formatDate(row.vacatingDate)}
-                {overdueDays > 0 ? ` · ${overdueDays} day${overdueDays === 1 ? '' : 's'} overdue` : ''}
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold text-white">
+                {row.customerFullName}
+                <span className="mx-1.5 text-apg-silver/60">•</span>
+                <span className="font-normal text-apg-silver">
+                  {row.roomNumber}-{row.bedCode}
+                </span>
+              </p>
+              {moveOutRequiresActionChip(row) ? (
+                <span className="rounded-md bg-[#FF5A1F]/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#FF5A1F]">
+                  Action required
+                </span>
+              ) : null}
+            </div>
+            {trackingOnly ? (
+              <p className="mt-1 text-xs text-apg-silver">
+                Approved leaving {formatDate(row.vacatingDate)}
+                {' · '}
+                {row.daysRemaining >= 0
+                  ? `${row.daysRemaining} day${row.daysRemaining === 1 ? '' : 's'} remaining`
+                  : `${overdueDays} day${overdueDays === 1 ? '' : 's'} past vacate date`}
+                {' · '}
+                {moveOutWorkflowWaitingOnLabel(workflow.waitingOn)}
               </p>
             ) : null}
             {!isComplete ? (
@@ -259,12 +254,17 @@ function MoveOutCard({
                 <span className="font-semibold uppercase tracking-wide text-apg-silver/80">
                   Next:
                 </span>{' '}
-                {moveOutHeroTitle(row)}
+                {moveOutHeroSubtitle(row)}
+              </p>
+            ) : null}
+            {!trackingOnly && !isComplete ? (
+              <p className="mt-1 text-xs text-apg-silver/80">
+                Refund {paiseToInr(row.estimatedRefundPaise)}
               </p>
             ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
-            {!expanded ? (
+            {!expanded && showPrimary ? (
               <MoveOutPrimaryButton
                 row={row}
                 label={actionLabel}
@@ -274,31 +274,43 @@ function MoveOutCard({
             <span className="text-apg-silver/60">{expanded ? '▴' : '▾'}</span>
           </div>
         </div>
-        <FinancialSummary row={row} className="mt-3" />
+        {!trackingOnly ? <FinancialSummary row={row} className="mt-3" /> : null}
       </button>
 
       {expanded ? (
         <div className="border-t border-white/10 px-4 pb-4 pt-3">
-          {!isComplete ? (
+          {!isComplete && showPrimary ? (
             <NextActionHero
               row={row}
               actionLabel={actionLabel}
               approvalPreviewByRequestId={approvalPreviewByRequestId}
             />
-          ) : (
+          ) : !isComplete && trackingOnly ? (
+            <div className="mb-4 rounded-xl border border-white/15 bg-black/25 px-4 py-4">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-apg-silver">
+                Tracking only
+              </p>
+              <p className="mt-1 text-lg font-bold text-white">{workflow.label}</p>
+              <p className="mt-1 text-sm text-apg-silver">{workflow.nextAction}</p>
+            </div>
+          ) : isComplete ? (
             <div className="mb-4 rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3">
               <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-200/80">
                 Move-out complete
               </p>
               <p className="mt-1 text-sm text-emerald-100">Bed released and checkout closed.</p>
             </div>
-          )}
+          ) : null}
 
           <div className="mb-4">
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-apg-silver">
               Progress
             </p>
-            <StageProgress stageIndex={row.stageIndex} />
+            <p className="mb-2 text-xs text-apg-silver">
+              {moveOutWorkflowWaitingOnLabel(workflow.waitingOn)}
+              {row.updatedAt ? ` · Updated ${formatDateTime(row.updatedAt)}` : ''}
+            </p>
+            <StageProgress row={row} />
             <StageTimeline row={row} />
           </div>
 
@@ -340,11 +352,7 @@ function FinancialSummary({
   className?: string;
 }) {
   return (
-    <dl
-      className={
-        'flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums ' + className
-      }
-    >
+    <dl className={'flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums ' + className}>
       <div>
         <dt className="inline text-apg-silver">Deposit </dt>
         <dd className="inline text-white">{paiseToInr(row.depositHeldPaise)}</dd>
@@ -390,9 +398,7 @@ function NextActionHero({
     <div
       className={
         'mb-4 rounded-xl border px-4 py-4 ' +
-        (zeroRefund
-          ? 'border-[#FF5A1F]/40 bg-[#FF5A1F]/10'
-          : 'border-white/15 bg-black/25')
+        (zeroRefund ? 'border-[#FF5A1F]/40 bg-[#FF5A1F]/10' : 'border-white/15 bg-black/25')
       }
     >
       <p className="text-[10px] font-bold uppercase tracking-widest text-apg-silver">Next action</p>
@@ -452,8 +458,18 @@ function MoveOutPrimaryButton({
 }
 
 function DirectLinks({ row }: { row: MoveOutPipelineItemClient }) {
+  const financialHref =
+    row.settlementStatus === 'refund_pending'
+      ? bookingFinancialWorkspaceSectionHref(row.bookingId, 'refund')
+      : row.settlementStatus === 'awaiting_admin_review' || row.settlementId
+        ? bookingFinancialWorkspaceSectionHref(row.bookingId, 'checkout')
+        : bookingFinancialWorkspaceSectionHref(row.bookingId, 'move-out');
+
   return (
     <nav className="mb-3 flex flex-wrap gap-x-4 gap-y-1 border-b border-white/10 pb-3">
+      <Link href={financialHref} className={LINK}>
+        Financial workspace
+      </Link>
       {row.settlementId ? (
         <Link href={`/admin/checkout-settlements/${row.settlementId}`} className={LINK}>
           View settlement
@@ -504,13 +520,14 @@ function DangerActions({ row }: { row: MoveOutPipelineItemClient }) {
   );
 }
 
-function StageProgress({ stageIndex }: { stageIndex: number }) {
+function StageProgress({ row }: { row: MoveOutPipelineItemClient }) {
+  const index = moveOutWorkflowStageIndex(deriveMoveOutWorkflowStage(row).id);
   return (
     <div className="mb-3 flex gap-0.5">
-      {MOVE_OUT_STAGES.map((_, i) => (
+      {MOVE_OUT_WORKFLOW_STAGES.map((_, i) => (
         <span
           key={i}
-          className={'h-1.5 flex-1 rounded-full ' + (i <= stageIndex ? 'bg-[#FF5A1F]' : 'bg-white/10')}
+          className={'h-1.5 flex-1 rounded-full ' + (i <= index ? 'bg-[#FF5A1F]' : 'bg-white/10')}
         />
       ))}
     </div>
@@ -518,11 +535,11 @@ function StageProgress({ stageIndex }: { stageIndex: number }) {
 }
 
 function StageTimeline({ row }: { row: MoveOutPipelineItemClient }) {
+  const currentIndex = moveOutWorkflowStageIndex(deriveMoveOutWorkflowStage(row).id);
   return (
-    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-      {MOVE_OUT_STAGES.map((stage, index) => {
-        const ts = row.stageTimestamps[stage.id];
-        const reached = index <= row.stageIndex;
+    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      {MOVE_OUT_WORKFLOW_STAGES.map((stage, index) => {
+        const reached = index <= currentIndex;
         return (
           <div key={stage.id} className="min-w-0">
             <p
@@ -534,7 +551,7 @@ function StageTimeline({ row }: { row: MoveOutPipelineItemClient }) {
               {stage.label}
             </p>
             <p className={'mt-0.5 text-xs ' + (reached ? 'text-white' : 'text-apg-silver/40')}>
-              {ts ? formatDateTime(ts) : reached ? 'Pending timestamp' : '—'}
+              {reached && index === currentIndex ? 'Current' : reached ? 'Done' : '—'}
             </p>
           </div>
         );

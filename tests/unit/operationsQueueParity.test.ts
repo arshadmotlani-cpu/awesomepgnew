@@ -178,7 +178,7 @@ test('waiting for resident excluded from move-out ops queue', () => {
   assert.equal(vacatingOperationsQueueTarget(pipeline[0]!), null);
 });
 
-test('refund pending maps to refund_due not move-out', () => {
+test('refund pending maps to vacating_requests move-out queue', () => {
   const pipeline = buildMoveOutPipeline({
     vacatingRows: [
       {
@@ -202,7 +202,7 @@ test('refund pending maps to refund_due not move-out', () => {
     ],
   });
   const mapped = mapVacatingPipelineItemToOpsItem(pipeline[0]!, 'pg-1');
-  assert.equal(mapped?.queue, 'refund_due');
+  assert.equal(mapped?.queue, 'vacating_requests');
 });
 
 test('dedupe prevents duplicate refund rows', () => {
@@ -260,7 +260,7 @@ test('move-out command stats match filter-visible rows', () => {
     (item) => item.stage !== 'bed_released' && item.vacatingStatus === 'pending',
   ).length;
   assert.equal(stats.needsAction, needsActionVisible);
-  assert.equal(stats.pendingApproval, 1);
+  assert.equal(stats.pendingRequest, 1);
 });
 
 function mockQueue(

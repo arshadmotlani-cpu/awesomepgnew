@@ -13,6 +13,9 @@ import {
   parseOperationsFilter,
 } from '@/src/lib/operations/operationsFilterLinks';
 import { loadUnifiedOperationsQueue, emptyUnifiedOperationsQueue } from '@/src/services/unifiedOperationsQueue';
+import { loadMoveOutPipelineBundle } from '@/src/services/moveOutPipelineService';
+import { toClientMoveOutPipelineItem } from '@/src/lib/moveOut/moveOutPipeline';
+import type { MoveOutPipelineItemClient } from '@/src/lib/moveOut/moveOutPipeline';
 import { listRecentPaymentProofRejectionsForAdmin } from '@/src/services/paymentProofRejectionService';
 
 export const dynamic = 'force-dynamic';
@@ -61,6 +64,19 @@ export default async function OperationsPage({
       ? await listRecentPaymentProofRejectionsForAdmin(session, 40)
       : [];
 
+  let moveOutPipelineActiveItems: MoveOutPipelineItemClient[] | undefined;
+  if (filter === 'vacating_requests') {
+    try {
+      const bundle = await loadMoveOutPipelineBundle(session);
+      moveOutPipelineActiveItems = bundle.activeItems.map((item) =>
+        toClientMoveOutPipelineItem(item),
+      );
+    } catch (err) {
+      console.error('[operations] move-out pipeline load failed', err);
+      moveOutPipelineActiveItems = [];
+    }
+  }
+
   return (
     <>
       <ModuleBreadcrumbs
@@ -75,6 +91,7 @@ export default async function OperationsPage({
           data={data}
           isSuperAdmin={session.role === 'super_admin'}
           recentRejections={recentRejections}
+          moveOutPipelineActiveItems={moveOutPipelineActiveItems}
         />
       </AdminSectionErrorBoundary>
     </>

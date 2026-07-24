@@ -80,6 +80,5 @@ export function moveOutOperationsQueueTarget(
   item: MoveOutPipelineItem,
 ): 'vacating_requests' | 'refund_due' | null {
   if (!moveOutRequiresAdminActionNow(item)) return null;
-  if (item.vacatingStatus === 'pending') return 'vacating_requests';
-  return 'refund_due';
+  return 'vacating_requests';
 }

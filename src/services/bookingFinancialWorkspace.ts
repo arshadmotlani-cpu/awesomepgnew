@@ -31,7 +31,8 @@ import {
   loadMonthlyBillingSnapshotForBooking,
   type MonthlyBillingSnapshot,
 } from '@/src/lib/billing/monthlyBillingSnapshot';
-import { deriveMoveOutStage } from '@/src/lib/moveOut/moveOutPipeline';
+import type { MoveOutWorkflowPresentation } from '@/src/lib/moveOut/moveOutWorkflowStages';
+import { moveOutWorkflowPresentationFromPipelineLike } from '@/src/lib/moveOut/moveOutWorkflowStages';
 import { buildAdminInvoiceHrefMap } from '@/src/lib/billing/invoiceHrefMap';
 import { loadDepositPageData } from '@/src/lib/deposits/loadDepositPageData';
 import { getBookingMoneyBalances } from '@/src/services/bookingMoneyBalances';
@@ -85,11 +86,7 @@ export type BookingFinancialWorkspaceData = {
   rentInvoiceHrefMap: Record<string, string>;
   pendingPaymentReviewHref: string | null;
   monthlyBillingSnapshot: MonthlyBillingSnapshot | null;
-  moveOutWorkflow: {
-    stageLabel: string;
-    nextAction: string;
-    checkoutReadiness: string;
-  } | null;
+  moveOutWorkflow: (MoveOutWorkflowPresentation & { checkoutReadiness: string }) | null;
 };
 
 export async function loadBookingFinancialWorkspace(
@@ -308,52 +305,26 @@ export async function loadBookingFinancialWorkspace(
 
   let moveOutWorkflow: BookingFinancialWorkspaceData['moveOutWorkflow'] = null;
   if (vacatingRow) {
-    const stage = deriveMoveOutStage(
-      {
-        id: vacatingRow.id,
-        bookingId,
-        bookingCode: b.bookingCode,
-        customerId: b.customer.id,
-        customerFullName: b.customer.fullName,
-        customerPhone: b.customer.phone,
-        pgName: primaryRes.pgName,
-        bedCode: primaryRes.bedCode,
-        roomNumber: primaryRes.roomNumber,
-        noticeGivenDate: vacatingRow.noticeGivenDate,
-        vacatingDate: vacatingRow.vacatingDate,
-        noticeCompliant: vacatingRow.noticeCompliant,
-        status: vacatingRow.status,
-        resolvedAt: vacatingRow.resolvedAt,
-        createdAt: vacatingRow.createdAt,
-        updatedAt: vacatingRow.createdAt,
-        deductionPaise: vacatingRow.deductionPaise,
-        depositHeldPaise: depositHeld,
-        noticeRentCoveredDays: vacatingRow.noticeRentCoveredDays,
-        noticeChargeableDays: vacatingRow.noticeChargeableDays,
-        durationMode: b.durationMode,
-        stayType: b.stayType,
-      },
-      checkoutDetail
-        ? {
-            id: checkoutDetail.id,
-            vacatingRequestId: vacatingRow.id,
-            status: checkoutDetail.status,
-            createdAt: checkoutDetail.createdAt,
-            updatedAt: checkoutDetail.updatedAt,
-            approvedAt: checkoutDetail.approvedAt,
-            refundPaidAt: checkoutDetail.refundPaidAt,
-          }
-        : null,
-    );
+    const estimatedRefundPaise = checkoutDetail?.finalRefundPaise ?? checkoutDetail?.totalRefundPaise ??
+      Math.max(0, depositHeld - (vacatingRow.deductionPaise ?? 0));
+    const presentation = moveOutWorkflowPresentationFromPipelineLike({
+      stage: vacatingRow.status === 'completed' ? 'bed_released' : 'requested',
+      vacatingStatus: vacatingRow.status as 'pending' | 'approved' | 'completed' | 'rejected',
+      settlementStatus: checkoutDetail?.status ?? null,
+      estimatedRefundPaise,
+      vacatingDate: vacatingRow.vacatingDate,
+      nextAction: '',
+    });
     moveOutWorkflow = {
-      stageLabel: stage.stageLabel,
-      nextAction: stage.nextAction,
+      ...presentation,
       checkoutReadiness:
         checkoutDetail != null
           ? `Checkout settlement · ${checkoutDetail.status.replace(/_/g, ' ')}`
           : vacatingRow.status === 'approved'
-            ? 'Approved — resident refund unlocks on vacate date; checkout opens when they submit details'
-            : 'Checkout opens after you approve this move-out notice',
+            ? 'Approved — resident refund unlocks on vacate date'
+            : vacatingRow.status === 'pending'
+              ? 'Approve notice on move-out pipeline — not from this financial summary'
+              : 'No open checkout settlement',
     };
   }
 
