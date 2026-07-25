@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-24T19:40:47.488Z",
+  "generatedAt": "2026-07-25T04:42:21.126Z",
   "completedLimit": 12,
   "summary": {
     "total": 14,
@@ -85,7 +85,7 @@
       "ok": true,
       "signatures": [],
       "failures": [],
-      "refundTotalPaise": 412080
+      "refundTotalPaise": 205900
     },
     {
       "bookingCode": "APG-2026-0015",

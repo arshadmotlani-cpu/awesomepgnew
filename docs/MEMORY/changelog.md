@@ -7,6 +7,10 @@
 
 ---
 
+## 2026-07-25
+
+- **LEGACY-DEPOSIT-0083** — Production append-only ledger repair (half deposit parity with 0082); estimated refund 205900 paise; script `repair-0083-partial-deposit-ledger.ts`; ops `docs/validation/APG-2026-0083-settlement.md`; prod validator 14/14
+
 ## 2026-07-24
 
 - **BR-MOVEIN-COVERAGE (APG-2026-0082)** — `expandMoveInCheckoutPeriodCoverage` fixes tail double-charge when move-in equals invoice period end and full month rent collected at checkout; Case F regression + prod preview refund ₹2,059; ops `docs/validation/APG-2026-0082-settlement.md`

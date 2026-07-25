@@ -1,6 +1,6 @@
 # Final production billing validation
 
-Generated: 2026-07-24T19:40:47.488Z
+Generated: 2026-07-25T04:42:21.126Z
 
 - **Total rows:** 14 (8 active + 6 completed samples)
 - **Pass:** 14
@@ -17,7 +17,7 @@ Generated: 2026-07-24T19:40:47.488Z
 | APG-2026-0045 | active | waiting_vacating_date | notice_verified | 384608 | PASS | — |
 | APG-2026-0048 | active | pending_request | requested | 412080 | PASS | — |
 | APG-2026-0082 | active | pending_request | requested | 205900 | PASS | — |
-| APG-2026-0083 | active | pending_request | requested | 412080 | PASS | — |
+| APG-2026-0083 | active | pending_request | requested | 205900 | PASS | — |
 | APG-2026-0015 | completed | completed | — | 200000 | PASS | — |
 | APG-2026-0035 | completed | completed | — | 81200 | PASS | — |
 | APG-2026-0006 | completed | completed | — | 0 | PASS | — |
