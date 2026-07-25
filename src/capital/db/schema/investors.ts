@@ -11,13 +11,16 @@ import {
 } from 'drizzle-orm/pg-core';
 import { acAssets } from './assets';
 
-/** Investor slot on a vehicle — Me + up to two co-investors. */
+/** Investor slots — Me + optional Partner. investor_3 kept for historical rows only. */
 export const INVESTOR_SLOTS = ['me', 'investor_2', 'investor_3'] as const;
 export type InvestorSlot = (typeof INVESTOR_SLOTS)[number];
 
+/** Slots allowed on new writes */
+export const ACTIVE_INVESTOR_SLOTS = ['me', 'investor_2'] as const;
+
 export const DEFAULT_INVESTOR_LABELS: Record<InvestorSlot, string> = {
-  me: 'Me',
-  investor_2: 'Investor 2',
+  me: 'My Investment',
+  investor_2: 'Partner Investment',
   investor_3: 'Investor 3',
 };
 

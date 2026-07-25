@@ -1,3 +1,4 @@
+import { adminPayoutPendingTitle } from '@/src/lib/payout/payoutDisplayTerminology';
 import { paymentApprovalDeepLink } from '@/src/lib/approvals/approvalDeepLinks';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
@@ -765,7 +766,7 @@ async function syncRefundsPending(session: AdminSession): Promise<void> {
     activeKeys.add(sourceKey);
     await upsertActionItem({
       type: 'refund_pending',
-      title: `${row.residentName} · Deposit refund pending`,
+      title: adminPayoutPendingTitle(row.residentName),
       pgId: row.pgId,
       roomId: row.roomId,
       bedId: row.bedId,

@@ -34,37 +34,29 @@ export async function createAssetAction(
     const purchasePaise = rupeesToPaise(input.purchasePrice);
     const mePaise = rupeesToPaise(input.meInvested ?? input.purchasePrice);
     const i2Paise = rupeesToPaise(input.investor2Invested ?? 0);
-    const i3Paise = rupeesToPaise(input.investor3Invested ?? 0);
     const investors = [
-      { slot: 'me' as const, investedPaise: mePaise, label: 'Me' },
+      { slot: 'me' as const, investedPaise: mePaise, label: 'My Investment' },
       ...(i2Paise > 0
         ? [
             {
               slot: 'investor_2' as const,
               investedPaise: i2Paise,
-              label: input.investor2Label?.trim() || 'Investor 2',
-            },
-          ]
-        : []),
-      ...(i3Paise > 0
-        ? [
-            {
-              slot: 'investor_3' as const,
-              investedPaise: i3Paise,
-              label: input.investor3Label?.trim() || 'Investor 3',
+              label: input.investor2Label?.trim() || 'Partner Investment',
             },
           ]
         : []),
     ];
 
+    const purchaseDate = new Date().toISOString().slice(0, 10);
     const asset = await createAsset({
       manufacturer: input.manufacturer,
       model: input.model,
       year: input.year,
       fuelType: input.fuelType,
       ownership: input.ownership,
-      purchaseDate: input.purchaseDate,
+      purchaseDate,
       purchasePricePaise: purchasePaise,
+      registrationNumber: input.registrationNumber,
       notes: input.notes,
       investors,
     });
@@ -114,24 +106,14 @@ export async function updateAssetFundingAction(
     const input = parsed.data;
     const mePaise = rupeesToPaise(input.meInvested);
     const i2Paise = rupeesToPaise(input.investor2Invested ?? 0);
-    const i3Paise = rupeesToPaise(input.investor3Invested ?? 0);
     const investors = [
-      { slot: 'me' as const, investedPaise: mePaise, label: 'Me' },
+      { slot: 'me' as const, investedPaise: mePaise, label: 'My Investment' },
       ...(i2Paise > 0
         ? [
             {
               slot: 'investor_2' as const,
               investedPaise: i2Paise,
-              label: input.investor2Label?.trim() || 'Investor 2',
-            },
-          ]
-        : []),
-      ...(i3Paise > 0
-        ? [
-            {
-              slot: 'investor_3' as const,
-              investedPaise: i3Paise,
-              label: input.investor3Label?.trim() || 'Investor 3',
+              label: input.investor2Label?.trim() || 'Partner Investment',
             },
           ]
         : []),

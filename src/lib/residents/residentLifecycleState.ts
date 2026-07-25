@@ -30,7 +30,7 @@ export const LIFECYCLE_STATE_LABEL: Record<ResidentLifecycleState, string> = {
   notice_given: 'Notice Given',
   waiting_for_resident: 'Waiting For Resident',
   waiting_for_admin: 'Waiting For Admin',
-  refund_pending: 'Refund Pending',
+  refund_pending: 'Payout Pending',
   checkout_complete: 'Checkout Complete',
   kyc_pending: 'KYC Pending',
   payment_proof_pending: 'Payment Proof Pending',
@@ -44,7 +44,6 @@ const ACTIVE_CHECKOUT_STATUSES = new Set([
   'awaiting_resident_details',
   'awaiting_admin_review',
   'approved',
-  'refund_pending',
 ]);
 
 const SUPPRESSED_WHEN_CHECKOUT_ACTIVE: Set<ResidentOpsQueueCategory> = new Set([

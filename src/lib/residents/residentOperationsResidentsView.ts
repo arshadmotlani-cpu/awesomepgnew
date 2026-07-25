@@ -159,7 +159,7 @@ function currentStateLabel(item: ResidentOpsQueueItem): string {
     case 'rent_overdue':
       return 'Rent overdue';
     case 'refund':
-      return 'Refund pending';
+      return 'Payout pending';
     case 'resident_request':
       return 'Resident request open';
     default:

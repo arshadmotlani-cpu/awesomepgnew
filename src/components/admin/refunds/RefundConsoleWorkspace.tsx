@@ -436,7 +436,7 @@ function PayoutWorkspace({
             label="Deposit held"
             value={paiseToInr(workspace.wallet.depositPaidPaise)}
           />
-          <SummaryMetric label="Refund due" value={paiseToInr(workspace.suggestedRefundPaise)} />
+          <SummaryMetric label="Payout due" value={paiseToInr(workspace.suggestedRefundPaise)} />
         </dl>
         <dl className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <SummaryMetric label="Deposit collected" value={paiseToInr(workspace.wallet.depositPaidPaise)} />
@@ -847,7 +847,7 @@ export function RefundConsoleWorkspace({
           <div>
             <h1 className="text-xl font-semibold text-white sm:text-2xl">Refund of Deposit</h1>
             <p className="text-sm text-apg-silver">
-              Search resident, select booking, process deductions and refund payout
+              Record resident payout after checkout is finalized
             </p>
           </div>
         </div>

@@ -1,4 +1,9 @@
 import type { CheckoutSettlementStatus } from '@/src/db/schema/enums';
+import {
+  CHECKOUT_COMPLETE_PAYOUT_PENDING_REASON,
+  DEPOSIT_PAYOUT_PENDING_REASON,
+  RECORD_PAYOUT_CTA,
+} from '@/src/lib/payout/payoutDisplayTerminology';
 
 export function deriveCheckoutOpsNextAction(input: {
   vacatingStatus: 'pending' | 'approved' | string;
@@ -34,9 +39,9 @@ export function deriveCheckoutOpsNextAction(input: {
 
   if (settlementStatus === 'refund_pending' && refundPaise > 0) {
     return {
-      issue: 'Settlement approved — refund due',
-      nextAction: 'Pay the refund in Refund of Deposit',
-      primaryActionLabel: 'Refund of Deposit',
+      issue: CHECKOUT_COMPLETE_PAYOUT_PENDING_REASON,
+      nextAction: 'Record payout in Refund of Deposit',
+      primaryActionLabel: RECORD_PAYOUT_CTA,
     };
   }
 
@@ -64,9 +69,9 @@ export function deriveCheckoutOpsNextAction(input: {
 
   if (settlementStatus === 'approved' && refundPaise > 0) {
     return {
-      issue: 'Settlement approved — release refund',
-      nextAction: 'Pay the refund in Refund of Deposit',
-      primaryActionLabel: 'Refund of Deposit',
+      issue: DEPOSIT_PAYOUT_PENDING_REASON,
+      nextAction: 'Record payout in Refund of Deposit',
+      primaryActionLabel: RECORD_PAYOUT_CTA,
     };
   }
 

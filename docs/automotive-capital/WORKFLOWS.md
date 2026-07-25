@@ -120,9 +120,11 @@ Invalid transitions return error. No backward transitions except cancel.
 
 ## 5. Expense Flow
 
+> **Superseded for new work by Vehicle Activities (ADR-012).** Use **Add Activity** on the vehicle profile. Net Vehicle Cost = sum of cost-impacting activities. Funding gap vs purchase price.
+
 ### 5.1 Add Expense to Asset
 
-1. From asset detail → Expenses tab → "Add expense"
+1. From asset detail → Expenses tab → "Add expense" *(legacy)*
 2. Fill: date, category, vendor, amount, description, payment method, bill, notes
 3. Submit
 4. System:
@@ -132,6 +134,12 @@ Invalid transitions return error. No backward transitions except cancel.
    - Recalculate asset: `total_expense_paise`, `total_investment_paise`, `profit_paise`, `roi_bps`
    - Add timeline event
    - Log activity
+
+### 5.1b Add Activity (current)
+
+1. Asset → **Add Activity** → type (Token, Purchase Payment, Repair Advance, …)
+2. Cost-impacting types update Net Vehicle Cost; Repair Advance is cash-only until settlement
+3. Funding gap is vs **purchase price**, not net cost
 
 ### 5.2 Expense Impact on Metrics
 
@@ -149,10 +157,9 @@ After:  total_investment = purchase_price + existing_expenses + new_expense
 ### 6.1 Record Sale
 
 1. Admin on asset detail → "Record sale"
-2. Enter **sale price + sale date only** (vehicle must be fully funded: stakes = Net Vehicle Cost)
+2. Enter **sale price + sale date only** (vehicle must be fully funded: stakes = Purchase Price)
 3. System auto-calculates:
-   - Net Vehicle Cost, Business Profit
-   - Sufii (operating partner) share from Settings ratio (default 50%)
+   - Net Vehicle Cost (from activities), Business Profit   - Sufii (operating partner) share from Settings ratio (default 50%)
    - Investor Pool → each capital investor by stake %
    - Business ROI, My ROI
    - Update `ac_assets` + `ac_asset_investors`; status → `sold`

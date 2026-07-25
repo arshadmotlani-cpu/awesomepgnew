@@ -5,7 +5,7 @@
  * - Operations is the entry point; specialized pages handle approve/reject.
  * - Booking QR reject cancels the booking (resident must rebook).
  * - Billing Centre shows metrics only; all approval CTAs route to Operations.
- * - Refund counts appear in Operations refund_due; action on refund console.
+ * - Checkout settlement review → vacating_requests; deferred payout → refund_due only.
  * - PlayStation proofs excluded from unified Operations queue (dedicated page).
  * - Room change requests deprecated until admin handler exists.
  * - Operations dismissals remain super-admin only.
@@ -128,7 +128,7 @@ export const APPROVAL_REGISTRY: ApprovalRegistryEntry[] = [
   },
   {
     kind: 'checkout_settlement',
-    label: 'Checkout settlement',
+    label: 'Checkout settlement review',
     operationsFilter: 'vacating_requests',
     actionItemType: 'fixed_stay_checkout_due',
     permission: 'deposits:write',

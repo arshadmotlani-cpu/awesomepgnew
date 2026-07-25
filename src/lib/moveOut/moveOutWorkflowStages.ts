@@ -31,7 +31,7 @@ export const MOVE_OUT_WORKFLOW_STAGES: Array<{ id: MoveOutWorkflowStageId; label
   { id: 'pending_request', label: 'Pending move-out requests' },
   { id: 'waiting_vacating_date', label: 'Waiting for Vacating Date' },
   { id: 'settlement_review', label: 'Settlement Review' },
-  { id: 'refund_ready', label: 'Refund Ready' },
+  { id: 'refund_ready', label: 'Payout pending' },
   { id: 'completed', label: 'Completed' },
 ];
 
@@ -107,7 +107,7 @@ export function deriveMoveOutWorkflowStage(item: PipelineLike): MoveOutWorkflowS
     return {
       id,
       label: 'Settlement Review',
-      nextAction: 'Review electricity and charges, approve refund',
+      nextAction: 'Review electricity and charges, then complete checkout',
       requiresAdminAction: true,
       waitingOn: waitingOnForStage(id),
     };
@@ -123,8 +123,8 @@ export function deriveMoveOutWorkflowStage(item: PipelineLike): MoveOutWorkflowS
     const id = 'refund_ready' as const;
     return {
       id,
-      label: 'Refund Ready',
-      nextAction: 'Send refund to resident, then mark paid',
+      label: 'Payout pending',
+      nextAction: 'Record payout in Refund of Deposit (UPI reference required)',
       requiresAdminAction: true,
       waitingOn: waitingOnForStage(id),
     };

@@ -1,0 +1,11 @@
+{
+  "base": "https://www.awesomepg.in",
+  "tested": 0,
+  "passed": 0,
+  "failed": 0,
+  "idempotency": null,
+  "consoleErrors": [],
+  "serverErrors": [],
+  "bookings": [],
+  "blockers": []
+}

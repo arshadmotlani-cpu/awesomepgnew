@@ -171,3 +171,33 @@ test('needsAction stats count only pending and admin checkout work', () => {
   assert.equal(stats.needsAction, 1);
   assert.equal(stats.pendingRequest, 1);
 });
+
+test('refund_pending maps to refund_due with payout copy', () => {
+  const pipeline = buildMoveOutPipeline({
+    vacatingRows: [
+      {
+        ...baseVacating,
+        id: 'vr-payout',
+        vacatingDate: '2026-06-15',
+        status: 'approved',
+      },
+    ],
+    settlements: [
+      {
+        id: 'cs-payout',
+        vacatingRequestId: 'vr-payout',
+        status: 'refund_pending',
+        createdAt: new Date('2026-06-10'),
+        updatedAt: new Date('2026-06-12'),
+        approvedAt: new Date('2026-06-12'),
+        refundPaidAt: null,
+        finalRefundPaise: 12_000,
+      },
+    ],
+  });
+  const item = pipeline[0]!;
+  assert.equal(moveOutOperationsQueueTarget(item), 'refund_due');
+  const mapped = mapVacatingPipelineItemToOpsItem(item, 'pg-1');
+  assert.equal(mapped?.queue, 'refund_due');
+  assert.equal(mapped?.openLabel, 'Record payout');
+});

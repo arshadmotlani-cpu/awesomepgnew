@@ -218,7 +218,7 @@ export function buildResidentOperationsDashboard(input: {
       pgName: r.pgName,
       roomNumber: null,
       bedCode: null,
-      issue: 'Deposit refund pending after move-out',
+      issue: 'Payout pending after move-out',
       nextAction: 'Complete deposit payout',
       primaryActionLabel: 'Process refund',
       primaryHref: refundConsoleHref(r.bookingId),
@@ -433,7 +433,7 @@ export function buildResidentOperationsDashboard(input: {
     { id: 'kyc_pending', label: 'KYC pending', count: input.kycPending.length },
     { id: 'bed_unassigned', label: 'Bed not assigned', count: input.unassignedResidents.length },
     { id: 'move_out', label: 'Move-out in progress', count: input.moveOutOpsCount ?? 0 },
-    { id: 'deposit_refund', label: 'Deposit refund pending', count: depositRefundCount },
+    { id: 'deposit_refund', label: 'Payout pending', count: depositRefundCount },
     {
       id: 'requests_pending',
       label: 'Requests pending',

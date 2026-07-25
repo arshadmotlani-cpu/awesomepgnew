@@ -66,9 +66,9 @@ test('buildCheckoutNotificationPushContent formats deposit refund pending', () =
       bedCode: 'C4',
     },
     null,
-    'Jane Doe · Deposit refund pending',
+    'Jane Doe · Payout pending',
   );
 
-  assert.equal(result.title, 'Deposit Refund Pending');
-  assert.match(result.body, /Deposit refund pending/);
+  assert.equal(result.title, 'Payout Pending');
+  assert.match(result.body, /Payout pending/);
 });

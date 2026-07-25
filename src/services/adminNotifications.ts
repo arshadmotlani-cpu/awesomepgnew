@@ -64,7 +64,7 @@ const TYPE_LABELS: Partial<Record<ActionItem['type'], string>> = {
   rent_due: 'Rent Due',
   electricity_due: 'Electricity Due',
   payment_received: 'Payment Uploaded',
-  refund_pending: 'Refund Pending',
+  refund_pending: 'Payout Pending',
   deposit_refund_request: 'Deposit Refund Request',
   extension_request: 'Extension Request',
   deposit_collection_due: 'Deposit Due',

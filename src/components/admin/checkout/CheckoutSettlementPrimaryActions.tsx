@@ -4,6 +4,7 @@ import { useActionState } from 'react';
 import Link from 'next/link';
 import { assessCheckoutSettlementReadiness } from '@/src/lib/checkout/checkoutSettlementReadiness';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
+import { RECORD_PAYOUT_CTA } from '@/src/lib/payout/payoutDisplayTerminology';
 import {
   rejectCheckoutSettlementSubmissionAction,
 } from '@/app/(admin)/admin/checkout-settlements/actions';
@@ -39,7 +40,7 @@ export function CheckoutSettlementPrimaryActions({ detail }: { detail: CheckoutS
             ? 'Deductions consume the full deposit — complete checkout to apply ledger entries and release the bed.'
             : 'Check electricity and notice fee below, then approve the final refund.'
           : canMarkPaid
-            ? 'Send the refund to the resident’s UPI ID, then mark it paid with the transaction reference.'
+            ? 'Checkout is complete. Send the payout to the resident’s UPI, then record it with the transaction reference.'
             : canReject
               ? 'Review meter photo and UPI details. Reject if anything is missing or incorrect — the resident can resubmit.'
               : detail.status === 'awaiting_resident_details'
@@ -56,7 +57,7 @@ export function CheckoutSettlementPrimaryActions({ detail }: { detail: CheckoutS
         ) : null}
         {canMarkPaid ? (
           <Link href={refundConsoleHref(detail.bookingId)} className={PRIMARY}>
-            Refund of Deposit
+            {RECORD_PAYOUT_CTA}
           </Link>
         ) : null}
         <Link href={`/admin/residents/${detail.customerId}`} className={SECONDARY}>

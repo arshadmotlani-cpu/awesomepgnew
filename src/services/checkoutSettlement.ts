@@ -2496,6 +2496,12 @@ export async function approveCheckoutSettlement(input: {
     await import('@/src/services/actionItems');
   await resolveCheckoutReviewActionItems(input.settlementId);
   await refreshAdminNotificationsFromActionItems().catch(() => undefined);
+  if (finalRefundPaise > 0) {
+    await db
+      .update(bookings)
+      .set({ adminDepositRefundStatus: 'pending', updatedAt: new Date() })
+      .where(eq(bookings.id, current.bookingId));
+  }
   try {
     await recordCheckoutElectricityCollectionFromSettlementId(current.id, {
       totalBillPaise: current.electricityCalculationMethod === 'manual_amount'

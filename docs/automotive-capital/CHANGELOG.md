@@ -8,6 +8,15 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Vehicle Investment OS
+- Vehicle-scoped **activities timeline** (`ac_vehicle_activities`) as SSOT for cost events
+- **Repair advances** (`ac_repair_advances`): cash float until settlement; only actual cost hits Net Vehicle Cost
+- Asset create no longer posts full purchase ledger debit; cost builds via Token / Purchase Payment / other cost activities
+- Funding = **Me + Partner = Purchase Price** (Investor 3 deprecated for new writes)
+- Expenses removed from nav (redirect `/expenses` → `/assets`); activities live on vehicle profile
+- Assets inventory tabs: In Stock / Sold / All / Archived; registration-first list
+- Cover photo + gallery on vehicle profile
+
 ### Planning
 - Created complete planning documentation suite (13 documents)
 - Defined asset-first domain architecture

@@ -171,9 +171,9 @@ Full schema: [[DATABASE]].
 
 | Need to… | Go to |
 |----------|-------|
-| Daily priority queue | `/admin/operations` → [[Operations]] |
+| Daily priority queue | `/admin/operations` → [[Operations]] (settlement review: Move-out / checkout filter; payout: **Pending payouts** / `refund_due`) |
 | Approve move-out | `/admin/vacating` → [[Vacating]] |
-| Process refund | `/admin/checkout-settlements/[id]` |
+| Finalize checkout / record payout | Financial checkout wizard; defer → **Pending payouts**; ledger: Refund of Deposit (`/admin/refunds`). SSOT: [[CHECKOUT_SETTLEMENT_STATE_MACHINE]], [[CHECKOUT_PAYOUT_PLATFORM_FREEZE]] |
 | Assign bed | `/admin/pgs/[pgId]/map` or `/admin/residents` |
 | Collect rent / approve UPI proof | `/admin/revenue/billing` |
 | Resident financial profile | `/admin/residents/[customerId]` |

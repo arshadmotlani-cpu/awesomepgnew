@@ -9,7 +9,9 @@ import {
   acExpenses,
   acLedgerEntries,
   acPaymentsReceived,
+  acRepairAdvances,
   acSettings,
+  acVehicleActivities,
 } from '@/src/capital/db/schema';
 import type { InvestorSlot } from '@/src/capital/db/schema/investors';
 import {
@@ -27,6 +29,7 @@ import {
   computeNetVehicleCost,
   distributeDealProfits,
 } from '@/src/capital/lib/dealEconomics';
+import { sumActivityNetVehicleCost } from '@/src/capital/lib/activityTypes';
 import { computeVehicleRois } from '@/src/capital/lib/roi';
 import {
   activeInvestmentSql,
@@ -34,7 +37,6 @@ import {
 } from '@/src/capital/lib/assetLifecycle';
 import type { AssetListQuery } from '@/src/capital/lib/validation/schemas';
 import type { CapitalDbClient } from '@/src/capital/lib/db/types';
-import { postLedgerEntry } from './ledger';
 import { logActivity } from './activity';
 
 const TERMINAL_STATUSES = new Set(['cancelled', 'settled']);
@@ -92,6 +94,24 @@ export async function sumMyActiveInvestedCapitalPaise(
 }
 
 export async function recalculateAsset(assetId: string, db: CapitalDbClient = capitalDb) {
+  const activityRows = await db
+    .select({
+      activityType: acVehicleActivities.activityType,
+      amountPaise: acVehicleActivities.amountPaise,
+    })
+    .from(acVehicleActivities)
+    .where(
+      and(eq(acVehicleActivities.assetId, assetId), eq(acVehicleActivities.isReversed, false)),
+    );
+
+  // Prefer activities when present; fall back to expenses for pre-migration edge cases
+  const activityCost = sumActivityNetVehicleCost(
+    activityRows.map((r) => ({
+      activityType: r.activityType,
+      amountPaise: r.amountPaise,
+    })),
+  );
+
   const expenseRows = await db
     .select({ amountPaise: acExpenses.amountPaise })
     .from(acExpenses)
@@ -109,7 +129,17 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
   const [asset] = await db.select().from(acAssets).where(eq(acAssets.id, assetId)).limit(1);
   if (!asset) return;
 
-  const cost = computeNetVehicleCost(asset.purchasePricePaise, expenseRows);
+  const hasActivities = activityRows.length > 0;
+  const cost = hasActivities
+    ? {
+        repairTotalPaise: activityCost.repairTotalPaise,
+        dealerRefundTotalPaise: activityCost.dealerRefundTotalPaise,
+        totalExpensePaise: activityCost.totalExpensePaise,
+        netVehicleCostPaise: activityCost.netVehicleCostPaise,
+        purchasePricePaise: asset.purchasePricePaise,
+      }
+    : computeNetVehicleCost(asset.purchasePricePaise, expenseRows);
+
   const netVehicleCost = cost.netVehicleCostPaise;
   const capitalReturned = Number(paymentSums?.capital ?? 0);
   const profitReceived = Number(paymentSums?.profit ?? 0);
@@ -118,10 +148,10 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
   const profitPaise =
     asset.actualSalePricePaise != null ? asset.actualSalePricePaise - netVehicleCost : null;
   const holdingDays = calcHoldingDays(asset.purchaseDate, asset.saleDate);
-  const settlementPctBps = calcSettlementPctBps(recoveredPaise, netVehicleCost);
+  const settlementPctBps = calcSettlementPctBps(recoveredPaise, Math.max(netVehicleCost, 1));
   const outstandingPaise = netVehicleCost - capitalReturned + cashRefundPaise;
 
-  if (capitalReturned > netVehicleCost) {
+  if (netVehicleCost > 0 && capitalReturned > netVehicleCost) {
     throw new Error(
       `Capital returned (₹${capitalReturned / 100}) exceeds net vehicle cost (₹${netVehicleCost / 100}) for asset ${assetId}`,
     );
@@ -138,7 +168,8 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
     .from(acAssetInvestors)
     .where(eq(acAssetInvestors.assetId, assetId));
   const totalInvested = investors.reduce((s, i) => s + i.investedPaise, 0);
-  const fundingGapPaise = computeFundingGap(netVehicleCost, totalInvested);
+  /** Funding gap vs purchase price (investor stakes), not vs activity cost */
+  const fundingGapPaise = computeFundingGap(asset.purchasePricePaise, totalInvested);
   const me = investors.find((i) => i.slot === 'me');
   const myInvested = me?.investedPaise ?? asset.purchasePricePaise;
   const myShare = asset.mySharePaise ?? (profitPaise != null ? profitPaise : 0);
@@ -149,13 +180,12 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
     profitPaise != null
       ? computeVehicleRois({
           grossProfitPaise: profitPaise,
-          totalVehicleCostPaise: netVehicleCost,
+          totalVehicleCostPaise: netVehicleCost > 0 ? netVehicleCost : asset.purchasePricePaise,
           myProfitPaise: myShare,
           myInvestedPaise: myInvested,
         })
       : { businessRoiBps: null, myRoiBps: null, roiBps: null };
 
-  // Keep investor ROI rows in sync when profit already allocated
   if (profitPaise != null && investors.length > 0) {
     for (const inv of investors) {
       if (inv.profitPaise == null) continue;
@@ -215,8 +245,9 @@ export async function createAsset(input: CreateAssetInput) {
         displayName,
         purchaseDate: input.purchaseDate,
         purchasePricePaise: input.purchasePricePaise,
-        totalInvestmentPaise: input.purchasePricePaise,
-        outstandingPaise: input.purchasePricePaise,
+        // Net cost starts at 0 — cost-impacting activities drive it
+        totalInvestmentPaise: 0,
+        outstandingPaise: 0,
         fundingGapPaise: 0,
         repairTotalPaise: 0,
         dealerRefundTotalPaise: 0,
@@ -248,18 +279,19 @@ export async function createAsset(input: CreateAssetInput) {
       })),
     );
 
-    await postLedgerEntry(
-      {
-        entryType: 'asset_purchase',
-        direction: 'debit',
-        amountPaise: input.purchasePricePaise,
-        assetId: asset.id,
-        sourceTable: 'ac_assets',
-        sourceId: asset.id,
-        description: `Asset purchase: ${displayName}`,
+    // Timeline SSOT — no full purchase ledger debit (cash leaves via Token / Purchase Payment)
+    await tx.insert(acVehicleActivities).values({
+      assetId: asset.id,
+      activityType: 'vehicle_created',
+      activityAt: input.purchaseDate,
+      title: 'Vehicle Created',
+      notes: displayName,
+      metadata: {
+        manufacturer: input.manufacturer,
+        model: input.model,
+        purchasePricePaise: input.purchasePricePaise,
       },
-      tx,
-    );
+    });
 
     await logActivity(
       {
@@ -321,7 +353,7 @@ export async function updateAssetFunding(assetId: string, investors: InvestorFun
   const [fresh] = await capitalDb.select().from(acAssets).where(eq(acAssets.id, assetId)).limit(1);
   if (!fresh) throw new Error('Asset not found');
 
-  const funding = validateFundingStructure(fresh.totalInvestmentPaise, investors);
+  const funding = validateFundingStructure(fresh.purchasePricePaise, investors);
   const existing = await listAssetInvestors(assetId);
 
   await capitalDb.transaction(async (tx) => {
@@ -385,8 +417,8 @@ export async function recordSale(
 
   let investors = await listAssetInvestors(assetId);
   if (investors.length === 0) {
-    // Legacy asset without Layer 2 — self-fund to current net cost
-    const funding = fullSelfFunding(fresh.totalInvestmentPaise);
+    // Legacy asset without Layer 2 — self-fund to purchase price
+    const funding = fullSelfFunding(fresh.purchasePricePaise);
     await capitalDb.insert(acAssetInvestors).values(
       funding.map((f) => ({
         assetId,
@@ -405,7 +437,7 @@ export async function recordSale(
     const gap = fresh.fundingGapPaise;
     const direction = gap > 0 ? 'underfunded' : 'overfunded';
     throw new Error(
-      `Cannot sell: vehicle is ${direction} by ₹${(Math.abs(gap) / 100).toLocaleString('en-IN')}. Update investments to equal net vehicle cost first.`,
+      `Cannot sell: vehicle is ${direction} by ₹${(Math.abs(gap) / 100).toLocaleString('en-IN')}. Update investments to equal purchase price first.`,
     );
   }
 
@@ -508,6 +540,17 @@ export async function listAssetsQuery(query: AssetListQuery) {
 
   if (query.status) {
     conditions.push(eq(acAssets.status, query.status as typeof acAssets.$inferSelect.status));
+  } else if (query.inventoryTab && !query.activeOnly && !query.paymentEligibleOnly) {
+    // Inventory tabs (assets page only — listAssets helpers omit inventoryTab)
+    const tab = query.inventoryTab;
+    if (tab === 'in_stock') {
+      conditions.push(sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`);
+    } else if (tab === 'sold') {
+      conditions.push(sql`${acAssets.status} IN ('sold', 'settled')`);
+    } else if (tab === 'archived') {
+      conditions.push(eq(acAssets.status, 'cancelled'));
+    }
+    // 'all' → no status filter
   }
   if (query.manufacturer) {
     conditions.push(ilike(acAutomotiveDetails.manufacturer, `%${query.manufacturer}%`));
@@ -580,33 +623,55 @@ export async function listManufacturers() {
 }
 
 export async function getAssetTimeline(assetId: string) {
-  const [activities, ledger, expenses, payments, documents] = await Promise.all([
-    capitalDb
-      .select()
-      .from(acActivityLog)
-      .where(eq(acActivityLog.entityId, assetId))
-      .orderBy(desc(acActivityLog.createdAt))
-      .limit(50),
-    capitalDb
-      .select()
-      .from(acLedgerEntries)
-      .where(eq(acLedgerEntries.assetId, assetId))
-      .orderBy(desc(acLedgerEntries.createdAt))
-      .limit(50),
-    capitalDb
-      .select()
-      .from(acExpenses)
-      .where(and(eq(acExpenses.assetId, assetId), eq(acExpenses.isReversed, false)))
-      .orderBy(desc(acExpenses.expenseDate)),
-    capitalDb
-      .select()
-      .from(acPaymentsReceived)
-      .where(and(eq(acPaymentsReceived.assetId, assetId), eq(acPaymentsReceived.isReversed, false)))
-      .orderBy(desc(acPaymentsReceived.receivedAt)),
-    capitalDb.select().from(acDocuments).where(eq(acDocuments.assetId, assetId)),
-  ]);
+  const [vehicleActivities, auditLog, ledger, payments, documents, openAdvances] =
+    await Promise.all([
+      capitalDb
+        .select()
+        .from(acVehicleActivities)
+        .where(
+          and(
+            eq(acVehicleActivities.assetId, assetId),
+            eq(acVehicleActivities.isReversed, false),
+          ),
+        )
+        .orderBy(desc(acVehicleActivities.activityAt), desc(acVehicleActivities.createdAt)),
+      capitalDb
+        .select()
+        .from(acActivityLog)
+        .where(eq(acActivityLog.entityId, assetId))
+        .orderBy(desc(acActivityLog.createdAt))
+        .limit(50),
+      capitalDb
+        .select()
+        .from(acLedgerEntries)
+        .where(eq(acLedgerEntries.assetId, assetId))
+        .orderBy(desc(acLedgerEntries.createdAt))
+        .limit(50),
+      capitalDb
+        .select()
+        .from(acPaymentsReceived)
+        .where(
+          and(eq(acPaymentsReceived.assetId, assetId), eq(acPaymentsReceived.isReversed, false)),
+        )
+        .orderBy(desc(acPaymentsReceived.receivedAt)),
+      capitalDb.select().from(acDocuments).where(eq(acDocuments.assetId, assetId)),
+      capitalDb
+        .select()
+        .from(acRepairAdvances)
+        .where(and(eq(acRepairAdvances.assetId, assetId), eq(acRepairAdvances.status, 'open')))
+        .orderBy(asc(acRepairAdvances.createdAt)),
+    ]);
 
-  return { activities, ledger, expenses, payments, documents };
+  return {
+    vehicleActivities,
+    activities: auditLog,
+    ledger,
+    payments,
+    documents,
+    openAdvances,
+    /** @deprecated Prefer vehicleActivities — kept empty for old callers */
+    expenses: [] as { id: string; description: string; expenseDate: string; amountPaise: number }[],
+  };
 }
 
 export async function getAssetDetail(assetId: string) {

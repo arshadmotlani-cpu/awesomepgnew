@@ -357,3 +357,6 @@ flowchart TB
 
 <!-- DOC_SYNC_TOUCH_2026-07-24 -->
 > **2026-07-24 05:35:01 UTC** — Code changed in: Routes, Billing, Residents, Vacating, Bookings. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-07-25 -->
+> **2026-07-25 18:27:22 UTC** — Code changed in: Routes, Vacating, Residents, Action Center. Manual review recommended.

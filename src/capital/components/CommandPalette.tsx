@@ -9,7 +9,6 @@ import { cn } from '@/src/capital/lib/utils';
 const nav = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/assets', label: 'Assets' },
-  { href: '/expenses', label: 'Expenses' },
   { href: '/payments', label: 'Payments' },
   { href: '/capital', label: 'Capital' },
   { href: '/ledger', label: 'Ledger' },

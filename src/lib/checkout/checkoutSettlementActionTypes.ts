@@ -6,3 +6,7 @@ export type CheckoutSettlementActionState =
 
 /** Shown after Pay & complete succeeds (toast + redirect). */
 export const CHECKOUT_COMPLETE_SUCCESS_MESSAGE = 'Checkout completed successfully.';
+
+/** Shown after finalize-with-deferred-payout succeeds. */
+export const CHECKOUT_DEFER_SUCCESS_MESSAGE =
+  'Checkout finalized. Refund queued for payout.';

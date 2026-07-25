@@ -170,4 +170,5 @@ test('active checkout suppresses bed assignment and kyc queue items', () => {
 
   assert.equal(winner?.category, 'move_out');
   assert.ok(isActiveCheckoutSettlement({ status: 'awaiting_admin_review' }));
+  assert.equal(isActiveCheckoutSettlement({ status: 'refund_pending' }), false);
 });

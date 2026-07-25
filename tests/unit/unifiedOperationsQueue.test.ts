@@ -20,6 +20,7 @@ test('operations has exactly eight action queues in order', () => {
   ]);
   assert.equal(OPS_QUEUE_LABELS.deposit_due, 'Deposit due');
   assert.equal(OPS_QUEUE_LABELS.vacating_requests, 'Move-out');
+  assert.equal(OPS_QUEUE_LABELS.refund_due, 'Pending payouts');
   assert.equal(OPS_QUEUE_LABELS.bed_assignment, undefined);
 });
 

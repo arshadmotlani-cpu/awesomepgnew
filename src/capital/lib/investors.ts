@@ -1,5 +1,6 @@
 import { calcRoiBps } from '@/src/capital/lib/money';
 import {
+  ACTIVE_INVESTOR_SLOTS,
   DEFAULT_INVESTOR_LABELS,
   type InvestorSlot,
   INVESTOR_SLOTS,
@@ -25,24 +26,27 @@ export type ResolvedInvestor = {
 };
 
 /**
- * Validate Layer 2 funding: sum of investor stakes must equal Net Vehicle Cost
- * (Purchase + Repairs − Refunds/Credits).
+ * Validate Layer 2 funding: Me + optional Partner must equal Purchase Price.
+ * New writes reject investor_3.
  */
 export function validateFundingStructure(
-  netVehicleCostPaise: number,
+  purchasePricePaise: number,
   investors: InvestorFundingInput[],
 ): ResolvedInvestor[] {
-  if (netVehicleCostPaise <= 0) throw new Error('Net vehicle cost must be positive');
+  if (purchasePricePaise <= 0) throw new Error('Purchase price must be positive');
 
   const bySlot = new Map<InvestorSlot, InvestorFundingInput>();
   for (const inv of investors) {
     if (!INVESTOR_SLOTS.includes(inv.slot)) throw new Error(`Invalid investor slot: ${inv.slot}`);
+    if (inv.slot === 'investor_3' && inv.investedPaise > 0) {
+      throw new Error('Investor 3 is no longer supported — use My Investment + Partner only');
+    }
     if (inv.investedPaise < 0) throw new Error('Invested amount cannot be negative');
     if (bySlot.has(inv.slot)) throw new Error(`Duplicate investor slot: ${inv.slot}`);
     bySlot.set(inv.slot, inv);
   }
 
-  const resolved: ResolvedInvestor[] = INVESTOR_SLOTS.map((slot) => {
+  const resolved: ResolvedInvestor[] = ACTIVE_INVESTOR_SLOTS.map((slot) => {
     const row = bySlot.get(slot);
     const investedPaise = Math.round(row?.investedPaise ?? 0);
     return {
@@ -54,7 +58,6 @@ export function validateFundingStructure(
     };
   }).filter((r) => r.slot === 'me' || r.investedPaise > 0);
 
-  // Me row is always stored (even if 0) so dashboard "My" mode has a stake row
   if (!resolved.some((r) => r.slot === 'me')) {
     resolved.unshift({
       slot: 'me',
@@ -66,9 +69,9 @@ export function validateFundingStructure(
   }
 
   const total = resolved.reduce((s, r) => s + r.investedPaise, 0);
-  if (total !== netVehicleCostPaise) {
+  if (total !== purchasePricePaise) {
     throw new Error(
-      `Investor funding (₹${(total / 100).toLocaleString('en-IN')}) must equal net vehicle cost (₹${(netVehicleCostPaise / 100).toLocaleString('en-IN')})`,
+      `Investor funding (₹${(total / 100).toLocaleString('en-IN')}) must equal purchase price (₹${(purchasePricePaise / 100).toLocaleString('en-IN')})`,
     );
   }
   if (total === 0) throw new Error('At least one investor must fund the vehicle');
@@ -76,17 +79,15 @@ export function validateFundingStructure(
   return resolved;
 }
 
-/** Default: Me funds 100% of net vehicle cost (at create = purchase). */
-export function fullSelfFunding(netVehicleCostPaise: number): ResolvedInvestor[] {
-  return validateFundingStructure(netVehicleCostPaise, [
-    { slot: 'me', investedPaise: netVehicleCostPaise },
+/** Default: Me funds 100% of purchase price. */
+export function fullSelfFunding(purchasePricePaise: number): ResolvedInvestor[] {
+  return validateFundingStructure(purchasePricePaise, [
+    { slot: 'me', investedPaise: purchasePricePaise },
   ]);
 }
 
 /**
  * Distribute a profit pool across capital investors proportional to invested capital.
- * Used for the Investor Pool (after operating-partner cut), not gross business profit.
- * Optional overrides must sum to the pool (legacy / tests only — vehicle sale never uses overrides).
  */
 export function distributeInvestorProfits(
   poolPaise: number,
@@ -119,7 +120,6 @@ export function distributeInvestorProfits(
     return rows;
   }
 
-  // Proportional allocation; last investor gets remainder to avoid rounding drift
   let allocated = 0;
   const rows: ResolvedInvestor[] = active.map((f, idx) => {
     const isLast = idx === active.length - 1;

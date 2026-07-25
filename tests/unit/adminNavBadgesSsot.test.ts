@@ -21,7 +21,7 @@ function emptyQueue(overrides: Partial<UnifiedOperationsQueue> = {}): UnifiedOpe
       { id: 'rent_due', label: 'Rent due', count: 0 },
       { id: 'electricity_due', label: 'Electricity due', count: 0 },
       { id: 'vacating_requests', label: 'Move-out', count: 0 },
-      { id: 'refund_due', label: 'Refund due', count: 0 },
+      { id: 'refund_due', label: 'Pending payouts', count: 0 },
       { id: 'booking_approval', label: 'Booking approval', count: 0 },
       { id: 'deposit_due', label: 'Deposit due', count: 0 },
       { id: 'kyc_review', label: 'KYC review', count: 0 },

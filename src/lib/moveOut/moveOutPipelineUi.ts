@@ -95,7 +95,7 @@ export function moveOutPrimaryActionLabel(item: MoveOutPipelineItemClient): stri
   if (workflow.id === 'pending_request') return 'Review move-out';
   if (moveOutIsZeroRefundCheckout(item)) return 'Complete checkout';
   if (workflow.id === 'settlement_review') return 'Review settlement';
-  if (workflow.id === 'refund_ready') return 'Refund of Deposit';
+  if (workflow.id === 'refund_ready') return 'Record payout';
   if (item.continueKind === 'settlement') return 'Open checkout';
   if (item.continueKind === 'view') return 'View settlement';
   return 'Continue';
@@ -106,7 +106,7 @@ export function moveOutHeroTitle(item: MoveOutPipelineItemClient): string {
   if (moveOutIsZeroRefundCheckout(item)) return 'Complete checkout';
   if (workflow.id === 'pending_request') return 'Review move-out';
   if (workflow.id === 'settlement_review') return 'Settlement Review';
-  if (workflow.id === 'refund_ready') return 'Refund Ready';
+  if (workflow.id === 'refund_ready') return 'Payout pending';
   if (workflow.id === 'waiting_vacating_date') return workflow.label;
   if (workflow.id === 'completed') return 'Move-out complete';
   return workflow.label;

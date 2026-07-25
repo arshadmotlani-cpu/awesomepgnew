@@ -9,6 +9,7 @@
 
 ## 2026-07-25
 
+- **CAPITAL-VEHICLE-OS** — Vehicle Investment OS: activities timeline SSOT, repair advances, funding=purchase (Me+Partner), Expenses nav removed, inventory tabs; docs ADR-012 + Capital CHANGELOG
 - **CHK-ELEC-AUTOSAVE-01** — Harden checkout electricity autosave: try/catch server action, allocation/V2 recompute guards, inline meter validation + error toast; financial workspace nav defaults to Checkout Settlement; Operations review links → `financial#checkout`; legacy `/admin/checkout-settlements/[id]` redirects to workspace
 - **OPS-APPROVE-0048** — Fix `reservation_status` enum cast in `occupancySync` (Krishna approve POST /admin/operations 500); reorder `approveVacatingRequest` side effects before status flip; repair script + post-approve E2E pass for APG-2026-0048
 - **LEGACY-DEPOSIT-0083** — Production append-only ledger repair (half deposit parity with 0082); estimated refund 205900 paise; script `repair-0083-partial-deposit-ledger.ts`; ops `docs/validation/APG-2026-0083-settlement.md`; prod validator 14/14
@@ -290,5 +291,9 @@ Files:
 - validation/POLICY_SPOTCHECKS.md
 - validation/UI_BILLING_AUDIT.md
 - validation/final-production-validation.json
+
+- 2026-07-25 TASK: payout terminology SSOT — Pending payouts ops label, resident payout copy, lifecycle split
+- 2026-07-25 DECISION: frozen Terminology Rules in CHECKOUT_SETTLEMENT_STATE_MACHINE.md (checkout vs payout)
+- 2026-07-25 DECISION: CHECKOUT_PAYOUT_PLATFORM_FREEZE.md + checkout-payout-platform-freeze Cursor rule
 
 ---

@@ -1,4 +1,4 @@
-/** Operations action-center filter SSOT — eight admin queues only. */
+import { OPS_PENDING_PAYOUTS_LABEL } from '@/src/lib/payout/payoutDisplayTerminology';
 
 export const OPS_QUEUE_FILTERS = [
   'waiting_for_approval',
@@ -18,7 +18,7 @@ export const OPS_QUEUE_LABELS: Record<OpsQueueFilter, string> = {
   rent_due: 'Rent due',
   electricity_due: 'Electricity due',
   vacating_requests: 'Move-out',
-  refund_due: 'Refund due',
+  refund_due: OPS_PENDING_PAYOUTS_LABEL,
   booking_approval: 'Booking approval',
   deposit_due: 'Deposit due',
   kyc_review: 'KYC review',

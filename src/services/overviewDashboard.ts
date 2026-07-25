@@ -1,4 +1,6 @@
 import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
+import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
+import { OPS_PENDING_PAYOUTS_LABEL } from '@/src/lib/payout/payoutDisplayTerminology';
 import { FEATURED_PG_PATTERNS } from '@/src/lib/admin/featuredPgs';
 import { moduleHref, withMonth } from '@/src/lib/admin/navigation';
 import type { RevenueByPgRow } from '@/src/services/revenueCommandCenter';
@@ -229,7 +231,7 @@ export function buildOverviewDashboard(
         countMetric('deposit_due', 'Deposit Due', opsCount(ops, 'deposit_due'), {
           href: operationsFilterHref('deposit_due'),
         }),
-        countMetric('refund_due', 'Refund Due', opsCount(ops, 'refund_due'), {
+        countMetric('refund_due', OPS_PENDING_PAYOUTS_LABEL, opsCount(ops, 'refund_due'), {
           href: operationsFilterHref('refund_due'),
         }),
         countMetric('waiting_for_approval', 'Waiting for Approval', opsCount(ops, 'waiting_for_approval'), {

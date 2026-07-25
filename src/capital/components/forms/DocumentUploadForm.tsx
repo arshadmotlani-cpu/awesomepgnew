@@ -14,9 +14,12 @@ type AssetOption = { id: string; label: string };
 export function DocumentUploadForm({
   assets,
   defaultAssetId,
+  forceDocumentType,
 }: {
   assets: AssetOption[];
   defaultAssetId?: string;
+  /** When set, hides type picker and forces this document type (e.g. photo) */
+  forceDocumentType?: (typeof documentTypeEnum.enumValues)[number];
 }) {
   const [state, setState] = useState<ActionState>({});
   const [pending, startTransition] = useTransition();
@@ -41,7 +44,7 @@ export function DocumentUploadForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Upload document</CardTitle>
+        <CardTitle>{forceDocumentType === 'photo' ? 'Upload photo' : 'Upload document'}</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="grid gap-4 md:grid-cols-2">
@@ -55,7 +58,7 @@ export function DocumentUploadForm({
               defaultValue={defaultAssetId ?? ''}
               className="flex h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm"
             >
-              <option value="">General</option>
+              {forceDocumentType ? null : <option value="">General</option>}
               {assets.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.label}
@@ -67,12 +70,16 @@ export function DocumentUploadForm({
             <label htmlFor="documentType" className="mb-1 block text-sm text-ac-text-secondary">
               Document type *
             </label>
+            {forceDocumentType ? (
+              <input type="hidden" name="documentType" value={forceDocumentType} />
+            ) : null}
             <select
               id="documentType"
-              name="documentType"
-              required
-              defaultValue="other"
-              className="flex h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm"
+              name={forceDocumentType ? undefined : 'documentType'}
+              required={!forceDocumentType}
+              disabled={Boolean(forceDocumentType)}
+              defaultValue={forceDocumentType ?? 'other'}
+              className="flex h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm disabled:opacity-70"
             >
               {documentTypeEnum.enumValues.map((t) => (
                 <option key={t} value={t}>

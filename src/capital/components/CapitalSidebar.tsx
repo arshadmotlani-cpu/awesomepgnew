@@ -11,7 +11,6 @@ import {
   History,
   LayoutDashboard,
   LineChart,
-  Receipt,
   Search,
   Settings,
   TrendingUp,
@@ -22,7 +21,6 @@ import { cn } from '@/src/capital/lib/utils';
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/assets', label: 'Assets', icon: Car },
-  { href: '/expenses', label: 'Expenses', icon: Receipt },
   { href: '/payments', label: 'Payments', icon: Banknote },
   { href: '/capital', label: 'Capital', icon: TrendingUp },
   { href: '/ledger', label: 'Ledger', icon: BookOpen },

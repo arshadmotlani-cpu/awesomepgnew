@@ -22,6 +22,10 @@ import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
 import { bookingFinancialWorkspaceHref } from '@/src/lib/bookings/bookingFinancialLinks';
 import { listAdminElectricityInvoicesForReminders } from '@/src/db/queries/admin';
 import { isActiveCheckoutSettlement } from '@/src/lib/residents/residentLifecycleState';
+import {
+  PAYOUT_PENDING_STATUS,
+  RECORD_PAYOUT_CTA,
+} from '@/src/lib/payout/payoutDisplayTerminology';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import {
   assertOperationsQueueParity,
@@ -274,11 +278,11 @@ function residentsRowToItem(row: ResidentsQueueRow): UnifiedOpsItem | null {
       bedCode: row.bedCode,
       reason: row.reason,
       openHref: row.bookingId ? refundConsoleHref(row.bookingId) : row.primaryHref,
-      openLabel: 'Review refund',
+      openLabel: RECORD_PAYOUT_CTA,
       category: row.category,
       bookingId: row.bookingId,
       amountPaise: row.outstandingAmountPaise,
-      statusLabel: 'Refund pending',
+      statusLabel: PAYOUT_PENDING_STATUS,
     };
   }
 

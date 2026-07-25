@@ -16,7 +16,7 @@ export type ActionExecutionType = (typeof ACTION_EXECUTION_TYPES)[number];
 export const ACTION_ITEM_GROUP_LABELS: Record<ActionItemType, string> = {
   rent_due: 'Rent Due',
   electricity_due: 'Electricity Due',
-  refund_pending: 'Refunds Pending',
+  refund_pending: 'Payouts Pending',
   kyc_pending: 'KYC Pending',
   vacating_alert: 'Vacating Alerts',
   payment_received: 'Payments to Review',

@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 const SHORTCUTS: Record<string, string> = {
   d: '/dashboard',
   a: '/assets',
-  e: '/expenses',
   p: '/payments',
   c: '/capital',
   l: '/ledger',
@@ -45,7 +44,7 @@ export function CapitalKeyboardShortcuts() {
       if (e.key === '?' && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         alert(
-          'Keyboard shortcuts:\nG then D — Dashboard\nG then A — Assets\nG then E — Expenses\nG then P — Payments\nG then C — Capital\nG then L — Ledger\nG then O — Documents\nG then R — Reports\nG then N — Analytics\nG then S — Settings\n⌘K — Command palette',
+          'Keyboard shortcuts:\nG then D — Dashboard\nG then A — Assets\nG then P — Payments\nG then C — Capital\nG then L — Ledger\nG then O — Documents\nG then R — Reports\nG then N — Analytics\nG then S — Settings\n⌘K — Command palette',
         );
       }
     };

@@ -61,14 +61,14 @@ function refundReason(
   actionTitle: string,
 ): string {
   if (type === 'refund_request_submitted') {
-    return 'Deposit refund request submitted.';
+    return 'Checkout details submitted — settlement review required.';
   }
   if (type === 'deposit_refund_request') {
-    return 'Deposit refund awaiting processing.';
+    return 'Deposit payout awaiting processing.';
   }
   if (type === 'refund_pending') {
-    if (actionTitle.includes('overdue')) return 'Deposit refund overdue.';
-    return 'Deposit refund pending.';
+    if (actionTitle.includes('overdue')) return 'Resident payout overdue.';
+    return 'Payout pending — record UPI after checkout is complete.';
   }
   return actionTitle;
 }
@@ -103,10 +103,10 @@ export function buildCheckoutNotificationPushContent(
     case 'refund_request_submitted':
       title =
         type === 'refund_request_submitted'
-          ? 'Refund Request'
+          ? 'Settlement Review'
           : type === 'deposit_refund_request'
-            ? 'Deposit Refund Request'
-            : 'Deposit Refund Pending';
+            ? 'Deposit Payout Request'
+            : 'Payout Pending';
       reason = refundReason(type, actionTitle);
       break;
     default:

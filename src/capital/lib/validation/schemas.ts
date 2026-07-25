@@ -23,24 +23,21 @@ export const createAssetSchema = z
     fuelType: z.enum(['petrol', 'diesel', 'cng', 'ev', 'hybrid']),
     year: z.coerce.number().int().min(1990).max(new Date().getFullYear() + 1),
     ownership: z.enum(['first_owner', 'second_owner', 'third_owner']),
-    purchaseDate: dateStr,
+    registrationNumber: z.string().optional(),
     purchasePrice: rupees,
     notes: z.string().optional(),
     meInvested: z.coerce.number().min(0).optional(),
     investor2Invested: z.coerce.number().min(0).optional(),
-    investor3Invested: z.coerce.number().min(0).optional(),
     investor2Label: z.string().optional(),
-    investor3Label: z.string().optional(),
   })
   .superRefine((d, ctx) => {
     const purchasePaise = Math.round(d.purchasePrice * 100);
     const me = Math.round((d.meInvested ?? d.purchasePrice) * 100);
     const i2 = Math.round((d.investor2Invested ?? 0) * 100);
-    const i3 = Math.round((d.investor3Invested ?? 0) * 100);
-    if (me + i2 + i3 !== purchasePaise) {
+    if (me + i2 !== purchasePaise) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Total investment (Me + Investor 2 + Investor 3) must equal purchase price',
+        message: 'My Investment + Partner must equal purchase price',
         path: ['meInvested'],
       });
     }
@@ -51,25 +48,52 @@ export const updateAssetFundingSchema = z
     assetId: uuid,
     meInvested: z.coerce.number().min(0),
     investor2Invested: z.coerce.number().min(0).optional(),
-    investor3Invested: z.coerce.number().min(0).optional(),
     investor2Label: z.string().optional(),
-    investor3Label: z.string().optional(),
-    /** Required net vehicle cost in rupees — client/server must match current asset */
-    netVehicleCostRupees: z.coerce.number().positive(),
+    /** Purchase price in rupees — funding must equal purchase */
+    purchasePriceRupees: z.coerce.number().positive(),
   })
   .superRefine((d, ctx) => {
-    const target = Math.round(d.netVehicleCostRupees * 100);
+    const target = Math.round(d.purchasePriceRupees * 100);
     const me = Math.round(d.meInvested * 100);
     const i2 = Math.round((d.investor2Invested ?? 0) * 100);
-    const i3 = Math.round((d.investor3Invested ?? 0) * 100);
-    if (me + i2 + i3 !== target) {
+    if (me + i2 !== target) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Total investment must equal net vehicle cost',
+        message: 'Total investment must equal purchase price',
         path: ['meInvested'],
       });
     }
   });
+
+export const createVehicleActivitySchema = z
+  .object({
+    assetId: uuid,
+    activityType: z.string().min(1),
+    activityAt: dateStr,
+    amount: z.coerce.number().optional(),
+    title: z.string().optional(),
+    notes: z.string().optional(),
+    /** Repair settlement fields */
+    actualCost: z.coerce.number().min(0).optional(),
+    returnedAmount: z.coerce.number().min(0).optional(),
+    repairAdvanceId: z.string().uuid().optional(),
+  })
+  .superRefine((d, ctx) => {
+    if (d.activityType === 'repair_settlement') {
+      if (d.actualCost == null || !Number.isFinite(d.actualCost)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Actual repair cost is required',
+          path: ['actualCost'],
+        });
+      }
+    }
+  });
+
+export const updatePurchaseDateSchema = z.object({
+  assetId: uuid,
+  purchaseDate: dateStr,
+});
 
 export const createExpenseSchema = z.object({
   assetId: uuid,
@@ -179,6 +203,7 @@ export const assetListQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().positive().max(200).default(50),
   status: z.string().optional(),
+  inventoryTab: z.enum(['in_stock', 'sold', 'all', 'archived']).optional(),
   search: z.string().optional(),
   manufacturer: z.string().optional(),
   sort: z.enum(['created', 'purchase', 'investment', 'profit', 'holding']).default('created'),

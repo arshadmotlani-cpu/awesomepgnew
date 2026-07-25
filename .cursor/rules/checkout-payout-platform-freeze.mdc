@@ -1,0 +1,33 @@
+---
+description: Frozen checkout/payout platform — state machine, ops routing, terminology SSOT
+globs: docs/SYSTEM/CHECKOUT_SETTLEMENT_STATE_MACHINE.md,docs/CHECKOUT_PAYOUT_PLATFORM_FREEZE.md,src/lib/payout/**,src/lib/operations/**,src/lib/moveOut/**,src/lib/residents/checkoutOpsQueueCopy.ts,src/lib/residents/vacatingPresentation.ts,src/lib/residents/residentLifecycleState.ts,src/services/checkoutSettlement.ts,app/(admin)/admin/checkout-settlements/**,src/services/unifiedOperationsQueue.ts,app/(admin)/admin/operations/**,app/(admin)/admin/refunds/**,src/components/admin/checkout/**,src/components/admin/refunds/**
+alwaysApply: false
+---
+
+# Checkout / payout platform freeze
+
+The checkout **workflow**, Operations routing, and **business terminology** are **frozen**. See `docs/CHECKOUT_PAYOUT_PLATFORM_FREEZE.md`.
+
+Settlement **math** is a different freeze: `docs/SETTLEMENT_ENGINE_FREEZE.md`.
+
+## SSOT (mandatory)
+
+1. `docs/SYSTEM/CHECKOUT_SETTLEMENT_STATE_MACHINE.md` — states, transitions, ops routing
+2. Same file — **Terminology Rules (product SSOT)**
+3. `src/lib/payout/payoutDisplayTerminology.ts` — business display strings
+
+## Do not without platform change proposal
+
+- Redesign the checkout state machine or add settlement statuses
+- Add new Operations queue filters for move-out/payout
+- Rename DB/API enums (`refund_pending`, `refund_due`, `refund_paid`) without versioned migration
+- Post-finalize business UI using “Refund due/pending” or second “Approve settlement”
+- Ad hoc user-facing labels — extend `payoutDisplayTerminology.ts` first
+
+## Future features — reuse before invent
+
+1. Reuse existing states
+2. Reuse existing terminology (SSOT module)
+3. Reuse existing Operations queues
+4. Keep checkout (business) and payout (accounting) as separate events
+5. If architecture must change: document why current SSOT is insufficient (see freeze doc template)

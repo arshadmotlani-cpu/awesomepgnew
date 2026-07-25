@@ -10,3 +10,4 @@ export * from './payments';
 export * from './manualProfits';
 export * from './ledger';
 export * from './documents';
+export * from './activities';

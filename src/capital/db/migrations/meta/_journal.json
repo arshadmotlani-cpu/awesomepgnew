@@ -57,6 +57,13 @@
       "when": 1720642300000,
       "tag": "0008_deal_economics",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1720642400000,
+      "tag": "0009_vehicle_activities",
+      "breakpoints": true
     }
   ]
 }

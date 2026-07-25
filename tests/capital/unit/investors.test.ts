@@ -11,7 +11,7 @@ import { computeProfitShare, fullInvestorShare } from '../../../src/capital/lib/
 const INR = (r: number) => Math.round(r * 100);
 
 describe('investors funding', () => {
-  it('requires funding to equal net vehicle cost', () => {
+  it('requires funding to equal purchase price', () => {
     assert.throws(() =>
       validateFundingStructure(INR(11_00_000), [
         { slot: 'me', investedPaise: INR(5_00_000) },
@@ -20,7 +20,7 @@ describe('investors funding', () => {
     );
   });
 
-  it('accepts 50/50 Me + Investor 2 against net cost', () => {
+  it('accepts 50/50 Me + Partner against purchase price', () => {
     const rows = validateFundingStructure(INR(11_00_000), [
       { slot: 'me', investedPaise: INR(5_50_000) },
       { slot: 'investor_2', investedPaise: INR(5_50_000) },

@@ -1,14 +1,18 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { RECORD_PAYOUT_CTA } from '@/src/lib/payout/payoutDisplayTerminology';
 import { useRouter } from 'next/navigation';
 import {
   completeCheckoutSettlementAction,
+  deferCheckoutRefundPayoutAction,
   markCheckoutRefundPaidAction,
   rejectCheckoutSettlementSubmissionAction,
 } from '@/app/(admin)/admin/checkout-settlements/actions';
 import type { CheckoutSettlementActionState } from '@/src/lib/checkout/checkoutSettlementActionTypes';
-import { CHECKOUT_COMPLETE_SUCCESS_MESSAGE } from '@/src/lib/checkout/checkoutSettlementActionTypes';
+import {
+  CHECKOUT_COMPLETE_SUCCESS_MESSAGE,
+  CHECKOUT_DEFER_SUCCESS_MESSAGE,
+} from '@/src/lib/checkout/checkoutSettlementActionTypes';
 import { CHECKOUT_COMPLETE_LOADING_LABEL } from '@/src/components/admin/checkout/checkoutCompleteUi';
 import {
   resolveCheckoutCompleteAfterClientThrow,
@@ -80,12 +84,14 @@ export function CheckoutCompleteStep({
   const completeBusy = completing || pending;
 
   const needsPaymentConfirm = !zeroRefund && (canApprove || canMarkPaid);
+  const deferPayout = canApprove && !canMarkPaid && sentChoice === 'no';
+
   const canSubmit =
     isFinished ||
     (canMarkPaid
       ? sentChoice === 'yes'
       : canApprove
-        ? readinessReady && (zeroRefund || sentChoice === 'yes')
+        ? readinessReady && (zeroRefund || sentChoice === 'yes' || sentChoice === 'no')
         : false);
 
   function buildApproveFormData(): FormData {
@@ -106,9 +112,17 @@ export function CheckoutCompleteStep({
     return fd;
   }
 
-  function finishCheckoutSuccess() {
-    onSuccess(CHECKOUT_COMPLETE_SUCCESS_MESSAGE);
-    router.push('/admin/operations?filter=checkout');
+  function finishSuccess(message: string, redirectHref: string) {
+    onSuccess(message);
+    router.push(redirectHref);
+  }
+
+  function primaryLabel(): string {
+    if (completeBusy) return CHECKOUT_COMPLETE_LOADING_LABEL;
+    if (canMarkPaid) return RECORD_PAYOUT_CTA;
+    if (zeroRefund) return 'Complete checkout';
+    if (deferPayout) return 'Finalize checkout & queue refund';
+    return 'Pay & complete checkout';
   }
 
   function onComplete() {
@@ -123,7 +137,32 @@ export function CheckoutCompleteStep({
         let result: CheckoutSettlementActionState;
         if (canMarkPaid) {
           result = await markCheckoutRefundPaidAction(idle, buildRefundFormData());
-        } else if (canApprove) {
+          const outcome = await resolveCheckoutCompleteClientOutcome({
+            settlementId: detail.id,
+            result,
+          });
+          if (outcome.kind === 'success') {
+            finishSuccess(CHECKOUT_COMPLETE_SUCCESS_MESSAGE, '/admin/operations?filter=refund_due');
+            return;
+          }
+          setError(outcome.message);
+          return;
+        }
+
+        if (canApprove && deferPayout) {
+          result = await deferCheckoutRefundPayoutAction(idle, buildApproveFormData());
+          if (result.status === 'ok') {
+            finishSuccess(
+              result.message ?? CHECKOUT_DEFER_SUCCESS_MESSAGE,
+              '/admin/operations?filter=refund_due',
+            );
+            return;
+          }
+          setError(result.message);
+          return;
+        }
+
+        if (canApprove) {
           const fd = buildApproveFormData();
           fd.set('refundReference', upiRef.trim() || 'confirmed-without-reference');
           result = await completeCheckoutSettlementAction(idle, fd);
@@ -136,7 +175,7 @@ export function CheckoutCompleteStep({
           result,
         });
         if (outcome.kind === 'success') {
-          finishCheckoutSuccess();
+          finishSuccess(CHECKOUT_COMPLETE_SUCCESS_MESSAGE, '/admin/operations?filter=checkout');
           return;
         }
         setError(outcome.message);
@@ -147,7 +186,10 @@ export function CheckoutCompleteStep({
           err,
         });
         if (outcome.kind === 'success') {
-          finishCheckoutSuccess();
+          const href = canMarkPaid || deferPayout
+            ? '/admin/operations?filter=refund_due'
+            : '/admin/operations?filter=checkout';
+          finishSuccess(CHECKOUT_COMPLETE_SUCCESS_MESSAGE, href);
           return;
         }
         setError(outcome.message);
@@ -186,12 +228,14 @@ export function CheckoutCompleteStep({
         />
       ) : null}
 
-      {needsPaymentConfirm ? (
+      {needsPaymentConfirm && canApprove && !canMarkPaid ? (
         <fieldset
           disabled={completeBusy}
           className="space-y-4 rounded-3xl bg-[#1A1F27]/80 p-8 ring-1 ring-white/[0.06] disabled:opacity-60"
         >
-          <legend className="text-base font-medium text-white">Have you already sent the refund?</legend>
+          <legend className="text-base font-medium text-white">
+            Have you already sent the refund?
+          </legend>
           <div className="flex flex-wrap gap-4">
             {(['yes', 'no'] as const).map((value) => (
               <label
@@ -211,13 +255,16 @@ export function CheckoutCompleteStep({
                   onChange={() => setSentChoice(value)}
                   className="h-4 w-4 border-white/30 text-[#FF5A1F]"
                 />
-                <span className="text-sm font-medium capitalize text-white">{value}</span>
+                <span className="text-sm font-medium text-white">
+                  {value === 'yes' ? 'Yes — refund already paid' : 'Not yet — queue for payout'}
+                </span>
               </label>
             ))}
           </div>
           {sentChoice === 'no' ? (
             <p className="text-sm text-amber-200">
-              Send the refund using the QR or UPI above, verify it succeeded, then select Yes.
+              Checkout will be finalized now (bed released, charges locked). Record the UPI payout
+              later from Operations → Pending payouts.
             </p>
           ) : null}
           {sentChoice === 'yes' ? (
@@ -234,6 +281,36 @@ export function CheckoutCompleteStep({
         </fieldset>
       ) : null}
 
+      {needsPaymentConfirm && canMarkPaid ? (
+        <fieldset
+          disabled={completeBusy}
+          className="space-y-4 rounded-3xl bg-[#1A1F27]/80 p-8 ring-1 ring-white/[0.06] disabled:opacity-60"
+        >
+          <legend className="text-base font-medium text-white">{RECORD_PAYOUT_CTA}</legend>
+          <p className="text-sm text-apg-silver">
+            Checkout is finalized. Enter the UPI reference after you send the refund.
+          </p>
+          <label className="block text-sm">
+            <span className="text-apg-silver">UPI transaction reference</span>
+            <input
+              value={upiRef}
+              onChange={(e) => setUpiRef(e.target.value)}
+              placeholder="e.g. 123456789012"
+              className="apg-admin-field mt-2 w-full rounded-2xl border border-white/10 bg-[#12161C] px-4 py-3.5 text-white"
+            />
+          </label>
+          <label className="flex cursor-pointer items-center gap-3 text-sm text-white">
+            <input
+              type="checkbox"
+              checked={sentChoice === 'yes'}
+              onChange={(e) => setSentChoice(e.target.checked ? 'yes' : null)}
+              className="h-4 w-4 border-white/30 text-[#FF5A1F]"
+            />
+            Refund sent — ready to record
+          </label>
+        </fieldset>
+      ) : null}
+
       {!zeroRefund && !needsPaymentConfirm && canApprove ? (
         <p className="text-sm text-apg-silver">Confirm deductions and complete checkout.</p>
       ) : null}
@@ -245,7 +322,7 @@ export function CheckoutCompleteStep({
         aria-busy={completeBusy}
         className={PRIMARY}
       >
-        {completeBusy ? CHECKOUT_COMPLETE_LOADING_LABEL : 'Approve & complete checkout'}
+        {primaryLabel()}
       </button>
 
       {!readinessReady && canApprove && !canMarkPaid ? (

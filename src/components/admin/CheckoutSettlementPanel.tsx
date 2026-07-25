@@ -3,9 +3,12 @@
 import Link from 'next/link';
 import { useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { OPS_PENDING_PAYOUTS_LABEL, RECORD_PAYOUT_CTA } from '@/src/lib/payout/payoutDisplayTerminology';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import {
   approveCheckoutSettlementAction,
+  completeCheckoutSettlementAction,
+  deferCheckoutRefundPayoutAction,
   updateCheckoutSettlementFieldsAction,
 } from '@/app/(admin)/admin/checkout-settlements/actions';
 import type { CheckoutSettlementActionState } from '@/src/lib/checkout/checkoutSettlementActionTypes';
@@ -46,8 +49,17 @@ function Section({
 
 export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlementDetail }) {
   const router = useRouter();
+  const preview = detail.preview;
+  const zeroRefund = preview.finalRefundPaise <= 0;
+  const locked = detail.amountsLocked;
+  const readiness = assessCheckoutSettlementReadiness(detail);
+
   const [approveState, approveAction, approvePending] = useActionState(
-    approveCheckoutSettlementAction,
+    zeroRefund ? approveCheckoutSettlementAction : deferCheckoutRefundPayoutAction,
+    idle,
+  );
+  const [completeState, completeAction, completePending] = useActionState(
+    completeCheckoutSettlementAction,
     idle,
   );
   const [saveState, saveAction, savePending] = useActionState(
@@ -56,15 +68,15 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
   );
 
   useEffect(() => {
-    if (approveState.status === 'ok' || saveState.status === 'ok') {
+    if (
+      approveState.status === 'ok' ||
+      completeState.status === 'ok' ||
+      saveState.status === 'ok'
+    ) {
       router.refresh();
     }
-  }, [approveState.status, saveState.status, router]);
+  }, [approveState.status, completeState.status, saveState.status, router]);
 
-  const preview = detail.preview;
-  const locked = detail.amountsLocked;
-  const readiness = assessCheckoutSettlementReadiness(detail);
-  const zeroRefund = preview.finalRefundPaise <= 0;
   const canApprove = readiness.ready && !locked;
   const canMarkPaid = detail.status === 'refund_pending' && !zeroRefund;
   const canEditElectricity =
@@ -240,12 +252,12 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
           <input type="hidden" name="cleaningChargeInr" value={(detail.cleaningChargePaise / 100).toFixed(2)} />
           <input type="hidden" name="customChargeInr" value={(detail.customChargePaise / 100).toFixed(2)} />
           <h3 className="text-sm font-semibold text-emerald-100">
-            {zeroRefund ? 'Complete checkout (no refund due)' : 'Approve refund amount'}
+            {zeroRefund ? 'Complete checkout (no refund due)' : 'Finalize checkout'}
           </h3>
           <p className="mt-1 text-xs text-emerald-200/90">
             {zeroRefund
               ? 'Records all deductions, completes move-out, frees the bed, and closes checkout — no payout step.'
-              : 'Records all deductions, completes move-out, frees the bed, and locks the refund amount. Does not mark the refund as sent yet.'}
+              : `Default: finalize checkout and queue payout (Operations → ${OPS_PENDING_PAYOUTS_LABEL}). If you already sent the refund, use Pay & complete below instead.`}
           </p>
           <button
             type="submit"
@@ -256,7 +268,7 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
               ? 'Processing…'
               : zeroRefund
                 ? 'Complete checkout'
-                : 'Approve refund amount'}
+                : 'Finalize & queue refund'}
           </button>
           {approveState.status === 'error' ? (
             <p className="mt-2 text-xs text-rose-300">{approveState.message}</p>
@@ -272,15 +284,45 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
         </form>
       ) : null}
 
+      {canApprove && !zeroRefund ? (
+        <form
+          action={completeAction}
+          className="rounded-2xl border border-[#FF5A1F]/30 bg-[#FF5A1F]/10 p-5"
+        >
+          <input type="hidden" name="settlementId" value={detail.id} />
+          <input type="hidden" name="noticeDeductionInr" value={(detail.noticeDeductionPaise / 100).toFixed(2)} />
+          <input type="hidden" name="damageChargeInr" value={(detail.damageChargePaise / 100).toFixed(2)} />
+          <input type="hidden" name="cleaningChargeInr" value={(detail.cleaningChargePaise / 100).toFixed(2)} />
+          <input type="hidden" name="customChargeInr" value={(detail.customChargePaise / 100).toFixed(2)} />
+          <input type="hidden" name="refundReference" value="confirmed-without-reference" />
+          <h3 className="text-sm font-semibold text-orange-100">Refund already paid</h3>
+          <p className="mt-1 text-xs text-orange-200/90">
+            One step: finalize checkout and record payout (no Pending payouts queue).
+          </p>
+          <button
+            type="submit"
+            disabled={completePending || !readiness.ready}
+            className="mt-4 rounded-lg bg-[#FF5A1F] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-60"
+          >
+            {completePending ? 'Completing…' : 'Pay & complete checkout'}
+          </button>
+          {completeState.status === 'error' ? (
+            <p className="mt-2 text-xs text-rose-300">{completeState.message}</p>
+          ) : null}
+          {completeState.status === 'ok' ? (
+            <p className="mt-2 text-xs text-emerald-200">{completeState.message}</p>
+          ) : null}
+        </form>
+      ) : null}
+
       {canMarkPaid ? (
         <div
           id="mark-refund-paid"
           className="space-y-3 rounded-2xl border border-sky-400/30 bg-sky-500/10 p-5"
         >
-          <h3 className="text-sm font-semibold text-sky-100">Send refund</h3>
+          <h3 className="text-sm font-semibold text-sky-100">{RECORD_PAYOUT_CTA}</h3>
           <p className="text-xs text-apg-silver">
-            Approve the payout amount in Refund of Deposit — record UPI reference and mark the refund
-            sent there.
+            Checkout is finalized. Open Refund of Deposit to enter the UPI reference and mark paid.
           </p>
           <Link
             href={refundConsoleHref(detail.bookingId)}

@@ -11,7 +11,6 @@ import {
   CircleDollarSign,
   HandCoins,
   Plus,
-  Receipt,
   Sparkles,
   Wallet,
   X,
@@ -261,8 +260,7 @@ export function OverviewDashboard({
   const quickActions = useMemo(
     () => [
       { href: '/assets/new', label: 'Add Vehicle', icon: Car },
-      { href: '/expenses', label: 'Record Expense', icon: Receipt },
-      { href: '/assets?status=listed', label: 'Record Sale', icon: CircleDollarSign },
+      { href: '/assets', label: 'Open Inventory', icon: CircleDollarSign },
       { href: '/payments', label: 'Receive Profit', icon: HandCoins },
       {
         href: '#manual-profit',

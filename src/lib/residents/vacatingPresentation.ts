@@ -8,6 +8,12 @@ import {
   RESIDENT_WAITING_METER_UPI_ON_VACATE_DATE,
   RESIDENT_WAITING_PG_VERIFICATION,
 } from '@/src/lib/moveOut/moveOutWorkflowStages';
+import {
+  RESIDENT_PAYOUT_COMPLETED,
+  RESIDENT_PAYOUT_PROCESSING,
+  RESIDENT_PAYOUT_PROCESSING_CHIP,
+  RESIDENT_PAYOUT_SENT_CHIP,
+} from '@/src/lib/payout/payoutDisplayTerminology';
 
 /** Single resident status line aligned with admin workflow SSOT. */
 export function residentWorkflowStatusLine(input: {
@@ -19,9 +25,11 @@ export function residentWorkflowStatusLine(input: {
   const { vacatingStatus, checkoutStatus } = input;
   if (
     checkoutStatus === 'refund_paid' ||
-    checkoutStatus === 'completed' ||
-    vacatingStatus === 'completed'
+    checkoutStatus === 'completed'
   ) {
+    return RESIDENT_PAYOUT_COMPLETED;
+  }
+  if (vacatingStatus === 'completed') {
     return RESIDENT_MOVE_OUT_COMPLETED;
   }
   if (checkoutStatus === 'awaiting_admin_review') {
@@ -57,7 +65,10 @@ export function expectedCompletionLabel(input: {
   if (checkoutStatus === 'refund_paid' || checkoutStatus === 'completed') {
     return 'Move-out complete';
   }
-  if (checkoutStatus === 'refund_pending' || checkoutStatus === 'awaiting_admin_review') {
+  if (checkoutStatus === 'refund_pending') {
+    return 'Payout expected within 3–5 working days';
+  }
+  if (checkoutStatus === 'awaiting_admin_review') {
     return 'Refund expected within 3–5 working days after review';
   }
   if (checkoutStatus === 'awaiting_resident_details') {
@@ -126,7 +137,7 @@ export function residentSettlementStatusLabel(input: {
   if (!checkoutStatus) return null;
 
   if (checkoutStatus === 'refund_pending') {
-    return 'Refund is being processed';
+    return RESIDENT_PAYOUT_PROCESSING;
   }
   if (checkoutStatus === 'awaiting_admin_review') {
     if (!waterfall) return 'Waiting for meter verification';
@@ -150,10 +161,10 @@ export function residentMoveOutChipLabel(input: {
   checkoutStatus: string | null;
 }): string {
   if (input.checkoutStatus === 'refund_paid' || input.checkoutStatus === 'completed') {
-    return 'Refund sent';
+    return RESIDENT_PAYOUT_SENT_CHIP;
   }
   if (input.checkoutStatus === 'refund_pending') {
-    return 'Refund processing';
+    return RESIDENT_PAYOUT_PROCESSING_CHIP;
   }
   if (input.checkoutStatus === 'awaiting_admin_review') {
     return 'Under review';
@@ -183,9 +194,11 @@ export function residentHomeMoveOutDetail(input: {
   }
   if (
     checkoutStatus === 'refund_paid' ||
-    checkoutStatus === 'completed' ||
-    vacatingStatus === 'completed'
+    checkoutStatus === 'completed'
   ) {
+    return RESIDENT_PAYOUT_COMPLETED;
+  }
+  if (vacatingStatus === 'completed') {
     return RESIDENT_MOVE_OUT_COMPLETED;
   }
 

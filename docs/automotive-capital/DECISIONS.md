@@ -262,6 +262,27 @@ Automotive Capital is an investment partnership, not a traditional dealership. S
 
 ---
 
+## ADR-012: Vehicle Activities Timeline + Cost from Activities
+
+**Date:** 2026-07-25  
+**Status:** Accepted
+
+### Context
+Expense-centric UX and auto-debiting full purchase on create did not match how deals actually unfold (token → payments → repairs with advances). Funding should track purchase price (Me + Partner), while Net Vehicle Cost should accumulate from real cost events.
+
+### Decision
+- Introduce `ac_vehicle_activities` as the vehicle timeline SSOT and primary cost driver.
+- Stop posting full `asset_purchase` ledger debit on create; insert `vehicle_created` only.
+- Funding target = purchase price (Me + Partner); deprecate new `investor_3` writes.
+- Repair advances are cash-only until settlement; settlement actual cost hits vehicle cost.
+- Remove Expenses from Capital nav; activities are vehicle-scoped.
+
+### Consequences
+- Migration `0009_vehicle_activities` backfills activities from purchase price + non-purchase expenses.
+- Legacy `ac_expenses` retained for history; new cost entry via Add Activity.
+
+---
+
 ## Template for Future ADRs
 
 ```

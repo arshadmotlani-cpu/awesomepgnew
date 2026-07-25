@@ -320,10 +320,10 @@ async function main() {
       },
     ],
   });
-  if (vacatingOperationsQueueTarget(reviewFixture[0]!) !== 'refund_due') {
-    fail('awaiting_admin_review must route to refund_due not move-out');
+  if (vacatingOperationsQueueTarget(reviewFixture[0]!) !== 'vacating_requests') {
+    fail('awaiting_admin_review must route to vacating_requests (settlement review)');
   }
-  pass('1. Checkout review queue', 'awaiting_admin_review → refund_due');
+  pass('1. Checkout review queue', 'awaiting_admin_review → vacating_requests');
 
   const monthlyBooking = await db.execute<{
     booking_id: string;

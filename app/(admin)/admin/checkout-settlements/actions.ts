@@ -16,7 +16,10 @@ import {
 } from '@/src/services/checkoutSettlement';
 import { agentSessionLog } from '@/src/lib/debug/agentSessionLog';
 import type { CheckoutSettlementActionState } from '@/src/lib/checkout/checkoutSettlementActionTypes';
-import { CHECKOUT_COMPLETE_SUCCESS_MESSAGE } from '@/src/lib/checkout/checkoutSettlementActionTypes';
+import {
+  CHECKOUT_COMPLETE_SUCCESS_MESSAGE,
+  CHECKOUT_DEFER_SUCCESS_MESSAGE,
+} from '@/src/lib/checkout/checkoutSettlementActionTypes';
 
 function revalidateCheckoutPaths(
   settlementId?: string,
@@ -261,6 +264,47 @@ export async function completeCheckoutSettlementAction(
     return {
       status: 'error',
       message: err instanceof Error ? err.message : 'Could not complete checkout.',
+    };
+  }
+}
+
+/** Finalize checkout and queue refund payout (single settlement decision — no mark-paid). */
+export async function deferCheckoutRefundPayoutAction(
+  _prev: CheckoutSettlementActionState,
+  formData: FormData,
+): Promise<CheckoutSettlementActionState> {
+  const settlementId = String(formData.get('settlementId') ?? '');
+  try {
+    const admin = await requireAdminPermission('deposits:write');
+    await applyCheckoutApproveFieldsFromForm(formData, settlementId);
+
+    const result = await approveCheckoutSettlement({
+      settlementId,
+      adminId: admin.adminId,
+    });
+    if (!result.ok) {
+      return { status: 'error', message: result.error };
+    }
+
+    if (result.finalRefundPaise <= 0) {
+      revalidateCheckoutPaths(settlementId);
+      return {
+        status: 'ok',
+        message: CHECKOUT_COMPLETE_SUCCESS_MESSAGE,
+      };
+    }
+
+    const { syncActionItemsForCron } = await import('@/src/services/actionItems');
+    await syncActionItemsForCron().catch(() => undefined);
+
+    revalidateCheckoutPaths(settlementId);
+    return { status: 'ok', message: CHECKOUT_DEFER_SUCCESS_MESSAGE };
+  } catch (err) {
+    console.error('[checkout] deferCheckoutRefundPayoutAction failed', err);
+    return {
+      status: 'error',
+      message:
+        err instanceof Error ? err.message : 'Could not finalize checkout.',
     };
   }
 }

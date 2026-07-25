@@ -203,7 +203,7 @@ test('pending vacating with premature settlement stays in move-out ops queue', (
   assert.equal(vacatingOperationsQueueTarget(pipeline[0]!), 'vacating_requests');
 });
 
-test('refund pending maps to vacating_requests move-out queue', () => {
+test('refund pending maps to refund_due payout queue', () => {
   const pipeline = buildMoveOutPipeline({
     vacatingRows: [
       {
@@ -226,8 +226,10 @@ test('refund pending maps to vacating_requests move-out queue', () => {
       },
     ],
   });
-  const mapped = mapVacatingPipelineItemToOpsItem(pipeline[0]!, 'pg-1');
-  assert.equal(mapped?.queue, 'vacating_requests');
+  const item = pipeline[0]!;
+  assert.equal(vacatingOperationsQueueTarget(item), 'refund_due');
+  const mapped = mapVacatingPipelineItemToOpsItem(item, 'pg-1');
+  assert.equal(mapped?.queue, 'refund_due');
 });
 
 test('dedupe prevents duplicate refund rows', () => {

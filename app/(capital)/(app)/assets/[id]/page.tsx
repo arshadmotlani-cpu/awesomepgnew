@@ -67,9 +67,9 @@ export default async function AssetDetailPage({ params }: Props) {
             <Badge>{asset.status}</Badge>
             <Badge variant={fundingGap === 0 ? 'success' : 'warning'}>{fundingStatus}</Badge>
           </div>
-          {auto.registrationNumber ? (
-            <p className="text-ac-text-secondary">{auto.registrationNumber}</p>
-          ) : null}
+          <p className="text-lg font-medium tracking-wide text-ac-accent">
+            {auto.registrationNumber || 'Registration pending'}
+          </p>
         </div>
         <Link href="/assets">
           <Button variant="ghost">Back to assets</Button>
@@ -91,13 +91,12 @@ export default async function AssetDetailPage({ params }: Props) {
           <StatCard label="Funding Status" text={fundingStatus} />
           <StatCard label="My Investment" paise={myInvestmentPaise} />
           <StatCard
-            label={investor2?.label ?? 'Investor 2 Investment'}
+            label={investor2?.label ?? 'Partner Investment'}
             paise={investor2?.investedPaise ?? 0}
           />
-          <StatCard
-            label={investor3?.label ?? 'Investor 3 Investment'}
-            paise={investor3?.investedPaise ?? 0}
-          />
+          {investor3 && investor3.investedPaise > 0 ? (
+            <StatCard label={investor3.label} paise={investor3.investedPaise} />
+          ) : null}
           <StatCard label="Funding Gap" paise={fundingGap} />
           {isActive ? (
             <StatCard label="Current Capital At Risk" paise={capitalAtRiskPaise} />
@@ -166,8 +165,8 @@ export default async function AssetDetailPage({ params }: Props) {
               <tbody>
                 {investors.map((inv) => {
                   const pct =
-                    asset.totalInvestmentPaise > 0
-                      ? ((inv.investedPaise / asset.totalInvestmentPaise) * 100).toFixed(0)
+                    asset.purchasePricePaise > 0
+                      ? ((inv.investedPaise / asset.purchasePricePaise) * 100).toFixed(0)
                       : '0';
                   return (
                     <tr key={inv.id} className="border-b border-white/5">
@@ -271,11 +270,13 @@ export default async function AssetDetailPage({ params }: Props) {
       <AssetCommandCenter
         assetId={asset.id}
         currentStatus={asset.status}
+        purchasePricePaise={asset.purchasePricePaise}
         totalInvestmentPaise={asset.totalInvestmentPaise}
         fundingGapPaise={fundingGap}
         operatingPartnerNumerator={settings?.profitShareNumerator ?? 1}
         operatingPartnerDenominator={settings?.profitShareDenominator ?? 2}
         timeline={timeline}
+        coverDocumentId={asset.coverDocumentId}
         investors={investors.map((i) => ({
           slot: i.slot,
           label: i.label,

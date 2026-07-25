@@ -7,6 +7,12 @@
 
 ---
 
+## 2026-07-25
+
+- **Checkout single-approval state machine** — One settlement decision at `awaiting_admin_review`: pay-now → `completed`; defer payout → `refund_pending` with Operations `refund_due` only (not a second settlement review). SSOT: `docs/SYSTEM/CHECKOUT_SETTLEMENT_STATE_MACHINE.md`, `deferCheckoutRefundPayoutAction`, `moveOutOperationsQueueTarget`.
+- **Checkout vs payout terminology (frozen)** — Checkout = business (complete at finalize, never waits for payout). Payout = accounting after checkout. UI/docs SSOT: `docs/SYSTEM/CHECKOUT_SETTLEMENT_STATE_MACHINE.md` § Terminology Rules; code strings: `src/lib/payout/payoutDisplayTerminology.ts`. Governance: `docs/CHECKOUT_PAYOUT_PLATFORM_FREEZE.md`. Keep `refund_pending` / `refund_due` / `refund_paid` in DB/API unless versioned migration.
+- **Vehicle Investment OS** — Activities timeline SSOT; Net Vehicle Cost from cost-impacting activities (no full purchase ledger on create); funding = Me+Partner = purchase price; repair advance cash-only until settlement. → `docs/automotive-capital/DECISIONS.md` ADR-012
+
 ## 2026-07-11
 
 - **Partnership profit model (Sufii + Investor Pool)** — Net Vehicle Cost = purchase + repairs − refunds. Capital stakes must always equal Net Cost. Business Profit → Settings% to operating partner (Sufii, default 50%) + remainder Investor Pool split by stake. Sale enters only price + date. SSOT: `src/capital/lib/dealEconomics.ts`, migration `0008_deal_economics`. → `docs/automotive-capital/DECISIONS.md` ADR-011

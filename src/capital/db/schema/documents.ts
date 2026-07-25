@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  boolean,
   index,
   jsonb,
   pgTable,
@@ -25,6 +26,8 @@ export const acDocuments = pgTable('ac_documents', {
   fileSizeBytes: bigint('file_size_bytes', { mode: 'number' }).notNull(),
   notes: text('notes'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  /** Cover photo for vehicle gallery */
+  isCover: boolean('is_cover').notNull().default(false),
 });
 
 export const acActivityLog = pgTable(

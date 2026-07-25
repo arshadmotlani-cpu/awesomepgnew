@@ -7,7 +7,11 @@ import {
   bookingFinancialWorkspaceHref,
   bookingFinancialWorkspaceSectionHref,
 } from '@/src/lib/bookings/bookingFinancialLinks';
-import type { MoveOutPipelineItem } from '@/src/lib/moveOut/moveOutPipeline';
+import {
+  CHECKOUT_COMPLETE_PAYOUT_PENDING_REASON,
+  RECORD_PAYOUT_CTA,
+} from '@/src/lib/payout/payoutDisplayTerminology';
+import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import { deriveMoveOutWorkflowStage } from '@/src/lib/moveOut/moveOutWorkflowStages';
 import { moveOutOperationsQueueTarget } from '@/src/lib/operations/moveOutAdminAction';
 
@@ -70,7 +74,7 @@ function moveOutOpsOpenHref(item: MoveOutPipelineItem): string {
     return bookingFinancialWorkspaceSectionHref(item.bookingId, 'checkout');
   }
   if (item.settlementStatus === 'refund_pending') {
-    return bookingFinancialWorkspaceSectionHref(item.bookingId, 'refund');
+    return refundConsoleHref(item.bookingId);
   }
   return item.continueHref ?? bookingFinancialWorkspaceHref(item.bookingId);
 }
@@ -84,7 +88,7 @@ function moveOutOpsReason(item: MoveOutPipelineItem): string {
     return 'Action required — settlement review';
   }
   if (workflow.id === 'refund_ready') {
-    return 'Action required — refund ready';
+    return CHECKOUT_COMPLETE_PAYOUT_PENDING_REASON;
   }
   return workflow.nextAction;
 }
@@ -106,6 +110,9 @@ export function mapVacatingPipelineItemToOpsItem(
 
   const workflow = deriveMoveOutWorkflowStage(item);
 
+  const openLabel =
+    item.settlementStatus === 'refund_pending' ? RECORD_PAYOUT_CTA : 'Review finances';
+
   return {
     id: `moveout-${item.vacatingRequestId}`,
     queue,
@@ -118,7 +125,7 @@ export function mapVacatingPipelineItemToOpsItem(
     bedCode: item.bedCode,
     reason: moveOutOpsReason(item),
     openHref: moveOutOpsOpenHref(item),
-    openLabel: 'Review finances',
+    openLabel,
     category: 'move_out',
     bookingId: item.bookingId,
     vacatingRequestId: item.vacatingRequestId,

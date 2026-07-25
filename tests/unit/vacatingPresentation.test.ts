@@ -74,7 +74,7 @@ test('resident settlement status never exposes internal codes', () => {
       checkoutStatus: 'refund_pending',
       waterfall: null,
     }),
-    'Refund is being processed',
+    'Your payout is being processed.',
   );
 });
 
