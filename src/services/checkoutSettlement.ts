@@ -2521,6 +2521,16 @@ export async function approveCheckoutSettlement(input: {
   return { ok: true, finalRefundPaise };
 }
 
+/** True when admin checkout workflow is finished (payout recorded or zero-refund complete). */
+export async function isCheckoutSettlementAdminComplete(settlementId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ status: checkoutSettlements.status })
+    .from(checkoutSettlements)
+    .where(eq(checkoutSettlements.id, settlementId))
+    .limit(1);
+  return row?.status === 'completed' || row?.status === 'refund_paid';
+}
+
 export async function markCheckoutRefundPaid(input: {
   settlementId: string;
   adminId: string;

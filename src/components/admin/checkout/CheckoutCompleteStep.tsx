@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   completeCheckoutSettlementAction,
@@ -8,6 +8,12 @@ import {
   rejectCheckoutSettlementSubmissionAction,
 } from '@/app/(admin)/admin/checkout-settlements/actions';
 import type { CheckoutSettlementActionState } from '@/src/lib/checkout/checkoutSettlementActionTypes';
+import { CHECKOUT_COMPLETE_SUCCESS_MESSAGE } from '@/src/lib/checkout/checkoutSettlementActionTypes';
+import { CHECKOUT_COMPLETE_LOADING_LABEL } from '@/src/components/admin/checkout/checkoutCompleteUi';
+import {
+  resolveCheckoutCompleteAfterClientThrow,
+  resolveCheckoutCompleteClientOutcome,
+} from '@/src/components/admin/checkout/resolveCheckoutCompleteClientOutcome';
 import { CheckoutPaymentPanel } from '@/src/components/admin/checkout/CheckoutPaymentPanel';
 import { useCheckoutElectricityDraft } from '@/src/components/admin/checkout/CheckoutElectricityDraftContext';
 import { CheckoutRefundReceiptFromDetail } from '@/src/components/admin/checkout/CheckoutRefundReceipt';
@@ -66,8 +72,12 @@ export function CheckoutCompleteStep({
   const [sentChoice, setSentChoice] = useState<SentChoice>(zeroRefund ? 'yes' : null);
   const [upiRef, setUpiRef] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [completing, setCompleting] = useState(false);
+  const completeInFlightRef = useRef(false);
   const [pending, startTransition] = useTransition();
   const [rejectPending, startReject] = useTransition();
+
+  const completeBusy = completing || pending;
 
   const needsPaymentConfirm = !zeroRefund && (canApprove || canMarkPaid);
   const canSubmit =
@@ -96,35 +106,54 @@ export function CheckoutCompleteStep({
     return fd;
   }
 
+  function finishCheckoutSuccess() {
+    onSuccess(CHECKOUT_COMPLETE_SUCCESS_MESSAGE);
+    router.push('/admin/operations?filter=checkout');
+  }
+
   function onComplete() {
+    if (completeInFlightRef.current || completeBusy || isFinished) {
+      return;
+    }
+    completeInFlightRef.current = true;
+    setCompleting(true);
     setError(null);
     startTransition(async () => {
       try {
+        let result: CheckoutSettlementActionState;
         if (canMarkPaid) {
-          const refundResult = await markCheckoutRefundPaidAction(idle, buildRefundFormData());
-          if (refundResult.status !== 'ok') {
-            setError(refundResult.status === 'error' ? refundResult.message : 'Could not record refund.');
-            return;
-          }
-          onSuccess(refundResult.message);
-          router.push('/admin/operations?filter=checkout');
+          result = await markCheckoutRefundPaidAction(idle, buildRefundFormData());
+        } else if (canApprove) {
+          const fd = buildApproveFormData();
+          fd.set('refundReference', upiRef.trim() || 'confirmed-without-reference');
+          result = await completeCheckoutSettlementAction(idle, fd);
+        } else {
           return;
         }
 
-        if (canApprove) {
-          const fd = buildApproveFormData();
-          fd.set('refundReference', upiRef.trim() || 'confirmed-without-reference');
-          const result = await completeCheckoutSettlementAction(idle, fd);
-          if (result.status !== 'ok') {
-            setError(result.status === 'error' ? result.message : 'Could not complete checkout.');
-            return;
-          }
-          onSuccess(result.message);
-          router.push('/admin/operations?filter=checkout');
+        const outcome = await resolveCheckoutCompleteClientOutcome({
+          settlementId: detail.id,
+          result,
+        });
+        if (outcome.kind === 'success') {
+          finishCheckoutSuccess();
+          return;
         }
+        setError(outcome.message);
       } catch (err) {
         console.error('[checkout] Pay & complete failed', err);
-        setError(err instanceof Error ? err.message : 'Something went wrong. Try again.');
+        const outcome = await resolveCheckoutCompleteAfterClientThrow({
+          settlementId: detail.id,
+          err,
+        });
+        if (outcome.kind === 'success') {
+          finishCheckoutSuccess();
+          return;
+        }
+        setError(outcome.message);
+      } finally {
+        completeInFlightRef.current = false;
+        setCompleting(false);
       }
     });
   }
@@ -158,7 +187,10 @@ export function CheckoutCompleteStep({
       ) : null}
 
       {needsPaymentConfirm ? (
-        <fieldset className="space-y-4 rounded-3xl bg-[#1A1F27]/80 p-8 ring-1 ring-white/[0.06]">
+        <fieldset
+          disabled={completeBusy}
+          className="space-y-4 rounded-3xl bg-[#1A1F27]/80 p-8 ring-1 ring-white/[0.06] disabled:opacity-60"
+        >
           <legend className="text-base font-medium text-white">Have you already sent the refund?</legend>
           <div className="flex flex-wrap gap-4">
             {(['yes', 'no'] as const).map((value) => (
@@ -209,10 +241,11 @@ export function CheckoutCompleteStep({
       <button
         type="button"
         onClick={onComplete}
-        disabled={pending || !canSubmit}
+        disabled={completeBusy || !canSubmit}
+        aria-busy={completeBusy}
         className={PRIMARY}
       >
-        {pending ? 'Completing…' : 'Approve & complete checkout'}
+        {completeBusy ? CHECKOUT_COMPLETE_LOADING_LABEL : 'Approve & complete checkout'}
       </button>
 
       {!readinessReady && canApprove && !canMarkPaid ? (

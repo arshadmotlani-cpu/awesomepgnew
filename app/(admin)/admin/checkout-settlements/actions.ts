@@ -7,6 +7,7 @@ import {
   approveCheckoutSettlement,
   archiveCheckoutSettlement,
   deleteCheckoutSettlement,
+  isCheckoutSettlementAdminComplete,
   markCheckoutRefundPaid,
   rebuildCheckoutSettlement,
   rejectResidentCheckoutSubmission,
@@ -15,6 +16,7 @@ import {
 } from '@/src/services/checkoutSettlement';
 import { agentSessionLog } from '@/src/lib/debug/agentSessionLog';
 import type { CheckoutSettlementActionState } from '@/src/lib/checkout/checkoutSettlementActionTypes';
+import { CHECKOUT_COMPLETE_SUCCESS_MESSAGE } from '@/src/lib/checkout/checkoutSettlementActionTypes';
 
 function revalidateCheckoutPaths(
   settlementId?: string,
@@ -49,6 +51,25 @@ function applyCheckoutApproveFieldsFromForm(formData: FormData, settlementId: st
     });
   }
   return Promise.resolve({ ok: true as const });
+}
+
+async function checkoutCompleteSuccessIfCommitted(
+  settlementId: string,
+): Promise<CheckoutSettlementActionState | null> {
+  if (!(await isCheckoutSettlementAdminComplete(settlementId))) {
+    return null;
+  }
+  revalidateCheckoutPaths(settlementId);
+  return { status: 'ok', message: CHECKOUT_COMPLETE_SUCCESS_MESSAGE };
+}
+
+/** Client recovery: DB is source of truth after network/action errors. */
+export async function probeCheckoutSettlementCompleteAction(
+  settlementId: string,
+): Promise<{ complete: boolean }> {
+  await requireAdminPermission('deposits:write');
+  const complete = await isCheckoutSettlementAdminComplete(settlementId);
+  return { complete };
 }
 
 export async function approveCheckoutSettlementAction(
@@ -109,9 +130,9 @@ export async function markCheckoutRefundPaidAction(
   _prev: CheckoutSettlementActionState,
   formData: FormData,
 ): Promise<CheckoutSettlementActionState> {
+  const settlementId = String(formData.get('settlementId') ?? '');
   try {
     const admin = await requireAdminPermission('deposits:write');
-    const settlementId = String(formData.get('settlementId') ?? '');
     const refundReference = String(formData.get('refundReference') ?? '').trim();
     const refundMethod = String(formData.get('refundMethod') ?? '').trim();
     const refundNotes = String(formData.get('refundNotes') ?? '').trim();
@@ -120,20 +141,32 @@ export async function markCheckoutRefundPaidAction(
       return { status: 'error', message: 'Enter UPI reference or transaction number.' };
     }
 
-    const result = await markCheckoutRefundPaid({
+    const markInput = {
       settlementId,
       adminId: admin.adminId,
       refundReference,
       refundMethod: refundMethod || undefined,
       refundNotes: refundNotes || undefined,
-    });
+    };
+    let result = await markCheckoutRefundPaid(markInput);
     if (!result.ok) {
+      result = await markCheckoutRefundPaid(markInput);
+    }
+    if (!result.ok) {
+      const recovered = await checkoutCompleteSuccessIfCommitted(settlementId);
+      if (recovered) {
+        return recovered;
+      }
       return { status: 'error', message: result.error };
     }
     revalidateCheckoutPaths(settlementId);
-    return { status: 'ok', message: 'Refund marked as paid. Settlement completed.' };
+    return { status: 'ok', message: CHECKOUT_COMPLETE_SUCCESS_MESSAGE };
   } catch (err) {
     console.error('[checkout] markCheckoutRefundPaidAction failed', err);
+    const recovered = await checkoutCompleteSuccessIfCommitted(settlementId);
+    if (recovered) {
+      return recovered;
+    }
     return {
       status: 'error',
       message: err instanceof Error ? err.message : 'Could not record refund payout.',
@@ -171,20 +204,30 @@ export async function completeCheckoutSettlementAction(
       revalidateCheckoutPaths(settlementId);
       return {
         status: 'ok',
-        message: 'Checkout completed. Deposit fully applied to deductions — no refund due.',
+        message: CHECKOUT_COMPLETE_SUCCESS_MESSAGE,
       };
     }
 
     const refundReference =
       String(formData.get('refundReference') ?? '').trim() || 'confirmed-without-reference';
-    const markResult = await markCheckoutRefundPaid({
+    const refundMethod = String(formData.get('refundMethod') ?? '').trim() || undefined;
+    const refundNotes = String(formData.get('refundNotes') ?? '').trim() || undefined;
+    const markInput = {
       settlementId,
       adminId: admin.adminId,
       refundReference,
-      refundMethod: String(formData.get('refundMethod') ?? '').trim() || undefined,
-      refundNotes: String(formData.get('refundNotes') ?? '').trim() || undefined,
-    });
+      refundMethod,
+      refundNotes,
+    };
+    let markResult = await markCheckoutRefundPaid(markInput);
     if (!markResult.ok) {
+      markResult = await markCheckoutRefundPaid(markInput);
+    }
+    if (!markResult.ok) {
+      const recovered = await checkoutCompleteSuccessIfCommitted(settlementId);
+      if (recovered) {
+        return recovered;
+      }
       return { status: 'error', message: markResult.error };
     }
 
@@ -197,7 +240,7 @@ export async function completeCheckoutSettlementAction(
       data: { settlementId, finalRefundPaise: approveResult.finalRefundPaise },
     });
     // #endregion
-    return { status: 'ok', message: 'Checkout completed. Refund recorded.' };
+    return { status: 'ok', message: CHECKOUT_COMPLETE_SUCCESS_MESSAGE };
   } catch (err) {
     console.error('[checkout] completeCheckoutSettlementAction failed', err);
     // #region agent log
@@ -211,6 +254,10 @@ export async function completeCheckoutSettlementAction(
       },
     });
     // #endregion
+    const recovered = await checkoutCompleteSuccessIfCommitted(settlementId);
+    if (recovered) {
+      return recovered;
+    }
     return {
       status: 'error',
       message: err instanceof Error ? err.message : 'Could not complete checkout.',
