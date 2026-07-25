@@ -22,6 +22,7 @@ import { buildCheckoutJourneyTimeline, wizardStepFromDetail } from '@/src/lib/ch
 import { hasCheckoutElectricityEvidence } from '@/src/lib/checkout/checkoutElectricityEvidence';
 import { assessCheckoutSettlementReadiness } from '@/src/lib/checkout/checkoutSettlementReadiness';
 import { useOperationsActionToast } from '@/src/components/admin/operations/OperationsActionToast';
+import { formatDateTime } from '@/src/lib/format';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 
 const PRIMARY =
