@@ -301,6 +301,20 @@ export function CheckoutSettlementElectricitySection({
     const saved = lastSavedSnapshotRef.current ?? baselineSavedSnapshot;
     if (formSnapshot === saved) return;
     const timer = window.setTimeout(() => {
+      // #region agent log
+      fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'b2af77' },
+        body: JSON.stringify({
+          sessionId: 'b2af77',
+          hypothesisId: 'H1',
+          location: 'CheckoutSettlementElectricitySection:autosave',
+          message: 'autosave submit',
+          data: { settlementId: detail.id },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       formRef.current?.requestSubmit();
     }, 700);
     return () => window.clearTimeout(timer);
@@ -308,6 +322,13 @@ export function CheckoutSettlementElectricitySection({
 
   useEffect(() => {
     if (method !== 'meter_reading' || !detail.roomId) return;
+    if (
+      previousReading === '' ||
+      currentReading === '' ||
+      ratePerUnitInr === ''
+    ) {
+      return;
+    }
     const prev = Number(previousReading);
     const cur = Number(currentReading);
     const rate = Number(ratePerUnitInr);
@@ -325,8 +346,29 @@ export function CheckoutSettlementElectricitySection({
         `/api/admin/checkout-settlements/${detail.id}/room-electricity-preview?${params}`,
         { cache: 'no-store' },
       )
-        .then((res) => res.json())
-        .then((body: { ok?: boolean; data?: RoomElectricityCheckoutAllocation }) => {
+        .then(async (res) => {
+          const body = (await res.json()) as {
+            ok?: boolean;
+            error?: string;
+            data?: RoomElectricityCheckoutAllocation;
+          };
+          // #region agent log
+          fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Debug-Session-Id': 'b2af77',
+            },
+            body: JSON.stringify({
+              sessionId: 'b2af77',
+              hypothesisId: 'H5',
+              location: 'CheckoutSettlementElectricitySection:preview',
+              message: 'room-electricity-preview response',
+              data: { status: res.status, ok: body.ok, error: body.error, settlementId: detail.id },
+              timestamp: Date.now(),
+            }),
+          }).catch(() => {});
+          // #endregion
           if (body.ok && body.data) setTimelineAllocation(body.data);
         })
         .catch(() => undefined)

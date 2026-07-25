@@ -12,6 +12,24 @@ export default function AdminError({
 }) {
   useEffect(() => {
     console.error('[admin] page error', error);
+    // #region agent log
+    fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'b2af77' },
+      body: JSON.stringify({
+        sessionId: 'b2af77',
+        hypothesisId: 'H4',
+        location: 'admin/error.tsx',
+        message: 'admin error boundary',
+        data: {
+          digest: error.digest,
+          name: error.name,
+          message: error.message?.slice(0, 300),
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
   }, [error]);
 
   return (

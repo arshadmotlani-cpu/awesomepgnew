@@ -47,6 +47,7 @@ import {
 } from '@/src/services/vacatingDateChange';
 import type { VacatingDateChangePreview } from '@/src/services/vacatingDateChange';
 import type { VacatingDateChangeRequest } from '@/src/db/schema/vacatingDateChangeRequests';
+import { agentSessionLog } from '@/src/lib/debug/agentSessionLog';
 
 export type BookingFinancialWorkspaceData = {
   bookingId: string;
@@ -92,6 +93,15 @@ export async function loadBookingFinancialWorkspace(
   session: AdminSession,
   bookingId: string,
 ): Promise<{ ok: true; data: BookingFinancialWorkspaceData } | { ok: false; error: string }> {
+  // #region agent log
+  agentSessionLog({
+    hypothesisId: 'H1',
+    location: 'bookingFinancialWorkspace:entry',
+    message: 'RSC load start',
+    data: { bookingId, billingStrict: process.env.BILLING_ENGINE_STRICT === '1' },
+  });
+  // #endregion
+  try {
   const res = await getAdminBookingDetail(bookingId);
   if (!res.ok) {
     return { ok: false, error: res.error ?? 'Could not load booking.' };
@@ -136,6 +146,20 @@ export async function loadBookingFinancialWorkspace(
   if (checkoutSummary?.id) {
     const withSession = await getCheckoutSettlementDetail(session, checkoutSummary.id);
     checkoutDetail = withSession ?? checkoutSummary;
+    // #region agent log
+    agentSessionLog({
+      hypothesisId: 'H3',
+      location: 'bookingFinancialWorkspace:checkoutDetail',
+      message: 'checkout detail loaded',
+      data: {
+        bookingId,
+        settlementId: checkoutSummary.id,
+        withSession: Boolean(withSession),
+        hasPreview: Boolean(checkoutDetail?.preview),
+        hasWaterfall: Boolean(checkoutDetail?.waterfall),
+      },
+    });
+    // #endregion
   }
 
   const vacatingRow = vacatingRes.ok ? vacatingRes.data : null;
@@ -214,6 +238,14 @@ export async function loadBookingFinancialWorkspace(
       const { loadVacatingBillingPresentationBundle } = await import(
         '@/src/lib/vacating/loadVacatingBillingPresentation'
       );
+      // #region agent log
+      agentSessionLog({
+        hypothesisId: 'H2',
+        location: 'bookingFinancialWorkspace:beforeBundleEstimate',
+        message: 'loadVacatingBillingPresentationBundle (estimate)',
+        data: { bookingId, vacatingStatus: vacatingRow.status },
+      });
+      // #endregion
       const bundle = await loadVacatingBillingPresentationBundle({
         bookingId,
         noticeGivenDate: vacatingRow.noticeGivenDate,
@@ -237,6 +269,18 @@ export async function loadBookingFinancialWorkspace(
       const { loadVacatingBillingPresentationBundle } = await import(
         '@/src/lib/vacating/loadVacatingBillingPresentation'
       );
+      // #region agent log
+      agentSessionLog({
+        hypothesisId: 'H2',
+        location: 'bookingFinancialWorkspace:beforeBundleWaterfall',
+        message: 'loadVacatingBillingPresentationBundle (waterfall)',
+        data: {
+          bookingId,
+          settlementId: checkoutDetail.id,
+          electricitySharePaise: checkoutDetail.electricitySharePaise,
+        },
+      });
+      // #endregion
       const bundle = await loadVacatingBillingPresentationBundle({
         bookingId,
         noticeGivenDate: vacatingRow.noticeGivenDate,
@@ -397,4 +441,19 @@ export async function loadBookingFinancialWorkspace(
       moveOutWorkflow,
     },
   };
+  } catch (err) {
+    // #region agent log
+    agentSessionLog({
+      hypothesisId: 'H1',
+      location: 'bookingFinancialWorkspace:throw',
+      message: 'RSC load threw',
+      data: {
+        bookingId,
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack?.slice(0, 800) : undefined,
+      },
+    });
+    // #endregion
+    throw err;
+  }
 }

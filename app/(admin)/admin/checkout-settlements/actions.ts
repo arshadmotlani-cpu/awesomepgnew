@@ -13,6 +13,7 @@ import {
   updateCheckoutElectricitySettlement,
   updateCheckoutSettlementAdminFields,
 } from '@/src/services/checkoutSettlement';
+import { agentSessionLog } from '@/src/lib/debug/agentSessionLog';
 
 export type CheckoutSettlementActionState =
   | { status: 'idle' }
@@ -215,6 +216,14 @@ export async function updateCheckoutElectricityAction(
       return { status: 'error', message: result.error };
     }
 
+    // #region agent log
+    agentSessionLog({
+      hypothesisId: 'H1',
+      location: 'updateCheckoutElectricityAction:beforeRevalidate',
+      message: 'electricity save ok, revalidating',
+      data: { settlementId, autosave },
+    });
+    // #endregion
     revalidateCheckoutPaths(settlementId, { skipSettlementDetail: autosave });
     const unitsLabel =
       result.calc.unitsConsumed != null ? `${result.calc.unitsConsumed} units, ` : '';
