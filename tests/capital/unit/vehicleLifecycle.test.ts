@@ -52,6 +52,14 @@ describe('vehicleLifecycle (ADR-017)', () => {
     assert.deepEqual(
       derivedBadges({
         status: 'purchased',
+        purchasePricePaise: 0,
+        milestonesPaidPaise: 50_000_00,
+      }),
+      [{ id: 'purchase_pending', label: 'Purchase Pending' }],
+    );
+    assert.deepEqual(
+      derivedBadges({
+        status: 'purchased',
         purchasePricePaise: 500_000_00,
         milestonesPaidPaise: 100_000_00,
       }),

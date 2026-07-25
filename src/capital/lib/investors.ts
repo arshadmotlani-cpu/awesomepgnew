@@ -28,12 +28,25 @@ export type ResolvedInvestor = {
 /**
  * Validate Layer 2 funding: Me + optional Partner must equal Purchase Price.
  * New writes reject investor_3.
+ * Purchase price 0 is allowed for token-first / purchase-pending creates.
  */
 export function validateFundingStructure(
   purchasePricePaise: number,
   investors: InvestorFundingInput[],
 ): ResolvedInvestor[] {
-  if (purchasePricePaise <= 0) throw new Error('Purchase price must be positive');
+  if (purchasePricePaise < 0) throw new Error('Purchase price cannot be negative');
+
+  if (purchasePricePaise === 0) {
+    return [
+      {
+        slot: 'me',
+        label: DEFAULT_INVESTOR_LABELS.me,
+        investedPaise: 0,
+        profitPaise: null,
+        roiBps: null,
+      },
+    ];
+  }
 
   const bySlot = new Map<InvestorSlot, InvestorFundingInput>();
   for (const inv of investors) {
@@ -81,13 +94,17 @@ export function validateFundingStructure(
 
 /** Create-form funding when partner toggle is off/on. */
 export function resolveCreateFunding(input: {
-  purchasePrice: number;
+  purchasePrice?: number;
   withPartner: boolean;
   meInvested?: number;
   investor2Invested?: number;
 }): { meInvested: number; investor2Invested: number } {
+  const purchase = input.purchasePrice;
+  if (purchase == null || !Number.isFinite(purchase) || purchase <= 0) {
+    return { meInvested: 0, investor2Invested: 0 };
+  }
   if (!input.withPartner) {
-    return { meInvested: input.purchasePrice, investor2Invested: 0 };
+    return { meInvested: purchase, investor2Invested: 0 };
   }
   return {
     meInvested: input.meInvested ?? 0,

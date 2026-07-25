@@ -8,6 +8,12 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed — New Vehicle UX (token-first + clean money inputs)
+- Hide native number spinners on all Capital amount fields
+- My Investment stays empty until Purchase Price is entered
+- Optional Token Paid on create (milestone only; supports token-only → Purchase Pending)
+- Dashboard duplicate “Add Vehicle” removed; header New Vehicle is the single entry point
+
 ### Added — Vehicle Lifecycle SSOT (ADR-017)
 - State vs activities separation; reuse `ac_asset_status` with dealer labels
 - Enforced transitions; auto Under Repair on repair advance; Overview lifecycle control

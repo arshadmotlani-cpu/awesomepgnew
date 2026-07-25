@@ -41,9 +41,17 @@ export async function createAssetAction(
     if (!parsed.ok) return { error: parsed.error };
 
     const input = parsed.data;
-    const purchasePaise = rupeesToPaise(input.purchasePrice);
-    const mePaise = rupeesToPaise(input.meInvested ?? input.purchasePrice);
-    const i2Paise = rupeesToPaise(input.investor2Invested ?? 0);
+    const purchasePaise =
+      input.purchasePrice != null && input.purchasePrice > 0
+        ? rupeesToPaise(input.purchasePrice)
+        : 0;
+    const tokenPaise =
+      input.tokenPaid != null && input.tokenPaid > 0 ? rupeesToPaise(input.tokenPaid) : 0;
+    const mePaise =
+      purchasePaise > 0
+        ? rupeesToPaise(input.meInvested ?? input.purchasePrice!)
+        : 0;
+    const i2Paise = purchasePaise > 0 ? rupeesToPaise(input.investor2Invested ?? 0) : 0;
     const investors = [
       { slot: 'me' as const, investedPaise: mePaise, label: 'My Investment' },
       ...(i2Paise > 0
@@ -69,6 +77,7 @@ export async function createAssetAction(
       registrationNumber: input.registrationNumber,
       notes: input.notes,
       investors,
+      tokenPaidPaise: tokenPaise > 0 ? tokenPaise : undefined,
     });
     assetId = asset.id;
 
@@ -86,6 +95,7 @@ export async function createAssetAction(
       });
     }
 
+    await deleteDraft('vehicle-new-v3');
     await deleteDraft('vehicle-new-v2');
     await deleteDraft('asset-new');
     revalidatePath('/assets');

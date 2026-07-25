@@ -41,6 +41,18 @@
   min-height: 100vh;
 }
 
+/* Currency / amount number inputs — hide native spinner arrows (keep type=number). */
+.ac-capital-root input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.ac-capital-root input[type='number']::-webkit-outer-spin-button,
+.ac-capital-root input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .ac-mesh-bg {
   background-color: var(--ac-bg-base);
   background-image:

@@ -64,15 +64,20 @@ describe('investors funding', () => {
     assert.equal(r.investor2Invested, 0);
   });
 
-  it('resolveCreateFunding: partner ON keeps split', () => {
+  it('allows zero purchase for token-first create', () => {
+    const rows = validateFundingStructure(0, [{ slot: 'me', investedPaise: 0 }]);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].investedPaise, 0);
+  });
+
+  it('resolveCreateFunding: empty purchase clears me investment', () => {
     const r = resolveCreateFunding({
-      purchasePrice: 683000,
-      withPartner: true,
-      meInvested: 400000,
-      investor2Invested: 283000,
+      purchasePrice: undefined,
+      withPartner: false,
+      meInvested: 4,
     });
-    assert.equal(r.meInvested, 400000);
-    assert.equal(r.investor2Invested, 283000);
+    assert.equal(r.meInvested, 0);
+    assert.equal(r.investor2Invested, 0);
   });
 });
 

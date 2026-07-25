@@ -202,8 +202,13 @@ export function derivedBadges(input: {
   const badges: DerivedBadge[] = [];
   if (input.status !== 'purchased') return badges;
 
-  const milestonesShort =
-    input.purchasePricePaise > 0 && input.milestonesPaidPaise < input.purchasePricePaise;
+  // Token-first / unknown final price → always Purchase Pending until price is set.
+  if (input.purchasePricePaise <= 0) {
+    badges.push({ id: 'purchase_pending', label: 'Purchase Pending' });
+    return badges;
+  }
+
+  const milestonesShort = input.milestonesPaidPaise < input.purchasePricePaise;
   const fundingShort = (input.fundingGapPaise ?? 0) > 0;
 
   if (milestonesShort || fundingShort) {

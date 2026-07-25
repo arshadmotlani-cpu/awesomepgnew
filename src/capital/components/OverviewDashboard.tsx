@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Car, ChevronLeft, ChevronRight, Sparkles, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sparkles, X } from 'lucide-react';
 import {
   ProfitGrowthCombo,
   PurchasesVsSalesBars,
@@ -335,12 +335,6 @@ export function OverviewDashboard({
           ) : null}
 
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" size="sm" asChild>
-              <Link href="/assets/new">
-                <Car className="h-3.5 w-3.5" />
-                Add Vehicle
-              </Link>
-            </Button>
             <Button variant="secondary" size="sm" onClick={() => setManualOpen(true)}>
               <Sparkles className="h-3.5 w-3.5" />
               Add Manual Profit

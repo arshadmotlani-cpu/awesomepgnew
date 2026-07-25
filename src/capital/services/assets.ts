@@ -44,6 +44,7 @@ import {
 import type { AssetListQuery } from '@/src/capital/lib/validation/schemas';
 import type { CapitalDbClient } from '@/src/capital/lib/db/types';
 import { logActivity } from './activity';
+import { postLedgerEntry } from './ledger';
 
 const TERMINAL_STATUSES = new Set(['cancelled', 'settled']);
 
@@ -54,13 +55,16 @@ export type CreateAssetInput = {
   fuelType: 'petrol' | 'diesel' | 'cng' | 'ev' | 'hybrid';
   ownership: 'first_owner' | 'second_owner' | 'third_owner';
   purchaseDate: string;
+  /** 0 allowed for token-first / purchase-pending creates. */
   purchasePricePaise: number;
   notes?: string;
-  /** Layer 2 funding — must sum to net vehicle cost (at create = purchase). Defaults to Me = 100%. */
+  /** Layer 2 funding — must sum to purchase (0 when purchase pending). Defaults to Me = 100%. */
   investors?: InvestorFundingInput[];
   registrationNumber?: string;
   variant?: string;
   color?: string;
+  /** Optional token milestone at create (cash_only — not added to TVI). */
+  tokenPaidPaise?: number;
 };
 
 export async function listAssetInvestors(assetId: string, db: CapitalDbClient = capitalDb) {
@@ -292,6 +296,38 @@ export async function createAsset(input: CreateAssetInput) {
         purchasePricePaise: input.purchasePricePaise,
       },
     });
+
+    const tokenPaise = Math.round(input.tokenPaidPaise ?? 0);
+    if (tokenPaise > 0) {
+      const [tokenRow] = await tx
+        .insert(acVehicleActivities)
+        .values({
+          assetId: asset.id,
+          activityType: 'token_paid',
+          activityAt: input.purchaseDate,
+          amountPaise: tokenPaise,
+          title: 'Token Paid',
+          metadata: { fromCreate: true },
+        })
+        .returning();
+
+      const entry = await postLedgerEntry(
+        {
+          entryType: 'adjustment',
+          direction: 'debit',
+          amountPaise: tokenPaise,
+          assetId: asset.id,
+          sourceTable: 'ac_vehicle_activities',
+          sourceId: tokenRow.id,
+          description: 'Token Paid',
+        },
+        tx,
+      );
+      await tx
+        .update(acVehicleActivities)
+        .set({ ledgerEntryId: entry.id, updatedAt: new Date() })
+        .where(eq(acVehicleActivities.id, tokenRow.id));
+    }
 
     await logActivity(
       {

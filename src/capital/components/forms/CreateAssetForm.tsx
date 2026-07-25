@@ -14,7 +14,7 @@ import { createAssetSchema, type CreateAssetInput } from '@/src/capital/lib/vali
 import { resolveCreateFunding } from '@/src/capital/lib/investors';
 import { Textarea } from '@/src/capital/components/ui/textarea';
 
-const DRAFT_KEY = 'vehicle-new-v2';
+const DRAFT_KEY = 'vehicle-new-v3';
 
 const MANUFACTURERS = [
   'Maruti Suzuki',
@@ -82,10 +82,11 @@ const EMPTY_DEFAULTS: CreateAssetInput = {
   year: undefined as unknown as number,
   ownership: undefined as unknown as CreateAssetInput['ownership'],
   registrationNumber: '',
-  purchasePrice: undefined as unknown as number,
+  purchasePrice: undefined,
+  tokenPaid: undefined,
   notes: '',
-  meInvested: undefined as unknown as number,
-  investor2Invested: 0,
+  meInvested: undefined,
+  investor2Invested: undefined,
   investor2Label: 'Partner',
 };
 
@@ -106,9 +107,12 @@ export function CreateAssetForm() {
   const purchasePrice = useWatch({ control: form.control, name: 'purchasePrice' });
 
   useEffect(() => {
-    if (!withPartner && purchasePrice != null && Number.isFinite(purchasePrice)) {
+    if (withPartner) return;
+    if (purchasePrice != null && Number.isFinite(purchasePrice) && purchasePrice > 0) {
       form.setValue('meInvested', purchasePrice, { shouldValidate: false });
       form.setValue('investor2Invested', 0, { shouldValidate: false });
+    } else {
+      form.setValue('meInvested', undefined, { shouldValidate: false });
     }
   }, [withPartner, purchasePrice, form]);
 
@@ -118,7 +122,15 @@ export function CreateAssetForm() {
         const next = { ...EMPTY_DEFAULTS, ...payload } as CreateAssetInput & {
           withPartner?: boolean;
         };
-        if (next.manufacturer || next.model || next.purchasePrice) {
+        const hasCore =
+          !!next.manufacturer ||
+          !!next.model ||
+          (next.purchasePrice != null && next.purchasePrice > 0) ||
+          (next.tokenPaid != null && next.tokenPaid > 0);
+        if (hasCore) {
+          if (next.purchasePrice == null || !(next.purchasePrice > 0)) {
+            next.meInvested = undefined;
+          }
           form.reset(next);
           if (next.manufacturer) setBrandQuery(next.manufacturer);
           if (next.withPartner || (next.investor2Invested ?? 0) > 0) setWithPartner(true);
@@ -154,8 +166,8 @@ export function CreateAssetForm() {
     const fd = new FormData();
     Object.entries({
       ...values,
-      meInvested: resolved.meInvested,
-      investor2Invested: resolved.investor2Invested,
+      meInvested: resolved.meInvested || undefined,
+      investor2Invested: resolved.investor2Invested || undefined,
       investor2Label: withPartner ? values.investor2Label : undefined,
     }).forEach(([k, v]) => {
       if (v !== undefined && v !== '') fd.set(k, String(v));
@@ -177,7 +189,8 @@ export function CreateAssetForm() {
           <div>
             <CardTitle>Vehicle</CardTitle>
             <p className="text-sm text-ac-text-secondary">
-              Creates the inventory item. Record purchase activities on the next screen.
+              Secure with a token and/or purchase price. Token is a payment milestone — not
+              investment cost.
             </p>
           </div>
           <Button type="button" variant="ghost" size="sm" onClick={clearForm}>
@@ -270,8 +283,19 @@ export function CreateAssetForm() {
               <Input
                 type="number"
                 step="0.01"
-                placeholder="0"
+                inputMode="decimal"
+                placeholder="Optional if token only"
                 {...registerRupees(form, 'purchasePrice')}
+              />
+            </FormField>
+
+            <FormField label="Token Paid (₹)" name="tokenPaid" form={form}>
+              <Input
+                type="number"
+                step="0.01"
+                inputMode="decimal"
+                placeholder="Optional"
+                {...registerRupees(form, 'tokenPaid')}
               />
             </FormField>
 
@@ -309,8 +333,8 @@ export function CreateAssetForm() {
         <CardHeader>
           <CardTitle>Investment</CardTitle>
           <p className="text-sm text-ac-text-secondary">
-            Most vehicles are fully self-funded. Expand partner only when needed. Funding is checked
-            when you save.
+            Fills in after Purchase Price. Expand partner only when needed. Funding is checked when
+            you save.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -318,8 +342,12 @@ export function CreateAssetForm() {
             <Input
               type="number"
               step="0.01"
+              inputMode="decimal"
               form="create-asset-form"
               readOnly={!withPartner}
+              placeholder={
+                purchasePrice != null && purchasePrice > 0 ? undefined : 'Enter purchase price first'
+              }
               className={!withPartner ? 'opacity-80' : undefined}
               {...registerRupees(form, 'meInvested')}
             />
@@ -332,9 +360,13 @@ export function CreateAssetForm() {
               onClick={() => {
                 const next = !withPartner;
                 setWithPartner(next);
-                if (!next && purchasePrice != null && Number.isFinite(purchasePrice)) {
-                  form.setValue('meInvested', purchasePrice, { shouldValidate: false });
-                  form.setValue('investor2Invested', 0, { shouldValidate: false });
+                if (!next) {
+                  if (purchasePrice != null && Number.isFinite(purchasePrice) && purchasePrice > 0) {
+                    form.setValue('meInvested', purchasePrice, { shouldValidate: false });
+                    form.setValue('investor2Invested', 0, { shouldValidate: false });
+                  } else {
+                    form.setValue('meInvested', undefined, { shouldValidate: false });
+                  }
                 }
               }}
             >
@@ -350,6 +382,7 @@ export function CreateAssetForm() {
                   <Input
                     type="number"
                     step="0.01"
+                    inputMode="decimal"
                     form="create-asset-form"
                     {...registerRupees(form, 'investor2Invested')}
                   />

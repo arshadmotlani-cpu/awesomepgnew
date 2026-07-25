@@ -1,6 +1,16 @@
 import { z } from 'zod';
 
 const rupees = z.coerce.number().positive('Amount must be greater than zero');
+/** Optional positive rupees — empty string / missing → undefined (token-only create). */
+const optionalPositiveRupees = z.preprocess((v) => {
+  if (v === '' || v == null || v === undefined) return undefined;
+  return v;
+}, z.coerce.number().positive('Amount must be greater than zero').optional());
+/** Optional non-negative rupees for investment fields (empty → undefined). */
+const optionalNonNegRupees = z.preprocess((v) => {
+  if (v === '' || v == null || v === undefined) return undefined;
+  return v;
+}, z.coerce.number().min(0).optional());
 /** Signed rupees for cost ledger — positive cost or negative credit/refund (never zero). */
 const signedRupees = z.coerce
   .number()
@@ -24,15 +34,30 @@ export const createAssetSchema = z
     year: z.coerce.number().int().min(1990).max(new Date().getFullYear() + 1),
     ownership: z.enum(['first_owner', 'second_owner', 'third_owner']),
     registrationNumber: z.string().optional(),
-    purchasePrice: rupees,
+    /** Optional when securing with token only — fill later from profile. */
+    purchasePrice: optionalPositiveRupees,
+    /** Optional token milestone (cash only — not TVI). */
+    tokenPaid: optionalPositiveRupees,
     notes: z.string().optional(),
-    meInvested: z.coerce.number().min(0).optional(),
-    investor2Invested: z.coerce.number().min(0).optional(),
+    meInvested: optionalNonNegRupees,
+    investor2Invested: optionalNonNegRupees,
     investor2Label: z.string().optional(),
   })
   .superRefine((d, ctx) => {
-    const purchasePaise = Math.round(d.purchasePrice * 100);
-    const me = Math.round((d.meInvested ?? d.purchasePrice) * 100);
+    const hasPurchase = d.purchasePrice != null && d.purchasePrice > 0;
+    const hasToken = d.tokenPaid != null && d.tokenPaid > 0;
+    if (!hasPurchase && !hasToken) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Enter purchase price and/or token paid',
+        path: ['purchasePrice'],
+      });
+      return;
+    }
+    if (!hasPurchase) return;
+
+    const purchasePaise = Math.round(d.purchasePrice! * 100);
+    const me = Math.round((d.meInvested ?? d.purchasePrice!) * 100);
     const i2 = Math.round((d.investor2Invested ?? 0) * 100);
     if (me + i2 !== purchasePaise) {
       ctx.addIssue({
