@@ -7,6 +7,11 @@
 
 ---
 
+## 2026-07-26
+
+- **CAPITAL-DASHBOARD-OWNER** — Single personal dealership dashboard; six compact KPIs; Profit Growth combo chart; ADR-014
+- **CAPITAL-VEHICLE-UX** — Vehicles naming, partner toggle, blank New Vehicle draft fix, cover on list/hero, profile workspace tabs; ADR-013
+
 ## 2026-07-25
 
 - **CAPITAL-VEHICLE-OS** — Vehicle Investment OS: activities timeline SSOT, repair advances, funding=purchase (Me+Partner), Expenses nav removed, inventory tabs; docs ADR-012 + Capital CHANGELOG

@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   distributeInvestorProfits,
   fullSelfFunding,
+  resolveCreateFunding,
   summarizeInvestorShares,
   validateFundingStructure,
 } from '../../../src/capital/lib/investors';
@@ -50,6 +51,28 @@ describe('investors funding', () => {
     assert.equal(rows.length, 1);
     assert.equal(rows[0].slot, 'me');
     assert.equal(rows[0].investedPaise, INR(10_00_000));
+  });
+
+  it('resolveCreateFunding: partner OFF forces me = purchase', () => {
+    const r = resolveCreateFunding({
+      purchasePrice: 683000,
+      withPartner: false,
+      meInvested: 100,
+      investor2Invested: 50,
+    });
+    assert.equal(r.meInvested, 683000);
+    assert.equal(r.investor2Invested, 0);
+  });
+
+  it('resolveCreateFunding: partner ON keeps split', () => {
+    const r = resolveCreateFunding({
+      purchasePrice: 683000,
+      withPartner: true,
+      meInvested: 400000,
+      investor2Invested: 283000,
+    });
+    assert.equal(r.meInvested, 400000);
+    assert.equal(r.investor2Invested, 283000);
   });
 });
 

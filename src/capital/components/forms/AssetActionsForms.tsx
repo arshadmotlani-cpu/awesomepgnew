@@ -65,7 +65,7 @@ export function AssetActionsForms({
         {currentStatus === 'sold' ? <SettlementForm assetId={assetId} /> : null}
         {isSettledOrCancelled ? (
           <p className="text-sm text-ac-text-muted md:col-span-2">
-            No further actions — view timeline, expenses, and ledger history below.
+            No further actions — view timeline and accounting history.
           </p>
         ) : null}
       </div>

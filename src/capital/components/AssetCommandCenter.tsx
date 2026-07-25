@@ -46,28 +46,79 @@ type TimelineData = {
   }[];
 };
 
+type OverviewData = {
+  repairTotalPaise: number;
+  dealerRefundTotalPaise: number;
+  myInvestmentPaise: number;
+  partnerInvestmentPaise: number;
+  partnerLabel: string;
+  capitalAtRiskPaise: number;
+  outstandingPaise: number;
+  holdingDays: number;
+  purchaseDate: string;
+  manufacturer: string;
+  model: string;
+  year: number;
+  fuelLabel: string;
+  ownershipLabel: string;
+  isActive: boolean;
+};
+
+type ProfitData = {
+  salePricePaise: number;
+  businessProfitPaise: number;
+  myProfitPaise: number;
+  operatingPartnerPaise: number;
+  investorPoolPaise: number;
+  businessRoiBps: number | null;
+  myRoiBps: number | null;
+};
+
+function StatCard({ label, paise, text }: { label: string; paise?: number; text?: string }) {
+  return (
+    <div className="ac-glass-card p-4">
+      <p className="text-xs text-ac-text-muted">{label}</p>
+      <p className="mt-1 text-lg font-semibold">
+        {text ?? (paise != null ? <MoneyDisplay paise={paise} /> : '—')}
+      </p>
+    </div>
+  );
+}
+
 export function AssetCommandCenter({
   assetId,
   currentStatus,
   purchasePricePaise,
   totalInvestmentPaise,
   fundingGapPaise = 0,
+  fundingStatus = '',
   operatingPartnerNumerator = 1,
   operatingPartnerDenominator = 2,
   timeline,
   investors = [],
   coverDocumentId,
+  overview,
+  profit,
 }: {
   assetId: string;
   currentStatus: string;
   purchasePricePaise: number;
   totalInvestmentPaise: number;
   fundingGapPaise?: number;
+  fundingStatus?: string;
   operatingPartnerNumerator?: number;
   operatingPartnerDenominator?: number;
   timeline: TimelineData;
-  investors?: { slot: string; label: string; investedPaise: number }[];
+  investors?: {
+    slot: string;
+    label: string;
+    investedPaise: number;
+    profitPaise?: number | null;
+    roiBps?: number | null;
+  }[];
   coverDocumentId?: string | null;
+  overview: OverviewData;
+  profit: ProfitData | null;
 }) {
   const canEdit =
     currentStatus !== 'sold' &&
@@ -84,17 +135,62 @@ export function AssetCommandCenter({
   return (
     <Tabs defaultValue="timeline" className="w-full">
       <TabsList className="mb-4 flex flex-wrap">
+        <TabsTrigger value="overview">Overview</TabsTrigger>
         <TabsTrigger value="timeline">
           Timeline ({timeline.vehicleActivities.length})
         </TabsTrigger>
-        <TabsTrigger value="activities">Add Activity</TabsTrigger>
+        <TabsTrigger value="activities">Activities</TabsTrigger>
         <TabsTrigger value="investment">Investment</TabsTrigger>
         <TabsTrigger value="photos">Photos ({photos.length})</TabsTrigger>
         <TabsTrigger value="documents">Documents ({docs.length})</TabsTrigger>
-        <TabsTrigger value="actions">Sale / Status</TabsTrigger>
-        <TabsTrigger value="payments">Payments ({timeline.payments.length})</TabsTrigger>
-        <TabsTrigger value="ledger">Ledger ({timeline.ledger.length})</TabsTrigger>
+        <TabsTrigger value="profit">Profit</TabsTrigger>
+        <TabsTrigger value="sale">Sale</TabsTrigger>
+        <TabsTrigger value="accounting">Accounting</TabsTrigger>
       </TabsList>
+
+      <TabsContent value="overview" className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <StatCard label="Purchase Price" paise={purchasePricePaise} />
+          <StatCard label="Repairs / costs" paise={overview.repairTotalPaise} />
+          <StatCard label="Refunds / Credits" paise={overview.dealerRefundTotalPaise} />
+          <StatCard label="Net Vehicle Cost" paise={totalInvestmentPaise} />
+          <StatCard label="Funding Status" text={fundingStatus || '—'} />
+          <StatCard label="My Investment" paise={overview.myInvestmentPaise} />
+          <StatCard label={overview.partnerLabel} paise={overview.partnerInvestmentPaise} />
+          <StatCard label="Funding Gap" paise={fundingGapPaise} />
+          {overview.isActive ? (
+            <StatCard label="Capital at risk" paise={overview.capitalAtRiskPaise} />
+          ) : null}
+          <StatCard label="Outstanding" paise={overview.outstandingPaise} />
+          <StatCard label="Holding days" text={String(overview.holdingDays)} />
+        </div>
+        <div className="ac-glass-card grid gap-2 p-4 text-sm sm:grid-cols-2">
+          <div className="flex justify-between gap-4 border-b border-white/5 py-2">
+            <span className="text-ac-text-muted">Manufacturer</span>
+            <span>{overview.manufacturer}</span>
+          </div>
+          <div className="flex justify-between gap-4 border-b border-white/5 py-2">
+            <span className="text-ac-text-muted">Model</span>
+            <span>{overview.model}</span>
+          </div>
+          <div className="flex justify-between gap-4 border-b border-white/5 py-2">
+            <span className="text-ac-text-muted">Year</span>
+            <span>{overview.year}</span>
+          </div>
+          <div className="flex justify-between gap-4 border-b border-white/5 py-2">
+            <span className="text-ac-text-muted">Fuel</span>
+            <span>{overview.fuelLabel}</span>
+          </div>
+          <div className="flex justify-between gap-4 border-b border-white/5 py-2">
+            <span className="text-ac-text-muted">Ownership</span>
+            <span>{overview.ownershipLabel}</span>
+          </div>
+          <div className="flex justify-between gap-4 border-b border-white/5 py-2">
+            <span className="text-ac-text-muted">Purchase date</span>
+            <span>{overview.purchaseDate}</span>
+          </div>
+        </div>
+      </TabsContent>
 
       <TabsContent value="timeline" className="space-y-2">
         {timeline.vehicleActivities.map((a) => {
@@ -155,16 +251,36 @@ export function AssetCommandCenter({
         ) : (
           <p className="text-sm text-ac-text-muted">Funding locked on closed vehicles.</p>
         )}
-        <div className="ac-glass-card grid gap-2 p-4 text-sm sm:grid-cols-2">
-          <div className="flex justify-between gap-2">
-            <span className="text-ac-text-muted">Purchase price</span>
-            <MoneyDisplay paise={purchasePricePaise} />
+        {investors.length > 0 ? (
+          <div className="ac-glass-card overflow-x-auto p-4">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-white/8 text-left text-ac-text-muted">
+                  <th className="pb-2 pr-4 font-medium">Investor</th>
+                  <th className="pb-2 pr-4 font-medium">Invested</th>
+                  <th className="pb-2 pr-4 font-medium">Share %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {investors.map((inv) => {
+                  const pct =
+                    purchasePricePaise > 0
+                      ? ((inv.investedPaise / purchasePricePaise) * 100).toFixed(0)
+                      : '0';
+                  return (
+                    <tr key={inv.slot} className="border-b border-white/5">
+                      <td className="py-2 pr-4 font-medium">{inv.label}</td>
+                      <td className="py-2 pr-4">
+                        <MoneyDisplay paise={inv.investedPaise} />
+                      </td>
+                      <td className="py-2 pr-4">{pct}%</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-          <div className="flex justify-between gap-2">
-            <span className="text-ac-text-muted">Net vehicle cost</span>
-            <MoneyDisplay paise={totalInvestmentPaise} />
-          </div>
-        </div>
+        ) : null}
       </TabsContent>
 
       <TabsContent value="photos" className="space-y-4">
@@ -231,7 +347,35 @@ export function AssetCommandCenter({
         ) : null}
       </TabsContent>
 
-      <TabsContent value="actions" className="space-y-4">
+      <TabsContent value="profit" className="space-y-4">
+        {profit ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <StatCard label="Sale price" paise={profit.salePricePaise} />
+            <StatCard label="Business profit" paise={profit.businessProfitPaise} />
+            <StatCard label="My profit" paise={profit.myProfitPaise} />
+            <StatCard label="Sufii (operating partner)" paise={profit.operatingPartnerPaise} />
+            <StatCard label="Investor pool" paise={profit.investorPoolPaise} />
+            <StatCard
+              label="Business ROI"
+              text={
+                profit.businessRoiBps != null
+                  ? `${(profit.businessRoiBps / 100).toFixed(1)}%`
+                  : '—'
+              }
+            />
+            <StatCard
+              label="My ROI"
+              text={profit.myRoiBps != null ? `${(profit.myRoiBps / 100).toFixed(1)}%` : '—'}
+            />
+          </div>
+        ) : (
+          <p className="text-sm text-ac-text-muted">
+            Profit summary is available after the vehicle is sold.
+          </p>
+        )}
+      </TabsContent>
+
+      <TabsContent value="sale" className="space-y-4">
         <AssetActionsForms
           assetId={assetId}
           currentStatus={currentStatus}
@@ -243,39 +387,48 @@ export function AssetCommandCenter({
         />
       </TabsContent>
 
-      <TabsContent value="payments" className="space-y-2">
-        {timeline.payments.map((p) => (
-          <div key={p.id} className="ac-glass-card flex justify-between p-3 text-sm">
-            <div>
-              <Badge variant="secondary">{p.paymentType}</Badge>
-              <p className="mt-1 text-ac-text-muted">{p.receivedAt}</p>
-            </div>
-            <MoneyDisplay paise={p.amountPaise} />
+      <TabsContent value="accounting" className="space-y-6">
+        <div>
+          <h3 className="mb-2 text-sm font-medium">Payments ({timeline.payments.length})</h3>
+          <div className="space-y-2">
+            {timeline.payments.map((p) => (
+              <div key={p.id} className="ac-glass-card flex justify-between p-3 text-sm">
+                <div>
+                  <Badge variant="secondary">{p.paymentType}</Badge>
+                  <p className="mt-1 text-ac-text-muted">{p.receivedAt}</p>
+                </div>
+                <MoneyDisplay paise={p.amountPaise} />
+              </div>
+            ))}
+            {timeline.payments.length === 0 ? (
+              <p className="text-sm text-ac-text-muted">No payments.</p>
+            ) : null}
           </div>
-        ))}
-        {timeline.payments.length === 0 ? (
-          <p className="text-sm text-ac-text-muted">No payments.</p>
-        ) : null}
-      </TabsContent>
-
-      <TabsContent value="ledger" className="space-y-2">
-        {timeline.ledger.map((l) => (
-          <div key={l.id} className="ac-glass-card flex justify-between gap-4 p-3 text-sm">
-            <div>
-              <Badge variant="outline">{l.entryType}</Badge>
-              <p className="mt-1 text-ac-text-secondary">{l.description}</p>
-            </div>
-            <div className="text-right">
-              <Badge variant={l.direction === 'credit' ? 'success' : 'warning'}>{l.direction}</Badge>
-              <p className="mt-1">
-                <MoneyDisplay paise={l.amountPaise} />
-              </p>
-            </div>
+        </div>
+        <div>
+          <h3 className="mb-2 text-sm font-medium">Ledger ({timeline.ledger.length})</h3>
+          <div className="space-y-2">
+            {timeline.ledger.map((l) => (
+              <div key={l.id} className="ac-glass-card flex justify-between gap-4 p-3 text-sm">
+                <div>
+                  <Badge variant="outline">{l.entryType}</Badge>
+                  <p className="mt-1 text-ac-text-secondary">{l.description}</p>
+                </div>
+                <div className="text-right">
+                  <Badge variant={l.direction === 'credit' ? 'success' : 'warning'}>
+                    {l.direction}
+                  </Badge>
+                  <p className="mt-1">
+                    <MoneyDisplay paise={l.amountPaise} />
+                  </p>
+                </div>
+              </div>
+            ))}
+            {timeline.ledger.length === 0 ? (
+              <p className="text-sm text-ac-text-muted">No ledger entries.</p>
+            ) : null}
           </div>
-        ))}
-        {timeline.ledger.length === 0 ? (
-          <p className="text-sm text-ac-text-muted">No ledger entries.</p>
-        ) : null}
+        </div>
       </TabsContent>
     </Tabs>
   );

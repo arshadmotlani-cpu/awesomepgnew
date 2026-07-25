@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { capitalZodResolver } from '@/src/capital/lib/validation/parse';
 import { createAssetAction, type ActionState } from '@/src/capital/actions/assets';
-import { loadDraftAction } from '@/src/capital/actions/drafts';
+import { deleteDraftAction, loadDraftAction } from '@/src/capital/actions/drafts';
 import { Button } from '@/src/capital/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/capital/components/ui/card';
 import { Input } from '@/src/capital/components/ui/input';
@@ -12,8 +12,9 @@ import { FormField } from '@/src/capital/components/forms/FormField';
 import { useAutosaveDraft } from '@/src/capital/hooks/useAutosaveDraft';
 import { createAssetSchema, type CreateAssetInput } from '@/src/capital/lib/validation/schemas';
 import { formatInrPlain } from '@/src/capital/lib/money';
+import { resolveCreateFunding } from '@/src/capital/lib/investors';
 
-const DRAFT_KEY = 'asset-new';
+const DRAFT_KEY = 'vehicle-new-v2';
 
 const MANUFACTURERS = [
   'Maruti Suzuki',
@@ -63,26 +64,30 @@ function yearOptions() {
   return years;
 }
 
+const EMPTY_DEFAULTS: CreateAssetInput = {
+  manufacturer: '',
+  model: '',
+  fuelType: undefined as unknown as CreateAssetInput['fuelType'],
+  year: undefined as unknown as number,
+  ownership: undefined as unknown as CreateAssetInput['ownership'],
+  registrationNumber: '',
+  purchasePrice: undefined as unknown as number,
+  meInvested: undefined as unknown as number,
+  investor2Invested: 0,
+  investor2Label: 'Partner',
+};
+
 export function CreateAssetForm() {
   const [state, setState] = useState<ActionState>({});
   const [pending, startTransition] = useTransition();
   const [brandQuery, setBrandQuery] = useState('');
   const [brandOpen, setBrandOpen] = useState(false);
+  const [withPartner, setWithPartner] = useState(false);
+  const [draftReady, setDraftReady] = useState(false);
 
   const form = useForm<CreateAssetInput>({
     resolver: capitalZodResolver(createAssetSchema),
-    defaultValues: {
-      manufacturer: '',
-      model: '',
-      fuelType: 'petrol',
-      year: new Date().getFullYear(),
-      ownership: 'first_owner',
-      registrationNumber: '',
-      purchasePrice: undefined as unknown as number,
-      meInvested: undefined as unknown as number,
-      investor2Invested: 0,
-      investor2Label: 'Partner',
-    },
+    defaultValues: EMPTY_DEFAULTS,
   });
 
   const purchasePrice = useWatch({ control: form.control, name: 'purchasePrice' });
@@ -90,31 +95,42 @@ export function CreateAssetForm() {
   const investor2Invested = useWatch({ control: form.control, name: 'investor2Invested' });
 
   useEffect(() => {
-    if (purchasePrice == null || !Number.isFinite(purchasePrice)) return;
-    const me = meInvested ?? 0;
-    const i2 = investor2Invested ?? 0;
-    if (me === 0 && i2 === 0) {
+    if (!withPartner && purchasePrice != null && Number.isFinite(purchasePrice)) {
       form.setValue('meInvested', purchasePrice, { shouldValidate: true });
+      form.setValue('investor2Invested', 0, { shouldValidate: true });
     }
-  }, [purchasePrice, meInvested, investor2Invested, form]);
+  }, [withPartner, purchasePrice, form]);
 
-  const fundingTotal = (meInvested ?? 0) + (investor2Invested ?? 0);
+  const funding = resolveCreateFunding({
+    purchasePrice: purchasePrice ?? 0,
+    withPartner,
+    meInvested,
+    investor2Invested,
+  });
+  const fundingTotal = funding.meInvested + funding.investor2Invested;
   const fundingOk =
     purchasePrice != null &&
     Number.isFinite(purchasePrice) &&
+    purchasePrice > 0 &&
     Math.round(fundingTotal * 100) === Math.round(purchasePrice * 100);
 
   useEffect(() => {
     void loadDraftAction(DRAFT_KEY).then(({ payload }) => {
-      if (payload) {
-        const next = { ...form.getValues(), ...payload } as CreateAssetInput;
-        form.reset(next);
-        if (next.manufacturer) setBrandQuery(next.manufacturer);
+      if (payload && typeof payload === 'object') {
+        const next = { ...EMPTY_DEFAULTS, ...payload } as CreateAssetInput & {
+          withPartner?: boolean;
+        };
+        if (next.manufacturer || next.model || next.purchasePrice) {
+          form.reset(next);
+          if (next.manufacturer) setBrandQuery(next.manufacturer);
+          if (next.withPartner || (next.investor2Invested ?? 0) > 0) setWithPartner(true);
+        }
       }
+      setDraftReady(true);
     });
   }, [form]);
 
-  useAutosaveDraft(DRAFT_KEY, form.control);
+  useAutosaveDraft(DRAFT_KEY, form.control, draftReady);
 
   const filteredBrands = useMemo(() => {
     const q = brandQuery.trim().toLowerCase();
@@ -122,12 +138,32 @@ export function CreateAssetForm() {
     return MANUFACTURERS.filter((b) => b.toLowerCase().includes(q));
   }, [brandQuery]);
 
+  function clearForm() {
+    form.reset(EMPTY_DEFAULTS);
+    setBrandQuery('');
+    setWithPartner(false);
+    setState({});
+    void deleteDraftAction(DRAFT_KEY);
+  }
+
   const onSubmit = form.handleSubmit((values) => {
+    const resolved = resolveCreateFunding({
+      purchasePrice: values.purchasePrice,
+      withPartner,
+      meInvested: values.meInvested,
+      investor2Invested: values.investor2Invested,
+    });
     const fd = new FormData();
-    Object.entries(values).forEach(([k, v]) => {
+    Object.entries({
+      ...values,
+      meInvested: resolved.meInvested,
+      investor2Invested: resolved.investor2Invested,
+      investor2Label: withPartner ? values.investor2Label : undefined,
+    }).forEach(([k, v]) => {
       if (v !== undefined && v !== '') fd.set(k, String(v));
     });
     startTransition(async () => {
+      await deleteDraftAction(DRAFT_KEY);
       const result = await createAssetAction(state, fd);
       if (result?.error) setState({ error: result.error });
     });
@@ -136,11 +172,16 @@ export function CreateAssetForm() {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader>
-          <CardTitle>Vehicle</CardTitle>
-          <p className="text-sm text-ac-text-secondary">
-            Purchase date defaults to today — you can edit it later on the vehicle profile.
-          </p>
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div>
+            <CardTitle>Vehicle</CardTitle>
+            <p className="text-sm text-ac-text-secondary">
+              Purchase date defaults to today — edit later on the vehicle profile if needed.
+            </p>
+          </div>
+          <Button type="button" variant="ghost" size="sm" onClick={clearForm}>
+            Clear form
+          </Button>
         </CardHeader>
         <CardContent>
           <form id="create-asset-form" onSubmit={onSubmit} className="grid gap-4 md:grid-cols-2">
@@ -180,11 +221,12 @@ export function CreateAssetForm() {
             </FormField>
 
             <FormField label="Model" name="model" form={form}>
-              <Input {...form.register('model')} />
+              <Input {...form.register('model')} placeholder="e.g. Harrier" />
             </FormField>
 
             <FormField label="Year" name="year" form={form}>
               <select className={selectClass} {...form.register('year', { valueAsNumber: true })}>
+                <option value="">Select year</option>
                 {yearOptions().map((y) => (
                   <option key={y} value={y}>
                     {y}
@@ -195,6 +237,7 @@ export function CreateAssetForm() {
 
             <FormField label="Fuel Type" name="fuelType" form={form}>
               <select className={selectClass} {...form.register('fuelType')}>
+                <option value="">Select fuel type</option>
                 {FUEL_TYPES.map((f) => (
                   <option key={f.value} value={f.value}>
                     {f.label}
@@ -205,6 +248,7 @@ export function CreateAssetForm() {
 
             <FormField label="Ownership" name="ownership" form={form}>
               <select className={selectClass} {...form.register('ownership')}>
+                <option value="">Select ownership</option>
                 {OWNERSHIP.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
@@ -215,7 +259,7 @@ export function CreateAssetForm() {
 
             <FormField label="Registration Number (optional)" name="registrationNumber" form={form}>
               <Input
-                placeholder="MH31AB1234"
+                placeholder="Registration number"
                 className="uppercase"
                 {...form.register('registrationNumber')}
               />
@@ -225,6 +269,7 @@ export function CreateAssetForm() {
               <Input
                 type="number"
                 step="0.01"
+                placeholder="0"
                 {...form.register('purchasePrice', { valueAsNumber: true })}
               />
             </FormField>
@@ -236,37 +281,61 @@ export function CreateAssetForm() {
         <CardHeader>
           <CardTitle>Investment</CardTitle>
           <p className="text-sm text-ac-text-secondary">
-            My Investment + Partner (optional) must equal purchase price.
+            Most vehicles are fully self-funded. Turn on partner only when needed.
           </p>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
-          <FormField label="My Investment (₹)" name="meInvested" form={form}>
-            <Input
-              type="number"
-              step="0.01"
-              form="create-asset-form"
-              {...form.register('meInvested', { valueAsNumber: true })}
+        <CardContent className="space-y-4">
+          <label className="flex cursor-pointer items-center gap-3 text-sm">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-white/20 bg-white/5"
+              checked={withPartner}
+              onChange={(e) => {
+                const on = e.target.checked;
+                setWithPartner(on);
+                if (!on && purchasePrice != null && Number.isFinite(purchasePrice)) {
+                  form.setValue('meInvested', purchasePrice, { shouldValidate: true });
+                  form.setValue('investor2Invested', 0, { shouldValidate: true });
+                }
+              }}
             />
-          </FormField>
-          <div className="space-y-2">
-            <FormField label="Partner name (optional)" name="investor2Label" form={form}>
-              <Input form="create-asset-form" {...form.register('investor2Label')} />
-            </FormField>
-            <FormField label="Partner Investment (₹)" name="investor2Invested" form={form}>
+            <span>Purchased with Partner</span>
+          </label>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <FormField label="My Investment (₹)" name="meInvested" form={form}>
               <Input
                 type="number"
                 step="0.01"
                 form="create-asset-form"
-                {...form.register('investor2Invested', { valueAsNumber: true })}
+                readOnly={!withPartner}
+                className={!withPartner ? 'opacity-80' : undefined}
+                {...form.register('meInvested', { valueAsNumber: true })}
               />
             </FormField>
+            {withPartner ? (
+              <div className="space-y-2">
+                <FormField label="Partner name" name="investor2Label" form={form}>
+                  <Input form="create-asset-form" {...form.register('investor2Label')} />
+                </FormField>
+                <FormField label="Partner Investment (₹)" name="investor2Invested" form={form}>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    form="create-asset-form"
+                    {...form.register('investor2Invested', { valueAsNumber: true })}
+                  />
+                </FormField>
+              </div>
+            ) : null}
           </div>
-          <div className="md:col-span-2 rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-sm">
+
+          <div className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-sm">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-ac-text-secondary">Total investment</span>
               <span className={fundingOk ? 'text-ac-success' : 'text-ac-danger'}>
                 ₹{formatInrPlain(Math.round(fundingTotal * 100))}
-                {purchasePrice != null
+                {purchasePrice != null && Number.isFinite(purchasePrice)
                   ? ` / ₹${formatInrPlain(Math.round(purchasePrice * 100))}`
                   : ''}
                 {fundingOk ? ' · balanced' : ' · must equal purchase price'}

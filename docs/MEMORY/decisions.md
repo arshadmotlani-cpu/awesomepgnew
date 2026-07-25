@@ -7,6 +7,11 @@
 
 ---
 
+## 2026-07-26
+
+- **Single personal dealership dashboard** — No Business View; six KPIs; monthly+cumulative growth chart; personal ROI kept. → ADR-014
+- **Vehicles terminology + partner toggle** — Capital UI says Vehicles (routes `/assets`); Purchased with Partner OFF by default. → `docs/automotive-capital/DECISIONS.md` ADR-013
+
 ## 2026-07-25
 
 - **Checkout single-approval state machine** — One settlement decision at `awaiting_admin_review`: pay-now → `completed`; defer payout → `refund_pending` with Operations `refund_due` only (not a second settlement review). SSOT: `docs/SYSTEM/CHECKOUT_SETTLEMENT_STATE_MACHINE.md`, `deferCheckoutRefundPayoutAction`, `moveOutOperationsQueueTarget`.

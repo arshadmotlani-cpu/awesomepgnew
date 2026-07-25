@@ -44,7 +44,7 @@ export default async function ReportDetailPage({
         <CardContent className="space-y-2 text-sm">
           {type === 'outstanding' ? (
             <>
-              <p>{outstanding.total} assets with outstanding capital</p>
+              <p>{outstanding.total} vehicles with outstanding capital</p>
               {outstanding.rows.slice(0, 5).map(({ asset, auto }) => (
                 <div key={asset.id} className="flex justify-between border-b border-white/5 py-2">
                   <span>{auto.registrationNumber ?? asset.displayName}</span>
@@ -96,7 +96,7 @@ export default async function ReportDetailPage({
                 <span>{investments.length}</span>
               </div>
               <div className="flex justify-between">
-                <span>Assets in stock</span>
+                <span>Vehicles in stock</span>
                 <span>{kpis.assetsInStock}</span>
               </div>
             </>

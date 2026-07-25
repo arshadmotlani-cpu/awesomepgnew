@@ -44,7 +44,7 @@ export function CapitalKeyboardShortcuts() {
       if (e.key === '?' && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         alert(
-          'Keyboard shortcuts:\nG then D — Dashboard\nG then A — Assets\nG then P — Payments\nG then C — Capital\nG then L — Ledger\nG then O — Documents\nG then R — Reports\nG then N — Analytics\nG then S — Settings\n⌘K — Command palette',
+          'Keyboard shortcuts:\nG then D — Dashboard\nG then A — Vehicles\nG then P — Payments\nG then C — Capital\nG then L — Ledger\nG then O — Documents\nG then R — Reports\nG then N — Analytics\nG then S — Settings\n⌘K — Command palette',
         );
       }
     };

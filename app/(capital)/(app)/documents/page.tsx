@@ -54,7 +54,7 @@ export default async function DocumentsPage() {
                   <td className="py-3 pr-4">
                     {d.assetId ? (
                       <Link href={`/assets/${d.assetId}`} className="text-ac-accent hover:underline">
-                        View asset
+                        View vehicle
                       </Link>
                     ) : (
                       '—'

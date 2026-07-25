@@ -8,6 +8,13 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed — Dealership owner dashboard
+- Single personal dashboard (Business View removed from UI)
+- Compact six-KPI grid; Capital At Risk / allocation / waterfall / activity timeline removed from overview
+- Profit Growth combo chart (monthly bars + cumulative line); candlesticks rejected as unsuitable for single-series profit data
+- Quick actions: Add Vehicle + Add Manual Profit only
+- Personal ROI formula documented and retained (ADR-014)
+
 ### Added — Vehicle Investment OS
 - Vehicle-scoped **activities timeline** (`ac_vehicle_activities`) as SSOT for cost events
 - **Repair advances** (`ac_repair_advances`): cash float until settlement; only actual cost hits Net Vehicle Cost
@@ -16,6 +23,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - Expenses removed from nav (redirect `/expenses` → `/assets`); activities live on vehicle profile
 - Assets inventory tabs: In Stock / Sold / All / Archived; registration-first list
 - Cover photo + gallery on vehicle profile
+- **UX completion:** Vehicles naming; Purchased with Partner toggle; blank New Vehicle (draft fix); cover on list + hero; profile tabs Overview/Timeline/Activities/Investment/Photos/Documents/Profit/Sale
 
 ### Planning
 - Created complete planning documentation suite (13 documents)

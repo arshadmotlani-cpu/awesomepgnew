@@ -25,7 +25,7 @@ export default async function SearchPage({ searchParams }: Props) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Assets</CardTitle>
+          <CardTitle>Vehicles</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {results.map(({ asset, auto }) => (
@@ -37,7 +37,7 @@ export default async function SearchPage({ searchParams }: Props) {
               <div>
                 <p className="font-medium">{asset.displayName}</p>
                 {auto.registrationNumber ? (
-                  <p className="text-sm text-ac-text-secondary">{auto.registrationNumber}</p>
+                  <p className="text-sm text-ac-accent">{auto.registrationNumber}</p>
                 ) : null}
               </div>
               <div className="flex items-center gap-3">
@@ -47,7 +47,7 @@ export default async function SearchPage({ searchParams }: Props) {
             </Link>
           ))}
           {query && results.length === 0 ? (
-            <p className="py-8 text-center text-ac-text-muted">No assets found.</p>
+            <p className="py-8 text-center text-ac-text-muted">No vehicles found.</p>
           ) : null}
           {!query ? (
             <p className="py-8 text-center text-ac-text-muted">

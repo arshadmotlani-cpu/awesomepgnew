@@ -11,7 +11,8 @@ import { assetListQuerySchema } from '@/src/capital/lib/validation/schemas';
 import { listAssetsQuery, listManufacturers } from '@/src/capital/services/assets';
 import { cn } from '@/src/capital/lib/utils';
 
-export const metadata: Metadata = { title: 'Assets' };
+export const metadata: Metadata = { title: 'Vehicles' };
+
 
 function statusVariant(status: string) {
   if (status === 'sold' || status === 'settled') return 'success' as const;
@@ -67,11 +68,11 @@ export default async function AssetsPage({ searchParams }: Props) {
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Assets</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Vehicles</h1>
           <p className="text-sm text-ac-text-secondary">{total} vehicles</p>
         </div>
         <Link href="/assets/new">
-          <Button>New asset</Button>
+          <Button>New vehicle</Button>
         </Link>
       </div>
 
@@ -108,6 +109,7 @@ export default async function AssetsPage({ searchParams }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/8 text-left text-ac-text-muted">
+                <th className="pb-3 pr-4 font-medium w-14"></th>
                 <th className="pb-3 pr-4 font-medium">Registration</th>
                 <th className="pb-3 pr-4 font-medium">Vehicle</th>
                 <th className="pb-3 pr-4 font-medium">Status</th>
@@ -118,6 +120,22 @@ export default async function AssetsPage({ searchParams }: Props) {
             <tbody>
               {rows.map(({ asset, auto }) => (
                 <tr key={asset.id} className="border-b border-white/5 hover:bg-white/[0.02]">
+                  <td className="py-3 pr-4">
+                    <Link href={`/assets/${asset.id}`} className="block">
+                      {asset.coverDocumentId ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={`/api/capital/files/${asset.coverDocumentId}`}
+                          alt=""
+                          className="h-12 w-12 rounded-md object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-12 w-12 items-center justify-center rounded-md bg-white/5 text-[10px] text-ac-text-muted">
+                          No photo
+                        </div>
+                      )}
+                    </Link>
+                  </td>
                   <td className="py-3 pr-4">
                     <Link
                       href={`/assets/${asset.id}`}
@@ -144,10 +162,10 @@ export default async function AssetsPage({ searchParams }: Props) {
               ))}
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-ac-text-muted">
-                    No assets match your filters.{' '}
+                  <td colSpan={6} className="py-8 text-center text-ac-text-muted">
+                    No vehicles match your filters.{' '}
                     <Link href="/assets/new" className="text-ac-accent hover:underline">
-                      Create your first asset
+                      Create your first vehicle
                     </Link>
                   </td>
                 </tr>

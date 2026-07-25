@@ -20,7 +20,7 @@ import { cn } from '@/src/capital/lib/utils';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/assets', label: 'Assets', icon: Car },
+  { href: '/assets', label: 'Vehicles', icon: Car },
   { href: '/payments', label: 'Payments', icon: Banknote },
   { href: '/capital', label: 'Capital', icon: TrendingUp },
   { href: '/ledger', label: 'Ledger', icon: BookOpen },

@@ -79,6 +79,22 @@ export function validateFundingStructure(
   return resolved;
 }
 
+/** Create-form funding when partner toggle is off/on. */
+export function resolveCreateFunding(input: {
+  purchasePrice: number;
+  withPartner: boolean;
+  meInvested?: number;
+  investor2Invested?: number;
+}): { meInvested: number; investor2Invested: number } {
+  if (!input.withPartner) {
+    return { meInvested: input.purchasePrice, investor2Invested: 0 };
+  }
+  return {
+    meInvested: input.meInvested ?? 0,
+    investor2Invested: input.investor2Invested ?? 0,
+  };
+}
+
 /** Default: Me funds 100% of purchase price. */
 export function fullSelfFunding(purchasePricePaise: number): ResolvedInvestor[] {
   return validateFundingStructure(purchasePricePaise, [

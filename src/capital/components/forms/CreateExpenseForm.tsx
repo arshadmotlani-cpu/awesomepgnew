@@ -1,5 +1,9 @@
 'use client';
 
+/**
+ * @deprecated Standalone expenses UI is removed from Capital nav.
+ * Prefer vehicle Activities (`CreateActivityForm`). Kept for legacy tooling only.
+ */
 import { useEffect, useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { capitalZodResolver } from '@/src/capital/lib/validation/parse';

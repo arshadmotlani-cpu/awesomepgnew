@@ -8,7 +8,7 @@ import { cn } from '@/src/capital/lib/utils';
 
 const nav = [
   { href: '/dashboard', label: 'Dashboard' },
-  { href: '/assets', label: 'Assets' },
+  { href: '/assets', label: 'Vehicles' },
   { href: '/payments', label: 'Payments' },
   { href: '/capital', label: 'Capital' },
   { href: '/ledger', label: 'Ledger' },
@@ -88,7 +88,7 @@ export function CommandPalette() {
           </Command.Group>
           <Command.Group heading="Quick actions">
             {[
-              { href: '/assets/new', label: 'Add asset', icon: Car },
+              { href: '/assets/new', label: 'Add vehicle', icon: Car },
               { href: '/capital', label: 'Add capital', icon: Wallet },
               { href: '/payments', label: 'Record payment', icon: Receipt },
             ].map(({ href, label, icon: Icon }) => (
@@ -106,7 +106,7 @@ export function CommandPalette() {
             ))}
           </Command.Group>
           {displayResults.length > 0 ? (
-            <Command.Group heading="Assets">
+            <Command.Group heading="Vehicles">
               {displayResults.map((r) => (
                 <Command.Item
                   key={r.id}

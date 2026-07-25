@@ -17,6 +17,7 @@ import {
   updateAssetFunding,
   updateAssetStatus,
 } from '@/src/capital/services/assets';
+import { deleteDraft } from '@/src/capital/services/drafts';
 
 export type ActionState = { error?: string; success?: string };
 
@@ -61,11 +62,13 @@ export async function createAssetAction(
       investors,
     });
     assetId = asset.id;
+    await deleteDraft('vehicle-new-v2');
+    await deleteDraft('asset-new');
     revalidatePath('/assets');
     revalidatePath('/dashboard');
     revalidateTag('capital-dashboard', 'default');
   } catch (e) {
-    return { error: e instanceof Error ? e.message : 'Failed to create asset' };
+    return { error: e instanceof Error ? e.message : 'Failed to create vehicle' };
   }
   redirect(`/assets/${assetId}`);
 }

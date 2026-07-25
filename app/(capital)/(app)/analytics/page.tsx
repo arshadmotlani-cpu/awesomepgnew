@@ -58,13 +58,13 @@ export default async function AnalyticsPage() {
         <ChartCard title="Capital investments">
           <ValueBarChart data={data.investments} label="Invested" />
         </ChartCard>
-        <ChartCard title="Expenses by category">
+        <ChartCard title="Costs by category (legacy)">
           <CategoryBarChart data={data.expensesByCategory} />
         </ChartCard>
-        <ChartCard title="Assets purchased">
+        <ChartCard title="Vehicles purchased">
           <CountLineChart data={data.purchased} label="Purchased" />
         </ChartCard>
-        <ChartCard title="Assets sold">
+        <ChartCard title="Vehicles sold">
           <CountLineChart data={data.sold} label="Sold" />
         </ChartCard>
         <ChartCard title="ROI trend">

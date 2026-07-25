@@ -283,6 +283,48 @@ Expense-centric UX and auto-debiting full purchase on create did not match how d
 
 ---
 
+## ADR-013: Vehicles Terminology + Partner Toggle UX
+
+**Date:** 2026-07-26  
+**Status:** Accepted
+
+### Context
+Dealership operators think in vehicles and inventory, not accounting “assets”. Most purchases are fully self-funded; always showing partner fields adds noise. Autosaved drafts were restoring prior vehicle data into New Vehicle.
+
+### Decision
+- User-facing module label is **Vehicles** (routes remain `/assets`).
+- **Purchased with Partner** toggle defaults OFF; My Investment = purchase price when off.
+- New Vehicle uses draft key `vehicle-new-v2` and Clear form / post-create draft delete so forms start blank.
+- Profile workspace tabs: Overview, Timeline, Activities, Investment, Photos, Documents, Profit, Sale (+ Accounting).
+
+### Consequences
+- Cover photo shown on inventory list and profile hero via `cover_document_id`.
+- Legacy expense services remain for history; UI path is vehicle Activities only.
+
+---
+
+## ADR-014: Single Personal Dealership Dashboard
+
+**Date:** 2026-07-26  
+**Status:** Accepted
+
+### Context
+The Capital overview mixed Business vs My perspectives, duplicated capital metrics, and used oversized investment-style charts that did not help daily vehicle operations.
+
+### Decision
+- One dashboard only — always personal (`views.mine`); remove Business View UI.
+- Six compact KPIs: Active Vehicles, Vehicles Sold, Lifetime Profit, Monthly/Period Profit, Avg Profit Per Vehicle, ROI.
+- Quick actions: Add Vehicle + Add Manual Profit only.
+- **Personal ROI retained:** `My Lifetime Profit ÷ My Capital Stakes` (via `computePersonalRoiBps` / overview wiring). Not changed this pass.
+- **Candlesticks rejected** for portfolio growth: data is a single monthly profit series, not OHLC. Use **monthly bars + cumulative line** (`ProfitGrowthCombo`) instead.
+- Remove Capital At Risk duplicates, allocation donut, investment waterfall, monthly ROI chart, and activity timeline from the dashboard.
+
+### Consequences
+- Cleaner above-the-fold inventory + profit focus.
+- `views.business` remains in the overview service payload unused (prune later if desired).
+
+---
+
 ## Template for Future ADRs
 
 ```

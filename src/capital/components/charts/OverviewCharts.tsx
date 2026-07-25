@@ -8,6 +8,8 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  ComposedChart,
+  Line,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -62,6 +64,76 @@ function shortMonth(ym: string) {
   const [y, m] = ym.split('-');
   const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return `${names[Number(m) - 1] ?? m} ${y?.slice(2) ?? ''}`;
+}
+
+/** Monthly profit bars + cumulative profit line (dealership growth). */
+export function ProfitGrowthCombo({
+  monthly,
+  cumulative,
+}: {
+  monthly: { month: string; valuePaise: number }[];
+  cumulative: { month: string; valuePaise: number }[];
+}) {
+  const chartData = useMemo(() => {
+    const cumMap = new Map(cumulative.map((d) => [d.month, d.valuePaise]));
+    const months = monthly.length
+      ? monthly.map((d) => d.month)
+      : cumulative.map((d) => d.month);
+    return months.map((month) => {
+      const monthRow = monthly.find((d) => d.month === month);
+      return {
+        month: shortMonth(month),
+        profit: (monthRow?.valuePaise ?? 0) / 100,
+        cumulative: (cumMap.get(month) ?? 0) / 100,
+      };
+    });
+  }, [monthly, cumulative]);
+
+  if (!chartData.length) return <Empty />;
+  const hasAny = chartData.some((d) => d.profit !== 0 || d.cumulative !== 0);
+  if (!hasAny) return <Empty />;
+
+  return (
+    <Wrap height={280}>
+      <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+        <XAxis dataKey="month" stroke="#71717A" fontSize={11} tickLine={false} axisLine={false} />
+        <YAxis
+          stroke="#71717A"
+          fontSize={11}
+          tickLine={false}
+          axisLine={false}
+          tickFormatter={formatAxis}
+          width={56}
+        />
+        <Tooltip
+          formatter={(v, name) => [
+            moneyTip(v),
+            name === 'profit' ? 'Monthly profit' : 'Cumulative profit',
+          ]}
+          contentStyle={tooltipStyle}
+          cursor={{ fill: 'rgba(34,211,238,0.06)' }}
+        />
+        <Bar
+          dataKey="profit"
+          name="profit"
+          fill="#34D399"
+          radius={[4, 4, 0, 0]}
+          animationDuration={800}
+        />
+        <Line
+          type="monotone"
+          dataKey="cumulative"
+          name="cumulative"
+          stroke="#22D3EE"
+          strokeWidth={2.5}
+          dot={false}
+          activeDot={{ r: 5, stroke: '#fff', strokeWidth: 2, fill: '#22D3EE' }}
+          animationDuration={900}
+        />
+      </ComposedChart>
+    </Wrap>
+  );
 }
 
 /** Cumulative portfolio growth (lifetime profit trajectory). */

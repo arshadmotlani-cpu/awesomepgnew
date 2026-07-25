@@ -29,7 +29,7 @@ export function AssetFiltersBar({ manufacturers }: { manufacturers: string[] }) 
     >
       <div>
         <label className="mb-1 block text-xs text-ac-text-muted">Search</label>
-        <Input name="search" defaultValue={params.get('search') ?? ''} aria-label="Search assets" />
+        <Input name="search" defaultValue={params.get('search') ?? ''} aria-label="Search vehicles" />
       </div>
       <div>
         <label className="mb-1 block text-xs text-ac-text-muted">Status</label>
