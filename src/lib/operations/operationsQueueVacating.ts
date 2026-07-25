@@ -14,6 +14,7 @@ import {
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import { deriveMoveOutWorkflowStage } from '@/src/lib/moveOut/moveOutWorkflowStages';
 import { moveOutOperationsQueueTarget } from '@/src/lib/operations/moveOutAdminAction';
+import type { MoveOutPipelineItem } from '@/src/lib/moveOut/moveOutPipeline';
 
 export { isTerminalVacatingPipelineItem } from '@/src/lib/operations/moveOutAdminAction';
 

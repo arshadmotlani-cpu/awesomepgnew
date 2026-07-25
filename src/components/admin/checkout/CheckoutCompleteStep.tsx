@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef, useState, useTransition } from 'react';
 import { RECORD_PAYOUT_CTA } from '@/src/lib/payout/payoutDisplayTerminology';
 import { useRouter } from 'next/navigation';
 import {
@@ -158,7 +159,7 @@ export function CheckoutCompleteStep({
             );
             return;
           }
-          setError(result.message);
+          setError(result.status === 'error' ? result.message : 'Could not defer payout');
           return;
         }
 
