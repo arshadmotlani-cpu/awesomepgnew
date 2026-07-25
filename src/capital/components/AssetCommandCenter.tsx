@@ -127,6 +127,7 @@ const TAB_VALUES = [
   'sale',
   'profit',
   'notes',
+  'payments',
   'ledger',
 ] as const;
 
@@ -262,6 +263,7 @@ export function AssetCommandCenter({
         <TabsTrigger value="sale">Sale</TabsTrigger>
         <TabsTrigger value="profit">Profit</TabsTrigger>
         <TabsTrigger value="notes">Notes</TabsTrigger>
+        <TabsTrigger value="payments">Payments ({timeline.payments.length})</TabsTrigger>
         <TabsTrigger value="ledger">Ledger</TabsTrigger>
       </TabsList>
 
@@ -730,50 +732,50 @@ export function AssetCommandCenter({
         </div>
       </TabsContent>
 
+      <TabsContent value="payments" className="space-y-4">
+        <p className="text-xs text-ac-text-muted">
+          Capital and profit payments received against this vehicle.
+        </p>
+        <div className="space-y-2">
+          {timeline.payments.map((p) => (
+            <div key={p.id} className="ac-glass-card flex justify-between p-3 text-sm">
+              <div>
+                <Badge variant="secondary">{p.paymentType}</Badge>
+                <p className="mt-1 text-ac-text-muted">{p.receivedAt}</p>
+              </div>
+              <MoneyDisplay paise={p.amountPaise} />
+            </div>
+          ))}
+          {timeline.payments.length === 0 ? (
+            <p className="text-sm text-ac-text-muted">No payments recorded yet.</p>
+          ) : null}
+        </div>
+      </TabsContent>
+
       <TabsContent value="ledger" className="space-y-6">
         <p className="text-xs text-ac-text-muted">
-          Accounting detail for this vehicle — payments and ledger entries.
+          Immutable ledger entries for this vehicle.
         </p>
-        <div>
-          <h3 className="mb-2 text-sm font-medium">Payments ({timeline.payments.length})</h3>
-          <div className="space-y-2">
-            {timeline.payments.map((p) => (
-              <div key={p.id} className="ac-glass-card flex justify-between p-3 text-sm">
-                <div>
-                  <Badge variant="secondary">{p.paymentType}</Badge>
-                  <p className="mt-1 text-ac-text-muted">{p.receivedAt}</p>
-                </div>
-                <MoneyDisplay paise={p.amountPaise} />
+        <div className="space-y-2">
+          {timeline.ledger.map((l) => (
+            <div key={l.id} className="ac-glass-card flex justify-between gap-4 p-3 text-sm">
+              <div>
+                <Badge variant="outline">{l.entryType}</Badge>
+                <p className="mt-1 text-ac-text-secondary">{l.description}</p>
               </div>
-            ))}
-            {timeline.payments.length === 0 ? (
-              <p className="text-sm text-ac-text-muted">No payments.</p>
-            ) : null}
-          </div>
-        </div>
-        <div>
-          <h3 className="mb-2 text-sm font-medium">Ledger ({timeline.ledger.length})</h3>
-          <div className="space-y-2">
-            {timeline.ledger.map((l) => (
-              <div key={l.id} className="ac-glass-card flex justify-between gap-4 p-3 text-sm">
-                <div>
-                  <Badge variant="outline">{l.entryType}</Badge>
-                  <p className="mt-1 text-ac-text-secondary">{l.description}</p>
-                </div>
-                <div className="text-right">
-                  <Badge variant={l.direction === 'credit' ? 'success' : 'warning'}>
-                    {l.direction}
-                  </Badge>
-                  <p className="mt-1">
-                    <MoneyDisplay paise={l.amountPaise} />
-                  </p>
-                </div>
+              <div className="text-right">
+                <Badge variant={l.direction === 'credit' ? 'success' : 'warning'}>
+                  {l.direction}
+                </Badge>
+                <p className="mt-1">
+                  <MoneyDisplay paise={l.amountPaise} />
+                </p>
               </div>
-            ))}
-            {timeline.ledger.length === 0 ? (
-              <p className="text-sm text-ac-text-muted">No ledger entries.</p>
-            ) : null}
-          </div>
+            </div>
+          ))}
+          {timeline.ledger.length === 0 ? (
+            <p className="text-sm text-ac-text-muted">No ledger entries.</p>
+          ) : null}
         </div>
       </TabsContent>
     </Tabs>

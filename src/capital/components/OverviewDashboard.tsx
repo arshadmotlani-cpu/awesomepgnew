@@ -7,8 +7,15 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Sparkles, X } from 'lucide-react';
 import {
   ProfitGrowthCombo,
-  PurchasesVsSalesBars,
 } from '@/src/capital/components/charts/OverviewCharts';
+import {
+  AcquisitionChart,
+  CashFlowChart,
+  CountBarChart,
+  HoldingLineChart,
+  RoiLineChart,
+  ValueBarChart,
+} from '@/src/capital/components/charts/AnalyticsCharts';
 import { ManualProfitForm } from '@/src/capital/components/forms/ManualProfitForm';
 import { MoneyDisplay } from '@/src/capital/components/MoneyDisplay';
 import { Button } from '@/src/capital/components/ui/button';
@@ -16,7 +23,19 @@ import { Input } from '@/src/capital/components/ui/input';
 import { VEHICLE_ACTIVITY_TYPE_META, type VehicleActivityType } from '@/src/capital/lib/activityTypes';
 import { currentMonthKey, shiftMonth } from '@/src/capital/lib/dashboardRange';
 import type { OverviewBundle } from '@/src/capital/services/overview';
+import type { getAnalyticsBundle } from '@/src/capital/services/analytics';
 import { cn } from '@/src/capital/lib/utils';
+
+type DashboardInsights = Awaited<ReturnType<typeof getAnalyticsBundle>>;
+
+const FUEL_LABELS: Record<string, string> = {
+  petrol: 'Petrol',
+  diesel: 'Diesel',
+  cng: 'CNG',
+  ev: 'EV',
+  hybrid: 'Hybrid',
+  unknown: 'Unknown',
+};
 
 const RANGES = [
   { key: 'today', label: 'Today' },
@@ -127,11 +146,13 @@ function MetricRow({
 
 export function OverviewDashboard({
   bundle,
+  insights,
   customFrom,
   customTo,
   defaultPartnerPct = 50,
 }: {
   bundle: OverviewBundle;
+  insights: DashboardInsights;
   customFrom?: string;
   customTo?: string;
   defaultPartnerPct?: number;
@@ -275,173 +296,317 @@ export function OverviewDashboard({
         </div>
       </div>
 
-      {/* Financial Overview — executive summary only */}
+      {/* Financial Overview — period money movement (not duplicated below) */}
       <Section
         title="Financial Overview"
-        subtitle="Inventory, capital, profit, and performance at a glance"
+        subtitle={`${bundle.period.label} · purchases, recoveries, and period ROI`}
       >
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <Link
-            href="/assets"
-            className="group rounded-xl border border-white/[0.08] bg-white/[0.03] p-4 transition hover:border-ac-accent/40 hover:bg-white/[0.05]"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ac-text-muted">
-                Inventory
-              </p>
-              <span className="text-[10px] text-ac-accent opacity-0 transition group-hover:opacity-100">
-                Open Vehicles →
-              </span>
-            </div>
-            <div className="mt-3 space-y-2.5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+            <p className="text-[10px] text-ac-text-muted">Vehicles purchased</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums">
+              {bundle.period.vehiclesPurchased}
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+            <p className="text-[10px] text-ac-text-muted">Vehicles sold</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums">{bundle.period.vehiclesSold}</p>
+          </div>
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+            <p className="text-[10px] text-ac-text-muted">Money invested</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums">
+              <MoneyDisplay paise={bundle.period.moneyInvestedPaise} className="text-xl" />
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+            <p className="text-[10px] text-ac-text-muted">Capital recovered</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums">
+              <MoneyDisplay paise={bundle.period.capitalRecoveredPaise} className="text-xl" />
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+          <MetricRow
+            label="My Period ROI"
+            valueText={
+              bundle.isFuture || view.periodRoiBps == null
+                ? '—'
+                : `${(view.periodRoiBps / 100).toFixed(1)}%`
+            }
+            accent
+          />
+          <p className="mt-2 text-[10px] text-ac-text-muted">
+            Period ROI uses My profit ÷ My capital for {bundle.period.label}. Lifetime ROI is under
+            Performance.
+          </p>
+        </div>
+      </Section>
+
+      {/* Inventory Summary */}
+      <Section title="Inventory Summary" subtitle="Counts only — open Vehicles to manage stock">
+        <Link
+          href="/assets"
+          className="group block rounded-xl border border-white/[0.08] bg-white/[0.03] p-4 transition hover:border-ac-accent/40 hover:bg-white/[0.05]"
+        >
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="grid flex-1 gap-3 sm:grid-cols-3">
               <MetricRow label="In Stock" valueText={String(view.activeVehicles)} />
               <MetricRow label="Sold" valueText={String(view.vehiclesSold)} />
               <MetricRow label="Total Vehicles" valueText={String(inventoryTotal)} accent />
             </div>
-            <p className="mt-2 text-[10px] text-ac-text-muted">
-              Summary only — manage stock on Vehicles
-            </p>
-          </Link>
-
-          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
-            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ac-text-muted">
-              Active Capital
-            </p>
-            <p className="mt-3 text-2xl font-semibold tracking-tight tabular-nums">
-              <MoneyDisplay paise={activeCapitalPaise} className="text-2xl" />
-            </p>
-            <p className="mt-1 text-xs text-ac-text-muted">Your money in in-stock vehicles</p>
+            <span className="text-xs text-ac-accent">Open Vehicles →</span>
           </div>
+        </Link>
+      </Section>
 
-          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
-            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ac-text-muted">
-              Profit
-            </p>
-            <div className="mt-3 space-y-2.5">
-              <MetricRow label="My Lifetime Profit" valuePaise={view.profitPaise} accent />
-              <MetricRow
-                label={periodProfitLabel}
-                valuePaise={bundle.isFuture ? undefined : view.periodProfitPaise}
-                valueText={bundle.isFuture ? '—' : undefined}
-              />
-            </div>
-            <p className="mt-2 text-[10px] text-ac-text-muted">
-              Realised profit attributable to me during the selected period.
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
-            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ac-text-muted">
-              Performance
-            </p>
-            <div className="mt-3 space-y-2.5">
-              <MetricRow
-                label="My ROI"
-                valueText={view.roiBps != null ? `${(view.roiBps / 100).toFixed(1)}%` : '—'}
-                accent
-              />
-              <MetricRow
-                label="Avg Profit Per Vehicle"
-                valuePaise={view.avgProfitPerVehiclePaise}
-              />
-            </div>
-            <p className="mt-2 text-[10px] text-ac-text-muted">
-              ROI = My Lifetime Profit ÷ My Capital Stakes
-            </p>
-          </div>
+      {/* Capital Summary */}
+      <Section title="Capital Summary" subtitle="Your money currently in inventory">
+        <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+          <p className="text-2xl font-semibold tracking-tight tabular-nums">
+            <MoneyDisplay paise={activeCapitalPaise} className="text-2xl" />
+          </p>
+          <p className="mt-1 text-xs text-ac-text-muted">Active capital in in-stock vehicles</p>
         </div>
       </Section>
 
-      {/* Activity + charts */}
-      <Section title="Pulse" subtitle="Recent activity and whether your results are growing">
+      {/* Profit Summary */}
+      <Section title="Profit Summary" subtitle="My realised profit only">
+        <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+          <div className="space-y-2.5">
+            <MetricRow label="My Lifetime Profit" valuePaise={view.profitPaise} accent />
+            <MetricRow
+              label={periodProfitLabel}
+              valuePaise={bundle.isFuture ? undefined : view.periodProfitPaise}
+              valueText={bundle.isFuture ? '—' : undefined}
+            />
+          </div>
+          <p className="mt-2 text-[10px] text-ac-text-muted">
+            Realised profit attributable to me during the selected period.
+          </p>
+        </div>
+      </Section>
+
+      {/* Performance */}
+      <Section title="Performance" subtitle="Portfolio My ROI">
+        <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+          <div className="space-y-2.5">
+            <MetricRow
+              label="My ROI"
+              valueText={view.roiBps != null ? `${(view.roiBps / 100).toFixed(1)}%` : '—'}
+              accent
+            />
+            <MetricRow label="Avg Profit Per Vehicle" valuePaise={view.avgProfitPerVehiclePaise} />
+          </div>
+          <p className="mt-2 text-[10px] text-ac-text-muted">
+            ROI = My Lifetime Profit ÷ My Capital Stakes
+          </p>
+        </div>
+      </Section>
+
+      {/* Cash Flow */}
+      <Section title="Cash Flow" subtitle="Payments received vs capital invested">
+        <div className="ac-glass-card p-3 sm:p-4">
+          <CashFlowChart data={insights.cashFlow} />
+        </div>
+      </Section>
+
+      {/* Manufacturer Performance */}
+      <Section title="Manufacturer Performance" subtitle="My profit and My ROI by brand">
+        <div className="ac-glass-card overflow-x-auto p-4">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-white/8 text-left text-ac-text-muted">
+                <th className="pb-3 pr-4 font-medium">Manufacturer</th>
+                <th className="pb-3 pr-4 font-medium">Deals</th>
+                <th className="pb-3 pr-4 font-medium">Avg My ROI</th>
+                <th className="pb-3 font-medium text-right">My Profit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {insights.manufacturers.slice(0, 8).map((m) => (
+                <tr key={m.manufacturer} className="border-b border-white/5">
+                  <td className="py-2.5 pr-4 font-medium">{m.manufacturer}</td>
+                  <td className="py-2.5 pr-4">{m.count}</td>
+                  <td className="py-2.5 pr-4">{(m.avgMyRoiBps / 100).toFixed(1)}%</td>
+                  <td className="py-2.5 text-right">
+                    <MoneyDisplay paise={m.totalMySharePaise} />
+                  </td>
+                </tr>
+              ))}
+              {insights.manufacturers.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="py-6 text-center text-ac-text-muted">
+                    No sold deals yet.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </Section>
+
+      {/* Holding Time */}
+      <Section title="Holding Time" subtitle="How long capital stays locked before sale">
         <div className="grid gap-3 lg:grid-cols-2">
-          <div className="ac-glass-card overflow-hidden">
-            <div className="border-b border-white/[0.06] px-4 py-3">
-              <h3 className="text-sm font-semibold">Recent Activity</h3>
-              <p className="mt-0.5 text-xs text-ac-text-muted">Daily dealership log</p>
-            </div>
-            <div className="max-h-[28rem] overflow-y-auto">
-              {activityFeed.length === 0 ? (
-                <div className="flex h-40 items-center justify-center px-4 text-sm text-ac-text-muted">
-                  No recent activity.
-                </div>
-              ) : (
-                <ul className="divide-y divide-white/[0.05]">
-                  {activityFeed.map((row) => {
-                    const label = activityLabel(row.action, row.afterState);
-                    const href =
-                      row.entityType === 'asset' && row.entityId
-                        ? `/assets/${row.entityId}`
-                        : null;
-                    const inner = (
-                      <>
-                        <span className="text-sm font-medium text-ac-text">{label}</span>
-                        <span className="mt-0.5 block text-[11px] text-ac-text-muted">
-                          {formatActivityTime(row.createdAt)}
-                        </span>
-                      </>
-                    );
-                    return (
-                      <li key={row.id}>
-                        {href ? (
-                          <Link
-                            href={href}
-                            className="block px-4 py-2.5 transition hover:bg-white/[0.04]"
-                          >
-                            {inner}
-                          </Link>
-                        ) : (
-                          <div className="px-4 py-2.5">{inner}</div>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+            <p className="text-xs text-ac-text-muted">Avg holding (sold)</p>
+            <p className="mt-1 text-2xl font-semibold">
+              {insights.insightKpis.averageHoldingDays} days
+            </p>
           </div>
-
-          <div className="ac-glass-card overflow-hidden">
-            <div className="border-b border-white/[0.06] px-4 py-3">
-              <h3 className="text-sm font-semibold">My Profit Growth</h3>
-              <p className="mt-0.5 text-xs text-ac-text-muted">
-                My monthly profit bars + cumulative line (sale-date entitlement)
-              </p>
-            </div>
-            <div className="p-3 sm:p-4">
-              {bundle.isFuture || view.monthlyProfit.length === 0 ? (
-                <div className="flex h-56 items-center justify-center text-sm text-ac-text-muted">
-                  No profit history yet.
-                </div>
-              ) : (
-                <ProfitGrowthCombo
-                  monthly={view.monthlyProfit}
-                  cumulative={view.portfolioGrowth}
-                />
-              )}
-            </div>
+          <div className="ac-glass-card p-3 sm:p-4">
+            <HoldingLineChart data={insights.holdingTime} />
           </div>
         </div>
       </Section>
 
-      <Section
-        title="Purchases vs Sales"
-        subtitle="Dealership throughput: capital deployed into stock versus sale proceeds by month"
-      >
+      {/* Monthly Growth */}
+      <Section title="Monthly Growth" subtitle="My monthly profit bars + cumulative line">
         <div className="ac-glass-card overflow-hidden p-3 sm:p-4">
-          {bundle.isFuture ||
-          ((bundle.monthlyPurchases?.length ?? 0) === 0 &&
-            (bundle.monthlySales?.length ?? 0) === 0) ? (
+          {bundle.isFuture || view.monthlyProfit.length === 0 ? (
             <div className="flex h-56 items-center justify-center text-sm text-ac-text-muted">
-              No purchase or sale history yet.
+              No profit history yet.
             </div>
           ) : (
-            <PurchasesVsSalesBars
-              purchases={bundle.monthlyPurchases ?? []}
-              sales={bundle.monthlySales ?? []}
-            />
+            <ProfitGrowthCombo monthly={view.monthlyProfit} cumulative={view.portfolioGrowth} />
           )}
         </div>
+      </Section>
+
+      {/* Recent Activity */}
+      <Section title="Recent Activity" subtitle="Daily dealership log">
+        <div className="ac-glass-card max-h-[22rem] overflow-y-auto">
+          {activityFeed.length === 0 ? (
+            <div className="flex h-32 items-center justify-center px-4 text-sm text-ac-text-muted">
+              No recent activity.
+            </div>
+          ) : (
+            <ul className="divide-y divide-white/[0.05]">
+              {activityFeed.map((row) => {
+                const label = activityLabel(row.action, row.afterState);
+                const href =
+                  row.entityType === 'asset' && row.entityId ? `/assets/${row.entityId}` : null;
+                const inner = (
+                  <>
+                    <span className="text-sm font-medium text-ac-text">{label}</span>
+                    <span className="mt-0.5 block text-[11px] text-ac-text-muted">
+                      {formatActivityTime(row.createdAt)}
+                    </span>
+                  </>
+                );
+                return (
+                  <li key={row.id}>
+                    {href ? (
+                      <Link href={href} className="block px-4 py-2.5 transition hover:bg-white/[0.04]">
+                        {inner}
+                      </Link>
+                    ) : (
+                      <div className="px-4 py-2.5">{inner}</div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </Section>
+
+      {/* Business Insights */}
+      <Section
+        title="Business Insights"
+        subtitle="Deep My-only diagnostics — inventory ageing, acquisition, repairs, ROI trend"
+      >
+        <div className="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3">
+            <p className="text-[10px] text-ac-text-muted">Avg My ROI (per deal)</p>
+            <p className="mt-1 text-lg font-semibold">
+              {(insights.insightKpis.averageMyRoiBps / 100).toFixed(1)}%
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3">
+            <p className="text-[10px] text-ac-text-muted">Stale inventory (90+ days)</p>
+            <p className="mt-1 text-lg font-semibold">{insights.insightKpis.staleInventoryCount}</p>
+          </div>
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3">
+            <p className="text-[10px] text-ac-text-muted">Repair on active</p>
+            <p className="mt-1 text-lg font-semibold">
+              <MoneyDisplay
+                paise={insights.insightKpis.repairSpendOnActivePaise}
+                className="text-lg"
+              />
+            </p>
+          </div>
+        </div>
+        <div className="mb-3 ac-glass-card p-3">
+          <p className="mb-2 text-xs font-medium text-ac-text-secondary">My ROI trend by sale month</p>
+          <RoiLineChart data={insights.roiTrend} />
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="ac-glass-card p-3">
+            <p className="mb-2 text-xs font-medium text-ac-text-secondary">Inventory ageing</p>
+            <CountBarChart data={insights.inventoryAgeing} label="Vehicles" />
+          </div>
+          <div className="ac-glass-card p-3">
+            <p className="mb-2 text-xs font-medium text-ac-text-secondary">Acquisition trends</p>
+            <AcquisitionChart data={insights.acquisition} />
+          </div>
+          <div className="ac-glass-card p-3">
+            <p className="mb-2 text-xs font-medium text-ac-text-secondary">Repair trends</p>
+            <ValueBarChart data={insights.repairTrends} label="Repairs" />
+          </div>
+          <div className="ac-glass-card p-3">
+            <p className="mb-2 text-xs font-medium text-ac-text-secondary">Profit distribution</p>
+            <CountBarChart data={insights.profitDistribution} label="Deals" />
+          </div>
+        </div>
+        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+          <div className="ac-glass-card overflow-x-auto p-4">
+            <p className="mb-2 text-xs font-medium text-ac-text-secondary">Fuel type (My profit)</p>
+            <table className="w-full text-sm">
+              <tbody>
+                {insights.fuelPerformance.map((f) => (
+                  <tr key={f.fuelType} className="border-b border-white/5">
+                    <td className="py-2 pr-3">{FUEL_LABELS[f.fuelType] ?? f.fuelType}</td>
+                    <td className="py-2 pr-3 text-ac-text-muted">{f.count}</td>
+                    <td className="py-2 pr-3">{(f.avgMyRoiBps / 100).toFixed(1)}%</td>
+                    <td className="py-2 text-right">
+                      <MoneyDisplay paise={f.totalMySharePaise} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="ac-glass-card overflow-x-auto p-4">
+            <p className="mb-2 text-xs font-medium text-ac-text-secondary">Best vehicles (My profit)</p>
+            <ul className="divide-y divide-white/5">
+              {insights.vehiclePerformance.best.slice(0, 5).map((r) => (
+                <li key={r.id}>
+                  <Link
+                    href={`/assets/${r.id}`}
+                    className="flex justify-between gap-2 py-2 text-sm hover:text-ac-accent"
+                  >
+                    <span className="truncate">{r.displayName}</span>
+                    <MoneyDisplay paise={r.mySharePaise ?? 0} className="shrink-0 text-sm" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </Section>
+
+      {/* Reports Shortcut */}
+      <Section title="Reports Shortcut" subtitle="Exports, historical summaries, and accounting">
+        <Link
+          href="/reports"
+          className="flex items-center justify-between rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-4 text-sm transition hover:border-ac-accent/40"
+        >
+          <span>
+            Open Reports for printable summaries and CSV/XLSX exports.
+          </span>
+          <span className="text-ac-accent">Go to Reports →</span>
+        </Link>
       </Section>
 
       <AnimatePresence>

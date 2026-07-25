@@ -17,6 +17,8 @@ export function AssetFiltersBar({ manufacturers }: { manufacturers: string[] }) 
       if (typeof v === 'string' && v) next.set(k, v);
     }
     next.set('page', '1');
+    const tab = params.get('tab');
+    if (tab) next.set('tab', tab);
     router.push(`/assets?${next.toString()}`);
   }
 

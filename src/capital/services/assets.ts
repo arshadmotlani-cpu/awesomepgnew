@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, ilike, or, sql, sum, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ilike, inArray, or, sql, sum, type SQL } from 'drizzle-orm';
 import { capitalDb } from '@/src/capital/db/client';
 import {
   acActivityLog,
@@ -707,6 +707,25 @@ export async function listAssetsQuery(query: AssetListQuery) {
     const tab = query.inventoryTab;
     if (tab === 'in_stock') {
       conditions.push(sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`);
+    } else if (tab === 'purchase_pending') {
+      conditions.push(eq(acAssets.status, 'purchased'));
+      conditions.push(sql`(
+        ${acAssets.purchasePricePaise} <= 0
+        OR COALESCE(${acAssets.fundingGapPaise}, 0) > 0
+        OR COALESCE((
+          SELECT SUM(v.amount_paise)
+          FROM ac_vehicle_activities v
+          WHERE v.asset_id = ${acAssets.id}
+            AND v.is_reversed = false
+            AND v.activity_type IN ('token_paid', 'purchase_payment', 'final_purchase_payment')
+        ), 0) < ${acAssets.purchasePricePaise}
+      )`);
+    } else if (tab === 'under_repair') {
+      conditions.push(sql`${acAssets.status} IN ('repairing', 'painting')`);
+    } else if (tab === 'ready') {
+      conditions.push(eq(acAssets.status, 'ready'));
+    } else if (tab === 'listed') {
+      conditions.push(eq(acAssets.status, 'listed'));
     } else if (tab === 'sold') {
       conditions.push(sql`${acAssets.status} IN ('sold', 'settled')`);
     } else if (tab === 'archived') {
@@ -767,8 +786,32 @@ export async function listAssetsQuery(query: AssetListQuery) {
     .limit(query.pageSize)
     .offset(offset);
 
+  const assetIds = rows.map((r) => r.asset.id);
+  const partnerByAsset = new Map<string, string>();
+  if (assetIds.length > 0) {
+    const partners = await capitalDb
+      .select({
+        assetId: acAssetInvestors.assetId,
+        label: acAssetInvestors.label,
+        investedPaise: acAssetInvestors.investedPaise,
+      })
+      .from(acAssetInvestors)
+      .where(
+        and(
+          inArray(acAssetInvestors.assetId, assetIds),
+          eq(acAssetInvestors.slot, 'investor_2'),
+        ),
+      );
+    for (const p of partners) {
+      if (p.investedPaise > 0) partnerByAsset.set(p.assetId, p.label);
+    }
+  }
+
   return {
-    rows,
+    rows: rows.map((r) => ({
+      ...r,
+      partnerLabel: partnerByAsset.get(r.asset.id) ?? null,
+    })),
     total: Number(countRow?.c ?? 0),
     page: query.page,
     pageSize: query.pageSize,

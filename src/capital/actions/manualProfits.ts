@@ -39,8 +39,7 @@ export async function createManualProfitAction(
     revalidateTag('capital-dashboard', 'default');
     revalidatePath('/dashboard');
     revalidatePath('/ledger');
-    revalidatePath('/analytics');
-    revalidatePath('/activity');
+    revalidatePath('/dashboard');
     return { ok: true };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to add manual profit' };

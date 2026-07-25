@@ -7,6 +7,8 @@
 
 ## Current Focus
 
+- **Automotive Capital product IA (final)** — Sidebar = Dashboard / Vehicles / Reports / Settings only. Analytics merged into Dashboard. Payments/Ledger/Documents/etc. live on vehicle workspace. Legacy routes redirect.
+
 - **Automotive Capital partnership profit model** — Sufii operating-partner cut (Settings, default 50%) + Investor Pool by stake; funding always = Net Vehicle Cost; sale auto-calcs only. Migration `0008_deal_economics`.
 
 - **Automotive Capital multi-investor model** — Each vehicle has Layer 1 (business: purchase/sale/expenses) + Layer 2 (`ac_asset_investors`: Me / Investor 2 / Investor 3). My ROI uses my stake only. Migration `0006` applied on invest Neon.

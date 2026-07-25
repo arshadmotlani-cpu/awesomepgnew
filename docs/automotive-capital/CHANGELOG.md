@@ -8,11 +8,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed — Product IA: 4-item nav + single Dashboard
+- Sidebar only: Dashboard, Vehicles, Reports, Settings
+- Analytics removed; deep insights merged into Dashboard
+- Standalone Payments/Capital/Ledger/Documents/Activity/Search redirect into Vehicles or Dashboard
+- Vehicles: lifecycle tabs + inventory cards; Payments tab on vehicle workspace
+
 ### Changed — Dashboard vs Analytics IA
-- Dashboard: executive only — removed “Where vehicles are now” / Business Health listings; Inventory card opens Vehicles
-- Relabeled **My Monthly Profit** (formula unchanged: Σ myShare by sale date); helper clarifies attributable profit
-- Analytics: deep My-only insights (holding, ageing, cash flow, repairs, acquisition, manufacturers, fuel, year, profit bands, best/worst deals)
-- Removed Business portfolio KPIs/charts from Analytics and ROI report preview
+- *(superseded)* Analytics page removed; content lives on Dashboard
 
 ### Changed — New Vehicle UX (token-first + clean money inputs)
 - Hide native number spinners on all Capital amount fields

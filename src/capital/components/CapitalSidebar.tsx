@@ -2,34 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  Banknote,
-  BookOpen,
-  Car,
-  FileBarChart,
-  FileText,
-  History,
-  LayoutDashboard,
-  LineChart,
-  Search,
-  Settings,
-  TrendingUp,
-} from 'lucide-react';
+import { Car, FileBarChart, LayoutDashboard, Settings } from 'lucide-react';
 import { CapitalBrandLogo } from '@/src/capital/components/CapitalBrandLogo';
 import { cn } from '@/src/capital/lib/utils';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/assets', label: 'Vehicles', icon: Car },
-  { href: '/payments', label: 'Payments', icon: Banknote },
-  { href: '/capital', label: 'Capital', icon: TrendingUp },
-  { href: '/ledger', label: 'Ledger', icon: BookOpen },
-  { href: '/documents', label: 'Documents', icon: FileText },
   { href: '/reports', label: 'Reports', icon: FileBarChart },
-  { href: '/analytics', label: 'Analytics', icon: LineChart },
   { href: '/settings', label: 'Settings', icon: Settings },
-  { href: '/activity', label: 'Activity', icon: History },
-  { href: '/search', label: 'Search', icon: Search },
 ] as const;
 
 export function CapitalSidebar() {

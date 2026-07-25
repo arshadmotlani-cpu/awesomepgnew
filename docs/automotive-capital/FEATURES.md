@@ -298,15 +298,17 @@ any (except settled) → cancelled
 
 ---
 
-## F10 — Analytics
+## F10 — Analytics (merged into Dashboard)
 
-Extended analysis beyond dashboard:
+Standalone `/analytics` removed. Deep My-only insights live on Dashboard:
 
-- [ ] Manufacturer performance comparison
-- [ ] Category expense breakdown
-- [ ] Holding time distribution
-- [ ] ROI distribution histogram
+- [x] Manufacturer performance
+- [x] Holding time
+- [x] Cash flow
+- [x] Inventory ageing / acquisition / repair trends
+- [x] Profit distribution / fuel / best deals
 - [ ] Cash flow forecast (based on expected sale prices)
+
 - [ ] Monthly/quarterly/yearly toggle
 
 ---

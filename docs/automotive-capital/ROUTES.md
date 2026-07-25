@@ -12,25 +12,33 @@ Route group: `app/(capital)/`
 flowchart LR
   Login["/login"]
   Dashboard["/dashboard"]
-  Assets["/assets"]
-  AssetDetail["/assets/:id"]
-  Expenses["/expenses"]
-  Payments["/payments"]
-  Capital["/capital"]
-  Ledger["/ledger"]
-  Documents["/documents"]
+  Vehicles["/assets"]
+  VehicleDetail["/assets/:id"]
   Reports["/reports"]
-  Analytics["/analytics"]
   Settings["/settings"]
-  Activity["/activity"]
-  Search["/search"]
 
   Login --> Dashboard
-  Dashboard --> Assets
-  Assets --> AssetDetail
-  Dashboard --> Expenses
-  Dashboard --> Payments
+  Dashboard --> Vehicles
+  Vehicles --> VehicleDetail
+  Dashboard --> Reports
+  Dashboard --> Settings
 ```
+
+**Sidebar (only):** Dashboard · Vehicles · Reports · Settings
+
+**Redirects (legacy standalone modules → home):**
+
+| Path | Redirects to |
+|------|----------------|
+| `/analytics` | `/dashboard` |
+| `/capital` | `/dashboard` |
+| `/activity` | `/dashboard` |
+| `/payments` | `/assets` |
+| `/ledger` | `/assets` |
+| `/documents` | `/assets` |
+| `/search` | `/assets` (preserves `q`/`search`) |
+
+Payments, Ledger, Documents, Timeline, Activities, Notes, Photos, Investment live **inside** `/assets/[id]` — not as top-level apps.
 
 ---
 
@@ -57,33 +65,15 @@ flowchart LR
 
 | Path | Page | Description |
 |------|------|-------------|
-| `/dashboard` | Dashboard | KPI cards, charts, smart insights |
-| `/assets` | Asset list | Searchable, filterable car inventory |
-| `/assets/new` | Create asset | New automotive asset form |
-| `/assets/[id]` | Asset command center | Timeline, expenses, docs, payments, ledger |
-| `/assets/[id]/edit` | Edit asset | Inline/edit form |
-| `/expenses` | Expense list | Cross-asset expense view |
-| `/expenses/new` | Create expense | Quick add expense |
-| `/payments` | Payment list | All payments received |
-| `/payments/new` | Record payment | Payment entry form |
-| `/capital` | Capital investments | Capital injection history |
-| `/capital/new` | Add capital | New investment entry |
-| `/ledger` | Ledger explorer | Immutable financial history |
-| `/documents` | Document library | All uploaded files |
-| `/reports` | Reports hub | Report type selector |
-| `/reports/monthly` | Monthly report | |
-| `/reports/quarterly` | Quarterly report | |
-| `/reports/yearly` | Yearly report | |
-| `/reports/lifetime` | Lifetime report | |
-| `/reports/investment` | Investment report | |
-| `/reports/outstanding` | Outstanding report | |
-| `/reports/cash-flow` | Cash flow report | |
-| `/reports/roi` | ROI report | |
-| `/reports/profit-loss` | P&L report | |
-| `/analytics` | Analytics deep dive | Extended charts and comparisons |
+| `/dashboard` | Dashboard | Full executive overview (inventory, capital, profit, insights, cash flow) |
+| `/assets` | Vehicles | Lifecycle inventory workspace |
+| `/assets/new` | Create vehicle | New vehicle form |
+| `/assets/[id]` | Vehicle workspace | Timeline, activities, investment, photos, docs, payments, ledger, sale |
+| `/reports` | Reports hub | Exports, historical / printable / accounting summaries |
+| `/reports/[type]` | Report detail | Typed report views |
 | `/settings` | Settings | Business config, categories, theme |
-| `/activity` | Activity log | Audit trail |
-| `/search` | Global search | Full-text search results |
+
+Legacy paths listed in §1 redirect; do not reintroduce as sidebar destinations.
 
 ---
 
@@ -129,26 +119,18 @@ All API routes validate `ac_session` cookie. Rate limited.
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│ TopBar: Logo | Search | QuickAdd | Cmd+K | Profile  │
+│ TopBar: Search vehicles | New Vehicle | Profile     │
 ├──────────┬──────────────────────────────────────────┤
 │ Sidebar  │ Main content area                        │
-│ Nav      │                                          │
 │          │                                          │
 │ Dashboard│                                          │
-│ Assets   │                                          │
-│ Expenses │                                          │
-│ Payments │                                          │
-│ Capital  │                                          │
-│ Ledger   │                                          │
-│ Documents│                                          │
+│ Vehicles │                                          │
 │ Reports  │                                          │
-│ Analytics│                                          │
 │ Settings │                                          │
-│ Activity │                                          │
 └──────────┴──────────────────────────────────────────┘
 ```
 
-Mobile: sidebar collapses to bottom tab bar.
+Mobile: sidebar hidden; use top bar + command palette (`⌘K`).
 
 ---
 
@@ -157,18 +139,11 @@ Mobile: sidebar collapses to bottom tab bar.
 | Label | Path | Icon | Shortcut |
 |-------|------|------|----------|
 | Dashboard | `/dashboard` | LayoutDashboard | `G D` |
-| Assets | `/assets` | Car | `G A` |
-| Expenses | `/expenses` | Receipt | `G E` |
-| Payments | `/payments` | Banknote | `G P` |
-| Capital | `/capital` | TrendingUp | `G C` |
-| Ledger | `/ledger` | BookOpen | `G L` |
-| Documents | `/documents` | FileText | `G O` |
+| Vehicles | `/assets` | Car | `G A` |
 | Reports | `/reports` | FileBarChart | `G R` |
-| Analytics | `/analytics` | LineChart | `G N` |
 | Settings | `/settings` | Settings | `G S` |
-| Activity | `/activity` | History | `G H` |
 
-`G` = `Cmd/Ctrl` then key (Linear-style).
+`G` then key (Linear-style). Command palette (`⌘K`) uses the same four destinations.
 
 ---
 

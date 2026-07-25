@@ -262,7 +262,18 @@ export const assetListQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().positive().max(200).default(50),
   status: z.string().optional(),
-  inventoryTab: z.enum(['in_stock', 'sold', 'all', 'archived']).optional(),
+  inventoryTab: z
+    .enum([
+      'in_stock',
+      'purchase_pending',
+      'under_repair',
+      'ready',
+      'listed',
+      'sold',
+      'archived',
+      'all',
+    ])
+    .optional(),
   search: z.string().optional(),
   manufacturer: z.string().optional(),
   sort: z.enum(['created', 'purchase', 'investment', 'profit', 'holding']).default('created'),

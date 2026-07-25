@@ -3,16 +3,14 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Command } from 'cmdk';
-import { Car, Plus, Receipt, Search, Wallet } from 'lucide-react';
+import { Car, Plus, Search } from 'lucide-react';
 import { cn } from '@/src/capital/lib/utils';
 
 const nav = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/assets', label: 'Vehicles' },
-  { href: '/payments', label: 'Payments' },
-  { href: '/capital', label: 'Capital' },
-  { href: '/ledger', label: 'Ledger' },
   { href: '/reports', label: 'Reports' },
+  { href: '/settings', label: 'Settings' },
 ];
 
 export function CommandPalette() {
@@ -87,23 +85,21 @@ export function CommandPalette() {
             ))}
           </Command.Group>
           <Command.Group heading="Quick actions">
-            {[
-              { href: '/assets/new', label: 'Add vehicle', icon: Car },
-              { href: '/capital', label: 'Add capital', icon: Wallet },
-              { href: '/payments', label: 'Record payment', icon: Receipt },
-            ].map(({ href, label, icon: Icon }) => (
-              <Command.Item
-                key={href}
-                onSelect={() => {
-                  router.push(href);
-                  setOpen(false);
-                }}
-                className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm aria-selected:bg-white/10"
-              >
-                <Icon className="h-4 w-4" />
-                {label}
-              </Command.Item>
-            ))}
+            {[{ href: '/assets/new', label: 'Add vehicle', icon: Car }].map(
+              ({ href, label, icon: Icon }) => (
+                <Command.Item
+                  key={href}
+                  onSelect={() => {
+                    router.push(href);
+                    setOpen(false);
+                  }}
+                  className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm aria-selected:bg-white/10"
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </Command.Item>
+              ),
+            )}
           </Command.Group>
           {displayResults.length > 0 ? (
             <Command.Group heading="Vehicles">

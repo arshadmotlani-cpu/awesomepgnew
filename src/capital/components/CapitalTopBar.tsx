@@ -12,9 +12,14 @@ type CapitalTopBarProps = {
 export function CapitalTopBar({ admin }: CapitalTopBarProps) {
   return (
     <header className="flex h-14 items-center gap-4 border-b border-white/8 bg-ac-elevated/60 px-4 backdrop-blur-xl md:px-6">
-      <form action="/search" method="get" className="relative hidden max-w-md flex-1 md:block">
+      <form action="/assets" method="get" className="relative hidden max-w-md flex-1 md:block">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ac-text-muted" />
-        <Input name="q" aria-label="Search vehicles and registrations" className="pl-9" />
+        <Input
+          name="search"
+          aria-label="Search vehicles and registrations"
+          placeholder="Search vehicles…"
+          className="pl-9"
+        />
       </form>
       <div className="ml-auto flex items-center gap-3">
         <Link href="/assets/new">
