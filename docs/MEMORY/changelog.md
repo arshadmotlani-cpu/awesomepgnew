@@ -9,6 +9,7 @@
 
 ## 2026-07-26
 
+- **CAPITAL-LIFECYCLE-017** — State vs Activities SSOT: reuse `ac_asset_status`, friendly labels, transitions, timeline interleave, dashboard by state → ADR-017; WORKFLOWS §4 synced
 - **CAPITAL-VIOS-GAP** — Dealership command center (Pending Work first), Notes tab, photos on create, editable repair advances; audit closed remaining OS gaps
 - **CAPITAL-TVI-016** — Frozen Total Vehicle Investment (Option 2): Purchase Price + investment costs; milestones excluded; dealer create UX; edit vehicle/activities; ADR-016 Financial SSOT
 - **CAPITAL-DASHBOARD-EXEC** — Executive restore: grouped Inventory/Active Capital/Profit/Performance; Business Health; activity + Purchases vs Sales; ROI unchanged → ADR-015

@@ -88,10 +88,20 @@ export async function createSettlement(assetId: string, notes?: string) {
     await recalculateAsset(assetId, tx);
     await logActivity(
       {
+        action: 'asset_status_changed',
+        entityType: 'asset',
+        entityId: assetId,
+        beforeState: { status: 'sold' },
+        afterState: { status: 'settled' },
+      },
+      tx,
+    );
+    await logActivity(
+      {
         action: 'settlement_created',
-        entityType: 'settlement',
-        entityId: settlement.id,
-        afterState: { assetId, grossProfit, adminShare, partnerShare },
+        entityType: 'asset',
+        entityId: assetId,
+        afterState: { settlementId: settlement.id, grossProfit, adminShare, partnerShare },
       },
       tx,
     );

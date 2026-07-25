@@ -1,20 +1,16 @@
 'use client';
 
 import { useActionState, useMemo, useState } from 'react';
-import { recordSaleAction, updateStatusAction, type ActionState } from '@/src/capital/actions/assets';
+import { recordSaleAction, type ActionState } from '@/src/capital/actions/assets';
 import { createSettlementAction } from '@/src/capital/actions/settlements';
 import { MoneyDisplay } from '@/src/capital/components/MoneyDisplay';
 import { Button } from '@/src/capital/components/ui/button';
 import { Input } from '@/src/capital/components/ui/input';
-import { assetStatusEnum } from '@/src/capital/db/schema/enums';
 import { distributeDealProfits } from '@/src/capital/lib/dealEconomics';
+import { lifecycleLabel } from '@/src/capital/lib/vehicleLifecycle';
 import type { InvestorSlot } from '@/src/capital/db/schema/investors';
 
 const initialState: ActionState = {};
-
-const MUTABLE_STATUSES = assetStatusEnum.enumValues.filter(
-  (s) => s !== 'cancelled' && s !== 'settled' && s !== 'sold',
-);
 
 export function AssetActionsForms({
   assetId,
@@ -41,17 +37,19 @@ export function AssetActionsForms({
     <div className="space-y-4">
       {isClosed ? (
         <div className="rounded-xl border border-ac-warning/30 bg-ac-warning/10 px-4 py-3 text-sm text-ac-warning">
-          This vehicle is <strong>{currentStatus}</strong> and read-only for new costs.
+          This vehicle is <strong>{lifecycleLabel(currentStatus)}</strong> and read-only for new
+          costs.
           {currentStatus === 'sold'
             ? ' Record capital return & profit under Payments, then settle.'
             : ' History remains available.'}
         </div>
-      ) : null}
+      ) : (
+        <p className="text-sm text-ac-text-muted">
+          Lifecycle is managed on Overview. Use this tab to record a sale.
+        </p>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {!isClosed ? (
-          <StatusForm assetId={assetId} currentStatus={currentStatus} />
-        ) : null}
         {!isClosed ? (
           <SaleForm
             assetId={assetId}
@@ -70,33 +68,6 @@ export function AssetActionsForms({
         ) : null}
       </div>
     </div>
-  );
-}
-
-function StatusForm({ assetId, currentStatus }: { assetId: string; currentStatus: string }) {
-  const [state, formAction, pending] = useActionState(updateStatusAction, initialState);
-
-  return (
-    <form action={formAction} className="ac-glass-card space-y-3 p-4">
-      <h3 className="font-medium">Update status</h3>
-      <input type="hidden" name="assetId" value={assetId} />
-      <select
-        name="status"
-        defaultValue={currentStatus}
-        className="flex h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm"
-      >
-        {MUTABLE_STATUSES.map((s) => (
-          <option key={s} value={s}>
-            {s}
-          </option>
-        ))}
-      </select>
-      {state.error ? <p className="text-sm text-ac-danger">{state.error}</p> : null}
-      {state.success ? <p className="text-sm text-ac-success">{state.success}</p> : null}
-      <Button type="submit" size="sm" variant="secondary" disabled={pending}>
-        Update
-      </Button>
-    </form>
   );
 }
 

@@ -30,6 +30,12 @@ import {
   distributeDealProfits,
 } from '@/src/capital/lib/dealEconomics';
 import { computeTotalVehicleInvestment } from '@/src/capital/lib/activityTypes';
+import {
+  canArchive,
+  canTransition,
+  isAssetLifecycleStatus,
+  lifecycleLabel,
+} from '@/src/capital/lib/vehicleLifecycle';
 import { computeVehicleRois } from '@/src/capital/lib/roi';
 import {
   activeInvestmentSql,
@@ -315,14 +321,27 @@ export async function createAsset(input: CreateAssetInput) {
 }
 
 export async function updateAssetStatus(assetId: string, status: string) {
-  if (TERMINAL_STATUSES.has(status)) {
-    throw new Error(`Use the dedicated workflow to mark an asset as ${status}`);
+  if (!isAssetLifecycleStatus(status)) {
+    throw new Error(`Unknown lifecycle status: ${status}`);
+  }
+  if (status === 'sold' || status === 'settled') {
+    throw new Error(`Use the dedicated workflow to mark an asset as ${lifecycleLabel(status)}`);
   }
 
   const [before] = await capitalDb.select().from(acAssets).where(eq(acAssets.id, assetId)).limit(1);
   if (!before) throw new Error('Asset not found');
   if (TERMINAL_STATUSES.has(before.status)) {
-    throw new Error(`Cannot change status of a ${before.status} asset`);
+    throw new Error(`Cannot change status of a ${lifecycleLabel(before.status)} vehicle`);
+  }
+
+  if (status === 'cancelled') {
+    return cancelAsset(assetId, 'Archived from lifecycle control');
+  }
+
+  if (!canTransition(before.status, status)) {
+    throw new Error(
+      `Cannot move from ${lifecycleLabel(before.status)} to ${lifecycleLabel(status)}`,
+    );
   }
 
   await capitalDb
@@ -336,6 +355,40 @@ export async function updateAssetStatus(assetId: string, status: string) {
     entityId: assetId,
     beforeState: { status: before.status },
     afterState: { status },
+  });
+}
+
+/** Archive vehicle (status → cancelled). */
+export async function cancelAsset(assetId: string, reason: string) {
+  const [before] = await capitalDb.select().from(acAssets).where(eq(acAssets.id, assetId)).limit(1);
+  if (!before) throw new Error('Asset not found');
+  if (before.status === 'cancelled') throw new Error('Vehicle is already archived');
+  if (before.status === 'settled') {
+    throw new Error('Cannot archive a settled vehicle');
+  }
+  if (before.status === 'sold') {
+    throw new Error('Settle or keep as Sold — archive is for pre-sale removals');
+  }
+  if (!canArchive(before.status)) {
+    throw new Error(`Cannot archive from ${lifecycleLabel(before.status)}`);
+  }
+
+  await capitalDb
+    .update(acAssets)
+    .set({
+      status: 'cancelled',
+      cancelledAt: new Date(),
+      cancelReason: reason.trim() || 'Archived',
+      updatedAt: new Date(),
+    })
+    .where(eq(acAssets.id, assetId));
+
+  await logActivity({
+    action: 'asset_status_changed',
+    entityType: 'asset',
+    entityId: assetId,
+    beforeState: { status: before.status },
+    afterState: { status: 'cancelled', reason },
   });
 }
 
@@ -561,7 +614,14 @@ export async function recordSale(
 
   await recalculateAsset(assetId);
   await logActivity({
-    action: 'asset_updated',
+    action: 'asset_status_changed',
+    entityType: 'asset',
+    entityId: assetId,
+    beforeState: { status: fresh.status },
+    afterState: { status: 'sold' },
+  });
+  await logActivity({
+    action: 'sale_recorded',
     entityType: 'asset',
     entityId: assetId,
     afterState: {
@@ -731,6 +791,8 @@ export async function getAssetTimeline(assetId: string) {
   return {
     vehicleActivities,
     activities: auditLog,
+    /** Chronological merge of purchase activities + lifecycle state changes */
+    timelineEvents: buildMergedTimeline(vehicleActivities, auditLog),
     ledger,
     payments,
     documents,
@@ -738,6 +800,72 @@ export async function getAssetTimeline(assetId: string) {
     /** @deprecated Prefer vehicleActivities — kept empty for old callers */
     expenses: [] as { id: string; description: string; expenseDate: string; amountPaise: number }[],
   };
+}
+
+const LIFECYCLE_AUDIT_ACTIONS = new Set([
+  'asset_created',
+  'asset_status_changed',
+  'sale_recorded',
+  'asset_sold',
+  'settlement_created',
+]);
+
+function buildMergedTimeline(
+  vehicleActivities: (typeof acVehicleActivities.$inferSelect)[],
+  auditLog: (typeof acActivityLog.$inferSelect)[],
+) {
+  type Event = {
+    id: string;
+    kind: 'activity' | 'state';
+    sortAt: string;
+    activityAt?: string;
+    activityType?: string;
+    amountPaise?: number | null;
+    title?: string | null;
+    notes?: string | null;
+    metadata?: unknown;
+    action?: string;
+    beforeState?: unknown;
+    afterState?: unknown;
+    createdAt: string;
+  };
+
+  const events: Event[] = [];
+
+  for (const a of vehicleActivities) {
+    const created =
+      a.createdAt instanceof Date ? a.createdAt.toISOString() : String(a.createdAt);
+    events.push({
+      id: `act-${a.id}`,
+      kind: 'activity',
+      sortAt: `${a.activityAt}T12:00:00.000Z`,
+      activityAt: a.activityAt,
+      activityType: a.activityType,
+      amountPaise: a.amountPaise,
+      title: a.title,
+      notes: a.notes,
+      metadata: a.metadata,
+      createdAt: created,
+    });
+  }
+
+  for (const a of auditLog) {
+    if (!LIFECYCLE_AUDIT_ACTIONS.has(a.action)) continue;
+    const created =
+      a.createdAt instanceof Date ? a.createdAt.toISOString() : String(a.createdAt);
+    events.push({
+      id: `state-${a.id}`,
+      kind: 'state',
+      sortAt: created,
+      action: a.action,
+      beforeState: a.beforeState,
+      afterState: a.afterState,
+      createdAt: created,
+    });
+  }
+
+  events.sort((x, y) => y.sortAt.localeCompare(x.sortAt));
+  return events;
 }
 
 export async function getAssetDetail(assetId: string) {

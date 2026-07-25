@@ -19,6 +19,7 @@ import {
   acExpenses,
   acPaymentsReceived,
   acRepairAdvances,
+  acVehicleActivities,
 } from '@/src/capital/db/schema';
 import {
   isFutureRange,
@@ -29,6 +30,8 @@ import {
   type DateRange,
   type DashboardRange,
 } from '@/src/capital/lib/dashboardRange';
+import { PAYMENT_MILESTONE_TYPES } from '@/src/capital/lib/activityTypes';
+import { derivedBadges } from '@/src/capital/lib/vehicleLifecycle';
 import { computePortfolioRois } from '@/src/capital/lib/roi';
 import { monthlyManualProfitSeries, sumManualMySharePaise, sumManualProfitsPaise } from './manualProfits';
 import { sumMyActiveInvestedCapitalPaise, sumMyInvestedCapitalPaise } from './assets';
@@ -1055,38 +1058,118 @@ export async function getOverviewBundle(range: DateRange) {
             displayName: acAssets.displayName,
             status: acAssets.status,
             purchaseDate: acAssets.purchaseDate,
+            purchasePricePaise: acAssets.purchasePricePaise,
+            fundingGapPaise: acAssets.fundingGapPaise,
           })
           .from(acAssets)
-          .where(inArray(acAssets.status, statuses as Array<typeof acAssets.status.enumValues[number]>))
+          .where(inArray(acAssets.status, statuses as Array<(typeof acAssets.status.enumValues)[number]>))
           .orderBy(desc(acAssets.updatedAt))
           .limit(limit);
       };
 
-      const [underRepair, readyForSale, justPurchased, listed, openAdvances] = await Promise.all([
-        pick(['repairing', 'painting']),
-        pick(['ready']),
-        pick(['purchased']),
-        pick(['listed']),
-        capitalDb
+      const recentSoldCutoff = new Date();
+      recentSoldCutoff.setDate(recentSoldCutoff.getDate() - 30);
+      const recentSoldFrom = isoDate(recentSoldCutoff);
+
+      const [underRepair, readyForSale, justPurchased, listed, openAdvances, recentlySold] =
+        await Promise.all([
+          pick(['repairing', 'painting']),
+          pick(['ready']),
+          pick(['purchased'], 20),
+          pick(['listed']),
+          capitalDb
+            .select({
+              id: acRepairAdvances.id,
+              assetId: acRepairAdvances.assetId,
+              advancePaise: acRepairAdvances.advancePaise,
+              displayName: acAssets.displayName,
+            })
+            .from(acRepairAdvances)
+            .innerJoin(acAssets, eq(acRepairAdvances.assetId, acAssets.id))
+            .where(eq(acRepairAdvances.status, 'open'))
+            .orderBy(desc(acRepairAdvances.createdAt))
+            .limit(8),
+          capitalDb
+            .select({
+              id: acAssets.id,
+              displayName: acAssets.displayName,
+              status: acAssets.status,
+              saleDate: acAssets.saleDate,
+            })
+            .from(acAssets)
+            .where(
+              and(
+                eq(acAssets.status, 'sold'),
+                gte(acAssets.saleDate, recentSoldFrom),
+              ),
+            )
+            .orderBy(desc(acAssets.saleDate))
+            .limit(6),
+        ]);
+
+      const purchasedIds = justPurchased.map((v) => v.id);
+      const milestoneByAsset = new Map<string, number>();
+      if (purchasedIds.length > 0) {
+        const milestoneRows = await capitalDb
           .select({
-            id: acRepairAdvances.id,
-            assetId: acRepairAdvances.assetId,
-            advancePaise: acRepairAdvances.advancePaise,
-            displayName: acAssets.displayName,
+            assetId: acVehicleActivities.assetId,
+            total: sum(acVehicleActivities.amountPaise),
           })
-          .from(acRepairAdvances)
-          .innerJoin(acAssets, eq(acRepairAdvances.assetId, acAssets.id))
-          .where(eq(acRepairAdvances.status, 'open'))
-          .orderBy(desc(acRepairAdvances.createdAt))
-          .limit(8),
-      ]);
+          .from(acVehicleActivities)
+          .where(
+            and(
+              inArray(acVehicleActivities.assetId, purchasedIds),
+              inArray(acVehicleActivities.activityType, [...PAYMENT_MILESTONE_TYPES]),
+              eq(acVehicleActivities.isReversed, false),
+            ),
+          )
+          .groupBy(acVehicleActivities.assetId);
+        for (const row of milestoneRows) {
+          milestoneByAsset.set(row.assetId, Number(row.total ?? 0));
+        }
+      }
+
+      const justPurchasedWithBadges = justPurchased.map((v) => {
+        const badges = derivedBadges({
+          status: v.status,
+          purchasePricePaise: v.purchasePricePaise,
+          milestonesPaidPaise: milestoneByAsset.get(v.id) ?? 0,
+          fundingGapPaise: v.fundingGapPaise ?? 0,
+        });
+        return {
+          id: v.id,
+          displayName: v.displayName,
+          status: v.status,
+          purchaseDate: v.purchaseDate,
+          purchasePending: badges.some((b) => b.id === 'purchase_pending'),
+        };
+      });
+
+      const purchasePendingCount = justPurchasedWithBadges.filter((v) => v.purchasePending).length;
 
       return {
-        underRepair,
-        readyForSale,
-        justPurchased,
-        listed,
+        underRepair: underRepair.map(({ id, displayName, status, purchaseDate }) => ({
+          id,
+          displayName,
+          status,
+          purchaseDate,
+        })),
+        readyForSale: readyForSale.map(({ id, displayName, status, purchaseDate }) => ({
+          id,
+          displayName,
+          status,
+          purchaseDate,
+        })),
+        justPurchased: justPurchasedWithBadges.slice(0, 6),
+        listed: listed.map(({ id, displayName, status, purchaseDate }) => ({
+          id,
+          displayName,
+          status,
+          purchaseDate,
+        })),
         openAdvances,
+        recentlySold,
+        purchasePendingCount,
       };
     })(),
   };

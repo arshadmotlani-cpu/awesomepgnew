@@ -7,6 +7,8 @@ import { Button } from '@/src/capital/components/ui/button';
 import { getAssetDetail, getAssetTimeline } from '@/src/capital/services/assets';
 import { getSettings } from '@/src/capital/services/settings';
 import { formatInrPlain } from '@/src/capital/lib/money';
+import { derivedBadges, lifecycleLabel } from '@/src/capital/lib/vehicleLifecycle';
+import { sumPaymentMilestonesPaise } from '@/src/capital/lib/activityTypes';
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -54,6 +56,19 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
         ? `Underfunded by ₹${formatInrPlain(fundingGap)}`
         : `Overfunded by ₹${formatInrPlain(-fundingGap)}`;
 
+  const milestonesPaidPaise = sumPaymentMilestonesPaise(
+    timeline.vehicleActivities.map((a) => ({
+      activityType: a.activityType,
+      amountPaise: a.amountPaise,
+    })),
+  );
+  const purchaseBadges = derivedBadges({
+    status: asset.status,
+    purchasePricePaise: asset.purchasePricePaise,
+    milestonesPaidPaise,
+    fundingGapPaise: fundingGap,
+  });
+
   const sold = asset.actualSalePricePaise != null;
   const isActive = !['sold', 'settled', 'cancelled'].includes(asset.status);
   const me = investors.find((i) => i.slot === 'me');
@@ -82,7 +97,12 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
         <div className="min-w-0 flex-1">
           <div className="mb-2 flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">{asset.displayName}</h1>
-            <Badge>{asset.status}</Badge>
+            <Badge>{lifecycleLabel(asset.status)}</Badge>
+            {purchaseBadges.map((b) => (
+              <Badge key={b.id} variant="warning">
+                {b.label}
+              </Badge>
+            ))}
             <Badge variant={fundingGap === 0 ? 'success' : 'warning'}>{fundingStatus}</Badge>
           </div>
           <p className="text-lg font-medium tracking-wide text-ac-accent">

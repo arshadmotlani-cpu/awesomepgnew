@@ -15,6 +15,7 @@ import { Button } from '@/src/capital/components/ui/button';
 import { Input } from '@/src/capital/components/ui/input';
 import { VEHICLE_ACTIVITY_TYPE_META, type VehicleActivityType } from '@/src/capital/lib/activityTypes';
 import { currentMonthKey, shiftMonth } from '@/src/capital/lib/dashboardRange';
+import { lifecycleLabel } from '@/src/capital/lib/vehicleLifecycle';
 import type { OverviewBundle } from '@/src/capital/services/overview';
 import { cn } from '@/src/capital/lib/utils';
 
@@ -131,24 +132,31 @@ function PendingQueue({
   empty,
   children,
   count,
+  badge,
 }: {
   title: string;
   href: string;
   empty: string;
   count: number;
+  badge?: string;
   children: React.ReactNode;
 }) {
   if (count === 0) return null;
   return (
     <div className="ac-glass-card flex min-h-[9rem] flex-col overflow-hidden">
       <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-2.5">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-ac-text-muted">
             {title}
           </h3>
           <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-amber-200">
             {count}
           </span>
+          {badge ? (
+            <span className="rounded-md bg-ac-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-ac-warning">
+              {badge}
+            </span>
+          ) : null}
         </div>
         <Link href={href} className="text-[11px] text-ac-accent hover:underline">
           Open
@@ -341,13 +349,13 @@ export function OverviewDashboard({
         </div>
       </div>
 
-      {/* Pending Work — first, so you know what to do */}
+      {/* Lifecycle state boards — operational hero */}
       <Section
-        title="Pending Work"
+        title="Where vehicles are now"
         subtitle={
           pendingTotal > 0
-            ? `${pendingTotal} items need attention across inventory and repairs`
-            : 'Nothing urgent — inventory is clear'
+            ? `${pendingTotal} vehicles / advances across lifecycle stages`
+            : 'Inventory clear — no open stages needing attention'
         }
         action={
           <Link href="/assets?tab=in_stock" className="text-xs text-ac-accent hover:underline">
@@ -355,27 +363,34 @@ export function OverviewDashboard({
           </Link>
         }
       >
-        {pendingTotal === 0 ? (
+        {pendingTotal === 0 && (pending?.recentlySold?.length ?? 0) === 0 ? (
           <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.05] px-4 py-5 text-sm text-emerald-100/90">
-            No open repair advances and no vehicles stuck in purchased / repair / ready queues.
+            No vehicles in Just Purchased / Under Repair / Ready / Listed, and no open repair advances.
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <PendingQueue
               title="Just Purchased"
-              href="/assets?tab=in_stock"
+              href="/assets?tab=in_stock&status=purchased"
               empty="None"
               count={pending?.justPurchased.length ?? 0}
+              badge={
+                (pending?.purchasePendingCount ?? 0) > 0
+                  ? `${pending?.purchasePendingCount} Purchase Pending`
+                  : undefined
+              }
             >
               {(pending?.justPurchased ?? []).map((v) => (
                 <li key={v.id}>
                   <Link
-                    href={`/assets/${v.id}?tab=activities`}
+                    href={`/assets/${v.id}?tab=overview`}
                     className="block px-3 py-2 text-sm transition hover:bg-white/[0.04]"
                   >
                     <span className="font-medium">{v.displayName}</span>
                     <span className="mt-0.5 block text-[11px] text-ac-text-muted">
-                      Add purchase activities
+                      {'purchasePending' in v && v.purchasePending
+                        ? 'Purchase Pending'
+                        : 'Just Purchased'}
                     </span>
                   </Link>
                 </li>
@@ -391,12 +406,12 @@ export function OverviewDashboard({
               {(pending?.underRepair ?? []).map((v) => (
                 <li key={v.id}>
                   <Link
-                    href={`/assets/${v.id}?tab=activities`}
+                    href={`/assets/${v.id}?tab=overview`}
                     className="block px-3 py-2 text-sm transition hover:bg-white/[0.04]"
                   >
                     <span className="font-medium">{v.displayName}</span>
-                    <span className="mt-0.5 block text-[11px] capitalize text-ac-text-muted">
-                      {v.status}
+                    <span className="mt-0.5 block text-[11px] text-ac-text-muted">
+                      {lifecycleLabel(v.status)}
                     </span>
                   </Link>
                 </li>
@@ -404,7 +419,7 @@ export function OverviewDashboard({
             </PendingQueue>
 
             <PendingQueue
-              title="Repair Advances Open"
+              title="Open Repair Advances"
               href="/assets?tab=in_stock"
               empty="None"
               count={pending?.openAdvances.length ?? 0}
@@ -424,7 +439,7 @@ export function OverviewDashboard({
 
             <PendingQueue
               title="Ready For Sale"
-              href="/assets?tab=in_stock"
+              href="/assets?tab=in_stock&status=ready"
               empty="None"
               count={pending?.readyForSale.length ?? 0}
             >
@@ -442,8 +457,8 @@ export function OverviewDashboard({
             </PendingQueue>
 
             <PendingQueue
-              title="Listed"
-              href="/assets?tab=in_stock"
+              title="Listed For Sale"
+              href="/assets?tab=in_stock&status=listed"
               empty="None"
               count={pending?.listed.length ?? 0}
             >
@@ -461,12 +476,35 @@ export function OverviewDashboard({
                 </li>
               ))}
             </PendingQueue>
+
+            {(pending?.recentlySold?.length ?? 0) > 0 ? (
+              <PendingQueue
+                title="Recently Sold"
+                href="/assets?tab=sold"
+                empty="None"
+                count={pending?.recentlySold.length ?? 0}
+              >
+                {(pending?.recentlySold ?? []).map((v) => (
+                  <li key={v.id}>
+                    <Link
+                      href={`/assets/${v.id}?tab=sale`}
+                      className="block px-3 py-2 text-sm transition hover:bg-white/[0.04]"
+                    >
+                      <span className="font-medium">{v.displayName}</span>
+                      <span className="mt-0.5 block text-[11px] text-ac-text-muted">
+                        {v.saleDate ? `Sold ${v.saleDate}` : 'Sold'}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </PendingQueue>
+            ) : null}
           </div>
         )}
       </Section>
 
-      {/* Overview — grouped, not one card per number */}
-      <Section title="Overview" subtitle="Inventory, capital, profit, and performance at a glance">
+      {/* Financial Overview — below operational state boards */}
+      <Section title="Financial Overview" subtitle="Inventory, capital, profit, and performance at a glance">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
             <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ac-text-muted">

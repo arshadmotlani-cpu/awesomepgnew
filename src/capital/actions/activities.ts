@@ -15,8 +15,20 @@ import {
   reverseVehicleActivity,
   updateVehicleActivity,
 } from '@/src/capital/services/vehicleActivities';
+import { capitalDb } from '@/src/capital/db/client';
+import { acAssets } from '@/src/capital/db/schema';
+import { eq } from 'drizzle-orm';
+import {
+  lifecycleLabel,
+  suggestTransitionOnActivity,
+} from '@/src/capital/lib/vehicleLifecycle';
 
-export type ActionState = { error?: string; success?: string };
+export type ActionState = {
+  error?: string;
+  success?: string;
+  suggestedStatus?: string;
+  suggestedStatusLabel?: string;
+};
 
 export async function createVehicleActivityAction(
   _prev: ActionState,
@@ -49,12 +61,37 @@ export async function createVehicleActivityAction(
       repairAdvanceId: input.repairAdvanceId,
     });
 
+    const [asset] = await capitalDb
+      .select({ status: acAssets.status })
+      .from(acAssets)
+      .where(eq(acAssets.id, input.assetId))
+      .limit(1);
+    const suggested = asset
+      ? suggestTransitionOnActivity(asset.status, input.activityType)
+      : null;
+    // Don't suggest if already auto-applied (e.g. repair_advance → repairing)
+    const showSuggest =
+      suggested &&
+      asset &&
+      suggested !== asset.status &&
+      input.activityType === 'repair_settlement'
+        ? suggested
+        : null;
+
     revalidatePath(`/assets/${input.assetId}`);
     revalidatePath('/assets');
     revalidatePath('/dashboard');
     revalidatePath('/ledger');
     revalidateTag('capital-dashboard', 'default');
-    return { success: 'Activity recorded.' };
+    return {
+      success: 'Activity recorded.',
+      ...(showSuggest
+        ? {
+            suggestedStatus: showSuggest,
+            suggestedStatusLabel: lifecycleLabel(showSuggest),
+          }
+        : {}),
+    };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to create activity' };
   }

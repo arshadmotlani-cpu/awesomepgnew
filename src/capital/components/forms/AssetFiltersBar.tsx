@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/src/capital/components/ui/button';
 import { Input } from '@/src/capital/components/ui/input';
 import { assetStatusEnum } from '@/src/capital/db/schema/enums';
+import { lifecycleLabel } from '@/src/capital/lib/vehicleLifecycle';
 
 export function AssetFiltersBar({ manufacturers }: { manufacturers: string[] }) {
   const router = useRouter();
@@ -41,7 +42,7 @@ export function AssetFiltersBar({ manufacturers }: { manufacturers: string[] }) 
           <option value="">All</option>
           {assetStatusEnum.enumValues.map((s) => (
             <option key={s} value={s}>
-              {s}
+              {lifecycleLabel(s)}
             </option>
           ))}
         </select>

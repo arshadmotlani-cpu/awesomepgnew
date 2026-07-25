@@ -1,6 +1,7 @@
 import { and, asc, desc, eq } from 'drizzle-orm';
 import { capitalDb } from '@/src/capital/db/client';
 import {
+  acAssets,
   acRepairAdvances,
   acVehicleActivities,
 } from '@/src/capital/db/schema';
@@ -16,6 +17,7 @@ import { postLedgerEntry, reverseSourceLedger } from './ledger';
 import { logActivity } from './activity';
 import { assertAssetMutable, recalculateAsset } from './assets';
 import { assertAssetAcceptsExpenses } from '@/src/capital/lib/assetLifecycle';
+import { autoStatusOnActivity } from '@/src/capital/lib/vehicleLifecycle';
 
 export type CreateVehicleActivityInput = {
   assetId: string;
@@ -200,6 +202,29 @@ async function createRepairAdvanceActivity(input: CreateVehicleActivityInput) {
       },
       tx,
     );
+
+    const [assetRow] = await tx
+      .select({ status: acAssets.status })
+      .from(acAssets)
+      .where(eq(acAssets.id, input.assetId))
+      .limit(1);
+    const nextStatus = autoStatusOnActivity(assetRow?.status ?? '', 'repair_advance');
+    if (nextStatus && assetRow && assetRow.status !== nextStatus) {
+      await tx
+        .update(acAssets)
+        .set({ status: nextStatus, updatedAt: new Date() })
+        .where(eq(acAssets.id, input.assetId));
+      await logActivity(
+        {
+          action: 'asset_status_changed',
+          entityType: 'asset',
+          entityId: input.assetId,
+          beforeState: { status: assetRow.status },
+          afterState: { status: nextStatus, reason: 'auto:repair_advance' },
+        },
+        tx,
+      );
+    }
 
     // Advance does not change vehicle cost
     await recalculateAsset(input.assetId, tx);

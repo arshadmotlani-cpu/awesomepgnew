@@ -84,37 +84,52 @@ sequenceDiagram
 
 ---
 
-## 4. Asset Status State Machine
+## 4. Asset Status State Machine (ADR-017 Lifecycle SSOT)
+
+Dealer labels (not raw enum): Just Purchased · Under Repair · Under Repair (Painting) · Ready For Sale · Listed For Sale · Sold · Settled · Archived (`cancelled`).
+
+**Purchase Pending** is a derived badge (status=`purchased` and payment milestones / funding incomplete) — not a separate enum. **Delivered** is Phase 2.
 
 ```mermaid
 stateDiagram-v2
   [*] --> purchased: Create asset
-  purchased --> repairing: Start repairs
+  purchased --> repairing: Start repairs / first repair advance
+  purchased --> painting: Send for paint
+  purchased --> ready: Skip to ready
   repairing --> painting: Send for paint
-  painting --> ready: Repairs complete
+  repairing --> ready: Repairs complete
+  painting --> repairing: Back to repair
+  painting --> ready: Paint complete
   ready --> listed: List for sale
+  ready --> repairing: More work
+  listed --> ready: Delist
   listed --> sold: Record sale
+  ready --> sold: Record sale
   sold --> settled: Full settlement
 
-  purchased --> cancelled: Cancel
-  repairing --> cancelled: Cancel
-  painting --> cancelled: Cancel
-  ready --> cancelled: Cancel
-  listed --> cancelled: Cancel
+  purchased --> cancelled: Archive
+  repairing --> cancelled: Archive
+  painting --> cancelled: Archive
+  ready --> cancelled: Archive
+  listed --> cancelled: Archive
 
   settled --> [*]
   cancelled --> [*]
 ```
 
+SSOT: `src/capital/lib/vehicleLifecycle.ts` — `allowedTransitions`, `autoStatusOnActivity`, `suggestTransitionOnActivity`, `derivedBadges`.
+
 ### Transition Rules
 
 | From | To | Side effects |
 |------|----|--------------|
-| any → sold | Requires `actual_sale_price` and `sale_date` |
-| sold → settled | Requires settlement record + 100% settlement % |
-| any → cancelled | Requires reason; reversal entries for all financial data |
+| `purchased` / `painting` + first `repair_advance` | auto → `repairing` | Status updated with activity |
+| `repair_settlement` | suggest → `ready` | Dealer confirms — never auto |
+| ready/listed → sold | Requires `actual_sale_price` and `sale_date` via sale workflow |
+| sold → settled | Requires settlement record + capital cleared |
+| active → cancelled | Archive; requires reason |
 
-Invalid transitions return error. No backward transitions except cancel.
+Invalid manual transitions return error. Sale and settle stay dedicated workflows (not status chips). Timeline interleaves `asset_status_changed` / sale / settlement with purchase activities.
 
 ---
 

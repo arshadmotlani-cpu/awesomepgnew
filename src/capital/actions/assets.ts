@@ -13,6 +13,7 @@ import {
   updateStatusSchema,
 } from '@/src/capital/lib/validation/schemas';
 import {
+  cancelAsset,
   createAsset,
   recordSale,
   updateAssetDetails,
@@ -22,7 +23,12 @@ import {
 import { uploadDocument } from '@/src/capital/services/documents';
 import { deleteDraft } from '@/src/capital/services/drafts';
 
-export type ActionState = { error?: string; success?: string };
+export type ActionState = {
+  error?: string;
+  success?: string;
+  suggestedStatus?: string;
+  suggestedStatusLabel?: string;
+};
 
 export async function createAssetAction(
   _prev: ActionState,
@@ -163,9 +169,31 @@ export async function updateStatusAction(
     await updateAssetStatus(parsed.data.assetId, parsed.data.status);
     revalidatePath(`/assets/${parsed.data.assetId}`);
     revalidatePath('/assets');
-    return { success: 'Status updated.' };
+    revalidatePath('/dashboard');
+    revalidateTag('capital-dashboard', 'default');
+    return { success: 'Lifecycle updated.' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to update status' };
+  }
+}
+
+export async function cancelAssetAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    await requireCapitalAuth();
+    const assetId = String(formData.get('assetId') ?? '');
+    const reason = String(formData.get('reason') ?? 'Archived');
+    if (!assetId) return { error: 'Missing vehicle' };
+    await cancelAsset(assetId, reason);
+    revalidatePath(`/assets/${assetId}`);
+    revalidatePath('/assets');
+    revalidatePath('/dashboard');
+    revalidateTag('capital-dashboard', 'default');
+    return { success: 'Vehicle archived.' };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to archive vehicle' };
   }
 }
 

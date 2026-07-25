@@ -8,6 +8,8 @@ Design principle: **Assets first, cars second.** The domain model is built aroun
 
 **Financial SSOT (ADR-016):** Total Vehicle Investment = Purchase Price + investment-cost purchase activities − refunds. Token / Purchase Payment / Final Purchase Payment are payment milestones only and must never enter the investment sum. Profit = Sale − TVI. ROI formulas are unchanged; they consume TVI as the vehicle cost base. See `docs/automotive-capital/DECISIONS.md` ADR-016 and `src/capital/lib/activityTypes.ts`.
 
+**Lifecycle SSOT (ADR-017):** Every vehicle has one current `ac_asset_status` (dealer labels via `src/capital/lib/vehicleLifecycle.ts`). Purchase activities are history only. Timeline interleaves state changes with activities. Dashboard groups by lifecycle state.
+
 ---
 
 ## 2. System Context
@@ -214,19 +216,19 @@ erDiagram
 
 ### 5.2 Asset Lifecycle
 
+SSOT: ADR-017 / `src/capital/lib/vehicleLifecycle.ts`. Activities are history; status is current state.
+
 ```
-Capital Invested
+Just Purchased (purchased) [± Purchase Pending badge]
       ↓
-Asset Purchased (status: purchased)
+Under Repair (repairing / painting)
       ↓
-Expenses Accrued (repairing → painting → ready → listed)
+Ready For Sale → Listed For Sale
       ↓
-Asset Sold (status: sold)
-      ↓
-Payments Received (partial or full, over time)
-      ↓
-Settlement Complete (status: settled)
+Sold → Settled
 ```
+
+Archive (`cancelled`) from any pre-sale state. Sale/settle use dedicated workflows.
 
 Cancelled assets remain in history with reversal ledger entries.
 

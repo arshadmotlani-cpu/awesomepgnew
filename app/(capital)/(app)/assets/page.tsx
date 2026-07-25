@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/src/capital/componen
 import { AssetFiltersBar } from '@/src/capital/components/forms/AssetFiltersBar';
 import { AssetPagination } from '@/src/capital/components/AssetPagination';
 import { assetListQuerySchema } from '@/src/capital/lib/validation/schemas';
+import { lifecycleLabel } from '@/src/capital/lib/vehicleLifecycle';
 import { listAssetsQuery, listManufacturers } from '@/src/capital/services/assets';
 import { cn } from '@/src/capital/lib/utils';
 
@@ -150,7 +151,9 @@ export default async function AssetsPage({ searchParams }: Props) {
                     </Link>
                   </td>
                   <td className="py-3 pr-4">
-                    <Badge variant={statusVariant(asset.status)}>{asset.status}</Badge>
+                    <Badge variant={statusVariant(asset.status)}>
+                      {lifecycleLabel(asset.status)}
+                    </Badge>
                   </td>
                   <td className="py-3 pr-4 text-right">
                     <MoneyDisplay paise={asset.totalInvestmentPaise} />

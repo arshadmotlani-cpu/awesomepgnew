@@ -9,6 +9,7 @@
 
 ## 2026-07-26
 
+- **Vehicle Lifecycle SSOT (state vs activities)** — One current status per vehicle; activities remain history; reuse `ac_asset_status`; Purchase Pending derived; Delivered Phase 2. → ADR-017
 - **Frozen Total Vehicle Investment (Option 2)** — TVI = Purchase Price + investment-cost activities − refunds; Token/Purchase Payment are milestones only. Financial SSOT for profit/ROI/analytics. → ADR-016
 - **Executive dealership dashboard restore** — Grouped cards + Active Capital once + conditional Health + activity + Purchases vs Sales; no Business View; ROI = My Profit ÷ My Capital Stakes. → ADR-015
 - **Single personal dealership dashboard** — No Business View; six KPIs; monthly+cumulative growth chart; personal ROI kept. → ADR-014

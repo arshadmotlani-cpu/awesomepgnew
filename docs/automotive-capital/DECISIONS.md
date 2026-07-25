@@ -390,6 +390,38 @@ SSOT: `src/capital/lib/activityTypes.ts` (`computeTotalVehicleInvestment`), wire
 
 ---
 
+## ADR-017: Vehicle Lifecycle SSOT (State vs Activities)
+
+**Date:** 2026-07-26  
+**Status:** Accepted
+
+### Context
+The product became activity-driven: timelines and dashboards explained events but not “where is this vehicle right now?” Asset status already existed (`ac_asset_status`) but was mostly manual and buried in Sale.
+
+### Decision
+- **State and activities are independent.** Every vehicle has exactly one current lifecycle status. Activities are historical events and never *are* the current state.
+- **Reuse existing enum** — no new DB values this pass. Dealer labels:
+  - `purchased` → Just Purchased
+  - `repairing` / `painting` → Under Repair (Painting keeps enum)
+  - `ready` → Ready For Sale
+  - `listed` → Listed For Sale
+  - `sold` → Sold
+  - `settled` → Settled (finance close)
+  - `cancelled` → Archived
+- **Purchase Pending** is a **derived badge** (purchased + milestones unpaid / funding gap), not an enum. **Delivered** deferred to Phase 2.
+- Enforce `allowedTransitions` in `updateAssetStatus`. Auto: first `repair_advance` → `repairing` only from `purchased`|`painting`. Suggest Ready after repair settlement (dealer confirms). Sale/settle keep dedicated workflows.
+- Timeline interleaves state-change events with purchase activities.
+- Dashboard groups vehicles by lifecycle state first.
+
+SSOT: `src/capital/lib/vehicleLifecycle.ts`
+
+### Consequences
+- Overview shows Lifecycle control; list/detail use friendly labels.
+- Invalid status jumps are rejected.
+- Future enums (`purchase_pending`, `delivered`) require a new ADR.
+
+---
+
 ## Template for Future ADRs
 
 ```

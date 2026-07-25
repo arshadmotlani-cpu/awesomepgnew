@@ -6,6 +6,7 @@ import {
   createVehicleActivityAction,
   type ActionState,
 } from '@/src/capital/actions/activities';
+import { updateStatusAction } from '@/src/capital/actions/assets';
 import { FormField } from '@/src/capital/components/forms/FormField';
 import { Button } from '@/src/capital/components/ui/button';
 import { Input } from '@/src/capital/components/ui/input';
@@ -20,6 +21,7 @@ import {
   type VehicleActivityType,
 } from '@/src/capital/lib/activityTypes';
 import { formatInrPlain } from '@/src/capital/lib/money';
+import { lifecycleLabel } from '@/src/capital/lib/vehicleLifecycle';
 
 type OpenAdvance = {
   id: string;
@@ -55,6 +57,7 @@ export function CreateActivityForm({
 }) {
   const [state, setState] = useState<ActionState>({});
   const [pending, startTransition] = useTransition();
+  const [suggestedStatus, setSuggestedStatus] = useState<string | null>(null);
   const { showToast } = useCapitalToast();
 
   const form = useForm<FormValues>({
@@ -124,6 +127,7 @@ export function CreateActivityForm({
       } else {
         setState({ success: result.success });
         showToast('Activity recorded');
+        setSuggestedStatus(result.suggestedStatus ?? null);
         form.reset({
           activityType: values.activityType,
           activityAt: new Date().toISOString().slice(0, 10),
@@ -137,6 +141,21 @@ export function CreateActivityForm({
       }
     });
   });
+
+  function applySuggestedStatus() {
+    if (!suggestedStatus) return;
+    const fd = new FormData();
+    fd.set('assetId', assetId);
+    fd.set('status', suggestedStatus);
+    startTransition(async () => {
+      const result = await updateStatusAction({}, fd);
+      if (result.error) showToast(result.error);
+      else {
+        showToast(`Lifecycle → ${lifecycleLabel(suggestedStatus)}`);
+        setSuggestedStatus(null);
+      }
+    });
+  }
 
   return (
     <form
@@ -267,6 +286,27 @@ export function CreateActivityForm({
       <FormField label="Notes" name="notes" form={form}>
         <Textarea id="notes" rows={2} {...form.register('notes')} />
       </FormField>
+
+      {suggestedStatus ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-ac-accent/30 bg-ac-accent/10 px-3 py-2 text-sm">
+          <span>
+            Suggest lifecycle → <strong>{lifecycleLabel(suggestedStatus)}</strong>?
+          </span>
+          <div className="flex gap-2">
+            <Button type="button" size="sm" onClick={applySuggestedStatus} disabled={pending}>
+              Apply
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => setSuggestedStatus(null)}
+            >
+              Dismiss
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       <Button type="submit" disabled={pending || (isSettlement && openAdvances.length === 0)}>
         {pending ? 'Saving…' : 'Add activity'}

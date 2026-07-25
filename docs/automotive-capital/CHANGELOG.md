@@ -8,6 +8,11 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Vehicle Lifecycle SSOT (ADR-017)
+- State vs activities separation; reuse `ac_asset_status` with dealer labels
+- Enforced transitions; auto Under Repair on repair advance; Overview lifecycle control
+- Timeline interleaves state changes with purchase activities; dashboard groups by state
+
 ### Changed — Frozen Total Vehicle Investment (ADR-016)
 - TVI = Purchase Price + investment-cost activities − refunds (Token/Purchase Payment = milestones only)
 - Create UX: no live funding calculator; collapsible Partner Investment; post-create → Purchase Activities
