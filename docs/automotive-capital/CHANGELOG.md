@@ -8,6 +8,12 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed — Dashboard vs Analytics IA
+- Dashboard: executive only — removed “Where vehicles are now” / Business Health listings; Inventory card opens Vehicles
+- Relabeled **My Monthly Profit** (formula unchanged: Σ myShare by sale date); helper clarifies attributable profit
+- Analytics: deep My-only insights (holding, ageing, cash flow, repairs, acquisition, manufacturers, fuel, year, profit bands, best/worst deals)
+- Removed Business portfolio KPIs/charts from Analytics and ROI report preview
+
 ### Changed — New Vehicle UX (token-first + clean money inputs)
 - Hide native number spinners on all Capital amount fields
 - My Investment stays empty until Purchase Price is entered

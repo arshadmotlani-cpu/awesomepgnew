@@ -66,12 +66,11 @@ export default async function ReportDetailPage({
           ) : type === 'roi' ? (
             <>
               <div className="flex justify-between">
-                <span>Avg Business ROI</span>
-                <span>{(kpis.averageRoiBps / 100).toFixed(1)}%</span>
-              </div>
-              <div className="flex justify-between">
                 <span>Avg My ROI</span>
                 <span>{((kpis.averageMyRoiBps ?? 0) / 100).toFixed(1)}%</span>
+              </div>
+              <div className="flex justify-between text-ac-text-muted">
+                <span className="text-sm">Per-deal average (not portfolio ROI)</span>
               </div>
             </>
           ) : type === 'profit-loss' ? (

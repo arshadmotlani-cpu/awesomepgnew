@@ -18,7 +18,6 @@ type ValuePoint = { month: string; valuePaise: number };
 type CashFlowPoint = { month: string; inflowPaise: number; outflowPaise: number };
 type LabelPoint = { label: string; valuePaise: number };
 type CountPoint = { month: string; count: number };
-type RoiPoint = { month: string; roiBps: number; myRoiBps?: number };
 type HoldingPoint = { month: string; days: number };
 
 export function ValueBarChart({ data, label }: { data: ValuePoint[]; label: string }) {
@@ -90,11 +89,10 @@ export function CountLineChart({ data, label }: { data: CountPoint[]; label: str
   );
 }
 
-export function RoiLineChart({ data }: { data: RoiPoint[] }) {
+export function RoiLineChart({ data }: { data: { month: string; myRoiBps?: number; roiBps?: number }[] }) {
   const chartData = data.map((d) => ({
     month: d.month,
-    business: d.roiBps / 100,
-    mine: (d.myRoiBps ?? 0) / 100,
+    mine: (d.myRoiBps ?? d.roiBps ?? 0) / 100,
   }));
   if (chartData.length === 0) return <Empty />;
   return (
@@ -104,9 +102,61 @@ export function RoiLineChart({ data }: { data: RoiPoint[] }) {
         <XAxis dataKey="month" stroke="#71717A" fontSize={12} />
         <YAxis stroke="#71717A" fontSize={12} tickFormatter={(v) => `${v}%`} />
         <Tooltip formatter={(v) => `${Number(v).toFixed(1)}%`} contentStyle={tooltipStyle} />
-        <Line type="monotone" dataKey="business" name="Business ROI" stroke="#34D399" strokeWidth={2} />
         <Line type="monotone" dataKey="mine" name="My ROI" stroke="#22D3EE" strokeWidth={2} />
       </LineChart>
+    </ChartWrap>
+  );
+}
+
+export function CountBarChart({ data, label }: { data: { label: string; count: number }[]; label: string }) {
+  if (data.length === 0) return <Empty />;
+  return (
+    <ChartWrap>
+      <BarChart data={data}>
+        <Grid />
+        <XAxis dataKey="label" stroke="#71717A" fontSize={11} interval={0} angle={-20} textAnchor="end" height={60} />
+        <YAxis stroke="#71717A" fontSize={12} allowDecimals={false} />
+        <Tooltip contentStyle={tooltipStyle} />
+        <Bar dataKey="count" name={label} fill="#22D3EE" radius={[4, 4, 0, 0]} />
+      </BarChart>
+    </ChartWrap>
+  );
+}
+
+export function AcquisitionChart({
+  data,
+}: {
+  data: { month: string; count: number; volumePaise: number }[];
+}) {
+  const chartData = data.map((d) => ({
+    month: d.month,
+    count: d.count,
+    volume: d.volumePaise / 100,
+  }));
+  if (chartData.length === 0) return <Empty />;
+  return (
+    <ChartWrap>
+      <BarChart data={chartData}>
+        <Grid />
+        <XAxis dataKey="month" stroke="#71717A" fontSize={12} />
+        <YAxis yAxisId="left" stroke="#71717A" fontSize={12} allowDecimals={false} />
+        <YAxis
+          yAxisId="right"
+          orientation="right"
+          stroke="#71717A"
+          fontSize={12}
+          tickFormatter={(v) => `₹${v}`}
+        />
+        <Tooltip
+          formatter={(v, name) =>
+            name === 'volume' ? formatInr(Math.round(Number(v) * 100)) : Number(v)
+          }
+          contentStyle={tooltipStyle}
+        />
+        <Legend />
+        <Bar yAxisId="left" dataKey="count" name="Vehicles" fill="#22D3EE" radius={[4, 4, 0, 0]} />
+        <Bar yAxisId="right" dataKey="volume" name="Purchase ₹" fill="#A78BFA" radius={[4, 4, 0, 0]} />
+      </BarChart>
     </ChartWrap>
   );
 }

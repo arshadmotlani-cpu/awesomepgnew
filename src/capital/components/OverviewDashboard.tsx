@@ -15,7 +15,6 @@ import { Button } from '@/src/capital/components/ui/button';
 import { Input } from '@/src/capital/components/ui/input';
 import { VEHICLE_ACTIVITY_TYPE_META, type VehicleActivityType } from '@/src/capital/lib/activityTypes';
 import { currentMonthKey, shiftMonth } from '@/src/capital/lib/dashboardRange';
-import { lifecycleLabel } from '@/src/capital/lib/vehicleLifecycle';
 import type { OverviewBundle } from '@/src/capital/services/overview';
 import { cn } from '@/src/capital/lib/utils';
 
@@ -126,50 +125,6 @@ function MetricRow({
   );
 }
 
-function PendingQueue({
-  title,
-  href,
-  empty,
-  children,
-  count,
-  badge,
-}: {
-  title: string;
-  href: string;
-  empty: string;
-  count: number;
-  badge?: string;
-  children: React.ReactNode;
-}) {
-  if (count === 0) return null;
-  return (
-    <div className="ac-glass-card flex min-h-[9rem] flex-col overflow-hidden">
-      <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-2.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-ac-text-muted">
-            {title}
-          </h3>
-          <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-amber-200">
-            {count}
-          </span>
-          {badge ? (
-            <span className="rounded-md bg-ac-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-ac-warning">
-              {badge}
-            </span>
-          ) : null}
-        </div>
-        <Link href={href} className="text-[11px] text-ac-accent hover:underline">
-          Open
-        </Link>
-      </div>
-      <ul className="flex-1 divide-y divide-white/[0.04]">{children}</ul>
-      {count === 0 ? (
-        <p className="px-3 py-4 text-xs text-ac-text-muted">{empty}</p>
-      ) : null}
-    </div>
-  );
-}
-
 export function OverviewDashboard({
   bundle,
   customFrom,
@@ -202,35 +157,12 @@ export function OverviewDashboard({
   const monthCursor = bundle.range.month ?? currentMonthKey();
   const view = bundle.views.mine;
   const periodProfitLabel =
-    bundle.range.key === 'month' ? 'Monthly Profit' : `Period Profit (${bundle.range.label})`;
+    bundle.range.key === 'month'
+      ? 'My Monthly Profit'
+      : `My Period Profit (${bundle.range.label})`;
 
   const inventoryTotal = view.activeVehicles + view.vehiclesSold;
   const activeCapitalPaise = view.activeCapitalPaise ?? view.capitalAtRiskPaise;
-  const pending = bundle.pendingWork;
-
-  const healthItems = useMemo(() => {
-    const counts = bundle.vehicleStatusCounts;
-    const underRepair = (counts?.repairing ?? 0) + (counts?.painting ?? 0);
-    const items: { label: string; count: number; href: string }[] = [
-      { label: 'Under Repair', count: underRepair, href: '/assets?tab=in_stock' },
-      { label: 'Ready For Sale', count: counts?.ready ?? 0, href: '/assets?tab=in_stock' },
-      { label: 'Listed', count: counts?.listed ?? 0, href: '/assets?tab=in_stock' },
-      { label: 'Just Purchased', count: counts?.purchased ?? 0, href: '/assets?tab=in_stock' },
-      {
-        label: 'Open Repair Advances',
-        count: bundle.openRepairAdvancesCount ?? 0,
-        href: '/assets?tab=in_stock',
-      },
-    ];
-    return items.filter((i) => i.count > 0);
-  }, [bundle.vehicleStatusCounts, bundle.openRepairAdvancesCount]);
-
-  const pendingTotal =
-    (pending?.underRepair.length ?? 0) +
-    (pending?.readyForSale.length ?? 0) +
-    (pending?.justPurchased.length ?? 0) +
-    (pending?.listed.length ?? 0) +
-    (pending?.openAdvances.length ?? 0);
 
   const activityFeed = useMemo(() => {
     const rows = bundle.timeline?.length ? bundle.timeline : (bundle.activity ?? []);
@@ -249,7 +181,7 @@ export function OverviewDashboard({
             Morning Overview
           </h1>
           <p className="mt-1 text-sm text-ac-text-secondary">
-            {bundle.range.label} · What you own, what you made, what needs you next
+            {bundle.range.label} · Executive summary of your capital and results
           </p>
         </div>
 
@@ -343,173 +275,33 @@ export function OverviewDashboard({
         </div>
       </div>
 
-      {/* Lifecycle state boards — operational hero */}
+      {/* Financial Overview — executive summary only */}
       <Section
-        title="Where vehicles are now"
-        subtitle={
-          pendingTotal > 0
-            ? `${pendingTotal} vehicles / advances across lifecycle stages`
-            : 'Inventory clear — no open stages needing attention'
-        }
-        action={
-          <Link href="/assets?tab=in_stock" className="text-xs text-ac-accent hover:underline">
-            All in-stock vehicles
-          </Link>
-        }
+        title="Financial Overview"
+        subtitle="Inventory, capital, profit, and performance at a glance"
       >
-        {pendingTotal === 0 && (pending?.recentlySold?.length ?? 0) === 0 ? (
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.05] px-4 py-5 text-sm text-emerald-100/90">
-            No vehicles in Just Purchased / Under Repair / Ready / Listed, and no open repair advances.
-          </div>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <PendingQueue
-              title="Just Purchased"
-              href="/assets?tab=in_stock&status=purchased"
-              empty="None"
-              count={pending?.justPurchased.length ?? 0}
-              badge={
-                (pending?.purchasePendingCount ?? 0) > 0
-                  ? `${pending?.purchasePendingCount} Purchase Pending`
-                  : undefined
-              }
-            >
-              {(pending?.justPurchased ?? []).map((v) => (
-                <li key={v.id}>
-                  <Link
-                    href={`/assets/${v.id}?tab=overview`}
-                    className="block px-3 py-2 text-sm transition hover:bg-white/[0.04]"
-                  >
-                    <span className="font-medium">{v.displayName}</span>
-                    <span className="mt-0.5 block text-[11px] text-ac-text-muted">
-                      {'purchasePending' in v && v.purchasePending
-                        ? 'Purchase Pending'
-                        : 'Just Purchased'}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </PendingQueue>
-
-            <PendingQueue
-              title="Under Repair"
-              href="/assets?tab=in_stock"
-              empty="None"
-              count={pending?.underRepair.length ?? 0}
-            >
-              {(pending?.underRepair ?? []).map((v) => (
-                <li key={v.id}>
-                  <Link
-                    href={`/assets/${v.id}?tab=overview`}
-                    className="block px-3 py-2 text-sm transition hover:bg-white/[0.04]"
-                  >
-                    <span className="font-medium">{v.displayName}</span>
-                    <span className="mt-0.5 block text-[11px] text-ac-text-muted">
-                      {lifecycleLabel(v.status)}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </PendingQueue>
-
-            <PendingQueue
-              title="Open Repair Advances"
-              href="/assets?tab=in_stock"
-              empty="None"
-              count={pending?.openAdvances.length ?? 0}
-            >
-              {(pending?.openAdvances ?? []).map((a) => (
-                <li key={a.id}>
-                  <Link
-                    href={`/assets/${a.assetId}?tab=activities`}
-                    className="flex items-center justify-between gap-2 px-3 py-2 text-sm transition hover:bg-white/[0.04]"
-                  >
-                    <span className="min-w-0 truncate font-medium">{a.displayName}</span>
-                    <MoneyDisplay paise={a.advancePaise} className="shrink-0 text-xs" />
-                  </Link>
-                </li>
-              ))}
-            </PendingQueue>
-
-            <PendingQueue
-              title="Ready For Sale"
-              href="/assets?tab=in_stock&status=ready"
-              empty="None"
-              count={pending?.readyForSale.length ?? 0}
-            >
-              {(pending?.readyForSale ?? []).map((v) => (
-                <li key={v.id}>
-                  <Link
-                    href={`/assets/${v.id}?tab=sale`}
-                    className="block px-3 py-2 text-sm transition hover:bg-white/[0.04]"
-                  >
-                    <span className="font-medium">{v.displayName}</span>
-                    <span className="mt-0.5 block text-[11px] text-ac-text-muted">List or sell</span>
-                  </Link>
-                </li>
-              ))}
-            </PendingQueue>
-
-            <PendingQueue
-              title="Listed For Sale"
-              href="/assets?tab=in_stock&status=listed"
-              empty="None"
-              count={pending?.listed.length ?? 0}
-            >
-              {(pending?.listed ?? []).map((v) => (
-                <li key={v.id}>
-                  <Link
-                    href={`/assets/${v.id}?tab=sale`}
-                    className="block px-3 py-2 text-sm transition hover:bg-white/[0.04]"
-                  >
-                    <span className="font-medium">{v.displayName}</span>
-                    <span className="mt-0.5 block text-[11px] text-ac-text-muted">
-                      Waiting for buyer
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </PendingQueue>
-
-            {(pending?.recentlySold?.length ?? 0) > 0 ? (
-              <PendingQueue
-                title="Recently Sold"
-                href="/assets?tab=sold"
-                empty="None"
-                count={pending?.recentlySold.length ?? 0}
-              >
-                {(pending?.recentlySold ?? []).map((v) => (
-                  <li key={v.id}>
-                    <Link
-                      href={`/assets/${v.id}?tab=sale`}
-                      className="block px-3 py-2 text-sm transition hover:bg-white/[0.04]"
-                    >
-                      <span className="font-medium">{v.displayName}</span>
-                      <span className="mt-0.5 block text-[11px] text-ac-text-muted">
-                        {v.saleDate ? `Sold ${v.saleDate}` : 'Sold'}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </PendingQueue>
-            ) : null}
-          </div>
-        )}
-      </Section>
-
-      {/* Financial Overview — below operational state boards */}
-      <Section title="Financial Overview" subtitle="Inventory, capital, profit, and performance at a glance">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
-            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ac-text-muted">
-              Inventory
-            </p>
+          <Link
+            href="/assets"
+            className="group rounded-xl border border-white/[0.08] bg-white/[0.03] p-4 transition hover:border-ac-accent/40 hover:bg-white/[0.05]"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ac-text-muted">
+                Inventory
+              </p>
+              <span className="text-[10px] text-ac-accent opacity-0 transition group-hover:opacity-100">
+                Open Vehicles →
+              </span>
+            </div>
             <div className="mt-3 space-y-2.5">
               <MetricRow label="In Stock" valueText={String(view.activeVehicles)} />
               <MetricRow label="Sold" valueText={String(view.vehiclesSold)} />
               <MetricRow label="Total Vehicles" valueText={String(inventoryTotal)} accent />
             </div>
-          </div>
+            <p className="mt-2 text-[10px] text-ac-text-muted">
+              Summary only — manage stock on Vehicles
+            </p>
+          </Link>
 
           <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
             <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ac-text-muted">
@@ -526,13 +318,16 @@ export function OverviewDashboard({
               Profit
             </p>
             <div className="mt-3 space-y-2.5">
-              <MetricRow label="Lifetime Profit" valuePaise={view.profitPaise} accent />
+              <MetricRow label="My Lifetime Profit" valuePaise={view.profitPaise} accent />
               <MetricRow
                 label={periodProfitLabel}
                 valuePaise={bundle.isFuture ? undefined : view.periodProfitPaise}
                 valueText={bundle.isFuture ? '—' : undefined}
               />
             </div>
+            <p className="mt-2 text-[10px] text-ac-text-muted">
+              Realised profit attributable to me during the selected period.
+            </p>
           </div>
 
           <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
@@ -557,26 +352,8 @@ export function OverviewDashboard({
         </div>
       </Section>
 
-      {/* Business Health summary */}
-      {healthItems.length > 0 ? (
-        <Section title="Business Health" subtitle="Operational counts with pending items only">
-          <div className="flex flex-wrap gap-2">
-            {healthItems.map((item) => (
-              <Link
-                key={item.label}
-                href={item.href}
-                className="inline-flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2 text-sm transition hover:bg-amber-500/10"
-              >
-                <span className="text-ac-text-secondary">{item.label}</span>
-                <span className="font-semibold tabular-nums">{item.count}</span>
-              </Link>
-            ))}
-          </div>
-        </Section>
-      ) : null}
-
       {/* Activity + charts */}
-      <Section title="Pulse" subtitle="What happened recently and whether the business is growing">
+      <Section title="Pulse" subtitle="Recent activity and whether your results are growing">
         <div className="grid gap-3 lg:grid-cols-2">
           <div className="ac-glass-card overflow-hidden">
             <div className="border-b border-white/[0.06] px-4 py-3">
@@ -626,10 +403,9 @@ export function OverviewDashboard({
 
           <div className="ac-glass-card overflow-hidden">
             <div className="border-b border-white/[0.06] px-4 py-3">
-              <h3 className="text-sm font-semibold">Profit Growth</h3>
+              <h3 className="text-sm font-semibold">My Profit Growth</h3>
               <p className="mt-0.5 text-xs text-ac-text-muted">
-                Monthly profit bars + cumulative line — best fit for a single monthly series (not
-                OHLC / candlesticks)
+                My monthly profit bars + cumulative line (sale-date entitlement)
               </p>
             </div>
             <div className="p-3 sm:p-4">

@@ -9,6 +9,7 @@
 
 ## 2026-07-26
 
+- **CAPITAL-IA-DASHBOARD-ANALYTICS** — Dashboard = executive (My Monthly Profit label); Analytics = My-only deep insights; Inventory card → Vehicles; no duplicate listings
 - **CAPITAL-NEW-VEHICLE-UX** — Token-first create, empty My Investment until price, hide number spinners, single New Vehicle entry → Capital CHANGELOG
 - **CAPITAL-LIFECYCLE-017** — State vs Activities SSOT: reuse `ac_asset_status`, friendly labels, transitions, timeline interleave, dashboard by state → ADR-017; WORKFLOWS §4 synced
 - **CAPITAL-VIOS-GAP** — Dealership command center (Pending Work first), Notes tab, photos on create, editable repair advances; audit closed remaining OS gaps

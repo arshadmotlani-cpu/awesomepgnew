@@ -251,18 +251,14 @@ export async function getRoiTrendChart() {
   const rows = await capitalDb
     .select({
       month: sql<string>`to_char(${acAssets.saleDate}::date, 'YYYY-MM')`,
-      avgBusinessRoi: sql<number>`COALESCE(AVG(COALESCE(${acAssets.businessRoiBps}, ${acAssets.roiBps})), 0)`,
       avgMyRoi: sql<number>`COALESCE(AVG(${acAssets.myRoiBps}), 0)`,
     })
     .from(acAssets)
-    .where(
-      sql`${acAssets.saleDate} IS NOT NULL AND COALESCE(${acAssets.businessRoiBps}, ${acAssets.roiBps}) IS NOT NULL`,
-    )
+    .where(sql`${acAssets.saleDate} IS NOT NULL AND ${acAssets.myRoiBps} IS NOT NULL`)
     .groupBy(sql`to_char(${acAssets.saleDate}::date, 'YYYY-MM')`)
     .orderBy(sql`to_char(${acAssets.saleDate}::date, 'YYYY-MM')`);
   return rows.map((r) => ({
     month: r.month,
-    roiBps: Math.round(Number(r.avgBusinessRoi)),
     myRoiBps: Math.round(Number(r.avgMyRoi)),
   }));
 }
@@ -284,153 +280,247 @@ export async function getManufacturerPerformance() {
   const rows = await capitalDb
     .select({
       manufacturer: acAutomotiveDetails.manufacturer,
-      avgRoi: sql<number>`COALESCE(AVG(COALESCE(${acAssets.businessRoiBps}, ${acAssets.roiBps})), 0)`,
       avgMyRoi: sql<number>`COALESCE(AVG(${acAssets.myRoiBps}), 0)`,
       count: count(),
-      totalProfit: sum(acAssets.profitPaise),
       totalMyShare: sum(acAssets.mySharePaise),
     })
     .from(acAssets)
     .innerJoin(acAutomotiveDetails, eq(acAssets.id, acAutomotiveDetails.assetId))
-    .where(sql`${acAssets.profitPaise} IS NOT NULL`)
+    .where(sql`${acAssets.mySharePaise} IS NOT NULL`)
     .groupBy(acAutomotiveDetails.manufacturer)
-    .orderBy(desc(sql`COALESCE(AVG(COALESCE(${acAssets.businessRoiBps}, ${acAssets.roiBps})), 0)`));
+    .orderBy(desc(sql`COALESCE(SUM(${acAssets.mySharePaise}), 0)`));
   return rows.map((r) => ({
     manufacturer: r.manufacturer,
-    avgRoiBps: Math.round(Number(r.avgRoi)),
     avgMyRoiBps: Math.round(Number(r.avgMyRoi)),
     count: Number(r.count),
-    totalProfitPaise: Number(r.totalProfit ?? 0),
     totalMySharePaise: Number(r.totalMyShare ?? 0),
   }));
 }
 
-export async function getInsights() {
-  const staleAssets = await capitalDb
-    .select({ asset: acAssets, auto: acAutomotiveDetails })
-    .from(acAssets)
-    .innerJoin(acAutomotiveDetails, eq(acAssets.id, acAutomotiveDetails.assetId))
-    .where(
-      and(
-        sql`${acAssets.holdingDays} > 90`,
-        sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`,
-      ),
-    )
-    .limit(5);
-
-  const noMovement = await capitalDb
-    .select({ asset: acAssets, auto: acAutomotiveDetails })
-    .from(acAssets)
-    .innerJoin(acAutomotiveDetails, eq(acAssets.id, acAutomotiveDetails.assetId))
-    .where(
-      and(
-        sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`,
-        sql`NOT EXISTS (
-          SELECT 1 FROM ac_expenses e
-          WHERE e.asset_id = ${acAssets.id}
-          AND e.expense_date >= (CURRENT_DATE - INTERVAL '30 days')::date
-          AND e.is_reversed = false
-        )`,
-      ),
-    )
-    .limit(5);
-
-  const pendingSettlements = await capitalDb
-    .select({ asset: acAssets, auto: acAutomotiveDetails })
-    .from(acAssets)
-    .innerJoin(acAutomotiveDetails, eq(acAssets.id, acAutomotiveDetails.assetId))
-    .where(
-      and(
-        eq(acAssets.status, 'sold'),
-        sql`COALESCE(${acAssets.settlementPctBps}, 0) < 10000`,
-      ),
-    )
-    .limit(5);
-
-  const [bestProfit] = await capitalDb
-    .select({ asset: acAssets, auto: acAutomotiveDetails })
-    .from(acAssets)
-    .innerJoin(acAutomotiveDetails, eq(acAssets.id, acAutomotiveDetails.assetId))
-    .where(sql`${acAssets.profitPaise} IS NOT NULL`)
-    .orderBy(desc(acAssets.profitPaise))
-    .limit(1);
-
-  const [worstProfit] = await capitalDb
-    .select({ asset: acAssets, auto: acAutomotiveDetails })
-    .from(acAssets)
-    .innerJoin(acAutomotiveDetails, eq(acAssets.id, acAutomotiveDetails.assetId))
-    .where(sql`${acAssets.profitPaise} IS NOT NULL`)
-    .orderBy(asc(acAssets.profitPaise))
-    .limit(1);
-
-  const mfg = await getManufacturerPerformance();
-  const bestMfg = mfg[0] ?? null;
-  const worstMfg = mfg.length > 1 ? mfg[mfg.length - 1] : null;
-
-  const [capitalLocked] = await capitalDb
-    .select({ total: sum(acAssets.outstandingPaise) })
+/** In-stock holding buckets for inventory ageing. */
+export async function getInventoryAgeing() {
+  const rows = await capitalDb
+    .select({
+      holdingDays: acAssets.holdingDays,
+    })
     .from(acAssets)
     .where(sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`);
 
-  const expectedReturns = await capitalDb
-    .select({ asset: acAssets, auto: acAutomotiveDetails })
+  const buckets = [
+    { label: '0–30 days', min: 0, max: 30, count: 0 },
+    { label: '31–60 days', min: 31, max: 60, count: 0 },
+    { label: '61–90 days', min: 61, max: 90, count: 0 },
+    { label: '90+ days', min: 91, max: Number.POSITIVE_INFINITY, count: 0 },
+  ];
+  for (const row of rows) {
+    const d = Number(row.holdingDays ?? 0);
+    const bucket = buckets.find((b) => d >= b.min && d <= b.max);
+    if (bucket) bucket.count += 1;
+  }
+  return buckets.map(({ label, count }) => ({ label, count }));
+}
+
+/** Repair spend by purchase/sale month using stored repair totals on sold + active. */
+export async function getRepairTrends() {
+  const rows = await capitalDb
+    .select({
+      month: sql<string>`to_char(COALESCE(${acAssets.saleDate}, ${acAssets.purchaseDate})::date, 'YYYY-MM')`,
+      total: sum(acAssets.repairTotalPaise),
+    })
+    .from(acAssets)
+    .where(sql`${acAssets.status} <> 'cancelled' AND ${acAssets.repairTotalPaise} > 0`)
+    .groupBy(sql`to_char(COALESCE(${acAssets.saleDate}, ${acAssets.purchaseDate})::date, 'YYYY-MM')`)
+    .orderBy(sql`1`);
+  return rows.map((r) => ({ month: r.month, valuePaise: Number(r.total ?? 0) }));
+}
+
+/** Acquisition: vehicles bought + purchase capital by month. */
+export async function getAcquisitionTrends() {
+  const rows = await capitalDb
+    .select({
+      month: sql<string>`to_char(${acAssets.purchaseDate}::date, 'YYYY-MM')`,
+      count: count(),
+      volume: sum(acAssets.purchasePricePaise),
+    })
+    .from(acAssets)
+    .where(sql`${acAssets.status} <> 'cancelled'`)
+    .groupBy(sql`to_char(${acAssets.purchaseDate}::date, 'YYYY-MM')`)
+    .orderBy(sql`1`);
+  return rows.map((r) => ({
+    month: r.month,
+    count: Number(r.count),
+    volumePaise: Number(r.volume ?? 0),
+  }));
+}
+
+/** My profit distribution across sold vehicles (bucketed). */
+export async function getProfitDistribution() {
+  const rows = await capitalDb
+    .select({ mySharePaise: acAssets.mySharePaise })
+    .from(acAssets)
+    .where(sql`${acAssets.mySharePaise} IS NOT NULL AND ${acAssets.status} <> 'cancelled'`);
+
+  const buckets = [
+    { label: 'Loss', min: Number.NEGATIVE_INFINITY, max: -1, count: 0 },
+    { label: '₹0–50k', min: 0, max: 50_000_00, count: 0 },
+    { label: '₹50k–1L', min: 50_000_01, max: 1_00_000_00, count: 0 },
+    { label: '₹1L–2L', min: 1_00_000_01, max: 2_00_000_00, count: 0 },
+    { label: '₹2L+', min: 2_00_000_01, max: Number.POSITIVE_INFINITY, count: 0 },
+  ];
+  for (const row of rows) {
+    const p = Number(row.mySharePaise ?? 0);
+    const bucket = buckets.find((b) => p >= b.min && p <= b.max);
+    if (bucket) bucket.count += 1;
+  }
+  return buckets.map(({ label, count }) => ({ label, count }));
+}
+
+/** Fuel type performance (My share + My ROI). */
+export async function getFuelTypePerformance() {
+  const rows = await capitalDb
+    .select({
+      fuelType: acAutomotiveDetails.fuelType,
+      count: count(),
+      avgMyRoi: sql<number>`COALESCE(AVG(${acAssets.myRoiBps}), 0)`,
+      totalMyShare: sum(acAssets.mySharePaise),
+    })
     .from(acAssets)
     .innerJoin(acAutomotiveDetails, eq(acAssets.id, acAutomotiveDetails.assetId))
-    .where(
-      and(
-        eq(acAssets.status, 'listed'),
-        sql`${acAssets.expectedSalePricePaise} IS NOT NULL`,
-      ),
-    )
+    .where(sql`${acAssets.mySharePaise} IS NOT NULL`)
+    .groupBy(acAutomotiveDetails.fuelType)
+    .orderBy(desc(sql`COALESCE(SUM(${acAssets.mySharePaise}), 0)`));
+  return rows.map((r) => ({
+    fuelType: r.fuelType ?? 'unknown',
+    count: Number(r.count),
+    avgMyRoiBps: Math.round(Number(r.avgMyRoi)),
+    totalMySharePaise: Number(r.totalMyShare ?? 0),
+  }));
+}
+
+/** Model year performance (My share). */
+export async function getYearPerformance() {
+  const rows = await capitalDb
+    .select({
+      year: acAutomotiveDetails.year,
+      count: count(),
+      avgMyRoi: sql<number>`COALESCE(AVG(${acAssets.myRoiBps}), 0)`,
+      totalMyShare: sum(acAssets.mySharePaise),
+    })
+    .from(acAssets)
+    .innerJoin(acAutomotiveDetails, eq(acAssets.id, acAutomotiveDetails.assetId))
+    .where(sql`${acAssets.mySharePaise} IS NOT NULL`)
+    .groupBy(acAutomotiveDetails.year)
+    .orderBy(desc(acAutomotiveDetails.year));
+  return rows.map((r) => ({
+    year: Number(r.year),
+    count: Number(r.count),
+    avgMyRoiBps: Math.round(Number(r.avgMyRoi)),
+    totalMySharePaise: Number(r.totalMyShare ?? 0),
+  }));
+}
+
+/** Top / bottom vehicles by My share. */
+export async function getVehiclePerformance() {
+  const best = await capitalDb
+    .select({
+      id: acAssets.id,
+      displayName: acAssets.displayName,
+      mySharePaise: acAssets.mySharePaise,
+      myRoiBps: acAssets.myRoiBps,
+      holdingDays: acAssets.holdingDays,
+    })
+    .from(acAssets)
+    .where(sql`${acAssets.mySharePaise} IS NOT NULL`)
+    .orderBy(desc(acAssets.mySharePaise))
     .limit(5);
 
+  const worst = await capitalDb
+    .select({
+      id: acAssets.id,
+      displayName: acAssets.displayName,
+      mySharePaise: acAssets.mySharePaise,
+      myRoiBps: acAssets.myRoiBps,
+      holdingDays: acAssets.holdingDays,
+    })
+    .from(acAssets)
+    .where(sql`${acAssets.mySharePaise} IS NOT NULL`)
+    .orderBy(asc(acAssets.mySharePaise))
+    .limit(5);
+
+  return { best, worst };
+}
+
+export async function getAnalyticsInsightKpis() {
+  const [avgHolding] = await capitalDb
+    .select({ avg: sql<number>`COALESCE(AVG(${acAssets.holdingDays}), 0)` })
+    .from(acAssets)
+    .where(sql`${acAssets.holdingDays} IS NOT NULL AND ${acAssets.status} IN ('sold', 'settled')`);
+
+  const [avgMyRoi] = await capitalDb
+    .select({ avg: sql<number>`COALESCE(AVG(${acAssets.myRoiBps}), 0)` })
+    .from(acAssets)
+    .where(sql`${acAssets.myRoiBps} IS NOT NULL`);
+
+  const [ageing] = await capitalDb
+    .select({ c: count() })
+    .from(acAssets)
+    .where(
+      sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled') AND COALESCE(${acAssets.holdingDays}, 0) > 90`,
+    );
+
+  const [repairOpen] = await capitalDb
+    .select({ total: sum(acAssets.repairTotalPaise) })
+    .from(acAssets)
+    .where(sql`${acAssets.status} IN ('repairing', 'painting')`);
+
   return {
-    staleAssets,
-    noMovement,
-    pendingSettlements,
-    bestProfit: bestProfit ?? null,
-    worstProfit: worstProfit ?? null,
-    bestManufacturer: bestMfg,
-    worstManufacturer: worstMfg,
-    capitalLockedPaise: Number(capitalLocked?.total ?? 0),
-    expectedReturns,
+    averageHoldingDays: Math.round(Number(avgHolding?.avg ?? 0)),
+    averageMyRoiBps: Math.round(Number(avgMyRoi?.avg ?? 0)),
+    staleInventoryCount: Number(ageing?.c ?? 0),
+    repairSpendOnActivePaise: Number(repairOpen?.total ?? 0),
   };
 }
 
 export async function getAnalyticsBundle() {
   const [
-    monthlyProfit,
     cashFlow,
-    investments,
-    expensesByCategory,
-    purchased,
-    sold,
     roiTrend,
     holdingTime,
     manufacturers,
-    kpis,
+    inventoryAgeing,
+    repairTrends,
+    acquisition,
+    profitDistribution,
+    fuelPerformance,
+    yearPerformance,
+    vehiclePerformance,
+    insightKpis,
   ] = await Promise.all([
-    getMonthlyProfitChart(),
     getCashFlowChart(),
-    getInvestmentsChart(),
-    getExpensesByCategoryChart(),
-    getAssetsPurchasedChart(),
-    getAssetsSoldChart(),
     getRoiTrendChart(),
     getHoldingTimeChart(),
     getManufacturerPerformance(),
-    getDashboardKpis(),
+    getInventoryAgeing(),
+    getRepairTrends(),
+    getAcquisitionTrends(),
+    getProfitDistribution(),
+    getFuelTypePerformance(),
+    getYearPerformance(),
+    getVehiclePerformance(),
+    getAnalyticsInsightKpis(),
   ]);
   return {
-    monthlyProfit,
     cashFlow,
-    investments,
-    expensesByCategory,
-    purchased,
-    sold,
     roiTrend,
     holdingTime,
     manufacturers,
-    kpis,
+    inventoryAgeing,
+    repairTrends,
+    acquisition,
+    profitDistribution,
+    fuelPerformance,
+    yearPerformance,
+    vehiclePerformance,
+    insightKpis,
   };
 }
