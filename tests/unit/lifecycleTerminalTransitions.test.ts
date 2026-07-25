@@ -27,3 +27,11 @@ test('occupancySync heals under_review orphans on terminal bookings', () => {
   const src = read('src/lib/occupancySync.ts');
   assert.match(src, /under_review/);
 });
+
+test('occupancySync casts terminal reservation status to reservation_status enum', () => {
+  const src = read('src/lib/occupancySync.ts');
+  assert.match(src, /'completed'::reservation_status/);
+  assert.match(src, /'cancelled'::reservation_status/);
+  const updates = src.match(/UPDATE bed_reservations br/g) ?? [];
+  assert.ok(updates.length >= 2, 'expected both orphan and terminal booking UPDATE helpers');
+});

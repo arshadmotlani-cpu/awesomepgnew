@@ -521,6 +521,19 @@ export async function approveVacatingRequest(input: {
     return { ok: false, kind: 'wrong_status', status: current.status };
   }
 
+  if (shouldShortenStayOnVacatingApproval(current.vacatingDate)) {
+    await shortenBookingReservationsToDate(current.bookingId, current.vacatingDate);
+    await reconcileBookingOccupancy(current.bookingId);
+  }
+
+  await syncCheckoutRentForVacating({
+    bookingId: current.bookingId,
+    vacatingDate: current.vacatingDate,
+    actorId: input.resolvedByAdminId ?? null,
+    actorType: input.resolvedByAdminId ? 'admin' : 'system',
+    context: 'approve',
+  });
+
   const [updated] = await db
     .update(vacatingRequests)
     .set({
@@ -530,19 +543,6 @@ export async function approveVacatingRequest(input: {
     })
     .where(eq(vacatingRequests.id, input.requestId))
     .returning();
-
-  if (shouldShortenStayOnVacatingApproval(updated.vacatingDate)) {
-    await shortenBookingReservationsToDate(updated.bookingId, updated.vacatingDate);
-    await reconcileBookingOccupancy(updated.bookingId);
-  }
-
-  await syncCheckoutRentForVacating({
-    bookingId: updated.bookingId,
-    vacatingDate: updated.vacatingDate,
-    actorId: input.resolvedByAdminId ?? null,
-    actorType: input.resolvedByAdminId ? 'admin' : 'system',
-    context: 'approve',
-  });
 
   await db.insert(auditLog).values({
     actorType: input.resolvedByAdminId ? 'admin' : 'system',

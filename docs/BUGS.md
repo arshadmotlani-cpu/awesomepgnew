@@ -194,6 +194,17 @@
 
 ---
 
+### OPS-APPROVE-01 — Operations move-out approve 500 (Krishna APG-2026-0048)
+
+| | |
+|---|---|
+| **Severity** | Critical |
+| **Symptom** | "Operations could not load" after approving move-out from Operations; vacating stuck `approved` without audit/email |
+| **Root cause** | `closeReservationsForTerminalBooking` assigned text to `reservation_status` enum (PG 42804); `approveVacatingRequest` committed `approved` before `reconcileBookingOccupancy` |
+| **Fix** | Cast `::reservation_status` in [`occupancySync.ts`](../src/lib/occupancySync.ts); run shorten/reconcile/checkout rent sync before status flip; `scripts/repair-krishna-0048-post-approve.ts` for prod backfill |
+
+---
+
 ### VAC-CRASH-01 — `/admin/vacating` page crash
 
 | | |

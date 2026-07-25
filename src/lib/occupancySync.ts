@@ -20,8 +20,8 @@ export async function reconcileOrphanBedReservations(bedId?: string): Promise<nu
   const result = await db.execute(sql`
     UPDATE bed_reservations br
     SET status = CASE
-      WHEN bk.status = 'completed' THEN 'completed'
-      ELSE 'cancelled'
+      WHEN bk.status = 'completed' THEN 'completed'::reservation_status
+      ELSE 'cancelled'::reservation_status
     END,
     hold_expires_at = NULL,
     updated_at = now()
@@ -48,8 +48,8 @@ export async function closeReservationsForTerminalBooking(
   const result = await db.execute(sql`
     UPDATE bed_reservations br
     SET status = CASE
-      WHEN bk.status = 'completed' THEN 'completed'
-      ELSE 'cancelled'
+      WHEN bk.status = 'completed' THEN 'completed'::reservation_status
+      ELSE 'cancelled'::reservation_status
     END,
     hold_expires_at = NULL,
     updated_at = now()
