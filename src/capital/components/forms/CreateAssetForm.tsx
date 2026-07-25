@@ -12,6 +12,7 @@ import { FormField } from '@/src/capital/components/forms/FormField';
 import { useAutosaveDraft } from '@/src/capital/hooks/useAutosaveDraft';
 import { createAssetSchema, type CreateAssetInput } from '@/src/capital/lib/validation/schemas';
 import { resolveCreateFunding } from '@/src/capital/lib/investors';
+import { Textarea } from '@/src/capital/components/ui/textarea';
 
 const DRAFT_KEY = 'vehicle-new-v2';
 
@@ -82,6 +83,7 @@ const EMPTY_DEFAULTS: CreateAssetInput = {
   ownership: undefined as unknown as CreateAssetInput['ownership'],
   registrationNumber: '',
   purchasePrice: undefined as unknown as number,
+  notes: '',
   meInvested: undefined as unknown as number,
   investor2Invested: 0,
   investor2Label: 'Partner',
@@ -94,6 +96,7 @@ export function CreateAssetForm() {
   const [brandOpen, setBrandOpen] = useState(false);
   const [withPartner, setWithPartner] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
+  const [photoFiles, setPhotoFiles] = useState<FileList | null>(null);
 
   const form = useForm<CreateAssetInput>({
     resolver: capitalZodResolver(createAssetSchema),
@@ -157,6 +160,9 @@ export function CreateAssetForm() {
     }).forEach(([k, v]) => {
       if (v !== undefined && v !== '') fd.set(k, String(v));
     });
+    if (photoFiles) {
+      Array.from(photoFiles).forEach((file) => fd.append('photos', file));
+    }
     startTransition(async () => {
       await deleteDraftAction(DRAFT_KEY);
       const result = await createAssetAction(state, fd);
@@ -268,6 +274,33 @@ export function CreateAssetForm() {
                 {...registerRupees(form, 'purchasePrice')}
               />
             </FormField>
+
+            <div className="md:col-span-2">
+              <FormField label="Notes (optional)" name="notes" form={form}>
+                <Textarea
+                  form="create-asset-form"
+                  rows={2}
+                  placeholder="Anything worth remembering about this deal"
+                  {...form.register('notes')}
+                />
+              </FormField>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="mb-1.5 block text-sm text-ac-text-secondary">
+                Vehicle Photos (optional)
+              </label>
+              <Input
+                type="file"
+                accept="image/*"
+                multiple
+                form="create-asset-form"
+                onChange={(e) => setPhotoFiles(e.target.files)}
+              />
+              <p className="mt-1 text-xs text-ac-text-muted">
+                First photo becomes the cover. You can add more on the vehicle profile.
+              </p>
+            </div>
           </form>
         </CardContent>
       </Card>

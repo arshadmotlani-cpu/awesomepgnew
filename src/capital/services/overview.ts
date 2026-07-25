@@ -4,6 +4,7 @@ import {
   desc,
   eq,
   gte,
+  inArray,
   lte,
   sql,
   sum,
@@ -1046,6 +1047,48 @@ export async function getOverviewBundle(range: DateRange) {
     monthlySales: future ? [] : monthlySales,
     vehicleStatusCounts,
     openRepairAdvancesCount,
+    pendingWork: await (async () => {
+      const pick = async (statuses: string[], limit = 6) => {
+        return capitalDb
+          .select({
+            id: acAssets.id,
+            displayName: acAssets.displayName,
+            status: acAssets.status,
+            purchaseDate: acAssets.purchaseDate,
+          })
+          .from(acAssets)
+          .where(inArray(acAssets.status, statuses as Array<typeof acAssets.status.enumValues[number]>))
+          .orderBy(desc(acAssets.updatedAt))
+          .limit(limit);
+      };
+
+      const [underRepair, readyForSale, justPurchased, listed, openAdvances] = await Promise.all([
+        pick(['repairing', 'painting']),
+        pick(['ready']),
+        pick(['purchased']),
+        pick(['listed']),
+        capitalDb
+          .select({
+            id: acRepairAdvances.id,
+            assetId: acRepairAdvances.assetId,
+            advancePaise: acRepairAdvances.advancePaise,
+            displayName: acAssets.displayName,
+          })
+          .from(acRepairAdvances)
+          .innerJoin(acAssets, eq(acRepairAdvances.assetId, acAssets.id))
+          .where(eq(acRepairAdvances.status, 'open'))
+          .orderBy(desc(acRepairAdvances.createdAt))
+          .limit(8),
+      ]);
+
+      return {
+        underRepair,
+        readyForSale,
+        justPurchased,
+        listed,
+        openAdvances,
+      };
+    })(),
   };
 }
 

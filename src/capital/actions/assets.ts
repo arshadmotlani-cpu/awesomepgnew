@@ -19,6 +19,7 @@ import {
   updateAssetFunding,
   updateAssetStatus,
 } from '@/src/capital/services/assets';
+import { uploadDocument } from '@/src/capital/services/documents';
 import { deleteDraft } from '@/src/capital/services/drafts';
 
 export type ActionState = { error?: string; success?: string };
@@ -64,6 +65,21 @@ export async function createAssetAction(
       investors,
     });
     assetId = asset.id;
+
+    const photos = formData.getAll('photos').filter((f): f is File => f instanceof File && f.size > 0);
+    for (let i = 0; i < photos.length; i += 1) {
+      const file = photos[i]!;
+      const bytes = Buffer.from(await file.arrayBuffer());
+      await uploadDocument({
+        assetId,
+        documentType: 'photo',
+        fileName: file.name || `photo-${i + 1}.jpg`,
+        mimeType: file.type || 'image/jpeg',
+        fileBytes: bytes,
+        isCover: i === 0,
+      });
+    }
+
     await deleteDraft('vehicle-new-v2');
     await deleteDraft('asset-new');
     revalidatePath('/assets');

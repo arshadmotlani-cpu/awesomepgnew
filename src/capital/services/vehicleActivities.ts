@@ -567,7 +567,70 @@ export async function updateVehicleActivity(input: UpdateVehicleActivityInput) {
     }
 
     if (row.activityType === 'repair_advance') {
-      throw new Error('Reverse and re-record a repair advance to change the amount');
+      const nextAmount =
+        input.amountPaise !== undefined
+          ? input.amountPaise == null
+            ? null
+            : Math.round(input.amountPaise)
+          : row.amountPaise;
+      if (nextAmount == null || nextAmount <= 0) {
+        throw new Error('Repair advance amount must be positive');
+      }
+
+      const [advance] = await tx
+        .select()
+        .from(acRepairAdvances)
+        .where(eq(acRepairAdvances.advanceActivityId, row.id))
+        .limit(1);
+      if (!advance) throw new Error('Repair advance record not found');
+      if (advance.status === 'settled') {
+        throw new Error('Cannot edit a settled repair advance — edit the settlement instead');
+      }
+
+      await reverseSourceLedger(
+        'ac_vehicle_activities',
+        row.id,
+        'Edit repair advance — clear prior ledger',
+        tx,
+      );
+      const entry = await postLedgerEntry(
+        {
+          entryType: 'adjustment',
+          direction: 'debit',
+          amountPaise: nextAmount,
+          assetId: row.assetId,
+          sourceTable: 'ac_vehicle_activities',
+          sourceId: row.id,
+          description: `Repair advance: ₹${(nextAmount / 100).toLocaleString('en-IN')}`,
+          metadata: { kind: 'repair_advance', repairAdvanceId: advance.id },
+        },
+        tx,
+      );
+
+      await tx
+        .update(acRepairAdvances)
+        .set({
+          advancePaise: nextAmount,
+          outstandingPaise: nextAmount,
+          notes: input.notes ?? advance.notes,
+          updatedAt: new Date(),
+        })
+        .where(eq(acRepairAdvances.id, advance.id));
+
+      await tx
+        .update(acVehicleActivities)
+        .set({
+          activityAt: input.activityAt ?? row.activityAt,
+          amountPaise: nextAmount,
+          title: input.title?.trim() || row.title,
+          notes: input.notes ?? row.notes,
+          ledgerEntryId: entry.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(acVehicleActivities.id, row.id));
+
+      await recalculateAsset(row.assetId, tx);
+      return;
     }
 
     const nextAmount =

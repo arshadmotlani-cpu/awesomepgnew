@@ -38,7 +38,8 @@ export function EditActivityForm({ activity, advancePaise, onDone }: Props) {
   const type = activity.activityType as VehicleActivityType;
   const meta = VEHICLE_ACTIVITY_TYPE_META[type];
   const isSettlement = type === 'repair_settlement';
-  const locked = type === 'vehicle_created' || type === 'sale' || type === 'repair_advance';
+  const isRepairAdvance = type === 'repair_advance';
+  const locked = type === 'vehicle_created' || type === 'sale';
 
   const metaObj =
     activity.metadata && typeof activity.metadata === 'object' ? activity.metadata : {};
@@ -124,11 +125,7 @@ export function EditActivityForm({ activity, advancePaise, onDone }: Props) {
         Edit · {meta.label}
       </p>
       {locked ? (
-        <p className="text-sm text-ac-text-muted">
-          {type === 'repair_advance'
-            ? 'Reverse this advance (if unsettled) and record a new one to change the amount.'
-            : 'This activity cannot be edited.'}
-        </p>
+        <p className="text-sm text-ac-text-muted">This activity cannot be edited.</p>
       ) : (
         <form onSubmit={onSave} className="grid gap-3 sm:grid-cols-2">
           <FormField label="Date" name="activityAt" form={form}>
@@ -149,8 +146,12 @@ export function EditActivityForm({ activity, advancePaise, onDone }: Props) {
                 </p>
               ) : null}
             </>
-          ) : meta.requiresAmount ? (
-            <FormField label="Amount (₹)" name="amount" form={form}>
+          ) : meta.requiresAmount || isRepairAdvance ? (
+            <FormField
+              label={isRepairAdvance ? 'Advance given (₹)' : 'Amount (₹)'}
+              name="amount"
+              form={form}
+            >
               <Input type="number" step="0.01" {...form.register('amount')} />
             </FormField>
           ) : null}

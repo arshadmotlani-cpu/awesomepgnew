@@ -107,9 +107,10 @@ const TAB_VALUES = [
   'investment',
   'photos',
   'documents',
-  'profit',
   'sale',
-  'accounting',
+  'profit',
+  'notes',
+  'ledger',
 ] as const;
 
 export function AssetCommandCenter({
@@ -214,9 +215,10 @@ export function AssetCommandCenter({
         <TabsTrigger value="investment">Investment</TabsTrigger>
         <TabsTrigger value="photos">Photos ({photos.length})</TabsTrigger>
         <TabsTrigger value="documents">Documents ({docs.length})</TabsTrigger>
-        <TabsTrigger value="profit">Profit</TabsTrigger>
         <TabsTrigger value="sale">Sale</TabsTrigger>
-        <TabsTrigger value="accounting">Accounting</TabsTrigger>
+        <TabsTrigger value="profit">Profit</TabsTrigger>
+        <TabsTrigger value="notes">Notes</TabsTrigger>
+        <TabsTrigger value="ledger">Ledger</TabsTrigger>
       </TabsList>
 
       <TabsContent value="overview" className="space-y-4">
@@ -315,9 +317,6 @@ export function AssetCommandCenter({
           <StatCard label="My Investment" paise={overview.myInvestmentPaise} />
           <StatCard label={overview.partnerLabel} paise={overview.partnerInvestmentPaise} />
           <StatCard label="Funding Gap" paise={fundingGapPaise} />
-          {overview.isActive ? (
-            <StatCard label="Capital at risk" paise={overview.capitalAtRiskPaise} />
-          ) : null}
           <StatCard label="Outstanding" paise={overview.outstandingPaise} />
           <StatCard label="Holding days" text={String(overview.holdingDays)} />
         </div>
@@ -575,6 +574,18 @@ export function AssetCommandCenter({
         ) : null}
       </TabsContent>
 
+      <TabsContent value="sale" className="space-y-4">
+        <AssetActionsForms
+          assetId={assetId}
+          currentStatus={currentStatus}
+          totalInvestmentPaise={totalInvestmentPaise}
+          fundingGapPaise={fundingGapPaise}
+          operatingPartnerNumerator={operatingPartnerNumerator}
+          operatingPartnerDenominator={operatingPartnerDenominator}
+          investors={investors}
+        />
+      </TabsContent>
+
       <TabsContent value="profit" className="space-y-4">
         {profit ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -604,19 +615,50 @@ export function AssetCommandCenter({
         )}
       </TabsContent>
 
-      <TabsContent value="sale" className="space-y-4">
-        <AssetActionsForms
-          assetId={assetId}
-          currentStatus={currentStatus}
-          totalInvestmentPaise={totalInvestmentPaise}
-          fundingGapPaise={fundingGapPaise}
-          operatingPartnerNumerator={operatingPartnerNumerator}
-          operatingPartnerDenominator={operatingPartnerDenominator}
-          investors={investors}
-        />
+      <TabsContent value="notes" className="space-y-4">
+        <div className="ac-glass-card space-y-3 p-4">
+          <h3 className="text-sm font-semibold">Vehicle notes</h3>
+          <p className="whitespace-pre-wrap text-sm text-ac-text-secondary">
+            {overview.notes?.trim() ? overview.notes : 'No notes yet.'}
+          </p>
+          {canEdit ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                setTab('overview');
+                setEditVehicleOpen(true);
+              }}
+            >
+              Edit notes & vehicle details
+            </Button>
+          ) : null}
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium">Note activities</h3>
+          {timeline.vehicleActivities.filter((a) => a.activityType === 'note').length === 0 ? (
+            <p className="text-sm text-ac-text-muted">
+              Add a Note from Purchase Activities to keep timeline notes on this vehicle.
+            </p>
+          ) : (
+            timeline.vehicleActivities
+              .filter((a) => a.activityType === 'note')
+              .map((a) => (
+                <div key={a.id} className="ac-glass-card p-3 text-sm">
+                  <p className="text-ac-text-muted">{a.activityAt}</p>
+                  {a.title ? <p className="mt-1 font-medium">{a.title}</p> : null}
+                  {a.notes ? <p className="mt-1 text-ac-text-secondary">{a.notes}</p> : null}
+                </div>
+              ))
+          )}
+        </div>
       </TabsContent>
 
-      <TabsContent value="accounting" className="space-y-6">
+      <TabsContent value="ledger" className="space-y-6">
+        <p className="text-xs text-ac-text-muted">
+          Accounting detail for this vehicle — payments and ledger entries.
+        </p>
         <div>
           <h3 className="mb-2 text-sm font-medium">Payments ({timeline.payments.length})</h3>
           <div className="space-y-2">

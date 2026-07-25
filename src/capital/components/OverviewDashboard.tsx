@@ -13,6 +13,7 @@ import { ManualProfitForm } from '@/src/capital/components/forms/ManualProfitFor
 import { MoneyDisplay } from '@/src/capital/components/MoneyDisplay';
 import { Button } from '@/src/capital/components/ui/button';
 import { Input } from '@/src/capital/components/ui/input';
+import { VEHICLE_ACTIVITY_TYPE_META, type VehicleActivityType } from '@/src/capital/lib/activityTypes';
 import { currentMonthKey, shiftMonth } from '@/src/capital/lib/dashboardRange';
 import type { OverviewBundle } from '@/src/capital/services/overview';
 import { cn } from '@/src/capital/lib/utils';
@@ -30,24 +31,30 @@ const RANGES = [
 const ACTIVITY_LABELS: Record<string, string> = {
   asset_created: 'Vehicle Created',
   asset_updated: 'Vehicle Updated',
+  asset_details_updated: 'Vehicle Updated',
   asset_status_changed: 'Status Changed',
-  asset_sold: 'Sold',
-  sale_recorded: 'Sold',
+  asset_sold: 'Vehicle Sold',
+  sale_recorded: 'Vehicle Sold',
   payment_created: 'Payment Recorded',
-  payment_updated: 'Payment Updated',
-  expense_created: 'Expense Recorded',
-  settlement_created: 'Settlement Created',
-  manual_profit_added: 'Manual Profit',
-  vehicle_activity_created: 'Activity Recorded',
-  repair_advance_created: 'Repair Advance',
-  repair_advance_settled: 'Repair Advance Settled',
+  manual_profit_added: 'Profit Recorded',
+  vehicle_activity_created: 'Purchase Activity',
+  vehicle_activity_updated: 'Activity Updated',
+  vehicle_activity_reversed: 'Activity Reversed',
+  repair_advance_created: 'Repair Advance Given',
+  repair_advance_settled: 'Repair Settled',
   capital_injected: 'Capital Injected',
   capital_withdrawn: 'Capital Withdrawn',
   document_uploaded: 'Document Uploaded',
-  settings_updated: 'Settings Updated',
+  investor_added: 'Investor Added',
 };
 
-function activityLabel(action: string) {
+function activityLabel(action: string, afterState?: unknown) {
+  if (action === 'vehicle_activity_created' && afterState && typeof afterState === 'object') {
+    const type = (afterState as { activityType?: string }).activityType;
+    if (type && type in VEHICLE_ACTIVITY_TYPE_META) {
+      return VEHICLE_ACTIVITY_TYPE_META[type as VehicleActivityType].label;
+    }
+  }
   if (ACTIVITY_LABELS[action]) return ACTIVITY_LABELS[action];
   return action
     .split('_')
@@ -64,6 +71,31 @@ function formatActivityTime(iso: string) {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function Section({
+  title,
+  subtitle,
+  children,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-semibold tracking-tight text-ac-text">{title}</h2>
+          {subtitle ? <p className="mt-0.5 text-xs text-ac-text-muted">{subtitle}</p> : null}
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
 }
 
 function MetricRow({
@@ -93,27 +125,40 @@ function MetricRow({
   );
 }
 
-function GroupCard({
+function PendingQueue({
   title,
+  href,
+  empty,
   children,
-  className,
+  count,
 }: {
   title: string;
+  href: string;
+  empty: string;
+  count: number;
   children: React.ReactNode;
-  className?: string;
 }) {
+  if (count === 0) return null;
   return (
-    <section
-      className={cn(
-        'flex h-full flex-col rounded-xl border border-white/[0.08] bg-white/[0.03] p-3 sm:p-4',
-        className,
-      )}
-    >
-      <h2 className="text-[10px] font-medium uppercase tracking-[0.14em] text-ac-text-muted">
-        {title}
-      </h2>
-      <div className="mt-3 flex flex-1 flex-col justify-center gap-2.5">{children}</div>
-    </section>
+    <div className="ac-glass-card flex min-h-[9rem] flex-col overflow-hidden">
+      <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-ac-text-muted">
+            {title}
+          </h3>
+          <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-amber-200">
+            {count}
+          </span>
+        </div>
+        <Link href={href} className="text-[11px] text-ac-accent hover:underline">
+          Open
+        </Link>
+      </div>
+      <ul className="flex-1 divide-y divide-white/[0.04]">{children}</ul>
+      {count === 0 ? (
+        <p className="px-3 py-4 text-xs text-ac-text-muted">{empty}</p>
+      ) : null}
+    </div>
   );
 }
 
@@ -153,47 +198,51 @@ export function OverviewDashboard({
 
   const inventoryTotal = view.activeVehicles + view.vehiclesSold;
   const activeCapitalPaise = view.activeCapitalPaise ?? view.capitalAtRiskPaise;
+  const pending = bundle.pendingWork;
 
   const healthItems = useMemo(() => {
     const counts = bundle.vehicleStatusCounts;
     const underRepair = (counts?.repairing ?? 0) + (counts?.painting ?? 0);
-    const items: { label: string; count: number }[] = [
-      { label: 'Under Repair', count: underRepair },
-      { label: 'Ready For Sale', count: counts?.ready ?? 0 },
-      { label: 'Listed', count: counts?.listed ?? 0 },
-      { label: 'Just Purchased', count: counts?.purchased ?? 0 },
-      { label: 'Open Repair Advances', count: bundle.openRepairAdvancesCount ?? 0 },
+    const items: { label: string; count: number; href: string }[] = [
+      { label: 'Under Repair', count: underRepair, href: '/assets?tab=in_stock' },
+      { label: 'Ready For Sale', count: counts?.ready ?? 0, href: '/assets?tab=in_stock' },
+      { label: 'Listed', count: counts?.listed ?? 0, href: '/assets?tab=in_stock' },
+      { label: 'Just Purchased', count: counts?.purchased ?? 0, href: '/assets?tab=in_stock' },
+      {
+        label: 'Open Repair Advances',
+        count: bundle.openRepairAdvancesCount ?? 0,
+        href: '/assets?tab=in_stock',
+      },
     ];
     return items.filter((i) => i.count > 0);
   }, [bundle.vehicleStatusCounts, bundle.openRepairAdvancesCount]);
 
+  const pendingTotal =
+    (pending?.underRepair.length ?? 0) +
+    (pending?.readyForSale.length ?? 0) +
+    (pending?.justPurchased.length ?? 0) +
+    (pending?.listed.length ?? 0) +
+    (pending?.openAdvances.length ?? 0);
+
   const activityFeed = useMemo(() => {
-    const rows = bundle.timeline?.length ? bundle.timeline : bundle.activity ?? [];
+    const rows = bundle.timeline?.length ? bundle.timeline : (bundle.activity ?? []);
     return rows.slice(0, 20);
   }, [bundle.timeline, bundle.activity]);
 
-  const quickActions = useMemo(
-    () => [
-      { href: '/assets/new', label: 'Add Vehicle', icon: Car },
-      {
-        href: '#manual-profit',
-        label: 'Add Manual Profit',
-        icon: Sparkles,
-        onClick: () => setManualOpen(true),
-      },
-    ],
-    [],
-  );
-
   return (
-    <div className="mx-auto max-w-[1440px] space-y-5 pb-12">
+    <div className="mx-auto max-w-[1440px] space-y-8 pb-12">
+      {/* Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.22em] text-ac-accent">
-            Automotive Capital
+            Dealership Command Center
           </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">Dashboard</h1>
-          <p className="mt-1 text-sm text-ac-text-secondary">{bundle.range.label}</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
+            Morning Overview
+          </h1>
+          <p className="mt-1 text-sm text-ac-text-secondary">
+            {bundle.range.label} · What you own, what you made, what needs you next
+          </p>
         </div>
 
         <div className="flex flex-col items-stretch gap-2 sm:items-end">
@@ -276,139 +325,279 @@ export function OverviewDashboard({
               </Button>
             </div>
           ) : null}
+
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" size="sm" asChild>
+              <Link href="/assets/new">
+                <Car className="h-3.5 w-3.5" />
+                Add Vehicle
+              </Link>
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => setManualOpen(true)}>
+              <Sparkles className="h-3.5 w-3.5" />
+              Add Manual Profit
+            </Button>
+          </div>
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {quickActions.map((a) => {
-          const Icon = a.icon;
-          if (a.onClick) {
-            return (
-              <Button key={a.label} variant="secondary" size="sm" onClick={a.onClick}>
-                <Icon className="h-3.5 w-3.5" />
-                {a.label}
-              </Button>
-            );
-          }
-          return (
-            <Button key={a.label} variant="secondary" size="sm" asChild>
-              <Link href={a.href}>
-                <Icon className="h-3.5 w-3.5" />
-                {a.label}
-              </Link>
-            </Button>
-          );
-        })}
-      </div>
+      {/* Pending Work — first, so you know what to do */}
+      <Section
+        title="Pending Work"
+        subtitle={
+          pendingTotal > 0
+            ? `${pendingTotal} items need attention across inventory and repairs`
+            : 'Nothing urgent — inventory is clear'
+        }
+        action={
+          <Link href="/assets?tab=in_stock" className="text-xs text-ac-accent hover:underline">
+            All in-stock vehicles
+          </Link>
+        }
+      >
+        {pendingTotal === 0 ? (
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.05] px-4 py-5 text-sm text-emerald-100/90">
+            No open repair advances and no vehicles stuck in purchased / repair / ready queues.
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <PendingQueue
+              title="Just Purchased"
+              href="/assets?tab=in_stock"
+              empty="None"
+              count={pending?.justPurchased.length ?? 0}
+            >
+              {(pending?.justPurchased ?? []).map((v) => (
+                <li key={v.id}>
+                  <Link
+                    href={`/assets/${v.id}?tab=activities`}
+                    className="block px-3 py-2 text-sm transition hover:bg-white/[0.04]"
+                  >
+                    <span className="font-medium">{v.displayName}</span>
+                    <span className="mt-0.5 block text-[11px] text-ac-text-muted">
+                      Add purchase activities
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </PendingQueue>
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <GroupCard title="Inventory">
-          <MetricRow label="In Stock" valueText={String(view.activeVehicles)} />
-          <MetricRow label="Sold" valueText={String(view.vehiclesSold)} />
-          <MetricRow label="Total Vehicles" valueText={String(inventoryTotal)} accent />
-        </GroupCard>
+            <PendingQueue
+              title="Under Repair"
+              href="/assets?tab=in_stock"
+              empty="None"
+              count={pending?.underRepair.length ?? 0}
+            >
+              {(pending?.underRepair ?? []).map((v) => (
+                <li key={v.id}>
+                  <Link
+                    href={`/assets/${v.id}?tab=activities`}
+                    className="block px-3 py-2 text-sm transition hover:bg-white/[0.04]"
+                  >
+                    <span className="font-medium">{v.displayName}</span>
+                    <span className="mt-0.5 block text-[11px] capitalize text-ac-text-muted">
+                      {v.status}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </PendingQueue>
 
-        <GroupCard title="Active Capital">
-          <div>
-            <p className="text-xs text-ac-text-muted">My money in in-stock vehicles</p>
-            <p className="mt-1.5 text-xl font-semibold tracking-tight tabular-nums sm:text-2xl">
-              <MoneyDisplay paise={activeCapitalPaise} className="text-xl sm:text-2xl" />
+            <PendingQueue
+              title="Repair Advances Open"
+              href="/assets?tab=in_stock"
+              empty="None"
+              count={pending?.openAdvances.length ?? 0}
+            >
+              {(pending?.openAdvances ?? []).map((a) => (
+                <li key={a.id}>
+                  <Link
+                    href={`/assets/${a.assetId}?tab=activities`}
+                    className="flex items-center justify-between gap-2 px-3 py-2 text-sm transition hover:bg-white/[0.04]"
+                  >
+                    <span className="min-w-0 truncate font-medium">{a.displayName}</span>
+                    <MoneyDisplay paise={a.advancePaise} className="shrink-0 text-xs" />
+                  </Link>
+                </li>
+              ))}
+            </PendingQueue>
+
+            <PendingQueue
+              title="Ready For Sale"
+              href="/assets?tab=in_stock"
+              empty="None"
+              count={pending?.readyForSale.length ?? 0}
+            >
+              {(pending?.readyForSale ?? []).map((v) => (
+                <li key={v.id}>
+                  <Link
+                    href={`/assets/${v.id}?tab=sale`}
+                    className="block px-3 py-2 text-sm transition hover:bg-white/[0.04]"
+                  >
+                    <span className="font-medium">{v.displayName}</span>
+                    <span className="mt-0.5 block text-[11px] text-ac-text-muted">List or sell</span>
+                  </Link>
+                </li>
+              ))}
+            </PendingQueue>
+
+            <PendingQueue
+              title="Listed"
+              href="/assets?tab=in_stock"
+              empty="None"
+              count={pending?.listed.length ?? 0}
+            >
+              {(pending?.listed ?? []).map((v) => (
+                <li key={v.id}>
+                  <Link
+                    href={`/assets/${v.id}?tab=sale`}
+                    className="block px-3 py-2 text-sm transition hover:bg-white/[0.04]"
+                  >
+                    <span className="font-medium">{v.displayName}</span>
+                    <span className="mt-0.5 block text-[11px] text-ac-text-muted">
+                      Waiting for buyer
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </PendingQueue>
+          </div>
+        )}
+      </Section>
+
+      {/* Overview — grouped, not one card per number */}
+      <Section title="Overview" subtitle="Inventory, capital, profit, and performance at a glance">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ac-text-muted">
+              Inventory
+            </p>
+            <div className="mt-3 space-y-2.5">
+              <MetricRow label="In Stock" valueText={String(view.activeVehicles)} />
+              <MetricRow label="Sold" valueText={String(view.vehiclesSold)} />
+              <MetricRow label="Total Vehicles" valueText={String(inventoryTotal)} accent />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ac-text-muted">
+              Active Capital
+            </p>
+            <p className="mt-3 text-2xl font-semibold tracking-tight tabular-nums">
+              <MoneyDisplay paise={activeCapitalPaise} className="text-2xl" />
+            </p>
+            <p className="mt-1 text-xs text-ac-text-muted">Your money in in-stock vehicles</p>
+          </div>
+
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ac-text-muted">
+              Profit
+            </p>
+            <div className="mt-3 space-y-2.5">
+              <MetricRow label="Lifetime Profit" valuePaise={view.profitPaise} accent />
+              <MetricRow
+                label={periodProfitLabel}
+                valuePaise={bundle.isFuture ? undefined : view.periodProfitPaise}
+                valueText={bundle.isFuture ? '—' : undefined}
+              />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ac-text-muted">
+              Performance
+            </p>
+            <div className="mt-3 space-y-2.5">
+              <MetricRow
+                label="My ROI"
+                valueText={view.roiBps != null ? `${(view.roiBps / 100).toFixed(1)}%` : '—'}
+                accent
+              />
+              <MetricRow
+                label="Avg Profit Per Vehicle"
+                valuePaise={view.avgProfitPerVehiclePaise}
+              />
+            </div>
+            <p className="mt-2 text-[10px] text-ac-text-muted">
+              ROI = My Lifetime Profit ÷ My Capital Stakes
             </p>
           </div>
-        </GroupCard>
+        </div>
+      </Section>
 
-        <GroupCard title="Profit">
-          <MetricRow label="Lifetime Profit" valuePaise={view.profitPaise} accent />
-          <MetricRow
-            label={periodProfitLabel}
-            valuePaise={bundle.isFuture ? undefined : view.periodProfitPaise}
-            valueText={bundle.isFuture ? '—' : undefined}
-          />
-        </GroupCard>
-
-        <GroupCard title="Performance">
-          <MetricRow
-            label="ROI"
-            valueText={view.roiBps != null ? `${(view.roiBps / 100).toFixed(1)}%` : '—'}
-            accent
-          />
-          <MetricRow label="Avg Profit Per Vehicle" valuePaise={view.avgProfitPerVehiclePaise} />
-        </GroupCard>
-      </section>
-
+      {/* Business Health summary */}
       {healthItems.length > 0 ? (
-        <section className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-3 sm:p-4">
-          <h2 className="text-[10px] font-medium uppercase tracking-[0.14em] text-amber-200/80">
-            Business Health
-          </h2>
-          <div className="mt-3 flex flex-wrap gap-2">
+        <Section title="Business Health" subtitle="Operational counts with pending items only">
+          <div className="flex flex-wrap gap-2">
             {healthItems.map((item) => (
               <Link
                 key={item.label}
-                href="/assets?tab=in_stock"
-                className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm transition hover:border-amber-400/30 hover:bg-white/[0.07]"
+                href={item.href}
+                className="inline-flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2 text-sm transition hover:bg-amber-500/10"
               >
                 <span className="text-ac-text-secondary">{item.label}</span>
-                <span className="font-semibold tabular-nums text-ac-text">{item.count}</span>
+                <span className="font-semibold tabular-nums">{item.count}</span>
               </Link>
             ))}
           </div>
-        </section>
+        </Section>
       ) : null}
 
-      <section className="grid gap-3 lg:grid-cols-2">
-        <div className="ac-glass-card overflow-hidden">
-          <div className="border-b border-white/[0.06] px-4 py-3 sm:px-5">
-            <h2 className="text-sm font-semibold tracking-tight">Recent Activity</h2>
-            <p className="mt-0.5 text-xs text-ac-text-muted">Latest dealership events</p>
-          </div>
-          <div className="max-h-[28rem] overflow-y-auto">
-            {activityFeed.length === 0 ? (
-              <div className="flex h-40 items-center justify-center px-4 text-sm text-ac-text-muted">
-                No recent activity.
-              </div>
-            ) : (
-              <ul className="divide-y divide-white/[0.05]">
-                {activityFeed.map((row) => {
-                  const label = activityLabel(row.action);
-                  const href =
-                    row.entityType === 'asset' && row.entityId
-                      ? `/assets/${row.entityId}`
-                      : null;
-                  const inner = (
-                    <>
-                      <span className="text-sm font-medium text-ac-text">{label}</span>
-                      <span className="mt-0.5 block text-[11px] text-ac-text-muted">
-                        {formatActivityTime(row.createdAt)}
-                      </span>
-                    </>
-                  );
-                  return (
-                    <li key={row.id}>
-                      {href ? (
-                        <Link
-                          href={href}
-                          className="block px-4 py-2.5 transition hover:bg-white/[0.04] sm:px-5"
-                        >
-                          {inner}
-                        </Link>
-                      ) : (
-                        <div className="px-4 py-2.5 sm:px-5">{inner}</div>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-3">
+      {/* Activity + charts */}
+      <Section title="Pulse" subtitle="What happened recently and whether the business is growing">
+        <div className="grid gap-3 lg:grid-cols-2">
           <div className="ac-glass-card overflow-hidden">
-            <div className="border-b border-white/[0.06] px-4 py-3 sm:px-5">
-              <h2 className="text-sm font-semibold tracking-tight">Profit Growth</h2>
+            <div className="border-b border-white/[0.06] px-4 py-3">
+              <h3 className="text-sm font-semibold">Recent Activity</h3>
+              <p className="mt-0.5 text-xs text-ac-text-muted">Daily dealership log</p>
+            </div>
+            <div className="max-h-[28rem] overflow-y-auto">
+              {activityFeed.length === 0 ? (
+                <div className="flex h-40 items-center justify-center px-4 text-sm text-ac-text-muted">
+                  No recent activity.
+                </div>
+              ) : (
+                <ul className="divide-y divide-white/[0.05]">
+                  {activityFeed.map((row) => {
+                    const label = activityLabel(row.action, row.afterState);
+                    const href =
+                      row.entityType === 'asset' && row.entityId
+                        ? `/assets/${row.entityId}`
+                        : null;
+                    const inner = (
+                      <>
+                        <span className="text-sm font-medium text-ac-text">{label}</span>
+                        <span className="mt-0.5 block text-[11px] text-ac-text-muted">
+                          {formatActivityTime(row.createdAt)}
+                        </span>
+                      </>
+                    );
+                    return (
+                      <li key={row.id}>
+                        {href ? (
+                          <Link
+                            href={href}
+                            className="block px-4 py-2.5 transition hover:bg-white/[0.04]"
+                          >
+                            {inner}
+                          </Link>
+                        ) : (
+                          <div className="px-4 py-2.5">{inner}</div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          <div className="ac-glass-card overflow-hidden">
+            <div className="border-b border-white/[0.06] px-4 py-3">
+              <h3 className="text-sm font-semibold">Profit Growth</h3>
               <p className="mt-0.5 text-xs text-ac-text-muted">
-                Monthly profit (bars) with cumulative total (line)
+                Monthly profit bars + cumulative line — best fit for a single monthly series (not
+                OHLC / candlesticks)
               </p>
             </div>
             <div className="p-3 sm:p-4">
@@ -425,16 +614,13 @@ export function OverviewDashboard({
             </div>
           </div>
         </div>
-      </section>
+      </Section>
 
-      <section className="ac-glass-card overflow-hidden">
-        <div className="border-b border-white/[0.06] px-4 py-3 sm:px-5">
-          <h2 className="text-sm font-semibold tracking-tight">Purchases vs Sales</h2>
-          <p className="mt-0.5 text-xs text-ac-text-muted">
-            Monthly purchase volume against sale proceeds
-          </p>
-        </div>
-        <div className="p-3 sm:p-4">
+      <Section
+        title="Purchases vs Sales"
+        subtitle="Dealership throughput: capital deployed into stock versus sale proceeds by month"
+      >
+        <div className="ac-glass-card overflow-hidden p-3 sm:p-4">
           {bundle.isFuture ||
           ((bundle.monthlyPurchases?.length ?? 0) === 0 &&
             (bundle.monthlySales?.length ?? 0) === 0) ? (
@@ -448,7 +634,7 @@ export function OverviewDashboard({
             />
           )}
         </div>
-      </section>
+      </Section>
 
       <AnimatePresence>
         {manualOpen ? (

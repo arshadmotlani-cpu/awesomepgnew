@@ -60,7 +60,8 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
   const investor2 = investors.find((i) => i.slot === 'investor_2');
   const myInvestmentPaise = me?.investedPaise ?? 0;
 
-  const initialTab = firstParam(sp.tab) ?? 'overview';
+  const initialTabRaw = firstParam(sp.tab) ?? 'overview';
+  const initialTab = initialTabRaw === 'accounting' ? 'ledger' : initialTabRaw;
   const focusPurchase = firstParam(sp.focus) === 'purchase';
 
   return (
