@@ -6,8 +6,8 @@ import {
   archiveCheckoutSettlementAction,
   deleteCheckoutSettlementAction,
   rebuildCheckoutSettlementAction,
-  type CheckoutSettlementActionState,
 } from '@/app/(admin)/admin/checkout-settlements/actions';
+import type { CheckoutSettlementActionState } from '@/src/lib/checkout/checkoutSettlementActionTypes';
 
 const idle: CheckoutSettlementActionState = { status: 'idle' };
 

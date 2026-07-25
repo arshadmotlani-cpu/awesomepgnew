@@ -7,8 +7,8 @@ import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import {
   approveCheckoutSettlementAction,
   updateCheckoutSettlementFieldsAction,
-  type CheckoutSettlementActionState,
 } from '@/app/(admin)/admin/checkout-settlements/actions';
+import type { CheckoutSettlementActionState } from '@/src/lib/checkout/checkoutSettlementActionTypes';
 import { CheckoutSettlementElectricitySection } from '@/src/components/admin/CheckoutSettlementElectricitySection';
 import { NoticeSettlementPanel } from '@/src/components/shared/NoticeDeductionBreakdown';
 import { assessCheckoutSettlementReadiness } from '@/src/lib/checkout/checkoutSettlementReadiness';

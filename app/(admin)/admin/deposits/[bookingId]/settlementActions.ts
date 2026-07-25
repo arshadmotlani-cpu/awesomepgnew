@@ -1,9 +1,6 @@
 'use server';
 
-export type DepositSettlementState =
-  | { status: 'idle' }
-  | { status: 'ok'; message: string }
-  | { status: 'error'; message: string };
+import type { DepositSettlementState } from '@/src/lib/deposits/depositBookingActionTypes';
 
 /** Legacy deposit settlement UI removed — Refund Console is the only payout path. */
 export async function processDepositSettlementAction(

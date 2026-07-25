@@ -4,8 +4,8 @@ import { useActionState, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   updateCheckoutElectricityAction,
-  type CheckoutSettlementActionState,
 } from '@/app/(admin)/admin/checkout-settlements/actions';
+import type { CheckoutSettlementActionState } from '@/src/lib/checkout/checkoutSettlementActionTypes';
 import { CheckoutRoomElectricityBreakdown } from '@/src/components/admin/checkout/CheckoutRoomElectricityBreakdown';
 import {
   calculateCheckoutElectricity,

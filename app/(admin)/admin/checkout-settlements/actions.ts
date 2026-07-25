@@ -14,11 +14,7 @@ import {
   updateCheckoutSettlementAdminFields,
 } from '@/src/services/checkoutSettlement';
 import { agentSessionLog } from '@/src/lib/debug/agentSessionLog';
-
-export type CheckoutSettlementActionState =
-  | { status: 'idle' }
-  | { status: 'ok'; message: string }
-  | { status: 'error'; message: string };
+import type { CheckoutSettlementActionState } from '@/src/lib/checkout/checkoutSettlementActionTypes';
 
 function revalidateCheckoutPaths(
   settlementId?: string,

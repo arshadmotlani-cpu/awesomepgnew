@@ -6,8 +6,8 @@ import {
   approveCheckoutSettlementAction,
   markCheckoutRefundPaidAction,
   rejectCheckoutSettlementSubmissionAction,
-  type CheckoutSettlementActionState,
 } from '@/app/(admin)/admin/checkout-settlements/actions';
+import type { CheckoutSettlementActionState } from '@/src/lib/checkout/checkoutSettlementActionTypes';
 import { CheckoutPaymentPanel } from '@/src/components/admin/checkout/CheckoutPaymentPanel';
 import { useCheckoutElectricityDraft } from '@/src/components/admin/checkout/CheckoutElectricityDraftContext';
 import { CheckoutRefundReceiptFromDetail } from '@/src/components/admin/checkout/CheckoutRefundReceipt';

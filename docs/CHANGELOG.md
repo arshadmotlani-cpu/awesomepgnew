@@ -256,21 +256,19 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-25 09:01:23 UTC
+### Pending pre-commit sync · 2026-07-25 09:17:51 UTC
 
-**Areas touched:** [[ROUTES]], [[Bookings]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
-- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
-- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
 **Staged code files (3):**
 - `app/(admin)/admin/checkout-settlements/actions.ts`
-- `app/(admin)/admin/error.tsx`
-- `src/services/bookingFinancialWorkspace.ts`
+- `app/(admin)/admin/deposits/[bookingId]/actions.ts`
+- `app/(admin)/admin/deposits/[bookingId]/settlementActions.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

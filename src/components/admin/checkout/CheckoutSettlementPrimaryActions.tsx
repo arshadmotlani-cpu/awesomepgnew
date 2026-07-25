@@ -6,8 +6,8 @@ import { assessCheckoutSettlementReadiness } from '@/src/lib/checkout/checkoutSe
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import {
   rejectCheckoutSettlementSubmissionAction,
-  type CheckoutSettlementActionState,
 } from '@/app/(admin)/admin/checkout-settlements/actions';
+import type { CheckoutSettlementActionState } from '@/src/lib/checkout/checkoutSettlementActionTypes';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 
 const PRIMARY =

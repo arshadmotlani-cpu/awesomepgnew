@@ -9,13 +9,7 @@ import {
   recordDepositCollected,
   executeReconcileDepositLedger,
 } from '@/src/services/deposits';
-
-export type ActionState =
-  | { status: 'idle' }
-  | { status: 'ok'; message: string }
-  | { status: 'error'; message: string };
-
-const idle: ActionState = { status: 'idle' };
+import type { DepositBookingActionState } from '@/src/lib/deposits/depositBookingActionTypes';
 
 async function resolveCustomerId(bookingId: string): Promise<string | null> {
   const { db } = await import('@/src/db/client');
@@ -49,9 +43,9 @@ function parseReason(form: FormData): string | null {
 
 export async function addDepositAction(
   bookingId: string,
-  _prev: ActionState,
+  _prev: DepositBookingActionState,
   formData: FormData,
-): Promise<ActionState> {
+): Promise<DepositBookingActionState> {
   let admin;
   try {
     admin = await requireAdminPermission('deposits:write');
@@ -91,9 +85,9 @@ export async function addDepositAction(
 
 export async function deductDepositAction(
   _bookingId: string,
-  _prev: ActionState,
+  _prev: DepositBookingActionState,
   _formData: FormData,
-): Promise<ActionState> {
+): Promise<DepositBookingActionState> {
   return {
     status: 'error',
     message: 'Use Refund Console (/admin/refunds) to deduct deposits.',
@@ -102,9 +96,9 @@ export async function deductDepositAction(
 
 export async function refundDepositAction(
   bookingId: string,
-  _prev: ActionState,
+  _prev: DepositBookingActionState,
   _formData: FormData,
-): Promise<ActionState> {
+): Promise<DepositBookingActionState> {
   return {
     status: 'error',
     message: 'Use Refund Console (/admin/refunds) to pay refunds.',
@@ -113,9 +107,9 @@ export async function refundDepositAction(
 
 export async function correctDepositAction(
   bookingId: string,
-  _prev: ActionState,
+  _prev: DepositBookingActionState,
   formData: FormData,
-): Promise<ActionState> {
+): Promise<DepositBookingActionState> {
   let admin;
   try {
     admin = await requireAdminPermission('deposits:write');
@@ -158,5 +152,3 @@ export async function correctDepositAction(
     };
   }
 }
-
-export const initialActionState = idle;

@@ -6,17 +6,19 @@ import {
   deductDepositAction,
   refundDepositAction,
   correctDepositAction,
-  initialActionState,
-  type ActionState,
 } from '@/app/(admin)/admin/deposits/[bookingId]/actions';
+import {
+  depositBookingInitialActionState,
+  type DepositBookingActionState,
+} from '@/src/lib/deposits/depositBookingActionTypes';
 import { paiseToInr, asPlainNumber } from '@/src/lib/format';
 import { adminMoneyInputClassName, bindAdminMoneyInput } from '@/src/components/admin/AdminMoneyInput';
 
 type ServerAction = (
   bookingId: string,
-  prev: ActionState,
+  prev: DepositBookingActionState,
   formData: FormData,
-) => Promise<ActionState>;
+) => Promise<DepositBookingActionState>;
 
 /** Ledger reconcile — for Advanced Tools only. */
 export function DepositLedgerReconcileForm({
@@ -31,7 +33,7 @@ export function DepositLedgerReconcileForm({
   websiteDepositPaise: number;
 }) {
   const bound = correctDepositAction.bind(null, bookingId);
-  const [state, runAction, pending] = useActionState(bound, initialActionState);
+  const [state, runAction, pending] = useActionState(bound, depositBookingInitialActionState);
   const defaultValueInr = Math.round(asPlainNumber(bookingDepositPaise) / 100);
 
   return (
@@ -114,7 +116,7 @@ function DepositForm({
   showPaymentMethod?: boolean;
 }) {
   const bound = action.bind(null, bookingId);
-  const [state, runAction, pending] = useActionState(bound, initialActionState);
+  const [state, runAction, pending] = useActionState(bound, depositBookingInitialActionState);
   const headerColor =
     accent === 'positive'
       ? 'text-emerald-300'
