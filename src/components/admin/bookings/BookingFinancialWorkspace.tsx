@@ -8,7 +8,7 @@ import { DepositActivitySection } from '@/src/components/admin/deposits/DepositA
 import { DepositSummaryCard } from '@/src/components/admin/deposits/DepositSummaryCard';
 import { SettlementStatementDocument } from '@/src/components/billing/SettlementStatementDocument';
 import { VacatingDateChangeApprovalPanel } from '@/src/components/admin/vacating/VacatingDateChangeApprovalPanel';
-import { bookingFinancialWorkspaceSectionHref } from '@/src/lib/bookings/bookingFinancialLinks';
+import { BookingFinancialWorkspaceNav } from '@/src/components/admin/bookings/BookingFinancialWorkspaceNav';
 import { settlementStatementPageHref } from '@/src/lib/billing/settlementStatementPdfLinks';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { moveOutWorkflowWaitingOnLabel } from '@/src/lib/moveOut/moveOutWorkflowStages';
@@ -17,20 +17,11 @@ import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import type { BookingFinancialWorkspaceData } from '@/src/services/bookingFinancialWorkspace';
 import type { BookingMoneyBalances } from '@/src/lib/billing/bookingMoneyBalances';
 
-const NAV_SECTIONS = [
-  { id: 'accounting', label: 'Accounting' },
-  { id: 'move-out', label: 'Move-out settlement' },
-  { id: 'deposit', label: 'Deposit' },
-  { id: 'checkout', label: 'Checkout' },
-  { id: 'refund', label: 'Refund' },
-  { id: 'invoices', label: 'Invoices' },
-  { id: 'activity', label: 'Activity' },
-] as const;
-
 export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWorkspaceData }) {
   const activeCheckout =
     data.checkoutDetail &&
     !['completed', 'refund_paid', 'archived'].includes(data.checkoutDetail.status);
+  const defaultNavSection = activeCheckout ? 'checkout' : 'accounting';
 
   return (
     <div className="pb-24">
@@ -81,17 +72,10 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
             ) : null}
           </div>
         </div>
-        <nav className="mt-4 flex flex-wrap gap-2">
-          {NAV_SECTIONS.map((section) => (
-            <a
-              key={section.id}
-              href={bookingFinancialWorkspaceSectionHref(data.bookingId, section.id)}
-              className="rounded-full border border-white/10 px-3 py-1 text-xs font-medium text-apg-silver hover:border-apg-orange/40 hover:text-white"
-            >
-              {section.label}
-            </a>
-          ))}
-        </nav>
+        <BookingFinancialWorkspaceNav
+          bookingId={data.bookingId}
+          defaultSectionWhenEmpty={defaultNavSection}
+        />
       </header>
 
       {data.pendingPaymentReviewHref ? (
@@ -109,40 +93,30 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
         </div>
       ) : null}
 
-      <FinancialSectionCard
-        id="accounting"
-        title="Accounting"
-        subtitle="Required · Received · Outstanding — ongoing rent, deposit, and electricity balances."
-      >
-        <MoneyBalancesGrid balances={data.moneyBalances} />
-        {data.monthlyBillingSnapshot ? (
-          <dl className="mt-4 grid gap-3 border-t border-white/10 pt-4 sm:grid-cols-2 lg:grid-cols-4">
-            <MiniStat label="Billing cycle" value={data.monthlyBillingSnapshot.billingCycleLabel} />
-            <MiniStat
-              label="Paid until"
-              value={
-                data.monthlyBillingSnapshot.paidUntilDate
-                  ? formatDate(data.monthlyBillingSnapshot.paidUntilDate)
-                  : '—'
-              }
-            />
-            <MiniStat
-              label="Next rent due"
-              value={formatDate(data.monthlyBillingSnapshot.nextRentDueDate)}
-            />
-            <MiniStat
-              label="Daily rent"
-              value={paiseToInr(data.monthlyBillingSnapshot.dailyRentPaise)}
-            />
-            <MiniStat label="Billing period" value={data.monthlyBillingSnapshot.billingPeriodLabel} />
-          </dl>
-        ) : null}
-      </FinancialSectionCard>
+      <section id="checkout" className="scroll-mt-28 space-y-4">
+        <SectionHeading title="Checkout settlement" />
+        {activeCheckout && data.checkoutDetail ? (
+          <CheckoutSettlementWizard detail={data.checkoutDetail} />
+        ) : data.checkoutDetail ? (
+          <div className="space-y-4">
+            <p className="text-sm text-apg-silver">
+              Settlement {titleCase(data.checkoutDetail.status.replace(/_/g, ' '))} · final refund{' '}
+              {paiseToInr(data.checkoutDetail.preview.finalRefundPaise)}
+            </p>
+            <CheckoutRefundReceiptFromDetail detail={data.checkoutDetail} />
+          </div>
+        ) : (
+          <p className="rounded-xl border border-white/10 bg-[#1A1F27] px-4 py-3 text-sm text-apg-silver">
+            Checkout settlement opens after move-out is approved and the resident submits refund
+            details.
+          </p>
+        )}
+      </section>
 
       <FinancialSectionCard
         id="move-out"
-        title="Move-out settlement"
-        subtitle="Notice coverage, deductions, and refund — separate from accounting balances above."
+        title="Move-out Settlement"
+        subtitle="Notice coverage, deductions, and refund — separate from accounting balances below."
         className="mt-10"
         accent
       >
@@ -243,6 +217,37 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
         )}
       </FinancialSectionCard>
 
+      <FinancialSectionCard
+        id="accounting"
+        title="Accounting"
+        subtitle="Required · Received · Outstanding — ongoing rent, deposit, and electricity balances."
+        className="mt-10"
+      >
+        <MoneyBalancesGrid balances={data.moneyBalances} />
+        {data.monthlyBillingSnapshot ? (
+          <dl className="mt-4 grid gap-3 border-t border-white/10 pt-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MiniStat label="Billing cycle" value={data.monthlyBillingSnapshot.billingCycleLabel} />
+            <MiniStat
+              label="Paid until"
+              value={
+                data.monthlyBillingSnapshot.paidUntilDate
+                  ? formatDate(data.monthlyBillingSnapshot.paidUntilDate)
+                  : '—'
+              }
+            />
+            <MiniStat
+              label="Next rent due"
+              value={formatDate(data.monthlyBillingSnapshot.nextRentDueDate)}
+            />
+            <MiniStat
+              label="Daily rent"
+              value={paiseToInr(data.monthlyBillingSnapshot.dailyRentPaise)}
+            />
+            <MiniStat label="Billing period" value={data.monthlyBillingSnapshot.billingPeriodLabel} />
+          </dl>
+        ) : null}
+      </FinancialSectionCard>
+
       <section id="deposit" className="scroll-mt-28 mt-10 space-y-4">
         <SectionHeading title="Deposit wallet" />
         {data.depositPage.walletProps ? (
@@ -266,26 +271,6 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
             Open deposit detail →
           </Link>
         </p>
-      </section>
-
-      <section id="checkout" className="scroll-mt-28 mt-10 space-y-4">
-        <SectionHeading title="Checkout settlement" />
-        {activeCheckout && data.checkoutDetail ? (
-          <CheckoutSettlementWizard detail={data.checkoutDetail} />
-        ) : data.checkoutDetail ? (
-          <div className="space-y-4">
-            <p className="text-sm text-apg-silver">
-              Settlement {titleCase(data.checkoutDetail.status.replace(/_/g, ' '))} · final refund{' '}
-              {paiseToInr(data.checkoutDetail.preview.finalRefundPaise)}
-            </p>
-            <CheckoutRefundReceiptFromDetail detail={data.checkoutDetail} />
-          </div>
-        ) : (
-          <p className="rounded-xl border border-white/10 bg-[#1A1F27] px-4 py-3 text-sm text-apg-silver">
-            Checkout settlement opens after move-out is approved and the resident submits refund
-            details.
-          </p>
-        )}
       </section>
 
       <section id="refund" className="scroll-mt-28 mt-10 space-y-4">

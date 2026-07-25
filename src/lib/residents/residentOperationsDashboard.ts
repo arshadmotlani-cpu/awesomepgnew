@@ -1,5 +1,6 @@
 import { formatDate as formatDisplayDate } from '@/src/lib/format';
 import { diffDays, formatDate } from '@/src/lib/dates';
+import { bookingFinancialWorkspaceSectionHref } from '@/src/lib/bookings/bookingFinancialLinks';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import { deriveCheckoutOpsNextAction } from '@/src/lib/residents/checkoutOpsQueueCopy';
 import { vacatingRowRequiresAdminOpsAction } from '@/src/lib/operations/moveOutAdminAction';
@@ -398,7 +399,7 @@ export function buildResidentOperationsDashboard(input: {
           : v.settlementStatus === 'refund_pending'
             ? refundConsoleHref(v.bookingId)
             : v.settlementId
-              ? `/admin/checkout-settlements/${v.settlementId}`
+              ? bookingFinancialWorkspaceSectionHref(v.bookingId, 'checkout')
               : '/admin/vacating',
       sortPriority: v.status === 'pending' ? 0 : diffDays(today, v.vacatingDate),
       bookingId: v.bookingId,

@@ -39,12 +39,14 @@ export function CheckoutSettlementElectricitySection({
   operatorMode = false,
   autoSave = false,
   onLivePreviewChange,
+  onAutosaveFeedback,
 }: {
   detail: CheckoutSettlementDetail;
   editable: boolean;
   operatorMode?: boolean;
   autoSave?: boolean;
   onLivePreviewChange?: (preview: ElectricityLivePreview | null) => void;
+  onAutosaveFeedback?: (payload: { tone: 'success' | 'error'; message: string }) => void;
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -141,7 +143,15 @@ export function CheckoutSettlementElectricitySection({
       const prev = Number(previousReading);
       const cur = Number(currentReading);
       const rate = Number(ratePerUnitInr);
-      if (!Number.isFinite(prev) || !Number.isFinite(cur) || !Number.isFinite(rate) || rate <= 0) {
+      if (
+        previousReading === '' ||
+        currentReading === '' ||
+        ratePerUnitInr === '' ||
+        !Number.isFinite(prev) ||
+        !Number.isFinite(cur) ||
+        !Number.isFinite(rate) ||
+        rate <= 0
+      ) {
         return null;
       }
       return calculateCheckoutElectricity({
@@ -268,8 +278,23 @@ export function CheckoutSettlementElectricitySection({
     if (state.status === 'ok') {
       lastSavedSnapshotRef.current = formSnapshot;
       if (!autoSave) router.refresh();
+      else if (onAutosaveFeedback) {
+        onAutosaveFeedback({ tone: 'success', message: state.message });
+      }
+    } else if (state.status === 'error' && autoSave && onAutosaveFeedback) {
+      onAutosaveFeedback({ tone: 'error', message: state.message });
     }
-  }, [state.status, autoSave, router, formSnapshot]);
+  }, [state, autoSave, router, formSnapshot, onAutosaveFeedback]);
+
+  const meterValidationError =
+    method === 'meter_reading' &&
+    previousReading !== '' &&
+    currentReading !== '' &&
+    ratePerUnitInr !== '' &&
+    live != null &&
+    !live.ok
+      ? live.error
+      : null;
 
   useEffect(() => {
     if (!autoSave || !editable || !mounted || !live?.ok) return;
@@ -316,6 +341,7 @@ export function CheckoutSettlementElectricitySection({
         {editable ? (
           <form ref={formRef} action={action} className="space-y-4">
             <input type="hidden" name="settlementId" value={detail.id} />
+            {autoSave ? <input type="hidden" name="autosave" value="1" /> : null}
             <input type="hidden" name="calculationMethod" value={method} />
             <input type="hidden" name="meterPhotoMissing" value={meterPhotoMissing ? 'on' : ''} />
             <input type="hidden" name="deductFromDeposit" value={deductFromDeposit ? 'on' : ''} />
@@ -416,8 +442,20 @@ export function CheckoutSettlementElectricitySection({
             {pending ? (
               <p className="text-xs text-apg-silver">Saving…</p>
             ) : null}
+            {meterValidationError ? (
+              <p className="text-xs text-amber-200">{meterValidationError}</p>
+            ) : null}
             {state.status === 'error' ? (
               <p className="text-xs text-rose-300">{state.message}</p>
+            ) : null}
+            {state.status === 'error' && autoSave ? (
+              <button
+                type="button"
+                onClick={() => formRef.current?.requestSubmit()}
+                className="text-xs font-semibold text-[#FF5A1F] hover:underline"
+              >
+                Retry save
+              </button>
             ) : null}
           </form>
         ) : null}

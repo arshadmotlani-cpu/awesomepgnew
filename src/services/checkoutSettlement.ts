@@ -1340,7 +1340,13 @@ export async function getCheckoutSettlementDetail(
     return null;
   }
 
-  return buildCheckoutSettlementDetailFromJoinRow(row);
+  return buildCheckoutSettlementDetailFromJoinRow(row).catch((err) => {
+    console.error('[checkout] getCheckoutSettlementDetail failed', {
+      settlementId,
+      error: err instanceof Error ? err.stack : err,
+    });
+    return null;
+  });
 }
 
 async function buildCheckoutSettlementDetailFromJoinRow(
@@ -1415,15 +1421,27 @@ async function buildCheckoutSettlementDetailFromJoinRow(
       ? { ...settlement, electricitySharePaise: resolvedSharePaise }
       : settlement;
 
-  const { preview, waterfall } = await buildSettlementPreview({
-    settlement: previewSettlement,
-    depositHeldPaise: depositHeld,
-    outstandingRentAtCheckoutPaise,
-    stayCheckInDate: row.move_in_date,
-    stayCheckoutDate: row.vacating_date,
-    stayType: row.stay_type,
-    durationMode: row.duration_mode,
-  });
+  let preview: CheckoutSettlementDetail['preview'];
+  let waterfall: CheckoutSettlementDetail['waterfall'] = null;
+  try {
+    const built = await buildSettlementPreview({
+      settlement: previewSettlement,
+      depositHeldPaise: depositHeld,
+      outstandingRentAtCheckoutPaise,
+      stayCheckInDate: row.move_in_date,
+      stayCheckoutDate: row.vacating_date,
+      stayType: row.stay_type,
+      durationMode: row.duration_mode,
+    });
+    preview = built.preview;
+    waterfall = built.waterfall;
+  } catch (err) {
+    console.error('[checkout] buildSettlementPreview failed; using legacy preview', {
+      settlementId: settlement.id,
+      error: err instanceof Error ? err.stack : err,
+    });
+    preview = buildPreview(previewSettlement, depositHeld, outstandingRentAtCheckoutPaise);
+  }
 
   let roomElectricityLedger: RoomElectricityLedgerCycleView | null = null;
   if (row.room_id && resolvedSharePaise > 0) {
@@ -1476,21 +1494,29 @@ async function buildCheckoutSettlementDetailFromJoinRow(
     preview,
     waterfall,
     ...(await (async () => {
-      const presentation = await loadVacatingBillingPresentation({
-        bookingId: row.booking_id,
-        noticeGivenDate: row.notice_given_date,
-        vacatingDate: row.vacating_date,
-        monthlyRentPaiseSnapshot: row.monthly_rent_paise_snapshot,
-        stayType: row.stay_type,
-        durationMode: row.duration_mode,
-        waterfall,
-        mode: row.amounts_locked ? 'final' : 'baseline',
-      });
-      if (!presentation) return {};
-      return {
-        settlementNoticeDisplay: presentation.noticeDisplay,
-        billingCoverageDaysPaid: presentation.billingCoverageDaysPaid,
-      };
+      try {
+        const presentation = await loadVacatingBillingPresentation({
+          bookingId: row.booking_id,
+          noticeGivenDate: row.notice_given_date,
+          vacatingDate: row.vacating_date,
+          monthlyRentPaiseSnapshot: row.monthly_rent_paise_snapshot,
+          stayType: row.stay_type,
+          durationMode: row.duration_mode,
+          waterfall,
+          mode: row.amounts_locked ? 'final' : 'baseline',
+        });
+        if (!presentation) return {};
+        return {
+          settlementNoticeDisplay: presentation.noticeDisplay,
+          billingCoverageDaysPaid: presentation.billingCoverageDaysPaid,
+        };
+      } catch (err) {
+        console.error('[checkout] loadVacatingBillingPresentation failed on detail load', {
+          settlementId: settlement.id,
+          error: err instanceof Error ? err.stack : err,
+        });
+        return {};
+      }
     })()),
   });
 }
@@ -1513,7 +1539,13 @@ export async function getCheckoutSettlementDetailForBooking(
   if (!idRow) return null;
   const row = await loadSettlementRow(idRow.id);
   if (!row) return null;
-  return buildCheckoutSettlementDetailFromJoinRow(row);
+  return buildCheckoutSettlementDetailFromJoinRow(row).catch((err) => {
+    console.error('[checkout] getCheckoutSettlementDetailForBooking failed', {
+      bookingId,
+      error: err instanceof Error ? err.stack : err,
+    });
+    return null;
+  });
 }
 
 /** Latest non-archived settlement for refund eligibility (includes checkout source). */
@@ -2073,15 +2105,22 @@ export async function updateCheckoutElectricitySettlement(input: {
       .where(eq(checkoutSettlements.id, input.settlementId))
       .limit(1);
     if (vacatingRow?.vacatingDate) {
-      roomElectricityAllocation = await buildRoomElectricityCheckoutAllocation({
-        roomId: checkoutRoomId,
-        customerId: current.customerId,
-        vacatingDate: String(vacatingRow.vacatingDate),
-        totalBillPaise: computed.calc.totalBillPaise,
-        unitsConsumed: computed.calc.unitsConsumed,
-        excludeCheckoutSettlementId: input.settlementId,
-      });
-      timelineSharePaise = roomElectricityAllocation.currentResidentSharePaise;
+      try {
+        roomElectricityAllocation = await buildRoomElectricityCheckoutAllocation({
+          roomId: checkoutRoomId,
+          customerId: current.customerId,
+          vacatingDate: String(vacatingRow.vacatingDate),
+          totalBillPaise: computed.calc.totalBillPaise,
+          unitsConsumed: computed.calc.unitsConsumed,
+          excludeCheckoutSettlementId: input.settlementId,
+        });
+        timelineSharePaise = roomElectricityAllocation.currentResidentSharePaise;
+      } catch (err) {
+        console.error('[checkout] room electricity allocation failed during save', {
+          settlementId: input.settlementId,
+          error: err instanceof Error ? err.stack : err,
+        });
+      }
     }
   }
 
@@ -2130,41 +2169,60 @@ export async function updateCheckoutElectricitySettlement(input: {
     .where(eq(vacatingRequests.id, current.vacatingRequestId))
     .limit(1);
   if (vacatingRow?.vacatingDate) {
-    await recomputeAndPersistV2Snapshot({
-      settlement: {
-        ...current,
-        electricitySharePaise: finalSharePaise,
-        electricityDeductFromDeposit: input.deductFromDeposit,
-      },
-      stayCheckoutDate:
-        normalizeIsoDateOnly(String(vacatingRow.vacatingDate)) ||
-        formatDate(parseDate(vacatingRow.vacatingDate)),
-      stayType: booking?.stayType,
-      durationMode: booking?.durationMode,
-    });
+    try {
+      await recomputeAndPersistV2Snapshot({
+        settlement: {
+          ...current,
+          electricitySharePaise: finalSharePaise,
+          electricityDeductFromDeposit: input.deductFromDeposit,
+        },
+        stayCheckoutDate:
+          normalizeIsoDateOnly(String(vacatingRow.vacatingDate)) ||
+          formatDate(parseDate(vacatingRow.vacatingDate)),
+        stayType: booking?.stayType,
+        durationMode: booking?.durationMode,
+      });
+    } catch (err) {
+      console.error('[checkout] V2 snapshot recompute failed after electricity save', {
+        settlementId: input.settlementId,
+        error: err instanceof Error ? err.stack : err,
+      });
+      return {
+        ok: false,
+        error:
+          'Electricity readings were saved, but the refund summary could not refresh. Try saving again.',
+      };
+    }
   }
 
-  await db.insert(auditLog).values({
-    actorType: 'admin',
-    actorId: input.adminId,
-    entity: 'checkout_settlement',
-    entityId: input.settlementId,
-    action: 'electricity_settlement_updated',
-    diff: {
-      calculationMethod: input.calculationMethod,
-      autoDetectedSharingCount: roomOccupancy.autoDetectedCount,
-      effectiveSharingCount: effectiveOccupants,
-      sharingOverride: input.sharingOverride,
-      ratePerUnitPaise: computed.calc.ratePerUnitPaise,
-      unitsConsumed: computed.calc.unitsConsumed,
-      totalBillPaise: finalCalc.totalBillPaise,
-      sharePaise: finalSharePaise,
-      timelineAllocation: roomElectricityAllocation,
-      deductFromDeposit: input.deductFromDeposit,
-      meterPhotoMissing: input.meterPhotoMissing,
-      occupantNames: roomOccupancy.occupantNames,
-    },
-  });
+  try {
+    await db.insert(auditLog).values({
+      actorType: 'admin',
+      actorId: input.adminId,
+      entity: 'checkout_settlement',
+      entityId: input.settlementId,
+      action: 'electricity_settlement_updated',
+      diff: {
+        calculationMethod: input.calculationMethod,
+        autoDetectedSharingCount: roomOccupancy.autoDetectedCount,
+        effectiveSharingCount: effectiveOccupants,
+        sharingOverride: input.sharingOverride,
+        ratePerUnitPaise: computed.calc.ratePerUnitPaise,
+        unitsConsumed: computed.calc.unitsConsumed,
+        totalBillPaise: finalCalc.totalBillPaise,
+        sharePaise: finalSharePaise,
+        timelineAllocation: roomElectricityAllocation,
+        deductFromDeposit: input.deductFromDeposit,
+        meterPhotoMissing: input.meterPhotoMissing,
+        occupantNames: roomOccupancy.occupantNames,
+      },
+    });
+  } catch (err) {
+    console.error('[checkout] audit log failed after electricity save', {
+      settlementId: input.settlementId,
+      error: err instanceof Error ? err.stack : err,
+    });
+  }
 
   return { ok: true, calc: finalCalc };
 }

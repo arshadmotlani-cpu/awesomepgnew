@@ -62,6 +62,17 @@
 
 ## Resolved bugs
 
+### CHK-ELEC-AUTOSAVE-01 — Financial workspace crash on electricity meter entry
+
+| | |
+|---|---|
+| **Severity** | Critical |
+| **Symptom** | Operations → Review settlement → changing previous/current meter readings crashed admin with “This page could not load” |
+| **Root cause** | Uncaught errors in `updateCheckoutElectricityAction` / post-save V2 recompute or room allocation during autosave server action |
+| **Fix** | try/catch action + guarded allocation/V2/audit in `updateCheckoutElectricitySettlement`; degrade-safe detail load; autosave skips settlement-detail revalidate; inline validation + error toast; workspace default `#checkout` |
+
+---
+
 ### BOOK-OUTST-01 — Prior stay outstanding not included in new booking payment
 
 | | |

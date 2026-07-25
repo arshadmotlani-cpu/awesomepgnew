@@ -485,8 +485,8 @@ function DirectLinks({ row }: { row: MoveOutPipelineItemClient }) {
         Financial workspace
       </Link>
       {row.settlementId ? (
-        <Link href={`/admin/checkout-settlements/${row.settlementId}`} className={LINK}>
-          View settlement
+        <Link href={bookingFinancialWorkspaceSectionHref(row.bookingId, 'checkout')} className={LINK}>
+          Checkout settlement
         </Link>
       ) : null}
       <Link href={`/admin/residents/${row.customerId}`} className={LINK}>

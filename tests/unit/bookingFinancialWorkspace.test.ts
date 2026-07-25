@@ -4,10 +4,18 @@ import {
   bookingFinancialWorkspaceHref,
   bookingFinancialWorkspaceSectionHref,
 } from '@/src/lib/bookings/bookingFinancialLinks';
+import { FINANCIAL_WORKSPACE_SECTIONS } from '@/src/components/admin/bookings/BookingFinancialWorkspaceNav';
 import { depositExpressHref } from '@/src/lib/deposits/depositExpressLinks';
 import { buildMoveOutPipeline } from '@/src/lib/moveOut/moveOutPipeline';
 import { vacatingWorkflowHref } from '@/src/lib/residents/commandCenterLinks';
 import { mapVacatingPipelineItemToOpsItem } from '@/src/lib/operations/operationsQueueVacating';
+
+test('financial workspace nav order prioritizes checkout settlement', () => {
+  assert.deepEqual(
+    FINANCIAL_WORKSPACE_SECTIONS.map((s) => s.id),
+    ['checkout', 'move-out', 'accounting', 'deposit', 'refund', 'invoices', 'activity'],
+  );
+});
 
 test('bookingFinancialWorkspaceHref is canonical admin financial route', () => {
   assert.equal(

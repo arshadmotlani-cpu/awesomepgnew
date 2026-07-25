@@ -21,7 +21,7 @@ import {
 import { buildCheckoutJourneyTimeline, wizardStepFromDetail } from '@/src/lib/checkout/checkoutJourneyTimeline';
 import { hasCheckoutElectricityEvidence } from '@/src/lib/checkout/checkoutElectricityEvidence';
 import { assessCheckoutSettlementReadiness } from '@/src/lib/checkout/checkoutSettlementReadiness';
-import { formatDateTime } from '@/src/lib/format';
+import { useOperationsActionToast } from '@/src/components/admin/operations/OperationsActionToast';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 
 const PRIMARY =
@@ -53,6 +53,7 @@ export function CheckoutSettlementWizard({ detail }: { detail: CheckoutSettlemen
 }
 
 function CheckoutSettlementWizardInner({ detail }: { detail: CheckoutSettlementDetail }) {
+  const { showToast, toastNode } = useOperationsActionToast();
   const readiness = assessCheckoutSettlementReadiness(detail);
   const preview = detail.preview;
   const zeroRefund = preview.finalRefundPaise <= 0;
@@ -74,6 +75,13 @@ function CheckoutSettlementWizardInner({ detail }: { detail: CheckoutSettlementD
       setLiveElectricity(preview);
     },
     [setLiveElectricity],
+  );
+  const handleAutosaveFeedback = useCallback(
+    (payload: { tone: 'success' | 'error'; message: string }) => {
+      if (payload.tone === 'success') return;
+      showToast(payload.message, payload.tone);
+    },
+    [showToast],
   );
 
   const steps = useMemo(() => {
@@ -209,6 +217,7 @@ function CheckoutSettlementWizardInner({ detail }: { detail: CheckoutSettlementD
                     operatorMode
                     autoSave
                     onLivePreviewChange={handleLivePreviewChange}
+                    onAutosaveFeedback={handleAutosaveFeedback}
                   />
                 </div>
               ) : (
@@ -298,6 +307,7 @@ function CheckoutSettlementWizardInner({ detail }: { detail: CheckoutSettlementD
           </div>
         ) : null}
       </div>
+      {toastNode}
     </div>
   );
 }
