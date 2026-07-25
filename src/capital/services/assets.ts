@@ -29,7 +29,7 @@ import {
   computeNetVehicleCost,
   distributeDealProfits,
 } from '@/src/capital/lib/dealEconomics';
-import { sumActivityNetVehicleCost } from '@/src/capital/lib/activityTypes';
+import { computeTotalVehicleInvestment } from '@/src/capital/lib/activityTypes';
 import { computeVehicleRois } from '@/src/capital/lib/roi';
 import {
   activeInvestmentSql,
@@ -104,14 +104,6 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
       and(eq(acVehicleActivities.assetId, assetId), eq(acVehicleActivities.isReversed, false)),
     );
 
-  // Prefer activities when present; fall back to expenses for pre-migration edge cases
-  const activityCost = sumActivityNetVehicleCost(
-    activityRows.map((r) => ({
-      activityType: r.activityType,
-      amountPaise: r.amountPaise,
-    })),
-  );
-
   const expenseRows = await db
     .select({ amountPaise: acExpenses.amountPaise })
     .from(acExpenses)
@@ -129,15 +121,17 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
   const [asset] = await db.select().from(acAssets).where(eq(acAssets.id, assetId)).limit(1);
   if (!asset) return;
 
+  // ADR-016: TVI = Purchase Price + investment-cost activities (milestones excluded).
+  // Legacy expense path only when there are zero activity rows.
   const hasActivities = activityRows.length > 0;
   const cost = hasActivities
-    ? {
-        repairTotalPaise: activityCost.repairTotalPaise,
-        dealerRefundTotalPaise: activityCost.dealerRefundTotalPaise,
-        totalExpensePaise: activityCost.totalExpensePaise,
-        netVehicleCostPaise: activityCost.netVehicleCostPaise,
+    ? computeTotalVehicleInvestment({
         purchasePricePaise: asset.purchasePricePaise,
-      }
+        activities: activityRows.map((r) => ({
+          activityType: r.activityType,
+          amountPaise: r.amountPaise,
+        })),
+      })
     : computeNetVehicleCost(asset.purchasePricePaise, expenseRows);
 
   const netVehicleCost = cost.netVehicleCostPaise;
@@ -245,9 +239,9 @@ export async function createAsset(input: CreateAssetInput) {
         displayName,
         purchaseDate: input.purchaseDate,
         purchasePricePaise: input.purchasePricePaise,
-        // Net cost starts at 0 — cost-impacting activities drive it
-        totalInvestmentPaise: 0,
-        outstandingPaise: 0,
+        // ADR-016: TVI starts at purchase price; investment-cost activities add on top
+        totalInvestmentPaise: input.purchasePricePaise,
+        outstandingPaise: input.purchasePricePaise,
         fundingGapPaise: 0,
         repairTotalPaise: 0,
         dealerRefundTotalPaise: 0,
@@ -314,7 +308,9 @@ export async function createAsset(input: CreateAssetInput) {
       tx,
     );
 
-    return asset;
+    await recalculateAsset(asset.id, tx);
+    const [fresh] = await tx.select().from(acAssets).where(eq(acAssets.id, asset.id)).limit(1);
+    return fresh ?? asset;
   });
 }
 
@@ -401,6 +397,76 @@ export async function updateAssetFunding(assetId: string, investors: InvestorFun
         investedPaise: f.investedPaise,
       })),
     },
+  });
+}
+
+export type UpdateAssetDetailsInput = {
+  assetId: string;
+  manufacturer: string;
+  model: string;
+  year: number;
+  fuelType: 'petrol' | 'diesel' | 'cng' | 'ev' | 'hybrid';
+  ownership: 'first_owner' | 'second_owner' | 'third_owner';
+  registrationNumber?: string;
+  purchasePricePaise: number;
+  purchaseDate?: string;
+  notes?: string;
+};
+
+/** Edit core vehicle fields; purchase price change recalculates TVI and funding gap. */
+export async function updateAssetDetails(input: UpdateAssetDetailsInput) {
+  const asset = await assertAssetMutable(input.assetId);
+  if (asset.status === 'sold') {
+    throw new Error('Cannot edit vehicle details after sale');
+  }
+  if (input.purchasePricePaise <= 0) {
+    throw new Error('Purchase price must be positive');
+  }
+
+  const displayName = `${input.year} ${input.manufacturer} ${input.model}`;
+
+  await capitalDb.transaction(async (tx) => {
+    await tx
+      .update(acAssets)
+      .set({
+        displayName,
+        purchasePricePaise: input.purchasePricePaise,
+        purchaseDate: input.purchaseDate ?? asset.purchaseDate,
+        notes: input.notes ?? asset.notes,
+        updatedAt: new Date(),
+      })
+      .where(eq(acAssets.id, input.assetId));
+
+    await tx
+      .update(acAutomotiveDetails)
+      .set({
+        manufacturer: input.manufacturer,
+        model: input.model,
+        year: input.year,
+        fuelType: input.fuelType,
+        ownership: input.ownership,
+        registrationNumber: input.registrationNumber
+          ? normalizeRegistration(input.registrationNumber)
+          : null,
+      })
+      .where(eq(acAutomotiveDetails.assetId, input.assetId));
+
+    await logActivity(
+      {
+        action: 'asset_details_updated',
+        entityType: 'asset',
+        entityId: input.assetId,
+        afterState: {
+          displayName,
+          purchasePricePaise: input.purchasePricePaise,
+          manufacturer: input.manufacturer,
+          model: input.model,
+        },
+      },
+      tx,
+    );
+
+    await recalculateAsset(input.assetId, tx);
   });
 }
 

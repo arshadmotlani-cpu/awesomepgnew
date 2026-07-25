@@ -8,7 +8,10 @@ import { getAssetDetail, getAssetTimeline } from '@/src/capital/services/assets'
 import { getSettings } from '@/src/capital/services/settings';
 import { formatInrPlain } from '@/src/capital/lib/money';
 
-type Props = { params: Promise<{ id: string }> };
+type Props = {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
@@ -17,8 +20,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: `${detail.asset.displayName} · Vehicles` };
 }
 
-export default async function AssetDetailPage({ params }: Props) {
+function firstParam(v: string | string[] | undefined): string | undefined {
+  return Array.isArray(v) ? v[0] : v;
+}
+
+export default async function AssetDetailPage({ params, searchParams }: Props) {
   const { id } = await params;
+  const sp = await searchParams;
   const detail = await getAssetDetail(id);
   if (!detail) notFound();
 
@@ -52,6 +60,9 @@ export default async function AssetDetailPage({ params }: Props) {
   const investor2 = investors.find((i) => i.slot === 'investor_2');
   const myInvestmentPaise = me?.investedPaise ?? 0;
 
+  const initialTab = firstParam(sp.tab) ?? 'overview';
+  const focusPurchase = firstParam(sp.focus) === 'purchase';
+
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-wrap items-start gap-5">
@@ -80,6 +91,12 @@ export default async function AssetDetailPage({ params }: Props) {
             {auto.year} · {fuelLabels[auto.fuelType ?? ''] ?? auto.fuelType ?? '—'} ·{' '}
             {ownershipLabels[auto.ownership ?? ''] ?? auto.ownership ?? '—'}
           </p>
+          <p className="mt-2 text-sm text-ac-text-secondary">
+            Total Vehicle Investment:{' '}
+            <span className="font-semibold text-ac-text">
+              ₹{formatInrPlain(asset.totalInvestmentPaise)}
+            </span>
+          </p>
         </div>
         <Link href="/assets">
           <Button variant="ghost">Back to vehicles</Button>
@@ -97,6 +114,8 @@ export default async function AssetDetailPage({ params }: Props) {
         operatingPartnerDenominator={settings?.profitShareDenominator ?? 2}
         timeline={timeline}
         coverDocumentId={asset.coverDocumentId}
+        initialTab={focusPurchase ? 'activities' : initialTab}
+        focusPurchase={focusPurchase}
         investors={investors.map((i) => ({
           slot: i.slot,
           label: i.label,
@@ -117,8 +136,20 @@ export default async function AssetDetailPage({ params }: Props) {
           manufacturer: auto.manufacturer,
           model: auto.model,
           year: auto.year,
+          fuelType: (auto.fuelType ?? 'petrol') as
+            | 'petrol'
+            | 'diesel'
+            | 'cng'
+            | 'ev'
+            | 'hybrid',
           fuelLabel: fuelLabels[auto.fuelType ?? ''] ?? auto.fuelType ?? '—',
+          ownership: (auto.ownership ?? 'first_owner') as
+            | 'first_owner'
+            | 'second_owner'
+            | 'third_owner',
           ownershipLabel: ownershipLabels[auto.ownership ?? ''] ?? auto.ownership ?? '—',
+          registrationNumber: auto.registrationNumber ?? '',
+          notes: asset.notes ?? '',
           isActive,
         }}
         profit={

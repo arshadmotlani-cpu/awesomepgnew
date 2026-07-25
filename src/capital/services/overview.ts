@@ -17,6 +17,7 @@ import {
   acCategories,
   acExpenses,
   acPaymentsReceived,
+  acRepairAdvances,
 } from '@/src/capital/db/schema';
 import {
   isFutureRange,
@@ -187,13 +188,16 @@ export async function getOverviewBundle(range: DateRange) {
     monthlyManualMine,
     monthlyRoiBusiness,
     monthlyRoiMine,
-    monthlyPurchases,
+    monthlyPurchasesRaw,
     activity,
     _capitalInTransitSold,
     activeByStatus,
     myActiveByStatus,
     estimatedActiveProfit,
     activeVehiclesWithEstimate,
+    vehicleStatusCountRows,
+    openRepairAdvancesCount,
+    monthlySalesRaw,
   ] = await Promise.all([
     sumCapitalInvested(),
     sumMyInvestedCapitalPaise(),
@@ -440,6 +444,35 @@ export async function getOverviewBundle(range: DateRange) {
           AND ${acAssets.expectedSalePricePaise} IS NOT NULL`,
       )
       .then((r) => Number(r[0]?.c ?? 0)),
+    capitalDb
+      .select({
+        status: acAssets.status,
+        c: count(),
+      })
+      .from(acAssets)
+      .where(sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`)
+      .groupBy(acAssets.status),
+    capitalDb
+      .select({ c: count() })
+      .from(acRepairAdvances)
+      .where(eq(acRepairAdvances.status, 'open'))
+      .then((r) => Number(r[0]?.c ?? 0)),
+    capitalDb
+      .select({
+        month: sql<string>`to_char(${acAssets.saleDate}::date, 'YYYY-MM')`,
+        total: sum(acAssets.actualSalePricePaise),
+      })
+      .from(acAssets)
+      .where(
+        sql`${acAssets.status} <> 'cancelled'
+          AND ${acAssets.saleDate} IS NOT NULL
+          AND ${acAssets.actualSalePricePaise} IS NOT NULL`,
+      )
+      .groupBy(sql`to_char(${acAssets.saleDate}::date, 'YYYY-MM')`)
+      .orderBy(sql`to_char(${acAssets.saleDate}::date, 'YYYY-MM')`)
+      .then((rows) =>
+        rows.map((r) => ({ month: r.month, proceedsPaise: Number(r.total ?? 0) })),
+      ),
   ]);
 
   const hasEstimatedPortfolioValue = activeVehiclesWithEstimate > 0;
@@ -524,6 +557,28 @@ export async function getOverviewBundle(range: DateRange) {
   monthlyMySeries = clipSeries(monthlyMySeries);
   const monthlyRoiBusinessClipped = clipRoiSeries(monthlyRoiBusiness);
   const monthlyRoiMineClipped = clipRoiSeries(monthlyRoiMine);
+
+  const clipProceedsSeries = (series: { month: string; proceedsPaise: number }[]) => {
+    const asValue = series.map((m) => ({ month: m.month, valuePaise: m.proceedsPaise }));
+    return clipSeries(asValue).map((m) => ({ month: m.month, proceedsPaise: m.valuePaise }));
+  };
+
+  const monthlyPurchases = clipSeries(monthlyPurchasesRaw);
+  const monthlySales = clipProceedsSeries(monthlySalesRaw);
+
+  const vehicleStatusCounts = {
+    purchased: 0,
+    repairing: 0,
+    painting: 0,
+    ready: 0,
+    listed: 0,
+  };
+  for (const row of vehicleStatusCountRows) {
+    const key = row.status as keyof typeof vehicleStatusCounts;
+    if (key in vehicleStatusCounts) {
+      vehicleStatusCounts[key] = Number(row.c ?? 0);
+    }
+  }
 
   // Portfolio growth = cumulative profit (mode-specific series)
   let runningMy = 0;
@@ -624,7 +679,7 @@ export async function getOverviewBundle(range: DateRange) {
       if (range.to && day > range.to) return false;
       return true;
     })
-    .slice(0, 12)
+    .slice(0, 20)
     .map((a) => ({
       id: a.id,
       action: a.action,
@@ -673,6 +728,8 @@ export async function getOverviewBundle(range: DateRange) {
       mine: {
         capitalInvestedPaise: myActiveInvestmentAll,
         capitalAtRiskPaise: myActiveInvestmentAll,
+        /** Alias of my stakes on in-stock vehicles — UI label: Active Capital */
+        activeCapitalPaise: myActiveInvestmentAll,
         profitPaise: myLifetimeProfit,
         partnerProfitPaise: partnerLifetimeProfit,
         roiBps: myRoiBps,
@@ -985,7 +1042,10 @@ export async function getOverviewBundle(range: DateRange) {
       createdAt: a.createdAt?.toISOString?.() ?? String(a.createdAt),
       afterState: a.afterState,
     })),
-    monthlyPurchases,
+    monthlyPurchases: future ? [] : monthlyPurchases,
+    monthlySales: future ? [] : monthlySales,
+    vehicleStatusCounts,
+    openRepairAdvancesCount,
   };
 }
 

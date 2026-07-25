@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useMemo, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import {
   updateAssetFundingAction,
@@ -14,10 +14,23 @@ import { formatInrPlain, paiseToRupees } from '@/src/capital/lib/money';
 const initialState: ActionState = {};
 
 type FundingFormValues = {
-  meInvested: number;
-  investor2Invested: number;
+  meInvested: number | undefined;
+  investor2Invested: number | undefined;
   investor2Label: string;
 };
+
+function registerRupees(
+  form: ReturnType<typeof useForm<FundingFormValues>>,
+  name: 'meInvested' | 'investor2Invested',
+) {
+  return form.register(name, {
+    setValueAs: (v) => {
+      if (v === '' || v == null) return undefined;
+      const n = typeof v === 'number' ? v : Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    },
+  });
+}
 
 export function UpdateFundingForm({
   assetId,
@@ -50,18 +63,10 @@ export function UpdateFundingForm({
 
   useEffect(() => {
     if (!withPartner) {
-      form.setValue('meInvested', purchaseRupees, { shouldValidate: true });
-      form.setValue('investor2Invested', 0, { shouldValidate: true });
+      form.setValue('meInvested', purchaseRupees, { shouldValidate: false });
+      form.setValue('investor2Invested', 0, { shouldValidate: false });
     }
   }, [withPartner, purchaseRupees, form]);
-
-  const fundingTotal = withPartner
-    ? (meInvested ?? 0) + (investor2Invested ?? 0)
-    : purchaseRupees;
-  const fundingOk = useMemo(
-    () => Math.round(fundingTotal * 100) === Math.round(purchaseRupees * 100),
-    [fundingTotal, purchaseRupees],
-  );
 
   const gapLabel =
     fundingGapPaise === 0
@@ -75,7 +80,7 @@ export function UpdateFundingForm({
       <div>
         <h3 className="font-medium">Update investments</h3>
         <p className="mt-1 text-xs text-ac-text-muted">
-          My Investment + Partner (optional) must equal purchase price.
+          My Investment + Partner (optional) must equal purchase price. Checked when you save.
         </p>
         <p
           className={`mt-2 text-sm ${fundingGapPaise === 0 ? 'text-ac-success' : 'text-ac-warning'}`}
@@ -85,16 +90,21 @@ export function UpdateFundingForm({
       </div>
       <input type="hidden" name="assetId" value={assetId} />
       <input type="hidden" name="purchasePriceRupees" value={purchaseRupees} />
-
-      <label className="flex cursor-pointer items-center gap-3 text-sm">
-        <input
-          type="checkbox"
-          className="h-4 w-4 rounded border-white/20 bg-white/5"
-          checked={withPartner}
-          onChange={(e) => setWithPartner(e.target.checked)}
-        />
-        <span>Purchased with Partner</span>
-      </label>
+      <input
+        type="hidden"
+        name="meInvested"
+        value={withPartner ? String(meInvested ?? 0) : String(purchaseRupees)}
+      />
+      <input
+        type="hidden"
+        name="investor2Invested"
+        value={withPartner ? String(investor2Invested ?? 0) : '0'}
+      />
+      <input
+        type="hidden"
+        name="investor2Label"
+        value={withPartner ? form.watch('investor2Label') : ''}
+      />
 
       <FormField label="My Investment (₹)" name="meInvested" form={form}>
         <Input
@@ -103,45 +113,40 @@ export function UpdateFundingForm({
           min={0}
           readOnly={!withPartner}
           className={!withPartner ? 'opacity-80' : undefined}
-          {...form.register('meInvested', { valueAsNumber: true })}
-          name="meInvested"
+          {...registerRupees(form, 'meInvested')}
         />
       </FormField>
 
-      {withPartner ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <FormField label="Partner name" name="investor2Label" form={form}>
-            <Input {...form.register('investor2Label')} name="investor2Label" />
-          </FormField>
-          <FormField label="Partner Investment (₹)" name="investor2Invested" form={form}>
-            <Input
-              type="number"
-              step="1"
-              min={0}
-              {...form.register('investor2Invested', { valueAsNumber: true })}
-              name="investor2Invested"
-            />
-          </FormField>
-        </div>
-      ) : (
-        <>
-          <input type="hidden" name="investor2Invested" value={0} />
-          <input type="hidden" name="investor2Label" value="" />
-        </>
-      )}
-
-      <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm">
-        <span className={fundingOk ? 'text-ac-success' : 'text-ac-danger'}>
-          ₹{formatInrPlain(Math.round(fundingTotal * 100))} / ₹
-          {formatInrPlain(Math.round(purchaseRupees * 100))}
-          {fundingOk ? ' · balanced' : ' · must equal purchase price'}
-        </span>
+      <div className="rounded-lg border border-white/10 bg-white/[0.02]">
+        <button
+          type="button"
+          className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium text-ac-text-secondary hover:text-ac-text"
+          onClick={() => setWithPartner((v) => !v)}
+        >
+          <span aria-hidden>{withPartner ? '▼' : '▶'}</span>
+          <span>Partner Investment (Optional)</span>
+        </button>
+        {withPartner ? (
+          <div className="grid gap-3 border-t border-white/10 px-3 py-3 sm:grid-cols-2">
+            <FormField label="Partner Name" name="investor2Label" form={form}>
+              <Input {...form.register('investor2Label')} />
+            </FormField>
+            <FormField label="Partner Investment (₹)" name="investor2Invested" form={form}>
+              <Input
+                type="number"
+                step="1"
+                min={0}
+                {...registerRupees(form, 'investor2Invested')}
+              />
+            </FormField>
+          </div>
+        ) : null}
       </div>
 
       {state.error ? <p className="text-sm text-ac-danger">{state.error}</p> : null}
       {state.success ? <p className="text-sm text-ac-success">{state.success}</p> : null}
 
-      <Button type="submit" disabled={pending || !fundingOk}>
+      <Button type="submit" disabled={pending}>
         {pending ? 'Saving…' : 'Save investments'}
       </Button>
     </form>

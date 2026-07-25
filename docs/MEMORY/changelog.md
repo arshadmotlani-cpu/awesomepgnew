@@ -9,6 +9,8 @@
 
 ## 2026-07-26
 
+- **CAPITAL-TVI-016** — Frozen Total Vehicle Investment (Option 2): Purchase Price + investment costs; milestones excluded; dealer create UX; edit vehicle/activities; ADR-016 Financial SSOT
+- **CAPITAL-DASHBOARD-EXEC** — Executive restore: grouped Inventory/Active Capital/Profit/Performance; Business Health; activity + Purchases vs Sales; ROI unchanged → ADR-015
 - **CAPITAL-DASHBOARD-OWNER** — Single personal dealership dashboard; six compact KPIs; Profit Growth combo chart; ADR-014
 - **CAPITAL-VEHICLE-UX** — Vehicles naming, partner toggle, blank New Vehicle draft fix, cover on list/hero, profile workspace tabs; ADR-013
 

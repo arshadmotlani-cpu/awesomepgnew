@@ -252,6 +252,71 @@ export function MonthlyRoiLine({
   );
 }
 
+/** Dual monthly bars: purchase volume vs sale proceeds. */
+export function PurchasesVsSalesBars({
+  purchases,
+  sales,
+}: {
+  purchases: { month: string; valuePaise: number }[];
+  sales: { month: string; proceedsPaise: number }[];
+}) {
+  const chartData = useMemo(() => {
+    const purchaseMap = new Map(purchases.map((d) => [d.month, d.valuePaise]));
+    const salesMap = new Map(sales.map((d) => [d.month, d.proceedsPaise]));
+    const months = [
+      ...new Set([...purchases.map((d) => d.month), ...sales.map((d) => d.month)]),
+    ].sort();
+    return months.map((month) => ({
+      month: shortMonth(month),
+      purchases: (purchaseMap.get(month) ?? 0) / 100,
+      sales: (salesMap.get(month) ?? 0) / 100,
+    }));
+  }, [purchases, sales]);
+
+  if (!chartData.length) return <Empty />;
+  const hasAny = chartData.some((d) => d.purchases !== 0 || d.sales !== 0);
+  if (!hasAny) return <Empty />;
+
+  return (
+    <Wrap height={280}>
+      <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+        <XAxis dataKey="month" stroke="#71717A" fontSize={11} tickLine={false} axisLine={false} />
+        <YAxis
+          stroke="#71717A"
+          fontSize={11}
+          tickLine={false}
+          axisLine={false}
+          tickFormatter={formatAxis}
+          width={56}
+        />
+        <Tooltip
+          formatter={(v, name) => [
+            moneyTip(v),
+            name === 'purchases' ? 'Purchases' : 'Sales',
+          ]}
+          contentStyle={tooltipStyle}
+          cursor={{ fill: 'rgba(34,211,238,0.06)' }}
+        />
+        <Bar
+          dataKey="purchases"
+          name="purchases"
+          fill="#60A5FA"
+          radius={[4, 4, 0, 0]}
+          animationDuration={800}
+        />
+        <Bar
+          dataKey="sales"
+          name="sales"
+          fill="#34D399"
+          radius={[4, 4, 0, 0]}
+          animationDuration={900}
+        />
+      </BarChart>
+    </Wrap>
+  );
+}
+
 /** Monthly profit bars. */
 export function MonthlyProfitBars({
   data,

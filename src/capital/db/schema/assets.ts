@@ -32,8 +32,9 @@ export const acAssets = pgTable(
       .notNull()
       .default(0),
     /**
-     * Net Vehicle Cost = purchase + repairs − refunds.
-     * UI label: Net Vehicle Cost (column kept for compatibility).
+     * Total Vehicle Investment (ADR-016) = purchase price + investment-cost activities − refunds.
+     * Payment milestones (token / purchase payment) are excluded.
+     * Column name kept for compatibility; UI label: Total Vehicle Investment.
      */
     totalInvestmentPaise: bigint('total_investment_paise', { mode: 'number' }).notNull().default(0),
     /** netVehicleCost − Σ capital investor stakes (0 = fully funded) */

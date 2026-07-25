@@ -8,12 +8,14 @@ import { formDataToObject, parseZod } from '@/src/capital/lib/validation/parse';
 import {
   createAssetSchema,
   recordSaleSchema,
+  updateAssetDetailsSchema,
   updateAssetFundingSchema,
   updateStatusSchema,
 } from '@/src/capital/lib/validation/schemas';
 import {
   createAsset,
   recordSale,
+  updateAssetDetails,
   updateAssetFunding,
   updateAssetStatus,
 } from '@/src/capital/services/assets';
@@ -70,7 +72,7 @@ export async function createAssetAction(
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to create vehicle' };
   }
-  redirect(`/assets/${assetId}`);
+  redirect(`/assets/${assetId}?tab=activities&focus=purchase`);
 }
 
 export async function recordSaleAction(
@@ -148,5 +150,37 @@ export async function updateStatusAction(
     return { success: 'Status updated.' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to update status' };
+  }
+}
+
+export async function updateAssetDetailsAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    await requireCapitalAuth();
+    const parsed = parseZod(updateAssetDetailsSchema, formDataToObject(formData));
+    if (!parsed.ok) return { error: parsed.error };
+
+    const input = parsed.data;
+    await updateAssetDetails({
+      assetId: input.assetId,
+      manufacturer: input.manufacturer,
+      model: input.model,
+      year: input.year,
+      fuelType: input.fuelType,
+      ownership: input.ownership,
+      registrationNumber: input.registrationNumber,
+      purchasePricePaise: rupeesToPaise(input.purchasePrice),
+      purchaseDate: input.purchaseDate,
+      notes: input.notes,
+    });
+    revalidatePath(`/assets/${input.assetId}`);
+    revalidatePath('/assets');
+    revalidatePath('/dashboard');
+    revalidateTag('capital-dashboard', 'default');
+    return { success: 'Vehicle updated.' };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to update vehicle' };
   }
 }

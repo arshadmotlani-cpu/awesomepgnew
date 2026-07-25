@@ -6,6 +6,8 @@ Automotive Capital is a **host-isolated financial operating system** deployed in
 
 Design principle: **Assets first, cars second.** The domain model is built around generic `assets` with type-specific detail tables. Cars are the first `asset_class`. Property, gold, machinery, business investments, and loans extend the same core without schema redesign.
 
+**Financial SSOT (ADR-016):** Total Vehicle Investment = Purchase Price + investment-cost purchase activities − refunds. Token / Purchase Payment / Final Purchase Payment are payment milestones only and must never enter the investment sum. Profit = Sale − TVI. ROI formulas are unchanged; they consume TVI as the vehicle cost base. See `docs/automotive-capital/DECISIONS.md` ADR-016 and `src/capital/lib/activityTypes.ts`.
+
 ---
 
 ## 2. System Context

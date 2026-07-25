@@ -265,7 +265,7 @@ Automotive Capital is an investment partnership, not a traditional dealership. S
 ## ADR-012: Vehicle Activities Timeline + Cost from Activities
 
 **Date:** 2026-07-25  
-**Status:** Accepted
+**Status:** Accepted (cost formula superseded by ADR-016)
 
 ### Context
 Expense-centric UX and auto-debiting full purchase on create did not match how deals actually unfold (token → payments → repairs with advances). Funding should track purchase price (Me + Partner), while Net Vehicle Cost should accumulate from real cost events.
@@ -280,6 +280,7 @@ Expense-centric UX and auto-debiting full purchase on create did not match how d
 ### Consequences
 - Migration `0009_vehicle_activities` backfills activities from purchase price + non-purchase expenses.
 - Legacy `ac_expenses` retained for history; new cost entry via Add Activity.
+- **Note:** ADR-012’s “activities-only, no purchase base” cost sum is replaced by ADR-016 (Purchase Price + investment-cost activities; milestones excluded).
 
 ---
 
@@ -322,6 +323,70 @@ The Capital overview mixed Business vs My perspectives, duplicated capital metri
 ### Consequences
 - Cleaner above-the-fold inventory + profit focus.
 - `views.business` remains in the overview service payload unused (prune later if desired).
+
+---
+
+## ADR-015: Executive Dealership Dashboard Restore
+
+**Date:** 2026-07-26  
+**Status:** Accepted
+
+### Context
+ADR-014’s minimal pass removed useful signals (Active Capital, ops health, activity, purchase/sale volume). The owner dashboard needs density and grouping — not a stripped KPI strip.
+
+### Decision
+- Keep **single personal view** only (`views.mine`). No Business View return.
+- Replace flat KPI tiles with **four grouped cards:** Inventory (In Stock / Sold / Total), **Active Capital** (one amount — my stakes on in-stock vehicles), Profit (lifetime + period), Performance (ROI + avg profit/vehicle).
+- **Active Capital once** — same figure as `capitalAtRiskPaise` / `activeCapitalPaise`; never a second “At Risk” card.
+- **Business Health** only when counts > 0: Under Repair (`repairing`+`painting`), Ready, Listed, Just Purchased, Open Repair Advances. Omit RC / transport / docs / pending payments until workflow SSOTs exist.
+- **Recent Activity** from `ac_activity_log` with human labels; asset entities link to `/assets/{id}`.
+- Charts: keep **Profit Growth** combo (monthly bars + cumulative line); add **Purchases vs Sales** dual bars. Candlesticks remain rejected.
+- **Personal ROI unchanged:** `My Lifetime Profit ÷ My Capital Stakes`.
+
+### Consequences
+- Overview bundle gains `vehicleStatusCounts`, `openRepairAdvancesCount`, `monthlySales`, and `activeCapitalPaise` alias.
+- Dense executive above-the-fold without duplicate capital widgets.
+
+---
+
+## ADR-016: Frozen Total Vehicle Investment (Option 2)
+
+**Date:** 2026-07-26  
+**Status:** Accepted — **Financial SSOT**
+
+### Context
+Treating Token / Purchase Payment as vehicle cost double-counted acquisition when Purchase Price was also the negotiated base. Dealers need a frozen formula for investment, profit, ROI, analytics, and reports.
+
+### Decision
+**Total Vehicle Investment** =
+
+```
+Purchase Price
++ Broker Commission
++ Transportation
++ Repair Costs (settlement actual)
++ Insurance + Fuel + Accessories + RTO + Storage + Washing/Service + Miscellaneous
+− acquisition-related refunds / returns
+```
+
+**Payment milestones** (Token Paid, Purchase Payment, Final Purchase Payment) track progress toward Purchase Price only — `costImpact: cash_only`. They **never** enter TVI.
+
+**Repair Advance** is cash float until settlement; only settlement **actual cost** is investment.
+
+**Profit** = Sale Price − Total Vehicle Investment.
+
+**ROI architecture unchanged** (Business ÷ TVI / Personal ÷ my stake). Future formula changes require a new ADR.
+
+SSOT: `src/capital/lib/activityTypes.ts` (`computeTotalVehicleInvestment`), wired via `recalculateAsset`.
+
+### Alternatives Considered
+1. Activities-only sum (ADR-012) — understated when milestones were reclassified and no purchase base.
+2. Purchase Price + all activities including milestones — double-counts acquisition.
+
+### Consequences
+- Create vehicle starts TVI at purchase price; post-create lands on Purchase Activities.
+- Historical assets: re-run `scripts/recalc-capital-assets.ts` after deploy so stored `total_investment_paise` matches ADR-016.
+- Contributors must not change this formula without a documented ADR.
 
 ---
 

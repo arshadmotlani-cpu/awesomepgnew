@@ -1,12 +1,16 @@
 /**
  * Vehicle activity types — timeline SSOT for Automotive Capital.
- * Cost impact drives Net Vehicle Cost; cash-only types affect float/receivables only.
+ *
+ * Financial SSOT (ADR-016 / Option 2):
+ *   Total Vehicle Investment = Purchase Price + Σ Investment Cost activities (signed)
+ *   Payment milestones (token / purchase payment) NEVER enter the investment sum.
  */
 
 export const VEHICLE_ACTIVITY_TYPES = [
   'vehicle_created',
   'token_paid',
   'purchase_payment',
+  'final_purchase_payment',
   'broker_commission',
   'transport',
   'repair_advance',
@@ -16,6 +20,8 @@ export const VEHICLE_ACTIVITY_TYPES = [
   'accessories',
   'washing',
   'service',
+  'rto',
+  'storage',
   'miscellaneous',
   'investor_contribution',
   'investor_withdrawal',
@@ -27,13 +33,21 @@ export const VEHICLE_ACTIVITY_TYPES = [
 
 export type VehicleActivityType = (typeof VEHICLE_ACTIVITY_TYPES)[number];
 
+/** How the activity amount affects Total Vehicle Investment / cash */
 export type ActivityCostImpact = 'vehicle_cost' | 'cash_only' | 'none';
+
+/** Dealer-facing category for pickers and docs */
+export type ActivityCategory =
+  | 'payment_milestone'
+  | 'investment_cost'
+  | 'cash_float'
+  | 'other';
 
 export type ActivityTypeMeta = {
   type: VehicleActivityType;
   label: string;
-  /** How the activity amount affects Net Vehicle Cost / cash */
   costImpact: ActivityCostImpact;
+  category: ActivityCategory;
   /** Ledger direction when posting a positive amount (negative flips) */
   ledgerDirection: 'debit' | 'credit' | null;
   requiresAmount: boolean;
@@ -46,6 +60,7 @@ export const VEHICLE_ACTIVITY_TYPE_META: Record<VehicleActivityType, ActivityTyp
     type: 'vehicle_created',
     label: 'Vehicle Created',
     costImpact: 'none',
+    category: 'other',
     ledgerDirection: null,
     requiresAmount: false,
     selectable: false,
@@ -53,7 +68,8 @@ export const VEHICLE_ACTIVITY_TYPE_META: Record<VehicleActivityType, ActivityTyp
   token_paid: {
     type: 'token_paid',
     label: 'Token Paid',
-    costImpact: 'vehicle_cost',
+    costImpact: 'cash_only',
+    category: 'payment_milestone',
     ledgerDirection: 'debit',
     requiresAmount: true,
     selectable: true,
@@ -61,7 +77,17 @@ export const VEHICLE_ACTIVITY_TYPE_META: Record<VehicleActivityType, ActivityTyp
   purchase_payment: {
     type: 'purchase_payment',
     label: 'Purchase Payment',
-    costImpact: 'vehicle_cost',
+    costImpact: 'cash_only',
+    category: 'payment_milestone',
+    ledgerDirection: 'debit',
+    requiresAmount: true,
+    selectable: true,
+  },
+  final_purchase_payment: {
+    type: 'final_purchase_payment',
+    label: 'Final Purchase Payment',
+    costImpact: 'cash_only',
+    category: 'payment_milestone',
     ledgerDirection: 'debit',
     requiresAmount: true,
     selectable: true,
@@ -70,14 +96,16 @@ export const VEHICLE_ACTIVITY_TYPE_META: Record<VehicleActivityType, ActivityTyp
     type: 'broker_commission',
     label: 'Broker Commission',
     costImpact: 'vehicle_cost',
+    category: 'investment_cost',
     ledgerDirection: 'debit',
     requiresAmount: true,
     selectable: true,
   },
   transport: {
     type: 'transport',
-    label: 'Transport',
+    label: 'Transportation Charges',
     costImpact: 'vehicle_cost',
+    category: 'investment_cost',
     ledgerDirection: 'debit',
     requiresAmount: true,
     selectable: true,
@@ -86,6 +114,7 @@ export const VEHICLE_ACTIVITY_TYPE_META: Record<VehicleActivityType, ActivityTyp
     type: 'repair_advance',
     label: 'Repair Advance',
     costImpact: 'cash_only',
+    category: 'cash_float',
     ledgerDirection: 'debit',
     requiresAmount: true,
     selectable: true,
@@ -94,6 +123,7 @@ export const VEHICLE_ACTIVITY_TYPE_META: Record<VehicleActivityType, ActivityTyp
     type: 'repair_settlement',
     label: 'Repair Settlement',
     costImpact: 'vehicle_cost',
+    category: 'investment_cost',
     ledgerDirection: 'debit',
     requiresAmount: true,
     selectable: true,
@@ -102,6 +132,7 @@ export const VEHICLE_ACTIVITY_TYPE_META: Record<VehicleActivityType, ActivityTyp
     type: 'fuel',
     label: 'Fuel',
     costImpact: 'vehicle_cost',
+    category: 'investment_cost',
     ledgerDirection: 'debit',
     requiresAmount: true,
     selectable: true,
@@ -110,6 +141,7 @@ export const VEHICLE_ACTIVITY_TYPE_META: Record<VehicleActivityType, ActivityTyp
     type: 'insurance',
     label: 'Insurance',
     costImpact: 'vehicle_cost',
+    category: 'investment_cost',
     ledgerDirection: 'debit',
     requiresAmount: true,
     selectable: true,
@@ -118,14 +150,16 @@ export const VEHICLE_ACTIVITY_TYPE_META: Record<VehicleActivityType, ActivityTyp
     type: 'accessories',
     label: 'Accessories',
     costImpact: 'vehicle_cost',
+    category: 'investment_cost',
     ledgerDirection: 'debit',
     requiresAmount: true,
     selectable: true,
   },
   washing: {
     type: 'washing',
-    label: 'Washing',
+    label: 'Washing / Detailing',
     costImpact: 'vehicle_cost',
+    category: 'investment_cost',
     ledgerDirection: 'debit',
     requiresAmount: true,
     selectable: true,
@@ -134,14 +168,34 @@ export const VEHICLE_ACTIVITY_TYPE_META: Record<VehicleActivityType, ActivityTyp
     type: 'service',
     label: 'Service',
     costImpact: 'vehicle_cost',
+    category: 'investment_cost',
+    ledgerDirection: 'debit',
+    requiresAmount: true,
+    selectable: true,
+  },
+  rto: {
+    type: 'rto',
+    label: 'Registration / RTO',
+    costImpact: 'vehicle_cost',
+    category: 'investment_cost',
+    ledgerDirection: 'debit',
+    requiresAmount: true,
+    selectable: true,
+  },
+  storage: {
+    type: 'storage',
+    label: 'Storage Charges',
+    costImpact: 'vehicle_cost',
+    category: 'investment_cost',
     ledgerDirection: 'debit',
     requiresAmount: true,
     selectable: true,
   },
   miscellaneous: {
     type: 'miscellaneous',
-    label: 'Miscellaneous Expense',
+    label: 'Miscellaneous',
     costImpact: 'vehicle_cost',
+    category: 'investment_cost',
     ledgerDirection: 'debit',
     requiresAmount: true,
     selectable: true,
@@ -150,6 +204,7 @@ export const VEHICLE_ACTIVITY_TYPE_META: Record<VehicleActivityType, ActivityTyp
     type: 'investor_contribution',
     label: 'Investor Contribution',
     costImpact: 'cash_only',
+    category: 'cash_float',
     ledgerDirection: 'credit',
     requiresAmount: true,
     selectable: true,
@@ -158,6 +213,7 @@ export const VEHICLE_ACTIVITY_TYPE_META: Record<VehicleActivityType, ActivityTyp
     type: 'investor_withdrawal',
     label: 'Investor Withdrawal',
     costImpact: 'cash_only',
+    category: 'cash_float',
     ledgerDirection: 'debit',
     requiresAmount: true,
     selectable: true,
@@ -166,6 +222,7 @@ export const VEHICLE_ACTIVITY_TYPE_META: Record<VehicleActivityType, ActivityTyp
     type: 'sale',
     label: 'Sale',
     costImpact: 'none',
+    category: 'other',
     ledgerDirection: 'credit',
     requiresAmount: true,
     selectable: false,
@@ -174,6 +231,7 @@ export const VEHICLE_ACTIVITY_TYPE_META: Record<VehicleActivityType, ActivityTyp
     type: 'note',
     label: 'Note',
     costImpact: 'none',
+    category: 'other',
     ledgerDirection: null,
     requiresAmount: false,
     selectable: true,
@@ -182,6 +240,7 @@ export const VEHICLE_ACTIVITY_TYPE_META: Record<VehicleActivityType, ActivityTyp
     type: 'document',
     label: 'Document',
     costImpact: 'none',
+    category: 'other',
     ledgerDirection: null,
     requiresAmount: false,
     selectable: true,
@@ -190,6 +249,7 @@ export const VEHICLE_ACTIVITY_TYPE_META: Record<VehicleActivityType, ActivityTyp
     type: 'photo_upload',
     label: 'Photo Upload',
     costImpact: 'none',
+    category: 'other',
     ledgerDirection: null,
     requiresAmount: false,
     selectable: true,
@@ -198,6 +258,14 @@ export const VEHICLE_ACTIVITY_TYPE_META: Record<VehicleActivityType, ActivityTyp
 
 export const SELECTABLE_ACTIVITY_TYPES = VEHICLE_ACTIVITY_TYPES.filter(
   (t) => VEHICLE_ACTIVITY_TYPE_META[t].selectable,
+);
+
+export const PAYMENT_MILESTONE_TYPES = VEHICLE_ACTIVITY_TYPES.filter(
+  (t) => VEHICLE_ACTIVITY_TYPE_META[t].category === 'payment_milestone',
+);
+
+export const INVESTMENT_COST_TYPES = VEHICLE_ACTIVITY_TYPES.filter(
+  (t) => VEHICLE_ACTIVITY_TYPE_META[t].category === 'investment_cost',
 );
 
 /** Map legacy expense category slugs → activity types for backfill. */
@@ -213,7 +281,7 @@ export const EXPENSE_CATEGORY_TO_ACTIVITY: Record<string, VehicleActivityType> =
   broker: 'broker_commission',
   transport: 'transport',
   cleaning: 'washing',
-  rto: 'miscellaneous',
+  rto: 'rto',
   miscellaneous: 'miscellaneous',
   expense_adjustment: 'miscellaneous',
 };
@@ -231,13 +299,17 @@ export function activityCostAmountPaise(
   return Math.round(amountPaise ?? 0);
 }
 
-export function sumActivityNetVehicleCost(
+export function isPaymentMilestoneType(type: string): boolean {
+  return isVehicleActivityType(type) && VEHICLE_ACTIVITY_TYPE_META[type].category === 'payment_milestone';
+}
+
+/** Sum of investment-cost activity amounts only (no purchase base). */
+export function sumInvestmentCostActivitiesPaise(
   rows: Array<{ activityType: string; amountPaise: number | null }>,
 ): {
   repairTotalPaise: number;
   dealerRefundTotalPaise: number;
   totalExpensePaise: number;
-  netVehicleCostPaise: number;
 } {
   let repairTotalPaise = 0;
   let dealerRefundTotalPaise = 0;
@@ -247,17 +319,71 @@ export function sumActivityNetVehicleCost(
     if (amt > 0) repairTotalPaise += amt;
     else if (amt < 0) dealerRefundTotalPaise += -amt;
   }
-  const totalExpensePaise = repairTotalPaise - dealerRefundTotalPaise;
   return {
     repairTotalPaise,
     dealerRefundTotalPaise,
-    totalExpensePaise,
-    /** Activity-derived net cost (no automatic purchase base). */
-    netVehicleCostPaise: totalExpensePaise,
+    totalExpensePaise: repairTotalPaise - dealerRefundTotalPaise,
   };
 }
 
-/** Pure settlement math: advance = actual + returned + stillHeld (stillHeld may be 0). */
+/**
+ * Frozen Option 2 SSOT:
+ * Total Vehicle Investment = Purchase Price + Σ investment-cost activities (signed).
+ * Payment milestones are excluded via costImpact = cash_only.
+ */
+export function computeTotalVehicleInvestment(input: {
+  purchasePricePaise: number;
+  activities: Array<{ activityType: string; amountPaise: number | null }>;
+}): {
+  purchasePricePaise: number;
+  investmentCostsPaise: number;
+  dealerRefundTotalPaise: number;
+  /** Alias used by recalc / ROI denominator */
+  netVehicleCostPaise: number;
+  repairTotalPaise: number;
+  totalExpensePaise: number;
+} {
+  const purchasePricePaise = Math.round(input.purchasePricePaise);
+  const costs = sumInvestmentCostActivitiesPaise(input.activities);
+  return {
+    purchasePricePaise,
+    investmentCostsPaise: costs.totalExpensePaise,
+    dealerRefundTotalPaise: costs.dealerRefundTotalPaise,
+    repairTotalPaise: costs.repairTotalPaise,
+    totalExpensePaise: costs.totalExpensePaise,
+    netVehicleCostPaise: purchasePricePaise + costs.totalExpensePaise,
+  };
+}
+
+/** @deprecated Prefer computeTotalVehicleInvestment — kept for callers that only need cost lines. */
+export function sumActivityNetVehicleCost(
+  rows: Array<{ activityType: string; amountPaise: number | null }>,
+): {
+  repairTotalPaise: number;
+  dealerRefundTotalPaise: number;
+  totalExpensePaise: number;
+  /** Investment-cost sum only (no purchase base). */
+  netVehicleCostPaise: number;
+} {
+  const costs = sumInvestmentCostActivitiesPaise(rows);
+  return {
+    ...costs,
+    netVehicleCostPaise: costs.totalExpensePaise,
+  };
+}
+
+export function sumPaymentMilestonesPaise(
+  rows: Array<{ activityType: string; amountPaise: number | null }>,
+): number {
+  let total = 0;
+  for (const row of rows) {
+    if (!isPaymentMilestoneType(row.activityType)) continue;
+    total += Math.round(row.amountPaise ?? 0);
+  }
+  return total;
+}
+
+/** Pure settlement math for repair advances. */
 export function computeRepairSettlement(input: {
   advancePaise: number;
   actualCostPaise: number;
@@ -266,6 +392,8 @@ export function computeRepairSettlement(input: {
   outstandingPaise: number;
   vehicleCostPaise: number;
   cashStillHeldPaise: number;
+  /** When actual exceeds advance — additional cash the dealer must cover */
+  additionalAmountRequiredPaise: number;
 } {
   const advancePaise = Math.round(input.advancePaise);
   const actualCostPaise = Math.round(input.actualCostPaise);
@@ -278,6 +406,6 @@ export function computeRepairSettlement(input: {
     outstandingPaise,
     vehicleCostPaise: actualCostPaise,
     cashStillHeldPaise: Math.max(0, outstandingPaise),
+    additionalAmountRequiredPaise: Math.max(0, -outstandingPaise),
   };
 }
-

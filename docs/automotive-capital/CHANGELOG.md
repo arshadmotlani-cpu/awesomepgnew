@@ -8,6 +8,19 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed — Frozen Total Vehicle Investment (ADR-016)
+- TVI = Purchase Price + investment-cost activities − refunds (Token/Purchase Payment = milestones only)
+- Create UX: no live funding calculator; collapsible Partner Investment; post-create → Purchase Activities
+- Repair settlement shows Additional Amount Required when actual > advance
+- Edit vehicle + edit/reverse purchase activities; Overview TVI breakdown + payment progress
+- Types added: `final_purchase_payment`, `rto`, `storage`
+
+### Changed — Executive dealership dashboard restore
+- Grouped overview cards: Inventory, Active Capital (once), Profit, Performance
+- Conditional Business Health chips (status counts + open repair advances only)
+- Recent Activity feed restored; Purchases vs Sales chart added beside Profit Growth
+- Personal ROI unchanged: My Lifetime Profit ÷ My Capital Stakes (ADR-015)
+
 ### Changed — Dealership owner dashboard
 - Single personal dashboard (Business View removed from UI)
 - Compact six-KPI grid; Capital At Risk / allocation / waterfall / activity timeline removed from overview

@@ -12,8 +12,11 @@ import { Input } from '@/src/capital/components/ui/input';
 import { Textarea } from '@/src/capital/components/ui/textarea';
 import { useCapitalToast } from '@/src/capital/components/CapitalToastProvider';
 import {
+  INVESTMENT_COST_TYPES,
+  PAYMENT_MILESTONE_TYPES,
   SELECTABLE_ACTIVITY_TYPES,
   VEHICLE_ACTIVITY_TYPE_META,
+  computeRepairSettlement,
   type VehicleActivityType,
 } from '@/src/capital/lib/activityTypes';
 import { formatInrPlain } from '@/src/capital/lib/money';
@@ -35,12 +38,20 @@ type FormValues = {
   repairAdvanceId: string;
 };
 
+const OTHER_SELECTABLE = SELECTABLE_ACTIVITY_TYPES.filter(
+  (t) =>
+    VEHICLE_ACTIVITY_TYPE_META[t].category !== 'payment_milestone' &&
+    VEHICLE_ACTIVITY_TYPE_META[t].category !== 'investment_cost',
+);
+
 export function CreateActivityForm({
   assetId,
   openAdvances = [],
+  highlightPurchase = false,
 }: {
   assetId: string;
   openAdvances?: OpenAdvance[];
+  highlightPurchase?: boolean;
 }) {
   const [state, setState] = useState<ActionState>({});
   const [pending, startTransition] = useTransition();
@@ -60,6 +71,8 @@ export function CreateActivityForm({
   });
 
   const activityType = useWatch({ control: form.control, name: 'activityType' });
+  const actualCost = useWatch({ control: form.control, name: 'actualCost' });
+  const returnedAmount = useWatch({ control: form.control, name: 'returnedAmount' });
   const meta = VEHICLE_ACTIVITY_TYPE_META[activityType];
   const isSettlement = activityType === 'repair_settlement';
   const requiresAmount = meta.requiresAmount && !isSettlement;
@@ -69,6 +82,24 @@ export function CreateActivityForm({
     () => openAdvances.find((a) => a.id === repairAdvanceId),
     [openAdvances, repairAdvanceId],
   );
+
+  const settlementPreview = useMemo(() => {
+    if (!isSettlement || !selectedAdvance) return null;
+    const actual =
+      actualCost === '' || actualCost == null ? 0 : Number(actualCost);
+    const returned =
+      returnedAmount === '' || returnedAmount == null ? 0 : Number(returnedAmount);
+    if (!Number.isFinite(actual) || !Number.isFinite(returned)) return null;
+    try {
+      return computeRepairSettlement({
+        advancePaise: selectedAdvance.advancePaise,
+        actualCostPaise: Math.round(actual * 100),
+        returnedPaise: Math.round(returned * 100),
+      });
+    } catch {
+      return null;
+    }
+  }, [isSettlement, selectedAdvance, actualCost, returnedAmount]);
 
   const onSubmit = form.handleSubmit((values) => {
     const fd = new FormData();
@@ -108,7 +139,17 @@ export function CreateActivityForm({
   });
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form
+      onSubmit={onSubmit}
+      className={`space-y-4 ${highlightPurchase ? 'rounded-xl ring-1 ring-ac-accent/35 p-4' : ''}`}
+    >
+      {highlightPurchase ? (
+        <div className="rounded-lg border border-ac-accent/25 bg-ac-accent/10 px-3 py-2 text-sm text-ac-text-secondary">
+          Vehicle created. Record payment milestones (token / purchase payment) and purchase costs
+          next. Purchase Price alone is not the full acquisition journey.
+        </div>
+      ) : null}
+
       {state.error ? (
         <p className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
           {state.error}
@@ -116,21 +157,31 @@ export function CreateActivityForm({
       ) : null}
 
       <FormField label="Activity type" name="activityType" form={form}>
-        <select
-          id="activityType"
-          className="ac-input w-full"
-          {...form.register('activityType')}
-        >
-          {SELECTABLE_ACTIVITY_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {VEHICLE_ACTIVITY_TYPE_META[t].label}
-              {VEHICLE_ACTIVITY_TYPE_META[t].costImpact === 'vehicle_cost'
-                ? ' · cost'
-                : VEHICLE_ACTIVITY_TYPE_META[t].costImpact === 'cash_only'
-                  ? ' · cash'
-                  : ''}
-            </option>
-          ))}
+        <select id="activityType" className="ac-input w-full" {...form.register('activityType')}>
+          <optgroup label="Payment Milestones (not investment)">
+            {PAYMENT_MILESTONE_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {VEHICLE_ACTIVITY_TYPE_META[t].label}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Purchase Costs (add to investment)">
+            {INVESTMENT_COST_TYPES.filter((t) => VEHICLE_ACTIVITY_TYPE_META[t].selectable).map(
+              (t) => (
+                <option key={t} value={t}>
+                  {VEHICLE_ACTIVITY_TYPE_META[t].label}
+                </option>
+              ),
+            )}
+          </optgroup>
+          <optgroup label="Other">
+            {OTHER_SELECTABLE.map((t) => (
+              <option key={t} value={t}>
+                {VEHICLE_ACTIVITY_TYPE_META[t].label}
+                {VEHICLE_ACTIVITY_TYPE_META[t].costImpact === 'cash_only' ? ' · cash' : ''}
+              </option>
+            ))}
+          </optgroup>
         </select>
       </FormField>
 
@@ -164,8 +215,8 @@ export function CreateActivityForm({
           )}
           {selectedAdvance ? (
             <p className="text-xs text-ac-text-muted">
-              Advance float: ₹{formatInrPlain(selectedAdvance.advancePaise)}. Only actual cost
-              hits Net Vehicle Cost; returns restore cash.
+              Advance given: ₹{formatInrPlain(selectedAdvance.advancePaise)}. Actual repair cost
+              adds to Total Vehicle Investment; money returned is cash only.
             </p>
           ) : null}
           <FormField label="Actual repair cost (₹)" name="actualCost" form={form}>
@@ -178,7 +229,7 @@ export function CreateActivityForm({
               required
             />
           </FormField>
-          <FormField label="Amount returned (₹)" name="returnedAmount" form={form}>
+          <FormField label="Money returned (₹)" name="returnedAmount" form={form}>
             <Input
               id="returnedAmount"
               type="number"
@@ -187,6 +238,21 @@ export function CreateActivityForm({
               {...form.register('returnedAmount')}
             />
           </FormField>
+          {settlementPreview && settlementPreview.additionalAmountRequiredPaise > 0 ? (
+            <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+              Additional amount required: ₹
+              {formatInrPlain(settlementPreview.additionalAmountRequiredPaise)}
+              <span className="mt-0.5 block text-xs text-amber-200/80">
+                Actual cost exceeds the advance. Full actual cost still counts toward investment.
+              </span>
+            </p>
+          ) : null}
+          {settlementPreview && settlementPreview.cashStillHeldPaise > 0 ? (
+            <p className="text-xs text-ac-text-muted">
+              Cash still held after settlement: ₹
+              {formatInrPlain(settlementPreview.cashStillHeldPaise)}
+            </p>
+          ) : null}
         </>
       ) : requiresAmount ? (
         <FormField label="Amount (₹)" name="amount" form={form}>

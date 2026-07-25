@@ -95,6 +95,40 @@ export const updatePurchaseDateSchema = z.object({
   purchaseDate: dateStr,
 });
 
+export const updateAssetDetailsSchema = z.object({
+  assetId: uuid,
+  manufacturer: z.string().min(1, 'Manufacturer is required'),
+  model: z.string().min(1, 'Model is required'),
+  fuelType: z.enum(['petrol', 'diesel', 'cng', 'ev', 'hybrid']),
+  year: z.coerce.number().int().min(1990).max(new Date().getFullYear() + 1),
+  ownership: z.enum(['first_owner', 'second_owner', 'third_owner']),
+  registrationNumber: z.string().optional(),
+  purchasePrice: rupees,
+  purchaseDate: dateStr.optional(),
+  notes: z.string().optional(),
+});
+
+export const updateVehicleActivitySchema = z
+  .object({
+    activityId: uuid,
+    activityAt: dateStr.optional(),
+    amount: z.coerce.number().optional(),
+    title: z.string().optional(),
+    notes: z.string().optional(),
+    actualCost: z.coerce.number().min(0).optional(),
+    returnedAmount: z.coerce.number().min(0).optional(),
+  })
+  .superRefine((d, ctx) => {
+    // Settlement edits require actualCost when provided as settlement form
+    if (d.actualCost != null && !Number.isFinite(d.actualCost)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Actual repair cost is invalid',
+        path: ['actualCost'],
+      });
+    }
+  });
+
 export const createExpenseSchema = z.object({
   assetId: uuid,
   categoryId: uuid,

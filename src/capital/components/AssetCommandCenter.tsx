@@ -1,15 +1,25 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { MoneyDisplay } from '@/src/capital/components/MoneyDisplay';
 import { Badge } from '@/src/capital/components/ui/badge';
+import { Button } from '@/src/capital/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/src/capital/components/ui/tabs';
 import { AssetActionsForms } from '@/src/capital/components/forms/AssetActionsForms';
 import { CreateActivityForm } from '@/src/capital/components/forms/CreateActivityForm';
 import { DocumentUploadForm } from '@/src/capital/components/forms/DocumentUploadForm';
+import { EditActivityForm } from '@/src/capital/components/forms/EditActivityForm';
+import { EditVehicleForm } from '@/src/capital/components/forms/EditVehicleForm';
 import { UpdateFundingForm } from '@/src/capital/components/forms/UpdateFundingForm';
-import { VEHICLE_ACTIVITY_TYPE_META } from '@/src/capital/lib/activityTypes';
 import { SetCoverPhotoButton } from '@/src/capital/components/forms/SetCoverPhotoButton';
+import {
+  VEHICLE_ACTIVITY_TYPE_META,
+  isPaymentMilestoneType,
+  sumPaymentMilestonesPaise,
+  type VehicleActivityType,
+} from '@/src/capital/lib/activityTypes';
+import { formatInrPlain } from '@/src/capital/lib/money';
 
 type TimelineData = {
   vehicleActivities: {
@@ -19,6 +29,7 @@ type TimelineData = {
     amountPaise: number | null;
     title: string | null;
     notes: string | null;
+    metadata?: Record<string, unknown> | null;
     createdAt: Date;
   }[];
   activities: { id: string; action: string; createdAt: Date }[];
@@ -59,8 +70,12 @@ type OverviewData = {
   manufacturer: string;
   model: string;
   year: number;
+  fuelType: 'petrol' | 'diesel' | 'cng' | 'ev' | 'hybrid';
   fuelLabel: string;
+  ownership: 'first_owner' | 'second_owner' | 'third_owner';
   ownershipLabel: string;
+  registrationNumber: string;
+  notes: string;
   isActive: boolean;
 };
 
@@ -85,6 +100,18 @@ function StatCard({ label, paise, text }: { label: string; paise?: number; text?
   );
 }
 
+const TAB_VALUES = [
+  'overview',
+  'timeline',
+  'activities',
+  'investment',
+  'photos',
+  'documents',
+  'profit',
+  'sale',
+  'accounting',
+] as const;
+
 export function AssetCommandCenter({
   assetId,
   currentStatus,
@@ -99,6 +126,8 @@ export function AssetCommandCenter({
   coverDocumentId,
   overview,
   profit,
+  initialTab,
+  focusPurchase = false,
 }: {
   assetId: string;
   currentStatus: string;
@@ -119,7 +148,17 @@ export function AssetCommandCenter({
   coverDocumentId?: string | null;
   overview: OverviewData;
   profit: ProfitData | null;
+  initialTab?: string;
+  focusPurchase?: boolean;
 }) {
+  const defaultTab =
+    initialTab && (TAB_VALUES as readonly string[]).includes(initialTab)
+      ? initialTab
+      : 'overview';
+  const [tab, setTab] = useState(defaultTab);
+  const [editVehicleOpen, setEditVehicleOpen] = useState(false);
+  const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
+
   const canEdit =
     currentStatus !== 'sold' &&
     currentStatus !== 'settled' &&
@@ -132,14 +171,46 @@ export function AssetCommandCenter({
     (d) => d.documentType !== 'photo' && !d.mimeType.startsWith('image/'),
   );
 
+  const costLines = useMemo(
+    () =>
+      timeline.vehicleActivities.filter((a) => {
+        const t = a.activityType as VehicleActivityType;
+        return VEHICLE_ACTIVITY_TYPE_META[t]?.costImpact === 'vehicle_cost';
+      }),
+    [timeline.vehicleActivities],
+  );
+
+  const milestones = useMemo(
+    () => timeline.vehicleActivities.filter((a) => isPaymentMilestoneType(a.activityType)),
+    [timeline.vehicleActivities],
+  );
+
+  const milestonePaidPaise = sumPaymentMilestonesPaise(
+    timeline.vehicleActivities.map((a) => ({
+      activityType: a.activityType,
+      amountPaise: a.amountPaise,
+    })),
+  );
+
+  const onlyCreated =
+    timeline.vehicleActivities.length > 0 &&
+    timeline.vehicleActivities.every((a) => a.activityType === 'vehicle_created');
+
+  function activityLabel(type: string) {
+    return (
+      VEHICLE_ACTIVITY_TYPE_META[type as VehicleActivityType]?.label ??
+      type.replace(/_/g, ' ')
+    );
+  }
+
   return (
-    <Tabs defaultValue="timeline" className="w-full">
+    <Tabs value={tab} onValueChange={setTab} className="w-full">
       <TabsList className="mb-4 flex flex-wrap">
         <TabsTrigger value="overview">Overview</TabsTrigger>
         <TabsTrigger value="timeline">
           Timeline ({timeline.vehicleActivities.length})
         </TabsTrigger>
-        <TabsTrigger value="activities">Activities</TabsTrigger>
+        <TabsTrigger value="activities">Purchase Activities</TabsTrigger>
         <TabsTrigger value="investment">Investment</TabsTrigger>
         <TabsTrigger value="photos">Photos ({photos.length})</TabsTrigger>
         <TabsTrigger value="documents">Documents ({docs.length})</TabsTrigger>
@@ -149,11 +220,97 @@ export function AssetCommandCenter({
       </TabsList>
 
       <TabsContent value="overview" className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold">Total Vehicle Investment</h3>
+          {canEdit ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => setEditVehicleOpen((v) => !v)}
+            >
+              {editVehicleOpen ? 'Close edit' : 'Edit vehicle'}
+            </Button>
+          ) : null}
+        </div>
+
+        {editVehicleOpen && canEdit ? (
+          <div className="ac-glass-card p-4">
+            <EditVehicleForm
+              assetId={assetId}
+              defaults={{
+                manufacturer: overview.manufacturer,
+                model: overview.model,
+                year: overview.year,
+                fuelType: overview.fuelType,
+                ownership: overview.ownership,
+                registrationNumber: overview.registrationNumber,
+                purchasePricePaise,
+                purchaseDate: overview.purchaseDate,
+                notes: overview.notes,
+              }}
+              onDone={() => setEditVehicleOpen(false)}
+            />
+          </div>
+        ) : null}
+
+        <div className="ac-glass-card space-y-2 p-4 text-sm">
+          <div className="flex justify-between gap-4 border-b border-white/5 py-2">
+            <span className="text-ac-text-muted">Purchase Price</span>
+            <MoneyDisplay paise={purchasePricePaise} />
+          </div>
+          {costLines.map((a) => (
+            <div key={a.id} className="flex justify-between gap-4 border-b border-white/5 py-2">
+              <span className="text-ac-text-muted">
+                + {activityLabel(a.activityType)}
+                {a.title ? ` · ${a.title}` : ''}
+              </span>
+              {a.amountPaise != null ? (
+                <MoneyDisplay paise={a.amountPaise} />
+              ) : (
+                <span>—</span>
+              )}
+            </div>
+          ))}
+          {overview.dealerRefundTotalPaise > 0 ? (
+            <div className="flex justify-between gap-4 border-b border-white/5 py-2">
+              <span className="text-ac-text-muted">− Refunds / returns</span>
+              <MoneyDisplay paise={overview.dealerRefundTotalPaise} />
+            </div>
+          ) : null}
+          <div className="flex justify-between gap-4 pt-2 text-base font-semibold">
+            <span>Total Vehicle Investment</span>
+            <MoneyDisplay paise={totalInvestmentPaise} />
+          </div>
+        </div>
+
+        <div className="ac-glass-card space-y-2 p-4 text-sm">
+          <p className="font-medium">Payment progress (not investment)</p>
+          <p className="text-xs text-ac-text-muted">
+            Token / Purchase Payment track how Purchase Price was paid. They do not add to
+            investment.
+          </p>
+          <div className="flex justify-between gap-4 py-1">
+            <span className="text-ac-text-muted">Paid toward purchase</span>
+            <span>
+              ₹{formatInrPlain(milestonePaidPaise)} / ₹{formatInrPlain(purchasePricePaise)}
+            </span>
+          </div>
+          {milestones.length === 0 ? (
+            <p className="text-ac-text-muted">No payment milestones recorded yet.</p>
+          ) : (
+            milestones.map((a) => (
+              <div key={a.id} className="flex justify-between gap-4 border-t border-white/5 py-2">
+                <span>
+                  {activityLabel(a.activityType)} · {a.activityAt}
+                </span>
+                {a.amountPaise != null ? <MoneyDisplay paise={a.amountPaise} /> : null}
+              </div>
+            ))
+          )}
+        </div>
+
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <StatCard label="Purchase Price" paise={purchasePricePaise} />
-          <StatCard label="Repairs / costs" paise={overview.repairTotalPaise} />
-          <StatCard label="Refunds / Credits" paise={overview.dealerRefundTotalPaise} />
-          <StatCard label="Net Vehicle Cost" paise={totalInvestmentPaise} />
           <StatCard label="Funding Status" text={fundingStatus || '—'} />
           <StatCard label="My Investment" paise={overview.myInvestmentPaise} />
           <StatCard label={overview.partnerLabel} paise={overview.partnerInvestmentPaise} />
@@ -164,6 +321,7 @@ export function AssetCommandCenter({
           <StatCard label="Outstanding" paise={overview.outstandingPaise} />
           <StatCard label="Holding days" text={String(overview.holdingDays)} />
         </div>
+
         <div className="ac-glass-card grid gap-2 p-4 text-sm sm:grid-cols-2">
           <div className="flex justify-between gap-4 border-b border-white/5 py-2">
             <span className="text-ac-text-muted">Manufacturer</span>
@@ -193,37 +351,67 @@ export function AssetCommandCenter({
       </TabsContent>
 
       <TabsContent value="timeline" className="space-y-2">
-        {timeline.vehicleActivities.map((a) => {
-          const label =
-            VEHICLE_ACTIVITY_TYPE_META[
-              a.activityType as keyof typeof VEHICLE_ACTIVITY_TYPE_META
-            ]?.label ?? a.activityType.replace(/_/g, ' ');
-          return (
-            <div key={a.id} className="ac-glass-card flex justify-between gap-4 p-3 text-sm">
+        {timeline.vehicleActivities.map((a) => (
+          <div key={a.id} className="ac-glass-card p-3 text-sm">
+            <div className="flex justify-between gap-4">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="secondary">{label}</Badge>
+                  <Badge variant="secondary">{activityLabel(a.activityType)}</Badge>
                   <span className="text-ac-text-muted">{a.activityAt}</span>
+                  {isPaymentMilestoneType(a.activityType) ? (
+                    <Badge variant="outline">milestone</Badge>
+                  ) : VEHICLE_ACTIVITY_TYPE_META[a.activityType as VehicleActivityType]
+                      ?.costImpact === 'vehicle_cost' ? (
+                    <Badge variant="outline">investment</Badge>
+                  ) : null}
                 </div>
                 {a.title ? <p className="mt-1 font-medium">{a.title}</p> : null}
                 {a.notes ? <p className="mt-0.5 text-ac-text-muted">{a.notes}</p> : null}
               </div>
-              {a.amountPaise != null ? (
-                <MoneyDisplay paise={a.amountPaise} />
-              ) : (
-                <span className="text-ac-text-muted">—</span>
-              )}
+              <div className="text-right">
+                {a.amountPaise != null ? (
+                  <MoneyDisplay paise={a.amountPaise} />
+                ) : (
+                  <span className="text-ac-text-muted">—</span>
+                )}
+                {canEdit && a.activityType !== 'vehicle_created' ? (
+                  <button
+                    type="button"
+                    className="mt-1 block text-xs text-ac-accent hover:underline"
+                    onClick={() =>
+                      setEditingActivityId((id) => (id === a.id ? null : a.id))
+                    }
+                  >
+                    {editingActivityId === a.id ? 'Close' : 'Edit'}
+                  </button>
+                ) : null}
+              </div>
             </div>
-          );
-        })}
+            {editingActivityId === a.id ? (
+              <EditActivityForm
+                activity={a}
+                advancePaise={
+                  typeof a.metadata?.advancePaise === 'number'
+                    ? a.metadata.advancePaise
+                    : undefined
+                }
+                onDone={() => setEditingActivityId(null)}
+              />
+            ) : null}
+          </div>
+        ))}
         {timeline.vehicleActivities.length === 0 ? (
-          <p className="text-sm text-ac-text-muted">No activities yet. Add the first one.</p>
+          <p className="text-sm text-ac-text-muted">No activities yet.</p>
         ) : null}
       </TabsContent>
 
       <TabsContent value="activities" className="space-y-4">
         {canEdit ? (
-          <CreateActivityForm assetId={assetId} openAdvances={timeline.openAdvances} />
+          <CreateActivityForm
+            assetId={assetId}
+            openAdvances={timeline.openAdvances}
+            highlightPurchase={focusPurchase || onlyCreated}
+          />
         ) : (
           <p className="text-sm text-ac-text-muted">This vehicle is closed — activities locked.</p>
         )}
@@ -232,12 +420,52 @@ export function AssetCommandCenter({
             <p className="font-medium">Open repair advances</p>
             {timeline.openAdvances.map((a) => (
               <div key={a.id} className="flex justify-between">
-                <span>Advance</span>
+                <span>Advance given</span>
                 <MoneyDisplay paise={a.advancePaise} />
               </div>
             ))}
           </div>
         ) : null}
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Recorded activities</p>
+          {timeline.vehicleActivities
+            .filter((a) => a.activityType !== 'vehicle_created')
+            .map((a) => (
+              <div key={a.id} className="ac-glass-card p-3 text-sm">
+                <div className="flex justify-between gap-3">
+                  <div>
+                    <Badge variant="secondary">{activityLabel(a.activityType)}</Badge>
+                    <span className="ml-2 text-ac-text-muted">{a.activityAt}</span>
+                  </div>
+                  <div className="text-right">
+                    {a.amountPaise != null ? <MoneyDisplay paise={a.amountPaise} /> : null}
+                    {canEdit ? (
+                      <button
+                        type="button"
+                        className="mt-1 block text-xs text-ac-accent hover:underline"
+                        onClick={() =>
+                          setEditingActivityId((id) => (id === a.id ? null : a.id))
+                        }
+                      >
+                        {editingActivityId === a.id ? 'Close' : 'Edit'}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+                {editingActivityId === a.id ? (
+                  <EditActivityForm
+                    activity={a}
+                    advancePaise={
+                      typeof a.metadata?.advancePaise === 'number'
+                        ? a.metadata.advancePaise
+                        : undefined
+                    }
+                    onDone={() => setEditingActivityId(null)}
+                  />
+                ) : null}
+              </div>
+            ))}
+        </div>
       </TabsContent>
 
       <TabsContent value="investment" className="space-y-4">
@@ -351,6 +579,7 @@ export function AssetCommandCenter({
         {profit ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <StatCard label="Sale price" paise={profit.salePricePaise} />
+            <StatCard label="Total Vehicle Investment" paise={totalInvestmentPaise} />
             <StatCard label="Business profit" paise={profit.businessProfitPaise} />
             <StatCard label="My profit" paise={profit.myProfitPaise} />
             <StatCard label="Sufii (operating partner)" paise={profit.operatingPartnerPaise} />
@@ -370,7 +599,7 @@ export function AssetCommandCenter({
           </div>
         ) : (
           <p className="text-sm text-ac-text-muted">
-            Profit summary is available after the vehicle is sold.
+            Profit = Sale Price − Total Vehicle Investment (available after sale).
           </p>
         )}
       </TabsContent>

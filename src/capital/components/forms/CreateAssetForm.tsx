@@ -11,7 +11,6 @@ import { Input } from '@/src/capital/components/ui/input';
 import { FormField } from '@/src/capital/components/forms/FormField';
 import { useAutosaveDraft } from '@/src/capital/hooks/useAutosaveDraft';
 import { createAssetSchema, type CreateAssetInput } from '@/src/capital/lib/validation/schemas';
-import { formatInrPlain } from '@/src/capital/lib/money';
 import { resolveCreateFunding } from '@/src/capital/lib/investors';
 
 const DRAFT_KEY = 'vehicle-new-v2';
@@ -64,6 +63,17 @@ function yearOptions() {
   return years;
 }
 
+/** Coerce empty number inputs to undefined instead of NaN. */
+function registerRupees(form: ReturnType<typeof useForm<CreateAssetInput>>, name: keyof CreateAssetInput) {
+  return form.register(name, {
+    setValueAs: (v) => {
+      if (v === '' || v == null) return undefined;
+      const n = typeof v === 'number' ? v : Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    },
+  });
+}
+
 const EMPTY_DEFAULTS: CreateAssetInput = {
   manufacturer: '',
   model: '',
@@ -91,28 +101,13 @@ export function CreateAssetForm() {
   });
 
   const purchasePrice = useWatch({ control: form.control, name: 'purchasePrice' });
-  const meInvested = useWatch({ control: form.control, name: 'meInvested' });
-  const investor2Invested = useWatch({ control: form.control, name: 'investor2Invested' });
 
   useEffect(() => {
     if (!withPartner && purchasePrice != null && Number.isFinite(purchasePrice)) {
-      form.setValue('meInvested', purchasePrice, { shouldValidate: true });
-      form.setValue('investor2Invested', 0, { shouldValidate: true });
+      form.setValue('meInvested', purchasePrice, { shouldValidate: false });
+      form.setValue('investor2Invested', 0, { shouldValidate: false });
     }
   }, [withPartner, purchasePrice, form]);
-
-  const funding = resolveCreateFunding({
-    purchasePrice: purchasePrice ?? 0,
-    withPartner,
-    meInvested,
-    investor2Invested,
-  });
-  const fundingTotal = funding.meInvested + funding.investor2Invested;
-  const fundingOk =
-    purchasePrice != null &&
-    Number.isFinite(purchasePrice) &&
-    purchasePrice > 0 &&
-    Math.round(fundingTotal * 100) === Math.round(purchasePrice * 100);
 
   useEffect(() => {
     void loadDraftAction(DRAFT_KEY).then(({ payload }) => {
@@ -176,7 +171,7 @@ export function CreateAssetForm() {
           <div>
             <CardTitle>Vehicle</CardTitle>
             <p className="text-sm text-ac-text-secondary">
-              Purchase date defaults to today — edit later on the vehicle profile if needed.
+              Creates the inventory item. Record purchase activities on the next screen.
             </p>
           </div>
           <Button type="button" variant="ghost" size="sm" onClick={clearForm}>
@@ -270,7 +265,7 @@ export function CreateAssetForm() {
                 type="number"
                 step="0.01"
                 placeholder="0"
-                {...form.register('purchasePrice', { valueAsNumber: true })}
+                {...registerRupees(form, 'purchasePrice')}
               />
             </FormField>
           </form>
@@ -281,41 +276,41 @@ export function CreateAssetForm() {
         <CardHeader>
           <CardTitle>Investment</CardTitle>
           <p className="text-sm text-ac-text-secondary">
-            Most vehicles are fully self-funded. Turn on partner only when needed.
+            Most vehicles are fully self-funded. Expand partner only when needed. Funding is checked
+            when you save.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          <label className="flex cursor-pointer items-center gap-3 text-sm">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-white/20 bg-white/5"
-              checked={withPartner}
-              onChange={(e) => {
-                const on = e.target.checked;
-                setWithPartner(on);
-                if (!on && purchasePrice != null && Number.isFinite(purchasePrice)) {
-                  form.setValue('meInvested', purchasePrice, { shouldValidate: true });
-                  form.setValue('investor2Invested', 0, { shouldValidate: true });
+          <FormField label="My Investment (₹)" name="meInvested" form={form}>
+            <Input
+              type="number"
+              step="0.01"
+              form="create-asset-form"
+              readOnly={!withPartner}
+              className={!withPartner ? 'opacity-80' : undefined}
+              {...registerRupees(form, 'meInvested')}
+            />
+          </FormField>
+
+          <div className="rounded-lg border border-white/10 bg-white/[0.02]">
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium text-ac-text-secondary hover:text-ac-text"
+              onClick={() => {
+                const next = !withPartner;
+                setWithPartner(next);
+                if (!next && purchasePrice != null && Number.isFinite(purchasePrice)) {
+                  form.setValue('meInvested', purchasePrice, { shouldValidate: false });
+                  form.setValue('investor2Invested', 0, { shouldValidate: false });
                 }
               }}
-            />
-            <span>Purchased with Partner</span>
-          </label>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <FormField label="My Investment (₹)" name="meInvested" form={form}>
-              <Input
-                type="number"
-                step="0.01"
-                form="create-asset-form"
-                readOnly={!withPartner}
-                className={!withPartner ? 'opacity-80' : undefined}
-                {...form.register('meInvested', { valueAsNumber: true })}
-              />
-            </FormField>
+            >
+              <span aria-hidden>{withPartner ? '▼' : '▶'}</span>
+              <span>Partner Investment (Optional)</span>
+            </button>
             {withPartner ? (
-              <div className="space-y-2">
-                <FormField label="Partner name" name="investor2Label" form={form}>
+              <div className="grid gap-4 border-t border-white/10 px-4 py-4 md:grid-cols-2">
+                <FormField label="Partner Name" name="investor2Label" form={form}>
                   <Input form="create-asset-form" {...form.register('investor2Label')} />
                 </FormField>
                 <FormField label="Partner Investment (₹)" name="investor2Invested" form={form}>
@@ -323,30 +318,20 @@ export function CreateAssetForm() {
                     type="number"
                     step="0.01"
                     form="create-asset-form"
-                    {...form.register('investor2Invested', { valueAsNumber: true })}
+                    {...registerRupees(form, 'investor2Invested')}
                   />
                 </FormField>
               </div>
             ) : null}
           </div>
-
-          <div className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-sm">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-ac-text-secondary">Total investment</span>
-              <span className={fundingOk ? 'text-ac-success' : 'text-ac-danger'}>
-                ₹{formatInrPlain(Math.round(fundingTotal * 100))}
-                {purchasePrice != null && Number.isFinite(purchasePrice)
-                  ? ` / ₹${formatInrPlain(Math.round(purchasePrice * 100))}`
-                  : ''}
-                {fundingOk ? ' · balanced' : ' · must equal purchase price'}
-              </span>
-            </div>
-          </div>
         </CardContent>
       </Card>
 
       {state.error ? <p className="text-sm text-ac-danger">{state.error}</p> : null}
-      <Button type="submit" form="create-asset-form" disabled={pending || !fundingOk}>
+      {form.formState.errors.meInvested?.message ? (
+        <p className="text-sm text-ac-danger">{form.formState.errors.meInvested.message}</p>
+      ) : null}
+      <Button type="submit" form="create-asset-form" disabled={pending}>
         {pending ? 'Creating…' : 'Create vehicle'}
       </Button>
     </div>
