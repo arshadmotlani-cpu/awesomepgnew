@@ -34,16 +34,26 @@ export function CheckoutSettlementEvidenceCard({
         <Badge tone={badgeTone}>{loadFailed ? 'Image missing' : evidence.statusLabel}</Badge>
       </div>
       {showImage && displaySrc ? (
-        <div className="relative mt-3 aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-black/30">
-          <Image
-            src={displaySrc}
-            alt={title}
-            fill
-            className="object-contain"
-            unoptimized
-            onError={() => setLoadFailed(true)}
-          />
-        </div>
+        <>
+          <div className="relative mt-3 aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-black/30">
+            <Image
+              src={displaySrc}
+              alt={title}
+              fill
+              className="object-contain"
+              unoptimized
+              onError={() => setLoadFailed(true)}
+            />
+          </div>
+          <a
+            href={displaySrc}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-block text-xs font-semibold text-[#FF5A1F] hover:underline"
+          >
+            Open full size
+          </a>
+        </>
       ) : (
         <p className="mt-3 text-sm text-apg-silver">
           {loadFailed

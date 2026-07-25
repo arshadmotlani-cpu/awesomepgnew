@@ -31,7 +31,7 @@ const METHOD_OPTIONS: { value: ElectricityCalculationMethod; label: string }[] =
 ];
 
 const FIELD =
-  'apg-admin-field mt-2 block w-full rounded-2xl border border-white/[0.08] bg-[#12161C] px-4 py-3.5 text-lg text-white placeholder:text-white/30 focus:border-white/20 focus:outline-none';
+  'apg-admin-field mt-1.5 block w-full rounded-xl border border-white/[0.08] bg-[#12161C] px-3 py-2 text-base text-white placeholder:text-white/30 focus:border-white/20 focus:outline-none';
 
 export function CheckoutSettlementElectricitySection({
   detail,
@@ -312,9 +312,9 @@ export function CheckoutSettlementElectricitySection({
 
   if (operatorMode) {
     return (
-      <div className="space-y-8">
+      <div className="space-y-4">
         {editable ? (
-          <form ref={formRef} action={action} className="space-y-8">
+          <form ref={formRef} action={action} className="space-y-4">
             <input type="hidden" name="settlementId" value={detail.id} />
             <input type="hidden" name="calculationMethod" value={method} />
             <input type="hidden" name="meterPhotoMissing" value={meterPhotoMissing ? 'on' : ''} />
@@ -322,13 +322,13 @@ export function CheckoutSettlementElectricitySection({
             <input type="hidden" name="sharingOverride" value={sharingOverride ? 'on' : ''} />
             <input type="hidden" name="sharingCountOverride" value={sharingCountOverride} />
 
-            <fieldset className="space-y-3">
+            <fieldset className="flex flex-wrap gap-2">
               <legend className="sr-only">Electricity calculation method</legend>
               {METHOD_OPTIONS.map((option) => (
                 <label
                   key={option.value}
                   className={
-                    'flex cursor-pointer items-center gap-4 rounded-2xl px-5 py-4 transition ' +
+                    'flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm transition ' +
                     (method === option.value
                       ? 'bg-white/[0.08] ring-1 ring-white/15'
                       : 'hover:bg-white/[0.04]')
@@ -340,16 +340,16 @@ export function CheckoutSettlementElectricitySection({
                     value={option.value}
                     checked={method === option.value}
                     onChange={() => setMethod(option.value)}
-                    className="h-4 w-4 border-white/30 bg-transparent text-[#FF5A1F] focus:ring-[#FF5A1F]"
+                    className="h-3.5 w-3.5 border-white/30 bg-transparent text-[#FF5A1F] focus:ring-[#FF5A1F]"
                   />
-                  <span className="text-base font-medium text-white">{option.label}</span>
+                  <span className="font-medium text-white">{option.label}</span>
                 </label>
               ))}
             </fieldset>
 
             {method === 'meter_reading' ? (
-              <div className="grid gap-5 sm:grid-cols-2">
-                <label className="block text-sm">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="block text-xs">
                   <span className="text-apg-silver">Previous reading</span>
                   <input
                     name="previousReading"
@@ -361,7 +361,7 @@ export function CheckoutSettlementElectricitySection({
                     className={FIELD}
                   />
                 </label>
-                <label className="block text-sm">
+                <label className="block text-xs">
                   <span className="text-apg-silver">Current reading</span>
                   <input
                     name="currentReading"
@@ -373,7 +373,7 @@ export function CheckoutSettlementElectricitySection({
                     className={FIELD}
                   />
                 </label>
-                <label className="block text-sm sm:col-span-2">
+                <label className="block text-xs">
                   <span className="text-apg-silver">Rate per unit (₹)</span>
                   <input
                     name="ratePerUnitInr"
@@ -389,7 +389,7 @@ export function CheckoutSettlementElectricitySection({
             ) : null}
 
             {method === 'manual_amount' ? (
-              <label className="block text-sm">
+              <label className="block text-xs">
                 <span className="text-apg-silver">Electricity charge for this resident (₹)</span>
                 <input
                   name="manualChargeInr"
@@ -403,22 +403,33 @@ export function CheckoutSettlementElectricitySection({
               </label>
             ) : null}
 
+            <label className="flex items-center gap-2 text-xs text-white">
+              <input
+                type="checkbox"
+                checked={deductFromDeposit}
+                onChange={(e) => setDeductFromDeposit(e.target.checked)}
+                className="rounded border-white/20"
+              />
+              Deduct electricity from deposit
+            </label>
+
             {pending ? (
-              <p className="text-sm text-apg-silver">Saving…</p>
+              <p className="text-xs text-apg-silver">Saving…</p>
             ) : null}
             {state.status === 'error' ? (
-              <p className="text-sm text-rose-300">{state.message}</p>
+              <p className="text-xs text-rose-300">{state.message}</p>
             ) : null}
           </form>
         ) : null}
 
-        <div className="grid gap-4 rounded-3xl bg-[#12161C]/80 p-6 sm:grid-cols-3">
-          <LiveStat label="Units consumed" value={unitsConsumed != null ? String(unitsConsumed) : '—'} />
-          <LiveStat label="Resident share" value={paiseToInr(previewSharePaise)} />
+        <div className="grid gap-2 rounded-2xl bg-[#12161C]/80 p-3 sm:grid-cols-3">
+          <LiveStat label="Units consumed" value={unitsConsumed != null ? String(unitsConsumed) : '—'} compact />
+          <LiveStat label="Resident share" value={paiseToInr(previewSharePaise)} compact />
           <LiveStat
             label="Electricity deduction"
             value={deductFromDeposit ? `−${paiseToInr(electricityDeductionPaise)}` : 'Not deducted'}
             accent
+            compact
           />
         </div>
 
@@ -427,6 +438,7 @@ export function CheckoutSettlementElectricitySection({
           liveTotalBillPaise={previewTotalBillPaise}
           liveSharePaise={previewSharePaise}
           loading={timelineLoading}
+          compact
         />
       </div>
     );
@@ -665,15 +677,23 @@ function LiveStat({
   label,
   value,
   accent,
+  compact,
 }: {
   label: string;
   value: string;
   accent?: boolean;
+  compact?: boolean;
 }) {
   return (
     <div>
-      <p className="text-xs font-medium uppercase tracking-wider text-apg-silver">{label}</p>
-      <p className={`mt-2 text-2xl font-semibold tracking-tight ${accent ? 'text-[#FF5A1F]' : 'text-white'}`}>
+      <p className="text-[10px] font-medium uppercase tracking-wider text-apg-silver">{label}</p>
+      <p
+        className={
+          (compact ? 'mt-1 text-lg' : 'mt-2 text-2xl') +
+          ' font-semibold tracking-tight ' +
+          (accent ? 'text-[#FF5A1F]' : 'text-white')
+        }
+      >
         {value}
       </p>
     </div>

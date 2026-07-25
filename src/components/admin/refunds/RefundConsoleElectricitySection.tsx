@@ -6,6 +6,7 @@ import {
   deductRefundElectricityFromDepositAction,
   loadRefundElectricityDetailAction,
 } from '@/app/(admin)/admin/refunds/actions';
+import { CheckoutSettlementResidentEvidenceStrip } from '@/src/components/admin/checkout/CheckoutSettlementResidentEvidence';
 import { CheckoutSettlementElectricitySection } from '@/src/components/admin/CheckoutSettlementElectricitySection';
 import { posGlassCard } from '@/src/components/admin/expressBooking/expressBookingStyles';
 import type { RefundConsoleWorkspaceDTO } from '@/src/lib/refund/refundConsoleDto';
@@ -102,6 +103,7 @@ export function RefundConsoleElectricitySection({
 
       {detail ? (
         <>
+          <CheckoutSettlementResidentEvidenceStrip detail={detail} />
           <CheckoutSettlementElectricitySection detail={detail} editable operatorMode />
           <div className="flex flex-wrap items-center gap-3 border-t border-white/10 pt-4">
             <button

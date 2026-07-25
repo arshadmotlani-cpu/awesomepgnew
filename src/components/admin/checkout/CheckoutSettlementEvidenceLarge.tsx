@@ -27,16 +27,28 @@ export function CheckoutSettlementEvidenceLarge({
       </div>
       <div className="p-4">
         {showImage && displaySrc ? (
-          <div className="relative mx-auto min-h-[280px] w-full max-w-lg overflow-hidden rounded-2xl bg-black/40 sm:min-h-[360px]">
-            <Image
-              src={displaySrc}
-              alt={title}
-              fill
-              className="object-contain p-2"
-              unoptimized
-              onError={() => setLoadFailed(true)}
-            />
-          </div>
+          <>
+            <div className="relative mx-auto min-h-[280px] w-full max-w-lg overflow-hidden rounded-2xl bg-black/40 sm:min-h-[360px]">
+              <Image
+                src={displaySrc}
+                alt={title}
+                fill
+                className="object-contain p-2"
+                unoptimized
+                onError={() => setLoadFailed(true)}
+              />
+            </div>
+            <p className="mt-3 text-center">
+              <a
+                href={displaySrc}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-semibold text-[#FF5A1F] hover:underline"
+              >
+                Open full size
+              </a>
+            </p>
+          </>
         ) : (
           <div className="flex min-h-[200px] items-center justify-center rounded-2xl bg-black/20 px-6 py-12 text-center">
             <p className="text-sm text-apg-silver">

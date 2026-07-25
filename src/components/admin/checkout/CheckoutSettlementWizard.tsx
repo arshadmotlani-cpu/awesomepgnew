@@ -14,7 +14,10 @@ import { FixedStayCheckoutBanner } from '@/src/components/admin/checkout/FixedSt
 import { CheckoutCompleteStep } from '@/src/components/admin/checkout/CheckoutCompleteStep';
 import { CheckoutJourneyTimeline } from '@/src/components/admin/checkout/CheckoutJourneyTimeline';
 import { CheckoutRefundSummaryRail } from '@/src/components/admin/checkout/CheckoutRefundSummaryRail';
-import { CheckoutSettlementEvidenceLarge } from '@/src/components/admin/checkout/CheckoutSettlementEvidenceLarge';
+import {
+  CheckoutSettlementResidentEvidenceLarge,
+  CheckoutSettlementResidentEvidenceStrip,
+} from '@/src/components/admin/checkout/CheckoutSettlementResidentEvidence';
 import { buildCheckoutJourneyTimeline, wizardStepFromDetail } from '@/src/lib/checkout/checkoutJourneyTimeline';
 import { hasCheckoutElectricityEvidence } from '@/src/lib/checkout/checkoutElectricityEvidence';
 import { assessCheckoutSettlementReadiness } from '@/src/lib/checkout/checkoutSettlementReadiness';
@@ -145,10 +148,14 @@ function CheckoutSettlementWizardInner({ detail }: { detail: CheckoutSettlementD
         ) : null}
       </div>
 
-      <div className="lg:flex lg:items-start lg:gap-10">
-        <div className="min-w-0 flex-1 space-y-10">
+      <div className="lg:flex lg:items-start lg:gap-8">
+        <div className="min-w-0 flex-1 space-y-6">
+          {!waitingResident && step >= 2 && step <= 4 ? (
+            <CheckoutSettlementResidentEvidenceStrip detail={detail} />
+          ) : null}
+
           {step === 1 ? (
-            <section className="space-y-8">
+            <section className="space-y-6">
               <header>
                 <h2 className="text-2xl font-semibold tracking-tight text-white">Verify submission</h2>
                 <p className="mt-2 text-sm text-apg-silver">
@@ -166,22 +173,7 @@ function CheckoutSettlementWizardInner({ detail }: { detail: CheckoutSettlementD
                 </dl>
               </div>
 
-              <div className="grid gap-6">
-                <CheckoutSettlementEvidenceLarge
-                  title="Meter photo"
-                  evidence={detail.meterPhotoEvidence}
-                  emptyLabel={
-                    detail.meterPhotoMissing
-                      ? 'Resident marked meter photo as missing'
-                      : 'Meter photo not uploaded yet'
-                  }
-                />
-                <CheckoutSettlementEvidenceLarge
-                  title="Refund QR"
-                  evidence={detail.refundQrEvidence}
-                  emptyLabel="Refund QR not uploaded yet"
-                />
-              </div>
+              <CheckoutSettlementResidentEvidenceLarge detail={detail} />
 
               {detail.payoutUpiId?.trim() ? (
                 <div className="rounded-3xl bg-[#1A1F27]/80 px-8 py-6 ring-1 ring-white/[0.06]">
@@ -201,16 +193,16 @@ function CheckoutSettlementWizardInner({ detail }: { detail: CheckoutSettlementD
           ) : null}
 
           {step === 2 ? (
-            <section className="space-y-8">
+            <section className="space-y-4">
               <header>
-                <h2 className="text-2xl font-semibold tracking-tight text-white">Electricity</h2>
-                <p className="mt-2 text-sm text-apg-silver">
-                  Amounts save automatically as you type.
+                <h2 className="text-xl font-semibold tracking-tight text-white">Electricity</h2>
+                <p className="mt-1 text-sm text-apg-silver">
+                  Compare readings to the meter photo above. Amounts save as you type.
                 </p>
               </header>
 
               {canEditElectricity ? (
-                <div className="rounded-3xl bg-[#1A1F27]/80 p-8 ring-1 ring-white/[0.06]">
+                <div className="rounded-2xl bg-[#1A1F27]/80 p-4 ring-1 ring-white/[0.06] sm:p-5">
                   <CheckoutSettlementElectricitySection
                     detail={detail}
                     editable

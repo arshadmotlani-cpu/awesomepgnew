@@ -12,6 +12,7 @@ type Props = {
   liveTotalBillPaise?: number | null;
   liveSharePaise?: number | null;
   loading?: boolean;
+  compact?: boolean;
 };
 
 export function CheckoutRoomElectricityBreakdown({
@@ -19,6 +20,7 @@ export function CheckoutRoomElectricityBreakdown({
   liveTotalBillPaise,
   liveSharePaise,
   loading = false,
+  compact = false,
 }: Props) {
   if (!allocation && liveTotalBillPaise == null) return null;
 
@@ -28,26 +30,36 @@ export function CheckoutRoomElectricityBreakdown({
   const remaining = allocation?.remainingToRecoverPaise ?? Math.max(0, totalBillPaise - alreadyCollected);
 
   return (
-    <section className="rounded-2xl border border-white/[0.08] bg-[#0E1116] p-5">
-      <h3 className="text-sm font-semibold uppercase tracking-wide text-apg-silver">
+    <section
+      className={
+        'rounded-2xl border border-white/[0.08] bg-[#0E1116] ' + (compact ? 'p-3' : 'p-5')
+      }
+    >
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-apg-silver">
         Room electricity bill
       </h3>
-      <dl className="mt-4 grid gap-3 sm:grid-cols-3">
+      <dl className={compact ? 'mt-2 grid gap-2 sm:grid-cols-3' : 'mt-4 grid gap-3 sm:grid-cols-3'}>
         <div>
-          <dt className="text-xs text-apg-silver">Total room bill</dt>
-          <dd className="text-xl font-semibold text-white">{inr(totalBillPaise)}</dd>
+          <dt className="text-[10px] text-apg-silver">Total room bill</dt>
+          <dd className={compact ? 'text-base font-semibold text-white' : 'text-xl font-semibold text-white'}>
+            {inr(totalBillPaise)}
+          </dd>
         </div>
         <div>
-          <dt className="text-xs text-apg-silver">Already collected</dt>
-          <dd className="text-xl font-semibold text-emerald-400">{inr(alreadyCollected)}</dd>
+          <dt className="text-[10px] text-apg-silver">Already collected</dt>
+          <dd className={compact ? 'text-base font-semibold text-emerald-400' : 'text-xl font-semibold text-emerald-400'}>
+            {inr(alreadyCollected)}
+          </dd>
         </div>
         <div>
-          <dt className="text-xs text-apg-silver">Remaining to recover</dt>
-          <dd className="text-xl font-semibold text-amber-300">{inr(remaining)}</dd>
+          <dt className="text-[10px] text-apg-silver">Remaining to recover</dt>
+          <dd className={compact ? 'text-base font-semibold text-amber-300' : 'text-xl font-semibold text-amber-300'}>
+            {inr(remaining)}
+          </dd>
         </div>
       </dl>
 
-      {allocation && allocation.occupants.length > 0 ? (
+      {allocation && allocation.occupants.length > 0 && !compact ? (
         <div className="mt-5">
           <p className="text-xs font-medium uppercase tracking-wide text-apg-silver">Residents</p>
           <ul className="mt-2 divide-y divide-white/[0.06]">
@@ -67,9 +79,15 @@ export function CheckoutRoomElectricityBreakdown({
         </div>
       ) : null}
 
-      <div className="mt-5 rounded-xl bg-white/[0.04] px-4 py-3">
-        <p className="text-xs text-apg-silver">Current resident share</p>
-        <p className="text-2xl font-semibold text-white">
+      <div
+        className={
+          compact
+            ? 'mt-2 rounded-xl bg-white/[0.04] px-3 py-2'
+            : 'mt-5 rounded-xl bg-white/[0.04] px-4 py-3'
+        }
+      >
+        <p className="text-[10px] text-apg-silver">Current resident share</p>
+        <p className={compact ? 'text-lg font-semibold text-white' : 'text-2xl font-semibold text-white'}>
           {inr(currentSharePaise)}
           {loading ? <span className="ml-2 text-xs font-normal text-apg-silver">Updating…</span> : null}
         </p>

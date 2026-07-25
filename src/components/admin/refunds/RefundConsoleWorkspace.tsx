@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useActionState, useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import {
@@ -270,28 +269,6 @@ function RefundSearchHero({
   );
 }
 
-function AttachmentPreview({ label, url }: { label: string; url: string }) {
-  return (
-    <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-wide text-apg-muted">{label}</p>
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="block overflow-hidden rounded-xl border border-white/10 bg-black/40"
-      >
-        <Image
-          src={url}
-          alt={label}
-          width={480}
-          height={320}
-          unoptimized
-          className="h-auto max-h-64 w-full object-contain"
-        />
-      </a>
-    </div>
-  );
-}
 
 function CheckoutSettlementSection({ workspace }: { workspace: RefundConsoleWorkspaceDTO }) {
   const checkout = workspace.checkout;
@@ -336,7 +313,7 @@ function CheckoutSettlementSection({ workspace }: { workspace: RefundConsoleWork
           href={checkout.settlementHref}
           className="text-xs font-semibold text-[#FF5A1F] hover:underline"
         >
-          View settlement →
+          Open checkout wizard →
         </Link>
       </div>
       {charges.length > 0 ? (
@@ -349,14 +326,9 @@ function CheckoutSettlementSection({ workspace }: { workspace: RefundConsoleWork
           ))}
         </ul>
       ) : null}
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        {checkout.meterPhotoUrl ? (
-          <AttachmentPreview label="Meter photo" url={checkout.meterPhotoUrl} />
-        ) : null}
-        {checkout.payoutQrUrl ? (
-          <AttachmentPreview label="QR payment screenshot" url={checkout.payoutQrUrl} />
-        ) : null}
-      </div>
+      <p className="mt-3 text-xs text-apg-silver">
+        Meter photo and refund QR are shown in the electricity section below (same checkout workflow).
+      </p>
     </section>
   );
 }
