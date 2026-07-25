@@ -290,6 +290,7 @@ function CheckoutSettlementWizardInner({ detail }: { detail: CheckoutSettlementD
                 readinessReady={readiness.ready}
                 blockingReasons={readiness.blockingReasons}
                 zeroRefund={zeroRefund}
+                onSuccess={(message) => showToast(message, 'success')}
               />
             </section>
           ) : null}

@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  approveCheckoutSettlementAction,
+  completeCheckoutSettlementAction,
   markCheckoutRefundPaidAction,
   rejectCheckoutSettlementSubmissionAction,
 } from '@/app/(admin)/admin/checkout-settlements/actions';
@@ -31,6 +31,7 @@ export function CheckoutCompleteStep({
   readinessReady,
   blockingReasons,
   zeroRefund,
+  onSuccess,
 }: {
   detail: CheckoutSettlementDetail;
   canApprove: boolean;
@@ -39,6 +40,7 @@ export function CheckoutCompleteStep({
   readinessReady: boolean;
   blockingReasons: string[];
   zeroRefund: boolean;
+  onSuccess: (message: string) => void;
 }) {
   const router = useRouter();
   const preview = detail.preview;
@@ -100,31 +102,29 @@ export function CheckoutCompleteStep({
       try {
         if (canMarkPaid) {
           const refundResult = await markCheckoutRefundPaidAction(idle, buildRefundFormData());
-          if (refundResult.status === 'error') {
-            setError(refundResult.message);
+          if (refundResult.status !== 'ok') {
+            setError(refundResult.status === 'error' ? refundResult.message : 'Could not record refund.');
             return;
           }
-          router.refresh();
+          onSuccess(refundResult.message);
+          router.push('/admin/operations?filter=checkout');
           return;
         }
 
         if (canApprove) {
-          const approveResult = await approveCheckoutSettlementAction(idle, buildApproveFormData());
-          if (approveResult.status === 'error') {
-            setError(approveResult.message);
+          const fd = buildApproveFormData();
+          fd.set('refundReference', upiRef.trim() || 'confirmed-without-reference');
+          const result = await completeCheckoutSettlementAction(idle, fd);
+          if (result.status !== 'ok') {
+            setError(result.status === 'error' ? result.message : 'Could not complete checkout.');
             return;
           }
-          if (!zeroRefund) {
-            const refundResult = await markCheckoutRefundPaidAction(idle, buildRefundFormData());
-            if (refundResult.status === 'error') {
-              setError(refundResult.message);
-              return;
-            }
-          }
-          router.refresh();
+          onSuccess(result.message);
+          router.push('/admin/operations?filter=checkout');
         }
-      } catch {
-        setError('Something went wrong. Try again.');
+      } catch (err) {
+        console.error('[checkout] Pay & complete failed', err);
+        setError(err instanceof Error ? err.message : 'Something went wrong. Try again.');
       }
     });
   }

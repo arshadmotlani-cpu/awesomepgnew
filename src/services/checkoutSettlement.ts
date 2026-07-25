@@ -2354,6 +2354,17 @@ export async function approveCheckoutSettlement(input: {
 
   const zeroRefund = preview.finalRefundPaise <= 0;
 
+  if (
+    current.status === 'refund_pending' ||
+    current.status === 'completed' ||
+    current.status === 'refund_paid'
+  ) {
+    return {
+      ok: true,
+      finalRefundPaise: current.finalRefundPaise ?? preview.finalRefundPaise,
+    };
+  }
+
   const allowedStatuses: CheckoutSettlementStatus[] = zeroRefund
     ? ['awaiting_admin_review', 'awaiting_resident_details']
     : ['awaiting_admin_review'];
@@ -2485,11 +2496,18 @@ export async function approveCheckoutSettlement(input: {
     await import('@/src/services/actionItems');
   await resolveCheckoutReviewActionItems(input.settlementId);
   await refreshAdminNotificationsFromActionItems().catch(() => undefined);
-  await recordCheckoutElectricityCollectionFromSettlementId(current.id, {
-    totalBillPaise: current.electricityCalculationMethod === 'manual_amount'
-      ? resolvedSharePaise
-      : undefined,
-  });
+  try {
+    await recordCheckoutElectricityCollectionFromSettlementId(current.id, {
+      totalBillPaise: current.electricityCalculationMethod === 'manual_amount'
+        ? resolvedSharePaise
+        : undefined,
+    });
+  } catch (err) {
+    console.error('[checkout] recordCheckoutElectricityCollectionFromSettlementId failed', {
+      settlementId: current.id,
+      error: err instanceof Error ? err.message : err,
+    });
+  }
 
   if (finalRefundPaise <= 0) {
     const { closeUncollectedDepositDue } = await import('./depositCollection');
@@ -2516,6 +2534,9 @@ export async function markCheckoutRefundPaid(input: {
     .where(eq(checkoutSettlements.id, input.settlementId))
     .limit(1);
   if (!current) return { ok: false, error: 'Settlement not found.' };
+  if (current.status === 'completed' || current.status === 'refund_paid') {
+    return { ok: true };
+  }
   if (current.status !== 'refund_pending') {
     return { ok: false, error: 'Settlement is not awaiting refund payout.' };
   }
