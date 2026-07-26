@@ -312,3 +312,6 @@ See [[DECISIONS#Operations as action hub]].
 
 <!-- DOC_SYNC_TOUCH_2026-07-25 -->
 > **2026-07-25 08:03:40 UTC** — Code changed in: Routes, Residents, Vacating. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-07-26 -->
+> **2026-07-26 00:36:00 UTC** — Code changed in: Routes. Manual review recommended.

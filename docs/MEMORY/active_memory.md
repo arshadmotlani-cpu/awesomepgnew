@@ -7,7 +7,9 @@
 
 ## Current Focus
 
-- **Automotive Capital product IA (final)** — Sidebar = Dashboard / Vehicles / Reports / Settings only. Analytics merged into Dashboard. Payments/Ledger/Documents/etc. live on vehicle workspace. Legacy routes redirect.
+- **Automotive Capital Profit Distribution Mode** — SELF vs PARTNERSHIP_50_50 per vehicle (ADR-018). **Frozen** — see PROFIT_DISTRIBUTION_SSOT.md. Migration `0010`. Recalc sold deals after deploy.
+
+- **Automotive Capital product IA (final)** — Sidebar = Dashboard / Vehicles / Reports / Settings only. Operating Console Dashboard: Position → Attention → Pace(3) → Insights → Recent Sales. Payments/Ledger/Documents live on vehicle workspace.
 
 - **Automotive Capital partnership profit model** — Sufii operating-partner cut (Settings, default 50%) + Investor Pool by stake; funding always = Net Vehicle Cost; sale auto-calcs only. Migration `0008_deal_economics`.
 

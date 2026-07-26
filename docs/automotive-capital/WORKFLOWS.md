@@ -174,8 +174,8 @@ After:  total_investment = purchase_price + existing_expenses + new_expense
 1. Admin on asset detail → "Record sale"
 2. Enter **sale price + sale date only** (vehicle must be fully funded: stakes = Purchase Price)
 3. System auto-calculates:
-   - Net Vehicle Cost (from activities), Business Profit   - Sufii (operating partner) share from Settings ratio (default 50%)
-   - Investor Pool → each capital investor by stake %
+   - Net Vehicle Cost (from activities), Gross Deal Profit
+   - My Profit / Sufii Profit from vehicle Profit Distribution Mode (SELF or PARTNERSHIP_50_50)
    - Business ROI, My ROI
    - Update `ac_assets` + `ac_asset_investors`; status → `sold`
 4. Timeline + activity + dashboard KPIs update
@@ -252,13 +252,21 @@ When all money is received:
 
 ### 8.2 Profit Sharing (vehicle sales)
 
+Uses each vehicle’s **Profit Distribution Mode** (ADR-018):
+
 ```
-operating_partner_share = business_profit × (settings.numerator / settings.denominator)  -- Sufii
-investor_pool = business_profit − operating_partner_share
-each_investor = investor_pool × (invested / total_invested)
+gross_deal_profit = sale − TVI
+
+SELF:
+  my_profit = gross_deal_profit
+  sufii_profit = 0
+
+PARTNERSHIP_50_50:
+  my_profit = round(gross_deal_profit / 2)
+  sufii_profit = gross_deal_profit − my_profit
 ```
 
-Default Settings: 50/50 (numerator=1, denominator=2). Settlement snapshots use stored shares.
+Settings numerator/denominator apply to **manual profits** only. Settlement snapshots use stored shares.
 
 ---
 

@@ -5,6 +5,7 @@ import {
   eq,
   gte,
   inArray,
+  isNull,
   lte,
   sql,
   sum,
@@ -16,6 +17,7 @@ import {
   acAssets,
   acCapitalInvestments,
   acCategories,
+  acDocuments,
   acExpenses,
   acPaymentsReceived,
   acRepairAdvances,
@@ -42,6 +44,47 @@ export {
   shiftMonth,
   currentMonthKey,
 } from '@/src/capital/lib/dashboardRange';
+
+/** Map raw asset statuses → Capital Distribution donut buckets. */
+export function bucketCapitalDistribution(
+  rows: { status: string; valuePaise: number }[],
+): { label: string; valuePaise: number }[] {
+  const buckets: Record<'Purchased' | 'Repair' | 'Ready' | 'Listed' | 'Sold', number> = {
+    Purchased: 0,
+    Repair: 0,
+    Ready: 0,
+    Listed: 0,
+    Sold: 0,
+  };
+  for (const row of rows) {
+    const v = row.valuePaise;
+    if (v <= 0) continue;
+    switch (row.status) {
+      case 'purchased':
+        buckets.Purchased += v;
+        break;
+      case 'repairing':
+      case 'painting':
+        buckets.Repair += v;
+        break;
+      case 'ready':
+        buckets.Ready += v;
+        break;
+      case 'listed':
+        buckets.Listed += v;
+        break;
+      case 'sold':
+      case 'settled':
+        buckets.Sold += v;
+        break;
+      default:
+        break;
+    }
+  }
+  return (Object.keys(buckets) as Array<keyof typeof buckets>)
+    .map((label) => ({ label, valuePaise: buckets[label] }))
+    .filter((b) => b.valuePaise > 0);
+}
 
 async function sumCapitalInvested(range?: DateRange): Promise<number> {
   const conditions = [eq(acCapitalInvestments.isReversed, false)];
@@ -652,6 +695,34 @@ export async function getOverviewBundle(range: DateRange) {
     }))
     .filter((a) => a.valuePaise > 0);
 
+  /** Dealership Pace donut: Purchased / Repair / Ready / Listed / Sold */
+  const mySoldCapitalRows = await capitalDb
+    .select({
+      status: acAssets.status,
+      total: sum(acAssetInvestors.investedPaise),
+    })
+    .from(acAssetInvestors)
+    .innerJoin(acAssets, eq(acAssetInvestors.assetId, acAssets.id))
+    .where(
+      and(
+        eq(acAssetInvestors.slot, 'me'),
+        sql`${acAssetInvestors.investedPaise} > 0`,
+        sql`${acAssets.status} IN ('sold', 'settled')`,
+      ),
+    )
+    .groupBy(acAssets.status);
+
+  const capitalDistribution = bucketCapitalDistribution([
+    ...myActiveByStatus.map((row) => ({
+      status: String(row.status),
+      valuePaise: Number(row.total ?? 0),
+    })),
+    ...mySoldCapitalRows.map((row) => ({
+      status: String(row.status),
+      valuePaise: Number(row.total ?? 0),
+    })),
+  ]);
+
   // Average profit per vehicle = total profit ÷ vehicles sold (mode-specific)
   const avgMyProfitSold =
     mySoldVehicles > 0 ? Math.round(myLifetimeProfit / mySoldVehicles) : 0;
@@ -1048,8 +1119,32 @@ export async function getOverviewBundle(range: DateRange) {
     })),
     monthlyPurchases: future ? [] : monthlyPurchases,
     monthlySales: future ? [] : monthlySales,
+    capitalDistribution,
     vehicleStatusCounts,
     openRepairAdvancesCount,
+    recentSales: await capitalDb
+      .select({
+        id: acAssets.id,
+        displayName: acAssets.displayName,
+        saleDate: acAssets.saleDate,
+        holdingDays: acAssets.holdingDays,
+        mySharePaise: acAssets.mySharePaise,
+        myRoiBps: acAssets.myRoiBps,
+      })
+      .from(acAssets)
+      .where(sql`${acAssets.status} IN ('sold', 'settled') AND ${acAssets.saleDate} IS NOT NULL`)
+      .orderBy(desc(acAssets.saleDate))
+      .limit(12)
+      .then((rows) =>
+        rows.map((r) => ({
+          id: r.id,
+          displayName: r.displayName,
+          saleDate: r.saleDate ?? '',
+          holdingDays: r.holdingDays ?? 0,
+          mySharePaise: r.mySharePaise ?? 0,
+          myRoiBps: r.myRoiBps,
+        })),
+      ),
     pendingWork: await (async () => {
       const pick = async (statuses: string[], limit = 6) => {
         return capitalDb
@@ -1067,12 +1162,14 @@ export async function getOverviewBundle(range: DateRange) {
           .limit(limit);
       };
 
-      const recentSoldCutoff = new Date();
-      recentSoldCutoff.setDate(recentSoldCutoff.getDate() - 30);
-      const recentSoldFrom = isoDate(recentSoldCutoff);
-
-      const [underRepair, readyForSale, justPurchased, listed, openAdvances, recentlySold] =
-        await Promise.all([
+      const [
+        underRepair,
+        readyForSale,
+        justPurchased,
+        listed,
+        openAdvances,
+        noCoverAssets,
+      ] = await Promise.all([
           pick(['repairing', 'painting']),
           pick(['ready']),
           pick(['purchased'], 20),
@@ -1094,18 +1191,43 @@ export async function getOverviewBundle(range: DateRange) {
               id: acAssets.id,
               displayName: acAssets.displayName,
               status: acAssets.status,
-              saleDate: acAssets.saleDate,
+              purchaseDate: acAssets.purchaseDate,
             })
             .from(acAssets)
             .where(
               and(
-                eq(acAssets.status, 'sold'),
-                gte(acAssets.saleDate, recentSoldFrom),
+                sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`,
+                isNull(acAssets.coverDocumentId),
               ),
             )
-            .orderBy(desc(acAssets.saleDate))
-            .limit(6),
+            .orderBy(desc(acAssets.updatedAt))
+            .limit(40),
         ]);
+
+      const noCoverIds = noCoverAssets.map((a) => a.id);
+      const docsOnNoCover =
+        noCoverIds.length === 0
+          ? []
+          : await capitalDb
+              .select({
+                assetId: acDocuments.assetId,
+                c: count(),
+              })
+              .from(acDocuments)
+              .where(inArray(acDocuments.assetId, noCoverIds))
+              .groupBy(acDocuments.assetId);
+      const withDocs = new Set(
+        docsOnNoCover.filter((r) => Number(r.c) > 0 && r.assetId).map((r) => r.assetId as string),
+      );
+      const pendingDocuments = noCoverAssets
+        .filter((a) => !withDocs.has(a.id))
+        .slice(0, 6)
+        .map(({ id, displayName, status, purchaseDate }) => ({
+          id,
+          displayName,
+          status,
+          purchaseDate,
+        }));
 
       const purchasedIds = justPurchased.map((v) => v.id);
       const milestoneByAsset = new Map<string, number>();
@@ -1168,7 +1290,7 @@ export async function getOverviewBundle(range: DateRange) {
           purchaseDate,
         })),
         openAdvances,
-        recentlySold,
+        pendingDocuments,
         purchasePendingCount,
       };
     })(),

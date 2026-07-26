@@ -64,6 +64,13 @@
       "when": 1720642400000,
       "tag": "0009_vehicle_activities",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1720642500000,
+      "tag": "0010_profit_distribution_mode",
+      "breakpoints": true
     }
   ]
 }

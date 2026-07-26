@@ -42,6 +42,7 @@ export const createAssetSchema = z
     meInvested: optionalNonNegRupees,
     investor2Invested: optionalNonNegRupees,
     investor2Label: z.string().optional(),
+    profitDistributionMode: z.enum(['SELF', 'PARTNERSHIP_50_50']).default('SELF'),
   })
   .superRefine((d, ctx) => {
     const hasPurchase = d.purchasePrice != null && d.purchasePrice > 0;
@@ -227,6 +228,11 @@ export const recordSaleSchema = z.object({
 export const updateStatusSchema = z.object({
   assetId: uuid,
   status: assetStatus,
+});
+
+export const updateProfitDistributionModeSchema = z.object({
+  assetId: uuid,
+  profitDistributionMode: z.enum(['SELF', 'PARTNERSHIP_50_50']),
 });
 
 export const reverseSchema = z.object({

@@ -238,7 +238,7 @@ Seed script creates only: settings singleton, expense categories, admin user. No
 ## ADR-011: Partnership Profit Model (Operating Partner + Investor Pool)
 
 **Date:** 2026-07-11  
-**Status:** Accepted
+**Status:** Superseded for vehicle sales by ADR-018 (2026-07-26)
 
 ### Context
 Automotive Capital is an investment partnership, not a traditional dealership. Sufii is the operating partner and does not invest capital by default. Capital investors (Me / Investor 2 / Investor 3) fund Net Vehicle Cost. Profit must never be entered manually on vehicle sale.
@@ -259,6 +259,7 @@ Automotive Capital is an investment partnership, not a traditional dealership. S
 - `partner_share_paise` means Sufii / operating partner, not co-investor residual.
 - Expenses may create a funding gap; Update Investments form rebalances before sale.
 - Payment-type `refund` remains cash-recovery and does not change Net Vehicle Cost.
+- **Superseded:** Vehicle deals now use per-vehicle Profit Distribution Mode (ADR-018). Settings ratio remains for **manual profits** only.
 
 ---
 
@@ -419,6 +420,33 @@ SSOT: `src/capital/lib/vehicleLifecycle.ts`
 - Overview shows Lifecycle control; list/detail use friendly labels.
 - Invalid status jumps are rejected.
 - Future enums (`purchase_pending`, `delivered`) require a new ADR.
+
+---
+
+## ADR-018: Profit Distribution Mode (SELF vs PARTNERSHIP_50_50)
+
+**Date:** 2026-07-26  
+**Status:** Accepted (supersedes ADR-011 for vehicle sales)
+
+### Context
+Not every vehicle is a Sufii partnership. Self deals must give 100% of Gross Deal Profit to Me; Sufii’s earnings on those deals are expenses (broker, transport, repair), not profit share. Applying Settings 50% to every sale produced incorrect My Profit / ROI / dashboard totals.
+
+### Decision
+1. Required `ac_assets.profit_distribution_mode`: `SELF` | `PARTNERSHIP_50_50`.
+2. Create defaults to **SELF**; existing rows migrate to **PARTNERSHIP_50_50**.
+3. Gross Deal Profit = Sale − TVI (unchanged).
+4. **SELF** → My Profit = Gross; Sufii Profit = 0.
+5. **PARTNERSHIP_50_50** → My Profit = `round(Gross/2)`; Sufii = Gross − My.
+6. Capital investors remain funding / My ROI base only; `investor_2` gets 0 deal profit.
+7. Editable on vehicle Profit tab with audit (`profit_distribution_mode_changed`); sold vehicles recalculate via `recalculateAsset`.
+8. One SSOT: `distributeDealProfits` in `dealEconomics.ts`. Settings Sufii % applies to **manual profits** only.
+
+Migration: `0010_profit_distribution_mode.sql`. Recalc: `scripts/capital-recalc-deal-profits.ts`.
+
+### Consequences
+- Dashboard / Reports / Analytics continue to read stored `my_share_paise` — correct after recalc.
+- No page-specific profit formulas.
+- **FROZEN:** Vehicle profit math lives only in `dealEconomics.ts`. Future features must consume stored engine outputs. See [`PROFIT_DISTRIBUTION_SSOT.md`](./PROFIT_DISTRIBUTION_SSOT.md).
 
 ---
 

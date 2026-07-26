@@ -9,6 +9,9 @@
 
 ## 2026-07-26
 
+- **CAPITAL-PROFIT-SSOT-FREEZE** — Hardened dealEconomics gross helper; Scenario A/B tests; PROFIT_DISTRIBUTION_SSOT.md freeze
+- **CAPITAL-PROFIT-MODE** — SELF vs PARTNERSHIP_50_50 per vehicle (ADR-018); SSOT distributeDealProfits; migration 0010
+- **CAPITAL-OPERATING-CONSOLE** — Dashboard = Current Position / Attention / Pace(3) / Insights / Recent Sales (not analytics wall)
 - **CAPITAL-IA-FINAL** — Sidebar = Dashboard/Vehicles/Reports/Settings only; Analytics merged into Dashboard; vehicle cards + lifecycle tabs; Payments on vehicle
 - **CAPITAL-IA-DASHBOARD-ANALYTICS** — *(superseded by CAPITAL-IA-FINAL)*
 - **CAPITAL-NEW-VEHICLE-UX** — Token-first create, empty My Investment until price, hide number spinners, single New Vehicle entry → Capital CHANGELOG

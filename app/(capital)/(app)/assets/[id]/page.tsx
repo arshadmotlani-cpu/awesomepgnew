@@ -5,7 +5,6 @@ import { AssetCommandCenter } from '@/src/capital/components/AssetCommandCenter'
 import { Badge } from '@/src/capital/components/ui/badge';
 import { Button } from '@/src/capital/components/ui/button';
 import { getAssetDetail, getAssetTimeline } from '@/src/capital/services/assets';
-import { getSettings } from '@/src/capital/services/settings';
 import { formatInrPlain } from '@/src/capital/lib/money';
 import { derivedBadges, lifecycleLabel } from '@/src/capital/lib/vehicleLifecycle';
 import { sumPaymentMilestonesPaise } from '@/src/capital/lib/activityTypes';
@@ -33,7 +32,7 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
   if (!detail) notFound();
 
   const { asset, auto, investors } = detail;
-  const [timeline, settings] = await Promise.all([getAssetTimeline(id), getSettings()]);
+  const timeline = await getAssetTimeline(id);
 
   const fuelLabels: Record<string, string> = {
     petrol: 'Petrol',
@@ -131,8 +130,9 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
         totalInvestmentPaise={asset.totalInvestmentPaise}
         fundingGapPaise={fundingGap}
         fundingStatus={fundingStatus}
-        operatingPartnerNumerator={settings?.profitShareNumerator ?? 1}
-        operatingPartnerDenominator={settings?.profitShareDenominator ?? 2}
+        profitDistributionMode={
+          (asset.profitDistributionMode as 'SELF' | 'PARTNERSHIP_50_50') ?? 'SELF'
+        }
         timeline={timeline}
         coverDocumentId={asset.coverDocumentId}
         initialTab={focusPurchase ? 'activities' : initialTab}
@@ -184,6 +184,8 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
                 investorPoolPaise: asset.investorProfitPoolPaise ?? 0,
                 businessRoiBps: asset.businessRoiBps,
                 myRoiBps: asset.myRoiBps,
+                profitDistributionMode:
+                  (asset.profitDistributionMode as 'SELF' | 'PARTNERSHIP_50_50') ?? 'SELF',
               }
             : null
         }

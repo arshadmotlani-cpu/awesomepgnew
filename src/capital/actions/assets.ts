@@ -10,6 +10,7 @@ import {
   recordSaleSchema,
   updateAssetDetailsSchema,
   updateAssetFundingSchema,
+  updateProfitDistributionModeSchema,
   updateStatusSchema,
 } from '@/src/capital/lib/validation/schemas';
 import {
@@ -19,6 +20,7 @@ import {
   updateAssetDetails,
   updateAssetFunding,
   updateAssetStatus,
+  updateProfitDistributionMode,
 } from '@/src/capital/services/assets';
 import { uploadDocument } from '@/src/capital/services/documents';
 import { deleteDraft } from '@/src/capital/services/drafts';
@@ -78,6 +80,7 @@ export async function createAssetAction(
       notes: input.notes,
       investors,
       tokenPaidPaise: tokenPaise > 0 ? tokenPaise : undefined,
+      profitDistributionMode: input.profitDistributionMode ?? 'SELF',
     });
     assetId = asset.id;
 
@@ -204,6 +207,31 @@ export async function cancelAssetAction(
     return { success: 'Vehicle archived.' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to archive vehicle' };
+  }
+}
+
+export async function updateProfitDistributionModeAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    await requireCapitalAuth();
+    const parsed = parseZod(updateProfitDistributionModeSchema, formDataToObject(formData));
+    if (!parsed.ok) return { error: parsed.error };
+
+    await updateProfitDistributionMode(
+      parsed.data.assetId,
+      parsed.data.profitDistributionMode,
+    );
+    revalidatePath(`/assets/${parsed.data.assetId}`);
+    revalidatePath('/assets');
+    revalidatePath('/dashboard');
+    revalidatePath('/reports');
+    revalidatePath('/analytics'); // legacy redirect → dashboard
+    revalidateTag('capital-dashboard', 'default');
+    return { success: 'Profit distribution updated. Figures recalculated.' };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to update profit distribution' };
   }
 }
 

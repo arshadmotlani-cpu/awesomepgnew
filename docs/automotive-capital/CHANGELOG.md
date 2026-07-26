@@ -8,6 +8,24 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — Profit Distribution SSOT freeze
+- `computeGrossDealProfit` centralized; no inline sale−TVI on vehicle paths
+- Regression scenarios A/B (₹5L→₹6L SELF / PARTNERSHIP) + mode-flip + dashboard sum tests
+- Mode edit revalidates dashboard, reports, assets, analytics redirect, `capital-dashboard` tag
+- Canonical doc: [`PROFIT_DISTRIBUTION_SSOT.md`](./PROFIT_DISTRIBUTION_SSOT.md) — architecture frozen
+
+### Added — Profit Distribution Mode (ADR-018)
+- Per-vehicle `SELF` | `PARTNERSHIP_50_50` (required); create defaults SELF; migration backfills PARTNERSHIP_50_50
+- Gross Deal Profit → My/Sufii by mode only; Settings Sufii % no longer applies to vehicle sales
+- Editable on Profit tab with audit; `recalculateAsset` redistributes on every sold vehicle
+- Migration `0010_profit_distribution_mode`; run `npx tsx scripts/capital-recalc-deal-profits.ts` after migrate
+
+### Changed — Operating Console Dashboard
+- Hierarchy: Current Position → Attention Required → Dealership Pace (3 charts) → Business Insights → Recent Sales
+- Removed chart wall / Monthly Growth combo / Cash Flow / audit Recent Activity from Dashboard
+- Attention queues: repairs, ready to list, purchase pending, advances, pending documents
+- Pace: Monthly Profit bars, Purchase vs Sale value, Capital Distribution donut (Purchased/Repair/Ready/Listed/Sold)
+
 ### Changed — Product IA: 4-item nav + single Dashboard
 - Sidebar only: Dashboard, Vehicles, Reports, Settings
 - Analytics removed; deep insights merged into Dashboard

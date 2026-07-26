@@ -9,7 +9,14 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { assetClassEnum, assetStatusEnum, fuelTypeEnum, ownershipEnum, profitShareModeEnum } from './enums';
+import {
+  assetClassEnum,
+  assetStatusEnum,
+  fuelTypeEnum,
+  ownershipEnum,
+  profitDistributionModeEnum,
+  profitShareModeEnum,
+} from './enums';
 
 export const acAssets = pgTable(
   'ac_assets',
@@ -40,10 +47,17 @@ export const acAssets = pgTable(
     /** netVehicleCost − Σ capital investor stakes (0 = fully funded) */
     fundingGapPaise: bigint('funding_gap_paise', { mode: 'number' }).notNull().default(0),
     holdingDays: integer('holding_days'),
-    /** Business profit = sale − net vehicle cost */
+    /** Gross Deal Profit = sale − net vehicle cost */
     profitPaise: bigint('profit_paise', { mode: 'number' }),
     roiBps: integer('roi_bps'),
-    /** Profit distribution — set when sale is recorded */
+    /**
+     * Vehicle deal My vs Sufii split — SELF (100% me) or PARTNERSHIP_50_50.
+     * Not the legacy percentage/fixed enum used by manual profits.
+     */
+    profitDistributionMode: profitDistributionModeEnum('profit_distribution_mode')
+      .notNull()
+      .default('SELF'),
+    /** Profit distribution — set when sale is recorded (legacy manual-style enum) */
     profitShareMode: profitShareModeEnum('profit_share_mode'),
     /** Operating partner (Sufii) share of business profit, in bps */
     partnerSharePctBps: integer('partner_share_pct_bps'),

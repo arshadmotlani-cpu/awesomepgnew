@@ -88,6 +88,7 @@ const EMPTY_DEFAULTS: CreateAssetInput = {
   meInvested: undefined,
   investor2Invested: undefined,
   investor2Label: 'Partner',
+  profitDistributionMode: 'SELF',
 };
 
 export function CreateAssetForm() {
@@ -297,6 +298,21 @@ export function CreateAssetForm() {
                 placeholder="Optional"
                 {...registerRupees(form, 'tokenPaid')}
               />
+            </FormField>
+
+            <FormField
+              label="Profit Distribution"
+              name="profitDistributionMode"
+              form={form}
+            >
+              <select className={selectClass} {...form.register('profitDistributionMode')}>
+                <option value="SELF">Self — 100% my profit</option>
+                <option value="PARTNERSHIP_50_50">Partnership — 50% me / 50% Sufii</option>
+              </select>
+              <p className="mt-1 text-xs text-ac-text-muted">
+                Self deals: Sufii earns via broker/transport/repair activities only — not profit
+                share.
+              </p>
             </FormField>
 
             <div className="md:col-span-2">

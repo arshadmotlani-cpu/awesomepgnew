@@ -583,15 +583,15 @@ Autosave for in-progress forms.
 repair_total_paise          = SUM(positive expenses WHERE NOT reversed)
 dealer_refund_total_paise   = SUM(|negative| expenses WHERE NOT reversed)
 total_expense_paise         = repair_total − dealer_refund_total
-total_investment_paise      = purchase_price_paise + total_expense_paise   -- Net Vehicle Cost
-funding_gap_paise           = total_investment_paise − SUM(ac_asset_investors.invested)
+total_investment_paise      = purchase_price + investment-cost activities − refunds   -- TVI (ADR-016)
+funding_gap_paise           = purchase_price − SUM(ac_asset_investors.invested)
 holding_days                = COALESCE(sale_date, CURRENT_DATE) - purchase_date
-profit_paise                = actual_sale_price_paise - total_investment_paise  -- Business Profit
-operating_partner_profit    = round(profit × settings.numerator / settings.denominator)  -- Sufii
-investor_profit_pool_paise  = profit_paise − operating_partner_profit
-investor profits            = investor_pool × (invested / total_invested)
-my_share_paise              = Me's slice of investor pool
+profit_paise                = actual_sale_price_paise - total_investment_paise  -- Gross Deal Profit
+profit_distribution_mode    = SELF | PARTNERSHIP_50_50   -- required (ADR-018)
+operating_partner_profit    = 0 if SELF else gross − round(gross/2)   -- Sufii Profit
+my_share_paise              = gross if SELF else round(gross/2)       -- My Profit
 partner_share_paise         = operating_partner_profit (Sufii)
+investor_profit_pool_paise  = my_share_paise
 business_roi_bps            = profit_paise * 10000 / total_investment_paise
 my_roi_bps                  = my_share_paise * 10000 / my_invested_paise
 capital_returned_paise      = SUM(payments.capital_returned WHERE NOT reversed)
@@ -601,6 +601,7 @@ settlement_pct_bps          = (capital_returned + profit_received) * 10000 / tot
 ```
 
 Sale requires `funding_gap_paise === 0`. Admin never enters profit amounts on vehicle sale.
+SSOT: `distributeDealProfits` — never Settings ratio for vehicle deals.
 
 ### 5.2 Portfolio
 

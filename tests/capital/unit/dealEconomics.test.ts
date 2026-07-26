@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  computeGrossDealProfit,
   computeFundingGap,
   computeNetVehicleCost,
   distributeDealProfits,
   isFullyFunded,
+  splitGrossDealProfit,
   summarizeExpenseTotals,
 } from '../../../src/capital/lib/dealEconomics';
 import {
@@ -66,65 +68,75 @@ describe('funding validates against net vehicle cost', () => {
   });
 });
 
-describe('distributeDealProfits — Cases 1–3', () => {
-  const settings50 = { numerator: 1, denominator: 2 };
+describe('computeGrossDealProfit', () => {
+  it('Sale − TVI', () => {
+    assert.equal(computeGrossDealProfit(INR(6_00_000), INR(5_00_000)), INR(1_00_000));
+  });
+});
 
-  it('Case 1: only Me invested — 50/50 Sufii vs Me', () => {
+describe('splitGrossDealProfit', () => {
+  it('SELF: My = Gross, Sufii = 0', () => {
+    const r = splitGrossDealProfit(INR(2_00_000), 'SELF');
+    assert.equal(r.myProfitPaise, INR(2_00_000));
+    assert.equal(r.sufiiProfitPaise, 0);
+    assert.equal(r.operatingPartnerPctBps, 0);
+  });
+
+  it('PARTNERSHIP_50_50: My = round(Gross/2), Sufii = remainder', () => {
+    const r = splitGrossDealProfit(INR(2_00_000), 'PARTNERSHIP_50_50');
+    assert.equal(r.myProfitPaise, INR(1_00_000));
+    assert.equal(r.sufiiProfitPaise, INR(1_00_000));
+    assert.equal(r.operatingPartnerPctBps, 5000);
+  });
+
+  it('odd paise: My rounded, shares sum to Gross', () => {
+    const r = splitGrossDealProfit(101, 'PARTNERSHIP_50_50');
+    assert.equal(r.myProfitPaise, 51);
+    assert.equal(r.sufiiProfitPaise, 50);
+    assert.equal(r.myProfitPaise + r.sufiiProfitPaise, 101);
+  });
+});
+
+describe('distributeDealProfits — SELF vs PARTNERSHIP_50_50', () => {
+  it('SELF: 100% My Profit, Sufii 0, investor_2 gets 0 deal profit', () => {
     const deal = distributeDealProfits({
       businessProfitPaise: INR(2_00_000),
       netVehicleCostPaise: INR(10_00_000),
-      settings: settings50,
+      profitDistributionMode: 'SELF',
       funding: [{ slot: 'me', investedPaise: INR(10_00_000), label: 'Me' }],
     });
-    assert.equal(deal.operatingPartnerSharePaise, INR(1_00_000));
-    assert.equal(deal.investorPoolPaise, INR(1_00_000));
-    assert.equal(deal.myProfitPaise, INR(1_00_000));
+    assert.equal(deal.operatingPartnerSharePaise, 0);
+    assert.equal(deal.myProfitPaise, INR(2_00_000));
+    assert.equal(deal.investorPoolPaise, INR(2_00_000));
     assert.equal(deal.businessRoiBps, 2000);
-    assert.equal(deal.myRoiBps, 1000);
+    assert.equal(deal.myRoiBps, 2000);
   });
 
-  it('Case 2: Me 50% + External 50% — Investor Pool splits evenly', () => {
+  it('PARTNERSHIP_50_50: 50/50 My vs Sufii regardless of capital co-investor', () => {
     const deal = distributeDealProfits({
       businessProfitPaise: INR(2_00_000),
       netVehicleCostPaise: INR(10_00_000),
-      settings: settings50,
-      funding: [
-        { slot: 'me', investedPaise: INR(5_00_000), label: 'Me' },
-        { slot: 'investor_2', investedPaise: INR(5_00_000), label: 'External' },
-      ],
-    });
-    assert.equal(deal.operatingPartnerSharePaise, INR(1_00_000));
-    assert.equal(deal.investorPoolPaise, INR(1_00_000));
-    assert.equal(deal.myProfitPaise, INR(50_000));
-    const ext = deal.investors.find((i) => i.slot === 'investor_2');
-    assert.equal(ext?.profitPaise, INR(50_000));
-  });
-
-  it('Case 3: Me 70% + External 30%', () => {
-    const deal = distributeDealProfits({
-      businessProfitPaise: INR(2_00_000),
-      netVehicleCostPaise: INR(10_00_000),
-      settings: settings50,
+      profitDistributionMode: 'PARTNERSHIP_50_50',
       funding: [
         { slot: 'me', investedPaise: INR(7_00_000), label: 'Me' },
         { slot: 'investor_2', investedPaise: INR(3_00_000), label: 'External' },
       ],
     });
     assert.equal(deal.operatingPartnerSharePaise, INR(1_00_000));
-    assert.equal(deal.myProfitPaise, INR(70_000));
+    assert.equal(deal.myProfitPaise, INR(1_00_000));
+    assert.equal(deal.myRoiBps, Math.round((INR(1_00_000) * 10000) / INR(7_00_000)));
     const ext = deal.investors.find((i) => i.slot === 'investor_2');
-    assert.equal(ext?.profitPaise, INR(30_000));
+    assert.equal(ext?.profitPaise, 0);
   });
 
-  it('respects configurable Sufii cut (40%)', () => {
+  it('PARTNERSHIP with only Me funded matches 50% My ROI base', () => {
     const deal = distributeDealProfits({
       businessProfitPaise: INR(2_00_000),
       netVehicleCostPaise: INR(10_00_000),
-      settings: { numerator: 2, denominator: 5 },
+      profitDistributionMode: 'PARTNERSHIP_50_50',
       funding: [{ slot: 'me', investedPaise: INR(10_00_000), label: 'Me' }],
     });
-    assert.equal(deal.operatingPartnerSharePaise, INR(80_000));
-    assert.equal(deal.investorPoolPaise, INR(1_20_000));
-    assert.equal(deal.myProfitPaise, INR(1_20_000));
+    assert.equal(deal.myProfitPaise, INR(1_00_000));
+    assert.equal(deal.myRoiBps, 1000);
   });
 });

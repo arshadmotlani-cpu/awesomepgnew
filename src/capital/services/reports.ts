@@ -19,10 +19,9 @@ function vehicleDealRowsCsvHeader() {
     'Refunds',
     'Net Cost',
     'Sale',
-    'Business Profit',
-    'Sufii Share',
-    'Investor Pool',
-    'My Share',
+    'Gross Deal Profit',
+    'Sufii Profit',
+    'My Profit',
     'Business ROI %',
     'My ROI %',
   ].join(',');
@@ -41,7 +40,6 @@ function vehicleDealRowCsv(asset: typeof acAssets.$inferSelect): string {
     asset.operatingPartnerProfitPaise != null || asset.partnerSharePaise != null
       ? paiseToRupees(asset.operatingPartnerProfitPaise ?? asset.partnerSharePaise ?? 0)
       : '',
-    asset.investorProfitPoolPaise != null ? paiseToRupees(asset.investorProfitPoolPaise) : '',
     asset.mySharePaise != null ? paiseToRupees(asset.mySharePaise) : '',
     asset.businessRoiBps != null ? (asset.businessRoiBps / 100).toFixed(1) : '',
     asset.myRoiBps != null ? (asset.myRoiBps / 100).toFixed(1) : '',
@@ -199,10 +197,9 @@ export async function generateExcelReport(type: string): Promise<Buffer> {
       { header: 'Refunds', key: 'refunds', width: 12 },
       { header: 'Net Cost', key: 'netCost', width: 12 },
       { header: 'Sale', key: 'sale', width: 12 },
-      { header: 'Business Profit', key: 'businessProfit', width: 14 },
-      { header: 'Sufii Share', key: 'sufii', width: 12 },
-      { header: 'Investor Pool', key: 'investorPool', width: 12 },
-      { header: 'My Share', key: 'myShare', width: 12 },
+      { header: 'Gross Deal Profit', key: 'businessProfit', width: 14 },
+      { header: 'Sufii Profit', key: 'sufii', width: 12 },
+      { header: 'My Profit', key: 'myShare', width: 12 },
       { header: 'Business ROI %', key: 'bizRoi', width: 12 },
       { header: 'My ROI %', key: 'myRoi', width: 10 },
     ];
@@ -222,10 +219,6 @@ export async function generateExcelReport(type: string): Promise<Buffer> {
         sufii:
           asset.operatingPartnerProfitPaise != null || asset.partnerSharePaise != null
             ? paiseToRupees(asset.operatingPartnerProfitPaise ?? asset.partnerSharePaise ?? 0)
-            : '',
-        investorPool:
-          asset.investorProfitPoolPaise != null
-            ? paiseToRupees(asset.investorProfitPoolPaise)
             : '',
         myShare: asset.mySharePaise != null ? paiseToRupees(asset.mySharePaise) : '',
         bizRoi: asset.businessRoiBps != null ? asset.businessRoiBps / 100 : '',

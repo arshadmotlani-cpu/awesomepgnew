@@ -82,3 +82,11 @@ export const ownershipEnum = pgEnum('ac_ownership', [
 ]);
 
 export const profitShareModeEnum = pgEnum('ac_profit_share_mode', ['percentage', 'fixed']);
+
+/** Per-vehicle My vs Sufii profit split — vehicle deals SSOT (not Settings %). */
+export const profitDistributionModeEnum = pgEnum('ac_profit_distribution_mode', [
+  'SELF',
+  'PARTNERSHIP_50_50',
+]);
+
+export type ProfitDistributionMode = 'SELF' | 'PARTNERSHIP_50_50';

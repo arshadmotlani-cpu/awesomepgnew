@@ -180,3 +180,6 @@ See [[BUGS]] for full list. Highlights:
 
 <!-- DOC_SYNC_TOUCH_2026-07-25 -->
 > **2026-07-25 05:14:15 UTC** — Code changed in: Vacating. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-07-26 -->
+> **2026-07-26 00:36:00 UTC** — Code changed in: Routes. Manual review recommended.

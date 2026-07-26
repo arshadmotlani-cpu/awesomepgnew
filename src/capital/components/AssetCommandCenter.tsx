@@ -12,6 +12,7 @@ import { DocumentUploadForm } from '@/src/capital/components/forms/DocumentUploa
 import { EditActivityForm } from '@/src/capital/components/forms/EditActivityForm';
 import { EditVehicleForm } from '@/src/capital/components/forms/EditVehicleForm';
 import { LifecycleControl } from '@/src/capital/components/forms/LifecycleControl';
+import { ProfitDistributionForm } from '@/src/capital/components/forms/ProfitDistributionForm';
 import { UpdateFundingForm } from '@/src/capital/components/forms/UpdateFundingForm';
 import { SetCoverPhotoButton } from '@/src/capital/components/forms/SetCoverPhotoButton';
 import {
@@ -21,6 +22,10 @@ import {
   type VehicleActivityType,
 } from '@/src/capital/lib/activityTypes';
 import { formatInrPlain } from '@/src/capital/lib/money';
+import {
+  profitDistributionLabel,
+  type ProfitDistributionMode,
+} from '@/src/capital/lib/dealEconomics';
 import { lifecycleLabel } from '@/src/capital/lib/vehicleLifecycle';
 
 type TimelineData = {
@@ -104,6 +109,7 @@ type ProfitData = {
   investorPoolPaise: number;
   businessRoiBps: number | null;
   myRoiBps: number | null;
+  profitDistributionMode: ProfitDistributionMode;
 };
 
 function StatCard({ label, paise, text }: { label: string; paise?: number; text?: string }) {
@@ -138,8 +144,7 @@ export function AssetCommandCenter({
   totalInvestmentPaise,
   fundingGapPaise = 0,
   fundingStatus = '',
-  operatingPartnerNumerator = 1,
-  operatingPartnerDenominator = 2,
+  profitDistributionMode = 'SELF',
   timeline,
   investors = [],
   coverDocumentId,
@@ -154,8 +159,7 @@ export function AssetCommandCenter({
   totalInvestmentPaise: number;
   fundingGapPaise?: number;
   fundingStatus?: string;
-  operatingPartnerNumerator?: number;
-  operatingPartnerDenominator?: number;
+  profitDistributionMode?: ProfitDistributionMode;
   timeline: TimelineData;
   investors?: {
     slot: string;
@@ -657,21 +661,30 @@ export function AssetCommandCenter({
           currentStatus={currentStatus}
           totalInvestmentPaise={totalInvestmentPaise}
           fundingGapPaise={fundingGapPaise}
-          operatingPartnerNumerator={operatingPartnerNumerator}
-          operatingPartnerDenominator={operatingPartnerDenominator}
+          profitDistributionMode={profitDistributionMode}
           investors={investors}
         />
       </TabsContent>
 
       <TabsContent value="profit" className="space-y-4">
+        <ProfitDistributionForm
+          assetId={assetId}
+          mode={profitDistributionMode}
+          hasSale={Boolean(profit)}
+        />
         {profit ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <StatCard label="Sale price" paise={profit.salePricePaise} />
             <StatCard label="Total Vehicle Investment" paise={totalInvestmentPaise} />
-            <StatCard label="Business profit" paise={profit.businessProfitPaise} />
-            <StatCard label="My profit" paise={profit.myProfitPaise} />
-            <StatCard label="Sufii (operating partner)" paise={profit.operatingPartnerPaise} />
-            <StatCard label="Investor pool" paise={profit.investorPoolPaise} />
+            <StatCard label="Gross Deal Profit" paise={profit.businessProfitPaise} />
+            <StatCard
+              label="Profit Distribution"
+              text={profitDistributionLabel(
+                profit.profitDistributionMode ?? profitDistributionMode,
+              )}
+            />
+            <StatCard label="My Profit" paise={profit.myProfitPaise} />
+            <StatCard label="Sufii Profit" paise={profit.operatingPartnerPaise} />
             <StatCard
               label="Business ROI"
               text={
@@ -687,7 +700,7 @@ export function AssetCommandCenter({
           </div>
         ) : (
           <p className="text-sm text-ac-text-muted">
-            Profit = Sale Price − Total Vehicle Investment (available after sale).
+            Gross Deal Profit = Sale Price − Total Vehicle Investment (available after sale).
           </p>
         )}
       </TabsContent>

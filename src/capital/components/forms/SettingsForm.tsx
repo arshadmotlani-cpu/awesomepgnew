@@ -74,8 +74,9 @@ export function SettingsForm({ defaults }: { defaults: SettingsInput }) {
             </FormField>
           </div>
           <p className="text-xs text-ac-text-muted">
-            Default 1/2 = 50% of business profit to Sufii; the rest is the Investor Pool split by
-            capital stakes.
+            Applies to <strong>manual profits</strong> only. Vehicle deals use each
+            vehicle&apos;s Profit Distribution Mode (Self or Partnership 50–50) — not this
+            setting.
           </p>
           <FormField label="Currency code" name="currencyCode" form={form}>
             <Input id="currencyCode" maxLength={3} {...form.register('currencyCode')} />

@@ -10,6 +10,8 @@ Design principle: **Assets first, cars second.** The domain model is built aroun
 
 **Lifecycle SSOT (ADR-017):** Every vehicle has one current `ac_asset_status` (dealer labels via `src/capital/lib/vehicleLifecycle.ts`). Purchase activities are history only. Timeline interleaves state changes with activities. Dashboard groups by lifecycle state.
 
+**Profit Distribution SSOT (ADR-018 — FROZEN):** Per-vehicle `SELF` | `PARTNERSHIP_50_50`. Gross / My / Sufii and vehicle ROI originate only from `dealEconomics.ts` + stored columns. No page may recalculate profit. See `docs/automotive-capital/PROFIT_DISTRIBUTION_SSOT.md`.
+
 ---
 
 ## 2. System Context
