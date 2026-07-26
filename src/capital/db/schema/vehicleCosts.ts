@@ -29,9 +29,11 @@ export const VEHICLE_COST_TYPES = [
 ] as const;
 export type VehicleCostType = (typeof VEHICLE_COST_TYPES)[number];
 
+export type VehicleCostEntryKind = 'cost' | 'refund';
+
 /**
- * Vehicle Cost ledger — post-purchase costs that enter TVI.
- * TVI = Purchase Price + Σ amount_paise (signed; refunds negative).
+ * Vehicle Cost ledger — free-text title rows.
+ * Current Investment = Seller Price + Σ costs − Σ refunds.
  */
 export const acVehicleCosts = pgTable(
   'ac_vehicle_costs',
@@ -40,7 +42,10 @@ export const acVehicleCosts = pgTable(
     assetId: uuid('asset_id')
       .notNull()
       .references(() => acAssets.id, { onDelete: 'restrict' }),
-    costType: text('cost_type').$type<VehicleCostType>().notNull(),
+    /** Legacy type; UI uses free-text title. Prefer entryKind + title. */
+    costType: text('cost_type').$type<VehicleCostType>().notNull().default('miscellaneous'),
+    /** cost | refund — SSOT for sign in investment math. */
+    entryKind: text('entry_kind').$type<VehicleCostEntryKind>().notNull().default('cost'),
     amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
     occurredAt: date('occurred_at').notNull(),
     title: text('title'),

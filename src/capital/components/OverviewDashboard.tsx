@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Sparkles, X } from 'lucide-react';
 import {
-  CapitalAllocationDonut,
   MonthlyProfitBars,
   PurchasesVsSalesBars,
 } from '@/src/capital/components/charts/OverviewCharts';
@@ -209,11 +208,6 @@ export function OverviewDashboard({
   const worstMfr =
     manufacturers.length > 1 ? manufacturers[manufacturers.length - 1] : null;
 
-  const capitalDistribution =
-    bundle.capitalDistribution?.length > 0
-      ? bundle.capitalDistribution
-      : view.allocation;
-
   return (
     <div className="mx-auto max-w-[1440px] space-y-10 pb-12">
       {/* Header */}
@@ -340,7 +334,7 @@ export function OverviewDashboard({
       {/* Section 2 — Attention Required */}
       <Section
         title="Attention Required"
-        subtitle="Work that moves inventory and unlocks capital"
+        subtitle="Work that moves inventory"
         emphasize
       >
         <div className="rounded-2xl border border-ac-accent/25 bg-ac-accent/[0.04] p-4 sm:p-5">
@@ -448,10 +442,6 @@ export function OverviewDashboard({
                 sales={bundle.monthlySales}
               />
             )}
-          </div>
-          <div className="ac-glass-card p-3 sm:p-4">
-            <p className="mb-2 text-xs font-medium text-ac-text-secondary">Capital Distribution</p>
-            <CapitalAllocationDonut data={capitalDistribution} />
           </div>
         </div>
       </Section>

@@ -11,6 +11,7 @@ import { CreateActivityForm } from '@/src/capital/components/forms/CreateActivit
 import { DocumentUploadForm } from '@/src/capital/components/forms/DocumentUploadForm';
 import { EditActivityForm } from '@/src/capital/components/forms/EditActivityForm';
 import { EditVehicleForm } from '@/src/capital/components/forms/EditVehicleForm';
+import { InvestmentBudgetPanel } from '@/src/capital/components/forms/InvestmentBudgetPanel';
 import { LifecycleControl } from '@/src/capital/components/forms/LifecycleControl';
 import { RecordPurchasePaymentForm } from '@/src/capital/components/forms/RecordPurchasePaymentForm';
 import { SetCoverPhotoButton } from '@/src/capital/components/forms/SetCoverPhotoButton';
@@ -145,6 +146,11 @@ export function AssetCommandCenter({
   currentStatus,
   purchasePricePaise,
   totalInvestmentPaise,
+  expectedTotalInvestmentPaise = 0,
+  sellerPricePaise = 0,
+  currentInvestmentPaise = 0,
+  budgetRemainingPaise = 0,
+  buyerName = null,
   profitDistributionMode = null,
   timeline,
   coverDocumentId,
@@ -153,11 +159,17 @@ export function AssetCommandCenter({
   initialTab,
   focusPayment = false,
   sellerPayments = [],
+  vehicleCosts = [],
 }: {
   assetId: string;
   currentStatus: string;
   purchasePricePaise: number;
   totalInvestmentPaise: number;
+  expectedTotalInvestmentPaise?: number;
+  sellerPricePaise?: number;
+  currentInvestmentPaise?: number;
+  budgetRemainingPaise?: number;
+  buyerName?: string | null;
   /** Null until sale is recorded. */
   profitDistributionMode?: ProfitDistributionMode | null;
   timeline: TimelineData;
@@ -174,6 +186,14 @@ export function AssetCommandCenter({
     paidAt: string;
     amountPaise: number;
     instrument: string | null;
+    notes?: string | null;
+  }>;
+  vehicleCosts?: Array<{
+    id: string;
+    title: string | null;
+    amountPaise: number;
+    entryKind: string;
+    occurredAt: string;
     notes?: string | null;
   }>;
 }) {
@@ -218,8 +238,8 @@ export function AssetCommandCenter({
         })),
       );
   const purchaseRemainingPaise = useSellerLedger
-    ? remainingPurchaseFromSellerPayments(purchasePricePaise, milestonePaidPaise)
-    : remainingPurchasePaymentPaise(purchasePricePaise, milestonePaidPaise);
+    ? remainingPurchaseFromSellerPayments(sellerPricePaise || purchasePricePaise, milestonePaidPaise)
+    : remainingPurchasePaymentPaise(sellerPricePaise || purchasePricePaise, milestonePaidPaise);
 
   const paymentMilestones = useSellerLedger
     ? sellerPayments.map((p) => ({
@@ -300,7 +320,7 @@ export function AssetCommandCenter({
         />
 
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold">Vehicle Investment</h3>
+          <h3 className="text-sm font-semibold">Vehicle</h3>
           {canEdit ? (
             <Button
               type="button"
@@ -324,7 +344,7 @@ export function AssetCommandCenter({
                 fuelType: overview.fuelType,
                 ownership: overview.ownership,
                 registrationNumber: overview.registrationNumber,
-                purchasePricePaise,
+                purchasePricePaise: sellerPricePaise || purchasePricePaise,
                 purchaseDate: overview.purchaseDate,
                 notes: overview.notes,
               }}
@@ -333,42 +353,19 @@ export function AssetCommandCenter({
           </div>
         ) : null}
 
-        <div className="ac-glass-card space-y-2 p-4 text-sm">
-          <div className="flex justify-between gap-4 border-b border-white/5 py-2">
-            <span className="text-ac-text-muted">Purchase Price</span>
-            <MoneyDisplay paise={purchasePricePaise} />
-          </div>
-          {costLines.map((a) => (
-            <div key={a.id} className="flex justify-between gap-4 border-b border-white/5 py-2">
-              <span className="text-ac-text-muted">
-                + {activityLabel(a.activityType)}
-                {a.title ? ` · ${a.title}` : ''}
-              </span>
-              {a.amountPaise != null ? (
-                <MoneyDisplay paise={a.amountPaise} />
-              ) : (
-                <span>—</span>
-              )}
-            </div>
-          ))}
-          {overview.dealerRefundTotalPaise > 0 ? (
-            <div className="flex justify-between gap-4 border-b border-white/5 py-2">
-              <span className="text-ac-text-muted">− Refunds / returns (not profit)</span>
-              <MoneyDisplay paise={overview.dealerRefundTotalPaise} />
-            </div>
-          ) : null}
-          <div className="flex justify-between gap-4 pt-2 text-base font-semibold">
-            <span>Total Vehicle Investment</span>
-            <MoneyDisplay paise={totalInvestmentPaise} />
-          </div>
-          <p className="pt-1 text-xs text-ac-text-muted">
-            Purchase Price + external costs − refunds. Token and purchase payments are not included.
-          </p>
-        </div>
+        <InvestmentBudgetPanel
+          assetId={assetId}
+          expectedTotalInvestmentPaise={expectedTotalInvestmentPaise}
+          sellerPricePaise={sellerPricePaise || purchasePricePaise}
+          currentInvestmentPaise={currentInvestmentPaise || totalInvestmentPaise}
+          budgetRemainingPaise={budgetRemainingPaise}
+          costs={vehicleCosts}
+          canEdit={canEdit}
+        />
 
         <RecordPurchasePaymentForm
           assetId={assetId}
-          purchasePricePaise={purchasePricePaise}
+          purchasePricePaise={sellerPricePaise || purchasePricePaise}
           alreadyPaidPaise={milestonePaidPaise}
           remainingPaise={purchaseRemainingPaise}
           canEdit={canEdit}
@@ -584,7 +581,7 @@ export function AssetCommandCenter({
         {profit ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <StatCard label="Sale price" paise={profit.salePricePaise} />
-            <StatCard label="Total Vehicle Investment" paise={totalInvestmentPaise} />
+            <StatCard label="Current Investment" paise={totalInvestmentPaise} />
             <StatCard label="Gross Deal Profit" paise={profit.businessProfitPaise} />
             <StatCard
               label="Profit Distribution"

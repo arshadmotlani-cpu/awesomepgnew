@@ -11,10 +11,9 @@ import { Input } from '@/src/capital/components/ui/input';
 import { useRefreshCapitalView } from '@/src/capital/hooks/useRefreshCapitalView';
 import {
   computeGrossDealProfit,
-  distributeDealProfits,
   type ProfitDistributionMode,
 } from '@/src/capital/lib/dealEconomics';
-import { fullSelfFunding } from '@/src/capital/lib/investors';
+import { splitDealProfit } from '@/src/capital/lib/investmentMath';
 import { lifecycleLabel } from '@/src/capital/lib/vehicleLifecycle';
 
 const initialState: ActionState = {};
@@ -91,7 +90,7 @@ function SaleForm({
   const [salePrice, setSalePrice] = useState<number | undefined>(undefined);
   const [mode, setMode] = useState<ProfitDistributionMode>('SELF');
   const refreshCapitalView = useRefreshCapitalView();
-  const canSell = purchasePricePaise > 0;
+  const canSell = totalInvestmentPaise > 0 || purchasePricePaise > 0;
 
   useEffect(() => {
     if (state.success) refreshCapitalView();
@@ -99,29 +98,21 @@ function SaleForm({
 
   const preview = useMemo(() => {
     const price = Math.round((salePrice || 0) * 100);
-    if (!salePrice || price <= 0 || purchasePricePaise <= 0) return null;
-    const businessProfit = computeGrossDealProfit(price, totalInvestmentPaise);
-    try {
-      return distributeDealProfits({
-        businessProfitPaise: businessProfit,
-        netVehicleCostPaise: totalInvestmentPaise,
-        profitDistributionMode: mode,
-        funding: fullSelfFunding(purchasePricePaise),
-      });
-    } catch {
-      return null;
-    }
-  }, [salePrice, totalInvestmentPaise, mode, purchasePricePaise]);
+    if (!salePrice || price <= 0) return null;
+    const gross = computeGrossDealProfit(price, totalInvestmentPaise);
+    const split = splitDealProfit(gross, mode);
+    return { gross, ...split };
+  }, [salePrice, totalInvestmentPaise, mode]);
 
   return (
     <form action={formAction} className="ac-glass-card space-y-3 p-4 md:col-span-2 lg:col-span-1">
       <h3 className="font-medium">Record sale</h3>
       <p className="text-xs text-ac-text-muted">
-        Choose profit distribution when the deal closes — not at purchase.
+        Sale price, buyer, and Self / 50-50 split. Gross = Sale − Current Investment.
       </p>
       {!canSell ? (
         <p className="rounded-lg border border-ac-danger/30 bg-ac-danger/10 px-3 py-2 text-sm text-ac-danger">
-          Set purchase price before recording a sale.
+          Set seller price or costs before recording a sale.
         </p>
       ) : null}
       <input type="hidden" name="assetId" value={assetId} />
@@ -140,6 +131,10 @@ function SaleForm({
         <label className="mb-1 block text-sm text-ac-text-secondary">Sale date</label>
         <Input name="saleDate" type="date" required disabled={!canSell} />
       </div>
+      <div>
+        <label className="mb-1 block text-sm text-ac-text-secondary">Buyer (optional)</label>
+        <Input name="buyerName" placeholder="Buyer name" disabled={!canSell} />
+      </div>
       <fieldset className="space-y-2" disabled={!canSell}>
         <legend className="mb-1 text-sm text-ac-text-secondary">Profit Distribution</legend>
         <label className="flex cursor-pointer items-start gap-2 text-sm">
@@ -151,12 +146,7 @@ function SaleForm({
             onChange={() => setMode('SELF')}
             className="mt-1"
           />
-          <span>
-            <span className="font-medium text-ac-text">Entire profit is mine</span>
-            <span className="mt-0.5 block text-xs text-ac-text-muted">
-              Sufii earns only via broker / transport / repair activities.
-            </span>
-          </span>
+          <span className="font-medium text-ac-text">Entire profit is mine</span>
         </label>
         <label className="flex cursor-pointer items-start gap-2 text-sm">
           <input
@@ -167,37 +157,26 @@ function SaleForm({
             onChange={() => setMode('PARTNERSHIP_50_50')}
             className="mt-1"
           />
-          <span>
-            <span className="font-medium text-ac-text">Split profit 50% / 50%</span>
-            <span className="mt-0.5 block text-xs text-ac-text-muted">
-              Half to you, half to Sufii from Gross Deal Profit.
-            </span>
-          </span>
+          <span className="font-medium text-ac-text">Split profit 50% / 50%</span>
         </label>
       </fieldset>
       {preview ? (
         <div className="space-y-2 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-sm">
           <div className="flex justify-between">
-            <span className="text-ac-text-muted">Total Vehicle Investment</span>
+            <span className="text-ac-text-muted">Current Investment</span>
             <MoneyDisplay paise={totalInvestmentPaise} />
           </div>
           <div className="flex justify-between">
-            <span className="text-ac-text-muted">Gross Deal Profit</span>
-            <MoneyDisplay paise={preview.businessProfitPaise} />
+            <span className="text-ac-text-muted">Gross Profit</span>
+            <MoneyDisplay paise={preview.gross} />
           </div>
           <div className="flex justify-between">
             <span className="text-ac-text-secondary">My Profit</span>
             <MoneyDisplay paise={preview.myProfitPaise} />
           </div>
           <div className="flex justify-between">
-            <span className="text-ac-text-secondary">Sufii Profit</span>
-            <MoneyDisplay paise={preview.operatingPartnerSharePaise} />
-          </div>
-          <div className="flex justify-between border-t border-white/10 pt-2">
-            <span className="text-ac-text-muted">My ROI</span>
-            <span>
-              {preview.myRoiBps != null ? `${(preview.myRoiBps / 100).toFixed(1)}%` : '—'}
-            </span>
+            <span className="text-ac-text-secondary">Partner Profit</span>
+            <MoneyDisplay paise={preview.partnerProfitPaise} />
           </div>
         </div>
       ) : null}
@@ -216,7 +195,7 @@ function SettlementForm({ assetId }: { assetId: string }) {
     <form action={formAction} className="ac-glass-card space-y-3 p-4">
       <h3 className="font-medium">Close deal</h3>
       <p className="text-xs text-ac-text-muted">
-        Marks this sold vehicle as settled (deal closed). No capital-return payment is required.
+        Marks this sold vehicle as settled (deal closed).
       </p>
       <input type="hidden" name="assetId" value={assetId} />
       {state.error ? <p className="text-sm text-ac-danger">{state.error}</p> : null}

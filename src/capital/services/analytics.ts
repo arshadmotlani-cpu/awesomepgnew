@@ -23,9 +23,9 @@ import { countOpenInventory, openInventorySql } from './inventory';
 import { sumMyActiveInvestedCapitalPaise } from './assets';
 
 /**
- * Dealership KPIs aligned with Overview / Dashboard SSOT (audit H4).
- * Active Capital = Me stakes on open vehicles — not treasury capital injects.
- * Vehicles sold = sold/settled with Me stake > 0 (Dashboard mine SSOT).
+ * Dealership KPIs aligned with Overview / Dashboard SSOT.
+ * Active Capital = Σ Current Investment on open inventory.
+ * Vehicles sold = sold/settled count.
  */
 export async function getDealershipReportKpis() {
   const [
@@ -36,21 +36,13 @@ export async function getDealershipReportKpis() {
     avgHolding,
     myShareRow,
     currentInvestmentRow,
-    paymentRows,
   ] = await Promise.all([
     sumMyActiveInvestedCapitalPaise(),
     countOpenInventory(),
     capitalDb
       .select({ c: count() })
-      .from(acAssetInvestors)
-      .innerJoin(acAssets, eq(acAssetInvestors.assetId, acAssets.id))
-      .where(
-        and(
-          eq(acAssetInvestors.slot, 'me'),
-          sql`${acAssetInvestors.investedPaise} > 0`,
-          sql`${acAssets.status} IN ('sold', 'settled')`,
-        ),
-      )
+      .from(acAssets)
+      .where(sql`${acAssets.status} IN ('sold', 'settled')`)
       .then((r) => r[0]),
     capitalDb
       .select({
@@ -71,18 +63,13 @@ export async function getDealershipReportKpis() {
       .where(sql`${acAssets.mySharePaise} IS NOT NULL AND ${acAssets.status} <> 'cancelled'`)
       .then((r) => r[0]),
     capitalDb
-      .select({ total: sum(acAssets.totalInvestmentPaise) })
+      .select({
+        total: sum(
+          sql`COALESCE(${acAssets.currentInvestmentPaise}, ${acAssets.totalInvestmentPaise})`,
+        ),
+      })
       .from(acAssets)
       .where(openInventorySql())
-      .then((r) => r[0]),
-    capitalDb
-      .select({
-        total: sum(acPaymentsReceived.amountPaise),
-        capital: sum(acPaymentsReceived.capitalReturnedPaise),
-        profit: sum(acPaymentsReceived.profitPaise),
-      })
-      .from(acPaymentsReceived)
-      .where(eq(acPaymentsReceived.isReversed, false))
       .then((r) => r[0]),
   ]);
 
@@ -121,24 +108,17 @@ export async function getDealershipReportKpis() {
 
   const myLifetimeProfit = Number(myShareRow?.total ?? 0) + manualMyShareAll;
   const currentInvestmentPaise = Number(currentInvestmentRow?.total ?? 0);
-  const paymentProfit = Number(paymentRows?.profit ?? 0);
-
-  const [pendingProfitSold] = await capitalDb
-    .select({ total: sum(acAssets.mySharePaise) })
-    .from(acAssets)
-    .where(sql`${acAssets.status} IN ('sold', 'settled') AND ${acAssets.mySharePaise} IS NOT NULL`);
 
   return {
-    /** Me stakes on open inventory — same as Dashboard Active Capital */
+    /** Σ Current Investment on open inventory */
     activeCapitalPaise,
     /** @deprecated Prefer activeCapitalPaise — kept for older report labels */
     totalCapitalInvestedPaise: activeCapitalPaise,
     currentInvestmentPaise,
-    capitalOutstandingPaise: currentInvestmentPaise,
-    moneyReceivedPaise: Number(paymentRows?.total ?? 0) + manualMyShareAll,
-    /** Entitled My Profit (deal shares + manuals), not cash payment profit */
+    capitalOutstandingPaise: 0,
+    moneyReceivedPaise: myLifetimeProfit,
     profitEarnedPaise: myLifetimeProfit,
-    pendingProfitPaise: Math.max(0, Number(pendingProfitSold?.total ?? 0) - paymentProfit),
+    pendingProfitPaise: 0,
     assetsInStock: vehiclesInStock,
     assetsSold: Number(soldCount?.c ?? 0),
     averageRoiBps: Math.round(Number(avgRoi?.avgBusiness ?? 0)),
@@ -147,7 +127,7 @@ export async function getDealershipReportKpis() {
     monthlyProfitPaise: monthProfitEntitled + manualProfitMonth,
     yearlyProfitPaise: yearProfitEntitled + manualProfitYear,
     lifetimeProfitPaise: myLifetimeProfit,
-    monthlyCashPaise: Number(paymentRows?.total ?? 0),
+    monthlyCashPaise: 0,
     workingCapitalPaise: 0,
     freeCashPaise: 0,
   };

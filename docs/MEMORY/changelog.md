@@ -9,6 +9,7 @@
 
 ## 2026-07-26
 
+- **CAPITAL-INVESTMENT-TRUTH** — Rewrote `financial-truth-report.ts` for Capital Reset Rebuild SSOT: Current Investment / Active Capital (open inventory Σ) / Budget Remaining / splitDealProfit; sold=sold|settled; docs under `reconciliation/`
 - **CAPITAL-FINANCIAL-TRUTH** — Ledger reconciliation script; Dashboard=Vehicles=Reports=DB exits 0; Reports sold/month aligned to Overview entitled SSOT
 - **CAPITAL-AUDIT-REMEDIATE** — Full-system audit phases 1–4: cascade reverse/edit→costs+seller payments; TVI=purchase+costs (no expense path); settle=deal closed; Reports on Active Capital/entitled profit; Purchase Pending=seller Remaining only; vehicle tabs Overview|Work|Sale|Files; ADR-016 runtime note
 - **CAPITAL-DEALER-SURFACE** — Strip funding/stake UI from vehicle page + create; keep Vehicle Investment + Seller Payments; dashboard Position = Active Capital / Profit / ROI / stock counts

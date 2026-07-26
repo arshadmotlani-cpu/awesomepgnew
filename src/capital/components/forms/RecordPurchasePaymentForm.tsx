@@ -79,8 +79,8 @@ export function RecordPurchasePaymentForm({
       <div>
         <p className="font-medium">Seller Payments</p>
         <p className="mt-1 text-xs text-ac-text-muted">
-          Cash paid to the seller toward Purchase Price. Token and these payments do not add to
-          Total Vehicle Investment.
+          Cash paid to the seller toward Seller Price. Already Paid / Remaining only — not part of
+          Current Investment.
         </p>
       </div>
 

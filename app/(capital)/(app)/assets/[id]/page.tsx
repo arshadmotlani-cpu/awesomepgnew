@@ -6,6 +6,7 @@ import { Badge } from '@/src/capital/components/ui/badge';
 import { Button } from '@/src/capital/components/ui/button';
 import { getAssetDetail, getAssetTimeline } from '@/src/capital/services/assets';
 import { listSellerPayments } from '@/src/capital/services/sellerPayments';
+import { listVehicleCosts } from '@/src/capital/services/vehicleCosts';
 import { formatInrPlain, calcHoldingDays } from '@/src/capital/lib/money';
 import { sumSellerPaymentsPaise } from '@/src/capital/lib/threeLedgers';
 import { derivedBadges, lifecycleLabel } from '@/src/capital/lib/vehicleLifecycle';
@@ -33,12 +34,12 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
   const detail = await getAssetDetail(id);
   if (!detail) notFound();
 
-  const { asset, auto, investors } = detail;
-  const [timeline, sellerPaymentRows] = await Promise.all([
+  const { asset, auto } = detail;
+  const [timeline, sellerPaymentRows, vehicleCostRows] = await Promise.all([
     getAssetTimeline(id),
     listSellerPayments(id),
+    listVehicleCosts(id),
   ]);
-
   const fuelLabels: Record<string, string> = {
     petrol: 'Petrol',
     diesel: 'Diesel',
@@ -112,10 +113,19 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
             {ownershipLabels[auto.ownership ?? ''] ?? auto.ownership ?? '—'}
           </p>
           <p className="mt-2 text-sm text-ac-text-secondary">
-            Total Vehicle Investment:{' '}
+            Current Investment:{' '}
             <span className="font-semibold text-ac-text">
-              ₹{formatInrPlain(asset.totalInvestmentPaise)}
+              ₹{formatInrPlain(asset.currentInvestmentPaise ?? asset.totalInvestmentPaise)}
             </span>
+            {asset.budgetRemainingPaise != null ? (
+              <>
+                {' '}
+                · Budget remaining:{' '}
+                <span className="font-semibold text-ac-text">
+                  ₹{formatInrPlain(asset.budgetRemainingPaise)}
+                </span>
+              </>
+            ) : null}
           </p>
         </div>
         <Link href="/assets">
@@ -126,8 +136,13 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
       <AssetCommandCenter
         assetId={asset.id}
         currentStatus={asset.status}
-        purchasePricePaise={asset.purchasePricePaise}
-        totalInvestmentPaise={asset.totalInvestmentPaise}
+        purchasePricePaise={asset.sellerPricePaise || asset.purchasePricePaise}
+        totalInvestmentPaise={asset.currentInvestmentPaise || asset.totalInvestmentPaise}
+        expectedTotalInvestmentPaise={asset.expectedTotalInvestmentPaise ?? 0}
+        sellerPricePaise={asset.sellerPricePaise || asset.purchasePricePaise}
+        currentInvestmentPaise={asset.currentInvestmentPaise || asset.totalInvestmentPaise}
+        budgetRemainingPaise={asset.budgetRemainingPaise ?? 0}
+        buyerName={asset.buyerName}
         profitDistributionMode={
           (asset.profitDistributionMode as 'SELF' | 'PARTNERSHIP_50_50' | null) ?? null
         }
@@ -142,6 +157,14 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
           amountPaise: p.amountPaise,
           instrument: p.instrument,
           notes: p.notes,
+        }))}
+        vehicleCosts={vehicleCostRows.map((c) => ({
+          id: c.id,
+          title: c.title,
+          amountPaise: c.amountPaise,
+          entryKind: c.entryKind,
+          occurredAt: c.occurredAt,
+          notes: c.notes,
         }))}
         overview={{
           repairTotalPaise: asset.repairTotalPaise ?? 0,

@@ -112,4 +112,53 @@ export async function updateVehicleCostForActivity(
   return updated ?? null;
 }
 
+/** Free-text cost or refund row — Investment SSOT. */
+export async function recordFreeTextCost(
+  input: {
+    assetId: string;
+    title: string;
+    amountPaise: number;
+    occurredAt: string;
+    entryKind?: 'cost' | 'refund';
+    notes?: string | null;
+  },
+  db: CapitalDbClient = capitalDb,
+) {
+  const title = input.title.trim();
+  if (!title) throw new Error('Title is required');
+  let amountPaise = Math.round(input.amountPaise);
+  if (amountPaise === 0) throw new Error('Amount must be non-zero');
+
+  const entryKind =
+    input.entryKind ?? (amountPaise < 0 ? 'refund' : 'cost');
+  if (entryKind === 'refund' && amountPaise > 0) {
+    amountPaise = -Math.abs(amountPaise);
+  }
+  if (entryKind === 'cost' && amountPaise < 0) {
+    amountPaise = Math.abs(amountPaise);
+  }
+
+  const [row] = await db
+    .insert(acVehicleCosts)
+    .values({
+      assetId: input.assetId,
+      costType: entryKind === 'refund' ? 'refund' : 'miscellaneous',
+      entryKind,
+      amountPaise,
+      occurredAt: input.occurredAt,
+      title,
+      notes: input.notes ?? null,
+    })
+    .returning();
+
+  return row;
+}
+
+export async function reverseVehicleCost(costId: string, db: CapitalDbClient = capitalDb) {
+  await db
+    .update(acVehicleCosts)
+    .set({ isReversed: true, updatedAt: new Date() })
+    .where(eq(acVehicleCosts.id, costId));
+}
+
 export { summarizeVehicleCostBreakdown } from '@/src/capital/lib/threeLedgers';

@@ -62,19 +62,20 @@ export async function recordSellerPayment(input: RecordSellerPaymentInput) {
     .where(eq(acAssets.id, input.assetId))
     .limit(1);
   if (!asset) throw new Error('Asset not found');
-  if (asset.purchasePricePaise <= 0) {
-    throw new Error('Set purchase price before recording purchase payments');
+  const sellerPrice = Math.round(asset.sellerPricePaise || asset.purchasePricePaise || 0);
+  if (sellerPrice <= 0) {
+    throw new Error('Set seller price before recording seller payments');
   }
 
   const paid = await sumSellerPaidPaise(input.assetId);
-  const remaining = remainingPurchaseFromSellerPayments(asset.purchasePricePaise, paid);
+  const remaining = remainingPurchaseFromSellerPayments(sellerPrice, paid);
   if (remaining == null) {
-    throw new Error('Set purchase price before recording purchase payments');
+    throw new Error('Set seller price before recording seller payments');
   }
-  if (remaining <= 0) throw new Error('Purchase price is already fully paid');
+  if (remaining <= 0) throw new Error('Seller price is already fully paid');
   if (amountPaise > remaining) {
     throw new Error(
-      `Payment exceeds remaining ₹${(remaining / 100).toLocaleString('en-IN')} toward purchase price`,
+      `Payment exceeds remaining ₹${(remaining / 100).toLocaleString('en-IN')} toward seller price`,
     );
   }
 

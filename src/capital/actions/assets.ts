@@ -7,10 +7,13 @@ import { rupeesToPaise } from '@/src/capital/lib/money';
 import { formDataToObject, parseZod } from '@/src/capital/lib/validation/parse';
 import {
   createAssetSchema,
+  recordFreeTextCostSchema,
   recordSaleSchema,
   updateAssetDetailsSchema,
   updateAssetFundingSchema,
+  updateExpectedInvestmentSchema,
   updateProfitDistributionModeSchema,
+  updateSellerPriceSchema,
   updateStatusSchema,
 } from '@/src/capital/lib/validation/schemas';
 import {
@@ -20,8 +23,12 @@ import {
   updateAssetDetails,
   updateAssetFunding,
   updateAssetStatus,
+  updateExpectedTotalInvestment,
   updateProfitDistributionMode,
+  updateSellerPrice,
 } from '@/src/capital/services/assets';
+import { recordFreeTextCost, reverseVehicleCost } from '@/src/capital/services/vehicleCosts';
+import { recalculateAsset } from '@/src/capital/services/assets';
 import { uploadDocument } from '@/src/capital/services/documents';
 import { deleteDraft } from '@/src/capital/services/drafts';
 
@@ -43,32 +50,16 @@ export async function createAssetAction(
     if (!parsed.ok) return { error: parsed.error };
 
     const input = parsed.data;
-    const purchasePaise =
-      input.purchasePrice != null && input.purchasePrice > 0
-        ? rupeesToPaise(input.purchasePrice)
-        : 0;
-    const tokenPaise =
-      input.tokenPaid != null && input.tokenPaid > 0 ? rupeesToPaise(input.tokenPaid) : 0;
-    // Dealership OS: ownership stake is always Me = purchase price (Active Capital / ROI).
-    // Never collect funding/partner stake fields in the create UI.
-    const investors =
-      purchasePaise > 0
-        ? [{ slot: 'me' as const, investedPaise: purchasePaise, label: 'My Investment' }]
-        : [];
-
-    const purchaseDate = new Date().toISOString().slice(0, 10);
     const asset = await createAsset({
       manufacturer: input.manufacturer,
       model: input.model,
       year: input.year,
       fuelType: input.fuelType,
       ownership: input.ownership,
-      purchaseDate,
-      purchasePricePaise: purchasePaise,
+      purchaseDate: input.purchaseDate,
+      expectedTotalInvestmentPaise: rupeesToPaise(input.expectedTotalInvestment),
       registrationNumber: input.registrationNumber,
       notes: input.notes,
-      investors,
-      tokenPaidPaise: tokenPaise > 0 ? tokenPaise : undefined,
     });
     assetId = asset.id;
 
@@ -86,6 +77,7 @@ export async function createAssetAction(
       });
     }
 
+    await deleteDraft('vehicle-new-v4');
     await deleteDraft('vehicle-new-v3');
     await deleteDraft('vehicle-new-v2');
     await deleteDraft('asset-new');
@@ -95,7 +87,7 @@ export async function createAssetAction(
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to create vehicle' };
   }
-  redirect(`/assets/${assetId}?tab=overview&focus=payment`);
+  redirect(`/assets/${assetId}?tab=overview`);
 }
 
 export async function recordSaleAction(
@@ -112,6 +104,7 @@ export async function recordSaleAction(
       rupeesToPaise(parsed.data.salePrice),
       parsed.data.saleDate,
       parsed.data.profitDistributionMode,
+      parsed.data.buyerName,
     );
     revalidatePath(`/assets/${parsed.data.assetId}`);
     revalidatePath('/assets');
@@ -120,6 +113,91 @@ export async function recordSaleAction(
     return { success: 'Sale recorded.' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to record sale' };
+  }
+}
+
+export async function updateExpectedInvestmentAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    await requireCapitalAuth();
+    const parsed = parseZod(updateExpectedInvestmentSchema, formDataToObject(formData));
+    if (!parsed.ok) return { error: parsed.error };
+    await updateExpectedTotalInvestment(
+      parsed.data.assetId,
+      rupeesToPaise(parsed.data.expectedTotalInvestment),
+    );
+    revalidatePath(`/assets/${parsed.data.assetId}`);
+    revalidatePath('/dashboard');
+    revalidateTag('capital-dashboard', 'default');
+    return { success: 'Expected investment updated.' };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to update expected investment' };
+  }
+}
+
+export async function updateSellerPriceAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    await requireCapitalAuth();
+    const parsed = parseZod(updateSellerPriceSchema, formDataToObject(formData));
+    if (!parsed.ok) return { error: parsed.error };
+    await updateSellerPrice(parsed.data.assetId, rupeesToPaise(parsed.data.sellerPrice));
+    revalidatePath(`/assets/${parsed.data.assetId}`);
+    revalidatePath('/dashboard');
+    revalidateTag('capital-dashboard', 'default');
+    return { success: 'Seller price updated.' };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to update seller price' };
+  }
+}
+
+export async function recordFreeTextCostAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    await requireCapitalAuth();
+    const parsed = parseZod(recordFreeTextCostSchema, formDataToObject(formData));
+    if (!parsed.ok) return { error: parsed.error };
+    await recordFreeTextCost({
+      assetId: parsed.data.assetId,
+      title: parsed.data.title,
+      amountPaise: rupeesToPaise(parsed.data.amount),
+      occurredAt: parsed.data.occurredAt,
+      entryKind: parsed.data.entryKind,
+      notes: parsed.data.notes,
+    });
+    await recalculateAsset(parsed.data.assetId);
+    revalidatePath(`/assets/${parsed.data.assetId}`);
+    revalidatePath('/dashboard');
+    revalidateTag('capital-dashboard', 'default');
+    return { success: 'Cost recorded.' };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to record cost' };
+  }
+}
+
+export async function reverseVehicleCostAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    await requireCapitalAuth();
+    const costId = String(formData.get('costId') ?? '');
+    const assetId = String(formData.get('assetId') ?? '');
+    if (!costId || !assetId) return { error: 'Missing cost' };
+    await reverseVehicleCost(costId);
+    await recalculateAsset(assetId);
+    revalidatePath(`/assets/${assetId}`);
+    revalidatePath('/dashboard');
+    revalidateTag('capital-dashboard', 'default');
+    return { success: 'Cost reversed.' };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to reverse cost' };
   }
 }
 
@@ -242,7 +320,7 @@ export async function updateAssetDetailsAction(
       fuelType: input.fuelType,
       ownership: input.ownership,
       registrationNumber: input.registrationNumber,
-      purchasePricePaise: rupeesToPaise(input.purchasePrice),
+      sellerPricePaise: rupeesToPaise(input.purchasePrice),
       purchaseDate: input.purchaseDate,
       notes: input.notes,
     });

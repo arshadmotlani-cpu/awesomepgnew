@@ -26,47 +26,37 @@ const documentType = z.enum([
   'purchase_invoice', 'repair_bill', 'insurance', 'rc', 'photo', 'sale_invoice', 'other',
 ]);
 
-export const createAssetSchema = z
-  .object({
-    manufacturer: z.string().min(1, 'Manufacturer is required'),
-    model: z.string().min(1, 'Model is required'),
-    fuelType: z.enum(['petrol', 'diesel', 'cng', 'ev', 'hybrid']),
-    year: z.coerce.number().int().min(1990).max(new Date().getFullYear() + 1),
-    ownership: z.enum(['first_owner', 'second_owner', 'third_owner']),
-    registrationNumber: z.string().optional(),
-    /** Negotiated purchase price — required when recording a token. */
-    purchasePrice: optionalPositiveRupees,
-    /** Optional token milestone (cash only — not TVI). Requires purchase price. */
-    tokenPaid: optionalPositiveRupees,
-    /** Optional notes */
-    notes: z.string().optional(),
-  })
-  .superRefine((d, ctx) => {
-    const hasPurchase = d.purchasePrice != null && d.purchasePrice > 0;
-    const hasToken = d.tokenPaid != null && d.tokenPaid > 0;
-    if (!hasPurchase && !hasToken) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Enter purchase price (token optional)',
-        path: ['purchasePrice'],
-      });
-    }
-    if (hasToken && !hasPurchase) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Purchase price is required when recording a token',
-        path: ['purchasePrice'],
-      });
-    }
-    if (hasToken && hasPurchase && d.tokenPaid! > d.purchasePrice!) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Token cannot exceed purchase price',
-        path: ['tokenPaid'],
-      });
-    }
-  });
+export const createAssetSchema = z.object({
+  manufacturer: z.string().min(1, 'Manufacturer is required'),
+  model: z.string().min(1, 'Model is required'),
+  fuelType: z.enum(['petrol', 'diesel', 'cng', 'ev', 'hybrid']),
+  year: z.coerce.number().int().min(1990).max(new Date().getFullYear() + 1),
+  ownership: z.enum(['first_owner', 'second_owner', 'third_owner']),
+  registrationNumber: z.string().optional(),
+  purchaseDate: dateStr,
+  /** Expected Total Investment — budget target. */
+  expectedTotalInvestment: z.coerce.number().min(0, 'Expected investment cannot be negative'),
+  notes: z.string().optional(),
+});
 
+export const updateExpectedInvestmentSchema = z.object({
+  assetId: uuid,
+  expectedTotalInvestment: z.coerce.number().min(0),
+});
+
+export const updateSellerPriceSchema = z.object({
+  assetId: uuid,
+  sellerPrice: z.coerce.number().min(0),
+});
+
+export const recordFreeTextCostSchema = z.object({
+  assetId: uuid,
+  title: z.string().min(1, 'Title is required'),
+  amount: signedRupees,
+  occurredAt: dateStr,
+  entryKind: z.enum(['cost', 'refund']).optional(),
+  notes: z.string().max(2000).optional(),
+});
 export const updateAssetFundingSchema = z
   .object({
     assetId: uuid,
@@ -127,7 +117,7 @@ export const updateAssetDetailsSchema = z.object({
   year: z.coerce.number().int().min(1990).max(new Date().getFullYear() + 1),
   ownership: z.enum(['first_owner', 'second_owner', 'third_owner']),
   registrationNumber: z.string().optional(),
-  purchasePrice: rupees,
+  purchasePrice: z.coerce.number().min(0),
   purchaseDate: dateStr.optional(),
   notes: z.string().optional(),
 });
@@ -221,6 +211,7 @@ export const recordSaleSchema = z.object({
   assetId: uuid,
   salePrice: rupees,
   saleDate: dateStr,
+  buyerName: z.string().max(200).optional(),
   /** Sale-time only — not set at vehicle create. */
   profitDistributionMode: z.enum(['SELF', 'PARTNERSHIP_50_50']),
 });

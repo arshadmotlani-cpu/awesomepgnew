@@ -8,6 +8,7 @@
 
 ## 2026-07-26
 
+- [x] **CAPITAL-INVESTMENT-TRUTH** — Rewrite financial-truth-report for investment-math SSOT (Active Capital = Σ current investment; no Me-stake filter)
 - [x] **CAPITAL-NO-FUNDING-SOURCES-020** — Remove Funding Sources ledger/UI; keep payments+costs; Active Capital = stakes
 - [x] **CAPITAL-THREE-LEDGERS-019** — *(superseded for funding by ADR-020)*
 

@@ -26,10 +26,26 @@ export const acAssets = pgTable(
     status: assetStatusEnum('status').notNull().default('purchased'),
     displayName: text('display_name').notNull(),
     purchaseDate: date('purchase_date').notNull(),
+    /** Legacy — kept in sync with sellerPricePaise for older queries. */
     purchasePricePaise: bigint('purchase_price_paise', { mode: 'number' }).notNull(),
+    /** Editable target budget (Expected Total Investment). */
+    expectedTotalInvestmentPaise: bigint('expected_total_investment_paise', { mode: 'number' })
+      .notNull()
+      .default(0),
+    /** Negotiated seller price. */
+    sellerPricePaise: bigint('seller_price_paise', { mode: 'number' }).notNull().default(0),
+    /** Seller Price + costs − refunds (SSOT cache). */
+    currentInvestmentPaise: bigint('current_investment_paise', { mode: 'number' })
+      .notNull()
+      .default(0),
+    /** Expected − Current Investment (SSOT cache; may be negative). */
+    budgetRemainingPaise: bigint('budget_remaining_paise', { mode: 'number' })
+      .notNull()
+      .default(0),
     expectedSalePricePaise: bigint('expected_sale_price_paise', { mode: 'number' }),
     actualSalePricePaise: bigint('actual_sale_price_paise', { mode: 'number' }),
     saleDate: date('sale_date'),
+    buyerName: text('buyer_name'),
     /** Signed expense sum (repairs − refunds/credits) */
     totalExpensePaise: bigint('total_expense_paise', { mode: 'number' }).notNull().default(0),
     /** Σ positive expenses (repairs) */
@@ -39,15 +55,14 @@ export const acAssets = pgTable(
       .notNull()
       .default(0),
     /**
-     * Total Vehicle Investment (ADR-016) = purchase price + investment-cost activities − refunds.
-     * Payment milestones (token / purchase payment) are excluded.
-     * Column name kept for compatibility; UI label: Total Vehicle Investment.
+     * Alias of currentInvestmentPaise for list/report compatibility.
+     * Current Investment = seller price + costs − refunds.
      */
     totalInvestmentPaise: bigint('total_investment_paise', { mode: 'number' }).notNull().default(0),
-    /** netVehicleCost − Σ capital investor stakes (0 = fully funded) */
+    /** @deprecated Funding removed from product — kept nullable/0. */
     fundingGapPaise: bigint('funding_gap_paise', { mode: 'number' }).notNull().default(0),
     holdingDays: integer('holding_days'),
-    /** Gross Deal Profit = sale − net vehicle cost */
+    /** Gross Deal Profit = sale − current investment */
     profitPaise: bigint('profit_paise', { mode: 'number' }),
     roiBps: integer('roi_bps'),
     /**
