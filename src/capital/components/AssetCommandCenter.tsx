@@ -214,15 +214,6 @@ export function AssetCommandCenter({
     (d) => d.documentType !== 'photo' && !d.mimeType.startsWith('image/'),
   );
 
-  const costLines = useMemo(
-    () =>
-      timeline.vehicleActivities.filter((a) => {
-        const t = a.activityType as VehicleActivityType;
-        return VEHICLE_ACTIVITY_TYPE_META[t]?.costImpact === 'vehicle_cost';
-      }),
-    [timeline.vehicleActivities],
-  );
-
   const activityMilestones = useMemo(
     () => timeline.vehicleActivities.filter((a) => isPaymentMilestoneType(a.activityType)),
     [timeline.vehicleActivities],
