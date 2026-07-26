@@ -12,7 +12,10 @@ import { Input } from '@/src/capital/components/ui/input';
 import { Textarea } from '@/src/capital/components/ui/textarea';
 import { useRefreshCapitalView } from '@/src/capital/hooks/useRefreshCapitalView';
 import { formatInrPlain } from '@/src/capital/lib/money';
-import { SELLER_PAYMENT_INSTRUMENT_LABELS } from '@/src/capital/lib/threeLedgers';
+import {
+  SELLER_PAYMENT_INSTRUMENT_LABELS,
+  sellerOverpaymentPaise,
+} from '@/src/capital/lib/threeLedgers';
 
 const initialState: ActionState = {};
 
@@ -42,6 +45,7 @@ export function RecordPurchasePaymentForm({
     amountPaise: number | null;
     label: string;
     instrument?: string | null;
+    notes?: string | null;
   }>;
   canEdit: boolean;
   highlight?: boolean;
@@ -53,7 +57,9 @@ export function RecordPurchasePaymentForm({
   const [amount, setAmount] = useState<number | undefined>(undefined);
   const refreshCapitalView = useRefreshCapitalView();
   const priceSet = purchasePricePaise > 0;
-  const complete = priceSet && remainingPaise != null && remainingPaise <= 0;
+  const overpaidPaise = sellerOverpaymentPaise(purchasePricePaise, alreadyPaidPaise);
+  const complete =
+    priceSet && remainingPaise != null && remainingPaise <= 0 && overpaidPaise === 0;
   const orphanPayments = !priceSet && alreadyPaidPaise > 0;
 
   useEffect(() => {
@@ -71,7 +77,7 @@ export function RecordPurchasePaymentForm({
       }`}
     >
       <div>
-        <p className="font-medium">Purchase Payment</p>
+        <p className="font-medium">Seller Payments</p>
         <p className="mt-1 text-xs text-ac-text-muted">
           Cash paid to the seller toward Purchase Price. Token and these payments do not add to
           Total Vehicle Investment.
@@ -83,7 +89,13 @@ export function RecordPurchasePaymentForm({
           Purchase Price not set, but {milestones.length} seller payment
           {milestones.length === 1 ? '' : 's'} exist (
           <MoneyDisplay paise={alreadyPaidPaise} />). Set Purchase Price on Edit vehicle before
-          remaining or funding status can be calculated.
+          Remaining can be calculated.
+        </p>
+      ) : null}
+
+      {overpaidPaise > 0 ? (
+        <p className="rounded-lg border border-ac-warning/40 bg-ac-warning/10 px-3 py-2 text-sm text-ac-warning">
+          ⚠️ Seller has been paid ₹{formatInrPlain(overpaidPaise)} more than the purchase price.
         </p>
       ) : null}
 
@@ -106,6 +118,8 @@ export function RecordPurchasePaymentForm({
             <span className="font-normal text-ac-text-muted">— (set purchase price)</span>
           ) : complete ? (
             <span className="text-ac-success">₹0 · Purchase Complete</span>
+          ) : overpaidPaise > 0 ? (
+            <span className="font-normal text-ac-warning">₹0</span>
           ) : (
             <MoneyDisplay paise={remainingPaise} />
           )}
@@ -116,31 +130,39 @@ export function RecordPurchasePaymentForm({
         <p className="text-ac-text-muted">No payments recorded yet.</p>
       ) : (
         <div className="space-y-1 border-t border-white/5 pt-2">
+          <p className="pb-1 text-xs font-medium uppercase tracking-wide text-ac-text-muted">
+            Payment History
+          </p>
           {milestones.map((a) => (
-            <div key={a.id} className="flex justify-between gap-4 py-1.5">
-              <span>
-                {a.label}
-                {a.instrument
-                  ? ` · ${
-                      SELLER_PAYMENT_INSTRUMENT_LABELS[
-                        a.instrument as keyof typeof SELLER_PAYMENT_INSTRUMENT_LABELS
-                      ] ?? a.instrument
-                    }`
-                  : ''}{' '}
-                · {a.activityAt}
-              </span>
-              {a.amountPaise != null ? <MoneyDisplay paise={a.amountPaise} /> : null}
+            <div key={a.id} className="space-y-0.5 border-b border-white/5 py-1.5 last:border-0">
+              <div className="flex justify-between gap-4">
+                <span>
+                  {a.label}
+                  {a.instrument
+                    ? ` · ${
+                        SELLER_PAYMENT_INSTRUMENT_LABELS[
+                          a.instrument as keyof typeof SELLER_PAYMENT_INSTRUMENT_LABELS
+                        ] ?? a.instrument
+                      }`
+                    : ''}{' '}
+                  · {a.activityAt}
+                </span>
+                {a.amountPaise != null ? <MoneyDisplay paise={a.amountPaise} /> : null}
+              </div>
+              {a.notes ? (
+                <p className="text-xs text-ac-text-muted">{a.notes}</p>
+              ) : null}
             </div>
           ))}
         </div>
       )}
 
-      {canEdit && priceSet && !complete ? (
+      {canEdit && priceSet && remainingPaise != null && remainingPaise > 0 ? (
         <form action={formAction} className="space-y-3 border-t border-white/10 pt-3">
           <input type="hidden" name="assetId" value={assetId} />
           <div>
             <label className="mb-1 block text-sm text-ac-text-secondary">
-              Record Purchase Payment (₹)
+              Record Payment (₹)
             </label>
             <CurrencyInput
               name="amount"
@@ -148,11 +170,11 @@ export function RecordPurchasePaymentForm({
               value={amount ?? ''}
               onValueChange={setAmount}
               required
-              placeholder={`Up to ₹${formatInrPlain(remainingPaise ?? 0)}`}
+              placeholder={`Up to ₹${formatInrPlain(remainingPaise)}`}
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm text-ac-text-secondary">Payment date</label>
+            <label className="mb-1 block text-sm text-ac-text-secondary">Payment Date</label>
             <Input
               name="paidAt"
               type="date"
@@ -161,7 +183,7 @@ export function RecordPurchasePaymentForm({
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm text-ac-text-secondary">Payment instrument</label>
+            <label className="mb-1 block text-sm text-ac-text-secondary">Payment method</label>
             <select name="instrument" className={selectClass} defaultValue="bank">
               {INSTRUMENTS.map((m) => (
                 <option key={m} value={m}>
@@ -179,7 +201,7 @@ export function RecordPurchasePaymentForm({
           {state.error ? <p className="text-sm text-ac-danger">{state.error}</p> : null}
           {state.success ? <p className="text-sm text-ac-success">{state.success}</p> : null}
           <Button type="submit" size="sm" disabled={pending || amount == null || amount <= 0}>
-            {pending ? 'Saving…' : 'Record Purchase Payment'}
+            {pending ? 'Saving…' : 'Record Payment'}
           </Button>
         </form>
       ) : null}

@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   computeTviFromCosts,
   remainingPurchaseFromSellerPayments,
+  sellerOverpaymentPaise,
   sumSellerPaymentsPaise,
 } from '../../../src/capital/lib/threeLedgers';
 
@@ -35,6 +36,14 @@ describe('remainingPurchaseFromSellerPayments', () => {
   it('returns null when purchase price is not set', () => {
     assert.equal(remainingPurchaseFromSellerPayments(0, 959_995_00), null);
     assert.equal(remainingPurchaseFromSellerPayments(-1, 10_00), null);
+  });
+});
+
+describe('sellerOverpaymentPaise', () => {
+  it('reports excess paid over purchase price', () => {
+    assert.equal(sellerOverpaymentPaise(900_000_00, 960_000_00), 60_000_00);
+    assert.equal(sellerOverpaymentPaise(900_000_00, 900_000_00), 0);
+    assert.equal(sellerOverpaymentPaise(0, 10_00), 0);
   });
 });
 

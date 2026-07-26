@@ -9,6 +9,7 @@
 
 ## 2026-07-26
 
+- **Dealer UI hides stakes/funding** — Vehicle page shows Vehicle Investment + Seller Payments only; no Funding Status/Gap/My Investment/Partner. Stakes auto-synced to Me=purchase for Active Capital/ROI. Overpayment = simple seller warning. → extends ADR-020 product surface
 - **No Funding Sources (dealership OS)** — Reject treasury/funding-source workflows; keep instrument + costs + stakes for ROI. → ADR-020; drop `ac_funding_entries` (`0013`)
 - **Three ledgers (Vehicle Cost / Seller Payments / Funding Sources)** — *(superseded for Funding Sources by ADR-020)* → ADR-019
 - **Profit Distribution is sale-time** — Mode chosen at Record Sale (default SELF); NULL until sold; edit on Sale tab. → ADR-018 amendment + `0011`

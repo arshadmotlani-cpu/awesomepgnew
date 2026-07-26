@@ -14,9 +14,8 @@ import {
   distributeDealProfits,
   type ProfitDistributionMode,
 } from '@/src/capital/lib/dealEconomics';
+import { fullSelfFunding } from '@/src/capital/lib/investors';
 import { lifecycleLabel } from '@/src/capital/lib/vehicleLifecycle';
-import type { InvestorSlot } from '@/src/capital/db/schema/investors';
-import { formatInrPlain } from '@/src/capital/lib/money';
 
 const initialState: ActionState = {};
 
@@ -25,24 +24,19 @@ export function AssetActionsForms({
   currentStatus,
   purchasePricePaise = 0,
   totalInvestmentPaise = 0,
-  fundingGapPaise = 0,
   profitDistributionMode = null,
-  investors = [],
 }: {
   assetId: string;
   currentStatus: string;
   purchasePricePaise?: number;
   totalInvestmentPaise?: number;
-  fundingGapPaise?: number;
   /** Set when sale was recorded; null while unsold. */
   profitDistributionMode?: ProfitDistributionMode | null;
-  investors?: { slot: string; label: string; investedPaise: number }[];
 }) {
   const isClosed =
     currentStatus === 'sold' || currentStatus === 'settled' || currentStatus === 'cancelled';
   const isSettledOrCancelled = currentStatus === 'settled' || currentStatus === 'cancelled';
-  const hasSale =
-    currentStatus === 'sold' || currentStatus === 'settled';
+  const hasSale = currentStatus === 'sold' || currentStatus === 'settled';
 
   return (
     <div className="space-y-4">
@@ -67,8 +61,6 @@ export function AssetActionsForms({
             assetId={assetId}
             purchasePricePaise={purchasePricePaise}
             totalInvestmentPaise={totalInvestmentPaise}
-            fundingGapPaise={fundingGapPaise}
-            investors={investors}
           />
         ) : null}
         {hasSale && profitDistributionMode ? (
@@ -77,8 +69,8 @@ export function AssetActionsForms({
         {currentStatus === 'sold' ? <SettlementForm assetId={assetId} /> : null}
         {isSettledOrCancelled ? (
           <p className="text-sm text-ac-text-muted md:col-span-2">
-            No further actions — view timeline and accounting history. You can still change profit
-            distribution above; figures recalculate automatically.
+            No further actions — view timeline and history. You can still change profit distribution
+            above; figures recalculate automatically.
           </p>
         ) : null}
       </div>
@@ -90,20 +82,16 @@ function SaleForm({
   assetId,
   purchasePricePaise,
   totalInvestmentPaise,
-  fundingGapPaise,
-  investors,
 }: {
   assetId: string;
   purchasePricePaise: number;
   totalInvestmentPaise: number;
-  fundingGapPaise: number;
-  investors: { slot: string; label: string; investedPaise: number }[];
 }) {
   const [state, formAction, pending] = useActionState(recordSaleAction, initialState);
   const [salePrice, setSalePrice] = useState<number | undefined>(undefined);
   const [mode, setMode] = useState<ProfitDistributionMode>('SELF');
   const refreshCapitalView = useRefreshCapitalView();
-  const fullyFunded = purchasePricePaise > 0 && fundingGapPaise === 0;
+  const canSell = purchasePricePaise > 0;
 
   useEffect(() => {
     if (state.success) refreshCapitalView();
@@ -111,23 +99,19 @@ function SaleForm({
 
   const preview = useMemo(() => {
     const price = Math.round((salePrice || 0) * 100);
-    if (!salePrice || price <= 0) return null;
+    if (!salePrice || price <= 0 || purchasePricePaise <= 0) return null;
     const businessProfit = computeGrossDealProfit(price, totalInvestmentPaise);
     try {
       return distributeDealProfits({
         businessProfitPaise: businessProfit,
         netVehicleCostPaise: totalInvestmentPaise,
         profitDistributionMode: mode,
-        funding: investors.map((i) => ({
-          slot: i.slot as InvestorSlot,
-          investedPaise: i.investedPaise,
-          label: i.label,
-        })),
+        funding: fullSelfFunding(purchasePricePaise),
       });
     } catch {
       return null;
     }
-  }, [salePrice, totalInvestmentPaise, mode, investors]);
+  }, [salePrice, totalInvestmentPaise, mode, purchasePricePaise]);
 
   return (
     <form action={formAction} className="ac-glass-card space-y-3 p-4 md:col-span-2 lg:col-span-1">
@@ -135,15 +119,9 @@ function SaleForm({
       <p className="text-xs text-ac-text-muted">
         Choose profit distribution when the deal closes — not at purchase.
       </p>
-      {!fullyFunded ? (
+      {!canSell ? (
         <p className="rounded-lg border border-ac-danger/30 bg-ac-danger/10 px-3 py-2 text-sm text-ac-danger">
-          {purchasePricePaise <= 0
-            ? 'Set purchase price and investments before recording a sale.'
-            : `Funding must equal purchase price before sale. Update investments first${
-                fundingGapPaise > 0
-                  ? ` (underfunded by ₹${formatInrPlain(fundingGapPaise)})`
-                  : ` (overfunded by ₹${formatInrPlain(Math.abs(fundingGapPaise))})`
-              }.`}
+          Set purchase price before recording a sale.
         </p>
       ) : null}
       <input type="hidden" name="assetId" value={assetId} />
@@ -155,14 +133,14 @@ function SaleForm({
           value={salePrice ?? ''}
           onValueChange={setSalePrice}
           required
-          disabled={!fullyFunded}
+          disabled={!canSell}
         />
       </div>
       <div>
         <label className="mb-1 block text-sm text-ac-text-secondary">Sale date</label>
-        <Input name="saleDate" type="date" required disabled={!fullyFunded} />
+        <Input name="saleDate" type="date" required disabled={!canSell} />
       </div>
-      <fieldset className="space-y-2" disabled={!fullyFunded}>
+      <fieldset className="space-y-2" disabled={!canSell}>
         <legend className="mb-1 text-sm text-ac-text-secondary">Profit Distribution</legend>
         <label className="flex cursor-pointer items-start gap-2 text-sm">
           <input
@@ -225,7 +203,7 @@ function SaleForm({
       ) : null}
       {state.error ? <p className="text-sm text-ac-danger">{state.error}</p> : null}
       {state.success ? <p className="text-sm text-ac-success">{state.success}</p> : null}
-      <Button type="submit" disabled={pending || !fullyFunded}>
+      <Button type="submit" disabled={pending || !canSell}>
         {pending ? 'Saving…' : 'Record sale'}
       </Button>
     </form>

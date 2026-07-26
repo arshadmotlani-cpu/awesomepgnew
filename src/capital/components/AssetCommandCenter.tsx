@@ -13,7 +13,6 @@ import { EditActivityForm } from '@/src/capital/components/forms/EditActivityFor
 import { EditVehicleForm } from '@/src/capital/components/forms/EditVehicleForm';
 import { LifecycleControl } from '@/src/capital/components/forms/LifecycleControl';
 import { RecordPurchasePaymentForm } from '@/src/capital/components/forms/RecordPurchasePaymentForm';
-import { UpdateFundingForm } from '@/src/capital/components/forms/UpdateFundingForm';
 import { SetCoverPhotoButton } from '@/src/capital/components/forms/SetCoverPhotoButton';
 import {
   VEHICLE_ACTIVITY_TYPE_META,
@@ -88,11 +87,6 @@ type TimelineData = {
 type OverviewData = {
   repairTotalPaise: number;
   dealerRefundTotalPaise: number;
-  myInvestmentPaise: number;
-  partnerInvestmentPaise: number;
-  partnerLabel: string;
-  capitalAtRiskPaise: number;
-  outstandingPaise: number;
   holdingDays: number;
   purchaseDate: string;
   manufacturer: string;
@@ -133,7 +127,6 @@ const TAB_VALUES = [
   'overview',
   'timeline',
   'activities',
-  'investment',
   'photos',
   'documents',
   'sale',
@@ -148,11 +141,8 @@ export function AssetCommandCenter({
   currentStatus,
   purchasePricePaise,
   totalInvestmentPaise,
-  fundingGapPaise = 0,
-  fundingStatus = '',
   profitDistributionMode = null,
   timeline,
-  investors = [],
   coverDocumentId,
   overview,
   profit,
@@ -164,23 +154,14 @@ export function AssetCommandCenter({
   currentStatus: string;
   purchasePricePaise: number;
   totalInvestmentPaise: number;
-  fundingGapPaise?: number;
-  fundingStatus?: string;
   /** Null until sale is recorded. */
   profitDistributionMode?: ProfitDistributionMode | null;
   timeline: TimelineData;
-  investors?: {
-    slot: string;
-    label: string;
-    investedPaise: number;
-    profitPaise?: number | null;
-    roiBps?: number | null;
-  }[];
   coverDocumentId?: string | null;
   overview: OverviewData;
   profit: ProfitData | null;
   initialTab?: string;
-  /** Highlight Purchase Payment section after create. */
+  /** Highlight Seller Payments section after create. */
   focusPayment?: boolean;
   /** Seller payments ledger — preferred over activity milestones when present. */
   sellerPayments?: Array<{
@@ -189,6 +170,7 @@ export function AssetCommandCenter({
     paidAt: string;
     amountPaise: number;
     instrument: string | null;
+    notes?: string | null;
   }>;
 }) {
   const defaultTab =
@@ -248,6 +230,7 @@ export function AssetCommandCenter({
           SELLER_PAYMENT_KIND_LABELS[p.kind as SellerPaymentKind] ??
           p.kind.replace(/_/g, ' '),
         instrument: p.instrument,
+        notes: p.notes,
       }))
     : activityMilestones.map((a) => ({
         id: a.id,
@@ -300,7 +283,6 @@ export function AssetCommandCenter({
           Timeline ({timelineEvents.length})
         </TabsTrigger>
         <TabsTrigger value="activities">Purchase Activities</TabsTrigger>
-        <TabsTrigger value="investment">Investment</TabsTrigger>
         <TabsTrigger value="photos">Photos ({photos.length})</TabsTrigger>
         <TabsTrigger value="documents">Documents ({docs.length})</TabsTrigger>
         <TabsTrigger value="sale">Sale</TabsTrigger>
@@ -316,11 +298,10 @@ export function AssetCommandCenter({
           currentStatus={currentStatus}
           purchasePricePaise={purchasePricePaise}
           milestonesPaidPaise={milestonePaidPaise}
-          fundingGapPaise={fundingGapPaise}
         />
 
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold">Total Vehicle Investment</h3>
+          <h3 className="text-sm font-semibold">Vehicle Investment</h3>
           {canEdit ? (
             <Button
               type="button"
@@ -396,15 +377,6 @@ export function AssetCommandCenter({
           milestones={paymentMilestones}
         />
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <StatCard label="Funding Status" text={fundingStatus || '—'} />
-          <StatCard label="My Investment" paise={overview.myInvestmentPaise} />
-          <StatCard label={overview.partnerLabel} paise={overview.partnerInvestmentPaise} />
-          <StatCard label="Funding Gap (stakes)" paise={fundingGapPaise} />
-          <StatCard label="Outstanding" paise={overview.outstandingPaise} />
-          <StatCard label="Holding days" text={String(overview.holdingDays)} />
-        </div>
-
         <div className="ac-glass-card grid gap-2 p-4 text-sm sm:grid-cols-2">
           <div className="flex justify-between gap-4 border-b border-white/5 py-2">
             <span className="text-ac-text-muted">Manufacturer</span>
@@ -429,6 +401,10 @@ export function AssetCommandCenter({
           <div className="flex justify-between gap-4 border-b border-white/5 py-2">
             <span className="text-ac-text-muted">Purchase date</span>
             <span>{overview.purchaseDate}</span>
+          </div>
+          <div className="flex justify-between gap-4 border-b border-white/5 py-2">
+            <span className="text-ac-text-muted">Holding days</span>
+            <span>{overview.holdingDays}</span>
           </div>
         </div>
       </TabsContent>
@@ -570,49 +546,6 @@ export function AssetCommandCenter({
         </div>
       </TabsContent>
 
-      <TabsContent value="investment" className="space-y-4">
-        {canEdit ? (
-          <UpdateFundingForm
-            assetId={assetId}
-            purchasePricePaise={purchasePricePaise}
-            fundingGapPaise={fundingGapPaise}
-            investors={investors}
-          />
-        ) : (
-          <p className="text-sm text-ac-text-muted">Funding locked on closed vehicles.</p>
-        )}
-        {investors.length > 0 ? (
-          <div className="ac-glass-card overflow-x-auto p-4">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-white/8 text-left text-ac-text-muted">
-                  <th className="pb-2 pr-4 font-medium">Investor</th>
-                  <th className="pb-2 pr-4 font-medium">Invested</th>
-                  <th className="pb-2 pr-4 font-medium">Share %</th>
-                </tr>
-              </thead>
-              <tbody>
-                {investors.map((inv) => {
-                  const pct =
-                    purchasePricePaise > 0
-                      ? ((inv.investedPaise / purchasePricePaise) * 100).toFixed(0)
-                      : '0';
-                  return (
-                    <tr key={inv.slot} className="border-b border-white/5">
-                      <td className="py-2 pr-4 font-medium">{inv.label}</td>
-                      <td className="py-2 pr-4">
-                        <MoneyDisplay paise={inv.investedPaise} />
-                      </td>
-                      <td className="py-2 pr-4">{pct}%</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
-      </TabsContent>
-
       <TabsContent value="photos" className="space-y-4">
         {canEdit ? (
           <DocumentUploadForm
@@ -683,9 +616,7 @@ export function AssetCommandCenter({
           currentStatus={currentStatus}
           purchasePricePaise={purchasePricePaise}
           totalInvestmentPaise={totalInvestmentPaise}
-          fundingGapPaise={fundingGapPaise}
           profitDistributionMode={profitDistributionMode}
-          investors={investors}
         />
       </TabsContent>
 

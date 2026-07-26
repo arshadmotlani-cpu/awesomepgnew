@@ -656,7 +656,7 @@ export async function updateAssetDetails(input: UpdateAssetDetailsInput) {
     await recalculateAsset(input.assetId, tx);
 
     // When price is first set (or raised from empty stakes), bootstrap Me = purchase price
-    // so My Investment / funding gap are not stuck at ₹0.
+    // so Active Capital / ROI base are not stuck at ₹0.
     const stakeRows = await tx
       .select()
       .from(acAssetInvestors)
@@ -698,15 +698,15 @@ export async function recordSale(
   if (!fresh) throw new Error('Asset not found');
 
   let investors = await listAssetInvestors(assetId);
-  if (investors.length === 0) {
-    // Legacy asset without Layer 2 — self-fund to purchase price
+  if (investors.length === 0 || fresh.fundingGapPaise !== 0) {
+    // Silent ownership sync — dealer never manages stakes / funding gap in the UI.
     const funding = fullSelfFunding(fresh.purchasePricePaise);
-    await capitalDb.insert(acAssetInvestors).values(
+    await updateAssetFunding(
+      assetId,
       funding.map((f) => ({
-        assetId,
         slot: f.slot,
-        label: f.label,
         investedPaise: f.investedPaise,
+        label: f.label,
       })),
     );
     investors = await listAssetInvestors(assetId);
@@ -715,12 +715,8 @@ export async function recordSale(
     if (again) Object.assign(fresh, again);
   }
 
-  if (fresh.fundingGapPaise !== 0) {
-    const gap = fresh.fundingGapPaise;
-    const direction = gap > 0 ? 'underfunded' : 'overfunded';
-    throw new Error(
-      `Cannot sell: vehicle is ${direction} by ₹${(Math.abs(gap) / 100).toLocaleString('en-IN')}. Update investments to equal purchase price first.`,
-    );
+  if (fresh.purchasePricePaise <= 0) {
+    throw new Error('Set purchase price before recording a sale');
   }
 
   const netVehicleCost = fresh.totalInvestmentPaise;

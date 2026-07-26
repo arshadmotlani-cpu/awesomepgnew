@@ -12,7 +12,6 @@ import { FormField } from '@/src/capital/components/forms/FormField';
 import { CurrencyInput } from '@/src/capital/components/forms/CurrencyInput';
 import { useAutosaveDraft } from '@/src/capital/hooks/useAutosaveDraft';
 import { createAssetSchema, type CreateAssetInput } from '@/src/capital/lib/validation/schemas';
-import { resolveCreateFunding } from '@/src/capital/lib/investors';
 import { formatRupeesIndian } from '@/src/capital/lib/money';
 import { Textarea } from '@/src/capital/components/ui/textarea';
 
@@ -76,9 +75,6 @@ const EMPTY_DEFAULTS: CreateAssetInput = {
   purchasePrice: undefined,
   tokenPaid: undefined,
   notes: '',
-  meInvested: undefined,
-  investor2Invested: undefined,
-  investor2Label: 'Partner',
 };
 
 export function CreateAssetForm() {
@@ -86,7 +82,6 @@ export function CreateAssetForm() {
   const [pending, startTransition] = useTransition();
   const [brandQuery, setBrandQuery] = useState('');
   const [brandOpen, setBrandOpen] = useState(false);
-  const [withPartner, setWithPartner] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
   const [photoFiles, setPhotoFiles] = useState<FileList | null>(null);
 
@@ -107,20 +102,20 @@ export function CreateAssetForm() {
   }, [purchasePrice, tokenPaid]);
 
   useEffect(() => {
-    if (withPartner) return;
-    if (purchasePrice != null && Number.isFinite(purchasePrice) && purchasePrice > 0) {
-      form.setValue('meInvested', purchasePrice, { shouldValidate: false });
-      form.setValue('investor2Invested', 0, { shouldValidate: false });
-    } else {
-      form.setValue('meInvested', undefined, { shouldValidate: false });
-    }
-  }, [withPartner, purchasePrice, form]);
-
-  useEffect(() => {
     void loadDraftAction(DRAFT_KEY).then(({ payload }) => {
       if (payload && typeof payload === 'object') {
-        const next = { ...EMPTY_DEFAULTS, ...payload } as CreateAssetInput & {
-          withPartner?: boolean;
+        const raw = payload as Partial<CreateAssetInput>;
+        const next: CreateAssetInput = {
+          ...EMPTY_DEFAULTS,
+          manufacturer: raw.manufacturer ?? '',
+          model: raw.model ?? '',
+          fuelType: raw.fuelType as CreateAssetInput['fuelType'],
+          year: raw.year as number,
+          ownership: raw.ownership as CreateAssetInput['ownership'],
+          registrationNumber: raw.registrationNumber ?? '',
+          purchasePrice: raw.purchasePrice,
+          tokenPaid: raw.tokenPaid,
+          notes: raw.notes ?? '',
         };
         const hasCore =
           !!next.manufacturer ||
@@ -128,12 +123,8 @@ export function CreateAssetForm() {
           (next.purchasePrice != null && next.purchasePrice > 0) ||
           (next.tokenPaid != null && next.tokenPaid > 0);
         if (hasCore) {
-          if (next.purchasePrice == null || !(next.purchasePrice > 0)) {
-            next.meInvested = undefined;
-          }
           form.reset(next);
           if (next.manufacturer) setBrandQuery(next.manufacturer);
-          if (next.withPartner || (next.investor2Invested ?? 0) > 0) setWithPartner(true);
         }
       }
       setDraftReady(true);
@@ -151,25 +142,13 @@ export function CreateAssetForm() {
   function clearForm() {
     form.reset(EMPTY_DEFAULTS);
     setBrandQuery('');
-    setWithPartner(false);
     setState({});
     void deleteDraftAction(DRAFT_KEY);
   }
 
   const onSubmit = form.handleSubmit((values) => {
-    const resolved = resolveCreateFunding({
-      purchasePrice: values.purchasePrice,
-      withPartner,
-      meInvested: values.meInvested,
-      investor2Invested: values.investor2Invested,
-    });
     const fd = new FormData();
-    Object.entries({
-      ...values,
-      meInvested: resolved.meInvested || undefined,
-      investor2Invested: resolved.investor2Invested || undefined,
-      investor2Label: withPartner ? values.investor2Label : undefined,
-    }).forEach(([k, v]) => {
+    Object.entries(values).forEach(([k, v]) => {
       if (v !== undefined && v !== '') fd.set(k, String(v));
     });
     if (photoFiles) {
@@ -353,79 +332,7 @@ export function CreateAssetForm() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Investment</CardTitle>
-          <p className="text-sm text-ac-text-secondary">
-            Fills in after Purchase Price. Expand partner only when needed. Funding is checked when
-            you save.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <FormField label="My Investment (₹)" name="meInvested" form={form}>
-            <CurrencyInput
-              form="create-asset-form"
-              allowNegative={false}
-              value={form.watch('meInvested') ?? ''}
-              onValueChange={(v) =>
-                form.setValue('meInvested', v, { shouldValidate: true, shouldDirty: true })
-              }
-              readOnly={!withPartner}
-              placeholder={
-                purchasePrice != null && purchasePrice > 0 ? undefined : 'Enter purchase price first'
-              }
-              className={!withPartner ? 'opacity-80' : undefined}
-            />
-          </FormField>
-
-          <div className="rounded-lg border border-white/10 bg-white/[0.02]">
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium text-ac-text-secondary hover:text-ac-text"
-              onClick={() => {
-                const next = !withPartner;
-                setWithPartner(next);
-                if (!next) {
-                  if (purchasePrice != null && Number.isFinite(purchasePrice) && purchasePrice > 0) {
-                    form.setValue('meInvested', purchasePrice, { shouldValidate: false });
-                    form.setValue('investor2Invested', 0, { shouldValidate: false });
-                  } else {
-                    form.setValue('meInvested', undefined, { shouldValidate: false });
-                  }
-                }
-              }}
-            >
-              <span aria-hidden>{withPartner ? '▼' : '▶'}</span>
-              <span>Partner Investment (Optional)</span>
-            </button>
-            {withPartner ? (
-              <div className="grid gap-4 border-t border-white/10 px-4 py-4 md:grid-cols-2">
-                <FormField label="Partner Name" name="investor2Label" form={form}>
-                  <Input form="create-asset-form" {...form.register('investor2Label')} />
-                </FormField>
-                <FormField label="Partner Investment (₹)" name="investor2Invested" form={form}>
-                  <CurrencyInput
-                    form="create-asset-form"
-                    allowNegative={false}
-                    value={form.watch('investor2Invested') ?? ''}
-                    onValueChange={(v) =>
-                      form.setValue('investor2Invested', v, {
-                        shouldValidate: true,
-                        shouldDirty: true,
-                      })
-                    }
-                  />
-                </FormField>
-              </div>
-            ) : null}
-          </div>
-        </CardContent>
-      </Card>
-
       {state.error ? <p className="text-sm text-ac-danger">{state.error}</p> : null}
-      {form.formState.errors.meInvested?.message ? (
-        <p className="text-sm text-ac-danger">{form.formState.errors.meInvested.message}</p>
-      ) : null}
       <Button type="submit" form="create-asset-form" disabled={pending}>
         {pending ? 'Creating…' : 'Create vehicle'}
       </Button>

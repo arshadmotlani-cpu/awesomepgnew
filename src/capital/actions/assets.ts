@@ -49,23 +49,12 @@ export async function createAssetAction(
         : 0;
     const tokenPaise =
       input.tokenPaid != null && input.tokenPaid > 0 ? rupeesToPaise(input.tokenPaid) : 0;
-    const mePaise =
+    // Dealership OS: ownership stake is always Me = purchase price (Active Capital / ROI).
+    // Never collect funding/partner stake fields in the create UI.
+    const investors =
       purchasePaise > 0
-        ? rupeesToPaise(input.meInvested ?? input.purchasePrice!)
-        : 0;
-    const i2Paise = purchasePaise > 0 ? rupeesToPaise(input.investor2Invested ?? 0) : 0;
-    const investors = [
-      { slot: 'me' as const, investedPaise: mePaise, label: 'My Investment' },
-      ...(i2Paise > 0
-        ? [
-            {
-              slot: 'investor_2' as const,
-              investedPaise: i2Paise,
-              label: input.investor2Label?.trim() || 'Partner Investment',
-            },
-          ]
-        : []),
-    ];
+        ? [{ slot: 'me' as const, investedPaise: purchasePaise, label: 'My Investment' }]
+        : [];
 
     const purchaseDate = new Date().toISOString().slice(0, 10);
     const asset = await createAsset({

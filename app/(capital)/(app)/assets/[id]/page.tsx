@@ -52,16 +52,6 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
     third_owner: 'Third Owner',
   };
 
-  const fundingGap = asset.fundingGapPaise ?? 0;
-  const priceSet = asset.purchasePricePaise > 0;
-  const fundingStatus = !priceSet
-    ? 'Purchase Price not set'
-    : fundingGap === 0
-      ? 'Fully funded'
-      : fundingGap > 0
-        ? `Underfunded by ₹${formatInrPlain(fundingGap)}`
-        : `Overfunded by ₹${formatInrPlain(-fundingGap)}`;
-
   const milestonesPaidPaise =
     sellerPaymentRows.length > 0
       ? sumSellerPaymentsPaise(sellerPaymentRows)
@@ -75,17 +65,18 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
     status: asset.status,
     purchasePricePaise: asset.purchasePricePaise,
     milestonesPaidPaise,
-    fundingGapPaise: fundingGap,
   });
 
   const sold = asset.actualSalePricePaise != null;
   const isActive = !['sold', 'settled', 'cancelled'].includes(asset.status);
-  const me = investors.find((i) => i.slot === 'me');
-  const investor2 = investors.find((i) => i.slot === 'investor_2');
-  const myInvestmentPaise = me?.investedPaise ?? 0;
 
   const initialTabRaw = firstParam(sp.tab) ?? 'overview';
-  const initialTab = initialTabRaw === 'accounting' ? 'ledger' : initialTabRaw;
+  const initialTab =
+    initialTabRaw === 'accounting' || initialTabRaw === 'investment'
+      ? initialTabRaw === 'accounting'
+        ? 'ledger'
+        : 'overview'
+      : initialTabRaw;
   const focusPayment = firstParam(sp.focus) === 'payment';
 
   return (
@@ -112,7 +103,6 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
                 {b.label}
               </Badge>
             ))}
-            <Badge variant={fundingGap === 0 ? 'success' : 'warning'}>{fundingStatus}</Badge>
           </div>
           <p className="text-lg font-medium tracking-wide text-ac-accent">
             {auto.registrationNumber || 'Registration pending'}
@@ -138,8 +128,6 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
         currentStatus={asset.status}
         purchasePricePaise={asset.purchasePricePaise}
         totalInvestmentPaise={asset.totalInvestmentPaise}
-        fundingGapPaise={fundingGap}
-        fundingStatus={fundingStatus}
         profitDistributionMode={
           (asset.profitDistributionMode as 'SELF' | 'PARTNERSHIP_50_50' | null) ?? null
         }
@@ -153,22 +141,11 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
           paidAt: p.paidAt,
           amountPaise: p.amountPaise,
           instrument: p.instrument,
-        }))}
-        investors={investors.map((i) => ({
-          slot: i.slot,
-          label: i.label,
-          investedPaise: i.investedPaise,
-          profitPaise: i.profitPaise,
-          roiBps: i.roiBps,
+          notes: p.notes,
         }))}
         overview={{
           repairTotalPaise: asset.repairTotalPaise ?? 0,
           dealerRefundTotalPaise: asset.dealerRefundTotalPaise ?? 0,
-          myInvestmentPaise,
-          partnerInvestmentPaise: investor2?.investedPaise ?? 0,
-          partnerLabel: investor2?.label ?? 'Partner Investment',
-          capitalAtRiskPaise: isActive ? myInvestmentPaise : 0,
-          outstandingPaise: asset.outstandingPaise,
           holdingDays: asset.holdingDays ?? 0,
           purchaseDate: asset.purchaseDate,
           manufacturer: auto.manufacturer,

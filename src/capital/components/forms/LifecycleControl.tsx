@@ -22,13 +22,11 @@ export function LifecycleControl({
   currentStatus,
   purchasePricePaise,
   milestonesPaidPaise,
-  fundingGapPaise = 0,
 }: {
   assetId: string;
   currentStatus: string;
   purchasePricePaise: number;
   milestonesPaidPaise: number;
-  fundingGapPaise?: number;
 }) {
   const [state, formAction, pending] = useActionState(updateStatusAction, initialState);
   const [archiveState, archiveAction, archivePending] = useActionState(
@@ -41,7 +39,6 @@ export function LifecycleControl({
     status: currentStatus,
     purchasePricePaise,
     milestonesPaidPaise,
-    fundingGapPaise,
   });
   const closed =
     currentStatus === 'sold' ||

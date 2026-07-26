@@ -39,9 +39,6 @@ export const createAssetSchema = z
     /** Optional token milestone (cash only — not TVI). */
     tokenPaid: optionalPositiveRupees,
     notes: z.string().optional(),
-    meInvested: optionalNonNegRupees,
-    investor2Invested: optionalNonNegRupees,
-    investor2Label: z.string().optional(),
   })
   .superRefine((d, ctx) => {
     const hasPurchase = d.purchasePrice != null && d.purchasePrice > 0;
@@ -51,19 +48,6 @@ export const createAssetSchema = z
         code: z.ZodIssueCode.custom,
         message: 'Enter purchase price and/or token paid',
         path: ['purchasePrice'],
-      });
-      return;
-    }
-    if (!hasPurchase) return;
-
-    const purchasePaise = Math.round(d.purchasePrice! * 100);
-    const me = Math.round((d.meInvested ?? d.purchasePrice!) * 100);
-    const i2 = Math.round((d.investor2Invested ?? 0) * 100);
-    if (me + i2 !== purchasePaise) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'My Investment + Partner must equal purchase price',
-        path: ['meInvested'],
       });
     }
   });

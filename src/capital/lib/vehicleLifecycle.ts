@@ -190,19 +190,17 @@ export type DerivedBadge = {
 };
 
 /**
- * Purchase Pending = Just Purchased AND seller payment milestones have not covered purchase price.
- * Funding gap (investor stakes) is a separate badge/status — not mixed into Purchase Pending.
+ * Purchase Pending = Just Purchased AND seller payments have not covered purchase price.
  */
 export function derivedBadges(input: {
   status: string;
   purchasePricePaise: number;
   milestonesPaidPaise: number;
-  fundingGapPaise?: number;
 }): DerivedBadge[] {
   const badges: DerivedBadge[] = [];
   if (input.status !== 'purchased') return badges;
 
-  // Purchase price required for progress badges — never invent Fully funded / remaining.
+  // Purchase price required for progress badges — never invent Remaining ₹0.
   if (input.purchasePricePaise <= 0) {
     return badges;
   }

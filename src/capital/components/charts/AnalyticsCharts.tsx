@@ -12,7 +12,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { formatInr } from '@/src/capital/lib/money';
+import { formatInr, formatRupeesIndian } from '@/src/capital/lib/money';
 
 type ValuePoint = { month: string; valuePaise: number };
 type CashFlowPoint = { month: string; inflowPaise: number; outflowPaise: number };
@@ -65,7 +65,12 @@ export function CategoryBarChart({ data }: { data: LabelPoint[] }) {
     <ChartWrap>
       <BarChart data={chartData} layout="vertical">
         <Grid />
-        <XAxis type="number" stroke="#71717A" fontSize={12} tickFormatter={(v) => `₹${v}`} />
+        <XAxis
+          type="number"
+          stroke="#71717A"
+          fontSize={12}
+          tickFormatter={(v) => `₹${formatRupeesIndian(Number(v))}`}
+        />
         <YAxis type="category" dataKey="label" stroke="#71717A" fontSize={12} width={100} />
         <Tooltip formatter={(v) => formatInr(Math.round(Number(v) * 100))} contentStyle={tooltipStyle} />
         <Bar dataKey="value" fill="#A78BFA" radius={[0, 4, 4, 0]} />

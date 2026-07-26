@@ -35,7 +35,16 @@ export function remainingPurchaseFromSellerPayments(
   return Math.max(0, Math.round(purchasePricePaise) - Math.round(paidPaise));
 }
 
-/** True when a negotiated purchase price exists (required for remaining / funding status). */
+/** How much seller payments exceed purchase price (0 if not overpaid / price unset). */
+export function sellerOverpaymentPaise(
+  purchasePricePaise: number,
+  paidPaise: number,
+): number {
+  if (Math.round(purchasePricePaise) <= 0) return 0;
+  return Math.max(0, Math.round(paidPaise) - Math.round(purchasePricePaise));
+}
+
+/** True when a negotiated purchase price exists (required for remaining). */
 export function isPurchasePriceSet(purchasePricePaise: number): boolean {
   return Math.round(purchasePricePaise) > 0;
 }

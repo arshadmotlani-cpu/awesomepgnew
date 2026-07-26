@@ -139,9 +139,8 @@ export function CreateExpenseForm({
               }
             />
             <p className="mt-1 text-xs text-ac-text-muted">
-              Positive = repair / cost (raises Net Vehicle Cost). Negative = dealer refund or credit
-              (lowers Net Vehicle Cost). After saving, update investments so Total Investment equals
-              Net Vehicle Cost.
+              Positive = repair / cost (raises Total Vehicle Investment). Negative = dealer refund or
+              credit (lowers Total Vehicle Investment).
             </p>
           </FormField>
           <FormField label="Description *" name="description" form={form} className="md:col-span-2">

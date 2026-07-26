@@ -7,7 +7,7 @@
 
 ## Current Focus
 
-- **Automotive Capital dealership OS (ADR-020)** — No Funding Sources / Funding History. Keep seller payments with instrument + vehicle costs + TVI/profit/ROI. Active Capital = Me open stakes. Migration `0013`.
+- **Automotive Capital dealership OS (ADR-020 + dealer surface)** — UI answers buy / cost / paid seller / remaining / profit only. No Funding Status, Gap, My/Partner Investment, Over/Underfunded. Stakes remain internal for Active Capital + ROI (auto Me = purchase).
 
 - **Automotive Capital Profit Distribution Mode** — Sale-time SELF vs PARTNERSHIP_50_50 (ADR-018). **Frozen** — see PROFIT_DISTRIBUTION_SSOT.md. Migrations `0010`+`0011`. Mode chosen at Record Sale (default SELF); edit on Sale tab.
 
@@ -119,14 +119,15 @@ See [[tasks]] for full task log. Current:
 <!-- SEMANTIC_STATE_START -->
 ## Semantic State
 
-> **Last analyzed:** 2026-07-26T02:23:53Z
+> **Last analyzed:** 2026-07-26T08:00:14Z
 
 - **Current system intent:** The AI memory / intelligence automation layer is being extended — cognition pipeline or MEMORY structure changed.
-- **Dominant change type:** MIXED (see changelog)
-- **System momentum:** MEDIUM (3 vault commits in 24h)
-- **Risk level:** LOW
+- **Dominant change type:** DECISION
+- **System momentum:** MEDIUM (4 vault commits in 24h)
+- **Risk level:** MEDIUM
 
 <!-- SEMANTIC_STATE_END -->
+
 
 
 
