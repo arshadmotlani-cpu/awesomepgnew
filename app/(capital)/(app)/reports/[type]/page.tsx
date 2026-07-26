@@ -3,8 +3,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/capital/components/ui/card';
 import { Button } from '@/src/capital/components/ui/button';
 import { MoneyDisplay } from '@/src/capital/components/MoneyDisplay';
-import { getDashboardKpis } from '@/src/capital/services/analytics';
-import { listCapitalInvestments } from '@/src/capital/services/capital';
+import { getDealershipReportKpis } from '@/src/capital/services/analytics';
 import { listAssetsQuery } from '@/src/capital/services/assets';
 
 export const metadata: Metadata = { title: 'Report' };
@@ -22,11 +21,20 @@ export default async function ReportDetailPage({
 }) {
   const { type } = await params;
   const title = type.replace(/-/g, ' ');
-  const [kpis, investments, outstanding] = await Promise.all([
-    getDashboardKpis(),
-    listCapitalInvestments(),
-    listAssetsQuery({ page: 1, pageSize: 100, sort: 'investment', order: 'desc', profitFilter: 'all' }),
+  const [kpis, outstanding] = await Promise.all([
+    getDealershipReportKpis(),
+    listAssetsQuery({
+      page: 1,
+      pageSize: 100,
+      sort: 'investment',
+      order: 'desc',
+      profitFilter: 'all',
+    }),
   ]);
+
+  const isPnl = type === 'profit-loss' || type === 'pnl';
+  const isPeriod =
+    type === 'monthly' || type === 'quarterly' || type === 'yearly' || type === 'lifetime';
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -44,23 +52,29 @@ export default async function ReportDetailPage({
         <CardContent className="space-y-2 text-sm">
           {type === 'outstanding' ? (
             <>
-              <p>{outstanding.total} vehicles with outstanding capital</p>
-              {outstanding.rows.slice(0, 5).map(({ asset, auto }) => (
-                <div key={asset.id} className="flex justify-between border-b border-white/5 py-2">
-                  <span>{auto.registrationNumber ?? asset.displayName}</span>
-                  <MoneyDisplay paise={asset.outstandingPaise} />
-                </div>
-              ))}
+              <p className="text-ac-text-muted">
+                Sold vehicles not yet closed ({outstanding.rows.filter((r) => r.asset.status === 'sold').length}{' '}
+                shown)
+              </p>
+              {outstanding.rows
+                .filter((r) => r.asset.status === 'sold')
+                .slice(0, 8)
+                .map(({ asset, auto }) => (
+                  <div key={asset.id} className="flex justify-between border-b border-white/5 py-2">
+                    <span>{auto.registrationNumber ?? asset.displayName}</span>
+                    <MoneyDisplay paise={asset.totalInvestmentPaise} />
+                  </div>
+                ))}
             </>
           ) : type === 'cash-flow' ? (
             <>
               <div className="flex justify-between">
-                <span>Capital invested</span>
-                <MoneyDisplay paise={kpis.totalCapitalInvestedPaise} />
+                <span>Active Capital</span>
+                <MoneyDisplay paise={kpis.activeCapitalPaise} />
               </div>
               <div className="flex justify-between">
-                <span>Money received</span>
-                <MoneyDisplay paise={kpis.moneyReceivedPaise} />
+                <span>Inventory TVI</span>
+                <MoneyDisplay paise={kpis.currentInvestmentPaise} />
               </div>
             </>
           ) : type === 'roi' ? (
@@ -73,26 +87,42 @@ export default async function ReportDetailPage({
                 <span className="text-sm">Per-deal average (not portfolio ROI)</span>
               </div>
             </>
-          ) : type === 'profit-loss' ? (
+          ) : isPnl || isPeriod ? (
             <>
               <div className="flex justify-between">
-                <span>Profit earned</span>
-                <MoneyDisplay paise={kpis.profitEarnedPaise} />
+                <span>Active Capital</span>
+                <MoneyDisplay paise={kpis.activeCapitalPaise} />
               </div>
               <div className="flex justify-between">
-                <span>Yearly profit</span>
-                <MoneyDisplay paise={kpis.yearlyProfitPaise} />
+                <span>My Profit (entitled)</span>
+                <MoneyDisplay
+                  paise={
+                    type === 'monthly'
+                      ? kpis.monthlyProfitPaise
+                      : type === 'yearly'
+                        ? kpis.yearlyProfitPaise
+                        : kpis.profitEarnedPaise
+                  }
+                />
+              </div>
+              <div className="flex justify-between">
+                <span>Vehicles in stock</span>
+                <span>{kpis.assetsInStock}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Vehicles sold</span>
+                <span>{kpis.assetsSold}</span>
               </div>
             </>
           ) : (
             <>
               <div className="flex justify-between">
-                <span>Total capital</span>
-                <MoneyDisplay paise={kpis.totalCapitalInvestedPaise} />
+                <span>Active Capital</span>
+                <MoneyDisplay paise={kpis.activeCapitalPaise} />
               </div>
               <div className="flex justify-between">
-                <span>Investments recorded</span>
-                <span>{investments.length}</span>
+                <span>My Profit (entitled)</span>
+                <MoneyDisplay paise={kpis.profitEarnedPaise} />
               </div>
               <div className="flex justify-between">
                 <span>Vehicles in stock</span>

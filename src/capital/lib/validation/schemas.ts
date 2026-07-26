@@ -34,10 +34,11 @@ export const createAssetSchema = z
     year: z.coerce.number().int().min(1990).max(new Date().getFullYear() + 1),
     ownership: z.enum(['first_owner', 'second_owner', 'third_owner']),
     registrationNumber: z.string().optional(),
-    /** Optional when securing with token only — fill later from profile. */
+    /** Negotiated purchase price — required when recording a token. */
     purchasePrice: optionalPositiveRupees,
-    /** Optional token milestone (cash only — not TVI). */
+    /** Optional token milestone (cash only — not TVI). Requires purchase price. */
     tokenPaid: optionalPositiveRupees,
+    /** Optional notes */
     notes: z.string().optional(),
   })
   .superRefine((d, ctx) => {
@@ -46,8 +47,22 @@ export const createAssetSchema = z
     if (!hasPurchase && !hasToken) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Enter purchase price and/or token paid',
+        message: 'Enter purchase price (token optional)',
         path: ['purchasePrice'],
+      });
+    }
+    if (hasToken && !hasPurchase) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Purchase price is required when recording a token',
+        path: ['purchasePrice'],
+      });
+    }
+    if (hasToken && hasPurchase && d.tokenPaid! > d.purchasePrice!) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Token cannot exceed purchase price',
+        path: ['tokenPaid'],
       });
     }
   });

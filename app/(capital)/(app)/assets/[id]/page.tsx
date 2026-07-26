@@ -6,7 +6,7 @@ import { Badge } from '@/src/capital/components/ui/badge';
 import { Button } from '@/src/capital/components/ui/button';
 import { getAssetDetail, getAssetTimeline } from '@/src/capital/services/assets';
 import { listSellerPayments } from '@/src/capital/services/sellerPayments';
-import { formatInrPlain } from '@/src/capital/lib/money';
+import { formatInrPlain, calcHoldingDays } from '@/src/capital/lib/money';
 import { sumSellerPaymentsPaise } from '@/src/capital/lib/threeLedgers';
 import { derivedBadges, lifecycleLabel } from '@/src/capital/lib/vehicleLifecycle';
 import { sumPaymentMilestonesPaise } from '@/src/capital/lib/activityTypes';
@@ -146,7 +146,7 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
         overview={{
           repairTotalPaise: asset.repairTotalPaise ?? 0,
           dealerRefundTotalPaise: asset.dealerRefundTotalPaise ?? 0,
-          holdingDays: asset.holdingDays ?? 0,
+          holdingDays: calcHoldingDays(asset.purchaseDate, asset.saleDate),
           purchaseDate: asset.purchaseDate,
           manufacturer: auto.manufacturer,
           model: auto.model,

@@ -45,7 +45,7 @@ export function AssetActionsForms({
           This vehicle is <strong>{lifecycleLabel(currentStatus)}</strong> and read-only for new
           costs.
           {currentStatus === 'sold'
-            ? ' Record capital return & profit under Payments, then settle.'
+            ? ' Close the deal with Settle when the sale is complete.'
             : ' History remains available.'}
         </div>
       ) : (
@@ -214,15 +214,15 @@ function SettlementForm({ assetId }: { assetId: string }) {
   const [state, formAction, pending] = useActionState(createSettlementAction, initialState);
   return (
     <form action={formAction} className="ac-glass-card space-y-3 p-4">
-      <h3 className="font-medium">Settle deal</h3>
+      <h3 className="font-medium">Close deal</h3>
       <p className="text-xs text-ac-text-muted">
-        Marks the vehicle settled after capital and profit payments are recorded.
+        Marks this sold vehicle as settled (deal closed). No capital-return payment is required.
       </p>
       <input type="hidden" name="assetId" value={assetId} />
       {state.error ? <p className="text-sm text-ac-danger">{state.error}</p> : null}
       {state.success ? <p className="text-sm text-ac-success">{state.success}</p> : null}
       <Button type="submit" variant="secondary" disabled={pending}>
-        {pending ? 'Settling…' : 'Settle'}
+        {pending ? 'Closing…' : 'Close deal'}
       </Button>
     </form>
   );

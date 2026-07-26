@@ -136,7 +136,26 @@ async function sumSoldVehicleCost(range?: DateRange): Promise<number> {
   return Number(row?.total ?? 0);
 }
 
+async function sumVehicleCosts(range?: DateRange, repairOnly = false): Promise<number> {
+  const { acVehicleCosts } = await import('@/src/capital/db/schema');
+  const conditions = [eq(acVehicleCosts.isReversed, false)];
+  if (range?.from) conditions.push(gte(acVehicleCosts.occurredAt, range.from));
+  if (range?.to) conditions.push(lte(acVehicleCosts.occurredAt, range.to));
+  if (repairOnly) {
+    conditions.push(eq(acVehicleCosts.costType, 'repair_settlement'));
+  }
+  const [row] = await capitalDb
+    .select({ total: sum(acVehicleCosts.amountPaise) })
+    .from(acVehicleCosts)
+    .where(and(...conditions));
+  return Number(row?.total ?? 0);
+}
+
+/** @deprecated Legacy ac_expenses — prefer sumVehicleCosts */
 async function sumExpenses(range?: DateRange, repairOnly = false): Promise<number> {
+  const fromCosts = await sumVehicleCosts(range, repairOnly);
+  if (fromCosts !== 0) return fromCosts;
+  // Fallback for pre-migration rows only
   const conditions = [eq(acExpenses.isReversed, false)];
   if (range?.from) conditions.push(gte(acExpenses.expenseDate, range.from));
   if (range?.to) conditions.push(lte(acExpenses.expenseDate, range.to));
@@ -369,13 +388,19 @@ export async function getOverviewBundle(range: DateRange) {
       )
       .then((r) => Number(r[0]?.c ?? 0)),
     capitalDb
-      .select({ avg: sql<number>`COALESCE(AVG(${acAssets.holdingDays}), 0)` })
+      .select({
+        avg: sql<number>`COALESCE(AVG(
+          GREATEST(0, (
+            COALESCE(${acAssets.saleDate}::date, CURRENT_DATE) - ${acAssets.purchaseDate}::date
+          ))
+        ), 0)`,
+      })
       .from(acAssets)
-      .where(sql`${acAssets.holdingDays} IS NOT NULL AND ${acAssets.status} <> 'cancelled'`)
+      .where(sql`${acAssets.status} <> 'cancelled'`)
       .then((r) => Math.round(Number(r[0]?.avg ?? 0))),
     future ? Promise.resolve(0) : sumCapitalReturned(range),
-    future ? Promise.resolve(0) : sumExpenses(range, true),
-    future ? Promise.resolve(0) : sumExpenses(range, false),
+    future ? Promise.resolve(0) : sumVehicleCosts(range, true),
+    future ? Promise.resolve(0) : sumVehicleCosts(range, false),
     future ? Promise.resolve(0) : sumSaleProceeds(range),
     capitalDb
       .select({
@@ -726,7 +751,7 @@ export async function getOverviewBundle(range: DateRange) {
 
   const waterfallBase = [
     { label: 'Purchases', valuePaise: purchaseVolumeRange, kind: 'out' as const },
-    { label: 'Repairs', valuePaise: repairsRange || expensesRange, kind: 'out' as const },
+    { label: 'Repairs', valuePaise: repairsRange, kind: 'out' as const },
     { label: 'Sale Proceeds', valuePaise: saleProceedsRange, kind: 'in' as const },
   ];
   const waterfallMine = [
@@ -850,7 +875,7 @@ export async function getOverviewBundle(range: DateRange) {
       vehiclesSold: soldVehiclesRange,
       moneyInvestedPaise: purchaseVolumeRange,
       capitalRecoveredPaise: capitalReturnedRange,
-      repairsPaise: repairsRange || expensesRange,
+      repairsPaise: repairsRange,
       currentInvestmentPaise: currentInvestment,
       myCapitalInvestedPaise: myActiveInvestmentAll,
     },
@@ -962,7 +987,7 @@ export async function getOverviewBundle(range: DateRange) {
             },
             {
               label: 'Repairs',
-              valuePaise: repairsRange || expensesRange,
+              valuePaise: repairsRange,
               kind: 'paise' as const,
             },
           ],
@@ -1075,7 +1100,7 @@ export async function getOverviewBundle(range: DateRange) {
             },
             {
               label: 'Repairs',
-              valuePaise: repairsRange || expensesRange,
+              valuePaise: repairsRange,
               kind: 'paise' as const,
             },
           ],
@@ -1223,22 +1248,43 @@ export async function getOverviewBundle(range: DateRange) {
       const purchasedIds = justPurchased.map((v) => v.id);
       const milestoneByAsset = new Map<string, number>();
       if (purchasedIds.length > 0) {
+        const { acSellerPayments } = await import('@/src/capital/db/schema');
         const milestoneRows = await capitalDb
           .select({
-            assetId: acVehicleActivities.assetId,
-            total: sum(acVehicleActivities.amountPaise),
+            assetId: acSellerPayments.assetId,
+            total: sum(acSellerPayments.amountPaise),
           })
-          .from(acVehicleActivities)
+          .from(acSellerPayments)
           .where(
             and(
-              inArray(acVehicleActivities.assetId, purchasedIds),
-              inArray(acVehicleActivities.activityType, [...PAYMENT_MILESTONE_TYPES]),
-              eq(acVehicleActivities.isReversed, false),
+              inArray(acSellerPayments.assetId, purchasedIds),
+              eq(acSellerPayments.isReversed, false),
             ),
           )
-          .groupBy(acVehicleActivities.assetId);
+          .groupBy(acSellerPayments.assetId);
         for (const row of milestoneRows) {
           milestoneByAsset.set(row.assetId, Number(row.total ?? 0));
+        }
+        // Fallback: activities only when seller ledger empty for an asset
+        const missing = purchasedIds.filter((id) => !milestoneByAsset.has(id));
+        if (missing.length > 0) {
+          const activityRows = await capitalDb
+            .select({
+              assetId: acVehicleActivities.assetId,
+              total: sum(acVehicleActivities.amountPaise),
+            })
+            .from(acVehicleActivities)
+            .where(
+              and(
+                inArray(acVehicleActivities.assetId, missing),
+                inArray(acVehicleActivities.activityType, [...PAYMENT_MILESTONE_TYPES]),
+                eq(acVehicleActivities.isReversed, false),
+              ),
+            )
+            .groupBy(acVehicleActivities.assetId);
+          for (const row of activityRows) {
+            milestoneByAsset.set(row.assetId, Number(row.total ?? 0));
+          }
         }
       }
 

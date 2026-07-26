@@ -322,7 +322,7 @@ export function OverviewDashboard({
       <Section title="Current Position" subtitle="Always-on snapshot of capital and results">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <PositionCard label="Active Capital" valuePaise={activeCapitalPaise} accent />
-          <PositionCard label="Lifetime Profit" valuePaise={view.profitPaise} accent />
+          <PositionCard label="Lifetime Profit (entitled)" valuePaise={view.profitPaise} accent />
           <PositionCard
             label={periodProfitLabel}
             valuePaise={bundle.isFuture ? undefined : view.periodProfitPaise}

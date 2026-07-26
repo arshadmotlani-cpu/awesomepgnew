@@ -378,7 +378,9 @@ Purchase Price
 
 **ROI architecture unchanged** (Business ÷ TVI / Personal ÷ my stake). Future formula changes require a new ADR.
 
-SSOT: `src/capital/lib/activityTypes.ts` (`computeTotalVehicleInvestment`), wired via `recalculateAsset`.
+SSOT: `src/capital/lib/threeLedgers.ts` (`computeTviFromCosts`) fed by `ac_vehicle_costs` (activities dual-write). Fallback: `computeTotalVehicleInvestment` from activities when cost ledger empty. Legacy `ac_expenses` never enter TVI.
+
+**Runtime note (2026-07-26 audit):** Prefer cost ledger over activities-only; reverse/edit of cost activities must cascade to `ac_vehicle_costs`.
 
 ### Alternatives Considered
 1. Activities-only sum (ADR-012) — understated when milestones were reclassified and no purchase base.
@@ -411,7 +413,7 @@ The product became activity-driven: timelines and dashboards explained events bu
   - `sold` → Sold
   - `settled` → Settled (finance close)
   - `cancelled` → Archived
-- **Purchase Pending** is a **derived badge** (purchased + milestones unpaid / funding gap), not an enum. **Delivered** deferred to Phase 2.
+- **Purchase Pending** is a **derived badge** (purchased + seller Remaining > 0 from `ac_seller_payments`), not an enum. **Delivered** deferred to Phase 2.
 - Enforce `allowedTransitions` in `updateAssetStatus`. Auto: first `repair_advance` → `repairing` only from `purchased`|`painting`. Suggest Ready after repair settlement (dealer confirms). Sale/settle keep dedicated workflows.
 - Timeline interleaves state-change events with purchase activities.
 - Dashboard groups vehicles by lifecycle state first.

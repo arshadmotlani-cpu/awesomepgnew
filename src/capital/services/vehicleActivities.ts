@@ -23,8 +23,14 @@ import { autoStatusOnActivity } from '@/src/capital/lib/vehicleLifecycle';
 import {
   activityTypeToCostType,
   insertVehicleCost,
+  reverseVehicleCostsForActivity,
+  updateVehicleCostForActivity,
 } from '@/src/capital/services/vehicleCosts';
-import { recordPurchasePayment as recordSellerPurchasePayment } from '@/src/capital/services/sellerPayments';
+import {
+  recordPurchasePayment as recordSellerPurchasePayment,
+  reverseSellerPaymentForActivity,
+  updateSellerPaymentForActivity,
+} from '@/src/capital/services/sellerPayments';
 
 export type CreateVehicleActivityInput = {
   assetId: string;
@@ -495,6 +501,9 @@ export async function reverseVehicleActivity(activityId: string, reason: string)
       .set({ isReversed: true, updatedAt: new Date() })
       .where(eq(acVehicleActivities.id, activityId));
 
+    await reverseVehicleCostsForActivity(activityId, tx);
+    await reverseSellerPaymentForActivity(activityId, reason, tx);
+
     await reverseSourceLedger(
       'ac_vehicle_activities',
       activityId,
@@ -645,6 +654,31 @@ export async function updateVehicleActivity(input: UpdateVehicleActivityInput) {
         })
         .where(eq(acVehicleActivities.id, row.id));
 
+      const costUpdated = await updateVehicleCostForActivity(
+        {
+          activityId: row.id,
+          amountPaise: actualCostPaise,
+          occurredAt: input.activityAt ?? row.activityAt,
+          title: input.title?.trim() || row.title,
+          notes: input.notes ?? row.notes,
+        },
+        tx,
+      );
+      if (!costUpdated && actualCostPaise !== 0) {
+        await insertVehicleCost(
+          {
+            assetId: row.assetId,
+            costType: 'repair_settlement',
+            amountPaise: actualCostPaise,
+            occurredAt: input.activityAt ?? row.activityAt,
+            title: input.title?.trim() || row.title,
+            notes: input.notes ?? row.notes,
+            activityId: row.id,
+          },
+          tx,
+        );
+      }
+
       await recalculateAsset(row.assetId, tx);
       return;
     }
@@ -727,8 +761,13 @@ export async function updateVehicleActivity(input: UpdateVehicleActivityInput) {
       throw new Error('Amount is required for this activity');
     }
 
+    const isPaymentMilestone =
+      row.activityType === 'token_paid' ||
+      row.activityType === 'purchase_payment' ||
+      row.activityType === 'final_purchase_payment';
+
     const amountChanged = nextAmount !== row.amountPaise;
-    if (amountChanged) {
+    if (amountChanged && !isPaymentMilestone) {
       await reverseSourceLedger(
         'ac_vehicle_activities',
         row.id,
@@ -772,6 +811,46 @@ export async function updateVehicleActivity(input: UpdateVehicleActivityInput) {
         updatedAt: new Date(),
       })
       .where(eq(acVehicleActivities.id, row.id));
+
+    const costType = activityTypeToCostType(row.activityType);
+    if (costType && nextAmount != null) {
+      const costUpdated = await updateVehicleCostForActivity(
+        {
+          activityId: row.id,
+          amountPaise: nextAmount,
+          occurredAt: input.activityAt ?? row.activityAt,
+          title: input.title?.trim() || row.title,
+          notes: input.notes ?? row.notes,
+        },
+        tx,
+      );
+      if (!costUpdated && nextAmount !== 0) {
+        await insertVehicleCost(
+          {
+            assetId: row.assetId,
+            costType: nextAmount < 0 ? 'refund' : costType,
+            amountPaise: nextAmount,
+            occurredAt: input.activityAt ?? row.activityAt,
+            title: input.title?.trim() || row.title,
+            notes: input.notes ?? row.notes,
+            activityId: row.id,
+          },
+          tx,
+        );
+      }
+    }
+
+    if (isPaymentMilestone && nextAmount != null && nextAmount > 0) {
+      await updateSellerPaymentForActivity(
+        {
+          activityId: row.id,
+          amountPaise: nextAmount,
+          paidAt: input.activityAt ?? row.activityAt,
+          notes: input.notes ?? row.notes,
+        },
+        tx,
+      );
+    }
 
     await recalculateAsset(row.assetId, tx);
     await logActivity(

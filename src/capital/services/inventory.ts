@@ -52,6 +52,10 @@ export function openInventorySql(column = acAssets.status): SQL {
   return activeInvestmentSql(column);
 }
 
+export function soldInventorySql(column = acAssets.status): SQL {
+  return inArray(column, ['sold', 'settled'] as Array<(typeof acAssets.status.enumValues)[number]>);
+}
+
 export function readyToListSql(column = acAssets.status): SQL {
   return eq(column, READY_TO_LIST_STATUS);
 }

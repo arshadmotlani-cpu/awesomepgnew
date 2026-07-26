@@ -1,10 +1,15 @@
 import { and, eq } from 'drizzle-orm';
 import { capitalDb } from '@/src/capital/db/client';
 import { acAssets, acPaymentsReceived, acSettlements } from '@/src/capital/db/schema';
+import { computeGrossDealProfit } from '@/src/capital/lib/dealEconomics';
 import { postLedgerEntry } from './ledger';
 import { logActivity } from './activity';
 import { recalculateAsset } from './assets';
 
+/**
+ * Close a sold deal (dealership OS).
+ * Settle = “deal closed” after sale — no capital-return payment gate (ADR-020 / audit H3).
+ */
 export async function createSettlement(assetId: string, notes?: string) {
   return capitalDb.transaction(async (tx) => {
     const [asset] = await tx.select().from(acAssets).where(eq(acAssets.id, assetId)).limit(1);
@@ -19,17 +24,6 @@ export async function createSettlement(assetId: string, notes?: string) {
       .limit(1);
     if (existingSettlement) throw new Error('Settlement already exists for this asset');
 
-    if (asset.outstandingPaise > 0) {
-      throw new Error(
-        `Cannot settle: ₹${(asset.outstandingPaise / 100).toLocaleString('en-IN')} capital still outstanding`,
-      );
-    }
-
-    const recovered = asset.capitalReturnedPaise + asset.profitReceivedPaise;
-    if (asset.settlementPctBps != null && asset.settlementPctBps < 10000) {
-      throw new Error('Settlement percentage must be 100% before marking settled');
-    }
-
     const payments = await tx
       .select()
       .from(acPaymentsReceived)
@@ -37,12 +31,17 @@ export async function createSettlement(assetId: string, notes?: string) {
 
     const totalReceived = payments.reduce((s, p) => s + p.amountPaise, 0);
     const grossProfit =
-      asset.profitPaise ?? (asset.actualSalePricePaise ?? 0) - asset.totalInvestmentPaise;
+      asset.profitPaise ??
+      (asset.actualSalePricePaise != null
+        ? computeGrossDealProfit(asset.actualSalePricePaise, asset.totalInvestmentPaise)
+        : 0);
 
     // Stored deal economics: myShare = my Investor Pool slice; partnerShare = Sufii (operating partner)
     const adminShare = asset.mySharePaise ?? 0;
     const partnerShare =
       asset.operatingPartnerProfitPaise ?? asset.partnerSharePaise ?? grossProfit - adminShare;
+
+    const recovered = asset.capitalReturnedPaise + asset.profitReceivedPaise;
 
     const [settlement] = await tx
       .insert(acSettlements)
@@ -59,7 +58,6 @@ export async function createSettlement(assetId: string, notes?: string) {
       .returning();
 
     // Marker entry only — cash was already credited via payment_received entries.
-    // Profit share split is stored in ac_settlements; do not re-credit ledger.
     await postLedgerEntry(
       {
         entryType: 'settlement',
@@ -68,7 +66,7 @@ export async function createSettlement(assetId: string, notes?: string) {
         assetId,
         sourceTable: 'ac_settlements',
         sourceId: settlement.id,
-        description: `Settlement recorded: ${asset.displayName}`,
+        description: `Deal closed: ${asset.displayName}`,
         metadata: {
           totalReceivedPaise: totalReceived,
           grossProfitPaise: grossProfit,

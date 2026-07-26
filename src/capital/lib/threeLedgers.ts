@@ -74,6 +74,30 @@ export function computeTviFromCosts(input: {
   };
 }
 
+/** Split cost ledger into repair / refund breakdown columns (audit H5). */
+export function summarizeVehicleCostBreakdown(
+  costs: { amountPaise: number; costType: string; isReversed?: boolean }[],
+): {
+  costsPaise: number;
+  repairTotalPaise: number;
+  dealerRefundTotalPaise: number;
+} {
+  let costsPaise = 0;
+  let repairTotalPaise = 0;
+  let dealerRefundTotalPaise = 0;
+  for (const row of costs) {
+    if (row.isReversed) continue;
+    const amt = Math.round(row.amountPaise);
+    costsPaise += amt;
+    if (row.costType === 'refund' || amt < 0) {
+      dealerRefundTotalPaise += Math.abs(amt);
+    } else if (row.costType === 'repair_settlement') {
+      repairTotalPaise += amt;
+    }
+  }
+  return { costsPaise, repairTotalPaise, dealerRefundTotalPaise };
+}
+
 export const SELLER_PAYMENT_KIND_LABELS: Record<SellerPaymentKind, string> = {
   token: 'Token',
   purchase: 'Purchase Payment',

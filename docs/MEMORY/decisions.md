@@ -9,6 +9,8 @@
 
 ## 2026-07-26
 
+- **Settle = deal closed** — After sale, Close deal needs no capital-return / outstanding gate (dealership OS). → audit H3
+- **TVI prefers `ac_vehicle_costs`** — Activities feed cost ledger; reverse/edit cascades; legacy expenses never enter TVI. → ADR-016 runtime
 - **Dealer UI hides stakes/funding** — Vehicle page shows Vehicle Investment + Seller Payments only; no Funding Status/Gap/My Investment/Partner. Stakes auto-synced to Me=purchase for Active Capital/ROI. Overpayment = simple seller warning. → extends ADR-020 product surface
 - **No Funding Sources (dealership OS)** — Reject treasury/funding-source workflows; keep instrument + costs + stakes for ROI. → ADR-020; drop `ac_funding_entries` (`0013`)
 - **Three ledgers (Vehicle Cost / Seller Payments / Funding Sources)** — *(superseded for Funding Sources by ADR-020)* → ADR-019

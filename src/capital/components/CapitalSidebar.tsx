@@ -22,7 +22,7 @@ export function CapitalSidebar() {
         <CapitalBrandLogo size={32} className="shrink-0" />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold tracking-tight">Automotive Capital</p>
-          <p className="text-[10px] text-ac-text-muted">Investment OS</p>
+          <p className="text-[10px] text-ac-text-muted">Dealership OS</p>
         </div>
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">

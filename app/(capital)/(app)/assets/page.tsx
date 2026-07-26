@@ -9,6 +9,7 @@ import { AssetPagination } from '@/src/capital/components/AssetPagination';
 import { assetListQuerySchema } from '@/src/capital/lib/validation/schemas';
 import { lifecycleLabel } from '@/src/capital/lib/vehicleLifecycle';
 import { listAssetsQuery, listManufacturers } from '@/src/capital/services/assets';
+import { calcHoldingDays } from '@/src/capital/lib/money';
 import { cn } from '@/src/capital/lib/utils';
 
 export const metadata: Metadata = { title: 'Vehicles' };
@@ -178,7 +179,9 @@ export default async function AssetsPage({ searchParams }: Props) {
                     </div>
                     <div>
                       <dt className="text-ac-text-muted">Days in inventory</dt>
-                      <dd className="font-medium">{asset.holdingDays ?? 0}</dd>
+                      <dd className="font-medium">
+                        {calcHoldingDays(asset.purchaseDate, asset.saleDate)}
+                      </dd>
                     </div>
                     {partnerLabel ? (
                       <div className="col-span-2">

@@ -108,7 +108,9 @@ export async function reverseAllSourceLedger(
     );
 
   if (originals.length === 0) {
-    throw new Error(`Ledger entry not found for ${sourceTable}/${sourceId}`);
+    // Dual-write sources (seller payments / activities) may share one ledger side —
+    // missing entries are a no-op so the other source can reverse safely.
+    return;
   }
 
   for (const orig of originals) {

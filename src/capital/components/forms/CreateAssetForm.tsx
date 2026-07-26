@@ -265,7 +265,7 @@ export function CreateAssetForm() {
                 onValueChange={(v) =>
                   form.setValue('purchasePrice', v, { shouldValidate: true, shouldDirty: true })
                 }
-                placeholder="Optional if token only"
+                placeholder="Negotiated price with seller"
               />
             </FormField>
 
@@ -276,11 +276,12 @@ export function CreateAssetForm() {
                 onValueChange={(v) =>
                   form.setValue('tokenPaid', v, { shouldValidate: true, shouldDirty: true })
                 }
-                placeholder="Optional"
+                placeholder="Optional — requires purchase price"
+                disabled={purchasePrice == null || purchasePrice <= 0}
               />
               <p className="mt-1 text-xs text-ac-text-muted">
                 Part of Purchase Price already paid to the seller — not an extra cost and not added
-                to Total Vehicle Investment.
+                to Total Vehicle Investment. Requires purchase price.
               </p>
             </FormField>
 

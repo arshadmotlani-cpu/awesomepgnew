@@ -387,6 +387,7 @@ export function sumPaymentMilestonesPaise(
 /**
  * Cash still owed to the seller toward Purchase Price.
  * Null when purchase price is not set — never fabricate Remaining = ₹0.
+ * @deprecated Prefer remainingPurchaseFromSellerPayments (same math; seller-ledger SSOT).
  */
 export function remainingPurchasePaymentPaise(
   purchasePricePaise: number,

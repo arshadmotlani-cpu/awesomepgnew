@@ -9,10 +9,10 @@ const reportTypes = [
   { slug: 'quarterly', label: 'Quarterly report', description: 'Quarter-over-quarter performance' },
   { slug: 'yearly', label: 'Yearly report', description: 'Annual portfolio summary' },
   { slug: 'lifetime', label: 'Lifetime report', description: 'All-time investment performance' },
-  { slug: 'outstanding', label: 'Outstanding report', description: 'Unsettled capital by asset' },
-  { slug: 'cash-flow', label: 'Cash flow', description: 'Inflows and outflows' },
+  { slug: 'outstanding', label: 'Open sold deals', description: 'Sold vehicles not yet closed' },
+  { slug: 'cash-flow', label: 'Cash flow', description: 'Active capital and inventory TVI' },
   { slug: 'roi', label: 'ROI report', description: 'Return on investment analysis' },
-  { slug: 'profit-loss', label: 'P&L report', description: 'Profit and loss statement' },
+  { slug: 'profit-loss', label: 'P&L report', description: 'Deal profits (My Profit entitled)' },
 ];
 
 export default function ReportsPage() {

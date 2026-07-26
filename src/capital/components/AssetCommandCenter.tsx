@@ -123,18 +123,22 @@ function StatCard({ label, paise, text }: { label: string; paise?: number; text?
   );
 }
 
-const TAB_VALUES = [
-  'overview',
-  'timeline',
-  'activities',
-  'photos',
-  'documents',
-  'sale',
-  'profit',
-  'notes',
-  'payments',
-  'ledger',
-] as const;
+const TAB_VALUES = ['overview', 'work', 'sale', 'files'] as const;
+
+function normalizeTab(initialTab: string | undefined): (typeof TAB_VALUES)[number] {
+  if (!initialTab) return 'overview';
+  if ((TAB_VALUES as readonly string[]).includes(initialTab)) {
+    return initialTab as (typeof TAB_VALUES)[number];
+  }
+  if (initialTab === 'timeline' || initialTab === 'activities' || initialTab === 'notes') {
+    return 'work';
+  }
+  if (initialTab === 'photos' || initialTab === 'documents') return 'files';
+  if (initialTab === 'profit' || initialTab === 'payments' || initialTab === 'ledger') {
+    return initialTab === 'profit' ? 'sale' : 'overview';
+  }
+  return 'overview';
+}
 
 export function AssetCommandCenter({
   assetId,
@@ -173,11 +177,8 @@ export function AssetCommandCenter({
     notes?: string | null;
   }>;
 }) {
-  const defaultTab =
-    initialTab && (TAB_VALUES as readonly string[]).includes(initialTab)
-      ? initialTab
-      : 'overview';
-  const [tab, setTab] = useState(defaultTab);
+  const defaultTab = normalizeTab(initialTab);
+  const [tab, setTab] = useState<(typeof TAB_VALUES)[number]>(defaultTab);
   const [editVehicleOpen, setEditVehicleOpen] = useState(false);
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
 
@@ -276,20 +277,18 @@ export function AssetCommandCenter({
   }
 
   return (
-    <Tabs value={tab} onValueChange={setTab} className="w-full">
+    <Tabs
+      value={tab}
+      onValueChange={(v) => setTab(normalizeTab(v))}
+      className="w-full"
+    >
       <TabsList className="mb-4 flex flex-wrap">
         <TabsTrigger value="overview">Overview</TabsTrigger>
-        <TabsTrigger value="timeline">
-          Timeline ({timelineEvents.length})
-        </TabsTrigger>
-        <TabsTrigger value="activities">Purchase Activities</TabsTrigger>
-        <TabsTrigger value="photos">Photos ({photos.length})</TabsTrigger>
-        <TabsTrigger value="documents">Documents ({docs.length})</TabsTrigger>
+        <TabsTrigger value="work">Work</TabsTrigger>
         <TabsTrigger value="sale">Sale</TabsTrigger>
-        <TabsTrigger value="profit">Profit</TabsTrigger>
-        <TabsTrigger value="notes">Notes</TabsTrigger>
-        <TabsTrigger value="payments">Payments ({timeline.payments.length})</TabsTrigger>
-        <TabsTrigger value="ledger">Ledger</TabsTrigger>
+        <TabsTrigger value="files">
+          Files ({photos.length + docs.length})
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="overview" className="space-y-4">
@@ -409,205 +408,169 @@ export function AssetCommandCenter({
         </div>
       </TabsContent>
 
-      <TabsContent value="timeline" className="space-y-2">
-        {timelineEvents.map((ev) => {
-          if (ev.kind === 'state') {
-            return (
-              <div
-                key={ev.id}
-                className="ac-glass-card border-l-2 border-ac-accent/60 p-3 text-sm"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline">{stateEventLabel(ev)}</Badge>
-                  <span className="text-ac-text-muted">
-                    {ev.createdAt.slice(0, 10)}
-                  </span>
+      <TabsContent value="work" className="space-y-6">
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold">Purchase Activities</h3>
+          {canEdit ? (
+            <CreateActivityForm assetId={assetId} openAdvances={timeline.openAdvances} />
+          ) : (
+            <p className="text-sm text-ac-text-muted">This vehicle is closed — activities locked.</p>
+          )}
+          {timeline.openAdvances.length > 0 ? (
+            <div className="ac-glass-card space-y-2 p-3 text-sm">
+              <p className="font-medium">Open repair advances</p>
+              {timeline.openAdvances.map((a) => (
+                <div key={a.id} className="flex justify-between">
+                  <span>Advance given</span>
+                  <MoneyDisplay paise={a.advancePaise} />
                 </div>
-              </div>
-            );
-          }
-
-          const activityId = ev.id.startsWith('act-') ? ev.id.slice(4) : ev.id;
-          const full = timeline.vehicleActivities.find((a) => a.id === activityId);
-          const meta = (ev.metadata ?? full?.metadata) as Record<string, unknown> | null | undefined;
-
-          return (
-            <div key={ev.id} className="ac-glass-card p-3 text-sm">
-              <div className="flex justify-between gap-4">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="secondary">
-                      {activityLabel(ev.activityType ?? '')}
-                    </Badge>
-                    <span className="text-ac-text-muted">{ev.activityAt}</span>
-                    {ev.activityType && isPaymentMilestoneType(ev.activityType) ? (
-                      <Badge variant="outline">milestone</Badge>
-                    ) : ev.activityType &&
-                      VEHICLE_ACTIVITY_TYPE_META[ev.activityType as VehicleActivityType]
-                        ?.costImpact === 'vehicle_cost' ? (
-                      <Badge variant="outline">investment</Badge>
-                    ) : null}
-                  </div>
-                  {ev.title ? <p className="mt-1 font-medium">{ev.title}</p> : null}
-                  {ev.notes ? <p className="mt-0.5 text-ac-text-muted">{ev.notes}</p> : null}
-                </div>
-                <div className="text-right">
-                  {ev.amountPaise != null ? (
-                    <MoneyDisplay paise={ev.amountPaise} />
-                  ) : (
-                    <span className="text-ac-text-muted">—</span>
-                  )}
-                  {canEdit && full && full.activityType !== 'vehicle_created' ? (
-                    <button
-                      type="button"
-                      className="mt-1 block text-xs text-ac-accent hover:underline"
-                      onClick={() =>
-                        setEditingActivityId((id) => (id === full.id ? null : full.id))
-                      }
-                    >
-                      {editingActivityId === full.id ? 'Close' : 'Edit'}
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-              {full && editingActivityId === full.id ? (
-                <EditActivityForm
-                  activity={full}
-                  advancePaise={
-                    typeof meta?.advancePaise === 'number' ? meta.advancePaise : undefined
-                  }
-                  onDone={() => setEditingActivityId(null)}
-                />
-              ) : null}
+              ))}
             </div>
-          );
-        })}
-        {timelineEvents.length === 0 ? (
-          <p className="text-sm text-ac-text-muted">No timeline events yet.</p>
-        ) : null}
-      </TabsContent>
+          ) : null}
+        </div>
 
-      <TabsContent value="activities" className="space-y-4">
-        {canEdit ? (
-          <CreateActivityForm assetId={assetId} openAdvances={timeline.openAdvances} />
-        ) : (
-          <p className="text-sm text-ac-text-muted">This vehicle is closed — activities locked.</p>
-        )}
-        {timeline.openAdvances.length > 0 ? (
-          <div className="ac-glass-card space-y-2 p-3 text-sm">
-            <p className="font-medium">Open repair advances</p>
-            {timeline.openAdvances.map((a) => (
-              <div key={a.id} className="flex justify-between">
-                <span>Advance given</span>
-                <MoneyDisplay paise={a.advancePaise} />
-              </div>
-            ))}
-          </div>
-        ) : null}
         <div className="space-y-2">
-          <p className="text-sm font-medium">Recorded activities</p>
-          {timeline.vehicleActivities
-            .filter((a) => a.activityType !== 'vehicle_created')
-            .map((a) => (
-              <div key={a.id} className="ac-glass-card p-3 text-sm">
-                <div className="flex justify-between gap-3">
+          <h3 className="text-sm font-semibold">Timeline ({timelineEvents.length})</h3>
+          {timelineEvents.map((ev) => {
+            if (ev.kind === 'state') {
+              return (
+                <div
+                  key={ev.id}
+                  className="ac-glass-card border-l-2 border-ac-accent/60 p-3 text-sm"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">{stateEventLabel(ev)}</Badge>
+                    <span className="text-ac-text-muted">{ev.createdAt.slice(0, 10)}</span>
+                  </div>
+                </div>
+              );
+            }
+
+            const activityId = ev.id.startsWith('act-') ? ev.id.slice(4) : ev.id;
+            const full = timeline.vehicleActivities.find((a) => a.id === activityId);
+            const meta = (ev.metadata ?? full?.metadata) as Record<string, unknown> | null | undefined;
+
+            return (
+              <div key={ev.id} className="ac-glass-card p-3 text-sm">
+                <div className="flex justify-between gap-4">
                   <div>
-                    <Badge variant="secondary">{activityLabel(a.activityType)}</Badge>
-                    <span className="ml-2 text-ac-text-muted">{a.activityAt}</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary">{activityLabel(ev.activityType ?? '')}</Badge>
+                      <span className="text-ac-text-muted">{ev.activityAt}</span>
+                      {ev.activityType && isPaymentMilestoneType(ev.activityType) ? (
+                        <Badge variant="outline">milestone</Badge>
+                      ) : ev.activityType &&
+                        VEHICLE_ACTIVITY_TYPE_META[ev.activityType as VehicleActivityType]
+                          ?.costImpact === 'vehicle_cost' ? (
+                        <Badge variant="outline">investment</Badge>
+                      ) : null}
+                    </div>
+                    {ev.title ? <p className="mt-1 font-medium">{ev.title}</p> : null}
+                    {ev.notes ? <p className="mt-0.5 text-ac-text-muted">{ev.notes}</p> : null}
                   </div>
                   <div className="text-right">
-                    {a.amountPaise != null ? <MoneyDisplay paise={a.amountPaise} /> : null}
-                    {canEdit ? (
+                    {ev.amountPaise != null ? (
+                      <MoneyDisplay paise={ev.amountPaise} />
+                    ) : (
+                      <span className="text-ac-text-muted">—</span>
+                    )}
+                    {canEdit && full && full.activityType !== 'vehicle_created' ? (
                       <button
                         type="button"
                         className="mt-1 block text-xs text-ac-accent hover:underline"
                         onClick={() =>
-                          setEditingActivityId((id) => (id === a.id ? null : a.id))
+                          setEditingActivityId((id) => (id === full.id ? null : full.id))
                         }
                       >
-                        {editingActivityId === a.id ? 'Close' : 'Edit'}
+                        {editingActivityId === full.id ? 'Close' : 'Edit'}
                       </button>
                     ) : null}
                   </div>
                 </div>
-                {editingActivityId === a.id ? (
+                {full && editingActivityId === full.id ? (
                   <EditActivityForm
-                    activity={a}
+                    activity={full}
                     advancePaise={
-                      typeof a.metadata?.advancePaise === 'number'
-                        ? a.metadata.advancePaise
-                        : undefined
+                      typeof meta?.advancePaise === 'number' ? meta.advancePaise : undefined
                     }
                     onDone={() => setEditingActivityId(null)}
                   />
                 ) : null}
               </div>
-            ))}
-        </div>
-      </TabsContent>
-
-      <TabsContent value="photos" className="space-y-4">
-        {canEdit ? (
-          <DocumentUploadForm
-            assets={[{ id: assetId, label: 'This vehicle' }]}
-            defaultAssetId={assetId}
-            forceDocumentType="photo"
-          />
-        ) : null}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {photos.map((d) => {
-            const isCover = d.id === coverDocumentId || d.isCover;
-            return (
-              <div key={d.id} className="ac-glass-card overflow-hidden">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`/api/capital/files/${d.id}`}
-                  alt={d.fileName}
-                  className="aspect-video w-full object-cover"
-                />
-                <div className="flex items-center justify-between gap-2 p-2 text-xs">
-                  <span className="truncate">{d.fileName}</span>
-                  {isCover ? (
-                    <Badge variant="success">Cover</Badge>
-                  ) : canEdit ? (
-                    <SetCoverPhotoButton assetId={assetId} documentId={d.id} />
-                  ) : null}
-                </div>
-              </div>
             );
           })}
+          {timelineEvents.length === 0 ? (
+            <p className="text-sm text-ac-text-muted">No timeline events yet.</p>
+          ) : null}
         </div>
-        {photos.length === 0 ? (
-          <p className="text-sm text-ac-text-muted">No photos yet.</p>
-        ) : null}
       </TabsContent>
 
-      <TabsContent value="documents" className="space-y-4">
-        {canEdit ? (
-          <DocumentUploadForm
-            assets={[{ id: assetId, label: 'This vehicle' }]}
-            defaultAssetId={assetId}
-          />
-        ) : null}
-        {docs.map((d) => (
-          <div key={d.id} className="ac-glass-card flex justify-between p-3 text-sm">
-            <div>
-              <p className="font-medium">{d.fileName}</p>
-              <Badge variant="secondary" className="mt-1">
-                {d.documentType}
-              </Badge>
-            </div>
-            <div className="text-right">
-              <p className="text-ac-text-muted">{(d.fileSizeBytes / 1024).toFixed(1)} KB</p>
-              <Link href={`/api/capital/files/${d.id}`} className="text-ac-accent hover:underline">
-                Download
-              </Link>
-            </div>
+      <TabsContent value="files" className="space-y-6">
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold">Photos ({photos.length})</h3>
+          {canEdit ? (
+            <DocumentUploadForm
+              assets={[{ id: assetId, label: 'This vehicle' }]}
+              defaultAssetId={assetId}
+              forceDocumentType="photo"
+            />
+          ) : null}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {photos.map((d) => {
+              const isCover = d.id === coverDocumentId || d.isCover;
+              return (
+                <div key={d.id} className="ac-glass-card overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`/api/capital/files/${d.id}`}
+                    alt={d.fileName}
+                    className="aspect-video w-full object-cover"
+                  />
+                  <div className="flex items-center justify-between gap-2 p-2 text-xs">
+                    <span className="truncate">{d.fileName}</span>
+                    {isCover ? (
+                      <Badge variant="success">Cover</Badge>
+                    ) : canEdit ? (
+                      <SetCoverPhotoButton assetId={assetId} documentId={d.id} />
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        ))}
-        {docs.length === 0 ? (
-          <p className="text-sm text-ac-text-muted">No documents.</p>
-        ) : null}
+          {photos.length === 0 ? (
+            <p className="text-sm text-ac-text-muted">No photos yet.</p>
+          ) : null}
+        </div>
+
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold">Documents ({docs.length})</h3>
+          {canEdit ? (
+            <DocumentUploadForm
+              assets={[{ id: assetId, label: 'This vehicle' }]}
+              defaultAssetId={assetId}
+            />
+          ) : null}
+          {docs.map((d) => (
+            <div key={d.id} className="ac-glass-card flex justify-between p-3 text-sm">
+              <div>
+                <p className="font-medium">{d.fileName}</p>
+                <Badge variant="secondary" className="mt-1">
+                  {d.documentType}
+                </Badge>
+              </div>
+              <div className="text-right">
+                <p className="text-ac-text-muted">{(d.fileSizeBytes / 1024).toFixed(1)} KB</p>
+                <Link href={`/api/capital/files/${d.id}`} className="text-ac-accent hover:underline">
+                  Download
+                </Link>
+              </div>
+            </div>
+          ))}
+          {docs.length === 0 ? (
+            <p className="text-sm text-ac-text-muted">No documents.</p>
+          ) : null}
+        </div>
       </TabsContent>
 
       <TabsContent value="sale" className="space-y-4">
@@ -618,9 +581,6 @@ export function AssetCommandCenter({
           totalInvestmentPaise={totalInvestmentPaise}
           profitDistributionMode={profitDistributionMode}
         />
-      </TabsContent>
-
-      <TabsContent value="profit" className="space-y-4">
         {profit ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <StatCard label="Sale price" paise={profit.salePricePaise} />
@@ -630,7 +590,7 @@ export function AssetCommandCenter({
               label="Profit Distribution"
               text={profitDistributionLabel(profit.profitDistributionMode)}
             />
-            <StatCard label="My Profit" paise={profit.myProfitPaise} />
+            <StatCard label="My Profit (entitled)" paise={profit.myProfitPaise} />
             <StatCard label="Sufii Profit" paise={profit.operatingPartnerPaise} />
             <StatCard
               label="Business ROI"
@@ -647,97 +607,9 @@ export function AssetCommandCenter({
           </div>
         ) : (
           <p className="text-sm text-ac-text-muted">
-            Profit figures appear after you record a sale. Choose distribution on the Sale tab when
-            the deal closes.
+            Profit figures appear after you record a sale.
           </p>
         )}
-      </TabsContent>
-
-      <TabsContent value="notes" className="space-y-4">
-        <div className="ac-glass-card space-y-3 p-4">
-          <h3 className="text-sm font-semibold">Vehicle notes</h3>
-          <p className="whitespace-pre-wrap text-sm text-ac-text-secondary">
-            {overview.notes?.trim() ? overview.notes : 'No notes yet.'}
-          </p>
-          {canEdit ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={() => {
-                setTab('overview');
-                setEditVehicleOpen(true);
-              }}
-            >
-              Edit notes & vehicle details
-            </Button>
-          ) : null}
-        </div>
-        <div className="space-y-2">
-          <h3 className="text-sm font-medium">Note activities</h3>
-          {timeline.vehicleActivities.filter((a) => a.activityType === 'note').length === 0 ? (
-            <p className="text-sm text-ac-text-muted">
-              Add a Note from Purchase Activities to keep timeline notes on this vehicle.
-            </p>
-          ) : (
-            timeline.vehicleActivities
-              .filter((a) => a.activityType === 'note')
-              .map((a) => (
-                <div key={a.id} className="ac-glass-card p-3 text-sm">
-                  <p className="text-ac-text-muted">{a.activityAt}</p>
-                  {a.title ? <p className="mt-1 font-medium">{a.title}</p> : null}
-                  {a.notes ? <p className="mt-1 text-ac-text-secondary">{a.notes}</p> : null}
-                </div>
-              ))
-          )}
-        </div>
-      </TabsContent>
-
-      <TabsContent value="payments" className="space-y-4">
-        <p className="text-xs text-ac-text-muted">
-          Capital and profit payments received against this vehicle.
-        </p>
-        <div className="space-y-2">
-          {timeline.payments.map((p) => (
-            <div key={p.id} className="ac-glass-card flex justify-between p-3 text-sm">
-              <div>
-                <Badge variant="secondary">{p.paymentType}</Badge>
-                <p className="mt-1 text-ac-text-muted">{p.receivedAt}</p>
-              </div>
-              <MoneyDisplay paise={p.amountPaise} />
-            </div>
-          ))}
-          {timeline.payments.length === 0 ? (
-            <p className="text-sm text-ac-text-muted">No payments recorded yet.</p>
-          ) : null}
-        </div>
-      </TabsContent>
-
-      <TabsContent value="ledger" className="space-y-6">
-        <p className="text-xs text-ac-text-muted">
-          Immutable ledger entries for this vehicle.
-        </p>
-        <div className="space-y-2">
-          {timeline.ledger.map((l) => (
-            <div key={l.id} className="ac-glass-card flex justify-between gap-4 p-3 text-sm">
-              <div>
-                <Badge variant="outline">{l.entryType}</Badge>
-                <p className="mt-1 text-ac-text-secondary">{l.description}</p>
-              </div>
-              <div className="text-right">
-                <Badge variant={l.direction === 'credit' ? 'success' : 'warning'}>
-                  {l.direction}
-                </Badge>
-                <p className="mt-1">
-                  <MoneyDisplay paise={l.amountPaise} />
-                </p>
-              </div>
-            </div>
-          ))}
-          {timeline.ledger.length === 0 ? (
-            <p className="text-sm text-ac-text-muted">No ledger entries.</p>
-          ) : null}
-        </div>
       </TabsContent>
     </Tabs>
   );

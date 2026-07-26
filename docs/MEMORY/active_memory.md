@@ -7,6 +7,8 @@
 
 ## Current Focus
 
+- **Automotive Capital audit remediation (shipped locally)** — Money integrity (activity reverse↔cost/seller ledgers), settle without capital-return gate, Reports = Dashboard Active Capital / entitled My Profit, Purchase Pending = seller Remaining SSOT, vehicle IA collapsed to Overview|Work|Sale|Files.
+
 - **Automotive Capital dealership OS (ADR-020 + dealer surface)** — UI answers buy / cost / paid seller / remaining / profit only. No Funding Status, Gap, My/Partner Investment, Over/Underfunded. Stakes remain internal for Active Capital + ROI (auto Me = purchase).
 
 - **Automotive Capital Profit Distribution Mode** — Sale-time SELF vs PARTNERSHIP_50_50 (ADR-018). **Frozen** — see PROFIT_DISTRIBUTION_SSOT.md. Migrations `0010`+`0011`. Mode chosen at Record Sale (default SELF); edit on Sale tab.

@@ -8,7 +8,7 @@ Design principle: **Assets first, cars second.** The domain model is built aroun
 
 **Dealership economics (ADR-020):** Vehicle Cost (`ac_vehicle_costs` + purchase price) → TVI; Seller Payments (`ac_seller_payments` with instrument) → Remaining. **No Funding Sources ledger** — do not ask where money came from. Active Capital = Me open stakes (ADR-015). Generic `ac_ledger_entries` is mutation audit only.
 
-**Financial SSOT (ADR-016):** Total Vehicle Investment = Purchase Price + investment costs − refunds. Seller payments never enter TVI. Profit = Sale − TVI. See `docs/automotive-capital/DECISIONS.md` ADR-016.
+**Financial SSOT (ADR-016):** Total Vehicle Investment = Purchase Price + `ac_vehicle_costs` − refunds (activities feed the cost ledger). Seller payments never enter TVI. Profit = Sale − TVI. Prefer cost ledger in `recalculateAsset`; activities fallback only when costs empty. See `docs/automotive-capital/DECISIONS.md` ADR-016.
 
 **Lifecycle SSOT (ADR-017):** Every vehicle has one current `ac_asset_status` (dealer labels via `src/capital/lib/vehicleLifecycle.ts`). Timeline may project events; status is current state. Dashboard groups by lifecycle state.
 

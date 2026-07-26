@@ -64,3 +64,52 @@ export async function listVehicleCosts(assetId: string, db: CapitalDbClient = ca
     .from(acVehicleCosts)
     .where(and(eq(acVehicleCosts.assetId, assetId), eq(acVehicleCosts.isReversed, false)));
 }
+
+/** Mark cost rows linked to an activity as reversed (keeps TVI SSOT in sync). */
+export async function reverseVehicleCostsForActivity(
+  activityId: string,
+  db: CapitalDbClient = capitalDb,
+) {
+  await db
+    .update(acVehicleCosts)
+    .set({ isReversed: true, updatedAt: new Date() })
+    .where(
+      and(eq(acVehicleCosts.activityId, activityId), eq(acVehicleCosts.isReversed, false)),
+    );
+}
+
+/** Update amount/title/notes on the live cost row linked to an activity. */
+export async function updateVehicleCostForActivity(
+  input: {
+    activityId: string;
+    amountPaise: number;
+    occurredAt?: string;
+    title?: string | null;
+    notes?: string | null;
+  },
+  db: CapitalDbClient = capitalDb,
+) {
+  const [row] = await db
+    .select()
+    .from(acVehicleCosts)
+    .where(
+      and(eq(acVehicleCosts.activityId, input.activityId), eq(acVehicleCosts.isReversed, false)),
+    )
+    .limit(1);
+  if (!row) return null;
+
+  const [updated] = await db
+    .update(acVehicleCosts)
+    .set({
+      amountPaise: Math.round(input.amountPaise),
+      occurredAt: input.occurredAt ?? row.occurredAt,
+      title: input.title !== undefined ? input.title : row.title,
+      notes: input.notes !== undefined ? input.notes : row.notes,
+      updatedAt: new Date(),
+    })
+    .where(eq(acVehicleCosts.id, row.id))
+    .returning();
+  return updated ?? null;
+}
+
+export { summarizeVehicleCostBreakdown } from '@/src/capital/lib/threeLedgers';

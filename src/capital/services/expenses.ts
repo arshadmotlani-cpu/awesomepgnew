@@ -18,56 +18,9 @@ export type CreateExpenseInput = {
 };
 
 export async function createExpense(input: CreateExpenseInput) {
-  if (input.amountPaise === 0) throw new Error('Expense amount must be non-zero');
-
-  return capitalDb.transaction(async (tx) => {
-    await assertAssetAcceptsExpenses(input.assetId, tx);
-
-    const [row] = await tx
-      .insert(acExpenses)
-      .values({
-        assetId: input.assetId,
-        categoryId: input.categoryId,
-        expenseDate: input.expenseDate,
-        vendor: input.vendor,
-        amountPaise: input.amountPaise,
-        description: input.description,
-        paymentMethod: input.paymentMethod as typeof acExpenses.$inferInsert.paymentMethod,
-        notes: input.notes,
-      })
-      .returning();
-
-    // Positive expense → debit (increases vehicle cost); negative → credit (reduces cost)
-    const absAmount = Math.abs(input.amountPaise);
-    await postLedgerEntry(
-      {
-        entryType: 'expense',
-        direction: input.amountPaise > 0 ? 'debit' : 'credit',
-        amountPaise: absAmount,
-        assetId: input.assetId,
-        sourceTable: 'ac_expenses',
-        sourceId: row.id,
-        description:
-          input.amountPaise > 0
-            ? `Expense: ${input.description}`
-            : `Expense credit/adjustment: ${input.description}`,
-      },
-      tx,
-    );
-
-    await recalculateAsset(input.assetId, tx);
-    await logActivity(
-      {
-        action: 'expense_created',
-        entityType: 'expense',
-        entityId: row.id,
-        afterState: { amountPaise: input.amountPaise, assetId: input.assetId },
-      },
-      tx,
-    );
-
-    return row;
-  });
+  throw new Error(
+    'Legacy expenses no longer affect vehicle investment. Record costs via Purchase Activities (broker, repair, transport, etc.).',
+  );
 }
 
 export async function reverseExpense(expenseId: string, reason: string) {

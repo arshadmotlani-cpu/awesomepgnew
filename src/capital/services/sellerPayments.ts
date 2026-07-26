@@ -13,7 +13,7 @@ import {
   SELLER_PAYMENT_KIND_LABELS,
   SELLER_PAYMENT_INSTRUMENT_LABELS,
 } from '@/src/capital/lib/threeLedgers';
-import { postLedgerEntry } from '@/src/capital/services/ledger';
+import { postLedgerEntry, reverseSourceLedger } from '@/src/capital/services/ledger';
 import { logActivity } from '@/src/capital/services/activity';
 import { assertAssetMutable, recalculateAsset } from '@/src/capital/services/assets';
 
@@ -183,4 +183,105 @@ export async function recordPurchasePayment(input: {
     referenceNumber: input.referenceNumber,
     notes: input.notes,
   });
+}
+
+/** Mark seller payment linked to an activity as reversed (keeps Remaining SSOT in sync). */
+export async function reverseSellerPaymentForActivity(
+  activityId: string,
+  reason: string,
+  db: CapitalDbClient = capitalDb,
+) {
+  const [payment] = await db
+    .select()
+    .from(acSellerPayments)
+    .where(
+      and(eq(acSellerPayments.activityId, activityId), eq(acSellerPayments.isReversed, false)),
+    )
+    .limit(1);
+  if (!payment) return null;
+
+  await db
+    .update(acSellerPayments)
+    .set({ isReversed: true, updatedAt: new Date() })
+    .where(eq(acSellerPayments.id, payment.id));
+
+  if (payment.ledgerEntryId) {
+    await reverseSourceLedger(
+      'ac_seller_payments',
+      payment.id,
+      `Reversal: ${reason}`,
+      db,
+    );
+  }
+
+  return payment;
+}
+
+/** Update live seller payment amount/date/notes linked to an activity. */
+export async function updateSellerPaymentForActivity(
+  input: {
+    activityId: string;
+    amountPaise: number;
+    paidAt?: string;
+    notes?: string | null;
+  },
+  db: CapitalDbClient = capitalDb,
+) {
+  const [payment] = await db
+    .select()
+    .from(acSellerPayments)
+    .where(
+      and(eq(acSellerPayments.activityId, input.activityId), eq(acSellerPayments.isReversed, false)),
+    )
+    .limit(1);
+  if (!payment) return null;
+
+  const nextAmount = Math.round(input.amountPaise);
+  const amountChanged = nextAmount !== payment.amountPaise;
+
+  if (amountChanged) {
+    await reverseSourceLedger(
+      'ac_seller_payments',
+      payment.id,
+      'Edit seller payment — clear prior ledger',
+      db,
+    );
+    if (nextAmount > 0) {
+      const entry = await postLedgerEntry(
+        {
+          entryType: 'adjustment',
+          direction: 'debit',
+          amountPaise: nextAmount,
+          assetId: payment.assetId,
+          sourceTable: 'ac_seller_payments',
+          sourceId: payment.id,
+          description: `Seller payment (edited): ₹${(nextAmount / 100).toLocaleString('en-IN')}`,
+        },
+        db,
+      );
+      await db
+        .update(acSellerPayments)
+        .set({
+          amountPaise: nextAmount,
+          paidAt: input.paidAt ?? payment.paidAt,
+          notes: input.notes !== undefined ? input.notes : payment.notes,
+          ledgerEntryId: entry.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(acSellerPayments.id, payment.id));
+      return (await db.select().from(acSellerPayments).where(eq(acSellerPayments.id, payment.id)).limit(1))[0] ?? null;
+    }
+  }
+
+  const [updated] = await db
+    .update(acSellerPayments)
+    .set({
+      amountPaise: nextAmount,
+      paidAt: input.paidAt ?? payment.paidAt,
+      notes: input.notes !== undefined ? input.notes : payment.notes,
+      updatedAt: new Date(),
+    })
+    .where(eq(acSellerPayments.id, payment.id))
+    .returning();
+  return updated ?? null;
 }

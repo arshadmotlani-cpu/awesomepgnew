@@ -6,7 +6,6 @@ import {
   acAssets,
   acAutomotiveDetails,
   acDocuments,
-  acExpenses,
   acLedgerEntries,
   acPaymentsReceived,
   acRepairAdvances,
@@ -23,14 +22,9 @@ import {
   validateFundingStructure,
   type InvestorFundingInput,
 } from '@/src/capital/lib/investors';
-import {
-  computeFundingGap,
-  computeGrossDealProfit,
-  computeNetVehicleCost,
-  distributeDealProfits,
-} from '@/src/capital/lib/dealEconomics';
+import { computeGrossDealProfit, computeFundingGap, distributeDealProfits } from '@/src/capital/lib/dealEconomics';
 import { computeTotalVehicleInvestment } from '@/src/capital/lib/activityTypes';
-import { computeTviFromCosts } from '@/src/capital/lib/threeLedgers';
+import { computeTviFromCosts, summarizeVehicleCostBreakdown } from '@/src/capital/lib/threeLedgers';
 import {
   canArchive,
   canTransition,
@@ -97,12 +91,7 @@ export async function sumMyActiveInvestedCapitalPaise(
     .select({ total: sum(acAssetInvestors.investedPaise) })
     .from(acAssetInvestors)
     .innerJoin(acAssets, eq(acAssetInvestors.assetId, acAssets.id))
-    .where(
-      and(
-        eq(acAssetInvestors.slot, 'me'),
-        sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`,
-      ),
-    );
+    .where(and(eq(acAssetInvestors.slot, 'me'), openInventorySql()));
   return Number(row?.total ?? 0);
 }
 
@@ -118,14 +107,12 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
     );
 
   const costRows = await db
-    .select({ amountPaise: acVehicleCosts.amountPaise })
+    .select({
+      amountPaise: acVehicleCosts.amountPaise,
+      costType: acVehicleCosts.costType,
+    })
     .from(acVehicleCosts)
     .where(and(eq(acVehicleCosts.assetId, assetId), eq(acVehicleCosts.isReversed, false)));
-
-  const expenseRows = await db
-    .select({ amountPaise: acExpenses.amountPaise })
-    .from(acExpenses)
-    .where(and(eq(acExpenses.assetId, assetId), eq(acExpenses.isReversed, false)));
 
   const [paymentSums] = await db
     .select({
@@ -139,23 +126,31 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
   const [asset] = await db.select().from(acAssets).where(eq(acAssets.id, assetId)).limit(1);
   if (!asset) return;
 
-  // ADR-019: prefer Vehicle Cost ledger; else ADR-016 activities; else legacy expenses.
+  // SSOT: TVI = purchase + ac_vehicle_costs (fed by activities). Activities fallback
+  // only when cost ledger is empty (pre-migration / edge). Legacy ac_expenses never
+  // enter TVI (ADR-016 / audit H2).
   const hasCostLedger = costRows.length > 0;
-  const hasActivities = activityRows.length > 0;
+  const hasInvestmentActivities = activityRows.some(
+    (r) =>
+      r.activityType !== 'vehicle_created' &&
+      r.activityType !== 'sale' &&
+      r.amountPaise != null,
+  );
   const cost = hasCostLedger
     ? (() => {
         const tvi = computeTviFromCosts({
           purchasePricePaise: asset.purchasePricePaise,
           costs: costRows,
         });
+        const breakdown = summarizeVehicleCostBreakdown(costRows);
         return {
           totalExpensePaise: tvi.costsPaise,
-          repairTotalPaise: 0,
-          dealerRefundTotalPaise: 0,
+          repairTotalPaise: breakdown.repairTotalPaise,
+          dealerRefundTotalPaise: breakdown.dealerRefundTotalPaise,
           netVehicleCostPaise: tvi.totalVehicleInvestmentPaise,
         };
       })()
-    : hasActivities
+    : hasInvestmentActivities
       ? computeTotalVehicleInvestment({
           purchasePricePaise: asset.purchasePricePaise,
           activities: activityRows.map((r) => ({
@@ -163,7 +158,12 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
             amountPaise: r.amountPaise,
           })),
         })
-      : computeNetVehicleCost(asset.purchasePricePaise, expenseRows);
+      : {
+          totalExpensePaise: 0,
+          repairTotalPaise: 0,
+          dealerRefundTotalPaise: 0,
+          netVehicleCostPaise: Math.round(asset.purchasePricePaise),
+        };
 
   const netVehicleCost = cost.netVehicleCostPaise;
   const capitalReturned = Number(paymentSums?.capital ?? 0);
@@ -877,16 +877,15 @@ export async function listAssetsQuery(query: AssetListQuery) {
     if (tab === 'in_stock') {
       conditions.push(openInventorySql());
     } else if (tab === 'purchase_pending') {
+      // Seller Remaining only — never funding gap (audit H6)
       conditions.push(eq(acAssets.status, 'purchased'));
       conditions.push(sql`(
-        ${acAssets.purchasePricePaise} <= 0
-        OR COALESCE(${acAssets.fundingGapPaise}, 0) > 0
-        OR COALESCE((
-          SELECT SUM(v.amount_paise)
-          FROM ac_vehicle_activities v
-          WHERE v.asset_id = ${acAssets.id}
-            AND v.is_reversed = false
-            AND v.activity_type IN ('token_paid', 'purchase_payment', 'final_purchase_payment')
+        ${acAssets.purchasePricePaise} > 0
+        AND COALESCE((
+          SELECT SUM(sp.amount_paise)
+          FROM ac_seller_payments sp
+          WHERE sp.asset_id = ${acAssets.id}
+            AND sp.is_reversed = false
         ), 0) < ${acAssets.purchasePricePaise}
       )`);
     } else if (tab === 'under_repair') {

@@ -1,10 +1,9 @@
-import { eq, sum } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import ExcelJS from 'exceljs';
 import { capitalDb } from '@/src/capital/db/client';
 import {
   acAssets,
   acAutomotiveDetails,
-  acCapitalInvestments,
   acPaymentsReceived,
 } from '@/src/capital/db/schema';
 import { formatInrPlain, paiseToRupees } from '@/src/capital/lib/money';
@@ -84,21 +83,6 @@ export async function generateCsvReport(type: string): Promise<string> {
         ].join(','),
       );
     }
-    const capital = await capitalDb
-      .select()
-      .from(acCapitalInvestments)
-      .where(eq(acCapitalInvestments.isReversed, false));
-    for (const c of capital) {
-      lines.push(
-        [
-          c.investedAt,
-          'capital_investment',
-          paiseToRupees(c.amountPaise),
-          c.paymentMode,
-          c.referenceNumber ?? '',
-        ].join(','),
-      );
-    }
     const { acManualProfits } = await import('@/src/capital/db/schema');
     const manuals = await capitalDb
       .select()
@@ -135,7 +119,7 @@ export async function generateCsvReport(type: string): Promise<string> {
         ].join(','),
       );
     }
-  } else if (type === 'vehicles' || type === 'pnl' || type === 'roi') {
+  } else if (type === 'vehicles' || type === 'pnl' || type === 'profit-loss' || type === 'roi') {
     lines.push(vehicleDealRowsCsvHeader());
     const rows = await capitalDb
       .select({ asset: acAssets })
@@ -145,18 +129,29 @@ export async function generateCsvReport(type: string): Promise<string> {
       if (asset.status === 'cancelled') continue;
       lines.push(vehicleDealRowCsv(asset));
     }
+  } else if (
+    type === 'monthly' ||
+    type === 'quarterly' ||
+    type === 'yearly' ||
+    type === 'lifetime'
+  ) {
+    const { getDealershipReportKpis } = await import('./analytics');
+    const kpis = await getDealershipReportKpis();
+    lines.push('Metric,Value');
+    lines.push(`Active Capital,${formatInrPlain(kpis.activeCapitalPaise)}`);
+    lines.push(`Inventory TVI,${formatInrPlain(kpis.currentInvestmentPaise)}`);
+    lines.push(`My Profit (entitled),${formatInrPlain(kpis.profitEarnedPaise)}`);
+    lines.push(`Monthly My Profit,${formatInrPlain(kpis.monthlyProfitPaise)}`);
+    lines.push(`Yearly My Profit,${formatInrPlain(kpis.yearlyProfitPaise)}`);
+    lines.push(`Vehicles in stock,${kpis.assetsInStock}`);
+    lines.push(`Vehicles sold,${kpis.assetsSold}`);
   } else {
-    lines.push('Report,Value');
-    const [cap] = await capitalDb
-      .select({ t: sum(acCapitalInvestments.amountPaise) })
-      .from(acCapitalInvestments)
-      .where(eq(acCapitalInvestments.isReversed, false));
-    const [pay] = await capitalDb
-      .select({ t: sum(acPaymentsReceived.amountPaise) })
-      .from(acPaymentsReceived)
-      .where(eq(acPaymentsReceived.isReversed, false));
-    lines.push(`Total Capital,${formatInrPlain(Number(cap?.t ?? 0))}`);
-    lines.push(`Total Received,${formatInrPlain(Number(pay?.t ?? 0))}`);
+    const { getDealershipReportKpis } = await import('./analytics');
+    const kpis = await getDealershipReportKpis();
+    lines.push('Metric,Value');
+    lines.push(`Active Capital,${formatInrPlain(kpis.activeCapitalPaise)}`);
+    lines.push(`My Profit (entitled),${formatInrPlain(kpis.profitEarnedPaise)}`);
+    lines.push(`Vehicles in stock,${kpis.assetsInStock}`);
   }
 
   await logActivity({ action: 'export_generated', afterState: { type, format: 'csv' } });
@@ -188,7 +183,7 @@ export async function generateExcelReport(type: string): Promise<Buffer> {
         outstanding: paiseToRupees(asset.outstandingPaise),
       });
     }
-  } else if (type === 'vehicles' || type === 'pnl' || type === 'roi') {
+  } else if (type === 'vehicles' || type === 'pnl' || type === 'profit-loss' || type === 'roi') {
     sheet.columns = [
       { header: 'Name', key: 'name', width: 28 },
       { header: 'Status', key: 'status', width: 12 },
