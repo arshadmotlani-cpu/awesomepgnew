@@ -30,6 +30,7 @@ import {
   distributeDealProfits,
 } from '@/src/capital/lib/dealEconomics';
 import { computeTotalVehicleInvestment } from '@/src/capital/lib/activityTypes';
+import { computeTviFromCosts } from '@/src/capital/lib/threeLedgers';
 import {
   canArchive,
   canTransition,
@@ -45,6 +46,7 @@ import type { AssetListQuery } from '@/src/capital/lib/validation/schemas';
 import type { CapitalDbClient } from '@/src/capital/lib/db/types';
 import { logActivity } from './activity';
 import { postLedgerEntry } from './ledger';
+import { acSellerPayments, acVehicleCosts } from '@/src/capital/db/schema';
 
 const TERMINAL_STATUSES = new Set(['cancelled', 'settled']);
 
@@ -86,7 +88,7 @@ export async function sumMyInvestedCapitalPaise(db: CapitalDbClient = capitalDb)
   return Number(row?.total ?? 0);
 }
 
-/** My capital stakes on open (active) vehicles only. */
+/** My capital stakes on open (active) vehicles only — ADR-015 Active Capital. */
 export async function sumMyActiveInvestedCapitalPaise(
   db: CapitalDbClient = capitalDb,
 ): Promise<number> {
@@ -114,6 +116,11 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
       and(eq(acVehicleActivities.assetId, assetId), eq(acVehicleActivities.isReversed, false)),
     );
 
+  const costRows = await db
+    .select({ amountPaise: acVehicleCosts.amountPaise })
+    .from(acVehicleCosts)
+    .where(and(eq(acVehicleCosts.assetId, assetId), eq(acVehicleCosts.isReversed, false)));
+
   const expenseRows = await db
     .select({ amountPaise: acExpenses.amountPaise })
     .from(acExpenses)
@@ -131,18 +138,31 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
   const [asset] = await db.select().from(acAssets).where(eq(acAssets.id, assetId)).limit(1);
   if (!asset) return;
 
-  // ADR-016: TVI = Purchase Price + investment-cost activities (milestones excluded).
-  // Legacy expense path only when there are zero activity rows.
+  // ADR-019: prefer Vehicle Cost ledger; else ADR-016 activities; else legacy expenses.
+  const hasCostLedger = costRows.length > 0;
   const hasActivities = activityRows.length > 0;
-  const cost = hasActivities
-    ? computeTotalVehicleInvestment({
-        purchasePricePaise: asset.purchasePricePaise,
-        activities: activityRows.map((r) => ({
-          activityType: r.activityType,
-          amountPaise: r.amountPaise,
-        })),
-      })
-    : computeNetVehicleCost(asset.purchasePricePaise, expenseRows);
+  const cost = hasCostLedger
+    ? (() => {
+        const tvi = computeTviFromCosts({
+          purchasePricePaise: asset.purchasePricePaise,
+          costs: costRows,
+        });
+        return {
+          totalExpensePaise: tvi.costsPaise,
+          repairTotalPaise: 0,
+          dealerRefundTotalPaise: 0,
+          netVehicleCostPaise: tvi.totalVehicleInvestmentPaise,
+        };
+      })()
+    : hasActivities
+      ? computeTotalVehicleInvestment({
+          purchasePricePaise: asset.purchasePricePaise,
+          activities: activityRows.map((r) => ({
+            activityType: r.activityType,
+            amountPaise: r.amountPaise,
+          })),
+        })
+      : computeNetVehicleCost(asset.purchasePricePaise, expenseRows);
 
   const netVehicleCost = cost.netVehicleCostPaise;
   const capitalReturned = Number(paymentSums?.capital ?? 0);
@@ -351,6 +371,18 @@ export async function createAsset(input: CreateAssetInput) {
 
     const tokenPaise = Math.round(input.tokenPaidPaise ?? 0);
     if (tokenPaise > 0) {
+      const [tokenPayment] = await tx
+        .insert(acSellerPayments)
+        .values({
+          assetId: asset.id,
+          amountPaise: tokenPaise,
+          paidAt: input.purchaseDate,
+          instrument: 'bank',
+          kind: 'token',
+          notes: 'Token at create',
+        })
+        .returning();
+
       const [tokenRow] = await tx
         .insert(acVehicleActivities)
         .values({
@@ -359,7 +391,11 @@ export async function createAsset(input: CreateAssetInput) {
           activityAt: input.purchaseDate,
           amountPaise: tokenPaise,
           title: 'Token Paid',
-          metadata: { fromCreate: true },
+          metadata: {
+            fromCreate: true,
+            sellerPaymentId: tokenPayment.id,
+            instrument: 'bank',
+          },
         })
         .returning();
 
@@ -369,8 +405,8 @@ export async function createAsset(input: CreateAssetInput) {
           direction: 'debit',
           amountPaise: tokenPaise,
           assetId: asset.id,
-          sourceTable: 'ac_vehicle_activities',
-          sourceId: tokenRow.id,
+          sourceTable: 'ac_seller_payments',
+          sourceId: tokenPayment.id,
           description: 'Token Paid',
         },
         tx,
@@ -379,6 +415,14 @@ export async function createAsset(input: CreateAssetInput) {
         .update(acVehicleActivities)
         .set({ ledgerEntryId: entry.id, updatedAt: new Date() })
         .where(eq(acVehicleActivities.id, tokenRow.id));
+      await tx
+        .update(acSellerPayments)
+        .set({
+          activityId: tokenRow.id,
+          ledgerEntryId: entry.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(acSellerPayments.id, tokenPayment.id));
     }
 
     await logActivity(
@@ -517,7 +561,6 @@ export async function updateAssetFunding(assetId: string, investors: InvestorFun
       }
     }
 
-    // Zero out slots that are no longer funded (except me — always kept)
     for (const prior of existing) {
       if (prior.slot === 'me') continue;
       if (!funding.some((f) => f.slot === prior.slot)) {

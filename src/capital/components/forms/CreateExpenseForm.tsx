@@ -5,7 +5,7 @@
  * Prefer vehicle Activities (`CreateActivityForm`). Kept for legacy tooling only.
  */
 import { useEffect, useState, useTransition } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { capitalZodResolver } from '@/src/capital/lib/validation/parse';
 import { createExpenseAction, type ActionState } from '@/src/capital/actions/expenses';
 import { loadDraftAction } from '@/src/capital/actions/drafts';
@@ -13,8 +13,10 @@ import { Button } from '@/src/capital/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/capital/components/ui/card';
 import { Input } from '@/src/capital/components/ui/input';
 import { Textarea } from '@/src/capital/components/ui/textarea';
+import { CurrencyInput } from '@/src/capital/components/forms/CurrencyInput';
 import { FormField } from '@/src/capital/components/forms/FormField';
 import { useAutosaveDraft } from '@/src/capital/hooks/useAutosaveDraft';
+import { useRefreshCapitalView } from '@/src/capital/hooks/useRefreshCapitalView';
 import { useCapitalToast } from '@/src/capital/components/CapitalToastProvider';
 import { createExpenseSchema, type CreateExpenseInput } from '@/src/capital/lib/validation/schemas';
 import { paymentModeEnum } from '@/src/capital/db/schema/enums';
@@ -36,6 +38,7 @@ export function CreateExpenseForm({
   const [state, setState] = useState<ActionState>({});
   const [pending, startTransition] = useTransition();
   const { showToast } = useCapitalToast();
+  const refreshCapitalView = useRefreshCapitalView();
 
   const form = useForm<CreateExpenseInput>({
     resolver: capitalZodResolver(createExpenseSchema),
@@ -47,6 +50,8 @@ export function CreateExpenseForm({
       description: '',
     },
   });
+
+  const watchAmount = useWatch({ control: form.control, name: 'amount' });
 
   useEffect(() => {
     void loadDraftAction(DRAFT_KEY).then(({ payload }) => {
@@ -76,6 +81,7 @@ export function CreateExpenseForm({
           amount: 0,
           description: '',
         });
+        refreshCapitalView();
       }
     });
   });
@@ -122,11 +128,15 @@ export function CreateExpenseForm({
             <Input id="expenseDate" type="date" {...form.register('expenseDate')} />
           </FormField>
           <FormField label="Amount (₹) *" name="amount" form={form}>
-            <Input
+            <CurrencyInput
               id="amount"
-              type="number"
-              step="0.01"
-              {...form.register('amount')}
+              allowNegative
+              value={watchAmount ?? ''}
+              onValueChange={(v) =>
+                form.setValue('amount', (v ?? 0) as CreateExpenseInput['amount'], {
+                  shouldValidate: true,
+                })
+              }
             />
             <p className="mt-1 text-xs text-ac-text-muted">
               Positive = repair / cost (raises Net Vehicle Cost). Negative = dealer refund or credit

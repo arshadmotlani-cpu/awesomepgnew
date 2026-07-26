@@ -6,7 +6,10 @@
 
 ---
 
-## Active
+## 2026-07-26
+
+- [x] **CAPITAL-NO-FUNDING-SOURCES-020** — Remove Funding Sources ledger/UI; keep payments+costs; Active Capital = stakes
+- [x] **CAPITAL-THREE-LEDGERS-019** — *(superseded for funding by ADR-020)*
 
 ## 2026-07-11
 

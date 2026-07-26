@@ -9,6 +9,8 @@
 
 ## 2026-07-26
 
+- **CAPITAL-NO-FUNDING-SOURCES-020** — ADR-020: remove Funding Sources ledger/UI; keep seller instrument + vehicle costs; Active Capital = Me stakes (`0013`)
+- **CAPITAL-THREE-LEDGERS-019** — *(Funding Sources half superseded by ADR-020)*
 - **CAPITAL-PURCHASE-PAYMENT-UX** — Token/payments vs Activities separated; Remaining on create; Record Purchase Payment on Overview; TVI math unchanged (ADR-016)
 - **CAPITAL-SALE-TIME-PROFIT** — Profit Distribution moved off create → Record Sale (default SELF); nullable mode until sold (`0011`); edit on Sale tab
 - **CAPITAL-PROFIT-SSOT-FREEZE** — Hardened dealEconomics gross helper; Scenario A/B tests; PROFIT_DISTRIBUTION_SSOT.md freeze
@@ -380,5 +382,41 @@ Files:
 - automotive-capital/CHANGELOG.md
 - automotive-capital/DECISIONS.md
 - automotive-capital/WORKFLOWS.md
+
+---
+
+<!-- SEMANTIC_2026-07-26T02:15:01Z -->
+---
+Time: 2026-07-26T02:15:01Z
+Type: MIXED
+Impact: HIGH
+Reason: The AI memory / intelligence automation layer is being extended — cognition pipeline or MEMORY structure changed.
+Files:
+- CHANGELOG.md
+- CURRENT_STATE.md
+- MEMORY/active_memory.md
+- MEMORY/changelog.md
+- MEMORY/decisions.md
+- MEMORY/tasks.md
+- automotive-capital/ARCHITECTURE.md
+- automotive-capital/DATABASE.md
+- automotive-capital/DECISIONS.md
+
+---
+
+<!-- SEMANTIC_2026-07-26T02:23:53Z -->
+---
+Time: 2026-07-26T02:23:53Z
+Type: MIXED
+Impact: HIGH
+Reason: The AI memory / intelligence automation layer is being extended — cognition pipeline or MEMORY structure changed.
+Files:
+- MEMORY/active_memory.md
+- MEMORY/changelog.md
+- MEMORY/decisions.md
+- MEMORY/tasks.md
+- automotive-capital/ARCHITECTURE.md
+- automotive-capital/DATABASE.md
+- automotive-capital/DECISIONS.md
 
 ---

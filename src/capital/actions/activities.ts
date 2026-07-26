@@ -18,8 +18,9 @@ import {
   updateVehicleActivity,
 } from '@/src/capital/services/vehicleActivities';
 import { capitalDb } from '@/src/capital/db/client';
-import { acAssets } from '@/src/capital/db/schema';
+import { acAssets, acVehicleActivities } from '@/src/capital/db/schema';
 import { eq } from 'drizzle-orm';
+import { capitalTrail } from '@/src/capital/lib/capitalTrail';
 import {
   lifecycleLabel,
   suggestTransitionOnActivity,
@@ -62,6 +63,11 @@ export async function createVehicleActivityAction(
         input.returnedAmount != null ? Math.round(input.returnedAmount * 100) : undefined,
       repairAdvanceId: input.repairAdvanceId,
     });
+    capitalTrail('activity_saved', {
+      assetId: input.assetId,
+      activityType: input.activityType,
+    });
+    capitalTrail('recalculated', { assetId: input.assetId });
 
     const [asset] = await capitalDb
       .select({ status: acAssets.status })
@@ -83,8 +89,10 @@ export async function createVehicleActivityAction(
     revalidatePath(`/assets/${input.assetId}`);
     revalidatePath('/assets');
     revalidatePath('/dashboard');
+    revalidatePath('/reports');
     revalidatePath('/ledger');
     revalidateTag('capital-dashboard', 'default');
+    capitalTrail('revalidated', { assetId: input.assetId, paths: ['asset', 'dashboard', 'reports'] });
     return {
       success: 'Activity recorded.',
       ...(showSuggest
@@ -112,13 +120,21 @@ export async function recordPurchasePaymentAction(
       assetId: parsed.data.assetId,
       amountPaise: rupeesToPaise(parsed.data.amount),
       paidAt: parsed.data.paidAt,
+      instrument: parsed.data.instrument,
+      referenceNumber: parsed.data.referenceNumber,
+      notes: parsed.data.notes,
     });
+    capitalTrail('purchase_payment_saved', { assetId: parsed.data.assetId });
+    capitalTrail('recalculated', { assetId: parsed.data.assetId });
 
     revalidatePath(`/assets/${parsed.data.assetId}`);
     revalidatePath('/assets');
     revalidatePath('/dashboard');
+    revalidatePath('/capital');
+    revalidatePath('/reports');
     revalidatePath('/ledger');
     revalidateTag('capital-dashboard', 'default');
+    capitalTrail('revalidated', { assetId: parsed.data.assetId });
     return { success: 'Purchase payment recorded.' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to record purchase payment' };
@@ -150,8 +166,17 @@ export async function updateVehicleActivityAction(
         input.returnedAmount != null ? Math.round(input.returnedAmount * 100) : undefined,
     });
 
+    const [row] = await capitalDb
+      .select({ assetId: acVehicleActivities.assetId })
+      .from(acVehicleActivities)
+      .where(eq(acVehicleActivities.id, input.activityId))
+      .limit(1);
+    if (row) {
+      revalidatePath(`/assets/${row.assetId}`);
+    }
     revalidatePath('/assets');
     revalidatePath('/dashboard');
+    revalidatePath('/reports');
     revalidatePath('/ledger');
     revalidateTag('capital-dashboard', 'default');
     return { success: 'Activity updated.' };
@@ -169,9 +194,19 @@ export async function reverseVehicleActivityAction(
     const parsed = parseZod(reverseSchema, formDataToObject(formData));
     if (!parsed.ok) return { error: parsed.error };
 
+    const [before] = await capitalDb
+      .select({ assetId: acVehicleActivities.assetId })
+      .from(acVehicleActivities)
+      .where(eq(acVehicleActivities.id, parsed.data.id))
+      .limit(1);
+
     await reverseVehicleActivity(parsed.data.id, parsed.data.reason);
+    if (before) {
+      revalidatePath(`/assets/${before.assetId}`);
+    }
     revalidatePath('/assets');
     revalidatePath('/dashboard');
+    revalidatePath('/reports');
     revalidatePath('/ledger');
     revalidateTag('capital-dashboard', 'default');
     return { success: 'Activity reversed.' };

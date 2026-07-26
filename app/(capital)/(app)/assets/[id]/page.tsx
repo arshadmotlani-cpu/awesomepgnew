@@ -5,7 +5,9 @@ import { AssetCommandCenter } from '@/src/capital/components/AssetCommandCenter'
 import { Badge } from '@/src/capital/components/ui/badge';
 import { Button } from '@/src/capital/components/ui/button';
 import { getAssetDetail, getAssetTimeline } from '@/src/capital/services/assets';
+import { listSellerPayments } from '@/src/capital/services/sellerPayments';
 import { formatInrPlain } from '@/src/capital/lib/money';
+import { sumSellerPaymentsPaise } from '@/src/capital/lib/threeLedgers';
 import { derivedBadges, lifecycleLabel } from '@/src/capital/lib/vehicleLifecycle';
 import { sumPaymentMilestonesPaise } from '@/src/capital/lib/activityTypes';
 
@@ -32,7 +34,10 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
   if (!detail) notFound();
 
   const { asset, auto, investors } = detail;
-  const timeline = await getAssetTimeline(id);
+  const [timeline, sellerPaymentRows] = await Promise.all([
+    getAssetTimeline(id),
+    listSellerPayments(id),
+  ]);
 
   const fuelLabels: Record<string, string> = {
     petrol: 'Petrol',
@@ -55,12 +60,15 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
         ? `Underfunded by ₹${formatInrPlain(fundingGap)}`
         : `Overfunded by ₹${formatInrPlain(-fundingGap)}`;
 
-  const milestonesPaidPaise = sumPaymentMilestonesPaise(
-    timeline.vehicleActivities.map((a) => ({
-      activityType: a.activityType,
-      amountPaise: a.amountPaise,
-    })),
-  );
+  const milestonesPaidPaise =
+    sellerPaymentRows.length > 0
+      ? sumSellerPaymentsPaise(sellerPaymentRows)
+      : sumPaymentMilestonesPaise(
+          timeline.vehicleActivities.map((a) => ({
+            activityType: a.activityType,
+            amountPaise: a.amountPaise,
+          })),
+        );
   const purchaseBadges = derivedBadges({
     status: asset.status,
     purchasePricePaise: asset.purchasePricePaise,
@@ -137,6 +145,13 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
         coverDocumentId={asset.coverDocumentId}
         initialTab={initialTab}
         focusPayment={focusPayment}
+        sellerPayments={sellerPaymentRows.map((p) => ({
+          id: p.id,
+          kind: p.kind,
+          paidAt: p.paidAt,
+          amountPaise: p.amountPaise,
+          instrument: p.instrument,
+        }))}
         investors={investors.map((i) => ({
           slot: i.slot,
           label: i.label,

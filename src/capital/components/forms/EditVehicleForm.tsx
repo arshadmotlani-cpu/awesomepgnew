@@ -3,10 +3,12 @@
 import { useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { updateAssetDetailsAction, type ActionState } from '@/src/capital/actions/assets';
+import { CurrencyInput } from '@/src/capital/components/forms/CurrencyInput';
 import { FormField } from '@/src/capital/components/forms/FormField';
 import { Button } from '@/src/capital/components/ui/button';
 import { Input } from '@/src/capital/components/ui/input';
 import { Textarea } from '@/src/capital/components/ui/textarea';
+import { useRefreshCapitalView } from '@/src/capital/hooks/useRefreshCapitalView';
 import { paiseToRupees } from '@/src/capital/lib/money';
 
 type FormValues = {
@@ -45,6 +47,7 @@ export function EditVehicleForm({
 }) {
   const [state, setState] = useState<ActionState>({});
   const [pending, startTransition] = useTransition();
+  const refreshCapitalView = useRefreshCapitalView();
   const form = useForm<FormValues>({
     defaultValues: {
       manufacturer: defaults.manufacturer,
@@ -70,6 +73,7 @@ export function EditVehicleForm({
       if (result.error) setState({ error: result.error });
       else {
         setState({ success: result.success });
+        refreshCapitalView();
         onDone?.();
       }
     });
@@ -106,7 +110,13 @@ export function EditVehicleForm({
         <Input className="uppercase" {...form.register('registrationNumber')} />
       </FormField>
       <FormField label="Purchase Price (₹)" name="purchasePrice" form={form}>
-        <Input type="number" step="0.01" {...form.register('purchasePrice', { valueAsNumber: true })} />
+        <CurrencyInput
+          allowNegative={false}
+          value={form.watch('purchasePrice') ?? ''}
+          onValueChange={(v) =>
+            form.setValue('purchasePrice', v ?? 0, { shouldValidate: true, shouldDirty: true })
+          }
+        />
       </FormField>
       <FormField label="Purchase Date" name="purchaseDate" form={form}>
         <Input type="date" {...form.register('purchaseDate')} />

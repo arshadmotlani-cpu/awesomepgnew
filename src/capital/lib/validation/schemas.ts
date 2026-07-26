@@ -230,6 +230,9 @@ export const recordPurchasePaymentSchema = z.object({
   assetId: uuid,
   amount: rupees,
   paidAt: dateStr,
+  instrument: z.enum(['cash', 'upi', 'neft', 'rtgs', 'cheque', 'bank']).default('bank'),
+  notes: z.string().max(2000).optional(),
+  referenceNumber: z.string().max(120).optional(),
 });
 
 export const updateStatusSchema = z.object({

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 
-/** Capital summary lives on Dashboard; injections can be added from Settings later. */
+/** Capital inject / Funding History removed — dealership OS uses Dashboard. */
 export default function CapitalRedirectPage() {
   redirect('/dashboard');
 }

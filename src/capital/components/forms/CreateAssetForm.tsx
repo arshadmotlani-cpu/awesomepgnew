@@ -9,9 +9,11 @@ import { Button } from '@/src/capital/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/capital/components/ui/card';
 import { Input } from '@/src/capital/components/ui/input';
 import { FormField } from '@/src/capital/components/forms/FormField';
+import { CurrencyInput } from '@/src/capital/components/forms/CurrencyInput';
 import { useAutosaveDraft } from '@/src/capital/hooks/useAutosaveDraft';
 import { createAssetSchema, type CreateAssetInput } from '@/src/capital/lib/validation/schemas';
 import { resolveCreateFunding } from '@/src/capital/lib/investors';
+import { formatRupeesIndian } from '@/src/capital/lib/money';
 import { Textarea } from '@/src/capital/components/ui/textarea';
 
 const DRAFT_KEY = 'vehicle-new-v3';
@@ -62,17 +64,6 @@ function yearOptions() {
   const years: number[] = [];
   for (let y = max; y >= 1990; y -= 1) years.push(y);
   return years;
-}
-
-/** Coerce empty number inputs to undefined instead of NaN. */
-function registerRupees(form: ReturnType<typeof useForm<CreateAssetInput>>, name: keyof CreateAssetInput) {
-  return form.register(name, {
-    setValueAs: (v) => {
-      if (v === '' || v == null) return undefined;
-      const n = typeof v === 'number' ? v : Number(v);
-      return Number.isFinite(n) ? n : undefined;
-    },
-  });
 }
 
 const EMPTY_DEFAULTS: CreateAssetInput = {
@@ -289,22 +280,24 @@ export function CreateAssetForm() {
             </FormField>
 
             <FormField label="Purchase Price (₹)" name="purchasePrice" form={form}>
-              <Input
-                type="number"
-                step="0.01"
-                inputMode="decimal"
+              <CurrencyInput
+                allowNegative={false}
+                value={purchasePrice ?? ''}
+                onValueChange={(v) =>
+                  form.setValue('purchasePrice', v, { shouldValidate: true, shouldDirty: true })
+                }
                 placeholder="Optional if token only"
-                {...registerRupees(form, 'purchasePrice')}
               />
             </FormField>
 
             <FormField label="Token Paid (₹)" name="tokenPaid" form={form}>
-              <Input
-                type="number"
-                step="0.01"
-                inputMode="decimal"
+              <CurrencyInput
+                allowNegative={false}
+                value={tokenPaid ?? ''}
+                onValueChange={(v) =>
+                  form.setValue('tokenPaid', v, { shouldValidate: true, shouldDirty: true })
+                }
                 placeholder="Optional"
-                {...registerRupees(form, 'tokenPaid')}
               />
               <p className="mt-1 text-xs text-ac-text-muted">
                 Part of Purchase Price already paid to the seller — not an extra cost and not added
@@ -317,10 +310,7 @@ export function CreateAssetForm() {
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <span className="text-ac-text-secondary">Remaining Purchase Payment</span>
                   <span className="font-semibold tabular-nums text-ac-text">
-                    ₹
-                    {remainingPurchasePayment.toLocaleString('en-IN', {
-                      maximumFractionDigits: 2,
-                    })}
+                    ₹{formatRupeesIndian(remainingPurchasePayment)}
                   </span>
                 </div>
                 {remainingPurchasePayment === 0 ? (
@@ -373,17 +363,18 @@ export function CreateAssetForm() {
         </CardHeader>
         <CardContent className="space-y-4">
           <FormField label="My Investment (₹)" name="meInvested" form={form}>
-            <Input
-              type="number"
-              step="0.01"
-              inputMode="decimal"
+            <CurrencyInput
               form="create-asset-form"
+              allowNegative={false}
+              value={form.watch('meInvested') ?? ''}
+              onValueChange={(v) =>
+                form.setValue('meInvested', v, { shouldValidate: true, shouldDirty: true })
+              }
               readOnly={!withPartner}
               placeholder={
                 purchasePrice != null && purchasePrice > 0 ? undefined : 'Enter purchase price first'
               }
               className={!withPartner ? 'opacity-80' : undefined}
-              {...registerRupees(form, 'meInvested')}
             />
           </FormField>
 
@@ -413,12 +404,16 @@ export function CreateAssetForm() {
                   <Input form="create-asset-form" {...form.register('investor2Label')} />
                 </FormField>
                 <FormField label="Partner Investment (₹)" name="investor2Invested" form={form}>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    inputMode="decimal"
+                  <CurrencyInput
                     form="create-asset-form"
-                    {...registerRupees(form, 'investor2Invested')}
+                    allowNegative={false}
+                    value={form.watch('investor2Invested') ?? ''}
+                    onValueChange={(v) =>
+                      form.setValue('investor2Invested', v, {
+                        shouldValidate: true,
+                        shouldDirty: true,
+                      })
+                    }
                   />
                 </FormField>
               </div>

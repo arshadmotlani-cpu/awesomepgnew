@@ -48,7 +48,7 @@ describe('vehicleLifecycle (ADR-017)', () => {
     assert.equal(autoStatusOnActivity('repairing', 'repair_settlement'), null);
   });
 
-  it('derives Purchase Pending badge when milestones or funding short', () => {
+  it('derives Purchase Pending from seller payment remaining only (not funding gap)', () => {
     assert.deepEqual(
       derivedBadges({
         status: 'purchased',
@@ -65,6 +65,7 @@ describe('vehicleLifecycle (ADR-017)', () => {
       }),
       [{ id: 'purchase_pending', label: 'Purchase Pending' }],
     );
+    // Funding underfunded but seller paid in full → no Purchase Pending
     assert.deepEqual(
       derivedBadges({
         status: 'purchased',
@@ -72,7 +73,7 @@ describe('vehicleLifecycle (ADR-017)', () => {
         milestonesPaidPaise: 500_000_00,
         fundingGapPaise: 50_000_00,
       }),
-      [{ id: 'purchase_pending', label: 'Purchase Pending' }],
+      [],
     );
     assert.deepEqual(
       derivedBadges({

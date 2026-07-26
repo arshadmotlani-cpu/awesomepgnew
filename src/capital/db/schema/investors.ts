@@ -25,9 +25,8 @@ export const DEFAULT_INVESTOR_LABELS: Record<InvestorSlot, string> = {
 };
 
 /**
- * Layer 2 — who funded the vehicle (capital investors) and their Investor Pool outcome.
- * Sum of invested_paise for an asset MUST equal net vehicle cost
- * (purchase + repairs − dealer refunds/credits). Operating partner (Sufii) is not a slot.
+ * Layer 2 — Me / Partner deal stakes for ROI and funding gap (ownership, not cash sources).
+ * Sum of invested_paise should equal purchase price when fully funded.
  */
 export const acAssetInvestors = pgTable(
   'ac_asset_investors',

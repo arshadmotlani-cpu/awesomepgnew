@@ -805,6 +805,8 @@ export async function getOverviewBundle(range: DateRange) {
         capitalAtRiskPaise: myActiveInvestmentAll,
         /** Alias of my stakes on in-stock vehicles — UI label: Active Capital */
         activeCapitalPaise: myActiveInvestmentAll,
+        /** SUM(total_investment_paise) for in-stock vehicles — UI label: Inventory Value */
+        inventoryValuePaise: currentInvestment,
         profitPaise: myLifetimeProfit,
         partnerProfitPaise: partnerLifetimeProfit,
         roiBps: myRoiBps,
@@ -827,6 +829,8 @@ export async function getOverviewBundle(range: DateRange) {
         /** ALWAYS gross before distribution — never myShare */
         capitalInvestedPaise: currentInvestment,
         capitalAtRiskPaise: myActiveInvestmentAll,
+        /** In-stock TVI sum — Inventory Value */
+        inventoryValuePaise: currentInvestment,
         profitPaise: grossBusinessProfit,
         partnerProfitPaise: partnerLifetimeProfit,
         myProfitPaise: myLifetimeProfit,

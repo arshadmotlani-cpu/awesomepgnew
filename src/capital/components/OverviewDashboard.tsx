@@ -181,6 +181,8 @@ export function OverviewDashboard({
       : `Period Profit (${bundle.range.label})`;
 
   const activeCapitalPaise = view.activeCapitalPaise ?? view.capitalAtRiskPaise;
+  const inventoryValuePaise =
+    view.inventoryValuePaise ?? bundle.shared.currentInvestmentPaise;
   const pw = bundle.pendingWork;
 
   const purchasePending = useMemo(
@@ -322,6 +324,7 @@ export function OverviewDashboard({
       <Section title="Current Position" subtitle="Always-on snapshot of capital and results">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <PositionCard label="Active Capital" valuePaise={activeCapitalPaise} accent />
+          <PositionCard label="Inventory Value" valuePaise={inventoryValuePaise} />
           <PositionCard label="Lifetime Profit" valuePaise={view.profitPaise} accent />
           <PositionCard
             label={periodProfitLabel}
@@ -381,7 +384,7 @@ export function OverviewDashboard({
                   />
                 ))}
               </AttentionGroup>
-              <AttentionGroup title="Purchase / funding pending" count={purchasePending.length}>
+              <AttentionGroup title="Purchase pending (seller payment)" count={purchasePending.length}>
                 {purchasePending.map((v) => (
                   <AttentionRow
                     key={v.id}

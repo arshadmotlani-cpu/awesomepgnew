@@ -8,9 +8,11 @@ import {
   type ActionState,
 } from '@/src/capital/actions/activities';
 import { FormField } from '@/src/capital/components/forms/FormField';
+import { CurrencyInput } from '@/src/capital/components/forms/CurrencyInput';
 import { Button } from '@/src/capital/components/ui/button';
 import { Input } from '@/src/capital/components/ui/input';
 import { Textarea } from '@/src/capital/components/ui/textarea';
+import { useRefreshCapitalView } from '@/src/capital/hooks/useRefreshCapitalView';
 import {
   VEHICLE_ACTIVITY_TYPE_META,
   computeRepairSettlement,
@@ -35,6 +37,7 @@ type Props = {
 export function EditActivityForm({ activity, advancePaise, onDone }: Props) {
   const [state, setState] = useState<ActionState>({});
   const [pending, startTransition] = useTransition();
+  const refreshCapitalView = useRefreshCapitalView();
   const type = activity.activityType as VehicleActivityType;
   const meta = VEHICLE_ACTIVITY_TYPE_META[type];
   const isSettlement = type === 'repair_settlement';
@@ -99,6 +102,7 @@ export function EditActivityForm({ activity, advancePaise, onDone }: Props) {
       if (result.error) setState({ error: result.error });
       else {
         setState({ success: result.success });
+        refreshCapitalView();
         onDone?.();
       }
     });
@@ -114,6 +118,7 @@ export function EditActivityForm({ activity, advancePaise, onDone }: Props) {
       if (result.error) setState({ error: result.error });
       else {
         setState({ success: result.success });
+        refreshCapitalView();
         onDone?.();
       }
     });
@@ -134,10 +139,22 @@ export function EditActivityForm({ activity, advancePaise, onDone }: Props) {
           {isSettlement ? (
             <>
               <FormField label="Actual repair cost (₹)" name="actualCost" form={form}>
-                <Input type="number" step="0.01" {...form.register('actualCost')} />
+                <CurrencyInput
+                  allowNegative={false}
+                  value={Number(actualCost) || 0}
+                  onValueChange={(v) =>
+                    form.setValue('actualCost', v ?? 0, { shouldValidate: true })
+                  }
+                />
               </FormField>
               <FormField label="Money returned (₹)" name="returnedAmount" form={form}>
-                <Input type="number" step="0.01" {...form.register('returnedAmount')} />
+                <CurrencyInput
+                  allowNegative={false}
+                  value={Number(returnedAmount) || 0}
+                  onValueChange={(v) =>
+                    form.setValue('returnedAmount', v ?? 0, { shouldValidate: true })
+                  }
+                />
               </FormField>
               {settlementPreview && settlementPreview.additionalAmountRequiredPaise > 0 ? (
                 <p className="sm:col-span-2 text-sm text-amber-200">
@@ -152,7 +169,17 @@ export function EditActivityForm({ activity, advancePaise, onDone }: Props) {
               name="amount"
               form={form}
             >
-              <Input type="number" step="0.01" {...form.register('amount')} />
+              <CurrencyInput
+                allowNegative
+                value={
+                  form.watch('amount') === '' || form.watch('amount') == null
+                    ? ''
+                    : Number(form.watch('amount'))
+                }
+                onValueChange={(v) =>
+                  form.setValue('amount', v == null ? '' : v, { shouldValidate: true })
+                }
+              />
             </FormField>
           ) : null}
           <FormField label="Title" name="title" form={form}>

@@ -6,9 +6,11 @@ import {
   updateAssetFundingAction,
   type ActionState,
 } from '@/src/capital/actions/assets';
+import { CurrencyInput } from '@/src/capital/components/forms/CurrencyInput';
 import { FormField } from '@/src/capital/components/forms/FormField';
 import { Button } from '@/src/capital/components/ui/button';
 import { Input } from '@/src/capital/components/ui/input';
+import { useRefreshCapitalView } from '@/src/capital/hooks/useRefreshCapitalView';
 import { formatInrPlain, paiseToRupees } from '@/src/capital/lib/money';
 
 const initialState: ActionState = {};
@@ -18,19 +20,6 @@ type FundingFormValues = {
   investor2Invested: number | undefined;
   investor2Label: string;
 };
-
-function registerRupees(
-  form: ReturnType<typeof useForm<FundingFormValues>>,
-  name: 'meInvested' | 'investor2Invested',
-) {
-  return form.register(name, {
-    setValueAs: (v) => {
-      if (v === '' || v == null) return undefined;
-      const n = typeof v === 'number' ? v : Number(v);
-      return Number.isFinite(n) ? n : undefined;
-    },
-  });
-}
 
 export function UpdateFundingForm({
   assetId,
@@ -48,6 +37,7 @@ export function UpdateFundingForm({
   const purchaseRupees = paiseToRupees(purchasePricePaise);
   const hadPartner = (i2?.investedPaise ?? 0) > 0;
   const [withPartner, setWithPartner] = useState(hadPartner);
+  const refreshCapitalView = useRefreshCapitalView();
 
   const form = useForm<FundingFormValues>({
     defaultValues: {
@@ -68,6 +58,10 @@ export function UpdateFundingForm({
     }
   }, [withPartner, purchaseRupees, form]);
 
+  useEffect(() => {
+    if (state.success) refreshCapitalView();
+  }, [state.success, refreshCapitalView]);
+
   const gapLabel =
     fundingGapPaise === 0
       ? 'Fully funded vs purchase price'
@@ -81,6 +75,7 @@ export function UpdateFundingForm({
         <h3 className="font-medium">Update investments</h3>
         <p className="mt-1 text-xs text-ac-text-muted">
           My Investment + Partner (optional) must equal purchase price. Checked when you save.
+          Separate from seller Purchase Payment progress.
         </p>
         <p
           className={`mt-2 text-sm ${fundingGapPaise === 0 ? 'text-ac-success' : 'text-ac-warning'}`}
@@ -107,13 +102,12 @@ export function UpdateFundingForm({
       />
 
       <FormField label="My Investment (₹)" name="meInvested" form={form}>
-        <Input
-          type="number"
-          step="1"
-          min={0}
+        <CurrencyInput
+          allowNegative={false}
+          value={meInvested ?? ''}
+          onValueChange={(v) => form.setValue('meInvested', v, { shouldValidate: true })}
           readOnly={!withPartner}
           className={!withPartner ? 'opacity-80' : undefined}
-          {...registerRupees(form, 'meInvested')}
         />
       </FormField>
 
@@ -132,11 +126,12 @@ export function UpdateFundingForm({
               <Input {...form.register('investor2Label')} />
             </FormField>
             <FormField label="Partner Investment (₹)" name="investor2Invested" form={form}>
-              <Input
-                type="number"
-                step="1"
-                min={0}
-                {...registerRupees(form, 'investor2Invested')}
+              <CurrencyInput
+                allowNegative={false}
+                value={investor2Invested ?? ''}
+                onValueChange={(v) =>
+                  form.setValue('investor2Invested', v, { shouldValidate: true })
+                }
               />
             </FormField>
           </div>

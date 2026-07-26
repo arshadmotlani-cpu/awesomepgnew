@@ -8,10 +8,12 @@ import {
 } from '@/src/capital/actions/activities';
 import { updateStatusAction } from '@/src/capital/actions/assets';
 import { FormField } from '@/src/capital/components/forms/FormField';
+import { CurrencyInput } from '@/src/capital/components/forms/CurrencyInput';
 import { Button } from '@/src/capital/components/ui/button';
 import { Input } from '@/src/capital/components/ui/input';
 import { Textarea } from '@/src/capital/components/ui/textarea';
 import { useCapitalToast } from '@/src/capital/components/CapitalToastProvider';
+import { useRefreshCapitalView } from '@/src/capital/hooks/useRefreshCapitalView';
 import {
   INVESTMENT_COST_TYPES,
   SELECTABLE_ACTIVITY_TYPES,
@@ -57,6 +59,7 @@ export function CreateActivityForm({
   const [pending, startTransition] = useTransition();
   const [suggestedStatus, setSuggestedStatus] = useState<string | null>(null);
   const { showToast } = useCapitalToast();
+  const refreshCapitalView = useRefreshCapitalView();
 
   const form = useForm<FormValues>({
     defaultValues: {
@@ -72,6 +75,7 @@ export function CreateActivityForm({
   });
 
   const activityType = useWatch({ control: form.control, name: 'activityType' });
+  const amountWatch = useWatch({ control: form.control, name: 'amount' });
   const actualCost = useWatch({ control: form.control, name: 'actualCost' });
   const returnedAmount = useWatch({ control: form.control, name: 'returnedAmount' });
   const meta = VEHICLE_ACTIVITY_TYPE_META[activityType];
@@ -136,6 +140,7 @@ export function CreateActivityForm({
           returnedAmount: '',
           repairAdvanceId: openAdvances[0]?.id ?? '',
         });
+        refreshCapitalView();
       }
     });
   });
@@ -151,6 +156,7 @@ export function CreateActivityForm({
       else {
         showToast(`Lifecycle → ${lifecycleLabel(suggestedStatus)}`);
         setSuggestedStatus(null);
+        refreshCapitalView();
       }
     });
   }
@@ -159,7 +165,8 @@ export function CreateActivityForm({
     <form onSubmit={onSubmit} className="space-y-4">
       <p className="text-sm text-ac-text-muted">
         Record costs outside Purchase Price (broker, transport, repairs, insurance, RTO, etc.).
-        These increase Total Vehicle Investment. Token and seller payments belong on Overview →
+        These change Total Vehicle Investment. Use a <strong>negative</strong> amount for a repair
+        / vendor refund (reduces TVI — never profit). Token and seller payments belong on Overview →
         Purchase Payment.
       </p>
 
@@ -227,27 +234,31 @@ export function CreateActivityForm({
             </p>
           ) : null}
           <FormField label="Actual repair cost (₹)" name="actualCost" form={form}>
-            <Input
+            <CurrencyInput
               id="actualCost"
-              type="number"
-              step="0.01"
-              min="0"
-              {...form.register('actualCost')}
+              allowNegative={false}
+              value={actualCost === '' || actualCost == null ? '' : Number(actualCost)}
+              onValueChange={(v) =>
+                form.setValue('actualCost', v == null ? '' : v, { shouldValidate: true })
+              }
               required
             />
           </FormField>
           <FormField label="Refund received (₹)" name="returnedAmount" form={form}>
-            <Input
+            <CurrencyInput
               id="returnedAmount"
-              type="number"
-              step="0.01"
-              min="0"
-              {...form.register('returnedAmount')}
+              allowNegative={false}
+              value={
+                returnedAmount === '' || returnedAmount == null ? '' : Number(returnedAmount)
+              }
+              onValueChange={(v) =>
+                form.setValue('returnedAmount', v == null ? '' : v, { shouldValidate: true })
+              }
             />
             <p className="mt-1 text-xs text-ac-text-muted">
-              Unused advance money returned to you (cash). It is never profit. Actual repair cost
-              still sets the investment amount; use a negative cost activity if a vendor refund
-              should reduce Total Vehicle Investment.
+              Unused advance cash returned to you — not profit and does not reduce TVI by itself. To
+              reduce Total Vehicle Investment for a vendor refund, add a separate cost activity with
+              a negative amount.
             </p>
           </FormField>
           {settlementPreview && settlementPreview.additionalAmountRequiredPaise > 0 ? (
@@ -268,7 +279,18 @@ export function CreateActivityForm({
         </>
       ) : requiresAmount ? (
         <FormField label="Amount (₹)" name="amount" form={form}>
-          <Input id="amount" type="number" step="0.01" {...form.register('amount')} required />
+          <CurrencyInput
+            id="amount"
+            allowNegative
+            value={amountWatch === '' || amountWatch == null ? '' : Number(amountWatch)}
+            onValueChange={(v) =>
+              form.setValue('amount', v == null ? '' : v, { shouldValidate: true })
+            }
+            required
+          />
+          <p className="mt-1 text-xs text-ac-text-muted">
+            Use Indian format (e.g. 10,000). Negative = refund reducing Total Vehicle Investment.
+          </p>
         </FormField>
       ) : null}
 

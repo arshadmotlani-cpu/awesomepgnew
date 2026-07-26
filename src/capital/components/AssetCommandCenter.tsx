@@ -26,7 +26,13 @@ import {
   profitDistributionLabel,
   type ProfitDistributionMode,
 } from '@/src/capital/lib/dealEconomics';
+import {
+  remainingPurchaseFromSellerPayments,
+  sumSellerPaymentsPaise,
+  SELLER_PAYMENT_KIND_LABELS,
+} from '@/src/capital/lib/threeLedgers';
 import { lifecycleLabel } from '@/src/capital/lib/vehicleLifecycle';
+import type { SellerPaymentKind } from '@/src/capital/db/schema/sellerPayments';
 
 type TimelineData = {
   vehicleActivities: {
@@ -152,6 +158,7 @@ export function AssetCommandCenter({
   profit,
   initialTab,
   focusPayment = false,
+  sellerPayments = [],
 }: {
   assetId: string;
   currentStatus: string;
@@ -175,6 +182,14 @@ export function AssetCommandCenter({
   initialTab?: string;
   /** Highlight Purchase Payment section after create. */
   focusPayment?: boolean;
+  /** Seller payments ledger — preferred over activity milestones when present. */
+  sellerPayments?: Array<{
+    id: string;
+    kind: string;
+    paidAt: string;
+    amountPaise: number;
+    instrument: string | null;
+  }>;
 }) {
   const defaultTab =
     initialTab && (TAB_VALUES as readonly string[]).includes(initialTab)
@@ -205,21 +220,44 @@ export function AssetCommandCenter({
     [timeline.vehicleActivities],
   );
 
-  const milestones = useMemo(
+  const activityMilestones = useMemo(
     () => timeline.vehicleActivities.filter((a) => isPaymentMilestoneType(a.activityType)),
     [timeline.vehicleActivities],
   );
 
-  const milestonePaidPaise = sumPaymentMilestonesPaise(
-    timeline.vehicleActivities.map((a) => ({
-      activityType: a.activityType,
-      amountPaise: a.amountPaise,
-    })),
-  );
-  const purchaseRemainingPaise = remainingPurchasePaymentPaise(
-    purchasePricePaise,
-    milestonePaidPaise,
-  );
+  const useSellerLedger = sellerPayments.length > 0;
+  const milestonePaidPaise = useSellerLedger
+    ? sumSellerPaymentsPaise(sellerPayments)
+    : sumPaymentMilestonesPaise(
+        timeline.vehicleActivities.map((a) => ({
+          activityType: a.activityType,
+          amountPaise: a.amountPaise,
+        })),
+      );
+  const purchaseRemainingPaise = useSellerLedger
+    ? remainingPurchaseFromSellerPayments(purchasePricePaise, milestonePaidPaise)
+    : remainingPurchasePaymentPaise(purchasePricePaise, milestonePaidPaise);
+
+  const paymentMilestones = useSellerLedger
+    ? sellerPayments.map((p) => ({
+        id: p.id,
+        activityType: p.kind,
+        activityAt: p.paidAt,
+        amountPaise: p.amountPaise,
+        label:
+          SELLER_PAYMENT_KIND_LABELS[p.kind as SellerPaymentKind] ??
+          p.kind.replace(/_/g, ' '),
+        instrument: p.instrument,
+      }))
+    : activityMilestones.map((a) => ({
+        id: a.id,
+        activityType: a.activityType,
+        activityAt: a.activityAt,
+        amountPaise: a.amountPaise,
+        label: activityLabel(a.activityType),
+        instrument:
+          typeof a.metadata?.instrument === 'string' ? a.metadata.instrument : null,
+      }));
   const timelineEvents =
     timeline.timelineEvents ??
     timeline.vehicleActivities.map((a) => ({
@@ -355,13 +393,7 @@ export function AssetCommandCenter({
           remainingPaise={purchaseRemainingPaise}
           canEdit={canEdit}
           highlight={focusPayment}
-          milestones={milestones.map((a) => ({
-            id: a.id,
-            activityType: a.activityType,
-            activityAt: a.activityAt,
-            amountPaise: a.amountPaise,
-            label: activityLabel(a.activityType),
-          }))}
+          milestones={paymentMilestones}
         />
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

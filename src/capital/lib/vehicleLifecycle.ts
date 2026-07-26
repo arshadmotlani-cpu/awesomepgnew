@@ -190,8 +190,8 @@ export type DerivedBadge = {
 };
 
 /**
- * Purchase Pending = Just Purchased AND payment milestones have not covered purchase price.
- * Not a separate enum — derived badge only (ADR-017 Phase 2 may promote to enum).
+ * Purchase Pending = Just Purchased AND seller payment milestones have not covered purchase price.
+ * Funding gap (investor stakes) is a separate badge/status — not mixed into Purchase Pending.
  */
 export function derivedBadges(input: {
   status: string;
@@ -209,9 +209,7 @@ export function derivedBadges(input: {
   }
 
   const milestonesShort = input.milestonesPaidPaise < input.purchasePricePaise;
-  const fundingShort = (input.fundingGapPaise ?? 0) > 0;
-
-  if (milestonesShort || fundingShort) {
+  if (milestonesShort) {
     badges.push({ id: 'purchase_pending', label: 'Purchase Pending' });
   }
   return badges;

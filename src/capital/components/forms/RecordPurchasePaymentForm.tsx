@@ -1,16 +1,25 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import {
   recordPurchasePaymentAction,
   type ActionState,
 } from '@/src/capital/actions/activities';
+import { CurrencyInput } from '@/src/capital/components/forms/CurrencyInput';
 import { MoneyDisplay } from '@/src/capital/components/MoneyDisplay';
 import { Button } from '@/src/capital/components/ui/button';
 import { Input } from '@/src/capital/components/ui/input';
+import { Textarea } from '@/src/capital/components/ui/textarea';
+import { useRefreshCapitalView } from '@/src/capital/hooks/useRefreshCapitalView';
 import { formatInrPlain } from '@/src/capital/lib/money';
+import { SELLER_PAYMENT_INSTRUMENT_LABELS } from '@/src/capital/lib/threeLedgers';
 
 const initialState: ActionState = {};
+
+const INSTRUMENTS = ['cash', 'upi', 'neft', 'rtgs', 'cheque', 'bank'] as const;
+
+const selectClass =
+  'flex h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-ac-text';
 
 export function RecordPurchasePaymentForm({
   assetId,
@@ -31,6 +40,7 @@ export function RecordPurchasePaymentForm({
     activityAt: string;
     amountPaise: number | null;
     label: string;
+    instrument?: string | null;
   }>;
   canEdit: boolean;
   highlight?: boolean;
@@ -39,8 +49,16 @@ export function RecordPurchasePaymentForm({
     recordPurchasePaymentAction,
     initialState,
   );
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState<number | undefined>(undefined);
+  const refreshCapitalView = useRefreshCapitalView();
   const complete = purchasePricePaise > 0 && remainingPaise <= 0;
+
+  useEffect(() => {
+    if (state.success) {
+      setAmount(undefined);
+      refreshCapitalView();
+    }
+  }, [state.success, refreshCapitalView]);
 
   return (
     <div
@@ -83,7 +101,15 @@ export function RecordPurchasePaymentForm({
           {milestones.map((a) => (
             <div key={a.id} className="flex justify-between gap-4 py-1.5">
               <span>
-                {a.label} · {a.activityAt}
+                {a.label}
+                {a.instrument
+                  ? ` · ${
+                      SELLER_PAYMENT_INSTRUMENT_LABELS[
+                        a.instrument as keyof typeof SELLER_PAYMENT_INSTRUMENT_LABELS
+                      ] ?? a.instrument
+                    }`
+                  : ''}{' '}
+                · {a.activityAt}
               </span>
               {a.amountPaise != null ? <MoneyDisplay paise={a.amountPaise} /> : null}
             </div>
@@ -98,14 +124,12 @@ export function RecordPurchasePaymentForm({
             <label className="mb-1 block text-sm text-ac-text-secondary">
               Record Purchase Payment (₹)
             </label>
-            <Input
+            <CurrencyInput
               name="amount"
-              type="number"
-              step="0.01"
-              min="0.01"
+              allowNegative={false}
+              value={amount ?? ''}
+              onValueChange={setAmount}
               required
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
               placeholder={`Up to ₹${formatInrPlain(remainingPaise)}`}
             />
           </div>
@@ -118,9 +142,25 @@ export function RecordPurchasePaymentForm({
               defaultValue={new Date().toISOString().slice(0, 10)}
             />
           </div>
+          <div>
+            <label className="mb-1 block text-sm text-ac-text-secondary">Payment instrument</label>
+            <select name="instrument" className={selectClass} defaultValue="bank">
+              {INSTRUMENTS.map((m) => (
+                <option key={m} value={m}>
+                  {SELLER_PAYMENT_INSTRUMENT_LABELS[m]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm text-ac-text-secondary">
+              Notes (optional)
+            </label>
+            <Textarea name="notes" rows={2} placeholder="Optional" />
+          </div>
           {state.error ? <p className="text-sm text-ac-danger">{state.error}</p> : null}
           {state.success ? <p className="text-sm text-ac-success">{state.success}</p> : null}
-          <Button type="submit" size="sm" disabled={pending}>
+          <Button type="submit" size="sm" disabled={pending || amount == null || amount <= 0}>
             {pending ? 'Saving…' : 'Record Purchase Payment'}
           </Button>
         </form>

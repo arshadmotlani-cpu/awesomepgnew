@@ -11,3 +11,5 @@ export * from './manualProfits';
 export * from './ledger';
 export * from './documents';
 export * from './activities';
+export * from './sellerPayments';
+export * from './vehicleCosts';

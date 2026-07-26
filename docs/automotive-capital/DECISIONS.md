@@ -454,6 +454,58 @@ Migrations: `0010_profit_distribution_mode.sql`, `0011_sale_time_profit_distribu
 
 ---
 
+## ADR-019: Three Ledgers — Vehicle Cost, Seller Payments, Funding Sources
+
+**Date:** 2026-07-26  
+**Status:** **Superseded** by ADR-020 (Funding Sources half rejected)  
+**Partial keep:** Vehicle Cost + Seller Payments tables remain.
+
+### Context
+Originally proposed three product ledgers including a Funding Sources ledger answering “where did cash come from?”
+
+### Decision (original)
+Three physical ledgers: Vehicle Cost, Seller Payments, Funding Sources (`ac_funding_entries`).
+
+### Supersession
+Dealership operating model does **not** track internal money arrangement. ADR-020 removes Funding Sources while keeping seller payments (with instrument) and vehicle costs. Active Capital returns to ADR-015 (Me open stakes).
+
+---
+
+## ADR-020: Dealership OS — No Funding Sources
+
+**Date:** 2026-07-26  
+**Status:** Accepted — **Product philosophy SSOT**  
+**Supersedes:** ADR-019 Funding Sources ledger / Funding History / source pickers  
+**Restores:** ADR-015 Active Capital = Me stakes on open vehicles
+
+### Context
+Funding Sources was technically valid accounting but mismatched how the dealership operates. The owner does not want to manage sources of money, funding history, or “where did this payment come from?” workflows.
+
+### Decision
+
+**Keep (vehicle economics only):**
+- Purchase Price, Token, Purchase Payments
+- Payment **instrument** (Cash, RTGS, NEFT, Cheque, UPI, Bank) + date + notes
+- Vehicle Costs → TVI (ADR-016)
+- Auto: Purchase Remaining, Gross/My Profit, ROI, Dashboard, Reports
+- Me / Partner **deal stakes** (`ac_asset_investors`) for ROI / funding gap — ownership, not cash-source accounting
+
+**Remove:**
+- Funding Source selection, Funding History, Funding Ledger (`ac_funding_entries`)
+- Funding navigation / forms / linking / dialogs
+- Any workflow requiring explanation of how money was arranged
+
+**Tables:** Keep `ac_seller_payments` + `ac_vehicle_costs`. Drop `ac_funding_entries` (migration `0013_drop_funding_sources.sql`).
+
+**Active Capital:** Σ Me stakes on in-stock vehicles (not funding deploys).
+
+### Consequences
+- Payment form = amount + instrument + date + notes only
+- `/capital` redirects to Dashboard; Capital removed from sidebar/hotkeys
+- Contributors must not reintroduce funding-source UX without a new ADR
+
+---
+
 ## Template for Future ADRs
 
 ```

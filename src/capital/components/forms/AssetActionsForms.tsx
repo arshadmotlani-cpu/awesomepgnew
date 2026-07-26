@@ -1,12 +1,14 @@
 'use client';
 
-import { useActionState, useMemo, useState } from 'react';
+import { useActionState, useEffect, useMemo, useState } from 'react';
 import { recordSaleAction, type ActionState } from '@/src/capital/actions/assets';
 import { createSettlementAction } from '@/src/capital/actions/settlements';
+import { CurrencyInput } from '@/src/capital/components/forms/CurrencyInput';
 import { ProfitDistributionForm } from '@/src/capital/components/forms/ProfitDistributionForm';
 import { MoneyDisplay } from '@/src/capital/components/MoneyDisplay';
 import { Button } from '@/src/capital/components/ui/button';
 import { Input } from '@/src/capital/components/ui/input';
+import { useRefreshCapitalView } from '@/src/capital/hooks/useRefreshCapitalView';
 import {
   computeGrossDealProfit,
   distributeDealProfits,
@@ -14,6 +16,7 @@ import {
 } from '@/src/capital/lib/dealEconomics';
 import { lifecycleLabel } from '@/src/capital/lib/vehicleLifecycle';
 import type { InvestorSlot } from '@/src/capital/db/schema/investors';
+import { formatInrPlain } from '@/src/capital/lib/money';
 
 const initialState: ActionState = {};
 
@@ -92,12 +95,17 @@ function SaleForm({
   investors: { slot: string; label: string; investedPaise: number }[];
 }) {
   const [state, formAction, pending] = useActionState(recordSaleAction, initialState);
-  const [salePrice, setSalePrice] = useState('');
+  const [salePrice, setSalePrice] = useState<number | undefined>(undefined);
   const [mode, setMode] = useState<ProfitDistributionMode>('SELF');
+  const refreshCapitalView = useRefreshCapitalView();
   const fullyFunded = fundingGapPaise === 0;
 
+  useEffect(() => {
+    if (state.success) refreshCapitalView();
+  }, [state.success, refreshCapitalView]);
+
   const preview = useMemo(() => {
-    const price = Math.round((Number(salePrice) || 0) * 100);
+    const price = Math.round((salePrice || 0) * 100);
     if (!salePrice || price <= 0) return null;
     const businessProfit = computeGrossDealProfit(price, totalInvestmentPaise);
     try {
@@ -126,20 +134,20 @@ function SaleForm({
         <p className="rounded-lg border border-ac-danger/30 bg-ac-danger/10 px-3 py-2 text-sm text-ac-danger">
           Funding must equal purchase price before sale. Update investments first
           {fundingGapPaise > 0
-            ? ` (underfunded by ₹${(fundingGapPaise / 100).toLocaleString('en-IN')})`
-            : ` (overfunded by ₹${(Math.abs(fundingGapPaise) / 100).toLocaleString('en-IN')})`}
+            ? ` (underfunded by ₹${formatInrPlain(fundingGapPaise)})`
+            : ` (overfunded by ₹${formatInrPlain(Math.abs(fundingGapPaise))})`}
           .
         </p>
       ) : null}
       <input type="hidden" name="assetId" value={assetId} />
       <div>
         <label className="mb-1 block text-sm text-ac-text-secondary">Sale price (₹)</label>
-        <Input
+        <CurrencyInput
           name="salePrice"
-          type="number"
+          allowNegative={false}
+          value={salePrice ?? ''}
+          onValueChange={setSalePrice}
           required
-          value={salePrice}
-          onChange={(e) => setSalePrice(e.target.value)}
           disabled={!fullyFunded}
         />
       </div>

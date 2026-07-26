@@ -10,9 +10,11 @@ import {
 import { Button } from '@/src/capital/components/ui/button';
 import { Input } from '@/src/capital/components/ui/input';
 import { Textarea } from '@/src/capital/components/ui/textarea';
+import { CurrencyInput } from '@/src/capital/components/forms/CurrencyInput';
 import { FormField } from '@/src/capital/components/forms/FormField';
 import { ProfitShareFieldsControlled } from '@/src/capital/components/forms/ProfitShareFields';
 import { useCapitalToast } from '@/src/capital/components/CapitalToastProvider';
+import { useRefreshCapitalView } from '@/src/capital/hooks/useRefreshCapitalView';
 import {
   createManualProfitSchema,
   type CreateManualProfitInput,
@@ -37,6 +39,7 @@ export function ManualProfitForm({
   const [state, setState] = useState<ManualProfitActionState>({});
   const [pending, startTransition] = useTransition();
   const { showToast } = useCapitalToast();
+  const refreshCapitalView = useRefreshCapitalView();
   const partnerDefault = Math.min(100, Math.max(0, defaultPartnerPct));
   const myDefault = 100 - partnerDefault;
 
@@ -85,6 +88,7 @@ export function ManualProfitForm({
           myPct: myDefault,
           partnerFixed: 0,
         });
+        refreshCapitalView();
         onSuccess?.();
       }
     });
@@ -97,11 +101,15 @@ export function ManualProfitForm({
           <Input type="date" {...form.register('profitDate')} />
         </FormField>
         <FormField label="Gross Profit (₹)" name="amount" form={form}>
-          <Input
-            type="number"
-            step="0.01"
-            min="0"
-            {...form.register('amount', { valueAsNumber: true })}
+          <CurrencyInput
+            id="amount"
+            allowNegative={false}
+            value={amount ?? ''}
+            onValueChange={(v) =>
+              form.setValue('amount', (v ?? 0) as CreateManualProfitInput['amount'], {
+                shouldValidate: true,
+              })
+            }
           />
         </FormField>
       </div>

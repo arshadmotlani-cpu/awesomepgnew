@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { isEditableKeyboardTarget } from '@/src/capital/lib/keyboardGuards';
 
 const SHORTCUTS: Record<string, string> = {
   d: '/dashboard',
@@ -18,6 +19,11 @@ export function CapitalKeyboardShortcuts() {
     let gTimer: ReturnType<typeof setTimeout> | null = null;
 
     const onKey = (e: KeyboardEvent) => {
+      if (e.isComposing) return;
+      if (isEditableKeyboardTarget(e.target) || isEditableKeyboardTarget(document.activeElement)) {
+        return;
+      }
+
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') return;
 
       if (e.key === 'g' || e.key === 'G') {
@@ -40,7 +46,7 @@ export function CapitalKeyboardShortcuts() {
       if (e.key === '?' && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         alert(
-          'Keyboard shortcuts:\nG then D — Dashboard\nG then A — Vehicles\nG then R — Reports\nG then S — Settings\n⌘K — Command palette',
+          'Keyboard shortcuts:\nG then D — Dashboard\nG then A — Vehicles\nG then C — Capital\nG then R — Reports\nG then S — Settings\n⌘K — Command palette',
         );
       }
     };

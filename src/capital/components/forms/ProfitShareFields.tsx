@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { formatInr } from '@/src/capital/lib/money';
+import { CurrencyInput } from '@/src/capital/components/forms/CurrencyInput';
+import { Input } from '@/src/capital/components/ui/input';
+import { formatInr, formatRupeesIndian } from '@/src/capital/lib/money';
 import { cn } from '@/src/capital/lib/utils';
 
 const selectClass =
@@ -118,25 +120,22 @@ export function ProfitShareFields({
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs text-ac-text-secondary">Partner receives (₹)</label>
-            <input
-              type="number"
+            <CurrencyInput
               name="partnerFixed"
-              min={0}
-              step={0.01}
-              value={partnerFixed}
-              onChange={(e) => setPartnerFixed(Number(e.target.value) || 0)}
+              allowNegative={false}
+              value={partnerFixed || ''}
+              onValueChange={(v) => setPartnerFixed(v ?? 0)}
               className={selectClass}
             />
           </div>
           <div>
             <label className="mb-1 block text-xs text-ac-text-secondary">I receive (₹)</label>
-            <input
-              type="number"
-              name="myFixed"
+            <Input
               readOnly
-              value={(preview.mine / 100).toFixed(2)}
+              value={formatRupeesIndian(preview.mine / 100)}
               className={cn(selectClass, 'opacity-80')}
             />
+            <input type="hidden" name="myFixed" value={String(preview.mine / 100)} readOnly />
           </div>
         </div>
       )}
@@ -249,21 +248,18 @@ export function ProfitShareFieldsControlled({
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs text-ac-text-secondary">Partner receives (₹)</label>
-            <input
-              type="number"
-              min={0}
-              step={0.01}
-              value={partnerFixed}
-              onChange={(e) => onPartnerFixedChange(Number(e.target.value) || 0)}
+            <CurrencyInput
+              allowNegative={false}
+              value={partnerFixed || ''}
+              onValueChange={(v) => onPartnerFixedChange(v ?? 0)}
               className={selectClass}
             />
           </div>
           <div>
             <label className="mb-1 block text-xs text-ac-text-secondary">I receive (₹)</label>
-            <input
-              type="number"
+            <Input
               readOnly
-              value={(preview.mine / 100).toFixed(2)}
+              value={formatRupeesIndian(preview.mine / 100)}
               className={cn(selectClass, 'opacity-80')}
             />
           </div>

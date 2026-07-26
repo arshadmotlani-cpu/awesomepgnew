@@ -697,8 +697,27 @@ These extend `ac_assets` without altering financial tables.
 
 ---
 
-## 10. Backup & Recovery
+---
 
-- Neon point-in-time recovery (production)
-- Ledger rebuild script: recompute cached fields from source tables
-- Migration rollback: forward-only; reversals handle data corrections
+## 11. Vehicle economics ledgers (ADR-020)
+
+Dealership OS money SSOTs — **no Funding Sources / treasury ledger**.
+
+| Ledger | Table | Rollup |
+|--------|-------|--------|
+| Vehicle Cost | `ac_vehicle_costs` (+ `ac_assets.purchase_price_paise`) | TVI (ADR-016) |
+| Seller Payments | `ac_seller_payments` (instrument required) | Remaining to seller |
+| Deal stakes | `ac_asset_investors` | Active Capital / My ROI |
+
+`ac_funding_entries` removed in migration `0013_drop_funding_sources.sql` (after brief `0012` experiment). Helpers: `src/capital/lib/threeLedgers.ts`.
+
+### `ac_seller_payments`
+
+| Column | Notes |
+|--------|-------|
+| `instrument` | `ac_payment_mode` (RTGS, cash, cheque, …) — how paid to seller |
+| `kind` | `token` \| `purchase` \| `final` |
+
+### `ac_vehicle_costs`
+
+Post-purchase cost lines that enter TVI. Signed `amount_paise`.

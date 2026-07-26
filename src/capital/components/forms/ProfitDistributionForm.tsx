@@ -1,11 +1,12 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect } from 'react';
 import {
   updateProfitDistributionModeAction,
   type ActionState,
 } from '@/src/capital/actions/assets';
 import { Button } from '@/src/capital/components/ui/button';
+import { useRefreshCapitalView } from '@/src/capital/hooks/useRefreshCapitalView';
 import { profitDistributionLabel, type ProfitDistributionMode } from '@/src/capital/lib/dealEconomics';
 
 const initialState: ActionState = {};
@@ -21,6 +22,11 @@ export function ProfitDistributionForm({
     updateProfitDistributionModeAction,
     initialState,
   );
+  const refreshCapitalView = useRefreshCapitalView();
+
+  useEffect(() => {
+    if (state.success) refreshCapitalView();
+  }, [state.success, refreshCapitalView]);
 
   return (
     <form action={formAction} className="ac-glass-card space-y-3 p-4">

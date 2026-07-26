@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { capitalZodResolver } from '@/src/capital/lib/validation/parse';
 import { createPaymentAction, type ActionState } from '@/src/capital/actions/payments';
 import { loadDraftAction } from '@/src/capital/actions/drafts';
@@ -9,8 +9,10 @@ import { Button } from '@/src/capital/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/capital/components/ui/card';
 import { Input } from '@/src/capital/components/ui/input';
 import { Textarea } from '@/src/capital/components/ui/textarea';
+import { CurrencyInput } from '@/src/capital/components/forms/CurrencyInput';
 import { FormField } from '@/src/capital/components/forms/FormField';
 import { useAutosaveDraft } from '@/src/capital/hooks/useAutosaveDraft';
+import { useRefreshCapitalView } from '@/src/capital/hooks/useRefreshCapitalView';
 import { useCapitalToast } from '@/src/capital/components/CapitalToastProvider';
 import { createPaymentSchema, type CreatePaymentInput } from '@/src/capital/lib/validation/schemas';
 import { paymentModeEnum, paymentTypeEnum } from '@/src/capital/db/schema/enums';
@@ -29,6 +31,7 @@ export function CreatePaymentForm({
   const [state, setState] = useState<ActionState>({});
   const [pending, startTransition] = useTransition();
   const { showToast } = useCapitalToast();
+  const refreshCapitalView = useRefreshCapitalView();
 
   const form = useForm<CreatePaymentInput>({
     resolver: capitalZodResolver(createPaymentSchema),
@@ -43,6 +46,11 @@ export function CreatePaymentForm({
       paymentMode: 'bank',
     },
   });
+
+  const watchAmount = useWatch({ control: form.control, name: 'amount' });
+  const watchCapitalReturned = useWatch({ control: form.control, name: 'capitalReturned' });
+  const watchProfit = useWatch({ control: form.control, name: 'profit' });
+  const watchAdjustment = useWatch({ control: form.control, name: 'adjustment' });
 
   useEffect(() => {
     void loadDraftAction(DRAFT_KEY).then(({ payload }) => {
@@ -75,6 +83,7 @@ export function CreatePaymentForm({
           adjustment: 0,
           paymentMode: 'bank',
         });
+        refreshCapitalView();
       }
     });
   });
@@ -104,7 +113,16 @@ export function CreatePaymentForm({
             <Input id="receivedAt" type="date" {...form.register('receivedAt')} />
           </FormField>
           <FormField label="Total amount (₹) *" name="amount" form={form}>
-            <Input id="amount" type="number" step="0.01" {...form.register('amount')} />
+            <CurrencyInput
+              id="amount"
+              allowNegative={false}
+              value={watchAmount ?? ''}
+              onValueChange={(v) =>
+                form.setValue('amount', (v ?? 0) as CreatePaymentInput['amount'], {
+                  shouldValidate: true,
+                })
+              }
+            />
           </FormField>
           <FormField label="Payment type *" name="paymentType" form={form}>
             <select
@@ -120,13 +138,40 @@ export function CreatePaymentForm({
             </select>
           </FormField>
           <FormField label="Capital returned (₹)" name="capitalReturned" form={form}>
-            <Input id="capitalReturned" type="number" step="0.01" {...form.register('capitalReturned')} />
+            <CurrencyInput
+              id="capitalReturned"
+              allowNegative={false}
+              value={watchCapitalReturned ?? ''}
+              onValueChange={(v) =>
+                form.setValue('capitalReturned', (v ?? 0) as CreatePaymentInput['capitalReturned'], {
+                  shouldValidate: true,
+                })
+              }
+            />
           </FormField>
           <FormField label="Profit (₹)" name="profit" form={form}>
-            <Input id="profit" type="number" step="0.01" {...form.register('profit')} />
+            <CurrencyInput
+              id="profit"
+              allowNegative={false}
+              value={watchProfit ?? ''}
+              onValueChange={(v) =>
+                form.setValue('profit', (v ?? 0) as CreatePaymentInput['profit'], {
+                  shouldValidate: true,
+                })
+              }
+            />
           </FormField>
           <FormField label="Adjustment (₹)" name="adjustment" form={form}>
-            <Input id="adjustment" type="number" step="0.01" {...form.register('adjustment')} />
+            <CurrencyInput
+              id="adjustment"
+              allowNegative={false}
+              value={watchAdjustment ?? ''}
+              onValueChange={(v) =>
+                form.setValue('adjustment', (v ?? 0) as CreatePaymentInput['adjustment'], {
+                  shouldValidate: true,
+                })
+              }
+            />
           </FormField>
           <FormField label="Mode *" name="paymentMode" form={form}>
             <select
