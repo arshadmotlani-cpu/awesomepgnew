@@ -80,7 +80,6 @@ export async function createAssetAction(
       notes: input.notes,
       investors,
       tokenPaidPaise: tokenPaise > 0 ? tokenPaise : undefined,
-      profitDistributionMode: input.profitDistributionMode ?? 'SELF',
     });
     assetId = asset.id;
 
@@ -107,7 +106,7 @@ export async function createAssetAction(
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to create vehicle' };
   }
-  redirect(`/assets/${assetId}?tab=activities&focus=purchase`);
+  redirect(`/assets/${assetId}?tab=overview&focus=payment`);
 }
 
 export async function recordSaleAction(
@@ -123,6 +122,7 @@ export async function recordSaleAction(
       parsed.data.assetId,
       rupeesToPaise(parsed.data.salePrice),
       parsed.data.saleDate,
+      parsed.data.profitDistributionMode,
     );
     revalidatePath(`/assets/${parsed.data.assetId}`);
     revalidatePath('/assets');

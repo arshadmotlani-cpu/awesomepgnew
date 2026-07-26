@@ -385,7 +385,9 @@ SSOT: `src/capital/lib/activityTypes.ts` (`computeTotalVehicleInvestment`), wire
 2. Purchase Price + all activities including milestones — double-counts acquisition.
 
 ### Consequences
-- Create vehicle starts TVI at purchase price; post-create lands on Purchase Activities.
+- Create vehicle starts TVI at purchase price; Token is create-time payment progress only.
+- Post-create lands on Overview → Purchase Payment (not Activities).
+- Activities never offer Token / Purchase Payment (`selectable: false` + server guard).
 - Historical assets: re-run `scripts/recalc-capital-assets.ts` after deploy so stored `total_investment_paise` matches ADR-016.
 - Contributors must not change this formula without a documented ADR.
 
@@ -426,22 +428,24 @@ SSOT: `src/capital/lib/vehicleLifecycle.ts`
 ## ADR-018: Profit Distribution Mode (SELF vs PARTNERSHIP_50_50)
 
 **Date:** 2026-07-26  
-**Status:** Accepted (supersedes ADR-011 for vehicle sales)
+**Status:** Accepted (supersedes ADR-011 for vehicle sales)  
+**Amended:** 2026-07-26 — sale-time workflow (not purchase)
 
 ### Context
-Not every vehicle is a Sufii partnership. Self deals must give 100% of Gross Deal Profit to Me; Sufii’s earnings on those deals are expenses (broker, transport, repair), not profit share. Applying Settings 50% to every sale produced incorrect My Profit / ROI / dashboard totals.
+Not every vehicle is a Sufii partnership. Self deals must give 100% of Gross Deal Profit to Me; Sufii’s earnings on those deals are expenses (broker, transport, repair), not profit share. Applying Settings 50% to every sale produced incorrect My Profit / ROI / dashboard totals. The split is usually unknown at purchase and is decided when the deal closes.
 
 ### Decision
-1. Required `ac_assets.profit_distribution_mode`: `SELF` | `PARTNERSHIP_50_50`.
-2. Create defaults to **SELF**; existing rows migrate to **PARTNERSHIP_50_50**.
-3. Gross Deal Profit = Sale − TVI (unchanged).
-4. **SELF** → My Profit = Gross; Sufii Profit = 0.
-5. **PARTNERSHIP_50_50** → My Profit = `round(Gross/2)`; Sufii = Gross − My.
-6. Capital investors remain funding / My ROI base only; `investor_2` gets 0 deal profit.
-7. Editable on vehicle Profit tab with audit (`profit_distribution_mode_changed`); sold vehicles recalculate via `recalculateAsset`.
-8. One SSOT: `distributeDealProfits` in `dealEconomics.ts`. Settings Sufii % applies to **manual profits** only.
+1. `ac_assets.profit_distribution_mode`: `SELF` | `PARTNERSHIP_50_50` | `NULL` (unsold).
+2. **Sale-time property** — not asked at vehicle create. Column stays `NULL` until `recordSale`.
+3. Record Sale requires mode; UI default is **SELF** (most deals are self-funded).
+4. Gross Deal Profit = Sale − TVI (unchanged).
+5. **SELF** → My Profit = Gross; Sufii Profit = 0.
+6. **PARTNERSHIP_50_50** → My Profit = `round(Gross/2)`; Sufii = Gross − My.
+7. Capital investors remain funding / My ROI base only; `investor_2` gets 0 deal profit.
+8. Editable on vehicle **Sale** tab after sale (`profit_distribution_mode_changed`); recalculates via `recalculateAsset`. Profit tab is read-only stats.
+9. One SSOT: `distributeDealProfits` in `dealEconomics.ts`. Settings Sufii % applies to **manual profits** only.
 
-Migration: `0010_profit_distribution_mode.sql`. Recalc: `scripts/capital-recalc-deal-profits.ts`.
+Migrations: `0010_profit_distribution_mode.sql`, `0011_sale_time_profit_distribution.sql`. Recalc: `scripts/capital-recalc-deal-profits.ts`.
 
 ### Consequences
 - Dashboard / Reports / Analytics continue to read stored `my_share_paise` — correct after recalc.

@@ -9,7 +9,8 @@
 
 ## 2026-07-26
 
-- **Profit Distribution Mode** — Per vehicle SELF (100% My) or PARTNERSHIP_50_50; Settings Sufii % is manual-profits only. → ADR-018
+- **Profit Distribution is sale-time** — Mode chosen at Record Sale (default SELF); NULL until sold; edit on Sale tab. → ADR-018 amendment + `0011`
+- **Profit Distribution Mode** — Per deal SELF (100% My) or PARTNERSHIP_50_50; Settings Sufii % is manual-profits only. → ADR-018
 - **Vehicle Lifecycle SSOT (state vs activities)** — One current status per vehicle; activities remain history; reuse `ac_asset_status`; Purchase Pending derived; Delivered Phase 2. → ADR-017
 - **Frozen Total Vehicle Investment (Option 2)** — TVI = Purchase Price + investment-cost activities − refunds; Token/Purchase Payment are milestones only. Financial SSOT for profit/ROI/analytics. → ADR-016
 - **Executive dealership dashboard restore** — Grouped cards + Active Capital once + conditional Health + activity + Purchases vs Sales; no Business View; ROI = My Profit ÷ My Capital Stakes. → ADR-015

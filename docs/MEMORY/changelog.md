@@ -9,6 +9,8 @@
 
 ## 2026-07-26
 
+- **CAPITAL-PURCHASE-PAYMENT-UX** — Token/payments vs Activities separated; Remaining on create; Record Purchase Payment on Overview; TVI math unchanged (ADR-016)
+- **CAPITAL-SALE-TIME-PROFIT** — Profit Distribution moved off create → Record Sale (default SELF); nullable mode until sold (`0011`); edit on Sale tab
 - **CAPITAL-PROFIT-SSOT-FREEZE** — Hardened dealEconomics gross helper; Scenario A/B tests; PROFIT_DISTRIBUTION_SSOT.md freeze
 - **CAPITAL-PROFIT-MODE** — SELF vs PARTNERSHIP_50_50 per vehicle (ADR-018); SSOT distributeDealProfits; migration 0010
 - **CAPITAL-OPERATING-CONSOLE** — Dashboard = Current Position / Attention / Pace(3) / Insights / Recent Sales (not analytics wall)
@@ -310,5 +312,73 @@ Files:
 - 2026-07-25 TASK: payout terminology SSOT — Pending payouts ops label, resident payout copy, lifecycle split
 - 2026-07-25 DECISION: frozen Terminology Rules in CHECKOUT_SETTLEMENT_STATE_MACHINE.md (checkout vs payout)
 - 2026-07-25 DECISION: CHECKOUT_PAYOUT_PLATFORM_FREEZE.md + checkout-payout-platform-freeze Cursor rule
+
+---
+
+<!-- SEMANTIC_2026-07-26T01:12:40Z -->
+---
+Time: 2026-07-26T01:12:40Z
+Type: MIXED
+Impact: HIGH
+Reason: Move-out and checkout documentation is evolving — likely reflecting vacating ops or refund workflow changes.
+Files:
+- ARCHITECTURE.md
+- BILLING_SETTLEMENT_BUSINESS_RULES.md
+- BILLING_SETTLEMENT_ENGINE_FINAL_REPORT.md
+- BUGS.md
+- CHANGELOG.md
+- CHECKOUT_PAYOUT_PLATFORM_FREEZE.md
+- CURRENT_STATE.md
+- DECISIONS.md
+- MEMORY/active_memory.md
+- MEMORY/changelog.md
+- MEMORY/decisions.md
+- MEMORY/tasks.md
+- PROJECT/features.md
+- ROUTES.md
+- SETTLEMENT_ENGINE_FREEZE.md
+- SETTLEMENT_REPAIR_POLICY.md
+- SYSTEM/AI_CONTEXT.md
+- SYSTEM/CHECKOUT_SETTLEMENT_STATE_MACHINE.md
+- SYSTEM/CURRENT_STATE.md
+- SYSTEM/WORKFLOWS.md
+- automotive-capital/ARCHITECTURE.md
+- automotive-capital/CHANGELOG.md
+- automotive-capital/DATABASE.md
+- automotive-capital/DECISIONS.md
+- automotive-capital/FEATURES.md
+- automotive-capital/PROFIT_DISTRIBUTION_SSOT.md
+- automotive-capital/ROUTES.md
+- automotive-capital/WORKFLOWS.md
+- screenshots/resident-move-out/01-pending-approval.png
+- screenshots/resident-move-out/02-approved.png
+- screenshots/resident-move-out/03-request-refund.png
+- screenshots/resident-move-out/04-under-review.png
+- screenshots/resident-move-out/05-refund-completed.png
+- testing/CHECKOUT_COMPLETE_VERIFICATION.md
+- validation/APG-2026-0082-settlement.md
+- validation/APG-2026-0083-settlement.md
+- validation/FINAL_PRODUCTION_VALIDATION.md
+- validation/MOVEIN_COVERAGE_PRODUCTION_AUDIT.md
+- validation/POLICY_SPOTCHECKS.md
+- validation/SETTLEMENT_UX_GUIDE.md
+- validation/UI_BILLING_AUDIT.md
+- validation/final-production-validation.json
+- validation/movein-coverage-production-audit.json
+
+---
+
+<!-- SEMANTIC_2026-07-26T01:17:09Z -->
+---
+Time: 2026-07-26T01:17:09Z
+Type: MIXED
+Impact: MEDIUM
+Reason: The AI memory / intelligence automation layer is being extended — cognition pipeline or MEMORY structure changed.
+Files:
+- MEMORY/active_memory.md
+- MEMORY/changelog.md
+- automotive-capital/CHANGELOG.md
+- automotive-capital/DECISIONS.md
+- automotive-capital/WORKFLOWS.md
 
 ---

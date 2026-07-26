@@ -10,17 +10,12 @@ import { profitDistributionLabel, type ProfitDistributionMode } from '@/src/capi
 
 const initialState: ActionState = {};
 
-const selectClass =
-  'flex h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-ac-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ac-accent/40';
-
 export function ProfitDistributionForm({
   assetId,
   mode,
-  hasSale,
 }: {
   assetId: string;
   mode: ProfitDistributionMode;
-  hasSale: boolean;
 }) {
   const [state, formAction, pending] = useActionState(
     updateProfitDistributionModeAction,
@@ -32,25 +27,40 @@ export function ProfitDistributionForm({
       <div>
         <h3 className="text-sm font-semibold">Profit Distribution</h3>
         <p className="mt-1 text-xs text-ac-text-muted">
-          Current: {profitDistributionLabel(mode)}.
-          {hasSale
-            ? ' Changing this recalculates My Profit, Sufii Profit, ROI, and dashboard totals.'
-            : ' Applies when you record the sale.'}
+          Current: {profitDistributionLabel(mode)}. Changing this recalculates My Profit, Sufii
+          Profit, ROI, and dashboard totals.
         </p>
       </div>
       <input type="hidden" name="assetId" value={assetId} />
-      <div>
-        <label className="mb-1 block text-sm text-ac-text-secondary">Mode</label>
-        <select
-          name="profitDistributionMode"
-          className={selectClass}
-          defaultValue={mode}
-          key={mode}
-        >
-          <option value="SELF">Self — 100% my profit</option>
-          <option value="PARTNERSHIP_50_50">Partnership — 50% me / 50% Sufii</option>
-        </select>
-      </div>
+      <fieldset className="space-y-2">
+        <legend className="sr-only">Profit Distribution</legend>
+        <label className="flex cursor-pointer items-start gap-2 text-sm">
+          <input
+            type="radio"
+            name="profitDistributionMode"
+            value="SELF"
+            defaultChecked={mode === 'SELF'}
+            key={`${mode}-SELF`}
+            className="mt-1"
+          />
+          <span>
+            <span className="font-medium text-ac-text">Entire profit is mine</span>
+          </span>
+        </label>
+        <label className="flex cursor-pointer items-start gap-2 text-sm">
+          <input
+            type="radio"
+            name="profitDistributionMode"
+            value="PARTNERSHIP_50_50"
+            defaultChecked={mode === 'PARTNERSHIP_50_50'}
+            key={`${mode}-PARTNERSHIP`}
+            className="mt-1"
+          />
+          <span>
+            <span className="font-medium text-ac-text">Split profit 50% / 50%</span>
+          </span>
+        </label>
+      </fieldset>
       {state.error ? <p className="text-sm text-ac-danger">{state.error}</p> : null}
       {state.success ? <p className="text-sm text-ac-success">{state.success}</p> : null}
       <Button type="submit" size="sm" variant="secondary" disabled={pending}>

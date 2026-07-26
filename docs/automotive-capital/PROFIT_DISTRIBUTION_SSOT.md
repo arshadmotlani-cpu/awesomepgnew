@@ -21,14 +21,26 @@ If a future feature needs profit data, it must **consume stored values** produce
 
 ---
 
+## Sale-time property (not purchase)
+
+Profit Distribution is decided **when the deal is sold**, not when the vehicle is bought.
+
+| Stage | Behavior |
+|-------|----------|
+| Create vehicle | No profit-distribution field. Column stays `NULL`. |
+| Record Sale | Required choice: Entire profit is mine (`SELF`, default) or Split 50/50 (`PARTNERSHIP_50_50`). |
+| After sale | Editable on the **Sale** tab; Profit tab is read-only stats. |
+
+Migration `0010` introduced the enum; `0011` makes the column nullable and clears mode on unsold vehicles.
+
+---
+
 ## Two modes only
 
 | Mode | Meaning |
 |------|---------|
 | `SELF` | You funded the deal. Sufii has **no profit share**. Any money he earned is broker / transport / repair (purchase activities = expenses). |
 | `PARTNERSHIP_50_50` | Profit split 50–50 with Sufii. No custom percentages. |
-
-Create defaults to **SELF**. Migration `0010` backfilled existing vehicles to **PARTNERSHIP_50_50**.
 
 ---
 
@@ -68,12 +80,13 @@ SSOT module: [`src/capital/lib/dealEconomics.ts`](../../src/capital/lib/dealEcon
 
 Persisted only by:
 
-- `recordSale` → `distributeDealProfits` → columns  
-- `recalculateAsset` → same (whenever sale price exists)  
-- `updateProfitDistributionMode` → mode column + `recalculateAsset` if sold  
+- `recordSale(…, profitDistributionMode)` → writes mode + `distributeDealProfits` → columns  
+- `recalculateAsset` → same (whenever sale price exists; uses stored mode)  
+- `updateProfitDistributionMode` → mode column + `recalculateAsset` (sold deals only)  
 
 Stored columns (readers only):
 
+- `profit_distribution_mode` — sale-time mode (`NULL` until sold)  
 - `profit_paise` — Gross Deal Profit  
 - `my_share_paise` — My Profit  
 - `operating_partner_profit_paise` / `partner_share_paise` — Sufii Profit  
@@ -92,11 +105,11 @@ Changing mode after sale recalculates stored values and revalidates `/dashboard`
 ## Ops after migrate
 
 ```bash
-# Apply 0010_profit_distribution_mode.sql, then:
+# Apply 0010 + 0011, then if shares need healing:
 npx tsx scripts/capital-recalc-deal-profits.ts
 ```
 
-Flip true self deals from Partnership → Self on the vehicle Profit tab.
+Flip SELF ↔ PARTNERSHIP on the vehicle **Sale** tab after the deal is sold.
 
 ---
 

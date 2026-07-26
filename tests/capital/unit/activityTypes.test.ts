@@ -6,6 +6,7 @@ import {
   activityCostAmountPaise,
   computeRepairSettlement,
   computeTotalVehicleInvestment,
+  remainingPurchasePaymentPaise,
   sumPaymentMilestonesPaise,
 } from '../../../src/capital/lib/activityTypes';
 
@@ -93,9 +94,18 @@ describe('activity cost map (ADR-016 Option 2)', () => {
     assert.equal(paid, INR(8_00_000));
   });
 
-  it('exposes selectable types for Add Activity', () => {
-    assert.ok(SELECTABLE_ACTIVITY_TYPES.includes('token_paid'));
-    assert.ok(SELECTABLE_ACTIVITY_TYPES.includes('final_purchase_payment'));
+  it('remaining purchase payment = price − milestones (never negative)', () => {
+    assert.equal(remainingPurchasePaymentPaise(INR(10_00_000), INR(20_000)), INR(9_80_000));
+    assert.equal(remainingPurchasePaymentPaise(INR(10_00_000), INR(10_00_000)), 0);
+    assert.equal(remainingPurchasePaymentPaise(INR(10_00_000), INR(12_00_000)), 0);
+  });
+
+  it('excludes payment milestones from Activities selectable types', () => {
+    assert.ok(!SELECTABLE_ACTIVITY_TYPES.includes('token_paid'));
+    assert.ok(!SELECTABLE_ACTIVITY_TYPES.includes('purchase_payment'));
+    assert.ok(!SELECTABLE_ACTIVITY_TYPES.includes('final_purchase_payment'));
+    assert.equal(VEHICLE_ACTIVITY_TYPE_META.token_paid.selectable, false);
+    assert.ok(SELECTABLE_ACTIVITY_TYPES.includes('broker_commission'));
     assert.ok(SELECTABLE_ACTIVITY_TYPES.includes('rto'));
     assert.ok(!SELECTABLE_ACTIVITY_TYPES.includes('vehicle_created'));
     assert.ok(!SELECTABLE_ACTIVITY_TYPES.includes('sale'));

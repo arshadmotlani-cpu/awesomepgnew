@@ -65,8 +65,6 @@ export type CreateAssetInput = {
   color?: string;
   /** Optional token milestone at create (cash_only — not added to TVI). */
   tokenPaidPaise?: number;
-  /** SELF | PARTNERSHIP_50_50 — defaults to SELF. */
-  profitDistributionMode?: 'SELF' | 'PARTNERSHIP_50_50';
 };
 
 export async function listAssetInvestors(assetId: string, db: CapitalDbClient = capitalDb) {
@@ -310,7 +308,7 @@ export async function createAsset(input: CreateAssetInput) {
         dealerRefundTotalPaise: 0,
         notes: input.notes,
         holdingDays: calcHoldingDays(input.purchaseDate),
-        profitDistributionMode: input.profitDistributionMode ?? 'SELF',
+        // profit_distribution_mode stays NULL until sale (sale-time property)
       })
       .returning();
 
@@ -617,6 +615,7 @@ export async function recordSale(
   assetId: string,
   actualSalePricePaise: number,
   saleDate: string,
+  profitDistributionMode: 'SELF' | 'PARTNERSHIP_50_50',
 ) {
   await assertAssetMutable(assetId);
 
@@ -655,7 +654,7 @@ export async function recordSale(
   const deal = distributeDealProfits({
     businessProfitPaise: businessProfit,
     netVehicleCostPaise: netVehicleCost,
-    profitDistributionMode: fresh.profitDistributionMode ?? 'SELF',
+    profitDistributionMode,
     funding: investors.map((i) => ({
       slot: i.slot as InvestorSlot,
       investedPaise: i.investedPaise,
@@ -683,6 +682,7 @@ export async function recordSale(
         actualSalePricePaise,
         saleDate,
         status: 'sold',
+        profitDistributionMode,
         profitShareMode: 'percentage',
         partnerSharePctBps: deal.operatingPartnerPctBps,
         mySharePctBps: deal.myInvestmentPctBps,
@@ -733,39 +733,38 @@ export async function updateProfitDistributionMode(
   if (asset.status === 'cancelled') {
     throw new Error('Cannot change profit distribution on a cancelled vehicle');
   }
+  if (asset.actualSalePricePaise == null) {
+    throw new Error('Profit distribution is set when recording the sale');
+  }
 
   const before = asset.profitDistributionMode;
-  const sold = asset.actualSalePricePaise != null;
   const modeChanged = before !== mode;
 
-  // Unsold + unchanged mode: nothing to write.
   // Sold + unchanged mode: still recalculate so my_share_paise heals if stale.
-  if (!modeChanged && !sold) return asset;
+  if (!modeChanged) {
+    await recalculateAsset(assetId);
+    const [same] = await capitalDb.select().from(acAssets).where(eq(acAssets.id, assetId)).limit(1);
+    return same ?? asset;
+  }
 
   await capitalDb.transaction(async (tx) => {
-    if (modeChanged) {
-      await tx
-        .update(acAssets)
-        .set({ profitDistributionMode: mode, updatedAt: new Date() })
-        .where(eq(acAssets.id, assetId));
-    }
+    await tx
+      .update(acAssets)
+      .set({ profitDistributionMode: mode, updatedAt: new Date() })
+      .where(eq(acAssets.id, assetId));
 
-    if (sold) {
-      await recalculateAsset(assetId, tx);
-    }
+    await recalculateAsset(assetId, tx);
 
-    if (modeChanged) {
-      await logActivity(
-        {
-          action: 'profit_distribution_mode_changed',
-          entityType: 'asset',
-          entityId: assetId,
-          beforeState: { profitDistributionMode: before },
-          afterState: { profitDistributionMode: mode },
-        },
-        tx,
-      );
-    }
+    await logActivity(
+      {
+        action: 'profit_distribution_mode_changed',
+        entityType: 'asset',
+        entityId: assetId,
+        beforeState: { profitDistributionMode: before },
+        afterState: { profitDistributionMode: mode },
+      },
+      tx,
+    );
   });
 
   const [fresh] = await capitalDb.select().from(acAssets).where(eq(acAssets.id, assetId)).limit(1);

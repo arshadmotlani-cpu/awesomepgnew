@@ -42,7 +42,6 @@ export const createAssetSchema = z
     meInvested: optionalNonNegRupees,
     investor2Invested: optionalNonNegRupees,
     investor2Label: z.string().optional(),
-    profitDistributionMode: z.enum(['SELF', 'PARTNERSHIP_50_50']).default('SELF'),
   })
   .superRefine((d, ctx) => {
     const hasPurchase = d.purchasePrice != null && d.purchasePrice > 0;
@@ -223,6 +222,14 @@ export const recordSaleSchema = z.object({
   assetId: uuid,
   salePrice: rupees,
   saleDate: dateStr,
+  /** Sale-time only — not set at vehicle create. */
+  profitDistributionMode: z.enum(['SELF', 'PARTNERSHIP_50_50']),
+});
+
+export const recordPurchasePaymentSchema = z.object({
+  assetId: uuid,
+  amount: rupees,
+  paidAt: dateStr,
 });
 
 export const updateStatusSchema = z.object({

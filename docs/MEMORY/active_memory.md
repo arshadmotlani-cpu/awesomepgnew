@@ -7,7 +7,9 @@
 
 ## Current Focus
 
-- **Automotive Capital Profit Distribution Mode** — SELF vs PARTNERSHIP_50_50 per vehicle (ADR-018). **Frozen** — see PROFIT_DISTRIBUTION_SSOT.md. Migration `0010`. Recalc sold deals after deploy.
+- **Automotive Capital Profit Distribution Mode** — Sale-time SELF vs PARTNERSHIP_50_50 (ADR-018). **Frozen** — see PROFIT_DISTRIBUTION_SSOT.md. Migrations `0010`+`0011`. Mode chosen at Record Sale (default SELF); edit on Sale tab.
+
+- **Automotive Capital Purchase Payment UX** — Token + seller payments = progress against Purchase Price (Overview). Activities = external costs only. TVI = Price + costs − refunds (ADR-016 unchanged).
 
 - **Automotive Capital product IA (final)** — Sidebar = Dashboard / Vehicles / Reports / Settings only. Operating Console Dashboard: Position → Attention → Pace(3) → Insights → Recent Sales. Payments/Ledger/Documents live on vehicle workspace.
 
@@ -115,7 +117,7 @@ See [[tasks]] for full task log. Current:
 <!-- SEMANTIC_STATE_START -->
 ## Semantic State
 
-> **Last analyzed:** 2026-07-24T11:57:20Z
+> **Last analyzed:** 2026-07-26T01:17:09Z
 
 - **Current system intent:** The AI memory / intelligence automation layer is being extended — cognition pipeline or MEMORY structure changed.
 - **Dominant change type:** MIXED (see changelog)
@@ -123,6 +125,8 @@ See [[tasks]] for full task log. Current:
 - **Risk level:** LOW
 
 <!-- SEMANTIC_STATE_END -->
+
+
 
 
 

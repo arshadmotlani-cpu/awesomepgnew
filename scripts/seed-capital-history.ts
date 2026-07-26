@@ -301,7 +301,7 @@ async function main() {
     });
 
     await updateAssetStatus(asset.id, 'listed');
-    await recordSale(asset.id, rupeesToPaise(saleRupees), v.saleDate);
+    await recordSale(asset.id, rupeesToPaise(saleRupees), v.saleDate, 'PARTNERSHIP_50_50');
 
     // Full vehicle cost returned so settlement outstanding = 0
     await createPayment({

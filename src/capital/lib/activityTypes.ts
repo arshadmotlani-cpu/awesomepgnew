@@ -72,7 +72,8 @@ export const VEHICLE_ACTIVITY_TYPE_META: Record<VehicleActivityType, ActivityTyp
     category: 'payment_milestone',
     ledgerDirection: 'debit',
     requiresAmount: true,
-    selectable: true,
+    /** Create-time / dedicated payment UI only — not Activities form. */
+    selectable: false,
   },
   purchase_payment: {
     type: 'purchase_payment',
@@ -81,7 +82,7 @@ export const VEHICLE_ACTIVITY_TYPE_META: Record<VehicleActivityType, ActivityTyp
     category: 'payment_milestone',
     ledgerDirection: 'debit',
     requiresAmount: true,
-    selectable: true,
+    selectable: false,
   },
   final_purchase_payment: {
     type: 'final_purchase_payment',
@@ -90,7 +91,7 @@ export const VEHICLE_ACTIVITY_TYPE_META: Record<VehicleActivityType, ActivityTyp
     category: 'payment_milestone',
     ledgerDirection: 'debit',
     requiresAmount: true,
-    selectable: true,
+    selectable: false,
   },
   broker_commission: {
     type: 'broker_commission',
@@ -381,6 +382,17 @@ export function sumPaymentMilestonesPaise(
     total += Math.round(row.amountPaise ?? 0);
   }
   return total;
+}
+
+/**
+ * Cash still owed to the seller toward Purchase Price.
+ * Token + purchase payments are payment progress — not TVI.
+ */
+export function remainingPurchasePaymentPaise(
+  purchasePricePaise: number,
+  milestonesPaidPaise: number,
+): number {
+  return Math.max(0, Math.round(purchasePricePaise) - Math.round(milestonesPaidPaise));
 }
 
 /** Pure settlement math for repair advances. */

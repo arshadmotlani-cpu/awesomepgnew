@@ -51,12 +51,11 @@ export const acAssets = pgTable(
     profitPaise: bigint('profit_paise', { mode: 'number' }),
     roiBps: integer('roi_bps'),
     /**
-     * Vehicle deal My vs Sufii split — SELF (100% me) or PARTNERSHIP_50_50.
+     * Sale-time My vs Sufii split — SELF (100% me) or PARTNERSHIP_50_50.
+     * NULL until the sale is recorded (not a purchase property).
      * Not the legacy percentage/fixed enum used by manual profits.
      */
-    profitDistributionMode: profitDistributionModeEnum('profit_distribution_mode')
-      .notNull()
-      .default('SELF'),
+    profitDistributionMode: profitDistributionModeEnum('profit_distribution_mode'),
     /** Profit distribution — set when sale is recorded (legacy manual-style enum) */
     profitShareMode: profitShareModeEnum('profit_share_mode'),
     /** Operating partner (Sufii) share of business profit, in bps */

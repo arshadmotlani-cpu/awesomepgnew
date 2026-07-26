@@ -76,7 +76,7 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
 
   const initialTabRaw = firstParam(sp.tab) ?? 'overview';
   const initialTab = initialTabRaw === 'accounting' ? 'ledger' : initialTabRaw;
-  const focusPurchase = firstParam(sp.focus) === 'purchase';
+  const focusPayment = firstParam(sp.focus) === 'payment';
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -131,12 +131,12 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
         fundingGapPaise={fundingGap}
         fundingStatus={fundingStatus}
         profitDistributionMode={
-          (asset.profitDistributionMode as 'SELF' | 'PARTNERSHIP_50_50') ?? 'SELF'
+          (asset.profitDistributionMode as 'SELF' | 'PARTNERSHIP_50_50' | null) ?? null
         }
         timeline={timeline}
         coverDocumentId={asset.coverDocumentId}
-        initialTab={focusPurchase ? 'activities' : initialTab}
-        focusPurchase={focusPurchase}
+        initialTab={initialTab}
+        focusPayment={focusPayment}
         investors={investors.map((i) => ({
           slot: i.slot,
           label: i.label,

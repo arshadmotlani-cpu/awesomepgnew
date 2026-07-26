@@ -12,16 +12,16 @@ import { DocumentUploadForm } from '@/src/capital/components/forms/DocumentUploa
 import { EditActivityForm } from '@/src/capital/components/forms/EditActivityForm';
 import { EditVehicleForm } from '@/src/capital/components/forms/EditVehicleForm';
 import { LifecycleControl } from '@/src/capital/components/forms/LifecycleControl';
-import { ProfitDistributionForm } from '@/src/capital/components/forms/ProfitDistributionForm';
+import { RecordPurchasePaymentForm } from '@/src/capital/components/forms/RecordPurchasePaymentForm';
 import { UpdateFundingForm } from '@/src/capital/components/forms/UpdateFundingForm';
 import { SetCoverPhotoButton } from '@/src/capital/components/forms/SetCoverPhotoButton';
 import {
   VEHICLE_ACTIVITY_TYPE_META,
   isPaymentMilestoneType,
+  remainingPurchasePaymentPaise,
   sumPaymentMilestonesPaise,
   type VehicleActivityType,
 } from '@/src/capital/lib/activityTypes';
-import { formatInrPlain } from '@/src/capital/lib/money';
 import {
   profitDistributionLabel,
   type ProfitDistributionMode,
@@ -144,14 +144,14 @@ export function AssetCommandCenter({
   totalInvestmentPaise,
   fundingGapPaise = 0,
   fundingStatus = '',
-  profitDistributionMode = 'SELF',
+  profitDistributionMode = null,
   timeline,
   investors = [],
   coverDocumentId,
   overview,
   profit,
   initialTab,
-  focusPurchase = false,
+  focusPayment = false,
 }: {
   assetId: string;
   currentStatus: string;
@@ -159,7 +159,8 @@ export function AssetCommandCenter({
   totalInvestmentPaise: number;
   fundingGapPaise?: number;
   fundingStatus?: string;
-  profitDistributionMode?: ProfitDistributionMode;
+  /** Null until sale is recorded. */
+  profitDistributionMode?: ProfitDistributionMode | null;
   timeline: TimelineData;
   investors?: {
     slot: string;
@@ -172,7 +173,8 @@ export function AssetCommandCenter({
   overview: OverviewData;
   profit: ProfitData | null;
   initialTab?: string;
-  focusPurchase?: boolean;
+  /** Highlight Purchase Payment section after create. */
+  focusPayment?: boolean;
 }) {
   const defaultTab =
     initialTab && (TAB_VALUES as readonly string[]).includes(initialTab)
@@ -214,11 +216,10 @@ export function AssetCommandCenter({
       amountPaise: a.amountPaise,
     })),
   );
-
-  const onlyCreated =
-    timeline.vehicleActivities.length > 0 &&
-    timeline.vehicleActivities.every((a) => a.activityType === 'vehicle_created');
-
+  const purchaseRemainingPaise = remainingPurchasePaymentPaise(
+    purchasePricePaise,
+    milestonePaidPaise,
+  );
   const timelineEvents =
     timeline.timelineEvents ??
     timeline.vehicleActivities.map((a) => ({
@@ -334,7 +335,7 @@ export function AssetCommandCenter({
           ))}
           {overview.dealerRefundTotalPaise > 0 ? (
             <div className="flex justify-between gap-4 border-b border-white/5 py-2">
-              <span className="text-ac-text-muted">− Refunds / returns</span>
+              <span className="text-ac-text-muted">− Refunds / returns (not profit)</span>
               <MoneyDisplay paise={overview.dealerRefundTotalPaise} />
             </div>
           ) : null}
@@ -342,39 +343,32 @@ export function AssetCommandCenter({
             <span>Total Vehicle Investment</span>
             <MoneyDisplay paise={totalInvestmentPaise} />
           </div>
+          <p className="pt-1 text-xs text-ac-text-muted">
+            Purchase Price + external costs − refunds. Token and purchase payments are not included.
+          </p>
         </div>
 
-        <div className="ac-glass-card space-y-2 p-4 text-sm">
-          <p className="font-medium">Payment progress (not investment)</p>
-          <p className="text-xs text-ac-text-muted">
-            Token / Purchase Payment track how Purchase Price was paid. They do not add to
-            investment.
-          </p>
-          <div className="flex justify-between gap-4 py-1">
-            <span className="text-ac-text-muted">Paid toward purchase</span>
-            <span>
-              ₹{formatInrPlain(milestonePaidPaise)} / ₹{formatInrPlain(purchasePricePaise)}
-            </span>
-          </div>
-          {milestones.length === 0 ? (
-            <p className="text-ac-text-muted">No payment milestones recorded yet.</p>
-          ) : (
-            milestones.map((a) => (
-              <div key={a.id} className="flex justify-between gap-4 border-t border-white/5 py-2">
-                <span>
-                  {activityLabel(a.activityType)} · {a.activityAt}
-                </span>
-                {a.amountPaise != null ? <MoneyDisplay paise={a.amountPaise} /> : null}
-              </div>
-            ))
-          )}
-        </div>
+        <RecordPurchasePaymentForm
+          assetId={assetId}
+          purchasePricePaise={purchasePricePaise}
+          alreadyPaidPaise={milestonePaidPaise}
+          remainingPaise={purchaseRemainingPaise}
+          canEdit={canEdit}
+          highlight={focusPayment}
+          milestones={milestones.map((a) => ({
+            id: a.id,
+            activityType: a.activityType,
+            activityAt: a.activityAt,
+            amountPaise: a.amountPaise,
+            label: activityLabel(a.activityType),
+          }))}
+        />
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard label="Funding Status" text={fundingStatus || '—'} />
           <StatCard label="My Investment" paise={overview.myInvestmentPaise} />
           <StatCard label={overview.partnerLabel} paise={overview.partnerInvestmentPaise} />
-          <StatCard label="Funding Gap" paise={fundingGapPaise} />
+          <StatCard label="Funding Gap (stakes)" paise={fundingGapPaise} />
           <StatCard label="Outstanding" paise={overview.outstandingPaise} />
           <StatCard label="Holding days" text={String(overview.holdingDays)} />
         </div>
@@ -487,11 +481,7 @@ export function AssetCommandCenter({
 
       <TabsContent value="activities" className="space-y-4">
         {canEdit ? (
-          <CreateActivityForm
-            assetId={assetId}
-            openAdvances={timeline.openAdvances}
-            highlightPurchase={focusPurchase || onlyCreated}
-          />
+          <CreateActivityForm assetId={assetId} openAdvances={timeline.openAdvances} />
         ) : (
           <p className="text-sm text-ac-text-muted">This vehicle is closed — activities locked.</p>
         )}
@@ -667,11 +657,6 @@ export function AssetCommandCenter({
       </TabsContent>
 
       <TabsContent value="profit" className="space-y-4">
-        <ProfitDistributionForm
-          assetId={assetId}
-          mode={profitDistributionMode}
-          hasSale={Boolean(profit)}
-        />
         {profit ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <StatCard label="Sale price" paise={profit.salePricePaise} />
@@ -679,9 +664,7 @@ export function AssetCommandCenter({
             <StatCard label="Gross Deal Profit" paise={profit.businessProfitPaise} />
             <StatCard
               label="Profit Distribution"
-              text={profitDistributionLabel(
-                profit.profitDistributionMode ?? profitDistributionMode,
-              )}
+              text={profitDistributionLabel(profit.profitDistributionMode)}
             />
             <StatCard label="My Profit" paise={profit.myProfitPaise} />
             <StatCard label="Sufii Profit" paise={profit.operatingPartnerPaise} />
@@ -700,7 +683,8 @@ export function AssetCommandCenter({
           </div>
         ) : (
           <p className="text-sm text-ac-text-muted">
-            Gross Deal Profit = Sale Price − Total Vehicle Investment (available after sale).
+            Profit figures appear after you record a sale. Choose distribution on the Sale tab when
+            the deal closes.
           </p>
         )}
       </TabsContent>

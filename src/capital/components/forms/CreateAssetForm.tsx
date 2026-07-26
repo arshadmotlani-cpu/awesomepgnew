@@ -88,7 +88,6 @@ const EMPTY_DEFAULTS: CreateAssetInput = {
   meInvested: undefined,
   investor2Invested: undefined,
   investor2Label: 'Partner',
-  profitDistributionMode: 'SELF',
 };
 
 export function CreateAssetForm() {
@@ -106,6 +105,15 @@ export function CreateAssetForm() {
   });
 
   const purchasePrice = useWatch({ control: form.control, name: 'purchasePrice' });
+  const tokenPaid = useWatch({ control: form.control, name: 'tokenPaid' });
+
+  const remainingPurchasePayment = useMemo(() => {
+    if (purchasePrice == null || !Number.isFinite(purchasePrice) || purchasePrice <= 0) {
+      return null;
+    }
+    const token = tokenPaid != null && Number.isFinite(tokenPaid) ? Math.max(0, tokenPaid) : 0;
+    return Math.max(0, purchasePrice - token);
+  }, [purchasePrice, tokenPaid]);
 
   useEffect(() => {
     if (withPartner) return;
@@ -298,22 +306,32 @@ export function CreateAssetForm() {
                 placeholder="Optional"
                 {...registerRupees(form, 'tokenPaid')}
               />
-            </FormField>
-
-            <FormField
-              label="Profit Distribution"
-              name="profitDistributionMode"
-              form={form}
-            >
-              <select className={selectClass} {...form.register('profitDistributionMode')}>
-                <option value="SELF">Self — 100% my profit</option>
-                <option value="PARTNERSHIP_50_50">Partnership — 50% me / 50% Sufii</option>
-              </select>
               <p className="mt-1 text-xs text-ac-text-muted">
-                Self deals: Sufii earns via broker/transport/repair activities only — not profit
-                share.
+                Part of Purchase Price already paid to the seller — not an extra cost and not added
+                to Total Vehicle Investment.
               </p>
             </FormField>
+
+            {remainingPurchasePayment != null ? (
+              <div className="md:col-span-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="text-ac-text-secondary">Remaining Purchase Payment</span>
+                  <span className="font-semibold tabular-nums text-ac-text">
+                    ₹
+                    {remainingPurchasePayment.toLocaleString('en-IN', {
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                </div>
+                {remainingPurchasePayment === 0 ? (
+                  <p className="mt-1 text-xs text-ac-success">Purchase price fully covered by token.</p>
+                ) : (
+                  <p className="mt-1 text-xs text-ac-text-muted">
+                    Record further seller payments on the vehicle Overview after create.
+                  </p>
+                )}
+              </div>
+            ) : null}
 
             <div className="md:col-span-2">
               <FormField label="Notes (optional)" name="notes" form={form}>

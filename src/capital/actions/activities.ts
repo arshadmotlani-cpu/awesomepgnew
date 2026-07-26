@@ -7,11 +7,13 @@ import { rupeesToPaise } from '@/src/capital/lib/money';
 import { formDataToObject, parseZod } from '@/src/capital/lib/validation/parse';
 import {
   createVehicleActivitySchema,
+  recordPurchasePaymentSchema,
   reverseSchema,
   updateVehicleActivitySchema,
 } from '@/src/capital/lib/validation/schemas';
 import {
   createVehicleActivity,
+  recordPurchasePayment,
   reverseVehicleActivity,
   updateVehicleActivity,
 } from '@/src/capital/services/vehicleActivities';
@@ -94,6 +96,32 @@ export async function createVehicleActivityAction(
     };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to create activity' };
+  }
+}
+
+export async function recordPurchasePaymentAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    await requireCapitalAuth();
+    const parsed = parseZod(recordPurchasePaymentSchema, formDataToObject(formData));
+    if (!parsed.ok) return { error: parsed.error };
+
+    await recordPurchasePayment({
+      assetId: parsed.data.assetId,
+      amountPaise: rupeesToPaise(parsed.data.amount),
+      paidAt: parsed.data.paidAt,
+    });
+
+    revalidatePath(`/assets/${parsed.data.assetId}`);
+    revalidatePath('/assets');
+    revalidatePath('/dashboard');
+    revalidatePath('/ledger');
+    revalidateTag('capital-dashboard', 'default');
+    return { success: 'Purchase payment recorded.' };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to record purchase payment' };
   }
 }
 

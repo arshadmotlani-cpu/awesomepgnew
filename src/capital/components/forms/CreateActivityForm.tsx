@@ -14,7 +14,6 @@ import { Textarea } from '@/src/capital/components/ui/textarea';
 import { useCapitalToast } from '@/src/capital/components/CapitalToastProvider';
 import {
   INVESTMENT_COST_TYPES,
-  PAYMENT_MILESTONE_TYPES,
   SELECTABLE_ACTIVITY_TYPES,
   VEHICLE_ACTIVITY_TYPE_META,
   computeRepairSettlement,
@@ -40,20 +39,19 @@ type FormValues = {
   repairAdvanceId: string;
 };
 
+const DEFAULT_COST_TYPE =
+  INVESTMENT_COST_TYPES.find((t) => VEHICLE_ACTIVITY_TYPE_META[t].selectable) ?? 'broker_commission';
+
 const OTHER_SELECTABLE = SELECTABLE_ACTIVITY_TYPES.filter(
-  (t) =>
-    VEHICLE_ACTIVITY_TYPE_META[t].category !== 'payment_milestone' &&
-    VEHICLE_ACTIVITY_TYPE_META[t].category !== 'investment_cost',
+  (t) => VEHICLE_ACTIVITY_TYPE_META[t].category !== 'investment_cost',
 );
 
 export function CreateActivityForm({
   assetId,
   openAdvances = [],
-  highlightPurchase = false,
 }: {
   assetId: string;
   openAdvances?: OpenAdvance[];
-  highlightPurchase?: boolean;
 }) {
   const [state, setState] = useState<ActionState>({});
   const [pending, startTransition] = useTransition();
@@ -62,7 +60,7 @@ export function CreateActivityForm({
 
   const form = useForm<FormValues>({
     defaultValues: {
-      activityType: 'token_paid',
+      activityType: DEFAULT_COST_TYPE,
       activityAt: new Date().toISOString().slice(0, 10),
       amount: '',
       title: '',
@@ -158,16 +156,12 @@ export function CreateActivityForm({
   }
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className={`space-y-4 ${highlightPurchase ? 'rounded-xl ring-1 ring-ac-accent/35 p-4' : ''}`}
-    >
-      {highlightPurchase ? (
-        <div className="rounded-lg border border-ac-accent/25 bg-ac-accent/10 px-3 py-2 text-sm text-ac-text-secondary">
-          Vehicle created. Record payment milestones (token / purchase payment) and purchase costs
-          next. Purchase Price alone is not the full acquisition journey.
-        </div>
-      ) : null}
+    <form onSubmit={onSubmit} className="space-y-4">
+      <p className="text-sm text-ac-text-muted">
+        Record costs outside Purchase Price (broker, transport, repairs, insurance, RTO, etc.).
+        These increase Total Vehicle Investment. Token and seller payments belong on Overview →
+        Purchase Payment.
+      </p>
 
       {state.error ? (
         <p className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
@@ -177,13 +171,6 @@ export function CreateActivityForm({
 
       <FormField label="Activity type" name="activityType" form={form}>
         <select id="activityType" className="ac-input w-full" {...form.register('activityType')}>
-          <optgroup label="Payment Milestones (not investment)">
-            {PAYMENT_MILESTONE_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {VEHICLE_ACTIVITY_TYPE_META[t].label}
-              </option>
-            ))}
-          </optgroup>
           <optgroup label="Purchase Costs (add to investment)">
             {INVESTMENT_COST_TYPES.filter((t) => VEHICLE_ACTIVITY_TYPE_META[t].selectable).map(
               (t) => (
@@ -235,7 +222,8 @@ export function CreateActivityForm({
           {selectedAdvance ? (
             <p className="text-xs text-ac-text-muted">
               Advance given: ₹{formatInrPlain(selectedAdvance.advancePaise)}. Actual repair cost
-              adds to Total Vehicle Investment; money returned is cash only.
+              adds to Total Vehicle Investment. Refund received only reduces investment — never
+              counted as profit.
             </p>
           ) : null}
           <FormField label="Actual repair cost (₹)" name="actualCost" form={form}>
@@ -248,7 +236,7 @@ export function CreateActivityForm({
               required
             />
           </FormField>
-          <FormField label="Money returned (₹)" name="returnedAmount" form={form}>
+          <FormField label="Refund received (₹)" name="returnedAmount" form={form}>
             <Input
               id="returnedAmount"
               type="number"
@@ -256,6 +244,11 @@ export function CreateActivityForm({
               min="0"
               {...form.register('returnedAmount')}
             />
+            <p className="mt-1 text-xs text-ac-text-muted">
+              Unused advance money returned to you (cash). It is never profit. Actual repair cost
+              still sets the investment amount; use a negative cost activity if a vendor refund
+              should reduce Total Vehicle Investment.
+            </p>
           </FormField>
           {settlementPreview && settlementPreview.additionalAmountRequiredPaise > 0 ? (
             <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">

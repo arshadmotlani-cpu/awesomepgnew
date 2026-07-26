@@ -8,6 +8,20 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed — Purchase Payment vs Activities UX
+- Create form shows live Remaining Purchase Payment (Price − Token); redirect → Overview Purchase Payment
+- Activities form: external costs only — Token / Purchase Payment removed (`selectable: false` + server guard)
+- Dedicated Record Purchase Payment on Overview (caps at remaining; does not change TVI)
+- Refund copy clarifies cash returns are never profit; negative cost activities reduce TVI
+- TVI formula unchanged (ADR-016)
+
+### Changed — Profit Distribution is sale-time (ADR-018 amendment)
+- Removed Profit Distribution from New Vehicle create form
+- Record Sale requires mode (default: Entire profit is mine / SELF); preview uses selection
+- After sale, edit mode on Sale tab; Profit tab is read-only stats
+- `profit_distribution_mode` nullable until sold (`0011_sale_time_profit_distribution`)
+- `recordSale(…, profitDistributionMode)` writes mode + shares via SSOT
+
 ### Added — Profit Distribution SSOT freeze
 - `computeGrossDealProfit` centralized; no inline sale−TVI on vehicle paths
 - Regression scenarios A/B (₹5L→₹6L SELF / PARTNERSHIP) + mode-flip + dashboard sum tests
@@ -15,10 +29,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - Canonical doc: [`PROFIT_DISTRIBUTION_SSOT.md`](./PROFIT_DISTRIBUTION_SSOT.md) — architecture frozen
 
 ### Added — Profit Distribution Mode (ADR-018)
-- Per-vehicle `SELF` | `PARTNERSHIP_50_50` (required); create defaults SELF; migration backfills PARTNERSHIP_50_50
+- Per-deal `SELF` | `PARTNERSHIP_50_50` chosen at sale; migration `0010` + sale-time `0011`
 - Gross Deal Profit → My/Sufii by mode only; Settings Sufii % no longer applies to vehicle sales
-- Editable on Profit tab with audit; `recalculateAsset` redistributes on every sold vehicle
-- Migration `0010_profit_distribution_mode`; run `npx tsx scripts/capital-recalc-deal-profits.ts` after migrate
+- Editable on Sale tab with audit; `recalculateAsset` redistributes on every sold vehicle
+- Run `npx tsx scripts/capital-recalc-deal-profits.ts` after migrate if shares need healing
 
 ### Changed — Operating Console Dashboard
 - Hierarchy: Current Position → Attention Required → Dealership Pace (3 charts) → Business Insights → Recent Sales

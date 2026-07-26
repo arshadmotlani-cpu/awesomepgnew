@@ -3,13 +3,13 @@
 import { useActionState, useMemo, useState } from 'react';
 import { recordSaleAction, type ActionState } from '@/src/capital/actions/assets';
 import { createSettlementAction } from '@/src/capital/actions/settlements';
+import { ProfitDistributionForm } from '@/src/capital/components/forms/ProfitDistributionForm';
 import { MoneyDisplay } from '@/src/capital/components/MoneyDisplay';
 import { Button } from '@/src/capital/components/ui/button';
 import { Input } from '@/src/capital/components/ui/input';
 import {
   computeGrossDealProfit,
   distributeDealProfits,
-  profitDistributionLabel,
   type ProfitDistributionMode,
 } from '@/src/capital/lib/dealEconomics';
 import { lifecycleLabel } from '@/src/capital/lib/vehicleLifecycle';
@@ -22,19 +22,22 @@ export function AssetActionsForms({
   currentStatus,
   totalInvestmentPaise = 0,
   fundingGapPaise = 0,
-  profitDistributionMode = 'SELF',
+  profitDistributionMode = null,
   investors = [],
 }: {
   assetId: string;
   currentStatus: string;
   totalInvestmentPaise?: number;
   fundingGapPaise?: number;
-  profitDistributionMode?: ProfitDistributionMode;
+  /** Set when sale was recorded; null while unsold. */
+  profitDistributionMode?: ProfitDistributionMode | null;
   investors?: { slot: string; label: string; investedPaise: number }[];
 }) {
   const isClosed =
     currentStatus === 'sold' || currentStatus === 'settled' || currentStatus === 'cancelled';
   const isSettledOrCancelled = currentStatus === 'settled' || currentStatus === 'cancelled';
+  const hasSale =
+    currentStatus === 'sold' || currentStatus === 'settled';
 
   return (
     <div className="space-y-4">
@@ -48,7 +51,8 @@ export function AssetActionsForms({
         </div>
       ) : (
         <p className="text-sm text-ac-text-muted">
-          Lifecycle is managed on Overview. Use this tab to record a sale.
+          Lifecycle is managed on Overview. Use this tab to record a sale and choose how profit is
+          split.
         </p>
       )}
 
@@ -58,14 +62,17 @@ export function AssetActionsForms({
             assetId={assetId}
             totalInvestmentPaise={totalInvestmentPaise}
             fundingGapPaise={fundingGapPaise}
-            profitDistributionMode={profitDistributionMode}
             investors={investors}
           />
+        ) : null}
+        {hasSale && profitDistributionMode ? (
+          <ProfitDistributionForm assetId={assetId} mode={profitDistributionMode} />
         ) : null}
         {currentStatus === 'sold' ? <SettlementForm assetId={assetId} /> : null}
         {isSettledOrCancelled ? (
           <p className="text-sm text-ac-text-muted md:col-span-2">
-            No further actions — view timeline and accounting history.
+            No further actions — view timeline and accounting history. You can still change profit
+            distribution above; figures recalculate automatically.
           </p>
         ) : null}
       </div>
@@ -77,17 +84,16 @@ function SaleForm({
   assetId,
   totalInvestmentPaise,
   fundingGapPaise,
-  profitDistributionMode,
   investors,
 }: {
   assetId: string;
   totalInvestmentPaise: number;
   fundingGapPaise: number;
-  profitDistributionMode: ProfitDistributionMode;
   investors: { slot: string; label: string; investedPaise: number }[];
 }) {
   const [state, formAction, pending] = useActionState(recordSaleAction, initialState);
   const [salePrice, setSalePrice] = useState('');
+  const [mode, setMode] = useState<ProfitDistributionMode>('SELF');
   const fullyFunded = fundingGapPaise === 0;
 
   const preview = useMemo(() => {
@@ -98,7 +104,7 @@ function SaleForm({
       return distributeDealProfits({
         businessProfitPaise: businessProfit,
         netVehicleCostPaise: totalInvestmentPaise,
-        profitDistributionMode,
+        profitDistributionMode: mode,
         funding: investors.map((i) => ({
           slot: i.slot as InvestorSlot,
           investedPaise: i.investedPaise,
@@ -108,14 +114,13 @@ function SaleForm({
     } catch {
       return null;
     }
-  }, [salePrice, totalInvestmentPaise, profitDistributionMode, investors]);
+  }, [salePrice, totalInvestmentPaise, mode, investors]);
 
   return (
     <form action={formAction} className="ac-glass-card space-y-3 p-4 md:col-span-2 lg:col-span-1">
       <h3 className="font-medium">Record sale</h3>
       <p className="text-xs text-ac-text-muted">
-        Enter sale price and date only. Profits use this vehicle&apos;s{' '}
-        {profitDistributionLabel(profitDistributionMode)} mode.
+        Choose profit distribution when the deal closes — not at purchase.
       </p>
       {!fullyFunded ? (
         <p className="rounded-lg border border-ac-danger/30 bg-ac-danger/10 px-3 py-2 text-sm text-ac-danger">
@@ -142,6 +147,41 @@ function SaleForm({
         <label className="mb-1 block text-sm text-ac-text-secondary">Sale date</label>
         <Input name="saleDate" type="date" required disabled={!fullyFunded} />
       </div>
+      <fieldset className="space-y-2" disabled={!fullyFunded}>
+        <legend className="mb-1 text-sm text-ac-text-secondary">Profit Distribution</legend>
+        <label className="flex cursor-pointer items-start gap-2 text-sm">
+          <input
+            type="radio"
+            name="profitDistributionMode"
+            value="SELF"
+            checked={mode === 'SELF'}
+            onChange={() => setMode('SELF')}
+            className="mt-1"
+          />
+          <span>
+            <span className="font-medium text-ac-text">Entire profit is mine</span>
+            <span className="mt-0.5 block text-xs text-ac-text-muted">
+              Sufii earns only via broker / transport / repair activities.
+            </span>
+          </span>
+        </label>
+        <label className="flex cursor-pointer items-start gap-2 text-sm">
+          <input
+            type="radio"
+            name="profitDistributionMode"
+            value="PARTNERSHIP_50_50"
+            checked={mode === 'PARTNERSHIP_50_50'}
+            onChange={() => setMode('PARTNERSHIP_50_50')}
+            className="mt-1"
+          />
+          <span>
+            <span className="font-medium text-ac-text">Split profit 50% / 50%</span>
+            <span className="mt-0.5 block text-xs text-ac-text-muted">
+              Half to you, half to Sufii from Gross Deal Profit.
+            </span>
+          </span>
+        </label>
+      </fieldset>
       {preview ? (
         <div className="space-y-2 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-sm">
           <div className="flex justify-between">
@@ -151,10 +191,6 @@ function SaleForm({
           <div className="flex justify-between">
             <span className="text-ac-text-muted">Gross Deal Profit</span>
             <MoneyDisplay paise={preview.businessProfitPaise} />
-          </div>
-          <div className="flex justify-between">
-            <span className="text-ac-text-muted">Profit Distribution</span>
-            <span>{profitDistributionLabel(preview.profitDistributionMode)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-ac-text-secondary">My Profit</span>

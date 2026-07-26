@@ -142,3 +142,47 @@ describe('Profit Distribution SSOT — dashboard aggregation from stored My Prof
     assert.equal(selfMy + partMy, INR(1_50_000));
   });
 });
+
+describe('Profit Distribution SSOT — sale-time schemas', () => {
+  it('createAssetSchema does not require or accept profitDistributionMode', async () => {
+    const { createAssetSchema } = await import(
+      '../../../src/capital/lib/validation/schemas'
+    );
+    const parsed = createAssetSchema.safeParse({
+      manufacturer: 'MG',
+      model: 'Hector',
+      fuelType: 'diesel',
+      year: 2021,
+      ownership: 'first_owner',
+      purchasePrice: 500000,
+      meInvested: 500000,
+    });
+    assert.equal(parsed.success, true);
+    if (parsed.success) {
+      assert.equal('profitDistributionMode' in parsed.data, false);
+    }
+  });
+
+  it('recordSaleSchema requires profitDistributionMode', async () => {
+    const { recordSaleSchema } = await import(
+      '../../../src/capital/lib/validation/schemas'
+    );
+    const missing = recordSaleSchema.safeParse({
+      assetId: '00000000-0000-4000-8000-000000000001',
+      salePrice: 600000,
+      saleDate: '2026-07-22',
+    });
+    assert.equal(missing.success, false);
+
+    const self = recordSaleSchema.safeParse({
+      assetId: '00000000-0000-4000-8000-000000000001',
+      salePrice: 600000,
+      saleDate: '2026-07-22',
+      profitDistributionMode: 'SELF',
+    });
+    assert.equal(self.success, true);
+    if (self.success) {
+      assert.equal(self.data.profitDistributionMode, 'SELF');
+    }
+  });
+});

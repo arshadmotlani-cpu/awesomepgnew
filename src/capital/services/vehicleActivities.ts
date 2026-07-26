@@ -9,6 +9,8 @@ import {
   VEHICLE_ACTIVITY_TYPE_META,
   computeRepairSettlement,
   isVehicleActivityType,
+  remainingPurchasePaymentPaise,
+  sumPaymentMilestonesPaise,
   type VehicleActivityType,
 } from '@/src/capital/lib/activityTypes';
 import { rupeesToPaise } from '@/src/capital/lib/money';
@@ -57,6 +59,11 @@ export async function createVehicleActivity(input: CreateVehicleActivityInput) {
     throw new Error('Invalid activity type');
   }
   const meta = VEHICLE_ACTIVITY_TYPE_META[input.activityType];
+  if (meta.category === 'payment_milestone') {
+    throw new Error(
+      'Token and purchase payments are recorded under Purchase Payment on Overview — not as activities',
+    );
+  }
   await assertAssetAcceptsExpenses(input.assetId);
   await assertAssetMutable(input.assetId);
 
@@ -128,6 +135,109 @@ export async function createVehicleActivity(input: CreateVehicleActivityInput) {
           activityId: row.id,
           activityType: input.activityType,
           amountPaise,
+        },
+      },
+      tx,
+    );
+
+    await recalculateAsset(input.assetId, tx);
+    return row;
+  });
+}
+
+/**
+ * Record cash paid to the seller toward Purchase Price.
+ * Does not change TVI — milestones are cash_only.
+ */
+export async function recordPurchasePayment(input: {
+  assetId: string;
+  amountPaise: number;
+  paidAt: string;
+}) {
+  const amountPaise = Math.round(input.amountPaise);
+  if (amountPaise <= 0) throw new Error('Payment amount must be positive');
+
+  await assertAssetMutable(input.assetId);
+
+  const [asset] = await capitalDb
+    .select()
+    .from(acAssets)
+    .where(eq(acAssets.id, input.assetId))
+    .limit(1);
+  if (!asset) throw new Error('Asset not found');
+  if (asset.purchasePricePaise <= 0) {
+    throw new Error('Set purchase price before recording purchase payments');
+  }
+
+  const activities = await capitalDb
+    .select({
+      activityType: acVehicleActivities.activityType,
+      amountPaise: acVehicleActivities.amountPaise,
+    })
+    .from(acVehicleActivities)
+    .where(
+      and(
+        eq(acVehicleActivities.assetId, input.assetId),
+        eq(acVehicleActivities.isReversed, false),
+      ),
+    );
+
+  const paid = sumPaymentMilestonesPaise(activities);
+  const remaining = remainingPurchasePaymentPaise(asset.purchasePricePaise, paid);
+  if (remaining <= 0) {
+    throw new Error('Purchase price is already fully paid');
+  }
+  if (amountPaise > remaining) {
+    throw new Error(
+      `Payment exceeds remaining ₹${(remaining / 100).toLocaleString('en-IN')} toward purchase price`,
+    );
+  }
+
+  const activityType =
+    amountPaise === remaining ? 'final_purchase_payment' : 'purchase_payment';
+  const meta = VEHICLE_ACTIVITY_TYPE_META[activityType];
+
+  return capitalDb.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(acVehicleActivities)
+      .values({
+        assetId: input.assetId,
+        activityType,
+        activityAt: input.paidAt,
+        amountPaise,
+        title: meta.label,
+        notes: null,
+        metadata: { fromPurchasePayment: true },
+      })
+      .returning();
+
+    const entry = await postLedgerEntry(
+      {
+        entryType: 'adjustment',
+        direction: 'debit',
+        amountPaise,
+        assetId: input.assetId,
+        sourceTable: 'ac_vehicle_activities',
+        sourceId: row.id,
+        description: `${meta.label}: ₹${(amountPaise / 100).toLocaleString('en-IN')}`,
+      },
+      tx,
+    );
+    await tx
+      .update(acVehicleActivities)
+      .set({ ledgerEntryId: entry.id, updatedAt: new Date() })
+      .where(eq(acVehicleActivities.id, row.id));
+
+    await logActivity(
+      {
+        action: 'purchase_payment_recorded',
+        entityType: 'asset',
+        entityId: input.assetId,
+        afterState: {
+          activityId: row.id,
+          activityType,
+          amountPaise,
+          remainingAfterPaise: remaining - amountPaise,
         },
       },
       tx,

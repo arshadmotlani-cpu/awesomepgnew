@@ -50,35 +50,35 @@ Every step creates ledger entries. Nothing is deleted.
 
 ## 3. Asset Purchase Flow
 
-### 3.1 Create Asset
+### 3.1 Create Vehicle
 
-```mermaid
-sequenceDiagram
-  participant Admin
-  participant UI
-  participant AssetService
-  participant LedgerService
-  participant DB
+Enter vehicle details, optional **Purchase Price**, optional **Token Paid**. Create shows **Remaining Purchase Payment** = Price − Token.
 
-  Admin->>UI: Fill asset form
-  UI->>UI: Autosave draft (2s debounce)
-  Admin->>UI: Submit
-  UI->>UI: Optimistic UI + undo snackbar
-  UI->>AssetService: createAssetAction(data)
-  AssetService->>DB: INSERT ac_assets
-  AssetService->>DB: INSERT ac_automotive_details
-  AssetService->>LedgerService: post(asset_purchase, debit)
-  LedgerService->>DB: INSERT ac_ledger_entries
-  AssetService->>DB: INSERT ac_activity_log
-  AssetService-->>UI: Success
-  UI->>UI: Confirm optimistic / redirect to detail
+Token is part of Purchase Price already paid to the seller — not an expense and not added to TVI. After create, redirect lands on Overview → **Purchase Payment**.
+
+### 3.2 Purchase Payment (seller cash)
+
+Dedicated Overview section (not Activities):
+
+- Purchase Price / Already Paid / Remaining
+- **Record Purchase Payment** until Remaining = 0 → Purchase Complete
+- Uses `purchase_payment` / `final_purchase_payment` milestones (`cash_only`)
+
+### 3.3 Purchase Activities (external costs only)
+
+Activities form lists investment costs only (broker, transport, repairs, insurance, RTO, accessories, misc). **No Token / Purchase Payment** — those belong to Purchase Payment.
+
+### 3.4 Total Vehicle Investment (ADR-016)
+
+```
+TVI = Purchase Price + external costs − refunds
 ```
 
-### 3.2 Validation Rules
+Token and purchase payments are **never** in TVI.
 
-- Registration number required and unique
-- Purchase price > 0
-- Purchase date not in future
+### 3.5 Validation Rules
+
+- Purchase price and/or token allowed at create (token-first deals)
 - Year between 1990 and current year + 1
 - Manufacturer and model required
 
@@ -152,9 +152,10 @@ Invalid manual transitions return error. Sale and settle stay dedicated workflow
 
 ### 5.1b Add Activity (current)
 
-1. Asset → **Add Activity** → type (Token, Purchase Payment, Repair Advance, …)
-2. Cost-impacting types update Net Vehicle Cost; Repair Advance is cash-only until settlement
-3. Funding gap is vs **purchase price**, not net cost
+1. Asset → Activities → external costs only (broker, transport, repair, insurance, RTO, …)
+2. Token / Purchase Payment are **not** on this form — use Overview → Purchase Payment
+3. Cost-impacting types update TVI; Repair Advance is cash-only until settlement
+4. Funding gap is vs **purchase price** (investor stakes), separate from seller payment remaining
 
 ### 5.2 Expense Impact on Metrics
 
@@ -171,14 +172,15 @@ After:  total_investment = purchase_price + existing_expenses + new_expense
 
 ### 6.1 Record Sale
 
-1. Admin on asset detail → "Record sale"
-2. Enter **sale price + sale date only** (vehicle must be fully funded: stakes = Purchase Price)
-3. System auto-calculates:
-   - Net Vehicle Cost (from activities), Gross Deal Profit
-   - My Profit / Sufii Profit from vehicle Profit Distribution Mode (SELF or PARTNERSHIP_50_50)
-   - Business ROI, My ROI
+1. Admin on asset detail → Sale tab → "Record sale"
+2. Enter **sale price + sale date** and choose **Profit Distribution** (vehicle must be fully funded: stakes = Purchase Price):
+   - Entire profit is mine (`SELF`, default)
+   - Split profit 50% / 50% (`PARTNERSHIP_50_50`)
+3. System stores the mode with the sale and calculates via SSOT:
+   - Gross Deal Profit, My Profit, Sufii Profit, Business ROI, My ROI
    - Update `ac_assets` + `ac_asset_investors`; status → `sold`
 4. Timeline + activity + dashboard KPIs update
+5. After sale, mode can be flipped on the Sale tab; Profit tab shows read-only stats
 
 ### 6.2 Post-Sale
 
@@ -252,7 +254,7 @@ When all money is received:
 
 ### 8.2 Profit Sharing (vehicle sales)
 
-Uses each vehicle’s **Profit Distribution Mode** (ADR-018):
+Mode is chosen **at Record Sale** (not at purchase). Uses each deal’s stored **Profit Distribution Mode** (ADR-018):
 
 ```
 gross_deal_profit = sale − TVI
