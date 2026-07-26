@@ -20,6 +20,7 @@ import {
 } from '@/src/capital/db/schema';
 import { monthlyManualProfitSeries, sumManualMySharePaise } from './manualProfits';
 import { computeWorkingCapitalPool } from '@/src/capital/lib/workingCapital';
+import { countOpenInventory, openInventorySql } from './inventory';
 
 async function computeDashboardKpis() {
   const [capitalRow] = await capitalDb
@@ -36,10 +37,7 @@ async function computeDashboardKpis() {
     .from(acPaymentsReceived)
     .where(eq(acPaymentsReceived.isReversed, false));
 
-  const [stockCount] = await capitalDb
-    .select({ c: count() })
-    .from(acAssets)
-    .where(sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`);
+  const vehiclesInStock = await countOpenInventory();
 
   const [soldCount] = await capitalDb
     .select({ c: count() })
@@ -101,7 +99,7 @@ async function computeDashboardKpis() {
   const [currentInvestmentRow] = await capitalDb
     .select({ total: sum(acAssets.totalInvestmentPaise) })
     .from(acAssets)
-    .where(sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`);
+    .where(openInventorySql());
 
   const [inTransitRow] = await capitalDb
     .select({ total: sum(acAssets.outstandingPaise) })
@@ -127,7 +125,7 @@ async function computeDashboardKpis() {
     moneyReceivedPaise: moneyReceived,
     profitEarnedPaise: myLifetimeProfit,
     pendingProfitPaise,
-    assetsInStock: Number(stockCount?.c ?? 0),
+    assetsInStock: vehiclesInStock,
     assetsSold: Number(soldCount?.c ?? 0),
     averageRoiBps: Math.round(Number(avgRoi?.avgBusiness ?? 0)),
     averageMyRoiBps: Math.round(Number(avgRoi?.avgMine ?? 0)),
@@ -304,7 +302,7 @@ export async function getInventoryAgeing() {
       holdingDays: acAssets.holdingDays,
     })
     .from(acAssets)
-    .where(sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`);
+    .where(openInventorySql());
 
   const buckets = [
     { label: '0–30 days', min: 0, max: 30, count: 0 },
@@ -464,9 +462,7 @@ export async function getAnalyticsInsightKpis() {
   const [ageing] = await capitalDb
     .select({ c: count() })
     .from(acAssets)
-    .where(
-      sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled') AND COALESCE(${acAssets.holdingDays}, 0) > 90`,
-    );
+    .where(and(openInventorySql(), sql`COALESCE(${acAssets.holdingDays}, 0) > 90`));
 
   const [repairOpen] = await capitalDb
     .select({ total: sum(acAssets.repairTotalPaise) })

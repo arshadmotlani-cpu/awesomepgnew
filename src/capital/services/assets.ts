@@ -42,6 +42,7 @@ import {
   activeInvestmentSql,
   paymentEligibleSql,
 } from '@/src/capital/lib/assetLifecycle';
+import { openInventorySql } from '@/src/capital/services/inventory';
 import type { AssetListQuery } from '@/src/capital/lib/validation/schemas';
 import type { CapitalDbClient } from '@/src/capital/lib/db/types';
 import { logActivity } from './activity';
@@ -874,7 +875,7 @@ export async function listAssetsQuery(query: AssetListQuery) {
     // Inventory tabs (assets page only — listAssets helpers omit inventoryTab)
     const tab = query.inventoryTab;
     if (tab === 'in_stock') {
-      conditions.push(sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`);
+      conditions.push(openInventorySql());
     } else if (tab === 'purchase_pending') {
       conditions.push(eq(acAssets.status, 'purchased'));
       conditions.push(sql`(
@@ -975,15 +976,18 @@ export async function listAssetsQuery(query: AssetListQuery) {
     }
   }
 
+  const total = Number(countRow?.c ?? 0);
+  const mappedRows = rows.map((r) => ({
+    ...r,
+    partnerLabel: partnerByAsset.get(r.asset.id) ?? null,
+  }));
+
   return {
-    rows: rows.map((r) => ({
-      ...r,
-      partnerLabel: partnerByAsset.get(r.asset.id) ?? null,
-    })),
-    total: Number(countRow?.c ?? 0),
+    rows: mappedRows,
+    total,
     page: query.page,
     pageSize: query.pageSize,
-    totalPages: Math.ceil(Number(countRow?.c ?? 0) / query.pageSize),
+    totalPages: Math.ceil(total / query.pageSize),
   };
 }
 

@@ -37,6 +37,11 @@ import { derivedBadges } from '@/src/capital/lib/vehicleLifecycle';
 import { computePortfolioRois } from '@/src/capital/lib/roi';
 import { monthlyManualProfitSeries, sumManualMySharePaise, sumManualProfitsPaise } from './manualProfits';
 import { sumMyActiveInvestedCapitalPaise, sumMyInvestedCapitalPaise } from './assets';
+import {
+  countOpenInventory,
+  listReadyToList,
+  openInventorySql,
+} from './inventory';
 
 export type { DateRange, DashboardRange };
 export {
@@ -222,7 +227,7 @@ export async function getOverviewBundle(range: DateRange) {
     soldVehiclesLifetime,
     soldVehiclesRange,
     purchasesRange,
-    myActiveVehicles,
+    _myActiveVehicles,
     mySoldVehicles,
     avgHolding,
     capitalReturnedRange,
@@ -329,13 +334,9 @@ export async function getOverviewBundle(range: DateRange) {
     capitalDb
       .select({ total: sum(acAssets.totalInvestmentPaise) })
       .from(acAssets)
-      .where(sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`)
+      .where(openInventorySql())
       .then((r) => Number(r[0]?.total ?? 0)),
-    capitalDb
-      .select({ c: count() })
-      .from(acAssets)
-      .where(sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`)
-      .then((r) => Number(r[0]?.c ?? 0)),
+    countOpenInventory(),
     capitalDb
       .select({ c: count() })
       .from(acAssets)
@@ -351,7 +352,7 @@ export async function getOverviewBundle(range: DateRange) {
         and(
           eq(acAssetInvestors.slot, 'me'),
           sql`${acAssetInvestors.investedPaise} > 0`,
-          sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`,
+          openInventorySql(),
         ),
       )
       .then((r) => Number(r[0]?.c ?? 0)),
@@ -456,7 +457,7 @@ export async function getOverviewBundle(range: DateRange) {
         total: sum(acAssets.totalInvestmentPaise),
       })
       .from(acAssets)
-      .where(sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`)
+      .where(openInventorySql())
       .groupBy(acAssets.status),
     capitalDb
       .select({
@@ -469,7 +470,7 @@ export async function getOverviewBundle(range: DateRange) {
         and(
           eq(acAssetInvestors.slot, 'me'),
           sql`${acAssetInvestors.investedPaise} > 0`,
-          sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`,
+          openInventorySql(),
         ),
       )
       .groupBy(acAssets.status),
@@ -478,18 +479,12 @@ export async function getOverviewBundle(range: DateRange) {
         total: sql<number>`COALESCE(SUM(${acAssets.expectedSalePricePaise} - ${acAssets.totalInvestmentPaise}), 0)`,
       })
       .from(acAssets)
-      .where(
-        sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')
-          AND ${acAssets.expectedSalePricePaise} IS NOT NULL`,
-      )
+      .where(and(openInventorySql(), sql`${acAssets.expectedSalePricePaise} IS NOT NULL`))
       .then((r) => Math.round(Number(r[0]?.total ?? 0))),
     capitalDb
       .select({ c: count() })
       .from(acAssets)
-      .where(
-        sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')
-          AND ${acAssets.expectedSalePricePaise} IS NOT NULL`,
-      )
+      .where(and(openInventorySql(), sql`${acAssets.expectedSalePricePaise} IS NOT NULL`))
       .then((r) => Number(r[0]?.c ?? 0)),
     capitalDb
       .select({
@@ -497,7 +492,7 @@ export async function getOverviewBundle(range: DateRange) {
         c: count(),
       })
       .from(acAssets)
-      .where(sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`)
+      .where(openInventorySql())
       .groupBy(acAssets.status),
     capitalDb
       .select({ c: count() })
@@ -808,7 +803,8 @@ export async function getOverviewBundle(range: DateRange) {
         profitPaise: myLifetimeProfit,
         partnerProfitPaise: partnerLifetimeProfit,
         roiBps: myRoiBps,
-        activeVehicles: myActiveVehicles,
+        /** Fleet inventory count — SSOT open inventory (NOT Me stakes). */
+        activeVehicles,
         vehiclesSold: mySoldVehicles,
         avgProfitPerVehiclePaise: avgMyProfitSold,
         periodProfitPaise: periodMy,
@@ -978,7 +974,7 @@ export async function getOverviewBundle(range: DateRange) {
             },
             {
               label: 'Active Vehicles',
-              valueText: String(myActiveVehicles),
+              valueText: String(activeVehicles),
               kind: 'text' as const,
             },
             {
@@ -1171,7 +1167,7 @@ export async function getOverviewBundle(range: DateRange) {
         noCoverAssets,
       ] = await Promise.all([
           pick(['repairing', 'painting']),
-          pick(['ready']),
+          listReadyToList({ limit: 6 }),
           pick(['purchased'], 20),
           pick(['listed']),
           capitalDb
@@ -1194,12 +1190,7 @@ export async function getOverviewBundle(range: DateRange) {
               purchaseDate: acAssets.purchaseDate,
             })
             .from(acAssets)
-            .where(
-              and(
-                sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`,
-                isNull(acAssets.coverDocumentId),
-              ),
-            )
+            .where(and(openInventorySql(), isNull(acAssets.coverDocumentId)))
             .orderBy(desc(acAssets.updatedAt))
             .limit(40),
         ]);
