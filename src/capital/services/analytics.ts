@@ -10,6 +10,7 @@ import {
 } from 'drizzle-orm';
 import { capitalDb } from '@/src/capital/db/client';
 import {
+  acAssetInvestors,
   acAssets,
   acAutomotiveDetails,
   acCapitalInvestments,
@@ -24,6 +25,7 @@ import { sumMyActiveInvestedCapitalPaise } from './assets';
 /**
  * Dealership KPIs aligned with Overview / Dashboard SSOT (audit H4).
  * Active Capital = Me stakes on open vehicles — not treasury capital injects.
+ * Vehicles sold = sold/settled with Me stake > 0 (Dashboard mine SSOT).
  */
 export async function getDealershipReportKpis() {
   const [
@@ -40,8 +42,15 @@ export async function getDealershipReportKpis() {
     countOpenInventory(),
     capitalDb
       .select({ c: count() })
-      .from(acAssets)
-      .where(sql`${acAssets.status} IN ('sold', 'settled')`)
+      .from(acAssetInvestors)
+      .innerJoin(acAssets, eq(acAssetInvestors.assetId, acAssets.id))
+      .where(
+        and(
+          eq(acAssetInvestors.slot, 'me'),
+          sql`${acAssetInvestors.investedPaise} > 0`,
+          sql`${acAssets.status} IN ('sold', 'settled')`,
+        ),
+      )
       .then((r) => r[0]),
     capitalDb
       .select({
@@ -89,7 +98,7 @@ export async function getDealershipReportKpis() {
         .where(
           and(
             sql`${acAssets.mySharePaise} IS NOT NULL`,
-            sql`${acAssets.status} IN ('sold', 'settled')`,
+            sql`${acAssets.status} <> 'cancelled'`,
             gte(acAssets.saleDate, monthStart),
           ),
         )
@@ -100,7 +109,7 @@ export async function getDealershipReportKpis() {
         .where(
           and(
             sql`${acAssets.mySharePaise} IS NOT NULL`,
-            sql`${acAssets.status} IN ('sold', 'settled')`,
+            sql`${acAssets.status} <> 'cancelled'`,
             gte(acAssets.saleDate, yearStart),
           ),
         )
