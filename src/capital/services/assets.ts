@@ -370,6 +370,9 @@ export async function createAsset(input: CreateAssetInput) {
     });
 
     const tokenPaise = Math.round(input.tokenPaidPaise ?? 0);
+    if (tokenPaise > 0 && input.purchasePricePaise <= 0) {
+      throw new Error('Set purchase price before recording a token payment');
+    }
     if (tokenPaise > 0) {
       const [tokenPayment] = await tx
         .insert(acSellerPayments)
@@ -651,6 +654,34 @@ export async function updateAssetDetails(input: UpdateAssetDetailsInput) {
     );
 
     await recalculateAsset(input.assetId, tx);
+
+    // When price is first set (or raised from empty stakes), bootstrap Me = purchase price
+    // so My Investment / funding gap are not stuck at ₹0.
+    const stakeRows = await tx
+      .select()
+      .from(acAssetInvestors)
+      .where(eq(acAssetInvestors.assetId, input.assetId));
+    const totalStakes = stakeRows.reduce((s, r) => s + r.investedPaise, 0);
+    if (input.purchasePricePaise > 0 && totalStakes === 0) {
+      const funding = fullSelfFunding(input.purchasePricePaise);
+      for (const f of funding) {
+        const prior = stakeRows.find((e) => e.slot === f.slot);
+        if (prior) {
+          await tx
+            .update(acAssetInvestors)
+            .set({ investedPaise: f.investedPaise, updatedAt: new Date() })
+            .where(eq(acAssetInvestors.id, prior.id));
+        } else {
+          await tx.insert(acAssetInvestors).values({
+            assetId: input.assetId,
+            slot: f.slot,
+            label: f.label,
+            investedPaise: f.investedPaise,
+          });
+        }
+      }
+      await recalculateAsset(input.assetId, tx);
+    }
   });
 }
 

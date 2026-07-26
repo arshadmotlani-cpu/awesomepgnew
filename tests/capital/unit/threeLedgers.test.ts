@@ -31,6 +31,11 @@ describe('remainingPurchaseFromSellerPayments', () => {
   it('subtracts paid from purchase price', () => {
     assert.equal(remainingPurchaseFromSellerPayments(500_00, 125_00), 375_00);
   });
+
+  it('returns null when purchase price is not set', () => {
+    assert.equal(remainingPurchaseFromSellerPayments(0, 959_995_00), null);
+    assert.equal(remainingPurchaseFromSellerPayments(-1, 10_00), null);
+  });
 });
 
 describe('computeTviFromCosts', () => {

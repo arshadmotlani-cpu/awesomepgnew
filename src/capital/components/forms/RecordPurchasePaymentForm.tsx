@@ -33,7 +33,8 @@ export function RecordPurchasePaymentForm({
   assetId: string;
   purchasePricePaise: number;
   alreadyPaidPaise: number;
-  remainingPaise: number;
+  /** Null when purchase price is not set — do not fabricate Remaining ₹0. */
+  remainingPaise: number | null;
   milestones: Array<{
     id: string;
     activityType: string;
@@ -51,7 +52,9 @@ export function RecordPurchasePaymentForm({
   );
   const [amount, setAmount] = useState<number | undefined>(undefined);
   const refreshCapitalView = useRefreshCapitalView();
-  const complete = purchasePricePaise > 0 && remainingPaise <= 0;
+  const priceSet = purchasePricePaise > 0;
+  const complete = priceSet && remainingPaise != null && remainingPaise <= 0;
+  const orphanPayments = !priceSet && alreadyPaidPaise > 0;
 
   useEffect(() => {
     if (state.success) {
@@ -75,10 +78,23 @@ export function RecordPurchasePaymentForm({
         </p>
       </div>
 
+      {orphanPayments ? (
+        <p className="rounded-lg border border-ac-warning/40 bg-ac-warning/10 px-3 py-2 text-sm text-ac-warning">
+          Purchase Price not set, but {milestones.length} seller payment
+          {milestones.length === 1 ? '' : 's'} exist (
+          <MoneyDisplay paise={alreadyPaidPaise} />). Set Purchase Price on Edit vehicle before
+          remaining or funding status can be calculated.
+        </p>
+      ) : null}
+
       <div className="space-y-1">
         <div className="flex justify-between gap-4 py-1">
           <span className="text-ac-text-muted">Purchase Price</span>
-          <MoneyDisplay paise={purchasePricePaise} />
+          {priceSet ? (
+            <MoneyDisplay paise={purchasePricePaise} />
+          ) : (
+            <span className="text-ac-warning">Purchase Price not set</span>
+          )}
         </div>
         <div className="flex justify-between gap-4 py-1">
           <span className="text-ac-text-muted">Already Paid</span>
@@ -86,7 +102,9 @@ export function RecordPurchasePaymentForm({
         </div>
         <div className="flex justify-between gap-4 border-t border-white/10 py-2 font-semibold">
           <span>Remaining</span>
-          {complete ? (
+          {!priceSet || remainingPaise == null ? (
+            <span className="font-normal text-ac-text-muted">— (set purchase price)</span>
+          ) : complete ? (
             <span className="text-ac-success">₹0 · Purchase Complete</span>
           ) : (
             <MoneyDisplay paise={remainingPaise} />
@@ -117,7 +135,7 @@ export function RecordPurchasePaymentForm({
         </div>
       )}
 
-      {canEdit && purchasePricePaise > 0 && !complete ? (
+      {canEdit && priceSet && !complete ? (
         <form action={formAction} className="space-y-3 border-t border-white/10 pt-3">
           <input type="hidden" name="assetId" value={assetId} />
           <div>
@@ -130,7 +148,7 @@ export function RecordPurchasePaymentForm({
               value={amount ?? ''}
               onValueChange={setAmount}
               required
-              placeholder={`Up to ₹${formatInrPlain(remainingPaise)}`}
+              placeholder={`Up to ₹${formatInrPlain(remainingPaise ?? 0)}`}
             />
           </div>
           <div>
@@ -166,7 +184,7 @@ export function RecordPurchasePaymentForm({
         </form>
       ) : null}
 
-      {canEdit && purchasePricePaise <= 0 ? (
+      {canEdit && !priceSet && !orphanPayments ? (
         <p className="text-xs text-ac-text-muted">
           Set a purchase price on the vehicle to track seller payment progress.
         </p>

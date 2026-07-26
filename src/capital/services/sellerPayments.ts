@@ -68,6 +68,9 @@ export async function recordSellerPayment(input: RecordSellerPaymentInput) {
 
   const paid = await sumSellerPaidPaise(input.assetId);
   const remaining = remainingPurchaseFromSellerPayments(asset.purchasePricePaise, paid);
+  if (remaining == null) {
+    throw new Error('Set purchase price before recording purchase payments');
+  }
   if (remaining <= 0) throw new Error('Purchase price is already fully paid');
   if (amountPaise > remaining) {
     throw new Error(

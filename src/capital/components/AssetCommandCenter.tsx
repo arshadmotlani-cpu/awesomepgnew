@@ -681,6 +681,7 @@ export function AssetCommandCenter({
         <AssetActionsForms
           assetId={assetId}
           currentStatus={currentStatus}
+          purchasePricePaise={purchasePricePaise}
           totalInvestmentPaise={totalInvestmentPaise}
           fundingGapPaise={fundingGapPaise}
           profitDistributionMode={profitDistributionMode}

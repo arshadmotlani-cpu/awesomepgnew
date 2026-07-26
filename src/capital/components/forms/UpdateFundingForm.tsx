@@ -38,6 +38,19 @@ export function UpdateFundingForm({
   const hadPartner = (i2?.investedPaise ?? 0) > 0;
   const [withPartner, setWithPartner] = useState(hadPartner);
   const refreshCapitalView = useRefreshCapitalView();
+  const priceSet = purchasePricePaise > 0;
+  const statusLabel = !priceSet
+    ? 'Purchase Price not set'
+    : fundingGapPaise === 0
+      ? 'Fully funded vs purchase price'
+      : fundingGapPaise > 0
+        ? `Underfunded by ₹${formatInrPlain(fundingGapPaise)}`
+        : `Overfunded by ₹${formatInrPlain(-fundingGapPaise)}`;
+  const statusClass = !priceSet
+    ? 'text-ac-warning'
+    : fundingGapPaise === 0
+      ? 'text-ac-success'
+      : 'text-ac-warning';
 
   const form = useForm<FundingFormValues>({
     defaultValues: {
@@ -62,13 +75,6 @@ export function UpdateFundingForm({
     if (state.success) refreshCapitalView();
   }, [state.success, refreshCapitalView]);
 
-  const gapLabel =
-    fundingGapPaise === 0
-      ? 'Fully funded vs purchase price'
-      : fundingGapPaise > 0
-        ? `Underfunded by ₹${formatInrPlain(fundingGapPaise)}`
-        : `Overfunded by ₹${formatInrPlain(-fundingGapPaise)}`;
-
   return (
     <form action={formAction} className="ac-glass-card space-y-3 p-4">
       <div>
@@ -77,11 +83,7 @@ export function UpdateFundingForm({
           My Investment + Partner (optional) must equal purchase price. Checked when you save.
           Separate from seller Purchase Payment progress.
         </p>
-        <p
-          className={`mt-2 text-sm ${fundingGapPaise === 0 ? 'text-ac-success' : 'text-ac-warning'}`}
-        >
-          {gapLabel}
-        </p>
+        <p className={`mt-2 text-sm ${statusClass}`}>{statusLabel}</p>
       </div>
       <input type="hidden" name="assetId" value={assetId} />
       <input type="hidden" name="purchasePriceRupees" value={purchaseRupees} />

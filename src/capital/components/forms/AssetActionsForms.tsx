@@ -23,6 +23,7 @@ const initialState: ActionState = {};
 export function AssetActionsForms({
   assetId,
   currentStatus,
+  purchasePricePaise = 0,
   totalInvestmentPaise = 0,
   fundingGapPaise = 0,
   profitDistributionMode = null,
@@ -30,6 +31,7 @@ export function AssetActionsForms({
 }: {
   assetId: string;
   currentStatus: string;
+  purchasePricePaise?: number;
   totalInvestmentPaise?: number;
   fundingGapPaise?: number;
   /** Set when sale was recorded; null while unsold. */
@@ -63,6 +65,7 @@ export function AssetActionsForms({
         {!isClosed ? (
           <SaleForm
             assetId={assetId}
+            purchasePricePaise={purchasePricePaise}
             totalInvestmentPaise={totalInvestmentPaise}
             fundingGapPaise={fundingGapPaise}
             investors={investors}
@@ -85,11 +88,13 @@ export function AssetActionsForms({
 
 function SaleForm({
   assetId,
+  purchasePricePaise,
   totalInvestmentPaise,
   fundingGapPaise,
   investors,
 }: {
   assetId: string;
+  purchasePricePaise: number;
   totalInvestmentPaise: number;
   fundingGapPaise: number;
   investors: { slot: string; label: string; investedPaise: number }[];
@@ -98,7 +103,7 @@ function SaleForm({
   const [salePrice, setSalePrice] = useState<number | undefined>(undefined);
   const [mode, setMode] = useState<ProfitDistributionMode>('SELF');
   const refreshCapitalView = useRefreshCapitalView();
-  const fullyFunded = fundingGapPaise === 0;
+  const fullyFunded = purchasePricePaise > 0 && fundingGapPaise === 0;
 
   useEffect(() => {
     if (state.success) refreshCapitalView();
@@ -132,11 +137,13 @@ function SaleForm({
       </p>
       {!fullyFunded ? (
         <p className="rounded-lg border border-ac-danger/30 bg-ac-danger/10 px-3 py-2 text-sm text-ac-danger">
-          Funding must equal purchase price before sale. Update investments first
-          {fundingGapPaise > 0
-            ? ` (underfunded by ₹${formatInrPlain(fundingGapPaise)})`
-            : ` (overfunded by ₹${formatInrPlain(Math.abs(fundingGapPaise))})`}
-          .
+          {purchasePricePaise <= 0
+            ? 'Set purchase price and investments before recording a sale.'
+            : `Funding must equal purchase price before sale. Update investments first${
+                fundingGapPaise > 0
+                  ? ` (underfunded by ₹${formatInrPlain(fundingGapPaise)})`
+                  : ` (overfunded by ₹${formatInrPlain(Math.abs(fundingGapPaise))})`
+              }.`}
         </p>
       ) : null}
       <input type="hidden" name="assetId" value={assetId} />

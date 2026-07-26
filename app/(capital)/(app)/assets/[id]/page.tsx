@@ -53,8 +53,10 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
   };
 
   const fundingGap = asset.fundingGapPaise ?? 0;
-  const fundingStatus =
-    fundingGap === 0
+  const priceSet = asset.purchasePricePaise > 0;
+  const fundingStatus = !priceSet
+    ? 'Purchase Price not set'
+    : fundingGap === 0
       ? 'Fully funded'
       : fundingGap > 0
         ? `Underfunded by ₹${formatInrPlain(fundingGap)}`

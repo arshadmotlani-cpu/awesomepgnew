@@ -26,12 +26,18 @@ export function sumSellerPaymentsPaise(rows: SellerPaymentAmountRow[]): number {
   return total;
 }
 
-/** Cash still owed to the seller toward Purchase Price. */
+/** Cash still owed to the seller toward Purchase Price. Null if price is not set. */
 export function remainingPurchaseFromSellerPayments(
   purchasePricePaise: number,
   paidPaise: number,
-): number {
+): number | null {
+  if (Math.round(purchasePricePaise) <= 0) return null;
   return Math.max(0, Math.round(purchasePricePaise) - Math.round(paidPaise));
+}
+
+/** True when a negotiated purchase price exists (required for remaining / funding status). */
+export function isPurchasePriceSet(purchasePricePaise: number): boolean {
+  return Math.round(purchasePricePaise) > 0;
 }
 
 /**

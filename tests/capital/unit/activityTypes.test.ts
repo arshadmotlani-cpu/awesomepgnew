@@ -98,6 +98,7 @@ describe('activity cost map (ADR-016 Option 2)', () => {
     assert.equal(remainingPurchasePaymentPaise(INR(10_00_000), INR(20_000)), INR(9_80_000));
     assert.equal(remainingPurchasePaymentPaise(INR(10_00_000), INR(10_00_000)), 0);
     assert.equal(remainingPurchasePaymentPaise(INR(10_00_000), INR(12_00_000)), 0);
+    assert.equal(remainingPurchasePaymentPaise(0, INR(10_000)), null);
   });
 
   it('excludes payment milestones from Activities selectable types', () => {

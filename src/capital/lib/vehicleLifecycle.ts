@@ -202,9 +202,8 @@ export function derivedBadges(input: {
   const badges: DerivedBadge[] = [];
   if (input.status !== 'purchased') return badges;
 
-  // Token-first / unknown final price → always Purchase Pending until price is set.
+  // Purchase price required for progress badges — never invent Fully funded / remaining.
   if (input.purchasePricePaise <= 0) {
-    badges.push({ id: 'purchase_pending', label: 'Purchase Pending' });
     return badges;
   }
 

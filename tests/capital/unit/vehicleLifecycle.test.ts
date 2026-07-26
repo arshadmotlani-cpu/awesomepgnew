@@ -49,13 +49,14 @@ describe('vehicleLifecycle (ADR-017)', () => {
   });
 
   it('derives Purchase Pending from seller payment remaining only (not funding gap)', () => {
+    // No purchase price → no fabricated purchase badges
     assert.deepEqual(
       derivedBadges({
         status: 'purchased',
         purchasePricePaise: 0,
         milestonesPaidPaise: 50_000_00,
       }),
-      [{ id: 'purchase_pending', label: 'Purchase Pending' }],
+      [],
     );
     assert.deepEqual(
       derivedBadges({

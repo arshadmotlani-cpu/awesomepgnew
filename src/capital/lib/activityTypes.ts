@@ -386,12 +386,13 @@ export function sumPaymentMilestonesPaise(
 
 /**
  * Cash still owed to the seller toward Purchase Price.
- * Token + purchase payments are payment progress — not TVI.
+ * Null when purchase price is not set — never fabricate Remaining = ₹0.
  */
 export function remainingPurchasePaymentPaise(
   purchasePricePaise: number,
   milestonesPaidPaise: number,
-): number {
+): number | null {
+  if (Math.round(purchasePricePaise) <= 0) return null;
   return Math.max(0, Math.round(purchasePricePaise) - Math.round(milestonesPaidPaise));
 }
 
