@@ -165,10 +165,29 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
     );
   }
 
-  const investors = await db
+  let investors = await db
     .select()
     .from(acAssetInvestors)
     .where(eq(acAssetInvestors.assetId, assetId));
+
+  // Sold deals must always redistribute from mode + funding. Legacy rows without
+  // investor stakes bootstrap Me = purchase price so shares cannot stay stale.
+  if (profitPaise != null && investors.length === 0) {
+    const funding = fullSelfFunding(asset.purchasePricePaise);
+    await db.insert(acAssetInvestors).values(
+      funding.map((f) => ({
+        assetId,
+        slot: f.slot,
+        label: f.label,
+        investedPaise: f.investedPaise,
+      })),
+    );
+    investors = await db
+      .select()
+      .from(acAssetInvestors)
+      .where(eq(acAssetInvestors.assetId, assetId));
+  }
+
   const totalInvested = investors.reduce((s, i) => s + i.investedPaise, 0);
   /** Funding gap vs purchase price (investor stakes), not vs activity cost */
   const fundingGapPaise = computeFundingGap(asset.purchasePricePaise, totalInvested);
@@ -714,24 +733,39 @@ export async function updateProfitDistributionMode(
   if (asset.status === 'cancelled') {
     throw new Error('Cannot change profit distribution on a cancelled vehicle');
   }
+
   const before = asset.profitDistributionMode;
-  if (before === mode) return asset;
+  const sold = asset.actualSalePricePaise != null;
+  const modeChanged = before !== mode;
 
-  await capitalDb
-    .update(acAssets)
-    .set({ profitDistributionMode: mode, updatedAt: new Date() })
-    .where(eq(acAssets.id, assetId));
+  // Unsold + unchanged mode: nothing to write.
+  // Sold + unchanged mode: still recalculate so my_share_paise heals if stale.
+  if (!modeChanged && !sold) return asset;
 
-  if (asset.actualSalePricePaise != null) {
-    await recalculateAsset(assetId);
-  }
+  await capitalDb.transaction(async (tx) => {
+    if (modeChanged) {
+      await tx
+        .update(acAssets)
+        .set({ profitDistributionMode: mode, updatedAt: new Date() })
+        .where(eq(acAssets.id, assetId));
+    }
 
-  await logActivity({
-    action: 'profit_distribution_mode_changed',
-    entityType: 'asset',
-    entityId: assetId,
-    beforeState: { profitDistributionMode: before },
-    afterState: { profitDistributionMode: mode },
+    if (sold) {
+      await recalculateAsset(assetId, tx);
+    }
+
+    if (modeChanged) {
+      await logActivity(
+        {
+          action: 'profit_distribution_mode_changed',
+          entityType: 'asset',
+          entityId: assetId,
+          beforeState: { profitDistributionMode: before },
+          afterState: { profitDistributionMode: mode },
+        },
+        tx,
+      );
+    }
   });
 
   const [fresh] = await capitalDb.select().from(acAssets).where(eq(acAssets.id, assetId)).limit(1);
