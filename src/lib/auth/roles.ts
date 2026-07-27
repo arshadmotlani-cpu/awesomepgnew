@@ -12,7 +12,15 @@ export type AdminPermission =
   | 'vacating:write'
   | 'payments:write'
   | 'payments:override'
-  | 'kyc:write';
+  | 'kyc:write'
+  /** View collections queues, calendar, reports */
+  | 'collections:read'
+  /** Approve/reject proofs, generate receipts, cash settle in collections */
+  | 'collections:write'
+  /** Send collection reminders (wa.me / delivery log) */
+  | 'collections:remind'
+  /** Waive late fees (Phase 3) */
+  | 'collections:waive';
 
 const ROLE_PERMISSIONS: Record<AdminRole, ReadonlySet<AdminPermission>> = {
   super_admin: new Set([
@@ -26,6 +34,10 @@ const ROLE_PERMISSIONS: Record<AdminRole, ReadonlySet<AdminPermission>> = {
     'payments:write',
     'payments:override',
     'kyc:write',
+    'collections:read',
+    'collections:write',
+    'collections:remind',
+    'collections:waive',
   ]),
   pg_manager: new Set([
     'pgs:write',
@@ -33,6 +45,8 @@ const ROLE_PERMISSIONS: Record<AdminRole, ReadonlySet<AdminPermission>> = {
     'extensions:write',
     'vacating:write',
     'kyc:write',
+    'collections:read',
+    'collections:remind',
   ]),
   accountant: new Set([
     'rent:write',
@@ -40,12 +54,21 @@ const ROLE_PERMISSIONS: Record<AdminRole, ReadonlySet<AdminPermission>> = {
     'deposits:write',
     'vacating:write',
     'payments:write',
+    'collections:read',
+    'collections:write',
+    'collections:remind',
+    'collections:waive',
   ]),
-  viewer: new Set(),
+  receptionist: new Set([
+    'payments:write',
+    'collections:read',
+    'collections:write',
+  ]),
+  viewer: new Set(['collections:read']),
 };
 
 export function adminHasPermission(role: AdminRole, permission: AdminPermission): boolean {
-  return ROLE_PERMISSIONS[role].has(permission);
+  return ROLE_PERMISSIONS[role]?.has(permission) ?? false;
 }
 
 /** Only super_admin is unrestricted; all other roles require explicit PG membership. */

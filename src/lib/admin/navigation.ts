@@ -39,9 +39,9 @@ export const ADMIN_MODULES: Record<AdminModule, AdminModuleMeta> = {
   },
   collections: {
     id: 'collections',
-    label: 'Billing Center',
-    description: 'Automatic rent, electricity, approvals, and collections',
-    href: '/admin/billing',
+    label: 'Collections',
+    description: 'Receivables queues, calendar, reminders, and collection reports',
+    href: '/admin/collections',
     sidebar: true,
   },
   invoices: {

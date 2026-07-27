@@ -18,7 +18,7 @@ import type { AdminNavBadges } from '@/src/services/adminNavBadges';
 
 /** Every reorderable sidebar entry — SSOT for module keys. */
 export type SidebarModuleKey =
-  | Exclude<AdminModule, 'collections'>
+  | AdminModule
   | 'billing'
   | 'payment_reviews'
   | 'notifications'
@@ -55,6 +55,7 @@ const MODULE_ICONS: Record<AdminModule, ComponentType<SVGProps<SVGSVGElement>>> 
 export const DEFAULT_SIDEBAR_MODULE_KEYS: SidebarModuleKey[] = [
   'overview',
   'operations',
+  'collections',
   'billing',
   'revenue',
   'invoices',
@@ -86,11 +87,18 @@ export const SIDEBAR_MODULE_REGISTRY: Record<SidebarModuleKey, SidebarModuleDef>
     icon: MODULE_ICONS.revenue,
     module: 'revenue',
   },
+  collections: {
+    key: 'collections',
+    label: 'Collections',
+    href: '/admin/collections',
+    icon: MODULE_ICONS.collections,
+    module: 'collections',
+  },
   billing: {
     key: 'billing',
     label: 'Billing Center',
     href: '/admin/billing',
-    icon: MODULE_ICONS.collections,
+    icon: IconCard,
     module: 'collections',
   },
   invoices: {

@@ -205,6 +205,14 @@ export default async function CollectionsModulePage({
       <PageHeader
         title="Billing Center"
         description="Automatic rent generation, payment approvals, electricity bills, and collections."
+        actions={
+          <Link
+            href="/admin/collections"
+            className="inline-flex min-h-[36px] items-center rounded-lg bg-[#FF5A1F] px-3 text-xs font-semibold text-white hover:brightness-110"
+          >
+            Open Collections
+          </Link>
+        }
       />
 
       <BillingCommandCentreHeader
