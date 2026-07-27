@@ -1,6 +1,7 @@
-import assert from 'node:assert/strict';
+import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 import {
+  appliedBookingCouponDiscountPaise,
   applyBookingReviewCoupon,
   previewCouponStateFromDiscount,
   removeBookingReviewCoupon,
@@ -28,6 +29,32 @@ describe('booking review coupon apply flow', () => {
     assert.equal(totals.depositDueNowPaise, depositPaise);
     assert.equal(totals.totalToCollectTodayPaise, 685_140);
     assert.equal(paiseToInr(totals.totalToCollectTodayPaise), '₹6,851');
+  });
+
+  it('SSOT discount helper matches applied coupon object', () => {
+    assert.equal(appliedBookingCouponDiscountPaise(null), 0);
+    assert.equal(
+      appliedBookingCouponDiscountPaise({ code: 'X', discountPaise: 0 }),
+      0,
+    );
+    assert.equal(
+      appliedBookingCouponDiscountPaise({ code: 'WELCOME10', discountPaise: 36_060 }),
+      36_060,
+    );
+  });
+
+  it('invalid coupon preview never updates applied totals', () => {
+    const preview = previewCouponStateFromDiscount(
+      { error: 'Invalid or expired promo code' },
+      rentPaise,
+    );
+    assert.equal(preview.status, 'invalid');
+    const totals = reviewCheckoutTotalsWithCoupon({
+      rentSubtotalPaise: rentPaise,
+      depositRequiredPaise: depositPaise,
+      appliedCoupon: null,
+    });
+    assert.equal(totals.totalToCollectTodayPaise, rentPaise + depositPaise);
   });
 
   it('flat amount coupon is clamped to rent in preview mapping', () => {

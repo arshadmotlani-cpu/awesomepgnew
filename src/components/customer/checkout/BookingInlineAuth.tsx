@@ -53,6 +53,14 @@ export function BookingInlineAuth({
     return () => window.clearInterval(t);
   }, [resendSeconds]);
 
+  useEffect(() => {
+    const el = document.getElementById('booking-inline-auth');
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const focusable = el.querySelector<HTMLInputElement>('input:not([type="hidden"])');
+    focusable?.focus({ preventScroll: true });
+  }, []);
+
   async function sendOtp() {
     setError(null);
     if (!INDIAN_MOBILE_LOCAL.test(phone)) {
@@ -140,6 +148,7 @@ export function BookingInlineAuth({
 
   return (
     <section
+      id="booking-inline-auth"
       className="rounded-xl border border-white/10 apg-glass-light p-4"
       aria-label="Sign in to book"
     >

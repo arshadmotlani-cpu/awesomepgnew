@@ -60,6 +60,32 @@ export function isBookingFlowBusy(step: BookingFlowStep, actionPending: boolean)
   return step === 'CREATE_BOOKING' && actionPending;
 }
 
+/**
+ * Continue died silently when submitGuard stayed true, step stayed CREATE_BOOKING,
+ * and useActionState never flipped isPending — the old watchdog required isPending.
+ */
+export function isStuckCreateSubmit(input: {
+  step: BookingFlowStep;
+  submitGuard: boolean;
+  actionPending: boolean;
+  actionStatus: 'idle' | 'error' | 'success';
+}): boolean {
+  return (
+    input.step === 'CREATE_BOOKING' &&
+    input.submitGuard &&
+    !input.actionPending &&
+    input.actionStatus === 'idle'
+  );
+}
+
+/** True when Continue should reset + retry instead of silently no-op. */
+export function shouldRecoverStuckContinue(input: {
+  step: BookingFlowStep;
+  submitGuard: boolean;
+}): boolean {
+  return input.submitGuard && input.step !== 'REVIEW' && input.step !== 'FAILED';
+}
+
 export function logBookingFlowStep(
   step: BookingFlowStep,
   detail?: Record<string, unknown>,
@@ -70,7 +96,15 @@ export function logBookingFlowStep(
   }
 }
 
+/** Full create action hung while pending. */
 export const BOOKING_CREATE_TIMEOUT_MS = 10_000;
+
+/**
+ * Create submit started but action never became pending (requestSubmit no-op / broken
+ * useActionState). Must be shorter than BOOKING_CREATE_TIMEOUT_MS and must NOT require
+ * isPending — that was the silent Continue regression.
+ */
+export const BOOKING_CREATE_PENDING_START_MS = 2_500;
 
 export const BOOKING_CREATE_TIMEOUT_MESSAGE =
   'Something went wrong creating your booking. Please try again.';

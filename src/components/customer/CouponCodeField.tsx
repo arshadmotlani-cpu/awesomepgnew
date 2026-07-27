@@ -163,6 +163,16 @@ export function CouponCodeField({
       const result = await previewPromoCodeAction({ status: 'idle' }, fd);
       if (requestId !== applyRequestIdRef.current) return;
       setPreview(result);
+      if (typeof window !== 'undefined') {
+        console.info('[booking-coupon]', {
+          event: 'preview_result',
+          status: result.status,
+          code: trimmed.toUpperCase(),
+          discountPaise: result.status === 'applied' ? result.discountPaise : 0,
+          message: result.status === 'invalid' ? result.message : undefined,
+          at: new Date().toISOString(),
+        });
+      }
       if (result.status === 'applied') {
         const applied = {
           code: trimmed.toUpperCase(),
@@ -176,6 +186,21 @@ export function CouponCodeField({
       } else {
         syncParentDiscount(0);
         onAppliedChange?.(null);
+      }
+    } catch (err) {
+      if (requestId !== applyRequestIdRef.current) return;
+      const message =
+        err instanceof Error ? err.message : 'Could not validate promo code. Try again.';
+      setPreview({ status: 'invalid', message });
+      syncParentDiscount(0);
+      onAppliedChange?.(null);
+      if (typeof window !== 'undefined') {
+        console.info('[booking-coupon]', {
+          event: 'preview_error',
+          code: trimmed.toUpperCase(),
+          message,
+          at: new Date().toISOString(),
+        });
       }
     } finally {
       if (requestId === applyRequestIdRef.current) {

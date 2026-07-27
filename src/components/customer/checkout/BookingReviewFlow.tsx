@@ -24,11 +24,14 @@ import {
   type AppliedBookingCoupon,
 } from '@/src/lib/booking/bookingCouponReview';
 import {
+  BOOKING_CREATE_PENDING_START_MS,
   BOOKING_CREATE_TIMEOUT_MESSAGE,
   BOOKING_CREATE_TIMEOUT_MS,
   bookingFlowReducer,
   isBookingFlowBusy,
+  isStuckCreateSubmit,
   logBookingFlowStep,
+  shouldRecoverStuckContinue,
   type BookingFlowStep,
 } from '@/src/lib/booking/bookingFlowMachine';
 
@@ -98,9 +101,15 @@ export function BookingReviewFlow({
   const formRef = useRef<HTMLFormElement>(null);
   const submitGuardRef = useRef(false);
   const redirectedRef = useRef(false);
+  const submitStartedAtRef = useRef<number | null>(null);
+  const isPendingRef = useRef(false);
+  const actionStatusRef = useRef<BookingActionState['status']>('idle');
   const [step, dispatchStep] = useReducer(bookingFlowReducer, 'REVIEW' as BookingFlowStep);
   const [clientError, setClientError] = useState<string | null>(null);
   const [state, formAction, isPending] = useActionState(createBookingAction, INITIAL_STATE);
+
+  isPendingRef.current = isPending;
+  actionStatusRef.current = state.status;
 
   const couponStorageKey = useMemo(
     () => reviewCouponStorageKey(bedIds, startDate, endDate),
@@ -114,10 +123,16 @@ export function BookingReviewFlow({
 
   useEffect(() => {
     const stored = readStoredCoupon(couponStorageKey);
-    if (stored) {
-      setAppliedCoupon(stored);
-    }
+    // Always sync — clear stale coupon when key has no store (date/bed change).
+    setAppliedCoupon(stored);
     setCouponHydrated(true);
+    logBookingFlowStep('REVIEW', {
+      event: 'coupon_hydrate',
+      key: couponStorageKey,
+      restored: Boolean(stored),
+      code: stored?.code ?? null,
+      discountPaise: stored?.discountPaise ?? 0,
+    });
   }, [couponStorageKey]);
 
   useEffect(() => {
@@ -151,23 +166,73 @@ export function BookingReviewFlow({
   );
 
   useEffect(() => {
-    logBookingFlowStep('REVIEW', { isLoggedIn });
-  }, [isLoggedIn]);
+    logBookingFlowStep('REVIEW', {
+      isLoggedIn,
+      discountPaise,
+      appliedCode: appliedCoupon?.code ?? null,
+      totalToCollectTodayPaise: liveTotals.totalToCollectTodayPaise,
+      rentDuePaise: liveTotals.rentDuePaise,
+    });
+  }, [
+    isLoggedIn,
+    discountPaise,
+    appliedCoupon?.code,
+    liveTotals.totalToCollectTodayPaise,
+    liveTotals.rentDuePaise,
+  ]);
 
   useEffect(() => {
-    logBookingFlowStep(step);
-  }, [step]);
+    logBookingFlowStep(step, {
+      isPending,
+      submitGuard: submitGuardRef.current,
+      actionStatus: state.status,
+    });
+  }, [step, isPending, state.status]);
+
+  const handleAppliedCouponChange = useCallback((next: AppliedCouponState | null) => {
+    setAppliedCoupon(next);
+    logBookingFlowStep('REVIEW', {
+      event: 'coupon_applied_change',
+      code: next?.code ?? null,
+      discountPaise: next?.discountPaise ?? 0,
+    });
+  }, []);
+
+  const failCreateClient = useCallback((reason: string) => {
+    submitGuardRef.current = false;
+    submitStartedAtRef.current = null;
+    dispatchStep({ type: 'CREATE_TIMEOUT' });
+    setClientError(BOOKING_CREATE_TIMEOUT_MESSAGE);
+    logBookingFlowStep('FAILED', { reason });
+  }, []);
 
   const submitCreateBooking = useCallback(() => {
     if (submitGuardRef.current) {
-      logBookingFlowStep('CREATE_BOOKING', { skipped: 'duplicate_submit' });
+      logBookingFlowStep('CREATE_BOOKING', {
+        skipped: 'duplicate_submit',
+        isPending: isPendingRef.current,
+        actionStatus: actionStatusRef.current,
+      });
+      return;
+    }
+    if (!formRef.current) {
+      logBookingFlowStep('FAILED', { reason: 'form_ref_missing' });
+      setClientError(BOOKING_CREATE_TIMEOUT_MESSAGE);
+      dispatchStep({ type: 'CREATE_TIMEOUT' });
       return;
     }
     submitGuardRef.current = true;
+    submitStartedAtRef.current = Date.now();
     setClientError(null);
     dispatchStep({ type: 'CREATE_START' });
-    formRef.current?.requestSubmit();
-  }, []);
+    logBookingFlowStep('CREATE_BOOKING', {
+      event: 'request_submit',
+      couponCode: appliedCoupon?.code ?? null,
+      discountPaise,
+      totalToCollectTodayPaise: liveTotals.totalToCollectTodayPaise,
+    });
+    formRef.current.requestSubmit();
+  }, [appliedCoupon?.code, discountPaise, liveTotals.totalToCollectTodayPaise]);
 
   useEffect(() => {
     if (!isLoggedIn || step !== 'AUTH_REQUIRED') return;
@@ -180,14 +245,20 @@ export function BookingReviewFlow({
 
     if (state.status === 'error') {
       submitGuardRef.current = false;
+      submitStartedAtRef.current = null;
       dispatchStep({ type: 'CREATE_ERROR' });
       setClientError(state.message);
+      logBookingFlowStep('FAILED', {
+        reason: 'action_error',
+        message: state.message,
+      });
       return;
     }
 
     if (state.status === 'success' && !redirectedRef.current) {
       redirectedRef.current = true;
       submitGuardRef.current = false;
+      submitStartedAtRef.current = null;
       dispatchStep({ type: 'CREATE_SUCCESS' });
       writeStoredCoupon(couponStorageKey, null);
       logBookingFlowStep('REDIRECT_PAYMENT', {
@@ -199,42 +270,97 @@ export function BookingReviewFlow({
     }
   }, [state, router, couponStorageKey]);
 
+  // Watchdog: hung while pending (classic timeout).
   useEffect(() => {
     if (step !== 'CREATE_BOOKING' || !isPending) return;
 
     const timer = window.setTimeout(() => {
       if (!submitGuardRef.current) return;
-      submitGuardRef.current = false;
-      dispatchStep({ type: 'CREATE_TIMEOUT' });
-      setClientError(BOOKING_CREATE_TIMEOUT_MESSAGE);
-      logBookingFlowStep('FAILED', { reason: 'client_timeout' });
+      failCreateClient('client_timeout_pending');
     }, BOOKING_CREATE_TIMEOUT_MS);
 
     return () => window.clearTimeout(timer);
-  }, [step, isPending]);
+  }, [step, isPending, failCreateClient]);
+
+  // Watchdog: CREATE started but action never became pending — silent Continue death.
+  useEffect(() => {
+    if (step !== 'CREATE_BOOKING' || isPending || state.status !== 'idle') return;
+    if (!submitGuardRef.current) return;
+
+    const timer = window.setTimeout(() => {
+      if (
+        !isStuckCreateSubmit({
+          step: 'CREATE_BOOKING',
+          submitGuard: submitGuardRef.current,
+          actionPending: isPendingRef.current,
+          actionStatus: actionStatusRef.current === 'idle' ? 'idle' : actionStatusRef.current === 'error' ? 'error' : 'success',
+        })
+      ) {
+        return;
+      }
+      failCreateClient('client_timeout_pending_never_started');
+    }, BOOKING_CREATE_PENDING_START_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [step, isPending, state.status, failCreateClient]);
+
+  function handleRetry() {
+    redirectedRef.current = false;
+    submitStartedAtRef.current = null;
+    dispatchStep({ type: 'RESET' });
+    setClientError(null);
+    submitGuardRef.current = false;
+    logBookingFlowStep('REVIEW', { event: 'retry_reset' });
+  }
 
   function handleContinue() {
+    logBookingFlowStep(step, {
+      event: 'continue_click',
+      isLoggedIn,
+      isPending,
+      submitGuard: submitGuardRef.current,
+      actionStatus: state.status,
+      appliedCode: appliedCoupon?.code ?? null,
+    });
+
     if (step === 'FAILED') {
       handleRetry();
-      if (!isLoggedIn) return;
+      if (!isLoggedIn) {
+        dispatchStep({ type: 'CONTINUE_GUEST' });
+        logBookingFlowStep('AUTH_REQUIRED', { event: 'guest_after_failed' });
+        return;
+      }
       dispatchStep({ type: 'CONTINUE_SIGNED_IN' });
       submitCreateBooking();
       return;
     }
-    if (!isLoggedIn) {
-      dispatchStep({ type: 'CONTINUE_GUEST' });
-      logBookingFlowStep('AUTH_REQUIRED');
+
+    if (
+      shouldRecoverStuckContinue({
+        step,
+        submitGuard: submitGuardRef.current,
+      })
+    ) {
+      logBookingFlowStep('CREATE_BOOKING', { event: 'recover_stuck_continue' });
+      handleRetry();
+      if (!isLoggedIn) {
+        dispatchStep({ type: 'CONTINUE_GUEST' });
+        logBookingFlowStep('AUTH_REQUIRED', { event: 'guest_after_recover' });
+        return;
+      }
+      dispatchStep({ type: 'CONTINUE_SIGNED_IN' });
+      submitCreateBooking();
       return;
     }
+
+    if (!isLoggedIn) {
+      dispatchStep({ type: 'CONTINUE_GUEST' });
+      logBookingFlowStep('AUTH_REQUIRED', { event: 'guest_continue' });
+      return;
+    }
+
     dispatchStep({ type: 'CONTINUE_SIGNED_IN' });
     submitCreateBooking();
-  }
-
-  function handleRetry() {
-    redirectedRef.current = false;
-    dispatchStep({ type: 'RESET' });
-    setClientError(null);
-    submitGuardRef.current = false;
   }
 
   const busy = isBookingFlowBusy(step, isPending);
@@ -267,7 +393,7 @@ export function BookingReviewFlow({
               initialApplied={Boolean(appliedCoupon)}
               initialDiscountPaise={appliedCoupon?.discountPaise ?? 0}
               initialLabel={appliedCoupon?.label ?? null}
-              onAppliedChange={setAppliedCoupon}
+              onAppliedChange={handleAppliedCouponChange}
             />
           ) : null
         }
@@ -291,6 +417,9 @@ export function BookingReviewFlow({
               onClick={() => {
                 handleRetry();
                 if (isLoggedIn) submitCreateBooking();
+                else {
+                  dispatchStep({ type: 'CONTINUE_GUEST' });
+                }
               }}
               className="text-xs font-semibold text-rose-100 underline"
             >
