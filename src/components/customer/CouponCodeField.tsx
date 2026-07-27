@@ -1,10 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  previewPromoCodeAction,
-  type PreviewCouponState,
-} from '@/app/(customer)/booking/new/couponActions';
+import { previewPromoCodeAction } from '@/app/(customer)/booking/new/couponActions';
+import type { PreviewCouponState } from '@/src/lib/booking/bookingCouponReview';
 import { primaryBtn, secondaryBtn } from '@/src/lib/design-system/tokens';
 import { paiseToInr } from '@/src/lib/format';
 
@@ -157,6 +155,26 @@ export function CouponCodeField({
     setPending(true);
     setJustApplied(false);
     const requestId = ++applyRequestIdRef.current;
+    // #region agent log
+    fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '2142b1' },
+      body: JSON.stringify({
+        sessionId: '2142b1',
+        runId: 'pre-fix',
+        hypothesisId: 'C',
+        location: 'CouponCodeField.tsx:applyPreview',
+        message: 'client Apply clicked',
+        data: {
+          codeLen: trimmed.length,
+          isDateCoupon: /^\d{6}$/.test(trimmed),
+          hasCustomerId: Boolean(customerId),
+          subtotalPaise,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     try {
       const fd = new FormData();
       fd.set('couponCode', trimmed);
@@ -167,6 +185,24 @@ export function CouponCodeField({
       if (customerPhone) fd.set('customerPhone', customerPhone);
       const result = await previewPromoCodeAction({ status: 'idle' }, fd);
       if (requestId !== applyRequestIdRef.current) return;
+      // #region agent log
+      fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '2142b1' },
+        body: JSON.stringify({
+          sessionId: '2142b1',
+          runId: 'pre-fix',
+          hypothesisId: 'C',
+          location: 'CouponCodeField.tsx:result',
+          message: 'client received preview result',
+          data: {
+            status: result.status,
+            discountPaise: result.status === 'applied' ? result.discountPaise : 0,
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       if (typeof window !== 'undefined') {
         console.info('[booking-coupon]', {
           event: 'preview_result',
@@ -200,6 +236,21 @@ export function CouponCodeField({
       if (requestId !== applyRequestIdRef.current) return;
       const message =
         err instanceof Error ? err.message : 'Could not validate promo code. Try again.';
+      // #region agent log
+      fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '2142b1' },
+        body: JSON.stringify({
+          sessionId: '2142b1',
+          runId: 'pre-fix',
+          hypothesisId: 'A',
+          location: 'CouponCodeField.tsx:catch',
+          message: 'client caught preview error',
+          data: { errMessage: message.slice(0, 200) },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       setPreview({ status: 'invalid', message });
       syncParentDiscount(0);
       onAppliedChange?.(null);

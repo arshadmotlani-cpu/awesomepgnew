@@ -61,6 +61,22 @@ describe('coupon usage lifecycle (reserved vs consumed)', () => {
     assert.match(src, /previewPromoCodeAction/);
   });
 
+  it('does not re-export PreviewCouponState from use-server couponActions (Turbopack crash)', () => {
+    const src = read('app/(customer)/booking/new/couponActions.ts');
+    // Production: ReferenceError: PreviewCouponState is not defined at module evaluation
+    const withoutBlockComments = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    assert.doesNotMatch(
+      withoutBlockComments,
+      /export\s+type\s*\{\s*PreviewCouponState\s*\}/,
+    );
+    assert.match(src, /Do NOT re-export PreviewCouponState/);
+    const field = read('src/components/customer/CouponCodeField.tsx');
+    assert.match(
+      field,
+      /import type \{ PreviewCouponState \} from '@\/src\/lib\/booking\/bookingCouponReview'/,
+    );
+  });
+
   it('recordPaymentSuccess consumes reservations on confirm', () => {
     const src = read('src/services/bookingLifecycle.ts');
     assert.match(src, /consumeCouponReservationsForBooking/);
