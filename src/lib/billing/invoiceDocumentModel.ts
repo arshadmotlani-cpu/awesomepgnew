@@ -176,7 +176,7 @@ function lineSubtitleForKind(kind: string): string | null {
     case 'ps4':
       return 'PlayStation membership';
     case 'company_reimbursement':
-      return 'Company reimbursement (non-accounting)';
+      return 'Hotel accommodation';
     case 'custom':
     case 'damage':
     case 'penalty':
@@ -196,15 +196,23 @@ export function buildInvoiceDocumentLineItems(
   const period = monthPeriodLabel(billingMonth ?? null);
 
   if (lines.length > 0) {
-    return lines.map((l) => ({
-      kind: l.kind,
-      label: l.label,
-      subtitle: lineSubtitleForKind(l.kind),
-      period:
-        l.period ??
-        (l.kind === 'rent' || l.kind === 'electricity' ? period : null),
-      amountPaise: l.amountPaise,
-    }));
+    return lines.map((l) => {
+      const label =
+        l.kind === 'company_reimbursement' && /reimbursement/i.test(l.label)
+          ? l.label.replace(/reimbursement/gi, 'accommodation')
+          : l.kind === 'company_reimbursement' && !/hotel/i.test(l.label)
+            ? `Hotel ${l.label}`
+            : l.label;
+      return {
+        kind: l.kind,
+        label,
+        subtitle: lineSubtitleForKind(l.kind),
+        period:
+          l.period ??
+          (l.kind === 'rent' || l.kind === 'electricity' ? period : null),
+        amountPaise: l.amountPaise,
+      };
+    });
   }
 
   const fallback: InvoiceDocumentLineItem[] = [];
@@ -539,7 +547,7 @@ export async function getInvoiceDocumentDetail(
   };
 
   const letterhead: InvoiceDocumentLetterhead = {
-    businessName: 'Awesome PG',
+    businessName: Boolean(base.isDocumentOnly) ? 'Awesome PG Hotel' : 'Awesome PG',
     pgName: base.pgName,
     addressLines: pgRow ? formatPgAddress(pgRow) : [base.pgName],
     gstin: resolveGstin(),
@@ -574,17 +582,24 @@ export async function getInvoiceDocumentDetail(
       noticeNote: null,
       stayPeriodNote:
         documentMeta.durationDays > 0
-          ? `${documentMeta.durationDays} day${documentMeta.durationDays === 1 ? '' : 's'} (company reimbursement period)`
+          ? `${documentMeta.durationDays} day${documentMeta.durationDays === 1 ? '' : 's'} hotel accommodation`
           : null,
     };
   }
 
-  const documentTitle = isDocumentOnly
-    ? 'Company Reimbursement Invoice'
-    : 'Tax Invoice';
+  const documentTitle = 'Tax Invoice';
   const paymentStatusLabel =
-    documentMeta?.paymentStatusLabel ??
-    (isDocumentOnly ? 'For Company Reimbursement' : titleCase(base.status.replace(/_/g, ' ')));
+    documentMeta?.paymentStatusLabel &&
+    !/reimbursement/i.test(documentMeta.paymentStatusLabel)
+      ? documentMeta.paymentStatusLabel
+      : isDocumentOnly
+        ? 'Paid'
+        : titleCase(base.status.replace(/_/g, ' '));
+
+  // Never surface stored reimbursement wording on document-only invoices.
+  const notes = isDocumentOnly
+    ? null
+    : base.notes;
 
   return {
     id: base.id,
@@ -626,7 +641,7 @@ export async function getInvoiceDocumentDetail(
     dueDate: isDocumentOnly ? null : dueDate,
     billingMonth: base.billingMonth,
     issuedAt,
-    notes: base.notes,
+    notes,
     cancellationReason: base.cancellationReason,
     electricityCalculationBreakdown,
     rentCalculationBreakdown,

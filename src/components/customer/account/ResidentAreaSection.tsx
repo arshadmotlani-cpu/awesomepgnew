@@ -38,6 +38,7 @@ import { ensureDepositDuePaymentLink } from '@/src/services/depositCollection';
 import { listActiveRejectionsForCustomer } from '@/src/services/paymentProofRejectionService';
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
 import { getLatestPaymentLinkForResident } from '@/src/services/paymentLinks';
+import { listResidentDocumentInvoicesForCustomer } from '@/src/services/residentDocumentInvoices';
 import { listOpenRequestsForCustomer } from '@/src/services/residentRequests';
 import { ReferralsPanel } from '@/src/components/customer/account/ReferralsPanel';
 import { ResidentSectionErrorBoundary } from '@/src/components/customer/account/resident/ResidentSectionErrorBoundary';
@@ -716,6 +717,20 @@ export async function ResidentAreaSection({
         status: depositRow.status,
       });
     }
+  }
+
+  const documentInvoices = await listResidentDocumentInvoicesForCustomer(session.customerId);
+  for (const inv of documentInvoices) {
+    paidBillRows.push({
+      id: inv.id,
+      label: inv.label,
+      amountPaise: inv.amountPaise,
+      paidAt: inv.issuedAt,
+      status: inv.status,
+      invoiceNumber: inv.invoiceNumber,
+      detailHref: inv.detailHref,
+      subtitle: inv.stayLabel ? `Stay ${inv.stayLabel}` : 'Awesome PG Hotel',
+    });
   }
 
   const paymentBillRows: PaymentDueRow[] = dueBillRows;

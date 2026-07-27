@@ -19,6 +19,9 @@ export type PaidHistoryRow = {
   paidAt: string | null;
   status: string;
   invoiceNumber?: string;
+  /** View invoice page (share / HTML document). */
+  detailHref?: string | null;
+  subtitle?: string | null;
 };
 
 export type BillDueRow = PaymentDueRow & {
@@ -228,17 +231,29 @@ export function ResidentPaymentsV2Hub({
                   <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
                     <div>
                       <p className="text-sm font-medium text-white">{row.label}</p>
+                      {row.subtitle ? (
+                        <p className="text-xs text-apg-silver">{row.subtitle}</p>
+                      ) : null}
                       {row.paidAt ? (
-                        <p className="text-xs text-apg-silver">Paid {row.paidAt}</p>
+                        <p className="text-xs text-apg-silver">Issued {row.paidAt}</p>
                       ) : null}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-semibold tabular-nums text-white">
                         {paiseToInr(row.amountPaise)}
                       </span>
+                      {row.detailHref ? (
+                        <Link
+                          href={row.detailHref}
+                          className="rounded-lg border border-white/15 px-2 py-1 text-[11px] font-medium text-apg-silver hover:text-white"
+                        >
+                          View PDF
+                        </Link>
+                      ) : null}
                       {row.invoiceNumber ? (
                         <InvoicePdfDownloadLink
                           href={invoicePdfDownloadHref(row.invoiceNumber)}
+                          label="Download PDF"
                           className="rounded-lg border border-white/15 px-2 py-1 text-[11px] font-medium text-apg-silver hover:text-white"
                         />
                       ) : null}

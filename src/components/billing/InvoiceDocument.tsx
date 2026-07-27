@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { COMPANY_REIMBURSEMENT_FOOTER } from '@/src/lib/billing/companyReimbursementCopy';
+import { DOCUMENT_ONLY_INVOICE_FOOTER } from '@/src/lib/billing/companyReimbursementCopy';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import type { InvoiceDocumentModel } from '@/src/lib/billing/invoiceDocumentModel';
 import type { FinancialInvoiceStatus } from '@/src/db/schema/enums';
@@ -162,20 +162,11 @@ export function InvoiceDocument({ document: doc, variant = 'admin', className = 
   const muted = mutedClass(surface);
   const divider = dividerClass(surface);
 
-  const badge = doc.isDocumentOnly ? (
-    <div className="flex flex-col items-end gap-1.5">
-      <span className="inline-flex rounded-full bg-sky-500/15 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-100 ring-1 ring-sky-400/40">
-        Company Reimbursement
-      </span>
-      <span className="inline-flex rounded-full bg-zinc-500/20 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-200 ring-1 ring-zinc-400/30">
-        Non-Accounting Document
-      </span>
-    </div>
-  ) : (
+  const badge = (
     <span
       className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase ring-1 ${status.badge}`}
     >
-      {status.label || titleCase(doc.status)}
+      {doc.isDocumentOnly ? 'Paid' : status.label || titleCase(doc.status)}
     </span>
   );
 
@@ -418,7 +409,7 @@ export function InvoiceDocument({ document: doc, variant = 'admin', className = 
       {doc.isDocumentOnly ? (
         <footer className={`mt-6 border-t pt-6 ${divider}`}>
           <div className="flex flex-wrap items-end justify-between gap-8">
-            <p className={`max-w-md text-xs ${muted}`}>{COMPANY_REIMBURSEMENT_FOOTER}</p>
+            <p className={`max-w-md text-xs ${muted}`}>{DOCUMENT_ONLY_INVOICE_FOOTER}</p>
             <div className="min-w-[180px] text-right">
               <div className={`mb-8 border-b ${divider}`} />
               <p className={`text-[10px] font-semibold uppercase tracking-wide ${muted}`}>

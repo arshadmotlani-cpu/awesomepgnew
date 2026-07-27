@@ -19,15 +19,20 @@ import type { InvoiceBreakdown } from '@/src/db/schema/financialInvoices';
 import { createInvoiceShareToken } from '@/src/lib/billing/invoiceShareToken';
 import { nextFinancialInvoiceNumber } from '@/src/lib/billing/invoiceNumbering.server';
 import {
-  COMPANY_REIMBURSEMENT_FOOTER,
+  DOCUMENT_ONLY_INVOICE_FOOTER,
+  DOCUMENT_ONLY_PAYMENT_STATUS,
   displayRatePerDayPaise,
+  hotelAccommodationLineLabel,
 } from '@/src/lib/billing/companyReimbursementCopy';
 import { formatDate } from '@/src/lib/dates';
 import { formatDate as formatDisplayDate } from '@/src/lib/format';
 
 export {
+  DOCUMENT_ONLY_INVOICE_FOOTER,
+  DOCUMENT_ONLY_PAYMENT_STATUS,
   COMPANY_REIMBURSEMENT_FOOTER,
   displayRatePerDayPaise,
+  hotelAccommodationLineLabel,
 } from '@/src/lib/billing/companyReimbursementCopy';
 
 export type CreateCompanyReimbursementInvoiceInput = {
@@ -157,7 +162,7 @@ export async function createCompanyReimbursementInvoice(
 
   const ratePerDayPaise = displayRatePerDayPaise(input.totalPaise, input.durationDays);
   const period = stayPeriodLabel(input.stayStart, input.stayEnd);
-  const paymentStatusLabel = 'For Company Reimbursement';
+  const paymentStatusLabel = DOCUMENT_ONLY_PAYMENT_STATUS;
 
   const breakdown: InvoiceBreakdown = {
     otherPaise: input.totalPaise,
@@ -171,7 +176,7 @@ export async function createCompanyReimbursementInvoice(
     lines: [
       {
         kind: 'company_reimbursement',
-        label: `Accommodation — ${input.durationDays} days @ Rs. ${(ratePerDayPaise / 100).toFixed(2)}/day`,
+        label: hotelAccommodationLineLabel(input.durationDays, ratePerDayPaise),
         period,
         amountPaise: input.totalPaise,
       },
@@ -181,9 +186,8 @@ export async function createCompanyReimbursementInvoice(
   const invoiceNumber = await nextFinancialInvoiceNumber({ pgId: ctx.pgId });
   const shareToken = createInvoiceShareToken();
   const notes = [
-    'Company Reimbursement Invoice — non-accounting document.',
-    `Stay ${period} (${input.durationDays} days).`,
-    COMPANY_REIMBURSEMENT_FOOTER,
+    `Hotel accommodation · Stay ${period} (${input.durationDays} days).`,
+    DOCUMENT_ONLY_INVOICE_FOOTER,
   ].join(' ');
 
   const [row] = await db

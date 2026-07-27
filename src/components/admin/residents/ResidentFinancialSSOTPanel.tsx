@@ -46,6 +46,8 @@ function invoiceTypeLabel(type: string): string {
       return 'Deposit';
     case 'custom':
       return 'Other';
+    case 'company_reimbursement':
+      return 'Hotel Accommodation';
     default:
       return titleCase(type.replace(/_/g, ' '));
   }

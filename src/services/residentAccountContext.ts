@@ -29,7 +29,7 @@ import { formatDate, tryDiffDays } from '@/src/lib/dates';
 
 export type ResidentInvoiceCard = {
   id: string;
-  kind: 'rent' | 'electricity' | 'deposit';
+  kind: 'rent' | 'electricity' | 'deposit' | 'accommodation';
   invoiceNumber: string;
   label: string;
   stayDurationLabel: string | null;
@@ -428,6 +428,31 @@ export async function loadResidentAccountContext(
       const fiId = fiMap[`${table}:${inv.id}`];
       inv.detailHref = fiId ? invoiceDetailHref(fiId, 'resident') : null;
     }
+  }
+
+  const { listResidentDocumentInvoicesForCustomer } = await import(
+    '@/src/services/residentDocumentInvoices'
+  );
+  const documentInvoices = await listResidentDocumentInvoicesForCustomer(customerId);
+  for (const inv of documentInvoices) {
+    invoices.push({
+      id: inv.id,
+      kind: 'accommodation',
+      invoiceNumber: inv.invoiceNumber,
+      label: inv.label,
+      stayDurationLabel: inv.stayLabel,
+      checkInLabel: null,
+      checkOutLabel: null,
+      rentPaise: inv.amountPaise,
+      electricityPaise: 0,
+      depositPaidPaise: 0,
+      finalAmountPaise: inv.amountPaise,
+      status: inv.status,
+      dueDate: inv.issuedAt,
+      payHref: null,
+      detailHref: inv.detailHref,
+      paymentLinkUrl: null,
+    });
   }
 
   const latestRentLink = hasConfirmedBooking

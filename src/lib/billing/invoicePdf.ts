@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PDFDocument, StandardFonts, rgb, type PDFPage, type PDFFont } from 'pdf-lib';
-import { COMPANY_REIMBURSEMENT_FOOTER } from '@/src/lib/billing/companyReimbursementCopy';
+import { DOCUMENT_ONLY_INVOICE_FOOTER } from '@/src/lib/billing/companyReimbursementCopy';
 import type { InvoiceDocumentModel } from '@/src/lib/billing/invoiceDocumentModel';
 import { titleCase } from '@/src/lib/format';
 
@@ -220,10 +220,7 @@ export async function generateInvoicePdf(document: InvoiceDocumentModel): Promis
   const w = new PdfWriter(pdfDoc, fonts);
   const isDocumentOnly = Boolean(document.isDocumentOnly);
   const docTitle = sanitizeForPdf(
-    (
-      document.documentTitle ||
-      (isDocumentOnly ? 'Company Reimbursement Invoice' : 'TAX INVOICE')
-    ).toUpperCase(),
+    (document.documentTitle || 'TAX INVOICE').toUpperCase(),
   );
 
   const logo = await tryEmbedBrandLogo(pdfDoc);
@@ -272,12 +269,6 @@ export async function generateInvoicePdf(document: InvoiceDocumentModel): Promis
   });
   w.moveDown(14);
 
-  if (isDocumentOnly) {
-    w.drawMuted('COMPANY REIMBURSEMENT', 9);
-    w.drawMuted('NON-ACCOUNTING DOCUMENT', 9);
-    w.moveDown(4);
-  }
-
   w.drawMuted(document.letterhead.pgName, 11);
   for (const line of document.letterhead.addressLines) {
     w.drawMuted(line);
@@ -289,7 +280,7 @@ export async function generateInvoicePdf(document: InvoiceDocumentModel): Promis
   w.drawRule(8);
 
   const statusLabel = isDocumentOnly
-    ? document.paymentStatusLabel || 'For Company Reimbursement'
+    ? document.paymentStatusLabel || 'Paid'
     : (STATUS_LABELS[document.status] ?? titleCase(document.status));
   const billingLabel = monthLabel(document.billingMonth);
   w.drawLabelValue('Invoice date', document.issuedAt);
@@ -297,7 +288,7 @@ export async function generateInvoicePdf(document: InvoiceDocumentModel): Promis
   w.drawLabelValue(
     'Invoice type',
     isDocumentOnly
-      ? 'Company Reimbursement Invoice'
+      ? 'Hotel Accommodation'
       : titleCase(document.invoiceType.replace(/_/g, ' ')),
   );
   if (billingLabel) w.drawLabelValue('Billing month', billingLabel);
@@ -495,11 +486,11 @@ export async function generateInvoicePdf(document: InvoiceDocumentModel): Promis
       color: RULE,
     });
     w.moveDown(14);
-    w.drawMuted(COMPANY_REIMBURSEMENT_FOOTER);
+    w.drawMuted(DOCUMENT_ONLY_INVOICE_FOOTER);
   } else {
     w.drawRule(12);
     w.drawMuted(
-      'This is a computer-generated tax invoice from Awesome PG. For billing queries, contact your PG office.',
+      'This is a computer-generated tax invoice from Awesome PG Hotel. For billing queries, contact your PG office.',
     );
   }
 
