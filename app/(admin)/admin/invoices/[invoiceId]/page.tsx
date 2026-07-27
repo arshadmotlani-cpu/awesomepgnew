@@ -5,11 +5,13 @@ import { InvoicePageToolbar } from '@/src/components/admin/InvoicePageToolbar';
 import { MarkAsPaidCashButton } from '@/src/components/admin/MarkAsPaidCashButton';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
+import { CollectionsInvoiceLifecyclePanel } from '@/src/components/admin/collections/CollectionsInvoiceLifecyclePanel';
 import { InvoiceDocument } from '@/src/components/billing/InvoiceDocument';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { getInvoiceDocumentDetail } from '@/src/lib/billing/invoiceDocumentModel';
 import { getInvoiceVoidCapabilities } from '@/src/services/invoiceVoid';
 import { getCashSettlementEligibility } from '@/src/services/adminCashSettlement';
+import { loadCollectionsInvoiceLifecycleDetail } from '@/src/services/collectionsInvoiceHistory';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { DEPOSIT_EXPRESS_RETURN_PATH } from '@/src/lib/deposits/depositExpressLinks';
 import { EXPRESS_SALE_RETURN_PATH } from '@/src/lib/expressBooking/expressSaleLinks';
@@ -18,6 +20,7 @@ import { invoicePublicSharePath } from '@/src/lib/billing/invoiceShareToken';
 import { ensureInvoiceShareToken } from '@/src/lib/billing/invoiceShareToken';
 import { invoicePdfDownloadHref } from '@/src/lib/billing/invoicePdfLinks';
 import { getAppUrl } from '@/src/lib/url';
+import { isCollectionsV1Enabled } from '@/src/lib/collections/featureFlag';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +59,15 @@ export default async function InvoiceDetailPage({
   ]);
   if (!document) notFound();
 
+  const rentSourceId = document.relatedLinks.sourceRentInvoiceId;
+  const lifecycleDetail =
+    isCollectionsV1Enabled() && rentSourceId
+      ? await loadCollectionsInvoiceLifecycleDetail({
+          rentInvoiceId: rentSourceId,
+          financialInvoiceId: document.id,
+        })
+      : null;
+
   const shareUrl = `${getAppUrl()}${invoicePublicSharePath(shareToken)}`;
 
   return (
@@ -85,6 +97,15 @@ export default async function InvoiceDetailPage({
       <div className="mb-6">
         <InvoiceDocument document={document} variant="admin" />
       </div>
+
+      {lifecycleDetail?.row ? (
+        <div className="mb-6">
+          <CollectionsInvoiceLifecyclePanel
+            row={lifecycleDetail.row}
+            events={lifecycleDetail.events}
+          />
+        </div>
+      ) : null}
 
       <section className="mb-6 rounded-xl border border-white/10 bg-[#1A1F27] p-5">
         <h2 className="mb-3 text-sm font-semibold text-white">Related records</h2>

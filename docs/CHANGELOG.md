@@ -256,25 +256,26 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-27 20:23:22 UTC
+### Pending pre-commit sync · 2026-07-27 20:36:32 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Auth]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
 - `DATABASE.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (7):**
-- `app/(admin)/admin/billing/page.tsx`
-- `app/(admin)/admin/collections/page.tsx`
-- `app/(admin)/admin/collections/reports/page.tsx`
-- `src/db/migrations/0128_collections_receptionist_role.sql`
+**Staged code files (6):**
+- `app/(admin)/admin/invoices/[invoiceId]/page.tsx`
+- `src/db/migrations/0129_billing_events.sql`
 - `src/db/migrations/meta/_journal.json`
-- `src/db/schema/enums.ts`
-- `src/lib/auth/roles.ts`
+- `src/db/schema/billingEvents.ts`
+- `src/db/schema/index.ts`
+- `src/services/rentInvoices.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

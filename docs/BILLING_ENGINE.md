@@ -81,3 +81,21 @@ Manual rent generation is restricted to **super-admin repair tier** only.
 | Room electricity finalize | `(room_id, billing_month)` |
 | Checkout settlement payout | `(settlement_id)` |
 | Credit apply | `(invoice_id, customer_id)` |
+
+---
+
+## billing_events (Collections Phase 2)
+
+Append-only lifecycle log for rent invoice collections. **Not a money calculator** — amounts stay in `residentFinancialEngine` / `projectInvoice`.
+
+| Column | Role |
+|--------|------|
+| `booking_id` | Resident booking |
+| `rent_invoice_id` | Operational `rent_invoices` row |
+| `financial_invoice_id` | Registry mirror (`financial_invoices`) when known |
+| `event_type` | `invoice.upcoming` \| `invoice.generated` \| `invoice.overdue` \| `invoice.paid` \| `invoice.partial` \| `invoice.proof_submitted` |
+| `payload` | Opaque audit JSON (amounts already on the invoice row) |
+
+Service: `src/services/billingEvents.ts` (`recordBillingEvent` is best-effort / non-throwing).  
+Emitters: rent generate, overdue sweep, payment success / mark-paid, proof submit.  
+UI: Collections lifecycle panel on admin rent invoice detail; history lists via `collectionsInvoiceHistory.ts`.

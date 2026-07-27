@@ -882,8 +882,29 @@ export async function generateRentInvoicesForMonth(
     if (inserted) {
       created += 1;
       invoiceIds.push(inserted.id);
-      const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
-      await syncRentInvoiceToUnified(inserted.id);
+      let financialInvoiceId: string | null = null;
+      try {
+        const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+        financialInvoiceId = await syncRentInvoiceToUnified(inserted.id);
+      } catch (syncErr) {
+        console.error('[rent-generate] financial_invoices sync failed', {
+          rentInvoiceId: inserted.id,
+          err: syncErr,
+        });
+      }
+      const { recordBillingEvent } = await import('@/src/services/billingEvents');
+      await recordBillingEvent({
+        bookingId: c.bookingId,
+        rentInvoiceId: inserted.id,
+        financialInvoiceId,
+        eventType: 'invoice.generated',
+        payload: {
+          billingMonth,
+          rentPaise,
+          dueDate,
+          invoiceNumber: inserted.invoice_number,
+        },
+      });
       await db.insert(auditLog).values({
         actorType: 'system',
         actorId: null,
@@ -895,6 +916,7 @@ export async function generateRentInvoicesForMonth(
           billingMonth,
           rentPaise,
           billingPeriod,
+          financialInvoiceId,
         },
       });
       const { notifyRentReminder } = await import('@/src/lib/email/notifications');
@@ -1046,7 +1068,10 @@ export async function markOverdueInvoices(
         sql`${rentInvoices.dueDate} < ${today}::date`,
       ),
     )
-    .returning({ id: rentInvoices.id });
+    .returning({
+      id: rentInvoices.id,
+      bookingId: rentInvoices.bookingId,
+    });
 
   if (rows.length > 0) {
     await db.insert(auditLog).values(
@@ -1059,11 +1084,26 @@ export async function markOverdueInvoices(
         diff: { asOf: today },
       })),
     );
-    const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
-    await syncManyToUnified(
-      rows.map((r) => r.id),
-      'rent',
-    );
+    const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+    const { recordBillingEvent } = await import('@/src/services/billingEvents');
+    for (const r of rows) {
+      let financialInvoiceId: string | null = null;
+      try {
+        financialInvoiceId = await syncRentInvoiceToUnified(r.id);
+      } catch (syncErr) {
+        console.error('[rent-overdue] financial_invoices sync failed', {
+          rentInvoiceId: r.id,
+          err: syncErr,
+        });
+      }
+      await recordBillingEvent({
+        bookingId: r.bookingId,
+        rentInvoiceId: r.id,
+        financialInvoiceId,
+        eventType: 'invoice.overdue',
+        payload: { asOf: today },
+      });
+    }
   }
   return { updated: rows.length, updatedInvoiceIds: rows.map((r) => r.id) };
 }
@@ -1214,6 +1254,30 @@ export async function markRentInvoicePaidFromExistingPayment(input: {
     },
   });
 
+  let financialInvoiceId: string | null = null;
+  try {
+    const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+    financialInvoiceId = await syncRentInvoiceToUnified(invoice.id);
+  } catch (syncErr) {
+    console.error('[rent-paid-existing] financial_invoices sync failed', {
+      rentInvoiceId: invoice.id,
+      err: syncErr,
+    });
+  }
+  const { recordBillingEvent } = await import('@/src/services/billingEvents');
+  await recordBillingEvent({
+    bookingId: invoice.bookingId,
+    rentInvoiceId: invoice.id,
+    financialInvoiceId,
+    eventType: fullyPaid ? 'invoice.paid' : 'invoice.partial',
+    payload: {
+      paymentId: input.paymentId,
+      principalPaise: principal,
+      rentPaise: invoice.rentPaise,
+      source: input.source ?? 'booking_payment',
+    },
+  });
+
   return { ok: true, invoiceId: invoice.id, stateChanged: fullyPaid };
 }
 
@@ -1335,6 +1399,7 @@ export async function recordRentPaymentSuccess(
   const paidAt = input.paidAt ?? new Date();
 
   let paymentId: string;
+  let paymentUnifiedInvoiceId: string | null = null;
   try {
     const result = await db.transaction(async (tx) => {
       const [payment] = await tx
@@ -1396,9 +1461,10 @@ export async function recordRentPaymentSuccess(
         amountPaise: input.amountPaise,
       });
 
-      return { paymentId: payment.id };
+      return { paymentId: payment.id, unifiedInvoiceId };
     });
     paymentId = result.paymentId;
+    paymentUnifiedInvoiceId = result.unifiedInvoiceId;
   } catch (err) {
     if (pgErrorCode(err) === '23505') {
       const [reread] = await db
@@ -1445,6 +1511,41 @@ export async function recordRentPaymentSuccess(
       '[rent-payment] payment recorded but audit_log insert failed',
       auditResult.error,
     );
+  }
+
+  {
+    const { recordBillingEvent } = await import('@/src/services/billingEvents');
+    await recordBillingEvent({
+      bookingId: invoice.bookingId,
+      rentInvoiceId: invoice.id,
+      financialInvoiceId: paymentUnifiedInvoiceId,
+      eventType: fullyPaid ? 'invoice.paid' : 'invoice.partial',
+      payload: {
+        paymentId,
+        amountPaise: input.amountPaise,
+        outstandingPaise: Math.max(0, newOutstanding),
+        provider,
+      },
+    });
+  }
+
+  if (paymentUnifiedInvoiceId && input.amountPaise > 0) {
+    try {
+      const { createReceipt } = await import('@/src/services/paymentReceipts');
+      await createReceipt({
+        customerId: invoice.customerId,
+        bookingId: invoice.bookingId,
+        financialInvoiceId: paymentUnifiedInvoiceId,
+        rentInvoiceId: invoice.id,
+        paymentId,
+        amountPaise: input.amountPaise,
+        method: String(provider),
+        paidAt: new Date(),
+        transactionRef: input.providerPaymentId,
+      });
+    } catch (err) {
+      console.error('[rent-payment] receipt create failed (non-blocking)', err);
+    }
   }
 
   if (!input.historical) {
@@ -1623,6 +1724,10 @@ export type RentInvoiceProjectInput = Omit<
 export type ProjectInvoiceOptions = {
   /** When true, always accrue late fees live (used when capturing proof snapshot). */
   bypassProofSnapshot?: boolean;
+  /** Resolved late-fee policy for this PG; omit for legacy 1%/day. */
+  lateFeePolicy?: import('@/src/services/lateFeePolicy').LateFeePolicySnapshot | null;
+  /** Sum of late_fee_waivers.amount_paise for this invoice (subtracted from accrued fee). */
+  waiverPaise?: number;
 };
 
 function hasFrozenProofSnapshot(
@@ -1788,13 +1893,16 @@ export function projectInvoice(
   }
 
   const rentDuePaise = computeRentDuePaise(inv.rentPaise, inv.discountPaise);
+  const waiverPaise = Math.max(0, options?.waiverPaise ?? 0);
   if (inv.status === 'payment_in_progress') {
-    const lateFee = computeLateFee({
+    const rawLateFee = computeLateFee({
       rentPaise: rentDuePaise,
       dueDate: inv.dueDate,
       billingMonth: inv.billingMonth,
       today: asOf,
+      policy: options?.lateFeePolicy,
     });
+    const lateFee = Math.max(0, rawLateFee - waiverPaise);
     const outstandingPaise = Math.max(
       0,
       rentDuePaise + lateFee - inv.paidPrincipalPaise - inv.paidLateFeePaise,
@@ -1806,12 +1914,14 @@ export function projectInvoice(
       effectiveStatus: 'payment_in_progress',
     };
   }
-  const lateFee = computeLateFee({
+  const rawLateFee = computeLateFee({
     rentPaise: rentDuePaise,
     dueDate: inv.dueDate,
     billingMonth: inv.billingMonth,
     today: asOf,
+    policy: options?.lateFeePolicy,
   });
+  const lateFee = Math.max(0, rawLateFee - waiverPaise);
   const outstanding = rentDuePaise + lateFee
     - inv.paidPrincipalPaise
     - inv.paidLateFeePaise;
@@ -1932,7 +2042,28 @@ export async function createAdhocRentInvoice(input: {
         });
 
       const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
-      await syncRentInvoiceToUnified(row.id);
+      let financialInvoiceId: string | null = null;
+      try {
+        financialInvoiceId = await syncRentInvoiceToUnified(row.id);
+      } catch (syncErr) {
+        console.error('[adhoc-rent] financial_invoices sync failed', {
+          rentInvoiceId: row.id,
+          err: syncErr,
+        });
+      }
+      const { recordBillingEvent } = await import('@/src/services/billingEvents');
+      await recordBillingEvent({
+        bookingId: input.bookingId,
+        rentInvoiceId: row.id,
+        financialInvoiceId,
+        eventType: 'invoice.generated',
+        payload: {
+          isAdhoc: true,
+          amountPaise: input.amountPaise,
+          invoiceNumber: row.invoiceNumber,
+          title: input.title.trim(),
+        },
+      });
 
       return { ok: true, invoiceId: row.id, invoiceNumber: row.invoiceNumber };
     } catch (err) {
@@ -2057,7 +2188,26 @@ export async function submitRentPaymentProof(
   }).catch(() => undefined);
 
   const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
-  await syncRentInvoiceToUnified(invoiceId);
+  let financialInvoiceId: string | null = null;
+  try {
+    financialInvoiceId = await syncRentInvoiceToUnified(invoiceId);
+  } catch (syncErr) {
+    console.error('[rent-proof] financial_invoices sync failed', {
+      rentInvoiceId: invoiceId,
+      err: syncErr,
+    });
+  }
+
+  if (invoiceMeta?.bookingId) {
+    const { recordBillingEvent } = await import('@/src/services/billingEvents');
+    await recordBillingEvent({
+      bookingId: invoiceMeta.bookingId,
+      rentInvoiceId: invoiceId,
+      financialInvoiceId,
+      eventType: 'invoice.proof_submitted',
+      payload: { paymentProofUrl: proofUrl },
+    });
+  }
 
   const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
   scheduleAdminNotificationSync();
