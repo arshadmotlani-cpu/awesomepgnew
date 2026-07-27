@@ -256,24 +256,17 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-27 16:06:29 UTC
+### Pending pre-commit sync · 2026-07-27 16:12:17 UTC
 
-**Areas touched:** [[ROUTES]], [[Auth]]
+**Areas touched:** [[Auth]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
-**Staged code files (7):**
-- `app/api/auth/customer/booking/otp/verify/route.ts`
-- `app/api/auth/customer/email/verify/route.ts`
-- `middleware.ts`
-- `src/lib/auth/authSessionDebug.ts`
-- `src/lib/auth/customerSessionPolicy.ts`
+**Staged code files (1):**
 - `src/lib/auth/session.ts`
-- `src/lib/auth/sessionSliding.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

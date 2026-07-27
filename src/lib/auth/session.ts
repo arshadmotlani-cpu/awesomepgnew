@@ -312,18 +312,26 @@ async function refreshCustomerSessionIfNeeded(args: {
 export const getCustomerSession = cache(async (): Promise<CustomerSession | null> => {
   const base = await readSessionByCookie(CUSTOMER_SESSION_COOKIE, 'customer');
   if (!base) return null;
+  const {
+    sessionId,
+    subjectId,
+    expiresAt: initialExpiresAt,
+    lastSeenAt,
+    rememberMe,
+    token,
+  } = base;
   authSessionDebug('customer_session_validate_ok', {
-    sessionId: base.sessionId,
-    expiresAt: base.expiresAt.toISOString(),
+    sessionId,
+    expiresAt: initialExpiresAt.toISOString(),
     cookiePresent: true,
   });
   try {
     const expiresAt = await refreshCustomerSessionIfNeeded({
-      sessionId: base.sessionId,
-      expiresAt: base.expiresAt,
-      lastSeenAt: base.lastSeenAt,
-      rememberMe: base.rememberMe,
-      token: base.token,
+      sessionId,
+      expiresAt: initialExpiresAt,
+      lastSeenAt,
+      rememberMe,
+      token,
     });
 
     async function loadCustomer() {
@@ -337,7 +345,7 @@ export const getCustomerSession = cache(async (): Promise<CustomerSession | null
           archivedAt: customers.archivedAt,
         })
         .from(customers)
-        .where(and(eq(customers.id, base.subjectId), isNull(customers.archivedAt)))
+        .where(and(eq(customers.id, subjectId), isNull(customers.archivedAt)))
         .limit(1);
       return customer ?? null;
     }
@@ -348,29 +356,29 @@ export const getCustomerSession = cache(async (): Promise<CustomerSession | null
     }
     if (!customer) {
       await rejectCustomerSession({
-        token: base.token,
-        sessionId: base.sessionId,
-        subjectId: base.subjectId,
+        token,
+        sessionId,
+        subjectId,
         reason: 'customer_missing_or_archived',
       });
       return null;
     }
     return {
       kind: 'customer',
-      sessionId: base.sessionId,
+      sessionId,
       customerId: customer.id,
       phone: normaliseIndianPhone(customer.phone) ?? customer.phone,
       fullName: customer.fullName,
       email: customer.email,
       mustSetPassword: customer.mustSetPassword,
-      rememberMe: base.rememberMe,
+      rememberMe,
       expiresAt,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[auth] customer profile lookup failed:', message);
     authSessionDebug('customer_session_validate_failed', {
-      sessionId: base.sessionId,
+      sessionId,
       reason: 'customer_lookup_error',
       message,
     });
