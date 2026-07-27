@@ -56,24 +56,30 @@ export function bookingFlowReducer(
   }
 }
 
-export function isBookingFlowBusy(step: BookingFlowStep, actionPending: boolean): boolean {
-  return step === 'CREATE_BOOKING' && actionPending;
+/**
+ * While create is in flight, keep the button busy even if useActionState briefly
+ * reports !isPending (requestSubmit flicker / state-update gap).
+ */
+export function isBookingFlowBusy(step: BookingFlowStep, _actionPending?: boolean): boolean {
+  return step === 'CREATE_BOOKING';
 }
 
 /**
- * Continue died silently when submitGuard stayed true, step stayed CREATE_BOOKING,
- * and useActionState never flipped isPending — the old watchdog required isPending.
+ * True only when create was started, guard is held, action never went pending,
+ * and no terminal action result arrived.
  */
 export function isStuckCreateSubmit(input: {
   step: BookingFlowStep;
   submitGuard: boolean;
   actionPending: boolean;
   actionStatus: 'idle' | 'error' | 'success';
+  sawActionPending: boolean;
 }): boolean {
   return (
     input.step === 'CREATE_BOOKING' &&
     input.submitGuard &&
     !input.actionPending &&
+    !input.sawActionPending &&
     input.actionStatus === 'idle'
   );
 }
@@ -97,14 +103,13 @@ export function logBookingFlowStep(
 }
 
 /** Full create action hung while pending. */
-export const BOOKING_CREATE_TIMEOUT_MS = 10_000;
+export const BOOKING_CREATE_TIMEOUT_MS = 15_000;
 
 /**
- * Create submit started but action never became pending (requestSubmit no-op / broken
- * useActionState). Must be shorter than BOOKING_CREATE_TIMEOUT_MS and must NOT require
- * isPending — that was the silent Continue regression.
+ * Only when isPending never becomes true after submit (broken form dispatch).
+ * Must NOT fire merely because isPending flipped false before status updates.
  */
-export const BOOKING_CREATE_PENDING_START_MS = 2_500;
+export const BOOKING_CREATE_PENDING_START_MS = 4_000;
 
 export const BOOKING_CREATE_TIMEOUT_MESSAGE =
   'Something went wrong creating your booking. Please try again.';

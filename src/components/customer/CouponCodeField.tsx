@@ -105,9 +105,12 @@ export function CouponCodeField({
   const [pending, setPending] = useState(false);
   const [justApplied, setJustApplied] = useState(false);
   const applyRequestIdRef = useRef(0);
+  /** Prevents one-frame parent lag from wiping a successful local Apply. */
+  const expectParentApplyRef = useRef(false);
 
   useEffect(() => {
     if (initialApplied && initialDiscountPaise > 0) {
+      expectParentApplyRef.current = false;
       setCode(initialCode);
       setPreview({
         status: 'applied',
@@ -117,6 +120,7 @@ export function CouponCodeField({
       });
       return;
     }
+    if (expectParentApplyRef.current) return;
     if (!initialApplied && !initialCode.trim()) {
       setPreview((prev) => (prev.status === 'applied' ? { status: 'idle' } : prev));
     }
@@ -136,6 +140,7 @@ export function CouponCodeField({
   );
 
   const clearPromo = useCallback(() => {
+    expectParentApplyRef.current = false;
     setCode('');
     setPreview({ status: 'idle' });
     syncParentDiscount(0);
@@ -162,7 +167,6 @@ export function CouponCodeField({
       if (customerPhone) fd.set('customerPhone', customerPhone);
       const result = await previewPromoCodeAction({ status: 'idle' }, fd);
       if (requestId !== applyRequestIdRef.current) return;
-      setPreview(result);
       if (typeof window !== 'undefined') {
         console.info('[booking-coupon]', {
           event: 'preview_result',
@@ -179,13 +183,18 @@ export function CouponCodeField({
           discountPaise: result.discountPaise,
           label: result.label,
         };
-        syncParentDiscount(result.discountPaise);
+        expectParentApplyRef.current = true;
+        // Parent first so review totals update before local pending flips.
         onAppliedChange?.(applied);
+        syncParentDiscount(result.discountPaise);
+        setPreview(result);
         setJustApplied(true);
         window.setTimeout(() => setJustApplied(false), 2400);
       } else {
-        syncParentDiscount(0);
+        expectParentApplyRef.current = false;
         onAppliedChange?.(null);
+        syncParentDiscount(0);
+        setPreview(result);
       }
     } catch (err) {
       if (requestId !== applyRequestIdRef.current) return;

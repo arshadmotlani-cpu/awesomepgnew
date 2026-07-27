@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  startTransition,
   useActionState,
   useCallback,
   useEffect,
@@ -72,6 +73,28 @@ function writeStoredCoupon(key: string, applied: AppliedCouponState | null) {
   }
 }
 
+function buildBookingFormData(input: {
+  startDate: string;
+  endDate: string | null;
+  durationMode: string;
+  stayType: string;
+  bedIds: string[];
+  couponCode?: string | null;
+}): FormData {
+  const fd = new FormData();
+  fd.set('startDate', input.startDate);
+  if (input.endDate) fd.set('endDate', input.endDate);
+  fd.set('durationMode', input.durationMode);
+  fd.set('stayType', input.stayType);
+  for (const id of input.bedIds) {
+    fd.append('bedId', id);
+  }
+  if (input.couponCode?.trim()) {
+    fd.set('couponCode', input.couponCode.trim().toUpperCase());
+  }
+  return fd;
+}
+
 type Props = {
   isLoggedIn: boolean;
   review: BookingReviewData;
@@ -98,10 +121,9 @@ export function BookingReviewFlow({
   customerPhone,
 }: Props) {
   const router = useRouter();
-  const formRef = useRef<HTMLFormElement>(null);
   const submitGuardRef = useRef(false);
   const redirectedRef = useRef(false);
-  const submitStartedAtRef = useRef<number | null>(null);
+  const sawPendingRef = useRef(false);
   const isPendingRef = useRef(false);
   const actionStatusRef = useRef<BookingActionState['status']>('idle');
   const [step, dispatchStep] = useReducer(bookingFlowReducer, 'REVIEW' as BookingFlowStep);
@@ -110,6 +132,9 @@ export function BookingReviewFlow({
 
   isPendingRef.current = isPending;
   actionStatusRef.current = state.status;
+  if (isPending) {
+    sawPendingRef.current = true;
+  }
 
   const couponStorageKey = useMemo(
     () => reviewCouponStorageKey(bedIds, startDate, endDate),
@@ -118,12 +143,13 @@ export function BookingReviewFlow({
 
   const [appliedCoupon, setAppliedCoupon] = useState<AppliedCouponState | null>(null);
   const [couponHydrated, setCouponHydrated] = useState(false);
+  const skipNextWriteRef = useRef(false);
 
   const discountPaise = appliedBookingCouponDiscountPaise(appliedCoupon);
 
   useEffect(() => {
     const stored = readStoredCoupon(couponStorageKey);
-    // Always sync — clear stale coupon when key has no store (date/bed change).
+    skipNextWriteRef.current = true;
     setAppliedCoupon(stored);
     setCouponHydrated(true);
     logBookingFlowStep('REVIEW', {
@@ -137,6 +163,10 @@ export function BookingReviewFlow({
 
   useEffect(() => {
     if (!couponHydrated) return;
+    if (skipNextWriteRef.current) {
+      skipNextWriteRef.current = false;
+      return;
+    }
     writeStoredCoupon(couponStorageKey, appliedCoupon);
   }, [appliedCoupon, couponHydrated, couponStorageKey]);
 
@@ -186,6 +216,7 @@ export function BookingReviewFlow({
       isPending,
       submitGuard: submitGuardRef.current,
       actionStatus: state.status,
+      sawPending: sawPendingRef.current,
     });
   }, [step, isPending, state.status]);
 
@@ -200,7 +231,7 @@ export function BookingReviewFlow({
 
   const failCreateClient = useCallback((reason: string) => {
     submitGuardRef.current = false;
-    submitStartedAtRef.current = null;
+    sawPendingRef.current = false;
     dispatchStep({ type: 'CREATE_TIMEOUT' });
     setClientError(BOOKING_CREATE_TIMEOUT_MESSAGE);
     logBookingFlowStep('FAILED', { reason });
@@ -212,27 +243,49 @@ export function BookingReviewFlow({
         skipped: 'duplicate_submit',
         isPending: isPendingRef.current,
         actionStatus: actionStatusRef.current,
+        sawPending: sawPendingRef.current,
       });
       return;
     }
-    if (!formRef.current) {
-      logBookingFlowStep('FAILED', { reason: 'form_ref_missing' });
-      setClientError(BOOKING_CREATE_TIMEOUT_MESSAGE);
-      dispatchStep({ type: 'CREATE_TIMEOUT' });
-      return;
-    }
+
+    const fd = buildBookingFormData({
+      startDate,
+      endDate,
+      durationMode,
+      stayType,
+      bedIds,
+      couponCode: appliedCoupon?.code ?? null,
+    });
+
     submitGuardRef.current = true;
-    submitStartedAtRef.current = Date.now();
+    sawPendingRef.current = false;
     setClientError(null);
     dispatchStep({ type: 'CREATE_START' });
     logBookingFlowStep('CREATE_BOOKING', {
-      event: 'request_submit',
+      event: 'form_action_dispatch',
       couponCode: appliedCoupon?.code ?? null,
       discountPaise,
       totalToCollectTodayPaise: liveTotals.totalToCollectTodayPaise,
+      bedCount: bedIds.length,
+      payloadKeys: Array.from(fd.keys()),
     });
-    formRef.current.requestSubmit();
-  }, [appliedCoupon?.code, discountPaise, liveTotals.totalToCollectTodayPaise]);
+
+    // Prefer direct useActionState dispatch — requestSubmit() can flicker isPending
+    // without ever delivering a terminal state (silent Continue death).
+    startTransition(() => {
+      formAction(fd);
+    });
+  }, [
+    appliedCoupon?.code,
+    bedIds,
+    discountPaise,
+    durationMode,
+    endDate,
+    formAction,
+    liveTotals.totalToCollectTodayPaise,
+    startDate,
+    stayType,
+  ]);
 
   useEffect(() => {
     if (!isLoggedIn || step !== 'AUTH_REQUIRED') return;
@@ -245,7 +298,7 @@ export function BookingReviewFlow({
 
     if (state.status === 'error') {
       submitGuardRef.current = false;
-      submitStartedAtRef.current = null;
+      sawPendingRef.current = false;
       dispatchStep({ type: 'CREATE_ERROR' });
       setClientError(state.message);
       logBookingFlowStep('FAILED', {
@@ -258,7 +311,7 @@ export function BookingReviewFlow({
     if (state.status === 'success' && !redirectedRef.current) {
       redirectedRef.current = true;
       submitGuardRef.current = false;
-      submitStartedAtRef.current = null;
+      sawPendingRef.current = false;
       dispatchStep({ type: 'CREATE_SUCCESS' });
       writeStoredCoupon(couponStorageKey, null);
       logBookingFlowStep('REDIRECT_PAYMENT', {
@@ -270,7 +323,7 @@ export function BookingReviewFlow({
     }
   }, [state, router, couponStorageKey]);
 
-  // Watchdog: hung while pending (classic timeout).
+  // Hung while pending.
   useEffect(() => {
     if (step !== 'CREATE_BOOKING' || !isPending) return;
 
@@ -282,7 +335,7 @@ export function BookingReviewFlow({
     return () => window.clearTimeout(timer);
   }, [step, isPending, failCreateClient]);
 
-  // Watchdog: CREATE started but action never became pending — silent Continue death.
+  // Only if pending NEVER started after dispatch (broken action wiring).
   useEffect(() => {
     if (step !== 'CREATE_BOOKING' || isPending || state.status !== 'idle') return;
     if (!submitGuardRef.current) return;
@@ -293,7 +346,13 @@ export function BookingReviewFlow({
           step: 'CREATE_BOOKING',
           submitGuard: submitGuardRef.current,
           actionPending: isPendingRef.current,
-          actionStatus: actionStatusRef.current === 'idle' ? 'idle' : actionStatusRef.current === 'error' ? 'error' : 'success',
+          actionStatus:
+            actionStatusRef.current === 'idle'
+              ? 'idle'
+              : actionStatusRef.current === 'error'
+                ? 'error'
+                : 'success',
+          sawActionPending: sawPendingRef.current,
         })
       ) {
         return;
@@ -306,7 +365,7 @@ export function BookingReviewFlow({
 
   function handleRetry() {
     redirectedRef.current = false;
-    submitStartedAtRef.current = null;
+    sawPendingRef.current = false;
     dispatchStep({ type: 'RESET' });
     setClientError(null);
     submitGuardRef.current = false;
@@ -321,7 +380,18 @@ export function BookingReviewFlow({
       submitGuard: submitGuardRef.current,
       actionStatus: state.status,
       appliedCode: appliedCoupon?.code ?? null,
+      checkoutTotals: liveTotals,
     });
+
+    // Success already returned but navigation may have failed — retry redirect.
+    if (state.status === 'success' && state.nextRoute) {
+      logBookingFlowStep('REDIRECT_PAYMENT', {
+        event: 'retry_redirect',
+        nextRoute: state.nextRoute,
+      });
+      router.replace(state.nextRoute);
+      return;
+    }
 
     if (step === 'FAILED') {
       handleRetry();
@@ -429,7 +499,14 @@ export function BookingReviewFlow({
         </div>
       ) : null}
 
-      <form ref={formRef} action={formAction} className="space-y-3">
+      {/* Hidden fields kept for progressive enhancement / inspection; submit uses FormData builder. */}
+      <form
+        className="space-y-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleContinue();
+        }}
+      >
         <input type="hidden" name="startDate" value={startDate} />
         {endDate ? <input type="hidden" name="endDate" value={endDate} /> : null}
         <input type="hidden" name="durationMode" value={durationMode} />
@@ -443,9 +520,8 @@ export function BookingReviewFlow({
 
         {showContinue ? (
           <button
-            type="button"
+            type="submit"
             disabled={busy}
-            onClick={handleContinue}
             className="flex min-h-[56px] w-full items-center justify-center rounded-2xl bg-apg-orange text-base font-bold text-white shadow-[0_0_32px_rgba(255,90,31,0.35)] transition hover:brightness-110 disabled:opacity-50"
           >
             {busy ? 'Confirming your booking…' : step === 'FAILED' ? 'Try again' : 'Continue'}

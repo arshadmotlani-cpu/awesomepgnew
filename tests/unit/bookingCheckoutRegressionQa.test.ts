@@ -74,8 +74,19 @@ describe('checkout regression QA matrix', () => {
         submitGuard: true,
         actionPending: false,
         actionStatus: 'idle',
+        sawActionPending: false,
       }),
       true,
+    );
+    assert.equal(
+      isStuckCreateSubmit({
+        step: 'CREATE_BOOKING',
+        submitGuard: true,
+        actionPending: false,
+        actionStatus: 'idle',
+        sawActionPending: true,
+      }),
+      false,
     );
     assert.equal(
       shouldRecoverStuckContinue({ step: 'CREATE_BOOKING', submitGuard: true }),
