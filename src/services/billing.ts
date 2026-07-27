@@ -10,6 +10,10 @@
 
 import { addDays, addMonths, diffDays, formatDate, parseDate, type DateLike } from '../lib/dates';
 import { computeNoticeDeductionBreakdown } from '../lib/vacating/noticeDeductionEngine';
+import {
+  applyLateFeePolicy,
+  type LateFeePolicySnapshot,
+} from './lateFeePolicy';
 
 /** Minimum calendar days of notice before vacating for zero deposit deduction. */
 export const VACATING_NOTICE_MIN_DAYS = 14;
@@ -184,20 +188,21 @@ export function daysOverdueFromDueDate(dueDate: DateLike, today: DateLike): numb
 /**
  * Late fee accrued on the principal as of `today`, in paise.
  *
- * Policy (spec):
- *   - Grace through the 5th. No fee.
- *   - Day 6 onwards: 1% of the ORIGINAL rent per day, accruing linearly
- *     (NOT compounded — example shows ₹6,000 → ₹6,060 → ₹6,120, i.e.
- *     ₹60/day flat = 1% of the original).
+ * Default (no policy):
+ *   - Grace through the 5th when keyed off billing_month (due_date = 5th).
+ *   - Day after due: 1% of ORIGINAL rent per day, linear (not compounded).
  *
- * Rounded with floor() so the customer is never overcharged by
- * sub-paise. `today` defaults to the runtime date.
+ * When `policy` is provided (Collections Phase 3), uses applyLateFeePolicy
+ * from lateFeePolicy — grace/cap/percent/fixed from the policy row.
+ * Omit/null preserves legacy 1%/day behavior.
  */
 export function computeLateFee(args: {
   rentPaise: number;
   billingMonth?: DateLike;
   dueDate?: DateLike;
   today?: DateLike;
+  /** Optional resolved late-fee policy; omit for legacy 1%/day. */
+  policy?: LateFeePolicySnapshot | null;
 }): number {
   if (args.rentPaise <= 0) return 0;
   const today = args.today ?? formatDate(new Date());
@@ -208,7 +213,16 @@ export function computeLateFee(args: {
         ? daysOverdue(args.billingMonth, today)
         : 0;
   if (overdue === 0) return 0;
-  // 1% of original rent per day, floored to whole paise.
+
+  if (args.policy) {
+    return applyLateFeePolicy({
+      principalPaise: args.rentPaise,
+      overdueDays: overdue,
+      policy: args.policy,
+    });
+  }
+
+  // Legacy: 1% of original rent per day, floored to whole paise.
   return Math.floor((args.rentPaise * overdue) / 100);
 }
 

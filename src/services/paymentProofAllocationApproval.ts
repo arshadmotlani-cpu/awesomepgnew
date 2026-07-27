@@ -187,6 +187,33 @@ async function approveRentWithAllocation(
   });
   if (!supplemental.ok) return { ok: false, message: supplemental.reason };
 
+  if (allocation.rentAllocatedPaise > 0) {
+    try {
+      const { resolveFinancialInvoiceIdMap } = await import('@/src/services/adminCashSettlement');
+      const { createReceipt } = await import('@/src/services/paymentReceipts');
+      const map = await resolveFinancialInvoiceIdMap([
+        { sourceTable: 'rent_invoices', sourceId: invoiceId },
+      ]);
+      const financialInvoiceId = map.get(`rent_invoices:${invoiceId}`);
+      if (financialInvoiceId) {
+        await createReceipt({
+          customerId: invoice.customerId,
+          bookingId: invoice.bookingId,
+          financialInvoiceId,
+          rentInvoiceId: invoiceId,
+          paymentId,
+          amountPaise: allocation.rentAllocatedPaise,
+          method: 'upi_manual',
+          paidAt: new Date(),
+          collectedByAdminId: session.adminId,
+          transactionRef: paymentId,
+        });
+      }
+    } catch (err) {
+      console.error('[proof-approval] receipt create failed (non-blocking)', err);
+    }
+  }
+
   return { ok: true };
 }
 

@@ -41,6 +41,42 @@ export async function recordResidentCredit(input: {
   });
 }
 
+/**
+ * Advance rent credit SSOT = resident_credit_ledger.
+ * entry_kind stays `credit` (enum); reason embeds `advance_rent` marker
+ * because reason is free text (no separate kind enum value).
+ */
+export const ADVANCE_RENT_REASON_MARKER = 'advance_rent';
+
+export async function postAdvanceRentCredit(input: {
+  customerId: string;
+  bookingId?: string | null;
+  amountPaise: number;
+  note?: string | null;
+  relatedPaymentId?: string | null;
+  createdByAdminId?: string | null;
+}): Promise<void> {
+  const note = input.note?.trim();
+  const reason = note
+    ? `${ADVANCE_RENT_REASON_MARKER}: ${note}`
+    : ADVANCE_RENT_REASON_MARKER;
+  await recordResidentCredit({
+    customerId: input.customerId,
+    bookingId: input.bookingId,
+    amountPaise: input.amountPaise,
+    reason,
+    relatedPaymentId: input.relatedPaymentId,
+    createdByAdminId: input.createdByAdminId,
+  });
+}
+
+export function isAdvanceRentLedgerReason(reason: string): boolean {
+  return (
+    reason === ADVANCE_RENT_REASON_MARKER ||
+    reason.startsWith(`${ADVANCE_RENT_REASON_MARKER}:`)
+  );
+}
+
 export async function recordResidentCreditDebit(input: {
   customerId: string;
   bookingId?: string | null;

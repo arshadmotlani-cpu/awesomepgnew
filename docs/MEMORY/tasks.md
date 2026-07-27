@@ -6,6 +6,11 @@
 
 ---
 
+## 2026-07-28
+
+- [x] **COLLECTIONS-P3** — Schema 0130 + lateFeePolicy/reminders/receipts/reports/bulk stubs, cron, tests, docs
+- [x] **COLLECTIONS-P2** — billing_events schema/service, wire emissions, invoice history surfaces, tests, docs
+
 ## 2026-07-27
 
 - [ ] **FYH-NEON** — Provision Neon DB + set `HAIR_DATABASE_URL` / `HAIR_ADMIN_*` on Vercel; add DNS `foryourhair.awesomepg.in`

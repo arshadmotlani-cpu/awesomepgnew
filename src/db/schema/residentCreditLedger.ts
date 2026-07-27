@@ -24,6 +24,9 @@ export const residentCreditEntryKindEnum = pgEnum('resident_credit_entry_kind', 
 /**
  * Append-only resident credit balance — separate from deposit escrow.
  * Running balance = sum(amount_paise) per customer_id.
+ *
+ * Advance rent: entry_kind stays `credit`; reason embeds marker `advance_rent`
+ * (see postAdvanceRentCredit). Reason is free text — no enum extension.
  */
 export const residentCreditLedger = pgTable(
   'resident_credit_ledger',

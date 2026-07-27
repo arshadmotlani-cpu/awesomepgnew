@@ -256,7 +256,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-27 20:36:32 UTC
+### Pending pre-commit sync · 2026-07-27 20:36:39 UTC
 
 **Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]]
 
@@ -269,13 +269,15 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (6):**
-- `app/(admin)/admin/invoices/[invoiceId]/page.tsx`
-- `src/db/migrations/0129_billing_events.sql`
-- `src/db/migrations/meta/_journal.json`
-- `src/db/schema/billingEvents.ts`
-- `src/db/schema/index.ts`
-- `src/services/rentInvoices.ts`
+**Staged code files (8):**
+- `app/(admin)/admin/collections/reminders/page.tsx`
+- `app/(admin)/admin/collections/reports/page.tsx`
+- `app/api/cron/collections-reminders/route.ts`
+- `src/db/migrations/0130_collections_ops.sql`
+- `src/db/schema/collectionsOps.ts`
+- `src/db/schema/residentCreditLedger.ts`
+- `src/lib/billing/receiptPdf.ts`
+- `src/services/billing.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

@@ -1,21 +1,37 @@
 import Link from 'next/link';
-import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { adminHasPermission } from '@/src/lib/auth/roles';
 import { isCollectionsV1Enabled } from '@/src/lib/collections/featureFlag';
+import { paiseToInr } from '@/src/lib/format';
+import { loadCollectionsReport } from '@/src/services/collectionsReports';
 import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
-/** Phase 3 reports stub — full KPIs land with collectionsReports. */
-export default async function CollectionsReportsStubPage() {
+/** Phase 3.4 reports — KPIs from RFE projections via collectionsReports. */
+export default async function CollectionsReportsPage() {
   if (!isCollectionsV1Enabled()) redirect('/admin/billing');
   const session = await requireAdminSession('/admin/collections/reports');
   if (!adminHasPermission(session.role, 'collections:read')) {
     redirect('/admin/overview');
   }
+
+  const report = await loadCollectionsReport({
+    session: { role: session.role, pgScope: session.pgScope },
+  });
+
+  const cards = [
+    { label: 'Expected', value: paiseToInr(report.expectedPaise) },
+    { label: 'Collected (today)', value: paiseToInr(report.collectedPaise) },
+    { label: 'Outstanding', value: paiseToInr(report.outstandingPaise) },
+    { label: 'Overdue', value: paiseToInr(report.overduePaise) },
+    {
+      label: 'Efficiency',
+      value: report.efficiencyPct == null ? '—' : `${report.efficiencyPct}%`,
+    },
+  ];
 
   return (
     <>
@@ -26,10 +42,9 @@ export default async function CollectionsReportsStubPage() {
           { label: 'Reports' },
         ]}
       />
-      <DbStatusBanner />
       <PageHeader
         title="Collection reports"
-        description="Efficiency and windowed totals will appear here in Phase 3. Use the dashboard KPIs for daily work."
+        description={`Window: ${report.windowLabel} · as of ${report.asOf}. Totals from RFE-projected rows only.`}
         actions={
           <Link
             href="/admin/collections"
@@ -39,8 +54,16 @@ export default async function CollectionsReportsStubPage() {
           </Link>
         }
       />
-      <div className="mt-8 rounded-xl border border-dashed border-white/20 bg-[#1A1F27] p-8 text-center text-sm text-apg-silver">
-        Reports service ships in Phase 3.4 — Expected / Collected / Outstanding / Overdue from RFE only.
+      <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {cards.map((c) => (
+          <div
+            key={c.label}
+            className="rounded-xl border border-white/10 bg-[#1A1F27] px-4 py-3"
+          >
+            <div className="text-[11px] uppercase tracking-wide text-apg-silver">{c.label}</div>
+            <div className="mt-1 text-lg font-semibold text-white">{c.value}</div>
+          </div>
+        ))}
       </div>
     </>
   );

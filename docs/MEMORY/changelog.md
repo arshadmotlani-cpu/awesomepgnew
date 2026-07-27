@@ -7,6 +7,11 @@
 
 ---
 
+## 2026-07-28
+
+- **COLLECTIONS-P3** — Phase 3.0–3.4 scaffolding: migration `0130_collections_ops` (late fee policies/waivers, reminder policies/templates/deliveries, payment_receipts); services lateFeePolicy/collectionReminders/paymentReceipts/collectionsReports/collectionsBulkOps; cron collections-reminders; advance_rent via ledger reason; docs/COLLECTIONS.md Phase 3
+- **COLLECTIONS-P2** — `billing_events` append-only log + emissions on rent generate/overdue/paid/proof; Collections lifecycle panel on admin invoice detail; `docs/COLLECTIONS.md` Phase 1–2
+
 ## 2026-07-27
 
 - **FYH-SHELL-01** — Scaffold For Your Hair ERP on `foryourhair.awesomepg.in`: host middleware, `/fyh` rewrite isolation, separate Neon/Drizzle (`HAIR_DATABASE_URL`), auth shell, Luxury Forest theme, Coming Soon modules
