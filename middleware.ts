@@ -9,6 +9,10 @@ import {
   capitalMiddleware,
   shouldRunCapitalMiddleware,
 } from '@/src/capital/middleware/capitalMiddleware';
+import {
+  hairMiddleware,
+  shouldRunHairMiddleware,
+} from '@/src/hair/middleware/hairMiddleware';
 
 function needsCustomerAuth(pathname: string): boolean {
   if (pathname === '/booking/new') return true;
@@ -48,6 +52,10 @@ function attachMonitoringHeaders(request: NextRequest): Headers {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  if (shouldRunHairMiddleware(request)) {
+    return hairMiddleware(request);
+  }
+
   if (shouldRunCapitalMiddleware(request)) {
     return capitalMiddleware(request);
   }
@@ -72,6 +80,22 @@ export function middleware(request: NextRequest) {
     return new NextResponse(null, { status: 404 });
   }
 
+  const hairOnlyPaths = [
+    '/fyh',
+    '/customers',
+    '/appointments',
+    '/billing',
+    '/services',
+    '/products',
+    '/inventory',
+    '/staff',
+    '/profile',
+    '/api/hair',
+  ];
+  if (hairOnlyPaths.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+    return new NextResponse(null, { status: 404 });
+  }
+
   const requestHeaders = attachMonitoringHeaders(request);
 
   if (needsCustomerAuth(pathname)) {
@@ -84,7 +108,6 @@ export function middleware(request: NextRequest) {
     if (!customerToken && !allowSignupPassword) {
       const invoiceRef = residentInvoiceRef(pathname);
 
-      // Admin-only session on a resident share link → admin invoice page (not customer login).
       if (invoiceRef && adminToken) {
         console.warn(
           '[middleware] resident_invoice_admin_session_redirect',
@@ -141,10 +164,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Run on all app paths so invest.awesomepg.in can allowlist Capital routes
-     * and 404 Awesome PG pages. Skip Next internals and common static assets.
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|webmanifest)$).*)',
   ],
 };

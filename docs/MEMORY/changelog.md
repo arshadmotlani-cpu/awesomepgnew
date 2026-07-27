@@ -7,6 +7,10 @@
 
 ---
 
+## 2026-07-27
+
+- **FYH-SHELL-01** — Scaffold For Your Hair ERP on `foryourhair.awesomepg.in`: host middleware, `/fyh` rewrite isolation, separate Neon/Drizzle (`HAIR_DATABASE_URL`), auth shell, Luxury Forest theme, Coming Soon modules
+
 ## 2026-07-26
 
 - **CAPITAL-INVESTMENT-TRUTH** — Rewrote `financial-truth-report.ts` for Capital Reset Rebuild SSOT: Current Investment / Active Capital (open inventory Σ) / Budget Remaining / splitDealProfit; sold=sold|settled; docs under `reconciliation/`

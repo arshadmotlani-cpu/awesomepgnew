@@ -7,6 +7,8 @@
 
 ## Current Focus
 
+- **For Your Hair ERP (shell)** — New app on `foryourhair.awesomepg.in`: host middleware + `/fyh` rewrites, separate Neon (`HAIR_DATABASE_URL`), Luxury Forest auth/layout/Coming Soon modules. Next: provision Neon + DNS, then build modules one-by-one.
+
 - **Automotive Capital audit remediation (shipped locally)** — Money integrity (activity reverse↔cost/seller ledgers), settle without capital-return gate, Reports = Dashboard Active Capital / entitled My Profit, Purchase Pending = seller Remaining SSOT, vehicle IA collapsed to Overview|Work|Sale|Files.
 
 - **Automotive Capital dealership OS (ADR-020 + dealer surface)** — UI answers buy / cost / paid seller / remaining / profit only. No Funding Status, Gap, My/Partner Investment, Over/Underfunded. Stakes remain internal for Active Capital + ROI (auto Me = purchase).

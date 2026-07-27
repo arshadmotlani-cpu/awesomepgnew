@@ -32,7 +32,11 @@
     "capital:db:generate": "drizzle-kit generate --config capital/drizzle.config.ts",
     "capital:db:migrate": "tsx src/capital/db/migrate.ts",
     "capital:db:seed": "tsx src/capital/db/seed.ts",
-    "capital:db:studio": "drizzle-kit studio --config capital/drizzle.config.ts"
+    "capital:db:studio": "drizzle-kit studio --config capital/drizzle.config.ts",
+    "hair:db:generate": "drizzle-kit generate --config hair/drizzle.config.ts",
+    "hair:db:migrate": "tsx src/hair/db/migrate.ts",
+    "hair:db:seed": "tsx src/hair/db/seed.ts",
+    "hair:db:studio": "drizzle-kit studio --config hair/drizzle.config.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

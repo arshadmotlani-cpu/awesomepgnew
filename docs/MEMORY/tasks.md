@@ -6,6 +6,11 @@
 
 ---
 
+## 2026-07-27
+
+- [ ] **FYH-NEON** — Provision Neon DB + set `HAIR_DATABASE_URL` / `HAIR_ADMIN_*` on Vercel; add DNS `foryourhair.awesomepg.in`
+- [x] **FYH-SHELL-01** — App shell: host routing, auth, layout, theme, placeholder nav (no salon features yet)
+
 ## 2026-07-26
 
 - [x] **CAPITAL-INVESTMENT-TRUTH** — Rewrite financial-truth-report for investment-math SSOT (Active Capital = Σ current investment; no Me-stake filter)

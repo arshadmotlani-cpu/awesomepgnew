@@ -52,5 +52,27 @@ else
   echo "⚠ Capital database URL not set (INVEST_DATABASE_URL or INVEST_DATABASE_DATABASE_URL) — skipping Capital migrations."
 fi
 
+has_hair_db_url() {
+  [[ -n "${HAIR_DATABASE_URL:-}" ]] \
+    || [[ -n "${FORYOURHAIR_DATABASE_URL:-}" ]] \
+    || [[ -n "${HAIR_DATABASE_DATABASE_URL:-}" ]] \
+    || [[ -n "${HAIR_POSTGRES_URL:-}" ]] \
+    || [[ -n "${HAIR_POSTGRES_PRISMA_URL:-}" ]]
+}
+
+if has_hair_db_url; then
+  echo "=== For Your Hair database migrations ==="
+  if is_production_deployment; then
+    npm run hair:db:migrate
+    npm run hair:db:seed || true
+  elif npm run hair:db:migrate; then
+    npm run hair:db:seed || true
+  else
+    echo "⚠ Hair db:migrate failed — continuing build."
+  fi
+else
+  echo "⚠ Hair database URL not set (HAIR_DATABASE_URL) — skipping For Your Hair migrations."
+fi
+
 bash scripts/vercel-build-repair.sh
 next build
