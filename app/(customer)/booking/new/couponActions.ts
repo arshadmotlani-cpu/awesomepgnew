@@ -27,28 +27,6 @@ export async function previewPromoCodeAction(
   const customerEmail = formData.get('customerEmail')?.toString()?.trim() || undefined;
   const customerPhone = formData.get('customerPhone')?.toString()?.trim() || undefined;
 
-  // #region agent log
-  fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '2142b1' },
-    body: JSON.stringify({
-      sessionId: '2142b1',
-      runId: 'pre-fix',
-      hypothesisId: 'A',
-      location: 'couponActions.ts:entry',
-      message: 'previewPromoCodeAction entered',
-      data: {
-        codeLen: code.length,
-        isDateCoupon: /^\d{6}$/.test(code),
-        hasCustomerId: Boolean(customerId),
-        subtotalPaise,
-        context,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
-
   if (!code) return { status: 'idle' };
   if (!Number.isFinite(subtotalPaise) || subtotalPaise <= 0) {
     return { status: 'invalid', message: 'Invalid amount' };
@@ -64,52 +42,13 @@ export async function previewPromoCodeAction(
       customerPhone,
     });
 
-    const preview = previewCouponStateFromDiscount(result, subtotalPaise);
-
-    // #region agent log
-    fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '2142b1' },
-      body: JSON.stringify({
-        sessionId: '2142b1',
-        runId: 'pre-fix',
-        hypothesisId: 'A',
-        location: 'couponActions.ts:success',
-        message: 'previewPromoCodeAction success',
-        data: {
-          status: preview.status,
-          discountPaise: preview.status === 'applied' ? preview.discountPaise : 0,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-
-    return preview;
+    return previewCouponStateFromDiscount(result, subtotalPaise);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
     console.error('[previewPromoCodeAction] unexpected failure', {
       code: code.toUpperCase(),
       context,
-      message,
+      message: err instanceof Error ? err.message : String(err),
     });
-
-    // #region agent log
-    fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '2142b1' },
-      body: JSON.stringify({
-        sessionId: '2142b1',
-        runId: 'pre-fix',
-        hypothesisId: 'B',
-        location: 'couponActions.ts:catch',
-        message: 'previewPromoCodeAction caught error',
-        data: { errMessage: message.slice(0, 200) },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-
     return {
       status: 'invalid',
       message: 'Could not validate promo code. Try again.',
