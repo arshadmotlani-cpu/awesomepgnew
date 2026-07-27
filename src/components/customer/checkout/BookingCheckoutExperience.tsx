@@ -60,6 +60,9 @@ export type BookingCheckoutExperienceProps = {
   rejectedAt?: Date | string | null;
   /** Kept for API compat — not shown in the customer breakdown. */
   discountPaise?: number;
+  /** Applied coupon code for display (no re-entry on pay). */
+  couponCode?: string | null;
+  couponLabel?: string | null;
   depositCreditAppliedPaise?: number;
   additionalDepositDuePaise?: number;
   priorOutstandingItems?: PriorOutstandingItem[];
@@ -120,6 +123,8 @@ export function BookingCheckoutExperience({
   rejectionMessage,
   rejectedAt,
   discountPaise = 0,
+  couponCode = null,
+  couponLabel = null,
   depositCreditAppliedPaise = 0,
   additionalDepositDuePaise,
   priorOutstandingItems = [],
@@ -155,10 +160,23 @@ export function BookingCheckoutExperience({
     },
     ps4Paise: membershipAmountPaise,
   });
-  const rentPaise = checkoutTotals.rentDuePaise;
   const depositLinePaise = isReserveBooking ? 0 : depositDueNowPaise;
   const payNowPaise = checkoutTotals.totalToCollectTodayPaise;
   const payNowLabel = paiseToInr(payNowPaise);
+  const hasCoupon = discountPaise > 0;
+  const couponPctOff =
+    hasCoupon && subtotalPaise > 0 ? Math.round((discountPaise / subtotalPaise) * 100) : null;
+
+  const couponAppliedBadge =
+    hasCoupon ? (
+      <div className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-full bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-200 ring-1 ring-emerald-400/30">
+        <span>Coupon Applied</span>
+        {couponCode ? <span className="font-mono tracking-wide">{couponCode}</span> : null}
+        {couponPctOff != null ? <span>{couponPctOff}% OFF</span> : null}
+        {couponLabel ? <span className="font-normal opacity-80">· {couponLabel}</span> : null}
+        <span className="font-normal">−{paiseToInr(discountPaise)}</span>
+      </div>
+    ) : null;
 
   useEffect(() => {
     if (!screenshotAmountInr) {
@@ -430,9 +448,15 @@ export function BookingCheckoutExperience({
             : (
               <div className="flex justify-between gap-4">
                 <dt className="text-apg-silver">{rentLineLabel(isReserveBooking, stayNights, durationMode)}</dt>
-                <dd className="font-semibold text-white">{paiseToInr(rentPaise)}</dd>
+                <dd className="font-semibold text-white">{paiseToInr(subtotalPaise)}</dd>
               </div>
             )}
+          {discountPaise > 0 ? (
+            <div className="flex justify-between gap-4 text-emerald-300">
+              <dt>Coupon discount{couponCode ? ` (${couponCode})` : ''}</dt>
+              <dd>−{paiseToInr(discountPaise)}</dd>
+            </div>
+          ) : null}
           {!isReserveBooking && depositLinePaise > 0 ? (
             <div className="flex justify-between gap-4">
               <dt className="text-apg-silver">Refundable deposit (50%)</dt>
@@ -481,6 +505,7 @@ export function BookingCheckoutExperience({
             {hasPrior ? 'Total to collect today' : 'Total to pay today'}
           </p>
           <p className="mt-1 text-3xl font-bold text-white">{payNowLabel}</p>
+          {couponAppliedBadge}
         </div>
       </section>
       </>
@@ -497,6 +522,7 @@ export function BookingCheckoutExperience({
               {hasPrior ? 'Total to collect today' : 'Total to pay today'}
             </p>
             <p className="mt-1 text-3xl font-bold text-white">{payNowLabel}</p>
+            {couponAppliedBadge}
           </div>
         </section>
       )}

@@ -2022,6 +2022,7 @@ export async function cancelBooking(
       status: bookings.status,
       bookingCode: bookings.bookingCode,
       subtotalPaise: bookings.subtotalPaise,
+      discountPaise: bookings.discountPaise,
       depositPaise: bookings.depositPaise,
       totalPaise: bookings.totalPaise,
       pricingSnapshot: bookings.pricingSnapshot,
@@ -2047,19 +2048,22 @@ export async function cancelBooking(
     ?.cancellationPolicy as CancellationPolicy | undefined;
   const policy = input.policyOverride ?? snapshotPolicy ?? DEFAULT_POLICY;
 
+  // Refund rent on what the resident actually owed after coupon — never gross rent.
+  const refundableRentPaise = Math.max(0, b.subtotalPaise - (b.discountPaise ?? 0));
+
   const refund = computeRefund({
-    rentSubtotalPaise: b.subtotalPaise,
+    rentSubtotalPaise: refundableRentPaise,
     depositPaise: b.depositPaise,
     checkInAt: checkIn,
     cancelAt,
     policy,
   });
 
-  // For pending_payment cancellations there is no money to refund — the
-  // customer hasn't paid yet. We override the computation to zero in that
-  // case but keep the breakdown for the audit log.
+  // Unpaid bookings: no money to refund. Include draft (abandoned checkout).
   const noMoneyMoved =
-    b.status === 'pending_payment' || b.status === 'pending_approval';
+    b.status === 'pending_payment' ||
+    b.status === 'pending_approval' ||
+    b.status === 'draft';
 
   // Find the original successful booking payment so we can refund against it
   // when there's money to return.
@@ -2208,6 +2212,8 @@ export async function cancelBooking(
 
     const { reverseReferralOnBookingCancel } = await import('./referrals');
     await reverseReferralOnBookingCancel(b.id, tx);
+    // Promo/date coupon usage slots are restored by excluding cancelled/refunded
+    // bookings from usage counts (discount_applications rows kept for audit).
   });
 
   if (!noMoneyMoved && refund.depositRefundPaise > 0 && refundPaymentId) {

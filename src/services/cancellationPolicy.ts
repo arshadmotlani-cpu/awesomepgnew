@@ -101,7 +101,11 @@ export type RefundComputation = {
 };
 
 export type ComputeRefundInput = {
-  /** Booking's rent subtotal in paise (i.e. `bookings.subtotal_paise`). */
+  /**
+   * Refundable rent in paise. Callers must pass **post-discount** rent
+   * (`bookings.subtotal_paise - bookings.discount_paise`), never gross rent
+   * alone — otherwise coupon bookings over-refund.
+   */
   rentSubtotalPaise: number;
   /** Booking's deposit in paise (i.e. `bookings.deposit_paise`). */
   depositPaise: number;

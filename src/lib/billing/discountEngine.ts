@@ -3,6 +3,12 @@
  *
  * Stacking: exactly ONE discount per payment (priority: referral → promo/date coupon).
  * Reservation 50% is priced separately in reservePricing.ts — not stacked here.
+ *
+ * Cancellation policy for usage limits:
+ * - `discount_applications` and `coupon_redemptions` remain as immutable audit rows.
+ * - Usage / per-user / date-reuse counts **exclude** applications whose booking is
+ *   `cancelled` or `refunded` (same net effect as restoring the slot on cancel).
+ * - Referral redemptions are voided via status in `reverseReferralOnBookingCancel`.
  */
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
@@ -27,26 +33,82 @@ export type ResolvedDiscount = {
   dateCoupon?: DateCouponSnapshot;
   referrerCustomerId?: string;
   reason?: string;
+  /** Admin promo row id when discountType === promo_code. */
+  promoCouponId?: string;
+  /** Snapshot of percentage bps at apply time (1000 = 10%). */
+  percentageBps?: number | null;
 };
+
+/** Cap discount to [0, rent]. Rejects negative / NaN / over-rent client tricks. */
+export function clampRentDiscountPaise(rentPaise: number, discountPaise: number): number {
+  if (!Number.isFinite(rentPaise) || rentPaise <= 0) return 0;
+  if (!Number.isFinite(discountPaise) || discountPaise <= 0) return 0;
+  return Math.min(Math.floor(rentPaise), Math.floor(discountPaise));
+}
 
 function discountFromBps(amountPaise: number, bps: number): number {
   if (amountPaise <= 0 || bps <= 0) return 0;
-  return Math.floor((amountPaise * bps) / 10_000);
+  const cappedBps = Math.min(Math.max(0, Math.floor(bps)), 10_000);
+  return clampRentDiscountPaise(
+    amountPaise,
+    Math.floor((amountPaise * cappedBps) / 10_000),
+  );
 }
 
-async function customerUsedDateCouponForRent(
-  customerId: string,
-  couponCode: string,
-  couponDate: string,
-): Promise<boolean> {
+/** Booking statuses that no longer consume a coupon usage slot. */
+const ACTIVE_REDEMPTION_BOOKING_SQL = sql`(
+  ${couponRedemptions.rentInvoiceId} IS NOT NULL
+  OR ${couponRedemptions.bookingId} IS NULL
+  OR EXISTS (
+    SELECT 1 FROM bookings b
+    WHERE b.id = ${couponRedemptions.bookingId}
+      AND b.status NOT IN ('cancelled', 'refunded')
+  )
+)`;
+
+async function countActivePromoApplications(input: {
+  couponCode: string;
+  customerId?: string;
+}): Promise<number> {
+  const normalized = input.couponCode.trim().toUpperCase();
+  const conditions = [
+    eq(discountApplications.couponCode, normalized),
+    eq(discountApplications.discountType, 'promo_code'),
+    sql`(
+      ${discountApplications.bookingId} IS NULL
+      OR EXISTS (
+        SELECT 1 FROM bookings b
+        WHERE b.id = ${discountApplications.bookingId}
+          AND b.status NOT IN ('cancelled', 'refunded')
+      )
+    )`,
+  ];
+  if (input.customerId) {
+    conditions.push(eq(discountApplications.appliedByCustomerId, input.customerId));
+  }
+
+  const [usage] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(discountApplications)
+    .where(and(...conditions));
+
+  return usage?.count ?? 0;
+}
+
+async function customerUsedDateCoupon(input: {
+  customerId: string;
+  couponCode: string;
+  couponDate: string;
+}): Promise<boolean> {
   const [row] = await db
     .select({ id: couponRedemptions.id })
     .from(couponRedemptions)
     .where(
       and(
-        eq(couponRedemptions.customerId, customerId),
-        eq(couponRedemptions.couponCode, couponCode),
-        eq(couponRedemptions.couponDate, couponDate),
+        eq(couponRedemptions.customerId, input.customerId),
+        eq(couponRedemptions.couponCode, input.couponCode),
+        eq(couponRedemptions.couponDate, input.couponDate),
+        ACTIVE_REDEMPTION_BOOKING_SQL,
       ),
     )
     .limit(1);
@@ -78,36 +140,25 @@ async function resolveAdminPromo(input: {
   if (!coupon) return null;
 
   if (coupon.usageLimit != null) {
-    const [usage] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(discountApplications)
-      .where(
-        and(
-          eq(discountApplications.couponCode, normalized),
-          eq(discountApplications.discountType, 'promo_code'),
-        ),
-      );
-    if ((usage?.count ?? 0) >= coupon.usageLimit) return null;
+    const usageCount = await countActivePromoApplications({ couponCode: normalized });
+    if (usageCount >= coupon.usageLimit) return null;
   }
 
   if (input.customerId && coupon.perUserLimit > 0) {
-    const [perUser] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(discountApplications)
-      .where(
-        and(
-          eq(discountApplications.couponCode, normalized),
-          eq(discountApplications.appliedByCustomerId, input.customerId),
-        ),
-      );
-    if ((perUser?.count ?? 0) >= coupon.perUserLimit) return null;
+    const perUserCount = await countActivePromoApplications({
+      couponCode: normalized,
+      customerId: input.customerId,
+    });
+    if (perUserCount >= coupon.perUserLimit) return null;
   }
 
   let discountPaise = 0;
+  let percentageBps: number | null = null;
   if (coupon.type === 'fixed' && coupon.fixedAmountPaise) {
-    discountPaise = Math.min(input.amountPaise, coupon.fixedAmountPaise);
+    discountPaise = clampRentDiscountPaise(input.amountPaise, coupon.fixedAmountPaise);
   } else if (coupon.percentageBps) {
-    discountPaise = discountFromBps(input.amountPaise, coupon.percentageBps);
+    percentageBps = Math.min(coupon.percentageBps, 10_000);
+    discountPaise = discountFromBps(input.amountPaise, percentageBps);
   }
 
   if (discountPaise <= 0) return null;
@@ -118,6 +169,8 @@ async function resolveAdminPromo(input: {
     code: normalized,
     label: coupon.reason ?? `Promo ${normalized}`,
     reason: coupon.reason ?? undefined,
+    promoCouponId: coupon.id,
+    percentageBps,
   };
 }
 
@@ -157,11 +210,12 @@ export async function resolveCheckoutDiscount(input: {
       });
       if (referral.ok) {
         return {
-          discountPaise: referral.discountPaise,
+          discountPaise: clampRentDiscountPaise(input.amountPaise, referral.discountPaise),
           discountType: 'referral',
           code: code.toUpperCase(),
           label: 'Referral discount',
           referrerCustomerId: referral.referrerCustomerId,
+          percentageBps: 500,
         };
       }
       return { error: referral.reason };
@@ -170,43 +224,28 @@ export async function resolveCheckoutDiscount(input: {
 
   // Priority 2a: Date coupon (DDMMYY) — booking rent or rent invoice.
   if (DATE_COUPON_CODE_RE.test(code)) {
-    if (input.kind === 'rent_invoice' && input.customerId) {
+    if (input.kind === 'rent_invoice' || input.kind === 'booking_checkout') {
       const couponResult = applyDateCouponToRentSubtotal(
         input.amountPaise,
         code,
         input.now,
       );
       if (!couponResult.ok) return { error: 'Invalid or expired promo code' };
-      if (couponResult.coupon) {
-        const used = await customerUsedDateCouponForRent(
-          input.customerId,
-          couponResult.coupon.code,
-          couponResult.coupon.couponDate,
-        );
+      if (couponResult.coupon && input.customerId) {
+        const used = await customerUsedDateCoupon({
+          customerId: input.customerId,
+          couponCode: couponResult.coupon.code,
+          couponDate: couponResult.coupon.couponDate,
+        });
         if (used) return { error: 'You have already used this promo code.' };
       }
       return {
-        discountPaise: couponResult.discountPaise,
+        discountPaise: clampRentDiscountPaise(input.amountPaise, couponResult.discountPaise),
         discountType: 'date_coupon',
         code: couponResult.coupon?.code ?? code,
         label: 'Daily promo',
         dateCoupon: couponResult.coupon ?? undefined,
-      };
-    }
-
-    if (input.kind === 'booking_checkout') {
-      const couponResult = applyDateCouponToRentSubtotal(
-        input.amountPaise,
-        code,
-        input.now,
-      );
-      if (!couponResult.ok) return { error: 'Invalid or expired promo code' };
-      return {
-        discountPaise: couponResult.discountPaise,
-        discountType: 'date_coupon',
-        code: couponResult.coupon?.code ?? code,
-        label: 'Daily promo',
-        dateCoupon: couponResult.coupon ?? undefined,
+        percentageBps: 1000,
       };
     }
   }
@@ -240,8 +279,6 @@ export async function recordDiscountApplication(input: {
     .insert(discountApplications)
     .values({
       discountType: input.discountType,
-      couponCode: input.couponCode ?? null,
-      referralCode: input.referralCode ?? null,
       originalAmountPaise: input.originalAmountPaise,
       discountAmountPaise: input.discountAmountPaise,
       finalAmountPaise: input.finalAmountPaise,
@@ -249,6 +286,8 @@ export async function recordDiscountApplication(input: {
       bookingId: input.bookingId ?? null,
       rentInvoiceId: input.rentInvoiceId ?? null,
       paymentId: input.paymentId ?? null,
+      couponCode: input.couponCode ?? null,
+      referralCode: input.referralCode ?? null,
       reason: input.reason ?? null,
     })
     .returning();

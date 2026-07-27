@@ -61,6 +61,8 @@ export function CouponCodeField({
   initialDiscountPaise = 0,
   initialLabel,
   disabled = false,
+  title = 'Promo code',
+  omitInputName = false,
 }: {
   subtotalPaise: number;
   onDiscountChange: (discountPaise: number) => void;
@@ -79,6 +81,13 @@ export function CouponCodeField({
   initialDiscountPaise?: number;
   initialLabel?: string | null;
   disabled?: boolean;
+  /** Override the field label (e.g. "Have a Coupon Code?"). */
+  title?: string;
+  /**
+   * When true, do not set `name` on the visible input so a parent form can
+   * submit a single hidden `couponCode` without double-posting.
+   */
+  omitInputName?: boolean;
 }) {
   const styles = variantStyles[variant];
   const [code, setCode] = useState(initialCode);
@@ -154,11 +163,12 @@ export function CouponCodeField({
   return (
     <div className={`${styles.shell} ${justApplied ? 'ring-2 ring-emerald-400/40 transition-shadow' : ''}`}>
       <label className={`block ${styles.label}`}>
-        Promo code <span className="font-normal opacity-70">(optional)</span>
+        {title}{' '}
+        {!isApplied ? <span className="font-normal opacity-70">(optional)</span> : null}
       </label>
       <div className="mt-2 flex flex-wrap gap-2">
         <input
-          name="couponCode"
+          name={omitInputName ? undefined : 'couponCode'}
           value={code}
           disabled={disabled || isApplied}
           onChange={(e) => {
@@ -177,14 +187,14 @@ export function CouponCodeField({
         />
         {isApplied ? (
           <button type="button" onClick={clearPromo} className={styles.removeBtn}>
-            Remove
+            Remove Coupon
           </button>
         ) : (
           <button
             type="button"
             onClick={() => void applyPreview()}
             disabled={pending || disabled || !code.trim()}
-            className={variant === 'dark' ? styles.applyBtn : styles.applyBtn}
+            className={styles.applyBtn}
           >
             {pending ? '…' : 'Apply'}
           </button>
@@ -192,8 +202,9 @@ export function CouponCodeField({
       </div>
       {preview.status === 'applied' ? (
         <p className={`mt-2 ${styles.success} ${justApplied ? 'animate-pulse' : ''}`}>
-          {preview.label ? `${preview.label} — ` : 'Promo applied — '}
-          you save {paiseToInr(preview.discountPaise)}
+          Applied ✓
+          {preview.label ? ` · ${preview.label}` : ''} — you save{' '}
+          {paiseToInr(preview.discountPaise)}
         </p>
       ) : preview.status === 'invalid' ? (
         <p className={`mt-2 ${styles.error}`}>

@@ -19,8 +19,14 @@ export type BookingReviewData = {
   checkIn: string;
   checkOut?: string | null;
   stayNights?: number | null;
+  /** Gross rent subtotal (before coupon). */
   rentPaise: number;
+  /** Deposit due now (after credit). */
   depositPaise: number;
+  /** Deposit required before credit (for live recalculation). */
+  depositRequiredPaise?: number;
+  depositCreditAppliedPaise?: number;
+  priorOutstandingPaise?: number;
   totalDuePaise: number;
   lineItems?: BookingReviewLineItem[];
 };
@@ -30,18 +36,23 @@ function Row({
   value,
   emphasize,
   detail,
+  valueClassName,
 }: {
   label: string;
   value: ReactNode;
   emphasize?: boolean;
   detail?: string;
+  valueClassName?: string;
 }) {
   return (
     <div className="border-b border-white/8 py-3.5 last:border-0">
       <div className="flex items-start justify-between gap-4">
         <dt className="text-sm text-apg-silver">{label}</dt>
         <dd
-          className={`text-right text-sm font-medium ${emphasize ? 'text-lg font-bold text-apg-orange' : 'text-white'}`}
+          className={`text-right text-sm font-medium ${
+            valueClassName ??
+            (emphasize ? 'text-lg font-bold text-apg-orange' : 'text-white')
+          }`}
         >
           {value}
         </dd>
@@ -51,23 +62,39 @@ function Row({
   );
 }
 
-export function BookingReviewCard({ data }: { data: BookingReviewData }) {
+export function BookingReviewCard({
+  data,
+  discountPaise = 0,
+  couponCode = null,
+  couponLabel = null,
+  totalDuePaise,
+  couponSection,
+}: {
+  data: BookingReviewData;
+  discountPaise?: number;
+  couponCode?: string | null;
+  couponLabel?: string | null;
+  /** Live total when coupon state changes; defaults to data.totalDuePaise. */
+  totalDuePaise?: number;
+  couponSection?: ReactNode;
+}) {
   const isMonthly = isMonthlyStayType(data.stayType);
+  const liveTotal = totalDuePaise ?? data.totalDuePaise;
+  const rentGross = data.rentPaise;
+  const depositLine = data.depositPaise;
+  const hasDiscount = discountPaise > 0;
+  const pctOff =
+    hasDiscount && rentGross > 0
+      ? Math.round((discountPaise / rentGross) * 100)
+      : null;
 
-  const lineItems =
-    data.lineItems ??
-    [
-      {
-        label: `Rent (${data.roomNumber} · Bed ${data.bedCode})`,
-        amountPaise: data.rentPaise,
-        detail: 'Quoted from current bed pricing',
-      },
-      {
-        label: 'Security deposit',
-        amountPaise: data.depositPaise,
-        detail: 'Required deposit for this stay',
-      },
-    ];
+  const staticLineItems =
+    data.lineItems?.filter(
+      (item) =>
+        !item.label.toLowerCase().startsWith('rent') &&
+        !item.label.toLowerCase().includes('security deposit') &&
+        item.label !== 'Security deposit',
+    ) ?? [];
 
   return (
     <article className="overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-[#1a2332] to-[#121820] shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
@@ -95,7 +122,25 @@ export function BookingReviewCard({ data }: { data: BookingReviewData }) {
             value={`${data.stayNights} night${data.stayNights === 1 ? '' : 's'}`}
           />
         ) : null}
-        {lineItems.map((item) => (
+        <Row
+          label={`Rent (${data.roomNumber} · Bed ${data.bedCode})`}
+          value={paiseToInr(rentGross)}
+          detail="Quoted from current bed pricing"
+        />
+        {hasDiscount ? (
+          <Row
+            label="Coupon discount"
+            value={`−${paiseToInr(discountPaise)}`}
+            valueClassName="text-emerald-300"
+            detail="Applies to rent only — not deposit"
+          />
+        ) : null}
+        <Row
+          label="Security deposit"
+          value={paiseToInr(depositLine)}
+          detail="Required deposit for this stay"
+        />
+        {staticLineItems.map((item) => (
           <Row
             key={item.label}
             label={item.label}
@@ -105,10 +150,26 @@ export function BookingReviewCard({ data }: { data: BookingReviewData }) {
                 : paiseToInr(item.amountPaise)
             }
             detail={item.detail}
+            valueClassName={item.tone === 'credit' ? 'text-emerald-300' : undefined}
           />
         ))}
-        <Row label="Total payable today" value={paiseToInr(data.totalDuePaise)} emphasize />
+        <Row label="Total payable today" value={paiseToInr(liveTotal)} emphasize />
       </dl>
+
+      {couponSection ? (
+        <div className="border-t border-white/8 px-6 py-5 sm:px-8">{couponSection}</div>
+      ) : null}
+
+      {hasDiscount && couponCode ? (
+        <div className="border-t border-white/8 px-6 pb-4 sm:px-8">
+          <div className="inline-flex flex-wrap items-center gap-2 rounded-full bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-200 ring-1 ring-emerald-400/30">
+            <span>Coupon Applied</span>
+            <span className="font-mono tracking-wide">{couponCode}</span>
+            {pctOff != null ? <span>{pctOff}% OFF</span> : null}
+            {couponLabel ? <span className="font-normal opacity-80">· {couponLabel}</span> : null}
+          </div>
+        </div>
+      ) : null}
 
       <footer className="space-y-2 border-t border-white/8 bg-black/20 px-6 py-5 text-xs leading-relaxed text-apg-silver sm:px-8">
         <p className="font-semibold text-white">Awesome PG policies</p>

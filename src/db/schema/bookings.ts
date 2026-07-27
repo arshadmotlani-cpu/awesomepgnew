@@ -75,6 +75,21 @@ export type PricingSnapshot = {
     discountPaise: number;
     appliedAt: string;
   };
+  /** Promo / referral / date coupon applied at checkout (rent only). Immutable snapshot. */
+  appliedDiscount?: {
+    code: string;
+    discountType: 'referral' | 'date_coupon' | 'promo_code';
+    discountPaise: number;
+    label?: string;
+    /** Admin promo UUID when known — survives coupon edit/delete for history. */
+    promoCouponId?: string | null;
+    /** Basis points at apply time (1000 = 10%). Null for fixed-amount promos. */
+    percentageBps?: number | null;
+    originalRentPaise: number;
+    finalRentPaise: number;
+    appliedAt: string;
+    appliedByCustomerId?: string | null;
+  };
   /**
    * Admin-explicit deposit transfer from a prior booking — reduces cash/UPI due now.
    * Never set automatically at customer checkout; only via admin "Transfer old deposit".

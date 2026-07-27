@@ -42,6 +42,7 @@ import { formatDate as formatDateIso } from '@/src/lib/dates';
 import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
 import { CheckoutRefundReceiptFromDetail } from '@/src/components/admin/checkout/CheckoutRefundReceipt';
 import { vacatingWorkflowHref } from '@/src/lib/residents/commandCenterLinks';
+import type { PricingSnapshot } from '@/src/db/schema/bookings';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,6 +75,9 @@ export default async function AdminBookingDetailPage(
   }
 
   const b = res.data;
+  const pricingSnapshot = b.pricingSnapshot as PricingSnapshot | null;
+  const couponCodeUsed =
+    pricingSnapshot?.appliedDiscount?.code ?? pricingSnapshot?.dateCoupon?.code ?? null;
   const primaryRes = b.reservations.find((r) => r.kind === 'primary') ?? b.reservations[0];
   const [rentInvoices, electricityInvoices, financialAccount, paymentVerificationAudit, vacatingRes] =
     await Promise.all([
@@ -267,6 +271,62 @@ export default async function AdminBookingDetailPage(
               ) : null}
             </dl>
           </div>
+
+          {(b.discountPaise > 0 || couponCodeUsed) ? (
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5">
+              <h2 className="text-sm font-semibold text-white">Coupon</h2>
+              <dl className="mt-3 grid grid-cols-2 gap-y-1.5 text-sm">
+                <dt className="text-apg-silver">Coupon used</dt>
+                <dd className="text-right font-mono text-white">{couponCodeUsed ?? '—'}</dd>
+                {pricingSnapshot?.appliedDiscount?.promoCouponId ? (
+                  <>
+                    <dt className="text-apg-silver">Coupon ID</dt>
+                    <dd className="text-right font-mono text-[11px] text-apg-silver">
+                      {pricingSnapshot.appliedDiscount.promoCouponId}
+                    </dd>
+                  </>
+                ) : null}
+                {pricingSnapshot?.appliedDiscount?.percentageBps != null ||
+                pricingSnapshot?.dateCoupon?.discountPct != null ? (
+                  <>
+                    <dt className="text-apg-silver">Discount %</dt>
+                    <dd className="text-right text-white">
+                      {pricingSnapshot?.appliedDiscount?.percentageBps != null
+                        ? `${pricingSnapshot.appliedDiscount.percentageBps / 100}%`
+                        : `${pricingSnapshot?.dateCoupon?.discountPct}%`}
+                    </dd>
+                  </>
+                ) : null}
+                <dt className="text-apg-silver">Original rent</dt>
+                <dd className="text-right text-white tabular-nums">
+                  {paiseToInr(
+                    pricingSnapshot?.appliedDiscount?.originalRentPaise ?? b.subtotalPaise,
+                  )}
+                </dd>
+                <dt className="text-apg-silver">Discount amount</dt>
+                <dd className="text-right text-emerald-300 tabular-nums">
+                  −{paiseToInr(b.discountPaise)}
+                </dd>
+                <dt className="text-apg-silver">Final rent</dt>
+                <dd className="text-right text-white tabular-nums font-semibold">
+                  {paiseToInr(
+                    pricingSnapshot?.appliedDiscount?.finalRentPaise ??
+                      Math.max(0, b.subtotalPaise - b.discountPaise),
+                  )}
+                </dd>
+                {pricingSnapshot?.appliedDiscount?.appliedAt ? (
+                  <>
+                    <dt className="text-apg-silver">Applied at</dt>
+                    <dd className="text-right text-white">
+                      {formatDateTime(pricingSnapshot.appliedDiscount.appliedAt)}
+                    </dd>
+                  </>
+                ) : null}
+                <dt className="text-apg-silver">Booking total</dt>
+                <dd className="text-right text-white tabular-nums">{paiseToInr(b.totalPaise)}</dd>
+              </dl>
+            </div>
+          ) : null}
 
           {paymentVerificationAudit ? (
             <BookingPaymentVerificationAuditSection audit={paymentVerificationAudit} />

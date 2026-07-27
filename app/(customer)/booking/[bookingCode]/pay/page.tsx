@@ -156,6 +156,9 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
   });
   const checkoutTotalPaise = checkoutTotals.totalToCollectTodayPaise;
   const totalLabel = formatPaise(checkoutTotalPaise);
+  const appliedCouponCode =
+    snapshot?.appliedDiscount?.code ?? snapshot?.dateCoupon?.code ?? null;
+  const appliedCouponLabel = snapshot?.appliedDiscount?.label ?? null;
   const { qrImageUrl, upiId } = resolveBookingCheckoutQr({
     durationMode: booking.durationMode,
     hasPs4Addon: ps4Paise > 0,
@@ -242,6 +245,8 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
                   priorOutstandingItems={priorOutstandingItems}
                   rentLineItems={rentLineItems}
                   discountPaise={booking.discountPaise}
+                  couponCode={appliedCouponCode}
+                  couponLabel={appliedCouponLabel}
                   totalPaise={checkoutTotalPaise}
                   totalLabel={totalLabel}
                   qrImageUrl={qrImageUrl}

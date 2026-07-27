@@ -477,6 +477,9 @@ export async function createBooking(
   let dateCoupon: PricingSnapshot['dateCoupon'];
   let appliedDiscountType: 'referral' | 'date_coupon' | 'promo_code' | null = null;
   let appliedPromoCode: string | null = null;
+  let appliedDiscountLabel: string | null = null;
+  let appliedPromoCouponId: string | null = null;
+  let appliedPercentageBps: number | null = null;
   let referralReferrerId: string | null = null;
 
   if (!isAdminCreated && input.couponCode?.trim()) {
@@ -499,6 +502,9 @@ export async function createBooking(
     dateCoupon = resolved.dateCoupon;
     appliedDiscountType = resolved.discountType;
     appliedPromoCode = resolved.code;
+    appliedDiscountLabel = resolved.label;
+    appliedPromoCouponId = resolved.promoCouponId ?? null;
+    appliedPercentageBps = resolved.percentageBps ?? null;
     if (resolved.discountType === 'referral' && resolved.referrerCustomerId) {
       referralReferrerId = resolved.referrerCustomerId;
     }
@@ -532,6 +538,20 @@ export async function createBooking(
   });
   const totalPaise = checkoutTotals.totalToCollectTodayPaise;
   const snapshot = buildSnapshot(quote, input.notes, dateCoupon);
+  if (discountPaise > 0 && appliedDiscountType && appliedPromoCode) {
+    snapshot.appliedDiscount = {
+      code: appliedPromoCode,
+      discountType: appliedDiscountType,
+      discountPaise,
+      label: appliedDiscountLabel ?? undefined,
+      promoCouponId: appliedPromoCouponId,
+      percentageBps: appliedPercentageBps,
+      originalRentPaise: quote.subtotalPaise,
+      finalRentPaise: Math.max(0, quote.subtotalPaise - discountPaise),
+      appliedAt: new Date().toISOString(),
+      appliedByCustomerId: input.customerId ?? null,
+    };
+  }
   if (depositCreditAppliedPaise > 0 && isAdminCreated) {
     snapshot.depositCredit = {
       requiredPaise: quote.depositPaise,
@@ -713,7 +733,7 @@ export async function createBooking(
             totalPaise,
             discountPaise,
             depositCreditAppliedPaise,
-            couponCode: dateCoupon?.code ?? null,
+            couponCode: appliedPromoCode ?? dateCoupon?.code ?? null,
           },
         });
 

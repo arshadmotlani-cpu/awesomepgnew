@@ -149,4 +149,35 @@ describe('booking checkout totals SSOT', () => {
     assert.equal(breakdown.depositCashDuePaise, 78_500);
     assert.equal(breakdown.creditAppliedPaise, 16_500);
   });
+
+  it('10% rent coupon reduces rent only — deposit unchanged', () => {
+    const rentSubtotalPaise = 100_000;
+    const depositRequiredPaise = 50_000;
+    const discountPaise = Math.floor((rentSubtotalPaise * 1000) / 10_000); // WELCOME10 = 10%
+    assert.equal(discountPaise, 10_000);
+
+    const totals = computeNewBookingCheckoutTotals({
+      rentSubtotalPaise,
+      depositRequiredPaise,
+      discountPaise,
+    });
+
+    assert.equal(totals.rentDuePaise, 90_000);
+    assert.equal(totals.depositDueNowPaise, 50_000);
+    assert.equal(totals.depositRequiredPaise, 50_000);
+    assert.equal(totals.newBookingTotalPaise, 140_000);
+    assert.equal(totals.totalToCollectTodayPaise, 140_000);
+
+    const withPrior = computeNewBookingCheckoutTotals({
+      rentSubtotalPaise,
+      depositRequiredPaise,
+      discountPaise,
+      priorOutstanding: {
+        totalPaise: 5_000,
+        items: [{ label: 'Prior due', amountPaise: 5_000, kind: 'other' }],
+      },
+    });
+    assert.equal(withPrior.depositDueNowPaise, 50_000);
+    assert.equal(withPrior.totalToCollectTodayPaise, 145_000);
+  });
 });

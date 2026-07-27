@@ -95,6 +95,9 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
 
   let subtotalPaise = 0;
   let depositPaise = 0;
+  let depositRequiredPaise = 0;
+  let depositCreditAppliedPaise = 0;
+  let priorOutstandingPaise = 0;
   let totalDuePaise = 0;
   let quoteError: string | null = null;
   let reviewLineItems: import('@/src/components/customer/checkout/BookingReviewCard').BookingReviewLineItem[] | undefined;
@@ -108,7 +111,7 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
       includeDeposit: true,
     });
     subtotalPaise = quote.subtotalPaise;
-    depositPaise = quote.depositPaise;
+    depositRequiredPaise = quote.depositPaise;
 
     let priorOutstanding = {
       totalPaise: 0,
@@ -120,11 +123,13 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
 
     const checkoutTotals = computeNewBookingCheckoutTotals({
       rentSubtotalPaise: subtotalPaise,
-      depositRequiredPaise: depositPaise,
+      depositRequiredPaise,
       priorOutstanding,
     });
     totalDuePaise = checkoutTotals.totalToCollectTodayPaise;
     depositPaise = checkoutTotals.depositDueNowPaise;
+    depositCreditAppliedPaise = checkoutTotals.depositCreditAppliedPaise;
+    priorOutstandingPaise = checkoutTotals.priorOutstandingPaise;
 
     const lineItems: import('@/src/components/customer/checkout/BookingReviewCard').BookingReviewLineItem[] =
       [
@@ -174,6 +179,9 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
     stayNights: funnelDates.stayNights,
     rentPaise: subtotalPaise,
     depositPaise,
+    depositRequiredPaise,
+    depositCreditAppliedPaise,
+    priorOutstandingPaise,
     totalDuePaise,
     lineItems: reviewLineItems,
   };
@@ -200,6 +208,9 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
             endDate={funnelDates.end}
             stayType={stayType}
             durationMode={mode}
+            customerId={session?.customerId}
+            customerEmail={session?.email}
+            customerPhone={session?.phone}
           />
         )}
       </BookingFunnelShell>

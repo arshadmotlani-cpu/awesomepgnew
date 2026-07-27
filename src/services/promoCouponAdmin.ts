@@ -27,6 +27,15 @@ export async function listPromoCouponsAdmin(): Promise<PromoCouponAdminRow[]> {
         and(
           eq(discountApplications.couponCode, coupon.code.toUpperCase()),
           eq(discountApplications.discountType, 'promo_code'),
+          // Cancelled/refunded bookings free the usage slot (audit rows kept).
+          sql`(
+            ${discountApplications.bookingId} IS NULL
+            OR EXISTS (
+              SELECT 1 FROM bookings b
+              WHERE b.id = ${discountApplications.bookingId}
+                AND b.status NOT IN ('cancelled', 'refunded')
+            )
+          )`,
         ),
       );
 

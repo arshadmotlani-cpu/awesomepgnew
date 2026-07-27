@@ -4,6 +4,54 @@ import { useState, useTransition } from 'react';
 import { paiseToInr } from '@/src/lib/format';
 import type { PromoCouponAdminRow } from '@/src/services/promoCouponAdmin';
 
+type Prefill = {
+  code: string;
+  type: 'percentage' | 'fixed';
+  scope: 'booking_rent' | 'rent_invoice' | 'bed_reserve';
+  percent: string;
+  fixedInr: string;
+  usageLimit: string;
+  reason: string;
+  validFrom: string;
+  validTill: string;
+};
+
+function toDateInputValue(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function defaultPrefill(): Prefill {
+  const now = new Date();
+  const till = new Date(now);
+  till.setFullYear(till.getFullYear() + 1);
+  return {
+    code: '',
+    type: 'percentage',
+    scope: 'booking_rent',
+    percent: '10',
+    fixedInr: '',
+    usageLimit: '',
+    reason: '',
+    validFrom: toDateInputValue(now),
+    validTill: toDateInputValue(till),
+  };
+}
+
+function prefillFromCoupon(c: PromoCouponAdminRow): Prefill {
+  return {
+    code: `${c.code}-COPY`,
+    type: c.type,
+    scope: c.scope,
+    percent: c.percentageBps != null ? String(Math.round(c.percentageBps / 100)) : '10',
+    fixedInr:
+      c.fixedAmountPaise != null ? String(Math.round(c.fixedAmountPaise / 100)) : '',
+    usageLimit: c.usageLimit != null ? String(c.usageLimit) : '',
+    reason: c.reason ?? '',
+    validFrom: toDateInputValue(new Date(c.validFrom)),
+    validTill: toDateInputValue(new Date(c.validTill)),
+  };
+}
+
 export function PromoCouponsAdminPanel({
   coupons,
   createAction,
@@ -18,17 +66,34 @@ export function PromoCouponsAdminPanel({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [prefill, setPrefill] = useState<Prefill>(defaultPrefill);
+
+  function openCreate(next?: Prefill) {
+    setPrefill(next ?? defaultPrefill());
+    setError(null);
+    setShowForm(true);
+  }
 
   return (
     <section className="rounded-2xl border border-white/10 bg-[#1A1F27] p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-apg-orange">Coupons</h2>
-          <p className="mt-1 text-xs text-apg-silver">Admin promo codes — extends daily date coupon</p>
+          <p className="mt-1 text-xs text-apg-silver">
+            Admin promo codes for booking checkout (rent only) and rent invoices. Tip: create{' '}
+            <span className="font-mono text-white">WELCOME10</span> as percentage · booking checkout ·{' '}
+            10% (1000 bps).
+          </p>
         </div>
         <button
           type="button"
-          onClick={() => setShowForm((v) => !v)}
+          onClick={() => {
+            if (showForm) {
+              setShowForm(false);
+              return;
+            }
+            openCreate();
+          }}
           className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white hover:brightness-110"
         >
           {showForm ? 'Cancel' : 'Create coupon'}
@@ -37,6 +102,7 @@ export function PromoCouponsAdminPanel({
 
       {showForm ? (
         <form
+          key={`${prefill.code}-${prefill.validFrom}-${prefill.scope}`}
           className="mt-4 grid gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:grid-cols-2"
           action={(fd) => {
             startTransition(async () => {
@@ -49,37 +115,94 @@ export function PromoCouponsAdminPanel({
         >
           <label className="block sm:col-span-2">
             <span className="text-xs text-apg-silver">Code</span>
-            <input name="code" required className="mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white" />
+            <input
+              name="code"
+              required
+              defaultValue={prefill.code}
+              className="mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white"
+            />
           </label>
           <label className="block">
             <span className="text-xs text-apg-silver">Type</span>
-            <select name="type" className="mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white">
+            <select
+              name="type"
+              defaultValue={prefill.type}
+              className="mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white"
+            >
               <option value="percentage">Percentage</option>
               <option value="fixed">Fixed amount</option>
             </select>
           </label>
           <label className="block">
             <span className="text-xs text-apg-silver">Scope</span>
-            <select name="scope" className="mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white">
+            <select
+              name="scope"
+              defaultValue={prefill.scope}
+              className="mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white"
+            >
+              <option value="booking_rent">Booking checkout (rent only)</option>
               <option value="rent_invoice">Rent invoice</option>
-              <option value="booking_rent">Booking checkout</option>
             </select>
           </label>
           <label className="block">
-            <span className="text-xs text-apg-silver">Percent (e.g. 10)</span>
-            <input name="percent" type="number" min={1} max={100} placeholder="10" className="mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white" />
+            <span className="text-xs text-apg-silver">Percent (e.g. 10 = 10%)</span>
+            <input
+              name="percent"
+              type="number"
+              min={1}
+              max={100}
+              defaultValue={prefill.percent}
+              placeholder="10"
+              className="mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white"
+            />
           </label>
           <label className="block">
             <span className="text-xs text-apg-silver">Fixed ₹ (optional)</span>
-            <input name="fixedInr" type="number" min={0} className="mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white" />
+            <input
+              name="fixedInr"
+              type="number"
+              min={0}
+              defaultValue={prefill.fixedInr}
+              className="mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white"
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs text-apg-silver">Valid from</span>
+            <input
+              name="validFrom"
+              type="date"
+              required
+              defaultValue={prefill.validFrom}
+              className="mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white"
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs text-apg-silver">Valid till</span>
+            <input
+              name="validTill"
+              type="date"
+              required
+              defaultValue={prefill.validTill}
+              className="mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white"
+            />
           </label>
           <label className="block">
             <span className="text-xs text-apg-silver">Usage limit</span>
-            <input name="usageLimit" type="number" min={1} className="mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white" />
+            <input
+              name="usageLimit"
+              type="number"
+              min={1}
+              defaultValue={prefill.usageLimit}
+              className="mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white"
+            />
           </label>
           <label className="block sm:col-span-2">
             <span className="text-xs text-apg-silver">Reason / label</span>
-            <input name="reason" className="mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white" />
+            <input
+              name="reason"
+              defaultValue={prefill.reason}
+              className="mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white"
+            />
           </label>
           {error ? <p className="sm:col-span-2 text-xs text-rose-300">{error}</p> : null}
           <button
@@ -131,6 +254,13 @@ export function PromoCouponsAdminPanel({
                   </td>
                   <td className="py-2">
                     <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openCreate(prefillFromCoupon(c))}
+                        className="text-xs text-apg-cyan hover:underline"
+                      >
+                        Duplicate
+                      </button>
                       <button
                         type="button"
                         onClick={() => startTransition(() => toggleAction(c.id, !c.active))}

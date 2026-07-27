@@ -4,6 +4,7 @@ import {
   useActionState,
   useCallback,
   useEffect,
+  useMemo,
   useReducer,
   useRef,
   useState,
@@ -11,11 +12,13 @@ import {
 import { useRouter } from 'next/navigation';
 import { BookingReviewCard, type BookingReviewData } from './BookingReviewCard';
 import { BookingInlineAuth } from './BookingInlineAuth';
+import { CouponCodeField } from '@/src/components/customer/CouponCodeField';
 import {
   createBookingAction,
   type BookingActionState,
 } from '@/app/(customer)/booking/new/actions';
 import type { StayType } from '@/src/lib/stayType';
+import { computeNewBookingCheckoutTotals } from '@/src/lib/billing/bookingCheckoutTotals';
 import {
   BOOKING_CREATE_TIMEOUT_MESSAGE,
   BOOKING_CREATE_TIMEOUT_MS,
@@ -27,6 +30,45 @@ import {
 
 const INITIAL_STATE: BookingActionState = { status: 'idle' };
 
+type AppliedCouponState = {
+  code: string;
+  discountPaise: number;
+  label?: string;
+};
+
+function reviewCouponStorageKey(bedIds: string[], startDate: string, endDate: string | null): string {
+  return `apg:booking-coupon:${bedIds.slice().sort().join(',')}:${startDate}:${endDate ?? 'open'}`;
+}
+
+function readStoredCoupon(key: string): AppliedCouponState | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as AppliedCouponState;
+    if (!parsed?.code || typeof parsed.discountPaise !== 'number' || parsed.discountPaise <= 0) {
+      return null;
+    }
+    return {
+      code: String(parsed.code).toUpperCase(),
+      discountPaise: parsed.discountPaise,
+      label: parsed.label,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredCoupon(key: string, applied: AppliedCouponState | null) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (!applied) window.sessionStorage.removeItem(key);
+    else window.sessionStorage.setItem(key, JSON.stringify(applied));
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
 type Props = {
   isLoggedIn: boolean;
   review: BookingReviewData;
@@ -35,6 +77,9 @@ type Props = {
   endDate: string | null;
   stayType: StayType;
   durationMode: 'daily' | 'weekly' | 'monthly' | 'open_ended' | 'fixed_stay';
+  customerId?: string;
+  customerEmail?: string;
+  customerPhone?: string;
 };
 
 export function BookingReviewFlow({
@@ -45,6 +90,9 @@ export function BookingReviewFlow({
   endDate,
   stayType,
   durationMode,
+  customerId,
+  customerEmail,
+  customerPhone,
 }: Props) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -53,6 +101,54 @@ export function BookingReviewFlow({
   const [step, dispatchStep] = useReducer(bookingFlowReducer, 'REVIEW' as BookingFlowStep);
   const [clientError, setClientError] = useState<string | null>(null);
   const [state, formAction, isPending] = useActionState(createBookingAction, INITIAL_STATE);
+
+  const couponStorageKey = useMemo(
+    () => reviewCouponStorageKey(bedIds, startDate, endDate),
+    [bedIds, endDate, startDate],
+  );
+
+  const [discountPaise, setDiscountPaise] = useState(0);
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCouponState | null>(null);
+  const [couponHydrated, setCouponHydrated] = useState(false);
+
+  useEffect(() => {
+    const stored = readStoredCoupon(couponStorageKey);
+    if (stored) {
+      setAppliedCoupon(stored);
+      setDiscountPaise(stored.discountPaise);
+    }
+    setCouponHydrated(true);
+  }, [couponStorageKey]);
+
+  useEffect(() => {
+    if (!couponHydrated) return;
+    writeStoredCoupon(couponStorageKey, appliedCoupon);
+  }, [appliedCoupon, couponHydrated, couponStorageKey]);
+
+  const depositRequiredPaise = review.depositRequiredPaise ?? review.depositPaise;
+  const depositCreditAppliedPaise = review.depositCreditAppliedPaise ?? 0;
+  const priorOutstandingPaise = review.priorOutstandingPaise ?? 0;
+
+  const liveTotals = useMemo(
+    () =>
+      computeNewBookingCheckoutTotals({
+        rentSubtotalPaise: review.rentPaise,
+        depositRequiredPaise,
+        depositCreditAppliedPaise,
+        discountPaise,
+        priorOutstanding:
+          priorOutstandingPaise > 0
+            ? { totalPaise: priorOutstandingPaise, items: [] }
+            : null,
+      }),
+    [
+      depositCreditAppliedPaise,
+      depositRequiredPaise,
+      discountPaise,
+      priorOutstandingPaise,
+      review.rentPaise,
+    ],
+  );
 
   useEffect(() => {
     logBookingFlowStep('REVIEW', { isLoggedIn });
@@ -93,6 +189,7 @@ export function BookingReviewFlow({
       redirectedRef.current = true;
       submitGuardRef.current = false;
       dispatchStep({ type: 'CREATE_SUCCESS' });
+      writeStoredCoupon(couponStorageKey, null);
       logBookingFlowStep('REDIRECT_PAYMENT', {
         bookingId: state.bookingId,
         bookingCode: state.bookingCode,
@@ -100,7 +197,7 @@ export function BookingReviewFlow({
       });
       router.replace(state.nextRoute);
     }
-  }, [state, router]);
+  }, [state, router, couponStorageKey]);
 
   useEffect(() => {
     if (step !== 'CREATE_BOOKING' || !isPending) return;
@@ -146,7 +243,37 @@ export function BookingReviewFlow({
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
-      <BookingReviewCard data={review} />
+      <BookingReviewCard
+        data={{
+          ...review,
+          depositPaise: liveTotals.depositDueNowPaise,
+        }}
+        discountPaise={discountPaise}
+        couponCode={appliedCoupon?.code ?? null}
+        couponLabel={appliedCoupon?.label ?? null}
+        totalDuePaise={liveTotals.totalToCollectTodayPaise}
+        couponSection={
+          couponHydrated ? (
+            <CouponCodeField
+              key={appliedCoupon?.code ?? 'empty'}
+              subtotalPaise={review.rentPaise}
+              context="booking_checkout"
+              variant="dark"
+              customerId={customerId}
+              customerEmail={customerEmail}
+              customerPhone={customerPhone}
+              title="Have a Coupon Code?"
+              omitInputName
+              initialCode={appliedCoupon?.code ?? ''}
+              initialApplied={Boolean(appliedCoupon)}
+              initialDiscountPaise={appliedCoupon?.discountPaise ?? 0}
+              initialLabel={appliedCoupon?.label ?? null}
+              onDiscountChange={setDiscountPaise}
+              onAppliedChange={setAppliedCoupon}
+            />
+          ) : null
+        }
+      />
 
       {step === 'AUTH_REQUIRED' && !isLoggedIn ? (
         <BookingInlineAuth
@@ -183,6 +310,9 @@ export function BookingReviewFlow({
         {bedIds.map((id) => (
           <input key={id} type="hidden" name="bedId" value={id} />
         ))}
+        {appliedCoupon?.code ? (
+          <input type="hidden" name="couponCode" value={appliedCoupon.code} />
+        ) : null}
 
         {showContinue ? (
           <button
