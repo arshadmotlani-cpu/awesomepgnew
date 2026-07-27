@@ -7,7 +7,12 @@ import { discountApplications, promoCoupons } from '@/src/db/schema';
 import type { PromoCoupon } from '@/src/db/schema/promoCoupons';
 
 export type PromoCouponAdminRow = PromoCoupon & {
+  /** Confirmed consumptions only (usageLimit SSOT). */
   usageCount: number;
+  /** Active reserved holds (not yet confirmed). */
+  reservedCount: number;
+  /** Released + expired historical exits. */
+  releasedCount: number;
   totalDiscountPaise: number;
   remainingUses: number | null;
 };
@@ -17,7 +22,8 @@ export async function listPromoCouponsAdmin(): Promise<PromoCouponAdminRow[]> {
 
   const rows: PromoCouponAdminRow[] = [];
   for (const coupon of coupons) {
-    const [stats] = await db
+    const code = coupon.code.toUpperCase();
+    const [consumed] = await db
       .select({
         count: sql<number>`count(*)::int`,
         total: sql<number>`coalesce(sum(${discountApplications.discountAmountPaise}), 0)::bigint`,
@@ -25,25 +31,41 @@ export async function listPromoCouponsAdmin(): Promise<PromoCouponAdminRow[]> {
       .from(discountApplications)
       .where(
         and(
-          eq(discountApplications.couponCode, coupon.code.toUpperCase()),
+          eq(discountApplications.couponCode, code),
           eq(discountApplications.discountType, 'promo_code'),
-          // Cancelled/refunded bookings free the usage slot (audit rows kept).
-          sql`(
-            ${discountApplications.bookingId} IS NULL
-            OR EXISTS (
-              SELECT 1 FROM bookings b
-              WHERE b.id = ${discountApplications.bookingId}
-                AND b.status NOT IN ('cancelled', 'refunded')
-            )
-          )`,
+          eq(discountApplications.lifecycleStatus, 'consumed'),
         ),
       );
 
-    const usageCount = stats?.count ?? 0;
+    const [reserved] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(discountApplications)
+      .where(
+        and(
+          eq(discountApplications.couponCode, code),
+          eq(discountApplications.discountType, 'promo_code'),
+          eq(discountApplications.lifecycleStatus, 'reserved'),
+        ),
+      );
+
+    const [released] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(discountApplications)
+      .where(
+        and(
+          eq(discountApplications.couponCode, code),
+          eq(discountApplications.discountType, 'promo_code'),
+          sql`${discountApplications.lifecycleStatus} IN ('released', 'expired')`,
+        ),
+      );
+
+    const usageCount = consumed?.count ?? 0;
     rows.push({
       ...coupon,
       usageCount,
-      totalDiscountPaise: Number(stats?.total ?? 0),
+      reservedCount: reserved?.count ?? 0,
+      releasedCount: released?.count ?? 0,
+      totalDiscountPaise: Number(consumed?.total ?? 0),
       remainingUses:
         coupon.usageLimit != null ? Math.max(0, coupon.usageLimit - usageCount) : null,
     });
@@ -122,6 +144,7 @@ export async function getTopPromoCoupons(limit = 5) {
     FROM discount_applications
     WHERE discount_type IN ('promo_code', 'date_coupon')
       AND coupon_code IS NOT NULL
+      AND lifecycle_status = 'consumed'
     GROUP BY upper(coupon_code)
     ORDER BY total_discount_paise DESC
     LIMIT ${limit}

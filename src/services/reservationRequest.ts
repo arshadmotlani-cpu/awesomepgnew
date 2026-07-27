@@ -174,6 +174,9 @@ export async function activateReservationRequestForBooking(bookingId: string): P
   );
   scheduleAvailabilityCacheInvalidation({ bookingId });
 
+  const { clearCouponReservationExpiryForBooking } = await import('@/src/services/couponLifecycle');
+  await clearCouponReservationExpiryForBooking(bookingId);
+
   scheduleAdminNotificationSync();
 }
 
@@ -200,6 +203,10 @@ export async function expireAbandonedReservationDrafts(): Promise<{ expired: num
       action: 'draft_abandoned',
       diff: {},
     });
+    const { releaseCouponReservationForBooking } = await import('@/src/services/couponLifecycle');
+    await releaseCouponReservationForBooking(row.id, 'draft_abandoned');
+    const { reverseReferralOnBookingCancel } = await import('@/src/services/referrals');
+    await reverseReferralOnBookingCancel(row.id);
   }
 
   return { expired: rows.length };

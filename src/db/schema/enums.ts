@@ -382,6 +382,14 @@ export const discountTypeEnum = pgEnum('discount_type', [
   'reservation',
 ]);
 
+/** Coupon / discount usage lifecycle — reserved until booking confirmed. */
+export const discountApplicationLifecycleEnum = pgEnum('discount_application_lifecycle', [
+  'reserved',
+  'consumed',
+  'released',
+  'expired',
+]);
+
 export const promoCouponTypeEnum = pgEnum('promo_coupon_type', ['percentage', 'fixed']);
 
 export const promoCouponScopeEnum = pgEnum('promo_coupon_scope', [

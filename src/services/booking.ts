@@ -33,16 +33,11 @@ import { countBookingsInYear } from '../db/queries/customer';
 import {
   auditLog,
   bedReservations,
-  beds,
   bookings,
   couponRedemptions,
   customers,
   discountApplications,
-  pgs,
   referralRedemptions,
-  rooms,
-  floors,
-  adminUsers,
 } from '../db/schema';
 import type { PricingSnapshot } from '../db/schema/bookings';
 import {
@@ -687,6 +682,9 @@ export async function createBooking(
             couponCode: dateCoupon.code,
             couponDate: dateCoupon.couponDate,
             discountPaise,
+            lifecycleStatus: isAdminCreated ? 'consumed' : 'reserved',
+            expiresAt: isAdminCreated ? null : draftExpiresAt,
+            consumedAt: isAdminCreated ? new Date() : null,
           });
         }
 
@@ -712,6 +710,10 @@ export async function createBooking(
             couponCode:
               appliedDiscountType === 'referral' ? null : appliedPromoCode,
             referralCode: appliedDiscountType === 'referral' ? appliedPromoCode : null,
+            lifecycleStatus: isAdminCreated ? 'consumed' : 'reserved',
+            expiresAt: isAdminCreated ? null : draftExpiresAt,
+            consumedAt: isAdminCreated ? new Date() : null,
+            promoCouponId: appliedPromoCouponId,
           });
         }
 
@@ -755,39 +757,10 @@ export async function createBooking(
         }
       }
 
-      scheduleAdminNotificationSync();
-
-      if (!isAdminCreated) {
-        const { emitBookingCreatedAdminNotifications } = await import(
-          '@/src/services/notificationEngine'
-        );
-        const { adminCanAccessPg } = await import('@/src/lib/auth/roles');
-        const [pgRow] = await db
-          .select({ id: pgs.id, name: pgs.name })
-          .from(pgs)
-          .innerJoin(floors, eq(floors.pgId, pgs.id))
-          .innerJoin(rooms, eq(rooms.floorId, floors.id))
-          .innerJoin(beds, eq(beds.roomId, rooms.id))
-          .where(eq(beds.id, uniqueBedIds[0]!))
-          .limit(1);
-        const admins = await db
-          .select({ id: adminUsers.id, role: adminUsers.role, pgScope: adminUsers.pgScope })
-          .from(adminUsers)
-          .where(eq(adminUsers.isActive, true));
-        const adminIds = pgRow
-          ? admins
-              .filter((a) => adminCanAccessPg({ role: a.role, pgScope: a.pgScope }, pgRow.id))
-              .map((a) => a.id)
-          : admins.map((a) => a.id);
-        if (adminIds.length > 0 && pgRow) {
-          void emitBookingCreatedAdminNotifications({
-            adminIds,
-            bookingId: result.id,
-            bookingCode: candidateCode,
-            pgName: pgRow.name,
-            residentName: input.customer.fullName,
-          });
-        }
+      // Customer Continue / draft create must NOT notify admins.
+      // Admin notification fires only after payment proof submit.
+      if (isAdminCreated) {
+        scheduleAdminNotificationSync();
       }
 
       const { scheduleAvailabilityCacheInvalidation } = await import(

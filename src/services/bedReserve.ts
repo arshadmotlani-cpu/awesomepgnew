@@ -729,6 +729,9 @@ export async function activateBedReserveRequestForBooking(
       action: 'reservation_request_submitted',
       diff: { reserveCode, bookingId, bookingCode: booking.bookingCode },
     });
+
+    const { clearCouponReservationExpiryForBooking } = await import('@/src/services/couponLifecycle');
+    await clearCouponReservationExpiryForBooking(bookingId, tx);
   };
 
   // When called inside an outer transaction (payment proof submit), never issue

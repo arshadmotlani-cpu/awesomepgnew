@@ -4,13 +4,12 @@
  * Stacking: exactly ONE discount per payment (priority: referral → promo/date coupon).
  * Reservation 50% is priced separately in reservePricing.ts — not stacked here.
  *
- * Cancellation policy for usage limits:
- * - `discount_applications` and `coupon_redemptions` remain as immutable audit rows.
- * - Usage / per-user / date-reuse counts **exclude** applications whose booking is
- *   `cancelled` or `refunded` (same net effect as restoring the slot on cancel).
- * - Referral redemptions are voided via status in `reverseReferralOnBookingCancel`.
+ * Coupon usage lifecycle:
+ * - Create booking → lifecycle_status = reserved (does NOT count as used)
+ * - Admin confirms payment → consumed (counts toward usageLimit / perUserLimit)
+ * - Cancel / reject / draft expire → released / expired (reusable)
  */
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, or, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { couponRedemptions, discountApplications, promoCoupons } from '@/src/db/schema';
 import {
@@ -55,18 +54,8 @@ function discountFromBps(amountPaise: number, bps: number): number {
   );
 }
 
-/** Booking statuses that no longer consume a coupon usage slot. */
-const ACTIVE_REDEMPTION_BOOKING_SQL = sql`(
-  ${couponRedemptions.rentInvoiceId} IS NOT NULL
-  OR ${couponRedemptions.bookingId} IS NULL
-  OR EXISTS (
-    SELECT 1 FROM bookings b
-    WHERE b.id = ${couponRedemptions.bookingId}
-      AND b.status NOT IN ('cancelled', 'refunded')
-  )
-)`;
-
-async function countActivePromoApplications(input: {
+/** Only confirmed consumptions count toward usageLimit / perUserLimit. */
+async function countConsumedPromoApplications(input: {
   couponCode: string;
   customerId?: string;
 }): Promise<number> {
@@ -74,14 +63,7 @@ async function countActivePromoApplications(input: {
   const conditions = [
     eq(discountApplications.couponCode, normalized),
     eq(discountApplications.discountType, 'promo_code'),
-    sql`(
-      ${discountApplications.bookingId} IS NULL
-      OR EXISTS (
-        SELECT 1 FROM bookings b
-        WHERE b.id = ${discountApplications.bookingId}
-          AND b.status NOT IN ('cancelled', 'refunded')
-      )
-    )`,
+    eq(discountApplications.lifecycleStatus, 'consumed'),
   ];
   if (input.customerId) {
     conditions.push(eq(discountApplications.appliedByCustomerId, input.customerId));
@@ -95,12 +77,38 @@ async function countActivePromoApplications(input: {
   return usage?.count ?? 0;
 }
 
+/** Active reserve blocks the same resident from double-holding one code. */
+async function customerHasActivePromoReservation(input: {
+  couponCode: string;
+  customerId: string;
+}): Promise<boolean> {
+  const normalized = input.couponCode.trim().toUpperCase();
+  const now = new Date();
+  const [row] = await db
+    .select({ id: discountApplications.id })
+    .from(discountApplications)
+    .where(
+      and(
+        eq(discountApplications.couponCode, normalized),
+        eq(discountApplications.discountType, 'promo_code'),
+        eq(discountApplications.lifecycleStatus, 'reserved'),
+        eq(discountApplications.appliedByCustomerId, input.customerId),
+        or(
+          sql`${discountApplications.expiresAt} IS NULL`,
+          sql`${discountApplications.expiresAt} > ${now}`,
+        ),
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
+}
+
 async function customerUsedDateCoupon(input: {
   customerId: string;
   couponCode: string;
   couponDate: string;
 }): Promise<boolean> {
-  const [row] = await db
+  const [consumed] = await db
     .select({ id: couponRedemptions.id })
     .from(couponRedemptions)
     .where(
@@ -108,11 +116,30 @@ async function customerUsedDateCoupon(input: {
         eq(couponRedemptions.customerId, input.customerId),
         eq(couponRedemptions.couponCode, input.couponCode),
         eq(couponRedemptions.couponDate, input.couponDate),
-        ACTIVE_REDEMPTION_BOOKING_SQL,
+        eq(couponRedemptions.lifecycleStatus, 'consumed'),
       ),
     )
     .limit(1);
-  return Boolean(row);
+  if (consumed) return true;
+
+  const now = new Date();
+  const [reserved] = await db
+    .select({ id: couponRedemptions.id })
+    .from(couponRedemptions)
+    .where(
+      and(
+        eq(couponRedemptions.customerId, input.customerId),
+        eq(couponRedemptions.couponCode, input.couponCode),
+        eq(couponRedemptions.couponDate, input.couponDate),
+        eq(couponRedemptions.lifecycleStatus, 'reserved'),
+        or(
+          sql`${couponRedemptions.expiresAt} IS NULL`,
+          sql`${couponRedemptions.expiresAt} > ${now}`,
+        ),
+      ),
+    )
+    .limit(1);
+  return Boolean(reserved);
 }
 
 async function resolveAdminPromo(input: {
@@ -120,7 +147,7 @@ async function resolveAdminPromo(input: {
   amountPaise: number;
   scope: 'booking_rent' | 'rent_invoice';
   customerId?: string;
-}): Promise<ResolvedDiscount | null> {
+}): Promise<ResolvedDiscount | { error: string } | null> {
   const normalized = input.code.trim().toUpperCase();
   const now = new Date();
   const [coupon] = await db
@@ -140,16 +167,33 @@ async function resolveAdminPromo(input: {
   if (!coupon) return null;
 
   if (coupon.usageLimit != null) {
-    const usageCount = await countActivePromoApplications({ couponCode: normalized });
-    if (usageCount >= coupon.usageLimit) return null;
+    const usageCount = await countConsumedPromoApplications({ couponCode: normalized });
+    if (usageCount >= coupon.usageLimit) {
+      return { error: 'This promo code has reached its usage limit.' };
+    }
   }
 
   if (input.customerId && coupon.perUserLimit > 0) {
-    const perUserCount = await countActivePromoApplications({
+    const perUserCount = await countConsumedPromoApplications({
       couponCode: normalized,
       customerId: input.customerId,
     });
-    if (perUserCount >= coupon.perUserLimit) return null;
+    if (perUserCount >= coupon.perUserLimit) {
+      return { error: 'You have already used this promo code.' };
+    }
+
+    if (input.scope === 'booking_rent') {
+      const hasReserve = await customerHasActivePromoReservation({
+        couponCode: normalized,
+        customerId: input.customerId,
+      });
+      if (hasReserve) {
+        return {
+          error:
+            'This promo code is already reserved on another open booking. Complete or cancel that booking first.',
+        };
+      }
+    }
   }
 
   let discountPaise = 0;
@@ -257,7 +301,10 @@ export async function resolveCheckoutDiscount(input: {
     scope: input.kind === 'rent_invoice' ? 'rent_invoice' : 'booking_rent',
     customerId: input.customerId ?? undefined,
   });
-  if (adminPromo) return adminPromo;
+  if (adminPromo) {
+    if ('error' in adminPromo) return { error: adminPromo.error };
+    return adminPromo;
+  }
 
   return { error: 'Invalid or expired promo code' };
 }
@@ -274,6 +321,9 @@ export async function recordDiscountApplication(input: {
   couponCode?: string | null;
   referralCode?: string | null;
   reason?: string | null;
+  lifecycleStatus?: 'reserved' | 'consumed' | 'released' | 'expired';
+  expiresAt?: Date | null;
+  promoCouponId?: string | null;
 }) {
   const [row] = await db
     .insert(discountApplications)
@@ -289,6 +339,10 @@ export async function recordDiscountApplication(input: {
       couponCode: input.couponCode ?? null,
       referralCode: input.referralCode ?? null,
       reason: input.reason ?? null,
+      lifecycleStatus: input.lifecycleStatus ?? (input.rentInvoiceId ? 'consumed' : 'reserved'),
+      expiresAt: input.expiresAt ?? null,
+      consumedAt: input.lifecycleStatus === 'consumed' || input.rentInvoiceId ? new Date() : null,
+      promoCouponId: input.promoCouponId ?? null,
     })
     .returning();
   return row ?? null;

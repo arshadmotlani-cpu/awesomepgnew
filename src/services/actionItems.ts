@@ -855,13 +855,14 @@ export async function resolveStaleRefundAndCheckoutActionItems(): Promise<{ reso
 async function syncPaymentReviews(session: AdminSession): Promise<void> {
   await resolveStalePaymentReviewArtifacts(session);
   const items = await listPendingPaymentReviews(session);
+  const { paiseToInr } = await import('@/src/lib/format');
   const activeKeys = new Set<string>();
   for (const item of items) {
     const sourceKey = `payment_review:${item.key}`;
     activeKeys.add(sourceKey);
     await upsertActionItem({
       type: 'payment_received',
-      title: item.title,
+      title: 'New Payment Awaiting Verification',
       pgId: item.pgId,
       amount: item.amountPaise,
       priority: 'high',
@@ -870,6 +871,14 @@ async function syncPaymentReviews(session: AdminSession): Promise<void> {
         pgName: formatPgDisplayName(item.pgName),
         paymentReviewKey: item.key,
         notes: item.subtitle,
+        residentName: item.residentName,
+        roomNumber: item.roomNumber ?? undefined,
+        bedCode: item.bedCode ?? undefined,
+        bookingCode: item.bookingCode ?? undefined,
+        bookingId: item.bookingId ?? undefined,
+        screenshotUrl: item.screenshotUrl || undefined,
+        amountLabel: paiseToInr(item.amountPaise),
+        paymentSubmittedAt: item.proofSubmittedAt ?? undefined,
       },
     });
   }

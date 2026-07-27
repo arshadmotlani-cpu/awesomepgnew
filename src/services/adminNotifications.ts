@@ -63,7 +63,7 @@ const TYPE_LABELS: Partial<Record<ActionItem['type'], string>> = {
   kyc_pending: 'New KYC Submission',
   rent_due: 'Rent Due',
   electricity_due: 'Electricity Due',
-  payment_received: 'Payment Uploaded',
+  payment_received: 'New Payment Awaiting Verification',
   refund_pending: 'Payout Pending',
   deposit_refund_request: 'Deposit Refund Request',
   extension_request: 'Extension Request',
@@ -81,6 +81,29 @@ function buildDetail(type: ActionItem['type'], meta: ActionItemMetadata, dueDate
   }
   if (type === 'extension_request' && dueDate) {
     return `Requested until ${dueDate}`;
+  }
+  if (type === 'payment_received') {
+    const lines = [
+      meta.residentName ? `Resident: ${meta.residentName}` : null,
+      meta.pgName ? `PG: ${meta.pgName}` : null,
+      [meta.roomNumber ? `Room ${meta.roomNumber}` : null, meta.bedCode ? `Bed ${meta.bedCode}` : null]
+        .filter(Boolean)
+        .join(' · ') || null,
+      meta.bookingCode ? `Booking: ${meta.bookingCode}` : null,
+      meta.amountLabel ? `Amount: ${meta.amountLabel}` : null,
+      meta.paymentSubmittedAt
+        ? `Payment time: ${new Date(meta.paymentSubmittedAt).toLocaleString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })}`
+        : null,
+      meta.screenshotUrl ? `Screenshot: ${meta.screenshotUrl}` : null,
+      'Action: Review Payment',
+    ].filter(Boolean);
+    return lines.length > 0 ? lines.join('\n') : meta.notes ?? null;
   }
   if (meta.billingMonth) return `Billing ${meta.billingMonth}`;
   if (meta.roomNumber) return `Room ${meta.roomNumber}`;

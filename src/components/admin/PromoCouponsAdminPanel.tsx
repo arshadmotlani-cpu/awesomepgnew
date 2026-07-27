@@ -221,7 +221,9 @@ export function PromoCouponsAdminPanel({
             <tr className="border-b border-white/10 text-xs uppercase text-apg-silver">
               <th className="py-2 pr-3">Code</th>
               <th className="py-2 pr-3">Scope</th>
-              <th className="py-2 pr-3">Uses</th>
+              <th className="py-2 pr-3">Used</th>
+              <th className="py-2 pr-3">Reserved</th>
+              <th className="py-2 pr-3">Released</th>
               <th className="py-2 pr-3">Discount given</th>
               <th className="py-2 pr-3">Remaining</th>
               <th className="py-2 pr-3">Status</th>
@@ -231,7 +233,7 @@ export function PromoCouponsAdminPanel({
           <tbody className="divide-y divide-white/5">
             {coupons.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-4 text-apg-silver">
+                <td colSpan={9} className="py-4 text-apg-silver">
                   No admin coupons yet.
                 </td>
               </tr>
@@ -241,6 +243,8 @@ export function PromoCouponsAdminPanel({
                   <td className="py-2 pr-3 font-mono text-white">{c.code}</td>
                   <td className="py-2 pr-3 text-apg-silver">{c.scope}</td>
                   <td className="py-2 pr-3 text-white">{c.usageCount}</td>
+                  <td className="py-2 pr-3 text-amber-200">{c.reservedCount}</td>
+                  <td className="py-2 pr-3 text-apg-silver">{c.releasedCount}</td>
                   <td className="py-2 pr-3 text-white">{paiseToInr(c.totalDiscountPaise)}</td>
                   <td className="py-2 pr-3 text-apg-silver">
                     {c.remainingUses != null ? c.remainingUses : '∞'}

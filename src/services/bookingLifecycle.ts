@@ -723,6 +723,11 @@ export async function recordPaymentSuccess(
           .where(eq(bookings.id, booking.id));
       }
 
+      if (!isReserveBooking) {
+        const { consumeCouponReservationsForBooking } = await import('./couponLifecycle');
+        await consumeCouponReservationsForBooking(booking.id, tx);
+      }
+
       if (isReserveBooking) {
         const activated = await tx
           .update(bedReserveHolds)
@@ -1219,6 +1224,17 @@ export async function recordPaymentFailure(
         },
       });
 
+      if (
+        booking.status === 'pending_payment' ||
+        booking.status === 'pending_approval' ||
+        booking.status === 'draft'
+      ) {
+        const { releaseCouponReservationForBooking } = await import('./couponLifecycle');
+        await releaseCouponReservationForBooking(booking.id, `payment_failed:${input.reason}`, tx);
+        const { reverseReferralOnBookingCancel } = await import('./referrals');
+        await reverseReferralOnBookingCancel(booking.id, tx);
+      }
+
       return { paymentId: row.id };
     });
 
@@ -1513,7 +1529,13 @@ export async function releaseExpiredHolds(
             ),
           )
           .returning({ code: bookings.bookingCode });
-        if (updated?.code) cancelledCodes.push(updated.code);
+        if (updated?.code) {
+          cancelledCodes.push(updated.code);
+          const { releaseCouponReservationForBooking } = await import('./couponLifecycle');
+          await releaseCouponReservationForBooking(bookingId, 'hold_expired', tx);
+          const { reverseReferralOnBookingCancel } = await import('./referrals');
+          await reverseReferralOnBookingCancel(bookingId, tx);
+        }
       }
     }
 
@@ -2212,8 +2234,8 @@ export async function cancelBooking(
 
     const { reverseReferralOnBookingCancel } = await import('./referrals');
     await reverseReferralOnBookingCancel(b.id, tx);
-    // Promo/date coupon usage slots are restored by excluding cancelled/refunded
-    // bookings from usage counts (discount_applications rows kept for audit).
+    const { releaseCouponReservationForBooking } = await import('./couponLifecycle');
+    await releaseCouponReservationForBooking(b.id, `cancel:${input.reason}`, tx);
   });
 
   if (!noMoneyMoved && refund.depositRefundPaise > 0 && refundPaymentId) {

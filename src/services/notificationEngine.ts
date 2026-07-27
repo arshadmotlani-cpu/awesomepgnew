@@ -438,6 +438,8 @@ export async function emitBookingCreatedAdminNotifications(input: {
   pgName: string;
   residentName: string;
 }): Promise<void> {
+  // Kept for rare admin/tooling callers. Customer checkout must NOT use this —
+  // notify only after payment proof submit via emitPaymentAwaitingVerificationAdminNotifications.
   await emitNotificationToAdmins(input.adminIds, {
     type: 'booking_created',
     title: 'New booking received',
@@ -446,6 +448,61 @@ export async function emitBookingCreatedAdminNotifications(input: {
     dedupeKey: `booking_created:${input.bookingId}`,
     entityType: 'booking',
     entityId: input.bookingId,
+    priority: 'critical',
+  });
+}
+
+/** Admin alert after resident submits payment screenshot — Review Payment deep link. */
+export async function emitPaymentAwaitingVerificationAdminNotifications(input: {
+  adminIds: string[];
+  paymentRecordId: string;
+  bookingId: string;
+  bookingCode: string;
+  residentName: string;
+  pgName: string;
+  roomNumber?: string | null;
+  bedCode?: string | null;
+  amountPaise: number;
+  paymentSubmittedAt: Date;
+  screenshotUrl: string;
+}): Promise<void> {
+  const { paiseToInr } = await import('@/src/lib/format');
+  const { paymentApprovalDeepLink } = await import('@/src/lib/approvals/approvalDeepLinks');
+  const reviewKey = `qr-${input.paymentRecordId}`;
+  const deepLink = paymentApprovalDeepLink(reviewKey);
+  const paidAt = input.paymentSubmittedAt.toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  const roomBed = [
+    input.roomNumber ? `Room ${input.roomNumber}` : null,
+    input.bedCode ? `Bed ${input.bedCode}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const bodyLines = [
+    `Resident: ${input.residentName}`,
+    `PG: ${input.pgName}`,
+    roomBed || null,
+    `Booking: ${input.bookingCode}`,
+    `Amount: ${paiseToInr(input.amountPaise)}`,
+    `Payment time: ${paidAt}`,
+    input.screenshotUrl ? `Screenshot: ${input.screenshotUrl}` : null,
+    'Action: Review Payment',
+  ].filter(Boolean) as string[];
+
+  await emitNotificationToAdmins(input.adminIds, {
+    type: 'payment_proof_uploaded',
+    title: 'New Payment Awaiting Verification',
+    body: bodyLines.join('\n'),
+    deepLink,
+    dedupeKey: `payment_awaiting_verification:${input.paymentRecordId}`,
+    entityType: 'pg_payment_record',
+    entityId: input.paymentRecordId,
     priority: 'critical',
   });
 }
@@ -492,6 +549,7 @@ const INBOX_TYPE_LABELS: Record<string, string> = {
   kyc_pending: 'KYC Pending',
   vacating_alert: 'Vacating Notice',
   payment_proof_pending: 'Payment Proof',
+  payment_proof_uploaded: 'Payment Awaiting Verification',
   checkout_settlement: 'Checkout',
   booking_created: 'New Booking',
   financial_audit_review: 'Financial Audit',

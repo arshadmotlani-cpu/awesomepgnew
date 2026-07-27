@@ -2,6 +2,7 @@ import { bigint, date, index, pgTable, text, timestamp, uuid } from 'drizzle-orm
 import { bookings } from './bookings';
 import { customers } from './customers';
 import { rentInvoices } from './rentInvoices';
+import { discountApplicationLifecycleEnum } from './enums';
 
 export const couponRedemptions = pgTable(
   'coupon_redemptions',
@@ -18,11 +19,19 @@ export const couponRedemptions = pgTable(
     couponDate: date('coupon_date').notNull(),
     discountPaise: bigint('discount_paise', { mode: 'number' }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lifecycleStatus: discountApplicationLifecycleEnum('lifecycle_status')
+      .notNull()
+      .default('reserved'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    releasedAt: timestamp('released_at', { withTimezone: true }),
   },
   (t) => [
     index('coupon_redemptions_coupon_date_idx').on(t.couponDate),
     index('coupon_redemptions_booking_idx').on(t.bookingId),
     index('coupon_redemptions_created_at_idx').on(t.createdAt),
+    index('coupon_redemptions_lifecycle_idx').on(t.couponCode, t.lifecycleStatus),
+    index('coupon_redemptions_booking_lifecycle_idx').on(t.bookingId, t.lifecycleStatus),
   ],
 );
 

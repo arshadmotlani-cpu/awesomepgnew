@@ -413,6 +413,7 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
     membershipAmountPaise: input.membershipAmountPaise,
     customerId: input.customerId,
     transactionRef: input.transactionRef,
+    amountPaise: input.amountPaise,
   });
 
   revalidateReservationLifecycleViews({ pgId, bookingCode: input.bookingCode });
@@ -421,12 +422,13 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
 }
 
 function runPostBookingPaymentSubmitSideEffects(input: {
-  row: { id: string };
+  row: { id: string; amountPaise?: number; createdAt?: Date };
   bookingId: string;
   bookingCode: string;
   pgId: string;
   proofUrl: string;
   customerId: string;
+  amountPaise: number;
   membershipId?: string;
   membershipAmountPaise?: number;
   transactionRef?: string | null;
@@ -455,6 +457,69 @@ function runPostBookingPaymentSubmitSideEffects(input: {
 
       const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
       scheduleAdminNotificationSync();
+
+      // Direct admin alert — only after screenshot + Submit Payment (not on booking create).
+      try {
+        const { emitPaymentAwaitingVerificationAdminNotifications } = await import(
+          '@/src/services/notificationEngine'
+        );
+        const { adminCanAccessPg } = await import('@/src/lib/auth/roles');
+        const { adminUsers, customers, bedReservations, beds, rooms, floors, pgs } = await import(
+          '@/src/db/schema'
+        );
+        const { eq } = await import('drizzle-orm');
+        const { db } = await import('@/src/db/client');
+
+        const [customer] = await db
+          .select({ fullName: customers.fullName })
+          .from(customers)
+          .where(eq(customers.id, input.customerId))
+          .limit(1);
+
+        const [loc] = await db
+          .select({
+            pgName: pgs.name,
+            roomNumber: rooms.roomNumber,
+            bedCode: beds.bedCode,
+          })
+          .from(bedReservations)
+          .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+          .innerJoin(rooms, eq(rooms.id, beds.roomId))
+          .innerJoin(floors, eq(floors.id, rooms.floorId))
+          .innerJoin(pgs, eq(pgs.id, floors.pgId))
+          .where(eq(bedReservations.bookingId, input.bookingId))
+          .limit(1);
+
+        const [pgFallback] = loc
+          ? []
+          : await db.select({ name: pgs.name }).from(pgs).where(eq(pgs.id, input.pgId)).limit(1);
+
+        const admins = await db
+          .select({ id: adminUsers.id, role: adminUsers.role, pgScope: adminUsers.pgScope })
+          .from(adminUsers)
+          .where(eq(adminUsers.isActive, true));
+        const adminIds = admins
+          .filter((a) => adminCanAccessPg({ role: a.role, pgScope: a.pgScope }, input.pgId))
+          .map((a) => a.id);
+
+        if (adminIds.length > 0) {
+          await emitPaymentAwaitingVerificationAdminNotifications({
+            adminIds,
+            paymentRecordId: input.row.id,
+            bookingId: input.bookingId,
+            bookingCode: input.bookingCode,
+            residentName: customer?.fullName ?? 'Resident',
+            pgName: loc?.pgName ?? pgFallback?.name ?? 'PG',
+            roomNumber: loc?.roomNumber ?? null,
+            bedCode: loc?.bedCode ?? null,
+            amountPaise: input.amountPaise,
+            paymentSubmittedAt: input.row.createdAt ?? new Date(),
+            screenshotUrl: input.proofUrl,
+          });
+        }
+      } catch (notifyErr) {
+        console.error('payment awaiting verification notify failed', notifyErr);
+      }
 
       const { trackAnalyticsEvent } = await import('./visitorAnalytics');
       void trackAnalyticsEvent({

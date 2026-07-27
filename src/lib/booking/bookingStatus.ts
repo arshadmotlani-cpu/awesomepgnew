@@ -46,11 +46,11 @@ export function isOpenMyBookingsStatus(status: string): boolean {
 export function labelBookingStatus(status: BookingStatus): string {
   switch (status) {
     case 'draft':
-      return 'Draft';
+      return 'Payment Pending';
     case 'pending_payment':
-      return 'Pending payment';
+      return 'Payment Pending';
     case 'pending_approval':
-      return 'Awaiting approval';
+      return 'Payment Under Review';
     case 'confirmed':
       return 'Confirmed';
     case 'superseded':
@@ -86,19 +86,19 @@ const CUSTOMER_BOOKING_STATUS_TONES: Record<BookingStatus, CustomerBookingStatus
     bg: 'bg-amber-50',
     text: 'text-amber-700',
     ring: 'ring-amber-200',
-    label: 'Pending payment',
+    label: 'Payment Pending',
   },
   pending_approval: {
     bg: 'bg-amber-50',
     text: 'text-amber-700',
     ring: 'ring-amber-200',
-    label: 'Awaiting approval',
+    label: 'Payment Under Review',
   },
   draft: {
-    bg: 'bg-zinc-100',
-    text: 'text-zinc-700',
-    ring: 'ring-zinc-200',
-    label: 'Draft',
+    bg: 'bg-amber-50',
+    text: 'text-amber-700',
+    ring: 'ring-amber-200',
+    label: 'Payment Pending',
   },
   superseded: {
     bg: 'bg-violet-50',

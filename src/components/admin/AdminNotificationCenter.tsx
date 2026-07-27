@@ -150,31 +150,53 @@ export function AdminNotificationCenter({ initialUnread = 0 }: { initialUnread?:
               <p className="px-4 py-6 text-center text-xs text-apg-silver">No new notifications</p>
             ) : (
               <ul className="divide-y divide-white/5">
-                {items.map((item) => (
-                  <li key={item.id}>
-                    <Link
-                      href={appendNotifReadParam(item.href, item.id)}
-                      onClick={() => void onItemClick()}
-                      className="block px-4 py-3 hover:bg-white/5"
-                    >
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-[#FF5A1F]">
-                        {item.typeLabel}
-                      </p>
-                      <p className="mt-0.5 text-sm font-medium text-white">
-                        {item.residentName ?? item.title}
-                      </p>
-                      {item.pgName ? (
-                        <p className="text-xs text-apg-silver">{item.pgName}</p>
-                      ) : null}
-                      {item.detail ? (
-                        <p className="mt-0.5 text-xs text-sky-200">{item.detail}</p>
-                      ) : null}
-                      <p className="mt-1 text-[10px] text-apg-silver/70">
-                        {relativeTime(item.createdAt.toString())}
-                      </p>
-                    </Link>
-                  </li>
-                ))}
+                {items.map((item) => {
+                  const detailLines = (item.detail ?? '').split('\n');
+                  let screenshotUrl: string | null = null;
+                  const textLines: string[] = [];
+                  for (const line of detailLines) {
+                    const match = line.match(/^Screenshot:\s*(https?:\/\/\S+)/i);
+                    if (match?.[1]) {
+                      screenshotUrl = match[1];
+                      continue;
+                    }
+                    if (line.trim()) textLines.push(line);
+                  }
+                  return (
+                    <li key={item.id}>
+                      <Link
+                        href={appendNotifReadParam(item.href, item.id)}
+                        onClick={() => void onItemClick()}
+                        className="block px-4 py-3 hover:bg-white/5"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#FF5A1F]">
+                              {item.typeLabel}
+                            </p>
+                            <p className="mt-0.5 text-sm font-medium text-white">{item.title}</p>
+                            {textLines.length > 0 ? (
+                              <p className="mt-0.5 whitespace-pre-line text-xs text-sky-200">
+                                {textLines.join('\n')}
+                              </p>
+                            ) : null}
+                            <p className="mt-1 text-[10px] text-apg-silver/70">
+                              {relativeTime(item.createdAt.toString())}
+                            </p>
+                          </div>
+                          {screenshotUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={screenshotUrl}
+                              alt="Payment screenshot"
+                              className="h-12 w-12 shrink-0 rounded-lg object-cover ring-1 ring-white/15"
+                            />
+                          ) : null}
+                        </div>
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>

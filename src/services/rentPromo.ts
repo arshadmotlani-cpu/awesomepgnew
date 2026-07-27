@@ -201,6 +201,9 @@ async function persistRentPromoInTx(
         : null,
     referralCode: resolved.discountType === 'referral' ? promoCode : null,
     reason: resolved.label ?? resolved.reason ?? null,
+    lifecycleStatus: 'consumed',
+    consumedAt: new Date(),
+    promoCouponId: resolved.promoCouponId ?? null,
   });
 
   if (resolved.discountType === 'date_coupon' && resolved.dateCoupon) {
@@ -210,6 +213,8 @@ async function persistRentPromoInTx(
       couponDate: resolved.dateCoupon.couponDate,
       rentInvoiceId: invoice.id,
       discountPaise,
+      lifecycleStatus: 'consumed',
+      consumedAt: new Date(),
     });
   }
 

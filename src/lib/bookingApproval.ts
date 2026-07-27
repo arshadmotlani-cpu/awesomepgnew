@@ -177,6 +177,11 @@ export async function cleanupRejectedBookingRequest(input: {
         bookingCode: input.bookingCode ?? null,
       },
     });
+
+    const { releaseCouponReservationForBooking } = await import('@/src/services/couponLifecycle');
+    await releaseCouponReservationForBooking(input.bookingId, 'payment_proof_rejected', tx);
+    const { reverseReferralOnBookingCancel } = await import('@/src/services/referrals');
+    await reverseReferralOnBookingCancel(input.bookingId, tx);
   });
 
   if (input.customerId && input.bookingCode) {

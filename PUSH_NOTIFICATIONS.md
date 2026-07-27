@@ -57,8 +57,10 @@ VAPID_SUBJECT=mailto:admin@yourdomain.com
 ## 5. Event sources
 
 - `syncAdminNotificationsFromActionItems` → payment proof, KYC, checkout, etc.
-- `createBooking` (customer) → `booking_created`
-- `qrPayments` proof upload → triggers action item sync
+- Customer `createBooking` / Continue → **no admin notification** (draft only)
+- `submitBookingPaymentRecord` (screenshot + Submit Payment) →
+  `emitPaymentAwaitingVerificationAdminNotifications` + action-item sync
+  Title: **New Payment Awaiting Verification**
 
 Dedup: `(audience, user_id, dedupe_key)` unique constraint.
 
@@ -66,7 +68,9 @@ Dedup: `(audience, user_id, dedupe_key)` unique constraint.
 
 1. Open **Push diagnostics** — all rows should show OK.
 2. Tap **Send test notification** — device receives push.
-3. Upload payment proof as resident → admin phone shows **Payment review required**.
-4. Home-screen badge = unread notification count.
-5. Tap notification → opens deep link (e.g. payment reviews).
-6. Mark read → badge clears on all devices after poll/sync.
+3. Resident Continue on review → admin must **not** get a booking notification.
+4. Resident uploads screenshot and taps Submit Payment → admin phone shows
+   **New Payment Awaiting Verification**.
+5. Home-screen badge = unread notification count.
+6. Tap notification → opens Payment Review (Review Payment).
+7. Mark read → badge clears on all devices after poll/sync.
