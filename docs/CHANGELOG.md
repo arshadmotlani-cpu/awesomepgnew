@@ -256,30 +256,17 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-27 15:14:34 UTC
+### Pending pre-commit sync · 2026-07-27 15:30:34 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Action Center]], [[Bookings]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
-- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
-- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (10):**
-- `app/api/cron/release-holds/route.ts`
-- `src/db/migrations/0126_coupon_usage_lifecycle.sql`
-- `src/db/migrations/meta/_journal.json`
-- `src/db/schema/couponRedemptions.ts`
-- `src/db/schema/discountApplications.ts`
-- `src/db/schema/enums.ts`
-- `src/lib/billing/discountEngine.ts`
-- `src/services/actionItems.ts`
-- `src/services/booking.ts`
-- `src/services/bookingLifecycle.ts`
+**Staged code files (1):**
+- `app/(customer)/booking/new/couponActions.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

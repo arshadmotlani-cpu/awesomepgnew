@@ -20,6 +20,10 @@ import {
 import type { StayType } from '@/src/lib/stayType';
 import { computeNewBookingCheckoutTotals } from '@/src/lib/billing/bookingCheckoutTotals';
 import {
+  appliedBookingCouponDiscountPaise,
+  type AppliedBookingCoupon,
+} from '@/src/lib/booking/bookingCouponReview';
+import {
   BOOKING_CREATE_TIMEOUT_MESSAGE,
   BOOKING_CREATE_TIMEOUT_MS,
   bookingFlowReducer,
@@ -30,11 +34,7 @@ import {
 
 const INITIAL_STATE: BookingActionState = { status: 'idle' };
 
-type AppliedCouponState = {
-  code: string;
-  discountPaise: number;
-  label?: string;
-};
+type AppliedCouponState = AppliedBookingCoupon;
 
 function reviewCouponStorageKey(bedIds: string[], startDate: string, endDate: string | null): string {
   return `apg:booking-coupon:${bedIds.slice().sort().join(',')}:${startDate}:${endDate ?? 'open'}`;
@@ -107,15 +107,15 @@ export function BookingReviewFlow({
     [bedIds, endDate, startDate],
   );
 
-  const [discountPaise, setDiscountPaise] = useState(0);
   const [appliedCoupon, setAppliedCoupon] = useState<AppliedCouponState | null>(null);
   const [couponHydrated, setCouponHydrated] = useState(false);
+
+  const discountPaise = appliedBookingCouponDiscountPaise(appliedCoupon);
 
   useEffect(() => {
     const stored = readStoredCoupon(couponStorageKey);
     if (stored) {
       setAppliedCoupon(stored);
-      setDiscountPaise(stored.discountPaise);
     }
     setCouponHydrated(true);
   }, [couponStorageKey]);
@@ -255,7 +255,6 @@ export function BookingReviewFlow({
         couponSection={
           couponHydrated ? (
             <CouponCodeField
-              key={appliedCoupon?.code ?? 'empty'}
               subtotalPaise={review.rentPaise}
               context="booking_checkout"
               variant="dark"
@@ -268,7 +267,6 @@ export function BookingReviewFlow({
               initialApplied={Boolean(appliedCoupon)}
               initialDiscountPaise={appliedCoupon?.discountPaise ?? 0}
               initialLabel={appliedCoupon?.label ?? null}
-              onDiscountChange={setDiscountPaise}
               onAppliedChange={setAppliedCoupon}
             />
           ) : null

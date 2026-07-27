@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   previewPromoCodeAction,
   type PreviewCouponState,
@@ -65,7 +65,8 @@ export function CouponCodeField({
   omitInputName = false,
 }: {
   subtotalPaise: number;
-  onDiscountChange: (discountPaise: number) => void;
+  /** @deprecated Prefer onAppliedChange — discount is carried on the applied coupon object. */
+  onDiscountChange?: (discountPaise: number) => void;
   onAppliedChange?: (applied: {
     code: string;
     discountPaise: number;
@@ -103,14 +104,44 @@ export function CouponCodeField({
   );
   const [pending, setPending] = useState(false);
   const [justApplied, setJustApplied] = useState(false);
+  const applyRequestIdRef = useRef(0);
+
+  useEffect(() => {
+    if (initialApplied && initialDiscountPaise > 0) {
+      setCode(initialCode);
+      setPreview({
+        status: 'applied',
+        discountPaise: initialDiscountPaise,
+        netRentPaise: subtotalPaise - initialDiscountPaise,
+        label: initialLabel ?? undefined,
+      });
+      return;
+    }
+    if (!initialApplied && !initialCode.trim()) {
+      setPreview((prev) => (prev.status === 'applied' ? { status: 'idle' } : prev));
+    }
+  }, [
+    initialApplied,
+    initialCode,
+    initialDiscountPaise,
+    initialLabel,
+    subtotalPaise,
+  ]);
+
+  const syncParentDiscount = useCallback(
+    (discountPaise: number) => {
+      onDiscountChange?.(discountPaise);
+    },
+    [onDiscountChange],
+  );
 
   const clearPromo = useCallback(() => {
     setCode('');
     setPreview({ status: 'idle' });
-    onDiscountChange(0);
+    syncParentDiscount(0);
     onAppliedChange?.(null);
     setJustApplied(false);
-  }, [onAppliedChange, onDiscountChange]);
+  }, [onAppliedChange, syncParentDiscount]);
 
   const applyPreview = useCallback(async () => {
     const trimmed = code.trim();
@@ -120,6 +151,7 @@ export function CouponCodeField({
     }
     setPending(true);
     setJustApplied(false);
+    const requestId = ++applyRequestIdRef.current;
     try {
       const fd = new FormData();
       fd.set('couponCode', trimmed);
@@ -129,22 +161,26 @@ export function CouponCodeField({
       if (customerEmail) fd.set('customerEmail', customerEmail);
       if (customerPhone) fd.set('customerPhone', customerPhone);
       const result = await previewPromoCodeAction({ status: 'idle' }, fd);
+      if (requestId !== applyRequestIdRef.current) return;
       setPreview(result);
       if (result.status === 'applied') {
-        onDiscountChange(result.discountPaise);
-        onAppliedChange?.({
+        const applied = {
           code: trimmed.toUpperCase(),
           discountPaise: result.discountPaise,
           label: result.label,
-        });
+        };
+        syncParentDiscount(result.discountPaise);
+        onAppliedChange?.(applied);
         setJustApplied(true);
         window.setTimeout(() => setJustApplied(false), 2400);
       } else {
-        onDiscountChange(0);
+        syncParentDiscount(0);
         onAppliedChange?.(null);
       }
     } finally {
-      setPending(false);
+      if (requestId === applyRequestIdRef.current) {
+        setPending(false);
+      }
     }
   }, [
     clearPromo,
@@ -154,7 +190,7 @@ export function CouponCodeField({
     customerId,
     customerPhone,
     onAppliedChange,
-    onDiscountChange,
+    syncParentDiscount,
     subtotalPaise,
   ]);
 

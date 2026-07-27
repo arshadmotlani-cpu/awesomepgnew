@@ -1,11 +1,12 @@
 'use server';
 
 import { resolveCheckoutDiscount } from '@/src/lib/billing/discountEngine';
+import {
+  previewCouponStateFromDiscount,
+  type PreviewCouponState,
+} from '@/src/lib/booking/bookingCouponReview';
 
-export type PreviewCouponState =
-  | { status: 'idle' }
-  | { status: 'applied'; discountPaise: number; netRentPaise: number; label?: string }
-  | { status: 'invalid'; message?: string };
+export type { PreviewCouponState };
 
 export type PreviewCouponContext = 'booking_checkout' | 'rent_invoice';
 
@@ -35,19 +36,7 @@ export async function previewPromoCodeAction(
     customerPhone,
   });
 
-  if ('error' in result) {
-    return { status: 'invalid', message: result.error };
-  }
-  if (result.discountPaise <= 0) {
-    return { status: 'invalid', message: 'Invalid or expired promo code' };
-  }
-
-  return {
-    status: 'applied',
-    discountPaise: result.discountPaise,
-    netRentPaise: subtotalPaise - result.discountPaise,
-    label: result.label ?? undefined,
-  };
+  return previewCouponStateFromDiscount(result, subtotalPaise);
 }
 
 /** @deprecated Use previewPromoCodeAction */

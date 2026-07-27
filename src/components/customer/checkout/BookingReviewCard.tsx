@@ -81,8 +81,10 @@ export function BookingReviewCard({
   const isMonthly = isMonthlyStayType(data.stayType);
   const liveTotal = totalDuePaise ?? data.totalDuePaise;
   const rentGross = data.rentPaise;
-  const depositLine = data.depositPaise;
   const hasDiscount = discountPaise > 0;
+  const rentNet =
+    hasDiscount && rentGross > 0 ? Math.max(0, rentGross - discountPaise) : rentGross;
+  const depositLine = data.depositPaise;
   const pctOff =
     hasDiscount && rentGross > 0
       ? Math.round((discountPaise / rentGross) * 100)
@@ -124,8 +126,12 @@ export function BookingReviewCard({
         ) : null}
         <Row
           label={`Rent (${data.roomNumber} · Bed ${data.bedCode})`}
-          value={paiseToInr(rentGross)}
-          detail="Quoted from current bed pricing"
+          value={paiseToInr(rentNet)}
+          detail={
+            hasDiscount
+              ? `Before coupon: ${paiseToInr(rentGross)} · deposit is not discounted`
+              : 'Quoted from current bed pricing'
+          }
         />
         {hasDiscount ? (
           <Row
