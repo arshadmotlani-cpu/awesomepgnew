@@ -40,8 +40,8 @@ async function main() {
   record(
     'auth-session-days',
     'Standard session TTL',
-    env.AUTH_CUSTOMER_SESSION_DAYS >= 30,
-    `${env.AUTH_CUSTOMER_SESSION_DAYS} days (target ≥30)`,
+    env.AUTH_CUSTOMER_SESSION_DAYS >= 60,
+    `${env.AUTH_CUSTOMER_SESSION_DAYS} days (target ≥60)`,
   );
   record(
     'auth-remember-days',

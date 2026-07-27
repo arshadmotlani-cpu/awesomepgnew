@@ -50,7 +50,10 @@ export async function loginAction(
   cookieStore.set(
     HAIR_SESSION_COOKIE,
     token,
-    hairSessionCookieOptions(process.env.NODE_ENV === 'production', maxAgeDays),
+    hairSessionCookieOptions(
+      process.env.NODE_ENV === 'production',
+      maxAgeDays * 24 * 60 * 60,
+    ),
   );
 
   await hairDb

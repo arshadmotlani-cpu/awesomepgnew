@@ -75,7 +75,7 @@ export async function POST(request: Request) {
     }
 
     await stampProfileCompletedAtIfReady(customerId);
-    await createCustomerSession({ customerId, ip, userAgent });
+    await createCustomerSession({ customerId, ip, userAgent, rememberMe: true });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

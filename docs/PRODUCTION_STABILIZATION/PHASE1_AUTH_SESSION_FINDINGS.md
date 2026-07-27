@@ -12,9 +12,9 @@
 |-----------|----------------|
 | Session store | Postgres `auth_sessions` — opaque token, SHA-256 hash only |
 | Cookie | `apg_customer_session` — httpOnly, sameSite=lax, secure in production |
-| Standard TTL | **7 days** (`AUTH_CUSTOMER_SESSION_DAYS`, default in `env.ts`) |
-| Remember-me TTL | **75 days** (`AUTH_CUSTOMER_REMEMBER_DAYS`) |
-| Sliding refresh | When remaining ≤ **14 days** (`AUTH_CUSTOMER_SESSION_REFRESH_DAYS`) |
+| Standard TTL | **60 days** (`AUTH_CUSTOMER_SESSION_DAYS`, default in `env.ts`) |
+| Remember-me TTL | **60 days** (`AUTH_CUSTOMER_REMEMBER_DAYS`) |
+| Sliding refresh | Throttled every **24h** (`AUTH_CUSTOMER_SESSION_REFRESH_MIN_HOURS`) + when remaining ≤ **14 days** |
 | Client ping | `CustomerSessionRefresh` — POST `/api/auth/customer/session/refresh` every **20 min** |
 | Edge auth | `middleware.ts` — **cookie presence only** |
 | Server auth | `getCustomerSession()` — DB validation + slide + archived filter |

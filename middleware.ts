@@ -49,6 +49,21 @@ function attachMonitoringHeaders(request: NextRequest): Headers {
   return requestHeaders;
 }
 
+function pgApexToWwwRedirect(request: NextRequest): NextResponse | null {
+  const hostHeader =
+    request.headers.get('x-forwarded-host')?.split(',')[0]?.trim() ||
+    request.headers.get('host') ||
+    '';
+  const hostname = hostHeader.split(':')[0]?.toLowerCase() ?? '';
+  if (hostname !== 'awesomepg.in') return null;
+  const url = request.nextUrl.clone();
+  url.hostname = 'www.awesomepg.in';
+  if (process.env.NODE_ENV === 'production') {
+    url.protocol = 'https:';
+  }
+  return NextResponse.redirect(url, 308);
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -59,6 +74,9 @@ export function middleware(request: NextRequest) {
   if (shouldRunCapitalMiddleware(request)) {
     return capitalMiddleware(request);
   }
+
+  const apexRedirect = pgApexToWwwRedirect(request);
+  if (apexRedirect) return apexRedirect;
 
   const capitalOnlyPaths = [
     '/dashboard',

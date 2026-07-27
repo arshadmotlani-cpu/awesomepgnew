@@ -23,12 +23,22 @@ export function CustomerSessionRefresh() {
       }
     }
 
+    void ping();
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && !cancelled) {
+        void ping();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
     const id = window.setInterval(() => {
       if (!cancelled) void ping();
     }, REFRESH_INTERVAL_MS);
 
     return () => {
       cancelled = true;
+      document.removeEventListener('visibilitychange', onVisible);
       window.clearInterval(id);
     };
   }, []);

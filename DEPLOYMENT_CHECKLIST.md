@@ -14,9 +14,10 @@ Use this list before every production deploy. Full audit: `/admin/system/health-
 
 ```
 AUTH_SECRET=...
-AUTH_CUSTOMER_SESSION_DAYS=30          # standard session (without remember-device)
-AUTH_CUSTOMER_REMEMBER_DAYS=75         # remember-this-device TTL
-AUTH_CUSTOMER_SESSION_REFRESH_DAYS=14  # sliding refresh threshold
+AUTH_CUSTOMER_SESSION_DAYS=60           # resident session TTL (standard)
+AUTH_CUSTOMER_REMEMBER_DAYS=60          # remember-this-device TTL (same target)
+AUTH_CUSTOMER_SESSION_REFRESH_DAYS=14   # also slide when remaining ≤ this many days
+AUTH_CUSTOMER_SESSION_REFRESH_MIN_HOURS=24  # throttle sliding refresh (hours)
 CRON_SECRET=...
 BLOB_READ_WRITE_TOKEN=...
 PAYMENT_PROVIDER=razorpay

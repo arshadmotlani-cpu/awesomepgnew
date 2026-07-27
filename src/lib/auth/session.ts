@@ -12,6 +12,7 @@ import {
 import {
   customerSessionExpiry,
   customerSessionRefreshThresholdMs,
+  shouldRefreshCustomerSession,
 } from './customerSessionPolicy';
 import {
   ADMIN_SESSION_COOKIE,
@@ -19,6 +20,7 @@ import {
 } from './constants';
 import { normaliseIndianPhone } from '@/src/lib/phone';
 import { hasDatabaseUrl } from '@/src/lib/db/env';
+import { authSessionDebug } from './authSessionDebug';
 import { randomToken, sha256 } from './crypto';
 
 type CustomerSessionRejectReason =
@@ -41,6 +43,7 @@ async function rejectCustomerSession(args: {
     reason: args.reason,
     subjectId: args.subjectId,
     sessionId: args.sessionId,
+    cookieCleared: true,
   });
   try {
     await db
@@ -100,7 +103,7 @@ export async function createCustomerSession(args: {
   ip?: string | null;
   userAgent?: string | null;
 }): Promise<string> {
-  const rememberMe = args.rememberMe ?? false;
+  const rememberMe = args.rememberMe ?? true;
   const token = randomToken();
   const expires = customerExpiryFor(rememberMe);
   await db.insert(authSessions).values({
@@ -119,6 +122,11 @@ export async function createCustomerSession(args: {
     secure: env.NODE_ENV === 'production',
     path: '/',
     expires,
+  });
+  authSessionDebug('customer_session_created', {
+    customerId: args.customerId,
+    rememberMe,
+    expiresAt: expires.toISOString(),
   });
   return token;
 }
@@ -159,6 +167,7 @@ async function readSessionByCookie(
   sessionId: string;
   subjectId: string;
   expiresAt: Date;
+  lastSeenAt: Date;
   rememberMe: boolean;
   token: string;
 } | null> {
@@ -172,6 +181,7 @@ async function readSessionByCookie(
         sessionId: authSessions.id,
         subjectId: authSessions.subjectId,
         expiresAt: authSessions.expiresAt,
+        lastSeenAt: authSessions.lastSeenAt,
         rememberMe: authSessions.rememberMe,
       })
       .from(authSessions)
@@ -196,12 +206,19 @@ async function readSessionByCookie(
       sessionId: row.sessionId,
       subjectId: row.subjectId,
       expiresAt: row.expiresAt,
+      lastSeenAt: row.lastSeenAt,
       rememberMe: row.rememberMe,
       token,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[auth] ${kind} session lookup failed:`, message);
+    if (kind === 'customer') {
+      authSessionDebug('customer_session_validate_failed', {
+        reason: 'db_lookup_error',
+        message,
+      });
+    }
     return null;
   }
 }
@@ -244,14 +261,20 @@ async function refreshAdminSessionIfNeeded(args: {
 async function refreshCustomerSessionIfNeeded(args: {
   sessionId: string;
   expiresAt: Date;
+  lastSeenAt: Date;
   rememberMe: boolean;
   token: string;
 }): Promise<Date> {
-  const remaining = args.expiresAt.getTime() - Date.now();
-  if (remaining > customerRefreshThresholdMs()) {
+  if (!shouldRefreshCustomerSession(args.expiresAt, args.lastSeenAt)) {
+    authSessionDebug('customer_session_validate_ok', {
+      sessionId: args.sessionId,
+      refreshed: false,
+      expiresAt: args.expiresAt.toISOString(),
+    });
     return args.expiresAt;
   }
 
+  const previousExpires = args.expiresAt.toISOString();
   const newExpires = customerExpiryFor(args.rememberMe);
   try {
     await db
@@ -267,9 +290,18 @@ async function refreshCustomerSessionIfNeeded(args: {
       path: '/',
       expires: newExpires,
     });
+    authSessionDebug('customer_session_refreshed', {
+      sessionId: args.sessionId,
+      previousExpires,
+      newExpires: newExpires.toISOString(),
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[auth] customer session refresh failed:', message);
+    authSessionDebug('customer_session_refresh_failed', {
+      sessionId: args.sessionId,
+      message,
+    });
     return args.expiresAt;
   }
 
@@ -280,26 +312,40 @@ async function refreshCustomerSessionIfNeeded(args: {
 export const getCustomerSession = cache(async (): Promise<CustomerSession | null> => {
   const base = await readSessionByCookie(CUSTOMER_SESSION_COOKIE, 'customer');
   if (!base) return null;
+  authSessionDebug('customer_session_validate_ok', {
+    sessionId: base.sessionId,
+    expiresAt: base.expiresAt.toISOString(),
+    cookiePresent: true,
+  });
   try {
     const expiresAt = await refreshCustomerSessionIfNeeded({
       sessionId: base.sessionId,
       expiresAt: base.expiresAt,
+      lastSeenAt: base.lastSeenAt,
       rememberMe: base.rememberMe,
       token: base.token,
     });
 
-    const [customer] = await db
-      .select({
-        id: customers.id,
-        phone: customers.phone,
-        fullName: customers.fullName,
-        email: customers.email,
-        mustSetPassword: customers.mustSetPassword,
-        archivedAt: customers.archivedAt,
-      })
-      .from(customers)
-      .where(and(eq(customers.id, base.subjectId), isNull(customers.archivedAt)))
-      .limit(1);
+    async function loadCustomer() {
+      const [customer] = await db
+        .select({
+          id: customers.id,
+          phone: customers.phone,
+          fullName: customers.fullName,
+          email: customers.email,
+          mustSetPassword: customers.mustSetPassword,
+          archivedAt: customers.archivedAt,
+        })
+        .from(customers)
+        .where(and(eq(customers.id, base.subjectId), isNull(customers.archivedAt)))
+        .limit(1);
+      return customer ?? null;
+    }
+
+    let customer = await loadCustomer();
+    if (!customer) {
+      customer = await loadCustomer();
+    }
     if (!customer) {
       await rejectCustomerSession({
         token: base.token,
@@ -323,6 +369,11 @@ export const getCustomerSession = cache(async (): Promise<CustomerSession | null
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[auth] customer profile lookup failed:', message);
+    authSessionDebug('customer_session_validate_failed', {
+      sessionId: base.sessionId,
+      reason: 'customer_lookup_error',
+      message,
+    });
     return null;
   }
 });

@@ -115,15 +115,23 @@ export const env = {
     return optional('AUTH_SECRET') ?? 'dev-only-auth-secret-change-me';
   },
   get AUTH_CUSTOMER_SESSION_DAYS() {
-    return optionalInt('AUTH_CUSTOMER_SESSION_DAYS', 30);
+    return optionalInt('AUTH_CUSTOMER_SESSION_DAYS', 60);
   },
-  /** Remember-this-device resident session. Default 75 days (within 60–90 day target). */
+  /** Remember-this-device resident session (defaults to same 60-day window). */
   get AUTH_CUSTOMER_REMEMBER_DAYS() {
-    return optionalInt('AUTH_CUSTOMER_REMEMBER_DAYS', 75);
+    return optionalInt('AUTH_CUSTOMER_REMEMBER_DAYS', 60);
   },
-  /** Extend resident session when remaining lifetime falls below this threshold. Default 14 days. */
+  /** Legacy threshold: also refresh when remaining lifetime falls below this (days). Default 14. */
   get AUTH_CUSTOMER_SESSION_REFRESH_DAYS() {
     return optionalInt('AUTH_CUSTOMER_SESSION_REFRESH_DAYS', 14);
+  },
+  /** Min hours between sliding session DB/cookie extensions (active users). Default 24. */
+  get AUTH_CUSTOMER_SESSION_REFRESH_MIN_HOURS() {
+    return optionalInt('AUTH_CUSTOMER_SESSION_REFRESH_MIN_HOURS', 24);
+  },
+  /** Verbose auth session logs when set to 1. */
+  get AUTH_SESSION_DEBUG() {
+    return optional('AUTH_SESSION_DEBUG') === '1';
   },
   /** Standard admin session length (without Remember Me). Default 30 days. */
   get AUTH_ADMIN_SESSION_DAYS() {

@@ -230,6 +230,7 @@ export async function POST(request: Request) {
           customerId: existingCustomer.id,
           ip,
           userAgent,
+          rememberMe: true,
         });
         return NextResponse.json(
           {
@@ -247,6 +248,7 @@ export async function POST(request: Request) {
         customerId: existingCustomer.id,
         ip,
         userAgent,
+        rememberMe: true,
       });
       await clearSignupVerificationCookie();
 
@@ -323,6 +325,7 @@ export async function POST(request: Request) {
         customerId: existingCustomer.id,
         ip,
         userAgent,
+        rememberMe: true,
       });
       await clearSignupVerificationCookie();
 
