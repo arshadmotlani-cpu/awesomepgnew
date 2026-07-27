@@ -18,11 +18,17 @@ import {
 import type { InvoiceBreakdown } from '@/src/db/schema/financialInvoices';
 import { createInvoiceShareToken } from '@/src/lib/billing/invoiceShareToken';
 import { nextFinancialInvoiceNumber } from '@/src/lib/billing/invoiceNumbering.server';
+import {
+  COMPANY_REIMBURSEMENT_FOOTER,
+  displayRatePerDayPaise,
+} from '@/src/lib/billing/companyReimbursementCopy';
 import { formatDate } from '@/src/lib/dates';
 import { formatDate as formatDisplayDate } from '@/src/lib/format';
 
-export const COMPANY_REIMBURSEMENT_FOOTER =
-  'This invoice is issued solely for reimbursement purposes and does not represent accounting revenue in the Awesome PG system.';
+export {
+  COMPANY_REIMBURSEMENT_FOOTER,
+  displayRatePerDayPaise,
+} from '@/src/lib/billing/companyReimbursementCopy';
 
 export type CreateCompanyReimbursementInvoiceInput = {
   bookingCode: string;
@@ -49,12 +55,6 @@ export type CreateCompanyReimbursementInvoiceResult =
       ratePerDayPaise: number;
     }
   | { ok: false; error: string };
-
-/** Round only for display; invoice total stays exact. */
-export function displayRatePerDayPaise(totalPaise: number, durationDays: number): number {
-  if (durationDays <= 0) return totalPaise;
-  return Math.round(totalPaise / durationDays);
-}
 
 function stayPeriodLabel(stayStart: string, stayEnd: string): string {
   return `${formatDisplayDate(stayStart)} – ${formatDisplayDate(stayEnd)}`;

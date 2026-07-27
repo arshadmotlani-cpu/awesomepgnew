@@ -5,9 +5,9 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PDFDocument, StandardFonts, rgb, type PDFPage, type PDFFont } from 'pdf-lib';
+import { COMPANY_REIMBURSEMENT_FOOTER } from '@/src/lib/billing/companyReimbursementCopy';
 import type { InvoiceDocumentModel } from '@/src/lib/billing/invoiceDocumentModel';
 import { titleCase } from '@/src/lib/format';
-import { COMPANY_REIMBURSEMENT_FOOTER } from '@/src/services/companyReimbursementInvoice';
 
 function formatInrPdf(paise: number): string {
   const amount = paise / 100;

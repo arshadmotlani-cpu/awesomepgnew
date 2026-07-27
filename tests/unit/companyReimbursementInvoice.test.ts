@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { displayRatePerDayPaise } from '../../src/services/companyReimbursementInvoice';
+import { displayRatePerDayPaise } from '../../src/lib/billing/companyReimbursementCopy';
 import { computeInvoiceDocumentTotals } from '../../src/lib/billing/invoiceDocumentModel';
 import { isCompanyReimbursementInvoice } from '../../src/lib/billing/documentOnlyInvoice';
 

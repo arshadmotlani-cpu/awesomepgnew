@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { COMPANY_REIMBURSEMENT_FOOTER } from '@/src/services/companyReimbursementInvoice';
+import { COMPANY_REIMBURSEMENT_FOOTER } from '@/src/lib/billing/companyReimbursementCopy';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import type { InvoiceDocumentModel } from '@/src/lib/billing/invoiceDocumentModel';
 import type { FinancialInvoiceStatus } from '@/src/db/schema/enums';
