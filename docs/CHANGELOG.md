@@ -256,17 +256,28 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-27 15:30:34 UTC
+### Pending pre-commit sync · 2026-07-27 15:31:46 UTC
 
-**Areas touched:** [[ROUTES]]
+**Areas touched:** [[DATABASE]], [[Billing]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
+- `DATABASE.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (1):**
-- `app/(customer)/booking/new/couponActions.ts`
+**Staged code files (9):**
+- `src/db/migrations/0127_company_reimbursement_invoice.sql`
+- `src/db/migrations/meta/_journal.json`
+- `src/db/schema/enums.ts`
+- `src/db/schema/financialInvoices.ts`
+- `src/lib/billing/documentOnlyInvoice.ts`
+- `src/lib/billing/invoiceDocumentModel.ts`
+- `src/lib/billing/invoicePdf.ts`
+- `src/services/residentFinancialEngine.ts`
+- `src/services/unifiedInvoices.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

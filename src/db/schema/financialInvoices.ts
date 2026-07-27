@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  boolean,
   date,
   index,
   jsonb,
@@ -18,6 +19,15 @@ import { paymentLinks } from './paymentLinks';
 import { payments } from './payments';
 import { pgs } from './pgs';
 
+export type InvoiceDocumentOnlyMeta = {
+  stayStart: string;
+  stayEnd: string;
+  durationDays: number;
+  /** Display-rounded per-day rate; invoice total remains amountPaise. */
+  ratePerDayPaise: number;
+  paymentStatusLabel: string;
+};
+
 export type InvoiceBreakdown = {
   rentPaise?: number;
   electricityPaise?: number;
@@ -30,10 +40,12 @@ export type InvoiceBreakdown = {
   paidPaise?: number;
   discountPaise?: number;
   promoCode?: string;
+  documentOnly?: InvoiceDocumentOnlyMeta;
   lines?: Array<{
     kind: string;
     label: string;
     amountPaise: number;
+    period?: string | null;
     sourceTable?: string | null;
     sourceId?: string | null;
   }>;
@@ -74,6 +86,11 @@ export const financialInvoices = pgTable(
     refundReason: text('refund_reason'),
     shareToken: text('share_token'),
     notes: text('notes'),
+    /** Printable document only — never revenue, SSOT outstanding, or ledger. */
+    isDocumentOnly: boolean('is_document_only').notNull().default(false),
+    excludeFromReports: boolean('exclude_from_reports').notNull().default(false),
+    revenueImpact: boolean('revenue_impact').notNull().default(true),
+    analyticsImpact: boolean('analytics_impact').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -88,6 +105,9 @@ export const financialInvoices = pgTable(
     index('financial_invoices_status_idx').on(t.status, t.createdAt),
     index('financial_invoices_pg_idx').on(t.pgId, t.billingMonth),
     index('financial_invoices_customer_idx').on(t.customerId),
+    index('financial_invoices_document_only_idx')
+      .on(t.isDocumentOnly)
+      .where(sql`${t.isDocumentOnly} = true`),
   ],
 );
 

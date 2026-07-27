@@ -121,6 +121,15 @@ export type InvoiceDocumentModel = {
   cancellationReason: string | null;
   electricityCalculationBreakdown: ElectricityBillCalculationBreakdown | null;
   rentCalculationBreakdown: RentInvoiceBreakdown | null;
+  /** Document-only company reimbursement — no accounting impact. */
+  isDocumentOnly: boolean;
+  excludeFromReports: boolean;
+  revenueImpact: boolean;
+  analyticsImpact: boolean;
+  documentTitle: string;
+  paymentStatusLabel: string;
+  ratePerDayPaise: number | null;
+  durationDays: number | null;
 };
 
 function resolveGstin(): string {
@@ -166,6 +175,8 @@ function lineSubtitleForKind(kind: string): string | null {
       return 'Security deposit';
     case 'ps4':
       return 'PlayStation membership';
+    case 'company_reimbursement':
+      return 'Company reimbursement (non-accounting)';
     case 'custom':
     case 'damage':
     case 'penalty':
@@ -189,7 +200,9 @@ export function buildInvoiceDocumentLineItems(
       kind: l.kind,
       label: l.label,
       subtitle: lineSubtitleForKind(l.kind),
-      period: l.kind === 'rent' || l.kind === 'electricity' ? period : null,
+      period:
+        l.period ??
+        (l.kind === 'rent' || l.kind === 'electricity' ? period : null),
       amountPaise: l.amountPaise,
     }));
   }
@@ -303,6 +316,7 @@ export function computeInvoiceDocumentTotals(input: {
   taxLabel?: string;
   discountPaise?: number;
   discountLabel?: string | null;
+  isDocumentOnly?: boolean;
 }): InvoiceDocumentTotals {
   const lateFeePaise = input.breakdown?.lateFeePaise ?? 0;
   const discountPaise = input.discountPaise ?? input.breakdown?.discountPaise ?? 0;
@@ -317,10 +331,15 @@ export function computeInvoiceDocumentTotals(input: {
   }
 
   const totalPaise = input.amountPaise;
-  const balanceDuePaise =
-    input.status === 'paid' || input.status === 'cancelled' || input.status === 'refunded'
-      ? 0
-      : Math.max(0, totalPaise - paidPaise);
+  const closedWithoutBalance =
+    input.isDocumentOnly === true ||
+    input.status === 'paid' ||
+    input.status === 'settled' ||
+    input.status === 'cancelled' ||
+    input.status === 'refunded';
+  const balanceDuePaise = closedWithoutBalance
+    ? 0
+    : Math.max(0, totalPaise - paidPaise);
 
   return {
     subtotalPaise,
@@ -330,7 +349,7 @@ export function computeInvoiceDocumentTotals(input: {
     taxPaise: input.taxPaise,
     taxLabel: input.taxLabel,
     totalPaise,
-    paidPaise,
+    paidPaise: input.isDocumentOnly ? 0 : paidPaise,
     balanceDuePaise,
   };
 }
@@ -487,6 +506,7 @@ export async function getInvoiceDocumentDetail(
     lineItems,
     discountPaise,
     discountLabel,
+    isDocumentOnly: Boolean(base.isDocumentOnly),
   });
 
   const issuedAtIso = formatIsoDate(base.createdAt);
@@ -540,6 +560,32 @@ export async function getInvoiceDocumentDetail(
     rentCalculationBreakdown = await loadRentInvoiceBreakdown(base.sourceId);
   }
 
+  const isDocumentOnly = Boolean(base.isDocumentOnly);
+  const documentMeta = base.breakdown?.documentOnly ?? null;
+  let stayDates = buildInvoiceDocumentStayDates({ durationMode, stayRangeRaw });
+  if (documentMeta?.stayStart && documentMeta?.stayEnd) {
+    const checkIn = formatDate(documentMeta.stayStart);
+    const checkOut = formatDate(documentMeta.stayEnd);
+    stayDates = {
+      checkIn,
+      checkOut,
+      isOpenEnded: false,
+      displayLabel: `${checkIn} – ${checkOut}`,
+      noticeNote: null,
+      stayPeriodNote:
+        documentMeta.durationDays > 0
+          ? `${documentMeta.durationDays} day${documentMeta.durationDays === 1 ? '' : 's'} (company reimbursement period)`
+          : null,
+    };
+  }
+
+  const documentTitle = isDocumentOnly
+    ? 'Company Reimbursement Invoice'
+    : 'Tax Invoice';
+  const paymentStatusLabel =
+    documentMeta?.paymentStatusLabel ??
+    (isDocumentOnly ? 'For Company Reimbursement' : titleCase(base.status.replace(/_/g, ' ')));
+
   return {
     id: base.id,
     invoiceNumber: base.invoiceNumber,
@@ -556,7 +602,7 @@ export async function getInvoiceDocumentDetail(
     roomNumber: base.roomNumber,
     bedCode: base.bedCode,
     letterhead,
-    stayDates: buildInvoiceDocumentStayDates({ durationMode, stayRangeRaw }),
+    stayDates,
     lineItems,
     totals,
     payment: {
@@ -566,20 +612,32 @@ export async function getInvoiceDocumentDetail(
       paidAt: base.paidAt ? formatDate(base.paidAt) : null,
       collectedByName,
       paymentLinkUrl:
-        base.status !== 'paid' && base.status !== 'cancelled' && base.status !== 'refunded'
-          ? paymentLinkUrl
-          : null,
+        isDocumentOnly ||
+        base.status === 'paid' ||
+        base.status === 'settled' ||
+        base.status === 'cancelled' ||
+        base.status === 'refunded'
+          ? null
+          : paymentLinkUrl,
       paymentLinkId: base.paymentLink?.id ?? null,
     },
     bookingPaymentSummary,
     relatedLinks,
-    dueDate,
+    dueDate: isDocumentOnly ? null : dueDate,
     billingMonth: base.billingMonth,
     issuedAt,
     notes: base.notes,
     cancellationReason: base.cancellationReason,
     electricityCalculationBreakdown,
     rentCalculationBreakdown,
+    isDocumentOnly,
+    excludeFromReports: Boolean(base.excludeFromReports),
+    revenueImpact: base.revenueImpact !== false,
+    analyticsImpact: base.analyticsImpact !== false,
+    documentTitle,
+    paymentStatusLabel,
+    ratePerDayPaise: documentMeta?.ratePerDayPaise ?? null,
+    durationDays: documentMeta?.durationDays ?? null,
   };
 }
 

@@ -2,9 +2,12 @@
  * SSOT server-side invoice PDF — used by admin and resident download routes.
  * Data comes from InvoiceDocumentModel (invoiceDocumentModel.ts).
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { PDFDocument, StandardFonts, rgb, type PDFPage, type PDFFont } from 'pdf-lib';
 import type { InvoiceDocumentModel } from '@/src/lib/billing/invoiceDocumentModel';
 import { titleCase } from '@/src/lib/format';
+import { COMPANY_REIMBURSEMENT_FOOTER } from '@/src/services/companyReimbursementInvoice';
 
 function formatInrPdf(paise: number): string {
   const amount = paise / 100;
@@ -199,20 +202,57 @@ class PdfWriter {
   }
 }
 
+async function tryEmbedBrandLogo(pdfDoc: PDFDocument) {
+  try {
+    const logoPath = join(process.cwd(), 'public/brand/awesome-pg-256.png');
+    const bytes = readFileSync(logoPath);
+    return await pdfDoc.embedPng(bytes);
+  } catch {
+    return null;
+  }
+}
+
 export async function generateInvoicePdf(document: InvoiceDocumentModel): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const fonts: Fonts = { regular, bold };
   const w = new PdfWriter(pdfDoc, fonts);
+  const isDocumentOnly = Boolean(document.isDocumentOnly);
+  const docTitle = sanitizeForPdf(
+    (
+      document.documentTitle ||
+      (isDocumentOnly ? 'Company Reimbursement Invoice' : 'TAX INVOICE')
+    ).toUpperCase(),
+  );
 
-  w.currentPage().drawText(sanitizeForPdf(document.letterhead.businessName), {
-    x: MARGIN,
-    y: w.cursorY(),
-    size: 18,
-    font: w.bold,
-    color: BRAND,
-  });
+  const logo = await tryEmbedBrandLogo(pdfDoc);
+  if (logo) {
+    const logoH = 36;
+    const logoW = (logo.width / logo.height) * logoH;
+    w.currentPage().drawImage(logo, {
+      x: MARGIN,
+      y: w.cursorY() - logoH + 8,
+      width: logoW,
+      height: logoH,
+    });
+    w.currentPage().drawText(sanitizeForPdf(document.letterhead.businessName), {
+      x: MARGIN + logoW + 10,
+      y: w.cursorY(),
+      size: 16,
+      font: w.bold,
+      color: BRAND,
+    });
+  } else {
+    w.currentPage().drawText(sanitizeForPdf(document.letterhead.businessName), {
+      x: MARGIN,
+      y: w.cursorY(),
+      size: 18,
+      font: w.bold,
+      color: BRAND,
+    });
+  }
+
   const invNumWidth = w.bold.widthOfTextAtSize(document.invoiceNumber, 11);
   w.currentPage().drawText(sanitizeForPdf(document.invoiceNumber), {
     x: PAGE_W - MARGIN - invNumWidth,
@@ -223,14 +263,20 @@ export async function generateInvoicePdf(document: InvoiceDocumentModel): Promis
   });
   w.moveDown(22);
 
-  w.currentPage().drawText('TAX INVOICE', {
-    x: PAGE_W - MARGIN - w.bold.widthOfTextAtSize('TAX INVOICE', 8),
+  w.currentPage().drawText(docTitle, {
+    x: PAGE_W - MARGIN - w.bold.widthOfTextAtSize(docTitle, 8),
     y: w.cursorY(),
     size: 8,
     font: w.bold,
     color: MUTED,
   });
   w.moveDown(14);
+
+  if (isDocumentOnly) {
+    w.drawMuted('COMPANY REIMBURSEMENT', 9);
+    w.drawMuted('NON-ACCOUNTING DOCUMENT', 9);
+    w.moveDown(4);
+  }
 
   w.drawMuted(document.letterhead.pgName, 11);
   for (const line of document.letterhead.addressLines) {
@@ -242,12 +288,26 @@ export async function generateInvoicePdf(document: InvoiceDocumentModel): Promis
 
   w.drawRule(8);
 
-  const statusLabel = STATUS_LABELS[document.status] ?? titleCase(document.status);
+  const statusLabel = isDocumentOnly
+    ? document.paymentStatusLabel || 'For Company Reimbursement'
+    : (STATUS_LABELS[document.status] ?? titleCase(document.status));
   const billingLabel = monthLabel(document.billingMonth);
   w.drawLabelValue('Invoice date', document.issuedAt);
-  if (document.dueDate) w.drawLabelValue('Due date', document.dueDate);
-  w.drawLabelValue('Invoice type', titleCase(document.invoiceType.replace(/_/g, ' ')));
+  if (document.dueDate && !isDocumentOnly) w.drawLabelValue('Due date', document.dueDate);
+  w.drawLabelValue(
+    'Invoice type',
+    isDocumentOnly
+      ? 'Company Reimbursement Invoice'
+      : titleCase(document.invoiceType.replace(/_/g, ' ')),
+  );
   if (billingLabel) w.drawLabelValue('Billing month', billingLabel);
+  if (document.bookingCode) w.drawLabelValue('Booking ID', document.bookingCode);
+  if (document.durationDays != null) {
+    w.drawLabelValue('Duration', `${document.durationDays} Days`);
+  }
+  if (document.ratePerDayPaise != null) {
+    w.drawLabelValue('Rate', `${formatInrPdf(document.ratePerDayPaise)} / Day`);
+  }
   w.drawLabelValue('Payment status', statusLabel, { boldValue: true });
 
   w.drawRule();
@@ -263,7 +323,7 @@ export async function generateInvoicePdf(document: InvoiceDocumentModel): Promis
     .filter(Boolean)
     .join(' · ');
   if (location) w.drawMuted(location);
-  if (document.bookingCode) w.drawMuted(`Booking ${document.bookingCode}`);
+  if (document.bookingCode && !isDocumentOnly) w.drawMuted(`Booking ${document.bookingCode}`);
 
   if (document.stayDates) {
     w.moveDown(4);
@@ -360,16 +420,21 @@ export async function generateInvoicePdf(document: InvoiceDocumentModel): Promis
   }
   w.drawRule(6);
   w.drawLabelValue('Total', formatInrPdf(document.totals.totalPaise), { boldValue: true });
-  if (document.totals.paidPaise > 0) {
+  if (!isDocumentOnly && document.totals.paidPaise > 0) {
     w.drawLabelValue('Amount paid', formatInrPdf(document.totals.paidPaise));
   }
-  w.drawLabelValue('Balance due', formatInrPdf(document.totals.balanceDuePaise), { boldValue: true });
+  if (!isDocumentOnly) {
+    w.drawLabelValue('Balance due', formatInrPdf(document.totals.balanceDuePaise), {
+      boldValue: true,
+    });
+  }
 
   const hasPayment =
-    document.payment.paymentMode ||
-    document.payment.paymentReference ||
-    document.payment.paidAt ||
-    document.status === 'paid';
+    !isDocumentOnly &&
+    (document.payment.paymentMode ||
+      document.payment.paymentReference ||
+      document.payment.paidAt ||
+      document.status === 'paid');
 
   if (hasPayment) {
     w.drawRule();
@@ -419,11 +484,26 @@ export async function generateInvoicePdf(document: InvoiceDocumentModel): Promis
     );
   }
 
-  w.drawRule(12);
-  w.drawMuted(
-    'This is a computer-generated tax invoice from Awesome PG. For billing queries, contact your PG office.',
-  );
-  if (document.notes) {
+  if (isDocumentOnly) {
+    w.drawRule(16);
+    w.drawHeading('Authorized Signature');
+    w.moveDown(28);
+    w.currentPage().drawLine({
+      start: { x: PAGE_W - MARGIN - 180, y: w.cursorY() },
+      end: { x: PAGE_W - MARGIN, y: w.cursorY() },
+      thickness: 0.75,
+      color: RULE,
+    });
+    w.moveDown(14);
+    w.drawMuted(COMPANY_REIMBURSEMENT_FOOTER);
+  } else {
+    w.drawRule(12);
+    w.drawMuted(
+      'This is a computer-generated tax invoice from Awesome PG. For billing queries, contact your PG office.',
+    );
+  }
+
+  if (document.notes && !isDocumentOnly) {
     w.moveDown(4);
     w.drawMuted(`Notes: ${document.notes}`);
   }

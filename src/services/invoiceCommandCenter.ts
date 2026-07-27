@@ -17,6 +17,7 @@ import {
   rentInvoices,
 } from '@/src/db/schema';
 import { resolveSelectedDay } from '@/src/lib/billing/dayNavigation';
+import { excludeDocumentOnlyFinancialInvoices } from '@/src/lib/billing/documentOnlyInvoice';
 import { invoiceDetailHref } from '@/src/lib/billing/invoiceRoutes';
 import { allocateBookingCheckoutPayment } from '@/src/lib/billing/bookingPaymentAllocation';
 import { asPlainNumber } from '@/src/lib/format';
@@ -109,6 +110,10 @@ function excludePipelineTestFinancialInvoices() {
         AND ei.is_pipeline_test = true
     )
   )`;
+}
+
+function excludeNonAccountingFinancialInvoices() {
+  return and(excludePipelineTestFinancialInvoices(), excludeDocumentOnlyFinancialInvoices());
 }
 
 /** Pure net inflow for a calendar day — invoice-first (no gross booking payment bucket). */
@@ -283,7 +288,7 @@ export async function getInvoiceDailySummary(dateInput?: string): Promise<Invoic
         and(
           sql`${financialInvoices.createdAt}::date = ${selectedDate}::date`,
           productionCustomerFilter,
-          excludePipelineTestFinancialInvoices(),
+          excludeNonAccountingFinancialInvoices(),
         ),
       ),
     db
@@ -296,7 +301,7 @@ export async function getInvoiceDailySummary(dateInput?: string): Promise<Invoic
           inArray(financialInvoices.status, ['paid', 'partial', 'settled']),
           sql`${financialInvoices.paidAt}::date = ${selectedDate}::date`,
           productionCustomerFilter,
-          excludePipelineTestFinancialInvoices(),
+          excludeNonAccountingFinancialInvoices(),
         ),
       ),
     db
@@ -309,7 +314,7 @@ export async function getInvoiceDailySummary(dateInput?: string): Promise<Invoic
           sql`${financialInvoices.createdAt}::date = ${selectedDate}::date`,
           inArray(financialInvoices.status, [...OPEN_INVOICE_STATUSES]),
           productionCustomerFilter,
-          excludePipelineTestFinancialInvoices(),
+          excludeNonAccountingFinancialInvoices(),
         ),
       ),
   ]);
@@ -464,6 +469,7 @@ export async function getFinancialTimelineForDate(
           inArray(financialInvoices.status, ['paid', 'partial', 'settled']),
           sql`${financialInvoices.paidAt}::date = ${selectedDate}::date`,
           productionCustomerFilter,
+          excludeNonAccountingFinancialInvoices(),
         ),
       )
       .orderBy(desc(financialInvoices.paidAt)),
@@ -484,7 +490,7 @@ export async function getFinancialTimelineForDate(
         and(
           sql`${financialInvoices.createdAt}::date = ${selectedDate}::date`,
           productionCustomerFilter,
-          excludePipelineTestFinancialInvoices(),
+          excludeNonAccountingFinancialInvoices(),
         ),
       )
       .orderBy(desc(financialInvoices.createdAt)),
@@ -772,6 +778,7 @@ export async function listInvoicesForSelectedDay(dateInput?: string) {
     .where(
       and(
         productionCustomerFilter,
+        excludeDocumentOnlyFinancialInvoices(),
         or(
           sql`${financialInvoices.createdAt}::date = ${selectedDate}::date`,
           sql`${financialInvoices.paidAt}::date = ${selectedDate}::date`,

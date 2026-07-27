@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { COMPANY_REIMBURSEMENT_FOOTER } from '@/src/services/companyReimbursementInvoice';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import type { InvoiceDocumentModel } from '@/src/lib/billing/invoiceDocumentModel';
 import type { FinancialInvoiceStatus } from '@/src/db/schema/enums';
@@ -136,7 +137,7 @@ function buildTotalRows(doc: InvoiceDocumentModel): FinancialDocumentTotalRow[] 
     tone: 'bold',
   });
 
-  if (doc.totals.paidPaise > 0) {
+  if (!doc.isDocumentOnly && doc.totals.paidPaise > 0) {
     rows.push({
       label: 'Paid',
       value: paiseToInr(doc.totals.paidPaise),
@@ -144,11 +145,13 @@ function buildTotalRows(doc: InvoiceDocumentModel): FinancialDocumentTotalRow[] 
     });
   }
 
-  rows.push({
-    label: 'Balance due',
-    value: paiseToInr(doc.totals.balanceDuePaise),
-    tone: 'accent',
-  });
+  if (!doc.isDocumentOnly) {
+    rows.push({
+      label: 'Balance due',
+      value: paiseToInr(doc.totals.balanceDuePaise),
+      tone: 'accent',
+    });
+  }
 
   return rows;
 }
@@ -159,7 +162,16 @@ export function InvoiceDocument({ document: doc, variant = 'admin', className = 
   const muted = mutedClass(surface);
   const divider = dividerClass(surface);
 
-  const badge = (
+  const badge = doc.isDocumentOnly ? (
+    <div className="flex flex-col items-end gap-1.5">
+      <span className="inline-flex rounded-full bg-sky-500/15 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-100 ring-1 ring-sky-400/40">
+        Company Reimbursement
+      </span>
+      <span className="inline-flex rounded-full bg-zinc-500/20 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-200 ring-1 ring-zinc-400/30">
+        Non-Accounting Document
+      </span>
+    </div>
+  ) : (
     <span
       className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase ring-1 ${status.badge}`}
     >
@@ -176,13 +188,21 @@ export function InvoiceDocument({ document: doc, variant = 'admin', className = 
       <FinancialDocumentHeader
         surface={surface}
         letterhead={doc.letterhead}
-        docTitle="Tax Invoice"
+        docTitle={doc.documentTitle}
         docNumber={doc.invoiceNumber}
         issuedAt={doc.issuedAt}
-        secondaryDate={doc.dueDate ? formatDate(doc.dueDate) : null}
+        secondaryDate={doc.isDocumentOnly ? null : doc.dueDate ? formatDate(doc.dueDate) : null}
         badge={badge}
       />
 
+      {doc.isDocumentOnly ? (
+        <p className={`mt-4 text-xs font-medium uppercase tracking-wide ${muted}`}>
+          Payment status: {doc.paymentStatusLabel}
+          {doc.ratePerDayPaise != null && doc.durationDays != null
+            ? ` · Rate ${paiseToInr(doc.ratePerDayPaise)} / day · ${doc.durationDays} days`
+            : null}
+        </p>
+      ) : null}
       <FinancialDocumentMetaGrid
         surface={surface}
         left={{
@@ -392,6 +412,20 @@ export function InvoiceDocument({ document: doc, variant = 'admin', className = 
         <footer className={`mt-6 border-t pt-4 text-xs ${divider} ${muted}`}>
           <p className="font-medium">Notes</p>
           <p className="mt-1">{doc.notes}</p>
+        </footer>
+      ) : null}
+
+      {doc.isDocumentOnly ? (
+        <footer className={`mt-6 border-t pt-6 ${divider}`}>
+          <div className="flex flex-wrap items-end justify-between gap-8">
+            <p className={`max-w-md text-xs ${muted}`}>{COMPANY_REIMBURSEMENT_FOOTER}</p>
+            <div className="min-w-[180px] text-right">
+              <div className={`mb-8 border-b ${divider}`} />
+              <p className={`text-[10px] font-semibold uppercase tracking-wide ${muted}`}>
+                Authorized Signature
+              </p>
+            </div>
+          </div>
         </footer>
       ) : null}
 

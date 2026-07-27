@@ -190,7 +190,9 @@ export async function getCashSettlementEligibility(
   }
 
   let blockReason: string | undefined;
-  if (!PAYABLE_STATUSES.has(base.status)) {
+  if (base.isDocumentOnly || base.invoiceType === 'company_reimbursement') {
+    blockReason = 'Document-only company reimbursement invoices cannot be collected.';
+  } else if (!PAYABLE_STATUSES.has(base.status)) {
     blockReason = `Invoice status is ${base.status.replace(/_/g, ' ')} — not collectible.`;
   } else if (balanceDuePaise <= 0) {
     blockReason = 'Nothing due on this invoice.';

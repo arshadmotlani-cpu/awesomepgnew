@@ -401,6 +401,7 @@ async function buildOtherCategory(
       and(
         eq(financialInvoices.customerId, customerId),
         inArray(financialInvoices.invoiceType, ['custom', 'penalty', 'damage', 'ps4']),
+        eq(financialInvoices.isDocumentOnly, false),
         inArray(financialInvoices.status, ['draft', 'sent', 'overdue', 'partial']),
       ),
     );

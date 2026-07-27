@@ -978,6 +978,12 @@ export async function markUnifiedInvoicePaid(
 export async function createPaymentLinkForInvoice(invoiceId: string) {
   const detail = await getUnifiedInvoiceDetail(invoiceId);
   if (!detail) return { ok: false as const, message: 'Invoice not found.' };
+  if (detail.isDocumentOnly || detail.invoiceType === 'company_reimbursement') {
+    return {
+      ok: false as const,
+      message: 'Document-only company reimbursement invoices cannot have payment links.',
+    };
+  }
 
   const purpose =
     detail.invoiceType === 'electricity'
