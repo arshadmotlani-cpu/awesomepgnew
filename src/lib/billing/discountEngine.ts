@@ -9,7 +9,7 @@
  * - Admin confirms payment → consumed (counts toward usageLimit / perUserLimit)
  * - Cancel / reject / draft expire → released / expired (reusable)
  */
-import { and, eq, or, sql } from 'drizzle-orm';
+import { and, eq, gt, gte, isNull, lte, or, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { couponRedemptions, discountApplications, promoCoupons } from '@/src/db/schema';
 import {
@@ -93,10 +93,8 @@ async function customerHasActivePromoReservation(input: {
         eq(discountApplications.discountType, 'promo_code'),
         eq(discountApplications.lifecycleStatus, 'reserved'),
         eq(discountApplications.appliedByCustomerId, input.customerId),
-        or(
-          sql`${discountApplications.expiresAt} IS NULL`,
-          sql`${discountApplications.expiresAt} > ${now}`,
-        ),
+        // Use typed operators — raw sql`${col} > ${Date}` crashes postgres.js.
+        or(isNull(discountApplications.expiresAt), gt(discountApplications.expiresAt, now)),
       ),
     )
     .limit(1);
@@ -132,10 +130,8 @@ async function customerUsedDateCoupon(input: {
         eq(couponRedemptions.couponCode, input.couponCode),
         eq(couponRedemptions.couponDate, input.couponDate),
         eq(couponRedemptions.lifecycleStatus, 'reserved'),
-        or(
-          sql`${couponRedemptions.expiresAt} IS NULL`,
-          sql`${couponRedemptions.expiresAt} > ${now}`,
-        ),
+        // Use typed operators — raw sql`${col} > ${Date}` crashes postgres.js.
+        or(isNull(couponRedemptions.expiresAt), gt(couponRedemptions.expiresAt, now)),
       ),
     )
     .limit(1);
@@ -158,8 +154,9 @@ async function resolveAdminPromo(input: {
         sql`upper(${promoCoupons.code}) = ${normalized}`,
         eq(promoCoupons.active, true),
         eq(promoCoupons.scope, input.scope),
-        sql`${promoCoupons.validFrom} <= ${now}`,
-        sql`${promoCoupons.validTill} >= ${now}`,
+        // Typed operators — raw sql`${col} <= ${Date}` crashes postgres.js.
+        lte(promoCoupons.validFrom, now),
+        gte(promoCoupons.validTill, now),
       ),
     )
     .limit(1);

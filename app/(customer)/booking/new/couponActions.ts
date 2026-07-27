@@ -27,16 +27,28 @@ export async function previewPromoCodeAction(
     return { status: 'invalid', message: 'Invalid amount' };
   }
 
-  const result = await resolveCheckoutDiscount({
-    kind: context === 'rent_invoice' ? 'rent_invoice' : 'booking_checkout',
-    amountPaise: subtotalPaise,
-    promoCode: code,
-    customerId,
-    customerEmail,
-    customerPhone,
-  });
+  try {
+    const result = await resolveCheckoutDiscount({
+      kind: context === 'rent_invoice' ? 'rent_invoice' : 'booking_checkout',
+      amountPaise: subtotalPaise,
+      promoCode: code,
+      customerId,
+      customerEmail,
+      customerPhone,
+    });
 
-  return previewCouponStateFromDiscount(result, subtotalPaise);
+    return previewCouponStateFromDiscount(result, subtotalPaise);
+  } catch (err) {
+    console.error('[previewPromoCodeAction] unexpected failure', {
+      code: code.toUpperCase(),
+      context,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return {
+      status: 'invalid',
+      message: 'Could not validate promo code. Try again.',
+    };
+  }
 }
 
 /** @deprecated Use previewPromoCodeAction */

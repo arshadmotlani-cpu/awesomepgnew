@@ -39,6 +39,28 @@ describe('coupon usage lifecycle (reserved vs consumed)', () => {
     );
   });
 
+  it('does not interpolate JS Date into raw sql fragments (postgres.js crash)', () => {
+    const engine = read('src/lib/billing/discountEngine.ts');
+    // Broken pattern that caused Apply of date coupons to throw Server Components errors:
+    //   sql`${col.expiresAt} > ${now}`
+    //   sql`${col.validFrom} <= ${now}`
+    assert.doesNotMatch(
+      engine,
+      /sql`\$\{[^}]+\} [<>]=? \$\{now\}`/,
+    );
+    assert.match(engine, /gt\([^)]*expiresAt,\s*now\)/);
+    assert.match(engine, /isNull\([^)]*expiresAt\)/);
+    assert.match(engine, /lte\([^)]*validFrom,\s*now\)/);
+    assert.match(engine, /gte\([^)]*validTill,\s*now\)/);
+  });
+
+  it('previewPromoCodeAction catches unexpected failures instead of throwing', () => {
+    const src = read('app/(customer)/booking/new/couponActions.ts');
+    assert.match(src, /try\s*\{/);
+    assert.match(src, /Could not validate promo code\. Try again\./);
+    assert.match(src, /previewPromoCodeAction/);
+  });
+
   it('recordPaymentSuccess consumes reservations on confirm', () => {
     const src = read('src/services/bookingLifecycle.ts');
     assert.match(src, /consumeCouponReservationsForBooking/);
