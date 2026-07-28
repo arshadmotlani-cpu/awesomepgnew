@@ -13,7 +13,7 @@ import { computeNoticeDeductionBreakdown } from '../lib/vacating/noticeDeduction
 import {
   applyLateFeePolicy,
   type LateFeePolicySnapshot,
-} from './lateFeePolicy';
+} from './lateFeePolicyCore';
 
 /** Minimum calendar days of notice before vacating for zero deposit deduction. */
 export const VACATING_NOTICE_MIN_DAYS = 14;

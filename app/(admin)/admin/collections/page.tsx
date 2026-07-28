@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { CollectionsBucketNav, CollectionsKpiStrip } from '@/src/components/admin/collections/CollectionsKpiStrip';
@@ -103,7 +102,6 @@ export default async function CollectionsDashboardPage({
           { label: 'Collections', href: '/admin/collections' },
         ]}
       />
-      <DbStatusBanner />
       <PageHeader
         title="Collections"
         description="Daily receivables queues — outstanding amounts from the Resident Financial Engine."

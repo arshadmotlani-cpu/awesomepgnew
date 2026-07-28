@@ -114,7 +114,9 @@ function filterByPgScope<T extends { pgId: string }>(
   session: { role: AdminRole; pgScope: string[] | null } | null,
 ): T[] {
   if (!session || session.role === 'super_admin') return rows;
-  return rows.filter((r) => adminCanAccessPg(session, r.pgId));
+  return rows.filter((r) =>
+    adminCanAccessPg({ role: session.role, pgScope: session.pgScope ?? [] }, r.pgId),
+  );
 }
 
 export async function loadCollectionsCalendar(opts: {
