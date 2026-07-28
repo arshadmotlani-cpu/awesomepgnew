@@ -189,8 +189,8 @@ export function InvoiceDocument({ document: doc, variant = 'admin', className = 
       {doc.isDocumentOnly ? (
         <p className={`mt-4 text-xs font-medium uppercase tracking-wide ${muted}`}>
           Payment status: {doc.paymentStatusLabel}
-          {doc.ratePerDayPaise != null && doc.durationDays != null
-            ? ` · Rate ${paiseToInr(doc.ratePerDayPaise)} / day · ${doc.durationDays} days`
+          {doc.durationDays != null
+            ? ` · ${doc.durationDays} day${doc.durationDays === 1 ? '' : 's'}`
             : null}
         </p>
       ) : null}

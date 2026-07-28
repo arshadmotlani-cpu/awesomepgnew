@@ -54,8 +54,8 @@ export async function listResidentDocumentInvoicesForCustomer(
       issuedAt: row.createdAt ? formatDate(row.createdAt) : null,
       stayLabel,
       label: stayLabel
-        ? `Tax Invoice · Hotel accommodation (${stayLabel})`
-        : 'Tax Invoice · Hotel accommodation',
+        ? `Tax Invoice · Accommodation (${stayLabel})`
+        : 'Tax Invoice · Accommodation',
       status: 'paid',
       detailHref: invoiceDetailHref(row.id, 'resident'),
     };

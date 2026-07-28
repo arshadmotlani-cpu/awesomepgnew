@@ -288,7 +288,7 @@ export async function generateInvoicePdf(document: InvoiceDocumentModel): Promis
   w.drawLabelValue(
     'Invoice type',
     isDocumentOnly
-      ? 'Hotel Accommodation'
+      ? 'Accommodation'
       : titleCase(document.invoiceType.replace(/_/g, ' ')),
   );
   if (billingLabel) w.drawLabelValue('Billing month', billingLabel);
@@ -296,7 +296,7 @@ export async function generateInvoicePdf(document: InvoiceDocumentModel): Promis
   if (document.durationDays != null) {
     w.drawLabelValue('Duration', `${document.durationDays} Days`);
   }
-  if (document.ratePerDayPaise != null) {
+  if (!isDocumentOnly && document.ratePerDayPaise != null) {
     w.drawLabelValue('Rate', `${formatInrPdf(document.ratePerDayPaise)} / Day`);
   }
   w.drawLabelValue('Payment status', statusLabel, { boldValue: true });
@@ -490,7 +490,7 @@ export async function generateInvoicePdf(document: InvoiceDocumentModel): Promis
   } else {
     w.drawRule(12);
     w.drawMuted(
-      'This is a computer-generated tax invoice from Awesome PG Hotel. For billing queries, contact your PG office.',
+      'This is a computer-generated tax invoice from Awesome PG. For billing queries, contact your PG office.',
     );
   }
 

@@ -729,7 +729,7 @@ export async function ResidentAreaSection({
       status: inv.status,
       invoiceNumber: inv.invoiceNumber,
       detailHref: inv.detailHref,
-      subtitle: inv.stayLabel ? `Stay ${inv.stayLabel}` : 'Awesome PG Hotel',
+      subtitle: inv.stayLabel ? `Stay ${inv.stayLabel}` : null,
     });
   }
 

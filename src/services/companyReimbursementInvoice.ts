@@ -186,7 +186,7 @@ export async function createCompanyReimbursementInvoice(
   const invoiceNumber = await nextFinancialInvoiceNumber({ pgId: ctx.pgId });
   const shareToken = createInvoiceShareToken();
   const notes = [
-    `Hotel accommodation · Stay ${period} (${input.durationDays} days).`,
+    `Accommodation with Breakfast, Lunch & Dinner · Stay ${period} (${input.durationDays} days).`,
     DOCUMENT_ONLY_INVOICE_FOOTER,
   ].join(' ');
 

@@ -5,9 +5,10 @@ import { join } from 'node:path';
 import {
   DOCUMENT_ONLY_INVOICE_FOOTER,
   DOCUMENT_ONLY_INVOICE_TITLE,
+  DOCUMENT_ONLY_LINE_LABEL,
   hotelAccommodationLineLabel,
+  displayRatePerDayPaise,
 } from '../../src/lib/billing/companyReimbursementCopy';
-import { displayRatePerDayPaise } from '../../src/lib/billing/companyReimbursementCopy';
 import { computeInvoiceDocumentTotals } from '../../src/lib/billing/invoiceDocumentModel';
 import { isCompanyReimbursementInvoice } from '../../src/lib/billing/documentOnlyInvoice';
 
@@ -29,9 +30,9 @@ test('document-only totals keep balance at zero and do not invent paid amount', 
     lineItems: [
       {
         kind: 'company_reimbursement',
-        label: 'Hotel Accommodation',
+        label: DOCUMENT_ONLY_LINE_LABEL,
         subtitle: null,
-        period: '21 July 2026 – 27 July 2026',
+        period: '21 June 2026 – 27 June 2026',
         amountPaise: 1_200_000,
       },
     ],
@@ -50,12 +51,13 @@ test('company reimbursement detector still identifies internal type', () => {
   assert.equal(isCompanyReimbursementInvoice({ invoiceType: 'rent', isDocumentOnly: false }), false);
 });
 
-test('resident-facing copy is hotel tax invoice without reimbursement wording', () => {
+test('resident-facing copy is normal tax invoice with meals package, no reimbursement wording', () => {
   assert.match(DOCUMENT_ONLY_INVOICE_TITLE, /Tax Invoice/i);
-  assert.match(DOCUMENT_ONLY_INVOICE_FOOTER, /Hotel/i);
   assert.doesNotMatch(DOCUMENT_ONLY_INVOICE_FOOTER, /reimbursement/i);
-  assert.doesNotMatch(hotelAccommodationLineLabel(7, 171_429), /reimbursement/i);
-  assert.match(hotelAccommodationLineLabel(7, 171_429), /Hotel Accommodation/);
+  assert.doesNotMatch(DOCUMENT_ONLY_INVOICE_FOOTER, /Hotel/i);
+  assert.equal(hotelAccommodationLineLabel(7, 171_429), DOCUMENT_ONLY_LINE_LABEL);
+  assert.match(DOCUMENT_ONLY_LINE_LABEL, /Breakfast, Lunch & Dinner/);
+  assert.doesNotMatch(DOCUMENT_ONLY_LINE_LABEL, /reimbursement/i);
 });
 
 test('resident invoices list includes document-only financial invoices', () => {
@@ -66,7 +68,7 @@ test('resident invoices list includes document-only financial invoices', () => {
   assert.match(area, /listResidentDocumentInvoicesForCustomer/);
   const svc = readFileSync(join(root, 'src/services/residentDocumentInvoices.ts'), 'utf8');
   assert.match(svc, /isDocumentOnly/);
-  assert.match(svc, /Tax Invoice · Hotel accommodation/);
+  assert.match(svc, /Tax Invoice · Accommodation/);
   assert.doesNotMatch(svc, /reimbursement/i);
 });
 

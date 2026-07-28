@@ -176,7 +176,7 @@ function lineSubtitleForKind(kind: string): string | null {
     case 'ps4':
       return 'PlayStation membership';
     case 'company_reimbursement':
-      return 'Hotel accommodation';
+      return 'Meals included in package';
     case 'custom':
     case 'damage':
     case 'penalty':
@@ -198,11 +198,9 @@ export function buildInvoiceDocumentLineItems(
   if (lines.length > 0) {
     return lines.map((l) => {
       const label =
-        l.kind === 'company_reimbursement' && /reimbursement/i.test(l.label)
-          ? l.label.replace(/reimbursement/gi, 'accommodation')
-          : l.kind === 'company_reimbursement' && !/hotel/i.test(l.label)
-            ? `Hotel ${l.label}`
-            : l.label;
+        l.kind === 'company_reimbursement'
+          ? 'Accommodation with Breakfast, Lunch & Dinner'
+          : l.label;
       return {
         kind: l.kind,
         label,
@@ -547,7 +545,7 @@ export async function getInvoiceDocumentDetail(
   };
 
   const letterhead: InvoiceDocumentLetterhead = {
-    businessName: Boolean(base.isDocumentOnly) ? 'Awesome PG Hotel' : 'Awesome PG',
+    businessName: 'Awesome PG',
     pgName: base.pgName,
     addressLines: pgRow ? formatPgAddress(pgRow) : [base.pgName],
     gstin: resolveGstin(),
@@ -582,12 +580,12 @@ export async function getInvoiceDocumentDetail(
       noticeNote: null,
       stayPeriodNote:
         documentMeta.durationDays > 0
-          ? `${documentMeta.durationDays} day${documentMeta.durationDays === 1 ? '' : 's'} hotel accommodation`
+          ? `${documentMeta.durationDays} day${documentMeta.durationDays === 1 ? '' : 's'} stay`
           : null,
     };
   }
 
-  const documentTitle = 'Tax Invoice';
+  const documentTitle = isDocumentOnly ? 'Tax Invoice' : 'Tax Invoice';
   const paymentStatusLabel =
     documentMeta?.paymentStatusLabel &&
     !/reimbursement/i.test(documentMeta.paymentStatusLabel)
