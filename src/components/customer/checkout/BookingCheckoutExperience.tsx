@@ -186,17 +186,22 @@ export function BookingCheckoutExperience({
     hideDeposit: isReserveBooking,
     rentLabel: rentLineLabel(isReserveBooking, stayNights, durationMode),
     depositLabel: 'Refundable deposit',
-    totalLabel: hasPrior ? 'Total to collect today' : 'Total to pay today',
+    totalLabel: hasPrior ? 'Total to collect today' : 'Total payable',
   });
 
   const couponAppliedBadge =
     hasCoupon ? (
-      <div className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-full bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-200 ring-1 ring-emerald-400/30">
-        <span>Coupon Applied</span>
-        {couponCode ? <span className="font-mono tracking-wide">{couponCode}</span> : null}
-        {couponPctOff != null ? <span>{couponPctOff}% OFF</span> : null}
-        {couponLabel ? <span className="font-normal opacity-80">· {couponLabel}</span> : null}
-        <span className="font-normal">−{paiseToInr(discountPaise)}</span>
+      <div className="mt-3 space-y-2">
+        <div className="inline-flex flex-wrap items-center gap-2 rounded-full bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-200 ring-1 ring-emerald-400/30">
+          <span>Coupon Applied</span>
+          {couponCode ? <span className="font-mono tracking-wide">{couponCode}</span> : null}
+          {couponPctOff != null ? <span>{couponPctOff}% OFF</span> : null}
+          {couponLabel ? <span className="font-normal opacity-80">· {couponLabel}</span> : null}
+          <span className="font-normal">−{paiseToInr(discountPaise)}</span>
+        </div>
+        <p className="text-sm font-medium text-emerald-300">
+          Promo discount applied — {paiseToInr(discountPaise)} saved
+        </p>
       </div>
     ) : null;
 

@@ -108,7 +108,7 @@ export function buildBookingCheckoutSummaryLines(input: {
   if (discountPaise > 0) {
     lines.push({
       kind: 'coupon_discount',
-      label: 'Coupon discount',
+      label: 'Promo discount',
       amountPaise: discountPaise,
       isCredit: true,
     });

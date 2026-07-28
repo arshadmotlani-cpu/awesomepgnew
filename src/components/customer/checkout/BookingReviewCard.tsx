@@ -114,8 +114,8 @@ export function BookingReviewCard({
     otherCharges,
     totalToCollectTodayPaise: liveTotal,
     rentLabel: `Rent (${data.roomNumber} · Bed ${data.bedCode})`,
-    depositLabel: 'Security deposit',
-    totalLabel: 'Total payable today',
+    depositLabel: 'Refundable deposit',
+    totalLabel: 'Total payable',
   });
 
   const creditExtras = staticLineItems.filter((item) => item.tone === 'credit');
@@ -230,13 +230,22 @@ export function BookingReviewCard({
       ) : null}
 
       {hasDiscount && couponCode ? (
-        <div className="border-t border-white/8 px-6 pb-4 sm:px-8">
+        <div className="space-y-2 border-t border-white/8 px-6 pb-4 sm:px-8">
           <div className="inline-flex flex-wrap items-center gap-2 rounded-full bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-200 ring-1 ring-emerald-400/30">
             <span>Coupon Applied</span>
             <span className="font-mono tracking-wide">{couponCode}</span>
             {pctOff != null ? <span>{pctOff}% OFF</span> : null}
             {couponLabel ? <span className="font-normal opacity-80">· {couponLabel}</span> : null}
           </div>
+          <p className="text-sm font-medium text-emerald-300">
+            Promo discount applied — {paiseToInr(discountPaise)} saved
+          </p>
+        </div>
+      ) : hasDiscount ? (
+        <div className="border-t border-white/8 px-6 pb-4 sm:px-8">
+          <p className="text-sm font-medium text-emerald-300">
+            Promo discount applied — {paiseToInr(discountPaise)} saved
+          </p>
         </div>
       ) : null}
 

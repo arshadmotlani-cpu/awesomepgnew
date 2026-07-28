@@ -256,27 +256,21 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-28 18:33:21 UTC
+### Pending pre-commit sync · 2026-07-28 18:53:54 UTC
 
-**Areas touched:** [[ROUTES]]
+**Areas touched:** [[ROUTES]], [[Billing]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (11):**
-- `app/(hair)/fyh/(app)/customers/[id]/page.tsx`
-- `app/(hair)/fyh/(app)/customers/new/page.tsx`
-- `app/(hair)/fyh/(app)/customers/page.tsx`
-- `app/(hair)/fyh/(app)/dashboard/page.tsx`
-- `app/(hair)/fyh/(app)/products/[id]/page.tsx`
-- `app/(hair)/fyh/(app)/products/new/page.tsx`
-- `app/(hair)/fyh/(app)/products/page.tsx`
-- `app/(hair)/fyh/(app)/services/[id]/page.tsx`
-- `app/(hair)/fyh/(app)/services/new/page.tsx`
-- `app/(hair)/fyh/(app)/services/page.tsx`
-- `app/(hair)/fyh/(app)/staff/page.tsx`
+**Staged code files (2):**
+- `app/(customer)/dev/pricing-proof/page.tsx`
+- `src/lib/billing/bookingCheckoutTotals.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

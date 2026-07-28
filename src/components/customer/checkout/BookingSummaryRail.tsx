@@ -74,6 +74,8 @@ export function BookingSummaryRail({ data }: { data: BookingSummaryData }) {
       })
     : [];
 
+  // Prefer shared helper labels (Rent → Promo discount → Deposit → Total)
+
   return (
     <aside
       className="overflow-hidden rounded-2xl border border-white/10 bg-[#121a26]/90 shadow-[0_16px_48px_rgba(0,0,0,0.35)] backdrop-blur-md"
