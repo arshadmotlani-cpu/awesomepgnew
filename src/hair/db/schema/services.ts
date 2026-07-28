@@ -1,0 +1,79 @@
+import { sql } from 'drizzle-orm';
+import {
+  bigint,
+  boolean,
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
+
+export const FYH_SERVICE_CATEGORY_PRESETS = [
+  'Hair',
+  'Hair Color',
+  'Hair Treatment',
+  'Skin',
+  'Makeup',
+  'Bridal',
+  'Nails',
+  'Spa',
+  'Barber',
+  'Other',
+] as const;
+
+export const FYH_COMMISSION_TYPES = ['none', 'fixed', 'percentage'] as const;
+export type FyhCommissionType = (typeof FYH_COMMISSION_TYPES)[number];
+
+export const fyhServiceCategories = pgTable('fyh_service_categories', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  name: text('name').notNull().unique(),
+  slug: text('slug').notNull().unique(),
+  isSystem: boolean('is_system').notNull().default(false),
+  displayOrder: integer('display_order').notNull().default(100),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const fyhServices = pgTable(
+  'fyh_services',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    name: text('name').notNull(),
+    code: text('code'),
+    category: text('category'),
+    durationMinutes: integer('duration_minutes').notNull().default(30),
+    /** Selling price */
+    pricePaise: bigint('price_paise', { mode: 'number' }).notNull().default(0),
+    costPricePaise: bigint('cost_price_paise', { mode: 'number' }).notNull().default(0),
+    /** GST in basis points (1800 = 18%) */
+    gstBps: integer('gst_bps').notNull().default(0),
+    description: text('description'),
+    displayOrder: integer('display_order').notNull().default(100),
+    commissionType: text('commission_type').$type<FyhCommissionType>().notNull().default('none'),
+    commissionFixedPaise: bigint('commission_fixed_paise', { mode: 'number' }).notNull().default(0),
+    commissionPercentBps: integer('commission_percent_bps').notNull().default(0),
+    overrideStaffCommission: boolean('override_staff_commission').notNull().default(false),
+    availableOnline: boolean('available_online').notNull().default(false),
+    featured: boolean('featured').notNull().default(false),
+    showOnWebsite: boolean('show_on_website').notNull().default(false),
+    totalBookings: integer('total_bookings').notNull().default(0),
+    revenueGeneratedPaise: bigint('revenue_generated_paise', { mode: 'number' }).notNull().default(0),
+    lastBookedAt: timestamp('last_booked_at', { withTimezone: true }),
+    averageDurationMinutes: integer('average_duration_minutes').notNull().default(0),
+    /** Active for new bookings when true; archived rows stay for historical invoices. */
+    isActive: boolean('is_active').notNull().default(true),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('fyh_services_name_idx').on(t.name),
+    index('fyh_services_active_idx').on(t.isActive),
+    index('fyh_services_category_idx').on(t.category),
+    index('fyh_services_display_order_idx').on(t.displayOrder, t.name),
+  ],
+);
+
+export type FyhService = typeof fyhServices.$inferSelect;
+export type FyhServiceCategory = typeof fyhServiceCategories.$inferSelect;

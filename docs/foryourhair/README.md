@@ -55,3 +55,15 @@ npm run hair:db:studio
 
 - Cookie: `fyh_session` (host-scoped; never shared with PG or Capital)
 - Tables: `fyh_admin_users`, `fyh_auth_sessions`, `fyh_settings`
+
+## Modules (live)
+
+| Module | Notes |
+|--------|--------|
+| Dashboard | KPI widgets (zeros until Appointments/Billing write) |
+| Customers | Full CRM (`0002`–`0003`) |
+| Services | Production catalog (`0004`–`0005`): categories, codes, commission, staff, consumables schema, online flags, archive |
+| Products | Retail + consumables (`0005` foundation / `0006`) |
+| Staff | Minimal create/list for service assignment |
+
+Archive on services/products soft-deactivates only — rows remain for historical invoices; `listBookableServices()` excludes archived.

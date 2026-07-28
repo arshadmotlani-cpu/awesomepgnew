@@ -9,6 +9,9 @@
 
 ## 2026-07-28
 
+- **FYH-SERVICES-PROD** — Production Services + Products: migrations `0005`/`0006`, staff assign, commission, consumables (deduction off), online/analytics fields, archive keeps invoice history; Products CRUD; minimal Staff UI
+- **FYH-CUSTOMER-CRM** — Production CRM customer profile (photo, tabs, loyalty, notes/alerts, timeline, duplicate warn); Services module (`0003`/`0004`)
+- **FYH-DASH-CUSTOMERS** — Real salon dashboard widgets; sidebar hide Inventory/Reports; Customers module (schema `0002`, list/new/detail CRUD)
 - **FYH-HOST-FYHAIR** — Route `fyhair.awesomepg.in` to Salon ERP via existing hair host middleware (keep `foryourhair` alias); safeNext accepts both hosts
 - **CAPITAL-ADDITIONAL-INCOME** — Dashboard Attention Required removed; vehicle Additional Income ledger (`0015`); profit = Sale − TVI + income; reports + unit isolation tests
 - **COLLECTIONS-P3** — Phase 3.0–3.4 scaffolding: migration `0130_collections_ops` (late fee policies/waivers, reminder policies/templates/deliveries, payment_receipts); services lateFeePolicy/collectionReminders/paymentReceipts/collectionsReports/collectionsBulkOps; cron collections-reminders; advance_rent via ledger reason; docs/COLLECTIONS.md Phase 3
@@ -520,5 +523,42 @@ Files:
 - MEMORY/tasks.md
 - foryourhair/README.md
 - testing/AUTH_SESSION_VERIFICATION.md
+
+---
+
+<!-- SEMANTIC_2026-07-28T13:51:07Z -->
+---
+Time: 2026-07-28T13:51:07Z
+Type: REFACTOR
+Impact: MEDIUM
+Reason: The AI memory / intelligence automation layer is being extended — cognition pipeline or MEMORY structure changed.
+Files:
+- MEMORY/active_memory.md
+- MEMORY/changelog.md
+
+---
+
+<!-- SEMANTIC_2026-07-28T14:00:33Z -->
+---
+Time: 2026-07-28T14:00:33Z
+Type: UNKNOWN
+Impact: LOW
+Reason: The AI memory / intelligence automation layer is being extended — cognition pipeline or MEMORY structure changed.
+Files:
+- MEMORY/changelog.md
+
+---
+
+<!-- SEMANTIC_2026-07-28T18:16:39Z -->
+---
+Time: 2026-07-28T18:16:39Z
+Type: TASK
+Impact: MEDIUM
+Reason: The AI memory / intelligence automation layer is being extended — cognition pipeline or MEMORY structure changed.
+Files:
+- MEMORY/active_memory.md
+- MEMORY/changelog.md
+- MEMORY/tasks.md
+- foryourhair/README.md
 
 ---

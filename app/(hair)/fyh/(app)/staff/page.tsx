@@ -1,5 +1,7 @@
-import { ComingSoon } from '@/src/hair/components/ComingSoon';
+import { StaffPage } from '@/src/hair/components/staff/StaffUi';
+import { listStaff } from '@/src/hair/services/staff';
 
-export default function Page() {
-  return <ComingSoon title="Staff" />;
+export default async function StaffRoutePage() {
+  const staff = await listStaff(true);
+  return <StaffPage staff={staff} />;
 }

@@ -2,36 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  CalendarDays,
-  ClipboardList,
-  LayoutDashboard,
-  Package,
-  Receipt,
-  Settings,
-  ShoppingBag,
-  Sparkles,
-  Users,
-  UserRound,
-  Warehouse,
-} from 'lucide-react';
+import { UserRound } from 'lucide-react';
+import { visibleHairNavItems } from '@/src/hair/lib/nav';
 import { cn } from '@/src/hair/lib/utils';
-
-const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/customers', label: 'Customers', icon: Users },
-  { href: '/appointments', label: 'Appointments', icon: CalendarDays },
-  { href: '/billing', label: 'Billing', icon: Receipt },
-  { href: '/services', label: 'Services', icon: Sparkles },
-  { href: '/products', label: 'Products', icon: ShoppingBag },
-  { href: '/inventory', label: 'Inventory', icon: Warehouse },
-  { href: '/staff', label: 'Staff', icon: ClipboardList },
-  { href: '/reports', label: 'Reports', icon: Package },
-  { href: '/settings', label: 'Settings', icon: Settings },
-] as const;
 
 export function HairSidebar({ className }: { className?: string }) {
   const pathname = usePathname();
+  const navItems = visibleHairNavItems();
 
   return (
     <aside
@@ -39,7 +16,8 @@ export function HairSidebar({ className }: { className?: string }) {
         'hidden w-64 shrink-0 border-r border-[color:var(--fyh-border)] bg-fyh-elevated/80 backdrop-blur-xl md:flex md:flex-col',
         className,
       )}
-    >      <div className="flex h-16 items-center gap-3 border-b border-[color:var(--fyh-border)] px-4">
+    >
+      <div className="flex h-16 items-center gap-3 border-b border-[color:var(--fyh-border)] px-4">
         <div className="flex h-10 w-10 items-center justify-center rounded-full border border-fyh-accent/40 bg-fyh-forest/30 text-fyh-accent">
           <UserRound className="h-5 w-5" />
         </div>

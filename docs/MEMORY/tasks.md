@@ -8,6 +8,10 @@
 
 ## 2026-07-28
 
+- [x] **FYH-SERVICES-PROD** — Production Services module: categories, codes, pricing/GST, staff assign, commission, consumables schema, online flags, analytics zeros, search/filters, archive semantics, Luxury Forest UI (`0005`)
+- [x] **FYH-PRODUCTS-01** — Products CRUD + retail/consumable flags (`0006`); feeds service kits
+- [x] **FYH-STAFF-MIN** — Minimal staff list/create for service assignment (full Staff module later)
+- [ ] **FYH-APPOINTMENTS** — Appointments module (uses bookable services only)
 - [x] **COLLECTIONS-P3** — Schema 0130 + lateFeePolicy/reminders/receipts/reports/bulk stubs, cron, tests, docs
 - [x] **COLLECTIONS-P2** — billing_events schema/service, wire emissions, invoice history surfaces, tests, docs
 
@@ -169,3 +173,37 @@
 ## FEATURE — Capital Additional Income + Dashboard cleanup (2026-07-28)
 - Removed Attention Required block + `pendingWork` fetch from Capital Overview.
 - New `ac_vehicle_additional_income` ledger (brokerage / commissions / incentives); Gross = Sale − TVI + Additional Income; income never enters TVI/Active Capital. Migration `0015`.
+
+<!-- INTEL_2026-07-28T13:51:08Z -->
+### 2026-07-28T13:51:08Z
+
+- **Types:**  · REFACTOR ·  · TASK · 
+- **Primary:** TASK
+- **Summary:** 2 files changed, 2 insertions(+), 1 deletion(-)
+- **Files:**
+- `MEMORY/active_memory.md`
+- `MEMORY/changelog.md`
+
+
+<!-- INTEL_2026-07-28T14:00:33Z -->
+### 2026-07-28T14:00:33Z
+
+- **Types:**  · REFACTOR ·  · TASK · 
+- **Primary:** TASK
+- **Summary:** 1 file changed, 1 insertion(+)
+- **Files:**
+- `MEMORY/changelog.md`
+
+
+<!-- INTEL_2026-07-28T18:16:39Z -->
+### 2026-07-28T18:16:39Z
+
+- **Types:**  · REFACTOR ·  · TASK · 
+- **Primary:** TASK
+- **Summary:** 4 files changed, 18 insertions(+), 1 deletion(-)
+- **Files:**
+- `MEMORY/active_memory.md`
+- `MEMORY/changelog.md`
+- `MEMORY/tasks.md`
+- `foryourhair/README.md`
+

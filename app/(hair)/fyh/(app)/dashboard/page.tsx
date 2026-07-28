@@ -1,10 +1,7 @@
-import { ComingSoon } from '@/src/hair/components/ComingSoon';
+import { SalonDashboard } from '@/src/hair/components/dashboard/SalonDashboard';
+import { getDashboardSnapshot } from '@/src/hair/services/dashboard';
 
-export default function HairDashboardPage() {
-  return (
-    <ComingSoon
-      title="Dashboard"
-      description="Your salon command center is ready. Module analytics will land here next."
-    />
-  );
+export default async function HairDashboardPage() {
+  const snapshot = await getDashboardSnapshot();
+  return <SalonDashboard snapshot={snapshot} />;
 }
