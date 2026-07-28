@@ -17,11 +17,9 @@ import {
   acAssets,
   acCapitalInvestments,
   acCategories,
-  acDocuments,
   acExpenses,
   acPaymentsReceived,
   acRepairAdvances,
-  acVehicleActivities,
 } from '@/src/capital/db/schema';
 import {
   isFutureRange,
@@ -32,14 +30,11 @@ import {
   type DateRange,
   type DashboardRange,
 } from '@/src/capital/lib/dashboardRange';
-import { PAYMENT_MILESTONE_TYPES } from '@/src/capital/lib/activityTypes';
-import { derivedBadges } from '@/src/capital/lib/vehicleLifecycle';
 import { computePortfolioRois } from '@/src/capital/lib/roi';
 import { monthlyManualProfitSeries, sumManualMySharePaise, sumManualProfitsPaise } from './manualProfits';
 import { sumMyActiveInvestedCapitalPaise, sumMyInvestedCapitalPaise } from './assets';
 import {
   countOpenInventory,
-  listReadyToList,
   openInventorySql,
 } from './inventory';
 
@@ -59,7 +54,7 @@ export function bucketCapitalDistribution(
     Repair: 0,
     Ready: 0,
     Listed: 0,
-    Sold: 0,
+    Sold: 0
   };
   for (const row of rows) {
     const v = row.valuePaise;
@@ -638,7 +633,7 @@ export async function getOverviewBundle(range: DateRange) {
     repairing: 0,
     painting: 0,
     ready: 0,
-    listed: 0,
+    listed: 0
   };
   for (const row of vehicleStatusCountRows) {
     const key = row.status as keyof typeof vehicleStatusCounts;
@@ -1165,171 +1160,7 @@ export async function getOverviewBundle(range: DateRange) {
           mySharePaise: r.mySharePaise ?? 0,
           myRoiBps: r.myRoiBps,
         })),
-      ),
-    pendingWork: await (async () => {
-      const pick = async (statuses: string[], limit = 6) => {
-        return capitalDb
-          .select({
-            id: acAssets.id,
-            displayName: acAssets.displayName,
-            status: acAssets.status,
-            purchaseDate: acAssets.purchaseDate,
-            purchasePricePaise: acAssets.purchasePricePaise,
-            fundingGapPaise: acAssets.fundingGapPaise,
-          })
-          .from(acAssets)
-          .where(inArray(acAssets.status, statuses as Array<(typeof acAssets.status.enumValues)[number]>))
-          .orderBy(desc(acAssets.updatedAt))
-          .limit(limit);
-      };
-
-      const [
-        underRepair,
-        readyForSale,
-        justPurchased,
-        listed,
-        openAdvances,
-        noCoverAssets,
-      ] = await Promise.all([
-          pick(['repairing', 'painting']),
-          listReadyToList({ limit: 6 }),
-          pick(['purchased'], 20),
-          pick(['listed']),
-          capitalDb
-            .select({
-              id: acRepairAdvances.id,
-              assetId: acRepairAdvances.assetId,
-              advancePaise: acRepairAdvances.advancePaise,
-              displayName: acAssets.displayName,
-            })
-            .from(acRepairAdvances)
-            .innerJoin(acAssets, eq(acRepairAdvances.assetId, acAssets.id))
-            .where(eq(acRepairAdvances.status, 'open'))
-            .orderBy(desc(acRepairAdvances.createdAt))
-            .limit(8),
-          capitalDb
-            .select({
-              id: acAssets.id,
-              displayName: acAssets.displayName,
-              status: acAssets.status,
-              purchaseDate: acAssets.purchaseDate,
-            })
-            .from(acAssets)
-            .where(and(openInventorySql(), isNull(acAssets.coverDocumentId)))
-            .orderBy(desc(acAssets.updatedAt))
-            .limit(40),
-        ]);
-
-      const noCoverIds = noCoverAssets.map((a) => a.id);
-      const docsOnNoCover =
-        noCoverIds.length === 0
-          ? []
-          : await capitalDb
-              .select({
-                assetId: acDocuments.assetId,
-                c: count(),
-              })
-              .from(acDocuments)
-              .where(inArray(acDocuments.assetId, noCoverIds))
-              .groupBy(acDocuments.assetId);
-      const withDocs = new Set(
-        docsOnNoCover.filter((r) => Number(r.c) > 0 && r.assetId).map((r) => r.assetId as string),
-      );
-      const pendingDocuments = noCoverAssets
-        .filter((a) => !withDocs.has(a.id))
-        .slice(0, 6)
-        .map(({ id, displayName, status, purchaseDate }) => ({
-          id,
-          displayName,
-          status,
-          purchaseDate,
-        }));
-
-      const purchasedIds = justPurchased.map((v) => v.id);
-      const milestoneByAsset = new Map<string, number>();
-      if (purchasedIds.length > 0) {
-        const { acSellerPayments } = await import('@/src/capital/db/schema');
-        const milestoneRows = await capitalDb
-          .select({
-            assetId: acSellerPayments.assetId,
-            total: sum(acSellerPayments.amountPaise),
-          })
-          .from(acSellerPayments)
-          .where(
-            and(
-              inArray(acSellerPayments.assetId, purchasedIds),
-              eq(acSellerPayments.isReversed, false),
-            ),
-          )
-          .groupBy(acSellerPayments.assetId);
-        for (const row of milestoneRows) {
-          milestoneByAsset.set(row.assetId, Number(row.total ?? 0));
-        }
-        // Fallback: activities only when seller ledger empty for an asset
-        const missing = purchasedIds.filter((id) => !milestoneByAsset.has(id));
-        if (missing.length > 0) {
-          const activityRows = await capitalDb
-            .select({
-              assetId: acVehicleActivities.assetId,
-              total: sum(acVehicleActivities.amountPaise),
-            })
-            .from(acVehicleActivities)
-            .where(
-              and(
-                inArray(acVehicleActivities.assetId, missing),
-                inArray(acVehicleActivities.activityType, [...PAYMENT_MILESTONE_TYPES]),
-                eq(acVehicleActivities.isReversed, false),
-              ),
-            )
-            .groupBy(acVehicleActivities.assetId);
-          for (const row of activityRows) {
-            milestoneByAsset.set(row.assetId, Number(row.total ?? 0));
-          }
-        }
-      }
-
-      const justPurchasedWithBadges = justPurchased.map((v) => {
-        const badges = derivedBadges({
-          status: v.status,
-          purchasePricePaise: v.purchasePricePaise,
-          milestonesPaidPaise: milestoneByAsset.get(v.id) ?? 0,
-        });
-        return {
-          id: v.id,
-          displayName: v.displayName,
-          status: v.status,
-          purchaseDate: v.purchaseDate,
-          purchasePending: badges.some((b) => b.id === 'purchase_pending'),
-        };
-      });
-
-      const purchasePendingCount = justPurchasedWithBadges.filter((v) => v.purchasePending).length;
-
-      return {
-        underRepair: underRepair.map(({ id, displayName, status, purchaseDate }) => ({
-          id,
-          displayName,
-          status,
-          purchaseDate,
-        })),
-        readyForSale: readyForSale.map(({ id, displayName, status, purchaseDate }) => ({
-          id,
-          displayName,
-          status,
-          purchaseDate,
-        })),
-        justPurchased: justPurchasedWithBadges.slice(0, 6),
-        listed: listed.map(({ id, displayName, status, purchaseDate }) => ({
-          id,
-          displayName,
-          status,
-          purchaseDate,
-        })),
-        openAdvances,
-        pendingDocuments,
-        purchasePendingCount,
-      };
-    })(),
+      )
   };
 }
 

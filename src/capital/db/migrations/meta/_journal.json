@@ -99,6 +99,13 @@
       "when": 1720642900000,
       "tag": "0014_investment_budget_model",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1720643000000,
+      "tag": "0015_vehicle_additional_income",
+      "breakpoints": true
     }
   ]
 }

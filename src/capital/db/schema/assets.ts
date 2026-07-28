@@ -59,10 +59,14 @@ export const acAssets = pgTable(
      * Current Investment = seller price + costs − refunds.
      */
     totalInvestmentPaise: bigint('total_investment_paise', { mode: 'number' }).notNull().default(0),
+    /** Cached Σ non-reversed additional income (not part of TVI). */
+    totalAdditionalIncomePaise: bigint('total_additional_income_paise', { mode: 'number' })
+      .notNull()
+      .default(0),
     /** @deprecated Funding removed from product — kept nullable/0. */
     fundingGapPaise: bigint('funding_gap_paise', { mode: 'number' }).notNull().default(0),
     holdingDays: integer('holding_days'),
-    /** Gross Deal Profit = sale − current investment */
+    /** Gross Deal Profit = sale − current investment + additional income */
     profitPaise: bigint('profit_paise', { mode: 'number' }),
     roiBps: integer('roi_bps'),
     /**

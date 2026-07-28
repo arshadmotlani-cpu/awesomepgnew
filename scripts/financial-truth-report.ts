@@ -226,7 +226,13 @@ async function buildVehicleTruth(): Promise<VehicleTruth[]> {
     const sale = a.actualSalePricePaise;
     const mode = (a.profitDistributionMode ?? 'SELF') as ProfitMode;
     const grossRecomputed =
-      sale != null ? computeGrossDealProfit(sale, inv.currentInvestmentPaise) : null;
+      sale != null
+        ? computeGrossDealProfit(
+            sale,
+            inv.currentInvestmentPaise,
+            a.totalAdditionalIncomePaise ?? 0,
+          )
+        : null;
     const split =
       grossRecomputed != null ? splitDealProfit(grossRecomputed, mode) : null;
     const my = a.mySharePaise;

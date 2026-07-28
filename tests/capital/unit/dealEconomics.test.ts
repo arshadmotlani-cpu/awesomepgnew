@@ -72,6 +72,13 @@ describe('computeGrossDealProfit', () => {
   it('Sale − TVI', () => {
     assert.equal(computeGrossDealProfit(INR(6_00_000), INR(5_00_000)), INR(1_00_000));
   });
+
+  it('Sale − TVI + Additional Income', () => {
+    assert.equal(
+      computeGrossDealProfit(INR(6_00_000), INR(5_00_000), INR(25_000)),
+      INR(1_25_000),
+    );
+  });
 });
 
 describe('splitGrossDealProfit', () => {

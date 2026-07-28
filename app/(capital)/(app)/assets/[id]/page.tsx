@@ -7,6 +7,7 @@ import { Button } from '@/src/capital/components/ui/button';
 import { getAssetDetail, getAssetTimeline } from '@/src/capital/services/assets';
 import { listSellerPayments } from '@/src/capital/services/sellerPayments';
 import { listVehicleCosts } from '@/src/capital/services/vehicleCosts';
+import { listAdditionalIncome } from '@/src/capital/services/vehicleAdditionalIncome';
 import { formatInrPlain, calcHoldingDays } from '@/src/capital/lib/money';
 import { sumSellerPaymentsPaise } from '@/src/capital/lib/threeLedgers';
 import { derivedBadges, lifecycleLabel } from '@/src/capital/lib/vehicleLifecycle';
@@ -35,10 +36,11 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
   if (!detail) notFound();
 
   const { asset, auto } = detail;
-  const [timeline, sellerPaymentRows, vehicleCostRows] = await Promise.all([
+  const [timeline, sellerPaymentRows, vehicleCostRows, additionalIncomeRows] = await Promise.all([
     getAssetTimeline(id),
     listSellerPayments(id),
     listVehicleCosts(id),
+    listAdditionalIncome(id),
   ]);
   const fuelLabels: Record<string, string> = {
     petrol: 'Petrol',
@@ -166,6 +168,14 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
           occurredAt: c.occurredAt,
           notes: c.notes,
         }))}
+        additionalIncome={additionalIncomeRows.map((r) => ({
+          id: r.id,
+          incomeType: r.incomeType,
+          amountPaise: r.amountPaise,
+          occurredAt: r.occurredAt,
+          notes: r.notes,
+        }))}
+        totalAdditionalIncomePaise={asset.totalAdditionalIncomePaise ?? 0}
         overview={{
           repairTotalPaise: asset.repairTotalPaise ?? 0,
           dealerRefundTotalPaise: asset.dealerRefundTotalPaise ?? 0,
@@ -194,6 +204,9 @@ export default async function AssetDetailPage({ params, searchParams }: Props) {
           sold
             ? {
                 salePricePaise: asset.actualSalePricePaise ?? 0,
+                totalInvestmentPaise:
+                  asset.currentInvestmentPaise || asset.totalInvestmentPaise,
+                totalAdditionalIncomePaise: asset.totalAdditionalIncomePaise ?? 0,
                 businessProfitPaise: asset.profitPaise ?? 0,
                 myProfitPaise: asset.mySharePaise ?? 0,
                 operatingPartnerPaise:

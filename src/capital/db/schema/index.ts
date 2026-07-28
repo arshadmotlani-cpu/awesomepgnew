@@ -13,3 +13,4 @@ export * from './documents';
 export * from './activities';
 export * from './sellerPayments';
 export * from './vehicleCosts';
+export * from './vehicleAdditionalIncome';

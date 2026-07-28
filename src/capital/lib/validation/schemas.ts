@@ -57,6 +57,33 @@ export const recordFreeTextCostSchema = z.object({
   entryKind: z.enum(['cost', 'refund']).optional(),
   notes: z.string().max(2000).optional(),
 });
+
+export const VEHICLE_ADDITIONAL_INCOME_TYPE_VALUES = [
+  'brokerage',
+  'finance_commission',
+  'insurance_commission',
+  'rto_commission',
+  'referral_income',
+  'dealer_incentive',
+  'miscellaneous',
+] as const;
+
+export const recordAdditionalIncomeSchema = z.object({
+  assetId: uuid,
+  incomeType: z.enum(VEHICLE_ADDITIONAL_INCOME_TYPE_VALUES),
+  amount: rupees,
+  occurredAt: dateStr,
+  notes: z.string().max(2000).optional(),
+});
+
+export const updateAdditionalIncomeSchema = z.object({
+  id: uuid,
+  assetId: uuid,
+  incomeType: z.enum(VEHICLE_ADDITIONAL_INCOME_TYPE_VALUES),
+  amount: rupees,
+  occurredAt: dateStr,
+  notes: z.string().max(2000).optional(),
+});
 export const updateAssetFundingSchema = z
   .object({
     assetId: uuid,

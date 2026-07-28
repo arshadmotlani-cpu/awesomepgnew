@@ -9,6 +9,7 @@
 
 ## 2026-07-28
 
+- **CAPITAL-ADDITIONAL-INCOME** — Dashboard Attention Required removed; vehicle Additional Income ledger (`0015`); profit = Sale − TVI + income; reports + unit isolation tests
 - **COLLECTIONS-P3** — Phase 3.0–3.4 scaffolding: migration `0130_collections_ops` (late fee policies/waivers, reminder policies/templates/deliveries, payment_receipts); services lateFeePolicy/collectionReminders/paymentReceipts/collectionsReports/collectionsBulkOps; cron collections-reminders; advance_rent via ledger reason; docs/COLLECTIONS.md Phase 3
 - **COLLECTIONS-P2** — `billing_events` append-only log + emissions on rent generate/overdue/paid/proof; Collections lifecycle panel on admin invoice detail; `docs/COLLECTIONS.md` Phase 1–2
 
@@ -446,5 +447,60 @@ Files:
 - MEMORY/active_memory.md
 - MEMORY/changelog.md
 - MEMORY/decisions.md
+
+---
+
+<!-- SEMANTIC_2026-07-28T07:22:03Z -->
+---
+Time: 2026-07-28T07:22:03Z
+Type: MIXED
+Impact: HIGH
+Reason: The AI memory / intelligence automation layer is being extended — cognition pipeline or MEMORY structure changed.
+Files:
+- ARCHITECTURE.md
+- BILLING_ENGINE.md
+- CHANGELOG.md
+- COLLECTIONS.md
+- CURRENT_STATE.md
+- DATABASE.md
+- MEMORY/active_memory.md
+- MEMORY/changelog.md
+- MEMORY/decisions.md
+- MEMORY/tasks.md
+- PRODUCTION_STABILIZATION/PHASE1_AUTH_SESSION_FINDINGS.md
+- PROJECT/features.md
+- ROUTES.md
+- SYSTEM/CURRENT_STATE.md
+- SYSTEM/WORKFLOWS.md
+- automotive-capital/ARCHITECTURE.md
+- automotive-capital/DECISIONS.md
+- automotive-capital/reconciliation/2026-07-26T10-17-56/financial-truth-diff.md
+- automotive-capital/reconciliation/2026-07-26T10-17-56/financial-truth-kpis.md
+- automotive-capital/reconciliation/2026-07-26T10-17-56/financial-truth-vehicles.csv
+- automotive-capital/reconciliation/2026-07-26T10-17-56/financial-truth-vehicles.md
+- automotive-capital/reconciliation/2026-07-26T10-18-22/financial-truth-diff.md
+- automotive-capital/reconciliation/2026-07-26T10-18-22/financial-truth-kpis.md
+- automotive-capital/reconciliation/2026-07-26T10-18-22/financial-truth-vehicles.csv
+- automotive-capital/reconciliation/2026-07-26T10-18-22/financial-truth-vehicles.md
+- automotive-capital/reconciliation/2026-07-26T10-19-02/financial-truth-diff.md
+- automotive-capital/reconciliation/2026-07-26T10-19-02/financial-truth-kpis.md
+- automotive-capital/reconciliation/2026-07-26T10-19-02/financial-truth-vehicles.csv
+- automotive-capital/reconciliation/2026-07-26T10-19-02/financial-truth-vehicles.md
+- automotive-capital/reconciliation/2026-07-26T10-52-07/financial-truth-diff.md
+- automotive-capital/reconciliation/2026-07-26T10-52-07/financial-truth-kpis.md
+- automotive-capital/reconciliation/2026-07-26T10-52-07/financial-truth-vehicles.csv
+- automotive-capital/reconciliation/2026-07-26T10-52-07/financial-truth-vehicles.md
+- automotive-capital/reconciliation/2026-07-26T10-53-12/financial-truth-diff.md
+- automotive-capital/reconciliation/2026-07-26T10-53-12/financial-truth-kpis.md
+- automotive-capital/reconciliation/2026-07-26T10-53-12/financial-truth-vehicles.csv
+- automotive-capital/reconciliation/2026-07-26T10-53-12/financial-truth-vehicles.md
+- automotive-capital/reconciliation/2026-07-26T10-54-19/financial-truth-diff.md
+- automotive-capital/reconciliation/2026-07-26T10-54-19/financial-truth-kpis.md
+- automotive-capital/reconciliation/2026-07-26T10-54-19/financial-truth-vehicles.csv
+- automotive-capital/reconciliation/2026-07-26T10-54-19/financial-truth-vehicles.md
+- automotive-capital/reconciliation/LATEST_DIFF.md
+- automotive-capital/reconciliation/README.md
+- foryourhair/README.md
+- testing/AUTH_SESSION_VERIFICATION.md
 
 ---

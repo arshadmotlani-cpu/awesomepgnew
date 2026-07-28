@@ -17,6 +17,7 @@ function vehicleDealRowsCsvHeader() {
     'Repairs',
     'Refunds',
     'Net Cost',
+    'Additional Income',
     'Sale',
     'Gross Deal Profit',
     'Sufii Profit',
@@ -34,6 +35,7 @@ function vehicleDealRowCsv(asset: typeof acAssets.$inferSelect): string {
     paiseToRupees(asset.repairTotalPaise ?? 0),
     paiseToRupees(asset.dealerRefundTotalPaise ?? 0),
     paiseToRupees(asset.totalInvestmentPaise),
+    paiseToRupees(asset.totalAdditionalIncomePaise ?? 0),
     asset.actualSalePricePaise != null ? paiseToRupees(asset.actualSalePricePaise) : '',
     asset.profitPaise != null ? paiseToRupees(asset.profitPaise) : '',
     asset.operatingPartnerProfitPaise != null || asset.partnerSharePaise != null
@@ -191,6 +193,7 @@ export async function generateExcelReport(type: string): Promise<Buffer> {
       { header: 'Repairs', key: 'repairs', width: 12 },
       { header: 'Refunds', key: 'refunds', width: 12 },
       { header: 'Net Cost', key: 'netCost', width: 12 },
+      { header: 'Additional Income', key: 'additionalIncome', width: 14 },
       { header: 'Sale', key: 'sale', width: 12 },
       { header: 'Gross Deal Profit', key: 'businessProfit', width: 14 },
       { header: 'Sufii Profit', key: 'sufii', width: 12 },
@@ -208,6 +211,7 @@ export async function generateExcelReport(type: string): Promise<Buffer> {
         repairs: paiseToRupees(asset.repairTotalPaise ?? 0),
         refunds: paiseToRupees(asset.dealerRefundTotalPaise ?? 0),
         netCost: paiseToRupees(asset.totalInvestmentPaise),
+        additionalIncome: paiseToRupees(asset.totalAdditionalIncomePaise ?? 0),
         sale:
           asset.actualSalePricePaise != null ? paiseToRupees(asset.actualSalePricePaise) : '',
         businessProfit: asset.profitPaise != null ? paiseToRupees(asset.profitPaise) : '',

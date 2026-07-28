@@ -1,7 +1,7 @@
 /**
  * Deal economics SSOT — Net Vehicle Cost + Profit Distribution Mode.
  *
- * Gross Deal Profit = Sale − Total Vehicle Investment (TVI)
+ * Gross Deal Profit = Sale − Total Vehicle Investment (TVI) + Additional Income
  * SELF               → My Profit = Gross, Sufii = 0
  * PARTNERSHIP_50_50  → My Profit = round(Gross/2), Sufii = Gross − My
  *
@@ -104,14 +104,19 @@ export function profitDistributionLabel(mode: ProfitDistributionMode): string {
 }
 
 /**
- * Gross Deal Profit = Sale Price − Total Vehicle Investment (TVI).
+ * Gross Deal Profit = Sale Price − Total Vehicle Investment (TVI) + Additional Income.
  * Only place that may compute this for vehicle deals — callers must not inline sale − TVI.
  */
 export function computeGrossDealProfit(
   salePricePaise: number,
   totalVehicleInvestmentPaise: number,
+  additionalIncomePaise = 0,
 ): number {
-  return Math.round(salePricePaise) - Math.round(totalVehicleInvestmentPaise);
+  return (
+    Math.round(salePricePaise) -
+    Math.round(totalVehicleInvestmentPaise) +
+    Math.round(additionalIncomePaise)
+  );
 }
 
 /**

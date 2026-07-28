@@ -94,53 +94,6 @@ function PositionCard({
   );
 }
 
-function AttentionGroup({
-  title,
-  count,
-  children,
-}: {
-  title: string;
-  count: number;
-  children: React.ReactNode;
-}) {
-  if (count === 0) return null;
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-ac-text-secondary">{title}</p>
-        <span className="rounded-full bg-ac-accent/15 px-2 py-0.5 text-[10px] font-semibold text-ac-accent">
-          {count}
-        </span>
-      </div>
-      <ul className="divide-y divide-white/5 overflow-hidden rounded-xl border border-white/[0.08] bg-black/20">
-        {children}
-      </ul>
-    </div>
-  );
-}
-
-function AttentionRow({
-  href,
-  name,
-  reason,
-}: {
-  href: string;
-  name: string;
-  reason: string;
-}) {
-  return (
-    <li>
-      <Link
-        href={href}
-        className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm transition hover:bg-white/[0.04]"
-      >
-        <span className="truncate font-medium">{name}</span>
-        <span className="shrink-0 text-xs text-ac-text-muted">{reason}</span>
-      </Link>
-    </li>
-  );
-}
-
 export function OverviewDashboard({
   bundle,
   insights,
@@ -180,24 +133,6 @@ export function OverviewDashboard({
       : `Period Profit (${bundle.range.label})`;
 
   const activeCapitalPaise = view.activeCapitalPaise ?? view.capitalAtRiskPaise;
-  const pw = bundle.pendingWork;
-
-  const purchasePending = useMemo(
-    () => (pw?.justPurchased ?? []).filter((v) => v.purchasePending),
-    [pw?.justPurchased],
-  );
-  const newlyPurchased = useMemo(
-    () => (pw?.justPurchased ?? []).filter((v) => !v.purchasePending),
-    [pw?.justPurchased],
-  );
-
-  const attentionTotal =
-    (pw?.underRepair?.length ?? 0) +
-    (pw?.readyForSale?.length ?? 0) +
-    newlyPurchased.length +
-    purchasePending.length +
-    (pw?.openAdvances?.length ?? 0) +
-    (pw?.pendingDocuments?.length ?? 0);
 
   const manufacturers = useMemo(() => {
     const rows = [...(insights.manufacturers ?? [])];
@@ -220,7 +155,7 @@ export function OverviewDashboard({
             Morning Overview
           </h1>
           <p className="mt-1 text-sm text-ac-text-secondary">
-            {bundle.range.label} · Position, attention, pace
+            {bundle.range.label} · Position and pace
           </p>
         </div>
 
@@ -328,90 +263,6 @@ export function OverviewDashboard({
           />
           <PositionCard label="Vehicles In Stock" valueText={String(view.activeVehicles)} />
           <PositionCard label="Vehicles Sold" valueText={String(view.vehiclesSold)} />
-        </div>
-      </Section>
-
-      {/* Section 2 — Attention Required */}
-      <Section
-        title="Attention Required"
-        subtitle="Work that moves inventory"
-        emphasize
-      >
-        <div className="rounded-2xl border border-ac-accent/25 bg-ac-accent/[0.04] p-4 sm:p-5">
-          {attentionTotal === 0 ? (
-            <p className="py-8 text-center text-sm text-ac-text-secondary">
-              Everything is up to date.
-            </p>
-          ) : (
-            <div className="grid gap-5 lg:grid-cols-2">
-              <AttentionGroup title="Waiting for repairs" count={pw?.underRepair?.length ?? 0}>
-                {(pw?.underRepair ?? []).map((v) => (
-                  <AttentionRow
-                    key={v.id}
-                    href={`/assets/${v.id}`}
-                    name={v.displayName}
-                    reason="Under repair"
-                  />
-                ))}
-              </AttentionGroup>
-              <AttentionGroup title="Ready to list" count={pw?.readyForSale?.length ?? 0}>
-                {(pw?.readyForSale ?? []).map((v) => (
-                  <AttentionRow
-                    key={v.id}
-                    href={`/assets/${v.id}`}
-                    name={v.displayName}
-                    reason="Ready for sale"
-                  />
-                ))}
-              </AttentionGroup>
-              <AttentionGroup title="Newly purchased needing work" count={newlyPurchased.length}>
-                {newlyPurchased.map((v) => (
-                  <AttentionRow
-                    key={v.id}
-                    href={`/assets/${v.id}`}
-                    name={v.displayName}
-                    reason="Just purchased"
-                  />
-                ))}
-              </AttentionGroup>
-              <AttentionGroup title="Purchase pending (seller payment)" count={purchasePending.length}>
-                {purchasePending.map((v) => (
-                  <AttentionRow
-                    key={v.id}
-                    href={`/assets/${v.id}?tab=activities`}
-                    name={v.displayName}
-                    reason="Purchase pending"
-                  />
-                ))}
-              </AttentionGroup>
-              <AttentionGroup
-                title="Repair advances not settled"
-                count={pw?.openAdvances?.length ?? 0}
-              >
-                {(pw?.openAdvances ?? []).map((a) => (
-                  <AttentionRow
-                    key={a.id}
-                    href={`/assets/${a.assetId}?tab=activities`}
-                    name={a.displayName}
-                    reason="Advance open"
-                  />
-                ))}
-              </AttentionGroup>
-              <AttentionGroup
-                title="Pending documents"
-                count={pw?.pendingDocuments?.length ?? 0}
-              >
-                {(pw?.pendingDocuments ?? []).map((v) => (
-                  <AttentionRow
-                    key={v.id}
-                    href={`/assets/${v.id}?tab=documents`}
-                    name={v.displayName}
-                    reason="No photos/docs"
-                  />
-                ))}
-              </AttentionGroup>
-            </div>
-          )}
         </div>
       </Section>
 

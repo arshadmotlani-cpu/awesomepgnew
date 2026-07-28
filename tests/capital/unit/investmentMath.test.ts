@@ -38,7 +38,18 @@ describe('investmentMath SSOT', () => {
 
   it('gross and seller remaining', () => {
     expect(computeGrossDealProfit(200, 150)).toBe(50);
+    expect(computeGrossDealProfit(200, 150, 25)).toBe(75);
     expect(remainingToSeller(100, 40)).toBe(60);
     expect(remainingToSeller(0, 10)).toBeNull();
+  });
+
+  it('additional income does not change TVI', () => {
+    const inv = computeCurrentInvestment({
+      sellerPricePaise: 1_000_00,
+      costs: [{ amountPaise: 50_00 }],
+    });
+    expect(inv.currentInvestmentPaise).toBe(1_050_00);
+    // Income is outside sumCostsAndRefunds / computeCurrentInvestment
+    expect(computeGrossDealProfit(2_000_00, inv.currentInvestmentPaise, 100_00)).toBe(1_050_00);
   });
 });

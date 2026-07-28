@@ -7,8 +7,10 @@ import { rupeesToPaise } from '@/src/capital/lib/money';
 import { formDataToObject, parseZod } from '@/src/capital/lib/validation/parse';
 import {
   createAssetSchema,
+  recordAdditionalIncomeSchema,
   recordFreeTextCostSchema,
   recordSaleSchema,
+  updateAdditionalIncomeSchema,
   updateAssetDetailsSchema,
   updateAssetFundingSchema,
   updateExpectedInvestmentSchema,
@@ -28,6 +30,11 @@ import {
   updateSellerPrice,
 } from '@/src/capital/services/assets';
 import { recordFreeTextCost, reverseVehicleCost } from '@/src/capital/services/vehicleCosts';
+import {
+  createAdditionalIncome,
+  reverseAdditionalIncome,
+  updateAdditionalIncome,
+} from '@/src/capital/services/vehicleAdditionalIncome';
 import { recalculateAsset } from '@/src/capital/services/assets';
 import { uploadDocument } from '@/src/capital/services/documents';
 import { deleteDraft } from '@/src/capital/services/drafts';
@@ -198,6 +205,76 @@ export async function reverseVehicleCostAction(
     return { success: 'Cost reversed.' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to reverse cost' };
+  }
+}
+
+export async function recordAdditionalIncomeAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    await requireCapitalAuth();
+    const parsed = parseZod(recordAdditionalIncomeSchema, formDataToObject(formData));
+    if (!parsed.ok) return { error: parsed.error };
+    await createAdditionalIncome({
+      assetId: parsed.data.assetId,
+      incomeType: parsed.data.incomeType,
+      amountPaise: rupeesToPaise(parsed.data.amount),
+      occurredAt: parsed.data.occurredAt,
+      notes: parsed.data.notes,
+    });
+    await recalculateAsset(parsed.data.assetId);
+    revalidatePath(`/assets/${parsed.data.assetId}`);
+    revalidatePath('/dashboard');
+    revalidateTag('capital-dashboard', 'default');
+    return { success: 'Additional income recorded.' };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to record income' };
+  }
+}
+
+export async function updateAdditionalIncomeAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    await requireCapitalAuth();
+    const parsed = parseZod(updateAdditionalIncomeSchema, formDataToObject(formData));
+    if (!parsed.ok) return { error: parsed.error };
+    await updateAdditionalIncome({
+      id: parsed.data.id,
+      incomeType: parsed.data.incomeType,
+      amountPaise: rupeesToPaise(parsed.data.amount),
+      occurredAt: parsed.data.occurredAt,
+      notes: parsed.data.notes,
+    });
+    await recalculateAsset(parsed.data.assetId);
+    revalidatePath(`/assets/${parsed.data.assetId}`);
+    revalidatePath('/dashboard');
+    revalidateTag('capital-dashboard', 'default');
+    return { success: 'Additional income updated.' };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to update income' };
+  }
+}
+
+export async function reverseAdditionalIncomeAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    await requireCapitalAuth();
+    const incomeId = String(formData.get('incomeId') ?? '');
+    const assetId = String(formData.get('assetId') ?? '');
+    if (!incomeId || !assetId) return { error: 'Missing income entry' };
+    await reverseAdditionalIncome(incomeId);
+    await recalculateAsset(assetId);
+    revalidatePath(`/assets/${assetId}`);
+    revalidatePath('/dashboard');
+    revalidateTag('capital-dashboard', 'default');
+    return { success: 'Additional income removed.' };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to remove income' };
   }
 }
 

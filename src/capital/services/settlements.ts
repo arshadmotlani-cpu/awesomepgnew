@@ -33,7 +33,11 @@ export async function createSettlement(assetId: string, notes?: string) {
     const grossProfit =
       asset.profitPaise ??
       (asset.actualSalePricePaise != null
-        ? computeGrossDealProfit(asset.actualSalePricePaise, asset.totalInvestmentPaise)
+        ? computeGrossDealProfit(
+            asset.actualSalePricePaise,
+            asset.totalInvestmentPaise,
+            asset.totalAdditionalIncomePaise ?? 0,
+          )
         : 0);
 
     // Stored deal economics: myShare = my Investor Pool slice; partnerShare = Sufii (operating partner)

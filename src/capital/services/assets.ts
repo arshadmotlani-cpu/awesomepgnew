@@ -27,6 +27,7 @@ import {
   computeCurrentInvestment,
   computeGrossDealProfit,
   splitDealProfit,
+  sumAdditionalIncome,
   type ProfitMode,
 } from '@/src/capital/lib/investmentMath';
 import {
@@ -44,7 +45,7 @@ import { openInventorySql } from '@/src/capital/services/inventory';
 import type { AssetListQuery } from '@/src/capital/lib/validation/schemas';
 import type { CapitalDbClient } from '@/src/capital/lib/db/types';
 import { logActivity } from './activity';
-import { acSellerPayments, acVehicleCosts } from '@/src/capital/db/schema';
+import { acSellerPayments, acVehicleAdditionalIncome, acVehicleCosts } from '@/src/capital/db/schema';
 
 const TERMINAL_STATUSES = new Set(['cancelled', 'settled']);
 
@@ -111,6 +112,18 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
     .from(acVehicleCosts)
     .where(and(eq(acVehicleCosts.assetId, assetId), eq(acVehicleCosts.isReversed, false)));
 
+  const incomeRows = await db
+    .select({
+      amountPaise: acVehicleAdditionalIncome.amountPaise,
+    })
+    .from(acVehicleAdditionalIncome)
+    .where(
+      and(
+        eq(acVehicleAdditionalIncome.assetId, assetId),
+        eq(acVehicleAdditionalIncome.isReversed, false),
+      ),
+    );
+
   const [asset] = await db.select().from(acAssets).where(eq(acAssets.id, assetId)).limit(1);
   if (!asset) return;
 
@@ -128,6 +141,8 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
     })),
   });
 
+  const totalAdditionalIncomePaise = sumAdditionalIncome(incomeRows);
+
   const budgetRemainingPaise = computeBudgetRemaining(
     expectedPaise,
     inv.currentInvestmentPaise,
@@ -135,7 +150,11 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
 
   const profitPaise =
     asset.actualSalePricePaise != null
-      ? computeGrossDealProfit(asset.actualSalePricePaise, inv.currentInvestmentPaise)
+      ? computeGrossDealProfit(
+          asset.actualSalePricePaise,
+          inv.currentInvestmentPaise,
+          totalAdditionalIncomePaise,
+        )
       : null;
 
   const holdingDays = calcHoldingDays(asset.purchaseDate, asset.saleDate);
@@ -174,6 +193,7 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
       repairTotalPaise: inv.costsPaise,
       dealerRefundTotalPaise: inv.refundsPaise,
       totalInvestmentPaise: inv.currentInvestmentPaise,
+      totalAdditionalIncomePaise,
       fundingGapPaise: 0,
       holdingDays,
       profitPaise,
@@ -559,7 +579,12 @@ export async function recordSale(
   }
 
   const currentInvestment = fresh.currentInvestmentPaise;
-  const businessProfit = computeGrossDealProfit(actualSalePricePaise, currentInvestment);
+  const additionalIncome = fresh.totalAdditionalIncomePaise ?? 0;
+  const businessProfit = computeGrossDealProfit(
+    actualSalePricePaise,
+    currentInvestment,
+    additionalIncome,
+  );
   const split = splitDealProfit(businessProfit, profitDistributionMode);
   const rois = computeVehicleRois({
     grossProfitPaise: businessProfit,

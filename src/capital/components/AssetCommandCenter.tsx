@@ -12,6 +12,7 @@ import { DocumentUploadForm } from '@/src/capital/components/forms/DocumentUploa
 import { EditActivityForm } from '@/src/capital/components/forms/EditActivityForm';
 import { EditVehicleForm } from '@/src/capital/components/forms/EditVehicleForm';
 import { InvestmentBudgetPanel } from '@/src/capital/components/forms/InvestmentBudgetPanel';
+import { AdditionalIncomePanel } from '@/src/capital/components/forms/AdditionalIncomePanel';
 import { LifecycleControl } from '@/src/capital/components/forms/LifecycleControl';
 import { RecordPurchasePaymentForm } from '@/src/capital/components/forms/RecordPurchasePaymentForm';
 import { SetCoverPhotoButton } from '@/src/capital/components/forms/SetCoverPhotoButton';
@@ -104,6 +105,8 @@ type OverviewData = {
 
 type ProfitData = {
   salePricePaise: number;
+  totalInvestmentPaise: number;
+  totalAdditionalIncomePaise: number;
   businessProfitPaise: number;
   myProfitPaise: number;
   operatingPartnerPaise: number;
@@ -160,6 +163,8 @@ export function AssetCommandCenter({
   focusPayment = false,
   sellerPayments = [],
   vehicleCosts = [],
+  additionalIncome = [],
+  totalAdditionalIncomePaise = 0,
 }: {
   assetId: string;
   currentStatus: string;
@@ -196,6 +201,14 @@ export function AssetCommandCenter({
     occurredAt: string;
     notes?: string | null;
   }>;
+  additionalIncome?: Array<{
+    id: string;
+    incomeType: string;
+    amountPaise: number;
+    occurredAt: string;
+    notes?: string | null;
+  }>;
+  totalAdditionalIncomePaise?: number;
 }) {
   const defaultTab = normalizeTab(initialTab);
   const [tab, setTab] = useState<(typeof TAB_VALUES)[number]>(defaultTab);
@@ -352,6 +365,13 @@ export function AssetCommandCenter({
           budgetRemainingPaise={budgetRemainingPaise}
           costs={vehicleCosts}
           canEdit={canEdit}
+        />
+
+        <AdditionalIncomePanel
+          assetId={assetId}
+          totalAdditionalIncomePaise={totalAdditionalIncomePaise}
+          rows={additionalIncome}
+          canEdit={canEdit || currentStatus === 'sold'}
         />
 
         <RecordPurchasePaymentForm
@@ -567,12 +587,17 @@ export function AssetCommandCenter({
           currentStatus={currentStatus}
           purchasePricePaise={purchasePricePaise}
           totalInvestmentPaise={totalInvestmentPaise}
+          totalAdditionalIncomePaise={totalAdditionalIncomePaise}
           profitDistributionMode={profitDistributionMode}
         />
         {profit ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <StatCard label="Sale price" paise={profit.salePricePaise} />
-            <StatCard label="Current Investment" paise={totalInvestmentPaise} />
+            <StatCard label="Total Investment" paise={profit.totalInvestmentPaise} />
+            <StatCard
+              label="Total Additional Income"
+              paise={profit.totalAdditionalIncomePaise}
+            />
             <StatCard label="Gross Deal Profit" paise={profit.businessProfitPaise} />
             <StatCard
               label="Profit Distribution"
@@ -595,7 +620,8 @@ export function AssetCommandCenter({
           </div>
         ) : (
           <p className="text-sm text-ac-text-muted">
-            Profit figures appear after you record a sale.
+            Profit figures appear after you record a sale. Gross = Sale − Investment + Additional
+            Income.
           </p>
         )}
       </TabsContent>

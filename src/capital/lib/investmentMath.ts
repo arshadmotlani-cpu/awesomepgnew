@@ -3,10 +3,11 @@
  *
  * Current Investment = Seller Price + Σ Costs − Σ Refunds
  * Budget Remaining   = Expected Total Investment − Current Investment
- * Gross Profit       = Sale Price − Current Investment
+ * Gross Profit       = Sale Price − Current Investment + Additional Income
  * Self / 50-50       = My vs Partner split of Gross
  *
  * Active Capital     = Σ Current Investment on open (unsold) vehicles
+ * Additional Income never enters TVI / Active Capital.
  */
 
 export type CostAmountRow = {
@@ -67,11 +68,33 @@ export function computeBudgetRemaining(
   return Math.round(expectedTotalInvestmentPaise) - Math.round(currentInvestmentPaise);
 }
 
+/** Sum non-reversed additional income rows (positive paise only). */
+export function sumAdditionalIncome(
+  rows: Array<{ amountPaise: number; isReversed?: boolean }>,
+): number {
+  let total = 0;
+  for (const row of rows) {
+    if (row.isReversed) continue;
+    const amt = Math.round(row.amountPaise);
+    if (amt > 0) total += amt;
+  }
+  return total;
+}
+
+/**
+ * Gross Deal Profit = Sale − Current Investment + Additional Income.
+ * Additional income defaults to 0 for backward compatibility.
+ */
 export function computeGrossDealProfit(
   salePricePaise: number,
   currentInvestmentPaise: number,
+  additionalIncomePaise = 0,
 ): number {
-  return Math.round(salePricePaise) - Math.round(currentInvestmentPaise);
+  return (
+    Math.round(salePricePaise) -
+    Math.round(currentInvestmentPaise) +
+    Math.round(additionalIncomePaise)
+  );
 }
 
 export type ProfitMode = 'SELF' | 'PARTNERSHIP_50_50';

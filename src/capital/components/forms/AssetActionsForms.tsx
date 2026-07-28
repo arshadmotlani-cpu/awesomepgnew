@@ -23,12 +23,14 @@ export function AssetActionsForms({
   currentStatus,
   purchasePricePaise = 0,
   totalInvestmentPaise = 0,
+  totalAdditionalIncomePaise = 0,
   profitDistributionMode = null,
 }: {
   assetId: string;
   currentStatus: string;
   purchasePricePaise?: number;
   totalInvestmentPaise?: number;
+  totalAdditionalIncomePaise?: number;
   /** Set when sale was recorded; null while unsold. */
   profitDistributionMode?: ProfitDistributionMode | null;
 }) {
@@ -60,6 +62,7 @@ export function AssetActionsForms({
             assetId={assetId}
             purchasePricePaise={purchasePricePaise}
             totalInvestmentPaise={totalInvestmentPaise}
+            totalAdditionalIncomePaise={totalAdditionalIncomePaise}
           />
         ) : null}
         {hasSale && profitDistributionMode ? (
@@ -81,10 +84,12 @@ function SaleForm({
   assetId,
   purchasePricePaise,
   totalInvestmentPaise,
+  totalAdditionalIncomePaise,
 }: {
   assetId: string;
   purchasePricePaise: number;
   totalInvestmentPaise: number;
+  totalAdditionalIncomePaise: number;
 }) {
   const [state, formAction, pending] = useActionState(recordSaleAction, initialState);
   const [salePrice, setSalePrice] = useState<number | undefined>(undefined);
@@ -99,16 +104,20 @@ function SaleForm({
   const preview = useMemo(() => {
     const price = Math.round((salePrice || 0) * 100);
     if (!salePrice || price <= 0) return null;
-    const gross = computeGrossDealProfit(price, totalInvestmentPaise);
+    const gross = computeGrossDealProfit(
+      price,
+      totalInvestmentPaise,
+      totalAdditionalIncomePaise,
+    );
     const split = splitDealProfit(gross, mode);
     return { gross, ...split };
-  }, [salePrice, totalInvestmentPaise, mode]);
+  }, [salePrice, totalInvestmentPaise, totalAdditionalIncomePaise, mode]);
 
   return (
     <form action={formAction} className="ac-glass-card space-y-3 p-4 md:col-span-2 lg:col-span-1">
       <h3 className="font-medium">Record sale</h3>
       <p className="text-xs text-ac-text-muted">
-        Sale price, buyer, and Self / 50-50 split. Gross = Sale − Current Investment.
+        Sale price, buyer, and Self / 50-50 split. Gross = Sale − Investment + Additional Income.
       </p>
       {!canSell ? (
         <p className="rounded-lg border border-ac-danger/30 bg-ac-danger/10 px-3 py-2 text-sm text-ac-danger">
@@ -163,8 +172,12 @@ function SaleForm({
       {preview ? (
         <div className="space-y-2 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-sm">
           <div className="flex justify-between">
-            <span className="text-ac-text-muted">Current Investment</span>
+            <span className="text-ac-text-muted">Total Investment</span>
             <MoneyDisplay paise={totalInvestmentPaise} />
+          </div>
+          <div className="flex justify-between">
+            <span className="text-ac-text-muted">Additional Income</span>
+            <MoneyDisplay paise={totalAdditionalIncomePaise} />
           </div>
           <div className="flex justify-between">
             <span className="text-ac-text-muted">Gross Profit</span>
