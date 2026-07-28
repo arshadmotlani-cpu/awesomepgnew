@@ -3,6 +3,7 @@
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import { hasBookingDraftSelection } from '@/src/lib/booking/bookingDraft';
 import { isMonthlyStayType, stayTypeLabel, type StayType } from '@/src/lib/stayType';
+import { buildBookingCheckoutSummaryLines } from '@/src/lib/billing/bookingCheckoutTotals';
 
 export type BookingSummaryData = {
   pgSlug?: string;
@@ -27,16 +28,21 @@ function Row({
   label,
   value,
   emphasize,
+  valueClassName,
 }: {
   label: string;
   value: React.ReactNode;
   emphasize?: boolean;
+  valueClassName?: string;
 }) {
   return (
     <div className="flex items-start justify-between gap-3 py-2.5">
       <dt className="text-sm text-apg-silver">{label}</dt>
       <dd
-        className={`text-right text-sm font-medium ${emphasize ? 'text-base font-semibold text-apg-orange' : 'text-white'}`}
+        className={`text-right text-sm font-medium ${
+          valueClassName ??
+          (emphasize ? 'text-base font-semibold text-apg-orange' : 'text-white')
+        }`}
       >
         {value}
       </dd>
@@ -48,11 +54,25 @@ export function BookingSummaryRail({ data }: { data: BookingSummaryData }) {
   const hasSelection = hasBookingDraftSelection(data);
   const fixedDates = data.stayType && !isMonthlyStayType(data.stayType);
   const stayLabel = data.stayType ? stayTypeLabel(data.stayType as StayType) : null;
-  const showRent = data.rentPaise != null && data.rentPaise >= 0;
-  const showDeposit = data.depositPaise != null && data.depositPaise >= 0;
-  const showDiscount = (data.discountPaise ?? 0) > 0 || (data.couponDiscountPaise ?? 0) > 0;
-  const showTax = (data.taxPaise ?? 0) > 0;
-  const showTotal = data.totalDuePaise != null && data.totalDuePaise >= 0;
+  const discountPaise = (data.discountPaise ?? 0) + (data.couponDiscountPaise ?? 0);
+  const hasPricing =
+    data.rentPaise != null && data.depositPaise != null && data.totalDuePaise != null;
+
+  const pricingLines = hasPricing
+    ? buildBookingCheckoutSummaryLines({
+        rentSubtotalPaise: data.rentPaise!,
+        discountPaise,
+        depositRequiredPaise: data.depositPaise!,
+        otherCharges:
+          (data.taxPaise ?? 0) > 0
+            ? [{ label: 'Taxes', amountPaise: data.taxPaise! }]
+            : undefined,
+        totalToCollectTodayPaise: data.totalDuePaise!,
+        rentLabel: 'Rent',
+        depositLabel: 'Deposit',
+        totalLabel: 'Grand total',
+      })
+    : [];
 
   return (
     <aside
@@ -99,22 +119,20 @@ export function BookingSummaryRail({ data }: { data: BookingSummaryData }) {
               value={`${data.stayNights} night${data.stayNights === 1 ? '' : 's'}`}
             />
           ) : null}
-          {showRent ? <Row label="Rent" value={paiseToInr(data.rentPaise!)} /> : null}
-          {showDeposit ? <Row label="Deposit" value={paiseToInr(data.depositPaise!)} /> : null}
-          {showDiscount ? (
+          {pricingLines.map((line) => (
             <Row
-              label="Discount"
-              value={`−${paiseToInr((data.discountPaise ?? 0) + (data.couponDiscountPaise ?? 0))}`}
+              key={`${line.kind}-${line.label}`}
+              label={line.label}
+              value={
+                line.isCredit
+                  ? `−${paiseToInr(line.amountPaise)}`
+                  : paiseToInr(line.amountPaise)
+              }
+              emphasize={line.emphasize}
+              valueClassName={line.isCredit ? 'text-emerald-300' : undefined}
             />
-          ) : null}
-          {showTax ? <Row label="Taxes" value={paiseToInr(data.taxPaise!)} /> : null}
-          {showTotal ? (
-            <Row
-              label="Grand total"
-              value={paiseToInr(data.totalDuePaise!)}
-              emphasize
-            />
-          ) : data.moveInDate && !showTotal ? (
+          ))}
+          {!hasPricing && data.moveInDate ? (
             <Row label="Grand total" value="Calculating…" />
           ) : null}
         </dl>

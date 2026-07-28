@@ -10,7 +10,10 @@ import { paiseToInr } from '@/src/lib/format';
 import { logPaymentClientException } from '@/src/lib/client/paymentClientLogger';
 import { stayTypeFromPricingMode, stayTypeLabel } from '@/src/lib/stayType';
 import type { PriorOutstandingItem } from '@/src/lib/billing/bookingCheckoutTotals';
-import { computeNewBookingCheckoutTotals } from '@/src/lib/billing/bookingCheckoutTotals';
+import {
+  buildBookingCheckoutSummaryLines,
+  computeNewBookingCheckoutTotals,
+} from '@/src/lib/billing/bookingCheckoutTotals';
 import type { PricingLineItem } from '@/src/lib/pricing/types';
 import {
   formatRentLineLabel,
@@ -147,12 +150,13 @@ export function BookingCheckoutExperience({
   const [qrNonce, setQrNonce] = useState(0);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const depositDueNowPaise =
-    additionalDepositDuePaise ?? Math.max(0, depositPaise - depositCreditAppliedPaise);
   const checkoutTotals = computeNewBookingCheckoutTotals({
     rentSubtotalPaise: subtotalPaise,
     depositRequiredPaise: depositPaise,
-    depositCreditAppliedPaise,
+    depositCreditAppliedPaise:
+      additionalDepositDuePaise != null
+        ? Math.max(0, depositPaise - additionalDepositDuePaise)
+        : depositCreditAppliedPaise,
     discountPaise,
     priorOutstanding: {
       totalPaise: priorOutstandingItems.reduce((s, i) => s + i.amountPaise, 0),
@@ -160,12 +164,30 @@ export function BookingCheckoutExperience({
     },
     ps4Paise: membershipAmountPaise,
   });
-  const depositLinePaise = isReserveBooking ? 0 : depositDueNowPaise;
+  const effectiveDepositCreditPaise = checkoutTotals.depositCreditAppliedPaise;
   const payNowPaise = checkoutTotals.totalToCollectTodayPaise;
   const payNowLabel = paiseToInr(payNowPaise);
   const hasCoupon = discountPaise > 0;
+  const hasPrior = priorOutstandingItems.length > 0;
   const couponPctOff =
     hasCoupon && subtotalPaise > 0 ? Math.round((discountPaise / subtotalPaise) * 100) : null;
+
+  const pricingLines = buildBookingCheckoutSummaryLines({
+    rentSubtotalPaise: subtotalPaise,
+    discountPaise,
+    depositRequiredPaise: isReserveBooking ? 0 : depositPaise,
+    depositCreditAppliedPaise: isReserveBooking ? 0 : effectiveDepositCreditPaise,
+    priorOutstandingPaise: checkoutTotals.priorOutstandingPaise,
+    otherCharges:
+      membershipLabel && membershipAmountPaise
+        ? [{ label: membershipLabel, amountPaise: membershipAmountPaise }]
+        : undefined,
+    totalToCollectTodayPaise: payNowPaise,
+    hideDeposit: isReserveBooking,
+    rentLabel: rentLineLabel(isReserveBooking, stayNights, durationMode),
+    depositLabel: 'Refundable deposit',
+    totalLabel: hasPrior ? 'Total to collect today' : 'Total to pay today',
+  });
 
   const couponAppliedBadge =
     hasCoupon ? (
@@ -184,7 +206,6 @@ export function BookingCheckoutExperience({
     }
   }, [payNowPaise, screenshotAmountInr]);
   const showHybridRent = shouldShowHybridRentBreakdown(rentLineItems);
-  const hasPrior = priorOutstandingItems.length > 0;
   const hasScreenshot = Boolean(screenshotUrl);
   const canSubmit = hasScreenshot && !uploading && !pending;
 
@@ -445,36 +466,27 @@ export function BookingCheckoutExperience({
                   <dd className="font-semibold text-white">{paiseToInr(li.amountPaise)}</dd>
                 </div>
               ))
-            : (
-              <div className="flex justify-between gap-4">
-                <dt className="text-apg-silver">{rentLineLabel(isReserveBooking, stayNights, durationMode)}</dt>
-                <dd className="font-semibold text-white">{paiseToInr(subtotalPaise)}</dd>
+            : null}
+          {pricingLines
+            .filter(
+              (line) =>
+                line.kind !== 'total' &&
+                !(showHybridRent && line.kind === 'rent') &&
+                !(hasPrior && line.kind === 'prior_outstanding'),
+            )
+            .map((line) => (
+              <div
+                key={`${line.kind}-${line.label}`}
+                className={`flex justify-between gap-4 ${line.isCredit ? 'text-emerald-300' : ''}`}
+              >
+                <dt className={line.isCredit ? undefined : 'text-apg-silver'}>{line.label}</dt>
+                <dd className={line.isCredit ? undefined : 'font-semibold text-white'}>
+                  {line.isCredit
+                    ? `−${paiseToInr(line.amountPaise)}`
+                    : paiseToInr(line.amountPaise)}
+                </dd>
               </div>
-            )}
-          {discountPaise > 0 ? (
-            <div className="flex justify-between gap-4 text-emerald-300">
-              <dt>Coupon discount{couponCode ? ` (${couponCode})` : ''}</dt>
-              <dd>−{paiseToInr(discountPaise)}</dd>
-            </div>
-          ) : null}
-          {!isReserveBooking && depositLinePaise > 0 ? (
-            <div className="flex justify-between gap-4">
-              <dt className="text-apg-silver">Refundable deposit (50%)</dt>
-              <dd className="font-semibold text-white">{paiseToInr(depositLinePaise)}</dd>
-            </div>
-          ) : null}
-          {depositCreditAppliedPaise > 0 ? (
-            <div className="flex justify-between gap-4 text-emerald-300">
-              <dt>Deposit wallet credit</dt>
-              <dd>−{paiseToInr(depositCreditAppliedPaise)}</dd>
-            </div>
-          ) : null}
-          {membershipLabel && membershipAmountPaise ? (
-            <div className="flex justify-between gap-4">
-              <dt className="text-apg-silver">{membershipLabel}</dt>
-              <dd className="font-semibold text-white">{paiseToInr(membershipAmountPaise)}</dd>
-            </div>
-          ) : null}
+            ))}
         </dl>
 
         {hasPrior ? (
@@ -492,11 +504,13 @@ export function BookingCheckoutExperience({
             </dl>
             <div className="mt-3 flex justify-between gap-4 text-xs text-apg-silver">
               <span>New booking total</span>
-              <span className="font-medium text-white">{paiseToInr(checkoutTotals.newBookingTotalPaise + (membershipAmountPaise ?? 0))}</span>
+              <span className="font-medium text-white">
+                {paiseToInr(checkoutTotals.newBookingTotalPaise + (membershipAmountPaise ?? 0))}
+              </span>
             </div>
           </div>
         ) : null}
-        {!isReserveBooking && depositLinePaise > 0 ? (
+        {!isReserveBooking && checkoutTotals.depositRequiredPaise > 0 ? (
           <p className="mt-3 text-xs text-apg-muted">Refundable deposit included · not part of rent</p>
         ) : null}
 
@@ -515,8 +529,30 @@ export function BookingCheckoutExperience({
             {isReserveBooking ? 'Complete hold payment' : 'Complete payment'}
           </h1>
           <p className="mt-1 text-xs text-apg-muted">
-            Pay the exact total in your booking summary, then upload your UPI screenshot.
+            Pay the exact total below, then upload your UPI screenshot.
           </p>
+          <dl className="mt-5 space-y-3 text-sm">
+            {pricingLines
+              .filter((line) => line.kind !== 'total')
+              .map((line) => (
+                <div
+                  key={`${line.kind}-${line.label}`}
+                  className={`flex justify-between gap-4 ${line.isCredit ? 'text-emerald-300' : ''}`}
+                >
+                  <dt className={line.isCredit ? undefined : 'text-apg-silver'}>{line.label}</dt>
+                  <dd className={line.isCredit ? undefined : 'font-semibold text-white'}>
+                    {line.isCredit
+                      ? `−${paiseToInr(line.amountPaise)}`
+                      : paiseToInr(line.amountPaise)}
+                  </dd>
+                </div>
+              ))}
+          </dl>
+          {!isReserveBooking && checkoutTotals.depositRequiredPaise > 0 ? (
+            <p className="mt-3 text-xs text-apg-muted">
+              Refundable deposit included · coupon applies to rent only
+            </p>
+          ) : null}
           <div className="mt-5 rounded-[14px] bg-apg-orange/10 px-4 py-4 ring-1 ring-apg-orange/25">
             <p className="text-xs font-medium uppercase tracking-wide text-apg-orange">
               {hasPrior ? 'Total to collect today' : 'Total to pay today'}

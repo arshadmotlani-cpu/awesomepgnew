@@ -2,11 +2,14 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   breakdownBookingCheckoutPayment,
+  buildBookingCheckoutSummaryLines,
   computeNewBookingCheckoutTotals,
   resolveBookingDepositCreditAppliedPaise,
 } from '../../src/lib/billing/bookingCheckoutTotals';
+import { quoteToBookingDraftPricing } from '../../src/lib/booking/bookingDraft';
 import { computePriceBreakdown } from '../../src/services/pricing';
 import { shouldShowHybridRentBreakdown } from '../../src/lib/pricing/formatRentLines';
+import { paiseToInr } from '../../src/lib/format';
 
 const FIXED_RATE = {
   bedPriceId: 'bp-1',
@@ -179,5 +182,123 @@ describe('booking checkout totals SSOT', () => {
     });
     assert.equal(withPrior.depositDueNowPaise, 50_000);
     assert.equal(withPrior.totalToCollectTodayPaise, 145_000);
+  });
+});
+
+describe('booking checkout summary lines + coupon regressions', () => {
+  const rentPaise = 360_600; // ₹3,606
+  const depositPaise = 360_600;
+  const discount10 = 36_060; // ₹361
+
+  it('production fixture: 10% coupon → ₹6,851 total with ordered summary lines', () => {
+    const totals = computeNewBookingCheckoutTotals({
+      rentSubtotalPaise: rentPaise,
+      depositRequiredPaise: depositPaise,
+      discountPaise: discount10,
+    });
+    assert.equal(totals.rentDuePaise, 324_540);
+    assert.equal(totals.depositDueNowPaise, depositPaise);
+    assert.equal(totals.totalToCollectTodayPaise, 685_140);
+    assert.equal(paiseToInr(totals.totalToCollectTodayPaise), '₹6,851');
+
+    const lines = buildBookingCheckoutSummaryLines({
+      rentSubtotalPaise: rentPaise,
+      discountPaise: discount10,
+      depositRequiredPaise: depositPaise,
+      totalToCollectTodayPaise: totals.totalToCollectTodayPaise,
+    });
+    assert.deepEqual(
+      lines.map((l) => l.kind),
+      ['rent', 'coupon_discount', 'deposit', 'total'],
+    );
+    assert.equal(lines[0]!.amountPaise, rentPaise);
+    assert.equal(lines[1]!.amountPaise, discount10);
+    assert.equal(lines[1]!.isCredit, true);
+    assert.equal(lines[2]!.amountPaise, depositPaise);
+    assert.equal(lines[3]!.amountPaise, 685_140);
+
+    const signedSum = lines
+      .filter((l) => l.kind !== 'total')
+      .reduce((s, l) => s + (l.isCredit ? -l.amountPaise : l.amountPaise), 0);
+    assert.equal(signedSum, totals.totalToCollectTodayPaise);
+  });
+
+  it('no coupon: rent + deposit only', () => {
+    const totals = computeNewBookingCheckoutTotals({
+      rentSubtotalPaise: rentPaise,
+      depositRequiredPaise: depositPaise,
+    });
+    assert.equal(totals.totalToCollectTodayPaise, rentPaise + depositPaise);
+    const lines = buildBookingCheckoutSummaryLines({
+      rentSubtotalPaise: rentPaise,
+      depositRequiredPaise: depositPaise,
+      totalToCollectTodayPaise: totals.totalToCollectTodayPaise,
+    });
+    assert.deepEqual(
+      lines.map((l) => l.kind),
+      ['rent', 'deposit', 'total'],
+    );
+  });
+
+  it('flat coupon larger than rent: rent due 0, deposit full', () => {
+    const totals = computeNewBookingCheckoutTotals({
+      rentSubtotalPaise: rentPaise,
+      depositRequiredPaise: depositPaise,
+      discountPaise: rentPaise + 50_000,
+    });
+    assert.equal(totals.rentDuePaise, 0);
+    assert.equal(totals.depositDueNowPaise, depositPaise);
+    assert.equal(totals.totalToCollectTodayPaise, depositPaise);
+  });
+
+  it('deposit ₹0: total is rent minus discount', () => {
+    const totals = computeNewBookingCheckoutTotals({
+      rentSubtotalPaise: rentPaise,
+      depositRequiredPaise: 0,
+      discountPaise: discount10,
+    });
+    assert.equal(totals.totalToCollectTodayPaise, rentPaise - discount10);
+    const lines = buildBookingCheckoutSummaryLines({
+      rentSubtotalPaise: rentPaise,
+      discountPaise: discount10,
+      depositRequiredPaise: 0,
+      totalToCollectTodayPaise: totals.totalToCollectTodayPaise,
+    });
+    assert.ok(!lines.some((l) => l.kind === 'deposit'));
+  });
+
+  it('quoteToBookingDraftPricing applies discount into totalDuePaise', () => {
+    const pricing = quoteToBookingDraftPricing({
+      subtotalPaise: rentPaise,
+      depositPaise,
+      discountPaise: discount10,
+    });
+    assert.equal(pricing.discountPaise, discount10);
+    assert.equal(pricing.totalDuePaise, 685_140);
+  });
+
+  it('deposit credit shows required deposit + credit lines that sum correctly', () => {
+    const credit = 100_000;
+    const totals = computeNewBookingCheckoutTotals({
+      rentSubtotalPaise: rentPaise,
+      depositRequiredPaise: depositPaise,
+      depositCreditAppliedPaise: credit,
+      discountPaise: discount10,
+    });
+    const lines = buildBookingCheckoutSummaryLines({
+      rentSubtotalPaise: rentPaise,
+      discountPaise: discount10,
+      depositRequiredPaise: depositPaise,
+      depositCreditAppliedPaise: credit,
+      totalToCollectTodayPaise: totals.totalToCollectTodayPaise,
+    });
+    assert.deepEqual(
+      lines.map((l) => l.kind),
+      ['rent', 'coupon_discount', 'deposit', 'deposit_credit', 'total'],
+    );
+    const signedSum = lines
+      .filter((l) => l.kind !== 'total')
+      .reduce((s, l) => s + (l.isCredit ? -l.amountPaise : l.amountPaise), 0);
+    assert.equal(signedSum, totals.totalToCollectTodayPaise);
   });
 });

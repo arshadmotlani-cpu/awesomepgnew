@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import { isMonthlyStayType, type StayType } from '@/src/lib/stayType';
+import { buildBookingCheckoutSummaryLines } from '@/src/lib/billing/bookingCheckoutTotals';
 
 export type BookingReviewLineItem = {
   label: string;
@@ -82,9 +83,9 @@ export function BookingReviewCard({
   const liveTotal = totalDuePaise ?? data.totalDuePaise;
   const rentGross = data.rentPaise;
   const hasDiscount = discountPaise > 0;
-  const rentNet =
-    hasDiscount && rentGross > 0 ? Math.max(0, rentGross - discountPaise) : rentGross;
-  const depositLine = data.depositPaise;
+  const depositRequiredPaise = data.depositRequiredPaise ?? data.depositPaise;
+  const depositCreditAppliedPaise = data.depositCreditAppliedPaise ?? 0;
+  const priorOutstandingPaise = data.priorOutstandingPaise ?? 0;
   const pctOff =
     hasDiscount && rentGross > 0
       ? Math.round((discountPaise / rentGross) * 100)
@@ -95,8 +96,29 @@ export function BookingReviewCard({
       (item) =>
         !item.label.toLowerCase().startsWith('rent') &&
         !item.label.toLowerCase().includes('security deposit') &&
-        item.label !== 'Security deposit',
+        item.label !== 'Security deposit' &&
+        !item.label.toLowerCase().includes('coupon') &&
+        !item.label.toLowerCase().includes('discount'),
     ) ?? [];
+
+  const otherCharges = staticLineItems
+    .filter((item) => item.tone !== 'credit')
+    .map((item) => ({ label: item.label, amountPaise: item.amountPaise }));
+
+  const pricingLines = buildBookingCheckoutSummaryLines({
+    rentSubtotalPaise: rentGross,
+    discountPaise,
+    depositRequiredPaise,
+    depositCreditAppliedPaise,
+    priorOutstandingPaise,
+    otherCharges,
+    totalToCollectTodayPaise: liveTotal,
+    rentLabel: `Rent (${data.roomNumber} · Bed ${data.bedCode})`,
+    depositLabel: 'Security deposit',
+    totalLabel: 'Total payable today',
+  });
+
+  const creditExtras = staticLineItems.filter((item) => item.tone === 'credit');
 
   return (
     <article className="overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-[#1a2332] to-[#121820] shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
@@ -124,42 +146,83 @@ export function BookingReviewCard({
             value={`${data.stayNights} night${data.stayNights === 1 ? '' : 's'}`}
           />
         ) : null}
-        <Row
-          label={`Rent (${data.roomNumber} · Bed ${data.bedCode})`}
-          value={paiseToInr(rentNet)}
-          detail={
-            hasDiscount
-              ? `Before coupon: ${paiseToInr(rentGross)} · deposit is not discounted`
-              : 'Quoted from current bed pricing'
+        {pricingLines.map((line) => {
+          if (line.kind === 'rent') {
+            return (
+              <Row
+                key={line.kind}
+                label={line.label}
+                value={paiseToInr(line.amountPaise)}
+                detail={
+                  hasDiscount
+                    ? 'Quoted from current bed pricing · deposit is not discounted'
+                    : 'Quoted from current bed pricing'
+                }
+              />
+            );
           }
-        />
-        {hasDiscount ? (
-          <Row
-            label="Coupon discount"
-            value={`−${paiseToInr(discountPaise)}`}
-            valueClassName="text-emerald-300"
-            detail="Applies to rent only — not deposit"
-          />
-        ) : null}
-        <Row
-          label="Security deposit"
-          value={paiseToInr(depositLine)}
-          detail="Required deposit for this stay"
-        />
-        {staticLineItems.map((item) => (
+          if (line.kind === 'coupon_discount') {
+            return (
+              <Row
+                key={line.kind}
+                label={line.label}
+                value={`−${paiseToInr(line.amountPaise)}`}
+                valueClassName="text-emerald-300"
+                detail="Applies to rent only — not deposit"
+              />
+            );
+          }
+          if (line.kind === 'deposit') {
+            return (
+              <Row
+                key={line.kind}
+                label={line.label}
+                value={paiseToInr(line.amountPaise)}
+                detail="Required deposit for this stay"
+              />
+            );
+          }
+          if (line.kind === 'deposit_credit') {
+            return (
+              <Row
+                key={line.kind}
+                label={line.label}
+                value={`−${paiseToInr(line.amountPaise)}`}
+                valueClassName="text-emerald-300"
+                detail="Transferred from a previous booking"
+              />
+            );
+          }
+          if (line.kind === 'prior_outstanding' || line.kind === 'other_charge') {
+            return (
+              <Row
+                key={`${line.kind}-${line.label}`}
+                label={line.label}
+                value={paiseToInr(line.amountPaise)}
+              />
+            );
+          }
+          if (line.kind === 'total') {
+            return (
+              <Row
+                key={line.kind}
+                label={line.label}
+                value={paiseToInr(line.amountPaise)}
+                emphasize
+              />
+            );
+          }
+          return null;
+        })}
+        {creditExtras.map((item) => (
           <Row
             key={item.label}
             label={item.label}
-            value={
-              item.tone === 'credit'
-                ? `−${paiseToInr(item.amountPaise)}`
-                : paiseToInr(item.amountPaise)
-            }
+            value={`−${paiseToInr(item.amountPaise)}`}
             detail={item.detail}
-            valueClassName={item.tone === 'credit' ? 'text-emerald-300' : undefined}
+            valueClassName="text-emerald-300"
           />
         ))}
-        <Row label="Total payable today" value={paiseToInr(liveTotal)} emphasize />
       </dl>
 
       {couponSection ? (

@@ -53,6 +53,7 @@ export function quoteToBookingDraftPricing(input: {
   const checkout = computeNewBookingCheckoutTotals({
     rentSubtotalPaise: input.subtotalPaise,
     depositRequiredPaise: input.depositPaise,
+    discountPaise: input.discountPaise,
     priorOutstanding: input.priorOutstanding,
   });
   return {
