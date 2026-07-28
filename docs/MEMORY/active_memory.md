@@ -7,7 +7,7 @@
 
 ## Current Focus
 
-- **For Your Hair ERP (shell)** — New app on `foryourhair.awesomepg.in`: host middleware + `/fyh` rewrites, separate Neon (`HAIR_DATABASE_URL`), Luxury Forest auth/layout/Coming Soon modules. Next: provision Neon + DNS, then build modules one-by-one.
+- **For Your Hair ERP (shell)** — Salon ERP on `fyhair.awesomepg.in` (host middleware + `/fyh` rewrites), separate Neon (`HAIR_DATABASE_URL`), Luxury Forest auth/layout/Coming Soon modules. Domain connected on Vercel; next: Neon + seed admin if not set, then build modules one-by-one.
 
 - **Automotive Capital audit remediation (shipped locally)** — Money integrity (activity reverse↔cost/seller ledgers), settle without capital-return gate, Reports = Dashboard Active Capital / entitled My Profit, Purchase Pending = seller Remaining SSOT, vehicle IA collapsed to Overview|Work|Sale|Files.
 
@@ -125,14 +125,15 @@ See [[tasks]] for full task log. Current:
 <!-- SEMANTIC_STATE_START -->
 ## Semantic State
 
-> **Last analyzed:** 2026-07-28T07:22:03Z
+> **Last analyzed:** 2026-07-28T08:36:49Z
 
 - **Current system intent:** The AI memory / intelligence automation layer is being extended — cognition pipeline or MEMORY structure changed.
 - **Dominant change type:** MIXED (see changelog)
-- **System momentum:** LOW (0 vault commits in 24h)
+- **System momentum:** LOW (1 vault commits in 24h)
 - **Risk level:** LOW
 
 <!-- SEMANTIC_STATE_END -->
+
 
 
 

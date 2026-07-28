@@ -1,7 +1,7 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getHairSession, type HairAdmin } from './session';
-import { isHairHostFromHeaders } from '@/src/hair/lib/host';
+import { isHairHostFromHeaders, isHairHost } from '@/src/hair/lib/host';
 
 export class HairAuthError extends Error {
   constructor(message = 'Authentication required') {
@@ -48,8 +48,8 @@ export function safeHairNextPath(next: string): string {
     return '/dashboard';
   }
   try {
-    const u = new URL(next, 'https://foryourhair.awesomepg.in');
-    if (u.origin !== 'https://foryourhair.awesomepg.in') return '/dashboard';
+    const u = new URL(next, 'https://fyhair.awesomepg.in');
+    if (!isHairHost(u.hostname)) return '/dashboard';
     if (u.pathname.startsWith('/fyh')) {
       return u.pathname.replace(/^\/fyh/, '') || '/dashboard';
     }

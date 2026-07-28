@@ -13,8 +13,9 @@
 
 ## 2026-07-27
 
-- [ ] **FYH-NEON** — Provision Neon DB + set `HAIR_DATABASE_URL` / `HAIR_ADMIN_*` on Vercel; add DNS `foryourhair.awesomepg.in`
+- [ ] **FYH-NEON** — Provision Neon DB + set `HAIR_DATABASE_URL` / `HAIR_ADMIN_*` on Vercel (domain `fyhair.awesomepg.in` connected)
 - [x] **FYH-SHELL-01** — App shell: host routing, auth, layout, theme, placeholder nav (no salon features yet)
+- [x] **FYH-HOST-FYHAIR** — Allowlist `fyhair.awesomepg.in` in `isHairHost` (same invest-style routing; www/invest untouched)
 
 ## 2026-07-26
 

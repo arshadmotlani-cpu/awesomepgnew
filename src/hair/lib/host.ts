@@ -11,6 +11,10 @@ export function resolveRequestHostname(
 export function isHairHost(host: string): boolean {
   const h = host.split(':')[0]?.toLowerCase() ?? '';
   return (
+    h === 'fyhair.awesomepg.in' ||
+    h === 'fyhair.localhost' ||
+    h === 'fyhair.localhost.localdomain' ||
+    // Legacy alias (kept for compatibility)
     h === 'foryourhair.awesomepg.in' ||
     h === 'foryourhair.localhost' ||
     h === 'foryourhair.localhost.localdomain' ||

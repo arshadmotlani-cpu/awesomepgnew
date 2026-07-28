@@ -7,11 +7,14 @@ import {
 } from '../../../src/hair/lib/host';
 
 describe('For Your Hair host helpers', () => {
-  it('detects foryourhair hosts', () => {
+  it('detects fyhair and foryourhair hosts', () => {
+    expect(isHairHost('fyhair.awesomepg.in')).toBe(true);
+    expect(isHairHost('fyhair.localhost')).toBe(true);
     expect(isHairHost('foryourhair.awesomepg.in')).toBe(true);
     expect(isHairHost('foryourhair.localhost')).toBe(true);
     expect(isHairHost('invest.awesomepg.in')).toBe(false);
     expect(isHairHost('www.awesomepg.in')).toBe(false);
+    expect(isHairHost('awesomepg.in')).toBe(false);
   });
 
   it('maps public paths to /fyh internals', () => {

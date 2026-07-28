@@ -25,4 +25,4 @@ Set `AUTH_SESSION_DEBUG=1` on the environment to log create / validate / refresh
 ## Capital / Hair
 
 - `invest.awesomepg.in` — `ac_session`, 60-day sliding (same 14d / 24h rules).
-- `foryourhair.awesomepg.in` — `fyh_session`, 60-day standard / 90-day remember-me with sliding.
+- `fyhair.awesomepg.in` — `fyh_session`, 60-day standard / 90-day remember-me with sliding. (`foryourhair.awesomepg.in` remains a legacy alias.)
