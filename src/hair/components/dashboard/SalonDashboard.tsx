@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import {
   CalendarDays,
   Clock3,
@@ -10,8 +9,6 @@ import {
   Wallet,
 } from 'lucide-react';
 import { KpiCard } from '@/src/hair/components/dashboard/KpiCard';
-import { DashboardNewMenu } from '@/src/hair/components/dashboard/DashboardNewMenu';
-import { Button } from '@/src/hair/components/ui/button';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import type { DashboardSnapshot } from '@/src/hair/services/dashboard';
 
@@ -38,14 +35,6 @@ export function SalonDashboard({ snapshot }: { snapshot: DashboardSnapshot }) {
             Today at a glance · {snapshot.totalCustomers} active customer
             {snapshot.totalCustomers === 1 ? '' : 's'}
           </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/customers/new">
-            <Button type="button" variant="secondary" size="sm">
-              Add customer
-            </Button>
-          </Link>
-          <DashboardNewMenu />
         </div>
       </div>
 

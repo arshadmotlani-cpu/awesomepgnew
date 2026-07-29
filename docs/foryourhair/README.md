@@ -63,7 +63,7 @@ npm run hair:db:studio
 | Dashboard | Live KPIs from appointments + invoices + inventory |
 | Customers | Full CRM (`0002`–`0003`) |
 | Appointments | Calendar with Day/Week/Timeline/Chair/Stylist views, @dnd-kit drag/resize, conflict engine (`0007`) |
-| Billing | Appointment checkout + **Quick Sale** walk-in POS at `/quick-sale` (`0012`) |
+| Billing | Appointment checkout + walk-in **Quick Sale** (`/quick-sale`, 9-dot **Express Sale**) + **Advance Payment** wallet top-up (`/advance-payment`) |
 | Services | Production catalog (`0004`–`0005`) |
 | Products | Retail + consumables (`0006`) |
 | Staff | List/create + commission accrual on paid invoices |
@@ -76,6 +76,6 @@ Archive on services/products soft-deactivates only — rows remain for historica
 
 Visit loop: Booked → Confirmed → Arrived → In Service → Completed → Invoice → Paid (or Cancelled / No Show).
 
-**Quick Sale** (Dashboard → **+ New → Quick Sale**) is the walk-in billing workflow (`0012`–`0014`). **Hold bill** stores draft invoices with cart, attributions, and payment draft; checkout promotes the draft to a numbered invoice. **Sales attributions** are the performance SSOT; commission rules table is schema-ready only. See [QUICK_SALE.md](./QUICK_SALE.md), [FEATURES.md](./FEATURES.md), [WORKFLOWS.md](./WORKFLOWS.md).
+**Navigation:** 9-dot **Quick actions** (top bar, left of search) → Express Sale or Advance Payment only. **+ New** (top bar) → create appointments, customers, catalog records, staff. Quick Sale hold/resume lives inside Express Sale only.
 
 Run Hair tests: `npm run test:hair` (integration needs `npm run hair:db:migrate`).

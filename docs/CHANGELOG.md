@@ -256,7 +256,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-29 12:15:24 UTC
+### Pending pre-commit sync · 2026-07-29 14:15:44 UTC
 
 **Areas touched:** [[ROUTES]]
 
@@ -265,22 +265,8 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
-**Staged code files (15):**
-- `app/(hair)/fyh/(app)/quick-sale/page.tsx`
-- `app/(hair)/fyh/(app)/reports/customers/loyalty/page.tsx`
-- `app/(hair)/fyh/(app)/reports/customers/memberships/page.tsx`
-- `app/(hair)/fyh/(app)/reports/customers/packages/page.tsx`
-- `app/(hair)/fyh/(app)/reports/finance/discounts/page.tsx`
-- `app/(hair)/fyh/(app)/reports/finance/gst/page.tsx`
-- `app/(hair)/fyh/(app)/reports/finance/payments/page.tsx`
-- `app/(hair)/fyh/(app)/reports/inventory/low-stock/page.tsx`
-- `app/(hair)/fyh/(app)/reports/inventory/products/page.tsx`
-- `app/(hair)/fyh/(app)/reports/inventory/stock/page.tsx`
-- `app/(hair)/fyh/(app)/reports/revenue/daily/page.tsx`
-- `app/(hair)/fyh/(app)/reports/revenue/monthly/page.tsx`
-- `app/(hair)/fyh/(app)/reports/revenue/yearly/page.tsx`
-- `app/(hair)/fyh/(app)/reports/staff/[metric]/page.tsx`
-- `app/(hair)/fyh/api/quick-sale/customers/route.ts`
+**Staged code files (1):**
+- `app/(hair)/fyh/(app)/advance-payment/page.tsx`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

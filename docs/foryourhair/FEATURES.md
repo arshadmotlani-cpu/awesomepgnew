@@ -2,10 +2,11 @@
 
 ## Quick Sale (walk-in POS)
 
-Single billing workflow for walk-in customers at `/quick-sale` (Dashboard → **+ New → Quick Sale**).
+Single billing workflow for walk-in customers at `/quick-sale` (**Express Sale** via 9-dot quick actions).
 
 | Capability | Status |
 |------------|--------|
+| **Advance Payment** (wallet credit, no invoice) | Live at `/advance-payment` via 9-dot launcher |
 | Customer search / quick add (`customer_code`) | Live |
 | Catalog tabs: services, products, packages, memberships | Live |
 | Line discounts (% ↔ ₹) | Live |

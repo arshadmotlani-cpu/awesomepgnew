@@ -4,6 +4,7 @@ import {
   fyhCommissionEntries,
   fyhCustomerMemberships,
   fyhCustomerPackages,
+  fyhCustomerTimeline,
   fyhCustomers,
   fyhMembershipPlans,
   fyhPackagePlans,
@@ -16,6 +17,8 @@ import {
   type FyhBridalEventType,
   type FyhNotificationKind,
 } from '@/src/hair/db/schema';
+import type { FyhPaymentMethod } from '@/src/hair/db/schema/billing';
+import { formatInrFromPaise } from '@/src/hair/lib/money';
 
 export async function listMembershipPlans() {
   return hairDb
@@ -265,4 +268,49 @@ export async function topUpWallet(customerId: string, amountPaise: number) {
     })
     .where(eq(fyhCustomers.id, customerId));
   return customer.walletBalancePaise + amountPaise;
+}
+
+export type AdvancePaymentMethod = Extract<FyhPaymentMethod, 'cash' | 'upi' | 'card' | 'bank'>;
+
+export async function recordAdvancePayment(input: {
+  customerId: string;
+  amountPaise: number;
+  method: AdvancePaymentMethod;
+  reference?: string | null;
+  notes?: string | null;
+}) {
+  if (input.amountPaise <= 0) throw new Error('Amount must be positive');
+
+  return hairDb.transaction(async (tx) => {
+    const [customer] = await tx
+      .select()
+      .from(fyhCustomers)
+      .where(and(eq(fyhCustomers.id, input.customerId), eq(fyhCustomers.isActive, true)))
+      .limit(1);
+    if (!customer) throw new Error('Customer not found');
+
+    const newBalance = customer.walletBalancePaise + input.amountPaise;
+    await tx
+      .update(fyhCustomers)
+      .set({
+        walletBalancePaise: newBalance,
+        updatedAt: new Date(),
+      })
+      .where(eq(fyhCustomers.id, customer.id));
+
+    await tx.insert(fyhCustomerTimeline).values({
+      customerId: customer.id,
+      eventType: 'wallet',
+      title: 'Advance payment',
+      body: `${formatInrFromPaise(input.amountPaise)} via ${input.method}${input.notes ? ` · ${input.notes}` : ''}`,
+      metadata: {
+        source: 'advance_payment',
+        method: input.method,
+        amountPaise: input.amountPaise,
+        reference: input.reference ?? null,
+      },
+    });
+
+    return { walletBalancePaise: newBalance };
+  });
 }

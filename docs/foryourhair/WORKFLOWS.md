@@ -1,5 +1,14 @@
 # For Your Hair — Workflows
 
+## Quick actions vs + New
+
+| Control | Purpose |
+|---------|---------|
+| 9-dot (top bar, before search) | **Express Sale** (`/quick-sale`), **Advance Payment** (`/advance-payment`) |
+| + New (top bar) | New appointment, customer, service, product, package/membership (loyalty hub), staff |
+
+Hold bill remains inside Express Sale only—not in the launcher.
+
 ## Quick Sale (happy path)
 
 ```mermaid
