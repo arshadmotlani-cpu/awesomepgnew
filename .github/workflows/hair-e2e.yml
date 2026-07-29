@@ -1,0 +1,46 @@
+name: Hair E2E
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Nightly 02:30 UTC — optional gate when Hair preview DB secrets are configured.
+    - cron: '30 2 * * *'
+
+concurrency:
+  group: hair-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hair-playwright:
+    runs-on: ubuntu-latest
+    if: ${{ secrets.HAIR_DATABASE_URL != '' }}
+    env:
+      CI: 'true'
+      NODE_ENV: test
+      HAIR_DEV_HOST: '1'
+      HAIR_DATABASE_URL: ${{ secrets.HAIR_DATABASE_URL }}
+      AUTH_SECRET: ci-hair-e2e-auth-secret-min-32-chars-long
+      HAIR_ADMIN_EMAIL: ${{ secrets.HAIR_ADMIN_EMAIL }}
+      HAIR_ADMIN_PASSWORD: ${{ secrets.HAIR_ADMIN_PASSWORD }}
+      SKIP_MIGRATION_GATE: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --include=dev
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Migrate and seed Hair database
+        run: |
+          npm run hair:db:migrate
+          npm run hair:db:seed
+
+      - name: Hair Playwright suite
+        run: npm run test:e2e:hair

@@ -6,7 +6,9 @@ Granular implementation checklist. Mark items complete as work progresses.
 
 ---
 
-## Phase 0 — Planning (Current)
+## Phase 0 — Planning
+
+> **Note (2026-07):** Core product is implemented. Use [`CHANGELOG.md`](./CHANGELOG.md) for shipped work and [`PRODUCTION_SIGNOFF.md`](./PRODUCTION_SIGNOFF.md) for go-live checks. Items below are historical planning markers.
 
 ### Documentation
 - [x] README.md

@@ -24,7 +24,7 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: '/capital/manifest.webmanifest',
+        source: '/admin-os/manifest.webmanifest',
         headers: [{ key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' }],
       },
     ];

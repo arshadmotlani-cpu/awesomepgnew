@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   bigint,
   boolean,
+  date,
   index,
   integer,
   pgTable,
@@ -17,7 +18,13 @@ export const fyhStaff = pgTable(
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
     fullName: text('full_name').notNull(),
     phone: text('phone'),
+    email: text('email'),
+    photoUrl: text('photo_url'),
     role: text('role'),
+    joiningDate: date('joining_date'),
+    performanceTargetPaise: bigint('performance_target_paise', { mode: 'number' })
+      .notNull()
+      .default(0),
     isActive: boolean('is_active').notNull().default(true),
     defaultCommissionType: text('default_commission_type')
       .$type<FyhCommissionType>()

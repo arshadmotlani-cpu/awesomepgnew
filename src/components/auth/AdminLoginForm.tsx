@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { authFieldLabelClassName, authInputClassName } from '@/src/components/auth/authFieldStyles';
-import { AwesomePgLogo } from '@/src/components/brand/AwesomePgLogo';
+import { APG_OS } from '@/src/lib/brand/apgOsTokens';
 import { redirectAfterAuth, safeAdminNext } from '@/src/lib/auth/safeNext';
 
 type AdminLoginFormProps = {
@@ -60,12 +60,11 @@ export function AdminLoginForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="mx-auto w-full max-w-md space-y-4 rounded-xl border border-zinc-200 bg-white p-6 text-base text-zinc-900 shadow-sm scheme-light sm:p-8"
+      className="mx-auto w-full max-w-md space-y-5 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.08)] scheme-light sm:p-8"
     >
-      <div className="flex flex-col items-center text-center sm:items-start sm:text-left">
-        <AwesomePgLogo size={56} priority className="mb-3 shadow-md shadow-orange-500/20" />
-        <h1 className="text-xl font-semibold text-zinc-900">Admin sign in</h1>
-        <p className="mt-1 text-sm text-zinc-500">Email and password for staff accounts.</p>
+      <div className="hidden sm:block">
+        <h1 className="text-xl font-semibold tracking-tight text-slate-900">Sign in</h1>
+        <p className="mt-1 text-sm text-slate-500">{APG_OS.subtitle} · staff credentials</p>
       </div>
       <label className="block">
         <span className={authFieldLabelClassName}>Email</span>
@@ -94,14 +93,14 @@ export function AdminLoginForm({
           type="checkbox"
           checked={rememberMe}
           onChange={(e) => setRememberMe(e.target.checked)}
-          className="size-4 rounded border-zinc-300 text-zinc-900 focus:ring-indigo-500"
+          className="size-4 rounded border-zinc-300 text-zinc-900 focus:ring-[var(--apg-os-primary,#2563EB)]"
         />
         Remember me on this device
       </label>
       <button
         type="submit"
         disabled={pending}
-        className="min-h-11 w-full rounded-md bg-zinc-900 px-4 py-2.5 text-base font-semibold text-white hover:bg-zinc-800 disabled:bg-zinc-400"
+        className="min-h-11 w-full rounded-lg bg-[var(--apg-os-primary,#2563EB)] px-4 py-2.5 text-base font-semibold text-white hover:bg-[var(--apg-os-primary-hover,#1D4ED8)] disabled:bg-zinc-400"
       >
         {pending ? 'Signing in…' : 'Sign in'}
       </button>
@@ -114,7 +113,7 @@ export function AdminLoginForm({
         <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
       ) : null}
       <p className="text-center text-sm text-zinc-600">
-        <Link href="/admin/forgot-password" className="font-medium text-indigo-700 hover:underline">
+        <Link href="/admin/forgot-password" className="font-medium text-[var(--apg-os-primary,#2563EB)] hover:underline">
           Forgot password?
         </Link>
       </p>

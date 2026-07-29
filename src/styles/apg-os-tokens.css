@@ -1,0 +1,32 @@
+/**
+ * APG OS CSS variables — scoped to admin shell + auth routes.
+ * Import from app/(admin)/layout.tsx and app/admin/layout.tsx.
+ */
+.apg-admin-shell,
+.apg-os-auth {
+  --apg-os-primary: #2563eb;
+  --apg-os-primary-hover: #1d4ed8;
+  --apg-os-primary-muted: #3b82f6;
+  --apg-os-primary-soft: #60a5fa;
+  --apg-os-primary-subtle: rgba(37, 99, 235, 0.12);
+  --apg-os-bg-shell: #0b0f14;
+  --apg-os-bg-surface: #1a1f27;
+  --apg-os-bg-elevated: #141820;
+  --apg-os-border: rgba(255, 255, 255, 0.08);
+  --apg-os-border-strong: rgba(255, 255, 255, 0.12);
+  --apg-os-text-primary: #f4f6f8;
+  --apg-os-text-secondary: #94a3b8;
+  --apg-os-text-muted: #64748b;
+  --apg-os-success: #22c55e;
+  --apg-os-warning: #f59e0b;
+  --apg-os-danger: #ef4444;
+  --apg-os-gradient: linear-gradient(135deg, #2563eb 0%, #1d4ed8 50%, #0b0f14 100%);
+}
+
+.apg-os-auth {
+  --apg-os-text-primary: #0f172a;
+  --apg-os-text-secondary: #64748b;
+  --apg-os-bg-shell: #f8fafc;
+  --apg-os-bg-surface: #ffffff;
+  --apg-os-border: #e2e8f0;
+}

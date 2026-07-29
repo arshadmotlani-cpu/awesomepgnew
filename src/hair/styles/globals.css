@@ -128,3 +128,15 @@
 .fyh-glow-orb {
   animation: fyh-soft-pulse 6s ease-in-out infinite;
 }
+
+.fyh-input {
+  display: flex;
+  height: 2.75rem;
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid var(--fyh-border);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+  color: var(--fyh-text);
+}

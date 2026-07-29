@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Capital OS">
+  <rect x="96" y="96" width="320" height="320" rx="72" fill="none"/>
+  <rect x="140" y="320" width="56" height="80" rx="8" fill="#18181B"/>
+  <rect x="228" y="260" width="56" height="140" rx="8" fill="#18181B"/>
+  <rect x="316" y="200" width="56" height="200" rx="8" fill="#18181B"/>
+  <line x1="120" y1="400" x2="392" y2="400" stroke="#18181B" stroke-width="12" stroke-linecap="round"/>
+</svg>

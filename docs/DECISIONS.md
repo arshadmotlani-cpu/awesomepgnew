@@ -251,6 +251,18 @@ Cross-links: [[ARCHITECTURE]] · [[WORKFLOWS]] · [[AI_CONTEXT]] · [[BUGS]]
 
 ---
 
+---
+
+## APG OS admin identity — Concept 02 Sentinel Shield
+
+| | |
+|---|---|
+| **Date** | 2026-07-29 |
+| **Decision** | Admin Panel product brand is **APG OS** with **Sentinel Shield** mark (navy shield + geometric A). Customer marketing site keeps orange house brand; Capital OS and FY ERP unchanged. |
+| **Reason** | Distinct admin OS identity vs customer web; enterprise trust aesthetic approved from concept boards. |
+| **Impact** | Admin metadata/manifest/favicon → `/admin-os/`; shell components `ApgOs*`; geometry in `apgOsIconGeometry.ts`. |
+| **See** | `docs/qa/apg-os-concepts/`, `apgOsAdminMetadata.ts`, `legacyAdminMetadata.ts` (customer/root only where applicable) |
+
 <!-- DOC_SYNC_TOUCH_2026-07-21 -->
 > **2026-07-21 08:32:20 UTC** — Code changed in: Routes, Bed Assignment, Bookings, Residents, Vacating. Manual review recommended.
 

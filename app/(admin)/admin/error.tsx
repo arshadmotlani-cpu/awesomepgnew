@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { ErrorState } from '@/src/components/ui/PageStates';
+import { ApgOsMark } from '@/src/components/brand/apg-os/ApgOsMark';
 
 export default function AdminError({
   error,
@@ -34,6 +35,7 @@ export default function AdminError({
 
   return (
     <div className="flex min-h-[50vh] flex-col items-center justify-center px-6 py-12">
+      <ApgOsMark size={40} className="mb-4 opacity-80" />
       <ErrorState
         title="This page could not load"
         description={

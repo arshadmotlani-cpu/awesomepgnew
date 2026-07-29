@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 128" role="img" aria-label="Awesome PG">
+  <g transform="translate(8,8) scale(0.22)">
+  <rect x="64" y="64" width="384" height="384" rx="96" fill="#121820"/>
+  <path d="M256 120 L380 240 H132 Z" fill="#FF5A1F"/>
+  <path d="M160 240 H352 V380 H160 Z" fill="#FF7A45"/>
+  <path d="M228 380 V300 H284 V380 Z" fill="#070A0F"/>
+</g>
+  <text x="140" y="78" fill="#FFFFFF" font-family="system-ui,sans-serif" font-size="48" font-weight="600">Awesome PG</text>
+</svg>

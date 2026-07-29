@@ -8,6 +8,14 @@
 
 ## 2026-07-29
 
+- [x] **PLAT-STABILIZATION-W0** — Hair E2E workflow, `ENV_CONTRACT.md`, `env:check --product=`
+- [x] **FYH-STABILIZATION-W1** — Reports salon TZ, mobile billing/customers, `syncStaff` preserve + test
+- [x] **FYH-STABILIZATION-W2** — Staff schedules UI, resources CRUD (settings), reports GST/top services/staff, billing honesty copy
+- [x] **PG-STABILIZATION-W1-W2** — P0 verification runbook, occupancy phase0 status + parity tests
+- [x] **CAP-STABILIZATION-W3** — Production sign-off checklist, README/TASKS sync with CHANGELOG
+- [ ] **STABILIZATION-W4-REMAINDER** — Loyalty plan CRUD (M7), inventory adjustments (M8), PG prod audit execution, occupancy Tier-B consolidation, confirmation dialogs (PLAT-P1-2)
+
+- [x] **FYH-APPOINTMENTS** — Appointment engine + DnD calendar (Day/Week/Timeline/Chair/Stylist), checkout billing, inventory consumption, commission, loyalty/bridal/reports/search
 - [x] **PG-PROPERTY-PERFORMANCE-SSOT** — Unify Property Performance onto financial SSOT: drop overview parallel KPI cache; migrate ops/collections PG pages to `revenue.byPg`; audits + parity tests
 
 ## 2026-07-28

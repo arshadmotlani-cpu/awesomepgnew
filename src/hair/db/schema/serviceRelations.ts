@@ -36,7 +36,7 @@ export const fyhServiceConsumables = pgTable(
       .notNull()
       .references(() => fyhProducts.id, { onDelete: 'restrict' }),
     quantity: numeric('quantity', { precision: 12, scale: 3, mode: 'number' }).notNull().default(1),
-    /** Always false until Inventory module enables deduction. */
+    /** When true, paid service invoices reduce product stock for this kit row. */
     deductInventory: boolean('deduct_inventory').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

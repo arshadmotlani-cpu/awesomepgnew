@@ -27,11 +27,10 @@ try {
     const home = await page.goto(origin + '/', { waitUntil: 'networkidle', timeout: 90000 });
     ok(`${origin} home`, home?.ok() === true, `status ${home?.status()}`);
 
-    // New logo in header (next/image src)
-    const logoImg = page.locator('header img[alt="Awesome PG"]').first();
-    await logoImg.waitFor({ timeout: 15000 });
-    const logoSrc = await logoImg.getAttribute('src');
-    ok(`${origin} header logo`, Boolean(logoSrc?.includes('apg-')), `src=${logoSrc}`);
+    // Customer header mark (SVG)
+    const logoMark = page.locator('header svg[aria-label="Awesome PG"]').first();
+    await logoMark.waitFor({ timeout: 15000 });
+    ok(`${origin} header logo`, true);
 
     // No old flat orange "A" badge
     const oldA = await page.locator('header span', { hasText: /^A$/ }).count();
@@ -40,7 +39,7 @@ try {
     // Favicon / apple / manifest links in HTML
     const html = await page.content();
     ok(`${origin} apple-touch link`, html.includes('apg-apple-touch.png'));
-    ok(`${origin} favicon 32`, html.includes('apg-favicon-32.png') || html.includes('apg-favicon'));
+    ok(`${origin} favicon meta`, html.includes('awesome-pg/favicon') || html.includes('apg-favicon'));
 
     // Assets
     const fav = await checkAsset(page, `${origin}/icons/apg-favicon-32.png`, 800);
@@ -75,9 +74,9 @@ try {
       timeout: 90000,
     });
     ok('admin login page', res?.ok() === true, `status ${res?.status()}`);
-    const logo = page.locator('img[alt="Awesome PG"]').first();
-    await logo.waitFor({ timeout: 15000 });
-    ok('admin login logo', true);
+    const apgOsMark = page.locator('svg[aria-label="APG OS"]').first();
+    await apgOsMark.waitFor({ timeout: 15000 });
+    ok('admin login APG OS mark', true);
     // /admin without auth should redirect to login — still verify route responds
     const admin = await page.goto('https://awesomepg.in/admin', {
       waitUntil: 'domcontentloaded',
@@ -99,10 +98,9 @@ try {
       timeout: 90000,
     });
     ok('invest login', login?.ok() === true, `status ${login?.status()}`);
-    const logo = page.locator('img[alt="Automotive Capital"]').first();
-    await logo.waitFor({ timeout: 15000 });
-    const src = await logo.getAttribute('src');
-    ok('invest login logo', Boolean(src?.includes('capital/icons')), `src=${src}`);
+    const capMark = page.locator('svg[aria-label="Capital OS"]').first();
+    await capMark.waitFor({ timeout: 15000 });
+    ok('invest login Capital OS mark', true);
 
     // No letter A placeholder
     const letterA = await page.locator('text=/^A$/').count();
@@ -129,7 +127,7 @@ try {
     })).json();
     ok(
       'invest manifest',
-      man.short_name === 'Capital Investments' && man.icons?.some((i) => i.src.includes('icon-512')),
+      man.short_name === 'Capital OS' && man.icons?.some((i) => i.src.includes('icon-512')),
       `short=${man.short_name} icons=${man.icons?.length}`,
     );
 
@@ -141,9 +139,9 @@ try {
     await page.locator('button[type="submit"]').click();
     await page.waitForURL(/dashboard/, { timeout: 45000 });
     ok('invest dashboard', /dashboard/.test(page.url()), page.url());
-    const sideLogo = page.locator('aside img[alt="Automotive Capital"]').first();
-    await sideLogo.waitFor({ timeout: 15000 });
-    ok('invest sidebar logo', true);
+    const sideMark = page.locator('aside svg[aria-label="Capital OS"]').first();
+    await sideMark.waitFor({ timeout: 15000 });
+    ok('invest sidebar Capital OS mark', true);
 
     // SW cache version string
     const sw = await page.request.get('https://invest.awesomepg.in/capital/sw.js', {

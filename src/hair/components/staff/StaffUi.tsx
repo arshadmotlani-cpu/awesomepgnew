@@ -5,10 +5,18 @@ import { createStaffQuickAction, type StaffActionState } from '@/src/hair/action
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
 import type { FyhStaff } from '@/src/hair/db/schema';
+import { StaffScheduleEditor } from '@/src/hair/components/staff/StaffScheduleEditor';
+import type { StaffScheduleRow } from '@/src/hair/services/staffSchedules';
 
 const initialState: StaffActionState = {};
 
-export function StaffPage({ staff }: { staff: FyhStaff[] }) {
+export function StaffPage({
+  staff,
+  schedulesByStaffId,
+}: {
+  staff: FyhStaff[];
+  schedulesByStaffId: Record<string, StaffScheduleRow[]>;
+}) {
   const [state, formAction, pending] = useActionState(createStaffQuickAction, initialState);
 
   return (
@@ -17,7 +25,7 @@ export function StaffPage({ staff }: { staff: FyhStaff[] }) {
         <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">Team</p>
         <h1 className="fyh-display mt-1 text-3xl font-semibold">Staff</h1>
         <p className="mt-1 text-sm text-fyh-text-secondary">
-          Assign stylists to services. Full staff profiles and commissions come next.
+          Assign stylists to services. Commissions accrue on paid invoices.
         </p>
       </div>
 
@@ -85,6 +93,22 @@ export function StaffPage({ staff }: { staff: FyhStaff[] }) {
           </table>
         )}
       </div>
+
+      {staff.length > 0 ? (
+        <div className="space-y-3">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-fyh-text-muted">
+            Schedules
+          </h2>
+          {staff.map((s) => (
+            <StaffScheduleEditor
+              key={s.id}
+              staffId={s.id}
+              staffName={s.fullName}
+              schedules={schedulesByStaffId[s.id] ?? []}
+            />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

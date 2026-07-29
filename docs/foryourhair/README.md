@@ -60,10 +60,18 @@ npm run hair:db:studio
 
 | Module | Notes |
 |--------|--------|
-| Dashboard | KPI widgets (zeros until Appointments/Billing write) |
+| Dashboard | Live KPIs from appointments + invoices + inventory |
 | Customers | Full CRM (`0002`–`0003`) |
-| Services | Production catalog (`0004`–`0005`): categories, codes, commission, staff, consumables schema, online flags, archive |
-| Products | Retail + consumables (`0005` foundation / `0006`) |
-| Staff | Minimal create/list for service assignment |
+| Appointments | Calendar with Day/Week/Timeline/Chair/Stylist views, @dnd-kit drag/resize, conflict engine (`0007`) |
+| Billing | Visit checkout → invoice → payment split + print (`0008`) |
+| Services | Production catalog (`0004`–`0005`) |
+| Products | Retail + consumables (`0006`) |
+| Staff | List/create + commission accrual on paid invoices |
+| Inventory | Stock levels + consumption on paid invoices |
+| Loyalty | Memberships, packages, bridal, commissions, notification outbox |
+| Reports | Period revenue + top services/stylists/customers |
+| Settings | Business hours, GST, invoice prefix, buffer |
 
 Archive on services/products soft-deactivates only — rows remain for historical invoices; `listBookableServices()` excludes archived.
+
+Visit loop: Booked → Confirmed → Arrived → In Service → Completed → Invoice → Paid (or Cancelled / No Show).

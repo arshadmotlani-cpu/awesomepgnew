@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   bigint,
   boolean,
+  date,
   index,
   integer,
   numeric,
@@ -21,9 +22,16 @@ export const fyhProducts = pgTable(
     brand: text('brand'),
     category: text('category'),
     description: text('description'),
+    supplier: text('supplier'),
+    batchNumber: text('batch_number'),
+    expiryDate: date('expiry_date'),
     sellingPricePaise: bigint('selling_price_paise', { mode: 'number' }).notNull().default(0),
     costPricePaise: bigint('cost_price_paise', { mode: 'number' }).notNull().default(0),
     stockQty: numeric('stock_qty', { precision: 12, scale: 2, mode: 'number' }).notNull().default(0),
+    openingStock: numeric('opening_stock', { precision: 12, scale: 2, mode: 'number' })
+      .notNull()
+      .default(0),
+    minStock: numeric('min_stock', { precision: 12, scale: 2, mode: 'number' }).notNull().default(0),
     reorderLevel: numeric('reorder_level', { precision: 12, scale: 2, mode: 'number' })
       .notNull()
       .default(0),

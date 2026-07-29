@@ -59,6 +59,42 @@ export function CustomersList({
             </Link>
           </div>
         ) : (
+          <>
+            <div className="grid gap-3 md:hidden">
+              {customers.map((c) => (
+                <Link
+                  key={c.id}
+                  href={`/customers/${c.id}`}
+                  className="fyh-glass block space-y-2 p-4 transition hover:bg-white/[0.03]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{c.fullName}</p>
+                      <p className="mt-0.5 text-xs text-fyh-text-muted tabular-nums">{c.phone}</p>
+                    </div>
+                    <span className="tabular-nums text-fyh-accent">
+                      {formatInrFromPaise(c.lifetimeSpendPaise ?? 0)}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-[11px] text-fyh-text-muted">
+                    <span>{c.totalVisits ?? 0} visits</span>
+                    {c.email ? (
+                      <>
+                        <span>·</span>
+                        <span className="truncate max-w-[12rem]">{c.email}</span>
+                      </>
+                    ) : null}
+                    {(c.tags ?? []).length ? (
+                      <>
+                        <span>·</span>
+                        <span>{(c.tags ?? []).slice(0, 2).join(', ')}</span>
+                      </>
+                    ) : null}
+                  </div>
+                </Link>
+              ))}
+            </div>
+            <div className="fyh-glass hidden overflow-hidden md:block">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[44rem] text-left text-sm">
               <thead className="border-b border-[color:var(--fyh-border)] bg-black/20 text-xs uppercase tracking-wide text-fyh-text-muted">
@@ -103,6 +139,8 @@ export function CustomersList({
               </tbody>
             </table>
           </div>
+            </div>
+          </>
         )}
       </div>
     </div>

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { UserRound } from 'lucide-react';
+import { FyhSidebarBrand } from '@/src/components/brand/fyh/FyhSidebarBrand';
 import { visibleHairNavItems } from '@/src/hair/lib/nav';
 import { cn } from '@/src/hair/lib/utils';
 
@@ -17,17 +18,7 @@ export function HairSidebar({ className }: { className?: string }) {
         className,
       )}
     >
-      <div className="flex h-16 items-center gap-3 border-b border-[color:var(--fyh-border)] px-4">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-fyh-accent/40 bg-fyh-forest/30 text-fyh-accent">
-          <UserRound className="h-5 w-5" />
-        </div>
-        <div className="min-w-0">
-          <p className="fyh-display truncate text-base font-semibold tracking-tight">For Your Hair</p>
-          <p className="text-[10px] uppercase tracking-[0.18em] text-fyh-text-muted">
-            Luxury Salon ERP
-          </p>
-        </div>
-      </div>
+      <FyhSidebarBrand />
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">
         {navItems.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));

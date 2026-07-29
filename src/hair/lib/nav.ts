@@ -2,6 +2,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
   CalendarDays,
   ClipboardList,
+  Heart,
   LayoutDashboard,
   Package,
   Receipt,
@@ -22,7 +23,6 @@ export type HairNavItem = {
 
 /**
  * Salon ERP sidebar order.
- * Inventory + Reports stay in the list (routes exist) but are hidden until implemented.
  */
 export const HAIR_NAV_ITEMS: HairNavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -32,9 +32,10 @@ export const HAIR_NAV_ITEMS: HairNavItem[] = [
   { href: '/services', label: 'Services', icon: Sparkles },
   { href: '/products', label: 'Products', icon: ShoppingBag },
   { href: '/staff', label: 'Staff', icon: ClipboardList },
+  { href: '/inventory', label: 'Inventory', icon: Warehouse },
+  { href: '/loyalty', label: 'Loyalty', icon: Heart },
+  { href: '/reports', label: 'Reports', icon: Package },
   { href: '/settings', label: 'Settings', icon: Settings },
-  { href: '/inventory', label: 'Inventory', icon: Warehouse, hidden: true },
-  { href: '/reports', label: 'Reports', icon: Package, hidden: true },
 ];
 
 export function visibleHairNavItems(): HairNavItem[] {

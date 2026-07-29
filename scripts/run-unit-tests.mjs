@@ -25,6 +25,7 @@ const files = [
   ...collectTests('tests/unit'),
   ...collectTests('tests/integration'),
   ...collectTests('tests/capital/unit'),
+  ...collectTests('tests/hair'),
 ].sort();
 
 if (files.length === 0) {

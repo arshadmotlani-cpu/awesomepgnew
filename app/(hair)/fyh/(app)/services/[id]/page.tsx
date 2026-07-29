@@ -52,6 +52,7 @@ export default async function ServiceDetailPage({ params }: Props) {
         consumables={consumables.map((c) => ({
           productId: c.productId,
           quantity: Number(c.quantity),
+          deductInventory: c.deductInventory,
         }))}
       />
     </div>

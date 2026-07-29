@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const baseURL = process.env.BASE_URL ?? process.env.PLAYWRIGHT_BASE_URL;
+const HAIR_STORAGE_STATE = 'test-results/.auth/hair-user.json';
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -13,7 +14,27 @@ export default defineConfig({
     baseURL: baseURL || 'http://localhost:3000',
     trace: 'on-first-retry',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    {
+      name: 'hair-setup',
+      testMatch: /hair\.auth\.setup\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'hair',
+      testMatch: /hair\/.*\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: HAIR_STORAGE_STATE,
+      },
+      dependencies: ['hair-setup'],
+    },
+    {
+      name: 'chromium',
+      testIgnore: [/hair\/.*/, /hair\.auth\.setup\.ts/],
+      use: { ...devices['Desktop Chrome'] },
+    },
+  ],
   webServer: baseURL
     ? undefined
     : process.env.CI
@@ -26,6 +47,7 @@ export default defineConfig({
             ...process.env,
             NODE_ENV: 'production',
             SKIP_MIGRATION_CHECK: 'true',
+            HAIR_DEV_HOST: '1',
           },
         }
       : {
@@ -33,5 +55,9 @@ export default defineConfig({
           url: 'http://localhost:3000',
           reuseExistingServer: true,
           timeout: 120_000,
+          env: {
+            ...process.env,
+            HAIR_DEV_HOST: '1',
+          },
         },
 });

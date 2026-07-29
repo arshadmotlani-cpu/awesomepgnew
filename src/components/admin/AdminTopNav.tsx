@@ -4,7 +4,8 @@ import { AdminQuickMenu } from '@/src/components/admin/AdminQuickMenu';
 import { AdminNotificationCenter } from '@/src/components/admin/AdminNotificationCenter';
 import { useAdminNavBadges } from '@/src/components/admin/AdminLiveRefreshProvider';
 import { LogoutButton } from '@/src/components/auth/LogoutButton';
-import { AwesomePgLogo } from '@/src/components/brand/AwesomePgLogo';
+import { ApgOsLogoLockup } from '@/src/components/brand/apg-os/ApgOsLogoLockup';
+import { APG_OS } from '@/src/lib/brand/apgOsTokens';
 import { MobileNav } from './MobileNav';
 
 export function AdminTopNav({
@@ -22,15 +23,11 @@ export function AdminTopNav({
       <MobileNav />
       <AdminQuickMenu />
 
-      <div className="flex min-w-0 flex-1 items-center gap-2 lg:hidden">
-        <AwesomePgLogo size={28} className="shrink-0" />
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-white">Awesome PG</p>
-          <p className="hidden truncate text-[11px] text-apg-silver min-[360px]:block">Admin console</p>
-        </div>
+      <div className="flex min-w-0 flex-1 items-center lg:hidden">
+        <ApgOsLogoLockup markSize={28} variant="on-dark" className="min-w-0" />
       </div>
 
-      <p className="hidden text-sm font-medium text-apg-silver lg:block">Admin console</p>
+      <p className="hidden text-sm font-medium tracking-tight text-apg-silver lg:block">{APG_OS.subtitle}</p>
 
       <div className="ml-auto flex shrink-0 items-center pr-0.5">
         <div className="flex items-center gap-0.5 sm:gap-2">
@@ -39,7 +36,7 @@ export function AdminTopNav({
             className="hidden items-center gap-2 rounded-md border border-white/10 bg-[#1A1F27] px-2 py-1 sm:flex"
             title={adminName ?? 'Admin'}
           >
-            <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#FF5A1F] text-xs font-semibold text-white">
+            <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--apg-os-primary,#2563EB)] text-xs font-semibold text-white">
               {adminName?.charAt(0) ?? 'A'}
             </span>
             <div className="hidden min-w-0 max-w-[8rem] text-xs leading-tight md:block">

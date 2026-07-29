@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="APG OS">
+  <path d="M256 48 L416 140 L416 324 L256 416 L96 324 L96 140 Z" fill="none" stroke="#2563EB" stroke-width="24" stroke-linejoin="round"/>
+  <path fill="#2563EB" fill-rule="evenodd" d="M256 152 L336 360 H304 L288 320 H224 L208 360 H176 Z M234 288 H278 L256 228 Z"/>
+</svg>

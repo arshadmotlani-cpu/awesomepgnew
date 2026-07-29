@@ -26,7 +26,12 @@ const initialState: ServiceActionState = {};
 const fieldClass =
   'w-full rounded-xl border border-[color:var(--fyh-border)] bg-black/20 px-3 py-2 text-sm text-fyh-text outline-none focus:border-fyh-accent/50';
 
-type ConsumableRow = { key: string; productId: string; quantity: string };
+type ConsumableRow = {
+  key: string;
+  productId: string;
+  quantity: string;
+  deductInventory: boolean;
+};
 
 export function ServicesList({
   services,
@@ -220,7 +225,7 @@ export function ServiceForm({
   staff: FyhStaff[];
   products: FyhProduct[];
   selectedStaffIds?: string[];
-  consumables?: Array<{ productId: string; quantity: number }>;
+  consumables?: Array<{ productId: string; quantity: number; deductInventory?: boolean }>;
 }) {
   const action = mode === 'create' ? createServiceAction : updateServiceAction;
   const [state, formAction, pending] = useActionState(action, initialState);
@@ -247,6 +252,7 @@ export function ServiceForm({
           key: `c-${i}`,
           productId: c.productId,
           quantity: String(c.quantity),
+          deductInventory: c.deductInventory !== false,
         }))
       : [],
   );
@@ -542,7 +548,7 @@ export function ServiceForm({
                 Consumables
               </h2>
               <p className="mt-1 text-xs text-fyh-text-muted">
-                Attach products & quantities. Inventory deduction stays off until Inventory is live.
+                Attach products & quantities. Rows with deduction enabled reduce stock when the invoice is paid.
               </p>
             </div>
             <Button
@@ -551,7 +557,7 @@ export function ServiceForm({
               onClick={() =>
                 setConsumableRows((rows) => [
                   ...rows,
-                  { key: `n-${Date.now()}`, productId: '', quantity: '1' },
+                  { key: `n-${Date.now()}`, productId: '', quantity: '1', deductInventory: true },
                 ])
               }
             >
@@ -600,6 +606,30 @@ export function ServiceForm({
                         );
                       }}
                     />
+                  </div>
+                  <div className="flex flex-col gap-1 pb-1">
+                    <label className="text-[11px] text-fyh-text-muted">Deduct stock</label>
+                    <input
+                      type="hidden"
+                      name="consumableDeductInventory"
+                      value={row.deductInventory ? '1' : '0'}
+                    />
+                    <label className="flex items-center gap-2 text-xs text-fyh-text-secondary">
+                      <input
+                        type="checkbox"
+                        className="accent-[var(--fyh-accent)]"
+                        checked={row.deductInventory}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setConsumableRows((rows) =>
+                            rows.map((r, i) =>
+                              i === index ? { ...r, deductInventory: checked } : r,
+                            ),
+                          );
+                        }}
+                      />
+                      On paid invoice
+                    </label>
                   </div>
                   <Button
                     type="button"

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Car, FileBarChart, LayoutDashboard, Settings } from 'lucide-react';
-import { CapitalBrandLogo } from '@/src/capital/components/CapitalBrandLogo';
+import { CapitalOsLogoLockup } from '@/src/components/brand/capital-os/CapitalOsLogoLockup';
 import { cn } from '@/src/capital/lib/utils';
 
 const navItems = [
@@ -18,12 +18,8 @@ export function CapitalSidebar() {
 
   return (
     <aside className="hidden w-60 shrink-0 border-r border-white/8 bg-ac-elevated/80 backdrop-blur-xl md:flex md:flex-col">
-      <div className="flex h-14 items-center gap-2 border-b border-white/8 px-4">
-        <CapitalBrandLogo size={32} className="shrink-0" />
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold tracking-tight">Automotive Capital</p>
-          <p className="text-[10px] text-ac-text-muted">Dealership OS</p>
-        </div>
+      <div className="flex h-14 items-center border-b border-white/8 px-4">
+        <CapitalOsLogoLockup markSize={32} />
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">
         {navItems.map(({ href, label, icon: Icon }) => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useActionState } from 'react';
 import {
@@ -19,8 +19,10 @@ import {
   uploadCustomerPhotoAction,
   type CustomerActionState,
 } from '@/src/hair/actions/customers';
+import { topUpWalletAction } from '@/src/hair/actions/loyalty';
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
+import { ImageFileInputInline } from '@/src/components/shared/ImageFileInput';
 import {
   FYH_CUSTOMER_GENDERS,
   FYH_CUSTOMER_SOURCES,
@@ -58,14 +60,6 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ComingSoonAction({ label }: { label: string }) {
-  return (
-    <Button type="button" variant="secondary" size="sm" disabled title="Coming soon">
-      {label}
-    </Button>
-  );
-}
-
 export function CustomerProfile({
   customer,
   notes,
@@ -89,6 +83,7 @@ export function CustomerProfile({
     archiveCustomerAction,
     initialState,
   );
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
 
   const alertNotes = useMemo(() => notes.filter((n) => n.isAlert), [notes]);
 
@@ -145,10 +140,26 @@ export function CustomerProfile({
             </Link>
           </div>
 
-          <form action={photoAction} className="mt-3 flex flex-wrap items-center gap-2">
+          <form
+            action={(fd: FormData) => {
+              if (photoFile) fd.set('photo', photoFile);
+              photoAction(fd);
+            }}
+            className="mt-3 flex flex-wrap items-center gap-2"
+          >
             <input type="hidden" name="customerId" value={customer.id} />
-            <Input name="photo" type="file" accept="image/*" className="max-w-xs" />
-            <Button type="submit" size="sm" variant="secondary" disabled={photoPending}>
+            <ImageFileInputInline
+              name="photo"
+              accept="image/*"
+              className="max-w-xs"
+              onFileSelected={(f) => setPhotoFile(f ?? null)}
+            />
+            <Button
+              type="submit"
+              size="sm"
+              variant="secondary"
+              disabled={photoPending || !photoFile}
+            >
               {photoPending ? 'Uploading…' : 'Update photo'}
             </Button>
             {photoState.error ? (
@@ -181,26 +192,39 @@ export function CustomerProfile({
         <Stat label="Wallet" value={formatInrFromPaise(customer.walletBalancePaise ?? 0)} />
         <Stat label="Points" value={String(customer.rewardPoints ?? 0)} />
         <Stat label="Packages" value={String(customer.packagesPurchased ?? 0)} />
-        <Stat label="Gift cards" value={String(customer.giftCardsCount ?? 0)} />
         <Stat label="Membership" value={customer.membership || 'None'} />
       </div>
 
       {/* Quick actions */}
       <div className="fyh-glass flex flex-wrap gap-2 p-3">
-        <ComingSoonAction label="New Appointment" />
-        <ComingSoonAction label="New Bill" />
-        <ComingSoonAction label="Sell Membership" />
-        <ComingSoonAction label="Sell Package" />
+        <Link href={`/appointments?customerId=${customer.id}`}>
+          <Button type="button" size="sm" variant="secondary">
+            <CalendarPlus className="mr-1.5 h-3.5 w-3.5" />
+            New Appointment
+          </Button>
+        </Link>
+        <Link href="/billing">
+          <Button type="button" size="sm" variant="secondary">
+            <Receipt className="mr-1.5 h-3.5 w-3.5" />
+            Billing
+          </Button>
+        </Link>
+        <Link href="/loyalty">
+          <Button type="button" size="sm" variant="secondary">
+            <CreditCard className="mr-1.5 h-3.5 w-3.5" />
+            Memberships
+          </Button>
+        </Link>
+        <Link href="/loyalty">
+          <Button type="button" size="sm" variant="secondary">
+            <Gift className="mr-1.5 h-3.5 w-3.5" />
+            Packages
+          </Button>
+        </Link>
         <Button type="button" size="sm" variant="secondary" onClick={() => setTab('notes')}>
           <NotebookPen className="mr-1.5 h-3.5 w-3.5" />
           Add Note
         </Button>
-        <span className="hidden items-center gap-3 text-fyh-text-muted sm:flex">
-          <CalendarPlus className="h-3.5 w-3.5" />
-          <Receipt className="h-3.5 w-3.5" />
-          <CreditCard className="h-3.5 w-3.5" />
-          <Gift className="h-3.5 w-3.5" />
-        </span>
       </div>
 
       {/* Tabs */}
@@ -373,11 +397,10 @@ export function CustomerProfile({
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Membership" name="membership" defaultValue={customer.membership ?? ''} />
               <p className="sm:col-span-2 text-sm text-fyh-text-muted">
-                Wallet, points, packages, and gift cards update automatically from billing modules
-                (currently {formatInrFromPaise(customer.walletBalancePaise ?? 0)} wallet ·{' '}
-                {customer.rewardPoints ?? 0} pts · {customer.packagesPurchased ?? 0} packages ·{' '}
-                {customer.giftCardsCount ?? 0} gift cards).
+                Wallet balance {formatInrFromPaise(customer.walletBalancePaise ?? 0)} · packages{' '}
+                {customer.packagesPurchased ?? 0}. Gift cards are not enabled yet (no ledger).
               </p>
+              <WalletTopUp customerId={customer.id} />
               <HiddenDefaults customer={customer} includeBasics includeSalon />
             </div>
           ) : null}
@@ -581,6 +604,41 @@ function Select({
 }
 
 /** Keep non-visible tab fields when saving a partial form. */
+function WalletTopUp({ customerId }: { customerId: string }) {
+  const [amount, setAmount] = useState('');
+  const [msg, setMsg] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  return (
+    <div className="sm:col-span-2 flex flex-wrap items-end gap-2">
+      <div className="space-y-1">
+        <label className="text-xs text-fyh-text-muted">Top up wallet ₹</label>
+        <Input
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="500"
+          className="w-32"
+        />
+      </div>
+      <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        disabled={pending}
+        onClick={() => {
+          startTransition(async () => {
+            const res = await topUpWalletAction(customerId, Number(amount || 0));
+            setMsg(res.error ?? res.success ?? null);
+            if (res.success) setAmount('');
+          });
+        }}
+      >
+        Top up
+      </Button>
+      {msg ? <p className="text-xs text-fyh-text-secondary w-full">{msg}</p> : null}
+    </div>
+  );
+}
+
 function HiddenDefaults({
   customer,
   includeBasics,

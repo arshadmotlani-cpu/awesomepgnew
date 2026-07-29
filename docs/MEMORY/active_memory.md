@@ -7,7 +7,7 @@
 
 ## Current Focus
 
-- **For Your Hair ERP (Services + Products)** — Salon ERP on `fyhair.awesomepg.in`. Customers CRM live. Production Services (`0005`: categories, codes, commission, staff assign, consumables schema, online flags, analytics, archive). Products CRUD (`0006`). Minimal Staff for service assignment. Next: Appointments → Billing → Staff Performance.
+- **For Your Hair ERP (Services + Products + Appointments)** — Salon ERP on `fyhair.awesomepg.in`. RC verification **Production Ready** (2026-07-29): see `docs/foryourhair/RELEASE_READINESS.md`. Run `npm run hair:db:migrate` (through `0011`) + seed on Hair Neon before deploy.
 
 - **Automotive Capital audit remediation (shipped locally)** — Money integrity (activity reverse↔cost/seller ledgers), settle without capital-return gate, Reports = Dashboard Active Capital / entitled My Profit, Purchase Pending = seller Remaining SSOT, vehicle IA collapsed to Overview|Work|Sale|Files.
 
@@ -36,7 +36,9 @@
 - **Automotive Capital production deploy** — App live on invest host; DNS resolved via Vercel. Admin credentials synced for both apps.
 
 - **Operations Center P0 redesign** — Phase 1 audit complete (`docs/OPERATIONS_CENTER_AUDIT.md`); awaiting approval before implementation. Goal: true action center only, invoice/payment SSOT, no duplicate queues.
-- **Occupancy SSOT** — Critical: Admin bed map ≠ Public PG page for same bed; audit complete, implementation blocked on approval → `docs/OCCUPANCY_SSOT_AUDIT.md`
+- **Monorepo final stabilization (W0–W4)** — CI Hair E2E optional job; env contract; Hair UAT M6/M15 + ops minimum (schedules, chairs, reports); PG verification runbook; occupancy phase0 documented + parity tests; Capital docs/sign-off checklist. Remaining: PG prod audit execution, occupancy loader consolidation, loyalty plan CRUD (M7), inventory adjustments (M8), W4 P1 polish.
+
+- **Occupancy SSOT** — Engine + resolver wired on admin map and room detail; remaining Tier B loaders per `OCCUPANCY_PHASE0_STATUS.md` (was: blocked on approval only)
 - **Resident Portal V2** — 5-tab resident hub shipped (Profile/Payments/Requests/Referrals/ Concierge); legacy tab URLs redirect to V2
 - **Semantic Intelligence Layer** — `brain-semantic.sh` → intent + impact + `Semantic State`
 - Git-backed vault synced to https://github.com/arshadmotlani-cpu/awesomepg-docs
@@ -130,14 +132,15 @@ See [[tasks]] for full task log. Current:
 <!-- SEMANTIC_STATE_START -->
 ## Semantic State
 
-> **Last analyzed:** 2026-07-29T04:26:52Z
+> **Last analyzed:** 2026-07-29T06:00:24Z
 
-- **Current system intent:** Move-out and checkout documentation is evolving — likely reflecting vacating ops or refund workflow changes.
+- **Current system intent:** The AI memory / intelligence automation layer is being extended — cognition pipeline or MEMORY structure changed.
 - **Dominant change type:** MIXED (see changelog)
-- **System momentum:** MEDIUM (5 vault commits in 24h)
+- **System momentum:** MEDIUM (6 vault commits in 24h)
 - **Risk level:** LOW
 
 <!-- SEMANTIC_STATE_END -->
+
 
 
 

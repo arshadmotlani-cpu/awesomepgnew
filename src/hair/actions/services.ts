@@ -49,10 +49,12 @@ function parseServiceForm(formData: FormData): ServiceInput {
 
   const productIds = formData.getAll('consumableProductId').map((v) => String(v).trim());
   const qtys = formData.getAll('consumableQty').map((v) => Number(v));
+  const deductFlags = formData.getAll('consumableDeductInventory').map((v) => String(v));
   const consumables = productIds
     .map((productId, i) => ({
       productId,
       quantity: Number.isFinite(qtys[i]) ? qtys[i] : 0,
+      deductInventory: deductFlags[i] === '1' || deductFlags[i] === 'true' || deductFlags[i] === 'on',
     }))
     .filter((c) => c.productId && c.quantity > 0);
 

@@ -2,9 +2,9 @@
 
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { AwesomePgLogo } from '@/src/components/brand/AwesomePgLogo';
 import { DraggableSidebarNav } from '@/src/components/admin/sidebar/DraggableSidebarNav';
 import { SidebarDragStatusBanner } from '@/src/components/admin/sidebar/SidebarDragStatusBanner';
+import { ApgOsSidebarBrand } from '@/src/components/brand/apg-os/ApgOsSidebarBrand';
 
 export function Sidebar({
   onNavigate,
@@ -42,20 +42,11 @@ export function Sidebar({
       }
     >
       {variant === 'drawer' ? (
-        <div className="flex items-center gap-2 px-5 pb-2 pt-4">
-          <AwesomePgLogo size={36} className="shrink-0 shadow-md shadow-orange-500/20" />
-          <div>
-            <p className="text-sm font-semibold tracking-tight text-white">Menu</p>
-            <p className="text-[11px] text-apg-silver">Drag ⋮⋮ to reorder</p>
-          </div>
-        </div>
+        <ApgOsSidebarBrand className="pb-0 pt-2" />
       ) : (
-        <div className="flex items-center gap-2 px-5 py-5">
-          <AwesomePgLogo size={36} className="shrink-0 shadow-md shadow-orange-500/25" />
-          <div>
-            <p className="text-sm font-semibold tracking-tight text-white">Awesome PG</p>
-            <p className="text-[11px] text-apg-silver">Drag ⋮⋮ to reorder</p>
-          </div>
+        <div>
+          <ApgOsSidebarBrand />
+          <p className="px-5 pb-1 text-[11px] text-apg-silver">Drag ⋮⋮ to reorder</p>
         </div>
       )}
 

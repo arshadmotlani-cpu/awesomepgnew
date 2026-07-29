@@ -3,6 +3,7 @@ import { Suspense } from 'react';
 import { Cormorant_Garamond, Outfit } from 'next/font/google';
 import '@/src/hair/styles/globals.css';
 import { HairProviders } from '@/src/hair/components/HairProviders';
+import { fyhMetadata } from '@/src/lib/brand/fyhMetadata';
 
 const display = Cormorant_Garamond({
   subsets: ['latin'],
@@ -20,14 +21,7 @@ const sans = Outfit({
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = {
-  title: {
-    default: 'For Your Hair ERP',
-    template: '%s · For Your Hair ERP',
-  },
-  description: 'Luxury Salon ERP — For Your Hair',
-  applicationName: 'For Your Hair ERP',
-};
+export const metadata: Metadata = fyhMetadata;
 
 export default function HairRootLayout({ children }: { children: React.ReactNode }) {
   return (

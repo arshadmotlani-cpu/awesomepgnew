@@ -69,6 +69,7 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
+      # Hair suite: .github/workflows/hair-e2e.yml (secrets HAIR_DATABASE_URL)
       - name: E2E smoke tests
         run: npm run test:e2e:ci
         env:

@@ -1,7 +1,8 @@
-import { and, asc, eq, ilike, or, sql } from 'drizzle-orm';
+import { and, asc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import {
   FYH_COMMISSION_TYPES,
+  fyhProducts,
   fyhServiceCategories,
   fyhServiceConsumables,
   fyhServices,
@@ -9,6 +10,7 @@ import {
   fyhStaff,
   type FyhCommissionType,
 } from '@/src/hair/db/schema';
+import { resolveConsumableDeductInventory } from '@/src/hair/lib/consumableDeduction';
 
 function toPaise(rupees: number): number {
   return Math.round(Number(rupees || 0) * 100);
@@ -55,7 +57,7 @@ export type ServiceInput = {
   showOnWebsite?: boolean;
   isActive?: boolean;
   staffIds?: string[];
-  consumables?: Array<{ productId: string; quantity: number }>;
+  consumables?: Array<{ productId: string; quantity: number; deductInventory?: boolean }>;
 };
 
 export type ServiceListFilters = {
@@ -176,6 +178,7 @@ function commissionFields(input: ServiceInput) {
 }
 
 async function syncStaff(serviceId: string, staffIds: string[] | undefined) {
+  if (staffIds === undefined) return;
   await hairDb.delete(fyhServiceStaff).where(eq(fyhServiceStaff.serviceId, serviceId));
   const unique = [...new Set((staffIds ?? []).filter(Boolean))];
   if (!unique.length) return;
@@ -188,15 +191,40 @@ async function syncConsumables(
   serviceId: string,
   consumables: ServiceInput['consumables'],
 ) {
-  await hairDb.delete(fyhServiceConsumables).where(eq(fyhServiceConsumables.serviceId, serviceId));
+  const existing = await hairDb
+    .select({
+      productId: fyhServiceConsumables.productId,
+      deductInventory: fyhServiceConsumables.deductInventory,
+    })
+    .from(fyhServiceConsumables)
+    .where(eq(fyhServiceConsumables.serviceId, serviceId));
+  const previousByProduct = new Map(
+    existing.map((row) => [row.productId, row.deductInventory] as const),
+  );
+
   const rows = (consumables ?? []).filter((c) => c.productId && c.quantity > 0);
+
+  await hairDb.delete(fyhServiceConsumables).where(eq(fyhServiceConsumables.serviceId, serviceId));
   if (!rows.length) return;
+
+  const productIds = [...new Set(rows.map((c) => c.productId))];
+  const productRows = await hairDb
+    .select({ id: fyhProducts.id, isConsumable: fyhProducts.isConsumable })
+    .from(fyhProducts)
+    .where(inArray(fyhProducts.id, productIds));
+  const consumableByProduct = new Map(productRows.map((p) => [p.id, p.isConsumable]));
+
   await hairDb.insert(fyhServiceConsumables).values(
     rows.map((c) => ({
       serviceId,
       productId: c.productId,
       quantity: c.quantity,
-      deductInventory: false,
+      deductInventory: resolveConsumableDeductInventory({
+        productId: c.productId,
+        explicit: c.deductInventory,
+        previousByProduct,
+        productIsConsumable: consumableByProduct.get(c.productId),
+      }),
     })),
   );
 }

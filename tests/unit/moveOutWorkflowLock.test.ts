@@ -8,6 +8,7 @@ import {
   RESIDENT_WAITING_METER_UPI_ON_VACATE_DATE,
   RESIDENT_WAITING_PG_VERIFICATION,
 } from '@/src/lib/moveOut/moveOutWorkflowStages';
+import { RESIDENT_PAYOUT_COMPLETED } from '@/src/lib/payout/payoutDisplayTerminology';
 import { moveOutRequiresAdminActionNow } from '@/src/lib/operations/moveOutAdminAction';
 import { dedupeOperationsQueueItems } from '@/src/lib/operations/operationsQueueDefinition';
 import { residentWorkflowStatusLine } from '@/src/lib/residents/vacatingPresentation';
@@ -61,6 +62,13 @@ test('resident workflow status lines', () => {
     residentWorkflowStatusLine({
       vacatingStatus: 'completed',
       checkoutStatus: 'completed',
+    }),
+    RESIDENT_PAYOUT_COMPLETED,
+  );
+  assert.equal(
+    residentWorkflowStatusLine({
+      vacatingStatus: 'completed',
+      checkoutStatus: null,
     }),
     RESIDENT_MOVE_OUT_COMPLETED,
   );

@@ -4,6 +4,7 @@ import { customers } from '@/src/db/schema';
 import { paiseToInr } from '@/src/lib/format';
 import { logEmailDelivery } from '@/src/lib/email/deliveryLog';
 import { adminNotificationBcc, queueEmail, sendEmail } from '@/src/lib/email/send';
+import { awesomePgEmailHtml } from '@/src/lib/email/brandHeader';
 
 async function customerEmail(customerId: string): Promise<{ email: string; name: string } | null> {
   const [row] = await db
@@ -46,6 +47,7 @@ async function deliverTenantNotification(input: TenantNotificationInput): Promis
     to: c.email,
     subject: input.subject,
     text: baseGreeting(c.name) + input.text,
+    html: awesomePgEmailHtml(baseGreeting(c.name) + input.text),
     bcc,
   });
 

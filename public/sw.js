@@ -26,7 +26,7 @@ self.addEventListener('push', (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: 'Awesome PG', body: event.data?.text() ?? 'New update' };
+    data = { title: 'APG OS', body: event.data?.text() ?? 'New update' };
   }
 
   const unreadCount = typeof data.unreadCount === 'number' ? data.unreadCount : 0;
@@ -36,10 +36,10 @@ self.addEventListener('push', (event) => {
     (async () => {
       await setBadge(unreadCount);
       if (silent) return;
-      await self.registration.showNotification(data.title || 'Awesome PG', {
+      await self.registration.showNotification(data.title || 'APG OS', {
         body: data.body || '',
-        icon: '/icons/apg-admin-192.png',
-        badge: '/icons/apg-admin-192.png',
+        icon: '/admin-os/icon-192.svg',
+        badge: '/admin-os/favicon-32.svg',
         tag: data.dedupeKey || data.notificationId || 'apg-notification',
         renotify: true,
         data: {

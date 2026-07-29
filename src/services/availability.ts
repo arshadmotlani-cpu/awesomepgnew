@@ -50,6 +50,8 @@ import {
   type DateLike,
 } from '../lib/dates';
 import { bedBlocksInventory } from '@/src/lib/inventoryBlocking';
+import { resolveBedOccupancy } from '@/src/lib/bedOccupancyResolve';
+import { fetchBedOccupancyRows } from '@/src/services/bedOccupancyBatch';
 import { BLOCKING_RESERVATION_STATUS_SQL } from '../lib/reservationBlocking';
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -207,7 +209,14 @@ export async function isBedAvailable(
     endDate: input.endDate,
     skipTransferHoldCheck: options?.skipRoomTransferHoldCheck,
   });
-  return !blocked;
+  if (blocked) return false;
+
+  const checkIn = formatDate(parseDate(input.startDate));
+  const rows = await fetchBedOccupancyRows({ bedId: input.bedId, asOfDate: checkIn });
+  const row = rows[0];
+  if (!row) return false;
+  const { isBookable } = resolveBedOccupancy(row);
+  return isBookable;
 }
 
 export type NextAvailableInput = {

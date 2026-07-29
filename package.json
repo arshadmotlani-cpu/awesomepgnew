@@ -25,6 +25,7 @@
     "lint:private-blobs": "tsx scripts/lint-private-blob-display.ts",
     "test:e2e": "playwright test",
     "test:e2e:ci": "playwright test tests/e2e/smoke.spec.ts",
+    "test:e2e:hair": "playwright test --project=hair-setup --project=hair",
     "prepare": "bash scripts/install-git-hooks.sh",
     "docs:sync": "tsx scripts/sync-docs-pre-commit.ts",
     "docs:check": "tsx scripts/sync-docs-pre-commit.ts --check",

@@ -1,4 +1,4 @@
-import Image from 'next/image';
+import { CapitalOsMark } from '@/src/components/brand/capital-os/CapitalOsMark';
 import { cn } from '@/src/capital/lib/utils';
 
 type CapitalBrandLogoProps = {
@@ -8,32 +8,18 @@ type CapitalBrandLogoProps = {
   alt?: string;
 };
 
-/** Premium Automotive Capital brand mark (icon asset). */
+/** Capital OS brand mark (SVG). */
 export function CapitalBrandLogo({
   size = 32,
   className,
-  priority = false,
-  alt = 'Automotive Capital',
+  priority: _priority = false,
+  alt = 'Capital OS',
 }: CapitalBrandLogoProps) {
-  const src =
-    size <= 32
-      ? '/capital/icons/favicon-32.png'
-      : size <= 64
-        ? '/capital/icons/icon-64.png'
-        : size <= 128
-          ? '/capital/icons/icon-128.png'
-          : size <= 192
-            ? '/capital/icons/icon-192.png'
-            : '/capital/icons/icon-512.png';
-
   return (
-    <Image
-      src={src}
-      alt={alt}
-      width={size}
-      height={size}
-      priority={priority}
-      className={cn('rounded-lg object-cover', className)}
+    <CapitalOsMark
+      size={size}
+      className={cn('rounded-lg object-cover shadow-lg shadow-black/30', className)}
+      title={alt}
     />
   );
 }

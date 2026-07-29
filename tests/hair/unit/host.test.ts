@@ -1,33 +1,35 @@
-import { describe, expect, it } from 'vitest';
+import assert from 'node:assert/strict';
+import test from 'node:test';
 import {
   hairPublicToInternal,
   isHairHost,
   isHairProtectedPath,
   isHairPublicPath,
-} from '../../../src/hair/lib/host';
+} from '../../../src/hair/lib/host.ts';
 
-describe('For Your Hair host helpers', () => {
-  it('detects fyhair and foryourhair hosts', () => {
-    expect(isHairHost('fyhair.awesomepg.in')).toBe(true);
-    expect(isHairHost('fyhair.localhost')).toBe(true);
-    expect(isHairHost('foryourhair.awesomepg.in')).toBe(true);
-    expect(isHairHost('foryourhair.localhost')).toBe(true);
-    expect(isHairHost('invest.awesomepg.in')).toBe(false);
-    expect(isHairHost('www.awesomepg.in')).toBe(false);
-    expect(isHairHost('awesomepg.in')).toBe(false);
-  });
+test('detects fyhair and foryourhair hosts', () => {
+  assert.equal(isHairHost('fyhair.awesomepg.in'), true);
+  assert.equal(isHairHost('fyhair.localhost'), true);
+  assert.equal(isHairHost('foryourhair.awesomepg.in'), true);
+  assert.equal(isHairHost('foryourhair.localhost'), true);
+  assert.equal(isHairHost('invest.awesomepg.in'), false);
+  assert.equal(isHairHost('www.awesomepg.in'), false);
+  assert.equal(isHairHost('awesomepg.in'), false);
+});
 
-  it('maps public paths to /fyh internals', () => {
-    expect(hairPublicToInternal('/login')).toBe('/fyh/auth/login');
-    expect(hairPublicToInternal('/dashboard')).toBe('/fyh/dashboard');
-    expect(hairPublicToInternal('/customers/1')).toBe('/fyh/customers/1');
-    expect(hairPublicToInternal('/admin')).toBeNull();
-  });
+test('maps public paths to /fyh internals', () => {
+  assert.equal(hairPublicToInternal('/login'), '/fyh/auth/login');
+  assert.equal(hairPublicToInternal('/dashboard'), '/fyh/dashboard');
+  assert.equal(hairPublicToInternal('/customers/1'), '/fyh/customers/1');
+  assert.equal(hairPublicToInternal('/admin'), null);
+});
 
-  it('protects app modules but not login', () => {
-    expect(isHairProtectedPath('/dashboard')).toBe(true);
-    expect(isHairProtectedPath('/login')).toBe(false);
-    expect(isHairPublicPath('/billing')).toBe(true);
-    expect(isHairPublicPath('/assets')).toBe(false);
-  });
+test('protects app modules but not login', () => {
+  assert.equal(isHairProtectedPath('/dashboard'), true);
+  assert.equal(isHairProtectedPath('/login'), false);
+  assert.equal(isHairPublicPath('/billing'), true);
+  assert.equal(isHairPublicPath('/loyalty'), true);
+  assert.equal(isHairProtectedPath('/loyalty'), true);
+  assert.equal(hairPublicToInternal('/loyalty'), '/fyh/loyalty');
+  assert.equal(isHairPublicPath('/assets'), false);
 });

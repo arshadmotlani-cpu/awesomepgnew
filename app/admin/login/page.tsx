@@ -1,9 +1,10 @@
 import { Suspense } from 'react';
+import { AdminLoginShell } from '@/src/components/brand/apg-os/AdminLoginShell';
 import { AdminLoginForm } from '@/src/components/auth/AdminLoginForm';
 import { getAdminRecoveryConfig } from '@/src/lib/auth/adminPasswordReset';
 
 export const metadata = {
-  title: 'Admin sign in · Awesome PG',
+  title: 'Sign in',
 };
 
 type SearchParams = { reset?: string };
@@ -17,7 +18,7 @@ export default async function AdminLoginPage({
   const sp = await searchParams;
 
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-zinc-50 px-4 py-8 text-zinc-900 scheme-light pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))]">
+    <AdminLoginShell>
       <Suspense fallback={<p className="text-sm text-zinc-500">Loading…</p>}>
         <AdminLoginForm
           recoveryConfigured={recovery.configured}
@@ -25,6 +26,6 @@ export default async function AdminLoginPage({
           passwordResetSuccess={sp.reset === '1'}
         />
       </Suspense>
-    </div>
+    </AdminLoginShell>
   );
 }

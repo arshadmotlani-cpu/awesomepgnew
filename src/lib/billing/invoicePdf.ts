@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { PDFDocument, StandardFonts, rgb, type PDFPage, type PDFFont } from 'pdf-lib';
 import { DOCUMENT_ONLY_INVOICE_FOOTER } from '@/src/lib/billing/companyReimbursementCopy';
 import type { InvoiceDocumentModel } from '@/src/lib/billing/invoiceDocumentModel';
+import { getProductBrandLogoFsPath } from '@/src/lib/brand/assets';
 import { titleCase } from '@/src/lib/format';
 
 function formatInrPdf(paise: number): string {
@@ -204,7 +205,7 @@ class PdfWriter {
 
 async function tryEmbedBrandLogo(pdfDoc: PDFDocument) {
   try {
-    const logoPath = join(process.cwd(), 'public/brand/awesome-pg-256.png');
+    const logoPath = join(process.cwd(), getProductBrandLogoFsPath('awesomepg'));
     const bytes = readFileSync(logoPath);
     return await pdfDoc.embedPng(bytes);
   } catch {

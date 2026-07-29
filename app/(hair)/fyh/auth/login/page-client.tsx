@@ -3,7 +3,7 @@
 import { useActionState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { UserRound } from 'lucide-react';
+import { FyhLoginBrandHeader } from '@/src/components/brand/fyh/FyhLoginBrandHeader';
 import { loginAction, type LoginState } from '@/src/hair/actions/auth';
 import { ThemeToggle } from '@/src/hair/components/ThemeToggle';
 import { Button } from '@/src/hair/components/ui/button';
@@ -26,20 +26,10 @@ export default function HairLoginPage() {
       </div>
 
       <div className="fyh-glass fyh-animate-in relative z-10 w-full max-w-md p-8 sm:p-10">
-        <div className="fyh-animate-in-delay mb-8 text-center">
-          <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full border border-fyh-accent/40 bg-fyh-forest/25 shadow-lg shadow-black/30">
-            <UserRound className="h-10 w-10 text-fyh-accent" aria-hidden />
-          </div>
-          <p className="text-xs font-medium uppercase tracking-[0.3em] text-fyh-accent">
-            Luxury Salon ERP
-          </p>
-          <h1 className="fyh-display mt-2 text-3xl font-semibold tracking-tight text-fyh-text sm:text-4xl">
-            For Your Hair ERP
-          </h1>
-          <p className="mt-2 text-sm text-fyh-text-secondary">
-            Sign in to your premium salon operating system
-          </p>
-        </div>
+        <FyhLoginBrandHeader />
+        <p className="-mt-4 mb-8 text-center text-sm text-fyh-text-secondary">
+          Sign in to your premium salon operating system
+        </p>
 
         <form action={formAction} className="space-y-4">
           <input type="hidden" name="next" value={next} />

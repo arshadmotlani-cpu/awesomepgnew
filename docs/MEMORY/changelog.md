@@ -9,6 +9,12 @@
 
 ## 2026-07-29
 
+- **PROD-READINESS-AUDIT** — Vault audit doc + MV sign-off template; `isBedAvailable` occupancy SSOT gate; moveOut workflow test aligned to payout copy; UAT scorecard refresh
+- **REPO-STABILIZATION-W0-W4** — Platform: Hair E2E workflow + `ENV_CONTRACT.md` + `env:check --product=`; Hair P0 reports TZ, mobile billing/customers, syncStaff preserve; P1 staff schedules, resources CRUD, reports GST/top services/staff, billing copy; PG P0 runbook + occupancy phase0 status + parity tests; Capital sign-off doc + README/TASKS sync; dashboard `loading.tsx`
+- **FYH-UAT-P1** — UAT Phase 1: consumable deductInventory preserve + dashboard staff-on-schedule KPI; tests added
+- **FYH-RC-READY** — Hair ERP RC verification complete: integration 14/14, Playwright hair 20/20; `RELEASE_READINESS.md` verdict Production Ready; fixed `/loyalty` host prefix, consumable seed alignment, auth E2E harness
+- **FYH-APPOINTMENTS-BILLING** — Hair ERP visit loop live: appointments (`0007`) + invoices (`0008`) + inventory/commission/loyalty/reports/search; no ComingSoon nav leftovers
+- **APG-OS-CONCEPT-02-LIVE** — Approved Sentinel Shield; admin shell + auth + manifest wired; shield SVG geometry; customer/Capital/FY unchanged
 - **PG-PROPERTY-PERFORMANCE-SSOT** — Dropped parallel `getCachedPgBusinessMetrics` / summary from `loadOverviewContext`; Operations/Collections PG pages + Revenue month panels use `revenue.byPg` / `revenue.mtd` only; audits + `propertyPerformanceSsot` tests guard drift
 - **PG-PROPERTY-PERFORMANCE-AUDIT** — Property Performance widget aligned with Revenue SSOT: operating revenue label, late fees column, reconciliation helpers/tests; deposits remain ledger-only (excluded from operating totals)
 
@@ -588,3 +594,24 @@ Files:
 - qa/pricing-summary-proof/mobile-full-page.png
 
 ---
+
+<!-- SEMANTIC_2026-07-29T06:00:24Z -->
+---
+Time: 2026-07-29T06:00:24Z
+Type: MIXED
+Impact: HIGH
+Reason: The AI memory / intelligence automation layer is being extended — cognition pipeline or MEMORY structure changed.
+Files:
+- ARCHITECTURE.md
+- CHANGELOG.md
+- CURRENT_STATE.md
+- MEMORY/changelog.md
+- MEMORY/tasks.md
+- PROJECT/features.md
+- ROUTES.md
+- SYSTEM/CURRENT_STATE.md
+- SYSTEM/WORKFLOWS.md
+- foryourhair/README.md
+
+---
+- 2026-07-29 — FEATURE: Final branding sprint — docs/BRANDING/, /brand/* previews, product SVG systems, metadata/manifests.

@@ -12,35 +12,14 @@ import { getResolvedSidebarLayout } from '@/src/services/sidebarLayouts';
 import { AdminPushRegistration } from '@/src/components/admin/AdminPushRegistration';
 import { AdminMoneyInputGuard } from '@/src/components/admin/AdminMoneyInputGuard';
 import { NotificationReadOnArrival } from '@/src/components/admin/NotificationReadOnArrival';
+import { apgOsAdminMetadata } from '@/src/lib/brand/apgOsAdminMetadata';
+import '@/src/styles/apg-os-tokens.css';
 
 export const maxDuration = 60;
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = {
-  title: 'Admin · Awesome PG',
-  description: 'Property management console for Awesome PG.',
-  manifest: '/manifest.webmanifest',
-  appleWebApp: {
-    capable: true,
-    title: 'Awesome PG',
-    statusBarStyle: 'black-translucent',
-  },
-  icons: {
-    icon: [
-      { url: '/icons/apg-favicon-16.png', sizes: '16x16', type: 'image/png' },
-      { url: '/icons/apg-favicon-32.png', sizes: '32x32', type: 'image/png' },
-      { url: '/icons/apg-favicon-48.png', sizes: '48x48', type: 'image/png' },
-      { url: '/icons/apg-admin-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icons/apg-admin-512.png', sizes: '512x512', type: 'image/png' },
-    ],
-    apple: [{ url: '/icons/apg-apple-touch.png', sizes: '180x180', type: 'image/png' }],
-  },
-  openGraph: {
-    title: 'Awesome PG Admin',
-    images: [{ url: '/og/awesome-pg.png', width: 512, height: 512, alt: 'Awesome PG' }],
-  },
-};
+export const metadata: Metadata = apgOsAdminMetadata;
 
 export default async function AdminGroupLayout({ children }: { children: ReactNode }) {
   const session = await requireAdminSession('/admin');

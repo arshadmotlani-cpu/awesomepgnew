@@ -6,7 +6,7 @@
 |---|---|
 | **Application** | Automotive Capital |
 | **Domain** | [invest.awesomepg.in](https://invest.awesomepg.in) |
-| **Status** | Planning — no implementation code yet |
+| **Status** | **Shipped** — live on invest host; see [`CHANGELOG.md`](./CHANGELOG.md) and [`PRODUCTION_SIGNOFF.md`](./PRODUCTION_SIGNOFF.md) |
 | **Owner** | Single private administrator |
 | **Parent repo** | Awesome PG monorepo (host-isolated product surface) |
 

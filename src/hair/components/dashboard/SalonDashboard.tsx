@@ -58,7 +58,7 @@ export function SalonDashboard({ snapshot }: { snapshot: DashboardSnapshot }) {
           value={formatInrFromPaise(snapshot.todayRevenuePaise)}
           icon={IndianRupee}
           accent
-          hint="From billing (coming soon)"
+          hint="Paid invoices today"
         />
         <KpiCard
           label="Today's Appointments"
@@ -79,10 +79,10 @@ export function SalonDashboard({ snapshot }: { snapshot: DashboardSnapshot }) {
           hint="Open bills"
         />
         <KpiCard
-          label="Staff Working"
+          label="Staff on schedule"
           value={String(snapshot.staffWorking)}
           icon={UserCheck}
-          hint="On floor today"
+          hint="Active stylists with appointments today (excl. leave)"
         />
         <KpiCard
           label="Low Stock Products"
@@ -155,7 +155,7 @@ export function SalonDashboard({ snapshot }: { snapshot: DashboardSnapshot }) {
             <Receipt className="h-4 w-4 text-fyh-accent" />
           </div>
           {snapshot.recentBills.length === 0 ? (
-            <EmptyPanel message="No bills yet — billing module comes next." />
+            <EmptyPanel message="No bills yet." />
           ) : (
             <ul className="divide-y divide-[color:var(--fyh-border)]">
               {snapshot.recentBills.map((bill) => (

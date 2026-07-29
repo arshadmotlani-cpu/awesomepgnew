@@ -1,0 +1,248 @@
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { hairDb } from '@/src/hair/db/client';
+import {
+  fyhCommissionEntries,
+  fyhCustomerMemberships,
+  fyhCustomerPackages,
+  fyhCustomers,
+  fyhMembershipPlans,
+  fyhPackagePlans,
+  fyhBridalEvents,
+  fyhBridalProfiles,
+  fyhNotificationOutbox,
+  fyhNotificationTemplates,
+  fyhStaff,
+  type FyhMembershipTier,
+  type FyhBridalEventType,
+  type FyhNotificationKind,
+} from '@/src/hair/db/schema';
+
+export async function listMembershipPlans() {
+  return hairDb
+    .select()
+    .from(fyhMembershipPlans)
+    .where(eq(fyhMembershipPlans.isActive, true))
+    .orderBy(asc(fyhMembershipPlans.name));
+}
+
+export async function ensureDefaultMembershipPlans() {
+  const existing = await listMembershipPlans();
+  if (existing.length > 0) return existing;
+  const defaults: Array<{ name: string; tier: FyhMembershipTier; discountBps: number; pricePaise: number }> = [
+    { name: 'Silver', tier: 'silver', discountBps: 500, pricePaise: 299900 },
+    { name: 'Gold', tier: 'gold', discountBps: 1000, pricePaise: 499900 },
+    { name: 'Platinum', tier: 'platinum', discountBps: 1500, pricePaise: 799900 },
+    { name: 'VIP', tier: 'vip', discountBps: 2000, pricePaise: 999900 },
+  ];
+  await hairDb.insert(fyhMembershipPlans).values(
+    defaults.map((d) => ({
+      ...d,
+      priorityBooking: d.tier === 'vip' || d.tier === 'platinum',
+      birthdayBenefit: 'Complimentary hair spa',
+      anniversaryOffer: '20% off package',
+    })),
+  );
+  return listMembershipPlans();
+}
+
+export async function sellMembership(customerId: string, planId: string) {
+  const [plan] = await hairDb
+    .select()
+    .from(fyhMembershipPlans)
+    .where(eq(fyhMembershipPlans.id, planId))
+    .limit(1);
+  if (!plan) throw new Error('Plan not found');
+  const starts = new Date();
+  const expires = new Date(starts);
+  expires.setDate(expires.getDate() + plan.validityDays);
+  await hairDb
+    .update(fyhCustomerMemberships)
+    .set({ isActive: false })
+    .where(eq(fyhCustomerMemberships.customerId, customerId));
+  const [row] = await hairDb
+    .insert(fyhCustomerMemberships)
+    .values({
+      customerId,
+      planId,
+      startsOn: starts.toISOString().slice(0, 10),
+      expiresOn: expires.toISOString().slice(0, 10),
+    })
+    .returning();
+  await hairDb
+    .update(fyhCustomers)
+    .set({ membership: plan.name, updatedAt: new Date() })
+    .where(eq(fyhCustomers.id, customerId));
+  return row;
+}
+
+export async function listPackagePlans() {
+  return hairDb
+    .select()
+    .from(fyhPackagePlans)
+    .where(eq(fyhPackagePlans.isActive, true))
+    .orderBy(asc(fyhPackagePlans.name));
+}
+
+export async function sellPackage(customerId: string, planId: string) {
+  const [plan] = await hairDb.select().from(fyhPackagePlans).where(eq(fyhPackagePlans.id, planId)).limit(1);
+  if (!plan) throw new Error('Package not found');
+  const expires = new Date();
+  expires.setDate(expires.getDate() + plan.validityDays);
+  const [row] = await hairDb
+    .insert(fyhCustomerPackages)
+    .values({
+      customerId,
+      planId,
+      totalSessions: plan.totalSessions,
+      expiresOn: expires.toISOString().slice(0, 10),
+    })
+    .returning();
+  await hairDb
+    .update(fyhCustomers)
+    .set({
+      packagesPurchased: sql`${fyhCustomers.packagesPurchased} + 1`,
+      updatedAt: new Date(),
+    })
+    .where(eq(fyhCustomers.id, customerId));
+  return row;
+}
+
+export async function listCommissionSummary() {
+  return hairDb
+    .select({
+      staffId: fyhCommissionEntries.staffId,
+      staffName: fyhStaff.fullName,
+      pendingPaise: sql<number>`coalesce(sum(case when ${fyhCommissionEntries.status} = 'pending' then ${fyhCommissionEntries.amountPaise} else 0 end), 0)::bigint`,
+      paidPaise: sql<number>`coalesce(sum(case when ${fyhCommissionEntries.status} = 'paid' then ${fyhCommissionEntries.amountPaise} else 0 end), 0)::bigint`,
+    })
+    .from(fyhCommissionEntries)
+    .innerJoin(fyhStaff, eq(fyhStaff.id, fyhCommissionEntries.staffId))
+    .groupBy(fyhCommissionEntries.staffId, fyhStaff.fullName)
+    .orderBy(desc(sql`sum(${fyhCommissionEntries.amountPaise})`));
+}
+
+export async function markCommissionsPaid(staffId: string) {
+  await hairDb
+    .update(fyhCommissionEntries)
+    .set({ status: 'paid', paidAt: new Date() })
+    .where(and(eq(fyhCommissionEntries.staffId, staffId), eq(fyhCommissionEntries.status, 'pending')));
+}
+
+export async function listBridalProfiles() {
+  return hairDb
+    .select({
+      profile: fyhBridalProfiles,
+      customerName: fyhCustomers.fullName,
+      phone: fyhCustomers.phone,
+    })
+    .from(fyhBridalProfiles)
+    .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhBridalProfiles.customerId))
+    .orderBy(desc(fyhBridalProfiles.createdAt));
+}
+
+export async function createBridalProfile(input: {
+  customerId: string;
+  brideName: string;
+  weddingDate?: string | null;
+  notes?: string | null;
+}) {
+  const [row] = await hairDb
+    .insert(fyhBridalProfiles)
+    .values({
+      customerId: input.customerId,
+      brideName: input.brideName.trim(),
+      weddingDate: input.weddingDate || null,
+      notes: input.notes || null,
+    })
+    .returning();
+  return row!;
+}
+
+export async function addBridalEvent(
+  bridalProfileId: string,
+  eventType: FyhBridalEventType,
+  eventDate?: string | null,
+  amountPaise = 0,
+) {
+  const [row] = await hairDb
+    .insert(fyhBridalEvents)
+    .values({ bridalProfileId, eventType, eventDate: eventDate || null, amountPaise })
+    .returning();
+  return row!;
+}
+
+export async function ensureNotificationTemplates() {
+  const kinds: Array<{ kind: FyhNotificationKind; body: string }> = [
+    { kind: 'appointment_reminder', body: 'Hi {{name}}, reminder for your appointment tomorrow at {{time}}.' },
+    { kind: 'appointment_confirmation', body: 'Hi {{name}}, your appointment is confirmed for {{time}}.' },
+    { kind: 'birthday', body: 'Happy Birthday {{name}}! Enjoy a special treat at For Your Hair.' },
+    { kind: 'anniversary', body: 'Happy Anniversary {{name}}! Visit us for a celebration offer.' },
+    { kind: 'membership_expiry', body: 'Hi {{name}}, your membership expires on {{date}}.' },
+    { kind: 'package_expiry', body: 'Hi {{name}}, your package sessions expire on {{date}}.' },
+    { kind: 'outstanding_payment', body: 'Hi {{name}}, you have an outstanding balance of {{amount}}.' },
+    { kind: 'review_request', body: 'Hi {{name}}, how was your visit? We would love your feedback.' },
+    { kind: 'follow_up', body: 'Hi {{name}}, checking in after your service. Book your next visit anytime.' },
+    { kind: 'low_stock', body: 'Low stock alert: {{product}} is below reorder level.' },
+  ];
+  for (const k of kinds) {
+    await hairDb
+      .insert(fyhNotificationTemplates)
+      .values({ kind: k.kind, body: k.body, subject: k.kind.replace(/_/g, ' ') })
+      .onConflictDoNothing({ target: fyhNotificationTemplates.kind });
+  }
+}
+
+export async function enqueueNotification(input: {
+  kind: FyhNotificationKind;
+  recipient: string;
+  body: string;
+  subject?: string;
+}) {
+  const [row] = await hairDb
+    .insert(fyhNotificationOutbox)
+    .values({
+      kind: input.kind,
+      recipient: input.recipient,
+      body: input.body,
+      subject: input.subject ?? null,
+      status: 'pending',
+    })
+    .returning();
+  return row!;
+}
+
+export async function listOutbox(limit = 50) {
+  return hairDb
+    .select()
+    .from(fyhNotificationOutbox)
+    .orderBy(desc(fyhNotificationOutbox.createdAt))
+    .limit(limit);
+}
+
+export async function processOutboxBatch(limit = 20) {
+  // Delivery adapters are not connected — leave rows pending and report queue size.
+  const rows = await hairDb
+    .select({ id: fyhNotificationOutbox.id })
+    .from(fyhNotificationOutbox)
+    .where(eq(fyhNotificationOutbox.status, 'pending'))
+    .limit(limit);
+  return rows.length;
+}
+
+export async function topUpWallet(customerId: string, amountPaise: number) {
+  if (amountPaise <= 0) throw new Error('Top-up amount must be positive');
+  const [customer] = await hairDb
+    .select()
+    .from(fyhCustomers)
+    .where(eq(fyhCustomers.id, customerId))
+    .limit(1);
+  if (!customer) throw new Error('Customer not found');
+  await hairDb
+    .update(fyhCustomers)
+    .set({
+      walletBalancePaise: customer.walletBalancePaise + amountPaise,
+      updatedAt: new Date(),
+    })
+    .where(eq(fyhCustomers.id, customerId));
+  return customer.walletBalancePaise + amountPaise;
+}
