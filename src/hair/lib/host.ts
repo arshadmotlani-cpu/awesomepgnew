@@ -36,6 +36,7 @@ export const HAIR_PUBLIC_PREFIXES = [
   '/customers',
   '/appointments',
   '/billing',
+  '/quick-sale',
   '/services',
   '/products',
   '/inventory',

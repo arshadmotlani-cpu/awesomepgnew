@@ -43,6 +43,20 @@ export async function getHairAuthOptional(): Promise<HairAdmin | null> {
   return session?.admin ?? null;
 }
 
+export async function requireSuperAdmin(): Promise<HairAdmin> {
+  const admin = await requireHairAuth();
+  if (admin.role !== 'super_admin') {
+    throw new HairAuthError('Super admin access required');
+  }
+  return admin;
+}
+
+export async function requireSuperAdminPage(): Promise<HairAdmin> {
+  const admin = await requireHairAuthPage();
+  if (admin.role !== 'super_admin') redirect('/dashboard');
+  return admin;
+}
+
 export function safeHairNextPath(next: string): string {
   if (!next.startsWith('/') || next.startsWith('//') || next.includes('\\') || next.includes('@')) {
     return '/dashboard';

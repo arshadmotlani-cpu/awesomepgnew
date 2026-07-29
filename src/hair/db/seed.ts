@@ -275,6 +275,7 @@ async function main() {
       email,
       passwordHash: hashPassword(password),
       displayName: 'Administrator',
+      role: 'super_admin',
     });
     console.log(`✓ Admin seeded: ${email}`);
   } else {

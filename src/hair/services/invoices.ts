@@ -19,17 +19,77 @@ import {
   fyhSettings,
   fyhStaff,
   fyhStockMovements,
+  type FyhInvoiceLineKind,
   type FyhPaymentMethod,
 } from '@/src/hair/db/schema';
+import { sellMembershipWithDb, sellPackageWithDb } from '@/src/hair/services/loyaltyOps';
+import {
+  discountBpsFromPaise,
+  persistLineAttributions,
+  lineNetPaiseFromParts,
+  syncInvoiceLineAttributions,
+  type StaffAttributionInput,
+} from '@/src/hair/services/salesAttribution';
 import { escapeHtml, salonDayBounds } from '@/src/hair/lib/salonTime';
+import {
+  computeGrandTotalFromParts as computeGrandTotalFromPartsLib,
+  taxOnLine,
+} from '@/src/hair/lib/invoiceMath';
 import { isCheckoutAllowedStatus } from '@/src/hair/lib/appointmentStatus';
 import type { FyhAppointmentStatus } from '@/src/hair/db/schema/appointments';
 
 function taxOn(amountPaise: number, gstBps: number): number {
-  return Math.round((Math.max(0, amountPaise) * Math.max(0, gstBps)) / 10_000);
+  return taxOnLine(amountPaise, gstBps);
 }
 
 export type PaymentSplitInput = { method: FyhPaymentMethod; amountPaise: number; reference?: string };
+
+export type InvoiceLineDraft = {
+  kind: FyhInvoiceLineKind;
+  serviceId?: string | null;
+  productId?: string | null;
+  packageId?: string | null;
+  membershipId?: string | null;
+  staffId?: string | null;
+  description: string;
+  quantity: number;
+  unitPricePaise: number;
+  lineDiscountPaise: number;
+  gstBps: number;
+};
+
+export function priceLineDrafts(drafts: InvoiceLineDraft[]) {
+  let subtotalPaise = 0;
+  let taxPaise = 0;
+  const priced = drafts.map((d, sortOrder) => {
+    const net = Math.max(0, d.unitPricePaise * d.quantity - d.lineDiscountPaise);
+    const tax = taxOn(net, d.gstBps);
+    subtotalPaise += net;
+    taxPaise += tax;
+    return {
+      ...d,
+      taxPaise: tax,
+      lineTotalPaise: net + tax,
+      sortOrder,
+    };
+  });
+  return { priced, subtotalPaise, taxPaise };
+}
+
+export function computeGrandTotalFromParts(opts: Parameters<typeof computeGrandTotalFromPartsLib>[0]) {
+  return computeGrandTotalFromPartsLib(opts);
+}
+
+export type QuickSaleLineInput = {
+  kind: 'service' | 'product' | 'package' | 'membership';
+  refId: string;
+  staffId?: string | null;
+  quantity: number;
+  lineDiscountPaise?: number;
+  lineDiscountBps?: number;
+  servicedBy?: StaffAttributionInput[];
+  soldByStaffId?: string | null;
+};
 
 export async function listInvoices(limit = 50) {
   return hairDb
@@ -205,24 +265,14 @@ export async function createInvoiceFromAppointment(
     .from(fyhAppointmentServices)
     .where(eq(fyhAppointmentServices.appointmentId, appointmentId));
 
-  type LineDraft = {
-    kind: 'service' | 'product';
-    serviceId?: string;
-    productId?: string;
-    staffId?: string;
-    description: string;
-    quantity: number;
-    unitPricePaise: number;
-    gstBps: number;
-  };
-
-  const drafts: LineDraft[] = services.map((s) => ({
+  const drafts: InvoiceLineDraft[] = services.map((s) => ({
     kind: 'service',
     serviceId: s.serviceId,
     staffId: appt.staffId,
     description: s.nameSnapshot,
     quantity: 1,
     unitPricePaise: s.pricePaise,
+    lineDiscountPaise: 0,
     gstBps: s.gstBps,
   }));
 
@@ -239,24 +289,12 @@ export async function createInvoiceFromAppointment(
       description: product.name,
       quantity: Math.max(1, p.quantity),
       unitPricePaise: product.sellingPricePaise,
+      lineDiscountPaise: 0,
       gstBps: product.gstBps,
     });
   }
 
-  let subtotalPaise = 0;
-  let taxPaise = 0;
-  const priced = drafts.map((d, sortOrder) => {
-    const net = d.unitPricePaise * d.quantity;
-    const tax = taxOn(net, d.gstBps);
-    subtotalPaise += net;
-    taxPaise += tax;
-    return {
-      ...d,
-      taxPaise: tax,
-      lineTotalPaise: net + tax,
-      sortOrder,
-    };
-  });
+  const { priced, subtotalPaise, taxPaise } = priceLineDrafts(drafts);
 
   const serviceIds = drafts.filter((d) => d.serviceId).map((d) => d.serviceId!);
   const redemptions = await computeRedemptions(appt.customerId, subtotalPaise, serviceIds);
@@ -269,18 +307,15 @@ export async function createInvoiceFromAppointment(
   const packageRedeemPaise = redemptions.packageRedeemPaise;
   const giftCardRedeemPaise = 0;
 
-  const taxableBase = Math.max(
-    0,
-    subtotalPaise - discountPaise - membershipDiscountPaise - packageRedeemPaise,
-  );
-  // Proportional tax reduction when discounts apply (avoid taxing discounted portion).
-  const taxPaiseAdjusted =
-    subtotalPaise > 0 ? Math.round((taxPaise * taxableBase) / subtotalPaise) : 0;
-
-  const grandTotalPaise = Math.max(
-    0,
-    taxableBase + taxPaiseAdjusted - walletRedeemPaise - giftCardRedeemPaise,
-  );
+  const { taxPaiseAdjusted, grandTotalPaise } = computeGrandTotalFromParts({
+    subtotalPaise,
+    taxPaise,
+    discountPaise,
+    membershipDiscountPaise,
+    packageRedeemPaise,
+    walletRedeemPaise,
+    giftCardRedeemPaise,
+  });
 
   const invoiceId = await hairDb.transaction(async (tx) => {
     const invoiceNumber = await nextInvoiceNumber(tx as unknown as typeof hairDb);
@@ -318,6 +353,7 @@ export async function createInvoiceFromAppointment(
           nameSnapshot: l.description,
           quantity: l.quantity,
           unitPricePaise: l.unitPricePaise,
+          discountPaise: l.lineDiscountPaise,
           gstBps: l.gstBps,
           taxPaise: l.taxPaise,
           lineTotalPaise: l.lineTotalPaise,
@@ -350,6 +386,278 @@ export async function createInvoiceFromAppointment(
     return inv.id;
   });
 
+  return invoiceId;
+}
+
+async function resolveQuickSaleDrafts(
+  lines: QuickSaleLineInput[],
+): Promise<{ drafts: InvoiceLineDraft[]; meta: QuickSaleLineInput[] }> {
+  if (!lines.length) throw new Error('Add at least one item to the cart');
+  const drafts: InvoiceLineDraft[] = [];
+  for (const line of lines) {
+    const qty = Math.max(0.001, line.quantity);
+    let lineDiscountPaise = Math.max(0, line.lineDiscountPaise ?? 0);
+    if (line.kind === 'service') {
+      const [svc] = await hairDb
+        .select()
+        .from(fyhServices)
+        .where(eq(fyhServices.id, line.refId))
+        .limit(1);
+      if (!svc || !svc.isActive) throw new Error('Service not found');
+      const gross = svc.pricePaise * qty;
+      if (line.lineDiscountBps != null && line.lineDiscountPaise == null) {
+        lineDiscountPaise = Math.min(
+          gross,
+          Math.round((gross * Math.max(0, line.lineDiscountBps)) / 10_000),
+        );
+      }
+      const primaryStaff =
+        line.servicedBy?.[0]?.staffId ?? line.staffId ?? null;
+      drafts.push({
+        kind: 'service',
+        serviceId: svc.id,
+        staffId: primaryStaff,
+        description: svc.name,
+        quantity: qty,
+        unitPricePaise: svc.pricePaise,
+        lineDiscountPaise,
+        gstBps: svc.gstBps,
+      });
+    } else if (line.kind === 'product') {
+      const [product] = await hairDb
+        .select()
+        .from(fyhProducts)
+        .where(eq(fyhProducts.id, line.refId))
+        .limit(1);
+      if (!product || !product.isActive) throw new Error('Product not found');
+      const gross = product.sellingPricePaise * qty;
+      if (line.lineDiscountBps != null && line.lineDiscountPaise == null) {
+        lineDiscountPaise = Math.min(
+          gross,
+          Math.round((gross * Math.max(0, line.lineDiscountBps)) / 10_000),
+        );
+      }
+      drafts.push({
+        kind: 'product',
+        productId: product.id,
+        staffId: line.soldByStaffId ?? line.staffId ?? null,
+        description: product.name,
+        quantity: qty,
+        unitPricePaise: product.sellingPricePaise,
+        lineDiscountPaise,
+        gstBps: product.gstBps,
+      });
+    } else if (line.kind === 'package') {
+      const [plan] = await hairDb
+        .select()
+        .from(fyhPackagePlans)
+        .where(eq(fyhPackagePlans.id, line.refId))
+        .limit(1);
+      if (!plan || !plan.isActive) throw new Error('Package not found');
+      drafts.push({
+        kind: 'package',
+        packageId: plan.id,
+        staffId: line.soldByStaffId ?? line.staffId ?? null,
+        description: plan.name,
+        quantity: qty,
+        unitPricePaise: plan.pricePaise,
+        lineDiscountPaise,
+        gstBps: 0,
+      });
+    } else {
+      const [plan] = await hairDb
+        .select()
+        .from(fyhMembershipPlans)
+        .where(eq(fyhMembershipPlans.id, line.refId))
+        .limit(1);
+      if (!plan || !plan.isActive) throw new Error('Membership not found');
+      drafts.push({
+        kind: 'membership',
+        membershipId: plan.id,
+        staffId: line.soldByStaffId ?? line.staffId ?? null,
+        description: plan.name,
+        quantity: qty,
+        unitPricePaise: plan.pricePaise,
+        lineDiscountPaise,
+        gstBps: 0,
+      });
+    }
+  }
+  return { drafts, meta: lines };
+}
+
+export async function createQuickSaleInvoice(
+  customerId: string,
+  lines: QuickSaleLineInput[],
+  opts?: {
+    discountPaise?: number;
+    walletRedeemPaise?: number;
+    tipPaise?: number;
+    roundOffPaise?: number;
+    stylistId?: string | null;
+    notes?: string | null;
+  },
+) {
+  const [customer] = await hairDb
+    .select({ id: fyhCustomers.id })
+    .from(fyhCustomers)
+    .where(and(eq(fyhCustomers.id, customerId), eq(fyhCustomers.isActive, true)))
+    .limit(1);
+  if (!customer) throw new Error('Customer not found');
+
+  const { drafts, meta: lineMeta } = await resolveQuickSaleDrafts(lines);
+  const { priced, subtotalPaise, taxPaise } = priceLineDrafts(drafts);
+
+  const discountSubtotal = drafts
+    .filter((d) => d.kind === 'service' || d.kind === 'product')
+    .reduce(
+      (sum, d) => sum + Math.max(0, d.unitPricePaise * d.quantity - d.lineDiscountPaise),
+      0,
+    );
+  const redemptions = await computeRedemptions(customerId, discountSubtotal, []);
+  const discountPaise = Math.max(0, opts?.discountPaise ?? 0);
+  const membershipDiscountPaise = redemptions.membershipDiscountPaise;
+  const walletRedeemPaise = Math.min(
+    Math.max(0, opts?.walletRedeemPaise ?? 0),
+    redemptions.availableWalletPaise,
+  );
+  const tipPaise = Math.max(0, opts?.tipPaise ?? 0);
+  const roundOffPaise = opts?.roundOffPaise ?? 0;
+
+  const { taxPaiseAdjusted, grandTotalPaise } = computeGrandTotalFromParts({
+    subtotalPaise,
+    taxPaise,
+    discountPaise,
+    membershipDiscountPaise,
+    packageRedeemPaise: 0,
+    walletRedeemPaise,
+    tipPaise,
+    roundOffPaise,
+  });
+
+  const defaultStylist =
+    opts?.stylistId ??
+    priced.find((l) => l.staffId)?.staffId ??
+    null;
+
+  const invoiceId = await hairDb.transaction(async (tx) => {
+    const invoiceNumber = await nextInvoiceNumber(tx as unknown as typeof hairDb);
+    const [inv] = await tx
+      .insert(fyhInvoices)
+      .values({
+        invoiceNumber,
+        customerId,
+        appointmentId: null,
+        source: 'quick_sale',
+        stylistId: defaultStylist,
+        status: grandTotalPaise === 0 ? 'paid' : 'unpaid',
+        subtotalPaise,
+        discountPaise,
+        taxPaise: taxPaiseAdjusted,
+        membershipRedemptionPaise: membershipDiscountPaise,
+        packageRedemptionPaise: 0,
+        walletRedemptionPaise: walletRedeemPaise,
+        giftCardRedemptionPaise: 0,
+        tipPaise,
+        roundOffPaise,
+        grandTotalPaise,
+        amountPaidPaise: 0,
+        paidAt: grandTotalPaise === 0 ? new Date() : null,
+        notes: opts?.notes ?? null,
+      })
+      .returning();
+    if (!inv) throw new Error('Failed to create invoice');
+
+    const insertedLines = await tx
+      .insert(fyhInvoiceLines)
+      .values(
+        priced.map((l) => {
+          const gross = l.unitPricePaise * l.quantity;
+          return {
+            invoiceId: inv.id,
+            kind: l.kind,
+            serviceId: l.serviceId ?? null,
+            productId: l.productId ?? null,
+            packageId: l.packageId ?? null,
+            membershipId: l.membershipId ?? null,
+            staffId: l.staffId ?? null,
+            nameSnapshot: l.description,
+            quantity: l.quantity,
+            unitPricePaise: l.unitPricePaise,
+            discountPaise: l.lineDiscountPaise,
+            discountBps: discountBpsFromPaise(gross, l.lineDiscountPaise),
+            gstBps: l.gstBps,
+            taxPaise: l.taxPaise,
+            lineTotalPaise: l.lineTotalPaise,
+            sortOrder: l.sortOrder,
+          };
+        }),
+      )
+      .returning();
+
+    for (let i = 0; i < insertedLines.length; i++) {
+      const row = insertedLines[i]!;
+      const src = lineMeta[i]!;
+      const lineNet = lineNetPaiseFromParts(
+        row.unitPricePaise,
+        row.quantity,
+        row.discountPaise,
+      );
+      await persistLineAttributions(tx as unknown as typeof hairDb, row.id, {
+        kind: row.kind,
+        lineNetPaise: lineNet,
+        servicedBy: src.servicedBy,
+        soldByStaffId: src.soldByStaffId,
+        legacyStaffId: row.staffId,
+      });
+    }
+
+    await tx.insert(fyhCustomerTimeline).values({
+      customerId,
+      eventType: 'bill',
+      title: `Quick Sale · ${invoiceNumber}`,
+      body: `Due ₹${(grandTotalPaise / 100).toFixed(2)}`,
+      metadata: { invoiceId: inv.id, source: 'quick_sale' },
+    });
+
+    if (grandTotalPaise === 0) {
+      await applyPaidSideEffects(tx as unknown as typeof hairDb, inv.id);
+    }
+
+    return inv.id;
+  });
+
+  return invoiceId;
+}
+
+/** Create quick-sale invoice and record payments in one flow (validates pay sum). */
+export async function finalizeQuickSale(input: {
+  customerId: string;
+  lines: QuickSaleLineInput[];
+  payments: PaymentSplitInput[];
+  discountPaise?: number;
+  walletRedeemPaise?: number;
+  tipPaise?: number;
+  roundOffPaise?: number;
+  stylistId?: string | null;
+  notes?: string | null;
+}) {
+  const invoiceId = await createQuickSaleInvoice(input.customerId, input.lines, {
+    discountPaise: input.discountPaise,
+    walletRedeemPaise: input.walletRedeemPaise,
+    tipPaise: input.tipPaise,
+    roundOffPaise: input.roundOffPaise,
+    stylistId: input.stylistId,
+    notes: input.notes,
+  });
+  const due = await getInvoiceGrandTotal(invoiceId);
+  const paySum = input.payments.reduce((s, p) => s + Math.max(0, p.amountPaise), 0);
+  if (due > 0 && paySum < due) {
+    throw new Error(`Payment total must cover amount due (₹${(due / 100).toFixed(2)})`);
+  }
+  if (due === 0 || paySum > 0) {
+    await recordInvoicePayments(invoiceId, input.payments);
+  }
   return invoiceId;
 }
 
@@ -456,80 +764,13 @@ export async function recordInvoicePayments(
   });
 }
 
-async function applyPaidSideEffects(db: typeof hairDb, invoiceId: string) {
-  const [invoice] = await db.select().from(fyhInvoices).where(eq(fyhInvoices.id, invoiceId)).limit(1);
-  if (!invoice) return;
-
-  const lines = await db.select().from(fyhInvoiceLines).where(eq(fyhInvoiceLines.invoiceId, invoiceId));
-
-  // Customer stats
-  const [customer] = await db
-    .select()
-    .from(fyhCustomers)
-    .where(eq(fyhCustomers.id, invoice.customerId))
-    .limit(1);
-  if (customer) {
-    const totalVisits = customer.totalVisits + 1;
-    const lifetimeSpendPaise = customer.lifetimeSpendPaise + invoice.grandTotalPaise;
-    await db
-      .update(fyhCustomers)
-      .set({
-        totalVisits,
-        lifetimeSpendPaise,
-        averageBillPaise: Math.round(lifetimeSpendPaise / totalVisits),
-        lastVisitAt: new Date().toISOString().slice(0, 10),
-        walletBalancePaise: Math.max(0, customer.walletBalancePaise - invoice.walletRedemptionPaise),
-        updatedAt: new Date(),
-      })
-      .where(eq(fyhCustomers.id, customer.id));
-  }
-
-  // Service stats + commission
+async function applyInventorySideEffects(
+  db: typeof hairDb,
+  invoiceId: string,
+  lines: (typeof fyhInvoiceLines.$inferSelect)[],
+) {
   for (const line of lines) {
     if (line.kind === 'service' && line.serviceId) {
-      await db
-        .update(fyhServices)
-        .set({
-          totalBookings: sql`${fyhServices.totalBookings} + 1`,
-          revenueGeneratedPaise: sql`${fyhServices.revenueGeneratedPaise} + ${line.lineTotalPaise}`,
-          lastBookedAt: new Date(),
-        })
-        .where(eq(fyhServices.id, line.serviceId));
-
-      const [service] = await db
-        .select()
-        .from(fyhServices)
-        .where(eq(fyhServices.id, line.serviceId))
-        .limit(1);
-      const staffId = line.staffId ?? invoice.stylistId;
-      if (staffId && service) {
-        let amountPaise = 0;
-        if (service.overrideStaffCommission) {
-          if (service.commissionType === 'fixed') amountPaise = service.commissionFixedPaise;
-          if (service.commissionType === 'percentage') {
-            amountPaise = Math.round((line.unitPricePaise * service.commissionPercentBps) / 10_000);
-          }
-        } else {
-          const [staff] = await db.select().from(fyhStaff).where(eq(fyhStaff.id, staffId)).limit(1);
-          if (staff?.defaultCommissionType === 'fixed') amountPaise = staff.defaultCommissionFixedPaise;
-          if (staff?.defaultCommissionType === 'percentage') {
-            amountPaise = Math.round(
-              (line.unitPricePaise * staff.defaultCommissionPercentBps) / 10_000,
-            );
-          }
-        }
-        if (amountPaise > 0) {
-          await db.insert(fyhCommissionEntries).values({
-            staffId,
-            invoiceLineId: line.id,
-            amountPaise,
-            status: 'pending',
-            periodDate: new Date().toISOString().slice(0, 10),
-          });
-        }
-      }
-
-      // Consumables
       const kits = await db
         .select()
         .from(fyhServiceConsumables)
@@ -573,6 +814,119 @@ async function applyPaidSideEffects(db: typeof hairDb, invoiceId: string) {
       });
     }
   }
+}
+
+async function applyLegacyServiceCommission(
+  db: typeof hairDb,
+  invoice: { stylistId: string | null },
+  lines: (typeof fyhInvoiceLines.$inferSelect)[],
+) {
+  for (const line of lines) {
+    if (line.kind !== 'service' || !line.serviceId) continue;
+
+    await db
+      .update(fyhServices)
+      .set({
+        totalBookings: sql`${fyhServices.totalBookings} + 1`,
+        revenueGeneratedPaise: sql`${fyhServices.revenueGeneratedPaise} + ${line.lineTotalPaise}`,
+        lastBookedAt: new Date(),
+      })
+      .where(eq(fyhServices.id, line.serviceId));
+
+    const [service] = await db
+      .select()
+      .from(fyhServices)
+      .where(eq(fyhServices.id, line.serviceId))
+      .limit(1);
+    const staffId = line.staffId ?? invoice.stylistId;
+    if (!staffId || !service) continue;
+
+    let amountPaise = 0;
+    if (service.overrideStaffCommission) {
+      if (service.commissionType === 'fixed') amountPaise = service.commissionFixedPaise;
+      if (service.commissionType === 'percentage') {
+        amountPaise = Math.round((line.unitPricePaise * service.commissionPercentBps) / 10_000);
+      }
+    } else {
+      const [staff] = await db.select().from(fyhStaff).where(eq(fyhStaff.id, staffId)).limit(1);
+      if (staff?.defaultCommissionType === 'fixed') amountPaise = staff.defaultCommissionFixedPaise;
+      if (staff?.defaultCommissionType === 'percentage') {
+        amountPaise = Math.round(
+          (line.unitPricePaise * staff.defaultCommissionPercentBps) / 10_000,
+        );
+      }
+    }
+    if (amountPaise > 0) {
+      await db.insert(fyhCommissionEntries).values({
+        staffId,
+        invoiceLineId: line.id,
+        amountPaise,
+        status: 'pending',
+        periodDate: new Date().toISOString().slice(0, 10),
+      });
+    }
+  }
+}
+
+async function applyPaidSideEffects(db: typeof hairDb, invoiceId: string) {
+  const [invoice] = await db.select().from(fyhInvoices).where(eq(fyhInvoices.id, invoiceId)).limit(1);
+  if (!invoice) return;
+
+  const lines = await db.select().from(fyhInvoiceLines).where(eq(fyhInvoiceLines.invoiceId, invoiceId));
+  const isQuickSale = invoice.source === 'quick_sale';
+
+  if (!isQuickSale) {
+    await syncInvoiceLineAttributions(
+      db,
+      lines.map((line) => ({
+        id: line.id,
+        kind: line.kind,
+        unitPricePaise: line.unitPricePaise,
+        quantity: line.quantity,
+        discountPaise: line.discountPaise,
+        staffId: line.staffId,
+      })),
+    );
+  }
+
+  // Customer stats
+  const [customer] = await db
+    .select()
+    .from(fyhCustomers)
+    .where(eq(fyhCustomers.id, invoice.customerId))
+    .limit(1);
+  if (customer) {
+    const totalVisits = customer.totalVisits + 1;
+    const lifetimeSpendPaise = customer.lifetimeSpendPaise + invoice.grandTotalPaise;
+    await db
+      .update(fyhCustomers)
+      .set({
+        totalVisits,
+        lifetimeSpendPaise,
+        averageBillPaise: Math.round(lifetimeSpendPaise / totalVisits),
+        lastVisitAt: new Date().toISOString().slice(0, 10),
+        walletBalancePaise: Math.max(0, customer.walletBalancePaise - invoice.walletRedemptionPaise),
+        updatedAt: new Date(),
+      })
+      .where(eq(fyhCustomers.id, customer.id));
+  }
+
+  await applyLegacyServiceCommission(db, invoice, lines);
+
+  if (!isQuickSale) {
+    await applyInventorySideEffects(db, invoiceId, lines);
+  }
+
+  if (isQuickSale) {
+    for (const line of lines) {
+      if (line.kind === 'membership' && line.membershipId) {
+        await sellMembershipWithDb(db, invoice.customerId, line.membershipId);
+      }
+      if (line.kind === 'package' && line.packageId) {
+        await sellPackageWithDb(db, invoice.customerId, line.packageId);
+      }
+    }
+  }
 
   if (invoice.appointmentId) {
     await db
@@ -582,7 +936,7 @@ async function applyPaidSideEffects(db: typeof hairDb, invoiceId: string) {
   }
 
   // Burn one package session only when package credit was applied and service matches
-  if (invoice.packageRedemptionPaise > 0) {
+  if (!isQuickSale && invoice.packageRedemptionPaise > 0) {
     const serviceIds = lines
       .filter((l) => l.kind === 'service' && l.serviceId)
       .map((l) => l.serviceId!);
@@ -674,7 +1028,9 @@ export function buildInvoicePrintHtml(detail: NonNullable<Awaited<ReturnType<typ
     .join('')}
   </tbody></table>
   <p class="right">Subtotal ${money(invoice.subtotalPaise)} · Tax ${money(invoice.taxPaise)}
-  · Discount ${money(invoice.discountPaise + invoice.membershipRedemptionPaise)}</p>
+  · Discount ${money(invoice.discountPaise + invoice.membershipRedemptionPaise)}${
+    invoice.tipPaise ? ` · Tip ${money(invoice.tipPaise)}` : ''
+  }${invoice.roundOffPaise ? ` · Round off ${money(invoice.roundOffPaise)}` : ''}</p>
   <p class="right total">Grand total ${money(invoice.grandTotalPaise)}</p>
   <p class="muted">Payments: ${
     payments.map((p) => `${escapeHtml(p.method)} ${money(p.amountPaise)}`).join(', ') || '—'

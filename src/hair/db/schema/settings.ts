@@ -17,6 +17,7 @@ export const fyhSettings = pgTable('fyh_settings', {
   gstin: text('gstin'),
   invoicePrefix: text('invoice_prefix').notNull().default('FYH'),
   invoiceNextSeq: integer('invoice_next_seq').notNull().default(1),
+  customerCodeNextSeq: integer('customer_code_next_seq').notNull().default(1),
   defaultGstBps: integer('default_gst_bps').notNull().default(1800),
   defaultBufferMinutes: integer('default_buffer_minutes').notNull().default(0),
   currency: text('currency').notNull().default('INR'),

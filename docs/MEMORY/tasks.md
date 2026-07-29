@@ -8,6 +8,7 @@
 
 ## 2026-07-29
 
+- [x] **FYH-SALES-SSOT** — Attributions 0013, staff performance reports, Reports nav tree, Quick Sale staff/discount UX
 - [x] **PLAT-STABILIZATION-W0** — Hair E2E workflow, `ENV_CONTRACT.md`, `env:check --product=`
 - [x] **FYH-STABILIZATION-W1** — Reports salon TZ, mobile billing/customers, `syncStaff` preserve + test
 - [x] **FYH-STABILIZATION-W2** — Staff schedules UI, resources CRUD (settings), reports GST/top services/staff, billing honesty copy

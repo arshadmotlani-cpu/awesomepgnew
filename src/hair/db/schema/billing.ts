@@ -26,7 +26,7 @@ export const FYH_INVOICE_STATUSES = [
 ] as const;
 export type FyhInvoiceStatus = (typeof FYH_INVOICE_STATUSES)[number];
 
-export const FYH_PAYMENT_METHODS = ['cash', 'upi', 'card', 'wallet', 'gift_card'] as const;
+export const FYH_PAYMENT_METHODS = ['cash', 'upi', 'card', 'bank', 'wallet', 'gift_card'] as const;
 export type FyhPaymentMethod = (typeof FYH_PAYMENT_METHODS)[number];
 
 export const FYH_INVOICE_LINE_KINDS = [
@@ -37,6 +37,9 @@ export const FYH_INVOICE_LINE_KINDS = [
   'custom',
 ] as const;
 export type FyhInvoiceLineKind = (typeof FYH_INVOICE_LINE_KINDS)[number];
+export type FyhInvoiceSource = 'appointment' | 'quick_sale';
+
+export const FYH_INVOICE_SOURCES = ['appointment', 'quick_sale'] as const;
 
 /**
  * Salon invoices — single money engine for checkout (Phase 2+).
@@ -53,6 +56,7 @@ export const fyhInvoices = pgTable(
     appointmentId: uuid('appointment_id').references(() => fyhAppointments.id, {
       onDelete: 'set null',
     }),
+    source: text('source').$type<FyhInvoiceSource>().notNull().default('appointment'),
     stylistId: uuid('stylist_id').references(() => fyhStaff.id, { onDelete: 'set null' }),
     status: text('status').$type<FyhInvoiceStatus>().notNull().default('draft'),
     subtotalPaise: bigint('subtotal_paise', { mode: 'number' }).notNull().default(0),
@@ -72,6 +76,8 @@ export const fyhInvoices = pgTable(
     giftCardRedemptionPaise: bigint('gift_card_redemption_paise', { mode: 'number' })
       .notNull()
       .default(0),
+    tipPaise: bigint('tip_paise', { mode: 'number' }).notNull().default(0),
+    roundOffPaise: bigint('round_off_paise', { mode: 'number' }).notNull().default(0),
     notes: text('notes'),
     paidAt: timestamp('paid_at', { withTimezone: true }),
     voidedAt: timestamp('voided_at', { withTimezone: true }),
@@ -106,6 +112,7 @@ export const fyhInvoiceLines = pgTable(
     quantity: numeric('quantity', { precision: 12, scale: 3, mode: 'number' }).notNull().default(1),
     unitPricePaise: bigint('unit_price_paise', { mode: 'number' }).notNull().default(0),
     discountPaise: bigint('discount_paise', { mode: 'number' }).notNull().default(0),
+    discountBps: integer('discount_bps').notNull().default(0),
     gstBps: integer('gst_bps').notNull().default(0),
     taxPaise: bigint('tax_paise', { mode: 'number' }).notNull().default(0),
     lineTotalPaise: bigint('line_total_paise', { mode: 'number' }).notNull().default(0),

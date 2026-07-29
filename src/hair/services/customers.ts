@@ -15,6 +15,58 @@ export function normalizePhone(phone: string): string {
   return phone.replace(/[^\d+]/g, '').trim();
 }
 
+/** Atomic salon customer code e.g. CL00000175 */
+export async function nextCustomerCode(tx: typeof hairDb = hairDb): Promise<string> {
+  const rows = await tx.execute<{ customer_code_next_seq: number }>(sql`
+    UPDATE fyh_settings
+    SET customer_code_next_seq = customer_code_next_seq + 1, updated_at = now()
+    WHERE id = (SELECT id FROM fyh_settings LIMIT 1)
+    RETURNING customer_code_next_seq
+  `);
+  const row = Array.isArray(rows)
+    ? rows[0]
+    : (rows as { rows?: Array<{ customer_code_next_seq: number }> }).rows?.[0];
+  if (!row) throw new Error('Salon settings missing');
+  const seq = Number(row.customer_code_next_seq) - 1;
+  return `CL${String(seq).padStart(8, '0')}`;
+}
+
+export type QuickCustomerInput = {
+  fullName: string;
+  phone: string;
+  gender?: FyhCustomerGender | null;
+};
+
+export async function createCustomerQuick(input: QuickCustomerInput) {
+  const fullName = input.fullName.trim();
+  const phone = normalizePhone(input.phone);
+  if (!fullName) throw new Error('Customer name is required');
+  if (!phone) throw new Error('Phone number is required');
+
+  return hairDb.transaction(async (tx) => {
+    await assertPhoneUnique(phone);
+    const customerCode = await nextCustomerCode(tx as unknown as typeof hairDb);
+    const [row] = await tx
+      .insert(fyhCustomers)
+      .values({
+        fullName,
+        phone,
+        gender: input.gender ?? 'female',
+        source: 'walk_in',
+        customerCode,
+      })
+      .returning();
+    if (!row) throw new Error('Failed to create customer');
+    await tx.insert(fyhCustomerTimeline).values({
+      customerId: row.id,
+      eventType: 'customer_created',
+      title: 'Customer created',
+      body: `${row.fullName} · Quick Sale`,
+    });
+    return row;
+  });
+}
+
 function parseTags(raw: string | string[] | null | undefined): string[] {
   if (!raw) return [];
   const parts = Array.isArray(raw) ? raw : raw.split(',');

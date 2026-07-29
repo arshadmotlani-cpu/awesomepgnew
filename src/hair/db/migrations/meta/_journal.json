@@ -78,6 +78,20 @@
       "when": 1754600000000,
       "tag": "0011_schema_align",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1754700000000,
+      "tag": "0012_quick_sale",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1754800000000,
+      "tag": "0013_sales_attribution",
+      "breakpoints": true
     }
   ]
 }

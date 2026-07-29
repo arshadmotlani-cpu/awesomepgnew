@@ -10,6 +10,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { KpiCard } from '@/src/hair/components/dashboard/KpiCard';
+import { DashboardNewMenu } from '@/src/hair/components/dashboard/DashboardNewMenu';
 import { Button } from '@/src/hair/components/ui/button';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import type { DashboardSnapshot } from '@/src/hair/services/dashboard';
@@ -44,11 +45,7 @@ export function SalonDashboard({ snapshot }: { snapshot: DashboardSnapshot }) {
               Add customer
             </Button>
           </Link>
-          <Link href="/appointments">
-            <Button type="button" size="sm">
-              New appointment
-            </Button>
-          </Link>
+          <DashboardNewMenu />
         </div>
       </div>
 

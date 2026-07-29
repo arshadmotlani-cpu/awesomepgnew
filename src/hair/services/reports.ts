@@ -3,6 +3,7 @@ import { hairDb } from '@/src/hair/db/client';
 import { fyhInvoiceLines, fyhInvoices, fyhServices, fyhStaff } from '@/src/hair/db/schema';
 import { salonDayBounds, salonMonthStartUtc, salonWeekStartUtc } from '@/src/hair/lib/salonTime';
 import { todayRevenuePaise } from '@/src/hair/services/invoices';
+import { getStaffTotalLeaderboard } from '@/src/hair/services/staffPerformance';
 import { getSalonSettings } from '@/src/hair/services/settings';
 
 async function paidRevenueBetween(from: Date, to: Date) {
@@ -59,6 +60,12 @@ async function topServicesBetween(from: Date, to: Date, limit = 5) {
 }
 
 async function staffRevenueBetween(from: Date, to: Date, limit = 5) {
+  try {
+    const attributed = await getStaffTotalLeaderboard({ from, to }, limit);
+    if (attributed.length > 0) return attributed;
+  } catch {
+    // attributions table may be missing before migration 0013
+  }
   const rows = await hairDb
     .select({
       staffId: fyhInvoiceLines.staffId,
@@ -152,3 +159,5 @@ export async function getReportsSnapshot(): Promise<ReportsSnapshot> {
     };
   }
 }
+
+export { paidRevenueBetween };

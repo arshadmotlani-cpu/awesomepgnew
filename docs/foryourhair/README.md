@@ -63,7 +63,7 @@ npm run hair:db:studio
 | Dashboard | Live KPIs from appointments + invoices + inventory |
 | Customers | Full CRM (`0002`–`0003`) |
 | Appointments | Calendar with Day/Week/Timeline/Chair/Stylist views, @dnd-kit drag/resize, conflict engine (`0007`) |
-| Billing | Visit checkout → invoice → payment split + print (`0008`) |
+| Billing | Appointment checkout + **Quick Sale** walk-in POS at `/quick-sale` (`0012`) |
 | Services | Production catalog (`0004`–`0005`) |
 | Products | Retail + consumables (`0006`) |
 | Staff | List/create + commission accrual on paid invoices |
@@ -75,3 +75,5 @@ npm run hair:db:studio
 Archive on services/products soft-deactivates only — rows remain for historical invoices; `listBookableServices()` excludes archived.
 
 Visit loop: Booked → Confirmed → Arrived → In Service → Completed → Invoice → Paid (or Cancelled / No Show).
+
+**Quick Sale** (Dashboard → **+ New → Quick Sale**) is separate from the appointment visit loop. Paid invoices store **staff attributions** (`serviced_by` / `sold_by`, revenue splits) as the sales SSOT; commission rules run in a future engine (dual-write legacy service commission on pay today). Reports sidebar expands under **Reports** with live revenue and staff-performance views.

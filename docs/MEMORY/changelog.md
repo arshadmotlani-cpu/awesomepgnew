@@ -9,6 +9,8 @@
 
 ## 2026-07-29
 
+- **FYH-SALES-SSOT** — Line attributions (0013), staff performance + Reports tree, Quick Sale serviced-by/sold-by; commission scaffold; super_admin for commission payout
+- **FYH-QUICK-SALE** — Walk-in Quick Sale POS (`/quick-sale`): customer codes, 1-char search, minimal add-customer, catalog tabs, cart, split pay + tip/round-off; invoice engine `quick_sale` source (no stock on pay; membership/package sell on pay)
 - **PROD-READINESS-AUDIT** — Vault audit doc + MV sign-off template; `isBedAvailable` occupancy SSOT gate; moveOut workflow test aligned to payout copy; UAT scorecard refresh
 - **REPO-STABILIZATION-W0-W4** — Platform: Hair E2E workflow + `ENV_CONTRACT.md` + `env:check --product=`; Hair P0 reports TZ, mobile billing/customers, syncStaff preserve; P1 staff schedules, resources CRUD, reports GST/top services/staff, billing copy; PG P0 runbook + occupancy phase0 status + parity tests; Capital sign-off doc + README/TASKS sync; dashboard `loading.tsx`
 - **FYH-UAT-P1** — UAT Phase 1: consumable deductInventory preserve + dashboard staff-on-schedule KPI; tests added

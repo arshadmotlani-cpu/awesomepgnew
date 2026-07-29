@@ -142,6 +142,7 @@ export function InvoicePayForm({
   const [cash, setCash] = useState(String(Math.max(0, duePaise) / 100));
   const [upi, setUpi] = useState('');
   const [card, setCard] = useState('');
+  const [bank, setBank] = useState('');
   const [wallet, setWallet] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -165,6 +166,10 @@ export function InvoicePayForm({
           <label className="text-sm text-fyh-text-secondary">Card ₹</label>
           <Input value={card} onChange={(e) => setCard(e.target.value)} />
         </div>
+        <div className="space-y-1">
+          <label className="text-sm text-fyh-text-secondary">Bank ₹</label>
+          <Input value={bank} onChange={(e) => setBank(e.target.value)} />
+        </div>
         {walletAvailablePaise > 0 ? (
           <div className="space-y-1">
             <label className="text-sm text-fyh-text-secondary">
@@ -184,6 +189,7 @@ export function InvoicePayForm({
             { method: 'cash' as const, amountPaise: Math.round(Number(cash || 0) * 100) },
             { method: 'upi' as const, amountPaise: Math.round(Number(upi || 0) * 100) },
             { method: 'card' as const, amountPaise: Math.round(Number(card || 0) * 100) },
+            { method: 'bank' as const, amountPaise: Math.round(Number(bank || 0) * 100) },
             { method: 'wallet' as const, amountPaise: Math.round(Number(wallet || 0) * 100) },
           ].filter((p) => p.amountPaise > 0);
           startTransition(async () => {

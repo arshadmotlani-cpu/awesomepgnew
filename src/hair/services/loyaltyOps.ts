@@ -46,7 +46,17 @@ export async function ensureDefaultMembershipPlans() {
 }
 
 export async function sellMembership(customerId: string, planId: string) {
-  const [plan] = await hairDb
+  return hairDb.transaction(async (tx) => {
+    return sellMembershipWithDb(tx as unknown as typeof hairDb, customerId, planId);
+  });
+}
+
+export async function sellMembershipWithDb(
+  db: typeof hairDb,
+  customerId: string,
+  planId: string,
+) {
+  const [plan] = await db
     .select()
     .from(fyhMembershipPlans)
     .where(eq(fyhMembershipPlans.id, planId))
@@ -55,11 +65,11 @@ export async function sellMembership(customerId: string, planId: string) {
   const starts = new Date();
   const expires = new Date(starts);
   expires.setDate(expires.getDate() + plan.validityDays);
-  await hairDb
+  await db
     .update(fyhCustomerMemberships)
     .set({ isActive: false })
     .where(eq(fyhCustomerMemberships.customerId, customerId));
-  const [row] = await hairDb
+  const [row] = await db
     .insert(fyhCustomerMemberships)
     .values({
       customerId,
@@ -68,7 +78,7 @@ export async function sellMembership(customerId: string, planId: string) {
       expiresOn: expires.toISOString().slice(0, 10),
     })
     .returning();
-  await hairDb
+  await db
     .update(fyhCustomers)
     .set({ membership: plan.name, updatedAt: new Date() })
     .where(eq(fyhCustomers.id, customerId));
@@ -84,11 +94,21 @@ export async function listPackagePlans() {
 }
 
 export async function sellPackage(customerId: string, planId: string) {
-  const [plan] = await hairDb.select().from(fyhPackagePlans).where(eq(fyhPackagePlans.id, planId)).limit(1);
+  return hairDb.transaction(async (tx) => {
+    return sellPackageWithDb(tx as unknown as typeof hairDb, customerId, planId);
+  });
+}
+
+export async function sellPackageWithDb(
+  db: typeof hairDb,
+  customerId: string,
+  planId: string,
+) {
+  const [plan] = await db.select().from(fyhPackagePlans).where(eq(fyhPackagePlans.id, planId)).limit(1);
   if (!plan) throw new Error('Package not found');
   const expires = new Date();
   expires.setDate(expires.getDate() + plan.validityDays);
-  const [row] = await hairDb
+  const [row] = await db
     .insert(fyhCustomerPackages)
     .values({
       customerId,
@@ -97,7 +117,7 @@ export async function sellPackage(customerId: string, planId: string) {
       expiresOn: expires.toISOString().slice(0, 10),
     })
     .returning();
-  await hairDb
+  await db
     .update(fyhCustomers)
     .set({
       packagesPurchased: sql`${fyhCustomers.packagesPurchased} + 1`,

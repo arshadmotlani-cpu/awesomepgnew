@@ -1,11 +1,15 @@
 import { sql } from 'drizzle-orm';
 import { index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
+export const FYH_ADMIN_ROLES = ['admin', 'super_admin'] as const;
+export type FyhAdminRole = (typeof FYH_ADMIN_ROLES)[number];
+
 export const fyhAdminUsers = pgTable('fyh_admin_users', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   displayName: text('display_name'),
+  role: text('role').$type<FyhAdminRole>().notNull().default('admin'),
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

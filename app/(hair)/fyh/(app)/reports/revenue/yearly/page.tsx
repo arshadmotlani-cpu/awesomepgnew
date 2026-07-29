@@ -1,0 +1,29 @@
+import { paidRevenueBetween } from '@/src/hair/services/reports';
+import { getSalonSettings } from '@/src/hair/services/settings';
+import { salonDayBounds } from '@/src/hair/lib/salonTime';
+import { formatInrFromPaise } from '@/src/hair/lib/money';
+
+export default async function RevenueYearlyPage() {
+  const settings = await getSalonSettings();
+  const tz = settings.timezone?.trim() || 'Asia/Kolkata';
+  const { end } = salonDayBounds(tz);
+  const yearStart = new Date(end);
+  yearStart.setUTCMonth(0, 1);
+  yearStart.setUTCHours(0, 0, 0, 0);
+  const year = await paidRevenueBetween(yearStart, end);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">Reports</p>
+        <h1 className="fyh-display mt-1 text-3xl font-semibold">Revenue · Yearly</h1>
+      </div>
+      <div className="fyh-glass p-6">
+        <p className="fyh-display text-3xl font-semibold tabular-nums">
+          {formatInrFromPaise(year.revenuePaise)}
+        </p>
+        <p className="mt-2 text-sm text-fyh-text-muted">{year.invoiceCount} paid invoices YTD (UTC year)</p>
+      </div>
+    </div>
+  );
+}

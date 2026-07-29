@@ -8,6 +8,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -57,6 +58,8 @@ export const fyhCustomers = pgTable(
   'fyh_customers',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    /** Display code e.g. CL00000174 */
+    customerCode: text('customer_code'),
     fullName: text('full_name').notNull(),
     phone: text('phone').notNull(),
     whatsapp: text('whatsapp'),
@@ -104,6 +107,7 @@ export const fyhCustomers = pgTable(
     index('fyh_customers_email_idx').on(t.email),
     index('fyh_customers_name_idx').on(t.fullName),
     index('fyh_customers_active_idx').on(t.isActive),
+    uniqueIndex('fyh_customers_code_uidx').on(t.customerCode),
   ],
 );
 

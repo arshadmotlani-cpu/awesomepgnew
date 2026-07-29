@@ -14,5 +14,6 @@ export * from './appointments';
 export * from './billing';
 export * from './inventory';
 export * from './commission';
+export * from './salesAttribution';
 export * from './loyalty';
 export * from './notifications';
