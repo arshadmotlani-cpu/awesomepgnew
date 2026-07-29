@@ -19,16 +19,23 @@ import {
   archiveCustomer,
   createCustomer,
   findSimilarCustomers,
+  listCustomers,
   type SimilarCustomer,
   updateCustomer,
   updateCustomerPhoto,
 } from '@/src/hair/services/customers';
+import type { FyhCustomer } from '@/src/hair/db/schema';
 
 export type CustomerActionState = {
   error?: string;
   success?: string;
   similar?: SimilarCustomer[];
 };
+
+export async function listCustomersAction(q?: string): Promise<FyhCustomer[]> {
+  await requireHairAuth();
+  return listCustomers({ q: q?.trim() || undefined });
+}
 
 function formStr(formData: FormData, key: string): string {
   return String(formData.get(key) ?? '').trim();
