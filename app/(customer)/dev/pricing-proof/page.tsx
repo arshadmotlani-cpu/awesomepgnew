@@ -45,8 +45,8 @@ export default function PricingSummaryProofPage() {
               pgName: 'Awesome PG · Production fixture',
               roomNumber: '12',
               bedCode: 'A',
-              stayType: 'monthly',
-              stayTypeLabel: 'Monthly stay',
+              stayType: 'monthly_stay',
+              stayTypeLabel: 'Live here (Monthly)',
               checkIn: '2026-07-01',
               rentPaise,
               depositPaise: totals.depositDueNowPaise,
@@ -70,7 +70,7 @@ export default function PricingSummaryProofPage() {
             roomNumber="12"
             bedCode="A"
             isReserveBooking={false}
-            durationMode="monthly"
+            durationMode="open_ended"
             expectedCheckoutDate={null}
             checkInDate="2026-07-01"
             subtotalPaise={rentPaise}
