@@ -1,6 +1,5 @@
-import { HairMobileNav } from '@/src/hair/components/HairMobileNav';
+import { HairAppHeader } from '@/src/hair/components/HairAppHeader';
 import { HairSidebar } from '@/src/hair/components/HairSidebar';
-import { HairTopBar } from '@/src/hair/components/HairTopBar';
 import { requireHairAuthPage } from '@/src/hair/lib/auth/guards';
 
 export default async function HairAppLayout({ children }: { children: React.ReactNode }) {
@@ -8,11 +7,10 @@ export default async function HairAppLayout({ children }: { children: React.Reac
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
-      <HairMobileNav />
       <HairSidebar />
       <div className="flex min-w-0 flex-1 flex-col">
-        <HairTopBar admin={admin} />
-        <main className="flex-1 overflow-auto p-4 md:p-8">{children}</main>
+        <HairAppHeader admin={admin} />
+        <main className="relative z-0 flex-1 overflow-auto p-4 md:p-8">{children}</main>
       </div>
     </div>
   );

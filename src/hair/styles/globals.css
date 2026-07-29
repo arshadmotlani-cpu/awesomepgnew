@@ -2,24 +2,25 @@
 
 :root,
 .fyh-theme-dark {
-  --fyh-bg-base: #0a120e;
-  --fyh-bg-elevated: #101a14;
-  --fyh-bg-surface: #162018;
-  --fyh-bg-glass: rgba(16, 36, 24, 0.55);
-  --fyh-accent: #c4a35a;
-  --fyh-accent-soft: #d4bc7a;
-  --fyh-forest: #1f6b4a;
-  --fyh-forest-deep: #0d3d2a;
-  --fyh-moss: #3d7a5a;
-  --fyh-success: #5ecf9a;
-  --fyh-warning: #e0b45a;
-  --fyh-danger: #e07a6a;
-  --fyh-text-primary: #f3efe6;
-  --fyh-text-secondary: #b8c4b6;
-  --fyh-text-muted: #7e8f82;
-  --fyh-border: rgba(196, 163, 90, 0.18);
-  --fyh-border-hover: rgba(196, 163, 90, 0.32);
-  --fyh-glow: rgba(31, 107, 74, 0.35);
+  --fyh-bg-base: #0c1510;
+  --fyh-bg-elevated: #141f18;
+  --fyh-bg-surface: #1c2a22;
+  --fyh-bg-glass: rgba(28, 42, 34, 0.72);
+  --fyh-accent: #d4bc7a;
+  --fyh-accent-soft: #e2cf96;
+  --fyh-forest: #2a8a5c;
+  --fyh-forest-deep: #0f4a32;
+  --fyh-moss: #4a9468;
+  --fyh-success: #6ee0a8;
+  --fyh-warning: #e8c066;
+  --fyh-danger: #f09080;
+  --fyh-text-primary: #faf8f4;
+  --fyh-text-secondary: #c8d4c6;
+  --fyh-text-muted: #94a89a;
+  --fyh-border: rgba(212, 188, 122, 0.22);
+  --fyh-border-strong: rgba(212, 188, 122, 0.38);
+  --fyh-border-hover: rgba(212, 188, 122, 0.48);
+  --fyh-glow: rgba(42, 138, 92, 0.38);
 }
 
 .fyh-theme-light {
@@ -82,12 +83,12 @@
 
 .fyh-glass {
   background: var(--fyh-bg-glass);
-  border: 1px solid var(--fyh-border);
+  border: 1px solid var(--fyh-border-strong);
   border-radius: 1.25rem;
   backdrop-filter: blur(22px) saturate(1.2);
   box-shadow:
-    0 8px 40px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    0 10px 48px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .fyh-theme-light .fyh-glass {
@@ -133,10 +134,23 @@
   display: flex;
   height: 2.75rem;
   width: 100%;
-  border-radius: 0.75rem;
-  border: 1px solid var(--fyh-border);
-  background: rgba(0, 0, 0, 0.2);
-  padding: 0 0.75rem;
+  border-radius: 0.875rem;
+  border: 1px solid var(--fyh-border-strong);
+  background: color-mix(in srgb, var(--fyh-bg-surface) 88%, black);
+  padding: 0 0.875rem;
   font-size: 0.875rem;
-  color: var(--fyh-text);
+  color: var(--fyh-text-primary);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.fyh-input::placeholder {
+  color: var(--fyh-text-muted);
+}
+
+.fyh-input:focus {
+  outline: none;
+  border-color: var(--fyh-border-hover);
+  box-shadow:
+    0 0 0 3px rgba(42, 138, 92, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }

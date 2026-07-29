@@ -39,7 +39,7 @@ export function HairNewRecordMenu() {
             aria-label="Close menu"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute right-0 top-full z-50 mt-2 min-w-[12rem] overflow-hidden rounded-xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] py-1 shadow-xl">
+          <div className="absolute right-0 top-full z-[200] mt-2 min-w-[12rem] overflow-hidden rounded-xl border border-[color:var(--fyh-border-strong)] bg-[color:var(--fyh-bg-elevated)] py-1 shadow-[0_16px_48px_rgba(0,0,0,0.4)]">
             {CREATE_LINKS.map((item) => (
               <Link
                 key={`${item.href}-${item.label}`}

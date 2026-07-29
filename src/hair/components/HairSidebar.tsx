@@ -83,7 +83,7 @@ export function HairSidebar({ className }: { className?: string }) {
   return (
     <aside
       className={cn(
-        'hidden w-64 shrink-0 border-r border-[color:var(--fyh-border)] bg-fyh-elevated/80 backdrop-blur-xl md:flex md:flex-col',
+        'hidden w-64 shrink-0 border-r border-[color:var(--fyh-border-strong)] bg-fyh-elevated/95 backdrop-blur-xl md:flex md:flex-col',
         className,
       )}
     >
