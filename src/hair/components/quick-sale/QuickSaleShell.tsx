@@ -4,18 +4,19 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import {
   completeQuickSaleAction,
-  createQuickCustomerAction,
   holdQuickSaleAction,
   listQuickSaleHoldsAction,
   loadQuickSaleHoldAction,
   previewQuickSaleTotalsAction,
   searchCustomersForPosAction,
 } from '@/src/hair/actions/quickSale';
+import { createQuickCustomerFromForm } from '@/src/hair/actions/quickSaleCustomer';
 import { PrintInvoiceButton } from '@/src/hair/components/billing/BillingUi';
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
 import { computeGrandTotalFromParts, sumCartLines } from '@/src/hair/lib/invoiceMath';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
+import { inferQuickSaleCustomerPrefill } from '@/src/hair/lib/quickSaleCustomerPrefill';
 import {
   ServicedByMulti,
   StaffTypeahead,
@@ -361,54 +362,67 @@ export function QuickSaleShell({ catalog }: { catalog: QuickSaleCatalog }) {
           <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">Quick Sale</p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold text-fyh-text">Find customer</h1>
         </div>
-        <Input
-          autoFocus
-          value={searchQ}
-          onChange={(e) => setSearchQ(e.target.value)}
-          placeholder="Search by name, phone number, customer code..."
-          className="h-14 text-lg"
-        />
-        <ul className="divide-y divide-[color:var(--fyh-border)] overflow-hidden rounded-2xl border border-[color:var(--fyh-border)] bg-black/10">
-          {searching && searchQ ? (
-            <li className="px-5 py-8 text-center text-sm text-fyh-text-muted">Searching…</li>
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-2">
+            <Input
+              autoFocus
+              value={searchQ}
+              onChange={(e) => setSearchQ(e.target.value)}
+              placeholder="Search name / phone / customer code"
+              className="h-14 min-w-0 flex-1 text-lg"
+            />
+            <Button
+              type="button"
+              className="h-14 shrink-0 px-4 whitespace-nowrap"
+              onClick={() => setAddOpen(true)}
+            >
+              + Add Customer
+            </Button>
+          </div>
+          {searchQ.trim().length >= 1 ? (
+            <ul className="divide-y divide-[color:var(--fyh-border)] overflow-hidden rounded-2xl border border-[color:var(--fyh-border)] bg-black/10">
+              {searching ? (
+                <li className="px-5 py-6 text-center text-sm text-fyh-text-muted">Searching…</li>
+              ) : searchHits.length > 0 ? (
+                searchHits.map((hit) => (
+                  <li key={hit.id}>
+                    <button
+                      type="button"
+                      className="flex w-full flex-col gap-0.5 px-5 py-4 text-left transition hover:bg-white/5"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setCustomer({ ...hit, walletBalancePaise: hit.walletBalancePaise });
+                        setAvailableWalletPaise(hit.walletBalancePaise);
+                        setHoldInvoiceId(null);
+                        setStep('sale');
+                      }}
+                    >
+                      <span className="text-base font-semibold uppercase tracking-wide text-fyh-text">
+                        {hit.fullName}
+                      </span>
+                      <span className="text-sm tabular-nums text-fyh-text-secondary">
+                        {hit.customerCode ?? '—'}
+                      </span>
+                      <span className="text-sm tabular-nums text-fyh-text-muted">{hit.phone}</span>
+                    </button>
+                  </li>
+                ))
+              ) : (
+                <li className="px-5 py-6 text-center text-sm text-fyh-text-muted">
+                  No matching customer
+                </li>
+              )}
+            </ul>
           ) : null}
-          {!searching &&
-            searchHits.map((hit) => (
-              <li key={hit.id}>
-                <button
-                  type="button"
-                  className="flex w-full flex-col gap-0.5 px-5 py-4 text-left transition hover:bg-white/5"
-                  onClick={() => {
-                    setCustomer({ ...hit, walletBalancePaise: hit.walletBalancePaise });
-                    setAvailableWalletPaise(hit.walletBalancePaise);
-                    setHoldInvoiceId(null);
-                    setStep('sale');
-                  }}
-                >
-                  <span className="text-base font-semibold uppercase tracking-wide text-fyh-text">
-                    {hit.fullName}
-                  </span>
-                  <span className="text-sm tabular-nums text-fyh-text-secondary">
-                    {hit.customerCode ?? '—'}
-                  </span>
-                  <span className="text-sm tabular-nums text-fyh-text-muted">{hit.phone}</span>
-                </button>
-              </li>
-            ))}
-          {!searching && searchQ.length >= 1 && searchHits.length === 0 ? (
-            <li className="space-y-4 px-5 py-10 text-center">
-              <p className="text-sm text-fyh-text-muted">No customer found</p>
-              <Button type="button" onClick={() => setAddOpen(true)}>
-                + Add Customer
-              </Button>
-            </li>
-          ) : null}
-        </ul>
+        </div>
         {addOpen ? (
           <QuickAddCustomerModal
+            key={`add-${searchQ}`}
+            prefill={inferQuickSaleCustomerPrefill(searchQ)}
             onClose={() => setAddOpen(false)}
             onCreated={(c) => {
               setCustomer(c);
+              setSearchQ(c.fullName || c.phone);
               setAddOpen(false);
               setHoldInvoiceId(null);
               setStep('sale');
@@ -933,38 +947,82 @@ function CatalogTile({
 }
 
 function QuickAddCustomerModal({
+  prefill,
   onClose,
   onCreated,
 }: {
+  prefill: { fullName: string; phone: string };
   onClose: () => void;
   onCreated: (c: SelectedCustomer) => void;
 }) {
-  const [pending, startTransition] = useTransition();
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const hide = window.setTimeout(() => setToast(null), 2800);
+    return () => window.clearTimeout(hide);
+  }, [toast]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+      {toast ? (
+        <div
+          role="status"
+          className="fixed top-6 left-1/2 z-[60] -translate-x-1/2 rounded-xl border border-fyh-accent/30 bg-fyh-accent/15 px-4 py-2 text-sm font-medium text-fyh-text shadow-lg"
+        >
+          ✓ {toast}
+        </div>
+      ) : null}
       <form
         className="fyh-glass w-full max-w-md space-y-4 p-6"
         onSubmit={(e) => {
           e.preventDefault();
           const fd = new FormData(e.currentTarget);
-          startTransition(async () => {
+          void (async () => {
+            setSaving(true);
             setError(null);
-            const res = await createQuickCustomerAction({}, fd);
-            if (res.error) setError(res.error);
-            else if (res.customer) onCreated({ ...res.customer, walletBalancePaise: 0 });
-          });
+            try {
+              const res = await createQuickCustomerFromForm(fd);
+              if (!res.ok) {
+                setError(res.error);
+                return;
+              }
+              setToast('Customer created successfully');
+              window.setTimeout(() => {
+                onCreated({ ...res.customer, walletBalancePaise: 0 });
+              }, 400);
+            } catch (err) {
+              setError(
+                err instanceof Error ? err.message : 'Could not create customer',
+              );
+            } finally {
+              setSaving(false);
+            }
+          })();
         }}
       >
         <h2 className="fyh-display text-xl font-semibold">Add customer</h2>
         <label className="block text-sm text-fyh-text-secondary">
           Customer name *
-          <Input name="fullName" required className="mt-1 h-11" autoFocus />
+          <Input
+            name="fullName"
+            required
+            defaultValue={prefill.fullName}
+            className="mt-1 h-11"
+            autoFocus
+          />
         </label>
         <label className="block text-sm text-fyh-text-secondary">
           Phone number *
-          <Input name="phone" required type="tel" className="mt-1 h-11" />
+          <Input
+            name="phone"
+            required
+            type="tel"
+            defaultValue={prefill.phone}
+            className="mt-1 h-11"
+          />
         </label>
         <label className="block text-sm text-fyh-text-secondary">
           Gender
@@ -981,11 +1039,21 @@ function QuickAddCustomerModal({
         </label>
         {error ? <p className="text-sm text-fyh-danger">{error}</p> : null}
         <div className="flex gap-2 pt-2">
-          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
+          <Button type="button" variant="secondary" className="flex-1" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
-          <Button type="submit" disabled={pending} className="flex-1">
-            {pending ? 'Saving…' : 'Save'}
+          <Button type="submit" disabled={saving} className="flex-1">
+            {saving ? (
+              <span className="inline-flex items-center justify-center gap-2">
+                <span
+                  className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                  aria-hidden
+                />
+                Creating customer…
+              </span>
+            ) : (
+              'Save'
+            )}
           </Button>
         </div>
       </form>

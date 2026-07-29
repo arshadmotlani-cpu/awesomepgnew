@@ -44,7 +44,7 @@ export async function createCustomerQuick(input: QuickCustomerInput) {
   if (!phone) throw new Error('Phone number is required');
 
   return hairDb.transaction(async (tx) => {
-    await assertPhoneUnique(phone);
+    await assertPhoneUnique(phone, undefined, tx);
     const customerCode = await nextCustomerCode(tx as unknown as typeof hairDb);
     const [row] = await tx
       .insert(fyhCustomers)
@@ -118,10 +118,14 @@ export type SimilarCustomer = {
   matchReason: string;
 };
 
-async function assertPhoneUnique(phone: string, excludeId?: string) {
+async function assertPhoneUnique(
+  phone: string,
+  excludeId?: string,
+  db: Pick<typeof hairDb, 'select'> = hairDb,
+) {
   const conditions = [eq(fyhCustomers.phone, phone), eq(fyhCustomers.isActive, true)];
   if (excludeId) conditions.push(ne(fyhCustomers.id, excludeId));
-  const [existing] = await hairDb
+  const [existing] = await db
     .select({ id: fyhCustomers.id, fullName: fyhCustomers.fullName })
     .from(fyhCustomers)
     .where(and(...conditions))

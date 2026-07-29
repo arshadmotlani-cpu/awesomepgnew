@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireHairAuth } from '@/src/hair/lib/auth/guards';
-import { createCustomerQuick } from '@/src/hair/services/customers';
+import { createQuickCustomerFromForm } from '@/src/hair/actions/quickSaleCustomer';
 import {
   buildInvoicePrintHtml,
   finalizeQuickSale,
@@ -30,33 +30,18 @@ export async function searchStaffForPosAction(query: string) {
   return searchStaffForPos(query);
 }
 
+/** @deprecated Prefer createQuickCustomerFromForm — kept for useActionState callers. */
 export async function createQuickCustomerAction(
   _prev: QuickSaleActionState,
   formData: FormData,
-): Promise<QuickSaleActionState & { customer?: { id: string; fullName: string; customerCode: string | null; phone: string } }> {
-  try {
-    await requireHairAuth();
-    const fullName = String(formData.get('fullName') ?? '').trim();
-    const phone = String(formData.get('phone') ?? '').trim();
-    const genderRaw = String(formData.get('gender') ?? 'female').trim();
-    const gender =
-      genderRaw === 'male' || genderRaw === 'other' || genderRaw === 'prefer_not_to_say'
-        ? genderRaw
-        : 'female';
-    const row = await createCustomerQuick({ fullName, phone, gender });
-    revalidatePath('/customers');
-    return {
-      success: 'Customer created',
-      customer: {
-        id: row.id,
-        fullName: row.fullName,
-        customerCode: row.customerCode,
-        phone: row.phone,
-      },
-    };
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : 'Could not create customer' };
+): Promise<
+  QuickSaleActionState & {
+    customer?: { id: string; fullName: string; customerCode: string | null; phone: string };
   }
+> {
+  const res = await createQuickCustomerFromForm(formData);
+  if (!res.ok) return { error: res.error };
+  return { success: 'Customer created', customer: res.customer };
 }
 
 export async function previewQuickSaleTotalsAction(input: {
