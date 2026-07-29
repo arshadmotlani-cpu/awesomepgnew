@@ -6,7 +6,7 @@
 
 | Product | Automated | Operational |
 |---------|-----------|-------------|
-| **Hair** | `tests/hair/**`, Playwright `npm run test:e2e:hair`, nightly workflow when secrets set | [`UAT_AUDIT.md`](foryourhair/UAT_AUDIT.md), [`RELEASE_READINESS.md`](foryourhair/RELEASE_READINESS.md) |
+| **Hair** | `tests/hair/**` (`npm run test:hair`), Playwright `npm run test:e2e:hair`, nightly workflow when secrets set | [`UAT_AUDIT.md`](foryourhair/UAT_AUDIT.md), [`RELEASE_READINESS.md`](foryourhair/RELEASE_READINESS.md), [`QUICK_SALE.md`](foryourhair/QUICK_SALE.md) |
 | **PG** | `tests/unit/**`, smoke E2E in CI | [`PRODUCTION_READINESS_AUDIT.md`](PRODUCTION_READINESS_AUDIT.md), [`PG_P0_VERIFICATION_RUNBOOK.md`](PRODUCTION_STABILIZATION/PG_P0_VERIFICATION_RUNBOOK.md), [`PRODUCTION_READINESS_SIGNOFF.md`](PRODUCTION_STABILIZATION/PRODUCTION_READINESS_SIGNOFF.md) |
 | **Capital** | `tests/capital/unit/**` in main test runner | [`PRODUCTION_SIGNOFF.md`](automotive-capital/PRODUCTION_SIGNOFF.md) |
 

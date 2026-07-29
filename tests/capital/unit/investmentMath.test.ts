@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import assert from 'node:assert/strict';
+import test from 'node:test';
 import {
   computeBudgetRemaining,
   computeCurrentInvestment,
@@ -7,8 +8,8 @@ import {
   splitDealProfit,
 } from '../../../src/capital/lib/investmentMath';
 
-describe('investmentMath SSOT', () => {
-  it('computes current investment = seller + costs − refunds', () => {
+test('investmentMath SSOT', async (t) => {
+  await t.test('computes current investment = seller + costs − refunds', () => {
     const r = computeCurrentInvestment({
       sellerPricePaise: 1_000_000_00,
       costs: [
@@ -16,40 +17,39 @@ describe('investmentMath SSOT', () => {
         { amountPaise: -10_000_00, isRefund: true },
       ],
     });
-    expect(r.currentInvestmentPaise).toBe(1_040_000_00);
-    expect(r.costsPaise).toBe(50_000_00);
-    expect(r.refundsPaise).toBe(10_000_00);
+    assert.equal(r.currentInvestmentPaise, 1_040_000_00);
+    assert.equal(r.costsPaise, 50_000_00);
+    assert.equal(r.refundsPaise, 10_000_00);
   });
 
-  it('budget remaining may go negative', () => {
-    expect(computeBudgetRemaining(100, 150)).toBe(-50);
+  await t.test('budget remaining may go negative', () => {
+    assert.equal(computeBudgetRemaining(100, 150), -50);
   });
 
-  it('splits Self vs 50-50', () => {
-    expect(splitDealProfit(101, 'SELF')).toEqual({
+  await t.test('splits Self vs 50-50', () => {
+    assert.deepEqual(splitDealProfit(101, 'SELF'), {
       myProfitPaise: 101,
       partnerProfitPaise: 0,
     });
-    expect(splitDealProfit(101, 'PARTNERSHIP_50_50')).toEqual({
+    assert.deepEqual(splitDealProfit(101, 'PARTNERSHIP_50_50'), {
       myProfitPaise: 51,
       partnerProfitPaise: 50,
     });
   });
 
-  it('gross and seller remaining', () => {
-    expect(computeGrossDealProfit(200, 150)).toBe(50);
-    expect(computeGrossDealProfit(200, 150, 25)).toBe(75);
-    expect(remainingToSeller(100, 40)).toBe(60);
-    expect(remainingToSeller(0, 10)).toBeNull();
+  await t.test('gross and seller remaining', () => {
+    assert.equal(computeGrossDealProfit(200, 150), 50);
+    assert.equal(computeGrossDealProfit(200, 150, 25), 75);
+    assert.equal(remainingToSeller(100, 40), 60);
+    assert.equal(remainingToSeller(0, 10), null);
   });
 
-  it('additional income does not change TVI', () => {
+  await t.test('additional income does not change TVI', () => {
     const inv = computeCurrentInvestment({
       sellerPricePaise: 1_000_00,
       costs: [{ amountPaise: 50_00 }],
     });
-    expect(inv.currentInvestmentPaise).toBe(1_050_00);
-    // Income is outside sumCostsAndRefunds / computeCurrentInvestment
-    expect(computeGrossDealProfit(2_000_00, inv.currentInvestmentPaise, 100_00)).toBe(1_050_00);
+    assert.equal(inv.currentInvestmentPaise, 1_050_00);
+    assert.equal(computeGrossDealProfit(2_000_00, inv.currentInvestmentPaise, 100_00), 1_050_00);
   });
 });

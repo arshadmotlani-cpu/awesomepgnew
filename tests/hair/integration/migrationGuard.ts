@@ -1,0 +1,39 @@
+import { sql } from 'drizzle-orm';
+import { hairDb } from '@/src/hair/db/client';
+
+export type HairMigrationProbe = {
+  ok: boolean;
+  missing: string[];
+  hint: string;
+};
+
+const MIGRATE_CMD = 'npm run hair:db:migrate';
+
+/** Probes columns/tables required for Quick Sale + attribution integration tests. */
+export async function probeHairQuickSaleMigrations(): Promise<HairMigrationProbe> {
+  const missing: string[] = [];
+  const checks: Array<{ label: string; query: ReturnType<typeof sql> }> = [
+    { label: '0012 fyh_invoices.source', query: sql`SELECT source FROM fyh_invoices LIMIT 0` },
+    { label: '0013 fyh_invoice_line_attributions', query: sql`SELECT id FROM fyh_invoice_line_attributions LIMIT 0` },
+    { label: '0014 fyh_invoices.pos_draft', query: sql`SELECT pos_draft FROM fyh_invoices LIMIT 0` },
+  ];
+  for (const c of checks) {
+    try {
+      await hairDb.execute(c.query);
+    } catch {
+      missing.push(c.label);
+    }
+  }
+  return {
+    ok: missing.length === 0,
+    missing,
+    hint:
+      missing.length > 0
+        ? `Hair DB is missing migrations (${missing.join(', ')}). Run: ${MIGRATE_CMD}`
+        : '',
+  };
+}
+
+export function migrationSkipMessage(probe: HairMigrationProbe): string {
+  return probe.hint || `Hair migrations not applied. Run: ${MIGRATE_CMD}`;
+}

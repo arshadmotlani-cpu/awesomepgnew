@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import assert from 'node:assert/strict';
+import test from 'node:test';
 import {
   VEHICLE_ADDITIONAL_INCOME_TYPES,
   VEHICLE_ADDITIONAL_INCOME_TYPE_LABELS,
@@ -10,32 +11,33 @@ import {
   sumCostsAndRefunds,
 } from '../../../src/capital/lib/investmentMath';
 
-describe('additional income ledger isolation', () => {
-  it('exposes seven income types with labels', () => {
-    expect(VEHICLE_ADDITIONAL_INCOME_TYPES).toHaveLength(7);
-    expect(VEHICLE_ADDITIONAL_INCOME_TYPES).toContain('brokerage');
-    for (const t of VEHICLE_ADDITIONAL_INCOME_TYPES) {
-      expect(VEHICLE_ADDITIONAL_INCOME_TYPE_LABELS[t]).toBeTruthy();
+test('additional income ledger isolation', async (t) => {
+  await t.test('exposes seven income types with labels', () => {
+    assert.equal(VEHICLE_ADDITIONAL_INCOME_TYPES.length, 7);
+    assert.ok(VEHICLE_ADDITIONAL_INCOME_TYPES.includes('brokerage'));
+    for (const typ of VEHICLE_ADDITIONAL_INCOME_TYPES) {
+      assert.ok(VEHICLE_ADDITIONAL_INCOME_TYPE_LABELS[typ]);
     }
   });
 
-  it('sums non-reversed income only', () => {
-    expect(
+  await t.test('sums non-reversed income only', () => {
+    assert.equal(
       sumAdditionalIncome([
         { amountPaise: 10_000_00 },
         { amountPaise: 5_000_00, isReversed: true },
         { amountPaise: -100, isReversed: false },
         { amountPaise: 2_500_00 },
       ]),
-    ).toBe(12_500_00);
+      12_500_00,
+    );
   });
 
-  it('income never enters cost/refund sums or TVI', () => {
+  await t.test('income never enters cost/refund sums or TVI', () => {
     const costs = sumCostsAndRefunds([
       { amountPaise: 20_000_00 },
       { amountPaise: -5_000_00, isRefund: true },
     ]);
-    expect(costs.netCostsPaise).toBe(15_000_00);
+    assert.equal(costs.netCostsPaise, 15_000_00);
 
     const inv = computeCurrentInvestment({
       sellerPricePaise: 100_000_00,
@@ -44,14 +46,11 @@ describe('additional income ledger isolation', () => {
         { amountPaise: -5_000_00, isRefund: true },
       ],
     });
-    expect(inv.currentInvestmentPaise).toBe(115_000_00);
+    assert.equal(inv.currentInvestmentPaise, 115_000_00);
 
     const income = sumAdditionalIncome([{ amountPaise: 8_000_00 }]);
-    expect(computeGrossDealProfit(150_000_00, inv.currentInvestmentPaise)).toBe(35_000_00);
-    expect(computeGrossDealProfit(150_000_00, inv.currentInvestmentPaise, income)).toBe(
-      43_000_00,
-    );
-    // TVI unchanged when income present
-    expect(inv.currentInvestmentPaise).toBe(115_000_00);
+    assert.equal(computeGrossDealProfit(150_000_00, inv.currentInvestmentPaise), 35_000_00);
+    assert.equal(computeGrossDealProfit(150_000_00, inv.currentInvestmentPaise, income), 43_000_00);
+    assert.equal(inv.currentInvestmentPaise, 115_000_00);
   });
 });

@@ -76,4 +76,6 @@ Archive on services/products soft-deactivates only — rows remain for historica
 
 Visit loop: Booked → Confirmed → Arrived → In Service → Completed → Invoice → Paid (or Cancelled / No Show).
 
-**Quick Sale** (Dashboard → **+ New → Quick Sale**) is separate from the appointment visit loop. Paid invoices store **staff attributions** (`serviced_by` / `sold_by`, revenue splits) as the sales SSOT; commission rules run in a future engine (dual-write legacy service commission on pay today). Reports sidebar expands under **Reports** with live revenue and staff-performance views.
+**Quick Sale** (Dashboard → **+ New → Quick Sale**) is the walk-in billing workflow (`0012`–`0014`). **Hold bill** stores draft invoices with cart, attributions, and payment draft; checkout promotes the draft to a numbered invoice. **Sales attributions** are the performance SSOT; commission rules table is schema-ready only. See [QUICK_SALE.md](./QUICK_SALE.md), [FEATURES.md](./FEATURES.md), [WORKFLOWS.md](./WORKFLOWS.md).
+
+Run Hair tests: `npm run test:hair` (integration needs `npm run hair:db:migrate`).

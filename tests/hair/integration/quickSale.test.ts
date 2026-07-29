@@ -3,7 +3,7 @@ loadAppEnv();
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import {
   fyhCustomerMemberships,
@@ -16,14 +16,13 @@ import {
   getInvoiceGrandTotal,
   recordInvoicePayments,
 } from '@/src/hair/services/invoices';
+import { loadQuickSaleHold, saveQuickSaleHold } from '@/src/hair/services/quickSaleHold';
 import { createRcCustomer, requireRcFixtures } from './rcFixtures.ts';
+import { migrationSkipMessage, probeHairQuickSaleMigrations } from './migrationGuard.ts';
 
 test('quick sale paid: activates membership, skips product stock', async (t) => {
-  try {
-    await hairDb.execute(sql`SELECT source FROM fyh_invoices LIMIT 0`);
-  } catch {
-    t.skip('Hair migration 0012_quick_sale not applied — run npm run hair:db:migrate');
-  }
+  const probe = await probeHairQuickSaleMigrations();
+  if (!probe.ok) t.skip(migrationSkipMessage(probe));
   const f = await requireRcFixtures();
   const customer = await createRcCustomer('qs');
   const [productBefore] = await hairDb
@@ -75,4 +74,36 @@ test('quick sale paid: activates membership, skips product stock', async (t) => 
     )
     .limit(1);
   assert.ok(mem);
+});
+
+test('quick sale hold: save draft and restore cart', async (t) => {
+  const probe = await probeHairQuickSaleMigrations();
+  if (!probe.ok) t.skip(migrationSkipMessage(probe));
+
+  const f = await requireRcFixtures();
+  const customer = await createRcCustomer('hold');
+
+  const holdId = await saveQuickSaleHold({
+    customerId: customer.id,
+    lines: [
+      { kind: 'service', refId: f.cut.id, quantity: 1, servicedBy: [{ staffId: f.staff.id }] },
+    ],
+    posDraft: { paymentDraft: { cash: '500' }, tipPaise: 1000 },
+    tipPaise: 1000,
+  });
+
+  const [inv] = await hairDb
+    .select()
+    .from(fyhInvoices)
+    .where(eq(fyhInvoices.id, holdId))
+    .limit(1);
+  assert.equal(inv?.status, 'draft');
+  assert.equal(inv?.source, 'quick_sale');
+  assert.match(inv?.invoiceNumber ?? '', /^HOLD-/);
+
+  const loaded = await loadQuickSaleHold(holdId);
+  assert.ok(loaded);
+  assert.equal(loaded!.cart.length, 1);
+  assert.equal(loaded!.cart[0]!.servicedBy[0]?.id, f.staff.id);
+  assert.equal(loaded!.posDraft?.paymentDraft?.cash, '500');
 });

@@ -9,6 +9,7 @@
 
 ## 2026-07-29
 
+- **FYH-QUICK-SALE-STABILIZE** — Hold bill (`0014` pos_draft), attribution math SSOT (`attributionMath.ts`), reports attribution-driven, commission rules schema future-ready, `npm run test:hair`, migration guard for integration tests, Vitest removed from 2 Capital unit tests, gitignore Playwright artifacts
 - **FYH-SALES-SSOT** — Line attributions (0013), staff performance + Reports tree, Quick Sale serviced-by/sold-by; commission scaffold; super_admin for commission payout
 - **FYH-QUICK-SALE** — Walk-in Quick Sale POS (`/quick-sale`): customer codes, 1-char search, minimal add-customer, catalog tabs, cart, split pay + tip/round-off; invoice engine `quick_sale` source (no stock on pay; membership/package sell on pay)
 - **PROD-READINESS-AUDIT** — Vault audit doc + MV sign-off template; `isBedAvailable` occupancy SSOT gate; moveOut workflow test aligned to payout copy; UAT scorecard refresh

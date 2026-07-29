@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lt, ne, or, sql } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import {
   fyhAppointmentServices,
@@ -106,6 +106,12 @@ export async function listInvoices(limit = 50) {
     })
     .from(fyhInvoices)
     .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhInvoices.customerId))
+    .where(
+      or(
+        ne(fyhInvoices.status, 'draft'),
+        ne(fyhInvoices.source, 'quick_sale'),
+      ),
+    )
     .orderBy(desc(fyhInvoices.createdAt))
     .limit(limit);
 }
@@ -141,6 +147,10 @@ export async function getInvoiceDetail(invoiceId: string) {
     .where(eq(fyhInvoicePayments.invoiceId, invoiceId));
 
   return { ...invoice, lines, payments };
+}
+
+export async function nextInvoiceNumberForTx(tx: typeof hairDb): Promise<string> {
+  return nextInvoiceNumber(tx);
 }
 
 async function nextInvoiceNumber(tx: typeof hairDb): Promise<string> {
@@ -389,7 +399,7 @@ export async function createInvoiceFromAppointment(
   return invoiceId;
 }
 
-async function resolveQuickSaleDrafts(
+export async function resolveQuickSaleDrafts(
   lines: QuickSaleLineInput[],
 ): Promise<{ drafts: InvoiceLineDraft[]; meta: QuickSaleLineInput[] }> {
   if (!lines.length) throw new Error('Add at least one item to the cart');
@@ -641,15 +651,27 @@ export async function finalizeQuickSale(input: {
   roundOffPaise?: number;
   stylistId?: string | null;
   notes?: string | null;
+  holdInvoiceId?: string | null;
 }) {
-  const invoiceId = await createQuickSaleInvoice(input.customerId, input.lines, {
-    discountPaise: input.discountPaise,
-    walletRedeemPaise: input.walletRedeemPaise,
-    tipPaise: input.tipPaise,
-    roundOffPaise: input.roundOffPaise,
-    stylistId: input.stylistId,
-    notes: input.notes,
-  });
+  const invoiceId = input.holdInvoiceId
+    ? await (
+        await import('@/src/hair/services/quickSaleHold')
+      ).releaseQuickSaleHoldForCheckout(input.holdInvoiceId, {
+        customerId: input.customerId,
+        lines: input.lines,
+        discountPaise: input.discountPaise,
+        walletRedeemPaise: input.walletRedeemPaise,
+        tipPaise: input.tipPaise,
+        roundOffPaise: input.roundOffPaise,
+      })
+    : await createQuickSaleInvoice(input.customerId, input.lines, {
+        discountPaise: input.discountPaise,
+        walletRedeemPaise: input.walletRedeemPaise,
+        tipPaise: input.tipPaise,
+        roundOffPaise: input.roundOffPaise,
+        stylistId: input.stylistId,
+        notes: input.notes,
+      });
   const due = await getInvoiceGrandTotal(invoiceId);
   const paySum = input.payments.reduce((s, p) => s + Math.max(0, p.amountPaise), 0);
   if (due > 0 && paySum < due) {
@@ -690,6 +712,9 @@ export async function recordInvoicePayments(
     if (invoice.status === 'void') throw new Error('Invoice is void');
     if (invoice.status === 'paid') {
       throw new Error('Invoice is already paid');
+    }
+    if (invoice.status === 'draft') {
+      throw new Error('Complete checkout from Quick Sale — this bill is still on hold');
     }
 
     const wasUnpaid = !invoice.paidAt;
@@ -868,7 +893,7 @@ async function applyLegacyServiceCommission(
   }
 }
 
-async function applyPaidSideEffects(db: typeof hairDb, invoiceId: string) {
+export async function applyPaidSideEffects(db: typeof hairDb, invoiceId: string) {
   const [invoice] = await db.select().from(fyhInvoices).where(eq(fyhInvoices.id, invoiceId)).limit(1);
   if (!invoice) return;
 

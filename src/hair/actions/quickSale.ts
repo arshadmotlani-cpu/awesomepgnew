@@ -11,6 +11,12 @@ import {
   type QuickSaleLineInput,
 } from '@/src/hair/services/invoices';
 import { previewQuickSaleTotals, searchCustomersForPos, searchStaffForPos } from '@/src/hair/services/quickSale';
+import {
+  listQuickSaleHolds,
+  loadQuickSaleHold,
+  saveQuickSaleHold,
+} from '@/src/hair/services/quickSaleHold';
+import type { QuickSalePosDraft } from '@/src/hair/db/schema/billing';
 
 export type QuickSaleActionState = { error?: string; success?: string; invoiceId?: string };
 
@@ -80,6 +86,7 @@ export async function completeQuickSaleAction(input: {
   tipPaise?: number;
   roundOffPaise?: number;
   stylistId?: string | null;
+  holdInvoiceId?: string | null;
 }): Promise<QuickSaleActionState & { printHtml?: string }> {
   try {
     await requireHairAuth();
@@ -92,5 +99,35 @@ export async function completeQuickSaleAction(input: {
     return { success: 'Sale complete', invoiceId, printHtml };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Could not complete sale' };
+  }
+}
+
+export async function listQuickSaleHoldsAction() {
+  await requireHairAuth();
+  return listQuickSaleHolds();
+}
+
+export async function loadQuickSaleHoldAction(invoiceId: string) {
+  await requireHairAuth();
+  return loadQuickSaleHold(invoiceId);
+}
+
+export async function holdQuickSaleAction(input: {
+  customerId: string;
+  lines: QuickSaleLineInput[];
+  holdInvoiceId?: string | null;
+  posDraft?: QuickSalePosDraft | null;
+  discountPaise?: number;
+  walletRedeemPaise?: number;
+  tipPaise?: number;
+  roundOffPaise?: number;
+}): Promise<QuickSaleActionState & { holdInvoiceId?: string }> {
+  try {
+    await requireHairAuth();
+    const holdInvoiceId = await saveQuickSaleHold(input);
+    revalidatePath('/quick-sale');
+    return { success: 'Bill held', holdInvoiceId };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Could not hold bill' };
   }
 }

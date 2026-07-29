@@ -5,6 +5,9 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import {
   completeQuickSaleAction,
   createQuickCustomerAction,
+  holdQuickSaleAction,
+  listQuickSaleHoldsAction,
+  loadQuickSaleHoldAction,
   previewQuickSaleTotalsAction,
   searchCustomersForPosAction,
 } from '@/src/hair/actions/quickSale';
@@ -20,6 +23,13 @@ import {
 } from '@/src/hair/components/quick-sale/QuickSaleStaffPickers';
 import type { QuickSaleCatalog, PosCustomerHit } from '@/src/hair/services/quickSale';
 import type { PaymentSplitInput, QuickSaleLineInput } from '@/src/hair/services/invoices';
+import {
+  attributedNetForShare,
+  discountBpsFromPaise,
+  discountPaiseFromBps,
+  normalizeEqualShares,
+} from '@/src/hair/lib/attributionMath';
+import type { QuickSaleHoldSummary } from '@/src/hair/services/quickSaleHold';
 
 type SelectedCustomer = PosCustomerHit & { walletBalancePaise?: number };
 
@@ -27,13 +37,35 @@ function lineGrossPaise(line: { unitPricePaise: number; quantity: number }) {
   return line.unitPricePaise * line.quantity;
 }
 
-function discountBpsFromPaise(grossPaise: number, discountPaise: number) {
-  if (grossPaise <= 0) return 0;
-  return Math.min(10_000, Math.round((discountPaise * 10_000) / grossPaise));
+function cartToQuickSaleLines(cart: CartLine[]): QuickSaleLineInput[] {
+  return cart.map((c) => ({
+    kind: c.kind,
+    refId: c.refId,
+    quantity: c.quantity,
+    lineDiscountPaise: c.lineDiscountPaise,
+    lineDiscountBps: c.lineDiscountBps,
+    servicedBy:
+      c.kind === 'service' ? c.servicedBy.map((s) => ({ staffId: s.id })) : undefined,
+    soldByStaffId: c.kind !== 'service' ? (c.soldBy?.id ?? null) : undefined,
+    staffId:
+      c.kind === 'service' ? (c.servicedBy[0]?.id ?? null) : (c.soldBy?.id ?? null),
+  }));
 }
 
-function discountPaiseFromBps(grossPaise: number, bps: number) {
-  return Math.min(grossPaise, Math.round((grossPaise * Math.max(0, bps)) / 10_000));
+function paymentDraftFromFields(pay: {
+  payCash: string;
+  payUpi: string;
+  payCard: string;
+  payBank: string;
+  payWallet: string;
+}) {
+  return {
+    cash: pay.payCash,
+    upi: pay.payUpi,
+    card: pay.payCard,
+    bank: pay.payBank,
+    wallet: pay.payWallet,
+  };
 }
 
 type CartLine = {
@@ -110,7 +142,23 @@ export function QuickSaleShell({ catalog }: { catalog: QuickSaleCatalog }) {
   const [payCard, setPayCard] = useState('');
   const [payBank, setPayBank] = useState('');
   const [payWallet, setPayWallet] = useState('');
+  const [holdInvoiceId, setHoldInvoiceId] = useState<string | null>(null);
+  const [heldBills, setHeldBills] = useState<QuickSaleHoldSummary[]>([]);
   const [pending, startTransition] = useTransition();
+
+  const refreshHeldBills = useCallback(() => {
+    startTransition(async () => {
+      try {
+        setHeldBills(await listQuickSaleHoldsAction());
+      } catch {
+        setHeldBills([]);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (step === 'customer') refreshHeldBills();
+  }, [step, refreshHeldBills]);
 
   useEffect(() => {
     if (searchQ.trim().length < 1) {
@@ -226,14 +274,65 @@ export function QuickSaleShell({ catalog }: { catalog: QuickSaleCatalog }) {
     setCustomer(null);
     setSearchQ('');
     setCart([]);
+    setHoldInvoiceId(null);
     setInvoiceId(null);
     setPrintHtml(null);
+    setInvoiceDiscountPaise(0);
+    setWalletRedeemPaise(0);
+    setTipPaise(0);
+    setRoundOffPaise(0);
     setPayCash('');
     setPayUpi('');
     setPayCard('');
     setPayBank('');
     setPayWallet('');
     setError(null);
+  }
+
+  async function resumeHold(invoiceId: string) {
+    setError(null);
+    const detail = await loadQuickSaleHoldAction(invoiceId);
+    if (!detail) {
+      setError('Held bill not found');
+      return;
+    }
+    setHoldInvoiceId(detail.invoiceId);
+    setCustomer({
+      id: detail.customer.id,
+      fullName: detail.customer.fullName,
+      customerCode: detail.customer.customerCode,
+      phone: detail.customer.phone,
+      walletBalancePaise: detail.customer.walletBalancePaise,
+    });
+    setAvailableWalletPaise(detail.customer.walletBalancePaise);
+    setCart(
+      detail.cart.map((line, i) => ({
+        key: `${line.kind}-${line.refId}-hold-${i}`,
+        kind: line.kind,
+        refId: line.refId,
+        name: line.name,
+        unitPricePaise: line.unitPricePaise,
+        gstBps: line.gstBps,
+        quantity: line.quantity,
+        lineDiscountPaise: line.lineDiscountPaise,
+        lineDiscountBps: line.lineDiscountBps,
+        servicedBy: line.servicedBy,
+        soldBy: line.soldBy,
+      })),
+    );
+    setInvoiceDiscountPaise(detail.invoiceDiscountPaise);
+    setWalletRedeemPaise(detail.walletRedeemPaise);
+    setTipPaise(detail.tipPaise);
+    setRoundOffPaise(detail.roundOffPaise);
+    const draft = detail.posDraft?.paymentDraft;
+    if (draft) {
+      setPayCash(draft.cash ?? '');
+      setPayUpi(draft.upi ?? '');
+      setPayCard(draft.card ?? '');
+      setPayBank(draft.bank ?? '');
+      setPayWallet(draft.wallet ?? '');
+    }
+    setStep('sale');
   }
 
   if (step === 'done' && invoiceId) {
@@ -284,6 +383,7 @@ export function QuickSaleShell({ catalog }: { catalog: QuickSaleCatalog }) {
                   onClick={() => {
                     setCustomer({ ...hit, walletBalancePaise: hit.walletBalancePaise });
                     setAvailableWalletPaise(hit.walletBalancePaise);
+                    setHoldInvoiceId(null);
                     setStep('sale');
                   }}
                 >
@@ -312,9 +412,38 @@ export function QuickSaleShell({ catalog }: { catalog: QuickSaleCatalog }) {
             onCreated={(c) => {
               setCustomer(c);
               setAddOpen(false);
+              setHoldInvoiceId(null);
               setStep('sale');
             }}
           />
+        ) : null}
+        {heldBills.length > 0 ? (
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-fyh-text-muted">
+              Held bills
+            </h2>
+            <ul className="divide-y divide-[color:var(--fyh-border)] overflow-hidden rounded-2xl border border-[color:var(--fyh-border)] bg-black/10">
+              {heldBills.map((hold) => (
+                <li key={hold.invoiceId}>
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition hover:bg-white/5"
+                    onClick={() => resumeHold(hold.invoiceId)}
+                  >
+                    <span>
+                      <span className="block font-semibold text-fyh-text">{hold.customerName}</span>
+                      <span className="text-xs text-fyh-text-muted">
+                        {hold.lineCount} items · {hold.customerCode ?? hold.phone}
+                      </span>
+                    </span>
+                    <span className="tabular-nums text-fyh-accent">
+                      {formatInrFromPaise(hold.grandTotalPaise)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
         ) : null}
       </div>
     );
@@ -552,19 +681,24 @@ export function QuickSaleShell({ catalog }: { catalog: QuickSaleCatalog }) {
                     />
                     {line.servicedBy.length > 0 ? (
                       <ul className="text-xs text-fyh-text-muted">
-                        {line.servicedBy.map((s) => {
+                        {(() => {
                           const net = Math.max(
                             0,
                             line.unitPricePaise * line.quantity - line.lineDiscountPaise,
                           );
-                          const share = Math.round(net / line.servicedBy.length);
-                          return (
-                            <li key={s.id} className="flex justify-between tabular-nums">
-                              <span>{s.fullName}</span>
-                              <span>{formatInrFromPaise(share)}</span>
-                            </li>
-                          );
-                        })}
+                          const shares = normalizeEqualShares(line.servicedBy.map((s) => s.id));
+                          return line.servicedBy.map((s) => {
+                            const shareBps =
+                              shares.find((x) => x.staffId === s.id)?.shareBps ?? 10_000;
+                            const share = attributedNetForShare(net, shareBps);
+                            return (
+                              <li key={s.id} className="flex justify-between tabular-nums">
+                                <span>{s.fullName}</span>
+                                <span>{formatInrFromPaise(share)}</span>
+                              </li>
+                            );
+                          });
+                        })()}
                       </ul>
                     ) : null}
                   </div>
@@ -683,62 +817,85 @@ export function QuickSaleShell({ catalog }: { catalog: QuickSaleCatalog }) {
 
         {error ? <p className="text-sm text-fyh-danger">{error}</p> : null}
 
-        <Button
-          type="button"
-          disabled={pending || !customer || cart.length === 0}
-          className="h-12 w-full text-base"
-          onClick={() => {
-            if (!customer) return;
-            const payments: PaymentSplitInput[] = (
-              [
-                { method: 'cash' as const, amountPaise: Math.round(Number(payCash || 0) * 100) },
-                { method: 'upi' as const, amountPaise: Math.round(Number(payUpi || 0) * 100) },
-                { method: 'card' as const, amountPaise: Math.round(Number(payCard || 0) * 100) },
-                { method: 'bank' as const, amountPaise: Math.round(Number(payBank || 0) * 100) },
-                { method: 'wallet' as const, amountPaise: Math.round(Number(payWallet || 0) * 100) },
-              ] as PaymentSplitInput[]
-            ).filter((p) => p.amountPaise > 0);
-
-            const lines: QuickSaleLineInput[] = cart.map((c) => ({
-              kind: c.kind,
-              refId: c.refId,
-              quantity: c.quantity,
-              lineDiscountPaise: c.lineDiscountPaise,
-              lineDiscountBps: c.lineDiscountBps,
-              servicedBy:
-                c.kind === 'service'
-                  ? c.servicedBy.map((s) => ({ staffId: s.id }))
-                  : undefined,
-              soldByStaffId:
-                c.kind !== 'service' ? (c.soldBy?.id ?? null) : undefined,
-              staffId:
-                c.kind === 'service'
-                  ? (c.servicedBy[0]?.id ?? null)
-                  : (c.soldBy?.id ?? null),
-            }));
-
-            startTransition(async () => {
-              setError(null);
-              const res = await completeQuickSaleAction({
-                customerId: customer.id,
-                lines,
-                payments,
-                discountPaise: invoiceDiscountPaise,
-                walletRedeemPaise,
-                tipPaise,
-                roundOffPaise,
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={pending || !customer || cart.length === 0}
+            className="h-12"
+            onClick={() => {
+              if (!customer) return;
+              startTransition(async () => {
+                setError(null);
+                const res = await holdQuickSaleAction({
+                  customerId: customer.id,
+                  lines: cartToQuickSaleLines(cart),
+                  holdInvoiceId,
+                  posDraft: {
+                    paymentDraft: paymentDraftFromFields({
+                      payCash,
+                      payUpi,
+                      payCard,
+                      payBank,
+                      payWallet,
+                    }),
+                  },
+                  discountPaise: invoiceDiscountPaise,
+                  walletRedeemPaise,
+                  tipPaise,
+                  roundOffPaise,
+                });
+                if (res.error) setError(res.error);
+                else {
+                  setHoldInvoiceId(null);
+                  resetForNext();
+                }
               });
-              if (res.error) setError(res.error);
-              else if (res.invoiceId) {
-                setInvoiceId(res.invoiceId);
-                setPrintHtml(res.printHtml ?? null);
-                setStep('done');
-              }
-            });
-          }}
-        >
-          {pending ? 'Processing…' : 'Complete sale'}
-        </Button>
+            }}
+          >
+            Hold bill
+          </Button>
+          <Button
+            type="button"
+            disabled={pending || !customer || cart.length === 0}
+            className="h-12"
+            onClick={() => {
+              if (!customer) return;
+              const payments: PaymentSplitInput[] = (
+                [
+                  { method: 'cash' as const, amountPaise: Math.round(Number(payCash || 0) * 100) },
+                  { method: 'upi' as const, amountPaise: Math.round(Number(payUpi || 0) * 100) },
+                  { method: 'card' as const, amountPaise: Math.round(Number(payCard || 0) * 100) },
+                  { method: 'bank' as const, amountPaise: Math.round(Number(payBank || 0) * 100) },
+                  { method: 'wallet' as const, amountPaise: Math.round(Number(payWallet || 0) * 100) },
+                ] as PaymentSplitInput[]
+              ).filter((p) => p.amountPaise > 0);
+
+              startTransition(async () => {
+                setError(null);
+                const res = await completeQuickSaleAction({
+                  customerId: customer.id,
+                  lines: cartToQuickSaleLines(cart),
+                  payments,
+                  discountPaise: invoiceDiscountPaise,
+                  walletRedeemPaise,
+                  tipPaise,
+                  roundOffPaise,
+                  holdInvoiceId,
+                });
+                if (res.error) setError(res.error);
+                else if (res.invoiceId) {
+                  setHoldInvoiceId(null);
+                  setInvoiceId(res.invoiceId);
+                  setPrintHtml(res.printHtml ?? null);
+                  setStep('done');
+                }
+              });
+            }}
+          >
+            {pending ? 'Processing…' : 'Complete sale'}
+          </Button>
+        </div>
       </aside>
     </div>
   );

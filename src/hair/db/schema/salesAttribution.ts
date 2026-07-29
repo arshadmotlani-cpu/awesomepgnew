@@ -46,6 +46,10 @@ export const FYH_COMMISSION_RULE_SCOPES = [
   'product',
   'package',
   'membership',
+  'gift_card',
+  'retail',
+  'course',
+  'bridal',
   'global',
 ] as const;
 export type FyhCommissionRuleScope = (typeof FYH_COMMISSION_RULE_SCOPES)[number];
@@ -55,8 +59,17 @@ export const FYH_COMMISSION_RULE_TYPES = [
   'flat_amount',
   'tiered_percent',
   'fixed_bonus',
+  'role_based',
 ] as const;
 export type FyhCommissionRuleType = (typeof FYH_COMMISSION_RULE_TYPES)[number];
+
+/** Documented commission rule config shapes (engine not evaluated in billing hot path). */
+export type FyhCommissionRuleConfig =
+  | { kind: 'flat_percent'; percentBps: number }
+  | { kind: 'flat_amount'; amountPaise: number }
+  | { kind: 'tiered_percent'; tiers: Array<{ minNetPaise: number; percentBps: number }> }
+  | { kind: 'fixed_bonus'; amountPaise: number; minNetPaise?: number }
+  | { kind: 'role_based'; role: string; percentBps?: number; amountPaise?: number };
 
 export const fyhCommissionRules = pgTable(
   'fyh_commission_rules',
@@ -65,12 +78,24 @@ export const fyhCommissionRules = pgTable(
     scope: text('scope').$type<FyhCommissionRuleScope>().notNull(),
     scopeRefId: uuid('scope_ref_id'),
     ruleType: text('rule_type').$type<FyhCommissionRuleType>().notNull(),
-    config: jsonb('config').$type<Record<string, unknown>>().notNull().default({}),
+    config: jsonb('config').$type<FyhCommissionRuleConfig | Record<string, unknown>>().notNull().default({}),
+    effectiveFrom: timestamp('effective_from', { withTimezone: true }),
+    effectiveTo: timestamp('effective_to', { withTimezone: true }),
+    priority: integer('priority').notNull().default(100),
+    staffRole: text('staff_role'),
     isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('fyh_commission_rules_scope_idx').on(t.scope, t.scopeRefId, t.isActive)],
+  (t) => [
+    index('fyh_commission_rules_scope_idx').on(t.scope, t.scopeRefId, t.isActive),
+    index('fyh_commission_rules_effective_idx').on(
+      t.isActive,
+      t.priority,
+      t.effectiveFrom,
+      t.effectiveTo,
+    ),
+  ],
 );
 
 export type FyhInvoiceLineAttribution = typeof fyhInvoiceLineAttributions.$inferSelect;

@@ -1,9 +1,16 @@
 import { and, eq, gte, lt, sql } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
-import { fyhInvoiceLines, fyhInvoices, fyhServices, fyhStaff } from '@/src/hair/db/schema';
+import {
+  fyhInvoiceLineAttributions,
+  fyhInvoiceLines,
+  fyhInvoices,
+  fyhServices,
+} from '@/src/hair/db/schema';
 import { salonDayBounds, salonMonthStartUtc, salonWeekStartUtc } from '@/src/hair/lib/salonTime';
 import { todayRevenuePaise } from '@/src/hair/services/invoices';
-import { getStaffTotalLeaderboard } from '@/src/hair/services/staffPerformance';
+import {
+  getStaffTotalLeaderboard,
+} from '@/src/hair/services/staffPerformance';
 import { getSalonSettings } from '@/src/hair/services/settings';
 
 async function paidRevenueBetween(from: Date, to: Date) {
@@ -33,21 +40,22 @@ async function topServicesBetween(from: Date, to: Date, limit = 5) {
     .select({
       serviceId: fyhInvoiceLines.serviceId,
       name: fyhServices.name,
-      totalPaise: sql<number>`coalesce(sum(${fyhInvoiceLines.lineTotalPaise}), 0)::bigint`,
+      totalPaise: sql<number>`coalesce(sum(${fyhInvoiceLineAttributions.attributedNetPaise}), 0)::bigint`,
     })
-    .from(fyhInvoiceLines)
+    .from(fyhInvoiceLineAttributions)
+    .innerJoin(fyhInvoiceLines, eq(fyhInvoiceLines.id, fyhInvoiceLineAttributions.invoiceLineId))
     .innerJoin(fyhInvoices, eq(fyhInvoices.id, fyhInvoiceLines.invoiceId))
     .leftJoin(fyhServices, eq(fyhServices.id, fyhInvoiceLines.serviceId))
     .where(
       and(
         eq(fyhInvoices.status, 'paid'),
-        eq(fyhInvoiceLines.kind, 'service'),
+        eq(fyhInvoiceLineAttributions.revenueMetric, 'service'),
         gte(fyhInvoices.paidAt, from),
         lt(fyhInvoices.paidAt, to),
       ),
     )
     .groupBy(fyhInvoiceLines.serviceId, fyhServices.name)
-    .orderBy(sql`sum(${fyhInvoiceLines.lineTotalPaise}) desc`)
+    .orderBy(sql`sum(${fyhInvoiceLineAttributions.attributedNetPaise}) desc`)
     .limit(limit);
 
   return rows
@@ -60,39 +68,7 @@ async function topServicesBetween(from: Date, to: Date, limit = 5) {
 }
 
 async function staffRevenueBetween(from: Date, to: Date, limit = 5) {
-  try {
-    const attributed = await getStaffTotalLeaderboard({ from, to }, limit);
-    if (attributed.length > 0) return attributed;
-  } catch {
-    // attributions table may be missing before migration 0013
-  }
-  const rows = await hairDb
-    .select({
-      staffId: fyhInvoiceLines.staffId,
-      name: fyhStaff.fullName,
-      totalPaise: sql<number>`coalesce(sum(${fyhInvoiceLines.lineTotalPaise}), 0)::bigint`,
-    })
-    .from(fyhInvoiceLines)
-    .innerJoin(fyhInvoices, eq(fyhInvoices.id, fyhInvoiceLines.invoiceId))
-    .leftJoin(fyhStaff, eq(fyhStaff.id, fyhInvoiceLines.staffId))
-    .where(
-      and(
-        eq(fyhInvoices.status, 'paid'),
-        gte(fyhInvoices.paidAt, from),
-        lt(fyhInvoices.paidAt, to),
-      ),
-    )
-    .groupBy(fyhInvoiceLines.staffId, fyhStaff.fullName)
-    .orderBy(sql`sum(${fyhInvoiceLines.lineTotalPaise}) desc`)
-    .limit(limit);
-
-  return rows
-    .filter((r) => r.staffId)
-    .map((r) => ({
-      staffId: r.staffId!,
-      name: r.name ?? 'Staff',
-      revenuePaise: Number(r.totalPaise ?? 0),
-    }));
+  return getStaffTotalLeaderboard({ from, to }, limit);
 }
 
 export type ReportsSnapshot = {

@@ -7,7 +7,7 @@
 
 ## Current Focus
 
-- **For Your Hair ERP (Services + Products + Appointments)** — Salon ERP on `fyhair.awesomepg.in`. RC verification **Production Ready** (2026-07-29): see `docs/foryourhair/RELEASE_READINESS.md`. Run `npm run hair:db:migrate` (through `0011`) + seed on Hair Neon before deploy.
+- **For Your Hair ERP (Quick Sale stabilized)** — Hold bill, attribution splits in `share_bps`, docs `docs/foryourhair/QUICK_SALE.md`. **Next phase only:** inventory consumption, package redemption, membership consumption on Quick Sale pay. Migrate through **`0014`** (`npm run hair:db:migrate`).
 
 - **Automotive Capital audit remediation (shipped locally)** — Money integrity (activity reverse↔cost/seller ledgers), settle without capital-return gate, Reports = Dashboard Active Capital / entitled My Profit, Purchase Pending = seller Remaining SSOT, vehicle IA collapsed to Overview|Work|Sale|Files.
 

@@ -92,6 +92,13 @@
       "when": 1754800000000,
       "tag": "0013_sales_attribution",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1754900000000,
+      "tag": "0014_quick_sale_stabilization",
+      "breakpoints": true
     }
   ]
 }

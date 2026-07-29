@@ -5,7 +5,7 @@ import {
   discountBpsFromPaise,
   discountPaiseFromBps,
   normalizeEqualShares,
-} from '../../../src/hair/services/salesAttribution.ts';
+} from '../../../src/hair/lib/attributionMath.ts';
 
 test('normalizeEqualShares splits 10000 bps', () => {
   const shares = normalizeEqualShares(['a', 'b']);
@@ -26,6 +26,20 @@ test('service line dual serviced_by attribution', () => {
     servicedBy: [{ staffId: 's1' }, { staffId: 's2' }],
   });
   assert.equal(rows.length, 2);
+  assert.equal(rows.reduce((s, r) => s + r.attributedNetPaise, 0), 10_000);
+});
+
+test('service line custom share bps', () => {
+  const rows = buildAttributionRows({
+    kind: 'service',
+    lineNetPaise: 10_000,
+    servicedBy: [
+      { staffId: 's1', shareBps: 7000 },
+      { staffId: 's2', shareBps: 3000 },
+    ],
+  });
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0]!.shareBps, 7000);
   assert.equal(rows.reduce((s, r) => s + r.attributedNetPaise, 0), 10_000);
 });
 

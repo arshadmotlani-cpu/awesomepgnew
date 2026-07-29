@@ -3,6 +3,7 @@ import {
   bigint,
   index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   text,
@@ -38,6 +39,21 @@ export const FYH_INVOICE_LINE_KINDS = [
 ] as const;
 export type FyhInvoiceLineKind = (typeof FYH_INVOICE_LINE_KINDS)[number];
 export type FyhInvoiceSource = 'appointment' | 'quick_sale';
+
+/** Stored on draft quick-sale invoices (`status = draft`) until payment. */
+export type QuickSalePosDraft = {
+  paymentDraft?: {
+    cash?: string;
+    upi?: string;
+    card?: string;
+    bank?: string;
+    wallet?: string;
+  };
+  invoiceDiscountPaise?: number;
+  walletRedeemPaise?: number;
+  tipPaise?: number;
+  roundOffPaise?: number;
+};
 
 export const FYH_INVOICE_SOURCES = ['appointment', 'quick_sale'] as const;
 
@@ -79,6 +95,8 @@ export const fyhInvoices = pgTable(
     tipPaise: bigint('tip_paise', { mode: 'number' }).notNull().default(0),
     roundOffPaise: bigint('round_off_paise', { mode: 'number' }).notNull().default(0),
     notes: text('notes'),
+    /** Quick Sale hold — payment draft and POS-only fields until checkout. */
+    posDraft: jsonb('pos_draft').$type<QuickSalePosDraft | null>(),
     paidAt: timestamp('paid_at', { withTimezone: true }),
     voidedAt: timestamp('voided_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
