@@ -27,10 +27,14 @@ export type OverviewSection = {
 export type PropertyPerformanceRow = {
   pgId: string;
   pgName: string;
-  totalRevenuePaise: number;
+  /** Rent principal + late fees + electricity + other income — excludes deposits. */
+  operatingRevenuePaise: number;
   rentRevenuePaise: number;
   electricityRevenuePaise: number;
-  depositRevenuePaise: number;
+  lateFeePaise: number;
+  otherIncomePaise: number;
+  /** Deposit cash collected in billing month (ledger) — not operating revenue. */
+  depositCollectedPaise: number;
   occupancyPct: number;
   occupiedBeds: number;
   totalBeds: number;
@@ -107,14 +111,20 @@ export function selectFeaturedPropertyRows(
   return result;
 }
 
-function toPropertyPerformanceRow(row: RevenueByPgRow, billingMonth: string): PropertyPerformanceRow {
+/** Maps a RevenueByPgRow into the Property Performance card shape (SSOT-only input). */
+export function toPropertyPerformanceRow(
+  row: RevenueByPgRow,
+  billingMonth: string,
+): PropertyPerformanceRow {
   return {
     pgId: row.pgId,
     pgName: row.pgName,
-    totalRevenuePaise: row.totalRevenuePaise,
+    operatingRevenuePaise: row.totalRevenuePaise,
     rentRevenuePaise: row.rentRevenuePaise,
     electricityRevenuePaise: row.electricityRevenuePaise,
-    depositRevenuePaise: row.depositCollectedPaise,
+    lateFeePaise: row.lateFeePaise,
+    otherIncomePaise: row.otherIncomePaise,
+    depositCollectedPaise: row.depositCollectedPaise,
     occupancyPct: row.occupancyPct,
     occupiedBeds: row.occupiedBeds,
     totalBeds: row.totalBeds,

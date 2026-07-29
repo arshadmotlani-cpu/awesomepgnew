@@ -6,6 +6,7 @@ import {
   formatOverviewMetricValue,
   selectFeaturedPropertyRows,
 } from '@/src/services/overviewDashboard';
+import { revenueByPgRowReconciles } from '@/src/services/revenueCommandCenter';
 import type { OverviewReportingSnapshot } from '@/src/services/overviewReportingService';
 import type { RevenueByPgRow } from '@/src/services/revenueCommandCenter';
 
@@ -22,7 +23,7 @@ function samplePgRow(overrides: Partial<RevenueByPgRow> & { pgId: string; pgName
     depositPaidCount: 1,
     depositPendingCount: 0,
     depositRequirementMissingCount: 0,
-    totalRevenuePaise: 170_000,
+    totalRevenuePaise: 120_000,
     ...overrides,
   };
 }
@@ -231,6 +232,9 @@ test('buildOverviewDashboard maps reporting snapshot without transforming values
     75,
   );
   assert.equal(dashboard.propertyPerformance.length, 1);
+  const perf = dashboard.propertyPerformance[0]!;
+  assert.equal(perf.operatingRevenuePaise, 120_000);
+  assert.equal(revenueByPgRowReconciles(snapshot.revenue.byPg[0]!), true);
   assert.equal(
     dashboard.sections.find((s) => s.id === 'invoices_collections')!.metrics.some((m) => m.id === 'rent_outstanding'),
     false,

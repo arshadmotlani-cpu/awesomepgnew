@@ -6,7 +6,7 @@
  * existing payment row (no duplicate payment insert). Deposits stay on
  * deposit_ledger only — never revenue.
  */
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   bedReservations,
@@ -186,6 +186,29 @@ export async function applyBookingRentInvoiceOnPaymentSuccess(input: {
     return { ok: false, reason: ensured.error };
   }
 
+  // Checkout coupons apply to first-period rent only — stamp onto this invoice so
+  // mark-paid compares principal to net due (gross − discount), not gross rent.
+  const bookingDiscountPaise = Math.max(0, input.booking.discountPaise ?? 0);
+  if (bookingDiscountPaise > 0) {
+    const promoCode =
+      input.booking.pricingSnapshot?.appliedDiscount?.code ??
+      input.booking.pricingSnapshot?.dateCoupon?.code ??
+      null;
+    await db
+      .update(rentInvoices)
+      .set({
+        discountPaise: bookingDiscountPaise,
+        promoCode,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(rentInvoices.id, ensured.invoiceId),
+          inArray(rentInvoices.status, ['pending', 'overdue', 'payment_in_progress']),
+        ),
+      );
+  }
+
   const marked = await markRentInvoicePaidFromExistingPayment({
     invoiceId: ensured.invoiceId,
     paymentId: input.paymentId,
@@ -198,6 +221,7 @@ export async function applyBookingRentInvoiceOnPaymentSuccess(input: {
       durationMode: input.booking.durationMode,
       checkoutRentPaisePaid: rentPaisePaid,
       advanceRentCreditPaise: proration.advanceRentCreditPaise,
+      bookingDiscountPaise,
     },
   });
 

@@ -96,8 +96,16 @@ export default async function RevenueModulePage({
       <div className="space-y-8">
         <RevenueMonthSummary
           billingMonth={billingMonth}
-          summary={data.summary}
           revenue={data.revenue}
+          occupancy={
+            data.dashboard
+              ? {
+                  occupiedBeds: data.dashboard.occupiedBeds,
+                  totalBeds: data.dashboard.totalBeds,
+                  occupancyPct: data.dashboard.occupancyPct,
+                }
+              : undefined
+          }
         />
 
         <DateCouponAdminPanel {...couponSnapshot} />
@@ -146,7 +154,7 @@ export default async function RevenueModulePage({
             />
           </div>
           <div className="xl:col-span-3">
-            <OverviewFinancialPanels summary={data.summary} />
+            <OverviewFinancialPanels revenue={data.revenue} />
           </div>
         </div>
       </div>

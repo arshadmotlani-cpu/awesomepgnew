@@ -57,7 +57,7 @@
 
 ## Latest Decisions
 
-See [[decisions]] · Recent: MEMORY engine + `docs/.cursor/rules.md` + `brain-sync.sh` (2026-06-22)
+See [[decisions]] · Recent: Property Performance / Overview money = `getRevenueCommandCenterData` only (2026-07-29); MEMORY engine + `docs/.cursor/rules.md` + `brain-sync.sh` (2026-06-22)
 
 ---
 
@@ -130,14 +130,15 @@ See [[tasks]] for full task log. Current:
 <!-- SEMANTIC_STATE_START -->
 ## Semantic State
 
-> **Last analyzed:** 2026-07-28T18:16:39Z
+> **Last analyzed:** 2026-07-29T04:26:52Z
 
-- **Current system intent:** The AI memory / intelligence automation layer is being extended — cognition pipeline or MEMORY structure changed.
-- **Dominant change type:** TASK
-- **System momentum:** MEDIUM (4 vault commits in 24h)
+- **Current system intent:** Move-out and checkout documentation is evolving — likely reflecting vacating ops or refund workflow changes.
+- **Dominant change type:** MIXED (see changelog)
+- **System momentum:** MEDIUM (5 vault commits in 24h)
 - **Risk level:** LOW
 
 <!-- SEMANTIC_STATE_END -->
+
 
 
 

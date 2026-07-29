@@ -78,4 +78,15 @@ mustInclude(
   'Canonical financial workspace href helper exists',
 );
 
+mustInclude(
+  'src/components/admin/overview/OverviewDashboard.tsx',
+  'Operating revenue',
+  'Overview property performance uses operating revenue label',
+);
+mustInclude(
+  'src/components/admin/overview/OverviewDashboard.tsx',
+  'Late fees',
+  'Overview property performance shows late fees column',
+);
+
 console.log('OK — financial SSOT static checks passed.');

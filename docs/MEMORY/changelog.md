@@ -7,6 +7,11 @@
 
 ---
 
+## 2026-07-29
+
+- **PG-PROPERTY-PERFORMANCE-SSOT** — Dropped parallel `getCachedPgBusinessMetrics` / summary from `loadOverviewContext`; Operations/Collections PG pages + Revenue month panels use `revenue.byPg` / `revenue.mtd` only; audits + `propertyPerformanceSsot` tests guard drift
+- **PG-PROPERTY-PERFORMANCE-AUDIT** — Property Performance widget aligned with Revenue SSOT: operating revenue label, late fees column, reconciliation helpers/tests; deposits remain ledger-only (excluded from operating totals)
+
 ## 2026-07-28
 
 - **FYH-SERVICES-PROD** — Production Services + Products: migrations `0005`/`0006`, staff assign, commission, consumables (deduction off), online/analytics fields, archive keeps invoice history; Products CRUD; minimal Staff UI
@@ -560,5 +565,26 @@ Files:
 - MEMORY/changelog.md
 - MEMORY/tasks.md
 - foryourhair/README.md
+
+---
+
+<!-- SEMANTIC_2026-07-29T04:26:52Z -->
+---
+Time: 2026-07-29T04:26:52Z
+Type: MIXED
+Impact: HIGH
+Reason: Move-out and checkout documentation is evolving — likely reflecting vacating ops or refund workflow changes.
+Files:
+- CHANGELOG.md
+- CURRENT_STATE.md
+- MEMORY/changelog.md
+- MEMORY/decisions.md
+- MEMORY/insights.md
+- MEMORY/tasks.md
+- qa/pricing-summary-proof/desktop-booking-review.png
+- qa/pricing-summary-proof/desktop-full-page.png
+- qa/pricing-summary-proof/mobile-booking-review.png
+- qa/pricing-summary-proof/mobile-checkout-compact.png
+- qa/pricing-summary-proof/mobile-full-page.png
 
 ---

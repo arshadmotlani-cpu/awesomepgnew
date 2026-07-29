@@ -1,13 +1,8 @@
-import type { BusinessMetricsSummary, PgBusinessMetrics } from '@/src/db/queries/admin';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { cache } from 'react';
 import { adminRequestScopeKey } from '@/src/lib/admin/adminRequestCache';
 import { profileAdminStep } from '@/src/lib/admin/adminProfile';
-import {
-  getCachedBusinessMetricsSummary,
-  getCachedPgBusinessMetrics,
-} from '@/src/services/adminKpiCache';
 import { syncActionItems } from '@/src/services/actionItems';
 import type { ExecutiveMetrics } from '@/src/services/executiveMetrics';
 import {
@@ -15,10 +10,13 @@ import {
   type OverviewReportingSnapshot,
 } from '@/src/services/overviewReportingService';
 
-/** Full overview context — reporting snapshot plus revenue-module summary fields. */
+/**
+ * Overview context — reporting snapshot + optional executive metrics.
+ * Money (Today / MTD / Property Performance) comes only from
+ * `revenue` (= getRevenueCommandCenterData). Do not re-attach parallel
+ * getCachedPgBusinessMetrics / BusinessMetricsSummary here.
+ */
 export type OverviewContext = OverviewReportingSnapshot & {
-  summary: BusinessMetricsSummary;
-  pgMetrics: PgBusinessMetrics[];
   executiveMetrics: ExecutiveMetrics | null;
 };
 
@@ -91,27 +89,14 @@ async function loadOverviewContextImpl(
     };
   }
 
-  const [summary, metrics, executiveMetrics] = await Promise.all([
-    getCachedBusinessMetricsSummary(billingMonth),
-    getCachedPgBusinessMetrics(billingMonth),
-    import('@/src/services/executiveMetrics').then((m) =>
-      m.getExecutiveMetrics(billingMonth).catch(() => null),
-    ),
-  ]);
-
-  if (!summary.ok) {
-    return { ok: false, error: summary.error, partial: { billingMonth, monthLabel } };
-  }
-  if (!metrics.ok) {
-    return { ok: false, error: metrics.error, partial: { billingMonth, monthLabel } };
-  }
+  const executiveMetrics = await import('@/src/services/executiveMetrics')
+    .then((m) => m.getExecutiveMetrics(billingMonth).catch(() => null))
+    .catch(() => null);
 
   return {
     ok: true,
     data: {
       ...reporting,
-      summary: summary.data,
-      pgMetrics: metrics.data,
       executiveMetrics,
     },
   };

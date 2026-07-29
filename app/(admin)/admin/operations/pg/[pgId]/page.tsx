@@ -12,7 +12,7 @@ import {
   listPgs,
 } from '@/src/db/queries/admin';
 import { requireAdminSession } from '@/src/lib/auth/guards';
-import { ADMIN_MODULES, moduleHref, modulePgHref } from '@/src/lib/admin/navigation';
+import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import { paiseToInr } from '@/src/lib/format';
 import { loadOverviewContext } from '@/src/services/overviewData';
@@ -37,7 +37,7 @@ export default async function RevenuePgPage({
 
   const session = await requireAdminSession('/admin/operations');
   const ctx = await loadOverviewContext(session, billingMonth, { syncActions: false });
-  const pgMetrics = ctx.ok ? ctx.data.pgMetrics.find((m) => m.pgId === pgId) : null;
+  const pgRow = ctx.ok ? ctx.data.revenue.byPg.find((m) => m.pgId === pgId) : null;
 
   const [rentRes, elecRes, depositRes] = await Promise.all([
     listAdminRentInvoices({ pgId }),
@@ -84,19 +84,19 @@ export default async function RevenuePgPage({
         }
       />
 
-      {pgMetrics ? (
+      {pgRow ? (
         <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[
-            ['Rent', pgMetrics.incomeRentPaise],
-            ['Electricity', pgMetrics.incomeElectricityPaise],
-            ['Total in', pgMetrics.incomeTotalPaise],
+            ['Rent', pgRow.rentRevenuePaise],
+            ['Electricity', pgRow.electricityRevenuePaise],
+            ['Operating revenue', pgRow.totalRevenuePaise],
             ['Occupancy', null],
           ].map(([label, paise]) => (
             <div key={String(label)} className="rounded-xl border border-white/10 bg-[#1A1F27] p-4">
               <p className="text-[10px] uppercase text-apg-silver">{label}</p>
               <p className="mt-2 text-xl font-semibold text-white">
                 {label === 'Occupancy'
-                  ? `${pgMetrics.occupancyPct}%`
+                  ? `${pgRow.occupancyPct}%`
                   : paiseToInr(paise as number)}
               </p>
             </div>

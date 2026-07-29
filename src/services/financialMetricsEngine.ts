@@ -64,6 +64,25 @@ export function splitRentAndLateFees(input: {
   return { rentPrincipalPaise, lateFeePaise };
 }
 
+/** Sum of operating buckets — excludes deposit cash (liability, not revenue). */
+export function sumOperatingRevenueComponents(input: {
+  rentPrincipalPaise: number;
+  lateFeePaise: number;
+  electricityPaise: number;
+  otherIncomePaise: number;
+}): number {
+  return (
+    Math.max(0, input.rentPrincipalPaise) +
+    Math.max(0, input.lateFeePaise) +
+    Math.max(0, input.electricityPaise) +
+    Math.max(0, input.otherIncomePaise)
+  );
+}
+
+export function operatingRevenueReconciles(breakdown: OperatingRevenueBreakdown): boolean {
+  return breakdown.operatingRevenuePaise === sumOperatingRevenueComponents(breakdown);
+}
+
 export function computeOperatingRevenue(input: {
   rentPrincipalPaise: number;
   lateFeePaise: number;

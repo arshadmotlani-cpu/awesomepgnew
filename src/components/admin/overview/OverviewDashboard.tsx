@@ -76,10 +76,11 @@ function PropertyPerformanceTable({ rows }: { rows: PropertyPerformanceRow[] }) 
         <thead className="border-b border-white/10 bg-[#141820] text-[10px] uppercase tracking-wide text-apg-silver">
           <tr>
             <th className="px-4 py-3 font-medium">Property</th>
-            <th className="px-4 py-3 font-medium">Total Revenue</th>
+            <th className="px-4 py-3 font-medium">Operating revenue</th>
             <th className="px-4 py-3 font-medium">Rent</th>
             <th className="px-4 py-3 font-medium">Electricity</th>
-            <th className="px-4 py-3 font-medium">Deposit</th>
+            <th className="px-4 py-3 font-medium">Late fees</th>
+            <th className="px-4 py-3 font-medium">Deposits collected</th>
             <th className="px-4 py-3 font-medium">Occupancy</th>
           </tr>
         </thead>
@@ -91,10 +92,11 @@ function PropertyPerformanceTable({ rows }: { rows: PropertyPerformanceRow[] }) 
                   {row.pgName}
                 </Link>
               </td>
-              <td className="px-4 py-3 text-white">{paiseToInr(row.totalRevenuePaise)}</td>
+              <td className="px-4 py-3 font-medium text-white">{paiseToInr(row.operatingRevenuePaise)}</td>
               <td className="px-4 py-3 text-emerald-300">{paiseToInr(row.rentRevenuePaise)}</td>
               <td className="px-4 py-3 text-sky-300">{paiseToInr(row.electricityRevenuePaise)}</td>
-              <td className="px-4 py-3 text-violet-300">{paiseToInr(row.depositRevenuePaise)}</td>
+              <td className="px-4 py-3 text-amber-300">{paiseToInr(row.lateFeePaise)}</td>
+              <td className="px-4 py-3 text-violet-300">{paiseToInr(row.depositCollectedPaise)}</td>
               <td className="px-4 py-3 text-apg-silver">
                 {row.occupancyPct}%{' '}
                 <span className="text-xs">
@@ -127,6 +129,11 @@ export function OverviewDashboard({ data }: { data: OverviewDashboardData }) {
           PROPERTY PERFORMANCE (per PG)
         </h2>
         <PropertyPerformanceTable rows={data.propertyPerformance} />
+        <p className="text-xs text-apg-silver">
+          Operating revenue = rent (principal) + electricity + late fees + other income for paid invoices in
+          the billing month. Deposits are liability cash flow — shown separately and never added to operating
+          revenue (same rules as Revenue command center).
+        </p>
       </section>
 
       {data.operationsAlerts.length > 0 ? (

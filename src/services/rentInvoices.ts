@@ -1178,6 +1178,7 @@ export async function markRentInvoicePaidFromExistingPayment(input: {
       bookingId: rentInvoices.bookingId,
       status: rentInvoices.status,
       rentPaise: rentInvoices.rentPaise,
+      discountPaise: rentInvoices.discountPaise,
       paymentId: rentInvoices.paymentId,
       paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
       paidLateFeePaise: rentInvoices.paidLateFeePaise,
@@ -1207,8 +1208,11 @@ export async function markRentInvoicePaidFromExistingPayment(input: {
   }
 
   const paidAt = input.paidAt ?? new Date();
-  const principal = Math.min(input.principalPaise, invoice.rentPaise);
-  const fullyPaid = principal >= invoice.rentPaise;
+  const { rentDuePaise, principal, fullyPaid } = resolveRentInvoicePaymentApplication({
+    principalPaise: input.principalPaise,
+    rentPaise: invoice.rentPaise,
+    discountPaise: invoice.discountPaise,
+  });
 
   await db
     .update(rentInvoices)
@@ -1250,6 +1254,9 @@ export async function markRentInvoicePaidFromExistingPayment(input: {
       paymentId: input.paymentId,
       principalPaise: principal,
       rentPaise: invoice.rentPaise,
+      discountPaise: invoice.discountPaise ?? 0,
+      rentDuePaise,
+      fullyPaid,
       meta: input.meta ?? null,
     },
   });
@@ -1828,6 +1835,21 @@ export function computeRentDuePaise(
   discountPaise?: number | null,
 ): number {
   return Math.max(0, rentPaise - (discountPaise ?? 0));
+}
+
+/**
+ * Apply a payment principal against a rent invoice using net due (gross − discount).
+ * Coupons reduce payable rent; they must not prevent `status=paid` when net is covered.
+ */
+export function resolveRentInvoicePaymentApplication(input: {
+  principalPaise: number;
+  rentPaise: number;
+  discountPaise?: number | null;
+}): { rentDuePaise: number; principal: number; fullyPaid: boolean } {
+  const rentDuePaise = computeRentDuePaise(input.rentPaise, input.discountPaise);
+  const principal = Math.min(Math.max(0, input.principalPaise), rentDuePaise);
+  const fullyPaid = rentDuePaise > 0 && principal >= rentDuePaise;
+  return { rentDuePaise, principal, fullyPaid };
 }
 
 /**

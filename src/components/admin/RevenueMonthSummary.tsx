@@ -1,19 +1,26 @@
 import { paiseToInr } from '@/src/lib/format';
 import { formatBillingMonthLabel } from '@/src/lib/billing/monthNavigation';
-import type { BusinessMetricsSummary } from '@/src/db/queries/admin';
 import type { RevenueCommandCenterData } from '@/src/services/revenueCommandCenter';
 
 export function RevenueMonthSummary({
   billingMonth,
-  summary,
   revenue,
+  occupancy,
 }: {
   billingMonth: string;
-  summary: BusinessMetricsSummary;
   revenue: RevenueCommandCenterData;
+  occupancy?: { occupiedBeds: number; totalBeds: number; occupancyPct: number };
 }) {
   const { mtd } = revenue;
   const netRevenuePaise = mtd.netInflowPaise;
+  const occupiedBeds =
+    occupancy?.occupiedBeds ??
+    revenue.byPg.reduce((sum, row) => sum + row.occupiedBeds, 0);
+  const totalBeds =
+    occupancy?.totalBeds ?? revenue.byPg.reduce((sum, row) => sum + row.totalBeds, 0);
+  const occupancyPct =
+    occupancy?.occupancyPct ??
+    (totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100) : 0);
 
   return (
     <section className="rounded-2xl border border-white/10 bg-[#1A1F27] p-5">
@@ -26,8 +33,8 @@ export function RevenueMonthSummary({
         <Metric label="Net revenue" value={paiseToInr(netRevenuePaise)} accent="emerald" strong />
         <Metric
           label="Occupancy"
-          value={`${summary.occupiedBeds} / ${summary.totalBeds} beds`}
-          hint={`${summary.occupancyPct}%`}
+          value={`${occupiedBeds} / ${totalBeds} beds`}
+          hint={`${occupancyPct}%`}
         />
       </dl>
     </section>

@@ -131,6 +131,13 @@
 - `MEMORY/changelog.md`
 
 
+<!-- INTEL_2026-07-29T-property-performance-audit -->
+### 2026-07-29 — Property Performance accounting
+
+- **INSIGHT:** Overview “Property Performance” was not wrong arithmetically — **Total Revenue** was **operating revenue** (rent principal + electricity + late fees + other income) and **intentionally excluded deposits** (liability). Central Female ₹18,720 = ₹15,000 rent principal + ₹3,720 electricity. Shantinagar ₹64,579 − ₹64,532 = **₹47 late fees** hidden because the widget omitted the Late fees column present on Revenue command center.
+- **INSIGHT:** Per-PG rent uses `paidPrincipalPaise` after `splitRentAndLateFees`; PGs with ₹0 operating revenue but 100% occupancy simply have **no paid invoices for the selected billing month** (not occupancy-derived).
+- **SSOT chain:** `rent_invoices` / `electricity_invoices` (paid, billing month) → `getPgBusinessMetrics` → `financialMetricsEngine.pgMetricsFromRow` → `revenueCommandCenter.buildByPgRows`; deposits → `deposit_ledger` via `getDepositCollectedByPgFromLedger` only.
+
 <!-- INTEL_2026-07-28T18:16:39Z -->
 ### 2026-07-28T18:16:39Z
 

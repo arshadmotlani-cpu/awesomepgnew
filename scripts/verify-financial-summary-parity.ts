@@ -17,6 +17,7 @@ import {
   findOverviewMetricValue,
   selectFeaturedPropertyRows,
 } from '../src/services/overviewDashboard';
+import { revenueByPgRowReconciles } from '../src/services/revenueCommandCenter';
 import { loadOverviewContext } from '../src/services/overviewData';
 import { loadOverviewReportingSnapshot } from '../src/services/overviewReportingService';
 import { loadUnifiedOperationsQueue } from '../src/services/unifiedOperationsQueue';
@@ -264,6 +265,19 @@ async function main() {
     }
   }
 
+  // Property performance SSOT — every byPg row must reconcile; no parallel pgMetrics
+  for (const source of revenue.byPg) {
+    rows.push(
+      row(
+        `${source.pgName} byPg reconcile`,
+        fmtMoney(source.totalRevenuePaise),
+        'Revenue SSOT',
+        'revenueByPgRowReconciles(byPg)',
+        revenueByPgRowReconciles(source),
+      ),
+    );
+  }
+
   // Property performance (featured PGs)
   const featured = selectFeaturedPropertyRows(revenue.byPg, reporting.billingMonth);
   for (const perf of featured) {
@@ -272,10 +286,19 @@ async function main() {
     rows.push(
       row(
         `${perf.pgName} revenue`,
-        fmtMoney(perf.totalRevenuePaise),
+        fmtMoney(perf.operatingRevenuePaise),
         'Revenue',
         'getPgFinancialMetrics',
-        perf.totalRevenuePaise === source.totalRevenuePaise,
+        perf.operatingRevenuePaise === source.totalRevenuePaise,
+      ),
+    );
+    rows.push(
+      row(
+        `${perf.pgName} operating components`,
+        fmtMoney(perf.operatingRevenuePaise),
+        'Revenue',
+        'sumOperatingRevenueComponents',
+        revenueByPgRowReconciles(source),
       ),
     );
     rows.push(

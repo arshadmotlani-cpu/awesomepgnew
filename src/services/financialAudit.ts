@@ -16,6 +16,8 @@ import { markOverdueDeposits } from '@/src/services/depositCollection';
 import { getGlobalFinancialAggregates } from '@/src/services/residentFinancialEngine';
 import { getPgRevenueResidentRows } from '@/src/services/pgRevenueResidents';
 import { listPgs } from '@/src/db/queries/admin';
+import { revenueByPgRowReconciles } from '@/src/services/revenueCommandCenter';
+import { sumOperatingRevenueComponents } from '@/src/services/financialMetricsEngine';
 
 export type FinancialAuditCheck = {
   name: string;
@@ -157,6 +159,42 @@ export async function runFinancialHealthAudit(
         'Revenue → pendingDepositPaise (self)',
         ctx.data.revenue.outstanding.pendingDepositPaise,
         'revenueCommandCenter deposit held',
+      ),
+    );
+
+    const byPg = ctx.data.revenue.byPg;
+    const byPgReconcileFailures = byPg.filter((row) => !revenueByPgRowReconciles(row)).length;
+    checks.push(
+      check(
+        'property_performance_by_pg_reconciles',
+        'Revenue.byPg rows that fail operating reconcile',
+        byPgReconcileFailures,
+        'Expected reconcile failures',
+        0,
+        'revenueByPgRowReconciles on getRevenueCommandCenterData().byPg',
+      ),
+    );
+
+    const byPgOperatingSum = byPg.reduce((sum, row) => sum + row.totalRevenuePaise, 0);
+    const byPgComponentSum = byPg.reduce(
+      (sum, row) =>
+        sum +
+        sumOperatingRevenueComponents({
+          rentPrincipalPaise: row.rentRevenuePaise,
+          lateFeePaise: row.lateFeePaise,
+          electricityPaise: row.electricityRevenuePaise,
+          otherIncomePaise: row.otherIncomePaise,
+        }),
+      0,
+    );
+    checks.push(
+      check(
+        'property_performance_by_pg_sum',
+        'Sum of byPg.totalRevenuePaise',
+        byPgOperatingSum,
+        'Sum of byPg operating components',
+        byPgComponentSum,
+        'Property Performance SSOT — byPg only (no cached pgMetrics)',
       ),
     );
 

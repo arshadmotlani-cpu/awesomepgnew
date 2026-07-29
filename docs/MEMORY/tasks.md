@@ -6,6 +6,10 @@
 
 ---
 
+## 2026-07-29
+
+- [x] **PG-PROPERTY-PERFORMANCE-SSOT** — Unify Property Performance onto financial SSOT: drop overview parallel KPI cache; migrate ops/collections PG pages to `revenue.byPg`; audits + parity tests
+
 ## 2026-07-28
 
 - [x] **FYH-SERVICES-PROD** — Production Services module: categories, codes, pricing/GST, staff assign, commission, consumables schema, online flags, analytics zeros, search/filters, archive semantics, Luxury Forest UI (`0005`)

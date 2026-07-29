@@ -1,7 +1,11 @@
 import Link from 'next/link';
 import type { BusinessMetricsSummary, PgBusinessMetrics } from '@/src/db/queries/admin';
 import { paiseToInr } from '@/src/lib/format';
-import type { RevenueByPgRow } from '@/src/services/revenueCommandCenter';
+import type {
+  RevenueByPgRow,
+  RevenueCommandCenterData,
+} from '@/src/services/revenueCommandCenter';
+import { sumOperatingRevenueComponents } from '@/src/services/financialMetricsEngine';
 
 function Money({ paise, tone }: { paise: number; tone: 'in' | 'out' | 'charge' }) {
   if (paise === 0) return <span className="text-apg-silver">—</span>;
@@ -10,11 +14,21 @@ function Money({ paise, tone }: { paise: number; tone: 'in' | 'out' | 'charge' }
   return <span className={`font-semibold ${cls}`}>{paiseToInr(paise)}</span>;
 }
 
+/** Invoice + deposit wallet panels — money from RevenueCommandCenter SSOT only. */
 export function OverviewFinancialPanels({
-  summary,
+  revenue,
 }: {
-  summary: BusinessMetricsSummary;
+  revenue: RevenueCommandCenterData;
 }) {
+  const { mtd, depositPortfolio } = revenue;
+  const operatingTotalPaise = sumOperatingRevenueComponents({
+    rentPrincipalPaise: mtd.rentPaise,
+    lateFeePaise: mtd.lateFeePaise,
+    electricityPaise: mtd.electricityPaise,
+    otherIncomePaise: mtd.otherIncomePaise,
+  });
+  const depositRefundsPaise = mtd.depositRefundedPaise || depositPortfolio.refundedMtdPaise;
+
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <section className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5">
@@ -26,13 +40,13 @@ export function OverviewFinancialPanels({
           <div className="flex items-baseline justify-between gap-4 border-b border-emerald-500/10 pb-3">
             <dt className="text-sm text-emerald-100/90">Rent collected</dt>
             <dd>
-              <Money paise={summary.incomeRentPaise} tone="in" />
+              <Money paise={mtd.rentPaise} tone="in" />
             </dd>
           </div>
           <div className="flex items-baseline justify-between gap-4 border-b border-emerald-500/10 pb-3">
             <dt className="text-sm text-emerald-100/90">Electricity collected</dt>
             <dd>
-              <Money paise={summary.incomeElectricityPaise} tone="in" />
+              <Money paise={mtd.electricityPaise} tone="in" />
             </dd>
           </div>
           <div className="flex items-baseline justify-between gap-4 border-b border-emerald-500/10 pb-3">
@@ -41,13 +55,13 @@ export function OverviewFinancialPanels({
               <span className="mt-0.5 block text-[11px] text-emerald-100/60">On paid rent invoices</span>
             </dt>
             <dd>
-              <Money paise={summary.lateFeePaise} tone="charge" />
+              <Money paise={mtd.lateFeePaise} tone="charge" />
             </dd>
           </div>
           <div className="flex items-baseline justify-between gap-4 pt-1">
             <dt className="text-sm font-semibold text-white">Total invoice revenue</dt>
             <dd className="text-lg font-bold text-emerald-300">
-              {paiseToInr(summary.incomeTotalPaise + summary.extraIncomePaise)}
+              {paiseToInr(operatingTotalPaise)}
             </dd>
           </div>
         </dl>
@@ -63,12 +77,12 @@ export function OverviewFinancialPanels({
           <div className="flex items-baseline justify-between gap-4 border-b border-white/10 pb-3">
             <dt className="text-sm text-apg-silver">Deposit refunds (MTD)</dt>
             <dd>
-              <Money paise={summary.depositRefundsPaise} tone="out" />
+              <Money paise={depositRefundsPaise} tone="out" />
             </dd>
           </div>
           <div className="flex items-baseline justify-between gap-4 pt-1">
-            <dt className="text-sm text-apg-silver">Residents refunded</dt>
-            <dd className="text-lg font-bold text-white">{summary.depositRefundsCount}</dd>
+            <dt className="text-sm text-apg-silver">Deposits held</dt>
+            <dd className="text-lg font-bold text-white">{paiseToInr(depositPortfolio.heldPaise)}</dd>
           </div>
         </dl>
         <Link

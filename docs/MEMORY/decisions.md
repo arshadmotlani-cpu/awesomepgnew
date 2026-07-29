@@ -7,6 +7,10 @@
 
 ---
 
+## 2026-07-29
+
+- **Property Performance SSOT only** — Overview money (Today/MTD/Property Performance) and Operations/Collections/Revenue PG money tiles consume only `getRevenueCommandCenterData` (`today`/`mtd`/`byPg`). No parallel `getCachedPgBusinessMetrics` on Overview. Engine leaf SQL stays behind `getPgFinancialMetrics`.
+
 ## 2026-07-26
 
 - **Settle = deal closed** — After sale, Close deal needs no capital-return / outstanding gate (dealership OS). → audit H3

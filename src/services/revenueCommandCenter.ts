@@ -8,7 +8,10 @@ import {
   getMtdCollectionByPaymentMode,
   type CollectionByPaymentMode,
 } from '@/src/db/queries/admin';
-import { getPgFinancialMetrics } from '@/src/services/financialMetricsEngine';
+import {
+  getPgFinancialMetrics,
+  sumOperatingRevenueComponents,
+} from '@/src/services/financialMetricsEngine';
 import type { DepositPortfolioMetrics } from '@/src/services/depositLedgerMetrics';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
@@ -81,6 +84,26 @@ export type RevenueCommandCenterInput = {
   /** Pre-loaded invoice snapshot — avoids duplicate DB round-trips from Overview. */
   invoiceSnapshot?: InvoiceOutstandingSnapshot;
 };
+
+/**
+ * Single-writer / single-consumer rule for Overview money surfaces:
+ * Property Performance, Revenue PG table, Today/MTD cards, and Collections/Operations
+ * PG money tiles must only consume `getRevenueCommandCenterData` outputs (`today`, `mtd`,
+ * `byPg`, `depositPortfolio`). Do not call `getCachedPgBusinessMetrics` /
+ * `getCachedBusinessMetricsSummary` / raw `getPgBusinessMetrics` from Overview or
+ * Property Performance — those leaves exist only for the engine via `getPgFinancialMetrics`.
+ *
+ * Property Performance and Revenue tables must stay aligned with this reconcile rule.
+ */
+export function revenueByPgRowReconciles(row: RevenueByPgRow): boolean {
+  const components = sumOperatingRevenueComponents({
+    rentPrincipalPaise: row.rentRevenuePaise,
+    lateFeePaise: row.lateFeePaise,
+    electricityPaise: row.electricityRevenuePaise,
+    otherIncomePaise: row.otherIncomePaise,
+  });
+  return row.totalRevenuePaise === components;
+}
 
 function buildByPgRows(
   pgFinancial: Awaited<ReturnType<typeof getPgFinancialMetrics>>,
