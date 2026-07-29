@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Plus, Search } from 'lucide-react';
 import {
@@ -12,6 +12,7 @@ import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
 import type { FyhService, FyhServiceCategory } from '@/src/hair/db/schema';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
+import { cn } from '@/src/hair/lib/utils';
 
 const initialState: ServiceActionState = {};
 
@@ -186,22 +187,74 @@ export function ServiceForm({
 }) {
   const action = mode === 'create' ? createServiceAction : updateServiceAction;
   const [state, formAction, pending] = useActionState(action, initialState);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const [formKey, setFormKey] = useState(0);
+  const [toast, setToast] = useState<string | null>(null);
 
   const initialCategory = service?.category ?? '';
   const statusDefault = service?.isActive === false ? 'inactive' : 'active';
+  const nameDuplicate = Boolean(state.duplicateServiceId);
+
+  useEffect(() => {
+    if (!state.success) return;
+    setToast(state.success);
+    const hide = window.setTimeout(() => setToast(null), 2800);
+    if (mode === 'create' && state.created) {
+      setFormKey((k) => k + 1);
+      window.setTimeout(() => nameInputRef.current?.focus(), 0);
+    }
+    return () => window.clearTimeout(hide);
+  }, [state.success, state.created, mode]);
+
+  useEffect(() => {
+    if (nameDuplicate) {
+      nameInputRef.current?.focus();
+    }
+  }, [nameDuplicate, state.error]);
 
   return (
-    <form action={formAction} className="space-y-4">
-      {mode === 'edit' && service ? <input type="hidden" name="id" value={service.id} /> : null}
+    <div className="relative space-y-4">
+      {toast ? (
+        <div
+          role="status"
+          className="fixed bottom-6 right-6 z-[600] rounded-lg border border-fyh-success/40 bg-fyh-success/15 px-4 py-2.5 text-sm font-medium text-fyh-success shadow-lg"
+        >
+          ✓ {toast}
+        </div>
+      ) : null}
 
-      <section className="fyh-glass space-y-3 p-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5 sm:col-span-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="name">
-              Service name *
-            </label>
-            <Input id="name" name="name" required defaultValue={service?.name ?? ''} />
-          </div>
+      <form key={mode === 'create' ? formKey : undefined} action={formAction} className="space-y-4">
+        {mode === 'edit' && service ? <input type="hidden" name="id" value={service.id} /> : null}
+
+        <section className="fyh-glass space-y-3 p-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-sm text-fyh-text-secondary" htmlFor="name">
+                Service name *
+              </label>
+              <Input
+                ref={nameInputRef}
+                id="name"
+                name="name"
+                required
+                defaultValue={mode === 'edit' ? (service?.name ?? '') : ''}
+                aria-invalid={nameDuplicate}
+                className={cn(nameDuplicate && 'border-fyh-danger ring-1 ring-fyh-danger/50')}
+              />
+              {nameDuplicate ? (
+                <div className="space-y-1">
+                  <p className="text-sm text-fyh-danger">This service already exists.</p>
+                  {state.duplicateServiceId ? (
+                    <Link
+                      href={`/services/${state.duplicateServiceId}`}
+                      className="text-sm font-medium text-fyh-accent hover:underline"
+                    >
+                      Open existing service
+                    </Link>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
 
           <div className="space-y-1.5">
             <label className="text-sm text-fyh-text-secondary" htmlFor="category">
@@ -211,7 +264,7 @@ export function ServiceForm({
               id="category"
               name="category"
               className={fieldClass}
-              defaultValue={initialCategory}
+              defaultValue={mode === 'edit' ? initialCategory : ''}
               required
             >
               <option value="" disabled>
@@ -239,7 +292,7 @@ export function ServiceForm({
               min={5}
               step={5}
               required
-              defaultValue={service?.durationMinutes ?? 30}
+              defaultValue={mode === 'edit' ? (service?.durationMinutes ?? 30) : 30}
             />
           </div>
 
@@ -254,7 +307,11 @@ export function ServiceForm({
               min={0}
               step={1}
               required
-              defaultValue={service ? Math.round(service.pricePaise / 100) : ''}
+              defaultValue={
+                mode === 'edit' && service
+                  ? Math.round(service.pricePaise / 100)
+                  : ''
+              }
             />
           </div>
 
@@ -270,7 +327,9 @@ export function ServiceForm({
               step={1}
               required
               defaultValue={
-                service !== undefined ? Math.round(service.costPricePaise / 100) : ''
+                mode === 'edit' && service !== undefined
+                  ? Math.round(service.costPricePaise / 100)
+                  : ''
               }
             />
             <p className="text-[11px] text-fyh-text-muted">
@@ -286,7 +345,7 @@ export function ServiceForm({
               id="status"
               name="status"
               className={fieldClass}
-              defaultValue={statusDefault}
+              defaultValue={mode === 'edit' ? statusDefault : 'active'}
               required
             >
               <option value="active">Active</option>
@@ -302,7 +361,7 @@ export function ServiceForm({
               id="description"
               name="description"
               rows={3}
-              defaultValue={service?.description ?? ''}
+              defaultValue={mode === 'edit' ? (service?.description ?? '') : ''}
               className={fieldClass}
               placeholder="Optional — notes for your team"
             />
@@ -310,12 +369,13 @@ export function ServiceForm({
         </div>
       </section>
 
-      {state.error ? <p className="text-sm text-fyh-danger">{state.error}</p> : null}
-      {state.success ? <p className="text-sm text-fyh-success">{state.success}</p> : null}
+      {state.error && !nameDuplicate ? (
+        <p className="text-sm text-fyh-danger">{state.error}</p>
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" disabled={pending}>
-          {pending ? 'Saving…' : mode === 'create' ? 'Save' : 'Save'}
+        <Button type="submit" disabled={pending} aria-busy={pending}>
+          {pending ? 'Saving…' : 'Save'}
         </Button>
         <Link href="/services">
           <Button type="button" variant="ghost">
@@ -323,6 +383,7 @@ export function ServiceForm({
           </Button>
         </Link>
       </div>
-    </form>
+      </form>
+    </div>
   );
 }

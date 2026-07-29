@@ -3,9 +3,11 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireHairAuth } from '@/src/hair/lib/auth/guards';
+import { canonicalServiceName } from '@/src/hair/lib/serviceName';
 import {
   archiveService,
   createService,
+  DuplicateServiceError,
   restoreService,
   updateService,
   type ServiceInput,
@@ -14,10 +16,18 @@ import {
 export type ServiceActionState = {
   error?: string;
   success?: string;
+  /** Set when create succeeded (stay on new-service page). */
+  created?: boolean;
+  /** Existing service id when name is a duplicate. */
+  duplicateServiceId?: string;
 };
 
 function formStr(formData: FormData, key: string): string {
   return String(formData.get(key) ?? '').trim();
+}
+
+function formName(formData: FormData): string {
+  return canonicalServiceName(String(formData.get('name') ?? ''));
 }
 
 function formNum(formData: FormData, key: string): number | null {
@@ -28,7 +38,7 @@ function formNum(formData: FormData, key: string): number | null {
 }
 
 function parseServiceForm(formData: FormData): ServiceInput {
-  const name = formStr(formData, 'name');
+  const name = formName(formData);
   if (!name) throw new Error('Service name is required');
 
   const category = formStr(formData, 'category');
@@ -68,11 +78,21 @@ export async function createServiceAction(
 ): Promise<ServiceActionState> {
   try {
     await requireHairAuth();
-    const service = await createService(parseServiceForm(formData));
+    await createService(parseServiceForm(formData));
     revalidatePath('/services');
-    redirect(`/services/${service.id}`);
+    revalidatePath('/services/new');
+    return {
+      success: 'Service created successfully.',
+      created: true,
+    };
   } catch (e) {
     if (e && typeof e === 'object' && 'digest' in e) throw e;
+    if (e instanceof DuplicateServiceError) {
+      return {
+        error: e.message,
+        duplicateServiceId: e.existingId,
+      };
+    }
     return { error: e instanceof Error ? e.message : 'Failed to create service' };
   }
 }
@@ -88,8 +108,14 @@ export async function updateServiceAction(
     await updateService(id, parseServiceForm(formData));
     revalidatePath('/services');
     revalidatePath(`/services/${id}`);
-    return { success: 'Service saved.' };
+    return { success: 'Changes saved successfully.' };
   } catch (e) {
+    if (e instanceof DuplicateServiceError) {
+      return {
+        error: e.message,
+        duplicateServiceId: e.existingId,
+      };
+    }
     return { error: e instanceof Error ? e.message : 'Failed to update service' };
   }
 }

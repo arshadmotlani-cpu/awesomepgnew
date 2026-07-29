@@ -12,6 +12,10 @@ import {
   type FyhCommissionType,
 } from '@/src/hair/db/schema';
 import { resolveConsumableDeductInventory } from '@/src/hair/lib/consumableDeduction';
+import {
+  canonicalServiceName,
+  normalizeServiceName,
+} from '@/src/hair/lib/serviceName';
 
 function toPaise(rupees: number): number {
   return Math.round(Number(rupees || 0) * 100);
@@ -37,6 +41,33 @@ async function nextServiceCode(): Promise<string> {
   const row = (result as unknown as Array<{ n: string }>)[0];
   const n = Number(row?.n ?? 1);
   return `SVC-${String(n).padStart(4, '0')}`;
+}
+
+/** Thrown when normalized service name matches an existing row. */
+export class DuplicateServiceError extends Error {
+  readonly code = 'DUPLICATE_SERVICE' as const;
+
+  constructor(public existingId: string) {
+    super('This service already exists.');
+    this.name = 'DuplicateServiceError';
+  }
+}
+
+async function findServiceByNormalizedName(name: string, excludeId?: string) {
+  const target = normalizeServiceName(name);
+  const rows = await hairDb
+    .select({ id: fyhServices.id, name: fyhServices.name })
+    .from(fyhServices);
+  for (const row of rows) {
+    if (excludeId && row.id === excludeId) continue;
+    if (normalizeServiceName(row.name) === target) return row;
+  }
+  return null;
+}
+
+async function assertUniqueServiceName(name: string, excludeId?: string) {
+  const dup = await findServiceByNormalizedName(name, excludeId);
+  if (dup) throw new DuplicateServiceError(dup.id);
 }
 
 /** Salon catalog GST (18%). Future: read fyh_settings.defaultGstBps globally. */
@@ -241,8 +272,9 @@ async function syncConsumables(
 }
 
 export async function createService(input: ServiceInput) {
-  const name = input.name.trim();
+  const name = canonicalServiceName(input.name);
   if (!name) throw new Error('Service name is required');
+  await assertUniqueServiceName(name);
   const durationMinutes = Math.round(input.durationMinutes);
   if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
     throw new Error('Duration must be a positive number of minutes');
@@ -292,8 +324,9 @@ export async function createService(input: ServiceInput) {
 }
 
 export async function updateService(id: string, input: ServiceInput) {
-  const name = input.name.trim();
+  const name = canonicalServiceName(input.name);
   if (!name) throw new Error('Service name is required');
+  await assertUniqueServiceName(name, id);
   const durationMinutes = Math.round(input.durationMinutes);
   if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
     throw new Error('Duration must be a positive number of minutes');
