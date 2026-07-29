@@ -16,7 +16,7 @@ function NavLink({ item }: { item: HairNavLink }) {
     <Link
       href={item.href}
       className={cn(
-        'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors',
+        'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[0.8125rem] transition-colors',
         active
           ? 'bg-fyh-forest/25 text-fyh-accent'
           : 'text-fyh-text-secondary hover:bg-white/5 hover:text-fyh-text',
@@ -42,7 +42,7 @@ function NavGroup({ group }: { group: HairNavGroup }) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors',
+          'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[0.8125rem] transition-colors',
           childActive
             ? 'text-fyh-accent'
             : 'text-fyh-text-secondary hover:bg-white/5 hover:text-fyh-text',

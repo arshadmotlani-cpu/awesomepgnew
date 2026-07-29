@@ -1,21 +1,13 @@
 import Link from 'next/link';
 import { ServiceForm } from '@/src/hair/components/services/ServicesUi';
 import { Button } from '@/src/hair/components/ui/button';
-import { listProducts } from '@/src/hair/services/products';
-import {
-  listActiveStaff,
-  listServiceCategories,
-} from '@/src/hair/services/salonServices';
+import { listServiceCategories } from '@/src/hair/services/salonServices';
 
 export default async function NewServicePage() {
-  const [categories, staff, products] = await Promise.all([
-    listServiceCategories(),
-    listActiveStaff(),
-    listProducts({ status: 'active' }),
-  ]);
+  const categories = await listServiceCategories();
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-xl space-y-6">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.22em] text-fyh-accent">Services</p>
@@ -27,12 +19,7 @@ export default async function NewServicePage() {
           </Button>
         </Link>
       </div>
-      <ServiceForm
-        mode="create"
-        categories={categories}
-        staff={staff}
-        products={products}
-      />
+      <ServiceForm mode="create" categories={categories} />
     </div>
   );
 }

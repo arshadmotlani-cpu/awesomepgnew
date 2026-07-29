@@ -54,3 +54,15 @@ Collapsible **Reports** nav: revenue periods, staff metrics (attribution-driven)
 3. **Membership consumption** — discount / benefit rules at line level beyond today’s membership discount preview.
 
 No Quick Sale architecture changes required before those phases.
+
+## Service catalog (Service Master)
+
+Salon-first **create/edit** form: name, category, duration, selling price, cost price (required, internal), status, description. **GST is fixed at 18%** (not per service; future changes via Settings). **Staff** is chosen at appointment / Quick Sale checkout—not on the service record. **Commission** and **consumables** are not configured here (commission rules and inventory mapping are future modules; DB columns and seed data remain for billing tests).
+
+| Topic | Behavior |
+|-------|----------|
+| **Categories** | Six salon groups only: Hair, Skin, Makeup, Nails, Academy, Digital Production (`0015` migration remaps legacy names). |
+| **Service codes** | Auto-generated internally (`SVC-####`); not shown in UI, search, or Quick Sale tiles. |
+| **GST** | **18%** applied automatically on save (schema default `1800` bps). |
+| **Cost price** | Required on form; internal margin / BI only; not on POS or invoices (RBAC later). |
+| **Sort order** | Services list and Quick Sale catalog sort by category order, then name (no per-service display order in UI). |

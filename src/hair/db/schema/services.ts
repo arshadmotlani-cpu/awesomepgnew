@@ -12,15 +12,11 @@ import {
 
 export const FYH_SERVICE_CATEGORY_PRESETS = [
   'Hair',
-  'Hair Color',
-  'Hair Treatment',
   'Skin',
   'Makeup',
-  'Bridal',
   'Nails',
-  'Spa',
-  'Barber',
-  'Other',
+  'Academy',
+  'Digital Production',
 ] as const;
 
 export const FYH_COMMISSION_TYPES = ['none', 'fixed', 'percentage'] as const;
@@ -43,11 +39,12 @@ export const fyhServices = pgTable(
     code: text('code'),
     category: text('category'),
     durationMinutes: integer('duration_minutes').notNull().default(30),
-    /** Selling price */
+    /** Selling price (customer-facing). */
     pricePaise: bigint('price_paise', { mode: 'number' }).notNull().default(0),
+    /** Internal cost for gross-margin analytics; not shown on POS or invoices. */
     costPricePaise: bigint('cost_price_paise', { mode: 'number' }).notNull().default(0),
     /** GST in basis points (1800 = 18%) */
-    gstBps: integer('gst_bps').notNull().default(0),
+    gstBps: integer('gst_bps').notNull().default(1800),
     description: text('description'),
     displayOrder: integer('display_order').notNull().default(100),
     commissionType: text('commission_type').$type<FyhCommissionType>().notNull().default('none'),

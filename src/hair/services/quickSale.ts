@@ -3,6 +3,7 @@ import { hairDb } from '@/src/hair/db/client';
 import {
   fyhCustomers,
   fyhProducts,
+  fyhServiceCategories,
   fyhServices,
   fyhStaff,
 } from '@/src/hair/db/schema';
@@ -54,7 +55,6 @@ export type QuickSaleCatalog = {
   services: Array<{
     id: string;
     name: string;
-    code: string | null;
     category: string | null;
     description: string | null;
     pricePaise: number;
@@ -90,15 +90,18 @@ export async function loadQuickSaleCatalog(): Promise<QuickSaleCatalog> {
       .select({
         id: fyhServices.id,
         name: fyhServices.name,
-        code: fyhServices.code,
         category: fyhServices.category,
         description: fyhServices.description,
         pricePaise: fyhServices.pricePaise,
         gstBps: fyhServices.gstBps,
       })
       .from(fyhServices)
+      .leftJoin(fyhServiceCategories, eq(fyhServices.category, fyhServiceCategories.name))
       .where(eq(fyhServices.isActive, true))
-      .orderBy(asc(fyhServices.displayOrder), asc(fyhServices.name)),
+      .orderBy(
+        asc(sql`coalesce(${fyhServiceCategories.displayOrder}, 999)`),
+        asc(fyhServices.name),
+      ),
     hairDb
       .select({
         id: fyhProducts.id,

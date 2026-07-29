@@ -23,7 +23,7 @@ export function HairAppHeader({ admin }: HairAppHeaderProps) {
   return (
     <>
       <header className="sticky top-0 z-[100] border-b border-[color:var(--fyh-border-strong)] bg-fyh-elevated/90 backdrop-blur-xl">
-        <div className="flex h-14 items-center gap-2 px-3 sm:gap-3 sm:px-4 md:h-[3.75rem] md:px-6">
+        <div className="flex h-12 min-h-12 items-center gap-2 px-3 sm:gap-3 sm:px-4 md:px-5">
           <Button
             type="button"
             variant="ghost"
@@ -32,27 +32,36 @@ export function HairAppHeader({ admin }: HairAppHeaderProps) {
             aria-label="Open navigation"
             onClick={() => setMobileNavOpen(true)}
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-4 w-4" />
           </Button>
 
           <HairQuickActionsMenu />
 
-          <Link href="/dashboard" className="hidden min-w-0 max-w-[11rem] shrink sm:block lg:max-w-[13rem]">
+          <Link
+            href="/dashboard"
+            className="hidden min-w-0 max-w-[10rem] shrink sm:block lg:max-w-[12rem]"
+          >
             <FyhSidebarBrand className="!h-auto !border-0 !px-0 !py-0" />
           </Link>
           <Link
             href="/dashboard"
-            className="fyh-display truncate text-base font-semibold text-fyh-text sm:hidden"
+            className="fyh-display truncate text-sm font-semibold text-fyh-text sm:hidden"
           >
             For Your Hair
           </Link>
 
-          <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2 md:gap-3">
+          <div className="flex min-w-0 flex-1 justify-center px-2 sm:px-4">
+            <HairGlobalSearch />
+          </div>
+
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <HairNewRecordMenu />
             <ThemeToggle />
             <Link href="/profile" className="hidden text-right lg:block">
-              <p className="text-sm font-medium text-fyh-text">{admin.displayName ?? 'Admin'}</p>
-              <p className="max-w-[10rem] truncate text-xs text-fyh-text-secondary">{admin.email}</p>
+              <p className="text-xs font-medium text-fyh-text">{admin.displayName ?? 'Admin'}</p>
+              <p className="max-w-[9rem] truncate text-[11px] text-fyh-text-secondary">
+                {admin.email}
+              </p>
             </Link>
             <form action={logoutAction} className="hidden sm:block">
               <Button type="submit" variant="ghost" size="sm">
@@ -60,10 +69,6 @@ export function HairAppHeader({ admin }: HairAppHeaderProps) {
               </Button>
             </form>
           </div>
-        </div>
-
-        <div className="flex justify-center px-3 pb-3 pt-0 sm:px-4 md:px-6 md:pb-4">
-          <HairGlobalSearch />
         </div>
       </header>
 
@@ -77,7 +82,7 @@ export function HairAppHeader({ admin }: HairAppHeaderProps) {
           />
           <div className="absolute inset-y-0 left-0 flex w-[min(100vw-3rem,18rem)] flex-col bg-fyh-elevated shadow-2xl">
             <div className="flex items-center justify-between border-b border-[color:var(--fyh-border-strong)] p-2">
-              <FyhSidebarBrand className="!h-14 !flex-1 !border-0" />
+              <FyhSidebarBrand className="!h-12 !flex-1 !border-0" />
               <Button
                 type="button"
                 variant="ghost"
@@ -85,7 +90,7 @@ export function HairAppHeader({ admin }: HairAppHeaderProps) {
                 aria-label="Close navigation"
                 onClick={() => setMobileNavOpen(false)}
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </Button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto" onClick={() => setMobileNavOpen(false)}>

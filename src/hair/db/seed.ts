@@ -3,13 +3,13 @@ loadAppEnv();
 
 import { eq } from 'drizzle-orm';
 import { createHairClient } from '@/src/hair/db/client';
+import { ensureRcCutConsumableKit } from '@/src/hair/db/rcConsumableKit';
 import {
   fyhAdminUsers,
   fyhMembershipPlans,
   fyhPackagePlans,
   fyhProducts,
   fyhResources,
-  fyhServiceConsumables,
   fyhServices,
   fyhServiceStaff,
   fyhSettings,
@@ -195,28 +195,7 @@ async function seedRcFixtures(
     }
 
     if (svc.withConsumable) {
-      const [kit] = await db
-        .select()
-        .from(fyhServiceConsumables)
-        .where(eq(fyhServiceConsumables.serviceId, serviceId))
-        .limit(1);
-      if (!kit) {
-        await db.insert(fyhServiceConsumables).values({
-          serviceId,
-          productId,
-          quantity: 10,
-          deductInventory: true,
-        });
-      } else {
-        await db
-          .update(fyhServiceConsumables)
-          .set({
-            productId,
-            quantity: kit.quantity ?? 10,
-            deductInventory: true,
-          })
-          .where(eq(fyhServiceConsumables.id, kit.id));
-      }
+      await ensureRcCutConsumableKit(db, serviceId, productId, 10);
     }
   }
 

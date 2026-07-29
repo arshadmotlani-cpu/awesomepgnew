@@ -99,6 +99,13 @@
       "when": 1754900000000,
       "tag": "0014_quick_sale_stabilization",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1755000000000,
+      "tag": "0015_service_categories_six",
+      "breakpoints": true
     }
   ]
 }

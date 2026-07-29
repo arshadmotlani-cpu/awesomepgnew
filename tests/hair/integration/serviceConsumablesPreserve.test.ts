@@ -29,6 +29,7 @@ test('updateService preserves deductInventory when only service name changes', a
 
   await updateService(f.cut.id, {
     name: `${detail.service.name} UAT`,
+    category: detail.service.category ?? 'Hair',
     durationMinutes: detail.service.durationMinutes,
     sellingPriceRupees: detail.service.pricePaise / 100,
     costPriceRupees: detail.service.costPricePaise / 100,
@@ -63,8 +64,10 @@ test('updateService preserves deductInventory when consumables omit explicit fla
 
   await updateService(f.cut.id, {
     name: detail.service.name,
+    category: detail.service.category ?? 'Hair',
     durationMinutes: detail.service.durationMinutes,
     sellingPriceRupees: detail.service.pricePaise / 100,
+    costPriceRupees: detail.service.costPricePaise / 100,
     gstPercent: detail.service.gstBps / 100,
     isActive: true,
     staffIds: detail.staffIds,
@@ -88,8 +91,10 @@ test('updateService preserves staffIds when staffIds omitted', async () => {
 
   await updateService(f.cut.id, {
     name: detail.service.name,
+    category: detail.service.category ?? 'Hair',
     durationMinutes: detail.service.durationMinutes,
     sellingPriceRupees: detail.service.pricePaise / 100,
+    costPriceRupees: detail.service.costPricePaise / 100,
     isActive: true,
   });
 

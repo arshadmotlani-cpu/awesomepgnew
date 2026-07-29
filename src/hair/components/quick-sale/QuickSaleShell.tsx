@@ -87,7 +87,6 @@ type TabId = 'services' | 'products' | 'packages' | 'memberships';
 function matchesCatalogQuery(
   item: {
     name: string;
-    code?: string | null;
     sku?: string | null;
     category?: string | null;
     description?: string | null;
@@ -101,7 +100,6 @@ function matchesCatalogQuery(
   const lower = trimmed.toLowerCase();
   const parts = [
     item.name,
-    item.code ?? '',
     item.sku ?? '',
     item.category ?? '',
     item.description ?? '',
@@ -253,7 +251,7 @@ export function QuickSaleShell({ catalog }: { catalog: QuickSaleCatalog }) {
   );
 
   const filteredServices = useMemo(
-    () => catalog.services.filter((s) => matchesCatalogQuery({ ...s, code: s.code }, catalogQ)),
+    () => catalog.services.filter((s) => matchesCatalogQuery(s, catalogQ)),
     [catalog.services, catalogQ],
   );
   const filteredProducts = useMemo(
@@ -495,7 +493,7 @@ export function QuickSaleShell({ catalog }: { catalog: QuickSaleCatalog }) {
         <Input
           value={catalogQ}
           onChange={(e) => setCatalogQ(e.target.value)}
-          placeholder="Search name, code, price, category…"
+          placeholder="Search name, price, category…"
           className="h-12 text-base"
         />
         <div className="grid max-h-[min(52vh,640px)] gap-2 overflow-y-auto sm:grid-cols-2">
@@ -504,7 +502,7 @@ export function QuickSaleShell({ catalog }: { catalog: QuickSaleCatalog }) {
                 <CatalogTile
                   key={s.id}
                   title={s.name}
-                  meta={[s.code, s.category].filter(Boolean).join(' · ')}
+                  meta={s.category ?? ''}
                   pricePaise={s.pricePaise}
                   onPick={() =>
                     addToCart({

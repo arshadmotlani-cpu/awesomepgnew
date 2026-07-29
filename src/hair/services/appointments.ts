@@ -6,7 +6,6 @@ import {
   fyhCustomerTimeline,
   fyhCustomers,
   fyhResources,
-  fyhServiceStaff,
   fyhServices,
   fyhSettings,
   fyhStaff,
@@ -96,18 +95,8 @@ async function loadServiceSnapshots(serviceIds: string[]) {
   });
 }
 
-async function assertStaffCanPerform(staffId: string, serviceIds: string[]) {
-  const links = await hairDb
-    .select()
-    .from(fyhServiceStaff)
-    .where(eq(fyhServiceStaff.staffId, staffId));
-  if (links.length === 0) return; // no restrictions configured
-  const allowed = new Set(links.map((l) => l.serviceId));
-  for (const id of serviceIds) {
-    if (!allowed.has(id)) {
-      throw new Error('Stylist is not assigned to one or more selected services');
-    }
-  }
+async function assertStaffCanPerform(_staffId: string, _serviceIds: string[]) {
+  // Stylists are chosen at appointment / checkout; service-staff links are legacy seed data only.
 }
 
 async function assertNoConflicts(input: {

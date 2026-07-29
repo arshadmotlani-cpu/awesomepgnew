@@ -3,9 +3,9 @@ import test from 'node:test';
 import { loadAppEnv } from '../../../src/lib/db/loadEnv.ts';
 loadAppEnv();
 
-import { eq } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import { hairDb } from '../../../src/hair/db/client.ts';
-import { fyhAppointments, fyhProducts } from '../../../src/hair/db/schema/index.ts';
+import { fyhAppointments, fyhProducts, fyhNotificationOutbox } from '../../../src/hair/db/schema/index.ts';
 import {
   createAppointment,
   rescheduleAppointment,
@@ -33,7 +33,6 @@ import {
   getInvoice,
   listPayments,
   nextSlot,
-  pendingOutboxCount,
   requireRcFixtures,
   stockMovementsFor,
   timelineFor,
@@ -354,7 +353,6 @@ test('scenario 17/20 — checkout gate and payment idempotency', async () => {
 });
 
 test('scenario 19 — notification outbox pending after booking', async () => {
-  const before = await pendingOutboxCount();
   const f = await requireRcFixtures();
   const customer = await createRcCustomer('notify');
   const startAt = nextSlot(11);
@@ -365,8 +363,19 @@ test('scenario 19 — notification outbox pending after booking', async () => {
     serviceIds: [f.blow.id],
     source: 'booking',
   });
-  const after = await pendingOutboxCount();
-  assert.ok(after >= before + 1);
+  const [outbox] = await hairDb
+    .select()
+    .from(fyhNotificationOutbox)
+    .where(
+      and(
+        eq(fyhNotificationOutbox.recipient, customer.phone),
+        eq(fyhNotificationOutbox.kind, 'appointment_confirmation'),
+        eq(fyhNotificationOutbox.status, 'pending'),
+      ),
+    )
+    .orderBy(desc(fyhNotificationOutbox.createdAt))
+    .limit(1);
+  assert.ok(outbox, 'expected pending appointment_confirmation for customer phone');
 });
 
 test('concurrent payments — only one succeeds side effects', async () => {

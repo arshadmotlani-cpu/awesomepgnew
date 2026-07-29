@@ -2,6 +2,7 @@ import { and, asc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import {
   FYH_COMMISSION_TYPES,
+  FYH_SERVICE_CATEGORY_PRESETS,
   fyhProducts,
   fyhServiceCategories,
   fyhServiceConsumables,
@@ -38,16 +39,19 @@ async function nextServiceCode(): Promise<string> {
   return `SVC-${String(n).padStart(4, '0')}`;
 }
 
+/** Salon catalog GST (18%). Future: read fyh_settings.defaultGstBps globally. */
+const SALON_GST_BPS = 1800;
+
 export type ServiceInput = {
   name: string;
   category?: string | null;
-  customCategory?: string | null;
   durationMinutes: number;
   sellingPriceRupees: number;
-  costPriceRupees?: number;
-  gstPercent?: number;
+  costPriceRupees: number;
   description?: string | null;
-  displayOrder?: number;
+  isActive?: boolean;
+  /** Programmatic / seed / tests only — not from service form */
+  gstPercent?: number;
   commissionType?: FyhCommissionType;
   commissionFixedRupees?: number;
   commissionPercent?: number;
@@ -55,7 +59,6 @@ export type ServiceInput = {
   availableOnline?: boolean;
   featured?: boolean;
   showOnWebsite?: boolean;
-  isActive?: boolean;
   staffIds?: string[];
   consumables?: Array<{ productId: string; quantity: number; deductInventory?: boolean }>;
 };
@@ -109,20 +112,28 @@ export async function listServices(filters: ServiceListFilters = {}) {
   const q = filters.q?.trim();
   if (q) {
     const pattern = `%${q}%`;
-    conditions.push(
-      or(
-        ilike(fyhServices.name, pattern),
-        ilike(fyhServices.category, pattern),
-        ilike(fyhServices.code, pattern),
-      )!,
-    );
+    const searchParts = [
+      ilike(fyhServices.name, pattern),
+      ilike(fyhServices.category, pattern),
+    ];
+    const num = Number(q.replace(/[^\d.]/g, ''));
+    if (!Number.isNaN(num) && /\d/.test(q)) {
+      const paise = Math.round(num * 100);
+      searchParts.push(eq(fyhServices.pricePaise, paise));
+    }
+    conditions.push(or(...searchParts)!);
   }
   return hairDb
-    .select()
+    .select({ service: fyhServices })
     .from(fyhServices)
+    .leftJoin(fyhServiceCategories, eq(fyhServices.category, fyhServiceCategories.name))
     .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(asc(fyhServices.displayOrder), asc(fyhServices.name))
-    .limit(300);
+    .orderBy(
+      asc(sql`coalesce(${fyhServiceCategories.displayOrder}, 999)`),
+      asc(fyhServices.name),
+    )
+    .limit(300)
+    .then((rows) => rows.map((r) => r.service));
 }
 
 export async function getService(id: string) {
@@ -155,13 +166,13 @@ export async function getServiceDetail(id: string) {
   return { service, staffIds, consumables };
 }
 
-async function resolveCategory(input: ServiceInput): Promise<string | null> {
-  const custom = input.customCategory?.trim();
-  if (custom) {
-    const cat = await ensureCategory(custom);
-    return cat?.name ?? custom;
+async function resolveCategory(input: ServiceInput): Promise<string> {
+  const name = input.category?.trim();
+  if (!name) throw new Error('Category is required');
+  if (!(FYH_SERVICE_CATEGORY_PRESETS as readonly string[]).includes(name)) {
+    throw new Error('Choose a category from the salon catalog');
   }
-  return input.category?.trim() || null;
+  return name;
 }
 
 function commissionFields(input: ServiceInput) {
@@ -236,12 +247,24 @@ export async function createService(input: ServiceInput) {
   if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
     throw new Error('Duration must be a positive number of minutes');
   }
-  if ((input.sellingPriceRupees ?? 0) < 0 || (input.costPriceRupees ?? 0) < 0) {
+  if (input.sellingPriceRupees < 0 || input.costPriceRupees < 0) {
     throw new Error('Prices cannot be negative');
   }
 
   const category = await resolveCategory(input);
   const code = await nextServiceCode();
+  const gstBps =
+    input.gstPercent !== undefined ? toBps(input.gstPercent) : SALON_GST_BPS;
+  const commission =
+    input.commissionType !== undefined
+      ? commissionFields(input)
+      : {
+          commissionType: 'none' as const,
+          commissionFixedPaise: 0,
+          commissionPercentBps: 0,
+          overrideStaffCommission: false,
+        };
+
   const [row] = await hairDb
     .insert(fyhServices)
     .values({
@@ -250,14 +273,14 @@ export async function createService(input: ServiceInput) {
       category,
       durationMinutes,
       pricePaise: toPaise(input.sellingPriceRupees),
-      costPricePaise: toPaise(input.costPriceRupees ?? 0),
-      gstBps: toBps(input.gstPercent ?? 0),
+      costPricePaise: toPaise(input.costPriceRupees),
+      gstBps,
       description: input.description?.trim() || null,
-      displayOrder: Math.round(input.displayOrder ?? 100),
-      ...commissionFields(input),
-      availableOnline: Boolean(input.availableOnline),
-      featured: Boolean(input.featured),
-      showOnWebsite: Boolean(input.showOnWebsite),
+      displayOrder: 100,
+      ...commission,
+      availableOnline: input.availableOnline ?? false,
+      featured: input.featured ?? false,
+      showOnWebsite: input.showOnWebsite ?? false,
       isActive: input.isActive !== false,
       averageDurationMinutes: durationMinutes,
     })
@@ -275,9 +298,15 @@ export async function updateService(id: string, input: ServiceInput) {
   if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
     throw new Error('Duration must be a positive number of minutes');
   }
+  if (input.sellingPriceRupees < 0 || input.costPriceRupees < 0) {
+    throw new Error('Prices cannot be negative');
+  }
 
   const category = await resolveCategory(input);
   const isActive = input.isActive !== false;
+  const gstBps =
+    input.gstPercent !== undefined ? toBps(input.gstPercent) : SALON_GST_BPS;
+
   const [row] = await hairDb
     .update(fyhServices)
     .set({
@@ -285,17 +314,16 @@ export async function updateService(id: string, input: ServiceInput) {
       category,
       durationMinutes,
       pricePaise: toPaise(input.sellingPriceRupees),
-      costPricePaise: toPaise(input.costPriceRupees ?? 0),
-      gstBps: toBps(input.gstPercent ?? 0),
+      costPricePaise: toPaise(input.costPriceRupees),
+      gstBps,
       description: input.description?.trim() || null,
-      displayOrder: Math.round(input.displayOrder ?? 100),
-      ...commissionFields(input),
-      availableOnline: Boolean(input.availableOnline),
-      featured: Boolean(input.featured),
-      showOnWebsite: Boolean(input.showOnWebsite),
       isActive,
       archivedAt: isActive ? null : sql`COALESCE(${fyhServices.archivedAt}, now())`,
       updatedAt: new Date(),
+      ...(input.commissionType !== undefined ? commissionFields(input) : {}),
+      ...(input.availableOnline !== undefined ? { availableOnline: input.availableOnline } : {}),
+      ...(input.featured !== undefined ? { featured: input.featured } : {}),
+      ...(input.showOnWebsite !== undefined ? { showOnWebsite: input.showOnWebsite } : {}),
     })
     .where(eq(fyhServices.id, id))
     .returning();

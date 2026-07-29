@@ -22,7 +22,7 @@ function EmptyPanel({ message }: { message: string }) {
 
 export function SalonDashboard({ snapshot }: { snapshot: DashboardSnapshot }) {
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">

@@ -15,9 +15,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           'inline-flex items-center justify-center rounded-xl font-medium transition-all duration-200',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fyh-accent/50',
           'disabled:pointer-events-none disabled:opacity-50',
-          size === 'sm' && 'h-9 px-3 text-sm',
-          size === 'md' && 'h-11 px-4 text-sm',
-          size === 'lg' && 'h-12 px-5 text-base',
+          size === 'sm' && 'h-8 px-2.5 text-xs',
+          size === 'md' && 'h-9 px-3.5 text-sm',
+          size === 'lg' && 'h-10 px-4 text-sm',
           variant === 'primary' &&
             'bg-fyh-forest text-fyh-text shadow-lg shadow-black/25 hover:bg-fyh-moss hover:shadow-black/30',
           variant === 'secondary' &&

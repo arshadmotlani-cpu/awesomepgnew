@@ -2,6 +2,7 @@ import { loadAppEnv } from '@/src/lib/db/loadEnv';
 loadAppEnv();
 
 import { eq } from 'drizzle-orm';
+import { ensureRcCutConsumableKit } from '@/src/hair/db/rcConsumableKit';
 import { hairDb } from '@/src/hair/db/client';
 import {
   fyhCommissionEntries,
@@ -56,6 +57,16 @@ export async function requireRcFixtures() {
 
   if (!staff || !staff2 || !chair || !cut || !blow || !product || !membership || !pkgPlan) {
     throw new Error('RC fixtures missing — run npm run hair:db:seed');
+  }
+
+  await ensureRcCutConsumableKit(hairDb, cut.id, product.id, 10);
+
+  if (Number(product.stockQty) < 50) {
+    await hairDb
+      .update(fyhProducts)
+      .set({ stockQty: 100, updatedAt: new Date() })
+      .where(eq(fyhProducts.id, product.id));
+    product.stockQty = 100;
   }
 
   return { staff, staff2, chair, cut, blow, product, membership, pkgPlan };
@@ -122,22 +133,17 @@ export async function pendingOutboxCount() {
 }
 
 let slotSeq = 0;
-// Per-run entropy so successive `node --test` invocations don't re-collide with
-// stale appointments from prior runs against the shared Hair DB.
-const RUN_OFFSET_DAYS = 30 + (Math.floor(Date.now() / 1000) % 60);
+/** Per-process offset so back-to-back test runs do not reuse the same 2099 calendar days. */
+const RUN_DAY_OFFSET = 1 + ((process.pid * 997 + Date.now()) % 8000);
 
 /**
- * Unique future slot inside salon hours, avoiding lunch 13:00–13:30.
- * Each call reserves a fresh future day at 11:00 sharp, guaranteeing no
- * collisions across serial tests even when many appointments accumulate.
+ * Monotonic appointment start: one slot per calendar day at 11:00 **local** time,
+ * anchored in 2099 so rows never collide with real/dev DB appointments.
  */
 export function nextSlot(_hoursFromNow = 2) {
   slotSeq += 1;
-  const start = new Date();
-  start.setSeconds(0, 0);
-  start.setDate(start.getDate() + RUN_OFFSET_DAYS + slotSeq);
-  start.setHours(11, 0, 0, 0);
-  // Skip Sundays (salon closed in seed).
+  const start = new Date(2099, 5, 1, 11, 0, 0, 0);
+  start.setDate(RUN_DAY_OFFSET + slotSeq);
   if (start.getDay() === 0) start.setDate(start.getDate() + 1);
   return start;
 }

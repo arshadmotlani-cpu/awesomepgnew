@@ -21,6 +21,9 @@
   --fyh-border-strong: rgba(212, 188, 122, 0.38);
   --fyh-border-hover: rgba(212, 188, 122, 0.48);
   --fyh-glow: rgba(42, 138, 92, 0.38);
+  --fyh-control-h: 2.25rem;
+  --fyh-radius: 0.875rem;
+  --fyh-radius-lg: 1rem;
 }
 
 .fyh-theme-light {
@@ -84,10 +87,10 @@
 .fyh-glass {
   background: var(--fyh-bg-glass);
   border: 1px solid var(--fyh-border-strong);
-  border-radius: 1.25rem;
+  border-radius: var(--fyh-radius-lg);
   backdrop-filter: blur(22px) saturate(1.2);
   box-shadow:
-    0 10px 48px rgba(0, 0, 0, 0.32),
+    0 8px 36px rgba(0, 0, 0, 0.28),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
@@ -132,13 +135,13 @@
 
 .fyh-input {
   display: flex;
-  height: 2.75rem;
+  height: var(--fyh-control-h);
   width: 100%;
-  border-radius: 0.875rem;
+  border-radius: var(--fyh-radius);
   border: 1px solid var(--fyh-border-strong);
   background: color-mix(in srgb, var(--fyh-bg-surface) 88%, black);
-  padding: 0 0.875rem;
-  font-size: 0.875rem;
+  padding: 0 0.75rem;
+  font-size: 0.8125rem;
   color: var(--fyh-text-primary);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }

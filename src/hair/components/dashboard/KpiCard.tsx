@@ -15,7 +15,7 @@ export function KpiCard({
   accent?: boolean;
 }) {
   return (
-    <div className="fyh-glass space-y-3 p-4">
+    <div className="fyh-glass space-y-2 p-3">
       <div className="flex items-start justify-between gap-3">
         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-fyh-text-muted">
           {label}
@@ -29,7 +29,7 @@ export function KpiCard({
           <Icon className="h-4 w-4" />
         </span>
       </div>
-      <p className={cn('fyh-display text-2xl font-semibold tracking-tight', accent && 'text-fyh-accent')}>
+      <p className={cn('fyh-display text-xl font-semibold tracking-tight', accent && 'text-fyh-accent')}>
         {value}
       </p>
       {hint ? <p className="text-xs text-fyh-text-muted">{hint}</p> : null}

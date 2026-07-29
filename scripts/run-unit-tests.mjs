@@ -2,6 +2,14 @@
 /**
  * Cross-platform unit/integration test runner for local dev + CI.
  * Expands test files explicitly so shell glob differences never skip the suite.
+ *
+ * Usage:
+ *   node scripts/run-unit-tests.mjs           — full monorepo
+ *   node scripts/run-unit-tests.mjs hair      — tests/hair only (default serial: --test-concurrency=1)
+ *   node scripts/run-unit-tests.mjs capital   — tests/capital only
+ *   node scripts/run-unit-tests.mjs pg        — Awesome PG (tests/unit + tests/integration)
+ *
+ * Override concurrency: TEST_CONCURRENCY=4 node scripts/run-unit-tests.mjs hair
  */
 import { spawnSync } from 'node:child_process';
 import { readdirSync, statSync } from 'node:fs';
@@ -21,20 +29,48 @@ function collectTests(dir, out = []) {
   return out;
 }
 
-const files = [
-  ...collectTests('tests/unit'),
-  ...collectTests('tests/integration'),
-  ...collectTests('tests/capital/unit'),
-  ...collectTests('tests/hair'),
-].sort();
+const PRODUCTS = {
+  hair: ['tests/hair'],
+  capital: ['tests/capital'],
+  pg: ['tests/unit', 'tests/integration'],
+};
 
-if (files.length === 0) {
-  console.error('No unit/integration test files found');
+const ALL_DIRS = [
+  'tests/unit',
+  'tests/integration',
+  'tests/capital',
+  'tests/hair',
+];
+
+const productArg = process.argv[2]?.trim().toLowerCase();
+let dirs;
+if (!productArg) {
+  dirs = ALL_DIRS;
+} else if (PRODUCTS[productArg]) {
+  dirs = PRODUCTS[productArg];
+} else {
+  console.error(
+    `Unknown product "${process.argv[2]}". Use: hair | capital | pg (or omit for full repo).`,
+  );
   process.exit(1);
 }
 
+const files = dirs.flatMap((d) => collectTests(d)).sort();
+
+if (files.length === 0) {
+  console.error(`No test files found for: ${dirs.join(', ')}`);
+  process.exit(1);
+}
+
+if (productArg) {
+  console.error(`[run-unit-tests] product=${productArg} files=${files.length}`);
+}
+
 const args = ['--import', 'tsx', '--test'];
-const concurrency = process.env.TEST_CONCURRENCY?.trim();
+let concurrency = process.env.TEST_CONCURRENCY?.trim();
+if (!concurrency && productArg === 'hair') {
+  concurrency = '1';
+}
 if (concurrency) args.push(`--test-concurrency=${concurrency}`);
 args.push(...files);
 

@@ -17,7 +17,7 @@ import { formatInrFromPaise } from '@/src/hair/lib/money';
 const initialState: ProductActionState = {};
 
 const fieldClass =
-  'w-full rounded-xl border border-[color:var(--fyh-border)] bg-black/20 px-3 py-2 text-sm text-fyh-text outline-none focus:border-fyh-accent/50';
+  'fyh-input w-full text-[0.8125rem] outline-none focus:border-fyh-accent/50';
 
 export function ProductsList({
   products,
@@ -29,7 +29,7 @@ export function ProductsList({
   status?: string;
 }) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">
@@ -180,7 +180,7 @@ export function ProductForm({
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <form action={formAction} className="fyh-glass space-y-4 p-5">
         {mode === 'edit' && product ? <input type="hidden" name="id" value={product.id} /> : null}
         <input

@@ -78,4 +78,4 @@ Visit loop: Booked → Confirmed → Arrived → In Service → Completed → In
 
 **Navigation:** 9-dot **Quick actions** (top bar, left of search) → Express Sale or Advance Payment only. **+ New** (top bar) → create appointments, customers, catalog records, staff. Quick Sale hold/resume lives inside Express Sale only.
 
-Run Hair tests: `npm run test:hair` (integration needs `npm run hair:db:migrate`).
+Run Hair tests: **`npm run test:hair`** (same as `node scripts/run-unit-tests.mjs hair`). Requires migrated Hair DB (`npm run hair:db:migrate`); integration uses RC seed fixtures (`npm run hair:db:seed`) and auto-repairs RC-CUT consumable kits on load.

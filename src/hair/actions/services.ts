@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireHairAuth } from '@/src/hair/lib/auth/guards';
-import { FYH_COMMISSION_TYPES, type FyhCommissionType } from '@/src/hair/db/schema';
 import {
   archiveService,
   createService,
@@ -21,66 +20,45 @@ function formStr(formData: FormData, key: string): string {
   return String(formData.get(key) ?? '').trim();
 }
 
-function formNum(formData: FormData, key: string, fallback = 0): number {
+function formNum(formData: FormData, key: string): number | null {
   const raw = formStr(formData, key);
-  if (!raw) return fallback;
+  if (raw === '') return null;
   const n = Number(raw);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-function formBool(formData: FormData, key: string): boolean {
-  const v = formData.get(key);
-  return v === 'on' || v === 'true' || v === '1';
+  return Number.isFinite(n) ? n : null;
 }
 
 function parseServiceForm(formData: FormData): ServiceInput {
   const name = formStr(formData, 'name');
   if (!name) throw new Error('Service name is required');
 
-  const commissionRaw = formStr(formData, 'commissionType') || 'none';
-  if (!(FYH_COMMISSION_TYPES as readonly string[]).includes(commissionRaw)) {
-    throw new Error('Invalid commission type');
+  const category = formStr(formData, 'category');
+  if (!category) throw new Error('Category is required');
+
+  const costPriceRupees = formNum(formData, 'costPriceRupees');
+  if (costPriceRupees === null) throw new Error('Cost price is required');
+  if (costPriceRupees < 0) throw new Error('Cost price cannot be negative');
+
+  const sellingPriceRupees = formNum(formData, 'sellingPriceRupees');
+  if (sellingPriceRupees === null || sellingPriceRupees < 0) {
+    throw new Error('Selling price is required');
   }
 
-  const staffIds = formData
-    .getAll('staffIds')
-    .map((v) => String(v).trim())
-    .filter(Boolean);
+  const durationMinutes = formNum(formData, 'durationMinutes');
+  if (durationMinutes === null || durationMinutes <= 0) {
+    throw new Error('Duration must be a positive number of minutes');
+  }
 
-  const productIds = formData.getAll('consumableProductId').map((v) => String(v).trim());
-  const qtys = formData.getAll('consumableQty').map((v) => Number(v));
-  const deductFlags = formData.getAll('consumableDeductInventory').map((v) => String(v));
-  const consumables = productIds
-    .map((productId, i) => ({
-      productId,
-      quantity: Number.isFinite(qtys[i]) ? qtys[i] : 0,
-      deductInventory: deductFlags[i] === '1' || deductFlags[i] === 'true' || deductFlags[i] === 'on',
-    }))
-    .filter((c) => c.productId && c.quantity > 0);
-
-  const category = formStr(formData, 'category');
-  const customCategory = formStr(formData, 'customCategory');
+  const status = formStr(formData, 'status') || 'active';
+  const isActive = status !== 'inactive';
 
   return {
     name,
-    category: category === '__custom__' ? null : category || null,
-    customCategory: category === '__custom__' ? customCategory : null,
-    durationMinutes: formNum(formData, 'durationMinutes', 30),
-    sellingPriceRupees: formNum(formData, 'sellingPriceRupees', 0),
-    costPriceRupees: formNum(formData, 'costPriceRupees', 0),
-    gstPercent: formNum(formData, 'gstPercent', 0),
+    category,
+    durationMinutes,
+    sellingPriceRupees,
+    costPriceRupees,
     description: formStr(formData, 'description') || null,
-    displayOrder: formNum(formData, 'displayOrder', 100),
-    commissionType: commissionRaw as FyhCommissionType,
-    commissionFixedRupees: formNum(formData, 'commissionFixedRupees', 0),
-    commissionPercent: formNum(formData, 'commissionPercent', 0),
-    overrideStaffCommission: formBool(formData, 'overrideStaffCommission'),
-    availableOnline: formBool(formData, 'availableOnline'),
-    featured: formBool(formData, 'featured'),
-    showOnWebsite: formBool(formData, 'showOnWebsite'),
-    isActive: formData.get('isActive') !== 'false',
-    staffIds,
-    consumables,
+    isActive,
   };
 }
 
@@ -110,7 +88,7 @@ export async function updateServiceAction(
     await updateService(id, parseServiceForm(formData));
     revalidatePath('/services');
     revalidatePath(`/services/${id}`);
-    return { success: 'Service updated.' };
+    return { success: 'Service saved.' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to update service' };
   }

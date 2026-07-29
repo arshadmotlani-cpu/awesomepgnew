@@ -10,7 +10,7 @@ export default async function HairAppLayout({ children }: { children: React.Reac
       <HairSidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <HairAppHeader admin={admin} />
-        <main className="relative z-0 flex-1 overflow-auto p-4 md:p-8">{children}</main>
+        <main className="relative z-0 flex-1 overflow-auto p-3 md:p-6">{children}</main>
       </div>
     </div>
   );
