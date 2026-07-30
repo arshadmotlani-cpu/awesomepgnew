@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireHairAuth } from '@/src/hair/lib/auth/guards';
+import { requirePermission } from '@/src/hair/lib/auth/permissions';
 import { createResource, setResourceActive } from '@/src/hair/services/resources';
 import type { FyhResourceType } from '@/src/hair/db/schema';
 
@@ -16,7 +16,7 @@ export async function createResourceAction(
   formData: FormData,
 ): Promise<ResourceActionState> {
   try {
-    await requireHairAuth();
+    await requirePermission('action:settings.edit');
     const name = formStr(formData, 'name');
     if (!name) return { error: 'Name is required.' };
     const type = (formStr(formData, 'type') || 'chair') as FyhResourceType;
@@ -30,7 +30,7 @@ export async function createResourceAction(
 }
 
 export async function toggleResourceActiveAction(formData: FormData): Promise<void> {
-  await requireHairAuth();
+  await requirePermission('action:settings.edit');
   const id = formStr(formData, 'resourceId');
   const active = formStr(formData, 'isActive') === '1';
   if (!id) return;
