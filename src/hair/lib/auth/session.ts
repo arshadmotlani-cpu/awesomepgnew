@@ -44,16 +44,6 @@ export async function createHairSession(
   return { token, maxAgeDays };
 }
 
-async function refreshHairSessionCookie(
-  token: string,
-  expiresAt: Date,
-  secure: boolean,
-): Promise<void> {
-  const cookieStore = await cookies();
-  const maxAgeSeconds = Math.max(60, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
-  cookieStore.set(HAIR_SESSION_COOKIE, token, hairSessionCookieOptions(secure, maxAgeSeconds));
-}
-
 export async function getHairSession(): Promise<HairSession | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(HAIR_SESSION_COOKIE)?.value;
@@ -93,11 +83,8 @@ export async function getHairSession(): Promise<HairSession | null> {
       .update(fyhAuthSessions)
       .set({ expiresAt })
       .where(eq(fyhAuthSessions.id, row.sessionId));
-    await refreshHairSessionCookie(
-      token,
-      expiresAt,
-      process.env.NODE_ENV === 'production',
-    );
+    // Cookie refresh must not run during RSC render (Next.js restriction).
+    // DB expiry is authoritative; cookie maxAge is set at login.
   }
 
   return {

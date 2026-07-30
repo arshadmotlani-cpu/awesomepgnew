@@ -1,28 +1,28 @@
-import type { LucideIcon } from 'lucide-react';
 import {
   hasPermission,
   type HairPagePermission,
   type PermissionAdmin,
 } from '@/src/hair/lib/auth/permissionTypes';
-import {
-  CalendarDays,
-  ClipboardList,
-  Heart,
-  LayoutDashboard,
-  Package,
-  Receipt,
-  Settings,
-  ShoppingBag,
-  Sparkles,
-  Users,
-  Warehouse,
-} from 'lucide-react';
+
+/** Serializable icon key — resolved to Lucide components in client HairSidebar only. */
+export type HairNavIconKey =
+  | 'layout-dashboard'
+  | 'users'
+  | 'calendar-days'
+  | 'receipt'
+  | 'sparkles'
+  | 'shopping-bag'
+  | 'clipboard-list'
+  | 'warehouse'
+  | 'heart'
+  | 'package'
+  | 'settings';
 
 export type HairNavLink = {
   type: 'link';
   href: string;
   label: string;
-  icon: LucideIcon;
+  iconKey: HairNavIconKey;
   hidden?: boolean;
   permission?: HairPagePermission;
 };
@@ -31,7 +31,7 @@ export type HairNavGroup = {
   type: 'group';
   id: string;
   label: string;
-  icon: LucideIcon;
+  iconKey: HairNavIconKey;
   defaultExpanded?: boolean;
   permission?: HairPagePermission;
   children: Array<{ href: string; label: string }>;
@@ -44,54 +44,54 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
     type: 'link',
     href: '/dashboard',
     label: 'Dashboard',
-    icon: LayoutDashboard,
+    iconKey: 'layout-dashboard',
     permission: 'page:dashboard',
   },
   {
     type: 'link',
     href: '/customers',
     label: 'Customers',
-    icon: Users,
+    iconKey: 'users',
     permission: 'page:customers',
   },
   {
     type: 'link',
     href: '/appointments',
     label: 'Appointments',
-    icon: CalendarDays,
+    iconKey: 'calendar-days',
     permission: 'page:appointments',
   },
   {
     type: 'link',
     href: '/billing',
     label: 'Billing',
-    icon: Receipt,
+    iconKey: 'receipt',
     permission: 'page:billing',
   },
   {
     type: 'link',
     href: '/quick-sale',
     label: 'Quick Sale',
-    icon: Receipt,
+    iconKey: 'receipt',
     hidden: true,
     permission: 'page:quick_sale',
   },
-  { type: 'link', href: '/services', label: 'Services', icon: Sparkles },
-  { type: 'link', href: '/products', label: 'Products', icon: ShoppingBag },
-  { type: 'link', href: '/staff', label: 'Staff', icon: ClipboardList },
+  { type: 'link', href: '/services', label: 'Services', iconKey: 'sparkles' },
+  { type: 'link', href: '/products', label: 'Products', iconKey: 'shopping-bag' },
+  { type: 'link', href: '/staff', label: 'Staff', iconKey: 'clipboard-list' },
   {
     type: 'link',
     href: '/inventory',
     label: 'Inventory',
-    icon: Warehouse,
+    iconKey: 'warehouse',
     permission: 'page:inventory',
   },
-  { type: 'link', href: '/loyalty', label: 'Loyalty', icon: Heart },
+  { type: 'link', href: '/loyalty', label: 'Loyalty', iconKey: 'heart' },
   {
     type: 'group',
     id: 'reports',
     label: 'Reports',
-    icon: Package,
+    iconKey: 'package',
     defaultExpanded: false,
     permission: 'page:reports',
     children: [
@@ -118,7 +118,7 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
     type: 'link',
     href: '/settings',
     label: 'Settings',
-    icon: Settings,
+    iconKey: 'settings',
     permission: 'page:settings',
   },
 ];
@@ -127,20 +127,15 @@ export function filterNavByPermissions(
   admin: PermissionAdmin,
   entries: HairNavEntry[] = HAIR_NAV_ENTRIES,
 ): HairNavEntry[] {
-  return entries
-    .filter((entry) => {
-      if (entry.type === 'link') {
-        if (entry.hidden) return false;
-        if (!entry.permission) return true;
-        return hasPermission(admin, entry.permission);
-      }
+  return entries.filter((entry) => {
+    if (entry.type === 'link') {
+      if (entry.hidden) return false;
       if (!entry.permission) return true;
       return hasPermission(admin, entry.permission);
-    })
-    .map((entry) => {
-      if (entry.type === 'group') return entry;
-      return entry;
-    });
+    }
+    if (!entry.permission) return true;
+    return hasPermission(admin, entry.permission);
+  });
 }
 
 /** @deprecated use HAIR_NAV_ENTRIES */

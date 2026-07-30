@@ -12,12 +12,14 @@ import { HairQuickActionsMenu } from '@/src/hair/components/HairQuickActionsMenu
 import { HairSidebar } from '@/src/hair/components/HairSidebar';
 import { Button } from '@/src/hair/components/ui/button';
 import type { HairAdmin } from '@/src/hair/lib/auth/session';
+import type { HairNavEntry } from '@/src/hair/lib/nav';
 
 type HairAppHeaderProps = {
   admin: HairAdmin;
+  navEntries?: HairNavEntry[];
 };
 
-export function HairAppHeader({ admin }: HairAppHeaderProps) {
+export function HairAppHeader({ admin, navEntries }: HairAppHeaderProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
@@ -94,7 +96,7 @@ export function HairAppHeader({ admin }: HairAppHeaderProps) {
               </Button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto" onClick={() => setMobileNavOpen(false)}>
-              <HairSidebar className="!flex h-full w-full border-0" />
+              <HairSidebar entries={navEntries} className="!flex h-full w-full border-0" />
             </div>
           </div>
         </div>

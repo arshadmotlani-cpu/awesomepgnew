@@ -2,16 +2,51 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, UserRound } from 'lucide-react';
+import {
+  CalendarDays,
+  ChevronDown,
+  ClipboardList,
+  Heart,
+  LayoutDashboard,
+  Package,
+  Receipt,
+  Settings,
+  ShoppingBag,
+  Sparkles,
+  UserRound,
+  Users,
+  Warehouse,
+  type LucideIcon,
+} from 'lucide-react';
 import { useState } from 'react';
 import { FyhSidebarBrand } from '@/src/components/brand/fyh/FyhSidebarBrand';
-import { visibleHairNavEntries, type HairNavGroup, type HairNavLink } from '@/src/hair/lib/nav';
+import {
+  visibleHairNavEntries,
+  type HairNavEntry,
+  type HairNavGroup,
+  type HairNavIconKey,
+  type HairNavLink,
+} from '@/src/hair/lib/nav';
 import { cn } from '@/src/hair/lib/utils';
+
+const NAV_ICONS: Record<HairNavIconKey, LucideIcon> = {
+  'layout-dashboard': LayoutDashboard,
+  users: Users,
+  'calendar-days': CalendarDays,
+  receipt: Receipt,
+  sparkles: Sparkles,
+  'shopping-bag': ShoppingBag,
+  'clipboard-list': ClipboardList,
+  warehouse: Warehouse,
+  heart: Heart,
+  package: Package,
+  settings: Settings,
+};
 
 function NavLink({ item }: { item: HairNavLink }) {
   const pathname = usePathname();
   const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
-  const Icon = item.icon;
+  const Icon = NAV_ICONS[item.iconKey];
   return (
     <Link
       href={item.href}
@@ -34,7 +69,7 @@ function NavGroup({ group }: { group: HairNavGroup }) {
     (c) => pathname === c.href || pathname.startsWith(`${c.href}/`),
   );
   const [open, setOpen] = useState(group.defaultExpanded ?? childActive);
-  const Icon = group.icon;
+  const Icon = NAV_ICONS[group.iconKey];
 
   return (
     <div className="space-y-0.5">
@@ -81,7 +116,7 @@ export function HairSidebar({
   entries,
   className,
 }: {
-  entries?: ReturnType<typeof visibleHairNavEntries>;
+  entries?: HairNavEntry[];
   className?: string;
 }) {
   const navEntries = entries ?? visibleHairNavEntries();
