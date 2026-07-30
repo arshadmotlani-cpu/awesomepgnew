@@ -9,6 +9,7 @@
 
 ## 2026-07-30
 
+- **FYH-COMMUNICATIONS-PHASE-G** — Template-driven notifications service (`renderTemplate` settings→DB→seed), outbox processor stub (sent/failed), post-checkout invoice/review enqueue, appointment confirmation via templates, Quick Sale WhatsApp preview action, cron-ready automations, loyalty outbox admin panel, `invoice_ready` kind
 - **FYH-BILLING-FOUNDATION** — Implemented billing engine Phases 0–4: domain/basket, GST-inclusive engine, `0016` financial ledger, checkoutFromBasket, Quick Sale POS redesign, due/advance flows, customer invoice sanitization, Settings Google Review URL
 - **FYH-QUICK-SALE-ARCH** — Approved billing engine foundation doc: Basket SSOT, BillableItem catalog, overridePrice-only pricing, percentage staff allocations, unified Financial Ledger, invoice line snapshots; linked from `QUICK_SALE.md`
 

@@ -141,6 +141,13 @@
       "when": 1755500000000,
       "tag": "0020_performance_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1755600000000,
+      "tag": "0021_historical_import",
+      "breakpoints": true
     }
   ]
 }

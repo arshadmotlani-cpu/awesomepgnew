@@ -13,6 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { fyhAppointments } from './appointments';
 import { fyhCustomers } from './customers';
+import { fyhHistoricalImportBatches } from './historicalImport';
 import { fyhProducts } from './products';
 import { fyhServices } from './services';
 import { fyhStaff } from './staff';
@@ -38,7 +39,7 @@ export const FYH_INVOICE_LINE_KINDS = [
   'custom',
 ] as const;
 export type FyhInvoiceLineKind = (typeof FYH_INVOICE_LINE_KINDS)[number];
-export type FyhInvoiceSource = 'appointment' | 'quick_sale';
+export type FyhInvoiceSource = 'appointment' | 'quick_sale' | 'historical_import';
 
 /** Stored on draft quick-sale invoices (`status = draft`) until payment. */
 export type QuickSalePosDraft = {
@@ -55,7 +56,7 @@ export type QuickSalePosDraft = {
   roundOffPaise?: number;
 };
 
-export const FYH_INVOICE_SOURCES = ['appointment', 'quick_sale'] as const;
+export const FYH_INVOICE_SOURCES = ['appointment', 'quick_sale', 'historical_import'] as const;
 
 /**
  * Salon invoices — single money engine for checkout (Phase 2+).
@@ -97,6 +98,10 @@ export const fyhInvoices = pgTable(
     notes: text('notes'),
     /** Quick Sale hold — payment draft and POS-only fields until checkout. */
     posDraft: jsonb('pos_draft').$type<QuickSalePosDraft | null>(),
+    importBatchId: uuid('import_batch_id').references(() => fyhHistoricalImportBatches.id, {
+      onDelete: 'set null',
+    }),
+    importRowKey: text('import_row_key'),
     paidAt: timestamp('paid_at', { withTimezone: true }),
     voidedAt: timestamp('voided_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

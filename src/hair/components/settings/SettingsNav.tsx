@@ -13,6 +13,7 @@ export const SETTINGS_SECTIONS = [
   { href: '/settings/billing', label: 'Billing' },
   { href: '/settings/inventory', label: 'Inventory' },
   { href: '/settings/security', label: 'Security' },
+  { href: '/settings/historical-import', label: 'Historical import', superAdminOnly: true },
   { href: '/settings/permissions', label: 'Permissions', superAdminOnly: true },
 ] as const;
 

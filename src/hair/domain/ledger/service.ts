@@ -10,9 +10,11 @@ export async function postLedgerEntries(
     customerId: string;
     invoiceId: string | null;
     entries: FinancialLedgerEntryDraft[];
+    occurredAt?: Date;
   },
 ) {
   if (!input.entries.length) return;
+  const at = input.occurredAt ?? new Date();
   await db.insert(fyhFinancialLedger).values(
     input.entries.map((e) => ({
       customerId: input.customerId,
@@ -23,6 +25,7 @@ export async function postLedgerEntries(
       method: e.method,
       kind: e.kind,
       reference: e.reference ?? null,
+      createdAt: at,
     })),
   );
 }

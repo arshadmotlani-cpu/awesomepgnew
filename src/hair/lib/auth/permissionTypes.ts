@@ -17,6 +17,7 @@ export const HAIR_ACTION_PERMISSIONS = [
   'action:reports.export',
   'action:settings.edit',
   'action:staff.commission_pay',
+  'action:import.historical',
 ] as const;
 
 export const HAIR_PERMISSIONS = [
@@ -86,6 +87,12 @@ export const PERMISSIONS_CATALOG: ReadonlyArray<{
     label: 'Pay commissions',
     group: 'action',
     description: 'Mark staff commissions as paid',
+  },
+  {
+    key: 'action:import.historical',
+    label: 'Import historical sales',
+    group: 'action',
+    description: 'Import past sales from Excel into paid invoices',
   },
 ];
 

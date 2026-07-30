@@ -679,6 +679,7 @@ async function applyLegacyCommissionFallback(
 export async function applyPaidSideEffects(db: typeof hairDb, invoiceId: string) {
   const [invoice] = await db.select().from(fyhInvoices).where(eq(fyhInvoices.id, invoiceId)).limit(1);
   if (!invoice) return;
+  if (invoice.source === 'historical_import') return;
 
   const lines = await db.select().from(fyhInvoiceLines).where(eq(fyhInvoiceLines.invoiceId, invoiceId));
   const isQuickSale = invoice.source === 'quick_sale';
