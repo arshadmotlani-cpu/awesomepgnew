@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { requireHairAuth } from '@/src/hair/lib/auth/guards';
 import { requirePermission } from '@/src/hair/lib/auth/permissions';
 import {
   createBridalProfile,

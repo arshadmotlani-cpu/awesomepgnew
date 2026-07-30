@@ -20,9 +20,10 @@ export function InventoryNav() {
     <nav className="fyh-glass -mx-1 overflow-x-auto p-1" aria-label="Inventory sections">
       <div className="flex min-w-max gap-1">
       {TABS.map((tab) => {
-        const active = tab.exact
-          ? pathname === tab.href
-          : pathname === tab.href || pathname.startsWith(`${tab.href}/`);
+        const active =
+          'exact' in tab && tab.exact
+            ? pathname === tab.href
+            : pathname === tab.href || pathname.startsWith(`${tab.href}/`);
         return (
           <Link
             key={tab.href}

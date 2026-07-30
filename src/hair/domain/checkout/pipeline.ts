@@ -8,6 +8,7 @@ import {
   fyhInvoiceLines,
   fyhInvoicePayments,
   fyhInvoices,
+  type FyhInvoiceStatus,
 } from '@/src/hair/db/schema';
 import { priceBasket } from '@/src/hair/domain/basket/engine';
 import type { Basket } from '@/src/hair/domain/basket/types';
@@ -139,7 +140,7 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
     const isPartial =
       enriched.flags.markDue && paySum > 0 && paySum < grandTotal;
     const paid = payApplied >= grandTotal && grandTotal > 0;
-    const status =
+    const status: FyhInvoiceStatus =
       grandTotal === 0
         ? 'paid'
         : paid

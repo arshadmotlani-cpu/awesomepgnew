@@ -448,7 +448,7 @@ export async function buildNotificationPreview(input: {
           : `/billing/${input.invoiceId}`
         : '';
 
-  const vars =
+  const vars: Record<string, string> =
     input.kind === 'whatsapp_invoice'
       ? {
           name: input.customerName,

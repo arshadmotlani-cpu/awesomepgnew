@@ -72,7 +72,12 @@ export function QuickSaleStaffRow({
               return;
             }
             const nextIds = [...staff.map((x) => x.staffId), s.id];
-            onChange(normalizeEqualShares(nextIds));
+            onChange(
+              normalizeEqualShares(nextIds).map((entry) => ({
+                staffId: entry.staffId,
+                shareBps: entry.shareBps ?? 0,
+              })),
+            );
             setAdding(false);
           }}
         />

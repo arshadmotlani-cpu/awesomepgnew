@@ -24,6 +24,7 @@ import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { inferQuickSaleCustomerPrefill } from '@/src/hair/lib/quickSaleCustomerPrefill';
 import type { AppointmentCheckoutPrefill } from '@/src/hair/domain/basket/appointmentBridge';
 import type { PosCustomerHit } from '@/src/hair/services/quickSale';
+import type { QuickSaleHoldSummary } from '@/src/hair/services/quickSaleHold';
 import type { FyhBillingSettings } from '@/src/hair/db/schema/settings';
 
 type SelectedCustomer = PosCustomerHit;

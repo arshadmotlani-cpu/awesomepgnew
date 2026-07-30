@@ -101,8 +101,10 @@ function ledgerTitle(kind: LedgerKind, direction: string): string {
       return direction === 'credit' ? 'Payment received' : 'Payment recorded';
     case 'invoice_charge':
       return 'Invoice charge';
-    default:
-      return kind.replace(/_/g, ' ');
+    default: {
+      const _exhaustive: never = kind;
+      return String(_exhaustive).replace(/_/g, ' ');
+    }
   }
 }
 

@@ -2,8 +2,8 @@ import type { LucideIcon } from 'lucide-react';
 import {
   hasPermission,
   type HairPagePermission,
-} from '@/src/hair/lib/auth/permissions';
-import type { HairAdmin } from '@/src/hair/lib/auth/session';
+  type PermissionAdmin,
+} from '@/src/hair/lib/auth/permissionTypes';
 import {
   CalendarDays,
   ClipboardList,
@@ -124,7 +124,7 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
 ];
 
 export function filterNavByPermissions(
-  admin: Pick<HairAdmin, 'role' | 'permissions'>,
+  admin: PermissionAdmin,
   entries: HairNavEntry[] = HAIR_NAV_ENTRIES,
 ): HairNavEntry[] {
   return entries

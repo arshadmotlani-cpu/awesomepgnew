@@ -131,12 +131,18 @@ function parseFinalBillsSheet(
   };
 }
 
+async function loadExcelWorkbook(buffer: Buffer): Promise<ExcelJS.Workbook> {
+  const workbook = new ExcelJS.Workbook();
+  // ExcelJS typings expect legacy Node Buffer; runtime accepts standard Buffer.
+  await workbook.xlsx.load(buffer as unknown as Parameters<ExcelJS.Workbook['xlsx']['load']>[0]);
+  return workbook;
+}
+
 export async function parseFinalBillsWorkbook(
   buffer: Buffer,
   defaultGstBps: number,
 ): Promise<ParsedHistoricalImport> {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
+  const workbook = await loadExcelWorkbook(buffer);
 
   const allRows: HistoricalSalesRow[] = [];
   const parseErrors: ParsedHistoricalImport['parseErrors'] = [];
@@ -175,8 +181,7 @@ export async function parseStandardHistoricalSheet(
   buffer: Buffer,
   defaultGstBps: number,
 ): Promise<ParsedHistoricalImport> {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
+  const workbook = await loadExcelWorkbook(buffer);
   const sheet = workbook.worksheets[0];
   if (!sheet) {
     return {
@@ -194,8 +199,7 @@ export async function parseHistoricalSalesWorkbook(
   buffer: Buffer,
   defaultGstBps: number,
 ): Promise<ParsedHistoricalImport> {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
+  const workbook = await loadExcelWorkbook(buffer);
   const finalBillsSheets = workbook.worksheets.filter(isFinalBillsSheet);
 
   if (finalBillsSheets.length > 0) {
