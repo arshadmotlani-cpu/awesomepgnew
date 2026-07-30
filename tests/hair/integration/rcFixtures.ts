@@ -69,8 +69,11 @@ export async function requireRcFixtures() {
       .from(fyhServiceStaff)
       .where(and(eq(fyhServiceStaff.serviceId, cut.id), eq(fyhServiceStaff.staffId, staffId)))
       .limit(1);
-    if (!linked) {
+    if (linked) continue;
+    try {
       await hairDb.insert(fyhServiceStaff).values({ serviceId: cut.id, staffId });
+    } catch {
+      // Concurrent tests may link the same staff row first.
     }
   }
 
