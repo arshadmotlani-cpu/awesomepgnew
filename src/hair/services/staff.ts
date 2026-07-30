@@ -10,6 +10,11 @@ export async function listStaff(includeInactive = false) {
     .orderBy(asc(fyhStaff.fullName));
 }
 
+export async function getStaffById(id: string) {
+  const [row] = await hairDb.select().from(fyhStaff).where(eq(fyhStaff.id, id)).limit(1);
+  return row ?? null;
+}
+
 export async function createStaffQuick(input: {
   fullName: string;
   phone?: string | null;

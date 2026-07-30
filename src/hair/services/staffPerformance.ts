@@ -1,6 +1,8 @@
 import { and, eq, gte, lt, sql } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
+import { zonedLocalToUtc } from '@/src/hair/lib/salonTime';
 import {
+  fyhCommissionEntries,
   fyhInvoiceLineAttributions,
   fyhInvoiceLines,
   fyhInvoices,
@@ -139,4 +141,139 @@ export async function salonMetricTotal(metric: FyhRevenueMetric, range: DateRang
       ),
     );
   return Number(rows[0]?.total ?? 0);
+}
+
+export function summaryTotalPaise(summary: StaffPerformanceSummary): number {
+  return (
+    summary.serviceRevenuePaise +
+    summary.productRevenuePaise +
+    summary.packageRevenuePaise +
+    summary.membershipRevenuePaise
+  );
+}
+
+export type StaffDetailPerformance = {
+  summary: StaffPerformanceSummary;
+  totalRevenuePaise: number;
+  invoiceCount: number;
+  avgTicketPaise: number;
+};
+
+export async function getStaffDetailPerformance(
+  staffId: string,
+  range: DateRange,
+): Promise<StaffDetailPerformance> {
+  const summary = await getStaffPerformanceSummary(staffId, range);
+  const totalRevenuePaise = summaryTotalPaise(summary);
+
+  const [countRow] = await hairDb
+    .select({
+      invoiceCount: sql<number>`count(distinct ${fyhInvoices.id})::int`,
+    })
+    .from(fyhInvoiceLineAttributions)
+    .innerJoin(fyhInvoiceLines, eq(fyhInvoiceLines.id, fyhInvoiceLineAttributions.invoiceLineId))
+    .innerJoin(fyhInvoices, eq(fyhInvoices.id, fyhInvoiceLines.invoiceId))
+    .where(
+      and(
+        eq(fyhInvoiceLineAttributions.staffId, staffId),
+        eq(fyhInvoices.status, 'paid'),
+        gte(fyhInvoices.paidAt, range.from),
+        lt(fyhInvoices.paidAt, range.to),
+      ),
+    );
+
+  const invoiceCount = Number(countRow?.invoiceCount ?? 0);
+  const avgTicketPaise =
+    invoiceCount > 0 ? Math.round(totalRevenuePaise / invoiceCount) : 0;
+
+  return { summary, totalRevenuePaise, invoiceCount, avgTicketPaise };
+}
+
+export type StaffMonthlyTrendPoint = {
+  monthKey: string;
+  label: string;
+  revenuePaise: number;
+};
+
+function salonMonthBounds(timezone: string, monthOffset: number, now = new Date()) {
+  const dayKey = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+  const [y, m] = dayKey.split('-').map(Number);
+  const anchor = new Date(Date.UTC(y, m - 1 - monthOffset, 1));
+  const yy = anchor.getUTCFullYear();
+  const mm = anchor.getUTCMonth() + 1;
+  const monthKey = `${yy}-${String(mm).padStart(2, '0')}`;
+  const label = new Intl.DateTimeFormat('en-IN', {
+    timeZone: timezone,
+    month: 'short',
+    year: '2-digit',
+  }).format(new Date(Date.UTC(yy, mm - 1, 15)));
+  const from = zonedLocalToUtc(`${monthKey}-01T00:00:00`, timezone);
+  const next = new Date(Date.UTC(yy, mm, 1));
+  const nextKey = `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}-01`;
+  const to = zonedLocalToUtc(`${nextKey}T00:00:00`, timezone);
+  return { monthKey, label, from, to };
+}
+
+export async function getStaffMonthlyTrend(
+  staffId: string,
+  months = 6,
+  timezone = 'Asia/Kolkata',
+): Promise<StaffMonthlyTrendPoint[]> {
+  const points: StaffMonthlyTrendPoint[] = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const { monthKey, label, from, to } = salonMonthBounds(timezone, i);
+    const summary = await getStaffPerformanceSummary(staffId, { from, to });
+    points.push({ monthKey, label, revenuePaise: summaryTotalPaise(summary) });
+  }
+  return points;
+}
+
+export type StaffTargetProgress = {
+  targetPaise: number;
+  actualPaise: number;
+  progressBps: number;
+};
+
+export async function getStaffTargetProgress(
+  staffId: string,
+  range: DateRange,
+): Promise<StaffTargetProgress> {
+  const [staff] = await hairDb
+    .select({ performanceTargetPaise: fyhStaff.performanceTargetPaise })
+    .from(fyhStaff)
+    .where(eq(fyhStaff.id, staffId))
+    .limit(1);
+
+  const targetPaise = Number(staff?.performanceTargetPaise ?? 0);
+  const detail = await getStaffDetailPerformance(staffId, range);
+  const actualPaise = detail.totalRevenuePaise;
+  const progressBps =
+    targetPaise > 0 ? Math.min(10_000, Math.round((actualPaise * 10_000) / targetPaise)) : 0;
+
+  return { targetPaise, actualPaise, progressBps };
+}
+
+export type StaffCommissionTotals = {
+  pendingPaise: number;
+  paidPaise: number;
+};
+
+export async function getStaffCommissionTotals(staffId: string): Promise<StaffCommissionTotals> {
+  const [row] = await hairDb
+    .select({
+      pendingPaise: sql<number>`coalesce(sum(case when ${fyhCommissionEntries.status} = 'pending' then ${fyhCommissionEntries.amountPaise} else 0 end), 0)::bigint`,
+      paidPaise: sql<number>`coalesce(sum(case when ${fyhCommissionEntries.status} = 'paid' then ${fyhCommissionEntries.amountPaise} else 0 end), 0)::bigint`,
+    })
+    .from(fyhCommissionEntries)
+    .where(eq(fyhCommissionEntries.staffId, staffId));
+
+  return {
+    pendingPaise: Number(row?.pendingPaise ?? 0),
+    paidPaise: Number(row?.paidPaise ?? 0),
+  };
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState } from 'react';
 import { createStaffQuickAction, type StaffActionState } from '@/src/hair/actions/staff';
 import { Button } from '@/src/hair/components/ui/button';
@@ -25,7 +26,10 @@ export function StaffPage({
         <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">Team</p>
         <h1 className="fyh-display mt-1 text-3xl font-semibold">Staff</h1>
         <p className="mt-1 text-sm text-fyh-text-secondary">
-          Assign stylists to services. Commissions accrue on paid invoices.
+          Assign stylists to services. Commissions accrue on paid invoices.{' '}
+          <Link href="/fyh/staff/performance" className="text-fyh-accent underline-offset-2 hover:underline">
+            View performance leaderboard
+          </Link>
         </p>
       </div>
 
@@ -72,6 +76,7 @@ export function StaffPage({
                 <th className="px-4 py-3 font-medium">Phone</th>
                 <th className="px-4 py-3 font-medium">Role</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Performance</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[color:var(--fyh-border)]">
@@ -86,6 +91,14 @@ export function StaffPage({
                     <span className={s.isActive ? 'text-fyh-success' : 'text-fyh-text-muted'}>
                       {s.isActive ? 'Active' : 'Inactive'}
                     </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Link
+                      href={`/fyh/staff/${s.id}/performance`}
+                      className="text-fyh-accent underline-offset-2 hover:underline"
+                    >
+                      View
+                    </Link>
                   </td>
                 </tr>
               ))}
