@@ -256,7 +256,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-30 09:04:12 UTC
+### Pending pre-commit sync · 2026-07-30 10:08:52 UTC
 
 **Areas touched:** [[ROUTES]]
 
@@ -265,9 +265,20 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
-**Staged code files (2):**
-- `app/(hair)/fyh/(app)/quick-sale/page.tsx`
-- `app/(hair)/fyh/(app)/settings/page.tsx`
+**Staged code files (13):**
+- `app/(hair)/fyh/(app)/inventory/adjustments/new/page.tsx`
+- `app/(hair)/fyh/(app)/inventory/adjustments/page.tsx`
+- `app/(hair)/fyh/(app)/inventory/layout.tsx`
+- `app/(hair)/fyh/(app)/inventory/movements/page.tsx`
+- `app/(hair)/fyh/(app)/inventory/page.tsx`
+- `app/(hair)/fyh/(app)/inventory/purchases/[id]/page.tsx`
+- `app/(hair)/fyh/(app)/inventory/purchases/new/page.tsx`
+- `app/(hair)/fyh/(app)/inventory/purchases/page.tsx`
+- `app/(hair)/fyh/(app)/inventory/transfers/page.tsx`
+- `app/(hair)/fyh/(app)/inventory/vendors/[id]/page.tsx`
+- `app/(hair)/fyh/(app)/inventory/vendors/new/page.tsx`
+- `app/(hair)/fyh/(app)/inventory/vendors/page.tsx`
+- `app/(hair)/fyh/(app)/settings/inventory/page.tsx`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

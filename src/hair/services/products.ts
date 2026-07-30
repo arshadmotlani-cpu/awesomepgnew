@@ -1,6 +1,7 @@
 import { and, asc, eq, ilike, or } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import { fyhProducts } from '@/src/hair/db/schema';
+import { applyMovement } from '@/src/hair/services/stock';
 
 function toPaise(rupees: number): number {
   return Math.round(Number(rupees || 0) * 100);
@@ -71,58 +72,96 @@ export async function createProduct(input: ProductInput) {
   if ((input.sellingPriceRupees ?? 0) < 0 || (input.costPriceRupees ?? 0) < 0) {
     throw new Error('Prices cannot be negative');
   }
-  const [row] = await hairDb
-    .insert(fyhProducts)
-    .values({
-      name,
-      sku: input.sku?.trim() || null,
-      barcode: input.barcode?.trim() || null,
-      brand: input.brand?.trim() || null,
-      category: input.category?.trim() || null,
-      description: input.description?.trim() || null,
-      sellingPricePaise: toPaise(input.sellingPriceRupees),
-      costPricePaise: toPaise(input.costPriceRupees ?? 0),
-      stockQty: input.stockQty ?? 0,
-      reorderLevel: input.reorderLevel ?? 0,
-      unit: input.unit?.trim() || 'unit',
-      gstBps: Math.round((input.gstPercent ?? 0) * 100),
-      isRetail: input.isRetail !== false,
-      isConsumable: input.isConsumable !== false,
-      isActive: input.isActive !== false,
-    })
-    .returning();
-  return row;
+  const openingQty = input.stockQty ?? 0;
+
+  return hairDb.transaction(async (tx) => {
+    const db = tx as unknown as typeof hairDb;
+    const [row] = await tx
+      .insert(fyhProducts)
+      .values({
+        name,
+        sku: input.sku?.trim() || null,
+        barcode: input.barcode?.trim() || null,
+        brand: input.brand?.trim() || null,
+        category: input.category?.trim() || null,
+        description: input.description?.trim() || null,
+        sellingPricePaise: toPaise(input.sellingPriceRupees),
+        costPricePaise: toPaise(input.costPriceRupees ?? 0),
+        stockQty: 0,
+        reorderLevel: input.reorderLevel ?? 0,
+        unit: input.unit?.trim() || 'unit',
+        gstBps: Math.round((input.gstPercent ?? 0) * 100),
+        isRetail: input.isRetail !== false,
+        isConsumable: input.isConsumable !== false,
+        isActive: input.isActive !== false,
+      })
+      .returning();
+
+    if (openingQty > 0) {
+      await applyMovement(db, {
+        productId: row!.id,
+        quantityDelta: openingQty,
+        movementType: 'opening',
+        notes: 'Opening stock',
+      });
+    }
+
+    const [updated] = await tx.select().from(fyhProducts).where(eq(fyhProducts.id, row!.id)).limit(1);
+    return updated!;
+  });
 }
 
 export async function updateProduct(id: string, input: ProductInput) {
   const name = input.name.trim();
   if (!name) throw new Error('Product name is required');
   const isActive = input.isActive !== false;
-  const [row] = await hairDb
-    .update(fyhProducts)
-    .set({
-      name,
-      sku: input.sku?.trim() || null,
-      barcode: input.barcode?.trim() || null,
-      brand: input.brand?.trim() || null,
-      category: input.category?.trim() || null,
-      description: input.description?.trim() || null,
-      sellingPricePaise: toPaise(input.sellingPriceRupees),
-      costPricePaise: toPaise(input.costPriceRupees ?? 0),
-      stockQty: input.stockQty ?? 0,
-      reorderLevel: input.reorderLevel ?? 0,
-      unit: input.unit?.trim() || 'unit',
-      gstBps: Math.round((input.gstPercent ?? 0) * 100),
-      isRetail: input.isRetail !== false,
-      isConsumable: input.isConsumable !== false,
-      isActive,
-      archivedAt: isActive ? null : new Date(),
-      updatedAt: new Date(),
-    })
-    .where(eq(fyhProducts.id, id))
-    .returning();
-  if (!row) throw new Error('Product not found');
-  return row;
+
+  const existing = await getProduct(id);
+  if (!existing) throw new Error('Product not found');
+
+  const desiredQty = input.stockQty ?? 0;
+  const currentQty = Number(existing.stockQty);
+  const delta = desiredQty - currentQty;
+
+  return hairDb.transaction(async (tx) => {
+    const db = tx as unknown as typeof hairDb;
+    const [row] = await tx
+      .update(fyhProducts)
+      .set({
+        name,
+        sku: input.sku?.trim() || null,
+        barcode: input.barcode?.trim() || null,
+        brand: input.brand?.trim() || null,
+        category: input.category?.trim() || null,
+        description: input.description?.trim() || null,
+        sellingPricePaise: toPaise(input.sellingPriceRupees),
+        costPricePaise: toPaise(input.costPriceRupees ?? 0),
+        reorderLevel: input.reorderLevel ?? 0,
+        unit: input.unit?.trim() || 'unit',
+        gstBps: Math.round((input.gstPercent ?? 0) * 100),
+        isRetail: input.isRetail !== false,
+        isConsumable: input.isConsumable !== false,
+        isActive,
+        archivedAt: isActive ? null : new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(fyhProducts.id, id))
+      .returning();
+
+    if (delta !== 0) {
+      await applyMovement(db, {
+        productId: id,
+        quantityDelta: delta,
+        movementType: 'adjustment',
+        referenceType: 'product_edit',
+        referenceId: id,
+        notes: 'Stock corrected via product edit',
+      });
+    }
+
+    const [updated] = await tx.select().from(fyhProducts).where(eq(fyhProducts.id, id)).limit(1);
+    return updated!;
+  });
 }
 
 export async function archiveProduct(id: string) {
