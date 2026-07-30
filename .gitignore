@@ -48,6 +48,9 @@ yarn-error.log*
 # KYC document uploads (local filesystem storage)
 /data/kyc/
 
+# FYH historical import generated artifacts
+/docs/foryourhair/imports/output/
+
 # vercel
 .vercel
 

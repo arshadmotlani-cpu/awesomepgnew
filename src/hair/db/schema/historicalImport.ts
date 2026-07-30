@@ -13,6 +13,16 @@ import { fyhAdminUsers } from './admin';
 export const FYH_HISTORICAL_IMPORT_STATUSES = ['running', 'completed', 'failed'] as const;
 export type FyhHistoricalImportStatus = (typeof FYH_HISTORICAL_IMPORT_STATUSES)[number];
 
+export type HistoricalImportValidation = {
+  passed: boolean;
+  excelRowCount: number;
+  excelRevenuePaise: number;
+  excelCashPaise: number;
+  excelUpiPaise: number;
+  parsedRowCount: number;
+  errors: string[];
+};
+
 export type HistoricalImportSummary = {
   totalRows: number;
   imported: number;
@@ -20,7 +30,10 @@ export type HistoricalImportSummary = {
   failed: number;
   totalRevenuePaise: number;
   totalGstPaise: number;
+  cashTotalPaise?: number;
+  upiTotalPaise?: number;
   failedRows: Array<{ rowNumber: number; rowKey?: string; reason: string }>;
+  validation?: HistoricalImportValidation;
 };
 
 export const fyhHistoricalImportBatches = pgTable(

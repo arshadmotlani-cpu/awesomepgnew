@@ -400,7 +400,7 @@ export async function createQuickSaleInvoice(
   },
 ) {
   const { buildBasketFromQuickSaleLines } = await import(
-    '@/src/hair/domain/basket/legacyBridge'
+    '@/src/hair/domain/basket/legacyBridgeServer'
   );
   const { checkoutFromBasket } = await import('@/src/hair/domain/checkout/pipeline');
   const basket = await buildBasketFromQuickSaleLines(customerId, lines, [], {});
@@ -425,7 +425,7 @@ export async function finalizeQuickSale(input: {
   creditOverpayAsAdvance?: boolean;
 }) {
   const { buildBasketFromQuickSaleLines } = await import(
-    '@/src/hair/domain/basket/legacyBridge'
+    '@/src/hair/domain/basket/legacyBridgeServer'
   );
   const { checkoutFromBasket } = await import('@/src/hair/domain/checkout/pipeline');
 

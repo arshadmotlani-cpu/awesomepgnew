@@ -2,11 +2,11 @@
 
 import { requireSuperAdmin } from '@/src/hair/lib/auth/guards';
 import {
-  exportHistoricalImportBatchXlsx,
   getHistoricalImportBatch,
   importHistoricalSales,
   previewHistoricalSales,
 } from '@/src/hair/services/historicalImport';
+import { exportHistoricalImportBatchXlsx } from '@/src/hair/services/historicalImportExport';
 import type { HistoricalImportSummary } from '@/src/hair/db/schema';
 
 export type HistoricalImportActionState = {
@@ -79,6 +79,13 @@ export async function runHistoricalImportAction(
         summary: result.summary,
         batchId: result.batchId ?? undefined,
         skippedExistingBatch: true,
+      };
+    }
+
+    if (result.validationFailed) {
+      return {
+        error: 'Import aborted: Excel validation failed. See summary for details.',
+        summary: result.summary,
       };
     }
 

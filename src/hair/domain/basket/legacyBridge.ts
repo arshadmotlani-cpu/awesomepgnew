@@ -1,9 +1,6 @@
-import type { Basket, BasketFlags, BasketLine, PaymentEntry, StaffAllocation } from '@/src/hair/domain/basket/types';
+import type { Basket, BasketLine, StaffAllocation } from '@/src/hair/domain/basket/types';
 import type { BillableItem } from '@/src/hair/domain/catalog/types';
-import {
-  billableItemToSnapshot,
-  resolveBillableItem,
-} from '@/src/hair/domain/catalog/adapter';
+import { billableItemToSnapshot } from '@/src/hair/domain/catalog/snapshot';
 import type { QuickSaleLineInput } from '@/src/hair/services/invoices';
 import { normalizeEqualShares } from '@/src/hair/lib/attributionMath';
 
@@ -44,7 +41,10 @@ export function legacyLinesToBasket(
               staffId: s.staffId,
               shareBps: s.shareBps ?? 0,
             }))
-          : normalizeEqualShares(line.servicedBy.map((s) => s.staffId));
+          : normalizeEqualShares(line.servicedBy.map((s) => s.staffId)).map((s) => ({
+              staffId: s.staffId,
+              shareBps: s.shareBps ?? 0,
+            }));
       } else if (line.soldByStaffId ?? line.staffId) {
         staff = [{ staffId: (line.soldByStaffId ?? line.staffId)!, shareBps: 10_000 }];
       }
@@ -83,22 +83,4 @@ export function basketToLegacyLines(basket: Basket): QuickSaleLineInput[] {
     }
     return base;
   });
-}
-
-export async function buildBasketFromQuickSaleLines(
-  customerId: string,
-  lines: QuickSaleLineInput[],
-  payments: PaymentEntry[] = [],
-  flags: BasketFlags = {},
-): Promise<Basket> {
-  const snapshots = new Map<string, BasketLine['snapshot']>();
-  for (const line of lines) {
-    const key = `${line.kind}-${line.refId}`;
-    if (snapshots.has(key)) continue;
-    const item = await resolveBillableItem(line.kind, line.refId);
-    if (!item) throw new Error(`${line.kind} not found`);
-    snapshots.set(key, billableItemToSnapshot(item));
-  }
-  const basket = legacyLinesToBasket(customerId, lines, snapshots);
-  return { ...basket, payments, flags };
 }

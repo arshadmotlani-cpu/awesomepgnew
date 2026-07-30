@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import ExcelJS from 'exceljs';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { and, eq } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import {
@@ -9,28 +10,25 @@ import {
   fyhInvoices,
   fyhInvoiceLines,
   type HistoricalImportSummary,
+  type HistoricalImportValidation,
 } from '@/src/hair/db/schema';
 import {
   buildHistoricalInvoiceNotes,
   buildHistoricalLedgerPlan,
   computeImportRowKey,
-  mapHeaderToField,
-  parseExcelDate,
-  parseInrToPaise,
-  parsePaymentMethod,
-  priceHistoricalLine,
+  priceHistoricalInvoice,
   validateHistoricalRow,
   type HistoricalSalesRow,
 } from '@/src/hair/domain/import/historicalInvoice';
+import { parseHistoricalSalesWorkbook } from '@/src/hair/domain/import/finalBillsParser';
 import { postLedgerEntries } from '@/src/hair/domain/ledger/service';
-import { nextInvoiceNumberForTx } from '@/src/hair/services/invoices';
+import { buildInvoicePrintHtml, getInvoiceDetail, nextInvoiceNumberForTx } from '@/src/hair/services/invoices';
 import { getSalonSettings } from '@/src/hair/services/settings';
 import { resolveHistoricalCustomer } from '@/src/hair/services/historicalImportCustomers';
-
-export type ParsedHistoricalImport = {
-  rows: HistoricalSalesRow[];
-  parseErrors: Array<{ rowNumber: number; reason: string }>;
-};
+import {
+  applyServiceMapToRows,
+  buildHistoricalServiceMap,
+} from '@/src/hair/services/historicalImportServiceMap';
 
 export type ImportHistoricalOptions = {
   fileName: string;
@@ -38,116 +36,64 @@ export type ImportHistoricalOptions = {
   uploadedByAdminId?: string | null;
   dryRun?: boolean;
   force?: boolean;
+  pdfOutputDir?: string;
 };
 
 export type ImportHistoricalResult = {
   batchId: string | null;
   summary: HistoricalImportSummary;
   skippedExistingBatch?: boolean;
+  validationFailed?: boolean;
 };
 
 function sha256(buffer: Buffer): string {
   return createHash('sha256').update(buffer).digest('hex');
 }
 
-function cellValue(cell: ExcelJS.Cell): unknown {
-  const v = cell.value;
-  if (v && typeof v === 'object' && 'result' in v) {
-    return (v as ExcelJS.CellFormulaValue).result;
+function buildValidation(
+  parsed: Awaited<ReturnType<typeof parseHistoricalSalesWorkbook>>,
+  pricedRows: ReturnType<typeof priceHistoricalInvoice>[],
+  rows: HistoricalSalesRow[],
+): HistoricalImportValidation {
+  const errors: string[] = [];
+  const parsedRevenue = pricedRows.reduce((s, p) => s + p.grandTotalPaise, 0);
+  const parsedCash = rows
+    .filter((r) => r.paymentMethod === 'cash')
+    .reduce((s, r) => s + r.amountPaise, 0);
+  const parsedUpi = rows
+    .filter((r) => r.paymentMethod === 'upi')
+    .reduce((s, r) => s + r.amountPaise, 0);
+
+  if (parsed.rows.length !== parsed.excelStats.rowCount) {
+    errors.push(
+      `Row count mismatch: Excel ${parsed.excelStats.rowCount} vs parsed ${parsed.rows.length}`,
+    );
   }
-  if (v && typeof v === 'object' && 'richText' in v) {
-    return (v as ExcelJS.CellRichTextValue).richText.map((r) => r.text).join('');
+  if (parsedRevenue !== parsed.excelStats.revenuePaise) {
+    errors.push(
+      `Revenue mismatch: Excel ₹${(parsed.excelStats.revenuePaise / 100).toFixed(2)} vs parsed ₹${(parsedRevenue / 100).toFixed(2)}`,
+    );
   }
-  return v;
-}
-
-export async function parseHistoricalSalesExcel(buffer: Buffer): Promise<ParsedHistoricalImport> {
-  const settings = await getSalonSettings();
-  const defaultGstBps = settings.defaultGstBps ?? 1800;
-
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
-  const sheet = workbook.worksheets[0];
-  if (!sheet) {
-    return { rows: [], parseErrors: [{ rowNumber: 0, reason: 'Workbook has no worksheets' }] };
+  if (parsedCash !== parsed.excelStats.cashPaise) {
+    errors.push(
+      `Cash mismatch: Excel ₹${(parsed.excelStats.cashPaise / 100).toFixed(2)} vs parsed ₹${(parsedCash / 100).toFixed(2)}`,
+    );
   }
-
-  const headerRow = sheet.getRow(1);
-  const fieldByCol = new Map<number, string>();
-  headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
-    const header = String(cellValue(cell) ?? '').trim();
-    const field = mapHeaderToField(header);
-    if (field) fieldByCol.set(colNumber, field);
-  });
-
-  const required = ['transaction_date', 'customer_name', 'description', 'amount_inr', 'payment_method'];
-  const present = new Set(fieldByCol.values());
-  const missing = required.filter((f) => !present.has(f));
-  if (missing.length) {
-    return {
-      rows: [],
-      parseErrors: [{ rowNumber: 1, reason: `Missing required columns: ${missing.join(', ')}` }],
-    };
+  if (parsedUpi !== parsed.excelStats.upiPaise) {
+    errors.push(
+      `UPI mismatch: Excel ₹${(parsed.excelStats.upiPaise / 100).toFixed(2)} vs parsed ₹${(parsedUpi / 100).toFixed(2)}`,
+    );
   }
 
-  const rows: HistoricalSalesRow[] = [];
-  const parseErrors: ParsedHistoricalImport['parseErrors'] = [];
-
-  for (let r = 2; r <= sheet.rowCount; r++) {
-    const row = sheet.getRow(r);
-    if (row.cellCount === 0) continue;
-
-    const raw: Record<string, unknown> = {};
-    let hasData = false;
-    fieldByCol.forEach((field, col) => {
-      const val = cellValue(row.getCell(col));
-      if (val != null && String(val).trim() !== '') hasData = true;
-      raw[field] = val;
-    });
-    if (!hasData) continue;
-
-    const transactionDate = parseExcelDate(raw.transaction_date);
-    const amountPaise = parseInrToPaise(raw.amount_inr);
-    const discountPaise = parseInrToPaise(raw.discount_inr) ?? 0;
-    const paymentMethod = parsePaymentMethod(String(raw.payment_method ?? ''));
-    const gstRaw = raw.gst_percent;
-    const gstBps =
-      gstRaw != null && String(gstRaw).trim() !== ''
-        ? Math.round(Number(gstRaw) * 100)
-        : defaultGstBps;
-    const quantity = Math.max(1, Number(raw.quantity ?? 1) || 1);
-
-    if (!transactionDate) {
-      parseErrors.push({ rowNumber: r, reason: 'Invalid transaction_date' });
-      continue;
-    }
-    if (amountPaise == null) {
-      parseErrors.push({ rowNumber: r, reason: 'Invalid amount_inr' });
-      continue;
-    }
-    if (!paymentMethod) {
-      parseErrors.push({ rowNumber: r, reason: 'Invalid payment_method' });
-      continue;
-    }
-
-    rows.push({
-      rowNumber: r,
-      rowId: raw.row_id != null ? String(raw.row_id).trim() : undefined,
-      transactionDate,
-      customerName: String(raw.customer_name ?? '').trim(),
-      customerPhone: raw.customer_phone != null ? String(raw.customer_phone).trim() : undefined,
-      description: String(raw.description ?? '').trim(),
-      amountPaise,
-      discountPaise,
-      paymentMethod,
-      gstBps: Number.isFinite(gstBps) ? gstBps : defaultGstBps,
-      quantity,
-      originalInvoiceRef:
-        raw.original_invoice_ref != null ? String(raw.original_invoice_ref).trim() : undefined,
-    });
-  }
-
-  return { rows, parseErrors };
+  return {
+    passed: errors.length === 0 && parsed.parseErrors.length === 0,
+    excelRowCount: parsed.excelStats.rowCount,
+    excelRevenuePaise: parsed.excelStats.revenuePaise,
+    excelCashPaise: parsed.excelStats.cashPaise,
+    excelUpiPaise: parsed.excelStats.upiPaise,
+    parsedRowCount: parsed.rows.length,
+    errors,
+  };
 }
 
 async function findExistingBatch(fileSha256: string) {
@@ -173,33 +119,51 @@ async function findExistingInvoiceByRowKey(rowKey: string) {
   return inv ?? null;
 }
 
+async function writeInvoicePdfHtml(invoiceId: string, outputDir: string) {
+  const detail = await getInvoiceDetail(invoiceId);
+  if (!detail) return null;
+  await mkdir(outputDir, { recursive: true });
+  const html = buildInvoicePrintHtml(detail);
+  const filePath = path.join(outputDir, `${detail.invoice.invoiceNumber}.html`);
+  await writeFile(filePath, html, 'utf8');
+  return filePath;
+}
+
 async function persistHistoricalRow(
   db: typeof hairDb,
   batchId: string,
   row: HistoricalSalesRow,
-): Promise<{ imported: boolean; skipped: boolean; revenuePaise: number; gstPaise: number }> {
+  pdfOutputDir?: string,
+): Promise<{
+  imported: boolean;
+  skipped: boolean;
+  revenuePaise: number;
+  gstPaise: number;
+  cashPaise: number;
+  upiPaise: number;
+  invoiceId?: string;
+}> {
   const rowKey = computeImportRowKey(row);
   const validationError = validateHistoricalRow(row);
-  if (validationError) {
-    throw new Error(validationError);
-  }
+  if (validationError) throw new Error(validationError);
 
   const existing = await findExistingInvoiceByRowKey(rowKey);
   if (existing) {
-    return { imported: false, skipped: true, revenuePaise: 0, gstPaise: 0 };
+    return {
+      imported: false,
+      skipped: true,
+      revenuePaise: 0,
+      gstPaise: 0,
+      cashPaise: 0,
+      upiPaise: 0,
+      invoiceId: existing.id,
+    };
   }
 
-  const priced = priceHistoricalLine({
-    description: row.description,
-    amountPaise: row.amountPaise,
-    discountPaise: row.discountPaise,
-    gstBps: row.gstBps,
-    quantity: row.quantity,
-  });
-
-  if (Math.abs(priced.finalLinePaise - row.amountPaise) > 1) {
+  const priced = priceHistoricalInvoice(row);
+  if (Math.abs(priced.grandTotalPaise - row.amountPaise) > itemsTolerance(row.lineItems.length)) {
     throw new Error(
-      `Amount mismatch after GST math: expected ₹${(row.amountPaise / 100).toFixed(2)}, got ₹${(priced.finalLinePaise / 100).toFixed(2)}`,
+      `Amount mismatch after GST math: expected ₹${(row.amountPaise / 100).toFixed(2)}, got ₹${(priced.grandTotalPaise / 100).toFixed(2)}`,
     );
   }
 
@@ -221,11 +185,11 @@ async function persistHistoricalRow(
       source: 'historical_import',
       stylistId: null,
       status: 'paid',
-      subtotalPaise: priced.basePaise,
+      subtotalPaise: priced.subtotalPaise,
       discountPaise: priced.discountPaise,
-      taxPaise: priced.gstPaise,
-      grandTotalPaise: priced.finalLinePaise,
-      amountPaidPaise: priced.finalLinePaise,
+      taxPaise: priced.taxPaise,
+      grandTotalPaise: priced.grandTotalPaise,
+      amountPaidPaise: priced.grandTotalPaise,
       notes,
       importBatchId: batchId,
       importRowKey: rowKey,
@@ -237,28 +201,32 @@ async function persistHistoricalRow(
 
   if (!inv) throw new Error('Failed to create historical invoice');
 
-  const unitSellingPricePaise = Math.round((row.amountPaise + row.discountPaise) / priced.quantity);
-
-  await db.insert(fyhInvoiceLines).values({
-    invoiceId: inv.id,
-    kind: 'custom',
-    staffId: null,
-    nameSnapshot: priced.description,
-    quantity: priced.quantity,
-    unitPricePaise: unitSellingPricePaise,
-    discountPaise: priced.discountPaise,
-    discountBps: priced.discountBps,
-    gstBps: priced.gstBps,
-    taxPaise: priced.gstPaise,
-    lineTotalPaise: priced.finalLinePaise,
-    sortOrder: 0,
-    createdAt: occurredAt,
-  });
+  for (let i = 0; i < priced.lines.length; i++) {
+    const line = priced.lines[i]!;
+    const item = row.lineItems[i];
+    const unitSellingPricePaise = line.catalogGrossPaise;
+    await db.insert(fyhInvoiceLines).values({
+      invoiceId: inv.id,
+      kind: item?.kind ?? line.kind,
+      serviceId: item?.serviceId ?? line.serviceId ?? null,
+      staffId: null,
+      nameSnapshot: line.description,
+      quantity: line.quantity,
+      unitPricePaise: unitSellingPricePaise,
+      discountPaise: line.discountPaise,
+      discountBps: line.discountBps,
+      gstBps: line.gstBps,
+      taxPaise: line.gstPaise,
+      lineTotalPaise: line.finalLinePaise,
+      sortOrder: i,
+      createdAt: occurredAt,
+    });
+  }
 
   await db.insert(fyhInvoicePayments).values({
     invoiceId: inv.id,
     method: row.paymentMethod,
-    amountPaise: priced.finalLinePaise,
+    amountPaise: priced.grandTotalPaise,
     reference: row.originalInvoiceRef ?? null,
     notes: 'Historical import',
     paidAt: occurredAt,
@@ -267,7 +235,7 @@ async function persistHistoricalRow(
 
   const ledgerPlan = buildHistoricalLedgerPlan({
     customerId: customer.id,
-    grandTotalPaise: priced.finalLinePaise,
+    grandTotalPaise: priced.grandTotalPaise,
     paymentMethod: row.paymentMethod,
   });
 
@@ -278,34 +246,63 @@ async function persistHistoricalRow(
     occurredAt,
   });
 
+  if (pdfOutputDir) {
+    await writeInvoicePdfHtml(inv.id, pdfOutputDir);
+  }
+
   return {
     imported: true,
     skipped: false,
-    revenuePaise: priced.finalLinePaise,
-    gstPaise: priced.gstPaise,
+    revenuePaise: priced.grandTotalPaise,
+    gstPaise: priced.taxPaise,
+    cashPaise: row.paymentMethod === 'cash' ? priced.grandTotalPaise : 0,
+    upiPaise: row.paymentMethod === 'upi' ? priced.grandTotalPaise : 0,
+    invoiceId: inv.id,
   };
+}
+
+function itemsTolerance(lineCount: number): number {
+  return Math.max(1, lineCount);
 }
 
 export async function importHistoricalSales(
   opts: ImportHistoricalOptions,
 ): Promise<ImportHistoricalResult> {
   const fileSha256 = sha256(opts.buffer);
-  const parsed = await parseHistoricalSalesExcel(opts.buffer);
+  const settings = await getSalonSettings();
+  const defaultGstBps = settings.defaultGstBps ?? 1800;
+
+  const parsed = await parseHistoricalSalesWorkbook(opts.buffer, defaultGstBps);
+  const serviceMap = await buildHistoricalServiceMap();
+  const rows = applyServiceMapToRows(parsed.rows, serviceMap);
+  const pricedRows = rows.map((row) => priceHistoricalInvoice(row));
+  const validation = buildValidation(parsed, pricedRows, rows);
 
   const summary: HistoricalImportSummary = {
-    totalRows: parsed.rows.length,
+    totalRows: rows.length,
     imported: 0,
     skipped: 0,
     failed: parsed.parseErrors.length,
     totalRevenuePaise: 0,
     totalGstPaise: 0,
+    cashTotalPaise: 0,
+    upiTotalPaise: 0,
     failedRows: parsed.parseErrors.map((e) => ({
       rowNumber: e.rowNumber,
-      reason: e.reason,
+      reason: e.sheetName ? `${e.sheetName}: ${e.reason}` : e.reason,
     })),
+    validation,
   };
 
-  if (!opts.force) {
+  if (!validation.passed) {
+    summary.failed += rows.length;
+    for (const err of validation.errors) {
+      summary.failedRows.push({ rowNumber: 0, reason: err });
+    }
+    return { batchId: null, summary, validationFailed: true };
+  }
+
+  if (!opts.force && !opts.dryRun) {
     const existingBatch = await findExistingBatch(fileSha256);
     if (existingBatch?.summary) {
       return {
@@ -316,24 +313,30 @@ export async function importHistoricalSales(
     }
   }
 
-  if (opts.dryRun) {
-    for (const row of parsed.rows) {
-      const err = validateHistoricalRow(row);
-      if (err) {
-        summary.failed += 1;
-        summary.failedRows.push({ rowNumber: row.rowNumber, rowKey: computeImportRowKey(row), reason: err });
-        continue;
-      }
-      const priced = priceHistoricalLine({
-        description: row.description,
-        amountPaise: row.amountPaise,
-        discountPaise: row.discountPaise,
-        gstBps: row.gstBps,
-        quantity: row.quantity,
+  for (const row of rows) {
+    const err = validateHistoricalRow(row);
+    if (err) {
+      summary.failed += 1;
+      summary.failedRows.push({
+        rowNumber: row.rowNumber,
+        rowKey: computeImportRowKey(row),
+        reason: err,
       });
+    }
+  }
+
+  if (summary.failed > 0) {
+    return { batchId: null, summary, validationFailed: true };
+  }
+
+  if (opts.dryRun) {
+    for (const row of rows) {
+      const priced = priceHistoricalInvoice(row);
       summary.imported += 1;
-      summary.totalRevenuePaise += priced.finalLinePaise;
-      summary.totalGstPaise += priced.gstPaise;
+      summary.totalRevenuePaise += priced.grandTotalPaise;
+      summary.totalGstPaise += priced.taxPaise;
+      if (row.paymentMethod === 'cash') summary.cashTotalPaise! += priced.grandTotalPaise;
+      if (row.paymentMethod === 'upi') summary.upiTotalPaise! += priced.grandTotalPaise;
     }
     return { batchId: null, summary };
   }
@@ -351,15 +354,17 @@ export async function importHistoricalSales(
       .returning();
     if (!batch) throw new Error('Failed to create import batch');
 
-    for (const row of parsed.rows) {
+    for (const row of rows) {
       try {
-        const result = await persistHistoricalRow(db, batch.id, row);
+        const result = await persistHistoricalRow(db, batch.id, row, opts.pdfOutputDir);
         if (result.skipped) {
           summary.skipped += 1;
         } else if (result.imported) {
           summary.imported += 1;
           summary.totalRevenuePaise += result.revenuePaise;
           summary.totalGstPaise += result.gstPaise;
+          summary.cashTotalPaise! += result.cashPaise;
+          summary.upiTotalPaise! += result.upiPaise;
         }
       } catch (e) {
         summary.failed += 1;
@@ -373,18 +378,11 @@ export async function importHistoricalSales(
           errorMessage: reason,
           rawRow: row as unknown as Record<string, unknown>,
         });
+        throw e;
       }
     }
 
-    for (const pe of parsed.parseErrors) {
-      await db.insert(fyhHistoricalImportRowErrors).values({
-        batchId: batch.id,
-        rowNumber: pe.rowNumber,
-        errorMessage: pe.reason,
-      });
-    }
-
-    const status = summary.failed > 0 && summary.imported === 0 ? 'failed' : 'completed';
+    const status = summary.failed > 0 ? 'failed' : 'completed';
     await db
       .update(fyhHistoricalImportBatches)
       .set({
@@ -394,10 +392,6 @@ export async function importHistoricalSales(
       })
       .where(eq(fyhHistoricalImportBatches.id, batch.id));
 
-    console.info(
-      `historical_import batch=${batch.id} imported=${summary.imported} skipped=${summary.skipped} failed=${summary.failed}`,
-    );
-
     return batch.id;
   });
 
@@ -405,7 +399,9 @@ export async function importHistoricalSales(
 }
 
 export async function previewHistoricalSales(buffer: Buffer) {
-  return parseHistoricalSalesExcel(buffer);
+  const settings = await getSalonSettings();
+  const defaultGstBps = settings.defaultGstBps ?? 1800;
+  return parseHistoricalSalesWorkbook(buffer, defaultGstBps);
 }
 
 export async function getHistoricalImportBatch(batchId: string) {
@@ -416,3 +412,4 @@ export async function getHistoricalImportBatch(batchId: string) {
     .limit(1);
   return batch ?? null;
 }
+

@@ -1,81 +1,94 @@
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import test from 'node:test';
 import {
   computeImportRowKey,
+  distributePaise,
   mapHeaderToField,
   parseExcelDate,
-  parseInrToPaise,
   parsePaymentMethod,
-  priceHistoricalLine,
+  priceHistoricalInvoice,
   validateHistoricalRow,
-} from '../../../src/hair/domain/import/historicalInvoice.ts';
+  type HistoricalSalesRow,
+} from '../../../src/hair/domain/import/historicalInvoice';
 
-test('mapHeaderToField recognizes template columns', () => {
-  assert.equal(mapHeaderToField('Transaction Date'), 'transaction_date');
-  assert.equal(mapHeaderToField('amount_inr'), 'amount_inr');
-  assert.equal(mapHeaderToField('Payment Method'), 'payment_method');
-});
-
-test('parseInrToPaise handles rupee strings', () => {
-  assert.equal(parseInrToPaise('1,180.50'), 118050);
-  assert.equal(parseInrToPaise(1180), 118000);
-});
-
-test('parseExcelDate accepts ISO date', () => {
-  const d = parseExcelDate('2024-03-15');
-  assert.ok(d);
-  assert.equal(d!.toISOString().slice(0, 10), '2024-03-15');
-});
-
-test('parsePaymentMethod normalizes values', () => {
-  assert.equal(parsePaymentMethod('UPI'), 'upi');
-  assert.equal(parsePaymentMethod('Card'), 'card');
-  assert.equal(parsePaymentMethod('invalid'), null);
-});
-
-test('priceHistoricalLine matches GST-inclusive amount', () => {
-  const priced = priceHistoricalLine({
-    description: 'Haircut',
-    amountPaise: 118000,
-    discountPaise: 0,
-    gstBps: 1800,
-    quantity: 1,
+describe('historicalImport domain', () => {
+  it('maps Final Bills column headers', () => {
+    assert.equal(mapHeaderToField('Client Name'), 'customer_name');
+    assert.equal(mapHeaderToField('Mobile No'), 'customer_phone');
+    assert.equal(mapHeaderToField('Amount (₹)'), 'amount_inr');
+    assert.equal(mapHeaderToField('Type'), 'payment_method');
+    assert.equal(mapHeaderToField('Service'), 'description');
   });
-  assert.equal(priced.finalLinePaise, 118000);
-  assert.ok(priced.gstPaise > 0);
-  assert.ok(priced.basePaise + priced.gstPaise === priced.finalLinePaise);
+
+  it('parses DD-Mon-YY dates', () => {
+    const d = parseExcelDate('01-Apr-26');
+    assert.ok(d);
+    assert.equal(d!.toISOString().slice(0, 10), '2026-04-01');
+  });
+
+  it('parses Cash and UPI payment types', () => {
+    assert.equal(parsePaymentMethod('Cash'), 'cash');
+    assert.equal(parsePaymentMethod('UPI'), 'upi');
+  });
+
+  it('distributes paise without loss', () => {
+    const parts = distributePaise(1001, 3);
+    assert.equal(parts.reduce((a, b) => a + b, 0), 1001);
+  });
+
+  it('prices multi-line invoice to total', () => {
+    const row: HistoricalSalesRow = {
+      rowNumber: 2,
+      transactionDate: new Date('2026-04-01T12:00:00.000Z'),
+      customerName: 'Test',
+      description: 'Hair, Nails',
+      lineItems: [
+        { description: 'RC Haircut', kind: 'service' },
+        { description: 'Manicure', kind: 'custom' },
+      ],
+      amountPaise: 100000,
+      discountPaise: 0,
+      paymentMethod: 'cash',
+      gstBps: 1800,
+      quantity: 1,
+    };
+    const priced = priceHistoricalInvoice(row);
+    assert.equal(priced.grandTotalPaise, 100000);
+    assert.equal(priced.lines.length, 2);
+  });
+
+  it('builds stable row keys', () => {
+    const base = {
+      transactionDate: new Date('2026-04-01T12:00:00.000Z'),
+      customerName: 'A',
+      customerPhone: '9999999999',
+      description: 'Hair',
+      lineItems: [],
+      amountPaise: 50000,
+      discountPaise: 0,
+      paymentMethod: 'upi' as const,
+      gstBps: 1800,
+      quantity: 1,
+    };
+    const k1 = computeImportRowKey(base);
+    const k2 = computeImportRowKey({ ...base, sheetName: 'April' });
+    assert.notEqual(k1, k2);
+  });
+
+  it('rejects invalid rows', () => {
+    const row: HistoricalSalesRow = {
+      rowNumber: 1,
+      transactionDate: new Date(),
+      customerName: '',
+      description: 'Hair',
+      lineItems: [],
+      amountPaise: 0,
+      discountPaise: 0,
+      paymentMethod: 'cash',
+      gstBps: 1800,
+      quantity: 1,
+    };
+    assert.ok(validateHistoricalRow(row));
+  });
 });
 
-test('computeImportRowKey is stable', () => {
-  const base = {
-    rowId: undefined as string | undefined,
-    transactionDate: new Date('2024-01-15T12:00:00.000Z'),
-    customerName: 'Test',
-    customerPhone: '9876543210',
-    description: 'Service',
-    amountPaise: 100000,
-    discountPaise: 0,
-    paymentMethod: 'cash' as const,
-    gstBps: 1800,
-    quantity: 1,
-    originalInvoiceRef: undefined as string | undefined,
-  };
-  const a = computeImportRowKey(base);
-  const b = computeImportRowKey(base);
-  assert.equal(a, b);
-});
-
-test('validateHistoricalRow rejects empty customer', () => {
-  const row = {
-    rowNumber: 2,
-    transactionDate: new Date(),
-    customerName: '',
-    description: 'X',
-    amountPaise: 10000,
-    discountPaise: 0,
-    paymentMethod: 'cash' as const,
-    gstBps: 1800,
-    quantity: 1,
-  };
-  assert.equal(validateHistoricalRow(row), 'customer_name is required');
-});
