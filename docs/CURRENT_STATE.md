@@ -19,9 +19,9 @@
 <!-- DOC_SYNC_STATE_START -->
 ## Automated doc sync
 
-> **Last sync:** 2026-07-30 18:48:29 UTC  
+> **Last sync:** 2026-07-30 20:03:50 UTC  
 > **Areas touched:** [[ROUTES]]  
 > **Docs flagged:** CHANGELOG.md, ROUTES.md, SYSTEM/CURRENT_STATE.md  
-> **Staged code files:** 64  
+> **Staged code files:** 11  
 > **Action:** Review [[CHANGELOG#Pending pre-commit sync · 2026-07-30]] (Pending section) before push.
 <!-- DOC_SYNC_STATE_END -->
