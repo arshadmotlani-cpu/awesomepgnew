@@ -18,3 +18,4 @@ export * from './salesAttribution';
 export * from './loyalty';
 export * from './notifications';
 export * from './financialLedger';
+export * from './vendors';

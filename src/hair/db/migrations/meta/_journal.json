@@ -113,6 +113,34 @@
       "when": 1755100000000,
       "tag": "0016_billing_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1755200000000,
+      "tag": "0017_inventory_ops",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1755300000000,
+      "tag": "0018_settings_extensions",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1755400000000,
+      "tag": "0019_permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1755500000000,
+      "tag": "0020_performance_indexes",
+      "breakpoints": true
     }
   ]
 }

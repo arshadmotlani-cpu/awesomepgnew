@@ -107,6 +107,7 @@ export const fyhInvoices = pgTable(
     uniqueIndex('fyh_invoices_appointment_uidx').on(t.appointmentId),
     index('fyh_invoices_customer_idx').on(t.customerId, t.createdAt),
     index('fyh_invoices_status_idx').on(t.status),
+    index('fyh_invoices_paid_status_idx').on(t.paidAt, t.status),
     index('fyh_invoices_stylist_idx').on(t.stylistId),
     index('fyh_invoices_created_idx').on(t.createdAt),
   ],

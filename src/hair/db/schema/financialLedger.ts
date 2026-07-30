@@ -33,6 +33,7 @@ export const fyhFinancialLedger = pgTable(
   },
   (t) => [
     index('fyh_financial_ledger_customer_idx').on(t.customerId),
+    index('fyh_financial_ledger_customer_created_idx').on(t.customerId, t.createdAt),
     index('fyh_financial_ledger_invoice_idx').on(t.invoiceId),
     index('fyh_financial_ledger_kind_idx').on(t.kind),
   ],
