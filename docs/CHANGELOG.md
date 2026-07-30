@@ -266,7 +266,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
 **Staged code files (1):**
-- `app/(hair)/fyh/(app)/customers/[id]/page.tsx`
+- `app/(hair)/fyh/(app)/dashboard/page.tsx`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed
