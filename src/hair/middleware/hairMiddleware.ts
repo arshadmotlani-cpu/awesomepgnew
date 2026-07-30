@@ -17,6 +17,7 @@ export function hairMiddleware(request: NextRequest): NextResponse {
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-hair-app', '1');
+  requestHeaders.set('x-hair-pathname', pathname);
 
   if (!isHairPublicPath(pathname)) {
     return new NextResponse(null, { status: 404 });

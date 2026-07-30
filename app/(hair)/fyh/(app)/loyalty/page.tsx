@@ -12,6 +12,7 @@ import { listCustomers } from '@/src/hair/services/customers';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { LoyaltyForms } from '@/src/hair/components/loyalty/LoyaltyForms';
 import { CommissionRows } from '@/src/hair/components/loyalty/CommissionRows';
+import { NotificationOutboxPanel } from '@/src/hair/components/loyalty/NotificationOutboxPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -116,22 +117,7 @@ export default async function LoyaltyHubPage() {
         </Panel>
       </section>
 
-      <Panel title="Notification outbox">
-        <p className="text-xs text-fyh-text-muted mb-2">
-          Queued only — WhatsApp/SMS delivery is not connected yet.
-        </p>
-        {outbox.length === 0 ? (
-          <p className="text-sm text-fyh-text-muted">No queued messages.</p>
-        ) : (
-          outbox.map((o) => (
-            <Row
-              key={o.id}
-              label={`${o.kind} → ${o.recipient}`}
-              value={o.status === 'pending' ? 'queued (not delivered)' : o.status}
-            />
-          ))
-        )}
-      </Panel>
+      <NotificationOutboxPanel rows={outbox} />
     </div>
   );
 }

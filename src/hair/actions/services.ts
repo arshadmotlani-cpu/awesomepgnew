@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireHairAuth } from '@/src/hair/lib/auth/guards';
+import { hasPermission } from '@/src/hair/lib/auth/permissions';
 import { canonicalServiceName } from '@/src/hair/lib/serviceName';
 import {
   archiveService,
@@ -37,7 +38,7 @@ function formNum(formData: FormData, key: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function parseServiceForm(formData: FormData): ServiceInput {
+function parseServiceForm(formData: FormData, opts?: { allowCost?: boolean }): ServiceInput {
   const name = formName(formData);
   if (!name) throw new Error('Service name is required');
 
@@ -47,6 +48,9 @@ function parseServiceForm(formData: FormData): ServiceInput {
   const costPriceRupees = formNum(formData, 'costPriceRupees');
   if (costPriceRupees === null) throw new Error('Cost price is required');
   if (costPriceRupees < 0) throw new Error('Cost price cannot be negative');
+  if (!opts?.allowCost && costPriceRupees > 0) {
+    throw new Error('Service cost requires inventory permission');
+  }
 
   const sellingPriceRupees = formNum(formData, 'sellingPriceRupees');
   if (sellingPriceRupees === null || sellingPriceRupees < 0) {
@@ -66,7 +70,7 @@ function parseServiceForm(formData: FormData): ServiceInput {
     category,
     durationMinutes,
     sellingPriceRupees,
-    costPriceRupees,
+    costPriceRupees: opts?.allowCost ? costPriceRupees : 0,
     description: formStr(formData, 'description') || null,
     isActive,
   };
@@ -77,8 +81,8 @@ export async function createServiceAction(
   formData: FormData,
 ): Promise<ServiceActionState> {
   try {
-    await requireHairAuth();
-    await createService(parseServiceForm(formData));
+    const admin = await requireHairAuth();
+    await createService(parseServiceForm(formData, { allowCost: hasPermission(admin, 'page:inventory') }));
     revalidatePath('/services');
     revalidatePath('/services/new');
     return {
@@ -102,10 +106,17 @@ export async function updateServiceAction(
   formData: FormData,
 ): Promise<ServiceActionState> {
   try {
-    await requireHairAuth();
+    const admin = await requireHairAuth();
     const id = formStr(formData, 'id');
     if (!id) return { error: 'Missing service id' };
-    await updateService(id, parseServiceForm(formData));
+    const allowCost = hasPermission(admin, 'page:inventory');
+    const input = parseServiceForm(formData, { allowCost });
+    if (!allowCost) {
+      const { getService } = await import('@/src/hair/services/salonServices');
+      const existing = await getService(id);
+      if (existing) input.costPriceRupees = existing.costPricePaise / 100;
+    }
+    await updateService(id, input);
     revalidatePath('/services');
     revalidatePath(`/services/${id}`);
     return { success: 'Changes saved successfully.' };

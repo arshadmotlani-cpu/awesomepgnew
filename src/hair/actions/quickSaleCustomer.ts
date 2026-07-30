@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireHairAuth } from '@/src/hair/lib/auth/guards';
+import { requirePermission } from '@/src/hair/lib/auth/permissions';
 import { createCustomerQuick } from '@/src/hair/services/customers';
 
 export type QuickCustomerCreateResult =
@@ -21,7 +21,7 @@ export async function createQuickCustomerFromForm(
   formData: FormData,
 ): Promise<QuickCustomerCreateResult> {
   try {
-    await requireHairAuth();
+    await requirePermission('page:quick_sale');
     const fullName = String(formData.get('fullName') ?? '').trim();
     const phone = String(formData.get('phone') ?? '').trim();
     const genderRaw = String(formData.get('gender') ?? 'female').trim();

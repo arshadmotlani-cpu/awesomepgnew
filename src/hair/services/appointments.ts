@@ -388,17 +388,33 @@ export async function createAppointment(input: CreateAppointmentInput) {
 
   try {
     const [cust] = await hairDb
-      .select({ phone: fyhCustomers.phone, fullName: fyhCustomers.fullName })
+      .select({
+        phone: fyhCustomers.phone,
+        whatsapp: fyhCustomers.whatsapp,
+        fullName: fyhCustomers.fullName,
+      })
       .from(fyhCustomers)
       .where(eq(fyhCustomers.id, input.customerId))
       .limit(1);
-    if (cust?.phone) {
+    const recipient = cust?.whatsapp?.trim() || cust?.phone?.trim();
+    if (cust && recipient) {
+      const { renderTemplate, formatSalonDateTime } = await import(
+        '@/src/hair/services/notifications'
+      );
       const { enqueueNotification } = await import('@/src/hair/services/loyaltyOps');
+      const { getSalonSettings } = await import('@/src/hair/services/settings');
+      const settings = await getSalonSettings();
+      const time = formatSalonDateTime(startAt, settings.timezone || 'Asia/Kolkata');
+      const body = await renderTemplate(
+        'appointment_confirmation',
+        { name: cust.fullName, time },
+        settings.communicationSettings,
+      );
       await enqueueNotification({
         kind: 'appointment_confirmation',
-        recipient: cust.phone,
+        recipient,
         subject: 'Appointment confirmation',
-        body: `Hi ${cust.fullName}, your appointment is confirmed for ${startAt.toISOString()}.`,
+        body,
       });
     }
   } catch {

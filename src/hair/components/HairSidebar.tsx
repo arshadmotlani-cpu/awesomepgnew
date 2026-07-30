@@ -77,8 +77,14 @@ function NavGroup({ group }: { group: HairNavGroup }) {
   );
 }
 
-export function HairSidebar({ className }: { className?: string }) {
-  const entries = visibleHairNavEntries();
+export function HairSidebar({
+  entries,
+  className,
+}: {
+  entries?: ReturnType<typeof visibleHairNavEntries>;
+  className?: string;
+}) {
+  const navEntries = entries ?? visibleHairNavEntries();
 
   return (
     <aside
@@ -89,7 +95,7 @@ export function HairSidebar({ className }: { className?: string }) {
     >
       <FyhSidebarBrand />
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-        {entries.map((entry) =>
+        {navEntries.map((entry) =>
           entry.type === 'link' ? (
             <NavLink key={entry.href} item={entry} />
           ) : (

@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { getNotificationPreviewAction } from '@/src/hair/actions/notifications';
 import { PrintInvoiceButton } from '@/src/hair/components/billing/BillingUi';
 import { Button } from '@/src/hair/components/ui/button';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
@@ -26,24 +28,49 @@ export function QuickSaleSuccessDialog({
   googleReviewUrl,
   onDone,
 }: Props) {
-  const invoiceUrl =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}/billing/${invoiceId}`
-      : `/billing/${invoiceId}`;
+  const [invoicePreview, setInvoicePreview] = useState<{ body: string; waUrl: string } | null>(
+    null,
+  );
+  const [reviewPreview, setReviewPreview] = useState<{ body: string; waUrl: string } | null>(null);
+  const [loadingPreviews, setLoadingPreviews] = useState(true);
 
-  const whatsappInvoice = () => {
-    const text = encodeURIComponent(
-      `Hi ${customerName}, your invoice for ${formatInrFromPaise(grandTotalPaise)} is ready: ${invoiceUrl}`,
-    );
-    window.open(`https://wa.me/${customerPhone.replace(/\D/g, '')}?text=${text}`, '_blank');
-  };
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setLoadingPreviews(true);
+      try {
+        const [invoice, review] = await Promise.all([
+          getNotificationPreviewAction({
+            kind: 'whatsapp_invoice',
+            customerName,
+            customerPhone,
+            grandTotalPaise,
+            invoiceId,
+          }),
+          googleReviewUrl
+            ? getNotificationPreviewAction({
+                kind: 'review_request',
+                customerName,
+                customerPhone,
+                invoiceId,
+              })
+            : Promise.resolve(null),
+        ]);
+        if (!cancelled) {
+          setInvoicePreview(invoice);
+          setReviewPreview(review);
+        }
+      } finally {
+        if (!cancelled) setLoadingPreviews(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [customerName, customerPhone, grandTotalPaise, invoiceId, googleReviewUrl]);
 
-  const whatsappReview = () => {
-    const reviewPart = googleReviewUrl ? `\n\nLeave us a review: ${googleReviewUrl}` : '';
-    const text = encodeURIComponent(
-      `Hi ${customerName}, thank you for visiting For Your Hair! We'd love your feedback.${reviewPart}`,
-    );
-    window.open(`https://wa.me/${customerPhone.replace(/\D/g, '')}?text=${text}`, '_blank');
+  const openWa = (url: string | undefined) => {
+    if (url) window.open(url, '_blank');
   };
 
   return (
@@ -67,11 +94,21 @@ export function QuickSaleSuccessDialog({
             Download PDF
           </Button>
         ) : null}
-        <Button type="button" variant="secondary" onClick={whatsappInvoice}>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={loadingPreviews || !invoicePreview?.waUrl}
+          onClick={() => openWa(invoicePreview?.waUrl)}
+        >
           WhatsApp
         </Button>
         {googleReviewUrl ? (
-          <Button type="button" variant="secondary" onClick={whatsappReview}>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={loadingPreviews || !reviewPreview?.waUrl}
+            onClick={() => openWa(reviewPreview?.waUrl)}
+          >
             Google Review
           </Button>
         ) : null}
@@ -84,6 +121,11 @@ export function QuickSaleSuccessDialog({
           Done
         </Button>
       </div>
+      {!loadingPreviews && !invoicePreview?.waUrl ? (
+        <p className="text-xs text-fyh-text-muted">
+          WhatsApp preview unavailable — check customer phone and WhatsApp settings.
+        </p>
+      ) : null}
     </div>
   );
 }
