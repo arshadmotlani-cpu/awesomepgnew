@@ -4,6 +4,7 @@ import {
   fyhInvoiceLineAttributions,
   fyhInvoiceLines,
   fyhInvoices,
+  fyhProducts,
   fyhServices,
 } from '@/src/hair/db/schema';
 import { salonDayBounds, salonMonthStartUtc, salonWeekStartUtc } from '@/src/hair/lib/salonTime';
@@ -33,6 +34,38 @@ async function paidRevenueBetween(from: Date, to: Date) {
     taxPaise: Number(rows[0]?.tax ?? 0),
     invoiceCount: Number(rows[0]?.count ?? 0),
   };
+}
+
+async function topProductsBetween(from: Date, to: Date, limit = 5) {
+  const rows = await hairDb
+    .select({
+      productId: fyhInvoiceLines.productId,
+      name: fyhProducts.name,
+      totalPaise: sql<number>`coalesce(sum(${fyhInvoiceLineAttributions.attributedNetPaise}), 0)::bigint`,
+    })
+    .from(fyhInvoiceLineAttributions)
+    .innerJoin(fyhInvoiceLines, eq(fyhInvoiceLines.id, fyhInvoiceLineAttributions.invoiceLineId))
+    .innerJoin(fyhInvoices, eq(fyhInvoices.id, fyhInvoiceLines.invoiceId))
+    .leftJoin(fyhProducts, eq(fyhProducts.id, fyhInvoiceLines.productId))
+    .where(
+      and(
+        eq(fyhInvoices.status, 'paid'),
+        eq(fyhInvoiceLineAttributions.revenueMetric, 'product'),
+        gte(fyhInvoices.paidAt, from),
+        lt(fyhInvoices.paidAt, to),
+      ),
+    )
+    .groupBy(fyhInvoiceLines.productId, fyhProducts.name)
+    .orderBy(sql`sum(${fyhInvoiceLineAttributions.attributedNetPaise}) desc`)
+    .limit(limit);
+
+  return rows
+    .filter((r) => r.productId)
+    .map((r) => ({
+      productId: r.productId!,
+      name: r.name ?? 'Product',
+      revenuePaise: Number(r.totalPaise ?? 0),
+    }));
 }
 
 async function topServicesBetween(from: Date, to: Date, limit = 5) {
@@ -136,4 +169,4 @@ export async function getReportsSnapshot(): Promise<ReportsSnapshot> {
   }
 }
 
-export { paidRevenueBetween };
+export { paidRevenueBetween, topServicesBetween, topProductsBetween, staffRevenueBetween };

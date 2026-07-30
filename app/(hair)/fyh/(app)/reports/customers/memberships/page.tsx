@@ -1,13 +1,34 @@
-import { ReportsPlaceholder } from '@/src/hair/components/reports/ReportsPlaceholder';
+import { ReportEmpty, ReportShell, ReportTable } from '@/src/hair/components/reports/ReportShell';
+import { membershipsReport } from '@/src/hair/services/reportQueries';
+import { getSalonSettings } from '@/src/hair/services/settings';
 
-export default function Page() {
+export default async function CustomersMembershipsReportPage() {
+  const settings = await getSalonSettings();
+  const tz = settings.timezone?.trim() || 'Asia/Kolkata';
+  const rows = await membershipsReport();
+
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">Reports</p>
-        <h1 className="fyh-display mt-1 text-3xl font-semibold capitalize">customers memberships</h1>
-      </div>
-      <ReportsPlaceholder title="Coming soon" />
-    </div>
+    <ReportShell
+      title="Customers · Memberships"
+      subtitle="Active membership plans"
+      timezone={tz}
+      reportKey="memberships"
+    >
+      {rows.length === 0 ? (
+        <ReportEmpty message="No active memberships. Sell a plan from Quick Sale or customer profile." />
+      ) : (
+        <ReportTable
+          headers={['Customer', 'Phone', 'Plan', 'Tier', 'Starts', 'Expires']}
+          rows={rows.map((r) => [
+            r.customerName,
+            r.phone,
+            r.planName,
+            r.tier,
+            r.startsOn,
+            r.expiresOn,
+          ])}
+        />
+      )}
+    </ReportShell>
   );
 }
