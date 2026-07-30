@@ -7,7 +7,7 @@ export default function NewProductPage() {
     <div className="mx-auto max-w-2xl space-y-6">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.22em] text-fyh-accent">Products</p>
+          <p className="fyh-section-eyebrow">Products</p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold">New product</h1>
         </div>
         <Link href="/products">

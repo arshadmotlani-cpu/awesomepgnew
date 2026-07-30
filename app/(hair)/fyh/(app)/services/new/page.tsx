@@ -10,7 +10,7 @@ export default async function NewServicePage() {
     <div className="mx-auto max-w-xl space-y-6">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.22em] text-fyh-accent">Services</p>
+          <p className="fyh-section-eyebrow">Services</p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold">New service</h1>
         </div>
         <Link href="/services">

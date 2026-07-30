@@ -28,7 +28,7 @@ export default async function StaffPerformanceReportPage({ params }: Props) {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">Reports</p>
+        <p className="fyh-section-eyebrow">Reports</p>
         <h1 className="fyh-display mt-1 text-3xl font-semibold">{cfg.title}</h1>
         <p className="mt-1 text-sm text-fyh-text-secondary">This month · attributed net (before tax)</p>
       </div>

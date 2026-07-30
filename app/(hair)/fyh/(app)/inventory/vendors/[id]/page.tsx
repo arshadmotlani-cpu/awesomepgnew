@@ -12,7 +12,7 @@ export default async function VendorDetailPage({ params }: Props) {
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">
+        <p className="fyh-section-eyebrow">
           Inventory
         </p>
         <h1 className="fyh-display mt-1 text-3xl font-semibold">{vendor.name}</h1>

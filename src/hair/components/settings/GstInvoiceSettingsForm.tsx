@@ -29,13 +29,13 @@ export function GstInvoiceSettingsForm({ values }: { values: GstInvoiceSettingsF
       <form action={action} className="space-y-6">
         <div className="fyh-glass grid gap-3 p-4 sm:grid-cols-2">
           <div className="space-y-1">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="gstin">
+            <label className="fyh-label" htmlFor="gstin">
               GSTIN
             </label>
             <Input id="gstin" name="gstin" defaultValue={values.gstin} placeholder="22AAAAA0000A1Z5" />
           </div>
           <div className="space-y-1">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="invoicePrefix">
+            <label className="fyh-label" htmlFor="invoicePrefix">
               Invoice prefix
             </label>
             <Input
@@ -46,7 +46,7 @@ export function GstInvoiceSettingsForm({ values }: { values: GstInvoiceSettingsF
             />
           </div>
           <div className="space-y-1">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="defaultGstPercent">
+            <label className="fyh-label" htmlFor="defaultGstPercent">
               Default GST %
             </label>
             <Input
@@ -59,7 +59,7 @@ export function GstInvoiceSettingsForm({ values }: { values: GstInvoiceSettingsF
             />
           </div>
           <div className="space-y-1 sm:col-span-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="invoiceNotes">
+            <label className="fyh-label" htmlFor="invoiceNotes">
               Invoice notes (footer)
             </label>
             <textarea

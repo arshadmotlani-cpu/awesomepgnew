@@ -51,12 +51,12 @@ export function HairGlobalSearch() {
               }}
             >
               <p className="text-[0.8125rem] font-medium text-fyh-text">{h.title}</p>
-              <p className="text-[11px] text-fyh-text-secondary">
+              <p className="text-xs text-fyh-text-secondary">
                 {h.type} · {h.subtitle}
               </p>
             </Link>
           ))}
-          {pending ? <p className="px-2.5 py-1.5 text-[11px] text-fyh-text-muted">Searching…</p> : null}
+          {pending ? <p className="px-2.5 py-1.5 text-xs text-fyh-text-muted">Searching…</p> : null}
         </div>
       ) : null}
     </div>

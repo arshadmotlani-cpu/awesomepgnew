@@ -33,7 +33,7 @@ export function WhatsappSettingsForm({ values }: { values: FyhWhatsappSettings }
           </label>
 
           <div className="space-y-1">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="businessPhone">
+            <label className="fyh-label" htmlFor="businessPhone">
               Business phone (with country code)
             </label>
             <Input

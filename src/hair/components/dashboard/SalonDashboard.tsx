@@ -24,7 +24,7 @@ import type {
 
 function EmptyPanel({ message }: { message: string }) {
   return (
-    <div className="flex min-h-[8rem] items-center justify-center rounded-xl border border-dashed border-[color:var(--fyh-border)] bg-black/10 px-4 text-center text-sm text-fyh-text-muted">
+    <div className="flex min-h-[8rem] items-center justify-center rounded-xl border border-dashed border-[color:var(--fyh-border)] bg-black/10 px-4 text-center text-sm text-fyh-text-secondary">
       {message}
     </div>
   );
@@ -33,16 +33,16 @@ function EmptyPanel({ message }: { message: string }) {
 function TopList({ title, items, emptyMessage }: { title: string; items: TopRevenueItem[]; emptyMessage: string }) {
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-medium text-fyh-text">{title}</h3>
+      <h3 className="fyh-card-title">{title}</h3>
       {items.length === 0 ? (
-        <p className="text-xs text-fyh-text-muted">{emptyMessage}</p>
+        <p className="text-sm text-fyh-text-muted">{emptyMessage}</p>
       ) : (
         <ul className="divide-y divide-[color:var(--fyh-border)]">
           {items.map((item, idx) => (
-            <li key={item.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-              <span className="text-fyh-text-muted tabular-nums w-5">{idx + 1}.</span>
+            <li key={item.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+              <span className="text-fyh-text-secondary tabular-nums w-5">{idx + 1}.</span>
               <span className="flex-1 truncate font-medium text-fyh-text">{item.name}</span>
-              <span className="tabular-nums text-fyh-accent">{formatInrFromPaise(item.revenuePaise)}</span>
+              <span className="tabular-nums font-semibold text-fyh-accent">{formatInrFromPaise(item.revenuePaise)}</span>
             </li>
           ))}
         </ul>
@@ -66,14 +66,14 @@ function MonthlyTrendChart({ points }: { points: FinancialDashboardSnapshot['mon
               title={`${p.dayKey}: ${formatInrFromPaise(p.revenuePaise)}`}
             >
               <div
-                className="mx-auto w-full max-w-[10px] rounded-t bg-fyh-accent/70 transition-colors group-hover:bg-fyh-accent"
+                className="mx-auto w-full max-w-[10px] rounded-t bg-fyh-accent transition-colors group-hover:bg-fyh-accent-soft"
                 style={{ height: `${heightPct}%` }}
               />
             </div>
           );
         })}
       </div>
-      <div className="flex justify-between text-[10px] text-fyh-text-muted">
+      <div className="flex justify-between text-xs text-fyh-text-muted">
         <span>{points[0]?.dayKey.slice(5)}</span>
         <span>Last 30 days revenue</span>
         <span>{points[points.length - 1]?.dayKey.slice(5)}</span>
@@ -94,16 +94,14 @@ export function SalonDashboard({
   const { collectionsVsSales, todayCollectionsByMethod } = financial;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">
-            Command center
-          </p>
-          <h1 className="fyh-display mt-1 text-3xl font-semibold tracking-tight text-fyh-text">
+          <p className="fyh-section-eyebrow">Command center</p>
+          <h1 className="fyh-display mt-2 text-3xl font-semibold tracking-tight text-fyh-text">
             Dashboard
           </h1>
-          <p className="mt-1 text-sm text-fyh-text-secondary">
+          <p className="mt-2 text-base text-fyh-text-secondary">
             Today at a glance · {snapshot.totalCustomers} active customer
             {snapshot.totalCustomers === 1 ? '' : 's'} · {financial.todaySalesCount} sale
             {financial.todaySalesCount === 1 ? '' : 's'} today
@@ -111,7 +109,7 @@ export function SalonDashboard({
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <KpiCard
           label="Today's Revenue"
           value={formatInrFromPaise(financial.todayRevenuePaise)}
@@ -151,7 +149,7 @@ export function SalonDashboard({
         />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-5 sm:grid-cols-3">
         <KpiCard
           label="Cash Collected"
           value={formatInrFromPaise(todayCollectionsByMethod.cash)}
@@ -172,30 +170,30 @@ export function SalonDashboard({
         />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <section className="fyh-glass space-y-4 p-4 xl:col-span-2">
+      <div className="grid gap-6 xl:grid-cols-3">
+        <section className="fyh-glass space-y-5 p-5 xl:col-span-2">
           <div>
-            <h2 className="fyh-display text-lg font-semibold">Collections vs Sales</h2>
-            <p className="text-xs text-fyh-text-muted">
+            <h2 className="fyh-card-title">Collections vs Sales</h2>
+            <p className="mt-1 text-sm text-fyh-text-muted">
               Tender received today compared to invoice revenue booked today
             </p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-xl border border-[color:var(--fyh-border)] bg-black/10 p-3">
-              <p className="text-xs text-fyh-text-muted">Collections</p>
-              <p className="fyh-display mt-1 text-xl font-semibold text-fyh-accent">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="rounded-xl border border-[color:var(--fyh-border)] bg-black/10 p-4">
+              <p className="fyh-kpi-label">Collections</p>
+              <p className="fyh-metric-value mt-2 text-fyh-accent">
                 {formatInrFromPaise(collectionsVsSales.collectionsTodayPaise)}
               </p>
             </div>
-            <div className="rounded-xl border border-[color:var(--fyh-border)] bg-black/10 p-3">
-              <p className="text-xs text-fyh-text-muted">Sales</p>
-              <p className="fyh-display mt-1 text-xl font-semibold text-fyh-text">
+            <div className="rounded-xl border border-[color:var(--fyh-border)] bg-black/10 p-4">
+              <p className="fyh-kpi-label">Sales</p>
+              <p className="fyh-metric-value mt-2">
                 {formatInrFromPaise(collectionsVsSales.salesTodayPaise)}
               </p>
             </div>
-            <div className="rounded-xl border border-[color:var(--fyh-border)] bg-black/10 p-3">
-              <p className="text-xs text-fyh-text-muted">Variance</p>
-              <p className="fyh-display mt-1 text-xl font-semibold text-fyh-text">
+            <div className="rounded-xl border border-[color:var(--fyh-border)] bg-black/10 p-4">
+              <p className="fyh-kpi-label">Variance</p>
+              <p className="fyh-metric-value mt-2">
                 {formatInrFromPaise(collectionsVsSales.variancePaise)}
               </p>
             </div>
@@ -203,10 +201,10 @@ export function SalonDashboard({
           <MonthlyTrendChart points={financial.monthlyTrend} />
         </section>
 
-        <section className="fyh-glass space-y-4 p-4">
+        <section className="fyh-glass space-y-5 p-5">
           <div>
-            <h2 className="fyh-display text-lg font-semibold">Top Performers Today</h2>
-            <p className="text-xs text-fyh-text-muted">Attributed net revenue</p>
+            <h2 className="fyh-card-title">Top Performers Today</h2>
+            <p className="mt-1 text-sm text-fyh-text-muted">Attributed net revenue</p>
           </div>
           <TopList title="Services" items={financial.topServicesToday} emptyMessage="No service sales yet today." />
           <TopList title="Products" items={financial.topProductsToday} emptyMessage="No product sales yet today." />
@@ -214,12 +212,12 @@ export function SalonDashboard({
         </section>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <section className="fyh-glass space-y-4 p-4 xl:col-span-1">
+      <div className="grid gap-6 xl:grid-cols-3">
+        <section className="fyh-glass space-y-5 p-5 xl:col-span-1">
           <div className="flex items-center justify-between gap-2">
             <div>
-              <h2 className="fyh-display text-lg font-semibold">Today&apos;s Schedule</h2>
-              <p className="text-xs text-fyh-text-muted">Live chair timeline</p>
+              <h2 className="fyh-card-title">Today&apos;s Schedule</h2>
+              <p className="mt-1 text-sm text-fyh-text-muted">Live chair timeline</p>
             </div>
             <Clock3 className="h-4 w-4 text-fyh-accent" />
           </div>
@@ -231,13 +229,13 @@ export function SalonDashboard({
                 <li key={item.id} className="flex items-start justify-between gap-3 py-3 text-sm">
                   <div>
                     <p className="font-medium text-fyh-text">{item.customerName}</p>
-                    <p className="text-fyh-text-muted">
+                    <p className="text-sm text-fyh-text-secondary">
                       {item.serviceLabel} · {item.staffName}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="tabular-nums text-fyh-accent">{item.timeLabel}</p>
-                    <p className="text-xs text-fyh-text-muted">{item.status}</p>
+                    <p className="tabular-nums font-semibold text-fyh-accent">{item.timeLabel}</p>
+                    <p className="text-sm text-fyh-text-muted">{item.status}</p>
                   </div>
                 </li>
               ))}
@@ -245,11 +243,11 @@ export function SalonDashboard({
           )}
         </section>
 
-        <section className="fyh-glass space-y-4 p-4 xl:col-span-1">
+        <section className="fyh-glass space-y-5 p-5 xl:col-span-1">
           <div className="flex items-center justify-between gap-2">
             <div>
-              <h2 className="fyh-display text-lg font-semibold">Upcoming Appointments</h2>
-              <p className="text-xs text-fyh-text-muted">Next on the book</p>
+              <h2 className="fyh-card-title">Upcoming Appointments</h2>
+              <p className="mt-1 text-sm text-fyh-text-muted">Next on the book</p>
             </div>
             <CalendarDays className="h-4 w-4 text-fyh-accent" />
           </div>
@@ -260,19 +258,19 @@ export function SalonDashboard({
               {snapshot.upcomingAppointments.map((item) => (
                 <li key={item.id} className="py-3 text-sm">
                   <p className="font-medium text-fyh-text">{item.customerName}</p>
-                  <p className="text-fyh-text-muted">{item.serviceLabel}</p>
-                  <p className="mt-1 text-xs text-fyh-accent">{item.whenLabel}</p>
+                  <p className="text-sm text-fyh-text-secondary">{item.serviceLabel}</p>
+                  <p className="mt-1 text-sm font-medium text-fyh-accent">{item.whenLabel}</p>
                 </li>
               ))}
             </ul>
           )}
         </section>
 
-        <section className="fyh-glass space-y-4 p-4 xl:col-span-1">
+        <section className="fyh-glass space-y-5 p-5 xl:col-span-1">
           <div className="flex items-center justify-between gap-2">
             <div>
-              <h2 className="fyh-display text-lg font-semibold">Recent Bills</h2>
-              <p className="text-xs text-fyh-text-muted">Latest checkout activity</p>
+              <h2 className="fyh-card-title">Recent Bills</h2>
+              <p className="mt-1 text-sm text-fyh-text-muted">Latest checkout activity</p>
             </div>
             <Receipt className="h-4 w-4 text-fyh-accent" />
           </div>
@@ -284,13 +282,13 @@ export function SalonDashboard({
                 <li key={bill.id} className="flex items-center justify-between gap-3 py-3 text-sm">
                   <div>
                     <p className="font-medium text-fyh-text">{bill.customerName}</p>
-                    <p className="text-xs text-fyh-text-muted">{bill.createdAtLabel}</p>
+                    <p className="text-sm text-fyh-text-muted">{bill.createdAtLabel}</p>
                   </div>
                   <div className="text-right">
-                    <p className="tabular-nums font-medium text-fyh-accent">
+                    <p className="tabular-nums font-semibold text-fyh-accent">
                       {formatInrFromPaise(bill.amountPaise)}
                     </p>
-                    <p className="text-xs text-fyh-text-muted">{bill.status}</p>
+                    <p className="text-sm text-fyh-text-muted">{bill.status}</p>
                   </div>
                 </li>
               ))}
@@ -299,17 +297,17 @@ export function SalonDashboard({
         </section>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-6 xl:grid-cols-2">
         <DailyClosingPanel closing={dailyClosing} />
-        <section className="fyh-glass space-y-4 p-4">
+        <section className="fyh-glass space-y-5 p-5">
           <div className="flex items-center justify-between gap-2">
             <div>
-              <h2 className="fyh-display text-lg font-semibold">Operations</h2>
-              <p className="text-xs text-fyh-text-muted">Salon floor snapshot</p>
+              <h2 className="fyh-card-title">Operations</h2>
+              <p className="mt-1 text-sm text-fyh-text-muted">Salon floor snapshot</p>
             </div>
             <UserCheck className="h-4 w-4 text-fyh-accent" />
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-5 sm:grid-cols-2">
             <KpiCard
               label="Pending Payments"
               value={String(snapshot.pendingPayments)}

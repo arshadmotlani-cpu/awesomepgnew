@@ -61,7 +61,7 @@ export function HairAppHeader({ admin, navEntries }: HairAppHeaderProps) {
             <ThemeToggle />
             <Link href="/profile" className="hidden text-right lg:block">
               <p className="text-xs font-medium text-fyh-text">{admin.displayName ?? 'Admin'}</p>
-              <p className="max-w-[9rem] truncate text-[11px] text-fyh-text-secondary">
+              <p className="max-w-[9rem] truncate text-xs text-fyh-text-secondary">
                 {admin.email}
               </p>
             </Link>

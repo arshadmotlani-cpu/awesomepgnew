@@ -7,7 +7,7 @@ export default function NewCustomerPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">
+          <p className="fyh-section-eyebrow">
             Customers
           </p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold">New customer</h1>

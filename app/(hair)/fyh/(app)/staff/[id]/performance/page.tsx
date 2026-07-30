@@ -40,7 +40,7 @@ export default async function StaffPerformancePage({ params }: Props) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">Team</p>
+          <p className="fyh-section-eyebrow">Team</p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold">{staff.fullName}</h1>
           <p className="mt-1 text-sm text-fyh-text-secondary">
             Performance this month · attributed net (before tax)
@@ -144,7 +144,7 @@ export default async function StaffPerformancePage({ params }: Props) {
               const heightPct = Math.max(4, Math.round((point.revenuePaise / maxTrend) * 100));
               return (
                 <div key={point.monthKey} className="flex flex-1 flex-col items-center gap-2">
-                  <span className="text-[10px] tabular-nums text-fyh-text-muted">
+                  <span className="text-xs tabular-nums text-fyh-text-muted">
                     {point.revenuePaise > 0
                       ? formatInrFromPaise(point.revenuePaise).replace('₹', '')
                       : '—'}
@@ -154,7 +154,7 @@ export default async function StaffPerformancePage({ params }: Props) {
                     style={{ height: `${heightPct}%`, minHeight: point.revenuePaise > 0 ? '0.5rem' : '2px' }}
                     title={`${point.label}: ${formatInrFromPaise(point.revenuePaise)}`}
                   />
-                  <span className="text-[10px] uppercase tracking-wide text-fyh-text-muted">
+                  <span className="text-xs uppercase tracking-wide text-fyh-text-muted">
                     {point.label}
                   </span>
                 </div>

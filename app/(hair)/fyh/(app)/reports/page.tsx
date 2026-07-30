@@ -25,7 +25,7 @@ export default async function ReportsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">Insights</p>
+        <p className="fyh-section-eyebrow">Insights</p>
         <h1 className="fyh-display mt-1 text-3xl font-semibold">Reports</h1>
         <p className="mt-1 text-sm text-fyh-text-secondary">
           Paid invoice revenue in salon timezone ({snap.timezone}). Week starts Monday.

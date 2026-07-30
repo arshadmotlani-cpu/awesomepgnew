@@ -18,7 +18,7 @@ export function ReportShell({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">Reports</p>
+          <p className="fyh-section-eyebrow">Reports</p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold">{title}</h1>
           {subtitle ? (
             <p className="mt-1 text-sm text-fyh-text-secondary">{subtitle}</p>
@@ -49,23 +49,19 @@ export function ReportTable({
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[480px] text-left text-sm" aria-label="Report data">
+      <table className="fyh-table w-full min-w-[480px] text-left" aria-label="Report data">
         <thead>
-          <tr className="border-b border-[color:var(--fyh-border)] text-xs uppercase tracking-wide text-fyh-text-muted">
+          <tr>
             {headers.map((h) => (
-              <th key={h} className="px-4 py-3 font-medium">
-                {h}
-              </th>
+              <th key={h}>{h}</th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-[color:var(--fyh-border)]">
+        <tbody>
           {rows.map((cells, i) => (
             <tr key={i}>
               {cells.map((cell, j) => (
-                <td key={j} className="px-4 py-3 align-top">
-                  {cell}
-                </td>
+                <td key={j}>{cell}</td>
               ))}
             </tr>
           ))}

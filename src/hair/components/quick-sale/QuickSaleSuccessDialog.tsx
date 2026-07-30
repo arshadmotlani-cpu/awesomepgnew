@@ -76,7 +76,7 @@ export function QuickSaleSuccessDialog({
   return (
     <div className="mx-auto max-w-lg space-y-8 py-12 text-center">
       <div>
-        <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">Quick Sale</p>
+        <p className="fyh-section-eyebrow">Quick Sale</p>
         <h1 className="fyh-display mt-2 text-3xl font-semibold text-fyh-text">Sale complete</h1>
         <p className="mt-2 text-sm text-fyh-text-secondary">
           {customerName} · {formatInrFromPaise(grandTotalPaise)}

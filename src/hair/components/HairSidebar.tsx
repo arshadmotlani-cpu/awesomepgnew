@@ -50,12 +50,7 @@ function NavLink({ item }: { item: HairNavLink }) {
   return (
     <Link
       href={item.href}
-      className={cn(
-        'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[0.8125rem] transition-colors',
-        active
-          ? 'bg-fyh-forest/25 text-fyh-accent'
-          : 'text-fyh-text-secondary hover:bg-white/5 hover:text-fyh-text',
-      )}
+      className={cn('fyh-nav-link', active && 'fyh-nav-link-active')}
     >
       <Icon className="h-4 w-4 shrink-0" />
       {item.label}
@@ -77,10 +72,8 @@ function NavGroup({ group }: { group: HairNavGroup }) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[0.8125rem] transition-colors',
-          childActive
-            ? 'text-fyh-accent'
-            : 'text-fyh-text-secondary hover:bg-white/5 hover:text-fyh-text',
+          'fyh-nav-link w-full',
+          childActive && 'text-fyh-text',
         )}
       >
         <Icon className="h-4 w-4 shrink-0" />
@@ -95,12 +88,7 @@ function NavGroup({ group }: { group: HairNavGroup }) {
               <Link
                 key={c.href}
                 href={c.href}
-                className={cn(
-                  'block rounded-lg px-2 py-1.5 text-xs transition-colors',
-                  active
-                    ? 'bg-fyh-forest/20 text-fyh-accent'
-                    : 'text-fyh-text-muted hover:text-fyh-text',
-                )}
+                className={cn('fyh-nav-sublink', active && 'fyh-nav-sublink-active')}
               >
                 {c.label}
               </Link>
@@ -141,7 +129,7 @@ export function HairSidebar({
       <div className="border-t border-[color:var(--fyh-border)] p-3">
         <Link
           href="/profile"
-          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-fyh-text-secondary hover:bg-white/5 hover:text-fyh-text"
+          className="fyh-nav-link"
         >
           <UserRound className="h-4 w-4" />
           Profile

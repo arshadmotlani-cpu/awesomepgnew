@@ -100,9 +100,7 @@ export function HairQuickActionsMenu() {
           className="fixed z-[510] w-[min(calc(100vw-1.5rem),17rem)] overflow-hidden rounded-xl border border-[color:var(--fyh-border-strong)] bg-[color:var(--fyh-bg-elevated)] p-2 shadow-[0_20px_56px_rgba(0,0,0,0.45)]"
           style={{ top: panelPos.top, left: panelPos.left }}
         >
-          <p className="px-1.5 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-fyh-text-secondary">
-            Quick actions
-          </p>
+          <p className="fyh-kpi-label px-1.5 pb-2">Quick actions</p>
           <div className="space-y-1.5">
             {ACTIONS.map((item) => (
               <button
@@ -124,7 +122,7 @@ export function HairQuickActionsMenu() {
                 </span>
                 <span className="min-w-0 pt-0.5">
                   <span className="block text-[13px] font-semibold text-fyh-text">{item.label}</span>
-                  <span className="mt-0.5 block text-[11px] leading-snug text-fyh-text-secondary">
+                  <span className="mt-0.5 block text-xs leading-snug text-fyh-text-secondary">
                     {item.description}
                   </span>
                 </span>

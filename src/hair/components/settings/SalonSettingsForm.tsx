@@ -35,19 +35,19 @@ export function SalonSettingsForm({ values }: { values: SalonSettingsFormValues 
       <form action={action} className="space-y-6">
         <div className="fyh-glass grid gap-3 p-4 sm:grid-cols-2">
           <div className="space-y-1 sm:col-span-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="businessName">
+            <label className="fyh-label" htmlFor="businessName">
               Business name
             </label>
             <Input id="businessName" name="businessName" required defaultValue={values.businessName} />
           </div>
           <div className="space-y-1 sm:col-span-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="businessAddress">
+            <label className="fyh-label" htmlFor="businessAddress">
               Address
             </label>
             <Input id="businessAddress" name="businessAddress" defaultValue={values.businessAddress} />
           </div>
           <div className="space-y-1 sm:col-span-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="googleReviewUrl">
+            <label className="fyh-label" htmlFor="googleReviewUrl">
               Google Review URL
             </label>
             <Input
@@ -59,7 +59,7 @@ export function SalonSettingsForm({ values }: { values: SalonSettingsFormValues 
             />
           </div>
           <div className="space-y-1">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="defaultBufferMinutes">
+            <label className="fyh-label" htmlFor="defaultBufferMinutes">
               Default buffer (minutes)
             </label>
             <Input
@@ -71,7 +71,7 @@ export function SalonSettingsForm({ values }: { values: SalonSettingsFormValues 
             />
           </div>
           <div className="space-y-1">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="timezone">
+            <label className="fyh-label" htmlFor="timezone">
               Salon timezone (IANA)
             </label>
             <Input

@@ -72,8 +72,8 @@ type TabId = (typeof TABS)[number]['id'];
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="fyh-glass p-3">
-      <p className="text-[10px] uppercase tracking-[0.14em] text-fyh-text-muted">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-fyh-text">{value}</p>
+      <p className="fyh-kpi-label">{label}</p>
+      <p className="mt-1 text-lg font-semibold tabular-nums text-fyh-text">{value}</p>
     </div>
   );
 }
@@ -141,9 +141,7 @@ export function CustomerProfile({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">
-                Customer profile
-              </p>
+              <p className="fyh-section-eyebrow">Customer profile</p>
               <h1 className="fyh-display mt-1 text-3xl font-semibold tracking-tight">
                 {customer.fullName}
               </h1>
@@ -158,7 +156,7 @@ export function CustomerProfile({
                   {customer.tags.map((t) => (
                     <span
                       key={t}
-                      className="rounded-full border border-fyh-accent/25 bg-fyh-forest/15 px-2 py-0.5 text-[11px] text-fyh-accent"
+                      className="rounded-full border border-fyh-accent/25 bg-fyh-forest/15 px-2 py-0.5 text-xs text-fyh-accent"
                     >
                       {t}
                     </span>
@@ -504,7 +502,7 @@ export function CustomerProfile({
                         {new Date(n.createdAt).toLocaleString('en-IN')}
                       </span>
                       {n.isAlert ? (
-                        <span className="text-[10px] uppercase tracking-wide text-fyh-danger">
+                        <span className="text-xs uppercase tracking-wide text-fyh-danger">
                           Alert
                         </span>
                       ) : null}
@@ -637,7 +635,7 @@ function Field({
 }) {
   return (
     <div className={cn('space-y-2', className)}>
-      <label className="text-sm text-fyh-text-secondary" htmlFor={name}>
+      <label className="fyh-label" htmlFor={name}>
         {label}
       </label>
       <Input id={name} name={name} type={type} defaultValue={defaultValue} required={required} />
@@ -658,7 +656,7 @@ function TextArea({
 }) {
   return (
     <div className={cn('space-y-2', className)}>
-      <label className="text-sm text-fyh-text-secondary" htmlFor={name}>
+      <label className="fyh-label" htmlFor={name}>
         {label}
       </label>
       <textarea
@@ -685,7 +683,7 @@ function Select({
 }) {
   return (
     <div className="space-y-2">
-      <label className="text-sm text-fyh-text-secondary" htmlFor={name}>
+      <label className="fyh-label" htmlFor={name}>
         {label}
       </label>
       <select id={name} name={name} defaultValue={defaultValue} className={fieldClass}>

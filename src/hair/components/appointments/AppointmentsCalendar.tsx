@@ -162,7 +162,7 @@ function StatusChip({ status }: { status: FyhAppointmentStatus }) {
   const c = FYH_APPOINTMENT_STATUS_COLORS[status];
   return (
     <span
-      className="inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+      className="inline-flex rounded-md px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide"
       style={{ background: c.bg, color: c.fg, border: `1px solid ${c.border}` }}
     >
       {c.label}
@@ -179,25 +179,25 @@ function ApptCardBody({ appt, compact }: { appt: CalendarAppointment; compact?: 
         <p className="truncate text-xs font-semibold leading-tight">{appt.customerName}</p>
         <StatusChip status={appt.status} />
       </div>
-      <p className="truncate text-[10px] opacity-80">{appt.customerPhone}</p>
-      <p className="truncate text-[10px] opacity-90">
+      <p className="truncate text-xs text-fyh-text-secondary">{appt.customerPhone}</p>
+      <p className="truncate text-xs text-fyh-text-secondary">
         {appt.services.map((s) => s.name).join(', ') || '—'}
       </p>
       {!compact ? (
         <>
-          <p className="truncate text-[10px] opacity-80">
+          <p className="truncate text-xs text-fyh-text-muted">
             {appt.staffName}
             {appt.resourceName ? ` · ${appt.resourceName}` : ''}
           </p>
-          <p className="text-[10px] tabular-nums opacity-80">
+          <p className="text-xs tabular-nums text-fyh-text-muted">
             {formatHm(start)}–{formatHm(end)} · {appt.durationMinutes}m
           </p>
           {appt.notes ? (
-            <p className="line-clamp-1 text-[10px] italic opacity-70">{appt.notes}</p>
+            <p className="line-clamp-1 text-xs italic text-fyh-text-muted">{appt.notes}</p>
           ) : null}
         </>
       ) : (
-        <p className="text-[10px] tabular-nums opacity-80">
+        <p className="text-xs tabular-nums text-fyh-text-muted">
           {formatHm(start)}–{formatHm(end)}
         </p>
       )}
@@ -332,7 +332,7 @@ function TimeGutter() {
           return (
             <div
               key={h}
-              className="absolute right-2 -translate-y-1/2 text-[10px] tabular-nums text-fyh-text-muted"
+              className="absolute right-2 -translate-y-1/2 text-xs tabular-nums text-fyh-text-muted"
               style={{ top: i * 60 * PX_PER_MIN }}
             >
               {String(h).padStart(2, '0')}:00
@@ -516,7 +516,7 @@ export function AppointmentsCalendar({
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">Floor</p>
+          <p className="fyh-section-eyebrow">Floor</p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold">Appointments</h1>
           <p className="mt-1 text-sm text-fyh-text-secondary">
             Drag to reschedule · resize bottom edge · checkout from detail
@@ -873,27 +873,27 @@ export function AppointmentsCalendar({
 
               {selected.invoiceId || payInvoiceId ? (
                 <div className="space-y-2 rounded-xl border border-[color:var(--fyh-border)] p-3">
-                  <p className="text-xs uppercase tracking-wide text-fyh-text-muted">Pay invoice</p>
+                  <p className="fyh-kpi-label">Pay invoice</p>
                   <p className="text-xs text-fyh-text-secondary">
                     Invoice {(payInvoiceId ?? selected.invoiceId)?.slice(0, 8)}…
                   </p>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <div>
-                      <label className="text-[10px] text-fyh-text-muted">Cash ₹</label>
+                      <label className="fyh-label">Cash ₹</label>
                       <Input value={cash} onChange={(e) => setCash(e.target.value)} />
                     </div>
                     <div>
-                      <label className="text-[10px] text-fyh-text-muted">UPI ₹</label>
+                      <label className="fyh-label">UPI ₹</label>
                       <Input value={upi} onChange={(e) => setUpi(e.target.value)} />
                     </div>
                     <div>
-                      <label className="text-[10px] text-fyh-text-muted">Card ₹</label>
+                      <label className="fyh-label">Card ₹</label>
                       <Input value={card} onChange={(e) => setCard(e.target.value)} />
                     </div>
                     {(customers.find((c) => c.id === selected.customerId)?.walletBalancePaise ?? 0) >
                     0 ? (
                       <div>
-                        <label className="text-[10px] text-fyh-text-muted">
+                        <label className="fyh-label">
                           Wallet ₹ (avail{' '}
                           {formatInrFromPaise(
                             customers.find((c) => c.id === selected.customerId)?.walletBalancePaise ??

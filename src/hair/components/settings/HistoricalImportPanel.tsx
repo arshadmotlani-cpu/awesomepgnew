@@ -162,8 +162,8 @@ export function HistoricalImportPanel() {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-[0.14em] text-fyh-text-muted">{label}</p>
-      <p className="mt-1 text-lg font-semibold tabular-nums">{value}</p>
+      <p className="fyh-kpi-label">{label}</p>
+      <p className="mt-1 text-lg font-semibold tabular-nums text-fyh-text">{value}</p>
     </div>
   );
 }

@@ -8,7 +8,7 @@ export default async function InventoryPage() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">Stock</p>
+        <p className="fyh-section-eyebrow">Stock</p>
         <h1 className="fyh-display mt-1 text-3xl font-semibold">Overview</h1>
         <p className="mt-1 text-sm text-fyh-text-secondary">
           On-hand quantities with low-stock highlights at or below reorder level.

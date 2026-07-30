@@ -59,7 +59,7 @@ export function ExportButton({
         type="button"
         disabled={pending}
         onClick={() => run('csv')}
-        className="rounded-md border border-[color:var(--fyh-border)] bg-black/20 px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-fyh-text-secondary transition hover:bg-black/30 disabled:opacity-50"
+        className="fyh-btn-secondary px-3 py-1.5 text-xs uppercase tracking-wide disabled:opacity-50"
       >
         {pending ? 'Exporting…' : `${label} CSV`}
       </button>
@@ -67,7 +67,7 @@ export function ExportButton({
         type="button"
         disabled={pending}
         onClick={() => run('pdf')}
-        className="rounded-md border border-[color:var(--fyh-border)] bg-black/20 px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-fyh-text-secondary transition hover:bg-black/30 disabled:opacity-50"
+        className="fyh-btn-secondary px-3 py-1.5 text-xs uppercase tracking-wide disabled:opacity-50"
       >
         Print PDF
       </button>

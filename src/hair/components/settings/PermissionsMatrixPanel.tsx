@@ -19,7 +19,7 @@ export function PermissionsMatrixPanel() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">Access</p>
+        <p className="fyh-section-eyebrow">Access</p>
         <h2 className="fyh-display mt-1 text-2xl font-semibold">Permissions</h2>
         <p className="mt-1 text-sm text-fyh-text-secondary">
           Read-only matrix for Phase I. Custom per-user overrides will be editable in a later phase;

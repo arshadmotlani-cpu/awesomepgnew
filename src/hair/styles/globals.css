@@ -5,7 +5,7 @@
   --fyh-bg-base: #0c1510;
   --fyh-bg-elevated: #141f18;
   --fyh-bg-surface: #1c2a22;
-  --fyh-bg-glass: rgba(28, 42, 34, 0.72);
+  --fyh-bg-glass: rgba(28, 42, 34, 0.78);
   --fyh-accent: #d4bc7a;
   --fyh-accent-soft: #e2cf96;
   --fyh-forest: #2a8a5c;
@@ -14,23 +14,26 @@
   --fyh-success: #6ee0a8;
   --fyh-warning: #e8c066;
   --fyh-danger: #f09080;
-  --fyh-text-primary: #faf8f4;
-  --fyh-text-secondary: #c8d4c6;
-  --fyh-text-muted: #94a89a;
-  --fyh-border: rgba(212, 188, 122, 0.22);
-  --fyh-border-strong: rgba(212, 188, 122, 0.38);
-  --fyh-border-hover: rgba(212, 188, 122, 0.48);
+  --fyh-text-primary: #f7f6f2;
+  --fyh-text-secondary: #d7d4cb;
+  --fyh-text-muted: #b8b2a5;
+  --fyh-border: rgba(212, 188, 122, 0.28);
+  --fyh-border-strong: rgba(212, 188, 122, 0.42);
+  --fyh-border-hover: rgba(212, 188, 122, 0.55);
   --fyh-glow: rgba(42, 138, 92, 0.38);
-  --fyh-control-h: 2.25rem;
+  --fyh-control-h: 2.5rem;
   --fyh-radius: 0.875rem;
   --fyh-radius-lg: 1rem;
+  --fyh-nav-active-bg: rgba(42, 138, 92, 0.32);
+  --fyh-table-stripe: rgba(255, 255, 255, 0.04);
+  --fyh-table-hover: rgba(42, 138, 92, 0.14);
 }
 
 .fyh-theme-light {
   --fyh-bg-base: #f4f1ea;
   --fyh-bg-elevated: #faf8f3;
   --fyh-bg-surface: #ffffff;
-  --fyh-bg-glass: rgba(255, 255, 255, 0.72);
+  --fyh-bg-glass: rgba(255, 255, 255, 0.88);
   --fyh-accent: #8a6b2e;
   --fyh-accent-soft: #a6853f;
   --fyh-forest: #1f6b4a;
@@ -41,10 +44,14 @@
   --fyh-danger: #b54a3c;
   --fyh-text-primary: #142018;
   --fyh-text-secondary: #3d4f42;
-  --fyh-text-muted: #6b7c70;
-  --fyh-border: rgba(31, 107, 74, 0.16);
-  --fyh-border-hover: rgba(31, 107, 74, 0.28);
+  --fyh-text-muted: #5c6b60;
+  --fyh-border: rgba(31, 107, 74, 0.2);
+  --fyh-border-strong: rgba(31, 107, 74, 0.32);
+  --fyh-border-hover: rgba(31, 107, 74, 0.42);
   --fyh-glow: rgba(31, 107, 74, 0.12);
+  --fyh-nav-active-bg: rgba(31, 107, 74, 0.12);
+  --fyh-table-stripe: rgba(31, 107, 74, 0.04);
+  --fyh-table-hover: rgba(31, 107, 74, 0.08);
 }
 
 @theme inline {
@@ -69,6 +76,9 @@
   background: var(--fyh-bg-base);
   min-height: 100vh;
   font-family: var(--font-fyh-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
 .fyh-display {
@@ -140,14 +150,16 @@
   border-radius: var(--fyh-radius);
   border: 1px solid var(--fyh-border-strong);
   background: color-mix(in srgb, var(--fyh-bg-surface) 88%, black);
-  padding: 0 0.75rem;
-  font-size: 0.8125rem;
+  padding: 0 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 500;
   color: var(--fyh-text-primary);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .fyh-input::placeholder {
   color: var(--fyh-text-muted);
+  font-weight: 400;
 }
 
 .fyh-input:focus {
@@ -156,4 +168,241 @@
   box-shadow:
     0 0 0 3px rgba(42, 138, 92, 0.22),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.fyh-select {
+  display: flex;
+  height: var(--fyh-control-h);
+  width: 100%;
+  border-radius: var(--fyh-radius);
+  border: 1px solid var(--fyh-border-strong);
+  background: color-mix(in srgb, var(--fyh-bg-surface) 88%, black);
+  padding: 0 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--fyh-text-primary);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+
+.fyh-select:focus {
+  outline: none;
+  border-color: var(--fyh-border-hover);
+  box-shadow:
+    0 0 0 3px rgba(42, 138, 92, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.fyh-textarea {
+  display: block;
+  width: 100%;
+  min-height: 5rem;
+  border-radius: var(--fyh-radius);
+  border: 1px solid var(--fyh-border-strong);
+  background: color-mix(in srgb, var(--fyh-bg-surface) 88%, black);
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--fyh-text-primary);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  resize: vertical;
+}
+
+.fyh-textarea::placeholder {
+  color: var(--fyh-text-muted);
+  font-weight: 400;
+}
+
+.fyh-textarea:focus {
+  outline: none;
+  border-color: var(--fyh-border-hover);
+  box-shadow:
+    0 0 0 3px rgba(42, 138, 92, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* ——— Typography & labels ——— */
+.fyh-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--fyh-text-secondary);
+  letter-spacing: 0.01em;
+}
+
+.fyh-card-title {
+  font-family: var(--font-fyh-display), ui-serif, Georgia, serif;
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--fyh-text-primary);
+}
+
+.fyh-section-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fyh-accent);
+}
+
+.fyh-kpi-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fyh-text-secondary);
+}
+
+.fyh-kpi-value {
+  font-family: var(--font-fyh-display), ui-serif, Georgia, serif;
+  font-size: clamp(1.75rem, 2.5vw, 2.5rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--fyh-text-primary);
+}
+
+.fyh-kpi-value-accent {
+  color: var(--fyh-accent);
+}
+
+.fyh-metric-value {
+  font-family: var(--font-fyh-display), ui-serif, Georgia, serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--fyh-text-primary);
+}
+
+/* ——— Buttons ——— */
+.fyh-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--fyh-control-h);
+  padding: 0 1rem;
+  border-radius: var(--fyh-radius);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--fyh-text-primary);
+  background: var(--fyh-forest);
+  border: 1px solid color-mix(in srgb, var(--fyh-forest) 70%, white);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  transition: background 0.2s, box-shadow 0.2s;
+}
+
+.fyh-btn-primary:hover:not(:disabled) {
+  background: var(--fyh-moss);
+}
+
+.fyh-btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.fyh-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--fyh-control-h);
+  padding: 0 1rem;
+  border-radius: var(--fyh-radius);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--fyh-text-primary);
+  background: color-mix(in srgb, var(--fyh-bg-surface) 90%, black);
+  border: 1px solid var(--fyh-border-strong);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.fyh-btn-secondary:hover:not(:disabled) {
+  border-color: var(--fyh-border-hover);
+  background: var(--fyh-bg-surface);
+}
+
+/* ——— Sidebar navigation ——— */
+.fyh-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  border-radius: 0.625rem;
+  padding: 0.5625rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--fyh-text-secondary);
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.fyh-nav-link:hover {
+  color: var(--fyh-text-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.fyh-nav-link-active {
+  color: var(--fyh-text-primary);
+  font-weight: 600;
+  background: var(--fyh-nav-active-bg);
+  box-shadow: inset 3px 0 0 var(--fyh-accent);
+}
+
+.fyh-nav-sublink {
+  display: block;
+  border-radius: 0.5rem;
+  padding: 0.4375rem 0.625rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--fyh-text-muted);
+  transition: background 0.15s, color 0.15s;
+}
+
+.fyh-nav-sublink:hover {
+  color: var(--fyh-text-primary);
+}
+
+.fyh-nav-sublink-active {
+  color: var(--fyh-text-primary);
+  font-weight: 600;
+  background: rgba(42, 138, 92, 0.18);
+}
+
+/* ——— Tables (all FYH data tables) ——— */
+.fyh-root table {
+  width: 100%;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.fyh-root table thead th {
+  padding: 0.75rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fyh-text-secondary);
+  background: rgba(0, 0, 0, 0.22);
+  border-bottom: 1px solid var(--fyh-border-strong);
+}
+
+.fyh-theme-light .fyh-root table thead th {
+  background: rgba(31, 107, 74, 0.06);
+}
+
+.fyh-root table tbody td {
+  padding: 0.8125rem 1rem;
+  color: var(--fyh-text-primary);
+  vertical-align: top;
+}
+
+.fyh-root table tbody tr {
+  border-bottom: 1px solid var(--fyh-border);
+  transition: background 0.12s;
+}
+
+.fyh-root table tbody tr:nth-child(even) {
+  background: var(--fyh-table-stripe);
+}
+
+.fyh-root table tbody tr:hover {
+  background: var(--fyh-table-hover);
 }

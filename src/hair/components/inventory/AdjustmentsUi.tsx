@@ -26,9 +26,7 @@ export function AdjustmentsList({ adjustments }: { adjustments: AdjustmentRow[] 
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">
-            Inventory
-          </p>
+          <p className="fyh-section-eyebrow">Inventory</p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold">Stock adjustments</h1>
           <p className="mt-1 text-sm text-fyh-text-secondary">
             Manual corrections for counts, damage, or shrinkage
@@ -99,7 +97,7 @@ export function AdjustmentForm({ products }: { products: FyhProduct[] }) {
   return (
     <form action={formAction} className="fyh-glass space-y-4 p-5">
       <div className="space-y-2">
-        <label className="text-sm text-fyh-text-secondary" htmlFor="productId">
+        <label className="fyh-label" htmlFor="productId">
           Product *
         </label>
         <select id="productId" name="productId" required className={fieldClass} defaultValue="">
@@ -114,7 +112,7 @@ export function AdjustmentForm({ products }: { products: FyhProduct[] }) {
         </select>
       </div>
       <div className="space-y-2">
-        <label className="text-sm text-fyh-text-secondary" htmlFor="quantityDelta">
+        <label className="fyh-label" htmlFor="quantityDelta">
           Quantity delta *
         </label>
         <Input
@@ -127,13 +125,13 @@ export function AdjustmentForm({ products }: { products: FyhProduct[] }) {
         />
       </div>
       <div className="space-y-2">
-        <label className="text-sm text-fyh-text-secondary" htmlFor="reason">
+        <label className="fyh-label" htmlFor="reason">
           Reason *
         </label>
         <Input id="reason" name="reason" required placeholder="e.g. Physical count correction" />
       </div>
       <div className="space-y-2">
-        <label className="text-sm text-fyh-text-secondary" htmlFor="notes">
+        <label className="fyh-label" htmlFor="notes">
           Notes
         </label>
         <Input id="notes" name="notes" />

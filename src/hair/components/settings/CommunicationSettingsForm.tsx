@@ -31,7 +31,7 @@ export function CommunicationSettingsForm({
       <form action={action} className="space-y-6">
         <div className="fyh-glass space-y-4 p-4">
           <div className="space-y-1">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="whatsappInvoiceTemplate">
+            <label className="fyh-label" htmlFor="whatsappInvoiceTemplate">
               WhatsApp invoice template
             </label>
             <textarea
@@ -46,7 +46,7 @@ export function CommunicationSettingsForm({
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="reviewRequestTemplate">
+            <label className="fyh-label" htmlFor="reviewRequestTemplate">
               Google review request template
             </label>
             <textarea

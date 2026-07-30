@@ -16,7 +16,7 @@ export default async function ProductDetailPage({ params }: Props) {
     <div className="mx-auto max-w-2xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.22em] text-fyh-accent">Product</p>
+          <p className="fyh-section-eyebrow">Product</p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold">{product.name}</h1>
           <p className="mt-1 text-sm text-fyh-text-secondary">
             {formatInrFromPaise(product.sellingPricePaise)}

@@ -32,9 +32,7 @@ export function ProductsList({
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">
-            Retail
-          </p>
+          <p className="fyh-section-eyebrow">Retail</p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold">Products</h1>
           <p className="mt-1 text-sm text-fyh-text-secondary">
             Retail and consumable products for billing and service kits
@@ -59,7 +57,7 @@ export function ProductsList({
           />
         </div>
         <div className="space-y-1">
-          <label className="text-[11px] uppercase tracking-wide text-fyh-text-muted">Status</label>
+          <label className="fyh-label">Status</label>
           <select name="status" defaultValue={status ?? 'active'} className={fieldClass}>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
@@ -108,15 +106,15 @@ export function ProductsList({
           <div className="fyh-glass hidden overflow-hidden md:block">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[48rem] text-left text-sm">
-                <thead className="border-b border-[color:var(--fyh-border)] bg-black/20 text-xs uppercase tracking-wide text-fyh-text-muted">
+                <thead>
                   <tr>
-                    <th className="px-4 py-3 font-medium">Product</th>
-                    <th className="px-4 py-3 font-medium">SKU</th>
-                    <th className="px-4 py-3 font-medium">Category</th>
-                    <th className="px-4 py-3 font-medium">Stock</th>
-                    <th className="px-4 py-3 font-medium">Price</th>
-                    <th className="px-4 py-3 font-medium">Type</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th>Product</th>
+                    <th>SKU</th>
+                    <th>Category</th>
+                    <th>Stock</th>
+                    <th>Price</th>
+                    <th>Type</th>
+                    <th>Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[color:var(--fyh-border)]">
@@ -191,31 +189,31 @@ export function ProductForm({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2 sm:col-span-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="name">
+            <label className="fyh-label" htmlFor="name">
               Name *
             </label>
             <Input id="name" name="name" required defaultValue={product?.name ?? ''} />
           </div>
           <div className="space-y-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="sku">
+            <label className="fyh-label" htmlFor="sku">
               SKU
             </label>
             <Input id="sku" name="sku" defaultValue={product?.sku ?? ''} />
           </div>
           <div className="space-y-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="barcode">
+            <label className="fyh-label" htmlFor="barcode">
               Barcode
             </label>
             <Input id="barcode" name="barcode" defaultValue={product?.barcode ?? ''} />
           </div>
           <div className="space-y-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="brand">
+            <label className="fyh-label" htmlFor="brand">
               Brand
             </label>
             <Input id="brand" name="brand" defaultValue={product?.brand ?? ''} />
           </div>
           <div className="space-y-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="category">
+            <label className="fyh-label" htmlFor="category">
               Category
             </label>
             <Input
@@ -226,7 +224,7 @@ export function ProductForm({
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="sellingPriceRupees">
+            <label className="fyh-label" htmlFor="sellingPriceRupees">
               Selling price (₹) *
             </label>
             <Input
@@ -239,7 +237,7 @@ export function ProductForm({
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="costPriceRupees">
+            <label className="fyh-label" htmlFor="costPriceRupees">
               Cost price (₹)
             </label>
             <Input
@@ -251,7 +249,7 @@ export function ProductForm({
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="stockQty">
+            <label className="fyh-label" htmlFor="stockQty">
               Stock qty
             </label>
             <Input
@@ -264,7 +262,7 @@ export function ProductForm({
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="reorderLevel">
+            <label className="fyh-label" htmlFor="reorderLevel">
               Reorder level
             </label>
             <Input
@@ -277,13 +275,13 @@ export function ProductForm({
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="unit">
+            <label className="fyh-label" htmlFor="unit">
               Unit
             </label>
             <Input id="unit" name="unit" defaultValue={product?.unit ?? 'unit'} />
           </div>
           <div className="space-y-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="gstPercent">
+            <label className="fyh-label" htmlFor="gstPercent">
               GST (%)
             </label>
             <Input
@@ -296,7 +294,7 @@ export function ProductForm({
             />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="description">
+            <label className="fyh-label" htmlFor="description">
               Description
             </label>
             <textarea

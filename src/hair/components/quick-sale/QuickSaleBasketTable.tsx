@@ -25,17 +25,17 @@ export function QuickSaleBasketTable({ lines, onUpdateLine, onRemoveLine }: Prop
   return (
     <div className="overflow-x-auto rounded-xl border border-[color:var(--fyh-border)]">
       <table className="w-full min-w-[960px] text-left text-sm">
-        <thead className="border-b border-[color:var(--fyh-border)] bg-black/20 text-[11px] uppercase tracking-wide text-fyh-text-muted">
+        <thead>
           <tr>
-            <th className="px-3 py-2 font-medium">Item</th>
-            <th className="px-3 py-2 font-medium text-right">Base</th>
-            <th className="px-3 py-2 font-medium text-right">GST</th>
-            <th className="px-3 py-2 font-medium text-right">Selling</th>
-            <th className="px-3 py-2 font-medium">Qty</th>
-            <th className="px-3 py-2 font-medium min-w-[140px]">Staff</th>
-            <th className="px-3 py-2 font-medium text-right">Disc %</th>
-            <th className="px-3 py-2 font-medium text-right">Final</th>
-            <th className="px-3 py-2 w-10" />
+            <th>Item</th>
+            <th className="text-right">Base</th>
+            <th className="text-right">GST</th>
+            <th className="text-right">Selling</th>
+            <th>Qty</th>
+            <th className="min-w-[140px]">Staff</th>
+            <th className="text-right">Disc %</th>
+            <th className="text-right">Final</th>
+            <th className="w-10" />
           </tr>
         </thead>
         <tbody className="divide-y divide-[color:var(--fyh-border)]">

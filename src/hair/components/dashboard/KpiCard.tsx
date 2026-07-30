@@ -15,24 +15,20 @@ export function KpiCard({
   accent?: boolean;
 }) {
   return (
-    <div className="fyh-glass space-y-2 p-3">
+    <div className="fyh-glass space-y-3 p-4">
       <div className="flex items-start justify-between gap-3">
-        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-fyh-text-muted">
-          {label}
-        </p>
+        <p className="fyh-kpi-label">{label}</p>
         <span
           className={cn(
-            'flex h-8 w-8 items-center justify-center rounded-lg border border-[color:var(--fyh-border)]',
-            accent ? 'bg-fyh-forest/25 text-fyh-accent' : 'bg-white/5 text-fyh-text-secondary',
+            'flex h-9 w-9 items-center justify-center rounded-lg border border-[color:var(--fyh-border)]',
+            accent ? 'bg-fyh-forest/30 text-fyh-accent' : 'bg-white/8 text-fyh-text-secondary',
           )}
         >
           <Icon className="h-4 w-4" />
         </span>
       </div>
-      <p className={cn('fyh-display text-xl font-semibold tracking-tight', accent && 'text-fyh-accent')}>
-        {value}
-      </p>
-      {hint ? <p className="text-xs text-fyh-text-muted">{hint}</p> : null}
+      <p className={cn('fyh-kpi-value tabular-nums', accent && 'fyh-kpi-value-accent')}>{value}</p>
+      {hint ? <p className="text-sm text-fyh-text-muted">{hint}</p> : null}
     </div>
   );
 }

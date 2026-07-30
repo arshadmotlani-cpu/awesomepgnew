@@ -34,10 +34,10 @@ export function SettingsNav({ showPermissions = false }: { showPermissions?: boo
             key={section.href}
             href={section.href}
             className={cn(
-              'rounded-xl px-3 py-2 text-sm transition',
+              'rounded-xl px-3 py-2 text-sm font-medium transition',
               active
-                ? 'bg-fyh-forest/25 text-fyh-accent'
-                : 'text-fyh-text-secondary hover:bg-white/5 hover:text-fyh-text',
+                ? 'bg-[color:var(--fyh-nav-active-bg)] font-semibold text-fyh-text shadow-[inset_2px_0_0_var(--fyh-accent)]'
+                : 'text-fyh-text-secondary hover:bg-white/6 hover:text-fyh-text',
             )}
           >
             {section.label}
@@ -59,9 +59,9 @@ export function SettingsPageHeader({
 }) {
   return (
     <div>
-      <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">{eyebrow}</p>
-      <h2 className="fyh-display mt-1 text-2xl font-semibold">{title}</h2>
-      <p className="mt-1 text-sm text-fyh-text-secondary">{description}</p>
+      <p className="fyh-section-eyebrow">{eyebrow}</p>
+      <h2 className="fyh-display mt-2 text-2xl font-semibold text-fyh-text">{title}</h2>
+      <p className="mt-2 text-base text-fyh-text-secondary">{description}</p>
     </div>
   );
 }

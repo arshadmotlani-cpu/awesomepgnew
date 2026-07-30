@@ -26,13 +26,13 @@ export function ResourcesPanel({ resources }: { resources: FyhResource[] }) {
 
       <form action={formAction} className="fyh-glass grid gap-3 p-4 sm:grid-cols-4">
         <div className="space-y-1 sm:col-span-2">
-          <label className="text-sm text-fyh-text-secondary" htmlFor="resourceName">
+          <label className="fyh-label" htmlFor="resourceName">
             Name *
           </label>
           <Input id="resourceName" name="name" required placeholder="Chair 1" />
         </div>
         <div className="space-y-1">
-          <label className="text-sm text-fyh-text-secondary" htmlFor="resourceType">
+          <label className="fyh-label" htmlFor="resourceType">
             Type
           </label>
           <select
@@ -50,7 +50,7 @@ export function ResourcesPanel({ resources }: { resources: FyhResource[] }) {
           </select>
         </div>
         <div className="space-y-1">
-          <label className="text-sm text-fyh-text-secondary" htmlFor="resourceColor">
+          <label className="fyh-label" htmlFor="resourceColor">
             Color
           </label>
           <Input id="resourceColor" name="color" placeholder="#c4a574 optional" />

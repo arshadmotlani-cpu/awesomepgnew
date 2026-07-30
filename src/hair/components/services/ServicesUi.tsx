@@ -36,9 +36,7 @@ export function ServicesList({
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">
-            Menu
-          </p>
+          <p className="fyh-section-eyebrow">Menu</p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold">Services</h1>
           <p className="mt-1 text-sm text-fyh-text-secondary">
             What you sell — priced for appointments, billing, and packages
@@ -63,7 +61,7 @@ export function ServicesList({
           />
         </div>
         <div className="space-y-1">
-          <label className="text-[11px] uppercase tracking-wide text-fyh-text-muted">Status</label>
+          <label className="fyh-label">Status</label>
           <select name="status" defaultValue={status ?? 'active'} className={fieldClass}>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
@@ -71,9 +69,7 @@ export function ServicesList({
           </select>
         </div>
         <div className="space-y-1">
-          <label className="text-[11px] uppercase tracking-wide text-fyh-text-muted">
-            Category
-          </label>
+          <label className="fyh-label">Category</label>
           <select name="category" defaultValue={category ?? ''} className={fieldClass}>
             <option value="">All categories</option>
             {categories.map((c) => (
@@ -118,7 +114,7 @@ export function ServicesList({
                     {formatInrFromPaise(s.pricePaise)}
                   </span>
                 </div>
-                <div className="flex flex-wrap gap-2 text-[11px] text-fyh-text-muted">
+                <div className="flex flex-wrap gap-2 text-xs text-fyh-text-muted">
                   <span>{s.durationMinutes} min</span>
                   <span>·</span>
                   <span>{s.isActive ? 'Active' : 'Inactive'}</span>
@@ -130,13 +126,13 @@ export function ServicesList({
           <div className="fyh-glass hidden overflow-hidden md:block">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[40rem] text-left text-sm">
-                <thead className="border-b border-[color:var(--fyh-border)] bg-black/20 text-xs uppercase tracking-wide text-fyh-text-muted">
+                <thead>
                   <tr>
-                    <th className="px-4 py-3 font-medium">Service</th>
-                    <th className="px-4 py-3 font-medium">Category</th>
-                    <th className="px-4 py-3 font-medium">Duration</th>
-                    <th className="px-4 py-3 font-medium">Price</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th>Service</th>
+                    <th>Category</th>
+                    <th>Duration</th>
+                    <th>Price</th>
+                    <th>Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[color:var(--fyh-border)]">
@@ -229,7 +225,7 @@ export function ServiceForm({
         <section className="fyh-glass space-y-3 p-4">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5 sm:col-span-2">
-              <label className="text-sm text-fyh-text-secondary" htmlFor="name">
+              <label className="fyh-label" htmlFor="name">
                 Service name *
               </label>
               <Input
@@ -257,7 +253,7 @@ export function ServiceForm({
             </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="category">
+            <label className="fyh-label" htmlFor="category">
               Category *
             </label>
             <select
@@ -276,13 +272,13 @@ export function ServiceForm({
                 </option>
               ))}
             </select>
-            <p className="text-[11px] text-fyh-text-muted">
+            <p className="text-xs text-fyh-text-muted">
               Hair, Skin, Makeup, Nails, Academy, or Digital Production.
             </p>
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="durationMinutes">
+            <label className="fyh-label" htmlFor="durationMinutes">
               Duration (minutes) *
             </label>
             <Input
@@ -297,7 +293,7 @@ export function ServiceForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="sellingPriceRupees">
+            <label className="fyh-label" htmlFor="sellingPriceRupees">
               Selling price (₹) *
             </label>
             <Input
@@ -316,7 +312,7 @@ export function ServiceForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="costPriceRupees">
+            <label className="fyh-label" htmlFor="costPriceRupees">
               Cost price (₹) *
             </label>
             <Input
@@ -332,13 +328,13 @@ export function ServiceForm({
                   : ''
               }
             />
-            <p className="text-[11px] text-fyh-text-muted">
+            <p className="text-xs text-fyh-text-muted">
               Internal only — margin and BI; never on invoices or POS.
             </p>
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="status">
+            <label className="fyh-label" htmlFor="status">
               Status *
             </label>
             <select
@@ -354,7 +350,7 @@ export function ServiceForm({
           </div>
 
           <div className="space-y-1.5 sm:col-span-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="description">
+            <label className="fyh-label" htmlFor="description">
               Description
             </label>
             <textarea

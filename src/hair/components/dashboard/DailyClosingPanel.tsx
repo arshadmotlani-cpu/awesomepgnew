@@ -14,8 +14,8 @@ const initial: DailyClosingActionState = {};
 function MethodLine({ label, paise }: { label: string; paise: number }) {
   return (
     <div className="flex items-center justify-between text-sm">
-      <span className="text-fyh-text-muted">{label}</span>
-      <span className="tabular-nums font-medium text-fyh-text">{formatInrFromPaise(paise)}</span>
+      <span className="text-fyh-text-secondary">{label}</span>
+      <span className="tabular-nums font-semibold text-fyh-text">{formatInrFromPaise(paise)}</span>
     </div>
   );
 }
@@ -31,28 +31,24 @@ export function DailyClosingPanel({ closing }: { closing: DailyClosingSnapshot }
   const expectedCashRupees = (closing.expectedCashDrawerPaise / 100).toFixed(0);
 
   return (
-    <section className="fyh-glass space-y-4 p-4">
+    <section className="fyh-glass space-y-5 p-5">
       <div>
-        <h2 className="fyh-display text-lg font-semibold">Daily Closing</h2>
-        <p className="text-xs text-fyh-text-muted">
+        <h2 className="fyh-card-title">Daily Closing</h2>
+        <p className="mt-1 text-sm text-fyh-text-muted">
           {closing.dayKey} · register reconciliation
         </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-[color:var(--fyh-border)] bg-black/10 p-3 space-y-2">
-          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-fyh-text-muted">
-            Opening float
-          </p>
-          <p className="fyh-display text-xl font-semibold text-fyh-accent">
+          <p className="fyh-kpi-label">Opening float</p>
+          <p className="fyh-metric-value mt-2 text-fyh-accent">
             {formatInrFromPaise(closing.openingFloatPaise)}
           </p>
         </div>
         <div className="rounded-xl border border-[color:var(--fyh-border)] bg-black/10 p-3 space-y-2">
-          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-fyh-text-muted">
-            Expected cash drawer
-          </p>
-          <p className="fyh-display text-xl font-semibold text-fyh-text">
+          <p className="fyh-kpi-label">Expected cash drawer</p>
+          <p className="fyh-metric-value mt-2">
             {formatInrFromPaise(closing.expectedCashDrawerPaise)}
           </p>
           <p className="text-xs text-fyh-text-muted">Opening + cash collected today</p>
@@ -60,9 +56,7 @@ export function DailyClosingPanel({ closing }: { closing: DailyClosingSnapshot }
       </div>
 
       <div className="space-y-2 rounded-xl border border-[color:var(--fyh-border)] bg-black/10 p-3">
-        <p className="text-xs font-medium uppercase tracking-[0.14em] text-fyh-text-muted">
-          Collections today
-        </p>
+        <p className="fyh-kpi-label">Collections today</p>
         <MethodLine label="Cash" paise={closing.collectionsByMethod.cash} />
         <MethodLine label="UPI" paise={closing.collectionsByMethod.upi} />
         <MethodLine label="Card" paise={closing.collectionsByMethod.card} />
@@ -88,7 +82,7 @@ export function DailyClosingPanel({ closing }: { closing: DailyClosingSnapshot }
 
       <form action={openAction} className="flex flex-wrap items-end gap-3">
         <label className="grid gap-1 text-sm">
-          <span className="text-fyh-text-muted">Set opening float (₹)</span>
+          <span className="fyh-label">Set opening float (₹)</span>
           <input
             type="number"
             name="openingFloatRupees"
@@ -107,7 +101,7 @@ export function DailyClosingPanel({ closing }: { closing: DailyClosingSnapshot }
 
       <form action={closeAction} className="flex flex-wrap items-end gap-3 border-t border-[color:var(--fyh-border)] pt-4">
         <label className="grid gap-1 text-sm">
-          <span className="text-fyh-text-muted">Cash on hand at close (₹)</span>
+          <span className="fyh-label">Cash on hand at close (₹)</span>
           <input
             type="number"
             name="closingCashRupees"

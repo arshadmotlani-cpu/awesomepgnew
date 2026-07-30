@@ -33,9 +33,7 @@ export function PurchasesList({ orders }: { orders: PoListItem[] }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">
-            Inventory
-          </p>
+          <p className="fyh-section-eyebrow">Inventory</p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold">Purchase orders</h1>
           <p className="mt-1 text-sm text-fyh-text-secondary">
             Create POs and receive goods into stock
@@ -176,7 +174,7 @@ export function PurchaseOrderForm({
   return (
     <form action={formAction} className="fyh-glass space-y-4 p-5">
       <div className="space-y-2">
-        <label className="text-sm text-fyh-text-secondary" htmlFor="vendorId">
+        <label className="fyh-label" htmlFor="vendorId">
           Vendor *
         </label>
         <select id="vendorId" name="vendorId" required className={fieldClass} defaultValue="">
@@ -208,7 +206,7 @@ export function PurchaseOrderForm({
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm text-fyh-text-secondary" htmlFor="notes">
+        <label className="fyh-label" htmlFor="notes">
           Notes
         </label>
         <Input id="notes" name="notes" />
@@ -258,7 +256,7 @@ export function PurchaseOrderDetail({
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">PO</p>
+        <p className="fyh-section-eyebrow">PO</p>
         <h1 className="fyh-display mt-1 text-3xl font-semibold">{detail.po.poNumber}</h1>
         <p className="mt-1 text-sm text-fyh-text-secondary">
           {detail.vendorName} · <span className="capitalize">{detail.po.status}</span>
@@ -311,7 +309,7 @@ export function PurchaseOrderDetail({
             )}
           />
           <div className="space-y-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="notes">
+            <label className="fyh-label" htmlFor="notes">
               Notes
             </label>
             <Input id="notes" name="notes" />

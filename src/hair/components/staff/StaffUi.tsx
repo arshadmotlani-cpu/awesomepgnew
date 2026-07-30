@@ -23,7 +23,7 @@ export function StaffPage({
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">Team</p>
+        <p className="fyh-section-eyebrow">Team</p>
         <h1 className="fyh-display mt-1 text-3xl font-semibold">Staff</h1>
         <p className="mt-1 text-sm text-fyh-text-secondary">
           Assign stylists to services. Commissions accrue on paid invoices.{' '}
@@ -35,19 +35,19 @@ export function StaffPage({
 
       <form action={formAction} className="fyh-glass grid gap-3 p-4 sm:grid-cols-4">
         <div className="space-y-1 sm:col-span-2">
-          <label className="text-sm text-fyh-text-secondary" htmlFor="fullName">
+          <label className="fyh-label" htmlFor="fullName">
             Name *
           </label>
           <Input id="fullName" name="fullName" required placeholder="Stylist name" />
         </div>
         <div className="space-y-1">
-          <label className="text-sm text-fyh-text-secondary" htmlFor="phone">
+          <label className="fyh-label" htmlFor="phone">
             Phone
           </label>
           <Input id="phone" name="phone" placeholder="Optional" />
         </div>
         <div className="space-y-1">
-          <label className="text-sm text-fyh-text-secondary" htmlFor="role">
+          <label className="fyh-label" htmlFor="role">
             Role
           </label>
           <Input id="role" name="role" placeholder="Stylist · Colourist…" />

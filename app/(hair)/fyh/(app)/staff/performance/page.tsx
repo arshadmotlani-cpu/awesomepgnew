@@ -15,7 +15,7 @@ export default async function StaffPerformanceLeaderboardPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">Team</p>
+          <p className="fyh-section-eyebrow">Team</p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold">Staff performance</h1>
           <p className="mt-1 text-sm text-fyh-text-secondary">
             Leaderboard · this month · attributed net from share splits

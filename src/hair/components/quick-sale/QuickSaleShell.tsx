@@ -284,7 +284,7 @@ export function QuickSaleShell({
           </p>
         ) : null}
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">Quick Sale</p>
+          <p className="fyh-section-eyebrow">Quick Sale</p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold text-fyh-text">Find customer</h1>
         </div>
         <div className="flex gap-2">
@@ -370,11 +370,9 @@ export function QuickSaleShell({
       <div className="fyh-glass flex flex-wrap items-center justify-between gap-3 p-4">
         <div>
           {appointmentId ? (
-            <p className="mb-1 text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">
-              Appointment checkout
-            </p>
+            <p className="mb-1 fyh-section-eyebrow">Appointment checkout</p>
           ) : (
-            <p className="text-xs uppercase tracking-[0.22em] text-fyh-accent">Customer</p>
+            <p className="fyh-section-eyebrow">Customer</p>
           )}
           <button
             type="button"

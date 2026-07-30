@@ -63,7 +63,7 @@ function CustomerTableBody({
                 {formatInrFromPaise(c.lifetimeSpendPaise ?? 0)}
               </span>
             </div>
-            <div className="flex flex-wrap gap-2 text-[11px] text-fyh-text-muted">
+            <div className="flex flex-wrap gap-2 text-xs text-fyh-text-muted">
               <span>{c.totalVisits ?? 0} visits</span>
               {c.email ? (
                 <>
@@ -86,15 +86,15 @@ function CustomerTableBody({
       <div className="fyh-glass hidden overflow-hidden md:block">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[44rem] text-left text-sm">
-            <thead className="border-b border-[color:var(--fyh-border)] bg-black/20 text-xs uppercase tracking-wide text-fyh-text-muted">
+            <thead>
               <tr>
-                <th className="px-4 py-3 font-medium">Name</th>
-                <th className="px-4 py-3 font-medium">Phone</th>
-                <th className="px-4 py-3 font-medium">WhatsApp</th>
-                <th className="px-4 py-3 font-medium">Email</th>
-                <th className="px-4 py-3 font-medium">Visits</th>
-                <th className="px-4 py-3 font-medium">Lifetime</th>
-                <th className="px-4 py-3 font-medium">Tags</th>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>WhatsApp</th>
+                <th>Email</th>
+                <th>Visits</th>
+                <th>Lifetime</th>
+                <th>Tags</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[color:var(--fyh-border)]">
@@ -108,7 +108,7 @@ function CustomerTableBody({
                       <HighlightMatch text={c.fullName} query={query} />
                     </Link>
                     {c.importantAlerts ? (
-                      <p className="mt-0.5 text-[11px] text-fyh-danger">Alert on file</p>
+                      <p className="mt-0.5 text-xs text-fyh-danger">Alert on file</p>
                     ) : null}
                   </td>
                   <td className="px-4 py-3 tabular-nums text-fyh-text-secondary">
@@ -191,7 +191,7 @@ export function CustomersList({ initialCustomers }: { initialCustomers: FyhCusto
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">CRM</p>
+          <p className="fyh-section-eyebrow">CRM</p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold tracking-tight">Customers</h1>
           <p className="mt-1 text-sm text-fyh-text-secondary">
             Search by name, phone, WhatsApp, or email

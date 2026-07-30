@@ -23,7 +23,7 @@ export function BillingUi({ invoices }: { invoices: BillingInvoiceRow[] }) {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">Money</p>
+        <p className="fyh-section-eyebrow">Money</p>
         <h1 className="fyh-display mt-1 text-3xl font-semibold">Billing</h1>
         <p className="mt-1 text-sm text-fyh-text-secondary">
           Invoices from appointment checkout. Retail product sales use the Products catalog when
@@ -53,7 +53,7 @@ export function BillingUi({ invoices }: { invoices: BillingInvoiceRow[] }) {
                       {formatInrFromPaise(inv.grandTotalPaise)}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between gap-2 text-[11px] text-fyh-text-muted">
+                  <div className="flex items-center justify-between gap-2 text-xs text-fyh-text-muted">
                     <span className="capitalize">{inv.status}</span>
                     <span className="tabular-nums">{inv.createdAtIso.slice(0, 10)}</span>
                   </div>
@@ -67,14 +67,14 @@ export function BillingUi({ invoices }: { invoices: BillingInvoiceRow[] }) {
             </div>
             <div className="fyh-glass hidden overflow-hidden md:block">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-[color:var(--fyh-border)] bg-black/20 text-xs uppercase tracking-wide text-fyh-text-muted">
+            <thead>
               <tr>
-                <th className="px-4 py-3 font-medium">Invoice</th>
-                <th className="px-4 py-3 font-medium">Customer</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Total</th>
-                <th className="px-4 py-3 font-medium">Created</th>
-                <th className="px-4 py-3 font-medium" />
+                <th>Invoice</th>
+                <th>Customer</th>
+                <th>Status</th>
+                <th>Total</th>
+                <th>Created</th>
+                <th />
               </tr>
             </thead>
             <tbody className="divide-y divide-[color:var(--fyh-border)]">

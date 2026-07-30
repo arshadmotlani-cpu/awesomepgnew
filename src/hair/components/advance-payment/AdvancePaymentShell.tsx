@@ -53,9 +53,7 @@ export function AdvancePaymentShell() {
     return (
       <div className="mx-auto max-w-lg space-y-8 py-12 text-center">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">
-            Advance Payment
-          </p>
+          <p className="fyh-section-eyebrow">Advance Payment</p>
           <h1 className="fyh-display mt-2 text-3xl font-semibold text-fyh-text">Wallet credited</h1>
           <p className="mt-2 text-sm text-fyh-text-secondary">
             {customer.fullName} · new balance{' '}
@@ -90,9 +88,7 @@ export function AdvancePaymentShell() {
     return (
       <div className="mx-auto max-w-xl space-y-8 py-6 md:py-10">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">
-            Advance Payment
-          </p>
+          <p className="fyh-section-eyebrow">Advance Payment</p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold text-fyh-text">Find customer</h1>
           <p className="mt-1 text-sm text-fyh-text-muted">
             Add money to wallet · no invoice
@@ -139,9 +135,7 @@ export function AdvancePaymentShell() {
   return (
     <div className="mx-auto max-w-md space-y-6 py-6 md:py-10">
       <div>
-        <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">
-          Advance Payment
-        </p>
+        <p className="fyh-section-eyebrow">Advance Payment</p>
         <button
           type="button"
           className="fyh-display mt-1 text-left text-xl font-semibold text-fyh-text hover:text-fyh-accent"

@@ -35,7 +35,7 @@ export default async function LoyaltyHubPage() {
   return (
     <div className="space-y-8">
       <div>
-        <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">Growth</p>
+        <p className="fyh-section-eyebrow">Growth</p>
         <h1 className="fyh-display text-3xl font-semibold text-fyh-text">Loyalty & Ops</h1>
         <p className="text-sm text-fyh-text-secondary">
           Memberships, packages, bridal, commissions, and notification queue

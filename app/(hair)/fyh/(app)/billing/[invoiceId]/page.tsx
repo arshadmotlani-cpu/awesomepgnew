@@ -27,7 +27,7 @@ export default async function InvoiceDetailPage({ params }: Props) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">Invoice</p>
+          <p className="fyh-section-eyebrow">Invoice</p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold">{invoice.invoiceNumber}</h1>
           <p className="mt-1 text-sm text-fyh-text-secondary">
             {customerName} · {customerPhone}

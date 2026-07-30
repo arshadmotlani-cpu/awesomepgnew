@@ -30,9 +30,7 @@ export function VendorsList({
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">
-            Inventory
-          </p>
+          <p className="fyh-section-eyebrow">Inventory</p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold">Vendors</h1>
           <p className="mt-1 text-sm text-fyh-text-secondary">
             Suppliers for purchase orders and goods receipts
@@ -52,7 +50,7 @@ export function VendorsList({
           <Input name="q" defaultValue={q ?? ''} placeholder="Search vendors" className="pl-9" />
         </div>
         <div className="space-y-1">
-          <label className="text-[11px] uppercase tracking-wide text-fyh-text-muted">Status</label>
+          <label className="fyh-label">Status</label>
           <select name="status" defaultValue={status ?? 'active'} className={fieldClass}>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
@@ -75,12 +73,12 @@ export function VendorsList({
       ) : (
         <div className="fyh-glass overflow-hidden">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-[color:var(--fyh-border)] bg-black/20 text-xs uppercase tracking-wide text-fyh-text-muted">
+            <thead>
               <tr>
-                <th className="px-4 py-3 font-medium">Vendor</th>
-                <th className="px-4 py-3 font-medium">Contact</th>
-                <th className="px-4 py-3 font-medium">Phone</th>
-                <th className="px-4 py-3 font-medium">Status</th>
+                <th>Vendor</th>
+                <th>Contact</th>
+                <th>Phone</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[color:var(--fyh-border)]">
@@ -131,43 +129,43 @@ export function VendorForm({ mode, vendor }: { mode: 'create' | 'edit'; vendor?:
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2 sm:col-span-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="name">
+            <label className="fyh-label" htmlFor="name">
               Name *
             </label>
             <Input id="name" name="name" required defaultValue={vendor?.name ?? ''} />
           </div>
           <div className="space-y-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="contactName">
+            <label className="fyh-label" htmlFor="contactName">
               Contact name
             </label>
             <Input id="contactName" name="contactName" defaultValue={vendor?.contactName ?? ''} />
           </div>
           <div className="space-y-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="phone">
+            <label className="fyh-label" htmlFor="phone">
               Phone
             </label>
             <Input id="phone" name="phone" defaultValue={vendor?.phone ?? ''} />
           </div>
           <div className="space-y-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="email">
+            <label className="fyh-label" htmlFor="email">
               Email
             </label>
             <Input id="email" name="email" type="email" defaultValue={vendor?.email ?? ''} />
           </div>
           <div className="space-y-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="gstin">
+            <label className="fyh-label" htmlFor="gstin">
               GSTIN
             </label>
             <Input id="gstin" name="gstin" defaultValue={vendor?.gstin ?? ''} />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="address">
+            <label className="fyh-label" htmlFor="address">
               Address
             </label>
             <Input id="address" name="address" defaultValue={vendor?.address ?? ''} />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <label className="text-sm text-fyh-text-secondary" htmlFor="notes">
+            <label className="fyh-label" htmlFor="notes">
               Notes
             </label>
             <Input id="notes" name="notes" defaultValue={vendor?.notes ?? ''} />
