@@ -30,15 +30,33 @@ import {
   FYH_SKIN_TYPES,
   type FyhCustomer,
   type FyhCustomerNote,
-  type FyhCustomerTimelineEvent,
 } from '@/src/hair/db/schema';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { cn } from '@/src/hair/lib/utils';
+import type {
+  CustomerFinancialSummary,
+  UnifiedTimelineEvent,
+  UnifiedTimelineFilter,
+} from '@/src/hair/domain/customerTimeline/types';
+import {
+  DEFAULT_TIMELINE_PAGE_SIZE,
+  filterUnifiedTimeline,
+  paginateUnifiedTimeline,
+} from '@/src/hair/domain/customerTimeline/types';
 
 const initialState: CustomerActionState = {};
 
 const fieldClass =
   'flex h-11 w-full rounded-xl border border-[color:var(--fyh-border)] bg-black/20 px-3 text-sm text-fyh-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fyh-accent/40 fyh-theme-light:bg-white/70';
+
+const TIMELINE_FILTERS: { id: UnifiedTimelineFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'visits', label: 'Visits' },
+  { id: 'bills', label: 'Bills' },
+  { id: 'payments', label: 'Payments' },
+  { id: 'wallet', label: 'Wallet' },
+  { id: 'loyalty', label: 'Loyalty' },
+];
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
@@ -63,13 +81,19 @@ function Stat({ label, value }: { label: string; value: string }) {
 export function CustomerProfile({
   customer,
   notes,
-  timeline,
+  unifiedTimeline,
+  financialSummary,
+  timelineLoading = false,
 }: {
   customer: FyhCustomer;
   notes: FyhCustomerNote[];
-  timeline: FyhCustomerTimelineEvent[];
+  unifiedTimeline: UnifiedTimelineEvent[];
+  financialSummary: CustomerFinancialSummary;
+  timelineLoading?: boolean;
 }) {
   const [tab, setTab] = useState<TabId>('overview');
+  const [timelineFilter, setTimelineFilter] = useState<UnifiedTimelineFilter>('all');
+  const [timelineVisibleCount, setTimelineVisibleCount] = useState(DEFAULT_TIMELINE_PAGE_SIZE);
   const [updateState, updateAction, updatePending] = useActionState(
     updateCustomerAction,
     initialState,
@@ -86,6 +110,15 @@ export function CustomerProfile({
   const [photoFile, setPhotoFile] = useState<File | null>(null);
 
   const alertNotes = useMemo(() => notes.filter((n) => n.isAlert), [notes]);
+  const filteredTimeline = useMemo(
+    () => filterUnifiedTimeline(unifiedTimeline, timelineFilter),
+    [unifiedTimeline, timelineFilter],
+  );
+  const visibleTimeline = useMemo(
+    () => paginateUnifiedTimeline(filteredTimeline, { limit: timelineVisibleCount }),
+    [filteredTimeline, timelineVisibleCount],
+  );
+  const hasMoreTimeline = visibleTimeline.length < filteredTimeline.length;
 
   return (
     <div className="space-y-6">
@@ -184,15 +217,30 @@ export function CustomerProfile({
         </div>
       ) : null}
 
+      {/* Account summary */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Stat label="Due" value={formatInrFromPaise(financialSummary.duePaise)} />
+        <Stat label="Advance" value={formatInrFromPaise(financialSummary.advancePaise)} />
+        <Stat label="Wallet" value={formatInrFromPaise(financialSummary.walletPaise)} />
+      </div>
+
       {/* Summary cards */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
         <Stat label="Visits" value={String(customer.totalVisits ?? 0)} />
         <Stat label="Lifetime spend" value={formatInrFromPaise(customer.lifetimeSpendPaise ?? 0)} />
         <Stat label="Avg bill" value={formatInrFromPaise(customer.averageBillPaise ?? 0)} />
-        <Stat label="Wallet" value={formatInrFromPaise(customer.walletBalancePaise ?? 0)} />
         <Stat label="Points" value={String(customer.rewardPoints ?? 0)} />
         <Stat label="Packages" value={String(customer.packagesPurchased ?? 0)} />
-        <Stat label="Membership" value={customer.membership || 'None'} />
+        <Stat
+          label="Membership"
+          value={(financialSummary.activeMembership?.planName ?? customer.membership) || 'None'}
+        />
+        {financialSummary.activePackage ? (
+          <Stat
+            label="Active package"
+            value={`${financialSummary.activePackage.planName} (${financialSummary.activePackage.remainingSessions} left)`}
+          />
+        ) : null}
       </div>
 
       {/* Quick actions */}
@@ -397,8 +445,9 @@ export function CustomerProfile({
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Membership" name="membership" defaultValue={customer.membership ?? ''} />
               <p className="sm:col-span-2 text-sm text-fyh-text-muted">
-                Wallet balance {formatInrFromPaise(customer.walletBalancePaise ?? 0)} · packages{' '}
-                {customer.packagesPurchased ?? 0}. Gift cards are not enabled yet (no ledger).
+                Wallet balance {formatInrFromPaise(financialSummary.walletPaise)} · advance credited{' '}
+                {formatInrFromPaise(financialSummary.advancePaise)} · packages{' '}
+                {customer.packagesPurchased ?? 0}.
               </p>
               <WalletTopUp customerId={customer.id} />
               <HiddenDefaults customer={customer} includeBasics includeSalon />
@@ -472,26 +521,74 @@ export function CustomerProfile({
       {tab === 'timeline' ? (
         <div className="fyh-glass p-4">
           <h2 className="fyh-display mb-4 text-lg font-semibold">Timeline</h2>
-          {timeline.length === 0 ? (
-            <p className="text-sm text-fyh-text-muted">No timeline events yet.</p>
+          <div className="mb-4 flex flex-wrap gap-1.5">
+            {TIMELINE_FILTERS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => {
+                  setTimelineFilter(f.id);
+                  setTimelineVisibleCount(DEFAULT_TIMELINE_PAGE_SIZE);
+                }}
+                className={cn(
+                  'rounded-full border px-3 py-1 text-xs transition',
+                  timelineFilter === f.id
+                    ? 'border-fyh-accent/40 bg-fyh-forest/25 text-fyh-accent'
+                    : 'border-[color:var(--fyh-border)] text-fyh-text-secondary hover:text-fyh-text',
+                )}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          {timelineLoading ? (
+            <div className="space-y-4 py-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="animate-pulse space-y-2 border-l border-fyh-accent/15 pl-6">
+                  <div className="h-3 w-32 rounded bg-white/10" />
+                  <div className="h-4 w-48 rounded bg-white/10" />
+                </div>
+              ))}
+            </div>
+          ) : filteredTimeline.length === 0 ? (
+            <p className="text-sm text-fyh-text-muted">
+              {unifiedTimeline.length === 0
+                ? 'No activity yet — visits, bills, payments, and wallet events will appear here.'
+                : `No ${TIMELINE_FILTERS.find((f) => f.id === timelineFilter)?.label.toLowerCase()} events yet.`}
+            </p>
           ) : (
             <ol className="relative space-y-0 border-l border-fyh-accent/25 pl-6">
-              {timeline.map((ev) => (
+              {visibleTimeline.map((ev) => (
                 <li key={ev.id} className="relative pb-6 last:pb-0">
                   <span className="absolute -left-[1.55rem] top-1 h-2.5 w-2.5 rounded-full bg-fyh-accent" />
                   <p className="text-xs text-fyh-text-muted">
-                    {new Date(ev.occurredAt).toLocaleString('en-IN')} · {ev.eventType.replace(/_/g, ' ')}
+                    {new Date(ev.occurredAt).toLocaleString('en-IN')} · {ev.category}
                   </p>
                   <p className="mt-0.5 font-medium text-fyh-text">{ev.title}</p>
                   {ev.body ? <p className="mt-1 text-sm text-fyh-text-secondary">{ev.body}</p> : null}
+                  {ev.amountPaise != null && ev.amountPaise > 0 ? (
+                    <p className="mt-1 text-xs font-medium text-fyh-accent">
+                      {formatInrFromPaise(ev.amountPaise)}
+                    </p>
+                  ) : null}
                 </li>
               ))}
             </ol>
           )}
-          <p className="mt-4 text-xs text-fyh-text-muted">
-            Appointments, bills, memberships, packages, and wallet events will appear here as those
-            modules go live.
-          </p>
+          {hasMoreTimeline ? (
+            <div className="mt-4 text-center">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  setTimelineVisibleCount((n) => n + DEFAULT_TIMELINE_PAGE_SIZE)
+                }
+              >
+                Load more ({filteredTimeline.length - visibleTimeline.length} remaining)
+              </Button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireHairAuth, requireSuperAdmin } from '@/src/hair/lib/auth/guards';
+import { requirePermission } from '@/src/hair/lib/auth/permissions';
 import {
   createBridalProfile,
   sellMembership,
@@ -82,7 +82,7 @@ export async function topUpWalletAction(
 
 export async function markCommissionsPaidAction(staffId: string): Promise<LoyaltyActionState> {
   try {
-    await requireSuperAdmin();
+    await requirePermission('action:staff.commission_pay');
     const { markCommissionsPaid } = await import('@/src/hair/services/loyaltyOps');
     await markCommissionsPaid(staffId);
     revalidatePath('/loyalty');

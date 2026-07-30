@@ -3,7 +3,7 @@
 import { put } from '@vercel/blob';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { requireHairAuth } from '@/src/hair/lib/auth/guards';
+import { requirePermission } from '@/src/hair/lib/auth/permissions';
 import {
   FYH_CUSTOMER_GENDERS,
   FYH_CUSTOMER_SOURCES,
@@ -33,7 +33,7 @@ export type CustomerActionState = {
 };
 
 export async function listCustomersAction(q?: string): Promise<FyhCustomer[]> {
-  await requireHairAuth();
+  await requirePermission('page:customers');
   return listCustomers({ q: q?.trim() || undefined });
 }
 
@@ -95,7 +95,7 @@ export async function checkSimilarCustomersAction(
   formData: FormData,
 ): Promise<CustomerActionState> {
   try {
-    await requireHairAuth();
+    await requirePermission('page:customers');
     const similar = await findSimilarCustomers({
       phone: formStr(formData, 'phone'),
       email: formStr(formData, 'email') || null,
@@ -113,7 +113,7 @@ export async function createCustomerAction(
   formData: FormData,
 ): Promise<CustomerActionState> {
   try {
-    await requireHairAuth();
+    await requirePermission('page:customers');
     const customer = await createCustomer(parseCustomerForm(formData));
     revalidatePath('/customers');
     revalidatePath('/dashboard');
@@ -135,7 +135,7 @@ export async function updateCustomerAction(
   formData: FormData,
 ): Promise<CustomerActionState> {
   try {
-    await requireHairAuth();
+    await requirePermission('page:customers');
     const id = formStr(formData, 'id');
     if (!id) return { error: 'Missing customer id' };
     await updateCustomer(id, parseCustomerForm(formData));
@@ -153,7 +153,7 @@ export async function archiveCustomerAction(
   formData: FormData,
 ): Promise<CustomerActionState> {
   try {
-    await requireHairAuth();
+    await requirePermission('page:customers');
     const id = formStr(formData, 'id');
     if (!id) return { error: 'Missing customer id' };
     await archiveCustomer(id);
@@ -171,7 +171,7 @@ export async function addCustomerNoteAction(
   formData: FormData,
 ): Promise<CustomerActionState> {
   try {
-    const admin = await requireHairAuth();
+    const admin = await requirePermission('page:customers');
     const id = formStr(formData, 'customerId');
     if (!id) return { error: 'Missing customer' };
     await addCustomerNote({
@@ -192,7 +192,7 @@ export async function uploadCustomerPhotoAction(
   formData: FormData,
 ): Promise<CustomerActionState> {
   try {
-    await requireHairAuth();
+    await requirePermission('page:customers');
     const id = formStr(formData, 'customerId');
     if (!id) return { error: 'Missing customer' };
     const file = formData.get('photo');

@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireHairAuth } from '@/src/hair/lib/auth/guards';
+import { requirePermission } from '@/src/hair/lib/auth/permissions';
 import {
   recordAdvancePayment,
   type AdvancePaymentMethod,
@@ -11,7 +11,7 @@ import { searchCustomersForPos } from '@/src/hair/services/quickSale';
 export type AdvancePaymentActionState = { error?: string; success?: string };
 
 export async function searchCustomersForAdvanceAction(query: string) {
-  await requireHairAuth();
+  await requirePermission('page:billing');
   return searchCustomersForPos(query);
 }
 
@@ -23,7 +23,7 @@ export async function submitAdvancePaymentAction(input: {
   notes?: string | null;
 }): Promise<AdvancePaymentActionState & { walletBalancePaise?: number }> {
   try {
-    await requireHairAuth();
+    await requirePermission('action:billing.checkout');
     const result = await recordAdvancePayment(input);
     revalidatePath('/dashboard');
     revalidatePath(`/customers/${input.customerId}`);
