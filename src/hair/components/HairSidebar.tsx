@@ -83,7 +83,10 @@ function NavGroup({ group }: { group: HairNavGroup }) {
       {open ? (
         <div className="ml-3 space-y-0.5 border-l border-[color:var(--fyh-border)] pl-2">
           {group.children.map((c) => {
-            const active = pathname === c.href;
+            const active =
+              c.href === '/billing'
+                ? pathname === '/billing' || pathname === '/billing/'
+                : pathname === c.href || pathname.startsWith(`${c.href}/`);
             return (
               <Link
                 key={c.href}

@@ -32,6 +32,12 @@ export function BillingUi({ invoices }: { invoices: BillingInvoiceRow[] }) {
         <p className="mt-2 text-xs text-fyh-text-muted">
           Need a product-only sale? Record it from Inventory → Products (retail invoice path).
         </p>
+        <Link
+          href="/billing/invoices"
+          className="mt-3 inline-flex text-sm font-medium text-fyh-accent hover:underline"
+        >
+          Open full invoice register →
+        </Link>
       </div>
 
       <div className="fyh-glass overflow-hidden">

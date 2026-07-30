@@ -256,7 +256,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-30 18:48:29 UTC
+### Pending pre-commit sync · 2026-07-30 20:03:50 UTC
 
 **Areas touched:** [[ROUTES]]
 
@@ -265,33 +265,10 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
-**Staged code files (26):**
+**Staged code files (3):**
 - `app/(hair)/fyh/(app)/billing/[invoiceId]/page.tsx`
-- `app/(hair)/fyh/(app)/customers/new/page.tsx`
-- `app/(hair)/fyh/(app)/inventory/adjustments/new/page.tsx`
-- `app/(hair)/fyh/(app)/inventory/page.tsx`
-- `app/(hair)/fyh/(app)/inventory/purchases/new/page.tsx`
-- `app/(hair)/fyh/(app)/inventory/transfers/page.tsx`
-- `app/(hair)/fyh/(app)/inventory/vendors/[id]/page.tsx`
-- `app/(hair)/fyh/(app)/inventory/vendors/new/page.tsx`
-- `app/(hair)/fyh/(app)/layout.tsx`
-- `app/(hair)/fyh/(app)/loyalty/page.tsx`
-- `app/(hair)/fyh/(app)/products/[id]/page.tsx`
-- `app/(hair)/fyh/(app)/products/new/page.tsx`
-- `app/(hair)/fyh/(app)/profile/page.tsx`
-- `app/(hair)/fyh/(app)/reports/inventory/low-stock/page.tsx`
-- `app/(hair)/fyh/(app)/reports/inventory/products/page.tsx`
-- `app/(hair)/fyh/(app)/reports/inventory/stock/page.tsx`
-- `app/(hair)/fyh/(app)/reports/page.tsx`
-- `app/(hair)/fyh/(app)/reports/revenue/daily/page.tsx`
-- `app/(hair)/fyh/(app)/reports/revenue/monthly/page.tsx`
-- `app/(hair)/fyh/(app)/reports/revenue/yearly/page.tsx`
-- `app/(hair)/fyh/(app)/reports/staff/[metric]/page.tsx`
-- `app/(hair)/fyh/(app)/services/[id]/page.tsx`
-- `app/(hair)/fyh/(app)/services/new/page.tsx`
-- `app/(hair)/fyh/(app)/settings/layout.tsx`
-- `app/(hair)/fyh/(app)/staff/[id]/performance/page.tsx`
-- _…and 1 more staged files_
+- `app/(hair)/fyh/(app)/billing/invoices/page.tsx`
+- `app/(hair)/fyh/api/invoices/[invoiceId]/print/route.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

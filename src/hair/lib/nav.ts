@@ -62,11 +62,16 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
     permission: 'page:appointments',
   },
   {
-    type: 'link',
-    href: '/billing',
+    type: 'group',
+    id: 'billing',
     label: 'Billing',
     iconKey: 'receipt',
+    defaultExpanded: true,
     permission: 'page:billing',
+    children: [
+      { href: '/billing', label: 'Overview' },
+      { href: '/billing/invoices', label: 'Invoices' },
+    ],
   },
   {
     type: 'link',

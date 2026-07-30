@@ -35,9 +35,9 @@ export default async function InvoiceDetailPage({ params }: Props) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/billing">
+          <Link href="/billing/invoices">
             <Button type="button" variant="ghost" size="sm">
-              Back
+              Back to register
             </Button>
           </Link>
           <PrintInvoiceButton html={printHtml} />
