@@ -206,6 +206,7 @@ export async function ensureNotificationTemplates() {
     { kind: 'review_request', body: 'Hi {{name}}, how was your visit? We would love your feedback.' },
     { kind: 'follow_up', body: 'Hi {{name}}, checking in after your service. Book your next visit anytime.' },
     { kind: 'low_stock', body: 'Low stock alert: {{product}} is below reorder level.' },
+    { kind: 'invoice_ready', body: 'Hi {{name}}, your invoice for {{amount}} is ready: {{link}}' },
   ];
   for (const k of kinds) {
     await hairDb
@@ -243,31 +244,34 @@ export async function listOutbox(limit = 50) {
 }
 
 export async function processOutboxBatch(limit = 20) {
-  // Delivery adapters are not connected — leave rows pending and report queue size.
-  const rows = await hairDb
-    .select({ id: fyhNotificationOutbox.id })
-    .from(fyhNotificationOutbox)
-    .where(eq(fyhNotificationOutbox.status, 'pending'))
-    .limit(limit);
-  return rows.length;
+  const { processOutboxBatch: processBatch } = await import('@/src/hair/services/notifications');
+  const result = await processBatch(limit);
+  return result.processed;
 }
 
 export async function topUpWallet(customerId: string, amountPaise: number) {
   if (amountPaise <= 0) throw new Error('Top-up amount must be positive');
-  const [customer] = await hairDb
-    .select()
-    .from(fyhCustomers)
-    .where(eq(fyhCustomers.id, customerId))
-    .limit(1);
-  if (!customer) throw new Error('Customer not found');
-  await hairDb
-    .update(fyhCustomers)
-    .set({
-      walletBalancePaise: customer.walletBalancePaise + amountPaise,
-      updatedAt: new Date(),
-    })
-    .where(eq(fyhCustomers.id, customerId));
-  return customer.walletBalancePaise + amountPaise;
+
+  return hairDb.transaction(async (tx) => {
+    const db = tx as unknown as typeof hairDb;
+    const [customer] = await tx
+      .select({ id: fyhCustomers.id })
+      .from(fyhCustomers)
+      .where(and(eq(fyhCustomers.id, customerId), eq(fyhCustomers.isActive, true)))
+      .limit(1);
+    if (!customer) throw new Error('Customer not found');
+
+    const { creditWalletAdvance, reconcileCustomerWalletCache } = await import(
+      '@/src/hair/domain/ledger/service'
+    );
+    await creditWalletAdvance(db, {
+      customerId: customer.id,
+      invoiceId: null,
+      amountPaise,
+      reference: 'wallet_top_up',
+    });
+    return reconcileCustomerWalletCache(db, customer.id);
+  });
 }
 
 export type AdvancePaymentMethod = Extract<FyhPaymentMethod, 'cash' | 'upi' | 'card' | 'bank'>;

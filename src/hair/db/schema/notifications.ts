@@ -15,6 +15,7 @@ export const FYH_NOTIFICATION_KINDS = [
   'review_request',
   'follow_up',
   'low_stock',
+  'invoice_ready',
 ] as const;
 export type FyhNotificationKind = (typeof FYH_NOTIFICATION_KINDS)[number];
 
