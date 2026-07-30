@@ -17,6 +17,10 @@ export async function probeHairQuickSaleMigrations(): Promise<HairMigrationProbe
     { label: '0013 fyh_invoice_line_attributions', query: sql`SELECT id FROM fyh_invoice_line_attributions LIMIT 0` },
     { label: '0014 fyh_invoices.pos_draft', query: sql`SELECT pos_draft FROM fyh_invoices LIMIT 0` },
     { label: '0016 fyh_financial_ledger', query: sql`SELECT id FROM fyh_financial_ledger LIMIT 0` },
+    { label: '0017 fyh_vendors', query: sql`SELECT id FROM fyh_vendors LIMIT 0` },
+    { label: '0017 inventory_settings', query: sql`SELECT inventory_settings FROM fyh_settings LIMIT 0` },
+    { label: '0018 billing_settings', query: sql`SELECT billing_settings FROM fyh_settings LIMIT 0` },
+    { label: '0019 fyh_admin_users.permissions', query: sql`SELECT permissions FROM fyh_admin_users LIMIT 0` },
   ];
   for (const c of checks) {
     try {

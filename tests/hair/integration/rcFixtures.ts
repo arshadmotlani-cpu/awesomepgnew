@@ -20,6 +20,7 @@ import {
   fyhStaff,
   fyhStockMovements,
 } from '@/src/hair/db/schema';
+import { applyMovement } from '@/src/hair/services/stock';
 
 export async function requireRcFixtures() {
   const [staff] = await hairDb
@@ -62,11 +63,15 @@ export async function requireRcFixtures() {
   await ensureRcCutConsumableKit(hairDb, cut.id, product.id, 10);
 
   if (Number(product.stockQty) < 50) {
-    await hairDb
-      .update(fyhProducts)
-      .set({ stockQty: 100, updatedAt: new Date() })
-      .where(eq(fyhProducts.id, product.id));
-    product.stockQty = 100;
+    const target = 100;
+    const delta = target - Number(product.stockQty);
+    await applyMovement(hairDb, {
+      productId: product.id,
+      quantityDelta: delta,
+      movementType: 'adjustment',
+      notes: 'RC fixture stock top-up',
+    });
+    product.stockQty = target;
   }
 
   return { staff, staff2, chair, cut, blow, product, membership, pkgPlan };

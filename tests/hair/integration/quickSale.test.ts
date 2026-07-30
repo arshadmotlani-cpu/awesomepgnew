@@ -8,7 +8,6 @@ import { hairDb } from '@/src/hair/db/client';
 import {
   fyhCustomerMemberships,
   fyhInvoices,
-  fyhProducts,
   fyhStockMovements,
 } from '@/src/hair/db/schema';
 import {
@@ -17,6 +16,7 @@ import {
   recordInvoicePayments,
 } from '@/src/hair/services/invoices';
 import { loadQuickSaleHold, saveQuickSaleHold } from '@/src/hair/services/quickSaleHold';
+import { getOnHand } from '@/src/hair/services/stock';
 import { createRcCustomer, requireRcFixtures } from './rcFixtures.ts';
 import { migrationSkipMessage, probeHairQuickSaleMigrations } from './migrationGuard.ts';
 
@@ -25,11 +25,6 @@ test('quick sale paid: activates membership, deducts service consumables', async
   if (!probe.ok) t.skip(migrationSkipMessage(probe));
   const f = await requireRcFixtures();
   const customer = await createRcCustomer('qs');
-  const [productBefore] = await hairDb
-    .select({ stockQty: fyhProducts.stockQty })
-    .from(fyhProducts)
-    .where(eq(fyhProducts.id, f.product.id))
-    .limit(1);
 
   const invoiceId = await createQuickSaleInvoice(customer.id, [
     { kind: 'service', refId: f.cut.id, quantity: 1, staffId: f.staff.id },
@@ -38,6 +33,7 @@ test('quick sale paid: activates membership, deducts service consumables', async
 
   const due = await getInvoiceGrandTotal(invoiceId);
   assert.ok(due > 0);
+  const beforePay = await getOnHand(f.product.id);
   await recordInvoicePayments(invoiceId, [{ method: 'cash', amountPaise: due }]);
 
   assert.ok(invoiceId);
@@ -49,18 +45,19 @@ test('quick sale paid: activates membership, deducts service consumables', async
     .limit(1);
   assert.equal(inv?.source, 'quick_sale');
 
-  const [productAfter] = await hairDb
-    .select({ stockQty: fyhProducts.stockQty })
-    .from(fyhProducts)
-    .where(eq(fyhProducts.id, f.product.id))
-    .limit(1);
-  assert.equal(productAfter?.stockQty, (productBefore?.stockQty ?? 0) - 10);
+  const after = await getOnHand(f.product.id);
 
   const movements = await hairDb
     .select()
     .from(fyhStockMovements)
     .where(eq(fyhStockMovements.referenceId, invoiceId));
   assert.ok(movements.length >= 1);
+  const consumption = movements.filter((m) => m.movementType === 'consumption');
+  assert.ok(consumption.length >= 1);
+  const consumedQty = consumption.reduce((sum, m) => sum + Number(m.quantityDelta), 0);
+  assert.ok(consumedQty < 0);
+  assert.equal(after, beforePay + consumedQty);
+  assert.ok(consumption.every((m) => m.quantityAfter != null));
 
   const [mem] = await hairDb
     .select()
