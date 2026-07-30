@@ -1,26 +1,8 @@
 import ExcelJS from 'exceljs';
 import { rowsToCsv, paiseToCsvRupees } from '@/src/hair/lib/export/csv';
+import { setExcelHyperlinkCell } from '@/src/hair/lib/export/excelHyperlink';
+import { invoicePublicViewUrl } from '@/src/hair/lib/invoicePublicLinks';
 import type { InvoiceRegisterRow } from '@/src/hair/services/invoiceRegisterQueries';
-
-function fyhBaseUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ||
-    process.env.FYH_APP_URL?.replace(/\/$/, '') ||
-    ''
-  );
-}
-
-function invoiceViewUrl(invoiceId: string): string {
-  const base = fyhBaseUrl();
-  const path = `/fyh/billing/${invoiceId}`;
-  return base ? `${base}${path}` : path;
-}
-
-function invoicePrintUrl(invoiceId: string): string {
-  const base = fyhBaseUrl();
-  const path = `/fyh/api/invoices/${invoiceId}/print`;
-  return base ? `${base}${path}` : path;
-}
 
 function formatDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -34,11 +16,13 @@ function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
+const VIEW_INVOICE_COL = 12;
+
 export async function exportInvoiceRegisterExcel(rows: InvoiceRegisterRow[]): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   const sheet = wb.addWorksheet('Invoice Register');
 
-  const headers = [
+  sheet.addRow([
     'Invoice Number',
     'Invoice Date',
     'Customer',
@@ -51,17 +35,13 @@ export async function exportInvoiceRegisterExcel(rows: InvoiceRegisterRow[]): Pr
     'Paid Amount',
     'Status',
     'View Invoice',
-    'Download PDF',
-  ];
-
-  sheet.addRow(headers);
+  ]);
   sheet.getRow(1).font = { bold: true };
 
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i]!;
     const rowNum = i + 2;
-    const viewUrl = invoiceViewUrl(r.id);
-    const pdfUrl = invoicePrintUrl(r.id);
+    const viewUrl = invoicePublicViewUrl(r.id);
 
     sheet.addRow([
       r.invoiceNumber,
@@ -75,17 +55,10 @@ export async function exportInvoiceRegisterExcel(rows: InvoiceRegisterRow[]): Pr
       r.grandTotalPaise / 100,
       r.paidPaise / 100,
       r.status,
-      viewUrl,
-      pdfUrl,
+      '',
     ]);
 
-    const viewCell = sheet.getCell(`L${rowNum}`);
-    viewCell.value = { text: 'View Invoice', hyperlink: viewUrl };
-    viewCell.font = { color: { argb: 'FF0563C1' }, underline: true };
-
-    const pdfCell = sheet.getCell(`M${rowNum}`);
-    pdfCell.value = { text: 'Download PDF', hyperlink: pdfUrl };
-    pdfCell.font = { color: { argb: 'FF0563C1' }, underline: true };
+    setExcelHyperlinkCell(sheet.getCell(rowNum, VIEW_INVOICE_COL), 'View Invoice', viewUrl);
   }
 
   sheet.columns = [
@@ -100,8 +73,7 @@ export async function exportInvoiceRegisterExcel(rows: InvoiceRegisterRow[]): Pr
     { width: 14 },
     { width: 14 },
     { width: 12 },
-    { width: 18 },
-    { width: 18 },
+    { width: 16 },
   ];
 
   return Buffer.from(await wb.xlsx.writeBuffer());
@@ -121,7 +93,6 @@ export function exportInvoiceRegisterCsv(rows: InvoiceRegisterRow[]): string {
     'Paid Amount',
     'Status',
     'View Invoice URL',
-    'Download PDF URL',
   ];
 
   const data = rows.map((r) => [
@@ -136,8 +107,7 @@ export function exportInvoiceRegisterCsv(rows: InvoiceRegisterRow[]): string {
     paiseToCsvRupees(r.grandTotalPaise),
     paiseToCsvRupees(r.paidPaise),
     r.status,
-    invoiceViewUrl(r.id),
-    invoicePrintUrl(r.id),
+    invoicePublicViewUrl(r.id),
   ]);
 
   return rowsToCsv(headers, data);

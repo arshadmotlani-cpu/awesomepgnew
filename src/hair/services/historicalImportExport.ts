@@ -7,12 +7,15 @@ import {
   fyhInvoiceLines,
   fyhInvoicePayments,
 } from '@/src/hair/db/schema';
+import { setExcelHyperlinkCell } from '@/src/hair/lib/export/excelHyperlink';
+import { invoicePublicViewUrl } from '@/src/hair/lib/invoicePublicLinks';
 
 function inr(paise: number): number {
   return paise / 100;
 }
 
 export type InvoiceRegisterRow = {
+  invoiceId: string;
   invoiceNumber: string;
   invoiceDate: string;
   customerName: string;
@@ -23,28 +26,10 @@ export type InvoiceRegisterRow = {
   gstInr: number;
   grandTotalInr: number;
   invoiceStatus: string;
-  invoiceUrl: string;
-  pdfUrl: string;
   sheetName?: string;
 };
 
-function fyhBaseUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ||
-    process.env.FYH_APP_URL?.replace(/\/$/, '') ||
-    ''
-  );
-}
-
-function invoiceUrls(invoiceId: string, invoiceNumber: string, pdfRelativePath?: string) {
-  const base = fyhBaseUrl();
-  const invoicePath = `/fyh/billing/${invoiceId}`;
-  const pdfPath = pdfRelativePath ?? invoicePath;
-  return {
-    invoiceUrl: base ? `${base}${invoicePath}` : invoicePath,
-    pdfUrl: base && pdfRelativePath ? `${base}${pdfRelativePath}` : pdfPath,
-  };
-}
+const VIEW_INVOICE_COL = 12;
 
 async function fetchRegisterRows(batchId: string): Promise<InvoiceRegisterRow[]> {
   const invoices = await hairDb
@@ -85,33 +70,22 @@ async function fetchRegisterRows(batchId: string): Promise<InvoiceRegisterRow[]>
     serviceByInvoice.set(line.invoiceId, list);
   }
 
-  return invoices.map((inv) => {
-    const urls = invoiceUrls(
-      inv.id,
-      inv.invoiceNumber,
-      `/fyh/billing/${inv.id}`,
-    );
-    return {
-      invoiceNumber: inv.invoiceNumber,
-      invoiceDate: inv.invoiceDate?.toISOString().slice(0, 10) ?? '',
-      customerName: inv.customerName,
-      mobileNumber: inv.mobileNumber,
-      service: (serviceByInvoice.get(inv.id) ?? []).join(', '),
-      paymentMode: inv.paymentMode,
-      amountInr: inr(inv.subtotalPaise),
-      gstInr: inr(inv.taxPaise),
-      grandTotalInr: inr(inv.grandTotalPaise),
-      invoiceStatus: inv.invoiceStatus,
-      invoiceUrl: urls.invoiceUrl,
-      pdfUrl: urls.pdfUrl,
-    };
-  });
+  return invoices.map((inv) => ({
+    invoiceId: inv.id,
+    invoiceNumber: inv.invoiceNumber,
+    invoiceDate: inv.invoiceDate?.toISOString().slice(0, 10) ?? '',
+    customerName: inv.customerName,
+    mobileNumber: inv.mobileNumber,
+    service: (serviceByInvoice.get(inv.id) ?? []).join(', '),
+    paymentMode: inv.paymentMode,
+    amountInr: inr(inv.subtotalPaise),
+    gstInr: inr(inv.taxPaise),
+    grandTotalInr: inr(inv.grandTotalPaise),
+    invoiceStatus: inv.invoiceStatus,
+  }));
 }
 
-function addSummaryRows(
-  sheet: ExcelJS.Worksheet,
-  rows: InvoiceRegisterRow[],
-) {
+function addSummaryRows(sheet: ExcelJS.Worksheet, rows: InvoiceRegisterRow[]) {
   const totalRevenue = rows.reduce((s, r) => s + r.grandTotalInr, 0);
   const totalGst = rows.reduce((s, r) => s + r.gstInr, 0);
   const cashTotal = rows
@@ -132,24 +106,59 @@ function addSummaryRows(
 
 function addRegisterSheet(workbook: ExcelJS.Workbook, sheetName: string, rows: InvoiceRegisterRow[]) {
   const sheet = workbook.addWorksheet(sheetName);
+
+  sheet.addRow([
+    'Invoice Number',
+    'Invoice Date',
+    'Customer Name',
+    'Mobile Number',
+    'Service',
+    'Payment Mode',
+    'Amount',
+    'GST',
+    'Grand Total',
+    'Invoice Status',
+    'View Invoice',
+  ]);
+  sheet.getRow(1).font = { bold: true };
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i]!;
+    const rowNum = i + 2;
+    sheet.addRow([
+      r.invoiceNumber,
+      r.invoiceDate,
+      r.customerName,
+      r.mobileNumber,
+      r.service,
+      r.paymentMode,
+      r.amountInr,
+      r.gstInr,
+      r.grandTotalInr,
+      r.invoiceStatus,
+      '',
+    ]);
+    setExcelHyperlinkCell(
+      sheet.getCell(rowNum, VIEW_INVOICE_COL),
+      'View Invoice',
+      invoicePublicViewUrl(r.invoiceId),
+    );
+  }
+
   sheet.columns = [
-    { header: 'Invoice Number', key: 'invoiceNumber', width: 16 },
-    { header: 'Invoice Date', key: 'invoiceDate', width: 14 },
-    { header: 'Customer Name', key: 'customerName', width: 24 },
-    { header: 'Mobile Number', key: 'mobileNumber', width: 14 },
-    { header: 'Service', key: 'service', width: 32 },
-    { header: 'Payment Mode', key: 'paymentMode', width: 14 },
-    { header: 'Amount', key: 'amountInr', width: 12 },
-    { header: 'GST', key: 'gstInr', width: 10 },
-    { header: 'Grand Total', key: 'grandTotalInr', width: 14 },
-    { header: 'Invoice Status', key: 'invoiceStatus', width: 14 },
-    { header: 'Invoice URL', key: 'invoiceUrl', width: 40 },
-    { header: 'PDF URL', key: 'pdfUrl', width: 40 },
+    { width: 16 },
+    { width: 14 },
+    { width: 24 },
+    { width: 14 },
+    { width: 32 },
+    { width: 14 },
+    { width: 12 },
+    { width: 10 },
+    { width: 14 },
+    { width: 14 },
+    { width: 16 },
   ];
 
-  for (const r of rows) {
-    sheet.addRow(r);
-  }
   addSummaryRows(sheet, rows);
 }
 
@@ -212,4 +221,3 @@ export async function exportHistoricalImportBatchXlsx(batchId: string): Promise<
 }
 
 export { fetchRegisterRows };
-

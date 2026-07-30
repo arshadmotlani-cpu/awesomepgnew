@@ -2,8 +2,8 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import {
   InvoicePayForm,
-  PrintInvoiceButton,
 } from '@/src/hair/components/billing/BillingUi';
+import { InvoiceDetailActions } from '@/src/hair/components/billing/InvoiceDetailActions';
 import { Button } from '@/src/hair/components/ui/button';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { buildInvoicePrintHtml, getInvoiceDetail } from '@/src/hair/services/invoices';
@@ -34,13 +34,19 @@ export default async function InvoiceDetailPage({ params }: Props) {
             {stylistName ? ` · ${stylistName}` : ''}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-start gap-3">
           <Link href="/billing/invoices">
             <Button type="button" variant="ghost" size="sm">
               Back to register
             </Button>
           </Link>
-          <PrintInvoiceButton html={printHtml} />
+          <InvoiceDetailActions
+            invoiceId={invoice.id}
+            customerName={customerName}
+            customerPhone={customerPhone}
+            grandTotalPaise={invoice.grandTotalPaise}
+            printHtml={printHtml}
+          />
         </div>
       </div>
 
