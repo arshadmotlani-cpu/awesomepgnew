@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { MoreVertical } from 'lucide-react';
 import { createQuickCustomerFromForm } from '@/src/hair/actions/quickSaleCustomer';
 import {
@@ -22,8 +22,9 @@ import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { inferQuickSaleCustomerPrefill } from '@/src/hair/lib/quickSaleCustomerPrefill';
+import type { AppointmentCheckoutPrefill } from '@/src/hair/domain/basket/appointmentBridge';
 import type { PosCustomerHit } from '@/src/hair/services/quickSale';
-import type { QuickSaleHoldSummary } from '@/src/hair/services/quickSaleHold';
+import type { FyhBillingSettings } from '@/src/hair/db/schema/settings';
 
 type SelectedCustomer = PosCustomerHit;
 type TabFilter = BillableItemType | 'all';
@@ -48,21 +49,38 @@ function matchesBillable(item: BillableItem, q: string) {
 export function QuickSaleShell({
   billableItems,
   googleReviewUrl,
+  billingDefaults,
+  appointmentPrefill,
+  appointmentError,
 }: {
   billableItems: BillableItem[];
   googleReviewUrl?: string | null;
+  billingDefaults?: FyhBillingSettings;
+  appointmentPrefill?: AppointmentCheckoutPrefill | null;
+  appointmentError?: string | null;
 }) {
-  const [step, setStep] = useState<'customer' | 'sale' | 'done'>('customer');
-  const [customer, setCustomer] = useState<SelectedCustomer | null>(null);
+  const [step, setStep] = useState<'customer' | 'sale' | 'done'>(
+    appointmentPrefill ? 'sale' : 'customer',
+  );
+  const [customer, setCustomer] = useState<SelectedCustomer | null>(
+    appointmentPrefill?.customer ?? null,
+  );
+  const [appointmentId, setAppointmentId] = useState<string | null>(
+    appointmentPrefill?.appointmentId ?? null,
+  );
   const [searchQ, setSearchQ] = useState('');
   const [searchHits, setSearchHits] = useState<PosCustomerHit[]>([]);
   const [searching, setSearching] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [tab, setTab] = useState<TabFilter>('service');
   const [catalogQ, setCatalogQ] = useState('');
-  const [lines, setLines] = useState<BasketLine[]>([]);
+  const [lines, setLines] = useState<BasketLine[]>(appointmentPrefill?.lines ?? []);
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
-  const [flags, setFlags] = useState<BasketFlags>({});
+  const [flags, setFlags] = useState<BasketFlags>(() => ({
+    markDue: billingDefaults?.defaultMarkDue,
+    markFullDue: billingDefaults?.defaultMarkFullDue,
+    creditOverpayAsAdvance: billingDefaults?.defaultCreditOverpayAsAdvance,
+  }));
   const [membershipDiscountPaise, setMembershipDiscountPaise] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [invoiceId, setInvoiceId] = useState<string | null>(null);
@@ -72,6 +90,8 @@ export function QuickSaleShell({
   const [holdInvoiceId, setHoldInvoiceId] = useState<string | null>(null);
   const [heldBills, setHeldBills] = useState<QuickSaleHoldSummary[]>([]);
   const [pending, startTransition] = useTransition();
+  const customerSearchRef = useRef<HTMLInputElement>(null);
+  const catalogSearchRef = useRef<HTMLInputElement>(null);
 
   const basket: Basket | null = customer
     ? {
@@ -108,6 +128,19 @@ export function QuickSaleShell({
   useEffect(() => {
     if (step === 'customer') refreshHeldBills();
   }, [step, refreshHeldBills]);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      e.preventDefault();
+      if (step === 'customer') customerSearchRef.current?.focus();
+      else if (step === 'sale') catalogSearchRef.current?.focus();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [step]);
 
   useEffect(() => {
     if (searchQ.trim().length < 1) {
@@ -170,6 +203,7 @@ export function QuickSaleShell({
   const resetForNext = () => {
     setStep('customer');
     setCustomer(null);
+    setAppointmentId(null);
     setSearchQ('');
     setLines([]);
     setPayments([]);
@@ -243,13 +277,20 @@ export function QuickSaleShell({
   if (step === 'customer') {
     return (
       <div className="mx-auto max-w-xl space-y-8 py-6 md:py-10">
+        {appointmentError ? (
+          <p className="rounded-xl border border-fyh-danger/30 bg-fyh-danger/10 px-4 py-3 text-sm text-fyh-danger">
+            {appointmentError}
+          </p>
+        ) : null}
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">Quick Sale</p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold text-fyh-text">Find customer</h1>
         </div>
         <div className="flex gap-2">
           <Input
+            ref={customerSearchRef}
             autoFocus
+            aria-label="Search customer by name, phone, or code"
             value={searchQ}
             onChange={(e) => setSearchQ(e.target.value)}
             placeholder="Search name / phone / customer code"
@@ -327,7 +368,13 @@ export function QuickSaleShell({
     <div className="mx-auto max-w-6xl space-y-4 py-4">
       <div className="fyh-glass flex flex-wrap items-center justify-between gap-3 p-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.22em] text-fyh-accent">Customer</p>
+          {appointmentId ? (
+            <p className="mb-1 text-xs font-medium uppercase tracking-[0.22em] text-fyh-accent">
+              Appointment checkout
+            </p>
+          ) : (
+            <p className="text-xs uppercase tracking-[0.22em] text-fyh-accent">Customer</p>
+          )}
           <button
             type="button"
             className="fyh-display text-left text-lg font-semibold hover:text-fyh-accent"
@@ -401,6 +448,8 @@ export function QuickSaleShell({
 
       <div className="relative">
         <Input
+          ref={catalogSearchRef}
+          aria-label="Search catalog items"
           value={catalogQ}
           onChange={(e) => setCatalogQ(e.target.value)}
           placeholder="Search name, code, or price…"
@@ -493,6 +542,8 @@ export function QuickSaleShell({
             const res = await completeQuickSaleAction({
               basket: { ...basket, membershipDiscountPaise },
               holdInvoiceId,
+              source: appointmentId ? 'appointment' : 'quick_sale',
+              appointmentId: appointmentId ?? undefined,
             });
             if (res.error) setError(res.error);
             else if (res.invoiceId) {

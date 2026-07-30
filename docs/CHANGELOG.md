@@ -265,16 +265,8 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
-**Staged code files (9):**
-- `app/(hair)/fyh/(app)/reports/customers/loyalty/page.tsx`
-- `app/(hair)/fyh/(app)/reports/customers/memberships/page.tsx`
-- `app/(hair)/fyh/(app)/reports/customers/packages/page.tsx`
-- `app/(hair)/fyh/(app)/reports/finance/discounts/page.tsx`
-- `app/(hair)/fyh/(app)/reports/finance/gst/page.tsx`
-- `app/(hair)/fyh/(app)/reports/finance/payments/page.tsx`
-- `app/(hair)/fyh/(app)/reports/inventory/low-stock/page.tsx`
-- `app/(hair)/fyh/(app)/reports/inventory/products/page.tsx`
-- `app/(hair)/fyh/(app)/reports/inventory/stock/page.tsx`
+**Staged code files (1):**
+- `app/(hair)/fyh/(app)/quick-sale/page.tsx`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

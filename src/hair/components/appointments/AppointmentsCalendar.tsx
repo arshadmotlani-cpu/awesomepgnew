@@ -860,24 +860,14 @@ export function AppointmentsCalendar({
                   onClick={() => {
                     startTransition(async () => {
                       const res = await checkoutAppointmentAction(selected.id);
-                      if (res.error) {
+                      if (res?.error) {
                         setError(res.error);
                         return;
                       }
-                      setFlash(res.success ?? 'Invoice created');
-                      if (res.id) {
-                        setPayInvoiceId(res.id);
-                        const due = res.duePaise ?? 0;
-                        setCash(due > 0 ? String(due / 100) : '0');
-                        setUpi('');
-                        setCard('');
-                        setWallet('');
-                      }
-                      router.refresh();
                     });
                   }}
                 >
-                  Checkout
+                  Checkout in POS
                 </Button>
               ) : null}
 

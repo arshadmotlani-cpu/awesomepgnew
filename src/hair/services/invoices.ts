@@ -1,7 +1,6 @@
 import { and, desc, eq, gte, inArray, lt, ne, or, sql } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import {
-  fyhAppointmentServices,
   fyhAppointments,
   fyhCommissionEntries,
   fyhCustomerMemberships,
@@ -9,6 +8,7 @@ import {
   fyhCustomerTimeline,
   fyhCustomers,
   fyhInvoiceLines,
+  fyhInvoiceLineAttributions,
   fyhInvoicePayments,
   fyhInvoices,
   fyhMembershipPlans,
@@ -18,11 +18,12 @@ import {
   fyhServices,
   fyhSettings,
   fyhStaff,
-  fyhStockMovements,
   type FyhInvoiceLineKind,
   type FyhPaymentMethod,
 } from '@/src/hair/db/schema';
 import { sellMembershipWithDb, sellPackageWithDb } from '@/src/hair/services/loyaltyOps';
+import { evaluateCommissionsForInvoice } from '@/src/hair/services/commissionEngine';
+import { applyMovement } from '@/src/hair/services/stock';
 import {
   discountBpsFromPaise,
   persistLineAttributions,
@@ -35,8 +36,6 @@ import {
   computeGrandTotalFromParts as computeGrandTotalFromPartsLib,
   taxOnLine,
 } from '@/src/hair/lib/invoiceMath';
-import { isCheckoutAllowedStatus } from '@/src/hair/lib/appointmentStatus';
-import type { FyhAppointmentStatus } from '@/src/hair/db/schema/appointments';
 
 function taxOn(amountPaise: number, gstBps: number): number {
   return taxOnLine(amountPaise, gstBps);
@@ -247,6 +246,7 @@ export async function computeRedemptions(
   };
 }
 
+/** @deprecated Prefer buildBasketFromAppointment + checkoutFromBasket (or Quick Sale POS). */
 export async function createInvoiceFromAppointment(
   appointmentId: string,
   opts?: {
@@ -258,145 +258,35 @@ export async function createInvoiceFromAppointment(
   },
 ) {
   const [appt] = await hairDb
-    .select()
+    .select({ invoiceId: fyhAppointments.invoiceId })
     .from(fyhAppointments)
     .where(eq(fyhAppointments.id, appointmentId))
     .limit(1);
-  if (!appt) throw new Error('Appointment not found');
-  if (appt.invoiceId) return appt.invoiceId;
-  if (!isCheckoutAllowedStatus(appt.status as FyhAppointmentStatus)) {
-    throw new Error(
-      `Cannot checkout appointment in status "${appt.status}" — mark Arrived or In Service first`,
-    );
-  }
+  if (appt?.invoiceId) return appt.invoiceId;
 
-  const services = await hairDb
-    .select()
-    .from(fyhAppointmentServices)
-    .where(eq(fyhAppointmentServices.appointmentId, appointmentId));
+  const { buildBasketFromAppointment } = await import('@/src/hair/domain/basket/appointmentBridge');
+  const { checkoutFromBasket } = await import('@/src/hair/domain/checkout/pipeline');
+  const { basketLineFromBillableItem } = await import('@/src/hair/domain/basket/legacyBridge');
+  const { resolveBillableItem } = await import('@/src/hair/domain/catalog/adapter');
 
-  const drafts: InvoiceLineDraft[] = services.map((s) => ({
-    kind: 'service',
-    serviceId: s.serviceId,
-    staffId: appt.staffId,
-    description: s.nameSnapshot,
-    quantity: 1,
-    unitPricePaise: s.pricePaise,
-    lineDiscountPaise: 0,
-    gstBps: s.gstBps,
-  }));
+  const basket = await buildBasketFromAppointment(appointmentId);
 
   for (const p of opts?.productIds ?? []) {
-    const [product] = await hairDb
-      .select()
-      .from(fyhProducts)
-      .where(eq(fyhProducts.id, p.productId))
-      .limit(1);
-    if (!product) continue;
-    drafts.push({
-      kind: 'product',
-      productId: product.id,
-      description: product.name,
-      quantity: Math.max(1, p.quantity),
-      unitPricePaise: product.sellingPricePaise,
-      lineDiscountPaise: 0,
-      gstBps: product.gstBps,
-    });
+    const item = await resolveBillableItem('product', p.productId);
+    if (!item) continue;
+    const line = basketLineFromBillableItem(item);
+    line.quantity = Math.max(1, p.quantity);
+    basket.lines.push(line);
   }
 
-  const { priced, subtotalPaise, taxPaise } = priceLineDrafts(drafts);
-
-  const serviceIds = drafts.filter((d) => d.serviceId).map((d) => d.serviceId!);
-  const redemptions = await computeRedemptions(appt.customerId, subtotalPaise, serviceIds);
-  const discountPaise = Math.max(0, opts?.discountPaise ?? 0);
-  const membershipDiscountPaise = redemptions.membershipDiscountPaise;
-  const walletRedeemPaise = Math.min(
-    Math.max(0, opts?.walletRedeemPaise ?? 0),
-    redemptions.availableWalletPaise,
-  );
-  const packageRedeemPaise = redemptions.packageRedeemPaise;
-  const giftCardRedeemPaise = 0;
-
-  const { taxPaiseAdjusted, grandTotalPaise } = computeGrandTotalFromParts({
-    subtotalPaise,
-    taxPaise,
-    discountPaise,
-    membershipDiscountPaise,
-    packageRedeemPaise,
-    walletRedeemPaise,
-    giftCardRedeemPaise,
+  const result = await checkoutFromBasket({
+    basket,
+    source: 'appointment',
+    appointmentId,
+    allowUnpaid: true,
+    notes: opts?.notes,
   });
-
-  const invoiceId = await hairDb.transaction(async (tx) => {
-    const invoiceNumber = await nextInvoiceNumber(tx as unknown as typeof hairDb);
-    const [inv] = await tx
-      .insert(fyhInvoices)
-      .values({
-        invoiceNumber,
-        customerId: appt.customerId,
-        appointmentId: appt.id,
-        stylistId: appt.staffId,
-        status: grandTotalPaise === 0 ? 'paid' : 'unpaid',
-        subtotalPaise,
-        discountPaise,
-        taxPaise: taxPaiseAdjusted,
-        membershipRedemptionPaise: membershipDiscountPaise,
-        packageRedemptionPaise: packageRedeemPaise,
-        walletRedemptionPaise: walletRedeemPaise,
-        giftCardRedemptionPaise: giftCardRedeemPaise,
-        grandTotalPaise,
-        amountPaidPaise: grandTotalPaise === 0 ? 0 : 0,
-        paidAt: grandTotalPaise === 0 ? new Date() : null,
-        notes: opts?.notes ?? null,
-      })
-      .returning();
-    if (!inv) throw new Error('Failed to create invoice');
-
-    if (priced.length > 0) {
-      await tx.insert(fyhInvoiceLines).values(
-        priced.map((l) => ({
-          invoiceId: inv.id,
-          kind: l.kind,
-          serviceId: l.serviceId ?? null,
-          productId: l.productId ?? null,
-          staffId: l.staffId ?? null,
-          nameSnapshot: l.description,
-          quantity: l.quantity,
-          unitPricePaise: l.unitPricePaise,
-          discountPaise: l.lineDiscountPaise,
-          gstBps: l.gstBps,
-          taxPaise: l.taxPaise,
-          lineTotalPaise: l.lineTotalPaise,
-          sortOrder: l.sortOrder,
-        })),
-      );
-    }
-
-    await tx
-      .update(fyhAppointments)
-      .set({
-        invoiceId: inv.id,
-        status: grandTotalPaise === 0 ? 'paid' : 'completed',
-        updatedAt: new Date(),
-      })
-      .where(eq(fyhAppointments.id, appointmentId));
-
-    await tx.insert(fyhCustomerTimeline).values({
-      customerId: appt.customerId,
-      eventType: 'bill',
-      title: `Invoice ${invoiceNumber}`,
-      body: `Created from appointment · due ₹${(grandTotalPaise / 100).toFixed(2)}`,
-      metadata: { invoiceId: inv.id, appointmentId, packageId: redemptions.packageId },
-    });
-
-    if (grandTotalPaise === 0) {
-      await applyPaidSideEffects(tx as unknown as typeof hairDb, inv.id);
-    }
-
-    return inv.id;
-  });
-
-  return invoiceId;
+  return result.invoiceId;
 }
 
 export async function resolveQuickSaleDrafts(
@@ -689,17 +579,10 @@ async function applyInventorySideEffects(
       for (const kit of kits) {
         if (!kit.deductInventory) continue;
         const qty = Number(kit.quantity) * line.quantity;
-        await db
-          .update(fyhProducts)
-          .set({
-            stockQty: sql`GREATEST(0, ${fyhProducts.stockQty} - ${qty})`,
-            updatedAt: new Date(),
-          })
-          .where(eq(fyhProducts.id, kit.productId));
-        await db.insert(fyhStockMovements).values({
+        await applyMovement(db, {
           productId: kit.productId,
-          movementType: 'consumption',
           quantityDelta: -qty,
+          movementType: 'consumption',
           referenceType: 'invoice',
           referenceId: invoiceId,
           notes: `Service consumption · ${line.nameSnapshot}`,
@@ -708,17 +591,10 @@ async function applyInventorySideEffects(
     }
 
     if (line.kind === 'product' && line.productId) {
-      await db
-        .update(fyhProducts)
-        .set({
-          stockQty: sql`GREATEST(0, ${fyhProducts.stockQty} - ${line.quantity})`,
-          updatedAt: new Date(),
-        })
-        .where(eq(fyhProducts.id, line.productId));
-      await db.insert(fyhStockMovements).values({
+      await applyMovement(db, {
         productId: line.productId,
-        movementType: 'sale',
         quantityDelta: -line.quantity,
+        movementType: 'sale',
         referenceType: 'invoice',
         referenceId: invoiceId,
         notes: `Retail sale · ${line.nameSnapshot}`,
@@ -727,14 +603,12 @@ async function applyInventorySideEffects(
   }
 }
 
-async function applyLegacyServiceCommission(
+async function updateServiceLineStats(
   db: typeof hairDb,
-  invoice: { stylistId: string | null },
   lines: (typeof fyhInvoiceLines.$inferSelect)[],
 ) {
   for (const line of lines) {
     if (line.kind !== 'service' || !line.serviceId) continue;
-
     await db
       .update(fyhServices)
       .set({
@@ -743,6 +617,29 @@ async function applyLegacyServiceCommission(
         lastBookedAt: new Date(),
       })
       .where(eq(fyhServices.id, line.serviceId));
+  }
+}
+
+/** Legacy commission for service lines that have no fyh_invoice_line_attributions rows. */
+async function applyLegacyCommissionFallback(
+  db: typeof hairDb,
+  invoice: { stylistId: string | null; paidAt: Date | null },
+  lines: (typeof fyhInvoiceLines.$inferSelect)[],
+) {
+  if (!lines.length) return;
+
+  const lineIds = lines.map((l) => l.id);
+  const attributed = await db
+    .select({ invoiceLineId: fyhInvoiceLineAttributions.invoiceLineId })
+    .from(fyhInvoiceLineAttributions)
+    .where(inArray(fyhInvoiceLineAttributions.invoiceLineId, lineIds));
+  const linesWithAttribution = new Set(attributed.map((a) => a.invoiceLineId));
+
+  const periodDate = (invoice.paidAt ?? new Date()).toISOString().slice(0, 10);
+
+  for (const line of lines) {
+    if (line.kind !== 'service' || !line.serviceId) continue;
+    if (linesWithAttribution.has(line.id)) continue;
 
     const [service] = await db
       .select()
@@ -773,7 +670,7 @@ async function applyLegacyServiceCommission(
         invoiceLineId: line.id,
         amountPaise,
         status: 'pending',
-        periodDate: new Date().toISOString().slice(0, 10),
+        periodDate,
       });
     }
   }
@@ -822,7 +719,9 @@ export async function applyPaidSideEffects(db: typeof hairDb, invoiceId: string)
       .where(eq(fyhCustomers.id, customer.id));
   }
 
-  await applyLegacyServiceCommission(db, invoice, lines);
+  await updateServiceLineStats(db, lines);
+  await evaluateCommissionsForInvoice(db, invoiceId);
+  await applyLegacyCommissionFallback(db, invoice, lines);
 
   if (!isQuickSale) {
     await applyInventorySideEffects(db, invoiceId, lines);

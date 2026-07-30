@@ -1,7 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireHairAuth } from '@/src/hair/lib/auth/guards';
+import { redirect } from 'next/navigation';
+import { requirePermission } from '@/src/hair/lib/auth/permissions';
 import type { FyhAppointmentStatus } from '@/src/hair/db/schema/appointments';
 import {
   createAppointment,
@@ -9,9 +10,8 @@ import {
   updateAppointmentNotes,
   updateAppointmentStatus,
 } from '@/src/hair/services/appointments';
+import { buildBasketFromAppointment } from '@/src/hair/domain/basket/appointmentBridge';
 import {
-  createInvoiceFromAppointment,
-  getInvoiceGrandTotal,
   recordInvoicePayments,
   type PaymentSplitInput,
 } from '@/src/hair/services/invoices';
@@ -27,7 +27,7 @@ export async function createAppointmentAction(
   formData: FormData,
 ): Promise<ApptActionState> {
   try {
-    const session = await requireHairAuth();
+    const session = await requirePermission('page:appointments');
     const serviceIds = formData.getAll('serviceIds').map(String).filter(Boolean);
     const startLocal = formStr(formData, 'startAt');
     const startAt = new Date(startLocal);
@@ -61,7 +61,7 @@ export async function rescheduleAppointmentAction(input: {
   resourceId?: string | null;
 }): Promise<ApptActionState> {
   try {
-    await requireHairAuth();
+    await requirePermission('page:appointments');
     await rescheduleAppointment({
       id: input.id,
       startAt: new Date(input.startAtIso),
@@ -82,7 +82,7 @@ export async function setAppointmentStatusAction(
   status: FyhAppointmentStatus,
 ): Promise<ApptActionState> {
   try {
-    await requireHairAuth();
+    await requirePermission('page:appointments');
     await updateAppointmentStatus(id, status);
     revalidatePath('/appointments');
     revalidatePath('/dashboard');
@@ -94,7 +94,7 @@ export async function setAppointmentStatusAction(
 
 export async function saveAppointmentNotesAction(id: string, notes: string): Promise<ApptActionState> {
   try {
-    await requireHairAuth();
+    await requirePermission('page:appointments');
     await updateAppointmentNotes(id, notes || null);
     revalidatePath('/appointments');
     return { success: 'Notes saved' };
@@ -105,20 +105,11 @@ export async function saveAppointmentNotesAction(id: string, notes: string): Pro
 
 export async function checkoutAppointmentAction(
   appointmentId: string,
-  opts?: { discountPaise?: number; walletRedeemPaise?: number },
 ): Promise<ApptActionState> {
   try {
-    const session = await requireHairAuth();
-    const invoiceId = await createInvoiceFromAppointment(appointmentId, {
-      discountPaise: opts?.discountPaise,
-      walletRedeemPaise: opts?.walletRedeemPaise,
-      createdByAdminId: session.id,
-    });
-    const duePaise = await getInvoiceGrandTotal(invoiceId);
-    revalidatePath('/appointments');
-    revalidatePath('/billing');
-    revalidatePath('/dashboard');
-    return { success: 'Invoice created', id: invoiceId, duePaise };
+    await requirePermission('action:billing.checkout');
+    await buildBasketFromAppointment(appointmentId);
+    redirect(`/quick-sale?appointmentId=${encodeURIComponent(appointmentId)}`);
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Checkout failed' };
   }
@@ -129,7 +120,7 @@ export async function payInvoiceAction(
   payments: PaymentSplitInput[],
 ): Promise<ApptActionState> {
   try {
-    const session = await requireHairAuth();
+    const session = await requirePermission('action:billing.checkout');
     await recordInvoicePayments(invoiceId, payments, session.id);
     revalidatePath('/billing');
     revalidatePath('/appointments');

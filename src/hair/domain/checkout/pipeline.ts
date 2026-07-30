@@ -1,8 +1,9 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import {
-  fyhCustomerTimeline,
+  fyhAppointments,
   fyhCustomers,
+  fyhCustomerTimeline,
   fyhInvoiceLineAttributions,
   fyhInvoiceLines,
   fyhInvoicePayments,
@@ -26,6 +27,8 @@ export type CheckoutFromBasketInput = {
   invoiceNumberOverride?: string | null;
   notes?: string | null;
   allowUnpaid?: boolean;
+  source?: 'quick_sale' | 'appointment';
+  appointmentId?: string;
 };
 
 export type CheckoutFromBasketResult = {
@@ -87,6 +90,11 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
   const err = validateBasket(input.basket);
   if (err) throw new Error(err);
 
+  const source = input.source ?? 'quick_sale';
+  if (source === 'appointment' && !input.appointmentId) {
+    throw new Error('appointmentId is required for appointment checkout');
+  }
+
   const enriched = await enrichBasketWithRedemptions(input.basket);
   const priced = priceBasket(enriched);
   const payments = paymentsFromBasket(enriched);
@@ -145,8 +153,8 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
     const invoiceValues = {
       invoiceNumber: input.holdInvoiceId ? finalNumber : finalNumber,
       customerId: enriched.customerId,
-      appointmentId: null as string | null,
-      source: 'quick_sale' as const,
+      appointmentId: source === 'appointment' ? input.appointmentId! : null,
+      source,
       stylistId: defaultStylist,
       status,
       subtotalPaise: priced.totals.subtotalBasePaise,
@@ -251,13 +259,40 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
       await reconcileCustomerWalletCache(db, enriched.customerId);
     }
 
+    const timelineTitle =
+      source === 'appointment'
+        ? `Appointment · ${inv.invoiceNumber}`
+        : `Quick Sale · ${inv.invoiceNumber}`;
+    const timelineBody =
+      source === 'appointment'
+        ? `Checkout from appointment · total ₹${(grandTotal / 100).toFixed(2)} · paid ₹${(payApplied / 100).toFixed(2)}`
+        : `Total ₹${(grandTotal / 100).toFixed(2)} · paid ₹${(payApplied / 100).toFixed(2)}`;
+
     await db.insert(fyhCustomerTimeline).values({
       customerId: enriched.customerId,
       eventType: 'bill',
-      title: `Quick Sale · ${inv.invoiceNumber}`,
-      body: `Total ₹${(grandTotal / 100).toFixed(2)} · paid ₹${(payApplied / 100).toFixed(2)}`,
-      metadata: { invoiceId: inv.id, source: 'quick_sale' },
+      title: timelineTitle,
+      body: timelineBody,
+      metadata: {
+        invoiceId: inv.id,
+        source,
+        ...(source === 'appointment' && input.appointmentId
+          ? { appointmentId: input.appointmentId }
+          : {}),
+      },
     });
+
+    if (source === 'appointment' && input.appointmentId) {
+      const apptStatus = status === 'paid' || grandTotal === 0 ? 'paid' : 'completed';
+      await db
+        .update(fyhAppointments)
+        .set({
+          invoiceId: inv.id,
+          status: apptStatus,
+          updatedAt: new Date(),
+        })
+        .where(eq(fyhAppointments.id, input.appointmentId));
+    }
 
     if (status === 'paid' || grandTotal === 0) {
       await applyPaidSideEffects(db, inv.id);
@@ -271,6 +306,31 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
     enriched.flags.creditOverpayAsAdvance
       ? Math.max(0, paySum - priced.totals.grandTotalPaise)
       : 0;
+
+  try {
+    const [customer] = await hairDb
+      .select({
+        fullName: fyhCustomers.fullName,
+        phone: fyhCustomers.phone,
+        whatsapp: fyhCustomers.whatsapp,
+      })
+      .from(fyhCustomers)
+      .where(eq(fyhCustomers.id, enriched.customerId))
+      .limit(1);
+    if (customer) {
+      const { enqueuePostCheckoutNotifications } = await import('@/src/hair/services/notifications');
+      await enqueuePostCheckoutNotifications({
+        customerId: enriched.customerId,
+        customerName: customer.fullName,
+        phone: customer.phone,
+        whatsapp: customer.whatsapp,
+        invoiceId,
+        grandTotalPaise: priced.totals.grandTotalPaise,
+      });
+    }
+  } catch {
+    // Post-checkout notifications are best-effort.
+  }
 
   return {
     invoiceId,

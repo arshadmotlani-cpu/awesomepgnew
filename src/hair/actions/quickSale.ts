@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireHairAuth } from '@/src/hair/lib/auth/guards';
+import { requirePermission } from '@/src/hair/lib/auth/permissions';
 import { createQuickCustomerFromForm } from '@/src/hair/actions/quickSaleCustomer';
 import type { Basket } from '@/src/hair/domain/basket/types';
 import { enrichBasketWithRedemptions, checkoutFromBasket } from '@/src/hair/domain/checkout/pipeline';
@@ -18,12 +18,12 @@ import type { QuickSalePosDraft } from '@/src/hair/db/schema/billing';
 export type QuickSaleActionState = { error?: string; success?: string; invoiceId?: string };
 
 export async function searchCustomersForPosAction(query: string) {
-  await requireHairAuth();
+  await requirePermission('page:quick_sale');
   return searchCustomersForPos(query);
 }
 
 export async function searchStaffForPosAction(query: string) {
-  await requireHairAuth();
+  await requirePermission('page:quick_sale');
   return searchStaffForPos(query);
 }
 
@@ -55,26 +55,33 @@ export async function previewQuickSaleTotalsAction(input: {
   tipPaise?: number;
   roundOffPaise?: number;
 }) {
-  await requireHairAuth();
+  await requirePermission('page:quick_sale');
   return previewQuickSaleTotals(input.customerId, input.cartLines, input);
 }
 
 export async function completeQuickSaleAction(input: {
   basket: Basket;
   holdInvoiceId?: string | null;
+  source?: 'quick_sale' | 'appointment';
+  appointmentId?: string;
 }): Promise<
   QuickSaleActionState & { printHtml?: string; advancePaise?: number }
 > {
   try {
-    await requireHairAuth();
+    await requirePermission('action:billing.checkout');
     const enriched = await enrichBasketWithRedemptions(input.basket);
     const result = await checkoutFromBasket({
       basket: enriched,
       holdInvoiceId: input.holdInvoiceId,
+      source: input.source,
+      appointmentId: input.appointmentId,
     });
     revalidatePath('/billing');
     revalidatePath('/dashboard');
     revalidatePath('/quick-sale');
+    if (input.source === 'appointment' || input.appointmentId) {
+      revalidatePath('/appointments');
+    }
     const detail = await getInvoiceDetail(result.invoiceId);
     const { buildInvoicePrintHtml } = await import('@/src/hair/services/invoices');
     const printHtml = detail ? buildInvoicePrintHtml(detail) : undefined;
@@ -108,7 +115,7 @@ export async function completeQuickSaleLegacyAction(input: {
     '@/src/hair/services/invoices'
   );
   try {
-    await requireHairAuth();
+    await requirePermission('action:billing.checkout');
     const invoiceId = await finalizeQuickSale(input);
     revalidatePath('/billing');
     revalidatePath('/dashboard');
@@ -122,12 +129,12 @@ export async function completeQuickSaleLegacyAction(input: {
 }
 
 export async function listQuickSaleHoldsAction() {
-  await requireHairAuth();
+  await requirePermission('page:quick_sale');
   return listQuickSaleHolds();
 }
 
 export async function loadQuickSaleHoldAction(invoiceId: string) {
-  await requireHairAuth();
+  await requirePermission('page:quick_sale');
   return loadQuickSaleHold(invoiceId);
 }
 
@@ -142,7 +149,7 @@ export async function holdQuickSaleAction(input: {
   roundOffPaise?: number;
 }): Promise<QuickSaleActionState & { holdInvoiceId?: string }> {
   try {
-    await requireHairAuth();
+    await requirePermission('page:quick_sale');
     const holdInvoiceId = await saveQuickSaleHold(input);
     revalidatePath('/quick-sale');
     return { success: 'Bill held', holdInvoiceId };
