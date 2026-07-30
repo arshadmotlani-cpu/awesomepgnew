@@ -3,13 +3,10 @@
 import { revalidatePath } from 'next/cache';
 import { requireHairAuth } from '@/src/hair/lib/auth/guards';
 import { createQuickCustomerFromForm } from '@/src/hair/actions/quickSaleCustomer';
-import {
-  buildInvoicePrintHtml,
-  finalizeQuickSale,
-  getInvoiceDetail,
-  type PaymentSplitInput,
-  type QuickSaleLineInput,
-} from '@/src/hair/services/invoices';
+import type { Basket } from '@/src/hair/domain/basket/types';
+import { enrichBasketWithRedemptions, checkoutFromBasket } from '@/src/hair/domain/checkout/pipeline';
+import { getInvoiceDetail } from '@/src/hair/services/invoices';
+import type { QuickSaleLineInput } from '@/src/hair/services/invoices';
 import { previewQuickSaleTotals, searchCustomersForPos, searchStaffForPos } from '@/src/hair/services/quickSale';
 import {
   listQuickSaleHolds,
@@ -63,16 +60,53 @@ export async function previewQuickSaleTotalsAction(input: {
 }
 
 export async function completeQuickSaleAction(input: {
+  basket: Basket;
+  holdInvoiceId?: string | null;
+}): Promise<
+  QuickSaleActionState & { printHtml?: string; advancePaise?: number }
+> {
+  try {
+    await requireHairAuth();
+    const enriched = await enrichBasketWithRedemptions(input.basket);
+    const result = await checkoutFromBasket({
+      basket: enriched,
+      holdInvoiceId: input.holdInvoiceId,
+    });
+    revalidatePath('/billing');
+    revalidatePath('/dashboard');
+    revalidatePath('/quick-sale');
+    const detail = await getInvoiceDetail(result.invoiceId);
+    const { buildInvoicePrintHtml } = await import('@/src/hair/services/invoices');
+    const printHtml = detail ? buildInvoicePrintHtml(detail) : undefined;
+    return {
+      success: 'Sale complete',
+      invoiceId: result.invoiceId,
+      printHtml,
+      advancePaise: result.advancePaise,
+    };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Could not complete sale' };
+  }
+}
+
+/** @deprecated Use completeQuickSaleAction with basket */
+export async function completeQuickSaleLegacyAction(input: {
   customerId: string;
-  lines: QuickSaleLineInput[];
-  payments: PaymentSplitInput[];
+  lines: import('@/src/hair/services/invoices').QuickSaleLineInput[];
+  payments: import('@/src/hair/services/invoices').PaymentSplitInput[];
   discountPaise?: number;
   walletRedeemPaise?: number;
   tipPaise?: number;
   roundOffPaise?: number;
   stylistId?: string | null;
   holdInvoiceId?: string | null;
+  markDue?: boolean;
+  markFullDue?: boolean;
+  creditOverpayAsAdvance?: boolean;
 }): Promise<QuickSaleActionState & { printHtml?: string }> {
+  const { finalizeQuickSale, getInvoiceDetail, buildInvoicePrintHtml } = await import(
+    '@/src/hair/services/invoices'
+  );
   try {
     await requireHairAuth();
     const invoiceId = await finalizeQuickSale(input);

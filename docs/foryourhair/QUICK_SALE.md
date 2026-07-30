@@ -2,6 +2,8 @@
 
 Technical reference for the walk-in POS (`/quick-sale`) and performance SSOT.
 
+**Approved billing engine foundation:** [QUICK_SALE_ARCHITECTURE.md](./QUICK_SALE_ARCHITECTURE.md) — implement Phase 0 before UX redesign.
+
 ## Code map
 
 | Area | Location |

@@ -8,6 +8,11 @@ export type FyhBusinessHoursDay = {
   closed?: boolean;
 };
 
+export type FyhCommunicationSettings = {
+  whatsappInvoiceTemplate?: string;
+  reviewRequestTemplate?: string;
+};
+
 export const fyhSettings = pgTable('fyh_settings', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   businessName: text('business_name').notNull().default('For Your Hair'),
@@ -22,5 +27,7 @@ export const fyhSettings = pgTable('fyh_settings', {
   defaultBufferMinutes: integer('default_buffer_minutes').notNull().default(0),
   currency: text('currency').notNull().default('INR'),
   businessHours: jsonb('business_hours').$type<FyhBusinessHoursDay[]>(),
+  googleReviewUrl: text('google_review_url'),
+  communicationSettings: jsonb('communication_settings').$type<FyhCommunicationSettings>(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

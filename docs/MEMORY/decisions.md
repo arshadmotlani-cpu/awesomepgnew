@@ -7,6 +7,10 @@
 
 ---
 
+## 2026-07-30
+
+- **FYH Quick Sale billing engine foundation (approved)** — Basket SSOT → BasketEngine → PricedBasket → unified Financial Ledger → Invoice → attributions/reports. **BillableItem** unified catalog read model (not CatalogItem). Line pricing: **overridePricePaise only**; discount %/₹ and GST base derived. Staff: **shareBps allocations** (not equal-split-at-persist). **Financial Ledger** replaces separate wallet + receivable mutations; balances materialized from ledger. Invoice lines are **historical snapshots** never live catalog refs for customer display. Phase 0 before POS UX redesign. → `docs/foryourhair/QUICK_SALE_ARCHITECTURE.md`
+
 ## 2026-07-29
 
 - **Property Performance SSOT only** — Overview money (Today/MTD/Property Performance) and Operations/Collections/Revenue PG money tiles consume only `getRevenueCommandCenterData` (`today`/`mtd`/`byPg`). No parallel `getCachedPgBusinessMetrics` on Overview. Engine leaf SQL stays behind `getPgFinancialMetrics`.

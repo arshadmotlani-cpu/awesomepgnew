@@ -17,6 +17,7 @@ export default async function SettingsPage() {
         defaultBufferMinutes: settings.defaultBufferMinutes,
         timezone: settings.timezone || 'Asia/Kolkata',
         businessHours: settings.businessHours ?? [],
+        googleReviewUrl: settings.googleReviewUrl ?? '',
       }}
     />
     <ResourcesPanel resources={resources} />

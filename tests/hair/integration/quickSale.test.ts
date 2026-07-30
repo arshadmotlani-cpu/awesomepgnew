@@ -20,7 +20,7 @@ import { loadQuickSaleHold, saveQuickSaleHold } from '@/src/hair/services/quickS
 import { createRcCustomer, requireRcFixtures } from './rcFixtures.ts';
 import { migrationSkipMessage, probeHairQuickSaleMigrations } from './migrationGuard.ts';
 
-test('quick sale paid: activates membership, skips product stock', async (t) => {
+test('quick sale paid: activates membership, deducts service consumables', async (t) => {
   const probe = await probeHairQuickSaleMigrations();
   if (!probe.ok) t.skip(migrationSkipMessage(probe));
   const f = await requireRcFixtures();
@@ -54,13 +54,13 @@ test('quick sale paid: activates membership, skips product stock', async (t) => 
     .from(fyhProducts)
     .where(eq(fyhProducts.id, f.product.id))
     .limit(1);
-  assert.equal(productAfter?.stockQty, productBefore?.stockQty);
+  assert.equal(productAfter?.stockQty, (productBefore?.stockQty ?? 0) - 10);
 
   const movements = await hairDb
     .select()
     .from(fyhStockMovements)
     .where(eq(fyhStockMovements.referenceId, invoiceId));
-  assert.equal(movements.length, 0);
+  assert.ok(movements.length >= 1);
 
   const [mem] = await hairDb
     .select()

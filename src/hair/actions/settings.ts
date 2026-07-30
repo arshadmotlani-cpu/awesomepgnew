@@ -40,9 +40,8 @@ export async function saveSalonSettingsAction(
       defaultBufferMinutes: Number(formStr(formData, 'defaultBufferMinutes') || '0'),
       timezone: formStr(formData, 'timezone') || 'Asia/Kolkata',
       businessHours,
+      googleReviewUrl: formStr(formData, 'googleReviewUrl') || null,
     });
-
-    revalidatePath('/settings');
     revalidatePath('/billing');
     revalidatePath('/appointments');
     return { success: 'Settings saved' };

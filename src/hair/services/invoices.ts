@@ -496,10 +496,11 @@ export async function resolveQuickSaleDrafts(
   return { drafts, meta: lines };
 }
 
+/** Create quick-sale invoice (unpaid) via basket engine. */
 export async function createQuickSaleInvoice(
   customerId: string,
   lines: QuickSaleLineInput[],
-  opts?: {
+  _opts?: {
     discountPaise?: number;
     walletRedeemPaise?: number;
     tipPaise?: number;
@@ -508,139 +509,16 @@ export async function createQuickSaleInvoice(
     notes?: string | null;
   },
 ) {
-  const [customer] = await hairDb
-    .select({ id: fyhCustomers.id })
-    .from(fyhCustomers)
-    .where(and(eq(fyhCustomers.id, customerId), eq(fyhCustomers.isActive, true)))
-    .limit(1);
-  if (!customer) throw new Error('Customer not found');
-
-  const { drafts, meta: lineMeta } = await resolveQuickSaleDrafts(lines);
-  const { priced, subtotalPaise, taxPaise } = priceLineDrafts(drafts);
-
-  const discountSubtotal = drafts
-    .filter((d) => d.kind === 'service' || d.kind === 'product')
-    .reduce(
-      (sum, d) => sum + Math.max(0, d.unitPricePaise * d.quantity - d.lineDiscountPaise),
-      0,
-    );
-  const redemptions = await computeRedemptions(customerId, discountSubtotal, []);
-  const discountPaise = Math.max(0, opts?.discountPaise ?? 0);
-  const membershipDiscountPaise = redemptions.membershipDiscountPaise;
-  const walletRedeemPaise = Math.min(
-    Math.max(0, opts?.walletRedeemPaise ?? 0),
-    redemptions.availableWalletPaise,
+  const { buildBasketFromQuickSaleLines } = await import(
+    '@/src/hair/domain/basket/legacyBridge'
   );
-  const tipPaise = Math.max(0, opts?.tipPaise ?? 0);
-  const roundOffPaise = opts?.roundOffPaise ?? 0;
-
-  const { taxPaiseAdjusted, grandTotalPaise } = computeGrandTotalFromParts({
-    subtotalPaise,
-    taxPaise,
-    discountPaise,
-    membershipDiscountPaise,
-    packageRedeemPaise: 0,
-    walletRedeemPaise,
-    tipPaise,
-    roundOffPaise,
-  });
-
-  const defaultStylist =
-    opts?.stylistId ??
-    priced.find((l) => l.staffId)?.staffId ??
-    null;
-
-  const invoiceId = await hairDb.transaction(async (tx) => {
-    const invoiceNumber = await nextInvoiceNumber(tx as unknown as typeof hairDb);
-    const [inv] = await tx
-      .insert(fyhInvoices)
-      .values({
-        invoiceNumber,
-        customerId,
-        appointmentId: null,
-        source: 'quick_sale',
-        stylistId: defaultStylist,
-        status: grandTotalPaise === 0 ? 'paid' : 'unpaid',
-        subtotalPaise,
-        discountPaise,
-        taxPaise: taxPaiseAdjusted,
-        membershipRedemptionPaise: membershipDiscountPaise,
-        packageRedemptionPaise: 0,
-        walletRedemptionPaise: walletRedeemPaise,
-        giftCardRedemptionPaise: 0,
-        tipPaise,
-        roundOffPaise,
-        grandTotalPaise,
-        amountPaidPaise: 0,
-        paidAt: grandTotalPaise === 0 ? new Date() : null,
-        notes: opts?.notes ?? null,
-      })
-      .returning();
-    if (!inv) throw new Error('Failed to create invoice');
-
-    const insertedLines = await tx
-      .insert(fyhInvoiceLines)
-      .values(
-        priced.map((l) => {
-          const gross = l.unitPricePaise * l.quantity;
-          return {
-            invoiceId: inv.id,
-            kind: l.kind,
-            serviceId: l.serviceId ?? null,
-            productId: l.productId ?? null,
-            packageId: l.packageId ?? null,
-            membershipId: l.membershipId ?? null,
-            staffId: l.staffId ?? null,
-            nameSnapshot: l.description,
-            quantity: l.quantity,
-            unitPricePaise: l.unitPricePaise,
-            discountPaise: l.lineDiscountPaise,
-            discountBps: discountBpsFromPaise(gross, l.lineDiscountPaise),
-            gstBps: l.gstBps,
-            taxPaise: l.taxPaise,
-            lineTotalPaise: l.lineTotalPaise,
-            sortOrder: l.sortOrder,
-          };
-        }),
-      )
-      .returning();
-
-    for (let i = 0; i < insertedLines.length; i++) {
-      const row = insertedLines[i]!;
-      const src = lineMeta[i]!;
-      const lineNet = lineNetPaiseFromParts(
-        row.unitPricePaise,
-        row.quantity,
-        row.discountPaise,
-      );
-      await persistLineAttributions(tx as unknown as typeof hairDb, row.id, {
-        kind: row.kind,
-        lineNetPaise: lineNet,
-        servicedBy: src.servicedBy,
-        soldByStaffId: src.soldByStaffId,
-        legacyStaffId: row.staffId,
-      });
-    }
-
-    await tx.insert(fyhCustomerTimeline).values({
-      customerId,
-      eventType: 'bill',
-      title: `Quick Sale · ${invoiceNumber}`,
-      body: `Due ₹${(grandTotalPaise / 100).toFixed(2)}`,
-      metadata: { invoiceId: inv.id, source: 'quick_sale' },
-    });
-
-    if (grandTotalPaise === 0) {
-      await applyPaidSideEffects(tx as unknown as typeof hairDb, inv.id);
-    }
-
-    return inv.id;
-  });
-
-  return invoiceId;
+  const { checkoutFromBasket } = await import('@/src/hair/domain/checkout/pipeline');
+  const basket = await buildBasketFromQuickSaleLines(customerId, lines, [], {});
+  const result = await checkoutFromBasket({ basket, allowUnpaid: true, notes: _opts?.notes });
+  return result.invoiceId;
 }
 
-/** Create quick-sale invoice and record payments in one flow (validates pay sum). */
+/** Create quick-sale invoice and record payments in one flow (basket SSOT). */
 export async function finalizeQuickSale(input: {
   customerId: string;
   lines: QuickSaleLineInput[];
@@ -652,35 +530,43 @@ export async function finalizeQuickSale(input: {
   stylistId?: string | null;
   notes?: string | null;
   holdInvoiceId?: string | null;
+  markDue?: boolean;
+  markFullDue?: boolean;
+  creditOverpayAsAdvance?: boolean;
 }) {
-  const invoiceId = input.holdInvoiceId
-    ? await (
-        await import('@/src/hair/services/quickSaleHold')
-      ).releaseQuickSaleHoldForCheckout(input.holdInvoiceId, {
-        customerId: input.customerId,
-        lines: input.lines,
-        discountPaise: input.discountPaise,
-        walletRedeemPaise: input.walletRedeemPaise,
-        tipPaise: input.tipPaise,
-        roundOffPaise: input.roundOffPaise,
-      })
-    : await createQuickSaleInvoice(input.customerId, input.lines, {
-        discountPaise: input.discountPaise,
-        walletRedeemPaise: input.walletRedeemPaise,
-        tipPaise: input.tipPaise,
-        roundOffPaise: input.roundOffPaise,
-        stylistId: input.stylistId,
-        notes: input.notes,
-      });
-  const due = await getInvoiceGrandTotal(invoiceId);
+  const { buildBasketFromQuickSaleLines } = await import(
+    '@/src/hair/domain/basket/legacyBridge'
+  );
+  const { checkoutFromBasket } = await import('@/src/hair/domain/checkout/pipeline');
+
   const paySum = input.payments.reduce((s, p) => s + Math.max(0, p.amountPaise), 0);
-  if (due > 0 && paySum < due) {
-    throw new Error(`Payment total must cover amount due (₹${(due / 100).toFixed(2)})`);
+  const basket = await buildBasketFromQuickSaleLines(
+    input.customerId,
+    input.lines,
+    input.payments
+      .filter((p) => p.amountPaise > 0 && (p.method === 'cash' || p.method === 'upi' || p.method === 'card'))
+      .map((p, i) => ({
+        id: `pay-${i}`,
+        method: p.method as 'cash' | 'upi' | 'card',
+        amountPaise: p.amountPaise,
+      })),
+    {
+      markDue: input.markDue,
+      markFullDue: input.markFullDue,
+      creditOverpayAsAdvance: input.creditOverpayAsAdvance,
+    },
+  );
+
+  if (input.markFullDue && paySum === 0) {
+    basket.flags.markFullDue = true;
   }
-  if (due === 0 || paySum > 0) {
-    await recordInvoicePayments(invoiceId, input.payments);
-  }
-  return invoiceId;
+
+  const result = await checkoutFromBasket({
+    basket,
+    holdInvoiceId: input.holdInvoiceId,
+    notes: input.notes,
+  });
+  return result.invoiceId;
 }
 
 export async function getInvoiceGrandTotal(invoiceId: string): Promise<number> {
@@ -943,6 +829,7 @@ export async function applyPaidSideEffects(db: typeof hairDb, invoiceId: string)
   }
 
   if (isQuickSale) {
+    await applyInventorySideEffects(db, invoiceId, lines);
     for (const line of lines) {
       if (line.kind === 'membership' && line.membershipId) {
         await sellMembershipWithDb(db, invoice.customerId, line.membershipId);
@@ -1023,9 +910,13 @@ export async function todayRevenuePaise() {
   return Number(rows[0]?.total ?? 0);
 }
 
-export function buildInvoicePrintHtml(detail: NonNullable<Awaited<ReturnType<typeof getInvoiceDetail>>>) {
+export function buildInvoicePrintHtml(
+  detail: NonNullable<Awaited<ReturnType<typeof getInvoiceDetail>>>,
+  opts?: { includeStaff?: boolean },
+) {
   const { invoice, customerName, customerPhone, stylistName, businessName, businessAddress, gstin, lines, payments } =
     detail;
+  const showStaff = opts?.includeStaff === true;
   const money = (p: number) =>
     new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
       p / 100,
@@ -1042,7 +933,7 @@ export function buildInvoicePrintHtml(detail: NonNullable<Awaited<ReturnType<typ
   <p class="muted">${escapeHtml(businessAddress ?? '')}${gstin ? ` · GSTIN ${escapeHtml(gstin)}` : ''}</p>
   <p><strong>Invoice ${escapeHtml(invoice.invoiceNumber)}</strong><br/>
   ${escapeHtml(customerName)} · ${escapeHtml(customerPhone)}<br/>
-  Stylist: ${escapeHtml(stylistName ?? '—')}<br/>
+  ${showStaff && stylistName ? `Stylist: ${escapeHtml(stylistName)}<br/>` : ''}
   Date: ${escapeHtml(invoice.createdAt.toISOString().slice(0, 10))}</p>
   <table><thead><tr><th>Item</th><th>Qty</th><th class="right">Amount</th></tr></thead><tbody>
   ${lines

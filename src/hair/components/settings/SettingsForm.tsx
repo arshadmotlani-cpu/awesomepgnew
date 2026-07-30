@@ -19,6 +19,7 @@ export type SettingsFormValues = {
   defaultBufferMinutes: number;
   timezone: string;
   businessHours: FyhBusinessHoursDay[];
+  googleReviewUrl: string;
 };
 
 export function SettingsForm({ values }: { values: SettingsFormValues }) {
@@ -73,6 +74,18 @@ export function SettingsForm({ values }: { values: SettingsFormValues }) {
               name="invoicePrefix"
               required
               defaultValue={values.invoicePrefix}
+            />
+          </div>
+          <div className="space-y-1 sm:col-span-2">
+            <label className="text-sm text-fyh-text-secondary" htmlFor="googleReviewUrl">
+              Google Review URL
+            </label>
+            <Input
+              id="googleReviewUrl"
+              name="googleReviewUrl"
+              type="url"
+              placeholder="https://g.page/…"
+              defaultValue={values.googleReviewUrl}
             />
           </div>
           <div className="space-y-1">

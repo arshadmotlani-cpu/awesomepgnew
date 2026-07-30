@@ -24,6 +24,8 @@ export type SalonSettingsInput = {
   defaultBufferMinutes: number;
   timezone?: string;
   businessHours: FyhBusinessHoursDay[];
+  googleReviewUrl?: string | null;
+  communicationSettings?: import('@/src/hair/db/schema/settings').FyhCommunicationSettings | null;
 };
 
 export async function getSalonSettings() {
@@ -38,6 +40,8 @@ export async function getSalonSettings() {
   return {
     ...row,
     businessHours: row.businessHours?.length ? row.businessHours : DEFAULT_HOURS,
+    googleReviewUrl: row.googleReviewUrl ?? null,
+    communicationSettings: row.communicationSettings ?? null,
   };
 }
 
@@ -57,6 +61,8 @@ export async function updateSalonSettings(input: SalonSettingsInput) {
       defaultBufferMinutes: Math.max(0, Math.round(input.defaultBufferMinutes)),
       timezone: (input.timezone?.trim() || existing.timezone || 'Asia/Kolkata').slice(0, 64),
       businessHours: input.businessHours,
+      googleReviewUrl: input.googleReviewUrl?.trim() || null,
+      communicationSettings: input.communicationSettings ?? existing.communicationSettings ?? null,
       updatedAt: new Date(),
     })
     .where(eq(fyhSettings.id, existing.id))

@@ -324,3 +324,6 @@ See [[DECISIONS#Operations as action hub]].
 
 <!-- DOC_SYNC_TOUCH_2026-07-29 -->
 > **2026-07-29 04:28:02 UTC** — Code changed in: Routes, Bookings, Billing. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-07-30 -->
+> **2026-07-30 09:04:12 UTC** — Code changed in: Routes. Manual review recommended.

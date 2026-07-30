@@ -282,6 +282,7 @@ export async function recordAdvancePayment(input: {
   if (input.amountPaise <= 0) throw new Error('Amount must be positive');
 
   return hairDb.transaction(async (tx) => {
+    const db = tx as unknown as typeof hairDb;
     const [customer] = await tx
       .select()
       .from(fyhCustomers)
@@ -289,14 +290,19 @@ export async function recordAdvancePayment(input: {
       .limit(1);
     if (!customer) throw new Error('Customer not found');
 
-    const newBalance = customer.walletBalancePaise + input.amountPaise;
-    await tx
-      .update(fyhCustomers)
-      .set({
-        walletBalancePaise: newBalance,
-        updatedAt: new Date(),
-      })
-      .where(eq(fyhCustomers.id, customer.id));
+    const { creditWalletAdvance } = await import('@/src/hair/domain/ledger/service');
+    await creditWalletAdvance(db, {
+      customerId: customer.id,
+      invoiceId: null,
+      amountPaise: input.amountPaise,
+      reference: input.reference ?? input.method,
+    });
+
+    const [updated] = await tx
+      .select({ walletBalancePaise: fyhCustomers.walletBalancePaise })
+      .from(fyhCustomers)
+      .where(eq(fyhCustomers.id, customer.id))
+      .limit(1);
 
     await tx.insert(fyhCustomerTimeline).values({
       customerId: customer.id,
@@ -311,6 +317,6 @@ export async function recordAdvancePayment(input: {
       },
     });
 
-    return { walletBalancePaise: newBalance };
+    return { walletBalancePaise: updated?.walletBalancePaise ?? customer.walletBalancePaise };
   });
 }
