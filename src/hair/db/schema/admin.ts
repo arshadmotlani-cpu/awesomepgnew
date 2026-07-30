@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
-import { index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { index, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import type { HairPermission } from '@/src/hair/lib/auth/permissionTypes';
 
 export const FYH_ADMIN_ROLES = ['admin', 'super_admin'] as const;
 export type FyhAdminRole = (typeof FYH_ADMIN_ROLES)[number];
@@ -10,6 +11,7 @@ export const fyhAdminUsers = pgTable('fyh_admin_users', {
   passwordHash: text('password_hash').notNull(),
   displayName: text('display_name'),
   role: text('role').$type<FyhAdminRole>().notNull().default('admin'),
+  permissions: jsonb('permissions').$type<HairPermission[]>().notNull().default([]),
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
