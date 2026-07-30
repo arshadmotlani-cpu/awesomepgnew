@@ -44,6 +44,8 @@ export type Basket = {
   payments: PaymentEntry[];
   flags: BasketFlags;
   membershipDiscountPaise?: number;
+  packageRedemptionPaise?: number;
+  packageRedemptionCustomerPackageId?: string | null;
 };
 
 export type PricedLine = {
@@ -80,6 +82,7 @@ export type PricedBasketTotals = {
   taxPaise: number;
   lineDiscountPaise: number;
   membershipDiscountPaise: number;
+  packageRedemptionPaise: number;
   grandTotalPaise: number;
 };
 

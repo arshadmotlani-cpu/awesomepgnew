@@ -1,7 +1,7 @@
 import { loadAppEnv } from '@/src/lib/db/loadEnv';
 loadAppEnv();
 
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { ensureRcCutConsumableKit } from '@/src/hair/db/rcConsumableKit';
 import { hairDb } from '@/src/hair/db/client';
 import {
@@ -16,6 +16,7 @@ import {
   fyhPackagePlans,
   fyhProducts,
   fyhResources,
+  fyhServiceStaff,
   fyhServices,
   fyhStaff,
   fyhStockMovements,
@@ -61,6 +62,17 @@ export async function requireRcFixtures() {
   }
 
   await ensureRcCutConsumableKit(hairDb, cut.id, product.id, 10);
+
+  for (const staffId of [staff.id, staff2.id]) {
+    const [linked] = await hairDb
+      .select({ serviceId: fyhServiceStaff.serviceId })
+      .from(fyhServiceStaff)
+      .where(and(eq(fyhServiceStaff.serviceId, cut.id), eq(fyhServiceStaff.staffId, staffId)))
+      .limit(1);
+    if (!linked) {
+      await hairDb.insert(fyhServiceStaff).values({ serviceId: cut.id, staffId });
+    }
+  }
 
   if (Number(product.stockQty) < 50) {
     const target = 100;

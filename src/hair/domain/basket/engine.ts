@@ -38,9 +38,12 @@ export function priceBasket(basket: Basket): PricedBasket {
   const taxPaise = lines.reduce((s, l) => s + l.gstPaise, 0);
   const lineDiscountPaise = lines.reduce((s, l) => s + l.discountPaise, 0);
   const membershipDiscountPaise = Math.max(0, basket.membershipDiscountPaise ?? 0);
+  const packageRedemptionPaise = Math.max(0, basket.packageRedemptionPaise ?? 0);
   const grandTotalPaise = Math.max(
     0,
-    lines.reduce((s, l) => s + l.finalLinePaise, 0) - membershipDiscountPaise,
+    lines.reduce((s, l) => s + l.finalLinePaise, 0) -
+      membershipDiscountPaise -
+      packageRedemptionPaise,
   );
 
   const attributions = buildAttributionPlan(lines);
@@ -59,6 +62,7 @@ export function priceBasket(basket: Basket): PricedBasket {
       taxPaise,
       lineDiscountPaise,
       membershipDiscountPaise,
+      packageRedemptionPaise,
       grandTotalPaise,
     },
     attributions,

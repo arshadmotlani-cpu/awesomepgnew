@@ -11,12 +11,15 @@ export async function ensureRcCutConsumableKit(
   productId: string,
   quantity = 10,
 ) {
-  const [kit] = await db
+  const kits = await db
     .select()
     .from(fyhServiceConsumables)
-    .where(eq(fyhServiceConsumables.serviceId, serviceId))
-    .limit(1);
-  if (!kit) {
+    .where(eq(fyhServiceConsumables.serviceId, serviceId));
+  const [primary, ...duplicates] = kits;
+  for (const dup of duplicates) {
+    await db.delete(fyhServiceConsumables).where(eq(fyhServiceConsumables.id, dup.id));
+  }
+  if (!primary) {
     await db.insert(fyhServiceConsumables).values({
       serviceId,
       productId,
@@ -29,8 +32,8 @@ export async function ensureRcCutConsumableKit(
     .update(fyhServiceConsumables)
     .set({
       productId,
-      quantity: kit.quantity ?? quantity,
+      quantity,
       deductInventory: true,
     })
-    .where(eq(fyhServiceConsumables.id, kit.id));
+    .where(eq(fyhServiceConsumables.id, primary.id));
 }

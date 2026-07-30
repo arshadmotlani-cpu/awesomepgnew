@@ -83,6 +83,8 @@ export async function enrichBasketWithRedemptions(basket: Basket): Promise<Baske
   return {
     ...basket,
     membershipDiscountPaise: redemptions.membershipDiscountPaise,
+    packageRedemptionPaise: redemptions.packageRedeemPaise,
+    packageRedemptionCustomerPackageId: redemptions.packageId,
   };
 }
 
@@ -161,7 +163,7 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
       discountPaise: priced.totals.lineDiscountPaise,
       taxPaise: priced.totals.taxPaise,
       membershipRedemptionPaise: priced.totals.membershipDiscountPaise,
-      packageRedemptionPaise: 0,
+      packageRedemptionPaise: priced.totals.packageRedemptionPaise,
       walletRedemptionPaise: 0,
       giftCardRedemptionPaise: 0,
       tipPaise: 0,
