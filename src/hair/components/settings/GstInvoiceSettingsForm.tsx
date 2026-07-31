@@ -13,6 +13,7 @@ export type GstInvoiceSettingsFormValues = {
   invoicePrefix: string;
   defaultGstPercent: number;
   invoiceNotes: string;
+  businessEmail: string;
 };
 
 export function GstInvoiceSettingsForm({ values }: { values: GstInvoiceSettingsFormValues }) {
@@ -56,6 +57,18 @@ export function GstInvoiceSettingsForm({ values }: { values: GstInvoiceSettingsF
               min={0}
               step={0.01}
               defaultValue={values.defaultGstPercent}
+            />
+          </div>
+          <div className="space-y-1 sm:col-span-2">
+            <label className="fyh-label" htmlFor="businessEmail">
+              Invoice contact email
+            </label>
+            <Input
+              id="businessEmail"
+              name="businessEmail"
+              type="email"
+              placeholder="hello@foryourhair.in"
+              defaultValue={values.businessEmail}
             />
           </div>
           <div className="space-y-1 sm:col-span-2">

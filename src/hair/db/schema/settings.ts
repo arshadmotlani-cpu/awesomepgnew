@@ -19,6 +19,8 @@ export type FyhBillingSettings = {
   defaultCreditOverpayAsAdvance?: boolean;
   /** Cash drawer float at start of day (paise). */
   dailyClosingOpeningFloatPaise?: number;
+  /** Contact email shown on customer invoices. */
+  businessEmail?: string | null;
 };
 
 export type FyhPrinterSettings = {

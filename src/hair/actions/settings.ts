@@ -84,6 +84,7 @@ export async function saveGstInvoiceSettingsAction(
       invoicePrefix: formStr(formData, 'invoicePrefix') || 'FYH',
       defaultGstBps: Math.round(gstPercent * 100),
       invoiceNotes: formStr(formData, 'invoiceNotes') || null,
+      businessEmail: formStr(formData, 'businessEmail') || null,
     });
     revalidateSettingsPaths();
     return { success: 'GST & invoice settings saved' };

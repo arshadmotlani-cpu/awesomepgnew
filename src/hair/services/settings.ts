@@ -56,6 +56,7 @@ export type GstInvoiceSettingsInput = {
   invoicePrefix: string;
   defaultGstBps: number;
   invoiceNotes?: string | null;
+  businessEmail?: string | null;
 };
 
 export type CommunicationSettingsInput = {
@@ -149,12 +150,17 @@ export async function updateSalonCoreSettings(input: SalonCoreInput) {
 }
 
 export async function updateGstInvoiceSettings(input: GstInvoiceSettingsInput) {
+  const existing = await getSalonSettings();
   const prefix = input.invoicePrefix.trim().toUpperCase() || 'FYH';
   return patchSettings({
     gstin: input.gstin?.trim() || null,
     invoicePrefix: prefix,
     defaultGstBps: Math.max(0, Math.round(input.defaultGstBps)),
     invoiceNotes: input.invoiceNotes?.trim() || null,
+    billingSettings: {
+      ...existing.billingSettings,
+      businessEmail: input.businessEmail?.trim() || null,
+    },
   });
 }
 

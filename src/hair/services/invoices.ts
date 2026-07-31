@@ -130,6 +130,7 @@ export async function getInvoiceDetail(invoiceId: string) {
       gstin: fyhSettings.gstin,
       invoiceNotes: fyhSettings.invoiceNotes,
       whatsappSettings: fyhSettings.whatsappSettings,
+      billingSettings: fyhSettings.billingSettings,
     })
     .from(fyhInvoices)
     .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhInvoices.customerId))
@@ -175,6 +176,7 @@ export async function getInvoiceDetailByNumber(rawInvoiceNumber: string) {
       gstin: fyhSettings.gstin,
       invoiceNotes: fyhSettings.invoiceNotes,
       whatsappSettings: fyhSettings.whatsappSettings,
+      billingSettings: fyhSettings.billingSettings,
     })
     .from(fyhInvoices)
     .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhInvoices.customerId))

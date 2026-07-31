@@ -11,6 +11,7 @@ export default async function GstInvoiceSettingsPage() {
         invoicePrefix: settings.invoicePrefix,
         defaultGstPercent: settings.defaultGstBps / 100,
         invoiceNotes: settings.invoiceNotes ?? '',
+        businessEmail: settings.billingSettings.businessEmail ?? '',
       }}
     />
   );

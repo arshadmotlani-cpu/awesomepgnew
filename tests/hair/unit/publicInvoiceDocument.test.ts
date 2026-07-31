@@ -46,6 +46,7 @@ function mockDetail(overrides: Partial<InvoiceDetail> = {}): InvoiceDetail {
     gstin: '29ABCDE1234F1Z5',
     invoiceNotes: 'Services once rendered are non-refundable.',
     whatsappSettings: { businessPhone: '+91 98765 43210' },
+    billingSettings: { businessEmail: 'hello@foryourhair.in' },
     lines: [
       {
         id: 'line-1',
@@ -90,8 +91,12 @@ describe('buildPublicInvoiceViewModel', () => {
 describe('buildPublicInvoiceDocumentHtml', () => {
   it('renders premium layout sections', () => {
     const html = buildPublicInvoiceDocumentHtml(mockDetail());
-    assert.match(html, /TAX INVOICE/);
+    assert.match(html, /Tax Invoice/);
+    assert.match(html, /invoice-brand-logo\.png/);
+    assert.match(html, /Shabana Makeup Studio and Academy/);
+    assert.match(html, /For Your Hair/);
     assert.match(html, /Bill to/);
+    assert.match(html, /hello@foryourhair\.in/);
     assert.match(html, /Customer ID: C-0042/);
     assert.match(html, /Authorized signatory/);
     assert.match(html, /QR/);
