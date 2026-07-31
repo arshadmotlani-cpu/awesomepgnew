@@ -630,6 +630,193 @@ export async function listBillingCycleOperations(
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// Anniversary generation eligibility — SSOT for scheduler + upcoming preview
+// ───────────────────────────────────────────────────────────────────────────
+
+export type RentGenerationEligibility =
+  | {
+      eligible: true;
+      customerId: string;
+      bedId: string;
+      pgId: string;
+      rentPaise: number;
+      dueDate: string;
+      billingMonth: string;
+      invoiceNotes: string;
+      billingPeriod: { periodStart: string; periodEnd: string };
+    }
+  | { eligible: false; skipCode: string };
+
+export type EvaluateAnniversaryRentGenerationInput = {
+  bookingId: string;
+  billingMonth: DateLike;
+  asOf: DateLike;
+  bedId?: string;
+  customerId?: string;
+  pricingSnapshot?: PricingSnapshot | null;
+  forceAll?: boolean;
+  collectionDueDay?: number;
+};
+
+async function loadRepresentativeBedId(bookingId: string): Promise<string | null> {
+  const rows = await db
+    .select({ bedId: bedReservations.bedId })
+    .from(bedReservations)
+    .where(and(eq(bedReservations.bookingId, bookingId), eq(bedReservations.status, 'active')))
+    .orderBy(bedReservations.bedId);
+  return rows[0]?.bedId ?? null;
+}
+
+/** Shared skip chain used by generateRentInvoicesForMonth and upcoming bill preview. */
+export async function evaluateAnniversaryRentGenerationEligibility(
+  input: EvaluateAnniversaryRentGenerationInput,
+): Promise<RentGenerationEligibility> {
+  const billingMonth = firstOfMonth(input.billingMonth);
+  const asOf = formatDate(parseDate(input.asOf));
+
+  const [bookingRow] = await db
+    .select({
+      customerId: bookings.customerId,
+      pricingSnapshot: bookings.pricingSnapshot,
+      status: bookings.status,
+    })
+    .from(bookings)
+    .where(eq(bookings.id, input.bookingId))
+    .limit(1);
+
+  if (!bookingRow || bookingRow.status !== 'confirmed') {
+    return { eligible: false, skipCode: 'booking_not_confirmed' };
+  }
+
+  const customerId = input.customerId ?? bookingRow.customerId;
+  const pricingSnapshot =
+    input.pricingSnapshot ?? (bookingRow.pricingSnapshot as PricingSnapshot | null);
+  const bedId = input.bedId ?? (await loadRepresentativeBedId(input.bookingId));
+  if (!bedId) {
+    return { eligible: false, skipCode: 'no_active_bed' };
+  }
+
+  await syncBillingProfileRentFromSsot(input.bookingId, billingMonth);
+  let profile = await getBillingProfileForBooking(input.bookingId);
+  if (!profile) {
+    profile = await ensureBillingProfileForBooking(input.bookingId);
+  }
+  if (profile && !profile.autoGenerate) {
+    return { eligible: false, skipCode: 'auto_generate_off' };
+  }
+
+  const resolved = await resolveMonthlyRentPaiseForBooking(input.bookingId, billingMonth);
+  let monthlyRent = resolved.rentPaise;
+  if (monthlyRent <= 0) {
+    monthlyRent = profile?.rentAmountPaise ?? monthlyRentFromSnapshot(pricingSnapshot);
+  }
+  if (monthlyRent <= 0) {
+    return { eligible: false, skipCode: 'zero_rent' };
+  }
+
+  const roomConfig = await getRoomBillingConfigForBed(bedId);
+  if (roomConfig?.billingMode === 'private_room') {
+    const dup = await shouldSkipPrivateRoomDuplicate({
+      roomId: roomConfig.roomId,
+      billingMonth,
+      bookingId: input.bookingId,
+      bedId,
+    });
+    if (dup.skip) {
+      return { eligible: false, skipCode: 'private_room_duplicate' };
+    }
+    if (resolved.source !== 'private_room_config') {
+      monthlyRent = resolvePrivateRoomRentPaise(
+        roomConfig,
+        monthlyRent,
+        monthlyRentFromSnapshot(pricingSnapshot),
+      );
+    }
+  }
+
+  const billingDay = profile?.billingDay ?? 5;
+  const stay = await loadStayWindow(input.bookingId);
+  if (!stay) {
+    return { eligible: false, skipCode: 'no_stay_window' };
+  }
+
+  if (!input.forceAll && stay.start > asOf) {
+    return { eligible: false, skipCode: 'move_in_after_as_of' };
+  }
+
+  const calendarDue =
+    input.collectionDueDay != null
+      ? formatDate(dueDateForBillingDay(billingMonth, input.collectionDueDay))
+      : formatDate(dueDateForBillingDay(billingMonth, billingDay));
+  const dueDate =
+    input.collectionDueDay != null
+      ? calendarDue
+      : stay.start > calendarDue
+        ? formatDate(addDays(stay.start, 4))
+        : calendarDue;
+
+  const rentPaise = fullMonthlyRentPaise(monthlyRent);
+  if (rentPaise <= 0) {
+    return { eligible: false, skipCode: 'zero_rent' };
+  }
+
+  const anniversaryDate = dueDate;
+  if (!isResidentActiveOnDate(stay, anniversaryDate)) {
+    return { eligible: false, skipCode: 'inactive_on_anniversary' };
+  }
+
+  const billingPeriod = anniversaryBillingPeriod(anniversaryDate, billingDay);
+  const invoiceNotes = rentInvoiceBillingPeriodNote(
+    billingPeriod.periodStart,
+    billingPeriod.periodEnd,
+  );
+
+  const { resolveVacatingFinalPeriodInvoiceSuppression } = await import(
+    './vacatingCheckoutBilling'
+  );
+  const { shouldSuppressAnniversaryInvoiceForVacating } = await import(
+    '@/src/lib/billing/vacatingFinalPeriodRent'
+  );
+  const vacatingDecision = await resolveVacatingFinalPeriodInvoiceSuppression(input.bookingId);
+  if (
+    vacatingDecision &&
+    shouldSuppressAnniversaryInvoiceForVacating({
+      decision: vacatingDecision,
+      billingMonth,
+      billingDay,
+      anniversaryDueDate: anniversaryDate,
+    })
+  ) {
+    return { eligible: false, skipCode: 'vacating_final_period' };
+  }
+
+  const [pgRow] = await db.execute<{ pg_id: string }>(sql`
+    SELECT f.pg_id AS pg_id
+    FROM beds b
+    JOIN rooms r ON r.id = b.room_id
+    JOIN floors f ON f.id = r.floor_id
+    WHERE b.id = ${bedId}
+    LIMIT 1
+  `);
+  const pgId = (pgRow as { pg_id: string } | undefined)?.pg_id;
+  if (!pgId) {
+    return { eligible: false, skipCode: 'pg_not_found' };
+  }
+
+  return {
+    eligible: true,
+    customerId,
+    bedId,
+    pgId,
+    rentPaise,
+    dueDate,
+    billingMonth,
+    invoiceNotes,
+    billingPeriod,
+  };
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // generateRentInvoicesForMonth — idempotent
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -724,125 +911,31 @@ export async function generateRentInvoicesForMonth(
       continue;
     }
 
-    await syncBillingProfileRentFromSsot(c.bookingId, billingMonth);
-    let profile = await getBillingProfileForBooking(c.bookingId);
-    if (!profile) {
-      profile = await ensureBillingProfileForBooking(c.bookingId);
-    }
-    if (profile && !profile.autoGenerate) {
+    const eligibility = await evaluateAnniversaryRentGenerationEligibility({
+      bookingId: c.bookingId,
+      customerId: c.customerId,
+      bedId: c.bedId,
+      pricingSnapshot: c.pricingSnapshot,
+      billingMonth,
+      asOf,
+      forceAll: input.forceAll,
+      collectionDueDay: input.collectionDueDay,
+    });
+
+    if (!eligibility.eligible) {
       skipped += 1;
       continue;
     }
 
-    const resolved = await resolveMonthlyRentPaiseForBooking(c.bookingId, billingMonth);
-    let monthlyRent = resolved.rentPaise;
-    if (monthlyRent <= 0) {
-      monthlyRent =
-        profile?.rentAmountPaise ?? monthlyRentFromSnapshot(c.pricingSnapshot);
-    }
-    if (monthlyRent <= 0) {
-      skipped += 1;
-      continue;
-    }
-
-    const roomConfig = await getRoomBillingConfigForBed(c.bedId);
-    if (roomConfig?.billingMode === 'private_room') {
-      const dup = await shouldSkipPrivateRoomDuplicate({
-        roomId: roomConfig.roomId,
-        billingMonth,
-        bookingId: c.bookingId,
-        bedId: c.bedId,
-      });
-      if (dup.skip) {
-        skipped += 1;
-        continue;
-      }
-      if (resolved.source !== 'private_room_config') {
-        monthlyRent = resolvePrivateRoomRentPaise(
-          roomConfig,
-          monthlyRent,
-          monthlyRentFromSnapshot(c.pricingSnapshot),
-        );
-      }
-    }
-
-    const billingDay = profile?.billingDay ?? 5;
-
-    // Pro-rate against the resident's active window.
-    const stay = await loadStayWindow(c.bookingId);
-    if (!stay) {
-      skipped += 1;
-      continue;
-    }
-
-    if (!input.forceAll && !input.bookingIds?.length && stay.start > asOf) {
-      skipped += 1;
-      continue;
-    }
-
-    const calendarDue =
-      input.collectionDueDay != null
-        ? formatDate(dueDateForBillingDay(billingMonth, input.collectionDueDay))
-        : formatDate(dueDateForBillingDay(billingMonth, billingDay));
-    const dueDate =
-      input.collectionDueDay != null
-        ? calendarDue
-        : stay.start > calendarDue
-          ? formatDate(addDays(stay.start, 4))
-          : calendarDue;
-
-    const rentPaise = fullMonthlyRentPaise(monthlyRent);
-    if (rentPaise <= 0) {
-      skipped += 1;
-      continue;
-    }
-
-    const anniversaryDate = dueDate;
-    if (!isResidentActiveOnDate(stay, anniversaryDate)) {
-      skipped += 1;
-      continue;
-    }
-
-    const billingPeriod = anniversaryBillingPeriod(anniversaryDate, billingDay);
-    const invoiceNotes = rentInvoiceBillingPeriodNote(
-      billingPeriod.periodStart,
-      billingPeriod.periodEnd,
-    );
-
-    const { resolveVacatingFinalPeriodInvoiceSuppression } = await import(
-      './vacatingCheckoutBilling'
-    );
-    const { shouldSuppressAnniversaryInvoiceForVacating } = await import(
-      '@/src/lib/billing/vacatingFinalPeriodRent'
-    );
-    const vacatingDecision = await resolveVacatingFinalPeriodInvoiceSuppression(c.bookingId);
-    if (
-      vacatingDecision &&
-      shouldSuppressAnniversaryInvoiceForVacating({
-        decision: vacatingDecision,
-        billingMonth,
-        billingDay,
-        anniversaryDueDate: anniversaryDate,
-      })
-    ) {
-      skipped += 1;
-      continue;
-    }
-
-    // Look up pgId for the bed (so we can index by PG cheaply).
-    const [pgRow] = await db.execute<{ pg_id: string }>(sql`
-      SELECT f.pg_id AS pg_id
-      FROM beds b
-      JOIN rooms r ON r.id = b.room_id
-      JOIN floors f ON f.id = r.floor_id
-      WHERE b.id = ${c.bedId}
-      LIMIT 1
-    `);
-    const pgId = (pgRow as { pg_id: string } | undefined)?.pg_id;
-    if (!pgId) {
-      skipped += 1;
-      continue;
-    }
+    const {
+      customerId,
+      bedId,
+      pgId,
+      rentPaise,
+      dueDate,
+      invoiceNotes,
+      billingPeriod,
+    } = eligibility;
 
     // Insert, retrying invoice-number collisions.
     let inserted: { id: string; invoice_number: string } | null = null;
@@ -854,8 +947,8 @@ export async function generateRentInvoicesForMonth(
           .values({
             invoiceNumber,
             bookingId: c.bookingId,
-            customerId: c.customerId,
-            bedId: c.bedId,
+            customerId,
+            bedId,
             pgId,
             billingMonth,
             dueDate,

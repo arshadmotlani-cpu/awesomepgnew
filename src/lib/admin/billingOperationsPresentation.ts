@@ -202,7 +202,6 @@ export function buildUpcomingGenerationRows(input: {
   const rows: BillingUpcomingGenerationRow[] = [];
 
   for (const resident of input.scheduleResidents) {
-    if (resident.status !== 'scheduled') continue;
     const bucket = classifyUpcomingGenerationBucket(resident.issueDate, input.todayIso);
     if (!bucket) continue;
 
