@@ -1,8 +1,20 @@
 import ExcelJS from 'exceljs';
 import { rowsToCsv, paiseToCsvRupees } from '@/src/hair/lib/export/csv';
 import { setExcelHyperlinkCell } from '@/src/hair/lib/export/excelHyperlink';
+import { appendInvoiceRegisterExcelSummary, computeRegisterSummaryTotals } from '@/src/hair/lib/export/invoiceRegisterExcelSummary';
 import { invoicePublicViewUrl } from '@/src/hair/lib/invoicePublicLinks';
 import type { InvoiceRegisterRow } from '@/src/hair/services/invoiceRegisterQueries';
+
+const COL = {
+  invoiceNumber: 1,
+  taxable: 7,
+  gst: 8,
+  grandTotal: 9,
+  paid: 10,
+  viewInvoice: 12,
+} as const;
+
+const FIRST_DATA_ROW = 2;
 
 function formatDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -15,8 +27,6 @@ function escapeHtml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
-
-const VIEW_INVOICE_COL = 12;
 
 export async function exportInvoiceRegisterExcel(rows: InvoiceRegisterRow[]): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
@@ -58,8 +68,22 @@ export async function exportInvoiceRegisterExcel(rows: InvoiceRegisterRow[]): Pr
       '',
     ]);
 
-    setExcelHyperlinkCell(sheet.getCell(rowNum, VIEW_INVOICE_COL), 'View Invoice', viewUrl);
+    setExcelHyperlinkCell(sheet.getCell(rowNum, COL.viewInvoice), 'View Invoice', viewUrl);
   }
+
+  const lastDataRow = rows.length > 0 ? rows.length + 1 : FIRST_DATA_ROW - 1;
+  appendInvoiceRegisterExcelSummary(sheet, FIRST_DATA_ROW, lastDataRow, {
+    invoiceNumberCol: COL.invoiceNumber,
+    taxableCol: COL.taxable,
+    gstCol: COL.gst,
+    grandTotalCol: COL.grandTotal,
+    paidCol: COL.paid,
+  }, computeRegisterSummaryTotals(rows.map((r) => ({
+    taxable: r.taxablePaise / 100,
+    gst: r.gstPaise / 100,
+    grandTotal: r.grandTotalPaise / 100,
+    paid: r.paidPaise / 100,
+  }))));
 
   sheet.columns = [
     { width: 16 },

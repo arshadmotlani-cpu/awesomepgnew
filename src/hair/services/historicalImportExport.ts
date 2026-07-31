@@ -7,8 +7,20 @@ import {
   fyhInvoiceLines,
   fyhInvoicePayments,
 } from '@/src/hair/db/schema';
+import { appendInvoiceRegisterExcelSummary, computeRegisterSummaryTotals } from '@/src/hair/lib/export/invoiceRegisterExcelSummary';
 import { setExcelHyperlinkCell } from '@/src/hair/lib/export/excelHyperlink';
 import { invoicePublicViewUrl } from '@/src/hair/lib/invoicePublicLinks';
+
+const COL = {
+  invoiceNumber: 1,
+  taxable: 7,
+  gst: 8,
+  grandTotal: 9,
+  paid: 10,
+  viewInvoice: 12,
+} as const;
+
+const FIRST_DATA_ROW = 2;
 
 function inr(paise: number): number {
   return paise / 100;
@@ -25,11 +37,12 @@ export type InvoiceRegisterRow = {
   amountInr: number;
   gstInr: number;
   grandTotalInr: number;
+  paidInr: number;
   invoiceStatus: string;
   sheetName?: string;
 };
 
-const VIEW_INVOICE_COL = 12;
+const VIEW_INVOICE_COL = COL.viewInvoice;
 
 async function fetchRegisterRows(batchId: string): Promise<InvoiceRegisterRow[]> {
   const invoices = await hairDb
@@ -42,6 +55,7 @@ async function fetchRegisterRows(batchId: string): Promise<InvoiceRegisterRow[]>
       subtotalPaise: fyhInvoices.subtotalPaise,
       taxPaise: fyhInvoices.taxPaise,
       grandTotalPaise: fyhInvoices.grandTotalPaise,
+      amountPaidPaise: fyhInvoices.amountPaidPaise,
       paymentMode: fyhInvoicePayments.method,
       invoiceStatus: fyhInvoices.status,
     })
@@ -81,27 +95,9 @@ async function fetchRegisterRows(batchId: string): Promise<InvoiceRegisterRow[]>
     amountInr: inr(inv.subtotalPaise),
     gstInr: inr(inv.taxPaise),
     grandTotalInr: inr(inv.grandTotalPaise),
+    paidInr: inr(inv.amountPaidPaise),
     invoiceStatus: inv.invoiceStatus,
   }));
-}
-
-function addSummaryRows(sheet: ExcelJS.Worksheet, rows: InvoiceRegisterRow[]) {
-  const totalRevenue = rows.reduce((s, r) => s + r.grandTotalInr, 0);
-  const totalGst = rows.reduce((s, r) => s + r.gstInr, 0);
-  const cashTotal = rows
-    .filter((r) => r.paymentMode === 'cash')
-    .reduce((s, r) => s + r.grandTotalInr, 0);
-  const upiTotal = rows
-    .filter((r) => r.paymentMode === 'upi')
-    .reduce((s, r) => s + r.grandTotalInr, 0);
-
-  sheet.addRow([]);
-  sheet.addRow(['Summary']);
-  sheet.addRow(['Total invoices', rows.length]);
-  sheet.addRow(['Total revenue (INR)', totalRevenue]);
-  sheet.addRow(['GST collected (INR)', totalGst]);
-  sheet.addRow(['Cash total (INR)', cashTotal]);
-  sheet.addRow(['UPI total (INR)', upiTotal]);
 }
 
 function addRegisterSheet(workbook: ExcelJS.Workbook, sheetName: string, rows: InvoiceRegisterRow[]) {
@@ -114,9 +110,10 @@ function addRegisterSheet(workbook: ExcelJS.Workbook, sheetName: string, rows: I
     'Mobile Number',
     'Service',
     'Payment Mode',
-    'Amount',
+    'Taxable Amount',
     'GST',
     'Grand Total',
+    'Paid Amount',
     'Invoice Status',
     'View Invoice',
   ]);
@@ -124,7 +121,7 @@ function addRegisterSheet(workbook: ExcelJS.Workbook, sheetName: string, rows: I
 
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i]!;
-    const rowNum = i + 2;
+    const rowNum = i + FIRST_DATA_ROW;
     sheet.addRow([
       r.invoiceNumber,
       r.invoiceDate,
@@ -135,6 +132,7 @@ function addRegisterSheet(workbook: ExcelJS.Workbook, sheetName: string, rows: I
       r.amountInr,
       r.gstInr,
       r.grandTotalInr,
+      r.paidInr,
       r.invoiceStatus,
       '',
     ]);
@@ -152,14 +150,27 @@ function addRegisterSheet(workbook: ExcelJS.Workbook, sheetName: string, rows: I
     { width: 14 },
     { width: 32 },
     { width: 14 },
-    { width: 12 },
+    { width: 14 },
     { width: 10 },
+    { width: 14 },
     { width: 14 },
     { width: 14 },
     { width: 16 },
   ];
 
-  addSummaryRows(sheet, rows);
+  const lastDataRow = rows.length > 0 ? rows.length + 1 : FIRST_DATA_ROW - 1;
+  appendInvoiceRegisterExcelSummary(sheet, FIRST_DATA_ROW, lastDataRow, {
+    invoiceNumberCol: COL.invoiceNumber,
+    taxableCol: COL.taxable,
+    gstCol: COL.gst,
+    grandTotalCol: COL.grandTotal,
+    paidCol: COL.paid,
+  }, computeRegisterSummaryTotals(rows.map((r) => ({
+    taxable: r.amountInr,
+    gst: r.gstInr,
+    grandTotal: r.grandTotalInr,
+    paid: r.paidInr,
+  }))));
 }
 
 export async function exportHistoricalImportRegisters(
