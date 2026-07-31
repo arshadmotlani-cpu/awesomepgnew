@@ -62,6 +62,10 @@ export const electricityInvoices = pgTable(
       onDelete: 'set null',
     }),
     paidAt: timestamp('paid_at', { withTimezone: true }),
+    /** First time the resident opened pay-electricity or public share link. */
+    firstViewedAt: timestamp('first_viewed_at', { withTimezone: true }),
+    /** 'pay_page' | 'public_share' */
+    viewedSource: text('viewed_source'),
     paymentProofUrl: text('payment_proof_url'),
     unitsShare: numeric('units_share', { precision: 10, scale: 2 }),
     activeDays: integer('active_days'),

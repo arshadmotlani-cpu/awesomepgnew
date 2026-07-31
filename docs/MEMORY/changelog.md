@@ -7,6 +7,10 @@
 
 ---
 
+## 2026-07-31
+
+- **ELECTRICITY-BILLING-AUDIT** — Published full 9-section audit (`docs/ELECTRICITY_BILLING_AUDIT.md`), UI walkthrough, worked examples scaffold; implemented `RoomElectricityAuditPanel` on admin bill detail for consolidated resident breakdown + sum validation
+
 ## 2026-07-30
 
 - **FYH-COMMUNICATIONS-PHASE-G** — Template-driven notifications service (`renderTemplate` settings→DB→seed), outbox processor stub (sent/failed), post-checkout invoice/review enqueue, appointment confirmation via templates, Quick Sale WhatsApp preview action, cron-ready automations, loyalty outbox admin panel, `invoice_ready` kind

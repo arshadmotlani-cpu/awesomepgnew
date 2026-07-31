@@ -12,6 +12,8 @@ Admin records **room-level meter readings**; system splits cost among active mon
 
 **SSOT:** `meterElectricity.ts`, `electricityBilling.ts`, `electricity_bills`, `electricity_invoices`
 
+**Full system audit:** [ELECTRICITY_BILLING_AUDIT.md](ELECTRICITY_BILLING_AUDIT.md) · [UI walkthrough](ELECTRICITY_BILLING_UI_WALKTHROUGH.md)
+
 ---
 
 ## Related features

@@ -1,9 +1,13 @@
 import { notFound } from 'next/navigation';
+import { eq } from 'drizzle-orm';
 import { InvoiceDocument } from '@/src/components/billing/InvoiceDocument';
 import { InvoicePdfDownloadLink } from '@/src/components/billing/InvoicePdfDownloadLink';
+import { db } from '@/src/db/client';
+import { financialInvoices } from '@/src/db/schema';
 import { getInvoiceDocumentDetail } from '@/src/lib/billing/invoiceDocumentModel';
 import { invoicePdfShareDownloadHref } from '@/src/lib/billing/invoicePdfLinks';
 import { resolveInvoiceIdByShareToken } from '@/src/lib/billing/invoiceShareToken';
+import { recordElectricityInvoiceView } from '@/src/services/electricityInvoiceViews';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +28,22 @@ export default async function PublicInvoiceSharePage({
 
   const document = await getInvoiceDocumentDetail(invoiceId);
   if (!document) notFound();
+
+  const [sourceRow] = await db
+    .select({
+      sourceTable: financialInvoices.sourceTable,
+      sourceId: financialInvoices.sourceId,
+    })
+    .from(financialInvoices)
+    .where(eq(financialInvoices.id, invoiceId))
+    .limit(1);
+
+  if (sourceRow?.sourceTable === 'electricity_invoices' && sourceRow.sourceId) {
+    await recordElectricityInvoiceView({
+      invoiceId: sourceRow.sourceId,
+      source: 'public_share',
+    });
+  }
 
   return (
     <div className="min-h-screen bg-zinc-50 px-4 py-8 print:bg-white">
