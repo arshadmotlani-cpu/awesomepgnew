@@ -86,23 +86,19 @@ export async function getInvoicePrintHtmlAction(invoiceId: string): Promise<
 
 export async function getInvoiceSharePreviewAction(input: {
   invoiceId: string;
+  invoiceNumber: string;
   customerName: string;
   customerPhone: string;
   grandTotalPaise: number;
 }): Promise<{ ok: true; body: string; waUrl: string } | { ok: false; error: string }> {
   try {
     await requirePermission('page:billing');
-    const baseUrl =
-      typeof process.env.NEXT_PUBLIC_APP_URL === 'string'
-        ? process.env.NEXT_PUBLIC_APP_URL
-        : undefined;
     const preview = await buildNotificationPreview({
       kind: 'whatsapp_invoice',
       customerName: input.customerName,
       customerPhone: input.customerPhone,
       grandTotalPaise: input.grandTotalPaise,
-      invoiceId: input.invoiceId,
-      baseUrl,
+      invoiceNumber: input.invoiceNumber,
     });
     if (!preview) return { ok: false, error: 'Could not build share message' };
     return { ok: true, body: preview.body, waUrl: preview.waUrl };

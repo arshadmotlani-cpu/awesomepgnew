@@ -17,7 +17,7 @@ export async function getNotificationPreviewAction(input: {
   customerName: string;
   customerPhone: string;
   grandTotalPaise?: number;
-  invoiceId?: string;
+  invoiceNumber?: string;
 }) {
   await requirePermission('action:settings.edit');
   const baseUrl =

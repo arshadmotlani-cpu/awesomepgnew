@@ -18,12 +18,12 @@ export function fyhPublicBaseUrl(): string {
   return FYH_PUBLIC_HOST;
 }
 
-/** Public browser URL for an invoice detail page (not /fyh internal rewrite path). */
-export function invoicePublicViewUrl(invoiceId: string): string {
-  return `${fyhPublicBaseUrl()}/billing/${invoiceId}`;
+/** Public customer invoice page — no login required. */
+export function invoicePublicViewUrl(invoiceNumber: string): string {
+  return `${fyhPublicBaseUrl()}/i/${encodeURIComponent(invoiceNumber)}`;
 }
 
-/** Authenticated print/download endpoint (HTML receipt — open from invoice page). */
-export function invoicePublicPrintUrl(invoiceId: string): string {
-  return `${fyhPublicBaseUrl()}/fyh/api/invoices/${invoiceId}/print?download=1`;
+/** Public print/download endpoint (HTML receipt). */
+export function invoicePublicPrintUrl(invoiceNumber: string): string {
+  return `${fyhPublicBaseUrl()}/fyh/api/invoices/public/${encodeURIComponent(invoiceNumber)}/print?download=1`;
 }

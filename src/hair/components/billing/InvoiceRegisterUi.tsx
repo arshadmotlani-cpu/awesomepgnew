@@ -91,6 +91,7 @@ function InvoiceRowActions({ row }: { row: InvoiceRegisterRow }) {
     startTransition(async () => {
       const res = await getInvoiceSharePreviewAction({
         invoiceId: row.id,
+        invoiceNumber: row.invoiceNumber,
         customerName: row.customerName,
         customerPhone: row.mobile,
         grandTotalPaise: row.grandTotalPaise,

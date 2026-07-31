@@ -32,6 +32,7 @@ import {
   type StaffAttributionInput,
 } from '@/src/hair/services/salesAttribution';
 import { escapeHtml, salonDayBounds } from '@/src/hair/lib/salonTime';
+import { buildPublicInvoiceDocumentHtml } from '@/src/hair/lib/publicInvoiceDocument';
 import {
   computeGrandTotalFromParts as computeGrandTotalFromPartsLib,
   taxOnLine,
@@ -121,11 +122,14 @@ export async function getInvoiceDetail(invoiceId: string) {
       invoice: fyhInvoices,
       customerName: fyhCustomers.fullName,
       customerPhone: fyhCustomers.phone,
+      customerCode: fyhCustomers.customerCode,
       walletBalancePaise: fyhCustomers.walletBalancePaise,
       stylistName: fyhStaff.fullName,
       businessName: fyhSettings.businessName,
       businessAddress: fyhSettings.businessAddress,
       gstin: fyhSettings.gstin,
+      invoiceNotes: fyhSettings.invoiceNotes,
+      whatsappSettings: fyhSettings.whatsappSettings,
     })
     .from(fyhInvoices)
     .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhInvoices.customerId))
@@ -146,6 +150,55 @@ export async function getInvoiceDetail(invoiceId: string) {
     .where(eq(fyhInvoicePayments.invoiceId, invoiceId));
 
   return { ...invoice, lines, payments };
+}
+
+export type InvoiceDetail = NonNullable<Awaited<ReturnType<typeof getInvoiceDetail>>>;
+
+function isPublicInvoiceVisible(invoice: typeof fyhInvoices.$inferSelect): boolean {
+  return !(invoice.source === 'quick_sale' && invoice.status === 'draft');
+}
+
+export async function getInvoiceDetailByNumber(rawInvoiceNumber: string) {
+  const invoiceNumber = decodeURIComponent(rawInvoiceNumber).trim();
+  if (!invoiceNumber) return null;
+
+  const [invoice] = await hairDb
+    .select({
+      invoice: fyhInvoices,
+      customerName: fyhCustomers.fullName,
+      customerPhone: fyhCustomers.phone,
+      customerCode: fyhCustomers.customerCode,
+      walletBalancePaise: fyhCustomers.walletBalancePaise,
+      stylistName: fyhStaff.fullName,
+      businessName: fyhSettings.businessName,
+      businessAddress: fyhSettings.businessAddress,
+      gstin: fyhSettings.gstin,
+      invoiceNotes: fyhSettings.invoiceNotes,
+      whatsappSettings: fyhSettings.whatsappSettings,
+    })
+    .from(fyhInvoices)
+    .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhInvoices.customerId))
+    .leftJoin(fyhStaff, eq(fyhStaff.id, fyhInvoices.stylistId))
+    .leftJoin(fyhSettings, sql`true`)
+    .where(eq(fyhInvoices.invoiceNumber, invoiceNumber))
+    .limit(1);
+  if (!invoice || !isPublicInvoiceVisible(invoice.invoice)) return null;
+
+  const lines = await hairDb
+    .select()
+    .from(fyhInvoiceLines)
+    .where(eq(fyhInvoiceLines.invoiceId, invoice.invoice.id))
+    .orderBy(fyhInvoiceLines.sortOrder);
+  const payments = await hairDb
+    .select()
+    .from(fyhInvoicePayments)
+    .where(eq(fyhInvoicePayments.invoiceId, invoice.invoice.id));
+
+  return { ...invoice, lines, payments };
+}
+
+export function buildPublicInvoicePrintHtml(detail: InvoiceDetail): string {
+  return buildPublicInvoiceDocumentHtml(detail);
 }
 
 export async function nextInvoiceNumberForTx(tx: typeof hairDb): Promise<string> {

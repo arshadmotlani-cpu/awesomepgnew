@@ -9,6 +9,7 @@ import { formatInrFromPaise } from '@/src/hair/lib/money';
 
 type Props = {
   invoiceId: string;
+  invoiceNumber?: string;
   customerName: string;
   customerPhone: string;
   grandTotalPaise: number;
@@ -20,6 +21,7 @@ type Props = {
 
 export function QuickSaleSuccessDialog({
   invoiceId,
+  invoiceNumber,
   customerName,
   customerPhone,
   grandTotalPaise,
@@ -45,14 +47,13 @@ export function QuickSaleSuccessDialog({
             customerName,
             customerPhone,
             grandTotalPaise,
-            invoiceId,
+            invoiceNumber,
           }),
           googleReviewUrl
             ? getNotificationPreviewAction({
                 kind: 'review_request',
                 customerName,
                 customerPhone,
-                invoiceId,
               })
             : Promise.resolve(null),
         ]);
@@ -67,7 +68,7 @@ export function QuickSaleSuccessDialog({
     return () => {
       cancelled = true;
     };
-  }, [customerName, customerPhone, grandTotalPaise, invoiceId, googleReviewUrl]);
+  }, [customerName, customerPhone, grandTotalPaise, invoiceNumber, googleReviewUrl]);
 
   const openWa = (url: string | undefined) => {
     if (url) window.open(url, '_blank');

@@ -141,7 +141,7 @@ function addRegisterSheet(workbook: ExcelJS.Workbook, sheetName: string, rows: I
     setExcelHyperlinkCell(
       sheet.getCell(rowNum, VIEW_INVOICE_COL),
       'View Invoice',
-      invoicePublicViewUrl(r.invoiceId),
+      invoicePublicViewUrl(r.invoiceNumber),
     );
   }
 

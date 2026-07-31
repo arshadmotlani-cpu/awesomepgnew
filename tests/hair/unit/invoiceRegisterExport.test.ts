@@ -10,11 +10,11 @@ import { exportInvoiceRegisterExcel } from '@/src/hair/services/invoiceRegisterE
 import type { InvoiceRegisterRow } from '@/src/hair/services/invoiceRegisterQueries';
 
 describe('invoicePublicViewUrl', () => {
-  it('uses public billing path without /fyh prefix', () => {
-    const url = invoicePublicViewUrl('abc-123');
+  it('uses public /i/{invoiceNumber} path without auth billing UUID', () => {
+    const url = invoicePublicViewUrl('FYH-00099');
     assert.match(url, /^https:\/\//);
-    assert.ok(url.endsWith('/billing/abc-123'));
-    assert.ok(!url.includes('/fyh/billing'));
+    assert.ok(url.includes('/i/FYH-00099'));
+    assert.ok(!url.includes('/billing/'));
   });
 });
 
@@ -50,11 +50,10 @@ describe('exportInvoiceRegisterExcel hyperlinks', () => {
     const cell = sheet.getCell(2, 12);
     const value = cell.value as ExcelJS.CellHyperlinkValue;
     assert.equal(value.text, 'View Invoice');
-    const expected = invoicePublicViewUrl(rows[0]!.id);
+    const expected = invoicePublicViewUrl(rows[0]!.invoiceNumber);
     assert.equal(value.hyperlink, expected);
-    assert.match(value.hyperlink, /^https:\/\/.+\/billing\/11111111-1111-1111-1111-111111111111$/);
+    assert.match(value.hyperlink, /^https:\/\/.+\/i\/FYH-00099$/);
 
-    // Sanity: helper matches production host when env unset
     if (!process.env.FYH_APP_URL && !process.env.NEXT_PUBLIC_APP_URL) {
       assert.ok(expected.startsWith(FYH_PUBLIC_HOST));
     }

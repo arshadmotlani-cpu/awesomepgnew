@@ -65,7 +65,7 @@ export async function completeQuickSaleAction(input: {
   source?: 'quick_sale' | 'appointment';
   appointmentId?: string;
 }): Promise<
-  QuickSaleActionState & { printHtml?: string; advancePaise?: number }
+  QuickSaleActionState & { printHtml?: string; advancePaise?: number; invoiceNumber?: string }
 > {
   try {
     await requirePermission('action:billing.checkout');
@@ -88,6 +88,7 @@ export async function completeQuickSaleAction(input: {
     return {
       success: 'Sale complete',
       invoiceId: result.invoiceId,
+      invoiceNumber: detail?.invoice.invoiceNumber,
       printHtml,
       advancePaise: result.advancePaise,
     };

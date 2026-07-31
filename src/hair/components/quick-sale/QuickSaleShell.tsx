@@ -85,6 +85,7 @@ export function QuickSaleShell({
   const [membershipDiscountPaise, setMembershipDiscountPaise] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [invoiceId, setInvoiceId] = useState<string | null>(null);
+  const [invoiceNumber, setInvoiceNumber] = useState<string | null>(null);
   const [advancePaise, setAdvancePaise] = useState(0);
   const [printHtml, setPrintHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -264,6 +265,7 @@ export function QuickSaleShell({
     return (
       <QuickSaleSuccessDialog
         invoiceId={invoiceId}
+        invoiceNumber={invoiceNumber ?? undefined}
         customerName={customer.fullName}
         customerPhone={customer.phone}
         grandTotalPaise={priced?.totals.grandTotalPaise ?? 0}
@@ -547,6 +549,7 @@ export function QuickSaleShell({
             if (res.error) setError(res.error);
             else if (res.invoiceId) {
               setInvoiceId(res.invoiceId);
+              setInvoiceNumber(res.invoiceNumber ?? null);
               setAdvancePaise(res.advancePaise ?? 0);
               setPrintHtml(res.printHtml ?? null);
               setStep('done');

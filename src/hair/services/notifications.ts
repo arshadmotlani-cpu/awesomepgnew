@@ -11,6 +11,7 @@ import {
 import type { FyhCommunicationSettings } from '@/src/hair/db/schema/settings';
 import { salonDayBounds, salonDayKeyOffset } from '@/src/hair/lib/salonTime';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
+import { invoicePublicViewUrl } from '@/src/hair/lib/invoicePublicLinks';
 import { getSalonSettings } from '@/src/hair/services/settings';
 import { enqueueNotification } from '@/src/hair/services/loyaltyOps';
 import { listLowStockProducts } from '@/src/hair/services/stock';
@@ -135,7 +136,7 @@ export async function enqueuePostCheckoutNotifications(input: {
   customerName: string;
   phone: string | null;
   whatsapp?: string | null;
-  invoiceId: string;
+  invoiceNumber: string;
   grandTotalPaise: number;
   baseUrl?: string;
 }): Promise<void> {
@@ -145,9 +146,7 @@ export async function enqueuePostCheckoutNotifications(input: {
   const recipient = normalizeRecipientPhone(input.phone, input.whatsapp);
   if (!recipient) return;
 
-  const link = input.baseUrl
-    ? `${input.baseUrl.replace(/\/$/, '')}/billing/${input.invoiceId}`
-    : `/billing/${input.invoiceId}`;
+  const link = invoicePublicViewUrl(input.invoiceNumber);
   const vars = {
     name: input.customerName,
     amount: formatInrFromPaise(input.grandTotalPaise),
@@ -432,7 +431,7 @@ export async function buildNotificationPreview(input: {
   customerName: string;
   customerPhone: string;
   grandTotalPaise?: number;
-  invoiceId?: string;
+  invoiceNumber?: string;
   baseUrl?: string;
 }): Promise<{ body: string; waUrl: string } | null> {
   const settings = await getSalonSettings();
@@ -442,10 +441,8 @@ export async function buildNotificationPreview(input: {
   const link =
     input.kind === 'review_request'
       ? settings.googleReviewUrl?.trim() ?? ''
-      : input.invoiceId
-        ? input.baseUrl
-          ? `${input.baseUrl.replace(/\/$/, '')}/billing/${input.invoiceId}`
-          : `/billing/${input.invoiceId}`
+      : input.invoiceNumber
+        ? invoicePublicViewUrl(input.invoiceNumber)
         : '';
 
   const vars: Record<string, string> =

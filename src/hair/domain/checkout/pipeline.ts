@@ -321,15 +321,22 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
       .where(eq(fyhCustomers.id, enriched.customerId))
       .limit(1);
     if (customer) {
-      const { enqueuePostCheckoutNotifications } = await import('@/src/hair/services/notifications');
-      await enqueuePostCheckoutNotifications({
-        customerId: enriched.customerId,
-        customerName: customer.fullName,
-        phone: customer.phone,
-        whatsapp: customer.whatsapp,
-        invoiceId,
-        grandTotalPaise: priced.totals.grandTotalPaise,
-      });
+      const [invRow] = await hairDb
+        .select({ invoiceNumber: fyhInvoices.invoiceNumber })
+        .from(fyhInvoices)
+        .where(eq(fyhInvoices.id, invoiceId))
+        .limit(1);
+      if (invRow) {
+        const { enqueuePostCheckoutNotifications } = await import('@/src/hair/services/notifications');
+        await enqueuePostCheckoutNotifications({
+          customerId: enriched.customerId,
+          customerName: customer.fullName,
+          phone: customer.phone,
+          whatsapp: customer.whatsapp,
+          invoiceNumber: invRow.invoiceNumber,
+          grandTotalPaise: priced.totals.grandTotalPaise,
+        });
+      }
     }
   } catch {
     // Post-checkout notifications are best-effort.

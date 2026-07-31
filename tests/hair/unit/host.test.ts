@@ -38,4 +38,10 @@ test('protects app modules but not login', () => {
   assert.equal(isHairPublicPath('/settings/salon'), true);
   assert.equal(hairPublicToInternal('/settings/billing'), '/fyh/settings/billing');
   assert.equal(isHairPublicPath('/assets'), false);
+  assert.equal(isHairPublicPath('/i/FYH-00001'), true);
+  assert.equal(isHairPublicPath('/invoice/FYH-00001'), true);
+  assert.equal(hairPublicToInternal('/i/FYH-00001'), '/fyh/i/FYH-00001');
+  assert.equal(hairPublicToInternal('/invoice/FYH-00001'), '/fyh/invoice/FYH-00001');
+  assert.equal(isHairProtectedPath('/i/FYH-00001'), false);
+  assert.equal(isHairProtectedPath('/invoice/FYH-00001'), false);
 });

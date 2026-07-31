@@ -3,10 +3,10 @@ import Link from 'next/link';
 import {
   InvoicePayForm,
 } from '@/src/hair/components/billing/BillingUi';
-import { InvoiceDetailActions } from '@/src/hair/components/billing/InvoiceDetailActions';
+import { InternalInvoiceActions } from '@/src/hair/components/billing/InternalInvoiceActions';
 import { Button } from '@/src/hair/components/ui/button';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
-import { buildInvoicePrintHtml, getInvoiceDetail } from '@/src/hair/services/invoices';
+import { getInvoiceDetail } from '@/src/hair/services/invoices';
 
 type Props = {
   params: Promise<{ invoiceId: string }>;
@@ -21,13 +21,12 @@ export default async function InvoiceDetailPage({ params }: Props) {
     detail;
   const duePaise = Math.max(0, invoice.grandTotalPaise - invoice.amountPaidPaise);
   const unpaid = invoice.status === 'unpaid' || invoice.status === 'partial';
-  const printHtml = buildInvoicePrintHtml(detail);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="fyh-section-eyebrow">Invoice</p>
+          <p className="fyh-section-eyebrow">Invoice · Staff</p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold">{invoice.invoiceNumber}</h1>
           <p className="mt-1 text-sm text-fyh-text-secondary">
             {customerName} · {customerPhone}
@@ -40,13 +39,7 @@ export default async function InvoiceDetailPage({ params }: Props) {
               Back to register
             </Button>
           </Link>
-          <InvoiceDetailActions
-            invoiceId={invoice.id}
-            customerName={customerName}
-            customerPhone={customerPhone}
-            grandTotalPaise={invoice.grandTotalPaise}
-            printHtml={printHtml}
-          />
+          <InternalInvoiceActions invoiceNumber={invoice.invoiceNumber} status={invoice.status} />
         </div>
       </div>
 
