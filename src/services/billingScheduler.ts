@@ -302,27 +302,36 @@ export async function listBillingGenerationFailures(opts?: {
 }
 
 export async function listTodayGeneratedInvoices(runDate: string) {
-  const { rentInvoices, customers, pgs } = await import('@/src/db/schema');
+  const { rentInvoices, customers, pgs, beds, rooms } = await import('@/src/db/schema');
   const dayStart = `${runDate}T00:00:00.000Z`;
   const dayEnd = `${runDate}T23:59:59.999Z`;
   return db
     .select({
       invoiceId: rentInvoices.id,
       invoiceNumber: rentInvoices.invoiceNumber,
+      customerId: rentInvoices.customerId,
       customerName: customers.fullName,
+      customerPhone: customers.phone,
+      bookingId: rentInvoices.bookingId,
+      pgId: rentInvoices.pgId,
       pgName: pgs.name,
+      roomNumber: rooms.roomNumber,
       rentPaise: rentInvoices.rentPaise,
+      discountPaise: rentInvoices.discountPaise,
       billingMonth: rentInvoices.billingMonth,
+      dueDate: rentInvoices.dueDate,
+      status: rentInvoices.status,
       createdAt: rentInvoices.createdAt,
     })
     .from(rentInvoices)
     .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
     .innerJoin(pgs, eq(pgs.id, rentInvoices.pgId))
+    .innerJoin(beds, eq(beds.id, rentInvoices.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
     .where(
       and(
         eq(rentInvoices.isAdhoc, false),
-        sql`${rentInvoices.createdAt} >= ${dayStart}::timestamptz`,
-        sql`${rentInvoices.createdAt} <= ${dayEnd}::timestamptz`,
+        sql`(${rentInvoices.createdAt} AT TIME ZONE 'Asia/Kolkata')::date = ${runDate}::date`,
       ),
     )
     .orderBy(desc(rentInvoices.createdAt));

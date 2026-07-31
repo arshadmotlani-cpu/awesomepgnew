@@ -65,6 +65,7 @@ import {
   listTodayGeneratedInvoices,
 } from '@/src/services/billingScheduler';
 import { loadUpcomingRentSchedule } from '@/src/services/billingUpcomingSchedule';
+import { loadBillingOperationsDashboard } from '@/src/services/billingOperationsDashboard';
 import { listRentBillingOverview, listBillingCycleOperations } from '@/src/services/rentInvoices';
 import { listRoomsMissingElectricityBill } from '@/src/services/electricityBilling';
 import { count, sql } from 'drizzle-orm';
@@ -129,7 +130,7 @@ export default async function CollectionsModulePage({
   await ensureAdminPageNotificationsSeen('/admin/billing', '/admin/billing');
   const canGenerateRent = adminHasPermission(session.role, 'rent:write');
   const canSendLinks = adminHasPermission(session.role, 'payments:write');
-  const [openRent, rentPaid, elecPaid, elecPending, pgs, billingOverview, billingCycleOps, roomsMissingElectricity, billingHealth, lastRun, generatedToday, failures, electricityBillsToday, billingSnapshot, pipelineIssues, strayZeroInvoices, upcomingSchedule] =
+  const [openRent, rentPaid, elecPaid, elecPending, pgs, billingOverview, billingCycleOps, roomsMissingElectricity, billingHealth, lastRun, generatedToday, failures, electricityBillsToday, billingSnapshot, pipelineIssues, strayZeroInvoices, upcomingSchedule, operationsDashboard] =
     await Promise.all([
     listAdminOpenRentInvoices(),
     listAdminRentInvoices({ status: 'paid' }),
@@ -154,6 +155,7 @@ export default async function CollectionsModulePage({
     listPipelineTestIntegrityIssues(),
     listStrayZeroProductionInvoices(),
     loadUpcomingRentSchedule({ fromDate: todayIst, horizonDays: 14 }),
+    loadBillingOperationsDashboard(),
   ]);
 
   const allUnpaidRent = mergeUnpaidRent(openRent.ok ? openRent.data : []);
@@ -273,36 +275,9 @@ export default async function CollectionsModulePage({
       {tab === 'dashboard' ? (
         <AdminSectionErrorBoundary title="Billing dashboard">
           <BillingOperationsDashboard
-            metrics={{
-              billingMonth,
-              rentGeneratedToday: generatedToday.length,
-              electricityGeneratedToday: electricityBillsToday,
-              pendingApprovals: billingSnapshot.paymentReviewCount,
-              paidTodayCount: collectionsStats.collectedTodayCount,
-              overdueCount: collectionsStats.overdueCount,
-              newestInvoices: [
-                ...generatedToday.map((r) => ({
-                  id: r.invoiceId,
-                  residentName: r.customerName,
-                  invoiceNumber: r.invoiceNumber,
-                  amountPaise: r.rentPaise,
-                  status: 'generated',
-                  kind: 'rent' as const,
-                  dateLabel: formatDate(r.billingMonth),
-                  href: `/admin/invoices?ref=${encodeURIComponent(r.invoiceNumber)}`,
-                })),
-                ...(rentPendingRows.slice(0, 8).map((r) => ({
-                    id: r.id,
-                    residentName: r.customerFullName,
-                    invoiceNumber: r.invoiceNumber,
-                    amountPaise: r.outstandingPaise,
-                    status: r.effectiveStatus,
-                    kind: 'rent' as const,
-                    dateLabel: formatDate(r.billingMonth),
-                    href: `/admin/residents/${r.customerId}`,
-                  }))),
-              ].slice(0, 12),
-            }}
+            snapshot={operationsDashboard}
+            canMarkCash={canMarkCash}
+            adminName={session.fullName ?? session.email}
           />
           <div className="mt-8">
             <BillingUpcomingRentSchedule schedule={upcomingSchedule} />

@@ -22,6 +22,7 @@ import {
   pgs,
   rentInvoices,
   residentBillingProfiles,
+  rooms,
 } from '@/src/db/schema';
 import {
   isActiveResidentFilter,
@@ -33,8 +34,12 @@ export type UpcomingRentResidentRow = {
   bookingId: string;
   customerId: string;
   customerName: string;
+  customerPhone: string;
   pgId: string;
   pgName: string;
+  roomNumber: string;
+  bedCode: string;
+  bookingStatus: string;
   billingDay: number;
   issueDate: string;
   billingMonth: string;
@@ -91,8 +96,12 @@ export async function loadUpcomingRentSchedule(opts?: {
       bookingId: residentBillingProfiles.bookingId,
       customerId: residentBillingProfiles.customerId,
       customerName: customers.fullName,
+      customerPhone: customers.phone,
       pgId: residentBillingProfiles.pgId,
       pgName: pgs.name,
+      roomNumber: rooms.roomNumber,
+      bedCode: beds.bedCode,
+      bookingStatus: bookings.status,
       billingDay: residentBillingProfiles.billingDay,
       rentAmountPaise: residentBillingProfiles.rentAmountPaise,
       billingAnchorDate: residentBillingProfiles.billingAnchorDate,
@@ -105,6 +114,7 @@ export async function loadUpcomingRentSchedule(opts?: {
     .innerJoin(pgs, eq(pgs.id, residentBillingProfiles.pgId))
     .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
     .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
     .where(
       and(
         eq(residentBillingProfiles.autoGenerate, true),
@@ -193,8 +203,12 @@ export async function loadUpcomingRentSchedule(opts?: {
       bookingId: profile.bookingId,
       customerId: profile.customerId,
       customerName: profile.customerName,
+      customerPhone: profile.customerPhone,
       pgId: profile.pgId,
       pgName: profile.pgName,
+      roomNumber: profile.roomNumber,
+      bedCode: profile.bedCode,
+      bookingStatus: profile.bookingStatus,
       billingDay: profile.billingDay,
       issueDate,
       billingMonth,
