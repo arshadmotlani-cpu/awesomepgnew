@@ -71,7 +71,7 @@ export function InvoicePreviewModal({ invoiceId, onClose }: Props) {
   if (!invoiceId) return null;
 
   return (
-    <div className="fyh-invoice-modal-root fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto p-4 md:p-8">
+    <div className="fyh-invoice-modal-root fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto p-3 md:p-4">
       <button
         type="button"
         className="fyh-invoice-modal-backdrop fixed inset-0 bg-black/70"
@@ -82,11 +82,11 @@ export function InvoicePreviewModal({ invoiceId, onClose }: Props) {
         role="dialog"
         aria-modal="true"
         aria-label={preview ? `Invoice ${preview.invoiceNumber}` : 'Invoice preview'}
-        className="fyh-invoice-modal-panel relative z-[101] my-auto w-full max-w-[220mm]"
+        className="fyh-invoice-modal-panel relative z-[101] my-4 w-[min(95vw,240mm)]"
       >
-        <div className="fyh-invoice-body rounded-lg">
+        <div className="fyh-invoice-body overflow-hidden rounded-lg">
           <div className="fyh-invoice-page !min-h-0 !p-0">
-            <div className="fyh-invoice-toolbar !mb-0 !max-w-none sticky top-0 z-10 flex items-center justify-end gap-2 rounded-t-lg border-b border-[#e8dcc8] bg-[#faf6ee] px-3 py-2">
+            <div className="fyh-invoice-toolbar !mb-0 !max-w-none sticky top-0 z-10 flex items-center justify-end gap-2 rounded-t-lg border-b border-[#e8dcc8] bg-[#faf6ee] px-4 py-2.5">
               {preview ? (
                 <PublicFyhInvoiceActions
                   invoiceNumber={preview.invoiceNumber}
@@ -96,10 +96,10 @@ export function InvoicePreviewModal({ invoiceId, onClose }: Props) {
                   onClose={onClose}
                 />
               ) : pending ? (
-                <span className="text-xs text-[#6b6358]">Loading…</span>
+                <span className="text-sm text-[#6b6358]">Loading…</span>
               ) : null}
             </div>
-            <div className="max-h-[calc(90vh-4rem)] overflow-y-auto bg-[#f7f5f0] px-2 pb-4 pt-2 md:px-4">
+            <div className="fyh-invoice-modal-scroll bg-[#f7f5f0]">
               {pending && !preview ? (
                 <p className="py-16 text-center text-sm text-[#6b6358]">Loading invoice…</p>
               ) : null}
@@ -108,7 +108,11 @@ export function InvoicePreviewModal({ invoiceId, onClose }: Props) {
               ) : null}
               {preview ? (
                 <>
-                  <style dangerouslySetInnerHTML={{ __html: PUBLIC_INVOICE_STYLES + MODAL_PRINT_STYLES }} />
+                  <style
+                    dangerouslySetInnerHTML={{
+                      __html: PUBLIC_INVOICE_STYLES + MODAL_SCREEN_STYLES + MODAL_PRINT_STYLES,
+                    }}
+                  />
                   <div dangerouslySetInnerHTML={{ __html: preview.sheetHtml }} />
                 </>
               ) : null}
@@ -119,6 +123,23 @@ export function InvoicePreviewModal({ invoiceId, onClose }: Props) {
     </div>
   );
 }
+
+const MODAL_SCREEN_STYLES = `
+.fyh-invoice-modal-scroll {
+  overflow: auto;
+  max-height: calc(92vh - 3.5rem);
+  padding: 16px 0 24px;
+}
+.fyh-invoice-modal-panel .fyh-invoice-sheet {
+  width: 210mm;
+  min-width: 210mm;
+  max-width: 210mm;
+  margin: 0 auto;
+}
+.fyh-invoice-modal-panel .fyh-invoice-body {
+  overflow-x: auto;
+}
+`;
 
 const MODAL_PRINT_STYLES = `
 @media print {
@@ -141,7 +162,7 @@ const MODAL_PRINT_STYLES = `
     max-width: none !important;
     width: 100% !important;
   }
-  .fyh-invoice-modal-panel .max-h-\\[calc\\(90vh-4rem\\)\\] {
+  .fyh-invoice-modal-scroll {
     max-height: none !important;
     overflow: visible !important;
     padding: 0 !important;

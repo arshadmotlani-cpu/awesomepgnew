@@ -1,9 +1,11 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  PUBLIC_INVOICE_STYLES,
   buildPublicInvoiceDocumentHtml,
   buildPublicInvoiceViewModel,
 } from '@/src/hair/lib/publicInvoiceDocument';
+import { INVOICE_BUSINESS } from '@/src/hair/lib/invoiceBranding';
 import type { InvoiceDetail } from '@/src/hair/services/invoices';
 
 function mockDetail(overrides: Partial<InvoiceDetail> = {}): InvoiceDetail {
@@ -41,7 +43,7 @@ function mockDetail(overrides: Partial<InvoiceDetail> = {}): InvoiceDetail {
     customerCode: 'C-0042',
     walletBalancePaise: 0,
     stylistName: null,
-    businessName: 'For Your Hair',
+    businessName: 'Legacy DB Name',
     businessAddress: '12 MG Road, Bengaluru',
     gstin: '29ABCDE1234F1Z5',
     invoiceNotes: 'Services once rendered are non-refundable.',
@@ -75,8 +77,11 @@ function mockDetail(overrides: Partial<InvoiceDetail> = {}): InvoiceDetail {
 }
 
 describe('buildPublicInvoiceViewModel', () => {
-  it('includes customer code, status, and line columns', () => {
+  it('uses invoice-only business constants regardless of DB settings', () => {
     const vm = buildPublicInvoiceViewModel(mockDetail());
+    assert.equal(vm.businessName, INVOICE_BUSINESS.name);
+    assert.deepEqual(vm.businessAddressLines, INVOICE_BUSINESS.addressLines);
+    assert.equal(vm.businessPhone, INVOICE_BUSINESS.phone);
     assert.equal(vm.invoiceNumber, 'FYH-00100');
     assert.equal(vm.customerCode, 'C-0042');
     assert.equal(vm.statusLabel, 'Paid');
@@ -89,12 +94,16 @@ describe('buildPublicInvoiceViewModel', () => {
 });
 
 describe('buildPublicInvoiceDocumentHtml', () => {
-  it('renders premium layout sections', () => {
+  it('renders premium layout with Nagpur address and two-column header', () => {
     const html = buildPublicInvoiceDocumentHtml(mockDetail());
     assert.match(html, /Tax Invoice/);
     assert.match(html, /invoice-brand-logo\.png/);
     assert.match(html, /Shabana Makeup Studio and Academy/);
     assert.match(html, /For Your Hair/);
+    assert.match(html, /Kamptee Road/);
+    assert.match(html, /Maharashtra 440004/);
+    assert.match(html, /9823444886/);
+    assert.match(html, /fyh-invoice-brand-col/);
     assert.match(html, /Bill to/);
     assert.match(html, /hello@foryourhair\.in/);
     assert.match(html, /Customer ID: C-0042/);
@@ -102,5 +111,11 @@ describe('buildPublicInvoiceDocumentHtml', () => {
     assert.match(html, /QR/);
     assert.match(html, /Thank you for choosing/);
     assert.match(html, /fyh-invoice-sheet/);
+    assert.doesNotMatch(html, /12 MG Road, Bengaluru/);
+  });
+
+  it('enforces natural A4 sheet width in shared CSS', () => {
+    assert.match(PUBLIC_INVOICE_STYLES, /min-width: 210mm/);
+    assert.match(PUBLIC_INVOICE_STYLES, /max-width: 210mm/);
   });
 });

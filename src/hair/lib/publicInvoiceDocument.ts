@@ -1,9 +1,9 @@
 import { paiseToIndianWords } from '@/src/hair/lib/amountInWords';
-import { INVOICE_BRAND_LOGO } from '@/src/hair/lib/invoiceBranding';
+import { INVOICE_BRAND_LOGO, INVOICE_BUSINESS } from '@/src/hair/lib/invoiceBranding';
 import { escapeHtml } from '@/src/hair/lib/salonTime';
 import type { InvoiceDetail } from '@/src/hair/services/invoices';
 import type { FyhInvoiceStatus, FyhPaymentMethod } from '@/src/hair/db/schema/billing';
-import type { FyhBillingSettings, FyhWhatsappSettings } from '@/src/hair/db/schema/settings';
+import type { FyhBillingSettings } from '@/src/hair/db/schema/settings';
 
 const PAYMENT_LABELS: Record<FyhPaymentMethod, string> = {
   cash: 'Cash',
@@ -36,8 +36,8 @@ export type PublicInvoiceLineView = {
 
 export type PublicInvoiceViewModel = {
   businessName: string;
-  businessAddress: string | null;
-  businessPhone: string | null;
+  businessAddressLines: readonly string[];
+  businessPhone: string;
   businessEmail: string | null;
   gstin: string | null;
   invoiceNumber: string;
@@ -90,11 +90,6 @@ function paymentModesFromDetail(payments: InvoiceDetail['payments']): string {
   return modes.join(', ') || '—';
 }
 
-function businessPhoneFromSettings(settings: FyhWhatsappSettings | null | undefined): string | null {
-  const phone = settings?.businessPhone?.trim();
-  return phone || null;
-}
-
 function businessEmailFromSettings(settings: FyhBillingSettings | null | undefined): string | null {
   const email = settings?.businessEmail?.trim();
   return email || null;
@@ -106,10 +101,7 @@ export function buildPublicInvoiceViewModel(detail: InvoiceDetail): PublicInvoic
     customerName,
     customerPhone,
     customerCode,
-    businessName,
-    businessAddress,
     gstin,
-    whatsappSettings,
     billingSettings,
     invoiceNotes,
     lines,
@@ -120,9 +112,9 @@ export function buildPublicInvoiceViewModel(detail: InvoiceDetail): PublicInvoic
   const balancePaise = Math.max(0, invoice.grandTotalPaise - invoice.amountPaidPaise);
 
   return {
-    businessName: businessName ?? 'For Your Hair',
-    businessAddress: businessAddress ?? null,
-    businessPhone: businessPhoneFromSettings(whatsappSettings),
+    businessName: INVOICE_BUSINESS.name,
+    businessAddressLines: INVOICE_BUSINESS.addressLines,
+    businessPhone: INVOICE_BUSINESS.phone,
     businessEmail: businessEmailFromSettings(billingSettings),
     gstin: gstin ?? null,
     invoiceNumber: invoice.invoiceNumber,
@@ -188,16 +180,20 @@ html, body {
   color: var(--fyh-ink);
   background: var(--fyh-canvas);
   -webkit-font-smoothing: antialiased;
-  line-height: 1.5;
+  line-height: 1.55;
   min-height: 100vh;
+  overflow-x: auto;
 }
 
 .fyh-invoice-page {
   min-height: 100vh;
   padding: 24px 16px 48px;
+  overflow-x: auto;
 }
 
 .fyh-invoice-toolbar {
+  width: 210mm;
+  min-width: 210mm;
   max-width: 210mm;
   margin: 0 auto 16px;
   display: flex;
@@ -230,13 +226,14 @@ html, body {
 
 .fyh-invoice-sheet {
   width: 210mm;
-  max-width: 100%;
+  min-width: 210mm;
+  max-width: 210mm;
   min-height: 297mm;
   margin: 0 auto;
   background: var(--fyh-paper);
   border: 1px solid var(--fyh-border);
   box-shadow: 0 12px 40px rgba(26, 20, 16, 0.07);
-  padding: 12mm 14mm 10mm;
+  padding: 14mm 16mm 12mm;
   position: relative;
 }
 
@@ -246,13 +243,13 @@ html, body {
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
+  height: 4px;
   background: linear-gradient(90deg, var(--fyh-gold-light) 0%, var(--fyh-gold) 50%, var(--fyh-gold-light) 100%);
 }
 
 .fyh-invoice-hero {
-  margin-bottom: 20px;
-  padding-bottom: 18px;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
   border-bottom: 1px solid var(--fyh-border);
 }
 
@@ -260,34 +257,56 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 20px;
-  margin-bottom: 16px;
+  gap: 32px;
 }
 
-.fyh-invoice-logo-wrap {
-  flex-shrink: 0;
+.fyh-invoice-brand-col {
+  flex: 1 1 55%;
+  min-width: 0;
 }
 
 .fyh-invoice-brand-logo {
   display: block;
   width: auto;
   height: auto;
-  max-width: min(280px, 100%);
-  max-height: 110px;
+  max-width: 320px;
+  max-height: 140px;
   object-fit: contain;
-  object-position: left center;
+  object-position: left top;
+  margin-bottom: 14px;
+}
+
+.fyh-invoice-legal-name {
+  margin: 0 0 10px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--fyh-ink);
+  letter-spacing: 0.02em;
+}
+
+.fyh-invoice-legal-line {
+  margin: 0 0 4px;
+  font-size: 14px;
+  color: var(--fyh-muted);
+  line-height: 1.6;
+}
+
+.fyh-invoice-legal-line strong {
+  color: var(--fyh-ink);
+  font-weight: 600;
 }
 
 .fyh-invoice-title-block {
   text-align: right;
-  flex-shrink: 0;
-  min-width: 160px;
+  flex: 0 0 auto;
+  min-width: 200px;
 }
 
 .fyh-invoice-doc-title {
-  margin: 0 0 12px;
+  margin: 0 0 16px;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 26px;
+  font-size: 32px;
   font-weight: 400;
   letter-spacing: 0.14em;
   color: var(--fyh-gold);
@@ -296,40 +315,41 @@ html, body {
 
 .fyh-invoice-id-grid {
   display: grid;
-  gap: 6px;
-  margin-bottom: 10px;
-  font-size: 12px;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 14px;
 }
 
 .fyh-invoice-id-row {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 12px;
 }
 
 .fyh-invoice-id-row .label {
   color: var(--fyh-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
-  min-width: 72px;
+  min-width: 80px;
   text-align: right;
 }
 
 .fyh-invoice-id-row .value {
   font-weight: 600;
+  font-size: 15px;
   color: var(--fyh-ink);
   font-variant-numeric: tabular-nums;
-  min-width: 100px;
+  min-width: 110px;
   text-align: right;
 }
 
 .fyh-invoice-status {
   display: inline-block;
-  padding: 5px 14px;
+  padding: 7px 16px;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -363,41 +383,16 @@ html, body {
   border-color: #e7e5e4;
 }
 
-.fyh-invoice-legal {
-  padding-top: 4px;
-}
-
-.fyh-invoice-legal-name {
-  margin: 0 0 6px;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--fyh-ink);
-  letter-spacing: 0.02em;
-}
-
-.fyh-invoice-legal-line {
-  margin: 0 0 3px;
-  font-size: 11.5px;
-  color: var(--fyh-muted);
-  line-height: 1.55;
-}
-
-.fyh-invoice-legal-line strong {
-  color: var(--fyh-ink);
-  font-weight: 600;
-}
-
 .fyh-invoice-meta {
   display: grid;
   grid-template-columns: 1fr;
   gap: 0;
-  margin-bottom: 20px;
+  margin-bottom: 28px;
 }
 
 .fyh-invoice-meta-block h2 {
-  margin: 0 0 8px;
-  font-size: 10px;
+  margin: 0 0 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -406,37 +401,37 @@ html, body {
 
 .fyh-invoice-meta-block p {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--fyh-ink);
 }
 
 .fyh-invoice-meta-block .muted {
   color: var(--fyh-muted);
-  font-size: 12px;
-  margin-top: 3px;
+  font-size: 14px;
+  margin-top: 4px;
 }
 
 .fyh-invoice-meta-block .highlight {
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--fyh-ink);
 }
 
 .fyh-invoice-table-wrap {
   overflow-x: auto;
-  margin-bottom: 20px;
+  margin-bottom: 28px;
 }
 
 .fyh-invoice-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 11.5px;
+  font-size: 13px;
 }
 
 .fyh-invoice-table thead th {
-  padding: 10px 8px;
+  padding: 12px 10px;
   text-align: left;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -449,7 +444,7 @@ html, body {
 .fyh-invoice-table thead th.num { text-align: right; }
 
 .fyh-invoice-table tbody td {
-  padding: 9px 8px;
+  padding: 12px 10px;
   border-bottom: 1px solid #f3ede3;
   vertical-align: top;
 }
@@ -462,7 +457,7 @@ html, body {
 
 .fyh-invoice-table tbody td.service {
   font-weight: 500;
-  min-width: 110px;
+  min-width: 120px;
   color: var(--fyh-ink);
 }
 
@@ -472,25 +467,25 @@ html, body {
 
 .fyh-invoice-table .gst-pct {
   color: var(--fyh-muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .fyh-invoice-summary {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 18px;
+  margin-bottom: 24px;
 }
 
 .fyh-invoice-totals {
-  width: min(100%, 300px);
-  font-size: 12px;
+  width: min(100%, 340px);
+  font-size: 14px;
 }
 
 .fyh-invoice-totals-row {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
-  padding: 5px 0;
+  gap: 20px;
+  padding: 6px 0;
   color: var(--fyh-muted);
 }
 
@@ -501,10 +496,10 @@ html, body {
 }
 
 .fyh-invoice-totals-row.grand {
-  margin-top: 8px;
-  padding-top: 10px;
+  margin-top: 10px;
+  padding-top: 12px;
   border-top: 2px solid var(--fyh-gold);
-  font-size: 15px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--fyh-ink);
 }
@@ -520,12 +515,12 @@ html, body {
 }
 
 .fyh-invoice-words {
-  margin: 0 0 16px;
-  padding: 12px 14px;
+  margin: 0 0 24px;
+  padding: 14px 16px;
   background: var(--fyh-gold-soft);
   border-left: 3px solid var(--fyh-gold);
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 12px;
+  font-size: 14px;
   font-style: italic;
   color: #44403c;
 }
@@ -533,39 +528,40 @@ html, body {
 .fyh-invoice-payment {
   display: flex;
   flex-wrap: wrap;
-  gap: 24px;
-  margin-bottom: 22px;
-  font-size: 12px;
+  gap: 28px;
+  margin-bottom: 28px;
+  font-size: 14px;
 }
 
 .fyh-invoice-payment dt {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--fyh-gold);
-  margin: 0 0 4px;
+  margin: 0 0 6px;
 }
 
 .fyh-invoice-payment dd {
   margin: 0;
   font-weight: 600;
+  font-size: 15px;
   color: var(--fyh-ink);
 }
 
 .fyh-invoice-footer {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 24px;
+  gap: 32px;
   align-items: end;
-  padding-top: 16px;
+  padding-top: 24px;
   border-top: 1px solid var(--fyh-border);
 }
 
 .fyh-invoice-thanks {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 400;
   font-style: italic;
   color: var(--fyh-ink);
@@ -573,47 +569,47 @@ html, body {
 
 .fyh-invoice-terms {
   margin: 0;
-  font-size: 10.5px;
+  font-size: 13px;
   color: var(--fyh-muted);
-  max-width: 380px;
+  max-width: 420px;
   white-space: pre-line;
-  line-height: 1.55;
+  line-height: 1.6;
 }
 
 .fyh-invoice-signatures {
   display: flex;
-  gap: 28px;
+  gap: 32px;
   align-items: flex-end;
 }
 
 .fyh-invoice-signature {
   text-align: center;
-  min-width: 120px;
+  min-width: 140px;
 }
 
 .fyh-invoice-signature-line {
-  width: 140px;
+  width: 160px;
   border-top: 1px solid var(--fyh-ink);
-  margin: 0 auto 6px;
-  padding-top: 36px;
+  margin: 0 auto 8px;
+  padding-top: 40px;
 }
 
 .fyh-invoice-signature-label {
-  font-size: 9px;
+  font-size: 10px;
   color: var(--fyh-muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 
 .fyh-invoice-qr {
-  width: 68px;
-  height: 68px;
+  width: 72px;
+  height: 72px;
   border: 1.5px dashed var(--fyh-gold-muted);
   border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 8px;
+  font-size: 9px;
   color: var(--fyh-muted);
   text-align: center;
   padding: 4px;
@@ -621,7 +617,7 @@ html, body {
 }
 
 @media (max-width: 640px) {
-  .fyh-invoice-hero-top { flex-direction: column; }
+  .fyh-invoice-hero-top { flex-direction: column; gap: 24px; }
   .fyh-invoice-title-block { text-align: left; width: 100%; }
   .fyh-invoice-id-row { justify-content: flex-start; }
   .fyh-invoice-id-row .label { text-align: left; min-width: auto; }
@@ -636,11 +632,13 @@ html, body {
   .fyh-invoice-body,
   body.fyh-invoice-body {
     background: #fff;
+    overflow: visible;
   }
 
   .fyh-invoice-page {
     padding: 0;
     min-height: auto;
+    overflow: visible;
   }
 
   .fyh-invoice-toolbar {
@@ -649,6 +647,8 @@ html, body {
 
   .fyh-invoice-sheet {
     width: 100%;
+    min-width: 0;
+    max-width: none;
     min-height: auto;
     border: none;
     box-shadow: none;
@@ -664,7 +664,7 @@ html, body {
   }
 
   .fyh-invoice-brand-logo {
-    max-height: 100px;
+    max-height: 120px;
   }
 }
 `;
@@ -676,16 +676,15 @@ function statusClass(status: FyhInvoiceStatus): string {
 function renderInvoiceSheetHtml(vm: PublicInvoiceViewModel): string {
   const logo = INVOICE_BRAND_LOGO;
 
-  const legalLines = [
-    vm.businessAddress
-      ? `<p class="fyh-invoice-legal-line">${escapeHtml(vm.businessAddress)}</p>`
-      : '',
+  const addressLines = vm.businessAddressLines
+    .map((line) => `<p class="fyh-invoice-legal-line">${escapeHtml(line)}</p>`)
+    .join('');
+
+  const optionalLegalLines = [
     vm.gstin
       ? `<p class="fyh-invoice-legal-line"><strong>GSTIN</strong> ${escapeHtml(vm.gstin)}</p>`
       : '',
-    vm.businessPhone
-      ? `<p class="fyh-invoice-legal-line"><strong>Phone</strong> ${escapeHtml(vm.businessPhone)}</p>`
-      : '',
+    `<p class="fyh-invoice-legal-line"><strong>Phone</strong> ${escapeHtml(vm.businessPhone)}</p>`,
     vm.businessEmail
       ? `<p class="fyh-invoice-legal-line"><strong>Email</strong> ${escapeHtml(vm.businessEmail)}</p>`
       : '',
@@ -726,7 +725,7 @@ function renderInvoiceSheetHtml(vm: PublicInvoiceViewModel): string {
   return `<article class="fyh-invoice-sheet">
   <header class="fyh-invoice-hero">
     <div class="fyh-invoice-hero-top">
-      <div class="fyh-invoice-logo-wrap">
+      <div class="fyh-invoice-brand-col">
         <img
           class="fyh-invoice-brand-logo"
           src="${logo.src}"
@@ -734,6 +733,9 @@ function renderInvoiceSheetHtml(vm: PublicInvoiceViewModel): string {
           width="${logo.width}"
           height="${logo.height}"
         />
+        <p class="fyh-invoice-legal-name">${escapeHtml(vm.businessName)}</p>
+        ${addressLines}
+        ${optionalLegalLines}
       </div>
       <div class="fyh-invoice-title-block">
         <p class="fyh-invoice-doc-title">Tax Invoice</p>
@@ -749,10 +751,6 @@ function renderInvoiceSheetHtml(vm: PublicInvoiceViewModel): string {
         </div>
         <span class="${statusClass(vm.status)}">${escapeHtml(vm.statusLabel)}</span>
       </div>
-    </div>
-    <div class="fyh-invoice-legal">
-      <p class="fyh-invoice-legal-name">${escapeHtml(vm.businessName)}</p>
-      ${legalLines}
     </div>
   </header>
 
