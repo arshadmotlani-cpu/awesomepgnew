@@ -8,6 +8,7 @@ import {
   fyhServices,
   fyhStaff,
 } from '@/src/hair/db/schema';
+import { shouldHideServiceFromBillable } from '@/src/hair/lib/serviceCatalogHygiene';
 
 export type HairSearchHit = {
   type: 'customer' | 'invoice' | 'appointment' | 'staff' | 'service' | 'product';
@@ -111,11 +112,12 @@ export async function searchHair(query: string, limit = 20): Promise<HairSearchH
   }
 
   const services = await hairDb
-    .select({ id: fyhServices.id, name: fyhServices.name, category: fyhServices.category })
+    .select({ id: fyhServices.id, name: fyhServices.name, code: fyhServices.code, category: fyhServices.category })
     .from(fyhServices)
     .where(and(eq(fyhServices.isActive, true), ilike(fyhServices.name, pattern)))
     .limit(5);
   for (const s of services) {
+    if (shouldHideServiceFromBillable(s.name, s.code)) continue;
     hits.push({
       type: 'service',
       id: s.id,

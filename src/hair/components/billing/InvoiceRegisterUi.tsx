@@ -20,6 +20,7 @@ import {
   type InvoiceRegisterExportFormat,
 } from '@/src/hair/actions/invoiceRegister';
 import { PrintInvoiceButton } from '@/src/hair/components/billing/BillingUi';
+import { InvoicePreviewModal } from '@/src/hair/components/billing/InvoicePreviewModal';
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
 import {
@@ -70,7 +71,13 @@ function buildQuery(base: Record<string, string>, patch: Record<string, string |
   return qs ? `?${qs}` : '';
 }
 
-function InvoiceRowActions({ row }: { row: InvoiceRegisterRow }) {
+function InvoiceRowActions({
+  row,
+  onPreview,
+}: {
+  row: InvoiceRegisterRow;
+  onPreview: (invoiceId: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [printHtml, setPrintHtml] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -124,12 +131,22 @@ function InvoiceRowActions({ row }: { row: InvoiceRegisterRow }) {
             onClick={() => setOpen(false)}
           />
           <div className="absolute right-0 z-50 mt-1 min-w-[11rem] rounded-xl border border-[color:var(--fyh-border-strong)] bg-fyh-elevated py-1 shadow-xl">
-            <Link
-              href={`/billing/${row.id}`}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-fyh-text hover:bg-white/6"
-              onClick={() => setOpen(false)}
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-fyh-text hover:bg-white/6"
+              onClick={() => {
+                onPreview(row.id);
+                setOpen(false);
+              }}
             >
               <ExternalLink className="h-3.5 w-3.5" /> View
+            </button>
+            <Link
+              href={`/billing/${row.id}`}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-fyh-text-muted hover:bg-white/6"
+              onClick={() => setOpen(false)}
+            >
+              Staff detail
             </Link>
             <a
               href={pdfHref}
@@ -220,6 +237,9 @@ export function InvoiceRegisterUi({
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportPending, startExport] = useTransition();
   const [searchDraft, setSearchDraft] = useState(filters.q ?? '');
+  const [previewInvoiceId, setPreviewInvoiceId] = useState<string | null>(null);
+  const openPreview = useCallback((invoiceId: string) => setPreviewInvoiceId(invoiceId), []);
+  const closePreview = useCallback(() => setPreviewInvoiceId(null), []);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
@@ -482,13 +502,14 @@ export function InvoiceRegisterUi({
               {rows.map((row) => (
                 <div key={row.id} className="rounded-xl border border-[color:var(--fyh-border)] p-3">
                   <div className="flex items-start justify-between gap-2">
-                    <Link
-                      href={`/billing/${row.id}`}
+                    <button
+                      type="button"
                       className="font-semibold tabular-nums text-fyh-accent hover:underline"
+                      onClick={() => openPreview(row.id)}
                     >
                       {row.invoiceNumber}
-                    </Link>
-                    <InvoiceRowActions row={row} />
+                    </button>
+                    <InvoiceRowActions row={row} onPreview={openPreview} />
                   </div>
                   <p className="mt-1 text-sm">{row.customerName}</p>
                   <p className="text-xs text-fyh-text-muted">{row.mobile}</p>
@@ -526,15 +547,16 @@ export function InvoiceRegisterUi({
                   {rows.map((row) => (
                     <tr key={row.id}>
                       <td className="px-3 py-3">
-                        <InvoiceRowActions row={row} />
+                        <InvoiceRowActions row={row} onPreview={openPreview} />
                       </td>
                       <td className="px-3 py-3 font-medium tabular-nums">
-                        <Link
-                          href={`/billing/${row.id}`}
+                        <button
+                          type="button"
                           className="text-fyh-accent hover:underline"
+                          onClick={() => openPreview(row.id)}
                         >
                           {row.invoiceNumber}
-                        </Link>
+                        </button>
                       </td>
                       <td className="px-3 py-3 tabular-nums text-fyh-text-secondary">
                         {row.invoiceDate.toISOString().slice(0, 10)}
@@ -602,6 +624,7 @@ export function InvoiceRegisterUi({
           </div>
         ) : null}
       </div>
+      <InvoicePreviewModal invoiceId={previewInvoiceId} onClose={closePreview} />
     </div>
   );
 }

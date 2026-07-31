@@ -261,7 +261,11 @@ async function main() {
     console.log('✓ Admin already exists');
   }
 
-  await seedRcFixtures(db);
+  if (process.env.HAIR_SEED_RC === '1') {
+    await seedRcFixtures(db);
+  } else {
+    console.log('↷ Skipping RC fixtures (set HAIR_SEED_RC=1 to seed)');
+  }
 
   await close();
   console.log('✓ For Your Hair seed complete');

@@ -12,6 +12,8 @@ type Props = {
   customerPhone: string;
   customerName: string;
   grandTotalLabel: string;
+  onClose?: () => void;
+  printScopeClass?: string;
 };
 
 export function PublicFyhInvoiceActions({
@@ -19,6 +21,7 @@ export function PublicFyhInvoiceActions({
   customerPhone,
   customerName,
   grandTotalLabel,
+  onClose,
 }: Props) {
   const pdfUrl = invoicePublicPrintUrl(invoiceNumber);
   const publicUrl = invoicePublicViewUrl(invoiceNumber);
@@ -48,6 +51,11 @@ export function PublicFyhInvoiceActions({
       <button type="button" onClick={shareWhatsApp} className="fyh-invoice-btn">
         Share
       </button>
+      {onClose ? (
+        <button type="button" onClick={onClose} className="fyh-invoice-btn">
+          Close
+        </button>
+      ) : null}
     </>
   );
 }

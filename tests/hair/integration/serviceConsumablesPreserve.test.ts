@@ -13,13 +13,39 @@ import {
 } from '../../../src/hair/services/salonServices.ts';
 import { requireRcFixtures } from './rcFixtures.ts';
 
-test('updateService preserves deductInventory when only service name changes', async () => {
+test('updateService preserves deductInventory when only service name changes', async (t) => {
   const f = await requireRcFixtures();
   const detail = await getServiceDetail(f.cut.id);
   assert.ok(detail);
 
+  const originalName = detail.service.name;
   const kitsBefore = await getServiceConsumables(f.cut.id);
   assert.ok(kitsBefore.some((k) => k.deductInventory === true), 'RC cut should deduct stock');
+
+  t.after(async () => {
+    await updateService(f.cut.id, {
+      name: originalName,
+      category: detail.service.category ?? 'Hair',
+      durationMinutes: detail.service.durationMinutes,
+      sellingPriceRupees: detail.service.pricePaise / 100,
+      costPriceRupees: detail.service.costPricePaise / 100,
+      gstPercent: detail.service.gstBps / 100,
+      commissionType: detail.service.commissionType,
+      commissionFixedRupees: detail.service.commissionFixedPaise / 100,
+      commissionPercent: detail.service.commissionPercentBps / 100,
+      overrideStaffCommission: detail.service.overrideStaffCommission,
+      availableOnline: detail.service.availableOnline,
+      featured: detail.service.featured,
+      showOnWebsite: detail.service.showOnWebsite,
+      isActive: detail.service.isActive,
+      staffIds: detail.staffIds,
+      consumables: kitsBefore.map((k) => ({
+        productId: k.productId,
+        quantity: Number(k.quantity),
+        deductInventory: k.deductInventory,
+      })),
+    });
+  });
 
   const consumables = kitsBefore.map((k) => ({
     productId: k.productId,

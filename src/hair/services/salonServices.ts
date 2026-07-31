@@ -16,6 +16,10 @@ import {
   canonicalServiceName,
   normalizeServiceName,
 } from '@/src/hair/lib/serviceName';
+import {
+  shouldHideServiceFromBillable,
+  shouldHideServiceFromCatalog,
+} from '@/src/hair/lib/serviceCatalogHygiene';
 
 function toPaise(rupees: number): number {
   return Math.round(Number(rupees || 0) * 100);
@@ -164,7 +168,12 @@ export async function listServices(filters: ServiceListFilters = {}) {
       asc(fyhServices.name),
     )
     .limit(300)
-    .then((rows) => rows.map((r) => r.service));
+    .then((rows) =>
+      rows
+        .map((r) => r.service)
+        .filter((s) => !shouldHideServiceFromCatalog(s.name, s.code))
+        .filter((s) => (status === 'active' ? s.isActive : status === 'inactive' ? !s.isActive : true)),
+    );
 }
 
 export async function getService(id: string) {

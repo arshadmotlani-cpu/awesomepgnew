@@ -2,6 +2,11 @@ import { eq } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import { fyhServices } from '@/src/hair/db/schema';
 import type { HistoricalLineItem } from '@/src/hair/domain/import/historicalInvoice';
+import {
+  findClosestOfficialService,
+  isTestServiceName,
+  shouldHideServiceFromBillable,
+} from '@/src/hair/lib/serviceCatalogHygiene';
 
 const CATEGORY_NAMES = new Set(['hair', 'skin', 'makeup', 'nails']);
 
@@ -37,6 +42,7 @@ export async function buildHistoricalServiceMap(
   const categoryDefault = new Map<string, { id: string; name: string }>();
 
   for (const svc of services) {
+    if (shouldHideServiceFromBillable(svc.name, null)) continue;
     byName.set(normName(svc.name), {
       id: svc.id,
       name: svc.name,
@@ -64,6 +70,15 @@ function matchService(
 ): { id?: string; name: string; kind: 'service' | 'custom' } {
   const trimmed = label.trim();
   if (!trimmed) return { name: 'Salon Service', kind: 'custom' };
+
+  if (isTestServiceName(trimmed)) {
+    const closest = findClosestOfficialService(trimmed);
+    if (closest) {
+      const official = map.byName.get(normName(closest.entry.name));
+      if (official) return { id: official.id, name: official.name, kind: 'service' };
+      return { name: closest.entry.name, kind: 'custom' };
+    }
+  }
 
   const normalized = normName(trimmed);
   if (CATEGORY_NAMES.has(normalized)) {

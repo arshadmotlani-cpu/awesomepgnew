@@ -7,6 +7,7 @@ import {
 } from '@/src/hair/db/schema';
 import type { BillableItem, BillableItemType } from '@/src/hair/domain/catalog/types';
 import { staffModeForType } from '@/src/hair/domain/catalog/types';
+import { shouldHideServiceFromBillable } from '@/src/hair/lib/serviceCatalogHygiene';
 import { listMembershipPlans, listPackagePlans } from '@/src/hair/services/loyaltyOps';
 
 export async function loadBillableCatalog(): Promise<BillableItem[]> {
@@ -45,6 +46,7 @@ export async function loadBillableCatalog(): Promise<BillableItem[]> {
   const items: BillableItem[] = [];
 
   for (const s of services) {
+    if (shouldHideServiceFromBillable(s.name, s.code)) continue;
     items.push({
       id: s.id,
       type: 'service',

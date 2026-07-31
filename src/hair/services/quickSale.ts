@@ -8,6 +8,7 @@ import {
   fyhStaff,
 } from '@/src/hair/db/schema';
 import { listMembershipPlans, listPackagePlans } from '@/src/hair/services/loyaltyOps';
+import { shouldHideServiceFromBillable } from '@/src/hair/lib/serviceCatalogHygiene';
 import { computeRedemptions } from '@/src/hair/services/invoices';
 import { computeGrandTotalFromParts, sumCartLines } from '@/src/hair/lib/invoiceMath';
 import type { QuickSaleLineInput } from '@/src/hair/services/invoices';
@@ -90,6 +91,7 @@ export async function loadQuickSaleCatalog(): Promise<QuickSaleCatalog> {
       .select({
         id: fyhServices.id,
         name: fyhServices.name,
+        code: fyhServices.code,
         category: fyhServices.category,
         description: fyhServices.description,
         pricePaise: fyhServices.pricePaise,
@@ -138,7 +140,9 @@ export async function loadQuickSaleCatalog(): Promise<QuickSaleCatalog> {
       .orderBy(asc(fyhStaff.fullName)),
   ]);
 
-  return { services, products, packages, memberships, staff };
+  const visibleServices = services.filter((s) => !shouldHideServiceFromBillable(s.name, s.code));
+
+  return { services: visibleServices, products, packages, memberships, staff };
 }
 
 export type QuickSaleTotalsPreview = {

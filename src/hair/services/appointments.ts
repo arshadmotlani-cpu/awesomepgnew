@@ -21,6 +21,7 @@ import {
   canTransitionAppointmentStatus,
   isActiveCalendarStatus,
 } from '@/src/hair/lib/appointmentStatus';
+import { shouldHideServiceFromBillable } from '@/src/hair/lib/serviceCatalogHygiene';
 
 /** Statuses that do not occupy a bookable slot (excluded from conflict checks). */
 const NON_OCCUPYING = ['cancelled', 'no_show', 'completed', 'paid'] as const;
@@ -79,10 +80,11 @@ async function loadServiceSnapshots(serviceIds: string[]) {
     .select()
     .from(fyhServices)
     .where(and(eq(fyhServices.isActive, true), inArray(fyhServices.id, serviceIds)));
-  if (services.length !== serviceIds.length) {
+  const bookable = services.filter((s) => !shouldHideServiceFromBillable(s.name, s.code));
+  if (bookable.length !== serviceIds.length) {
     throw new Error('One or more services are unavailable');
   }
-  const map = new Map(services.map((s) => [s.id, s]));
+  const map = new Map(bookable.map((s) => [s.id, s]));
   return serviceIds.map((id) => {
     const s = map.get(id)!;
     return {

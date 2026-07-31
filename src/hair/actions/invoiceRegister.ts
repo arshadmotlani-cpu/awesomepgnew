@@ -2,6 +2,8 @@
 
 import { requirePermission } from '@/src/hair/lib/auth/permissions';
 import { buildNotificationPreview } from '@/src/hair/services/notifications';
+import { formatInrFromPaise } from '@/src/hair/lib/money';
+import { renderPublicInvoiceSheetHtml } from '@/src/hair/lib/publicInvoiceDocument';
 import {
   buildInvoicePrintHtml,
   getInvoiceDetail,
@@ -79,6 +81,34 @@ export async function getInvoicePrintHtmlAction(invoiceId: string): Promise<
     const detail = await getInvoiceDetail(invoiceId);
     if (!detail) return { ok: false, error: 'Invoice not found' };
     return { ok: true, html: buildInvoicePrintHtml(detail) };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Failed to load invoice' };
+  }
+}
+
+export async function getInvoicePreviewAction(invoiceId: string): Promise<
+  | {
+      ok: true;
+      sheetHtml: string;
+      invoiceNumber: string;
+      customerName: string;
+      customerPhone: string;
+      grandTotalLabel: string;
+    }
+  | { ok: false; error: string }
+> {
+  try {
+    await requirePermission('page:billing');
+    const detail = await getInvoiceDetail(invoiceId);
+    if (!detail) return { ok: false, error: 'Invoice not found' };
+    return {
+      ok: true,
+      sheetHtml: renderPublicInvoiceSheetHtml(detail),
+      invoiceNumber: detail.invoice.invoiceNumber,
+      customerName: detail.customerName,
+      customerPhone: detail.customerPhone,
+      grandTotalLabel: formatInrFromPaise(detail.invoice.grandTotalPaise),
+    };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Failed to load invoice' };
   }
