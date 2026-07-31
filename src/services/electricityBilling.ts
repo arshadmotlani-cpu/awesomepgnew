@@ -128,12 +128,22 @@ export type CreateElectricityBillResult =
   | { ok: false; kind: 'no_such_room' };
 
 /**
+ * Minimum invoice fields for late-fee / outstanding projection.
+ * View-tracking columns (`firstViewedAt`, `viewedSource`) are optional.
+ */
+export type ElectricityInvoiceForProjection = Pick<
+  ElectricityInvoice,
+  'status' | 'amountPaise' | 'dueDate' | 'paidPaise' | 'lateFeeLockedPaise'
+> &
+  Partial<ElectricityInvoice>;
+
+/**
  * Read-side projection of an electricity invoice with the dynamic
  * late-fee math applied as of `today`. Paid invoices report the FROZEN
  * late fee (no re-derivation); pending/cancelled invoices project live.
  */
 export type ElectricityInvoiceView = {
-  invoice: ElectricityInvoice;
+  invoice: ElectricityInvoiceForProjection;
   /**
    * `pending` → before due date, no penalty
    * `overdue` → past due date, penalty accruing
@@ -151,7 +161,7 @@ export type ElectricityInvoiceView = {
  * mirrors `projectInvoice` in `rentInvoices.ts` but keyed off `due_date`.
  */
 export function projectElectricityInvoice(
-  invoice: ElectricityInvoice,
+  invoice: ElectricityInvoiceForProjection,
   today: DateLike = formatDate(new Date()),
 ): ElectricityInvoiceView {
   if (invoice.status === 'paid') {

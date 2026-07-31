@@ -256,33 +256,18 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-31 16:43:58 UTC
+### Pending pre-commit sync · 2026-07-31 16:58:46 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]]
+**Areas touched:** [[Electricity]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (13):**
-- `app/(admin)/admin/electricity/bills/[id]/page.tsx`
-- `app/(admin)/admin/electricity/bills/actions.ts`
-- `app/(admin)/admin/electricity/invoices/[invoiceId]/as-resident/page.tsx`
-- `app/(customer)/account/resident/pay-electricity/[invoiceId]/page.tsx`
-- `app/i/[shareToken]/page.tsx`
-- `src/db/migrations/0131_electricity_invoice_view_tracking.sql`
-- `src/db/migrations/meta/_journal.json`
-- `src/db/schema/electricityInvoices.ts`
-- `src/lib/billing/buildElectricityPaymentBreakdown.ts`
-- `src/lib/billing/buildElectricityResidentTimeline.ts`
-- `src/lib/billing/buildElectricityRunningBalanceTimeline.ts`
-- `src/lib/billing/buildRoomElectricityAuditView.ts`
-- `src/lib/billing/buildRoomElectricityOperatorView.ts`
+**Staged code files (1):**
+- `src/services/electricityBilling.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed
