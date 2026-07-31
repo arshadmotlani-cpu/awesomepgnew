@@ -277,6 +277,7 @@ export default async function CollectionsModulePage({
           <BillingOperationsDashboard
             snapshot={operationsDashboard}
             canMarkCash={canMarkCash}
+            canGenerateRent={canGenerateRent}
             adminName={session.fullName ?? session.email}
           />
           <div className="mt-8">

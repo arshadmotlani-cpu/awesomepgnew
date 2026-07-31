@@ -14,7 +14,16 @@ export type BillingOpsStatusFilter =
 
 export type UpcomingGenerationBucket = 'today' | 'next_3' | 'next_7';
 
-export type UpcomingGenerationHighlight = 'red' | 'orange' | 'yellow' | null;
+export type UpcomingGenerationHighlight = 'red' | 'orange' | 'yellow' | 'blue' | null;
+
+export type UpcomingStatusTone = 'red' | 'orange' | 'yellow' | 'blue';
+
+export type UpcomingGenerationSummaryKpis = {
+  billsToday: number;
+  tomorrow: number;
+  next7Days: number;
+  expectedCollectionPaise: number;
+};
 
 export type OverdueBucket = '1-3' | '4-7' | '8-15' | '15+';
 
@@ -122,8 +131,59 @@ export function upcomingGenerationHighlight(
   const delta = diffDays(todayIso, issueDate);
   if (delta === 0) return 'red';
   if (delta === 1) return 'orange';
-  if (delta >= 2 && delta <= 7) return 'yellow';
+  if (delta >= 2 && delta <= 3) return 'yellow';
+  if (delta >= 4 && delta <= 7) return 'blue';
   return null;
+}
+
+export function upcomingGenerationStatusBadge(
+  issueDate: string,
+  todayIso: string,
+): { label: string; tone: UpcomingStatusTone } {
+  const delta = diffDays(todayIso, issueDate);
+  if (delta === 0) return { label: 'Generates Today', tone: 'red' };
+  if (delta === 1) return { label: 'Tomorrow', tone: 'orange' };
+  if (delta >= 2 && delta <= 3) return { label: 'Within 3 Days', tone: 'yellow' };
+  return { label: 'Within 4 Days', tone: 'blue' };
+}
+
+export function upcomingGenerationSortKey(issueDate: string, todayIso: string): number {
+  const delta = diffDays(todayIso, issueDate);
+  if (delta === 0) return 0;
+  if (delta === 1) return 1;
+  if (delta >= 2 && delta <= 3) return 2;
+  if (delta >= 4 && delta <= 7) return 3;
+  return 99;
+}
+
+export function sortUpcomingGenerationRows(
+  rows: BillingUpcomingGenerationRow[],
+  todayIso: string,
+): BillingUpcomingGenerationRow[] {
+  return [...rows].sort((a, b) => {
+    const keyDiff =
+      upcomingGenerationSortKey(a.issueDate, todayIso) -
+      upcomingGenerationSortKey(b.issueDate, todayIso);
+    if (keyDiff !== 0) return keyDiff;
+    return (
+      a.issueDate.localeCompare(b.issueDate) || a.customerName.localeCompare(b.customerName)
+    );
+  });
+}
+
+export function buildUpcomingGenerationSummaryKpis(
+  rows: BillingUpcomingGenerationRow[],
+  todayIso: string,
+): UpcomingGenerationSummaryKpis {
+  const tomorrowIso = formatDate(addDays(todayIso, 1));
+  const weekEnd = formatDate(addDays(todayIso, 7));
+
+  return {
+    billsToday: rows.filter((r) => r.issueDate === todayIso).length,
+    tomorrow: rows.filter((r) => r.issueDate === tomorrowIso).length,
+    next7Days: rows.filter((r) => r.issueDate >= todayIso && r.issueDate <= weekEnd).length,
+    expectedCollectionPaise: rows.reduce((sum, r) => sum + r.expectedRentPaise, 0),
+  };
 }
 
 export function classifyOverdueBucket(daysOutstanding: number): OverdueBucket {

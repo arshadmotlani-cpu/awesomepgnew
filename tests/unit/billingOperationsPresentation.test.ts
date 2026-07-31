@@ -4,9 +4,12 @@ import {
   buildBillingOperationsKpis,
   buildOverdueByBucket,
   buildUpcomingGenerationRows,
+  buildUpcomingGenerationSummaryKpis,
   classifyOverdueBucket,
   classifyUpcomingGenerationBucket,
+  sortUpcomingGenerationRows,
   upcomingGenerationHighlight,
+  upcomingGenerationStatusBadge,
 } from '../../src/lib/admin/billingOperationsPresentation';
 import type { UpcomingRentResidentRow } from '../../src/services/billingUpcomingSchedule';
 
@@ -43,8 +46,39 @@ describe('billingOperationsPresentation', () => {
   it('highlights upcoming generation urgency', () => {
     assert.equal(upcomingGenerationHighlight('2026-08-01', '2026-08-01'), 'red');
     assert.equal(upcomingGenerationHighlight('2026-08-02', '2026-08-01'), 'orange');
-    assert.equal(upcomingGenerationHighlight('2026-08-05', '2026-08-01'), 'yellow');
+    assert.equal(upcomingGenerationHighlight('2026-08-03', '2026-08-01'), 'yellow');
+    assert.equal(upcomingGenerationHighlight('2026-08-05', '2026-08-01'), 'blue');
     assert.equal(upcomingGenerationHighlight('2026-08-10', '2026-08-01'), null);
+  });
+
+  it('builds upcoming status badges and summary KPIs', () => {
+    assert.equal(upcomingGenerationStatusBadge('2026-08-01', '2026-08-01').label, 'Generates Today');
+    assert.equal(upcomingGenerationStatusBadge('2026-08-02', '2026-08-01').label, 'Tomorrow');
+    assert.equal(upcomingGenerationStatusBadge('2026-08-03', '2026-08-01').label, 'Within 3 Days');
+    assert.equal(upcomingGenerationStatusBadge('2026-08-07', '2026-08-01').label, 'Within 4 Days');
+
+    const rows = buildUpcomingGenerationRows({
+      scheduleResidents: [
+        upcomingRow({ issueDate: '2026-08-07', expectedRentPaise: 20000 }),
+        upcomingRow({ issueDate: '2026-08-01', expectedRentPaise: 10000 }),
+        upcomingRow({ issueDate: '2026-08-02', expectedRentPaise: 15000 }),
+      ],
+      depositHeldByBooking: new Map(),
+      outstandingByBooking: new Map(),
+      todayIso: '2026-08-01',
+    });
+
+    const sorted = sortUpcomingGenerationRows(rows, '2026-08-01');
+    assert.deepEqual(
+      sorted.map((r) => r.issueDate),
+      ['2026-08-01', '2026-08-02', '2026-08-07'],
+    );
+
+    const summary = buildUpcomingGenerationSummaryKpis(rows, '2026-08-01');
+    assert.equal(summary.billsToday, 1);
+    assert.equal(summary.tomorrow, 1);
+    assert.equal(summary.next7Days, 3);
+    assert.equal(summary.expectedCollectionPaise, 45000);
   });
 
   it('builds upcoming rows sorted by generation date', () => {

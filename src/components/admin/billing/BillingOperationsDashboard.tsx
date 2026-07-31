@@ -5,14 +5,13 @@ import { useMemo, useState } from 'react';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 import { BillingOperationsRowActions } from '@/src/components/admin/billing/BillingOperationsRowActions';
+import { BillingUpcomingGenerationSection } from '@/src/components/admin/billing/BillingUpcomingGenerationSection';
 import {
   applyBillingOperationsFilters,
-  groupUpcomingByBucket,
   type BillingOperationsFilters,
   type BillingOperationsSnapshot,
   type BillingOpsStatusFilter,
   type OverdueBucket,
-  type UpcomingGenerationHighlight,
 } from '@/src/lib/admin/billingOperationsPresentation';
 import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
 
@@ -33,13 +32,6 @@ const OVERDUE_BADGE: Record<OverdueBucket, string> = {
   '8-15': 'bg-rose-500/20 text-rose-100 ring-rose-400/40',
   '15+': 'bg-rose-600/30 text-rose-50 ring-rose-500/50',
 };
-
-function highlightRowClass(highlight: UpcomingGenerationHighlight): string {
-  if (highlight === 'red') return 'bg-rose-500/10';
-  if (highlight === 'orange') return 'bg-orange-500/10';
-  if (highlight === 'yellow') return 'bg-amber-500/10';
-  return '';
-}
 
 function KpiCard({
   label,
@@ -66,10 +58,12 @@ function KpiCard({
 export function BillingOperationsDashboard({
   snapshot,
   canMarkCash,
+  canGenerateRent,
   adminName,
 }: {
   snapshot: BillingOperationsSnapshot;
   canMarkCash: boolean;
+  canGenerateRent: boolean;
   adminName: string;
 }) {
   const [filters, setFilters] = useState<BillingOperationsFilters>({ status: 'all' });
@@ -77,11 +71,6 @@ export function BillingOperationsDashboard({
   const data = useMemo(
     () => applyBillingOperationsFilters(snapshot, filters),
     [snapshot, filters],
-  );
-
-  const upcomingGroups = useMemo(
-    () => groupUpcomingByBucket(data.upcomingGeneration),
-    [data.upcomingGeneration],
   );
 
   const showUpcoming = filters.status === 'all' || filters.status === 'upcoming';
@@ -92,6 +81,16 @@ export function BillingOperationsDashboard({
 
   return (
     <div className="space-y-8">
+      {showUpcoming ? (
+        <section>
+          <BillingUpcomingGenerationSection
+            rows={data.upcomingGeneration}
+            todayIso={data.todayIso}
+            canGenerate={canGenerateRent}
+          />
+        </section>
+      ) : null}
+
       <section className="rounded-xl border border-white/10 bg-[#1A1F27] p-4">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <label className="block text-xs text-apg-silver">
@@ -180,82 +179,6 @@ export function BillingOperationsDashboard({
           />
         </dl>
       </section>
-
-      {showUpcoming ? (
-        <section>
-          <header className="mb-3">
-            <h2 className="text-sm font-semibold text-white">Upcoming bill generation</h2>
-            <p className="mt-1 text-xs text-apg-silver">
-              Scheduled rent bills by generation date — today, next 3 days, and next 7 days.
-            </p>
-          </header>
-          {data.upcomingGeneration.length === 0 ? (
-            <p className="rounded-xl border border-white/10 px-4 py-6 text-sm text-apg-silver">
-              No upcoming bill generation in the selected window.
-            </p>
-          ) : (
-            <div className="space-y-6">
-              {[
-                { key: 'today', label: 'Today', rows: upcomingGroups.today },
-                { key: 'next3', label: 'Next 3 days', rows: upcomingGroups.next3 },
-                { key: 'next7', label: 'Next 7 days', rows: upcomingGroups.next7 },
-              ].map(({ key, label, rows }) =>
-                rows.length === 0 ? null : (
-                  <div key={key}>
-                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-apg-silver">
-                      {label} ({rows.length})
-                    </h3>
-                    <div className="overflow-hidden rounded-xl border border-white/10">
-                      <Table>
-                        <THead>
-                          <TR>
-                            <TH>Resident</TH>
-                            <TH>PG · room · bed</TH>
-                            <TH>Billing cycle</TH>
-                            <TH>Generation date</TH>
-                            <TH className="text-right">Expected rent</TH>
-                            <TH className="text-right">Deposit held</TH>
-                            <TH className="text-right">Outstanding</TH>
-                            <TH>Booking</TH>
-                          </TR>
-                        </THead>
-                        <TBody>
-                          {rows.map((row) => (
-                            <TR key={`${row.bookingId}-${row.issueDate}`} className={highlightRowClass(row.highlight)}>
-                              <TD>
-                                <Link
-                                  href={`/admin/residents/${row.customerId}`}
-                                  className="font-medium text-white hover:text-[#FF5A1F]"
-                                >
-                                  {row.customerName}
-                                </Link>
-                                <p className="font-mono text-[11px] text-apg-silver">{row.customerPhone}</p>
-                              </TD>
-                              <TD className="text-xs text-apg-silver">
-                                {row.pgName} · R{row.roomNumber} · {row.bedCode}
-                              </TD>
-                              <TD className="text-xs">{row.billingCycleLabel}</TD>
-                              <TD className="text-xs">{formatDate(row.issueDate)}</TD>
-                              <TD className="text-right tabular-nums">{paiseToInr(row.expectedRentPaise)}</TD>
-                              <TD className="text-right tabular-nums">{paiseToInr(row.depositHeldPaise)}</TD>
-                              <TD className="text-right tabular-nums">{paiseToInr(row.currentOutstandingPaise)}</TD>
-                              <TD>
-                                <Badge tone={toneForStatus(row.bookingStatus)}>
-                                  {titleCase(row.bookingStatus.replace(/_/g, ' '))}
-                                </Badge>
-                              </TD>
-                            </TR>
-                          ))}
-                        </TBody>
-                      </Table>
-                    </div>
-                  </div>
-                ),
-              )}
-            </div>
-          )}
-        </section>
-      ) : null}
 
       {showGenerated ? (
         <section>
