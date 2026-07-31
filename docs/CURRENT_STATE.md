@@ -19,9 +19,9 @@
 <!-- DOC_SYNC_STATE_START -->
 ## Automated doc sync
 
-> **Last sync:** 2026-07-31 16:58:46 UTC  
-> **Areas touched:** [[Electricity]]  
-> **Docs flagged:** CHANGELOG.md, PROJECT/features.md, SYSTEM/CURRENT_STATE.md, SYSTEM/WORKFLOWS.md  
-> **Staged code files:** 2  
+> **Last sync:** 2026-07-31 17:25:09 UTC  
+> **Areas touched:** [[ROUTES]], [[Residents]]  
+> **Docs flagged:** CHANGELOG.md, PROJECT/features.md, ROUTES.md, SYSTEM/CURRENT_STATE.md, SYSTEM/WORKFLOWS.md  
+> **Staged code files:** 14  
 > **Action:** Review [[CHANGELOG#Pending pre-commit sync · 2026-07-31]] (Pending section) before push.
 <!-- DOC_SYNC_STATE_END -->

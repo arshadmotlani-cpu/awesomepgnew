@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  filterBillingCollectionsByDate,
-  rentInvoiceToCollectionRow,
   electricityInvoiceToCollectionRow,
+  rentInvoiceToCollectionRow,
 } from '@/src/lib/admin/billingCollectionsPresentation';
+import {
+  filterBillingCollectionsByDate,
+} from '@/src/lib/admin/billingCollectionsFilter';
 import {
   electricityUseProRataFromRow,
   residentElectricityCalcExplanation,

@@ -1,39 +1,16 @@
-import type { AdminRentInvoiceRow } from '@/src/db/queries/admin';
-import type { AdminPaidElectricityCollectionRow } from '@/src/db/queries/admin';
-import { todayInBillingTimezone } from '@/src/lib/billing/billingTimezone';
+import type { AdminRentInvoiceRow, AdminPaidElectricityCollectionRow } from '@/src/db/queries/admin';
+import {
+  sortBillingCollections,
+  type BillingRecentCollectionRow,
+} from '@/src/lib/admin/billingCollectionsFilter';
 import { titleCase } from '@/src/lib/format';
 
-export type BillingCollectionKind = 'rent' | 'electricity';
-
-export type BillingRecentCollectionRow = {
-  id: string;
-  kind: BillingCollectionKind;
-  customerId?: string;
-  customerFullName: string;
-  customerPhone: string;
-  pgName: string;
-  roomNumber: string;
-  bedCode?: string;
-  amountPaise: number;
-  paidAt: Date | null;
-  paymentMode: string | null;
-  collectedBy: string | null;
-  invoiceNumber: string;
-  billingMonth: string;
-  paymentStatus: string;
-};
-
-export type BillingCollectionDateFilter = 'today' | 'yesterday' | 'week' | 'month';
-
-export const BILLING_COLLECTION_DATE_FILTERS: Array<{
-  id: BillingCollectionDateFilter;
-  label: string;
-}> = [
-  { id: 'today', label: 'Today' },
-  { id: 'yesterday', label: 'Yesterday' },
-  { id: 'week', label: 'This Week' },
-  { id: 'month', label: 'This Month' },
-];
+export type { BillingRecentCollectionRow, BillingCollectionDateFilter } from '@/src/lib/admin/billingCollectionsFilter';
+export {
+  BILLING_COLLECTION_DATE_FILTERS,
+  filterBillingCollectionsByDate,
+  sortBillingCollections,
+} from '@/src/lib/admin/billingCollectionsFilter';
 
 function formatPaymentModeLabel(provider: string | null | undefined): string | null {
   if (!provider) return null;
@@ -110,68 +87,12 @@ export function electricityInvoiceToCollectionRow(
   };
 }
 
-function dateInBillingTimezone(value: Date): string {
-  const tz = 'Asia/Kolkata';
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(value);
-  const y = parts.find((p) => p.type === 'year')?.value ?? '1970';
-  const m = parts.find((p) => p.type === 'month')?.value ?? '01';
-  const d = parts.find((p) => p.type === 'day')?.value ?? '01';
-  return `${y}-${m}-${d}`;
-}
-
-function addDays(iso: string, delta: number): string {
-  const [y, m, d] = iso.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d + delta));
-  return dt.toISOString().slice(0, 10);
-}
-
-function startOfWeekIso(iso: string): string {
-  const [y, m, d] = iso.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  const day = dt.getUTCDay();
-  const diff = day === 0 ? 6 : day - 1;
-  return addDays(iso, -diff);
-}
-
-export function filterBillingCollectionsByDate(
-  rows: BillingRecentCollectionRow[],
-  filter: BillingCollectionDateFilter,
-  now: Date = new Date(),
+export function mergeBillingRecentCollections(
+  rentRows: AdminRentInvoiceRow[],
+  electricityRows: AdminPaidElectricityCollectionRow[],
 ): BillingRecentCollectionRow[] {
-  const today = todayInBillingTimezone(now);
-  const yesterday = addDays(today, -1);
-  const weekStart = startOfWeekIso(today);
-  const monthStart = `${today.slice(0, 7)}-01`;
-
-  return rows.filter((row) => {
-    if (!row.paidAt) return false;
-    const paidDate = dateInBillingTimezone(row.paidAt);
-    switch (filter) {
-      case 'today':
-        return paidDate === today;
-      case 'yesterday':
-        return paidDate === yesterday;
-      case 'week':
-        return paidDate >= weekStart && paidDate <= today;
-      case 'month':
-        return paidDate >= monthStart && paidDate <= today;
-      default:
-        return true;
-    }
-  });
-}
-
-export function sortBillingCollections(
-  rows: BillingRecentCollectionRow[],
-): BillingRecentCollectionRow[] {
-  return [...rows].sort((a, b) => {
-    const aTime = a.paidAt?.getTime() ?? 0;
-    const bTime = b.paidAt?.getTime() ?? 0;
-    return bTime - aTime;
-  });
+  return sortBillingCollections([
+    ...rentRows.map(rentInvoiceToCollectionRow),
+    ...electricityRows.map(electricityInvoiceToCollectionRow),
+  ]);
 }

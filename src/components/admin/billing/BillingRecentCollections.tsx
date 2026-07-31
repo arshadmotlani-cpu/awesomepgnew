@@ -9,7 +9,7 @@ import {
   filterBillingCollectionsByDate,
   type BillingCollectionDateFilter,
   type BillingRecentCollectionRow,
-} from '@/src/lib/admin/billingCollectionsPresentation';
+} from '@/src/lib/admin/billingCollectionsFilter';
 import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
 
 export function BillingRecentCollections({

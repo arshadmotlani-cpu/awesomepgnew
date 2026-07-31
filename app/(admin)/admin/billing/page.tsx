@@ -56,9 +56,7 @@ import {
 import { loadBillingCommandCenterSnapshot } from '@/src/services/billingCommandCenter';
 import { todayInBillingTimezone } from '@/src/lib/billing/billingTimezone';
 import {
-  electricityInvoiceToCollectionRow,
-  rentInvoiceToCollectionRow,
-  sortBillingCollections,
+  mergeBillingRecentCollections,
 } from '@/src/lib/admin/billingCollectionsPresentation';
 import { getBillingHealthSnapshot } from '@/src/services/billingHealth';
 import {
@@ -98,10 +96,7 @@ function mergeRecentCollections(
   rentRows: AdminRentInvoiceRow[],
   electricityRows: import('@/src/db/queries/admin').AdminPaidElectricityCollectionRow[],
 ) {
-  return sortBillingCollections([
-    ...rentRows.map(rentInvoiceToCollectionRow),
-    ...electricityRows.map(electricityInvoiceToCollectionRow),
-  ]);
+  return mergeBillingRecentCollections(rentRows, electricityRows);
 }
 
 function collectionsTabHref(tab: string, billingMonth: string) {
