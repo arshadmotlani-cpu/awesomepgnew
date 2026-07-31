@@ -21,6 +21,7 @@ import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 import {
   listAdminElectricityInvoicesForReminders,
   listAdminOpenRentInvoices,
+  listAdminPaidElectricityInvoices,
   listAdminRentInvoices,
   listPgs,
 } from '@/src/db/queries/admin';
@@ -54,6 +55,11 @@ import {
 } from '@/src/services/billingPipelineIntegrity';
 import { loadBillingCommandCenterSnapshot } from '@/src/services/billingCommandCenter';
 import { todayInBillingTimezone } from '@/src/lib/billing/billingTimezone';
+import {
+  electricityInvoiceToCollectionRow,
+  rentInvoiceToCollectionRow,
+  sortBillingCollections,
+} from '@/src/lib/admin/billingCollectionsPresentation';
 import { getBillingHealthSnapshot } from '@/src/services/billingHealth';
 import {
   getLatestBillingGenerationRun,
@@ -88,12 +94,14 @@ function mergeUnpaidRent(open: AdminRentInvoiceRow[]): AdminRentInvoiceRow[] {
   );
 }
 
-function sortRecentCollections(rows: AdminRentInvoiceRow[]): AdminRentInvoiceRow[] {
-  return [...rows].sort((a, b) => {
-    const aTime = a.paidAt?.getTime() ?? 0;
-    const bTime = b.paidAt?.getTime() ?? 0;
-    return bTime - aTime;
-  });
+function mergeRecentCollections(
+  rentRows: AdminRentInvoiceRow[],
+  electricityRows: import('@/src/db/queries/admin').AdminPaidElectricityCollectionRow[],
+) {
+  return sortBillingCollections([
+    ...rentRows.map(rentInvoiceToCollectionRow),
+    ...electricityRows.map(electricityInvoiceToCollectionRow),
+  ]);
 }
 
 function collectionsTabHref(tab: string, billingMonth: string) {
@@ -126,10 +134,11 @@ export default async function CollectionsModulePage({
   await ensureAdminPageNotificationsSeen('/admin/billing', '/admin/billing');
   const canGenerateRent = adminHasPermission(session.role, 'rent:write');
   const canSendLinks = adminHasPermission(session.role, 'payments:write');
-  const [openRent, rentPaid, elecPending, pgs, billingOverview, billingCycleOps, roomsMissingElectricity, billingHealth, lastRun, generatedToday, failures, electricityBillsToday, billingSnapshot, pipelineIssues, strayZeroInvoices, upcomingSchedule] =
+  const [openRent, rentPaid, elecPaid, elecPending, pgs, billingOverview, billingCycleOps, roomsMissingElectricity, billingHealth, lastRun, generatedToday, failures, electricityBillsToday, billingSnapshot, pipelineIssues, strayZeroInvoices, upcomingSchedule] =
     await Promise.all([
     listAdminOpenRentInvoices(),
     listAdminRentInvoices({ status: 'paid' }),
+    listAdminPaidElectricityInvoices(),
     listAdminElectricityInvoicesForReminders(),
     listPgs(),
     listRentBillingOverview(billingMonth),
@@ -181,7 +190,12 @@ export default async function CollectionsModulePage({
     paidTodayRows: rentPaid.ok ? rentPaid.data : [],
   });
 
-  const recentCollections = sortRecentCollections(rentPaid.ok ? rentPaid.data : []);
+  const recentCollections = mergeRecentCollections(
+    rentPaid.ok ? rentPaid.data : [],
+    elecPaid.ok ? elecPaid.data : [],
+  );
+  const recentCollectionsError =
+    !rentPaid.ok ? rentPaid.error : !elecPaid.ok ? elecPaid.error : null;
 
   const pgNameById = new Map(pgs.ok ? pgs.data.map((p) => [p.id, p.name]) : []);
 
@@ -347,7 +361,7 @@ export default async function CollectionsModulePage({
           />
           <BillingRecentCollections
             rows={recentCollections}
-            error={rentPaid.ok ? null : rentPaid.error ?? null}
+            error={recentCollectionsError}
           />
           <BillingAdvancedTools
             billingMonth={billingMonth}
@@ -451,6 +465,10 @@ export default async function CollectionsModulePage({
             <h2 className="text-base font-semibold text-white">Recent payments</h2>
             <p className="mt-1 text-sm text-apg-silver">Rent bills marked as paid.</p>
           </header>
+          <BillingRecentCollections
+            rows={recentCollections}
+            error={recentCollectionsError}
+          />
           <InvoiceTable
             title="Paid rent bills"
             error={rentPaid.ok ? null : rentPaid.error}

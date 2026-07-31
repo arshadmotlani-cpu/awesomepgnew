@@ -169,9 +169,9 @@ export function ResidentPaymentsHub({
         emptyMessage="No payments awaiting approval."
       />
 
-      {electricityHistory && electricityHistory.length > 0 && bookingId ? (
+      {electricityHistory && electricityHistory.length > 0 ? (
         <ApgCard tier="account" className="p-5">
-          <ResidentElectricityHistory items={electricityHistory} bookingId={bookingId} />
+          <ResidentElectricityHistory items={electricityHistory} theme="light" />
         </ApgCard>
       ) : null}
 

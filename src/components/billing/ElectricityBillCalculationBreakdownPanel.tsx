@@ -147,7 +147,13 @@ function SharingSection({
           <Row label="Equal share (before settlements)" value={paiseToInr(equalSharePaise)} muted={muted} />
         ) : null}
         {breakdown.useProRata ? (
-          <Row label="Split method" value="Pro-rated by days stayed" muted={muted} />
+          <>
+            <Row label="Split method" value="Pro-rated by days stayed" muted={muted} />
+            <p className={`mt-2 text-xs leading-relaxed ${muted}`}>
+              This electricity bill has been calculated based on your stay duration, occupancy
+              during the billing cycle, and your allocated share of room electricity.
+            </p>
+          </>
         ) : isPrivateRoom ? (
           <Row label="Split method" value="Private room — full room bill" muted={muted} />
         ) : (

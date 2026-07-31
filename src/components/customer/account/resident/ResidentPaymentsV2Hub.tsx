@@ -10,6 +10,10 @@ import { residentPaymentsHref } from '@/src/lib/accountNavigation';
 import type { ResidentPaymentsSub } from '@/src/lib/accountNavigation';
 import { InvoicePdfDownloadLink } from '@/src/components/billing/InvoicePdfDownloadLink';
 import { invoicePdfDownloadHref } from '@/src/lib/billing/invoicePdfLinks';
+import {
+  ResidentElectricityHistory,
+  type ResidentElectricityHistoryItem,
+} from '@/src/components/customer/account/resident/ResidentElectricityHistory';
 import { requestStatusTone, primaryBtn, secondaryBtn } from '@/src/lib/design-system/tokens';
 import type { PaymentDueRow } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
 export type PaidHistoryRow = {
@@ -43,6 +47,7 @@ type Props = {
   pendingApprovalRows: PaymentDueRow[];
   rejectedBillRows?: PaymentDueRow[];
   paidBills: PaidHistoryRow[];
+  electricityHistory?: ResidentElectricityHistoryItem[];
   historyHref: string | null;
   lifetimeTotals: LifetimeTotals;
 };
@@ -107,6 +112,7 @@ export function ResidentPaymentsV2Hub({
   pendingApprovalRows,
   rejectedBillRows = [],
   paidBills,
+  electricityHistory = [],
   historyHref,
   lifetimeTotals,
 }: Props) {
@@ -219,6 +225,12 @@ export function ResidentPaymentsV2Hub({
             </dl>
           </ApgCard>
 
+          {electricityHistory.length > 0 ? (
+            <ApgCard tier="resident">
+              <ResidentElectricityHistory items={electricityHistory} theme="dark" />
+            </ApgCard>
+          ) : null}
+
           {paidBills.length === 0 ? (
             <ApgCard tier="resident">
               <p className="text-sm text-apg-silver">No paid invoices yet.</p>
@@ -247,7 +259,7 @@ export function ResidentPaymentsV2Hub({
                           href={row.detailHref}
                           className="rounded-lg border border-white/15 px-2 py-1 text-[11px] font-medium text-apg-silver hover:text-white"
                         >
-                          View PDF
+                          View invoice
                         </Link>
                       ) : null}
                       {row.invoiceNumber ? (

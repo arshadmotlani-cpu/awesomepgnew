@@ -13,6 +13,8 @@ export type PaymentDueRow = {
   invoiceNumber?: string;
   rejectionReason?: string;
   rejectionMessage?: string;
+  /** When set, drives resident-facing electricity calculation copy. */
+  electricityUseProRata?: boolean;
 };
 
 export function ResidentPaymentsSummary({

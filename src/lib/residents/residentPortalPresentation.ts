@@ -29,11 +29,14 @@ export function enrichBillDueRow(
     };
   }
   if (label.includes('electricity') || label.startsWith('elec')) {
+    const useProRata = row.electricityUseProRata === true;
     return {
       ...row,
       kind: 'electricity',
       why: 'Your share of the room electricity meter.',
-      calc: 'Split equally among active room occupants for the billing month.',
+      calc: useProRata
+        ? 'This electricity bill has been calculated based on your stay duration, occupancy during the billing cycle, and your allocated share of room electricity.'
+        : 'Split equally among active room occupants for the billing month.',
     };
   }
   if (label.includes('deposit')) {

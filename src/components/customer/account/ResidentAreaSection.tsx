@@ -66,6 +66,11 @@ import { getDepositRefundSettlementPreview } from '@/src/lib/deposits/depositRef
 import { getDepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
 import { getActiveTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
+import {
+  buildResidentElectricityHistoryItems,
+  electricityUseProRataFromRow,
+} from '@/src/lib/residents/residentElectricityHistoryPresentation';
+import type { ResidentElectricityHistoryItem } from '@/src/components/customer/account/resident/ResidentElectricityHistory';
 import { projectInvoice } from '@/src/services/rentInvoices';
 import { billingCycleLabel, enrichBillDueRow, moveOutStatusLabel } from '@/src/lib/residents/residentPortalPresentation';
 import { getReferralSummaryForCustomer } from '@/src/services/referrals';
@@ -227,6 +232,7 @@ function buildBillRowsFromDetail(
             paidAt: e.paidAt ? formatDate(e.paidAt) : null,
             status: 'paid',
             invoiceNumber: e.invoiceNumber,
+            detailHref: `/account/resident/pay-electricity/${e.id}`,
           });
         }
         continue;
@@ -248,8 +254,8 @@ function buildBillRowsFromDetail(
         paymentId: null,
         paidAt: e.paidAt,
         paymentProofUrl: null,
-        unitsShare: null,
-        activeDays: null,
+        unitsShare: e.unitsShare,
+        activeDays: e.activeDays,
         cancelledAt: null,
         supersededByInvoiceId: null,
         duplicateDetectedAt: null,
@@ -295,6 +301,7 @@ function buildBillRowsFromDetail(
       }
 
       if (!firstUnpaidElectricityId) firstUnpaidElectricityId = e.id;
+      const useProRata = electricityUseProRataFromRow(e);
       const row: PaymentDueRow = {
         key: `elec-${e.id}`,
         label: `Electricity · ${formatDate(e.billingMonth)}`,
@@ -303,6 +310,7 @@ function buildBillRowsFromDetail(
         href: `/account/resident/pay-electricity/${e.id}`,
         status: labelResidentStatus(projected.effectiveStatus),
         invoiceNumber: e.invoiceNumber,
+        electricityUseProRata: useProRata,
       };
       dueBillRows.push(row);
       homeUpcoming.push({
@@ -782,6 +790,11 @@ export async function ResidentAreaSection({
     (b.paidAt ?? '').localeCompare(a.paidAt ?? ''),
   );
 
+  const electricityHistory: ResidentElectricityHistoryItem[] = detail.flatMap((d) => {
+    const rows = d.electricity.ok ? d.electricity.data : [];
+    return buildResidentElectricityHistoryItems(rows);
+  });
+
   const enrichedDueRows = dueBillRows.map(enrichBillDueRow);
 
   const referralSummary = await getReferralSummaryForCustomer(session.customerId);
@@ -950,6 +963,7 @@ export async function ResidentAreaSection({
           pendingApprovalRows={pendingApprovalRows}
           rejectedBillRows={rejectedBillRows}
           paidBills={paidHistory}
+          electricityHistory={electricityHistory}
           historyHref={historyHref}
           lifetimeTotals={lifetimeTotals}
         />

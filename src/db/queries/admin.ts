@@ -1364,6 +1364,7 @@ export type AdminRentInvoiceRow = {
   createdAt: Date;
   notes: string | null;
   paymentProvider: string | null;
+  paymentRawPayload?: unknown | null;
   /** SSOT outstanding including late fees and partial payments */
   outstandingPaise: number;
   effectiveStatus: string;
@@ -1409,6 +1410,7 @@ export function listAdminRentInvoices(
         createdAt: rentInvoices.createdAt,
         notes: rentInvoices.notes,
         paymentProvider: payments.provider,
+        paymentRawPayload: payments.rawPayload,
       })
       .from(rentInvoices)
       .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))
@@ -1495,6 +1497,7 @@ export function listAdminOpenRentInvoices(filter?: {
         createdAt: rentInvoices.createdAt,
         notes: rentInvoices.notes,
         paymentProvider: payments.provider,
+        paymentRawPayload: payments.rawPayload,
         paymentProofUrl: rentInvoices.paymentProofUrl,
         proofSubmittedAt: rentInvoices.proofSubmittedAt,
         proofSnapshotOutstandingPaise: rentInvoices.proofSnapshotOutstandingPaise,
@@ -1634,6 +1637,73 @@ export type AdminElectricityInvoiceReminderRow = {
   paymentProofUrl?: string | null;
   bookingId?: string;
 };
+
+/** Paid electricity invoices for admin collections views. */
+export type AdminPaidElectricityCollectionRow = {
+  id: string;
+  invoiceNumber: string;
+  customerId: string;
+  customerFullName: string;
+  customerPhone: string;
+  pgId: string;
+  pgName: string;
+  roomNumber: string;
+  bedCode: string;
+  billingMonth: string;
+  dueDate: string;
+  amountPaise: number;
+  paidAt: Date | null;
+  paymentProvider: string | null;
+  paymentRawPayload: unknown;
+  effectiveStatus: string;
+  bookingId: string;
+};
+
+export function listAdminPaidElectricityInvoices(filter?: {
+  pgId?: string;
+}): Promise<QueryResult<AdminPaidElectricityCollectionRow[]>> {
+  return guard(async () => {
+    const conditions = [
+      eq(electricityInvoices.status, 'paid'),
+      isProductionElectricityBillFilter(),
+    ];
+    if (filter?.pgId) conditions.push(eq(electricityBills.pgId, filter.pgId));
+
+    const rows = await db
+      .select({
+        id: electricityInvoices.id,
+        invoiceNumber: electricityInvoices.invoiceNumber,
+        customerId: electricityInvoices.customerId,
+        customerFullName: customers.fullName,
+        customerPhone: customers.phone,
+        pgId: electricityBills.pgId,
+        pgName: pgs.name,
+        roomNumber: rooms.roomNumber,
+        bedCode: beds.bedCode,
+        billingMonth: electricityInvoices.billingMonth,
+        dueDate: electricityInvoices.dueDate,
+        amountPaise: sql<number>`(${electricityInvoices.paidPaise} + coalesce(${electricityInvoices.lateFeeLockedPaise}, 0))::bigint::int`,
+        paidAt: electricityInvoices.paidAt,
+        paymentProvider: payments.provider,
+        paymentRawPayload: payments.rawPayload,
+        bookingId: electricityInvoices.bookingId,
+      })
+      .from(electricityInvoices)
+      .innerJoin(electricityBills, eq(electricityBills.id, electricityInvoices.electricityBillId))
+      .innerJoin(customers, eq(customers.id, electricityInvoices.customerId))
+      .innerJoin(pgs, eq(pgs.id, electricityBills.pgId))
+      .innerJoin(rooms, eq(rooms.id, electricityBills.roomId))
+      .innerJoin(beds, eq(beds.id, electricityInvoices.bedId))
+      .leftJoin(payments, eq(payments.id, electricityInvoices.paymentId))
+      .where(and(...conditions))
+      .orderBy(desc(electricityInvoices.paidAt));
+
+    return rows.map((r) => ({
+      ...r,
+      effectiveStatus: 'paid',
+    }));
+  });
+}
 
 /** Pending electricity invoices eligible for WhatsApp / email reminders. */
 export function listAdminPaidElectricityInvoicesForMonth(

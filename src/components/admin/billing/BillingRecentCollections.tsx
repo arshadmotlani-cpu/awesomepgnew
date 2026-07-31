@@ -1,29 +1,31 @@
+'use client';
+
 import Link from 'next/link';
+import { useMemo, useState } from 'react';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
-import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
-
-type PaidRow = {
-  id: string;
-  customerId?: string;
-  customerFullName: string;
-  customerPhone: string;
-  pgName: string;
-  roomNumber: string;
-  rentPaise?: number;
-  outstandingPaise?: number;
-  paidAt?: Date | null;
-  effectiveStatus?: string;
-  status?: string;
-};
+import {
+  BILLING_COLLECTION_DATE_FILTERS,
+  filterBillingCollectionsByDate,
+  type BillingCollectionDateFilter,
+  type BillingRecentCollectionRow,
+} from '@/src/lib/admin/billingCollectionsPresentation';
+import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
 
 export function BillingRecentCollections({
   rows,
   error,
 }: {
-  rows: PaidRow[];
+  rows: BillingRecentCollectionRow[];
   error: string | null;
 }) {
+  const [filter, setFilter] = useState<BillingCollectionDateFilter>('today');
+
+  const filteredRows = useMemo(
+    () => filterBillingCollectionsByDate(rows, filter).slice(0, 50),
+    [rows, filter],
+  );
+
   if (error) {
     return (
       <section className="mb-8">
@@ -41,34 +43,62 @@ export function BillingRecentCollections({
 
   return (
     <section className="mb-8">
-      <header className="mb-4 flex flex-wrap items-end justify-between gap-2">
+      <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-white">Recent collections</h2>
-          <p className="mt-1 text-sm text-apg-silver">Payments recorded today and recently.</p>
+          <p className="mt-1 text-sm text-apg-silver">
+            Rent and electricity payments recorded recently.
+          </p>
         </div>
         <Link
-          href="/admin/revenue/billing?tab=paid"
+          href="/admin/billing?tab=paid"
           className="text-sm font-semibold text-[#FF5A1F] hover:underline"
         >
           All paid bills →
         </Link>
       </header>
-      <div className="overflow-hidden rounded-xl border border-white/10">
-        <Table>
-          <THead>
-            <TR>
-              <TH>Resident</TH>
-              <TH>PG · room</TH>
-              <TH className="text-right">Amount</TH>
-              <TH>Collected on</TH>
-              <TH>Status</TH>
-            </TR>
-          </THead>
-          <TBody>
-            {rows.slice(0, 10).map((r) => {
-              const amount = r.outstandingPaise ?? r.rentPaise ?? 0;
-              const displayStatus = r.effectiveStatus ?? r.status ?? 'paid';
-              return (
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        {BILLING_COLLECTION_DATE_FILTERS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => setFilter(option.id)}
+            className={
+              'rounded-full px-3 py-1.5 text-xs font-medium transition ' +
+              (filter === option.id
+                ? 'bg-[#FF5A1F] text-white'
+                : 'border border-white/10 text-apg-silver hover:text-white')
+            }
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+
+      {filteredRows.length === 0 ? (
+        <p className="rounded-xl border border-white/10 px-4 py-6 text-sm text-apg-silver">
+          No collections for this period.
+        </p>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-white/10">
+          <Table>
+            <THead>
+              <TR>
+                <TH>Resident</TH>
+                <TH>Type</TH>
+                <TH>PG · room · bed</TH>
+                <TH className="text-right">Amount</TH>
+                <TH>Payment mode</TH>
+                <TH>Collected on</TH>
+                <TH>Invoice</TH>
+                <TH>Billing month</TH>
+                <TH>Collected by</TH>
+                <TH>Status</TH>
+              </TR>
+            </THead>
+            <TBody>
+              {filteredRows.map((r) => (
                 <TR key={r.id}>
                   <TD>
                     {r.customerId ? (
@@ -83,20 +113,30 @@ export function BillingRecentCollections({
                     )}
                     <p className="font-mono text-[11px] text-apg-silver">{r.customerPhone}</p>
                   </TD>
+                  <TD className="text-xs capitalize text-apg-silver">{r.kind}</TD>
                   <TD className="text-xs text-apg-silver">
                     {r.pgName} · R{r.roomNumber}
+                    {r.bedCode ? ` · ${r.bedCode}` : ''}
                   </TD>
-                  <TD className="text-right tabular-nums">{paiseToInr(amount)}</TD>
-                  <TD className="text-xs">{r.paidAt ? formatDate(r.paidAt) : '—'}</TD>
+                  <TD className="text-right tabular-nums">{paiseToInr(r.amountPaise)}</TD>
+                  <TD className="text-xs">{r.paymentMode ?? '—'}</TD>
+                  <TD className="text-xs whitespace-nowrap">
+                    {r.paidAt ? formatDateTime(r.paidAt) : '—'}
+                  </TD>
+                  <TD className="font-mono text-[11px]">{r.invoiceNumber}</TD>
+                  <TD className="text-xs">{formatDate(r.billingMonth)}</TD>
+                  <TD className="text-xs">{r.collectedBy ?? '—'}</TD>
                   <TD>
-                    <Badge tone={toneForStatus(displayStatus)}>{titleCase(displayStatus)}</Badge>
+                    <Badge tone={toneForStatus(r.paymentStatus)}>
+                      {titleCase(r.paymentStatus)}
+                    </Badge>
                   </TD>
                 </TR>
-              );
-            })}
-          </TBody>
-        </Table>
-      </div>
+              ))}
+            </TBody>
+          </Table>
+        </div>
+      )}
     </section>
   );
 }

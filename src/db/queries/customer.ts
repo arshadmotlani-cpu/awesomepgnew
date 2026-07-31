@@ -1693,6 +1693,10 @@ export type ElectricityInvoiceRow = {
   createdAt: Date;
   updatedAt: Date;
   roomNumber: string;
+  bedCode: string;
+  unitsShare: string | null;
+  activeDays: number | null;
+  calculationBreakdown: unknown;
   previousReadingUnits: string;
   currentReadingUnits: string;
   unitsConsumed: string;
@@ -1724,6 +1728,10 @@ export function listElectricityInvoicesForBooking(
         createdAt: electricityInvoices.createdAt,
         updatedAt: electricityInvoices.updatedAt,
         roomNumber: rooms.roomNumber,
+        bedCode: beds.bedCode,
+        unitsShare: electricityInvoices.unitsShare,
+        activeDays: electricityInvoices.activeDays,
+        calculationBreakdown: electricityBills.calculationBreakdown,
         previousReadingUnits: electricityBills.previousReadingUnits,
         currentReadingUnits: electricityBills.currentReadingUnits,
         unitsConsumed: electricityBills.unitsConsumed,
@@ -1735,6 +1743,7 @@ export function listElectricityInvoicesForBooking(
       .innerJoin(bookings, eq(bookings.id, electricityInvoices.bookingId))
       .innerJoin(electricityBills, eq(electricityBills.id, electricityInvoices.electricityBillId))
       .innerJoin(rooms, eq(rooms.id, electricityBills.roomId))
+      .innerJoin(beds, eq(beds.id, electricityInvoices.bedId))
       .where(eq(electricityInvoices.bookingId, bookingId))
       .orderBy(desc(electricityInvoices.billingMonth));
   });
