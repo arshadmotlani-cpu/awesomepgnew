@@ -325,10 +325,10 @@
 .fyh-nav-link {
   display: flex;
   align-items: center;
-  gap: 0.625rem;
-  border-radius: 0.625rem;
-  padding: 0.5625rem 0.75rem;
-  font-size: 0.875rem;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  padding: 0.4375rem 0.5625rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: var(--fyh-text-secondary);
   transition: background 0.15s, color 0.15s, box-shadow 0.15s;
@@ -348,9 +348,9 @@
 
 .fyh-nav-sublink {
   display: block;
-  border-radius: 0.5rem;
-  padding: 0.4375rem 0.625rem;
-  font-size: 0.8125rem;
+  border-radius: 0.4375rem;
+  padding: 0.3125rem 0.5rem;
+  font-size: 0.75rem;
   font-weight: 500;
   color: var(--fyh-text-muted);
   transition: background 0.15s, color 0.15s;
@@ -405,4 +405,14 @@
 
 .fyh-root table tbody tr:hover {
   background: var(--fyh-table-hover);
+}
+
+.fyh-table-compact thead th {
+  padding: 0.5rem 0.5rem;
+  font-size: 0.6875rem;
+}
+
+.fyh-table-compact tbody td {
+  padding: 0.4375rem 0.5rem;
+  font-size: 0.8125rem;
 }

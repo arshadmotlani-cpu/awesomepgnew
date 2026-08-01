@@ -30,6 +30,15 @@ export default defineConfig({
       dependencies: ['hair-setup'],
     },
     {
+      name: 'hair-webkit',
+      testMatch: /hair\/hair-invoice-register-qa\.spec\.ts/,
+      use: {
+        ...devices['Desktop Safari'],
+        storageState: HAIR_STORAGE_STATE,
+      },
+      dependencies: ['hair-setup'],
+    },
+    {
       name: 'chromium',
       testIgnore: [/hair\/.*/, /hair\.auth\.setup\.ts/],
       use: { ...devices['Desktop Chrome'] },

@@ -82,7 +82,7 @@ export function HairAppHeader({ admin, navEntries }: HairAppHeaderProps) {
             aria-label="Close navigation"
             onClick={() => setMobileNavOpen(false)}
           />
-          <div className="absolute inset-y-0 left-0 flex w-[min(100vw-3rem,18rem)] flex-col bg-fyh-elevated shadow-2xl">
+          <div className="absolute inset-y-0 left-0 flex w-[min(100vw-3rem,14rem)] flex-col bg-fyh-elevated shadow-2xl">
             <div className="flex items-center justify-between border-b border-[color:var(--fyh-border-strong)] p-2">
               <FyhSidebarBrand className="!h-12 !flex-1 !border-0" />
               <Button

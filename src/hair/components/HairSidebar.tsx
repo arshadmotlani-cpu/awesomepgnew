@@ -115,12 +115,12 @@ export function HairSidebar({
   return (
     <aside
       className={cn(
-        'hidden w-64 shrink-0 border-r border-[color:var(--fyh-border-strong)] bg-fyh-elevated/95 backdrop-blur-xl md:flex md:flex-col',
+        'hidden w-48 shrink-0 border-r border-[color:var(--fyh-border-strong)] bg-fyh-elevated/95 backdrop-blur-xl md:flex md:flex-col',
         className,
       )}
     >
       <FyhSidebarBrand />
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+      <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
         {navEntries.map((entry) =>
           entry.type === 'link' ? (
             <NavLink key={entry.href} item={entry} />
@@ -129,7 +129,7 @@ export function HairSidebar({
           ),
         )}
       </nav>
-      <div className="border-t border-[color:var(--fyh-border)] p-3">
+      <div className="border-t border-[color:var(--fyh-border)] p-2">
         <Link
           href="/profile"
           className="fyh-nav-link"

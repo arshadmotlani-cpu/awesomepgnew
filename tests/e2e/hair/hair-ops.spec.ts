@@ -34,6 +34,23 @@ test.describe('Hair ERP ops UI', () => {
     await expect(search).toBeVisible({ timeout: 20_000 });
   });
 
+  test('invoice register — global search filters via URL without dropdown', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/billing/invoices');
+    await expect(page.getByRole('heading', { name: /invoice register/i })).toBeVisible({
+      timeout: 30_000,
+    });
+    const search = page.getByLabel(/search invoices in register/i);
+    await expect(search).toBeVisible({ timeout: 20_000 });
+    await expect(search).toHaveAttribute(
+      'placeholder',
+      'Search invoice #, customer, mobile…',
+    );
+    await search.fill('FYH');
+    await expect(page).toHaveURL(/[?&]q=FYH/, { timeout: 10_000 });
+    await expect(page.locator('[role="dialog"]')).toHaveCount(0);
+  });
+
   test('staff module reachable', async ({ page }) => {
     await page.goto('/staff');
     await expect(page.getByRole('heading', { name: /staff/i })).toBeVisible({
