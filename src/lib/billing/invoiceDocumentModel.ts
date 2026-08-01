@@ -25,6 +25,7 @@ import {
 } from '@/src/lib/booking/bookingPolicies';
 import { parseDaterange } from '@/src/services/availability';
 import { formatDate, titleCase } from '@/src/lib/format';
+import { formatPaymentModeLabel } from '@/src/lib/billing/paymentModeLabels';
 import { formatDate as formatIsoDate } from '@/src/lib/dates';
 import { getUnifiedInvoiceDetail } from '@/src/services/unifiedInvoices';
 import { assertCustomerOwnsFinancialInvoiceDetailed } from '@/src/lib/billing/residentInvoiceAccess';
@@ -368,15 +369,6 @@ function formatPaymentReference(
   const label = provider ? titleCase(provider.replace(/_/g, ' ')) : 'Payment';
   if (providerPaymentId) return `${label} · ${providerPaymentId}`;
   return label;
-}
-
-function formatPaymentModeLabel(provider: string | null): string | null {
-  if (!provider) return null;
-  if (provider === 'cash') return 'Cash';
-  if (provider === 'upi_manual' || provider === 'razorpay' || provider === 'stripe') return 'UPI';
-  if (provider === 'bank_transfer') return 'Bank transfer';
-  if (provider === 'mock') return 'Other';
-  return titleCase(provider.replace(/_/g, ' '));
 }
 
 function adminNameFromPaymentPayload(rawPayload: unknown): string | null {

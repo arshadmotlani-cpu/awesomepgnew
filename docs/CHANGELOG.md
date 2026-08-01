@@ -256,9 +256,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-01 10:14:30 UTC
+### Pending pre-commit sync · 2026-08-01 10:44:03 UTC
 
-**Areas touched:** [[ROUTES]], [[Billing]], [[Residents]], [[Bookings]], [[Deposits]]
+**Areas touched:** [[ROUTES]], [[Billing]], [[Residents]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
@@ -268,17 +268,12 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (10):**
-- `app/(admin)/admin/pgs/[pgId]/rooms/page.tsx`
-- `app/(admin)/admin/pgs/inventory-actions.ts`
-- `src/lib/billing/monthlyBillingSnapshot.ts`
-- `src/lib/billing/paymentModeLabels.ts`
+**Staged code files (5):**
+- `app/(customer)/account/resident/history/[bookingId]/page.tsx`
+- `src/lib/billing/invoiceDocumentModel.ts`
+- `src/lib/residents/residentPortalBillRows.ts`
+- `src/lib/residents/residentPortalDisplay.ts`
 - `src/lib/residents/residentPortalFinancials.ts`
-- `src/lib/residents/walletLedger.ts`
-- `src/services/bookingAdminOps.ts`
-- `src/services/bookingMoneyBalances.ts`
-- `src/services/depositOperations.ts`
-- `src/services/rentInvoices.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

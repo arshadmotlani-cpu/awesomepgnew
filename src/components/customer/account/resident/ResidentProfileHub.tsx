@@ -96,9 +96,6 @@ export function ResidentProfileHub({
             booking={booking}
             billingCycleLabel={billingCycleLabel}
             monthlyRentPaise={monthlyRentPaise}
-            depositRequiredPaise={depositRequiredPaise}
-            depositPaidPaise={depositPaidPaise}
-            depositBalancePaise={depositBalancePaise}
             moveOutStatus={moveOutStatus}
             roommatesCount={roommatesCount}
             roomCapacity={roomCapacity}
@@ -123,9 +120,7 @@ export function ResidentProfileHub({
           bookingId={bookingId}
           customerId={customerId}
           depositBalancePaise={depositBalancePaise}
-          depositPaidPaise={depositPaidPaise}
           depositDuePaise={depositDuePaise}
-          depositRequiredPaise={depositRequiredPaise}
           availableRefundPaise={availableRefundPaise}
           entries={entries}
           hasOpenVacating={hasOpenVacating}

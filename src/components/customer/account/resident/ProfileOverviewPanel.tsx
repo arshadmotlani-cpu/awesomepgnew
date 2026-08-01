@@ -12,9 +12,6 @@ type Props = {
   booking: ResidentBookingRow;
   billingCycleLabel: string;
   monthlyRentPaise: number;
-  depositRequiredPaise: number;
-  depositPaidPaise: number;
-  depositBalancePaise: number;
   moveOutStatus: string;
   roommatesCount: number;
   roomCapacity: number;
@@ -38,9 +35,6 @@ export function ProfileOverviewPanel({
   booking,
   billingCycleLabel,
   monthlyRentPaise,
-  depositRequiredPaise,
-  depositPaidPaise,
-  depositBalancePaise,
   moveOutStatus,
   roommatesCount,
   roomCapacity,
@@ -66,9 +60,6 @@ export function ProfileOverviewPanel({
           <StatRow label="Check-in" value={formatDate(booking.checkInDate)} />
           <StatRow label="Billing cycle" value={billingCycleLabel} />
           <StatRow label="Monthly rent" value={paiseToInr(monthlyRentPaise)} />
-          <StatRow label="Deposit required" value={paiseToInr(depositRequiredPaise)} />
-          <StatRow label="Deposit paid" value={paiseToInr(depositPaidPaise)} />
-          <StatRow label="Deposit balance" value={paiseToInr(depositBalancePaise)} />
           <StatRow label="Move-out status" value={moveOutStatus} />
           <StatRow label="Room sharing" value={sharingLabel} />
         </dl>

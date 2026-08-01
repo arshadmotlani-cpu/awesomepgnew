@@ -4,7 +4,7 @@ import { formatPaymentModeLabel } from '@/src/lib/billing/paymentModeLabels';
 import {
   isCancelledResidentInvoiceStatus,
   isVisibleResidentInvoiceStatus,
-} from '@/src/lib/residents/residentPortalFinancials';
+} from '@/src/lib/residents/residentPortalDisplay';
 
 test('formatPaymentModeLabel maps resident-facing payment modes', () => {
   assert.equal(formatPaymentModeLabel('upi_manual'), 'UPI');

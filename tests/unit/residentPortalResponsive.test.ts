@@ -31,6 +31,19 @@ describe('resident portal responsive nav', () => {
     assert.match(css, /@media \(max-width: 767px\)/);
   });
 
+  it('Phase 1 financial panels use mobile-first layout hooks', () => {
+    const wallet = readFileSync(
+      join(process.cwd(), 'src/components/customer/account/resident/ProfileWalletPanel.tsx'),
+      'utf8',
+    );
+    const payments = readFileSync(
+      join(process.cwd(), 'src/components/customer/account/resident/ResidentPaymentsV2Hub.tsx'),
+      'utf8',
+    );
+    assert.match(wallet, /max-md:grid-cols-1/);
+    assert.match(payments, /max-md:p-3/);
+  });
+
   it('shows page header on mobile and desktop', () => {
     const page = readFileSync(
       join(process.cwd(), 'app/(customer)/account/profile/page.tsx'),

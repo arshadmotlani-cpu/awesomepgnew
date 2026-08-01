@@ -1639,6 +1639,7 @@ export type RentInvoiceRow = {
   proofSnapshotOutstandingPaise: number | null;
   proofSnapshotLateFeePaise: number | null;
   proofSnapshotPrincipalDuePaise: number | null;
+  paymentId: string | null;
 };
 
 export function listRentInvoicesForBooking(
@@ -1667,6 +1668,7 @@ export function listRentInvoicesForBooking(
         proofSnapshotOutstandingPaise: rentInvoices.proofSnapshotOutstandingPaise,
         proofSnapshotLateFeePaise: rentInvoices.proofSnapshotLateFeePaise,
         proofSnapshotPrincipalDuePaise: rentInvoices.proofSnapshotPrincipalDuePaise,
+        paymentId: rentInvoices.paymentId,
       })
       .from(rentInvoices)
       .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))
@@ -1703,6 +1705,7 @@ export type ElectricityInvoiceRow = {
   ratePerUnitPaise: number;
   totalPaise: number;
   monthlyOccupantCount: number;
+  paymentId: string | null;
 };
 
 export function listElectricityInvoicesForBooking(
@@ -1738,6 +1741,7 @@ export function listElectricityInvoicesForBooking(
         ratePerUnitPaise: electricityBills.ratePerUnitPaise,
         totalPaise: electricityBills.totalPaise,
         monthlyOccupantCount: electricityBills.monthlyOccupantCount,
+        paymentId: electricityInvoices.paymentId,
       })
       .from(electricityInvoices)
       .innerJoin(bookings, eq(bookings.id, electricityInvoices.bookingId))

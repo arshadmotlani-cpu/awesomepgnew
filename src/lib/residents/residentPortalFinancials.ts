@@ -14,6 +14,10 @@ import {
   getResidentBillingFormDefaults,
 } from '@/src/services/residentBillingProfiles';
 import { evaluateAnniversaryRentGenerationEligibility } from '@/src/services/rentInvoices';
+import {
+  isCancelledResidentInvoiceStatus,
+  pendingRentGenerationMessage,
+} from '@/src/lib/residents/residentPortalDisplay';
 
 export type ResidentMonthlyRentDisplay = {
   monthlyRentPaise: number;
@@ -25,23 +29,6 @@ export type PendingRentGenerationNotice = {
   generationDate: string;
   message: string;
 };
-
-const VISIBLE_INVOICE_STATUSES = new Set([
-  'pending',
-  'paid',
-  'partial',
-  'overdue',
-  'payment_in_progress',
-  'expired',
-]);
-
-export function isVisibleResidentInvoiceStatus(status: string): boolean {
-  return VISIBLE_INVOICE_STATUSES.has(status);
-}
-
-export function isCancelledResidentInvoiceStatus(status: string): boolean {
-  return status === 'cancelled';
-}
 
 /** Canonical monthly rent for resident UI — matches invoice generation SSOT. */
 export async function resolveResidentMonthlyRentPaise(bookingId: string): Promise<number> {
@@ -123,6 +110,14 @@ export async function loadPendingRentGenerationNotice(args: {
   const formatted = formatDate(parseDate(generationDate));
   return {
     generationDate,
-    message: `Your next rent invoice will be generated on ${formatted}.`,
+    message: pendingRentGenerationMessage(formatted),
   };
 }
+
+/** Re-export display helpers for server callers that already import this module. */
+export {
+  isVisibleResidentInvoiceStatus,
+  isCancelledResidentInvoiceStatus,
+  computeResidentTotalDuePaise,
+  pendingRentGenerationMessage,
+} from '@/src/lib/residents/residentPortalDisplay';

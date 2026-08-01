@@ -15,6 +15,7 @@ import {
   type ResidentElectricityHistoryItem,
 } from '@/src/components/customer/account/resident/ResidentElectricityHistory';
 import { requestStatusTone, primaryBtn, secondaryBtn } from '@/src/lib/design-system/tokens';
+import { computeResidentTotalDuePaise } from '@/src/lib/residents/residentPortalDisplay';
 import type { PaymentDueRow } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
 export type PaidHistoryRow = {
   id: string;
@@ -26,6 +27,7 @@ export type PaidHistoryRow = {
   /** View invoice page (share / HTML document). */
   detailHref?: string | null;
   subtitle?: string | null;
+  paymentModeLabel?: string | null;
 };
 
 export type BillDueRow = PaymentDueRow & {
@@ -58,8 +60,8 @@ function BillCard({ row }: { row: BillDueRow }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <li className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <li className="rounded-xl border border-white/10 bg-white/[0.03] p-4 max-md:p-3">
+      <div className="flex flex-col gap-3 max-md:gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-white">{row.label}</p>
           {row.why ? <p className="mt-1 text-xs text-apg-silver">{row.why}</p> : null}
@@ -67,7 +69,7 @@ function BillCard({ row }: { row: BillDueRow }) {
             <p className="mt-1 text-xs text-apg-silver">Due {formatDate(row.dueDate)}</p>
           ) : null}
         </div>
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex w-full flex-row items-center justify-between gap-2 sm:w-auto sm:flex-col sm:items-end">
           <span className="text-base font-bold tabular-nums text-white">
             {paiseToInr(row.amountPaise)}
           </span>
@@ -127,7 +129,7 @@ export function ResidentPaymentsV2Hub({
   ];
 
   const payableDue = dueRows.filter((r) => r.href);
-  const totalDuePaise = payableDue.reduce((s, r) => s + r.amountPaise, 0);
+  const totalDuePaise = computeResidentTotalDuePaise(dueRows);
 
   return (
     <div className="apg-resident-panel-content">
@@ -254,7 +256,9 @@ export function ResidentPaymentsV2Hub({
                   <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
                     <div>
                       <p className="text-sm font-medium text-white">{row.label}</p>
-                      {row.subtitle ? (
+                      {row.paymentModeLabel ? (
+                        <p className="text-xs text-apg-silver">Paid via {row.paymentModeLabel}</p>
+                      ) : row.subtitle ? (
                         <p className="text-xs text-apg-silver">{row.subtitle}</p>
                       ) : null}
                       {row.paidAt ? (

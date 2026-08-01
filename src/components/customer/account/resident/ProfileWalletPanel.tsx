@@ -17,9 +17,7 @@ type Props = {
   bookingId: string;
   customerId: string;
   depositBalancePaise: number;
-  depositPaidPaise: number;
   depositDuePaise: number;
-  depositRequiredPaise: number;
   availableRefundPaise: number;
   entries: DepositLedgerEntry[];
   hasOpenVacating: boolean;
@@ -40,10 +38,10 @@ function WalletMetricCard({
   accent?: boolean;
 }) {
   return (
-    <ApgCard tier="resident" className="!p-4">
+    <ApgCard tier="resident" className="!p-4 max-md:!p-3">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-apg-silver">{label}</p>
       <p
-        className={`mt-1 text-xl font-bold tabular-nums ${accent ? 'text-apg-orange' : 'text-white'}`}
+        className={`mt-1 text-xl font-bold tabular-nums max-md:text-lg ${accent ? 'text-apg-orange' : 'text-white'}`}
       >
         {value}
       </p>
@@ -97,9 +95,7 @@ export function ProfileWalletPanel({
   bookingId,
   customerId,
   depositBalancePaise,
-  depositPaidPaise,
   depositDuePaise,
-  depositRequiredPaise,
   availableRefundPaise,
   entries,
   hasOpenVacating,
@@ -127,59 +123,53 @@ export function ProfileWalletPanel({
   const referralAvailable = referralSummary?.availablePaise ?? 0;
   const referralWithdrawn = referralSummary?.withdrawnPaise ?? 0;
   const referralTotal = referralLocked + referralAvailable + referralWithdrawn;
-  const walletTotalPaise = depositBalancePaise + referralTotal;
 
   return (
-    <div className="space-y-4 pb-2">
-      <ApgCard tier="resident">
-        <p className="text-xs font-semibold uppercase tracking-wider text-apg-orange">Total wallet</p>
-        <p className="mt-1 text-3xl font-bold tabular-nums text-white">{paiseToInr(walletTotalPaise)}</p>
-        <p className="mt-1 text-xs text-apg-silver">
-          Deposit {paiseToInr(depositBalancePaise)} · Referral {paiseToInr(referralTotal)}
-        </p>
-      </ApgCard>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <WalletMetricCard label="Deposit balance" value={paiseToInr(depositBalancePaise)} />
+    <div className="space-y-4 pb-2 max-md:space-y-3">
+      <div className="grid gap-3 max-md:grid-cols-1 sm:grid-cols-3">
         <WalletMetricCard
-          label="Deposit refundable"
-          value={paiseToInr(availableRefundPaise)}
-          accent
+          label="Security deposit held"
+          value={paiseToInr(depositBalancePaise)}
+          hint={
+            depositDuePaise > 0
+              ? `${paiseToInr(depositDuePaise)} still due — pay from Payments`
+              : 'Held until checkout — not a bill'
+          }
+          accent={depositDuePaise > 0}
         />
-        <WalletMetricCard label="Referral earnings" value={paiseToInr(referralLocked + referralAvailable)} />
-        <WalletMetricCard label="Pending earnings" value={paiseToInr(referralLocked)} hint="Locked until move-out" />
         <WalletMetricCard
-          label="Withdrawable referral"
-          value={paiseToInr(referralAvailable)}
+          label="Refundable at checkout"
+          value={paiseToInr(availableRefundPaise)}
+          hint="After notice and deductions"
+        />
+        <WalletMetricCard
+          label="Referral earnings"
+          value={paiseToInr(referralLocked + referralAvailable)}
+          hint={
+            referralAvailable > 0
+              ? `${paiseToInr(referralAvailable)} withdrawable`
+              : referralLocked > 0
+                ? `${paiseToInr(referralLocked)} locked until move-out`
+                : undefined
+          }
           accent={referralAvailable > 0}
         />
-        <WalletMetricCard label="Withdrawn referral" value={paiseToInr(referralWithdrawn)} />
       </div>
 
-      <ApgCard tier="resident">
-        <h2 className="text-sm font-semibold text-white">Deposit details</h2>
-        <dl className="mt-3 grid gap-3 sm:grid-cols-3">
-          <div>
-            <dt className="text-xs text-apg-silver">Paid</dt>
-            <dd className="text-sm font-semibold text-white">{paiseToInr(depositPaidPaise)}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-apg-silver">Due</dt>
-            <dd className="text-sm font-semibold text-white">{paiseToInr(depositDuePaise)}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-apg-silver">Required</dt>
-            <dd className="text-sm font-semibold text-white">{paiseToInr(depositRequiredPaise)}</dd>
-          </div>
-        </dl>
-      </ApgCard>
-
-      {depositDuePaise <= 0 && depositBalancePaise > 0 ? (
+      {depositDuePaise > 0 ? (
+        <ApgCard tier="resident">
+          <h2 className="text-sm font-semibold text-white">Amount due</h2>
+          <p className="mt-2 text-sm text-apg-silver">
+            {paiseToInr(depositDuePaise)} security deposit is outstanding. Pay from the Payments
+            tab when ready.
+          </p>
+        </ApgCard>
+      ) : depositBalancePaise > 0 ? (
         <ApgCard tier="resident">
           <h2 className="text-sm font-semibold text-white">Security deposit held</h2>
           <p className="mt-2 text-sm text-apg-silver">
-            {paiseToInr(depositBalancePaise)} is held until checkout. This is not a bill — no payment
-            is required.
+            {paiseToInr(depositBalancePaise)} is held until checkout. No payment is required right
+            now.
           </p>
         </ApgCard>
       ) : null}

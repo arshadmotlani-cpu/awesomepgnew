@@ -103,7 +103,7 @@ test('certification: why ₹950 was not displayed before fix', () => {
   assert.ok(reasons.length >= 3);
   assert.match(
     residentArea,
-    /buildBillRowsFromDetail/,
+    /buildResidentBillRowsFromDetail/,
     'bills now load from all booking invoices regardless of financial account',
   );
 });
