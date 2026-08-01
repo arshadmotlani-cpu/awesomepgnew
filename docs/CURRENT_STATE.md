@@ -19,9 +19,9 @@
 <!-- DOC_SYNC_STATE_START -->
 ## Automated doc sync
 
-> **Last sync:** 2026-08-01 10:14:30 UTC  
-> **Areas touched:** [[ROUTES]], [[Billing]], [[Residents]], [[Bookings]], [[Deposits]]  
+> **Last sync:** 2026-08-01 10:44:03 UTC  
+> **Areas touched:** [[ROUTES]], [[Billing]], [[Residents]]  
 > **Docs flagged:** ARCHITECTURE.md, CHANGELOG.md, PROJECT/features.md, ROUTES.md, SYSTEM/CURRENT_STATE.md, SYSTEM/WORKFLOWS.md  
-> **Staged code files:** 52  
+> **Staged code files:** 15  
 > **Action:** Review [[CHANGELOG#Pending pre-commit sync · 2026-08-01]] (Pending section) before push.
 <!-- DOC_SYNC_STATE_END -->
