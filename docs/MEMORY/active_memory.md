@@ -37,6 +37,8 @@
 
 - **Automotive Capital production deploy** — App live on invest host; DNS resolved via Vercel. Admin credentials synced for both apps.
 
+- **Room OS / Property OS (Wave 0 shipped)** — Principal-reviewed architecture in `docs/ROOM_OS.md`; Wave 0 foundation in `src/roomOs/` (outbox, rules catalog v1, projector skeleton, v1 API stubs). **Blockers before Wave 1:** architecture sign-off, Operations Centre UX wireframes approved, Wave 0 reviewed.
+
 - **Operations Center P0 redesign** — Phase 1 audit complete (`docs/OPERATIONS_CENTER_AUDIT.md`); awaiting approval before implementation. Goal: true action center only, invoice/payment SSOT, no duplicate queues.
 - **Monorepo final stabilization (W0–W4)** — CI Hair E2E optional job; env contract; Hair UAT M6/M15 + ops minimum (schedules, chairs, reports); PG verification runbook; occupancy phase0 documented + parity tests; Capital docs/sign-off checklist. Remaining: PG prod audit execution, occupancy loader consolidation, loyalty plan CRUD (M7), inventory adjustments (M8), W4 P1 polish.
 
@@ -50,6 +52,8 @@
 ---
 
 ## Current Blockers
+
+- **Room OS Wave 1** — Requires architecture sign-off + Operations Centre UX wireframes approved (Phase 2 billing dashboard committed but not approved as ops home)
 
 - **Automotive Capital Overview** — Deployed and verified on invest production
 

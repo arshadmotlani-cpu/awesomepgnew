@@ -280,8 +280,39 @@ flowchart TB
 
 ---
 
+## Room OS / Property OS (Wave 0+)
+
+Strangler **read/intelligence layer** for Operations Centre — does not replace ledger writers or frozen settlement math. Full design: [[ROOM_OS]].
+
+```
+Property OS (pgId) ── property_os_index snapshot
+  ├── KpiStrip
+  └── WorkQueueSnapshot (materialized — not live-composed per request)
+Room OS (roomId) ── shared room state
+Bed Brain (bedId) ── occupancy + BookingContext value object
+```
+
+**Truth ladder:** (1) ledger writes → (2) domain events → (3) materialized projections → (4) timeline display.
+
+**Wave 0 code:** `src/roomOs/` — types, rules catalog v1, transactional outbox, projector framework skeleton, versioned read API stubs.
+
+### Forbidden dependency matrix (Room OS)
+
+| Module | Must NOT import |
+|--------|-----------------|
+| Projectors | React, Next.js, payment writers, settlement V2 compute |
+| Rules | DB except rule store |
+| WorkQueueProjector | Live HTTP, approval mutators |
+| Operations Centre UI | `rentInvoices`, `occupancySsot`, `roomElectricityOccupants` directly |
+| Ledger writers | Room OS projectors (writers enqueue outbox only) |
+
+Enforced by `tests/unit/roomOsArchitecture.test.ts`.
+
+---
+
 ## Related docs
 
+- Room OS architecture: [[ROOM_OS]]
 - Deep product spec: [[AWESOME_PG_MASTER_DOCUMENTATION_V2]]
 - Legacy v1: [[AWESOME_PG_MASTER_DOCUMENTATION]]
 - Feature list: [[features]]

@@ -57,6 +57,7 @@ export * from './unresolvedActions';
 export * from './paymentLinks';
 export * from './financialInvoices';
 export * from './billingEvents';
+export * from './roomOsOutbox';
 export * from './couponRedemptions';
 export * from './residentRequests';
 export * from './residentBillingProfiles';

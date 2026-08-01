@@ -9,6 +9,7 @@
 
 ## 2026-08-01
 
+- **ROOM-OS-WAVE0** — Principal-reviewed Room OS architecture doc (`docs/ROOM_OS.md`); ARCHITECTURE.md Room OS section + forbidden matrix; Wave 0 code (`src/roomOs/`: types, rules catalog v1, outbox, projector skeleton, v1 API stubs); migration `0132_room_os_outbox`; unit tests `roomOsWave0`, `roomOsArchitecture`
 - **STABILITY-PHASE** — Stability Phase governance: Cursor rule, `docs/STABILITY_PHASE.md`, `npm run stability:report` pre-commit regression gate
 
 ## 2026-07-31
