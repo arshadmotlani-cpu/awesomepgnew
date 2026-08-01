@@ -37,6 +37,8 @@ Every bug fix **must include a regression test** that would have caught the bug.
 
 Billing-related changes require **read-only production verification** before deploy (e.g. `scripts/audit-*-readonly.ts`, resident/billing cert scripts). Document results in the regression report.
 
+**Billing Centre releases** additionally require `npm run cert:shantinagar-phase1` against production — all active Shantinagar residents must pass with zero ₹1 drift.
+
 ## Before commit / push
 
 Generate a **Regression Report** (`npm run stability:report`). It must list:

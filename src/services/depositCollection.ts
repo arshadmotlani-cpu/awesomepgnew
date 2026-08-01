@@ -281,9 +281,9 @@ export async function ensureDepositDuePaymentLink(bookingId: string): Promise<st
     return null;
   }
 
-  const { createPaymentLink } = await import('./paymentLinks');
+  const { getOrCreatePaymentLink } = await import('./paymentLinks');
   const { paymentLinkPublicUrl } = await import('@/src/lib/billing/paymentLinkUrl');
-  const result = await createPaymentLink({
+  const result = await getOrCreatePaymentLink({
     residentId: ctx.customerId,
     pgId: ctx.pgId,
     amountPaise: ctx.depositDuePaise,
@@ -294,9 +294,55 @@ export async function ensureDepositDuePaymentLink(bookingId: string): Promise<st
     dueDate: ctx.depositDueDate ?? undefined,
     roomNumber: ctx.roomNumber,
     isOverdue: ctx.depositCollectionStatus === 'overdue',
+    bookingId,
   });
   if (!result.ok) return null;
+
+  await expireSupersededActiveDepositLinks({
+    residentId: ctx.customerId,
+    bookingId,
+    keepLinkId: result.link.id,
+  });
+
   return paymentLinkPublicUrl(result.link.id);
+}
+
+/** One active deposit link per booking — expire duplicates after ensure/create. */
+export async function expireSupersededActiveDepositLinks(input: {
+  residentId: string;
+  bookingId: string;
+  keepLinkId: string;
+}): Promise<number> {
+  const { paymentLinks } = await import('@/src/db/schema');
+  const { and, eq, ne } = await import('drizzle-orm');
+
+  const stale = await db
+    .select({ id: paymentLinks.id })
+    .from(paymentLinks)
+    .where(
+      and(
+        eq(paymentLinks.residentId, input.residentId),
+        eq(paymentLinks.purpose, 'deposit'),
+        eq(paymentLinks.status, 'active'),
+        ne(paymentLinks.id, input.keepLinkId),
+      ),
+    );
+
+  if (stale.length === 0) return 0;
+
+  await db
+    .update(paymentLinks)
+    .set({ status: 'expired' })
+    .where(
+      and(
+        eq(paymentLinks.residentId, input.residentId),
+        eq(paymentLinks.purpose, 'deposit'),
+        eq(paymentLinks.status, 'active'),
+        ne(paymentLinks.id, input.keepLinkId),
+      ),
+    );
+
+  return stale.length;
 }
 
 export async function applyFullDepositOnConfirm(bookingId: string): Promise<void> {

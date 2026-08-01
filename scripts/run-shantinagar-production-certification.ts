@@ -14,7 +14,7 @@ import { loadScriptEnv } from '@/src/lib/scripts/loadScriptEnv';
 
 function loadDatabaseUrlFromBackupFiles(): void {
   if (process.env.DATABASE_URL?.trim()) return;
-  for (const path of ['.env.production.local', '.env.local', '.env.off', '.env.bak']) {
+  for (const path of ['.env.prod.live', '.env.production.local', '.env.local', '.env.off', '.env.bak']) {
     try {
       const raw = readFileSync(path, 'utf8');
       const match = raw.match(/^DATABASE_URL=(.+)$/m);

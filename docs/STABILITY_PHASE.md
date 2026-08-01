@@ -93,6 +93,18 @@ The report includes:
 
 Commit and push only when the report exits **0**.
 
+### 9. Billing Centre releases — Shantinagar Phase 1 certification (mandatory)
+
+Before any **Billing Centre** deploy (Phase 2+), every active Shantinagar resident must pass automated portal certification:
+
+```bash
+npx vercel env run --environment production npm run cert:shantinagar-phase1
+```
+
+The cert is **read-only**, reconciles 21 fields per resident (rent SSOT, invoices, electricity allocation, deposit, Total Due portal vs backend), and **exits non-zero if any resident differs by even ₹1**.
+
+Phase 1 resident portal work is **not complete** until this cert passes with `CERTIFIED` for all active residents.
+
 ## Agent / developer checklist
 
 - [ ] Dependents identified
@@ -101,6 +113,7 @@ Commit and push only when the report exits **0**.
 - [ ] Regression test added (bug fixes)
 - [ ] `npm run stability:report` green
 - [ ] Production read-only audit (if billing/inventory/money)
+- [ ] Shantinagar Phase 1 cert (`npm run cert:shantinagar-phase1`) before Billing Centre releases
 - [ ] Regression report reviewed
 
 ## Related docs

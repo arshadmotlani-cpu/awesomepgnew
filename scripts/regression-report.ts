@@ -17,6 +17,13 @@ type StepResult = {
   code: number | null;
 };
 
+const BILLING_CENTRE_GLOBS = [
+  /^src\/components\/admin\/billing\//,
+  /^src\/components\/admin\/BillingOverviewPanel/,
+  /^src\/services\/billingOperationsDashboard/,
+  /^app\/\(admin\)\/admin\/billing\//,
+];
+
 const BILLING_GLOBS = [
   /^src\/lib\/billing\//,
   /^src\/services\/rentInvoices/,
@@ -85,6 +92,7 @@ function inferModules(files: string[]): string[] {
     if (f.startsWith('src/lib/billing/')) modules.add('billing');
     if (f.startsWith('src/lib/checkout/') || f.includes('checkoutSettlement')) modules.add('checkout/settlement');
     if (f.includes('resident')) modules.add('resident-portal');
+    if (matchesAny(f, BILLING_CENTRE_GLOBS)) modules.add('billing-centre');
     if (f.includes('roomIntegrity') || f.includes('roomCapacity')) modules.add('room-inventory');
     if (f.startsWith('src/hair/')) modules.add('hair');
     if (f.startsWith('src/capital/')) modules.add('capital');
@@ -98,6 +106,11 @@ function possibleRisks(files: string[]): string[] {
   const risks: string[] = [];
   if (files.some((f) => matchesAny(f, BILLING_GLOBS))) {
     risks.push('Billing/resident money — run read-only production audit before deploy.');
+  }
+  if (files.some((f) => matchesAny(f, BILLING_CENTRE_GLOBS) || matchesAny(f, BILLING_GLOBS))) {
+    risks.push(
+      'Billing Centre / resident portal — REQUIRED: npm run cert:shantinagar-phase1 (production) before release.',
+    );
   }
   if (files.some((f) => /schema\/|migrations\//.test(f))) {
     risks.push('Database schema/migration — verify migrate on staging; no destructive prod SQL.');
@@ -188,6 +201,26 @@ async function main() {
   console.log('\n── Lint guards ──');
   steps.push(run('npm', ['run', 'lint:uploads']));
   steps.push(run('npm', ['run', 'lint:private-blobs']));
+
+  const billingCentreTouched = files.some((f) => matchesAny(f, BILLING_CENTRE_GLOBS));
+  const residentPortalTouched = files.some(
+    (f) => f.includes('residentPortal') || f.includes('account/resident'),
+  );
+
+  if (
+    process.env.DATABASE_URL?.trim() &&
+    (billingCentreTouched || residentPortalTouched) &&
+    !process.argv.includes('--skip-shantinagar-cert')
+  ) {
+    console.log('\n── Shantinagar Phase 1 production cert (read-only) ──');
+    steps.push(run('npm', ['run', 'cert:shantinagar-phase1']));
+  } else if (billingCentreTouched || residentPortalTouched) {
+    console.log(
+      '\n── Shantinagar Phase 1 cert SKIPPED (no DATABASE_URL) ──\n' +
+        '  REQUIRED before Billing Centre release:\n' +
+        '  npx vercel env run --environment production npm run cert:shantinagar-phase1',
+    );
+  }
 
   console.log('\n═'.repeat(72));
   console.log('SUMMARY');

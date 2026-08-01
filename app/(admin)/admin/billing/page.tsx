@@ -4,7 +4,7 @@ import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionEr
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { BillingWorkflowGuide } from '@/src/components/admin/billing/BillingWorkflowGuide';
 import { BillingAdvancedTools } from '@/src/components/admin/billing/BillingAdvancedTools';
-import { BillingCommandCentreHeader, BillingUpcomingRentSchedule } from '@/src/components/admin/billing/BillingCommandCentreHeader';
+import { BillingCommandCentreHeader } from '@/src/components/admin/billing/BillingCommandCentreHeader';
 import { BillingDiagnosticsPanel } from '@/src/components/admin/billing/BillingDiagnosticsPanel';
 import { BillingRecentCollections } from '@/src/components/admin/billing/BillingRecentCollections';
 import { CollectionsActionQueue } from '@/src/components/admin/billing/CollectionsActionQueue';
@@ -41,7 +41,7 @@ import {
   BillingGeneratedTodayPanel,
   BillingHealthCardPanel,
 } from '@/src/components/admin/billing/BillingCenterPanels';
-import { BillingOperationsDashboard } from '@/src/components/admin/billing/BillingOperationsDashboard';
+import { BillingCentreCommandDashboard } from '@/src/components/admin/billing/BillingCentreCommandDashboard';
 import { BillingCycleCertificationPanel } from '@/src/components/admin/billing/BillingCycleCertificationPanel';
 import { PipelineTestIntegrityPanel } from '@/src/components/admin/billing/PipelineTestIntegrityPanel';
 import { BillingProductionRepairPanel } from '@/src/components/admin/billing/BillingProductionRepairPanel';
@@ -55,17 +55,17 @@ import {
 } from '@/src/services/billingPipelineIntegrity';
 import { loadBillingCommandCenterSnapshot } from '@/src/services/billingCommandCenter';
 import { todayInBillingTimezone } from '@/src/lib/billing/billingTimezone';
-import {
-  mergeBillingRecentCollections,
-} from '@/src/lib/admin/billingCollectionsPresentation';
+import { parseBillingCentreFilters } from '@/src/lib/admin/billingCentreDashboardPresentation';
 import { getBillingHealthSnapshot } from '@/src/services/billingHealth';
 import {
   getLatestBillingGenerationRun,
   listBillingGenerationFailures,
   listTodayGeneratedInvoices,
 } from '@/src/services/billingScheduler';
-import { loadUpcomingRentSchedule } from '@/src/services/billingUpcomingSchedule';
-import { loadBillingOperationsDashboard } from '@/src/services/billingOperationsDashboard';
+import {
+  mergeBillingRecentCollections,
+} from '@/src/lib/admin/billingCollectionsPresentation';
+import { loadBillingCentreDashboardSnapshot } from '@/src/services/billingCentreDashboard';
 import { listRentBillingOverview, listBillingCycleOperations } from '@/src/services/rentInvoices';
 import { listRoomsMissingElectricityBill } from '@/src/services/electricityBilling';
 import { count, sql } from 'drizzle-orm';
@@ -116,7 +116,14 @@ function isLastDayOfMonth(date: Date): boolean {
 export default async function CollectionsModulePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; month?: string }>;
+  searchParams: Promise<{
+    tab?: string;
+    month?: string;
+    pg?: string;
+    room?: string;
+    resident?: string;
+    paidPeriod?: string;
+  }>;
 }) {
   const sp = await searchParams;
   if (sp.tab === 'approvals') {
@@ -125,12 +132,19 @@ export default async function CollectionsModulePage({
   const tab = TABS.some((t) => t.id === sp.tab) ? sp.tab! : 'dashboard';
   const billingMonth = resolveBillingMonth(sp.month);
   const todayIst = todayInBillingTimezone();
+  const dashboardFilters = parseBillingCentreFilters(sp);
 
   const session = await requireAdminSession('/admin/billing');
   await ensureAdminPageNotificationsSeen('/admin/billing', '/admin/billing');
   const canGenerateRent = adminHasPermission(session.role, 'rent:write');
   const canSendLinks = adminHasPermission(session.role, 'payments:write');
-  const [openRent, rentPaid, elecPaid, elecPending, pgs, billingOverview, billingCycleOps, roomsMissingElectricity, billingHealth, lastRun, generatedToday, failures, electricityBillsToday, billingSnapshot, pipelineIssues, strayZeroInvoices, upcomingSchedule, operationsDashboard] =
+
+  const dashboardSnapshotPromise =
+    tab === 'dashboard'
+      ? loadBillingCentreDashboardSnapshot(session, billingMonth, dashboardFilters)
+      : Promise.resolve(null);
+
+  const [openRent, rentPaid, elecPaid, elecPending, pgs, billingOverview, billingCycleOps, roomsMissingElectricity, billingHealth, lastRun, generatedToday, failures, electricityBillsToday, billingSnapshot, pipelineIssues, strayZeroInvoices, dashboardSnapshot] =
     await Promise.all([
     listAdminOpenRentInvoices(),
     listAdminRentInvoices({ status: 'paid' }),
@@ -154,8 +168,7 @@ export default async function CollectionsModulePage({
     loadBillingCommandCenterSnapshot(session, billingMonth),
     listPipelineTestIntegrityIssues(),
     listStrayZeroProductionInvoices(),
-    loadUpcomingRentSchedule({ fromDate: todayIst, horizonDays: 14 }),
-    loadBillingOperationsDashboard(),
+    dashboardSnapshotPromise,
   ]);
 
   const allUnpaidRent = mergeUnpaidRent(openRent.ok ? openRent.data : []);
@@ -241,10 +254,6 @@ export default async function CollectionsModulePage({
         error={billingSnapshot.reconciliationError}
       />
 
-      <PipelineTestIntegrityPanel issues={pipelineIssues} strayZeroInvoices={strayZeroInvoices} />
-
-      {session.role === 'super_admin' ? <BillingProductionRepairPanel /> : null}
-
       <div className="mb-6 flex flex-wrap gap-2">
         {TABS.map((t) => (
           <Link
@@ -272,20 +281,15 @@ export default async function CollectionsModulePage({
         isMonthEnd={isMonthEnd}
       />
 
-      {tab === 'dashboard' ? (
+      {tab === 'dashboard' && dashboardSnapshot ? (
         <AdminSectionErrorBoundary title="Billing dashboard">
-          <BillingOperationsDashboard
-            snapshot={operationsDashboard}
+          <BillingCentreCommandDashboard
+            view={dashboardSnapshot}
+            filters={dashboardFilters}
             canMarkCash={canMarkCash}
             canGenerateRent={canGenerateRent}
             adminName={session.fullName ?? session.email}
           />
-          <div className="mt-8">
-            <BillingUpcomingRentSchedule schedule={upcomingSchedule} />
-          </div>
-          <div className="mt-8">
-            <BillingHealthCardPanel health={billingHealth} />
-          </div>
         </AdminSectionErrorBoundary>
       ) : null}
 
@@ -452,12 +456,23 @@ export default async function CollectionsModulePage({
 
       {tab === 'diagnostics' ? (
         <AdminSectionErrorBoundary title="Billing diagnostics">
-          <BillingDiagnosticsPanel
-            health={billingHealth}
-            reconciliation={billingSnapshot.reconciliation}
-            reconciliationError={billingSnapshot.reconciliationError}
-            isSuperAdmin={session.role === 'super_admin'}
-          />
+          <PipelineTestIntegrityPanel issues={pipelineIssues} strayZeroInvoices={strayZeroInvoices} />
+          {session.role === 'super_admin' ? (
+            <div className="mt-8">
+              <BillingProductionRepairPanel />
+            </div>
+          ) : null}
+          <div className="mt-8">
+            <BillingHealthCardPanel health={billingHealth} />
+          </div>
+          <div className="mt-8">
+            <BillingDiagnosticsPanel
+              health={billingHealth}
+              reconciliation={billingSnapshot.reconciliation}
+              reconciliationError={billingSnapshot.reconciliationError}
+              isSuperAdmin={session.role === 'super_admin'}
+            />
+          </div>
         </AdminSectionErrorBoundary>
       ) : null}
     </>

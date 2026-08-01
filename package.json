@@ -26,6 +26,8 @@
     "test:billing-settlement": "npx tsx --test tests/unit/billingEngineValidation.test.ts tests/unit/moveOutSettlementExplanation.test.ts tests/unit/settlementRuleRegistry.test.ts tests/unit/billingCoverageRegression.test.ts",
     "stability:report": "npx tsx scripts/regression-report.ts",
     "stability:report:ci": "npx tsx scripts/regression-report.ts --ci",
+    "cert:shantinagar-phase1": "npx tsx scripts/run-shantinagar-phase1-portal-certification.ts",
+    "cert:shantinagar-phase1:json": "npx tsx scripts/run-shantinagar-phase1-portal-certification.ts --json",
     "lint:uploads": "tsx scripts/lint-image-uploads.ts",
     "lint:private-blobs": "tsx scripts/lint-private-blob-display.ts",
     "test:e2e": "playwright test",

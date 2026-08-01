@@ -1,0 +1,829 @@
+Certifying 1/12: Anuj Harinkhede
+[warn] {
+  level: 'warn',
+  message: 'env self-heal: degraded mode',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:36:33.282Z',
+    environment: 'production',
+    missing: [ 'AUTH_SECRET' ],
+    degradedFeatures: [ 'auth-sessions' ]
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:36:33.726Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 442,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:36:35.464Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 2180,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow query in safeQuery',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:36:35.465Z',
+    environment: 'production',
+    queryName: 'customerQuery',
+    durationMs: 2181,
+    attempt: 1
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'health diagnosis',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:36:35.481Z',
+    environment: 'production',
+    status: 'DEGRADED',
+    envMissing: [ 'AUTH_SECRET' ],
+    dbError: null,
+    safeMode: false
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:36:35.922Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 440,
+    route: undefined,
+    requestId: undefined
+  }
+}
+Certifying 2/12: Ishan Jharia
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:36:57.151Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 430,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:36:57.151Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 431,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:36:57.153Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 433,
+    route: undefined,
+    requestId: undefined
+  }
+}
+Certifying 3/12: Angatra Mandal
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:37:17.053Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 429,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:37:17.055Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 432,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:37:17.056Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 433,
+    route: undefined,
+    requestId: undefined
+  }
+}
+Certifying 4/12: CV Laxminarayana
+[warn] {
+  level: 'warn',
+  message: 'env self-heal: degraded mode',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:37:37.015Z',
+    environment: 'production',
+    missing: [ 'AUTH_SECRET' ],
+    degradedFeatures: [ 'auth-sessions' ]
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:37:37.452Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 436,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:37:37.452Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 436,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'health diagnosis',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:37:39.158Z',
+    environment: 'production',
+    status: 'DEGRADED',
+    envMissing: [ 'AUTH_SECRET' ],
+    dbError: null,
+    safeMode: false
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:37:39.597Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 438,
+    route: undefined,
+    requestId: undefined
+  }
+}
+Certifying 5/12: Rishik khobragade
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:37:59.763Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 663,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow query in safeQuery',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:37:59.764Z',
+    environment: 'production',
+    queryName: 'customerQuery',
+    durationMs: 664,
+    attempt: 1
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:37:59.765Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 665,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow query in safeQuery',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:37:59.765Z',
+    environment: 'production',
+    queryName: 'customerQuery',
+    durationMs: 665,
+    attempt: 1
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:37:59.766Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 666,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow query in safeQuery',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:37:59.766Z',
+    environment: 'production',
+    queryName: 'customerQuery',
+    durationMs: 666,
+    attempt: 1
+  }
+}
+Certifying 6/12: Govind kumar
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:38:19.686Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 429,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:38:19.687Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 431,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:38:19.689Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 433,
+    route: undefined,
+    requestId: undefined
+  }
+}
+Certifying 7/12: Bhuwan
+[warn] {
+  level: 'warn',
+  message: 'env self-heal: degraded mode',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:38:40.039Z',
+    environment: 'production',
+    missing: [ 'AUTH_SECRET' ],
+    degradedFeatures: [ 'auth-sessions' ]
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:38:40.480Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 439,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:38:40.482Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 441,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'health diagnosis',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:38:42.230Z',
+    environment: 'production',
+    status: 'DEGRADED',
+    envMissing: [ 'AUTH_SECRET' ],
+    dbError: null,
+    safeMode: false
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:38:42.664Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 433,
+    route: undefined,
+    requestId: undefined
+  }
+}
+Certifying 8/12: KRISHNA ZODAGE
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:39:03.456Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 429,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:39:03.669Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 642,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow query in safeQuery',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:39:03.669Z',
+    environment: 'production',
+    queryName: 'customerQuery',
+    durationMs: 642,
+    attempt: 1
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:39:03.891Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 864,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow query in safeQuery',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:39:03.891Z',
+    environment: 'production',
+    queryName: 'customerQuery',
+    durationMs: 865,
+    attempt: 1
+  }
+}
+Certifying 9/12: Vijay Dilip Shinde
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:39:24.410Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 432,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:39:24.411Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 434,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:39:24.625Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 649,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow query in safeQuery',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:39:24.625Z',
+    environment: 'production',
+    queryName: 'customerQuery',
+    durationMs: 649,
+    attempt: 1
+  }
+}
+Certifying 10/12: Waqar ahmad
+[warn] {
+  level: 'warn',
+  message: 'env self-heal: degraded mode',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:39:44.114Z',
+    environment: 'production',
+    missing: [ 'AUTH_SECRET' ],
+    degradedFeatures: [ 'auth-sessions' ]
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:39:44.552Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 437,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:39:44.766Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 651,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow query in safeQuery',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:39:44.767Z',
+    environment: 'production',
+    queryName: 'customerQuery',
+    durationMs: 652,
+    attempt: 1
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'health diagnosis',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:39:46.308Z',
+    environment: 'production',
+    status: 'DEGRADED',
+    envMissing: [ 'AUTH_SECRET' ],
+    dbError: null,
+    safeMode: false
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:39:46.742Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 433,
+    route: undefined,
+    requestId: undefined
+  }
+}
+Certifying 11/12: Syed Ahmed
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:40:06.726Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 433,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:40:06.728Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 436,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:40:06.729Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 436,
+    route: undefined,
+    requestId: undefined
+  }
+}
+Certifying 12/12: Dhairya Zinzuvadiya
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:40:27.492Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 430,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:40:27.492Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 431,
+    route: undefined,
+    requestId: undefined
+  }
+}
+[warn] {
+  level: 'warn',
+  message: 'slow db query',
+  route: undefined,
+  method: undefined,
+  userId: undefined,
+  requestId: undefined,
+  meta: {
+    timestamp: '2026-08-01T11:40:27.494Z',
+    environment: 'production',
+    query: 'customerQuery',
+    durationMs: 433,
+    route: undefined,
+    requestId: undefined
+  }
+}
+Wrote docs/cert/shantinagar-phase1-latest.json
