@@ -372,3 +372,6 @@ flowchart TB
 
 <!-- DOC_SYNC_TOUCH_2026-07-31 -->
 > **2026-07-31 16:43:58 UTC** — Code changed in: Routes, Database, Billing. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-08-01 -->
+> **2026-08-01 10:14:30 UTC** — Code changed in: Routes, Billing, Residents, Bookings, Deposits. Manual review recommended.

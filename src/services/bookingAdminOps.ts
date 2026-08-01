@@ -12,6 +12,8 @@ import {
 } from '@/src/lib/bedOccupancyCheck';
 import { formatDate, isBefore, parseDate, todayString } from '@/src/lib/dates';
 import { scheduleAvailabilityCacheInvalidation } from '@/src/lib/cache/invalidateAvailability';
+import { assertBedStatusChangeAllowed } from '@/src/lib/roomIntegrity/proposedChanges';
+import { validateRoomById } from '@/src/services/roomIntegrityValidator';
 import { RESERVE_MIN_PERIOD_DAYS } from '@/src/lib/bedReservePolicy';
 import type {
   AdminDepositRefundStatus,
@@ -192,7 +194,12 @@ export async function updateBedInventoryStatus(
   await assertBedAccess(session, bedId);
 
   const [before] = await db
-    .select({ status: beds.status, bedCode: beds.bedCode, pgName: pgs.name })
+    .select({
+      status: beds.status,
+      bedCode: beds.bedCode,
+      pgName: pgs.name,
+      roomId: beds.roomId,
+    })
     .from(beds)
     .innerJoin(rooms, eq(rooms.id, beds.roomId))
     .innerJoin(floors, eq(floors.id, rooms.floorId))
@@ -203,6 +210,11 @@ export async function updateBedInventoryStatus(
 
   if (status === 'maintenance' || status === 'blocked') {
     await assertBedNotOccupiedToday(bedId);
+  }
+
+  const roomIntegrity = await validateRoomById(before.roomId);
+  if (roomIntegrity) {
+    assertBedStatusChangeAllowed(roomIntegrity, before.status, status);
   }
 
   await db

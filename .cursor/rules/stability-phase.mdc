@@ -1,0 +1,52 @@
+---
+description: Stability Phase — dependency checks, tests, regression tests, no duplicated logic
+alwaysApply: true
+---
+
+# Stability Phase (Awesome PG)
+
+From 2026-08-01 onward, every feature and bug fix follows this workflow.
+
+## Before changing code
+
+1. **Map dependents** — grep/import trace: who imports or calls the module you are editing?
+2. **Run related tests first** — baseline must be green before edits.
+   - PG: `npm run test:pg` (+ `npm run test:billing-settlement` if billing/settlement/resident money)
+   - Hair: `npm run test:hair`
+   - Capital: `npm run test:capital`
+
+## After changing code (mandatory)
+
+Run `npm run stability:report` (or `npx tsx scripts/regression-report.ts`).
+
+It runs **build → unit/integration tests for affected products → billing-settlement when billing paths change**.
+
+**If any unrelated test fails: STOP.** Do not patch around it. Find and fix the regression first.
+
+## Bug fixes
+
+Every bug fix **must include a regression test** that would have caught the bug.
+
+## Business logic
+
+- **Never duplicate** rent, deposit, settlement, occupancy, or invoice math in UI or ad-hoc scripts.
+- Reuse existing services (`resolveMonthlyRentPaiseForBooking`, `getResidentFinancialAccount`, `projectInvoice`, etc.).
+- If two places disagree, consolidate into one shared module.
+
+## Billing / production
+
+Billing-related changes require **read-only production verification** before deploy (e.g. `scripts/audit-*-readonly.ts`, resident/billing cert scripts). Document results in the regression report.
+
+## Before commit / push
+
+Generate a **Regression Report** (`npm run stability:report`). It must list:
+
+- Changed files
+- Affected modules
+- Tests run
+- Pass/fail
+- Possible risks
+
+**Only commit and push when the report is green** and risks are acknowledged.
+
+Full runbook: `docs/STABILITY_PHASE.md`

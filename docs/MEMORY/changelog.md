@@ -7,6 +7,10 @@
 
 ---
 
+## 2026-08-01
+
+- **STABILITY-PHASE** — Stability Phase governance: Cursor rule, `docs/STABILITY_PHASE.md`, `npm run stability:report` pre-commit regression gate
+
 ## 2026-07-31
 
 - **ELECTRICITY-BILLING-AUDIT** — Published full 9-section audit (`docs/ELECTRICITY_BILLING_AUDIT.md`), UI walkthrough, worked examples scaffold; implemented `RoomElectricityAuditPanel` on admin bill detail for consolidated resident breakdown + sum validation

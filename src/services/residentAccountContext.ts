@@ -26,6 +26,11 @@ import { invoiceDetailHref } from '@/src/lib/billing/invoiceRoutes';
 import { isFinancialInvoiceUuid } from '@/src/lib/billing/resolveFinancialInvoiceRef';
 import { getLatestPaymentLinkForResident } from '@/src/services/paymentLinks';
 import { formatDate, tryDiffDays } from '@/src/lib/dates';
+import {
+  isCancelledResidentInvoiceStatus,
+  isVisibleResidentInvoiceStatus,
+  loadResidentMonthlyRentDisplay,
+} from '@/src/lib/residents/residentPortalFinancials';
 
 export type ResidentInvoiceCard = {
   id: string;
@@ -72,6 +77,9 @@ export type ResidentAccountContext = {
   depositHeldPaise: number;
   depositRefundablePaise: number;
   depositOutstandingPaise: number;
+  /** Invoice-engine monthly rent — never pricing_snapshot. */
+  monthlyRentPaise: number;
+  billingCycleLabel: string;
 };
 
 function depositStatusLabel(input: {
@@ -136,6 +144,14 @@ export async function loadResidentAccountContext(
     : null;
   const rfeLineItems = buildRfeLineItemMap(financialSummary);
 
+  const rentDisplay =
+    primaryBooking != null
+      ? await loadResidentMonthlyRentDisplay({
+          bookingId: primaryBooking.bookingId,
+          customerId,
+        })
+      : null;
+
   const depositPaid =
     financialSummary != null &&
     financialSummary.deposit.requiredPaise > 0 &&
@@ -197,25 +213,10 @@ export async function loadResidentAccountContext(
 
     if (rentRes.ok) {
       for (const inv of rentRes.data) {
-        if (inv.status === 'cancelled') {
-          invoices.push({
-            id: inv.id,
-            kind: 'rent',
-            invoiceNumber: inv.invoiceNumber,
-            label: `Rent · ${billingMonthLabel(inv.billingMonth)} (cancelled)`,
-            stayDurationLabel,
-            checkInLabel,
-            checkOutLabel,
-            rentPaise: inv.rentPaise,
-            electricityPaise: 0,
-            depositPaidPaise: 0,
-            finalAmountPaise: inv.rentPaise,
-            status: 'cancelled',
-            dueDate: inv.dueDate,
-            payHref: null,
-            detailHref: null,
-            paymentLinkUrl: null,
-          });
+        if (isCancelledResidentInvoiceStatus(inv.status)) {
+          continue;
+        }
+        if (!isVisibleResidentInvoiceStatus(inv.status)) {
           continue;
         }
         const rfeLine = rfeLineItems.get(`rent:${inv.id}`);
@@ -275,6 +276,9 @@ export async function loadResidentAccountContext(
 
     if (elecRes.ok) {
       for (const inv of elecRes.data) {
+        if (isCancelledResidentInvoiceStatus(inv.status)) {
+          continue;
+        }
         const projected = projectElectricityInvoice({
           id: inv.id,
           invoiceNumber: inv.invoiceNumber,
@@ -358,11 +362,14 @@ export async function loadResidentAccountContext(
       }
     }
 
-    if (depositPaidPaise > 0 || (booking.depositDuePaise ?? 0) > 0) {
-      const depositOutstandingPaise = Math.max(
-        0,
-        booking.depositDuePaise ?? booking.depositPaise - depositPaidPaise,
-      );
+    const depositOutstandingPaise = Math.max(
+      0,
+      financialSummary?.deposit.outstandingPaise ??
+        booking.depositDuePaise ??
+        booking.depositPaise - depositPaidPaise,
+    );
+
+    if (depositOutstandingPaise > 0) {
       let depositPayHref: string | null = null;
       let depositPaymentLinkUrl: string | null = null;
       let depositStatus: string =
@@ -492,5 +499,7 @@ export async function loadResidentAccountContext(
     depositHeldPaise: financialSummary?.deposit.refundablePaise ?? 0,
     depositRefundablePaise: financialSummary?.deposit.refundablePaise ?? 0,
     depositOutstandingPaise: financialSummary?.deposit.outstandingPaise ?? 0,
+    monthlyRentPaise: rentDisplay?.monthlyRentPaise ?? 0,
+    billingCycleLabel: rentDisplay?.billingCycleLabel ?? 'Monthly',
   };
 }

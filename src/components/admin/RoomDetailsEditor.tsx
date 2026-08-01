@@ -10,6 +10,8 @@ import {
   resolveRoomTypeNameForCapacity,
   sharingLabelFromActiveBedCount,
 } from '@/src/lib/roomCapacitySsot';
+import type { RoomIntegrityResult } from '@/src/lib/roomIntegrity/types';
+import { RoomIntegrityBadge } from '@/src/components/admin/RoomIntegrityBadge';
 
 function editableFloorLabel(label: string, floorNumber: number): string {
   const auto = `Floor ${floorNumber}`;
@@ -26,6 +28,7 @@ export function RoomDetailsEditor({
   activeBedCount,
   hasAc,
   roomNotes,
+  integrity,
 }: {
   pgId: string;
   roomId: string;
@@ -36,6 +39,7 @@ export function RoomDetailsEditor({
   activeBedCount: number;
   hasAc: boolean;
   roomNotes: string | null;
+  integrity?: RoomIntegrityResult;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -119,6 +123,7 @@ export function RoomDetailsEditor({
           Capacity follows active beds ({sharingLabel} · {activeBedCount} bed
           {activeBedCount === 1 ? '' : 's'})
         </p>
+        <RoomIntegrityBadge integrity={integrity} />
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <button

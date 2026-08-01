@@ -47,6 +47,8 @@ type Props = {
   pendingApprovalRows: PaymentDueRow[];
   rejectedBillRows?: PaymentDueRow[];
   paidBills: PaidHistoryRow[];
+  cancelledBills?: PaidHistoryRow[];
+  pendingRentNotice?: string | null;
   electricityHistory?: ResidentElectricityHistoryItem[];
   historyHref: string | null;
   lifetimeTotals: LifetimeTotals;
@@ -112,10 +114,13 @@ export function ResidentPaymentsV2Hub({
   pendingApprovalRows,
   rejectedBillRows = [],
   paidBills,
+  cancelledBills = [],
+  pendingRentNotice = null,
   electricityHistory = [],
   historyHref,
   lifetimeTotals,
 }: Props) {
+  const [showCancelled, setShowCancelled] = useState(false);
   const subNav = [
     { id: 'due', label: 'Bills Due', href: residentPaymentsHref('due') },
     { id: 'invoices', label: 'Invoices', href: residentPaymentsHref('invoices') },
@@ -152,6 +157,12 @@ export function ResidentPaymentsV2Hub({
             <p className="rounded-xl border border-sky-400/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
               Payment submitted — we are reviewing your screenshot.
             </p>
+          ) : null}
+
+          {pendingRentNotice ? (
+            <ApgCard tier="resident">
+              <p className="text-sm text-apg-silver">{pendingRentNotice}</p>
+            </ApgCard>
           ) : null}
 
           {payableDue.length === 0 &&
@@ -269,13 +280,45 @@ export function ResidentPaymentsV2Hub({
                           className="rounded-lg border border-white/15 px-2 py-1 text-[11px] font-medium text-apg-silver hover:text-white"
                         />
                       ) : null}
-                      <StatusChip status={row.status} toneMap={requestStatusTone} />
+                      <StatusChip
+                        status={row.status === 'partial' ? 'Partially paid' : row.status}
+                        toneMap={requestStatusTone}
+                      />
                     </div>
                   </li>
                 ))}
               </ul>
             </ApgCard>
           )}
+
+          {cancelledBills.length > 0 ? (
+            <ApgCard tier="resident">
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-apg-silver">
+                <input
+                  type="checkbox"
+                  checked={showCancelled}
+                  onChange={(e) => setShowCancelled(e.target.checked)}
+                  className="rounded border-white/20"
+                />
+                Show cancelled invoices
+              </label>
+              {showCancelled ? (
+                <ul className="mt-3 divide-y divide-white/10">
+                  {cancelledBills.map((row) => (
+                    <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
+                      <div>
+                        <p className="text-sm font-medium text-white">{row.label}</p>
+                        <p className="text-xs text-apg-silver">Cancelled</p>
+                      </div>
+                      <span className="text-sm font-semibold tabular-nums text-apg-silver">
+                        {paiseToInr(row.amountPaise)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </ApgCard>
+          ) : null}
 
           {historyHref ? (
             <Link href={historyHref} className={`${secondaryBtn} w-full`}>

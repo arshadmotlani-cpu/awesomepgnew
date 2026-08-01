@@ -124,6 +124,61 @@ export async function findPendingPaymentHold(
   return row ? { bookingCode: row.booking_code } : null;
 }
 
+export async function hasBedFutureConfirmedBooking(bedId: string): Promise<boolean> {
+  const result = await db.execute<{ has_future: boolean }>(sql`
+    SELECT EXISTS (
+      SELECT 1
+      FROM bed_reservations br
+      INNER JOIN bookings bk ON bk.id = br.booking_id
+      WHERE br.bed_id = ${bedId}::uuid
+        AND br.status::text IN ('active', 'under_review')
+        AND bk.status = 'confirmed'
+        AND br.kind = 'primary'
+        AND lower(br.stay_range) > CURRENT_DATE
+    ) AS has_future
+  `);
+  const [row] = rowsOf(result);
+  return Boolean(row?.has_future);
+}
+
+export type BedArchiveBlockReason = 'occupied' | 'reserved' | 'future_booking' | 'hold';
+
+export async function getBedArchiveBlockReason(
+  bedId: string,
+): Promise<{ reason: BedArchiveBlockReason; message: string } | null> {
+  if (await isBedOccupiedToday(bedId)) {
+    return {
+      reason: 'occupied',
+      message: 'Cannot archive an occupied bed. Vacate or move the resident first.',
+    };
+  }
+  const hold = await findPendingPaymentHold(bedId);
+  if (hold) {
+    return {
+      reason: 'reserved',
+      message: `Cannot archive a reserved bed (booking ${hold.bookingCode}). Cancel the hold first.`,
+    };
+  }
+  if (await hasBedFutureConfirmedBooking(bedId)) {
+    return {
+      reason: 'future_booking',
+      message: 'Cannot archive a bed with a future booking. Cancel or move the booking first.',
+    };
+  }
+  if (await hasBedActiveOrHoldReservation(bedId)) {
+    return {
+      reason: 'hold',
+      message: 'Cannot archive this bed — it has an active booking or hold.',
+    };
+  }
+  return null;
+}
+
+export async function assertBedCanBeArchived(bedId: string): Promise<void> {
+  const block = await getBedArchiveBlockReason(bedId);
+  if (block) throw new Error(block.message);
+}
+
 /** Unpaid holds to cancel before admin manual marks. */
 export async function listUnpaidHoldReservations(
   bedId: string,

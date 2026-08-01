@@ -3,6 +3,7 @@ import {
   sortBillingCollections,
   type BillingRecentCollectionRow,
 } from '@/src/lib/admin/billingCollectionsFilter';
+import { formatPaymentModeLabel } from '@/src/lib/billing/paymentModeLabels';
 import { titleCase } from '@/src/lib/format';
 
 export type { BillingRecentCollectionRow, BillingCollectionDateFilter } from '@/src/lib/admin/billingCollectionsFilter';
@@ -11,15 +12,6 @@ export {
   filterBillingCollectionsByDate,
   sortBillingCollections,
 } from '@/src/lib/admin/billingCollectionsFilter';
-
-function formatPaymentModeLabel(provider: string | null | undefined): string | null {
-  if (!provider) return null;
-  if (provider === 'cash') return 'Cash';
-  if (provider === 'upi_manual' || provider === 'razorpay' || provider === 'stripe') return 'UPI';
-  if (provider === 'bank_transfer') return 'Bank transfer';
-  if (provider === 'mock') return 'Other';
-  return titleCase(provider.replace(/_/g, ' '));
-}
 
 function collectedByFromPaymentPayload(rawPayload: unknown): string | null {
   if (!rawPayload || typeof rawPayload !== 'object') return null;

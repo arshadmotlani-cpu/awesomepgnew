@@ -6,12 +6,21 @@ import { revalidatePgAdminPages } from '@/src/lib/revalidatePgAdmin';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { parseSharingCount, sharingTypeName } from '@/src/lib/roomSharing';
 import {
+  getRoomConfigurationPreset,
+  type RoomConfigurationPresetId,
+} from '@/src/lib/roomConfigurationPresets';
+import {
   archiveBed,
   archiveRoom,
+  configureRoomFromPreset,
+  moveBedToRoom,
   quickAddRoomBeds,
+  resizeRoomCapacity,
+  updateBedCode,
   updateRoomBedPricing,
   updateRoomDetails,
 } from '@/src/services/pgInventory';
+import { updateBedInventoryStatus } from '@/src/services/bookingAdminOps';
 import { markPgFullyOccupied, clearPgOccupancyPlaceholders } from '@/src/services/occupancyAdmin';
 
 function parseRupeesPaise(raw: string | null | undefined): number | undefined {
@@ -35,7 +44,7 @@ export async function quickAddBedAction(
 
     const sharing = parseSharingCount(formData.get('sharingCount')?.toString());
     if (!sharing) {
-      return { ok: false, error: 'Select a sharing type (1–5 sharing).' };
+      return { ok: false, error: 'Select a sharing type (1–6 sharing).' };
     }
 
     const bedsToAdd = Number.parseInt(formData.get('bedsToAdd')?.toString() ?? '', 10);
@@ -111,6 +120,152 @@ export async function updateRoomDetailsAction(
 
     revalidatePgAdminPages(pgId);
     revalidatePublicPgBrowseCache({ pgId });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function configureRoomAction(
+  pgId: string,
+  _prev: { ok: boolean; error?: string; message?: string },
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string; message?: string }> {
+  try {
+    const session = await requireAdminPermission('pgs:write');
+    const presetId = formData.get('presetId')?.toString() as RoomConfigurationPresetId | undefined;
+    if (!presetId) {
+      return { ok: false, error: 'Select a room type.' };
+    }
+    const preset = getRoomConfigurationPreset(presetId);
+
+    const floorNumber = Number.parseInt(formData.get('floorNumber')?.toString() ?? '', 10);
+    const daily = Number.parseFloat(formData.get('dailyRate')?.toString() ?? '0');
+    const weekly = Number.parseFloat(formData.get('weeklyRate')?.toString() ?? '0');
+    const monthly = Number.parseFloat(formData.get('monthlyRate')?.toString() ?? '0');
+
+    const dailyDepositPaise = parseRupeesPaise(formData.get('dailyDeposit')?.toString()) ?? 0;
+    const weeklyDepositPaise = parseRupeesPaise(formData.get('weeklyDeposit')?.toString()) ?? 0;
+    const monthlyDepositPaise = parseRupeesPaise(formData.get('monthlyDeposit')?.toString()) ?? 0;
+
+    const result = await configureRoomFromPreset(session, pgId, {
+      floorNumber,
+      floorLabel: formData.get('floorLabel')?.toString(),
+      roomNumber: formData.get('roomNumber')?.toString() ?? '',
+      roomTypeName: preset.roomTypeName,
+      bedCount: preset.bedCount,
+      hasAc: formData.get('hasAc') === 'on',
+      dailyRatePaise: Math.round(daily * 100),
+      weeklyRatePaise: Math.round(weekly * 100),
+      monthlyRatePaise: Math.round(monthly * 100),
+      dailyDepositPaise,
+      weeklyDepositPaise,
+      monthlyDepositPaise,
+    });
+
+    revalidatePgAdminPages(pgId);
+    revalidatePublicPgBrowseCache({ pgId });
+    revalidatePath('/admin/beds');
+    revalidatePath('/admin/pricing');
+
+    const codes = result.bedCodes.join(', ');
+    return {
+      ok: true,
+      message: `Created ${preset.label} room ${result.roomNumber} with beds ${codes}.`,
+    };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function resizeRoomCapacityAction(
+  pgId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const session = await requireAdminPermission('pgs:write');
+    const roomId = formData.get('roomId')?.toString()?.trim();
+    if (!roomId) return { ok: false, error: 'Room not found.' };
+
+    const presetId = formData.get('presetId')?.toString() as RoomConfigurationPresetId | undefined;
+    if (!presetId) return { ok: false, error: 'Select a room type.' };
+    const preset = getRoomConfigurationPreset(presetId);
+
+    const daily = Number.parseFloat(formData.get('dailyRate')?.toString() ?? '0');
+    const weekly = Number.parseFloat(formData.get('weeklyRate')?.toString() ?? '0');
+    const monthly = Number.parseFloat(formData.get('monthlyRate')?.toString() ?? '0');
+    const dailyDepositPaise = parseRupeesPaise(formData.get('dailyDeposit')?.toString()) ?? 0;
+    const weeklyDepositPaise = parseRupeesPaise(formData.get('weeklyDeposit')?.toString()) ?? 0;
+    const monthlyDepositPaise = parseRupeesPaise(formData.get('monthlyDeposit')?.toString()) ?? 0;
+
+    await resizeRoomCapacity(session, pgId, roomId, {
+      targetBedCount: preset.bedCount,
+      roomTypeName: preset.roomTypeName,
+      pricing: {
+        dailyRatePaise: Math.round(daily * 100),
+        weeklyRatePaise: Math.round(weekly * 100),
+        monthlyRatePaise: Math.round(monthly * 100),
+        dailyDepositPaise,
+        weeklyDepositPaise,
+        monthlyDepositPaise,
+      },
+    });
+
+    revalidatePgAdminPages(pgId);
+    revalidatePublicPgBrowseCache({ pgId });
+    revalidatePath('/admin/beds');
+    revalidatePath('/admin/pricing');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function updateBedStatusInventoryAction(
+  pgId: string,
+  bedId: string,
+  status: 'available' | 'maintenance' | 'blocked',
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const session = await requireAdminPermission('pgs:write');
+    await updateBedInventoryStatus(session, bedId, status);
+    revalidatePgAdminPages(pgId);
+    revalidatePublicPgBrowseCache({ pgId });
+    revalidatePath('/admin/beds');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function renameBedCodeAction(
+  pgId: string,
+  bedId: string,
+  bedCode: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const session = await requireAdminPermission('pgs:write');
+    await updateBedCode(session, pgId, bedId, bedCode);
+    revalidatePgAdminPages(pgId);
+    revalidatePublicPgBrowseCache({ pgId });
+    revalidatePath('/admin/beds');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function moveBedToRoomAction(
+  pgId: string,
+  bedId: string,
+  targetRoomId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const session = await requireAdminPermission('pgs:write');
+    await moveBedToRoom(session, pgId, bedId, targetRoomId);
+    revalidatePgAdminPages(pgId);
+    revalidatePublicPgBrowseCache({ pgId });
+    revalidatePath('/admin/beds');
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };

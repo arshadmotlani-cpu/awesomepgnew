@@ -30,6 +30,12 @@ test('archiveBed sync is wired in pgInventory', () => {
   assert.match(src, /export async function archiveBed[\s\S]*syncRoomCapacityFromActiveBeds/);
 });
 
+test('syncRoomCapacityFromActiveBeds reassigns shared room types instead of mutating in place', () => {
+  const src = readFileSync(join(process.cwd(), 'src/lib/roomCapacitySsotDb.ts'), 'utf8');
+  assert.match(src, /roomCount === 1/);
+  assert.match(src, /roomTypeId: targetType\.id/);
+});
+
 test('room page no longer mounts legacy electricity widget', () => {
   const panel = readFileSync(
     join(process.cwd(), 'src/components/admin/PgRoomOperationsPanel.tsx'),

@@ -12,6 +12,7 @@ import {
   billingDayFromMoveIn,
   buildRentBillingTimeline,
   dailyRateFromMonthly,
+  firstOfMonth,
   formatAnniversaryBillingPeriodLabel,
 } from '@/src/services/billing';
 import { loadBillingCoverageModel } from '@/src/services/billingCoverage';
@@ -19,6 +20,7 @@ import {
   ensureBillingProfileForBooking,
   getResidentBillingFormDefaults,
 } from '@/src/services/residentBillingProfiles';
+import { resolveMonthlyRentPaiseForBooking } from '@/src/lib/billing/rentPricingSsot';
 
 export type MonthlyBillingSnapshot = {
   checkInDate: string;
@@ -115,6 +117,12 @@ export async function loadMonthlyBillingSnapshotForBooking(args: {
     .limit(1);
 
   const today = todayString();
+  const resolvedRent = await resolveMonthlyRentPaiseForBooking(
+    args.bookingId,
+    firstOfMonth(today),
+  );
+  const monthlyRentPaise = resolvedRent.rentPaise;
+
   const openDue =
     latestInvoice &&
     !['paid', 'cancelled'].includes(latestInvoice.status) &&
@@ -125,7 +133,7 @@ export async function loadMonthlyBillingSnapshotForBooking(args: {
   const timeline = buildRentBillingTimeline({
     moveInDate: moveIn,
     billingDay,
-    monthlyRentPaise: profile.rentAmountPaise,
+    monthlyRentPaise,
     openInvoiceDueDate: openDue,
     openInvoiceBillingMonth: latestInvoice?.billingMonth ?? null,
     lastInvoiceDate: latestInvoice ? formatDate(latestInvoice.createdAt) : null,
@@ -145,8 +153,6 @@ export async function loadMonthlyBillingSnapshotForBooking(args: {
     }));
   const paidUntilDate = coverage?.paidUntilDate ?? null;
   const currentPeriod = coverage?.currentBillingPeriod;
-
-  const monthlyRentPaise = defaults?.rentAmountPaise ?? profile.rentAmountPaise;
 
   return {
     checkInDate: timeline.checkInDate,

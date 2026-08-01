@@ -3,3 +3,14 @@
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
+
+## Stability Phase (from 2026-08-01)
+
+All changes follow `.cursor/rules/stability-phase.mdc` and `docs/STABILITY_PHASE.md`:
+
+- Map dependents before editing; run related tests first.
+- After changes: `npm run stability:report` (build + scoped tests + billing suite when applicable).
+- **STOP** on unrelated test failures. Bug fixes require regression tests.
+- Reuse SSOT services — no duplicated business logic.
+- Billing changes: read-only production audit before deploy.
+- Commit/push only when the regression report is green.

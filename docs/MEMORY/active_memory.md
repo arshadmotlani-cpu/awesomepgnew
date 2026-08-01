@@ -7,6 +7,8 @@
 
 ## Current Focus
 
+- **Stability Phase (Awesome PG, from 2026-08-01)** — All PG work: map dependents → baseline tests → change → `npm run stability:report` → regression test on bug fixes → production read-only audit for billing → commit only when green. → `docs/STABILITY_PHASE.md`
+
 - **For Your Hair ERP (Quick Sale stabilized)** — Hold bill, attribution splits in `share_bps`, docs `docs/foryourhair/QUICK_SALE.md`. **Next phase only:** inventory consumption, package redemption, membership consumption on Quick Sale pay. Migrate through **`0014`** (`npm run hair:db:migrate`).
 
 - **Automotive Capital audit remediation (shipped locally)** — Money integrity (activity reverse↔cost/seller ledgers), settle without capital-return gate, Reports = Dashboard Active Capital / entitled My Profit, Purchase Pending = seller Remaining SSOT, vehicle IA collapsed to Overview|Work|Sale|Files.

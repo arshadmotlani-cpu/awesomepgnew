@@ -98,6 +98,11 @@ import {
   syncBillingProfileRentFromSsot,
 } from '@/src/lib/billing/rentPricingSsot';
 import {
+  batchReconcileDepositBookingsFromLedger,
+  displayDepositDueFromReconcile,
+} from '@/src/lib/deposits/depositLedgerReconciliation';
+import { resolveRoomOccupancyContext } from '@/src/lib/checkout/electricitySettlement';
+import {
   clampDueDateOnOrAfterIssueDate,
   resolveRentInvoiceDueDate,
 } from '@/src/lib/billing/invoiceDueDate';
@@ -2590,6 +2595,11 @@ export type RentBillingOverviewRow = {
   depositDuePaise: number;
   depositCollectionStatus: string;
   isDueForGeneration: boolean;
+  /** Room inventory capacity (bed count). */
+  roomCapacity: number;
+  /** Active confirmed residents in room today. */
+  roomOccupied: number;
+  roomTypeName: string;
 };
 
 export async function listRentBillingOverview(
@@ -2644,30 +2654,40 @@ export async function listRentBillingOverview(
     if (!existing || row.bedId < existing.bedId) byBooking.set(row.bookingId, row);
   }
 
+  const bookingIds = [...byBooking.keys()];
+  const depositReconciled = await batchReconcileDepositBookingsFromLedger(bookingIds, {
+    repair: true,
+  });
+
   const overview: RentBillingOverviewRow[] = [];
 
   for (const c of byBooking.values()) {
     const stay = await loadStayWindow(c.bookingId);
     if (!stay) continue;
 
-    const monthlyRent = monthlyRentFromSnapshot(c.pricingSnapshot as PricingSnapshot | null);
-    const invoiceRentPaise = monthlyRent > 0 ? fullMonthlyRentPaise(monthlyRent) : 0;
+    const resolved = await resolveMonthlyRentPaiseForBooking(c.bookingId, month);
+    const currentMonthlyRentPaise =
+      resolved.rentPaise > 0 ? fullMonthlyRentPaise(resolved.rentPaise) : 0;
 
     const [bedMeta] = await db.execute<{
       pg_id: string;
       pg_name: string;
       room_number: string;
       bed_code: string;
+      room_type_name: string;
     }>(sql`
-      SELECT f.pg_id, p.name AS pg_name, r.room_number, b.bed_code
+      SELECT f.pg_id, p.name AS pg_name, r.room_number, b.bed_code, rt.name AS room_type_name
       FROM beds b
       JOIN rooms r ON r.id = b.room_id
+      JOIN room_types rt ON rt.id = r.room_type_id
       JOIN floors f ON f.id = r.floor_id
       JOIN pgs p ON p.id = f.pg_id
       WHERE b.id = ${c.bedId}
       LIMIT 1
     `);
     if (!bedMeta) continue;
+
+    const roomOccupancy = await resolveRoomOccupancyContext(c.bookingId);
 
     const [inv] = await db
       .select({
@@ -2683,7 +2703,12 @@ export async function listRentBillingOverview(
 
     const invoiceStatus = (inv?.status ?? 'none') as RentBillingOverviewRow['invoiceStatus'];
     const isDueForGeneration =
-      invoiceRentPaise > 0 && stay.start <= asOf && !inv;
+      currentMonthlyRentPaise > 0 && stay.start <= asOf && !inv;
+
+    const depositRow = depositReconciled.get(c.bookingId);
+    const depositDuePaise = displayDepositDueFromReconcile(depositRow, c.depositDuePaise ?? 0);
+    const depositCollectionStatus =
+      depositRow?.depositCollectionStatus ?? c.depositCollectionStatus ?? 'pending';
 
     overview.push({
       bookingId: c.bookingId,
@@ -2696,15 +2721,18 @@ export async function listRentBillingOverview(
       roomNumber: bedMeta.room_number,
       bedCode: bedMeta.bed_code,
       checkInDate: stay.start,
-      expectedRentPaise: invoiceRentPaise,
+      expectedRentPaise: currentMonthlyRentPaise,
       invoiceId: inv?.id ?? null,
       invoiceNumber: inv?.invoiceNumber ?? null,
       invoiceStatus: inv ? invoiceStatus : 'none',
       rentPaise: inv?.rentPaise ?? 0,
       dueDate: inv?.dueDate ?? null,
-      depositDuePaise: c.depositDuePaise ?? 0,
-      depositCollectionStatus: c.depositCollectionStatus ?? 'pending',
+      depositDuePaise,
+      depositCollectionStatus,
       isDueForGeneration,
+      roomCapacity: roomOccupancy.roomCapacity,
+      roomOccupied: roomOccupancy.autoDetectedCount,
+      roomTypeName: bedMeta.room_type_name,
     });
   }
 

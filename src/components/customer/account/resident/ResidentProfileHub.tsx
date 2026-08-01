@@ -22,6 +22,7 @@ type Props = {
   sub: ResidentProfileSub;
   booking: ResidentBookingRow;
   billingCycleLabel: string;
+  monthlyRentPaise: number;
   depositRequiredPaise: number;
   depositPaidPaise: number;
   depositBalancePaise: number;
@@ -53,6 +54,7 @@ export function ResidentProfileHub({
   sub,
   booking,
   billingCycleLabel,
+  monthlyRentPaise,
   depositRequiredPaise,
   depositPaidPaise,
   depositBalancePaise,
@@ -93,6 +95,7 @@ export function ResidentProfileHub({
           <ProfileOverviewPanel
             booking={booking}
             billingCycleLabel={billingCycleLabel}
+            monthlyRentPaise={monthlyRentPaise}
             depositRequiredPaise={depositRequiredPaise}
             depositPaidPaise={depositPaidPaise}
             depositBalancePaise={depositBalancePaise}

@@ -79,18 +79,24 @@ describe('Resident → My Stay → Payment PG prepare wiring', () => {
   });
 
   it('electricity payment page joins invoice → bed → room → floor.pgId and prepares categories', () => {
-    const src = readFileSync(
+    const pageSrc = readFileSync(
       join(
         process.cwd(),
         'app/(customer)/account/resident/pay-electricity/[invoiceId]/page.tsx',
       ),
       'utf8',
     );
-    assert.match(src, /pgId: floors\.pgId/);
-    assert.match(src, /innerJoin\(rooms, eq\(rooms\.id, electricityBills\.roomId\)\)/);
-    assert.match(src, /innerJoin\(beds, eq\(beds\.id, electricityInvoices\.bedId\)\)/);
-    assert.match(src, /innerJoin\(floors, eq\(floors\.id, rooms\.floorId\)\)/);
-    assert.match(src, /ensureDefaultPaymentCategoriesForPg\(row\.pgId\)/);
-    assert.match(src, /getElectricityDailyCategory\(row\.pgId\)/);
+    assert.match(pageSrc, /loadResidentPayElectricityPageData/);
+
+    const loaderSrc = readFileSync(
+      join(process.cwd(), 'src/services/residentPayElectricityPage.ts'),
+      'utf8',
+    );
+    assert.match(loaderSrc, /pgId: floors\.pgId/);
+    assert.match(loaderSrc, /innerJoin\(rooms, eq\(rooms\.id, electricityBills\.roomId\)\)/);
+    assert.match(loaderSrc, /innerJoin\(beds, eq\(beds\.id, electricityInvoices\.bedId\)\)/);
+    assert.match(loaderSrc, /innerJoin\(floors, eq\(floors\.id, rooms\.floorId\)\)/);
+    assert.match(loaderSrc, /ensureDefaultPaymentCategoriesForPg\(row\.pgId\)/);
+    assert.match(loaderSrc, /getElectricityDailyCategory\(row\.pgId\)/);
   });
 });

@@ -73,6 +73,10 @@ import {
 import type { ResidentElectricityHistoryItem } from '@/src/components/customer/account/resident/ResidentElectricityHistory';
 import { projectInvoice } from '@/src/services/rentInvoices';
 import { billingCycleLabel, enrichBillDueRow, moveOutStatusLabel } from '@/src/lib/residents/residentPortalPresentation';
+import {
+  loadPendingRentGenerationNotice,
+  loadResidentMonthlyRentDisplay,
+} from '@/src/lib/residents/residentPortalFinancials';
 import { getReferralSummaryForCustomer } from '@/src/services/referrals';
 import { indianLocalFromE164, formatIndianPhoneDisplay } from '@/src/lib/phone';
 import { ResidentProfileHub } from '@/src/components/customer/account/resident/ResidentProfileHub';
@@ -105,6 +109,7 @@ function buildBillRowsFromDetail(
   pendingApprovalRows: PaymentDueRow[];
   rejectedBillRows: PaymentDueRow[];
   paidBillRows: PaidHistoryRow[];
+  cancelledBillRows: PaidHistoryRow[];
   homeUpcoming: UpcomingPaymentRow[];
   firstUnpaidRentId: string | null;
   firstUnpaidElectricityId: string | null;
@@ -114,6 +119,7 @@ function buildBillRowsFromDetail(
   const pendingApprovalRows: PaymentDueRow[] = [];
   const rejectedBillRows: PaymentDueRow[] = [];
   const paidBillRows: PaidHistoryRow[] = [];
+  const cancelledBillRows: PaidHistoryRow[] = [];
   const homeUpcoming: UpcomingPaymentRow[] = [];
   let firstUnpaidRentId: string | null = null;
   let firstUnpaidElectricityId: string | null = null;
@@ -124,9 +130,9 @@ function buildBillRowsFromDetail(
 
     for (const r of rentRows) {
       if (r.status === 'cancelled') {
-        paidBillRows.push({
+        cancelledBillRows.push({
           id: r.id,
-          label: `Rent · ${formatDate(r.billingMonth)} (cancelled)`,
+          label: `Rent · ${formatDate(r.billingMonth)}`,
           amountPaise: r.rentPaise,
           paidAt: null,
           status: 'cancelled',
@@ -209,13 +215,27 @@ function buildBillRowsFromDetail(
         href: row.href,
         status: row.status,
       });
+
+      if (
+        projected.effectiveStatus === 'partial' &&
+        r.paidPrincipalPaise + r.paidLateFeePaise > 0
+      ) {
+        paidBillRows.push({
+          id: r.id,
+          label: `Rent · ${formatDate(r.billingMonth)}`,
+          amountPaise: r.paidPrincipalPaise + r.paidLateFeePaise,
+          paidAt: r.paidAt ? formatDate(r.paidAt) : null,
+          status: 'partial',
+          invoiceNumber: r.invoiceNumber,
+        });
+      }
     }
 
     for (const e of electricityRows) {
       if (e.status === 'cancelled') {
-        paidBillRows.push({
+        cancelledBillRows.push({
           id: e.id,
-          label: `Electricity · ${formatDate(e.billingMonth)} (cancelled)`,
+          label: `Electricity · ${formatDate(e.billingMonth)}`,
           amountPaise: e.amountPaise,
           paidAt: null,
           status: 'cancelled',
@@ -329,6 +349,7 @@ function buildBillRowsFromDetail(
     pendingApprovalRows,
     rejectedBillRows,
     paidBillRows,
+    cancelledBillRows,
     homeUpcoming,
     firstUnpaidRentId,
     firstUnpaidElectricityId,
@@ -668,6 +689,7 @@ export async function ResidentAreaSection({
   const paidBillRows: PaidHistoryRow[] = [];
   let firstUnpaidRentId: string | null = null;
   let firstUnpaidElectricityId: string | null = null;
+  const cancelledBillRows: PaidHistoryRow[] = [];
 
   if (detail.length > 0) {
     const rejectionOpts = { activeRejections };
@@ -677,6 +699,7 @@ export async function ResidentAreaSection({
     pendingApprovalRows.push(...homeBills.pendingApprovalRows);
     rejectedBillRows.push(...homeBills.rejectedBillRows);
     paidBillRows.push(...allBills.paidBillRows);
+    cancelledBillRows.push(...allBills.cancelledBillRows);
     homeUpcoming.push(...homeBills.homeUpcoming);
     firstUnpaidRentId = homeBills.firstUnpaidRentId;
     firstUnpaidElectricityId = homeBills.firstUnpaidElectricityId;
@@ -847,6 +870,21 @@ export async function ResidentAreaSection({
     ? `${primaryBooking.booking.pgName} · R${primaryBooking.booking.roomNumber}`
     : '';
 
+  const monthlyRentDisplay =
+    primaryBooking != null
+      ? await loadResidentMonthlyRentDisplay({
+          bookingId: primaryBooking.bookingId,
+          customerId: session.customerId,
+        })
+      : null;
+  const pendingRentNotice =
+    primaryBooking != null
+      ? await loadPendingRentGenerationNotice({
+          bookingId: primaryBooking.bookingId,
+          customerId: session.customerId,
+        })
+      : null;
+
   return (
     <ResidentHubShell
       activeTab={activeTab}
@@ -877,7 +915,13 @@ export async function ResidentAreaSection({
         <ResidentProfileHub
           sub={profileSub}
           booking={primaryBooking.booking}
-          billingCycleLabel={billingCycleLabel(primaryBooking.booking.checkInDate)}
+          billingCycleLabel={
+            monthlyRentDisplay?.billingCycleLabel ??
+            billingCycleLabel(primaryBooking.booking.checkInDate)
+          }
+          monthlyRentPaise={
+            monthlyRentDisplay?.monthlyRentPaise ?? primaryBooking.booking.monthlyRentPaise
+          }
           depositRequiredPaise={primaryDepositCard?.depositPaise ?? primaryBooking.booking.depositPaise}
           depositPaidPaise={primaryDepositCard?.collectedPaise ?? primaryBooking.deposit?.collectedPaise ?? 0}
           depositBalancePaise={walletDepositHeldPaise}
@@ -943,7 +987,9 @@ export async function ResidentAreaSection({
             checkoutSettlementSuppressed={
               primaryVacating?.checkoutSettlementSuppressed === true
             }
-            monthlyRentPaise={primaryBooking.booking.monthlyRentPaise}
+            monthlyRentPaise={
+              monthlyRentDisplay?.monthlyRentPaise ?? primaryBooking.booking.monthlyRentPaise
+            }
             depositHeldPaise={walletDepositHeldPaise}
             moveInDate={primaryBooking.booking.checkInDate}
             developerTestEmail={developerTestMode ? session.email : null}
@@ -963,6 +1009,8 @@ export async function ResidentAreaSection({
           pendingApprovalRows={pendingApprovalRows}
           rejectedBillRows={rejectedBillRows}
           paidBills={paidHistory}
+          cancelledBills={cancelledBillRows}
+          pendingRentNotice={pendingRentNotice?.message ?? null}
           electricityHistory={electricityHistory}
           historyHref={historyHref}
           lifetimeTotals={lifetimeTotals}

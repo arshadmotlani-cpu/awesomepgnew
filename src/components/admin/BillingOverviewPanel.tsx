@@ -138,8 +138,8 @@ export function BillingOverviewPanel({
       <header className="mb-4">
         <h2 className="text-base font-semibold text-white">Bills needing attention</h2>
         <p className="mt-1 text-sm text-apg-silver">
-          Residents who still need a bill created or have security deposit due. Bills already created
-          are on the{' '}
+          Residents who still need a bill created or have an outstanding security deposit. Bills
+          already created are on the{' '}
           <Link href={rentTabHref} className="font-semibold text-[#FF5A1F] hover:underline">
             Rent bills
           </Link>{' '}
@@ -194,8 +194,8 @@ export function BillingOverviewPanel({
       {canSendLinks && pendingSend.length > 0 ? (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
           <p className="text-sm text-emerald-100">
-            {pendingSend.length} resident{pendingSend.length === 1 ? '' : 's'} with security deposit
-            still due.
+            {pendingSend.length} resident{pendingSend.length === 1 ? '' : 's'} with outstanding
+            security deposit.
           </p>
           <button
             type="button"
@@ -250,11 +250,17 @@ export function BillingOverviewPanel({
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-apg-silver">
                     Bed
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-apg-silver">
-                    Expected rent
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-apg-silver">
+                    Capacity
+                  </th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-apg-silver">
+                    Occupied
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-apg-silver">
-                    Deposit due
+                    Current monthly rent
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-apg-silver">
+                    Outstanding deposit
                   </th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-apg-silver">
                     Status
@@ -350,6 +356,10 @@ function OverviewRow({
         <br />
         R{row.roomNumber} · {row.bedCode}
       </td>
+      <td className="px-4 py-3 text-xs text-apg-silver">{row.roomTypeName}</td>
+      <td className="px-4 py-3 text-xs text-apg-silver">
+        {row.roomOccupied} / {row.roomCapacity}
+      </td>
       <td className="px-4 py-3 text-right tabular-nums text-white">
         {paiseToInr(row.expectedRentPaise)}
       </td>
@@ -358,9 +368,9 @@ function OverviewRow({
       </td>
       <td className="px-4 py-3">
         {row.isDueForGeneration ? (
-          <Badge tone="amber">Needs bill</Badge>
+          <Badge tone="amber">Eligible for bill generation</Badge>
         ) : row.depositDuePaise > 0 ? (
-          <Badge tone="amber">Deposit due</Badge>
+          <Badge tone="amber">Outstanding deposit</Badge>
         ) : (
           <Badge tone="zinc">Move-in later</Badge>
         )}

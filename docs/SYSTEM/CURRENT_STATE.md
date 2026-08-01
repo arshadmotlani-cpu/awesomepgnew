@@ -198,3 +198,6 @@ See [[BUGS]] for full list. Highlights:
 
 <!-- DOC_SYNC_TOUCH_2026-07-31 -->
 > **2026-07-31 02:33:53 UTC** — Code changed in: Routes. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-08-01 -->
+> **2026-08-01 10:14:30 UTC** — Code changed in: Routes, Billing, Residents, Bookings, Deposits. Manual review recommended.

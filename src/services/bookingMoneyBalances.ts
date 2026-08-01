@@ -47,6 +47,11 @@ async function electricityBalancesForBooking(bookingId: string): Promise<MoneyBa
 export async function getBookingMoneyBalances(
   bookingId: string,
 ): Promise<BookingMoneyBalances | null> {
+  const { reconcileDepositBookingFromLedger } = await import(
+    '@/src/lib/deposits/depositLedgerReconciliation'
+  );
+  await reconcileDepositBookingFromLedger(bookingId, { repair: true });
+
   const [booking] = await db
     .select({
       id: bookings.id,

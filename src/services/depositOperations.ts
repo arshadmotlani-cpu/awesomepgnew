@@ -134,6 +134,11 @@ function viewFromParts(input: {
 
 export async function getUnifiedDepositView(bookingId: string): Promise<UnifiedDepositView | null> {
   try {
+    const { reconcileDepositBookingFromLedger } = await import(
+      '@/src/lib/deposits/depositLedgerReconciliation'
+    );
+    await reconcileDepositBookingFromLedger(bookingId, { repair: true });
+
     const [booking] = await db
       .select({
         id: bookings.id,

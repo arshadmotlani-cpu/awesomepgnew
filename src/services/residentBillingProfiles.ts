@@ -260,8 +260,10 @@ export async function getResidentBillingFormDefaults(
       }
     : null;
 
+  const resolved = await resolveMonthlyRentPaiseForBooking(bookingId, billingMonth);
+
   return {
-    rentAmountPaise: activePending?.rentPaise ?? profile.rentAmountPaise,
+    rentAmountPaise: activePending?.rentPaise ?? resolved.rentPaise,
     billingMonth: activePending?.billingMonth ?? billingMonth,
     dueDate: activePending?.dueDate ?? nextRentDueDate,
     nextRentDueDate,

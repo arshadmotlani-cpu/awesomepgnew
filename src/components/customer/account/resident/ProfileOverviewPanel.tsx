@@ -11,6 +11,7 @@ import type { ResidentBookingRow } from '@/src/db/queries/customer';
 type Props = {
   booking: ResidentBookingRow;
   billingCycleLabel: string;
+  monthlyRentPaise: number;
   depositRequiredPaise: number;
   depositPaidPaise: number;
   depositBalancePaise: number;
@@ -36,6 +37,7 @@ function StatRow({ label, value }: { label: string; value: string }) {
 export function ProfileOverviewPanel({
   booking,
   billingCycleLabel,
+  monthlyRentPaise,
   depositRequiredPaise,
   depositPaidPaise,
   depositBalancePaise,
@@ -63,7 +65,7 @@ export function ProfileOverviewPanel({
         <dl className="mt-3">
           <StatRow label="Check-in" value={formatDate(booking.checkInDate)} />
           <StatRow label="Billing cycle" value={billingCycleLabel} />
-          <StatRow label="Monthly rent" value={paiseToInr(booking.monthlyRentPaise)} />
+          <StatRow label="Monthly rent" value={paiseToInr(monthlyRentPaise)} />
           <StatRow label="Deposit required" value={paiseToInr(depositRequiredPaise)} />
           <StatRow label="Deposit paid" value={paiseToInr(depositPaidPaise)} />
           <StatRow label="Deposit balance" value={paiseToInr(depositBalancePaise)} />

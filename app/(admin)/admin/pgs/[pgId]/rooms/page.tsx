@@ -6,6 +6,7 @@ import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { getPgAvailabilitySummary } from '@/src/services/availabilityService';
 import { getPgInventory } from '@/src/services/pgInventory';
 import { getPgForAdmin } from '@/src/services/pgAdmin';
+import { getRoomIntegrityReportForPg } from '@/src/services/roomIntegrityValidator';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -18,6 +19,7 @@ export default async function PgRoomsPage({ params }: { params: Promise<{ pgId: 
 
   const inventory = await getPgInventory(session, pgId);
   const availabilitySummary = await getPgAvailabilitySummary(pgId);
+  const integrityReport = await getRoomIntegrityReportForPg(pgId);
 
   return (
     <section>
@@ -33,6 +35,7 @@ export default async function PgRoomsPage({ params }: { params: Promise<{ pgId: 
         floors={inventory.floors}
         beds={inventory.beds}
         availabilitySummary={availabilitySummary}
+        roomIntegrity={integrityReport.rooms}
       />
     </section>
   );

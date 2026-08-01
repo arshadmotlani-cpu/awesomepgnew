@@ -174,6 +174,16 @@ export function ProfileWalletPanel({
         </dl>
       </ApgCard>
 
+      {depositDuePaise <= 0 && depositBalancePaise > 0 ? (
+        <ApgCard tier="resident">
+          <h2 className="text-sm font-semibold text-white">Security deposit held</h2>
+          <p className="mt-2 text-sm text-apg-silver">
+            {paiseToInr(depositBalancePaise)} is held until checkout. This is not a bill — no payment
+            is required.
+          </p>
+        </ApgCard>
+      ) : null}
+
       {!refundEligibility.canRequestRefund && refundEligibility.lockReason ? (
         <ApgCard tier="resident">
           <p className="text-sm text-amber-200">

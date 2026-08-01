@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import type { PgInventoryBedRow } from '@/src/services/pgInventory';
-import { AddRoomForm } from './AddRoomForm';
-import { RoomDetailsEditor } from './RoomDetailsEditor';
-import { RoomPricingEditor } from './RoomPricingEditor';
+import { CreateRoomWizard } from './CreateRoomWizard';
+import { RoomConfigurationEditor } from './RoomConfigurationEditor';
+import { RoomIntegrityBadge } from './RoomIntegrityBadge';
+import type { RoomIntegrityResult } from '@/src/lib/roomIntegrity/types';
 import {
   resolveRoomTypeNameForCapacity,
   roomCapacityFromActiveBedCount,
@@ -35,6 +36,7 @@ export function PgRoomOperationsPanel({
   floors,
   beds,
   availabilitySummary,
+  roomIntegrity = [],
 }: {
   pgId: string;
   floors: FloorRow[];
@@ -45,8 +47,15 @@ export function PgRoomOperationsPanel({
     reservedBeds: number;
     maintenanceBeds: number;
   };
+  roomIntegrity?: RoomIntegrityResult[];
 }) {
   const [showAddBed, setShowAddBed] = useState(beds.length === 0);
+
+  const integrityByRoomId = useMemo(
+    () => new Map(roomIntegrity.map((r) => [r.roomId, r])),
+    [roomIntegrity],
+  );
+  const roomsWithIssues = roomIntegrity.filter((r) => r.hasMismatch).length;
 
   const roomGroups = useMemo(() => {
     const byRoom = new Map<string, RoomGroup>();
@@ -109,6 +118,18 @@ export function PgRoomOperationsPanel({
         </ol>
       ) : null}
 
+      {roomsWithIssues > 0 ? (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 px-4 py-3 text-sm text-amber-100">
+          <p className="font-medium">
+            ⚠ {roomsWithIssues} room{roomsWithIssues === 1 ? '' : 's'} with configuration mismatch
+          </p>
+          <p className="mt-1 text-xs text-amber-200/80">
+            Capacity, physical beds, and bookable beds must stay aligned unless beds are intentionally
+            blocked or disabled.
+          </p>
+        </div>
+      ) : null}
+
       <div className="grid gap-3 sm:grid-cols-4">
         <Stat label="Floors" value={floors.length} />
         <Stat label="Rooms" value={roomGroups.length} />
@@ -137,7 +158,7 @@ export function PgRoomOperationsPanel({
           </span>
           <span className="text-zinc-500">{showAddBed ? '−' : '+'}</span>
         </button>
-        {showAddBed ? <AddRoomForm pgId={pgId} /> : null}
+        {showAddBed ? <CreateRoomWizard pgId={pgId} /> : null}
       </div>
 
       {roomGroups.length === 0 ? (
@@ -153,25 +174,23 @@ export function PgRoomOperationsPanel({
               className="rounded-xl border border-zinc-800 bg-zinc-950/40 overflow-hidden"
             >
               <header className="border-b border-zinc-800 bg-zinc-950/60 px-4 py-3">
-                <RoomDetailsEditor
+                <RoomConfigurationEditor
                   pgId={pgId}
                   roomId={room.roomId}
                   roomNumber={room.roomNumber}
                   floorNumber={room.floorNumber}
                   floorLabel={room.floorLabel}
                   roomTypeName={room.roomTypeName}
-                  activeBedCount={room.activeBedCount}
                   hasAc={room.hasAc}
                   roomNotes={room.roomNotes}
+                  beds={room.beds}
+                  integrity={integrityByRoomId.get(room.roomId)}
+                  moveTargets={roomGroups.map((r) => ({
+                    roomId: r.roomId,
+                    label: `Room ${r.roomNumber} (${r.beds.length} beds)`,
+                  }))}
                 />
               </header>
-              <div className="p-4 space-y-4">
-                {room.beds.length > 0 ? (
-                  <RoomPricingEditor pgId={pgId} roomId={room.roomId} beds={room.beds} />
-                ) : (
-                  <p className="text-sm text-zinc-500">No beds in this room.</p>
-                )}
-              </div>
             </article>
           ))}
         </div>

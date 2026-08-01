@@ -32,6 +32,7 @@ test('Krishna-like: notice has no prepaid after vacate but invoice coverage is c
     monthlyRentPaise: 412_080,
     treatAsApprovedForTail: true,
     noticeApplies: true,
+    skipMoveInCoverageExpansion: true,
   });
 
   assert.equal(model.paidInvoiceCoverage.length, 1);

@@ -1,9 +1,11 @@
 import type { ConsoleLedgerEntry } from '@/src/components/customer/design-system/ConsoleLedger';
 import type { DepositLedgerEntry } from '@/src/db/schema/depositLedger';
+import { formatPaymentModeLabel } from '@/src/lib/billing/paymentModeLabels';
 
 type PaymentRow = {
   id: string;
   purpose: string;
+  provider?: string | null;
   amountPaise: number;
   status: string;
   paidAt: Date | string | null;
@@ -83,7 +85,7 @@ export function buildWalletLedger(input: {
       direction: isRefund ? 'credit' : 'debit',
       amountPaise: p.amountPaise,
       runningBalancePaise: null,
-      detail: null,
+      detail: formatPaymentModeLabel(p.provider) ?? null,
       status: p.status === 'succeeded' ? 'paid' : p.status,
       invoiceHref,
     });
