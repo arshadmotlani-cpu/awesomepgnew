@@ -9,6 +9,7 @@
 
 ## 2026-08-02
 
+- **ROOM-OS-ROLLOUT-DOCS** — Production rollout runbooks under `docs/operations/` (13 files: deployment, migrations, env vars, flags, rollback, monitoring, alerts, smoke tests, QA, DR, runbook, launch-day); `ROOM_OS.md` updated to Wave 6 complete status.
 - **ROOM-OS-WAVE4-COMPLETE** — Explain Engine (`src/roomOs/explain/`, `explain/v1/getExplanation`); conditional Replay Engine (`src/roomOs/replay/`, `replay/v1/runSample`, 90% coverage gate); derivation ref aggregation on property/work queue snapshots; cert check `REPLAY_SAMPLE_PARITY`; tests `roomOsWave4*`.
 - **ROOM-OS-WAVE3-COMPLETE** — RFE via Bed Brain: `loadBookingContext`, `rfeBedBrainBridge`, `computeBookingFinancialSummaryCore`; legacy composer sunset path (`ROOM_OS_BILLING_CENTRE`, deprecated markers); forbidden-import lint; cert check `RFE_BED_BRAIN_BRIDGE`; tests `roomOsWave3*`.
 - **ROOM-OS-WAVE2-COMPLETE** — Wave 2 operational infrastructure: outbox cron + retry (0135) + metrics; certification release gate (`cert:room-os-wave2`); ops parity + materialization freshness audits; benchmark script; feature-flag rollback tests; production audit gates; completion report `ROOM_OS_WAVE2_COMPLETION.md`.
