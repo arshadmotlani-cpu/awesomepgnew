@@ -1,7 +1,7 @@
 # Room Operating System (Room OS)
 
 > Principal-reviewed architecture — strangler read/intelligence layer over existing PG ledgers.  
-> Status: **Wave 4 Explain + conditional Replay** (derivation refs + replay sample parity gate).  
+> Status: **Wave 6 complete** — Payment Proof Workflow Engine + Business Metrics rollup (final implementation wave).  
 > Cross-links: [[ARCHITECTURE]] · [[BILLING_ENGINE]] · [[Electricity]] · [[STABILITY_PHASE]]
 
 ---
@@ -21,7 +21,7 @@ Room OS is the **operating platform** for running a PG from one screen. It compo
 
 - Replacing `rentInvoices`, `checkoutSettlementEngineV2`, or ledger writers
 - Full event sourcing of all writes on day one
-- Workflow / Business Metrics / Replay engines (deferred)
+- Workflow / Business Metrics / Replay engines (Replay conditional; Workflow + Metrics complete in Wave 6)
 
 ---
 
@@ -58,7 +58,9 @@ WorkQueueProjector
     ↓
 work_queue_index  (WorkQueueSnapshot)
     ↓
-Decision APIs (getWorkQueue)
+business_metrics_index  (BusinessMetricsSnapshot)
+    ↓
+Decision / Metrics APIs
 ```
 
 - **PropertyProjector** is the only module that orchestrates engines and embeds `workQueueProjection` into `PropertyOsIndexSnapshot`.
@@ -90,10 +92,11 @@ Decision APIs (getWorkQueue)
 - Envelope: `eventId`, `streamType`, `streamId`, `eventType`, `occurredAt`, `recordedAt`, `rulesEffectivePackId`, `payload`, `sourceRef`
 - **Command vs fact:** `property_index.rebuild_requested` triggers PropertyProjector; `property_index.materialized` is reserved as a future post-success fact (not emitted, not subscribed)
 
-**Layer B — timeline entries** (deferred)
+**Layer B — timeline entries**
 
 - Derived UX copy; rebuild anytime from Layer A
 - Not source of truth
+- On-demand aggregation via `timeline/v1/getTimeline` — no materialized timeline table
 
 ---
 
@@ -112,8 +115,11 @@ Decision APIs (getWorkQueue)
 | `Integrity` | Integrity + Certification parity | 2 |
 | `Explain` | Explainability via derivation refs | 4 |
 | `Replay` | Replay Engine | 4 (conditional) |
+| `Timeline` | Layer B display truth from outbox | 5 |
+| `Workflow` | Payment proof orchestration (approve/reject delegates to Payment SSOT) | 6 |
+| `BusinessMetrics` | Materialized rollup from property/work queue + financial bridge | 6 |
 
-Deferred: Workflow (payment proof only, Wave 6), Business Metrics (rollup job), Timeline Layer B.
+Deferred: move-out workflow, generic recovery orchestration.
 
 ---
 
@@ -126,7 +132,9 @@ Deferred: Workflow (payment proof only, Wave 6), Business Metrics (rollup job), 
 
 **Performance:** Precompute **effective rule pack** per `(pgId, asOf)` at snapshot materialize time. Runtime uses frozen `rulesEffectivePackId` — not full chain walk per row.
 
-Rule catalog v1 lives in code: [`src/roomOs/rules/catalog/v1/`](../src/roomOs/rules/catalog/v1/index.ts).
+Rule catalog v1 lives in code as bootstrap seed: [`src/roomOs/rules/catalog/v1/`](../src/roomOs/rules/catalog/v1/index.ts).
+
+**Wave 5 — DB-published rules:** `room_os_published_rules` table (migration `0136`); publication pipeline under `src/roomOs/rules/store/`; effective pack merges DB rules with code catalog fallback; digest pinning via `content_digest` + pack id (ADR-OR-001).
 
 ---
 
@@ -140,7 +148,20 @@ Rule catalog v1 lives in code: [`src/roomOs/rules/catalog/v1/`](../src/roomOs/ru
 | `room-os/v1/loadShared` | Room electricity + meter + billing mode |
 | `room-os/v1/loadBed` | BedBrain + BookingContext |
 | `room-os/v1/loadLedger` | Booking-scoped rent/deposit/electricity ledger projection |
-| `rules/v1/effectivePack` | Debug/admin |
+| `rules/v1/effectivePack` | Debug/admin — DB-aware effective pack |
+| `rules/v1/listPublished` | List published rule versions |
+| `rules/v1/publish` | Publish new rule version (admin) |
+| `rules/v1/activate` / `deactivate` | Rule activation window (admin) |
+| `timeline/v1/getTimeline` | Layer B human-readable entries from outbox |
+| `workflow/v1/getPaymentProofState` | Payment proof workflow instance + derived state |
+| `workflow/v1/submitPaymentProofReview` | Transition to under_review (idempotent) |
+| `workflow/v1/approvePaymentProof` | Approve via Payment SSOT + outbox fact |
+| `workflow/v1/rejectPaymentProof` | Reject via Payment SSOT + outbox fact |
+| `metrics/v1/loadPropertyRollup` | Property + financial metrics slice |
+| `metrics/v1/loadRoomRollup` | Per-room rollup |
+| `metrics/v1/loadBookingRollup` | Per-booking rollup |
+| `metrics/v1/loadResidentRollup` | Customer-scoped rollup |
+| `metrics/v1/loadPortfolioRollup` | Multi-PG admin aggregate |
 | `certification/v1/run` | Release gate |
 | `explain/v1/getExplanation` | Derivation narrative from materialized refs (Wave 4) |
 | `replay/v1/runSample` | Conditional replay sample parity (Wave 4, ≥90% coverage) |
@@ -185,6 +206,10 @@ Explain assembles narrative from refs — **not** full recompute on every hover.
 | WorkQueueProjector | Live HTTP, approval mutators |
 | Operations UI | `rentInvoices`, `occupancySsot`, `roomElectricityOccupants` directly |
 | Ledger writers | Room OS projectors (writers enqueue outbox only) |
+| Workflow | Projectors, settlement V2 compute, repair writers, React/Next |
+| Workflow | **May** import Payment SSOT services (orchestration only) |
+| Metrics | Payment writers, projectors, repair writers, React/Next |
+| Metrics | **May** import materialized index loaders + `financialMetricsEngine` read bridge |
 
 Enforced by [`tests/unit/roomOsArchitecture.test.ts`](../tests/unit/roomOsArchitecture.test.ts).
 
@@ -199,8 +224,8 @@ Enforced by [`tests/unit/roomOsArchitecture.test.ts`](../tests/unit/roomOsArchit
 | **2** | Operations Centre on APIs; Integrity + Certification; feature-flag fallback | Manual ops checklist; cert 12/12 |
 | **3** | RFE via Bed Brain; sunset legacy composers (4-week deadline) | Cert + forbidden-import lint |
 | **4** | Derivation Explain; conditional Replay (≥90% event coverage) | Replay sample parity |
-| **5** | DB-published Rules; Timeline Layer B | — |
-| **6** | Workflow (payment proof); metrics rollup | — |
+| **5** | DB-published Rules; Timeline Layer B | Rules DB parity + timeline determinism |
+| **6** | Workflow (payment proof); metrics rollup | Workflow parity + metrics rollup parity |
 
 **Wave 1 progress:** `src/roomOs/engines/occupancy/` — Bed Brain live-read (`loadBed`); `src/roomOs/engines/electricity/` — Room shared electricity live-read (`loadRoomShared`); `src/roomOs/engines/ledger/` — booking ledger live-read (`loadLedger`); `src/roomOs/projectors/property/` — PropertyProjector (`loadPropertyIndex`); `src/roomOs/projectors/workQueue/` — WorkQueueProjector (`getWorkQueue`).
 
@@ -223,6 +248,16 @@ Enforced by [`tests/unit/roomOsArchitecture.test.ts`](../tests/unit/roomOsArchit
 **Wave 4 — Derivation Explain:** `src/roomOs/explain/` assembles narrative from `DerivationRef` records embedded at materialize time (`collectPropertyDerivationRefs` on PropertyProjector; `work_queue.project` on WorkQueueProjector). Public API `explain/v1/getExplanation` — read-only, no recompute on hover.
 
 **Wave 4 — Conditional Replay:** `src/roomOs/replay/` measures outbox event coverage (`measureEventCoverage`); gates replay at `REPLAY_MIN_EVENT_COVERAGE` (90%) via `isReplayEligible`. Dry-run `projectPropertyOsBundle` compares KPI + work queue hash vs materialized rows — never upserts. Public API `replay/v1/runSample`. Certification check `REPLAY_SAMPLE_PARITY`; `npm run cert:room-os-wave4`.
+
+**Wave 5 — DB-published Rules:** `room_os_published_rules` table (migration `0136`); `src/roomOs/rules/store/` loads, publishes, activates, and deactivates rule versions with audit metadata (`publishedBy`, `content_digest`, version chain). Effective pack resolves via `resolveEffectiveRulePack` — DB rules override code catalog per `factKey`; empty DB falls back to `RULES_CATALOG_V1`. Outbox enqueue paths pin `rulesEffectivePackId` at materialize time. Certification check `RULES_DB_PARITY`; `npm run cert:room-os-wave5`.
+
+**Wave 5 — Timeline Layer B:** `src/roomOs/timeline/` rebuilds human-readable entries from `room_os_outbox` (Layer A) on demand — not materialized, not SSOT. Public API `timeline/v1/getTimeline`. Certification check `TIMELINE_LAYER_B`.
+
+**Wave 6 — Payment Proof Workflow Engine:** `room_os_workflow_instances` table (migration `0137`); `src/roomOs/workflow/` state machine + orchestration store; approve/reject delegates to Payment SSOT (`paymentProofAllocationApproval`, `paymentProofRejectionService`); outbox facts `workflow.payment_proof.*`; public API `workflow/v1/*`. Ledger proof parity expanded to all proof kinds (qr, rent, elec, extension, deposit_link). Certification check `WORKFLOW_PAYMENT_PROOF_PARITY`; `npm run cert:room-os-wave6`.
+
+**Wave 6 — Business Metrics Engine:** `business_metrics_index` table (migration `0138`); `src/roomOs/metrics/` pure aggregators from `property_os_index` + `work_queue_index` + outbox counts + `financialMetricsEngine` read bridge; chained rebuild after `rebuildWorkQueueIndex`; public API `metrics/v1/*`. Certification check `BUSINESS_METRICS_ROLLUP_PARITY`.
+
+**Room OS is functionally complete through Wave 6** — remaining work is operational (migrations deploy, certification against staging/production, feature-flag cutover validation).
 
 **Prerequisites before Wave 1 UI:**
 
@@ -262,7 +297,8 @@ Enforced by [`tests/unit/roomOsArchitecture.test.ts`](../tests/unit/roomOsArchit
 ```
 src/roomOs/
   types/           snapshots, events, derivation refs
-  rules/           catalog v1, effective pack, evaluate
+  rules/           catalog v1, effective pack, evaluate, store (DB)
+  timeline/        Layer B format + aggregate from outbox
   events/          event type catalog
   outbox/          append, process, schema
   projectors/      registry, property/workQueue projectors, runner
@@ -272,6 +308,8 @@ src/roomOs/
   bridges/         RFE ↔ Bed Brain ↔ LedgerProjection (Wave 3)
   explain/         Derivation Explain Engine (Wave 4)
   replay/          Conditional Replay Engine (Wave 4)
+  workflow/        Payment proof orchestration (Wave 6)
+  metrics/         Business metrics rollup (Wave 6)
   acceptance/      ops parity + materialization freshness audits (Wave 2)
-  api/v1/          property-os, room-os, decision, rules, integrity, certification, explain, replay
+  api/v1/          property-os, room-os, decision, rules, integrity, certification, explain, replay, timeline, workflow, metrics
 ```
