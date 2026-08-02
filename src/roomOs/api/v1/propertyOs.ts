@@ -1,9 +1,13 @@
 /**
- * property-os/v1/loadIndex — Wave 0 stub.
- * Wave 1 materializes PropertyOsIndexSnapshot from projectors.
+ * property-os/v1/loadIndex — reads materialized property_os_index, live fallback.
  */
 
+import {
+  loadMaterializedPropertyIndex,
+  projectPropertyOsIndex,
+} from '@/src/roomOs/projectors/property';
 import type { PropertyOsIndexSnapshot } from '@/src/roomOs/types';
+import { firstOfMonth } from '@/src/services/billing';
 
 export type LoadPropertyIndexInput = {
   pgId: string;
@@ -20,12 +24,24 @@ export type LoadPropertyIndexResult = {
 export async function loadPropertyIndex(
   input: LoadPropertyIndexInput,
 ): Promise<LoadPropertyIndexResult> {
-  const asOf = input.asOf ?? new Date().toISOString();
-  return {
-    apiVersion: 'property-os/v1',
-    status: 'not_materialized',
-    snapshot: null,
-  };
+  const billingMonth = firstOfMonth(input.billingMonth);
+  const materialized = await loadMaterializedPropertyIndex({
+    pgId: input.pgId,
+    billingMonth,
+  });
+  if (materialized) {
+    return { apiVersion: 'property-os/v1', status: 'ready', snapshot: materialized };
+  }
+
+  const snapshot = await projectPropertyOsIndex({
+    pgId: input.pgId,
+    billingMonth: input.billingMonth,
+    asOf: input.asOf,
+  });
+  if (!snapshot) {
+    return { apiVersion: 'property-os/v1', status: 'not_materialized', snapshot: null };
+  }
+  return { apiVersion: 'property-os/v1', status: 'ready', snapshot };
 }
 
 export async function loadKpiStrip(input: LoadPropertyIndexInput) {

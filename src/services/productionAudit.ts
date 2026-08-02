@@ -10,6 +10,12 @@ import { runCheckoutAudit } from '@/src/services/checkoutAudit';
 import { runCounterParityAudit } from '@/src/services/counterParityAudit';
 import { getPaymentReviewIntegrityReport } from '@/src/services/paymentReviewIntegrity';
 import { countUnreadForAdmin, listAdminInboxNotifications } from '@/src/services/notificationEngine';
+import {
+  evaluateRoomOsOutboxHealth,
+  getRoomOsOutboxMetrics,
+} from '@/src/roomOs/outbox/metrics';
+import { runMaterializationFreshnessAudit } from '@/src/roomOs/acceptance/materializationFreshnessAudit';
+import { runOperationsCentreParityAudit } from '@/src/roomOs/acceptance/operationsParityAudit';
 import { db } from '@/src/db/client';
 import { unresolvedActions } from '@/src/db/schema';
 import { and, eq } from 'drizzle-orm';
@@ -108,6 +114,81 @@ async function runNotificationParityAudit(session: AdminSession): Promise<Produc
   };
 }
 
+async function runRoomOsOutboxAudit(): Promise<ProductionAuditGate> {
+  const metrics = await getRoomOsOutboxMetrics();
+  const health = evaluateRoomOsOutboxHealth(metrics);
+  return {
+    id: 'room_os_outbox',
+    name: 'Room OS Outbox Health',
+    pass: health.pass,
+    summary: health.pass
+      ? `Outbox healthy — pending ${metrics.pending}, dead-letter ${metrics.deadLetter}.`
+      : `${health.mismatches.length} outbox health issue(s).`,
+    mismatches: health.mismatches,
+  };
+}
+
+async function runRoomOsMaterializationAudit(): Promise<ProductionAuditGate> {
+  const report = await runMaterializationFreshnessAudit();
+  const mismatches: string[] = [];
+  if (!report.outboxPass) mismatches.push('Outbox health check failed');
+  for (const row of report.rows) {
+    if (row.severity === 'fail') mismatches.push(`${row.pgName}: ${row.message}`);
+    if (row.severity === 'warning') {
+      mismatches.push(`[warn] ${row.pgName}: ${row.message}`);
+    }
+  }
+  if (report.propertyIndexFailCount > 0) {
+    mismatches.push(`Property index parity fail findings: ${report.propertyIndexFailCount}`);
+  }
+  if (report.workQueueFailCount > 0) {
+    mismatches.push(`Work queue parity fail findings: ${report.workQueueFailCount}`);
+  }
+
+  const hasFail = report.rows.some((r) => r.severity === 'fail') || report.propertyIndexFailCount > 0 || report.workQueueFailCount > 0;
+
+  return {
+    id: 'room_os_materialization',
+    name: 'Room OS Materialization Freshness',
+    pass: report.outboxPass && !hasFail,
+    summary: report.summary,
+    mismatches,
+  };
+}
+
+async function runRoomOsOperationsParityAudit(session: AdminSession): Promise<ProductionAuditGate> {
+  const report = await runOperationsCentreParityAudit(session);
+  const mismatches: string[] = [];
+  if (!report.sharedTabPass) {
+    for (const row of report.rows.filter((r) => !r.informational && !r.matches)) {
+      mismatches.push(
+        `${row.filter}: legacy ${row.legacyCount} vs room-os ${row.roomOsCount}`,
+      );
+    }
+  }
+  for (const row of report.migratedTabInformational) {
+    if (row.legacyCount !== row.roomOsCount || row.bookingIdDelta.length > 0) {
+      mismatches.push(
+        `[info] ${row.filter}: legacy ${row.legacyCount} vs room-os ${row.roomOsCount}; delta bookings ${row.bookingIdDelta.join(', ') || 'none'}`,
+      );
+    }
+  }
+  if (report.propertyIndexFailCount > 0) {
+    mismatches.push(`Property index certification fails: ${report.propertyIndexFailCount}`);
+  }
+  if (report.workQueueFailCount > 0) {
+    mismatches.push(`Work queue certification fails: ${report.workQueueFailCount}`);
+  }
+
+  return {
+    id: 'room_os_ops_parity',
+    name: 'Operations Centre Legacy vs Room OS Parity',
+    pass: report.pass,
+    summary: report.summary,
+    mismatches,
+  };
+}
+
 function healthSectionToGate(section: HealthSection, id: string): ProductionAuditGate {
   return {
     id,
@@ -124,7 +205,7 @@ export async function runProductionAudit(
 ): Promise<ProductionAuditReport> {
   const billingMonth = resolveBillingMonth(billingMonthInput);
 
-  const [systemHealth, deposit, checkout, counterParity, opsBadge, notificationParity] =
+  const [systemHealth, deposit, checkout, counterParity, opsBadge, notificationParity, roomOsOutbox, roomOsMaterialization, roomOsOpsParity] =
     await Promise.all([
       runSystemHealthAudit(session, billingMonth),
       runDepositAudit(session, { sampleSize: 10 }),
@@ -132,6 +213,9 @@ export async function runProductionAudit(
       runCounterParityAudit(session, billingMonth),
       runOpsBadgeAudit(session),
       runNotificationParityAudit(session),
+      runRoomOsOutboxAudit(),
+      runRoomOsMaterializationAudit(),
+      runRoomOsOperationsParityAudit(session),
     ]);
 
   const gates: ProductionAuditGate[] = [
@@ -168,6 +252,9 @@ export async function runProductionAudit(
     },
     opsBadge,
     notificationParity,
+    roomOsOutbox,
+    roomOsMaterialization,
+    roomOsOpsParity,
   ];
 
   return {

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { index, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { index, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 export const ROOM_OS_OUTBOX_STATUSES = ['pending', 'processed', 'failed'] as const;
 export type RoomOsOutboxStatus = (typeof ROOM_OS_OUTBOX_STATUSES)[number];
@@ -21,6 +21,8 @@ export const roomOsOutbox = pgTable(
     payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
     sourceRef: text('source_ref').notNull().default(''),
     status: text('status').$type<RoomOsOutboxStatus>().notNull().default('pending'),
+    attemptCount: integer('attempt_count').notNull().default(0),
+    nextRetryAt: timestamp('next_retry_at', { withTimezone: true }),
     processedAt: timestamp('processed_at', { withTimezone: true }),
     errorMessage: text('error_message'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

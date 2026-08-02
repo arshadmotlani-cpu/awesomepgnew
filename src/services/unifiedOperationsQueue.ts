@@ -46,6 +46,9 @@ import {
   parseOperationsFilter,
   type OpsQueueFilter,
 } from '@/src/lib/operations/operationsFilterLinks';
+import { isRoomOsOperationsQueueEnabled } from '@/src/lib/operations/featureFlag';
+import { loadRoomOsOperationsQueueItems } from '@/src/lib/operations/roomOsOperationsQueueAdapter';
+import { loadSupplementaryOperationsQueueItems } from '@/src/lib/operations/supplementaryOperationsQueue';
 import { mapVacatingPipelineItemToOpsItem } from '@/src/lib/operations/operationsQueueVacating';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 import type { ResidentsQueueRow } from '@/src/lib/residents/residentOperationsResidentsView';
@@ -162,6 +165,8 @@ type BuildUnifiedOperationsQueueOptions = {
   skipRepairs?: boolean;
   /** Rent/KYC rows from residents dashboard — badge path skips the heavy page load. */
   skipResidents?: boolean;
+  /** Parity audit — force data source regardless of ROOM_OS_OPERATIONS_QUEUE. */
+  forceSource?: 'legacy' | 'room_os';
 };
 
 function emptyOperationsFilterCounts(): Array<{ id: OpsQueueFilter; label: string; count: number }> {
@@ -475,6 +480,216 @@ export async function loadUnifiedOperationsQueue(
   return getUnifiedOperationsQueueForRequest(session, filterInput, focusReviewKey);
 }
 
+async function buildRoomOsUnifiedOperationsQueue(
+  session: AdminSession,
+  options?: BuildUnifiedOperationsQueueOptions,
+): Promise<{
+  allItems: UnifiedOpsItem[];
+  paymentReviews: PendingPaymentReviewItem[];
+  filterCounts: Array<{ id: OpsQueueFilter; label: string; count: number }>;
+}> {
+  if (!options?.skipRepairs) {
+    await repairTerminalCheckoutOperations();
+    await resolveTerminalCheckoutUnresolvedActions();
+  }
+
+  const [
+    roomOsItems,
+    bookingApprovals,
+    rawPaymentReviews,
+    dismissalIndex,
+    depositDueRows,
+    checkoutSettlements,
+    moveOutBundle,
+  ] = await Promise.all([
+    loadOperationsQueueSlice('room os queue', [], () =>
+      loadRoomOsOperationsQueueItems(session),
+    ),
+    loadOperationsQueueSlice('booking approvals', [], () =>
+      listPendingBookingApprovalsForSync(session),
+    ),
+    loadOperationsQueueSlice('payment reviews', [], () =>
+      getPendingPaymentReviewsForRequest(session),
+    ),
+    loadOperationsQueueSlice('dismissals', EMPTY_DISMISSAL_INDEX, () =>
+      loadOperationsQueueDismissalIndex(),
+    ),
+    loadOperationsQueueSlice('deposit due', [], () =>
+      import('@/src/services/depositExpress').then((m) => m.listDepositDueBookings(session)),
+    ),
+    loadOperationsQueueSlice('checkout settlements', [], () =>
+      listPipelineCheckoutSettlements(session),
+    ),
+    loadOperationsQueueSlice('move-out pipeline', EMPTY_MOVE_OUT_BUNDLE, () =>
+      loadMoveOutPipelineBundle(session, { syncSettlements: false }),
+    ),
+  ]);
+
+  const supplementaryItems = options?.skipResidents
+    ? []
+    : await loadOperationsQueueSlice('supplementary ops', [], () =>
+        loadSupplementaryOperationsQueueItems(session, dismissalIndex, checkoutSettlements),
+      );
+
+  const vacatingPgByRequestId = new Map(
+    moveOutBundle.vacatingRows.map((row) => [row.id, row.pgId]),
+  );
+
+  const paymentReviews = rawPaymentReviews.filter(
+    (p) =>
+      !p.customerId ||
+      !isDismissedFromOperationsQueue(dismissalIndex, { customerId: p.customerId }),
+  );
+
+  let items: UnifiedOpsItem[] = [...roomOsItems, ...supplementaryItems];
+
+  for (const review of paymentReviews) {
+    items.push(paymentReviewToItem(review));
+  }
+
+  const bookingIdsWithPaymentProof = new Set(
+    paymentReviews.map((p) => p.bookingId).filter(Boolean) as string[],
+  );
+
+  const approvedCheckoutBookingIds = await loadBookingIdsWithApprovedCheckoutProof();
+
+  const pendingElecBookingIds = new Set(
+    paymentReviews
+      .filter((p) => p.kind === 'electricity')
+      .map((p) => p.bookingId)
+      .filter(Boolean) as string[],
+  );
+
+  const activeCheckoutCustomerIds = new Set(
+    checkoutSettlements
+      .filter((s) => isActiveCheckoutSettlement(s))
+      .map((s) => s.customerId),
+  );
+
+  items = items.filter((item) => {
+    if (item.queue === 'electricity_due' && item.bookingId) {
+      if (pendingElecBookingIds.has(item.bookingId)) return false;
+      if (activeCheckoutCustomerIds.has(item.customerId ?? '')) return false;
+      if (
+        isDismissedFromOperationsQueue(dismissalIndex, {
+          customerId: item.customerId,
+          bookingId: item.bookingId,
+        })
+      ) {
+        return false;
+      }
+    }
+    if (item.queue === 'rent_due' && item.bookingId) {
+      if (activeCheckoutCustomerIds.has(item.customerId ?? '')) return false;
+      if (
+        isDismissedFromOperationsQueue(dismissalIndex, {
+          customerId: item.customerId,
+          bookingId: item.bookingId,
+        })
+      ) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  for (const pipelineItem of moveOutBundle.activeItems) {
+    if (
+      isDismissedFromOperationsQueue(dismissalIndex, {
+        customerId: pipelineItem.customerId,
+        bookingId: pipelineItem.bookingId,
+        vacatingRequestId: pipelineItem.vacatingRequestId,
+      })
+    ) {
+      continue;
+    }
+    const pgId = vacatingPgByRequestId.get(pipelineItem.vacatingRequestId) ?? null;
+    if (pgId && !adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, pgId)) {
+      continue;
+    }
+    const mapped = mapVacatingPipelineItemToOpsItem(pipelineItem, pgId);
+    if (mapped) items.push(mapped);
+  }
+
+  for (const b of bookingApprovals) {
+    if (bookingIdsWithPaymentProof.has(b.id)) continue;
+    items.push(mapLegacyBookingApprovalToOpsItem(b));
+  }
+
+  const { listDueRoomTransferOperations } = await import('@/src/services/roomTransferExecution');
+  const dueTransfers = await listDueRoomTransferOperations();
+  for (const transfer of dueTransfers) {
+    if (
+      transfer.pgId &&
+      !adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, transfer.pgId)
+    ) {
+      continue;
+    }
+    items.push({
+      id: `room-transfer-due-${transfer.id}`,
+      queue: 'vacating_requests',
+      customerId: transfer.customerId,
+      residentName: transfer.customerName,
+      pgId: transfer.pgId,
+      pgName: transfer.pgName,
+      roomNumber: transfer.roomNumber,
+      bedCode: transfer.bedCode,
+      reason: `Scheduled room transfer due today (${transfer.transferDate})`,
+      openHref: '/admin/requests',
+      openLabel: 'Execute transfer',
+      bookingId: transfer.bookingId,
+      statusLabel: 'Transfer due',
+    });
+  }
+
+  for (const row of depositDueRows) {
+    if (row.bookingId && approvedCheckoutBookingIds.has(row.bookingId)) continue;
+    if (row.bookingId && bookingIdsWithPaymentProof.has(row.bookingId)) continue;
+    items.push({
+      id: `deposit-due-${row.bookingId}`,
+      queue: 'deposit_due',
+      customerId: row.customerId,
+      residentName: row.customerName,
+      residentPhone: row.customerPhone,
+      pgId: row.pgId,
+      pgName: row.pgName,
+      roomNumber: row.roomNumber,
+      bedCode: row.bedCode,
+      reason: 'Security deposit outstanding',
+      openHref: bookingFinancialWorkspaceHref(row.bookingId),
+      openLabel: 'Review finances',
+      bookingId: row.bookingId,
+      bookingCode: row.bookingCode,
+      amountPaise: row.remainingDuePaise,
+      depositRequiredPaise: row.requiredDepositPaise,
+      depositPaidPaise: row.alreadyPaidPaise,
+      depositRemainingPaise: row.remainingDuePaise,
+      outstandingLines: [
+        {
+          categoryLabel: 'Deposit',
+          periodLabel: 'Security deposit',
+          amountPaise: row.remainingDuePaise,
+          kind: 'deposit',
+          bookingId: row.bookingId,
+          label: 'Deposit due',
+        },
+      ],
+    });
+  }
+
+  items = dedupeOperationsQueueItems(items);
+
+  const counts = countOperationsQueueItems(items);
+  assertOperationsQueueParity(items, counts);
+  const filterCounts = buildOperationsQueueFilterCounts(items);
+
+  return {
+    allItems: items,
+    paymentReviews,
+    filterCounts,
+  };
+}
+
 async function buildUnifiedOperationsQueue(
   session: AdminSession,
   _filterInput?: OpsQueueFilter | null,
@@ -486,6 +701,13 @@ async function buildUnifiedOperationsQueue(
   filterCounts: Array<{ id: OpsQueueFilter; label: string; count: number }>;
 }> {
   unifiedQueueBuildCount += 1;
+
+  if (options?.forceSource === 'room_os') {
+    return buildRoomOsUnifiedOperationsQueue(session, options);
+  }
+  if (options?.forceSource !== 'legacy' && isRoomOsOperationsQueueEnabled()) {
+    return buildRoomOsUnifiedOperationsQueue(session, options);
+  }
 
   if (!options?.skipRepairs) {
     // Close terminal checkout rows that still inflate vacating / refund queue counts.
@@ -786,6 +1008,18 @@ export function resetUnifiedQueueBuildCount(): void {
 
 export function getUnifiedQueueBuildCount(): number {
   return unifiedQueueBuildCount;
+}
+
+/** Read-only parity audit — bypasses React cache and feature flag env. */
+export async function loadOperationsQueueForParityAudit(
+  session: AdminSession,
+  source: 'legacy' | 'room_os',
+): Promise<UnifiedOpsItem[]> {
+  const base = await buildUnifiedOperationsQueue(session, null, null, {
+    forceSource: source,
+    skipRepairs: true,
+  });
+  return base.allItems;
 }
 
 /** @deprecated Use buildUnifiedOpsFilterTags from tests only — queues are assigned in row mappers. */

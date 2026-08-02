@@ -772,6 +772,19 @@ export async function recordPaymentSuccess(
         },
       });
 
+      const {
+        enqueuePropertyIndexRebuildFromWriter,
+        resolvePgIdForBooking,
+      } = await import('@/src/roomOs/outbox/writerRebuild');
+      const rebuildPgId = await resolvePgIdForBooking(booking.id, tx);
+      if (rebuildPgId) {
+        await enqueuePropertyIndexRebuildFromWriter(tx, {
+          pgId: rebuildPgId,
+          billingMonth: booking.billingAnchorDate ?? undefined,
+          sourceRef: 'bookingLifecycle.recordPaymentSuccess',
+        });
+      }
+
       return { paymentId: payment.id, isReserveBooking };
     });
 
@@ -2236,6 +2249,18 @@ export async function cancelBooking(
     await reverseReferralOnBookingCancel(b.id, tx);
     const { releaseCouponReservationForBooking } = await import('./couponLifecycle');
     await releaseCouponReservationForBooking(b.id, `cancel:${input.reason}`, tx);
+
+    const {
+      enqueuePropertyIndexRebuildFromWriter,
+      resolvePgIdForBooking,
+    } = await import('@/src/roomOs/outbox/writerRebuild');
+    const rebuildPgId = await resolvePgIdForBooking(b.id, tx);
+    if (rebuildPgId) {
+      await enqueuePropertyIndexRebuildFromWriter(tx, {
+        pgId: rebuildPgId,
+        sourceRef: 'bookingLifecycle.cancelBooking',
+      });
+    }
   });
 
   if (!noMoneyMoved && refund.depositRefundPaise > 0 && refundPaymentId) {

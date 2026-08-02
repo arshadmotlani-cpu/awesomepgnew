@@ -1,6 +1,9 @@
 /**
  * Billing Centre command dashboard — read-only SSOT composition.
  * DO NOT import invoice generation, deposit writers, or financial engine mutators.
+ *
+ * @deprecated Wave 3 — prefer Room OS `getWorkQueue` via `buildRoomOsCollectionsQueue`
+ * when `ROOM_OS_BILLING_CENTRE=1`. Sunset deadline: 4 weeks from Wave 3 cutover.
  */
 import {
   listAdminElectricityInvoicesForReminders,
@@ -29,6 +32,8 @@ import {
   type BillingCentreDashboardView,
 } from '@/src/lib/admin/billingCentreDashboardPresentation';
 import { buildCollectionsQueue } from '@/src/lib/billing/collectionsQueue';
+import { buildRoomOsCollectionsQueue } from '@/src/lib/billing/roomOsCollectionsAdapter';
+import { isRoomOsBillingCentreEnabled } from '@/src/lib/operations/featureFlag';
 import { todayInBillingTimezone } from '@/src/lib/billing/billingTimezone';
 import { formatDate } from '@/src/lib/dates';
 import { resolveFinancialInvoiceIdMap } from '@/src/services/adminCashSettlement';
@@ -192,10 +197,12 @@ export async function loadBillingCentreDashboardSnapshot(
   );
   const allUnpaidElectricity = elecPendingResult.ok ? elecPendingResult.data : [];
 
-  const collectionsQueue = buildCollectionsQueue({
-    rentRows: allUnpaidRent,
-    electricityRows: allUnpaidElectricity,
-  });
+  const collectionsQueue = isRoomOsBillingCentreEnabled()
+    ? await buildRoomOsCollectionsQueue(session, billingMonth)
+    : buildCollectionsQueue({
+        rentRows: allUnpaidRent,
+        electricityRows: allUnpaidElectricity,
+      });
 
   const financialIdMap = await resolveFinancialInvoiceIdMap(
     collectionsQueue.map((item) => ({

@@ -21,16 +21,17 @@ import {
 } from '@/src/components/customer/account/resident/ResidentPaymentsHub';
 import { StatusChip } from '@/src/components/customer/design-system';
 import { ApgCard } from '@/src/components/customer/design-system';
+import { LateFeeCountdown } from '@/src/components/billing/LateFeeCountdown';
+import { RentInvoiceBreakdownPanel } from '@/src/components/billing/RentInvoiceBreakdownPanel';
+import { ViewBillDetailsCollapsible } from '@/src/components/billing/ViewBillDetailsCollapsible';
 import { residentTabHref } from '@/src/lib/accountNavigation';
 import {
   ACCOUNT_BACK_LINK,
-  ACCOUNT_PAGE_SUBTITLE,
   ACCOUNT_PAGE_TITLE,
 } from '@/src/components/customer/accountStyles';
-import { RentInvoiceBreakdownPanel } from '@/src/components/billing/RentInvoiceBreakdownPanel';
 import { loadRentInvoiceBreakdown } from '@/src/lib/billing/rentInvoiceBreakdown';
 import { formatDate, paiseToInr } from '@/src/lib/format';
-import { projectInvoice } from '@/src/services/rentInvoices';
+import { projectInvoice, rentInvoiceIssueDate } from '@/src/services/rentInvoices';
 import {
   ensureDefaultPaymentCategoriesForPg,
   getRentDepositBookingCategory,
@@ -107,6 +108,10 @@ export default async function PayRentPage({
   const amountLabel = paiseToInr(projected.outstandingPaise);
   const periodLabel = formatDate(row.billingMonth);
   const backHref = residentTabHref('payments');
+  const issueDate = rentInvoiceIssueDate(row);
+  const dueDateLabel = projected.graceEndDate ?? formatDate(row.dueDate);
+  const rentAfterDiscount = row.rentPaise - (row.discountPaise ?? 0);
+  const showCountdown = row.status !== 'paid' && row.status !== 'cancelled';
 
   await ensureDefaultPaymentCategoriesForPg(row.pgId);
   const rentCategory = await getRentDepositBookingCategory(row.pgId);
@@ -119,47 +124,52 @@ export default async function PayRentPage({
           ← Back to payments
         </Link>
         <h1 className={`mt-2 ${ACCOUNT_PAGE_TITLE}`}>Rent invoice</h1>
-        <p className={`font-mono ${ACCOUNT_PAGE_SUBTITLE}`}>{row.invoiceNumber}</p>
       </header>
 
       <ApgCard tier="account" className="p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-zinc-900">Step 1 — Review</h2>
+          <h2 className="text-sm font-semibold text-zinc-900">Your bill</h2>
           <StatusChip status={projected.effectiveStatus} toneMap={STATUS_TONE} />
         </div>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
-          <InvoiceBreakdownRow label="Period" value={periodLabel} />
-          <InvoiceBreakdownRow label="Due date" value={formatDate(row.dueDate)} />
-          <InvoiceBreakdownRow label="Room / bed" value={`R${row.roomNumber} · ${row.bedCode}`} />
-          <InvoiceBreakdownRow label="Rent" value={paiseToInr(row.rentPaise)} />
-          {(row.discountPaise ?? 0) > 0 ? (
-            <>
-              <InvoiceBreakdownRow
-                label={row.promoCode ? `Discount (${row.promoCode})` : 'Discount'}
-                value={`−${paiseToInr(row.discountPaise ?? 0)}`}
-                tone="success"
-              />
-              <InvoiceBreakdownRow
-                label="Rent after discount"
-                value={paiseToInr(row.rentPaise - (row.discountPaise ?? 0))}
-              />
-            </>
+          <InvoiceBreakdownRow label="Rent" value={paiseToInr(rentAfterDiscount)} />
+          {projected.accruedLateFeePaise > 0 ? (
+            <InvoiceBreakdownRow
+              label="Late fee"
+              value={paiseToInr(projected.accruedLateFeePaise)}
+              tone="danger"
+            />
           ) : null}
-          <InvoiceBreakdownRow
-            label="Late fee"
-            value={paiseToInr(projected.accruedLateFeePaise)}
-            tone={projected.accruedLateFeePaise > 0 ? 'danger' : undefined}
-          />
           <InvoiceBreakdownRow label="Total to pay" value={amountLabel} emphasis />
+          <InvoiceBreakdownRow label="Due date" value={formatDate(dueDateLabel)} />
         </dl>
-        {row.notes ? (
-          <p className="mt-3 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">{row.notes}</p>
+        {showCountdown ? (
+          <div className="mt-3">
+            <LateFeeCountdown issueDate={issueDate} />
+          </div>
         ) : null}
       </ApgCard>
 
-      {rentBreakdown ? (
-        <RentInvoiceBreakdownPanel breakdown={rentBreakdown} theme="light" />
-      ) : null}
+      <ViewBillDetailsCollapsible>
+        <dl className="mb-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+          <InvoiceBreakdownRow label="Invoice ID" value={row.invoiceNumber} />
+          <InvoiceBreakdownRow label="Billing period" value={periodLabel} />
+          <InvoiceBreakdownRow label="Room / bed" value={`R${row.roomNumber} · ${row.bedCode}`} />
+          {(row.discountPaise ?? 0) > 0 ? (
+            <InvoiceBreakdownRow
+              label={row.promoCode ? `Discount (${row.promoCode})` : 'Discount'}
+              value={`−${paiseToInr(row.discountPaise ?? 0)}`}
+              tone="success"
+            />
+          ) : null}
+        </dl>
+        {row.notes ? (
+          <p className="mb-4 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">{row.notes}</p>
+        ) : null}
+        {rentBreakdown ? (
+          <RentInvoiceBreakdownPanel breakdown={rentBreakdown} theme="light" />
+        ) : null}
+      </ViewBillDetailsCollapsible>
 
       {row.status === 'paid' ? (
         <ApgCard tier="account" className="p-5 text-sm text-emerald-800">

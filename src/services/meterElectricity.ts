@@ -52,37 +52,51 @@ export async function recordMeterLog(
     throw new Error('Meter units must be a non-negative number.');
   }
 
-  const [row] = await db
-    .insert(meterLogs)
-    .values({
+  const billingMonth = firstOfMonth(input.recordedAt ?? formatDate(new Date()));
+  const { logId } = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(meterLogs)
+      .values({
+        pgId: input.pgId,
+        roomId: input.roomId,
+        bookingId: input.bookingId ?? null,
+        readingType: input.readingType,
+        units: input.units.toString(),
+        meterImageUrl: input.meterImageUrl?.trim() || null,
+        recordedBy: input.recordedBy,
+        recordedById: input.recordedById ?? session.adminId,
+        isEstimated: input.isEstimated ?? false,
+        recordedAt: input.recordedAt ?? formatDate(new Date()),
+        notes: input.notes ?? null,
+      })
+      .returning({ id: meterLogs.id });
+
+    const { enqueuePropertyIndexRebuildFromWriter } = await import(
+      '@/src/roomOs/outbox/writerRebuild'
+    );
+    await enqueuePropertyIndexRebuildFromWriter(tx, {
       pgId: input.pgId,
-      roomId: input.roomId,
-      bookingId: input.bookingId ?? null,
-      readingType: input.readingType,
-      units: input.units.toString(),
-      meterImageUrl: input.meterImageUrl?.trim() || null,
-      recordedBy: input.recordedBy,
-      recordedById: input.recordedById ?? session.adminId,
-      isEstimated: input.isEstimated ?? false,
-      recordedAt: input.recordedAt ?? formatDate(new Date()),
-      notes: input.notes ?? null,
-    })
-    .returning({ id: meterLogs.id });
+      billingMonth,
+      sourceRef: 'meterElectricity.recordMeterLog',
+    });
+
+    return { logId: row.id };
+  });
 
   let billId: string | undefined;
   if (input.autoCreateBill && input.readingType === 'monthly' && input.ratePerUnitPaise) {
     const billResult = await createBillFromMeterLogs(session, {
       roomId: input.roomId,
-      billingMonth: firstOfMonth(input.recordedAt ?? formatDate(new Date())),
+      billingMonth,
       ratePerUnitPaise: input.ratePerUnitPaise,
-      endMeterLogId: row.id,
+      endMeterLogId: logId,
       meterImageUrl: input.meterImageUrl,
       isEstimated: input.isEstimated ?? false,
     });
     if (billResult.ok) billId = billResult.billId;
   }
 
-  return { logId: row.id, billId };
+  return { logId, billId };
 }
 
 export async function estimateMonthlyUnits(roomId: string, billingMonth: string): Promise<number> {

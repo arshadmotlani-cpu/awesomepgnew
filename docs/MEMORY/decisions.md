@@ -9,6 +9,8 @@
 
 ## 2026-08-01
 
+- **Operations Recovery architecture freeze (OR-0)** — Plan-only scope; S7 `SUPERSEDE_DUPLICATE_INVOICE` OR-4 gate; Integrity canonical duplicate owner; Discovery Integrity-derived only; analyzer `asOf` snapshot fence; rule precedence documented. → `docs/OPERATIONS_RECOVERY.md`, ADR-OR-001 … ADR-OR-005
+
 - **Room OS / Property OS architecture (principal review incorporated)** — Strangler read layer above ledgers; truth ladder (write → events → projections → timeline); BookingContext as value object inside Bed Brain; WorkQueueProjector materialized (not live god-orchestrator); transactional outbox mandatory Wave 0; derivation refs for explain (Wave 4); replay gated ≥90% event coverage. Wave 0 foundation: `docs/ROOM_OS.md`, `src/roomOs/`, migration `0132_room_os_outbox`. Blockers before Wave 1 UI: architecture approved, Operations Centre UX wireframes approved, Wave 0 complete.
 
 - **FYH notification template resolution order** — Settings override (`communicationSettings`) → `fyh_notification_templates` row → default seed in `ensureNotificationTemplates`. Never hardcode bodies at call sites; Quick Sale wa.me uses server `getNotificationPreviewAction`. Outbox delivery remains stub (mark sent when WhatsApp enabled + valid recipient).

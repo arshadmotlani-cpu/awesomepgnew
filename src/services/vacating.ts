@@ -235,20 +235,33 @@ function monthlyRentFromBooking(snapshot: PricingSnapshot | null): number {
 
 /** Shorten active reservations so beds open from vacating date onward. */
 async function shortenBookingReservationsToDate(bookingId: string, endDate: string) {
-  await db.execute(sql`
-    UPDATE bed_reservations
-    SET
-      stay_range = daterange(lower(stay_range), ${endDate}::date, '[)'),
-      updated_at = now()
-    WHERE booking_id = ${bookingId}
-      AND status IN ('hold', 'active')
-      AND upper(stay_range) > ${endDate}::date
-  `);
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`
+      UPDATE bed_reservations
+      SET
+        stay_range = daterange(lower(stay_range), ${endDate}::date, '[)'),
+        updated_at = now()
+      WHERE booking_id = ${bookingId}
+        AND status IN ('hold', 'active')
+        AND upper(stay_range) > ${endDate}::date
+    `);
 
-  await db
-    .update(bookings)
-    .set({ expectedCheckoutDate: endDate, updatedAt: new Date() })
-    .where(eq(bookings.id, bookingId));
+    await tx
+      .update(bookings)
+      .set({ expectedCheckoutDate: endDate, updatedAt: new Date() })
+      .where(eq(bookings.id, bookingId));
+
+    const { enqueuePropertyIndexRebuildFromWriter, resolvePgIdForBooking } = await import(
+      '@/src/roomOs/outbox/writerRebuild'
+    );
+    const rebuildPgId = await resolvePgIdForBooking(bookingId, tx);
+    if (rebuildPgId) {
+      await enqueuePropertyIndexRebuildFromWriter(tx, {
+        pgId: rebuildPgId,
+        sourceRef: 'vacating.shortenBookingReservationsToDate',
+      });
+    }
+  });
 }
 
 async function restoreOpenEndedStay(
@@ -300,15 +313,28 @@ async function bookingHasActiveStayToday(bookingId: string): Promise<boolean> {
 }
 
 export async function completeBookingReservations(bookingId: string) {
-  await db
-    .update(bedReservations)
-    .set({ status: 'completed', updatedAt: new Date() })
-    .where(
-      and(
-        eq(bedReservations.bookingId, bookingId),
-        sql`${bedReservations.status} IN ('hold', 'active')`,
-      ),
+  await db.transaction(async (tx) => {
+    await tx
+      .update(bedReservations)
+      .set({ status: 'completed', updatedAt: new Date() })
+      .where(
+        and(
+          eq(bedReservations.bookingId, bookingId),
+          sql`${bedReservations.status} IN ('hold', 'active')`,
+        ),
+      );
+
+    const { enqueuePropertyIndexRebuildFromWriter, resolvePgIdForBooking } = await import(
+      '@/src/roomOs/outbox/writerRebuild'
     );
+    const rebuildPgId = await resolvePgIdForBooking(bookingId, tx);
+    if (rebuildPgId) {
+      await enqueuePropertyIndexRebuildFromWriter(tx, {
+        pgId: rebuildPgId,
+        sourceRef: 'vacating.completeBookingReservations',
+      });
+    }
+  });
 }
 
 // ───────────────────────────────────────────────────────────────────────────

@@ -39,6 +39,12 @@ Billing-related changes require **read-only production verification** before dep
 
 **Billing Centre releases** additionally require `npm run cert:shantinagar-phase1` against production — all active Shantinagar residents must pass with zero ₹1 drift.
 
+**Room OS Wave 2 releases** require `npm run cert:room-os-wave2` against production — Certification Engine must not report `fail` status (warnings allowed pre-cutover). Verify `/api/cron/room-os-outbox` is draining pending rows.
+
+**Room OS Wave 3 releases** require `npm run cert:room-os-wave3` (includes `RFE_BED_BRAIN_BRIDGE` check) and `tests/unit/roomOsWave3ForbiddenImports.test.ts` green — legacy composer sunset via `ROOM_OS_OPERATIONS_QUEUE=1` / `ROOM_OS_BILLING_CENTRE=1` after parity audit.
+
+**Room OS Wave 4 releases** require `npm run cert:room-os-wave4` — includes `REPLAY_SAMPLE_PARITY` when event coverage ≥90%; replay skipped with warning below threshold. Explain/Replay modules are read-only only.
+
 ## Before commit / push
 
 Generate a **Regression Report** (`npm run stability:report`). It must list:

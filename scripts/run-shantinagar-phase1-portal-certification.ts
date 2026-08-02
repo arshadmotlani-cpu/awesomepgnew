@@ -77,6 +77,29 @@ async function main() {
   if (!report.summary.certified) {
     process.exit(1);
   }
+
+  console.log('\n── Room OS Wave 2 full certification (8-check suite) ──');
+  const { runShantinagarParity } = await import(
+    '@/src/roomOs/certification/shantinagar/runShantinagarParity'
+  );
+  const {
+    certificationBlocksRelease,
+    formatCertificationReportTable,
+  } = await import('@/src/roomOs/certification/formatReport');
+
+  const wave2 = await runShantinagarParity();
+  if (!wave2.ok) {
+    console.error(`Room OS certification error: ${wave2.error.code} — ${wave2.error.message}`);
+    process.exit(1);
+  }
+
+  if (!jsonOut && !mdOut) {
+    console.log(formatCertificationReportTable(wave2.report));
+  }
+
+  if (certificationBlocksRelease(wave2.report)) {
+    process.exit(1);
+  }
 }
 
 main().catch((e) => {

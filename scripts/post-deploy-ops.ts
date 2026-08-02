@@ -78,6 +78,7 @@ async function main() {
 
   await hitCron('/api/cron/expire-fixed-stays');
   await hitCron('/api/cron/financial-reconciliation');
+  await hitCron('/api/cron/room-os-outbox');
 
   if (process.argv.includes('--with-db')) {
     await runDbScripts();

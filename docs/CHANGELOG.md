@@ -256,19 +256,44 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-01 15:04:01 UTC
+### Pending pre-commit sync · 2026-08-02 07:48:39 UTC
 
-**Areas touched:** [[DATABASE]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Bookings]], [[Deposits]], [[Electricity]], [[Residents]], [[Vacating]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
 - `DATABASE.md` — review for accuracy
+- `DECISIONS.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
+- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (3):**
-- `src/db/migrations/0132_room_os_outbox.sql`
+**Staged code files (23):**
+- `app/(customer)/account/resident/pay-rent/[invoiceId]/page.tsx`
+- `app/api/cron/room-os-outbox/route.ts`
+- `src/db/migrations/0133_property_os_index.sql`
+- `src/db/migrations/0134_work_queue_index.sql`
+- `src/db/migrations/0135_room_os_outbox_retry.sql`
 - `src/db/schema/index.ts`
+- `src/db/schema/propertyOsIndex.ts`
 - `src/db/schema/roomOsOutbox.ts`
+- `src/db/schema/workQueueIndex.ts`
+- `src/lib/billing/collectionsQueue.ts`
+- `src/lib/billing/lateFeeCountdown.ts`
+- `src/lib/billing/lateFeeSchedule.ts`
+- `src/lib/billing/roomOsCollectionsAdapter.ts`
+- `src/services/billing.ts`
+- `src/services/booking.ts`
+- `src/services/bookingLifecycle.ts`
+- `src/services/deposits.ts`
+- `src/services/electricityBilling.ts`
+- `src/services/meterElectricity.ts`
+- `src/services/rentInvoices.ts`
+- `src/services/residentFinancialEngine.ts`
+- `src/services/residentOperationsDashboard.ts`
+- `src/services/vacating.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

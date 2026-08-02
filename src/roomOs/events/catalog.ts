@@ -10,7 +10,11 @@ export const ROOM_OS_EVENT_TYPES = [
   'electricity.bill_status_changed',
   'ledger.rent_projection_updated',
   'ledger.deposit_projection_updated',
+  /** Command — request WorkQueueProjector rebuild from property_os_index. */
   'work_queue.rebuilt',
+  /** Command — request PropertyProjector rebuild. */
+  'property_index.rebuild_requested',
+  /** Reserved fact-only — post-success materialization record; not emitted yet. */
   'property_index.materialized',
   'integrity.flag_raised',
 ] as const;

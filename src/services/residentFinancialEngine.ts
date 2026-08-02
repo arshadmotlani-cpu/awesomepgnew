@@ -46,6 +46,10 @@ import {
 } from '@/src/lib/billing/electricityCollectibility';
 import { computeRentDuePaise, projectInvoice } from '@/src/services/rentInvoices';
 import { firstOfMonth } from '@/src/services/billing';
+import {
+  applyLedgerTotalsToSummary,
+} from '@/src/roomOs/bridges/rfeBedBrainBridge';
+import { buildBookingContextSnapshot } from '@/src/roomOs/engines/occupancy/resolveBookingContext';
 
 const ACTIVE_BOOKING_STATUSES = ['confirmed'] as const;
 
@@ -570,6 +574,25 @@ export async function getBookingFinancialSummary(args: {
   depositPaise: number;
   depositDuePaise: number;
 }): Promise<ResidentFinancialSummary> {
+  const baseSummary = await computeBookingFinancialSummaryCore(args);
+  const context = await buildBookingContextSnapshot({ bookingId: args.bookingId });
+  if (!context?.ledger) return baseSummary;
+  return applyLedgerTotalsToSummary(baseSummary, context.ledger);
+}
+
+/** Internal SSOT computation — used by LedgerProjection without bridge recursion. */
+export async function computeBookingFinancialSummaryCore(args: {
+  bookingId: string;
+  customerId: string;
+  customerName: string;
+  customerPhone: string;
+  bookingCode: string;
+  pgId: string;
+  pgName: string;
+  roomNumber: string;
+  depositPaise: number;
+  depositDuePaise: number;
+}): Promise<ResidentFinancialSummary> {
   const [rentRows, elecRows, finIds, openVacating] = await Promise.all([
     db.select().from(rentInvoices).where(eq(rentInvoices.bookingId, args.bookingId)),
     fetchElectricityInvoicesByBookingId(args.bookingId),
@@ -603,7 +626,7 @@ export async function getBookingFinancialSummary(args: {
     sumCategory(other),
   );
 
-  return {
+  const baseSummary: ResidentFinancialSummary = {
     customerId: args.customerId,
     bookingId: args.bookingId,
     bookingCode: args.bookingCode,
@@ -619,6 +642,8 @@ export async function getBookingFinancialSummary(args: {
     other,
     totals,
   };
+
+  return baseSummary;
 }
 
 /** Latest confirmed/completed booking — wallet SSOT when active bed assignment is absent. */

@@ -48,12 +48,15 @@ import { loadRoomElectricityOccupantsForMonth } from '@/src/lib/billing/roomElec
 import { composeElectricityBillBreakdown, loadElectricityBillBreakdown, personalizeElectricityBreakdown } from '@/src/lib/billing/buildElectricityBillBreakdown';
 import type { ElectricityBillCalculationBreakdown } from '@/src/lib/billing/electricityBillBreakdownTypes';
 import type { NewElectricityInvoice } from '../db/schema/electricityInvoices';
-import { diffDays, formatDate, parseDate, type DateLike } from '../lib/dates';
+import { diffDays, formatDate, normalizeIsoDateOnly, parseDate, type DateLike } from '../lib/dates';
 import {
-  ELECTRICITY_GRACE_DAYS,
+  chargeableLateFeeDaysFromIssue,
   computeElectricityLateFee,
+  daysUntilLateFeeFromIssue,
   electricityDueDate,
   firstOfMonth,
+  graceEndDateFromIssue,
+  lateFeePercentFromIssue,
   monthBounds,
 } from './billing';
 import type { ElectricityInvoice } from '../db/schema';
@@ -145,21 +148,41 @@ export type ElectricityInvoiceForProjection = Pick<
 export type ElectricityInvoiceView = {
   invoice: ElectricityInvoiceForProjection;
   /**
-   * `pending` → before due date, no penalty
-   * `overdue` → past due date, penalty accruing
+   * `pending` → before late fees start
+   * `overdue` → late fees accruing
    * `paid`    → late fee locked
    * `cancelled` → no penalty, no outstanding
    */
   effectiveStatus: 'pending' | 'partial' | 'overdue' | 'paid' | 'cancelled';
   accruedLateFeePaise: number;
   outstandingPaise: number;
+  /** Chargeable late-fee days (1% per day). */
   daysOverdue: number;
+  graceEndDate?: string;
+  lateFeePercent?: number;
+  daysUntilLateFee?: number;
 };
 
 /**
  * Apply live late-fee math to an electricity invoice as of `today`. Pure;
  * mirrors `projectInvoice` in `rentInvoices.ts` but keyed off `due_date`.
  */
+/** Normalize electricity invoice generation date for late-fee math. */
+function electricityInvoiceIssueDate(invoice: ElectricityInvoiceForProjection): string {
+  const createdAt = invoice.createdAt;
+  if (createdAt instanceof Date) {
+    return formatDate(createdAt);
+  }
+  if (createdAt) {
+    const normalized = normalizeIsoDateOnly(String(createdAt));
+    if (normalized) return normalized;
+  }
+  if (invoice.dueDate) {
+    return formatDate(graceEndDateFromIssue(invoice.dueDate));
+  }
+  return formatDate(new Date());
+}
+
 export function projectElectricityInvoice(
   invoice: ElectricityInvoiceForProjection,
   today: DateLike = formatDate(new Date()),
@@ -182,20 +205,23 @@ export function projectElectricityInvoice(
       daysOverdue: 0,
     };
   }
+  const issueDate = electricityInvoiceIssueDate(invoice);
   const accrued = computeElectricityLateFee({
     amountPaise: invoice.amountPaise,
-    dueDate: invoice.dueDate,
+    issueDate,
     today,
   });
-  const overdueDays =
-    accrued > 0
-      ? Math.max(0, Math.floor((parseDate(today).getTime() - parseDate(invoice.dueDate).getTime()) / 86_400_000))
-      : 0;
+  const chargeableDays = chargeableLateFeeDaysFromIssue(issueDate, today);
+  const projectionFields = {
+    graceEndDate: formatDate(graceEndDateFromIssue(issueDate)),
+    lateFeePercent: lateFeePercentFromIssue(issueDate, today),
+    daysUntilLateFee: daysUntilLateFeeFromIssue(issueDate, today),
+  };
   const outstandingPaise = Math.max(0, invoice.amountPaise + accrued - invoice.paidPaise);
   const hasPartial = outstandingPaise > 0 && invoice.paidPaise > 0;
   const effectiveStatus = hasPartial
     ? 'partial'
-    : accrued > 0
+    : chargeableDays > 0
       ? 'overdue'
       : 'pending';
   return {
@@ -203,7 +229,8 @@ export function projectElectricityInvoice(
     effectiveStatus,
     accruedLateFeePaise: accrued,
     outstandingPaise,
-    daysOverdue: overdueDays,
+    daysOverdue: chargeableDays,
+    ...projectionFields,
   };
 }
 
@@ -693,6 +720,15 @@ export async function createElectricityBill(
         },
       });
 
+      const { enqueuePropertyIndexRebuildFromWriter } = await import(
+        '@/src/roomOs/outbox/writerRebuild'
+      );
+      await enqueuePropertyIndexRebuildFromWriter(tx, {
+        pgId: room.pgId,
+        billingMonth,
+        sourceRef: 'electricityBilling.createElectricityBill',
+      });
+
       return { billId: bill.id, invoiceIds };
     });
 
@@ -842,7 +878,7 @@ export async function recordElectricityPaymentSuccess(
 
   const lockedLateFee = computeElectricityLateFee({
     amountPaise: invoice.amountPaise,
-    dueDate: invoice.dueDate,
+    issueDate: electricityInvoiceIssueDate(invoice as ElectricityInvoiceForProjection),
     today: formatDate(new Date()),
   });
   const newPaidPaise = invoice.paidPaise + input.amountPaise;
@@ -1068,65 +1104,100 @@ export async function voidRoomElectricityBillsForMonth(
   billingMonth: string,
 ): Promise<{ cancelledInvoiceIds: string[]; deletedBillIds: string[] }> {
   const month = firstOfMonth(billingMonth);
-  const bills = await db
-    .select({ id: electricityBills.id })
-    .from(electricityBills)
-    .where(and(eq(electricityBills.roomId, roomId), eq(electricityBills.billingMonth, month)));
+  return db.transaction(async (tx) => {
+    const bills = await tx
+      .select({ id: electricityBills.id })
+      .from(electricityBills)
+      .where(and(eq(electricityBills.roomId, roomId), eq(electricityBills.billingMonth, month)));
 
-  const cancelledInvoiceIds: string[] = [];
-  for (const bill of bills) {
-    const cancelled = await db
-      .update(electricityInvoices)
-      .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
-      .where(
-        and(
-          eq(electricityInvoices.electricityBillId, bill.id),
-          sql`${electricityInvoices.status} <> 'cancelled'`,
-          sql`${electricityInvoices.paidPaise} = 0`,
-        ),
-      )
-      .returning({ id: electricityInvoices.id });
-    cancelledInvoiceIds.push(...cancelled.map((r) => r.id));
-  }
-
-  if (cancelledInvoiceIds.length > 0) {
-    const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
-    await syncManyToUnified(cancelledInvoiceIds, 'electricity').catch(() => undefined);
-  }
-
-  const deletedBillIds: string[] = [];
-  for (const bill of bills) {
-    const ledgerLinked = await db.execute<{ id: string }>(sql`
-      SELECT rel.id
-      FROM room_electricity_ledger_entries rel
-      INNER JOIN electricity_invoices ei ON ei.id = rel.electricity_invoice_id
-      WHERE ei.electricity_bill_id = ${bill.id}::uuid
-      LIMIT 1
-    `);
-    if (Array.isArray(ledgerLinked) && ledgerLinked.length > 0) {
-      continue;
+    const cancelledInvoiceIds: string[] = [];
+    for (const bill of bills) {
+      const cancelled = await tx
+        .update(electricityInvoices)
+        .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
+        .where(
+          and(
+            eq(electricityInvoices.electricityBillId, bill.id),
+            sql`${electricityInvoices.status} <> 'cancelled'`,
+            sql`${electricityInvoices.paidPaise} = 0`,
+          ),
+        )
+        .returning({ id: electricityInvoices.id });
+      cancelledInvoiceIds.push(...cancelled.map((r) => r.id));
     }
-    await db.delete(electricityBills).where(eq(electricityBills.id, bill.id));
-    deletedBillIds.push(bill.id);
-  }
 
-  return { cancelledInvoiceIds, deletedBillIds };
+    const deletedBillIds: string[] = [];
+    for (const bill of bills) {
+      const ledgerLinked = await tx.execute<{ id: string }>(sql`
+        SELECT rel.id
+        FROM room_electricity_ledger_entries rel
+        INNER JOIN electricity_invoices ei ON ei.id = rel.electricity_invoice_id
+        WHERE ei.electricity_bill_id = ${bill.id}::uuid
+        LIMIT 1
+      `);
+      if (Array.isArray(ledgerLinked) && ledgerLinked.length > 0) {
+        continue;
+      }
+      await tx.delete(electricityBills).where(eq(electricityBills.id, bill.id));
+      deletedBillIds.push(bill.id);
+    }
+
+    if (cancelledInvoiceIds.length > 0 || deletedBillIds.length > 0) {
+      const { enqueuePropertyIndexRebuildFromWriter, resolvePgIdForRoom } = await import(
+        '@/src/roomOs/outbox/writerRebuild'
+      );
+      const rebuildPgId = await resolvePgIdForRoom(roomId, tx);
+      if (rebuildPgId) {
+        await enqueuePropertyIndexRebuildFromWriter(tx, {
+          pgId: rebuildPgId,
+          billingMonth: month,
+          sourceRef: 'electricityBilling.voidRoomElectricityBillsForMonth',
+        });
+      }
+    }
+
+    return { cancelledInvoiceIds, deletedBillIds };
+  }).then(async (result) => {
+    if (result.cancelledInvoiceIds.length > 0) {
+      const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
+      await syncManyToUnified(result.cancelledInvoiceIds, 'electricity').catch(() => undefined);
+    }
+    return result;
+  });
 }
 
 /** Cancel all electricity invoices for a booking. Used on vacating-complete. */
 export async function cancelElectricityInvoicesForBooking(
   bookingId: string,
 ): Promise<{ cancelled: number; ids: string[] }> {
-  const rows = await db
-    .update(electricityInvoices)
-    .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
-    .where(
-      and(
-        eq(electricityInvoices.bookingId, bookingId),
-        eq(electricityInvoices.status, 'pending'),
-      ),
-    )
-    .returning({ id: electricityInvoices.id });
+  const rows = await db.transaction(async (tx) => {
+    const cancelled = await tx
+      .update(electricityInvoices)
+      .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
+      .where(
+        and(
+          eq(electricityInvoices.bookingId, bookingId),
+          eq(electricityInvoices.status, 'pending'),
+        ),
+      )
+      .returning({ id: electricityInvoices.id });
+
+    if (cancelled.length > 0) {
+      const { enqueuePropertyIndexRebuildFromWriter, resolvePgIdForBooking } = await import(
+        '@/src/roomOs/outbox/writerRebuild'
+      );
+      const rebuildPgId = await resolvePgIdForBooking(bookingId, tx);
+      if (rebuildPgId) {
+        await enqueuePropertyIndexRebuildFromWriter(tx, {
+          pgId: rebuildPgId,
+          sourceRef: 'electricityBilling.cancelElectricityInvoicesForBooking',
+        });
+      }
+    }
+
+    return cancelled;
+  });
+
   if (rows.length > 0) {
     const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
     await syncManyToUnified(

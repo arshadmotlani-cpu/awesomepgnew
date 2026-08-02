@@ -1,23 +1,25 @@
 /**
- * Projector registry — Wave 1 engines register here.
+ * Projector registry — Wave 2 PropertyProjector wired to outbox.
  */
 
+import { propertyProjector } from '@/src/roomOs/projectors/property/propertyProjectorHandler';
+import { workQueueProjector } from '@/src/roomOs/projectors/workQueue/workQueueProjectorHandler';
 import type { RoomOsProjector } from '@/src/roomOs/projectors/types';
 
 const noopProjector = (id: string, handles: readonly string[]): RoomOsProjector => ({
   id,
   handles,
   project: async () => {
-    /* Wave 1: materialize snapshots */
+    /* Wave 2+: materialize snapshots */
   },
 });
 
-/** Registered projectors — Wave 0 stubs only. */
+/** Registered projectors — PropertyProjector then WorkQueueProjector materialize indexes. */
 export const ROOM_OS_PROJECTORS: readonly RoomOsProjector[] = [
-  noopProjector('PropertyProjector', ['property_index.materialized']),
+  propertyProjector,
+  workQueueProjector,
   noopProjector('RoomProjector', ['electricity.bill_status_changed', 'electricity.meter_reading_recorded']),
   noopProjector('BedProjector', ['occupancy.bed_assigned', 'occupancy.bed_vacated']),
-  noopProjector('WorkQueueProjector', ['work_queue.rebuilt', 'ledger.rent_projection_updated']),
   noopProjector('LedgerProjectionProjector', [
     'ledger.rent_projection_updated',
     'ledger.deposit_projection_updated',

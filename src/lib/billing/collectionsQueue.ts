@@ -7,6 +7,13 @@ import {
 } from '@/src/lib/billing/electricityCollectibility';
 import type { AdminRentInvoiceRow } from '@/src/db/queries/admin';
 
+/**
+ * Legacy collections queue composer — invoice-row aggregation.
+ *
+ * @deprecated Wave 3 — prefer `buildRoomOsCollectionsQueue` when `ROOM_OS_BILLING_CENTRE=1`.
+ * Sunset deadline: 4 weeks from Wave 3 cutover.
+ */
+
 /** "2026-07-01" → "July 2026" */
 function billingPeriodLabel(billingMonth: string): string {
   const month = billingMonthLabel(billingMonth);

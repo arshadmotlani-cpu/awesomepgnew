@@ -73,6 +73,36 @@ export type RoomOsSharedSnapshot = {
   derivationRefs: DerivationRef[];
 };
 
+/** Booking-scoped money projection — Wave 1 LedgerProjection live-read. */
+export type BookingLedgerCategorySlice = {
+  requiredPaise: number;
+  receivedPaise: number;
+  outstandingPaise: number;
+  status: 'none' | 'current' | 'outstanding' | 'overdue';
+};
+
+export type BookingLedgerSnapshot = {
+  bookingId: string;
+  bookingCode: string;
+  pgId: string;
+  customerId: string;
+  asOf: string;
+  rent: BookingLedgerCategorySlice;
+  electricity: BookingLedgerCategorySlice;
+  deposit: BookingLedgerCategorySlice & { refundablePaise: number };
+  totals: {
+    requiredPaise: number;
+    receivedPaise: number;
+    outstandingPaise: number;
+  };
+  paymentState: 'clear' | 'proof_pending' | 'checkout_open';
+  paymentStateReason?: string;
+  checkoutSettlementStatus?: string | null;
+  computedAt: string;
+  snapshotVersion: number;
+  derivationRefs: DerivationRef[];
+};
+
 export type KpiStripSnapshot = {
   pgId: string;
   billingMonth: string;
@@ -112,6 +142,24 @@ export type WorkQueueSnapshot = {
   items: WorkQueueItem[];
   computedAt: string;
   contentHash: string;
+  /** Wave 4 — derivation refs from WorkQueueProjector. */
+  derivationRefs?: DerivationRef[];
+};
+
+/** Embedded in PropertyOsIndexSnapshot — WorkQueueProjector input (no engine reads). */
+export type WorkQueueProjectionSource = {
+  bookings: Array<{
+    bookingId: string;
+    bookingCode: string;
+    paymentState: BookingLedgerSnapshot['paymentState'];
+    paymentStateReason?: string;
+    rentStatus: BookingLedgerCategorySlice['status'];
+  }>;
+  vacatingBeds: Array<{
+    bedId: string;
+    roomId: string;
+    bookingId: string;
+  }>;
 };
 
 /** Single hot read model for Operations Centre — Wave 1 materialization target. */
@@ -124,11 +172,13 @@ export type PropertyOsIndexSnapshot = {
     totalItems: number;
     bucketCounts: Partial<Record<WorkQueueBucket, number>>;
   };
+  workQueueProjection: WorkQueueProjectionSource;
   roomIndex: Array<{
     roomId: string;
     label: string;
     occupancySummary: string;
     electricityStatus: string;
+    electricityStatusReason?: string;
   }>;
   electricityProgress: {
     complete: number;
@@ -137,4 +187,6 @@ export type PropertyOsIndexSnapshot = {
   };
   computedAt: string;
   snapshotVersion: number;
+  /** Wave 4 — aggregated derivation refs recorded at materialize time. */
+  derivationRefs?: DerivationRef[];
 };

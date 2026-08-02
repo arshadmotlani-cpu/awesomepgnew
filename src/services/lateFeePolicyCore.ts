@@ -4,6 +4,7 @@
  */
 
 import { addDays, diffDays, formatDate, parseDate, type DateLike } from '@/src/lib/dates';
+import { chargeableLateFeeDaysFromIssue } from '@/src/lib/billing/lateFeeSchedule';
 
 function asOfIso(value?: DateLike): string {
   return formatDate(parseDate(value ?? new Date()));
@@ -34,11 +35,15 @@ export const DEFAULT_LATE_FEE_POLICY: LateFeePolicySnapshot = {
  * uses legacy due-on-5th (billing_month day 5) to match billing.dueDateForMonth.
  */
 export function resolveOverdueDays(args: {
+  issueDate?: DateLike | null;
   dueDate?: DateLike | null;
   billingMonth?: DateLike | null;
   today?: DateLike;
 }): number {
   const today = args.today != null ? asOfIso(args.today) : formatDate(new Date());
+  if (args.issueDate != null) {
+    return chargeableLateFeeDaysFromIssue(args.issueDate, today);
+  }
   if (args.dueDate != null) {
     return Math.max(0, diffDays(args.dueDate, today));
   }
@@ -95,6 +100,7 @@ export function legacyLateFeePaise(principalPaise: number, overdueDays: number):
  */
 export function computeLateFeeWithPolicy(args: {
   principalPaise: number;
+  issueDate?: DateLike | null;
   dueDate?: DateLike | null;
   billingMonth?: DateLike | null;
   today?: DateLike;
@@ -103,6 +109,7 @@ export function computeLateFeeWithPolicy(args: {
   chargeKind?: 'rent' | 'electricity';
 }): number {
   const overdue = resolveOverdueDays({
+    issueDate: args.issueDate,
     dueDate: args.dueDate,
     billingMonth: args.billingMonth,
     today: args.today,

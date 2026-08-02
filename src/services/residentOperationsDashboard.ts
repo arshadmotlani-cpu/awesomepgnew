@@ -29,6 +29,12 @@ function mergeUnpaidRent(open: AdminRentInvoiceRow[]) {
   return open.filter((r) => r.outstandingPaise > 0 && r.effectiveStatus !== 'paid' && r.effectiveStatus !== 'cancelled');
 }
 
+/**
+ * Legacy resident operations dashboard composer.
+ *
+ * @deprecated Wave 3 — prefer `loadUnifiedOperationsQueue` with `ROOM_OS_OPERATIONS_QUEUE=1`.
+ * Sunset deadline: 4 weeks from Wave 3 cutover.
+ */
 export async function loadResidentOperationsDashboard(session: AdminSession) {
   const today = todayString();
 

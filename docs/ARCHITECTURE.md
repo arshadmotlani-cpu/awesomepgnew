@@ -284,6 +284,8 @@ flowchart TB
 
 Strangler **read/intelligence layer** for Operations Centre — does not replace ledger writers or frozen settlement math. Full design: [[ROOM_OS]].
 
+**Operations Recovery** (architecture freeze OR-0): generic operational recovery orchestrator under Property OS — plan-only in OR-0; execute gated OR-1+. Full design: [[OPERATIONS_RECOVERY]] · ADRs `docs/adr/ADR-OR-001` … `005`.
+
 ```
 Property OS (pgId) ── property_os_index snapshot
   ├── KpiStrip
@@ -302,6 +304,7 @@ Bed Brain (bedId) ── occupancy + BookingContext value object
 |--------|-----------------|
 | Projectors | React, Next.js, payment writers, settlement V2 compute |
 | Rules | DB except rule store |
+| WorkQueueProjector | Engines, SSOT services, engine snapshot types; must read `PropertyOsIndexSnapshot` / `property_os_index` only |
 | WorkQueueProjector | Live HTTP, approval mutators |
 | Operations Centre UI | `rentInvoices`, `occupancySsot`, `roomElectricityOccupants` directly |
 | Ledger writers | Room OS projectors (writers enqueue outbox only) |
@@ -312,6 +315,7 @@ Enforced by `tests/unit/roomOsArchitecture.test.ts`.
 
 ## Related docs
 
+- Operations Recovery architecture: [[OPERATIONS_RECOVERY]]
 - Room OS architecture: [[ROOM_OS]]
 - Deep product spec: [[AWESOME_PG_MASTER_DOCUMENTATION_V2]]
 - Legacy v1: [[AWESOME_PG_MASTER_DOCUMENTATION]]
@@ -406,3 +410,6 @@ Enforced by `tests/unit/roomOsArchitecture.test.ts`.
 
 <!-- DOC_SYNC_TOUCH_2026-08-01 -->
 > **2026-08-01 10:14:30 UTC** — Code changed in: Routes, Billing, Residents, Bookings, Deposits. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-08-02 -->
+> **2026-08-02 07:48:39 UTC** — Code changed in: Routes, Database, Billing, Bookings, Deposits, Electricity, Residents, Vacating. Manual review recommended.

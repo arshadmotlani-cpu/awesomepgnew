@@ -24,6 +24,14 @@ const BILLING_CENTRE_GLOBS = [
   /^app\/\(admin\)\/admin\/billing\//,
 ];
 
+const ROOM_OS_GLOBS = [
+  /^src\/roomOs\//,
+  /^src\/lib\/operations\/roomOsOperationsQueueAdapter/,
+  /^src\/lib\/operations\/featureFlag/,
+  /^src\/lib\/operations\/supplementaryOperationsQueue/,
+  /^app\/api\/cron\/room-os-outbox\//,
+];
+
 const BILLING_GLOBS = [
   /^src\/lib\/billing\//,
   /^src\/services\/rentInvoices/,
@@ -106,6 +114,11 @@ function possibleRisks(files: string[]): string[] {
   const risks: string[] = [];
   if (files.some((f) => matchesAny(f, BILLING_GLOBS))) {
     risks.push('Billing/resident money — run read-only production audit before deploy.');
+  }
+  if (files.some((f) => matchesAny(f, ROOM_OS_GLOBS))) {
+    risks.push(
+      'Room OS Wave 2 — REQUIRED: npm run cert:room-os-wave2 (production) before release; verify outbox cron healthy.',
+    );
   }
   if (files.some((f) => matchesAny(f, BILLING_CENTRE_GLOBS) || matchesAny(f, BILLING_GLOBS))) {
     risks.push(
@@ -203,9 +216,25 @@ async function main() {
   steps.push(run('npm', ['run', 'lint:private-blobs']));
 
   const billingCentreTouched = files.some((f) => matchesAny(f, BILLING_CENTRE_GLOBS));
+  const roomOsTouched = files.some((f) => matchesAny(f, ROOM_OS_GLOBS));
   const residentPortalTouched = files.some(
     (f) => f.includes('residentPortal') || f.includes('account/resident'),
   );
+
+  if (
+    process.env.DATABASE_URL?.trim() &&
+    roomOsTouched &&
+    !process.argv.includes('--skip-room-os-cert')
+  ) {
+    console.log('\n── Room OS Wave 2 certification (read-only) ──');
+    steps.push(run('npm', ['run', 'cert:room-os-wave2']));
+  } else if (roomOsTouched) {
+    console.log(
+      '\n── Room OS Wave 2 cert SKIPPED (no DATABASE_URL) ──\n' +
+        '  REQUIRED before Room OS release:\n' +
+        '  npx vercel env run --environment production npm run cert:room-os-wave2',
+    );
+  }
 
   if (
     process.env.DATABASE_URL?.trim() &&

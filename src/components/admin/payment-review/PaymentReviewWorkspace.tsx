@@ -74,7 +74,7 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
   const [rejectOpen, setRejectOpen] = useState(false);
   const { showToast, toastNode } = useOperationsActionToast();
 
-  const verification = buildPaymentReviewVerification(
+  const baseVerification = buildPaymentReviewVerification(
     item,
     booking
       ? {
@@ -83,6 +83,8 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
         }
       : null,
   );
+
+  const verification = baseVerification;
   const diff = differenceDisplay(verification.differencePaise, verification.differenceTone);
   const actionsDisabled = busy || approved;
 
@@ -269,8 +271,8 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
                 <FieldRow label="Difference" value={diff.text} emphasize className={diff.className} />
               </dl>
               <p className="mt-4 text-xs text-apg-silver">
-                Approve confirms the booking using contract rent and deposit values. The screenshot
-                is verification only.
+                Approve confirms the booking using contract rent and deposit values. The screenshot is
+                verification only.
               </p>
             </section>
 

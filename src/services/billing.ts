@@ -9,6 +9,20 @@
  */
 
 import { addDays, addMonths, diffDays, formatDate, parseDate, type DateLike } from '../lib/dates';
+import {
+  chargeableLateFeeDaysFromIssue,
+  daysUntilLateFeeFromIssue,
+  graceEndDateFromIssue,
+  INVOICE_LATE_FEE_GRACE_DAYS,
+  lateFeePercentFromIssue,
+} from '../lib/billing/lateFeeSchedule';
+export {
+  chargeableLateFeeDaysFromIssue,
+  daysUntilLateFeeFromIssue,
+  graceEndDateFromIssue,
+  INVOICE_LATE_FEE_GRACE_DAYS,
+  lateFeePercentFromIssue,
+} from '../lib/billing/lateFeeSchedule';
 import { computeNoticeDeductionBreakdown } from '../lib/vacating/noticeDeductionEngine';
 import {
   applyLateFeePolicy,
@@ -188,58 +202,54 @@ export function daysOverdueFromDueDate(dueDate: DateLike, today: DateLike): numb
 /**
  * Late fee accrued on the principal as of `today`, in paise.
  *
- * Default (no policy):
- *   - Grace through the 5th when keyed off billing_month (due_date = 5th).
- *   - Day after due: 1% of ORIGINAL rent per day, linear (not compounded).
+ * When `issueDate` is provided (invoice generation date), grace is computed
+ * from generation: 5 inclusive days at 0%, then 1%/day linear on principal.
+ *
+ * Legacy fallback (no issueDate): keyed off due_date or billing_month.
  *
  * When `policy` is provided (Collections Phase 3), uses applyLateFeePolicy
- * from lateFeePolicy — grace/cap/percent/fixed from the policy row.
- * Omit/null preserves legacy 1%/day behavior.
+ * with chargeable days — policy graceDays should remain 0 (grace in issue math).
  */
 export function computeLateFee(args: {
   rentPaise: number;
   billingMonth?: DateLike;
   dueDate?: DateLike;
+  issueDate?: DateLike;
   today?: DateLike;
   /** Optional resolved late-fee policy; omit for legacy 1%/day. */
   policy?: LateFeePolicySnapshot | null;
 }): number {
   if (args.rentPaise <= 0) return 0;
   const today = args.today ?? formatDate(new Date());
-  const overdue =
-    args.dueDate != null
-      ? daysOverdueFromDueDate(args.dueDate, today)
-      : args.billingMonth != null
-        ? daysOverdue(args.billingMonth, today)
-        : 0;
-  if (overdue === 0) return 0;
+  const chargeableDays =
+    args.issueDate != null
+      ? chargeableLateFeeDaysFromIssue(args.issueDate, today)
+      : args.dueDate != null
+        ? daysOverdueFromDueDate(args.dueDate, today)
+        : args.billingMonth != null
+          ? daysOverdue(args.billingMonth, today)
+          : 0;
+  if (chargeableDays === 0) return 0;
 
   if (args.policy) {
     return applyLateFeePolicy({
       principalPaise: args.rentPaise,
-      overdueDays: overdue,
+      overdueDays: chargeableDays,
       policy: args.policy,
     });
   }
 
-  // Legacy: 1% of original rent per day, floored to whole paise.
-  return Math.floor((args.rentPaise * overdue) / 100);
+  return Math.floor((args.rentPaise * chargeableDays) / 100);
 }
 
 /**
- * Electricity due date: 3 days after the bill is issued (spec: "Deadline:
- * 3 days"). `issuedAt` is the bill row's `created_at`.
- *
- * Returned as a plain JS Date so callers can `formatDate()` it for the
- * `due_date` column.
+ * Stored due date for electricity invoices: last day without late fee
+ * (generation + 4 calendar days = 5 inclusive grace days).
  */
-export const ELECTRICITY_GRACE_DAYS = 3;
+export const ELECTRICITY_GRACE_DAYS = INVOICE_LATE_FEE_GRACE_DAYS;
 
-export function electricityDueDate(
-  issuedAt: DateLike,
-  graceDays = ELECTRICITY_GRACE_DAYS,
-): Date {
-  return addDays(issuedAt, graceDays);
+export function electricityDueDate(issuedAt: DateLike): Date {
+  return graceEndDateFromIssue(issuedAt);
 }
 
 /**
@@ -252,26 +262,25 @@ export function electricityDaysOverdue(dueDate: DateLike, today: DateLike): numb
 }
 
 /**
- * Late fee accrued on an electricity invoice as of `today`. Mirrors the
- * rent-invoice math but keyed off `due_date` (not `billing_month`) since
- * electricity is event-triggered, not calendar-bound.
- *
- *   Day of due_date  → 0
- *   Day after        → 1% of amount
- *   N days after     → floor(amount * N / 100)
- *
- * Returns 0 if amount ≤ 0 or invoice isn't yet overdue.
+ * Late fee accrued on an electricity invoice as of `today`.
+ * Prefers `issueDate` (generation date); falls back to stored `due_date`.
  */
 export function computeElectricityLateFee(args: {
   amountPaise: number;
-  dueDate: DateLike;
+  dueDate?: DateLike;
+  issueDate?: DateLike;
   today?: DateLike;
 }): number {
   if (args.amountPaise <= 0) return 0;
   const today = args.today ?? formatDate(new Date());
-  const overdue = electricityDaysOverdue(args.dueDate, today);
-  if (overdue === 0) return 0;
-  return Math.floor((args.amountPaise * overdue) / 100);
+  const chargeableDays =
+    args.issueDate != null
+      ? chargeableLateFeeDaysFromIssue(args.issueDate, today)
+      : args.dueDate != null
+        ? electricityDaysOverdue(args.dueDate, today)
+        : 0;
+  if (chargeableDays === 0) return 0;
+  return Math.floor((args.amountPaise * chargeableDays) / 100);
 }
 
 /**

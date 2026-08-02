@@ -135,6 +135,17 @@ export async function applyDepositDeduction(input: {
           reason: input.reason,
         },
       });
+
+      const { enqueuePropertyIndexRebuildFromWriter, resolvePgIdForBooking } = await import(
+        '@/src/roomOs/outbox/writerRebuild'
+      );
+      const rebuildPgId = await resolvePgIdForBooking(input.bookingId, tx);
+      if (rebuildPgId) {
+        await enqueuePropertyIndexRebuildFromWriter(tx, {
+          pgId: rebuildPgId,
+          sourceRef: 'depositSettlement.applyDepositDeduction',
+        });
+      }
     });
     return { ok: true };
   } catch (err) {
@@ -392,6 +403,17 @@ export async function settleDepositWithDeductions(input: {
           .where(eq(bookings.id, input.bookingId));
       }
 
+      const { enqueuePropertyIndexRebuildFromWriter, resolvePgIdForBooking } = await import(
+        '@/src/roomOs/outbox/writerRebuild'
+      );
+      const rebuildPgId = await resolvePgIdForBooking(input.bookingId, tx);
+      if (rebuildPgId) {
+        await enqueuePropertyIndexRebuildFromWriter(tx, {
+          pgId: rebuildPgId,
+          sourceRef: 'depositSettlement.settleDepositWithDeductions',
+        });
+      }
+
       return {
         ok: true,
         settlementId: settlement.id,
@@ -499,6 +521,17 @@ export async function settleVacatingDepositRefund(input: {
           ledgerEntryId,
         })
         .returning({ id: depositSettlements.id });
+
+      const { enqueuePropertyIndexRebuildFromWriter, resolvePgIdForBooking } = await import(
+        '@/src/roomOs/outbox/writerRebuild'
+      );
+      const rebuildPgId = await resolvePgIdForBooking(input.bookingId, tx);
+      if (rebuildPgId) {
+        await enqueuePropertyIndexRebuildFromWriter(tx, {
+          pgId: rebuildPgId,
+          sourceRef: 'depositSettlement.settleVacatingDepositRefund',
+        });
+      }
 
       return {
         ok: true as const,

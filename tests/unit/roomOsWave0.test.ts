@@ -2,8 +2,9 @@
  * Room OS Wave 0 unit tests — rules, truth ladder, projector routing.
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, test } from 'node:test';
-import { getWorkQueue } from '@/src/roomOs/api/v1/decision';
 import { getEffectiveRulePack } from '@/src/roomOs/api/v1/rules';
 import { ROOM_OS_EVENT_TYPES } from '@/src/roomOs/events/catalog';
 import { getProjectorsForEventType, ROOM_OS_PROJECTORS } from '@/src/roomOs/projectors/registry';
@@ -65,6 +66,13 @@ describe('Room OS Wave 0', () => {
     assert.ok(ROOM_OS_PROJECTORS.length >= 5);
     const assigned = getProjectorsForEventType('occupancy.bed_assigned');
     assert.ok(assigned.some((p) => p.id === 'BedProjector'));
+    assert.ok(assigned.some((p) => p.id === 'PropertyProjector'));
+
+    const propertyRebuild = getProjectorsForEventType('property_index.rebuild_requested');
+    assert.ok(propertyRebuild.some((p) => p.id === 'PropertyProjector'));
+
+    const bedProjector = assigned.find((p) => p.id === 'BedProjector');
+    assert.ok(bedProjector);
     const results = await runProjectorsForEvent({
       eventId: 'evt-1',
       streamType: 'bed',
@@ -77,16 +85,15 @@ describe('Room OS Wave 0', () => {
       sourceRef: 'test',
     });
     assert.ok(results.some((r) => r.projectorId === 'BedProjector' && r.handled));
+    assert.ok(results.some((r) => r.projectorId === 'PropertyProjector' && r.handled));
   });
 
-  test('decision/v1/getWorkQueue returns not_materialized stub', async () => {
-    const result = await getWorkQueue({
-      pgId: '00000000-0000-4000-8000-000000000004',
-      billingMonth: '2026-08',
-    });
-    assert.equal(result.apiVersion, 'decision/v1');
-    assert.equal(result.status, 'not_materialized');
-    assert.deepEqual(result.page.items, []);
+  test('decision/v1/getWorkQueue routes through materialized projector pipeline', () => {
+    const src = readFileSync(join(process.cwd(), 'src/roomOs/api/v1/decision.ts'), 'utf8');
+    assert.match(src, /loadMaterializedWorkQueue/);
+    assert.match(src, /projectPropertyOsBundle/);
+    assert.doesNotMatch(src, /billingCentreDashboard/);
+    assert.doesNotMatch(src, /occupancySsot/);
   });
 
   test('event catalog is separate from billing_events types', () => {

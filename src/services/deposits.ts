@@ -159,47 +159,63 @@ export async function recordDepositCollected(input: {
     throw new Error('recordDepositCollected: amountPaise must be > 0');
   }
 
-  if (input.relatedPaymentId) {
-    const [existing] = await db
-      .select({ id: depositLedger.id })
-      .from(depositLedger)
-      .where(
-        and(
-          eq(depositLedger.bookingId, input.bookingId),
-          eq(depositLedger.entryKind, 'collected'),
-          eq(depositLedger.relatedPaymentId, input.relatedPaymentId),
-        ),
-      )
-      .limit(1);
-    if (existing) return { ok: true, entryId: existing.id, created: false };
-  }
+  return db.transaction(async (tx) => {
+    if (input.relatedPaymentId) {
+      const [existing] = await tx
+        .select({ id: depositLedger.id })
+        .from(depositLedger)
+        .where(
+          and(
+            eq(depositLedger.bookingId, input.bookingId),
+            eq(depositLedger.entryKind, 'collected'),
+            eq(depositLedger.relatedPaymentId, input.relatedPaymentId),
+          ),
+        )
+        .limit(1);
+      if (existing) return { ok: true as const, entryId: existing.id, created: false };
+    }
 
-  const [row] = await db
-    .insert(depositLedger)
-    .values({
-      bookingId: input.bookingId,
-      customerId: input.customerId,
-      entryKind: 'collected',
-      amountPaise: input.amountPaise,
-      reason: input.reason,
-      relatedPaymentId: input.relatedPaymentId ?? null,
-      createdByAdminId: input.createdByAdminId ?? null,
-    })
-    .returning({ id: depositLedger.id });
+    const [row] = await tx
+      .insert(depositLedger)
+      .values({
+        bookingId: input.bookingId,
+        customerId: input.customerId,
+        entryKind: 'collected',
+        amountPaise: input.amountPaise,
+        reason: input.reason,
+        relatedPaymentId: input.relatedPaymentId ?? null,
+        createdByAdminId: input.createdByAdminId ?? null,
+      })
+      .returning({ id: depositLedger.id });
 
-  await db.insert(auditLog).values({
-    actorType: input.createdByAdminId ? 'admin' : 'system',
-    actorId: input.createdByAdminId ?? null,
-    entity: 'deposit_ledger',
-    entityId: row.id,
-    action: 'deposit_collected',
-    diff: { bookingId: input.bookingId, amountPaise: input.amountPaise },
+    await tx.insert(auditLog).values({
+      actorType: input.createdByAdminId ? 'admin' : 'system',
+      actorId: input.createdByAdminId ?? null,
+      entity: 'deposit_ledger',
+      entityId: row.id,
+      action: 'deposit_collected',
+      diff: { bookingId: input.bookingId, amountPaise: input.amountPaise },
+    });
+
+    const { enqueuePropertyIndexRebuildFromWriter, resolvePgIdForBooking } = await import(
+      '@/src/roomOs/outbox/writerRebuild'
+    );
+    const rebuildPgId = await resolvePgIdForBooking(input.bookingId, tx);
+    if (rebuildPgId) {
+      await enqueuePropertyIndexRebuildFromWriter(tx, {
+        pgId: rebuildPgId,
+        sourceRef: 'deposits.recordDepositCollected',
+      });
+    }
+
+    return { ok: true as const, entryId: row.id, created: true };
+  }).then(async (result) => {
+    if (result.created) {
+      const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
+      scheduleAdminNotificationSync();
+    }
+    return result;
   });
-
-  const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
-  scheduleAdminNotificationSync();
-
-  return { ok: true, entryId: row.id, created: true };
 }
 
 /**
@@ -669,6 +685,17 @@ export async function executeReconcileDepositLedger(input: {
           updatedAt: new Date(),
         })
         .where(eq(bookings.id, input.bookingId));
+
+      const { enqueuePropertyIndexRebuildFromWriter, resolvePgIdForBooking } = await import(
+        '@/src/roomOs/outbox/writerRebuild'
+      );
+      const rebuildPgId = await resolvePgIdForBooking(input.bookingId, tx);
+      if (rebuildPgId) {
+        await enqueuePropertyIndexRebuildFromWriter(tx, {
+          pgId: rebuildPgId,
+          sourceRef: 'deposits.executeReconcileDepositLedger',
+        });
+      }
     });
 
     const { syncDepositCollectionFromLedger } = await import('@/src/services/depositCollection');

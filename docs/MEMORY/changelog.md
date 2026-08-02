@@ -7,8 +7,25 @@
 
 ---
 
+## 2026-08-02
+
+- **ROOM-OS-WAVE4-COMPLETE** — Explain Engine (`src/roomOs/explain/`, `explain/v1/getExplanation`); conditional Replay Engine (`src/roomOs/replay/`, `replay/v1/runSample`, 90% coverage gate); derivation ref aggregation on property/work queue snapshots; cert check `REPLAY_SAMPLE_PARITY`; tests `roomOsWave4*`.
+- **ROOM-OS-WAVE3-COMPLETE** — RFE via Bed Brain: `loadBookingContext`, `rfeBedBrainBridge`, `computeBookingFinancialSummaryCore`; legacy composer sunset path (`ROOM_OS_BILLING_CENTRE`, deprecated markers); forbidden-import lint; cert check `RFE_BED_BRAIN_BRIDGE`; tests `roomOsWave3*`.
+- **ROOM-OS-WAVE2-COMPLETE** — Wave 2 operational infrastructure: outbox cron + retry (0135) + metrics; certification release gate (`cert:room-os-wave2`); ops parity + materialization freshness audits; benchmark script; feature-flag rollback tests; production audit gates; completion report `ROOM_OS_WAVE2_COMPLETION.md`.
+- **ROOM-OS-WAVE2-OPS-CENTRE** — Operations Centre migration behind `ROOM_OS_OPERATIONS_QUEUE` feature flag; Room OS read API adapter for rent/electricity; supplementary KYC/refund without legacy dashboard composers; tests `roomOsOperationsCentreMigration`.
+- **ROOM-OS-WAVE2-CERTIFICATION** — Certification Engine v1 read-only Shantinagar parity gate (`src/roomOs/certification/`); `certification/v1/run` API; 8-check catalog + `CertificationReport` pass/warning/fail; wraps `shantinagarPhase1PortalCertification`; tests `roomOsWave2Certification`.
+- **ROOM-OS-WAVE2-INTEGRITY** — Integrity Engine v1 read-only preflight (`src/roomOs/integrity/`); `integrity/v1/runPreflight` API; ADR-OR-001 9-rule catalog + scenario scope validation; tests `roomOsWave2Integrity`.
+- **ROOM-OS-WAVE2-WRITER-OUTBOX** — Ledger writers enqueue `property_index.rebuild_requested` in-process via `writerRebuild.ts`; occupancy, electricity, rent, deposit canonical paths; tests `roomOsWave2WriterOutbox`.
+- **ROOM-OS-WAVE2-WORK-QUEUE** — Materialized `work_queue_index`; WorkQueueProjector reads `PropertyOsIndexSnapshot` only (`workQueueProjection` embedded by PropertyProjector); outbox wiring; `getWorkQueue` materialized-first + live fallback; tests `roomOsWave2WorkQueue`.
+- **ROOM-OS-WAVE2-EVENT-MODEL** — Split command/fact: `property_index.rebuild_requested` (command); `property_index.materialized` reserved fact-only.
+- **ROOM-OS-WAVE2-PROPERTY-INDEX** — Materialized `property_os_index`; PropertyProjector outbox wiring; rebuild/enqueue; tests `roomOsWave2PropertyIndex`.
+- **ROOM-OS-WAVE1-PROPERTY** — PropertyProjector (`src/roomOs/projectors/property/`); `property-os/v1/loadPropertyIndex` composes Bed Brain + Room Shared + Ledger; tests `roomOsWave1PropertyProjector`.
+- **ROOM-OS-WAVE1-LEDGER** — LedgerProjection (`src/roomOs/engines/ledger/`); `room-os/v1/loadLedger` live-read via residentFinancialEngine SSOT; tests `roomOsWave1Ledger`.
+- **ROOM-OS-WAVE1-ELECTRICITY** — Electricity Engine (`src/roomOs/engines/electricity/`); `room-os/v1/loadRoomShared` live-read via settlement ledger + meter SSOT; tests `roomOsWave1Electricity`.
+
 ## 2026-08-01
 
+- **OR-0-FREEZE-DOCS** — Operations Recovery architecture freeze documentation: `docs/OPERATIONS_RECOVERY.md`; ADR-OR-001 Integrity canonical owner + legacy scanners; ADR-OR-005 Discovery Integrity-derived; S7 OR-4 only; rule precedence + analyzer asOf fence; freeze checklist OR-0 vs OR-1
 - **ROOM-OS-WAVE0** — Principal-reviewed Room OS architecture doc (`docs/ROOM_OS.md`); ARCHITECTURE.md Room OS section + forbidden matrix; Wave 0 code (`src/roomOs/`: types, rules catalog v1, outbox, projector skeleton, v1 API stubs); migration `0132_room_os_outbox`; unit tests `roomOsWave0`, `roomOsArchitecture`
 - **STABILITY-PHASE** — Stability Phase governance: Cursor rule, `docs/STABILITY_PHASE.md`, `npm run stability:report` pre-commit regression gate
 

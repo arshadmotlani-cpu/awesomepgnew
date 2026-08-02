@@ -9,6 +9,7 @@ import { strict as assert } from 'node:assert';
 import test from 'node:test';
 import {
   ELECTRICITY_GRACE_DAYS,
+  chargeableLateFeeDaysFromIssue,
   computeElectricityLateFee,
   computeLateFee,
   computeNextRentDueDate,
@@ -17,11 +18,13 @@ import {
   daysInMonth,
   daysOverdue,
   daysOverdueFromDueDate,
+  daysUntilLateFeeFromIssue,
   dueDateForMonth,
   electricityDaysOverdue,
   electricityDueDate,
   firstOfMonth,
   formatInr,
+  graceEndDateFromIssue,
   isNoticeCompliant,
   maxNoticeDeduction,
   monthBounds,
@@ -94,6 +97,30 @@ test('computeLateFee uses invoice due_date when provided (anniversary billing da
     computeLateFee({ rentPaise: rent, dueDate: '2026-07-15', today: '2026-07-16' }),
     60_00,
   );
+});
+
+test('generation-date late fee: 5-day grace from issue, then 1%/day', () => {
+  const rent = 6_00_000;
+  const issueDate = '2026-08-01';
+  assert.equal(formatDate(graceEndDateFromIssue(issueDate)), '2026-08-05');
+  assert.equal(chargeableLateFeeDaysFromIssue(issueDate, '2026-08-01'), 0);
+  assert.equal(chargeableLateFeeDaysFromIssue(issueDate, '2026-08-05'), 0);
+  assert.equal(chargeableLateFeeDaysFromIssue(issueDate, '2026-08-06'), 1);
+  assert.equal(chargeableLateFeeDaysFromIssue(issueDate, '2026-08-07'), 2);
+  assert.equal(computeLateFee({ rentPaise: rent, issueDate, today: '2026-08-05' }), 0);
+  assert.equal(computeLateFee({ rentPaise: rent, issueDate, today: '2026-08-06' }), 60_00);
+  assert.equal(computeLateFee({ rentPaise: rent, issueDate, today: '2026-08-07' }), 120_00);
+  assert.equal(daysUntilLateFeeFromIssue(issueDate, '2026-08-01'), 4);
+  assert.equal(daysUntilLateFeeFromIssue(issueDate, '2026-08-05'), 0);
+});
+
+test('generation-date late fee works for mid-month issue (10th example)', () => {
+  const rent = 6_00_000;
+  const issueDate = '2026-08-10';
+  assert.equal(computeLateFee({ rentPaise: rent, issueDate, today: '2026-08-14' }), 0);
+  assert.equal(computeLateFee({ rentPaise: rent, issueDate, today: '2026-08-15' }), 60_00);
+  assert.equal(computeLateFee({ rentPaise: rent, issueDate, today: '2026-08-16' }), 120_00);
+  assert.equal(computeLateFee({ rentPaise: rent, issueDate, today: '2026-08-17' }), 180_00);
 });
 
 test('daysOverdueFromDueDate matches anniversary due dates', () => {
@@ -292,36 +319,35 @@ test('formatInr basic + signed + sub-rupee', () => {
 // Electricity due date + late fee
 // ───────────────────────────────────────────────────────────────────────────
 
-test('ELECTRICITY_GRACE_DAYS is 3 (spec)', () => {
-  assert.equal(ELECTRICITY_GRACE_DAYS, 3);
+test('ELECTRICITY_GRACE_DAYS matches global invoice grace', () => {
+  assert.equal(ELECTRICITY_GRACE_DAYS, 5);
 });
 
-test('electricityDueDate adds 3 days', () => {
+test('electricityDueDate is last day without late fee (issue + 4 days)', () => {
   const d = electricityDueDate('2026-07-01');
-  assert.equal(formatDate(d), '2026-07-04');
+  assert.equal(formatDate(d), '2026-07-05');
 });
 
 test('electricityDaysOverdue: 0 on due date, ticks up after', () => {
-  assert.equal(electricityDaysOverdue('2026-07-04', '2026-07-04'), 0);
-  assert.equal(electricityDaysOverdue('2026-07-04', '2026-07-05'), 1);
-  assert.equal(electricityDaysOverdue('2026-07-04', '2026-07-14'), 10);
-  assert.equal(electricityDaysOverdue('2026-07-04', '2026-07-01'), 0); // pre-due
+  assert.equal(electricityDaysOverdue('2026-07-05', '2026-07-05'), 0);
+  assert.equal(electricityDaysOverdue('2026-07-05', '2026-07-06'), 1);
+  assert.equal(electricityDaysOverdue('2026-07-05', '2026-07-15'), 10);
+  assert.equal(electricityDaysOverdue('2026-07-05', '2026-07-01'), 0); // pre-due
 });
 
-test('computeElectricityLateFee: 1%/day after due (spec example)', () => {
-  // Spec: ₹1500 bill, 1%/day after due. Day 1 late = ₹15, day 10 = ₹150.
+test('computeElectricityLateFee: 1%/day from issue date after grace', () => {
   const amount = 1500_00;
-  const dueDate = '2026-07-04';
+  const issueDate = '2026-07-01';
   assert.equal(
-    computeElectricityLateFee({ amountPaise: amount, dueDate, today: '2026-07-04' }),
+    computeElectricityLateFee({ amountPaise: amount, issueDate, today: '2026-07-05' }),
     0,
   );
   assert.equal(
-    computeElectricityLateFee({ amountPaise: amount, dueDate, today: '2026-07-05' }),
+    computeElectricityLateFee({ amountPaise: amount, issueDate, today: '2026-07-06' }),
     15_00,
   );
   assert.equal(
-    computeElectricityLateFee({ amountPaise: amount, dueDate, today: '2026-07-14' }),
+    computeElectricityLateFee({ amountPaise: amount, issueDate, today: '2026-07-15' }),
     150_00,
   );
 });
@@ -338,11 +364,11 @@ test('splitElectricity with prepaid credit deducted first', () => {
 
 test('computeElectricityLateFee: 0 for zero or negative amounts', () => {
   assert.equal(
-    computeElectricityLateFee({ amountPaise: 0, dueDate: '2026-07-04', today: '2026-08-01' }),
+    computeElectricityLateFee({ amountPaise: 0, issueDate: '2026-07-01', today: '2026-08-01' }),
     0,
   );
   assert.equal(
-    computeElectricityLateFee({ amountPaise: -100, dueDate: '2026-07-04', today: '2026-08-01' }),
+    computeElectricityLateFee({ amountPaise: -100, issueDate: '2026-07-01', today: '2026-08-01' }),
     0,
   );
 });

@@ -52,19 +52,23 @@ import {
 } from './expressRentInvoiceRecovery';
 import { adminCanAccessPg } from '../lib/auth/roles';
 import type { AdminSession } from '../lib/auth/session';
-import { addDays, diffDays, formatDate, parseDate, type DateLike } from '../lib/dates';
+import { addDays, diffDays, formatDate, normalizeIsoDateOnly, parseDate, type DateLike } from '../lib/dates';
 import { writeAuditLogNonBlocking } from '@/src/lib/audit/writeAuditLog';
 import { formatPostgresError } from '@/src/lib/db/postgresError';
 import {
   anniversaryBillingPeriod,
+  chargeableLateFeeDaysFromIssue,
   computeLateFee,
   daysOverdue,
   daysOverdueFromDueDate,
   dueDateForBillingDay,
   dueDateForMonth,
+  daysUntilLateFeeFromIssue,
   firstOfMonth,
   fullMonthlyRentPaise,
+  graceEndDateFromIssue,
   isResidentActiveOnDate,
+  lateFeePercentFromIssue,
   monthBounds,
   rentInvoiceBillingPeriodNote,
 } from './billing';
@@ -143,6 +147,12 @@ export type RentInvoiceView = RentInvoice & {
   outstandingPaise: number;
   /** Effective UI status — computes overdue dynamically when stored status is `pending`. */
   effectiveStatus: 'pending' | 'partial' | 'paid' | 'overdue' | 'cancelled' | 'payment_in_progress' | 'expired';
+  /** Last day without late fee (derived from created_at). */
+  graceEndDate?: string;
+  /** Late fee percent as of projection (1% per chargeable day). */
+  lateFeePercent?: number;
+  /** Days until late fees start (0 on last grace day). */
+  daysUntilLateFee?: number;
 };
 
 export type RecordRentPaymentSuccessInput = {
@@ -478,10 +488,23 @@ export async function ensureMonthlyRentInvoice(input: {
       }
     } else {
       if (input.amountPaise && input.amountPaise !== existing.rentPaise) {
-        await db
-          .update(rentInvoices)
-          .set({ rentPaise: input.amountPaise, updatedAt: new Date() })
-          .where(eq(rentInvoices.id, existing.id));
+        await db.transaction(async (tx) => {
+          await tx
+            .update(rentInvoices)
+            .set({ rentPaise: input.amountPaise, updatedAt: new Date() })
+            .where(eq(rentInvoices.id, existing.id));
+          const { enqueuePropertyIndexRebuildFromWriter, resolvePgIdForBooking } = await import(
+            '@/src/roomOs/outbox/writerRebuild'
+          );
+          const rebuildPgId = await resolvePgIdForBooking(input.bookingId, tx);
+          if (rebuildPgId) {
+            await enqueuePropertyIndexRebuildFromWriter(tx, {
+              pgId: rebuildPgId,
+              billingMonth,
+              sourceRef: 'rentInvoices.ensureMonthlyRentInvoice',
+            });
+          }
+        });
         const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
         await syncRentInvoiceToUnified(existing.id);
       }
@@ -937,38 +960,49 @@ export async function generateRentInvoicesForMonth(
       bedId,
       pgId,
       rentPaise,
-      dueDate,
       invoiceNotes,
       billingPeriod,
     } = eligibility;
+
+    const dueDate = formatDate(graceEndDateFromIssue(asOf));
 
     // Insert, retrying invoice-number collisions.
     let inserted: { id: string; invoice_number: string } | null = null;
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const invoiceNumber = await nextInvoiceNumber(billingMonth, attempt);
       try {
-        const [row] = await db
-          .insert(rentInvoices)
-          .values({
-            invoiceNumber,
-            bookingId: c.bookingId,
-            customerId,
-            bedId,
-            pgId,
-            billingMonth,
-            dueDate,
-            rentPaise,
-            status: 'pending',
-            notes: invoiceNotes,
-          })
-          .onConflictDoNothing({
-            target: [rentInvoices.bookingId, rentInvoices.billingMonth],
-            where: sql`${rentInvoices.isAdhoc} = false`,
-          })
-          .returning({ id: rentInvoices.id, invoice_number: rentInvoices.invoiceNumber });
-        if (row) {
-          inserted = { id: row.id, invoice_number: row.invoice_number };
-        }
+        await db.transaction(async (tx) => {
+          const [row] = await tx
+            .insert(rentInvoices)
+            .values({
+              invoiceNumber,
+              bookingId: c.bookingId,
+              customerId,
+              bedId,
+              pgId,
+              billingMonth,
+              dueDate,
+              rentPaise,
+              status: 'pending',
+              notes: invoiceNotes,
+            })
+            .onConflictDoNothing({
+              target: [rentInvoices.bookingId, rentInvoices.billingMonth],
+              where: sql`${rentInvoices.isAdhoc} = false`,
+            })
+            .returning({ id: rentInvoices.id, invoice_number: rentInvoices.invoiceNumber });
+          if (row) {
+            inserted = { id: row.id, invoice_number: row.invoice_number };
+            const { enqueuePropertyIndexRebuildFromWriter } = await import(
+              '@/src/roomOs/outbox/writerRebuild'
+            );
+            await enqueuePropertyIndexRebuildFromWriter(tx, {
+              pgId,
+              billingMonth,
+              sourceRef: 'rentInvoices.generateRentInvoicesForMonth',
+            });
+          }
+        });
         break;
       } catch (err) {
         // 23505 on invoice_number — bump attempt and retry.
@@ -1487,8 +1521,7 @@ export async function recordRentPaymentSuccess(
       ? (invoice.proofSnapshotLateFeePaise ?? 0)
       : computeLateFee({
           rentPaise: rentDuePaise,
-          dueDate: invoice.dueDate,
-          billingMonth: invoice.billingMonth,
+          issueDate: rentInvoiceIssueDate(invoice),
         });
 
   let remaining = input.amountPaise;
@@ -1565,6 +1598,18 @@ export async function recordRentPaymentSuccess(
         providerPaymentId: input.providerPaymentId,
         amountPaise: input.amountPaise,
       });
+
+      const { enqueuePropertyIndexRebuildFromWriter, resolvePgIdForBooking } = await import(
+        '@/src/roomOs/outbox/writerRebuild'
+      );
+      const rebuildPgId = await resolvePgIdForBooking(invoice.bookingId, tx);
+      if (rebuildPgId) {
+        await enqueuePropertyIndexRebuildFromWriter(tx, {
+          pgId: rebuildPgId,
+          billingMonth: invoice.billingMonth,
+          sourceRef: 'rentInvoices.recordRentPaymentSuccess',
+        });
+      }
 
       return { paymentId: payment.id, unifiedInvoiceId };
     });
@@ -1950,6 +1995,25 @@ export function resolveRentInvoicePaymentApplication(input: {
   return { rentDuePaise, principal, fullyPaid };
 }
 
+export function rentInvoiceIssueDate(invoice: Pick<RentInvoiceProjectInput, 'createdAt'>): string {
+  if (invoice.createdAt instanceof Date) {
+    return formatDate(invoice.createdAt);
+  }
+  if (invoice.createdAt) {
+    const normalized = normalizeIsoDateOnly(String(invoice.createdAt));
+    if (normalized) return normalized;
+  }
+  return formatDate(new Date());
+}
+
+function rentLateFeeProjectionFields(issueDate: string, asOf: DateLike) {
+  return {
+    graceEndDate: formatDate(graceEndDateFromIssue(issueDate)),
+    lateFeePercent: lateFeePercentFromIssue(issueDate, asOf),
+    daysUntilLateFee: daysUntilLateFeeFromIssue(issueDate, asOf),
+  };
+}
+
 /**
  * Augment a stored `rent_invoices` row with late fee and effective UI status.
  *
@@ -2014,11 +2078,12 @@ export function projectInvoice(
 
   const rentDuePaise = computeRentDuePaise(inv.rentPaise, inv.discountPaise);
   const waiverPaise = Math.max(0, options?.waiverPaise ?? 0);
+  const issueDate = rentInvoiceIssueDate(inv);
+  const projectionFields = rentLateFeeProjectionFields(issueDate, asOf);
   if (inv.status === 'payment_in_progress') {
     const rawLateFee = computeLateFee({
       rentPaise: rentDuePaise,
-      dueDate: inv.dueDate,
-      billingMonth: inv.billingMonth,
+      issueDate,
       today: asOf,
       policy: options?.lateFeePolicy,
     });
@@ -2032,12 +2097,12 @@ export function projectInvoice(
       accruedLateFeePaise: lateFee,
       outstandingPaise,
       effectiveStatus: 'payment_in_progress',
+      ...projectionFields,
     };
   }
   const rawLateFee = computeLateFee({
     rentPaise: rentDuePaise,
-    dueDate: inv.dueDate,
-    billingMonth: inv.billingMonth,
+    issueDate,
     today: asOf,
     policy: options?.lateFeePolicy,
   });
@@ -2051,7 +2116,7 @@ export function projectInvoice(
     (inv.paidPrincipalPaise > 0 || inv.paidLateFeePaise > 0);
   const effectiveStatus = hasPartial
     ? 'partial'
-    : daysOverdueFromDueDate(inv.dueDate, asOf) > 0
+    : chargeableLateFeeDaysFromIssue(issueDate, asOf) > 0
       ? 'overdue'
       : 'pending';
   return {
@@ -2059,6 +2124,7 @@ export function projectInvoice(
     accruedLateFeePaise: lateFee,
     outstandingPaise,
     effectiveStatus,
+    ...projectionFields,
   };
 }
 
@@ -2072,34 +2138,51 @@ export async function cancelFutureRentInvoices(
   asOf: DateLike = formatDate(new Date()),
 ): Promise<{ cancelled: number; ids: string[] }> {
   const today = formatDate(parseDate(asOf));
-  const rows = await db
-    .update(rentInvoices)
-    .set({
-      status: 'cancelled',
-      cancelledAt: new Date(),
-      cancellationReason: reason,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(rentInvoices.bookingId, bookingId),
-        inArray(rentInvoices.status, ['pending', 'overdue']),
-        sql`${rentInvoices.billingMonth} > date_trunc('month', ${today}::date)`,
-      ),
-    )
-    .returning({ id: rentInvoices.id });
+  const rows = await db.transaction(async (tx) => {
+    const cancelled = await tx
+      .update(rentInvoices)
+      .set({
+        status: 'cancelled',
+        cancelledAt: new Date(),
+        cancellationReason: reason,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(rentInvoices.bookingId, bookingId),
+          inArray(rentInvoices.status, ['pending', 'overdue']),
+          sql`${rentInvoices.billingMonth} > date_trunc('month', ${today}::date)`,
+        ),
+      )
+      .returning({ id: rentInvoices.id });
+
+    if (cancelled.length > 0) {
+      await tx.insert(auditLog).values(
+        cancelled.map((r) => ({
+          actorType: 'system' as const,
+          actorId: null,
+          entity: 'rent_invoice',
+          entityId: r.id,
+          action: 'cancelled',
+          diff: { reason, asOf: today },
+        })),
+      );
+      const { enqueuePropertyIndexRebuildFromWriter, resolvePgIdForBooking } = await import(
+        '@/src/roomOs/outbox/writerRebuild'
+      );
+      const rebuildPgId = await resolvePgIdForBooking(bookingId, tx);
+      if (rebuildPgId) {
+        await enqueuePropertyIndexRebuildFromWriter(tx, {
+          pgId: rebuildPgId,
+          sourceRef: 'rentInvoices.cancelFutureRentInvoices',
+        });
+      }
+    }
+
+    return cancelled;
+  });
 
   if (rows.length > 0) {
-    await db.insert(auditLog).values(
-      rows.map((r) => ({
-        actorType: 'system' as const,
-        actorId: null,
-        entity: 'rent_invoice',
-        entityId: r.id,
-        action: 'cancelled',
-        diff: { reason, asOf: today },
-      })),
-    );
     const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
     await syncManyToUnified(
       rows.map((r) => r.id),
@@ -2130,10 +2213,8 @@ export async function createAdhocRentInvoice(input: {
   }
 
   const billingMonth = firstOfMonth(formatDate(new Date()));
-  const dueDate = resolveRentInvoiceDueDate({
-    explicitDueDate: input.dueDate,
-    issueDate: new Date(),
-  });
+  const issueDate = new Date();
+  const dueDate = formatDate(graceEndDateFromIssue(issueDate));
   const notes = input.description?.trim()
     ? `${input.title.trim()} — ${input.description.trim()}`
     : input.title.trim();
@@ -2141,51 +2222,64 @@ export async function createAdhocRentInvoice(input: {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const invoiceNumber = await nextInvoiceNumber(billingMonth, attempt);
     try {
-      const [row] = await db
-        .insert(rentInvoices)
-        .values({
-          invoiceNumber,
-          bookingId: input.bookingId,
-          customerId: input.customerId,
-          bedId: input.bedId,
+      const created = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .insert(rentInvoices)
+          .values({
+            invoiceNumber,
+            bookingId: input.bookingId,
+            customerId: input.customerId,
+            bedId: input.bedId,
+            pgId: input.pgId,
+            billingMonth,
+            dueDate,
+            rentPaise: input.amountPaise,
+            status: 'pending',
+            notes,
+            isAdhoc: true,
+          })
+          .returning({
+            id: rentInvoices.id,
+            invoiceNumber: rentInvoices.invoiceNumber,
+          });
+
+        const { enqueuePropertyIndexRebuildFromWriter } = await import(
+          '@/src/roomOs/outbox/writerRebuild'
+        );
+        await enqueuePropertyIndexRebuildFromWriter(tx, {
           pgId: input.pgId,
           billingMonth,
-          dueDate,
-          rentPaise: input.amountPaise,
-          status: 'pending',
-          notes,
-          isAdhoc: true,
-        })
-        .returning({
-          id: rentInvoices.id,
-          invoiceNumber: rentInvoices.invoiceNumber,
+          sourceRef: 'rentInvoices.createAdhocRentInvoice',
         });
+
+        return row;
+      });
 
       const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
       let financialInvoiceId: string | null = null;
       try {
-        financialInvoiceId = await syncRentInvoiceToUnified(row.id);
+        financialInvoiceId = await syncRentInvoiceToUnified(created.id);
       } catch (syncErr) {
         console.error('[adhoc-rent] financial_invoices sync failed', {
-          rentInvoiceId: row.id,
+          rentInvoiceId: created.id,
           err: syncErr,
         });
       }
       const { recordBillingEvent } = await import('@/src/services/billingEvents');
       await recordBillingEvent({
         bookingId: input.bookingId,
-        rentInvoiceId: row.id,
+        rentInvoiceId: created.id,
         financialInvoiceId,
         eventType: 'invoice.generated',
         payload: {
           isAdhoc: true,
           amountPaise: input.amountPaise,
-          invoiceNumber: row.invoiceNumber,
+          invoiceNumber: created.invoiceNumber,
           title: input.title.trim(),
         },
       });
 
-      return { ok: true, invoiceId: row.id, invoiceNumber: row.invoiceNumber };
+      return { ok: true, invoiceId: created.id, invoiceNumber: created.invoiceNumber };
     } catch (err) {
       if (pgErrorCode(err) !== '23505') throw err;
     }
@@ -2482,34 +2576,47 @@ export async function recalculatePendingRentInvoicesForBooking(args: {
   }> = [];
   const now = new Date();
 
-  for (const inv of pending) {
-    if (!stay) continue;
-    const newPaise = fullMonthlyRentPaise(monthlyRent);
-    if (newPaise <= 0 || newPaise === inv.rentPaise) continue;
+  await db.transaction(async (tx) => {
+    for (const inv of pending) {
+      if (!stay) continue;
+      const newPaise = fullMonthlyRentPaise(monthlyRent);
+      if (newPaise <= 0 || newPaise === inv.rentPaise) continue;
 
-    await db
-      .update(rentInvoices)
-      .set({ rentPaise: newPaise, updatedAt: now })
-      .where(eq(rentInvoices.id, inv.id));
+      await tx
+        .update(rentInvoices)
+        .set({ rentPaise: newPaise, updatedAt: now })
+        .where(eq(rentInvoices.id, inv.id));
 
-    invoiceChanges.push({
-      invoiceId: inv.id,
-      billingMonth: inv.billingMonth,
-      fromPaise: inv.rentPaise,
-      toPaise: newPaise,
-    });
-  }
+      invoiceChanges.push({
+        invoiceId: inv.id,
+        billingMonth: inv.billingMonth,
+        fromPaise: inv.rentPaise,
+        toPaise: newPaise,
+      });
+    }
 
-  if (invoiceChanges.length > 0) {
-    await db.insert(auditLog).values({
-      actorType: 'admin',
-      actorId: args.adminId,
-      entity: 'rent_invoice',
-      entityId: args.bookingId,
-      action: 'recalculate_pending',
-      diff: { invoiceChanges, monthlyRentPaise: monthlyRent },
-    });
-  }
+    if (invoiceChanges.length > 0) {
+      await tx.insert(auditLog).values({
+        actorType: 'admin',
+        actorId: args.adminId,
+        entity: 'rent_invoice',
+        entityId: args.bookingId,
+        action: 'recalculate_pending',
+        diff: { invoiceChanges, monthlyRentPaise: monthlyRent },
+      });
+
+      const { enqueuePropertyIndexRebuildFromWriter, resolvePgIdForBooking } = await import(
+        '@/src/roomOs/outbox/writerRebuild'
+      );
+      const rebuildPgId = await resolvePgIdForBooking(args.bookingId, tx);
+      if (rebuildPgId) {
+        await enqueuePropertyIndexRebuildFromWriter(tx, {
+          pgId: rebuildPgId,
+          sourceRef: 'rentInvoices.recalculatePendingRentInvoicesForBooking',
+        });
+      }
+    }
+  });
 
   return { updatedCount: invoiceChanges.length, invoiceChanges };
 }

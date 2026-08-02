@@ -24,6 +24,10 @@
     {
       "path": "/api/cron/collections-reminders",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/room-os-outbox",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

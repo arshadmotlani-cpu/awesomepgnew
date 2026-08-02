@@ -84,6 +84,7 @@ export async function resolveActivePolicy(
 export async function computeLateFeeForPg(args: {
   principalPaise: number;
   pgId?: string | null;
+  issueDate?: DateLike | null;
   dueDate?: DateLike | null;
   billingMonth?: DateLike | null;
   today?: DateLike;
@@ -95,6 +96,7 @@ export async function computeLateFeeForPg(args: {
   });
   return computeLateFeeWithPolicy({
     principalPaise: args.principalPaise,
+    issueDate: args.issueDate,
     dueDate: args.dueDate,
     billingMonth: args.billingMonth,
     today: args.today,

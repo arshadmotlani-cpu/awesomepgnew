@@ -739,6 +739,19 @@ export async function createBooking(
           },
         });
 
+        const {
+          enqueuePropertyIndexRebuildFromWriter,
+          resolvePgIdForBed,
+        } = await import('@/src/roomOs/outbox/writerRebuild');
+        const rebuildPgId = await resolvePgIdForBed(uniqueBedIds[0]!, tx);
+        if (rebuildPgId) {
+          await enqueuePropertyIndexRebuildFromWriter(tx, {
+            pgId: rebuildPgId,
+            billingMonth: startIso,
+            sourceRef: 'booking.createBooking',
+          });
+        }
+
         return { id: booking.id, customerId: customer.id };
       });
 

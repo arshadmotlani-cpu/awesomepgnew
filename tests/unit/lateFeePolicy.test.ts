@@ -82,6 +82,19 @@ test('max fee cap', () => {
   );
 });
 
+test('issueDate policy path matches generation-date computeLateFee', () => {
+  const rent = 6_00_000;
+  assert.equal(
+    computeLateFeeWithPolicy({
+      principalPaise: rent,
+      issueDate: '2026-08-01',
+      today: '2026-08-06',
+      policy: percent1,
+    }),
+    computeLateFee({ rentPaise: rent, issueDate: '2026-08-01', today: '2026-08-06' }),
+  );
+});
+
 test('null policy falls back to legacy 1%', () => {
   const rent = 6_00_000;
   assert.equal(
