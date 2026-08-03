@@ -1,5 +1,6 @@
 /**
- * Shabana Makeup Studio & Academy — used ONLY on public/print/download invoices.
+ * Shabana Makeup Studio & Academy — used ONLY on public/print/download invoices
+ * and official accounting exports (invoice register PDF).
  * Do not import this module from ERP shell, dashboard, login, or other app screens.
  */
 export const INVOICE_BRAND_LOGO = {
@@ -21,4 +22,15 @@ export const INVOICE_BUSINESS = {
     'Maharashtra 440004',
   ],
   phone: '9823444886',
+} as const;
+
+/**
+ * Official register / statutory export branding.
+ * Prefer salon settings when present; these are the branded fallbacks.
+ */
+export const INVOICE_REGISTER_BRAND = {
+  displayName: 'Shabana Makeovers & For Your Hair',
+  tradeName: 'For Your Hair',
+  documentSubtitle: 'Professional Invoice Register',
+  preparedBy: 'For Your Hair ERP',
 } as const;

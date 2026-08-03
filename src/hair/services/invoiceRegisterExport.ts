@@ -2,8 +2,12 @@ import ExcelJS from 'exceljs';
 import { rowsToCsv, paiseToCsvRupees } from '@/src/hair/lib/export/csv';
 import { setExcelHyperlinkCell } from '@/src/hair/lib/export/excelHyperlink';
 import { appendInvoiceRegisterExcelSummary, computeRegisterSummaryTotals } from '@/src/hair/lib/export/invoiceRegisterExcelSummary';
+import { buildInvoiceRegisterPdfHtml } from '@/src/hair/lib/export/invoiceRegisterPdf';
 import { invoicePublicViewUrl } from '@/src/hair/lib/invoicePublicLinks';
+import type { SalonSettings } from '@/src/hair/services/settings';
 import type { InvoiceRegisterRow } from '@/src/hair/services/invoiceRegisterQueries';
+
+export { buildInvoiceRegisterPdfHtml } from '@/src/hair/lib/export/invoiceRegisterPdf';
 
 const COL = {
   invoiceNumber: 1,
@@ -18,14 +22,6 @@ const FIRST_DATA_ROW = 2;
 
 function formatDate(d: Date): string {
   return d.toISOString().slice(0, 10);
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 export async function exportInvoiceRegisterExcel(rows: InvoiceRegisterRow[]): Promise<Buffer> {
@@ -137,47 +133,12 @@ export function exportInvoiceRegisterCsv(rows: InvoiceRegisterRow[]): string {
   return rowsToCsv(headers, data);
 }
 
-export function exportInvoiceRegisterPdfHtml(rows: InvoiceRegisterRow[], title: string): string {
-  const money = (p: number) => paiseToCsvRupees(p);
-  const bodyRows = rows
-    .map(
-      (r) =>
-        `<tr>
-          <td>${escapeHtml(r.invoiceNumber)}</td>
-          <td>${formatDate(r.invoiceDate)}</td>
-          <td>${escapeHtml(r.customerName)}</td>
-          <td>${escapeHtml(r.mobile)}</td>
-          <td>${escapeHtml(r.servicesSummary.slice(0, 80))}${r.servicesSummary.length > 80 ? '…' : ''}</td>
-          <td>${escapeHtml(r.paymentModes)}</td>
-          <td class="num">${money(r.taxablePaise)}</td>
-          <td class="num">${money(r.gstPaise)}</td>
-          <td class="num">${money(r.grandTotalPaise)}</td>
-          <td class="num">${money(r.paidPaise)}</td>
-          <td>${escapeHtml(r.status)}</td>
-        </tr>`,
-    )
-    .join('');
-
-  return `<!doctype html><html><head><meta charset="utf-8"/><title>${escapeHtml(title)}</title>
-<style>
-  body{font-family:Georgia,serif;color:#14261c;padding:24px}
-  h1{font-size:20px;margin:0 0 8px}
-  .muted{color:#5c6b62;font-size:12px;margin-bottom:16px}
-  table{width:100%;border-collapse:collapse;font-size:11px}
-  th,td{border:1px solid #d7e0d9;padding:6px 8px;text-align:left;vertical-align:top}
-  th{background:#eef3ef;font-weight:600}
-  .num{text-align:right;font-variant-numeric:tabular-nums}
-  @media print{body{padding:0}}
-</style></head><body>
-<h1>${escapeHtml(title)}</h1>
-<p class="muted">${rows.length} invoice(s) · Generated ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC</p>
-<table>
-<thead><tr>
-  <th>Invoice</th><th>Date</th><th>Customer</th><th>Mobile</th><th>Services</th>
-  <th>Payment</th><th>Taxable</th><th>GST</th><th>Total</th><th>Paid</th><th>Status</th>
-</tr></thead>
-<tbody>${bodyRows}</tbody>
-</table>
-<script>window.onload=function(){window.print()}</script>
-</body></html>`;
+/** Professional print/PDF HTML for Invoice Register (Asia/Kolkata stamps). */
+export async function exportInvoiceRegisterPdfHtml(input: {
+  rows: InvoiceRegisterRow[];
+  settings: SalonSettings | null;
+  period: { from: Date | null; to: Date | null };
+  generatedAt?: Date;
+}): Promise<string> {
+  return buildInvoiceRegisterPdfHtml(input);
 }

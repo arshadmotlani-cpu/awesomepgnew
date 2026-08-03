@@ -18,6 +18,7 @@ import {
   queryInvoiceRegisterForExport,
   type InvoiceRegisterFilters,
 } from '@/src/hair/services/invoiceRegisterQueries';
+import { getSalonSettings } from '@/src/hair/services/settings';
 
 export type InvoiceRegisterExportFormat = 'xlsx' | 'csv' | 'pdf';
 
@@ -62,11 +63,16 @@ export async function exportInvoiceRegisterAction(input: {
       };
     }
 
+    const settings = await getSalonSettings();
     return {
       ok: true,
       format: 'pdf',
       filename: `fyh-invoice-register-${stamp}.html`,
-      content: exportInvoiceRegisterPdfHtml(rows, 'FYH Invoice Register'),
+      content: await exportInvoiceRegisterPdfHtml({
+        rows,
+        settings,
+        period: { from: filters.from ?? null, to: filters.to ?? null },
+      }),
     };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Export failed' };
