@@ -40,4 +40,15 @@ describe('resident session validation resilience', () => {
     assert.match(src, /\/api\/auth\/customer\/session\/refresh/);
     assert.match(src, /session cookie was blocked or not saved/);
   });
+
+  it('login form blocks native GET submit before hydration', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'src/components/auth/CustomerLoginForm.tsx'),
+      'utf8',
+    );
+    assert.match(src, /method=\"post\"/);
+    assert.match(src, /action=\"\/login\"/);
+    assert.match(src, /clientReady/);
+    assert.match(src, /disabled=\{pending \|\| !clientReady\}/);
+  });
 });

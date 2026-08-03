@@ -89,12 +89,17 @@ export function CustomerLoginForm({
   const [guidanceNotice, setGuidanceNotice] = useState<ResidentAuthNotice | null>(noticeParam);
   const [unknownEmailPrompt, setUnknownEmailPrompt] = useState(false);
   const [modeTransition, setModeTransition] = useState(false);
+  const [clientReady, setClientReady] = useState(false);
   const verifyInFlight = useRef(false);
   const profileInFlight = useRef(false);
   const passwordInputRef = useRef<HTMLInputElement>(null);
   const newPasswordInputRef = useRef<HTMLInputElement>(null);
   const codeInputRef = useRef<HTMLInputElement>(null);
   const emailInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setClientReady(true);
+  }, []);
 
   useEffect(() => {
     const key = searchParams.get('message');
@@ -969,12 +974,21 @@ export function CustomerLoginForm({
 
       {step === 'credentials' ? (
         <form
+          method="post"
+          action="/login"
           onSubmit={(e) => {
             e.preventDefault();
+            e.stopPropagation();
+            if (!clientReady) return;
             void signInWithPassword();
           }}
           className="space-y-3"
         >
+          {!clientReady ? (
+            <p className={mutedText} aria-live="polite">
+              Preparing Login…
+            </p>
+          ) : null}
           <label className="block">
             <span className={labelClass}>Email or phone number</span>
             <input
@@ -1032,8 +1046,8 @@ export function CustomerLoginForm({
               </span>
             </span>
           </label>
-          <button type="submit" disabled={pending} className={btnClass}>
-            {pending ? 'Logging in…' : 'Login'}
+          <button type="submit" disabled={pending || !clientReady} className={btnClass}>
+            {pending ? 'Logging in…' : clientReady ? 'Login' : 'Preparing…'}
           </button>
           {unknownEmailPrompt ? (
             <button
