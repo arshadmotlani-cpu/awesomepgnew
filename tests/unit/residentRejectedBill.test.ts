@@ -17,6 +17,7 @@ function rentRowStatus(input: {
   status: 'pending' | 'overdue' | 'payment_in_progress';
   billingMonth?: string;
   dueDate?: string;
+  createdAt?: Date;
   rejection?: PaymentProofRejection;
 }): 'Rejected' | 'Waiting for admin approval' | 'Due' | 'Overdue' {
   const projected = projectInvoice({
@@ -41,7 +42,7 @@ function rentRowStatus(input: {
     paymentProofUrl: input.paymentProofUrl,
     isAdhoc: false,
     invoiceNumber: 'R-1',
-    createdAt: new Date(),
+    createdAt: input.createdAt ?? new Date(`${input.billingMonth ?? '2026-07-01'}T00:00:00Z`),
     updatedAt: new Date(),
   });
 

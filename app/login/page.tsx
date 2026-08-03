@@ -1,11 +1,14 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { SiteFooter } from '@/src/components/customer/SiteFooter';
 import { SiteHeader } from '@/src/components/customer/SiteHeader';
 import { WhatsAppSupportButton } from '@/src/components/customer/WhatsAppSupportButton';
 import { CustomerLoginForm } from '@/src/components/auth/CustomerLoginForm';
 import { AwesomePgLogo } from '@/src/components/brand/AwesomePgLogo';
 import { bootstrapLoginPage } from '@/src/lib/auth/loginBootstrap';
+import { getCustomerSession } from '@/src/lib/auth/session';
+import { safeNext } from '@/src/lib/auth/safeNext';
 
 export const metadata = {
   title: 'Login',
@@ -17,10 +20,22 @@ export const dynamic = 'force-dynamic';
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ signup?: string; email?: string; notice?: string }>;
+  searchParams: Promise<{ signup?: string; email?: string; notice?: string; next?: string }>;
 }) {
   const params = await searchParams;
   const signupMode = params.signup === '1';
+
+  // Already logged in — never strand residents on an empty Login form.
+  if (!signupMode) {
+    const session = await getCustomerSession();
+    if (session) {
+      if (session.mustSetPassword) {
+        redirect(`/account/set-password?next=${encodeURIComponent(safeNext(params.next))}`);
+      }
+      redirect(safeNext(params.next));
+    }
+  }
+
   const boot = signupMode
     ? { email: params.email?.trim() || undefined }
     : await bootstrapLoginPage();

@@ -168,6 +168,27 @@ export async function createAdminSession(args: {
   return token;
 }
 
+async function lookupSessionRow(kind: 'customer' | 'admin', token: string) {
+  const [row] = await db
+    .select({
+      sessionId: authSessions.id,
+      subjectId: authSessions.subjectId,
+      expiresAt: authSessions.expiresAt,
+      lastSeenAt: authSessions.lastSeenAt,
+      rememberMe: authSessions.rememberMe,
+    })
+    .from(authSessions)
+    .where(
+      and(
+        eq(authSessions.kind, kind),
+        eq(authSessions.tokenHash, sha256(token)),
+        gt(authSessions.expiresAt, new Date()),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
 async function readSessionByCookie(
   cookieName: string,
   kind: 'customer' | 'admin',
@@ -184,23 +205,12 @@ async function readSessionByCookie(
   const token = jar.get(cookieName)?.value;
   if (!token) return null;
   try {
-    const [row] = await db
-      .select({
-        sessionId: authSessions.id,
-        subjectId: authSessions.subjectId,
-        expiresAt: authSessions.expiresAt,
-        lastSeenAt: authSessions.lastSeenAt,
-        rememberMe: authSessions.rememberMe,
-      })
-      .from(authSessions)
-      .where(
-        and(
-          eq(authSessions.kind, kind),
-          eq(authSessions.tokenHash, sha256(token)),
-          gt(authSessions.expiresAt, new Date()),
-        ),
-      )
-      .limit(1);
+    // Retry once — post-login navigations can race a just-inserted session row.
+    let row = await lookupSessionRow(kind, token);
+    if (!row) {
+      await new Promise((resolve) => setTimeout(resolve, 75));
+      row = await lookupSessionRow(kind, token);
+    }
     if (!row) {
       if (kind === 'customer') {
         await rejectCustomerSession({
@@ -227,6 +237,7 @@ async function readSessionByCookie(
         message,
       });
     }
+    // Never clear the cookie on transient DB errors — that causes silent login bounce.
     return null;
   }
 }

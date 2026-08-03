@@ -1,7 +1,17 @@
+/** Auth / public entry paths that must never be post-login destinations. */
+function isAuthLoopPath(pathname: string): boolean {
+  const path = pathname.split('?')[0]?.split('#')[0] ?? '';
+  if (path === '/login' || path.startsWith('/login/')) return true;
+  if (path === '/admin/login' || path.startsWith('/admin/login/')) return true;
+  if (path === '/admin/forgot-password' || path === '/admin/reset-password') return true;
+  return false;
+}
+
 /** Allow only same-origin relative paths for post-login redirects. */
 export function safeNext(raw: string | null | undefined, fallback = '/account/resident'): string {
   const value = (raw ?? '').trim();
   if (!value.startsWith('/') || value.startsWith('//')) return fallback;
+  if (isAuthLoopPath(value)) return fallback;
   return value;
 }
 

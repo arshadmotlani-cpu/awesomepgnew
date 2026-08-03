@@ -56,8 +56,8 @@ test('adminNavBadges uses unified queue total — never residents parallel queue
   assert.doesNotMatch(src, /loadResidentOperationsResidentsPage/);
   assert.doesNotMatch(src, /allQueueCount/);
   assert.doesNotMatch(src, /getWaitingForApprovalCount/);
-  // Overview and Operations share the same pending total (no double-count).
-  assert.match(src, /badges\.overview = pendingTotal/);
+  // Overview is a read-only owner dashboard — action badges live on Operations only.
+  assert.doesNotMatch(src, /badges\.overview = pendingTotal/);
   assert.match(src, /badges\.operations = pendingTotal/);
 });
 

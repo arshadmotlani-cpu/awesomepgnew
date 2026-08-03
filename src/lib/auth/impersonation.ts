@@ -396,36 +396,52 @@ async function loadImpersonationRow(impersonationId: string) {
 /** Active impersonation for the current request — resident UI banner + debug panel. */
 export const getActiveImpersonationContext = cache(
   async (): Promise<ImpersonationContext | null> => {
-    const jar = await cookies();
-    const impersonationId = jar.get(IMPERSONATION_COOKIE)?.value;
-    if (!impersonationId) return null;
+    try {
+      const jar = await cookies();
+      const impersonationId = jar.get(IMPERSONATION_COOKIE)?.value;
+      if (!impersonationId) return null;
 
-    const row = await loadImpersonationRow(impersonationId);
-    if (!row || row.impersonation.status !== 'active') {
+      const row = await loadImpersonationRow(impersonationId);
+      if (!row || row.impersonation.status !== 'active') {
+        return null;
+      }
+
+      return {
+        impersonationId: row.impersonation.id,
+        adminId: row.impersonation.adminId,
+        adminName: row.adminName,
+        adminSessionId: row.impersonation.adminSessionId,
+        customerId: row.impersonation.customerId,
+        customerSessionId: row.impersonation.customerSessionId,
+        residentName: row.residentName,
+        residentPhone: row.residentPhone,
+        bookingId: row.impersonation.bookingId,
+        bookingCode: row.bookingCode,
+        pgId: row.impersonation.pgId,
+        pgName: row.pgName,
+        roomId: row.impersonation.roomId,
+        roomNumber: row.roomNumber,
+        bedId: row.impersonation.bedId,
+        bedCode: row.bedCode,
+        reason: row.impersonation.reason,
+        startedAt: row.impersonation.startedAt,
+        adminReturnPath: row.impersonation.adminReturnPath,
+      };
+    } catch (err) {
+      // Missing impersonation table / cookie edge cases must never break resident pages.
+      // Re-throw Next.js dynamic-render signals so routes stay correctly dynamic.
+      if (
+        typeof err === 'object' &&
+        err !== null &&
+        'digest' in err &&
+        (err as { digest?: string }).digest === 'DYNAMIC_SERVER_USAGE'
+      ) {
+        throw err;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[auth] getActiveImpersonationContext failed:', message);
       return null;
     }
-
-    return {
-      impersonationId: row.impersonation.id,
-      adminId: row.impersonation.adminId,
-      adminName: row.adminName,
-      adminSessionId: row.impersonation.adminSessionId,
-      customerId: row.impersonation.customerId,
-      customerSessionId: row.impersonation.customerSessionId,
-      residentName: row.residentName,
-      residentPhone: row.residentPhone,
-      bookingId: row.impersonation.bookingId,
-      bookingCode: row.bookingCode,
-      pgId: row.impersonation.pgId,
-      pgName: row.pgName,
-      roomId: row.impersonation.roomId,
-      roomNumber: row.roomNumber,
-      bedId: row.impersonation.bedId,
-      bedCode: row.bedCode,
-      reason: row.impersonation.reason,
-      startedAt: row.impersonation.startedAt,
-      adminReturnPath: row.impersonation.adminReturnPath,
-    };
   },
 );
 

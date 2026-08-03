@@ -18,4 +18,26 @@ describe('resident session validation resilience', () => {
     assert.match(mw, /SIGNUP_SESSION_COOKIE/);
     assert.match(mw, /apg_signup_verified/);
   });
+
+  it('retries session cookie lookup before rejecting a missing row', () => {
+    const src = readFileSync(join(process.cwd(), 'src/lib/auth/session.ts'), 'utf8');
+    assert.match(src, /lookupSessionRow/);
+    assert.match(src, /setTimeout\(resolve, 75\)/);
+    assert.match(src, /Never clear the cookie on transient DB errors/);
+  });
+
+  it('login page redirects authenticated residents away from the form', () => {
+    const src = readFileSync(join(process.cwd(), 'app/login/page.tsx'), 'utf8');
+    assert.match(src, /getCustomerSession/);
+    assert.match(src, /redirect\(safeNext/);
+  });
+
+  it('password login confirms session cookie before redirect', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'src/components/auth/CustomerLoginForm.tsx'),
+      'utf8',
+    );
+    assert.match(src, /\/api\/auth\/customer\/session\/refresh/);
+    assert.match(src, /session cookie was blocked or not saved/);
+  });
 });

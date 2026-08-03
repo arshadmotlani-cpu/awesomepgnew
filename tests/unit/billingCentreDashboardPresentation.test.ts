@@ -287,8 +287,8 @@ describe('billingCentreDashboardPresentation', () => {
   });
 
   it('applies PG, room, resident, and paid-period filters', () => {
-    const paidAtToday = new Date('2026-08-01T10:00:00+05:30');
-    const paidAtYesterday = new Date('2026-07-31T10:00:00+05:30');
+    const paidAtToday = new Date();
+    const paidAtYesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
     const view = baseView({
       generatedToday: [

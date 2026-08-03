@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
+import { CUSTOMER_SESSION_COOKIE } from '@/src/lib/auth/constants';
 import { findCustomerByLoginIdentifier } from '@/src/lib/auth/loginIdentifier';
 import { RESIDENT_AUTH_COPY } from '@/src/lib/auth/residentAuthCopy';
 import { getActiveSignupSessionForEmail } from '@/src/lib/auth/signupSession';
 import { verifyPassword } from '@/src/lib/auth/crypto';
 import { loginRateLimitStatus, recordLoginAttempt } from '@/src/lib/auth/loginRateLimit';
 import { createCustomerSession } from '@/src/lib/auth/session';
+import { customerSessionExpiry } from '@/src/lib/auth/customerSessionPolicy';
+import { env } from '@/src/lib/env';
 import { logger } from '@/src/lib/logger';
 
 export async function POST(request: Request) {
@@ -126,9 +129,10 @@ export async function POST(request: Request) {
     userAgent,
   });
 
-  await createCustomerSession({
+  const rememberMe = body.rememberMe !== false;
+  const token = await createCustomerSession({
     customerId: customer.id,
-    rememberMe: body.rememberMe !== false,
+    rememberMe,
     ip,
     userAgent,
   });
@@ -143,10 +147,20 @@ export async function POST(request: Request) {
     ip,
   });
 
-  return NextResponse.json({
+  // Also attach Set-Cookie on the response object — belt-and-suspenders with cookies().set
+  // so the browser always receives the session even if the cookie store attach races.
+  const response = NextResponse.json({
     ok: true,
     customerId: customer.id,
     email: customer.email,
     mustSetPassword: customer.mustSetPassword,
   });
+  response.cookies.set(CUSTOMER_SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: env.NODE_ENV === 'production',
+    path: '/',
+    expires: customerSessionExpiry(rememberMe),
+  });
+  return response;
 }

@@ -390,6 +390,20 @@ export function CustomerLoginForm({
         router.replace(`/account/set-password?next=${encodeURIComponent(next)}`);
         return;
       }
+
+      // Confirm the session cookie actually stuck before navigating.
+      // Otherwise middleware bounces back to /login with no error (looks like a blank refresh).
+      const sessionCheck = await fetch('/api/auth/customer/session/refresh', {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      if (!sessionCheck.ok) {
+        setError(
+          'Login succeeded but your session cookie was blocked or not saved. Allow cookies for this site, then try Login again.',
+        );
+        return;
+      }
+
       logResidentClientInfo('post-login redirect start', {
         page: 'login_password',
         customerId: data.customerId ?? null,
@@ -397,6 +411,10 @@ export function CustomerLoginForm({
         extra: { next, redirectTarget: next },
       });
       redirectAfterAuth(next);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[auth] password login failed', message);
+      setError(RESIDENT_AUTH_COPY.loginFailedGeneric);
     } finally {
       setPending(false);
     }
