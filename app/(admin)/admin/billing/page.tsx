@@ -66,12 +66,17 @@ import {
   mergeBillingRecentCollections,
 } from '@/src/lib/admin/billingCollectionsPresentation';
 import { loadBillingCentreDashboardSnapshot } from '@/src/services/billingCentreDashboard';
-import { listRentBillingOverview, listBillingCycleOperations } from '@/src/services/rentInvoices';
+import { listRentBillingOverview, listBillingCycleOperations, type BillingCycleOperationRow } from '@/src/services/rentInvoices';
 import { listRoomsMissingElectricityBill } from '@/src/services/electricityBilling';
 import type { AdminRentInvoiceRow } from '@/src/db/queries/admin';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
+
+const EMPTY_BILLING_CYCLE_OPS: {
+  dueSoon: BillingCycleOperationRow[];
+  generatedPending: BillingCycleOperationRow[];
+} = { dueSoon: [], generatedPending: [] };
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -177,7 +182,7 @@ export default async function CollectionsModulePage({
     needsPaidData
       ? listAdminPaidElectricityInvoices()
       : Promise.resolve({ ok: true as const, data: [] }),
-    tab === 'billing' ? listBillingCycleOperations() : Promise.resolve([]),
+    tab === 'billing' ? listBillingCycleOperations() : Promise.resolve(EMPTY_BILLING_CYCLE_OPS),
     needsGeneratedTab || needsFailuresTab ? getLatestBillingGenerationRun() : Promise.resolve(null),
     needsGeneratedTab ? listTodayGeneratedInvoices(todayIst) : Promise.resolve([]),
     needsFailuresTab

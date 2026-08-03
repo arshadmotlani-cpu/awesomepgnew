@@ -315,7 +315,7 @@ async function main() {
         needsPaidData
           ? listAdminPaidElectricityInvoices()
           : Promise.resolve({ ok: true as const, data: [] }),
-        tab === 'billing' ? listBillingCycleOperations() : Promise.resolve([]),
+        tab === 'billing' ? listBillingCycleOperations() : Promise.resolve({ dueSoon: [], generatedPending: [] }),
         needsGeneratedTab || needsFailuresTab
           ? import('../src/services/billingScheduler').then((m) => m.getLatestBillingGenerationRun())
           : Promise.resolve(null),

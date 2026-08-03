@@ -256,38 +256,17 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-03 05:47:05 UTC
+### Pending pre-commit sync · 2026-08-03 05:59:36 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Electricity]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
-- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
-- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (18):**
+**Staged code files (1):**
 - `app/(admin)/admin/billing/page.tsx`
-- `app/(admin)/admin/operations/page.tsx`
-- `app/(admin)/admin/overview/page.tsx`
-- `app/(admin)/admin/revenue/page.tsx`
-- `app/api/admin/live/route.ts`
-- `app/api/admin/rooms/[id]/last-electricity-reading/route.ts`
-- `src/db/migrations/0136_room_os_published_rules.sql`
-- `src/db/migrations/0137_room_os_workflow_instances.sql`
-- `src/db/migrations/0138_business_metrics_index.sql`
-- `src/db/schema/businessMetricsIndex.ts`
-- `src/db/schema/index.ts`
-- `src/db/schema/roomOsPublishedRules.ts`
-- `src/db/schema/roomOsWorkflowInstances.ts`
-- `src/lib/billing/roomMeterReadingSsot.ts`
-- `src/lib/billing/roomOsCollectionsAdapter.ts`
-- `src/services/electricityBilling.ts`
-- `src/services/meterElectricity.ts`
-- `src/services/rentInvoices.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed
