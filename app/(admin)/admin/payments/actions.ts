@@ -19,18 +19,36 @@ import {
 import type { PaymentProofRejectionReasonCode } from '@/src/lib/approvals/paymentProofRejectionReasons';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 import { formatPostgresError } from '@/src/lib/db/postgresError';
+import { startPaymentApprovalTimer } from '@/src/lib/payments/paymentApprovalTiming';
+import { scheduleAfterPaymentApproval } from '@/src/lib/payments/scheduleAfterPaymentApproval';
 
 const PAYMENT_REVIEW_PATH = '/admin/operations';
 
-function revalidatePaymentReviewSurfaces(pgId: string) {
-  revalidatePath('/admin', 'layout');
-  revalidatePath('/admin/billing');
+/** Fast path — only surfaces the admin is about to navigate to. */
+function revalidatePaymentReviewSurfacesFast(pgId: string) {
   revalidatePath(PAYMENT_REVIEW_PATH, 'page');
-  revalidatePath(PAYMENT_REVIEW_PATH, 'layout');
   revalidatePath('/admin/payment-review', 'layout');
-  revalidatePath('/admin/revenue');
-  revalidatePath('/admin/revenue/billing');
   revalidatePath(`/admin/pgs/${pgId}/collections`);
+}
+
+/** Expensive fan-out — must not block the approve response. */
+function revalidatePaymentReviewSurfacesDeferred(pgId: string, extraPaths: string[] = []) {
+  scheduleAfterPaymentApproval(async () => {
+    revalidatePath('/admin', 'layout');
+    revalidatePath('/admin/billing');
+    revalidatePath(PAYMENT_REVIEW_PATH, 'layout');
+    revalidatePath('/admin/revenue');
+    revalidatePath('/admin/revenue/billing');
+    for (const path of extraPaths) {
+      revalidatePath(path);
+    }
+  });
+}
+
+/** @deprecated Prefer fast + deferred split on hot approve paths. */
+function revalidatePaymentReviewSurfaces(pgId: string) {
+  revalidatePaymentReviewSurfacesFast(pgId);
+  revalidatePaymentReviewSurfacesDeferred(pgId);
 }
 
 async function withNextReviewKey(
@@ -353,18 +371,47 @@ export async function approveRentProofAction(
   pgId: string,
   currentKey?: string,
 ) {
+  const timer = startPaymentApprovalTimer('approveRentProofAction');
   const session = await requireAdminPermission('payments:write');
+  timer.mark('auth');
+
   const result = await approveRentPaymentProof(session, invoiceId);
-  if (!result.ok) return result;
-  await persistApprovalAllocationAfterSuccess({
-    kind: 'rent',
-    entityId: invoiceId,
-    pgId,
-    approvedByAdminId: session.adminId,
+  timer.mark('settle_critical');
+
+  if (!result.ok) {
+    timer.finish({ ok: false, invoiceId });
+    return result;
+  }
+
+  // Allocation audit + heavy cache fan-out must not block the admin response.
+  // PaymentReviewWorkspace always redirects to the ops queue and ignores nextKey,
+  // so skip the expensive listPendingPaymentReviews rebuild here.
+  scheduleAfterPaymentApproval(async () => {
+    await persistApprovalAllocationAfterSuccess({
+      kind: 'rent',
+      entityId: invoiceId,
+      pgId,
+      approvedByAdminId: session.adminId,
+    });
   });
-  revalidatePath('/admin/rent');
-  revalidatePaymentReviewSurfaces(pgId);
-  return withNextReviewKey(session, currentKey, { ok: true });
+  timer.mark('schedule_deferred');
+
+  revalidatePaymentReviewSurfacesFast(pgId);
+  revalidatePaymentReviewSurfacesDeferred(pgId, ['/admin/rent']);
+  timer.mark('revalidate_fast');
+
+  const steps = timer.finish({
+    ok: true,
+    invoiceId,
+    skippedNextKeyLookup: true,
+    currentKey: currentKey ?? null,
+  });
+
+  return {
+    ok: true as const,
+    nextKey: null as string | null,
+    timing: steps,
+  };
 }
 
 export async function approveElectricityProofAction(

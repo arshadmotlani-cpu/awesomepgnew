@@ -111,12 +111,12 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
       setApproved(true);
       showToast(successMessage, 'success');
 
+      // Do not await badge/cache refresh — critical approval already succeeded.
+      void refreshAdminNavBadges();
       router.refresh();
-      await refreshAdminNavBadges();
 
       const redirectTo = operationsFilterHref('waiting_for_approval');
       router.push(redirectTo);
-      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Approval failed.');
       setBusy(false);

@@ -1541,6 +1541,9 @@ export async function recordRentPaymentSuccess(
 
   let paymentId: string;
   let paymentUnifiedInvoiceId: string | null = null;
+  const settleTimer = (await import('@/src/lib/payments/paymentApprovalTiming')).startPaymentApprovalTimer(
+    'recordRentPaymentSuccess',
+  );
   try {
     const result = await db.transaction(async (tx) => {
       const [payment] = await tx
@@ -1618,7 +1621,10 @@ export async function recordRentPaymentSuccess(
     });
     paymentId = result.paymentId;
     paymentUnifiedInvoiceId = result.unifiedInvoiceId;
+    settleTimer.mark('settlement_transaction');
   } catch (err) {
+    settleTimer.mark('settlement_transaction_failed');
+    settleTimer.finish({ ok: false, invoiceId: invoice.id });
     if (pgErrorCode(err) === '23505') {
       const [reread] = await db
         .select({ id: payments.id })
@@ -1642,123 +1648,135 @@ export async function recordRentPaymentSuccess(
     return { ok: false, reason: formatPostgresError(err) };
   }
 
-  const auditResult = await writeAuditLogNonBlocking(db, {
-    actorType: 'system',
-    actorId: null,
-    entity: 'rent_invoice',
-    entityId: invoice.id,
-    action: fullyPaid ? 'paid' : 'partial_payment',
-    diff: {
-      provider,
-      providerPaymentId: input.providerPaymentId,
-      amountPaise: input.amountPaise,
-      rentPaise: invoice.rentPaise,
-      paidPrincipalPaise: newPaidPrincipal,
-      paidLateFeePaise: newPaidLate,
-      lateFeeLockedPaise: fullyPaid ? lateFee : invoice.lateFeeLockedPaise,
-      outstandingPaise: Math.max(0, newOutstanding),
-    },
-  });
-  if (!auditResult.ok) {
-    console.error(
-      '[rent-payment] payment recorded but audit_log insert failed',
-      auditResult.error,
-    );
-  }
+  const { scheduleAfterPaymentApproval } = await import(
+    '@/src/lib/payments/scheduleAfterPaymentApproval'
+  );
+  settleTimer.mark('schedule_deferred_side_effects');
+  settleTimer.finish({ ok: true, invoiceId: invoice.id, deferred: true });
 
-  {
-    const { recordBillingEvent } = await import('@/src/services/billingEvents');
-    await recordBillingEvent({
-      bookingId: invoice.bookingId,
-      rentInvoiceId: invoice.id,
-      financialInvoiceId: paymentUnifiedInvoiceId,
-      eventType: fullyPaid ? 'invoice.paid' : 'invoice.partial',
-      payload: {
-        paymentId,
-        amountPaise: input.amountPaise,
-        outstandingPaise: Math.max(0, newOutstanding),
-        provider,
-      },
-    });
-  }
-
-  if (paymentUnifiedInvoiceId && input.amountPaise > 0) {
-    try {
-      const { createReceipt } = await import('@/src/services/paymentReceipts');
-      await createReceipt({
-        customerId: invoice.customerId,
-        bookingId: invoice.bookingId,
-        financialInvoiceId: paymentUnifiedInvoiceId,
-        rentInvoiceId: invoice.id,
-        paymentId,
-        amountPaise: input.amountPaise,
-        method: String(provider),
-        paidAt: new Date(),
-        transactionRef: input.providerPaymentId,
-      });
-    } catch (err) {
-      console.error('[rent-payment] receipt create failed (non-blocking)', err);
-    }
-  }
-
-  if (!input.historical) {
-    try {
-      const { notifyPaymentReceipt } = await import('@/src/lib/email/notifications');
-      notifyPaymentReceipt({
-        customerId: invoice.customerId,
-        purpose: 'rent',
-        amountPaise: input.amountPaise,
-        reference: invoice.billingMonth,
-      });
-
-      const { markActivePaymentLinksPaid } = await import('@/src/services/paymentLinks');
-      void markActivePaymentLinksPaid({
-        residentId: invoice.customerId,
-        purpose: 'rent',
-        amountPaise: input.amountPaise,
-      });
-
-      const [automationCtx] = await db
-        .select({
-          pgId: rentInvoices.pgId,
-          pgName: pgs.name,
-          customerName: customers.fullName,
-        })
-        .from(rentInvoices)
-        .innerJoin(pgs, eq(pgs.id, rentInvoices.pgId))
-        .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
-        .where(eq(rentInvoices.id, invoice.id))
-        .limit(1);
-
-      if (automationCtx) {
-        const { emitPaymentReceivedAutomation } = await import('./automationEngine');
-        void emitPaymentReceivedAutomation({
-          pgId: automationCtx.pgId,
-          customerId: invoice.customerId,
-          bookingId: invoice.bookingId,
-          paymentId,
-          amountPaise: input.amountPaise,
-          pgName: automationCtx.pgName,
-          customerName: automationCtx.customerName,
-          paymentPurpose: 'rent',
+  scheduleAfterPaymentApproval(async () => {
+    // Independent post-commit work — run in parallel so background drain is fast.
+    await Promise.all([
+      (async () => {
+        const auditResult = await writeAuditLogNonBlocking(db, {
+          actorType: 'system',
+          actorId: null,
+          entity: 'rent_invoice',
+          entityId: invoice.id,
+          action: fullyPaid ? 'paid' : 'partial_payment',
+          diff: {
+            provider,
+            providerPaymentId: input.providerPaymentId,
+            amountPaise: input.amountPaise,
+            rentPaise: invoice.rentPaise,
+            paidPrincipalPaise: newPaidPrincipal,
+            paidLateFeePaise: newPaidLate,
+            lateFeeLockedPaise: fullyPaid ? lateFee : invoice.lateFeeLockedPaise,
+            outstandingPaise: Math.max(0, newOutstanding),
+          },
         });
-      }
-    } catch (sideEffectErr) {
-      console.error('[rent-payment] post-payment side effects failed', sideEffectErr);
-    }
-  }
+        if (!auditResult.ok) {
+          console.error(
+            '[rent-payment] payment recorded but audit_log insert failed',
+            auditResult.error,
+          );
+        }
+      })(),
+      (async () => {
+        const { recordBillingEvent } = await import('@/src/services/billingEvents');
+        await recordBillingEvent({
+          bookingId: invoice.bookingId,
+          rentInvoiceId: invoice.id,
+          financialInvoiceId: paymentUnifiedInvoiceId,
+          eventType: fullyPaid ? 'invoice.paid' : 'invoice.partial',
+          payload: {
+            paymentId,
+            amountPaise: input.amountPaise,
+            outstandingPaise: Math.max(0, newOutstanding),
+            provider,
+          },
+        });
+      })(),
+      (async () => {
+        if (!(paymentUnifiedInvoiceId && input.amountPaise > 0)) return;
+        try {
+          const { createReceipt } = await import('@/src/services/paymentReceipts');
+          await createReceipt({
+            customerId: invoice.customerId,
+            bookingId: invoice.bookingId,
+            financialInvoiceId: paymentUnifiedInvoiceId,
+            rentInvoiceId: invoice.id,
+            paymentId,
+            amountPaise: input.amountPaise,
+            method: String(provider),
+            paidAt: new Date(),
+            transactionRef: input.providerPaymentId,
+          });
+        } catch (err) {
+          console.error('[rent-payment] receipt create failed (non-blocking)', err);
+        }
+      })(),
+      (async () => {
+        if (input.historical) return;
+        try {
+          const { notifyPaymentReceipt } = await import('@/src/lib/email/notifications');
+          notifyPaymentReceipt({
+            customerId: invoice.customerId,
+            purpose: 'rent',
+            amountPaise: input.amountPaise,
+            reference: invoice.billingMonth,
+          });
 
-  if (fullyPaid && !input.historical) {
-    try {
-      const { creditReferralEarningOnBookingPayment } = await import('./referrals');
-      await creditReferralEarningOnBookingPayment({
-        bookingId: invoice.bookingId,
-        rentSubtotalPaise: rentDuePaise,
-      });
-    } catch (referralErr) {
-      console.error('referral earning credit on rent payment failed:', referralErr);
-    }
-  }
+          const { markActivePaymentLinksPaid } = await import('@/src/services/paymentLinks');
+          void markActivePaymentLinksPaid({
+            residentId: invoice.customerId,
+            purpose: 'rent',
+            amountPaise: input.amountPaise,
+          });
+
+          const [automationCtx] = await db
+            .select({
+              pgId: rentInvoices.pgId,
+              pgName: pgs.name,
+              customerName: customers.fullName,
+            })
+            .from(rentInvoices)
+            .innerJoin(pgs, eq(pgs.id, rentInvoices.pgId))
+            .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
+            .where(eq(rentInvoices.id, invoice.id))
+            .limit(1);
+
+          if (automationCtx) {
+            const { emitPaymentReceivedAutomation } = await import('./automationEngine');
+            void emitPaymentReceivedAutomation({
+              pgId: automationCtx.pgId,
+              customerId: invoice.customerId,
+              bookingId: invoice.bookingId,
+              paymentId,
+              amountPaise: input.amountPaise,
+              pgName: automationCtx.pgName,
+              customerName: automationCtx.customerName,
+              paymentPurpose: 'rent',
+            });
+          }
+        } catch (sideEffectErr) {
+          console.error('[rent-payment] post-payment side effects failed', sideEffectErr);
+        }
+      })(),
+      (async () => {
+        if (!(fullyPaid && !input.historical)) return;
+        try {
+          const { creditReferralEarningOnBookingPayment } = await import('./referrals');
+          await creditReferralEarningOnBookingPayment({
+            bookingId: invoice.bookingId,
+            rentSubtotalPaise: rentDuePaise,
+          });
+        } catch (referralErr) {
+          console.error('referral earning credit on rent payment failed:', referralErr);
+        }
+      })(),
+    ]);
+  });
 
   return {
     ok: true,
@@ -2462,11 +2480,17 @@ export async function approveRentPaymentProof(
   session: AdminSession,
   invoiceId: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
+  const timer = (await import('@/src/lib/payments/paymentApprovalTiming')).startPaymentApprovalTimer(
+    'approveRentPaymentProof',
+  );
+
   const [invoice] = await db
     .select()
     .from(rentInvoices)
     .where(eq(rentInvoices.id, invoiceId))
     .limit(1);
+  timer.mark('load_invoice');
+
   if (!invoice) return { ok: false, message: 'Invoice not found.' };
   if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, invoice.pgId)) {
     return { ok: false, message: 'Access denied.' };
@@ -2479,6 +2503,8 @@ export async function approveRentPaymentProof(
   }
 
   const invoiceWithSnapshot = (await ensureRentProofSnapshot(invoiceId)) ?? invoice;
+  timer.mark('ensure_proof_snapshot');
+
   const amountPaise = rentProofApprovalAmountPaise(invoiceWithSnapshot);
   if (amountPaise == null || amountPaise <= 0) {
     return {
@@ -2502,18 +2528,25 @@ export async function approveRentPaymentProof(
       proofSubmittedAt: invoiceWithSnapshot.proofSubmittedAt?.toISOString() ?? null,
     },
   });
+  timer.mark('apply_approved_payment_atomic');
 
-  if (result.ok) return { ok: true };
+  if (result.ok) {
+    timer.finish({ ok: true, invoiceId });
+    return { ok: true };
+  }
 
   const [refreshed] = await db
     .select({ status: rentInvoices.status })
     .from(rentInvoices)
     .where(eq(rentInvoices.id, invoiceId))
     .limit(1);
+  timer.mark('idempotent_reread');
   if (refreshed?.status === 'paid') {
+    timer.finish({ ok: true, invoiceId, alreadyPaid: true });
     return { ok: true };
   }
 
+  timer.finish({ ok: false, invoiceId });
   return { ok: false, message: result.reason };
 }
 

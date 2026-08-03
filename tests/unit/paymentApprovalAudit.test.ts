@@ -65,6 +65,7 @@ describe('payment approval audit isolation', () => {
     const auditCall = body.indexOf('writeAuditLogNonBlocking(db');
     assert.ok(txClose > 0 && auditCall > txClose, 'audit must run after payment transaction');
     assert.doesNotMatch(body, /tx\.insert\(auditLog\)/);
+    assert.match(body, /scheduleAfterPaymentApproval/);
   });
 
   it('recordElectricityPaymentSuccess commits payment before audit_log insert', () => {
@@ -80,5 +81,43 @@ describe('payment approval audit isolation', () => {
     const auditCall = body.indexOf('writeAuditLogNonBlocking(db');
     assert.ok(txClose > 0 && auditCall > txClose, 'audit must run after payment transaction');
     assert.doesNotMatch(body, /tx\.insert\(auditLog\)/);
+  });
+});
+
+describe('rent payment approval hot path', () => {
+  it('defers allocation persist, heavy revalidate, and skips next-key queue rebuild', () => {
+    const actions = readFileSync(
+      join(process.cwd(), 'app/(admin)/admin/payments/actions.ts'),
+      'utf8',
+    );
+    const fn = actions.slice(actions.indexOf('export async function approveRentProofAction'));
+    const nextFn = fn.indexOf('\nexport async function approveElectricityProofAction');
+    const body = fn.slice(0, nextFn);
+
+    assert.match(body, /scheduleAfterPaymentApproval\(\s*async\s*\(\)\s*=>\s*\{\s*await persistApprovalAllocationAfterSuccess/);
+    assert.match(body, /skippedNextKeyLookup:\s*true/);
+    assert.match(body, /nextKey:\s*null/);
+    assert.doesNotMatch(body, /withNextReviewKey/);
+    assert.doesNotMatch(body, /getNextPendingPaymentReviewKey/);
+  });
+  it('defers post-commit rent side effects after settlement transaction', () => {
+    const src = readFileSync(join(process.cwd(), 'src/services/rentInvoices.ts'), 'utf8');
+    const fn = src.slice(src.indexOf('export async function recordRentPaymentSuccess'));
+    const nextFn = fn.indexOf('\nexport async function recordRentPaymentFailure');
+    const body = fn.slice(0, nextFn);
+    assert.match(body, /scheduleAfterPaymentApproval/);
+    assert.match(body, /Promise\.all\(/);
+    assert.match(body, /createReceipt/);
+    assert.match(body, /notifyPaymentReceipt/);
+    assert.match(body, /creditReferralEarningOnBookingPayment/);
+  });
+
+  it('payment review workspace does not await badge refresh before redirect', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'src/components/admin/payment-review/PaymentReviewWorkspace.tsx'),
+      'utf8',
+    );
+    assert.match(src, /void refreshAdminNavBadges\(\)/);
+    assert.doesNotMatch(src, /await refreshAdminNavBadges\(\)/);
   });
 });

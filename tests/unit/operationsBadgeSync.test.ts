@@ -48,6 +48,7 @@ test('FyhDatePicker portals opaque panel above page content', () => {
 
 test('PaymentReviewWorkspace refreshes badges once after approve', () => {
   const workspace = read('src/components/admin/payment-review/PaymentReviewWorkspace.tsx');
-  assert.match(workspace, /await refreshAdminNavBadges\(\)/);
+  assert.match(workspace, /void refreshAdminNavBadges\(\)/);
+  assert.doesNotMatch(workspace, /await refreshAdminNavBadges\(\)/);
   assert.doesNotMatch(workspace, /setTimeout/);
 });
