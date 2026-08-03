@@ -171,7 +171,9 @@ export async function createBillFromMeterLogs(
   }
 
   if (!input.allowPreviousReadingOverride || previous == null) {
-    const baseline = await resolveRoomPreviousMeterReading(input.roomId);
+    const baseline = await resolveRoomPreviousMeterReading(input.roomId, {
+      beforeBillingMonth: firstOfMonth(input.billingMonth),
+    });
     previous = baseline.previousReadingUnits;
   }
 
@@ -344,7 +346,9 @@ export async function createEstimatedMonthlyBill(
   if (!floor) return { ok: false, message: 'Room not found.' };
   assertPgAccess(session, floor.pgId);
 
-  const baseline = await resolveRoomPreviousMeterReading(input.roomId);
+  const baseline = await resolveRoomPreviousMeterReading(input.roomId, {
+    beforeBillingMonth: firstOfMonth(input.billingMonth),
+  });
   const previous = baseline.previousReadingUnits;
   const current = previous + estimatedUnits;
   const recordedAt = formatDate(new Date());

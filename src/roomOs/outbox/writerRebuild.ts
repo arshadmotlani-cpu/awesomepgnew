@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { bedReservations, beds, floors, rooms } from '@/src/db/schema';
 import { appendRoomOsOutboxEntry, type RoomOsDb } from '@/src/roomOs/outbox/append';
+import { resolveEffectivePackId } from '@/src/roomOs/rules/store/resolveEffectivePackId';
 import { RULES_CATALOG_V1_ID } from '@/src/roomOs/rules/catalog/v1';
 import { todayString } from '@/src/lib/dates';
 import { firstOfMonth } from '@/src/services/billing';
@@ -65,12 +66,23 @@ export async function enqueuePropertyIndexRebuildFromWriter(
   tx: RoomOsDb,
   input: WriterRebuildInput,
 ): Promise<void> {
+  const asOf = input.asOf ?? new Date().toISOString();
+  let rulesEffectivePackId = RULES_CATALOG_V1_ID;
+  try {
+    rulesEffectivePackId = await resolveEffectivePackId({
+      pgId: input.pgId,
+      asOf,
+    });
+  } catch {
+    rulesEffectivePackId = RULES_CATALOG_V1_ID;
+  }
+
   await appendRoomOsOutboxEntry(
     {
       streamType: 'property',
       streamId: input.pgId,
       eventType: 'property_index.rebuild_requested',
-      rulesEffectivePackId: RULES_CATALOG_V1_ID,
+      rulesEffectivePackId,
       payload: {
         pgId: input.pgId,
         billingMonth: firstOfMonth(input.billingMonth ?? todayString()),

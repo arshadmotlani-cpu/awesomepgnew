@@ -11,6 +11,11 @@ import { runShantinagarPortalParityChecks } from '@/src/roomOs/certification/che
 import { runPropertyIndexParityChecks } from '@/src/roomOs/certification/checks/propertyIndexParity';
 import { runRfeBedBrainBridgeChecks } from '@/src/roomOs/certification/checks/rfeBedBrainBridge';
 import { runReplaySampleParityChecks } from '@/src/roomOs/certification/checks/replaySampleParity';
+import { runBusinessMetricsRollupParityChecks } from '@/src/roomOs/certification/checks/businessMetricsRollupParity';
+import { runRulesDbParityChecks } from '@/src/roomOs/certification/checks/rulesDbParity';
+import { runTimelineLayerBChecks } from '@/src/roomOs/certification/checks/timelineLayerB';
+import { runWorkflowPaymentProofParityChecks } from '@/src/roomOs/certification/checks/workflowPaymentProofParity';
+import { runWorkQueueParityChecks } from '@/src/roomOs/certification/checks/workQueueParity';
 import { buildCertificationReport, warnFinding } from '@/src/roomOs/certification/buildReport';
 import { CERTIFICATION_SUITE_SHANTINAGAR_V1 } from '@/src/roomOs/certification/catalog/v1';
 import { resolveShantinagarPgId } from '@/src/roomOs/certification/shantinagar/resolvePg';
@@ -74,12 +79,25 @@ export async function runCertification(scope: CertificationScope): Promise<RunCe
     const isShantinagarSuite = suiteId === CERTIFICATION_SUITE_SHANTINAGAR_V1;
     const findings: CertificationFinding[] = [];
 
-    const [propertyFindings, workQueueFindings, replayFindings] = await Promise.all([
+    const [propertyFindings, workQueueFindings, replayFindings, rulesFindings, timelineFindings, workflowFindings, metricsFindings] =
+      await Promise.all([
       runPropertyIndexParityChecks(ctx),
       runWorkQueueParityChecks(ctx),
       runReplaySampleParityChecks(ctx),
+      runRulesDbParityChecks(ctx),
+      runTimelineLayerBChecks(ctx),
+      runWorkflowPaymentProofParityChecks(ctx),
+      runBusinessMetricsRollupParityChecks(ctx),
     ]);
-    findings.push(...propertyFindings, ...workQueueFindings, ...replayFindings);
+    findings.push(
+      ...propertyFindings,
+      ...workQueueFindings,
+      ...replayFindings,
+      ...rulesFindings,
+      ...timelineFindings,
+      ...workflowFindings,
+      ...metricsFindings,
+    );
 
     let shantinagarResidents: CertificationReport['summary']['shantinagarResidents'];
 

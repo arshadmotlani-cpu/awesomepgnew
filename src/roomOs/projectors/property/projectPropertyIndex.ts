@@ -36,7 +36,7 @@ export async function projectPropertyOsBundle(input: {
   const billingMonth = firstOfMonth(input.billingMonth);
   const inventory = await loadPropertyInventory(input.pgId);
 
-  const bedBrains: Awaited<ReturnType<typeof buildBedBrainSnapshot>>[] = [];
+  const bedBrains: NonNullable<Awaited<ReturnType<typeof buildBedBrainSnapshot>>>[] = [];
   const roomShared: NonNullable<Awaited<ReturnType<typeof buildRoomSharedSnapshot>>>[] = [];
   const ledgersByBookingId = new Map<
     string,

@@ -69,6 +69,7 @@ describe('Room OS Wave 3 — Forbidden imports (Operations UI)', () => {
     assert.match(adapter, /buildRoomOsCollectionsQueue/);
     assert.match(adapter, /getWorkQueue/);
     assert.match(adapter, /loadLedger/);
+    assert.match(adapter, /eq\(bedReservations\.kind, 'primary'\)/);
   });
 
   test('billing centre can switch via ROOM_OS_BILLING_CENTRE flag', () => {

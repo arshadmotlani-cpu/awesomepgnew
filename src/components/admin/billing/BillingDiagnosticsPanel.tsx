@@ -16,11 +16,13 @@ export async function BillingDiagnosticsPanel({
   reconciliation,
   reconciliationError,
   isSuperAdmin,
+  billingMonth,
 }: {
   health: BillingHealthSnapshot;
   reconciliation: BillingCycleReconciliation | null;
   reconciliationError: string | null;
   isSuperAdmin: boolean;
+  billingMonth: string;
 }) {
   const sampleRooms = await db
     .select({
@@ -35,7 +37,9 @@ export async function BillingDiagnosticsPanel({
 
   const meterSamples = await Promise.all(
     sampleRooms.map(async (room) => {
-      const baseline = await resolveOfficialPreviousReading(room.roomId).catch(() => null);
+      const baseline = await resolveOfficialPreviousReading(room.roomId, billingMonth).catch(
+        () => null,
+      );
       const events = await listRoomMeterTimelineEvents(room.roomId, 5).catch(() => []);
       return { room, baseline, events };
     }),

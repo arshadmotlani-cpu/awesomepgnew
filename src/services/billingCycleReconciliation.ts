@@ -3,6 +3,7 @@
  * Read-only verification after optional auto-sync; no terminal scripts required.
  */
 
+import { cache } from 'react';
 import { and, count, eq, inArray, isNull, ne, sql, sum } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
@@ -15,6 +16,7 @@ import {
   paymentLinks,
   rentInvoices,
 } from '@/src/db/schema';
+import { adminRequestScopeKey } from '@/src/lib/admin/adminRequestCache';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import { collectibleResidentFilters } from '@/src/lib/billing/productionDataFilter';
 import {
@@ -537,18 +539,34 @@ export async function loadBillingReconciliationSafe(
   billingMonthInput?: string,
   opts?: { reconcile?: boolean },
 ): Promise<BillingReconciliationLoadResult> {
-  try {
-    const reconciliation =
-      opts?.reconcile === false
-        ? await evaluateBillingCycleReconciliation(session, billingMonthInput)
-        : await reconcileAndEvaluateBillingCycle(session, billingMonthInput);
-    return { ok: true, reconciliation };
-  } catch (err) {
-    console.error('[billing-reconciliation]', err);
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : 'Billing certification unavailable',
-      reconciliation: null,
-    };
-  }
+  return loadBillingReconciliationSafeForRequest(
+    adminRequestScopeKey(session),
+    session,
+    billingMonthInput,
+    opts?.reconcile === true,
+  );
 }
+
+const loadBillingReconciliationSafeForRequest = cache(
+  async (
+    scopeKey: string,
+    session: AdminSession,
+    billingMonthInput: string | undefined,
+    reconcile: boolean,
+  ): Promise<BillingReconciliationLoadResult> => {
+    void scopeKey;
+    try {
+      const reconciliation = reconcile
+        ? await reconcileAndEvaluateBillingCycle(session, billingMonthInput)
+        : await evaluateBillingCycleReconciliation(session, billingMonthInput);
+      return { ok: true, reconciliation };
+    } catch (err) {
+      console.error('[billing-reconciliation]', err);
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : 'Billing certification unavailable',
+        reconciliation: null,
+      };
+    }
+  },
+);

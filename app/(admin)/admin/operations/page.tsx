@@ -8,11 +8,13 @@ import { resolveOperationsFocusParam } from '@/src/lib/approvals/approvalDeepLin
 import { paymentReviewWorkspaceHref } from '@/src/lib/operations/paymentReviewLinks';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import {
-  defaultOperationsFilter,
   operationsFilterHref,
   parseOperationsFilter,
 } from '@/src/lib/operations/operationsFilterLinks';
-import { loadUnifiedOperationsQueue, emptyUnifiedOperationsQueue } from '@/src/services/unifiedOperationsQueue';
+import {
+  loadUnifiedOperationsQueue,
+  emptyUnifiedOperationsQueue,
+} from '@/src/services/unifiedOperationsQueue';
 import { loadMoveOutPipelineBundle } from '@/src/services/moveOutPipelineService';
 import { toClientMoveOutPipelineItem } from '@/src/lib/moveOut/moveOutPipeline';
 import type { MoveOutPipelineItemClient } from '@/src/lib/moveOut/moveOutPipeline';
@@ -40,17 +42,7 @@ export default async function OperationsPage({
   }
 
   if (!filter) {
-    let preview;
-    try {
-      preview = await loadUnifiedOperationsQueue(session, 'waiting_for_approval', focus);
-    } catch (err) {
-      console.error('[operations] queue preview failed', err);
-      preview = emptyUnifiedOperationsQueue('waiting_for_approval');
-    }
-    const counts = Object.fromEntries(
-      preview.filterCounts.map((c) => [c.id, c.count]),
-    ) as Record<(typeof preview.filterCounts)[number]['id'], number>;
-    redirect(operationsFilterHref(defaultOperationsFilter(counts)));
+    redirect(operationsFilterHref('waiting_for_approval'));
   }
 
   let data;

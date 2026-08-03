@@ -1,6 +1,6 @@
 /**
- * Rules catalog v1 — code-defined policy pack (Wave 0).
- * DB-published rules deferred to Wave 5.
+ * Rules catalog v1 — bootstrap seed for DB-published rules (Wave 5).
+ * Code catalog remains fallback when no DB rows exist.
  */
 
 export type RuleScope = 'global' | 'property' | 'floor' | 'room' | 'bed' | 'booking';

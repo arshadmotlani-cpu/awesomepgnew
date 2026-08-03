@@ -48,8 +48,9 @@ export class MeterTimelineError extends Error {
 /** Read official previous reading for Workflow A (monthly split). */
 export async function resolveOfficialPreviousReading(
   roomId: string,
+  beforeBillingMonth: string,
 ): Promise<MeterTimelineBaseline> {
-  return resolveRoomPreviousMeterReading(roomId);
+  return resolveRoomPreviousMeterReading(roomId, { beforeBillingMonth });
 }
 
 /** Human-readable timeline source label for admin diagnostics. */
@@ -111,7 +112,7 @@ export async function advanceBaseline(input: AdvanceBaselineInput): Promise<void
     throw new MeterTimelineError('Invalid current reading units', 'invalid_reading');
   }
 
-  const previous = await resolveOfficialPreviousReading(input.roomId);
+  const previous = await resolveOfficialPreviousReading(input.roomId, input.billingMonth);
   if (input.currentReadingUnits < previous.previousReadingUnits) {
     throw new MeterTimelineError(
       `Current reading ${input.currentReadingUnits} is below official baseline ${previous.previousReadingUnits}`,

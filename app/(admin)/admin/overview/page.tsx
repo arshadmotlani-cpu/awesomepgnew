@@ -7,7 +7,6 @@ import { moduleHref } from '@/src/lib/admin/navigation';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { profileAdminStep } from '@/src/lib/admin/adminProfile';
 import { loadOverviewContext } from '@/src/services/overviewData';
-import { loadBillingReconciliationSafe } from '@/src/services/billingCycleReconciliation';
 import { buildOverviewDashboard } from '@/src/services/overviewDashboard';
 
 export const dynamic = 'force-dynamic';
@@ -16,22 +15,23 @@ export const maxDuration = 60;
 export default async function OverviewPage() {
   const session = await requireAdminSession('/admin/overview');
 
-  const [overviewResult, billingCert] = await profileAdminStep('overviewPage', () =>
-    Promise.all([
-      loadOverviewContext(session, undefined, { syncActions: false }),
-      loadBillingReconciliationSafe(session),
-    ]),
+  const overviewResult = await profileAdminStep('overviewPage', () =>
+    loadOverviewContext(session, undefined, { syncActions: false, reconcile: false }),
   );
+
+  const billingCert = overviewResult.ok
+    ? {
+        ok: true as const,
+        reconciliation: overviewResult.data.billingCenter.reconciliation,
+        error: overviewResult.data.billingCenter.reconciliationError,
+      }
+    : { ok: false as const, error: overviewResult.error, reconciliation: null };
 
   if (!overviewResult.ok) {
     return (
       <>
         <DbStatusBanner error={overviewResult.error} />
-        {billingCert.ok ? (
-          <BillingCertificationNotice reconciliation={billingCert.reconciliation} />
-        ) : (
-          <BillingCertificationNotice error={billingCert.error} />
-        )}
+        <BillingCertificationNotice error={overviewResult.error} />
       </>
     );
   }
@@ -45,11 +45,11 @@ export default async function OverviewPage() {
     <>
       <ModuleBreadcrumbs items={[{ label: 'Overview' }]} />
       <AdminSectionErrorBoundary title="Overview">
-        {billingCert.ok ? (
+        {billingCert.ok && billingCert.reconciliation ? (
           <BillingCertificationNotice reconciliation={billingCert.reconciliation} />
-        ) : (
+        ) : billingCert.error ? (
           <BillingCertificationNotice error={billingCert.error} />
-        )}
+        ) : null}
         <OverviewDashboard data={dashboard} />
         <p className="mt-8 text-sm text-apg-silver">
           Action items live in{' '}

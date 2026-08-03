@@ -40,19 +40,23 @@ function listTsFiles(dir: string): string[] {
 }
 
 describe('Room OS Wave 2 — Certification Engine', () => {
-  test('v1 check catalog covers 10 Shantinagar parity checks (Wave 4 replay included)', () => {
-    assert.equal(CERTIFICATION_CHECKS_V1.length, 10);
+  test('v1 check catalog covers 14 Shantinagar parity checks (Wave 6 workflow + metrics)', () => {
+    assert.equal(CERTIFICATION_CHECKS_V1.length, 14);
     const checkIds = CERTIFICATION_CHECKS_V1.map((c) => c.checkId).sort();
     assert.deepEqual(checkIds, [
       'BED_OCCUPANCY_PARITY',
       'BOOKING_LEDGER_PARITY',
+      'BUSINESS_METRICS_ROLLUP_PARITY',
       'PAYMENT_PROOF_STATE_PARITY',
       'PROPERTY_INDEX_MATERIALIZED_PARITY',
       'PROPERTY_KPI_STRIP_PARITY',
       'REPLAY_SAMPLE_PARITY',
       'RFE_BED_BRAIN_BRIDGE',
       'ROOM_ELECTRICITY_STATUS_PARITY',
+      'RULES_DB_PARITY',
       'SHANTINAGAR_PORTAL_PARITY',
+      'TIMELINE_LAYER_B',
+      'WORKFLOW_PAYMENT_PROOF_PARITY',
       'WORK_QUEUE_MATERIALIZED_PARITY',
     ]);
     assert.equal(SHANTINAGAR_RESIDENT_PARITY_TARGET, 12);

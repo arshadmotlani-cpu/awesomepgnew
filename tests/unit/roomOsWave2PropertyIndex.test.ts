@@ -99,6 +99,22 @@ describe('Room OS Wave 2 — Materialized Property Index', () => {
     }
   });
 
+  test('architecture: rebuildPropertyOsIndex materializes property_os_index only', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'src/roomOs/projectors/property/rebuildPropertyIndex.ts'),
+      'utf8',
+    );
+    assert.match(src, /upsertMaterializedPropertyIndex/);
+    assert.doesNotMatch(src, /rebuildWorkQueueIndex/);
+    assert.doesNotMatch(src, /rebuildBusinessMetricsIndex/);
+  });
+
+  test('loadPropertyIndex reports live_fallback when materialized row absent', () => {
+    const src = readFileSync(join(process.cwd(), 'src/roomOs/api/v1/propertyOs.ts'), 'utf8');
+    assert.match(src, /status: 'live_fallback'/);
+    assert.match(src, /MaterializationStatus/);
+  });
+
   test('loadPropertyIndex reads materialized table before live projection', () => {
     const src = readFileSync(join(process.cwd(), 'src/roomOs/api/v1/propertyOs.ts'), 'utf8');
     assert.match(src, /loadMaterializedPropertyIndex/);

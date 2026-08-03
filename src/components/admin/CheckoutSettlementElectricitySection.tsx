@@ -99,7 +99,10 @@ export function CheckoutSettlementElectricitySection({
   useEffect(() => {
     if (!editable || !detail.roomId) return;
     let cancelled = false;
-    void fetch(`/api/admin/rooms/${detail.roomId}/last-electricity-reading`)
+    const billingMonth = `${detail.vacatingDate.slice(0, 7)}-01`;
+    void fetch(
+      `/api/admin/rooms/${detail.roomId}/last-electricity-reading?billingMonth=${encodeURIComponent(billingMonth)}`,
+    )
       .then((res) => res.json())
       .then((body: { ok?: boolean; data?: { previousReadingUnits?: number; ratePerUnitPaise?: number } }) => {
         if (cancelled || !body.ok || !body.data) return;

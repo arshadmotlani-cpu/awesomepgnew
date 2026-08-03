@@ -12,11 +12,11 @@ import {
   checkoutSettlements,
   customers,
   floors,
-  pgPaymentRecords,
   pgs,
   rooms,
 } from '@/src/db/schema';
 import { todayString } from '@/src/lib/dates';
+import { countBookingPendingPaymentProofs } from '@/src/roomOs/engines/ledger/countBookingPendingProofs';
 import {
   mapLedgerCategorySlice,
   resolvePaymentState,
@@ -53,14 +53,6 @@ async function loadBookingLedgerContext(bookingId: string) {
     .limit(1);
 
   return row ?? null;
-}
-
-async function countPendingPaymentProofs(bookingId: string): Promise<number> {
-  const [row] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(pgPaymentRecords)
-    .where(and(eq(pgPaymentRecords.bookingId, bookingId), eq(pgPaymentRecords.status, 'pending')));
-  return row?.count ?? 0;
 }
 
 async function loadOpenCheckoutSettlementStatus(bookingId: string): Promise<string | null> {
@@ -100,7 +92,7 @@ export async function buildBookingLedgerSnapshot(input: {
       depositPaise: context.depositPaise,
       depositDuePaise: context.depositDuePaise,
     }),
-    countPendingPaymentProofs(context.bookingId),
+    countBookingPendingPaymentProofs(context.bookingId),
     loadOpenCheckoutSettlementStatus(context.bookingId),
   ]);
 

@@ -46,7 +46,7 @@ export const CERTIFICATION_CHECKS_V1: readonly CertificationCheckDefinition[] = 
   {
     checkId: 'PAYMENT_PROOF_STATE_PARITY',
     domain: 'ledger',
-    description: 'Ledger payment proof state matches pending pg_payment_records count.',
+    description: 'Ledger payment proof state matches pending proofs across all proof kinds (qr, rent, elec, extension, deposit_link).',
   },
   {
     checkId: 'SHANTINAGAR_PORTAL_PARITY',
@@ -62,6 +62,28 @@ export const CERTIFICATION_CHECKS_V1: readonly CertificationCheckDefinition[] = 
     checkId: 'REPLAY_SAMPLE_PARITY',
     domain: 'replay',
     description: 'Dry-run replay sample matches materialized property/work queue snapshots (Wave 4).',
+  },
+  {
+    checkId: 'RULES_DB_PARITY',
+    domain: 'rules',
+    description: 'DB-seeded effective pack matches code catalog for same pgId/asOf (Wave 5).',
+  },
+  {
+    checkId: 'TIMELINE_LAYER_B',
+    domain: 'timeline',
+    description: 'Timeline entries rebuild deterministically from outbox Layer A events (Wave 5).',
+  },
+  {
+    checkId: 'WORKFLOW_PAYMENT_PROOF_PARITY',
+    domain: 'workflow',
+    description:
+      'Payment proof state machine transitions are valid; sampled workflow instances for proof queue items have recognized states.',
+  },
+  {
+    checkId: 'BUSINESS_METRICS_ROLLUP_PARITY',
+    domain: 'metrics',
+    description:
+      'Materialized rollup ops counts match property index; financial slice matches financialMetricsEngine for same (pgId, billingMonth).',
   },
 ] as const;
 

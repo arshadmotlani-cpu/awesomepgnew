@@ -6,6 +6,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { propertyOsIndex } from '@/src/db/schema/propertyOsIndex';
 import { workQueueIndex } from '@/src/db/schema/workQueueIndex';
+import { businessMetricsIndex } from '@/src/db/schema/businessMetricsIndex';
 import { runPropertyIndexParityChecks } from '@/src/roomOs/certification/checks/propertyIndexParity';
 import { runWorkQueueParityChecks } from '@/src/roomOs/certification/checks/workQueueParity';
 import { resolveShantinagarPgId } from '@/src/roomOs/certification/shantinagar/resolvePg';
@@ -21,6 +22,7 @@ export type MaterializationFreshnessRow = {
   pgName: string;
   propertyMaterializedAgeMs: number | null;
   workQueueMaterializedAgeMs: number | null;
+  businessMetricsMaterializedAgeMs: number | null;
   severity: 'pass' | 'warning' | 'fail';
   message: string;
 };
@@ -74,7 +76,7 @@ export async function runMaterializationFreshnessAudit(
 
   if (shantinagar) {
     const billingMonth = firstOfMonth(todayString());
-    const [propertyRow, workQueueRow] = await Promise.all([
+    const [propertyRow, workQueueRow, businessMetricsRow] = await Promise.all([
       db
         .select({
           materializedAt: propertyOsIndex.materializedAt,
@@ -99,6 +101,18 @@ export async function runMaterializationFreshnessAudit(
           ),
         )
         .limit(1),
+      db
+        .select({
+          materializedAt: businessMetricsIndex.materializedAt,
+        })
+        .from(businessMetricsIndex)
+        .where(
+          and(
+            eq(businessMetricsIndex.pgId, shantinagar.pgId),
+            eq(businessMetricsIndex.billingMonth, billingMonth),
+          ),
+        )
+        .limit(1),
     ]);
 
     const propertyAgeMs = propertyRow[0]?.materializedAt
@@ -107,21 +121,29 @@ export async function runMaterializationFreshnessAudit(
     const workQueueAgeMs = workQueueRow[0]?.materializedAt
       ? Date.now() - workQueueRow[0].materializedAt.getTime()
       : null;
+    const businessMetricsAgeMs = businessMetricsRow[0]?.materializedAt
+      ? Date.now() - businessMetricsRow[0].materializedAt.getTime()
+      : null;
 
     const propertySeverity = classifyMaterializedAge(propertyAgeMs, thresholds);
     const workQueueSeverity = classifyMaterializedAge(workQueueAgeMs, thresholds);
-    const severity = mergeFreshnessSeverity(propertySeverity, workQueueSeverity);
+    const businessMetricsSeverity = classifyMaterializedAge(businessMetricsAgeMs, thresholds);
+    const severity = mergeFreshnessSeverity(
+      mergeFreshnessSeverity(propertySeverity, workQueueSeverity),
+      businessMetricsSeverity,
+    );
 
     rows.push({
       pgId: shantinagar.pgId,
       pgName: shantinagar.pgName,
       propertyMaterializedAgeMs: propertyAgeMs,
       workQueueMaterializedAgeMs: workQueueAgeMs,
+      businessMetricsMaterializedAgeMs: businessMetricsAgeMs,
       severity,
       message:
-        propertyAgeMs == null || workQueueAgeMs == null
+        propertyAgeMs == null || workQueueAgeMs == null || businessMetricsAgeMs == null
           ? 'Missing materialized row — live fallback only (pre-cutover warning).'
-          : `Property age ${Math.round((propertyAgeMs ?? 0) / 60_000)}m; work queue age ${Math.round((workQueueAgeMs ?? 0) / 60_000)}m.`,
+          : `Property age ${Math.round((propertyAgeMs ?? 0) / 60_000)}m; work queue age ${Math.round((workQueueAgeMs ?? 0) / 60_000)}m; business metrics age ${Math.round((businessMetricsAgeMs ?? 0) / 60_000)}m.`,
     });
   }
 

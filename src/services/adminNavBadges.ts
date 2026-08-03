@@ -1,6 +1,7 @@
 import type { AdminSession } from '@/src/lib/auth/session';
 import type { AdminModule } from '@/src/lib/admin/navigation';
 import type { OpsQueueFilter } from '@/src/lib/operations/operationsFilterLinks';
+import { adminRequestScopeKey } from '@/src/lib/admin/adminRequestCache';
 import {
   operationsFilterCount,
   operationsTotalPendingCount,
@@ -26,9 +27,23 @@ function badgeFromFilterCount(
  * Sidebar badges — Operations + Overview totals from the same unified queue as
  * `/admin/operations`. Never use the residents parallel queue for badge counts.
  */
-export async function loadAdminNavBadges(session: AdminSession): Promise<AdminNavBadges> {
+const BADGE_POLL_CACHE_TTL_MS = 45_000;
+let badgePollCache: { scopeKey: string; at: number; badges: AdminNavBadges } | null = null;
+
+export async function loadAdminNavBadges(
+  session: AdminSession,
+  opts?: { pollCache?: boolean },
+): Promise<AdminNavBadges> {
+  const scopeKey = adminRequestScopeKey(session);
+  if (opts?.pollCache && badgePollCache) {
+    const age = Date.now() - badgePollCache.at;
+    if (badgePollCache.scopeKey === scopeKey && age < BADGE_POLL_CACHE_TTL_MS) {
+      return badgePollCache.badges;
+    }
+  }
+
   try {
-    return await profileAdminStep('loadAdminNavBadges', async () => {
+    const badges = await profileAdminStep('loadAdminNavBadges', async () => {
       const operationsQueue = await getUnifiedOperationsQueueForBadges(session);
       const badges: AdminNavBadges = {};
 
@@ -55,6 +70,12 @@ export async function loadAdminNavBadges(session: AdminSession): Promise<AdminNa
 
       return badges;
     });
+
+    if (opts?.pollCache) {
+      badgePollCache = { scopeKey, at: Date.now(), badges };
+    }
+
+    return badges;
   } catch {
     return {};
   }

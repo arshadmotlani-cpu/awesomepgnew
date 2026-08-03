@@ -33,7 +33,7 @@ export async function loadOverviewContext(
     session,
     billingMonthInput,
     opts?.syncActions === true,
-    opts?.reconcile !== false,
+    opts?.reconcile === true,
   );
 }
 

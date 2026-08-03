@@ -6,6 +6,7 @@
  */
 
 import { and, eq, sql } from 'drizzle-orm';
+import { cache } from 'react';
 import { db } from '@/src/db/client';
 import {
   getDailyCollectionTotals,
@@ -18,6 +19,7 @@ import {
 import { bookings, customers, rentInvoices } from '@/src/db/schema';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
+import { adminRequestScopeKey } from '@/src/lib/admin/adminRequestCache';
 import {
   isElectricityAwaitingAdminApproval,
   isElectricityAwaitingResidentPayment,
@@ -79,34 +81,45 @@ function filterRowsBySessionPg<T extends { pgId: string }>(
 export async function loadInvoiceOutstandingSnapshot(
   session?: AdminSession,
 ): Promise<InvoiceOutstandingSnapshot> {
-  const [openRentRes, elecRes] = await Promise.all([
-    listAdminOpenRentInvoices(),
-    listAdminElectricityInvoicesForReminders(),
-  ]);
-
-  const allOpenRent = filterRowsBySessionPg(openRentRes.ok ? openRentRes.data : [], session);
-  const allOpenElectricity = filterRowsBySessionPg(
-    elecRes.ok ? elecRes.data : [],
-    session,
-  );
-
-  const rentWaiting = filterRentAwaitingResidentPayment(allOpenRent);
-  const electricityWaiting = filterElectricityAwaitingResidentPayment(allOpenElectricity);
-
-  return {
-    allOpenRent,
-    allOpenElectricity,
-    rentWaiting,
-    electricityWaiting,
-    rentInReview: allOpenRent.filter((r) => r.effectiveStatus === 'payment_in_progress'),
-    electricityInReview: allOpenElectricity.filter((r) =>
-      isElectricityAwaitingAdminApproval({
-        status: 'pending',
-        paymentProofUrl: r.paymentProofUrl,
-      }),
-    ),
-  };
+  const scopeKey = session ? adminRequestScopeKey(session) : 'anonymous';
+  return loadInvoiceOutstandingSnapshotForRequest(scopeKey, session);
 }
+
+const loadInvoiceOutstandingSnapshotForRequest = cache(
+  async (
+    scopeKey: string,
+    session?: AdminSession,
+  ): Promise<InvoiceOutstandingSnapshot> => {
+    void scopeKey;
+    const [openRentRes, elecRes] = await Promise.all([
+      listAdminOpenRentInvoices(),
+      listAdminElectricityInvoicesForReminders(),
+    ]);
+
+    const allOpenRent = filterRowsBySessionPg(openRentRes.ok ? openRentRes.data : [], session);
+    const allOpenElectricity = filterRowsBySessionPg(
+      elecRes.ok ? elecRes.data : [],
+      session,
+    );
+
+    const rentWaiting = filterRentAwaitingResidentPayment(allOpenRent);
+    const electricityWaiting = filterElectricityAwaitingResidentPayment(allOpenElectricity);
+
+    return {
+      allOpenRent,
+      allOpenElectricity,
+      rentWaiting,
+      electricityWaiting,
+      rentInReview: allOpenRent.filter((r) => r.effectiveStatus === 'payment_in_progress'),
+      electricityInReview: allOpenElectricity.filter((r) =>
+        isElectricityAwaitingAdminApproval({
+          status: 'pending',
+          paymentProofUrl: r.paymentProofUrl,
+        }),
+      ),
+    };
+  },
+);
 
 export type OutstandingMoneyFromInvoices = {
   pendingRentInvoices: number;

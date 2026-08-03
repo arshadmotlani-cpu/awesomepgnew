@@ -14,7 +14,7 @@ export async function GET() {
   }
 
   const [badges, unreadCount] = await Promise.all([
-    loadAdminNavBadges(session),
+    loadAdminNavBadges(session, { pollCache: true }),
     countUnreadForAdmin(session),
   ]);
 

@@ -21,7 +21,6 @@ import { todayString } from '@/src/lib/dates';
 import type { UnifiedOpsItem, UnifiedOpsOutstandingLine } from '@/src/services/unifiedOperationsQueue';
 import { getWorkQueue } from '@/src/roomOs/api/v1/decision';
 import { loadBed, loadLedger, loadRoomShared } from '@/src/roomOs/api/v1/roomOs';
-import { loadPropertyIndex } from '@/src/roomOs/api/v1/propertyOs';
 import type { WorkQueueItem } from '@/src/roomOs/types';
 import { firstOfMonth } from '@/src/services/billing';
 
@@ -57,13 +56,20 @@ async function loadAllWorkQueueItems(
   billingMonth: string,
   asOf: string,
 ): Promise<WorkQueueItem[]> {
-  const result = await getWorkQueue({
-    pgId,
-    billingMonth,
-    asOf,
-    limit: 50_000,
-  });
-  return result.snapshot?.items ?? result.page.items;
+  const items: WorkQueueItem[] = [];
+  let cursor: string | undefined;
+  do {
+    const result = await getWorkQueue({
+      pgId,
+      billingMonth,
+      asOf,
+      limit: 500,
+      cursor,
+    });
+    items.push(...result.page.items);
+    cursor = result.page.nextCursor ?? undefined;
+  } while (cursor);
+  return items;
 }
 
 async function loadBookingOpsDisplayBatch(
@@ -92,6 +98,7 @@ async function loadBookingOpsDisplayBatch(
     .where(
       and(
         inArray(bookings.id, bookingIds),
+        eq(bedReservations.kind, 'primary'),
         sql`${bedReservations.status}::text IN ('active', 'vacating')`,
       ),
     );
@@ -126,6 +133,7 @@ async function loadActiveBookingsInRoom(
     .where(
       and(
         eq(beds.roomId, roomId),
+        eq(bedReservations.kind, 'primary'),
         sql`${bedReservations.status}::text IN ('active', 'vacating')`,
         sql`${bedReservations.bookingId} IS NOT NULL`,
       ),
@@ -291,11 +299,7 @@ export async function loadRoomOsOperationsQueueItems(
   );
 
   const workQueueByPg = await Promise.all(
-    scopedPgs.map(async (pg) => {
-      await loadPropertyIndex({ pgId: pg.id, billingMonth, asOf });
-      const items = await loadAllWorkQueueItems(pg.id, billingMonth, asOf);
-      return items;
-    }),
+    scopedPgs.map(async (pg) => loadAllWorkQueueItems(pg.id, billingMonth, asOf)),
   );
 
   const allWorkItems = workQueueByPg.flat();

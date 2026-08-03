@@ -1,10 +1,65 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import {
+  pickPreviousMeterReadingFromFinalizedBills,
   readingsMatch,
   validateContinuousPreviousReading,
 } from '@/src/lib/billing/roomMeterReadingSsot';
 import { allocateMonthlyElectricityInvoices } from '@/src/lib/billing/roomElectricityMonthlyAllocation';
+
+describe('pickPreviousMeterReadingFromFinalizedBills', () => {
+  const bills = [
+    {
+      billingMonth: '2026-06-01',
+      currentReadingUnits: 565,
+      ratePerUnitPaise: 1600,
+      meterImageUrl: null,
+    },
+    {
+      billingMonth: '2026-07-01',
+      currentReadingUnits: 707,
+      ratePerUnitPaise: 1600,
+      meterImageUrl: 'july.jpg',
+    },
+    {
+      billingMonth: '2026-09-01',
+      currentReadingUnits: 5248,
+      ratePerUnitPaise: 1600,
+      meterImageUrl: null,
+    },
+  ];
+
+  test('uses latest bill before target month, not a later erroneous month', () => {
+    const result = pickPreviousMeterReadingFromFinalizedBills(bills, '2026-08-01');
+    assert.ok(result);
+    assert.equal(result.previousReadingUnits, 707);
+    assert.equal(result.lastBillingMonth, '2026-07-01');
+    assert.equal(result.meterImageUrl, 'july.jpg');
+  });
+
+  test('generating July bill opens from June closing reading', () => {
+    const result = pickPreviousMeterReadingFromFinalizedBills(bills, '2026-07-01');
+    assert.ok(result);
+    assert.equal(result.previousReadingUnits, 565);
+    assert.equal(result.lastBillingMonth, '2026-06-01');
+  });
+
+  test('first bill for a room falls back to bootstrap when no prior month exists', () => {
+    const result = pickPreviousMeterReadingFromFinalizedBills(
+      [{ billingMonth: '2026-07-01', currentReadingUnits: 707 }],
+      '2026-07-01',
+    );
+    assert.equal(result, null);
+  });
+
+  test('707 to 849 yields 142 units consumed for August generation', () => {
+    const previous = pickPreviousMeterReadingFromFinalizedBills(bills, '2026-08-01');
+    assert.ok(previous);
+    const currentReading = 849;
+    const unitsConsumed = Math.round((currentReading - previous.previousReadingUnits) * 100) / 100;
+    assert.equal(unitsConsumed, 142);
+  });
+});
 
 describe('room meter reading SSOT', () => {
   test('previous reading must match last finalized monthly reading', () => {

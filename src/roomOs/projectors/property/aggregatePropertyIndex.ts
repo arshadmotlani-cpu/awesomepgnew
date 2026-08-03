@@ -85,6 +85,7 @@ export function buildWorkQueueProjectionSource(input: {
     bookings: input.ledgers.map((ledger) => ({
       bookingId: ledger.bookingId,
       bookingCode: ledger.bookingCode,
+      customerId: ledger.customerId,
       paymentState: ledger.paymentState,
       paymentStateReason: ledger.paymentStateReason,
       rentStatus: ledger.rent.status,

@@ -169,6 +169,45 @@ export async function getDepositCollectedByPgFromLedger(
   }));
 }
 
+export type DepositRefundedByPgRow = {
+  pgId: string;
+  refundedPaise: number;
+};
+
+/** Deposit refunded in a billing month, grouped by PG — ledger only. */
+export async function getDepositRefundedByPgFromLedger(
+  billingMonthInput?: string,
+): Promise<DepositRefundedByPgRow[]> {
+  const billingMonth = resolveBillingMonth(billingMonthInput);
+  const { start, end } = monthBounds(billingMonth);
+
+  const rows = await db.execute<{ pg_id: string; total: number }>(sql`
+    SELECT
+      p.id::text AS pg_id,
+      coalesce(-sum(dl.amount_paise), 0)::bigint::int AS total
+    FROM deposit_ledger dl
+    INNER JOIN bookings b ON b.id = dl.booking_id
+    INNER JOIN customers c ON c.id = b.customer_id
+    INNER JOIN bed_reservations br ON br.booking_id = b.id AND br.kind = 'primary'
+    INNER JOIN beds bd ON bd.id = br.bed_id
+    INNER JOIN rooms r ON r.id = bd.room_id
+    INNER JOIN floors f ON f.id = r.floor_id
+    INNER JOIN pgs p ON p.id = f.pg_id
+    WHERE dl.entry_kind = 'refunded'
+      AND dl.created_at >= ${start}
+      AND dl.created_at < ${end}
+      AND b.is_test = false
+      AND c.is_test = false
+    GROUP BY p.id
+    HAVING coalesce(-sum(dl.amount_paise), 0) > 0
+  `);
+
+  return Array.from(rows).map((r) => ({
+    pgId: r.pg_id,
+    refundedPaise: asPlainNumber(r.total),
+  }));
+}
+
 /** Global deposit refund totals for a billing month (for business metrics). */
 export async function getDepositRefundsForBillingMonth(billingMonthInput?: string): Promise<{
   count: number;

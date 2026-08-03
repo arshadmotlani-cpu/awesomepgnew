@@ -942,7 +942,7 @@ function applyUnifiedOperationsFilter(
   return queue;
 }
 
-const buildUnifiedOperationsQueueBaseCached = cache(
+const buildUnifiedOperationsQueueCached = cache(
   async (
     scopeKey: string,
     session: AdminSession,
@@ -956,30 +956,16 @@ const buildUnifiedOperationsQueueBaseCached = cache(
   },
 );
 
-const buildUnifiedOperationsQueueBadgesCached = cache(
-  async (
-    scopeKey: string,
-    session: AdminSession,
-  ): Promise<{
-    allItems: UnifiedOpsItem[];
-    paymentReviews: PendingPaymentReviewItem[];
-    filterCounts: Array<{ id: OpsQueueFilter; label: string; count: number }>;
-  }> => {
-    void scopeKey;
-    return buildUnifiedOperationsQueue(session, null, null, {
-      skipRepairs: true,
-      skipResidents: true,
-    });
-  },
-);
+/** @deprecated alias — badges and pages share one cache per request */
+const buildUnifiedOperationsQueueBaseCached = buildUnifiedOperationsQueueCached;
 
-/** Deduped within a single admin RSC request (layout + page). */
+/** Deduped within a single admin RSC request (layout + page + nested loaders). */
 export function getUnifiedOperationsQueueForRequest(
   session: AdminSession,
   filterInput?: OpsQueueFilter | null,
   focusReviewKey?: string | null,
 ): Promise<UnifiedOperationsQueue> {
-  return buildUnifiedOperationsQueueBaseCached(adminRequestScopeKey(session), session)
+  return buildUnifiedOperationsQueueCached(adminRequestScopeKey(session), session)
     .then((base) => applyUnifiedOperationsFilter(base, filterInput, focusReviewKey ?? null))
     .catch((err) => {
       console.error('[operations-queue] unified queue unavailable', err);
@@ -987,11 +973,11 @@ export function getUnifiedOperationsQueueForRequest(
     });
 }
 
-/** Fast path for sidebar badge polls — skips terminal repairs and residents dashboard load. */
+/** Sidebar badges — same cached base build as pages (one queue build per request). */
 export function getUnifiedOperationsQueueForBadges(
   session: AdminSession,
 ): Promise<UnifiedOperationsQueue> {
-  return buildUnifiedOperationsQueueBadgesCached(adminRequestScopeKey(session), session)
+  return buildUnifiedOperationsQueueCached(adminRequestScopeKey(session), session)
     .then((base) => applyUnifiedOperationsFilter(base, null, null))
     .catch((err) => {
       console.error('[operations-queue] badge queue unavailable', err);

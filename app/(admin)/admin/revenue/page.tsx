@@ -52,11 +52,14 @@ export default async function RevenueModulePage({
 
   const { data } = ctx;
   const pgHref = (pgId: string) => modulePgHref('revenue', pgId, billingMonth);
-  const couponSnapshot = await getDateCouponAdminSnapshot();
-  const couponAnalytics = await listDateCouponAnalytics(14);
-  const promoCoupons = await listPromoCouponsAdmin();
-  const topCoupons = await getTopPromoCoupons(5);
-  const referralSnapshot = await getReferralProgramSnapshot();
+  const [couponSnapshot, couponAnalytics, promoCoupons, topCoupons, referralSnapshot] =
+    await Promise.all([
+      getDateCouponAdminSnapshot(),
+      listDateCouponAnalytics(14),
+      listPromoCouponsAdmin(),
+      getTopPromoCoupons(5),
+      getReferralProgramSnapshot(),
+    ]);
   const donutRows = data.revenue.byPg.map((row) => ({
     pgId: row.pgId,
     pgName: row.pgName,

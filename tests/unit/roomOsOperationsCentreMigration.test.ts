@@ -34,9 +34,24 @@ describe('Room OS Wave 2 — Operations Centre migration', () => {
     assert.match(src, /loadRoomOsOperationsQueueItems/);
   });
 
+  test('Room OS adapter paginates work queue via cursor instead of bulk snapshot', () => {
+    const adapter = read('src/lib/operations/roomOsOperationsQueueAdapter.ts');
+    assert.match(adapter, /result\.page\.items/);
+    assert.match(adapter, /nextCursor/);
+    assert.doesNotMatch(adapter, /limit: 50_000/);
+    assert.doesNotMatch(adapter, /snapshot\?\.items/);
+
+    const collections = read('src/lib/billing/roomOsCollectionsAdapter.ts');
+    assert.match(collections, /result\.page\.items/);
+    assert.match(collections, /nextCursor/);
+    assert.doesNotMatch(collections, /limit: 10_000/);
+    assert.doesNotMatch(collections, /snapshot\?\.items/);
+  });
+
   test('Room OS adapter uses read APIs only — no legacy composers', () => {
     const adapter = read('src/lib/operations/roomOsOperationsQueueAdapter.ts');
     assert.match(adapter, /getWorkQueue/);
+    assert.match(adapter, /eq\(bedReservations\.kind, 'primary'\)/);
     assert.match(adapter, /loadLedger/);
     assert.match(adapter, /loadBed/);
     assert.match(adapter, /loadRoomShared/);

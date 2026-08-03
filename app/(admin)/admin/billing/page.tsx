@@ -68,9 +68,6 @@ import {
 import { loadBillingCentreDashboardSnapshot } from '@/src/services/billingCentreDashboard';
 import { listRentBillingOverview, listBillingCycleOperations } from '@/src/services/rentInvoices';
 import { listRoomsMissingElectricityBill } from '@/src/services/electricityBilling';
-import { count, sql } from 'drizzle-orm';
-import { db } from '@/src/db/client';
-import { electricityBills } from '@/src/db/schema';
 import type { AdminRentInvoiceRow } from '@/src/db/queries/admin';
 
 export const dynamic = 'force-dynamic';
@@ -144,30 +141,50 @@ export default async function CollectionsModulePage({
       ? loadBillingCentreDashboardSnapshot(session, billingMonth, dashboardFilters)
       : Promise.resolve(null);
 
-  const [openRent, rentPaid, elecPaid, elecPending, pgs, billingOverview, billingCycleOps, roomsMissingElectricity, billingHealth, lastRun, generatedToday, failures, electricityBillsToday, billingSnapshot, pipelineIssues, strayZeroInvoices, dashboardSnapshot] =
-    await Promise.all([
+  const needsPaidData = tab === 'billing' || tab === 'paid';
+  const needsGeneratedTab = tab === 'generated';
+  const needsFailuresTab = tab === 'failures';
+  const needsDiagnosticsTab = tab === 'diagnostics';
+
+  const [
+    openRent,
+    elecPending,
+    pgs,
+    billingOverview,
+    roomsMissingElectricity,
+    billingHealth,
+    billingSnapshot,
+    rentPaid,
+    elecPaid,
+    billingCycleOps,
+    lastRun,
+    generatedToday,
+    failures,
+    pipelineIssues,
+    strayZeroInvoices,
+    dashboardSnapshot,
+  ] = await Promise.all([
     listAdminOpenRentInvoices(),
-    listAdminRentInvoices({ status: 'paid' }),
-    listAdminPaidElectricityInvoices(),
     listAdminElectricityInvoicesForReminders(),
     listPgs(),
     listRentBillingOverview(billingMonth),
-    listBillingCycleOperations(),
     listRoomsMissingElectricityBill(billingMonth),
     getBillingHealthSnapshot(),
-    getLatestBillingGenerationRun(),
-    listTodayGeneratedInvoices(todayIst),
-    listBillingGenerationFailures({ unresolvedOnly: true, limit: 50 }),
-    db
-      .select({ count: count() })
-      .from(electricityBills)
-      .where(
-        sql`(${electricityBills.createdAt} AT TIME ZONE 'Asia/Kolkata')::date = ${todayIst}::date`,
-      )
-      .then((rows) => rows[0]?.count ?? 0),
-    loadBillingCommandCenterSnapshot(session, billingMonth),
-    listPipelineTestIntegrityIssues(),
-    listStrayZeroProductionInvoices(),
+    loadBillingCommandCenterSnapshot(session, billingMonth, { reconcile: false }),
+    needsPaidData
+      ? listAdminRentInvoices({ status: 'paid' })
+      : Promise.resolve({ ok: true as const, data: [] as AdminRentInvoiceRow[] }),
+    needsPaidData
+      ? listAdminPaidElectricityInvoices()
+      : Promise.resolve({ ok: true as const, data: [] }),
+    tab === 'billing' ? listBillingCycleOperations() : Promise.resolve([]),
+    needsGeneratedTab || needsFailuresTab ? getLatestBillingGenerationRun() : Promise.resolve(null),
+    needsGeneratedTab ? listTodayGeneratedInvoices(todayIst) : Promise.resolve([]),
+    needsFailuresTab
+      ? listBillingGenerationFailures({ unresolvedOnly: true, limit: 50 })
+      : Promise.resolve([]),
+    needsDiagnosticsTab ? listPipelineTestIntegrityIssues() : Promise.resolve([]),
+    needsDiagnosticsTab ? listStrayZeroProductionInvoices() : Promise.resolve([]),
     dashboardSnapshotPromise,
   ]);
 
@@ -471,6 +488,7 @@ export default async function CollectionsModulePage({
               reconciliation={billingSnapshot.reconciliation}
               reconciliationError={billingSnapshot.reconciliationError}
               isSuperAdmin={session.role === 'super_admin'}
+              billingMonth={billingMonth}
             />
           </div>
         </AdminSectionErrorBoundary>

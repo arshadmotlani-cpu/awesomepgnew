@@ -41,8 +41,10 @@ describe('Room OS architecture guards', () => {
     }
   });
 
-  test('rules module must not import db client', () => {
-    const ruleFiles = roomOsSources().filter((f) => f.includes('/rules/'));
+  test('rules module must not import db client except rules/store', () => {
+    const ruleFiles = roomOsSources().filter(
+      (f) => f.includes('/rules/') && !f.includes('/rules/store/'),
+    );
     for (const file of ruleFiles) {
       const src = read(file);
       assert.doesNotMatch(src, /from ['"]@\/src\/db\/client['"]/);
@@ -300,5 +302,134 @@ describe('Room OS architecture guards', () => {
     assert.match(read('src/roomOs/api/v1/explain.ts'), /explain\/v1/);
     assert.match(read('src/roomOs/api/v1/replay.ts'), /replay\/v1/);
     assert.match(read('src/roomOs/certification/catalog/v1/checks.ts'), /REPLAY_SAMPLE_PARITY/);
+  });
+
+  test('Wave 5 — published rules migration exists', () => {
+    const migration = read('src/db/migrations/0136_room_os_published_rules.sql');
+    assert.match(migration, /room_os_published_rules/);
+    assert.match(migration, /rules-catalog-v1-seed/);
+  });
+
+  test('Wave 5 — timeline module must not import projectors, repair writers, or outbox append', () => {
+    const timelineFiles = listTsFiles('src/roomOs/timeline');
+    const forbiddenPatterns = [
+      /@\/src\/roomOs\/projectors\//,
+      /billingIntegrityRepair/,
+      /checkoutSettlementRepair/,
+      /appendRoomOsOutboxEntry/,
+      /upsertMaterializedPropertyIndex/,
+      /upsertMaterializedWorkQueue/,
+      /from ['"]react['"]/,
+      /checkoutSettlementEngineV2/,
+    ];
+    for (const file of timelineFiles) {
+      const src = read(file);
+      for (const pattern of forbiddenPatterns) {
+        assert.doesNotMatch(src, pattern, `${file} violates Wave 5 timeline forbidden matrix`);
+      }
+    }
+  });
+
+  test('Wave 5 — rules store, timeline API, and certification checks exist', () => {
+    assert.match(read('src/roomOs/api/v1/timeline.ts'), /timeline\/v1/);
+    assert.match(read('src/roomOs/rules/store/resolveEffectivePackId.ts'), /resolveEffectiveRulePack/);
+    const checks = read('src/roomOs/certification/catalog/v1/checks.ts');
+    assert.match(checks, /RULES_DB_PARITY/);
+    assert.match(checks, /TIMELINE_LAYER_B/);
+    assert.match(read('src/roomOs/certification/runCertification.ts'), /runRulesDbParityChecks/);
+    assert.match(read('src/roomOs/certification/runCertification.ts'), /runTimelineLayerBChecks/);
+  });
+
+  test('Wave 6 — workflow and business metrics migrations exist', () => {
+    const workflowMigration = read('src/db/migrations/0137_room_os_workflow_instances.sql');
+    assert.match(workflowMigration, /room_os_workflow_instances/);
+    const metricsMigration = read('src/db/migrations/0138_business_metrics_index.sql');
+    assert.match(metricsMigration, /business_metrics_index/);
+  });
+
+  test('Wave 6 — workflow module must not import projectors or settlement V2', () => {
+    const workflowFiles = listTsFiles('src/roomOs/workflow');
+    const forbiddenPatterns = [
+      /@\/src\/roomOs\/projectors\//,
+      /checkoutSettlementEngineV2/,
+      /from ['"]react['"]/,
+      /from ['"]next\//,
+    ];
+    for (const file of workflowFiles) {
+      const src = read(file);
+      for (const pattern of forbiddenPatterns) {
+        assert.doesNotMatch(src, pattern, `${file} violates Wave 6 workflow forbidden matrix`);
+      }
+    }
+  });
+
+  test('Wave 6 — metrics module must not import payment writers or projector handlers', () => {
+    const metricsFiles = listTsFiles('src/roomOs/metrics');
+    const forbiddenPatterns = [
+      /projectPropertyOsIndex/,
+      /projectWorkQueueSnapshot/,
+      /runProjectors/,
+      /approvePaymentProofWithAllocation/,
+      /rejectPaymentProof/,
+      /from ['"]react['"]/,
+    ];
+    for (const file of metricsFiles) {
+      const src = read(file);
+      for (const pattern of forbiddenPatterns) {
+        assert.doesNotMatch(src, pattern, `${file} violates Wave 6 metrics forbidden matrix`);
+      }
+    }
+    assert.match(
+      read('src/roomOs/metrics/loadBusinessMetrics.ts'),
+      /loadMaterializedPropertyIndex/,
+    );
+    assert.match(
+      read('src/roomOs/metrics/bridgeFinancialMetrics.ts'),
+      /financialMetricsEngine/,
+    );
+  });
+
+  test('Wave 6 — workflow/metrics APIs and certification checks 13–14 wired', () => {
+    assert.match(read('src/roomOs/api/v1/workflow.ts'), /workflow\/v1/);
+    assert.match(read('src/roomOs/api/v1/metrics.ts'), /metrics\/v1/);
+    const checks = read('src/roomOs/certification/catalog/v1/checks.ts');
+    assert.match(checks, /WORKFLOW_PAYMENT_PROOF_PARITY/);
+    assert.match(checks, /BUSINESS_METRICS_ROLLUP_PARITY/);
+    assert.match(read('src/roomOs/projectors/workQueue/rebuildWorkQueueIndex.ts'), /rebuildBusinessMetricsIndex/);
+    assert.match(read('src/roomOs/events/catalog.ts'), /workflow\.payment_proof\.submitted/);
+  });
+
+  test('production hardening — property rebuild does not chain work queue', () => {
+    const src = read('src/roomOs/projectors/property/rebuildPropertyIndex.ts');
+    assert.doesNotMatch(src, /rebuildWorkQueueIndex/);
+  });
+
+  test('production hardening — adapters filter primary bed reservations', () => {
+    assert.match(
+      read('src/lib/operations/roomOsOperationsQueueAdapter.ts'),
+      /eq\(bedReservations\.kind, 'primary'\)/,
+    );
+    assert.match(
+      read('src/lib/billing/roomOsCollectionsAdapter.ts'),
+      /eq\(bedReservations\.kind, 'primary'\)/,
+    );
+  });
+
+  test('production hardening — materialized APIs expose live_fallback status', () => {
+    assert.match(read('src/roomOs/api/v1/propertyOs.ts'), /live_fallback/);
+    assert.match(read('src/roomOs/api/v1/decision.ts'), /live_fallback/);
+    assert.match(read('src/roomOs/metrics/loadBusinessMetrics.ts'), /live_fallback/);
+  });
+
+  test('production hardening — workflow facts emit on property stream', () => {
+    const src = read('src/roomOs/workflow/emitWorkflowFact.ts');
+    assert.match(src, /streamType = 'property'/);
+    assert.match(src, /streamId = input\.context\.pgId/);
+  });
+
+  test('production hardening — freshness audit includes business_metrics_index', () => {
+    const src = read('src/roomOs/acceptance/materializationFreshnessAudit.ts');
+    assert.match(src, /businessMetricsIndex/);
+    assert.match(src, /businessMetricsMaterializedAgeMs/);
   });
 });

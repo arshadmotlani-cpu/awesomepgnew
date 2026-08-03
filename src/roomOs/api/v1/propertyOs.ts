@@ -6,7 +6,7 @@ import {
   loadMaterializedPropertyIndex,
   projectPropertyOsIndex,
 } from '@/src/roomOs/projectors/property';
-import type { PropertyOsIndexSnapshot } from '@/src/roomOs/types';
+import type { MaterializationStatus, PropertyOsIndexSnapshot } from '@/src/roomOs/types';
 import { firstOfMonth } from '@/src/services/billing';
 
 export type LoadPropertyIndexInput = {
@@ -18,7 +18,7 @@ export type LoadPropertyIndexInput = {
 export type LoadPropertyIndexResult = {
   apiVersion: 'property-os/v1';
   snapshot: PropertyOsIndexSnapshot | null;
-  status: 'not_materialized' | 'ready';
+  status: MaterializationStatus;
 };
 
 export async function loadPropertyIndex(
@@ -41,7 +41,7 @@ export async function loadPropertyIndex(
   if (!snapshot) {
     return { apiVersion: 'property-os/v1', status: 'not_materialized', snapshot: null };
   }
-  return { apiVersion: 'property-os/v1', status: 'ready', snapshot };
+  return { apiVersion: 'property-os/v1', status: 'live_fallback', snapshot };
 }
 
 export async function loadKpiStrip(input: LoadPropertyIndexInput) {

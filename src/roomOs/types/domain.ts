@@ -13,6 +13,9 @@ export const TRUTH_LEVELS = {
 
 export type TruthLevel = (typeof TRUTH_LEVELS)[keyof typeof TRUTH_LEVELS];
 
+/** Materialized-first read API status — distinguishes persisted vs live-computed snapshots. */
+export type MaterializationStatus = 'ready' | 'not_materialized' | 'live_fallback';
+
 export type RoomOsStreamType = 'property' | 'room' | 'bed' | 'booking';
 
 /** Append-only domain event envelope (Layer A). */
@@ -151,6 +154,7 @@ export type WorkQueueProjectionSource = {
   bookings: Array<{
     bookingId: string;
     bookingCode: string;
+    customerId: string;
     paymentState: BookingLedgerSnapshot['paymentState'];
     paymentStateReason?: string;
     rentStatus: BookingLedgerCategorySlice['status'];
@@ -189,4 +193,79 @@ export type PropertyOsIndexSnapshot = {
   snapshotVersion: number;
   /** Wave 4 — aggregated derivation refs recorded at materialize time. */
   derivationRefs?: DerivationRef[];
+};
+
+/** Wave 6 — materialized business metrics rollup (truth level 3). */
+export type PropertyMetricsRollup = {
+  pgId: string;
+  billingMonth: string;
+  occupancySummary: string;
+  proofsPending: number;
+  overdueRent: number;
+  rentDueToday: number;
+  electricityIncomplete: number;
+  moveOutsPending: number;
+  electricityProgress: PropertyOsIndexSnapshot['electricityProgress'];
+  totalWorkQueueItems: number;
+  bucketCounts: Partial<Record<WorkQueueBucket, number>>;
+};
+
+export type RoomMetricsRollup = {
+  roomId: string;
+  label: string;
+  occupancySummary: string;
+  electricityStatus: string;
+  electricityStatusReason?: string;
+};
+
+export type BookingMetricsRollup = {
+  bookingId: string;
+  bookingCode: string;
+  paymentState: BookingLedgerSnapshot['paymentState'];
+  paymentStateReason?: string;
+  rentStatus: BookingLedgerCategorySlice['status'];
+};
+
+export type ResidentMetricsRollup = {
+  customerId: string;
+  bookingId: string;
+  bookingCode: string;
+  paymentState: BookingLedgerSnapshot['paymentState'];
+  rentStatus: BookingLedgerCategorySlice['status'];
+};
+
+export type FinancialMetricsRollup = {
+  billingMonth: string;
+  operatingRevenuePaise: number;
+  rentPrincipalPaise: number;
+  lateFeePaise: number;
+  electricityPaise: number;
+  otherIncomePaise: number;
+  depositCollectedPaise: number;
+  depositRefundedPaise: number;
+  netCashInflowPaise: number;
+  occupancyPct: number;
+  occupiedBeds: number;
+  totalBeds: number;
+};
+
+export type EventMetricsRollup = {
+  billingMonth: string;
+  countsByType: Partial<Record<string, number>>;
+  totalEvents: number;
+};
+
+export type BusinessMetricsSnapshot = {
+  pgId: string;
+  billingMonth: string;
+  asOf: string;
+  computedAt: string;
+  contentHash: string;
+  property: PropertyMetricsRollup;
+  rooms: RoomMetricsRollup[];
+  bookings: BookingMetricsRollup[];
+  residents: ResidentMetricsRollup[];
+  financial: FinancialMetricsRollup;
+  eventCounts: EventMetricsRollup;
+  derivationRefs: DerivationRef[];
 };

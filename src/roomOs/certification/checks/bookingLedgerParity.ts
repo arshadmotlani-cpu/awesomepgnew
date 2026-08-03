@@ -2,15 +2,23 @@
  * Per-booking ledger and payment proof parity checks.
  */
 
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { pgPaymentRecords } from '@/src/db/schema';
+import {
+  bedReservations,
+  beds,
+  bookings,
+  customers,
+  floors,
+  pgs,
+  rooms,
+} from '@/src/db/schema';
 import {
   failFinding,
   passFinding,
 } from '@/src/roomOs/certification/buildReport';
 import type { CertificationFinding } from '@/src/roomOs/certification/types';
-import { buildBookingLedgerSnapshot } from '@/src/roomOs/engines/ledger';
+import { buildBookingLedgerSnapshot, countBookingPendingPaymentProofs } from '@/src/roomOs/engines/ledger';
 import { getBookingFinancialAccount } from '@/src/services/residentFinancialEngine';
 
 export type ResidentCertTarget = {
@@ -21,11 +29,35 @@ export type ResidentCertTarget = {
 };
 
 async function countPendingPaymentProofs(bookingId: string): Promise<number> {
+  return countBookingPendingPaymentProofs(bookingId);
+}
+
+async function loadBookingFinancialAccount(bookingId: string) {
   const [row] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(pgPaymentRecords)
-    .where(and(eq(pgPaymentRecords.bookingId, bookingId), eq(pgPaymentRecords.status, 'pending')));
-  return row?.count ?? 0;
+    .select({
+      bookingId: bookings.id,
+      customerId: customers.id,
+      customerName: customers.fullName,
+      customerPhone: customers.phone,
+      bookingCode: bookings.bookingCode,
+      pgId: floors.pgId,
+      pgName: pgs.name,
+      roomNumber: rooms.roomNumber,
+      depositPaise: bookings.depositPaise,
+      depositDuePaise: bookings.depositDuePaise,
+    })
+    .from(bookings)
+    .innerJoin(customers, eq(customers.id, bookings.customerId))
+    .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .innerJoin(pgs, eq(pgs.id, floors.pgId))
+    .where(and(eq(bookings.id, bookingId), eq(bedReservations.kind, 'primary')))
+    .limit(1);
+
+  if (!row) return null;
+  return getBookingFinancialAccount(row);
 }
 
 export async function runBookingLedgerParityChecks(
@@ -37,7 +69,7 @@ export async function runBookingLedgerParityChecks(
   for (const resident of residents) {
     const [ledger, ssot, pendingProofCount] = await Promise.all([
       buildBookingLedgerSnapshot({ bookingId: resident.bookingId, asOf }),
-      getBookingFinancialAccount(resident.bookingId),
+      loadBookingFinancialAccount(resident.bookingId),
       countPendingPaymentProofs(resident.bookingId),
     ]);
 

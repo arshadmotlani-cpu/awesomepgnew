@@ -17,6 +17,9 @@ export const ROOM_OS_EVENT_TYPES = [
   /** Reserved fact-only — post-success materialization record; not emitted yet. */
   'property_index.materialized',
   'integrity.flag_raised',
+  'workflow.payment_proof.submitted',
+  'workflow.payment_proof.approved',
+  'workflow.payment_proof.rejected',
 ] as const;
 
 export type RoomOsEventType = (typeof ROOM_OS_EVENT_TYPES)[number];

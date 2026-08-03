@@ -14,7 +14,11 @@ export type CertificationDomain =
   | 'ledger'
   | 'portal'
   | 'kpi'
-  | 'replay';
+  | 'replay'
+  | 'rules'
+  | 'timeline'
+  | 'workflow'
+  | 'metrics';
 
 export type CertificationFinding = {
   checkId: string;

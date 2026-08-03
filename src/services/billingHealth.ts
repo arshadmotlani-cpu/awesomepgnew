@@ -95,93 +95,95 @@ export function computeBillingHealthScore(input: {
 export async function getBillingHealthSnapshot(): Promise<BillingHealthSnapshot> {
   const todayIst = todayInBillingTimezone();
   const nextRun = nextBillingSchedulerRunUtc();
-  const lastRun = await getLatestBillingGenerationRun();
-
-  const [generatedTodayRow] = await db
-    .select({ count: count() })
-    .from(rentInvoices)
-    .where(
-      and(
-        eq(rentInvoices.isAdhoc, false),
-        sql`(${rentInvoices.createdAt} AT TIME ZONE 'Asia/Kolkata')::date = ${todayIst}::date`,
-      ),
-    );
-
-  const [failuresRow] = await db
-    .select({ count: count() })
-    .from(billingGenerationFailures)
-    .where(isNull(billingGenerationFailures.resolvedAt));
-
-  const [overdueRow] = await db
-    .select({ count: count() })
-    .from(rentInvoices)
-    .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))
-    .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
-    .where(
-      and(
-        collectibleResidentFilters(),
-        eq(rentInvoices.isAdhoc, false),
-        inArray(rentInvoices.status, ['pending', 'overdue']),
-        sql`${rentInvoices.dueDate} < ${todayIst}::date`,
-      ),
-    );
-
   const sevenDaysOut = sql`((${todayIst}::date + interval '7 days'))::date`;
-  const [dueSoonRow] = await db
-    .select({ count: count() })
-    .from(rentInvoices)
-    .where(
-      and(
-        eq(rentInvoices.isAdhoc, false),
-        inArray(rentInvoices.status, ['pending', 'overdue', 'payment_in_progress']),
-        sql`${rentInvoices.dueDate} >= ${todayIst}::date`,
-        sql`${rentInvoices.dueDate} <= ${sevenDaysOut}`,
+
+  const [
+    lastRun,
+    generatedTodayRow,
+    failuresRow,
+    overdueRow,
+    dueSoonRow,
+    elecRow,
+    rentProofPending,
+    elecProofPending,
+    upcoming,
+  ] = await Promise.all([
+    getLatestBillingGenerationRun(),
+    db
+      .select({ count: count() })
+      .from(rentInvoices)
+      .where(
+        and(
+          eq(rentInvoices.isAdhoc, false),
+          sql`(${rentInvoices.createdAt} AT TIME ZONE 'Asia/Kolkata')::date = ${todayIst}::date`,
+        ),
       ),
-    );
-
-  const [elecRow] = await db
-    .select({ createdAt: electricityBills.createdAt })
-    .from(electricityBills)
-    .orderBy(desc(electricityBills.createdAt))
-    .limit(1);
-
-  const [rentProofPending] = await db
-    .select({ count: count() })
-    .from(rentInvoices)
-    .where(
-      and(
-        eq(rentInvoices.isAdhoc, false),
-        sql`${rentInvoices.paymentProofUrl} IS NOT NULL`,
-        inArray(rentInvoices.status, ['pending', 'payment_in_progress']),
+    db
+      .select({ count: count() })
+      .from(billingGenerationFailures)
+      .where(isNull(billingGenerationFailures.resolvedAt)),
+    db
+      .select({ count: count() })
+      .from(rentInvoices)
+      .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))
+      .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
+      .where(
+        and(
+          collectibleResidentFilters(),
+          eq(rentInvoices.isAdhoc, false),
+          inArray(rentInvoices.status, ['pending', 'overdue']),
+          sql`${rentInvoices.dueDate} < ${todayIst}::date`,
+        ),
       ),
-    );
-
-  const [elecProofPending] = await db
-    .select({ count: count() })
-    .from(electricityInvoices)
-    .where(
-      and(
-        sql`${electricityInvoices.paymentProofUrl} IS NOT NULL`,
-        eq(electricityInvoices.status, 'pending'),
+    db
+      .select({ count: count() })
+      .from(rentInvoices)
+      .where(
+        and(
+          eq(rentInvoices.isAdhoc, false),
+          inArray(rentInvoices.status, ['pending', 'overdue', 'payment_in_progress']),
+          sql`${rentInvoices.dueDate} >= ${todayIst}::date`,
+          sql`${rentInvoices.dueDate} <= ${sevenDaysOut}`,
+        ),
       ),
-    );
-
-  const pendingApprovals =
-    (rentProofPending?.count ?? 0) + (elecProofPending?.count ?? 0);
-
-  const upcoming = await loadUpcomingRentSchedule({ fromDate: todayIst, horizonDays: 14 }).catch(
-    () => ({
+    db
+      .select({ createdAt: electricityBills.createdAt })
+      .from(electricityBills)
+      .orderBy(desc(electricityBills.createdAt))
+      .limit(1),
+    db
+      .select({ count: count() })
+      .from(rentInvoices)
+      .where(
+        and(
+          eq(rentInvoices.isAdhoc, false),
+          sql`${rentInvoices.paymentProofUrl} IS NOT NULL`,
+          inArray(rentInvoices.status, ['pending', 'payment_in_progress']),
+        ),
+      ),
+    db
+      .select({ count: count() })
+      .from(electricityInvoices)
+      .where(
+        and(
+          sql`${electricityInvoices.paymentProofUrl} IS NOT NULL`,
+          eq(electricityInvoices.status, 'pending'),
+        ),
+      ),
+    loadUpcomingRentSchedule({ fromDate: todayIst, horizonDays: 14 }).catch(() => ({
       totalScheduledResidents: 0,
       days: [],
       fromDate: todayIst,
       throughDate: todayIst,
       totalExpectedPaise: 0,
-    }),
-  );
+    })),
+  ]);
 
-  const unresolvedFailures = failuresRow?.count ?? 0;
-  const overdueRentInvoices = overdueRow?.count ?? 0;
-  const dueInSevenDays = dueSoonRow?.count ?? 0;
+  const pendingApprovals = (rentProofPending[0]?.count ?? 0) + (elecProofPending[0]?.count ?? 0);
+
+  const unresolvedFailures = failuresRow[0]?.count ?? 0;
+  const overdueRentInvoices = overdueRow[0]?.count ?? 0;
+  const dueInSevenDays = dueSoonRow[0]?.count ?? 0;
   const lastRunFailed = lastRun != null && lastRun.status === 'failed';
 
   const { score, grade, issues } = computeBillingHealthScore({
@@ -206,11 +208,11 @@ export async function getBillingHealthSnapshot(): Promise<BillingHealthSnapshot>
           finishedAt: lastRun.finishedAt?.toISOString() ?? null,
         }
       : null,
-    invoicesGeneratedToday: generatedTodayRow?.count ?? 0,
+    invoicesGeneratedToday: generatedTodayRow[0]?.count ?? 0,
     unresolvedFailures,
     pendingApprovals,
     overdueRentInvoices,
-    lastElectricityBatchAt: elecRow?.createdAt?.toISOString() ?? null,
+    lastElectricityBatchAt: elecRow[0]?.createdAt?.toISOString() ?? null,
     dueInSevenDays,
     upcomingScheduledResidents: upcoming.totalScheduledResidents,
     healthScore: score,

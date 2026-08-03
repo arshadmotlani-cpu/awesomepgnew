@@ -11,6 +11,8 @@ import {
   type RuleScope,
 } from '@/src/roomOs/rules/catalog/v1';
 
+export const RULES_DB_V1_ID = 'rules-db-v1';
+
 export type EffectiveRulePack = {
   id: string;
   catalogId: string;
@@ -82,23 +84,45 @@ export function resolveEffectiveRules(
   return [...byFact.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
 
-export function buildEffectiveRulePack(
+export function buildEffectiveRulePackFromRules(
+  catalog: readonly RuleDefinition[],
   pgId: string,
   asOf: string,
   ctx: Omit<ScopeContext, 'pgId'> = {},
+  catalogId: string = RULES_CATALOG_V1_ID,
 ): EffectiveRulePack {
-  const rules = resolveEffectiveRules(RULES_CATALOG_V1, { pgId, ...ctx });
+  const rules = resolveEffectiveRules(catalog, { pgId, ...ctx });
   const digest = createHash('sha256')
-    .update(JSON.stringify({ catalogId: RULES_CATALOG_V1_ID, pgId, asOf, rules }))
+    .update(JSON.stringify({ catalogId, pgId, asOf, rules }))
     .digest('hex')
     .slice(0, 16);
 
   return {
-    id: `${RULES_CATALOG_V1_ID}:${pgId}:${digest}`,
-    catalogId: RULES_CATALOG_V1_ID,
+    id: `${catalogId}:${pgId}:${digest}`,
+    catalogId,
     pgId,
     asOf,
     rules,
     computedAt: new Date().toISOString(),
   };
+}
+
+/** Sync code-catalog-only pack — preserves Wave 0 unit test behavior. */
+export function buildEffectiveRulePack(
+  pgId: string,
+  asOf: string,
+  ctx: Omit<ScopeContext, 'pgId'> = {},
+): EffectiveRulePack {
+  return buildEffectiveRulePackFromRules(RULES_CATALOG_V1, pgId, asOf, ctx, RULES_CATALOG_V1_ID);
+}
+
+export function buildEffectiveRulePackFromMergedCatalog(
+  catalog: readonly RuleDefinition[],
+  pgId: string,
+  asOf: string,
+  ctx: Omit<ScopeContext, 'pgId'> = {},
+  usesDbRules: boolean,
+): EffectiveRulePack {
+  const catalogId = usesDbRules ? RULES_DB_V1_ID : RULES_CATALOG_V1_ID;
+  return buildEffectiveRulePackFromRules(catalog, pgId, asOf, ctx, catalogId);
 }

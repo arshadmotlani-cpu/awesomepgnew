@@ -81,9 +81,18 @@ export function NewElectricityBillForm({
   }, [pgId, filteredRooms, roomId, defaultRoomId]);
 
   useEffect(() => {
-    if (!roomId) return;
+    if (!roomId) {
+      setPrevReading('');
+      return;
+    }
     setLoadingPrev(true);
-    void fetch(`/api/admin/rooms/${roomId}/last-electricity-reading`, { cache: 'no-store' })
+    setPrevReading('');
+    const params = new URLSearchParams();
+    params.set('billingMonth', effectiveBillingMonth);
+    void fetch(
+      `/api/admin/rooms/${roomId}/last-electricity-reading?${params.toString()}`,
+      { cache: 'no-store' },
+    )
       .then((res) => res.json())
       .then(
         (json: {
@@ -98,7 +107,7 @@ export function NewElectricityBillForm({
       )
       .catch(() => undefined)
       .finally(() => setLoadingPrev(false));
-  }, [roomId]);
+  }, [roomId, effectiveBillingMonth]);
 
   const pollJobUntilDone = useCallback(
     async (pollJobId: string): Promise<ActionState | null> => {

@@ -5,10 +5,10 @@
 import { extractPropertyIndexRebuildInput } from '@/src/roomOs/projectors/property/extractPropertyIndexRebuildInput';
 import { upsertMaterializedPropertyIndex } from '@/src/roomOs/projectors/property/persistPropertyIndex';
 import { projectPropertyOsBundle } from '@/src/roomOs/projectors/property/projectPropertyIndex';
-import { rebuildWorkQueueIndex } from '@/src/roomOs/projectors/workQueue/rebuildWorkQueueIndex';
 import type { RoomOsEventEnvelope, PropertyOsIndexSnapshot } from '@/src/roomOs/types';
 import { todayString } from '@/src/lib/dates';
 import { appendRoomOsOutboxEntry, type RoomOsDb } from '@/src/roomOs/outbox/append';
+import { resolveEffectivePackId } from '@/src/roomOs/rules/store/resolveEffectivePackId';
 import { RULES_CATALOG_V1_ID } from '@/src/roomOs/rules/catalog/v1';
 import { firstOfMonth } from '@/src/services/billing';
 
@@ -35,12 +35,6 @@ export async function rebuildPropertyOsIndex(
     pgId: input.pgId,
     billingMonth,
     snapshot: bundle.propertyIndex,
-    sourceEventId: input.sourceEventId,
-  });
-
-  await rebuildWorkQueueIndex({
-    pgId: input.pgId,
-    billingMonth,
     sourceEventId: input.sourceEventId,
   });
 
@@ -72,12 +66,25 @@ export async function enqueuePropertyIndexRebuild(
   },
   tx?: RoomOsDb,
 ): Promise<RoomOsEventEnvelope> {
+  const asOf = input.asOf ?? new Date().toISOString();
+  let rulesEffectivePackId = input.rulesEffectivePackId;
+  if (!rulesEffectivePackId) {
+    try {
+      rulesEffectivePackId = await resolveEffectivePackId({
+        pgId: input.pgId,
+        asOf,
+      });
+    } catch {
+      rulesEffectivePackId = RULES_CATALOG_V1_ID;
+    }
+  }
+
   return appendRoomOsOutboxEntry(
     {
       streamType: 'property',
       streamId: input.pgId,
       eventType: 'property_index.rebuild_requested',
-      rulesEffectivePackId: input.rulesEffectivePackId ?? RULES_CATALOG_V1_ID,
+      rulesEffectivePackId,
       payload: {
         pgId: input.pgId,
         billingMonth: firstOfMonth(input.billingMonth),

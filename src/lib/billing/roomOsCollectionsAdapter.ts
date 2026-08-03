@@ -63,6 +63,7 @@ async function loadBookingDisplay(bookingId: string) {
     .where(
       and(
         eq(bookings.id, bookingId),
+        eq(bedReservations.kind, 'primary'),
         sql`${bedReservations.status}::text IN ('active', 'vacating')`,
       ),
     )
@@ -139,13 +140,19 @@ export async function buildRoomOsCollectionsQueue(
 
   for (const pg of pgsAccessible) {
     if (!adminCanAccessPg(session, pg.id)) continue;
-    const result = await getWorkQueue({
-      pgId: pg.id,
-      billingMonth: month,
-      asOf,
-      limit: 10_000,
-    });
-    const queueItems = result.snapshot?.items ?? result.page.items;
+    const queueItems: WorkQueueItem[] = [];
+    let cursor: string | undefined;
+    do {
+      const result = await getWorkQueue({
+        pgId: pg.id,
+        billingMonth: month,
+        asOf,
+        limit: 500,
+        cursor,
+      });
+      queueItems.push(...result.page.items);
+      cursor = result.page.nextCursor ?? undefined;
+    } while (cursor);
     for (const queueItem of queueItems) {
       const mapped = await workQueueItemToCollectionItem(queueItem, month, today);
       if (mapped) items.push(mapped);

@@ -5,7 +5,7 @@
 import { projectPropertyOsBundle } from '@/src/roomOs/projectors/property';
 import { loadMaterializedWorkQueue } from '@/src/roomOs/projectors/workQueue/persistWorkQueueIndex';
 import { enqueueWorkQueueRebuild } from '@/src/roomOs/projectors/workQueue/rebuildWorkQueueIndex';
-import type { WorkQueueBucket, WorkQueueItem, WorkQueueSnapshot } from '@/src/roomOs/types';
+import type { MaterializationStatus, WorkQueueBucket, WorkQueueItem, WorkQueueSnapshot } from '@/src/roomOs/types';
 import { firstOfMonth } from '@/src/services/billing';
 
 export type GetWorkQueueInput = {
@@ -20,7 +20,7 @@ export type GetWorkQueueInput = {
 export type GetWorkQueueResult = {
   apiVersion: 'decision/v1';
   snapshot: WorkQueueSnapshot | null;
-  status: 'not_materialized' | 'ready';
+  status: MaterializationStatus;
   page: {
     items: WorkQueueSnapshot['items'];
     nextCursor: string | null;
@@ -71,7 +71,7 @@ export async function getWorkQueue(input: GetWorkQueueInput): Promise<GetWorkQue
 
   return {
     apiVersion: 'decision/v1',
-    status: 'ready',
+    status: materialized ? 'ready' : 'live_fallback',
     snapshot,
     page,
   };

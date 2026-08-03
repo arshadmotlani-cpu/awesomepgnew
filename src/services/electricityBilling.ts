@@ -54,6 +54,7 @@ import {
   computeElectricityLateFee,
   daysUntilLateFeeFromIssue,
   electricityDueDate,
+  ELECTRICITY_GRACE_DAYS,
   firstOfMonth,
   graceEndDateFromIssue,
   lateFeePercentFromIssue,
@@ -332,7 +333,9 @@ export async function createElectricityBill(
     return { ok: false, kind: 'invalid_input', message: 'ratePerUnitPaise must be ≥ 0' };
   }
 
-  const baseline = await resolveOfficialPreviousReading(input.roomId);
+  const billingMonth = firstOfMonth(input.billingMonth);
+
+  const baseline = await resolveOfficialPreviousReading(input.roomId, billingMonth);
   const continuity = validateContinuousPreviousReading({
     providedPreviousUnits: input.previousReadingUnits,
     expectedPreviousUnits: baseline.previousReadingUnits,
@@ -345,7 +348,6 @@ export async function createElectricityBill(
   const unitsConsumed = roundToHundredth(
     input.currentReadingUnits - input.previousReadingUnits,
   );
-  const billingMonth = firstOfMonth(input.billingMonth);
   const { start: monthStart, end: monthEnd } = monthBounds(billingMonth);
   const monthStartIso = formatDate(monthStart);
   const monthEndIso = formatDate(monthEnd);

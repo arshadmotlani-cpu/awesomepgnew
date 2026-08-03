@@ -54,7 +54,9 @@ export async function buildRoomSharedSnapshot(input: {
     )
     .limit(1);
 
-  const baseline = await resolveRoomPreviousMeterReading(input.roomId);
+  const baseline = await resolveRoomPreviousMeterReading(input.roomId, {
+    beforeBillingMonth: billingMonth,
+  });
   const roomBilling = await getRoomBillingConfig(input.roomId);
 
   const meterReadingState = resolveMeterReadingStateForMonth({

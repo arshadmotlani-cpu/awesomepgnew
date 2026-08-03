@@ -77,12 +77,18 @@ test('revenue command center avoids full operations queue for payment counts', (
 
 test('unified queue base build is cached per request', () => {
   const src = fileSrc('src/services/unifiedOperationsQueue.ts');
-  assert.match(src, /buildUnifiedOperationsQueueBaseCached/);
+  assert.match(src, /buildUnifiedOperationsQueueCached/);
   assert.match(src, /getUnifiedOperationsQueueForRequest/);
-  const cacheStart = src.indexOf('const buildUnifiedOperationsQueueBaseCached = cache(');
+  assert.match(src, /getUnifiedOperationsQueueForBadges/);
+  const cacheStart = src.indexOf('const buildUnifiedOperationsQueueCached = cache(');
   assert.ok(cacheStart >= 0);
-  const cacheEnd = src.indexOf('/** Deduped within a single admin RSC request', cacheStart);
-  const cacheDecl = src.slice(cacheStart, cacheEnd);
+  assert.doesNotMatch(
+    src.slice(cacheStart),
+    /buildUnifiedOperationsQueueBadgesCached/,
+    'badges and pages must share one queue cache',
+  );
+  const cacheEnd = src.indexOf('/** @deprecated alias', cacheStart);
+  const cacheDecl = src.slice(cacheStart, cacheEnd > cacheStart ? cacheEnd : cacheStart + 800);
   assert.doesNotMatch(
     cacheDecl,
     /focusReviewKey/,

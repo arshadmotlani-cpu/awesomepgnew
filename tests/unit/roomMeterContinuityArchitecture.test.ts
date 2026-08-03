@@ -35,9 +35,65 @@ describe('continuous room meter architecture', () => {
     );
   });
 
-  test('last-reading API excludes pipeline-test pollution via shared resolver', () => {
+  test('last-reading API scopes baseline to billing month when provided', () => {
     const src = read('app/api/admin/rooms/[id]/last-electricity-reading/route.ts');
     assert.match(src, /resolveRoomPreviousMeterReading/);
+    assert.match(src, /beforeBillingMonth/);
+    assert.match(src, /billingMonth/);
     assert.doesNotMatch(src, /from\(meterLogs\)/);
+  });
+
+  test('previous reading resolver filters by billing month before latest bill lookup', () => {
+    const src = read('src/services/roomMeterReadingSsot.ts');
+    assert.match(src, /beforeBillingMonth/);
+    assert.match(src, /lt\(electricityBills\.billingMonth/);
+  });
+
+  test('createElectricityBill validates continuity against month-scoped baseline', () => {
+    const src = read('src/services/electricityBilling.ts');
+    assert.match(src, /resolveOfficialPreviousReading\(input\.roomId, billingMonth\)/);
+  });
+
+  test('resolveRoomPreviousMeterReading requires beforeBillingMonth in signature', () => {
+    const src = read('src/services/roomMeterReadingSsot.ts');
+    assert.match(src, /options: \{ beforeBillingMonth: string \}/);
+    assert.doesNotMatch(src, /beforeBillingMonth\?:/);
+  });
+
+  test('resolveOfficialPreviousReading requires beforeBillingMonth in signature', () => {
+    const src = read('src/services/meterTimelineService.ts');
+    assert.match(src, /resolveOfficialPreviousReading\(\s*roomId: string,\s*beforeBillingMonth: string/);
+    assert.doesNotMatch(src, /beforeBillingMonth\?:/);
+  });
+
+  test('pickPreviousMeterReadingFromFinalizedBills requires beforeBillingMonth', () => {
+    const src = read('src/lib/billing/roomMeterReadingSsot.ts');
+    assert.match(src, /beforeBillingMonth: string/);
+    assert.doesNotMatch(src, /beforeBillingMonth\?:/);
+  });
+
+  test('last-reading API always resolves with a billing month', () => {
+    const src = read('app/api/admin/rooms/[id]/last-electricity-reading/route.ts');
+    assert.match(src, /resolveBillingMonth/);
+    assert.match(
+      src,
+      /resolveRoomPreviousMeterReading\(roomId, \{ beforeBillingMonth \}\)/,
+    );
+  });
+
+  test('billing diagnostics passes billing month to baseline resolver', () => {
+    const src = read('src/components/admin/billing/BillingDiagnosticsPanel.tsx');
+    assert.match(src, /resolveOfficialPreviousReading\(room\.roomId, billingMonth\)/);
+  });
+
+  test('generate bill form always sends billingMonth query param', () => {
+    const src = read('src/components/admin/NewElectricityBillForm.tsx');
+    assert.match(src, /params\.set\('billingMonth', effectiveBillingMonth\)/);
+  });
+
+  test('checkout settlement electricity prefetch sends billingMonth', () => {
+    const src = read('src/components/admin/CheckoutSettlementElectricitySection.tsx');
+    assert.match(src, /last-electricity-reading\?billingMonth=/);
+    assert.match(src, /detail\.vacatingDate/);
   });
 });

@@ -70,7 +70,9 @@ export async function loadBillingCommandCenterSnapshot(
     loadInvoiceOutstandingSnapshot(session),
     getWaitingForApprovalCount(session),
     getUnifiedOperationsQueueForRequest(session, null),
-    loadBillingReconciliationSafe(session, billingMonth, opts),
+    loadBillingReconciliationSafe(session, billingMonth, {
+      reconcile: opts?.reconcile === true,
+    }),
   ]);
 
   const moveOutCount = operationsFilterCount(operationsQueue, 'vacating_requests');

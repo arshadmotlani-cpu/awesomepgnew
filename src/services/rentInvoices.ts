@@ -971,7 +971,7 @@ export async function generateRentInvoicesForMonth(
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const invoiceNumber = await nextInvoiceNumber(billingMonth, attempt);
       try {
-        await db.transaction(async (tx) => {
+        const txResult = await db.transaction(async (tx) => {
           const [row] = await tx
             .insert(rentInvoices)
             .values({
@@ -990,20 +990,22 @@ export async function generateRentInvoicesForMonth(
               target: [rentInvoices.bookingId, rentInvoices.billingMonth],
               where: sql`${rentInvoices.isAdhoc} = false`,
             })
-            .returning({ id: rentInvoices.id, invoice_number: rentInvoices.invoiceNumber });
-          if (row) {
-            inserted = { id: row.id, invoice_number: row.invoice_number };
-            const { enqueuePropertyIndexRebuildFromWriter } = await import(
-              '@/src/roomOs/outbox/writerRebuild'
-            );
-            await enqueuePropertyIndexRebuildFromWriter(tx, {
-              pgId,
-              billingMonth,
-              sourceRef: 'rentInvoices.generateRentInvoicesForMonth',
-            });
-          }
+            .returning({ id: rentInvoices.id, invoiceNumber: rentInvoices.invoiceNumber });
+          if (!row) return null;
+          const { enqueuePropertyIndexRebuildFromWriter } = await import(
+            '@/src/roomOs/outbox/writerRebuild'
+          );
+          await enqueuePropertyIndexRebuildFromWriter(tx, {
+            pgId,
+            billingMonth,
+            sourceRef: 'rentInvoices.generateRentInvoicesForMonth',
+          });
+          return { id: row.id, invoice_number: row.invoiceNumber };
         });
-        break;
+        if (txResult) {
+          inserted = txResult;
+          break;
+        }
       } catch (err) {
         // 23505 on invoice_number — bump attempt and retry.
         if (pgErrorCode(err) === '23505') continue;
@@ -1446,6 +1448,7 @@ export async function recordRentPaymentSuccess(
       proofSnapshotOutstandingPaise: rentInvoices.proofSnapshotOutstandingPaise,
       proofSnapshotLateFeePaise: rentInvoices.proofSnapshotLateFeePaise,
       proofSnapshotPrincipalDuePaise: rentInvoices.proofSnapshotPrincipalDuePaise,
+      createdAt: rentInvoices.createdAt,
     })
     .from(rentInvoices)
     .where(eq(rentInvoices.id, input.invoiceId))

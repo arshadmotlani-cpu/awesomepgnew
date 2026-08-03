@@ -3,12 +3,14 @@ import { getAdminSession } from '@/src/lib/auth/session';
 import { adminHasPermission } from '@/src/lib/auth/roles';
 import { estimateRoomAverageBillPaise } from '@/src/services/meterElectricity';
 import { resolveRoomPreviousMeterReading } from '@/src/services/roomMeterReadingSsot';
+import { firstOfMonth } from '@/src/services/billing';
+import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
   const session = await getAdminSession();
@@ -17,7 +19,9 @@ export async function GET(
   }
 
   const { id: roomId } = await ctx.params;
-  const baseline = await resolveRoomPreviousMeterReading(roomId);
+  const billingMonthParam = req.nextUrl.searchParams.get('billingMonth');
+  const beforeBillingMonth = firstOfMonth(resolveBillingMonth(billingMonthParam ?? undefined));
+  const baseline = await resolveRoomPreviousMeterReading(roomId, { beforeBillingMonth });
   const estimatedAverageBillPaise = await estimateRoomAverageBillPaise(
     roomId,
     baseline.ratePerUnitPaise,
