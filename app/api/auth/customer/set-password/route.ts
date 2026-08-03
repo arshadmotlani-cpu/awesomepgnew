@@ -8,6 +8,7 @@ import {
 } from '@/src/lib/auth/customer';
 import { authLog } from '@/src/lib/auth/authLog';
 import { validateCustomerPassword } from '@/src/lib/auth/password';
+import { getImpersonationCredentialBlock } from '@/src/lib/auth/impersonationGuards';
 import {
   completeSignupSession,
   getActiveSignupSessionForEmail,
@@ -46,6 +47,11 @@ export async function POST(request: Request) {
 
   const customerSession = await getCustomerSession();
   let signupSession = await readSignupSessionFromRequest();
+
+  const impersonationBlock = await getImpersonationCredentialBlock();
+  if (impersonationBlock.blocked && customerSession) {
+    return NextResponse.json({ ok: false, message: impersonationBlock.message }, { status: 403 });
+  }
 
   if (!signupSession && body.email) {
     const email = normaliseEmail(body.email);

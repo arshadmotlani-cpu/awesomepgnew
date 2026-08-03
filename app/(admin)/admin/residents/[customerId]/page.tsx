@@ -4,6 +4,7 @@ import { NotificationActionResolved } from '@/src/components/admin/NotificationA
 import { BedAssignmentWhatsAppButton } from '@/src/components/admin/BedAssignmentWhatsAppButton';
 import { RentUpdatedSuccessBanner } from '@/src/components/admin/RentUpdatedSuccessBanner';
 import { ResidentCommandCenter } from '@/src/components/admin/residents/command-center/ResidentCommandCenter';
+import { ResidentImpersonationPanel } from '@/src/components/admin/residents/ResidentImpersonationPanel';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
@@ -12,6 +13,10 @@ import { evaluateNotificationDeepLink } from '@/src/lib/admin/notificationDeepLi
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 import { loadResidentCommandCenter } from '@/src/services/residentCommandCenter';
 import { listAssignableBeds } from '@/src/services/tenantAssignment';
+import {
+  listImpersonationAuditForCustomer,
+  residentPortalUrl,
+} from '@/src/lib/auth/impersonation';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,6 +87,10 @@ export default async function ResidentDetailPage({
   }
 
   const { customer, activeTenancy } = data;
+  const isSuperAdmin = session.role === 'super_admin';
+  const impersonationAudit = isSuperAdmin
+    ? await listImpersonationAuditForCustomer(customerId, 30)
+    : [];
 
   return (
     <>
@@ -161,6 +170,21 @@ export default async function ResidentDetailPage({
               bedCode={activeTenancy.bedCode}
             />
           </div>
+        </div>
+      ) : null}
+
+      {isSuperAdmin ? (
+        <div className="mb-6">
+          <ResidentImpersonationPanel
+            customerId={customer.id}
+            customerName={customer.fullName}
+            portalUrl={residentPortalUrl()}
+            auditRows={impersonationAudit.map((row) => ({
+              ...row,
+              startedAt: row.startedAt.toISOString(),
+              endedAt: row.endedAt?.toISOString() ?? null,
+            }))}
+          />
         </div>
       ) : null}
 

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
+import { redirect } from 'next/navigation';
 import { CustomerChangePasswordForm } from '@/src/components/auth/CustomerChangePasswordForm';
 import { LogoutButton } from '@/src/components/auth/LogoutButton';
 import {
@@ -7,12 +8,18 @@ import {
   ACCOUNT_PAGE_TITLE,
 } from '@/src/components/customer/accountStyles';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
+import { getActiveImpersonationContext } from '@/src/lib/auth/impersonation';
+import { ACCOUNT_RESIDENT_HREF } from '@/src/lib/accountNavigation';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'Change password' };
 
 export default async function CustomerChangePasswordPage() {
+  const impersonating = await getActiveImpersonationContext();
+  if (impersonating) {
+    redirect(`${ACCOUNT_RESIDENT_HREF}&blocked=credentials`);
+  }
   const session = await requireCustomerSession('/account/change-password');
 
   return (

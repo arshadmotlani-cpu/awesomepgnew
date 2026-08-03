@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
 import { listActiveCustomerSessions } from '@/src/lib/auth/customerSessions';
+import { getImpersonationCredentialBlock } from '@/src/lib/auth/impersonationGuards';
 import { destroyAllCustomerSessions, getCustomerSession } from '@/src/lib/auth/session';
 
 export async function GET() {
   const session = await getCustomerSession();
   if (!session) {
     return NextResponse.json({ ok: false, message: 'Sign in required.' }, { status: 401 });
+  }
+
+  const impersonationBlock = await getImpersonationCredentialBlock();
+  if (impersonationBlock.blocked) {
+    return NextResponse.json({ ok: false, message: impersonationBlock.message }, { status: 403 });
   }
 
   const sessions = await listActiveCustomerSessions(session.customerId, session.sessionId);
@@ -31,6 +37,11 @@ export async function POST(request: Request) {
   const session = await getCustomerSession();
   if (!session) {
     return NextResponse.json({ ok: false, message: 'Sign in required.' }, { status: 401 });
+  }
+
+  const impersonationBlock = await getImpersonationCredentialBlock();
+  if (impersonationBlock.blocked) {
+    return NextResponse.json({ ok: false, message: impersonationBlock.message }, { status: 403 });
   }
 
   let body: { action?: string };

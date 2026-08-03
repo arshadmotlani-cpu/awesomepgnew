@@ -1,5 +1,7 @@
 export const CUSTOMER_SESSION_COOKIE = 'apg_customer_session';
 export const ADMIN_SESSION_COOKIE = 'apg_admin_session';
+/** Active super-admin resident impersonation row id — pairs with customer session cookie. */
+export const IMPERSONATION_COOKIE = 'apg_impersonation';
 /** Temporary signup state cookie — user row is created only after password is set. */
 export const SIGNUP_SESSION_COOKIE = 'apg_signup_session';
 

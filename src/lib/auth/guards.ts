@@ -9,6 +9,7 @@ import {
   type CustomerSession,
 } from './session';
 import { adminHasPermission, type AdminPermission } from './roles';
+import { getActiveImpersonationContext } from './impersonation';
 
 export async function requireCustomerSession(
   next?: string,
@@ -19,7 +20,8 @@ export async function requireCustomerSession(
     const dest = next ? `/login?next=${encodeURIComponent(next)}` : '/login';
     redirect(dest);
   }
-  if (session.mustSetPassword && !opts?.allowPasswordSetup) {
+  const impersonating = await getActiveImpersonationContext();
+  if (session.mustSetPassword && !opts?.allowPasswordSetup && !impersonating) {
     const q = next ? `?next=${encodeURIComponent(next)}` : '';
     redirect(`/account/set-password${q}`);
   }
@@ -53,6 +55,15 @@ export async function requireAdminPermission(
   const session = await requireAdminSession();
   if (!adminHasPermission(session.role, permission)) {
     throw new Error('You do not have permission to perform this action.');
+  }
+  return session;
+}
+
+/** Super Admin only — resident impersonation and related debug tooling. */
+export async function requireSuperAdmin(next?: string): Promise<AdminSession> {
+  const session = await requireAdminSession(next);
+  if (session.role !== 'super_admin') {
+    throw new Error('Only Super Admin can perform this action.');
   }
   return session;
 }

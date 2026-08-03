@@ -256,17 +256,39 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-03 08:45:16 UTC
+### Pending pre-commit sync · 2026-08-03 09:00:25 UTC
 
-**Areas touched:** [[ROUTES]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Auth]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `DATABASE.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
-**Staged code files (1):**
-- `app/api/customer/payment-screenshot/route.ts`
+**Staged code files (21):**
+- `app/(admin)/admin/residents/[customerId]/impersonation-actions.ts`
+- `app/(admin)/admin/residents/[customerId]/page.tsx`
+- `app/(customer)/account/change-password/page.tsx`
+- `app/(customer)/account/set-password/page.tsx`
+- `app/(customer)/layout.tsx`
+- `app/api/admin/impersonation/end/route.ts`
+- `app/api/admin/impersonation/start/route.ts`
+- `app/api/admin/impersonation/status/route.ts`
+- `app/api/auth/customer/change-password/route.ts`
+- `app/api/auth/customer/sessions/route.ts`
+- `app/api/auth/customer/set-password/route.ts`
+- `app/api/auth/logout/route.ts`
+- `src/db/migrations/0139_admin_resident_impersonations.sql`
+- `src/db/schema/adminResidentImpersonations.ts`
+- `src/db/schema/index.ts`
+- `src/lib/auth/constants.ts`
+- `src/lib/auth/guards.ts`
+- `src/lib/auth/impersonation.ts`
+- `src/lib/auth/impersonationGuards.ts`
+- `src/lib/auth/impersonationPolicy.ts`
+- `src/lib/auth/session.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

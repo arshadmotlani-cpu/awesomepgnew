@@ -2,12 +2,18 @@ import { NextResponse } from 'next/server';
 import { findCustomerByEmail, setCustomerPassword } from '@/src/lib/auth/customer';
 import { verifyPassword } from '@/src/lib/auth/crypto';
 import { validateCustomerPassword } from '@/src/lib/auth/password';
+import { getImpersonationCredentialBlock } from '@/src/lib/auth/impersonationGuards';
 import { destroyAllCustomerSessions, getCustomerSession } from '@/src/lib/auth/session';
 
 export async function POST(request: Request) {
   const session = await getCustomerSession();
   if (!session) {
     return NextResponse.json({ ok: false, message: 'Sign in required.' }, { status: 401 });
+  }
+
+  const impersonationBlock = await getImpersonationCredentialBlock();
+  if (impersonationBlock.blocked) {
+    return NextResponse.json({ ok: false, message: impersonationBlock.message }, { status: 403 });
   }
   if (session.mustSetPassword) {
     return NextResponse.json(

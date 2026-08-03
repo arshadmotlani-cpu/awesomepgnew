@@ -6,8 +6,10 @@ import { SiteFooter } from '@/src/components/customer/SiteFooter';
 import { SiteHeader } from '@/src/components/customer/SiteHeader';
 import { WhatsAppSupportButton } from '@/src/components/customer/WhatsAppSupportButton';
 import { getCustomerSession } from '@/src/lib/auth/session';
+import { getActiveImpersonationContext } from '@/src/lib/auth/impersonation';
 import { readSignupSessionFromRequest } from '@/src/lib/auth/signupSession';
 import { safeNext } from '@/src/lib/auth/safeNext';
+import { ACCOUNT_RESIDENT_HREF } from '@/src/lib/accountNavigation';
 
 export const metadata = {
   title: 'Create password',
@@ -23,6 +25,11 @@ export default async function CustomerSetPasswordPage({
 }) {
   const sp = await searchParams;
   const next = safeNext(sp.next);
+
+  const impersonating = await getActiveImpersonationContext();
+  if (impersonating) {
+    redirect(ACCOUNT_RESIDENT_HREF);
+  }
 
   const customerSession = await getCustomerSession();
   const signupSession = await readSignupSessionFromRequest();

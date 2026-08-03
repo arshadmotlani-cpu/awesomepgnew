@@ -102,10 +102,12 @@ export async function createCustomerSession(args: {
   rememberMe?: boolean;
   ip?: string | null;
   userAgent?: string | null;
+  /** Fixed expiry for impersonation sessions — skips remember-me TTL. */
+  expiresAt?: Date;
 }): Promise<string> {
   const rememberMe = args.rememberMe ?? true;
   const token = randomToken();
-  const expires = customerExpiryFor(rememberMe);
+  const expires = args.expiresAt ?? customerExpiryFor(rememberMe);
   await db.insert(authSessions).values({
     kind: 'customer',
     subjectId: args.customerId,
@@ -326,13 +328,32 @@ export const getCustomerSession = cache(async (): Promise<CustomerSession | null
     cookiePresent: true,
   });
   try {
-    const expiresAt = await refreshCustomerSessionIfNeeded({
-      sessionId,
-      expiresAt: initialExpiresAt,
-      lastSeenAt,
-      rememberMe,
-      token,
-    });
+    let expiresAt = initialExpiresAt;
+    const impersonating = await (async () => {
+      try {
+        const { isImpersonationCustomerSession } = await import('@/src/lib/auth/impersonation');
+        return isImpersonationCustomerSession(sessionId);
+      } catch {
+        return false;
+      }
+    })();
+
+    if (!impersonating) {
+      expiresAt = await refreshCustomerSessionIfNeeded({
+        sessionId,
+        expiresAt: initialExpiresAt,
+        lastSeenAt,
+        rememberMe,
+        token,
+      });
+    } else {
+      authSessionDebug('customer_session_validate_ok', {
+        sessionId,
+        refreshed: false,
+        impersonation: true,
+        expiresAt: initialExpiresAt.toISOString(),
+      });
+    }
 
     async function loadCustomer() {
       const [customer] = await db
