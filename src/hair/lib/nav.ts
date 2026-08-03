@@ -3,8 +3,6 @@ import {
   type HairPagePermission,
   type PermissionAdmin,
 } from '@/src/hair/lib/auth/permissionTypes';
-
-/** Serializable icon key — resolved to Lucide components in client HairSidebar only. */
 export type HairNavIconKey =
   | 'layout-dashboard'
   | 'users'
@@ -41,11 +39,16 @@ export type HairNavEntry = HairNavLink | HairNavGroup;
 
 export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
   {
-    type: 'link',
-    href: '/dashboard',
+    type: 'group',
+    id: 'dashboard',
     label: 'Dashboard',
     iconKey: 'layout-dashboard',
+    defaultExpanded: true,
     permission: 'page:dashboard',
+    children: [
+      { href: '/dashboard/revenue', label: 'Revenue Dashboard' },
+      { href: '/dashboard/staff-performance', label: 'Staff Performance' },
+    ],
   },
   {
     type: 'link',
@@ -69,7 +72,6 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
     defaultExpanded: true,
     permission: 'page:billing',
     children: [
-      { href: '/billing', label: 'Overview' },
       { href: '/billing/invoices', label: 'Invoices' },
     ],
   },

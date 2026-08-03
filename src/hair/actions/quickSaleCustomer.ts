@@ -32,7 +32,7 @@ export async function createQuickCustomerFromForm(
 
     const row = await createCustomerQuick({ fullName, phone, gender });
     revalidatePath('/customers');
-    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/revenue');
 
     return {
       ok: true,

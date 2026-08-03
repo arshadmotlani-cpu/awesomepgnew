@@ -18,10 +18,11 @@ function TrendChip({ pct, label }: { pct: number | null | undefined; label?: str
   );
 }
 
-export function OwnerKpiStrip({ kpis }: { kpis: OwnerKpi[] }) {
+export function OwnerKpiStrip({ kpis }: { kpis: OwnerKpi[] | undefined }) {
+  const rows = kpis ?? [];
   return (
     <div className="grid grid-cols-2 gap-3 xl:grid-cols-3 2xl:grid-cols-6">
-      {kpis.map((kpi) => (
+      {rows.map((kpi) => (
         <div key={kpi.id} className="space-y-2">
           <OverviewStatCard
             label={kpi.label}

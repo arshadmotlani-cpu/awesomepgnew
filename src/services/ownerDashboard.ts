@@ -89,10 +89,12 @@ function opsCount(
 
 function outstandingByPg(ctx: OverviewReportingSnapshot): Map<string, number> {
   const map = new Map<string, number>();
-  for (const row of ctx.invoiceSnapshot.rentWaiting) {
+  const rentWaiting = ctx.invoiceSnapshot?.rentWaiting ?? [];
+  const electricityWaiting = ctx.invoiceSnapshot?.electricityWaiting ?? [];
+  for (const row of rentWaiting) {
     map.set(row.pgId, (map.get(row.pgId) ?? 0) + row.outstandingPaise);
   }
-  for (const row of ctx.invoiceSnapshot.electricityWaiting) {
+  for (const row of electricityWaiting) {
     map.set(row.pgId, (map.get(row.pgId) ?? 0) + row.outstandingPaise);
   }
   return map;
@@ -288,32 +290,32 @@ export function buildOwnerDashboard(
     },
   ].filter((a) => a.count > 0);
 
-  const pgCards = buildPgCards(r.byPg, outstandingMap, month, sparklines);
+  const pgCards = buildPgCards(r.byPg ?? [], outstandingMap, month, sparklines);
 
   return {
     billingMonth: month,
     monthLabel: ctx.monthLabel,
     kpis,
     revenueComposition: {
-      rentPaise: r.mtd.rentPaise,
-      electricityPaise: r.mtd.electricityPaise,
-      lateFeePaise: r.mtd.lateFeePaise,
-      otherIncomePaise: r.mtd.otherIncomePaise,
+      rentPaise: r.mtd?.rentPaise ?? 0,
+      electricityPaise: r.mtd?.electricityPaise ?? 0,
+      lateFeePaise: r.mtd?.lateFeePaise ?? 0,
+      otherIncomePaise: r.mtd?.otherIncomePaise ?? 0,
     },
     collectionStatus,
     collectionRatePct: rateNow,
     collectionRateDeltaPct: rateDelta,
-    revenueByPg: r.byPg,
+    revenueByPg: r.byPg ?? [],
     occupancyDistribution: {
       occupied: occupiedBeds,
       vacant: exec?.vacantBeds ?? d?.availableBeds ?? 0,
       reserved: exec?.reservedBeds ?? 0,
       maintenance: d?.maintenanceBeds ?? 0,
-      moveOut: ctx.moveOutPipeline.counts.bedsReleasing30Days,
+      moveOut: ctx.moveOutPipeline?.counts?.bedsReleasing30Days ?? 0,
     },
     pgCards,
     actions,
-    pgIds: r.byPg.map((row) => row.pgId),
+    pgIds: (r.byPg ?? []).map((row) => row.pgId),
     trends,
   };
 }

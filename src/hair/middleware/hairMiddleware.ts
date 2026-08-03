@@ -27,7 +27,7 @@ export function hairMiddleware(request: NextRequest): NextResponse {
 
   if (pathname === '/login' || pathname === '/auth/login') {
     if (hasSession) {
-      return NextResponse.redirect(new URL('/dashboard', request.url));
+      return NextResponse.redirect(new URL('/landing', request.url));
     }
     const rewrite = new URL('/fyh/auth/login', request.url);
     rewrite.search = request.nextUrl.search;
@@ -35,12 +35,12 @@ export function hairMiddleware(request: NextRequest): NextResponse {
   }
 
   if (pathname === '/') {
-    const dest = hasSession ? '/dashboard' : '/login';
+    const dest = hasSession ? '/landing' : '/login';
     return NextResponse.redirect(new URL(dest, request.url));
   }
 
   if (pathname === '/fyh/auth/login' && hasSession) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    return NextResponse.redirect(new URL('/landing', request.url));
   }
 
   if (isHairProtectedPath(pathname) && !hasSession) {

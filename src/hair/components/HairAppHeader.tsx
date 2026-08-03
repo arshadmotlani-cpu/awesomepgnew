@@ -40,13 +40,13 @@ export function HairAppHeader({ admin, navEntries }: HairAppHeaderProps) {
           <HairQuickActionsMenu />
 
           <Link
-            href="/dashboard"
+            href="/dashboard/revenue"
             className="hidden min-w-0 max-w-[10rem] shrink sm:block lg:max-w-[12rem]"
           >
             <FyhSidebarBrand className="!h-auto !border-0 !px-0 !py-0" />
           </Link>
           <Link
-            href="/dashboard"
+            href="/dashboard/revenue"
             className="fyh-display truncate text-sm font-semibold text-fyh-text sm:hidden"
           >
             For Your Hair

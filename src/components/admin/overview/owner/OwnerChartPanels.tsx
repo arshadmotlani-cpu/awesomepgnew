@@ -37,11 +37,12 @@ export function OwnerCollectionDonut({
   centerLabel,
   centerSub,
 }: {
-  slices: OwnerChartSlice[];
+  slices: OwnerChartSlice[] | undefined;
   centerLabel: string;
   centerSub?: string;
 }) {
-  const rows = slices.map((s) => ({
+  const sliceRows = slices ?? [];
+  const rows = sliceRows.map((s) => ({
     pgId: s.id,
     pgName: s.label,
     incomeTotalPaise: s.paise,
@@ -50,7 +51,7 @@ export function OwnerCollectionDonut({
   const active = built
     .map((b, i) => ({
       ...b,
-      color: slices[i]?.color ?? PG_INCOME_DONUT_PALETTE[i % PG_INCOME_DONUT_PALETTE.length],
+      color: sliceRows[i]?.color ?? PG_INCOME_DONUT_PALETTE[i % PG_INCOME_DONUT_PALETTE.length],
     }))
     .filter((s) => s.valuePaise > 0);
   const total = active.reduce((a, s) => a + s.valuePaise, 0) || 1;
@@ -81,6 +82,9 @@ export function OwnerCollectionDonut({
     <section className="rounded-xl border border-white/10 bg-[#1A1F27] p-5">
       <h3 className="text-sm font-semibold text-white">Collection status</h3>
       <p className="mt-1 text-xs text-apg-silver">Collected · pending · overdue (MTD view)</p>
+      {active.length === 0 ? (
+        <p className="mt-8 text-center text-sm text-apg-silver">No collection breakdown yet</p>
+      ) : (
       <div className="mt-4 flex flex-col items-center gap-4 sm:flex-row sm:items-start">
         <div className="relative shrink-0">
           <svg width={160} height={160} viewBox="0 0 160 160" aria-hidden>
@@ -107,6 +111,7 @@ export function OwnerCollectionDonut({
           ))}
         </ul>
       </div>
+      )}
     </section>
   );
 }
@@ -144,15 +149,19 @@ export function OwnerRevenueCompositionChart({
         ))}
       </div>
       <ul className="mt-4 space-y-2 text-xs">
-        {segments.map((s) => (
-          <li key={s.label} className="flex justify-between gap-2 text-apg-silver">
-            <span className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full" style={{ background: s.color }} />
-              {s.label}
-            </span>
-            <span className="tabular-nums text-white">{paiseToInr(s.paise)}</span>
-          </li>
-        ))}
+        {segments.length === 0 ? (
+          <li className="text-apg-silver">No revenue recorded this month</li>
+        ) : (
+          segments.map((s) => (
+            <li key={s.label} className="flex justify-between gap-2 text-apg-silver">
+              <span className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full" style={{ background: s.color }} />
+                {s.label}
+              </span>
+              <span className="tabular-nums text-white">{paiseToInr(s.paise)}</span>
+            </li>
+          ))
+        )}
       </ul>
     </section>
   );

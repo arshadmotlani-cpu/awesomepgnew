@@ -7,7 +7,7 @@ import { db } from '@/src/db/client';
 import { businessMetricsIndex } from '@/src/db/schema/businessMetricsIndex';
 import { addMonths, formatDate, parseDate } from '@/src/lib/dates';
 import { firstOfMonth } from '@/src/services/billing';
-import { getFinancialMetrics } from '@/src/services/financialMetricsEngine';
+import { getFinancialMetrics, type FinancialMetrics } from '@/src/services/financialMetricsEngine';
 
 export type OwnerRevenueTrendPoint = {
   billingMonth: string;
@@ -44,6 +44,54 @@ export type OwnerDashboardTrends = {
   priorMonthCollectionRatePct: number | null;
 };
 
+type FinRollup = {
+  rentPrincipalPaise: number;
+  electricityPaise: number;
+  lateFeePaise: number;
+  otherIncomePaise: number;
+  operatingRevenuePaise: number;
+  occupancyPct: number;
+  totalBeds: number;
+};
+
+const ZERO_FIN: FinRollup = {
+  rentPrincipalPaise: 0,
+  electricityPaise: 0,
+  lateFeePaise: 0,
+  otherIncomePaise: 0,
+  operatingRevenuePaise: 0,
+  occupancyPct: 0,
+  totalBeds: 0,
+};
+
+/** Exported for unit tests — tolerate legacy/partial Room OS snapshots. */
+export function finRollupFromSnapshot(snapshot: unknown): FinRollup | null {
+  if (!snapshot || typeof snapshot !== 'object') return null;
+  const raw = (snapshot as { financial?: Partial<FinRollup> }).financial;
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    rentPrincipalPaise: Number(raw.rentPrincipalPaise ?? 0),
+    electricityPaise: Number(raw.electricityPaise ?? 0),
+    lateFeePaise: Number(raw.lateFeePaise ?? 0),
+    otherIncomePaise: Number(raw.otherIncomePaise ?? 0),
+    operatingRevenuePaise: Number(raw.operatingRevenuePaise ?? 0),
+    occupancyPct: Number(raw.occupancyPct ?? 0),
+    totalBeds: Number(raw.totalBeds ?? 0),
+  };
+}
+
+function finRollupFromEngine(fin: FinancialMetrics): FinRollup {
+  return {
+    rentPrincipalPaise: fin.operating.rentPrincipalPaise,
+    electricityPaise: fin.operating.electricityPaise,
+    lateFeePaise: fin.operating.lateFeePaise,
+    otherIncomePaise: fin.operating.otherIncomePaise,
+    operatingRevenuePaise: fin.operating.operatingRevenuePaise,
+    occupancyPct: 0,
+    totalBeds: 0,
+  };
+}
+
 function monthLabel(billingMonth: string): string {
   const d = parseDate(billingMonth);
   return new Intl.DateTimeFormat('en-IN', { month: 'short', year: '2-digit' }).format(d);
@@ -58,6 +106,47 @@ function lastMonths(endBillingMonth: string, count: number): string[] {
   return months;
 }
 
+async function loadFinancialFallback(month: string): Promise<FinRollup> {
+  try {
+    const fin = await getFinancialMetrics(month);
+    return finRollupFromEngine(fin);
+  } catch (err) {
+    console.error('[owner-dashboard-trends] financial fallback failed', month, err);
+    return ZERO_FIN;
+  }
+}
+
+export function emptyOwnerDashboardTrends(
+  billingMonthInput: string,
+  pgIds: string[],
+): OwnerDashboardTrends {
+  const billingMonth = firstOfMonth(billingMonthInput);
+  const months = lastMonths(billingMonth, 12);
+  return {
+    billingMonth,
+    pgIds,
+    revenueTrend: months.map((month) => ({
+      billingMonth: month,
+      label: monthLabel(month),
+      rentPaise: 0,
+      electricityPaise: 0,
+      lateFeePaise: 0,
+      otherIncomePaise: 0,
+      operatingRevenuePaise: 0,
+      source: 'financial_engine' as const,
+    })),
+    occupancyTrend: months.map((month) => ({
+      billingMonth: month,
+      label: monthLabel(month),
+      occupancyPct: 0,
+      source: 'estimated' as const,
+    })),
+    revenueByPgMonth: months.slice(-6).map((month) => ({ billingMonth: month, byPg: {} })),
+    revenueMomPct: null,
+    priorMonthCollectionRatePct: null,
+  };
+}
+
 export async function loadOwnerDashboardTrends(
   billingMonthInput: string,
   pgIds: string[],
@@ -65,22 +154,33 @@ export async function loadOwnerDashboardTrends(
   const billingMonth = firstOfMonth(billingMonthInput);
   const months = lastMonths(billingMonth, 12);
 
-  const materialized =
-    pgIds.length > 0
-      ? await db
-          .select({
-            pgId: businessMetricsIndex.pgId,
-            billingMonth: businessMetricsIndex.billingMonth,
-            snapshot: businessMetricsIndex.snapshot,
-          })
-          .from(businessMetricsIndex)
-          .where(
-            and(
-              inArray(businessMetricsIndex.pgId, pgIds),
-              inArray(businessMetricsIndex.billingMonth, months),
-            ),
-          )
-      : [];
+  let materialized: Array<{
+    pgId: string;
+    billingMonth: string | Date;
+    snapshot: unknown;
+  }> = [];
+
+  try {
+    materialized =
+      pgIds.length > 0
+        ? await db
+            .select({
+              pgId: businessMetricsIndex.pgId,
+              billingMonth: businessMetricsIndex.billingMonth,
+              snapshot: businessMetricsIndex.snapshot,
+            })
+            .from(businessMetricsIndex)
+            .where(
+              and(
+                inArray(businessMetricsIndex.pgId, pgIds),
+                inArray(businessMetricsIndex.billingMonth, months),
+              ),
+            )
+        : [];
+  } catch (err) {
+    console.error('[owner-dashboard-trends] materialized query failed', err);
+    materialized = [];
+  }
 
   const byPgMonth = new Map<string, Map<string, OwnerPgMonthRevenue>>();
   const portfolioByMonth = new Map<
@@ -112,8 +212,10 @@ export async function loadOwnerDashboardTrends(
   }
 
   for (const row of materialized) {
+    const fin = finRollupFromSnapshot(row.snapshot);
+    if (!fin) continue;
+
     const monthKey = formatDate(parseDate(String(row.billingMonth)));
-    const fin = row.snapshot.financial;
     const pgMap = byPgMonth.get(monthKey);
     if (pgMap) {
       pgMap.set(row.pgId, { operatingRevenuePaise: fin.operatingRevenuePaise });
@@ -132,6 +234,15 @@ export async function loadOwnerDashboardTrends(
       agg.pgCount += 1;
     }
   }
+
+  const fallbackByMonth = new Map<string, FinRollup>();
+  const monthsNeedingFallback = months.filter((month) => (portfolioByMonth.get(month)?.pgCount ?? 0) === 0);
+
+  await Promise.all(
+    monthsNeedingFallback.map(async (month) => {
+      fallbackByMonth.set(month, await loadFinancialFallback(month));
+    }),
+  );
 
   const revenueTrend: OwnerRevenueTrendPoint[] = [];
   const occupancyTrend: OwnerOccupancyTrendPoint[] = [];
@@ -160,21 +271,21 @@ export async function loadOwnerDashboardTrends(
         source: 'room_os',
       });
     } else {
-      const fin = await getFinancialMetrics(month);
+      const fin = fallbackByMonth.get(month) ?? ZERO_FIN;
       revenueTrend.push({
         billingMonth: month,
         label: monthLabel(month),
-        rentPaise: fin.operating.rentPrincipalPaise,
-        electricityPaise: fin.operating.electricityPaise,
-        lateFeePaise: fin.operating.lateFeePaise,
-        otherIncomePaise: fin.operating.otherIncomePaise,
-        operatingRevenuePaise: fin.operating.operatingRevenuePaise,
+        rentPaise: fin.rentPrincipalPaise,
+        electricityPaise: fin.electricityPaise,
+        lateFeePaise: fin.lateFeePaise,
+        otherIncomePaise: fin.otherIncomePaise,
+        operatingRevenuePaise: fin.operatingRevenuePaise,
         source: 'financial_engine',
       });
       occupancyTrend.push({
         billingMonth: month,
         label: monthLabel(month),
-        occupancyPct: 0,
+        occupancyPct: fin.occupancyPct,
         source: 'estimated',
       });
     }
@@ -194,9 +305,9 @@ export async function loadOwnerDashboardTrends(
 
   let priorMonthCollectionRatePct: number | null = null;
   if (priorIdx >= 0) {
-    const priorFin = await getFinancialMetrics(months[priorIdx]!);
-    priorMonthCollectionRatePct =
-      priorFin.operating.operatingRevenuePaise > 0 ? 100 : 0;
+    const priorMonth = months[priorIdx]!;
+    const priorFin = fallbackByMonth.get(priorMonth) ?? (await loadFinancialFallback(priorMonth));
+    priorMonthCollectionRatePct = priorFin.operatingRevenuePaise > 0 ? 100 : 0;
   }
 
   return {

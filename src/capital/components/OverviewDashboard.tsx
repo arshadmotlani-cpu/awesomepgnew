@@ -16,10 +16,10 @@ import { Button } from '@/src/capital/components/ui/button';
 import { Input } from '@/src/capital/components/ui/input';
 import { currentMonthKey, shiftMonth } from '@/src/capital/lib/dashboardRange';
 import type { OverviewBundle } from '@/src/capital/services/overview';
-import type { getAnalyticsBundle } from '@/src/capital/services/analytics';
+import type { AnalyticsBundle } from '@/src/capital/services/analytics';
 import { cn } from '@/src/capital/lib/utils';
 
-type DashboardInsights = Awaited<ReturnType<typeof getAnalyticsBundle>>;
+type DashboardInsights = AnalyticsBundle;
 
 const RANGES = [
   { key: 'today', label: 'Today' },
@@ -127,6 +127,7 @@ export function OverviewDashboard({
 
   const monthCursor = bundle.range.month ?? currentMonthKey();
   const view = bundle.views.mine;
+  const monthlyProfit = view.monthlyProfit ?? [];
   const periodProfitLabel =
     bundle.range.key === 'month'
       ? 'This Month Profit'
@@ -271,12 +272,12 @@ export function OverviewDashboard({
         <div className="grid gap-4 lg:grid-cols-3">
           <div className="ac-glass-card p-3 sm:p-4">
             <p className="mb-2 text-xs font-medium text-ac-text-secondary">Monthly Profit</p>
-            {bundle.isFuture || view.monthlyProfit.length === 0 ? (
+            {bundle.isFuture || monthlyProfit.length === 0 ? (
               <p className="flex h-64 items-center justify-center text-sm text-ac-text-muted">
                 No profit data for this range.
               </p>
             ) : (
-              <MonthlyProfitBars data={view.monthlyProfit} label="My Profit" />
+              <MonthlyProfitBars data={monthlyProfit} label="My Profit" />
             )}
           </div>
           <div className="ac-glass-card p-3 sm:p-4">
@@ -368,7 +369,7 @@ export function OverviewDashboard({
               <div className="mb-2 flex items-baseline justify-between gap-2">
                 <p className="text-xs font-medium text-ac-text-secondary">Holding time</p>
                 <p className="text-sm font-semibold tabular-nums">
-                  {insights.insightKpis.averageHoldingDays} days avg
+                  {insights.insightKpis?.averageHoldingDays ?? 0} days avg
                 </p>
               </div>
               <HoldingLineChart data={insights.holdingTime} />

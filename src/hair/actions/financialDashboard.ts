@@ -25,7 +25,7 @@ export async function saveDailyClosingOpeningFloatAction(
     await requirePermission('page:dashboard');
     const paise = parseOpeningFloatPaise(String(formData.get('openingFloatRupees') ?? ''));
     await updateDailyClosingOpeningFloatPaise(paise);
-    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/revenue');
     return { success: 'Opening float saved for tomorrow' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to save opening float' };
@@ -41,7 +41,7 @@ export async function closeDailyRegisterAction(
     await requirePermission('page:dashboard');
     const paise = parseOpeningFloatPaise(String(formData.get('closingCashRupees') ?? ''));
     await updateDailyClosingOpeningFloatPaise(paise);
-    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/revenue');
     return { success: 'Day closed · opening float updated for tomorrow' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to close register' };

@@ -18,6 +18,7 @@ import {
   YAxis,
 } from 'recharts';
 import { formatInr } from '@/src/capital/lib/money';
+import { chartRows } from '@/src/capital/lib/chartRows';
 
 const tooltipStyle = {
   background: 'rgba(15,15,20,0.96)',
@@ -60,7 +61,8 @@ function moneyTip(rupees: unknown) {
   return formatInr(Math.round(Number(rupees) * 100));
 }
 
-function shortMonth(ym: string) {
+function shortMonth(ym: string | undefined | null) {
+  if (!ym) return '—';
   const [y, m] = ym.split('-');
   const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return `${names[Number(m) - 1] ?? m} ${y?.slice(2) ?? ''}`;
@@ -257,14 +259,16 @@ export function PurchasesVsSalesBars({
   purchases,
   sales,
 }: {
-  purchases: { month: string; valuePaise: number }[];
-  sales: { month: string; proceedsPaise: number }[];
+  purchases: { month: string; valuePaise: number }[] | undefined | null;
+  sales: { month: string; proceedsPaise: number }[] | undefined | null;
 }) {
   const chartData = useMemo(() => {
-    const purchaseMap = new Map(purchases.map((d) => [d.month, d.valuePaise]));
-    const salesMap = new Map(sales.map((d) => [d.month, d.proceedsPaise]));
+    const purchaseRows = chartRows(purchases);
+    const salesRows = chartRows(sales);
+    const purchaseMap = new Map(purchaseRows.map((d) => [d.month, d.valuePaise]));
+    const salesMap = new Map(salesRows.map((d) => [d.month, d.proceedsPaise]));
     const months = [
-      ...new Set([...purchases.map((d) => d.month), ...sales.map((d) => d.month)]),
+      ...new Set([...purchaseRows.map((d) => d.month), ...salesRows.map((d) => d.month)]),
     ].sort();
     return months.map((month) => ({
       month: shortMonth(month),
@@ -322,12 +326,12 @@ export function MonthlyProfitBars({
   data,
   label = 'Profit',
 }: {
-  data: { month: string; valuePaise: number }[];
+  data: { month: string; valuePaise: number }[] | undefined | null;
   label?: string;
 }) {
   const chartData = useMemo(
     () =>
-      data.map((d) => ({
+      chartRows(data).map((d) => ({
         month: shortMonth(d.month),
         profit: d.valuePaise / 100,
       })),

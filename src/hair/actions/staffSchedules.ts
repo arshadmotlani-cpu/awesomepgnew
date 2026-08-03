@@ -26,7 +26,7 @@ export async function saveStaffDayScheduleAction(
     const endTime = formStr(formData, 'endTime') || '19:00';
     await saveStaffDaySchedule({ staffId, dayOfWeek, startTime, endTime, isOff });
     revalidatePath('/staff');
-    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/revenue');
     revalidatePath('/appointments');
     return { success: 'Schedule saved.' };
   } catch (e) {

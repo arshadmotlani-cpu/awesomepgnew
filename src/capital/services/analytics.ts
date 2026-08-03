@@ -444,7 +444,54 @@ export async function getVehiclePerformance() {
   return { best, worst };
 }
 
-export async function getAnalyticsInsightKpis() {
+export type AnalyticsInsightKpis = {
+  averageHoldingDays: number;
+  averageMyRoiBps: number;
+  staleInventoryCount: number;
+  repairSpendOnActivePaise: number;
+};
+
+export const EMPTY_ANALYTICS_INSIGHT_KPIS: AnalyticsInsightKpis = {
+  averageHoldingDays: 0,
+  averageMyRoiBps: 0,
+  staleInventoryCount: 0,
+  repairSpendOnActivePaise: 0,
+};
+
+export type AnalyticsBundle = {
+  cashFlow: Awaited<ReturnType<typeof getCashFlowChart>>;
+  roiTrend: Awaited<ReturnType<typeof getRoiTrendChart>>;
+  holdingTime: Awaited<ReturnType<typeof getHoldingTimeChart>>;
+  manufacturers: Awaited<ReturnType<typeof getManufacturerPerformance>>;
+  inventoryAgeing: Awaited<ReturnType<typeof getInventoryAgeing>>;
+  repairTrends: Awaited<ReturnType<typeof getRepairTrends>>;
+  acquisition: Awaited<ReturnType<typeof getAcquisitionTrends>>;
+  profitDistribution: Awaited<ReturnType<typeof getProfitDistribution>>;
+  fuelPerformance: Awaited<ReturnType<typeof getFuelTypePerformance>>;
+  yearPerformance: Awaited<ReturnType<typeof getYearPerformance>>;
+  vehiclePerformance: Awaited<ReturnType<typeof getVehiclePerformance>>;
+  insightKpis: AnalyticsInsightKpis;
+};
+
+/** Normalize SSR payload so client charts never receive undefined series. */
+export function normalizeAnalyticsBundle(raw: Partial<AnalyticsBundle> | null | undefined): AnalyticsBundle {
+  return {
+    cashFlow: raw?.cashFlow ?? [],
+    roiTrend: raw?.roiTrend ?? [],
+    holdingTime: raw?.holdingTime ?? [],
+    manufacturers: raw?.manufacturers ?? [],
+    inventoryAgeing: raw?.inventoryAgeing ?? [],
+    repairTrends: raw?.repairTrends ?? [],
+    acquisition: raw?.acquisition ?? [],
+    profitDistribution: raw?.profitDistribution ?? [],
+    fuelPerformance: raw?.fuelPerformance ?? [],
+    yearPerformance: raw?.yearPerformance ?? [],
+    vehiclePerformance: raw?.vehiclePerformance ?? { best: [], worst: [] },
+    insightKpis: raw?.insightKpis ?? EMPTY_ANALYTICS_INSIGHT_KPIS,
+  };
+}
+
+export async function getAnalyticsInsightKpis(): Promise<AnalyticsInsightKpis> {
   const [avgHolding] = await capitalDb
     .select({ avg: sql<number>`COALESCE(AVG(${acAssets.holdingDays}), 0)` })
     .from(acAssets)
@@ -473,7 +520,7 @@ export async function getAnalyticsInsightKpis() {
   };
 }
 
-export async function getAnalyticsBundle() {
+export async function getAnalyticsBundle(): Promise<AnalyticsBundle> {
   const [
     cashFlow,
     roiTrend,
@@ -501,7 +548,7 @@ export async function getAnalyticsBundle() {
     getVehiclePerformance(),
     getAnalyticsInsightKpis(),
   ]);
-  return {
+  return normalizeAnalyticsBundle({
     cashFlow,
     roiTrend,
     holdingTime,
@@ -514,5 +561,5 @@ export async function getAnalyticsBundle() {
     yearPerformance,
     vehiclePerformance,
     insightKpis,
-  };
+  });
 }

@@ -35,6 +35,7 @@ export const HAIR_PUBLIC_UNPROTECTED_PREFIXES = ['/i', '/invoice'] as const;
 
 /** Public path prefixes served on the For Your Hair host (browser URLs). */
 export const HAIR_PUBLIC_PREFIXES = [
+  '/landing',
   '/dashboard',
   '/customers',
   '/appointments',

@@ -116,7 +116,7 @@ export async function createCustomerAction(
     await requirePermission('page:customers');
     const customer = await createCustomer(parseCustomerForm(formData));
     revalidatePath('/customers');
-    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/revenue');
     redirect(`/customers/${customer.id}`);
   } catch (e) {
     if (e && typeof e === 'object' && 'digest' in e) throw e;
@@ -141,7 +141,7 @@ export async function updateCustomerAction(
     await updateCustomer(id, parseCustomerForm(formData));
     revalidatePath('/customers');
     revalidatePath(`/customers/${id}`);
-    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/revenue');
     return { success: 'Customer updated.' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to update customer' };
@@ -158,7 +158,7 @@ export async function archiveCustomerAction(
     if (!id) return { error: 'Missing customer id' };
     await archiveCustomer(id);
     revalidatePath('/customers');
-    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/revenue');
     redirect('/customers');
   } catch (e) {
     if (e && typeof e === 'object' && 'digest' in e) throw e;

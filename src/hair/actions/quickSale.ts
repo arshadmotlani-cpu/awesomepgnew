@@ -77,7 +77,7 @@ export async function completeQuickSaleAction(input: {
       appointmentId: input.appointmentId,
     });
     revalidatePath('/billing');
-    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/revenue');
     revalidatePath('/quick-sale');
     if (input.source === 'appointment' || input.appointmentId) {
       revalidatePath('/appointments');
@@ -119,7 +119,7 @@ export async function completeQuickSaleLegacyAction(input: {
     await requirePermission('action:billing.checkout');
     const invoiceId = await finalizeQuickSale(input);
     revalidatePath('/billing');
-    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/revenue');
     revalidatePath('/quick-sale');
     const detail = await getInvoiceDetail(invoiceId);
     const printHtml = detail ? buildInvoicePrintHtml(detail) : undefined;

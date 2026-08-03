@@ -10,10 +10,10 @@ export function RevenueMtdBarChart({
   rows,
   depositLabel = 'Deposits collected (liability)',
 }: {
-  rows: RevenueByPgRow[];
+  rows: RevenueByPgRow[] | undefined;
   depositLabel?: string;
 }) {
-  const top = [...rows].sort((a, b) => b.totalRevenuePaise - a.totalRevenuePaise).slice(0, 8);
+  const top = [...(rows ?? [])].sort((a, b) => b.totalRevenuePaise - a.totalRevenuePaise).slice(0, 8);
   const max = Math.max(1, ...top.map((r) => r.totalRevenuePaise));
 
   return (
@@ -22,6 +22,9 @@ export function RevenueMtdBarChart({
       <p className="mt-1 text-xs text-apg-silver">
         SSOT: revenue command center · {depositLabel} shown separately
       </p>
+      {top.length === 0 ? (
+        <p className="mt-8 text-center text-sm text-apg-silver">No PG revenue this month</p>
+      ) : (
       <ul className="mt-4 space-y-3">
         {top.map((row) => (
           <li key={row.pgId}>
@@ -51,6 +54,7 @@ export function RevenueMtdBarChart({
           </li>
         ))}
       </ul>
+      )}
       <div className="mt-4 flex flex-wrap gap-3 text-[10px] text-apg-silver">
         <span className="flex items-center gap-1">
           <span className="inline-block h-2 w-2 rounded-full bg-[#FF5A1F]" /> Rent

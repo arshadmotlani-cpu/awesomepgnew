@@ -50,7 +50,7 @@ export const PERMISSIONS_CATALOG: ReadonlyArray<{
   group: 'page' | 'action';
   description: string;
 }> = [
-  { key: 'page:dashboard', label: 'Dashboard', group: 'page', description: 'Salon overview' },
+  { key: 'page:dashboard', label: 'Dashboard', group: 'page', description: 'Live business intelligence dashboards' },
   { key: 'page:customers', label: 'Customers', group: 'page', description: 'CRM and profiles' },
   { key: 'page:appointments', label: 'Appointments', group: 'page', description: 'Calendar and booking' },
   { key: 'page:billing', label: 'Billing', group: 'page', description: 'Invoices and payments' },

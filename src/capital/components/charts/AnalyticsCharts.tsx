@@ -13,6 +13,7 @@ import {
   YAxis,
 } from 'recharts';
 import { formatInr, formatRupeesIndian } from '@/src/capital/lib/money';
+import { chartRows } from '@/src/capital/lib/chartRows';
 
 type ValuePoint = { month: string; valuePaise: number };
 type CashFlowPoint = { month: string; inflowPaise: number; outflowPaise: number };
@@ -20,8 +21,8 @@ type LabelPoint = { label: string; valuePaise: number };
 type CountPoint = { month: string; count: number };
 type HoldingPoint = { month: string; days: number };
 
-export function ValueBarChart({ data, label }: { data: ValuePoint[]; label: string }) {
-  const chartData = data.map((d) => ({ month: d.month, value: d.valuePaise / 100 }));
+export function ValueBarChart({ data, label }: { data: ValuePoint[] | undefined | null; label: string }) {
+  const chartData = chartRows(data).map((d) => ({ month: d.month, value: d.valuePaise / 100 }));
   if (chartData.length === 0) return <Empty />;
   return (
     <ChartWrap>
@@ -36,8 +37,8 @@ export function ValueBarChart({ data, label }: { data: ValuePoint[]; label: stri
   );
 }
 
-export function CashFlowChart({ data }: { data: CashFlowPoint[] }) {
-  const chartData = data.map((d) => ({
+export function CashFlowChart({ data }: { data: CashFlowPoint[] | undefined | null }) {
+  const chartData = chartRows(data).map((d) => ({
     month: d.month,
     inflow: d.inflowPaise / 100,
     outflow: d.outflowPaise / 100,
@@ -58,8 +59,8 @@ export function CashFlowChart({ data }: { data: CashFlowPoint[] }) {
   );
 }
 
-export function CategoryBarChart({ data }: { data: LabelPoint[] }) {
-  const chartData = data.map((d) => ({ label: d.label, value: d.valuePaise / 100 }));
+export function CategoryBarChart({ data }: { data: LabelPoint[] | undefined | null }) {
+  const chartData = chartRows(data).map((d) => ({ label: d.label, value: d.valuePaise / 100 }));
   if (chartData.length === 0) return <Empty />;
   return (
     <ChartWrap>
@@ -79,11 +80,12 @@ export function CategoryBarChart({ data }: { data: LabelPoint[] }) {
   );
 }
 
-export function CountLineChart({ data, label }: { data: CountPoint[]; label: string }) {
-  if (data.length === 0) return <Empty />;
+export function CountLineChart({ data, label }: { data: CountPoint[] | undefined | null; label: string }) {
+  const rows = chartRows(data);
+  if (rows.length === 0) return <Empty />;
   return (
     <ChartWrap>
-      <LineChart data={data}>
+      <LineChart data={rows}>
         <Grid />
         <XAxis dataKey="month" stroke="#71717A" fontSize={12} />
         <YAxis stroke="#71717A" fontSize={12} />
@@ -94,8 +96,12 @@ export function CountLineChart({ data, label }: { data: CountPoint[]; label: str
   );
 }
 
-export function RoiLineChart({ data }: { data: { month: string; myRoiBps?: number; roiBps?: number }[] }) {
-  const chartData = data.map((d) => ({
+export function RoiLineChart({
+  data,
+}: {
+  data: { month: string; myRoiBps?: number; roiBps?: number }[] | undefined | null;
+}) {
+  const chartData = chartRows(data).map((d) => ({
     month: d.month,
     mine: (d.myRoiBps ?? d.roiBps ?? 0) / 100,
   }));
@@ -113,11 +119,18 @@ export function RoiLineChart({ data }: { data: { month: string; myRoiBps?: numbe
   );
 }
 
-export function CountBarChart({ data, label }: { data: { label: string; count: number }[]; label: string }) {
-  if (data.length === 0) return <Empty />;
+export function CountBarChart({
+  data,
+  label,
+}: {
+  data: { label: string; count: number }[] | undefined | null;
+  label: string;
+}) {
+  const rows = chartRows(data);
+  if (rows.length === 0) return <Empty />;
   return (
     <ChartWrap>
-      <BarChart data={data}>
+      <BarChart data={rows}>
         <Grid />
         <XAxis dataKey="label" stroke="#71717A" fontSize={11} interval={0} angle={-20} textAnchor="end" height={60} />
         <YAxis stroke="#71717A" fontSize={12} allowDecimals={false} />
@@ -131,9 +144,9 @@ export function CountBarChart({ data, label }: { data: { label: string; count: n
 export function AcquisitionChart({
   data,
 }: {
-  data: { month: string; count: number; volumePaise: number }[];
+  data: { month: string; count: number; volumePaise: number }[] | undefined | null;
 }) {
-  const chartData = data.map((d) => ({
+  const chartData = chartRows(data).map((d) => ({
     month: d.month,
     count: d.count,
     volume: d.volumePaise / 100,
@@ -166,11 +179,12 @@ export function AcquisitionChart({
   );
 }
 
-export function HoldingLineChart({ data }: { data: HoldingPoint[] }) {
-  if (data.length === 0) return <Empty />;
+export function HoldingLineChart({ data }: { data: HoldingPoint[] | undefined | null }) {
+  const rows = chartRows(data);
+  if (rows.length === 0) return <Empty />;
   return (
     <ChartWrap>
-      <LineChart data={data}>
+      <LineChart data={rows}>
         <Grid />
         <XAxis dataKey="month" stroke="#71717A" fontSize={12} />
         <YAxis stroke="#71717A" fontSize={12} />

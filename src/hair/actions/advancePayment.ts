@@ -25,7 +25,7 @@ export async function submitAdvancePaymentAction(input: {
   try {
     await requirePermission('action:billing.checkout');
     const result = await recordAdvancePayment(input);
-    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/revenue');
     revalidatePath(`/customers/${input.customerId}`);
     revalidatePath('/advance-payment');
     return {

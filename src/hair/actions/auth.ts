@@ -7,7 +7,7 @@ import { hairDb } from '@/src/hair/db/client';
 import { fyhAdminUsers } from '@/src/hair/db/schema';
 import { HAIR_SESSION_COOKIE } from '@/src/hair/lib/auth/constants';
 import { verifyPassword } from '@/src/hair/lib/auth/crypto';
-import { requireHairHost, safeHairNextPath } from '@/src/hair/lib/auth/guards';
+import { requireHairHost, resolveDefaultLandingPath, safeHairNextPath } from '@/src/hair/lib/auth/guards';
 import { checkLoginRateLimit, resetLoginRateLimit } from '@/src/hair/lib/auth/loginRateLimit';
 import {
   createHairSession,
@@ -24,7 +24,7 @@ export async function loginAction(
   await requireHairHost();
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
   const password = String(formData.get('password') ?? '');
-  const next = String(formData.get('next') ?? '/dashboard');
+  const next = String(formData.get('next') ?? '');
   const rememberMe = String(formData.get('rememberMe') ?? '') === 'on';
 
   const hdrs = await headers();
@@ -61,7 +61,7 @@ export async function loginAction(
     .set({ lastLoginAt: new Date() })
     .where(eq(fyhAdminUsers.id, admin.id));
 
-  redirect(safeHairNextPath(next));
+  redirect(safeHairNextPath(next || resolveDefaultLandingPath(admin), admin));
 }
 
 export async function logoutAction(): Promise<void> {

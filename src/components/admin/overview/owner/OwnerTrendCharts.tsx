@@ -28,6 +28,10 @@ function formatInrPaise(paise: number) {
   return `₹${(paise / 100).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 }
 
+function trendRows<T>(rows: T[] | undefined | null): T[] {
+  return rows ?? [];
+}
+
 function ChartShell({
   title,
   subtitle,
@@ -46,8 +50,14 @@ function ChartShell({
   );
 }
 
-export function OwnerRevenueTrendChart({ points }: { points: OwnerRevenueTrendPoint[] }) {
-  const data = points.map((p) => ({
+function ChartEmpty({ message }: { message: string }) {
+  return (
+    <div className="flex h-full items-center justify-center text-sm text-apg-silver">{message}</div>
+  );
+}
+
+export function OwnerRevenueTrendChart({ points }: { points: OwnerRevenueTrendPoint[] | undefined }) {
+  const data = trendRows(points).map((p) => ({
     label: p.label,
     rent: p.rentPaise / 100,
     electricity: p.electricityPaise / 100,
@@ -58,9 +68,7 @@ export function OwnerRevenueTrendChart({ points }: { points: OwnerRevenueTrendPo
   if (!data.some((d) => d.rent + d.electricity + d.lateFee + d.other > 0)) {
     return (
       <ChartShell title="Revenue trend" subtitle="Last 12 months · operating revenue">
-        <div className="flex h-full items-center justify-center text-sm text-apg-silver">
-          No trend data yet
-        </div>
+        <ChartEmpty message="No trend data yet" />
       </ChartShell>
     );
   }
@@ -93,8 +101,20 @@ export function OwnerRevenueTrendChart({ points }: { points: OwnerRevenueTrendPo
   );
 }
 
-export function OwnerOccupancyTrendChart({ points }: { points: OwnerOccupancyTrendPoint[] }) {
-  const data = points.map((p) => ({ label: p.label, occupancy: p.occupancyPct }));
+export function OwnerOccupancyTrendChart({
+  points,
+}: {
+  points: OwnerOccupancyTrendPoint[] | undefined;
+}) {
+  const data = trendRows(points).map((p) => ({ label: p.label, occupancy: p.occupancyPct }));
+
+  if (!data.length || !data.some((d) => d.occupancy > 0)) {
+    return (
+      <ChartShell title="Occupancy trend" subtitle="Portfolio occupancy % · Room OS + fallback">
+        <ChartEmpty message="No occupancy trend data yet" />
+      </ChartShell>
+    );
+  }
 
   return (
     <ChartShell title="Occupancy trend" subtitle="Portfolio occupancy % · Room OS + fallback">
@@ -125,14 +145,15 @@ export function OwnerOccupancyTrendChart({ points }: { points: OwnerOccupancyTre
   );
 }
 
-export function OwnerPgSparkline({ values }: { values: number[] }) {
-  if (values.length === 0) {
+export function OwnerPgSparkline({ values }: { values: number[] | undefined }) {
+  const rows = trendRows(values);
+  if (rows.length === 0) {
     return <div className="h-8 w-full rounded bg-white/5" aria-hidden />;
   }
-  const max = Math.max(1, ...values);
+  const max = Math.max(1, ...rows);
   return (
     <div className="flex h-8 items-end gap-0.5" aria-hidden>
-      {values.map((v, i) => (
+      {rows.map((v, i) => (
         <div
           key={i}
           className="flex-1 rounded-sm bg-[#FF5A1F]/70"

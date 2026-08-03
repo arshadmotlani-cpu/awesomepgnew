@@ -112,13 +112,13 @@ export function OwnerDashboard({
           <h1 className="text-lg font-semibold text-white">Owner dashboard</h1>
           <p className="mt-1 text-sm text-apg-silver">{data.monthLabel} · portfolio health at a glance</p>
         </div>
-        {data.actions.length === 0 ? (
+        {(data.actions ?? []).length === 0 ? (
           <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-200">
             All clear
           </span>
         ) : (
           <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-200">
-            {data.actions.reduce((a, i) => a + i.count, 0)} items need attention
+            {(data.actions ?? []).reduce((a, i) => a + i.count, 0)} items need attention
           </span>
         )}
       </header>
@@ -153,13 +153,13 @@ export function OwnerDashboard({
       <section className="space-y-4">
         <h2 className="text-sm font-semibold text-white">PG performance</h2>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {data.pgCards.map((card) => (
+          {(data.pgCards ?? []).map((card) => (
             <OwnerPgCard key={card.pgId} card={card} />
           ))}
         </div>
       </section>
 
-      <OwnerActionCentre actions={data.actions} />
+      <OwnerActionCentre actions={data.actions ?? []} />
     </div>
   );
 }

@@ -45,7 +45,7 @@ export async function createAppointmentAction(
       createdByAdminId: session.id,
     });
     revalidatePath('/appointments');
-    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/revenue');
     revalidatePath(`/customers/${formStr(formData, 'customerId')}`);
     return { success: 'Appointment created', id };
   } catch (e) {
@@ -70,7 +70,7 @@ export async function rescheduleAppointmentAction(input: {
       resourceId: input.resourceId,
     });
     revalidatePath('/appointments');
-    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/revenue');
     return { success: 'Updated' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to reschedule' };
@@ -85,7 +85,7 @@ export async function setAppointmentStatusAction(
     await requirePermission('page:appointments');
     await updateAppointmentStatus(id, status);
     revalidatePath('/appointments');
-    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/revenue');
     return { success: `Marked ${status}` };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to update status' };
@@ -124,7 +124,7 @@ export async function payInvoiceAction(
     await recordInvoicePayments(invoiceId, payments, session.id);
     revalidatePath('/billing');
     revalidatePath('/appointments');
-    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/revenue');
     revalidatePath('/inventory');
     revalidatePath('/reports');
     revalidatePath('/staff');
