@@ -2,31 +2,31 @@
 
 :root,
 .fyh-theme-dark {
-  --fyh-bg-base: #0c1510;
-  --fyh-bg-elevated: #141f18;
-  --fyh-bg-surface: #1c2a22;
-  --fyh-bg-glass: rgba(28, 42, 34, 0.78);
-  --fyh-accent: #d4bc7a;
-  --fyh-accent-soft: #e2cf96;
-  --fyh-forest: #2a8a5c;
-  --fyh-forest-deep: #0f4a32;
-  --fyh-moss: #4a9468;
-  --fyh-success: #6ee0a8;
+  --fyh-bg-base: #0e0e11;
+  --fyh-bg-elevated: #121216;
+  --fyh-bg-surface: #16161a;
+  --fyh-bg-glass: rgba(22, 22, 26, 0.82);
+  --fyh-accent: #c9a227;
+  --fyh-accent-soft: #dbc56a;
+  --fyh-forest: #10b981;
+  --fyh-forest-deep: #059669;
+  --fyh-moss: #34d399;
+  --fyh-success: #10b981;
   --fyh-warning: #e8c066;
-  --fyh-danger: #f09080;
-  --fyh-text-primary: #f7f6f2;
-  --fyh-text-secondary: #d7d4cb;
-  --fyh-text-muted: #b8b2a5;
-  --fyh-border: rgba(212, 188, 122, 0.28);
-  --fyh-border-strong: rgba(212, 188, 122, 0.42);
-  --fyh-border-hover: rgba(212, 188, 122, 0.55);
-  --fyh-glow: rgba(42, 138, 92, 0.38);
+  --fyh-danger: #f87171;
+  --fyh-text-primary: #f5f5f0;
+  --fyh-text-secondary: #c8c8c0;
+  --fyh-text-muted: #8a8a82;
+  --fyh-border: rgba(255, 255, 255, 0.08);
+  --fyh-border-strong: rgba(255, 255, 255, 0.12);
+  --fyh-border-hover: rgba(255, 255, 255, 0.18);
+  --fyh-glow: rgba(16, 185, 129, 0.12);
   --fyh-control-h: 2.5rem;
   --fyh-radius: 0.875rem;
   --fyh-radius-lg: 1rem;
-  --fyh-nav-active-bg: rgba(42, 138, 92, 0.32);
-  --fyh-table-stripe: rgba(255, 255, 255, 0.04);
-  --fyh-table-hover: rgba(42, 138, 92, 0.14);
+  --fyh-nav-active-bg: rgba(16, 185, 129, 0.14);
+  --fyh-table-stripe: rgba(255, 255, 255, 0.03);
+  --fyh-table-hover: rgba(255, 255, 255, 0.06);
 }
 
 .fyh-theme-light {
@@ -82,16 +82,15 @@
 }
 
 .fyh-display {
-  font-family: var(--font-fyh-display), ui-serif, Georgia, serif;
+  font-family: var(--font-fyh-sans), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.02em;
 }
 
 .fyh-forest-bg {
   background-color: var(--fyh-bg-base);
   background-image:
-    radial-gradient(ellipse at 15% 20%, var(--fyh-glow), transparent 55%),
-    radial-gradient(ellipse at 85% 10%, rgba(196, 163, 90, 0.12), transparent 45%),
-    radial-gradient(ellipse at 50% 100%, rgba(13, 61, 42, 0.45), transparent 55%),
-    linear-gradient(165deg, var(--fyh-bg-base) 0%, var(--fyh-forest-deep) 48%, var(--fyh-bg-base) 100%);
+    radial-gradient(ellipse at 20% 0%, rgba(16, 185, 129, 0.06), transparent 50%),
+    radial-gradient(ellipse at 80% 100%, rgba(201, 162, 39, 0.04), transparent 45%);
 }
 
 .fyh-glass {
@@ -231,10 +230,10 @@
 }
 
 .fyh-card-title {
-  font-family: var(--font-fyh-display), ui-serif, Georgia, serif;
-  font-size: 1.125rem;
+  font-family: var(--font-fyh-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.0625rem;
   font-weight: 600;
-  letter-spacing: 0.01em;
+  letter-spacing: -0.01em;
   color: var(--fyh-text-primary);
 }
 
@@ -255,12 +254,29 @@
 }
 
 .fyh-kpi-value {
-  font-family: var(--font-fyh-display), ui-serif, Georgia, serif;
-  font-size: clamp(1.75rem, 2.5vw, 2.5rem);
+  font-family: var(--font-fyh-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(1.875rem, 2.8vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: var(--fyh-text-primary);
+}
+
+.fyh-kpi-hero {
+  font-family: var(--font-fyh-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(2rem, 3.2vw, 3rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--fyh-text-primary);
+}
+
+.fyh-metric-xl {
+  font-family: var(--font-fyh-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.75rem;
   font-weight: 700;
   line-height: 1.1;
   letter-spacing: -0.02em;
-  color: var(--fyh-text-primary);
 }
 
 .fyh-kpi-value-accent {
@@ -268,11 +284,25 @@
 }
 
 .fyh-metric-value {
-  font-family: var(--font-fyh-display), ui-serif, Georgia, serif;
+  font-family: var(--font-fyh-sans), ui-sans-serif, system-ui, sans-serif;
   font-size: 1.5rem;
   font-weight: 700;
   line-height: 1.15;
   color: var(--fyh-text-primary);
+}
+
+.fyh-dashboard-card {
+  background: var(--fyh-bg-surface);
+  border: 1px solid var(--fyh-border);
+  border-radius: var(--fyh-radius-lg);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.fyh-chart-panel {
+  background: var(--fyh-bg-surface);
+  border: 1px solid var(--fyh-border);
+  border-radius: var(--fyh-radius-lg);
+  padding: 1.25rem;
 }
 
 /* ——— Buttons ——— */
@@ -343,7 +373,7 @@
   color: var(--fyh-text-primary);
   font-weight: 600;
   background: var(--fyh-nav-active-bg);
-  box-shadow: inset 3px 0 0 var(--fyh-accent);
+  box-shadow: inset 3px 0 0 var(--fyh-forest);
 }
 
 .fyh-nav-sublink {
@@ -363,7 +393,7 @@
 .fyh-nav-sublink-active {
   color: var(--fyh-text-primary);
   font-weight: 600;
-  background: rgba(42, 138, 92, 0.18);
+  background: rgba(16, 185, 129, 0.12);
 }
 
 /* ——— Tables (all FYH data tables) ——— */
@@ -405,6 +435,77 @@
 
 .fyh-root table tbody tr:hover {
   background: var(--fyh-table-hover);
+}
+
+.fyh-root input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.fyh-root input[type='number']::-webkit-outer-spin-button,
+.fyh-root input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* ——— Quick Sale sections ——— */
+.qs-section {
+  background: var(--fyh-bg-surface);
+  border: 1px solid var(--fyh-border);
+  border-radius: var(--fyh-radius-lg);
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.32);
+  padding: 1.25rem;
+}
+
+.qs-section-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fyh-text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.qs-catalog-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  transition: background 0.12s;
+}
+
+.qs-catalog-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.qs-staff-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 9999px;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: rgba(201, 162, 39, 0.12);
+  border: 1px solid rgba(201, 162, 39, 0.28);
+  color: var(--fyh-text-primary);
+}
+
+.qs-catalog-row .qs-catalog-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: fit-content;
+}
+
+.qs-catalog-row .qs-catalog-price {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--fyh-forest);
+  white-space: nowrap;
 }
 
 .fyh-table-compact thead th {

@@ -57,52 +57,63 @@ export function QuickSalePaymentPanel({
   );
 
   return (
-    <div className="space-y-4 rounded-xl border border-[color:var(--fyh-border)] bg-black/10 p-4">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-fyh-text">Payment</h3>
-        <span className="text-sm tabular-nums text-fyh-text-muted">
-          Remaining{' '}
-          <span className="font-medium text-fyh-text">
-            {formatInrFromPaise(summary.remaining)}
-          </span>
-        </span>
+    <div className="space-y-5">
+      <div className="rounded-xl border border-[color:var(--fyh-border)] bg-black/20 p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-fyh-text-muted">Remaining</p>
+        <p className="fyh-kpi-hero mt-1 text-fyh-forest">{formatInrFromPaise(summary.remaining)}</p>
+        <p className="mt-2 text-xs text-fyh-text-muted">
+          Paid {formatInrFromPaise(summary.paid)} of {formatInrFromPaise(grandTotalPaise)}
+        </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Input
-          type="number"
-          min={0}
-          step={1}
-          placeholder="Amount ₹"
-          value={draftAmount}
-          onChange={(e) => setDraftAmount(e.target.value)}
-          className="h-10 w-32"
-        />
-        <select
-          value={draftMethod}
-          onChange={(e) => setDraftMethod(e.target.value as PaymentMethod)}
-          className="h-10 rounded-lg border border-[color:var(--fyh-border)] bg-black/20 px-3 text-sm"
-        >
-          {METHODS.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.label}
-            </option>
-          ))}
-        </select>
-        <Button type="button" variant="secondary" onClick={addPayment}>
-          Add Payment
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="min-w-[7rem] flex-1">
+          <label className="mb-1 block text-xs font-medium text-fyh-text-muted">Amount ₹</label>
+          <Input
+            inputMode="decimal"
+            placeholder="0"
+            value={draftAmount}
+            onChange={(e) => setDraftAmount(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addPayment();
+              }
+            }}
+            className="h-11"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-fyh-text-muted">Method</label>
+          <select
+            value={draftMethod}
+            onChange={(e) => setDraftMethod(e.target.value as PaymentMethod)}
+            className="fyh-select h-11 min-w-[6rem]"
+          >
+            {METHODS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <Button type="button" variant="secondary" className="h-11" onClick={addPayment}>
+          Add payment
         </Button>
       </div>
 
       {payments.length > 0 ? (
-        <ul className="space-y-1 text-sm">
+        <ul className="space-y-2 text-sm">
           {payments.map((p) => (
-            <li key={p.id} className="flex items-center justify-between gap-2">
-              <span className="capitalize text-fyh-text-secondary">{p.method}</span>
-              <span className="tabular-nums">{formatInrFromPaise(p.amountPaise)}</span>
+            <li
+              key={p.id}
+              className="flex items-center justify-between gap-2 rounded-lg border border-[color:var(--fyh-border)] bg-black/15 px-3 py-2"
+            >
+              <span className="capitalize font-medium text-fyh-text-secondary">{p.method}</span>
+              <span className="tabular-nums font-semibold">{formatInrFromPaise(p.amountPaise)}</span>
               <button
                 type="button"
-                className="text-xs text-fyh-danger"
+                className="text-xs text-fyh-danger hover:underline"
                 onClick={() => onChangePayments(payments.filter((x) => x.id !== p.id))}
               >
                 Remove
@@ -113,7 +124,7 @@ export function QuickSalePaymentPanel({
       ) : null}
 
       {canAdvance ? (
-        <label className="flex items-center gap-2 text-sm text-blue-400">
+        <label className="flex items-center gap-2 text-sm text-fyh-text-secondary">
           <input
             type="checkbox"
             checked={flags.creditOverpayAsAdvance ?? false}
@@ -121,7 +132,7 @@ export function QuickSalePaymentPanel({
               onChangeFlags({ ...flags, creditOverpayAsAdvance: e.target.checked })
             }
           />
-          Mark remaining as Advance ({formatInrFromPaise(summary.overpay)})
+          Mark overpay as advance ({formatInrFromPaise(summary.overpay)})
         </label>
       ) : null}
 
@@ -130,20 +141,18 @@ export function QuickSalePaymentPanel({
           <Button
             type="button"
             variant="secondary"
-            size="sm"
+            className="h-11 flex-1 sm:flex-none"
             onClick={() => onChangeFlags({ ...flags, markDue: true, markFullDue: false })}
           >
-            Mark as Due ({formatInrFromPaise(summary.remaining)})
+            Mark as due ({formatInrFromPaise(summary.remaining)})
           </Button>
           <Button
             type="button"
             variant="ghost"
-            size="sm"
-            onClick={() =>
-              onChangeFlags({ ...flags, markFullDue: true, markDue: false })
-            }
+            className="h-11 flex-1 sm:flex-none"
+            onClick={() => onChangeFlags({ ...flags, markFullDue: true, markDue: false })}
           >
-            Mark Full Due
+            Mark full due
           </Button>
         </div>
       ) : null}

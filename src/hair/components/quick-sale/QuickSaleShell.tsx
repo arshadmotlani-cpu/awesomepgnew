@@ -22,13 +22,19 @@ import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { inferQuickSaleCustomerPrefill } from '@/src/hair/lib/quickSaleCustomerPrefill';
+import {
+  clearQuickSaleSession,
+  loadQuickSaleSession,
+  saveQuickSaleSession,
+  type QuickSaleTab,
+} from '@/src/hair/lib/quickSaleSession';
 import type { AppointmentCheckoutPrefill } from '@/src/hair/domain/basket/appointmentBridge';
 import type { PosCustomerHit } from '@/src/hair/services/quickSale';
 import type { QuickSaleHoldSummary } from '@/src/hair/services/quickSaleHold';
 import type { FyhBillingSettings } from '@/src/hair/db/schema/settings';
 
 type SelectedCustomer = PosCustomerHit;
-type TabFilter = BillableItemType | 'all';
+type TabFilter = QuickSaleTab;
 
 function normalizePhoneDigits(phone: string) {
   return phone.replace(/\D/g, '');
@@ -91,6 +97,8 @@ export function QuickSaleShell({
   const [error, setError] = useState<string | null>(null);
   const [holdInvoiceId, setHoldInvoiceId] = useState<string | null>(null);
   const [heldBills, setHeldBills] = useState<QuickSaleHoldSummary[]>([]);
+  const [staffNames, setStaffNames] = useState<Record<string, string>>({});
+  const [sessionHydrated, setSessionHydrated] = useState(false);
   const [pending, startTransition] = useTransition();
   const customerSearchRef = useRef<HTMLInputElement>(null);
   const catalogSearchRef = useRef<HTMLInputElement>(null);
@@ -126,6 +134,58 @@ export function QuickSaleShell({
       }
     });
   }, []);
+
+  useEffect(() => {
+    if (appointmentPrefill) {
+      setSessionHydrated(true);
+      return;
+    }
+    const session = loadQuickSaleSession();
+    if (session) {
+      setCustomer(session.customer);
+      setAppointmentId(session.appointmentId);
+      setTab(session.tab);
+      setCatalogQ(session.catalogQ);
+      setLines(session.lines);
+      setPayments(session.payments);
+      setFlags(session.flags);
+      setHoldInvoiceId(session.holdInvoiceId);
+      setStaffNames(session.staffNames ?? {});
+      setStep('sale');
+    }
+    setSessionHydrated(true);
+  }, [appointmentPrefill]);
+
+  useEffect(() => {
+    if (!sessionHydrated || step !== 'sale' || !customer) return;
+    const t = window.setTimeout(() => {
+      saveQuickSaleSession({
+        v: 1,
+        customer,
+        appointmentId,
+        tab,
+        catalogQ,
+        lines,
+        payments,
+        flags,
+        holdInvoiceId,
+        staffNames,
+      });
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [
+    sessionHydrated,
+    step,
+    customer,
+    appointmentId,
+    tab,
+    catalogQ,
+    lines,
+    payments,
+    flags,
+    holdInvoiceId,
+    staffNames,
+  ]);
 
   useEffect(() => {
     if (step === 'customer') refreshHeldBills();
@@ -200,10 +260,11 @@ export function QuickSaleShell({
   const addItem = (item: BillableItem) => {
     setLines((prev) => [...prev, basketLineFromBillableItem(item)]);
     setCatalogQ('');
+    catalogSearchRef.current?.focus();
   };
 
-  const resetForNext = () => {
-    setStep('customer');
+  const clearSaleState = () => {
+    clearQuickSaleSession();
     setCustomer(null);
     setAppointmentId(null);
     setSearchQ('');
@@ -211,10 +272,28 @@ export function QuickSaleShell({
     setPayments([]);
     setFlags({});
     setHoldInvoiceId(null);
+    setStaffNames({});
     setInvoiceId(null);
     setPrintHtml(null);
     setAdvancePaise(0);
     setError(null);
+    setCatalogQ('');
+    setTab('service');
+  };
+
+  const resetForNext = () => {
+    clearSaleState();
+    setStep('customer');
+  };
+
+  const cancelSale = () => {
+    clearSaleState();
+    setStep('customer');
+  };
+
+  const startNewSale = () => {
+    clearSaleState();
+    setStep('customer');
   };
 
   async function resumeHold(id: string) {
@@ -258,6 +337,12 @@ export function QuickSaleShell({
             : [],
       })),
     );
+    const names: Record<string, string> = {};
+    for (const line of detail.cart) {
+      for (const s of line.servicedBy) names[s.id] = s.fullName;
+      if (line.soldBy) names[line.soldBy.id] = line.soldBy.fullName;
+    }
+    setStaffNames(names);
     setStep('sale');
   }
 
@@ -368,197 +453,277 @@ export function QuickSaleShell({
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 py-4">
-      <div className="fyh-glass flex flex-wrap items-center justify-between gap-3 p-4">
-        <div>
-          {appointmentId ? (
-            <p className="mb-1 fyh-section-eyebrow">Appointment checkout</p>
-          ) : (
-            <p className="fyh-section-eyebrow">Customer</p>
-          )}
-          <button
-            type="button"
-            className="fyh-display text-left text-lg font-semibold hover:text-fyh-accent"
-            onClick={() => setStep('customer')}
-          >
-            {customer?.fullName}
-          </button>
-          <p className="text-sm text-fyh-text-muted">
-            {customer?.customerCode} · {customer?.phone}
-            {customer?.walletBalancePaise ? (
-              <> · Wallet {formatInrFromPaise(customer.walletBalancePaise)}</>
-            ) : null}
-          </p>
-        </div>
-        <div className="relative">
-          <Button type="button" variant="ghost" size="sm" onClick={() => setMenuOpen((o) => !o)}>
-            <MoreVertical className="h-5 w-5" />
-          </Button>
-          {menuOpen ? (
-            <div className="absolute right-0 z-20 mt-1 min-w-[160px] rounded-lg border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] py-1 shadow-lg">
-              <button
-                type="button"
-                className="block w-full px-4 py-2 text-left text-sm hover:bg-white/5"
-                disabled={pending || !customer || lines.length === 0}
-                onClick={() => {
-                  setMenuOpen(false);
-                  if (!customer || !basket) return;
-                  startTransition(async () => {
-                    setError(null);
-                    const res = await holdQuickSaleAction({
-                      customerId: customer.id,
-                      lines: basketToLegacyLines(basket),
-                      holdInvoiceId,
-                    });
-                    if (res.error) setError(res.error);
-                    else resetForNext();
-                  });
-                }}
-              >
-                Hold bill
-              </button>
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="flex gap-1 overflow-x-auto rounded-xl border border-[color:var(--fyh-border)] bg-black/10 p-1">
-        {(
-          [
-            ['service', 'Services'],
-            ['product', 'Products'],
-            ['package', 'Packages'],
-            ['membership', 'Memberships'],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            className={`shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition ${
-              tab === id ? 'bg-fyh-accent text-black' : 'text-fyh-text-secondary hover:bg-white/5'
-            }`}
-            onClick={() => {
-              setTab(id);
-              setCatalogQ('');
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div className="relative">
-        <Input
-          ref={catalogSearchRef}
-          aria-label="Search catalog items"
-          value={catalogQ}
-          onChange={(e) => setCatalogQ(e.target.value)}
-          placeholder="Search name, code, or price…"
-          className="h-12"
-        />
-        {catalogQ.trim() && filteredItems.length > 0 ? (
-          <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] py-1 shadow-lg">
-            {filteredItems.slice(0, 20).map((item) => (
-              <li key={`${item.type}-${item.id}`}>
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between px-4 py-2 text-left text-sm hover:bg-white/5"
-                  onClick={() => addItem(item)}
-                >
-                  <span>
-                    {item.name}
-                    {item.code ? (
-                      <span className="ml-2 text-xs text-fyh-text-muted">{item.code}</span>
-                    ) : null}
-                  </span>
-                  <span className="tabular-nums text-fyh-accent">
-                    {formatInrFromPaise(item.sellingPricePaise)}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
-
-      <QuickSaleBasketTable
-        lines={lines}
-        onUpdateLine={(lineId, patch) =>
-          setLines((prev) => prev.map((l) => (l.lineId === lineId ? { ...l, ...patch } : l)))
-        }
-        onRemoveLine={(lineId) => setLines((prev) => prev.filter((l) => l.lineId !== lineId))}
-      />
-
-      {priced ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="space-y-1 rounded-xl border border-[color:var(--fyh-border)] bg-black/10 p-4 text-sm">
-            <div className="flex justify-between">
-              <span className="text-fyh-text-muted">Subtotal</span>
-              <span className="tabular-nums">{formatInrFromPaise(priced.totals.subtotalBasePaise)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-fyh-text-muted">GST</span>
-              <span className="tabular-nums">{formatInrFromPaise(priced.totals.taxPaise)}</span>
-            </div>
-            {priced.totals.lineDiscountPaise > 0 ? (
-              <div className="flex justify-between">
-                <span className="text-fyh-text-muted">Discount</span>
-                <span className="tabular-nums">−{formatInrFromPaise(priced.totals.lineDiscountPaise)}</span>
-              </div>
-            ) : null}
-            {membershipDiscountPaise > 0 ? (
-              <div className="flex justify-between">
-                <span className="text-fyh-text-muted">Membership</span>
-                <span className="tabular-nums">−{formatInrFromPaise(membershipDiscountPaise)}</span>
-              </div>
-            ) : null}
-            <div className="flex justify-between border-t border-[color:var(--fyh-border)] pt-2 text-base font-semibold">
-              <span>Grand Total</span>
-              <span className="tabular-nums text-fyh-accent">
-                {formatInrFromPaise(priced.totals.grandTotalPaise)}
-              </span>
+    <div className="mx-auto max-w-6xl space-y-5 py-4">
+      {/* Customer */}
+      <section className="qs-section">
+        <p className="qs-section-label">{appointmentId ? 'Appointment checkout' : 'Customer'}</p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="fyh-display text-xl font-semibold text-fyh-text">{customer?.fullName}</p>
+            <p className="mt-1 text-sm text-fyh-text-muted">
+              {customer?.customerCode} · {customer?.phone}
+              {customer?.walletBalancePaise ? (
+                <> · Wallet {formatInrFromPaise(customer.walletBalancePaise)}</>
+              ) : null}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-fyh-text-muted"
+              onClick={() => setStep('customer')}
+            >
+              Change customer
+            </Button>
+            <div className="relative">
+              <Button type="button" variant="ghost" size="sm" onClick={() => setMenuOpen((o) => !o)}>
+                <MoreVertical className="h-5 w-5" />
+              </Button>
+              {menuOpen ? (
+                <div className="absolute right-0 z-20 mt-1 min-w-[180px] rounded-lg border border-[color:var(--fyh-border)] bg-[color:var(--fyh-bg-surface)] py-1 shadow-xl">
+                  <button
+                    type="button"
+                    className="block w-full px-4 py-2.5 text-left text-sm hover:bg-white/5"
+                    disabled={pending || !customer || lines.length === 0}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      if (!customer || !basket) return;
+                      startTransition(async () => {
+                        setError(null);
+                        const res = await holdQuickSaleAction({
+                          customerId: customer.id,
+                          lines: basketToLegacyLines(basket),
+                          holdInvoiceId,
+                        });
+                        if (res.error) setError(res.error);
+                        else resetForNext();
+                      });
+                    }}
+                  >
+                    Hold bill
+                  </button>
+                  <button
+                    type="button"
+                    className="block w-full px-4 py-2.5 text-left text-sm hover:bg-white/5"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      startNewSale();
+                    }}
+                  >
+                    New sale
+                  </button>
+                  <button
+                    type="button"
+                    className="block w-full px-4 py-2.5 text-left text-sm text-fyh-danger hover:bg-white/5"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      cancelSale();
+                    }}
+                  >
+                    Cancel sale
+                  </button>
+                </div>
+              ) : null}
             </div>
           </div>
-
-          <QuickSalePaymentPanel
-            grandTotalPaise={priced.totals.grandTotalPaise}
-            payments={payments}
-            flags={flags}
-            onChangePayments={setPayments}
-            onChangeFlags={setFlags}
-          />
         </div>
+      </section>
+
+      {/* Tabs */}
+      <section className="qs-section">
+        <p className="qs-section-label">Catalog</p>
+        <div className="flex gap-1 overflow-x-auto rounded-lg border border-[color:var(--fyh-border)] bg-black/15 p-1">
+          {(
+            [
+              ['service', 'Services'],
+              ['product', 'Products'],
+              ['package', 'Packages'],
+              ['membership', 'Memberships'],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={`shrink-0 rounded-md px-4 py-2 text-sm font-semibold transition ${
+                tab === id
+                  ? 'bg-[color:var(--fyh-accent)] text-black shadow-sm'
+                  : 'text-fyh-text-secondary hover:bg-white/5'
+              }`}
+              onClick={() => {
+                setTab(id);
+                setCatalogQ('');
+                catalogSearchRef.current?.focus();
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* Search */}
+      <section className="qs-section">
+        <p className="qs-section-label">Search</p>
+        <div className="relative">
+          <Input
+            ref={catalogSearchRef}
+            aria-label="Search catalog items"
+            value={catalogQ}
+            onChange={(e) => setCatalogQ(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && filteredItems[0]) {
+                e.preventDefault();
+                addItem(filteredItems[0]);
+              }
+              if (e.key === 'ArrowDown' && filteredItems.length > 0) {
+                e.preventDefault();
+                const first = document.querySelector<HTMLButtonElement>('[data-qs-catalog-item]');
+                first?.focus();
+              }
+            }}
+            placeholder="Search name, code, or price… (Enter to add first match)"
+            className="h-11"
+          />
+          {catalogQ.trim() && filteredItems.length > 0 ? (
+            <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-bg-surface)] py-1 shadow-xl">
+              {filteredItems.slice(0, 20).map((item) => (
+                <li key={`${item.type}-${item.id}`}>
+                  <button
+                    type="button"
+                    data-qs-catalog-item
+                    className="qs-catalog-row"
+                    onClick={() => addItem(item)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addItem(item);
+                      }
+                    }}
+                  >
+                    <span className="qs-catalog-name truncate font-medium text-fyh-text">
+                      {item.name}
+                      {item.code ? (
+                        <span className="ml-2 text-xs font-normal text-fyh-text-muted">{item.code}</span>
+                      ) : null}
+                    </span>
+                    <span className="qs-catalog-price">{formatInrFromPaise(item.sellingPricePaise)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      </section>
+
+      {/* Basket */}
+      <section className="qs-section">
+        <p className="qs-section-label">Basket</p>
+        <QuickSaleBasketTable
+          lines={lines}
+          staffNames={staffNames}
+          onStaffNameRegistered={(staffId, fullName) =>
+            setStaffNames((prev) => ({ ...prev, [staffId]: fullName }))
+          }
+          onUpdateLine={(lineId, patch) =>
+            setLines((prev) => prev.map((l) => (l.lineId === lineId ? { ...l, ...patch } : l)))
+          }
+          onRemoveLine={(lineId) => setLines((prev) => prev.filter((l) => l.lineId !== lineId))}
+        />
+      </section>
+
+      {priced ? (
+        <>
+          {/* Totals */}
+          <section className="qs-section">
+            <p className="qs-section-label">Totals</p>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-fyh-text-muted">Subtotal</span>
+                <span className="tabular-nums font-medium">{formatInrFromPaise(priced.totals.subtotalBasePaise)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-fyh-text-muted">GST</span>
+                <span className="tabular-nums font-medium">{formatInrFromPaise(priced.totals.taxPaise)}</span>
+              </div>
+              {priced.totals.lineDiscountPaise > 0 ? (
+                <div className="flex justify-between">
+                  <span className="text-fyh-text-muted">Line discount</span>
+                  <span className="tabular-nums font-medium text-fyh-danger">
+                    −{formatInrFromPaise(priced.totals.lineDiscountPaise)}
+                  </span>
+                </div>
+              ) : null}
+              {membershipDiscountPaise > 0 ? (
+                <div className="flex justify-between">
+                  <span className="text-fyh-text-muted">Membership</span>
+                  <span className="tabular-nums font-medium text-fyh-danger">
+                    −{formatInrFromPaise(membershipDiscountPaise)}
+                  </span>
+                </div>
+              ) : null}
+              <div className="flex justify-between border-t border-[color:var(--fyh-border)] pt-3">
+                <span className="text-base font-semibold text-fyh-text">Grand total</span>
+                <span className="fyh-kpi-hero tabular-nums text-fyh-accent">
+                  {formatInrFromPaise(priced.totals.grandTotalPaise)}
+                </span>
+              </div>
+            </div>
+          </section>
+
+          {/* Payment */}
+          <section className="qs-section">
+            <p className="qs-section-label">Payment</p>
+            <QuickSalePaymentPanel
+              grandTotalPaise={priced.totals.grandTotalPaise}
+              payments={payments}
+              flags={flags}
+              onChangePayments={setPayments}
+              onChangeFlags={setFlags}
+            />
+          </section>
+        </>
       ) : null}
 
-      {error ? <p className="text-sm text-fyh-danger">{error}</p> : null}
+      {error ? (
+        <p className="rounded-lg border border-fyh-danger/30 bg-fyh-danger/10 px-4 py-3 text-sm text-fyh-danger">
+          {error}
+        </p>
+      ) : null}
 
-      <Button
-        type="button"
-        disabled={pending || !customer || lines.length === 0 || !basket}
-        className="h-12 w-full"
-        onClick={() => {
-          if (!basket) return;
-          startTransition(async () => {
-            setError(null);
-            const res = await completeQuickSaleAction({
-              basket: { ...basket, membershipDiscountPaise },
-              holdInvoiceId,
-              source: appointmentId ? 'appointment' : 'quick_sale',
-              appointmentId: appointmentId ?? undefined,
+      {/* Confirm */}
+      <section className="qs-section">
+        <p className="qs-section-label">Confirm sale</p>
+        <Button
+          type="button"
+          disabled={pending || !customer || lines.length === 0 || !basket}
+          className="h-12 w-full text-base font-semibold"
+          onClick={() => {
+            if (!basket) return;
+            startTransition(async () => {
+              setError(null);
+              const res = await completeQuickSaleAction({
+                basket: { ...basket, membershipDiscountPaise },
+                holdInvoiceId,
+                source: appointmentId ? 'appointment' : 'quick_sale',
+                appointmentId: appointmentId ?? undefined,
+              });
+              if (res.error) setError(res.error);
+              else if (res.invoiceId) {
+                clearQuickSaleSession();
+                setInvoiceId(res.invoiceId);
+                setInvoiceNumber(res.invoiceNumber ?? null);
+                setAdvancePaise(res.advancePaise ?? 0);
+                setPrintHtml(res.printHtml ?? null);
+                setStep('done');
+              }
             });
-            if (res.error) setError(res.error);
-            else if (res.invoiceId) {
-              setInvoiceId(res.invoiceId);
-              setInvoiceNumber(res.invoiceNumber ?? null);
-              setAdvancePaise(res.advancePaise ?? 0);
-              setPrintHtml(res.printHtml ?? null);
-              setStep('done');
-            }
-          });
-        }}
-      >
-        {pending ? 'Processing…' : 'Confirm sale'}
-      </Button>
+          }}
+        >
+          {pending ? 'Processing…' : 'Confirm sale'}
+        </Button>
+      </section>
     </div>
   );
 }

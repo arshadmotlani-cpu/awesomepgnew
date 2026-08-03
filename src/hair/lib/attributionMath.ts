@@ -105,6 +105,43 @@ export function buildAttributionRows(input: LineAttributionInput): Array<{
     return rows;
   }
 
+  if (input.kind === 'product') {
+    const sellers: StaffAttributionInput[] =
+      input.servicedBy && input.servicedBy.length > 1
+        ? input.servicedBy.some((s) => s.shareBps != null)
+          ? input.servicedBy.map((s) => ({
+              staffId: s.staffId,
+              shareBps: s.shareBps ?? Math.floor(10_000 / input.servicedBy!.length),
+            }))
+          : normalizeEqualShares(input.servicedBy.map((s) => s.staffId))
+        : input.soldByStaffId ?? input.legacyStaffId
+          ? [{ staffId: (input.soldByStaffId ?? input.legacyStaffId)!, shareBps: 10_000 }]
+          : [];
+    if (!sellers.length) return [];
+    if (sellers.length === 1) {
+      rows.push({
+        staffId: sellers[0]!.staffId,
+        role: 'sold_by',
+        shareBps: 10_000,
+        attributedNetPaise: input.lineNetPaise,
+        revenueMetric: 'product',
+      });
+      return rows;
+    }
+    const totalBps = sellers.reduce((s, x) => s + (x.shareBps ?? 0), 0) || 10_000;
+    for (const s of sellers) {
+      const shareBps = s.shareBps ?? Math.floor(10_000 / sellers.length);
+      rows.push({
+        staffId: s.staffId,
+        role: 'sold_by',
+        shareBps,
+        attributedNetPaise: attributedNetForShare(input.lineNetPaise, shareBps, totalBps),
+        revenueMetric: 'product',
+      });
+    }
+    return rows;
+  }
+
   const seller = input.soldByStaffId ?? input.legacyStaffId;
   if (!seller) return [];
   rows.push({

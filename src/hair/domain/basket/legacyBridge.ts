@@ -77,6 +77,10 @@ export function basketToLegacyLines(basket: Basket): QuickSaleLineInput[] {
     if (line.snapshot.staffMode === 'SERVICE') {
       base.servicedBy = line.staff.map((s) => ({ staffId: s.staffId, shareBps: s.shareBps }));
       base.staffId = line.staff[0]?.staffId ?? null;
+    } else if (line.billableRef.type === 'product' && line.staff.length > 1) {
+      base.servicedBy = line.staff.map((s) => ({ staffId: s.staffId, shareBps: s.shareBps }));
+      base.soldByStaffId = line.staff[0]?.staffId ?? null;
+      base.staffId = line.staff[0]?.staffId ?? null;
     } else {
       base.soldByStaffId = line.staff[0]?.staffId ?? null;
       base.staffId = line.staff[0]?.staffId ?? null;

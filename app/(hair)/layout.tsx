@@ -1,21 +1,20 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
-import { Cormorant_Garamond, Outfit } from 'next/font/google';
+import { Geist, Geist_Mono } from 'next/font/google';
 import '@/src/hair/styles/globals.css';
 import { HairProviders } from '@/src/hair/components/HairProviders';
 import { fyhMetadata } from '@/src/lib/brand/fyhMetadata';
 
-const display = Cormorant_Garamond({
+const geistSans = Geist({
   subsets: ['latin'],
-  weight: ['500', '600', '700'],
-  variable: '--font-fyh-display',
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-fyh-sans',
   display: 'swap',
 });
 
-const sans = Outfit({
+const geistMono = Geist_Mono({
   subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  variable: '--font-fyh-sans',
+  variable: '--font-fyh-mono',
   display: 'swap',
 });
 
@@ -25,7 +24,7 @@ export const metadata: Metadata = fyhMetadata;
 
 export default function HairRootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className={`${display.variable} ${sans.variable} fyh-root fyh-forest-bg`}>
+    <div className={`${geistSans.variable} ${geistMono.variable} fyh-root fyh-forest-bg`}>
       <HairProviders>
         <Suspense fallback={null}>{children}</Suspense>
       </HairProviders>

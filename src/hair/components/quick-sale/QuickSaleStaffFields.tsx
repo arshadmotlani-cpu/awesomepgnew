@@ -1,91 +1,145 @@
 'use client';
 
-import { useState } from 'react';
-import { StaffTypeahead, type StaffPick } from '@/src/hair/components/quick-sale/QuickSaleStaffPickers';
-import { Button } from '@/src/hair/components/ui/button';
+import { useEffect, useRef, useState } from 'react';
+import { searchStaffForPosAction } from '@/src/hair/actions/quickSale';
+import { Input } from '@/src/hair/components/ui/input';
+import type { BillableItemType } from '@/src/hair/domain/catalog/types';
 import type { StaffAllocation } from '@/src/hair/domain/basket/types';
-import type { StaffMode } from '@/src/hair/domain/catalog/types';
 import { normalizeEqualShares } from '@/src/hair/lib/attributionMath';
 
+type StaffHit = { id: string; fullName: string };
+
+function staffSupportsMultiSplit(lineType: BillableItemType): boolean {
+  return lineType === 'service' || lineType === 'product';
+}
+
 export function QuickSaleStaffRow({
-  staffMode,
+  lineType,
   staff,
   onChange,
+  initialNames,
+  onNameRegistered,
 }: {
-  staffMode: StaffMode;
+  lineType: BillableItemType;
   staff: StaffAllocation[];
   onChange: (staff: StaffAllocation[]) => void;
+  initialNames?: Record<string, string>;
+  onNameRegistered?: (staffId: string, fullName: string) => void;
 }) {
-  const [adding, setAdding] = useState(false);
+  const [q, setQ] = useState('');
+  const [hits, setHits] = useState<StaffHit[]>([]);
+  const [nameById, setNameById] = useState<Record<string, string>>(initialNames ?? {});
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  if (staffMode === 'SALE') {
-    const pick: StaffPick | null = staff[0]
-      ? { id: staff[0].staffId, fullName: '' }
-      : null;
-    return (
-      <StaffTypeahead
-        label="Sold by"
-        value={pick}
-        onPick={(s) => onChange(s ? [{ staffId: s.id, shareBps: 10_000 }] : [])}
-      />
-    );
+  useEffect(() => {
+    if (initialNames && Object.keys(initialNames).length > 0) {
+      setNameById((prev) => ({ ...initialNames, ...prev }));
+    }
+  }, [initialNames]);
+
+  useEffect(() => {
+    if (q.trim().length < 1) {
+      setHits([]);
+      return;
+    }
+    const t = window.setTimeout(async () => {
+      const rows = await searchStaffForPosAction(q);
+      setHits(rows.map((r) => ({ id: r.id, fullName: r.fullName })));
+    }, 120);
+    return () => window.clearTimeout(t);
+  }, [q]);
+
+  if (!staffSupportsMultiSplit(lineType)) {
+    return <span className="text-xs text-fyh-text-muted">—</span>;
   }
 
+  const addStaff = (pick: StaffHit) => {
+    if (staff.some((s) => s.staffId === pick.id)) {
+      setQ('');
+      setHits([]);
+      return;
+    }
+    setNameById((prev) => ({ ...prev, [pick.id]: pick.fullName }));
+    onNameRegistered?.(pick.id, pick.fullName);
+    const nextIds = [...staff.map((s) => s.staffId), pick.id];
+    onChange(
+      normalizeEqualShares(nextIds).map((entry) => ({
+        staffId: entry.staffId,
+        shareBps: entry.shareBps ?? 0,
+      })),
+    );
+    setQ('');
+    setHits([]);
+    inputRef.current?.focus();
+  };
+
+  const removeStaff = (staffId: string) => {
+    const nextIds = staff.filter((s) => s.staffId !== staffId).map((s) => s.staffId);
+    onChange(
+      normalizeEqualShares(nextIds).map((entry) => ({
+        staffId: entry.staffId,
+        shareBps: entry.shareBps ?? 0,
+      })),
+    );
+  };
+
+  const placeholder =
+    staff.length === 0 ? 'Search staff…' : 'Search another staff…';
+
   return (
-    <div className="space-y-2">
-      <span className="text-xs text-fyh-text-muted">Service by</span>
-      {staff.map((s) => (
-        <div key={s.staffId} className="flex items-center gap-1 text-xs">
-          <span className="flex-1 truncate text-fyh-text-secondary tabular-nums">
-            {(s.shareBps / 100).toFixed(0)}%
-          </span>
-          <input
-            type="number"
-            min={0}
-            max={100}
-            step={1}
-            value={s.shareBps / 100}
-            onChange={(e) => {
-              const shareBps = Math.round(Number(e.target.value || 0) * 100);
-              onChange(
-                staff.map((x) => (x.staffId === s.staffId ? { ...x, shareBps } : x)),
-              );
-            }}
-            className="h-7 w-12 rounded border border-[color:var(--fyh-border)] bg-black/20 px-1 text-right tabular-nums"
-          />
-          <button
-            type="button"
-            className="text-fyh-danger"
-            onClick={() => onChange(staff.filter((x) => x.staffId !== s.staffId))}
-          >
-            ×
-          </button>
+    <div className="min-w-[10rem] space-y-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-fyh-text-muted">Staff</p>
+      {staff.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {staff.map((s) => (
+            <span key={s.staffId} className="qs-staff-chip">
+              {nameById[s.staffId] ?? s.staffId.slice(0, 6)}
+              <button
+                type="button"
+                className="ml-0.5 text-fyh-text-muted hover:text-fyh-danger"
+                aria-label={`Remove ${nameById[s.staffId] ?? 'staff'}`}
+                onClick={() => removeStaff(s.staffId)}
+              >
+                ×
+              </button>
+            </span>
+          ))}
         </div>
-      ))}
-      {adding ? (
-        <StaffTypeahead
-          label="Add"
-          value={null}
-          onPick={(s) => {
-            if (!s || staff.some((x) => x.staffId === s.id)) {
-              setAdding(false);
-              return;
+      ) : null}
+      <div className="relative">
+        <Input
+          ref={inputRef}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={placeholder}
+          className="h-9 text-sm"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && hits[0]) {
+              e.preventDefault();
+              addStaff(hits[0]);
             }
-            const nextIds = [...staff.map((x) => x.staffId), s.id];
-            onChange(
-              normalizeEqualShares(nextIds).map((entry) => ({
-                staffId: entry.staffId,
-                shareBps: entry.shareBps ?? 0,
-              })),
-            );
-            setAdding(false);
+            if (e.key === 'Escape') {
+              setQ('');
+              setHits([]);
+            }
           }}
         />
-      ) : (
-        <Button type="button" variant="secondary" size="sm" onClick={() => setAdding(true)}>
-          +
-        </Button>
-      )}
+        {hits.length > 0 && q.trim() ? (
+          <ul className="absolute z-30 mt-1 max-h-40 w-full overflow-auto rounded-lg border border-[color:var(--fyh-border)] bg-[color:var(--fyh-bg-surface)] py-1 shadow-xl">
+            {hits.map((h) => (
+              <li key={h.id}>
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-sm hover:bg-white/5"
+                  onClick={() => addStaff(h)}
+                >
+                  {h.fullName}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
     </div>
   );
 }
