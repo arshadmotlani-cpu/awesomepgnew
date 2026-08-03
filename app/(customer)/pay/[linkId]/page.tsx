@@ -27,7 +27,7 @@ export default async function PaymentLinkPage({
         <p className="mt-3 text-sm text-zinc-400">{access.message}</p>
         <p className="mt-8 text-center text-xs text-zinc-600">
           <Link href="/login" className="underline hover:text-zinc-400">
-            Sign in to your account
+            Login to your account
           </Link>
         </p>
       </main>
@@ -156,7 +156,7 @@ export default async function PaymentLinkPage({
 
       <p className="mt-8 text-center text-xs text-zinc-600">
         <Link href="/login" className="underline hover:text-zinc-400">
-          Sign in to your resident account
+          Login to your resident account
         </Link>
       </p>
     </main>

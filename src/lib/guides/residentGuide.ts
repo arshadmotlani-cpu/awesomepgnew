@@ -14,17 +14,17 @@ export const RESIDENT_GUIDE: GuideCatalog = {
   articles: [
     {
       id: 'sign-in',
-      title: 'Sign in to your resident account',
+      title: 'Login to your resident account',
       category: 'Account',
-      keywords: ['login', 'sign in', 'email', 'password', 'forgot', 'otp'],
-      summary: 'Use email + password daily. OTP is only for first signup or password reset.',
+      keywords: ['login', 'sign up', 'email', 'password', 'forgot', 'otp'],
+      summary: 'Use email + password daily. OTP is only for first Sign Up or password reset.',
       steps: [
-        'Go to Resident sign in from the header or footer.',
+        'Go to Resident Login from the header or footer.',
         'Enter your registered email and password.',
-        'First time? Verify email with OTP, complete profile, then set a password.',
-        'Forgot password? Request OTP → verify → set a new password.',
+        'First time? Sign Up with email OTP, complete profile, then set a password.',
+        'Forgot Password? Request OTP → verify → set a new password.',
       ],
-      links: [{ label: 'Sign in', href: '/login?next=/account/profile' }],
+      links: [{ label: 'Login', href: '/login?next=/account/profile' }],
     },
     {
       id: 'profile-hub',
@@ -46,10 +46,10 @@ export const RESIDENT_GUIDE: GuideCatalog = {
       keywords: ['password', 'change', 'security', 'reset'],
       summary: 'Update your password anytime from Profile or the change-password page.',
       steps: [
-        'Sign in to your account.',
+        'Login to your account.',
         'Open Profile → use Change password, or go to Account → Change password.',
         'Enter current password and your new password twice.',
-        'Save — use the new password on your next sign-in.',
+        'Save — use the new password on your next Login.',
       ],
       links: [{ label: 'Change password', href: '/account/change-password' }],
     },
@@ -212,7 +212,7 @@ export const RESIDENT_GUIDE: GuideCatalog = {
         'KYC stuck on pending — wait for admin review (usually same day); re-upload if rejected.',
         'Cannot see Resident tab — you need at least one confirmed booking.',
         'Wrong amount paid — contact PG on WhatsApp with booking code and screenshot.',
-        'Forgot password — use Forgot password on sign-in page (OTP reset).',
+        'Forgot Password — use Forgot Password on the Login page (OTP reset).',
       ],
       links: [
         { label: 'Booking guide (new tenants)', href: '/guide?type=booking' },

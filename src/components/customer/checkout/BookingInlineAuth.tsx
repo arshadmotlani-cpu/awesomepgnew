@@ -150,7 +150,7 @@ export function BookingInlineAuth({
     <section
       id="booking-inline-auth"
       className="rounded-xl border border-white/10 apg-glass-light p-4"
-      aria-label="Sign in to book"
+      aria-label="Login to book"
     >
       <h2 className="text-sm font-semibold text-white">Almost there — confirm it&apos;s you</h2>
       <p className="mt-1 text-xs text-apg-silver">

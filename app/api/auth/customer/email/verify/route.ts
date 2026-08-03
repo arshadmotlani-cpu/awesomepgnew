@@ -48,7 +48,7 @@ async function handleProfileStep(args: {
         ok: false,
         needsLogin: true,
         email,
-        message: 'This email already has an account. Sign in with your password or use Forgot password.',
+        message: 'An account already exists with this email. Please Login with your password or use Forgot Password.',
       },
       { status: 400 },
     );
@@ -272,7 +272,7 @@ export async function POST(request: Request) {
             ok: false,
             needsLogin: true,
             email,
-            message: 'This email already has an account. Sign in with your password.',
+            message: 'An account already exists with this email. Please Login with your password.',
           },
           { status: 400 },
         );

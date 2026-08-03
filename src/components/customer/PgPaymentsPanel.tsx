@@ -71,8 +71,8 @@ export function PgPaymentsPanel({ pgId, pgName, uploadScreenshot }: Props) {
           )}
 
           <p className="text-xs text-apg-silver">
-            Sign in as a resident of this PG to submit payment proof.{' '}
-            <Link href="/login" className="text-[#FF5A1F] underline">Sign in</Link>
+            Login as a resident of this PG to submit payment proof.{' '}
+            <Link href="/login" className="text-[#FF5A1F] underline">Login</Link>
           </p>
 
           <PgPaymentHistory key={historyKey} pgId={pgId} />

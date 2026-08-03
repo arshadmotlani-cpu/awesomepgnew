@@ -5,7 +5,7 @@ import { getCustomerSession } from '@/src/lib/auth/session';
 export async function POST() {
   const session = await getCustomerSession();
   if (!session) {
-    return NextResponse.json({ ok: false, message: 'Sign in required.' }, { status: 401 });
+    return NextResponse.json({ ok: false, message: 'Login required.' }, { status: 401 });
   }
   return NextResponse.json({
     ok: true,

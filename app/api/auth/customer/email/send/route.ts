@@ -62,7 +62,7 @@ export async function POST(request: Request) {
         ok: false,
         needsLogin: true,
         accountExists: true,
-        message: 'This email already has an account. Sign in with your password or use Forgot password.',
+        message: 'An account already exists with this email. Please Login with your password or use Forgot Password.',
       },
       { status: 400 },
     );

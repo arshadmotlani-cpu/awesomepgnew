@@ -101,7 +101,7 @@ export function LandingPage({
               href="/login?next=/account/profile"
               className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-white/10 px-8 py-3.5 text-sm font-semibold text-white transition hover:border-apg-orange/40 hover:bg-white/15"
             >
-              Resident sign in
+              Resident Login
             </Link>
           </div>
         </motion.div>

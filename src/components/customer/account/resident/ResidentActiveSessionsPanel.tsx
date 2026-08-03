@@ -61,7 +61,7 @@ export function ResidentActiveSessionsPanel() {
   async function revokeAll() {
     if (
       !window.confirm(
-        'Sign out on every device? You will need to sign in again on this phone or computer too.',
+        'Sign out on every device? You will need to Login again on this phone or computer too.',
       )
     ) {
       return;

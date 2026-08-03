@@ -8,7 +8,7 @@ import { destroyAllCustomerSessions, getCustomerSession } from '@/src/lib/auth/s
 export async function POST(request: Request) {
   const session = await getCustomerSession();
   if (!session) {
-    return NextResponse.json({ ok: false, message: 'Sign in required.' }, { status: 401 });
+    return NextResponse.json({ ok: false, message: 'Login required.' }, { status: 401 });
   }
 
   const impersonationBlock = await getImpersonationCredentialBlock();

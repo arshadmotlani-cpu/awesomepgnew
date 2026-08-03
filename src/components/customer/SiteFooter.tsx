@@ -62,7 +62,7 @@ export function SiteFooter({ theme = 'dark' }: { theme?: 'dark' | 'light' }) {
                   href="/login?next=/account/profile"
                   className={light ? 'hover:text-slate-900' : 'hover:text-white'}
                 >
-                  Resident sign in
+                  Resident Login
                 </Link>
               </li>
             </ul>

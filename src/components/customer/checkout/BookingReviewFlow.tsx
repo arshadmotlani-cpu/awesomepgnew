@@ -535,7 +535,7 @@ export function BookingReviewFlow({
         </p>
       ) : step === 'REVIEW' ? (
         <p className="text-center text-xs text-apg-silver">
-          You&apos;ll sign in only if needed — your choices stay saved.
+          You&apos;ll only need to Login if asked — your choices stay saved.
         </p>
       ) : null}
     </div>

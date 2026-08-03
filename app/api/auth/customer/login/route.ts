@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { findCustomerByLoginIdentifier } from '@/src/lib/auth/loginIdentifier';
+import { RESIDENT_AUTH_COPY } from '@/src/lib/auth/residentAuthCopy';
 import { getActiveSignupSessionForEmail } from '@/src/lib/auth/signupSession';
 import { verifyPassword } from '@/src/lib/auth/crypto';
 import { loginRateLimitStatus, recordLoginAttempt } from '@/src/lib/auth/loginRateLimit';
@@ -21,9 +22,15 @@ export async function POST(request: Request) {
 
   const identifierInput = (body.identifier ?? body.email ?? '').trim();
   const password = body.password ?? '';
-  if (!identifierInput || !password) {
+  if (!identifierInput) {
     return NextResponse.json(
-      { ok: false, message: 'Email or phone and password are required.' },
+      { ok: false, message: RESIDENT_AUTH_COPY.emptyEmail },
+      { status: 400 },
+    );
+  }
+  if (!password) {
+    return NextResponse.json(
+      { ok: false, message: RESIDENT_AUTH_COPY.emptyPassword },
       { status: 400 },
     );
   }
@@ -48,8 +55,16 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+    const isEmail = identifierInput.includes('@');
     return NextResponse.json(
-      { ok: false, message: 'Invalid email, phone, or password.' },
+      {
+        ok: false,
+        accountExists: false,
+        shouldSignup: isEmail,
+        message: isEmail
+          ? RESIDENT_AUTH_COPY.noAccountExists
+          : 'No account exists with this mobile number.',
+      },
       { status: 401 },
     );
   }
@@ -60,7 +75,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         ok: false,
-        message: 'Too many sign-in attempts. Please wait an hour and try again.',
+        message: RESIDENT_AUTH_COPY.tooManyAttempts,
         retryAfterSeconds: rate.retryAfterSeconds,
       },
       { status: 429 },
@@ -98,7 +113,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         accountExists: true,
-        message: 'Incorrect password. Try again or use Forgot password.',
+        message: RESIDENT_AUTH_COPY.incorrectPassword,
       },
       { status: 401 },
     );

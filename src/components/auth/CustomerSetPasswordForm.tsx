@@ -145,7 +145,7 @@ export function CustomerSetPasswordForm({ email, theme = 'light' }: Props) {
         <h1 className={titleClass}>Create your password</h1>
         <p className={subClass}>
           Signed in as <span className="font-medium">{email}</span>. Choose a password so you can
-          sign in with email next time — we won&apos;t send a code every visit.
+          Login with email next time — we won&apos;t send a code every visit.
         </p>
       </div>
 

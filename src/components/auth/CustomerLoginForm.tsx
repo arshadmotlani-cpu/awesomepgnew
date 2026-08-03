@@ -16,6 +16,16 @@ import {
   signupFetch,
 } from '@/src/lib/auth/signupFetch';
 import { redirectAfterAuth, safeNext } from '@/src/lib/auth/safeNext';
+import {
+  RESIDENT_AUTH_COPY,
+  buildResidentAuthHref,
+  isValidEmailFormat,
+  parseResidentAuthNotice,
+  residentAuthNoticeContent,
+  validateResidentEmailInput,
+  validateResidentPasswordInput,
+  type ResidentAuthNotice,
+} from '@/src/lib/auth/residentAuthCopy';
 import { logResidentClientInfo } from '@/src/lib/client/residentClientLogger';
 import { INDIAN_MOBILE_LOCAL, formatIndianPhoneDisplay } from '@/src/lib/phone';
 
@@ -44,7 +54,7 @@ export function CustomerLoginForm({
   initialMessage,
 }: {
   theme?: 'light' | 'dark';
-  /** Only true on /login?signup=1 — otherwise sign-in only. */
+  /** Only true on /login?signup=1 — otherwise Login only. */
   signupMode?: boolean;
   initialEmail?: string;
   initialMessage?: string;
@@ -53,6 +63,7 @@ export function CustomerLoginForm({
   const searchParams = useSearchParams();
   const next = safeNext(searchParams.get('next'));
   const allowSignupFlow = signupMode;
+  const noticeParam = parseResidentAuthNotice(searchParams.get('notice'));
 
   const [step, setStep] = useState<Step>('credentials');
   const [otpPurpose, setOtpPurpose] = useState<OtpPurpose>('signup');
@@ -75,17 +86,60 @@ export function CustomerLoginForm({
   const [forgotPasswordMaskedEmail, setForgotPasswordMaskedEmail] = useState<string | null>(null);
   const [rememberDevice, setRememberDevice] = useState(true);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
+  const [guidanceNotice, setGuidanceNotice] = useState<ResidentAuthNotice | null>(noticeParam);
+  const [unknownEmailPrompt, setUnknownEmailPrompt] = useState(false);
+  const [modeTransition, setModeTransition] = useState(false);
   const verifyInFlight = useRef(false);
   const profileInFlight = useRef(false);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
+  const newPasswordInputRef = useRef<HTMLInputElement>(null);
+  const codeInputRef = useRef<HTMLInputElement>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const key = searchParams.get('message');
     if (key === 'password_changed') {
-      setInfoMessage('Password updated. Sign in with your new password.');
+      setGuidanceNotice('password_changed');
     } else if (key === 'signed_out_all_devices') {
-      setInfoMessage('Signed out on all devices. Sign in to continue.');
+      setGuidanceNotice('signed_out_all');
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    const fromQuery = parseResidentAuthNotice(searchParams.get('notice'));
+    if (fromQuery) setGuidanceNotice(fromQuery);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!guidanceNotice) return;
+    const content = residentAuthNoticeContent(guidanceNotice);
+    setInfoMessage(`${content.title}\n${content.body}`);
+    setError(null);
+  }, [guidanceNotice]);
+
+  useEffect(() => {
+    if (guidanceNotice !== 'welcome_back' || step !== 'credentials' || allowSignupFlow) return;
+    const id = window.setTimeout(() => passwordInputRef.current?.focus(), 80);
+    return () => window.clearTimeout(id);
+  }, [guidanceNotice, step, allowSignupFlow]);
+
+  useEffect(() => {
+    if (guidanceNotice !== 'no_account') return;
+    if (step === 'otp') {
+      const id = window.setTimeout(() => codeInputRef.current?.focus(), 80);
+      return () => window.clearTimeout(id);
+    }
+    if (step === 'reset-password') {
+      const id = window.setTimeout(() => newPasswordInputRef.current?.focus(), 80);
+      return () => window.clearTimeout(id);
+    }
+  }, [guidanceNotice, step]);
+
+  useEffect(() => {
+    setModeTransition(true);
+    const id = window.setTimeout(() => setModeTransition(false), 280);
+    return () => window.clearTimeout(id);
+  }, [allowSignupFlow, step]);
 
   const phoneDisplay =
     phone.length === 10 ? formatIndianPhoneDisplay(`+91${phone}`) : phone;
@@ -166,7 +220,11 @@ export function CustomerLoginForm({
     void sendCode('signup');
   }, [allowSignupFlow, searchParams, email]);
 
-  async function resetToLogin(message?: string) {
+  async function resetToLogin(options?: {
+    message?: string;
+    notice?: ResidentAuthNotice;
+    emailOverride?: string;
+  }) {
     try {
       await fetch('/api/auth/customer/signup/reset', {
         method: 'POST',
@@ -189,8 +247,24 @@ export function CustomerLoginForm({
     setNewPassword('');
     setConfirmPassword('');
     setRecoveryOtpVerified(false);
-    if (message) setError(message);
-    router.replace(`/login?next=${encodeURIComponent(next)}`);
+    setUnknownEmailPrompt(false);
+    setPassword('');
+    if (options?.emailOverride) setEmail(options.emailOverride);
+    if (options?.notice) {
+      setGuidanceNotice(options.notice);
+      setError(null);
+    } else if (options?.message) {
+      setGuidanceNotice(null);
+      setInfoMessage(null);
+      setError(options.message);
+    }
+    router.replace(
+      buildResidentAuthHref({
+        next,
+        email: options?.emailOverride ?? email,
+        notice: options?.notice,
+      }),
+    );
   }
 
   function resetVerifyState() {
@@ -223,26 +297,48 @@ export function CustomerLoginForm({
     if (wait > 0) setResendSeconds(wait);
   }
 
+  async function goToSignup(emailValue: string, notice: ResidentAuthNotice = 'no_account') {
+    setUnknownEmailPrompt(false);
+    setError(null);
+    setGuidanceNotice(notice);
+    setPassword('');
+    const q = buildResidentAuthHref({
+      signup: true,
+      next,
+      email: emailValue,
+      notice,
+    });
+    router.push(q);
+  }
+
   async function signInWithPassword() {
     const identifier = email.trim();
     if (!identifier) {
-      setError('Enter your email or mobile number.');
+      setError(RESIDENT_AUTH_COPY.emptyEmail);
+      emailInputRef.current?.focus();
       return;
     }
-    if (identifier.includes('@') && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier)) {
-      setError('Enter a valid email address.');
+    if (identifier.includes('@')) {
+      const emailCheck = validateResidentEmailInput(identifier);
+      if (!emailCheck.ok) {
+        setError(emailCheck.message);
+        emailInputRef.current?.focus();
+        return;
+      }
+    } else if (!INDIAN_MOBILE_LOCAL.test(identifier.replace(/\D/g, '').slice(-10))) {
+      setError(RESIDENT_AUTH_COPY.invalidEmail);
+      emailInputRef.current?.focus();
       return;
     }
-    if (!identifier.includes('@') && !INDIAN_MOBILE_LOCAL.test(identifier.replace(/\D/g, '').slice(-10))) {
-      setError('Enter a valid 10-digit mobile number or email address.');
-      return;
-    }
-    if (!password) {
-      setError('Enter your password.');
+    const passwordCheck = validateResidentPasswordInput(password);
+    if (!passwordCheck.ok) {
+      setError(passwordCheck.message);
+      passwordInputRef.current?.focus();
       return;
     }
     setPending(true);
     setError(null);
+    setUnknownEmailPrompt(false);
     try {
       const res = await fetch('/api/auth/customer/login', {
         method: 'POST',
@@ -256,6 +352,7 @@ export function CustomerLoginForm({
         needsCompleteSignup?: boolean;
         mustSetPassword?: boolean;
         accountExists?: boolean;
+        shouldSignup?: boolean;
         customerId?: string;
         email?: string;
       };
@@ -268,10 +365,25 @@ export function CustomerLoginForm({
           return;
         }
         if (data.accountExists) {
-          setError(data.message ?? 'Incorrect password. Try again or use Forgot password.');
+          setError(RESIDENT_AUTH_COPY.incorrectPassword);
+          setGuidanceNotice(null);
+          setInfoMessage(null);
+          passwordInputRef.current?.focus();
           return;
         }
-        setError(data.message ?? 'Sign in failed.');
+        if (data.shouldSignup && identifier.includes('@')) {
+          await goToSignup(identifier, 'no_account');
+          return;
+        }
+        if (data.accountExists === false) {
+          setUnknownEmailPrompt(true);
+          setError(null);
+          setInfoMessage(
+            `${RESIDENT_AUTH_COPY.noAccountExists}\n${RESIDENT_AUTH_COPY.noAccountCreatePrompt}`,
+          );
+          return;
+        }
+        setError(data.message ?? RESIDENT_AUTH_COPY.loginFailedGeneric);
         return;
       }
       if (data.mustSetPassword) {
@@ -293,8 +405,8 @@ export function CustomerLoginForm({
   async function sendCode(purpose: OtpPurpose = otpPurpose, overrideIdentifier?: string) {
     const targetIdentifier = (overrideIdentifier ?? email).trim();
     const isEmail = targetIdentifier.includes('@');
-    if (isEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetIdentifier)) {
-      setError('Enter a valid email address.');
+    if (isEmail && !isValidEmailFormat(targetIdentifier)) {
+      setError(RESIDENT_AUTH_COPY.invalidEmail);
       return;
     }
     if (!isEmail && !INDIAN_MOBILE_LOCAL.test(targetIdentifier.replace(/\D/g, '').slice(-10))) {
@@ -329,10 +441,10 @@ export function CustomerLoginForm({
       };
       if (!res.ok || !data.ok) {
         if (data.needsLogin || data.accountExists) {
-          await resetToLogin(
-            data.message ??
-              'This email already has an account. Sign in with your password or use Forgot password.',
-          );
+          await resetToLogin({
+            notice: 'welcome_back',
+            emailOverride: data.email ?? email.trim(),
+          });
           return;
         }
         if (data.retryAfterSeconds) {
@@ -424,7 +536,10 @@ export function CustomerLoginForm({
           }
           if (data.needsLogin) {
             resetProfileSubmit();
-            await resetToLogin(data.message);
+            await resetToLogin({
+              notice: 'welcome_back',
+              emailOverride: email.trim(),
+            });
             return;
           }
           if (data.needsNewCode) {
@@ -515,10 +630,10 @@ export function CustomerLoginForm({
       if (data.needsLogin) {
         if (includeProfile) resetProfileSubmit();
         else resetVerifyState();
-        await resetToLogin(
-          data.message ??
-            'This email already has an account. Sign in with your password or use Forgot password.',
-        );
+        await resetToLogin({
+          notice: 'welcome_back',
+          emailOverride: email.trim(),
+        });
         return;
       }
 
@@ -680,34 +795,36 @@ export function CustomerLoginForm({
   }
 
   async function startSignup() {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setError('Enter your email above first, then tap Sign up.');
+    const emailCheck = validateResidentEmailInput(email);
+    if (!emailCheck.ok) {
+      setError(emailCheck.message);
+      emailInputRef.current?.focus();
       return;
     }
     setError(null);
+    setUnknownEmailPrompt(false);
+    setPending(true);
     try {
       const lookup = await fetch(
-        `/api/auth/customer/email/lookup?email=${encodeURIComponent(email.trim())}`,
+        `/api/auth/customer/email/lookup?email=${encodeURIComponent(emailCheck.email)}`,
         { credentials: 'same-origin' },
       );
       if (lookup.ok) {
-        const info = (await lookup.json()) as { shouldLogin?: boolean; message?: string | null };
+        const info = (await lookup.json()) as { shouldLogin?: boolean; email?: string };
         if (info.shouldLogin) {
-          await resetToLogin(
-            info.message ??
-              'This email already has an account. Sign in with your password or use Forgot password.',
-          );
+          await resetToLogin({
+            notice: 'welcome_back',
+            emailOverride: info.email ?? emailCheck.email,
+          });
           return;
         }
       }
     } catch {
-      /* continue */
+      /* continue into signup */
+    } finally {
+      setPending(false);
     }
-    const q = new URLSearchParams();
-    q.set('signup', '1');
-    q.set('next', next);
-    q.set('email', email.trim());
-    router.push(`/login?${q.toString()}`);
+    await goToSignup(emailCheck.email);
   }
 
   function startForgotPassword() {
@@ -794,15 +911,42 @@ export function CustomerLoginForm({
   const profileLocked = profilePhase !== 'idle';
 
   return (
-    <div className={shell}>
+    <div
+      className={`${shell} transition-all duration-300 ease-out ${
+        modeTransition ? 'translate-y-1 opacity-90' : 'translate-y-0 opacity-100'
+      }`}
+    >
       {!dark && step === 'credentials' ? (
         <div>
-          <h1 className={titleClass}>Sign in</h1>
+          <h1 className={titleClass}>{allowSignupFlow ? 'Sign Up' : 'Login'}</h1>
           <p className={subClass}>
-            Use your email or mobile number and password. We only send a verification code when you
-            sign up or forget your password.
+            {allowSignupFlow
+              ? 'Create your resident account with email verification, then choose a password.'
+              : 'Use your email or mobile number and password. We only send a verification code when you Sign Up or forget your password.'}
           </p>
         </div>
+      ) : null}
+
+      {infoMessage ? (
+        <p
+          id="resident-auth-status"
+          role="status"
+          aria-live="polite"
+          className={`${infoClass} whitespace-pre-line`}
+        >
+          {infoMessage}
+        </p>
+      ) : null}
+
+      {error && step === 'credentials' ? (
+        <p
+          id={infoMessage ? 'resident-auth-error' : 'resident-auth-status'}
+          role="alert"
+          aria-live="assertive"
+          className={`${errorClass} whitespace-pre-line`}
+        >
+          {error}
+        </p>
       ) : null}
 
       {step === 'credentials' ? (
@@ -816,20 +960,27 @@ export function CustomerLoginForm({
           <label className="block">
             <span className={labelClass}>Email or phone number</span>
             <input
+              ref={emailInputRef}
               type="text"
               name="identifier"
               required
               autoComplete="username"
               inputMode="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setUnknownEmailPrompt(false);
+              }}
               className={inputClass}
               placeholder="you@email.com or 9876543210"
+              aria-invalid={Boolean(error && !password)}
+              aria-describedby={error || infoMessage ? 'resident-auth-status' : undefined}
             />
           </label>
           <label className="block">
             <span className={labelClass}>Password</span>
             <input
+              ref={passwordInputRef}
               type="password"
               name="password"
               required
@@ -837,6 +988,7 @@ export function CustomerLoginForm({
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className={inputClass}
+              aria-invalid={error === RESIDENT_AUTH_COPY.incorrectPassword || error === RESIDENT_AUTH_COPY.emptyPassword}
             />
           </label>
           <label
@@ -857,20 +1009,30 @@ export function CustomerLoginForm({
                 Remember this device
               </span>
               <span className="mt-0.5 block text-xs">
-                Stay signed in for up to 75 days on this phone or computer. We renew your session
+                Stay logged in for up to 75 days on this phone or computer. We renew your session
                 quietly while you use the portal.
               </span>
             </span>
           </label>
           <button type="submit" disabled={pending} className={btnClass}>
-            {pending ? 'Signing in…' : 'Sign in'}
+            {pending ? 'Logging in…' : 'Login'}
           </button>
+          {unknownEmailPrompt ? (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => void goToSignup(email.trim(), 'no_account')}
+              className={btnClass}
+            >
+              {RESIDENT_AUTH_COPY.createAccountCta}
+            </button>
+          ) : null}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <button type="button" onClick={startForgotPassword} className={linkAccent}>
-              Forgot password?
+              Forgot Password
             </button>
-            <button type="button" onClick={startSignup} className={linkAccent}>
-              New here? Sign up with email code
+            <button type="button" onClick={() => void startSignup()} className={linkAccent}>
+              New here? Sign Up
             </button>
           </div>
         </form>
@@ -915,6 +1077,7 @@ export function CustomerLoginForm({
           <label className="block">
             <span className={labelClass}>6-digit code</span>
             <input
+              ref={codeInputRef}
               type="text"
               name="one-time-code"
               inputMode="numeric"
@@ -953,7 +1116,7 @@ export function CustomerLoginForm({
               }}
               className={linkMuted}
             >
-              ← Back to sign in
+              ← Back to Login
             </button>
             <button
               type="button"
@@ -1086,7 +1249,7 @@ export function CustomerLoginForm({
               onClick={() => void resetToLogin()}
               className={linkMuted}
             >
-              ← Sign in instead
+              ← Login instead
             </button>
             <button
               type="button"
@@ -1116,6 +1279,7 @@ export function CustomerLoginForm({
           <label className="block">
             <span className={labelClass}>New password</span>
             <input
+              ref={newPasswordInputRef}
               type="password"
               required
               minLength={8}
@@ -1141,7 +1305,7 @@ export function CustomerLoginForm({
             />
           </label>
           <button type="submit" disabled={pending} className={btnClass}>
-            {pending ? 'Saving…' : 'Save password & sign in'}
+            {pending ? 'Saving…' : 'Save password & Login'}
           </button>
           {recoveryOtpVerified ? (
             <button
@@ -1166,10 +1330,17 @@ export function CustomerLoginForm({
         </form>
       ) : null}
 
-      {infoMessage ? <p className={successClass}>{infoMessage}</p> : null}
-
-      {error && !(emailVerified && step === 'profile' && profilePhase !== 'idle') ? (
-        <p className={errorClass}>{error}</p>
+      {error &&
+      step !== 'credentials' &&
+      !(emailVerified && step === 'profile' && profilePhase !== 'idle') ? (
+        <p
+          id="resident-auth-status"
+          role="alert"
+          aria-live="assertive"
+          className={`${errorClass} whitespace-pre-line`}
+        >
+          {error}
+        </p>
       ) : null}
     </div>
   );

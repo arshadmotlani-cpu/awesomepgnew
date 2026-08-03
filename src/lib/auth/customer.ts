@@ -141,7 +141,7 @@ export async function upsertRecoveryCustomerProfile(args: {
   }
 
   if (existing && isAccountComplete(existing)) {
-    throw new Error('This email already has an account. Sign in with your password.');
+    throw new Error('An account already exists with this email. Please Login with your password.');
   }
 
   const now = new Date();
@@ -227,7 +227,7 @@ export async function commitSignupCustomer(args: {
     existingByPhone.email !== email
   ) {
     throw new Error(
-      'This mobile number is already linked to another account. Use a different number or sign in with that account.',
+      'This mobile number is already linked to another account. Use a different number or Login with that account.',
     );
   }
 

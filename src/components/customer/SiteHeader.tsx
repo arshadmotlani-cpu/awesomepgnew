@@ -74,7 +74,7 @@ export async function SiteHeader({ theme = 'dark' }: { theme?: 'dark' | 'light' 
               href="/login?next=/pgs"
               className="rounded-lg bg-apg-orange px-4 py-2 text-white shadow-md shadow-orange-500/25 hover:brightness-110"
             >
-              Sign in
+              Login
             </Link>
           )}
         </nav>

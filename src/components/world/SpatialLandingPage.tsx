@@ -108,7 +108,7 @@ export function SpatialLandingPage({
             href="/login?next=/account/profile"
             className="inline-flex min-h-[48px] items-center justify-center rounded-xl border border-white/20 bg-white/10 px-7 py-3 text-sm font-semibold text-white transition hover:border-apg-orange/40 hover:bg-white/15 sm:px-8"
           >
-            Resident sign in
+            Resident Login
           </Link>
         </div>
       </section>

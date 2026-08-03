@@ -256,39 +256,29 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-03 09:00:25 UTC
+### Pending pre-commit sync · 2026-08-03 13:04:37 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Auth]]
+**Areas touched:** [[ROUTES]], [[Auth]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
-**Staged code files (21):**
-- `app/(admin)/admin/residents/[customerId]/impersonation-actions.ts`
-- `app/(admin)/admin/residents/[customerId]/page.tsx`
-- `app/(customer)/account/change-password/page.tsx`
-- `app/(customer)/account/set-password/page.tsx`
-- `app/(customer)/layout.tsx`
-- `app/api/admin/impersonation/end/route.ts`
-- `app/api/admin/impersonation/start/route.ts`
-- `app/api/admin/impersonation/status/route.ts`
+**Staged code files (12):**
+- `app/(customer)/pay/[linkId]/page.tsx`
 - `app/api/auth/customer/change-password/route.ts`
+- `app/api/auth/customer/email/lookup/route.ts`
+- `app/api/auth/customer/email/send/route.ts`
+- `app/api/auth/customer/email/verify/route.ts`
+- `app/api/auth/customer/forgot-password/profile/route.ts`
+- `app/api/auth/customer/login/route.ts`
+- `app/api/auth/customer/session/refresh/route.ts`
 - `app/api/auth/customer/sessions/route.ts`
-- `app/api/auth/customer/set-password/route.ts`
-- `app/api/auth/logout/route.ts`
-- `src/db/migrations/0139_admin_resident_impersonations.sql`
-- `src/db/schema/adminResidentImpersonations.ts`
-- `src/db/schema/index.ts`
-- `src/lib/auth/constants.ts`
-- `src/lib/auth/guards.ts`
-- `src/lib/auth/impersonation.ts`
-- `src/lib/auth/impersonationGuards.ts`
-- `src/lib/auth/impersonationPolicy.ts`
-- `src/lib/auth/session.ts`
+- `app/login/page.tsx`
+- `src/lib/auth/customer.ts`
+- `src/lib/auth/residentAuthCopy.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed
