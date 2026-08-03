@@ -18,6 +18,7 @@ function samplePgRow(overrides: Partial<RevenueByPgRow> & { pgId: string; pgName
     rentRevenuePaise: 100_000,
     electricityRevenuePaise: 20_000,
     depositCollectedPaise: 50_000,
+    depositHeldPaise: 0,
     lateFeePaise: 0,
     otherIncomePaise: 0,
     depositPaidCount: 1,

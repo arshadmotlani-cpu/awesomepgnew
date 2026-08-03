@@ -182,7 +182,7 @@ async function main() {
   const { loadAdminNavBadges } = await import('../src/services/adminNavBadges');
   const { getResolvedSidebarLayout } = await import('../src/services/sidebarLayouts');
   const { loadOverviewContext } = await import('../src/services/overviewData');
-  const { buildOverviewDashboard } = await import('../src/services/overviewDashboard');
+  const { buildOwnerDashboard } = await import('../src/services/ownerDashboard');
   const { loadBillingReconciliationSafe } = await import('../src/services/billingCycleReconciliation');
   const { loadUnifiedOperationsQueue } = await import('../src/services/unifiedOperationsQueue');
   const {
@@ -258,8 +258,8 @@ async function main() {
             ]),
           );
           if (ctx.ok) {
-            await timedStep(steps, 'page: buildOverviewDashboard (sync)', async () => {
-              buildOverviewDashboard(ctx.data, billingMonth);
+            await timedStep(steps, 'page: buildOwnerDashboard (sync)', async () => {
+              buildOwnerDashboard(ctx.data, ctx.data.executiveMetrics);
             });
           }
         } else {
@@ -267,8 +267,8 @@ async function main() {
             loadOverviewContext(s, undefined, { syncActions: false, reconcile: false }),
           );
           if (ctx.ok) {
-            await timedStep(steps, 'page: buildOverviewDashboard (sync)', async () => {
-              buildOverviewDashboard(ctx.data, billingMonth);
+            await timedStep(steps, 'page: buildOwnerDashboard (sync)', async () => {
+              buildOwnerDashboard(ctx.data, ctx.data.executiveMetrics);
             });
           }
         }

@@ -72,6 +72,7 @@ test('pgMetricsFromRow operating revenue equals invoice buckets (excludes deposi
     lateFeePaise: metrics.lateFeePaise,
     otherIncomePaise: metrics.otherIncomePaise,
     depositCollectedPaise: 2_247_800,
+    depositHeldPaise: 0,
     depositPaidCount: 3,
     depositPendingCount: 0,
     depositRequirementMissingCount: 0,

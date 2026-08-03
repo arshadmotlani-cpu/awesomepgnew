@@ -1,3 +1,6 @@
+/**
+ * @deprecated Replaced by OwnerDashboard — kept for parity scripts and legacy tests.
+ */
 import Link from 'next/link';
 import { ClickableOverviewCard } from '@/src/components/admin/overview/ClickableOverviewCard';
 import { paiseToInr } from '@/src/lib/format';

@@ -208,6 +208,42 @@ export async function getDepositRefundedByPgFromLedger(
   }));
 }
 
+export type DepositHeldByPgRow = {
+  pgId: string;
+  heldPaise: number;
+};
+
+/** Current refundable deposit balance held, grouped by PG — ledger SSOT. */
+export async function getDepositHeldByPgFromLedger(): Promise<DepositHeldByPgRow[]> {
+  const rows = await db.execute<{ pg_id: string; total: number }>(sql`
+    SELECT
+      p.id::text AS pg_id,
+      coalesce(sum(sub.balance), 0)::bigint::int AS total
+    FROM (
+      SELECT
+        dl.booking_id,
+        greatest(coalesce(sum(dl.amount_paise), 0), 0)::bigint::int AS balance
+      FROM deposit_ledger dl
+      WHERE ${PRODUCTION_BOOKING_FILTER}
+      GROUP BY dl.booking_id
+      HAVING greatest(coalesce(sum(dl.amount_paise), 0), 0) > 0
+    ) sub
+    INNER JOIN bookings b ON b.id = sub.booking_id
+    INNER JOIN bed_reservations br ON br.booking_id = b.id AND br.kind = 'primary'
+    INNER JOIN beds bd ON bd.id = br.bed_id
+    INNER JOIN rooms r ON r.id = bd.room_id
+    INNER JOIN floors f ON f.id = r.floor_id
+    INNER JOIN pgs p ON p.id = f.pg_id
+    GROUP BY p.id
+    HAVING coalesce(sum(sub.balance), 0) > 0
+  `);
+
+  return Array.from(rows).map((r) => ({
+    pgId: r.pg_id,
+    heldPaise: asPlainNumber(r.total),
+  }));
+}
+
 /** Global deposit refund totals for a billing month (for business metrics). */
 export async function getDepositRefundsForBillingMonth(billingMonthInput?: string): Promise<{
   count: number;

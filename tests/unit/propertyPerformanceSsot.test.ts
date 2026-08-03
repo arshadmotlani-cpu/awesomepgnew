@@ -29,6 +29,7 @@ function makeByPgRow(overrides: Partial<RevenueByPgRow> & Pick<RevenueByPgRow, '
     occupiedBeds: 8,
     totalBeds: 10,
     depositCollectedPaise: 50_000,
+    depositHeldPaise: 0,
     depositPaidCount: 2,
     depositPendingCount: 0,
     depositRequirementMissingCount: 0,

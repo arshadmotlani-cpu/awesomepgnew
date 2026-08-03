@@ -41,6 +41,8 @@ export type RevenueByPgRow = {
   otherIncomePaise: number;
   /** Deposit cash collected — not operating revenue. */
   depositCollectedPaise: number;
+  /** Live ledger-held refundable balance for this PG. */
+  depositHeldPaise: number;
   depositPaidCount: number;
   depositPendingCount: number;
   depositRequirementMissingCount: number;
@@ -108,11 +110,13 @@ export function revenueByPgRowReconciles(row: RevenueByPgRow): boolean {
 function buildByPgRows(
   pgFinancial: Awaited<ReturnType<typeof getPgFinancialMetrics>>,
   depositByPg: Map<string, number>,
+  depositHeldByPg: Map<string, number>,
   depositCountsByPg: Map<string, { paid: number; pending: number; requirementMissing: number }>,
 ): RevenueByPgRow[] {
   return pgFinancial
     .map((row) => {
       const depositCollectedPaise = depositByPg.get(row.pgId) ?? 0;
+      const depositHeldPaise = depositHeldByPg.get(row.pgId) ?? 0;
       const counts = depositCountsByPg.get(row.pgId) ?? {
         paid: 0,
         pending: 0,
@@ -129,6 +133,7 @@ function buildByPgRows(
         lateFeePaise: row.lateFeePaise,
         otherIncomePaise: row.otherIncomePaise,
         depositCollectedPaise,
+        depositHeldPaise,
         depositPaidCount: counts.paid,
         depositPendingCount: counts.pending,
         depositRequirementMissingCount: counts.requirementMissing,
@@ -182,8 +187,18 @@ export async function getRevenueCommandCenterData(
 ): Promise<RevenueCommandCenterData> {
   const billingMonth = resolveBillingMonth(input.billingMonth);
 
-  const [collections, depositRows, depositSummaries, rawPaymentReviews, dismissalIndex, invoiceSnapshot, depositPortfolio, collectionsByModeResult, pgFinancial] =
-    await Promise.all([
+  const [
+    collections,
+    depositRows,
+    depositSummaries,
+    rawPaymentReviews,
+    dismissalIndex,
+    invoiceSnapshot,
+    depositPortfolio,
+    depositHeldRows,
+    collectionsByModeResult,
+    pgFinancial,
+  ] = await Promise.all([
     loadCollectionsSnapshot(billingMonth),
     getDepositCollectedByPgForBillingMonth(billingMonth),
     import('@/src/services/pgDepositCollection').then((m) =>
@@ -197,6 +212,7 @@ export async function getRevenueCommandCenterData(
     import('@/src/services/depositLedgerMetrics').then((m) =>
       m.getDepositPortfolioMetrics(billingMonth),
     ),
+    import('@/src/services/depositLedgerMetrics').then((m) => m.getDepositHeldByPgFromLedger()),
     getMtdCollectionByPaymentMode(billingMonth),
     getPgFinancialMetrics(billingMonth),
   ]);
@@ -231,8 +247,10 @@ export async function getRevenueCommandCenterData(
     }
   }
 
+  const depositHeldByPg = new Map(depositHeldRows.map((row) => [row.pgId, row.heldPaise]));
+
   const mtd = collections.mtd;
-  const byPg = buildByPgRows(pgFinancial, depositByPg, depositCountsByPg);
+  const byPg = buildByPgRows(pgFinancial, depositByPg, depositHeldByPg, depositCountsByPg);
 
   const pendingPayments = visiblePaymentReviews;
   const invoiceOutstanding = computeOutstandingMoneyFromInvoices(invoiceSnapshot);
