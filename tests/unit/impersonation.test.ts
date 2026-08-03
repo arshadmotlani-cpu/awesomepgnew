@@ -127,6 +127,14 @@ test('customer layout shows banner and debug panel only while impersonating', ()
   assert.match(src, /getActiveImpersonationContext/);
 });
 
+test('ending impersonation preserves customer session id on audit row', () => {
+  const src = readFileSync(join(process.cwd(), 'src/lib/auth/impersonation.ts'), 'utf8');
+  assert.match(src, /expireCustomerSessionKeepRow/);
+  assert.match(src, /customer_session_id FK on the audit row is preserved/);
+  const sessionSrc = readFileSync(join(process.cwd(), 'src/lib/auth/session.ts'), 'utf8');
+  assert.match(sessionSrc, /export async function expireCustomerSessionKeepRow/);
+});
+
 test('resident profile exposes impersonation controls for super admin', () => {
   const page = readFileSync(
     join(process.cwd(), 'app/(admin)/admin/residents/[customerId]/page.tsx'),

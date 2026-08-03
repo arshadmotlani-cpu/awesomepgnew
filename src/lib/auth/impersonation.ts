@@ -22,7 +22,7 @@ import { writeAuditLogNonBlocking } from '@/src/lib/audit/writeAuditLog';
 import type { AdminSession } from '@/src/lib/auth/session';
 import {
   createCustomerSession,
-  destroyCustomerSession,
+  expireCustomerSessionKeepRow,
   getAdminSession,
 } from '@/src/lib/auth/session';
 import { env } from '@/src/lib/env';
@@ -144,7 +144,13 @@ async function applyImpersonationCookie(impersonationId: string, expiresAt: Date
 
 async function clearImpersonationCookie(): Promise<void> {
   const jar = await cookies();
-  jar.delete(IMPERSONATION_COOKIE);
+  jar.set(IMPERSONATION_COOKIE, '', {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: 0,
+  });
 }
 
 export function assertSuperAdmin(session: AdminSession): void {
@@ -315,7 +321,7 @@ export async function endResidentImpersonation(args: {
   const jar = await cookies();
   const impersonationId = jar.get(IMPERSONATION_COOKIE)?.value;
   if (!impersonationId) {
-    await destroyCustomerSession();
+    await expireCustomerSessionKeepRow();
     return { ok: true, redirectTo: '/admin/overview' };
   }
 
@@ -327,7 +333,7 @@ export async function endResidentImpersonation(args: {
 
   if (!row || row.adminId !== adminSession.adminId) {
     await clearImpersonationCookie();
-    await destroyCustomerSession();
+    await expireCustomerSessionKeepRow();
     return { ok: false, error: 'Impersonation session not found.' };
   }
 
@@ -359,11 +365,13 @@ export async function endResidentImpersonation(args: {
         impersonationId: row.id,
         durationSeconds,
         exitReason: args.exitReason ?? 'admin_return',
+        customerSessionId: row.customerSessionId,
       },
     });
   }
 
-  await destroyCustomerSession();
+  // Expire (do not delete) so customer_session_id FK on the audit row is preserved.
+  await expireCustomerSessionKeepRow();
   await clearImpersonationCookie();
 
   return { ok: true, redirectTo: row.adminReturnPath };

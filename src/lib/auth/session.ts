@@ -31,7 +31,14 @@ type CustomerSessionRejectReason =
 async function clearCustomerSessionCookie(): Promise<void> {
   try {
     const jar = await cookies();
-    jar.delete(CUSTOMER_SESSION_COOKIE);
+    // Explicit expiry + attributes — bare delete() can leave Secure cookies on some browsers.
+    jar.set(CUSTOMER_SESSION_COOKIE, '', {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: 0,
+    });
   } catch (err) {
     // RSC cannot mutate cookies — middleware will drop invalid sessions on next nav.
     const message = err instanceof Error ? err.message : String(err);
@@ -480,7 +487,23 @@ export async function destroyCustomerSession(): Promise<void> {
       .delete(authSessions)
       .where(eq(authSessions.tokenHash, sha256(token)));
   }
-  jar.delete(CUSTOMER_SESSION_COOKIE);
+  await clearCustomerSessionCookie();
+}
+
+/**
+ * Revoke the current customer session without deleting the auth_sessions row.
+ * Used when ending impersonation so audit FKs (customer_session_id) stay intact.
+ */
+export async function expireCustomerSessionKeepRow(): Promise<void> {
+  const jar = await cookies();
+  const token = jar.get(CUSTOMER_SESSION_COOKIE)?.value;
+  if (token) {
+    await db
+      .update(authSessions)
+      .set({ expiresAt: new Date(), lastSeenAt: new Date() })
+      .where(eq(authSessions.tokenHash, sha256(token)));
+  }
+  await clearCustomerSessionCookie();
 }
 
 /** Revoke every resident session (optionally keep the current device). */
