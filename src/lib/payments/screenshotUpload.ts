@@ -1,34 +1,15 @@
-import sharp from 'sharp';
 import { isBlobPrivateConfigured, uploadPrivate } from '@/src/lib/storage/blob';
+import {
+  compressPaymentProofImage,
+  sanitizePaymentUploadError,
+} from '@/src/lib/payments/proofImageProcessing';
 import {
   recordResidentUpload,
   type ResidentUploadTraceInput,
 } from '@/src/services/residentUploadEvents';
 
-/** Keep compressed proofs under ~450 KB before Blob upload. */
-const MAX_PROOF_BYTES = 450_000;
-
 function onVercelProduction(): boolean {
   return process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
-}
-
-async function compressProof(file: File): Promise<{ buffer: Buffer; mime: string }> {
-  const buffer = Buffer.from(await file.arrayBuffer());
-  let compressed = await sharp(buffer)
-    .rotate()
-    .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 72, mozjpeg: true })
-    .toBuffer();
-
-  if (compressed.length > MAX_PROOF_BYTES) {
-    compressed = await sharp(compressed).jpeg({ quality: 52, mozjpeg: true }).toBuffer();
-  }
-
-  if (compressed.length > MAX_PROOF_BYTES) {
-    throw new Error('Screenshot is too large. Take a closer crop or lower-resolution photo.');
-  }
-
-  return { buffer: compressed, mime: 'image/jpeg' };
 }
 
 /**
@@ -40,32 +21,36 @@ export async function uploadPaymentScreenshot(
   trace?: ResidentUploadTraceInput,
 ): Promise<string> {
   if (!(file instanceof File)) throw new Error('No file provided.');
-  if (!file.type.startsWith('image/')) {
+  if (!file.type.startsWith('image/') && !/\.(heic|heif)$/i.test(file.name)) {
     throw new Error('Only screenshot images are allowed.');
   }
 
-  if (isBlobPrivateConfigured()) {
-    const { buffer, mime } = await compressProof(file);
-    const pathname = `payments/proofs/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.jpg`;
-    const stored = await uploadPrivate(pathname, buffer, mime);
-    if (trace) {
-      await recordResidentUpload({ ...trace, storagePath: stored.url }).catch(() => undefined);
+  try {
+    if (isBlobPrivateConfigured()) {
+      const { buffer, mime } = await compressPaymentProofImage(file);
+      const pathname = `payments/proofs/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.jpg`;
+      const stored = await uploadPrivate(pathname, buffer, mime);
+      if (trace) {
+        await recordResidentUpload({ ...trace, storagePath: stored.url }).catch(() => undefined);
+      }
+      return stored.url;
     }
-    return stored.url;
-  }
 
-  if (onVercelProduction()) {
-    throw new Error(
-      'Payment proof upload is temporarily unavailable. Please try again later or contact support.',
-    );
-  }
+    if (onVercelProduction()) {
+      throw new Error(
+        'Payment proof upload is temporarily unavailable. Please try again later or contact support.',
+      );
+    }
 
-  const { buffer } = await compressProof(file);
-  const dataUrl = `data:image/jpeg;base64,${buffer.toString('base64')}`;
-  if (trace) {
-    await recordResidentUpload({ ...trace, storagePath: dataUrl }).catch(() => undefined);
+    const { buffer } = await compressPaymentProofImage(file);
+    const dataUrl = `data:image/jpeg;base64,${buffer.toString('base64')}`;
+    if (trace) {
+      await recordResidentUpload({ ...trace, storagePath: dataUrl }).catch(() => undefined);
+    }
+    return dataUrl;
+  } catch (err) {
+    throw new Error(sanitizePaymentUploadError(err));
   }
-  return dataUrl;
 }
 
 export function isPaymentScreenshotUploadAvailable(): boolean {

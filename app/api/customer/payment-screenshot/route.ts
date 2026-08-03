@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import { uploadPaymentScreenshot } from '@/src/lib/payments/screenshotUpload';
+import { sanitizePaymentUploadError } from '@/src/lib/payments/proofImageProcessing';
 import type { ResidentUploadType } from '@/src/services/residentUploadEvents';
 
 const UPLOAD_TYPES = new Set<ResidentUploadType>([
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ ok: true, url });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Upload failed.';
+    const message = sanitizePaymentUploadError(err);
     return NextResponse.json({ ok: false, message }, { status: 400 });
   }
 }
