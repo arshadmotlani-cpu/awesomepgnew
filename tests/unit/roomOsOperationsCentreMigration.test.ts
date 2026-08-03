@@ -55,7 +55,7 @@ describe('Room OS Wave 2 — Operations Centre migration', () => {
     assert.match(adapter, /loadLedger/);
     assert.match(adapter, /loadBed/);
     assert.match(adapter, /loadRoomShared/);
-    assert.match(adapter, /loadPropertyIndex/);
+    assert.match(adapter, /loadActiveBookingsInRoom/);
     assert.doesNotMatch(adapter, /billingCentreDashboard/);
     assert.doesNotMatch(adapter, /occupancySsot/);
     assert.doesNotMatch(adapter, /roomElectricityOccupants/);
