@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatDate, parseDate } from '@/src/lib/dates';
 import { cn } from '@/src/hair/lib/utils';
@@ -21,6 +22,10 @@ const MONTH_NAMES = [
 ];
 
 const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+const PANEL_WIDTH_PX = 272;
+const PANEL_GAP_PX = 6;
+const VIEWPORT_PAD_PX = 8;
 
 function daysInMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
@@ -67,6 +72,25 @@ function formatDisplay(iso: string): string {
   }
 }
 
+function clampPanelPosition(trigger: DOMRect): { top: number; left: number } {
+  const width = Math.min(PANEL_WIDTH_PX, window.innerWidth - VIEWPORT_PAD_PX * 2);
+  let left = trigger.left;
+  let top = trigger.bottom + PANEL_GAP_PX;
+
+  if (left + width > window.innerWidth - VIEWPORT_PAD_PX) {
+    left = Math.max(VIEWPORT_PAD_PX, window.innerWidth - VIEWPORT_PAD_PX - width);
+  }
+  if (left < VIEWPORT_PAD_PX) left = VIEWPORT_PAD_PX;
+
+  const estimatedHeight = 320;
+  if (top + estimatedHeight > window.innerHeight - VIEWPORT_PAD_PX) {
+    const above = trigger.top - PANEL_GAP_PX - estimatedHeight;
+    if (above >= VIEWPORT_PAD_PX) top = above;
+  }
+
+  return { top, left };
+}
+
 export type FyhDatePickerProps = {
   id?: string;
   value: string;
@@ -86,8 +110,12 @@ export function FyhDatePicker({
 }: FyhDatePickerProps) {
   const autoId = useId();
   const id = idProp ?? autoId;
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(null);
 
   const parsed = useMemo(() => {
     if (!value) return null;
@@ -113,6 +141,16 @@ export function FyhDatePicker({
 
   const dayGrid = useMemo(() => buildDayGrid(viewYear, viewMonth), [viewYear, viewMonth]);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const updatePosition = useCallback(() => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setPanelPos(clampPanelPosition(rect));
+  }, []);
+
   const openPanel = useCallback(() => {
     if (parsed) {
       setViewYear(parsed.getUTCFullYear());
@@ -131,7 +169,11 @@ export function FyhDatePicker({
 
   const selectDay = useCallback(
     (day: number) => {
-      const iso = formatDate(parseDate(`${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`));
+      const iso = formatDate(
+        parseDate(
+          `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+        ),
+      );
       onChange(iso);
       setOpen(false);
     },
@@ -145,12 +187,34 @@ export function FyhDatePicker({
     setFocusIndex(firstValidDayIndex(buildDayGrid(next.getUTCFullYear(), next.getUTCMonth())));
   };
 
+  useLayoutEffect(() => {
+    if (!open) {
+      setPanelPos(null);
+      return;
+    }
+    updatePosition();
+  }, [open, updatePosition]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onReposition() {
+      updatePosition();
+    }
+    window.addEventListener('resize', onReposition);
+    window.addEventListener('scroll', onReposition, true);
+    return () => {
+      window.removeEventListener('resize', onReposition);
+      window.removeEventListener('scroll', onReposition, true);
+    };
+  }, [open, updatePosition]);
+
   useEffect(() => {
     if (!open) return;
     function onDocMouseDown(e: MouseEvent) {
-      if (!panelRef.current?.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      if (rootRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setOpen(false);
     }
     document.addEventListener('mousedown', onDocMouseDown);
     return () => document.removeEventListener('mousedown', onDocMouseDown);
@@ -205,9 +269,118 @@ export function FyhDatePicker({
     return years;
   }, []);
 
+  const panel =
+    open && panelPos ? (
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-label="Choose date"
+        className="fyh-datepicker-panel fixed z-[600] w-[min(100vw-1rem,17rem)] rounded-xl border border-[color:var(--fyh-border-strong)] p-3 shadow-[0_24px_64px_rgba(0,0,0,0.55)]"
+        style={{ top: panelPos.top, left: panelPos.left }}
+      >
+        <div className="mb-2 flex items-center justify-between gap-1">
+          <button
+            type="button"
+            className="rounded-md p-1 text-fyh-text-secondary hover:bg-white/8"
+            aria-label="Previous month"
+            onClick={() => moveMonth(-1)}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5">
+            <span className="truncate text-sm font-semibold text-fyh-text">
+              {MONTH_NAMES[viewMonth]}
+            </span>
+            <select
+              aria-label="Year"
+              value={viewYear}
+              onChange={(e) => {
+                const y = Number(e.target.value);
+                setViewYear(y);
+                setFocusIndex(firstValidDayIndex(buildDayGrid(y, viewMonth)));
+              }}
+              className="fyh-select h-7 max-w-[5.5rem] px-1.5 text-xs"
+            >
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            className="rounded-md p-1 text-fyh-text-secondary hover:bg-white/8"
+            aria-label="Next month"
+            onClick={() => moveMonth(1)}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mb-1 grid grid-cols-7 gap-0.5">
+          {WEEKDAY_LABELS.map((label) => (
+            <div
+              key={label}
+              className="py-1 text-center text-[0.625rem] font-semibold uppercase tracking-wide text-fyh-text-muted"
+            >
+              {label}
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7 gap-0.5">
+          {dayGrid.map((day, index) => {
+            if (day == null) {
+              return <div key={`empty-${index}`} className="min-h-9" aria-hidden />;
+            }
+            const iso = formatDate(
+              parseDate(
+                `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+              ),
+            );
+            const selected = value === iso;
+            const focused = focusIndex === index;
+            return (
+              <button
+                key={`${viewYear}-${viewMonth}-${day}`}
+                type="button"
+                tabIndex={focused ? 0 : -1}
+                onClick={() => selectDay(day)}
+                onFocus={() => setFocusIndex(index)}
+                className={cn(
+                  'flex min-h-9 items-center justify-center rounded-lg text-sm tabular-nums transition',
+                  selected
+                    ? 'bg-fyh-accent font-semibold text-black'
+                    : 'text-fyh-text hover:bg-white/10',
+                  focused && !selected && 'ring-1 ring-fyh-accent/50',
+                )}
+              >
+                {day}
+              </button>
+            );
+          })}
+        </div>
+
+        {value ? (
+          <button
+            type="button"
+            className="mt-2 w-full rounded-lg py-1.5 text-xs text-fyh-text-muted hover:bg-white/6 hover:text-fyh-text"
+            onClick={() => {
+              onChange('');
+              setOpen(false);
+            }}
+          >
+            Clear date
+          </button>
+        ) : null}
+      </div>
+    ) : null;
+
   return (
-    <div ref={panelRef} className={cn('relative', className)}>
+    <div ref={rootRef} className={cn('relative', className)}>
       <button
+        ref={triggerRef}
         type="button"
         id={id}
         aria-label={ariaLabel}
@@ -223,110 +396,7 @@ export function FyhDatePicker({
         <Calendar className="h-3.5 w-3.5 shrink-0 text-fyh-text-muted" aria-hidden />
       </button>
 
-      {open ? (
-        <div
-          role="dialog"
-          aria-label="Choose date"
-          className="fyh-glass absolute left-0 top-[calc(100%+0.25rem)] z-[200] w-[min(100vw-2rem,17rem)] rounded-xl border border-[color:var(--fyh-border-strong)] p-3 shadow-[0_16px_48px_rgba(0,0,0,0.4)]"
-        >
-          <div className="mb-2 flex items-center justify-between gap-1">
-            <button
-              type="button"
-              className="rounded-md p-1 text-fyh-text-secondary hover:bg-white/8"
-              aria-label="Previous month"
-              onClick={() => moveMonth(-1)}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5">
-              <span className="truncate text-sm font-semibold text-fyh-text">
-                {MONTH_NAMES[viewMonth]}
-              </span>
-              <select
-                aria-label="Year"
-                value={viewYear}
-                onChange={(e) => {
-                  const y = Number(e.target.value);
-                  setViewYear(y);
-                  setFocusIndex(firstValidDayIndex(buildDayGrid(y, viewMonth)));
-                }}
-                className="fyh-select h-7 max-w-[5.5rem] px-1.5 text-xs"
-              >
-                {yearOptions.map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button
-              type="button"
-              className="rounded-md p-1 text-fyh-text-secondary hover:bg-white/8"
-              aria-label="Next month"
-              onClick={() => moveMonth(1)}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div className="mb-1 grid grid-cols-7 gap-0.5">
-            {WEEKDAY_LABELS.map((label) => (
-              <div
-                key={label}
-                className="py-1 text-center text-[0.625rem] font-semibold uppercase tracking-wide text-fyh-text-muted"
-              >
-                {label}
-              </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-0.5">
-            {dayGrid.map((day, index) => {
-              if (day == null) {
-                return <div key={`empty-${index}`} className="min-h-9" aria-hidden />;
-              }
-              const iso = formatDate(
-                parseDate(
-                  `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
-                ),
-              );
-              const selected = value === iso;
-              const focused = focusIndex === index;
-              return (
-                <button
-                  key={`${viewYear}-${viewMonth}-${day}`}
-                  type="button"
-                  tabIndex={focused ? 0 : -1}
-                  onClick={() => selectDay(day)}
-                  onFocus={() => setFocusIndex(index)}
-                  className={cn(
-                    'flex min-h-9 items-center justify-center rounded-lg text-sm tabular-nums transition',
-                    selected
-                      ? 'bg-fyh-accent font-semibold text-black'
-                      : 'text-fyh-text hover:bg-white/10',
-                    focused && !selected && 'ring-1 ring-fyh-accent/50',
-                  )}
-                >
-                  {day}
-                </button>
-              );
-            })}
-          </div>
-
-          {value ? (
-            <button
-              type="button"
-              className="mt-2 w-full rounded-lg py-1.5 text-xs text-fyh-text-muted hover:bg-white/6 hover:text-fyh-text"
-              onClick={() => {
-                onChange('');
-                setOpen(false);
-              }}
-            >
-              Clear date
-            </button>
-          ) : null}
-        </div>
-      ) : null}
+      {mounted && panel ? createPortal(panel, document.body) : null}
     </div>
   );
 }

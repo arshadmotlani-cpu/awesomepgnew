@@ -18,13 +18,12 @@ test('updateService preserves deductInventory when only service name changes', a
   const detail = await getServiceDetail(f.cut.id);
   assert.ok(detail);
 
-  const originalName = detail.service.name;
   const kitsBefore = await getServiceConsumables(f.cut.id);
   assert.ok(kitsBefore.some((k) => k.deductInventory === true), 'RC cut should deduct stock');
 
-  t.after(async () => {
+  const restoreCanonical = async () => {
     await updateService(f.cut.id, {
-      name: originalName,
+      name: 'RC Haircut',
       category: detail.service.category ?? 'Hair',
       durationMinutes: detail.service.durationMinutes,
       sellingPriceRupees: detail.service.pricePaise / 100,
@@ -37,7 +36,7 @@ test('updateService preserves deductInventory when only service name changes', a
       availableOnline: detail.service.availableOnline,
       featured: detail.service.featured,
       showOnWebsite: detail.service.showOnWebsite,
-      isActive: detail.service.isActive,
+      isActive: true,
       staffIds: detail.staffIds,
       consumables: kitsBefore.map((k) => ({
         productId: k.productId,
@@ -45,6 +44,10 @@ test('updateService preserves deductInventory when only service name changes', a
         deductInventory: k.deductInventory,
       })),
     });
+  };
+
+  t.after(async () => {
+    await restoreCanonical();
   });
 
   const consumables = kitsBefore.map((k) => ({
@@ -53,8 +56,9 @@ test('updateService preserves deductInventory when only service name changes', a
     deductInventory: k.deductInventory,
   }));
 
+  // Temporary rename only — must not accumulate UAT suffixes across runs.
   await updateService(f.cut.id, {
-    name: `${detail.service.name} UAT`,
+    name: 'RC Haircut Temp Rename',
     category: detail.service.category ?? 'Hair',
     durationMinutes: detail.service.durationMinutes,
     sellingPriceRupees: detail.service.pricePaise / 100,
@@ -67,7 +71,7 @@ test('updateService preserves deductInventory when only service name changes', a
     availableOnline: detail.service.availableOnline,
     featured: detail.service.featured,
     showOnWebsite: detail.service.showOnWebsite,
-    isActive: detail.service.isActive,
+    isActive: true,
     staffIds: detail.staffIds,
     consumables,
   });

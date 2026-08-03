@@ -35,7 +35,15 @@ test('loadAdminNavBadges uses fast badge queue path', () => {
   const queue = read('src/services/unifiedOperationsQueue.ts');
   assert.match(badges, /getUnifiedOperationsQueueForBadges/);
   assert.match(queue, /getUnifiedOperationsQueueForBadges/);
-  assert.match(queue, /skipResidents: true/);
+  assert.match(queue, /skipResidents/);
+  assert.doesNotMatch(badges, /badges\.overview\s*=/);
+});
+
+test('FyhDatePicker portals opaque panel above page content', () => {
+  const picker = read('src/hair/components/ui/FyhDatePicker.tsx');
+  assert.match(picker, /createPortal/);
+  assert.match(picker, /fyh-datepicker-panel/);
+  assert.match(picker, /z-\[600\]/);
 });
 
 test('PaymentReviewWorkspace refreshes badges once after approve', () => {

@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import test from 'node:test';
 import { buildOwnerDashboard, formatOwnerKpiValue } from '@/src/services/ownerDashboard';
 import type { OverviewReportingSnapshot } from '@/src/services/overviewReportingService';
@@ -161,8 +163,23 @@ test('buildOwnerDashboard maps operating revenue MTD', () => {
 test('buildOwnerDashboard aggregates pending approvals from ops counts', () => {
   const data = buildOwnerDashboard(sampleSnapshot());
   const approvals = data.kpis.find((k) => k.id === 'pending_approvals');
-  assert.ok(approvals);
-  assert.equal(approvals.value, 4);
+  assert.equal(approvals, undefined);
+  assert.deepEqual(data.actions, []);
+  assert.ok(data.kpis.every((k) => !k.id.startsWith('pending_')));
+});
+
+test('Owner dashboard UI has no action centre or attention pill', () => {
+  const src = readFileSync(
+    join(process.cwd(), 'src/components/admin/overview/owner/OwnerDashboard.tsx'),
+    'utf8',
+  );
+  assert.doesNotMatch(src, /Action centre|items need attention|OwnerActionCentre/);
+});
+
+test('Overview sidebar does not receive operations action badges', () => {
+  const badges = readFileSync(join(process.cwd(), 'src/services/adminNavBadges.ts'), 'utf8');
+  assert.doesNotMatch(badges, /badges\.overview\s*=/);
+  assert.match(badges, /badges\.operations\s*=/);
 });
 
 test('buildOwnerDashboard PG cards include deposit held and outstanding', () => {
@@ -174,4 +191,52 @@ test('buildOwnerDashboard PG cards include deposit held and outstanding', () => 
 
 test('formatOwnerKpiValue formats money in INR', () => {
   assert.match(formatOwnerKpiValue('money', 100_000), /^₹/);
+});
+
+test('OwnerCollectionDonut never indexes undefined slices array', () => {
+  const src = readFileSync(
+    join(process.cwd(), 'src/components/admin/overview/owner/OwnerChartPanels.tsx'),
+    'utf8',
+  );
+  assert.match(src, /Array\.isArray\(slices\) \? slices : \[\]/);
+  assert.doesNotMatch(src, /color: slices\[i\]/);
+  assert.match(src, /No collection breakdown yet/);
+});
+
+test('OwnerDashboard charts tolerate empty PG portfolio', () => {
+  const data = buildOwnerDashboard(
+    sampleSnapshot({
+      revenue: {
+        ...sampleSnapshot().revenue,
+        byPg: [],
+      } as never,
+      pgCount: 0,
+      dashboard: {
+        totalPgs: 0,
+        totalFloors: 0,
+        totalRooms: 0,
+        totalBeds: 0,
+        occupiedBeds: 0,
+        availableBeds: 0,
+        blockedBeds: 0,
+        maintenanceBeds: 0,
+        occupancyPct: 0,
+      },
+      occupancy: {
+        totalBeds: 0,
+        occupiedBeds: 0,
+        availableBeds: 0,
+        reservedBeds: 0,
+        blockedBeds: 0,
+        maintenanceBeds: 0,
+        occupancyPct: 0,
+      },
+      activeTenants: 0,
+      moveOutPipeline: { counts: { bedsReleasing30Days: 0 }, stages: [] } as never,
+    }),
+  );
+  assert.deepEqual(data.pgCards, []);
+  assert.ok(Array.isArray(data.collectionStatus));
+  assert.equal(data.occupancyDistribution.occupied, 0);
+  assert.equal(data.occupancyDistribution.moveOut, 0);
 });

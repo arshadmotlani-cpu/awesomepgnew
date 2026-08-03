@@ -24,8 +24,8 @@ function badgeFromFilterCount(
 }
 
 /**
- * Sidebar badges — Operations + Overview totals from the same unified queue as
- * `/admin/operations`. Never use the residents parallel queue for badge counts.
+ * Sidebar badges — Operations totals from the unified queue SSOT.
+ * Overview is a read-only owner dashboard and must never show action badges.
  */
 const BADGE_POLL_CACHE_TTL_MS = 45_000;
 let badgePollCache: { scopeKey: string; at: number; badges: AdminNavBadges } | null = null;
@@ -50,8 +50,6 @@ export async function loadAdminNavBadges(
       const pendingTotal = operationsTotalPendingCount(operationsQueue);
       if (pendingTotal > 0) {
         badges.operations = pendingTotal;
-        // Overview badge = live pending ops total (same SSOT as Operations page).
-        badges.overview = pendingTotal;
       }
 
       const waitingForApproval = badgeFromFilterCount(operationsQueue, 'waiting_for_approval');

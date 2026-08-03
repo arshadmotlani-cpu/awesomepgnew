@@ -270,7 +270,7 @@ export async function loadUnreadNavBadges(session: AdminSession) {
     }
   }
 
-  badges.overview = unread.length;
+  // Overview is a portfolio dashboard — never aggregate unread into an Overview badge.
   return badges;
 }
 

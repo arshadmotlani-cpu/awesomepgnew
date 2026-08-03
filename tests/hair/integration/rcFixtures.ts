@@ -3,6 +3,7 @@ loadAppEnv();
 
 import { and, eq } from 'drizzle-orm';
 import { ensureRcCutConsumableKit } from '@/src/hair/db/rcConsumableKit';
+import { ensureRcBookableServices } from '@/src/hair/db/rcServiceFixtures';
 import { hairDb } from '@/src/hair/db/client';
 import {
   fyhCommissionEntries,
@@ -39,12 +40,6 @@ export async function requireRcFixtures() {
     .from(fyhResources)
     .where(eq(fyhResources.name, 'RC Chair 1'))
     .limit(1);
-  const [cut] = await hairDb.select().from(fyhServices).where(eq(fyhServices.code, 'RC-CUT')).limit(1);
-  const [blow] = await hairDb
-    .select()
-    .from(fyhServices)
-    .where(eq(fyhServices.code, 'RC-BLOW'))
-    .limit(1);
   const [product] = await hairDb
     .select()
     .from(fyhProducts)
@@ -57,8 +52,25 @@ export async function requireRcFixtures() {
     .where(eq(fyhPackagePlans.name, 'RC Cut Pack 5'))
     .limit(1);
 
-  if (!staff || !staff2 || !chair || !cut || !blow || !product || !membership || !pkgPlan) {
+  if (!staff || !staff2 || !chair || !product || !membership || !pkgPlan) {
     throw new Error('RC fixtures missing — run npm run hair:db:seed');
+  }
+
+  // Catalog sync / prior tests may archive or rename RC services — heal before booking.
+  await ensureRcBookableServices(hairDb, {
+    staffIds: [staff.id, staff2.id],
+    productId: product.id,
+  });
+
+  const [cut] = await hairDb.select().from(fyhServices).where(eq(fyhServices.code, 'RC-CUT')).limit(1);
+  const [blow] = await hairDb
+    .select()
+    .from(fyhServices)
+    .where(eq(fyhServices.code, 'RC-BLOW'))
+    .limit(1);
+
+  if (!cut || !blow || !cut.isActive || !blow.isActive) {
+    throw new Error('RC services unavailable after fixture repair — re-run npm run hair:db:seed');
   }
 
   await ensureRcCutConsumableKit(hairDb, cut.id, product.id, 10);

@@ -4,25 +4,23 @@ loadAppEnv();
 import { eq } from 'drizzle-orm';
 import { createHairClient } from '@/src/hair/db/client';
 import { ensureRcCutConsumableKit } from '@/src/hair/db/rcConsumableKit';
+import { ensureRcBookableServices } from '@/src/hair/db/rcServiceFixtures';
 import {
   fyhAdminUsers,
   fyhMembershipPlans,
   fyhPackagePlans,
   fyhProducts,
   fyhResources,
-  fyhServices,
-  fyhServiceStaff,
   fyhSettings,
   fyhStaff,
   fyhStaffSchedules,
 } from '@/src/hair/db/schema';
 import { hashPassword } from '@/src/hair/lib/auth/crypto';
 import { DEFAULT_HOURS } from '@/src/hair/services/settings';
-import { and } from 'drizzle-orm';
 
 /**
  * Idempotent salon fixtures for local RC / demo.
- * Safe to re-run — skips rows that already exist by stable name/code.
+ * Safe to re-run — restores RC services if catalog sync archived them.
  */
 async function seedRcFixtures(
   db: ReturnType<typeof createHairClient>['db'],
@@ -66,6 +64,12 @@ async function seedRcFixtures(
       .limit(1);
     if (existing) {
       staffIds.push(existing.id);
+      if (!existing.isActive) {
+        await db
+          .update(fyhStaff)
+          .set({ isActive: true, updatedAt: new Date() })
+          .where(eq(fyhStaff.id, existing.id));
+      }
       continue;
     }
     const [row] = await db
@@ -101,6 +105,11 @@ async function seedRcFixtures(
         sortOrder: i + 1,
         isActive: true,
       });
+    } else if (!existing.isActive) {
+      await db
+        .update(fyhResources)
+        .set({ isActive: true })
+        .where(eq(fyhResources.id, existing.id));
     }
   }
 
@@ -115,7 +124,11 @@ async function seedRcFixtures(
       productId = existing.id;
       await db
         .update(fyhProducts)
-        .set({ stockQty: Math.max(Number(existing.stockQty), 100), updatedAt: new Date() })
+        .set({
+          stockQty: Math.max(Number(existing.stockQty), 100),
+          isActive: true,
+          updatedAt: new Date(),
+        })
         .where(eq(fyhProducts.id, existing.id));
     } else {
       const [row] = await db
@@ -140,64 +153,8 @@ async function seedRcFixtures(
     }
   }
 
-  const serviceDefs = [
-    {
-      name: 'RC Haircut',
-      code: 'RC-CUT',
-      durationMinutes: 45,
-      pricePaise: 80000,
-      gstBps: 1800,
-      withConsumable: true,
-    },
-    {
-      name: 'RC Blow Dry',
-      code: 'RC-BLOW',
-      durationMinutes: 30,
-      pricePaise: 50000,
-      gstBps: 1800,
-      withConsumable: false,
-    },
-  ];
-
-  const serviceIds: string[] = [];
-  for (const svc of serviceDefs) {
-    const [existing] = await db.select().from(fyhServices).where(eq(fyhServices.code, svc.code)).limit(1);
-    let serviceId: string;
-    if (existing) {
-      serviceId = existing.id;
-    } else {
-      const [row] = await db
-        .insert(fyhServices)
-        .values({
-          name: svc.name,
-          code: svc.code,
-          category: 'Hair',
-          durationMinutes: svc.durationMinutes,
-          pricePaise: svc.pricePaise,
-          gstBps: svc.gstBps,
-          isActive: true,
-          commissionType: 'none',
-        })
-        .returning();
-      serviceId = row!.id;
-    }
-    serviceIds.push(serviceId);
-
-    for (const staffId of staffIds) {
-      const [link] = await db
-        .select()
-        .from(fyhServiceStaff)
-        .where(and(eq(fyhServiceStaff.serviceId, serviceId), eq(fyhServiceStaff.staffId, staffId)))
-        .limit(1);
-      if (!link) {
-        await db.insert(fyhServiceStaff).values({ serviceId, staffId });
-      }
-    }
-
-    if (svc.withConsumable) {
-      await ensureRcCutConsumableKit(db, serviceId, productId, 10);
-    }
-  }
+  const serviceIds = await ensureRcBookableServices(db, { staffIds, productId });
+  await ensureRcCutConsumableKit(db, serviceIds['RC-CUT'], productId, 10);
 
   const [mem] = await db.select().from(fyhMembershipPlans).limit(1);
   if (!mem) {
@@ -219,7 +176,7 @@ async function seedRcFixtures(
   if (!pkg) {
     await db.insert(fyhPackagePlans).values({
       name: 'RC Cut Pack 5',
-      serviceId: serviceIds[0]!,
+      serviceId: serviceIds['RC-CUT'],
       totalSessions: 5,
       pricePaise: 350000,
       validityDays: 180,

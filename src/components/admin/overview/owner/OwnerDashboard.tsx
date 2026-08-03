@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { paiseToInr } from '@/src/lib/format';
 import { RevenueMtdBarChart } from '@/src/components/admin/revenue/charts/RevenueMtdBarChart';
-import type { OwnerActionItem, OwnerDashboardData } from '@/src/services/ownerDashboard';
+import type { OwnerDashboardData } from '@/src/services/ownerDashboard';
 import { OwnerKpiStrip } from '@/src/components/admin/overview/owner/OwnerKpiStrip';
 import {
   OwnerCollectionDonut,
@@ -14,42 +14,6 @@ import {
   OwnerRevenueTrendChart,
 } from '@/src/components/admin/overview/owner/OwnerTrendCharts';
 import type { OwnerDashboardTrends } from '@/src/services/ownerDashboardTrends';
-
-function OwnerActionCentre({ actions }: { actions: OwnerActionItem[] }) {
-  if (actions.length === 0) {
-    return (
-      <section className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-5">
-        <h2 className="text-sm font-semibold text-emerald-100">Action centre</h2>
-        <p className="mt-2 text-sm text-emerald-200/85">All clear — nothing needs your attention today.</p>
-      </section>
-    );
-  }
-
-  return (
-    <section className="rounded-xl border border-[#FF5A1F]/30 bg-[#FF5A1F]/5 p-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-white">Action centre</h2>
-        <Link href="/admin/operations" className="text-xs font-medium text-[#FF5A1F] hover:underline">
-          Open operations →
-        </Link>
-      </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {actions.map((item) => (
-          <Link
-            key={item.id}
-            href={item.href}
-            className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm transition hover:border-[#FF5A1F]/40"
-          >
-            <span className="font-medium text-white">{item.label}</span>
-            <span className="rounded-full bg-[#FF5A1F]/20 px-2 py-0.5 text-xs font-semibold tabular-nums text-orange-200">
-              {item.count}
-            </span>
-          </Link>
-        ))}
-      </div>
-    </section>
-  );
-}
 
 function OwnerPgCard({ card }: { card: OwnerDashboardData['pgCards'][0] }) {
   return (
@@ -107,20 +71,9 @@ export function OwnerDashboard({
 
   return (
     <div className="space-y-8">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold text-white">Owner dashboard</h1>
-          <p className="mt-1 text-sm text-apg-silver">{data.monthLabel} · portfolio health at a glance</p>
-        </div>
-        {(data.actions ?? []).length === 0 ? (
-          <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-200">
-            All clear
-          </span>
-        ) : (
-          <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-200">
-            {(data.actions ?? []).reduce((a, i) => a + i.count, 0)} items need attention
-          </span>
-        )}
+      <header>
+        <h1 className="text-lg font-semibold text-white">Owner dashboard</h1>
+        <p className="mt-1 text-sm text-apg-silver">{data.monthLabel} · portfolio health at a glance</p>
       </header>
 
       <OwnerKpiStrip kpis={data.kpis} />
@@ -153,13 +106,15 @@ export function OwnerDashboard({
       <section className="space-y-4">
         <h2 className="text-sm font-semibold text-white">PG performance</h2>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {(data.pgCards ?? []).map((card) => (
-            <OwnerPgCard key={card.pgId} card={card} />
-          ))}
+          {(data.pgCards ?? []).length === 0 ? (
+            <p className="col-span-full text-sm text-apg-silver">No active PGs in this portfolio view.</p>
+          ) : (
+            (data.pgCards ?? []).map((card) => (
+              <OwnerPgCard key={card.pgId} card={card} />
+            ))
+          )}
         </div>
       </section>
-
-      <OwnerActionCentre actions={data.actions ?? []} />
     </div>
   );
 }

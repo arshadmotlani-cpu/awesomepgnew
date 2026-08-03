@@ -2,7 +2,6 @@
  * Owner Dashboard (CEO Overview) — pure presentation mapper from overview snapshot.
  */
 
-import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
 import { moduleHref, withMonth } from '@/src/lib/admin/navigation';
 import type { ExecutiveMetrics } from '@/src/services/executiveMetrics';
 import type { OverviewReportingSnapshot } from '@/src/services/overviewReportingService';
@@ -80,13 +79,6 @@ export type OwnerDashboardData = {
   trends?: OwnerDashboardTrends;
 };
 
-function opsCount(
-  counts: OverviewReportingSnapshot['operationsQueueCounts'],
-  filter: keyof OverviewReportingSnapshot['operationsQueueCounts'],
-): number {
-  return counts[filter] ?? 0;
-}
-
 function outstandingByPg(ctx: OverviewReportingSnapshot): Map<string, number> {
   const map = new Map<string, number>();
   const rentWaiting = ctx.invoiceSnapshot?.rentWaiting ?? [];
@@ -160,13 +152,7 @@ export function buildOwnerDashboard(
   const rentStats = ctx.rentStats;
   const d = ctx.dashboard;
   const exec = executive;
-  const ops = ctx.operationsQueueCounts;
   const depositHeld = r.depositPortfolio.heldPaise;
-  const refundsPending = opsCount(ops, 'refund_due');
-  const pendingApprovals =
-    opsCount(ops, 'waiting_for_approval') +
-    opsCount(ops, 'booking_approval') +
-    opsCount(ops, 'kyc_review');
 
   const occupancyPct = exec?.occupancyPct ?? d?.occupancyPct ?? 0;
   const occupiedBeds = exec?.occupiedBeds ?? d?.occupiedBeds ?? 0;
@@ -201,7 +187,7 @@ export function buildOwnerDashboard(
       kind: 'money',
       value: depositHeld,
       href: '/admin/deposits',
-      hint: `Refunds pending: ${refundsPending} · Total liability: live ledger balance`,
+      hint: 'Total liability · live ledger balance',
       accent: 'violet',
     },
     {
@@ -228,20 +214,21 @@ export function buildOwnerDashboard(
       accent: 'rose',
     },
     {
-      id: 'pending_refunds',
-      label: 'Pending Refunds',
-      kind: 'count',
-      value: refundsPending,
-      href: operationsFilterHref('refund_due'),
-      accent: 'amber',
+      id: 'collection_rate',
+      label: 'Collection Rate',
+      kind: 'percent',
+      value: rateNow,
+      href: moduleHref('collections', month),
+      hint: rateDelta != null ? `${rateDelta >= 0 ? '+' : ''}${rateDelta}% vs prior month` : ctx.monthLabel,
+      accent: 'emerald',
     },
     {
-      id: 'pending_approvals',
-      label: 'Pending Approvals',
+      id: 'active_pgs',
+      label: 'Active PGs',
       kind: 'count',
-      value: pendingApprovals,
-      href: operationsFilterHref('waiting_for_approval'),
-      accent: 'amber',
+      value: (r.byPg ?? []).length || ctx.pgCount || 0,
+      href: '/admin/pgs',
+      accent: 'sky',
     },
   ];
 
@@ -256,39 +243,6 @@ export function buildOwnerDashboard(
     { id: 'pending', label: 'Pending', paise: out.totalOutstandingPaise - overdueEstimatePaise, color: '#FBBF24' },
     { id: 'overdue', label: 'Overdue', paise: overdueEstimatePaise, color: '#F87171' },
   ].filter((s) => s.paise > 0);
-
-  const actions: OwnerActionItem[] = [
-    {
-      id: 'rent_approvals',
-      label: 'Rent approvals',
-      count: opsCount(ops, 'waiting_for_approval'),
-      href: operationsFilterHref('waiting_for_approval'),
-    },
-    {
-      id: 'kyc',
-      label: 'KYC',
-      count: opsCount(ops, 'kyc_review'),
-      href: operationsFilterHref('kyc_review'),
-    },
-    {
-      id: 'refunds',
-      label: 'Refunds',
-      count: opsCount(ops, 'refund_due'),
-      href: operationsFilterHref('refund_due'),
-    },
-    {
-      id: 'electricity',
-      label: 'Electricity pending',
-      count: opsCount(ops, 'electricity_due'),
-      href: operationsFilterHref('electricity_due'),
-    },
-    {
-      id: 'moveouts',
-      label: 'Move-outs',
-      count: opsCount(ops, 'vacating_requests'),
-      href: operationsFilterHref('vacating_requests'),
-    },
-  ].filter((a) => a.count > 0);
 
   const pgCards = buildPgCards(r.byPg ?? [], outstandingMap, month, sparklines);
 
@@ -314,7 +268,7 @@ export function buildOwnerDashboard(
       moveOut: ctx.moveOutPipeline?.counts?.bedsReleasing30Days ?? 0,
     },
     pgCards,
-    actions,
+    actions: [],
     pgIds: (r.byPg ?? []).map((row) => row.pgId),
     trends,
   };

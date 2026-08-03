@@ -82,7 +82,11 @@ async function loadServiceSnapshots(serviceIds: string[]) {
     .where(and(eq(fyhServices.isActive, true), inArray(fyhServices.id, serviceIds)));
   const bookable = services.filter((s) => !shouldHideServiceFromBillable(s.name, s.code));
   if (bookable.length !== serviceIds.length) {
-    throw new Error('One or more services are unavailable');
+    const found = new Set(bookable.map((s) => s.id));
+    const missing = serviceIds.filter((id) => !found.has(id));
+    throw new Error(
+      `One or more services are unavailable${missing.length ? ` (${missing.join(', ')})` : ''}`,
+    );
   }
   const map = new Map(bookable.map((s) => [s.id, s]));
   return serviceIds.map((id) => {

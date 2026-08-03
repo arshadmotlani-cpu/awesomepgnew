@@ -14,6 +14,7 @@ import {
   isTestServiceCode,
   isTestServiceName,
 } from '@/src/hair/lib/serviceCatalogHygiene';
+import { isRcFixtureServiceCode } from '@/src/hair/db/rcServiceFixtures';
 import { canonicalServiceName, normalizeServiceName } from '@/src/hair/lib/serviceName';
 
 const SALON_GST_BPS = 1800;
@@ -35,6 +36,7 @@ async function main() {
   let created = 0;
 
   for (const svc of existing) {
+    if (isRcFixtureServiceCode(svc.code)) continue;
     const test = isTestServiceName(svc.name) || isTestServiceCode(svc.code);
     const official = isOfficialCatalogName(svc.name);
     if ((test || !official) && svc.isActive) {

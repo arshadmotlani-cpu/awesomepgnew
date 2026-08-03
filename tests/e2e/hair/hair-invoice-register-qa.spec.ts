@@ -109,7 +109,7 @@ test.describe('Invoice Register QA', () => {
     await trigger.click();
     const dialog = page.getByRole('dialog', { name: /choose date/i });
     await expect(dialog).toBeVisible();
-    await expect(dialog).toHaveClass(/fyh-glass/);
+    await expect(dialog).toHaveClass(/fyh-datepicker-panel/);
 
     await page.getByLabel(/previous month/i).click();
     await page.getByLabel(/next month/i).click();

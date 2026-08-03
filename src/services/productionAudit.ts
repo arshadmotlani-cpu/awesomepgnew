@@ -48,9 +48,9 @@ async function runOpsBadgeAudit(session: AdminSession): Promise<ProductionAuditG
       `Operations badge ${badges.operations ?? 0} != unified queue ${ops.totalCount}`,
     );
   }
-  if ((badges.overview ?? 0) !== ops.totalCount) {
+  if ((badges.overview ?? 0) !== 0) {
     mismatches.push(
-      `Overview badge ${badges.overview ?? 0} != unified queue ${ops.totalCount}`,
+      `Overview must not show action badges (got ${badges.overview ?? 0})`,
     );
   }
 

@@ -41,18 +41,22 @@ export function OwnerCollectionDonut({
   centerLabel: string;
   centerSub?: string;
 }) {
-  const sliceRows = slices ?? [];
+  const sliceRows = Array.isArray(slices) ? slices : [];
   const rows = sliceRows.map((s) => ({
     pgId: s.id,
     pgName: s.label,
-    incomeTotalPaise: s.paise,
+    incomeTotalPaise: Number(s.paise ?? 0),
   }));
   const built = buildDonutSlices(rows);
   const active = built
-    .map((b, i) => ({
-      ...b,
-      color: sliceRows[i]?.color ?? PG_INCOME_DONUT_PALETTE[i % PG_INCOME_DONUT_PALETTE.length],
-    }))
+    .map((b, i) => {
+      const paletteColor =
+        PG_INCOME_DONUT_PALETTE[i % PG_INCOME_DONUT_PALETTE.length] ?? PG_INCOME_DONUT_PALETTE[0]!;
+      return {
+        ...b,
+        color: sliceRows[i]?.color ?? paletteColor,
+      };
+    })
     .filter((s) => s.valuePaise > 0);
   const total = active.reduce((a, s) => a + s.valuePaise, 0) || 1;
 
@@ -122,16 +126,16 @@ export function OwnerRevenueCompositionChart({
   lateFeePaise,
   otherIncomePaise,
 }: {
-  rentPaise: number;
-  electricityPaise: number;
-  lateFeePaise: number;
-  otherIncomePaise: number;
+  rentPaise?: number;
+  electricityPaise?: number;
+  lateFeePaise?: number;
+  otherIncomePaise?: number;
 }) {
   const segments = [
-    { label: 'Rent', paise: rentPaise, color: '#FF5A1F' },
-    { label: 'Electricity', paise: electricityPaise, color: '#38BDF8' },
-    { label: 'Late fees', paise: lateFeePaise, color: '#FBBF24' },
-    { label: 'Other income', paise: otherIncomePaise, color: '#A78BFA' },
+    { label: 'Rent', paise: Number(rentPaise ?? 0), color: '#FF5A1F' },
+    { label: 'Electricity', paise: Number(electricityPaise ?? 0), color: '#38BDF8' },
+    { label: 'Late fees', paise: Number(lateFeePaise ?? 0), color: '#FBBF24' },
+    { label: 'Other income', paise: Number(otherIncomePaise ?? 0), color: '#A78BFA' },
   ].filter((s) => s.paise > 0);
   const total = segments.reduce((a, s) => a + s.paise, 0) || 1;
 
@@ -174,18 +178,18 @@ export function OwnerOccupancyDistributionBar({
   maintenance,
   moveOut,
 }: {
-  occupied: number;
-  vacant: number;
-  reserved: number;
-  maintenance: number;
-  moveOut: number;
+  occupied?: number;
+  vacant?: number;
+  reserved?: number;
+  maintenance?: number;
+  moveOut?: number;
 }) {
   const segments = [
-    { label: 'Occupied', count: occupied, color: '#34D399' },
-    { label: 'Vacant', count: vacant, color: '#71717A' },
-    { label: 'Reserved', count: reserved, color: '#38BDF8' },
-    { label: 'Maintenance', count: maintenance, color: '#FBBF24' },
-    { label: 'Move-out (30d)', count: moveOut, color: '#F87171' },
+    { label: 'Occupied', count: Number(occupied ?? 0), color: '#34D399' },
+    { label: 'Vacant', count: Number(vacant ?? 0), color: '#71717A' },
+    { label: 'Reserved', count: Number(reserved ?? 0), color: '#38BDF8' },
+    { label: 'Maintenance', count: Number(maintenance ?? 0), color: '#FBBF24' },
+    { label: 'Move-out (30d)', count: Number(moveOut ?? 0), color: '#F87171' },
   ].filter((s) => s.count > 0);
   const total = segments.reduce((a, s) => a + s.count, 0) || 1;
 

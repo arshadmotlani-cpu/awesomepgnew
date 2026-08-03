@@ -103,6 +103,17 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
+/** Opaque floating panels (date pickers, menus) — never translucent over tables. */
+.fyh-datepicker-panel {
+  background: var(--fyh-bg-elevated);
+  isolation: isolate;
+  backdrop-filter: none;
+}
+
+.fyh-theme-light .fyh-datepicker-panel {
+  background: var(--fyh-bg-surface);
+}
+
 .fyh-theme-light .fyh-glass {
   box-shadow:
     0 12px 40px rgba(20, 32, 24, 0.08),

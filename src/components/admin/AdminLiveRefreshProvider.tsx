@@ -26,7 +26,7 @@ export function useAdminNavBadges(): AdminNavBadges {
 }
 
 function operationsBadgeCount(badges: AdminNavBadges): number {
-  return badges.operations ?? badges.overview ?? 0;
+  return badges.operations ?? 0;
 }
 
 function mergeBadgesPreferLowerOperations(
@@ -36,7 +36,7 @@ function mergeBadgesPreferLowerOperations(
   const currentOps = operationsBadgeCount(current);
   const incomingOps = operationsBadgeCount(incoming);
   if (currentOps > 0 && incomingOps > 0 && incomingOps > currentOps) {
-    return { ...incoming, operations: currentOps, overview: currentOps };
+    return { ...incoming, operations: currentOps };
   }
   return incoming;
 }
