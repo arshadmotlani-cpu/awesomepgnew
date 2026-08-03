@@ -116,6 +116,29 @@ export function middleware(request: NextRequest) {
 
   const requestHeaders = attachMonitoringHeaders(request);
 
+  // Clear stale signup cookies on plain Login (RSC cannot mutate cookies).
+  if (pathname === '/login' && request.nextUrl.searchParams.get('signup') !== '1') {
+    const response = NextResponse.next({
+      request: { headers: requestHeaders },
+    });
+    response.headers.set('x-request-id', requestHeaders.get('x-request-id')!);
+    response.cookies.set(SIGNUP_SESSION_COOKIE, '', {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: 0,
+    });
+    response.cookies.set('apg_signup_verified', '', {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: 0,
+    });
+    return response;
+  }
+
   if (needsCustomerAuth(pathname)) {
     const customerToken = request.cookies.get(CUSTOMER_SESSION_COOKIE)?.value;
     const adminToken = request.cookies.get(ADMIN_SESSION_COOKIE)?.value;

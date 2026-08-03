@@ -29,8 +29,14 @@ type CustomerSessionRejectReason =
 
 /** Drop stale resident cookie so middleware does not loop on invalid sessions. */
 async function clearCustomerSessionCookie(): Promise<void> {
-  const jar = await cookies();
-  jar.delete(CUSTOMER_SESSION_COOKIE);
+  try {
+    const jar = await cookies();
+    jar.delete(CUSTOMER_SESSION_COOKIE);
+  } catch (err) {
+    // RSC cannot mutate cookies — middleware will drop invalid sessions on next nav.
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[auth] customer cookie clear skipped:', message);
+  }
 }
 
 async function rejectCustomerSession(args: {
@@ -329,11 +335,14 @@ export const getCustomerSession = cache(async (): Promise<CustomerSession | null
   });
   try {
     let expiresAt = initialExpiresAt;
+    // Must `await` inside try/catch — a bare `return promise` does not catch rejections.
     const impersonating = await (async () => {
       try {
         const { isImpersonationCustomerSession } = await import('@/src/lib/auth/impersonation');
-        return isImpersonationCustomerSession(sessionId);
-      } catch {
+        return await isImpersonationCustomerSession(sessionId);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error('[auth] impersonation session probe failed:', message);
         return false;
       }
     })();

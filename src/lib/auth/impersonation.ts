@@ -430,17 +430,24 @@ export const getActiveImpersonationContext = cache(
 );
 
 export async function isImpersonationCustomerSession(sessionId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ id: adminResidentImpersonations.id })
-    .from(adminResidentImpersonations)
-    .where(
-      and(
-        eq(adminResidentImpersonations.customerSessionId, sessionId),
-        eq(adminResidentImpersonations.status, 'active'),
-      ),
-    )
-    .limit(1);
-  return Boolean(row);
+  try {
+    const [row] = await db
+      .select({ id: adminResidentImpersonations.id })
+      .from(adminResidentImpersonations)
+      .where(
+        and(
+          eq(adminResidentImpersonations.customerSessionId, sessionId),
+          eq(adminResidentImpersonations.status, 'active'),
+        ),
+      )
+      .limit(1);
+    return Boolean(row);
+  } catch (err) {
+    // Table may be missing pre-migration — never break normal resident sessions.
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[auth] isImpersonationCustomerSession failed:', message);
+    return false;
+  }
 }
 
 export async function listImpersonationAuditForCustomer(customerId: string, limit = 20) {

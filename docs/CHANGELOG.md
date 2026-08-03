@@ -256,29 +256,20 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-03 13:04:37 UTC
+### Pending pre-commit sync · 2026-08-03 13:36:21 UTC
 
-**Areas touched:** [[ROUTES]], [[Auth]]
+**Areas touched:** [[Auth]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
-**Staged code files (12):**
-- `app/(customer)/pay/[linkId]/page.tsx`
-- `app/api/auth/customer/change-password/route.ts`
-- `app/api/auth/customer/email/lookup/route.ts`
-- `app/api/auth/customer/email/send/route.ts`
-- `app/api/auth/customer/email/verify/route.ts`
-- `app/api/auth/customer/forgot-password/profile/route.ts`
-- `app/api/auth/customer/login/route.ts`
-- `app/api/auth/customer/session/refresh/route.ts`
-- `app/api/auth/customer/sessions/route.ts`
-- `app/login/page.tsx`
-- `src/lib/auth/customer.ts`
-- `src/lib/auth/residentAuthCopy.ts`
+**Staged code files (4):**
+- `middleware.ts`
+- `src/lib/auth/impersonation.ts`
+- `src/lib/auth/loginBootstrap.ts`
+- `src/lib/auth/session.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

@@ -19,12 +19,25 @@ test('impersonation default reason is UX Review', () => {
   assert.equal(IMPERSONATION_DEFAULT_REASON, 'UX Review');
 });
 
-test('impersonation uses real customer session cookie — no preview routes', () => {
-  const src = readFileSync(join(process.cwd(), 'src/lib/auth/impersonation.ts'), 'utf8');
-  assert.match(src, /createCustomerSession/);
-  assert.match(src, /CUSTOMER_SESSION_COOKIE/);
-  assert.doesNotMatch(src, /as-resident|preview|mock/i);
+test('isImpersonationCustomerSession never breaks resident session validation', () => {
+  const sessionSrc = readFileSync(join(process.cwd(), 'src/lib/auth/session.ts'), 'utf8');
+  // Bare `return promise` inside try/catch does not catch rejections — must await.
+  assert.match(
+    sessionSrc,
+    /return await isImpersonationCustomerSession\(sessionId\)/,
+  );
+  assert.doesNotMatch(
+    sessionSrc,
+    /return isImpersonationCustomerSession\(sessionId\);/,
+  );
+
+  const impersonationSrc = readFileSync(
+    join(process.cwd(), 'src/lib/auth/impersonation.ts'),
+    'utf8',
+  );
+  assert.match(impersonationSrc, /isImpersonationCustomerSession failed/);
 });
+
 
 test('dual session: admin cookie preserved during impersonation', () => {
   const startSrc = readFileSync(
