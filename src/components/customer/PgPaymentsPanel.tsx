@@ -15,7 +15,7 @@ type Category = {
 type Props = {
   pgId: string;
   pgName: string;
-  uploadScreenshot: (formData: FormData) => Promise<string>;
+  uploadScreenshot?: (formData: FormData) => Promise<string>;
 };
 
 export function PgPaymentsPanel({ pgId, pgName, uploadScreenshot }: Props) {

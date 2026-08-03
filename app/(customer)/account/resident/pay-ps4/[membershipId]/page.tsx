@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-actions';
 import { Ps4PaymentProofForm } from '@/src/components/customer/Ps4PaymentProofForm';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 import { formatDateTime, paiseToInr } from '@/src/lib/format';
@@ -154,7 +153,6 @@ export default async function PayPs4Page({
             <Ps4PaymentProofForm
               membershipId={membership.id}
               amountLabel={paiseToInr(membership.amountPaise)}
-              uploadScreenshot={uploadPaymentScreenshotAction}
               qrImageUrl={qrImageUrl}
               upiId={upiId}
             />

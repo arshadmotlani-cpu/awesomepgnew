@@ -1,4 +1,3 @@
-import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-actions';
 import { listPublicPgs, type CustomerPgListRow } from '@/src/services/publicPgReadCache';
 import { isPaymentScreenshotUploadAvailable } from '@/src/lib/payments/screenshotUpload';
 import { EmptyPgList } from '@/src/components/customer/EmptyPgList';
@@ -28,9 +27,7 @@ export default async function PgListPage() {
   const ctx = contextFromHeaders(h);
   ctx.route = '/pgs';
 
-  const uploadScreenshot = isPaymentScreenshotUploadAvailable()
-    ? uploadPaymentScreenshotAction
-    : undefined;
+  const paymentsUploadEnabled = isPaymentScreenshotUploadAvailable();
 
   return runWithMonitoringContextAsync(ctx, async () => {
     await logServerRequest('/pgs');
@@ -60,7 +57,7 @@ export default async function PgListPage() {
       totalBeds: pg.totalBeds,
       availableBeds: pg.availableBeds,
       startingFromPaise: pg.startingFromPaise,
-      hasPaymentEnabled: pg.hasPaymentEnabled,
+      hasPaymentEnabled: pg.hasPaymentEnabled && paymentsUploadEnabled,
     }));
 
     return (
@@ -88,7 +85,7 @@ export default async function PgListPage() {
           {pgs.length === 0 ? (
             <EmptyPgList />
           ) : (
-            <PgBrowseList pgs={cardData} uploadScreenshot={uploadScreenshot} />
+            <PgBrowseList pgs={cardData} />
           )}
         </div>
       </div>

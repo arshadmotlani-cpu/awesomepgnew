@@ -22,7 +22,7 @@ export function Ps4PaymentProofForm({
 }: {
   membershipId: string;
   amountLabel: string;
-  uploadScreenshot: (formData: FormData) => Promise<string>;
+  uploadScreenshot?: (formData: FormData) => Promise<string>;
   existingProofUrl?: string | null;
   qrImageUrl?: string | null;
   upiId?: string | null;
@@ -37,7 +37,7 @@ export function Ps4PaymentProofForm({
       existingProofUrl={existingProofUrl}
       proofViewHref={customerPaymentProofViewUrl('playstation', membershipId)}
       uploadScreenshot={uploadScreenshot}
-      logContext={{ page: 'ps4-payment', membershipId }}
+      logContext={{ page: 'ps4-payment', membershipId, uploadType: 'ps4_payment' }}
       doneMessage="Payment proof submitted. Your PS4 lounge access activates once admin verifies the UPI payment (usually within a few hours)."
       submitProof={async ({ screenshotUrl, transactionRef }) => {
         const res = await fetch(`/api/playstation/membership/${membershipId}/payment-proof`, {

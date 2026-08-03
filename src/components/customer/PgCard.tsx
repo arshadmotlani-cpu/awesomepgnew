@@ -114,12 +114,8 @@ export function PgCard({
           </div>
         </div>
       </Link>
-      {pg.hasPaymentEnabled && uploadScreenshot ? (
-        <PgPaymentsPanel
-          pgId={pg.id}
-          pgName={pg.name}
-          uploadScreenshot={uploadScreenshot}
-        />
+      {pg.hasPaymentEnabled ? (
+        <PgPaymentsPanel pgId={pg.id} pgName={pg.name} />
       ) : null}
     </motion.div>
   );

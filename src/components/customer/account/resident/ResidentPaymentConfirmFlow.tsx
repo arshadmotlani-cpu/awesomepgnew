@@ -19,7 +19,7 @@ type Props = {
   rejectionReason?: string | null;
   rejectionMessage?: string | null;
   rejectedAt?: Date | string | null;
-  uploadScreenshot: (formData: FormData) => Promise<string>;
+  uploadScreenshot?: (formData: FormData) => Promise<string>;
   submitProof: (args: { screenshotUrl: string; transactionRef?: string }) => Promise<SubmitResult>;
   logContext?: {
     page: string;
@@ -29,6 +29,14 @@ type Props = {
     paymentLinkId?: string;
     membershipId?: string;
     extensionId?: string;
+    pgId?: string;
+    uploadType?:
+      | 'payment_proof'
+      | 'booking_payment'
+      | 'electricity_payment'
+      | 'extension_payment'
+      | 'deposit_link'
+      | 'ps4_payment';
   };
   successChecklist: string[];
   backHref: string;

@@ -21,7 +21,7 @@ export function ExtensionPaymentProofForm({
 }: {
   extensionId: string;
   amountLabel: string;
-  uploadScreenshot: (formData: FormData) => Promise<string>;
+  uploadScreenshot?: (formData: FormData) => Promise<string>;
   existingProofUrl?: string | null;
   qrImageUrl?: string | null;
   upiId?: string | null;
@@ -36,7 +36,7 @@ export function ExtensionPaymentProofForm({
       existingProofUrl={existingProofUrl}
       proofViewHref={customerPaymentProofViewUrl('extension', extensionId)}
       uploadScreenshot={uploadScreenshot}
-      logContext={{ page: 'extension-payment', extensionId }}
+      logContext={{ page: 'extension-payment', extensionId, uploadType: 'extension_payment' }}
       submitProof={async ({ screenshotUrl, transactionRef }) => {
         const res = await fetch(`/api/stay-extension/${extensionId}/payment-proof`, {
           method: 'POST',

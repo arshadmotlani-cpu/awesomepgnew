@@ -3,6 +3,7 @@
 import { useId, useState } from 'react';
 import { ImageFileInput } from '@/src/components/shared/ImageFileInput';
 import { logPaymentClientException } from '@/src/lib/client/paymentClientLogger';
+import { uploadPaymentScreenshotClient } from '@/src/lib/client/uploadPaymentScreenshotClient';
 
 type Category = {
   id: string;
@@ -17,7 +18,7 @@ type Props = {
   category: Category;
   onClose: () => void;
   onSubmitted: () => void;
-  uploadScreenshot: (formData: FormData) => Promise<string>;
+  uploadScreenshot?: (formData: FormData) => Promise<string>;
 };
 
 export function PgPaymentModal({
@@ -26,7 +27,7 @@ export function PgPaymentModal({
   category,
   onClose,
   onSubmitted,
-  uploadScreenshot,
+  uploadScreenshot = uploadPaymentScreenshotClient,
 }: Props) {
   const screenshotInputId = useId();
   const isRent = /rent/i.test(category.name);
@@ -45,6 +46,8 @@ export function PgPaymentModal({
     try {
       const fd = new FormData();
       fd.append('file', file);
+      fd.append('uploadType', 'payment_proof');
+      fd.append('pgId', pgId);
       const url = await uploadScreenshot(fd);
       setScreenshotUrl(url);
     } catch (err) {

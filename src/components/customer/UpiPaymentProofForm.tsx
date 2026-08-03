@@ -4,6 +4,7 @@ import { useEffect, useId, useState } from 'react';
 import { ImageFileInput } from '@/src/components/shared/ImageFileInput';
 import { resolveBlobLinkHref } from '@/src/lib/storage/blobImageDisplay';
 import { logPaymentClientException } from '@/src/lib/client/paymentClientLogger';
+import { uploadPaymentScreenshotClient } from '@/src/lib/client/uploadPaymentScreenshotClient';
 
 type SubmitResult = { ok: boolean; message?: string };
 
@@ -17,7 +18,7 @@ export function UpiPaymentProofForm({
   rejectionReason,
   rejectionMessage,
   proofViewHref,
-  uploadScreenshot,
+  uploadScreenshot = uploadPaymentScreenshotClient,
   submitProof,
   doneMessage = 'Payment proof submitted. An admin will verify the screenshot and mark it paid.',
   variant = 'dark',
@@ -34,7 +35,8 @@ export function UpiPaymentProofForm({
   rejectionMessage?: string | null;
   /** Server route for viewing data-URL proofs in a new tab. */
   proofViewHref?: string;
-  uploadScreenshot: (formData: FormData) => Promise<string>;
+  /** Override for tests; default uses /api/customer/payment-screenshot (no Server Action refresh). */
+  uploadScreenshot?: (formData: FormData) => Promise<string>;
   submitProof: (args: {
     screenshotUrl: string;
     transactionRef?: string;
@@ -51,6 +53,14 @@ export function UpiPaymentProofForm({
     paymentLinkId?: string;
     membershipId?: string;
     extensionId?: string;
+    pgId?: string;
+    uploadType?:
+      | 'payment_proof'
+      | 'booking_payment'
+      | 'electricity_payment'
+      | 'extension_payment'
+      | 'deposit_link'
+      | 'ps4_payment';
   };
 }) {
   const isLight = variant === 'light';
@@ -117,6 +127,9 @@ export function UpiPaymentProofForm({
     try {
       const fd = new FormData();
       fd.append('file', file);
+      if (logContext?.uploadType) fd.append('uploadType', logContext.uploadType);
+      if (logContext?.bookingId) fd.append('bookingId', logContext.bookingId);
+      if (logContext?.pgId) fd.append('pgId', logContext.pgId);
       const url = await uploadScreenshot(fd);
       setScreenshotUrl(url);
     } catch (err) {

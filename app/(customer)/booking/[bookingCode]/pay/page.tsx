@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-actions';
 import { BookingCheckoutExperience } from '@/src/components/customer/checkout/BookingCheckoutExperience';
 import { BookingFunnelShell } from '@/src/components/customer/checkout/BookingFunnelShell';
 import { BookingInlineAuth } from '@/src/components/customer/checkout/BookingInlineAuth';
@@ -227,6 +226,7 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
               >
                 <BookingCheckoutExperience
                   bookingCode={booking.bookingCode}
+                  bookingId={booking.id}
                   pgName={booking.pg.name}
                   roomNumber={roomNumber ?? undefined}
                   bedCode={bedCode ?? undefined}
@@ -251,7 +251,6 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
                   totalLabel={totalLabel}
                   qrImageUrl={qrImageUrl}
                   upiId={upiId}
-                  uploadScreenshot={uploadPaymentScreenshotAction}
                   membershipId={pendingPs4?.id}
                   membershipAmountPaise={ps4Paise > 0 ? ps4Paise : undefined}
                   membershipLabel={ps4PlanLabel}

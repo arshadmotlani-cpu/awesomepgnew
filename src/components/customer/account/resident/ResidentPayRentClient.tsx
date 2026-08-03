@@ -34,7 +34,7 @@ export function ResidentPayRentClient({
   rejectionReason?: string | null;
   rejectionMessage?: string | null;
   rejectedAt?: Date | string | null;
-  uploadScreenshot: (formData: FormData) => Promise<string>;
+  uploadScreenshot?: (formData: FormData) => Promise<string>;
   backHref: string;
   residentId?: string;
 }) {
@@ -51,7 +51,7 @@ export function ResidentPayRentClient({
       rejectedAt={rejectedAt}
       proofViewHref={customerPaymentProofViewUrl('rent', invoiceId)}
       uploadScreenshot={uploadScreenshot}
-      logContext={{ page: 'resident-pay-rent', invoiceId, residentId }}
+      logContext={{ page: 'resident-pay-rent', invoiceId, residentId, uploadType: 'payment_proof' }}
       submitProof={async ({ screenshotUrl }) => {
         const res = await fetch(`/api/rent-invoice/${invoiceId}/payment-proof`, {
           method: 'POST',

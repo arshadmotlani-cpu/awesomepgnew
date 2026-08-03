@@ -8,6 +8,7 @@ import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { resolveBlobLinkHref } from '@/src/lib/storage/blobImageDisplay';
 import { paiseToInr } from '@/src/lib/format';
 import { logPaymentClientException } from '@/src/lib/client/paymentClientLogger';
+import { uploadPaymentScreenshotClient } from '@/src/lib/client/uploadPaymentScreenshotClient';
 import { stayTypeFromPricingMode, stayTypeLabel } from '@/src/lib/stayType';
 import type { PriorOutstandingItem } from '@/src/lib/billing/bookingCheckoutTotals';
 import {
@@ -35,6 +36,7 @@ type SubmitResult = {
 
 export type BookingCheckoutExperienceProps = {
   bookingCode: string;
+  bookingId?: string;
   pgName: string;
   roomNumber?: string;
   bedCode?: string;
@@ -53,7 +55,7 @@ export type BookingCheckoutExperienceProps = {
   totalLabel: string;
   qrImageUrl: string;
   upiId: string | null;
-  uploadScreenshot: (formData: FormData) => Promise<string>;
+  uploadScreenshot?: (formData: FormData) => Promise<string>;
   membershipId?: string;
   membershipAmountPaise?: number;
   membershipLabel?: string | null;
@@ -101,6 +103,7 @@ function rentLineLabel(
 
 export function BookingCheckoutExperience({
   bookingCode,
+  bookingId,
   pgName,
   roomNumber,
   bedCode,
@@ -117,7 +120,7 @@ export function BookingCheckoutExperience({
   totalLabel,
   qrImageUrl,
   upiId,
-  uploadScreenshot,
+  uploadScreenshot = uploadPaymentScreenshotClient,
   membershipId,
   membershipAmountPaise,
   membershipLabel,
@@ -250,6 +253,8 @@ export function BookingCheckoutExperience({
       try {
         const fd = new FormData();
         fd.append('file', file);
+        fd.append('uploadType', 'booking_payment');
+        if (bookingId) fd.append('bookingId', bookingId);
         const url = await uploadScreenshot(fd);
         setScreenshotUrl(url);
       } catch (err) {
@@ -262,7 +267,7 @@ export function BookingCheckoutExperience({
         setUploading(false);
       }
     },
-    [previewObjectUrl, uploadScreenshot],
+    [previewObjectUrl, uploadScreenshot, bookingId],
   );
 
   async function copyUpi() {

@@ -34,7 +34,7 @@ export function ResidentPayElectricityClient({
   rejectionReason?: string | null;
   rejectionMessage?: string | null;
   rejectedAt?: Date | string | null;
-  uploadScreenshot: (formData: FormData) => Promise<string>;
+  uploadScreenshot?: (formData: FormData) => Promise<string>;
   backHref: string;
   residentId?: string;
 }) {
@@ -51,7 +51,12 @@ export function ResidentPayElectricityClient({
       rejectedAt={rejectedAt}
       proofViewHref={customerPaymentProofViewUrl('electricity', invoiceId)}
       uploadScreenshot={uploadScreenshot}
-      logContext={{ page: 'resident-pay-electricity', invoiceId, residentId }}
+      logContext={{
+        page: 'resident-pay-electricity',
+        invoiceId,
+        residentId,
+        uploadType: 'electricity_payment',
+      }}
       submitProof={async ({ screenshotUrl }) => {
         const res = await fetch(`/api/electricity-invoice/${invoiceId}/payment-proof`, {
           method: 'POST',

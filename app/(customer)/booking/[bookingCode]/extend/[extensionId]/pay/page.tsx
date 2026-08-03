@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { and, eq } from 'drizzle-orm';
-import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-actions';
 import { getExtensionDetail } from '@/src/db/queries/customer';
 import { db } from '@/src/db/client';
 import { bedReservations, beds, bookings, floors, rooms, stayExtensions } from '@/src/db/schema';
@@ -177,7 +176,6 @@ export default async function ExtensionPayPage(
                   <ExtensionPaymentProofForm
                     extensionId={ext.id}
                     amountLabel={totalLabel}
-                    uploadScreenshot={uploadPaymentScreenshotAction}
                     existingProofUrl={extMeta?.paymentProofUrl}
                     qrImageUrl={rentCategory?.qrCodeImageUrl ?? DEFAULT_RENT_DEPOSIT_QR_PATH}
                     upiId={rentCategory?.upiId ?? DEFAULT_RENT_DEPOSIT_UPI_ID}

@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-actions';
 import { ResidentPayElectricityClient } from '@/src/components/customer/account/resident/ResidentPayElectricityClient';
 import { InvoiceBreakdownRow } from '@/src/components/customer/account/resident/ResidentPaymentsHub';
 import { StatusChip } from '@/src/components/customer/design-system';
@@ -133,8 +132,8 @@ export function ResidentPayElectricityPageContent({
             rejectionReason={activeRejection?.reasonLabel ?? null}
             rejectionMessage={activeRejection?.residentMessage ?? null}
             rejectedAt={activeRejection?.rejectedAt ?? null}
-            uploadScreenshot={uploadPaymentScreenshotAction}
             backHref={resolvedBackHref}
+            residentId={residentId ?? invoice.customerId}
           />
         </PaymentFlowErrorBoundary>
       )}

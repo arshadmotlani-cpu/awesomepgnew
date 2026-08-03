@@ -10,7 +10,6 @@ import {
   rentInvoices,
   rooms,
 } from '@/src/db/schema';
-import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-actions';
 import {
   DEFAULT_RENT_DEPOSIT_QR_PATH,
   DEFAULT_RENT_DEPOSIT_UPI_ID,
@@ -202,7 +201,6 @@ export default async function PayRentPage({
             rejectionReason={activeRejection?.reasonLabel ?? null}
             rejectionMessage={activeRejection?.residentMessage ?? null}
             rejectedAt={activeRejection?.rejectedAt ?? null}
-            uploadScreenshot={uploadPaymentScreenshotAction}
             backHref={backHref}
           />
         </PaymentFlowErrorBoundary>
