@@ -3,6 +3,7 @@ import { hairDb } from '@/src/hair/db/client';
 import { zonedLocalToUtc } from '@/src/hair/lib/salonTime';
 import {
   fyhCommissionEntries,
+  fyhCustomers,
   fyhInvoiceLineAttributions,
   fyhInvoiceLines,
   fyhInvoices,
@@ -276,4 +277,145 @@ export async function getStaffCommissionTotals(staffId: string): Promise<StaffCo
     pendingPaise: Number(row?.pendingPaise ?? 0),
     paidPaise: Number(row?.paidPaise ?? 0),
   };
+}
+
+export async function getStaffCommissionInRange(
+  staffId: string,
+  range: DateRange,
+): Promise<StaffCommissionTotals & { totalPaise: number }> {
+  const fromKey = range.from.toISOString().slice(0, 10);
+  const toKey = range.to.toISOString().slice(0, 10);
+  const [row] = await hairDb
+    .select({
+      pendingPaise: sql<number>`coalesce(sum(case when ${fyhCommissionEntries.status} = 'pending' then ${fyhCommissionEntries.amountPaise} else 0 end), 0)::bigint`,
+      paidPaise: sql<number>`coalesce(sum(case when ${fyhCommissionEntries.status} = 'paid' then ${fyhCommissionEntries.amountPaise} else 0 end), 0)::bigint`,
+      totalPaise: sql<number>`coalesce(sum(${fyhCommissionEntries.amountPaise}), 0)::bigint`,
+    })
+    .from(fyhCommissionEntries)
+    .where(
+      and(
+        eq(fyhCommissionEntries.staffId, staffId),
+        gte(fyhCommissionEntries.periodDate, fromKey),
+        lt(fyhCommissionEntries.periodDate, toKey),
+      ),
+    );
+
+  return {
+    pendingPaise: Number(row?.pendingPaise ?? 0),
+    paidPaise: Number(row?.paidPaise ?? 0),
+    totalPaise: Number(row?.totalPaise ?? 0),
+  };
+}
+
+export type StaffTopCatalogItem = {
+  name: string;
+  metric: FyhRevenueMetric;
+  revenuePaise: number;
+  quantity: number;
+};
+
+export async function getStaffTopCatalogItems(
+  staffId: string,
+  range: DateRange,
+  metric: FyhRevenueMetric,
+  limit = 8,
+): Promise<StaffTopCatalogItem[]> {
+  const rows = await hairDb
+    .select({
+      name: fyhInvoiceLines.nameSnapshot,
+      revenue: sql<number>`coalesce(sum(${fyhInvoiceLineAttributions.attributedNetPaise}), 0)::bigint`,
+      quantity: sql<number>`coalesce(sum(${fyhInvoiceLines.quantity}), 0)::numeric`,
+    })
+    .from(fyhInvoiceLineAttributions)
+    .innerJoin(fyhInvoiceLines, eq(fyhInvoiceLines.id, fyhInvoiceLineAttributions.invoiceLineId))
+    .innerJoin(fyhInvoices, eq(fyhInvoices.id, fyhInvoiceLines.invoiceId))
+    .where(
+      and(
+        eq(fyhInvoiceLineAttributions.staffId, staffId),
+        eq(fyhInvoiceLineAttributions.revenueMetric, metric),
+        eq(fyhInvoices.status, 'paid'),
+        gte(fyhInvoices.paidAt, range.from),
+        lt(fyhInvoices.paidAt, range.to),
+      ),
+    )
+    .groupBy(fyhInvoiceLines.nameSnapshot)
+    .orderBy(sql`sum(${fyhInvoiceLineAttributions.attributedNetPaise}) desc`)
+    .limit(limit);
+
+  return rows.map((r) => ({
+    name: r.name || 'Item',
+    metric,
+    revenuePaise: Number(r.revenue ?? 0),
+    quantity: Number(r.quantity ?? 0),
+  }));
+}
+
+export async function getStaffWorkingDays(staffId: string, range: DateRange): Promise<number> {
+  const [row] = await hairDb
+    .select({
+      days: sql<number>`count(distinct (${fyhInvoices.paidAt})::date)::int`,
+    })
+    .from(fyhInvoiceLineAttributions)
+    .innerJoin(fyhInvoiceLines, eq(fyhInvoiceLines.id, fyhInvoiceLineAttributions.invoiceLineId))
+    .innerJoin(fyhInvoices, eq(fyhInvoices.id, fyhInvoiceLines.invoiceId))
+    .where(
+      and(
+        eq(fyhInvoiceLineAttributions.staffId, staffId),
+        eq(fyhInvoices.status, 'paid'),
+        gte(fyhInvoices.paidAt, range.from),
+        lt(fyhInvoices.paidAt, range.to),
+      ),
+    );
+  return Number(row?.days ?? 0);
+}
+
+export type StaffRecentInvoiceRow = {
+  invoiceId: string;
+  invoiceNumber: string;
+  paidAt: Date | null;
+  customerName: string | null;
+  attributedPaise: number;
+};
+
+export async function getStaffRecentInvoices(
+  staffId: string,
+  range: DateRange,
+  limit = 12,
+): Promise<StaffRecentInvoiceRow[]> {
+  const rows = await hairDb
+    .select({
+      invoiceId: fyhInvoices.id,
+      invoiceNumber: fyhInvoices.invoiceNumber,
+      paidAt: fyhInvoices.paidAt,
+      customerName: fyhCustomers.fullName,
+      attributed: sql<number>`coalesce(sum(${fyhInvoiceLineAttributions.attributedNetPaise}), 0)::bigint`,
+    })
+    .from(fyhInvoiceLineAttributions)
+    .innerJoin(fyhInvoiceLines, eq(fyhInvoiceLines.id, fyhInvoiceLineAttributions.invoiceLineId))
+    .innerJoin(fyhInvoices, eq(fyhInvoices.id, fyhInvoiceLines.invoiceId))
+    .leftJoin(fyhCustomers, eq(fyhCustomers.id, fyhInvoices.customerId))
+    .where(
+      and(
+        eq(fyhInvoiceLineAttributions.staffId, staffId),
+        eq(fyhInvoices.status, 'paid'),
+        gte(fyhInvoices.paidAt, range.from),
+        lt(fyhInvoices.paidAt, range.to),
+      ),
+    )
+    .groupBy(
+      fyhInvoices.id,
+      fyhInvoices.invoiceNumber,
+      fyhInvoices.paidAt,
+      fyhCustomers.fullName,
+    )
+    .orderBy(sql`${fyhInvoices.paidAt} desc nulls last`)
+    .limit(limit);
+
+  return rows.map((r) => ({
+    invoiceId: r.invoiceId,
+    invoiceNumber: r.invoiceNumber,
+    paidAt: r.paidAt,
+    customerName: r.customerName,
+    attributedPaise: Number(r.attributed ?? 0),
+  }));
 }

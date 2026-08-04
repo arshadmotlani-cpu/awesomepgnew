@@ -6,12 +6,16 @@ import { salonDayBounds, salonMonthStartUtc } from '@/src/hair/lib/salonTime';
 import { getStaffById } from '@/src/hair/services/staff';
 import { getSalonSettings } from '@/src/hair/services/settings';
 import {
+  getStaffCommissionInRange,
   getStaffCommissionTotals,
   getStaffDetailPerformance,
   getStaffMonthlyTrend,
+  getStaffRecentInvoices,
   getStaffTargetProgress,
+  getStaffTopCatalogItems,
+  getStaffWorkingDays,
 } from '@/src/hair/services/staffPerformance';
-import { IndianRupee, Receipt, Target, Wallet } from 'lucide-react';
+import { CalendarDays, IndianRupee, Receipt, Target, Wallet } from 'lucide-react';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -26,12 +30,18 @@ export default async function StaffPerformancePage({ params }: Props) {
   const from = salonMonthStartUtc(tz);
   const range = { from, to: end };
 
-  const [detail, trend, target, commissions] = await Promise.all([
-    getStaffDetailPerformance(id, range),
-    getStaffMonthlyTrend(id, 6, tz),
-    getStaffTargetProgress(id, range),
-    getStaffCommissionTotals(id),
-  ]);
+  const [detail, trend, target, commissions, rangedCommission, topServices, topProducts, workingDays, recent] =
+    await Promise.all([
+      getStaffDetailPerformance(id, range),
+      getStaffMonthlyTrend(id, 6, tz),
+      getStaffTargetProgress(id, range),
+      getStaffCommissionTotals(id),
+      getStaffCommissionInRange(id, range),
+      getStaffTopCatalogItems(id, range, 'service', 8),
+      getStaffTopCatalogItems(id, range, 'product', 8),
+      getStaffWorkingDays(id, range),
+      getStaffRecentInvoices(id, range, 12),
+    ]);
 
   const maxTrend = Math.max(...trend.map((t) => t.revenuePaise), 1);
   const targetPct = (target.progressBps / 100).toFixed(0);
@@ -46,15 +56,20 @@ export default async function StaffPerformancePage({ params }: Props) {
             Performance this month · attributed net (before tax)
           </p>
         </div>
-        <Link
-          href="/fyh/staff"
-          className="text-sm text-fyh-accent underline-offset-2 hover:underline"
-        >
-          ← All staff
-        </Link>
+        <div className="flex flex-wrap gap-3 text-sm">
+          <Link
+            href="/dashboard/staff-performance"
+            className="text-fyh-accent underline-offset-2 hover:underline"
+          >
+            Command center
+          </Link>
+          <Link href="/staff" className="text-fyh-accent underline-offset-2 hover:underline">
+            ← All staff
+          </Link>
+        </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <KpiCard
           label="Total revenue"
           value={formatInrFromPaise(detail.totalRevenuePaise)}
@@ -75,10 +90,16 @@ export default async function StaffPerformancePage({ params }: Props) {
           hint="Revenue ÷ invoice count"
         />
         <KpiCard
-          label="Commission"
-          value={formatInrFromPaise(commissions.pendingPaise)}
+          label="Working days"
+          value={String(workingDays)}
+          icon={CalendarDays}
+          hint="Distinct paid days this month"
+        />
+        <KpiCard
+          label="Commission (MTD)"
+          value={formatInrFromPaise(rangedCommission.totalPaise)}
           icon={Target}
-          hint={`Pending · paid ${formatInrFromPaise(commissions.paidPaise)}`}
+          hint={`Pending ${formatInrFromPaise(rangedCommission.pendingPaise)} · all-time paid ${formatInrFromPaise(commissions.paidPaise)}`}
         />
       </div>
 
@@ -134,10 +155,10 @@ export default async function StaffPerformancePage({ params }: Props) {
 
       <div className="fyh-glass space-y-4 p-5">
         <h2 className="text-sm font-medium uppercase tracking-wide text-fyh-text-muted">
-          Monthly trend · 6 months
+          Revenue timeline · 6 months
         </h2>
         {trend.every((t) => t.revenuePaise === 0) ? (
-          <p className="text-sm text-fyh-text-muted">No attributed revenue in this window yet.</p>
+          <p className="text-sm text-fyh-text-muted">No data available</p>
         ) : (
           <div className="flex items-end justify-between gap-2 pt-2" style={{ minHeight: '10rem' }}>
             {trend.map((point) => {
@@ -151,7 +172,10 @@ export default async function StaffPerformancePage({ params }: Props) {
                   </span>
                   <div
                     className="w-full max-w-[3rem] rounded-t-md bg-fyh-accent/80"
-                    style={{ height: `${heightPct}%`, minHeight: point.revenuePaise > 0 ? '0.5rem' : '2px' }}
+                    style={{
+                      height: `${heightPct}%`,
+                      minHeight: point.revenuePaise > 0 ? '0.5rem' : '2px',
+                    }}
                     title={`${point.label}: ${formatInrFromPaise(point.revenuePaise)}`}
                   />
                   <span className="text-xs uppercase tracking-wide text-fyh-text-muted">
@@ -160,6 +184,98 @@ export default async function StaffPerformancePage({ params }: Props) {
                 </div>
               );
             })}
+          </div>
+        )}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="fyh-glass space-y-3 p-5">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-fyh-text-muted">
+            Top services
+          </h2>
+          {topServices.length === 0 ? (
+            <p className="text-sm text-fyh-text-muted">No data available</p>
+          ) : (
+            <ul className="space-y-2 text-sm">
+              {topServices.map((item) => (
+                <li key={item.name} className="flex justify-between gap-3">
+                  <span className="min-w-0 truncate text-fyh-text-secondary">
+                    {item.name}
+                    <span className="ml-2 text-xs text-fyh-text-muted">×{item.quantity}</span>
+                  </span>
+                  <span className="shrink-0 tabular-nums">
+                    {formatInrFromPaise(item.revenuePaise)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="fyh-glass space-y-3 p-5">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-fyh-text-muted">
+            Top products
+          </h2>
+          {topProducts.length === 0 ? (
+            <p className="text-sm text-fyh-text-muted">No data available</p>
+          ) : (
+            <ul className="space-y-2 text-sm">
+              {topProducts.map((item) => (
+                <li key={item.name} className="flex justify-between gap-3">
+                  <span className="min-w-0 truncate text-fyh-text-secondary">
+                    {item.name}
+                    <span className="ml-2 text-xs text-fyh-text-muted">×{item.quantity}</span>
+                  </span>
+                  <span className="shrink-0 tabular-nums">
+                    {formatInrFromPaise(item.revenuePaise)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div className="fyh-glass space-y-3 p-5">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-fyh-text-muted">
+          Recent invoices
+        </h2>
+        {recent.length === 0 ? (
+          <p className="text-sm text-fyh-text-muted">No data available</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[480px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-white/10 text-[10px] uppercase tracking-wide text-fyh-text-muted">
+                  <th className="py-2 pr-3 font-medium">Invoice</th>
+                  <th className="py-2 pr-3 font-medium">Customer</th>
+                  <th className="py-2 pr-3 font-medium">Paid</th>
+                  <th className="py-2 font-medium">Attributed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recent.map((inv) => (
+                  <tr key={inv.invoiceId} className="border-b border-white/5">
+                    <td className="py-2.5 pr-3">
+                      <Link
+                        href={`/billing/invoices/${inv.invoiceId}`}
+                        className="text-fyh-accent hover:underline"
+                      >
+                        {inv.invoiceNumber}
+                      </Link>
+                    </td>
+                    <td className="py-2.5 pr-3 text-fyh-text-secondary">
+                      {inv.customerName ?? '—'}
+                    </td>
+                    <td className="py-2.5 pr-3 tabular-nums text-fyh-text-muted">
+                      {inv.paidAt ? inv.paidAt.toISOString().slice(0, 10) : '—'}
+                    </td>
+                    <td className="py-2.5 tabular-nums">
+                      {formatInrFromPaise(inv.attributedPaise)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

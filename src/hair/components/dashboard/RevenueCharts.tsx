@@ -25,7 +25,7 @@ import type { RevenueDashboardSnapshot } from '@/src/hair/services/revenueDashbo
 function Wrap({
   children,
   height = 260,
-  emptyMessage = 'No data for this period',
+  emptyMessage = 'No data available',
   hasData = true,
 }: {
   children: React.ReactNode;
