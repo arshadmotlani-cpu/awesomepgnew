@@ -3,7 +3,20 @@
 > System design, data flow, and module relationships.  
 > Codebase: Next.js 16 App Router + service layer SSOT.
 
-Cross-links: [[AI_CONTEXT]] · [[DATABASE]] · [[ROUTES]] · [[WORKFLOWS]] · [[DECISIONS]]
+**Governed by [[ECOSYSTEM_V2]] (ADR-ECO-001).** Engines execute; Brains own intelligence. Shared-knowledge that could benefit another Engine belongs in a Brain — never hardcoded per Engine. Inventory: [[ECOSYSTEM_V2_INVENTORY]].
+
+Cross-links: [[ECOSYSTEM_V2]] · [[AI_CONTEXT]] · [[DATABASE]] · [[ROUTES]] · [[WORKFLOWS]] · [[DECISIONS]]
+
+---
+
+## Ecosystem framing (v2)
+
+| Layer | In this monorepo today |
+|-------|-------------------------|
+| **Awesome PG Engine** | `src/services/*` writers + App Router admin/customer — actions & ledgers |
+| **FYH Salon / Capital Engines** | `src/hair/*`, `src/capital/*` — host-isolated DBs |
+| **PG-scoped Brains** | Room OS (`src/roomOs/`) — Bed / Property / Electricity / WorkQueue projections |
+| **Finance / Owner / Customer Brains** | Not built yet — do not treat engine-local metrics as ecosystem Brains |
 
 ---
 
@@ -416,3 +429,6 @@ Enforced by `tests/unit/roomOsArchitecture.test.ts`.
 
 <!-- DOC_SYNC_TOUCH_2026-08-03 -->
 > **2026-08-03 05:47:05 UTC** — Code changed in: Routes, Database, Billing, Electricity. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-08-04 -->
+> **2026-08-04 16:59:10 UTC** — Code changed in: Routes, Billing. Manual review recommended.

@@ -7,6 +7,8 @@
 
 ## Current Focus
 
+- **APG Ecosystem v2 (Brain / Engine constitution)** — Permanent law: Engines execute, Brains understand; shared-knowledge (e.g. LTV) lives in Brains not Engines. Docs live; runtimes for Finance/Owner/Customer Brains are follow-ons. → `docs/ECOSYSTEM_V2.md`, ADR-ECO-001
+
 - **Stability Phase (Awesome PG, from 2026-08-01)** — All PG work: map dependents → baseline tests → change → `npm run stability:report` → regression test on bug fixes → production read-only audit for billing → commit only when green. → `docs/STABILITY_PHASE.md`
 
 - **For Your Hair ERP (Quick Sale stabilized)** — Hold bill, attribution splits in `share_bps`, docs `docs/foryourhair/QUICK_SALE.md`. **Next phase only:** inventory consumption, package redemption, membership consumption on Quick Sale pay. Migrate through **`0014`** (`npm run hair:db:migrate`).

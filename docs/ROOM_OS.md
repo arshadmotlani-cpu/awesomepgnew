@@ -2,7 +2,9 @@
 
 > Principal-reviewed architecture — strangler read/intelligence layer over existing PG ledgers.  
 > Status: **Wave 6 complete** — Payment Proof Workflow Engine + Business Metrics rollup (final implementation wave).  
-> Cross-links: [[ARCHITECTURE]] · [[BILLING_ENGINE]] · [[Electricity]] · [[STABILITY_PHASE]]
+> Cross-links: [[ECOSYSTEM_V2]] · [[ARCHITECTURE]] · [[BILLING_ENGINE]] · [[Electricity]] · [[STABILITY_PHASE]]
+
+**Ecosystem v2:** Room OS is intelligence inside the **Awesome PG Engine** — Property / Bed / Room / Electricity / Operations Brain projections (PG-scoped). It is **not** the Owner Brain or Finance Brain. Cross-engine knowledge (e.g. customer LTV) must not be invented here; that belongs in shared Brains ([[ECOSYSTEM_V2#Shared-knowledge rule (mandatory)]]).
 
 ---
 

@@ -7,6 +7,10 @@
 
 ---
 
+## 2026-08-04
+
+- **APG Ecosystem v2 Brain / Engine constitution (Accepted)** — Engines execute; Brains own intelligence; Owner Brain understands all businesses. Shared-knowledge rule: never hardcode in an Engine what another Engine could need (e.g. LTV → Customer Brain). Events only between Brains; write DBs stay host-isolated for now. Room OS = PG-scoped Brains only. Global Brain Registry is SSOT for ownership/APIs/events. → [[ECOSYSTEM_V2]], [[ECOSYSTEM_V2_BRAIN_REGISTRY]], ADR-ECO-001, [[ECOSYSTEM_V2_INVENTORY]], [[ECOSYSTEM_V2_EVENTS]], `.cursor/rules/ecosystem-brains.mdc`
+
 ## 2026-08-01
 
 - **Operations Recovery architecture freeze (OR-0)** — Plan-only scope; S7 `SUPERSEDE_DUPLICATE_INVOICE` OR-4 gate; Integrity canonical duplicate owner; Discovery Integrity-derived only; analyzer `asOf` snapshot fence; rule precedence documented. → `docs/OPERATIONS_RECOVERY.md`, ADR-OR-001 … ADR-OR-005

@@ -1656,8 +1656,23 @@ export async function recordRentPaymentSuccess(
 
   scheduleAfterPaymentApproval(async () => {
     // Independent post-commit work — run in parallel so background drain is fast.
+    // PAYMENT_APPROVAL_INJECT_DEFERRED_FAILURE=audit|receipt|notification|timeline (comma-ok)
+    // is for verification only — settlement has already committed.
+    const injectFailures = new Set(
+      (process.env.PAYMENT_APPROVAL_INJECT_DEFERRED_FAILURE ?? '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+    );
+    const injectFail = (kind: string) => {
+      if (injectFailures.has(kind)) {
+        throw new Error(`[inject] deferred ${kind} failure for invoice ${invoice.id}`);
+      }
+    };
+
     await Promise.all([
       (async () => {
+        injectFail('audit');
         const auditResult = await writeAuditLogNonBlocking(db, {
           actorType: 'system',
           actorId: null,
@@ -1683,6 +1698,7 @@ export async function recordRentPaymentSuccess(
         }
       })(),
       (async () => {
+        injectFail('timeline');
         const { recordBillingEvent } = await import('@/src/services/billingEvents');
         await recordBillingEvent({
           bookingId: invoice.bookingId,
@@ -1700,6 +1716,7 @@ export async function recordRentPaymentSuccess(
       (async () => {
         if (!(paymentUnifiedInvoiceId && input.amountPaise > 0)) return;
         try {
+          injectFail('receipt');
           const { createReceipt } = await import('@/src/services/paymentReceipts');
           await createReceipt({
             customerId: invoice.customerId,
@@ -1719,6 +1736,7 @@ export async function recordRentPaymentSuccess(
       (async () => {
         if (input.historical) return;
         try {
+          injectFail('notification');
           const { notifyPaymentReceipt } = await import('@/src/lib/email/notifications');
           notifyPaymentReceipt({
             customerId: invoice.customerId,

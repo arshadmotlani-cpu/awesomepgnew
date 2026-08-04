@@ -7,7 +7,9 @@
 
 ## 1. Project summary
 
-**Awesome PG** is a production SaaS for managing paying-guest (PG) accommodations in India. It replaces spreadsheets and WhatsApp with one system for:
+**Awesome PG** is one Engine inside the **APG Ecosystem v2** (with FYH Salon and Automotive Capital). Engines execute work; Brains own intelligence. Permanent law: [[ECOSYSTEM_V2]] · ADR-ECO-001.
+
+**Awesome PG Engine** is a production SaaS for managing paying-guest (PG) accommodations in India. It replaces spreadsheets and WhatsApp with one system for:
 
 - Public discovery, booking, and payments (Razorpay + UPI proof)
 - Resident accounts (wallet, rent, electricity, vacating, requests)
@@ -15,7 +17,7 @@
 
 **Production:** [awesomepg.in](https://awesomepg.in) on Vercel · PostgreSQL · Drizzle ORM · Next.js 16 App Router · React 19.
 
-**Business goal:** Inventory, money, and move-out/refund workflows stay consistent — one source of truth per domain.
+**Business goal:** Inventory, money, and move-out/refund workflows stay consistent — one source of truth per domain. Knowledge that could benefit another Engine (e.g. customer LTV) belongs in a Brain, not duplicated here.
 
 ---
 

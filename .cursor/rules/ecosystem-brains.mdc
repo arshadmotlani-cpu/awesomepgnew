@@ -1,0 +1,35 @@
+---
+description: Ecosystem v2 — Engine vs Brain Golden Rule + shared-knowledge must live in Brains
+alwaysApply: true
+---
+
+# Ecosystem Brains (APG Ecosystem v2)
+
+Permanent constitution: `docs/ECOSYSTEM_V2.md` · ADR: `docs/adr/ADR-ECO-001-brain-engine-constitution.md`
+
+## Before any feature or bug fix
+
+1. **Classify:** Is this an **Engine** (actions / writes / workflows) or a **Brain** (knowledge / projections / explain / forecasts)?
+2. **Name the owner:** Which Engine or Brain domain owns this change?
+3. **Golden Rule:** Never mix Engine actions and Brain intelligence in the same module.
+4. **Shared-knowledge rule:** Never hardcode knowledge inside an Engine if another Engine could benefit later. Move it into the appropriate Brain.
+   - Example: customer lifetime value → **Customer Brain**, not duplicated in PG Engine and Salon Engine.
+   - Test: “Would a fourth Engine copy-paste this?” → If yes, it belongs in a Brain.
+5. **Finance:** Engines must not calculate ecosystem-wide finance / net worth / cross-business contribution — that is **Finance Brain** (future). Engine-local money SSOTs stay inside their Engine until events feed Finance Brain.
+6. **Communication:** Prefer domain events + Brain public APIs. Brains must not query other Brains’ DBs directly. See `docs/ECOSYSTEM_V2_EVENTS.md`.
+7. **If the design violates the constitution:** Stop and redesign before writing code.
+
+## Do not confuse
+
+- Docs MEMORY / `brain-*.sh` = vault intelligence, **not** product Brains
+- Room OS / Bed Brain / Property OS = **Awesome PG Engine** intelligence layer — **not** Owner Brain
+- PG Overview / Capital Dashboard = Engine dashboards — **not** the life Owner Dashboard
+
+## Stacks with
+
+- Stability Phase (`.cursor/rules/stability-phase.mdc`)
+- Settlement / checkout freezes
+- Room OS forbidden-import matrix (`docs/ROOM_OS.md`, `docs/ARCHITECTURE.md`)
+
+Inventory of as-is modules: `docs/ECOSYSTEM_V2_INVENTORY.md`  
+Global Brain Registry (ownership / APIs / events): `docs/ECOSYSTEM_V2_BRAIN_REGISTRY.md`

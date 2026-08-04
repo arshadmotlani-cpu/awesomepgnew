@@ -4,6 +4,10 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## Ecosystem v2 (Brain / Engine constitution)
+
+Before any feature: classify **Engine** (actions) vs **Brain** (knowledge). Never hardcode knowledge in an Engine if another Engine could benefit — move it into the owning Brain (e.g. customer LTV → Customer Brain). Follow `docs/ECOSYSTEM_V2.md` and `.cursor/rules/ecosystem-brains.mdc`.
+
 ## Stability Phase (from 2026-08-01)
 
 All changes follow `.cursor/rules/stability-phase.mdc` and `docs/STABILITY_PHASE.md`:

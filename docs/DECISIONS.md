@@ -263,6 +263,18 @@ Cross-links: [[ARCHITECTURE]] · [[WORKFLOWS]] · [[AI_CONTEXT]] · [[BUGS]]
 | **Impact** | Admin metadata/manifest/favicon → `/admin-os/`; shell components `ApgOs*`; geometry in `apgOsIconGeometry.ts`. |
 | **See** | `docs/qa/apg-os-concepts/`, `apgOsAdminMetadata.ts`, `legacyAdminMetadata.ts` (customer/root only where applicable) |
 
+---
+
+## APG Ecosystem v2 — Brain / Engine constitution
+
+| | |
+|---|---|
+| **Date** | 2026-08-04 |
+| **Decision** | Permanent constitution: Engines execute; Brains own intelligence; Owner Brain understands all businesses. Shared-knowledge that could benefit another Engine must live in a Brain (e.g. customer LTV → Customer Brain), never duplicated per Engine. Brains communicate via events, not direct DB queries. Engines keep write-isolated DBs until an event plane exists. Room OS = PG Engine intelligence only — not Owner/Finance Brain. |
+| **Reason** | One ecosystem across PG / Salon / Capital / future products; modular Brains scale without copy-paste intelligence. |
+| **Impact** | Every feature must classify Engine vs Brain; Cursor rule `ecosystem-brains.mdc`; inventory + event catalog docs; no Finance/Owner Brain runtime in this ADR day-one. |
+| **See** | [[ECOSYSTEM_V2]] · [[ECOSYSTEM_V2_BRAIN_REGISTRY]] · [[ECOSYSTEM_V2_INVENTORY]] · [[ECOSYSTEM_V2_EVENTS]] · `docs/adr/ADR-ECO-001-brain-engine-constitution.md` |
+
 <!-- DOC_SYNC_TOUCH_2026-07-21 -->
 > **2026-07-21 08:32:20 UTC** — Code changed in: Routes, Bed Assignment, Bookings, Residents, Vacating. Manual review recommended.
 

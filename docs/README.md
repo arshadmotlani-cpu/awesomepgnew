@@ -23,6 +23,10 @@ See [[AI_CONTEXT#Memory classification (required)]].
 
 | Note | Purpose |
 |------|---------|
+| [[ECOSYSTEM_V2]] | **Permanent Brain / Engine constitution** — read before any feature |
+| [[ECOSYSTEM_V2_BRAIN_REGISTRY]] | **Global Brain Registry** — ownership, APIs, events, status |
+| [[ECOSYSTEM_V2_INVENTORY]] | As-is Engines/Brains code map + gaps |
+| [[ECOSYSTEM_V2_EVENTS]] | Domain event envelope + catalog stubs |
 | [[START_HERE]] | **Single AI entry point** — read first |
 | [[active_memory]] | Live focus + top 5 priorities |
 | [[AI_CONTEXT]] | Rules, SSOT map, memory classification |

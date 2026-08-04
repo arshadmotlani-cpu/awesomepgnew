@@ -387,6 +387,14 @@ export async function approveRentProofAction(
   // PaymentReviewWorkspace always redirects to the ops queue and ignores nextKey,
   // so skip the expensive listPendingPaymentReviews rebuild here.
   scheduleAfterPaymentApproval(async () => {
+    if (
+      (process.env.PAYMENT_APPROVAL_INJECT_DEFERRED_FAILURE ?? '')
+        .split(',')
+        .map((s) => s.trim())
+        .includes('cache')
+    ) {
+      throw new Error(`[inject] deferred cache failure for invoice ${invoiceId}`);
+    }
     await persistApprovalAllocationAfterSuccess({
       kind: 'rent',
       entityId: invoiceId,

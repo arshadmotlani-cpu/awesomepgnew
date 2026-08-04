@@ -7,6 +7,10 @@
 
 ---
 
+## 2026-08-04
+
+- **ECOSYSTEM-V2-CONSTITUTION** — Permanent Brain/Engine law: `docs/ECOSYSTEM_V2.md`, ADR-ECO-001, Global Brain Registry, inventory + events specs, Cursor rule `ecosystem-brains.mdc`; shared-knowledge must live in Brains not Engines; wired into ARCHITECTURE / ROOM_OS / AGENTS / DECISIONS.
+
 ## 2026-08-02
 
 - **ROOM-OS-ROLLOUT-DOCS** — Production rollout runbooks under `docs/operations/` (13 files: deployment, migrations, env vars, flags, rollback, monitoring, alerts, smoke tests, QA, DR, runbook, launch-day); `ROOM_OS.md` updated to Wave 6 complete status.
