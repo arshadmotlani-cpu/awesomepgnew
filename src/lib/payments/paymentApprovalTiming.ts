@@ -8,45 +8,6 @@ export type PaymentApprovalTimer = {
   finish: (meta?: Record<string, unknown>) => Record<string, number>;
 };
 
-const FRIENDLY_STEP: Record<string, string> = {
-  auth: 'Auth',
-  load_invoice: 'Load invoice',
-  ensure_proof_snapshot: 'Load invoice',
-  settle_critical: 'Settlement',
-  apply_approved_payment_atomic: 'Settlement',
-  settlement_transaction: 'Commit',
-  schedule_deferred: 'Response returned',
-  schedule_deferred_side_effects: 'Response returned',
-  revalidate_fast: 'Response returned',
-};
-
-function printFriendlyTiming(label: string, steps: Record<string, number>) {
-  const lines: string[] = [`--- ${label} ---`];
-  const order = [
-    'auth',
-    'load_invoice',
-    'ensure_proof_snapshot',
-    'settle_critical',
-    'apply_approved_payment_atomic',
-    'settlement_transaction',
-    'schedule_deferred',
-    'schedule_deferred_side_effects',
-    'revalidate_fast',
-  ];
-  const seen = new Set<string>();
-  for (const key of order) {
-    if (steps[key] == null) continue;
-    const friendly = FRIENDLY_STEP[key] ?? key;
-    if (seen.has(friendly)) continue;
-    seen.add(friendly);
-    lines.push(`${friendly.padEnd(22, '.')} ${steps[key]} ms`);
-  }
-  if (steps.total_ms != null) {
-    lines.push(`${'Total'.padEnd(22, '.')} ${steps.total_ms} ms`);
-  }
-  console.info(lines.join('\n'));
-}
-
 export function startPaymentApprovalTimer(label: string): PaymentApprovalTimer {
   const t0 = performance.now();
   const marks: Array<{ step: string; at: number }> = [{ step: 'start', at: t0 }];
@@ -73,7 +34,6 @@ export function startPaymentApprovalTimer(label: string): PaymentApprovalTimer {
           '[payment-approval-timing]',
           JSON.stringify({ label, steps, ...(meta ?? {}) }),
         );
-        printFriendlyTiming(label, steps);
       }
       return steps;
     },

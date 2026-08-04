@@ -94,8 +94,7 @@ describe('rent payment approval hot path', () => {
     const nextFn = fn.indexOf('\nexport async function approveElectricityProofAction');
     const body = fn.slice(0, nextFn);
 
-    assert.match(body, /scheduleAfterPaymentApproval\(/);
-    assert.match(body, /persistApprovalAllocationAfterSuccess/);
+    assert.match(body, /scheduleAfterPaymentApproval\(\s*async\s*\(\)\s*=>\s*\{\s*await persistApprovalAllocationAfterSuccess/);
     assert.match(body, /skippedNextKeyLookup:\s*true/);
     assert.match(body, /nextKey:\s*null/);
     assert.doesNotMatch(body, /withNextReviewKey/);
