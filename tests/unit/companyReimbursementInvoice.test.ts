@@ -62,7 +62,7 @@ test('resident-facing copy is normal tax invoice with meals package, no reimburs
 
 test('resident invoices list includes document-only financial invoices', () => {
   const area = readFileSync(
-    join(root, 'src/components/customer/account/ResidentAreaSection.tsx'),
+    join(root, 'src/services/residentPortalTabData.ts'),
     'utf8',
   );
   assert.match(area, /listResidentDocumentInvoicesForCustomer/);

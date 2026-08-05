@@ -31,9 +31,9 @@ describe('Resident electricity billing pending UX', () => {
     assert.match(src, /showElectricityPending/);
   });
 
-  it('ResidentAreaSection loads electricity state from Room Brain', () => {
+  it('payments tab loads electricity state from Room Brain via tab data', () => {
     const src = readFileSync(
-      join(process.cwd(), 'src/components/customer/account/ResidentAreaSection.tsx'),
+      join(process.cwd(), 'src/services/residentPortalTabData.ts'),
       'utf8',
     );
     assert.match(src, /loadResidentElectricityBillingState/);

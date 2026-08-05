@@ -16,8 +16,8 @@ const vacatingHome = readFileSync(
   join(process.cwd(), 'src/components/customer/account/resident/vacating/VacatingHome.tsx'),
   'utf8',
 );
-const residentAreaSection = readFileSync(
-  join(process.cwd(), 'src/components/customer/account/ResidentAreaSection.tsx'),
+const residentPortalTabData = readFileSync(
+  join(process.cwd(), 'src/services/residentPortalTabData.ts'),
   'utf8',
 );
 const requestsHome = readFileSync(
@@ -70,9 +70,9 @@ test('resident move-out UI wires settlement story and change-leaving-date flow',
   assert.match(vacatingHome, /settlementContext/);
   assert.match(vacatingHome, /ChangeLeavingDateForm/);
   assert.match(vacatingHome, /showSettlementStory/);
-  assert.match(residentAreaSection, /loadVacatingBillingPresentation/);
-  assert.match(residentAreaSection, /primarySettlementContext/);
-  assert.match(residentAreaSection, /getPendingVacatingDateChangeForBooking/);
+  assert.match(residentPortalTabData, /loadVacatingBillingPresentation/);
+  assert.match(residentPortalTabData, /primarySettlementContext/);
+  assert.match(residentPortalTabData, /getPendingVacatingDateChangeForBooking/);
   assert.match(requestsHome, /estimatedSettlement=/);
   assert.match(requestsHome, /settlementContext=/);
   assert.match(requestsHome, /pendingDateChangeRequestId=/);

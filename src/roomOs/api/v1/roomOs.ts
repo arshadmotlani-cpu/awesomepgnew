@@ -69,6 +69,8 @@ export async function loadLedger(
   return { apiVersion: 'room-os/v1', status: 'ready', snapshot };
 }
 
+export { loadRoomBrainSnapshot, type RoomBrainSnapshot } from '@/src/roomOs/api/v1/loadRoomBrainSnapshot';
+
 export async function loadBookingContext(input: {
   bookingId: string;
   asOf?: string;

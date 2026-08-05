@@ -73,17 +73,21 @@ describe('Phase 1 resident portal UI dedupe', () => {
     assert.match(src, /paymentModeLabel/);
   });
 
-  it('ResidentAreaSection uses SSOT bill builder — not legacy panels', () => {
+  it('resident portal tab data uses SSOT bill builder — not legacy panels', () => {
     const src = readFileSync(
-      join(process.cwd(), 'src/components/customer/account/ResidentAreaSection.tsx'),
+      join(process.cwd(), 'src/services/residentPortalTabData.ts'),
       'utf8',
     );
     assert.match(src, /buildResidentBillRowsFromDetail/);
     assert.match(src, /resolveResidentMonthlyRentPaise/);
-    assert.doesNotMatch(src, /ResidentHomePanel/);
-    assert.doesNotMatch(src, /ResidentPaymentsHub/);
-    assert.doesNotMatch(src, /ResidentWalletView/);
-    assert.doesNotMatch(src, /ResidentOutstandingBillsCard/);
+    const area = readFileSync(
+      join(process.cwd(), 'src/components/customer/account/ResidentAreaSection.tsx'),
+      'utf8',
+    );
+    assert.doesNotMatch(area, /ResidentHomePanel/);
+    assert.doesNotMatch(area, /ResidentPaymentsHub/);
+    assert.doesNotMatch(area, /ResidentWalletView/);
+    assert.doesNotMatch(area, /ResidentOutstandingBillsCard/);
   });
 
   it('invoiceDocumentModel imports shared payment mode labels', () => {

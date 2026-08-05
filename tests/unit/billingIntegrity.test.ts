@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { BILLING_INTEGRITY_CHECK_TYPES } from '../../src/services/billingIntegrityCheck';
-import type { ApprovedPaymentPurpose } from '../../src/services/paymentSettlementAtomic';
+import { ALLOCATION_INTEGRITY_CHECK_TYPES } from '../../src/services/allocationIntegrityAudit';
 
 test('billing integrity check types cover payment settlement drift classes', () => {
   assert.equal(BILLING_INTEGRITY_CHECK_TYPES.length, 7);
@@ -11,14 +11,14 @@ test('billing integrity check types cover payment settlement drift classes', () 
   assert.ok(BILLING_INTEGRITY_CHECK_TYPES.includes('MISSING_ELECTRICITY_INVOICE'));
 });
 
+test('allocation integrity types are separate from electricity billing checks', () => {
+  for (const t of ALLOCATION_INTEGRITY_CHECK_TYPES) {
+    assert.ok(!BILLING_INTEGRITY_CHECK_TYPES.includes(t as never));
+  }
+});
+
 test('applyApprovedPaymentAtomic purpose routing includes electricity and rent', () => {
-  const purposes: ApprovedPaymentPurpose[] = [
-    'electricity',
-    'rent',
-    'extension',
-    'booking',
-    'deposit',
-  ];
+  const purposes = ['electricity', 'rent', 'extension', 'booking', 'deposit'] as const;
   assert.equal(purposes.length, 5);
   assert.ok(purposes.includes('electricity'));
   assert.ok(purposes.includes('rent'));

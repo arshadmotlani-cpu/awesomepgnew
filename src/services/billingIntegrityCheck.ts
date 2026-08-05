@@ -49,10 +49,16 @@ export type BillingIntegrityAuditReport = {
   asOf: string;
   billingMonth: string;
   issues: BillingIntegrityIssue[];
+  allocationIssues: import('@/src/services/allocationIntegrityAudit').AllocationIntegrityIssue[];
   summary: {
     issueCount: number;
     byCheckType: Record<BillingIntegrityCheckType, number>;
     autoRepairableCount: number;
+    allocationIssueCount: number;
+    allocationByCheckType: Record<
+      import('@/src/services/allocationIntegrityAudit').AllocationIntegrityCheckType,
+      number
+    >;
   };
 };
 
@@ -435,6 +441,8 @@ export async function runBillingIntegrityCheck(
   const month = billingMonth ?? firstOfMonth(todayString());
   const asOf = new Date().toISOString();
 
+  const { runAllocationIntegrityAudit } = await import('@/src/services/allocationIntegrityAudit');
+
   const [
     approvedPaymentDue,
     paidWithoutPayment,
@@ -442,6 +450,7 @@ export async function runBillingIntegrityCheck(
     duplicatePayments,
     mirrorMismatch,
     electricityGaps,
+    allocationReport,
   ] = await Promise.all([
     checkApprovedPaymentInvoiceDue(),
     checkInvoicePaidWithoutPayment(),
@@ -449,6 +458,7 @@ export async function runBillingIntegrityCheck(
     checkDuplicateApprovedPayments(),
     checkSourceMirrorMismatch(),
     checkMissingElectricityInvoices(month),
+    runAllocationIntegrityAudit(),
   ]);
 
   const issues = [
@@ -469,10 +479,13 @@ export async function runBillingIntegrityCheck(
     asOf,
     billingMonth: month,
     issues,
+    allocationIssues: allocationReport.issues,
     summary: {
       issueCount: issues.length,
       byCheckType,
       autoRepairableCount: issues.filter((i) => i.autoRepairable).length,
+      allocationIssueCount: allocationReport.summary.issueCount,
+      allocationByCheckType: allocationReport.summary.byCheckType,
     },
   };
 }

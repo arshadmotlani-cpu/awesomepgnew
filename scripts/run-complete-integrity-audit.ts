@@ -381,6 +381,21 @@ function mapBillingChecks(report: Awaited<ReturnType<typeof runBillingIntegrityC
       issues.map((i) => `${i.customerName}: ${i.detail}`),
     );
   };
+  const allocByType = report.summary.allocationByCheckType;
+  const pickAlloc = (
+    type: keyof typeof allocByType,
+    category: string,
+    label: string,
+  ) => {
+    const issues = report.allocationIssues.filter((i) => i.checkType === type);
+    return fromConsistency(
+      `ALLOC_${type}`,
+      category,
+      label,
+      issues.length === 0,
+      issues.map((i) => `${i.customerName || '—'}: ${i.detail}`),
+    );
+  };
   return [
     pick('DUPLICATE_APPROVED_PAYMENT', 'PAYMENTS', 'No duplicate approved payments (billing SSOT)'),
     pick('INVOICE_PAID_WITHOUT_PAYMENT', 'INVOICES', 'Paid invoices have backing payments'),
@@ -389,6 +404,11 @@ function mapBillingChecks(report: Awaited<ReturnType<typeof runBillingIntegrityC
     pick('MISSING_ELECTRICITY_INVOICE', 'ELECTRICITY', 'Electricity invoices present where expected'),
     pick('DUPLICATE_SOURCE_INVOICE', 'ELECTRICITY', 'No duplicate electricity/rent source invoices'),
     pick('SOURCE_MIRROR_MISMATCH', 'ELECTRICITY', 'Source invoices mirror financial invoices'),
+    pickAlloc('PAID_WITHOUT_ALLOCATION', 'PAYMENTS', 'Approved payments have allocation snapshots'),
+    pickAlloc('LEDGER_MISMATCH', 'PAYMENTS', 'Allocation components match received amounts'),
+    pickAlloc('ORPHAN_PAYMENT', 'PAYMENTS', 'Captured payments have allocation linkage'),
+    pickAlloc('DOUBLE_ALLOCATION', 'PAYMENTS', 'No duplicate allocation rows per entity'),
+    pickAlloc('REFUND_MISMATCH', 'DEPOSITS', 'Checkout refunds within deposit collected'),
   ];
 }
 

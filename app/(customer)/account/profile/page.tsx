@@ -161,6 +161,7 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
           title="Your resident dashboard could not load"
         >
           <ResidentAreaSection
+            preloaded={ctx}
             customerId={session.customerId}
             activeTab={residentTab}
             profileSub={profileSub}

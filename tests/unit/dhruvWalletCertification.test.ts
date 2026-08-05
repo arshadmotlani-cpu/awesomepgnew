@@ -21,6 +21,10 @@ const residentArea = readFileSync(
   join(process.cwd(), 'src/components/customer/account/ResidentAreaSection.tsx'),
   'utf8',
 );
+const residentPortalTabData = readFileSync(
+  join(process.cwd(), 'src/services/residentPortalTabData.ts'),
+  'utf8',
+);
 const depositsService = readFileSync(
   join(process.cwd(), 'src/services/deposits.ts'),
   'utf8',
@@ -60,7 +64,7 @@ test('certification: resident portal excludes reserve lifecycle and completed-on
 
 test('certification: residents land on My Stay dashboard, not profile settings', () => {
   assert.match(profilePage, /hasResidentPortalAccess && !explicitSettings/);
-  assert.match(profilePage, /<ResidentAreaSection/);
+  assert.match(profilePage, /preloaded={ctx}/);
   assert.match(safeNext, /fallback = '\/account\/resident'/);
   assert.doesNotMatch(
     profilePage,
@@ -70,11 +74,11 @@ test('certification: residents land on My Stay dashboard, not profile settings',
 });
 
 test('certification: wallet reads deposit_ledger refundable balance for historical stays', () => {
-  assert.match(residentArea, /getDepositSummaryForBooking/);
-  assert.match(residentArea, /walletBooking/);
-  assert.match(residentArea, /refundableBalancePaise/);
+  assert.match(residentPortalTabData, /getDepositSummaryForBooking/);
+  assert.match(residentPortalTabData, /walletBooking/);
+  assert.match(residentPortalTabData, /refundableBalancePaise/);
   assert.match(residentArea, /activeTab === 'profile' && primaryBooking/);
-  assert.match(residentArea, /<ResidentProfileHub/);
+  assert.match(residentArea, /ResidentProfileTabSection/);
   assert.doesNotMatch(
     residentArea,
     /activeTab === 'payments' && primaryBooking && financialAccount/,
@@ -90,7 +94,7 @@ test('certification: refund preview auto-includes electricity when generated', (
   assert.match(settlementPreview, /getDepositRefundSettlementPreview/);
   assert.match(settlementPreview, /electricityAdjustmentPaise/);
   assert.match(settlementPreview, /electricityPending/);
-  assert.match(settlementPreview, /listElectricityInvoicesForBooking/);
+  assert.match(settlementPreview, /buildResidentElectricityAccount/);
 });
 
 test('certification: why ₹950 was not displayed before fix', () => {
@@ -102,7 +106,7 @@ test('certification: why ₹950 was not displayed before fix', () => {
   ];
   assert.ok(reasons.length >= 3);
   assert.match(
-    residentArea,
+    residentPortalTabData,
     /buildResidentBillRowsFromDetail/,
     'bills now load from all booking invoices regardless of financial account',
   );

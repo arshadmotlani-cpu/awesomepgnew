@@ -7,6 +7,10 @@ const residentAreaSection = readFileSync(
   join(process.cwd(), 'src/components/customer/account/ResidentAreaSection.tsx'),
   'utf8',
 );
+const residentPortalTabData = readFileSync(
+  join(process.cwd(), 'src/services/residentPortalTabData.ts'),
+  'utf8',
+);
 const profileHub = readFileSync(
   join(process.cwd(), 'src/components/customer/account/resident/ResidentProfileHub.tsx'),
   'utf8',
@@ -34,10 +38,10 @@ const financialEngine = readFileSync(
 
 test('wallet sub-tab is always available for residents with a booking', () => {
   assert.match(residentAreaSection, /activeTab === 'profile' && primaryBooking/);
-  assert.match(residentAreaSection, /<ResidentProfileHub/);
+  assert.match(residentAreaSection, /ResidentProfileTabSection/);
   assert.match(profileHub, /id: 'wallet'/);
   assert.match(profileHub, /<ProfileWalletPanel/);
-  assert.match(residentAreaSection, /walletBooking/);
+  assert.match(residentPortalTabData, /walletBooking/);
   assert.doesNotMatch(
     residentAreaSection,
     /\{financialAccount \?\s*\(\s*\n\s*<ProfileWalletPanel/,
@@ -51,8 +55,8 @@ test('wallet sub-tab wires deposit balance, ledger, policy, and refund tracking'
   assert.match(profileWalletPanel, /Deposit deductions/);
   assert.match(profileWalletPanel, /Refund history/);
   assert.match(profileWalletPanel, /Deposit refund not available yet/);
-  assert.match(residentAreaSection, /getDepositSummaryForBooking/);
-  assert.match(residentAreaSection, /refundableBalancePaise/);
+  assert.match(residentPortalTabData, /getDepositSummaryForBooking/);
+  assert.match(residentPortalTabData, /refundableBalancePaise/);
 });
 
 test('move-out refund is inline on vacating home', () => {
