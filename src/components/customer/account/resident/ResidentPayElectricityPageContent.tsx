@@ -3,7 +3,7 @@ import { ResidentPayElectricityClient } from '@/src/components/customer/account/
 import { InvoiceBreakdownRow } from '@/src/components/customer/account/resident/ResidentPaymentsHub';
 import { StatusChip } from '@/src/components/customer/design-system';
 import { ApgCard } from '@/src/components/customer/design-system';
-import { ElectricityBillCalculationBreakdownPanel } from '@/src/components/billing/ElectricityBillCalculationBreakdownPanel';
+import { ResidentElectricityBillCalculationPanel } from '@/src/components/customer/account/resident/ResidentElectricityBillCalculationPanel';
 import { LateFeeCountdown } from '@/src/components/billing/LateFeeCountdown';
 import { ViewBillDetailsCollapsible } from '@/src/components/billing/ViewBillDetailsCollapsible';
 import { PaymentFlowErrorBoundary } from '@/src/components/customer/payments/PaymentFlowErrorBoundary';
@@ -36,7 +36,7 @@ export function ResidentPayElectricityPageContent({
   backHref,
   residentId,
 }: Props) {
-  const { invoice, projection, calculation, activeRejection } = data;
+  const { invoice, projection, explanation, activeRejection } = data;
   const outstanding = projection.outstandingPaise;
   const amountLabel = paiseToInr(outstanding);
   const periodLabel = formatDate(invoice.billingMonth);
@@ -88,6 +88,10 @@ export function ResidentPayElectricityPageContent({
         ) : null}
       </ApgCard>
 
+      {explanation ? (
+        <ResidentElectricityBillCalculationPanel explanation={explanation} theme="light" />
+      ) : null}
+
       <ViewBillDetailsCollapsible>
         <dl className="mb-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
           <InvoiceBreakdownRow label="Invoice ID" value={invoice.invoiceNumber} />
@@ -97,14 +101,6 @@ export function ResidentPayElectricityPageContent({
             value={`R${data.roomNumber} · ${data.bedCode}`}
           />
         </dl>
-        {calculation ? (
-          <ElectricityBillCalculationBreakdownPanel
-            breakdown={calculation.breakdown}
-            viewer={calculation.viewer}
-            theme="light"
-            defaultExpanded={false}
-          />
-        ) : null}
       </ViewBillDetailsCollapsible>
 
       {projection.effectiveStatus === 'paid' ? (

@@ -15,6 +15,7 @@ import {
   type ResidentElectricityHistoryItem,
 } from '@/src/components/customer/account/resident/ResidentElectricityHistory';
 import { requestStatusTone, primaryBtn, secondaryBtn } from '@/src/lib/design-system/tokens';
+import { ResidentElectricityBillCalculationPanel } from '@/src/components/customer/account/resident/ResidentElectricityBillCalculationPanel';
 import { ResidentElectricityPendingCard } from '@/src/components/customer/account/resident/ResidentElectricityPendingCard';
 import type { ResidentElectricityBillingState } from '@/src/lib/residents/residentElectricityBillingState';
 import { computeResidentTotalDuePaise } from '@/src/lib/residents/residentPortalDisplay';
@@ -32,10 +33,13 @@ export type PaidHistoryRow = {
   paymentModeLabel?: string | null;
 };
 
+import type { ResidentElectricityBillExplanation } from '@/src/lib/residents/residentElectricityBillExplanationTypes';
+
 export type BillDueRow = PaymentDueRow & {
   why?: string;
   calc?: string;
   kind?: 'rent' | 'electricity' | 'deposit' | 'penalty' | 'other';
+  electricityExplanation?: ResidentElectricityBillExplanation | null;
 };
 
 export type LifetimeTotals = {
@@ -61,6 +65,7 @@ type Props = {
 
 function BillCard({ row }: { row: BillDueRow }) {
   const [expanded, setExpanded] = useState(false);
+  const hasElectricityExplanation = row.kind === 'electricity' && row.electricityExplanation;
 
   return (
     <li className="rounded-xl border border-white/10 bg-white/[0.03] p-4 max-md:p-3">
@@ -79,19 +84,28 @@ function BillCard({ row }: { row: BillDueRow }) {
           <StatusChip status={row.status} toneMap={requestStatusTone} />
         </div>
       </div>
-      {row.calc ? (
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="mt-2 text-xs font-medium text-apg-cyan hover:text-apg-orange"
-        >
-          {expanded ? 'Hide calculation' : 'How calculated'}
-        </button>
-      ) : null}
-      {expanded && row.calc ? (
-        <p className="mt-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs whitespace-pre-wrap text-apg-silver">
-          {row.calc}
-        </p>
+      {hasElectricityExplanation ? (
+        <div className="mt-3">
+          <ResidentElectricityBillCalculationPanel
+            explanation={row.electricityExplanation!}
+            theme="dark"
+          />
+        </div>
+      ) : row.calc ? (
+        <>
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="mt-2 text-xs font-medium text-apg-cyan hover:text-apg-orange"
+          >
+            {expanded ? 'Hide calculation' : 'How calculated'}
+          </button>
+          {expanded ? (
+            <p className="mt-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs whitespace-pre-wrap text-apg-silver">
+              {row.calc}
+            </p>
+          ) : null}
+        </>
       ) : null}
       {row.href ? (
         <Link

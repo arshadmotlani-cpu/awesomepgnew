@@ -2,6 +2,9 @@
 
 import Link from 'next/link';
 import { paiseToInr, formatDate, formatDateTime } from '@/src/lib/format';
+import { ResidentElectricityBillCalculationPanel } from '@/src/components/customer/account/resident/ResidentElectricityBillCalculationPanel';
+
+import type { ResidentElectricityBillExplanation } from '@/src/lib/residents/residentElectricityBillExplanationTypes';
 
 export type ResidentElectricityHistoryItem = {
   id: string;
@@ -17,6 +20,7 @@ export type ResidentElectricityHistoryItem = {
   paidAt: Date | string | null;
   paymentStatus: string;
   detailHref: string;
+  explanation?: ResidentElectricityBillExplanation | null;
 };
 
 export function ResidentElectricityHistory({
@@ -72,36 +76,66 @@ export function ResidentElectricityHistory({
           </thead>
           <tbody>
             {items.map((item) => (
-              <tr key={item.id} className={rowBorder}>
-                <td className={`${td} whitespace-nowrap`}>{formatDate(item.billingMonth)}</td>
-                <td className={`${td} font-mono text-xs`}>{item.invoiceNumber}</td>
-                <td className={td}>R{item.roomNumber}</td>
-                <td className={td}>{item.bedCode}</td>
-                <td className={`${td} text-right tabular-nums`}>
-                  {item.daysCharged != null ? item.daysCharged : '—'}
-                </td>
-                <td className={`${td} text-right tabular-nums`}>
-                  {item.unitsAllocated != null ? item.unitsAllocated.toFixed(2) : '—'}
-                </td>
-                <td className={`${td} text-right tabular-nums`}>{paiseToInr(item.billAmountPaise)}</td>
-                <td className={`${td} text-right tabular-nums`}>{paiseToInr(item.paidAmountPaise)}</td>
-                <td className={`${td} text-right tabular-nums`}>
-                  {paiseToInr(item.outstandingAmountPaise)}
-                </td>
-                <td className={`${td} text-xs whitespace-nowrap`}>
-                  {item.paidAt ? formatDateTime(item.paidAt) : '—'}
-                </td>
-                <td className={td}>{item.paymentStatus}</td>
-                <td className={td}>
-                  <Link href={item.detailHref} className={linkClass}>
-                    Open →
-                  </Link>
-                </td>
-              </tr>
+              <ElectricityHistoryRow key={item.id} item={item} dark={dark} td={td} rowBorder={rowBorder} linkClass={linkClass} />
             ))}
           </tbody>
         </table>
       </div>
     </section>
+  );
+}
+
+function ElectricityHistoryRow({
+  item,
+  dark,
+  td,
+  rowBorder,
+  linkClass,
+}: {
+  item: ResidentElectricityHistoryItem;
+  dark: boolean;
+  td: string;
+  rowBorder: string;
+  linkClass: string;
+}) {
+  return (
+    <>
+      <tr className={rowBorder}>
+        <td className={`${td} whitespace-nowrap`}>{formatDate(item.billingMonth)}</td>
+        <td className={`${td} font-mono text-xs`}>{item.invoiceNumber}</td>
+        <td className={td}>R{item.roomNumber}</td>
+        <td className={td}>{item.bedCode}</td>
+        <td className={`${td} text-right tabular-nums`}>
+          {item.daysCharged != null ? item.daysCharged : '—'}
+        </td>
+        <td className={`${td} text-right tabular-nums`}>
+          {item.unitsAllocated != null ? item.unitsAllocated.toFixed(2) : '—'}
+        </td>
+        <td className={`${td} text-right tabular-nums`}>{paiseToInr(item.billAmountPaise)}</td>
+        <td className={`${td} text-right tabular-nums`}>{paiseToInr(item.paidAmountPaise)}</td>
+        <td className={`${td} text-right tabular-nums`}>
+          {paiseToInr(item.outstandingAmountPaise)}
+        </td>
+        <td className={`${td} text-xs whitespace-nowrap`}>
+          {item.paidAt ? formatDateTime(item.paidAt) : '—'}
+        </td>
+        <td className={td}>{item.paymentStatus}</td>
+        <td className={td}>
+          <Link href={item.detailHref} className={linkClass}>
+            Open →
+          </Link>
+        </td>
+      </tr>
+      {item.explanation ? (
+        <tr className={rowBorder}>
+          <td colSpan={12} className={`${td} pb-4`}>
+            <ResidentElectricityBillCalculationPanel
+              explanation={item.explanation}
+              theme={dark ? 'dark' : 'light'}
+            />
+          </td>
+        </tr>
+      ) : null}
+    </>
   );
 }

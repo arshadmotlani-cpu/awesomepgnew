@@ -255,6 +255,7 @@ export function buildResidentBillRowsFromDetail(
       if (elecRejection && !e.paymentProofUrl) {
         rejectedBillRows.push({
           key: `elec-${e.id}`,
+          electricityInvoiceId: e.id,
           label: `Electricity · ${formatDate(e.billingMonth)}`,
           amountPaise: outstanding,
           dueDate: e.dueDate,
@@ -275,6 +276,7 @@ export function buildResidentBillRowsFromDetail(
       ) {
         pendingApprovalRows.push({
           key: `elec-${e.id}`,
+          electricityInvoiceId: e.id,
           label: `Electricity · ${formatDate(e.billingMonth)}`,
           amountPaise: outstanding,
           dueDate: e.dueDate,
@@ -289,6 +291,7 @@ export function buildResidentBillRowsFromDetail(
       const useProRata = electricityUseProRataFromRow(e);
       const row: PaymentDueRow = {
         key: `elec-${e.id}`,
+        electricityInvoiceId: e.id,
         label: `Electricity · ${formatDate(e.billingMonth)}`,
         amountPaise: outstanding,
         dueDate: e.dueDate,

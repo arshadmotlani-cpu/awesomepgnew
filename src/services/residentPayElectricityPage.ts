@@ -26,6 +26,8 @@ import {
 } from '@/src/services/pgPaymentDefaults';
 import { getActiveRejectionForEntity } from '@/src/services/paymentProofRejectionService';
 import type { ElectricityInvoice } from '@/src/db/schema/electricityInvoices';
+import type { ResidentElectricityBillExplanation } from '@/src/lib/residents/residentElectricityBillExplanationTypes';
+import { loadResidentElectricityBillExplanation } from '@/src/lib/residents/residentElectricityBillExplanation';
 
 export type ResidentPayElectricityPageData = {
   invoice: ElectricityInvoice;
@@ -37,6 +39,7 @@ export type ResidentPayElectricityPageData = {
   pgId: string;
   paymentProofUrl: string | null;
   calculation: Awaited<ReturnType<typeof getElectricityBreakdownForInvoice>>;
+  explanation: ResidentElectricityBillExplanation | null;
   activeRejection: Awaited<ReturnType<typeof getActiveRejectionForEntity>>;
   qrImageUrl: string;
   upiId: string;
@@ -74,6 +77,10 @@ export async function loadResidentPayElectricityPageData(
 
   const projection = projectElectricityInvoice(invoiceRow);
   const calculation = await getElectricityBreakdownForInvoice(invoiceId);
+  const explanation = await loadResidentElectricityBillExplanation(
+    invoiceId,
+    invoiceRow.customerId,
+  );
   const activeRejection = await getActiveRejectionForEntity('electricity_invoice', invoiceId);
 
   await ensureDefaultPaymentCategoriesForPg(row.pgId);
@@ -89,6 +96,7 @@ export async function loadResidentPayElectricityPageData(
     pgId: row.pgId,
     paymentProofUrl: row.paymentProofUrl,
     calculation,
+    explanation,
     activeRejection,
     qrImageUrl: elecCategory?.qrCodeImageUrl ?? DEFAULT_ELECTRICITY_DAILY_QR_PATH,
     upiId: elecCategory?.upiId ?? DEFAULT_ELECTRICITY_DAILY_UPI_ID,

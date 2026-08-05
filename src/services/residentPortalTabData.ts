@@ -23,6 +23,7 @@ import type { ConciergeContext } from '@/src/lib/concierge/answers';
 import { loadResidentBrainSnapshot } from '@/src/lib/residents/loadResidentBrainSnapshot';
 import { buildResidentBillRowsFromDetail } from '@/src/lib/residents/residentPortalBillRows';
 import { buildResidentElectricityHistoryItems } from '@/src/lib/residents/residentElectricityHistoryPresentation';
+import { loadResidentElectricityBillExplanations } from '@/src/lib/residents/residentElectricityBillExplanation';
 import { billingCycleLabel, enrichBillDueRow, moveOutStatusLabel } from '@/src/lib/residents/residentPortalPresentation';
 import {
   loadPendingRentGenerationNotice,
@@ -476,6 +477,36 @@ export async function loadResidentPaymentsTabData(input: {
     return buildResidentElectricityHistoryItems(rows);
   });
 
+  const electricityInvoiceIds = [
+    ...dueBillRows,
+    ...pendingApprovalRows,
+    ...rejectedBillRows,
+  ]
+    .map((row) => row.electricityInvoiceId)
+    .filter((id): id is string => Boolean(id))
+    .concat(electricityHistory.map((item) => item.id));
+  const electricityExplanations = await loadResidentElectricityBillExplanations(
+    electricityInvoiceIds,
+    session.customerId,
+  );
+
+  const enrichedDueRows = dueBillRows.map((row) => {
+    const enriched = enrichBillDueRow(row);
+    if (row.electricityInvoiceId) {
+      return {
+        ...enriched,
+        electricityExplanation: electricityExplanations.get(row.electricityInvoiceId) ?? null,
+        calc: undefined,
+      };
+    }
+    return enriched;
+  });
+
+  const electricityHistoryWithExplanations = electricityHistory.map((item) => ({
+    ...item,
+    explanation: electricityExplanations.get(item.id) ?? null,
+  }));
+
   const electricityBillingPending =
     primaryBooking != null
       ? await loadResidentElectricityBillingState({
@@ -502,14 +533,14 @@ export async function loadResidentPaymentsTabData(input: {
 
   return {
     primaryBooking,
-    enrichedDueRows: dueBillRows.map(enrichBillDueRow),
+    enrichedDueRows,
     pendingApprovalRows,
     rejectedBillRows,
     paidHistory: paidBillRows.sort((a, b) => (b.paidAt ?? '').localeCompare(a.paidAt ?? '')),
     cancelledBillRows,
     pendingRentNotice,
     electricityBillingPending,
-    electricityHistory,
+    electricityHistory: electricityHistoryWithExplanations,
     historyHref: walletBooking ? `/account/resident/history/${walletBooking.bookingId}` : null,
     lifetimeTotals,
   };

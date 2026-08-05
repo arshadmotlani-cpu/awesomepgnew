@@ -15,6 +15,8 @@ export type PaymentDueRow = {
   rejectionMessage?: string;
   /** When set, drives resident-facing electricity calculation copy. */
   electricityUseProRata?: boolean;
+  /** Electricity invoice id — used to load room settlement breakdown. */
+  electricityInvoiceId?: string;
 };
 
 export function ResidentPaymentsSummary({
