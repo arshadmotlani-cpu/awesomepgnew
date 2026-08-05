@@ -11,6 +11,12 @@ export const EMPLOYEE_EVENT_TYPES = [
   'employee.login',
   'employee.logout',
   'employee.deleted',
+  'employee.schedule.updated',
+  'employee.attendance.clock_in',
+  'employee.attendance.clock_out',
+  'employee.commission.changed',
+  'employee.performance.target_changed',
+  'employee.incentive.created',
 ] as const;
 
 export type EmployeeEventType = (typeof EMPLOYEE_EVENT_TYPES)[number];

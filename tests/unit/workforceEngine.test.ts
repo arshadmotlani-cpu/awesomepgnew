@@ -125,3 +125,61 @@ describe('Workforce role home paths', () => {
     assert.equal(workforceHomePathForRank('team_member'), '/me');
   });
 });
+
+describe('Workforce Phase 4 compensation math', () => {
+  test('percent and fixed commission', async () => {
+    const {
+      computeCommissionPaise,
+      payrollNetPaise,
+      performanceProgressPercent,
+    } = await import('@/src/workforce/lib/compensationMath');
+    assert.equal(
+      computeCommissionPaise({ type: 'percent', fixedPaise: 0, percentBps: 1500 }, 10_000_00),
+      1_500_00,
+    );
+    assert.equal(
+      computeCommissionPaise({ type: 'fixed', fixedPaise: 50_00, percentBps: 0 }, 10_000_00),
+      50_00,
+    );
+    assert.equal(
+      computeCommissionPaise({ type: 'none', fixedPaise: 0, percentBps: 0 }, 10_000_00),
+      0,
+    );
+    assert.equal(
+      payrollNetPaise({
+        salaryPaise: 20_000_00,
+        commissionPaise: 1_000_00,
+        incentivePaise: 500_00,
+        deductionsPaise: 200_00,
+      }),
+      21_300_00,
+    );
+    assert.equal(performanceProgressPercent(5_000_00, 10_000_00), 50);
+    assert.equal(performanceProgressPercent(12_000_00, 10_000_00), 100);
+  });
+
+  test('working hours window excludes lunch and offs', async () => {
+    const { isWithinWorkingHours } = await import('@/src/workforce/services/schedules');
+    assert.equal(
+      isWithinWorkingHours(
+        { startTime: '10:00', endTime: '19:00', lunchStart: '13:00', lunchEnd: '14:00', isOff: false },
+        '11:30',
+      ),
+      true,
+    );
+    assert.equal(
+      isWithinWorkingHours(
+        { startTime: '10:00', endTime: '19:00', lunchStart: '13:00', lunchEnd: '14:00', isOff: false },
+        '13:30',
+      ),
+      false,
+    );
+    assert.equal(
+      isWithinWorkingHours(
+        { startTime: '10:00', endTime: '19:00', isOff: true },
+        '11:30',
+      ),
+      false,
+    );
+  });
+});

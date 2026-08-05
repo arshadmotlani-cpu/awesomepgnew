@@ -5,6 +5,7 @@ import {
   listEmployeesForEngine,
   type EmployeeWithMembership,
 } from '@/src/workforce/brains/employeeBrain';
+import { listBookableEmployees } from '@/src/workforce/services/appointmentsBridge';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 
 /** Bookable roster for appointments / POS — Workforce when enabled. */
@@ -12,15 +13,12 @@ export async function listBookableStaffForSalon(): Promise<
   Array<{ id: string; fullName: string; phone: string | null; isActive: boolean }>
 > {
   if (isWorkforceEngineEnabled()) {
-    const rows = await listEmployeesForEngine('fyh_salon', {
-      activeOnly: true,
-      receiveBookingsOnly: true,
-    });
+    const rows = await listBookableEmployees('fyh_salon');
     return rows.map((r) => ({
-      id: r.employee.id,
-      fullName: r.employee.fullName,
-      phone: r.employee.mobile,
-      isActive: r.employee.status === 'active',
+      id: r.employeeId,
+      fullName: r.fullName,
+      phone: r.mobile,
+      isActive: true,
     }));
   }
 
@@ -43,7 +41,11 @@ export async function listActiveSalonStaffRoster(): Promise<EmployeeWithMembersh
 
 export async function ensureStaffMirrorExists(employeeId: string): Promise<void> {
   if (!isWorkforceEngineEnabled()) return;
-  const [row] = await hairDb.select({ id: fyhStaff.id }).from(fyhStaff).where(eq(fyhStaff.id, employeeId)).limit(1);
+  const [row] = await hairDb
+    .select({ id: fyhStaff.id })
+    .from(fyhStaff)
+    .where(eq(fyhStaff.id, employeeId))
+    .limit(1);
   if (row) return;
   // Appointments still FK to fyh_staff — mirror is created on employee write.
 }

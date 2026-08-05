@@ -141,7 +141,7 @@ export const wfAttendance = pgTable(
   ],
 );
 
-/** Payroll foundation — no calculation engine yet. */
+/** Payroll foundation — draft runs; calculation expands later. */
 export const wfPayrollRuns = pgTable('wf_payroll_runs', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   engineId: text('engine_id').$type<WorkforceEngineId>().notNull(),
@@ -150,6 +150,55 @@ export const wfPayrollRuns = pgTable('wf_payroll_runs', {
   status: text('status').notNull().default('draft'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const wfPayrollLines = pgTable(
+  'wf_payroll_lines',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    payrollRunId: uuid('payroll_run_id')
+      .notNull()
+      .references(() => wfPayrollRuns.id, { onDelete: 'cascade' }),
+    employeeId: uuid('employee_id')
+      .notNull()
+      .references(() => wfEmployees.id, { onDelete: 'cascade' }),
+    salaryPaise: bigint('salary_paise', { mode: 'number' }).notNull().default(0),
+    commissionPaise: bigint('commission_paise', { mode: 'number' }).notNull().default(0),
+    incentivePaise: bigint('incentive_paise', { mode: 'number' }).notNull().default(0),
+    deductionsPaise: bigint('deductions_paise', { mode: 'number' }).notNull().default(0),
+    netPaise: bigint('net_paise', { mode: 'number' }).notNull().default(0),
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('wf_payroll_lines_run_employee_uidx').on(t.payrollRunId, t.employeeId),
+    index('wf_payroll_lines_employee_idx').on(t.employeeId),
+  ],
+);
+
+export const wfIncentives = pgTable(
+  'wf_incentives',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    employeeId: uuid('employee_id')
+      .notNull()
+      .references(() => wfEmployees.id, { onDelete: 'cascade' }),
+    engineId: text('engine_id').$type<WorkforceEngineId>().notNull(),
+    label: text('label').notNull(),
+    amountPaise: bigint('amount_paise', { mode: 'number' }).notNull().default(0),
+    effectiveDate: date('effective_date').notNull(),
+    status: text('status').notNull().default('pending'),
+    notes: text('notes'),
+    createdByEmployeeId: uuid('created_by_employee_id').references(() => wfEmployees.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('wf_incentives_employee_engine_idx').on(t.employeeId, t.engineId, t.effectiveDate),
+    index('wf_incentives_engine_status_idx').on(t.engineId, t.status),
+  ],
+);
 
 export const wfAuthSessions = pgTable(
   'wf_auth_sessions',

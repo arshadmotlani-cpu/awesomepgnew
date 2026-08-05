@@ -59,8 +59,20 @@ npx tsx scripts/hair/migrate-to-workforce.ts --apply  # execute
 | **1** | Employee DB · Owner/Manager/Staff · phone+password · roles · permissions | **Complete** |
 | **2** | Add Employee popup (full profile fields + designation) | **Complete** |
 | **3** | Owner / Manager / Staff dashboards (role-scoped) | **Complete** |
-| **4** | Appointments · hours · attendance · performance · salary · commission · incentives | Pending |
+| **4** | Appointments · hours · attendance · performance · salary · commission · incentives | **Complete** |
 | **5** | Wire Workforce Brain → Finance / Health / Appointment / Customer / Owner | Pending |
+
+## Phase 4 module map
+
+| Path | Role |
+|------|------|
+| `src/workforce/services/schedules.ts` | Working hours upsert + availability window |
+| `src/workforce/services/attendance.ts` | Clock in/out + status foundation |
+| `src/workforce/services/compensation.ts` | Salary snapshot, commission, incentives, draft payroll |
+| `src/workforce/services/appointmentsBridge.ts` | Bookable roster for Appointment Brain |
+| `src/workforce/lib/compensationMath.ts` | Pure commission / net / performance math |
+| `app/(hair)/fyh/(app)/workforce/operations` | Owner/Manager ops UI |
+| Migration `0023_workforce_phase4.sql` | `wf_incentives`, `wf_payroll_lines` |
 
 ## Definition of done (each phase)
 

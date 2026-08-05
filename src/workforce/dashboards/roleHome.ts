@@ -27,6 +27,7 @@ export const OWNER_NAV: RoleNavLink[] = [
   { href: '/customers', label: 'Customers', permission: 'dashboard.view_customers' },
   { href: '/billing/invoices', label: 'Billing', permission: 'billing.create_invoice' },
   { href: '/workforce', label: 'Workforce', permission: 'staff.view' },
+  { href: '/workforce/operations', label: 'Ops · hours & pay', permission: 'staff.view' },
   { href: '/reports', label: 'Reports', permission: 'reports.view' },
   { href: '/inventory', label: 'Inventory', permission: 'inventory.view' },
   { href: '/settings', label: 'Settings', permission: 'settings.manage' },
@@ -38,6 +39,7 @@ export const MANAGER_NAV: RoleNavLink[] = [
   { href: '/customers', label: 'Customers', permission: 'dashboard.view_customers' },
   { href: '/billing/invoices', label: 'Billing', permission: 'billing.create_invoice' },
   { href: '/workforce', label: 'Team', permission: 'staff.view' },
+  { href: '/workforce/operations', label: 'Ops · hours & pay', permission: 'staff.view' },
   { href: '/reports', label: 'Reports', permission: 'reports.view' },
   { href: '/inventory', label: 'Inventory', permission: 'inventory.view' },
 ];
