@@ -116,7 +116,11 @@ export async function loginAction(
           ? await resolvePermissions(emp.id, salon.engineId)
           : null) ?? defaultGrantsFor(salon?.rank ?? 'team_member', salon?.jobRole ?? 'stylist');
       const admin = employeeToHairAdmin(emp, salon?.rank ?? 'team_member', grants);
-      redirect(safeHairNextPath(next || resolveDefaultLandingPath(admin), admin));
+      const home =
+        salon?.rank === 'owner' || salon?.rank === 'manager'
+          ? '/workforce/home'
+          : resolveDefaultLandingPath(admin);
+      redirect(safeHairNextPath(next || home, admin));
     }
   }
 

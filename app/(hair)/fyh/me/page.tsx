@@ -4,6 +4,7 @@ import { getHairSession } from '@/src/hair/lib/auth/session';
 import { requireHairHost } from '@/src/hair/lib/auth/guards';
 import { getEmployeeDashboard } from '@/src/workforce/brains/employeeBrain';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
+import { workforceJobRoleLabel, workforceRankLabel } from '@/src/workforce/labels';
 import { logoutAction } from '@/src/hair/actions/auth';
 
 export default async function TeamMemberMePage() {
@@ -16,17 +17,27 @@ export default async function TeamMemberMePage() {
   const dash = await getEmployeeDashboard(session.workforceEmployeeId, 'fyh_salon');
   if (!dash) redirect('/login');
 
+  // Owner / Manager use the role home hub.
+  if (dash.membership?.rank === 'owner' || dash.membership?.rank === 'manager') {
+    redirect('/workforce/home');
+  }
+
   const salaryInr = (dash.employee.salaryPaise / 100).toLocaleString('en-IN');
+  const rankLabel = dash.membership ? workforceRankLabel(dash.membership.rank) : 'Staff';
+  const designation = dash.membership
+    ? workforceJobRoleLabel(dash.membership.jobRole)
+    : 'team member';
 
   return (
     <div className="min-h-screen bg-[color:var(--fyh-bg)] px-4 py-8 text-fyh-text">
       <div className="mx-auto max-w-3xl space-y-8">
         <header className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-sm text-fyh-text-secondary">My workspace</p>
+            <p className="text-sm text-fyh-text-secondary">Staff dashboard</p>
             <h1 className="text-3xl font-semibold">{dash.employee.fullName}</h1>
             <p className="text-sm text-fyh-text-secondary">
-              {dash.membership?.jobRole ?? 'team member'} · {dash.employee.mobile ?? 'no mobile'}
+              {rankLabel} · {designation}
+              {dash.employee.mobile ? ` · ${dash.employee.mobile}` : ''}
             </p>
           </div>
           <form action={logoutAction}>

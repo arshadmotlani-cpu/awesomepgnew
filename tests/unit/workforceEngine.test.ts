@@ -116,3 +116,12 @@ describe('Workforce Add Employee popup', () => {
     assert.match(src, /role="dialog"/);
   });
 });
+
+describe('Workforce role home paths', () => {
+  test('owner and manager land on workforce home; staff on /me', async () => {
+    const { workforceHomePathForRank } = await import('@/src/workforce/dashboards/roleHome');
+    assert.equal(workforceHomePathForRank('owner'), '/workforce/home');
+    assert.equal(workforceHomePathForRank('manager'), '/workforce/home');
+    assert.equal(workforceHomePathForRank('team_member'), '/me');
+  });
+});
