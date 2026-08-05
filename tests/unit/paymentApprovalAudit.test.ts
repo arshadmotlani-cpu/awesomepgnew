@@ -81,6 +81,9 @@ describe('payment approval audit isolation', () => {
     const auditCall = body.indexOf('writeAuditLogNonBlocking(db');
     assert.ok(txClose > 0 && auditCall > txClose, 'audit must run after payment transaction');
     assert.doesNotMatch(body, /tx\.insert\(auditLog\)/);
+    assert.match(body, /scheduleAfterPaymentApproval/);
+    assert.match(body, /Promise\.all\(/);
+    assert.match(body, /notifyPaymentReceipt/);
   });
 });
 
@@ -119,5 +122,45 @@ describe('rent payment approval hot path', () => {
     );
     assert.match(src, /void refreshAdminNavBadges\(\)/);
     assert.doesNotMatch(src, /await refreshAdminNavBadges\(\)/);
+  });
+});
+
+function extractActionBody(actions: string, exportName: string, nextExportName: string | null) {
+  const start = actions.indexOf(`export async function ${exportName}`);
+  assert.ok(start >= 0, `missing ${exportName}`);
+  const from = actions.slice(start);
+  if (!nextExportName) return from;
+  const end = from.indexOf(`\nexport async function ${nextExportName}`);
+  assert.ok(end > 0, `missing next export ${nextExportName}`);
+  return from.slice(0, end);
+}
+
+describe('electricity / extension / deposit_link / qr approval hot path', () => {
+  it('mirrors rent: deferred allocation, nextKey null, no withNextReviewKey', () => {
+    const actions = readFileSync(
+      join(process.cwd(), 'app/(admin)/admin/payments/actions.ts'),
+      'utf8',
+    );
+
+    for (const [name, next] of [
+      ['approveElectricityProofAction', 'approveExtensionProofAction'],
+      ['approveExtensionProofAction', 'approveDepositLinkProofAction'],
+      ['approveDepositLinkProofAction', null],
+    ] as const) {
+      const body = extractActionBody(actions, name, next);
+      assert.match(
+        body,
+        /scheduleAfterPaymentApproval\(\s*async\s*\(\)\s*=>\s*\{\s*await persistApprovalAllocationAfterSuccess/,
+        name,
+      );
+      assert.match(body, /skippedNextKeyLookup:\s*true/, name);
+      assert.match(body, /nextKey:\s*null/, name);
+      assert.doesNotMatch(body, /withNextReviewKey/, name);
+    }
+
+    const qr = extractActionBody(actions, 'approveQrPaymentAction', 'getBookingMoneyBalancesForReviewAction');
+    assert.match(qr, /scheduleAfterPaymentApproval/);
+    assert.match(qr, /nextKey:\s*null/);
+    assert.doesNotMatch(qr, /withNextReviewKey/);
   });
 });

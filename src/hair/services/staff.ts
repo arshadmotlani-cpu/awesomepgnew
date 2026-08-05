@@ -1,8 +1,33 @@
 import { asc, eq } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import { fyhStaff, type FyhCommissionType } from '@/src/hair/db/schema';
+import { listBookableStaffForSalon } from '@/src/hair/adapters/workforceStaffAdapter';
+import { isWorkforceEngineEnabled } from '@/src/workforce/types';
+import { createEmployee } from '@/src/workforce/services/employees';
+import { listEmployeesForEngine } from '@/src/workforce/brains/employeeBrain';
 
 export async function listStaff(includeInactive = false) {
+  if (isWorkforceEngineEnabled()) {
+    const rows = await listEmployeesForEngine('fyh_salon', {
+      activeOnly: !includeInactive,
+    });
+    return rows.map((r) => ({
+      id: r.employee.id,
+      fullName: r.employee.fullName,
+      phone: r.employee.mobile,
+      email: r.employee.email,
+      photoUrl: r.employee.photoUrl,
+      role: r.membership.jobRole,
+      joiningDate: r.employee.joiningDate,
+      performanceTargetPaise: r.membership.performanceTargetPaise,
+      isActive: r.employee.status === 'active' && r.membership.isActive,
+      defaultCommissionType: r.membership.defaultCommissionType as FyhCommissionType,
+      defaultCommissionFixedPaise: r.membership.defaultCommissionFixedPaise,
+      defaultCommissionPercentBps: r.membership.defaultCommissionPercentBps,
+      createdAt: r.employee.createdAt,
+      updatedAt: r.employee.updatedAt,
+    }));
+  }
   return hairDb
     .select()
     .from(fyhStaff)
@@ -10,7 +35,32 @@ export async function listStaff(includeInactive = false) {
     .orderBy(asc(fyhStaff.fullName));
 }
 
+export async function listBookableStaff() {
+  return listBookableStaffForSalon();
+}
+
 export async function getStaffById(id: string) {
+  if (isWorkforceEngineEnabled()) {
+    const rows = await listEmployeesForEngine('fyh_salon', { activeOnly: false });
+    const hit = rows.find((r) => r.employee.id === id);
+    if (!hit) return null;
+    return {
+      id: hit.employee.id,
+      fullName: hit.employee.fullName,
+      phone: hit.employee.mobile,
+      email: hit.employee.email,
+      photoUrl: hit.employee.photoUrl,
+      role: hit.membership.jobRole,
+      joiningDate: hit.employee.joiningDate,
+      performanceTargetPaise: hit.membership.performanceTargetPaise,
+      isActive: hit.employee.status === 'active',
+      defaultCommissionType: hit.membership.defaultCommissionType as FyhCommissionType,
+      defaultCommissionFixedPaise: hit.membership.defaultCommissionFixedPaise,
+      defaultCommissionPercentBps: hit.membership.defaultCommissionPercentBps,
+      createdAt: hit.employee.createdAt,
+      updatedAt: hit.employee.updatedAt,
+    };
+  }
   const [row] = await hairDb.select().from(fyhStaff).where(eq(fyhStaff.id, id)).limit(1);
   return row ?? null;
 }
@@ -22,6 +72,39 @@ export async function createStaffQuick(input: {
 }) {
   const fullName = input.fullName.trim();
   if (!fullName) throw new Error('Staff name is required');
+
+  if (isWorkforceEngineEnabled()) {
+    const raw = (input.role ?? '').toLowerCase();
+    const jobRole = raw.includes('recept')
+      ? 'receptionist'
+      : raw.includes('manager')
+        ? 'manager'
+        : 'stylist';
+    const emp = await createEmployee({
+      fullName,
+      mobile: input.phone,
+      jobRole,
+      rank: jobRole === 'manager' ? 'manager' : 'team_member',
+      canLogin: false,
+    });
+    return {
+      id: emp.id,
+      fullName: emp.fullName,
+      phone: emp.mobile,
+      email: emp.email,
+      photoUrl: emp.photoUrl,
+      role: jobRole,
+      joiningDate: emp.joiningDate,
+      performanceTargetPaise: 0,
+      isActive: true,
+      defaultCommissionType: 'none' as FyhCommissionType,
+      defaultCommissionFixedPaise: 0,
+      defaultCommissionPercentBps: 0,
+      createdAt: emp.createdAt,
+      updatedAt: emp.updatedAt,
+    };
+  }
+
   const [row] = await hairDb
     .insert(fyhStaff)
     .values({

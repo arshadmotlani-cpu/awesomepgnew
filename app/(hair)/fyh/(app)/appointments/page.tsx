@@ -2,7 +2,7 @@ import { AppointmentsCalendar } from '@/src/hair/components/appointments/Appoint
 import { listAppointmentsInRange, listResources } from '@/src/hair/services/appointments';
 import { listCustomers } from '@/src/hair/services/customers';
 import { listBookableServices } from '@/src/hair/services/salonServices';
-import { listStaff } from '@/src/hair/services/staff';
+import { listBookableStaff } from '@/src/hair/services/staff';
 import { getSalonSettings } from '@/src/hair/services/settings';
 import { parseHm, salonDayBounds, zonedLocalToUtc } from '@/src/hair/lib/salonTime';
 
@@ -37,7 +37,7 @@ export default async function AppointmentsPage({ searchParams }: Props) {
 
   const [appointments, staff, resources, customers, services] = await Promise.all([
     listAppointmentsInRange(rangeStart, rangeEnd),
-    listStaff(),
+    listBookableStaff(),
     listResources(),
     listCustomers(),
     listBookableServices(),

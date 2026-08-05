@@ -6,8 +6,8 @@ import {
 } from '@/src/lib/residents/residentPortalAccess';
 
 /**
- * Guards all `/account/resident/*` routes — reserve lifecycle and non-residents
- * are redirected before any resident billing UI can render.
+ * Guards all `/account/resident/*` routes.
+ * Active stay → modern portal. Open reserve only redirects when there is no tenancy.
  */
 export default async function ResidentRoutesLayout({
   children,
@@ -15,13 +15,14 @@ export default async function ResidentRoutesLayout({
   children: React.ReactNode;
 }) {
   const session = await requireCustomerSession('/account/resident');
+  const hasAccess = await customerHasResidentPortalAccess(session.customerId);
+  if (hasAccess) {
+    return children;
+  }
+
   const openReserveCode = await getOpenReserveBookingCode(session.customerId);
   if (openReserveCode) {
     redirect(`/booking/${encodeURIComponent(openReserveCode)}`);
   }
-  const hasAccess = await customerHasResidentPortalAccess(session.customerId);
-  if (!hasAccess) {
-    redirect('/account/bookings');
-  }
-  return children;
+  redirect('/account/bookings');
 }

@@ -77,6 +77,18 @@ Room OS outbox rows (`room_os_outbox`) are the **PG Engine** precedent; ecosyste
 | `customer.ltv.recalculated` | customer, owner |
 | `health.incident.opened` | health, operations, owner |
 | `deployment.score.recorded` | health |
+| `employee.created` | employee |
+| `employee.updated` | employee |
+| `employee.role.changed` | employee, operations |
+| `employee.salary.changed` | employee, finance |
+| `employee.permission.changed` | employee |
+| `employee.login` | employee, health |
+| `employee.logout` | employee |
+| `employee.deleted` | employee, operations |
+
+### Workforce Engine
+
+See [[WORKFORCE_ENGINE]]. Employee Brain owns identity; Engines subscribe for roster / ACL refreshes.
 
 ---
 

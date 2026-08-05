@@ -9,6 +9,7 @@
 
 ## 2026-08-04
 
+- **WORKFORCE-ENGINE-PHASE1** — Universal Workforce Engine under `src/workforce/` (hosted in FYH DB): Employee Brain, mobile+password auth, ranks/job roles, grouped permissions, multi-engine memberships, `/workforce` admin + `/me` portal, migration `0022`, adapters; flag `WORKFORCE_ENGINE=1`.
 - **ECOSYSTEM-V2-CONSTITUTION** — Permanent Brain/Engine law: `docs/ECOSYSTEM_V2.md`, ADR-ECO-001, Global Brain Registry, inventory + events specs, Cursor rule `ecosystem-brains.mdc`; shared-knowledge must live in Brains not Engines; wired into ARCHITECTURE / ROOM_OS / AGENTS / DECISIONS.
 
 ## 2026-08-02

@@ -10,9 +10,13 @@ import {
 import { randomToken, sha256 } from './crypto';
 import {
   hairSessionExpiry,
-  hairSessionMs,
   shouldRefreshHairSession,
 } from './sessionPolicy';
+import { isWorkforceEngineEnabled } from '@/src/workforce/types';
+import { getWorkforceSession, revokeWorkforceSession } from '@/src/workforce/auth/session';
+import { listMemberships, resolvePermissions } from '@/src/workforce/brains/employeeBrain';
+import { employeeToHairAdmin } from '@/src/workforce/compat/hairAdminBridge';
+import { defaultGrantsFor } from '@/src/workforce/permissions/presets';
 
 export type HairAdmin = typeof fyhAdminUsers.$inferSelect;
 
@@ -21,6 +25,8 @@ export type HairSession = {
   admin: HairAdmin;
   expiresAt: Date;
   rememberMe: boolean;
+  /** Present when authenticated via Workforce Engine */
+  workforceEmployeeId?: string;
 };
 
 export async function createHairSession(
@@ -45,6 +51,26 @@ export async function createHairSession(
 }
 
 export async function getHairSession(): Promise<HairSession | null> {
+  if (isWorkforceEngineEnabled()) {
+    const wf = await getWorkforceSession();
+    if (wf) {
+      const memberships = await listMemberships(wf.employee.id);
+      const salon = memberships.find((m) => m.engineId === 'fyh_salon') ?? memberships[0];
+      const grants = salon
+        ? (await resolvePermissions(wf.employee.id, salon.engineId)) ??
+          defaultGrantsFor(salon.rank, salon.jobRole)
+        : defaultGrantsFor('team_member', 'stylist');
+      const rank = salon?.rank ?? 'team_member';
+      return {
+        sessionId: wf.sessionId,
+        admin: employeeToHairAdmin(wf.employee, rank, grants),
+        expiresAt: wf.expiresAt,
+        rememberMe: wf.rememberMe,
+        workforceEmployeeId: wf.employee.id,
+      };
+    }
+  }
+
   const cookieStore = await cookies();
   const token = cookieStore.get(HAIR_SESSION_COOKIE)?.value;
   if (!token) return null;
@@ -96,6 +122,9 @@ export async function getHairSession(): Promise<HairSession | null> {
 }
 
 export async function revokeHairSession(): Promise<void> {
+  if (isWorkforceEngineEnabled()) {
+    await revokeWorkforceSession();
+  }
   const cookieStore = await cookies();
   const token = cookieStore.get(HAIR_SESSION_COOKIE)?.value;
   if (!token) return;

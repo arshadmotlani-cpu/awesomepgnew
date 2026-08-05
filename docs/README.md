@@ -24,6 +24,7 @@ See [[AI_CONTEXT#Memory classification (required)]].
 | Note | Purpose |
 |------|---------|
 | [[ECOSYSTEM_V2]] | **Permanent Brain / Engine constitution** — read before any feature |
+| [[WORKFORCE_ENGINE]] | Workforce Engine (employee identity) — Phase 1 in FYH DB |
 | [[ECOSYSTEM_V2_BRAIN_REGISTRY]] | **Global Brain Registry** — ownership, APIs, events, status |
 | [[ECOSYSTEM_V2_INVENTORY]] | As-is Engines/Brains code map + gaps |
 | [[ECOSYSTEM_V2_EVENTS]] | Domain event envelope + catalog stubs |

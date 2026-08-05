@@ -35,15 +35,15 @@ export default function HairLoginPage() {
           <input type="hidden" name="next" value={next} />
           <div className="space-y-2">
             <label htmlFor="email" className="text-sm font-medium text-fyh-text-secondary">
-              Email
+              Mobile or email
             </label>
             <Input
               id="email"
               name="email"
-              type="email"
-              autoComplete="email"
+              type="text"
+              autoComplete="username"
               required
-              placeholder="you@salon.com"
+              placeholder="9876543210 or you@salon.com"
             />
           </div>
           <div className="space-y-2">

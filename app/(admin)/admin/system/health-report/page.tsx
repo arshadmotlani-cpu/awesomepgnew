@@ -1,26 +1,45 @@
 import Link from 'next/link';
 import { Badge } from '@/src/components/admin/Badge';
+import { BrainIntegrityCards } from '@/src/components/admin/BrainIntegrityCards';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { OverviewMonthPicker } from '@/src/components/admin/OverviewMonthPicker';
 import { PageHeader } from '@/src/components/admin/PageHeader';
-import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
+import type { HealthBrainName } from '@/src/lib/health/healthBrain';
 import { runSystemHealthAudit } from '@/src/services/systemHealthAudit';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 180;
 
+const BRAINS: HealthBrainName[] = [
+  'Resident',
+  'Booking',
+  'Finance',
+  'Electricity',
+  'Operations',
+  'Health',
+];
+
+function isBrain(value: string | undefined): value is HealthBrainName {
+  return !!value && (BRAINS as string[]).includes(value);
+}
+
 export default async function SystemHealthReportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ month?: string; brain?: string }>;
 }) {
   const sp = await searchParams;
   const billingMonth = resolveBillingMonth(sp.month);
+  const brainFilter = isBrain(sp.brain) ? sp.brain : null;
   const session = await requireAdminSession('/admin/system/health-report');
   const report = await runSystemHealthAudit(session, billingMonth);
+
+  const filteredIssues = brainFilter
+    ? (report.brainIssues ?? []).filter((i) => i.brain === brainFilter)
+    : report.brainIssues ?? [];
 
   return (
     <>
@@ -33,7 +52,7 @@ export default async function SystemHealthReportPage({
       />
       <PageHeader
         title="Final system health report"
-        description="Financial, invoice, occupancy, notification, vacating, and SSOT integrity — deploy only when all sections PASS."
+        description="Financial, invoice, occupancy, notification, vacating, Brains, and SSOT integrity — deploy only when all sections PASS."
         actions={<OverviewMonthPicker billingMonth={billingMonth} />}
       />
 
@@ -47,7 +66,48 @@ export default async function SystemHealthReportPage({
             new Date(report.asOf),
           )}
         </span>
+        {brainFilter ? (
+          <Badge tone="amber">
+            Filtered: {brainFilter} Brain{' '}
+            <Link href={`/admin/system/health-report?month=${billingMonth}`} className="underline">
+              clear
+            </Link>
+          </Badge>
+        ) : null}
       </div>
+
+      {report.brainCards ? (
+        <div className="mb-8">
+          <BrainIntegrityCards cards={report.brainCards} />
+        </div>
+      ) : null}
+
+      {brainFilter ? (
+        <section className="mb-8 rounded-xl border border-white/10 bg-[#1A1F27] p-4">
+          <h2 className="text-sm font-semibold text-white">{brainFilter} Brain issues</h2>
+          {filteredIssues.length === 0 ? (
+            <p className="mt-2 text-xs text-apg-silver">No open issues for this brain.</p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {filteredIssues.map((issue) => (
+                <li
+                  key={issue.id}
+                  className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/90"
+                >
+                  <span className="font-semibold text-[#FF5A1F]">
+                    [{issue.severity}] {issue.code}
+                  </span>{' '}
+                  {issue.cause}
+                  <div className="mt-1 text-[10px] text-apg-silver">
+                    {issue.entityType}:{issue.entityId ?? '—'} · repair:{' '}
+                    {issue.suggestedRepair}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
 
       <div className="space-y-4">
         {report.sections.map((section) => (
@@ -85,8 +145,8 @@ export default async function SystemHealthReportPage({
           Bed
         </Link>
         {' · '}
-        <Link href="/admin/notifications" className="text-[#FF5A1F] hover:underline">
-          Notifications
+        <Link href="/admin/system/billing-integrity" className="text-[#FF5A1F] hover:underline">
+          Billing
         </Link>
       </p>
     </>

@@ -1,11 +1,15 @@
 /**
  * Resident portal vs reservation lifecycle — routing SSOT.
  *
- * Resident Home (current stay, billing, deposit, move-out) unlocks ONLY for
- * confirmed non-reserve bookings with an active bed assignment.
+ * Modern Resident Portal unlocks for confirmed non-reserve bookings with an
+ * active bed assignment (current tenancy).
  *
- * An open bed reservation (draft → confirmed hold) must never unlock resident portal,
- * even when the customer has a historical completed stay.
+ * Product rule (2026-08 integrity audit):
+ * - Active stay ALWAYS wins over an unfinished reserve/draft.
+ * - Open reserve only owns the UI when the customer has NO active stay
+ *   (pre-resident funnel / historical vacated + new reserve).
+ * - Orphan draft reserves must never lock a living resident out of Wallet,
+ *   Payments, or the Resident Dashboard.
  */
 
 import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
@@ -58,8 +62,17 @@ export async function customerHasActiveConfirmedStay(customerId: string): Promis
   return Boolean(row);
 }
 
-/** Booking code for the customer's open reserve lifecycle (for redirects). */
+/**
+ * Booking code for an open reserve that should own post-login routing.
+ * Returns null when the customer already has an active non-reserve tenancy
+ * (active stay wins — unfinished reserves must not hijack the portal).
+ */
 export async function getOpenReserveBookingCode(customerId: string): Promise<string | null> {
+  const tenancy = await getActiveTenancyForCustomer(customerId);
+  if (tenancy && tenancy.durationMode !== 'reserve') {
+    return null;
+  }
+
   const [row] = await db
     .select({ bookingCode: bookings.bookingCode })
     .from(bookings)
@@ -80,10 +93,16 @@ export async function getOpenReserveBookingCode(customerId: string): Promise<str
   return row?.bookingCode ?? null;
 }
 
-/** Resident portal (My Stay, billing, deposit) — never during open reserve lifecycle. */
+/**
+ * Resident portal (My Stay, billing, deposit).
+ * Active non-reserve tenancy unlocks the portal even if an unfinished reserve exists.
+ */
 export async function customerHasResidentPortalAccess(customerId: string): Promise<boolean> {
-  if (await customerHasOpenReserveLifecycle(customerId)) return false;
   const tenancy = await getActiveTenancyForCustomer(customerId);
-  if (!tenancy) return false;
-  return tenancy.durationMode !== 'reserve';
+  if (tenancy && tenancy.durationMode !== 'reserve') {
+    return true;
+  }
+  // No active stay — reserve funnel must not unlock resident billing UI.
+  if (await customerHasOpenReserveLifecycle(customerId)) return false;
+  return false;
 }

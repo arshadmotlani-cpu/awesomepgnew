@@ -571,6 +571,7 @@ export async function submitExtensionPaymentProof(
       id: stayExtensions.id,
       status: stayExtensions.status,
       bookingId: stayExtensions.bookingId,
+      quotedTotalPaise: stayExtensions.quotedTotalPaise,
     })
     .from(stayExtensions)
     .innerJoin(bookings, eq(bookings.id, stayExtensions.bookingId))
@@ -584,11 +585,64 @@ export async function submitExtensionPaymentProof(
     return { ok: false, message: 'Payment photo is required.' };
   }
 
+  const proofUrl = paymentProofUrl.trim();
+  const [pgRow] = await db
+    .select({ pgId: floors.pgId, bookingStatus: bookings.status, customerId: bookings.customerId })
+    .from(bookings)
+    .innerJoin(bedReservations, and(eq(bedReservations.bookingId, bookings.id), eq(bedReservations.kind, 'primary')))
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .where(eq(bookings.id, ext.bookingId))
+    .limit(1);
+
+  const {
+    evaluatePaymentReviewInvariants,
+    paymentReviewInvariantErrorMessage,
+  } = await import('@/src/lib/payments/paymentReviewInvariants');
+  const { hasDuplicatePendingPaymentProofUrl } = await import(
+    '@/src/lib/payments/duplicatePendingPaymentProof'
+  );
+  const duplicatePendingScreenshot = pgRow
+    ? await hasDuplicatePendingPaymentProofUrl({
+        pgId: pgRow.pgId,
+        paymentProofUrl: proofUrl,
+        exclude: { kind: 'extension', id: extensionId },
+      })
+    : false;
+  const invariant = evaluatePaymentReviewInvariants({
+    kind: 'extension',
+    invoiceId: extensionId,
+    customerId: pgRow?.customerId ?? customerId,
+    bookingId: ext.bookingId,
+    billingMonth: null,
+    expectedAmountPaise: ext.quotedTotalPaise,
+    proofAmountPaise: ext.quotedTotalPaise,
+    paymentProofUrl: proofUrl,
+    status: ext.status,
+    bookingStatus: pgRow?.bookingStatus ?? null,
+    duplicatePendingScreenshot,
+  });
+  if (!invariant.ok) {
+    const { alertHealthBrainPaymentReviewInvariant } = await import(
+      '@/src/lib/health/healthBrainIncidents'
+    );
+    await alertHealthBrainPaymentReviewInvariant({
+      kind: 'extension',
+      invoiceId: extensionId,
+      customerId: pgRow?.customerId ?? customerId,
+      paymentProofUrl: proofUrl,
+      source: 'proof_submit',
+      violations: invariant.violations,
+    });
+    return { ok: false, message: paymentReviewInvariantErrorMessage(invariant) };
+  }
+
   await db.transaction(async (tx) => {
     await tx
       .update(stayExtensions)
       .set({
-        paymentProofUrl: paymentProofUrl.trim(),
+        paymentProofUrl: proofUrl,
         paymentProofTransactionRef: transactionRef?.trim() || null,
         updatedAt: new Date(),
       })
@@ -600,7 +654,7 @@ export async function submitExtensionPaymentProof(
 
   const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
   await linkResidentUpload({
-    storagePath: paymentProofUrl.trim(),
+    storagePath: proofUrl,
     adminQueue: 'extensions',
     linkedEntity: 'stay_extension',
     linkedEntityId: extensionId,
@@ -661,7 +715,11 @@ export async function approveExtensionPaymentProof(
   }
 
   const [pgRow] = await db
-    .select({ pgId: floors.pgId })
+    .select({
+      pgId: floors.pgId,
+      customerId: bookings.customerId,
+      bookingStatus: bookings.status,
+    })
     .from(bookings)
     .innerJoin(bedReservations, and(eq(bedReservations.bookingId, bookings.id), eq(bedReservations.kind, 'primary')))
     .innerJoin(beds, eq(beds.id, bedReservations.bedId))
@@ -672,6 +730,46 @@ export async function approveExtensionPaymentProof(
 
   if (!pgRow || !adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, pgRow.pgId)) {
     return { ok: false, message: 'Access denied.' };
+  }
+
+  const {
+    evaluatePaymentReviewInvariants,
+    paymentReviewInvariantErrorMessage,
+  } = await import('@/src/lib/payments/paymentReviewInvariants');
+  const { hasDuplicatePendingPaymentProofUrl } = await import(
+    '@/src/lib/payments/duplicatePendingPaymentProof'
+  );
+  const duplicatePendingScreenshot = await hasDuplicatePendingPaymentProofUrl({
+    pgId: pgRow.pgId,
+    paymentProofUrl: ext.paymentProofUrl,
+    exclude: { kind: 'extension', id: extensionId },
+  });
+  const invariant = evaluatePaymentReviewInvariants({
+    kind: 'extension',
+    invoiceId: extensionId,
+    customerId: pgRow.customerId,
+    bookingId: ext.bookingId,
+    billingMonth: null,
+    expectedAmountPaise: ext.quotedTotalPaise,
+    proofAmountPaise: ext.quotedTotalPaise,
+    paymentProofUrl: ext.paymentProofUrl,
+    status: ext.status,
+    bookingStatus: pgRow.bookingStatus,
+    duplicatePendingScreenshot,
+  });
+  if (!invariant.ok) {
+    const { alertHealthBrainPaymentReviewInvariant } = await import(
+      '@/src/lib/health/healthBrainIncidents'
+    );
+    await alertHealthBrainPaymentReviewInvariant({
+      kind: 'extension',
+      invoiceId: extensionId,
+      customerId: pgRow.customerId,
+      paymentProofUrl: ext.paymentProofUrl,
+      source: 'approve',
+      violations: invariant.violations,
+    });
+    return { ok: false, message: paymentReviewInvariantErrorMessage(invariant) };
   }
 
   const { recordExtensionPaymentSuccess } = await import('./bookingLifecycle');

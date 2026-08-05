@@ -2343,6 +2343,53 @@ export async function submitRentPaymentProof(
     ) {
       return { ok: false as const, message: 'This invoice is not awaiting payment.' };
     }
+
+    const projected = projectInvoice(invoice);
+    const expectedAmountPaise =
+      invoice.proofSnapshotOutstandingPaise ?? projected.outstandingPaise;
+    const {
+      evaluatePaymentReviewInvariants,
+      paymentReviewInvariantErrorMessage,
+    } = await import('@/src/lib/payments/paymentReviewInvariants');
+    const { hasDuplicatePendingPaymentProofUrl } = await import(
+      '@/src/lib/payments/duplicatePendingPaymentProof'
+    );
+    const duplicatePendingScreenshot = await hasDuplicatePendingPaymentProofUrl({
+      pgId: invoice.pgId,
+      paymentProofUrl: proofUrl,
+      exclude: { kind: 'rent', id: invoice.id },
+    });
+    const [bookingRow] = await tx
+      .select({ status: bookings.status })
+      .from(bookings)
+      .where(eq(bookings.id, invoice.bookingId))
+      .limit(1);
+    const invariant = evaluatePaymentReviewInvariants({
+      kind: 'rent',
+      invoiceId: invoice.id,
+      customerId: invoice.customerId,
+      bookingId: invoice.bookingId,
+      billingMonth: invoice.billingMonth,
+      expectedAmountPaise,
+      proofAmountPaise: expectedAmountPaise,
+      paymentProofUrl: proofUrl,
+      status: invoice.status,
+      bookingStatus: bookingRow?.status ?? null,
+      duplicatePendingScreenshot,
+    });
+    if (!invariant.ok) {
+      return {
+        ok: false as const,
+        message: paymentReviewInvariantErrorMessage(invariant),
+        invariantViolations: invariant.violations,
+        invoiceMeta: {
+          invoiceId: invoice.id,
+          customerId: invoice.customerId,
+          billingMonth: invoice.billingMonth,
+        },
+      };
+    }
+
     if (invoice.paymentProofUrl === proofUrl) {
       if (invoice.proofSnapshotOutstandingPaise == null) {
         const snapshot = buildRentProofFinancialSnapshot(
@@ -2401,7 +2448,23 @@ export async function submitRentPaymentProof(
     return { ok: true as const };
   });
 
-  if (!result.ok) return result;
+  if (!result.ok) {
+    if ('invariantViolations' in result && result.invariantViolations) {
+      const { alertHealthBrainPaymentReviewInvariant } = await import(
+        '@/src/lib/health/healthBrainIncidents'
+      );
+      await alertHealthBrainPaymentReviewInvariant({
+        kind: 'rent',
+        invoiceId: result.invoiceMeta?.invoiceId ?? invoiceId,
+        customerId: result.invoiceMeta?.customerId ?? customerId,
+        billingMonth: result.invoiceMeta?.billingMonth ?? null,
+        paymentProofUrl: proofUrl,
+        source: 'proof_submit',
+        violations: result.invariantViolations,
+      });
+    }
+    return { ok: false, message: result.message };
+  }
 
   const [invoiceMeta] = await db
     .select({
@@ -2500,6 +2563,59 @@ export async function approveRentPaymentProof(
   }
   if (!['pending', 'overdue', 'payment_in_progress'].includes(invoice.status)) {
     return { ok: false, message: 'Invoice is not awaiting payment.' };
+  }
+
+  {
+    const projected = projectInvoice(invoice);
+    const expectedAmountPaise =
+      invoice.proofSnapshotOutstandingPaise ?? projected.outstandingPaise;
+    const {
+      evaluatePaymentReviewInvariants,
+      paymentReviewInvariantErrorMessage,
+    } = await import('@/src/lib/payments/paymentReviewInvariants');
+    const { hasDuplicatePendingPaymentProofUrl } = await import(
+      '@/src/lib/payments/duplicatePendingPaymentProof'
+    );
+    const duplicatePendingScreenshot = invoice.paymentProofUrl
+      ? await hasDuplicatePendingPaymentProofUrl({
+          pgId: invoice.pgId,
+          paymentProofUrl: invoice.paymentProofUrl,
+          exclude: { kind: 'rent', id: invoice.id },
+        })
+      : false;
+    const [bookingRow] = await db
+      .select({ status: bookings.status })
+      .from(bookings)
+      .where(eq(bookings.id, invoice.bookingId))
+      .limit(1);
+    const invariant = evaluatePaymentReviewInvariants({
+      kind: 'rent',
+      invoiceId: invoice.id,
+      customerId: invoice.customerId,
+      bookingId: invoice.bookingId,
+      billingMonth: invoice.billingMonth,
+      expectedAmountPaise,
+      proofAmountPaise: invoice.proofSnapshotOutstandingPaise ?? expectedAmountPaise,
+      paymentProofUrl: invoice.paymentProofUrl,
+      status: invoice.status,
+      bookingStatus: bookingRow?.status ?? null,
+      duplicatePendingScreenshot,
+    });
+    if (!invariant.ok) {
+      const { alertHealthBrainPaymentReviewInvariant } = await import(
+        '@/src/lib/health/healthBrainIncidents'
+      );
+      await alertHealthBrainPaymentReviewInvariant({
+        kind: 'rent',
+        invoiceId: invoice.id,
+        customerId: invoice.customerId,
+        billingMonth: invoice.billingMonth,
+        paymentProofUrl: invoice.paymentProofUrl,
+        source: 'approve',
+        violations: invariant.violations,
+      });
+      return { ok: false, message: paymentReviewInvariantErrorMessage(invariant) };
+    }
   }
 
   const invoiceWithSnapshot = (await ensureRentProofSnapshot(invoiceId)) ?? invoice;

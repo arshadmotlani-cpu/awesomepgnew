@@ -46,6 +46,8 @@ export const HAIR_PUBLIC_PREFIXES = [
   '/products',
   '/inventory',
   '/staff',
+  '/workforce',
+  '/me',
   '/loyalty',
   '/reports',
   '/settings',

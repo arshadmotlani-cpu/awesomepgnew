@@ -14,6 +14,7 @@
 | Awesome PG Engine | `src/services/*`, `src/lib/*`, `app/(admin)`, `app/(customer)`, PG Neon | Live |
 | FYH Salon Engine | `src/hair/*`, `app/(hair)`, FYH DB | Live (host-isolated) |
 | Automotive Capital Engine | `src/capital/*`, `app/(capital)`, Capital Neon | Live (host-isolated) |
+| Workforce Engine | `src/workforce/*` (Phase 1 tables in FYH DB) | Partial |
 
 Host routing: `middleware.ts` (Hair → Capital → PG).
 
@@ -23,6 +24,7 @@ Host routing: `middleware.ts` (Hair → Capital → PG).
 
 | Brain | Current home (examples) | Status | Notes |
 |-------|-------------------------|--------|-------|
+| Employee Brain | `src/workforce/brains/employeeBrain.ts` | Partial | Workforce Phase 1 |
 | Bed Brain | `src/roomOs/engines/occupancy/buildBedBrain.ts`, `room-os/v1/loadBed` | Live (PG) | Occupancy + BookingContext |
 | Property Brain | `src/roomOs/projectors/property/`, `property-os/v1/*` | Partial (PG) | Property OS index — not ecosystem property ROI |
 | Room Brain | Composed via property index / room electricity engines | Partial (PG) | No first-class Room Brain module yet |

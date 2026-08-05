@@ -121,28 +121,53 @@ export async function approveQrPaymentAction(
   meta?: ReviewMeta,
   currentKey?: string,
 ) {
+  const timer = startPaymentApprovalTimer('approveQrPaymentAction');
   const session = await requireAdminPermission('payments:write');
+  timer.mark('auth');
+
   try {
     const result = await reviewPaymentRecord(session, recordId, 'approved', {
       reviewMeta: meta,
     });
-    await persistApprovalAllocationAfterSuccess({
-      kind: 'qr',
-      entityId: recordId,
-      pgId,
-      approvedByAdminId: session.adminId,
+    timer.mark('settle_critical');
+
+    scheduleAfterPaymentApproval(async () => {
+      await persistApprovalAllocationAfterSuccess({
+        kind: 'qr',
+        entityId: recordId,
+        pgId,
+        approvedByAdminId: session.adminId,
+      });
     });
-    revalidatePaymentReviewSurfaces(pgId);
+    timer.mark('schedule_deferred');
+
+    revalidatePaymentReviewSurfacesFast(pgId);
+    revalidatePaymentReviewSurfacesDeferred(pgId, ['/admin/collections', '/admin/deposits']);
+    timer.mark('revalidate_fast');
+
+    const steps = timer.finish({
+      ok: true,
+      recordId,
+      skippedNextKeyLookup: true,
+      currentKey: currentKey ?? null,
+      alreadyApproved: result.outcome === 'already_approved',
+    });
+
     if (result.outcome === 'already_approved') {
-      const nextKey = await getNextPendingPaymentReviewKey(session, currentKey);
       return {
         ok: true as const,
         message: PAYMENT_ALREADY_APPROVED_MESSAGE,
-        nextKey,
+        nextKey: null as string | null,
+        timing: steps,
       };
     }
-    return withNextReviewKey(session, currentKey, { ok: true });
+    return {
+      ok: true as const,
+      nextKey: null as string | null,
+      timing: steps,
+    };
   } catch (err) {
+    timer.finish({ ok: false, recordId });
     return {
       ok: false as const,
       message: formatPostgresError(err),
@@ -419,18 +444,44 @@ export async function approveElectricityProofAction(
   pgId: string,
   currentKey?: string,
 ) {
+  const timer = startPaymentApprovalTimer('approveElectricityProofAction');
   const session = await requireAdminPermission('payments:write');
+  timer.mark('auth');
+
   const result = await approveElectricityPaymentProof(session, invoiceId);
-  if (!result.ok) return result;
-  await persistApprovalAllocationAfterSuccess({
-    kind: 'electricity',
-    entityId: invoiceId,
-    pgId,
-    approvedByAdminId: session.adminId,
+  timer.mark('settle_critical');
+
+  if (!result.ok) {
+    timer.finish({ ok: false, invoiceId });
+    return result;
+  }
+
+  scheduleAfterPaymentApproval(async () => {
+    await persistApprovalAllocationAfterSuccess({
+      kind: 'electricity',
+      entityId: invoiceId,
+      pgId,
+      approvedByAdminId: session.adminId,
+    });
   });
-  revalidatePath('/admin/electricity');
-  revalidatePaymentReviewSurfaces(pgId);
-  return withNextReviewKey(session, currentKey, { ok: true });
+  timer.mark('schedule_deferred');
+
+  revalidatePaymentReviewSurfacesFast(pgId);
+  revalidatePaymentReviewSurfacesDeferred(pgId, ['/admin/electricity']);
+  timer.mark('revalidate_fast');
+
+  const steps = timer.finish({
+    ok: true,
+    invoiceId,
+    skippedNextKeyLookup: true,
+    currentKey: currentKey ?? null,
+  });
+
+  return {
+    ok: true as const,
+    nextKey: null as string | null,
+    timing: steps,
+  };
 }
 
 export async function approveExtensionProofAction(
@@ -438,18 +489,44 @@ export async function approveExtensionProofAction(
   pgId: string,
   currentKey?: string,
 ) {
+  const timer = startPaymentApprovalTimer('approveExtensionProofAction');
   const session = await requireAdminPermission('payments:write');
+  timer.mark('auth');
+
   const result = await approveExtensionPaymentProof(session, extensionId);
-  if (!result.ok) return result;
-  await persistApprovalAllocationAfterSuccess({
-    kind: 'extension',
-    entityId: extensionId,
-    pgId,
-    approvedByAdminId: session.adminId,
+  timer.mark('settle_critical');
+
+  if (!result.ok) {
+    timer.finish({ ok: false, extensionId });
+    return result;
+  }
+
+  scheduleAfterPaymentApproval(async () => {
+    await persistApprovalAllocationAfterSuccess({
+      kind: 'extension',
+      entityId: extensionId,
+      pgId,
+      approvedByAdminId: session.adminId,
+    });
   });
-  revalidatePath('/admin/bookings');
-  revalidatePaymentReviewSurfaces(pgId);
-  return withNextReviewKey(session, currentKey, { ok: true });
+  timer.mark('schedule_deferred');
+
+  revalidatePaymentReviewSurfacesFast(pgId);
+  revalidatePaymentReviewSurfacesDeferred(pgId, ['/admin/bookings']);
+  timer.mark('revalidate_fast');
+
+  const steps = timer.finish({
+    ok: true,
+    extensionId,
+    skippedNextKeyLookup: true,
+    currentKey: currentKey ?? null,
+  });
+
+  return {
+    ok: true as const,
+    nextKey: null as string | null,
+    timing: steps,
+  };
 }
 
 export async function approveDepositLinkProofAction(
@@ -457,17 +534,42 @@ export async function approveDepositLinkProofAction(
   pgId: string,
   currentKey?: string,
 ) {
+  const timer = startPaymentApprovalTimer('approveDepositLinkProofAction');
   const session = await requireAdminPermission('payments:write');
+  timer.mark('auth');
+
   const result = await approveDepositLinkPaymentProof(session, linkId);
-  if (!result.ok) return result;
-  await persistApprovalAllocationAfterSuccess({
-    kind: 'deposit_link',
-    entityId: linkId,
-    pgId,
-    approvedByAdminId: session.adminId,
+  timer.mark('settle_critical');
+
+  if (!result.ok) {
+    timer.finish({ ok: false, linkId });
+    return result;
+  }
+
+  scheduleAfterPaymentApproval(async () => {
+    await persistApprovalAllocationAfterSuccess({
+      kind: 'deposit_link',
+      entityId: linkId,
+      pgId,
+      approvedByAdminId: session.adminId,
+    });
   });
-  revalidatePath('/admin/collections');
-  revalidatePath('/admin/residents');
-  revalidatePaymentReviewSurfaces(pgId);
-  return withNextReviewKey(session, currentKey, { ok: true });
+  timer.mark('schedule_deferred');
+
+  revalidatePaymentReviewSurfacesFast(pgId);
+  revalidatePaymentReviewSurfacesDeferred(pgId, ['/admin/collections', '/admin/residents']);
+  timer.mark('revalidate_fast');
+
+  const steps = timer.finish({
+    ok: true,
+    linkId,
+    skippedNextKeyLookup: true,
+    currentKey: currentKey ?? null,
+  });
+
+  return {
+    ok: true as const,
+    nextKey: null as string | null,
+    timing: steps,
+  };
 }

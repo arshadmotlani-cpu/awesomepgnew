@@ -66,7 +66,9 @@ Bookings · Rent · Electricity · Deposits · Vacating · Extensions · Operati
 
 ### 2. FYH Salon Engine
 
-Appointments · Quick Sale · Billing · Inventory · Memberships · Packages · Commission · CRM · Customers · Staff
+Appointments · Quick Sale · Billing · Inventory · Memberships · Packages · Commission · CRM · Customers · (operational surfaces)
+
+**Workforce Engine** (Phase 1 proving ground, hosted in FYH DB): employee identity, auth, roles, permissions, schedules, attendance/payroll foundations — see [[WORKFORCE_ENGINE]] · code `src/workforce/`. Salon consumes Workforce; it does not own the employee SSOT.
 
 ### 3. Automotive Capital Engine
 
@@ -76,7 +78,7 @@ Vehicle inventory · Purchase · Repairs · Expenses · Sales · Investment · R
 
 Personal Finance · Household · Loans · Insurance · Real Estate · Stocks · Crypto · Payroll · Manufacturing · Tax
 
-**Write isolation (current):** Engines keep separate databases and auth cookies. Cross-engine intelligence flows through **domain events** and Brain APIs — not shared write tables (see [[ECOSYSTEM_V2_EVENTS]]).
+**Write isolation (current):** Engines keep separate databases and auth cookies for product writes. **Workforce Engine** Phase 1 tables live in the FYH database for migration safety but are accessed only via `src/workforce/` — a later dedicated Workforce DB is a storage swap. Cross-engine intelligence flows through **domain events** and Brain APIs (see [[ECOSYSTEM_V2_EVENTS]]).
 
 ---
 

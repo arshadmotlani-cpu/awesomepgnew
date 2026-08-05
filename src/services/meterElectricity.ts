@@ -450,11 +450,65 @@ export async function submitElectricityPaymentProof(
     return { ok: false, message: 'Payment screenshot is required.' };
   }
 
+  const proofUrl = paymentProofUrl.trim();
+  const {
+    evaluatePaymentReviewInvariants,
+    paymentReviewInvariantErrorMessage,
+  } = await import('@/src/lib/payments/paymentReviewInvariants');
+  const { hasDuplicatePendingPaymentProofUrl } = await import(
+    '@/src/lib/payments/duplicatePendingPaymentProof'
+  );
+  const [pgRowForDup] = await db
+    .select({ pgId: electricityBills.pgId })
+    .from(electricityBills)
+    .where(eq(electricityBills.id, invoice.electricityBillId))
+    .limit(1);
+  const duplicatePendingScreenshot = pgRowForDup
+    ? await hasDuplicatePendingPaymentProofUrl({
+        pgId: pgRowForDup.pgId,
+        paymentProofUrl: proofUrl,
+        exclude: { kind: 'electricity', id: invoice.id },
+      })
+    : false;
+  const [bookingRow] = await db
+    .select({ status: bookings.status })
+    .from(bookings)
+    .where(eq(bookings.id, invoice.bookingId))
+    .limit(1);
+  const invariant = evaluatePaymentReviewInvariants({
+    kind: 'electricity',
+    invoiceId: invoice.id,
+    customerId: invoice.customerId,
+    bookingId: invoice.bookingId,
+    billingMonth: invoice.billingMonth,
+    expectedAmountPaise: invoice.amountPaise,
+    proofAmountPaise: invoice.amountPaise,
+    paymentProofUrl: proofUrl,
+    status: invoice.status,
+    bookingStatus: bookingRow?.status ?? null,
+    duplicatePendingScreenshot,
+  });
+  if (!invariant.ok) {
+    const { alertHealthBrainPaymentReviewInvariant } = await import(
+      '@/src/lib/health/healthBrainIncidents'
+    );
+    await alertHealthBrainPaymentReviewInvariant({
+      kind: 'electricity',
+      invoiceId: invoice.id,
+      customerId: invoice.customerId,
+      billingMonth: invoice.billingMonth,
+      paymentProofUrl: proofUrl,
+      source: 'proof_submit',
+      violations: invariant.violations,
+    });
+    return { ok: false, message: paymentReviewInvariantErrorMessage(invariant) };
+  }
+
   await db.transaction(async (tx) => {
     await tx
       .update(electricityInvoices)
       .set({
-        paymentProofUrl: paymentProofUrl.trim(),
+        paymentProofUrl: proofUrl,
         updatedAt: new Date(),
       })
       .where(eq(electricityInvoices.id, invoiceId));
@@ -470,7 +524,7 @@ export async function submitElectricityPaymentProof(
     .where(eq(electricityBills.id, invoice.electricityBillId))
     .limit(1);
   await linkResidentUpload({
-    storagePath: paymentProofUrl.trim(),
+    storagePath: proofUrl,
     adminQueue: 'collections',
     linkedEntity: 'electricity_invoice',
     linkedEntityId: invoiceId,
@@ -524,6 +578,59 @@ export async function approveElectricityPaymentProof(
 
   const projected = projectElectricityInvoice(invoice);
   const refundPaise = projected.outstandingPaise;
+
+  const {
+    evaluatePaymentReviewInvariants,
+    paymentReviewInvariantErrorMessage,
+  } = await import('@/src/lib/payments/paymentReviewInvariants');
+  const { hasDuplicatePendingPaymentProofUrl } = await import(
+    '@/src/lib/payments/duplicatePendingPaymentProof'
+  );
+  const [pgRow] = await db
+    .select({ pgId: electricityBills.pgId })
+    .from(electricityBills)
+    .where(eq(electricityBills.id, invoice.electricityBillId))
+    .limit(1);
+  const duplicatePendingScreenshot = pgRow
+    ? await hasDuplicatePendingPaymentProofUrl({
+        pgId: pgRow.pgId,
+        paymentProofUrl: invoice.paymentProofUrl,
+        exclude: { kind: 'electricity', id: invoice.id },
+      })
+    : false;
+  const [bookingRow] = await db
+    .select({ status: bookings.status })
+    .from(bookings)
+    .where(eq(bookings.id, invoice.bookingId))
+    .limit(1);
+  const invariant = evaluatePaymentReviewInvariants({
+    kind: 'electricity',
+    invoiceId: invoice.id,
+    customerId: invoice.customerId,
+    bookingId: invoice.bookingId,
+    billingMonth: invoice.billingMonth,
+    expectedAmountPaise: refundPaise,
+    proofAmountPaise: refundPaise,
+    paymentProofUrl: invoice.paymentProofUrl,
+    status: invoice.status,
+    bookingStatus: bookingRow?.status ?? null,
+    duplicatePendingScreenshot,
+  });
+  if (!invariant.ok) {
+    const { alertHealthBrainPaymentReviewInvariant } = await import(
+      '@/src/lib/health/healthBrainIncidents'
+    );
+    await alertHealthBrainPaymentReviewInvariant({
+      kind: 'electricity',
+      invoiceId: invoice.id,
+      customerId: invoice.customerId,
+      billingMonth: invoice.billingMonth,
+      paymentProofUrl: invoice.paymentProofUrl,
+      source: 'approve',
+      violations: invariant.violations,
+    });
+    return { ok: false, message: paymentReviewInvariantErrorMessage(invariant) };
+  }
 
   const { applyApprovedPaymentAtomic } = await import('@/src/services/paymentSettlementAtomic');
   const result = await applyApprovedPaymentAtomic({

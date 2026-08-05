@@ -7,6 +7,7 @@ import { db } from '@/src/db/client';
 import {
   bedReservations,
   beds,
+  bookings,
   customers,
   financialInvoices,
   floors,
@@ -340,10 +341,58 @@ export async function submitDepositLinkPaymentProof(
     return { ok: false, message: 'Payment photo is required.' };
   }
 
+  const proofUrl = paymentProofUrl.trim();
+  const {
+    evaluatePaymentReviewInvariants,
+    paymentReviewInvariantErrorMessage,
+  } = await import('@/src/lib/payments/paymentReviewInvariants');
+  const { hasDuplicatePendingPaymentProofUrl } = await import(
+    '@/src/lib/payments/duplicatePendingPaymentProof'
+  );
+  const duplicatePendingScreenshot = await hasDuplicatePendingPaymentProofUrl({
+    pgId: link.pgId,
+    paymentProofUrl: proofUrl,
+    exclude: { kind: 'deposit_link', id: linkId },
+  });
+  const [bookingRow] = link.bookingId
+    ? await db
+        .select({ status: bookings.status })
+        .from(bookings)
+        .where(eq(bookings.id, link.bookingId))
+        .limit(1)
+    : [null];
+  const invariant = evaluatePaymentReviewInvariants({
+    kind: 'deposit_link',
+    invoiceId: linkId,
+    customerId: link.residentId,
+    bookingId: link.bookingId,
+    billingMonth: null,
+    expectedAmountPaise: link.amount,
+    proofAmountPaise: link.amount,
+    paymentProofUrl: proofUrl,
+    status: link.status,
+    bookingStatus: bookingRow?.status ?? null,
+    duplicatePendingScreenshot,
+  });
+  if (!invariant.ok) {
+    const { alertHealthBrainPaymentReviewInvariant } = await import(
+      '@/src/lib/health/healthBrainIncidents'
+    );
+    await alertHealthBrainPaymentReviewInvariant({
+      kind: 'deposit_link',
+      invoiceId: linkId,
+      customerId: link.residentId,
+      paymentProofUrl: proofUrl,
+      source: 'proof_submit',
+      violations: invariant.violations,
+    });
+    return { ok: false, message: paymentReviewInvariantErrorMessage(invariant) };
+  }
+
   await db.transaction(async (tx) => {
     await tx
       .update(paymentLinks)
-      .set({ paymentProofUrl: paymentProofUrl.trim() })
+      .set({ paymentProofUrl: proofUrl })
       .where(eq(paymentLinks.id, linkId));
 
     const { supersedeActiveRejection } = await import('@/src/services/paymentProofRejectionService');
@@ -352,7 +401,7 @@ export async function submitDepositLinkPaymentProof(
 
   const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
   await linkResidentUpload({
-    storagePath: paymentProofUrl.trim(),
+    storagePath: proofUrl,
     adminQueue: 'operations',
     linkedEntity: 'payment_link',
     linkedEntityId: linkId,
@@ -408,6 +457,51 @@ export async function approveDepositLinkPaymentProof(
   }
   if (link.status !== 'active' || link.purpose !== 'deposit' || !link.bookingId) {
     return { ok: false, message: 'This deposit link is not awaiting approval.' };
+  }
+
+  const {
+    evaluatePaymentReviewInvariants,
+    paymentReviewInvariantErrorMessage,
+  } = await import('@/src/lib/payments/paymentReviewInvariants');
+  const { hasDuplicatePendingPaymentProofUrl } = await import(
+    '@/src/lib/payments/duplicatePendingPaymentProof'
+  );
+  const duplicatePendingScreenshot = await hasDuplicatePendingPaymentProofUrl({
+    pgId: link.pgId,
+    paymentProofUrl: link.paymentProofUrl,
+    exclude: { kind: 'deposit_link', id: linkId },
+  });
+  const [bookingRow] = await db
+    .select({ status: bookings.status })
+    .from(bookings)
+    .where(eq(bookings.id, link.bookingId))
+    .limit(1);
+  const invariant = evaluatePaymentReviewInvariants({
+    kind: 'deposit_link',
+    invoiceId: linkId,
+    customerId: link.residentId,
+    bookingId: link.bookingId,
+    billingMonth: null,
+    expectedAmountPaise: link.amount,
+    proofAmountPaise: link.amount,
+    paymentProofUrl: link.paymentProofUrl,
+    status: link.status,
+    bookingStatus: bookingRow?.status ?? null,
+    duplicatePendingScreenshot,
+  });
+  if (!invariant.ok) {
+    const { alertHealthBrainPaymentReviewInvariant } = await import(
+      '@/src/lib/health/healthBrainIncidents'
+    );
+    await alertHealthBrainPaymentReviewInvariant({
+      kind: 'deposit_link',
+      invoiceId: linkId,
+      customerId: link.residentId,
+      paymentProofUrl: link.paymentProofUrl,
+      source: 'approve',
+      violations: invariant.violations,
+    });
+    return { ok: false, message: paymentReviewInvariantErrorMessage(invariant) };
   }
 
   const providerPaymentId = `deposit-link-proof-${linkId}`;

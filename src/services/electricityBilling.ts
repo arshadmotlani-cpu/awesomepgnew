@@ -991,40 +991,49 @@ export async function recordElectricityPaymentSuccess(
     return { ok: false, reason: formatPostgresError(err) };
   }
 
-  const auditResult = await writeAuditLogNonBlocking(db, {
-    actorType: 'system',
-    actorId: null,
-    entity: 'electricity_invoice',
-    entityId: invoice.id,
-    action: fullyPaid ? 'paid' : 'partial_payment',
-    diff: {
-      provider,
-      providerPaymentId: input.providerPaymentId,
-      amountPaise: input.amountPaise,
-      paidPaise: newPaidPaise,
-      outstandingPaise: Math.max(0, totalDue - newPaidPaise),
-    },
+  const { scheduleAfterPaymentApproval } = await import(
+    '@/src/lib/payments/scheduleAfterPaymentApproval'
+  );
+  scheduleAfterPaymentApproval(async () => {
+    await Promise.all([
+      (async () => {
+        const auditResult = await writeAuditLogNonBlocking(db, {
+          actorType: 'system',
+          actorId: null,
+          entity: 'electricity_invoice',
+          entityId: invoice.id,
+          action: fullyPaid ? 'paid' : 'partial_payment',
+          diff: {
+            provider,
+            providerPaymentId: input.providerPaymentId,
+            amountPaise: input.amountPaise,
+            paidPaise: newPaidPaise,
+            outstandingPaise: Math.max(0, totalDue - newPaidPaise),
+          },
+        });
+        if (!auditResult.ok) {
+          console.error(
+            '[electricity-payment] payment recorded but audit_log insert failed',
+            auditResult.error,
+          );
+        }
+      })(),
+      (async () => {
+        if (input.historical) return;
+        try {
+          const { notifyPaymentReceipt } = await import('@/src/lib/email/notifications');
+          notifyPaymentReceipt({
+            customerId: invoice.customerId,
+            purpose: 'electricity',
+            amountPaise: input.amountPaise,
+            reference: invoice.billingMonth,
+          });
+        } catch (notifyErr) {
+          console.error('[electricity-payment] receipt notification failed', notifyErr);
+        }
+      })(),
+    ]);
   });
-  if (!auditResult.ok) {
-    console.error(
-      '[electricity-payment] payment recorded but audit_log insert failed',
-      auditResult.error,
-    );
-  }
-
-  if (!input.historical) {
-    try {
-      const { notifyPaymentReceipt } = await import('@/src/lib/email/notifications');
-      notifyPaymentReceipt({
-        customerId: invoice.customerId,
-        purpose: 'electricity',
-        amountPaise: input.amountPaise,
-        reference: invoice.billingMonth,
-      });
-    } catch (notifyErr) {
-      console.error('[electricity-payment] receipt notification failed', notifyErr);
-    }
-  }
 
   return { ok: true, paymentId, invoiceId: invoice.id, stateChanged: true };
 }

@@ -148,6 +148,13 @@
       "when": 1755600000000,
       "tag": "0021_historical_import",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1755700000000,
+      "tag": "0022_workforce_engine",
+      "breakpoints": true
     }
   ]
 }

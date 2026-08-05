@@ -30,8 +30,25 @@ When adding a Brain: append a registry entry here **before** writing code. When 
 | Resident Brain | Awesome PG | 0.2 | PARTIAL |
 | Electricity Brain | Awesome PG | 0.2 | PARTIAL |
 | Operations Brain | Awesome PG | 0.2 | PARTIAL |
+| Employee Brain | ecosystem / Workforce | 0.1 | PARTIAL |
 | Salon Brain | FYH Salon | 0.1 | PLANNED |
 | Vehicle Brain | Automotive Capital | 0.1 | PLANNED |
+
+---
+
+## Employee Brain
+
+- **Brain name:** Employee Brain  
+- **Owner Engine:** ecosystem (Workforce Engine; Phase 1 storage in FYH DB)  
+- **Owns (SSOT):** Employee profile · engine memberships · ranks/job roles · permissions · schedule · attendance foundation · salary fields · commission pointers · audit · login identity (mobile)  
+- **Reads:** Engine operational events (appointments, sales) for KPIs (future)  
+- **Publishes:** `employee.created` · `employee.updated` · `employee.role.changed` · `employee.salary.changed` · `employee.permission.changed` · `employee.login` · `employee.logout` · `employee.deleted`  
+- **Subscribes:** (future) attendance clock · leave · payroll run events  
+- **Public API:** `getEmployee` · `listEmployeesForEngine` · `getEmployeeDashboard` · `resolvePermissions`  
+- **Version:** 0.1  
+- **Status:** PARTIAL *(`src/workforce/`)*  
+
+*Not Customer Brain. Not Salon `fyh_staff` SSOT.*
 
 ---
 
@@ -214,7 +231,7 @@ When adding a Brain: append a registry entry here **before** writing code. When 
 - **Brain name:** Salon Brain  
 - **Owner Engine:** FYH Salon  
 - **Owns (SSOT):** Retention · commission intelligence · stylist performance · salon revenue projections · inventory health · membership health · appointment trends  
-- **Reads:** Customer Brain · Finance Brain  
+- **Reads:** Customer Brain · Finance Brain · Employee Brain (roster)  
 - **Publishes:** `salon.performance.updated` · `salon.membership.health.updated`  
 - **Subscribes:** `salon.invoice.paid` · appointment / commission Engine events  
 - **Public API:** `getSalonPerformance()` · `getStylistScore(id)` · `getMembershipHealth()`  

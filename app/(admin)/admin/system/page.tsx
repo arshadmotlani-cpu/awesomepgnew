@@ -15,9 +15,11 @@ import { getIntegrationsHealthSummaryWithBlobProbe } from '@/src/lib/integration
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { BillingHealthCardPanel } from '@/src/components/admin/billing/BillingCenterPanels';
+import { BrainIntegrityCards } from '@/src/components/admin/BrainIntegrityCards';
 import { getBillingHealthSnapshot } from '@/src/services/billingHealth';
 import { getSentryDashboardUrl, getSystemHealthSnapshot } from '@/src/services/systemHealth';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
+import { formatDate } from '@/src/lib/dates';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -57,10 +59,14 @@ export default async function SystemHealthModulePage() {
     healthError = error instanceof Error ? error.message : String(error);
   }
 
-  const [monitoring, errorsByRoute, billingHealth] = await Promise.all([
+  const billingMonth = `${formatDate(new Date()).slice(0, 7)}-01`;
+  const [monitoring, errorsByRoute, billingHealth, brainReport] = await Promise.all([
     getMonitoringSnapshot({ limit: 50 }).catch(() => null),
     getErrorsByRoute(7, 20).catch(() => []),
     getBillingHealthSnapshot().catch(() => null),
+    import('@/src/lib/health/healthBrain')
+      .then((m) => m.runAllBrainIntegrityAudits({ billingMonth }))
+      .catch(() => null),
   ]);
 
   return (
@@ -77,6 +83,8 @@ export default async function SystemHealthModulePage() {
       />
 
       <div className="space-y-8">
+        {brainReport ? <BrainIntegrityCards cards={brainReport.cards} /> : null}
+
         <section className="rounded-xl border border-white/10 bg-[#1A1F27] p-5">
           <h2 className="text-sm font-semibold text-white">Financial SSOT tools</h2>
           <p className="mt-1 text-xs text-apg-silver">

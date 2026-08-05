@@ -490,6 +490,52 @@ async function buildRentReviewItem(
   const projected = projectInvoice(invoice);
   const frozenOutstanding =
     invoice.proofSnapshotOutstandingPaise ?? projected.outstandingPaise;
+
+  const {
+    evaluatePaymentReviewInvariants,
+  } = await import('@/src/lib/payments/paymentReviewInvariants');
+  const { hasDuplicatePendingPaymentProofUrl } = await import(
+    '@/src/lib/payments/duplicatePendingPaymentProof'
+  );
+  const duplicatePendingScreenshot = await hasDuplicatePendingPaymentProofUrl({
+    pgId: pg.id,
+    paymentProofUrl: r.paymentProofUrl!,
+    exclude: { kind: 'rent', id: invoice.id },
+  });
+  const [bookingRow] = await db
+    .select({ status: bookings.status })
+    .from(bookings)
+    .where(eq(bookings.id, invoice.bookingId))
+    .limit(1);
+  const invariant = evaluatePaymentReviewInvariants({
+    kind: 'rent',
+    invoiceId: invoice.id,
+    customerId: invoice.customerId,
+    bookingId: invoice.bookingId,
+    billingMonth: invoice.billingMonth,
+    expectedAmountPaise: frozenOutstanding,
+    proofAmountPaise: invoice.proofSnapshotOutstandingPaise ?? frozenOutstanding,
+    paymentProofUrl: r.paymentProofUrl,
+    status: invoice.status,
+    bookingStatus: bookingRow?.status ?? null,
+    duplicatePendingScreenshot,
+  });
+  if (!invariant.ok) {
+    const { alertHealthBrainPaymentReviewInvariant } = await import(
+      '@/src/lib/health/healthBrainIncidents'
+    );
+    await alertHealthBrainPaymentReviewInvariant({
+      kind: 'rent',
+      invoiceId: invoice.id,
+      customerId: invoice.customerId,
+      billingMonth: invoice.billingMonth,
+      paymentProofUrl: r.paymentProofUrl,
+      source: 'operations_queue',
+      violations: invariant.violations,
+    });
+    return null;
+  }
+
   const expectedLines: PaymentReviewExpectedLine[] = [
     { label: 'Amount due', amountPaise: frozenOutstanding },
   ];
@@ -570,6 +616,53 @@ async function buildElectricityReviewItem(
   if (!invoice) return null;
 
   const projected = projectElectricityInvoice(invoice);
+  const expectedTotalPaise = projected.outstandingPaise;
+
+  const {
+    evaluatePaymentReviewInvariants,
+  } = await import('@/src/lib/payments/paymentReviewInvariants');
+  const { hasDuplicatePendingPaymentProofUrl } = await import(
+    '@/src/lib/payments/duplicatePendingPaymentProof'
+  );
+  const duplicatePendingScreenshot = await hasDuplicatePendingPaymentProofUrl({
+    pgId: pg.id,
+    paymentProofUrl: e.paymentProofUrl!,
+    exclude: { kind: 'electricity', id: invoice.id },
+  });
+  const [bookingRow] = await db
+    .select({ status: bookings.status })
+    .from(bookings)
+    .where(eq(bookings.id, invoice.bookingId))
+    .limit(1);
+  const invariant = evaluatePaymentReviewInvariants({
+    kind: 'electricity',
+    invoiceId: invoice.id,
+    customerId: invoice.customerId,
+    bookingId: invoice.bookingId,
+    billingMonth: invoice.billingMonth,
+    expectedAmountPaise: expectedTotalPaise,
+    proofAmountPaise: expectedTotalPaise,
+    paymentProofUrl: e.paymentProofUrl,
+    status: invoice.status,
+    bookingStatus: bookingRow?.status ?? null,
+    duplicatePendingScreenshot,
+  });
+  if (!invariant.ok) {
+    const { alertHealthBrainPaymentReviewInvariant } = await import(
+      '@/src/lib/health/healthBrainIncidents'
+    );
+    await alertHealthBrainPaymentReviewInvariant({
+      kind: 'electricity',
+      invoiceId: invoice.id,
+      customerId: invoice.customerId,
+      billingMonth: invoice.billingMonth,
+      paymentProofUrl: e.paymentProofUrl,
+      source: 'operations_queue',
+      violations: invariant.violations,
+    });
+    return null;
+  }
+
   const [customer] = await db
     .select({
       name: customers.fullName,
@@ -581,7 +674,6 @@ async function buildElectricityReviewItem(
     .where(eq(customers.id, invoice.customerId))
     .limit(1);
 
-  const expectedTotalPaise = projected.outstandingPaise;
   const expectedLines: PaymentReviewExpectedLine[] = [
     { label: 'Electricity', amountPaise: expectedTotalPaise },
   ];
@@ -656,11 +748,51 @@ async function buildExtensionReviewItem(
       customerId: bookings.customerId,
       phone: customers.phone,
       bookingId: bookings.id,
+      bookingStatus: bookings.status,
     })
     .from(bookings)
     .innerJoin(customers, eq(customers.id, bookings.customerId))
     .where(eq(bookings.bookingCode, x.bookingCode))
     .limit(1);
+
+  const {
+    evaluatePaymentReviewInvariants,
+  } = await import('@/src/lib/payments/paymentReviewInvariants');
+  const { hasDuplicatePendingPaymentProofUrl } = await import(
+    '@/src/lib/payments/duplicatePendingPaymentProof'
+  );
+  const duplicatePendingScreenshot = await hasDuplicatePendingPaymentProofUrl({
+    pgId: pg.id,
+    paymentProofUrl: x.paymentProofUrl!,
+    exclude: { kind: 'extension', id: x.extensionId },
+  });
+  const invariant = evaluatePaymentReviewInvariants({
+    kind: 'extension',
+    invoiceId: x.extensionId,
+    customerId: row?.customerId ?? null,
+    bookingId: row?.bookingId ?? null,
+    billingMonth: null,
+    expectedAmountPaise: x.amountPaise,
+    proofAmountPaise: x.amountPaise,
+    paymentProofUrl: x.paymentProofUrl,
+    status: 'pending',
+    bookingStatus: row?.bookingStatus ?? null,
+    duplicatePendingScreenshot,
+  });
+  if (!invariant.ok) {
+    const { alertHealthBrainPaymentReviewInvariant } = await import(
+      '@/src/lib/health/healthBrainIncidents'
+    );
+    await alertHealthBrainPaymentReviewInvariant({
+      kind: 'extension',
+      invoiceId: x.extensionId,
+      customerId: row?.customerId ?? null,
+      paymentProofUrl: x.paymentProofUrl,
+      source: 'operations_queue',
+      violations: invariant.violations,
+    });
+    return null;
+  }
 
   const bookingDetails = row?.bookingId
     ? await loadBookingReviewDetails(row.bookingId)
@@ -733,6 +865,7 @@ async function buildDepositLinkReviewItem(
 
   let customerPhone: string | null = null;
   let bookingCode: string | null = null;
+  let bookingStatus: string | null = null;
   if (linkRow) {
     const [row] = await db
       .select({ phone: customers.phone })
@@ -743,11 +876,51 @@ async function buildDepositLinkReviewItem(
   }
   if (d.bookingId) {
     const [booking] = await db
-      .select({ bookingCode: bookings.bookingCode })
+      .select({ bookingCode: bookings.bookingCode, status: bookings.status })
       .from(bookings)
       .where(eq(bookings.id, d.bookingId))
       .limit(1);
     bookingCode = booking?.bookingCode ?? null;
+    bookingStatus = booking?.status ?? null;
+  }
+
+  const {
+    evaluatePaymentReviewInvariants,
+  } = await import('@/src/lib/payments/paymentReviewInvariants');
+  const { hasDuplicatePendingPaymentProofUrl } = await import(
+    '@/src/lib/payments/duplicatePendingPaymentProof'
+  );
+  const duplicatePendingScreenshot = await hasDuplicatePendingPaymentProofUrl({
+    pgId: pg.id,
+    paymentProofUrl: d.paymentProofUrl!,
+    exclude: { kind: 'deposit_link', id: d.linkId },
+  });
+  const invariant = evaluatePaymentReviewInvariants({
+    kind: 'deposit_link',
+    invoiceId: d.linkId,
+    customerId: linkRow?.residentId ?? null,
+    bookingId: d.bookingId,
+    billingMonth: null,
+    expectedAmountPaise: d.amountPaise,
+    proofAmountPaise: d.amountPaise,
+    paymentProofUrl: d.paymentProofUrl,
+    status: 'active',
+    bookingStatus,
+    duplicatePendingScreenshot,
+  });
+  if (!invariant.ok) {
+    const { alertHealthBrainPaymentReviewInvariant } = await import(
+      '@/src/lib/health/healthBrainIncidents'
+    );
+    await alertHealthBrainPaymentReviewInvariant({
+      kind: 'deposit_link',
+      invoiceId: d.linkId,
+      customerId: linkRow?.residentId ?? null,
+      paymentProofUrl: d.paymentProofUrl,
+      source: 'operations_queue',
+      violations: invariant.violations,
+    });
+    return null;
   }
 
   const expectedLines: PaymentReviewExpectedLine[] = [

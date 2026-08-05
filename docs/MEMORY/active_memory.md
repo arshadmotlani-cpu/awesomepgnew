@@ -7,6 +7,8 @@
 
 ## Current Focus
 
+- **Workforce Engine Phase 1 (Salon proving ground)** — `src/workforce/`; enable with `WORKFORCE_ENGINE=1`; migrate via `npx tsx scripts/hair/migrate-to-workforce.ts --apply` after `npm run hair:db:migrate`. → `docs/WORKFORCE_ENGINE.md`
+
 - **APG Ecosystem v2 (Brain / Engine constitution)** — Permanent law: Engines execute, Brains understand; shared-knowledge (e.g. LTV) lives in Brains not Engines. Docs live; runtimes for Finance/Owner/Customer Brains are follow-ons. → `docs/ECOSYSTEM_V2.md`, ADR-ECO-001
 
 - **Stability Phase (Awesome PG, from 2026-08-01)** — All PG work: map dependents → baseline tests → change → `npm run stability:report` → regression test on bug fixes → production read-only audit for billing → commit only when green. → `docs/STABILITY_PHASE.md`

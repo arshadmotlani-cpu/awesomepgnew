@@ -9,6 +9,8 @@
 
 ## 2026-08-04
 
+- **Workforce Engine Phase 1 (Accepted)** — Universal employee SSOT in `src/workforce/` hosted in FYH DB; Employee Brain; mobile+password; multi-engine memberships; Owner migrate preserves password_hash; flag `WORKFORCE_ENGINE`. → [[WORKFORCE_ENGINE]], migration `0022_workforce_engine`
+
 - **APG Ecosystem v2 Brain / Engine constitution (Accepted)** — Engines execute; Brains own intelligence; Owner Brain understands all businesses. Shared-knowledge rule: never hardcode in an Engine what another Engine could need (e.g. LTV → Customer Brain). Events only between Brains; write DBs stay host-isolated for now. Room OS = PG-scoped Brains only. Global Brain Registry is SSOT for ownership/APIs/events. → [[ECOSYSTEM_V2]], [[ECOSYSTEM_V2_BRAIN_REGISTRY]], ADR-ECO-001, [[ECOSYSTEM_V2_INVENTORY]], [[ECOSYSTEM_V2_EVENTS]], `.cursor/rules/ecosystem-brains.mdc`
 
 ## 2026-08-01

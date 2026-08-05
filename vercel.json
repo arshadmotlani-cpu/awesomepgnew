@@ -28,6 +28,18 @@
     {
       "path": "/api/cron/room-os-outbox",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/resident-brain-integrity",
+      "schedule": "15 5 * * *"
+    },
+    {
+      "path": "/api/cron/health-brain-integrity",
+      "schedule": "30 5 * * *"
+    },
+    {
+      "path": "/api/cron/electricity-readings-without-bills",
+      "schedule": "45 5 * * *"
     }
   ]
 }
