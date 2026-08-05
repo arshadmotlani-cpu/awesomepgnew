@@ -119,6 +119,11 @@ describe('Workforce Add Employee popup', () => {
     assert.match(src, /type="file"/);
     assert.match(src, /receiveBookings/);
     assert.match(src, /Appointment bookable/);
+    assert.match(src, /fyh-form-modal-panel/);
+    assert.match(src, /fyh-form-modal-backdrop/);
+    assert.match(src, /z-\[600\]/);
+    assert.match(src, /max-h-\[90vh\]/);
+    assert.match(src, /Create employee/);
   });
 });
 

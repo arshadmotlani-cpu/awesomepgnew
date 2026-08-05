@@ -27,6 +27,8 @@
   --fyh-nav-active-bg: rgba(16, 185, 129, 0.14);
   --fyh-table-stripe: rgba(255, 255, 255, 0.03);
   --fyh-table-hover: rgba(255, 255, 255, 0.06);
+  --fyh-surface: var(--fyh-bg-surface);
+  --fyh-surface-muted: #1c1c21;
 }
 
 .fyh-theme-light {
@@ -52,6 +54,8 @@
   --fyh-nav-active-bg: rgba(31, 107, 74, 0.12);
   --fyh-table-stripe: rgba(31, 107, 74, 0.04);
   --fyh-table-hover: rgba(31, 107, 74, 0.08);
+  --fyh-surface: var(--fyh-bg-surface);
+  --fyh-surface-muted: #f0ebe0;
 }
 
 @theme inline {
@@ -112,6 +116,24 @@
 
 .fyh-theme-light .fyh-datepicker-panel {
   background: var(--fyh-bg-surface);
+}
+
+/** Opaque data-entry modals — no glass / blur; solid surface over dimmed backdrop. */
+.fyh-form-modal-backdrop {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.fyh-form-modal-panel {
+  background: var(--fyh-bg-surface);
+  border: 1px solid var(--fyh-border-strong);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  isolation: isolate;
+  backdrop-filter: none;
+}
+
+.fyh-theme-light .fyh-form-modal-panel {
+  background: var(--fyh-bg-surface);
+  box-shadow: 0 24px 64px rgba(20, 32, 24, 0.18);
 }
 
 .fyh-theme-light .fyh-glass {
