@@ -1,12 +1,14 @@
 import { StaffPage } from '@/src/hair/components/staff/StaffUi';
+import { requireStaffManagementAccess } from '@/src/hair/lib/auth/staffManagementAccess';
 import { listStaff } from '@/src/hair/services/staff';
 import { listSchedulesForStaff } from '@/src/hair/services/staffSchedules';
+import { StaffManagementList } from '@/src/workforce/components/StaffManagementList';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
-import { redirect } from 'next/navigation';
 
 export default async function StaffRoutePage() {
   if (isWorkforceEngineEnabled()) {
-    redirect('/workforce');
+    const access = await requireStaffManagementAccess();
+    return <StaffManagementList canAdd={access.canAdd} grants={access.grants} />;
   }
 
   const staff = await listStaff(true);

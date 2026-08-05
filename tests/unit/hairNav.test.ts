@@ -29,15 +29,29 @@ function findGroup(id: string) {
 describe('FYH sidebar navigation', () => {
   it('orders operational modules before Configuration', () => {
     const labels = visibleLabels();
-    const workforceIdx = labels.indexOf('Workforce');
+    const staffIdx = labels.indexOf('Staff');
     const configurationIdx = labels.indexOf('Configuration');
     const settingsIdx = labels.indexOf('Settings');
 
-    assert.ok(workforceIdx >= 0, 'Workforce must be visible');
+    assert.ok(staffIdx >= 0, 'Staff must be visible as top-level module');
     assert.ok(configurationIdx >= 0, 'Configuration group must exist');
     assert.ok(settingsIdx >= 0, 'Settings must remain last');
-    assert.ok(workforceIdx < configurationIdx, 'Workforce before Configuration');
+    assert.ok(staffIdx < configurationIdx, 'Staff before Configuration');
     assert.ok(configurationIdx < settingsIdx, 'Configuration before Settings');
+  });
+
+  it('places Staff Performance under Dashboard, not Workforce', () => {
+    const dashboard = findGroup('dashboard');
+    assert.deepEqual(
+      dashboard.children.map((c) => c.label),
+      ['Revenue Dashboard', 'Staff Performance'],
+    );
+    assert.deepEqual(
+      dashboard.children.map((c) => c.href),
+      ['/dashboard/revenue', '/dashboard/staff-performance'],
+    );
+    const workforceGroup = HAIR_NAV_ENTRIES.find((e) => e.type === 'group' && e.id === 'workforce');
+    assert.equal(workforceGroup, undefined, 'Workforce nav group must not exist');
   });
 
   it('places four independent catalog modules under Configuration', () => {
@@ -52,27 +66,21 @@ describe('FYH sidebar navigation', () => {
     );
   });
 
-  it('groups Staff and Staff Performance under Workforce', () => {
-    const workforce = findGroup('workforce');
-    assert.deepEqual(
-      workforce.children.map((c) => c.label),
-      ['Staff', 'Staff Performance'],
-    );
-    assert.deepEqual(
-      workforce.children.map((c) => c.href),
-      ['/workforce', '/dashboard/staff-performance'],
-    );
+  it('exposes Staff as a top-level link', () => {
+    const topLevelLinks = visibleHairNavEntries().filter((e) => e.type === 'link');
+    const hrefs = topLevelLinks.map((e) => (e.type === 'link' ? e.href : ''));
+    assert.ok(hrefs.includes('/staff'), 'Staff must be top-level at /staff');
   });
 
   it('does not expose catalog items as top-level links', () => {
     const topLevelLinks = visibleHairNavEntries().filter((e) => e.type === 'link');
     const hrefs = topLevelLinks.map((e) => (e.type === 'link' ? e.href : ''));
-    for (const href of ['/services', '/products', '/packages', '/memberships', '/workforce']) {
+    for (const href of ['/services', '/products', '/packages', '/memberships']) {
       assert.equal(hrefs.includes(href), false, `${href} should not be top-level`);
     }
   });
 
-  it('keeps billing, workforce, and catalog routes reachable', () => {
+  it('keeps billing, staff, and catalog routes reachable', () => {
     const hrefs = visibleHrefs();
     for (const href of [
       '/billing/invoices',
@@ -80,7 +88,7 @@ describe('FYH sidebar navigation', () => {
       '/products',
       '/packages',
       '/memberships',
-      '/workforce',
+      '/staff',
       '/dashboard/staff-performance',
     ]) {
       assert.ok(hrefs.includes(href), `missing nav href ${href}`);

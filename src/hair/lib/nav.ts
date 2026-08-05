@@ -46,7 +46,10 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
     iconKey: 'layout-dashboard',
     defaultExpanded: true,
     permission: 'page:dashboard',
-    children: [{ href: '/dashboard/revenue', label: 'Revenue Dashboard' }],
+    children: [
+      { href: '/dashboard/revenue', label: 'Revenue Dashboard' },
+      { href: '/dashboard/staff-performance', label: 'Staff Performance' },
+    ],
   },
   {
     type: 'link',
@@ -81,18 +84,7 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
     hidden: true,
     permission: 'page:quick_sale',
   },
-  {
-    type: 'group',
-    id: 'workforce',
-    label: 'Workforce',
-    iconKey: 'clipboard-list',
-    defaultExpanded: false,
-    children: [
-      { href: '/workforce', label: 'Staff' },
-      { href: '/dashboard/staff-performance', label: 'Staff Performance' },
-    ],
-  },
-  { type: 'link', href: '/staff', label: 'Staff (legacy)', iconKey: 'clipboard-list', hidden: true },
+  { type: 'link', href: '/staff', label: 'Staff', iconKey: 'clipboard-list' },
   {
     type: 'link',
     href: '/inventory',

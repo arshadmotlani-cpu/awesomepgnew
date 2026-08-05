@@ -1,0 +1,42 @@
+import { redirect } from 'next/navigation';
+import { getEmployeeDashboard } from '@/src/workforce/brains/employeeBrain';
+import { hasWorkforcePermission } from '@/src/workforce/permissions/presets';
+import type { WorkforcePermissionGrants } from '@/src/workforce/types';
+import { getHairSession } from '@/src/hair/lib/auth/session';
+import { requireHairAuthPage } from '@/src/hair/lib/auth/guards';
+
+export type StaffManagementAccess = {
+  canView: true;
+  canAdd: boolean;
+  grants: WorkforcePermissionGrants | null;
+};
+
+/**
+ * Staff Management is available to Workforce users with staff.view or legacy super_admin.
+ * Avoids redirecting ecosystem admins to /login → /dashboard/revenue.
+ */
+export async function requireStaffManagementAccess(): Promise<StaffManagementAccess> {
+  const admin = await requireHairAuthPage();
+  const session = await getHairSession();
+
+  if (admin.role === 'super_admin') {
+    return { canView: true, canAdd: true, grants: null };
+  }
+
+  if (!session?.workforceEmployeeId) {
+    redirect('/appointments');
+  }
+
+  const dash = await getEmployeeDashboard(session.workforceEmployeeId, 'fyh_salon');
+  const grants = dash?.grants ?? null;
+
+  if (!hasWorkforcePermission(grants, 'staff.view')) {
+    redirect('/me');
+  }
+
+  return {
+    canView: true,
+    canAdd: hasWorkforcePermission(grants, 'staff.add'),
+    grants,
+  };
+}
