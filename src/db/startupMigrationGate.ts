@@ -2,6 +2,7 @@ import {
   checkMigrationHealth,
   formatMigrationHealthError,
 } from './migrationHealth';
+import { hasDatabaseUrl } from '@/src/lib/db/env';
 
 /**
  * Blocks dev server startup when the database is behind the repository.
@@ -16,6 +17,13 @@ export async function assertMigrationsAppliedForDev(): Promise<void> {
   if (process.env.SKIP_MIGRATION_GATE === '1') return;
   // Instrumentation also runs in the Edge runtime — filesystem/DB checks belong on Node.
   if (process.env.NEXT_RUNTIME === 'edge') return;
+
+  if (!hasDatabaseUrl()) {
+    console.warn(
+      '[db] DATABASE_URL not configured — skipping migration gate. Paste a Neon connection string into .env.local or set SKIP_MIGRATION_GATE=1.',
+    );
+    return;
+  }
 
   let health;
   try {
