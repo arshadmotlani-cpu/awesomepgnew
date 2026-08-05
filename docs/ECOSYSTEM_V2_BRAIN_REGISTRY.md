@@ -18,9 +18,9 @@ When adding a Brain: append a registry entry here **before** writing code. When 
 
 | Brain | Owner Engine | Version | Status |
 |-------|--------------|---------|--------|
-| Owner Brain | ecosystem | 0.1 | PLANNED |
+| Owner Brain | ecosystem | 0.2 | PARTIAL |
 | Finance Brain | ecosystem | 0.1 | PLANNED |
-| Personal Finance Brain | ecosystem | 0.1 | PLANNED |
+| Personal Finance Brain | ecosystem | 0.2 | PARTIAL |
 | Customer Brain | ecosystem | 0.1 | PLANNED |
 | Investment Brain | ecosystem | 0.1 | PLANNED |
 | Health Brain | ecosystem | 1.0 | LIVE (Ecosystem Baseline v1 frozen 2026-08-05) |
@@ -57,12 +57,12 @@ When adding a Brain: append a registry entry here **before** writing code. When 
 - **Brain name:** Owner Brain  
 - **Owner Engine:** ecosystem  
 - **Owns (SSOT):** Cross-business attention · life KPIs composition · “how is my life doing?” answers · Owner Dashboard projections  
-- **Reads:** Finance Brain · Personal Finance Brain · Operations Brain · Health Brain · Investment Brain · (all business Brains via events)  
+- **Reads:** Personal Finance Brain · Finance Brain · Operations Brain · Health Brain · Investment Brain · (all business Brains via events)  
 - **Publishes:** `owner.attention.changed` · `owner.health.scored` (future)  
 - **Subscribes:** Finance / Investment / Operations / Health / Customer summary events  
-- **Public API:** `getOwnerOverview()` · `getNetWorthSummary()` · `getAttentionQueue()` · `askOwner(question)` (future)  
-- **Version:** 0.1  
-- **Status:** PLANNED  
+- **Public API:** `getOwnerLifeDashboard()` · `getOwnerOverview()` (alias) · `getNetWorthSummary()` · `getAttentionQueue()` (future) · `askOwner(question)` (future)  
+- **Version:** 0.2  
+- **Status:** PARTIAL *(`src/personalFinance/brains/ownerOs.ts`)*  
 
 ---
 
@@ -78,7 +78,7 @@ When adding a Brain: append a registry entry here **before** writing code. When 
 - **Version:** 0.1  
 - **Status:** PLANNED  
 
-*Engine-local SSOTs (PG RFE, Capital TVI, Salon ledger) are **not** this Brain.*
+*Engine-local SSOTs (PG RFE, Capital TVI, Salon ledger) are **not** this Brain. Personal Finance Brain currently composes contribution buckets via public getters until this Brain is LIVE.*
 
 ---
 
@@ -86,13 +86,15 @@ When adding a Brain: append a registry entry here **before** writing code. When 
 
 - **Brain name:** Personal Finance Brain  
 - **Owner Engine:** ecosystem  
-- **Owns (SSOT):** Owner personal income mix · household/personal expenses · emergency fund · liquidity · financial freedom progress · personal projected wealth  
-- **Reads:** Finance Brain · Investment Brain  
-- **Publishes:** `personal_finance.position.updated`  
+- **Owns (SSOT):** Owner personal income mix · household/personal expenses · emergency fund · liquidity · financial freedom progress · personal projected wealth · explainable life metrics  
+- **Reads:** Engine public finance APIs (PG / Salon / Capital) · Employee Workforce finance connector · (future) Finance Brain events  
+- **Publishes:** `personal_finance.position.updated` (future)  
 - **Subscribes:** Finance / Investment events · future Personal Finance Engine events  
-- **Public API:** `getPersonalPosition()` · `getFreedomProgress()`  
-- **Version:** 0.1  
-- **Status:** PLANNED  
+- **Public API:** `getPersonalFinanceSnapshot()` · `explainMetric()` · `getPersonalPosition()` (alias) · `getFreedomProgress()` (via FI %)  
+- **Version:** 0.2  
+- **Status:** PARTIAL *(`src/personalFinance/`)*  
+
+*Does not mutate Health Brain. Does not duplicate rent / TVI / salon paid-revenue math.*
 
 ---
 
