@@ -1,0 +1,29 @@
+:root {
+  --oo-bg: #0b0f14;
+  --oo-surface: #141a22;
+  --oo-border: rgba(255, 255, 255, 0.1);
+  --oo-text: #f4f7fb;
+  --oo-muted: #9aa7b8;
+  --oo-accent: #ff5a1f;
+}
+
+.oo-root {
+  background: var(--oo-bg);
+  color: var(--oo-text);
+  min-height: 100vh;
+}
+
+.oo-nav-link {
+  display: block;
+  border-radius: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--oo-muted);
+  text-decoration: none;
+}
+
+.oo-nav-link:hover,
+.oo-nav-link[data-active='true'] {
+  background: rgba(255, 90, 31, 0.12);
+  color: var(--oo-text);
+}

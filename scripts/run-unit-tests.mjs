@@ -32,6 +32,7 @@ function collectTests(dir, out = []) {
 const PRODUCTS = {
   hair: ['tests/hair'],
   capital: ['tests/capital'],
+  owner: ['tests/owner'],
   pg: ['tests/unit', 'tests/integration'],
 };
 
@@ -40,6 +41,7 @@ const ALL_DIRS = [
   'tests/integration',
   'tests/capital',
   'tests/hair',
+  'tests/owner',
 ];
 
 const productArg = process.argv[2]?.trim().toLowerCase();
@@ -50,7 +52,7 @@ if (!productArg) {
   dirs = PRODUCTS[productArg];
 } else {
   console.error(
-    `Unknown product "${process.argv[2]}". Use: hair | capital | pg (or omit for full repo).`,
+    `Unknown product "${process.argv[2]}". Use: hair | capital | owner | pg (or omit for full repo).`,
   );
   process.exit(1);
 }

@@ -256,17 +256,27 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-05 07:19:59 UTC
+### Pending pre-commit sync · 2026-08-05 07:31:45 UTC
 
-**Areas touched:** [[ROUTES]]
+**Areas touched:** [[ROUTES]], [[Auth]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
-**Staged code files (1):**
-- `app/(admin)/admin/overview/page.tsx`
+**Staged code files (10):**
+- `app/(owner)/layout.tsx`
+- `app/(owner)/not-found.tsx`
+- `app/(owner)/owner/(app)/dashboard/page.tsx`
+- `app/(owner)/owner/(app)/layout.tsx`
+- `app/(owner)/owner/(app)/net-worth/page.tsx`
+- `app/(owner)/owner/(app)/settings/page.tsx`
+- `app/(owner)/owner/auth/login/login-form.tsx`
+- `app/(owner)/owner/auth/login/page.tsx`
+- `app/api/owner/health/route.ts`
+- `middleware.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

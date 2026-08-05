@@ -13,6 +13,10 @@ import {
   hairMiddleware,
   shouldRunHairMiddleware,
 } from '@/src/hair/middleware/hairMiddleware';
+import {
+  ownerMiddleware,
+  shouldRunOwnerMiddleware,
+} from '@/src/owner/middleware/ownerMiddleware';
 
 function needsCustomerAuth(pathname: string): boolean {
   if (pathname === '/booking/new') return true;
@@ -75,6 +79,10 @@ export function middleware(request: NextRequest) {
     return capitalMiddleware(request);
   }
 
+  if (shouldRunOwnerMiddleware(request)) {
+    return ownerMiddleware(request);
+  }
+
   const apexRedirect = pgApexToWwwRedirect(request);
   if (apexRedirect) return apexRedirect;
 
@@ -95,6 +103,21 @@ export function middleware(request: NextRequest) {
     '/api/capital',
   ];
   if (capitalOnlyPaths.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+    return new NextResponse(null, { status: 404 });
+  }
+
+  const ownerOnlyPaths = [
+    '/owner',
+    '/net-worth',
+    '/cashflow',
+    '/liabilities',
+    '/investments',
+    '/forecast',
+    '/tax',
+    '/wealth',
+    '/api/owner',
+  ];
+  if (ownerOnlyPaths.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     return new NextResponse(null, { status: 404 });
   }
 

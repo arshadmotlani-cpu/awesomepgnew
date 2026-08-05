@@ -18,7 +18,7 @@ When adding a Brain: append a registry entry here **before** writing code. When 
 
 | Brain | Owner Engine | Version | Status |
 |-------|--------------|---------|--------|
-| Owner Brain | ecosystem | 0.2 | PARTIAL |
+| Owner Brain | Owner OS / ecosystem | 0.3 | PARTIAL |
 | Finance Brain | ecosystem | 0.1 | PLANNED |
 | Personal Finance Brain | ecosystem | 0.2 | PARTIAL |
 | Customer Brain | ecosystem | 0.1 | PLANNED |
@@ -55,14 +55,16 @@ When adding a Brain: append a registry entry here **before** writing code. When 
 ## Owner Brain
 
 - **Brain name:** Owner Brain  
-- **Owner Engine:** ecosystem  
+- **Owner Engine:** Owner OS (`owner.awesomepg.in`) / ecosystem  
 - **Owns (SSOT):** Cross-business attention · life KPIs composition · “how is my life doing?” answers · Owner Dashboard projections  
 - **Reads:** Personal Finance Brain · Finance Brain · Operations Brain · Health Brain · Investment Brain · (all business Brains via events)  
 - **Publishes:** `owner.attention.changed` · `owner.health.scored` (future)  
 - **Subscribes:** Finance / Investment / Operations / Health / Customer summary events  
-- **Public API:** `getOwnerLifeDashboard()` · `getOwnerOverview()` (alias) · `getNetWorthSummary()` · `getAttentionQueue()` (future) · `askOwner(question)` (future)  
-- **Version:** 0.2  
-- **Status:** PARTIAL *(`src/personalFinance/brains/ownerOs.ts`)*  
+- **Public API:** `getOwnerOsSnapshot()` · `getOwnerLifeDashboard()` · `getNetWorthSummary()` · `getAttentionQueue()` (future) · `askOwner(question)` (future)  
+- **Version:** 0.3  
+- **Status:** PARTIAL *(`src/owner/` Engine + `src/personalFinance/` Brain)*  
+
+*Owner OS is an independent Engine (separate DB/auth/host). Personal Finance Brain remains at `src/personalFinance/` and is consumed, not duplicated.*
 
 ---
 
