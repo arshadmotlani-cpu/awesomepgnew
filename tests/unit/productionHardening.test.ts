@@ -18,7 +18,9 @@ describe('assertProductionBootSecrets', () => {
 
   const keys = [
     'NODE_ENV',
+    'VERCEL',
     'VERCEL_ENV',
+    'VERCEL_URL',
     'AUTH_SECRET',
     'CRON_SECRET',
     'PAYMENT_PROVIDER',
@@ -47,10 +49,22 @@ describe('assertProductionBootSecrets', () => {
     assert.doesNotThrow(() => assertProductionBootSecrets());
   });
 
+  it('no-ops when VERCEL_ENV=production leaked into local .env.local', () => {
+    saveEnv(keys);
+    process.env.NODE_ENV = 'development';
+    process.env.VERCEL = '1';
+    process.env.VERCEL_ENV = 'production';
+    process.env.VERCEL_URL = '';
+    delete process.env.CRON_SECRET;
+    assert.doesNotThrow(() => assertProductionBootSecrets());
+  });
+
   it('throws when Vercel production is missing critical secrets', () => {
     saveEnv(keys);
     process.env.NODE_ENV = 'production';
+    process.env.VERCEL = '1';
     process.env.VERCEL_ENV = 'production';
+    process.env.VERCEL_URL = 'awesomepg-k59k.vercel.app';
     delete process.env.AUTH_SECRET;
     delete process.env.CRON_SECRET;
     process.env.PAYMENT_PROVIDER = 'razorpay';
@@ -61,7 +75,9 @@ describe('assertProductionBootSecrets', () => {
   it('allows mock payment provider when QR approval is the live model', () => {
     saveEnv(keys);
     process.env.NODE_ENV = 'production';
+    process.env.VERCEL = '1';
     process.env.VERCEL_ENV = 'production';
+    process.env.VERCEL_URL = 'awesomepg-k59k.vercel.app';
     process.env.AUTH_SECRET = 'test-production-auth-secret-32chars-min';
     process.env.CRON_SECRET = 'test-cron-secret';
     process.env.PAYMENT_PROVIDER = 'mock';

@@ -18,9 +18,13 @@ function isProduction(): boolean {
   );
 }
 
-/** True only on the live Vercel production deployment — not preview, CI, or local prod builds. */
+/** True only on the live Vercel production deployment — not preview, CI, or leaked env-pull files. */
 function isVercelProductionDeployment(): boolean {
-  return process.env.VERCEL_ENV === 'production';
+  return (
+    process.env.VERCEL === '1' &&
+    process.env.VERCEL_ENV === 'production' &&
+    Boolean(process.env.VERCEL_URL?.trim())
+  );
 }
 
 function hasAuthSecret(): boolean {

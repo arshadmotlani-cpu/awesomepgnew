@@ -19,7 +19,11 @@ export async function register() {
     assertProductionBootSecrets();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    if (process.env.VERCEL_ENV === 'production') {
+    if (
+      process.env.VERCEL === '1' &&
+      process.env.VERCEL_ENV === 'production' &&
+      process.env.VERCEL_URL?.trim()
+    ) {
       throw err;
     }
     console.warn(`[heal] Env check skipped: ${message}`);
