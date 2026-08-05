@@ -46,10 +46,7 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
     iconKey: 'layout-dashboard',
     defaultExpanded: true,
     permission: 'page:dashboard',
-    children: [
-      { href: '/dashboard/revenue', label: 'Revenue Dashboard' },
-      { href: '/dashboard/staff-performance', label: 'Staff Performance' },
-    ],
+    children: [{ href: '/dashboard/revenue', label: 'Revenue Dashboard' }],
   },
   {
     type: 'link',
@@ -84,7 +81,17 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
     hidden: true,
     permission: 'page:quick_sale',
   },
-  { type: 'link', href: '/workforce', label: 'Workforce', iconKey: 'clipboard-list' },
+  {
+    type: 'group',
+    id: 'workforce',
+    label: 'Workforce',
+    iconKey: 'clipboard-list',
+    defaultExpanded: false,
+    children: [
+      { href: '/workforce', label: 'Staff' },
+      { href: '/dashboard/staff-performance', label: 'Staff Performance' },
+    ],
+  },
   { type: 'link', href: '/staff', label: 'Staff (legacy)', iconKey: 'clipboard-list', hidden: true },
   {
     type: 'link',
@@ -130,7 +137,8 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
     children: [
       { href: '/services', label: 'Services' },
       { href: '/products', label: 'Products' },
-      { href: '/membership-packages', label: 'Membership Packages' },
+      { href: '/packages', label: 'Packages' },
+      { href: '/memberships', label: 'Memberships' },
     ],
   },
   {

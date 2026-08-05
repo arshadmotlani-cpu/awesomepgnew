@@ -20,6 +20,12 @@ function visibleHrefs(): string[] {
   return hrefs;
 }
 
+function findGroup(id: string) {
+  const group = HAIR_NAV_ENTRIES.find((e) => e.type === 'group' && e.id === id);
+  assert.ok(group && group.type === 'group');
+  return group;
+}
+
 describe('FYH sidebar navigation', () => {
   it('orders operational modules before Configuration', () => {
     const labels = visibleLabels();
@@ -34,31 +40,49 @@ describe('FYH sidebar navigation', () => {
     assert.ok(configurationIdx < settingsIdx, 'Configuration before Settings');
   });
 
-  it('places catalog items under Configuration', () => {
-    const configuration = HAIR_NAV_ENTRIES.find(
-      (e) => e.type === 'group' && e.id === 'configuration',
-    );
-    assert.ok(configuration && configuration.type === 'group');
+  it('places four independent catalog modules under Configuration', () => {
+    const configuration = findGroup('configuration');
     assert.deepEqual(
       configuration.children.map((c) => c.label),
-      ['Services', 'Products', 'Membership Packages'],
+      ['Services', 'Products', 'Packages', 'Memberships'],
     );
     assert.deepEqual(
       configuration.children.map((c) => c.href),
-      ['/services', '/products', '/membership-packages'],
+      ['/services', '/products', '/packages', '/memberships'],
     );
   });
 
-  it('does not expose Services or Products as top-level links', () => {
-    const topLevelLinks = visibleHairNavEntries().filter((e) => e.type === 'link');
-    const hrefs = topLevelLinks.map((e) => (e.type === 'link' ? e.href : ''));
-    assert.equal(hrefs.includes('/services'), false);
-    assert.equal(hrefs.includes('/products'), false);
+  it('groups Staff and Staff Performance under Workforce', () => {
+    const workforce = findGroup('workforce');
+    assert.deepEqual(
+      workforce.children.map((c) => c.label),
+      ['Staff', 'Staff Performance'],
+    );
+    assert.deepEqual(
+      workforce.children.map((c) => c.href),
+      ['/workforce', '/dashboard/staff-performance'],
+    );
   });
 
-  it('keeps billing and catalog routes reachable', () => {
+  it('does not expose catalog items as top-level links', () => {
+    const topLevelLinks = visibleHairNavEntries().filter((e) => e.type === 'link');
+    const hrefs = topLevelLinks.map((e) => (e.type === 'link' ? e.href : ''));
+    for (const href of ['/services', '/products', '/packages', '/memberships', '/workforce']) {
+      assert.equal(hrefs.includes(href), false, `${href} should not be top-level`);
+    }
+  });
+
+  it('keeps billing, workforce, and catalog routes reachable', () => {
     const hrefs = visibleHrefs();
-    for (const href of ['/billing/invoices', '/services', '/products', '/membership-packages', '/workforce']) {
+    for (const href of [
+      '/billing/invoices',
+      '/services',
+      '/products',
+      '/packages',
+      '/memberships',
+      '/workforce',
+      '/dashboard/staff-performance',
+    ]) {
       assert.ok(hrefs.includes(href), `missing nav href ${href}`);
     }
   });

@@ -1,10 +1,6 @@
-import { MembershipPackagesList } from '@/src/hair/components/membership-packages/MembershipPackagesUi';
-import { listPackagePlans } from '@/src/hair/services/loyaltyOps';
+import { redirect } from 'next/navigation';
 
-export const dynamic = 'force-dynamic';
-
-/** Configuration catalog — prepaid session packages (scaffold; CRUD follows). */
-export default async function MembershipPackagesPage() {
-  const packages = await listPackagePlans().catch(() => []);
-  return <MembershipPackagesList packages={packages} />;
+/** Legacy route — packages and memberships are separate configuration modules. */
+export default function LegacyMembershipPackagesPage() {
+  redirect('/packages');
 }

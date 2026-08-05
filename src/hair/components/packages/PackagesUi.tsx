@@ -2,24 +2,24 @@ import Link from 'next/link';
 import type { FyhPackagePlan } from '@/src/hair/db/schema';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 
-export function MembershipPackagesList({ packages }: { packages: FyhPackagePlan[] }) {
+export function PackagesList({ packages }: { packages: FyhPackagePlan[] }) {
   return (
     <div className="space-y-4">
       <div>
         <p className="fyh-section-eyebrow">Configuration</p>
-        <h1 className="fyh-display mt-1 text-3xl font-semibold">Membership Packages</h1>
+        <h1 className="fyh-display mt-1 text-3xl font-semibold">Packages</h1>
         <p className="mt-1 text-sm text-fyh-text-secondary">
-          Session bundles and prepaid packages sold at checkout. Full create/edit flows ship in a
-          follow-up — plans are listed from the salon catalog.
+          Bundles of services sold together as a one-time purchase — for example Hair Cut + Hair Spa
+          + Beard. Full create/edit flows ship in a follow-up.
         </p>
       </div>
 
       {packages.length === 0 ? (
         <div className="fyh-glass px-6 py-16 text-center">
-          <p className="fyh-display text-xl font-semibold">No membership packages yet</p>
+          <p className="fyh-display text-xl font-semibold">No packages yet</p>
           <p className="mt-2 text-sm text-fyh-text-muted">
-            Seed package plans in the database or add them in a future release. Loyalty checkout
-            still credits matching services when plans exist.
+            Seed package plans in the database or add them in a future release. Checkout credits
+            matching services when plans exist.
           </p>
           <Link
             href="/loyalty"
