@@ -23,14 +23,14 @@ When adding a Brain: append a registry entry here **before** writing code. When 
 | Personal Finance Brain | ecosystem | 0.1 | PLANNED |
 | Customer Brain | ecosystem | 0.1 | PLANNED |
 | Investment Brain | ecosystem | 0.1 | PLANNED |
-| Health Brain | ecosystem | 0.1 | PARTIAL |
+| Health Brain | ecosystem | 1.0 | LIVE (Ecosystem Baseline v1 frozen 2026-08-05) |
 | Property Brain | Awesome PG | 0.2 | PARTIAL |
 | Room Brain | Awesome PG | 0.1 | PARTIAL |
 | Bed Brain | Awesome PG | 1.0 | LIVE |
 | Resident Brain | Awesome PG | 0.2 | PARTIAL |
 | Electricity Brain | Awesome PG | 0.2 | PARTIAL |
 | Operations Brain | Awesome PG | 0.2 | PARTIAL |
-| Employee Brain | ecosystem / Workforce | 0.1 | PARTIAL |
+| Employee Brain | ecosystem / Workforce | 0.2 | PARTIAL |
 | Salon Brain | FYH Salon | 0.1 | PLANNED |
 | Vehicle Brain | Automotive Capital | 0.1 | PLANNED |
 
@@ -40,15 +40,15 @@ When adding a Brain: append a registry entry here **before** writing code. When 
 
 - **Brain name:** Employee Brain  
 - **Owner Engine:** ecosystem (Workforce Engine; Phase 1 storage in FYH DB)  
-- **Owns (SSOT):** Employee profile · engine memberships · ranks/job roles · permissions · schedule · attendance foundation · salary fields · commission pointers · audit · login identity (mobile)  
+- **Owns (SSOT):** Employee profile · engine memberships · ranks/job roles · permissions · schedule · attendance foundation · salary fields · commission pointers · incentives · audit · login identity (mobile)  
 - **Reads:** Engine operational events (appointments, sales) for KPIs (future)  
-- **Publishes:** `employee.created` · `employee.updated` · `employee.role.changed` · `employee.salary.changed` · `employee.permission.changed` · `employee.login` · `employee.logout` · `employee.deleted`  
-- **Subscribes:** (future) attendance clock · leave · payroll run events  
-- **Public API:** `getEmployee` · `listEmployeesForEngine` · `getEmployeeDashboard` · `resolvePermissions`  
-- **Version:** 0.1  
-- **Status:** PARTIAL *(`src/workforce/`)*  
+- **Publishes:** `employee.created` · `employee.updated` · `employee.role.changed` · `employee.salary.changed` · `employee.permission.changed` · `employee.login` · `employee.logout` · `employee.deleted` · `employee.schedule.updated` · `employee.attendance.*` · `employee.commission.changed` · `employee.incentive.created` · `employee.finance.contribution` · `employee.appointment.roster_refreshed` · `employee.customer.capacity` · `employee.health.self_check`  
+- **Subscribes:** (future) leave · payroll settled  
+- **Public API:** `getEmployee` · `listEmployeesForEngine` · `getEmployeeDashboard` · `resolvePermissions` · connectors under `src/workforce/connectors/`  
+- **Version:** 0.2  
+- **Status:** PARTIAL *(`src/workforce/` — Phases 1–5)*  
 
-*Not Customer Brain. Not Salon `fyh_staff` SSOT.*
+*Not Customer Brain. Not Salon `fyh_staff` SSOT. Does not mutate Health Brain (Baseline v1 frozen).*
 
 ---
 
@@ -135,8 +135,8 @@ When adding a Brain: append a registry entry here **before** writing code. When 
 - **Publishes:** `health.incident.opened` · `health.incident.resolved` · `deployment.score.recorded`  
 - **Subscribes:** Probe failures · deploy completions · cert failures  
 - **Public API:** `getSystemHealth()` · `getDeploymentScore()` · `listIncidents()`  
-- **Version:** 0.1  
-- **Status:** PARTIAL *(cert scripts, stability report, system health UI exist — not unified Brain)*  
+- **Version:** 1.0  
+- **Status:** LIVE *(Ecosystem Baseline v1 frozen 2026-08-05 — Health Score = 100 gate; integrity + repair engine + durable history)*  
 
 ---
 

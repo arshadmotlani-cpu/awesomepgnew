@@ -17,6 +17,10 @@ export const EMPLOYEE_EVENT_TYPES = [
   'employee.commission.changed',
   'employee.performance.target_changed',
   'employee.incentive.created',
+  'employee.finance.contribution',
+  'employee.appointment.roster_refreshed',
+  'employee.customer.capacity',
+  'employee.health.self_check',
 ] as const;
 
 export type EmployeeEventType = (typeof EMPLOYEE_EVENT_TYPES)[number];

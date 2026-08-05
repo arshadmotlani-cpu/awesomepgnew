@@ -162,24 +162,58 @@ describe('Workforce Phase 4 compensation math', () => {
     const { isWithinWorkingHours } = await import('@/src/workforce/services/schedules');
     assert.equal(
       isWithinWorkingHours(
-        { startTime: '10:00', endTime: '19:00', lunchStart: '13:00', lunchEnd: '14:00', isOff: false },
+        {
+          startTime: '10:00',
+          endTime: '19:00',
+          lunchStart: '13:00',
+          lunchEnd: '14:00',
+          isOff: false,
+        },
         '11:30',
       ),
       true,
     );
     assert.equal(
       isWithinWorkingHours(
-        { startTime: '10:00', endTime: '19:00', lunchStart: '13:00', lunchEnd: '14:00', isOff: false },
+        {
+          startTime: '10:00',
+          endTime: '19:00',
+          lunchStart: '13:00',
+          lunchEnd: '14:00',
+          isOff: false,
+        },
         '13:30',
       ),
       false,
     );
     assert.equal(
-      isWithinWorkingHours(
-        { startTime: '10:00', endTime: '19:00', isOff: true },
-        '11:30',
-      ),
+      isWithinWorkingHours({ startTime: '10:00', endTime: '19:00', isOff: true }, '11:30'),
       false,
     );
+  });
+});
+
+describe('Workforce Phase 5 ecosystem connections', () => {
+  test('catalog wires Finance, Health (read-only), Appointment, Customer, Owner', async () => {
+    const { WORKFORCE_BRAIN_CONNECTIONS } = await import(
+      '@/src/workforce/connectors/connectionCatalog'
+    );
+    const brains = WORKFORCE_BRAIN_CONNECTIONS.map((c) => c.brain).sort();
+    assert.deepEqual(brains, ['appointment', 'customer', 'finance', 'health', 'owner']);
+    const health = WORKFORCE_BRAIN_CONNECTIONS.find((c) => c.brain === 'health');
+    assert.equal(health?.status, 'frozen_read_only');
+    assert.match(health?.detail ?? '', /not modified/i);
+  });
+
+  test('health connector source never claims Health Brain mutation', async () => {
+    const { readFileSync } = require('node:fs') as typeof import('node:fs');
+    const { join } = require('node:path') as typeof import('node:path');
+    const src = readFileSync(
+      join(process.cwd(), 'src/workforce/connectors/healthBridge.ts'),
+      'utf8',
+    );
+    assert.match(src, /mutatesHealthBrain: false/);
+    assert.doesNotMatch(src, /from '@\/src\/lib\/health/);
+    assert.doesNotMatch(src, /repairEngine/);
   });
 });

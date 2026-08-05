@@ -7,6 +7,7 @@ import {
   getEmployeeDashboard,
   listEmployeesForEngine,
 } from '@/src/workforce/brains/employeeBrain';
+import { getOwnerWorkforceDashboard } from '@/src/workforce/connectors/ownerBridge';
 import {
   MANAGER_NAV,
   OWNER_NAV,
@@ -60,6 +61,11 @@ export default async function WorkforceRoleHomePage() {
       ? await listEmployeesForEngine('fyh_salon', { activeOnly: true })
       : [];
 
+  const ecosystem =
+    rank === 'owner' || rank === 'manager'
+      ? await getOwnerWorkforceDashboard('fyh_salon')
+      : null;
+
   const title = rank === 'owner' ? 'Owner dashboard' : 'Manager dashboard';
 
   return (
@@ -79,6 +85,60 @@ export default async function WorkforceRoleHomePage() {
           </button>
         </form>
       </header>
+
+      {ecosystem ? (
+        <section className="rounded-2xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] p-5">
+          <h2 className="text-lg font-medium text-fyh-text">Ecosystem connections</h2>
+          <p className="mt-1 text-sm text-fyh-text-secondary">
+            Workforce Brain linked to Finance, Appointment, Customer, Owner — Health Brain stays
+            Baseline-frozen (self-check only).
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-xl border border-[color:var(--fyh-border)] px-3 py-3 text-sm">
+              <p className="text-fyh-text-secondary">Team</p>
+              <p className="text-xl font-semibold text-fyh-text">{ecosystem.teamSize}</p>
+              <p className="text-xs text-fyh-text-secondary">
+                {ecosystem.owners} owner · {ecosystem.managers} manager · {ecosystem.staff} staff
+              </p>
+            </div>
+            <div className="rounded-xl border border-[color:var(--fyh-border)] px-3 py-3 text-sm">
+              <p className="text-fyh-text-secondary">Bookable (Appointments)</p>
+              <p className="text-xl font-semibold text-fyh-text">
+                {ecosystem.appointments.bookableCount}
+              </p>
+            </div>
+            <div className="rounded-xl border border-[color:var(--fyh-border)] px-3 py-3 text-sm">
+              <p className="text-fyh-text-secondary">Salary liability</p>
+              <p className="text-xl font-semibold text-fyh-text">
+                ₹{(ecosystem.finance.monthlySalaryLiabilityPaise / 100).toLocaleString('en-IN')}
+              </p>
+            </div>
+          </div>
+          <ul className="mt-4 space-y-2 text-sm">
+            {ecosystem.connections.map((c) => (
+              <li
+                key={c.brain}
+                className="flex flex-wrap items-baseline justify-between gap-2 border-t border-[color:var(--fyh-border)] pt-2"
+              >
+                <span className="font-medium capitalize text-fyh-text">{c.brain} Brain</span>
+                <span className="text-fyh-text-secondary">
+                  {c.status.replaceAll('_', ' ')} — {c.detail}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {ecosystem.attention.length > 0 ? (
+            <ul className="mt-4 space-y-1 text-sm text-fyh-text-secondary">
+              {ecosystem.attention.map((a, i) => (
+                <li key={`${a.kind}-${i}`}>
+                  {a.severity === 'warn' ? '⚠ ' : '• '}
+                  {a.message}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
+      ) : null}
 
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-fyh-text-secondary">

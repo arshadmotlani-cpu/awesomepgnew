@@ -11,6 +11,7 @@ import {
 import { normalizeMobile } from '@/src/workforce/auth/mobile';
 import { publishEmployeeEvent } from '@/src/workforce/events/publish';
 import { writeEmployeeAudit } from '@/src/workforce/brains/employeeBrain';
+import { publishWorkforceEcosystemRefresh } from '@/src/workforce/connectors/ecosystemRefresh';
 import { defaultGrantsFor } from '@/src/workforce/permissions/presets';
 import type {
   WorkforceEngineId,
@@ -136,6 +137,9 @@ export async function createEmployee(input: UpsertEmployeeInput) {
     employeeId: emp!.id,
     engineId,
     sourceRef: 'workforce.services.createEmployee',
+  });
+  void publishWorkforceEcosystemRefresh(engineId).catch(() => {
+    /* connectors are best-effort; never block hire */
   });
 
   return emp!;

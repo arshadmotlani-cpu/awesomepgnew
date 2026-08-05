@@ -1004,3 +1004,6 @@ Files:
 - qa/hair-rc/README.md
 
 ---
+
+## 2026-08-05
+- FEATURE: Workforce Engine v1 Phases 1–5 complete — connectors to Finance/Appointment/Customer/Owner; Health Brain frozen (self-check only). Health Score gate 100.

@@ -7,6 +7,10 @@
 
 ---
 
+## 2026-08-05
+
+- **Ecosystem Baseline v1 (Accepted / Frozen)** — Platform floor: Health Score = 100; every Brain Healthy; new Engines register with Health Brain; new Brains must ship integrity audit + score + repair engine + events + audit trail + performance metrics. Any change that drops Health Score below 100 is incomplete until fixed. Stacks on Stability Phase. → [[ECOSYSTEM_BASELINE_V1]], [[STABILITY_PHASE]], independent audit `scripts/independent-ecosystem-baseline-audit.ts`
+
 ## 2026-08-04
 
 - **Workforce Engine Phase 1 (Accepted)** — Universal employee SSOT in `src/workforce/` hosted in FYH DB; Employee Brain; mobile+password; multi-engine memberships; Owner migrate preserves password_hash; flag `WORKFORCE_ENGINE`. → [[WORKFORCE_ENGINE]], migration `0022_workforce_engine`
@@ -212,3 +216,7 @@
 - **Problem:** First rent invoice due on move-in day maps to a pre-move-in anniversary window; after `clampPaidPeriodToMoveIn` paid coverage can collapse to a single day while checkout collected **full monthly rent**. V2 **rent consumed** funds the full stay; **tail rent** still charged overlapping days from deposit → double charge (0082: ₹0 refund on ₹2,059 deposit).
 - **Rule (BR-MOVEIN-COVERAGE):** When checkout paid **≥ one full month** rent and clamped invoice coverage is only move-in day with raw period ending on move-in, expand paid coverage to the **move-in anniversary period** `[moveIn, periodEnd]` for tail/notice SSOT. Do **not** zero tail globally when `rentConsumed === rentPaid` (Case B still needs tail after paid period ends).
 - **SSOT:** `expandMoveInCheckoutPeriodCoverage` in `billingCoverageModel.ts`; regression Case F in `billingCoverageRegression.test.ts`. Govind Kumar payout: normal settlement after fix, not a code exception.
+
+## 2026-08-05 — Workforce Engine v1 complete
+- Employee Brain v0.2 connectors live under `src/workforce/connectors/`.
+- Health Brain Baseline v1 remains frozen; Workforce emits self-check events only.

@@ -60,7 +60,20 @@ npx tsx scripts/hair/migrate-to-workforce.ts --apply  # execute
 | **2** | Add Employee popup (full profile fields + designation) | **Complete** |
 | **3** | Owner / Manager / Staff dashboards (role-scoped) | **Complete** |
 | **4** | Appointments · hours · attendance · performance · salary · commission · incentives | **Complete** |
-| **5** | Wire Workforce Brain → Finance / Health / Appointment / Customer / Owner | Pending |
+| **5** | Wire Workforce Brain → Finance / Health / Appointment / Customer / Owner | **Complete** |
+
+## Phase 5 connectors
+
+| Connector | Path | Notes |
+|-----------|------|-------|
+| Finance | `src/workforce/connectors/financeBridge.ts` | Salary liability + incentive contribution events |
+| Appointment | `src/workforce/connectors/appointmentBridge.ts` | Bookable roster for Appointment Brain |
+| Customer | `src/workforce/connectors/customerBridge.ts` | Service-capacity signal (no customer SSOT) |
+| Health | `src/workforce/connectors/healthBridge.ts` | **Self-check only** — does not modify Health Brain / Baseline |
+| Owner | `src/workforce/connectors/ownerBridge.ts` | Owner/Manager dashboard projection |
+| Fan-out | `src/workforce/connectors/ecosystemRefresh.ts` | Best-effort refresh after hire |
+
+Health Score must remain **100**. Workforce never writes `brain_*` / Repair Engine tables.
 
 ## Phase 4 module map
 

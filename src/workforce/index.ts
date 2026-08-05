@@ -12,3 +12,4 @@ export * from './services/compensation';
 export * from './services/appointmentsBridge';
 export * from './lib/compensationMath';
 export * from './migrate/migrateHairToWorkforce';
+export * from './connectors';
