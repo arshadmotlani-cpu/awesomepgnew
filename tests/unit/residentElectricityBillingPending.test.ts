@@ -1,0 +1,51 @@
+/**
+ * Resident portal — electricity pending state (Room Brain V2).
+ */
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { billingMonthDisplayLabel } from '@/src/lib/residents/residentElectricityBillingState';
+import { isRoomAwaitingElectricityBillGeneration } from '@/src/roomOs/engines/electricity/resolveNextElectricityBillStatus';
+
+describe('Resident electricity billing pending UX', () => {
+  it('billingMonthDisplayLabel formats month name', () => {
+    assert.match(billingMonthDisplayLabel('2026-08-01'), /2026/);
+  });
+
+  it('awaiting states are not treated as financially clear', () => {
+    assert.equal(isRoomAwaitingElectricityBillGeneration('awaiting_meter'), true);
+    assert.equal(isRoomAwaitingElectricityBillGeneration('stale_meter'), true);
+    assert.equal(isRoomAwaitingElectricityBillGeneration('paid'), false);
+    assert.equal(isRoomAwaitingElectricityBillGeneration('bill_ready'), false);
+  });
+
+  it('ResidentPaymentsV2Hub shows pending card and suppresses misleading ₹0', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'src/components/customer/account/resident/ResidentPaymentsV2Hub.tsx'),
+      'utf8',
+    );
+    assert.match(src, /electricityBillingPending/);
+    assert.match(src, /ResidentElectricityPendingCard/);
+    assert.match(src, /hideZeroDueHeader/);
+    assert.match(src, /showElectricityPending/);
+  });
+
+  it('ResidentAreaSection loads electricity state from Room Brain', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'src/components/customer/account/ResidentAreaSection.tsx'),
+      'utf8',
+    );
+    assert.match(src, /loadResidentElectricityBillingState/);
+    assert.match(src, /electricityBillingPending/);
+  });
+
+  it('operations queue includes electricity_billing_pending filter', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'src/lib/operations/operationsFilterLinks.ts'),
+      'utf8',
+    );
+    assert.match(src, /electricity_billing_pending/);
+    assert.match(src, /Electricity bills pending/);
+  });
+});

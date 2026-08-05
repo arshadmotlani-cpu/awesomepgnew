@@ -74,6 +74,7 @@ import {
   resolveResidentMonthlyRentPaise,
 } from '@/src/lib/residents/residentPortalFinancials';
 import { buildResidentBillRowsFromDetail } from '@/src/lib/residents/residentPortalBillRows';
+import { loadResidentElectricityBillingState } from '@/src/lib/residents/residentElectricityBillingState';
 import { getReferralSummaryForCustomer } from '@/src/services/referrals';
 import { indianLocalFromE164, formatIndianPhoneDisplay } from '@/src/lib/phone';
 import { ResidentProfileHub } from '@/src/components/customer/account/resident/ResidentProfileHub';
@@ -557,6 +558,14 @@ export async function ResidentAreaSection({
 
   const enrichedDueRows = dueBillRows.map(enrichBillDueRow);
 
+  const electricityBillingPending =
+    primaryBooking != null
+      ? await loadResidentElectricityBillingState({
+          roomId: primaryBooking.booking.roomId,
+          bookingId: primaryBooking.bookingId,
+        })
+      : null;
+
   const referralSummary = await getReferralSummaryForCustomer(session.customerId);
 
   const lifetimeTotals = {
@@ -749,6 +758,7 @@ export async function ResidentAreaSection({
           paidBills={paidHistory}
           cancelledBills={cancelledBillRows}
           pendingRentNotice={pendingRentNotice?.message ?? null}
+          electricityBillingPending={electricityBillingPending}
           electricityHistory={electricityHistory}
           historyHref={historyHref}
           lifetimeTotals={lifetimeTotals}

@@ -4,3 +4,9 @@ export {
   resolveElectricityStatusFromLedger,
   resolveMeterReadingStateForMonth,
 } from '@/src/roomOs/engines/electricity/resolveRoomElectricityFacts';
+export {
+  isRoomAwaitingElectricityBillGeneration,
+  nextElectricityBillStatusLabel,
+  resolveNextElectricityBillStatus,
+  residentElectricityPendingMessage,
+} from '@/src/roomOs/engines/electricity/resolveNextElectricityBillStatus';

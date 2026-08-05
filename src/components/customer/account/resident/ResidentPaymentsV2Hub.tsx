@@ -15,6 +15,8 @@ import {
   type ResidentElectricityHistoryItem,
 } from '@/src/components/customer/account/resident/ResidentElectricityHistory';
 import { requestStatusTone, primaryBtn, secondaryBtn } from '@/src/lib/design-system/tokens';
+import { ResidentElectricityPendingCard } from '@/src/components/customer/account/resident/ResidentElectricityPendingCard';
+import type { ResidentElectricityBillingState } from '@/src/lib/residents/residentElectricityBillingState';
 import { computeResidentTotalDuePaise } from '@/src/lib/residents/residentPortalDisplay';
 import type { PaymentDueRow } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
 export type PaidHistoryRow = {
@@ -51,6 +53,7 @@ type Props = {
   paidBills: PaidHistoryRow[];
   cancelledBills?: PaidHistoryRow[];
   pendingRentNotice?: string | null;
+  electricityBillingPending?: ResidentElectricityBillingState | null;
   electricityHistory?: ResidentElectricityHistoryItem[];
   historyHref: string | null;
   lifetimeTotals: LifetimeTotals;
@@ -118,6 +121,7 @@ export function ResidentPaymentsV2Hub({
   paidBills,
   cancelledBills = [],
   pendingRentNotice = null,
+  electricityBillingPending = null,
   electricityHistory = [],
   historyHref,
   lifetimeTotals,
@@ -130,6 +134,8 @@ export function ResidentPaymentsV2Hub({
 
   const payableDue = dueRows.filter((r) => r.href);
   const totalDuePaise = computeResidentTotalDuePaise(dueRows);
+  const showElectricityPending = electricityBillingPending?.showPendingCard === true;
+  const hideZeroDueHeader = showElectricityPending && totalDuePaise === 0;
 
   return (
     <div className="apg-resident-panel-content">
@@ -143,9 +149,15 @@ export function ResidentPaymentsV2Hub({
                 <p className="text-xs font-semibold uppercase tracking-wider text-apg-silver">
                   Total due
                 </p>
-                <p className="mt-1 text-3xl font-bold tabular-nums text-apg-orange">
-                  {paiseToInr(totalDuePaise)}
-                </p>
+                {hideZeroDueHeader ? (
+                  <p className="mt-1 text-lg font-semibold text-apg-silver">
+                    No payment due right now
+                  </p>
+                ) : (
+                  <p className="mt-1 text-3xl font-bold tabular-nums text-apg-orange">
+                    {paiseToInr(totalDuePaise)}
+                  </p>
+                )}
                 {payableDue.length > 1 ? (
                   <p className="mt-2 text-xs text-apg-silver">
                     Pay each bill separately using the buttons below.
@@ -154,6 +166,10 @@ export function ResidentPaymentsV2Hub({
               </div>
             </div>
           </ApgCard>
+
+          {showElectricityPending && electricityBillingPending ? (
+            <ResidentElectricityPendingCard state={electricityBillingPending} />
+          ) : null}
 
           {pendingApprovalRows.length > 0 ? (
             <p className="rounded-xl border border-sky-400/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
@@ -169,17 +185,18 @@ export function ResidentPaymentsV2Hub({
 
           {payableDue.length === 0 &&
           pendingApprovalRows.length === 0 &&
-          rejectedBillRows.length === 0 ? (
+          rejectedBillRows.length === 0 &&
+          !showElectricityPending ? (
             <ApgCard tier="resident">
               <p className="text-sm text-apg-silver">No bills waiting for payment right now.</p>
             </ApgCard>
-          ) : (
+          ) : payableDue.length > 0 ? (
             <ul className="space-y-3">
               {payableDue.map((row) => (
                 <BillCard key={row.key} row={row} />
               ))}
             </ul>
-          )}
+          ) : null}
 
           {rejectedBillRows.length > 0 ? (
             <ApgCard tier="resident">

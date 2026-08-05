@@ -41,7 +41,7 @@ describe('Room OS Wave 2 — Feature flag rollback', () => {
     assert.equal(queue.filter, 'rent_due');
     assert.equal(queue.items.length, 0);
     assert.equal(queue.totalCount, 0);
-    assert.equal(queue.filterCounts.length, 8);
+    assert.equal(queue.filterCounts.length, 9);
   });
 
   test('parity audit bypasses env via forceSource', () => {

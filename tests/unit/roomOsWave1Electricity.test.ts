@@ -88,6 +88,22 @@ describe('Room OS Wave 1 — Electricity', () => {
     assert.equal(result.reason, 'missing_meter');
   });
 
+  test('nextElectricityBillStatus: stale meter without bill', async () => {
+    const { resolveNextElectricityBillStatus } = await import(
+      '@/src/roomOs/engines/electricity/resolveNextElectricityBillStatus'
+    );
+    assert.equal(
+      resolveNextElectricityBillStatus({
+        meterReadingState: 'stale',
+        electricityStatus: 'awaiting_bill',
+        hasActiveGenerationJob: false,
+        ledger: null,
+        asOf: '2026-08-05',
+      }),
+      'stale_meter',
+    );
+  });
+
   test('electricity status: balanced and fully collected → complete', () => {
     const result = resolveElectricityStatusFromLedger(ledger({}), 'current');
     assert.equal(result.status, 'complete');

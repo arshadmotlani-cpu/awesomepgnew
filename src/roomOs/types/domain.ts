@@ -62,6 +62,15 @@ export type BedBrainSnapshot = {
   snapshotVersion: number;
 };
 
+/** Room Brain V2 — electricity bill lifecycle for resident/admin UX (no UI inference). */
+export type NextElectricityBillStatus =
+  | 'awaiting_meter'
+  | 'bill_generating'
+  | 'bill_ready'
+  | 'paid'
+  | 'overdue'
+  | 'stale_meter';
+
 export type RoomOsSharedSnapshot = {
   roomId: string;
   pgId: string;
@@ -71,6 +80,12 @@ export type RoomOsSharedSnapshot = {
   meterReadingState: 'current' | 'stale' | 'missing';
   electricityStatus: string;
   electricityStatusReason?: string;
+  /** V2 — single SSOT for whether a bill exists, is due, paid, or awaiting meter. */
+  nextElectricityBillStatus: NextElectricityBillStatus;
+  /** Last finalized meter reading (units) from prior bill, when known. */
+  lastReadingUnits?: number | null;
+  /** Billing month of the most recent electricity bill before/as-of target month. */
+  lastBillMonth?: string | null;
   computedAt: string;
   snapshotVersion: number;
   derivationRefs: DerivationRef[];
@@ -183,6 +198,7 @@ export type PropertyOsIndexSnapshot = {
     occupancySummary: string;
     electricityStatus: string;
     electricityStatusReason?: string;
+    nextElectricityBillStatus?: NextElectricityBillStatus;
   }>;
   electricityProgress: {
     complete: number;

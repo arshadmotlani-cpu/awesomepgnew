@@ -73,6 +73,7 @@ export function buildRoomIndexEntries(input: {
       occupancySummary: formatRoomOccupancySummary(input.bedBrainsByRoomId.get(room.roomId) ?? []),
       electricityStatus: shared?.electricityStatus ?? 'unknown',
       electricityStatusReason: shared?.electricityStatusReason,
+      nextElectricityBillStatus: shared?.nextElectricityBillStatus,
     };
   });
 }

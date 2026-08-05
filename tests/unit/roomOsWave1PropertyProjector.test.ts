@@ -39,8 +39,9 @@ function roomShared(partial: Partial<RoomOsSharedSnapshot> & Pick<RoomOsSharedSn
     billingMode: 'monthly',
     meterReadingState: 'current',
     electricityStatus: 'complete',
+    nextElectricityBillStatus: 'paid',
     computedAt,
-    snapshotVersion: 1,
+    snapshotVersion: 2,
     derivationRefs: [],
     ...partial,
   };

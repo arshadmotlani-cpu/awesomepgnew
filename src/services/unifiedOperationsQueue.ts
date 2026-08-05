@@ -1,5 +1,5 @@
 /**
- * Operations action center — eight admin queues, one action per row.
+ * Operations action center — nine admin queues, one action per row.
  */
 
 import { and, eq, inArray, not, sql } from 'drizzle-orm';
@@ -27,6 +27,10 @@ import {
   RECORD_PAYOUT_CTA,
 } from '@/src/lib/payout/payoutDisplayTerminology';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
+import { firstOfMonth } from '@/src/services/billing';
+import { listRoomsMissingElectricityBill } from '@/src/services/electricityBilling';
+import { loadRoomShared } from '@/src/roomOs/api/v1/roomOs';
+import { isRoomAwaitingElectricityBillGeneration } from '@/src/roomOs/engines/electricity/resolveNextElectricityBillStatus';
 import {
   assertOperationsQueueParity,
   buildOperationsQueueFilterCounts,
@@ -204,6 +208,36 @@ async function loadOperationsQueueSlice<T>(
 function overdueReason(daysOverdue: number): string {
   if (daysOverdue <= 0) return 'Awaiting resident payment';
   return `Overdue by ${daysOverdue} day${daysOverdue === 1 ? '' : 's'}`;
+}
+
+async function appendElectricityBillingPendingItems(
+  session: AdminSession,
+  items: UnifiedOpsItem[],
+): Promise<void> {
+  const billingMonth = firstOfMonth(new Date());
+  const monthKey = billingMonth.slice(0, 7);
+  const missingElectricityRooms = await listRoomsMissingElectricityBill(billingMonth);
+  for (const room of missingElectricityRooms) {
+    if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, room.pgId)) {
+      continue;
+    }
+    const shared = await loadRoomShared({ roomId: room.roomId, billingMonth });
+    const status = shared.snapshot?.nextElectricityBillStatus ?? 'awaiting_meter';
+    if (!isRoomAwaitingElectricityBillGeneration(status)) continue;
+    items.push({
+      id: `elec-billing-pending-${room.roomId}-${monthKey}`,
+      queue: 'electricity_billing_pending',
+      residentName: `Room ${room.roomNumber}`,
+      pgId: room.pgId,
+      pgName: room.pgName,
+      roomNumber: room.roomNumber,
+      bedCode: null,
+      reason: 'Electricity bill not generated — awaiting meter reading',
+      openHref: `/admin/billing/electricity/generate?month=${monthKey}&wizard=1&pgId=${room.pgId}&roomId=${room.roomId}`,
+      openLabel: 'Generate bill',
+      billingMonth,
+    });
+  }
 }
 
 function electricityCollectionToItem(row: CollectionQueueItem): UnifiedOpsItem {
@@ -677,6 +711,8 @@ async function buildRoomOsUnifiedOperationsQueue(
     });
   }
 
+  await appendElectricityBillingPendingItems(session, items);
+
   items = dedupeOperationsQueueItems(items);
 
   const counts = countOperationsQueueItems(items);
@@ -900,6 +936,8 @@ async function buildUnifiedOperationsQueue(
       ],
     });
   }
+
+  await appendElectricityBillingPendingItems(session, items);
 
   items = dedupeOperationsQueueItems(items);
 

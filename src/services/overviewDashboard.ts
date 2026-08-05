@@ -237,6 +237,15 @@ export function buildOverviewDashboard(
         countMetric('electricity_due', 'Electricity Due', opsCount(ops, 'electricity_due'), {
           href: operationsFilterHref('electricity_due'),
         }),
+        countMetric(
+          'electricity_billing_pending',
+          'Electricity Bills Pending',
+          opsCount(ops, 'electricity_billing_pending'),
+          {
+            href: operationsFilterHref('electricity_billing_pending'),
+            hint: 'Awaiting meter reading',
+          },
+        ),
         countMetric('deposit_due', 'Deposit Due', opsCount(ops, 'deposit_due'), {
           href: operationsFilterHref('deposit_due'),
         }),
