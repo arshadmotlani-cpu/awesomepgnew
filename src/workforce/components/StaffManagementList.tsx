@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { listEmployeesForEngine } from '@/src/workforce/brains/employeeBrain';
 import { AddEmployeePopup } from '@/src/workforce/components/AddEmployeePopup';
-import { workforceJobRoleLabel, workforceRankLabel } from '@/src/workforce/labels';
+import { workforceAccessRoleLabel } from '@/src/workforce/labels';
 import { hasWorkforcePermission } from '@/src/workforce/permissions/presets';
 import type { WorkforcePermissionGrants } from '@/src/workforce/types';
 
@@ -51,8 +51,7 @@ export async function StaffManagementList({ canAdd, grants }: Props) {
             <tr>
               <th className="px-4 py-3 font-medium">Name</th>
               <th className="px-4 py-3 font-medium">Phone</th>
-              <th className="px-4 py-3 font-medium">Rank</th>
-              <th className="px-4 py-3 font-medium">Designation</th>
+              <th className="px-4 py-3 font-medium">Access Role</th>
               <th className="px-4 py-3 font-medium">Bookings</th>
               <th className="px-4 py-3 font-medium">Status</th>
             </tr>
@@ -62,8 +61,9 @@ export async function StaffManagementList({ canAdd, grants }: Props) {
               <tr key={row.employee.id} className="border-t border-[color:var(--fyh-border)]">
                 <td className="px-4 py-3 font-medium text-fyh-text">{row.employee.fullName}</td>
                 <td className="px-4 py-3">{row.employee.mobile ?? '—'}</td>
-                <td className="px-4 py-3">{workforceRankLabel(row.membership.rank)}</td>
-                <td className="px-4 py-3">{workforceJobRoleLabel(row.membership.jobRole)}</td>
+                <td className="px-4 py-3">
+                  {workforceAccessRoleLabel(row.membership.jobRole)}
+                </td>
                 <td className="px-4 py-3">
                   {row.grants.permissions.includes('appointments.receive_bookings') ? 'Yes' : 'No'}
                 </td>
@@ -72,7 +72,7 @@ export async function StaffManagementList({ canAdd, grants }: Props) {
             ))}
             {employees.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-fyh-text-secondary">
+                <td colSpan={5} className="px-4 py-8 text-center text-fyh-text-secondary">
                   No employees yet. Use Add employee to create the first profile.
                 </td>
               </tr>

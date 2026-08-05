@@ -4,13 +4,26 @@ import { revalidatePath } from 'next/cache';
 import { requireHairAuth } from '@/src/hair/lib/auth/guards';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { createEmployee, updateEmployee } from '@/src/workforce/services/employees';
-import { isWorkforceEngineEnabled, type WorkforceJobRole, type WorkforceRank } from '@/src/workforce/types';
+import {
+  isWorkforceEngineEnabled,
+  WORKFORCE_ACCESS_ROLES,
+  type WorkforceJobRole,
+} from '@/src/workforce/types';
 import { WORKFORCE_PERMISSION_KEYS, type WorkforcePermissionKey } from '@/src/workforce/types';
+import { defaultGrantsForAccessRole } from '@/src/workforce/permissions/presets';
 
 export type WorkforceActionState = { error?: string; success?: string };
 
 function formStr(formData: FormData, key: string): string {
   return String(formData.get(key) ?? '').trim();
+}
+
+function parseAccessRole(raw: string): WorkforceJobRole {
+  const value = raw || 'stylist';
+  if ((WORKFORCE_ACCESS_ROLES as readonly string[]).includes(value)) {
+    return value as WorkforceJobRole;
+  }
+  return 'stylist';
 }
 
 export async function createWorkforceEmployeeAction(
@@ -21,16 +34,20 @@ export async function createWorkforceEmployeeAction(
     if (!isWorkforceEngineEnabled()) return { error: 'Workforce Engine is not enabled.' };
     await requireHairAuth();
     const session = await getHairSession();
-    const rank = (formStr(formData, 'rank') || 'team_member') as WorkforceRank;
-    const jobRole = (formStr(formData, 'jobRole') || 'stylist') as WorkforceJobRole;
-    const perms = formData.getAll('permissions').map(String).filter((k) =>
-      (WORKFORCE_PERMISSION_KEYS as readonly string[]).includes(k),
-    ) as WorkforcePermissionKey[];
+
+    const accessRole = parseAccessRole(formStr(formData, 'accessRole'));
+    const loginEnabled = formData.get('loginEnabled') === '1';
+    const password = formStr(formData, 'password');
+
+    const perms = formData
+      .getAll('permissions')
+      .map(String)
+      .filter((k) => (WORKFORCE_PERMISSION_KEYS as readonly string[]).includes(k)) as WorkforcePermissionKey[];
+
     const receiveBookings = formData.get('receiveBookings') === '1';
-    const { defaultGrantsFor } = await import('@/src/workforce/permissions/presets');
     let permissions: WorkforcePermissionKey[] | undefined = perms.length ? [...perms] : undefined;
     if (!permissions) {
-      permissions = [...defaultGrantsFor(rank, jobRole).permissions];
+      permissions = [...defaultGrantsForAccessRole(accessRole).permissions];
     }
     const withoutReceive = permissions.filter((k) => k !== 'appointments.receive_bookings');
     permissions = receiveBookings
@@ -40,15 +57,23 @@ export async function createWorkforceEmployeeAction(
     const backdateRaw = formStr(formData, 'maxBackdateDays');
     const maxBackdateDays =
       backdateRaw === '' || backdateRaw === 'unlimited'
-        ? rank === 'owner'
+        ? accessRole === 'owner'
           ? null
           : 0
         : Number(backdateRaw);
 
+    if (loginEnabled && password.length < 6) {
+      return { error: 'Password is required (min 6 characters) when login is enabled.' };
+    }
+
+    const email = formStr(formData, 'email');
+    if (!email) return { error: 'Email address is required.' };
+
     await createEmployee({
       fullName: formStr(formData, 'fullName'),
+      email,
       mobile: formStr(formData, 'mobile') || null,
-      password: formStr(formData, 'password') || null,
+      password: loginEnabled ? password : null,
       gender: (formStr(formData, 'gender') || 'unspecified') as 'unspecified',
       emergencyContact: formStr(formData, 'emergencyContact') || null,
       joiningDate: formStr(formData, 'joiningDate') || null,
@@ -59,11 +84,10 @@ export async function createWorkforceEmployeeAction(
       qrCodeUrl: formStr(formData, 'qrCodeUrl') || null,
       photoUrl: formStr(formData, 'photoUrl') || null,
       status: formStr(formData, 'status') === 'inactive' ? 'inactive' : 'active',
-      rank,
-      jobRole,
+      accessRole,
       permissions,
       maxBackdateDays,
-      canLogin: Boolean(formStr(formData, 'password')),
+      canLogin: loginEnabled,
       actorEmployeeId: session?.workforceEmployeeId ?? null,
     });
 
@@ -87,23 +111,27 @@ export async function updateWorkforceEmployeeAction(
     const id = formStr(formData, 'employeeId');
     if (!id) return { error: 'Missing employee' };
 
-    const rank = (formStr(formData, 'rank') || 'team_member') as WorkforceRank;
-    const jobRole = (formStr(formData, 'jobRole') || 'stylist') as WorkforceJobRole;
-    const perms = formData.getAll('permissions').map(String).filter((k) =>
-      (WORKFORCE_PERMISSION_KEYS as readonly string[]).includes(k),
-    ) as WorkforcePermissionKey[];
+    const accessRole = parseAccessRole(formStr(formData, 'accessRole'));
+    const perms = formData
+      .getAll('permissions')
+      .map(String)
+      .filter((k) => (WORKFORCE_PERMISSION_KEYS as readonly string[]).includes(k)) as WorkforcePermissionKey[];
     const backdateRaw = formStr(formData, 'maxBackdateDays');
     const maxBackdateDays =
       backdateRaw === '' || backdateRaw === 'unlimited'
-        ? rank === 'owner'
+        ? accessRole === 'owner'
           ? null
           : 0
         : Number(backdateRaw);
 
+    const loginEnabled = formData.get('loginEnabled') === '1';
+    const password = formStr(formData, 'password');
+
     await updateEmployee(id, {
       fullName: formStr(formData, 'fullName') || undefined,
+      email: formStr(formData, 'email') || null,
       mobile: formStr(formData, 'mobile') || null,
-      password: formStr(formData, 'password') || null,
+      password: password || null,
       gender: (formStr(formData, 'gender') || undefined) as 'unspecified' | undefined,
       emergencyContact: formStr(formData, 'emergencyContact') || null,
       joiningDate: formStr(formData, 'joiningDate') || null,
@@ -114,10 +142,10 @@ export async function updateWorkforceEmployeeAction(
         : undefined,
       upiId: formStr(formData, 'upiId') || null,
       status: formStr(formData, 'status') === 'inactive' ? 'inactive' : 'active',
-      rank,
-      jobRole,
+      accessRole,
       permissions: perms.length ? perms : undefined,
       maxBackdateDays,
+      canLogin: loginEnabled,
       actorEmployeeId: session?.workforceEmployeeId ?? null,
     });
 

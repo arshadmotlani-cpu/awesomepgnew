@@ -7,7 +7,7 @@ import { clockInAction, clockOutAction } from '@/src/workforce/actions/operation
 import { getCompensationSnapshot, listIncentives } from '@/src/workforce/services/compensation';
 import { normalizeCommissionType } from '@/src/workforce/lib/compensationMath';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
-import { workforceJobRoleLabel, workforceRankLabel } from '@/src/workforce/labels';
+import { workforceAccessRoleLabel } from '@/src/workforce/labels';
 import { logoutAction } from '@/src/hair/actions/auth';
 import { getStaffPerformanceSummary } from '@/src/hair/services/staffPerformance';
 import { salonDayBounds, salonMonthStartUtc } from '@/src/hair/lib/salonTime';
@@ -30,10 +30,9 @@ export default async function TeamMemberMePage() {
   }
 
   const salaryInr = (dash.employee.salaryPaise / 100).toLocaleString('en-IN');
-  const rankLabel = dash.membership ? workforceRankLabel(dash.membership.rank) : 'Staff';
-  const designation = dash.membership
-    ? workforceJobRoleLabel(dash.membership.jobRole)
-    : 'team member';
+  const accessRoleLabel = dash.membership
+    ? workforceAccessRoleLabel(dash.membership.jobRole)
+    : 'Team member';
   const today = new Date().toISOString().slice(0, 10);
   const todayAttendance = dash.recentAttendance.find((a) => a.workDate === today);
   const compensation = await getCompensationSnapshot(session.workforceEmployeeId, 'fyh_salon');
@@ -63,7 +62,7 @@ export default async function TeamMemberMePage() {
             <p className="text-sm text-fyh-text-secondary">Staff dashboard</p>
             <h1 className="text-3xl font-semibold">{dash.employee.fullName}</h1>
             <p className="text-sm text-fyh-text-secondary">
-              {rankLabel} · {designation}
+              {accessRoleLabel}
               {dash.employee.mobile ? ` · ${dash.employee.mobile}` : ''}
             </p>
           </div>

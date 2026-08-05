@@ -21,7 +21,6 @@ import {
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 import {
   findEmployeeByLegacyAdminId,
-  findEmployeeByMobile,
   listMemberships,
   resolvePermissions,
 } from '@/src/workforce/brains/employeeBrain';
@@ -29,9 +28,9 @@ import {
   createWorkforceSession,
   hairSessionCookieOptions as wfCookieOptions,
 } from '@/src/workforce/auth/session';
-import { normalizeMobile } from '@/src/workforce/auth/mobile';
+import { findEmployeeByLoginId } from '@/src/workforce/auth/identity';
 import { employeeToHairAdmin } from '@/src/workforce/compat/hairAdminBridge';
-import { defaultGrantsFor } from '@/src/workforce/permissions/presets';
+import { defaultGrantsForAccessRole } from '@/src/workforce/permissions/presets';
 
 export type LoginState = { error?: string };
 
@@ -53,13 +52,9 @@ export async function loginAction(
   }
 
   if (isWorkforceEngineEnabled()) {
-    const mobile = normalizeMobile(loginId);
-    const employee = mobile
-      ? await findEmployeeByMobile(mobile)
-      : null;
+    let emp = await findEmployeeByLoginId(loginId);
 
-    // Fallback: email on employee or legacy admin email during transition
-    let emp = employee;
+    // Fallback: legacy admin email during transition
     if (!emp && loginId.includes('@')) {
       const [byEmail] = await hairDb
         .select()
@@ -69,9 +64,8 @@ export async function loginAction(
       if (byEmail) {
         emp = await findEmployeeByLegacyAdminId(byEmail.id);
         if (emp && emp.passwordHash && verifyPassword(password, emp.passwordHash)) {
-          // ok
+          // workforce employee matched
         } else if (byEmail && verifyPassword(password, byEmail.passwordHash)) {
-          // Legacy admin still works if not migrated — fall through below
           emp = null;
         } else {
           return { error: 'Invalid credentials' };
@@ -114,7 +108,7 @@ export async function loginAction(
       const grants =
         (salon
           ? await resolvePermissions(emp.id, salon.engineId)
-          : null) ?? defaultGrantsFor(salon?.rank ?? 'team_member', salon?.jobRole ?? 'stylist');
+          : null) ?? defaultGrantsForAccessRole(salon?.jobRole ?? 'stylist');
       const admin = employeeToHairAdmin(emp, salon?.rank ?? 'team_member', grants);
       const home =
         salon?.rank === 'owner' || salon?.rank === 'manager'

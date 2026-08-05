@@ -5,6 +5,7 @@ import type {
   WorkforceRank,
 } from '@/src/workforce/types';
 import { WORKFORCE_PERMISSION_KEYS } from '@/src/workforce/types';
+import { normalizeAccessRole } from '@/src/workforce/accessRoles';
 
 const ALL = [...WORKFORCE_PERMISSION_KEYS] as WorkforcePermissionKey[];
 
@@ -38,16 +39,7 @@ const MANAGER_GRANTS: WorkforcePermissionGrants = {
   maxBackdateDays: 7,
 };
 
-const TEAM_MEMBER_STYLIST: WorkforcePermissionGrants = {
-  permissions: [
-    'appointments.receive_bookings',
-    'appointments.view_own',
-    'billing.create_invoice',
-  ],
-  maxBackdateDays: 0,
-};
-
-const TEAM_MEMBER_RECEPTION: WorkforcePermissionGrants = {
+const RECEPTIONIST_GRANTS: WorkforcePermissionGrants = {
   permissions: [
     'dashboard.view_customers',
     'appointments.receive_bookings',
@@ -61,44 +53,81 @@ const TEAM_MEMBER_RECEPTION: WorkforcePermissionGrants = {
   maxBackdateDays: 2,
 };
 
-const TEAM_MEMBER_NO_BOOKINGS: WorkforcePermissionGrants = {
+const SERVICE_PROVIDER_GRANTS: WorkforcePermissionGrants = {
+  permissions: [
+    'dashboard.view_customers',
+    'appointments.receive_bookings',
+    'appointments.view_own',
+  ],
+  maxBackdateDays: 0,
+};
+
+const ACCOUNTANT_GRANTS: WorkforcePermissionGrants = {
+  permissions: [
+    'billing.create_invoice',
+    'billing.edit_invoice',
+    'billing.backdate_invoice',
+    'finance.view_expenses',
+    'finance.view_profit',
+    'reports.view',
+    'reports.export',
+  ],
+  maxBackdateDays: 7,
+};
+
+const INVENTORY_MANAGER_GRANTS: WorkforcePermissionGrants = {
+  permissions: ['inventory.view', 'inventory.edit'],
+  maxBackdateDays: 0,
+};
+
+const ATTENDANCE_ONLY_GRANTS: WorkforcePermissionGrants = {
+  permissions: [],
+  maxBackdateDays: 0,
+};
+
+const INTERN_GRANTS: WorkforcePermissionGrants = {
   permissions: ['appointments.view_own'],
   maxBackdateDays: 0,
 };
 
+function cloneGrants(g: WorkforcePermissionGrants): WorkforcePermissionGrants {
+  return { permissions: [...g.permissions], maxBackdateDays: g.maxBackdateDays };
+}
+
+export function defaultGrantsForAccessRole(accessRole: WorkforceJobRole): WorkforcePermissionGrants {
+  const role = normalizeAccessRole(accessRole);
+  switch (role) {
+    case 'owner':
+      return cloneGrants(OWNER_GRANTS);
+    case 'manager':
+      return cloneGrants(MANAGER_GRANTS);
+    case 'receptionist':
+      return cloneGrants(RECEPTIONIST_GRANTS);
+    case 'stylist':
+    case 'barber':
+    case 'beautician':
+    case 'makeup_artist':
+    case 'nail_technician':
+    case 'hair_assistant':
+      return cloneGrants(SERVICE_PROVIDER_GRANTS);
+    case 'accountant':
+      return cloneGrants(ACCOUNTANT_GRANTS);
+    case 'inventory_manager':
+      return cloneGrants(INVENTORY_MANAGER_GRANTS);
+    case 'cleaner':
+      return cloneGrants(ATTENDANCE_ONLY_GRANTS);
+    case 'intern':
+      return cloneGrants(INTERN_GRANTS);
+    default:
+      return cloneGrants(SERVICE_PROVIDER_GRANTS);
+  }
+}
+
 export function defaultGrantsFor(
-  rank: WorkforceRank,
+  _rank: WorkforceRank,
   jobRole: WorkforceJobRole,
 ): WorkforcePermissionGrants {
-  if (rank === 'owner' || jobRole === 'owner') return { ...OWNER_GRANTS, permissions: [...OWNER_GRANTS.permissions] };
-  if (rank === 'manager' || jobRole === 'manager') {
-    return { ...MANAGER_GRANTS, permissions: [...MANAGER_GRANTS.permissions] };
-  }
-  if (jobRole === 'receptionist') {
-    return { ...TEAM_MEMBER_RECEPTION, permissions: [...TEAM_MEMBER_RECEPTION.permissions] };
-  }
-  if (jobRole === 'stylist') {
-    return { ...TEAM_MEMBER_STYLIST, permissions: [...TEAM_MEMBER_STYLIST.permissions] };
-  }
-  if (
-    jobRole === 'cleaner' ||
-    jobRole === 'housekeeping' ||
-    jobRole === 'security' ||
-    jobRole === 'driver' ||
-    jobRole === 'accountant'
-  ) {
-    const base = { ...TEAM_MEMBER_NO_BOOKINGS, permissions: [...TEAM_MEMBER_NO_BOOKINGS.permissions] };
-    if (jobRole === 'accountant') {
-      base.permissions.push(
-        'finance.view_expenses',
-        'reports.view',
-        'billing.create_invoice',
-        'billing.edit_invoice',
-      );
-    }
-    return base;
-  }
-  return { ...TEAM_MEMBER_STYLIST, permissions: [...TEAM_MEMBER_STYLIST.permissions] };
+  return defaultGrantsForAccessRole(jobRole);
 }
 
 export function hasWorkforcePermission(
@@ -127,8 +156,8 @@ export function mapLegacyHairPermissions(
   role: 'super_admin' | 'admin',
   legacyKeys: string[],
 ): WorkforcePermissionGrants {
-  if (role === 'super_admin') return defaultGrantsFor('owner', 'owner');
-  if (legacyKeys.length === 0) return defaultGrantsFor('manager', 'manager');
+  if (role === 'super_admin') return defaultGrantsForAccessRole('owner');
+  if (legacyKeys.length === 0) return defaultGrantsForAccessRole('manager');
 
   const mapped = new Set<WorkforcePermissionKey>();
   for (const k of legacyKeys) {

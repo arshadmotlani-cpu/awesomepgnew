@@ -2,6 +2,7 @@ import { asc, eq } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import { fyhStaff, type FyhCommissionType } from '@/src/hair/db/schema';
 import { listBookableStaffForSalon } from '@/src/hair/adapters/workforceStaffAdapter';
+import { normalizeMobile } from '@/src/workforce/auth/mobile';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 import { createEmployee } from '@/src/workforce/services/employees';
 import { listEmployeesForEngine } from '@/src/workforce/brains/employeeBrain';
@@ -75,16 +76,20 @@ export async function createStaffQuick(input: {
 
   if (isWorkforceEngineEnabled()) {
     const raw = (input.role ?? '').toLowerCase();
-    const jobRole = raw.includes('recept')
+    const accessRole = raw.includes('recept')
       ? 'receptionist'
       : raw.includes('manager')
         ? 'manager'
         : 'stylist';
+    const mobile = input.phone ? normalizeMobile(input.phone) : null;
+    const email = mobile
+      ? `${mobile.replace(/\D/g, '')}@staff.fyh.local`
+      : `staff-${crypto.randomUUID()}@staff.fyh.local`;
     const emp = await createEmployee({
       fullName,
+      email,
       mobile: input.phone,
-      jobRole,
-      rank: jobRole === 'manager' ? 'manager' : 'team_member',
+      accessRole,
       canLogin: false,
     });
     return {
@@ -93,7 +98,7 @@ export async function createStaffQuick(input: {
       phone: emp.mobile,
       email: emp.email,
       photoUrl: emp.photoUrl,
-      role: jobRole,
+      role: accessRole,
       joiningDate: emp.joiningDate,
       performanceTargetPaise: 0,
       isActive: true,

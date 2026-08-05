@@ -6,12 +6,14 @@ import { describe, test } from 'node:test';
 import { normalizeMobile } from '@/src/workforce/auth/mobile';
 import {
   defaultGrantsFor,
+  defaultGrantsForAccessRole,
   hasWorkforcePermission,
   mapLegacyHairPermissions,
 } from '@/src/workforce/permissions/presets';
 import { workforceGrantsToHairPermissions } from '@/src/workforce/compat/hairAdminBridge';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
-import { workforceJobRoleLabel, workforceRankLabel } from '@/src/workforce/labels';
+import { workforceAccessRoleLabel, workforceRankLabel } from '@/src/workforce/labels';
+import { normalizeEmail } from '@/src/workforce/auth/identity';
 
 describe('Workforce permissions', () => {
   test('owner gets all permissions and unlimited backdate', () => {
@@ -82,9 +84,38 @@ describe('Workforce labels', () => {
     assert.equal(workforceRankLabel('team_member'), 'Staff');
   });
 
-  test('designation labels cover job roles', () => {
-    assert.equal(workforceJobRoleLabel('stylist'), 'Stylist');
-    assert.equal(workforceJobRoleLabel('receptionist'), 'Receptionist');
+  test('access role labels cover ERP roles', () => {
+    assert.equal(workforceAccessRoleLabel('stylist'), 'Stylist');
+    assert.equal(workforceAccessRoleLabel('receptionist'), 'Receptionist');
+    assert.equal(workforceAccessRoleLabel('makeup_artist'), 'Makeup Artist');
+  });
+});
+
+describe('Workforce access role identity', () => {
+  test('normalizeEmail lowercases and validates', () => {
+    assert.equal(normalizeEmail('  User@Example.COM '), 'user@example.com');
+    assert.equal(normalizeEmail('not-an-email'), null);
+  });
+});
+
+describe('Workforce access role permissions', () => {
+  test('receptionist gets customers appointments billing', () => {
+    const g = defaultGrantsForAccessRole('receptionist');
+    assert.ok(hasWorkforcePermission(g, 'billing.create_invoice'));
+    assert.ok(hasWorkforcePermission(g, 'appointments.view_all'));
+    assert.equal(hasWorkforcePermission(g, 'settings.manage'), false);
+  });
+
+  test('accountant gets billing and reports', () => {
+    const g = defaultGrantsForAccessRole('accountant');
+    assert.ok(hasWorkforcePermission(g, 'reports.view'));
+    assert.equal(hasWorkforcePermission(g, 'appointments.view_all'), false);
+  });
+
+  test('inventory manager is inventory only', () => {
+    const g = defaultGrantsForAccessRole('inventory_manager');
+    assert.ok(hasWorkforcePermission(g, 'inventory.view'));
+    assert.equal(hasWorkforcePermission(g, 'billing.create_invoice'), false);
   });
 });
 
@@ -98,6 +129,7 @@ describe('Workforce Add Employee popup', () => {
     );
     for (const name of [
       'fullName',
+      'email',
       'mobile',
       'password',
       'gender',
@@ -108,13 +140,18 @@ describe('Workforce Add Employee popup', () => {
       'panNumber',
       'upiId',
       'qrCodeUrl',
-      'jobRole',
+      'accessRole',
+      'loginEnabled',
     ]) {
       assert.match(src, new RegExp(`name="${name}"`));
     }
     assert.match(src, /Full Name/);
+    assert.match(src, /Email Address/);
     assert.match(src, /Phone Number/);
-    assert.match(src, /Designation/);
+    assert.match(src, /Access Role/);
+    assert.doesNotMatch(src, /name="rank"/);
+    assert.doesNotMatch(src, /name="jobRole"/);
+    assert.doesNotMatch(src, /Designation/);
     assert.match(src, /role="dialog"/);
     assert.match(src, /type="file"/);
     assert.match(src, /receiveBookings/);

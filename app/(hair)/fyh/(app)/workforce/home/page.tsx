@@ -15,7 +15,7 @@ import {
   type RoleNavLink,
   workforceHomePathForRank,
 } from '@/src/workforce/dashboards/roleHome';
-import { workforceJobRoleLabel, workforceRankLabel } from '@/src/workforce/labels';
+import { workforceAccessRoleLabel } from '@/src/workforce/labels';
 import { hasWorkforcePermission } from '@/src/workforce/permissions/presets';
 import { isWorkforceEngineEnabled, type WorkforcePermissionKey } from '@/src/workforce/types';
 
@@ -75,7 +75,7 @@ export default async function WorkforceRoleHomePage() {
           <p className="text-sm text-fyh-text-secondary">{title}</p>
           <h1 className="text-3xl font-semibold text-fyh-text">{dash.employee.fullName}</h1>
           <p className="text-sm text-fyh-text-secondary">
-            {workforceRankLabel(rank)} · {workforceJobRoleLabel(dash.membership.jobRole)}
+            {workforceAccessRoleLabel(dash.membership.jobRole)}
             {dash.employee.mobile ? ` · ${dash.employee.mobile}` : ''}
           </p>
         </div>
@@ -172,8 +172,7 @@ export default async function WorkforceRoleHomePage() {
               <li key={row.employee.id} className="flex justify-between gap-3 py-2">
                 <span className="font-medium text-fyh-text">{row.employee.fullName}</span>
                 <span className="text-fyh-text-secondary">
-                  {workforceRankLabel(row.membership.rank)} ·{' '}
-                  {workforceJobRoleLabel(row.membership.jobRole)}
+                  {workforceAccessRoleLabel(row.membership.jobRole)}
                 </span>
               </li>
             ))}

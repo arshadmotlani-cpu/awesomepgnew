@@ -5,8 +5,8 @@ import {
   createWorkforceEmployeeAction,
   type WorkforceActionState,
 } from '@/src/workforce/actions/employees';
-import { WORKFORCE_JOB_ROLES, WORKFORCE_PERMISSION_KEYS, WORKFORCE_RANKS } from '@/src/workforce/types';
-import { workforceJobRoleLabel, workforceRankLabel } from '@/src/workforce/labels';
+import { WORKFORCE_ACCESS_ROLES, WORKFORCE_PERMISSION_KEYS } from '@/src/workforce/types';
+import { workforceAccessRoleLabel } from '@/src/workforce/labels';
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
 
@@ -69,6 +69,7 @@ export function AddEmployeePopup() {
   const [open, setOpen] = useState(false);
   const [qrPreview, setQrPreview] = useState<string | null>(null);
   const [receiveBookings, setReceiveBookings] = useState(true);
+  const [loginEnabled, setLoginEnabled] = useState(false);
   const [state, action, pending] = useActionState(createWorkforceEmployeeAction, initial);
   const [, startTransition] = useTransition();
 
@@ -77,6 +78,7 @@ export function AddEmployeePopup() {
       setOpen(false);
       setQrPreview(null);
       setReceiveBookings(true);
+      setLoginEnabled(false);
     }
   }, [state.success]);
 
@@ -127,7 +129,7 @@ export function AddEmployeePopup() {
                       Add employee
                     </h2>
                     <p className="text-xs text-fyh-text-secondary">
-                      Workforce profile — phone + password for login when needed.
+                      Workforce profile — email or phone + password when login is enabled.
                     </p>
                   </div>
                   <button
@@ -156,6 +158,17 @@ export function AddEmployeePopup() {
                       <Input name="fullName" required autoFocus className={inputClass} />
                     </label>
                     <label className="space-y-1 text-sm">
+                      <span className="font-medium">Email Address</span>
+                      <Input
+                        name="email"
+                        type="email"
+                        autoComplete="email"
+                        required
+                        placeholder="name@example.com"
+                        className={inputClass}
+                      />
+                    </label>
+                    <label className="space-y-1 text-sm">
                       <span className="font-medium">Phone Number</span>
                       <Input
                         name="mobile"
@@ -165,14 +178,46 @@ export function AddEmployeePopup() {
                       />
                     </label>
                     <label className="space-y-1 text-sm">
-                      <span className="font-medium">Password</span>
-                      <Input
-                        name="password"
-                        type="password"
-                        autoComplete="new-password"
-                        className={inputClass}
-                      />
+                      <span className="font-medium">Access Role</span>
+                      <select name="accessRole" className={fieldClass} defaultValue="stylist">
+                        {WORKFORCE_ACCESS_ROLES.map((r) => (
+                          <option key={r} value={r}>
+                            {workforceAccessRoleLabel(r)}
+                          </option>
+                        ))}
+                      </select>
                     </label>
+                    <label className="flex items-center gap-3 sm:col-span-2 rounded-lg border border-[color:var(--fyh-border)] bg-[color:var(--fyh-bg-surface)] px-3 py-3 text-sm">
+                      <input
+                        type="checkbox"
+                        name="loginEnabled"
+                        value="1"
+                        checked={loginEnabled}
+                        onChange={(e) => setLoginEnabled(e.target.checked)}
+                        className="h-4 w-4"
+                      />
+                      <span>
+                        <span className="font-medium">Login enabled</span>
+                        <span className="block text-xs text-fyh-text-secondary">
+                          Employee can sign in with email or phone + password
+                        </span>
+                      </span>
+                    </label>
+                    {loginEnabled ? (
+                      <label className="space-y-1 text-sm sm:col-span-2">
+                        <span className="font-medium">Password</span>
+                        <Input
+                          name="password"
+                          type="password"
+                          autoComplete="new-password"
+                          minLength={6}
+                          required
+                          className={inputClass}
+                        />
+                      </label>
+                    ) : (
+                      <input type="hidden" name="password" value="" />
+                    )}
                     <label className="space-y-1 text-sm">
                       <span className="font-medium">Gender</span>
                       <select name="gender" className={fieldClass} defaultValue="unspecified">
@@ -252,26 +297,6 @@ export function AddEmployeePopup() {
                         </p>
                       )}
                     </label>
-                    <label className="space-y-1 text-sm">
-                      <span className="font-medium">Designation</span>
-                      <select name="jobRole" className={fieldClass} defaultValue="stylist">
-                        {WORKFORCE_JOB_ROLES.map((r) => (
-                          <option key={r} value={r}>
-                            {workforceJobRoleLabel(r)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="space-y-1 text-sm">
-                      <span className="font-medium">Rank</span>
-                      <select name="rank" className={fieldClass} defaultValue="team_member">
-                        {WORKFORCE_RANKS.map((r) => (
-                          <option key={r} value={r}>
-                            {workforceRankLabel(r)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
                     <label className="flex items-center gap-3 sm:col-span-2 rounded-lg border border-[color:var(--fyh-border)] bg-[color:var(--fyh-bg-surface)] px-3 py-3 text-sm">
                       <input
                         type="checkbox"
@@ -295,7 +320,7 @@ export function AddEmployeePopup() {
                       Permission matrix (optional overrides)
                     </summary>
                     <p className="mt-2 text-xs text-fyh-text-secondary">
-                      Leave unchecked to use rank/designation defaults ({WORKFORCE_PERMISSION_KEYS.length}{' '}
+                      Leave unchecked to use access role defaults ({WORKFORCE_PERMISSION_KEYS.length}{' '}
                       keys). Bookable is controlled by the toggle above.
                     </p>
                     <div className="mt-3 space-y-3">

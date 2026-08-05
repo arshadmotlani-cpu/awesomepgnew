@@ -9,21 +9,23 @@ import {
   wfSchedules,
 } from '@/src/workforce/db/schema';
 import { normalizeMobile } from '@/src/workforce/auth/mobile';
+import { normalizeEmail } from '@/src/workforce/auth/identity';
+import { rankFromAccessRole } from '@/src/workforce/accessRoles';
 import { publishEmployeeEvent } from '@/src/workforce/events/publish';
 import { writeEmployeeAudit } from '@/src/workforce/brains/employeeBrain';
 import { publishWorkforceEcosystemRefresh } from '@/src/workforce/connectors/ecosystemRefresh';
-import { defaultGrantsFor } from '@/src/workforce/permissions/presets';
+import { defaultGrantsForAccessRole } from '@/src/workforce/permissions/presets';
 import type {
   WorkforceEngineId,
   WorkforceGender,
   WorkforceJobRole,
   WorkforcePermissionKey,
-  WorkforceRank,
 } from '@/src/workforce/types';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 
 export type UpsertEmployeeInput = {
   fullName: string;
+  email?: string | null;
   mobile?: string | null;
   password?: string | null;
   gender?: WorkforceGender;
@@ -37,7 +39,9 @@ export type UpsertEmployeeInput = {
   photoUrl?: string | null;
   status?: 'active' | 'inactive';
   engineId?: WorkforceEngineId;
-  rank?: WorkforceRank;
+  /** Access role — stored as job_role; drives ERP permissions. */
+  accessRole?: WorkforceJobRole;
+  /** @deprecated Use accessRole */
   jobRole?: WorkforceJobRole;
   permissions?: WorkforcePermissionKey[];
   maxBackdateDays?: number | null;
@@ -47,14 +51,47 @@ export type UpsertEmployeeInput = {
   id?: string;
 };
 
+async function assertUniqueEmployeeIdentity(input: {
+  email?: string | null;
+  mobile?: string | null;
+  excludeEmployeeId?: string;
+}) {
+  const email = input.email ? normalizeEmail(input.email) : null;
+  const mobile = input.mobile ? normalizeMobile(input.mobile) : null;
+
+  if (email) {
+    const [existing] = await hairDb
+      .select({ id: wfEmployees.id })
+      .from(wfEmployees)
+      .where(eq(wfEmployees.email, email))
+      .limit(1);
+    if (existing && existing.id !== input.excludeEmployeeId) {
+      throw new Error('An employee with this email already exists.');
+    }
+  }
+
+  if (mobile) {
+    const [existing] = await hairDb
+      .select({ id: wfEmployees.id })
+      .from(wfEmployees)
+      .where(eq(wfEmployees.mobile, mobile))
+      .limit(1);
+    if (existing && existing.id !== input.excludeEmployeeId) {
+      throw new Error('An employee with this phone number already exists.');
+    }
+  }
+}
+
 async function mirrorSalonStaffRow(employeeId: string, input: UpsertEmployeeInput) {
   if (!isWorkforceEngineEnabled()) return;
+  const accessRole = input.accessRole ?? input.jobRole ?? 'stylist';
   const [existing] = await hairDb.select().from(fyhStaff).where(eq(fyhStaff.id, employeeId)).limit(1);
   const values = {
     fullName: input.fullName,
     phone: input.mobile ? normalizeMobile(input.mobile) : null,
+    email: input.email ? normalizeEmail(input.email) : null,
     photoUrl: input.photoUrl ?? null,
-    role: input.jobRole ?? 'stylist',
+    role: accessRole,
     joiningDate: input.joiningDate ?? null,
     isActive: (input.status ?? 'active') === 'active',
     updatedAt: new Date(),
@@ -65,7 +102,6 @@ async function mirrorSalonStaffRow(employeeId: string, input: UpsertEmployeeInpu
     await hairDb.insert(fyhStaff).values({
       id: employeeId,
       ...values,
-      email: null,
       performanceTargetPaise: 0,
       defaultCommissionType: 'none',
       defaultCommissionFixedPaise: 0,
@@ -76,25 +112,36 @@ async function mirrorSalonStaffRow(employeeId: string, input: UpsertEmployeeInpu
 
 export async function createEmployee(input: UpsertEmployeeInput) {
   const engineId = input.engineId ?? 'fyh_salon';
-  const rank = input.rank ?? 'team_member';
-  const jobRole = input.jobRole ?? 'stylist';
-  const grants = defaultGrantsFor(rank, jobRole);
+  const accessRole = input.accessRole ?? input.jobRole ?? 'stylist';
+  const rank = rankFromAccessRole(accessRole);
+  const grants = defaultGrantsForAccessRole(accessRole);
   if (input.permissions) grants.permissions = input.permissions;
   if (input.maxBackdateDays !== undefined) grants.maxBackdateDays = input.maxBackdateDays;
 
+  const email = input.email ? normalizeEmail(input.email) : null;
   const mobile = input.mobile ? normalizeMobile(input.mobile) : null;
+  if (!email) throw new Error('Email address is required.');
+  await assertUniqueEmployeeIdentity({ email, mobile });
+
+  const canLogin = input.canLogin ?? false;
+  if (canLogin && (!input.password || input.password.length < 6)) {
+    throw new Error('Password is required (min 6 characters) when login is enabled.');
+  }
+
   const passwordHash =
-    input.password && input.password.length >= 6 ? hashPassword(input.password) : null;
-  const canLogin = input.canLogin ?? Boolean(passwordHash);
+    canLogin && input.password && input.password.length >= 6
+      ? hashPassword(input.password)
+      : null;
 
   const [emp] = await hairDb
     .insert(wfEmployees)
     .values({
       id: input.id,
       fullName: input.fullName.trim(),
+      email,
       mobile,
       passwordHash,
-      canLogin,
+      canLogin: canLogin && Boolean(passwordHash),
       gender: input.gender ?? 'unspecified',
       emergencyContact: input.emergencyContact ?? null,
       joiningDate: input.joiningDate ?? null,
@@ -114,7 +161,7 @@ export async function createEmployee(input: UpsertEmployeeInput) {
       employeeId: emp!.id,
       engineId,
       rank,
-      jobRole,
+      jobRole: accessRole,
       isActive: true,
     })
     .returning();
@@ -125,12 +172,12 @@ export async function createEmployee(input: UpsertEmployeeInput) {
     maxBackdateDays: grants.maxBackdateDays,
   });
 
-  await mirrorSalonStaffRow(emp!.id, { ...input, jobRole });
+  await mirrorSalonStaffRow(emp!.id, { ...input, accessRole });
   await writeEmployeeAudit({
     employeeId: emp!.id,
     actorEmployeeId: input.actorEmployeeId,
     action: 'employee.created',
-    diff: { engineId, rank, jobRole },
+    diff: { engineId, accessRole, rank },
   });
   await publishEmployeeEvent({
     eventType: 'employee.created',
@@ -152,6 +199,7 @@ export async function updateEmployee(
   const engineId = input.engineId ?? 'fyh_salon';
   const patch: Partial<typeof wfEmployees.$inferInsert> = { updatedAt: new Date() };
   if (input.fullName !== undefined) patch.fullName = input.fullName.trim();
+  if (input.email !== undefined) patch.email = input.email ? normalizeEmail(input.email) : null;
   if (input.mobile !== undefined) patch.mobile = input.mobile ? normalizeMobile(input.mobile) : null;
   if (input.gender !== undefined) patch.gender = input.gender;
   if (input.emergencyContact !== undefined) patch.emergencyContact = input.emergencyContact;
@@ -169,6 +217,12 @@ export async function updateEmployee(
   }
   if (input.canLogin !== undefined) patch.canLogin = input.canLogin;
 
+  await assertUniqueEmployeeIdentity({
+    email: input.email,
+    mobile: input.mobile,
+    excludeEmployeeId: employeeId,
+  });
+
   await hairDb.update(wfEmployees).set(patch).where(eq(wfEmployees.id, employeeId));
 
   const [mem] = await hairDb
@@ -179,15 +233,22 @@ export async function updateEmployee(
     )
     .limit(1);
 
-  if (mem && (input.rank || input.jobRole || input.permissions || input.maxBackdateDays !== undefined)) {
-    const rank = input.rank ?? mem.rank;
-    const jobRole = input.jobRole ?? mem.jobRole;
+  const accessRole = input.accessRole ?? input.jobRole;
+
+  if (
+    mem &&
+    (accessRole ||
+      input.permissions ||
+      input.maxBackdateDays !== undefined)
+  ) {
+    const role = accessRole ?? mem.jobRole;
+    const rank = rankFromAccessRole(role);
     await hairDb
       .update(wfEngineMemberships)
-      .set({ rank, jobRole, updatedAt: new Date() })
+      .set({ rank, jobRole: role, updatedAt: new Date() })
       .where(eq(wfEngineMemberships.id, mem.id));
 
-    const grants = defaultGrantsFor(rank, jobRole);
+    const grants = defaultGrantsForAccessRole(role);
     if (input.permissions) grants.permissions = input.permissions;
     if (input.maxBackdateDays !== undefined) grants.maxBackdateDays = input.maxBackdateDays;
 
@@ -248,9 +309,10 @@ export async function updateEmployee(
   }
   await mirrorSalonStaffRow(employeeId, {
     fullName,
+    email: input.email,
     mobile: input.mobile,
     photoUrl: input.photoUrl,
-    jobRole: input.jobRole,
+    accessRole: accessRole ?? mem?.jobRole,
     status: input.status,
     joiningDate: input.joiningDate,
   });

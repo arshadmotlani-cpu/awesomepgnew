@@ -46,6 +46,7 @@ export const wfEmployees = pgTable(
   },
   (t) => [
     uniqueIndex('wf_employees_mobile_uidx').on(t.mobile),
+    uniqueIndex('wf_employees_email_uidx').on(t.email),
     index('wf_employees_status_idx').on(t.status),
     index('wf_employees_legacy_admin_idx').on(t.legacyAdminUserId),
   ],

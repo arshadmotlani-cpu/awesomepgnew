@@ -15,7 +15,7 @@ import { listBookableEmployees } from '@/src/workforce/services/appointmentsBrid
 import { listIncentives, listPayrollRuns } from '@/src/workforce/services/compensation';
 import { getEmployeeSchedule } from '@/src/workforce/services/schedules';
 import { WorkingHoursEditor } from '@/src/workforce/components/WorkingHoursEditor';
-import { workforceJobRoleLabel, workforceRankLabel } from '@/src/workforce/labels';
+import { workforceAccessRoleLabel } from '@/src/workforce/labels';
 import { hasWorkforcePermission } from '@/src/workforce/permissions/presets';
 import { isWorkforceEngineEnabled, type WorkforceJobRole } from '@/src/workforce/types';
 
@@ -81,7 +81,7 @@ export default async function WorkforceOperationsPage() {
             <li key={b.employeeId} className="flex justify-between gap-3 py-2">
               <span className="font-medium text-fyh-text">{b.fullName}</span>
               <span className="text-fyh-text-secondary">
-                {workforceJobRoleLabel(b.jobRole as WorkforceJobRole)} · target ₹
+                {workforceAccessRoleLabel(b.jobRole as WorkforceJobRole)} · target ₹
                 {(b.performanceTargetPaise / 100).toLocaleString('en-IN')}
               </span>
             </li>
