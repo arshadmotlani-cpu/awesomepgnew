@@ -256,22 +256,23 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-05 18:00:12 UTC
+### Pending pre-commit sync · 2026-08-05 19:10:10 UTC
 
-**Areas touched:** [[ROUTES]], [[Billing]], [[Residents]]
+**Areas touched:** [[DATABASE]], [[Residents]], [[Electricity]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `DATABASE.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (3):**
-- `app/(admin)/admin/pgs/[pgId]/rooms/page.tsx`
-- `src/lib/billing/roomElectricityPendingAdmin.ts`
-- `src/lib/residents/residentElectricityBillingState.ts`
+**Staged code files (5):**
+- `src/db/migrations/0141_electricity_late_fee_waived.sql`
+- `src/db/schema/electricityInvoices.ts`
+- `src/lib/residents/residentElectricityAccount.ts`
+- `src/lib/residents/residentPortalBillRows.ts`
+- `src/services/electricityBilling.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

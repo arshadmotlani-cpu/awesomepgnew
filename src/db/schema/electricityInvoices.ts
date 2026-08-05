@@ -57,6 +57,8 @@ export const electricityInvoices = pgTable(
     amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
     paidPaise: bigint('paid_paise', { mode: 'number' }).notNull().default(0),
     lateFeeLockedPaise: bigint('late_fee_locked_paise', { mode: 'number' }),
+    /** Skip late-fee accrual — resident never had fair opportunity to pay. */
+    lateFeeWaived: boolean('late_fee_waived').notNull().default(false),
     status: electricityInvoiceStatusEnum('status').notNull().default('pending'),
     paymentId: uuid('payment_id').references(() => payments.id, {
       onDelete: 'set null',

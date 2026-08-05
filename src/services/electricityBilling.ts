@@ -207,16 +207,19 @@ export function projectElectricityInvoice(
     };
   }
   const issueDate = electricityInvoiceIssueDate(invoice);
-  const accrued = computeElectricityLateFee({
-    amountPaise: invoice.amountPaise,
-    issueDate,
-    today,
-  });
-  const chargeableDays = chargeableLateFeeDaysFromIssue(issueDate, today);
+  const lateFeeWaived = invoice.lateFeeWaived === true;
+  const accrued = lateFeeWaived
+    ? 0
+    : computeElectricityLateFee({
+        amountPaise: invoice.amountPaise,
+        issueDate,
+        today,
+      });
+  const chargeableDays = lateFeeWaived ? 0 : chargeableLateFeeDaysFromIssue(issueDate, today);
   const projectionFields = {
     graceEndDate: formatDate(graceEndDateFromIssue(issueDate)),
-    lateFeePercent: lateFeePercentFromIssue(issueDate, today),
-    daysUntilLateFee: daysUntilLateFeeFromIssue(issueDate, today),
+    lateFeePercent: lateFeeWaived ? 0 : lateFeePercentFromIssue(issueDate, today),
+    daysUntilLateFee: lateFeeWaived ? undefined : daysUntilLateFeeFromIssue(issueDate, today),
   };
   const outstandingPaise = Math.max(0, invoice.amountPaise + accrued - invoice.paidPaise);
   const hasPartial = outstandingPaise > 0 && invoice.paidPaise > 0;

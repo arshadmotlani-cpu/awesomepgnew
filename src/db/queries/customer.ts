@@ -1689,6 +1689,7 @@ export type ElectricityInvoiceRow = {
   amountPaise: number;
   paidPaise: number;
   lateFeeLockedPaise: number | null;
+  lateFeeWaived: boolean;
   status: 'pending' | 'paid' | 'cancelled';
   paidAt: Date | null;
   paymentProofUrl: string | null;
@@ -1725,6 +1726,7 @@ export function listElectricityInvoicesForBooking(
         amountPaise: electricityInvoices.amountPaise,
         paidPaise: electricityInvoices.paidPaise,
         lateFeeLockedPaise: electricityInvoices.lateFeeLockedPaise,
+        lateFeeWaived: electricityInvoices.lateFeeWaived,
         status: electricityInvoices.status,
         paidAt: electricityInvoices.paidAt,
         paymentProofUrl: electricityInvoices.paymentProofUrl,

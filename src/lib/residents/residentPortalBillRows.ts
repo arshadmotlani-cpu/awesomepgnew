@@ -246,6 +246,7 @@ export function buildResidentBillRowsFromDetail(
         isPipelineTest: false,
         createdAt: e.createdAt,
         updatedAt: e.updatedAt,
+        lateFeeWaived: e.lateFeeWaived ?? false,
       });
       const outstanding = projected.outstandingPaise;
       if (outstanding <= 0) continue;

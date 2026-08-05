@@ -21,6 +21,7 @@ export const electricityInvoiceLegacySelect = {
   amountPaise: electricityInvoices.amountPaise,
   paidPaise: electricityInvoices.paidPaise,
   lateFeeLockedPaise: electricityInvoices.lateFeeLockedPaise,
+  lateFeeWaived: electricityInvoices.lateFeeWaived,
   status: electricityInvoices.status,
   paymentId: electricityInvoices.paymentId,
   paidAt: electricityInvoices.paidAt,
@@ -47,6 +48,7 @@ export type ElectricityInvoiceLegacyRow = {
   amountPaise: number;
   paidPaise: number;
   lateFeeLockedPaise: number | null;
+  lateFeeWaived: boolean;
   status: 'pending' | 'paid' | 'cancelled';
   paymentId: string | null;
   paidAt: Date | null;

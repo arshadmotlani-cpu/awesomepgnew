@@ -10,3 +10,8 @@ export {
   resolveNextElectricityBillStatus,
   residentElectricityPendingMessage,
 } from '@/src/roomOs/engines/electricity/resolveNextElectricityBillStatus';
+export {
+  buildRoomElectricitySettlementSnapshot,
+  type RoomElectricitySettlementSnapshot,
+  type RoomElectricityResidentSettlementRow,
+} from '@/src/roomOs/engines/electricity/buildRoomElectricitySettlement';
