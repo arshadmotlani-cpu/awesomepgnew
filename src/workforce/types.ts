@@ -79,7 +79,14 @@ export const RANK_ORDER: Record<WorkforceRank, number> = {
   team_member: 10,
 };
 
+/**
+ * Workforce is ON by default so FYH surfaces the permanent employee system.
+ * Opt out explicitly: WORKFORCE_ENGINE=0 | false | off
+ */
 export function isWorkforceEngineEnabled(): boolean {
-  const v = (process.env.WORKFORCE_ENGINE ?? '').trim().toLowerCase();
+  const raw = process.env.WORKFORCE_ENGINE;
+  if (raw === undefined || raw.trim() === '') return true;
+  const v = raw.trim().toLowerCase();
+  if (v === '0' || v === 'false' || v === 'off' || v === 'no') return false;
   return v === '1' || v === 'true' || v === 'on';
 }

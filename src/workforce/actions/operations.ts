@@ -63,6 +63,40 @@ export async function seedDefaultScheduleAction(
   }
 }
 
+export async function saveWeeklyScheduleAction(
+  formData: FormData,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const actorId = await requireActor();
+    const employeeId = String(formData.get('employeeId') ?? '');
+    if (!employeeId) return { ok: false, error: 'Missing employee' };
+    const canEdit =
+      actorId === employeeId ||
+      (await employeeHasPermission(actorId, 'fyh_salon', 'staff.edit'));
+    if (!canEdit) return { ok: false, error: 'Not allowed' };
+
+    const days = [];
+    for (let dow = 0; dow <= 6; dow++) {
+      days.push({
+        dayOfWeek: dow,
+        startTime: String(formData.get(`day_${dow}_start`) ?? '10:00'),
+        endTime: String(formData.get(`day_${dow}_end`) ?? '19:00'),
+        isOff: formData.get(`day_${dow}_off`) === '1',
+      });
+    }
+    await upsertEmployeeWeeklySchedule({
+      employeeId,
+      days,
+      actorEmployeeId: actorId,
+    });
+    revalidatePath('/workforce/operations');
+    revalidatePath('/me');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Schedule save failed' };
+  }
+}
+
 export async function setCommissionAction(formData: FormData): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const actorId = await requireActor();

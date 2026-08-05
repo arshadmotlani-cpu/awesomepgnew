@@ -25,7 +25,6 @@ const PERMISSION_GROUPS: Array<{ title: string; keys: string[] }> = [
   {
     title: 'Appointments',
     keys: [
-      'appointments.receive_bookings',
       'appointments.view_own',
       'appointments.view_all',
       'appointments.edit',
@@ -61,18 +60,21 @@ const fieldClass =
   'w-full rounded-md border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] px-3 py-2 text-sm text-fyh-text';
 
 /**
- * Phase 2 — Add Employee popup (modal).
- * Primary fields match the Workforce v1 product form; permissions optional.
+ * Add Employee popup — Workforce v1 product form.
  */
 export function AddEmployeePopup() {
   const titleId = useId();
   const [open, setOpen] = useState(false);
+  const [qrPreview, setQrPreview] = useState<string | null>(null);
+  const [receiveBookings, setReceiveBookings] = useState(true);
   const [state, action, pending] = useActionState(createWorkforceEmployeeAction, initial);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
     if (state.success) {
       setOpen(false);
+      setQrPreview(null);
+      setReceiveBookings(true);
     }
   }, [state.success]);
 
@@ -181,9 +183,42 @@ export function AddEmployeePopup() {
                   <span className="font-medium">UPI ID</span>
                   <Input name="upiId" placeholder="name@upi" />
                 </label>
-                <label className="space-y-1 text-sm">
+                <label className="space-y-1 text-sm sm:col-span-2">
                   <span className="font-medium">QR Code</span>
-                  <Input name="qrCodeUrl" placeholder="https://… or storage URL" />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className={fieldClass}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) {
+                        setQrPreview(null);
+                        return;
+                      }
+                      if (file.size > 800_000) {
+                        alert('QR image must be under 800KB');
+                        e.target.value = '';
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+                        setQrPreview(dataUrl);
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                  <input type="hidden" name="qrCodeUrl" value={qrPreview ?? ''} />
+                  {qrPreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={qrPreview}
+                      alt="QR preview"
+                      className="mt-2 h-24 w-24 rounded-md border object-contain"
+                    />
+                  ) : (
+                    <p className="mt-1 text-xs text-fyh-text-secondary">Upload QR image (stored on profile)</p>
+                  )}
                 </label>
                 <label className="space-y-1 text-sm">
                   <span className="font-medium">Designation</span>
@@ -205,15 +240,31 @@ export function AddEmployeePopup() {
                     ))}
                   </select>
                 </label>
+                <label className="flex items-center gap-3 sm:col-span-2 rounded-lg border border-[color:var(--fyh-border)] px-3 py-3 text-sm">
+                  <input
+                    type="checkbox"
+                    name="receiveBookings"
+                    value="1"
+                    checked={receiveBookings}
+                    onChange={(e) => setReceiveBookings(e.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  <span>
+                    <span className="font-medium">Appointment bookable</span>
+                    <span className="block text-xs text-fyh-text-secondary">
+                      Can receive salon appointments on the calendar
+                    </span>
+                  </span>
+                </label>
               </div>
 
               <details className="rounded-lg border border-[color:var(--fyh-border)] p-3">
                 <summary className="cursor-pointer text-sm font-medium text-fyh-text">
-                  Advanced — permissions (optional)
+                  Permission matrix (optional overrides)
                 </summary>
                 <p className="mt-2 text-xs text-fyh-text-secondary">
                   Leave unchecked to use rank/designation defaults ({WORKFORCE_PERMISSION_KEYS.length}{' '}
-                  keys).
+                  keys). Bookable is controlled by the toggle above.
                 </p>
                 <div className="mt-3 space-y-3">
                   {PERMISSION_GROUPS.map((g) => (

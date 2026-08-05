@@ -5,6 +5,10 @@ import { listBookableServices } from '@/src/hair/services/salonServices';
 import { listBookableStaff } from '@/src/hair/services/staff';
 import { getSalonSettings } from '@/src/hair/services/settings';
 import { parseHm, salonDayBounds, zonedLocalToUtc } from '@/src/hair/lib/salonTime';
+import { getHairSession } from '@/src/hair/lib/auth/session';
+import { resolvePermissions } from '@/src/workforce/brains/employeeBrain';
+import { hasWorkforcePermission } from '@/src/workforce/permissions/presets';
+import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -35,13 +39,30 @@ export default async function AppointmentsPage({ searchParams }: Props) {
   const rangeStart = new Date(dayStart.getTime() - 7 * 24 * 60 * 60 * 1000);
   const rangeEnd = new Date(dayStart.getTime() + 8 * 24 * 60 * 60 * 1000);
 
+  let staffScopeId: string | null = null;
+  if (isWorkforceEngineEnabled()) {
+    const session = await getHairSession();
+    if (session?.workforceEmployeeId) {
+      const grants = await resolvePermissions(session.workforceEmployeeId, 'fyh_salon');
+      const canAll = hasWorkforcePermission(grants, 'appointments.view_all');
+      const canOwn = hasWorkforcePermission(grants, 'appointments.view_own');
+      if (canOwn && !canAll) {
+        staffScopeId = session.workforceEmployeeId;
+      }
+    }
+  }
+
   const [appointments, staff, resources, customers, services] = await Promise.all([
-    listAppointmentsInRange(rangeStart, rangeEnd),
+    listAppointmentsInRange(rangeStart, rangeEnd, { staffId: staffScopeId }),
     listBookableStaff(),
     listResources(),
     listCustomers(),
     listBookableServices(),
   ]);
+
+  const scopedStaff = staffScopeId
+    ? staff.filter((s) => s.id === staffScopeId)
+    : staff;
 
   const serialized = appointments.map((a) => ({
     ...a,
@@ -50,26 +71,33 @@ export default async function AppointmentsPage({ searchParams }: Props) {
   }));
 
   return (
-    <AppointmentsCalendar
-      initialAppointments={serialized}
-      staff={staff.map((s) => ({ id: s.id, fullName: s.fullName }))}
-      resources={resources.map((r) => ({ id: r.id, name: r.name }))}
-      customers={customers.map((c) => ({
-        id: c.id,
-        fullName: c.fullName,
-        phone: c.phone,
-        walletBalancePaise: c.walletBalancePaise ?? 0,
-      }))}
-      services={services.map((s) => ({
-        id: s.id,
-        name: s.name,
-        durationMinutes: s.durationMinutes,
-        pricePaise: s.pricePaise,
-      }))}
-      dayIso={dayIso}
-      dayStartHour={open.hour}
-      dayEndHour={Math.min(24, close.hour + (close.minute > 0 ? 1 : 0))}
-      preselectCustomerId={preselectCustomerId ?? null}
-    />
+    <div className="space-y-3">
+      {staffScopeId ? (
+        <p className="rounded-lg border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] px-3 py-2 text-sm text-fyh-text-secondary">
+          Showing your appointments only (Workforce Staff scope).
+        </p>
+      ) : null}
+      <AppointmentsCalendar
+        initialAppointments={serialized}
+        staff={scopedStaff.map((s) => ({ id: s.id, fullName: s.fullName }))}
+        resources={resources.map((r) => ({ id: r.id, name: r.name }))}
+        customers={customers.map((c) => ({
+          id: c.id,
+          fullName: c.fullName,
+          phone: c.phone,
+          walletBalancePaise: c.walletBalancePaise ?? 0,
+        }))}
+        services={services.map((s) => ({
+          id: s.id,
+          name: s.name,
+          durationMinutes: s.durationMinutes,
+          pricePaise: s.pricePaise,
+        }))}
+        dayIso={dayIso}
+        dayStartHour={open.hour}
+        dayEndHour={Math.min(24, close.hour + (close.minute > 0 ? 1 : 0))}
+        preselectCustomerId={preselectCustomerId ?? null}
+      />
+    </div>
   );
 }

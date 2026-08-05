@@ -40,6 +40,10 @@ export function workforceGrantsToHairPermissions(
     out.add('page:settings');
     out.add('action:settings.edit');
   }
+  // Managers with staff admin need dashboard access for performance links.
+  if (p.has('staff.view') || p.has('staff.edit') || p.has('staff.add')) {
+    out.add('page:dashboard');
+  }
   return [...out];
 }
 

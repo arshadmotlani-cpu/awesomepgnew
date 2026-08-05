@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { KpiCard } from '@/src/hair/components/dashboard/KpiCard';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { salonDayBounds, salonMonthStartUtc } from '@/src/hair/lib/salonTime';
@@ -16,11 +16,26 @@ import {
   getStaffWorkingDays,
 } from '@/src/hair/services/staffPerformance';
 import { CalendarDays, IndianRupee, Receipt, Target, Wallet } from 'lucide-react';
+import { getHairSession } from '@/src/hair/lib/auth/session';
+import { getEmployeeDashboard } from '@/src/workforce/brains/employeeBrain';
+import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 
 type Props = { params: Promise<{ id: string }> };
 
 export default async function StaffPerformancePage({ params }: Props) {
   const { id } = await params;
+
+  // Staff may only open their own performance page under Workforce.
+  if (isWorkforceEngineEnabled()) {
+    const session = await getHairSession();
+    if (session?.workforceEmployeeId) {
+      const dash = await getEmployeeDashboard(session.workforceEmployeeId, 'fyh_salon');
+      if (dash?.membership?.rank === 'team_member' && session.workforceEmployeeId !== id) {
+        redirect(`/staff/${session.workforceEmployeeId}/performance`);
+      }
+    }
+  }
+
   const staff = await getStaffById(id);
   if (!staff) notFound();
 

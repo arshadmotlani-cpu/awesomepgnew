@@ -26,6 +26,17 @@ export async function createWorkforceEmployeeAction(
     const perms = formData.getAll('permissions').map(String).filter((k) =>
       (WORKFORCE_PERMISSION_KEYS as readonly string[]).includes(k),
     ) as WorkforcePermissionKey[];
+    const receiveBookings = formData.get('receiveBookings') === '1';
+    const { defaultGrantsFor } = await import('@/src/workforce/permissions/presets');
+    let permissions: WorkforcePermissionKey[] | undefined = perms.length ? [...perms] : undefined;
+    if (!permissions) {
+      permissions = [...defaultGrantsFor(rank, jobRole).permissions];
+    }
+    const withoutReceive = permissions.filter((k) => k !== 'appointments.receive_bookings');
+    permissions = receiveBookings
+      ? [...withoutReceive, 'appointments.receive_bookings']
+      : withoutReceive;
+
     const backdateRaw = formStr(formData, 'maxBackdateDays');
     const maxBackdateDays =
       backdateRaw === '' || backdateRaw === 'unlimited'
@@ -50,7 +61,7 @@ export async function createWorkforceEmployeeAction(
       status: formStr(formData, 'status') === 'inactive' ? 'inactive' : 'active',
       rank,
       jobRole,
-      permissions: perms.length ? perms : undefined,
+      permissions,
       maxBackdateDays,
       canLogin: Boolean(formStr(formData, 'password')),
       actorEmployeeId: session?.workforceEmployeeId ?? null,

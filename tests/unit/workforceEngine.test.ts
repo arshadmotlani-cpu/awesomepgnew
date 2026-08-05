@@ -62,12 +62,14 @@ describe('Workforce mobile normalize', () => {
 });
 
 describe('Workforce feature flag', () => {
-  test('isWorkforceEngineEnabled reads env', () => {
+  test('isWorkforceEngineEnabled defaults ON; explicit off disables', () => {
     const prev = process.env.WORKFORCE_ENGINE;
-    process.env.WORKFORCE_ENGINE = '1';
+    delete process.env.WORKFORCE_ENGINE;
     assert.equal(isWorkforceEngineEnabled(), true);
     process.env.WORKFORCE_ENGINE = '0';
     assert.equal(isWorkforceEngineEnabled(), false);
+    process.env.WORKFORCE_ENGINE = '1';
+    assert.equal(isWorkforceEngineEnabled(), true);
     if (prev === undefined) delete process.env.WORKFORCE_ENGINE;
     else process.env.WORKFORCE_ENGINE = prev;
   });
@@ -114,6 +116,9 @@ describe('Workforce Add Employee popup', () => {
     assert.match(src, /Phone Number/);
     assert.match(src, /Designation/);
     assert.match(src, /role="dialog"/);
+    assert.match(src, /type="file"/);
+    assert.match(src, /receiveBookings/);
+    assert.match(src, /Appointment bookable/);
   });
 });
 

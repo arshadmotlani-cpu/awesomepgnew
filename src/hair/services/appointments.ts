@@ -226,7 +226,16 @@ export async function listResources() {
     .orderBy(asc(fyhResources.sortOrder), asc(fyhResources.name));
 }
 
-export async function listAppointmentsInRange(from: Date, to: Date): Promise<AppointmentCalendarRow[]> {
+export async function listAppointmentsInRange(
+  from: Date,
+  to: Date,
+  opts?: { staffId?: string | null },
+): Promise<AppointmentCalendarRow[]> {
+  const conditions = [gte(fyhAppointments.startAt, from), lt(fyhAppointments.startAt, to)];
+  if (opts?.staffId) {
+    conditions.push(eq(fyhAppointments.staffId, opts.staffId));
+  }
+
   const appts = await hairDb
     .select({
       id: fyhAppointments.id,
@@ -249,7 +258,7 @@ export async function listAppointmentsInRange(from: Date, to: Date): Promise<App
     .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhAppointments.customerId))
     .innerJoin(fyhStaff, eq(fyhStaff.id, fyhAppointments.staffId))
     .leftJoin(fyhResources, eq(fyhResources.id, fyhAppointments.resourceId))
-    .where(and(gte(fyhAppointments.startAt, from), lt(fyhAppointments.startAt, to)))
+    .where(and(...conditions))
     .orderBy(asc(fyhAppointments.startAt));
 
   if (appts.length === 0) return [];

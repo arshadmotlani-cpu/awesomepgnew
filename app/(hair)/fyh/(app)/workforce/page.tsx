@@ -1,7 +1,9 @@
-import { listEmployeesForEngine } from '@/src/workforce/brains/employeeBrain';
+import { listEmployeesForEngine, getEmployeeDashboard } from '@/src/workforce/brains/employeeBrain';
 import { AddEmployeePopup } from '@/src/workforce/components/AddEmployeePopup';
 import { workforceJobRoleLabel, workforceRankLabel } from '@/src/workforce/labels';
+import { hasWorkforcePermission } from '@/src/workforce/permissions/presets';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
+import { getHairSession } from '@/src/hair/lib/auth/session';
 import { redirect } from 'next/navigation';
 
 export default async function WorkforceAdminPage() {
@@ -9,7 +11,15 @@ export default async function WorkforceAdminPage() {
     redirect('/staff');
   }
 
+  const session = await getHairSession();
+  if (!session?.workforceEmployeeId) redirect('/login');
+  const dash = await getEmployeeDashboard(session.workforceEmployeeId, 'fyh_salon');
+  if (!hasWorkforcePermission(dash?.grants ?? null, 'staff.view')) {
+    redirect('/me');
+  }
+
   const employees = await listEmployeesForEngine('fyh_salon', { activeOnly: false });
+  const canAdd = hasWorkforcePermission(dash?.grants ?? null, 'staff.add');
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
@@ -21,7 +31,7 @@ export default async function WorkforceAdminPage() {
             memberships. Legacy FYH staff is migrated here; do not extend the old staff model.
           </p>
         </div>
-        <AddEmployeePopup />
+        {canAdd ? <AddEmployeePopup /> : null}
       </div>
 
       <section className="overflow-hidden rounded-xl border border-[color:var(--fyh-border)]">

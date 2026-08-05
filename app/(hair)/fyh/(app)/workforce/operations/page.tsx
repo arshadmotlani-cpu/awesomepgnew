@@ -8,13 +8,13 @@ import {
 } from '@/src/workforce/brains/employeeBrain';
 import {
   addIncentiveAction,
-  seedDefaultScheduleAction,
   setCommissionAction,
   setPerformanceTargetAction,
 } from '@/src/workforce/actions/operations';
 import { listBookableEmployees } from '@/src/workforce/services/appointmentsBridge';
 import { listIncentives, listPayrollRuns } from '@/src/workforce/services/compensation';
 import { getEmployeeSchedule } from '@/src/workforce/services/schedules';
+import { WorkingHoursEditor } from '@/src/workforce/components/WorkingHoursEditor';
 import { workforceJobRoleLabel, workforceRankLabel } from '@/src/workforce/labels';
 import { hasWorkforcePermission } from '@/src/workforce/permissions/presets';
 import { isWorkforceEngineEnabled, type WorkforceJobRole } from '@/src/workforce/types';
@@ -94,26 +94,23 @@ export default async function WorkforceOperationsPage() {
 
       <section className="rounded-2xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] p-5">
         <h2 className="text-lg font-medium text-fyh-text">Working hours</h2>
-        <div className="mt-4 space-y-4">
-          {schedulePreview.map(({ employee, membership, schedule }) => (
-            <div key={employee.id} className="border-t border-[color:var(--fyh-border)] pt-3 first:border-0 first:pt-0">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="font-medium text-fyh-text">{employee.fullName}</p>
-                  <p className="text-xs text-fyh-text-secondary">
-                    {workforceRankLabel(membership.rank)} · salary ₹
-                    {(employee.salaryPaise / 100).toLocaleString('en-IN')}
-                  </p>
-                </div>
-                {canEditStaff ? (
-                  <form action={seedDefaultScheduleAction.bind(null, employee.id)}>
-                    <button type="submit" className="text-sm text-fyh-accent underline">
-                      {schedule.length ? 'Reset default week' : 'Seed default week'}
-                    </button>
-                  </form>
-                ) : null}
-              </div>
-              {schedule.length > 0 ? (
+        <div className="mt-4 space-y-6">
+          {schedulePreview.map(({ employee, schedule }) =>
+            canEditStaff ? (
+              <WorkingHoursEditor
+                key={employee.id}
+                employeeId={employee.id}
+                employeeName={employee.fullName}
+                initial={schedule.map((d) => ({
+                  dayOfWeek: d.dayOfWeek,
+                  startTime: d.startTime,
+                  endTime: d.endTime,
+                  isOff: d.isOff,
+                }))}
+              />
+            ) : (
+              <div key={employee.id} className="border-t border-[color:var(--fyh-border)] pt-3 first:border-0 first:pt-0">
+                <p className="font-medium text-fyh-text">{employee.fullName}</p>
                 <div className="mt-2 flex flex-wrap gap-2 text-xs text-fyh-text-secondary">
                   {schedule.map((d) => (
                     <span
@@ -124,12 +121,11 @@ export default async function WorkforceOperationsPage() {
                       {d.isOff ? 'Off' : `${d.startTime}–${d.endTime}`}
                     </span>
                   ))}
+                  {schedule.length === 0 ? <span>No hours set.</span> : null}
                 </div>
-              ) : (
-                <p className="mt-2 text-xs text-fyh-text-secondary">No hours set.</p>
-              )}
-            </div>
-          ))}
+              </div>
+            ),
+          )}
         </div>
       </section>
 
