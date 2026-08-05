@@ -2,11 +2,15 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'admin@awesomepg.local';
-const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'dev-admin-pass';
+import { resolveEcosystemAdminCredentials } from './ecosystemAdminCredentials';
+
+const { email: ADMIN_EMAIL, password: ADMIN_PASSWORD } = resolveEcosystemAdminCredentials();
 const SCREENSHOT_DIR = path.join(process.cwd(), 'public/assets/express-booking-e2e');
 
 async function loginAdmin(page: Page) {
+  if (!ADMIN_PASSWORD) {
+    throw new Error('Set E2E_ADMIN_PASSWORD or ECOSYSTEM_ADMIN_PASSWORD for admin E2E tests.');
+  }
   await page.goto('/admin/login');
   await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
   await page.getByLabel(/password/i).fill(ADMIN_PASSWORD);

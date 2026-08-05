@@ -11,13 +11,12 @@ import 'dotenv/config';
 import { eq, ilike } from 'drizzle-orm';
 import { closeDb, createClient } from '../src/db/client';
 import { adminUsers, customers, pgs } from '../src/db/schema';
-import { hashPassword } from '../src/lib/auth/crypto';
+import { upsertPgEcosystemAdmin } from '@/src/lib/auth/upsertEcosystemAdminPg';
 import { SEED_ADMIN_EMAIL } from '../src/lib/auth/adminPasswordReset';
 import type { AdminSession } from '../src/lib/auth/session';
 import { mergeOrUpsertCustomerForAdminWalkIn } from '../src/services/adminCustomerMerge';
 import { assignTenantToBed } from '../src/services/tenantAssignment';
 import { getActiveTenancyForCustomer } from '../src/lib/residentActiveTenancy';
-import { bootstrapAdminIfNeeded } from '../src/lib/auth/bootstrapAdmin';
 
 const WAQAR_NAME = 'Waqar Ahmad';
 const WAQAR_PHONE = '+919988776655';
@@ -38,28 +37,18 @@ const session: AdminSession = {
 };
 
 async function ensureAdmin() {
-  await bootstrapAdminIfNeeded();
-  const password = process.env.ADMIN_INITIAL_PASSWORD?.trim() ?? 'dev-admin-pass';
   const { db } = createClient({ max: 1 });
-  const [existing] = await db
-    .select({ id: adminUsers.id })
-    .from(adminUsers)
-    .where(eq(adminUsers.email, SEED_ADMIN_EMAIL))
-    .limit(1);
-  if (!existing) {
-    await db.insert(adminUsers).values({
-      fullName: 'Super Admin',
-      email: SEED_ADMIN_EMAIL,
-      passwordHash: hashPassword(password),
-      role: 'super_admin',
-      pgScope: [],
-      isActive: true,
-      mustChangePassword: false,
-    });
-    console.log(`✓ Created admin ${SEED_ADMIN_EMAIL} (password from ADMIN_INITIAL_PASSWORD or dev-admin-pass)`);
-  } else {
-    console.log(`✓ Admin ${SEED_ADMIN_EMAIL} already exists`);
+  const result = await upsertPgEcosystemAdmin(db);
+  if (result.action === 'skipped') {
+    throw new Error(`Admin seed skipped: ${result.reason}`);
   }
+  console.log(
+    result.action === 'created'
+      ? `✓ Created admin ${result.email}`
+      : result.previousEmail !== result.email
+        ? `✓ Updated admin ${result.previousEmail} → ${result.email}`
+        : `✓ Admin ${result.email} ready`,
+  );
 }
 
 async function ensureShantinagarPg() {

@@ -19,9 +19,9 @@
 <!-- DOC_SYNC_STATE_START -->
 ## Automated doc sync
 
-> **Last sync:** 2026-08-05 15:00:41 UTC  
-> **Areas touched:** [[ROUTES]], [[Auth]], [[DATABASE]], [[Residents]], [[Action Center]], [[Bookings]]  
-> **Docs flagged:** ARCHITECTURE.md, CHANGELOG.md, DATABASE.md, PROJECT/features.md, ROUTES.md, SYSTEM/CURRENT_STATE.md, SYSTEM/WORKFLOWS.md  
-> **Staged code files:** 98  
+> **Last sync:** 2026-08-05 16:06:25 UTC  
+> **Areas touched:** [[ROUTES]], [[DATABASE]], [[Auth]]  
+> **Docs flagged:** ARCHITECTURE.md, CHANGELOG.md, DATABASE.md, ROUTES.md, SYSTEM/CURRENT_STATE.md  
+> **Staged code files:** 24  
 > **Action:** Review [[CHANGELOG#Pending pre-commit sync · 2026-08-05]] (Pending section) before push.
 <!-- DOC_SYNC_STATE_END -->

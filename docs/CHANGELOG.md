@@ -256,46 +256,24 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-05 15:00:41 UTC
+### Pending pre-commit sync · 2026-08-05 16:06:25 UTC
 
-**Areas touched:** [[ROUTES]], [[Auth]], [[DATABASE]], [[Residents]], [[Action Center]], [[Bookings]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Auth]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
 - `DATABASE.md` — review for accuracy
-- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
-- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (27):**
-- `app/(admin)/admin/overview/page.tsx`
-- `app/(admin)/admin/residents/[customerId]/loading.tsx`
-- `app/(admin)/admin/residents/[customerId]/page.tsx`
-- `app/(admin)/admin/system/health-report/actions.ts`
-- `app/(admin)/admin/system/health-report/page.tsx`
-- `app/(owner)/owner/(app)/assets/page.tsx`
-- `app/(owner)/owner/(app)/cashflow/page.tsx`
-- `app/(owner)/owner/(app)/dashboard/page.tsx`
-- `app/(owner)/owner/(app)/investments/page.tsx`
-- `app/(owner)/owner/(app)/liabilities/page.tsx`
-- `app/(owner)/owner/(app)/net-worth/page.tsx`
-- `app/(owner)/owner/(app)/settings/page.tsx`
-- `app/(owner)/owner/(app)/wealth/page.tsx`
-- `app/api/admin/payments/route.ts`
-- `app/api/cron/health-brain-integrity/route.ts`
-- `app/api/cron/owner-os-event-inbox/route.ts`
-- `app/api/owner/payments/route.ts`
-- `middleware.ts`
+**Staged code files (6):**
+- `app/api/cron/bootstrap-admin/route.ts`
 - `src/db/migrations/0140_brain_repair_engine.sql`
-- `src/db/migrations/meta/_journal.json`
-- `src/db/schema/brainRepairEngine.ts`
-- `src/db/schema/index.ts`
-- `src/lib/residents/residentBrainIntegrity.ts`
-- `src/services/actionItems.ts`
-- `src/services/booking.ts`
-- _…and 2 more staged files_
+- `src/lib/auth/adminPasswordReset.ts`
+- `src/lib/auth/bootstrapAdmin.ts`
+- `src/lib/auth/ecosystemAdmin.ts`
+- `src/lib/auth/upsertEcosystemAdminPg.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

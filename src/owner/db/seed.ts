@@ -3,36 +3,23 @@ loadAppEnv();
 
 import { eq } from 'drizzle-orm';
 import { createOwnerClient } from '@/src/owner/db/client';
-import { ooAdminUsers } from '@/src/owner/db/schema';
-import { hashPassword } from '@/src/owner/lib/auth/crypto';
+import { upsertOwnerEcosystemAdmin } from '@/src/owner/lib/auth/upsertEcosystemAdmin';
 
 async function main() {
-  const email = (process.env.OWNER_ADMIN_EMAIL ?? 'owner@awesomepg.in').trim().toLowerCase();
-  const password = process.env.OWNER_ADMIN_PASSWORD ?? '';
-  if (!password || password.length < 8) {
-    console.log('OWNER_ADMIN_PASSWORD not set (≥8 chars) — skipping Owner OS admin seed.');
-    return;
-  }
-
   const { db, close } = createOwnerClient({ max: 1 });
   try {
-    const [existing] = await db
-      .select({ id: ooAdminUsers.id })
-      .from(ooAdminUsers)
-      .where(eq(ooAdminUsers.email, email))
-      .limit(1);
-
-    if (existing) {
-      console.log(`Owner OS admin already exists: ${email}`);
+    const result = await upsertOwnerEcosystemAdmin(db);
+    if (result.action === 'skipped') {
+      console.log(`Owner OS admin seed skipped (${result.reason})`);
       return;
     }
-
-    await db.insert(ooAdminUsers).values({
-      email,
-      passwordHash: hashPassword(password),
-      displayName: 'Owner',
-    });
-    console.log(`✓ Seeded Owner OS admin ${email}`);
+    if (result.action === 'created') {
+      console.log(`✓ Seeded Owner OS admin ${result.email}`);
+    } else if (result.previousEmail !== result.email) {
+      console.log(`✓ Updated Owner OS admin ${result.previousEmail} → ${result.email}`);
+    } else {
+      console.log(`✓ Refreshed Owner OS admin password for ${result.email}`);
+    }
   } finally {
     await close();
   }

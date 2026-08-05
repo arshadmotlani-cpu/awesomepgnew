@@ -1,19 +1,26 @@
 -- Wave 2 — durable Health Brain issue store + repair telemetry.
+-- Idempotent: safe when types/tables already exist from a prior partial apply.
 
-CREATE TYPE brain_issue_status AS ENUM (
-  'open',
-  'repair_available',
-  'queued',
-  'running',
-  'repaired',
-  'failed',
-  'needs_owner',
-  'closed'
-);
+DO $$ BEGIN
+  CREATE TYPE brain_issue_status AS ENUM (
+    'open',
+    'repair_available',
+    'queued',
+    'running',
+    'repaired',
+    'failed',
+    'needs_owner',
+    'closed'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE brain_repair_trigger AS ENUM ('cron', 'ui', 'script');
+DO $$ BEGIN
+  CREATE TYPE brain_repair_trigger AS ENUM ('cron', 'ui', 'script');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TABLE brain_integrity_issues (
+CREATE TABLE IF NOT EXISTS brain_integrity_issues (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   fingerprint TEXT NOT NULL,
   brain TEXT NOT NULL,
@@ -34,14 +41,14 @@ CREATE TABLE brain_integrity_issues (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX brain_integrity_issues_fingerprint_uidx
+CREATE UNIQUE INDEX IF NOT EXISTS brain_integrity_issues_fingerprint_uidx
   ON brain_integrity_issues (fingerprint);
 
-CREATE INDEX brain_integrity_issues_open_idx
+CREATE INDEX IF NOT EXISTS brain_integrity_issues_open_idx
   ON brain_integrity_issues (brain, status, severity)
   WHERE status IN ('open', 'repair_available', 'queued', 'running', 'failed', 'needs_owner');
 
-CREATE TABLE brain_repair_runs (
+CREATE TABLE IF NOT EXISTS brain_repair_runs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trigger brain_repair_trigger NOT NULL,
   started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -58,10 +65,10 @@ CREATE TABLE brain_repair_runs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX brain_repair_runs_started_idx
+CREATE INDEX IF NOT EXISTS brain_repair_runs_started_idx
   ON brain_repair_runs (started_at DESC);
 
-CREATE TABLE brain_repair_events (
+CREATE TABLE IF NOT EXISTS brain_repair_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   run_id UUID NOT NULL REFERENCES brain_repair_runs(id) ON DELETE CASCADE,
   issue_id UUID REFERENCES brain_integrity_issues(id) ON DELETE SET NULL,
@@ -75,8 +82,8 @@ CREATE TABLE brain_repair_events (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX brain_repair_events_run_idx
+CREATE INDEX IF NOT EXISTS brain_repair_events_run_idx
   ON brain_repair_events (run_id, created_at DESC);
 
-CREATE INDEX brain_repair_events_issue_idx
+CREATE INDEX IF NOT EXISTS brain_repair_events_issue_idx
   ON brain_repair_events (issue_id, created_at DESC);

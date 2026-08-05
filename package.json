@@ -57,6 +57,8 @@
     "owner:db:generate": "drizzle-kit generate --config owner/drizzle.config.ts",
     "owner:db:migrate": "tsx src/owner/db/migrate.ts",
     "owner:db:seed": "tsx src/owner/db/seed.ts",
+    "admin:standardize": "tsx scripts/standardize-ecosystem-admin.ts",
+    "admin:verify-login": "tsx scripts/verify-ecosystem-admin-login.ts",
     "owner:db:studio": "drizzle-kit studio --config owner/drizzle.config.ts",
     "hair:db:generate": "drizzle-kit generate --config hair/drizzle.config.ts",
     "hair:db:migrate": "tsx src/hair/db/migrate.ts",

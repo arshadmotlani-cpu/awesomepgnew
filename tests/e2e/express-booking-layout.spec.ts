@@ -1,7 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 
-const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'admin@awesomepg.local';
-const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'dev-admin-pass';
+import { resolveEcosystemAdminCredentials } from './ecosystemAdminCredentials';
+
+const { email: ADMIN_EMAIL, password: ADMIN_PASSWORD } = resolveEcosystemAdminCredentials();
 
 async function loginAdmin(page: Page) {
   await page.goto('/admin/login');

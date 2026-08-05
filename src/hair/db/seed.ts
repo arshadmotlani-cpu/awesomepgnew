@@ -6,7 +6,6 @@ import { createHairClient } from '@/src/hair/db/client';
 import { ensureRcCutConsumableKit } from '@/src/hair/db/rcConsumableKit';
 import { ensureRcBookableServices } from '@/src/hair/db/rcServiceFixtures';
 import {
-  fyhAdminUsers,
   fyhMembershipPlans,
   fyhPackagePlans,
   fyhProducts,
@@ -15,7 +14,7 @@ import {
   fyhStaff,
   fyhStaffSchedules,
 } from '@/src/hair/db/schema';
-import { hashPassword } from '@/src/hair/lib/auth/crypto';
+import { upsertHairEcosystemAdmin } from '@/src/hair/lib/auth/upsertEcosystemAdmin';
 import { DEFAULT_HOURS } from '@/src/hair/services/settings';
 
 /**
@@ -202,20 +201,15 @@ async function main() {
     console.log('✓ Settings already exist');
   }
 
-  const email =
-    process.env.HAIR_ADMIN_EMAIL?.trim().toLowerCase() || 'admin@fyhair.local';
-  const password = process.env.HAIR_ADMIN_PASSWORD?.trim() || 'rc-local-change-me';
-  const [existingAdmin] = await db.select().from(fyhAdminUsers).limit(1);
-  if (!existingAdmin) {
-    await db.insert(fyhAdminUsers).values({
-      email,
-      passwordHash: hashPassword(password),
-      displayName: 'Administrator',
-      role: 'super_admin',
-    });
-    console.log(`✓ Admin seeded: ${email}`);
+  const result = await upsertHairEcosystemAdmin(db);
+  if (result.action === 'skipped') {
+    console.log(`↷ Admin seed skipped (${result.reason})`);
+  } else if (result.action === 'created') {
+    console.log(`✓ Admin seeded: ${result.email}`);
+  } else if (result.previousEmail !== result.email) {
+    console.log(`✓ Admin updated: ${result.previousEmail} → ${result.email}`);
   } else {
-    console.log('✓ Admin already exists');
+    console.log(`✓ Admin password refreshed: ${result.email}`);
   }
 
   if (process.env.HAIR_SEED_RC === '1') {

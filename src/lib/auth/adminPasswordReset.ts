@@ -9,7 +9,7 @@ import { hashPassword, randomToken, sha256 } from './crypto';
 import { validateAdminPassword } from './password';
 import { secondsUntilResend } from './otpRateLimit';
 
-export const SEED_ADMIN_EMAIL = 'admin@awesomepg.local';
+export { ECOSYSTEM_ADMIN_EMAIL as SEED_ADMIN_EMAIL } from '@/src/lib/auth/ecosystemAdmin';
 
 function resetTokenExpiry(): Date {
   return new Date(Date.now() + env.AUTH_ADMIN_RESET_TOKEN_MINUTES * 60_000);

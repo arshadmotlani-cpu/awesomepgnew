@@ -1,8 +1,15 @@
 import type { Page } from '@playwright/test';
 
-export const HAIR_ADMIN_EMAIL = process.env.HAIR_ADMIN_EMAIL?.trim() || 'admin@fyhair.local';
+import { ECOSYSTEM_ADMIN_EMAIL } from '@/src/lib/auth/ecosystemAdmin';
+
+export const HAIR_ADMIN_EMAIL =
+  process.env.HAIR_ADMIN_EMAIL?.trim().toLowerCase() ||
+  process.env.ECOSYSTEM_ADMIN_EMAIL?.trim().toLowerCase() ||
+  ECOSYSTEM_ADMIN_EMAIL;
 export const HAIR_ADMIN_PASSWORD =
-  process.env.HAIR_ADMIN_PASSWORD?.trim() || 'rc-local-change-me';
+  process.env.HAIR_ADMIN_PASSWORD?.trim() ||
+  process.env.ECOSYSTEM_ADMIN_PASSWORD?.trim() ||
+  '';
 
 /**
  * Login on Hair host (requires HAIR_DEV_HOST=1 or fyhair host).

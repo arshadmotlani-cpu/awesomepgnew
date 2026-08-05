@@ -2,8 +2,9 @@ import { test, expect, type Page, type Browser } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'admin@awesomepg.local';
-const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'dev-admin-pass';
+import { resolveEcosystemAdminCredentials } from './ecosystemAdminCredentials';
+
+const { email: ADMIN_EMAIL, password: ADMIN_PASSWORD } = resolveEcosystemAdminCredentials();
 const SCREENSHOT_DIR = path.join(process.cwd(), 'public/assets/express-booking-e2e');
 
 async function loginAdmin(page: Page) {

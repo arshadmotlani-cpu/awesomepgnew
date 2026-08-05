@@ -4,11 +4,10 @@ loadAppEnv();
 import { eq } from 'drizzle-orm';
 import { createCapitalClient } from '@/src/capital/db/client';
 import {
-  acAdminUsers,
   acCategories,
   acSettings,
 } from '@/src/capital/db/schema';
-import { hashPassword } from '@/src/capital/lib/auth/crypto';
+import { upsertCapitalEcosystemAdmin } from '@/src/capital/lib/auth/upsertEcosystemAdmin';
 
 const EXPENSE_CATEGORIES = [
   { slug: 'purchase', label: 'Purchase', sortOrder: 1 },
@@ -54,22 +53,15 @@ async function main() {
   }
   console.log('✓ Categories seeded');
 
-  const email = process.env.INVEST_ADMIN_EMAIL?.trim().toLowerCase();
-  const password = process.env.INVEST_ADMIN_PASSWORD?.trim();
-  if (!email || !password) {
-    console.warn('⚠ INVEST_ADMIN_EMAIL / INVEST_ADMIN_PASSWORD not set — skipping admin seed');
+  const adminResult = await upsertCapitalEcosystemAdmin(db);
+  if (adminResult.action === 'skipped') {
+    console.warn(`⚠ Capital admin seed skipped (${adminResult.reason})`);
+  } else if (adminResult.action === 'created') {
+    console.log(`✓ Admin seeded: ${adminResult.email}`);
+  } else if (adminResult.previousEmail !== adminResult.email) {
+    console.log(`✓ Admin updated: ${adminResult.previousEmail} → ${adminResult.email}`);
   } else {
-    const [existing] = await db.select().from(acAdminUsers).limit(1);
-    if (!existing) {
-      await db.insert(acAdminUsers).values({
-        email,
-        passwordHash: hashPassword(password),
-        displayName: 'Administrator',
-      });
-      console.log(`✓ Admin seeded: ${email}`);
-    } else {
-      console.log('✓ Admin already exists');
-    }
+    console.log(`✓ Admin password refreshed: ${adminResult.email}`);
   }
 
   await close();

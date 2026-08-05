@@ -3,9 +3,8 @@ loadAppEnv();
 
 import { eq, sql } from 'drizzle-orm';
 import { createClient } from './client';
-import { hashPassword } from '@/src/lib/auth/crypto';
+import { upsertPgEcosystemAdmin } from '@/src/lib/auth/upsertEcosystemAdminPg';
 import {
-  adminUsers,
   beds,
   bedPrices,
   floors,
@@ -181,59 +180,18 @@ const FLOOR_LAYOUTS: FloorLayout[] = [
 
 const PG_SLUG = 'awesome-pg-koramangala';
 const PRICE_EFFECTIVE_FROM = '2026-01-01';
-const SEED_ADMIN_EMAIL = 'admin@awesomepg.local';
-
-/**
- * Dev seed password. Production uses migrate-time bootstrap from
- * `ADMIN_INITIAL_PASSWORD` or the forgot-password flow.
- */
-function resolveSeedAdminPassword(): string | null {
-  const fromEnv = process.env.ADMIN_INITIAL_PASSWORD?.trim();
-  if (fromEnv) return fromEnv;
-  if (process.env.NODE_ENV === 'production') return null;
-  return null;
-}
 
 async function seedAdminUser() {
   const { db, close } = createClient({ max: 1 });
-  const password = resolveSeedAdminPassword();
-  if (!password) {
-    console.log(
-      '  skip: admin user seed (set ADMIN_INITIAL_PASSWORD or run npm run db:migrate to bootstrap)',
-    );
-    await close();
-    return;
-  }
-
-  const existing = await db
-    .select({ id: adminUsers.id })
-    .from(adminUsers)
-    .where(eq(adminUsers.email, SEED_ADMIN_EMAIL))
-    .limit(1);
-  if (existing.length > 0) {
-    console.log(`  skip: admin user "${SEED_ADMIN_EMAIL}" already exists`);
-    await close();
-    return;
-  }
-  await db.insert(adminUsers).values({
-    fullName: 'Super Admin',
-    email: SEED_ADMIN_EMAIL,
-    passwordHash: hashPassword(password),
-    role: 'super_admin',
-    pgScope: [],
-    isActive: true,
-    mustChangePassword: true,
-  });
-
-  const isProd = process.env.NODE_ENV === 'production';
-  if (isProd) {
-    console.log(
-      `  ✓ admin user: ${SEED_ADMIN_EMAIL} (password from ADMIN_INITIAL_PASSWORD)`,
-    );
+  const result = await upsertPgEcosystemAdmin(db);
+  if (result.action === 'skipped') {
+    console.log(`  skip: admin user seed (${result.reason})`);
+  } else if (result.action === 'created') {
+    console.log(`  ✓ admin user created: ${result.email}`);
+  } else if (result.previousEmail !== result.email) {
+    console.log(`  ✓ admin user updated: ${result.previousEmail} → ${result.email}`);
   } else {
-    console.log(
-      `  ✓ admin user: ${SEED_ADMIN_EMAIL} (password from ADMIN_INITIAL_PASSWORD — change via admin console)`,
-    );
+    console.log(`  ✓ admin user password refreshed: ${result.email}`);
   }
   await close();
 }

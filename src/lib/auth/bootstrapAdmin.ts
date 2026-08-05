@@ -1,36 +1,26 @@
-import { eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { adminUsers } from '@/src/db/schema';
-import { hashPassword } from '@/src/lib/auth/crypto';
-import { SEED_ADMIN_EMAIL } from '@/src/lib/auth/adminPasswordReset';
-import { env } from '@/src/lib/env';
+import { resolveEcosystemAdminPassword } from '@/src/lib/auth/ecosystemAdmin';
+import { upsertPgEcosystemAdmin } from '@/src/lib/auth/upsertEcosystemAdminPg';
 
 /**
- * Creates the first admin account when `ADMIN_INITIAL_PASSWORD` is set and no
- * admin user exists yet. Safe to run on every deploy — never overwrites passwords.
+ * Ensures the ecosystem standard admin exists on PG.
+ * Updates legacy seed emails + password hash when ECOSYSTEM_ADMIN_PASSWORD is set.
  */
-export async function bootstrapAdminIfNeeded(): Promise<'created' | 'skipped'> {
-  const password = env.ADMIN_INITIAL_PASSWORD?.trim();
-  if (!password) return 'skipped';
+export async function bootstrapAdminIfNeeded(): Promise<'created' | 'updated' | 'skipped'> {
+  if (!resolveEcosystemAdminPassword()) return 'skipped';
 
-  const [existing] = await db
-    .select({ id: adminUsers.id })
-    .from(adminUsers)
-    .where(eq(adminUsers.email, SEED_ADMIN_EMAIL))
-    .limit(1);
+  const result = await upsertPgEcosystemAdmin(db);
+  if (result.action === 'skipped') return 'skipped';
 
-  if (existing) return 'skipped';
+  if (result.action === 'created') {
+    console.log(`✓ Bootstrapped PG admin ${result.email} from ECOSYSTEM_ADMIN_PASSWORD`);
+  } else if (result.previousEmail !== result.email) {
+    console.log(
+      `✓ Updated PG admin ${result.previousEmail} → ${result.email} (password hash refreshed)`,
+    );
+  } else {
+    console.log(`✓ Refreshed PG admin password hash for ${result.email}`);
+  }
 
-  await db.insert(adminUsers).values({
-    fullName: 'Super Admin',
-    email: SEED_ADMIN_EMAIL,
-    passwordHash: hashPassword(password),
-    role: 'super_admin',
-    pgScope: [],
-    isActive: true,
-    mustChangePassword: false,
-  });
-
-  console.log(`✓ Bootstrapped admin user ${SEED_ADMIN_EMAIL} from ADMIN_INITIAL_PASSWORD`);
-  return 'created';
+  return result.action === 'created' ? 'created' : 'updated';
 }
