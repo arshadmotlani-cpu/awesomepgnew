@@ -7,7 +7,6 @@ import { logoutAction } from '@/src/hair/actions/auth';
 import { FyhSidebarBrand } from '@/src/components/brand/fyh/FyhSidebarBrand';
 import { ThemeToggle } from '@/src/hair/components/ThemeToggle';
 import { HairGlobalSearch } from '@/src/hair/components/HairGlobalSearch';
-import { HairNewRecordMenu } from '@/src/hair/components/HairNewRecordMenu';
 import { HairQuickActionsMenu } from '@/src/hair/components/HairQuickActionsMenu';
 import { HairSidebar } from '@/src/hair/components/HairSidebar';
 import { Button } from '@/src/hair/components/ui/button';
@@ -57,7 +56,6 @@ export function HairAppHeader({ admin, navEntries }: HairAppHeaderProps) {
           </div>
 
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-            <HairNewRecordMenu />
             <ThemeToggle />
             <Link href="/profile" className="hidden text-right lg:block">
               <p className="text-xs font-medium text-fyh-text">{admin.displayName ?? 'Admin'}</p>
