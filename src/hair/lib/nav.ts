@@ -14,6 +14,7 @@ export type HairNavIconKey =
   | 'warehouse'
   | 'heart'
   | 'package'
+  | 'sliders-horizontal'
   | 'settings';
 
 export type HairNavLink = {
@@ -83,8 +84,6 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
     hidden: true,
     permission: 'page:quick_sale',
   },
-  { type: 'link', href: '/services', label: 'Services', iconKey: 'sparkles' },
-  { type: 'link', href: '/products', label: 'Products', iconKey: 'shopping-bag' },
   { type: 'link', href: '/workforce', label: 'Workforce', iconKey: 'clipboard-list' },
   { type: 'link', href: '/staff', label: 'Staff (legacy)', iconKey: 'clipboard-list', hidden: true },
   {
@@ -120,6 +119,18 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
       { href: '/reports/finance/gst', label: 'Finance · GST' },
       { href: '/reports/finance/payments', label: 'Finance · Payments' },
       { href: '/reports/finance/discounts', label: 'Finance · Discounts' },
+    ],
+  },
+  {
+    type: 'group',
+    id: 'configuration',
+    label: 'Configuration',
+    iconKey: 'sliders-horizontal',
+    defaultExpanded: false,
+    children: [
+      { href: '/services', label: 'Services' },
+      { href: '/products', label: 'Products' },
+      { href: '/membership-packages', label: 'Membership Packages' },
     ],
   },
   {

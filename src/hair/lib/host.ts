@@ -44,6 +44,7 @@ export const HAIR_PUBLIC_PREFIXES = [
   '/advance-payment',
   '/services',
   '/products',
+  '/membership-packages',
   '/inventory',
   '/staff',
   '/workforce',

@@ -11,6 +11,7 @@ import {
   Package,
   Receipt,
   Settings,
+  SlidersHorizontal,
   ShoppingBag,
   Sparkles,
   UserRound,
@@ -40,6 +41,7 @@ const NAV_ICONS: Record<HairNavIconKey, LucideIcon> = {
   warehouse: Warehouse,
   heart: Heart,
   package: Package,
+  'sliders-horizontal': SlidersHorizontal,
   settings: Settings,
 };
 

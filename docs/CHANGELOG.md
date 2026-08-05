@@ -256,24 +256,17 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-05 16:06:25 UTC
+### Pending pre-commit sync · 2026-08-05 16:34:08 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Auth]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
-**Staged code files (6):**
-- `app/api/cron/bootstrap-admin/route.ts`
-- `src/db/migrations/0140_brain_repair_engine.sql`
-- `src/lib/auth/adminPasswordReset.ts`
-- `src/lib/auth/bootstrapAdmin.ts`
-- `src/lib/auth/ecosystemAdmin.ts`
-- `src/lib/auth/upsertEcosystemAdminPg.ts`
+**Staged code files (1):**
+- `app/(hair)/fyh/(app)/membership-packages/page.tsx`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed
