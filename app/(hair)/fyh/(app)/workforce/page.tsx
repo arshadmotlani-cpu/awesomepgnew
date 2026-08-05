@@ -1,5 +1,6 @@
 import { listEmployeesForEngine } from '@/src/workforce/brains/employeeBrain';
 import { WorkforceCreateForm } from '@/src/workforce/components/WorkforceCreateForm';
+import { workforceJobRoleLabel, workforceRankLabel } from '@/src/workforce/labels';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 import { redirect } from 'next/navigation';
 
@@ -15,7 +16,8 @@ export default async function WorkforceAdminPage() {
       <div>
         <h1 className="text-2xl font-semibold text-fyh-text">Workforce</h1>
         <p className="text-sm text-fyh-text-secondary">
-          Universal employee identity for Salon (and future engines). One person, multi-engine memberships.
+          Permanent employee system — Owner, Manager, and Staff. One person, multi-engine
+          memberships. Legacy FYH staff is migrated here; do not extend the old staff model.
         </p>
       </div>
 
@@ -24,9 +26,9 @@ export default async function WorkforceAdminPage() {
           <thead className="bg-[color:var(--fyh-surface-muted)] text-fyh-text-secondary">
             <tr>
               <th className="px-4 py-3 font-medium">Name</th>
-              <th className="px-4 py-3 font-medium">Mobile</th>
+              <th className="px-4 py-3 font-medium">Phone</th>
               <th className="px-4 py-3 font-medium">Rank</th>
-              <th className="px-4 py-3 font-medium">Job</th>
+              <th className="px-4 py-3 font-medium">Designation</th>
               <th className="px-4 py-3 font-medium">Bookings</th>
               <th className="px-4 py-3 font-medium">Status</th>
             </tr>
@@ -36,8 +38,8 @@ export default async function WorkforceAdminPage() {
               <tr key={row.employee.id} className="border-t border-[color:var(--fyh-border)]">
                 <td className="px-4 py-3 font-medium text-fyh-text">{row.employee.fullName}</td>
                 <td className="px-4 py-3">{row.employee.mobile ?? '—'}</td>
-                <td className="px-4 py-3">{row.membership.rank}</td>
-                <td className="px-4 py-3">{row.membership.jobRole}</td>
+                <td className="px-4 py-3">{workforceRankLabel(row.membership.rank)}</td>
+                <td className="px-4 py-3">{workforceJobRoleLabel(row.membership.jobRole)}</td>
                 <td className="px-4 py-3">
                   {row.grants.permissions.includes('appointments.receive_bookings') ? 'Yes' : 'No'}
                 </td>

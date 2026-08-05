@@ -11,6 +11,7 @@ import {
 } from '@/src/workforce/permissions/presets';
 import { workforceGrantsToHairPermissions } from '@/src/workforce/compat/hairAdminBridge';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
+import { workforceJobRoleLabel, workforceRankLabel } from '@/src/workforce/labels';
 
 describe('Workforce permissions', () => {
   test('owner gets all permissions and unlimited backdate', () => {
@@ -69,5 +70,18 @@ describe('Workforce feature flag', () => {
     assert.equal(isWorkforceEngineEnabled(), false);
     if (prev === undefined) delete process.env.WORKFORCE_ENGINE;
     else process.env.WORKFORCE_ENGINE = prev;
+  });
+});
+
+describe('Workforce labels', () => {
+  test('ranks display as Owner / Manager / Staff', () => {
+    assert.equal(workforceRankLabel('owner'), 'Owner');
+    assert.equal(workforceRankLabel('manager'), 'Manager');
+    assert.equal(workforceRankLabel('team_member'), 'Staff');
+  });
+
+  test('designation labels cover job roles', () => {
+    assert.equal(workforceJobRoleLabel('stylist'), 'Stylist');
+    assert.equal(workforceJobRoleLabel('receptionist'), 'Receptionist');
   });
 });

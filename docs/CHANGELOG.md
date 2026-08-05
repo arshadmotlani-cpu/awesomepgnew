@@ -256,37 +256,17 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-05 01:42:31 UTC
+### Pending pre-commit sync · 2026-08-05 03:15:15 UTC
 
-**Areas touched:** [[ROUTES]], [[Billing]], [[Residents]], [[Electricity]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
-- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (18):**
-- `app/(admin)/admin/payments/actions.ts`
-- `app/(admin)/admin/system/health-report/page.tsx`
-- `app/(admin)/admin/system/page.tsx`
-- `app/(customer)/account/resident/layout.tsx`
-- `app/(hair)/fyh/(app)/appointments/page.tsx`
-- `app/(hair)/fyh/(app)/staff/page.tsx`
+**Staged code files (1):**
 - `app/(hair)/fyh/(app)/workforce/page.tsx`
-- `app/(hair)/fyh/auth/login/page-client.tsx`
-- `app/(hair)/fyh/me/page.tsx`
-- `app/api/cron/electricity-readings-without-bills/route.ts`
-- `app/api/cron/health-brain-integrity/route.ts`
-- `app/api/cron/resident-brain-integrity/route.ts`
-- `src/lib/billing/electricityReadingsWithoutBills.ts`
-- `src/lib/residents/residentBrainIntegrity.ts`
-- `src/lib/residents/residentPortalAccess.ts`
-- `src/services/electricityBilling.ts`
-- `src/services/meterElectricity.ts`
-- `src/services/rentInvoices.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

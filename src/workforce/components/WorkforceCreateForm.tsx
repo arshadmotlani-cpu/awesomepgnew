@@ -6,6 +6,7 @@ import {
   type WorkforceActionState,
 } from '@/src/workforce/actions/employees';
 import { WORKFORCE_JOB_ROLES, WORKFORCE_PERMISSION_KEYS, WORKFORCE_RANKS } from '@/src/workforce/types';
+import { workforceJobRoleLabel, workforceRankLabel } from '@/src/workforce/labels';
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
 
@@ -132,17 +133,17 @@ export function WorkforceCreateForm() {
           <select name="rank" className="w-full rounded-md border px-3 py-2" defaultValue="team_member">
             {WORKFORCE_RANKS.map((r) => (
               <option key={r} value={r}>
-                {r}
+                {workforceRankLabel(r)}
               </option>
             ))}
           </select>
         </label>
         <label className="space-y-1 text-sm">
-          <span>Job role</span>
+          <span>Designation</span>
           <select name="jobRole" className="w-full rounded-md border px-3 py-2" defaultValue="stylist">
             {WORKFORCE_JOB_ROLES.map((r) => (
               <option key={r} value={r}>
-                {r}
+                {workforceJobRoleLabel(r)}
               </option>
             ))}
           </select>

@@ -7,6 +7,10 @@
 
 ## Current Focus
 
+- **Workforce Engine v1 (HIGHEST PRIORITY)** — Permanent employee system replacing FYH staff. Phase 1 complete (DB/auth/ranks/permissions). Phases 2–5: Add Employee popup → role dashboards → attendance/pay → Brain wiring. Flag `WORKFORCE_ENGINE=1`. Do not extend `fyh_staff`. Do not touch Health Brain / PG / Capital. Health Score must stay 100. → `docs/WORKFORCE_ENGINE.md`
+
+- **Ecosystem Baseline v1 (FROZEN 2026-08-05)** — Minimum quality floor: Health Score = 100, no Brain regressions, Brain/Engine registration law. Independent verify: `npx tsx --tsconfig tsconfig.json scripts/independent-ecosystem-baseline-audit.ts`. → `docs/ECOSYSTEM_BASELINE_V1.md`
+
 - **Workforce Engine Phase 1 (Salon proving ground)** — `src/workforce/`; enable with `WORKFORCE_ENGINE=1`; migrate via `npx tsx scripts/hair/migrate-to-workforce.ts --apply` after `npm run hair:db:migrate`. → `docs/WORKFORCE_ENGINE.md`
 
 - **APG Ecosystem v2 (Brain / Engine constitution)** — Permanent law: Engines execute, Brains understand; shared-knowledge (e.g. LTV) lives in Brains not Engines. Docs live; runtimes for Finance/Owner/Customer Brains are follow-ons. → `docs/ECOSYSTEM_V2.md`, ADR-ECO-001

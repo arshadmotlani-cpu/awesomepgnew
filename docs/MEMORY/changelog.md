@@ -7,6 +7,11 @@
 
 ---
 
+## 2026-08-05
+
+- **WORKFORCE-ENGINE-V1-PHASE1** — Closed Phase 1: Owner/Manager/Staff labels, designation UI, v1 roadmap in `docs/WORKFORCE_ENGINE.md`; Health Score gate remains 100.
+- **ECOSYSTEM-BASELINE-V1** — Frozen Platform Baseline: `docs/ECOSYSTEM_BASELINE_V1.md`; Health Score = 100 gate; Brain registration requirements; wired into STABILITY_PHASE + stability-phase Cursor rule; independent audit script `scripts/independent-ecosystem-baseline-audit.ts`.
+
 ## 2026-08-04
 
 - **WORKFORCE-ENGINE-PHASE1** — Universal Workforce Engine under `src/workforce/` (hosted in FYH DB): Employee Brain, mobile+password auth, ranks/job roles, grouped permissions, multi-engine memberships, `/workforce` admin + `/me` portal, migration `0022`, adapters; flag `WORKFORCE_ENGINE=1`.
