@@ -154,8 +154,8 @@ describe('Profit Distribution SSOT — sale-time schemas', () => {
       fuelType: 'diesel',
       year: 2021,
       ownership: 'first_owner',
-      purchasePrice: 500000,
-      meInvested: 500000,
+      purchaseDate: '2021-06-01',
+      expectedTotalInvestment: 500000,
     });
     assert.equal(parsed.success, true);
     if (parsed.success) {

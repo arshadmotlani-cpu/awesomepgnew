@@ -3,10 +3,11 @@ import { env } from '@/src/lib/env';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-export const maxDuration = 180;
+export const maxDuration = 300;
 
 /**
- * Health Brain integrity cron — all brain audits + safe auto-repairs only.
+ * Health Brain Wave 2 cron — audit all brains, persist durable issues,
+ * dispatch safe repairs, re-audit with score before/after.
  *
  * Auth: Authorization: Bearer $CRON_SECRET
  */
@@ -28,12 +29,14 @@ async function handle(req: NextRequest) {
     const report = await runAllBrainIntegrityAudits({
       runSafeRepairs: true,
       persistIncidents: true,
+      persistDurableIssues: true,
+      repairTrigger: 'cron',
     });
     return Response.json({
       ok: report.pass,
       asOf: report.asOf,
       billingMonth: report.billingMonth,
-      pass: report.pass,
+      healthScore: report.healthScore,
       cards: report.cards,
       issueCount: report.issues.length,
       p0: report.issues.filter((i) => i.severity === 'P0').slice(0, 40),

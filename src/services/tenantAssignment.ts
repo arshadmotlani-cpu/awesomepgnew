@@ -10,7 +10,9 @@ import { getCustomerVerificationStatus } from '@/src/services/residentAdmin';
 import { createBooking } from '@/src/services/booking';
 import { clearBedAdminMarks } from '@/src/services/bookingAdminOps';
 import { reconcileOrphanBedReservations } from '@/src/lib/occupancySync';
+import { bedBlocksInventory } from '@/src/lib/inventoryBlocking';
 import { isBedAvailable } from '@/src/services/availability';
+import { fetchBedOccupancyRows, resolveBedOccupancyRows } from '@/src/services/bedOccupancyBatch';
 import { validateResidentGenderForBed } from '@/src/services/pgGenderPolicy';
 
 export type AssignTenantInput = {
@@ -144,7 +146,16 @@ export async function assignTenantToBed(
   return { ok: true, bookingId: result.bookingId, bookingCode: result.bookingCode };
 }
 
-export async function listAssignableBeds(session: AdminSession, startDate?: string) {
+export type ListAssignableBedsOptions = {
+  /** Skip per-bed deposit quotes (dropdown labels only). */
+  skipDepositQuotes?: boolean;
+};
+
+export async function listAssignableBeds(
+  session: AdminSession,
+  startDate?: string,
+  options?: ListAssignableBedsOptions,
+) {
   const from = startDate ?? formatDate(new Date());
   const rows = await db
     .select({
@@ -179,28 +190,44 @@ export async function listAssignableBeds(session: AdminSession, startDate?: stri
   const allowed = rows.filter((row) =>
     adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, row.pgId),
   );
+  if (allowed.length === 0) return [];
 
-  const available: Array<(typeof allowed)[number] & { depositPaise: number }> = [];
-  for (const row of allowed) {
-    const ok = await isBedAvailable(
-      {
-        bedId: row.bedId,
-        startDate: from,
-        endDate: null,
-      },
-      { ignoreManualOccupied: true },
-    );
-    if (!ok) continue;
+  const pgIds =
+    session.role === 'super_admin' || session.pgScope.length === 0
+      ? undefined
+      : session.pgScope;
+  const occupancyRows = await fetchBedOccupancyRows({ asOfDate: from, pgIds });
+  const resolvedRows = resolveBedOccupancyRows(occupancyRows);
+  const occupancyByBedId = new Map(
+    occupancyRows.map((raw, index) => [raw.bedId, resolvedRows[index]!]),
+  );
 
-    let depositPaise = 0;
-    try {
-      depositPaise = await quoteMonthlyBedDepositPaise(row.bedId, from);
-    } catch {
-      depositPaise = 0;
-    }
-    available.push({ ...row, depositPaise });
-  }
-  return available;
+  const checked = await Promise.all(
+    allowed.map(async (row) => {
+      if (!occupancyByBedId.get(row.bedId)?.isBookable) return null;
+      if (
+        await bedBlocksInventory({
+          bedId: row.bedId,
+          startDate: from,
+          endDate: null,
+        })
+      ) {
+        return null;
+      }
+
+      let depositPaise = 0;
+      if (!options?.skipDepositQuotes) {
+        try {
+          depositPaise = await quoteMonthlyBedDepositPaise(row.bedId, from);
+        } catch {
+          depositPaise = 0;
+        }
+      }
+      return { ...row, depositPaise };
+    }),
+  );
+
+  return checked.filter((row): row is NonNullable<(typeof checked)[number]> => row !== null);
 }
 
 export function defaultTenantStartDate(): string {

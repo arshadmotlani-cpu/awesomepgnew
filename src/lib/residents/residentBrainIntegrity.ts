@@ -20,7 +20,10 @@ export type ResidentBrainFindingCode =
   | 'MISSING_CURRENT_MONTH_RENT'
   | 'DRAFT_BOOKING_WITH_ACTIVE_STAY'
   | 'MULTIPLE_ACTIVE_PRIMARY_STAYS'
-  | 'MISSING_ELECTRICITY_WINDOW';
+  | 'MISSING_ELECTRICITY_WINDOW'
+  | 'MISSING_BILLING_PROFILE'
+  | 'MULTIPLE_ACTIVE_BEDS'
+  | 'TENANCY_WITHOUT_ACTIVE_RESIDENCY';
 
 export type ResidentBrainFinding = {
   code: ResidentBrainFindingCode;
@@ -62,6 +65,9 @@ function emptyCounts(): Record<ResidentBrainFindingCode, number> {
     DRAFT_BOOKING_WITH_ACTIVE_STAY: 0,
     MULTIPLE_ACTIVE_PRIMARY_STAYS: 0,
     MISSING_ELECTRICITY_WINDOW: 0,
+    MISSING_BILLING_PROFILE: 0,
+    MULTIPLE_ACTIVE_BEDS: 0,
+    TENANCY_WITHOUT_ACTIVE_RESIDENCY: 0,
   };
 }
 
@@ -195,7 +201,7 @@ export async function runResidentBrainIntegrityAudit(opts?: {
       problemBookingId: row.booking_id != null ? String(row.booking_id) : null,
       problemBookingCode: row.booking_code != null ? String(row.booking_code) : null,
       detail: `Draft ${row.booking_code} (${row.duration_mode}) coexists with active stay ${row.stay_booking_code}`,
-      repairable: false,
+      repairable: true,
     });
   }
 
@@ -236,7 +242,7 @@ export async function runResidentBrainIntegrityAudit(opts?: {
       fullName: row.full_name != null ? String(row.full_name) : null,
       phone: row.phone != null ? String(row.phone) : null,
       detail: 'customers.residency_status=active but no assigned active tenancy',
-      repairable: false,
+      repairable: true,
     });
   }
 
@@ -304,7 +310,7 @@ export async function runResidentBrainIntegrityAudit(opts?: {
       stayBookingId: row.booking_id != null ? String(row.booking_id) : null,
       stayBookingCode: row.booking_code != null ? String(row.booking_code) : null,
       detail: `No non-adhoc rent invoice for ${currentMonth} on stay ${row.booking_code}`,
-      repairable: false,
+      repairable: true,
     });
   }
 
@@ -398,6 +404,7 @@ export async function runResidentBrainIntegrityAudit(opts?: {
         a.phone,
         a.booking_id::text,
         a.booking_code,
+        a.room_id::text,
         a.room_number
       FROM active_ac a
       WHERE
@@ -430,7 +437,118 @@ export async function runResidentBrainIntegrityAudit(opts?: {
       stayBookingId: row.booking_id != null ? String(row.booking_id) : null,
       stayBookingCode: row.booking_code != null ? String(row.booking_code) : null,
       detail: `AC room ${row.room_number}: monthly reading for ${priorMonth} but no electricity invoice on stay ${row.booking_code}`,
+      repairable: true,
+      problemBookingId: row.room_id != null ? String(row.room_id) : null, // reuse field for roomId
+    });
+  }
+
+  const missingProfiles = asRows(
+    await db.execute(sql`
+      SELECT
+        bk.id::text AS booking_id,
+        bk.booking_code,
+        c.id::text AS customer_id,
+        c.full_name,
+        c.phone
+      FROM bookings bk
+      JOIN customers c ON c.id = bk.customer_id
+      JOIN bed_reservations br ON br.booking_id = bk.id
+        AND br.status = 'active' AND br.kind = 'primary'
+        AND br.stay_range @> CURRENT_DATE
+      WHERE bk.status = 'confirmed'
+        AND bk.duration_mode IN ('monthly', 'open_ended')
+        AND NOT EXISTS (
+          SELECT 1 FROM resident_billing_profiles rbp
+          WHERE rbp.booking_id = bk.id
+        )
+      ORDER BY c.full_name
+      LIMIT 100
+    `),
+  );
+
+  for (const row of missingProfiles) {
+    findings.push({
+      code: 'MISSING_BILLING_PROFILE',
+      severity: 'P1',
+      customerId: String(row.customer_id),
+      fullName: row.full_name != null ? String(row.full_name) : null,
+      phone: row.phone != null ? String(row.phone) : null,
+      stayBookingId: row.booking_id != null ? String(row.booking_id) : null,
+      stayBookingCode: row.booking_code != null ? String(row.booking_code) : null,
+      detail: `Active stay ${row.booking_code} has no resident_billing_profiles row`,
+      repairable: true,
+    });
+  }
+
+  const multiBeds = asRows(
+    await db.execute(sql`
+      SELECT
+        bk.customer_id::text,
+        c.full_name,
+        c.phone,
+        bk.id::text AS booking_id,
+        bk.booking_code,
+        COUNT(br.id)::int AS bed_count
+      FROM bookings bk
+      JOIN customers c ON c.id = bk.customer_id
+      JOIN bed_reservations br ON br.booking_id = bk.id
+        AND br.status = 'active' AND br.kind = 'primary'
+        AND br.stay_range @> CURRENT_DATE
+      WHERE bk.status = 'confirmed'
+      GROUP BY bk.customer_id, c.full_name, c.phone, bk.id, bk.booking_code
+      HAVING COUNT(br.id) > 1
+      LIMIT 50
+    `),
+  );
+
+  for (const row of multiBeds) {
+    findings.push({
+      code: 'MULTIPLE_ACTIVE_BEDS',
+      severity: 'P1',
+      customerId: String(row.customer_id),
+      fullName: row.full_name != null ? String(row.full_name) : null,
+      phone: row.phone != null ? String(row.phone) : null,
+      stayBookingId: row.booking_id != null ? String(row.booking_id) : null,
+      stayBookingCode: row.booking_code != null ? String(row.booking_code) : null,
+      detail: `Stay ${row.booking_code} has ${row.bed_count} concurrent active primary beds`,
       repairable: false,
+    });
+  }
+
+  const tenancyWithoutResidency = asRows(
+    await db.execute(sql`
+      SELECT
+        c.id::text AS customer_id,
+        c.full_name,
+        c.phone,
+        c.residency_status::text,
+        bk.id::text AS booking_id,
+        bk.booking_code
+      FROM customers c
+      JOIN bookings bk ON bk.customer_id = c.id
+        AND bk.status = 'confirmed'
+        AND bk.duration_mode::text IS DISTINCT FROM 'reserve'
+      JOIN bed_reservations br ON br.booking_id = bk.id
+        AND br.status = 'active' AND br.kind = 'primary'
+        AND br.stay_range @> CURRENT_DATE
+      WHERE c.residency_status IS DISTINCT FROM 'active'
+        AND coalesce(c.is_test, false) = false
+      ORDER BY c.full_name
+      LIMIT 100
+    `),
+  );
+
+  for (const row of tenancyWithoutResidency) {
+    findings.push({
+      code: 'TENANCY_WITHOUT_ACTIVE_RESIDENCY',
+      severity: 'P1',
+      customerId: String(row.customer_id),
+      fullName: row.full_name != null ? String(row.full_name) : null,
+      phone: row.phone != null ? String(row.phone) : null,
+      stayBookingId: row.booking_id != null ? String(row.booking_id) : null,
+      stayBookingCode: row.booking_code != null ? String(row.booking_code) : null,
+      detail: `Active tenancy ${row.booking_code} but residency_status=${row.residency_status}`,
+      repairable: true,
     });
   }
 

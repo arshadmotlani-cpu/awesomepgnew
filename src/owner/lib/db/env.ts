@@ -1,9 +1,13 @@
 /**
  * OWNER_DATABASE_URL must be a dedicated Neon DB — never PG / Hair / Capital.
+ * Supports Vercel Neon integration naming (OWNER_DATABASE_POSTGRES_URL) and
+ * the canonical OWNER_DATABASE_URL.
  */
 const OWNER_DATABASE_ENV_KEYS = [
   'OWNER_DATABASE_URL',
   'OWNER_DATABASE_DATABASE_URL',
+  'OWNER_DATABASE_POSTGRES_URL',
+  'OWNER_DATABASE_POSTGRES_PRISMA_URL',
   'OWNER_POSTGRES_URL',
 ] as const;
 

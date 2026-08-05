@@ -3,7 +3,7 @@
  * Formula owned here only as composition of already-explainable assets/liabilities.
  */
 import { getPersonalFinanceSnapshot } from '@/src/personalFinance/brains/personalFinanceBrain';
-import type { ExplainableValue } from '@/src/personalFinance/types';
+import type { ExplainableValue, PersonalFinanceSnapshot } from '@/src/personalFinance/types';
 
 export type NetWorthSnapshot = {
   currentNetWorth: ExplainableValue;
@@ -14,8 +14,9 @@ export type NetWorthSnapshot = {
 
 export async function getNetWorthSnapshot(opts?: {
   billingMonth?: string;
+  finance?: PersonalFinanceSnapshot;
 }): Promise<NetWorthSnapshot> {
-  const finance = await getPersonalFinanceSnapshot(opts);
+  const finance = opts?.finance ?? (await getPersonalFinanceSnapshot(opts));
   return {
     currentNetWorth: finance.currentNetWorth,
     assets: finance.assets,

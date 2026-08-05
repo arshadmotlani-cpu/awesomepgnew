@@ -361,6 +361,16 @@ async function applyBookingPaymentFinancialMirrors(input: {
       reason: `deposit captured with payment ${payInput.providerPaymentId}`,
       relatedPaymentId: paymentId,
     });
+    try {
+      const { emitDepositCollectedEvent } = await import('@/src/owner/events/emitters');
+      emitDepositCollectedEvent({
+        bookingId: booking.id,
+        paymentId,
+        depositPaise: depositPaisePaid,
+      });
+    } catch {
+      // Owner OS inbox is best-effort.
+    }
   }
 
   if (payInput.partialDeposit && split && split.depositDuePaise > 0) {
@@ -1057,6 +1067,18 @@ export async function recordPaymentSuccess(
     if (wasAwaitingConfirm) {
       const { reconcileBookingOccupancy } = await import('@/src/lib/occupancySync');
       await reconcileBookingOccupancy(booking.id);
+    }
+
+    try {
+      const { emitRentPaidEvent } = await import('@/src/owner/events/emitters');
+      emitRentPaidEvent({
+        bookingId: booking.id,
+        paymentId: result.paymentId,
+        amountPaise: input.amountPaise,
+        bookingCode: booking.bookingCode,
+      });
+    } catch (ownerEventErr) {
+      console.error('owner os rent.paid event failed:', ownerEventErr);
     }
 
     return {

@@ -9,7 +9,10 @@ import { db } from '@/src/db/client';
 export type FinanceBrainFindingCode =
   | 'PAYMENT_WITHOUT_INVOICE'
   | 'DUPLICATE_INVOICE_PAYMENT_ID'
-  | 'PARTIAL_ZERO_PAID';
+  | 'PARTIAL_ZERO_PAID'
+  | 'INVOICE_WITHOUT_BOOKING'
+  | 'INVOICE_WITHOUT_RESIDENT'
+  | 'NEGATIVE_LEDGER';
 
 export type FinanceBrainFinding = {
   code: FinanceBrainFindingCode;
@@ -64,7 +67,7 @@ export async function runFinanceBrainIntegrityAudit(): Promise<FinanceBrainInteg
       entityType: 'payment',
       entityId: String(row.payment_id),
       detail: `Succeeded ${row.purpose} payment ${row.provider}/${row.provider_payment_id} has no invoice payment_id link`,
-      repairable: false,
+      repairable: String(row.purpose) === 'rent',
     });
   }
 
@@ -122,6 +125,69 @@ export async function runFinanceBrainIntegrityAudit(): Promise<FinanceBrainInteg
       entityType: 'financial_invoice',
       entityId: String(row.invoice_id),
       detail: `Partial invoice ${row.invoice_number} has zero paidPaise`,
+      repairable: false,
+    });
+  }
+
+  const invoiceNoBooking = asRows(
+    await db.execute(sql`
+      SELECT id::text AS invoice_id, invoice_number
+      FROM financial_invoices
+      WHERE booking_id IS NULL
+        AND status NOT IN ('cancelled', 'refunded')
+        AND created_at > NOW() - INTERVAL '180 days'
+      LIMIT 30
+    `),
+  );
+  for (const row of invoiceNoBooking) {
+    findings.push({
+      code: 'INVOICE_WITHOUT_BOOKING',
+      severity: 'P1',
+      entityType: 'financial_invoice',
+      entityId: String(row.invoice_id),
+      detail: `Invoice ${row.invoice_number} has no booking_id`,
+      repairable: false,
+    });
+  }
+
+  const invoiceNoResident = asRows(
+    await db.execute(sql`
+      SELECT id::text AS invoice_id, invoice_number
+      FROM financial_invoices
+      WHERE customer_id IS NULL
+        AND status NOT IN ('cancelled', 'refunded')
+        AND created_at > NOW() - INTERVAL '180 days'
+      LIMIT 30
+    `),
+  );
+  for (const row of invoiceNoResident) {
+    findings.push({
+      code: 'INVOICE_WITHOUT_RESIDENT',
+      severity: 'P0',
+      entityType: 'financial_invoice',
+      entityId: String(row.invoice_id),
+      detail: `Invoice ${row.invoice_number} has no customer_id`,
+      repairable: false,
+    });
+  }
+
+  const negativeLedger = asRows(
+    await db.execute(sql`
+      SELECT booking_id::text AS booking_id, sum(amount_paise)::bigint AS bal
+      FROM deposit_ledger
+      WHERE created_at > NOW() - INTERVAL '365 days'
+      GROUP BY booking_id
+      HAVING sum(amount_paise) < 0
+      LIMIT 30
+    `),
+  );
+  for (const row of negativeLedger) {
+    findings.push({
+      code: 'NEGATIVE_LEDGER',
+      severity: 'P0',
+      entityType: 'booking',
+      entityId: String(row.booking_id),
+      detail: `Deposit ledger balance negative (${row.bal}) for booking ${row.booking_id}`,
       repairable: false,
     });
   }

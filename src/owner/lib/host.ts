@@ -37,8 +37,6 @@ export const OWNER_PUBLIC_PREFIXES = [
   '/assets',
   '/liabilities',
   '/investments',
-  '/forecast',
-  '/tax',
   '/wealth',
   '/settings',
 ] as const;

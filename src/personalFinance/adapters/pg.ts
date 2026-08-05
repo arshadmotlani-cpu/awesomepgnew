@@ -49,6 +49,7 @@ export async function loadPgContribution(billingMonth?: string): Promise<EngineC
         calculation: 'No public PG expense API — 0 until Expense Brain / PG opex API ships',
         sourceApi: 'unconnected',
         provisional: true,
+        connected: false,
         lineage: [],
       }),
       profitPaise: moneyValue({
@@ -98,6 +99,7 @@ export async function loadPgContribution(billingMonth?: string): Promise<EngineC
         calculation: msg,
         sourceApi: 'getFinancialMetrics',
         provisional: true,
+        connected: false,
       });
     return {
       engine: 'awesome_pg',

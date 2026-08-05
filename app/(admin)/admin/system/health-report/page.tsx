@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Badge } from '@/src/components/admin/Badge';
 import { BrainIntegrityCards } from '@/src/components/admin/BrainIntegrityCards';
+import { RepairIssueButton } from '@/src/components/admin/RepairIssueButton';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { OverviewMonthPicker } from '@/src/components/admin/OverviewMonthPicker';
 import { PageHeader } from '@/src/components/admin/PageHeader';
@@ -9,6 +10,12 @@ import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import type { HealthBrainName } from '@/src/lib/health/healthBrain';
 import { runSystemHealthAudit } from '@/src/services/systemHealthAudit';
+import {
+  fingerprintForIssue,
+  loadOpenDurableIssues,
+  loadRecentRepairEvents,
+} from '@/src/lib/health/repairEngine';
+import { runAllSafeBrainRepairsAction } from '@/app/(admin)/admin/system/health-report/actions';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 180;
@@ -37,9 +44,19 @@ export default async function SystemHealthReportPage({
   const session = await requireAdminSession('/admin/system/health-report');
   const report = await runSystemHealthAudit(session, billingMonth);
 
-  const filteredIssues = brainFilter
+  const liveIssues = brainFilter
     ? (report.brainIssues ?? []).filter((i) => i.brain === brainFilter)
     : report.brainIssues ?? [];
+
+  const durable = await loadOpenDurableIssues({
+    brain: brainFilter ?? undefined,
+    limit: 100,
+  }).catch(() => []);
+
+  const historyByIssue = new Map<string, Awaited<ReturnType<typeof loadRecentRepairEvents>>>();
+  for (const row of durable.slice(0, 15)) {
+    historyByIssue.set(row.id, await loadRecentRepairEvents(row.id, 5).catch(() => []));
+  }
 
   return (
     <>
@@ -52,7 +69,7 @@ export default async function SystemHealthReportPage({
       />
       <PageHeader
         title="Final system health report"
-        description="Financial, invoice, occupancy, notification, vacating, Brains, and SSOT integrity — deploy only when all sections PASS."
+        description="Brain integrity command center — repair safe issues, escalate Owner Tasks."
         actions={<OverviewMonthPicker billingMonth={billingMonth} />}
       />
 
@@ -74,6 +91,14 @@ export default async function SystemHealthReportPage({
             </Link>
           </Badge>
         ) : null}
+        <form action={runAllSafeBrainRepairsAction}>
+          <button
+            type="submit"
+            className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/20"
+          >
+            Run all safe repairs
+          </button>
+        </form>
       </div>
 
       {report.brainCards ? (
@@ -82,32 +107,76 @@ export default async function SystemHealthReportPage({
         </div>
       ) : null}
 
-      {brainFilter ? (
-        <section className="mb-8 rounded-xl border border-white/10 bg-[#1A1F27] p-4">
-          <h2 className="text-sm font-semibold text-white">{brainFilter} Brain issues</h2>
-          {filteredIssues.length === 0 ? (
-            <p className="mt-2 text-xs text-apg-silver">No open issues for this brain.</p>
-          ) : (
-            <ul className="mt-3 space-y-2">
-              {filteredIssues.map((issue) => (
+      <section className="mb-8 rounded-xl border border-white/10 bg-[#1A1F27] p-4">
+        <h2 className="text-sm font-semibold text-white">
+          {brainFilter ? `${brainFilter} Brain issues` : 'Open Brain issues'}
+        </h2>
+        {liveIssues.length === 0 && durable.length === 0 ? (
+          <p className="mt-2 text-xs text-apg-silver">No open issues for this filter.</p>
+        ) : (
+          <ul className="mt-3 space-y-3">
+            {(liveIssues.length > 0 ? liveIssues : durable.map((d) => ({
+              id: d.fingerprint,
+              severity: d.severity as 'P0' | 'P1' | 'P2',
+              brain: d.brain as HealthBrainName,
+              code: d.code,
+              cause: d.cause,
+              entityType: d.entityType,
+              entityId: d.entityId,
+              suggestedRepair: d.suggestedRepair,
+              autoRepairAvailable: d.autoRepairable,
+              status: d.status as 'open',
+            }))).map((issue) => {
+              const fp = fingerprintForIssue(issue);
+              const durableRow = durable.find((d) => d.fingerprint === fp);
+              const history = durableRow ? historyByIssue.get(durableRow.id) ?? [] : [];
+              return (
                 <li
                   key={issue.id}
                   className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/90"
                 >
-                  <span className="font-semibold text-[#FF5A1F]">
-                    [{issue.severity}] {issue.code}
-                  </span>{' '}
-                  {issue.cause}
-                  <div className="mt-1 text-[10px] text-apg-silver">
-                    {issue.entityType}:{issue.entityId ?? '—'} · repair:{' '}
-                    {issue.suggestedRepair}
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <span className="font-semibold text-[#FF5A1F]">
+                        [{issue.severity}] {issue.code}
+                      </span>{' '}
+                      <span className="text-apg-silver">· {issue.brain}</span>
+                      <div className="mt-1">{issue.cause}</div>
+                      <div className="mt-1 text-[10px] text-apg-silver">
+                        {issue.entityType}:{issue.entityId ?? '—'} · {issue.suggestedRepair}
+                        {durableRow ? ` · status=${durableRow.status}` : ''}
+                      </div>
+                    </div>
+  // Prefer Owner Task badge with recommended action always visible
+                    {issue.autoRepairAvailable ? (
+                      <RepairIssueButton fingerprint={fp} />
+                    ) : (
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge tone="amber">Owner Task</Badge>
+                        <span className="max-w-[14rem] text-right text-[10px] text-amber-100/80">
+                          {issue.suggestedRepair}
+                        </span>
+                      </div>
+                    )}
                   </div>
+                  {history.length > 0 ? (
+                    <ul className="mt-2 space-y-1 border-t border-white/5 pt-2 text-[10px] text-apg-silver">
+                      {history.map((h) => (
+                        <li key={h.id}>
+                          {h.createdAt?.toISOString?.() ?? String(h.createdAt)} · {h.repairFn} ·{' '}
+                          {h.result}
+                          {h.error ? ` · ${h.error}` : ''}
+                          {h.durationMs != null ? ` · ${h.durationMs}ms` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ) : null}
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
       <div className="space-y-4">
         {report.sections.map((section) => (
@@ -134,21 +203,6 @@ export default async function SystemHealthReportPage({
           </section>
         ))}
       </div>
-
-      <p className="mt-6 text-xs text-apg-silver">
-        Run individual audits:{' '}
-        <Link href="/admin/system/financial-audit" className="text-[#FF5A1F] hover:underline">
-          Financial
-        </Link>
-        {' · '}
-        <Link href="/admin/system/bed-audit" className="text-[#FF5A1F] hover:underline">
-          Bed
-        </Link>
-        {' · '}
-        <Link href="/admin/system/billing-integrity" className="text-[#FF5A1F] hover:underline">
-          Billing
-        </Link>
-      </p>
     </>
   );
 }

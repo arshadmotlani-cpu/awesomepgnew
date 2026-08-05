@@ -24,7 +24,6 @@ import type {
 import {
   bookingWorkflowHref,
   checkoutRefundHref,
-  paymentProofWorkflowHref,
   residentRequestWorkflowHref,
   settlementWorkflowHref,
   vacatingWorkflowHref,
@@ -33,7 +32,6 @@ import {
   buildKycReviewAction,
   mapUnresolvedActionRow,
 } from '@/src/lib/residents/residentUnresolvedActions';
-import { getActiveTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
 import { fetchBedOccupancyRows, resolveBedOccupancyRows } from '@/src/services/bedOccupancyBatch';
 import { canAdminMarkInvoicePaidWithCash } from '@/src/services/adminCashSettlement';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
@@ -56,8 +54,8 @@ import {
 } from '@/src/services/residentAdmin';
 import { listOpenRequestsForCustomer } from '@/src/services/residentRequests';
 import { buildResidentTimeline } from '@/src/services/residentTimeline';
-import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 import { getOpenActionsForResident } from '@/src/services/unresolvedActions';
+import type { ResidentTimelineResult } from '@/src/lib/admin/residentTimelineTypes';
 
 async function listBookingHistoryForCustomer(
   customerId: string,
@@ -187,12 +185,16 @@ function mapOpenRequests(rows: Awaited<ReturnType<typeof listOpenRequestsForCust
   }));
 }
 
-async function buildPendingReviews(
-  session: AdminSession,
-  customerId: string,
-  pendingKycSubmissionId: string | null,
-  customerName: string,
-): Promise<CommandCenterPendingItem[]> {
+type BuildPendingReviewsInput = {
+  customerId: string;
+  customerName: string;
+  pendingKycSubmissionId: string | null;
+  openRequestsRaw: Awaited<ReturnType<typeof listOpenRequestsForCustomer>>;
+  roomChanges: CommandCenterRoomChangeRow[];
+  vacatingRows: CommandCenterVacatingRow[];
+};
+
+async function buildPendingReviews(input: BuildPendingReviewsInput): Promise<CommandCenterPendingItem[]> {
   const items: CommandCenterPendingItem[] = [];
   const seen = new Set<string>();
 
@@ -202,10 +204,7 @@ async function buildPendingReviews(
     items.push(item);
   }
 
-  const [unresolved, paymentProofs] = await Promise.all([
-    getOpenActionsForResident(customerId),
-    listPendingPaymentReviews(session),
-  ]);
+  const unresolved = await getOpenActionsForResident(input.customerId);
 
   for (const row of unresolved) {
     const mapped = mapUnresolvedActionRow(row);
@@ -224,11 +223,11 @@ async function buildPendingReviews(
     });
   }
 
-  if (pendingKycSubmissionId) {
+  if (input.pendingKycSubmissionId) {
     const kyc = buildKycReviewAction({
-      customerId,
-      customerName,
-      pendingKycSubmissionId,
+      customerId: input.customerId,
+      customerName: input.customerName,
+      pendingKycSubmissionId: input.pendingKycSubmissionId,
     });
     push({
       id: kyc.sourceKey,
@@ -241,21 +240,7 @@ async function buildPendingReviews(
     });
   }
 
-  for (const proof of paymentProofs) {
-    if (proof.customerId !== customerId) continue;
-    push({
-      id: `payment_proof:${proof.key}`,
-      category: proof.paymentTypeLabel,
-      label: `${proof.paymentTypeLabel} uploaded`,
-      detail: `${proof.title} · ${proof.subtitle}`,
-      priority: 'high',
-      href: paymentProofWorkflowHref(proof),
-      createdAt: new Date(),
-    });
-  }
-
-  const openRequests = await listOpenRequestsForCustomer(customerId);
-  for (const req of openRequests) {
+  for (const req of input.openRequestsRaw) {
     if (!['submitted', 'under_review'].includes(req.status)) continue;
     if (req.type === 'deposit_refund') {
       if (!req.bookingId) continue;
@@ -285,8 +270,7 @@ async function buildPendingReviews(
     });
   }
 
-  const roomChanges = await listRoomChangesForCustomer(customerId);
-  for (const rc of roomChanges) {
+  for (const rc of input.roomChanges) {
     if (!['submitted', 'draft'].includes(rc.status)) continue;
     push({
       id: `room_change:${rc.id}`,
@@ -299,8 +283,7 @@ async function buildPendingReviews(
     });
   }
 
-  const vacating = await listVacatingForCustomer(customerId);
-  for (const v of vacating) {
+  for (const v of input.vacatingRows) {
     if (v.status === 'pending') {
       push({
         id: `vacating:${v.id}`,
@@ -398,10 +381,60 @@ async function resolveOccupancy(bedId: string) {
   };
 }
 
+export function emptyResidentTimeline(customer: {
+  id: string;
+  fullName: string;
+  phone: string;
+  email: string;
+}): ResidentTimelineResult {
+  return {
+    subject: {
+      customerId: customer.id,
+      customerName: customer.fullName,
+      phone: customer.phone,
+      email: customer.email,
+      bookingId: null,
+      bookingCode: null,
+      bookingStatus: null,
+      pgName: null,
+      roomNumber: null,
+      bedCode: null,
+    },
+    events: [],
+    nextAction: 'No events yet.',
+    blockedReason: null,
+    existsSummary: 'No timeline events.',
+  };
+}
+
+export async function loadResidentTimelineForCustomer(
+  session: AdminSession,
+  customerId: string,
+): Promise<ResidentTimelineResult> {
+  return buildResidentTimeline(session, customerId, null);
+}
+
+export async function loadResidentBookingDepositsForCustomer(
+  customerId: string,
+  bookingHistory: CommandCenterBookingHistoryRow[],
+  activeBookingId: string | null,
+): Promise<CommandCenterBookingDepositRow[]> {
+  return listBookingDepositRows(customerId, bookingHistory, activeBookingId);
+}
+
+export type LoadResidentCommandCenterOptions = {
+  includeTimeline?: boolean;
+  includeBookingDeposits?: boolean;
+};
+
 export async function loadResidentCommandCenter(
   session: AdminSession,
   customerId: string,
+  options: LoadResidentCommandCenterOptions = {},
 ): Promise<ResidentCommandCenterData | null> {
+  const includeTimeline = options.includeTimeline ?? false;
+  const includeBookingDeposits = options.includeBookingDeposits ?? false;
+
   const detail = await getResidentDetail(session, customerId);
   if (!detail) return null;
 
@@ -461,12 +494,21 @@ export async function loadResidentCommandCenter(
           })
         : Promise.resolve(null),
       listResidentInvoiceHistory(customerId, 40),
-      buildPendingReviews(session, customerId, pendingKycSubmissionId, customer.fullName),
-      buildResidentTimeline(session, customerId, null),
-      listBookingDepositRows(customerId, bookingHistory, bookingId),
+      buildPendingReviews({
+        customerId,
+        customerName: customer.fullName,
+        pendingKycSubmissionId,
+        openRequestsRaw,
+        roomChanges,
+        vacatingRows,
+      }),
+      includeTimeline
+        ? buildResidentTimeline(session, customerId, null)
+        : Promise.resolve(emptyResidentTimeline(customer)),
+      includeBookingDeposits
+        ? listBookingDepositRows(customerId, bookingHistory, bookingId)
+        : Promise.resolve([]),
     ]);
-
-  const activeTenancyFull = await getActiveTenancyForCustomer(customerId);
 
   return {
     customer: {
@@ -479,7 +521,7 @@ export async function loadResidentCommandCenter(
       createdAt: customer.createdAt,
     },
     isVacated,
-    activeTenancy: activeTenancyFull,
+    activeTenancy,
     settledTenancy,
     occupancy,
     financialAccount,

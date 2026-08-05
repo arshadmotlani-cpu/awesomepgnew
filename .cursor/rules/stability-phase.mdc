@@ -57,4 +57,8 @@ Generate a **Regression Report** (`npm run stability:report`). It must list:
 
 **Only commit and push when the report is green** and risks are acknowledged.
 
+## Ecosystem Baseline v1 (frozen 2026-08-05)
+
+Health Score must remain **100**. No Brain may regress. New Engines/Brains register with Health Brain. Full policy: `docs/ECOSYSTEM_BASELINE_V1.md`.
+
 Full runbook: `docs/STABILITY_PHASE.md`

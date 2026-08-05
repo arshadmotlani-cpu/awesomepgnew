@@ -56,7 +56,7 @@ export function PgPaymentsAdminPanel({
   const load = useCallback(async () => {
     const [catRes, payRes] = await Promise.all([
       fetch(`/api/pg/${pgId}/payment-categories`),
-      fetch(`/api/owner/payments?pgId=${pgId}`),
+      fetch(`/api/admin/payments?pgId=${pgId}`),
     ]);
     const catData = (await catRes.json()) as { categories?: Category[] };
     const payData = (await payRes.json()) as { payments?: Payment[] };

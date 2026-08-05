@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
 import { BulkKycWhatsAppReminder } from '@/src/components/admin/BulkKycWhatsAppReminder';
@@ -65,6 +65,7 @@ export function ResidentsTable({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [isNavigating, startTransition] = useTransition();
   const [query, setQuery] = useState(initialQuery);
   const [moveInDate, setMoveInDate] = useState(initialMoveInDate);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -96,6 +97,12 @@ export function ResidentsTable({
       return nameMatch || emailMatch || phoneMatch || bookingMatch || pgMatch || bedMatch;
     });
   }, [query, residents, statusFilter, moveInDate]);
+
+  function openResidentProfile(customerId: string) {
+    startTransition(() => {
+      router.push(`/admin/residents/${customerId}`);
+    });
+  }
 
   function applyMoveInFilter(date: string) {
     setMoveInDate(date);
@@ -198,11 +205,18 @@ export function ResidentsTable({
                 {filtered.map((r) => (
                   <tr
                     key={r.id}
-                    className="cursor-pointer transition hover:bg-white/[0.04]"
-                    onClick={() => router.push(`/admin/residents/${r.id}`)}
+                    className={`cursor-pointer transition hover:bg-white/[0.04] ${isNavigating ? 'pointer-events-none opacity-80' : ''}`}
+                    onClick={() => openResidentProfile(r.id)}
                   >
                     <td className="px-4 py-3">
-                      <p className="font-medium text-white">{r.fullName}</p>
+                      <Link
+                        href={`/admin/residents/${r.id}`}
+                        prefetch
+                        className="block font-medium text-white hover:text-[#FF5A1F]"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {r.fullName}
+                      </Link>
                       <p className="text-xs text-apg-silver">{r.email}</p>
                     </td>
                     <td className="px-4 py-3">{statusBadge(r)}</td>

@@ -40,6 +40,7 @@ export async function loadCapitalContribution(): Promise<EngineContribution> {
         calculation: 'Embedded in TVI — no separate period opex exposed here',
         sourceApi: 'getDealershipReportKpis',
         provisional: true,
+        connected: false,
         lineage: [],
       }),
       profitPaise: moneyValue({
@@ -71,6 +72,7 @@ export async function loadCapitalContribution(): Promise<EngineContribution> {
         calculation: 'Unconnected investor payables — provisional 0',
         sourceApi: 'unconnected',
         provisional: true,
+        connected: false,
         lineage: [],
       }),
     };
@@ -86,6 +88,7 @@ export async function loadCapitalContribution(): Promise<EngineContribution> {
         calculation: msg,
         sourceApi: 'getDealershipReportKpis',
         provisional: true,
+        connected: false,
       });
     return {
       engine: 'automotive_capital',

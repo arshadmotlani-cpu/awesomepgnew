@@ -69,5 +69,11 @@ export async function publishWorkforceFinanceContribution(
     payload: { ...snapshot, brain: 'finance' },
     sourceRef: 'workforce.connectors.finance',
   });
+  try {
+    const { emitWorkforceFinanceContributionEvent } = await import('@/src/owner/events/emitters');
+    emitWorkforceFinanceContributionEvent({ ...snapshot, engineId });
+  } catch {
+    // Owner OS inbox is best-effort.
+  }
   return snapshot;
 }

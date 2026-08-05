@@ -640,6 +640,17 @@ export async function recordSale(
       partnerProfitPaise: split.partnerProfitPaise,
     },
   });
+
+  try {
+    const { emitVehicleSoldEvent } = await import('@/src/owner/events/emitters');
+    emitVehicleSoldEvent({
+      assetId,
+      salePricePaise: actualSalePricePaise,
+      saleDate,
+    });
+  } catch {
+    // Owner OS inbox is best-effort.
+  }
 }
 
 export async function updateProfitDistributionMode(

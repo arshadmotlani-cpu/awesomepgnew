@@ -1,10 +1,10 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import { AdminAdvancedToolsSection } from '@/src/components/admin/AdminAdvancedToolsSection';
 import { ArchiveResidentButton } from '@/src/components/admin/ArchiveResidentButton';
 import { CreateChargeGeneratorForm } from '@/src/components/admin/CreateChargeGeneratorForm';
 import { EditMoveInDateForm } from '@/src/components/admin/EditMoveInDateForm';
 import { EditRentDueDateForm } from '@/src/components/admin/EditRentDueDateForm';
-import { EditTenantTenancyForm } from '@/src/components/admin/EditTenantTenancyForm';
 import { FinalSettlementPanel } from '@/src/components/admin/FinalSettlementPanel';
 import { ResidentResidencyPanel } from '@/src/components/admin/residents/ResidentResidencyPanel';
 import { CommandCenterQuickActions } from '@/src/components/admin/residents/command-center/CommandCenterQuickActions';
@@ -21,14 +21,16 @@ import { isMonthlyStayType } from '@/src/lib/stayType';
 import type { ResidentCommandCenterData } from '@/src/lib/residents/commandCenterTypes';
 import { getCheckoutSettlementDetailForBooking } from '@/src/services/checkoutSettlement';
 
-type BedOption = { bedId: string; label: string };
-
 export async function ResidentCommandCenter({
   data,
-  bedOptions,
+  timelineSlot,
+  bookingDepositsSlot,
+  bedTenancySlot,
 }: {
   data: ResidentCommandCenterData;
-  bedOptions: BedOption[];
+  timelineSlot?: ReactNode;
+  bookingDepositsSlot?: ReactNode;
+  bedTenancySlot?: ReactNode;
 }) {
   const checkoutDetail =
     data.settledTenancy && data.isVacated
@@ -41,9 +43,12 @@ export async function ResidentCommandCenter({
 
       {data.isVacated ? (
         <>
-          <CommandCenterFinancialSummary data={data} />
+          <CommandCenterFinancialSummary
+            data={data}
+            bookingDepositsSlot={bookingDepositsSlot}
+          />
           <CommandCenterBookingHistory data={data} />
-          <CommandCenterTimeline timeline={data.timeline} />
+          {timelineSlot ?? <CommandCenterTimeline timeline={data.timeline} />}
           {data.settledTenancy ? (
             <FinalSettlementPanel
               customerName={data.customer.fullName}
@@ -56,12 +61,15 @@ export async function ResidentCommandCenter({
       ) : (
         <>
           <CommandCenterCurrentStay data={data} />
-          <CommandCenterFinancialSummary data={data} />
+          <CommandCenterFinancialSummary
+            data={data}
+            bookingDepositsSlot={bookingDepositsSlot}
+          />
           <CommandCenterQuickActions data={data} />
           <CommandCenterBills data={data} />
           <CommandCenterRequests data={data} />
           <CommandCenterBookingHistory data={data} />
-          <CommandCenterTimeline timeline={data.timeline} />
+          {timelineSlot ?? <CommandCenterTimeline timeline={data.timeline} />}
 
           {data.residencyView ? (
             <ResidentResidencyPanel
@@ -92,18 +100,7 @@ export async function ResidentCommandCenter({
                 billingDay={data.billingDefaults.billingDay}
               />
             ) : null}
-            <div id="edit-tenancy">
-              <EditTenantTenancyForm
-                bookingId={data.activeTenancy.bookingId}
-                customerId={data.customer.id}
-                customerName={data.customer.fullName}
-                customerPhone={data.customer.phone}
-                currentBedId={data.activeTenancy.bedId}
-                currentRoomLabel={`${data.activeTenancy.pgName} · Room ${data.activeTenancy.roomNumber} · ${data.activeTenancy.bedCode}`}
-                blocksWholeRoom={data.activeTenancy.blocksRoomAvailability}
-                beds={bedOptions}
-              />
-            </div>
+            {bedTenancySlot ?? null}
           </div>
         ) : data.verification?.isVerified ? (
           <div id="assign-bed" className="scroll-mt-6">

@@ -110,10 +110,9 @@ export function middleware(request: NextRequest) {
     '/owner',
     '/net-worth',
     '/cashflow',
+    '/assets',
     '/liabilities',
     '/investments',
-    '/forecast',
-    '/tax',
     '/wealth',
     '/api/owner',
   ];

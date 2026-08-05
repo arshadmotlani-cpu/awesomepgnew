@@ -1,20 +1,18 @@
-import { Suspense } from 'react';
+import Link from 'next/link';
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { BillingCertificationNotice } from '@/src/components/admin/overview/BillingCertificationNotice';
 import { OwnerDashboard } from '@/src/components/admin/overview/owner/OwnerDashboard';
 import { OwnerDashboardWithTrends } from '@/src/components/admin/overview/owner/OwnerTrendChartsAsync';
-import { OwnerLifeDashboard } from '@/src/components/admin/overview/owner/OwnerLifeDashboard';
+import { OwnerSummaryCard } from '@/src/components/admin/overview/owner/OwnerSummaryCard';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { moduleHref } from '@/src/lib/admin/navigation';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { profileAdminStep } from '@/src/lib/admin/adminProfile';
 import { loadOverviewContext } from '@/src/services/overviewData';
 import { buildOwnerDashboard } from '@/src/services/ownerDashboard';
-import {
-  getOwnerLifeDashboard,
-  isPersonalFinanceOsEnabled,
-} from '@/src/personalFinance';
+import { isPersonalFinanceOsEnabled } from '@/src/personalFinance';
+import { Suspense } from 'react';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -27,12 +25,6 @@ export default async function OverviewPage() {
   const session = await requireAdminSession('/admin/overview');
 
   const lifeOsEnabled = isPersonalFinanceOsEnabled();
-  const lifeOs = lifeOsEnabled
-    ? await getOwnerLifeDashboard().catch((e) => {
-        console.error('[overview] Owner OS failed', e);
-        return null;
-      })
-    : null;
 
   const overviewResult = await profileAdminStep('overviewPage', () =>
     loadOverviewContext(session, undefined, { syncActions: false, reconcile: false }),
@@ -46,7 +38,7 @@ export default async function OverviewPage() {
       }
     : { ok: false as const, error: overviewResult.error, reconciliation: null };
 
-  if (!overviewResult.ok && !lifeOs) {
+  if (!overviewResult.ok && !lifeOsEnabled) {
     return (
       <>
         <DbStatusBanner error={overviewResult.error} />
@@ -56,8 +48,6 @@ export default async function OverviewPage() {
   }
 
   const ctx = overviewResult.ok ? overviewResult.data : null;
-  // Ecosystem health panel stays null until Repair Engine is shipped; do not
-  // import uncommitted health modules here (breaks production builds).
   const baseData = ctx
     ? {
         ...buildOwnerDashboard(ctx, ctx.executiveMetrics),
@@ -67,9 +57,13 @@ export default async function OverviewPage() {
 
   return (
     <>
-      <ModuleBreadcrumbs items={[{ label: 'Owner OS' }]} />
-      <AdminSectionErrorBoundary title="Owner OS">
-        {lifeOs ? <OwnerLifeDashboard finance={lifeOs.finance} /> : null}
+      <ModuleBreadcrumbs items={[{ label: 'PG Overview' }]} />
+      <AdminSectionErrorBoundary title="PG Overview">
+        {lifeOsEnabled ? (
+          <div className="mt-2">
+            <OwnerSummaryCard />
+          </div>
+        ) : null}
 
         {billingCert.ok && billingCert.reconciliation ? (
           <div className="mt-8">
@@ -86,7 +80,7 @@ export default async function OverviewPage() {
             <div>
               <h2 className="text-base font-semibold text-white">Awesome PG portfolio</h2>
               <p className="text-sm text-apg-silver">
-                Engine-local PG overview (not Owner OS). Detail stays in Billing Centre.
+                Engine-local PG overview. Financial life dashboard is on owner.awesomepg.in only.
               </p>
             </div>
             <Suspense fallback={<TrendsFallback data={baseData} />}>

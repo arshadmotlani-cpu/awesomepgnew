@@ -40,6 +40,10 @@
     {
       "path": "/api/cron/electricity-readings-without-bills",
       "schedule": "45 5 * * *"
+    },
+    {
+      "path": "/api/cron/owner-os-event-inbox",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

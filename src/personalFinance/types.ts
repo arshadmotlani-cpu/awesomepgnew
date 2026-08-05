@@ -40,6 +40,8 @@ export type ExplainableValue = {
   lineage: ExplainLineageItem[];
   /** true when placeholder until Engine connected */
   provisional?: boolean;
+  /** false → UI shows "Not Connected" instead of ₹0 */
+  connected?: boolean;
 };
 
 export type EngineContribution = {
@@ -85,6 +87,16 @@ export type PersonalFinanceSnapshot = {
   financialIndependencePct: ExplainableValue;
   contributions: EngineContribution[];
   metrics: ExplainableValue[];
+  /** Headline metrics with live Engine data */
+  connectedMetrics: ExplainableValue[];
+  /** Metrics awaiting future Engine connectors */
+  connectLater: ExplainableValue[];
+  todayIncome: ExplainableValue;
+  todayExpenses: ExplainableValue;
+  todayProfit: ExplainableValue;
+  yearlyProfit: ExplainableValue;
+  upcomingPayments: ExplainableValue;
+  upcomingEmis: ExplainableValue;
 };
 
 export function isPersonalFinanceOsEnabled(): boolean {

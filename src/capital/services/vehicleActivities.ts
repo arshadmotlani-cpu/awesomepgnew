@@ -90,7 +90,7 @@ export async function createVehicleActivity(input: CreateVehicleActivityInput) {
     if (amt === 0) throw new Error('Amount is required for this activity');
   }
 
-  return capitalDb.transaction(async (tx) => {
+  const row = await capitalDb.transaction(async (tx) => {
     const amountPaise =
       input.amountPaise != null ? Math.round(input.amountPaise) : null;
     const title = input.title?.trim() || meta.label;
@@ -171,6 +171,26 @@ export async function createVehicleActivity(input: CreateVehicleActivityInput) {
     await recalculateAsset(input.assetId, tx);
     return row;
   });
+
+  if (
+    meta.costImpact === 'vehicle_cost' &&
+    row.amountPaise != null &&
+    row.amountPaise !== 0
+  ) {
+    try {
+      const { emitVehicleCostRecordedEvent } = await import('@/src/owner/events/emitters');
+      emitVehicleCostRecordedEvent({
+        assetId: input.assetId,
+        activityId: row.id,
+        activityType: input.activityType,
+        amountPaise: row.amountPaise,
+      });
+    } catch {
+      // Owner OS inbox is best-effort.
+    }
+  }
+
+  return row;
 }
 
 /**

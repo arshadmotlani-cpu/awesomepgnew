@@ -38,6 +38,7 @@ export async function loadSalonContribution(): Promise<EngineContribution> {
         calculation: 'No public salon opex total API — 0 provisional',
         sourceApi: 'unconnected',
         provisional: true,
+        connected: false,
         lineage: [],
       }),
       profitPaise: moneyValue({
@@ -62,6 +63,7 @@ export async function loadSalonContribution(): Promise<EngineContribution> {
         calculation: 'Unconnected',
         sourceApi: 'unconnected',
         provisional: true,
+        connected: false,
         lineage: [],
       }),
       liabilitiesPaise: moneyValue({
@@ -88,6 +90,7 @@ export async function loadSalonContribution(): Promise<EngineContribution> {
         calculation: msg,
         sourceApi: 'getRevenueDashboardSnapshot',
         provisional: true,
+        connected: false,
       });
     return {
       engine: 'fyh_salon',

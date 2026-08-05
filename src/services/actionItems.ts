@@ -1096,6 +1096,11 @@ export async function listOpenActionItems(session: AdminSession): Promise<Action
   return listOpenActionItemsFiltered(session);
 }
 
+/** Read-only open action items for Owner OS (cron-scoped, no sync side effects). */
+export async function listOpenActionItemsForOwnerRead(): Promise<ActionItemRow[]> {
+  return listOpenActionItems(cronAdminSession());
+}
+
 export async function listOpenActionItemsByType(
   session: AdminSession,
   type: ActionItemRow['type'],

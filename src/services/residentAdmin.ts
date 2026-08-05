@@ -33,6 +33,7 @@ import {
   deriveTenancyStatus,
   getActiveTenancyForCustomer,
   onboardingBedAssignmentLateralSql,
+  type ActiveTenancy,
 } from '@/src/lib/residentActiveTenancy';
 import { formatDate, parseDate } from '@/src/lib/dates';
 import { isBedAvailable } from '@/src/services/availability';
@@ -101,22 +102,7 @@ export type ResidentDetail = {
     createdAt: Date;
     residencyStatus: ResidencyStatus;
   };
-  activeTenancy: {
-    bookingId: string;
-    bookingCode: string;
-    pgId: string;
-    pgName: string;
-    roomNumber: string;
-    bedId: string;
-    bedCode: string;
-    monthlyRentPaise: number;
-    depositPaise: number;
-    blocksRoomAvailability: boolean;
-    moveInDate: string;
-    durationMode: string;
-    stayType: string;
-    expectedCheckoutDate: string | null;
-  } | null;
+  activeTenancy: ActiveTenancy | null;
   settledTenancy: SettledTenancy | null;
   canArchive: boolean;
 };
@@ -465,24 +451,7 @@ export async function getResidentDetail(
       createdAt: customer.createdAt,
       residencyStatus: customer.residencyStatus,
     },
-    activeTenancy: activeTenancyRow
-      ? {
-          bookingId: activeTenancyRow.bookingId,
-          bookingCode: activeTenancyRow.bookingCode,
-          pgId: activeTenancyRow.pgId,
-          pgName: activeTenancyRow.pgName,
-          roomNumber: activeTenancyRow.roomNumber,
-          bedId: activeTenancyRow.bedId,
-          bedCode: activeTenancyRow.bedCode,
-          monthlyRentPaise: activeTenancyRow.monthlyRentPaise,
-          depositPaise: activeTenancyRow.depositPaise,
-          blocksRoomAvailability: activeTenancyRow.blocksRoomAvailability,
-          moveInDate: activeTenancyRow.moveInDate,
-          durationMode: activeTenancyRow.durationMode,
-          stayType: activeTenancyRow.stayType,
-          expectedCheckoutDate: activeTenancyRow.expectedCheckoutDate,
-        }
-      : null,
+    activeTenancy: activeTenancyRow,
     settledTenancy,
     canArchive: !activeTenancyRow,
   };

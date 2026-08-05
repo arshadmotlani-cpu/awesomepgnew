@@ -1,14 +1,20 @@
 /**
- * Health Brain — unified issue model + aggregate integrity audits + safe repairs.
+ * Health Brain — unified issue model + aggregate integrity audits + Repair Engine.
  */
 
 import { db } from '@/src/db/client';
 import { writeAuditLogNonBlocking } from '@/src/lib/audit/writeAuditLog';
 import { logger } from '@/src/lib/logger';
 import { formatDate } from '@/src/lib/dates';
-import { runBookingBrainIntegrityAudit, repairStaleDraftReservesWithoutHold } from '@/src/lib/health/bookingBrainIntegrity';
+import { runBookingBrainIntegrityAudit } from '@/src/lib/health/bookingBrainIntegrity';
 import { runFinanceBrainIntegrityAudit } from '@/src/lib/health/financeBrainIntegrity';
 import { runOperationsBrainIntegrityAudit } from '@/src/lib/health/operationsBrainIntegrity';
+import {
+  computeHealthScore,
+  dispatchSafeRepairs,
+  enrichIssuesWithRepairMeta,
+  upsertDurableIssues,
+} from '@/src/lib/health/repairEngine';
 
 export type HealthBrainName =
   | 'Resident'
@@ -25,7 +31,9 @@ export type HealthIssueStatus =
   | 'repair_available'
   | 'repair_running'
   | 'repaired'
-  | 'healthy';
+  | 'healthy'
+  | 'needs_owner'
+  | 'failed';
 
 export type HealthIssue = {
   id: string;
@@ -38,6 +46,7 @@ export type HealthIssue = {
   suggestedRepair: string;
   autoRepairAvailable: boolean;
   status: HealthIssueStatus;
+  repairFn?: string | null;
 };
 
 export type BrainCardStatus = 'Healthy' | 'Warning' | 'Critical';
@@ -58,9 +67,16 @@ export type AllBrainIntegrityReport = {
   issues: HealthIssue[];
   cards: BrainCardSummary[];
   pass: boolean;
+  healthScore: number;
   repairs?: {
-    orphanReservesCancelled: string[];
-    staleDraftsCancelled: string[];
+    runId?: string;
+    orphanReservesCancelled?: string[];
+    staleDraftsCancelled?: string[];
+    rowsRepaired?: number;
+    rowsSkipped?: number;
+    rowsFailed?: number;
+    healthScoreBefore?: number;
+    healthScoreAfter?: number;
   };
 };
 
@@ -114,19 +130,14 @@ export async function alertHealthBrainIncident(input: {
 export async function runAllBrainIntegrityAudits(opts?: {
   billingMonth?: string;
   runSafeRepairs?: boolean;
-  /** Persist P0 incidents to audit_log (cron / explicit). Off for UI cards. */
   persistIncidents?: boolean;
+  persistDurableIssues?: boolean;
+  repairTrigger?: 'cron' | 'ui' | 'script';
 }): Promise<AllBrainIntegrityReport> {
   const billingMonth = opts?.billingMonth ?? firstOfMonthIso();
   const issues: HealthIssue[] = [];
 
-  const [
-    resident,
-    electricity,
-    operations,
-    booking,
-    finance,
-  ] = await Promise.all([
+  const [resident, electricity, operations, booking, finance] = await Promise.all([
     import('@/src/lib/residents/residentBrainIntegrity').then((m) =>
       m.runResidentBrainIntegrityAudit({ currentMonth: billingMonth }),
     ),
@@ -139,23 +150,57 @@ export async function runAllBrainIntegrityAudits(opts?: {
   ]);
 
   for (const f of resident.findings) {
+    const entityType =
+      f.code === 'MISSING_CURRENT_MONTH_RENT' || f.code === 'MISSING_BILLING_PROFILE'
+        ? 'booking'
+        : f.code === 'MISSING_ELECTRICITY_WINDOW'
+          ? 'room'
+          : f.code === 'DRAFT_BOOKING_WITH_ACTIVE_STAY'
+            ? 'booking'
+            : 'customer';
+    const entityId =
+      entityType === 'booking'
+        ? f.code === 'DRAFT_BOOKING_WITH_ACTIVE_STAY'
+          ? f.problemBookingId ?? null
+          : f.stayBookingId ?? null
+        : entityType === 'room'
+          ? f.problemBookingId ?? null // room id stashed
+          : f.customerId;
+
+    const suggested =
+      f.code === 'MISSING_CURRENT_MONTH_RENT'
+        ? 'Conservative ensureMonthlyRentInvoice'
+        : f.code === 'MISSING_ELECTRICITY_WINDOW'
+          ? 'Conservative createElectricityBill from monthly reading'
+          : f.code === 'MISSING_BILLING_PROFILE'
+            ? 'ensureBillingProfileForBooking'
+            : f.code === 'DRAFT_BOOKING_WITH_ACTIVE_STAY'
+              ? 'Cancel abandoned draft (no hold/payment/invoice)'
+              : f.code === 'ACTIVE_RESIDENCY_WITHOUT_TENANCY'
+                ? 'Demote residency_status to vacated (no assigned tenancy)'
+                : f.code === 'TENANCY_WITHOUT_ACTIVE_RESIDENCY'
+                  ? 'Sync residency_status to active (assigned tenancy exists)'
+                  : f.repairable
+                    ? 'Cancel orphan reserve blocking active stay'
+                    : 'Owner Task — manual investigation';
+
     issues.push({
-      id: issueId('Resident', f.code, f.customerId),
+      id: issueId('Resident', f.code, entityId),
       severity: f.severity,
       brain: 'Resident',
-      entityType: 'customer',
-      entityId: f.customerId,
+      entityType,
+      entityId,
       code: f.code,
       cause: f.detail,
-      suggestedRepair: f.repairable
-        ? 'Cancel orphan reserve blocking active stay'
-        : 'Manual investigation — do not auto-generate bills',
+      suggestedRepair: suggested,
       autoRepairAvailable: f.repairable,
-      status: f.repairable ? 'repair_available' : 'open',
+      status: f.repairable ? 'repair_available' : 'needs_owner',
     });
   }
 
   for (const f of electricity.findings) {
+    const auto =
+      f.code === 'METER_LOG_WITHOUT_BILL' || f.code === 'GENERATION_JOB_STUCK_WITHOUT_BILL';
     issues.push({
       id: issueId('Electricity', f.code, f.roomId),
       severity: f.severity,
@@ -164,22 +209,31 @@ export async function runAllBrainIntegrityAudits(opts?: {
       entityId: f.roomId,
       code: f.code,
       cause: f.detail,
-      suggestedRepair: 'Detect only — do not invent electricity bills from Health',
-      autoRepairAvailable: false,
-      status: 'open',
+      suggestedRepair: auto
+        ? 'Conservative bill generate / mark stuck job failed'
+        : 'Owner Task — do not invent readings',
+      autoRepairAvailable: auto,
+      status: auto ? 'repair_available' : 'needs_owner',
     });
   }
 
   for (const f of operations.findings) {
+    const synthetic =
+      f.code === 'INVALID_BILLING_MONTH' ||
+      f.code === 'INVALID_SCREENSHOT' ||
+      f.code === 'DUPLICATE_SCREENSHOT' ||
+      f.code === 'ORPHAN_PROOF';
     issues.push({
       id: issueId('Operations', f.code, f.entityId),
       severity: f.severity,
       brain: 'Operations',
       entityType: f.entityType,
       entityId: f.entityId,
-      code: f.code,
+      code: synthetic ? 'SYNTHETIC_PAYMENT_REVIEW' : f.code,
       cause: f.detail,
-      suggestedRepair: 'Excluded from Operations queue automatically',
+      suggestedRepair: synthetic
+        ? 'Cancel synthetic verification invoice / clear placeholder proof'
+        : 'Excluded from Operations queue automatically',
       autoRepairAvailable: true,
       status: 'repair_available',
     });
@@ -195,10 +249,12 @@ export async function runAllBrainIntegrityAudits(opts?: {
       code: f.code,
       cause: f.detail,
       suggestedRepair: f.repairable
-        ? 'Cancel stale draft reserve (≥14d) with no hold'
-        : 'Manual booking/bed repair',
+        ? f.code === 'CONFIRMED_WITHOUT_BED'
+          ? 'Complete ended fixed-stay booking (stay already finished)'
+          : 'Cancel stale/expired reserve with no hold'
+        : 'Owner Task — manual booking/bed repair',
       autoRepairAvailable: f.repairable,
-      status: f.repairable ? 'repair_available' : 'open',
+      status: f.repairable ? 'repair_available' : 'needs_owner',
     });
   }
 
@@ -211,14 +267,17 @@ export async function runAllBrainIntegrityAudits(opts?: {
       entityId: f.entityId,
       code: f.code,
       cause: f.detail,
-      suggestedRepair: 'Manual finance reconciliation',
-      autoRepairAvailable: false,
-      status: 'open',
+      suggestedRepair: f.repairable
+        ? 'Link orphan rent payment to unique matching paid invoice'
+        : 'Owner Task — never delete money; preserve audit history',
+      autoRepairAvailable: f.repairable,
+      status: f.repairable ? 'repair_available' : 'needs_owner',
     });
   }
 
-  // Health brain = meta issues (P0 open across brains)
-  const openP0 = issues.filter((i) => i.severity === 'P0');
+  let enriched = enrichIssuesWithRepairMeta(issues);
+
+  const openP0 = enriched.filter((i) => i.severity === 'P0');
   if (opts?.persistIncidents || opts?.runSafeRepairs) {
     for (const i of openP0.slice(0, 20)) {
       await alertHealthBrainIncident({
@@ -234,7 +293,7 @@ export async function runAllBrainIntegrityAudits(opts?: {
   }
 
   if (openP0.length > 0) {
-    issues.push({
+    enriched.push({
       id: issueId('Health', 'OPEN_P0_AGGREGATE', null),
       severity: 'P0',
       brain: 'Health',
@@ -248,16 +307,43 @@ export async function runAllBrainIntegrityAudits(opts?: {
     });
   }
 
+  if (opts?.persistDurableIssues || opts?.runSafeRepairs) {
+    await upsertDurableIssues(enriched).catch((err) => {
+      logger.error('health.durable_issues_upsert_failed', {
+        err: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }
+
   let repairs: AllBrainIntegrityReport['repairs'];
   if (opts?.runSafeRepairs) {
-    const { repairOrphanReservesBlockingActiveStay } = await import(
-      '@/src/lib/residents/residentBrainIntegrity'
-    );
-    const orphan = await repairOrphanReservesBlockingActiveStay();
-    const stale = await repairStaleDraftReservesWithoutHold();
+    const dispatch = await dispatchSafeRepairs({
+      trigger: opts.repairTrigger ?? 'cron',
+      billingMonth,
+      issues: enriched,
+    });
     repairs = {
-      orphanReservesCancelled: orphan.cancelledBookingIds,
-      staleDraftsCancelled: stale.cancelledBookingIds,
+      runId: dispatch.runId,
+      rowsRepaired: dispatch.rowsRepaired,
+      rowsSkipped: dispatch.rowsSkipped,
+      rowsFailed: dispatch.rowsFailed,
+      healthScoreBefore: dispatch.healthScoreBefore,
+      healthScoreAfter: dispatch.healthScoreAfter,
+    };
+
+    // Re-audit after repairs for accurate cards/score
+    const after = await runAllBrainIntegrityAudits({
+      billingMonth,
+      runSafeRepairs: false,
+      persistDurableIssues: true,
+      persistIncidents: false,
+    });
+    return {
+      ...after,
+      repairs: {
+        ...repairs,
+        healthScoreAfter: after.healthScore,
+      },
     };
   }
 
@@ -270,7 +356,7 @@ export async function runAllBrainIntegrityAudits(opts?: {
     'Health',
   ];
   const cards: BrainCardSummary[] = brains.map((brain) => {
-    const subset = issues.filter((i) => i.brain === brain);
+    const subset = enriched.filter((i) => i.brain === brain && i.code !== 'OPEN_P0_AGGREGATE');
     const p0 = subset.filter((i) => i.severity === 'P0').length;
     const p1 = subset.filter((i) => i.severity === 'P1').length;
     const p2 = subset.filter((i) => i.severity === 'P2').length;
@@ -285,18 +371,20 @@ export async function runAllBrainIntegrityAudits(opts?: {
     };
   });
 
-  const pass = !issues.some((i) => i.severity === 'P0');
+  const healthScore = computeHealthScore(enriched);
+
   return {
     asOf: new Date().toISOString(),
     billingMonth,
-    issues,
+    issues: enriched,
     cards,
-    pass,
+    pass: !enriched.some((i) => i.severity === 'P0'),
+    healthScore,
     repairs,
   };
 }
 
-/** Safe auto-repair registry entries (Wave 1). */
+/** Safe auto-repair registry (docs + Wave 1 compat). Real dispatch in repairHandlers. */
 export const HEALTH_BRAIN_SAFE_REPAIRS = [
   {
     id: 'repairOrphanReservesBlockingActiveStay',
@@ -314,8 +402,48 @@ export const HEALTH_BRAIN_SAFE_REPAIRS = [
     description: 'Cancel draft+reserve with no hold aged ≥14 days',
   },
   {
+    id: 'repairExpiredReservesWithoutHold',
+    auto: true,
+    description: 'Cancel expired/aged reserves with no hold',
+  },
+  {
+    id: 'cleanupSyntheticPaymentReviews',
+    auto: true,
+    description: 'Cancel synthetic 2099/OPT*/example.com payment reviews',
+  },
+  {
+    id: 'repairMissingRentInvoiceConservative',
+    auto: true,
+    description: 'Ensure unpaid rent when anniversary window elapsed',
+  },
+  {
+    id: 'repairMissingElectricityBillConservative',
+    auto: true,
+    description: 'Create electricity bill from monthly reading when safe',
+  },
+  {
+    id: 'repairAbandonedDraftsWithActiveStay',
+    auto: true,
+    description: 'Cancel abandoned drafts with active stay',
+  },
+  {
+    id: 'repairResidencyTenancyDrift',
+    auto: true,
+    description: 'Sync/demote residency_status to assigned tenancy',
+  },
+  {
+    id: 'repairUnambiguousOrphanRentPaymentLinks',
+    auto: true,
+    description: 'Link orphan rent payment to unique matching paid invoice',
+  },
+  {
+    id: 'repairEndedConfirmedFixedStayBookings',
+    auto: true,
+    description: 'Complete ended fixed-stay bookings with no active bed',
+  },
+  {
     id: 'repairMissingBills',
     auto: false,
-    description: 'Do not invent rent/electricity bills from Health',
+    description: 'Do not invent rent/electricity bills without conservative gates',
   },
 ] as const;

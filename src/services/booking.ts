@@ -757,6 +757,19 @@ export async function createBooking(
 
       await stampProfileCompletedAtIfReady(result.customerId);
 
+      // Prevention: never leave empty sibling drafts alongside a new booking.
+      try {
+        const { cancelEmptySiblingDrafts } = await import(
+          '@/src/lib/health/wave3IntegrityRepairs'
+        );
+        await cancelEmptySiblingDrafts({
+          customerId: result.customerId,
+          keepBookingId: result.id,
+        });
+      } catch (draftCleanupErr) {
+        console.error('cancel empty sibling drafts failed:', draftCleanupErr);
+      }
+
       if (isAdminCreated && bookingStatus === 'confirmed') {
         try {
           const { supersedePriorOpenBookingsForConfirmedBooking } = await import(

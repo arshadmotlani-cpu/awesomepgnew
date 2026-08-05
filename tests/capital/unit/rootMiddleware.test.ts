@@ -18,8 +18,8 @@ describe('root middleware PG host isolation', () => {
     assert.notEqual(res.status, 404);
   });
 
-  it('awesomepg.in /assets returns 404', () => {
-    const res = middleware(req('/assets', 'awesomepg.in'));
+  it('www.awesomepg.in /assets returns 404 (Capital-only path on PG host)', () => {
+    const res = middleware(req('/assets', 'www.awesomepg.in'));
     assert.equal(res.status, 404);
   });
 

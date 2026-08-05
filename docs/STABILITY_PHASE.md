@@ -36,6 +36,12 @@ This runs, in order:
 2. **Unit/integration tests** — scoped to affected products (pg / hair / capital)
 3. **Billing settlement suite** — when billing, resident money, checkout, or settlement paths change
 
+### 3b. Ecosystem Baseline v1 (frozen 2026-08-05)
+
+In addition to Stability Phase, every change must leave **Health Score = 100** with no Brain regression. New Engines/Brains must register with Health Brain (audit, score, repairs, events, audit trail, performance). See [ECOSYSTEM_BASELINE_V1.md](./ECOSYSTEM_BASELINE_V1.md).
+
+If Health Score drops below 100, the change is incomplete until fixed.
+
 ### 4. Unrelated failures — STOP
 
 If a test fails that is **not** explained by your change:
@@ -114,10 +120,12 @@ Phase 1 resident portal work is **not complete** until this cert passes with `CE
 - [ ] `npm run stability:report` green
 - [ ] Production read-only audit (if billing/inventory/money)
 - [ ] Shantinagar Phase 1 cert (`npm run cert:shantinagar-phase1`) before Billing Centre releases
+- [ ] **Ecosystem Baseline v1:** Health Score remains 100; no Brain regresses (`docs/ECOSYSTEM_BASELINE_V1.md`)
 - [ ] Regression report reviewed
 
 ## Related docs
 
+- [ECOSYSTEM_BASELINE_V1.md](./ECOSYSTEM_BASELINE_V1.md) — frozen floor: Health Score = 100, Brain registration law
 - [SETTLEMENT_ENGINE_FREEZE.md](./SETTLEMENT_ENGINE_FREEZE.md)
 - [BILLING_ENGINE_INVARIANTS.md](./BILLING_ENGINE_INVARIANTS.md)
 - [SETTLEMENT_REPAIR_POLICY.md](./SETTLEMENT_REPAIR_POLICY.md)

@@ -1,10 +1,21 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { NotificationActionResolved } from '@/src/components/admin/NotificationActionResolved';
 import { BedAssignmentWhatsAppButton } from '@/src/components/admin/BedAssignmentWhatsAppButton';
 import { RentUpdatedSuccessBanner } from '@/src/components/admin/RentUpdatedSuccessBanner';
 import { ResidentCommandCenter } from '@/src/components/admin/residents/command-center/ResidentCommandCenter';
 import { ResidentImpersonationPanel } from '@/src/components/admin/residents/ResidentImpersonationPanel';
+import {
+  ResidentProfileBedTenancySection,
+  ResidentProfileBookingDepositsSection,
+  ResidentProfileTimelineSection,
+} from '@/src/components/admin/residents/ResidentProfileAsyncSections';
+import {
+  CommandCenterTimelineSkeleton,
+  ResidentBedTenancySkeleton,
+  ResidentBookingDepositsSkeleton,
+} from '@/src/components/admin/residents/ResidentProfileSkeletons';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
@@ -12,7 +23,6 @@ import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { evaluateNotificationDeepLink } from '@/src/lib/admin/notificationDeepLinkGuard';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 import { loadResidentCommandCenter } from '@/src/services/residentCommandCenter';
-import { listAssignableBeds } from '@/src/services/tenantAssignment';
 import {
   listImpersonationAuditForCustomer,
   residentPortalUrl,
@@ -69,24 +79,38 @@ export default async function ResidentDetailPage({
 
   const session = await requireAdminPermission('bookings:write');
 
-  const data = await loadResidentCommandCenter(session, customerId);
+  const data = await loadResidentCommandCenter(session, customerId, {
+    includeTimeline: false,
+    includeBookingDeposits: false,
+  });
   if (!data) notFound();
 
-  const assignableRows = await listAssignableBeds(session);
-  const bedOptions = assignableRows.map((b) => ({
-    bedId: b.bedId,
-    label: `${b.pgName} · Room ${b.roomNumber} · ${b.bedCode}${b.manualOccupied ? ' · marked occupied' : ''}`,
-  }));
-
-  if (data.activeTenancy) {
-    const t = data.activeTenancy;
-    const currentLabel = `${t.pgName} · Room ${t.roomNumber} · ${t.bedCode}`;
-    if (!bedOptions.some((b) => b.bedId === t.bedId)) {
-      bedOptions.unshift({ bedId: t.bedId, label: `${currentLabel} (current)` });
-    }
-  }
-
   const { customer, activeTenancy } = data;
+  const activeBookingId =
+    activeTenancy?.bookingId ?? data.settledTenancy?.bookingId ?? null;
+
+  const timelineSlot = (
+    <Suspense fallback={<CommandCenterTimelineSkeleton />}>
+      <ResidentProfileTimelineSection session={session} customerId={customerId} />
+    </Suspense>
+  );
+
+  const bookingDepositsSlot = (
+    <Suspense fallback={<ResidentBookingDepositsSkeleton />}>
+      <ResidentProfileBookingDepositsSection
+        customerId={customerId}
+        bookingHistory={data.bookingHistory}
+        activeBookingId={activeBookingId}
+      />
+    </Suspense>
+  );
+
+  const bedTenancySlot = activeTenancy ? (
+    <Suspense fallback={<ResidentBedTenancySkeleton />}>
+      <ResidentProfileBedTenancySection session={session} data={data} />
+    </Suspense>
+  ) : null;
+
   const isSuperAdmin = session.role === 'super_admin';
   const impersonationAudit = isSuperAdmin
     ? await listImpersonationAuditForCustomer(customerId, 30)
@@ -188,7 +212,12 @@ export default async function ResidentDetailPage({
         </div>
       ) : null}
 
-      <ResidentCommandCenter data={data} bedOptions={bedOptions} />
+      <ResidentCommandCenter
+        data={data}
+        timelineSlot={timelineSlot}
+        bookingDepositsSlot={bookingDepositsSlot}
+        bedTenancySlot={bedTenancySlot}
+      />
     </>
   );
 }

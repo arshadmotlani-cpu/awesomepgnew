@@ -23,6 +23,7 @@ export async function loadWorkforceContribution(): Promise<EngineContribution> {
         engine: 'workforce',
         calculation: 'Workforce does not produce owner revenue',
         sourceApi: 'getWorkforceFinanceContribution',
+        connected: false,
         lineage: [],
       }),
       expensesPaise: moneyValue({
@@ -60,6 +61,7 @@ export async function loadWorkforceContribution(): Promise<EngineContribution> {
         calculation: 'n/a',
         sourceApi: 'getWorkforceFinanceContribution',
         provisional: true,
+        connected: false,
         lineage: [],
       }),
       liabilitiesPaise: moneyValue({
@@ -88,6 +90,7 @@ export async function loadWorkforceContribution(): Promise<EngineContribution> {
         calculation: msg,
         sourceApi: 'getWorkforceFinanceContribution',
         provisional: true,
+        connected: false,
       });
     return {
       engine: 'workforce',

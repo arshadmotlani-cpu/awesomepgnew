@@ -1,9 +1,13 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
 import { isMonthlyStayType } from '@/src/lib/stayType';
 import { diffDays, parseDate } from '@/src/lib/dates';
-import type { ResidentCommandCenterData } from '@/src/lib/residents/commandCenterTypes';
+import type {
+  CommandCenterBookingDepositRow,
+  ResidentCommandCenterData,
+} from '@/src/lib/residents/commandCenterTypes';
 import { bedMapHref, bookingWorkflowHref } from '@/src/lib/residents/commandCenterLinks';
 import {
   CommandCenterSection,
@@ -120,11 +124,17 @@ function Fact({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function CommandCenterFinancialSummary({ data }: { data: ResidentCommandCenterData }) {
+export function CommandCenterFinancialSummary({
+  data,
+  bookingDepositsSlot,
+}: {
+  data: ResidentCommandCenterData;
+  bookingDepositsSlot?: ReactNode;
+}) {
   const fin = data.financialAccount;
   const walletPaise = data.depositSummary?.refundableBalancePaise ?? fin?.depositHeldPaise ?? 0;
 
-  if (!fin && data.bookingDeposits.length === 0) {
+  if (!fin && data.bookingDeposits.length === 0 && !bookingDepositsSlot) {
     return (
       <CommandCenterSection
         id="financial"
@@ -179,44 +189,60 @@ export function CommandCenterFinancialSummary({ data }: { data: ResidentCommandC
       ) : null}
 
       {data.bookingDeposits.length > 0 ? (
-        <div className={fin ? 'mt-5 space-y-3 border-t border-white/5 pt-5' : 'space-y-3'}>
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-apg-silver">
-            Deposits by booking
-          </p>
-          {data.bookingDeposits.map((row) => (
-            <div
-              key={row.bookingId}
-              className="rounded-xl border border-white/5 bg-[#12161C] px-3 py-3"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Link
-                  href={bookingWorkflowHref(row.bookingId)}
-                  className="text-sm font-semibold text-[#FF5A1F] hover:underline"
-                >
-                  {row.bookingCode}
-                </Link>
-                <Badge tone={toneForStatus(row.bookingStatus)}>{titleCase(row.bookingStatus)}</Badge>
-              </div>
-              <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                <DepositFact label="Deposit paid" value={row.depositPaidPaise} />
-                {row.transferFromPriorPaise > 0 ? (
-                  <DepositFact label="Transfer from prior" value={row.transferFromPriorPaise} />
-                ) : null}
-                {row.additionalDepositPaidPaise > 0 ? (
-                  <DepositFact label="Additional paid" value={row.additionalDepositPaidPaise} />
-                ) : null}
-                <DepositFact label="Deposit used" value={row.depositUsedPaise} />
-                <DepositFact label="Deposit refunded" value={row.depositRefundedPaise} />
-                <DepositFact label="Deposit remaining" value={row.depositRemainingPaise} accent />
-              </dl>
-              {row.dispositionLabel ? (
-                <p className="mt-2 text-xs text-apg-silver">Disposition: {row.dispositionLabel}</p>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      ) : null}
+        <CommandCenterBookingDepositsList rows={data.bookingDeposits} withTopBorder={Boolean(fin)} />
+      ) : (
+        bookingDepositsSlot
+      )}
     </CommandCenterSection>
+  );
+}
+
+export function CommandCenterBookingDepositsList({
+  rows,
+  withTopBorder = false,
+}: {
+  rows: CommandCenterBookingDepositRow[];
+  withTopBorder?: boolean;
+}) {
+  if (rows.length === 0) return null;
+
+  return (
+    <div className={withTopBorder ? 'mt-5 space-y-3 border-t border-white/5 pt-5' : 'space-y-3'}>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-apg-silver">
+        Deposits by booking
+      </p>
+      {rows.map((row) => (
+        <div
+          key={row.bookingId}
+          className="rounded-xl border border-white/5 bg-[#12161C] px-3 py-3"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Link
+              href={bookingWorkflowHref(row.bookingId)}
+              className="text-sm font-semibold text-[#FF5A1F] hover:underline"
+            >
+              {row.bookingCode}
+            </Link>
+            <Badge tone={toneForStatus(row.bookingStatus)}>{titleCase(row.bookingStatus)}</Badge>
+          </div>
+          <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            <DepositFact label="Deposit paid" value={row.depositPaidPaise} />
+            {row.transferFromPriorPaise > 0 ? (
+              <DepositFact label="Transfer from prior" value={row.transferFromPriorPaise} />
+            ) : null}
+            {row.additionalDepositPaidPaise > 0 ? (
+              <DepositFact label="Additional paid" value={row.additionalDepositPaidPaise} />
+            ) : null}
+            <DepositFact label="Deposit used" value={row.depositUsedPaise} />
+            <DepositFact label="Deposit refunded" value={row.depositRefundedPaise} />
+            <DepositFact label="Deposit remaining" value={row.depositRemainingPaise} accent />
+          </dl>
+          {row.dispositionLabel ? (
+            <p className="mt-2 text-xs text-apg-silver">Disposition: {row.dispositionLabel}</p>
+          ) : null}
+        </div>
+      ))}
+    </div>
   );
 }
 

@@ -74,5 +74,27 @@ else
   echo "⚠ Hair database URL not set (HAIR_DATABASE_URL) — skipping For Your Hair migrations."
 fi
 
+has_owner_db_url() {
+  [[ -n "${OWNER_DATABASE_URL:-}" ]] \
+    || [[ -n "${OWNER_DATABASE_DATABASE_URL:-}" ]] \
+    || [[ -n "${OWNER_DATABASE_POSTGRES_URL:-}" ]] \
+    || [[ -n "${OWNER_DATABASE_POSTGRES_PRISMA_URL:-}" ]] \
+    || [[ -n "${OWNER_POSTGRES_URL:-}" ]]
+}
+
+if has_owner_db_url; then
+  echo "=== Owner OS database migrations ==="
+  if is_production_deployment; then
+    npm run owner:db:migrate
+    npm run owner:db:seed || true
+  elif npm run owner:db:migrate; then
+    npm run owner:db:seed || true
+  else
+    echo "⚠ Owner db:migrate failed — continuing build."
+  fi
+else
+  echo "⚠ Owner database URL not set (OWNER_DATABASE_URL or OWNER_DATABASE_POSTGRES_URL) — skipping Owner OS migrations."
+fi
+
 bash scripts/vercel-build-repair.sh
 next build

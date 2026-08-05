@@ -4,6 +4,11 @@ import { OWNER_OS } from '@/src/lib/brand/ownerOsMetadata';
 const NAV = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/net-worth', label: 'Net Worth' },
+  { href: '/cashflow', label: 'Cashflow' },
+  { href: '/assets', label: 'Assets' },
+  { href: '/liabilities', label: 'Liabilities' },
+  { href: '/investments', label: 'Investments' },
+  { href: '/wealth', label: 'Wealth' },
   { href: '/settings', label: 'Settings' },
 ] as const;
 

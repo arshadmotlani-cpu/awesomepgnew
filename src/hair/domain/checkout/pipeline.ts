@@ -342,10 +342,24 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
     // Post-checkout notifications are best-effort.
   }
 
+  const amountPaidPaise = Math.min(paySum, priced.totals.grandTotalPaise);
+  if (amountPaidPaise > 0) {
+    try {
+      const { emitSalonInvoicePaidEvent } = await import('@/src/owner/events/emitters');
+      emitSalonInvoicePaidEvent({
+        invoiceId,
+        amountPaise: amountPaidPaise,
+        customerId: enriched.customerId,
+      });
+    } catch {
+      // Owner OS inbox is best-effort.
+    }
+  }
+
   return {
     invoiceId,
     pricedGrandTotalPaise: priced.totals.grandTotalPaise,
-    amountPaidPaise: Math.min(paySum, priced.totals.grandTotalPaise),
+    amountPaidPaise,
     advancePaise,
     receivablePaise: enriched.flags.markFullDue || enriched.flags.markDue ? receivablePaise : 0,
   };
