@@ -134,7 +134,7 @@ export async function getPersonalFinanceSnapshot(opts?: {
   const cashAvailable = moneyValue({
     id: 'cash_available',
     label: 'Cash Available',
-    paise: bankBalance.paise + capital.assetsPaise * 0, // bank only until free-cash API
+    paise: bankBalance.paise, // bank only until free-cash API
     brain: 'personal_finance',
     engine: 'personal_finance',
     calculation: 'bank_balance (Capital freeCash not yet mapped)',

@@ -20,6 +20,9 @@ export async function OwnerDashboardWithTrends({
     console.error('[owner-dashboard] trends load failed', err);
     return emptyOwnerDashboardTrends(ctx.billingMonth, baseData.pgIds);
   });
-  const data = buildOwnerDashboard(ctx, executive, trends);
+  const data = {
+    ...buildOwnerDashboard(ctx, executive, trends),
+    ecosystemHealth: baseData.ecosystemHealth ?? null,
+  };
   return <OwnerDashboard data={data} trends={trends} />;
 }

@@ -56,14 +56,12 @@ export default async function OverviewPage() {
   }
 
   const ctx = overviewResult.ok ? overviewResult.data : null;
-  const ecosystemHealth = await import('@/src/lib/health/repairEngine')
-    .then((m) => m.loadEcosystemHealthSnapshot())
-    .catch(() => null);
-
+  // Ecosystem health panel stays null until Repair Engine is shipped; do not
+  // import uncommitted health modules here (breaks production builds).
   const baseData = ctx
     ? {
         ...buildOwnerDashboard(ctx, ctx.executiveMetrics),
-        ecosystemHealth,
+        ecosystemHealth: null,
       }
     : null;
 
@@ -99,7 +97,7 @@ export default async function OverviewPage() {
               />
             </Suspense>
           </div>
-        ) : overviewResult.error ? (
+        ) : !overviewResult.ok ? (
           <div className="mt-8">
             <DbStatusBanner error={overviewResult.error} />
           </div>

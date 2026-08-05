@@ -77,6 +77,26 @@ export type OwnerDashboardData = {
   actions: OwnerActionItem[];
   pgIds: string[];
   trends?: OwnerDashboardTrends;
+  ecosystemHealth?: EcosystemHealthSnapshot | null;
+};
+
+export type EcosystemHealthSnapshot = {
+  overallHealthPct: number;
+  brainHealthPct: number;
+  productionIntegrityPct: number;
+  openIssues: number;
+  autoRepairsToday: number;
+  manualRepairsRequired: number;
+  lastAuditAt: string | null;
+  lastRepairAt: string | null;
+  lastCriticalCause: string | null;
+  byBrain: Array<{
+    brain: string;
+    status: 'Healthy' | 'Warning' | 'Critical';
+    openP0: number;
+    openP1: number;
+    openP2: number;
+  }>;
 };
 
 function outstandingByPg(ctx: OverviewReportingSnapshot): Map<string, number> {
@@ -271,6 +291,7 @@ export function buildOwnerDashboard(
     actions: [],
     pgIds: (r.byPg ?? []).map((row) => row.pgId),
     trends,
+    ecosystemHealth: null,
   };
 }
 
