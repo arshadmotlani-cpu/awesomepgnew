@@ -85,3 +85,34 @@ describe('Workforce labels', () => {
     assert.equal(workforceJobRoleLabel('receptionist'), 'Receptionist');
   });
 });
+
+describe('Workforce Add Employee popup', () => {
+  test('popup source includes Phase 2 field names', () => {
+    const { readFileSync } = require('node:fs') as typeof import('node:fs');
+    const { join } = require('node:path') as typeof import('node:path');
+    const src = readFileSync(
+      join(process.cwd(), 'src/workforce/components/AddEmployeePopup.tsx'),
+      'utf8',
+    );
+    for (const name of [
+      'fullName',
+      'mobile',
+      'password',
+      'gender',
+      'emergencyContact',
+      'joiningDate',
+      'salaryInr',
+      'aadhaarNumber',
+      'panNumber',
+      'upiId',
+      'qrCodeUrl',
+      'jobRole',
+    ]) {
+      assert.match(src, new RegExp(`name="${name}"`));
+    }
+    assert.match(src, /Full Name/);
+    assert.match(src, /Phone Number/);
+    assert.match(src, /Designation/);
+    assert.match(src, /role="dialog"/);
+  });
+});

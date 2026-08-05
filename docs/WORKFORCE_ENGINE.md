@@ -57,7 +57,7 @@ npx tsx scripts/hair/migrate-to-workforce.ts --apply  # execute
 | Phase | Scope | Status |
 |-------|--------|--------|
 | **1** | Employee DB · Owner/Manager/Staff · phone+password · roles · permissions | **Complete** |
-| **2** | Add Employee popup (full profile fields + designation) | In progress |
+| **2** | Add Employee popup (full profile fields + designation) | **Complete** |
 | **3** | Owner / Manager / Staff dashboards (role-scoped) | Pending |
 | **4** | Appointments · hours · attendance · performance · salary · commission · incentives | Pending |
 | **5** | Wire Workforce Brain → Finance / Health / Appointment / Customer / Owner | Pending |

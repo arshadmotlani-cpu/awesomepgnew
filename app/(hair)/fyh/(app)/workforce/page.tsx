@@ -1,5 +1,5 @@
 import { listEmployeesForEngine } from '@/src/workforce/brains/employeeBrain';
-import { WorkforceCreateForm } from '@/src/workforce/components/WorkforceCreateForm';
+import { AddEmployeePopup } from '@/src/workforce/components/AddEmployeePopup';
 import { workforceJobRoleLabel, workforceRankLabel } from '@/src/workforce/labels';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 import { redirect } from 'next/navigation';
@@ -13,12 +13,15 @@ export default async function WorkforceAdminPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-fyh-text">Workforce</h1>
-        <p className="text-sm text-fyh-text-secondary">
-          Permanent employee system — Owner, Manager, and Staff. One person, multi-engine
-          memberships. Legacy FYH staff is migrated here; do not extend the old staff model.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-fyh-text">Workforce</h1>
+          <p className="text-sm text-fyh-text-secondary">
+            Permanent employee system — Owner, Manager, and Staff. One person, multi-engine
+            memberships. Legacy FYH staff is migrated here; do not extend the old staff model.
+          </p>
+        </div>
+        <AddEmployeePopup />
       </div>
 
       <section className="overflow-hidden rounded-xl border border-[color:var(--fyh-border)]">
@@ -49,15 +52,13 @@ export default async function WorkforceAdminPage() {
             {employees.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-fyh-text-secondary">
-                  No employees yet. Run migration or add below.
+                  No employees yet. Use Add employee to create the first profile.
                 </td>
               </tr>
             ) : null}
           </tbody>
         </table>
       </section>
-
-      <WorkforceCreateForm />
     </div>
   );
 }
