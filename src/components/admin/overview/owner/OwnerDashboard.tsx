@@ -14,6 +14,7 @@ import {
   OwnerRevenueTrendChart,
 } from '@/src/components/admin/overview/owner/OwnerTrendCharts';
 import type { OwnerDashboardTrends } from '@/src/services/ownerDashboardTrends';
+import { OwnerEcosystemHealthPanel } from '@/src/components/admin/overview/owner/OwnerEcosystemHealthPanel';
 
 function OwnerPgCard({ card }: { card: OwnerDashboardData['pgCards'][0] }) {
   return (
@@ -72,11 +73,13 @@ export function OwnerDashboard({
   return (
     <div className="space-y-8">
       <header>
-        <h1 className="text-lg font-semibold text-white">Owner dashboard</h1>
-        <p className="mt-1 text-sm text-apg-silver">{data.monthLabel} · portfolio health at a glance</p>
+        <h1 className="text-lg font-semibold text-white">Awesome PG portfolio</h1>
+        <p className="mt-1 text-sm text-apg-silver">{data.monthLabel} · PG Engine health at a glance</p>
       </header>
 
       <OwnerKpiStrip kpis={data.kpis} />
+
+      <OwnerEcosystemHealthPanel snapshot={data.ecosystemHealth ?? null} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">

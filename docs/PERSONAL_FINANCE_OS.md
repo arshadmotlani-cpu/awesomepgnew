@@ -39,6 +39,6 @@ Bank · Real Estate · Crypto · Stocks · Loans · Insurance · Household expen
 
 | Phase | Scope | Status |
 |-------|--------|--------|
-| **1** | Brain + explainables + adapters | In progress |
-| **2** | Owner OS dashboard UI (life dashboard) | Pending |
+| **1** | Brain + explainables + adapters | **Complete** |
+| **2** | Owner OS dashboard UI (life dashboard) | **Complete** |
 | **3** | Trends, bank/loan connectors, deeper FI | Pending |

@@ -73,4 +73,19 @@ describe('Personal Finance explainables', () => {
     if (prev === undefined) delete process.env.PERSONAL_FINANCE_OS;
     else process.env.PERSONAL_FINANCE_OS = prev;
   });
+
+  test('Owner life dashboard UI exposes explain dialog', () => {
+    const { readFileSync } = require('node:fs') as typeof import('node:fs');
+    const { join } = require('node:path') as typeof import('node:path');
+    const src = readFileSync(
+      join(process.cwd(), 'src/components/admin/overview/owner/OwnerLifeDashboard.tsx'),
+      'utf8',
+    );
+    assert.match(src, /Owner OS/);
+    assert.match(src, /Explain/);
+    assert.match(src, /Brain/);
+    assert.match(src, /Engine/);
+    assert.match(src, /Calculation/);
+    assert.match(src, /Underlying/);
+  });
 });

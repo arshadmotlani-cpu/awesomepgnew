@@ -4,12 +4,17 @@ import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { BillingCertificationNotice } from '@/src/components/admin/overview/BillingCertificationNotice';
 import { OwnerDashboard } from '@/src/components/admin/overview/owner/OwnerDashboard';
 import { OwnerDashboardWithTrends } from '@/src/components/admin/overview/owner/OwnerTrendChartsAsync';
+import { OwnerLifeDashboard } from '@/src/components/admin/overview/owner/OwnerLifeDashboard';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { moduleHref } from '@/src/lib/admin/navigation';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { profileAdminStep } from '@/src/lib/admin/adminProfile';
 import { loadOverviewContext } from '@/src/services/overviewData';
 import { buildOwnerDashboard } from '@/src/services/ownerDashboard';
+import {
+  getOwnerLifeDashboard,
+  isPersonalFinanceOsEnabled,
+} from '@/src/personalFinance';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -20,6 +25,14 @@ function TrendsFallback({ data }: { data: ReturnType<typeof buildOwnerDashboard>
 
 export default async function OverviewPage() {
   const session = await requireAdminSession('/admin/overview');
+
+  const lifeOsEnabled = isPersonalFinanceOsEnabled();
+  const lifeOs = lifeOsEnabled
+    ? await getOwnerLifeDashboard().catch((e) => {
+        console.error('[overview] Owner OS failed', e);
+        return null;
+      })
+    : null;
 
   const overviewResult = await profileAdminStep('overviewPage', () =>
     loadOverviewContext(session, undefined, { syncActions: false, reconcile: false }),
@@ -33,7 +46,7 @@ export default async function OverviewPage() {
       }
     : { ok: false as const, error: overviewResult.error, reconciliation: null };
 
-  if (!overviewResult.ok) {
+  if (!overviewResult.ok && !lifeOs) {
     return (
       <>
         <DbStatusBanner error={overviewResult.error} />
@@ -42,25 +55,56 @@ export default async function OverviewPage() {
     );
   }
 
-  const ctx = overviewResult.data;
-  const baseData = buildOwnerDashboard(ctx, ctx.executiveMetrics);
+  const ctx = overviewResult.ok ? overviewResult.data : null;
+  const ecosystemHealth = await import('@/src/lib/health/repairEngine')
+    .then((m) => m.loadEcosystemHealthSnapshot())
+    .catch(() => null);
+
+  const baseData = ctx
+    ? {
+        ...buildOwnerDashboard(ctx, ctx.executiveMetrics),
+        ecosystemHealth,
+      }
+    : null;
 
   return (
     <>
-      <ModuleBreadcrumbs items={[{ label: 'Overview' }]} />
-      <AdminSectionErrorBoundary title="Overview">
+      <ModuleBreadcrumbs items={[{ label: 'Owner OS' }]} />
+      <AdminSectionErrorBoundary title="Owner OS">
+        {lifeOs ? <OwnerLifeDashboard finance={lifeOs.finance} /> : null}
+
         {billingCert.ok && billingCert.reconciliation ? (
-          <BillingCertificationNotice reconciliation={billingCert.reconciliation} />
+          <div className="mt-8">
+            <BillingCertificationNotice reconciliation={billingCert.reconciliation} />
+          </div>
         ) : billingCert.error ? (
-          <BillingCertificationNotice error={billingCert.error} />
+          <div className="mt-8">
+            <BillingCertificationNotice error={billingCert.error} />
+          </div>
         ) : null}
-        <Suspense fallback={<TrendsFallback data={baseData} />}>
-          <OwnerDashboardWithTrends
-            ctx={ctx}
-            executive={ctx.executiveMetrics}
-            baseData={baseData}
-          />
-        </Suspense>
+
+        {baseData && ctx ? (
+          <div className="mt-10 space-y-4 border-t border-white/10 pt-8">
+            <div>
+              <h2 className="text-base font-semibold text-white">Awesome PG portfolio</h2>
+              <p className="text-sm text-apg-silver">
+                Engine-local PG overview (not Owner OS). Detail stays in Billing Centre.
+              </p>
+            </div>
+            <Suspense fallback={<TrendsFallback data={baseData} />}>
+              <OwnerDashboardWithTrends
+                ctx={ctx}
+                executive={ctx.executiveMetrics}
+                baseData={baseData}
+              />
+            </Suspense>
+          </div>
+        ) : overviewResult.error ? (
+          <div className="mt-8">
+            <DbStatusBanner error={overviewResult.error} />
+          </div>
+        ) : null}
+
         <p className="mt-8 text-sm text-apg-silver">
           Action items live in{' '}
           <a href={moduleHref('operations')} className="font-medium text-[#FF5A1F] hover:underline">
