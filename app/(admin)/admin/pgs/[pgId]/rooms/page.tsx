@@ -9,6 +9,7 @@ import { getPgAvailabilitySummary } from '@/src/services/availabilityService';
 import { getPgInventory } from '@/src/services/pgInventory';
 import { getPgForAdmin } from '@/src/services/pgAdmin';
 import { loadRoomExitQueuesForPg } from '@/src/lib/exit/loadRoomExitQueue';
+import { getRoomIntegrityReportForPg } from '@/src/services/roomIntegrityValidator';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
