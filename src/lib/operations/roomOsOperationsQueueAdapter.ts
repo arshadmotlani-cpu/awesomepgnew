@@ -19,6 +19,7 @@ import type { AdminSession } from '@/src/lib/auth/session';
 import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
 import { todayString } from '@/src/lib/dates';
 import type { UnifiedOpsItem, UnifiedOpsOutstandingLine } from '@/src/services/unifiedOperationsQueue';
+import { enrichUnifiedOpsItemsWithFinancialInvoiceIds } from '@/src/lib/operations/operationsQueueFinancialLinks';
 import { getWorkQueue } from '@/src/roomOs/api/v1/decision';
 import { loadBed, loadLedger, loadRoomShared } from '@/src/roomOs/api/v1/roomOs';
 import type { WorkQueueItem } from '@/src/roomOs/types';
@@ -308,5 +309,5 @@ export async function loadRoomOsOperationsQueueItems(
     mapElectricityWorkQueueItems(allWorkItems, billingMonth, asOf),
   ]);
 
-  return [...rentItems, ...electricityItems];
+  return await enrichUnifiedOpsItemsWithFinancialInvoiceIds([...rentItems, ...electricityItems]);
 }

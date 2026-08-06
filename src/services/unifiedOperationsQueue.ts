@@ -17,7 +17,7 @@ import {
 } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
-import { buildCollectionsQueue, type CollectionQueueItem } from '@/src/lib/billing/collectionsQueue';
+import { buildCollectionsQueue, attachFinancialInvoiceIdsToCollectionQueue, collectionQueueItemOpenHref, type CollectionQueueItem } from '@/src/lib/billing/collectionsQueue';
 import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
 import { bookingFinancialWorkspaceHref } from '@/src/lib/bookings/bookingFinancialLinks';
 import { listAdminElectricityInvoicesForReminders } from '@/src/db/queries/admin';
@@ -51,6 +51,7 @@ import {
   type OpsQueueFilter,
 } from '@/src/lib/operations/operationsFilterLinks';
 import { isRoomOsOperationsQueueEnabled } from '@/src/lib/operations/featureFlag';
+import { enrichUnifiedOpsItemsWithFinancialInvoiceIds } from '@/src/lib/operations/operationsQueueFinancialLinks';
 import { loadRoomOsOperationsQueueItems } from '@/src/lib/operations/roomOsOperationsQueueAdapter';
 import { loadSupplementaryOperationsQueueItems } from '@/src/lib/operations/supplementaryOperationsQueue';
 import { mapVacatingPipelineItemToOpsItem } from '@/src/lib/operations/operationsQueueVacating';
@@ -264,7 +265,7 @@ function electricityCollectionToItem(row: CollectionQueueItem): UnifiedOpsItem {
     roomNumber: row.roomNumber,
     bedCode: row.bedCode ?? null,
     reason: overdueReason(daysOverdue),
-    openHref: `/admin/residents/${row.customerId}#open-bills`,
+    openHref: collectionQueueItemOpenHref(row),
     openLabel: 'Open bills',
     category: 'electricity_due',
     bookingId: row.bookingId ?? null,
@@ -826,10 +827,12 @@ async function buildUnifiedOperationsQueue(
       .map((s) => s.customerId),
   );
 
-  const electricityDueItems = buildCollectionsQueue({
-    rentRows: [],
-    electricityRows: elecPendingRes.ok ? (elecPendingRes.data ?? []) : [],
-  });
+  const electricityDueItems = await attachFinancialInvoiceIdsToCollectionQueue(
+    buildCollectionsQueue({
+      rentRows: [],
+      electricityRows: elecPendingRes.ok ? (elecPendingRes.data ?? []) : [],
+    }),
+  );
 
   for (const row of electricityDueItems) {
     if (pendingElecInvoiceIds.has(row.sourceId)) continue;

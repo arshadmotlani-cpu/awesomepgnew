@@ -1,7 +1,44 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { electricityRowToQueueItem } from '@/src/lib/billing/collectionsQueue';
+import {
+  collectionQueueItemOpenHref,
+  electricityRowToQueueItem,
+} from '@/src/lib/billing/collectionsQueue';
 import { buildOperationsPaymentWhatsAppMessage } from '@/src/lib/operations/operationsPaymentWhatsApp';
+
+test('collectionQueueItemOpenHref prefers financial invoice deep link', () => {
+  const withInvoice = {
+    id: 'elec-inv-1',
+    kind: 'electricity' as const,
+    customerId: 'cust-1',
+    customerFullName: 'Syed Ahmed',
+    customerPhone: '9999999999',
+    pgId: 'pg1',
+    pgName: 'PG',
+    roomNumber: '101',
+    sourceTable: 'electricity_invoices' as const,
+    sourceId: 'src-1',
+    financialInvoiceId: 'fin-abc',
+    invoiceNumber: 'E-1',
+    amountPaise: 50000,
+    dueDate: '2026-07-05',
+    daysOverdue: 0,
+    priority: 'pending' as const,
+    effectiveStatus: 'pending',
+    invoiceLabel: 'Electricity · 2026-06',
+    billingMonth: '2026-06-01',
+    categoryLabel: 'Electricity',
+    periodLabel: 'June 2026',
+  };
+
+  assert.equal(collectionQueueItemOpenHref(withInvoice), '/admin/invoices/fin-abc');
+
+  const withoutInvoice = { ...withInvoice, financialInvoiceId: null };
+  assert.equal(
+    collectionQueueItemOpenHref(withoutInvoice),
+    '/admin/residents/cust-1#open-bills',
+  );
+});
 
 test('electricityRowToQueueItem excludes paid and proof-pending invoices', () => {
   const base = {
