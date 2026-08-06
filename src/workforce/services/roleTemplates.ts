@@ -70,21 +70,7 @@ export async function ensureRoleTemplatesSeeded(engineId: WorkforceEngineId = 'f
   const existing = await listRoleTemplates(engineId);
   if (existing.length > 0) return;
 
-  const roles: WorkforceJobRole[] = [
-    'owner',
-    'manager',
-    'receptionist',
-    'stylist',
-    'barber',
-    'beautician',
-    'makeup_artist',
-    'nail_technician',
-    'hair_assistant',
-    'cleaner',
-    'accountant',
-    'inventory_manager',
-    'intern',
-  ];
+  const roles: WorkforceJobRole[] = ['owner', 'manager', 'biller', 'staff'];
 
   for (const role of roles) {
     const tpl = codeTemplateForAccessRole(role);

@@ -15,12 +15,17 @@ const ALL = [...WORKFORCE_PERMISSION_KEYS] as WorkforcePermissionKey[];
 
 const OWNER_TEMPLATE: WorkforcePermissionKey[] = [...ALL];
 
-const MANAGER_TEMPLATE: WorkforcePermissionKey[] = [
-  'dashboard.view',
-  'dashboard.view_revenue',
-  'dashboard.view_expenses',
-  'dashboard.view_staff',
-  'dashboard.view_customers',
+const MANAGER_TEMPLATE: WorkforcePermissionKey[] = ALL.filter(
+  (k) =>
+    ![
+      'permissions.manage',
+      'system.settings',
+      'settings.manage',
+      'configuration.edit',
+    ].includes(k),
+);
+
+const BILLER_TEMPLATE: WorkforcePermissionKey[] = [
   'customers.view',
   'customers.edit',
   'appointments.receive_bookings',
@@ -31,102 +36,59 @@ const MANAGER_TEMPLATE: WorkforcePermissionKey[] = [
   'billing.create_invoice',
   'billing.edit_invoice',
   'billing.backdate_invoice',
-  'billing.approve_discount',
-  'products.view',
-  'services.view',
   'packages.view',
   'memberships.view',
-  'inventory.view',
-  'inventory.edit',
-  'staff.view',
-  'staff.edit',
-  'staff.add',
-  'reports.view',
-  'reports.export',
-  'analytics.view',
-  'loyalty.view',
-  'configuration.view',
   'calendar.view',
-  'expenses.view',
-  'finance.view_expenses',
+  'cash_drawer.view',
+  'cash_drawer.manage',
 ];
 
-const RECEPTIONIST_TEMPLATE: WorkforcePermissionKey[] = [
-  'dashboard.view_customers',
-  'customers.view',
-  'customers.edit',
-  'appointments.receive_bookings',
+const STAFF_TEMPLATE: WorkforcePermissionKey[] = [
   'appointments.view_own',
-  'appointments.view_all',
-  'appointments.edit',
-  'billing.view',
-  'billing.create_invoice',
-  'billing.edit_invoice',
-  'billing.backdate_invoice',
-  'calendar.view',
-  'loyalty.view',
-];
-
-const SERVICE_PROVIDER_TEMPLATE: WorkforcePermissionKey[] = [
-  'dashboard.view_customers',
-  'customers.view',
   'appointments.receive_bookings',
-  'appointments.view_own',
   'calendar.view',
+  'customers.view',
 ];
 
-const ACCOUNTANT_TEMPLATE: WorkforcePermissionKey[] = [
-  'billing.view',
-  'billing.create_invoice',
-  'billing.edit_invoice',
-  'billing.backdate_invoice',
-  'billing.approve_refund',
-  'reports.view',
-  'reports.export',
-  'analytics.view',
-  'expenses.view',
-  'expenses.edit',
-  'finance.view_expenses',
-  'finance.view_profit',
-];
-
-const INVENTORY_MANAGER_TEMPLATE: WorkforcePermissionKey[] = [
-  'inventory.view',
-  'inventory.edit',
-  'products.view',
-  'products.edit',
-];
-
-const CLEANER_TEMPLATE: WorkforcePermissionKey[] = [];
-
-const INTERN_TEMPLATE: WorkforcePermissionKey[] = ['appointments.view_own', 'calendar.view'];
-
-/** Code-default permission templates per Access Role (job title). */
-export const CODE_ROLE_TEMPLATES: Record<
-  WorkforceJobRole,
+const TEMPLATE_BY_ROLE: Record<
+  'owner' | 'manager' | 'biller' | 'staff',
   { permissions: WorkforcePermissionKey[]; maxBackdateDays: number | null }
 > = {
   owner: { permissions: OWNER_TEMPLATE, maxBackdateDays: null },
   manager: { permissions: MANAGER_TEMPLATE, maxBackdateDays: 7 },
-  receptionist: { permissions: RECEPTIONIST_TEMPLATE, maxBackdateDays: 2 },
-  stylist: { permissions: SERVICE_PROVIDER_TEMPLATE, maxBackdateDays: 0 },
-  barber: { permissions: SERVICE_PROVIDER_TEMPLATE, maxBackdateDays: 0 },
-  beautician: { permissions: SERVICE_PROVIDER_TEMPLATE, maxBackdateDays: 0 },
-  makeup_artist: { permissions: SERVICE_PROVIDER_TEMPLATE, maxBackdateDays: 0 },
-  nail_technician: { permissions: SERVICE_PROVIDER_TEMPLATE, maxBackdateDays: 0 },
-  hair_assistant: { permissions: SERVICE_PROVIDER_TEMPLATE, maxBackdateDays: 0 },
-  cleaner: { permissions: CLEANER_TEMPLATE, maxBackdateDays: 0 },
-  accountant: { permissions: ACCOUNTANT_TEMPLATE, maxBackdateDays: 7 },
-  inventory_manager: { permissions: INVENTORY_MANAGER_TEMPLATE, maxBackdateDays: 0 },
-  intern: { permissions: INTERN_TEMPLATE, maxBackdateDays: 0 },
-  housekeeping: { permissions: CLEANER_TEMPLATE, maxBackdateDays: 0 },
-  security: { permissions: CLEANER_TEMPLATE, maxBackdateDays: 0 },
-  driver: { permissions: INTERN_TEMPLATE, maxBackdateDays: 0 },
+  biller: { permissions: BILLER_TEMPLATE, maxBackdateDays: 2 },
+  staff: { permissions: STAFF_TEMPLATE, maxBackdateDays: 0 },
+};
+
+/** Code-default permission templates for the four access roles. */
+export const CODE_ROLE_TEMPLATES: Record<
+  WorkforceJobRole,
+  { permissions: WorkforcePermissionKey[]; maxBackdateDays: number | null }
+> = {
+  owner: TEMPLATE_BY_ROLE.owner,
+  manager: TEMPLATE_BY_ROLE.manager,
+  biller: TEMPLATE_BY_ROLE.biller,
+  staff: TEMPLATE_BY_ROLE.staff,
+  receptionist: TEMPLATE_BY_ROLE.biller,
+  stylist: TEMPLATE_BY_ROLE.staff,
+  barber: TEMPLATE_BY_ROLE.staff,
+  beautician: TEMPLATE_BY_ROLE.staff,
+  makeup_artist: TEMPLATE_BY_ROLE.staff,
+  nail_technician: TEMPLATE_BY_ROLE.staff,
+  hair_assistant: TEMPLATE_BY_ROLE.staff,
+  cleaner: TEMPLATE_BY_ROLE.staff,
+  accountant: TEMPLATE_BY_ROLE.biller,
+  inventory_manager: TEMPLATE_BY_ROLE.staff,
+  intern: TEMPLATE_BY_ROLE.staff,
+  housekeeping: TEMPLATE_BY_ROLE.staff,
+  security: TEMPLATE_BY_ROLE.staff,
+  driver: TEMPLATE_BY_ROLE.staff,
 };
 
 export function codeTemplateForAccessRole(accessRole: WorkforceJobRole): WorkforcePermissionGrants {
   const role = normalizeAccessRole(accessRole);
-  const tpl = CODE_ROLE_TEMPLATES[role] ?? CODE_ROLE_TEMPLATES.stylist;
+  const key = role as keyof typeof TEMPLATE_BY_ROLE;
+  const tpl = TEMPLATE_BY_ROLE[key] ?? TEMPLATE_BY_ROLE.staff;
   return {
     permissions: [...tpl.permissions],
     maxBackdateDays: tpl.maxBackdateDays,

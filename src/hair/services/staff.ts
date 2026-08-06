@@ -76,11 +76,13 @@ export async function createStaffQuick(input: {
 
   if (isWorkforceEngineEnabled()) {
     const raw = (input.role ?? '').toLowerCase();
-    const accessRole = raw.includes('recept')
-      ? 'receptionist'
+    const accessRole = raw.includes('bill') || raw.includes('recept')
+      ? 'biller'
       : raw.includes('manager')
         ? 'manager'
-        : 'stylist';
+        : raw.includes('owner')
+          ? 'owner'
+          : 'staff';
     const mobile = input.phone ? normalizeMobile(input.phone) : null;
     const email = mobile
       ? `${mobile.replace(/\D/g, '')}@staff.fyh.local`

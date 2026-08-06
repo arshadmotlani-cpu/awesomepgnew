@@ -102,7 +102,7 @@ export async function loginAction(
       const grants =
         (salon
           ? await resolvePermissions(emp.id, salon.engineId)
-          : null) ?? codeTemplateForAccessRole(salon?.jobRole ?? 'stylist');
+          : null) ?? codeTemplateForAccessRole(salon?.jobRole ?? 'staff');
       const admin = employeeToHairAdmin(emp, grants);
 
       const home = hasWorkforcePermission(grants, 'staff.view')

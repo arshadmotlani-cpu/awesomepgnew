@@ -59,7 +59,7 @@ test('custom permissions jsonb overrides role preset', () => {
 test('pagePermissionForPath maps public and internal routes', () => {
   assert.equal(pagePermissionForPath('/inventory'), 'page:inventory');
   assert.equal(pagePermissionForPath('/fyh/reports/revenue/daily'), 'page:reports');
-  assert.equal(pagePermissionForPath('/services'), null);
+  assert.equal(pagePermissionForPath('/services'), 'page:settings');
   assert.equal(pagePermissionForPath('/settings/permissions'), 'page:settings');
 });
 

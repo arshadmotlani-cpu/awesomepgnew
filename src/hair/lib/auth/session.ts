@@ -59,7 +59,7 @@ export async function getHairSession(): Promise<HairSession | null> {
       const grants = salon
         ? (await resolvePermissions(wf.employee.id, salon.engineId)) ??
           codeTemplateForAccessRole(salon.jobRole)
-        : codeTemplateForAccessRole('stylist');
+        : codeTemplateForAccessRole('staff');
       return {
         sessionId: wf.sessionId,
         admin: employeeToHairAdmin(wf.employee, grants),

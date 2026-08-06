@@ -18,14 +18,11 @@ import { publishEmployeeEvent } from '@/src/workforce/events/publish';
 
 function mapStaffRoleToJob(role: string | null | undefined): WorkforceJobRole {
   const r = (role ?? '').toLowerCase();
-  if (r.includes('recept')) return 'receptionist';
-  if (r.includes('account')) return 'accountant';
-  if (r.includes('clean') || r.includes('house')) return 'housekeeping';
-  if (r.includes('secur')) return 'security';
-  if (r.includes('driv')) return 'driver';
+  if (r.includes('recept') || r.includes('account') || r.includes('bill')) return 'biller';
+  if (r.includes('clean') || r.includes('house') || r.includes('secur') || r.includes('driv')) return 'staff';
   if (r.includes('manager')) return 'manager';
   if (r.includes('owner')) return 'owner';
-  return 'stylist';
+  return 'staff';
 }
 
 function placeholderMobileFromId(id: string): string {

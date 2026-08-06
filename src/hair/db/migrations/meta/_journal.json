@@ -176,6 +176,13 @@
       "when": 1756000000000,
       "tag": "0025_workforce_permission_library",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1756100000000,
+      "tag": "0026_workforce_four_roles",
+      "breakpoints": true
     }
   ]
 }

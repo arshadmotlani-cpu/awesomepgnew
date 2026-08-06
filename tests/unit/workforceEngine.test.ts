@@ -30,11 +30,12 @@ describe('Workforce permissions', () => {
     assert.ok(hasWorkforcePermission(g, 'appointments.receive_bookings'));
   });
 
-  test('stylist receives bookings; cleaner does not', () => {
-    const stylist = defaultGrantsFor('team_member', 'stylist');
-    const cleaner = defaultGrantsFor('team_member', 'cleaner');
-    assert.ok(hasWorkforcePermission(stylist, 'appointments.receive_bookings'));
-    assert.equal(hasWorkforcePermission(cleaner, 'appointments.receive_bookings'), false);
+  test('staff receives bookings; biller gets billing', () => {
+    const staff = defaultGrantsFor('team_member', 'staff');
+    const biller = defaultGrantsFor('team_member', 'biller');
+    assert.ok(hasWorkforcePermission(staff, 'appointments.receive_bookings'));
+    assert.ok(hasWorkforcePermission(biller, 'billing.create_invoice'));
+    assert.equal(hasWorkforcePermission(staff, 'staff.view'), false);
   });
 
   test('legacy super_admin maps to owner grants', () => {
@@ -84,10 +85,11 @@ describe('Workforce labels', () => {
     assert.equal(workforceRankLabel('team_member'), 'Staff');
   });
 
-  test('access role labels cover ERP roles', () => {
-    assert.equal(workforceAccessRoleLabel('stylist'), 'Stylist');
-    assert.equal(workforceAccessRoleLabel('receptionist'), 'Receptionist');
-    assert.equal(workforceAccessRoleLabel('makeup_artist'), 'Makeup Artist');
+  test('access role labels cover four roles', () => {
+    assert.equal(workforceAccessRoleLabel('owner'), 'Owner');
+    assert.equal(workforceAccessRoleLabel('manager'), 'Manager');
+    assert.equal(workforceAccessRoleLabel('biller'), 'Biller');
+    assert.equal(workforceAccessRoleLabel('staff'), 'Staff');
   });
 });
 
@@ -99,22 +101,23 @@ describe('Workforce access role identity', () => {
 });
 
 describe('Workforce access role permissions', () => {
-  test('receptionist gets customers appointments billing', () => {
-    const g = defaultGrantsForAccessRole('receptionist');
+  test('biller gets customers appointments billing', () => {
+    const g = defaultGrantsForAccessRole('biller');
     assert.ok(hasWorkforcePermission(g, 'billing.create_invoice'));
     assert.ok(hasWorkforcePermission(g, 'appointments.view_all'));
     assert.equal(hasWorkforcePermission(g, 'settings.manage'), false);
+    assert.equal(hasWorkforcePermission(g, 'staff.view'), false);
   });
 
-  test('accountant gets billing and reports', () => {
-    const g = defaultGrantsForAccessRole('accountant');
-    assert.ok(hasWorkforcePermission(g, 'reports.view'));
-    assert.equal(hasWorkforcePermission(g, 'appointments.view_all'), false);
+  test('manager lacks permission management', () => {
+    const g = defaultGrantsForAccessRole('manager');
+    assert.equal(hasWorkforcePermission(g, 'permissions.manage'), false);
+    assert.ok(hasWorkforcePermission(g, 'staff.view'));
   });
 
-  test('inventory manager is inventory only', () => {
-    const g = defaultGrantsForAccessRole('inventory_manager');
-    assert.ok(hasWorkforcePermission(g, 'inventory.view'));
+  test('staff is limited to own work', () => {
+    const g = defaultGrantsForAccessRole('staff');
+    assert.ok(hasWorkforcePermission(g, 'appointments.view_own'));
     assert.equal(hasWorkforcePermission(g, 'billing.create_invoice'), false);
   });
 });
@@ -141,14 +144,12 @@ describe('Workforce Add Employee popup', () => {
       'upiId',
       'qrCodeUrl',
       'accessRole',
-      'loginEnabled',
     ]) {
       assert.match(src, new RegExp(`name="${name}"`));
     }
-    assert.match(src, /Full Name/);
-    assert.match(src, /Email Address/);
-    assert.match(src, /Phone Number/);
-    assert.match(src, /Access Role/);
+    assert.match(src, /Basic information/i);
+    assert.match(src, /Advanced Permission Overrides/);
+    assert.doesNotMatch(src, /loginEnabled/);
     assert.doesNotMatch(src, /name="rank"/);
     assert.doesNotMatch(src, /name="jobRole"/);
     assert.doesNotMatch(src, /Designation/);

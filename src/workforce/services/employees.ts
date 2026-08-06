@@ -46,6 +46,8 @@ export type UpsertEmployeeInput = {
   permissions?: WorkforcePermissionKey[];
   maxBackdateDays?: number | null;
   canLogin?: boolean;
+  /** Adjust bookable flag without opening permission matrix. */
+  receiveBookings?: boolean;
   actorEmployeeId?: string | null;
   /** Preserve UUID when mirroring legacy staff */
   id?: string;
@@ -84,7 +86,7 @@ async function assertUniqueEmployeeIdentity(input: {
 
 async function mirrorSalonStaffRow(employeeId: string, input: UpsertEmployeeInput) {
   if (!isWorkforceEngineEnabled()) return;
-  const accessRole = input.accessRole ?? input.jobRole ?? 'stylist';
+  const accessRole = input.accessRole ?? input.jobRole ?? 'staff';
   const [existing] = await hairDb.select().from(fyhStaff).where(eq(fyhStaff.id, employeeId)).limit(1);
   const values = {
     fullName: input.fullName,
@@ -112,11 +114,18 @@ async function mirrorSalonStaffRow(employeeId: string, input: UpsertEmployeeInpu
 
 export async function createEmployee(input: UpsertEmployeeInput) {
   const engineId = input.engineId ?? 'fyh_salon';
-  const accessRole = input.accessRole ?? input.jobRole ?? 'stylist';
+  const accessRole = input.accessRole ?? input.jobRole ?? 'staff';
   const rank = rankFromAccessRole(accessRole);
   const usesCustomPermissions = Boolean(input.permissions && input.permissions.length > 0);
   const template = codeTemplateForAccessRole(accessRole);
-  const customPermissions = usesCustomPermissions ? input.permissions! : template.permissions;
+  let effectivePermissions = usesCustomPermissions ? [...input.permissions!] : [...template.permissions];
+  if (!usesCustomPermissions && input.receiveBookings !== undefined) {
+    const without = effectivePermissions.filter((k) => k !== 'appointments.receive_bookings');
+    effectivePermissions = input.receiveBookings
+      ? [...without, 'appointments.receive_bookings']
+      : without;
+  }
+  const usesRoleTemplate = !usesCustomPermissions && input.receiveBookings === undefined;
   const maxBackdateDays =
     input.maxBackdateDays !== undefined ? input.maxBackdateDays : template.maxBackdateDays;
 
@@ -125,7 +134,7 @@ export async function createEmployee(input: UpsertEmployeeInput) {
   if (!email) throw new Error('Email address is required.');
   await assertUniqueEmployeeIdentity({ email, mobile });
 
-  const canLogin = input.canLogin ?? false;
+  const canLogin = input.canLogin ?? Boolean(input.password && input.password.length >= 6);
   if (canLogin && (!input.password || input.password.length < 6)) {
     throw new Error('Password is required (min 6 characters) when login is enabled.');
   }
@@ -170,9 +179,9 @@ export async function createEmployee(input: UpsertEmployeeInput) {
 
   await hairDb.insert(wfPermissionGrants).values({
     membershipId: mem!.id,
-    permissions: customPermissions,
+    permissions: usesRoleTemplate ? [] : effectivePermissions,
     maxBackdateDays,
-    usesRoleTemplate: !usesCustomPermissions,
+    usesRoleTemplate,
   });
 
   await mirrorSalonStaffRow(emp!.id, { ...input, accessRole });

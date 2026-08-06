@@ -61,7 +61,7 @@ export const wfEngineMemberships = pgTable(
       .references(() => wfEmployees.id, { onDelete: 'cascade' }),
     engineId: text('engine_id').$type<WorkforceEngineId>().notNull(),
     rank: text('rank').$type<WorkforceRank>().notNull().default('team_member'),
-    jobRole: text('job_role').$type<WorkforceJobRole>().notNull().default('stylist'),
+    jobRole: text('job_role').$type<WorkforceJobRole>().notNull().default('staff'),
     isActive: boolean('is_active').notNull().default(true),
     /** Salon commission defaults until payroll Brain owns them */
     defaultCommissionType: text('default_commission_type').notNull().default('none'),

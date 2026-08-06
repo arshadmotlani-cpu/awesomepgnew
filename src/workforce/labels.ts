@@ -22,34 +22,10 @@ export function workforceAccessRoleLabel(accessRole: WorkforceJobRole | string):
       return 'Owner';
     case 'manager':
       return 'Manager';
-    case 'receptionist':
-      return 'Receptionist';
-    case 'stylist':
-      return 'Stylist';
-    case 'barber':
-      return 'Barber';
-    case 'beautician':
-      return 'Beautician';
-    case 'makeup_artist':
-      return 'Makeup Artist';
-    case 'nail_technician':
-      return 'Nail Technician';
-    case 'hair_assistant':
-      return 'Hair Assistant';
-    case 'cleaner':
-      return 'Cleaner';
-    case 'accountant':
-      return 'Accountant';
-    case 'inventory_manager':
-      return 'Inventory Manager';
-    case 'intern':
-      return 'Intern';
-    case 'housekeeping':
-      return 'Housekeeping';
-    case 'security':
-      return 'Security';
-    case 'driver':
-      return 'Driver';
+    case 'biller':
+      return 'Biller';
+    case 'staff':
+      return 'Staff';
     default:
       return String(accessRole);
   }

@@ -3,9 +3,11 @@
  */
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { WORKFORCE_PERMISSION_LIBRARY } from '@/src/workforce/permissions/library';
+import { WORKFORCE_ACCESS_ROLES, WORKFORCE_PERMISSION_LIBRARY } from '@/src/workforce/types';
+import { normalizeAccessRole } from '@/src/workforce/accessRoles';
 import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
 import { hasWorkforcePermission } from '@/src/workforce/permissions/resolve';
+import { workforceAccessRoleLabel } from '@/src/workforce/labels';
 
 describe('Workforce permission library', () => {
   test('library includes core modules', () => {
@@ -13,19 +15,27 @@ describe('Workforce permission library', () => {
     assert.ok(keys.has('customers.view'));
     assert.ok(keys.has('inventory.view'));
     assert.ok(keys.has('permissions.manage'));
-    assert.ok(keys.has('billing.approve_refund'));
     assert.ok(keys.size >= 40);
   });
 
-  test('receptionist template is independent of role name at runtime', () => {
-    const base = codeTemplateForAccessRole('receptionist');
-    assert.ok(hasWorkforcePermission(base, 'billing.create_invoice'));
-    const extended = {
-      permissions: [...base.permissions, 'inventory.view'],
-      maxBackdateDays: base.maxBackdateDays,
-    };
-    assert.ok(hasWorkforcePermission(extended, 'inventory.view'));
-    assert.equal(hasWorkforcePermission(base, 'inventory.view'), false);
+  test('only four access roles in product UI', () => {
+    assert.deepEqual([...WORKFORCE_ACCESS_ROLES], ['owner', 'manager', 'biller', 'staff']);
+  });
+
+  test('legacy stylist maps to staff template', () => {
+    assert.equal(normalizeAccessRole('stylist'), 'staff');
+    assert.equal(workforceAccessRoleLabel('stylist'), 'Staff');
+    const staff = codeTemplateForAccessRole('staff');
+    assert.ok(hasWorkforcePermission(staff, 'appointments.view_own'));
+    assert.equal(hasWorkforcePermission(staff, 'staff.view'), false);
+  });
+
+  test('biller template gets billing without staff management', () => {
+    const biller = codeTemplateForAccessRole('biller');
+    assert.ok(hasWorkforcePermission(biller, 'billing.create_invoice'));
+    assert.ok(hasWorkforcePermission(biller, 'packages.view'));
+    assert.equal(hasWorkforcePermission(biller, 'staff.view'), false);
+    assert.equal(hasWorkforcePermission(biller, 'permissions.manage'), false);
   });
 
   test('owner template grants permissions.manage', () => {

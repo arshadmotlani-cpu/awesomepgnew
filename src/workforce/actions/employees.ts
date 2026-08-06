@@ -19,11 +19,11 @@ function formStr(formData: FormData, key: string): string {
 }
 
 function parseAccessRole(raw: string): WorkforceJobRole {
-  const value = raw || 'stylist';
+  const value = raw || 'staff';
   if ((WORKFORCE_ACCESS_ROLES as readonly string[]).includes(value)) {
     return value as WorkforceJobRole;
   }
-  return 'stylist';
+  return 'staff';
 }
 
 export async function createWorkforceEmployeeAction(
@@ -35,44 +35,30 @@ export async function createWorkforceEmployeeAction(
     await requireWorkforcePermission('staff.add');
     const session = await getHairSession();
     const accessRole = parseAccessRole(formStr(formData, 'accessRole'));
-    const loginEnabled = formData.get('loginEnabled') === '1';
     const password = formStr(formData, 'password');
+    const receiveBookings = formData.get('receiveBookings') === '1';
 
-    const perms = formData
+    const advancedPerms = formData
       .getAll('permissions')
       .map(String)
       .filter((k) => (WORKFORCE_PERMISSION_KEYS as readonly string[]).includes(k)) as WorkforcePermissionKey[];
 
-    const receiveBookings = formData.get('receiveBookings') === '1';
-    let permissions: WorkforcePermissionKey[] | undefined = perms.length ? [...perms] : undefined;
-    if (!permissions) {
-      permissions = [...codeTemplateForAccessRole(accessRole).permissions];
-    }
-    const withoutReceive = permissions.filter((k) => k !== 'appointments.receive_bookings');
-    permissions = receiveBookings
-      ? [...withoutReceive, 'appointments.receive_bookings']
-      : withoutReceive;
-
-    const backdateRaw = formStr(formData, 'maxBackdateDays');
-    const maxBackdateDays =
-      backdateRaw === '' || backdateRaw === 'unlimited'
-        ? accessRole === 'owner'
-          ? null
-          : 0
-        : Number(backdateRaw);
-
-    if (loginEnabled && password.length < 6) {
-      return { error: 'Password is required (min 6 characters) when login is enabled.' };
-    }
+    const template = codeTemplateForAccessRole(accessRole);
+    const permissions = advancedPerms.length ? advancedPerms : undefined;
+    const maxBackdateDays = template.maxBackdateDays;
 
     const email = formStr(formData, 'email');
     if (!email) return { error: 'Email address is required.' };
+
+    if (password && password.length > 0 && password.length < 6) {
+      return { error: 'Password must be at least 6 characters.' };
+    }
 
     await createEmployee({
       fullName: formStr(formData, 'fullName'),
       email,
       mobile: formStr(formData, 'mobile') || null,
-      password: loginEnabled ? password : null,
+      password: password || null,
       gender: (formStr(formData, 'gender') || 'unspecified') as 'unspecified',
       emergencyContact: formStr(formData, 'emergencyContact') || null,
       joiningDate: formStr(formData, 'joiningDate') || null,
@@ -86,7 +72,8 @@ export async function createWorkforceEmployeeAction(
       accessRole,
       permissions,
       maxBackdateDays,
-      canLogin: loginEnabled,
+      receiveBookings,
+      canLogin: password.length >= 6,
       actorEmployeeId: session?.workforceEmployeeId ?? null,
     });
 
@@ -115,15 +102,7 @@ export async function updateWorkforceEmployeeAction(
       .getAll('permissions')
       .map(String)
       .filter((k) => (WORKFORCE_PERMISSION_KEYS as readonly string[]).includes(k)) as WorkforcePermissionKey[];
-    const backdateRaw = formStr(formData, 'maxBackdateDays');
-    const maxBackdateDays =
-      backdateRaw === '' || backdateRaw === 'unlimited'
-        ? accessRole === 'owner'
-          ? null
-          : 0
-        : Number(backdateRaw);
-
-    const loginEnabled = formData.get('loginEnabled') === '1';
+    const template = codeTemplateForAccessRole(accessRole);
     const password = formStr(formData, 'password');
 
     await updateEmployee(id, {
@@ -143,8 +122,8 @@ export async function updateWorkforceEmployeeAction(
       status: formStr(formData, 'status') === 'inactive' ? 'inactive' : 'active',
       accessRole,
       permissions: perms.length ? perms : undefined,
-      maxBackdateDays,
-      canLogin: loginEnabled,
+      maxBackdateDays: template.maxBackdateDays,
+      canLogin: password.length >= 6,
       actorEmployeeId: session?.workforceEmployeeId ?? null,
     });
 
