@@ -1,8 +1,13 @@
 import { SettingsNav } from '@/src/hair/components/settings/SettingsNav';
 import { requireHairAuthPage } from '@/src/hair/lib/auth/guards';
+import { hasPermission } from '@/src/hair/lib/auth/permissionTypes';
+import { sessionHasPermission } from '@/src/workforce/permissions/guards';
 
 export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
   const admin = await requireHairAuthPage();
+  const showPermissions =
+    (await sessionHasPermission('permissions.manage')) ||
+    hasPermission(admin, 'page:settings') && admin.role === 'super_admin';
 
   return (
     <div className="space-y-6">
@@ -13,7 +18,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
           Salon configuration across billing, communication, inventory, and more.
         </p>
       </div>
-      <SettingsNav showPermissions={admin.role === 'super_admin'} />
+      <SettingsNav showPermissions={showPermissions} />
       {children}
     </div>
   );

@@ -256,21 +256,21 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-05 21:22:14 UTC
+### Pending pre-commit sync · 2026-08-06 03:31:23 UTC
 
-**Areas touched:** [[Residents]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
-- `PROJECT/features.md` — review for accuracy
+- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
-- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (4):**
-- `src/lib/residents/residentElectricityBillExplanation.ts`
-- `src/lib/residents/residentElectricityBillExplanationPure.ts`
-- `src/lib/residents/residentElectricityBillExplanationTypes.ts`
-- `src/lib/residents/residentPortalBillRows.ts`
+**Staged code files (5):**
+- `app/(hair)/fyh/(app)/settings/layout.tsx`
+- `app/(hair)/fyh/(app)/settings/permissions/page.tsx`
+- `app/(hair)/fyh/(app)/staff/[id]/performance/page.tsx`
+- `app/(hair)/fyh/(app)/workforce/home/page.tsx`
+- `app/(hair)/fyh/me/page.tsx`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

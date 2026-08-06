@@ -16,7 +16,7 @@ import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 import { getWorkforceSession, revokeWorkforceSession } from '@/src/workforce/auth/session';
 import { listMemberships, resolvePermissions } from '@/src/workforce/brains/employeeBrain';
 import { employeeToHairAdmin } from '@/src/workforce/compat/hairAdminBridge';
-import { defaultGrantsFor } from '@/src/workforce/permissions/presets';
+import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
 
 export type HairAdmin = typeof fyhAdminUsers.$inferSelect;
 
@@ -58,12 +58,11 @@ export async function getHairSession(): Promise<HairSession | null> {
       const salon = memberships.find((m) => m.engineId === 'fyh_salon') ?? memberships[0];
       const grants = salon
         ? (await resolvePermissions(wf.employee.id, salon.engineId)) ??
-          defaultGrantsFor(salon.rank, salon.jobRole)
-        : defaultGrantsFor('team_member', 'stylist');
-      const rank = salon?.rank ?? 'team_member';
+          codeTemplateForAccessRole(salon.jobRole)
+        : codeTemplateForAccessRole('stylist');
       return {
         sessionId: wf.sessionId,
-        admin: employeeToHairAdmin(wf.employee, rank, grants),
+        admin: employeeToHairAdmin(wf.employee, grants),
         expiresAt: wf.expiresAt,
         rememberMe: wf.rememberMe,
         workforceEmployeeId: wf.employee.id,

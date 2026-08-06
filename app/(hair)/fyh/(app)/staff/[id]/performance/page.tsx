@@ -18,6 +18,7 @@ import {
 import { CalendarDays, IndianRupee, Receipt, Target, Wallet } from 'lucide-react';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { getEmployeeDashboard } from '@/src/workforce/brains/employeeBrain';
+import { hasWorkforcePermission } from '@/src/workforce/permissions/resolve';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 
 type Props = { params: Promise<{ id: string }> };
@@ -30,7 +31,13 @@ export default async function StaffPerformancePage({ params }: Props) {
     const session = await getHairSession();
     if (session?.workforceEmployeeId) {
       const dash = await getEmployeeDashboard(session.workforceEmployeeId, 'fyh_salon');
-      if (dash?.membership?.rank === 'team_member' && session.workforceEmployeeId !== id) {
+      const grants = dash?.grants;
+      if (
+        grants &&
+        !hasWorkforcePermission(grants, 'staff.view') &&
+        !hasWorkforcePermission(grants, 'dashboard.view_staff') &&
+        session.workforceEmployeeId !== id
+      ) {
         redirect(`/staff/${session.workforceEmployeeId}/performance`);
       }
     }

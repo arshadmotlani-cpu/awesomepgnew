@@ -1,16 +1,16 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireHairAuth } from '@/src/hair/lib/auth/guards';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { createEmployee, updateEmployee } from '@/src/workforce/services/employees';
+import { requireWorkforcePermission } from '@/src/workforce/permissions/guards';
 import {
   isWorkforceEngineEnabled,
   WORKFORCE_ACCESS_ROLES,
   type WorkforceJobRole,
 } from '@/src/workforce/types';
 import { WORKFORCE_PERMISSION_KEYS, type WorkforcePermissionKey } from '@/src/workforce/types';
-import { defaultGrantsForAccessRole } from '@/src/workforce/permissions/presets';
+import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
 
 export type WorkforceActionState = { error?: string; success?: string };
 
@@ -32,9 +32,8 @@ export async function createWorkforceEmployeeAction(
 ): Promise<WorkforceActionState> {
   try {
     if (!isWorkforceEngineEnabled()) return { error: 'Workforce Engine is not enabled.' };
-    await requireHairAuth();
+    await requireWorkforcePermission('staff.add');
     const session = await getHairSession();
-
     const accessRole = parseAccessRole(formStr(formData, 'accessRole'));
     const loginEnabled = formData.get('loginEnabled') === '1';
     const password = formStr(formData, 'password');
@@ -47,7 +46,7 @@ export async function createWorkforceEmployeeAction(
     const receiveBookings = formData.get('receiveBookings') === '1';
     let permissions: WorkforcePermissionKey[] | undefined = perms.length ? [...perms] : undefined;
     if (!permissions) {
-      permissions = [...defaultGrantsForAccessRole(accessRole).permissions];
+      permissions = [...codeTemplateForAccessRole(accessRole).permissions];
     }
     const withoutReceive = permissions.filter((k) => k !== 'appointments.receive_bookings');
     permissions = receiveBookings
@@ -106,7 +105,7 @@ export async function updateWorkforceEmployeeAction(
 ): Promise<WorkforceActionState> {
   try {
     if (!isWorkforceEngineEnabled()) return { error: 'Workforce Engine is not enabled.' };
-    await requireHairAuth();
+    await requireWorkforcePermission('staff.edit');
     const session = await getHairSession();
     const id = formStr(formData, 'employeeId');
     if (!id) return { error: 'Missing employee' };

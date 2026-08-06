@@ -8,6 +8,7 @@ import { getCompensationSnapshot, listIncentives } from '@/src/workforce/service
 import { normalizeCommissionType } from '@/src/workforce/lib/compensationMath';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 import { workforceAccessRoleLabel } from '@/src/workforce/labels';
+import { hasWorkforcePermission } from '@/src/workforce/permissions/resolve';
 import { logoutAction } from '@/src/hair/actions/auth';
 import { getStaffPerformanceSummary } from '@/src/hair/services/staffPerformance';
 import { salonDayBounds, salonMonthStartUtc } from '@/src/hair/lib/salonTime';
@@ -25,7 +26,7 @@ export default async function TeamMemberMePage() {
   const dash = await getEmployeeDashboard(session.workforceEmployeeId, 'fyh_salon');
   if (!dash) redirect('/login');
 
-  if (dash.membership?.rank === 'owner' || dash.membership?.rank === 'manager') {
+  if (dash.grants && hasWorkforcePermission(dash.grants, 'staff.view')) {
     redirect('/workforce/home');
   }
 

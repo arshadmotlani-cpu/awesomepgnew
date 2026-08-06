@@ -13,7 +13,7 @@ export type WorkforceEngineId = (typeof WORKFORCE_ENGINES)[number];
 export const WORKFORCE_RANKS = ['owner', 'manager', 'team_member'] as const;
 export type WorkforceRank = (typeof WORKFORCE_RANKS)[number];
 
-/** ERP permission level — stored in wf_engine_memberships.job_role. */
+/** ERP job title — stored in wf_engine_memberships.job_role. Does NOT grant access by itself. */
 export const WORKFORCE_ACCESS_ROLES = [
   'owner',
   'manager',
@@ -46,40 +46,19 @@ export type WorkforceEmployeeStatus = (typeof WORKFORCE_EMPLOYEE_STATUSES)[numbe
 export const WORKFORCE_GENDERS = ['male', 'female', 'other', 'unspecified'] as const;
 export type WorkforceGender = (typeof WORKFORCE_GENDERS)[number];
 
-/** Grouped permission keys — replace legacy per-page checkbox sprawl. */
-export const WORKFORCE_PERMISSION_KEYS = [
-  // Dashboard
-  'dashboard.view_revenue',
-  'dashboard.view_expenses',
-  'dashboard.view_staff',
-  'dashboard.view_customers',
-  // Appointments
-  'appointments.receive_bookings',
-  'appointments.view_own',
-  'appointments.view_all',
-  'appointments.edit',
-  // Billing
-  'billing.create_invoice',
-  'billing.edit_invoice',
-  'billing.backdate_invoice',
-  // Inventory
-  'inventory.view',
-  'inventory.edit',
-  // Finance
-  'finance.view_salary',
-  'finance.view_profit',
-  'finance.view_expenses',
-  // Reports
-  'reports.view',
-  'reports.export',
-  // Staff / Workforce
-  'staff.view',
-  'staff.edit',
-  'staff.add',
-  // Settings
-  'settings.manage',
-] as const;
-export type WorkforcePermissionKey = (typeof WORKFORCE_PERMISSION_KEYS)[number];
+export type {
+  WorkforcePermissionKey,
+  WorkforcePermissionGroup,
+  WorkforcePermissionDef,
+} from '@/src/workforce/permissions/library';
+export {
+  WORKFORCE_PERMISSION_KEYS,
+  WORKFORCE_PERMISSION_LIBRARY,
+  WORKFORCE_PERMISSION_GROUP_LABELS,
+  isWorkforcePermissionKey,
+  permissionDef,
+  permissionsByGroup,
+} from '@/src/workforce/permissions/library';
 
 export type WorkforcePermissionGrants = {
   permissions: WorkforcePermissionKey[];

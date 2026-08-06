@@ -14,7 +14,7 @@ import { rankFromAccessRole } from '@/src/workforce/accessRoles';
 import { publishEmployeeEvent } from '@/src/workforce/events/publish';
 import { writeEmployeeAudit } from '@/src/workforce/brains/employeeBrain';
 import { publishWorkforceEcosystemRefresh } from '@/src/workforce/connectors/ecosystemRefresh';
-import { defaultGrantsForAccessRole } from '@/src/workforce/permissions/presets';
+import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
 import type {
   WorkforceEngineId,
   WorkforceGender,
@@ -114,9 +114,11 @@ export async function createEmployee(input: UpsertEmployeeInput) {
   const engineId = input.engineId ?? 'fyh_salon';
   const accessRole = input.accessRole ?? input.jobRole ?? 'stylist';
   const rank = rankFromAccessRole(accessRole);
-  const grants = defaultGrantsForAccessRole(accessRole);
-  if (input.permissions) grants.permissions = input.permissions;
-  if (input.maxBackdateDays !== undefined) grants.maxBackdateDays = input.maxBackdateDays;
+  const usesCustomPermissions = Boolean(input.permissions && input.permissions.length > 0);
+  const template = codeTemplateForAccessRole(accessRole);
+  const customPermissions = usesCustomPermissions ? input.permissions! : template.permissions;
+  const maxBackdateDays =
+    input.maxBackdateDays !== undefined ? input.maxBackdateDays : template.maxBackdateDays;
 
   const email = input.email ? normalizeEmail(input.email) : null;
   const mobile = input.mobile ? normalizeMobile(input.mobile) : null;
@@ -168,8 +170,9 @@ export async function createEmployee(input: UpsertEmployeeInput) {
 
   await hairDb.insert(wfPermissionGrants).values({
     membershipId: mem!.id,
-    permissions: grants.permissions,
-    maxBackdateDays: grants.maxBackdateDays,
+    permissions: customPermissions,
+    maxBackdateDays,
+    usesRoleTemplate: !usesCustomPermissions,
   });
 
   await mirrorSalonStaffRow(emp!.id, { ...input, accessRole });
@@ -248,9 +251,11 @@ export async function updateEmployee(
       .set({ rank, jobRole: role, updatedAt: new Date() })
       .where(eq(wfEngineMemberships.id, mem.id));
 
-    const grants = defaultGrantsForAccessRole(role);
-    if (input.permissions) grants.permissions = input.permissions;
-    if (input.maxBackdateDays !== undefined) grants.maxBackdateDays = input.maxBackdateDays;
+    const usesCustom = Boolean(input.permissions && input.permissions.length > 0);
+    const template = codeTemplateForAccessRole(role);
+    const permissions = usesCustom ? input.permissions! : template.permissions;
+    const grantMaxBackdate =
+      input.maxBackdateDays !== undefined ? input.maxBackdateDays : template.maxBackdateDays;
 
     const [pg] = await hairDb
       .select()
@@ -261,16 +266,18 @@ export async function updateEmployee(
       await hairDb
         .update(wfPermissionGrants)
         .set({
-          permissions: grants.permissions,
-          maxBackdateDays: grants.maxBackdateDays,
+          permissions,
+          maxBackdateDays: grantMaxBackdate,
+          usesRoleTemplate: !usesCustom,
           updatedAt: new Date(),
         })
         .where(eq(wfPermissionGrants.id, pg.id));
     } else {
       await hairDb.insert(wfPermissionGrants).values({
         membershipId: mem.id,
-        permissions: grants.permissions,
-        maxBackdateDays: grants.maxBackdateDays,
+        permissions,
+        maxBackdateDays: grantMaxBackdate,
+        usesRoleTemplate: !usesCustom,
       });
     }
 
@@ -328,6 +335,60 @@ export async function updateEmployee(
     employeeId,
     engineId,
     sourceRef: 'workforce.services.updateEmployee',
+  });
+}
+
+export async function resetEmployeePermissionsToRoleTemplate(
+  employeeId: string,
+  engineId: WorkforceEngineId = 'fyh_salon',
+  actorEmployeeId?: string | null,
+) {
+  const [mem] = await hairDb
+    .select()
+    .from(wfEngineMemberships)
+    .where(
+      and(eq(wfEngineMemberships.employeeId, employeeId), eq(wfEngineMemberships.engineId, engineId)),
+    )
+    .limit(1);
+  if (!mem) throw new Error('Employee membership not found.');
+
+  const template = codeTemplateForAccessRole(mem.jobRole);
+  const [pg] = await hairDb
+    .select()
+    .from(wfPermissionGrants)
+    .where(eq(wfPermissionGrants.membershipId, mem.id))
+    .limit(1);
+
+  if (pg) {
+    await hairDb
+      .update(wfPermissionGrants)
+      .set({
+        permissions: template.permissions,
+        maxBackdateDays: template.maxBackdateDays,
+        usesRoleTemplate: true,
+        updatedAt: new Date(),
+      })
+      .where(eq(wfPermissionGrants.id, pg.id));
+  } else {
+    await hairDb.insert(wfPermissionGrants).values({
+      membershipId: mem.id,
+      permissions: template.permissions,
+      maxBackdateDays: template.maxBackdateDays,
+      usesRoleTemplate: true,
+    });
+  }
+
+  await writeEmployeeAudit({
+    employeeId,
+    actorEmployeeId,
+    action: 'employee.permissions.reset_to_role_template',
+    diff: { accessRole: mem.jobRole },
+  });
+  await publishEmployeeEvent({
+    eventType: 'employee.permission.changed',
+    employeeId,
+    engineId,
+    sourceRef: 'workforce.services.resetEmployeePermissionsToRoleTemplate',
   });
 }
 

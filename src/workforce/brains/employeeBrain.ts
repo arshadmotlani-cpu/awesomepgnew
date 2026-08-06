@@ -11,15 +11,18 @@ import {
   type WfEngineMembership,
 } from '@/src/workforce/db/schema';
 import { publishEmployeeEvent } from '@/src/workforce/events/publish';
-import { defaultGrantsFor, hasWorkforcePermission } from '@/src/workforce/permissions/presets';
+import {
+  hasWorkforcePermission,
+  resolveEffectiveGrants,
+} from '@/src/workforce/permissions/resolve';
 import type {
   WorkforceEngineId,
   WorkforceJobRole,
   WorkforcePermissionGrants,
   WorkforcePermissionKey,
-  WorkforceRank,
 } from '@/src/workforce/types';
 import { normalizeMobile } from '@/src/workforce/auth/mobile';
+import { ensureRoleTemplatesSeeded } from '@/src/workforce/services/roleTemplates';
 
 export type EmployeeWithMembership = {
   employee: WfEmployee;
@@ -27,17 +30,27 @@ export type EmployeeWithMembership = {
   grants: WorkforcePermissionGrants;
 };
 
-async function loadGrants(membershipId: string, rank: WorkforceRank, jobRole: WorkforceJobRole) {
+async function loadGrants(
+  membership: WfEngineMembership,
+  engineId: WorkforceEngineId,
+): Promise<WorkforcePermissionGrants> {
   const [row] = await hairDb
     .select()
     .from(wfPermissionGrants)
-    .where(eq(wfPermissionGrants.membershipId, membershipId))
+    .where(eq(wfPermissionGrants.membershipId, membership.id))
     .limit(1);
-  if (!row) return defaultGrantsFor(rank, jobRole);
-  return {
-    permissions: row.permissions ?? [],
-    maxBackdateDays: row.maxBackdateDays,
-  };
+
+  return resolveEffectiveGrants({
+    engineId,
+    accessRole: membership.jobRole,
+    grantRow: row
+      ? {
+          permissions: row.permissions,
+          maxBackdateDays: row.maxBackdateDays,
+          usesRoleTemplate: row.usesRoleTemplate,
+        }
+      : null,
+  });
 }
 
 export async function getEmployee(employeeId: string): Promise<WfEmployee | null> {
@@ -53,6 +66,7 @@ export async function listEmployeesForEngine(
   engineId: WorkforceEngineId,
   opts?: { activeOnly?: boolean; receiveBookingsOnly?: boolean },
 ): Promise<EmployeeWithMembership[]> {
+  await ensureRoleTemplatesSeeded(engineId);
   const activeOnly = opts?.activeOnly !== false;
   const rows = await hairDb
     .select({
@@ -73,11 +87,7 @@ export async function listEmployeesForEngine(
 
   const out: EmployeeWithMembership[] = [];
   for (const row of rows) {
-    const grants = await loadGrants(
-      row.membership.id,
-      row.membership.rank,
-      row.membership.jobRole,
-    );
+    const grants = await loadGrants(row.membership, engineId);
     if (
       opts?.receiveBookingsOnly &&
       !hasWorkforcePermission(grants, 'appointments.receive_bookings')
@@ -105,7 +115,7 @@ export async function resolvePermissions(
     )
     .limit(1);
   if (!row) return null;
-  return loadGrants(row.membership.id, row.membership.rank, row.membership.jobRole);
+  return loadGrants(row.membership, engineId);
 }
 
 export async function employeeHasPermission(
@@ -150,9 +160,7 @@ export async function getEmployeeDashboard(
     )
     .limit(1);
 
-  const grants = membership
-    ? await loadGrants(membership.id, membership.rank, membership.jobRole)
-    : null;
+  const grants = membership ? await loadGrants(membership, engineId) : null;
 
   const schedule = await hairDb
     .select()

@@ -165,11 +165,22 @@ describe('Workforce Add Employee popup', () => {
 });
 
 describe('Workforce role home paths', () => {
-  test('owner and manager land on workforce home; staff on /me', async () => {
-    const { workforceHomePathForRank } = await import('@/src/workforce/dashboards/roleHome');
-    assert.equal(workforceHomePathForRank('owner'), '/workforce/home');
-    assert.equal(workforceHomePathForRank('manager'), '/workforce/home');
-    assert.equal(workforceHomePathForRank('team_member'), '/me');
+  test('staff.view lands on workforce home; own-only on /me', async () => {
+    const { workforceHomePathForGrants } = await import('@/src/workforce/dashboards/roleHome');
+    assert.equal(
+      workforceHomePathForGrants({
+        permissions: ['staff.view', 'dashboard.view_revenue'],
+        maxBackdateDays: 0,
+      }),
+      '/workforce/home',
+    );
+    assert.equal(
+      workforceHomePathForGrants({
+        permissions: ['appointments.view_own'],
+        maxBackdateDays: 0,
+      }),
+      '/me',
+    );
   });
 });
 

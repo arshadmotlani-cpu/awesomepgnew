@@ -90,10 +90,27 @@ export const wfPermissionGrants = pgTable(
       .references(() => wfEngineMemberships.id, { onDelete: 'cascade' }),
     permissions: jsonb('permissions').$type<WorkforcePermissionKey[]>().notNull().default([]),
     maxBackdateDays: integer('max_backdate_days'),
+    /** When true, effective permissions come from the Access Role template. */
+    usesRoleTemplate: boolean('uses_role_template').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('wf_permission_membership_uidx').on(t.membershipId)],
+);
+
+/** Default permission templates per Access Role (job title) — editable by admins. */
+export const wfRoleTemplates = pgTable(
+  'wf_role_templates',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    engineId: text('engine_id').$type<WorkforceEngineId>().notNull(),
+    accessRole: text('access_role').$type<WorkforceJobRole>().notNull(),
+    permissions: jsonb('permissions').$type<WorkforcePermissionKey[]>().notNull().default([]),
+    maxBackdateDays: integer('max_backdate_days'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('wf_role_templates_engine_role_uidx').on(t.engineId, t.accessRole)],
 );
 
 export const wfSchedules = pgTable(

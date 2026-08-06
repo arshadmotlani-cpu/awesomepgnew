@@ -8,28 +8,18 @@ import {
   listEmployeesForEngine,
 } from '@/src/workforce/brains/employeeBrain';
 import { getOwnerWorkforceDashboard } from '@/src/workforce/connectors/ownerBridge';
-import {
-  MANAGER_NAV,
-  OWNER_NAV,
-  STAFF_NAV,
-  type RoleNavLink,
-  workforceHomePathForRank,
-} from '@/src/workforce/dashboards/roleHome';
+import { WORKFORCE_HUB_NAV, type RoleNavLink } from '@/src/workforce/dashboards/roleHome';
 import { workforceAccessRoleLabel } from '@/src/workforce/labels';
-import { hasWorkforcePermission } from '@/src/workforce/permissions/presets';
+import { hasWorkforcePermission } from '@/src/workforce/permissions/resolve';
 import { isWorkforceEngineEnabled, type WorkforcePermissionKey } from '@/src/workforce/types';
 
 function filterNav(
   links: RoleNavLink[],
-  permissions: WorkforcePermissionKey[] | undefined,
+  grants: { permissions: WorkforcePermissionKey[] },
 ): RoleNavLink[] {
   return links.filter((l) => {
     if (!l.permission) return true;
-    if (!permissions) return false;
-    return hasWorkforcePermission(
-      { permissions, maxBackdateDays: 0 },
-      l.permission as WorkforcePermissionKey,
-    );
+    return hasWorkforcePermission(grants, l.permission as WorkforcePermissionKey);
   });
 }
 
@@ -41,38 +31,26 @@ export default async function WorkforceRoleHomePage() {
   if (!session?.workforceEmployeeId) redirect('/login');
 
   const dash = await getEmployeeDashboard(session.workforceEmployeeId, 'fyh_salon');
-  if (!dash?.membership) redirect('/login');
+  if (!dash?.membership || !dash.grants) redirect('/login');
 
-  const rank = dash.membership.rank;
-  if (rank === 'team_member') {
-    redirect(workforceHomePathForRank(rank));
+  if (!hasWorkforcePermission(dash.grants, 'staff.view')) {
+    redirect('/me');
   }
 
-  const perms = dash.grants?.permissions ?? [];
-  const nav =
-    rank === 'owner'
-      ? filterNav(OWNER_NAV, perms)
-      : rank === 'manager'
-        ? filterNav(MANAGER_NAV, perms)
-        : filterNav(STAFF_NAV, perms);
+  const nav = filterNav(WORKFORCE_HUB_NAV, dash.grants);
+  const team = hasWorkforcePermission(dash.grants, 'staff.view')
+    ? await listEmployeesForEngine('fyh_salon', { activeOnly: true })
+    : [];
 
-  const team =
-    rank === 'owner' || rank === 'manager'
-      ? await listEmployeesForEngine('fyh_salon', { activeOnly: true })
-      : [];
-
-  const ecosystem =
-    rank === 'owner' || rank === 'manager'
-      ? await getOwnerWorkforceDashboard('fyh_salon')
-      : null;
-
-  const title = rank === 'owner' ? 'Owner dashboard' : 'Manager dashboard';
+  const ecosystem = hasWorkforcePermission(dash.grants, 'dashboard.view_revenue')
+    ? await getOwnerWorkforceDashboard('fyh_salon')
+    : null;
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 px-4 py-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm text-fyh-text-secondary">{title}</p>
+          <p className="text-sm text-fyh-text-secondary">Workforce hub</p>
           <h1 className="text-3xl font-semibold text-fyh-text">{dash.employee.fullName}</h1>
           <p className="text-sm text-fyh-text-secondary">
             {workforceAccessRoleLabel(dash.membership.jobRole)}
@@ -88,80 +66,49 @@ export default async function WorkforceRoleHomePage() {
 
       {ecosystem ? (
         <section className="rounded-2xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] p-5">
-          <h2 className="text-lg font-medium text-fyh-text">Ecosystem connections</h2>
-          <p className="mt-1 text-sm text-fyh-text-secondary">
-            Workforce Brain linked to Finance, Appointment, Customer, Owner — Health Brain stays
-            Baseline-frozen (self-check only).
-          </p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="rounded-xl border border-[color:var(--fyh-border)] px-3 py-3 text-sm">
-              <p className="text-fyh-text-secondary">Team</p>
-              <p className="text-xl font-semibold text-fyh-text">{ecosystem.teamSize}</p>
-              <p className="text-xs text-fyh-text-secondary">
-                {ecosystem.owners} owner · {ecosystem.managers} manager · {ecosystem.staff} staff
-              </p>
+          <h2 className="text-lg font-medium text-fyh-text">Salon snapshot</h2>
+          <dl className="mt-4 grid gap-4 sm:grid-cols-3">
+            <div>
+              <dt className="text-xs text-fyh-text-secondary">Active team</dt>
+              <dd className="text-2xl font-semibold text-fyh-text">{ecosystem.activeTeam}</dd>
             </div>
-            <div className="rounded-xl border border-[color:var(--fyh-border)] px-3 py-3 text-sm">
-              <p className="text-fyh-text-secondary">Bookable (Appointments)</p>
-              <p className="text-xl font-semibold text-fyh-text">
-                {ecosystem.appointments.bookableCount}
-              </p>
+            <div>
+              <dt className="text-xs text-fyh-text-secondary">Bookable staff</dt>
+              <dd className="text-2xl font-semibold text-fyh-text">{ecosystem.bookableStaff}</dd>
             </div>
-            <div className="rounded-xl border border-[color:var(--fyh-border)] px-3 py-3 text-sm">
-              <p className="text-fyh-text-secondary">Salary liability</p>
-              <p className="text-xl font-semibold text-fyh-text">
-                ₹{(ecosystem.finance.monthlySalaryLiabilityPaise / 100).toLocaleString('en-IN')}
-              </p>
+            <div>
+              <dt className="text-xs text-fyh-text-secondary">Designations</dt>
+              <dd className="text-sm text-fyh-text">
+                {Object.entries(ecosystem.designations)
+                  .map(([k, v]) => `${k}: ${v}`)
+                  .join(' · ') || '—'}
+              </dd>
             </div>
-          </div>
-          <ul className="mt-4 space-y-2 text-sm">
-            {ecosystem.connections.map((c) => (
-              <li
-                key={c.brain}
-                className="flex flex-wrap items-baseline justify-between gap-2 border-t border-[color:var(--fyh-border)] pt-2"
-              >
-                <span className="font-medium capitalize text-fyh-text">{c.brain} Brain</span>
-                <span className="text-fyh-text-secondary">
-                  {c.status.replaceAll('_', ' ')} — {c.detail}
-                </span>
-              </li>
-            ))}
-          </ul>
-          {ecosystem.attention.length > 0 ? (
-            <ul className="mt-4 space-y-1 text-sm text-fyh-text-secondary">
-              {ecosystem.attention.map((a, i) => (
-                <li key={`${a.kind}-${i}`}>
-                  {a.severity === 'warn' ? '⚠ ' : '• '}
-                  {a.message}
-                </li>
-              ))}
-            </ul>
-          ) : null}
+          </dl>
         </section>
       ) : null}
 
-      <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-fyh-text-secondary">
-          Quick links
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {nav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="rounded-2xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] px-4 py-4 text-fyh-text transition hover:border-fyh-accent/40"
-            >
-              <span className="font-medium">{item.label}</span>
-            </Link>
+      <section className="rounded-2xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] p-5">
+        <h2 className="text-lg font-medium text-fyh-text">Quick links</h2>
+        <ul className="mt-4 flex flex-wrap gap-2">
+          {nav.map((link) => (
+            <li key={link.href}>
+              <Link
+                href={link.href}
+                className="inline-block rounded-lg border border-[color:var(--fyh-border)] px-3 py-2 text-sm text-fyh-accent hover:bg-[color:var(--fyh-surface-muted)]"
+              >
+                {link.label}
+              </Link>
+            </li>
           ))}
-        </div>
+        </ul>
       </section>
 
       {team.length > 0 ? (
         <section className="rounded-2xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] p-5">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-medium text-fyh-text">Team ({team.length})</h2>
-            {hasWorkforcePermission(dash.grants, 'staff.add') ? (
+            <h2 className="text-lg font-medium text-fyh-text">Team</h2>
+            {hasWorkforcePermission(dash.grants, 'staff.edit') ? (
               <Link href="/workforce" className="text-sm text-fyh-accent underline">
                 Manage workforce
               </Link>
@@ -181,8 +128,7 @@ export default async function WorkforceRoleHomePage() {
       ) : null}
 
       <p className="text-xs text-fyh-text-secondary">
-        You only see modules your Workforce permissions allow. Settings and profit are Owner-scoped
-        by default.
+        Modules shown are based on your effective permissions, not your job title.
       </p>
     </div>
   );

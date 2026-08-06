@@ -84,7 +84,7 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
     hidden: true,
     permission: 'page:quick_sale',
   },
-  { type: 'link', href: '/staff', label: 'Staff', iconKey: 'clipboard-list' },
+  { type: 'link', href: '/staff', label: 'Staff', iconKey: 'clipboard-list', permission: 'page:dashboard' },
   {
     type: 'link',
     href: '/inventory',
@@ -92,7 +92,7 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
     iconKey: 'warehouse',
     permission: 'page:inventory',
   },
-  { type: 'link', href: '/loyalty', label: 'Loyalty', iconKey: 'heart' },
+  { type: 'link', href: '/loyalty', label: 'Loyalty', iconKey: 'heart', permission: 'page:customers' },
   {
     type: 'group',
     id: 'reports',
@@ -126,6 +126,7 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
     label: 'Configuration',
     iconKey: 'sliders-horizontal',
     defaultExpanded: false,
+    permission: 'page:settings',
     children: [
       { href: '/services', label: 'Services' },
       { href: '/products', label: 'Products' },

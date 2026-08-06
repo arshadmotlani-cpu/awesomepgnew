@@ -30,7 +30,8 @@ import {
 } from '@/src/workforce/auth/session';
 import { findEmployeeByLoginId } from '@/src/workforce/auth/identity';
 import { employeeToHairAdmin } from '@/src/workforce/compat/hairAdminBridge';
-import { defaultGrantsForAccessRole } from '@/src/workforce/permissions/presets';
+import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
+import { hasWorkforcePermission } from '@/src/workforce/permissions/resolve';
 
 export type LoginState = { error?: string };
 
@@ -98,21 +99,17 @@ export async function loginAction(
       );
 
       const salon = memberships.find((m) => m.engineId === 'fyh_salon') ?? memberships[0];
-      if (salon?.rank === 'team_member') {
-        redirect(safeHairNextPath(next || '/me', {
-          role: 'admin',
-          permissions: [],
-        }));
-      }
-
       const grants =
         (salon
           ? await resolvePermissions(emp.id, salon.engineId)
-          : null) ?? defaultGrantsForAccessRole(salon?.jobRole ?? 'stylist');
-      const admin = employeeToHairAdmin(emp, salon?.rank ?? 'team_member', grants);
-      const home =
-        salon?.rank === 'owner' || salon?.rank === 'manager'
-          ? '/workforce/home'
+          : null) ?? codeTemplateForAccessRole(salon?.jobRole ?? 'stylist');
+      const admin = employeeToHairAdmin(emp, grants);
+
+      const home = hasWorkforcePermission(grants, 'staff.view')
+        ? '/workforce/home'
+        : hasWorkforcePermission(grants, 'appointments.view_own') &&
+            !hasWorkforcePermission(grants, 'appointments.view_all')
+          ? '/me'
           : resolveDefaultLandingPath(admin);
       redirect(safeHairNextPath(next || home, admin));
     }
