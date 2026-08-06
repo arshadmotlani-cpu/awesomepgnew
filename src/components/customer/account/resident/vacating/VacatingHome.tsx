@@ -32,6 +32,8 @@ import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import { primaryBtn } from '@/src/lib/design-system/tokens';
 import type { EstimatedSettlementPreview } from '@/src/lib/vacating/estimatedSettlementPreview';
+import { ExitBrainRefundBreakdown } from '@/src/components/customer/account/resident/vacating/ExitBrainRefundBreakdown';
+import type { ResidentExitBrainSnapshot } from '@/src/lib/exit/exitBrainTypes';
 
 type Props = {
   bookingId: string;
@@ -61,6 +63,7 @@ type Props = {
   settlementContext?: ResidentSettlementStatementContext | null;
   settlementDocument?: import('@/src/lib/vacating/settlementStatementModel').SettlementStatementDocumentModel | null;
   settlementNoticeDisplay?: import('@/src/lib/vacating/noticeDeductionPresentation').NoticeSettlementDisplay | null;
+  exitBrainSnapshot?: ResidentExitBrainSnapshot | null;
 };
 
 function safeDateString(value: unknown): string | null {
@@ -132,6 +135,7 @@ export function VacatingHome({
   pendingDateChangeRequestId = null,
   settlementDocument = null,
   settlementNoticeDisplay = null,
+  exitBrainSnapshot = null,
   monthlyRentPaise,
 }: Props) {
   const router = useRouter();
@@ -271,6 +275,11 @@ export function VacatingHome({
       />
     ) : null;
 
+  const exitBrainPanel =
+    exitBrainSnapshot && vacating && ['pending', 'approved'].includes(vacating.status) ? (
+      <ExitBrainRefundBreakdown snapshot={exitBrainSnapshot} theme="light" />
+    ) : null;
+
   if (fixedStay) {
     return (
       <div className="space-y-4 pb-2">
@@ -293,12 +302,14 @@ export function VacatingHome({
           </ApgCard>
         )}
         {storyBlock}
+        {exitBrainPanel}
         {showRefundForm ? (
           <DepositRefundRequestForm
             bookingId={bookingId}
             customerId={customerId}
             refundableBalancePaise={depositHeldPaise}
             estimatedDeductionPaise={vacating?.deductionPaise ?? 0}
+            exitBrainSnapshot={exitBrainSnapshot}
             onSubmitted={() => router.refresh()}
             compact
           />
@@ -383,6 +394,7 @@ export function VacatingHome({
           </ApgCard>
 
           {storyBlock}
+          {exitBrainPanel}
 
           {showChangeLeavingDate && vacatingDate ? (
             <ChangeLeavingDateForm
@@ -424,8 +436,8 @@ export function VacatingHome({
               customerId={customerId}
               refundableBalancePaise={depositHeldPaise}
               estimatedDeductionPaise={vacating.deductionPaise ?? 0}
+              exitBrainSnapshot={exitBrainSnapshot}
               onSubmitted={() => router.refresh()}
-              compact
             />
           ) : !showRefundLockedCard &&
             !refundGate.allowed &&
@@ -492,6 +504,7 @@ export function VacatingHome({
             </div>
           </ApgCard>
           {storyBlock}
+          {exitBrainPanel}
         </>
       ) : null}
     </div>

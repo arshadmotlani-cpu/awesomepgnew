@@ -211,6 +211,7 @@ export async function ResidentRequestsTabSection({
         settlementContext={data.primarySettlementContext}
         settlementDocument={data.primarySettlementDocument}
         settlementNoticeDisplay={data.primaryNoticeDisplay}
+        exitBrainSnapshot={data.primaryExitBrainSnapshot}
       />
     </ResidentSectionErrorBoundary>
   );

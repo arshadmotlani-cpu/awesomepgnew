@@ -46,11 +46,13 @@ export type WorkforceEmployeeStatus = (typeof WORKFORCE_EMPLOYEE_STATUSES)[numbe
 export const WORKFORCE_GENDERS = ['male', 'female', 'other', 'unspecified'] as const;
 export type WorkforceGender = (typeof WORKFORCE_GENDERS)[number];
 
-export type {
+import type {
   WorkforcePermissionKey,
   WorkforcePermissionGroup,
   WorkforcePermissionDef,
 } from '@/src/workforce/permissions/library';
+
+export type { WorkforcePermissionKey, WorkforcePermissionGroup, WorkforcePermissionDef };
 export {
   WORKFORCE_PERMISSION_KEYS,
   WORKFORCE_PERMISSION_LIBRARY,

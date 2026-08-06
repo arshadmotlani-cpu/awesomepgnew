@@ -1899,6 +1899,8 @@ export type ProjectInvoiceOptions = {
   lateFeePolicy?: import('@/src/services/lateFeePolicy').LateFeePolicySnapshot | null;
   /** Sum of late_fee_waivers.amount_paise for this invoice (subtracted from accrued fee). */
   waiverPaise?: number;
+  /** Exit Brain — frozen late fee at vacating approval; never accrues further. */
+  exitModeFrozenLateFeePaise?: number;
 };
 
 function hasFrozenProofSnapshot(
@@ -2108,7 +2110,10 @@ export function projectInvoice(
       today: asOf,
       policy: options?.lateFeePolicy,
     });
-    const lateFee = Math.max(0, rawLateFee - waiverPaise);
+    let lateFee = Math.max(0, rawLateFee - waiverPaise);
+    if (options?.exitModeFrozenLateFeePaise !== undefined) {
+      lateFee = options.exitModeFrozenLateFeePaise;
+    }
     const outstandingPaise = Math.max(
       0,
       rentDuePaise + lateFee - inv.paidPrincipalPaise - inv.paidLateFeePaise,
@@ -2127,7 +2132,10 @@ export function projectInvoice(
     today: asOf,
     policy: options?.lateFeePolicy,
   });
-  const lateFee = Math.max(0, rawLateFee - waiverPaise);
+  let lateFee = Math.max(0, rawLateFee - waiverPaise);
+  if (options?.exitModeFrozenLateFeePaise !== undefined) {
+    lateFee = options.exitModeFrozenLateFeePaise;
+  }
   const outstanding = rentDuePaise + lateFee
     - inv.paidPrincipalPaise
     - inv.paidLateFeePaise;

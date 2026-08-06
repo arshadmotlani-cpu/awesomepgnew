@@ -289,3 +289,6 @@ Cross-links: [[ARCHITECTURE]] · [[WORKFLOWS]] · [[AI_CONTEXT]] · [[BUGS]]
 
 <!-- DOC_SYNC_TOUCH_2026-08-02 -->
 > **2026-08-02 07:48:39 UTC** — Code changed in: Routes, Database, Billing, Bookings, Deposits, Electricity, Residents, Vacating. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-08-06 -->
+> **2026-08-06 04:01:32 UTC** — Code changed in: Routes, Database, Bookings, Billing, Vacating. Manual review recommended.

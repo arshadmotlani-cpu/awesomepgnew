@@ -15,7 +15,7 @@ import { isWorkforceEngineEnabled, type WorkforcePermissionKey } from '@/src/wor
 
 function filterNav(
   links: RoleNavLink[],
-  grants: { permissions: WorkforcePermissionKey[] },
+  grants: { permissions: WorkforcePermissionKey[]; maxBackdateDays: number | null },
 ): RoleNavLink[] {
   return links.filter((l) => {
     if (!l.permission) return true;
@@ -70,18 +70,16 @@ export default async function WorkforceRoleHomePage() {
           <dl className="mt-4 grid gap-4 sm:grid-cols-3">
             <div>
               <dt className="text-xs text-fyh-text-secondary">Active team</dt>
-              <dd className="text-2xl font-semibold text-fyh-text">{ecosystem.activeTeam}</dd>
+              <dd className="text-2xl font-semibold text-fyh-text">{ecosystem.teamSize}</dd>
             </div>
             <div>
               <dt className="text-xs text-fyh-text-secondary">Bookable staff</dt>
-              <dd className="text-2xl font-semibold text-fyh-text">{ecosystem.bookableStaff}</dd>
+              <dd className="text-2xl font-semibold text-fyh-text">{ecosystem.appointments.bookableCount}</dd>
             </div>
             <div>
-              <dt className="text-xs text-fyh-text-secondary">Designations</dt>
+              <dt className="text-xs text-fyh-text-secondary">Roles</dt>
               <dd className="text-sm text-fyh-text">
-                {Object.entries(ecosystem.designations)
-                  .map(([k, v]) => `${k}: ${v}`)
-                  .join(' · ') || '—'}
+                {`Owners: ${ecosystem.owners} · Managers: ${ecosystem.managers} · Staff: ${ecosystem.staff}`}
               </dd>
             </div>
           </dl>

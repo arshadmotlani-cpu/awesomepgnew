@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { BookingInvoiceHistorySection } from '@/src/components/admin/bookings/BookingInvoiceHistorySection';
 import { CheckoutSettlementWizard } from '@/src/components/admin/checkout/CheckoutSettlementWizard';
+import { ExitBrainRefundBreakdown } from '@/src/components/customer/account/resident/vacating/ExitBrainRefundBreakdown';
 import { CheckoutRefundReceiptFromDetail } from '@/src/components/admin/checkout/CheckoutRefundReceipt';
 import { DepositActivitySection } from '@/src/components/admin/deposits/DepositActivitySection';
 import { DepositSummaryCard } from '@/src/components/admin/deposits/DepositSummaryCard';
@@ -122,6 +123,9 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
       >
         {data.vacating ? (
           <div className="space-y-5">
+            {data.exitBrainSnapshot ? (
+              <ExitBrainRefundBreakdown snapshot={data.exitBrainSnapshot} theme="dark" />
+            ) : null}
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
                 <p className="text-sm text-apg-silver">

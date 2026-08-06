@@ -12,6 +12,8 @@ import { logResidentClientError } from '@/src/lib/client/residentClientLogger';
 import { coerceNonNegativePaise, paiseToInr } from '@/src/lib/format';
 import { primaryBtn } from '@/src/lib/design-system/tokens';
 import type { DepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
+import { ExitBrainRefundBreakdown } from '@/src/components/customer/account/resident/vacating/ExitBrainRefundBreakdown';
+import type { ResidentExitBrainSnapshot } from '@/src/lib/exit/exitBrainTypes';
 
 const idle: RequestActionState = { ok: false };
 
@@ -21,6 +23,7 @@ export function DepositRefundRequestForm({
   refundableBalancePaise,
   estimatedDeductionPaise = 0,
   settlementPreview = null,
+  exitBrainSnapshot = null,
   onSubmitted,
   compact = false,
 }: {
@@ -29,6 +32,7 @@ export function DepositRefundRequestForm({
   refundableBalancePaise: number;
   estimatedDeductionPaise?: number;
   settlementPreview?: DepositRefundSettlementPreview | null;
+  exitBrainSnapshot?: ResidentExitBrainSnapshot | null;
   onSubmitted?: () => void;
   compact?: boolean;
 }) {
@@ -109,11 +113,21 @@ export function DepositRefundRequestForm({
 
       <h4 className="text-sm font-semibold text-zinc-900">Request deposit refund</h4>
       <p className="mt-1 text-xs text-zinc-600">
-        Upload your final AC meter photo and UPI QR code. Admin will verify and calculate your final
+        Upload your final AC meter photo and UPI QR code. Admin will verify and confirm your final
         refund.
       </p>
 
-      {noticeDeduction > 0 && !compact ? (
+      {exitBrainSnapshot ? (
+        <div className="mt-4">
+          <ExitBrainRefundBreakdown
+            snapshot={exitBrainSnapshot}
+            theme="light"
+            title="Confirm your refund estimate"
+          />
+        </div>
+      ) : null}
+
+      {noticeDeduction > 0 && !compact && !exitBrainSnapshot ? (
         <p className="mt-2 text-xs text-zinc-600">
           Estimated notice deduction: {paiseToInr(noticeDeduction)} (final amount confirmed at
           settlement).

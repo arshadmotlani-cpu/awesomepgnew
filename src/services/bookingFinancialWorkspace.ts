@@ -87,6 +87,7 @@ export type BookingFinancialWorkspaceData = {
   pendingPaymentReviewHref: string | null;
   monthlyBillingSnapshot: MonthlyBillingSnapshot | null;
   moveOutWorkflow: (MoveOutWorkflowPresentation & { checkoutReadiness: string }) | null;
+  exitBrainSnapshot: import('@/src/lib/exit/exitBrainTypes').ResidentExitBrainSnapshot | null;
 };
 
 export async function loadBookingFinancialWorkspace(
@@ -412,6 +413,12 @@ export async function loadBookingFinancialWorkspace(
     };
   }
 
+  const { loadResidentExitBrainSnapshot } = await import('@/src/lib/exit/loadResidentExitBrainSnapshot');
+  const exitBrainSnapshot =
+    vacatingRow && ['pending', 'approved'].includes(vacatingRow.status)
+      ? await loadResidentExitBrainSnapshot(bookingId)
+      : null;
+
   return {
     ok: true,
     data: {
@@ -439,6 +446,7 @@ export async function loadBookingFinancialWorkspace(
       pendingPaymentReviewHref,
       monthlyBillingSnapshot,
       moveOutWorkflow,
+      exitBrainSnapshot,
     },
   };
   } catch (err) {

@@ -12,6 +12,7 @@ import {
   WORKFORCE_ACCESS_ROLES,
   WORKFORCE_PERMISSION_GROUP_LABELS,
   WORKFORCE_PERMISSION_LIBRARY,
+  permissionsByGroup,
   type WorkforcePermissionKey,
 } from '@/src/workforce/types';
 import { workforceAccessRoleLabel } from '@/src/workforce/labels';
@@ -32,12 +33,7 @@ type Props = {
 const initial: PermissionActionState = {};
 
 function PermissionChecklist({ selected }: { selected: Set<string> }) {
-  const groups = WORKFORCE_PERMISSION_LIBRARY.reduce<
-    Record<string, typeof WORKFORCE_PERMISSION_LIBRARY>
-  >((acc, def) => {
-    (acc[def.group] ??= [] as typeof WORKFORCE_PERMISSION_LIBRARY).push(def);
-    return acc;
-  }, {});
+  const groups = permissionsByGroup();
 
   return (
     <div className="max-h-72 space-y-3 overflow-y-auto rounded-lg border border-[color:var(--fyh-border)] p-3">

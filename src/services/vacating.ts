@@ -560,6 +560,16 @@ export async function approveVacatingRequest(input: {
     context: 'approve',
   });
 
+  const { activateResidentExitBrain } = await import('@/src/lib/exit/activateResidentExitBrain');
+  await activateResidentExitBrain({
+    vacatingRequestId: current.id,
+    bookingId: current.bookingId,
+    customerId: current.customerId,
+    noticeGivenDate: String(current.noticeGivenDate),
+    expectedCheckoutDate: String(current.vacatingDate),
+    frozenNoticePenaltyPaise: current.deductionPaise,
+  });
+
   const [updated] = await db
     .update(vacatingRequests)
     .set({
@@ -912,6 +922,9 @@ export async function finalizeVacatingOccupancy(
     })
     .where(eq(vacatingRequests.id, input.requestId))
     .returning();
+
+  const { completeResidentExitBrain } = await import('@/src/lib/exit/activateResidentExitBrain');
+  await completeResidentExitBrain(current.bookingId);
 
   await db
     .update(bookings)

@@ -92,6 +92,7 @@ function buildRentCategory(
   invoices: RentInvoice[],
   financialIdByRent: Map<string, string>,
   meta: { pgId: string; pgName: string; roomNumber: string },
+  exitRentLateFeeCaps?: Map<string, number> | null,
 ): ResidentFinancialCategory {
   const items: ResidentFinancialLineItem[] = [];
   let requiredPaise = 0;
@@ -100,7 +101,12 @@ function buildRentCategory(
 
   for (const inv of invoices) {
     if (inv.status === 'cancelled') continue;
-    const projected = projectInvoice(inv);
+    const frozenLate = exitRentLateFeeCaps?.get(inv.id);
+    const projected = projectInvoice(
+      inv,
+      undefined,
+      frozenLate !== undefined ? { exitModeFrozenLateFeePaise: frozenLate } : undefined,
+    );
     const lateFee =
       inv.status === 'paid'
         ? (inv.lateFeeLockedPaise ?? 0)
@@ -593,16 +599,19 @@ export async function computeBookingFinancialSummaryCore(args: {
   depositPaise: number;
   depositDuePaise: number;
 }): Promise<ResidentFinancialSummary> {
-  const [rentRows, elecRows, finIds, openVacating] = await Promise.all([
+  const [rentRows, elecRows, finIds, openVacating, exitRentCaps] = await Promise.all([
     db.select().from(rentInvoices).where(eq(rentInvoices.bookingId, args.bookingId)),
     fetchElectricityInvoicesByBookingId(args.bookingId),
     loadFinancialInvoiceIds(args.bookingId),
     loadOpenVacatingForBooking(args.bookingId),
+    import('@/src/lib/exit/activateResidentExitBrain').then((m) =>
+      m.getExitBrainFrozenRentLateFeeMap(args.bookingId),
+    ),
   ]);
 
   const meta = { pgId: args.pgId, pgName: args.pgName, roomNumber: args.roomNumber };
 
-  const rent = buildRentCategory(rentRows, finIds.rent, meta);
+  const rent = buildRentCategory(rentRows, finIds.rent, meta, exitRentCaps);
   let electricity = buildElectricityCategory(elecRows, finIds.elec, meta);
   if (openVacating) {
     electricity = appendVacatingElectricityPlaceholders(electricity, {

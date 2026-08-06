@@ -621,12 +621,17 @@ export async function loadResidentRequestsTabData(input: {
   let primaryPendingDateChangeRequestId: string | null = null;
   let primarySettlementContext: ResidentSettlementStatementContext | null = null;
   let primarySettlementDocument: SettlementStatementDocumentModel | null = null;
+  let primaryExitBrainSnapshot: import('@/src/lib/exit/exitBrainTypes').ResidentExitBrainSnapshot | null =
+    null;
 
   if (primaryVacating && ['pending', 'approved'].includes(primaryVacating.status)) {
     const { loadVacatingBillingPresentationBundle } = await import(
       '@/src/lib/vacating/loadVacatingBillingPresentation'
     );
-    const [bundle, pendingDateChange] = await Promise.all([
+    const { loadResidentExitBrainSnapshot } = await import(
+      '@/src/lib/exit/loadResidentExitBrainSnapshot'
+    );
+    const [bundle, pendingDateChange, exitBrain] = await Promise.all([
       loadVacatingBillingPresentationBundle({
         bookingId: primaryBooking.bookingId,
         noticeGivenDate: primaryVacating.noticeGivenDate,
@@ -642,10 +647,12 @@ export async function loadResidentRequestsTabData(input: {
         },
       }),
       getPendingVacatingDateChangeForBooking(primaryBooking.bookingId),
+      loadResidentExitBrainSnapshot(primaryBooking.bookingId),
     ]);
     primaryEstimatedSettlement = bundle?.estimatedSettlement ?? null;
     primaryNoticeDisplay = bundle?.noticeDisplay ?? null;
     primaryPendingDateChangeRequestId = pendingDateChange?.id ?? null;
+    primaryExitBrainSnapshot = exitBrain;
     primarySettlementContext = {
       vacatingRequestId: primaryVacating.id,
       bookingId: primaryBooking.bookingId,
@@ -717,5 +724,6 @@ export async function loadResidentRequestsTabData(input: {
     primarySettlementContext,
     primarySettlementDocument,
     primaryNoticeDisplay,
+    primaryExitBrainSnapshot,
   };
 }

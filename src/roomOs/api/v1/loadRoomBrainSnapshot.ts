@@ -9,6 +9,10 @@ import {
   type RoomElectricitySettlementSnapshot,
 } from '@/src/roomOs/engines/electricity';
 import type { BedBrainSnapshot, BookingLedgerSnapshot, RoomOsSharedSnapshot } from '@/src/roomOs/types';
+import { eq } from 'drizzle-orm';
+import { db } from '@/src/db/client';
+import { residentExitBrain } from '@/src/db/schema';
+import { and } from 'drizzle-orm';
 
 export type RoomBrainResidentRow = {
   customerId: string;
@@ -41,6 +45,10 @@ export type RoomBrainSnapshot = {
   depositRecovery: {
     totalRefundablePaise: number;
     totalHeldPaise: number;
+  };
+  exitMode: {
+    residentsInExitMode: number;
+    bookingIds: string[];
   };
   meterStatus: string;
   billingStatus: string;
@@ -126,6 +134,11 @@ export async function loadRoomBrainSnapshot(input: {
     healthStatus = 'attention';
   }
 
+  const exitRows = await db
+    .select({ bookingId: residentExitBrain.bookingId })
+    .from(residentExitBrain)
+    .where(and(eq(residentExitBrain.roomId, input.roomId), eq(residentExitBrain.status, 'active')));
+
   return {
     apiVersion: 'room-brain/v1',
     roomId: input.roomId,
@@ -148,6 +161,10 @@ export async function loadRoomBrainSnapshot(input: {
     depositRecovery: {
       totalRefundablePaise,
       totalHeldPaise,
+    },
+    exitMode: {
+      residentsInExitMode: exitRows.length,
+      bookingIds: exitRows.map((r) => r.bookingId),
     },
     meterStatus,
     billingStatus,

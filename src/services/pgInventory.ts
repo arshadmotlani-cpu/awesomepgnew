@@ -509,6 +509,9 @@ async function quickAddBedsInternal(
         roomNumber: input.roomNumber.trim(),
       })
       .returning();
+
+    const { initializeRoomBrainStack } = await import('@/src/lib/brains/initializeRoomBrainStack');
+    await initializeRoomBrainStack(room.id);
   }
 
   const [{ existingCount }] = await db

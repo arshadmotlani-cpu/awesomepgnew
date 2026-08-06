@@ -24,6 +24,7 @@ test('room brain snapshot type includes collection and health fields', async () 
       outstandingPercent: 0,
     },
     depositRecovery: { totalRefundablePaise: 0, totalHeldPaise: 0 },
+    exitMode: { residentsInExitMode: 0, bookingIds: [] },
     meterStatus: 'missing',
     billingStatus: 'awaiting_meter',
     healthStatus: 'healthy' as const,

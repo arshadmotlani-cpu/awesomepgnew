@@ -14,7 +14,7 @@ export async function getRoleTemplateFromDb(
   const [row] = await hairDb
     .select()
     .from(wfRoleTemplates)
-    .where(and(eq(wfRoleTemplates.engineId, engineId), eq(wfRoleTemplates.accessRole, role)))
+    .where(and(eq(wfRoleTemplates.engineId, engineId as WorkforceEngineId), eq(wfRoleTemplates.accessRole, role)))
     .limit(1);
   if (!row) return null;
   return {
