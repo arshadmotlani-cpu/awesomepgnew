@@ -8,6 +8,7 @@ import {
 import type { BillableItem, BillableItemType } from '@/src/hair/domain/catalog/types';
 import { staffModeForType } from '@/src/hair/domain/catalog/types';
 import { shouldHideServiceFromBillable } from '@/src/hair/lib/serviceCatalogHygiene';
+import { SALON_GST_BPS } from '@/src/hair/lib/taxConfig';
 import { listMembershipPlans, listPackagePlans } from '@/src/hair/services/loyaltyOps';
 
 export async function loadBillableCatalog(): Promise<BillableItem[]> {
@@ -30,14 +31,12 @@ export async function loadBillableCatalog(): Promise<BillableItem[]> {
       .select({
         id: fyhProducts.id,
         name: fyhProducts.name,
-        sku: fyhProducts.sku,
         category: fyhProducts.category,
         pricePaise: fyhProducts.sellingPricePaise,
-        gstBps: fyhProducts.gstBps,
         isActive: fyhProducts.isActive,
       })
       .from(fyhProducts)
-      .where(and(eq(fyhProducts.isActive, true), eq(fyhProducts.isRetail, true)))
+      .where(and(eq(fyhProducts.isActive, true), eq(fyhProducts.productType, 'retail')))
       .orderBy(asc(fyhProducts.name)),
     listPackagePlans(),
     listMembershipPlans(),
@@ -64,9 +63,9 @@ export async function loadBillableCatalog(): Promise<BillableItem[]> {
       id: p.id,
       type: 'product',
       name: p.name,
-      code: p.sku,
+      code: null,
       sellingPricePaise: p.pricePaise,
-      gstBps: p.gstBps,
+      gstBps: SALON_GST_BPS,
       category: p.category,
       staffMode: staffModeForType('product'),
       active: p.isActive,

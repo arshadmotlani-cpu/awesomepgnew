@@ -117,7 +117,7 @@ async function seedRcFixtures(
     const [existing] = await db
       .select()
       .from(fyhProducts)
-      .where(eq(fyhProducts.sku, 'RC-SHAMPOO'))
+      .where(eq(fyhProducts.name, 'RC Salon Shampoo'))
       .limit(1);
     if (existing) {
       productId = existing.id;
@@ -125,6 +125,7 @@ async function seedRcFixtures(
         .update(fyhProducts)
         .set({
           stockQty: Math.max(Number(existing.stockQty), 100),
+          productType: 'professional',
           isActive: true,
           updatedAt: new Date(),
         })
@@ -134,17 +135,12 @@ async function seedRcFixtures(
         .insert(fyhProducts)
         .values({
           name: 'RC Salon Shampoo',
-          sku: 'RC-SHAMPOO',
-          sellingPricePaise: 45000,
+          productType: 'professional',
+          sellingPricePaise: 0,
           costPricePaise: 20000,
           stockQty: 100,
           openingStock: 100,
           minStock: 10,
-          reorderLevel: 15,
-          unit: 'ml',
-          gstBps: 1800,
-          isConsumable: true,
-          isRetail: true,
           isActive: true,
         })
         .returning();

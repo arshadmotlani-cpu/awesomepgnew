@@ -18,7 +18,6 @@ const fieldClass =
 type AdjustmentRow = {
   adjustment: FyhStockAdjustment;
   productName: string;
-  productSku: string | null;
 };
 
 export function AdjustmentsList({ adjustments }: { adjustments: AdjustmentRow[] }) {
@@ -59,16 +58,13 @@ export function AdjustmentsList({ adjustments }: { adjustments: AdjustmentRow[] 
               </tr>
             </thead>
             <tbody className="divide-y divide-[color:var(--fyh-border)]">
-              {adjustments.map(({ adjustment, productName, productSku }) => (
+              {adjustments.map(({ adjustment, productName }) => (
                 <tr key={adjustment.id}>
                   <td className="px-4 py-3 text-fyh-text-muted">
                     {new Date(adjustment.createdAt).toLocaleString()}
                   </td>
                   <td className="px-4 py-3">
                     {productName}
-                    {productSku ? (
-                      <span className="ml-2 text-xs text-fyh-text-muted">{productSku}</span>
-                    ) : null}
                   </td>
                   <td
                     className={`px-4 py-3 tabular-nums font-medium ${
@@ -106,7 +102,7 @@ export function AdjustmentForm({ products }: { products: FyhProduct[] }) {
           </option>
           {products.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.name} ({p.stockQty} {p.unit})
+              {p.name} ({p.stockQty})
             </option>
           ))}
         </select>

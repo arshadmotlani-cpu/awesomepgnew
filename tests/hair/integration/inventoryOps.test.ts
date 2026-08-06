@@ -22,12 +22,11 @@ async function createIsolatedProduct(label: string) {
     .insert(fyhProducts)
     .values({
       name: `Inv Ops ${label}`,
-      sku: `INV-${label}-${Date.now()}`,
       sellingPricePaise: 15_000,
       costPricePaise: 8_000,
       stockQty: 0,
       isActive: true,
-      isRetail: true,
+      productType: 'retail' as const,
     })
     .returning();
   await applyMovement(hairDb, {

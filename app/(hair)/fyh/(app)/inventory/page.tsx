@@ -1,5 +1,6 @@
 import { listStockSummary } from '@/src/hair/services/stock';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
+import { productTypeLabel } from '@/src/hair/lib/productTypes';
 import { cn } from '@/src/hair/lib/utils';
 
 export default async function InventoryPage() {
@@ -11,7 +12,7 @@ export default async function InventoryPage() {
         <p className="fyh-section-eyebrow">Stock</p>
         <h1 className="fyh-display mt-1 text-3xl font-semibold">Overview</h1>
         <p className="mt-1 text-sm text-fyh-text-secondary">
-          On-hand quantities with low-stock highlights at or below reorder level.
+          On-hand quantities with low-stock highlights at or below minimum stock.
         </p>
       </div>
 
@@ -25,15 +26,15 @@ export default async function InventoryPage() {
             <thead className="border-b border-[color:var(--fyh-border)] bg-black/20 text-xs uppercase tracking-wide text-fyh-text-muted">
               <tr>
                 <th className="px-4 py-3 font-medium">Product</th>
-                <th className="px-4 py-3 font-medium">SKU</th>
+                <th className="px-4 py-3 font-medium">Type</th>
                 <th className="px-4 py-3 font-medium">Stock</th>
-                <th className="px-4 py-3 font-medium">Reorder</th>
+                <th className="px-4 py-3 font-medium">Min</th>
                 <th className="px-4 py-3 font-medium">Price</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[color:var(--fyh-border)]">
               {products.map((p) => {
-                const low = Number(p.stockQty) <= Number(p.reorderLevel);
+                const low = Number(p.minStock) > 0 && Number(p.stockQty) <= Number(p.minStock);
                 return (
                   <tr key={p.id} className={cn(low && 'bg-fyh-warning/10')}>
                     <td className="px-4 py-3 font-medium">
@@ -44,8 +45,8 @@ export default async function InventoryPage() {
                         </span>
                       ) : null}
                     </td>
-                    <td className="px-4 py-3 tabular-nums text-fyh-text-muted">
-                      {p.sku || '—'}
+                    <td className="px-4 py-3 text-fyh-text-muted">
+                      {productTypeLabel(p.productType)}
                     </td>
                     <td
                       className={cn(
@@ -53,13 +54,13 @@ export default async function InventoryPage() {
                         low ? 'font-semibold text-fyh-warning' : '',
                       )}
                     >
-                      {p.stockQty} {p.unit}
+                      {p.stockQty}
                     </td>
-                    <td className="px-4 py-3 tabular-nums text-fyh-text-muted">
-                      {p.reorderLevel}
-                    </td>
+                    <td className="px-4 py-3 tabular-nums text-fyh-text-muted">{p.minStock}</td>
                     <td className="px-4 py-3 tabular-nums">
-                      {formatInrFromPaise(p.sellingPricePaise)}
+                      {p.productType === 'retail'
+                        ? formatInrFromPaise(p.sellingPricePaise)
+                        : '—'}
                     </td>
                   </tr>
                 );

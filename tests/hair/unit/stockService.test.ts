@@ -15,7 +15,7 @@ async function createTestProduct(suffix: string) {
     .insert(fyhProducts)
     .values({
       name: `Stock Test ${suffix}`,
-      sku: `ST-${suffix}-${Date.now()}`,
+      productType: 'retail',
       sellingPricePaise: 10_000,
       costPricePaise: 5_000,
       stockQty: 0,

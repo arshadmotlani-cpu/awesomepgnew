@@ -209,17 +209,16 @@ function formatCsvForReport(reportKey: FyhReportKey, data: Awaited<ReturnType<ty
     case 'low-stock': {
       const rows = data.rows as ProductCatalogRow[];
       return rowsToCsvContent(
-        ['name', 'sku', 'category', 'brand', 'sell', 'cost', 'stock', 'reorder', 'unit', 'active'],
+        ['name', 'type', 'category', 'brand', 'sell', 'cost', 'stock', 'min_stock', 'active'],
         rows.map((r) => [
           r.name,
-          r.sku ?? '',
+          r.productType,
           r.category ?? '',
           r.brand ?? '',
           paiseToCsvRupees(r.sellingPricePaise),
           paiseToCsvRupees(r.costPricePaise),
           r.stockQty,
-          r.reorderLevel,
-          r.unit,
+          r.minStock,
           r.isActive ? 'yes' : 'no',
         ]),
       );

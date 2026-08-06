@@ -5,7 +5,6 @@ import type { FyhStockMovement } from '@/src/hair/db/schema';
 type MovementRow = {
   movement: FyhStockMovement;
   productName: string;
-  productSku: string | null;
 };
 
 export function MovementsList({ movements }: { movements: MovementRow[] }) {
@@ -40,16 +39,13 @@ export function MovementsList({ movements }: { movements: MovementRow[] }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-[color:var(--fyh-border)]">
-              {movements.map(({ movement, productName, productSku }) => (
+              {movements.map(({ movement, productName }) => (
                 <tr key={movement.id} className="hover:bg-white/[0.03]">
                   <td className="px-4 py-3 text-fyh-text-muted">
                     {new Date(movement.createdAt).toLocaleString()}
                   </td>
                   <td className="px-4 py-3">
                     {productName}
-                    {productSku ? (
-                      <span className="ml-2 text-xs text-fyh-text-muted">{productSku}</span>
-                    ) : null}
                   </td>
                   <td className="px-4 py-3 capitalize">{movement.movementType}</td>
                   <td

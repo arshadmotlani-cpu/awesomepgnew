@@ -186,7 +186,8 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
       .where(
         and(
           eq(fyhProducts.isActive, true),
-          sql`${fyhProducts.stockQty} <= ${fyhProducts.reorderLevel}`,
+          sql`${fyhProducts.stockQty} <= ${fyhProducts.minStock}`,
+          sql`${fyhProducts.minStock} > 0`,
         ),
       );
     lowStockProducts = Number(row?.total ?? 0);

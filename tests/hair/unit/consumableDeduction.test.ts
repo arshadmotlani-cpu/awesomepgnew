@@ -32,12 +32,12 @@ test('resolveConsumableDeductInventory honors explicit form value over previous'
   );
 });
 
-test('resolveConsumableDeductInventory defaults new consumable products to isConsumable', () => {
+test('resolveConsumableDeductInventory defaults new professional products', () => {
   assert.equal(
     resolveConsumableDeductInventory({
       productId: 'new',
       previousByProduct: new Map(),
-      productIsConsumable: true,
+      productIsProfessional: true,
     }),
     true,
   );
@@ -45,7 +45,7 @@ test('resolveConsumableDeductInventory defaults new consumable products to isCon
     resolveConsumableDeductInventory({
       productId: 'new',
       previousByProduct: new Map(),
-      productIsConsumable: false,
+      productIsProfessional: false,
     }),
     false,
   );

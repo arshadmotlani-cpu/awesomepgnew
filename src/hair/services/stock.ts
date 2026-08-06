@@ -124,7 +124,6 @@ export async function listMovements(filters: MovementFilters = {}) {
     .select({
       movement: fyhStockMovements,
       productName: fyhProducts.name,
-      productSku: fyhProducts.sku,
     })
     .from(fyhStockMovements)
     .innerJoin(fyhProducts, eq(fyhProducts.id, fyhStockMovements.productId))
@@ -170,7 +169,8 @@ export async function listLowStockProducts() {
     .where(
       and(
         eq(fyhProducts.isActive, true),
-        sql`${fyhProducts.stockQty} <= ${fyhProducts.reorderLevel}`,
+        sql`${fyhProducts.stockQty} <= ${fyhProducts.minStock}`,
+        sql`${fyhProducts.minStock} > 0`,
       ),
     )
     .orderBy(asc(fyhProducts.name));
@@ -181,10 +181,9 @@ export async function listStockSummary() {
     .select({
       id: fyhProducts.id,
       name: fyhProducts.name,
-      sku: fyhProducts.sku,
+      productType: fyhProducts.productType,
       stockQty: fyhProducts.stockQty,
-      reorderLevel: fyhProducts.reorderLevel,
-      unit: fyhProducts.unit,
+      minStock: fyhProducts.minStock,
       sellingPricePaise: fyhProducts.sellingPricePaise,
       costPricePaise: fyhProducts.costPricePaise,
     })

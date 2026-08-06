@@ -28,7 +28,6 @@ export default async function StockReportPage() {
             <thead className="border-b border-[color:var(--fyh-border)] bg-black/20 text-xs uppercase tracking-wide text-fyh-text-muted">
               <tr>
                 <th className="px-4 py-3 font-medium">Product</th>
-                <th className="px-4 py-3 font-medium">SKU</th>
                 <th className="px-4 py-3 font-medium">Stock</th>
                 <th className="px-4 py-3 font-medium">Value (cost)</th>
               </tr>
@@ -37,10 +36,7 @@ export default async function StockReportPage() {
               {products.map((p) => (
                 <tr key={p.id}>
                   <td className="px-4 py-3 font-medium">{p.name}</td>
-                  <td className="px-4 py-3 text-fyh-text-muted">{p.sku || '—'}</td>
-                  <td className="px-4 py-3 tabular-nums">
-                    {p.stockQty} {p.unit}
-                  </td>
+                  <td className="px-4 py-3 tabular-nums">{p.stockQty}</td>
                   <td className="px-4 py-3 tabular-nums">
                     {formatInrFromPaise(Math.round(Number(p.stockQty) * p.costPricePaise))}
                   </td>

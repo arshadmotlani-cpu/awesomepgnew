@@ -260,10 +260,12 @@ async function syncConsumables(
 
   const productIds = [...new Set(rows.map((c) => c.productId))];
   const productRows = await hairDb
-    .select({ id: fyhProducts.id, isConsumable: fyhProducts.isConsumable })
+    .select({ id: fyhProducts.id, productType: fyhProducts.productType })
     .from(fyhProducts)
     .where(inArray(fyhProducts.id, productIds));
-  const consumableByProduct = new Map(productRows.map((p) => [p.id, p.isConsumable]));
+  const professionalByProduct = new Map(
+    productRows.map((p) => [p.id, p.productType === 'professional'] as const),
+  );
 
   await hairDb.insert(fyhServiceConsumables).values(
     rows.map((c) => ({
@@ -274,7 +276,7 @@ async function syncConsumables(
         productId: c.productId,
         explicit: c.deductInventory,
         previousByProduct,
-        productIsConsumable: consumableByProduct.get(c.productId),
+        productIsProfessional: professionalByProduct.get(c.productId),
       }),
     })),
   );

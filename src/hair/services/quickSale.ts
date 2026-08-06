@@ -9,6 +9,7 @@ import {
 } from '@/src/hair/db/schema';
 import { listMembershipPlans, listPackagePlans } from '@/src/hair/services/loyaltyOps';
 import { shouldHideServiceFromBillable } from '@/src/hair/lib/serviceCatalogHygiene';
+import { SALON_GST_BPS } from '@/src/hair/lib/taxConfig';
 import { computeRedemptions } from '@/src/hair/services/invoices';
 import { computeGrandTotalFromParts, sumCartLines } from '@/src/hair/lib/invoiceMath';
 import type { QuickSaleLineInput } from '@/src/hair/services/invoices';
@@ -64,7 +65,6 @@ export type QuickSaleCatalog = {
   products: Array<{
     id: string;
     name: string;
-    sku: string | null;
     category: string | null;
     description: string | null;
     pricePaise: number;
@@ -108,14 +108,12 @@ export async function loadQuickSaleCatalog(): Promise<QuickSaleCatalog> {
       .select({
         id: fyhProducts.id,
         name: fyhProducts.name,
-        sku: fyhProducts.sku,
         category: fyhProducts.category,
         description: fyhProducts.description,
         pricePaise: fyhProducts.sellingPricePaise,
-        gstBps: fyhProducts.gstBps,
       })
       .from(fyhProducts)
-      .where(and(eq(fyhProducts.isActive, true), eq(fyhProducts.isRetail, true)))
+      .where(and(eq(fyhProducts.isActive, true), eq(fyhProducts.productType, 'retail')))
       .orderBy(asc(fyhProducts.name)),
     listPackagePlans().then((rows) =>
       rows.map((p) => ({
@@ -142,7 +140,13 @@ export async function loadQuickSaleCatalog(): Promise<QuickSaleCatalog> {
 
   const visibleServices = services.filter((s) => !shouldHideServiceFromBillable(s.name, s.code));
 
-  return { services: visibleServices, products, packages, memberships, staff };
+  return {
+    services: visibleServices,
+    products: products.map((p) => ({ ...p, gstBps: SALON_GST_BPS })),
+    packages,
+    memberships,
+    staff,
+  };
 }
 
 export type QuickSaleTotalsPreview = {

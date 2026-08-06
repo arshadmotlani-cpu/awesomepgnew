@@ -24,7 +24,6 @@ type PoDetail = {
   lines: Array<{
     line: { id: string; productId: string; quantityOrdered: number; unitCostPaise: number };
     productName: string;
-    productSku: string | null;
   }>;
 };
 
@@ -273,13 +272,10 @@ export function PurchaseOrderDetail({
             </tr>
           </thead>
           <tbody className="divide-y divide-[color:var(--fyh-border)]">
-            {detail.lines.map(({ line, productName, productSku }) => (
+            {detail.lines.map(({ line, productName }) => (
               <tr key={line.id}>
                 <td className="px-4 py-3">
                   {productName}
-                  {productSku ? (
-                    <span className="ml-2 text-xs text-fyh-text-muted">{productSku}</span>
-                  ) : null}
                 </td>
                 <td className="px-4 py-3 tabular-nums">{line.quantityOrdered}</td>
                 <td className="px-4 py-3 tabular-nums">

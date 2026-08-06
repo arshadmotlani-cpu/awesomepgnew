@@ -1,5 +1,6 @@
 import { listStockSummary } from '@/src/hair/services/stock';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
+import { productTypeLabel } from '@/src/hair/lib/productTypes';
 
 export default async function ProductsInventoryReportPage() {
   const products = await listStockSummary();
@@ -22,7 +23,7 @@ export default async function ProductsInventoryReportPage() {
             <thead className="border-b border-[color:var(--fyh-border)] bg-black/20 text-xs uppercase tracking-wide text-fyh-text-muted">
               <tr>
                 <th className="px-4 py-3 font-medium">Product</th>
-                <th className="px-4 py-3 font-medium">SKU</th>
+                <th className="px-4 py-3 font-medium">Type</th>
                 <th className="px-4 py-3 font-medium">Stock</th>
                 <th className="px-4 py-3 font-medium">Cost</th>
                 <th className="px-4 py-3 font-medium">Retail</th>
@@ -33,15 +34,17 @@ export default async function ProductsInventoryReportPage() {
               {products.map((p) => (
                 <tr key={p.id}>
                   <td className="px-4 py-3 font-medium">{p.name}</td>
-                  <td className="px-4 py-3 text-fyh-text-muted">{p.sku || '—'}</td>
-                  <td className="px-4 py-3 tabular-nums">
-                    {p.stockQty} {p.unit}
+                  <td className="px-4 py-3 text-fyh-text-muted">
+                    {productTypeLabel(p.productType)}
                   </td>
+                  <td className="px-4 py-3 tabular-nums">{p.stockQty}</td>
                   <td className="px-4 py-3 tabular-nums">
                     {formatInrFromPaise(p.costPricePaise)}
                   </td>
                   <td className="px-4 py-3 tabular-nums">
-                    {formatInrFromPaise(p.sellingPricePaise)}
+                    {p.productType === 'retail'
+                      ? formatInrFromPaise(p.sellingPricePaise)
+                      : '—'}
                   </td>
                   <td className="px-4 py-3 tabular-nums text-fyh-accent">
                     {formatInrFromPaise(Math.round(Number(p.stockQty) * p.costPricePaise))}

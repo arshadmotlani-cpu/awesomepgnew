@@ -128,21 +128,16 @@ export async function searchHair(query: string, limit = 20): Promise<HairSearchH
   }
 
   const products = await hairDb
-    .select({ id: fyhProducts.id, name: fyhProducts.name, sku: fyhProducts.sku })
+    .select({ id: fyhProducts.id, name: fyhProducts.name })
     .from(fyhProducts)
-    .where(
-      and(
-        eq(fyhProducts.isActive, true),
-        or(ilike(fyhProducts.name, pattern), ilike(fyhProducts.sku, pattern), ilike(fyhProducts.barcode, pattern)),
-      ),
-    )
+    .where(and(eq(fyhProducts.isActive, true), ilike(fyhProducts.name, pattern)))
     .limit(5);
   for (const p of products) {
     hits.push({
       type: 'product',
       id: p.id,
       title: p.name,
-      subtitle: p.sku ?? 'Product',
+      subtitle: 'Product',
       href: `/products/${p.id}`,
     });
   }

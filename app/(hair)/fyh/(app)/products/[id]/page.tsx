@@ -1,9 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ProductForm } from '@/src/hair/components/products/ProductsUi';
-import { Button } from '@/src/hair/components/ui/button';
+import {
+  ProductDetailActions,
+  ProductForm,
+  ProductProfitSummary,
+} from '@/src/hair/components/products/ProductsUi';
+import { productTypeLabel } from '@/src/hair/lib/productTypes';
 import { getProduct } from '@/src/hair/services/products';
-import { formatInrFromPaise } from '@/src/hair/lib/money';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -13,24 +16,43 @@ export default async function ProductDetailPage({ params }: Props) {
   if (!product) notFound();
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-2xl space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="fyh-section-eyebrow">Product</p>
-          <h1 className="fyh-display mt-1 text-3xl font-semibold">{product.name}</h1>
-          <p className="mt-1 text-sm text-fyh-text-secondary">
-            {formatInrFromPaise(product.sellingPricePaise)}
-            {product.sku ? ` · ${product.sku}` : ''}
-            {!product.isActive ? ' · Archived' : ''}
-          </p>
+        <div className="min-w-0 space-y-2">
+          <Link href="/products" className="text-sm text-fyh-accent hover:underline">
+            ← Back
+          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="fyh-display text-2xl font-semibold">{product.name}</h1>
+            <span className="rounded-full bg-[color:var(--fyh-surface-muted)] px-2.5 py-0.5 text-xs font-medium">
+              {productTypeLabel(product.productType)}
+            </span>
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                product.isActive
+                  ? 'bg-emerald-500/10 text-emerald-700'
+                  : 'bg-gray-500/10 text-fyh-text-muted'
+              }`}
+            >
+              {product.isActive ? 'Active' : 'Archived'}
+            </span>
+          </div>
+          {product.brand ? (
+            <p className="text-sm text-fyh-text-secondary">{product.brand}</p>
+          ) : null}
         </div>
-        <Link href="/products">
-          <Button type="button" variant="ghost">
-            Back
-          </Button>
-        </Link>
+        <ProductDetailActions product={product} />
       </div>
-      <ProductForm mode="edit" product={product} />
+
+      {product.productType === 'retail' ? (
+        <div className="fyh-glass p-4">
+          <ProductProfitSummary product={product} />
+        </div>
+      ) : null}
+
+      <div id="edit">
+        <ProductForm mode="edit" product={product} />
+      </div>
     </div>
   );
 }

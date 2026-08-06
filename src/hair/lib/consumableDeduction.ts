@@ -6,12 +6,12 @@ export function resolveConsumableDeductInventory(input: {
   productId: string;
   explicit?: boolean;
   previousByProduct: ReadonlyMap<string, boolean>;
-  productIsConsumable?: boolean;
+  productIsProfessional?: boolean;
 }): boolean {
   if (input.explicit !== undefined) return input.explicit;
   if (input.previousByProduct.has(input.productId)) {
     return input.previousByProduct.get(input.productId)!;
   }
-  if (input.productIsConsumable !== undefined) return input.productIsConsumable;
+  if (input.productIsProfessional !== undefined) return input.productIsProfessional;
   return true;
 }

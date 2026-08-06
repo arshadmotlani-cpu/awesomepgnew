@@ -106,14 +106,13 @@ export type PackageReportRow = {
 
 export type ProductCatalogRow = {
   name: string;
-  sku: string | null;
+  productType: string;
   category: string | null;
   brand: string | null;
   sellingPricePaise: number;
   costPricePaise: number;
   stockQty: number;
-  reorderLevel: number;
-  unit: string;
+  minStock: number;
   isActive: boolean;
 };
 
@@ -433,26 +432,24 @@ export async function packagesReport(page?: ReportPageOptions): Promise<PackageR
 
 function mapProductRow(p: {
   name: string;
-  sku: string | null;
+  productType?: string | null;
   category?: string | null;
   brand?: string | null;
   sellingPricePaise: number;
   costPricePaise: number;
   stockQty: number;
-  reorderLevel: number;
-  unit: string;
+  minStock?: number;
   isActive?: boolean;
 }): ProductCatalogRow {
   return {
     name: p.name,
-    sku: p.sku,
+    productType: p.productType ?? 'retail',
     category: p.category ?? null,
     brand: p.brand ?? null,
     sellingPricePaise: Number(p.sellingPricePaise ?? 0),
     costPricePaise: Number(p.costPricePaise ?? 0),
     stockQty: Number(p.stockQty ?? 0),
-    reorderLevel: Number(p.reorderLevel ?? 0),
-    unit: p.unit,
+    minStock: Number(p.minStock ?? 0),
     isActive: p.isActive !== false,
   };
 }
@@ -468,14 +465,13 @@ async function queryProductCatalog(activeOnly: boolean): Promise<ProductCatalogR
   return rows.map((p) =>
     mapProductRow({
       name: p.name,
-      sku: p.sku,
+      productType: p.productType,
       category: p.category,
       brand: p.brand,
       sellingPricePaise: p.sellingPricePaise,
       costPricePaise: p.costPricePaise,
       stockQty: Number(p.stockQty ?? 0),
-      reorderLevel: Number(p.reorderLevel ?? 0),
-      unit: p.unit,
+      minStock: Number(p.minStock ?? 0),
       isActive: p.isActive,
     }),
   );
@@ -494,12 +490,11 @@ export async function stockReport(): Promise<ProductCatalogRow[]> {
     return rows.map((r) =>
       mapProductRow({
         name: r.name,
-        sku: r.sku,
+        productType: r.productType,
         sellingPricePaise: r.sellingPricePaise,
         costPricePaise: r.costPricePaise,
         stockQty: Number(r.stockQty ?? 0),
-        reorderLevel: Number(r.reorderLevel ?? 0),
-        unit: r.unit,
+        minStock: Number(r.minStock ?? 0),
         isActive: true,
       }),
     );
@@ -516,14 +511,13 @@ export async function lowStockReport(): Promise<ProductCatalogRow[]> {
     return rows.map((p) =>
       mapProductRow({
         name: p.name,
-        sku: p.sku,
+        productType: p.productType,
         category: p.category,
         brand: p.brand,
         sellingPricePaise: p.sellingPricePaise,
         costPricePaise: p.costPricePaise,
         stockQty: Number(p.stockQty ?? 0),
-        reorderLevel: Number(p.reorderLevel ?? 0),
-        unit: p.unit,
+        minStock: Number(p.minStock ?? 0),
         isActive: p.isActive,
       }),
     );
@@ -537,8 +531,8 @@ export async function lowStockReport(): Promise<ProductCatalogRow[]> {
     .where(
       and(
         eq(fyhProducts.isActive, true),
-        sql`${fyhProducts.stockQty} <= ${fyhProducts.reorderLevel}`,
-        gt(fyhProducts.reorderLevel, 0),
+        sql`${fyhProducts.stockQty} <= ${fyhProducts.minStock}`,
+        gt(fyhProducts.minStock, 0),
       ),
     )
     .orderBy(asc(fyhProducts.stockQty))
@@ -547,14 +541,13 @@ export async function lowStockReport(): Promise<ProductCatalogRow[]> {
   return rows.map((p) =>
     mapProductRow({
       name: p.name,
-      sku: p.sku,
+      productType: p.productType,
       category: p.category,
       brand: p.brand,
       sellingPricePaise: p.sellingPricePaise,
       costPricePaise: p.costPricePaise,
       stockQty: Number(p.stockQty ?? 0),
-      reorderLevel: Number(p.reorderLevel ?? 0),
-      unit: p.unit,
+      minStock: Number(p.minStock ?? 0),
       isActive: p.isActive,
     }),
   );

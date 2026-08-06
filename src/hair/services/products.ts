@@ -1,6 +1,8 @@
 import { and, asc, eq, ilike, or } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import { fyhProducts } from '@/src/hair/db/schema';
+import type { FyhProductType } from '@/src/hair/lib/productTypes';
+import { parseProductType } from '@/src/hair/lib/productTypes';
 import { applyMovement } from '@/src/hair/services/stock';
 
 function toPaise(rupees: number): number {
@@ -9,21 +11,27 @@ function toPaise(rupees: number): number {
 
 export type ProductInput = {
   name: string;
-  sku?: string | null;
-  barcode?: string | null;
   brand?: string | null;
-  category?: string | null;
   description?: string | null;
-  sellingPriceRupees: number;
+  productType: FyhProductType;
   costPriceRupees?: number;
+  sellingPriceRupees?: number;
   stockQty?: number;
-  reorderLevel?: number;
-  unit?: string;
-  gstPercent?: number;
-  isRetail?: boolean;
-  isConsumable?: boolean;
   isActive?: boolean;
 };
+
+function validateProductInput(input: ProductInput) {
+  const name = input.name.trim();
+  if (!name) throw new Error('Product name is required');
+  const cost = input.costPriceRupees ?? 0;
+  if (cost < 0) throw new Error('Cost price cannot be negative');
+  if (input.productType === 'retail') {
+    const sell = input.sellingPriceRupees ?? 0;
+    if (sell < 0) throw new Error('Selling price cannot be negative');
+    if (sell === 0) throw new Error('Retail products require a selling price');
+  }
+  return name;
+}
 
 export async function listProducts(opts?: {
   q?: string;
@@ -37,12 +45,7 @@ export async function listProducts(opts?: {
   if (q) {
     const pattern = `%${q}%`;
     conditions.push(
-      or(
-        ilike(fyhProducts.name, pattern),
-        ilike(fyhProducts.sku, pattern),
-        ilike(fyhProducts.brand, pattern),
-        ilike(fyhProducts.category, pattern),
-      )!,
+      or(ilike(fyhProducts.name, pattern), ilike(fyhProducts.brand, pattern))!,
     );
   }
   return hairDb
@@ -53,11 +56,12 @@ export async function listProducts(opts?: {
     .limit(300);
 }
 
+/** Professional products for service consumable kits. */
 export async function listConsumableProducts() {
   return hairDb
     .select()
     .from(fyhProducts)
-    .where(and(eq(fyhProducts.isActive, true), eq(fyhProducts.isConsumable, true)))
+    .where(and(eq(fyhProducts.isActive, true), eq(fyhProducts.productType, 'professional')))
     .orderBy(asc(fyhProducts.name));
 }
 
@@ -67,12 +71,11 @@ export async function getProduct(id: string) {
 }
 
 export async function createProduct(input: ProductInput) {
-  const name = input.name.trim();
-  if (!name) throw new Error('Product name is required');
-  if ((input.sellingPriceRupees ?? 0) < 0 || (input.costPriceRupees ?? 0) < 0) {
-    throw new Error('Prices cannot be negative');
-  }
+  const name = validateProductInput(input);
   const openingQty = input.stockQty ?? 0;
+  const productType = parseProductType(input.productType);
+  const sellingPricePaise =
+    productType === 'retail' ? toPaise(input.sellingPriceRupees ?? 0) : 0;
 
   return hairDb.transaction(async (tx) => {
     const db = tx as unknown as typeof hairDb;
@@ -80,19 +83,12 @@ export async function createProduct(input: ProductInput) {
       .insert(fyhProducts)
       .values({
         name,
-        sku: input.sku?.trim() || null,
-        barcode: input.barcode?.trim() || null,
         brand: input.brand?.trim() || null,
-        category: input.category?.trim() || null,
         description: input.description?.trim() || null,
-        sellingPricePaise: toPaise(input.sellingPriceRupees),
+        productType,
+        sellingPricePaise,
         costPricePaise: toPaise(input.costPriceRupees ?? 0),
         stockQty: 0,
-        reorderLevel: input.reorderLevel ?? 0,
-        unit: input.unit?.trim() || 'unit',
-        gstBps: Math.round((input.gstPercent ?? 0) * 100),
-        isRetail: input.isRetail !== false,
-        isConsumable: input.isConsumable !== false,
         isActive: input.isActive !== false,
       })
       .returning();
@@ -112,41 +108,35 @@ export async function createProduct(input: ProductInput) {
 }
 
 export async function updateProduct(id: string, input: ProductInput) {
-  const name = input.name.trim();
-  if (!name) throw new Error('Product name is required');
+  const name = validateProductInput(input);
   const isActive = input.isActive !== false;
+  const productType = parseProductType(input.productType);
+  const sellingPricePaise =
+    productType === 'retail' ? toPaise(input.sellingPriceRupees ?? 0) : 0;
 
   const existing = await getProduct(id);
   if (!existing) throw new Error('Product not found');
 
-  const desiredQty = input.stockQty ?? 0;
+  const desiredQty = input.stockQty ?? Number(existing.stockQty);
   const currentQty = Number(existing.stockQty);
   const delta = desiredQty - currentQty;
 
   return hairDb.transaction(async (tx) => {
     const db = tx as unknown as typeof hairDb;
-    const [row] = await tx
+    await tx
       .update(fyhProducts)
       .set({
         name,
-        sku: input.sku?.trim() || null,
-        barcode: input.barcode?.trim() || null,
         brand: input.brand?.trim() || null,
-        category: input.category?.trim() || null,
         description: input.description?.trim() || null,
-        sellingPricePaise: toPaise(input.sellingPriceRupees),
+        productType,
+        sellingPricePaise,
         costPricePaise: toPaise(input.costPriceRupees ?? 0),
-        reorderLevel: input.reorderLevel ?? 0,
-        unit: input.unit?.trim() || 'unit',
-        gstBps: Math.round((input.gstPercent ?? 0) * 100),
-        isRetail: input.isRetail !== false,
-        isConsumable: input.isConsumable !== false,
         isActive,
         archivedAt: isActive ? null : new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(fyhProducts.id, id))
-      .returning();
+      .where(eq(fyhProducts.id, id));
 
     if (delta !== 0) {
       await applyMovement(db, {
@@ -172,4 +162,10 @@ export async function archiveProduct(id: string) {
     .returning();
   if (!row) throw new Error('Product not found');
   return row;
+}
+
+export async function deleteProduct(id: string) {
+  const existing = await getProduct(id);
+  if (!existing) throw new Error('Product not found');
+  await hairDb.delete(fyhProducts).where(eq(fyhProducts.id, id));
 }

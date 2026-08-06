@@ -43,7 +43,7 @@ export async function requireRcFixtures() {
   const [product] = await hairDb
     .select()
     .from(fyhProducts)
-    .where(eq(fyhProducts.sku, 'RC-SHAMPOO'))
+    .where(eq(fyhProducts.name, 'RC Salon Shampoo'))
     .limit(1);
   const [membership] = await hairDb.select().from(fyhMembershipPlans).limit(1);
   const [pkgPlan] = await hairDb

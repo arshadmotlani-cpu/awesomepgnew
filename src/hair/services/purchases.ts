@@ -62,7 +62,6 @@ export async function getPurchaseOrder(id: string) {
     .select({
       line: fyhPurchaseOrderLines,
       productName: fyhProducts.name,
-      productSku: fyhProducts.sku,
     })
     .from(fyhPurchaseOrderLines)
     .innerJoin(fyhProducts, eq(fyhProducts.id, fyhPurchaseOrderLines.productId))
@@ -194,7 +193,6 @@ export async function listAdjustments(limit = 100) {
     .select({
       adjustment: fyhStockAdjustments,
       productName: fyhProducts.name,
-      productSku: fyhProducts.sku,
     })
     .from(fyhStockAdjustments)
     .innerJoin(fyhProducts, eq(fyhProducts.id, fyhStockAdjustments.productId))

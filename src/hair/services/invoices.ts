@@ -32,6 +32,7 @@ import {
   type StaffAttributionInput,
 } from '@/src/hair/services/salesAttribution';
 import { escapeHtml, salonDayBounds } from '@/src/hair/lib/salonTime';
+import { SALON_GST_BPS } from '@/src/hair/lib/taxConfig';
 import { buildPublicInvoiceDocumentHtml } from '@/src/hair/lib/publicInvoiceDocument';
 import {
   computeGrandTotalFromParts as computeGrandTotalFromPartsLib,
@@ -400,7 +401,7 @@ export async function resolveQuickSaleDrafts(
         quantity: qty,
         unitPricePaise: product.sellingPricePaise,
         lineDiscountPaise,
-        gstBps: product.gstBps,
+        gstBps: SALON_GST_BPS,
       });
     } else if (line.kind === 'package') {
       const [plan] = await hairDb
