@@ -66,15 +66,19 @@ describe('FYH sidebar navigation', () => {
     );
   });
 
-  it('places Expenses between Inventory and Loyalty', () => {
+  it('places Vendors between Inventory and Expenses', () => {
     const topLevel = visibleHairNavEntries().filter((e) => e.type === 'link');
     const labels = topLevel.map((e) => (e.type === 'link' ? e.label : ''));
     const inventoryIdx = labels.indexOf('Inventory');
+    const vendorsIdx = labels.indexOf('Vendors');
+    const purchasesIdx = labels.indexOf('Purchases');
     const expensesIdx = labels.indexOf('Expenses');
     const loyaltyIdx = labels.indexOf('Loyalty');
-    assert.ok(inventoryIdx >= 0 && expensesIdx >= 0 && loyaltyIdx >= 0);
-    assert.ok(inventoryIdx < expensesIdx);
-    assert.ok(expensesIdx < loyaltyIdx);
+    assert.ok(inventoryIdx >= 0 && vendorsIdx >= 0 && purchasesIdx >= 0 && expensesIdx >= 0 && loyaltyIdx >= 0);
+    assert.ok(inventoryIdx < vendorsIdx, 'Inventory before Vendors');
+    assert.ok(vendorsIdx < purchasesIdx, 'Vendors before Purchases');
+    assert.ok(purchasesIdx < expensesIdx, 'Purchases before Expenses');
+    assert.ok(expensesIdx < loyaltyIdx, 'Expenses before Loyalty');
   });
 
   it('exposes Staff as a top-level link', () => {
@@ -98,6 +102,8 @@ describe('FYH sidebar navigation', () => {
       '/services',
       '/products',
       '/staff',
+      '/vendors',
+      '/purchases',
       '/expenses',
       '/inventory',
       '/dashboard/staff-performance',

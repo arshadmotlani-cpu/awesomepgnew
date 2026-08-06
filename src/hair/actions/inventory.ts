@@ -105,8 +105,8 @@ export async function createVendorAction(
   try {
     await requirePermission('page:inventory');
     const vendor = await createVendor(parseVendorForm(formData));
-    revalidatePath('/inventory/vendors');
-    redirect(`/inventory/vendors/${vendor.id}`);
+    revalidatePath('/vendors');
+    redirect(`/vendors/${vendor.id}`);
   } catch (e) {
     if (e && typeof e === 'object' && 'digest' in e) throw e;
     return { error: e instanceof Error ? e.message : 'Failed to create vendor' };
@@ -122,8 +122,8 @@ export async function updateVendorAction(
     const id = formStr(formData, 'id');
     if (!id) return { error: 'Missing vendor id' };
     await updateVendor(id, parseVendorForm(formData));
-    revalidatePath('/inventory/vendors');
-    revalidatePath(`/inventory/vendors/${id}`);
+    revalidatePath('/vendors');
+    revalidatePath(`/vendors/${id}`);
     return { success: 'Vendor updated.' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to update vendor' };
@@ -139,8 +139,8 @@ export async function archiveVendorAction(
     const id = formStr(formData, 'id');
     if (!id) return { error: 'Missing vendor id' };
     await archiveVendor(id);
-    revalidatePath('/inventory/vendors');
-    redirect('/inventory/vendors?status=inactive');
+    revalidatePath('/vendors');
+    redirect('/vendors?status=inactive');
   } catch (e) {
     if (e && typeof e === 'object' && 'digest' in e) throw e;
     return { error: e instanceof Error ? e.message : 'Failed to archive vendor' };

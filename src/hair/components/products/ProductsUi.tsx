@@ -207,7 +207,7 @@ export function ProductForm({
           </select>
           {brands.length === 0 ? (
             <p className="text-xs text-fyh-text-muted">
-              Add brands on a vendor first — Inventory → Vendors.
+              Add brands on a vendor first — Vendors in the sidebar.
             </p>
           ) : null}
         </div>

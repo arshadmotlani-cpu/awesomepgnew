@@ -7,7 +7,7 @@ import { cn } from '@/src/hair/lib/utils';
 const TABS = [
   { href: '/inventory/stock', label: 'Stock' },
   { href: '/inventory/on-floor', label: 'On Floor' },
-  { href: '/inventory/vendors', label: 'Vendors' },
+  { href: '/inventory/movements', label: 'Movements' },
 ] as const;
 
 export function InventoryNav() {

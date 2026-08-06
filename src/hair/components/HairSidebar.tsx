@@ -17,6 +17,7 @@ import {
   UserRound,
   Users,
   Wallet,
+  Truck,
   Warehouse,
   type LucideIcon,
 } from 'lucide-react';
@@ -45,6 +46,7 @@ const NAV_ICONS: Record<HairNavIconKey, LucideIcon> = {
   'sliders-horizontal': SlidersHorizontal,
   settings: Settings,
   wallet: Wallet,
+  truck: Truck,
 };
 
 function NavLink({ item }: { item: HairNavLink }) {

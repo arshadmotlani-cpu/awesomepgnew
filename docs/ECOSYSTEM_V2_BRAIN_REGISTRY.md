@@ -2,7 +2,7 @@
 
 > **Single source of truth for Brain ownership.** Before adding intelligence, check this registry.  
 > If two Brains would own the same fact, stop and redesign.  
-> Constitution: [[ECOSYSTEM_V2]] · Inventory (code map): [[ECOSYSTEM_V2_INVENTORY]] · Events: [[ECOSYSTEM_V2_EVENTS]] · ADR: [[ADR-ECO-001-brain-engine-constitution]]
+> Constitution: [[ECOSYSTEM_V2]] · Inventory (code map): [[ECOSYSTEM_V2_INVENTORY]] · Events: [[ECOSYSTEM_V2_EVENTS]] · ADR: [[ADR-ECO-001-brain-engine-constitution]] · FYH procurement: [[FYH_PURCHASE_ROADMAP]]
 
 **Statuses:** `PLANNED` · `PARTIAL` · `LIVE` · `DEPRECATED`
 
@@ -31,6 +31,7 @@ When adding a Brain: append a registry entry here **before** writing code. When 
 | Electricity Brain | Awesome PG | 0.2 | PARTIAL |
 | Operations Brain | Awesome PG | 0.2 | PARTIAL |
 | Employee Brain | ecosystem / Workforce | 0.2 | PARTIAL |
+| Purchase Brain | FYH Salon | 0.1 | PARTIAL |
 | Salon Brain | FYH Salon | 0.1 | PLANNED |
 | Vehicle Brain | Automotive Capital | 0.1 | PLANNED |
 
@@ -227,6 +228,22 @@ When adding a Brain: append a registry entry here **before** writing code. When 
 - **Public API:** `getWorkQueue(pgId)` · `getAttentionItems()`  
 - **Version:** 0.2  
 - **Status:** PARTIAL *(WorkQueue / Ops Centre; flag-gated)*  
+
+---
+
+## Purchase Brain
+
+- **Brain name:** Purchase Brain  
+- **Owner Engine:** FYH Salon  
+- **Owns (SSOT):** Purchase records · vendor payables · purchase explain · outstanding-by-vendor projections  
+- **Reads:** Vendor master (`fyh_vendors`) · Product catalog · Stock movement ledger (read-only)  
+- **Publishes:** `salon.purchase.recorded` · `salon.vendor.payable.opened` *(stub → Owner OS / Finance Brain)*  
+- **Subscribes:** (future) `salon.vendor.payment.allocated`  
+- **Public API:** `listPurchases` · `getPurchase` · `getVendorOutstanding` · `explainPurchase`  
+- **Version:** 0.1  
+- **Status:** PARTIAL *(Phase 2 — see [[FYH_PURCHASE_ROADMAP]])*  
+
+*Purchase Engine writes; Purchase Brain projects. Legacy PO/GRN tables are DEPRECATED.*
 
 ---
 

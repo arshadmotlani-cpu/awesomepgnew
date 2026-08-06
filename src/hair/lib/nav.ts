@@ -16,7 +16,8 @@ export type HairNavIconKey =
   | 'package'
   | 'sliders-horizontal'
   | 'settings'
-  | 'wallet';
+  | 'wallet'
+  | 'truck';
 
 export type HairNavLink = {
   type: 'link';
@@ -92,6 +93,20 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
     label: 'Inventory',
     iconKey: 'warehouse',
     permission: 'page:inventory',
+  },
+  {
+    type: 'link',
+    href: '/vendors',
+    label: 'Vendors',
+    iconKey: 'truck',
+    permission: 'page:inventory',
+  },
+  {
+    type: 'link',
+    href: '/purchases',
+    label: 'Purchases',
+    iconKey: 'shopping-bag',
+    permission: 'page:purchases',
   },
   {
     type: 'link',

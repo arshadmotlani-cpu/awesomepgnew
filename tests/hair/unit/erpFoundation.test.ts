@@ -22,16 +22,23 @@ describe('ERP foundation', () => {
     );
   });
 
-  it('places Expenses between Inventory and Loyalty', () => {
+  it('places Purchases between Vendors and Expenses', () => {
     const labels = HAIR_NAV_ENTRIES.filter((e) => e.type === 'link').map((e) =>
       e.type === 'link' ? e.label : '',
     );
-    const inventoryIdx = labels.indexOf('Inventory');
+    const vendorsIdx = labels.indexOf('Vendors');
+    const purchasesIdx = labels.indexOf('Purchases');
     const expensesIdx = labels.indexOf('Expenses');
     const loyaltyIdx = labels.indexOf('Loyalty');
-    assert.ok(inventoryIdx >= 0 && expensesIdx >= 0 && loyaltyIdx >= 0);
-    assert.ok(inventoryIdx < expensesIdx, 'Inventory before Expenses');
+    assert.ok(vendorsIdx >= 0 && purchasesIdx >= 0 && expensesIdx >= 0 && loyaltyIdx >= 0);
+    assert.ok(vendorsIdx < purchasesIdx, 'Vendors before Purchases');
+    assert.ok(purchasesIdx < expensesIdx, 'Purchases before Expenses');
     assert.ok(expensesIdx < loyaltyIdx, 'Expenses before Loyalty');
+  });
+
+  it('maps /vendors to page:inventory permission', () => {
+    assert.equal(pagePermissionForPath('/vendors'), 'page:inventory');
+    assert.equal(pagePermissionForPath('/vendors/new'), 'page:inventory');
   });
 
   it('maps /expenses to page:expenses permission', () => {

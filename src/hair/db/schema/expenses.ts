@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { bigint, date, index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import type { FyhExpenseCategory, FyhExpensePaymentMethod } from '@/src/hair/lib/expenseCategories';
+import { fyhPurchases } from './purchases';
 
 export const fyhExpenses = pgTable(
   'fyh_expenses',
@@ -15,12 +16,14 @@ export const fyhExpenses = pgTable(
     notes: text('notes'),
     staffName: text('staff_name').notNull(),
     staffEmployeeId: uuid('staff_employee_id'),
+    purchaseId: uuid('purchase_id').references(() => fyhPurchases.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index('fyh_expenses_date_idx').on(t.expenseDate),
     index('fyh_expenses_category_idx').on(t.category),
+    index('fyh_expenses_purchase_idx').on(t.purchaseId),
   ],
 );
 

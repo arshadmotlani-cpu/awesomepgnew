@@ -85,13 +85,13 @@ export function VendorsList({
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="fyh-section-eyebrow">Inventory</p>
+          <p className="fyh-section-eyebrow">Vendors</p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold">Vendors</h1>
           <p className="mt-1 text-sm text-fyh-text-secondary">
             Suppliers and brand catalog for products
           </p>
         </div>
-        <Link href="/inventory/vendors/new">
+        <Link href="/vendors/new">
           <Button type="button">
             <Plus className="mr-2 h-4 w-4" />
             Add vendor
@@ -121,7 +121,7 @@ export function VendorsList({
         <div className="fyh-glass px-6 py-16 text-center">
           <p className="fyh-display text-xl font-semibold">No vendors yet</p>
           <p className="mt-2 text-sm text-fyh-text-muted">Add suppliers and their brands.</p>
-          <Link href="/inventory/vendors/new" className="mt-6 inline-block">
+          <Link href="/vendors/new" className="mt-6 inline-block">
             <Button type="button">Add vendor</Button>
           </Link>
         </div>
@@ -141,7 +141,7 @@ export function VendorsList({
                 <tr key={v.id} className="hover:bg-white/[0.03]">
                   <td className="px-4 py-3">
                     <Link
-                      href={`/inventory/vendors/${v.id}`}
+                      href={`/vendors/${v.id}`}
                       className="font-medium hover:text-fyh-accent"
                     >
                       {v.name}
@@ -277,7 +277,7 @@ export function VendorForm({
           <Button type="submit" disabled={pending}>
             {pending ? 'Saving…' : mode === 'create' ? 'Create vendor' : 'Save changes'}
           </Button>
-          <Link href="/inventory/vendors">
+          <Link href="/vendors">
             <Button type="button" variant="secondary">
               Cancel
             </Button>
