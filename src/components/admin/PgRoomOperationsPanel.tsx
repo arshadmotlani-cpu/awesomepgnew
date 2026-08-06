@@ -8,6 +8,10 @@ import { RoomIntegrityBadge } from './RoomIntegrityBadge';
 import type { RoomIntegrityResult } from '@/src/lib/roomIntegrity/types';
 import type { RoomExitQueueItem } from '@/src/lib/exit/loadRoomExitQueue';
 import { formatDate } from '@/src/lib/format';
+import {
+  resolveRoomTypeNameForCapacity,
+  roomCapacityFromActiveBedCount,
+} from '@/src/lib/roomCapacitySsot';
 
 type FloorRow = {
   id: string;

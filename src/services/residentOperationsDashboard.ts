@@ -1,6 +1,7 @@
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { isResidentBedAssignmentEligible } from '@/src/lib/residentBedAssignment';
-import { attachFinancialInvoiceIdsToCollectionQueue, buildCollectionsQueue } from '@/src/lib/billing/collectionsQueue';
+import { buildCollectionsQueue } from '@/src/lib/billing/collectionsQueue';
+import { attachFinancialInvoiceIdsToCollectionQueue } from '@/src/lib/billing/collectionsQueue.server';
 import { countVacatingOperationsQueueItems } from '@/src/lib/operations/operationsQueueVacating';
 import { todayString } from '@/src/lib/dates';
 import { buildResidentOperationsDashboard } from '@/src/lib/residents/residentOperationsDashboard';

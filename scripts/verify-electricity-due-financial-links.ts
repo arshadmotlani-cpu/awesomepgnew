@@ -7,10 +7,8 @@ import { ilike } from 'drizzle-orm';
 import { closeDb, db } from '../src/db/client';
 import { customers } from '../src/db/schema';
 import { listAdminElectricityInvoicesForReminders } from '../src/db/queries/admin';
-import {
-  attachFinancialInvoiceIdsToCollectionQueue,
-  buildCollectionsQueue,
-} from '../src/lib/billing/collectionsQueue';
+import { buildCollectionsQueue } from '../src/lib/billing/collectionsQueue';
+import { attachFinancialInvoiceIdsToCollectionQueue } from '../src/lib/billing/collectionsQueue.server';
 import { resolveFinancialInvoiceIdMap } from '../src/services/adminCashSettlement';
 
 function loadDatabaseUrl(): void {

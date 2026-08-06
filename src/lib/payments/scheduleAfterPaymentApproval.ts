@@ -1,5 +1,3 @@
-import { after } from 'next/server';
-
 /**
  * Schedule non-critical work after the payment-approval response is sent.
  * Falls back to fire-and-forget outside a Next.js request context (scripts/tests).
@@ -13,9 +11,12 @@ export function scheduleAfterPaymentApproval(task: () => Promise<void>): void {
       );
     });
 
-  try {
-    after(run);
-  } catch {
-    void run();
-  }
+  void (async () => {
+    try {
+      const { after } = await import('next/server');
+      after(run);
+    } catch {
+      void run();
+    }
+  })();
 }

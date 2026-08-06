@@ -88,10 +88,12 @@ export function resolveExitBrainLifecycleState(input: ExitBrainStateMachineInput
 
   if (!vacatingStatus || vacatingStatus === 'rejected') return 'inactive';
 
+  const settlementKey = settlementStatus as string | null;
+
   if (
-    settlementStatus === 'archived' ||
+    settlementKey === 'archived' ||
     (vacatingStatus === 'completed' &&
-      (settlementStatus === 'completed' || settlementStatus === 'archived'))
+      (settlementKey === 'completed' || settlementKey === 'archived'))
   ) {
     return 'archived';
   }

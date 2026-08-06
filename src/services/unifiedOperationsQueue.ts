@@ -17,7 +17,8 @@ import {
 } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
-import { buildCollectionsQueue, attachFinancialInvoiceIdsToCollectionQueue, collectionQueueItemOpenHref, type CollectionQueueItem } from '@/src/lib/billing/collectionsQueue';
+import { buildCollectionsQueue, collectionQueueItemOpenHref, type CollectionQueueItem } from '@/src/lib/billing/collectionsQueue';
+import { attachFinancialInvoiceIdsToCollectionQueue } from '@/src/lib/billing/collectionsQueue.server';
 import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
 import { bookingFinancialWorkspaceHref } from '@/src/lib/bookings/bookingFinancialLinks';
 import { listAdminElectricityInvoicesForReminders } from '@/src/db/queries/admin';
