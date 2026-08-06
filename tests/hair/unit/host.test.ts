@@ -21,6 +21,12 @@ test('maps public paths to /fyh internals', () => {
   assert.equal(hairPublicToInternal('/login'), '/fyh/auth/login');
   assert.equal(hairPublicToInternal('/dashboard'), '/fyh/dashboard');
   assert.equal(hairPublicToInternal('/customers/1'), '/fyh/customers/1');
+  assert.equal(hairPublicToInternal('/vendors'), '/fyh/vendors');
+  assert.equal(hairPublicToInternal('/vendors/new'), '/fyh/vendors/new');
+  assert.equal(hairPublicToInternal('/purchases'), '/fyh/purchases');
+  assert.equal(hairPublicToInternal('/expenses'), '/fyh/expenses');
+  assert.equal(isHairPublicPath('/vendors'), true);
+  assert.equal(isHairProtectedPath('/vendors'), true);
   assert.equal(hairPublicToInternal('/admin'), null);
 });
 
