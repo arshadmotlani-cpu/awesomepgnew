@@ -54,16 +54,27 @@ describe('FYH sidebar navigation', () => {
     assert.equal(workforceGroup, undefined, 'Workforce nav group must not exist');
   });
 
-  it('places four independent catalog modules under Configuration', () => {
+  it('places Services and Products under Configuration', () => {
     const configuration = findGroup('configuration');
     assert.deepEqual(
       configuration.children.map((c) => c.label),
-      ['Services', 'Products', 'Packages', 'Memberships'],
+      ['Services', 'Products'],
     );
     assert.deepEqual(
       configuration.children.map((c) => c.href),
-      ['/services', '/products', '/packages', '/memberships'],
+      ['/services', '/products'],
     );
+  });
+
+  it('places Expenses between Inventory and Loyalty', () => {
+    const topLevel = visibleHairNavEntries().filter((e) => e.type === 'link');
+    const labels = topLevel.map((e) => (e.type === 'link' ? e.label : ''));
+    const inventoryIdx = labels.indexOf('Inventory');
+    const expensesIdx = labels.indexOf('Expenses');
+    const loyaltyIdx = labels.indexOf('Loyalty');
+    assert.ok(inventoryIdx >= 0 && expensesIdx >= 0 && loyaltyIdx >= 0);
+    assert.ok(inventoryIdx < expensesIdx);
+    assert.ok(expensesIdx < loyaltyIdx);
   });
 
   it('exposes Staff as a top-level link', () => {
@@ -75,20 +86,20 @@ describe('FYH sidebar navigation', () => {
   it('does not expose catalog items as top-level links', () => {
     const topLevelLinks = visibleHairNavEntries().filter((e) => e.type === 'link');
     const hrefs = topLevelLinks.map((e) => (e.type === 'link' ? e.href : ''));
-    for (const href of ['/services', '/products', '/packages', '/memberships']) {
+    for (const href of ['/services', '/products']) {
       assert.equal(hrefs.includes(href), false, `${href} should not be top-level`);
     }
   });
 
-  it('keeps billing, staff, and catalog routes reachable', () => {
+  it('keeps billing, staff, inventory, expenses, and catalog routes reachable', () => {
     const hrefs = visibleHrefs();
     for (const href of [
       '/billing/invoices',
       '/services',
       '/products',
-      '/packages',
-      '/memberships',
       '/staff',
+      '/expenses',
+      '/inventory',
       '/dashboard/staff-performance',
     ]) {
       assert.ok(hrefs.includes(href), `missing nav href ${href}`);

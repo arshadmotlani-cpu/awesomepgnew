@@ -20,4 +20,7 @@ export * from './notifications';
 export * from './financialLedger';
 export * from './historicalImport';
 export * from './vendors';
+export * from './brands';
+export * from './expenses';
+export * from './floorStock';
 export * from '@/src/workforce/db/schema';

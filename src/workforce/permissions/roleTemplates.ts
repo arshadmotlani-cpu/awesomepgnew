@@ -36,6 +36,8 @@ const BILLER_TEMPLATE: WorkforcePermissionKey[] = [
   'billing.create_invoice',
   'billing.edit_invoice',
   'billing.backdate_invoice',
+  'expenses.view',
+  'expenses.edit',
   'packages.view',
   'memberships.view',
   'calendar.view',

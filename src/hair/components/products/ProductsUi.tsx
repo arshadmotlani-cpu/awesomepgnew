@@ -12,7 +12,8 @@ import {
 } from '@/src/hair/actions/products';
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
-import type { FyhProduct } from '@/src/hair/db/schema';
+import type { FyhBrand } from '@/src/hair/db/schema';
+import type { ProductWithBrand } from '@/src/hair/services/products';
 import {
   FYH_PRODUCT_TYPES,
   productMarginPercent,
@@ -32,7 +33,7 @@ export function ProductsList({
   q,
   status,
 }: {
-  products: FyhProduct[];
+  products: ProductWithBrand[];
   q?: string;
   status?: string;
 }) {
@@ -103,7 +104,9 @@ export function ProductsList({
                     <Link href={`/products/${p.id}`} className="font-medium hover:text-fyh-accent">
                       {p.name}
                     </Link>
-                    {p.brand ? <p className="text-xs text-fyh-text-muted">{p.brand}</p> : null}
+                    {p.brandName ? (
+                      <p className="text-xs text-fyh-text-muted">{p.brandName}</p>
+                    ) : null}
                   </td>
                   <td className="px-4 py-3 text-fyh-text-muted">
                     {productTypeLabel(p.productType)}
@@ -158,9 +161,11 @@ function ProductTypeRadios({
 export function ProductForm({
   mode,
   product,
+  brands,
 }: {
   mode: 'create' | 'edit';
-  product?: FyhProduct;
+  product?: ProductWithBrand;
+  brands: FyhBrand[];
 }) {
   const action = mode === 'create' ? createProductAction : updateProductAction;
   const [state, formAction, pending] = useActionState(action, initialState);
@@ -180,11 +185,31 @@ export function ProductForm({
           </label>
           <Input id="name" name="name" required defaultValue={product?.name ?? ''} />
         </div>
-        <div className="space-y-2">
-          <label className="fyh-label" htmlFor="brand">
-            Brand
+        <div className="space-y-2 sm:col-span-2">
+          <label className="fyh-label" htmlFor="brandId">
+            Brand *
           </label>
-          <Input id="brand" name="brand" defaultValue={product?.brand ?? ''} />
+          <select
+            id="brandId"
+            name="brandId"
+            required
+            className={fieldClass}
+            defaultValue={product?.brandId ?? ''}
+          >
+            <option value="" disabled>
+              Select brand
+            </option>
+            {brands.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+          {brands.length === 0 ? (
+            <p className="text-xs text-fyh-text-muted">
+              Add brands on a vendor first — Inventory → Vendors.
+            </p>
+          ) : null}
         </div>
         <div className="space-y-2 sm:col-span-2">
           <ProductTypeRadios
@@ -265,7 +290,7 @@ export function ProductForm({
   );
 }
 
-export function ProductDetailActions({ product }: { product: FyhProduct }) {
+export function ProductDetailActions({ product }: { product: ProductWithBrand }) {
   const [archiveState, archiveAction, archivePending] = useActionState(
     archiveProductAction,
     initialState,
@@ -311,7 +336,7 @@ export function ProductDetailActions({ product }: { product: FyhProduct }) {
   );
 }
 
-export function ProductProfitSummary({ product }: { product: FyhProduct }) {
+export function ProductProfitSummary({ product }: { product: ProductWithBrand }) {
   if (product.productType !== 'retail') return null;
   const profit = productProfitPaise(product);
   const margin = productMarginPercent(product);

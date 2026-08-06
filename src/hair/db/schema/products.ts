@@ -11,13 +11,16 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import type { FyhProductType } from '@/src/hair/lib/productTypes';
+import { fyhBrands } from './brands';
 
 export const fyhProducts = pgTable(
   'fyh_products',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
     name: text('name').notNull(),
-    brand: text('brand'),
+    brandId: uuid('brand_id')
+      .notNull()
+      .references(() => fyhBrands.id, { onDelete: 'restrict' }),
     category: text('category'),
     description: text('description'),
     supplier: text('supplier'),
@@ -41,6 +44,7 @@ export const fyhProducts = pgTable(
     index('fyh_products_active_idx').on(t.isActive),
     index('fyh_products_category_idx').on(t.category),
     index('fyh_products_type_idx').on(t.productType),
+    index('fyh_products_brand_idx').on(t.brandId),
   ],
 );
 

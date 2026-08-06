@@ -6,6 +6,7 @@ export const HAIR_PAGE_PERMISSIONS = [
   'page:billing',
   'page:quick_sale',
   'page:inventory',
+  'page:expenses',
   'page:reports',
   'page:settings',
 ] as const;
@@ -56,6 +57,7 @@ export const PERMISSIONS_CATALOG: ReadonlyArray<{
   { key: 'page:billing', label: 'Billing', group: 'page', description: 'Invoices and payments' },
   { key: 'page:quick_sale', label: 'Quick Sale', group: 'page', description: 'POS checkout' },
   { key: 'page:inventory', label: 'Inventory', group: 'page', description: 'Stock and product cost' },
+  { key: 'page:expenses', label: 'Expenses', group: 'page', description: 'Salon expense records' },
   { key: 'page:reports', label: 'Reports', group: 'page', description: 'Analytics and exports' },
   { key: 'page:settings', label: 'Settings', group: 'page', description: 'Salon configuration' },
   {
@@ -141,6 +143,7 @@ export function pagePermissionForPath(pathname: string): HairPagePermission | nu
     ['/quick-sale', 'page:quick_sale'],
     ['/advance-payment', 'page:billing'],
     ['/inventory', 'page:inventory'],
+    ['/expenses', 'page:expenses'],
     ['/reports', 'page:reports'],
     ['/settings', 'page:settings'],
     // Workforce pages self-guard with staff.* / finance.* — do not require settings.manage

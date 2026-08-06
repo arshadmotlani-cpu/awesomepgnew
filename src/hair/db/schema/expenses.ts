@@ -1,0 +1,27 @@
+import { sql } from 'drizzle-orm';
+import { bigint, date, index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import type { FyhExpenseCategory, FyhExpensePaymentMethod } from '@/src/hair/lib/expenseCategories';
+
+export const fyhExpenses = pgTable(
+  'fyh_expenses',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    title: text('title').notNull(),
+    category: text('category').$type<FyhExpenseCategory>().notNull(),
+    expenseDate: date('expense_date').notNull(),
+    amountPaise: bigint('amount_paise', { mode: 'number' }).notNull().default(0),
+    paymentMethod: text('payment_method').$type<FyhExpensePaymentMethod>().notNull().default('cash'),
+    attachmentUrl: text('attachment_url'),
+    notes: text('notes'),
+    staffName: text('staff_name').notNull(),
+    staffEmployeeId: uuid('staff_employee_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('fyh_expenses_date_idx').on(t.expenseDate),
+    index('fyh_expenses_category_idx').on(t.category),
+  ],
+);
+
+export type FyhExpense = typeof fyhExpenses.$inferSelect;

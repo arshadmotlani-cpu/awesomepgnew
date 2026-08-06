@@ -1,10 +1,13 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Plus, Search } from 'lucide-react';
 import {
+  archiveServiceAction,
   createServiceAction,
+  deleteServiceAction,
   updateServiceAction,
   type ServiceActionState,
 } from '@/src/hair/actions/services';
@@ -32,6 +35,8 @@ export function ServicesList({
   status?: string;
   category?: string;
 }) {
+  const router = useRouter();
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -137,15 +142,12 @@ export function ServicesList({
                 </thead>
                 <tbody className="divide-y divide-[color:var(--fyh-border)]">
                   {services.map((s) => (
-                    <tr key={s.id} className="hover:bg-white/[0.03]">
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/services/${s.id}`}
-                          className="font-medium hover:text-fyh-accent"
-                        >
-                          {s.name}
-                        </Link>
-                      </td>
+                    <tr
+                      key={s.id}
+                      className="cursor-pointer hover:bg-white/[0.03]"
+                      onClick={() => router.push(`/services/${s.id}`)}
+                    >
+                      <td className="px-4 py-3 font-medium">{s.name}</td>
                       <td className="px-4 py-3 text-fyh-text-muted">{s.category || '—'}</td>
                       <td className="px-4 py-3 tabular-nums">{s.durationMinutes} min</td>
                       <td className="px-4 py-3 tabular-nums text-fyh-accent">
@@ -168,6 +170,52 @@ export function ServicesList({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+export function ServiceDetailActions({ service }: { service: FyhService }) {
+  const [archiveState, archiveAction, archivePending] = useActionState(
+    archiveServiceAction,
+    initialState,
+  );
+  const [deleteState, deleteAction, deletePending] = useActionState(
+    deleteServiceAction,
+    initialState,
+  );
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <a href="#edit">
+        <Button type="button" variant="secondary" size="sm">
+          Edit
+        </Button>
+      </a>
+      {service.isActive ? (
+        <form action={archiveAction}>
+          <input type="hidden" name="id" value={service.id} />
+          <Button type="submit" variant="secondary" size="sm" disabled={archivePending}>
+            Archive
+          </Button>
+        </form>
+      ) : null}
+      <form
+        action={deleteAction}
+        onSubmit={(e) => {
+          if (!confirm('Delete this service permanently?')) e.preventDefault();
+        }}
+      >
+        <input type="hidden" name="id" value={service.id} />
+        <Button type="submit" variant="ghost" size="sm" disabled={deletePending}>
+          Delete
+        </Button>
+      </form>
+      {archiveState.error ? (
+        <span className="text-xs text-fyh-danger">{archiveState.error}</span>
+      ) : null}
+      {deleteState.error ? (
+        <span className="text-xs text-fyh-danger">{deleteState.error}</span>
+      ) : null}
     </div>
   );
 }

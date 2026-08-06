@@ -8,6 +8,7 @@ import { canonicalServiceName } from '@/src/hair/lib/serviceName';
 import {
   archiveService,
   createService,
+  deleteService,
   DuplicateServiceError,
   restoreService,
   updateService,
@@ -164,5 +165,22 @@ export async function restoreServiceAction(
   } catch (e) {
     if (e && typeof e === 'object' && 'digest' in e) throw e;
     return { error: e instanceof Error ? e.message : 'Failed to restore service' };
+  }
+}
+
+export async function deleteServiceAction(
+  _prev: ServiceActionState,
+  formData: FormData,
+): Promise<ServiceActionState> {
+  try {
+    await requireHairAuth();
+    const id = formStr(formData, 'id');
+    if (!id) return { error: 'Missing service id' };
+    await deleteService(id);
+    revalidatePath('/services');
+    redirect('/services');
+  } catch (e) {
+    if (e && typeof e === 'object' && 'digest' in e) throw e;
+    return { error: e instanceof Error ? e.message : 'Failed to delete service' };
   }
 }

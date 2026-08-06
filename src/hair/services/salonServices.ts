@@ -403,6 +403,18 @@ export async function restoreService(id: string) {
   return row;
 }
 
+export async function deleteService(id: string) {
+  const existing = await getService(id);
+  if (!existing) throw new Error('Service not found');
+  try {
+    await hairDb.delete(fyhServices).where(eq(fyhServices.id, id));
+  } catch {
+    throw new Error(
+      'Cannot delete this service — it may be linked to appointments. Archive it instead.',
+    );
+  }
+}
+
 /** Services available for new appointments (active only). */
 export async function listBookableServices() {
   return listServices({ status: 'active' });

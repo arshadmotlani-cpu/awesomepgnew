@@ -1,6 +1,7 @@
 import { and, asc, eq, ilike, or } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
-import { fyhProducts } from '@/src/hair/db/schema';
+import { fyhBrands, fyhProducts } from '@/src/hair/db/schema';
+import type { FyhProduct } from '@/src/hair/db/schema';
 import type { FyhProductType } from '@/src/hair/lib/productTypes';
 import { parseProductType } from '@/src/hair/lib/productTypes';
 import { applyMovement } from '@/src/hair/services/stock';
@@ -11,7 +12,7 @@ function toPaise(rupees: number): number {
 
 export type ProductInput = {
   name: string;
-  brand?: string | null;
+  brandId: string;
   description?: string | null;
   productType: FyhProductType;
   costPriceRupees?: number;
@@ -20,9 +21,12 @@ export type ProductInput = {
   isActive?: boolean;
 };
 
+export type ProductWithBrand = FyhProduct & { brandName: string };
+
 function validateProductInput(input: ProductInput) {
   const name = input.name.trim();
   if (!name) throw new Error('Product name is required');
+  if (!input.brandId?.trim()) throw new Error('Brand is required');
   const cost = input.costPriceRupees ?? 0;
   if (cost < 0) throw new Error('Cost price cannot be negative');
   if (input.productType === 'retail') {
@@ -36,7 +40,7 @@ function validateProductInput(input: ProductInput) {
 export async function listProducts(opts?: {
   q?: string;
   status?: 'active' | 'inactive' | 'all';
-}) {
+}): Promise<ProductWithBrand[]> {
   const conditions = [];
   const status = opts?.status ?? 'active';
   if (status === 'active') conditions.push(eq(fyhProducts.isActive, true));
@@ -45,15 +49,21 @@ export async function listProducts(opts?: {
   if (q) {
     const pattern = `%${q}%`;
     conditions.push(
-      or(ilike(fyhProducts.name, pattern), ilike(fyhProducts.brand, pattern))!,
+      or(ilike(fyhProducts.name, pattern), ilike(fyhBrands.name, pattern))!,
     );
   }
-  return hairDb
-    .select()
+  const rows = await hairDb
+    .select({
+      product: fyhProducts,
+      brandName: fyhBrands.name,
+    })
     .from(fyhProducts)
+    .innerJoin(fyhBrands, eq(fyhBrands.id, fyhProducts.brandId))
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(asc(fyhProducts.name))
     .limit(300);
+
+  return rows.map((r) => ({ ...r.product, brandName: r.brandName }));
 }
 
 /** Professional products for service consumable kits. */
@@ -65,9 +75,17 @@ export async function listConsumableProducts() {
     .orderBy(asc(fyhProducts.name));
 }
 
-export async function getProduct(id: string) {
-  const [row] = await hairDb.select().from(fyhProducts).where(eq(fyhProducts.id, id)).limit(1);
-  return row ?? null;
+export async function getProduct(id: string): Promise<ProductWithBrand | null> {
+  const [row] = await hairDb
+    .select({
+      product: fyhProducts,
+      brandName: fyhBrands.name,
+    })
+    .from(fyhProducts)
+    .innerJoin(fyhBrands, eq(fyhBrands.id, fyhProducts.brandId))
+    .where(eq(fyhProducts.id, id))
+    .limit(1);
+  return row ? { ...row.product, brandName: row.brandName } : null;
 }
 
 export async function createProduct(input: ProductInput) {
@@ -83,7 +101,7 @@ export async function createProduct(input: ProductInput) {
       .insert(fyhProducts)
       .values({
         name,
-        brand: input.brand?.trim() || null,
+        brandId: input.brandId,
         description: input.description?.trim() || null,
         productType,
         sellingPricePaise,
@@ -102,8 +120,8 @@ export async function createProduct(input: ProductInput) {
       });
     }
 
-    const [updated] = await tx.select().from(fyhProducts).where(eq(fyhProducts.id, row!.id)).limit(1);
-    return updated!;
+    const created = await getProduct(row!.id);
+    return created!;
   });
 }
 
@@ -127,7 +145,7 @@ export async function updateProduct(id: string, input: ProductInput) {
       .update(fyhProducts)
       .set({
         name,
-        brand: input.brand?.trim() || null,
+        brandId: input.brandId,
         description: input.description?.trim() || null,
         productType,
         sellingPricePaise,
@@ -149,7 +167,7 @@ export async function updateProduct(id: string, input: ProductInput) {
       });
     }
 
-    const [updated] = await tx.select().from(fyhProducts).where(eq(fyhProducts.id, id)).limit(1);
+    const updated = await getProduct(id);
     return updated!;
   });
 }

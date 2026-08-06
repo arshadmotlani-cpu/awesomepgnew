@@ -9,6 +9,7 @@ import {
   fyhMembershipPlans,
   fyhPackagePlans,
   fyhProducts,
+  fyhBrands,
 } from '@/src/hair/db/schema';
 import { walletBalanceFromLedger } from '@/src/hair/domain/ledger/plan';
 
@@ -456,18 +457,22 @@ function mapProductRow(p: {
 
 async function queryProductCatalog(activeOnly: boolean): Promise<ProductCatalogRow[]> {
   const rows = await hairDb
-    .select()
+    .select({
+      product: fyhProducts,
+      brandName: fyhBrands.name,
+    })
     .from(fyhProducts)
+    .innerJoin(fyhBrands, eq(fyhBrands.id, fyhProducts.brandId))
     .where(activeOnly ? eq(fyhProducts.isActive, true) : undefined)
     .orderBy(asc(fyhProducts.name))
     .limit(500);
 
-  return rows.map((p) =>
+  return rows.map(({ product: p, brandName }) =>
     mapProductRow({
       name: p.name,
       productType: p.productType,
       category: p.category,
-      brand: p.brand,
+      brand: brandName,
       sellingPricePaise: p.sellingPricePaise,
       costPricePaise: p.costPricePaise,
       stockQty: Number(p.stockQty ?? 0),
@@ -508,12 +513,15 @@ export async function lowStockReport(): Promise<ProductCatalogRow[]> {
   try {
     const { listLowStockProducts } = await import('@/src/hair/services/stock');
     const rows = await listLowStockProducts();
+    const brandMap = await import('@/src/hair/services/brands').then((m) =>
+      m.getBrandNamesByIds([...new Set(rows.map((p) => p.brandId))]),
+    );
     return rows.map((p) =>
       mapProductRow({
         name: p.name,
         productType: p.productType,
         category: p.category,
-        brand: p.brand,
+        brand: brandMap.get(p.brandId) ?? null,
         sellingPricePaise: p.sellingPricePaise,
         costPricePaise: p.costPricePaise,
         stockQty: Number(p.stockQty ?? 0),
@@ -526,8 +534,12 @@ export async function lowStockReport(): Promise<ProductCatalogRow[]> {
   }
 
   const rows = await hairDb
-    .select()
+    .select({
+      product: fyhProducts,
+      brandName: fyhBrands.name,
+    })
     .from(fyhProducts)
+    .innerJoin(fyhBrands, eq(fyhBrands.id, fyhProducts.brandId))
     .where(
       and(
         eq(fyhProducts.isActive, true),
@@ -538,12 +550,12 @@ export async function lowStockReport(): Promise<ProductCatalogRow[]> {
     .orderBy(asc(fyhProducts.stockQty))
     .limit(500);
 
-  return rows.map((p) =>
+  return rows.map(({ product: p, brandName }) =>
     mapProductRow({
       name: p.name,
       productType: p.productType,
       category: p.category,
-      brand: p.brand,
+      brand: brandName,
       sellingPricePaise: p.sellingPricePaise,
       costPricePaise: p.costPricePaise,
       stockQty: Number(p.stockQty ?? 0),

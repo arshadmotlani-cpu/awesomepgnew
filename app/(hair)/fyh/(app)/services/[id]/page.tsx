@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ServiceForm } from '@/src/hair/components/services/ServicesUi';
-import { Button } from '@/src/hair/components/ui/button';
+import {
+  ServiceDetailActions,
+  ServiceForm,
+} from '@/src/hair/components/services/ServicesUi';
 import { getServiceDetail, listServiceCategories } from '@/src/hair/services/salonServices';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 
@@ -17,24 +19,31 @@ export default async function ServiceDetailPage({ params }: Props) {
   const { service } = detail;
 
   return (
-    <div className="mx-auto max-w-xl space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="fyh-section-eyebrow">Service</p>
-          <h1 className="fyh-display mt-1 text-3xl font-semibold">{service.name}</h1>
-          <p className="mt-1 text-sm text-fyh-text-secondary">
-            {service.durationMinutes} min · {formatInrFromPaise(service.pricePaise)}
-            {service.category ? ` · ${service.category}` : ''}
-            {!service.isActive ? ' · Inactive' : ''}
-          </p>
+    <div className="mx-auto max-w-xl space-y-4">
+      <div className="fyh-glass flex flex-wrap items-start justify-between gap-3 p-4">
+        <div className="min-w-0 space-y-1">
+          <Link href="/services" className="text-sm text-fyh-accent hover:underline">
+            ← Back
+          </Link>
+          <h1 className="fyh-display text-xl font-semibold">{service.name}</h1>
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-fyh-text-secondary">
+            <span>{service.category || 'Uncategorised'}</span>
+            <span>·</span>
+            <span>{service.durationMinutes} min</span>
+            <span>·</span>
+            <span>{formatInrFromPaise(service.pricePaise)}</span>
+            <span>·</span>
+            <span className={service.isActive ? 'text-fyh-success' : 'text-fyh-text-muted'}>
+              {service.isActive ? 'Active' : 'Inactive'}
+            </span>
+          </div>
         </div>
-        <Link href="/services">
-          <Button type="button" variant="ghost">
-            Back
-          </Button>
-        </Link>
+        <ServiceDetailActions service={service} />
       </div>
-      <ServiceForm mode="edit" service={service} categories={categories} />
+
+      <div id="edit">
+        <ServiceForm mode="edit" service={service} categories={categories} />
+      </div>
     </div>
   );
 }

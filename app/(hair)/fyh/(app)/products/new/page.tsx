@@ -1,8 +1,11 @@
 import Link from 'next/link';
 import { ProductForm } from '@/src/hair/components/products/ProductsUi';
 import { Button } from '@/src/hair/components/ui/button';
+import { listBrands } from '@/src/hair/services/brands';
 
-export default function NewProductPage() {
+export default async function NewProductPage() {
+  const brands = await listBrands();
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -16,7 +19,7 @@ export default function NewProductPage() {
           </Button>
         </Link>
       </div>
-      <ProductForm mode="create" />
+      <ProductForm mode="create" brands={brands} />
     </div>
   );
 }

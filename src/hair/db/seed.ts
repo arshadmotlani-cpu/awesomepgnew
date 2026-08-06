@@ -6,6 +6,7 @@ import { createHairClient } from '@/src/hair/db/client';
 import { ensureRcCutConsumableKit } from '@/src/hair/db/rcConsumableKit';
 import { ensureRcBookableServices } from '@/src/hair/db/rcServiceFixtures';
 import {
+  fyhBrands,
   fyhMembershipPlans,
   fyhPackagePlans,
   fyhProducts,
@@ -114,6 +115,19 @@ async function seedRcFixtures(
 
   let productId: string;
   {
+    let brandId: string;
+    const [existingBrand] = await db
+      .select()
+      .from(fyhBrands)
+      .where(eq(fyhBrands.name, 'Unbranded'))
+      .limit(1);
+    if (existingBrand) {
+      brandId = existingBrand.id;
+    } else {
+      const [brandRow] = await db.insert(fyhBrands).values({ name: 'Unbranded' }).returning();
+      brandId = brandRow!.id;
+    }
+
     const [existing] = await db
       .select()
       .from(fyhProducts)
@@ -135,6 +149,7 @@ async function seedRcFixtures(
         .insert(fyhProducts)
         .values({
           name: 'RC Salon Shampoo',
+          brandId,
           productType: 'professional',
           sellingPricePaise: 0,
           costPricePaise: 20000,

@@ -30,18 +30,35 @@ function formChecked(formData: FormData, key: string): boolean {
   return v === 'on' || v === 'true' || v === '1';
 }
 
+function parseBrandNames(formData: FormData): string[] {
+  const raw = formStr(formData, 'brandNamesJson');
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((v) => String(v).trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 function parseVendorForm(formData: FormData): VendorInput {
   const name = formStr(formData, 'name');
   if (!name) throw new Error('Vendor name is required');
   return {
     name,
+    companyName: formStr(formData, 'companyName') || null,
     contactName: formStr(formData, 'contactName') || null,
     phone: formStr(formData, 'phone') || null,
     email: formStr(formData, 'email') || null,
     gstin: formStr(formData, 'gstin') || null,
     address: formStr(formData, 'address') || null,
+    bankDetails: formStr(formData, 'bankDetails') || null,
+    upiId: formStr(formData, 'upiId') || null,
+    qrCodeUrl: formStr(formData, 'qrCodeUrl') || null,
     notes: formStr(formData, 'notes') || null,
     isActive: formData.get('isActive') !== 'false',
+    brandNames: parseBrandNames(formData),
   };
 }
 

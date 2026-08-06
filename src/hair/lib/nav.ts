@@ -15,7 +15,8 @@ export type HairNavIconKey =
   | 'heart'
   | 'package'
   | 'sliders-horizontal'
-  | 'settings';
+  | 'settings'
+  | 'wallet';
 
 export type HairNavLink = {
   type: 'link';
@@ -92,6 +93,13 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
     iconKey: 'warehouse',
     permission: 'page:inventory',
   },
+  {
+    type: 'link',
+    href: '/expenses',
+    label: 'Expenses',
+    iconKey: 'wallet',
+    permission: 'page:expenses',
+  },
   { type: 'link', href: '/loyalty', label: 'Loyalty', iconKey: 'heart', permission: 'page:customers' },
   {
     type: 'group',
@@ -130,8 +138,6 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
     children: [
       { href: '/services', label: 'Services' },
       { href: '/products', label: 'Products' },
-      { href: '/packages', label: 'Packages' },
-      { href: '/memberships', label: 'Memberships' },
     ],
   },
   {

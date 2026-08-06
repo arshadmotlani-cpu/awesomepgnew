@@ -13,15 +13,18 @@ import {
 } from '@/src/hair/services/invoices';
 import { createStockAdjustment, receiveGoodsReceipt } from '@/src/hair/services/purchases';
 import { createVendor } from '@/src/hair/services/vendors';
+import { findOrCreateBrand } from '@/src/hair/services/brands';
 import { applyMovement, getOnHand } from '@/src/hair/services/stock';
 import { createRcCustomer, requireRcFixtures } from './rcFixtures.ts';
 import { migrationSkipMessage, probeHairQuickSaleMigrations } from './migrationGuard.ts';
 
 async function createIsolatedProduct(label: string) {
+  const brand = await findOrCreateBrand(`Inv Ops Brand ${label}`);
   const [row] = await hairDb
     .insert(fyhProducts)
     .values({
       name: `Inv Ops ${label}`,
+      brandId: brand.id,
       sellingPricePaise: 15_000,
       costPricePaise: 8_000,
       stockQty: 0,

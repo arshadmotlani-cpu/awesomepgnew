@@ -1,8 +1,8 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, X } from 'lucide-react';
 import {
   archiveVendorAction,
   createVendorAction,
@@ -16,6 +16,61 @@ import type { FyhVendor } from '@/src/hair/db/schema';
 const initialState: InventoryActionState = {};
 const fieldClass =
   'fyh-input w-full text-[0.8125rem] outline-none focus:border-fyh-accent/50';
+
+function BrandNamesEditor({
+  initialNames,
+  onChange,
+}: {
+  initialNames: string[];
+  onChange: (names: string[]) => void;
+}) {
+  const [names, setNames] = useState<string[]>(
+    initialNames.length ? initialNames : [''],
+  );
+
+  const update = (next: string[]) => {
+    setNames(next);
+    onChange(next.map((n) => n.trim()).filter(Boolean));
+  };
+
+  return (
+    <div className="space-y-2">
+      {names.map((name, idx) => (
+        <div key={idx} className="flex gap-2">
+          <Input
+            value={name}
+            placeholder="Brand name"
+            onChange={(e) => {
+              const next = [...names];
+              next[idx] = e.target.value;
+              update(next);
+            }}
+          />
+          {names.length > 1 ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-label="Remove brand"
+              onClick={() => update(names.filter((_, i) => i !== idx))}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          ) : null}
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        onClick={() => update([...names, ''])}
+      >
+        <Plus className="mr-1 h-3.5 w-3.5" />
+        Add Brand
+      </Button>
+    </div>
+  );
+}
 
 export function VendorsList({
   vendors,
@@ -33,7 +88,7 @@ export function VendorsList({
           <p className="fyh-section-eyebrow">Inventory</p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold">Vendors</h1>
           <p className="mt-1 text-sm text-fyh-text-secondary">
-            Suppliers for purchase orders and goods receipts
+            Suppliers and brand catalog for products
           </p>
         </div>
         <Link href="/inventory/vendors/new">
@@ -65,7 +120,7 @@ export function VendorsList({
       {vendors.length === 0 ? (
         <div className="fyh-glass px-6 py-16 text-center">
           <p className="fyh-display text-xl font-semibold">No vendors yet</p>
-          <p className="mt-2 text-sm text-fyh-text-muted">Add suppliers to track purchases.</p>
+          <p className="mt-2 text-sm text-fyh-text-muted">Add suppliers and their brands.</p>
           <Link href="/inventory/vendors/new" className="mt-6 inline-block">
             <Button type="button">Add vendor</Button>
           </Link>
@@ -76,7 +131,7 @@ export function VendorsList({
             <thead>
               <tr>
                 <th>Vendor</th>
-                <th>Contact</th>
+                <th>Company</th>
                 <th>Phone</th>
                 <th>Status</th>
               </tr>
@@ -92,7 +147,7 @@ export function VendorsList({
                       {v.name}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-fyh-text-muted">{v.contactName || '—'}</td>
+                  <td className="px-4 py-3 text-fyh-text-muted">{v.companyName || '—'}</td>
                   <td className="px-4 py-3 text-fyh-text-muted">{v.phone || '—'}</td>
                   <td className="px-4 py-3">
                     <span className={v.isActive ? 'text-fyh-success' : 'text-fyh-text-muted'}>
@@ -109,18 +164,29 @@ export function VendorsList({
   );
 }
 
-export function VendorForm({ mode, vendor }: { mode: 'create' | 'edit'; vendor?: FyhVendor }) {
+export function VendorForm({
+  mode,
+  vendor,
+  initialBrandNames = [],
+}: {
+  mode: 'create' | 'edit';
+  vendor?: FyhVendor;
+  initialBrandNames?: string[];
+}) {
   const action = mode === 'create' ? createVendorAction : updateVendorAction;
   const [state, formAction, pending] = useActionState(action, initialState);
   const [archiveState, archiveAction, archivePending] = useActionState(
     archiveVendorAction,
     initialState,
   );
+  const [brandNames, setBrandNames] = useState<string[]>(initialBrandNames);
+  const brandNamesJson = useMemo(() => JSON.stringify(brandNames), [brandNames]);
 
   return (
     <div className="space-y-4">
       <form action={formAction} className="fyh-glass space-y-4 p-5">
         {mode === 'edit' && vendor ? <input type="hidden" name="id" value={vendor.id} /> : null}
+        <input type="hidden" name="brandNamesJson" value={brandNamesJson} />
         <input
           type="hidden"
           name="isActive"
@@ -130,15 +196,15 @@ export function VendorForm({ mode, vendor }: { mode: 'create' | 'edit'; vendor?:
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2 sm:col-span-2">
             <label className="fyh-label" htmlFor="name">
-              Name *
+              Vendor name *
             </label>
             <Input id="name" name="name" required defaultValue={vendor?.name ?? ''} />
           </div>
-          <div className="space-y-2">
-            <label className="fyh-label" htmlFor="contactName">
-              Contact name
+          <div className="space-y-2 sm:col-span-2">
+            <label className="fyh-label" htmlFor="companyName">
+              Company name
             </label>
-            <Input id="contactName" name="contactName" defaultValue={vendor?.contactName ?? ''} />
+            <Input id="companyName" name="companyName" defaultValue={vendor?.companyName ?? ''} />
           </div>
           <div className="space-y-2">
             <label className="fyh-label" htmlFor="phone">
@@ -152,7 +218,7 @@ export function VendorForm({ mode, vendor }: { mode: 'create' | 'edit'; vendor?:
             </label>
             <Input id="email" name="email" type="email" defaultValue={vendor?.email ?? ''} />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 sm:col-span-2">
             <label className="fyh-label" htmlFor="gstin">
               GSTIN
             </label>
@@ -163,6 +229,38 @@ export function VendorForm({ mode, vendor }: { mode: 'create' | 'edit'; vendor?:
               Address
             </label>
             <Input id="address" name="address" defaultValue={vendor?.address ?? ''} />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <label className="fyh-label" htmlFor="bankDetails">
+              Bank details
+            </label>
+            <textarea
+              id="bankDetails"
+              name="bankDetails"
+              rows={2}
+              defaultValue={vendor?.bankDetails ?? ''}
+              className={fieldClass}
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="fyh-label" htmlFor="upiId">
+              UPI ID
+            </label>
+            <Input id="upiId" name="upiId" defaultValue={vendor?.upiId ?? ''} />
+          </div>
+          <div className="space-y-2">
+            <label className="fyh-label" htmlFor="qrCodeUrl">
+              QR code URL
+            </label>
+            <Input id="qrCodeUrl" name="qrCodeUrl" defaultValue={vendor?.qrCodeUrl ?? ''} />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <span className="fyh-label">Brands</span>
+            <BrandNamesEditor initialNames={initialBrandNames} onChange={setBrandNames} />
+            <p className="text-xs text-fyh-text-muted">
+              Brands feed the product brand dropdown. Removing a brand here detaches it from this
+              vendor but keeps it if already used on products.
+            </p>
           </div>
           <div className="space-y-2 sm:col-span-2">
             <label className="fyh-label" htmlFor="notes">

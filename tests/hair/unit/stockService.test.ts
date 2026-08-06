@@ -7,14 +7,17 @@ loadAppEnv();
 
 import { hairDb } from '@/src/hair/db/client';
 import { fyhProducts, fyhStockMovements } from '@/src/hair/db/schema';
+import { findOrCreateBrand } from '@/src/hair/services/brands';
 import { applyMovement, getOnHand } from '@/src/hair/services/stock';
 import { updateInventorySettings } from '@/src/hair/services/settings';
 
 async function createTestProduct(suffix: string) {
+  const brand = await findOrCreateBrand(`Stock Test Brand ${suffix}`);
   const [row] = await hairDb
     .insert(fyhProducts)
     .values({
       name: `Stock Test ${suffix}`,
+      brandId: brand.id,
       productType: 'retail',
       sellingPricePaise: 10_000,
       costPricePaise: 5_000,

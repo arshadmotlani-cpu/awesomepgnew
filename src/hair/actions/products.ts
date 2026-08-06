@@ -33,6 +33,8 @@ function formNum(formData: FormData, key: string, fallback = 0): number {
 function parseProductForm(formData: FormData, opts?: { allowCost?: boolean }): ProductInput {
   const name = formStr(formData, 'name');
   if (!name) throw new Error('Product name is required');
+  const brandId = formStr(formData, 'brandId');
+  if (!brandId) throw new Error('Brand is required');
   const productType = parseProductType(formStr(formData, 'productType'));
   const costPriceRupees = formNum(formData, 'costPriceRupees', 0);
   if (!opts?.allowCost && costPriceRupees !== 0) {
@@ -47,7 +49,7 @@ function parseProductForm(formData: FormData, opts?: { allowCost?: boolean }): P
 
   return {
     name,
-    brand: formStr(formData, 'brand') || null,
+    brandId,
     description: formStr(formData, 'description') || null,
     productType,
     costPriceRupees: opts?.allowCost ? costPriceRupees : 0,
@@ -80,6 +82,7 @@ export async function createProductAction(
       parseProductForm(formData, { allowCost: hasPermission(admin, 'page:inventory') }),
     );
     revalidatePath('/products');
+    revalidatePath('/inventory/stock');
     redirect(`/products/${product.id}`);
   } catch (e) {
     if (e && typeof e === 'object' && 'digest' in e) throw e;
@@ -107,6 +110,7 @@ export async function updateProductAction(
     await updateProduct(id, input);
     revalidatePath('/products');
     revalidatePath(`/products/${id}`);
+    revalidatePath('/inventory/stock');
     return { success: 'Product updated.' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to update product' };
@@ -123,6 +127,7 @@ export async function archiveProductAction(
     if (!id) return { error: 'Missing product id' };
     await archiveProduct(id);
     revalidatePath('/products');
+    revalidatePath('/inventory/stock');
     redirect('/products?status=inactive');
   } catch (e) {
     if (e && typeof e === 'object' && 'digest' in e) throw e;
@@ -140,6 +145,7 @@ export async function deleteProductAction(
     if (!id) return { error: 'Missing product id' };
     await deleteProduct(id);
     revalidatePath('/products');
+    revalidatePath('/inventory/stock');
     redirect('/products');
   } catch (e) {
     if (e && typeof e === 'object' && 'digest' in e) throw e;

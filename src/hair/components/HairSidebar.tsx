@@ -16,6 +16,7 @@ import {
   Sparkles,
   UserRound,
   Users,
+  Wallet,
   Warehouse,
   type LucideIcon,
 } from 'lucide-react';
@@ -43,6 +44,7 @@ const NAV_ICONS: Record<HairNavIconKey, LucideIcon> = {
   package: Package,
   'sliders-horizontal': SlidersHorizontal,
   settings: Settings,
+  wallet: Wallet,
 };
 
 function NavLink({ item }: { item: HairNavLink }) {

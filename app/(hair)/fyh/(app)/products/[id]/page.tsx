@@ -6,13 +6,14 @@ import {
   ProductProfitSummary,
 } from '@/src/hair/components/products/ProductsUi';
 import { productTypeLabel } from '@/src/hair/lib/productTypes';
+import { listBrands } from '@/src/hair/services/brands';
 import { getProduct } from '@/src/hair/services/products';
 
 type Props = { params: Promise<{ id: string }> };
 
 export default async function ProductDetailPage({ params }: Props) {
   const { id } = await params;
-  const product = await getProduct(id);
+  const [product, brands] = await Promise.all([getProduct(id), listBrands()]);
   if (!product) notFound();
 
   return (
@@ -37,9 +38,7 @@ export default async function ProductDetailPage({ params }: Props) {
               {product.isActive ? 'Active' : 'Archived'}
             </span>
           </div>
-          {product.brand ? (
-            <p className="text-sm text-fyh-text-secondary">{product.brand}</p>
-          ) : null}
+          <p className="text-sm text-fyh-text-secondary">{product.brandName}</p>
         </div>
         <ProductDetailActions product={product} />
       </div>
@@ -51,7 +50,7 @@ export default async function ProductDetailPage({ params }: Props) {
       ) : null}
 
       <div id="edit">
-        <ProductForm mode="edit" product={product} />
+        <ProductForm mode="edit" product={product} brands={brands} />
       </div>
     </div>
   );

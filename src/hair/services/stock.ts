@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, gte, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, isNull, lte, sql } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import {
+  fyhBrands,
   fyhProducts,
   fyhSettings,
   fyhStockMovements,
@@ -181,13 +182,16 @@ export async function listStockSummary() {
     .select({
       id: fyhProducts.id,
       name: fyhProducts.name,
+      brandName: fyhBrands.name,
       productType: fyhProducts.productType,
       stockQty: fyhProducts.stockQty,
       minStock: fyhProducts.minStock,
       sellingPricePaise: fyhProducts.sellingPricePaise,
       costPricePaise: fyhProducts.costPricePaise,
+      isActive: fyhProducts.isActive,
     })
     .from(fyhProducts)
+    .innerJoin(fyhBrands, eq(fyhBrands.id, fyhProducts.brandId))
     .where(eq(fyhProducts.isActive, true))
     .orderBy(asc(fyhProducts.name));
 }

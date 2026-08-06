@@ -44,6 +44,9 @@ export function workforceGrantsToHairPermissions(
     out.add('page:inventory');
     if (p.has('inventory.edit')) out.add('action:inventory.adjust');
   }
+  if (p.has('expenses.view') || p.has('expenses.edit')) {
+    out.add('page:expenses');
+  }
   if (p.has('reports.view') || p.has('analytics.view')) out.add('page:reports');
   if (p.has('reports.export')) out.add('action:reports.export');
   if (p.has('settings.view') || p.has('settings.manage') || p.has('configuration.view')) {
