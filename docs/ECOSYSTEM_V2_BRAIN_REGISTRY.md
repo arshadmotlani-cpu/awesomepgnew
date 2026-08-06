@@ -33,7 +33,7 @@ When adding a Brain: append a registry entry here **before** writing code. When 
 | Electricity Brain | Awesome PG | 0.2 | PARTIAL |
 | Operations Brain | Awesome PG | 0.2 | PARTIAL |
 | Employee Brain | ecosystem / Workforce | 0.2 | PARTIAL |
-| Purchase Brain | FYH Salon | 0.1 | PARTIAL |
+| Purchase Brain | FYH Salon | 1.0 | FROZEN |
 | Salon Brain | FYH Salon | 0.1 | PLANNED |
 | Vehicle Brain | Automotive Capital | 0.1 | PLANNED |
 
@@ -269,13 +269,13 @@ When adding a Brain: append a registry entry here **before** writing code. When 
 
 - **Brain name:** Purchase Brain  
 - **Owner Engine:** FYH Salon  
-- **Owns (SSOT):** Purchase records · vendor payables · purchase explain · outstanding-by-vendor projections  
+- **Owns (SSOT):** Purchase records · vendor payables · vendor payments/allocations · purchase returns · vendor statement · purchase explain · outstanding-by-vendor projections  
 - **Reads:** Vendor master (`fyh_vendors`) · Product catalog · Stock movement ledger (read-only)  
 - **Publishes:** `salon.purchase.recorded` · `salon.vendor.payable.opened` *(stub → Owner OS / Finance Brain)*  
 - **Subscribes:** (future) `salon.vendor.payment.allocated`  
-- **Public API:** `listPurchases` · `getPurchase` · `getVendorOutstanding` · `explainPurchase`  
-- **Version:** 0.1  
-- **Status:** PARTIAL *(Phase 2 — see [[FYH_PURCHASE_ROADMAP]])*  
+- **Public API:** `listPurchases` · `getPurchase` · `getVendorOutstanding` · `getVendorLedger` · `getVendorDashboard` · `getVendorStatement` · `getVendorActivityTimeline` · `explainPurchase`  
+- **Version:** 1.0  
+- **Status:** FROZEN *(Vendor Brain — migration `0032_vendor_brain_freeze`, see [[FYH_PURCHASE_ROADMAP]])*  
 
 *Purchase Engine writes; Purchase Brain projects. Legacy PO/GRN tables are DEPRECATED.*
 
