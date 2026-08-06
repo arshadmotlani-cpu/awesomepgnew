@@ -44,8 +44,7 @@ function buildQueuesFromRows(
     roomId: string;
     bookingId: string;
     expectedCheckoutDate: string;
-    customerFirstName: string | null;
-    customerLastName: string | null;
+    customerFullName: string;
     vacatingStatus: 'pending' | 'approved' | 'completed' | 'rejected';
   }>,
   settlementByBooking: Map<string, SettlementSummary>,
@@ -75,8 +74,7 @@ function buildQueuesFromRows(
       ),
     );
 
-    const name =
-      [row.customerFirstName, row.customerLastName].filter(Boolean).join(' ').trim() || 'Resident';
+    const name = row.customerFullName.trim() || 'Resident';
     const item: RoomExitQueueItem = {
       bookingId: row.bookingId,
       customerName: name,
@@ -142,8 +140,7 @@ export async function loadRoomExitQueueForRoom(roomId: string): Promise<RoomExit
       roomId: residentExitBrain.roomId,
       bookingId: residentExitBrain.bookingId,
       expectedCheckoutDate: residentExitBrain.expectedCheckoutDate,
-      customerFirstName: customers.firstName,
-      customerLastName: customers.lastName,
+      customerFullName: customers.fullName,
       vacatingStatus: vacatingRequests.status,
     })
     .from(residentExitBrain)
@@ -162,8 +159,7 @@ export async function loadRoomExitQueuesForPg(pgId: string): Promise<RoomExitQue
       roomId: residentExitBrain.roomId,
       bookingId: residentExitBrain.bookingId,
       expectedCheckoutDate: residentExitBrain.expectedCheckoutDate,
-      customerFirstName: customers.firstName,
-      customerLastName: customers.lastName,
+      customerFullName: customers.fullName,
       vacatingStatus: vacatingRequests.status,
     })
     .from(residentExitBrain)
