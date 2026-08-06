@@ -1,5 +1,3 @@
-import 'server-only';
-
 import type { CollectionQueueItem } from '@/src/lib/billing/collectionsQueue';
 
 /**
