@@ -5,6 +5,7 @@ export type AdminRole = AdminUser['role'];
 export type AdminPermission =
   | 'pgs:write'
   | 'bookings:write'
+  | 'bookings:override_exit_lock'
   | 'extensions:write'
   | 'rent:write'
   | 'electricity:write'
@@ -26,6 +27,7 @@ const ROLE_PERMISSIONS: Record<AdminRole, ReadonlySet<AdminPermission>> = {
   super_admin: new Set([
     'pgs:write',
     'bookings:write',
+    'bookings:override_exit_lock',
     'extensions:write',
     'rent:write',
     'electricity:write',

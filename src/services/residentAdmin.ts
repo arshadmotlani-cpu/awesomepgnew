@@ -26,6 +26,7 @@ import {
   type ResidentVerificationSource,
   type ResidentVerificationStatus,
 } from '@/src/lib/residentVerification';
+import { assertBookingExitOperationsAllowed } from '@/src/lib/exit/exitBrainGuards';
 import { assertBookingOperationalGates } from '@/src/lib/occupancyEligibility';
 import { isNotOccupancyPlaceholderCustomerSql } from '@/src/lib/occupancySqlFilters';
 import {
@@ -551,6 +552,15 @@ export async function updateTenantTenancy(
   const blocksWholeRoom = input.blocksWholeRoom ?? booking.blocksRoomAvailability;
 
   if (newBedId !== primaryBedId) {
+    const exitGuard = await assertBookingExitOperationsAllowed({
+      bookingId: input.bookingId,
+      action: 'change_bed',
+      session,
+    });
+    if (!exitGuard.ok) {
+      return { ok: false, error: exitGuard.reason };
+    }
+
     const gates = await assertBookingOperationalGates(input.bookingId);
     if (!gates.ok) {
       return { ok: false, error: gates.reason };

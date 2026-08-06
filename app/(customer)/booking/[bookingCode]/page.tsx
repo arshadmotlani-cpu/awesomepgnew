@@ -189,6 +189,11 @@ export default async function BookingConfirmationPage(
 
   const vacatingRes = await getVacatingForBooking(b.id);
   const vacating = vacatingRes.ok ? vacatingRes.data : null;
+  const exitBrainSnapshot = vacating
+    ? await (
+        await import('@/src/lib/exit/loadResidentExitBrainSnapshot')
+      ).loadResidentExitBrainSnapshot(b.id)
+    : null;
 
   const briefing = isConfirmed
     ? await buildBriefingInputForBooking({
@@ -523,6 +528,7 @@ export default async function BookingConfirmationPage(
         durationMode={b.durationMode}
         status={b.status}
         vacating={vacating}
+        exitBrainSnapshot={exitBrainSnapshot}
       />
 
       <div className="mt-8 flex flex-col items-stretch gap-3 sm:flex-row">

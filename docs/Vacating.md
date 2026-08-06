@@ -10,7 +10,15 @@ Cross-links: [[START_HERE]] · [[features#Vacating pipeline]] · [[WORKFLOWS#Vac
 
 Manage the **move-out lifecycle**: resident files notice → admin approves → stay shortened (optional) → checkout settlement created → resident submits meter/UPI after vacate date → admin pays refund. Includes 14-day notice policy and **Notice settlement** — unused prepaid rent days after vacate (billing-cycle paid-until) satisfy notice shortfall before deposit deduction.
 
-**SSOT:** `vacating.ts`, `vacatingCheckoutBilling.ts`, `moveOutPipeline.ts`, `depositRefundEligibility.ts`, `vacatingJourney.ts`
+**SSOT (writes):** `vacating.ts`, `vacatingCheckoutBilling.ts`, `moveOutPipeline.ts` — Vacating Engine write pipeline (**frozen**)
+
+**SSOT (lifecycle reads):** `src/lib/exit/` — Exit Brain (**frozen** — [[EXIT_BRAIN_FREEZE]])
+
+**SSOT (settlement math):** CheckoutSettlementEngineV2 — [[SETTLEMENT_ENGINE_FREEZE]]
+
+**Presentation (legacy):** `vacatingJourney.ts`, `vacatingPresentation.ts` — chips and hero copy; behavior gates use Exit Brain `lifecycle.state` and `lifecycle.capabilities`, not raw `vacating.status`.
+
+**Future post-exit ops:** Housekeeping, cleaning, maintenance, turnover → **Room Turnover Brain** (planned). Consumes Exit Brain public APIs only.
 
 ---
 

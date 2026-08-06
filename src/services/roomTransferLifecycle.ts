@@ -6,6 +6,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   auditLog,
+  adminUsers,
   bedReservations,
   beds,
   customers,
@@ -19,6 +20,7 @@ import { classifyTransferAvailability } from '@/src/lib/roomTransfer/transferAva
 import { todayString } from '@/src/lib/dates';
 import { resolveAction, upsertOpenAction } from '@/src/services/unresolvedActions';
 import { scheduleAdminNotificationSync } from '@/src/services/adminLiveSync';
+import { assertBookingExitOperationsAllowed } from '@/src/lib/exit/exitBrainGuards';
 
 const OPEN_TRANSFER_STATUSES = ['submitted', 'approved', 'waiting'] as const;
 
@@ -78,6 +80,20 @@ export async function approveRoomChangeRequest(input: {
   if (!current) return { ok: false, message: 'Request not found.' };
   if (current.status !== 'submitted' && current.status !== 'waiting') {
     return { ok: false, message: `Cannot approve request in status ${current.status}.` };
+  }
+
+  const [adminRow] = await db
+    .select({ role: adminUsers.role })
+    .from(adminUsers)
+    .where(eq(adminUsers.id, input.adminId))
+    .limit(1);
+  const exitGuard = await assertBookingExitOperationsAllowed({
+    bookingId: current.bookingId,
+    action: 'room_transfer',
+    adminRole: adminRow?.role ?? null,
+  });
+  if (!exitGuard.ok) {
+    return { ok: false, message: exitGuard.reason };
   }
 
   const scenario = await classifyTransferAvailability(current.toBedId);

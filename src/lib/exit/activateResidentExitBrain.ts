@@ -1,7 +1,7 @@
 /**
  * Resident Exit Brain — activation (Engine write on vacating approval).
  */
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   bedReservations,
@@ -118,6 +118,27 @@ export async function completeResidentExitBrain(bookingId: string): Promise<void
     .update(residentExitBrain)
     .set({ status: 'completed', updatedAt: new Date() })
     .where(eq(residentExitBrain.bookingId, bookingId));
+}
+
+/** Deactivate exit mode when approved vacating is cancelled before settlement starts. */
+export async function deactivateResidentExitBrain(bookingId: string): Promise<void> {
+  await db
+    .update(residentExitBrain)
+    .set({ status: 'completed', updatedAt: new Date() })
+    .where(
+      and(eq(residentExitBrain.bookingId, bookingId), eq(residentExitBrain.status, 'active')),
+    );
+}
+
+export async function getExitBrainForBooking(
+  bookingId: string,
+): Promise<ResidentExitBrainRow | null> {
+  const [row] = await db
+    .select()
+    .from(residentExitBrain)
+    .where(eq(residentExitBrain.bookingId, bookingId))
+    .limit(1);
+  return row ?? null;
 }
 
 export async function getActiveExitBrainForBooking(

@@ -108,6 +108,8 @@ export function buildExitRefundEstimate(input: {
     depositHeldPaise: input.depositHeldPaise,
     disclaimer:
       'This is an estimate. Final refund is confirmed after checkout meter reading and admin settlement.',
+    confidencePercent: 100,
+    confidenceReasons: [],
   };
 }
 

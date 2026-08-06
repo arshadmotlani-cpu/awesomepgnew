@@ -4,6 +4,8 @@ import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { BookingInvoiceHistorySection } from '@/src/components/admin/bookings/BookingInvoiceHistorySection';
 import { CheckoutSettlementWizard } from '@/src/components/admin/checkout/CheckoutSettlementWizard';
 import { ExitBrainRefundBreakdown } from '@/src/components/customer/account/resident/vacating/ExitBrainRefundBreakdown';
+import { ExitBrainTimeline } from '@/src/components/customer/account/resident/vacating/ExitBrainTimeline';
+import { ExitBrainChecklist } from '@/src/components/customer/account/resident/vacating/ExitBrainChecklist';
 import { CheckoutRefundReceiptFromDetail } from '@/src/components/admin/checkout/CheckoutRefundReceipt';
 import { DepositActivitySection } from '@/src/components/admin/deposits/DepositActivitySection';
 import { DepositSummaryCard } from '@/src/components/admin/deposits/DepositSummaryCard';
@@ -124,7 +126,16 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
         {data.vacating ? (
           <div className="space-y-5">
             {data.exitBrainSnapshot ? (
-              <ExitBrainRefundBreakdown snapshot={data.exitBrainSnapshot} theme="dark" />
+              <div className="space-y-4">
+                {data.exitBrainSnapshot.lifecycle.state !== 'inactive' ? (
+                  <Badge tone="emerald">
+                    Exit: {data.exitBrainSnapshot.lifecycle.stateLabel}
+                  </Badge>
+                ) : null}
+                <ExitBrainTimeline events={data.exitBrainSnapshot.timeline} theme="dark" />
+                <ExitBrainChecklist items={data.exitBrainSnapshot.checklist} theme="dark" />
+                <ExitBrainRefundBreakdown snapshot={data.exitBrainSnapshot} theme="dark" />
+              </div>
             ) : null}
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
@@ -133,8 +144,19 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
                   {formatDate(data.vacating.vacatingDate)}
                 </p>
                 <p className="mt-1 text-sm text-white">
-                  Status:{' '}
-                  <span className="font-medium">{titleCase(data.vacating.status)}</span>
+                  {data.exitBrainSnapshot ? (
+                    <>
+                      Exit state:{' '}
+                      <span className="font-medium">
+                        {data.exitBrainSnapshot.lifecycle.stateLabel}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      Status:{' '}
+                      <span className="font-medium">{titleCase(data.vacating.status)}</span>
+                    </>
+                  )}
                   {data.vacating.noticeCompliant ? ' · notice compliant' : ' · notice shortfall'}
                 </p>
                 {data.moveOutWorkflow ? (

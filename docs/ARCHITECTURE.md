@@ -299,6 +299,8 @@ Strangler **read/intelligence layer** for Operations Centre — does not replace
 
 **Operations Recovery** (architecture freeze OR-0): generic operational recovery orchestrator under Property OS — plan-only in OR-0; execute gated OR-1+. Full design: [[OPERATIONS_RECOVERY]] · ADRs `docs/adr/ADR-OR-001` … `005`.
 
+**Frozen move-out SSOTs:** Exit Brain ([[EXIT_BRAIN_FREEZE]]) · Vacating Engine write pipeline · CheckoutSettlementEngineV2 ([[SETTLEMENT_ENGINE_FREEZE]]). Post-checkout turnover (cleaning, maintenance, room-ready) → Room Turnover Brain (planned), consuming Exit Brain public APIs.
+
 ```
 Property OS (pgId) ── property_os_index snapshot
   ├── KpiStrip

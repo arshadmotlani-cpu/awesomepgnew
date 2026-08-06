@@ -852,6 +852,9 @@ export async function cancelApprovedVacatingByCustomer(input: {
 
   await db.delete(vacatingRequests).where(eq(vacatingRequests.id, current.id));
 
+  const { deactivateResidentExitBrain } = await import('@/src/lib/exit/activateResidentExitBrain');
+  await deactivateResidentExitBrain(current.bookingId);
+
   await db.insert(auditLog).values({
     actorType: 'customer',
     actorId: input.customerId,

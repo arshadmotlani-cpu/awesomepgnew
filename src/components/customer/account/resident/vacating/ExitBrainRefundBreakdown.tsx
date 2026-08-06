@@ -30,7 +30,7 @@ export function ExitBrainRefundBreakdown({
   return (
     <section className={`${shell} p-4 sm:p-5`}>
       <h3 className={`text-sm font-semibold ${heading}`}>{title}</h3>
-      {snapshot.isExitMode ? (
+      {snapshot.lifecycle.isExitMode ? (
         <p className={`mt-1 text-xs ${muted}`}>
           Exit mode active — penalties and late fees are frozen. Updates when you pay outstanding
           bills.
@@ -72,6 +72,21 @@ export function ExitBrainRefundBreakdown({
               ? `-${paiseToInr(Math.abs(refundLine.amountPaise))}`
               : paiseToInr(refundLine.amountPaise)}
           </span>
+        </div>
+      ) : null}
+
+      {snapshot.refundEstimate.confidencePercent < 100 ? (
+        <div className={`mt-3 rounded-lg border px-3 py-2 ${divider} ${dark ? 'border-white/10' : 'border-zinc-200'}`}>
+          <p className={`text-xs font-medium ${heading}`}>
+            Confidence {snapshot.refundEstimate.confidencePercent}%
+          </p>
+          {snapshot.refundEstimate.confidenceReasons.length > 0 ? (
+            <ul className={`mt-1 space-y-0.5 text-[11px] ${muted}`}>
+              {snapshot.refundEstimate.confidenceReasons.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       ) : null}
 

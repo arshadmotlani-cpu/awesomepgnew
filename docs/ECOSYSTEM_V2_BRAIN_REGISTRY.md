@@ -28,6 +28,8 @@ When adding a Brain: append a registry entry here **before** writing code. When 
 | Room Brain | Awesome PG | 0.1 | PARTIAL |
 | Bed Brain | Awesome PG | 1.0 | LIVE |
 | Resident Brain | Awesome PG | 0.2 | PARTIAL |
+| Exit Brain | Awesome PG | 0.2 | FROZEN |
+| Room Turnover Brain | Awesome PG | 0.1 | PLANNED |
 | Electricity Brain | Awesome PG | 0.2 | PARTIAL |
 | Operations Brain | Awesome PG | 0.2 | PARTIAL |
 | Employee Brain | ecosystem / Workforce | 0.2 | PARTIAL |
@@ -200,6 +202,38 @@ When adding a Brain: append a registry entry here **before** writing code. When 
 - **Status:** PARTIAL  
 
 *Cross-engine LTV migrates to Customer Brain; Resident Brain keeps stay-scoped facts.*
+
+---
+
+## Exit Brain
+
+- **Brain name:** Exit Brain  
+- **Owner Engine:** Awesome PG *(activated by vacating Engine on notice approval)*  
+- **Owns (SSOT):** Exit mode lifecycle state machine · capability flags (`canMoveBed`, `canTransferRoom`, etc.) · frozen penalties · refund estimate · timeline · checklist · room leaving-soon queue  
+- **Reads:** Resident Brain · Deposit Brain · Billing Brain · Electricity Brain · checkout settlement (charges, meter, payout)  
+- **Publishes:** `exit.activated` · `exit.completed` *(phase_changed planned)*  
+- **Subscribes:** Vacating approved · checkout settlement updates · vacating cancelled  
+- **Public API:** `loadResidentExitBrainSnapshot(bookingId)` · `loadExitBrainLifecycleForBooking(bookingId)` · `loadRoomExitQueueForRoom(roomId)` · `loadRoomExitQueuesForPg(pgId)` · `assertExitCapabilityAllowed` · `assertBookingExitOperationsAllowed`
+- **Version:** 0.2  
+- **Status:** FROZEN *(architecture freeze 2026-08-06 — see [[EXIT_BRAIN_FREEZE]])*  
+
+*Vacating Engine owns writes (notice approve/cancel); Exit Brain owns read projections and exit-mode inventory locks. Do not add housekeeping, cleaning, maintenance, or turnover logic here — use Room Turnover Brain.*
+
+---
+
+## Room Turnover Brain
+
+- **Brain name:** Room Turnover Brain  
+- **Owner Engine:** Awesome PG / Room OS *(planned)*  
+- **Owns (SSOT):** Post-checkout turnover checklist · cleaning · maintenance handoff · bed prep · inspection · room-ready signal  
+- **Reads:** Exit Brain public APIs · Room Brain · Bed Brain  
+- **Publishes:** `room.turnover.started` · `room.turnover.completed` *(planned)*  
+- **Subscribes:** `exit.completed` · checkout settlement completed *(planned)*  
+- **Public API:** *(planned — must consume Exit Brain, never duplicate lifecycle)*  
+- **Version:** 0.1  
+- **Status:** PLANNED  
+
+*Successor for physical room turnover after Exit Brain completes checkout lifecycle. Not part of Exit Brain freeze.*
 
 ---
 

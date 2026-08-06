@@ -8,6 +8,8 @@ import {
   buildRoomElectricitySettlementSnapshot,
   type RoomElectricitySettlementSnapshot,
 } from '@/src/roomOs/engines/electricity';
+import type { ExitBrainLifecycleState } from '@/src/lib/exit/exitBrainStateMachine';
+import { loadRoomExitQueueForRoom } from '@/src/lib/exit/loadRoomExitQueue';
 import type { BedBrainSnapshot, BookingLedgerSnapshot, RoomOsSharedSnapshot } from '@/src/roomOs/types';
 import { eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
@@ -49,6 +51,15 @@ export type RoomBrainSnapshot = {
   exitMode: {
     residentsInExitMode: number;
     bookingIds: string[];
+  };
+  exitQueue: {
+    leavingSoon: Array<{
+      bookingId: string;
+      customerName: string;
+      expectedCheckoutDate: string;
+      lifecycleState: ExitBrainLifecycleState;
+      lifecycleLabel: string;
+    }>;
   };
   meterStatus: string;
   billingStatus: string;
@@ -139,6 +150,8 @@ export async function loadRoomBrainSnapshot(input: {
     .from(residentExitBrain)
     .where(and(eq(residentExitBrain.roomId, input.roomId), eq(residentExitBrain.status, 'active')));
 
+  const leavingSoon = await loadRoomExitQueueForRoom(input.roomId);
+
   return {
     apiVersion: 'room-brain/v1',
     roomId: input.roomId,
@@ -165,6 +178,9 @@ export async function loadRoomBrainSnapshot(input: {
     exitMode: {
       residentsInExitMode: exitRows.length,
       bookingIds: exitRows.map((r) => r.bookingId),
+    },
+    exitQueue: {
+      leavingSoon,
     },
     meterStatus,
     billingStatus,

@@ -1,8 +1,14 @@
 import Link from 'next/link';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
-import { legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
+import { legacyResidentTabHref } from '@/src/lib/accountNavigation';
 import { formatDate } from '@/src/lib/format';
-import { vacatingStatusLabel } from '@/src/lib/residents/vacatingJourney';
+import type { ExitBrainLifecycle } from '@/src/lib/exit/exitBrainStateMachine';
+import {
+  residentMoveOutHint,
+  residentMoveOutStatusLabel,
+  resolveExitLifecycleFromSnapshot,
+} from '@/src/lib/exit/exitBrainLifecycleUi';
+import type { ResidentExitBrainSnapshot } from '@/src/lib/exit/exitBrainTypes';
 
 export function BookingRequestVacateSection({
   bookingId,
@@ -10,16 +16,19 @@ export function BookingRequestVacateSection({
   durationMode,
   status,
   vacating,
+  exitBrainSnapshot = null,
 }: {
   bookingId: string;
   bookingCode: string;
   durationMode: string;
   status: string;
   vacating: VacatingForBookingRow | null;
+  exitBrainSnapshot?: ResidentExitBrainSnapshot | null;
 }) {
   const isMonthlyResidency =
     durationMode === 'monthly' || durationMode === 'open_ended';
   const canRequestVacate = status === 'confirmed' && isMonthlyResidency;
+  const lifecycle: ExitBrainLifecycle = resolveExitLifecycleFromSnapshot(exitBrainSnapshot);
 
   if (!canRequestVacate && !vacating) return null;
 
@@ -30,21 +39,13 @@ export function BookingRequestVacateSection({
         <div className="mt-3 space-y-3 text-sm">
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">
-              {vacatingStatusLabel(vacating.status)}
+              {residentMoveOutStatusLabel(lifecycle)}
             </span>
             <span className="text-zinc-600">
               Vacate date · {formatDate(vacating.vacatingDate)}
             </span>
           </div>
-          <p className="text-zinc-600">
-            {vacating.status === 'pending'
-              ? 'Your request is waiting for admin approval. Refund and final settlement are calculated only after approval.'
-              : vacating.status === 'approved'
-                ? 'Vacate approved — deposit refund unlocks on your vacate date.'
-                : vacating.status === 'completed'
-                  ? 'Move-out complete. See your resident area for final settlement details.'
-                  : 'See your resident area for request details.'}
-          </p>
+          <p className="text-zinc-600">{residentMoveOutHint(lifecycle)}</p>
           <Link
             href={legacyResidentTabHref('vacating')}
             className="inline-flex text-sm font-semibold text-indigo-600 hover:text-indigo-500"

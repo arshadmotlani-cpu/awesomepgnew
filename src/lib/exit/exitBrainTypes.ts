@@ -1,5 +1,9 @@
 /** Resident Exit Brain — public read model types (no internal IDs in resident UI). */
 
+import type { ExitBrainPhase } from '@/src/lib/exit/exitBrainPhase';
+import type { ExitChecklistItem } from '@/src/lib/exit/exitBrainChecklist';
+import type { ExitTimelineEvent } from '@/src/lib/exit/exitBrainTimeline';
+
 export type ExitBrainStatus = 'inactive' | 'active' | 'completed';
 
 export type ExitRefundEstimateLineKey =
@@ -40,16 +44,25 @@ export type ExitRefundEstimate = {
   estimatedRefundPaise: number;
   depositHeldPaise: number;
   disclaimer: string;
+  confidencePercent: number;
+  confidenceReasons: string[];
 };
+
+import type { ExitBrainLifecycle } from '@/src/lib/exit/exitBrainStateMachine';
+import type { ExitBrainCapabilityKey } from '@/src/lib/exit/exitBrainStateMachine';
 
 export type ResidentExitBrainSnapshot = {
   apiVersion: 'exit-brain/v1';
   bookingId: string;
   status: ExitBrainStatus;
+  phase: ExitBrainPhase;
+  lifecycle: ExitBrainLifecycle;
   isExitMode: boolean;
   activatedAt: string | null;
   noticeGivenDate: string | null;
   expectedCheckoutDate: string | null;
+  timeline: ExitTimelineEvent[];
+  checklist: ExitChecklistItem[];
   frozen: {
     noticePenaltyPaise: number;
     rentLateFeePaise: number;

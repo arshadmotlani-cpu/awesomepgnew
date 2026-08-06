@@ -12,7 +12,6 @@ import { ResidentMoveOutSettlementStory } from '@/src/components/customer/accoun
 import { cancelApprovedVacatingAction } from '@/app/(customer)/account/resident/vacating-date-change-actions';
 import {
   buildVacatingSettlementLines,
-  canRequestMoveOutRefund,
   vacatingNextStep,
   vacatingStageIndex,
 } from '@/src/lib/residents/vacatingJourney';
@@ -23,7 +22,6 @@ import {
   expectedCompletionLabel,
   isBeforeVacatingDate,
   refundUnlockCountdown,
-  residentMoveOutChipLabel,
   residentSettlementStatusLabel,
 } from '@/src/lib/residents/vacatingPresentation';
 import { isFixedStayDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
@@ -33,7 +31,17 @@ import { formatDate, paiseToInr } from '@/src/lib/format';
 import { primaryBtn } from '@/src/lib/design-system/tokens';
 import type { EstimatedSettlementPreview } from '@/src/lib/vacating/estimatedSettlementPreview';
 import { ExitBrainRefundBreakdown } from '@/src/components/customer/account/resident/vacating/ExitBrainRefundBreakdown';
+import { ExitBrainTimeline } from '@/src/components/customer/account/resident/vacating/ExitBrainTimeline';
+import { ExitBrainChecklist } from '@/src/components/customer/account/resident/vacating/ExitBrainChecklist';
 import type { ResidentExitBrainSnapshot } from '@/src/lib/exit/exitBrainTypes';
+import {
+  isMoveOutLifecycleActive,
+  isMoveOutLifecycleComplete,
+  isNoticeApprovedOrExitActive,
+  isNoticeSubmittedState,
+  resolveExitLifecycleFromSnapshot,
+  residentMoveOutStatusLabel,
+} from '@/src/lib/exit/exitBrainLifecycleUi';
 
 type Props = {
   bookingId: string;
@@ -140,6 +148,7 @@ export function VacatingHome({
 }: Props) {
   const router = useRouter();
   const fixedStay = isFixedStayDurationMode(durationMode);
+  const lifecycle = resolveExitLifecycleFromSnapshot(exitBrainSnapshot);
 
   const vacatingDate = safeDateString(vacating?.vacatingDate);
   const noticeGiven = safeDateString(vacating?.noticeGivenDate);
@@ -151,16 +160,12 @@ export function VacatingHome({
     estimatedSettlement?.mode ?? (settlementWaterfall != null ? 'final' : 'estimate');
 
   const showSettlementStory =
-    vacating != null &&
-    ['pending', 'approved', 'completed'].includes(vacating.status) &&
-    resolvedWaterfall != null;
+    vacating != null && isMoveOutLifecycleActive(lifecycle) && resolvedWaterfall != null;
 
-  const refundGate = canRequestMoveOutRefund({
-    vacatingStatus: vacating?.status ?? null,
-    vacatingDate,
-    checkoutStatus,
-    checkoutSettlementSuppressed,
-  });
+  const refundGate = {
+    allowed: lifecycle.capabilities.canRequestRefund.allowed,
+    reason: lifecycle.capabilities.canRequestRefund.reason,
+  };
 
   const activeIndex = vacatingStageIndex({
     vacatingStatus: vacating?.status ?? null,
@@ -206,13 +211,7 @@ export function VacatingHome({
     durationMode,
   );
   const isRejected = vacating?.status === 'rejected';
-  const isActiveVacating =
-    vacating != null && ['pending', 'approved'].includes(vacating.status);
-
-  const isMoveOutComplete =
-    checkoutStatus === 'refund_paid' ||
-    checkoutStatus === 'completed' ||
-    vacating?.status === 'completed';
+  const isMoveOutComplete = isMoveOutLifecycleComplete(lifecycle);
 
   const showRefundForm =
     refundGate.allowed &&
@@ -224,12 +223,12 @@ export function VacatingHome({
     completionLabel && !isMoveOutComplete && !showSettlementStory && activeIndex <= 3;
 
   const beforeVacateDate =
-    vacating?.status === 'approved' &&
+    isNoticeApprovedOrExitActive(lifecycle.state) &&
     vacatingDate != null &&
     isBeforeVacatingDate(vacatingDate);
 
   const showChangeLeavingDate =
-    vacating?.status === 'approved' &&
+    lifecycle.capabilities.canEditVacating.allowed &&
     !checkoutSettlementSuppressed &&
     !checkoutStatus &&
     !isMoveOutComplete;
@@ -237,9 +236,9 @@ export function VacatingHome({
   const showRefundLockedCard =
     !showRefundForm &&
     !isMoveOutComplete &&
-    vacating?.status === 'approved' &&
-    activeIndex === 2 &&
-    beforeVacateDate;
+    lifecycle.state === 'exit_active' &&
+    beforeVacateDate &&
+    activeIndex === 2;
 
   const unlockCountdown =
     showRefundLockedCard && vacatingDate
@@ -276,8 +275,19 @@ export function VacatingHome({
     ) : null;
 
   const exitBrainPanel =
-    exitBrainSnapshot && vacating && ['pending', 'approved'].includes(vacating.status) ? (
-      <ExitBrainRefundBreakdown snapshot={exitBrainSnapshot} theme="light" />
+    exitBrainSnapshot &&
+    vacating &&
+    (isMoveOutLifecycleActive(lifecycle) || lifecycle.state === 'refund_completed') ? (
+      <div className="space-y-4">
+        {exitBrainSnapshot.lifecycle.state !== 'inactive' ? (
+          <p className="text-xs font-medium text-zinc-600">
+            Exit state: {exitBrainSnapshot.lifecycle.stateLabel}
+          </p>
+        ) : null}
+        <ExitBrainTimeline events={exitBrainSnapshot.timeline} theme="light" />
+        <ExitBrainChecklist items={exitBrainSnapshot.checklist} theme="light" />
+        <ExitBrainRefundBreakdown snapshot={exitBrainSnapshot} theme="light" />
+      </div>
     ) : null;
 
   if (fixedStay) {
@@ -341,13 +351,8 @@ export function VacatingHome({
                   {roomLabel} · Booking {bookingCode}
                 </p>
               </div>
-              {vacating ? (
-                <StatusChip
-                  status={residentMoveOutChipLabel({
-                    vacatingStatus: vacating.status,
-                    checkoutStatus,
-                  })}
-                />
+              {vacating && lifecycle.state !== 'inactive' ? (
+                <StatusChip status={residentMoveOutStatusLabel(lifecycle)} />
               ) : null}
             </div>
           </div>
@@ -441,7 +446,7 @@ export function VacatingHome({
             />
           ) : !showRefundLockedCard &&
             !refundGate.allowed &&
-            vacating.status === 'approved' &&
+            isNoticeApprovedOrExitActive(lifecycle.state) &&
             activeIndex === 2 ? (
             <ApgCard tier="account" className="p-5">
               <h3 className="text-sm font-semibold text-zinc-900">Refund request</h3>
@@ -465,11 +470,11 @@ export function VacatingHome({
             </ApgCard>
           ) : null}
 
-          {isActiveVacating && vacating.status === 'pending' ? (
+          {isNoticeSubmittedState(lifecycle.state) ? (
             <CancelVacatingForm requestId={vacating.id} bookingId={bookingId} />
           ) : null}
 
-          {isActiveVacating && vacating.status === 'approved' && !checkoutStatus ? (
+          {lifecycle.capabilities.canEditVacating.allowed && !checkoutStatus ? (
             <ApgCard tier="account" className="p-5">
               <p className="text-sm text-zinc-600">
                 Need a date that does not satisfy the 14-day notice rule? Cancel this approved move-out

@@ -16,12 +16,16 @@ export function BedMapMoveForm({
   customerId,
   currentBedId,
   beds,
+  disabled = false,
+  disabledReason,
 }: {
   pgId: string;
   bookingId: string;
   customerId: string;
   currentBedId: string;
   beds: BedOption[];
+  disabled?: boolean;
+  disabledReason?: string;
 }) {
   const router = useRouter();
   const formId = useId().replace(/:/g, '');
@@ -46,7 +50,8 @@ export function BedMapMoveForm({
       <select
         name="newBedId"
         defaultValue={currentBedId}
-        className="apg-admin-field w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+        disabled={disabled}
+        className="apg-admin-field w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm disabled:opacity-60"
       >
         {beds.map((b) => (
           <option key={b.bedId} value={b.bedId}>
@@ -54,6 +59,9 @@ export function BedMapMoveForm({
           </option>
         ))}
       </select>
+      {disabled && disabledReason ? (
+        <p className="text-xs text-amber-200/90">{disabledReason}</p>
+      ) : null}
       {state.error ? <p className="text-xs text-rose-300">{state.error}</p> : null}
       {state.ok ? <p className="text-xs text-emerald-300">Bed updated.</p> : null}
       <AdminConfirmSubmit
@@ -63,6 +71,7 @@ export function BedMapMoveForm({
         confirmLabel="Save bed move"
         tone="danger"
         pending={pending}
+        disabled={disabled}
         beforeConfirm={() => {
           const form = document.getElementById(formId) as HTMLFormElement | null;
           const select = form?.querySelector<HTMLSelectElement>('select[name="newBedId"]');

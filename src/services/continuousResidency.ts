@@ -22,6 +22,7 @@ import {
   vacatingRequests,
 } from '@/src/db/schema';
 import { diffDays, formatDate } from '@/src/lib/dates';
+import { assertExitCapabilityAllowed } from '@/src/lib/exit/exitBrainGuards';
 import { archiveCheckoutSettlement } from '@/src/services/checkoutSettlement';
 
 /** Max calendar days between prior checkout and next check-in to count as continuous. */
@@ -297,7 +298,11 @@ export async function ensureContinuousResidencyOnBookingConfirmed(
   if (priorCompleted?.check_out) {
     const gap = diffDays(priorCompleted.check_out, window.checkIn);
     if (isWithinContinuityWindow(priorCompleted.check_out, window.checkIn)) {
-      merged = true;
+      const mergeGuard = await assertExitCapabilityAllowed({
+        bookingId: priorCompleted.booking_id,
+        capability: 'canMergeResidency',
+      });
+      merged = mergeGuard.ok;
     }
   }
 

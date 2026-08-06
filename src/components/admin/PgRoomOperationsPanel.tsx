@@ -6,10 +6,8 @@ import { CreateRoomWizard } from './CreateRoomWizard';
 import { RoomConfigurationEditor } from './RoomConfigurationEditor';
 import { RoomIntegrityBadge } from './RoomIntegrityBadge';
 import type { RoomIntegrityResult } from '@/src/lib/roomIntegrity/types';
-import {
-  resolveRoomTypeNameForCapacity,
-  roomCapacityFromActiveBedCount,
-} from '@/src/lib/roomCapacitySsot';
+import type { RoomExitQueueItem } from '@/src/lib/exit/loadRoomExitQueue';
+import { formatDate } from '@/src/lib/format';
 
 type FloorRow = {
   id: string;
@@ -37,6 +35,7 @@ export function PgRoomOperationsPanel({
   beds,
   availabilitySummary,
   roomIntegrity = [],
+  roomExitQueues = {},
 }: {
   pgId: string;
   floors: FloorRow[];
@@ -48,6 +47,7 @@ export function PgRoomOperationsPanel({
     maintenanceBeds: number;
   };
   roomIntegrity?: RoomIntegrityResult[];
+  roomExitQueues?: Record<string, RoomExitQueueItem[]>;
 }) {
   const [showAddBed, setShowAddBed] = useState(beds.length === 0);
 
@@ -174,6 +174,19 @@ export function PgRoomOperationsPanel({
               className="rounded-xl border border-zinc-800 bg-zinc-950/40 overflow-hidden"
             >
               <header className="border-b border-zinc-800 bg-zinc-950/60 px-4 py-3">
+                {roomExitQueues[room.roomId]?.length ? (
+                  <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-sm">
+                    <p className="font-medium text-amber-100">Leaving soon</p>
+                    <ul className="mt-2 space-y-1 text-xs text-amber-100/90">
+                      {roomExitQueues[room.roomId]!.map((item) => (
+                        <li key={item.bookingId}>
+                          {item.customerName} · {formatDate(item.expectedCheckoutDate)} ·{' '}
+                          {item.lifecycleLabel}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 <RoomConfigurationEditor
                   pgId={pgId}
                   roomId={room.roomId}

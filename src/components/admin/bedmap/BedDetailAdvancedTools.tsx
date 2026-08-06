@@ -12,6 +12,11 @@ import {
   UndoVacatingApprovalButton,
 } from '@/src/components/admin/VacatingActions';
 import { formatDate, paiseToInr } from '@/src/lib/format';
+import {
+  buildExitLifecycleFromBedVacating,
+  isNoticeApprovedOrExitActive,
+  isNoticeSubmittedState,
+} from '@/src/lib/exit/exitBrainLifecycleUi';
 import type { PgBedMapBed, PgBedMapFloor, PgBedMapRoom } from '@/src/services/pgBedMap';
 
 type BedOption = { bedId: string; label: string };
@@ -30,6 +35,8 @@ export function BedDetailAdvancedTools({
   moveBedOptions: BedOption[];
 }) {
   const person = bed.occupant ?? bed.reserved;
+  const exitLifecycle = bed.vacating ? buildExitLifecycleFromBedVacating(bed.vacating) : null;
+  const canMoveBed = exitLifecycle?.capabilities.canMoveBed.allowed ?? true;
 
   return (
     <AdminAdvancedToolsSection
@@ -61,35 +68,38 @@ export function BedDetailAdvancedTools({
                   Notice fee {paiseToInr(bed.vacating.deductionPaise)}
                 </p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {bed.vacating.status === 'pending' ? (
+                  {exitLifecycle && isNoticeSubmittedState(exitLifecycle.state) ? (
                     <RejectVacatingButton requestId={bed.vacating.requestId} pgId={pgId} />
                   ) : null}
-                  {bed.vacating.status === 'approved' ? (
-                    bed.vacating.settlementId ? (
+                  {exitLifecycle &&
+                  isNoticeApprovedOrExitActive(exitLifecycle.state) &&
+                  bed.vacating.settlementId ? (
+                    <Link
+                      href={`/admin/checkout-settlements/${bed.vacating.settlementId}`}
+                      className="rounded-lg bg-[#FF5A1F] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110"
+                    >
+                      Open checkout settlement →
+                    </Link>
+                  ) : null}
+                  {exitLifecycle &&
+                  isNoticeApprovedOrExitActive(exitLifecycle.state) &&
+                  !bed.vacating.settlementId ? (
+                    <>
+                      <p className="text-[10px] text-orange-200/90">
+                        Complete move-out via Checkout Processing — legacy Complete is disabled.
+                      </p>
                       <Link
-                        href={`/admin/checkout-settlements/${bed.vacating.settlementId}`}
-                        className="rounded-lg bg-[#FF5A1F] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110"
+                        href="/admin/checkout-settlements"
+                        className="inline-flex rounded-lg border border-orange-400/40 px-3 py-1.5 text-xs font-medium text-orange-100 hover:bg-orange-500/10"
                       >
-                        Open checkout settlement →
+                        Go to checkout settlements
                       </Link>
-                    ) : (
-                      <>
-                        <p className="text-[10px] text-orange-200/90">
-                          Complete move-out via Checkout Processing — legacy Complete is disabled.
-                        </p>
-                        <Link
-                          href="/admin/checkout-settlements"
-                          className="inline-flex rounded-lg border border-orange-400/40 px-3 py-1.5 text-xs font-medium text-orange-100 hover:bg-orange-500/10"
-                        >
-                          Go to checkout settlements
-                        </Link>
-                      </>
-                    )
+                      <UndoVacatingApprovalButton requestId={bed.vacating.requestId} pgId={pgId} />
+                    </>
                   ) : null}
-                  {bed.vacating.status === 'approved' && !bed.vacating.settlementId ? (
-                    <UndoVacatingApprovalButton requestId={bed.vacating.requestId} pgId={pgId} />
-                  ) : null}
-                  {bed.vacating.status === 'pending' || bed.vacating.status === 'approved' ? (
+                  {exitLifecycle &&
+                  (isNoticeSubmittedState(exitLifecycle.state) ||
+                    exitLifecycle.capabilities.canEditVacating.allowed) ? (
                     <CancelVacatingNoticeButton requestId={bed.vacating.requestId} pgId={pgId} />
                   ) : null}
                 </div>
@@ -102,6 +112,8 @@ export function BedDetailAdvancedTools({
               customerId={person.customerId}
               currentBedId={bed.bedId}
               beds={moveBedOptions}
+              disabled={!canMoveBed}
+              disabledReason={exitLifecycle?.capabilities.canMoveBed.reason}
             />
             <BedMapReservationForm pgId={pgId} bookingId={person.bookingId} mode="shift_to_reservation" />
             <BedMapRemoveTenantButton
