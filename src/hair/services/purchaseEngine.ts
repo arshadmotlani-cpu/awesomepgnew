@@ -4,6 +4,7 @@ import {
   fyhBrands,
   fyhExpenses,
   fyhProducts,
+  fyhPurchaseAuditEvents,
   fyhPurchaseLines,
   fyhPurchases,
   fyhVendorPayables,
@@ -15,6 +16,7 @@ import {
   emitPurchaseRecordedEvent,
 } from '@/src/hair/lib/purchaseEvents';
 import { applyMovement, updateWeightedAverageCost } from '@/src/hair/services/stock';
+import { refreshPayableBalance } from '@/src/hair/services/vendorPaymentEngine';
 
 export type PurchaseLineInput = {
   productId: string;
@@ -39,7 +41,8 @@ function toPaise(rupees: number): number {
 
 async function nextPurchaseNumber(): Promise<string> {
   const ts = Date.now().toString(36).toUpperCase();
-  return `PUR-${ts}`;
+  const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `PUR-${ts}${rand}`;
 }
 
 function validateLines(lines: PurchaseLineInput[]) {
@@ -174,4 +177,185 @@ export async function getPurchaseEngineDetail(purchaseId: string) {
     .limit(1);
 
   return { ...header, lines, payable: payable ?? null };
+}
+
+export type UpdatePurchaseInput = {
+  vendorInvoiceRef?: string | null;
+  purchaseDate: string;
+  notes?: string | null;
+  lines: PurchaseLineInput[];
+  staffName: string;
+  staffEmployeeId?: string | null;
+};
+
+export async function attachPurchaseInvoice(
+  purchaseId: string,
+  input: {
+    attachmentUrl: string;
+    attachmentContentType: string;
+    staffName: string;
+  },
+) {
+  const [updated] = await hairDb
+    .update(fyhPurchases)
+    .set({
+      attachmentUrl: input.attachmentUrl,
+      attachmentContentType: input.attachmentContentType,
+      attachmentUploadedAt: new Date(),
+      attachmentUploadedBy: input.staffName.trim(),
+      updatedAt: new Date(),
+    })
+    .where(eq(fyhPurchases.id, purchaseId))
+    .returning();
+  if (!updated) throw new Error('Purchase not found');
+  return updated;
+}
+
+export async function updatePurchase(purchaseId: string, input: UpdatePurchaseInput) {
+  validateLines(input.lines);
+
+  return hairDb.transaction(async (tx) => {
+    const db = tx as unknown as typeof hairDb;
+
+    await tx.execute(sql`SELECT id FROM fyh_purchases WHERE id = ${purchaseId} FOR UPDATE`);
+
+    const [purchase] = await tx
+      .select()
+      .from(fyhPurchases)
+      .where(eq(fyhPurchases.id, purchaseId))
+      .limit(1);
+    if (!purchase) throw new Error('Purchase not found');
+    if (purchase.status !== 'posted') throw new Error('Cannot edit a cancelled purchase');
+
+    const [payable] = await tx
+      .select()
+      .from(fyhVendorPayables)
+      .where(eq(fyhVendorPayables.purchaseId, purchaseId))
+      .limit(1);
+    if (!payable) throw new Error('Payable not found');
+
+    const oldLines = await tx
+      .select()
+      .from(fyhPurchaseLines)
+      .where(eq(fyhPurchaseLines.purchaseId, purchaseId));
+
+    const lineTotals = input.lines.map((line) => {
+      const qty = Number(line.quantity);
+      const unitCostPaise = toPaise(line.unitCostRupees);
+      return { ...line, qty, unitCostPaise, lineTotalPaise: Math.round(qty * unitCostPaise) };
+    });
+    const newTotalPaise = lineTotals.reduce((sum, l) => sum + l.lineTotalPaise, 0);
+    const settledPaise = payable.amountPaise - payable.balancePaise;
+    if (newTotalPaise < settledPaise) {
+      throw new Error('New purchase total cannot be less than amount already paid or returned');
+    }
+
+    const before = {
+      vendorInvoiceRef: purchase.vendorInvoiceRef,
+      purchaseDate: purchase.purchaseDate,
+      notes: purchase.notes,
+      totalPaise: purchase.totalPaise,
+      lines: oldLines.map((l) => ({
+        productId: l.productId,
+        quantity: Number(l.quantity),
+        unitCostPaise: l.unitCostPaise,
+      })),
+    };
+
+    const oldByProduct = new Map(
+      oldLines.map((l) => [l.productId, { qty: Number(l.quantity), unitCostPaise: l.unitCostPaise }]),
+    );
+    const newByProduct = new Map(
+      lineTotals.map((l) => [l.productId, { qty: l.qty, unitCostPaise: l.unitCostPaise }]),
+    );
+
+    const productIds = new Set([...oldByProduct.keys(), ...newByProduct.keys()]);
+    for (const productId of productIds) {
+      const oldLine = oldByProduct.get(productId);
+      const newLine = newByProduct.get(productId);
+      const oldQty = oldLine?.qty ?? 0;
+      const newQty = newLine?.qty ?? 0;
+      const delta = newQty - oldQty;
+      if (delta !== 0) {
+        await applyMovement(db, {
+          productId,
+          quantityDelta: delta,
+          movementType: 'adjustment',
+          referenceType: 'purchase_edit',
+          referenceId: purchaseId,
+          notes: `Purchase edit ${purchase.purchaseNumber}`,
+        });
+      }
+      if (delta > 0 && newLine) {
+        await updateWeightedAverageCost(db, productId, delta, newLine.unitCostPaise);
+      }
+    }
+
+    await tx.delete(fyhPurchaseLines).where(eq(fyhPurchaseLines.purchaseId, purchaseId));
+    for (const line of lineTotals) {
+      await tx.insert(fyhPurchaseLines).values({
+        purchaseId,
+        productId: line.productId,
+        quantity: line.qty,
+        unitCostPaise: line.unitCostPaise,
+        lineTotalPaise: line.lineTotalPaise,
+      });
+    }
+
+    await tx
+      .update(fyhPurchases)
+      .set({
+        vendorInvoiceRef: input.vendorInvoiceRef?.trim() || null,
+        purchaseDate: input.purchaseDate,
+        notes: input.notes?.trim() || null,
+        totalPaise: newTotalPaise,
+        updatedAt: new Date(),
+      })
+      .where(eq(fyhPurchases.id, purchaseId));
+
+    await tx
+      .update(fyhVendorPayables)
+      .set({ amountPaise: newTotalPaise, updatedAt: new Date() })
+      .where(eq(fyhVendorPayables.id, payable.id));
+
+    await refreshPayableBalance(db, payable.id);
+
+    await tx
+      .update(fyhExpenses)
+      .set({
+        amountPaise: newTotalPaise,
+        expenseDate: input.purchaseDate,
+        notes: input.notes?.trim() || null,
+        updatedAt: new Date(),
+      })
+      .where(eq(fyhExpenses.purchaseId, purchaseId));
+
+    await tx.insert(fyhPurchaseAuditEvents).values({
+      purchaseId,
+      action: 'purchase_edited',
+      diff: {
+        before,
+        after: {
+          vendorInvoiceRef: input.vendorInvoiceRef?.trim() || null,
+          purchaseDate: input.purchaseDate,
+          notes: input.notes?.trim() || null,
+          totalPaise: newTotalPaise,
+          lines: lineTotals.map((l) => ({
+            productId: l.productId,
+            quantity: l.qty,
+            unitCostPaise: l.unitCostPaise,
+          })),
+        },
+      },
+      staffName: input.staffName.trim(),
+      staffEmployeeId: input.staffEmployeeId ?? null,
+    });
+
+    const [updated] = await tx
+      .select()
+      .from(fyhPurchases)
+      .where(eq(fyhPurchases.id, purchaseId))
+      .limit(1);
+    return updated!;
+  });
 }

@@ -27,6 +27,10 @@ export const fyhPurchases = pgTable(
     purchaseDate: date('purchase_date').notNull(),
     totalPaise: bigint('total_paise', { mode: 'number' }).notNull().default(0),
     notes: text('notes'),
+    attachmentUrl: text('attachment_url'),
+    attachmentContentType: text('attachment_content_type'),
+    attachmentUploadedAt: timestamp('attachment_uploaded_at', { withTimezone: true }),
+    attachmentUploadedBy: text('attachment_uploaded_by'),
     status: text('status').$type<FyhPurchaseStatus>().notNull().default('posted'),
     staffName: text('staff_name').notNull(),
     staffEmployeeId: uuid('staff_employee_id'),
@@ -59,6 +63,10 @@ export const fyhPurchaseLines = pgTable(
 export const FYH_PAYABLE_STATUSES = ['open', 'paid', 'partial'] as const;
 export type FyhPayableStatus = (typeof FYH_PAYABLE_STATUSES)[number];
 
+/**
+ * One payable row per purchase invoice (1:1 via purchase_id UNIQUE).
+ * Vendor-level outstanding is always computed as SUM(balance_paise) — never stored as a running total.
+ */
 export const fyhVendorPayables = pgTable(
   'fyh_vendor_payables',
   {

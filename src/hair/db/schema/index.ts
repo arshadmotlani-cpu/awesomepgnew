@@ -24,4 +24,6 @@ export * from './brands';
 export * from './expenses';
 export * from './floorStock';
 export * from './purchases';
+export * from './vendorPayments';
+export * from './vendorActivity';
 export * from '@/src/workforce/db/schema';

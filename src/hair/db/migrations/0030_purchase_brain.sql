@@ -32,6 +32,7 @@ CREATE INDEX IF NOT EXISTS fyh_purchase_lines_purchase_idx ON fyh_purchase_lines
 CREATE TABLE IF NOT EXISTS fyh_vendor_payables (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   vendor_id uuid NOT NULL REFERENCES fyh_vendors(id) ON DELETE RESTRICT,
+  -- One payable per purchase invoice (not an aggregated vendor balance).
   purchase_id uuid NOT NULL UNIQUE REFERENCES fyh_purchases(id) ON DELETE CASCADE,
   amount_paise bigint NOT NULL DEFAULT 0,
   balance_paise bigint NOT NULL DEFAULT 0,

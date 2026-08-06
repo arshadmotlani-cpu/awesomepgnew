@@ -211,6 +211,20 @@
       "when": 1756500000000,
       "tag": "0030_purchase_brain",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1756600000000,
+      "tag": "0031_vendor_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1756700000000,
+      "tag": "0032_vendor_brain_freeze",
+      "breakpoints": true
     }
   ]
 }

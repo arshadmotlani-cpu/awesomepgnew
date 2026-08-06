@@ -35,7 +35,7 @@ Do **not** extend these paths or tables:
 **One action — record a purchase — atomically creates:**
 
 1. Purchase record (`fyh_purchases` + lines)
-2. Vendor payable (`fyh_vendor_payables`)
+2. Vendor payable (`fyh_vendor_payables`) — **one row per purchase invoice** (`purchase_id` UNIQUE). Vendor outstanding = `SUM(balance_paise)` at query time, never a stored running vendor total.
 3. Stock inward (`fyh_stock_movements`, `movement_type = purchase`)
 4. Expense row (`fyh_expenses`, `category = inventory_purchase`, linked to purchase)
 5. Domain event stub (`salon.purchase.recorded` — Owner OS hook)
@@ -52,13 +52,20 @@ Nav: new root **Purchases** between Vendors and Expenses.
 
 ---
 
-## Phase 3 — Vendor Ledger Brain
+## Phase 3 — Vendor Ledger Brain (FROZEN 2026-08-06)
 
-Vendor detail becomes a **Resident-style financial account**:
+Vendor detail (`/vendors/[id]`) is a **Resident-style financial account**:
 
-- Outstanding balance (payables − payments projection)
-- Tabs: Invoices · Payments · Returns · Brands · Products
-- Read-only projections from Purchase Brain — no duplicate math in UI
+- Dashboard: outstanding, advance, purchases, payments, returns, avg payment delay
+- Invoice ledger (one payable per purchase)
+- Payment history with numbers, attachments, reversal (never delete)
+- Bank-style statement PDF (custom date range, opening/closing balance)
+- Activity timeline (purchases, payments, returns, edits, notes)
+- Purchase edit with audit trail; invoice attachment upload
+
+**Architecture frozen:** invoice-based payables only; `SUM(balance_paise)` for vendor outstanding.
+
+Migration: `0031_vendor_ledger`, `0032_vendor_brain_freeze`.
 
 ---
 

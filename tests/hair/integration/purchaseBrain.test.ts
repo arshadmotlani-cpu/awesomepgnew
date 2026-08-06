@@ -89,3 +89,41 @@ test('createPurchase atomically creates payable, movement, and expense', async (
   assert.equal(expense.category, 'inventory_purchase');
   assert.equal(expense.amountPaise, 50_000);
 });
+
+test('each purchase gets its own payable; vendor outstanding is sum of invoice balances', async (t) => {
+  const probe = await probeHairQuickSaleMigrations();
+  if (!probe.ok) t.skip(migrationSkipMessage(probe));
+
+  const suffix = Date.now().toString(36);
+  const vendor = await createVendor({ name: `PB Vendor Multi ${suffix}` });
+  const product = await createTestProduct(`${suffix}-multi`);
+
+  const purchaseA = await createPurchase({
+    vendorId: vendor!.id,
+    purchaseDate: '2026-08-06',
+    vendorInvoiceRef: `INV-A-${suffix}`,
+    lines: [{ productId: product.id, quantity: 2, unitCostRupees: 100 }],
+    staffName: 'Test Owner',
+  });
+  const purchaseB = await createPurchase({
+    vendorId: vendor!.id,
+    purchaseDate: '2026-08-07',
+    vendorInvoiceRef: `INV-B-${suffix}`,
+    lines: [{ productId: product.id, quantity: 3, unitCostRupees: 100 }],
+    staffName: 'Test Owner',
+  });
+
+  const payables = await hairDb
+    .select()
+    .from(fyhVendorPayables)
+    .where(eq(fyhVendorPayables.vendorId, vendor!.id));
+
+  assert.equal(payables.length, 2, 'one payable row per purchase invoice');
+  assert.notEqual(payables[0]!.purchaseId, payables[1]!.purchaseId);
+  assert.ok(payables.some((p) => p.purchaseId === purchaseA.id));
+  assert.ok(payables.some((p) => p.purchaseId === purchaseB.id));
+
+  const { getVendorOutstanding } = await import('@/src/hair/services/purchaseBrain');
+  const outstanding = await getVendorOutstanding(vendor!.id);
+  assert.equal(outstanding, 20_000 + 30_000);
+});

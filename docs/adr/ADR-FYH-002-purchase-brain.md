@@ -35,7 +35,7 @@ Never put outstanding-balance math or purchase explain logic in UI or server act
 Within one DB transaction, recording a purchase MUST:
 
 1. Insert `fyh_purchases` + `fyh_purchase_lines`
-2. Insert `fyh_vendor_payables` (balance = amount until Phase 5 payments)
+2. Insert `fyh_vendor_payables` — **one row per purchase invoice** (`purchase_id` UNIQUE). `balance_paise` is the remaining balance on that invoice only. Vendor outstanding = `SUM(balance_paise)` at query time (never a stored running vendor total).
 3. For each line: `applyMovement(type=purchase, reference_type=purchase)` + weighted-average cost update
 4. Insert `fyh_expenses` row (`category=inventory_purchase`, `purchase_id` FK)
 5. Emit stub domain event `salon.purchase.recorded` (typed function; full event plane later)
@@ -53,7 +53,8 @@ fyh_purchase_lines
   id, purchase_id, product_id, quantity, unit_cost_paise, line_total_paise
 
 fyh_vendor_payables
-  id, vendor_id, purchase_id, amount_paise, balance_paise, status, created_at, updated_at
+  id, vendor_id, purchase_id (UNIQUE — one payable per invoice), amount_paise, balance_paise, status
+  Vendor outstanding = SUM(balance_paise) WHERE vendor_id = ? — computed, not stored, created_at, updated_at
 ```
 
 Extend `fyh_expenses` with nullable `purchase_id` FK → `fyh_purchases`.

@@ -4,12 +4,15 @@ import { useActionState, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Plus, X } from 'lucide-react';
 import {
+  attachPurchaseInvoiceAction,
   createPurchaseAction,
+  updatePurchaseAction,
   type PurchaseActionState,
 } from '@/src/hair/actions/purchases';
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
-import type { FyhProduct, FyhPurchase, FyhVendor, FyhVendorPayable } from '@/src/hair/db/schema';
+import type { FyhProduct, FyhPurchase, FyhPurchaseAuditEvent, FyhVendor, FyhVendorPayable } from '@/src/hair/db/schema';
+import { vendorFilePreviewHref } from '@/src/hair/lib/vendorFileLinks';
 import {
   FYH_EXPENSE_PAYMENT_LABELS,
   FYH_EXPENSE_PAYMENT_METHODS,
@@ -291,18 +294,24 @@ export function PurchaseRecordForm({
 
 export function PurchaseDetailView({
   detail,
+  auditEvents = [],
 }: {
   detail: {
     purchase: FyhPurchase;
     vendorName: string;
     lines: Array<{
-      line: { quantity: number; unitCostPaise: number; lineTotalPaise: number };
+      line: { id: string; productId: string; quantity: number; unitCostPaise: number; lineTotalPaise: number };
       productName: string;
       brandName: string;
     }>;
     payable: FyhVendorPayable | null;
   };
+  auditEvents?: FyhPurchaseAuditEvent[];
 }) {
+  const [attachState, attachAction, attachPending] = useActionState(
+    attachPurchaseInvoiceAction,
+    initialState,
+  );
   const summary = explainPurchase({
     purchase: detail.purchase,
     vendorName: detail.vendorName,
@@ -315,6 +324,13 @@ export function PurchaseDetailView({
         <Link href="/purchases" className="text-sm text-fyh-accent hover:underline">
           ← Back
         </Link>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Link href={`/purchases/${detail.purchase.id}/edit`}>
+            <Button type="button" variant="secondary" size="sm">
+              Edit purchase
+            </Button>
+          </Link>
+        </div>
         <h1 className="fyh-display mt-2 text-2xl font-semibold">{detail.purchase.purchaseNumber}</h1>
         <p className="mt-1 text-sm text-fyh-text-secondary">{detail.vendorName}</p>
         <div className="mt-3 grid gap-3 text-sm sm:grid-cols-4">
@@ -341,6 +357,40 @@ export function PurchaseDetailView({
           <p className="mt-2 text-sm text-fyh-text-muted">
             Vendor invoice: {detail.purchase.vendorInvoiceRef}
           </p>
+        ) : null}
+      </div>
+
+      <div className="fyh-glass space-y-3 p-4">
+        <h2 className="fyh-display text-lg font-semibold">Vendor invoice attachment</h2>
+        {detail.purchase.attachmentUrl ? (
+          <div className="space-y-2">
+            <a
+              href={vendorFilePreviewHref(detail.purchase.attachmentUrl)}
+              target="_blank"
+              rel="noreferrer"
+              className="text-fyh-accent hover:underline"
+            >
+              Preview attachment
+            </a>
+            {detail.purchase.attachmentUploadedBy ? (
+              <p className="text-xs text-fyh-text-muted">
+                Uploaded by {detail.purchase.attachmentUploadedBy}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-sm text-fyh-text-muted">No invoice attachment yet.</p>
+        )}
+        <form action={attachAction} encType="multipart/form-data" className="flex flex-wrap gap-2">
+          <input type="hidden" name="purchaseId" value={detail.purchase.id} />
+          <Input name="attachment" type="file" accept="application/pdf,image/*" required />
+          <Button type="submit" disabled={attachPending}>
+            {attachPending ? 'Uploading…' : detail.purchase.attachmentUrl ? 'Replace' : 'Upload'}
+          </Button>
+        </form>
+        {attachState.error ? <p className="text-sm text-fyh-danger">{attachState.error}</p> : null}
+        {attachState.success ? (
+          <p className="text-sm text-fyh-success">{attachState.success}</p>
         ) : null}
       </div>
 
@@ -372,6 +422,104 @@ export function PurchaseDetailView({
           </tbody>
         </table>
       </div>
+
+      {auditEvents.length > 0 ? (
+        <div className="fyh-glass space-y-2 p-4">
+          <h2 className="fyh-display text-lg font-semibold">Audit history</h2>
+          {auditEvents.map((evt) => (
+            <div key={evt.id} className="text-sm border-t border-[color:var(--fyh-border)] pt-2">
+              <p className="font-medium capitalize">{evt.action.replace(/_/g, ' ')}</p>
+              <p className="text-xs text-fyh-text-muted">
+                {evt.createdAt.toISOString().slice(0, 16).replace('T', ' ')} · {evt.staffName}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function PurchaseEditForm({
+  detail,
+  products,
+}: {
+  detail: NonNullable<Awaited<ReturnType<typeof import('@/src/hair/services/purchaseBrain').getPurchase>>>;
+  products: FyhProduct[];
+}) {
+  const [state, formAction, pending] = useActionState(updatePurchaseAction, initialState);
+  const [lines, setLines] = useState<LineDraft[]>(
+    detail.lines.map(({ line }) => ({
+      productId: line.productId,
+      quantity: Number(line.quantity),
+      unitCostRupees: line.unitCostPaise / 100,
+    })),
+  );
+  const linesJson = useMemo(() => JSON.stringify(lines), [lines]);
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="fyh-section-eyebrow">Purchases</p>
+        <h1 className="fyh-display mt-1 text-2xl font-semibold">
+          Edit {detail.purchase.purchaseNumber}
+        </h1>
+      </div>
+      <form action={formAction} className="fyh-glass space-y-4 p-5">
+        <input type="hidden" name="purchaseId" value={detail.purchase.id} />
+        <input type="hidden" name="linesJson" value={linesJson} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <label className="fyh-label" htmlFor="purchaseDate">
+              Purchase date *
+            </label>
+            <Input
+              id="purchaseDate"
+              name="purchaseDate"
+              type="date"
+              required
+              defaultValue={detail.purchase.purchaseDate}
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="fyh-label" htmlFor="vendorInvoiceRef">
+              Vendor invoice #
+            </label>
+            <Input
+              id="vendorInvoiceRef"
+              name="vendorInvoiceRef"
+              defaultValue={detail.purchase.vendorInvoiceRef ?? ''}
+            />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <span className="fyh-label">Products</span>
+            <PurchaseLineEditor products={products} lines={lines} onChange={setLines} />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <label className="fyh-label" htmlFor="notes">
+              Notes
+            </label>
+            <textarea
+              id="notes"
+              name="notes"
+              rows={2}
+              className={fieldClass}
+              defaultValue={detail.purchase.notes ?? ''}
+            />
+          </div>
+        </div>
+        {state.error ? <p className="text-sm text-fyh-danger">{state.error}</p> : null}
+        <div className="flex gap-2">
+          <Button type="submit" disabled={pending}>
+            {pending ? 'Saving…' : 'Save changes'}
+          </Button>
+          <Link href={`/purchases/${detail.purchase.id}`}>
+            <Button type="button" variant="secondary">
+              Cancel
+            </Button>
+          </Link>
+        </div>
+      </form>
     </div>
   );
 }

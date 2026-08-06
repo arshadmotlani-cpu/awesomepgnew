@@ -1,27 +1,38 @@
 import { notFound } from 'next/navigation';
-import { VendorForm } from '@/src/hair/components/inventory/VendorsUi';
-import { listBrandsForVendor } from '@/src/hair/services/brands';
-import { getVendor } from '@/src/hair/services/vendors';
+import { VendorLedgerView } from '@/src/hair/components/vendors/VendorLedgerUi';
+import { getVendorLedger } from '@/src/hair/services/purchaseBrain';
+import {
+  defaultStatementDateRange,
+  getVendorActivityTimeline,
+  getVendorDashboard,
+  getVendorStatement,
+} from '@/src/hair/services/vendorBrain';
 
 type Props = { params: Promise<{ id: string }> };
 
-export default async function VendorDetailPage({ params }: Props) {
+export default async function VendorLedgerPage({ params }: Props) {
   const { id } = await params;
-  const vendor = await getVendor(id);
-  if (!vendor) notFound();
-  const brands = await listBrandsForVendor(id);
+  const ledger = await getVendorLedger(id);
+  if (!ledger) notFound();
+
+  const statementPeriod = defaultStatementDateRange();
+  const [dashboard, timeline, statement] = await Promise.all([
+    getVendorDashboard(id),
+    getVendorActivityTimeline(id),
+    getVendorStatement(id, statementPeriod),
+  ]);
 
   return (
-    <div className="space-y-4">
-      <div>
-        <p className="fyh-section-eyebrow">Vendors</p>
-        <h1 className="fyh-display mt-1 text-2xl font-semibold">{vendor.name}</h1>
-      </div>
-      <VendorForm
-        mode="edit"
-        vendor={vendor}
-        initialBrandNames={brands.map((b) => b.name)}
-      />
-    </div>
+    <VendorLedgerView
+      vendor={ledger.vendor}
+      outstandingPaise={ledger.outstandingPaise}
+      unallocatedAdvancePaise={ledger.unallocatedAdvancePaise}
+      invoices={ledger.invoices}
+      payments={ledger.payments}
+      dashboard={dashboard!}
+      timeline={timeline}
+      statement={statement}
+      statementPeriod={statementPeriod}
+    />
   );
 }
