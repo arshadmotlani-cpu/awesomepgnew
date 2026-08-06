@@ -225,6 +225,13 @@
       "when": 1756700000000,
       "tag": "0032_vendor_brain_freeze",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1756800000000,
+      "tag": "0033_workforce_system_provider",
+      "breakpoints": true
     }
   ]
 }

@@ -39,7 +39,7 @@ export default async function WorkforceRoleHomePage() {
 
   const nav = filterNav(WORKFORCE_HUB_NAV, dash.grants);
   const team = hasWorkforcePermission(dash.grants, 'staff.view')
-    ? await listEmployeesForEngine('fyh_salon', { activeOnly: true })
+    ? await listEmployeesForEngine('fyh_salon', { activeOnly: true, excludeSystemProviders: true })
     : [];
 
   const ecosystem = hasWorkforcePermission(dash.grants, 'dashboard.view_revenue')

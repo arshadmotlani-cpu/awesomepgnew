@@ -10,12 +10,8 @@ import {
   WORKFORCE_PERMISSION_LIBRARY,
   WORKFORCE_PERMISSION_GROUP_LABELS,
 } from '@/src/workforce/types';
-import {
-  WORKFORCE_INCENTIVE_PLAN_TYPES,
-  WORKFORCE_PAYMENT_METHODS,
-  WORKFORCE_SALARY_FREQUENCIES,
-  type WorkforceIncentivePlanType,
-} from '@/src/workforce/types/hr';
+import { WORKFORCE_PAYMENT_METHODS } from '@/src/workforce/types/hr';
+import { salonIncentiveRuleSummary } from '@/src/workforce/lib/salonCompensationRules';
 import { workforceAccessRoleLabel } from '@/src/workforce/labels';
 import { WeekOffPicker } from '@/src/workforce/components/WeekOffPicker';
 import { Button } from '@/src/hair/components/ui/button';
@@ -24,7 +20,6 @@ import { Input } from '@/src/hair/components/ui/input';
 const initial: WorkforceActionState = {};
 
 const fieldClass = 'fyh-select w-full text-sm text-fyh-text';
-const inputClass = '!bg-[color:var(--fyh-bg-surface)]';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -45,8 +40,8 @@ export function AddEmployeePopup() {
   const [open, setOpen] = useState(false);
   const [qrPreview, setQrPreview] = useState<string | null>(null);
   const [receiveBookings, setReceiveBookings] = useState(true);
+  const [incentiveEnabled, setIncentiveEnabled] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [planType, setPlanType] = useState<WorkforceIncentivePlanType>('none');
   const [state, action, pending] = useActionState(createWorkforceEmployeeAction, initial);
   const [, startTransition] = useTransition();
 
@@ -55,6 +50,7 @@ export function AddEmployeePopup() {
       setOpen(false);
       setQrPreview(null);
       setReceiveBookings(true);
+      setIncentiveEnabled(true);
       setShowAdvanced(false);
     }
   }, [state.success]);
@@ -87,7 +83,7 @@ export function AddEmployeePopup() {
       </Button>
 
       {state.success && !open ? (
-        <p className="mt-2 text-sm text-emerald-700">{state.success}</p>
+        <p className="fyh-alert-success mt-2 text-sm">{state.success}</p>
       ) : null}
 
       {open ? (
@@ -132,45 +128,42 @@ export function AddEmployeePopup() {
                   <Section title="Basic information">
                     <div className="space-y-3">
                       <label className="block space-y-1 text-sm">
-                        <span className="font-medium">Full Name</span>
-                        <Input name="fullName" required autoFocus className={inputClass} />
+                        <span className="fyh-form-label">Full Name</span>
+                        <Input name="fullName" required autoFocus />
                       </label>
                       <label className="block space-y-1 text-sm">
-                        <span className="font-medium">Email Address</span>
+                        <span className="fyh-form-label">Email Address</span>
                         <Input
                           name="email"
                           type="email"
                           autoComplete="email"
                           required
                           placeholder="name@example.com"
-                          className={inputClass}
                         />
                       </label>
                       <label className="block space-y-1 text-sm">
-                        <span className="font-medium">Phone Number</span>
+                        <span className="fyh-form-label">Phone Number</span>
                         <Input
                           name="mobile"
                           placeholder="9876543210"
                           inputMode="tel"
-                          className={inputClass}
                         />
                       </label>
                       <label className="block space-y-1 text-sm">
-                        <span className="font-medium">Password</span>
+                        <span className="fyh-form-label">Password</span>
                         <Input
                           name="password"
                           type="password"
                           autoComplete="new-password"
                           minLength={6}
                           placeholder="Min 6 characters to enable login"
-                          className={inputClass}
                         />
-                        <span className="text-xs text-fyh-text-secondary">
+                        <span className="fyh-form-helper">
                           Sign in with email or phone + password
                         </span>
                       </label>
                       <label className="block space-y-1 text-sm">
-                        <span className="font-medium">Access Role</span>
+                        <span className="fyh-form-label">Access Role</span>
                         <select name="accessRole" className={fieldClass} defaultValue="staff">
                           {WORKFORCE_ACCESS_ROLES.map((r) => (
                             <option key={r} value={r}>
@@ -185,7 +178,7 @@ export function AddEmployeePopup() {
                   <Section title="Personal information">
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="space-y-1 text-sm">
-                        <span className="font-medium">Gender</span>
+                        <span className="fyh-form-label">Gender</span>
                         <select name="gender" className={fieldClass} defaultValue="unspecified">
                           <option value="unspecified">Unspecified</option>
                           <option value="female">Female</option>
@@ -194,12 +187,12 @@ export function AddEmployeePopup() {
                         </select>
                       </label>
                       <label className="space-y-1 text-sm">
-                        <span className="font-medium">Joining Date</span>
-                        <Input name="joiningDate" type="date" className={inputClass} />
+                        <span className="fyh-form-label">Joining Date</span>
+                        <Input name="joiningDate" type="date" required />
                       </label>
                       <label className="space-y-1 text-sm sm:col-span-2">
-                        <span className="font-medium">Emergency Contact</span>
-                        <Input name="emergencyContact" placeholder="Name / phone" className={inputClass} />
+                        <span className="fyh-form-label">Emergency Contact</span>
+                        <Input name="emergencyContact" placeholder="Name / phone" />
                       </label>
                     </div>
                   </Section>
@@ -208,133 +201,84 @@ export function AddEmployeePopup() {
                     <WeekOffPicker defaultOffDays={[0]} />
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                       <label className="space-y-1 text-sm">
-                        <span className="font-medium">Aadhaar</span>
-                        <Input name="aadhaarNumber" inputMode="numeric" className={inputClass} />
+                        <span className="fyh-form-label">Aadhaar</span>
+                        <Input name="aadhaarNumber" inputMode="numeric" />
                       </label>
                       <label className="space-y-1 text-sm">
-                        <span className="font-medium">PAN</span>
-                        <Input name="panNumber" className={`uppercase ${inputClass}`} />
+                        <span className="fyh-form-label">PAN</span>
+                        <Input name="panNumber" className="uppercase" />
                       </label>
                     </div>
                   </Section>
 
                   <Section title="Salary">
+                    <input type="hidden" name="salaryFrequency" value="monthly" />
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="space-y-1 text-sm">
-                        <span className="font-medium">Base Monthly Salary (₹)</span>
+                        <span className="fyh-form-label">Base Monthly Salary (₹)</span>
                         <Input
                           name="salaryInr"
                           type="number"
                           min={0}
                           step="1"
                           defaultValue={0}
-                          className={inputClass}
                         />
                       </label>
-                      <label className="space-y-1 text-sm">
-                        <span className="font-medium">Payment Frequency</span>
-                        <select name="salaryFrequency" className={fieldClass} defaultValue="monthly">
-                          {WORKFORCE_SALARY_FREQUENCIES.map((f) => (
-                            <option key={f} value={f}>
-                              {f.charAt(0).toUpperCase() + f.slice(1)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="space-y-1 text-sm sm:col-span-2">
-                        <span className="font-medium">Salary Effective From</span>
-                        <Input name="salaryEffectiveFrom" type="date" className={inputClass} />
-                      </label>
+                      <div className="space-y-1 text-sm">
+                        <span className="fyh-form-label">Payment Frequency</span>
+                        <p className="flex h-10 items-center rounded-[var(--fyh-radius)] border border-[color:var(--fyh-border-strong)] bg-black/25 px-3.5 text-sm text-fyh-text">
+                          Monthly
+                        </p>
+                      </div>
                     </div>
+                    <p className="fyh-form-helper">
+                      Salary is generated between the 7th and 10th for the previous month, based on
+                      joining date.
+                    </p>
                   </Section>
 
-                  <Section title="Incentive plan">
-                    <label className="block space-y-1 text-sm">
-                      <span className="font-medium">Plan type</span>
-                      <select
-                        name="incentivePlanType"
-                        className={fieldClass}
-                        value={planType}
-                        onChange={(e) => setPlanType(e.target.value as WorkforceIncentivePlanType)}
-                      >
-                        {WORKFORCE_INCENTIVE_PLAN_TYPES.map((t) => (
-                          <option key={t} value={t}>
-                            {t === 'none'
-                              ? 'No Incentive'
-                              : t === 'percentage_threshold'
-                                ? 'Percentage Incentive'
-                                : 'Fixed Bonus'}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    {planType === 'percentage_threshold' ? (
-                      <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                        <label className="space-y-1 text-sm">
-                          <span className="font-medium">Base Salary (₹)</span>
-                          <Input name="incentiveBaseSalaryInr" type="number" min={0} className={inputClass} />
-                        </label>
-                        <label className="space-y-1 text-sm">
-                          <span className="font-medium">Threshold Multiplier</span>
-                          <Input
-                            name="thresholdMultiplier"
-                            type="number"
-                            min={0.1}
-                            step="0.1"
-                            defaultValue={2}
-                            className={inputClass}
-                          />
-                        </label>
-                        <label className="space-y-1 text-sm">
-                          <span className="font-medium">Above Threshold %</span>
-                          <Input
-                            name="aboveThresholdPercent"
-                            type="number"
-                            min={0}
-                            max={100}
-                            defaultValue={10}
-                            className={inputClass}
-                          />
-                        </label>
-                      </div>
-                    ) : null}
-                    {planType === 'fixed_bonus' ? (
-                      <label className="mt-3 block space-y-1 text-sm">
-                        <span className="font-medium">Fixed Bonus (₹)</span>
-                        <Input name="fixedBonusInr" type="number" min={0} className={inputClass} />
-                      </label>
-                    ) : null}
-                    <label className="mt-3 block space-y-1 text-sm">
-                      <span className="font-medium">Effective From</span>
-                      <Input name="incentiveEffectiveFrom" type="date" className={inputClass} />
+                  <Section title="Incentive">
+                    <label className="flex items-start gap-3 text-sm">
+                      <input
+                        type="checkbox"
+                        name="incentiveEnabled"
+                        value="1"
+                        checked={incentiveEnabled}
+                        onChange={(e) => setIncentiveEnabled(e.target.checked)}
+                        className="fyh-checkbox mt-0.5"
+                      />
+                      <span>
+                        <span className="fyh-form-label">Incentive enabled</span>
+                        <span className="fyh-form-helper mt-1 block">{salonIncentiveRuleSummary()}</span>
+                      </span>
                     </label>
                   </Section>
 
                   <Section title="Payment details">
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="space-y-1 text-sm sm:col-span-2">
-                        <span className="font-medium">Bank Account Holder Name</span>
-                        <Input name="bankAccountHolderName" className={inputClass} />
+                        <span className="fyh-form-label">Bank Account Holder Name</span>
+                        <Input name="bankAccountHolderName" />
                       </label>
                       <label className="space-y-1 text-sm">
-                        <span className="font-medium">Bank Name</span>
-                        <Input name="bankName" className={inputClass} />
+                        <span className="fyh-form-label">Bank Name</span>
+                        <Input name="bankName" />
                       </label>
                       <label className="space-y-1 text-sm">
-                        <span className="font-medium">Account Number</span>
-                        <Input name="accountNumber" inputMode="numeric" className={inputClass} />
+                        <span className="fyh-form-label">Account Number</span>
+                        <Input name="accountNumber" inputMode="numeric" />
                       </label>
                       <label className="space-y-1 text-sm">
-                        <span className="font-medium">IFSC Code</span>
-                        <Input name="ifscCode" className={`uppercase ${inputClass}`} />
+                        <span className="fyh-form-label">IFSC Code</span>
+                        <Input name="ifscCode" className="uppercase" />
                       </label>
                       <label className="space-y-1 text-sm">
-                        <span className="font-medium">UPI ID</span>
-                        <Input name="upiId" placeholder="name@upi" className={inputClass} />
+                        <span className="fyh-form-label">UPI ID</span>
+                        <Input name="upiId" placeholder="name@upi" />
                       </label>
                       <fieldset className="space-y-2 sm:col-span-2">
-                        <legend className="text-sm font-medium">Primary Payment Method</legend>
-                        <div className="flex flex-wrap gap-4 text-sm">
+                        <legend className="fyh-form-label text-sm">Primary Payment Method</legend>
+                        <div className="flex flex-wrap gap-4 text-sm text-fyh-text">
                           {WORKFORCE_PAYMENT_METHODS.map((m) => (
                             <label key={m} className="flex items-center gap-2">
                               <input
@@ -342,6 +286,7 @@ export function AddEmployeePopup() {
                                 name="primaryPaymentMethod"
                                 value={m}
                                 defaultChecked={m === 'upi'}
+                                className="fyh-radio"
                               />
                               <span>{m === 'bank_transfer' ? 'Bank Transfer' : 'UPI'}</span>
                             </label>
@@ -349,7 +294,7 @@ export function AddEmployeePopup() {
                         </div>
                       </fieldset>
                       <label className="space-y-1 text-sm sm:col-span-2">
-                        <span className="font-medium">QR Code</span>
+                        <span className="fyh-form-label">QR Code</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -387,9 +332,9 @@ export function AddEmployeePopup() {
                         value="1"
                         checked={receiveBookings}
                         onChange={(e) => setReceiveBookings(e.target.checked)}
-                        className="h-4 w-4"
+                        className="fyh-checkbox"
                       />
-                      <span className="font-medium">Appointment bookable</span>
+                      <span className="fyh-form-label">Appointment bookable</span>
                     </label>
                   </Section>
 
@@ -403,7 +348,7 @@ export function AddEmployeePopup() {
                     </button>
                     {showAdvanced ? (
                       <div className="mt-3 max-h-64 space-y-3 overflow-y-auto rounded-lg border border-[color:var(--fyh-border)] p-3">
-                        <p className="text-xs text-fyh-text-secondary">
+                        <p className="fyh-form-helper">
                           Leave unchecked to use the Access Role defaults. Only use when this
                           employee needs different permissions.
                         </p>
@@ -416,8 +361,13 @@ export function AddEmployeePopup() {
                             </legend>
                             <div className="grid gap-1 sm:grid-cols-2">
                               {defs.map((def) => (
-                                <label key={def.key} className="flex items-center gap-2 text-xs">
-                                  <input type="checkbox" name="permissions" value={def.key} />
+                                <label key={def.key} className="flex items-center gap-2 text-xs text-fyh-text">
+                                  <input
+                                    type="checkbox"
+                                    name="permissions"
+                                    value={def.key}
+                                    className="fyh-checkbox"
+                                  />
                                   <span>{def.label}</span>
                                 </label>
                               ))}
@@ -428,7 +378,7 @@ export function AddEmployeePopup() {
                     ) : null}
                   </div>
 
-                  {state.error ? <p className="text-sm text-red-600">{state.error}</p> : null}
+                  {state.error ? <p className="fyh-alert-danger text-sm">{state.error}</p> : null}
                 </div>
 
                 <div className="shrink-0 border-t border-[color:var(--fyh-border-strong)] bg-[color:var(--fyh-bg-surface)] px-5 py-4">

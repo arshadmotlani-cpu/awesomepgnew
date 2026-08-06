@@ -3,6 +3,8 @@ import { HairSidebar } from '@/src/hair/components/HairSidebar';
 import { requireHairAuthPage } from '@/src/hair/lib/auth/guards';
 import { requirePagePermissionForPath } from '@/src/hair/lib/auth/permissions';
 import { filterNavByPermissions, visibleHairNavEntries } from '@/src/hair/lib/nav';
+import { isWorkforceEngineEnabled } from '@/src/workforce/types';
+import { ensureSalonOwnerProvider } from '@/src/workforce/services/systemOwnerProvider';
 import { headers } from 'next/headers';
 
 export default async function HairAppLayout({ children }: { children: React.ReactNode }) {
@@ -12,6 +14,12 @@ export default async function HairAppLayout({ children }: { children: React.Reac
     ? await requirePagePermissionForPath(pathname)
     : await requireHairAuthPage();
   const navEntries = filterNavByPermissions(admin, visibleHairNavEntries());
+
+  if (isWorkforceEngineEnabled()) {
+    void ensureSalonOwnerProvider('fyh_salon').catch(() => {
+      /* best-effort bootstrap */
+    });
+  }
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">

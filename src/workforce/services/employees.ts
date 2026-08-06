@@ -68,6 +68,8 @@ export type UpsertEmployeeInput = {
   id?: string;
   weekOffDays?: number[];
   incentivePlan?: WorkforceIncentivePlanInput;
+  /** Permanent salon owner provider — hidden from Staff Management */
+  isSystemProvider?: boolean;
 };
 
 async function assertUniqueEmployeeIdentity(input: {
@@ -148,8 +150,10 @@ export async function createEmployee(input: UpsertEmployeeInput) {
 
   const email = input.email ? normalizeEmail(input.email) : null;
   const mobile = input.mobile ? normalizeMobile(input.mobile) : null;
-  if (!email) throw new Error('Email address is required.');
-  await assertUniqueEmployeeIdentity({ email, mobile });
+  if (!email && !input.isSystemProvider) throw new Error('Email address is required.');
+  if (email || mobile) {
+    await assertUniqueEmployeeIdentity({ email, mobile });
+  }
 
   const canLogin = input.canLogin ?? Boolean(input.password && input.password.length >= 6);
   if (canLogin && (!input.password || input.password.length < 6)) {
@@ -187,6 +191,7 @@ export async function createEmployee(input: UpsertEmployeeInput) {
       qrCodeUrl: input.qrCodeUrl ?? null,
       photoUrl: input.photoUrl ?? null,
       status: input.status ?? 'active',
+      isSystemProvider: input.isSystemProvider ?? false,
     })
     .returning();
 
@@ -250,6 +255,22 @@ export async function updateEmployee(
   input: Partial<UpsertEmployeeInput> & { engineId?: WorkforceEngineId },
 ) {
   const engineId = input.engineId ?? 'fyh_salon';
+
+  const [current] = await hairDb
+    .select()
+    .from(wfEmployees)
+    .where(eq(wfEmployees.id, employeeId))
+    .limit(1);
+  if (!current) throw new Error('Employee not found.');
+  if (current.isSystemProvider) {
+    if (input.status === 'inactive') {
+      throw new Error('The salon owner cannot be deactivated.');
+    }
+    if (input.isSystemProvider === false) {
+      throw new Error('The salon owner identity cannot be removed.');
+    }
+  }
+
   const patch: Partial<typeof wfEmployees.$inferInsert> = { updatedAt: new Date() };
   if (input.fullName !== undefined) patch.fullName = input.fullName.trim();
   if (input.email !== undefined) patch.email = input.email ? normalizeEmail(input.email) : null;

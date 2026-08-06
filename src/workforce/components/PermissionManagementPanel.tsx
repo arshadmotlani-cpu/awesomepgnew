@@ -132,9 +132,9 @@ export function PermissionManagementPanel({ templates, employees }: Props) {
               {templatePending ? 'Saving…' : 'Save role template'}
             </Button>
           </div>
-          {templateState.error ? <p className="text-sm text-red-600">{templateState.error}</p> : null}
+          {templateState.error ? <p className="fyh-alert-danger text-sm">{templateState.error}</p> : null}
           {templateState.success ? (
-            <p className="text-sm text-emerald-700">{templateState.success}</p>
+            <p className="fyh-alert-success text-sm">{templateState.success}</p>
           ) : null}
         </form>
 
@@ -144,7 +144,7 @@ export function PermissionManagementPanel({ templates, employees }: Props) {
             Reset template to factory defaults
           </Button>
           {resetTplState.success ? (
-            <p className="mt-2 text-sm text-emerald-700">{resetTplState.success}</p>
+            <p className="mt-2 fyh-alert-success text-sm">{resetTplState.success}</p>
           ) : null}
         </form>
       </section>
@@ -181,9 +181,9 @@ export function PermissionManagementPanel({ templates, employees }: Props) {
                   <Button type="submit" disabled={empPending}>
                     {empPending ? 'Saving…' : 'Save employee override'}
                   </Button>
-                  {empState.error ? <p className="text-sm text-red-600">{empState.error}</p> : null}
+                  {empState.error ? <p className="fyh-alert-danger text-sm">{empState.error}</p> : null}
                   {empState.success ? (
-                    <p className="text-sm text-emerald-700">{empState.success}</p>
+                    <p className="fyh-alert-success text-sm">{empState.success}</p>
                   ) : null}
                 </form>
                 <form action={resetEmpAction}>
@@ -192,7 +192,7 @@ export function PermissionManagementPanel({ templates, employees }: Props) {
                     Reset to role template
                   </Button>
                   {resetEmpState.success ? (
-                    <p className="mt-2 text-sm text-emerald-700">{resetEmpState.success}</p>
+                    <p className="mt-2 fyh-alert-success text-sm">{resetEmpState.success}</p>
                   ) : null}
                 </form>
               </>

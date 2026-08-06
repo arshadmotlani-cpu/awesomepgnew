@@ -13,6 +13,11 @@ import {
   payrollNetPaise,
   type CommissionConfig,
 } from '@/src/workforce/lib/compensationMath';
+import {
+  isEmployeeEligibleForPeriod,
+  isPayrollGenerationWindowOpen,
+  resolvePreviousMonthPeriod,
+} from '@/src/workforce/lib/payrollPeriod';
 import type { WorkforceEngineId } from '@/src/workforce/types';
 
 export type CompensationSnapshot = {
@@ -182,23 +187,48 @@ export async function listIncentives(input: {
 
 export async function createDraftPayrollRun(input: {
   engineId?: WorkforceEngineId;
-  periodStart: string;
-  periodEnd: string;
+  periodStart?: string;
+  periodEnd?: string;
   employeeIds?: string[];
+  /** Use fixed salon cycle: previous month, only between 7th–10th. */
+  useSalonCycle?: boolean;
+  timezone?: string;
+  asOf?: Date;
 }) {
   const engineId = input.engineId ?? 'fyh_salon';
+  const timezone = input.timezone ?? 'Asia/Kolkata';
+  const asOf = input.asOf ?? new Date();
+
+  let periodStart = input.periodStart;
+  let periodEnd = input.periodEnd;
+
+  if (input.useSalonCycle) {
+    if (!isPayrollGenerationWindowOpen(asOf, timezone)) {
+      throw new Error(
+        'Salary can only be generated between the 7th and 10th of each month.',
+      );
+    }
+    const period = resolvePreviousMonthPeriod(timezone, asOf);
+    periodStart = period.periodStart;
+    periodEnd = period.periodEnd;
+  }
+
+  if (!periodStart || !periodEnd) {
+    throw new Error('periodStart and periodEnd are required.');
+  }
+
   const [run] = await hairDb
     .insert(wfPayrollRuns)
     .values({
       engineId,
-      periodStart: input.periodStart,
-      periodEnd: input.periodEnd,
+      periodStart,
+      periodEnd,
       status: 'draft',
     })
     .returning();
 
-  const ids =
-    input.employeeIds ??
+  const membershipRows =
+    input.employeeIds?.map((employeeId) => ({ employeeId })) ??
     (
       await hairDb
         .select({ employeeId: wfEngineMemberships.employeeId })
@@ -206,17 +236,34 @@ export async function createDraftPayrollRun(input: {
         .where(
           and(eq(wfEngineMemberships.engineId, engineId), eq(wfEngineMemberships.isActive, true)),
         )
-    ).map((r) => r.employeeId);
+    );
+
+  const ids = membershipRows.map((r) => r.employeeId);
 
   for (const employeeId of ids) {
+    const [empRow] = await hairDb
+      .select({ joiningDate: wfEmployees.joiningDate })
+      .from(wfEmployees)
+      .where(eq(wfEmployees.id, employeeId))
+      .limit(1);
+
+    if (
+      !isEmployeeEligibleForPeriod(empRow?.joiningDate, {
+        periodStart,
+        periodEnd,
+      })
+    ) {
+      continue;
+    }
+
     const snap = await getCompensationSnapshot(employeeId, engineId);
     if (!snap) continue;
 
     const incentives = await listIncentives({
       employeeId,
       engineId,
-      fromDate: input.periodStart,
-      toDate: input.periodEnd,
+      fromDate: periodStart,
+      toDate: periodEnd,
       limit: 200,
     });
     const incentivePaise = incentives

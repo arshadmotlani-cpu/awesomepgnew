@@ -11,7 +11,10 @@ type Props = {
 };
 
 export async function StaffManagementList({ canAdd, grants }: Props) {
-  const employees = await listEmployeesForEngine('fyh_salon', { activeOnly: false });
+  const employees = await listEmployeesForEngine('fyh_salon', {
+    activeOnly: false,
+    excludeSystemProviders: true,
+  });
   const canViewOperations =
     grants === null || hasWorkforcePermission(grants, 'staff.view') || hasWorkforcePermission(grants, 'finance.view_salary');
 

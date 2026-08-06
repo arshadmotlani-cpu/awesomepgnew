@@ -11,14 +11,8 @@ import {
   WORKFORCE_PERMISSION_LIBRARY,
   WORKFORCE_PERMISSION_GROUP_LABELS,
 } from '@/src/workforce/types';
-import {
-  WORKFORCE_INCENTIVE_PLAN_TYPES,
-  WORKFORCE_PAYMENT_METHODS,
-  WORKFORCE_SALARY_FREQUENCIES,
-  type WorkforceIncentivePlanType,
-  type WorkforcePaymentMethod,
-  type WorkforceSalaryFrequency,
-} from '@/src/workforce/types/hr';
+import { WORKFORCE_PAYMENT_METHODS, type WorkforcePaymentMethod } from '@/src/workforce/types/hr';
+import { salonIncentiveRuleSummary } from '@/src/workforce/lib/salonCompensationRules';
 import { workforceAccessRoleLabel } from '@/src/workforce/labels';
 import { formatWeekOffDays } from '@/src/workforce/lib/weekOff';
 import { WeekOffPicker } from '@/src/workforce/components/WeekOffPicker';
@@ -29,7 +23,6 @@ import type { WorkforcePermissionGrants } from '@/src/workforce/types';
 
 const initial: WorkforceActionState = {};
 const fieldClass = 'fyh-select w-full text-sm text-fyh-text';
-const inputClass = '!bg-[color:var(--fyh-bg-surface)]';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -49,16 +42,8 @@ type Props = {
   incentivePlan: WfIncentivePlan | null;
   weekOffDays: number[];
   canEdit: boolean;
+  canToggleIncentive: boolean;
 };
-
-function incentiveConfig(plan: WfIncentivePlan | null) {
-  const cfg = (plan?.config ?? {}) as Record<string, number>;
-  return {
-    thresholdMultiplier: cfg.thresholdMultiplier ?? 2,
-    aboveThresholdPercentBps: cfg.aboveThresholdPercentBps ?? 1000,
-    bonusPaise: cfg.bonusPaise ?? 0,
-  };
-}
 
 export function EmployeeProfilePanel({
   employee,
@@ -67,6 +52,7 @@ export function EmployeeProfilePanel({
   incentivePlan,
   weekOffDays,
   canEdit,
+  canToggleIncentive,
 }: Props) {
   const formId = useId();
   const [state, action, pending] = useActionState(updateWorkforceEmployeeAction, initial);
@@ -76,11 +62,8 @@ export function EmployeeProfilePanel({
   const [receiveBookings, setReceiveBookings] = useState(
     grants.permissions.includes('appointments.receive_bookings'),
   );
-  const [planType, setPlanType] = useState<WorkforceIncentivePlanType>(
-    incentivePlan?.planType ?? 'none',
-  );
-
-  const ic = incentiveConfig(incentivePlan);
+  const incentiveEnabledDefault = incentivePlan?.planType === 'percentage_threshold';
+  const [incentiveEnabled, setIncentiveEnabled] = useState(incentiveEnabledDefault);
 
   useEffect(() => {
     if (state.success) window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -108,10 +91,10 @@ export function EmployeeProfilePanel({
       </div>
 
       {state.success ? (
-        <p className="rounded-lg bg-emerald-50 px-4 py-2 text-sm text-emerald-800">{state.success}</p>
+        <p className="fyh-alert-success-box text-sm">{state.success}</p>
       ) : null}
       {state.error ? (
-        <p className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700">{state.error}</p>
+        <p className="fyh-alert-danger-box text-sm">{state.error}</p>
       ) : null}
 
       <form
@@ -131,7 +114,6 @@ export function EmployeeProfilePanel({
                 defaultValue={employee.fullName}
                 required
                 disabled={!canEdit}
-                className={inputClass}
               />
             </label>
             <label className="space-y-1 text-sm">
@@ -142,7 +124,6 @@ export function EmployeeProfilePanel({
                 defaultValue={employee.email ?? ''}
                 required
                 disabled={!canEdit}
-                className={inputClass}
               />
             </label>
             <label className="space-y-1 text-sm">
@@ -151,7 +132,6 @@ export function EmployeeProfilePanel({
                 name="mobile"
                 defaultValue={employee.mobile ?? ''}
                 disabled={!canEdit}
-                className={inputClass}
               />
             </label>
             <label className="space-y-1 text-sm sm:col-span-2">
@@ -162,7 +142,6 @@ export function EmployeeProfilePanel({
                 minLength={6}
                 placeholder="Leave blank to keep current"
                 disabled={!canEdit}
-                className={inputClass}
               />
             </label>
           </div>
@@ -192,7 +171,6 @@ export function EmployeeProfilePanel({
                 type="date"
                 defaultValue={employee.joiningDate ?? ''}
                 disabled={!canEdit}
-                className={inputClass}
               />
             </label>
             <label className="space-y-1 text-sm">
@@ -215,7 +193,6 @@ export function EmployeeProfilePanel({
                 name="emergencyContact"
                 defaultValue={employee.emergencyContact ?? ''}
                 disabled={!canEdit}
-                className={inputClass}
               />
             </label>
             <label className="space-y-1 text-sm">
@@ -238,7 +215,7 @@ export function EmployeeProfilePanel({
                 checked={receiveBookings}
                 onChange={(e) => setReceiveBookings(e.target.checked)}
                 disabled={!canEdit}
-                className="h-4 w-4"
+                className="fyh-checkbox"
               />
               <span className="font-medium">Appointment bookable</span>
             </label>
@@ -253,9 +230,10 @@ export function EmployeeProfilePanel({
         </Section>
 
         <Section title="Salary">
+          <input type="hidden" name="salaryFrequency" value="monthly" />
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-1 text-sm">
-              <span className="font-medium">Base Monthly Salary (₹)</span>
+              <span className="fyh-form-label">Base Monthly Salary (₹)</span>
               <Input
                 name="salaryInr"
                 type="number"
@@ -263,124 +241,53 @@ export function EmployeeProfilePanel({
                 step="1"
                 defaultValue={Math.round(employee.salaryPaise / 100)}
                 disabled={!canEdit}
-                className={inputClass}
               />
             </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">Payment Frequency</span>
-              <select
-                name="salaryFrequency"
-                className={fieldClass}
-                defaultValue={employee.salaryFrequency}
-                disabled={!canEdit}
-              >
-                {WORKFORCE_SALARY_FREQUENCIES.map((f) => (
-                  <option key={f} value={f}>
-                    {f.charAt(0).toUpperCase() + f.slice(1)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-1 text-sm sm:col-span-2">
-              <span className="font-medium">Salary Effective From</span>
-              <Input
-                name="salaryEffectiveFrom"
-                type="date"
-                defaultValue={employee.salaryEffectiveFrom ?? ''}
-                disabled={!canEdit}
-                className={inputClass}
-              />
-            </label>
+            <div className="space-y-1 text-sm">
+              <span className="fyh-form-label">Payment Frequency</span>
+              <p className="flex h-10 items-center rounded-[var(--fyh-radius)] border border-[color:var(--fyh-border-strong)] bg-black/25 px-3.5 text-sm text-fyh-text">
+                Monthly
+              </p>
+            </div>
           </div>
+          <p className="fyh-form-helper">
+            Salary is generated between the 7th and 10th for the previous month, based on joining
+            date.
+          </p>
         </Section>
 
-        <Section title="Incentive plan">
-          <label className="block space-y-1 text-sm">
-            <span className="font-medium">Plan type</span>
-            <select
-              name="incentivePlanType"
-              className={fieldClass}
-              value={planType}
-              onChange={(e) => setPlanType(e.target.value as WorkforceIncentivePlanType)}
-              disabled={!canEdit}
-            >
-              {WORKFORCE_INCENTIVE_PLAN_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t === 'none'
-                    ? 'No Incentive'
-                    : t === 'percentage_threshold'
-                      ? 'Percentage Incentive'
-                      : 'Fixed Bonus'}
-                </option>
-              ))}
-            </select>
-          </label>
-          {planType === 'percentage_threshold' ? (
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <label className="space-y-1 text-sm">
-                <span className="font-medium">Base Salary (₹)</span>
-                <Input
-                  name="incentiveBaseSalaryInr"
-                  type="number"
-                  min={0}
-                  defaultValue={Math.round(
-                    ((incentivePlan?.config as { baseSalaryPaise?: number })?.baseSalaryPaise ??
-                      employee.salaryPaise) / 100,
-                  )}
-                  disabled={!canEdit}
-                  className={inputClass}
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="font-medium">Threshold Multiplier</span>
-                <Input
-                  name="thresholdMultiplier"
-                  type="number"
-                  min={0.1}
-                  step="0.1"
-                  defaultValue={ic.thresholdMultiplier}
-                  disabled={!canEdit}
-                  className={inputClass}
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="font-medium">Above Threshold %</span>
-                <Input
-                  name="aboveThresholdPercent"
-                  type="number"
-                  min={0}
-                  max={100}
-                  step="0.1"
-                  defaultValue={ic.aboveThresholdPercentBps / 100}
-                  disabled={!canEdit}
-                  className={inputClass}
-                />
-              </label>
-            </div>
-          ) : null}
-          {planType === 'fixed_bonus' ? (
-            <label className="mt-3 block space-y-1 text-sm">
-              <span className="font-medium">Fixed Bonus (₹)</span>
-              <Input
-                name="fixedBonusInr"
-                type="number"
-                min={0}
-                defaultValue={Math.round(ic.bonusPaise / 100)}
-                disabled={!canEdit}
-                className={inputClass}
+        <Section title="Incentive">
+          {canToggleIncentive && canEdit ? (
+            <label className="flex items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                name="incentiveEnabled"
+                value="1"
+                checked={incentiveEnabled}
+                onChange={(e) => setIncentiveEnabled(e.target.checked)}
+                className="fyh-checkbox mt-0.5"
               />
+              <span>
+                <span className="fyh-form-label">Incentive enabled</span>
+                <span className="fyh-form-helper mt-1 block">{salonIncentiveRuleSummary()}</span>
+              </span>
             </label>
-          ) : null}
-          <label className="mt-3 block space-y-1 text-sm">
-            <span className="font-medium">Effective From</span>
-            <Input
-              name="incentiveEffectiveFrom"
-              type="date"
-              defaultValue={incentivePlan?.effectiveFrom ?? ''}
-              disabled={!canEdit}
-              className={inputClass}
-            />
-          </label>
+          ) : (
+            <>
+              <input
+                type="hidden"
+                name="incentiveEnabled"
+                value={incentiveEnabledDefault ? '1' : '0'}
+              />
+              <p className="text-sm text-fyh-text">
+                {incentiveEnabledDefault ? 'Enabled' : 'Disabled'}
+              </p>
+              <p className="fyh-form-helper">{salonIncentiveRuleSummary()}</p>
+              {!canToggleIncentive ? (
+                <p className="fyh-form-helper">Only the owner can change incentive eligibility.</p>
+              ) : null}
+            </>
+          )}
         </Section>
 
         <Section title="Payment details">
@@ -392,7 +299,6 @@ export function EmployeeProfilePanel({
                 name="bankAccountHolderName"
                 defaultValue={employee.bankAccountHolderName ?? ''}
                 disabled={!canEdit}
-                className={inputClass}
               />
             </label>
             <label className="space-y-1 text-sm">
@@ -401,7 +307,6 @@ export function EmployeeProfilePanel({
                 name="bankName"
                 defaultValue={employee.bankName ?? ''}
                 disabled={!canEdit}
-                className={inputClass}
               />
             </label>
             <label className="space-y-1 text-sm">
@@ -411,7 +316,6 @@ export function EmployeeProfilePanel({
                 inputMode="numeric"
                 defaultValue={employee.accountNumber ?? ''}
                 disabled={!canEdit}
-                className={inputClass}
               />
             </label>
             <label className="space-y-1 text-sm">
@@ -420,7 +324,7 @@ export function EmployeeProfilePanel({
                 name="ifscCode"
                 defaultValue={employee.ifscCode ?? ''}
                 disabled={!canEdit}
-                className={`uppercase ${inputClass}`}
+                className="uppercase"
               />
             </label>
             <label className="space-y-1 text-sm">
@@ -429,7 +333,6 @@ export function EmployeeProfilePanel({
                 name="upiId"
                 defaultValue={employee.upiId ?? ''}
                 disabled={!canEdit}
-                className={inputClass}
               />
             </label>
             <fieldset className="space-y-2 sm:col-span-2">
@@ -443,6 +346,7 @@ export function EmployeeProfilePanel({
                       value={m}
                       defaultChecked={(employee.primaryPaymentMethod as WorkforcePaymentMethod) === m}
                       disabled={!canEdit}
+                      className="fyh-radio"
                     />
                     <span>{m === 'bank_transfer' ? 'Bank Transfer' : 'UPI'}</span>
                   </label>
@@ -530,7 +434,6 @@ export function EmployeeProfilePanel({
                 name="aadhaarNumber"
                 defaultValue={employee.aadhaarNumber ?? ''}
                 disabled={!canEdit}
-                className={inputClass}
               />
             </label>
             <label className="space-y-1 text-sm">
@@ -539,7 +442,7 @@ export function EmployeeProfilePanel({
                 name="panNumber"
                 defaultValue={employee.panNumber ?? ''}
                 disabled={!canEdit}
-                className={`uppercase ${inputClass}`}
+                className="uppercase"
               />
             </label>
           </div>

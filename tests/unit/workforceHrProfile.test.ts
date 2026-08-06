@@ -81,11 +81,14 @@ describe('Workforce HR UI contracts', () => {
       'utf8',
     );
     assert.match(src, /Payment details/i);
-    assert.match(src, /Incentive plan/i);
+    assert.match(src, /Incentive/i);
     assert.match(src, /name="salaryFrequency"/);
+    assert.match(src, /name="incentiveEnabled"/);
     assert.match(src, /WeekOffPicker/);
     assert.match(src, /name="bankAccountHolderName"/);
-    assert.match(src, /name="incentivePlanType"/);
+    assert.doesNotMatch(src, /salaryEffectiveFrom/);
+    assert.doesNotMatch(src, /incentivePlanType/);
+    assert.doesNotMatch(src, /thresholdMultiplier/);
   });
 
   test('EmployeeProfilePanel has profile sections', () => {
@@ -99,12 +102,14 @@ describe('Workforce HR UI contracts', () => {
       'Basic information',
       'Employment',
       'Salary',
-      'Incentive plan',
+      'Incentive',
       'Payment details',
       'Permissions',
       'Documents',
     ]) {
       assert.match(src, new RegExp(title, 'i'));
     }
+    assert.match(src, /canToggleIncentive/);
+    assert.doesNotMatch(src, /Salary Effective From/i);
   });
 });

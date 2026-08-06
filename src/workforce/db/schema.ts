@@ -59,6 +59,7 @@ export const wfEmployees = pgTable(
     qrCodeUrl: text('qr_code_url'),
     photoUrl: text('photo_url'),
     status: text('status').$type<WorkforceEmployeeStatus>().notNull().default('active'),
+    isSystemProvider: boolean('is_system_provider').notNull().default(false),
     legacyAdminUserId: uuid('legacy_admin_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

@@ -2,7 +2,9 @@
 
 import { revalidatePath } from 'next/cache';
 import { getHairSession } from '@/src/hair/lib/auth/session';
+import { getEmployeeDashboard } from '@/src/workforce/brains/employeeBrain';
 import { createEmployee, updateEmployee } from '@/src/workforce/services/employees';
+import { getIncentivePlan } from '@/src/workforce/services/incentivePlans';
 import { requireWorkforcePermission } from '@/src/workforce/permissions/guards';
 import {
   isWorkforceEngineEnabled,
@@ -55,7 +57,7 @@ export async function createWorkforceEmployeeAction(
       return { error: 'Password must be at least 6 characters.' };
     }
 
-    const hr = parseHrFieldsFromForm(formData);
+    const hr = parseHrFieldsFromForm(formData, { canToggleIncentive: true });
 
     await createEmployee({
       fullName: formStr(formData, 'fullName'),
@@ -109,7 +111,17 @@ export async function updateWorkforceEmployeeAction(
     const template = codeTemplateForAccessRole(accessRole);
     const password = formStr(formData, 'password');
     const receiveBookings = formData.get('receiveBookings') === '1';
-    const hr = parseHrFieldsFromForm(formData);
+
+    const existingPlan = await getIncentivePlan(id, 'fyh_salon');
+    const sessionDash = session?.workforceEmployeeId
+      ? await getEmployeeDashboard(session.workforceEmployeeId, 'fyh_salon')
+      : null;
+    const viewerIsOwner = sessionDash?.membership?.jobRole === 'owner';
+
+    const hr = parseHrFieldsFromForm(formData, {
+      canToggleIncentive: viewerIsOwner,
+      defaultIncentiveEnabled: existingPlan?.planType === 'percentage_threshold',
+    });
 
     await updateEmployee(id, {
       fullName: formStr(formData, 'fullName') || undefined,

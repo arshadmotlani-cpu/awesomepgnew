@@ -64,7 +64,7 @@ export async function getEmployee(employeeId: string): Promise<WfEmployee | null
 
 export async function listEmployeesForEngine(
   engineId: WorkforceEngineId,
-  opts?: { activeOnly?: boolean; receiveBookingsOnly?: boolean },
+  opts?: { activeOnly?: boolean; receiveBookingsOnly?: boolean; excludeSystemProviders?: boolean },
 ): Promise<EmployeeWithMembership[]> {
   await ensureRoleTemplatesSeeded(engineId);
   const activeOnly = opts?.activeOnly !== false;
@@ -87,6 +87,7 @@ export async function listEmployeesForEngine(
 
   const out: EmployeeWithMembership[] = [];
   for (const row of rows) {
+    if (opts?.excludeSystemProviders && row.employee.isSystemProvider) continue;
     const grants = await loadGrants(row.membership, engineId);
     if (
       opts?.receiveBookingsOnly &&
