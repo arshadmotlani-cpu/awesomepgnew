@@ -21,7 +21,15 @@ import type {
   WorkforceJobRole,
   WorkforcePermissionKey,
 } from '@/src/workforce/types';
+import type {
+  WorkforceIncentivePlanInput,
+  WorkforcePaymentMethod,
+  WorkforceSalaryFrequency,
+} from '@/src/workforce/types/hr';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
+import { upsertEmployeeWeeklySchedule } from '@/src/workforce/services/schedules';
+import { scheduleFromWeekOffDays } from '@/src/workforce/lib/weekOff';
+import { upsertIncentivePlan } from '@/src/workforce/services/incentivePlans';
 
 export type UpsertEmployeeInput = {
   fullName: string;
@@ -34,6 +42,13 @@ export type UpsertEmployeeInput = {
   aadhaarNumber?: string | null;
   panNumber?: string | null;
   salaryPaise?: number;
+  salaryFrequency?: WorkforceSalaryFrequency;
+  salaryEffectiveFrom?: string | null;
+  bankAccountHolderName?: string | null;
+  bankName?: string | null;
+  accountNumber?: string | null;
+  ifscCode?: string | null;
+  primaryPaymentMethod?: WorkforcePaymentMethod;
   upiId?: string | null;
   qrCodeUrl?: string | null;
   photoUrl?: string | null;
@@ -51,6 +66,8 @@ export type UpsertEmployeeInput = {
   actorEmployeeId?: string | null;
   /** Preserve UUID when mirroring legacy staff */
   id?: string;
+  weekOffDays?: number[];
+  incentivePlan?: WorkforceIncentivePlanInput;
 };
 
 async function assertUniqueEmployeeIdentity(input: {
@@ -159,6 +176,13 @@ export async function createEmployee(input: UpsertEmployeeInput) {
       aadhaarNumber: input.aadhaarNumber ?? null,
       panNumber: input.panNumber ?? null,
       salaryPaise: input.salaryPaise ?? 0,
+      salaryFrequency: input.salaryFrequency ?? 'monthly',
+      salaryEffectiveFrom: input.salaryEffectiveFrom ?? null,
+      bankAccountHolderName: input.bankAccountHolderName ?? null,
+      bankName: input.bankName ?? null,
+      accountNumber: input.accountNumber ?? null,
+      ifscCode: input.ifscCode ?? null,
+      primaryPaymentMethod: input.primaryPaymentMethod ?? 'upi',
       upiId: input.upiId ?? null,
       qrCodeUrl: input.qrCodeUrl ?? null,
       photoUrl: input.photoUrl ?? null,
@@ -185,6 +209,23 @@ export async function createEmployee(input: UpsertEmployeeInput) {
   });
 
   await mirrorSalonStaffRow(emp!.id, { ...input, accessRole });
+
+  const weekOff = input.weekOffDays ?? [0];
+  await upsertEmployeeWeeklySchedule({
+    employeeId: emp!.id,
+    engineId,
+    days: scheduleFromWeekOffDays(weekOff),
+    actorEmployeeId: input.actorEmployeeId,
+  });
+
+  if (input.incentivePlan) {
+    await upsertIncentivePlan({
+      employeeId: emp!.id,
+      engineId,
+      plan: input.incentivePlan,
+    });
+  }
+
   await writeEmployeeAudit({
     employeeId: emp!.id,
     actorEmployeeId: input.actorEmployeeId,
@@ -219,6 +260,13 @@ export async function updateEmployee(
   if (input.aadhaarNumber !== undefined) patch.aadhaarNumber = input.aadhaarNumber;
   if (input.panNumber !== undefined) patch.panNumber = input.panNumber;
   if (input.salaryPaise !== undefined) patch.salaryPaise = input.salaryPaise;
+  if (input.salaryFrequency !== undefined) patch.salaryFrequency = input.salaryFrequency;
+  if (input.salaryEffectiveFrom !== undefined) patch.salaryEffectiveFrom = input.salaryEffectiveFrom;
+  if (input.bankAccountHolderName !== undefined) patch.bankAccountHolderName = input.bankAccountHolderName;
+  if (input.bankName !== undefined) patch.bankName = input.bankName;
+  if (input.accountNumber !== undefined) patch.accountNumber = input.accountNumber;
+  if (input.ifscCode !== undefined) patch.ifscCode = input.ifscCode;
+  if (input.primaryPaymentMethod !== undefined) patch.primaryPaymentMethod = input.primaryPaymentMethod;
   if (input.upiId !== undefined) patch.upiId = input.upiId;
   if (input.qrCodeUrl !== undefined) patch.qrCodeUrl = input.qrCodeUrl;
   if (input.photoUrl !== undefined) patch.photoUrl = input.photoUrl;
@@ -251,7 +299,8 @@ export async function updateEmployee(
     mem &&
     (accessRole ||
       input.permissions ||
-      input.maxBackdateDays !== undefined)
+      input.maxBackdateDays !== undefined ||
+      input.receiveBookings !== undefined)
   ) {
     const role = accessRole ?? mem.jobRole;
     const rank = rankFromAccessRole(role);
@@ -262,9 +311,16 @@ export async function updateEmployee(
 
     const usesCustom = Boolean(input.permissions && input.permissions.length > 0);
     const template = codeTemplateForAccessRole(role);
-    const permissions = usesCustom ? input.permissions! : template.permissions;
+    let permissions = usesCustom ? [...input.permissions!] : [...template.permissions];
+    if (!usesCustom && input.receiveBookings !== undefined) {
+      const without = permissions.filter((k) => k !== 'appointments.receive_bookings');
+      permissions = input.receiveBookings
+        ? [...without, 'appointments.receive_bookings']
+        : without;
+    }
     const grantMaxBackdate =
       input.maxBackdateDays !== undefined ? input.maxBackdateDays : template.maxBackdateDays;
+    const usesRoleTemplate = !usesCustom && input.receiveBookings === undefined;
 
     const [pg] = await hairDb
       .select()
@@ -275,18 +331,18 @@ export async function updateEmployee(
       await hairDb
         .update(wfPermissionGrants)
         .set({
-          permissions,
+          permissions: usesRoleTemplate ? [] : permissions,
           maxBackdateDays: grantMaxBackdate,
-          usesRoleTemplate: !usesCustom,
+          usesRoleTemplate,
           updatedAt: new Date(),
         })
         .where(eq(wfPermissionGrants.id, pg.id));
     } else {
       await hairDb.insert(wfPermissionGrants).values({
         membershipId: mem.id,
-        permissions,
+        permissions: usesRoleTemplate ? [] : permissions,
         maxBackdateDays: grantMaxBackdate,
-        usesRoleTemplate: !usesCustom,
+        usesRoleTemplate,
       });
     }
 
@@ -332,6 +388,23 @@ export async function updateEmployee(
     status: input.status,
     joiningDate: input.joiningDate,
   });
+
+  if (input.weekOffDays) {
+    await upsertEmployeeWeeklySchedule({
+      employeeId,
+      engineId,
+      days: scheduleFromWeekOffDays(input.weekOffDays),
+      actorEmployeeId: input.actorEmployeeId,
+    });
+  }
+
+  if (input.incentivePlan) {
+    await upsertIncentivePlan({
+      employeeId,
+      engineId,
+      plan: input.incentivePlan,
+    });
+  }
 
   await writeEmployeeAudit({
     employeeId,

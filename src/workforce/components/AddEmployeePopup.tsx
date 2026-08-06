@@ -10,7 +10,14 @@ import {
   WORKFORCE_PERMISSION_LIBRARY,
   WORKFORCE_PERMISSION_GROUP_LABELS,
 } from '@/src/workforce/types';
+import {
+  WORKFORCE_INCENTIVE_PLAN_TYPES,
+  WORKFORCE_PAYMENT_METHODS,
+  WORKFORCE_SALARY_FREQUENCIES,
+  type WorkforceIncentivePlanType,
+} from '@/src/workforce/types/hr';
 import { workforceAccessRoleLabel } from '@/src/workforce/labels';
+import { WeekOffPicker } from '@/src/workforce/components/WeekOffPicker';
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
 
@@ -39,6 +46,7 @@ export function AddEmployeePopup() {
   const [qrPreview, setQrPreview] = useState<string | null>(null);
   const [receiveBookings, setReceiveBookings] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [planType, setPlanType] = useState<WorkforceIncentivePlanType>('none');
   const [state, action, pending] = useActionState(createWorkforceEmployeeAction, initial);
   const [, startTransition] = useTransition();
 
@@ -197,9 +205,23 @@ export function AddEmployeePopup() {
                   </Section>
 
                   <Section title="Employment">
+                    <WeekOffPicker defaultOffDays={[0]} />
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <label className="space-y-1 text-sm">
+                        <span className="font-medium">Aadhaar</span>
+                        <Input name="aadhaarNumber" inputMode="numeric" className={inputClass} />
+                      </label>
+                      <label className="space-y-1 text-sm">
+                        <span className="font-medium">PAN</span>
+                        <Input name="panNumber" className={`uppercase ${inputClass}`} />
+                      </label>
+                    </div>
+                  </Section>
+
+                  <Section title="Salary">
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="space-y-1 text-sm">
-                        <span className="font-medium">Salary</span>
+                        <span className="font-medium">Base Monthly Salary (₹)</span>
                         <Input
                           name="salaryInr"
                           type="number"
@@ -210,17 +232,122 @@ export function AddEmployeePopup() {
                         />
                       </label>
                       <label className="space-y-1 text-sm">
-                        <span className="font-medium">Aadhaar</span>
-                        <Input name="aadhaarNumber" inputMode="numeric" className={inputClass} />
+                        <span className="font-medium">Payment Frequency</span>
+                        <select name="salaryFrequency" className={fieldClass} defaultValue="monthly">
+                          {WORKFORCE_SALARY_FREQUENCIES.map((f) => (
+                            <option key={f} value={f}>
+                              {f.charAt(0).toUpperCase() + f.slice(1)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="space-y-1 text-sm sm:col-span-2">
+                        <span className="font-medium">Salary Effective From</span>
+                        <Input name="salaryEffectiveFrom" type="date" className={inputClass} />
+                      </label>
+                    </div>
+                  </Section>
+
+                  <Section title="Incentive plan">
+                    <label className="block space-y-1 text-sm">
+                      <span className="font-medium">Plan type</span>
+                      <select
+                        name="incentivePlanType"
+                        className={fieldClass}
+                        value={planType}
+                        onChange={(e) => setPlanType(e.target.value as WorkforceIncentivePlanType)}
+                      >
+                        {WORKFORCE_INCENTIVE_PLAN_TYPES.map((t) => (
+                          <option key={t} value={t}>
+                            {t === 'none'
+                              ? 'No Incentive'
+                              : t === 'percentage_threshold'
+                                ? 'Percentage Incentive'
+                                : 'Fixed Bonus'}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {planType === 'percentage_threshold' ? (
+                      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                        <label className="space-y-1 text-sm">
+                          <span className="font-medium">Base Salary (₹)</span>
+                          <Input name="incentiveBaseSalaryInr" type="number" min={0} className={inputClass} />
+                        </label>
+                        <label className="space-y-1 text-sm">
+                          <span className="font-medium">Threshold Multiplier</span>
+                          <Input
+                            name="thresholdMultiplier"
+                            type="number"
+                            min={0.1}
+                            step="0.1"
+                            defaultValue={2}
+                            className={inputClass}
+                          />
+                        </label>
+                        <label className="space-y-1 text-sm">
+                          <span className="font-medium">Above Threshold %</span>
+                          <Input
+                            name="aboveThresholdPercent"
+                            type="number"
+                            min={0}
+                            max={100}
+                            defaultValue={10}
+                            className={inputClass}
+                          />
+                        </label>
+                      </div>
+                    ) : null}
+                    {planType === 'fixed_bonus' ? (
+                      <label className="mt-3 block space-y-1 text-sm">
+                        <span className="font-medium">Fixed Bonus (₹)</span>
+                        <Input name="fixedBonusInr" type="number" min={0} className={inputClass} />
+                      </label>
+                    ) : null}
+                    <label className="mt-3 block space-y-1 text-sm">
+                      <span className="font-medium">Effective From</span>
+                      <Input name="incentiveEffectiveFrom" type="date" className={inputClass} />
+                    </label>
+                  </Section>
+
+                  <Section title="Payment details">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="space-y-1 text-sm sm:col-span-2">
+                        <span className="font-medium">Bank Account Holder Name</span>
+                        <Input name="bankAccountHolderName" className={inputClass} />
                       </label>
                       <label className="space-y-1 text-sm">
-                        <span className="font-medium">PAN</span>
-                        <Input name="panNumber" className={`uppercase ${inputClass}`} />
+                        <span className="font-medium">Bank Name</span>
+                        <Input name="bankName" className={inputClass} />
+                      </label>
+                      <label className="space-y-1 text-sm">
+                        <span className="font-medium">Account Number</span>
+                        <Input name="accountNumber" inputMode="numeric" className={inputClass} />
+                      </label>
+                      <label className="space-y-1 text-sm">
+                        <span className="font-medium">IFSC Code</span>
+                        <Input name="ifscCode" className={`uppercase ${inputClass}`} />
                       </label>
                       <label className="space-y-1 text-sm">
                         <span className="font-medium">UPI ID</span>
                         <Input name="upiId" placeholder="name@upi" className={inputClass} />
                       </label>
+                      <fieldset className="space-y-2 sm:col-span-2">
+                        <legend className="text-sm font-medium">Primary Payment Method</legend>
+                        <div className="flex flex-wrap gap-4 text-sm">
+                          {WORKFORCE_PAYMENT_METHODS.map((m) => (
+                            <label key={m} className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name="primaryPaymentMethod"
+                                value={m}
+                                defaultChecked={m === 'upi'}
+                              />
+                              <span>{m === 'bank_transfer' ? 'Bank Transfer' : 'UPI'}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </fieldset>
                       <label className="space-y-1 text-sm sm:col-span-2">
                         <span className="font-medium">QR Code</span>
                         <input

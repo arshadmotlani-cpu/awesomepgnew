@@ -20,6 +20,12 @@ import type {
   WorkforcePermissionKey,
   WorkforceRank,
 } from '@/src/workforce/types';
+import type {
+  WorkforceIncentivePlanConfig,
+  WorkforceIncentivePlanType,
+  WorkforcePaymentMethod,
+  WorkforceSalaryFrequency,
+} from '@/src/workforce/types/hr';
 
 export const wfEmployees = pgTable(
   'wf_employees',
@@ -36,6 +42,19 @@ export const wfEmployees = pgTable(
     aadhaarNumber: text('aadhaar_number'),
     panNumber: text('pan_number'),
     salaryPaise: bigint('salary_paise', { mode: 'number' }).notNull().default(0),
+    salaryFrequency: text('salary_frequency')
+      .$type<WorkforceSalaryFrequency>()
+      .notNull()
+      .default('monthly'),
+    salaryEffectiveFrom: date('salary_effective_from'),
+    bankAccountHolderName: text('bank_account_holder_name'),
+    bankName: text('bank_name'),
+    accountNumber: text('account_number'),
+    ifscCode: text('ifsc_code'),
+    primaryPaymentMethod: text('primary_payment_method')
+      .$type<WorkforcePaymentMethod>()
+      .notNull()
+      .default('upi'),
     upiId: text('upi_id'),
     qrCodeUrl: text('qr_code_url'),
     photoUrl: text('photo_url'),
@@ -218,6 +237,26 @@ export const wfIncentives = pgTable(
   ],
 );
 
+export const wfIncentivePlans = pgTable(
+  'wf_incentive_plans',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    employeeId: uuid('employee_id')
+      .notNull()
+      .references(() => wfEmployees.id, { onDelete: 'cascade' }),
+    engineId: text('engine_id').$type<WorkforceEngineId>().notNull().default('fyh_salon'),
+    planType: text('plan_type').$type<WorkforceIncentivePlanType>().notNull().default('none'),
+    config: jsonb('config').$type<WorkforceIncentivePlanConfig>().notNull().default({}),
+    effectiveFrom: date('effective_from'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('wf_incentive_plans_employee_engine_uidx').on(t.employeeId, t.engineId),
+    index('wf_incentive_plans_engine_idx').on(t.engineId, t.planType),
+  ],
+);
+
 export const wfAuthSessions = pgTable(
   'wf_auth_sessions',
   {
@@ -275,3 +314,4 @@ export const wfEvents = pgTable(
 
 export type WfEmployee = typeof wfEmployees.$inferSelect;
 export type WfEngineMembership = typeof wfEngineMemberships.$inferSelect;
+export type WfIncentivePlan = typeof wfIncentivePlans.$inferSelect;

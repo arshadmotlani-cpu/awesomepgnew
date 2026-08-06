@@ -3,28 +3,12 @@ import { hairDb } from '@/src/hair/db/client';
 import { wfSchedules } from '@/src/workforce/db/schema';
 import { publishEmployeeEvent } from '@/src/workforce/events/publish';
 import type { WorkforceEngineId } from '@/src/workforce/types';
+import { DEFAULT_WEEK_SCHEDULE, type DayScheduleInput } from '@/src/workforce/lib/weekOff';
 
-export type DayScheduleInput = {
-  dayOfWeek: number;
-  startTime: string;
-  endTime: string;
-  lunchStart?: string | null;
-  lunchEnd?: string | null;
-  isOff?: boolean;
-};
-
-const DEFAULT_WEEK: DayScheduleInput[] = [
-  { dayOfWeek: 0, startTime: '10:00', endTime: '19:00', isOff: true },
-  { dayOfWeek: 1, startTime: '10:00', endTime: '19:00', isOff: false },
-  { dayOfWeek: 2, startTime: '10:00', endTime: '19:00', isOff: false },
-  { dayOfWeek: 3, startTime: '10:00', endTime: '19:00', isOff: false },
-  { dayOfWeek: 4, startTime: '10:00', endTime: '19:00', isOff: false },
-  { dayOfWeek: 5, startTime: '10:00', endTime: '19:00', isOff: false },
-  { dayOfWeek: 6, startTime: '10:00', endTime: '19:00', isOff: false },
-];
+export type { DayScheduleInput } from '@/src/workforce/lib/weekOff';
 
 export function defaultWeeklySchedule(): DayScheduleInput[] {
-  return DEFAULT_WEEK.map((d) => ({ ...d }));
+  return DEFAULT_WEEK_SCHEDULE.map((d) => ({ ...d }));
 }
 
 /** True when local HH:MM falls inside the working window (exclusive of lunch). */

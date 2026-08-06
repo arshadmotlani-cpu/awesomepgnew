@@ -11,6 +11,7 @@ import {
 } from '@/src/workforce/types';
 import { WORKFORCE_PERMISSION_KEYS, type WorkforcePermissionKey } from '@/src/workforce/types';
 import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
+import { parseHrFieldsFromForm } from '@/src/workforce/actions/parseHrForm';
 
 export type WorkforceActionState = { error?: string; success?: string };
 
@@ -54,6 +55,8 @@ export async function createWorkforceEmployeeAction(
       return { error: 'Password must be at least 6 characters.' };
     }
 
+    const hr = parseHrFieldsFromForm(formData);
+
     await createEmployee({
       fullName: formStr(formData, 'fullName'),
       email,
@@ -64,9 +67,6 @@ export async function createWorkforceEmployeeAction(
       joiningDate: formStr(formData, 'joiningDate') || null,
       aadhaarNumber: formStr(formData, 'aadhaarNumber') || null,
       panNumber: formStr(formData, 'panNumber') || null,
-      salaryPaise: Math.round(Number(formStr(formData, 'salaryInr') || '0') * 100),
-      upiId: formStr(formData, 'upiId') || null,
-      qrCodeUrl: formStr(formData, 'qrCodeUrl') || null,
       photoUrl: formStr(formData, 'photoUrl') || null,
       status: formStr(formData, 'status') === 'inactive' ? 'inactive' : 'active',
       accessRole,
@@ -75,6 +75,10 @@ export async function createWorkforceEmployeeAction(
       receiveBookings,
       canLogin: password.length >= 6,
       actorEmployeeId: session?.workforceEmployeeId ?? null,
+      ...hr.employee,
+      salaryPaise: hr.employee.salaryPaise ?? 0,
+      weekOffDays: hr.weekOffDays,
+      incentivePlan: hr.incentivePlan,
     });
 
     revalidatePath('/workforce');
@@ -104,6 +108,8 @@ export async function updateWorkforceEmployeeAction(
       .filter((k) => (WORKFORCE_PERMISSION_KEYS as readonly string[]).includes(k)) as WorkforcePermissionKey[];
     const template = codeTemplateForAccessRole(accessRole);
     const password = formStr(formData, 'password');
+    const receiveBookings = formData.get('receiveBookings') === '1';
+    const hr = parseHrFieldsFromForm(formData);
 
     await updateEmployee(id, {
       fullName: formStr(formData, 'fullName') || undefined,
@@ -115,20 +121,21 @@ export async function updateWorkforceEmployeeAction(
       joiningDate: formStr(formData, 'joiningDate') || null,
       aadhaarNumber: formStr(formData, 'aadhaarNumber') || null,
       panNumber: formStr(formData, 'panNumber') || null,
-      salaryPaise: formStr(formData, 'salaryInr')
-        ? Math.round(Number(formStr(formData, 'salaryInr')) * 100)
-        : undefined,
-      upiId: formStr(formData, 'upiId') || null,
       status: formStr(formData, 'status') === 'inactive' ? 'inactive' : 'active',
       accessRole,
       permissions: perms.length ? perms : undefined,
       maxBackdateDays: template.maxBackdateDays,
+      receiveBookings,
       canLogin: password.length >= 6,
       actorEmployeeId: session?.workforceEmployeeId ?? null,
+      ...hr.employee,
+      weekOffDays: hr.weekOffDays,
+      incentivePlan: hr.incentivePlan,
     });
 
     revalidatePath('/workforce');
     revalidatePath('/staff');
+    revalidatePath(`/staff/${id}`);
     return { success: 'Employee updated.' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to update employee' };

@@ -148,6 +148,8 @@ describe('Workforce Add Employee popup', () => {
       assert.match(src, new RegExp(`name="${name}"`));
     }
     assert.match(src, /Basic information/i);
+    assert.match(src, /Payment details/i);
+    assert.match(src, /name="salaryFrequency"/);
     assert.match(src, /Advanced Permission Overrides/);
     assert.doesNotMatch(src, /loginEnabled/);
     assert.doesNotMatch(src, /name="rank"/);

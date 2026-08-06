@@ -59,7 +59,14 @@ export async function StaffManagementList({ canAdd, grants }: Props) {
           <tbody>
             {employees.map((row) => (
               <tr key={row.employee.id} className="border-t border-[color:var(--fyh-border)]">
-                <td className="px-4 py-3 font-medium text-fyh-text">{row.employee.fullName}</td>
+                <td className="px-4 py-3 font-medium text-fyh-text">
+                  <Link
+                    href={`/staff/${row.employee.id}`}
+                    className="text-fyh-accent underline-offset-2 hover:underline"
+                  >
+                    {row.employee.fullName}
+                  </Link>
+                </td>
                 <td className="px-4 py-3">{row.employee.mobile ?? '—'}</td>
                 <td className="px-4 py-3">
                   {workforceAccessRoleLabel(row.membership.jobRole)}
