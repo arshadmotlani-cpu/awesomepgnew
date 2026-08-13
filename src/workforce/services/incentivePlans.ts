@@ -1,16 +1,11 @@
 import { and, eq } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import { wfIncentivePlans } from '@/src/workforce/db/schema';
-import {
-  isPercentageThresholdConfig,
-  isSalonRulesConfig,
-} from '@/src/workforce/lib/incentiveRuleEngine';
 import type { WorkforceEngineId } from '@/src/workforce/types';
 import type {
   PercentageThresholdIncentiveConfig,
   WorkforceIncentivePlanConfig,
   WorkforceIncentivePlanInput,
-  WorkforceIncentivePlanType,
 } from '@/src/workforce/types/hr';
 
 export { isPercentageThresholdConfig, isSalonRulesConfig } from '@/src/workforce/lib/incentiveRuleEngine';

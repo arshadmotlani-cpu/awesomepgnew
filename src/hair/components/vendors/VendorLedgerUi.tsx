@@ -14,6 +14,7 @@ import {
 } from '@/src/hair/actions/vendorLedger';
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
+import { ImageFileInputInline } from '@/src/components/shared/ImageFileInput';
 import type { FyhVendor } from '@/src/hair/db/schema';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import {
@@ -516,6 +517,7 @@ function VendorPaymentForm({
 }) {
   const [state, formAction, pending] = useActionState(recordVendorPaymentAction, initialState);
   const [allocations, setAllocations] = useState<Record<string, string>>({});
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
 
   const allocationsJson = useMemo(() => {
     const rows = openInvoices
@@ -535,7 +537,14 @@ function VendorPaymentForm({
         Leave invoice allocations empty to record an advance. One payment can settle multiple
         invoices.
       </p>
-      <form action={formAction} encType="multipart/form-data" className="space-y-4">
+      <form
+        action={(fd) => {
+          if (attachmentFile) fd.set('attachment', attachmentFile);
+          formAction(fd);
+        }}
+        encType="multipart/form-data"
+        className="space-y-4"
+      >
         <input type="hidden" name="vendorId" value={vendorId} />
         <input type="hidden" name="allocationsJson" value={allocationsJson} />
 
@@ -621,7 +630,12 @@ function VendorPaymentForm({
           <label className="fyh-label" htmlFor="attachment">
             Attachment (optional)
           </label>
-          <Input id="attachment" name="attachment" type="file" accept="application/pdf,image/*" />
+          <ImageFileInputInline
+            id="attachment"
+            accept="application/pdf,image/*"
+            className="max-w-xs"
+            onFileSelected={(file) => setAttachmentFile(file ?? null)}
+          />
         </div>
 
         {state.error ? <p className="text-sm text-fyh-danger">{state.error}</p> : null}

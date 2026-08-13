@@ -1,4 +1,3 @@
-import type { WorkforceIncentivePlanInput } from '@/src/workforce/types/hr';
 import { SALON_INCENTIVE_RULES } from '@/src/workforce/lib/salonCompensationRules.constants';
 import {
   DEFAULT_FLAT_PRODUCT_RULE,
@@ -10,7 +9,9 @@ import {
 } from '@/src/workforce/lib/incentiveRuleEngine';
 import type {
   PercentageThresholdIncentiveConfig,
-  SalonRulesIncentiveConfig,
+  WorkforceIncentivePlanConfig,
+  WorkforceIncentivePlanInput,
+  WorkforceIncentivePlanType,
 } from '@/src/workforce/types/hr';
 
 export { SALON_PAYROLL_RULES, SALON_INCENTIVE_RULES } from '@/src/workforce/lib/salonCompensationRules.constants';
@@ -53,7 +54,10 @@ export function salonIncentiveRuleSummary(
   config?: unknown,
 ): string {
   const normalized = planType && config
-    ? normalizeIncentivePlan(planType as 'salon_rules', config as SalonRulesIncentiveConfig)
+    ? normalizeIncentivePlan(
+        planType as WorkforceIncentivePlanType,
+        config as WorkforceIncentivePlanConfig,
+      )
     : null;
   if (!normalized) {
     const below = SALON_INCENTIVE_RULES.belowThresholdPercentBps / 100;
@@ -79,7 +83,10 @@ export function salonIncentiveRulesDisplay(
   productSales: string[];
 } {
   const normalized = planType && config
-    ? normalizeIncentivePlan(planType as 'salon_rules', config as SalonRulesIncentiveConfig)
+    ? normalizeIncentivePlan(
+        planType as WorkforceIncentivePlanType,
+        config as WorkforceIncentivePlanConfig,
+      )
     : null;
 
   if (!normalized) {

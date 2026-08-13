@@ -11,6 +11,7 @@ import {
 } from '@/src/hair/actions/purchases';
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
+import { ImageFileInputInline } from '@/src/components/shared/ImageFileInput';
 import type { FyhProduct, FyhPurchase, FyhPurchaseAuditEvent, FyhVendor, FyhVendorPayable } from '@/src/hair/db/schema';
 import { vendorFilePreviewHref } from '@/src/hair/lib/vendorFileLinks';
 import {
@@ -312,6 +313,7 @@ export function PurchaseDetailView({
     attachPurchaseInvoiceAction,
     initialState,
   );
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const summary = explainPurchase({
     purchase: detail.purchase,
     vendorName: detail.vendorName,
@@ -381,10 +383,21 @@ export function PurchaseDetailView({
         ) : (
           <p className="text-sm text-fyh-text-muted">No invoice attachment yet.</p>
         )}
-        <form action={attachAction} encType="multipart/form-data" className="flex flex-wrap gap-2">
+        <form
+          action={(fd) => {
+            if (attachmentFile) fd.set('attachment', attachmentFile);
+            attachAction(fd);
+          }}
+          encType="multipart/form-data"
+          className="flex flex-wrap gap-2"
+        >
           <input type="hidden" name="purchaseId" value={detail.purchase.id} />
-          <Input name="attachment" type="file" accept="application/pdf,image/*" required />
-          <Button type="submit" disabled={attachPending}>
+          <ImageFileInputInline
+            accept="application/pdf,image/*"
+            className="max-w-xs"
+            onFileSelected={(file) => setAttachmentFile(file ?? null)}
+          />
+          <Button type="submit" disabled={attachPending || !attachmentFile}>
             {attachPending ? 'Uploading…' : detail.purchase.attachmentUrl ? 'Replace' : 'Upload'}
           </Button>
         </form>

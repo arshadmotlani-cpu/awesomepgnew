@@ -9,8 +9,6 @@ import type { SalonIncentiveRule } from '@/src/workforce/types/hr';
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
 
-const fieldClass = 'fyh-select w-full text-sm text-fyh-text';
-
 export type IncentiveRuleRowState = {
   thresholdInr: string;
   percent: string;
