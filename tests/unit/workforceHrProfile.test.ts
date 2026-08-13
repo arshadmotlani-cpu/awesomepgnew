@@ -119,5 +119,38 @@ describe('Workforce HR UI contracts', () => {
     assert.match(profileSrc, /salonIncentiveRulesDisplay/);
     assert.match(profileSrc, /SECTION_SAVE_LABELS/);
     assert.doesNotMatch(profileSrc, /Salary Effective From/i);
+
+    const staffBlock = profileSrc.split("activeSection === 'staff-details'")[1]?.split(
+      "activeSection === 'credentials'",
+    )[0];
+    assert.ok(staffBlock);
+    assert.doesNotMatch(staffBlock!, /name="salaryInr"/);
+    assert.doesNotMatch(staffBlock!, /name="bankAccountHolderName"/);
+    assert.doesNotMatch(staffBlock!, /WeekOffPicker/);
+
+    const credentialsBlock = profileSrc.split("activeSection === 'credentials'")[1]?.split(
+      "activeSection === 'salary'",
+    )[0];
+    assert.ok(credentialsBlock);
+    assert.match(credentialsBlock!, /name="bankAccountHolderName"/);
+    assert.match(credentialsBlock!, /name="upiId"/);
+    assert.doesNotMatch(credentialsBlock!, /name="salaryInr"/);
+
+    const salaryBlock = profileSrc.split("activeSection === 'salary'")[1]?.split(
+      "activeSection === 'rights'",
+    )[0];
+    assert.ok(salaryBlock);
+    assert.match(salaryBlock!, /name="salaryInr"/);
+    assert.match(salaryBlock!, /Incentive rules/);
+    assert.match(salaryBlock!, /periodIncentive/);
+    assert.doesNotMatch(salaryBlock!, /name="bankAccountHolderName"/);
+
+    const scheduleFormBlock = profileSrc.split("activeSection === 'schedule'")[1]?.split(
+      'Preserve HR fields',
+    )[0];
+    assert.ok(scheduleFormBlock);
+    assert.match(scheduleFormBlock!, /WeekOffPicker/);
+
+    assert.match(profileSrc, /WorkingHoursEditor/);
   });
 });

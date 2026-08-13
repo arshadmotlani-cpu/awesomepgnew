@@ -28,6 +28,29 @@ function productInr(inr: number): number {
   return computeProductSalesIncentivePaise(rupeesToPaise(inr));
 }
 
+describe('Salon incentive math — service threshold switch (₹12k salary)', () => {
+  const salary12kConfig: PercentageThresholdIncentiveConfig = {
+    baseSalaryPaise: 1_200_000,
+    thresholdMultiplier: 2,
+    belowThresholdPercentBps: 500,
+    aboveThresholdPercentBps: 1000,
+  };
+
+  test('₹24k service performance → ₹1,200 (5% at 2× threshold)', () => {
+    assert.equal(
+      computeServicePerformanceIncentivePaise(salary12kConfig, rupeesToPaise(24_000)),
+      120_000,
+    );
+  });
+
+  test('₹25k service performance → ₹2,500 (10% on entire amount above threshold)', () => {
+    assert.equal(
+      computeServicePerformanceIncentivePaise(salary12kConfig, rupeesToPaise(25_000)),
+      250_000,
+    );
+  });
+});
+
 describe('Salon incentive math — service threshold switch (₹20k salary)', () => {
   test('₹0 service performance → ₹0 incentive', () => {
     assert.equal(serviceInr(0), 0);
