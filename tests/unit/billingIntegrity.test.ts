@@ -4,7 +4,8 @@ import { BILLING_INTEGRITY_CHECK_TYPES } from '../../src/services/billingIntegri
 import { ALLOCATION_INTEGRITY_CHECK_TYPES } from '../../src/services/allocationIntegrityAudit';
 
 test('billing integrity check types cover payment settlement drift classes', () => {
-  assert.equal(BILLING_INTEGRITY_CHECK_TYPES.length, 7);
+  assert.equal(BILLING_INTEGRITY_CHECK_TYPES.length, 8);
+  assert.ok(BILLING_INTEGRITY_CHECK_TYPES.includes('LATE_FEE_ABOVE_CAP'));
   assert.ok(BILLING_INTEGRITY_CHECK_TYPES.includes('APPROVED_PAYMENT_INVOICE_DUE'));
   assert.ok(BILLING_INTEGRITY_CHECK_TYPES.includes('SOURCE_MIRROR_MISMATCH'));
   assert.ok(BILLING_INTEGRITY_CHECK_TYPES.includes('ROOM_PEER_BILLING_MISMATCH'));

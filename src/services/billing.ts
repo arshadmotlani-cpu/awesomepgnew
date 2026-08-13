@@ -26,6 +26,7 @@ export {
 import { computeNoticeDeductionBreakdown } from '../lib/vacating/noticeDeductionEngine';
 import {
   applyLateFeePolicy,
+  capLateFeeAtPrincipalPercent,
   type LateFeePolicySnapshot,
 } from './lateFeePolicyCore';
 
@@ -239,7 +240,8 @@ export function computeLateFee(args: {
     });
   }
 
-  return Math.floor((args.rentPaise * chargeableDays) / 100);
+  const fee = Math.floor((args.rentPaise * chargeableDays) / 100);
+  return capLateFeeAtPrincipalPercent(args.rentPaise, fee);
 }
 
 /**
@@ -280,7 +282,8 @@ export function computeElectricityLateFee(args: {
         ? electricityDaysOverdue(args.dueDate, today)
         : 0;
   if (chargeableDays === 0) return 0;
-  return Math.floor((args.amountPaise * chargeableDays) / 100);
+  const fee = Math.floor((args.amountPaise * chargeableDays) / 100);
+  return capLateFeeAtPrincipalPercent(args.amountPaise, fee);
 }
 
 /**

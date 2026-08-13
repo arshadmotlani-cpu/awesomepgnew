@@ -72,6 +72,7 @@ import {
   monthBounds,
   rentInvoiceBillingPeriodNote,
 } from './billing';
+import { capLateFeeAtPrincipalPercent } from './lateFeePolicyCore';
 import type { AnyPaymentProvider } from './bookingLifecycle';
 import type { ProviderName } from './payments';
 import {
@@ -2084,12 +2085,14 @@ export function projectInvoice(
   }
 
   if (!options?.bypassProofSnapshot && hasFrozenProofSnapshot(inv)) {
-    const accruedLateFeePaise = inv.proofSnapshotLateFeePaise ?? 0;
+    const rentDuePaise = computeRentDuePaise(inv.rentPaise, inv.discountPaise);
+    const accruedLateFeePaise = capLateFeeAtPrincipalPercent(
+      rentDuePaise,
+      inv.proofSnapshotLateFeePaise ?? 0,
+    );
     const outstandingPaise = Math.max(
       0,
-      inv.proofSnapshotOutstandingPaise -
-        inv.paidPrincipalPaise -
-        inv.paidLateFeePaise,
+      rentDuePaise + accruedLateFeePaise - inv.paidPrincipalPaise - inv.paidLateFeePaise,
     );
     return {
       ...inv,

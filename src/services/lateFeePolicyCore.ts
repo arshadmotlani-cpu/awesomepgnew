@@ -6,6 +6,29 @@
 import { addDays, diffDays, formatDate, parseDate, type DateLike } from '@/src/lib/dates';
 import { chargeableLateFeeDaysFromIssue } from '@/src/lib/billing/lateFeeSchedule';
 
+/**
+ * AwesomePG hard cap — late fee for a single invoice never exceeds 10% of principal.
+ * Applied after policy/schedule math; not compounded monthly.
+ */
+export const PG_LATE_FEE_MAX_PERCENT_OF_PRINCIPAL = 10;
+
+/** Maximum late fee (paise) for an invoice principal. */
+export function lateFeeCapPaise(principalPaise: number): number {
+  if (principalPaise <= 0) return 0;
+  return Math.floor((principalPaise * PG_LATE_FEE_MAX_PERCENT_OF_PRINCIPAL) / 100);
+}
+
+/** Clamp calculated late fee to the 10% principal cap. */
+export function capLateFeeAtPrincipalPercent(principalPaise: number, lateFeePaise: number): number {
+  if (lateFeePaise <= 0) return 0;
+  return Math.min(lateFeePaise, lateFeeCapPaise(principalPaise));
+}
+
+/** Stored/locked late fee exceeds the 10% cap — flag for admin review; do not auto-rewrite. */
+export function isLateFeeAbovePrincipalCap(principalPaise: number, lateFeePaise: number): boolean {
+  return lateFeePaise > lateFeeCapPaise(principalPaise);
+}
+
 function asOfIso(value?: DateLike): string {
   return formatDate(parseDate(value ?? new Date()));
 }
@@ -85,13 +108,14 @@ export function applyLateFeePolicy(args: {
   if (args.policy.maxFeePaise != null && args.policy.maxFeePaise >= 0) {
     fee = Math.min(fee, args.policy.maxFeePaise);
   }
-  return Math.max(0, fee);
+  return capLateFeeAtPrincipalPercent(args.principalPaise, Math.max(0, fee));
 }
 
 /** Legacy fallback: 1% of principal per overdue day, floored. */
 export function legacyLateFeePaise(principalPaise: number, overdueDays: number): number {
   if (principalPaise <= 0 || overdueDays <= 0) return 0;
-  return Math.floor((principalPaise * overdueDays) / 100);
+  const fee = Math.floor((principalPaise * overdueDays) / 100);
+  return capLateFeeAtPrincipalPercent(principalPaise, fee);
 }
 
 /**

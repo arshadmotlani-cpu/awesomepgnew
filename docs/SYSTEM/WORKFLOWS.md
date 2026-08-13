@@ -273,3 +273,6 @@ flowchart TD
 
 <!-- DOC_SYNC_TOUCH_2026-08-06 -->
 > **2026-08-06 04:01:32 UTC** — Code changed in: Routes, Database, Bookings, Billing, Vacating. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-08-13 -->
+> **2026-08-13 06:34:09 UTC** — Code changed in: Billing. Manual review recommended.

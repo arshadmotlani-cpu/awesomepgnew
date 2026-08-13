@@ -13,6 +13,8 @@ import {
 import { todayString } from '@/src/lib/dates';
 import { firstOfMonth } from '@/src/services/billing';
 import { listRoomElectricityPeerMismatches } from '@/src/lib/billing/roomElectricityReconciliation';
+import { isLateFeeAbovePrincipalCap, lateFeeCapPaise } from '@/src/services/lateFeePolicyCore';
+import { computeRentDuePaise } from '@/src/services/rentInvoices';
 
 export const BILLING_INTEGRITY_CHECK_TYPES = [
   'APPROVED_PAYMENT_INVOICE_DUE',
@@ -22,6 +24,7 @@ export const BILLING_INTEGRITY_CHECK_TYPES = [
   'DUPLICATE_APPROVED_PAYMENT',
   'ROOM_PEER_BILLING_MISMATCH',
   'SOURCE_MIRROR_MISMATCH',
+  'LATE_FEE_ABOVE_CAP',
 ] as const;
 
 export type BillingIntegrityCheckType = (typeof BILLING_INTEGRITY_CHECK_TYPES)[number];
@@ -71,6 +74,7 @@ function emptyByCheckType(): Record<BillingIntegrityCheckType, number> {
     DUPLICATE_APPROVED_PAYMENT: 0,
     ROOM_PEER_BILLING_MISMATCH: 0,
     SOURCE_MIRROR_MISMATCH: 0,
+    LATE_FEE_ABOVE_CAP: 0,
   };
 }
 
@@ -435,6 +439,93 @@ async function checkMissingElectricityInvoices(billingMonth: string): Promise<Bi
   return issues;
 }
 
+/** Open invoices with stored late-fee fields above the 10% principal cap — review only, no auto-rewrite. */
+async function checkLateFeeAboveCap(): Promise<BillingIntegrityIssue[]> {
+  const issues: BillingIntegrityIssue[] = [];
+
+  const rentRows = await db
+    .select({
+      id: rentInvoices.id,
+      invoiceNumber: rentInvoices.invoiceNumber,
+      customerId: rentInvoices.customerId,
+      customerName: customers.fullName,
+      bookingId: rentInvoices.bookingId,
+      rentPaise: rentInvoices.rentPaise,
+      discountPaise: rentInvoices.discountPaise,
+      lateFeeLockedPaise: rentInvoices.lateFeeLockedPaise,
+      paidLateFeePaise: rentInvoices.paidLateFeePaise,
+      proofSnapshotLateFeePaise: rentInvoices.proofSnapshotLateFeePaise,
+      billingMonth: rentInvoices.billingMonth,
+    })
+    .from(rentInvoices)
+    .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
+    .where(inArray(rentInvoices.status, ['pending', 'overdue', 'payment_in_progress']));
+
+  for (const row of rentRows) {
+    const principal = computeRentDuePaise(row.rentPaise, row.discountPaise);
+    const cap = lateFeeCapPaise(principal);
+    const storedCandidates = [
+      row.lateFeeLockedPaise,
+      row.proofSnapshotLateFeePaise,
+    ].filter((v): v is number => v != null && v > 0);
+    const exceeded = storedCandidates.find((v) => isLateFeeAbovePrincipalCap(principal, v));
+    if (!exceeded) continue;
+    issues.push({
+      checkType: 'LATE_FEE_ABOVE_CAP',
+      customerId: row.customerId,
+      customerName: row.customerName,
+      bookingId: row.bookingId,
+      invoiceId: row.id,
+      sourceInvoiceId: row.id,
+      sourceTable: 'rent_invoices',
+      billingMonth: row.billingMonth,
+      amountPaise: exceeded,
+      detail: `Rent ${row.invoiceNumber}: stored late fee ${exceeded} paise exceeds 10% cap ${cap} paise on principal ${principal}`,
+      metadata: { capPaise: cap, principalPaise: principal, paidLateFeePaise: row.paidLateFeePaise },
+      autoRepairable: false,
+    });
+  }
+
+  const elecRows = await db
+    .select({
+      id: electricityInvoices.id,
+      invoiceNumber: electricityInvoices.invoiceNumber,
+      customerId: electricityInvoices.customerId,
+      customerName: customers.fullName,
+      bookingId: electricityInvoices.bookingId,
+      amountPaise: electricityInvoices.amountPaise,
+      lateFeeLockedPaise: electricityInvoices.lateFeeLockedPaise,
+      billingMonth: electricityInvoices.billingMonth,
+    })
+    .from(electricityInvoices)
+    .innerJoin(customers, eq(customers.id, electricityInvoices.customerId))
+    .where(eq(electricityInvoices.status, 'pending'));
+
+  for (const row of elecRows) {
+    const principal = row.amountPaise;
+    const cap = lateFeeCapPaise(principal);
+    const locked = row.lateFeeLockedPaise;
+    if (locked == null || locked <= 0) continue;
+    if (!isLateFeeAbovePrincipalCap(principal, locked)) continue;
+    issues.push({
+      checkType: 'LATE_FEE_ABOVE_CAP',
+      customerId: row.customerId,
+      customerName: row.customerName,
+      bookingId: row.bookingId,
+      invoiceId: row.id,
+      sourceInvoiceId: row.id,
+      sourceTable: 'electricity_invoices',
+      billingMonth: row.billingMonth,
+      amountPaise: locked,
+      detail: `Electricity ${row.invoiceNumber}: locked late fee ${locked} paise exceeds 10% cap ${cap} paise on principal ${principal}`,
+      metadata: { capPaise: cap, principalPaise: principal },
+      autoRepairable: false,
+    });
+  }
+
+  return issues;
+}
+
 export async function runBillingIntegrityCheck(
   billingMonth?: string,
 ): Promise<BillingIntegrityAuditReport> {
@@ -450,6 +541,7 @@ export async function runBillingIntegrityCheck(
     duplicatePayments,
     mirrorMismatch,
     electricityGaps,
+    lateFeeAboveCap,
     allocationReport,
   ] = await Promise.all([
     checkApprovedPaymentInvoiceDue(),
@@ -458,6 +550,7 @@ export async function runBillingIntegrityCheck(
     checkDuplicateApprovedPayments(),
     checkSourceMirrorMismatch(),
     checkMissingElectricityInvoices(month),
+    checkLateFeeAboveCap(),
     runAllocationIntegrityAudit(),
   ]);
 
@@ -468,6 +561,7 @@ export async function runBillingIntegrityCheck(
     ...duplicatePayments,
     ...mirrorMismatch,
     ...electricityGaps,
+    ...lateFeeAboveCap,
   ];
 
   const byCheckType = emptyByCheckType();

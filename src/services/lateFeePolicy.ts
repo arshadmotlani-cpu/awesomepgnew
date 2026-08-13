@@ -16,10 +16,14 @@ import {
 
 export {
   DEFAULT_LATE_FEE_POLICY,
+  PG_LATE_FEE_MAX_PERCENT_OF_PRINCIPAL,
   addCalendarDaysIso,
   applyLateFeePolicy,
+  capLateFeeAtPrincipalPercent,
   chargeableOverdueDays,
   computeLateFeeWithPolicy,
+  isLateFeeAbovePrincipalCap,
+  lateFeeCapPaise,
   legacyLateFeePaise,
   resolveOverdueDays,
   type LateFeePolicySnapshot,
