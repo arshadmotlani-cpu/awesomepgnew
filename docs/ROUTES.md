@@ -348,3 +348,6 @@ See [[DECISIONS#Operations as action hub]].
 
 <!-- DOC_SYNC_TOUCH_2026-08-06 -->
 > **2026-08-06 03:31:23 UTC** — Code changed in: Routes. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-08-13 -->
+> **2026-08-13 05:02:27 UTC** — Code changed in: Routes, Database. Manual review recommended.

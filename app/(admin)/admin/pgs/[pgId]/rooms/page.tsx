@@ -5,6 +5,7 @@ import { PgRoomOperationsPanel } from '@/src/components/admin/PgRoomOperationsPa
 import { loadRoomElectricityPendingForPg } from '@/src/lib/billing/roomElectricityPendingAdmin';
 import { RoomElectricityPendingWarningCard } from '@/src/components/admin/electricity/RoomElectricityPendingWarningCard';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
+import { isBlobPublicConfigured } from '@/src/lib/storage/blob';
 import { getPgAvailabilitySummary } from '@/src/services/availabilityService';
 import { getPgInventory } from '@/src/services/pgInventory';
 import { getPgForAdmin } from '@/src/services/pgAdmin';
@@ -46,6 +47,7 @@ export default async function PgRoomsPage({ params }: { params: Promise<{ pgId: 
         pgId={pgId}
         floors={inventory.floors}
         beds={inventory.beds}
+        blobUploadConfigured={isBlobPublicConfigured()}
         availabilitySummary={availabilitySummary}
         roomIntegrity={integrityReport.rooms}
         roomExitQueues={roomExitQueues}

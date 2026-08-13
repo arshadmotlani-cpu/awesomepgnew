@@ -117,9 +117,12 @@ export async function deleteBlob(urlOrPathname: string, access: 'private' | 'pub
   await del(urlOrPathname, { token });
 }
 
-/** Future room images — pathname helper only (no schema yet). */
 export function roomImageBlobPath(roomId: string, filename: string): string {
   return `rooms/${roomId}/${filename}`;
+}
+
+export function roomVideoBlobPath(roomId: string, filename: string): string {
+  return `rooms/${roomId}/videos/${filename}`;
 }
 
 /** Non-throwing HEAD check — true when the private blob object exists and is readable. */

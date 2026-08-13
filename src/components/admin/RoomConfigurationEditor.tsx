@@ -9,9 +9,18 @@ import {
   resizeRoomCapacityAction,
   updateBedStatusInventoryAction,
   updateRoomDetailsAction,
+  updateRoomListingAction,
+  uploadRoomImageAction,
+  uploadRoomVideoAction,
   updateRoomPricingAction,
 } from '@/app/(admin)/admin/pgs/inventory-actions';
+import { ImageGalleryEditor } from '@/src/components/admin/ImageGalleryEditor';
+import { VideoGalleryEditor } from '@/src/components/admin/VideoGalleryEditor';
 import { paiseToInr } from '@/src/lib/format';
+import {
+  formatRoomArea,
+  type RoomDimensions,
+} from '@/src/lib/roomListing';
 import {
   getRoomConfigurationPreset,
   presetIdFromBedCountAndName,
@@ -35,6 +44,11 @@ export function RoomConfigurationEditor({
   roomTypeName,
   hasAc,
   roomNotes,
+  listingDescription,
+  images,
+  videos,
+  dimensions,
+  blobUploadConfigured = false,
   beds,
   integrity,
   moveTargets,
@@ -47,6 +61,11 @@ export function RoomConfigurationEditor({
   roomTypeName: string;
   hasAc: boolean;
   roomNotes: string | null;
+  listingDescription: string | null;
+  images: string[];
+  videos: string[];
+  dimensions: RoomDimensions;
+  blobUploadConfigured?: boolean;
   beds: PgInventoryBedRow[];
   integrity?: RoomIntegrityResult;
   moveTargets: MoveTarget[];
@@ -197,6 +216,16 @@ export function RoomConfigurationEditor({
             roomNotes={roomNotes}
           />
 
+          <RoomListingInline
+            pgId={pgId}
+            roomId={roomId}
+            listingDescription={listingDescription}
+            images={images}
+            videos={videos}
+            dimensions={dimensions}
+            blobUploadConfigured={blobUploadConfigured}
+          />
+
           <BedManagementTable
             pgId={pgId}
             roomId={roomId}
@@ -309,6 +338,183 @@ function RoomDetailsInline({
           className="rounded-lg bg-zinc-800 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
           {pending ? 'Saving…' : 'Save location'}
+        </button>
+        {error ? <span className="text-sm text-rose-400">{error}</span> : null}
+      </div>
+    </form>
+  );
+}
+
+function RoomListingInline({
+  pgId,
+  roomId,
+  listingDescription,
+  images,
+  videos,
+  dimensions,
+  blobUploadConfigured,
+}: {
+  pgId: string;
+  roomId: string;
+  listingDescription: string | null;
+  images: string[];
+  videos: string[];
+  dimensions: RoomDimensions;
+  blobUploadConfigured: boolean;
+}) {
+  const router = useRouter();
+  const [description, setDescription] = useState(listingDescription ?? '');
+  const [dims, setDims] = useState({
+    length: dimensions.length != null ? String(dimensions.length) : '',
+    width: dimensions.width != null ? String(dimensions.width) : '',
+    height: dimensions.height != null ? String(dimensions.height) : '',
+    unit: dimensions.unit ?? 'ft',
+  });
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const areaLabel = formatRoomArea({
+    length: Number.parseFloat(dims.length) || undefined,
+    width: Number.parseFloat(dims.width) || undefined,
+    unit: dims.unit === 'm' ? 'm' : 'ft',
+  });
+
+  async function onSave(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setPending(true);
+    setError(null);
+    const fd = new FormData(e.currentTarget);
+    fd.set('roomId', roomId);
+    fd.set('listingDescription', description);
+    fd.set(
+      'dimensions',
+      JSON.stringify({
+        length: Number.parseFloat(dims.length) || undefined,
+        width: Number.parseFloat(dims.width) || undefined,
+        height: Number.parseFloat(dims.height) || undefined,
+        unit: dims.unit,
+      }),
+    );
+    const result = await updateRoomListingAction(pgId, fd);
+    setPending(false);
+    if (!result.ok) {
+      setError(result.error ?? 'Failed to save listing');
+      return;
+    }
+    router.refresh();
+  }
+
+  return (
+    <form onSubmit={onSave} className="space-y-4 rounded-lg border border-zinc-800 p-3">
+      <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Room listing (customer site)</p>
+
+      <label className="block text-sm">
+        <span className="text-zinc-400">Room description</span>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-white"
+          placeholder="What makes this room special for guests?"
+        />
+      </label>
+
+      <div className="grid gap-3 sm:grid-cols-4">
+        <label className="text-sm">
+          <span className="text-zinc-400">Length</span>
+          <input
+            type="number"
+            min={0}
+            step="0.1"
+            value={dims.length}
+            onChange={(e) => setDims((d) => ({ ...d, length: e.target.value }))}
+            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-white"
+          />
+        </label>
+        <label className="text-sm">
+          <span className="text-zinc-400">Width</span>
+          <input
+            type="number"
+            min={0}
+            step="0.1"
+            value={dims.width}
+            onChange={(e) => setDims((d) => ({ ...d, width: e.target.value }))}
+            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-white"
+          />
+        </label>
+        <label className="text-sm">
+          <span className="text-zinc-400">Height</span>
+          <input
+            type="number"
+            min={0}
+            step="0.1"
+            value={dims.height}
+            onChange={(e) => setDims((d) => ({ ...d, height: e.target.value }))}
+            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-white"
+          />
+        </label>
+        <label className="text-sm">
+          <span className="text-zinc-400">Unit</span>
+          <select
+            value={dims.unit}
+            onChange={(e) =>
+              setDims((d) => ({
+                ...d,
+                unit: e.target.value === 'm' ? 'm' : 'ft',
+              }))
+            }
+            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-white"
+          >
+            <option value="ft">ft</option>
+            <option value="m">m</option>
+          </select>
+        </label>
+      </div>
+      {areaLabel ? (
+        <p className="text-xs text-zinc-500">Approx. floor area: {areaLabel}</p>
+      ) : null}
+
+      <div>
+        <p className="mb-2 text-sm font-medium text-zinc-300">Room photos</p>
+        <ImageGalleryEditor
+          name="images"
+          initialImages={images}
+          onUpload={
+            blobUploadConfigured
+              ? async (file) => {
+                  const fd = new FormData();
+                  fd.set('file', file);
+                  return uploadRoomImageAction(pgId, roomId, fd);
+                }
+              : undefined
+          }
+        />
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm font-medium text-zinc-300">Room videos</p>
+        <VideoGalleryEditor
+          name="videos"
+          initialVideos={videos}
+          onUpload={
+            blobUploadConfigured
+              ? async (file) => {
+                  const fd = new FormData();
+                  fd.set('file', file);
+                  return uploadRoomVideoAction(pgId, roomId, fd);
+                }
+              : undefined
+          }
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="submit"
+          disabled={pending}
+          className="rounded-lg bg-zinc-800 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+        >
+          {pending ? 'Saving…' : 'Save listing'}
         </button>
         {error ? <span className="text-sm text-rose-400">{error}</span> : null}
       </div>

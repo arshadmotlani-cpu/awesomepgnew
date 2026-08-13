@@ -42,6 +42,12 @@ import { todayString } from '@/src/lib/dates';
 import type { NoticeDeductionBreakdown } from '@/src/lib/vacating/noticeDeductionEngine';
 import { resolveBedOccupancy } from '@/src/lib/bedOccupancyResolve';
 import {
+  computeRoomArea,
+  parseMediaUrlList,
+  parseRoomDimensions,
+  type RoomDimensions,
+} from '@/src/lib/roomListing';
+import {
   RESERVATION_REQUEST_INTEREST_PAIR_SQL,
   UNDER_REVIEW_RESERVATION_PAIR_SQL,
 } from '@/src/lib/reservationBlocking';
@@ -385,6 +391,13 @@ export type CustomerRoomDetail = {
   pgId: string;
   pgSlug: string;
   pgName: string;
+  listingDescription: string | null;
+  images: string[];
+  videos: string[];
+  dimensions: RoomDimensions;
+  area: number | null;
+  pgImages: string[];
+  pgVideos: string[];
   beds: Array<{
     bedId: string;
     bedCode: string;
@@ -440,6 +453,12 @@ export function getRoomDetail(
         pgName: pgs.name,
         publicDisplayName: pgs.publicDisplayName,
         displayOrder: pgs.displayOrder,
+        listingDescription: rooms.listingDescription,
+        images: rooms.images,
+        videos: rooms.videos,
+        dimensions: rooms.dimensions,
+        pgImages: pgs.images,
+        pgVideos: pgs.videos,
       })
       .from(rooms)
       .innerJoin(roomTypes, eq(roomTypes.id, rooms.roomTypeId))
@@ -641,10 +660,18 @@ export function getRoomDetail(
       .where(and(eq(beds.roomId, meta.roomId), sql`${beds.archivedAt} IS NULL`))
       .orderBy(asc(beds.bedCode));
 
-    const { publicDisplayName, displayOrder, ...roomMeta } = meta;
+    const { publicDisplayName, displayOrder, pgImages, pgVideos, ...roomMeta } = meta;
+    const dimensions = parseRoomDimensions(roomMeta.dimensions);
+    const area = computeRoomArea(dimensions);
     const activeBedCount = bedRows.length;
     return {
       ...roomMeta,
+      images: parseMediaUrlList(roomMeta.images),
+      videos: parseMediaUrlList(roomMeta.videos),
+      dimensions,
+      area,
+      pgImages: parseMediaUrlList(pgImages),
+      pgVideos: parseMediaUrlList(pgVideos),
       capacity: activeBedCount,
       pgName: applyPublicPgPresentation({
         name: meta.pgName,

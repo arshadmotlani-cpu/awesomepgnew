@@ -10,8 +10,13 @@ import {
   operationsFilterCount,
   operationsTotalPendingCount,
 } from '@/src/lib/operations/operationsQueueCounts';
+import { countVacatingOperationsQueueItems } from '@/src/lib/operations/operationsQueueVacating';
 import { getUnifiedOperationsQueueForBadges } from '@/src/services/unifiedOperationsQueue';
 import { countUnreadForAdmin } from '@/src/services/notificationEngine';
+import {
+  loadMoveOutPipelineBundle,
+} from '@/src/services/moveOutPipelineService';
+import { loadOperationsQueueDismissalIndex } from '@/src/services/operationsQueueDismissals';
 import {
   UNRESOLVED_ACTION_BADGE_BUCKET,
   type UnresolvedBadgeBucket,
@@ -21,7 +26,7 @@ import { adminCanAccessPg } from '@/src/lib/auth/roles';
 
 /** Sidebar badge keys — all Operations tab counts from unified queue SSOT. */
 export type AdminNavBadges = Partial<
-  Record<AdminModule | 'payments' | 'notifications', number>
+  Record<AdminModule | 'payments' | 'notifications' | 'moveOut', number>
 >;
 
 function badgeFromFilterCount(
@@ -30,6 +35,22 @@ function badgeFromFilterCount(
 ): number | undefined {
   const count = operationsFilterCount(queue, filter);
   return count > 0 ? count : undefined;
+}
+
+async function loadMoveOutBadgeCount(session: AdminSession): Promise<number> {
+  const [bundle, dismissalIndex] = await Promise.all([
+    loadMoveOutPipelineBundle(session, { syncSettlements: false }),
+    loadOperationsQueueDismissalIndex(),
+  ]);
+  const vacatingPgByRequestId = new Map(
+    bundle.vacatingRows.map((row) => [row.id, row.pgId]),
+  );
+  return countVacatingOperationsQueueItems(
+    bundle.activeItems,
+    session,
+    dismissalIndex,
+    vacatingPgByRequestId,
+  );
 }
 
 const BADGE_CACHE_TTL_MS = 45_000;
@@ -94,6 +115,9 @@ async function loadAdminNavBadgesLight(session: AdminSession): Promise<AdminNavB
   const unreadNotifications = await countUnreadForAdmin(session);
   if (unreadNotifications > 0) badges.notifications = unreadNotifications;
 
+  const moveOutCount = await loadMoveOutBadgeCount(session);
+  if (moveOutCount > 0) badges.moveOut = moveOutCount;
+
   return badges;
 }
 
@@ -113,6 +137,9 @@ async function loadAdminNavBadgesFromQueue(session: AdminSession): Promise<Admin
 
   const checkoutSettlements = badgeFromFilterCount(operationsQueue, 'refund_due');
   if (checkoutSettlements) badges.checkoutSettlements = checkoutSettlements;
+
+  const moveOut = badgeFromFilterCount(operationsQueue, 'vacating_requests');
+  if (moveOut) badges.moveOut = moveOut;
 
   const unreadNotifications = await countUnreadForAdmin(session);
   if (unreadNotifications > 0) badges.notifications = unreadNotifications;

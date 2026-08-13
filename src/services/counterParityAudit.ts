@@ -155,6 +155,14 @@ export async function runCounterParityAudit(
     matches: (navBadges.checkoutSettlements ?? 0) === (unifiedCounts.refund_due ?? 0),
   });
 
+  rows.push({
+    metric: 'Move-out nav badge',
+    overviewValue: navBadges.moveOut ?? 0,
+    destinationValue: unifiedCounts.vacating_requests ?? 0,
+    destination: 'loadUnifiedOperationsQueue.filterCounts.vacating_requests',
+    matches: (navBadges.moveOut ?? 0) === (unifiedCounts.vacating_requests ?? 0),
+  });
+
   const pass = rows.every((r) => r.matches);
   const mismatches = rows.filter((r) => !r.matches);
 

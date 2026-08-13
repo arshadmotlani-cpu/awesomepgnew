@@ -5,6 +5,8 @@ import { revalidatePublicPgBrowseCache } from '@/src/lib/cache/revalidatePublicP
 import { revalidatePgAdminPages } from '@/src/lib/revalidatePgAdmin';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { parseSharingCount, sharingTypeName } from '@/src/lib/roomSharing';
+import { parseRoomDimensions } from '@/src/lib/roomListing';
+import { roomImageBlobPath, roomVideoBlobPath } from '@/src/lib/storage/blob';
 import {
   getRoomConfigurationPreset,
   type RoomConfigurationPresetId,
@@ -19,6 +21,7 @@ import {
   updateBedCode,
   updateRoomBedPricing,
   updateRoomDetails,
+  updateRoomListing,
 } from '@/src/services/pgInventory';
 import { updateBedInventoryStatus } from '@/src/services/bookingAdminOps';
 import { markPgFullyOccupied, clearPgOccupancyPlaceholders } from '@/src/services/occupancyAdmin';
@@ -28,6 +31,85 @@ function parseRupeesPaise(raw: string | null | undefined): number | undefined {
   const rupees = Number.parseFloat(raw);
   if (!Number.isFinite(rupees) || rupees < 0) return undefined;
   return Math.round(rupees * 100);
+}
+
+function parseJsonUrlList(field: string, formData: FormData): string[] {
+  const raw = formData.get(field)?.toString() ?? '[]';
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((u): u is string => typeof u === 'string' && u.trim().length > 0);
+  } catch {
+    return [];
+  }
+}
+
+export async function uploadRoomImageAction(
+  pgId: string,
+  roomId: string,
+  formData: FormData,
+): Promise<string> {
+  await requireAdminPermission('pgs:write');
+  const file = formData.get('file');
+  if (!(file instanceof File)) throw new Error('No file provided.');
+  const ext = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '';
+  const { uploadPublic } = await import('@/src/lib/storage/blob');
+  const pathname = roomImageBlobPath(roomId, `${Date.now()}${ext}`);
+  const stored = await uploadPublic(pathname, file, file.type || undefined);
+  revalidatePgAdminPages(pgId);
+  revalidatePublicPgBrowseCache({ pgId });
+  return stored.url;
+}
+
+export async function uploadRoomVideoAction(
+  pgId: string,
+  roomId: string,
+  formData: FormData,
+): Promise<string> {
+  await requireAdminPermission('pgs:write');
+  const file = formData.get('file');
+  if (!(file instanceof File)) throw new Error('No file provided.');
+  const ext = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '';
+  const { uploadPublic } = await import('@/src/lib/storage/blob');
+  const pathname = roomVideoBlobPath(roomId, `${Date.now()}${ext}`);
+  const stored = await uploadPublic(pathname, file, file.type || undefined);
+  revalidatePgAdminPages(pgId);
+  revalidatePublicPgBrowseCache({ pgId });
+  return stored.url;
+}
+
+export async function updateRoomListingAction(
+  pgId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const session = await requireAdminPermission('pgs:write');
+    const roomId = formData.get('roomId')?.toString()?.trim();
+    if (!roomId) {
+      return { ok: false, error: 'Room not found.' };
+    }
+
+    const dimensionsRaw = formData.get('dimensions')?.toString() ?? '{}';
+    let dimensionsParsed: unknown = {};
+    try {
+      dimensionsParsed = JSON.parse(dimensionsRaw);
+    } catch {
+      dimensionsParsed = {};
+    }
+
+    await updateRoomListing(session, pgId, roomId, {
+      listingDescription: formData.get('listingDescription')?.toString(),
+      images: parseJsonUrlList('images', formData),
+      videos: parseJsonUrlList('videos', formData),
+      dimensions: parseRoomDimensions(dimensionsParsed),
+    });
+
+    revalidatePgAdminPages(pgId);
+    revalidatePublicPgBrowseCache({ pgId });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 export async function quickAddBedAction(

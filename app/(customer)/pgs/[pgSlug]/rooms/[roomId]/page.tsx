@@ -11,9 +11,12 @@ import { resolveFromSelectorBed } from '@/src/lib/bedOccupancyResolve';
 import { StickyBookCta } from '@/src/components/customer/marketing/StickyBookCta';
 import { CountUpNumber } from '@/src/components/customer/design-system';
 import { RoomDetailInsights } from '@/src/components/customer/RoomDetailInsights';
+import { RoomListingGallery } from '@/src/components/customer/RoomListingGallery';
 import { AnalyticsMountEvent } from '@/src/components/analytics/AnalyticsMountEvent';
 import { RoomDetailFlowShell, RoomBedMapCta } from '@/src/components/world/RoomDetailFlowShell';
 import { getRoomDetail } from '@/src/services/publicPgReadCache';
+import { formatRoomArea } from '@/src/lib/roomListing';
+import { resolveRoomMedia } from '@/src/lib/roomWorld/roomMedia';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import { enrichBedsWithQuotedMonthlyDeposit } from '@/src/lib/booking/publicQuote';
 import { displayMonthlyDepositPaise } from '@/src/lib/customerDepositDisplay';
@@ -98,6 +101,23 @@ export default async function RoomDetailPage(
 
   const rateSample = bedsForSelector.find((b) => b.monthlyRatePaise > 0) ?? bedsForSelector[0];
 
+  const listingMedia = resolveRoomMedia({
+    roomIndex: 0,
+    roomImages: room.images,
+    roomVideos: room.videos,
+    pgImages: room.pgImages,
+    pgVideos: room.pgVideos,
+  });
+  const areaLabel = formatRoomArea(room.dimensions);
+  const dimensionParts = [
+    room.dimensions.length != null ? `L ${room.dimensions.length}` : null,
+    room.dimensions.width != null ? `W ${room.dimensions.width}` : null,
+    room.dimensions.height != null ? `H ${room.dimensions.height}` : null,
+    room.dimensions.unit ?? 'ft',
+  ]
+    .filter(Boolean)
+    .join(' × ');
+
   return (
     <RoomDetailFlowShell
       pgId={room.pgId}
@@ -153,18 +173,34 @@ export default async function RoomDetailPage(
         </span>
       </header>
 
-      <div
-        className="mt-6 perspective-[1200px]"
-        aria-hidden
-      >
-        <div className="apg-glass-light mx-auto max-w-md rotate-y-[-2deg] rounded-2xl border border-white/10 p-6 shadow-xl transition-transform hover:rotate-y-0 motion-reduce:transform-none">
-          <p className="text-xs font-semibold uppercase tracking-wider text-apg-orange">Room preview</p>
-          <p className="mt-2 text-lg font-semibold text-white">
-            Room {room.roomNumber} · {room.hasAc ? 'AC' : 'Non-AC'} · {room.capacity}-sharing
-          </p>
-          <p className="mt-1 text-sm text-apg-silver">{room.floorLabel}</p>
+      {listingMedia.images.length > 0 || listingMedia.videos.length > 0 ? (
+        <RoomListingGallery images={listingMedia.images} videos={listingMedia.videos} />
+      ) : (
+        <div
+          className="mt-6 perspective-[1200px]"
+          aria-hidden
+        >
+          <div className="apg-glass-light mx-auto max-w-md rotate-y-[-2deg] rounded-2xl border border-white/10 p-6 shadow-xl transition-transform hover:rotate-y-0 motion-reduce:transform-none">
+            <p className="text-xs font-semibold uppercase tracking-wider text-apg-orange">Room preview</p>
+            <p className="mt-2 text-lg font-semibold text-white">
+              Room {room.roomNumber} · {room.hasAc ? 'AC' : 'Non-AC'} · {room.capacity}-sharing
+            </p>
+            <p className="mt-1 text-sm text-apg-silver">{room.floorLabel}</p>
+          </div>
         </div>
-      </div>
+      )}
+
+      {room.listingDescription ? (
+        <p className="mt-4 max-w-3xl text-sm leading-relaxed text-apg-silver">{room.listingDescription}</p>
+      ) : null}
+
+      {areaLabel || dimensionParts ? (
+        <p className="mt-2 text-sm text-apg-silver">
+          {areaLabel ? `Floor area ~${areaLabel}` : null}
+          {areaLabel && dimensionParts ? ' · ' : null}
+          {dimensionParts ? `Dimensions (${dimensionParts})` : null}
+        </p>
+      ) : null}
 
       <RoomDetailInsights
         roomType={room.roomType}

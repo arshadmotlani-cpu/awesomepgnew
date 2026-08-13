@@ -89,8 +89,23 @@ describe('room media', () => {
     assert.equal(m.videoUrl, '/v1.mp4');
   });
 
+  it('prefers room-level media over pg gallery', () => {
+    const m = resolveRoomMedia({
+      roomIndex: 0,
+      roomImages: ['/room.jpg'],
+      roomVideos: ['/room.mp4'],
+      pgImages: ['/pg.jpg'],
+      pgVideos: ['/pg.mp4'],
+    });
+    assert.equal(m.imageUrl, '/room.jpg');
+    assert.equal(m.videoUrl, '/room.mp4');
+    assert.deepEqual(m.images, ['/room.jpg']);
+    assert.deepEqual(m.videos, ['/room.mp4']);
+  });
+
   it('detects direct video urls', () => {
     assert.equal(isDirectVideoUrl('/pg/videos/tour.mp4'), true);
+    assert.equal(isDirectVideoUrl('/rooms/room-1/tour.mp4'), true);
     assert.equal(isDirectVideoUrl('https://youtube.com/watch?v=x'), false);
   });
 });

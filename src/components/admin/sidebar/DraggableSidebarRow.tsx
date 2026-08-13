@@ -92,16 +92,22 @@ export function DraggableSidebarRow({
         {dragEnabled ? (
         <button
           type="button"
-          className="flex h-11 w-6 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-[11px] leading-none text-apg-silver/70 opacity-60 transition-opacity group-hover:opacity-100 hover:bg-white/5 hover:text-apg-silver active:cursor-grabbing sm:opacity-0 sm:group-hover:opacity-100"
+          className="flex h-11 w-6 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-[11px] leading-none text-apg-silver/70 opacity-40 transition-opacity group-hover:opacity-100 hover:bg-white/5 hover:text-apg-silver active:cursor-grabbing"
           aria-label={`Drag ${item.label}`}
-          {...attributes}
-          {...listeners}
         >
           ⋮⋮
         </button>
         ) : null}
 
-        <div className="min-w-0 flex-1">
+        <div
+          className={`min-w-0 flex-1 ${dragEnabled && !overlay ? 'cursor-grab active:cursor-grabbing' : ''}`}
+          {...(dragEnabled && !overlay ? { ...attributes, ...listeners } : {})}
+          onPointerDown={(e) => {
+            if ((e.target as HTMLElement).closest('a')) {
+              e.stopPropagation();
+            }
+          }}
+        >
           <AdminNavLink
             href={item.href}
             label={item.label}

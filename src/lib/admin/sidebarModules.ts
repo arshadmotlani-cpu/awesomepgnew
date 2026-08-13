@@ -128,6 +128,7 @@ export const SIDEBAR_MODULE_REGISTRY: Record<SidebarModuleKey, SidebarModuleDef>
     href: ADMIN_MODULES.checkoutSettlements.href,
     icon: MODULE_ICONS.checkoutSettlements,
     module: 'checkoutSettlements',
+    badgeKey: 'moveOut',
   },
   pgs: {
     key: 'pgs',

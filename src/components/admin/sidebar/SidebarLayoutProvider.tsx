@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -30,9 +31,13 @@ type SidebarLayoutContextValue = {
   isSuperAdmin: boolean;
   dragEnabled: boolean;
   setDragEnabled: (enabled: boolean) => void;
+  markLocalSidebarMutation: () => void;
+  persistInFlightRef: { current: boolean };
 };
 
 const SidebarLayoutContext = createContext<SidebarLayoutContextValue | null>(null);
+
+const LOCAL_MUTATION_GUARD_MS = 2000;
 
 export function SidebarLayoutProvider({
   initialItems,
@@ -45,14 +50,30 @@ export function SidebarLayoutProvider({
 }) {
   const [items, setItems] = useState(initialItems);
   const [dragEnabled, setDragEnabled] = useState(true);
+  const lastLocalMutationAtRef = useRef(0);
+  const persistInFlightRef = useRef(false);
+
+  const markLocalSidebarMutation = useCallback(() => {
+    lastLocalMutationAtRef.current = Date.now();
+  }, []);
 
   useEffect(() => {
+    if (persistInFlightRef.current) return;
+    if (Date.now() - lastLocalMutationAtRef.current < LOCAL_MUTATION_GUARD_MS) return;
     setItems(initialItems);
   }, [initialItems]);
 
   const value = useMemo(
-    () => ({ items, setItems, isSuperAdmin, dragEnabled, setDragEnabled }),
-    [items, isSuperAdmin, dragEnabled],
+    () => ({
+      items,
+      setItems,
+      isSuperAdmin,
+      dragEnabled,
+      setDragEnabled,
+      markLocalSidebarMutation,
+      persistInFlightRef,
+    }),
+    [items, isSuperAdmin, dragEnabled, markLocalSidebarMutation],
   );
 
   return (
@@ -97,35 +118,47 @@ export function reassignSidebarSortOrders(items: SidebarNavItem[]): SidebarNavIt
 }
 
 export function usePersistSidebarLayout() {
-  const { items, setItems, setDragEnabled } = useSidebarLayout();
+  const {
+    items,
+    setItems,
+    setDragEnabled,
+    persistInFlightRef,
+    markLocalSidebarMutation,
+  } = useSidebarLayout();
 
   const persist = useCallback(
     async (nextItems: SidebarNavItem[]) => {
       const normalized = reassignSidebarSortOrders(nextItems);
       const previous = items;
+      markLocalSidebarMutation();
       setItems(normalized);
+      persistInFlightRef.current = true;
       const { persistSidebarLayoutAction } = await import(
         '@/app/(admin)/admin/actions/sidebarLayout'
       );
 
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const result = await persistSidebarLayoutAction(entriesFromItems(normalized));
-        if (result.ok) return true;
-        if (attempt === 0) await new Promise((r) => setTimeout(r, 400));
-      }
+      try {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const result = await persistSidebarLayoutAction(entriesFromItems(normalized));
+          if (result.ok) return true;
+          if (attempt === 0) await new Promise((r) => setTimeout(r, 400));
+        }
 
-      setItems(previous);
-      setDragEnabled(false);
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('sidebar-persist-failed', {
-            detail: { message: 'Could not save sidebar order — drag disabled.' },
-          }),
-        );
+        setItems(previous);
+        setDragEnabled(false);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('sidebar-persist-failed', {
+              detail: { message: 'Could not save sidebar order — drag disabled.' },
+            }),
+          );
+        }
+        return false;
+      } finally {
+        persistInFlightRef.current = false;
       }
-      return false;
     },
-    [items, setItems, setDragEnabled],
+    [items, setItems, setDragEnabled, persistInFlightRef, markLocalSidebarMutation],
   );
 
   return persist;

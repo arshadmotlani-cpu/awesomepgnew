@@ -53,12 +53,20 @@ test('adminNavBadges uses unified queue total — never residents parallel queue
   const src = read('src/services/adminNavBadges.ts');
   assert.match(src, /getUnifiedOperationsQueueForBadges/);
   assert.match(src, /operationsTotalPendingCount/);
+  assert.match(src, /loadMoveOutPipelineBundle/);
+  assert.match(src, /countVacatingOperationsQueueItems/);
+  assert.match(src, /badges\.moveOut/);
   assert.doesNotMatch(src, /loadResidentOperationsResidentsPage/);
   assert.doesNotMatch(src, /allQueueCount/);
   assert.doesNotMatch(src, /getWaitingForApprovalCount/);
   // Overview is a read-only owner dashboard — action badges live on Operations only.
   assert.doesNotMatch(src, /badges\.overview = pendingTotal/);
   assert.match(src, /badges\.operations = pendingTotal/);
+});
+
+test('checkoutSettlements sidebar uses moveOut badge key', () => {
+  const src = read('src/lib/admin/sidebarModules.ts');
+  assert.match(src, /checkoutSettlements:[\s\S]*badgeKey: 'moveOut'/);
 });
 
 test('production and counter parity audits compare badges to unified totalCount', () => {
@@ -69,6 +77,8 @@ test('production and counter parity audits compare badges to unified totalCount'
 
   const parity = read('src/services/counterParityAudit.ts');
   assert.match(parity, /loadUnifiedOperationsQueue\.totalCount/);
+  assert.match(parity, /Move-out nav badge/);
+  assert.match(parity, /navBadges\.moveOut/);
   assert.doesNotMatch(parity, /loadResidentOperationsResidentsPage\.allQueueCount/);
 });
 

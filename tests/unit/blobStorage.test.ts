@@ -6,6 +6,7 @@ import {
   isBlobUrl,
   isPrivateBlobUrl,
   roomImageBlobPath,
+  roomVideoBlobPath,
 } from '../../src/lib/storage/blob';
 
 test('isBlobPrivateConfigured reflects BLOB_READ_WRITE_TOKEN', () => {
@@ -57,6 +58,10 @@ test('isPrivateBlobUrl detects private store hostnames', () => {
   );
 });
 
-test('roomImageBlobPath builds future room image pathname', () => {
+test('roomImageBlobPath builds room image pathname', () => {
   assert.equal(roomImageBlobPath('room-1', 'photo.jpg'), 'rooms/room-1/photo.jpg');
+});
+
+test('roomVideoBlobPath builds room video pathname', () => {
+  assert.equal(roomVideoBlobPath('room-1', 'tour.mp4'), 'rooms/room-1/videos/tour.mp4');
 });

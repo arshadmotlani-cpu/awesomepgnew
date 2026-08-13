@@ -932,6 +932,13 @@
       "when": 1794700000000,
       "tag": "0142_resident_exit_brain",
       "breakpoints": true
+    },
+    {
+      "idx": 137,
+      "version": "7",
+      "when": 1794800000000,
+      "tag": "0143_room_listing_media",
+      "breakpoints": true
     }
   ]
 }

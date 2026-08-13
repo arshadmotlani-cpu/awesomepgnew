@@ -12,6 +12,7 @@ import {
   resolveRoomTypeNameForCapacity,
   roomCapacityFromActiveBedCount,
 } from '@/src/lib/roomCapacitySsot';
+import type { RoomDimensions } from '@/src/lib/roomListing';
 
 type FloorRow = {
   id: string;
@@ -30,6 +31,10 @@ type RoomGroup = {
   activeBedCount: number;
   hasAc: boolean;
   roomNotes: string | null;
+  listingDescription: string | null;
+  images: string[];
+  videos: string[];
+  dimensions: RoomDimensions;
   beds: PgInventoryBedRow[];
 };
 
@@ -37,6 +42,7 @@ export function PgRoomOperationsPanel({
   pgId,
   floors,
   beds,
+  blobUploadConfigured = false,
   availabilitySummary,
   roomIntegrity = [],
   roomExitQueues = {},
@@ -44,6 +50,7 @@ export function PgRoomOperationsPanel({
   pgId: string;
   floors: FloorRow[];
   beds: PgInventoryBedRow[];
+  blobUploadConfigured?: boolean;
   availabilitySummary?: {
     availableBeds: number;
     occupiedBeds: number;
@@ -79,6 +86,10 @@ export function PgRoomOperationsPanel({
           activeBedCount: 1,
           hasAc: bed.hasAc,
           roomNotes: bed.roomNotes,
+          listingDescription: bed.listingDescription,
+          images: bed.images,
+          videos: bed.videos,
+          dimensions: bed.dimensions,
           beds: [bed],
         });
       }
@@ -200,6 +211,11 @@ export function PgRoomOperationsPanel({
                   roomTypeName={room.roomTypeName}
                   hasAc={room.hasAc}
                   roomNotes={room.roomNotes}
+                  listingDescription={room.listingDescription}
+                  images={room.images}
+                  videos={room.videos}
+                  dimensions={room.dimensions}
+                  blobUploadConfigured={blobUploadConfigured}
                   beds={room.beds}
                   integrity={integrityByRoomId.get(room.roomId)}
                   moveTargets={roomGroups.map((r) => ({

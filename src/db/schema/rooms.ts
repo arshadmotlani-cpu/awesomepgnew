@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
-import { bigint, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { bigint, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import type { RoomDimensions } from '@/src/lib/roomListing';
 import { floors } from './floors';
 import { roomTypes } from './roomTypes';
 import { roomBillingModeEnum, monthlyDepositPolicyEnum } from './enums';
@@ -16,6 +17,11 @@ export const rooms = pgTable(
       .references(() => roomTypes.id, { onDelete: 'restrict' }),
     roomNumber: text('room_number').notNull(),
     notes: text('notes'),
+    /** Public customer-facing description (admin `notes` stay internal). */
+    listingDescription: text('listing_description'),
+    images: jsonb('images').$type<string[]>().notNull().default([]),
+    videos: jsonb('videos').$type<string[]>().notNull().default([]),
+    dimensions: jsonb('dimensions').$type<RoomDimensions>().notNull().default({}),
     /** Offline electricity paid by a former tenant — applied to the next room bill. */
     electricityPrepaidCreditPaise: bigint('electricity_prepaid_credit_paise', { mode: 'number' })
       .notNull()

@@ -1,5 +1,7 @@
 import { and, asc, count, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { autoBedCodes, nextBedCodesForRoom, sharingTypeName, wizardBedCodes, MAX_ROOM_BEDS } from '@/src/lib/roomSharing';
+import type { RoomDimensions } from '@/src/lib/roomListing';
+import { parseRoomDimensions } from '@/src/lib/roomListing';
 import {
   countActiveBedsInRoom,
   syncRoomCapacityFromActiveBeds,
@@ -270,6 +272,10 @@ export type PgInventoryBedRow = {
   sharingCount: number;
   hasAc: boolean;
   roomNotes: string | null;
+  listingDescription: string | null;
+  images: string[];
+  videos: string[];
+  dimensions: RoomDimensions;
   dailyRatePaise: number;
   weeklyRatePaise: number;
   monthlyRatePaise: number;
@@ -337,6 +343,10 @@ export async function getPgInventory(session: AdminSession, pgId: string) {
       sharingCount: roomTypes.defaultCapacity,
       hasAc: roomTypes.hasAc,
       roomNotes: rooms.notes,
+      listingDescription: rooms.listingDescription,
+      images: rooms.images,
+      videos: rooms.videos,
+      dimensions: rooms.dimensions,
       dailyRatePaise: activeBedPricePaise('daily_rate_paise'),
       weeklyRatePaise: activeBedPricePaise('weekly_rate_paise'),
       monthlyRatePaise: activeBedPricePaise('monthly_rate_paise'),
@@ -370,6 +380,9 @@ export async function getPgInventory(session: AdminSession, pgId: string) {
       ...bed,
       sharingCount,
       roomTypeName: resolveRoomTypeNameForCapacity(bed.roomTypeName, activeBedCount),
+      images: bed.images ?? [],
+      videos: bed.videos ?? [],
+      dimensions: parseRoomDimensions(bed.dimensions),
     };
   });
 
@@ -666,6 +679,13 @@ export type UpdateRoomDetailsInput = {
   notes?: string;
 };
 
+export type UpdateRoomListingInput = {
+  listingDescription?: string;
+  images: string[];
+  videos: string[];
+  dimensions: RoomDimensions;
+};
+
 async function assignRoomTypeForRoom(
   pgId: string,
   roomId: string,
@@ -857,6 +877,35 @@ export async function updateRoomDetails(
       hasAc: input.hasAc ?? currentType.hasAc,
     });
   }
+}
+
+export async function updateRoomListing(
+  session: AdminSession,
+  pgId: string,
+  roomId: string,
+  input: UpdateRoomListingInput,
+): Promise<void> {
+  assertPgAccess(session, pgId);
+  await assertRoomInPg(pgId, roomId);
+
+  const dimensions = parseRoomDimensions(input.dimensions);
+  const unit = dimensions.unit ?? 'ft';
+
+  await db
+    .update(rooms)
+    .set({
+      listingDescription: input.listingDescription?.trim() ? input.listingDescription.trim() : null,
+      images: input.images.filter(Boolean),
+      videos: input.videos.filter(Boolean),
+      dimensions: {
+        length: dimensions.length,
+        width: dimensions.width,
+        height: dimensions.height,
+        unit,
+      },
+      updatedAt: new Date(),
+    })
+    .where(eq(rooms.id, roomId));
 }
 
 async function assertBedInPg(pgId: string, bedId: string) {
