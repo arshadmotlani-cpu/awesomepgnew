@@ -25,67 +25,15 @@ export async function requireWorkforcePermission(
   const session = await getHairSession();
   if (!session) throw new WorkforcePermissionError();
 
-  // #region agent log
-  fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '1ba764' },
-    body: JSON.stringify({
-      sessionId: '1ba764',
-      runId: 'staff-add-auth',
-      hypothesisId: 'H1',
-      location: 'guards.ts:requireWorkforcePermission',
-      message: 'auth check entry',
-      data: {
-        key,
-        adminRole: session.admin.role,
-        hasWorkforceEmployeeId: Boolean(session.workforceEmployeeId),
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
-
   // Legacy FYH ecosystem administrator — owner-equivalent workforce permissions.
   if (session.admin.role === 'super_admin') {
     const legacyGrants = mapLegacyHairPermissions('super_admin', []);
     const allowed = hasWorkforcePermission(legacyGrants, key);
-    // #region agent log
-    fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '1ba764' },
-      body: JSON.stringify({
-        sessionId: '1ba764',
-        runId: 'staff-add-auth',
-        hypothesisId: 'H1',
-        location: 'guards.ts:requireWorkforcePermission',
-        message: 'super_admin legacy grant check',
-        data: { key, allowed },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     if (allowed) return session;
     throw new WorkforcePermissionError(`Missing permission: ${key}`);
   }
 
-  if (!session.workforceEmployeeId) {
-    // #region agent log
-    fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '1ba764' },
-      body: JSON.stringify({
-        sessionId: '1ba764',
-        runId: 'staff-add-auth',
-        hypothesisId: 'H1',
-        location: 'guards.ts:requireWorkforcePermission',
-        message: 'denied — no workforce employee id',
-        data: { key, adminRole: session.admin.role },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-    throw new WorkforcePermissionError();
-  }
+  if (!session.workforceEmployeeId) throw new WorkforcePermissionError();
   const ok = await employeeHasPermission(session.workforceEmployeeId, engineId, key);
   if (!ok) throw new WorkforcePermissionError(`Missing permission: ${key}`);
   return session;

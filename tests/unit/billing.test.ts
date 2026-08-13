@@ -81,8 +81,8 @@ test('computeLateFee matches spec example (₹6000 → +₹60/day)', () => {
   assert.equal(computeLateFee({ rentPaise: rent, billingMonth: '2026-06-01', today: '2026-06-06' }), 60_00);
   // Day 2 overdue (7th): 2% = ₹120 — linear, NOT compounded.
   assert.equal(computeLateFee({ rentPaise: rent, billingMonth: '2026-06-01', today: '2026-06-07' }), 120_00);
-  // Day 30 overdue: 30% = ₹1,800.
-  assert.equal(computeLateFee({ rentPaise: rent, billingMonth: '2026-06-01', today: '2026-07-05' }), 1800_00);
+  // Day 30 overdue: 30% uncapped math, but PG policy caps at 10% = ₹600.
+  assert.equal(computeLateFee({ rentPaise: rent, billingMonth: '2026-06-01', today: '2026-07-05' }), 600_00);
 });
 
 test('computeLateFee uses invoice due_date when provided (anniversary billing day 15)', () => {

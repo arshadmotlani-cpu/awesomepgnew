@@ -217,16 +217,26 @@ test('scenario 5 — cash + UPI split equals grand total', async () => {
 
 test('scenario 6/7/8 — reschedule conflict, cancel, no-show free slots', async () => {
   const f = await requireRcFixtures();
-  const customer = await createRcCustomer('sched');
-  const startAt = nextSlot(8);
-  const apptId = await createAppointment({
-    customerId: customer.id,
-    staffId: f.staff.id,
-    resourceId: f.chair.id,
-    startAt,
-    serviceIds: [f.blow.id],
-    source: 'booking',
-  });
+  let startAt = nextSlot(8);
+  let apptId: string | null = null;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    try {
+      const customer = await createRcCustomer(`sched-${attempt}`);
+      apptId = await createAppointment({
+        customerId: customer.id,
+        staffId: f.staff.id,
+        resourceId: f.chair.id,
+        startAt,
+        serviceIds: [f.blow.id],
+        source: 'booking',
+      });
+      break;
+    } catch (err) {
+      if (!/already booked/i.test(String(err))) throw err;
+      startAt = nextSlot();
+    }
+  }
+  assert.ok(apptId, 'expected a free stylist slot within 40 attempts');
 
   const customer2 = await createRcCustomer('sched2');
   await assert.rejects(
