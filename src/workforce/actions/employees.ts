@@ -39,6 +39,21 @@ export async function createWorkforceEmployeeAction(
 ): Promise<WorkforceActionState> {
   try {
     if (!isWorkforceEngineEnabled()) return { error: 'Workforce Engine is not enabled.' };
+    // #region agent log
+    fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '1ba764' },
+      body: JSON.stringify({
+        sessionId: '1ba764',
+        runId: 'staff-add-auth',
+        hypothesisId: 'H2',
+        location: 'employees.ts:createWorkforceEmployeeAction',
+        message: 'create employee action invoked',
+        data: { hasEmail: Boolean(formStr(formData, 'email')) },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     await requireWorkforcePermission('staff.add');
     const session = await getHairSession();
     const accessRole = parseAccessRole(formStr(formData, 'accessRole'));
@@ -64,7 +79,9 @@ export async function createWorkforceEmployeeAction(
     const sessionDash = session?.workforceEmployeeId
       ? await getEmployeeDashboard(session.workforceEmployeeId, 'fyh_salon')
       : null;
-    const viewerIsOwner = sessionDash?.membership?.jobRole === 'owner';
+    const viewerIsOwner =
+      session?.admin.role === 'super_admin' ||
+      sessionDash?.membership?.jobRole === 'owner';
 
     const hr = parseHrFieldsFromForm(formData, {
       canToggleIncentive: viewerIsOwner,
@@ -130,7 +147,9 @@ export async function updateWorkforceEmployeeAction(
     const sessionDash = session?.workforceEmployeeId
       ? await getEmployeeDashboard(session.workforceEmployeeId, 'fyh_salon')
       : null;
-    const viewerIsOwner = sessionDash?.membership?.jobRole === 'owner';
+    const viewerIsOwner =
+      session?.admin.role === 'super_admin' ||
+      sessionDash?.membership?.jobRole === 'owner';
 
     const existingNormalized = existingPlan
       ? normalizeIncentivePlan(existingPlan.planType, existingPlan.config)
