@@ -142,12 +142,14 @@ describe('Workforce Add Employee popup', () => {
       'receiveBookings',
       'bankAccountHolderName',
       'salaryInr',
-      'incentiveEnabled',
     ]) {
       assert.match(src, new RegExp(`name="${name}"`));
     }
+    assert.match(src, /kind="service"/);
+    assert.match(src, /kind="product"/);
     assert.match(src, /EmployeeProfileNav/);
     assert.match(src, /EMPLOYEE_PROFILE_SECTIONS/);
+    assert.match(src, /IncentiveRuleBuilder/);
     assert.match(src, /WeekOffPicker/);
     assert.match(src, /WorkingHoursFields/);
     assert.match(src, /Advanced Permission Overrides/);

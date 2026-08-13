@@ -3,14 +3,15 @@
  */
 import { getStaffPerformanceSummary } from '@/src/hair/services/staffPerformance';
 import { zonedLocalToUtc } from '@/src/hair/lib/salonTime';
+import { computeIncentiveFromRules } from '@/src/workforce/lib/incentiveRuleEngine';
 import {
-  computeProductSalesIncentivePaise,
-  computeSalonIncentivePaise,
-  computeServicePerformanceIncentivePaise,
-  thresholdPaiseFromConfig,
-} from '@/src/workforce/lib/incentivePlanMath';
-import { getIncentivePlan, isPercentageThresholdConfig } from '@/src/workforce/services/incentivePlans';
-import type { PercentageThresholdIncentiveConfig } from '@/src/workforce/types/hr';
+  isIncentivePlanActive,
+  isPercentageThresholdConfig,
+  normalizeIncentivePlan,
+} from '@/src/workforce/lib/incentiveRuleEngine';
+import { thresholdPaiseFromConfig } from '@/src/workforce/lib/incentivePlanMath';
+import { getIncentivePlan } from '@/src/workforce/services/incentivePlans';
+import type { PercentageThresholdIncentiveConfig, SalonRulesIncentiveConfig } from '@/src/workforce/types/hr';
 import type { WorkforceEngineId } from '@/src/workforce/types';
 
 export type SalonPeriodIncentiveResult = {
@@ -62,26 +63,35 @@ export async function computeSalonPeriodIncentive(input: {
     incentiveEnabled: false,
   };
 
-  if (!plan || plan.planType !== 'percentage_threshold') {
+  if (!plan || !isIncentivePlanActive(plan.planType, plan.config)) {
     return empty;
   }
 
-  if (!isPercentageThresholdConfig(plan.planType, plan.config)) {
+  const normalized = normalizeIncentivePlan(plan.planType, plan.config);
+  if (!normalized) {
     return empty;
   }
 
-  const config = plan.config as PercentageThresholdIncentiveConfig;
   const { from, to } = payrollPeriodToDateRange(input.periodStart, input.periodEnd, timezone);
   const perf = await getStaffPerformanceSummary(input.employeeId, { from, to });
 
   const servicePerformancePaise = perf.serviceRevenuePaise;
   const productSalesPaise = perf.productRevenuePaise;
-  const serviceIncentivePaise = computeServicePerformanceIncentivePaise(
-    config,
-    servicePerformancePaise,
-  );
-  const productIncentivePaise = computeProductSalesIncentivePaise(productSalesPaise);
+
+  const serviceIncentivePaise = normalized.serviceEnabled
+    ? computeIncentiveFromRules(servicePerformancePaise, normalized.serviceRules)
+    : 0;
+  const productIncentivePaise = normalized.productEnabled
+    ? computeIncentiveFromRules(productSalesPaise, normalized.productRules)
+    : 0;
   const totalIncentivePaise = serviceIncentivePaise + productIncentivePaise;
+
+  let thresholdPaise = 0;
+  if (isPercentageThresholdConfig(plan.planType, plan.config)) {
+    thresholdPaise = thresholdPaiseFromConfig(plan.config as PercentageThresholdIncentiveConfig);
+  } else if (normalized.serviceRules.length > 1) {
+    thresholdPaise = normalized.serviceRules[1]!.thresholdPaise;
+  }
 
   return {
     periodStart: input.periodStart,
@@ -91,26 +101,34 @@ export async function computeSalonPeriodIncentive(input: {
     serviceIncentivePaise,
     productIncentivePaise,
     totalIncentivePaise,
-    thresholdPaise: thresholdPaiseFromConfig(config),
-    incentiveEnabled: true,
+    thresholdPaise,
+    incentiveEnabled: normalized.serviceEnabled || normalized.productEnabled,
   };
 }
 
 /** Pure calculation when performance totals are already known (tests / previews). */
 export function computeSalonIncentiveFromTotals(
-  config: PercentageThresholdIncentiveConfig,
+  config: SalonRulesIncentiveConfig | PercentageThresholdIncentiveConfig,
   servicePerformancePaise: number,
   productSalesPaise: number,
+  planType: 'salon_rules' | 'percentage_threshold' = 'salon_rules',
 ): {
   serviceIncentivePaise: number;
   productIncentivePaise: number;
   totalIncentivePaise: number;
 } {
-  const serviceIncentivePaise = computeServicePerformanceIncentivePaise(
-    config,
-    servicePerformancePaise,
-  );
-  const productIncentivePaise = computeProductSalesIncentivePaise(productSalesPaise);
+  const normalized = normalizeIncentivePlan(planType, config);
+  if (!normalized) {
+    return { serviceIncentivePaise: 0, productIncentivePaise: 0, totalIncentivePaise: 0 };
+  }
+
+  const serviceIncentivePaise = normalized.serviceEnabled
+    ? computeIncentiveFromRules(servicePerformancePaise, normalized.serviceRules)
+    : 0;
+  const productIncentivePaise = normalized.productEnabled
+    ? computeIncentiveFromRules(productSalesPaise, normalized.productRules)
+    : 0;
+
   return {
     serviceIncentivePaise,
     productIncentivePaise,

@@ -14,6 +14,10 @@ import {
 import { WORKFORCE_PERMISSION_KEYS, type WorkforcePermissionKey } from '@/src/workforce/types';
 import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
 import { parseHrFieldsFromForm, parseScheduleDaysFromForm } from '@/src/workforce/actions/parseHrForm';
+import {
+  isIncentivePlanActive,
+  normalizeIncentivePlan,
+} from '@/src/workforce/lib/incentiveRuleEngine';
 
 export type WorkforceActionState = { error?: string; success?: string };
 
@@ -128,9 +132,16 @@ export async function updateWorkforceEmployeeAction(
       : null;
     const viewerIsOwner = sessionDash?.membership?.jobRole === 'owner';
 
+    const existingNormalized = existingPlan
+      ? normalizeIncentivePlan(existingPlan.planType, existingPlan.config)
+      : null;
+
     const hr = parseHrFieldsFromForm(formData, {
       canToggleIncentive: viewerIsOwner,
-      defaultIncentiveEnabled: existingPlan?.planType === 'percentage_threshold',
+      defaultIncentiveEnabled: existingPlan
+        ? isIncentivePlanActive(existingPlan.planType, existingPlan.config)
+        : true,
+      existingIncentiveConfig: existingNormalized,
     });
 
     await updateEmployee(id, {

@@ -1,5 +1,17 @@
 import type { PercentageThresholdIncentiveConfig } from '@/src/workforce/types/hr';
+import {
+  computeIncentiveFromRules,
+  getApplicableIncentiveRateBps,
+  migrateLegacyThresholdConfig,
+  validateAndNormalizeRules,
+} from '@/src/workforce/lib/incentiveRuleEngine';
 import { SALON_INCENTIVE_RULES } from '@/src/workforce/lib/salonCompensationRules.constants';
+
+export {
+  computeIncentiveFromRules,
+  getApplicableIncentiveRateBps,
+  validateAndNormalizeRules,
+} from '@/src/workforce/lib/incentiveRuleEngine';
 
 export function thresholdPaiseFromConfig(config: PercentageThresholdIncentiveConfig): number {
   return Math.floor(
@@ -8,36 +20,26 @@ export function thresholdPaiseFromConfig(config: PercentageThresholdIncentiveCon
 }
 
 /**
- * Service performance incentive — threshold switch (not progressive/tiered).
- * At or below 2× salary → 5% of total service performance.
- * Above 2× salary → 10% of total service performance.
+ * Service performance incentive — uses normalized rules (legacy config migrated).
+ * Threshold switch: highest matching threshold rate applies to entire performance.
  */
 export function computeServicePerformanceIncentivePaise(
   config: PercentageThresholdIncentiveConfig,
   servicePerformancePaise: number,
 ): number {
-  const performance = Math.max(0, Math.floor(servicePerformancePaise));
-  if (performance === 0) return 0;
-
-  const threshold = thresholdPaiseFromConfig(config);
-  const belowBps =
-    config.belowThresholdPercentBps ?? SALON_INCENTIVE_RULES.belowThresholdPercentBps;
-  const aboveBps = config.aboveThresholdPercentBps;
-
-  if (performance <= threshold) {
-    return Math.floor((performance * Math.max(0, belowBps)) / 10_000);
-  }
-  return Math.floor((performance * Math.max(0, aboveBps)) / 10_000);
+  const migrated = migrateLegacyThresholdConfig(config);
+  if (!migrated.serviceEnabled) return 0;
+  return computeIncentiveFromRules(servicePerformancePaise, migrated.serviceRules);
 }
 
-/** Product sales incentive — always 5% of attributed product sales. */
+/** Product sales incentive — uses normalized rules (legacy: flat 5%). */
 export function computeProductSalesIncentivePaise(
   productSalesPaise: number,
   productPercentBps = SALON_INCENTIVE_RULES.productSalesPercentBps,
 ): number {
-  const sales = Math.max(0, Math.floor(productSalesPaise));
-  if (sales === 0) return 0;
-  return Math.floor((sales * Math.max(0, productPercentBps)) / 10_000);
+  return computeIncentiveFromRules(productSalesPaise, [
+    { thresholdPaise: 0, percentBps: productPercentBps },
+  ]);
 }
 
 /** Total salon incentive from service performance + product sales (separate calculations). */
@@ -53,8 +55,7 @@ export function computeSalonIncentivePaise(
 }
 
 /**
- * @deprecated Use computeServicePerformanceIncentivePaise — kept for legacy callers during migration.
- * Previously computed progressive 10% above threshold only.
+ * @deprecated Use computeIncentiveFromRules — kept for legacy callers during migration.
  */
 export function computePercentageThresholdIncentivePaise(
   config: PercentageThresholdIncentiveConfig,

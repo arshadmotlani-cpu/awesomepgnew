@@ -63,7 +63,7 @@ export function validatePaymentMethod(raw: string): 'bank_transfer' | 'upi' {
 
 export function validateIncentivePlanType(
   raw: string,
-): 'none' | 'percentage_threshold' | 'fixed_bonus' {
-  if (raw === 'percentage_threshold' || raw === 'fixed_bonus') return raw;
+): 'none' | 'percentage_threshold' | 'salon_rules' | 'fixed_bonus' {
+  if (raw === 'percentage_threshold' || raw === 'salon_rules' || raw === 'fixed_bonus') return raw;
   return 'none';
 }

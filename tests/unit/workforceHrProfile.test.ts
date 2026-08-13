@@ -93,7 +93,7 @@ describe('Workforce HR UI contracts', () => {
     assert.match(src, /WeekOffPicker/);
     assert.match(src, /WorkingHoursFields/);
     assert.match(src, /Advanced Permission Overrides/);
-    assert.match(src, /salonIncentiveRulesDisplay/);
+    assert.match(src, /IncentiveRuleBuilder/);
 
     const staffBlock = src.split("activeSection === 'staff-details'")[1]?.split(
       "activeSection === 'credentials'",
@@ -115,7 +115,7 @@ describe('Workforce HR UI contracts', () => {
     )[0];
     assert.ok(salaryBlock);
     assert.match(salaryBlock!, /name="salaryInr"/);
-    assert.match(salaryBlock!, /Incentive rules/);
+    assert.match(salaryBlock!, /Service incentive/);
     assert.doesNotMatch(salaryBlock!, /name="bankAccountHolderName"/);
   });
 
@@ -141,7 +141,7 @@ describe('Workforce HR UI contracts', () => {
     assert.match(profileSrc, /activeSection === 'rights'/);
     assert.match(profileSrc, /activeSection === 'schedule'/);
     assert.match(profileSrc, /WorkingHoursEditor/);
-    assert.match(profileSrc, /salonIncentiveRulesDisplay/);
+    assert.match(profileSrc, /IncentiveRuleBuilder/);
     assert.match(profileSrc, /SECTION_SAVE_LABELS/);
     assert.doesNotMatch(profileSrc, /Salary Effective From/i);
 
@@ -166,7 +166,7 @@ describe('Workforce HR UI contracts', () => {
     )[0];
     assert.ok(salaryBlock);
     assert.match(salaryBlock!, /name="salaryInr"/);
-    assert.match(salaryBlock!, /Incentive rules/);
+    assert.match(salaryBlock!, /Service incentive/);
     assert.match(salaryBlock!, /periodIncentive/);
     assert.doesNotMatch(salaryBlock!, /name="bankAccountHolderName"/);
 

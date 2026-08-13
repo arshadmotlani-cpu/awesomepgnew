@@ -43,10 +43,9 @@ describe('Salon compensation rules', () => {
     assert.equal(plan.planType, 'none');
   });
 
-  test('rule summary mentions threshold and percents', () => {
+  test('rule summary mentions flat defaults', () => {
     assert.match(salonIncentiveRuleSummary(), /5%/);
-    assert.match(salonIncentiveRuleSummary(), /10%/);
-    assert.match(salonIncentiveRuleSummary(), /2×/);
+    assert.match(salonIncentiveRuleSummary(), /flat/i);
   });
 });
 

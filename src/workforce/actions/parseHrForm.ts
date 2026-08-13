@@ -3,12 +3,17 @@ import {
   validateAccountNumber,
   validateIfscCode,
   validatePaymentMethod,
+  validatePercentage,
   validatePositiveSalaryInr,
+  validateThresholdMultiplier,
   validateUpiId,
 } from '@/src/workforce/lib/hrValidation';
 import { parseWeekOffDays, type DayScheduleInput } from '@/src/workforce/lib/weekOff';
-import { buildIncentivePlanFromSalary } from '@/src/workforce/lib/salonCompensationRules';
-import type { WorkforceIncentivePlanInput } from '@/src/workforce/types/hr';
+import { buildDefaultIncentivePlan } from '@/src/workforce/lib/salonCompensationRules';
+import {
+  validateAndNormalizeRules,
+} from '@/src/workforce/lib/incentiveRuleEngine';
+import type { SalonIncentiveRule, SalonRulesIncentiveConfig, WorkforceIncentivePlanInput } from '@/src/workforce/types/hr';
 
 function formStr(formData: FormData, key: string): string {
   return String(formData.get(key) ?? '').trim();
@@ -19,6 +24,8 @@ export type ParseHrFormOptions = {
   canToggleIncentive?: boolean;
   /** Current incentive enabled state when viewer cannot toggle. */
   defaultIncentiveEnabled?: boolean;
+  /** Existing plan config for preserving rules when viewer cannot edit incentives. */
+  existingIncentiveConfig?: SalonRulesIncentiveConfig | null;
 };
 
 /** Defaults for new employees — compensation configured on profile after create. */
@@ -57,6 +64,96 @@ export function parseScheduleDaysFromForm(formData: FormData): DayScheduleInput[
   return days;
 }
 
+function parseRulesFromForm(
+  formData: FormData,
+  kind: 'service' | 'product',
+  salaryPaise: number,
+): SalonIncentiveRule[] {
+  const countRaw = formStr(formData, `${kind}RuleCount`);
+  const count = countRaw ? Number(countRaw) : 0;
+  if (!Number.isFinite(count) || count < 1) {
+    throw new Error(`${kind === 'service' ? 'Service' : 'Product'} incentive requires at least one rule.`);
+  }
+
+  const rules: SalonIncentiveRule[] = [];
+  for (let i = 0; i < count; i++) {
+    const percentRaw = formStr(formData, `${kind}Rule_${i}_percent`);
+    if (!percentRaw) {
+      throw new Error('Each incentive rule must have a percentage.');
+    }
+    const percentBps = validatePercentage(percentRaw);
+
+    let thresholdPaise = 0;
+    const useMultiplier = formData.get(`${kind}Rule_${i}_useSalaryMultiplier`) === '1';
+    if (useMultiplier) {
+      if (salaryPaise <= 0) {
+        throw new Error('Salary is required when using a salary multiplier threshold.');
+      }
+      const multRaw = formStr(formData, `${kind}Rule_${i}_salaryMultiplier`) || '2';
+      const mult = validateThresholdMultiplier(multRaw);
+      thresholdPaise = Math.floor(salaryPaise * mult);
+    } else {
+      const thresholdInr = formStr(formData, `${kind}Rule_${i}_thresholdInr`);
+      if (thresholdInr) {
+        const n = Number(thresholdInr);
+        if (!Number.isFinite(n) || n < 0) {
+          throw new Error('Performance threshold must be zero or a positive amount.');
+        }
+        thresholdPaise = Math.round(n * 100);
+      }
+    }
+
+    rules.push({ thresholdPaise, percentBps });
+  }
+
+  return validateAndNormalizeRules(rules);
+}
+
+export function parseIncentivePlanFromForm(
+  formData: FormData,
+  salaryPaise: number,
+  opts?: ParseHrFormOptions,
+): WorkforceIncentivePlanInput {
+  const canEdit = opts?.canToggleIncentive !== false;
+
+  const preserved = formStr(formData, 'incentiveConfigPreserve');
+  if (preserved && !formData.has('serviceRuleCount') && !formData.has('productRuleCount')) {
+    try {
+      const config = JSON.parse(preserved) as SalonRulesIncentiveConfig;
+      if (!config.serviceEnabled && !config.productEnabled) {
+        return { planType: 'none', config: {}, effectiveFrom: null };
+      }
+      return { planType: 'salon_rules', effectiveFrom: null, config };
+    } catch {
+      /* fall through to normal parse */
+    }
+  }
+
+  if (!canEdit && opts?.existingIncentiveConfig) {
+    const cfg = opts.existingIncentiveConfig;
+    if (!cfg.serviceEnabled && !cfg.productEnabled) {
+      return { planType: 'none', config: {}, effectiveFrom: null };
+    }
+    return { planType: 'salon_rules', effectiveFrom: null, config: cfg };
+  }
+
+  const serviceEnabled = formData.get('serviceIncentiveEnabled') === '1';
+  const productEnabled = formData.get('productIncentiveEnabled') === '1';
+
+  if (!serviceEnabled && !productEnabled) {
+    return { planType: 'none', config: {}, effectiveFrom: null };
+  }
+
+  const config: SalonRulesIncentiveConfig = {
+    serviceEnabled,
+    productEnabled,
+    serviceRules: serviceEnabled ? parseRulesFromForm(formData, 'service', salaryPaise) : [],
+    productRules: productEnabled ? parseRulesFromForm(formData, 'product', salaryPaise) : [],
+  };
+
+  return { planType: 'salon_rules', effectiveFrom: null, config };
+}
+
 export function parseHrFieldsFromForm(
   formData: FormData,
   opts?: ParseHrFormOptions,
@@ -70,20 +167,29 @@ export function parseHrFieldsFromForm(
   const ifscCode = formStr(formData, 'ifscCode');
   const upiId = formStr(formData, 'upiId');
 
-  const salaryPaise = salaryInr ? validatePositiveSalaryInr(salaryInr) : undefined;
+  const salaryPaise = salaryInr ? validatePositiveSalaryInr(salaryInr) : 0;
 
-  let incentiveEnabled = opts?.defaultIncentiveEnabled !== false;
-  if (opts?.canToggleIncentive) {
-    incentiveEnabled = formData.get('incentiveEnabled') === '1';
-  } else if (formData.has('incentiveEnabled')) {
-    incentiveEnabled = formData.get('incentiveEnabled') === '1';
+  let existingConfig = opts?.existingIncentiveConfig ?? null;
+  if (!existingConfig && opts?.defaultIncentiveEnabled === false) {
+    existingConfig = {
+      serviceEnabled: false,
+      productEnabled: false,
+      serviceRules: [],
+      productRules: [],
+    };
   }
 
-  const incentivePlan = buildIncentivePlanFromSalary(salaryPaise ?? 0, incentiveEnabled);
+  const incentivePlan =
+    formData.has('serviceIncentiveEnabled') || formData.has('productIncentiveEnabled')
+      ? parseIncentivePlanFromForm(formData, salaryPaise, {
+          ...opts,
+          existingIncentiveConfig: existingConfig,
+        })
+      : buildDefaultIncentivePlan(opts?.defaultIncentiveEnabled !== false);
 
   return {
     employee: {
-      salaryPaise,
+      salaryPaise: salaryInr ? salaryPaise : undefined,
       salaryFrequency: 'monthly',
       bankAccountHolderName: formStr(formData, 'bankAccountHolderName') || null,
       bankName: formStr(formData, 'bankName') || null,

@@ -7,6 +7,7 @@ import {
 } from '@/src/workforce/lib/incentivePlanMath';
 import { computeSalonIncentiveFromTotals } from '@/src/workforce/services/salonIncentive';
 import { buildIncentivePlanFromSalary } from '@/src/workforce/lib/salonCompensationRules';
+import { migrateLegacyThresholdConfig } from '@/src/workforce/lib/incentiveRuleEngine';
 import type { PercentageThresholdIncentiveConfig } from '@/src/workforce/types/hr';
 
 const salary20kConfig: PercentageThresholdIncentiveConfig = {
@@ -36,10 +37,10 @@ describe('Salon incentive math — service threshold switch (₹12k salary)', ()
     aboveThresholdPercentBps: 1000,
   };
 
-  test('₹24k service performance → ₹1,200 (5% at 2× threshold)', () => {
+  test('₹24k service performance → ₹2,400 (10% at threshold boundary)', () => {
     assert.equal(
       computeServicePerformanceIncentivePaise(salary12kConfig, rupeesToPaise(24_000)),
-      120_000,
+      240_000,
     );
   });
 
@@ -60,8 +61,8 @@ describe('Salon incentive math — service threshold switch (₹20k salary)', ()
     assert.equal(serviceInr(10_000), 50_000);
   });
 
-  test('₹40k service performance → ₹2k (5% at threshold)', () => {
-    assert.equal(serviceInr(40_000), 200_000);
+  test('₹40k service performance → ₹4k (10% at threshold boundary)', () => {
+    assert.equal(serviceInr(40_000), 400_000);
   });
 
   test('₹40,010 service performance → ₹4,001 (10% on entire amount)', () => {
@@ -106,7 +107,13 @@ describe('Salon incentive math — disabled / no plan', () => {
 
 describe('computeSalonIncentiveFromTotals', () => {
   test('sums service and product components', () => {
-    const result = computeSalonIncentiveFromTotals(salary20kConfig, 1_000_000, 200_000);
+    const config = migrateLegacyThresholdConfig(salary20kConfig);
+    const result = computeSalonIncentiveFromTotals(
+      config,
+      1_000_000,
+      200_000,
+      'salon_rules',
+    );
     assert.equal(result.serviceIncentivePaise, 50_000);
     assert.equal(result.productIncentivePaise, 10_000);
     assert.equal(result.totalIncentivePaise, 60_000);

@@ -12,7 +12,11 @@ import {
   WORKFORCE_PERMISSION_GROUP_LABELS,
 } from '@/src/workforce/types';
 import { WORKFORCE_PAYMENT_METHODS, type WorkforcePaymentMethod } from '@/src/workforce/types/hr';
-import { salonIncentiveRulesDisplay } from '@/src/workforce/lib/salonCompensationRules';
+import {
+  defaultSalonRulesConfig,
+  normalizeIncentivePlan,
+} from '@/src/workforce/lib/incentiveRuleEngine';
+import { IncentiveRuleBuilder } from '@/src/workforce/components/IncentiveRuleBuilder';
 import { workforceAccessRoleLabel } from '@/src/workforce/labels';
 import { formatWeekOffDays } from '@/src/workforce/lib/weekOff';
 import { WeekOffPicker } from '@/src/workforce/components/WeekOffPicker';
@@ -104,8 +108,10 @@ export function EmployeeProfilePanel({
   const [receiveBookings, setReceiveBookings] = useState(
     grants.permissions.includes('appointments.receive_bookings'),
   );
-  const incentiveEnabledDefault = incentivePlan?.planType === 'percentage_threshold';
-  const [incentiveEnabled, setIncentiveEnabled] = useState(incentiveEnabledDefault);
+  const salonRulesConfig =
+    normalizeIncentivePlan(incentivePlan?.planType ?? 'none', incentivePlan?.config ?? {}) ??
+    defaultSalonRulesConfig();
+  const canEditIncentiveRules = canEdit && canToggleIncentive;
 
   useEffect(() => {
     if (state.success) window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -117,8 +123,6 @@ export function EmployeeProfilePanel({
     (acc[def.group] ??= []).push(def);
     return acc;
   }, {});
-
-  const rulesDisplay = salonIncentiveRulesDisplay();
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -151,13 +155,13 @@ export function EmployeeProfilePanel({
         <input type="hidden" name="employeeId" value={employee.id} />
         <input type="hidden" name="qrCodeUrl" value={qrPreview ?? employee.qrCodeUrl ?? ''} />
         <input type="hidden" name="salaryFrequency" value="monthly" />
-        {canToggleIncentive && canEdit ? null : (
+        {(!canEditIncentiveRules || activeSection !== 'salary') ? (
           <input
             type="hidden"
-            name="incentiveEnabled"
-            value={incentiveEnabledDefault ? '1' : '0'}
+            name="incentiveConfigPreserve"
+            value={JSON.stringify(salonRulesConfig)}
           />
-        )}
+        ) : null}
 
         {activeSection === 'staff-details' ? (
           <div className="space-y-6">
@@ -426,60 +430,27 @@ export function EmployeeProfilePanel({
               </p>
             </Section>
 
-            <Section title="Incentive eligibility">
-              {canToggleIncentive && canEdit ? (
-                <label className="flex items-start gap-3 text-sm">
-                  <input
-                    type="checkbox"
-                    name="incentiveEnabled"
-                    value="1"
-                    checked={incentiveEnabled}
-                    onChange={(e) => setIncentiveEnabled(e.target.checked)}
-                    className="fyh-checkbox mt-0.5"
-                  />
-                  <span>
-                    <span className="fyh-form-label">Incentive enabled</span>
-                    <span className="fyh-form-helper mt-1 block">
-                      Owner can disable incentive for this employee without changing salary.
-                    </span>
-                  </span>
-                </label>
-              ) : (
-                <>
-                  <p className="text-sm text-fyh-text">
-                    {incentiveEnabledDefault ? 'Enabled' : 'Disabled'}
-                  </p>
-                  {!canToggleIncentive ? (
-                    <p className="fyh-form-helper">Only the owner can change incentive eligibility.</p>
-                  ) : null}
-                </>
-              )}
-            </Section>
+            <IncentiveRuleBuilder
+              kind="service"
+              title="Service incentive"
+              initialEnabled={salonRulesConfig.serviceEnabled}
+              initialRules={salonRulesConfig.serviceRules}
+              salaryPaise={employee.salaryPaise}
+              disabled={!canEditIncentiveRules}
+            />
 
-            <Section title="Incentive rules">
-              <div className="space-y-4 text-sm text-fyh-text">
-                <div>
-                  <p className="font-medium uppercase tracking-wide text-fyh-text-secondary">
-                    Service performance
-                  </p>
-                  <ul className="mt-2 list-disc space-y-1 pl-5 text-fyh-text-secondary">
-                    {rulesDisplay.servicePerformance.map((line) => (
-                      <li key={line}>{line}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <p className="font-medium uppercase tracking-wide text-fyh-text-secondary">
-                    Product sales
-                  </p>
-                  <ul className="mt-2 list-disc space-y-1 pl-5 text-fyh-text-secondary">
-                    {rulesDisplay.productSales.map((line) => (
-                      <li key={line}>{line}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </Section>
+            <IncentiveRuleBuilder
+              kind="product"
+              title="Product incentive"
+              initialEnabled={salonRulesConfig.productEnabled}
+              initialRules={salonRulesConfig.productRules}
+              salaryPaise={employee.salaryPaise}
+              disabled={!canEditIncentiveRules}
+            />
+
+            {!canToggleIncentive && canEdit ? (
+              <p className="fyh-form-helper">Only the owner can change incentive rules.</p>
+            ) : null}
 
             {periodIncentive ? (
               <Section title="Previous month preview">
@@ -657,7 +628,6 @@ export function EmployeeProfilePanel({
               name="salaryInr"
               value={Math.round(employee.salaryPaise / 100)}
             />
-            <input type="hidden" name="incentiveEnabled" value={incentiveEnabled ? '1' : '0'} />
           </>
         ) : null}
       </form>

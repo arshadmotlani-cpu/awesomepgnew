@@ -1,12 +1,19 @@
 import { and, eq } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import { wfIncentivePlans } from '@/src/workforce/db/schema';
+import {
+  isPercentageThresholdConfig,
+  isSalonRulesConfig,
+} from '@/src/workforce/lib/incentiveRuleEngine';
 import type { WorkforceEngineId } from '@/src/workforce/types';
 import type {
+  PercentageThresholdIncentiveConfig,
   WorkforceIncentivePlanConfig,
   WorkforceIncentivePlanInput,
   WorkforceIncentivePlanType,
 } from '@/src/workforce/types/hr';
+
+export { isPercentageThresholdConfig, isSalonRulesConfig } from '@/src/workforce/lib/incentiveRuleEngine';
 
 export async function getIncentivePlan(
   employeeId: string,
@@ -57,14 +64,4 @@ export async function upsertIncentivePlan(input: {
   }
 }
 
-export function isPercentageThresholdConfig(
-  planType: WorkforceIncentivePlanType,
-  config: unknown,
-): config is import('@/src/workforce/types/hr').PercentageThresholdIncentiveConfig {
-  return (
-    planType === 'percentage_threshold' &&
-    typeof config === 'object' &&
-    config !== null &&
-    'thresholdMultiplier' in config
-  );
-}
+export type { PercentageThresholdIncentiveConfig };

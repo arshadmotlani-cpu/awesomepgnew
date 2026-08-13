@@ -11,7 +11,8 @@ import {
   WORKFORCE_PERMISSION_GROUP_LABELS,
 } from '@/src/workforce/types';
 import { WORKFORCE_PAYMENT_METHODS, type WorkforcePaymentMethod } from '@/src/workforce/types/hr';
-import { salonIncentiveRulesDisplay } from '@/src/workforce/lib/salonCompensationRules';
+import { defaultSalonRulesConfig } from '@/src/workforce/lib/incentiveRuleEngine';
+import { IncentiveRuleBuilder } from '@/src/workforce/components/IncentiveRuleBuilder';
 import { workforceAccessRoleLabel } from '@/src/workforce/labels';
 import { WeekOffPicker } from '@/src/workforce/components/WeekOffPicker';
 import { WorkingHoursFields } from '@/src/workforce/components/WorkingHoursFields';
@@ -61,13 +62,14 @@ export function AddEmployeePopup() {
   const [open, setOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<EmployeeProfileSectionId>('staff-details');
   const [receiveBookings, setReceiveBookings] = useState(true);
-  const [incentiveEnabled, setIncentiveEnabled] = useState(true);
+  const [salaryInr, setSalaryInr] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [qrPreview, setQrPreview] = useState<string | null>(null);
   const [state, action, pending] = useActionState(createWorkforceEmployeeAction, initial);
   const [, startTransition] = useTransition();
 
-  const rulesDisplay = salonIncentiveRulesDisplay();
+  const salaryPaise = salaryInr ? Math.round(Number(salaryInr) * 100) : 0;
+  const defaultRules = defaultSalonRulesConfig();
   const sectionIndex = SECTION_ORDER.indexOf(activeSection);
   const isLastSection = sectionIndex === SECTION_ORDER.length - 1;
 
@@ -83,7 +85,7 @@ export function AddEmployeePopup() {
       setOpen(false);
       setActiveSection('staff-details');
       setReceiveBookings(true);
-      setIncentiveEnabled(true);
+      setSalaryInr('');
       setShowAdvanced(false);
       setQrPreview(null);
     }
@@ -375,7 +377,15 @@ export function AddEmployeePopup() {
                       <div className="grid gap-3 sm:grid-cols-2">
                         <label className="space-y-1 text-sm">
                           <span className="fyh-form-label">Base Monthly Salary (₹)</span>
-                          <Input name="salaryInr" type="number" min={0} step="1" placeholder="0" />
+                          <Input
+                            name="salaryInr"
+                            type="number"
+                            min={0}
+                            step="1"
+                            placeholder="0"
+                            value={salaryInr}
+                            onChange={(e) => setSalaryInr(e.target.value)}
+                          />
                         </label>
                         <div className="space-y-1 text-sm">
                           <span className="fyh-form-label">Payment Frequency</span>
@@ -390,50 +400,21 @@ export function AddEmployeePopup() {
                       </p>
                     </Section>
 
-                    <Section title="Incentive eligibility">
-                      <label className="flex items-start gap-3 text-sm">
-                        <input
-                          type="checkbox"
-                          name="incentiveEnabled"
-                          value="1"
-                          checked={incentiveEnabled}
-                          onChange={(e) => setIncentiveEnabled(e.target.checked)}
-                          className="fyh-checkbox mt-0.5"
-                        />
-                        <span>
-                          <span className="fyh-form-label">Incentive enabled</span>
-                          <span className="fyh-form-helper mt-1 block">
-                            Requires a base salary. Owner can disable incentive without changing
-                            salary.
-                          </span>
-                        </span>
-                      </label>
-                    </Section>
+                    <IncentiveRuleBuilder
+                      kind="service"
+                      title="Service incentive"
+                      initialEnabled={defaultRules.serviceEnabled}
+                      initialRules={defaultRules.serviceRules}
+                      salaryPaise={salaryPaise}
+                    />
 
-                    <Section title="Incentive rules">
-                      <div className="space-y-4 text-sm text-fyh-text">
-                        <div>
-                          <p className="font-medium uppercase tracking-wide text-fyh-text-secondary">
-                            Service performance
-                          </p>
-                          <ul className="mt-2 list-disc space-y-1 pl-5 text-fyh-text-secondary">
-                            {rulesDisplay.servicePerformance.map((line) => (
-                              <li key={line}>{line}</li>
-                            ))}
-                          </ul>
-                        </div>
-                        <div>
-                          <p className="font-medium uppercase tracking-wide text-fyh-text-secondary">
-                            Product sales
-                          </p>
-                          <ul className="mt-2 list-disc space-y-1 pl-5 text-fyh-text-secondary">
-                            {rulesDisplay.productSales.map((line) => (
-                              <li key={line}>{line}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                    </Section>
+                    <IncentiveRuleBuilder
+                      kind="product"
+                      title="Product incentive"
+                      initialEnabled={defaultRules.productEnabled}
+                      initialRules={defaultRules.productRules}
+                      salaryPaise={salaryPaise}
+                    />
                   </div>
 
                   <div className={panelClass(activeSection === 'rights')}>
