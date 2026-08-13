@@ -74,28 +74,27 @@ describe('Workforce week off schedule', () => {
 });
 
 describe('Workforce HR UI contracts', () => {
-  test('AddEmployeePopup is minimal — no salary, payment, or incentive at create', () => {
+  test('AddEmployeePopup is minimal — no salary, payment, incentive, schedule, or permissions', () => {
     const { readFileSync } = require('node:fs') as typeof import('node:fs');
     const { join } = require('node:path') as typeof import('node:path');
     const src = readFileSync(
       join(process.cwd(), 'src/workforce/components/AddEmployeePopup.tsx'),
       'utf8',
     );
-    assert.match(src, /WeekOffPicker/);
     assert.match(src, /name="fullName"/);
     assert.match(src, /name="accessRole"/);
     assert.match(src, /name="receiveBookings"/);
+    assert.match(src, /permissions and schedule/);
     assert.doesNotMatch(src, /Payment details/i);
     assert.doesNotMatch(src, /name="salaryInr"/);
     assert.doesNotMatch(src, /name="incentiveEnabled"/);
     assert.doesNotMatch(src, /name="bankAccountHolderName"/);
+    assert.doesNotMatch(src, /WeekOffPicker/);
+    assert.doesNotMatch(src, /name="aadhaarNumber"/);
     assert.doesNotMatch(src, /Advanced Permission Overrides/);
-    assert.doesNotMatch(src, /salaryEffectiveFrom/);
-    assert.doesNotMatch(src, /incentivePlanType/);
-    assert.doesNotMatch(src, /thresholdMultiplier/);
   });
 
-  test('EmployeeProfilePanel has tab nav and section content', () => {
+  test('EmployeeProfilePanel has five profile sections with distinct content', () => {
     const { readFileSync } = require('node:fs') as typeof import('node:fs');
     const { join } = require('node:path') as typeof import('node:path');
     const profileSrc = readFileSync(
@@ -106,14 +105,19 @@ describe('Workforce HR UI contracts', () => {
       join(process.cwd(), 'src/workforce/components/EmployeeProfileNav.tsx'),
       'utf8',
     );
-    assert.match(navSrc, /Overview/);
+    assert.match(navSrc, /Staff Details/);
     assert.match(navSrc, /Credentials/);
     assert.match(navSrc, /Salary & Incentives/);
     assert.match(navSrc, /Additional Rights/);
-    assert.match(profileSrc, /EmployeeProfileNav/);
+    assert.match(navSrc, /Shift Schedule/);
+    assert.match(profileSrc, /activeSection === 'staff-details'/);
+    assert.match(profileSrc, /activeSection === 'credentials'/);
+    assert.match(profileSrc, /activeSection === 'salary'/);
+    assert.match(profileSrc, /activeSection === 'rights'/);
+    assert.match(profileSrc, /activeSection === 'schedule'/);
+    assert.match(profileSrc, /WorkingHoursEditor/);
     assert.match(profileSrc, /salonIncentiveRulesDisplay/);
-    assert.match(profileSrc, /periodIncentive/);
-    assert.match(profileSrc, /canToggleIncentive/);
+    assert.match(profileSrc, /SECTION_SAVE_LABELS/);
     assert.doesNotMatch(profileSrc, /Salary Effective From/i);
   });
 });

@@ -43,6 +43,13 @@ export default async function EmployeeProfilePage({ params }: Props) {
     engineId: 'fyh_salon',
   });
 
+  const scheduleDays = dash.schedule.map((row) => ({
+    dayOfWeek: row.dayOfWeek,
+    startTime: row.startTime,
+    endTime: row.endTime,
+    isOff: Boolean(row.isOff),
+  }));
+
   return (
     <EmployeeProfilePanel
       employee={dash.employee}
@@ -53,6 +60,7 @@ export default async function EmployeeProfilePage({ params }: Props) {
       canEdit={canEdit}
       canToggleIncentive={canToggleIncentive}
       periodIncentive={periodIncentive}
+      scheduleDays={scheduleDays}
     />
   );
 }

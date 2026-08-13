@@ -17,6 +17,10 @@ import { workforceAccessRoleLabel } from '@/src/workforce/labels';
 import { formatWeekOffDays } from '@/src/workforce/lib/weekOff';
 import { WeekOffPicker } from '@/src/workforce/components/WeekOffPicker';
 import {
+  WorkingHoursEditor,
+  type ScheduleDayValue,
+} from '@/src/workforce/components/WorkingHoursEditor';
+import {
   EmployeeProfileNav,
   type EmployeeProfileSectionId,
 } from '@/src/workforce/components/EmployeeProfileNav';
@@ -29,6 +33,33 @@ import type { SalonPeriodIncentiveResult } from '@/src/workforce/services/salonI
 
 const initial: WorkforceActionState = {};
 const fieldClass = 'fyh-select w-full text-sm text-fyh-text';
+
+function SectionSaveFooter({
+  canEdit,
+  pending,
+  label,
+}: {
+  canEdit: boolean;
+  pending: boolean;
+  label: string;
+}) {
+  if (!canEdit) return null;
+  return (
+    <div className="flex justify-end border-t border-[color:var(--fyh-border)] pt-4">
+      <Button type="submit" disabled={pending}>
+        {pending ? 'Saving…' : label}
+      </Button>
+    </div>
+  );
+}
+
+const SECTION_SAVE_LABELS: Record<EmployeeProfileSectionId, string> = {
+  'staff-details': 'Save staff details',
+  credentials: 'Save credentials',
+  salary: 'Save salary & incentives',
+  rights: 'Save permissions',
+  schedule: 'Save week-off days',
+};
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -50,6 +81,7 @@ type Props = {
   canEdit: boolean;
   canToggleIncentive: boolean;
   periodIncentive: SalonPeriodIncentiveResult | null;
+  scheduleDays: ScheduleDayValue[];
 };
 
 export function EmployeeProfilePanel({
@@ -61,12 +93,13 @@ export function EmployeeProfilePanel({
   canEdit,
   canToggleIncentive,
   periodIncentive,
+  scheduleDays,
 }: Props) {
   const formId = useId();
-  const [activeSection, setActiveSection] = useState<EmployeeProfileSectionId>('overview');
+  const [activeSection, setActiveSection] = useState<EmployeeProfileSectionId>('staff-details');
   const [state, action, pending] = useActionState(updateWorkforceEmployeeAction, initial);
   const [, startTransition] = useTransition();
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(true);
   const [qrPreview, setQrPreview] = useState<string | null>(employee.qrCodeUrl);
   const [receiveBookings, setReceiveBookings] = useState(
     grants.permissions.includes('appointments.receive_bookings'),
@@ -126,7 +159,7 @@ export function EmployeeProfilePanel({
           />
         )}
 
-        {activeSection === 'overview' ? (
+        {activeSection === 'staff-details' ? (
           <div className="space-y-6">
             <Section title="Basic information">
               <div className="grid gap-3 sm:grid-cols-2">
@@ -239,13 +272,6 @@ export function EmployeeProfilePanel({
                   <span className="font-medium">Appointment bookable</span>
                 </label>
               </div>
-              {canEdit ? (
-                <WeekOffPicker defaultOffDays={weekOffDays} />
-              ) : (
-                <p className="text-sm text-fyh-text-secondary">
-                  Weekly off: {formatWeekOffDays(weekOffDays)}
-                </p>
-              )}
             </Section>
 
             <Section title="Documents">
@@ -269,11 +295,18 @@ export function EmployeeProfilePanel({
                 </label>
               </div>
             </Section>
+
+            <SectionSaveFooter
+              canEdit={canEdit}
+              pending={pending}
+              label={SECTION_SAVE_LABELS['staff-details']}
+            />
           </div>
         ) : null}
 
         {activeSection === 'credentials' ? (
-          <Section title="Payment credentials">
+          <div className="space-y-6">
+            <Section title="Payment credentials">
             <p className="text-xs text-fyh-text-secondary">Used for salary payouts only.</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="space-y-1 text-sm sm:col-span-2">
@@ -356,7 +389,13 @@ export function EmployeeProfilePanel({
                 ) : null}
               </label>
             </div>
-          </Section>
+            </Section>
+            <SectionSaveFooter
+              canEdit={canEdit}
+              pending={pending}
+              label={SECTION_SAVE_LABELS.credentials}
+            />
+          </div>
         ) : null}
 
         {activeSection === 'salary' ? (
@@ -484,11 +523,18 @@ export function EmployeeProfilePanel({
                 </dl>
               </Section>
             ) : null}
+
+            <SectionSaveFooter
+              canEdit={canEdit}
+              pending={pending}
+              label={SECTION_SAVE_LABELS.salary}
+            />
           </div>
         ) : null}
 
         {activeSection === 'rights' ? (
-          <Section title="Additional rights">
+          <div className="space-y-6">
+            <Section title="Additional rights">
             <p className="text-sm text-fyh-text-secondary">
               Role: {workforceAccessRoleLabel(membership.jobRole)}. Use overrides only when needed.
             </p>
@@ -533,11 +579,36 @@ export function EmployeeProfilePanel({
                 {grants.permissions.length} permissions from role and overrides.
               </p>
             )}
-          </Section>
+            </Section>
+            <SectionSaveFooter
+              canEdit={canEdit}
+              pending={pending}
+              label={SECTION_SAVE_LABELS.rights}
+            />
+          </div>
+        ) : null}
+
+        {activeSection === 'schedule' ? (
+          <div className="space-y-6">
+            <Section title="Weekly off days">
+              {canEdit ? (
+                <WeekOffPicker defaultOffDays={weekOffDays} />
+              ) : (
+                <p className="text-sm text-fyh-text-secondary">
+                  Weekly off: {formatWeekOffDays(weekOffDays)}
+                </p>
+              )}
+            </Section>
+            <SectionSaveFooter
+              canEdit={canEdit}
+              pending={pending}
+              label={SECTION_SAVE_LABELS.schedule}
+            />
+          </div>
         ) : null}
 
         {/* Preserve HR fields when saving from a tab that does not show them */}
-        {activeSection !== 'overview' ? (
+        {activeSection !== 'staff-details' ? (
           <>
             <input type="hidden" name="fullName" value={employee.fullName} />
             <input type="hidden" name="email" value={employee.email ?? ''} />
@@ -552,9 +623,11 @@ export function EmployeeProfilePanel({
             {receiveBookings ? (
               <input type="hidden" name="receiveBookings" value="1" />
             ) : null}
-            {weekOffDays.map((d) => (
-              <input key={d} type="hidden" name="weekOffDays" value={d} />
-            ))}
+            {activeSection !== 'schedule'
+              ? weekOffDays.map((d) => (
+                  <input key={d} type="hidden" name="weekOff" value={d} />
+                ))
+              : null}
           </>
         ) : null}
 
@@ -587,15 +660,25 @@ export function EmployeeProfilePanel({
             <input type="hidden" name="incentiveEnabled" value={incentiveEnabled ? '1' : '0'} />
           </>
         ) : null}
-
-        {canEdit ? (
-          <div className="flex justify-end border-t border-[color:var(--fyh-border)] pt-4">
-            <Button type="submit" disabled={pending}>
-              {pending ? 'Saving…' : 'Save changes'}
-            </Button>
-          </div>
-        ) : null}
       </form>
+
+      {activeSection === 'schedule' ? (
+        <section className="mt-6 space-y-3 rounded-xl border border-[color:var(--fyh-border)] p-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-fyh-text-secondary">
+            Working hours
+          </h2>
+          <p className="text-xs text-fyh-text-secondary">
+            Set start and end times for each day. Use the Off checkbox for days the employee does not
+            work.
+          </p>
+          <WorkingHoursEditor
+            employeeId={employee.id}
+            employeeName={employee.fullName}
+            initial={scheduleDays}
+            embedded
+          />
+        </section>
+      ) : null}
     </div>
   );
 }

@@ -7,7 +7,6 @@ import {
 } from '@/src/workforce/actions/employees';
 import { WORKFORCE_ACCESS_ROLES } from '@/src/workforce/types';
 import { workforceAccessRoleLabel } from '@/src/workforce/labels';
-import { WeekOffPicker } from '@/src/workforce/components/WeekOffPicker';
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
 
@@ -99,8 +98,8 @@ export function AddEmployeePopup() {
                   </button>
                 </div>
                 <p className="mt-1 text-sm text-fyh-text-secondary">
-                  Create the employee record. Configure salary, bank details, and permissions from
-                  their profile.
+                  Create the employee record. Configure salary, credentials, permissions and schedule
+                  from their profile.
                 </p>
               </div>
 
@@ -184,18 +183,7 @@ export function AddEmployeePopup() {
                   </Section>
 
                   <Section title="Employment">
-                    <WeekOffPicker defaultOffDays={[0]} />
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      <label className="space-y-1 text-sm">
-                        <span className="fyh-form-label">Aadhaar</span>
-                        <Input name="aadhaarNumber" inputMode="numeric" />
-                      </label>
-                      <label className="space-y-1 text-sm">
-                        <span className="fyh-form-label">PAN</span>
-                        <Input name="panNumber" className="uppercase" />
-                      </label>
-                    </div>
-                    <label className="mt-3 flex items-center gap-3 text-sm">
+                    <label className="flex items-center gap-3 text-sm">
                       <input
                         type="checkbox"
                         name="receiveBookings"

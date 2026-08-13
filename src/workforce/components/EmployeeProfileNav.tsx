@@ -3,10 +3,11 @@
 import { cn } from '@/src/hair/lib/utils';
 
 export const EMPLOYEE_PROFILE_SECTIONS = [
-  { id: 'overview', label: 'Overview' },
+  { id: 'staff-details', label: 'Staff Details' },
   { id: 'credentials', label: 'Credentials' },
   { id: 'salary', label: 'Salary & Incentives' },
   { id: 'rights', label: 'Additional Rights' },
+  { id: 'schedule', label: 'Shift Schedule' },
 ] as const;
 
 export type EmployeeProfileSectionId = (typeof EMPLOYEE_PROFILE_SECTIONS)[number]['id'];
@@ -19,7 +20,10 @@ export function EmployeeProfileNav({
   onChange: (id: EmployeeProfileSectionId) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-1 border-b border-[color:var(--fyh-border)] pb-2">
+    <nav
+      className="flex flex-wrap gap-1 border-b border-[color:var(--fyh-border)] pb-2"
+      aria-label="Employee profile sections"
+    >
       {EMPLOYEE_PROFILE_SECTIONS.map((section) => {
         const isActive = active === section.id;
         return (
@@ -27,6 +31,7 @@ export function EmployeeProfileNav({
             key={section.id}
             type="button"
             onClick={() => onChange(section.id)}
+            aria-current={isActive ? 'page' : undefined}
             className={cn(
               'rounded-xl px-3 py-2 text-sm font-medium transition',
               isActive
@@ -38,6 +43,6 @@ export function EmployeeProfileNav({
           </button>
         );
       })}
-    </div>
+    </nav>
   );
 }

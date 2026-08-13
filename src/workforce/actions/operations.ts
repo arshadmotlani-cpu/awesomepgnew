@@ -73,6 +73,8 @@ export async function saveWeeklyScheduleAction(formData: FormData): Promise<void
   });
   revalidatePath('/workforce/operations');
   revalidatePath('/me');
+  revalidatePath('/staff');
+  revalidatePath(`/staff/${employeeId}`);
 }
 
 export async function setCommissionAction(formData: FormData): Promise<void> {

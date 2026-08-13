@@ -43,12 +43,12 @@ export function salonIncentiveRulesDisplay(): {
   const product = SALON_INCENTIVE_RULES.productSalesPercentBps / 100;
   return {
     servicePerformance: [
-      `At or below ${mult}× base salary → ${below}% of total service performance`,
-      `Above ${mult}× base salary → ${above}% of total service performance (entire amount)`,
+      `Up to ${mult}× salary → ${below}%`,
+      `Above ${mult}× salary → ${above}% of total service performance`,
     ],
     productSales: [
-      `Always → ${product}% of product sales attributed to the employee`,
-      'Product sales do not count toward the service performance threshold',
+      `Always → ${product}%`,
+      'No 2× threshold',
     ],
   };
 }

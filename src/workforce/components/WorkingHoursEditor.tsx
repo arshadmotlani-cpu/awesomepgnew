@@ -2,6 +2,7 @@
 
 import { useTransition } from 'react';
 import { saveWeeklyScheduleAction } from '@/src/workforce/actions/operations';
+import { Button } from '@/src/hair/components/ui/button';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -16,6 +17,8 @@ export function WorkingHoursEditor(props: {
   employeeId: string;
   employeeName: string;
   initial: ScheduleDayValue[];
+  /** Profile embed — hide duplicate title and use primary save button. */
+  embedded?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const byDay = new Map(props.initial.map((d) => [d.dayOfWeek, d]));
@@ -31,7 +34,7 @@ export function WorkingHoursEditor(props: {
 
   return (
     <form
-      className="space-y-2"
+      className="space-y-3"
       action={(fd) => {
         startTransition(async () => {
           await saveWeeklyScheduleAction(fd);
@@ -39,12 +42,14 @@ export function WorkingHoursEditor(props: {
       }}
     >
       <input type="hidden" name="employeeId" value={props.employeeId} />
-      <p className="text-sm font-medium text-fyh-text">{props.employeeName}</p>
+      {props.embedded ? null : (
+        <p className="text-sm font-medium text-fyh-text">{props.employeeName}</p>
+      )}
       <div className="grid gap-2">
         {days.map((d) => (
           <div
             key={d.dayOfWeek}
-            className="grid grid-cols-[3rem_1fr_1fr_auto] items-center gap-2 text-xs"
+            className="grid grid-cols-[3rem_1fr_1fr_auto] items-center gap-2 text-xs sm:text-sm"
           >
             <span className="font-medium text-fyh-text">{DAY_LABELS[d.dayOfWeek]}</span>
             <input type="hidden" name={`day_${d.dayOfWeek}_dow`} value={d.dayOfWeek} />
@@ -67,13 +72,21 @@ export function WorkingHoursEditor(props: {
           </div>
         ))}
       </div>
-      <button
-        type="submit"
-        disabled={pending}
-        className="text-sm text-fyh-accent underline disabled:opacity-50"
-      >
-        {pending ? 'Saving…' : 'Save hours'}
-      </button>
+      <div className="flex justify-end border-t border-[color:var(--fyh-border)] pt-3">
+        {props.embedded ? (
+          <Button type="submit" disabled={pending} variant="secondary">
+            {pending ? 'Saving…' : 'Save working hours'}
+          </Button>
+        ) : (
+          <button
+            type="submit"
+            disabled={pending}
+            className="text-sm text-fyh-accent underline disabled:opacity-50"
+          >
+            {pending ? 'Saving…' : 'Save hours'}
+          </button>
+        )}
+      </div>
     </form>
   );
 }
