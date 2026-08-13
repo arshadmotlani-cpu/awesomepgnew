@@ -6,7 +6,7 @@ import {
   SALON_INCENTIVE_RULES,
   SALON_PAYROLL_RULES,
 } from '@/src/workforce/lib/salonCompensationRules';
-import { computePercentageThresholdIncentivePaise } from '@/src/workforce/lib/incentivePlanMath';
+import { computeServicePerformanceIncentivePaise } from '@/src/workforce/lib/incentivePlanMath';
 import {
   isEmployeeEligibleForPeriod,
   isPayrollGenerationWindowOpen,
@@ -25,16 +25,17 @@ describe('Salon compensation rules', () => {
     assert.deepEqual(plan.config, {
       baseSalaryPaise: 2_000_000,
       thresholdMultiplier: SALON_INCENTIVE_RULES.thresholdMultiplier,
+      belowThresholdPercentBps: SALON_INCENTIVE_RULES.belowThresholdPercentBps,
       aboveThresholdPercentBps: SALON_INCENTIVE_RULES.aboveThresholdPercentBps,
     });
   });
 
-  test('example: ₹20k salary, ₹60k business → ₹2k incentive', () => {
+  test('example: ₹20k salary, ₹60k service performance → ₹6k incentive (10% on entire)', () => {
     const plan = buildIncentivePlanFromSalary(2_000_000, true);
     assert.equal(plan.planType, 'percentage_threshold');
     if (plan.planType !== 'percentage_threshold') return;
-    const incentive = computePercentageThresholdIncentivePaise(plan.config, 6_000_000);
-    assert.equal(incentive, 200_000);
+    const incentive = computeServicePerformanceIncentivePaise(plan.config, 6_000_000);
+    assert.equal(incentive, 600_000);
   });
 
   test('disabled incentive returns none plan', () => {
@@ -42,7 +43,8 @@ describe('Salon compensation rules', () => {
     assert.equal(plan.planType, 'none');
   });
 
-  test('rule summary mentions threshold and percent', () => {
+  test('rule summary mentions threshold and percents', () => {
+    assert.match(salonIncentiveRuleSummary(), /5%/);
     assert.match(salonIncentiveRuleSummary(), /10%/);
     assert.match(salonIncentiveRuleSummary(), /2×/);
   });

@@ -32,6 +32,9 @@ export const WORKFORCE_WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
 export type PercentageThresholdIncentiveConfig = {
   baseSalaryPaise: number;
   thresholdMultiplier: number;
+  /** Service performance at or below threshold — default 5%. */
+  belowThresholdPercentBps?: number;
+  /** Service performance above threshold — 10% on entire amount. */
   aboveThresholdPercentBps: number;
 };
 

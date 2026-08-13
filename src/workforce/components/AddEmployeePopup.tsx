@@ -5,13 +5,7 @@ import {
   createWorkforceEmployeeAction,
   type WorkforceActionState,
 } from '@/src/workforce/actions/employees';
-import {
-  WORKFORCE_ACCESS_ROLES,
-  WORKFORCE_PERMISSION_LIBRARY,
-  WORKFORCE_PERMISSION_GROUP_LABELS,
-} from '@/src/workforce/types';
-import { WORKFORCE_PAYMENT_METHODS } from '@/src/workforce/types/hr';
-import { salonIncentiveRuleSummary } from '@/src/workforce/lib/salonCompensationRules';
+import { WORKFORCE_ACCESS_ROLES } from '@/src/workforce/types';
 import { workforceAccessRoleLabel } from '@/src/workforce/labels';
 import { WeekOffPicker } from '@/src/workforce/components/WeekOffPicker';
 import { Button } from '@/src/hair/components/ui/button';
@@ -33,25 +27,20 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 /**
- * Add Employee — minimal form; role templates apply permissions automatically.
+ * Add Employee — basic identity and work info only.
+ * Salary, credentials, and permissions are configured on the employee profile.
  */
 export function AddEmployeePopup() {
   const titleId = useId();
   const [open, setOpen] = useState(false);
-  const [qrPreview, setQrPreview] = useState<string | null>(null);
   const [receiveBookings, setReceiveBookings] = useState(true);
-  const [incentiveEnabled, setIncentiveEnabled] = useState(true);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [state, action, pending] = useActionState(createWorkforceEmployeeAction, initial);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
     if (state.success) {
       setOpen(false);
-      setQrPreview(null);
       setReceiveBookings(true);
-      setIncentiveEnabled(true);
-      setShowAdvanced(false);
     }
   }, [state.success]);
 
@@ -68,13 +57,6 @@ export function AddEmployeePopup() {
       document.body.style.overflow = prev;
     };
   }, [open, pending]);
-
-  const permissionGroups = WORKFORCE_PERMISSION_LIBRARY.reduce<
-    Record<string, Array<(typeof WORKFORCE_PERMISSION_LIBRARY)[number]>>
-  >((acc, def) => {
-    (acc[def.group] ??= []).push(def);
-    return acc;
-  }, {});
 
   return (
     <>
@@ -116,6 +98,10 @@ export function AddEmployeePopup() {
                     ✕
                   </button>
                 </div>
+                <p className="mt-1 text-sm text-fyh-text-secondary">
+                  Create the employee record. Configure salary, bank details, and permissions from
+                  their profile.
+                </p>
               </div>
 
               <form
@@ -143,11 +129,7 @@ export function AddEmployeePopup() {
                       </label>
                       <label className="block space-y-1 text-sm">
                         <span className="fyh-form-label">Phone Number</span>
-                        <Input
-                          name="mobile"
-                          placeholder="9876543210"
-                          inputMode="tel"
-                        />
+                        <Input name="mobile" placeholder="9876543210" inputMode="tel" />
                       </label>
                       <label className="block space-y-1 text-sm">
                         <span className="fyh-form-label">Password</span>
@@ -171,6 +153,10 @@ export function AddEmployeePopup() {
                             </option>
                           ))}
                         </select>
+                        <span className="fyh-form-helper">
+                          Default permissions apply from the role. Override on the profile if
+                          needed.
+                        </span>
                       </label>
                     </div>
                   </Section>
@@ -209,123 +195,7 @@ export function AddEmployeePopup() {
                         <Input name="panNumber" className="uppercase" />
                       </label>
                     </div>
-                  </Section>
-
-                  <Section title="Salary">
-                    <input type="hidden" name="salaryFrequency" value="monthly" />
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <label className="space-y-1 text-sm">
-                        <span className="fyh-form-label">Base Monthly Salary (₹)</span>
-                        <Input
-                          name="salaryInr"
-                          type="number"
-                          min={0}
-                          step="1"
-                          defaultValue={0}
-                        />
-                      </label>
-                      <div className="space-y-1 text-sm">
-                        <span className="fyh-form-label">Payment Frequency</span>
-                        <p className="flex h-10 items-center rounded-[var(--fyh-radius)] border border-[color:var(--fyh-border-strong)] bg-black/25 px-3.5 text-sm text-fyh-text">
-                          Monthly
-                        </p>
-                      </div>
-                    </div>
-                    <p className="fyh-form-helper">
-                      Salary is generated between the 7th and 10th for the previous month, based on
-                      joining date.
-                    </p>
-                  </Section>
-
-                  <Section title="Incentive">
-                    <label className="flex items-start gap-3 text-sm">
-                      <input
-                        type="checkbox"
-                        name="incentiveEnabled"
-                        value="1"
-                        checked={incentiveEnabled}
-                        onChange={(e) => setIncentiveEnabled(e.target.checked)}
-                        className="fyh-checkbox mt-0.5"
-                      />
-                      <span>
-                        <span className="fyh-form-label">Incentive enabled</span>
-                        <span className="fyh-form-helper mt-1 block">{salonIncentiveRuleSummary()}</span>
-                      </span>
-                    </label>
-                  </Section>
-
-                  <Section title="Payment details">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <label className="space-y-1 text-sm sm:col-span-2">
-                        <span className="fyh-form-label">Bank Account Holder Name</span>
-                        <Input name="bankAccountHolderName" />
-                      </label>
-                      <label className="space-y-1 text-sm">
-                        <span className="fyh-form-label">Bank Name</span>
-                        <Input name="bankName" />
-                      </label>
-                      <label className="space-y-1 text-sm">
-                        <span className="fyh-form-label">Account Number</span>
-                        <Input name="accountNumber" inputMode="numeric" />
-                      </label>
-                      <label className="space-y-1 text-sm">
-                        <span className="fyh-form-label">IFSC Code</span>
-                        <Input name="ifscCode" className="uppercase" />
-                      </label>
-                      <label className="space-y-1 text-sm">
-                        <span className="fyh-form-label">UPI ID</span>
-                        <Input name="upiId" placeholder="name@upi" />
-                      </label>
-                      <fieldset className="space-y-2 sm:col-span-2">
-                        <legend className="fyh-form-label text-sm">Primary Payment Method</legend>
-                        <div className="flex flex-wrap gap-4 text-sm text-fyh-text">
-                          {WORKFORCE_PAYMENT_METHODS.map((m) => (
-                            <label key={m} className="flex items-center gap-2">
-                              <input
-                                type="radio"
-                                name="primaryPaymentMethod"
-                                value={m}
-                                defaultChecked={m === 'upi'}
-                                className="fyh-radio"
-                              />
-                              <span>{m === 'bank_transfer' ? 'Bank Transfer' : 'UPI'}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </fieldset>
-                      <label className="space-y-1 text-sm sm:col-span-2">
-                        <span className="fyh-form-label">QR Code</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className={fieldClass}
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) {
-                              setQrPreview(null);
-                              return;
-                            }
-                            if (file.size > 800_000) {
-                              alert('QR image must be under 800KB');
-                              e.target.value = '';
-                              return;
-                            }
-                            const reader = new FileReader();
-                            reader.onload = () => {
-                              const dataUrl =
-                                typeof reader.result === 'string' ? reader.result : '';
-                              setQrPreview(dataUrl);
-                            };
-                            reader.readAsDataURL(file);
-                          }}
-                        />
-                        <input type="hidden" name="qrCodeUrl" value={qrPreview ?? ''} />
-                      </label>
-                    </div>
-                  </Section>
-
-                  <Section title="Work">
-                    <label className="flex items-center gap-3 text-sm">
+                    <label className="mt-3 flex items-center gap-3 text-sm">
                       <input
                         type="checkbox"
                         name="receiveBookings"
@@ -337,46 +207,6 @@ export function AddEmployeePopup() {
                       <span className="fyh-form-label">Appointment bookable</span>
                     </label>
                   </Section>
-
-                  <div>
-                    <button
-                      type="button"
-                      className="text-sm text-fyh-accent underline-offset-2 hover:underline"
-                      onClick={() => setShowAdvanced((v) => !v)}
-                    >
-                      Advanced Permission Overrides
-                    </button>
-                    {showAdvanced ? (
-                      <div className="mt-3 max-h-64 space-y-3 overflow-y-auto rounded-lg border border-[color:var(--fyh-border)] p-3">
-                        <p className="fyh-form-helper">
-                          Leave unchecked to use the Access Role defaults. Only use when this
-                          employee needs different permissions.
-                        </p>
-                        {Object.entries(permissionGroups).map(([group, defs]) => (
-                          <fieldset key={group} className="space-y-1">
-                            <legend className="text-xs font-medium text-fyh-text-secondary">
-                              {WORKFORCE_PERMISSION_GROUP_LABELS[
-                                group as keyof typeof WORKFORCE_PERMISSION_GROUP_LABELS
-                              ] ?? group}
-                            </legend>
-                            <div className="grid gap-1 sm:grid-cols-2">
-                              {defs.map((def) => (
-                                <label key={def.key} className="flex items-center gap-2 text-xs text-fyh-text">
-                                  <input
-                                    type="checkbox"
-                                    name="permissions"
-                                    value={def.key}
-                                    className="fyh-checkbox"
-                                  />
-                                  <span>{def.label}</span>
-                                </label>
-                              ))}
-                            </div>
-                          </fieldset>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
 
                   {state.error ? <p className="fyh-alert-danger text-sm">{state.error}</p> : null}
                 </div>

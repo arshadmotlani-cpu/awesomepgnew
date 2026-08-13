@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 import { getEmployeeDashboard } from '@/src/workforce/brains/employeeBrain';
 import { EmployeeProfilePanel } from '@/src/workforce/components/EmployeeProfilePanel';
 import { getIncentivePlan } from '@/src/workforce/services/incentivePlans';
+import { computeSalonPeriodIncentive } from '@/src/workforce/services/salonIncentive';
+import { resolvePreviousMonthPeriod } from '@/src/workforce/lib/payrollPeriod';
 import { weekOffDaysFromSchedule } from '@/src/workforce/lib/weekOff';
 import { requireStaffManagementAccess } from '@/src/hair/lib/auth/staffManagementAccess';
 import { getHairSession } from '@/src/hair/lib/auth/session';
@@ -33,6 +35,14 @@ export default async function EmployeeProfilePage({ params }: Props) {
   const canToggleIncentive =
     access.grants === null || viewerDash?.membership?.jobRole === 'owner';
 
+  const prevPeriod = resolvePreviousMonthPeriod();
+  const periodIncentive = await computeSalonPeriodIncentive({
+    employeeId,
+    periodStart: prevPeriod.periodStart,
+    periodEnd: prevPeriod.periodEnd,
+    engineId: 'fyh_salon',
+  });
+
   return (
     <EmployeeProfilePanel
       employee={dash.employee}
@@ -42,6 +52,7 @@ export default async function EmployeeProfilePage({ params }: Props) {
       weekOffDays={weekOffDays}
       canEdit={canEdit}
       canToggleIncentive={canToggleIncentive}
+      periodIncentive={periodIncentive}
     />
   );
 }

@@ -21,6 +21,29 @@ export type ParseHrFormOptions = {
   defaultIncentiveEnabled?: boolean;
 };
 
+/** Defaults for new employees — compensation configured on profile after create. */
+export function parseBasicCreateHrDefaults(formData: FormData): {
+  employee: Partial<UpsertEmployeeInput>;
+  weekOffDays: number[];
+  incentivePlan: WorkforceIncentivePlanInput;
+} {
+  return {
+    employee: {
+      salaryPaise: 0,
+      salaryFrequency: 'monthly',
+      bankAccountHolderName: null,
+      bankName: null,
+      accountNumber: null,
+      ifscCode: null,
+      upiId: null,
+      qrCodeUrl: null,
+      primaryPaymentMethod: 'upi',
+    },
+    weekOffDays: parseWeekOffDays(formData),
+    incentivePlan: { planType: 'none', config: {}, effectiveFrom: null },
+  };
+}
+
 export function parseHrFieldsFromForm(
   formData: FormData,
   opts?: ParseHrFormOptions,

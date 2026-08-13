@@ -13,7 +13,7 @@ import {
 } from '@/src/workforce/types';
 import { WORKFORCE_PERMISSION_KEYS, type WorkforcePermissionKey } from '@/src/workforce/types';
 import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
-import { parseHrFieldsFromForm } from '@/src/workforce/actions/parseHrForm';
+import { parseBasicCreateHrDefaults, parseHrFieldsFromForm } from '@/src/workforce/actions/parseHrForm';
 
 export type WorkforceActionState = { error?: string; success?: string };
 
@@ -57,7 +57,7 @@ export async function createWorkforceEmployeeAction(
       return { error: 'Password must be at least 6 characters.' };
     }
 
-    const hr = parseHrFieldsFromForm(formData, { canToggleIncentive: true });
+    const hr = parseBasicCreateHrDefaults(formData);
 
     await createEmployee({
       fullName: formStr(formData, 'fullName'),

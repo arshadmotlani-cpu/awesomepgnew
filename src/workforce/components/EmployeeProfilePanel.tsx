@@ -12,21 +12,27 @@ import {
   WORKFORCE_PERMISSION_GROUP_LABELS,
 } from '@/src/workforce/types';
 import { WORKFORCE_PAYMENT_METHODS, type WorkforcePaymentMethod } from '@/src/workforce/types/hr';
-import { salonIncentiveRuleSummary } from '@/src/workforce/lib/salonCompensationRules';
+import { salonIncentiveRulesDisplay } from '@/src/workforce/lib/salonCompensationRules';
 import { workforceAccessRoleLabel } from '@/src/workforce/labels';
 import { formatWeekOffDays } from '@/src/workforce/lib/weekOff';
 import { WeekOffPicker } from '@/src/workforce/components/WeekOffPicker';
+import {
+  EmployeeProfileNav,
+  type EmployeeProfileSectionId,
+} from '@/src/workforce/components/EmployeeProfileNav';
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
+import { formatInrFromPaise } from '@/src/hair/lib/money';
 import type { WfEmployee, WfEngineMembership, WfIncentivePlan } from '@/src/workforce/db/schema';
 import type { WorkforcePermissionGrants } from '@/src/workforce/types';
+import type { SalonPeriodIncentiveResult } from '@/src/workforce/services/salonIncentive';
 
 const initial: WorkforceActionState = {};
 const fieldClass = 'fyh-select w-full text-sm text-fyh-text';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="space-y-3 rounded-xl border border-[color:var(--fyh-border)] p-4">
+    <section className="space-y-3">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-fyh-text-secondary">
         {title}
       </h2>
@@ -43,6 +49,7 @@ type Props = {
   weekOffDays: number[];
   canEdit: boolean;
   canToggleIncentive: boolean;
+  periodIncentive: SalonPeriodIncentiveResult | null;
 };
 
 export function EmployeeProfilePanel({
@@ -53,8 +60,10 @@ export function EmployeeProfilePanel({
   weekOffDays,
   canEdit,
   canToggleIncentive,
+  periodIncentive,
 }: Props) {
   const formId = useId();
+  const [activeSection, setActiveSection] = useState<EmployeeProfileSectionId>('overview');
   const [state, action, pending] = useActionState(updateWorkforceEmployeeAction, initial);
   const [, startTransition] = useTransition();
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -75,6 +84,8 @@ export function EmployeeProfilePanel({
     (acc[def.group] ??= []).push(def);
     return acc;
   }, {});
+
+  const rulesDisplay = salonIncentiveRulesDisplay();
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -97,359 +108,488 @@ export function EmployeeProfilePanel({
         <p className="fyh-alert-danger-box text-sm">{state.error}</p>
       ) : null}
 
+      <EmployeeProfileNav active={activeSection} onChange={setActiveSection} />
+
       <form
         id={formId}
         action={(fd) => startTransition(() => action(fd))}
-        className="space-y-6"
+        className="space-y-6 rounded-xl border border-[color:var(--fyh-border)] p-4"
       >
         <input type="hidden" name="employeeId" value={employee.id} />
         <input type="hidden" name="qrCodeUrl" value={qrPreview ?? employee.qrCodeUrl ?? ''} />
+        <input type="hidden" name="salaryFrequency" value="monthly" />
+        {canToggleIncentive && canEdit ? null : (
+          <input
+            type="hidden"
+            name="incentiveEnabled"
+            value={incentiveEnabledDefault ? '1' : '0'}
+          />
+        )}
 
-        <Section title="Basic information">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="space-y-1 text-sm sm:col-span-2">
-              <span className="font-medium">Full Name</span>
-              <Input
-                name="fullName"
-                defaultValue={employee.fullName}
-                required
-                disabled={!canEdit}
-              />
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">Email</span>
-              <Input
-                name="email"
-                type="email"
-                defaultValue={employee.email ?? ''}
-                required
-                disabled={!canEdit}
-              />
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">Phone</span>
-              <Input
-                name="mobile"
-                defaultValue={employee.mobile ?? ''}
-                disabled={!canEdit}
-              />
-            </label>
-            <label className="space-y-1 text-sm sm:col-span-2">
-              <span className="font-medium">New password</span>
-              <Input
-                name="password"
-                type="password"
-                minLength={6}
-                placeholder="Leave blank to keep current"
-                disabled={!canEdit}
-              />
-            </label>
-          </div>
-        </Section>
-
-        <Section title="Employment">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">Access Role</span>
-              <select
-                name="accessRole"
-                className={fieldClass}
-                defaultValue={membership.jobRole}
-                disabled={!canEdit}
-              >
-                {WORKFORCE_ACCESS_ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {workforceAccessRoleLabel(r)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">Joining Date</span>
-              <Input
-                name="joiningDate"
-                type="date"
-                defaultValue={employee.joiningDate ?? ''}
-                disabled={!canEdit}
-              />
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">Gender</span>
-              <select
-                name="gender"
-                className={fieldClass}
-                defaultValue={employee.gender}
-                disabled={!canEdit}
-              >
-                <option value="unspecified">Unspecified</option>
-                <option value="female">Female</option>
-                <option value="male">Male</option>
-                <option value="other">Other</option>
-              </select>
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">Emergency Contact</span>
-              <Input
-                name="emergencyContact"
-                defaultValue={employee.emergencyContact ?? ''}
-                disabled={!canEdit}
-              />
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">Status</span>
-              <select
-                name="status"
-                className={fieldClass}
-                defaultValue={employee.status}
-                disabled={!canEdit}
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </label>
-            <label className="flex items-center gap-3 text-sm sm:col-span-2">
-              <input
-                type="checkbox"
-                name="receiveBookings"
-                value="1"
-                checked={receiveBookings}
-                onChange={(e) => setReceiveBookings(e.target.checked)}
-                disabled={!canEdit}
-                className="fyh-checkbox"
-              />
-              <span className="font-medium">Appointment bookable</span>
-            </label>
-          </div>
-          {canEdit ? (
-            <WeekOffPicker defaultOffDays={weekOffDays} />
-          ) : (
-            <p className="text-sm text-fyh-text-secondary">
-              Weekly off: {formatWeekOffDays(weekOffDays)}
-            </p>
-          )}
-        </Section>
-
-        <Section title="Salary">
-          <input type="hidden" name="salaryFrequency" value="monthly" />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="space-y-1 text-sm">
-              <span className="fyh-form-label">Base Monthly Salary (₹)</span>
-              <Input
-                name="salaryInr"
-                type="number"
-                min={0}
-                step="1"
-                defaultValue={Math.round(employee.salaryPaise / 100)}
-                disabled={!canEdit}
-              />
-            </label>
-            <div className="space-y-1 text-sm">
-              <span className="fyh-form-label">Payment Frequency</span>
-              <p className="flex h-10 items-center rounded-[var(--fyh-radius)] border border-[color:var(--fyh-border-strong)] bg-black/25 px-3.5 text-sm text-fyh-text">
-                Monthly
-              </p>
-            </div>
-          </div>
-          <p className="fyh-form-helper">
-            Salary is generated between the 7th and 10th for the previous month, based on joining
-            date.
-          </p>
-        </Section>
-
-        <Section title="Incentive">
-          {canToggleIncentive && canEdit ? (
-            <label className="flex items-start gap-3 text-sm">
-              <input
-                type="checkbox"
-                name="incentiveEnabled"
-                value="1"
-                checked={incentiveEnabled}
-                onChange={(e) => setIncentiveEnabled(e.target.checked)}
-                className="fyh-checkbox mt-0.5"
-              />
-              <span>
-                <span className="fyh-form-label">Incentive enabled</span>
-                <span className="fyh-form-helper mt-1 block">{salonIncentiveRuleSummary()}</span>
-              </span>
-            </label>
-          ) : (
-            <>
-              <input
-                type="hidden"
-                name="incentiveEnabled"
-                value={incentiveEnabledDefault ? '1' : '0'}
-              />
-              <p className="text-sm text-fyh-text">
-                {incentiveEnabledDefault ? 'Enabled' : 'Disabled'}
-              </p>
-              <p className="fyh-form-helper">{salonIncentiveRuleSummary()}</p>
-              {!canToggleIncentive ? (
-                <p className="fyh-form-helper">Only the owner can change incentive eligibility.</p>
-              ) : null}
-            </>
-          )}
-        </Section>
-
-        <Section title="Payment details">
-          <p className="text-xs text-fyh-text-secondary">Used for salary payouts only.</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="space-y-1 text-sm sm:col-span-2">
-              <span className="font-medium">Bank Account Holder Name</span>
-              <Input
-                name="bankAccountHolderName"
-                defaultValue={employee.bankAccountHolderName ?? ''}
-                disabled={!canEdit}
-              />
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">Bank Name</span>
-              <Input
-                name="bankName"
-                defaultValue={employee.bankName ?? ''}
-                disabled={!canEdit}
-              />
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">Account Number</span>
-              <Input
-                name="accountNumber"
-                inputMode="numeric"
-                defaultValue={employee.accountNumber ?? ''}
-                disabled={!canEdit}
-              />
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">IFSC Code</span>
-              <Input
-                name="ifscCode"
-                defaultValue={employee.ifscCode ?? ''}
-                disabled={!canEdit}
-                className="uppercase"
-              />
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">UPI ID</span>
-              <Input
-                name="upiId"
-                defaultValue={employee.upiId ?? ''}
-                disabled={!canEdit}
-              />
-            </label>
-            <fieldset className="space-y-2 sm:col-span-2">
-              <legend className="text-sm font-medium">Primary Payment Method</legend>
-              <div className="flex flex-wrap gap-4 text-sm">
-                {WORKFORCE_PAYMENT_METHODS.map((m) => (
-                  <label key={m} className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="primaryPaymentMethod"
-                      value={m}
-                      defaultChecked={(employee.primaryPaymentMethod as WorkforcePaymentMethod) === m}
-                      disabled={!canEdit}
-                      className="fyh-radio"
-                    />
-                    <span>{m === 'bank_transfer' ? 'Bank Transfer' : 'UPI'}</span>
-                  </label>
-                ))}
+        {activeSection === 'overview' ? (
+          <div className="space-y-6">
+            <Section title="Basic information">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1 text-sm sm:col-span-2">
+                  <span className="font-medium">Full Name</span>
+                  <Input
+                    name="fullName"
+                    defaultValue={employee.fullName}
+                    required
+                    disabled={!canEdit}
+                  />
+                </label>
+                <label className="space-y-1 text-sm">
+                  <span className="font-medium">Email</span>
+                  <Input
+                    name="email"
+                    type="email"
+                    defaultValue={employee.email ?? ''}
+                    required
+                    disabled={!canEdit}
+                  />
+                </label>
+                <label className="space-y-1 text-sm">
+                  <span className="font-medium">Phone</span>
+                  <Input name="mobile" defaultValue={employee.mobile ?? ''} disabled={!canEdit} />
+                </label>
+                <label className="space-y-1 text-sm sm:col-span-2">
+                  <span className="font-medium">New password</span>
+                  <Input
+                    name="password"
+                    type="password"
+                    minLength={6}
+                    placeholder="Leave blank to keep current"
+                    disabled={!canEdit}
+                  />
+                </label>
               </div>
-            </fieldset>
-            <label className="space-y-1 text-sm sm:col-span-2">
-              <span className="font-medium">QR Code</span>
-              {canEdit ? (
-                <input
-                  type="file"
-                  accept="image/*"
-                  className={fieldClass}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    if (file.size > 800_000) {
-                      alert('QR image must be under 800KB');
-                      e.target.value = '';
-                      return;
-                    }
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                      if (typeof reader.result === 'string') setQrPreview(reader.result);
-                    };
-                    reader.readAsDataURL(file);
-                  }}
-                />
-              ) : null}
-              {qrPreview ? (
-                <img src={qrPreview} alt="Payment QR" className="mt-2 h-24 w-24 rounded border" />
-              ) : null}
-            </label>
-          </div>
-        </Section>
+            </Section>
 
-        <Section title="Permissions">
-          <p className="text-sm text-fyh-text-secondary">
-            Role: {workforceAccessRoleLabel(membership.jobRole)}. Use overrides only when needed.
-          </p>
-          {canEdit ? (
-            <>
-              <button
-                type="button"
-                className="text-sm text-fyh-accent underline-offset-2 hover:underline"
-                onClick={() => setShowAdvanced((v) => !v)}
-              >
-                Advanced Permission Overrides
-              </button>
-              {showAdvanced ? (
-                <div className="mt-3 max-h-64 space-y-3 overflow-y-auto rounded-lg border border-[color:var(--fyh-border)] p-3">
-                  {Object.entries(permissionGroups).map(([group, defs]) => (
-                    <fieldset key={group} className="space-y-1">
-                      <legend className="text-xs font-medium text-fyh-text-secondary">
-                        {WORKFORCE_PERMISSION_GROUP_LABELS[
-                          group as keyof typeof WORKFORCE_PERMISSION_GROUP_LABELS
-                        ] ?? group}
-                      </legend>
-                      <div className="grid gap-1 sm:grid-cols-2">
-                        {defs.map((def) => (
-                          <label key={def.key} className="flex items-center gap-2 text-xs">
-                            <input
-                              type="checkbox"
-                              name="permissions"
-                              value={def.key}
-                              defaultChecked={grants.permissions.includes(def.key)}
-                            />
-                            <span>{def.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </fieldset>
+            <Section title="Employment">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1 text-sm">
+                  <span className="font-medium">Access Role</span>
+                  <select
+                    name="accessRole"
+                    className={fieldClass}
+                    defaultValue={membership.jobRole}
+                    disabled={!canEdit}
+                  >
+                    {WORKFORCE_ACCESS_ROLES.map((r) => (
+                      <option key={r} value={r}>
+                        {workforceAccessRoleLabel(r)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-1 text-sm">
+                  <span className="font-medium">Joining Date</span>
+                  <Input
+                    name="joiningDate"
+                    type="date"
+                    defaultValue={employee.joiningDate ?? ''}
+                    disabled={!canEdit}
+                  />
+                </label>
+                <label className="space-y-1 text-sm">
+                  <span className="font-medium">Gender</span>
+                  <select
+                    name="gender"
+                    className={fieldClass}
+                    defaultValue={employee.gender}
+                    disabled={!canEdit}
+                  >
+                    <option value="unspecified">Unspecified</option>
+                    <option value="female">Female</option>
+                    <option value="male">Male</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>
+                <label className="space-y-1 text-sm">
+                  <span className="font-medium">Emergency Contact</span>
+                  <Input
+                    name="emergencyContact"
+                    defaultValue={employee.emergencyContact ?? ''}
+                    disabled={!canEdit}
+                  />
+                </label>
+                <label className="space-y-1 text-sm">
+                  <span className="font-medium">Status</span>
+                  <select
+                    name="status"
+                    className={fieldClass}
+                    defaultValue={employee.status}
+                    disabled={!canEdit}
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </label>
+                <label className="flex items-center gap-3 text-sm sm:col-span-2">
+                  <input
+                    type="checkbox"
+                    name="receiveBookings"
+                    value="1"
+                    checked={receiveBookings}
+                    onChange={(e) => setReceiveBookings(e.target.checked)}
+                    disabled={!canEdit}
+                    className="fyh-checkbox"
+                  />
+                  <span className="font-medium">Appointment bookable</span>
+                </label>
+              </div>
+              {canEdit ? (
+                <WeekOffPicker defaultOffDays={weekOffDays} />
+              ) : (
+                <p className="text-sm text-fyh-text-secondary">
+                  Weekly off: {formatWeekOffDays(weekOffDays)}
+                </p>
+              )}
+            </Section>
+
+            <Section title="Documents">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1 text-sm">
+                  <span className="font-medium">Aadhaar</span>
+                  <Input
+                    name="aadhaarNumber"
+                    defaultValue={employee.aadhaarNumber ?? ''}
+                    disabled={!canEdit}
+                  />
+                </label>
+                <label className="space-y-1 text-sm">
+                  <span className="font-medium">PAN</span>
+                  <Input
+                    name="panNumber"
+                    defaultValue={employee.panNumber ?? ''}
+                    disabled={!canEdit}
+                    className="uppercase"
+                  />
+                </label>
+              </div>
+            </Section>
+          </div>
+        ) : null}
+
+        {activeSection === 'credentials' ? (
+          <Section title="Payment credentials">
+            <p className="text-xs text-fyh-text-secondary">Used for salary payouts only.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="space-y-1 text-sm sm:col-span-2">
+                <span className="font-medium">Bank Account Holder Name</span>
+                <Input
+                  name="bankAccountHolderName"
+                  defaultValue={employee.bankAccountHolderName ?? ''}
+                  disabled={!canEdit}
+                />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="font-medium">Bank Name</span>
+                <Input name="bankName" defaultValue={employee.bankName ?? ''} disabled={!canEdit} />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="font-medium">Account Number</span>
+                <Input
+                  name="accountNumber"
+                  inputMode="numeric"
+                  defaultValue={employee.accountNumber ?? ''}
+                  disabled={!canEdit}
+                />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="font-medium">IFSC Code</span>
+                <Input
+                  name="ifscCode"
+                  defaultValue={employee.ifscCode ?? ''}
+                  disabled={!canEdit}
+                  className="uppercase"
+                />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="font-medium">UPI ID</span>
+                <Input name="upiId" defaultValue={employee.upiId ?? ''} disabled={!canEdit} />
+              </label>
+              <fieldset className="space-y-2 sm:col-span-2">
+                <legend className="text-sm font-medium">Primary Payment Method</legend>
+                <div className="flex flex-wrap gap-4 text-sm">
+                  {WORKFORCE_PAYMENT_METHODS.map((m) => (
+                    <label key={m} className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="primaryPaymentMethod"
+                        value={m}
+                        defaultChecked={(employee.primaryPaymentMethod as WorkforcePaymentMethod) === m}
+                        disabled={!canEdit}
+                        className="fyh-radio"
+                      />
+                      <span>{m === 'bank_transfer' ? 'Bank Transfer' : 'UPI'}</span>
+                    </label>
                   ))}
                 </div>
-              ) : null}
-            </>
-          ) : null}
-        </Section>
+              </fieldset>
+              <label className="space-y-1 text-sm sm:col-span-2">
+                <span className="font-medium">QR Code</span>
+                {canEdit ? (
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className={fieldClass}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 800_000) {
+                        alert('QR image must be under 800KB');
+                        e.target.value = '';
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        if (typeof reader.result === 'string') setQrPreview(reader.result);
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                ) : null}
+                {qrPreview ? (
+                  <img src={qrPreview} alt="Payment QR" className="mt-2 h-24 w-24 rounded border" />
+                ) : null}
+              </label>
+            </div>
+          </Section>
+        ) : null}
 
-        <Section title="Documents">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">Aadhaar</span>
-              <Input
-                name="aadhaarNumber"
-                defaultValue={employee.aadhaarNumber ?? ''}
-                disabled={!canEdit}
-              />
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">PAN</span>
-              <Input
-                name="panNumber"
-                defaultValue={employee.panNumber ?? ''}
-                disabled={!canEdit}
-                className="uppercase"
-              />
-            </label>
+        {activeSection === 'salary' ? (
+          <div className="space-y-6">
+            <Section title="Base salary">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1 text-sm">
+                  <span className="fyh-form-label">Base Monthly Salary (₹)</span>
+                  <Input
+                    name="salaryInr"
+                    type="number"
+                    min={0}
+                    step="1"
+                    defaultValue={Math.round(employee.salaryPaise / 100)}
+                    disabled={!canEdit}
+                  />
+                </label>
+                <div className="space-y-1 text-sm">
+                  <span className="fyh-form-label">Payment Frequency</span>
+                  <p className="flex h-10 items-center rounded-[var(--fyh-radius)] border border-[color:var(--fyh-border-strong)] bg-black/25 px-3.5 text-sm text-fyh-text">
+                    Monthly
+                  </p>
+                </div>
+              </div>
+              <p className="fyh-form-helper">
+                Salary is generated between the 7th and 10th for the previous month, based on joining
+                date.
+              </p>
+            </Section>
+
+            <Section title="Incentive eligibility">
+              {canToggleIncentive && canEdit ? (
+                <label className="flex items-start gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    name="incentiveEnabled"
+                    value="1"
+                    checked={incentiveEnabled}
+                    onChange={(e) => setIncentiveEnabled(e.target.checked)}
+                    className="fyh-checkbox mt-0.5"
+                  />
+                  <span>
+                    <span className="fyh-form-label">Incentive enabled</span>
+                    <span className="fyh-form-helper mt-1 block">
+                      Owner can disable incentive for this employee without changing salary.
+                    </span>
+                  </span>
+                </label>
+              ) : (
+                <>
+                  <p className="text-sm text-fyh-text">
+                    {incentiveEnabledDefault ? 'Enabled' : 'Disabled'}
+                  </p>
+                  {!canToggleIncentive ? (
+                    <p className="fyh-form-helper">Only the owner can change incentive eligibility.</p>
+                  ) : null}
+                </>
+              )}
+            </Section>
+
+            <Section title="Incentive rules">
+              <div className="space-y-4 text-sm text-fyh-text">
+                <div>
+                  <p className="font-medium uppercase tracking-wide text-fyh-text-secondary">
+                    Service performance
+                  </p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-fyh-text-secondary">
+                    {rulesDisplay.servicePerformance.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="font-medium uppercase tracking-wide text-fyh-text-secondary">
+                    Product sales
+                  </p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-fyh-text-secondary">
+                    {rulesDisplay.productSales.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </Section>
+
+            {periodIncentive ? (
+              <Section title="Previous month preview">
+                <p className="text-sm text-fyh-text-secondary">
+                  {periodIncentive.periodStart} → {periodIncentive.periodEnd}
+                  {periodIncentive.incentiveEnabled
+                    ? ''
+                    : ' · Incentive disabled or salary not set'}
+                </p>
+                <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                  <div>
+                    <dt className="text-fyh-text-secondary">Service performance</dt>
+                    <dd className="font-medium tabular-nums">
+                      {formatInrFromPaise(periodIncentive.servicePerformancePaise)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-fyh-text-secondary">Product sales</dt>
+                    <dd className="font-medium tabular-nums">
+                      {formatInrFromPaise(periodIncentive.productSalesPaise)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-fyh-text-secondary">Service incentive</dt>
+                    <dd className="font-medium tabular-nums">
+                      {formatInrFromPaise(periodIncentive.serviceIncentivePaise)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-fyh-text-secondary">Product incentive</dt>
+                    <dd className="font-medium tabular-nums">
+                      {formatInrFromPaise(periodIncentive.productIncentivePaise)}
+                    </dd>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <dt className="text-fyh-text-secondary">Total incentive</dt>
+                    <dd className="text-lg font-semibold tabular-nums text-fyh-accent">
+                      {formatInrFromPaise(periodIncentive.totalIncentivePaise)}
+                    </dd>
+                  </div>
+                </dl>
+              </Section>
+            ) : null}
           </div>
-        </Section>
+        ) : null}
+
+        {activeSection === 'rights' ? (
+          <Section title="Additional rights">
+            <p className="text-sm text-fyh-text-secondary">
+              Role: {workforceAccessRoleLabel(membership.jobRole)}. Use overrides only when needed.
+            </p>
+            {canEdit ? (
+              <>
+                <button
+                  type="button"
+                  className="text-sm text-fyh-accent underline-offset-2 hover:underline"
+                  onClick={() => setShowAdvanced((v) => !v)}
+                >
+                  Advanced Permission Overrides
+                </button>
+                {showAdvanced ? (
+                  <div className="mt-3 max-h-64 space-y-3 overflow-y-auto rounded-lg border border-[color:var(--fyh-border)] p-3">
+                    {Object.entries(permissionGroups).map(([group, defs]) => (
+                      <fieldset key={group} className="space-y-1">
+                        <legend className="text-xs font-medium text-fyh-text-secondary">
+                          {WORKFORCE_PERMISSION_GROUP_LABELS[
+                            group as keyof typeof WORKFORCE_PERMISSION_GROUP_LABELS
+                          ] ?? group}
+                        </legend>
+                        <div className="grid gap-1 sm:grid-cols-2">
+                          {defs.map((def) => (
+                            <label key={def.key} className="flex items-center gap-2 text-xs">
+                              <input
+                                type="checkbox"
+                                name="permissions"
+                                value={def.key}
+                                defaultChecked={grants.permissions.includes(def.key)}
+                              />
+                              <span>{def.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </fieldset>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <p className="text-sm text-fyh-text-secondary">
+                {grants.permissions.length} permissions from role and overrides.
+              </p>
+            )}
+          </Section>
+        ) : null}
+
+        {/* Preserve HR fields when saving from a tab that does not show them */}
+        {activeSection !== 'overview' ? (
+          <>
+            <input type="hidden" name="fullName" value={employee.fullName} />
+            <input type="hidden" name="email" value={employee.email ?? ''} />
+            <input type="hidden" name="mobile" value={employee.mobile ?? ''} />
+            <input type="hidden" name="accessRole" value={membership.jobRole} />
+            <input type="hidden" name="joiningDate" value={employee.joiningDate ?? ''} />
+            <input type="hidden" name="gender" value={employee.gender} />
+            <input type="hidden" name="emergencyContact" value={employee.emergencyContact ?? ''} />
+            <input type="hidden" name="status" value={employee.status} />
+            <input type="hidden" name="aadhaarNumber" value={employee.aadhaarNumber ?? ''} />
+            <input type="hidden" name="panNumber" value={employee.panNumber ?? ''} />
+            {receiveBookings ? (
+              <input type="hidden" name="receiveBookings" value="1" />
+            ) : null}
+            {weekOffDays.map((d) => (
+              <input key={d} type="hidden" name="weekOffDays" value={d} />
+            ))}
+          </>
+        ) : null}
+
+        {activeSection !== 'credentials' ? (
+          <>
+            <input
+              type="hidden"
+              name="bankAccountHolderName"
+              value={employee.bankAccountHolderName ?? ''}
+            />
+            <input type="hidden" name="bankName" value={employee.bankName ?? ''} />
+            <input type="hidden" name="accountNumber" value={employee.accountNumber ?? ''} />
+            <input type="hidden" name="ifscCode" value={employee.ifscCode ?? ''} />
+            <input type="hidden" name="upiId" value={employee.upiId ?? ''} />
+            <input
+              type="hidden"
+              name="primaryPaymentMethod"
+              value={employee.primaryPaymentMethod ?? 'upi'}
+            />
+          </>
+        ) : null}
+
+        {activeSection !== 'salary' ? (
+          <>
+            <input
+              type="hidden"
+              name="salaryInr"
+              value={Math.round(employee.salaryPaise / 100)}
+            />
+            <input type="hidden" name="incentiveEnabled" value={incentiveEnabled ? '1' : '0'} />
+          </>
+        ) : null}
 
         {canEdit ? (
-          <div className="flex justify-end">
+          <div className="flex justify-end border-t border-[color:var(--fyh-border)] pt-4">
             <Button type="submit" disabled={pending}>
               {pending ? 'Saving…' : 'Save changes'}
             </Button>

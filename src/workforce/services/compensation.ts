@@ -266,9 +266,19 @@ export async function createDraftPayrollRun(input: {
       toDate: periodEnd,
       limit: 200,
     });
-    const incentivePaise = incentives
+    const manualIncentivePaise = incentives
       .filter((i) => i.status === 'pending' || i.status === 'approved')
       .reduce((sum, i) => sum + i.amountPaise, 0);
+
+    const { computeSalonPeriodIncentive } = await import('@/src/workforce/services/salonIncentive');
+    const attributed = await computeSalonPeriodIncentive({
+      employeeId,
+      periodStart,
+      periodEnd,
+      engineId,
+      timezone,
+    });
+    const incentivePaise = attributed.totalIncentivePaise + manualIncentivePaise;
 
     const netPaise = payrollNetPaise({
       salaryPaise: snap.salaryPaise,
@@ -285,7 +295,12 @@ export async function createDraftPayrollRun(input: {
       incentivePaise,
       deductionsPaise: 0,
       netPaise,
-      notes: 'Phase 4 draft — commission from sales attribution wired in a later pass',
+      notes:
+        attributed.incentiveEnabled
+          ? `Attributed incentive: service ₹${(attributed.serviceIncentivePaise / 100).toFixed(2)}, product ₹${(attributed.productIncentivePaise / 100).toFixed(2)}; manual adjustments ₹${(manualIncentivePaise / 100).toFixed(2)}`
+          : manualIncentivePaise > 0
+            ? `Manual incentive adjustments only`
+            : 'No incentive plan',
     });
   }
 

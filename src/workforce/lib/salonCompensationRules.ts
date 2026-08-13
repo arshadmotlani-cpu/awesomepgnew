@@ -17,14 +17,38 @@ export function buildIncentivePlanFromSalary(
     config: {
       baseSalaryPaise: salaryPaise,
       thresholdMultiplier: SALON_INCENTIVE_RULES.thresholdMultiplier,
+      belowThresholdPercentBps: SALON_INCENTIVE_RULES.belowThresholdPercentBps,
       aboveThresholdPercentBps: SALON_INCENTIVE_RULES.aboveThresholdPercentBps,
     },
   };
 }
 
-/** Human-readable summary for UI helper text. */
+/** Short summary for compact UI hints. */
 export function salonIncentiveRuleSummary(): string {
-  const pct = SALON_INCENTIVE_RULES.aboveThresholdPercentBps / 100;
+  const below = SALON_INCENTIVE_RULES.belowThresholdPercentBps / 100;
+  const above = SALON_INCENTIVE_RULES.aboveThresholdPercentBps / 100;
+  const product = SALON_INCENTIVE_RULES.productSalesPercentBps / 100;
   const mult = SALON_INCENTIVE_RULES.thresholdMultiplier;
-  return `Salon rule: ${pct}% of business above ${mult}× base salary`;
+  return `Service: ${below}% up to ${mult}× salary, then ${above}% on total performance. Products: ${product}% always.`;
+}
+
+/** Full rule explanation for Salary & Incentives section. */
+export function salonIncentiveRulesDisplay(): {
+  servicePerformance: string[];
+  productSales: string[];
+} {
+  const mult = SALON_INCENTIVE_RULES.thresholdMultiplier;
+  const below = SALON_INCENTIVE_RULES.belowThresholdPercentBps / 100;
+  const above = SALON_INCENTIVE_RULES.aboveThresholdPercentBps / 100;
+  const product = SALON_INCENTIVE_RULES.productSalesPercentBps / 100;
+  return {
+    servicePerformance: [
+      `At or below ${mult}× base salary → ${below}% of total service performance`,
+      `Above ${mult}× base salary → ${above}% of total service performance (entire amount)`,
+    ],
+    productSales: [
+      `Always → ${product}% of product sales attributed to the employee`,
+      'Product sales do not count toward the service performance threshold',
+    ],
+  };
 }

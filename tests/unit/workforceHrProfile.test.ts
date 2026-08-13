@@ -41,14 +41,15 @@ describe('Workforce HR validation', () => {
 });
 
 describe('Workforce incentive plan math', () => {
-  test('percentage threshold example from spec', () => {
+  test('percentage threshold switch — 10% on entire performance above threshold', () => {
     const config = {
       baseSalaryPaise: 1_500_000,
       thresholdMultiplier: 2,
+      belowThresholdPercentBps: 500,
       aboveThresholdPercentBps: 1000,
     };
     assert.equal(thresholdPaiseFromConfig(config), 3_000_000);
-    assert.equal(computePercentageThresholdIncentivePaise(config, 4_200_000), 120_000);
+    assert.equal(computePercentageThresholdIncentivePaise(config, 4_200_000), 420_000);
   });
 });
 
@@ -73,43 +74,46 @@ describe('Workforce week off schedule', () => {
 });
 
 describe('Workforce HR UI contracts', () => {
-  test('AddEmployeePopup includes HR sections', () => {
+  test('AddEmployeePopup is minimal — no salary, payment, or incentive at create', () => {
     const { readFileSync } = require('node:fs') as typeof import('node:fs');
     const { join } = require('node:path') as typeof import('node:path');
     const src = readFileSync(
       join(process.cwd(), 'src/workforce/components/AddEmployeePopup.tsx'),
       'utf8',
     );
-    assert.match(src, /Payment details/i);
-    assert.match(src, /Incentive/i);
-    assert.match(src, /name="salaryFrequency"/);
-    assert.match(src, /name="incentiveEnabled"/);
     assert.match(src, /WeekOffPicker/);
-    assert.match(src, /name="bankAccountHolderName"/);
+    assert.match(src, /name="fullName"/);
+    assert.match(src, /name="accessRole"/);
+    assert.match(src, /name="receiveBookings"/);
+    assert.doesNotMatch(src, /Payment details/i);
+    assert.doesNotMatch(src, /name="salaryInr"/);
+    assert.doesNotMatch(src, /name="incentiveEnabled"/);
+    assert.doesNotMatch(src, /name="bankAccountHolderName"/);
+    assert.doesNotMatch(src, /Advanced Permission Overrides/);
     assert.doesNotMatch(src, /salaryEffectiveFrom/);
     assert.doesNotMatch(src, /incentivePlanType/);
     assert.doesNotMatch(src, /thresholdMultiplier/);
   });
 
-  test('EmployeeProfilePanel has profile sections', () => {
+  test('EmployeeProfilePanel has tab nav and section content', () => {
     const { readFileSync } = require('node:fs') as typeof import('node:fs');
     const { join } = require('node:path') as typeof import('node:path');
-    const src = readFileSync(
+    const profileSrc = readFileSync(
       join(process.cwd(), 'src/workforce/components/EmployeeProfilePanel.tsx'),
       'utf8',
     );
-    for (const title of [
-      'Basic information',
-      'Employment',
-      'Salary',
-      'Incentive',
-      'Payment details',
-      'Permissions',
-      'Documents',
-    ]) {
-      assert.match(src, new RegExp(title, 'i'));
-    }
-    assert.match(src, /canToggleIncentive/);
-    assert.doesNotMatch(src, /Salary Effective From/i);
+    const navSrc = readFileSync(
+      join(process.cwd(), 'src/workforce/components/EmployeeProfileNav.tsx'),
+      'utf8',
+    );
+    assert.match(navSrc, /Overview/);
+    assert.match(navSrc, /Credentials/);
+    assert.match(navSrc, /Salary & Incentives/);
+    assert.match(navSrc, /Additional Rights/);
+    assert.match(profileSrc, /EmployeeProfileNav/);
+    assert.match(profileSrc, /salonIncentiveRulesDisplay/);
+    assert.match(profileSrc, /periodIncentive/);
+    assert.match(profileSrc, /canToggleIncentive/);
+    assert.doesNotMatch(profileSrc, /Salary Effective From/i);
   });
 });
