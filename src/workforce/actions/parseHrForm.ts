@@ -6,7 +6,7 @@ import {
   validatePositiveSalaryInr,
   validateUpiId,
 } from '@/src/workforce/lib/hrValidation';
-import { parseWeekOffDays } from '@/src/workforce/lib/weekOff';
+import { parseWeekOffDays, type DayScheduleInput } from '@/src/workforce/lib/weekOff';
 import { buildIncentivePlanFromSalary } from '@/src/workforce/lib/salonCompensationRules';
 import type { WorkforceIncentivePlanInput } from '@/src/workforce/types/hr';
 
@@ -42,6 +42,19 @@ export function parseBasicCreateHrDefaults(formData: FormData): {
     weekOffDays: parseWeekOffDays(formData),
     incentivePlan: { planType: 'none', config: {}, effectiveFrom: null },
   };
+}
+
+export function parseScheduleDaysFromForm(formData: FormData): DayScheduleInput[] {
+  const days: DayScheduleInput[] = [];
+  for (let dow = 0; dow <= 6; dow++) {
+    days.push({
+      dayOfWeek: dow,
+      startTime: formStr(formData, `day_${dow}_start`) || '10:00',
+      endTime: formStr(formData, `day_${dow}_end`) || '19:00',
+      isOff: formData.get(`day_${dow}_off`) === '1',
+    });
+  }
+  return days;
 }
 
 export function parseHrFieldsFromForm(

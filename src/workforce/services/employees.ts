@@ -28,7 +28,7 @@ import type {
 } from '@/src/workforce/types/hr';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 import { upsertEmployeeWeeklySchedule } from '@/src/workforce/services/schedules';
-import { scheduleFromWeekOffDays } from '@/src/workforce/lib/weekOff';
+import { scheduleFromWeekOffDays, type DayScheduleInput } from '@/src/workforce/lib/weekOff';
 import { upsertIncentivePlan } from '@/src/workforce/services/incentivePlans';
 
 export type UpsertEmployeeInput = {
@@ -67,6 +67,8 @@ export type UpsertEmployeeInput = {
   /** Preserve UUID when mirroring legacy staff */
   id?: string;
   weekOffDays?: number[];
+  /** Full weekly schedule with times; overrides weekOffDays when provided. */
+  scheduleDays?: DayScheduleInput[];
   incentivePlan?: WorkforceIncentivePlanInput;
   /** Permanent salon owner provider — hidden from Staff Management */
   isSystemProvider?: boolean;
@@ -219,7 +221,7 @@ export async function createEmployee(input: UpsertEmployeeInput) {
   await upsertEmployeeWeeklySchedule({
     employeeId: emp!.id,
     engineId,
-    days: scheduleFromWeekOffDays(weekOff),
+    days: input.scheduleDays ?? scheduleFromWeekOffDays(weekOff),
     actorEmployeeId: input.actorEmployeeId,
   });
 

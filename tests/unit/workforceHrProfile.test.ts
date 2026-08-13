@@ -74,24 +74,49 @@ describe('Workforce week off schedule', () => {
 });
 
 describe('Workforce HR UI contracts', () => {
-  test('AddEmployeePopup is minimal — no salary, payment, incentive, schedule, or permissions', () => {
+  test('AddEmployeePopup uses five tabbed configuration sections', () => {
     const { readFileSync } = require('node:fs') as typeof import('node:fs');
     const { join } = require('node:path') as typeof import('node:path');
     const src = readFileSync(
       join(process.cwd(), 'src/workforce/components/AddEmployeePopup.tsx'),
       'utf8',
     );
+    assert.match(src, /EmployeeProfileNav/);
+    assert.match(src, /activeSection === 'staff-details'/);
+    assert.match(src, /activeSection === 'credentials'/);
+    assert.match(src, /activeSection === 'salary'/);
+    assert.match(src, /activeSection === 'rights'/);
+    assert.match(src, /activeSection === 'schedule'/);
     assert.match(src, /name="fullName"/);
-    assert.match(src, /name="accessRole"/);
-    assert.match(src, /name="receiveBookings"/);
-    assert.match(src, /permissions and schedule/);
-    assert.doesNotMatch(src, /Payment details/i);
-    assert.doesNotMatch(src, /name="salaryInr"/);
-    assert.doesNotMatch(src, /name="incentiveEnabled"/);
-    assert.doesNotMatch(src, /name="bankAccountHolderName"/);
-    assert.doesNotMatch(src, /WeekOffPicker/);
-    assert.doesNotMatch(src, /name="aadhaarNumber"/);
-    assert.doesNotMatch(src, /Advanced Permission Overrides/);
+    assert.match(src, /name="bankAccountHolderName"/);
+    assert.match(src, /name="salaryInr"/);
+    assert.match(src, /WeekOffPicker/);
+    assert.match(src, /WorkingHoursFields/);
+    assert.match(src, /Advanced Permission Overrides/);
+    assert.match(src, /salonIncentiveRulesDisplay/);
+
+    const staffBlock = src.split("activeSection === 'staff-details'")[1]?.split(
+      "activeSection === 'credentials'",
+    )[0];
+    assert.ok(staffBlock);
+    assert.doesNotMatch(staffBlock!, /name="salaryInr"/);
+    assert.doesNotMatch(staffBlock!, /name="bankAccountHolderName"/);
+    assert.doesNotMatch(staffBlock!, /WeekOffPicker/);
+
+    const credentialsBlock = src.split("activeSection === 'credentials'")[1]?.split(
+      "activeSection === 'salary'",
+    )[0];
+    assert.ok(credentialsBlock);
+    assert.match(credentialsBlock!, /name="bankAccountHolderName"/);
+    assert.doesNotMatch(credentialsBlock!, /name="salaryInr"/);
+
+    const salaryBlock = src.split("activeSection === 'salary'")[1]?.split(
+      "activeSection === 'rights'",
+    )[0];
+    assert.ok(salaryBlock);
+    assert.match(salaryBlock!, /name="salaryInr"/);
+    assert.match(salaryBlock!, /Incentive rules/);
+    assert.doesNotMatch(salaryBlock!, /name="bankAccountHolderName"/);
   });
 
   test('EmployeeProfilePanel has five profile sections with distinct content', () => {

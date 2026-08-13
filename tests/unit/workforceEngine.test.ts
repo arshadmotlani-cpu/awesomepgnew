@@ -123,7 +123,7 @@ describe('Workforce access role permissions', () => {
 });
 
 describe('Workforce Add Employee popup', () => {
-  test('popup includes only basic create fields', () => {
+  test('popup uses five professional configuration tabs', () => {
     const { readFileSync } = require('node:fs') as typeof import('node:fs');
     const { join } = require('node:path') as typeof import('node:path');
     const src = readFileSync(
@@ -140,25 +140,27 @@ describe('Workforce Add Employee popup', () => {
       'joiningDate',
       'accessRole',
       'receiveBookings',
+      'bankAccountHolderName',
+      'salaryInr',
+      'incentiveEnabled',
     ]) {
       assert.match(src, new RegExp(`name="${name}"`));
     }
-    assert.match(src, /Basic information/i);
-    assert.doesNotMatch(src, /Payment details/i);
-    assert.doesNotMatch(src, /name="salaryInr"/);
-    assert.doesNotMatch(src, /name="aadhaarNumber"/);
-    assert.doesNotMatch(src, /Advanced Permission Overrides/);
-    assert.doesNotMatch(src, /WeekOffPicker/);
-    assert.doesNotMatch(src, /loginEnabled/);
-    assert.doesNotMatch(src, /name="rank"/);
-    assert.doesNotMatch(src, /name="jobRole"/);
-    assert.doesNotMatch(src, /Designation/);
+    assert.match(src, /EmployeeProfileNav/);
+    assert.match(src, /EMPLOYEE_PROFILE_SECTIONS/);
+    assert.match(src, /WeekOffPicker/);
+    assert.match(src, /WorkingHoursFields/);
+    assert.match(src, /Advanced Permission Overrides/);
     assert.match(src, /role="dialog"/);
     assert.match(src, /Appointment bookable/);
     assert.match(src, /fyh-form-modal-panel/);
     assert.match(src, /fyh-form-modal-backdrop/);
+    assert.match(src, /max-w-3xl/);
+    assert.doesNotMatch(src, /loginEnabled/);
+    assert.doesNotMatch(src, /name="rank"/);
+    assert.doesNotMatch(src, /name="jobRole"/);
+    assert.doesNotMatch(src, /Designation/);
     assert.match(src, /z-\[600\]/);
-    assert.match(src, /max-h-\[90vh\]/);
     assert.match(src, /Create employee/);
   });
 });

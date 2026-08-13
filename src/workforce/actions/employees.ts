@@ -13,7 +13,7 @@ import {
 } from '@/src/workforce/types';
 import { WORKFORCE_PERMISSION_KEYS, type WorkforcePermissionKey } from '@/src/workforce/types';
 import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
-import { parseBasicCreateHrDefaults, parseHrFieldsFromForm } from '@/src/workforce/actions/parseHrForm';
+import { parseHrFieldsFromForm, parseScheduleDaysFromForm } from '@/src/workforce/actions/parseHrForm';
 
 export type WorkforceActionState = { error?: string; success?: string };
 
@@ -57,7 +57,16 @@ export async function createWorkforceEmployeeAction(
       return { error: 'Password must be at least 6 characters.' };
     }
 
-    const hr = parseBasicCreateHrDefaults(formData);
+    const sessionDash = session?.workforceEmployeeId
+      ? await getEmployeeDashboard(session.workforceEmployeeId, 'fyh_salon')
+      : null;
+    const viewerIsOwner = sessionDash?.membership?.jobRole === 'owner';
+
+    const hr = parseHrFieldsFromForm(formData, {
+      canToggleIncentive: viewerIsOwner,
+      defaultIncentiveEnabled: true,
+    });
+    const scheduleDays = parseScheduleDaysFromForm(formData);
 
     await createEmployee({
       fullName: formStr(formData, 'fullName'),
@@ -80,6 +89,7 @@ export async function createWorkforceEmployeeAction(
       ...hr.employee,
       salaryPaise: hr.employee.salaryPaise ?? 0,
       weekOffDays: hr.weekOffDays,
+      scheduleDays,
       incentivePlan: hr.incentivePlan,
     });
 
