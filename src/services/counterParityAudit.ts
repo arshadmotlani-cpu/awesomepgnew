@@ -30,7 +30,6 @@ export type CounterParityReport = {
 const OPS_CARD_IDS: Record<OpsQueueFilter, string> = {
   rent_due: 'rent_due',
   electricity_due: 'electricity_due',
-  electricity_billing_pending: 'electricity_billing_pending',
   deposit_due: 'deposit_due',
   refund_due: 'refund_due',
   waiting_for_approval: 'waiting_for_approval',

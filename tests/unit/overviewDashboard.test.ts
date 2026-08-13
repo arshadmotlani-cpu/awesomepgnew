@@ -121,7 +121,6 @@ function sampleSnapshot(overrides: Partial<OverviewReportingSnapshot> = {}): Ove
       waiting_for_approval: 2,
       rent_due: 3,
       electricity_due: 4,
-      electricity_billing_pending: 12,
       vacating_requests: 1,
       refund_due: 2,
       booking_approval: 0,

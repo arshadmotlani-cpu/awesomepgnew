@@ -7,19 +7,17 @@ import {
 } from '@/src/lib/operations/operationsFilterLinks';
 import { buildUnifiedOpsFilterTags } from '@/src/services/unifiedOperationsQueue';
 
-test('operations has exactly nine action queues in order', () => {
+test('operations has exactly eight action queues in order', () => {
   assert.deepEqual(OPS_QUEUE_FILTERS, [
     'waiting_for_approval',
     'rent_due',
     'electricity_due',
-    'electricity_billing_pending',
     'vacating_requests',
     'refund_due',
     'booking_approval',
     'deposit_due',
     'kyc_review',
   ]);
-  assert.equal(OPS_QUEUE_LABELS.electricity_billing_pending, 'Electricity bills pending');
   assert.equal(OPS_QUEUE_LABELS.deposit_due, 'Deposit due');
   assert.equal(OPS_QUEUE_LABELS.vacating_requests, 'Move-out');
   assert.equal(OPS_QUEUE_LABELS.refund_due, 'Pending payouts');

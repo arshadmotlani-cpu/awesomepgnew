@@ -40,12 +40,12 @@ describe('Resident electricity billing pending UX', () => {
     assert.match(src, /electricityBillingPending/);
   });
 
-  it('operations queue includes electricity_billing_pending filter', () => {
-    const src = readFileSync(
+  it('operations queue does not surface electricity bills pending tab', () => {
+    const filterSrc = readFileSync(
       join(process.cwd(), 'src/lib/operations/operationsFilterLinks.ts'),
       'utf8',
     );
-    assert.match(src, /electricity_billing_pending/);
-    assert.match(src, /Electricity bills pending/);
+    assert.doesNotMatch(filterSrc, /electricity_billing_pending/);
+    assert.doesNotMatch(filterSrc, /Electricity bills pending/);
   });
 });

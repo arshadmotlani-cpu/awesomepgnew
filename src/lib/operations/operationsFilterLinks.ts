@@ -4,7 +4,6 @@ export const OPS_QUEUE_FILTERS = [
   'waiting_for_approval',
   'rent_due',
   'electricity_due',
-  'electricity_billing_pending',
   'vacating_requests',
   'refund_due',
   'booking_approval',
@@ -18,7 +17,6 @@ export const OPS_QUEUE_LABELS: Record<OpsQueueFilter, string> = {
   waiting_for_approval: 'Waiting for approval',
   rent_due: 'Rent due',
   electricity_due: 'Electricity due',
-  electricity_billing_pending: 'Electricity bills pending',
   vacating_requests: 'Move-out',
   refund_due: OPS_PENDING_PAYOUTS_LABEL,
   booking_approval: 'Booking approval',
@@ -38,7 +36,6 @@ const LEGACY_FILTER_ALIASES: Record<string, OpsQueueFilter> = {
   booking_approval: 'booking_approval',
   rent_due: 'rent_due',
   electricity_due: 'electricity_due',
-  electricity_billing_pending: 'electricity_billing_pending',
 };
 
 export function operationsFilterHref(filter: OpsQueueFilter, focus?: string): string {
