@@ -53,12 +53,12 @@ test('adminNavBadges uses unified queue total — never residents parallel queue
   const src = read('src/services/adminNavBadges.ts');
   assert.match(src, /getUnifiedOperationsQueueForBadges/);
   assert.match(src, /operationsTotalPendingCount/);
-  assert.match(src, /loadMoveOutPipelineBundle/);
-  assert.match(src, /countVacatingOperationsQueueItems/);
+  assert.match(src, /vacating_requests/);
   assert.match(src, /badges\.moveOut/);
   assert.doesNotMatch(src, /loadResidentOperationsResidentsPage/);
   assert.doesNotMatch(src, /allQueueCount/);
   assert.doesNotMatch(src, /getWaitingForApprovalCount/);
+  assert.doesNotMatch(src, /unresolvedActions/);
   // Overview is a read-only owner dashboard — action badges live on Operations only.
   assert.doesNotMatch(src, /badges\.overview = pendingTotal/);
   assert.match(src, /badges\.operations = pendingTotal/);

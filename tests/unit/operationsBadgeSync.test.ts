@@ -30,12 +30,15 @@ test('deposit_due excludes bookings with approved checkout payment proof', () =>
   assert.match(queue, /approvedCheckoutBookingIds\.has\(row\.bookingId\)/);
 });
 
-test('loadAdminNavBadges uses fast badge queue path', () => {
+test('loadAdminNavBadges uses unified queue SSOT — not stale unresolved_actions', () => {
   const badges = read('src/services/adminNavBadges.ts');
   const queue = read('src/services/unifiedOperationsQueue.ts');
   assert.match(badges, /getUnifiedOperationsQueueForBadges/);
+  assert.match(badges, /operationsTotalPendingCount/);
+  assert.match(badges, /countActionableUnreadForAdmin/);
   assert.match(queue, /getUnifiedOperationsQueueForBadges/);
-  assert.match(queue, /skipResidents/);
+  assert.doesNotMatch(badges, /unresolvedActions/);
+  assert.doesNotMatch(badges, /loadAdminNavBadgesLight/);
   assert.doesNotMatch(badges, /badges\.overview\s*=/);
 });
 

@@ -2,9 +2,9 @@
  * User notifications + Web Push delivery — production SSOT for badge counts and push.
  */
 
-import { and, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { notifications, pushSubscriptions } from '@/src/db/schema';
+import { actionItems, notifications, pushSubscriptions } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
 import {
   categoryForNotificationType,
@@ -150,6 +150,52 @@ export async function countUnreadForUser(
 
 export async function countUnreadForAdmin(session: AdminSession): Promise<number> {
   return countUnreadForUser('admin', session.adminId);
+}
+
+/**
+ * Bell badge — unread notifications tied to an open action item (or pending payment proof).
+ * Excludes stale inbox rows for already-resolved work.
+ */
+export async function countActionableUnreadForAdmin(session: AdminSession): Promise<number> {
+  const base = [
+    eq(notifications.audience, 'admin'),
+    eq(notifications.userId, session.adminId),
+    eq(notifications.isRead, false),
+    eq(notifications.isArchived, false),
+  ];
+
+  const pgScope =
+    session.role !== 'super_admin' && session.pgScope.length > 0 ? session.pgScope : null;
+
+  const openActionItem = sql`EXISTS (
+    SELECT 1 FROM action_items ai
+    WHERE ai.source_key = ${notifications.dedupeKey}
+      AND ai.status IN ('open', 'in_progress')
+      ${
+        pgScope
+          ? sql`AND ai.pg_id IN (${sql.join(
+              pgScope.map((id) => sql`${id}::uuid`),
+              sql`, `,
+            )})`
+          : sql``
+      }
+  )`;
+
+  const pendingPaymentProof = sql`(
+    ${notifications.dedupeKey} LIKE 'payment_awaiting_verification:%'
+    AND EXISTS (
+      SELECT 1 FROM pg_payment_records pr
+      WHERE ${notifications.dedupeKey} = 'payment_awaiting_verification:' || pr.id::text
+        AND pr.status = 'pending'
+    )
+  )`;
+
+  const [row] = await db
+    .select({ n: count() })
+    .from(notifications)
+    .where(and(...base, or(openActionItem, pendingPaymentProof)));
+
+  return Number(row?.n ?? 0);
 }
 
 export async function listUserNotifications(

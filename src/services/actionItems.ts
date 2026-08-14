@@ -209,18 +209,23 @@ export async function resolveStaleFinancialAuditActionItems(): Promise<{ resolve
 }
 
 async function archiveNotificationsWithoutOpenTasks(): Promise<void> {
-  await db.execute(sql`
-    UPDATE admin_notification_states ans
-    SET state = 'archived', archived_at = now(), updated_at = now()
-    FROM admin_notifications an
-    WHERE ans.notification_id = an.id
-      AND ans.state IN ('unread', 'read')
+  const staleRows = await db.execute<{ dedupe_key: string }>(sql`
+    SELECT DISTINCT n.dedupe_key
+    FROM notifications n
+    WHERE n.audience = 'admin'
+      AND n.is_archived = false
+      AND n.dedupe_key IS NOT NULL
       AND NOT EXISTS (
         SELECT 1 FROM action_items ai
-        WHERE ai.source_key = an.source_key
+        WHERE ai.source_key = n.dedupe_key
           AND ai.status IN ('open', 'in_progress')
       )
   `);
+
+  const sourceKeys = staleRows
+    .map((row) => row.dedupe_key)
+    .filter((key): key is string => Boolean(key));
+  await archiveAdminNotificationsForSourceKeys(sourceKeys);
 }
 
 async function syncRentDue(session: AdminSession): Promise<void> {

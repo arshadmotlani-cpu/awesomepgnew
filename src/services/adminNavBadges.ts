@@ -1,7 +1,3 @@
-import { and, eq, ne } from 'drizzle-orm';
-import { db } from '@/src/db/client';
-import { unresolvedActions } from '@/src/db/schema';
-import type { UnresolvedActionType } from '@/src/db/schema/enums';
 import type { AdminSession } from '@/src/lib/auth/session';
 import type { AdminModule } from '@/src/lib/admin/navigation';
 import type { OpsQueueFilter } from '@/src/lib/operations/operationsFilterLinks';
@@ -10,19 +6,9 @@ import {
   operationsFilterCount,
   operationsTotalPendingCount,
 } from '@/src/lib/operations/operationsQueueCounts';
-import { countVacatingOperationsQueueItems } from '@/src/lib/operations/operationsQueueVacating';
 import { getUnifiedOperationsQueueForBadges } from '@/src/services/unifiedOperationsQueue';
-import { countUnreadForAdmin } from '@/src/services/notificationEngine';
-import {
-  loadMoveOutPipelineBundle,
-} from '@/src/services/moveOutPipelineService';
-import { loadOperationsQueueDismissalIndex } from '@/src/services/operationsQueueDismissals';
-import {
-  UNRESOLVED_ACTION_BADGE_BUCKET,
-  type UnresolvedBadgeBucket,
-} from '@/src/services/unresolvedActions';
+import { countActionableUnreadForAdmin } from '@/src/services/notificationEngine';
 import { profileAdminStep } from '@/src/lib/admin/adminProfile';
-import { adminCanAccessPg } from '@/src/lib/auth/roles';
 
 /** Sidebar badge keys — all Operations tab counts from unified queue SSOT. */
 export type AdminNavBadges = Partial<
@@ -37,31 +23,8 @@ function badgeFromFilterCount(
   return count > 0 ? count : undefined;
 }
 
-async function loadMoveOutBadgeCount(session: AdminSession): Promise<number> {
-  const [bundle, dismissalIndex] = await Promise.all([
-    loadMoveOutPipelineBundle(session, { syncSettlements: false }),
-    loadOperationsQueueDismissalIndex(),
-  ]);
-  const vacatingPgByRequestId = new Map(
-    bundle.vacatingRows.map((row) => [row.id, row.pgId]),
-  );
-  return countVacatingOperationsQueueItems(
-    bundle.activeItems,
-    session,
-    dismissalIndex,
-    vacatingPgByRequestId,
-  );
-}
-
 const BADGE_CACHE_TTL_MS = 45_000;
 let badgeCache: { scopeKey: string; at: number; badges: AdminNavBadges } | null = null;
-
-function sessionPgFilter(session: AdminSession) {
-  if (session.role === 'super_admin' || session.pgScope.length === 0) {
-    return undefined;
-  }
-  return session.pgScope;
-}
 
 function readCachedBadges(scopeKey: string): AdminNavBadges | null {
   if (!badgeCache || badgeCache.scopeKey !== scopeKey) return null;
@@ -73,55 +36,7 @@ function writeCachedBadges(scopeKey: string, badges: AdminNavBadges): void {
   badgeCache = { scopeKey, at: Date.now(), badges };
 }
 
-/**
- * Fast badge path — counts OPEN unresolved_actions rows (SSOT for admin badges).
- * Does not build the unified Operations queue.
- */
-async function loadAdminNavBadgesLight(session: AdminSession): Promise<AdminNavBadges> {
-  const rows = await db
-    .select({ actionType: unresolvedActions.actionType, pgId: unresolvedActions.pgId })
-    .from(unresolvedActions)
-    .where(
-      and(eq(unresolvedActions.status, 'OPEN'), ne(unresolvedActions.actionType, 'invoice_review')),
-    );
-
-  const pgFilter = sessionPgFilter(session);
-  const scoped = pgFilter
-    ? rows.filter(
-        (row) => row.pgId != null && adminCanAccessPg({ role: session.role, pgScope: pgFilter }, row.pgId),
-      )
-    : rows;
-
-  const bucketCounts: Record<UnresolvedBadgeBucket, number> = {
-    operations: 0,
-    payments: 0,
-    kyc: 0,
-    checkout: 0,
-  };
-
-  for (const row of scoped) {
-    const type = row.actionType as Exclude<UnresolvedActionType, 'invoice_review'>;
-    const bucket = UNRESOLVED_ACTION_BADGE_BUCKET[type];
-    if (bucket) bucketCounts[bucket] += 1;
-  }
-
-  const badges: AdminNavBadges = {};
-  const totalOpen = scoped.length;
-  if (totalOpen > 0) badges.operations = totalOpen;
-  if (bucketCounts.payments > 0) badges.payments = bucketCounts.payments;
-  if (bucketCounts.kyc > 0) badges.kyc = bucketCounts.kyc;
-  if (bucketCounts.checkout > 0) badges.checkoutSettlements = bucketCounts.checkout;
-
-  const unreadNotifications = await countUnreadForAdmin(session);
-  if (unreadNotifications > 0) badges.notifications = unreadNotifications;
-
-  const moveOutCount = await loadMoveOutBadgeCount(session);
-  if (moveOutCount > 0) badges.moveOut = moveOutCount;
-
-  return badges;
-}
-
-/** Full queue build — parity audits / explicit opt-in only. */
+/** Sidebar badges — unified Operations queue SSOT (same build as Operations page). */
 async function loadAdminNavBadgesFromQueue(session: AdminSession): Promise<AdminNavBadges> {
   const operationsQueue = await getUnifiedOperationsQueueForBadges(session);
   const badges: AdminNavBadges = {};
@@ -141,8 +56,8 @@ async function loadAdminNavBadgesFromQueue(session: AdminSession): Promise<Admin
   const moveOut = badgeFromFilterCount(operationsQueue, 'vacating_requests');
   if (moveOut) badges.moveOut = moveOut;
 
-  const unreadNotifications = await countUnreadForAdmin(session);
-  if (unreadNotifications > 0) badges.notifications = unreadNotifications;
+  const actionableNotifications = await countActionableUnreadForAdmin(session);
+  if (actionableNotifications > 0) badges.notifications = actionableNotifications;
 
   return badges;
 }
@@ -150,13 +65,12 @@ async function loadAdminNavBadgesFromQueue(session: AdminSession): Promise<Admin
 export type LoadAdminNavBadgesOptions = {
   /** Use in-memory TTL cache (layout SSR + live poll). */
   pollCache?: boolean;
-  /** Build full unified Operations queue — slow; audits only. */
+  /** @deprecated All badge loads use the unified queue; kept for script compatibility. */
   fullQueue?: boolean;
 };
 
 /**
- * Sidebar badges — OPEN unresolved_actions counts (fast path).
- * Full Operations queue is opt-in via fullQueue for parity scripts only.
+ * Sidebar badges — must match Operations page queue totals (unified SSOT).
  */
 export async function loadAdminNavBadges(
   session: AdminSession,
@@ -168,7 +82,7 @@ export async function loadAdminNavBadges(
 
   try {
     const badges = await profileAdminStep('loadAdminNavBadges', async () =>
-      opts?.fullQueue ? loadAdminNavBadgesFromQueue(session) : loadAdminNavBadgesLight(session),
+      loadAdminNavBadgesFromQueue(session),
     );
 
     writeCachedBadges(scopeKey, badges);
