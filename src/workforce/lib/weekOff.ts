@@ -10,13 +10,13 @@ export type DayScheduleInput = {
 };
 
 export const DEFAULT_WEEK_SCHEDULE: DayScheduleInput[] = [
-  { dayOfWeek: 0, startTime: '10:00', endTime: '19:00', isOff: true },
-  { dayOfWeek: 1, startTime: '10:00', endTime: '19:00', isOff: false },
-  { dayOfWeek: 2, startTime: '10:00', endTime: '19:00', isOff: false },
-  { dayOfWeek: 3, startTime: '10:00', endTime: '19:00', isOff: false },
-  { dayOfWeek: 4, startTime: '10:00', endTime: '19:00', isOff: false },
-  { dayOfWeek: 5, startTime: '10:00', endTime: '19:00', isOff: false },
-  { dayOfWeek: 6, startTime: '10:00', endTime: '19:00', isOff: false },
+  { dayOfWeek: 0, startTime: '11:00', endTime: '20:00', isOff: true },
+  { dayOfWeek: 1, startTime: '11:00', endTime: '20:00', isOff: false },
+  { dayOfWeek: 2, startTime: '11:00', endTime: '20:00', isOff: false },
+  { dayOfWeek: 3, startTime: '11:00', endTime: '20:00', isOff: false },
+  { dayOfWeek: 4, startTime: '11:00', endTime: '20:00', isOff: false },
+  { dayOfWeek: 5, startTime: '11:00', endTime: '20:00', isOff: false },
+  { dayOfWeek: 6, startTime: '11:00', endTime: '20:00', isOff: false },
 ];
 
 export function parseWeekOffDays(formData: FormData): number[] {

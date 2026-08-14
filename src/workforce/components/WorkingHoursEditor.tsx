@@ -1,17 +1,17 @@
 'use client';
 
-import { useTransition } from 'react';
-import { saveWeeklyScheduleAction } from '@/src/workforce/actions/operations';
+import { useActionState, useEffect, useState } from 'react';
+import {
+  saveWeeklyScheduleAction,
+  type WorkforceScheduleActionState,
+} from '@/src/workforce/actions/operations';
+import { WeeklyScheduleGrid } from '@/src/workforce/components/WeeklyScheduleGrid';
+import { normalizeScheduleDays, type ScheduleDayState } from '@/src/workforce/lib/scheduleEditor';
 import { Button } from '@/src/hair/components/ui/button';
 
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+export type ScheduleDayValue = ScheduleDayState;
 
-export type ScheduleDayValue = {
-  dayOfWeek: number;
-  startTime: string;
-  endTime: string;
-  isOff: boolean;
-};
+const initial: WorkforceScheduleActionState = {};
 
 export function WorkingHoursEditor(props: {
   employeeId: string;
@@ -19,74 +19,75 @@ export function WorkingHoursEditor(props: {
   initial: ScheduleDayValue[];
   /** Profile embed — hide duplicate title and use primary save button. */
   embedded?: boolean;
+  readOnly?: boolean;
 }) {
-  const [pending, startTransition] = useTransition();
-  const byDay = new Map(props.initial.map((d) => [d.dayOfWeek, d]));
-  const days = DAY_LABELS.map((_, dayOfWeek) => {
-    const hit = byDay.get(dayOfWeek);
-    return {
-      dayOfWeek,
-      startTime: hit?.startTime ?? '10:00',
-      endTime: hit?.endTime ?? '19:00',
-      isOff: hit?.isOff ?? dayOfWeek === 0,
-    };
-  });
+  const [days, setDays] = useState<ScheduleDayState[]>(() => normalizeScheduleDays(props.initial));
+  const [state, formAction, pending] = useActionState(saveWeeklyScheduleAction, initial);
+
+  useEffect(() => {
+    setDays(normalizeScheduleDays(props.initial));
+  }, [props.initial]);
 
   return (
-    <form
-      className="space-y-3"
-      action={(fd) => {
-        startTransition(async () => {
-          await saveWeeklyScheduleAction(fd);
-        });
-      }}
-    >
+    <form action={formAction} className="space-y-3" onKeyDown={(e) => {
+      if (e.key === 'Enter' && (e.target as HTMLElement).closest('[data-schedule-grid]')) {
+        const tag = (e.target as HTMLElement).tagName;
+        if (tag === 'INPUT' && (e.target as HTMLInputElement).type === 'time') {
+          e.preventDefault();
+        }
+      }
+    }}>
       <input type="hidden" name="employeeId" value={props.employeeId} />
+      {days.map((d) => (
+        <div key={d.dayOfWeek} className="hidden" aria-hidden>
+          <input type="hidden" name={`day_${d.dayOfWeek}_dow`} value={d.dayOfWeek} />
+          <input type="hidden" name={`day_${d.dayOfWeek}_start`} value={d.startTime} />
+          <input type="hidden" name={`day_${d.dayOfWeek}_end`} value={d.endTime} />
+          {d.isOff ? <input type="hidden" name={`day_${d.dayOfWeek}_off`} value="1" /> : null}
+        </div>
+      ))}
+
       {props.embedded ? null : (
         <p className="text-sm font-medium text-fyh-text">{props.employeeName}</p>
       )}
-      <div className="grid gap-2">
-        {days.map((d) => (
-          <div
-            key={d.dayOfWeek}
-            className="grid grid-cols-[3rem_1fr_1fr_auto] items-center gap-2 text-xs sm:text-sm"
-          >
-            <span className="font-medium text-fyh-text">{DAY_LABELS[d.dayOfWeek]}</span>
-            <input type="hidden" name={`day_${d.dayOfWeek}_dow`} value={d.dayOfWeek} />
-            <input
-              name={`day_${d.dayOfWeek}_start`}
-              type="time"
-              defaultValue={d.startTime}
-              className="rounded border border-[color:var(--fyh-border)] bg-transparent px-2 py-1"
-            />
-            <input
-              name={`day_${d.dayOfWeek}_end`}
-              type="time"
-              defaultValue={d.endTime}
-              className="rounded border border-[color:var(--fyh-border)] bg-transparent px-2 py-1"
-            />
-            <label className="flex items-center gap-1 text-fyh-text-secondary">
-              <input name={`day_${d.dayOfWeek}_off`} type="checkbox" value="1" defaultChecked={d.isOff} />
-              Off
-            </label>
-          </div>
-        ))}
+
+      <div data-schedule-grid>
+        <WeeklyScheduleGrid
+          days={days}
+          onChange={setDays}
+          readOnly={props.readOnly}
+          showCopyControls={!props.readOnly}
+        />
       </div>
-      <div className="flex justify-end border-t border-[color:var(--fyh-border)] pt-3">
-        {props.embedded ? (
-          <Button type="submit" disabled={pending} variant="secondary">
-            {pending ? 'Saving…' : 'Save working hours'}
-          </Button>
-        ) : (
-          <button
-            type="submit"
-            disabled={pending}
-            className="text-sm text-fyh-accent underline disabled:opacity-50"
-          >
-            {pending ? 'Saving…' : 'Save hours'}
-          </button>
-        )}
-      </div>
+
+      {state.error ? (
+        <p className="text-sm text-red-600" role="alert">
+          {state.error}
+        </p>
+      ) : null}
+      {state.success ? (
+        <p className="text-sm text-emerald-700" role="status">
+          {state.success}
+        </p>
+      ) : null}
+
+      {props.readOnly ? null : (
+        <div className="flex justify-end border-t border-[color:var(--fyh-border)] pt-3">
+          {props.embedded ? (
+            <Button type="submit" disabled={pending} variant="secondary">
+              {pending ? 'Saving…' : 'Save working hours'}
+            </Button>
+          ) : (
+            <button
+              type="submit"
+              disabled={pending}
+              className="text-sm text-fyh-accent underline disabled:opacity-50"
+            >
+              {pending ? 'Saving…' : 'Save hours'}
+            </button>
+          )}
+        </div>
+      )}
     </form>
   );
 }

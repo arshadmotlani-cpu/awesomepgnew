@@ -7,12 +7,29 @@ import { clockIn, clockOut } from '@/src/workforce/services/attendance';
 import { createIncentive, updateCommissionDefaults, updatePerformanceTarget } from '@/src/workforce/services/compensation';
 import { defaultWeeklySchedule, upsertEmployeeWeeklySchedule } from '@/src/workforce/services/schedules';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
+import { parseScheduleDaysFromForm } from '@/src/workforce/actions/parseHrForm';
+import { requireWorkforcePermission, WorkforcePermissionError } from '@/src/workforce/permissions/guards';
+import { validateScheduleDays } from '@/src/workforce/lib/scheduleEditor';
+
+export type WorkforceScheduleActionState = { error?: string; success?: string };
 
 async function requireActor() {
   if (!isWorkforceEngineEnabled()) throw new Error('Workforce Engine is not enabled');
   const session = await getHairSession();
   if (!session?.workforceEmployeeId) throw new Error('Not signed in');
   return session.workforceEmployeeId;
+}
+
+async function resolveScheduleEditor(targetEmployeeId: string): Promise<{ actorEmployeeId: string | null }> {
+  const session = await getHairSession();
+  if (!session) throw new WorkforcePermissionError('Please sign in again.');
+
+  if (session.workforceEmployeeId === targetEmployeeId) {
+    return { actorEmployeeId: session.workforceEmployeeId };
+  }
+
+  await requireWorkforcePermission('staff.edit');
+  return { actorEmployeeId: session.workforceEmployeeId ?? null };
 }
 
 export async function clockInAction(): Promise<void> {
@@ -48,33 +65,40 @@ export async function seedDefaultScheduleAction(
   revalidatePath('/me');
 }
 
-export async function saveWeeklyScheduleAction(formData: FormData): Promise<void> {
-  const actorId = await requireActor();
-  const employeeId = String(formData.get('employeeId') ?? '');
-  if (!employeeId) throw new Error('Missing employee');
-  const canEdit =
-    actorId === employeeId ||
-    (await employeeHasPermission(actorId, 'fyh_salon', 'staff.edit'));
-  if (!canEdit) throw new Error('Not allowed');
+export async function saveWeeklyScheduleAction(
+  _prev: WorkforceScheduleActionState,
+  formData: FormData,
+): Promise<WorkforceScheduleActionState> {
+  try {
+    if (!isWorkforceEngineEnabled()) {
+      return { error: 'Workforce Engine is not enabled.' };
+    }
+    const employeeId = String(formData.get('employeeId') ?? '').trim();
+    if (!employeeId) return { error: 'Missing employee.' };
 
-  const days = [];
-  for (let dow = 0; dow <= 6; dow++) {
-    days.push({
-      dayOfWeek: dow,
-      startTime: String(formData.get(`day_${dow}_start`) ?? '10:00'),
-      endTime: String(formData.get(`day_${dow}_end`) ?? '19:00'),
-      isOff: formData.get(`day_${dow}_off`) === '1',
+    const { actorEmployeeId } = await resolveScheduleEditor(employeeId);
+    const days = parseScheduleDaysFromForm(formData);
+    validateScheduleDays(days);
+
+    await upsertEmployeeWeeklySchedule({
+      employeeId,
+      days,
+      actorEmployeeId,
     });
+    revalidatePath('/workforce/operations');
+    revalidatePath('/me');
+    revalidatePath('/staff');
+    revalidatePath(`/staff/${employeeId}`);
+    return { success: 'Working hours saved.' };
+  } catch (e) {
+    const message =
+      e instanceof WorkforcePermissionError
+        ? 'You do not have permission to update this schedule.'
+        : e instanceof Error
+          ? e.message
+          : 'Failed to save working hours.';
+    return { error: message };
   }
-  await upsertEmployeeWeeklySchedule({
-    employeeId,
-    days,
-    actorEmployeeId: actorId,
-  });
-  revalidatePath('/workforce/operations');
-  revalidatePath('/me');
-  revalidatePath('/staff');
-  revalidatePath(`/staff/${employeeId}`);
 }
 
 export async function setCommissionAction(formData: FormData): Promise<void> {

@@ -646,6 +646,7 @@ export function EmployeeProfilePanel({
             employeeName={employee.fullName}
             initial={scheduleDays}
             embedded
+            readOnly={!canEdit}
           />
         </section>
       ) : null}
