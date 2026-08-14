@@ -22,7 +22,7 @@ import { vacatingStatusEnum } from './enums';
  *
  * Pro-rata notice deduction (missing notice days × daily rent) is computed at
  * submit time from `monthly_rent_paise_snapshot` (daily = floor(monthly/30),
- * missing days = max(0, 14 − noticeGivenDays)) and stored on the row so a
+ * missing days = max(0, minNoticeDays − noticeGivenDays)) and stored on the row so a
  * later rent-rate change cannot silently rewrite the deduction.
  *
  * Status transitions:

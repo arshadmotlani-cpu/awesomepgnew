@@ -127,6 +127,29 @@ test('deduction plan uses deposit notice portion only', () => {
   );
 });
 
+test('early move-out: prepaid after vacate refunds when notice compliant', () => {
+  const monthlyRentPaise = 412_080; // ₹4,121
+  const daily = Math.floor(monthlyRentPaise / 30); // 13_736
+  const prepaidDays = 6;
+  const prepaidAfterVacatingPaise = daily * prepaidDays;
+
+  const w = computeCheckoutSettlementV2({
+    stayCheckInDate: '2026-07-21',
+    stayCheckoutDate: '2026-08-15',
+    rentPaidPaise: monthlyRentPaise,
+    monthlyRentPaise,
+    depositCollectedPaise: 205_900,
+    missingNoticeDays: 0,
+    noticeApplies: true,
+    prepaidAfterVacatingPaise,
+  });
+
+  assert.equal(w.rentBucket.unusedPaise, prepaidAfterVacatingPaise);
+  assert.equal(w.rentBucket.consumedPaise, monthlyRentPaise - prepaidAfterVacatingPaise);
+  assert.equal(w.refund.unusedRentPortionPaise, prepaidAfterVacatingPaise);
+  assert.equal(w.refund.totalPaise, 205_900 + prepaidAfterVacatingPaise);
+});
+
 test('tail rent deducted from deposit after notice', () => {
   const tailRent = 30_000;
   const w = computeCheckoutSettlementV2({

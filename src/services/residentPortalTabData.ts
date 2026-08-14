@@ -299,9 +299,20 @@ export async function loadResidentProfileTabData(input: {
         primaryBooking?.deposit?.refundableBalancePaise ??
         0);
   const walletAvailableRefundPaise =
+    refundSettlementPreview?.refundAmountPaise ??
+    (refundSettlementPreview
+      ? refundSettlementPreview.depositRefundablePaise + refundSettlementPreview.unusedPrepaidRentPaise
+      : null) ??
     walletBooking?.deposit?.refundableBalancePaise ??
     primaryBooking?.deposit?.refundableBalancePaise ??
     depositWallet.availableCreditPaise;
+
+  const walletUnusedPrepaidRentPaise = refundSettlementPreview?.unusedPrepaidRentPaise ?? 0;
+  const walletDepositRefundablePaise =
+    refundSettlementPreview?.depositRefundablePaise ??
+    walletBooking?.deposit?.refundableBalancePaise ??
+    primaryBooking?.deposit?.refundableBalancePaise ??
+    0;
 
   const referralSummary = await getReferralSummaryForCustomer(session.customerId);
   const monthlyRentDisplay =
@@ -340,6 +351,8 @@ export async function loadResidentProfileTabData(input: {
     moveOutStatus,
     walletDepositHeldPaise,
     walletAvailableRefundPaise,
+    walletUnusedPrepaidRentPaise,
+    walletDepositRefundablePaise,
     depositEntries,
     refundEligibility,
     refundSettlementPreview,
@@ -600,8 +613,17 @@ export async function loadResidentRequestsTabData(input: {
       detail[0] ?? null,
     ) ?? primaryBooking;
 
+  const refundSettlementPreview = walletBooking
+    ? await getDepositRefundSettlementPreview(walletBooking.bookingId)
+    : null;
+
   const walletAvailableRefundPaise =
-    walletBooking?.deposit?.refundableBalancePaise ?? depositWallet.availableCreditPaise;
+    refundSettlementPreview?.refundAmountPaise ??
+    (refundSettlementPreview
+      ? refundSettlementPreview.depositRefundablePaise + refundSettlementPreview.unusedPrepaidRentPaise
+      : null) ??
+    walletBooking?.deposit?.refundableBalancePaise ??
+    depositWallet.availableCreditPaise;
   const walletDepositHeldPaise =
     depositWallet.totalHeldPaise > 0
       ? depositWallet.totalHeldPaise

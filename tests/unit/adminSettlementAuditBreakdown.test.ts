@@ -21,18 +21,20 @@ function findRow(
 }
 
 function kunalLikeDetail(): CheckoutSettlementDetail {
+  const dailyRentPaise = 5000;
+  const unusedPrepaidDays = 14;
   const waterfall = computeCheckoutSettlementV2({
     stayCheckInDate: '2026-07-04',
     stayCheckoutDate: '2026-07-21',
     rentPaidPaise: 412_080,
     monthlyRentPaise: 150_000,
     depositCollectedPaise: 412_100,
-    missingNoticeDays: 14,
+    missingNoticeDays: 5,
     noticeApplies: true,
     electricityPaise: 0,
     damageChargePaise: 0,
-    cleaningChargePaise: 0,
     customChargePaise: 0,
+    prepaidAfterVacatingPaise: unusedPrepaidDays * dailyRentPaise,
   });
 
   return {
@@ -43,31 +45,31 @@ function kunalLikeDetail(): CheckoutSettlementDetail {
     vacatingDate: '2026-07-21',
     moveInDate: '2026-07-04',
     noticeGivenDate: '2026-07-21',
-    noticeRequiredDays: 14,
+    noticeRequiredDays: 5,
     noticeGivenDays: 0,
-    noticeShortfallDays: 14,
-    noticeRentCoveredDays: 0,
-    noticeChargeableDays: 14,
-    noticeDeductionPaise: 27_472,
+    noticeShortfallDays: 5,
+    noticeRentCoveredDays: 5,
+    noticeChargeableDays: 0,
+    noticeDeductionPaise: waterfall.notice.fromDepositPaise,
     noticeFromDepositPaise: waterfall.notice.fromDepositPaise,
     noticeFromUnusedRentPaise: waterfall.notice.fromUnusedRentPaise,
     monthlyRentPaiseSnapshot: 150_000,
     depositRefundablePaise: 412_100,
     settlementEngineVersion: 2,
     noticeBreakdownJson: {
-      noticeRequiredDays: 14,
+      noticeRequiredDays: 5,
       noticeGivenDays: 0,
-      missingNoticeDays: 14,
+      missingNoticeDays: 5,
       billingDay: 5,
       billingCycleLabel: '5 Jul 2026 – 4 Aug 2026',
       paidUntilDate: '2026-08-04',
       vacatingDate: '2026-07-21',
-      unusedPrepaidRentDays: 14,
-      noticeCoveredByPrepaidRent: 0,
-      rentCoveredDays: 0,
-      chargeableNoticeDays: 14,
-      dailyRentPaise: 5000,
-      noticeDeductionPaise: 27_472,
+      unusedPrepaidRentDays: unusedPrepaidDays,
+      noticeCoveredByPrepaidRent: 5,
+      rentCoveredDays: 5,
+      chargeableNoticeDays: 0,
+      dailyRentPaise: dailyRentPaise,
+      noticeDeductionPaise: 0,
       paidPeriodUsed: {
         periodStart: '2026-07-05',
         periodEnd: '2026-08-04',
@@ -76,11 +78,11 @@ function kunalLikeDetail(): CheckoutSettlementDetail {
     },
     preview: {
       finalRefundPaise: waterfall.refund.totalPaise,
-      noticeDeductionPaise: 27_472,
+      noticeDeductionPaise: waterfall.notice.fromDepositPaise,
       electricityDeductionPaise: 0,
       electricityDeductFromDeposit: true,
       electricitySharePaise: 0,
-      totalDeductionsPaise: 27_472,
+      totalDeductionsPaise: waterfall.notice.fromDepositPaise,
       damageChargePaise: 0,
       cleaningChargePaise: 0,
       customChargePaise: 0,
@@ -88,17 +90,17 @@ function kunalLikeDetail(): CheckoutSettlementDetail {
     },
     waterfall,
     settlementNoticeDisplay: {
-      noticeRequiredDays: 14,
+      noticeRequiredDays: 5,
       noticeGivenDays: 0,
-      missingNoticeDays: 14,
+      missingNoticeDays: 5,
       billingDay: 5,
       billingCycleLabel: '5 Jul 2026 – 4 Aug 2026',
       paidUntilDate: '2026-08-04',
       vacatingDate: '2026-07-21',
-      unusedPrepaidRentDays: 14,
-      noticeCoveredByPrepaidRent: 0,
-      chargeableNoticeDays: 14,
-      noticeDeductionPaise: 27_472,
+      unusedPrepaidRentDays: unusedPrepaidDays,
+      noticeCoveredByPrepaidRent: 5,
+      chargeableNoticeDays: 0,
+      noticeDeductionPaise: 0,
     },
     billingCoverageDaysPaid: {
       value: '31 days',
@@ -152,11 +154,11 @@ test('Kunal-like V2 audit populates all required fields', () => {
 
   const noticeRequired = findRow(audit, 'notice_required');
   assert.ok(noticeRequired);
-  assert.equal(noticeRequired!.value, '14 days');
+  assert.equal(noticeRequired!.value, '5 days');
 
   const noticeCovered = findRow(audit, 'notice_covered_by_unused_rent');
   assert.ok(noticeCovered);
-  assert.match(noticeCovered!.value, /0 days/);
+  assert.match(noticeCovered!.value, /5 days/);
 
   const noticeDeposit = findRow(audit, 'notice_from_deposit');
   assert.ok(noticeDeposit);
@@ -166,7 +168,7 @@ test('Kunal-like V2 audit populates all required fields', () => {
   assert.ok(electricity);
   assert.equal(electricity!.value, '₹0');
 
-  const depositHeld = findRow(audit, 'deposit_held');
+  const depositHeld = findRow(audit, 'security_deposit_refundable');
   assert.ok(depositHeld);
   assert.notEqual(depositHeld!.value, '—');
 

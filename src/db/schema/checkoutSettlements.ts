@@ -37,7 +37,7 @@ export const checkoutSettlements = pgTable(
     status: checkoutSettlementStatusEnum('status')
       .notNull()
       .default('awaiting_resident_details'),
-    noticeRequiredDays: integer('notice_required_days').notNull().default(14),
+    noticeRequiredDays: integer('notice_required_days').notNull().default(5),
     noticeGivenDays: integer('notice_given_days').notNull().default(0),
     noticeShortfallDays: integer('notice_shortfall_days').notNull().default(0),
     noticeDeductionPaise: bigint('notice_deduction_paise', { mode: 'number' }).notNull().default(0),

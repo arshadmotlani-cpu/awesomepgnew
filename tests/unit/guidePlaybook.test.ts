@@ -51,7 +51,7 @@ test('guideForTarget returns stay-dates tip on focus marker', () => {
     elementContext: { tag: 'form', text: 'Living here', role: null, inputType: null, ariaLabel: null },
   });
 
-  assert.match(tip ?? '', /Living here|14 days notice/i);
+  assert.match(tip ?? '', /Living here|5 days notice/i);
 });
 
 test('guideForTarget returns room-pick tip on focus marker', () => {

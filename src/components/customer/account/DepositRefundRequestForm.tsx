@@ -45,8 +45,14 @@ export function DepositRefundRequestForm({
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const depositHeld = coerceNonNegativePaise(
-    settlementPreview?.depositBalancePaise ?? refundableBalancePaise,
+    settlementPreview?.depositRefundablePaise ??
+      settlementPreview?.depositBalancePaise ??
+      refundableBalancePaise,
   );
+  const unusedPrepaidPaise = coerceNonNegativePaise(settlementPreview?.unusedPrepaidRentPaise ?? 0);
+  const totalRefundablePaise =
+    settlementPreview?.refundAmountPaise ??
+    depositHeld + unusedPrepaidPaise - coerceNonNegativePaise(settlementPreview?.electricityAdjustmentPaise ?? 0);
   const noticeDeduction = coerceNonNegativePaise(estimatedDeductionPaise);
   const hasPayoutDetails = Boolean(qrUrl.trim() || payoutUpiId.trim());
   const canSubmit = Boolean(meterUrl.trim() && hasPayoutDetails && depositHeld > 0);
@@ -124,6 +130,41 @@ export function DepositRefundRequestForm({
             theme="light"
             title="Confirm your refund estimate"
           />
+        </div>
+      ) : null}
+
+      {settlementPreview && (unusedPrepaidPaise > 0 || settlementPreview.electricityAdjustmentPaise != null) ? (
+        <div className="mt-3 rounded-lg border border-zinc-200 bg-white p-3 text-xs text-zinc-700">
+          <p className="font-semibold text-zinc-900">Estimated checkout refund</p>
+          <ul className="mt-2 space-y-1">
+            <li className="flex justify-between gap-2">
+              <span>Security deposit refundable</span>
+              <span className="tabular-nums">{paiseToInr(depositHeld)}</span>
+            </li>
+            {unusedPrepaidPaise > 0 ? (
+              <li className="flex justify-between gap-2">
+                <span>Unused prepaid rent</span>
+                <span className="tabular-nums">{paiseToInr(unusedPrepaidPaise)}</span>
+              </li>
+            ) : null}
+            {settlementPreview.electricityAdjustmentPaise != null &&
+            settlementPreview.electricityAdjustmentPaise > 0 ? (
+              <li className="flex justify-between gap-2">
+                <span>Electricity deduction</span>
+                <span className="tabular-nums text-rose-700">
+                  −{paiseToInr(settlementPreview.electricityAdjustmentPaise)}
+                </span>
+              </li>
+            ) : settlementPreview.electricityPending ? (
+              <li>Electricity: pending final bill</li>
+            ) : null}
+            {settlementPreview.refundAmountPaise != null ? (
+              <li className="flex justify-between gap-2 border-t border-zinc-200 pt-1 font-semibold text-zinc-900">
+                <span>Total refundable</span>
+                <span className="tabular-nums">{paiseToInr(settlementPreview.refundAmountPaise)}</span>
+              </li>
+            ) : null}
+          </ul>
         </div>
       ) : null}
 

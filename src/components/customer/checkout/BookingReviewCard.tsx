@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import { isMonthlyStayType, type StayType } from '@/src/lib/stayType';
 import { buildBookingCheckoutSummaryLines } from '@/src/lib/billing/bookingCheckoutTotals';
+import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 
 export type BookingReviewLineItem = {
   label: string;
@@ -252,7 +253,7 @@ export function BookingReviewCard({
       <footer className="space-y-2 border-t border-white/8 bg-black/20 px-6 py-5 text-xs leading-relaxed text-apg-silver sm:px-8">
         <p className="font-semibold text-white">Awesome PG policies</p>
         <ul className="list-disc space-y-1 pl-4">
-          <li>14-day notice required before moving out (monthly stays).</li>
+          <li>{VACATING_NOTICE_MIN_DAYS}-day notice required before moving out (monthly stays).</li>
           <li>Security deposit refunded after checkout inspection and meter reading.</li>
           <li>Electricity billed monthly — your share is split among room occupants.</li>
           <li>Rent and deposit amounts above come directly from our pricing system.</li>

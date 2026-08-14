@@ -46,17 +46,17 @@ test('ensureCheckoutSettlementForBooking locks approval baseline at refund submi
   assert.match(body, /lockApprovalBaseline:\s*true/);
 });
 
-test('date change compliance uses fixed noticeGivenDate with 14-day minimum', () => {
+test('date change compliance uses fixed noticeGivenDate with 5-day minimum', () => {
   const noticeGivenDate = '2026-06-01';
-  const earliestCompliant = '2026-06-15';
+  const earliestCompliant = '2026-06-06';
 
-  assert.equal(VACATING_NOTICE_MIN_DAYS, 14);
+  assert.equal(VACATING_NOTICE_MIN_DAYS, 5);
   assert.equal(
     isNoticeCompliant({ noticeGivenDate, vacatingDate: earliestCompliant }),
     true,
   );
   assert.equal(
-    isNoticeCompliant({ noticeGivenDate, vacatingDate: '2026-06-14' }),
+    isNoticeCompliant({ noticeGivenDate, vacatingDate: '2026-06-05' }),
     false,
   );
   assert.equal(

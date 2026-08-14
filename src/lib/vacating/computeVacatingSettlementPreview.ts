@@ -188,6 +188,7 @@ export type VacatingSettlementWaterfallContext = {
   missingNoticeDays: number;
   noticeApplies: boolean;
   checkoutTailRentPaise: number;
+  prepaidAfterVacatingPaise: number;
 };
 
 export async function loadVacatingSettlementWaterfallContext(
@@ -235,6 +236,7 @@ export async function loadVacatingSettlementWaterfallContext(
         durationMode: input.durationMode,
       }),
       checkoutTailRentPaise,
+      prepaidAfterVacatingPaise: coverage.prepaidAfterVacatingPaise,
     },
     coverage,
   };
@@ -257,6 +259,7 @@ export function computeVacatingSettlementWaterfallFromContext(
     customChargePaise: 0,
     noticeApplies: ctx.noticeApplies,
     checkoutTailRentPaise: ctx.checkoutTailRentPaise,
+    prepaidAfterVacatingPaise: ctx.prepaidAfterVacatingPaise,
   });
 }
 

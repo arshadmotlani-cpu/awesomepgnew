@@ -42,6 +42,7 @@ import {
   resolveExitLifecycleFromSnapshot,
   residentMoveOutStatusLabel,
 } from '@/src/lib/exit/exitBrainLifecycleUi';
+import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 
 type Props = {
   bookingId: string;
@@ -477,7 +478,8 @@ export function VacatingHome({
           {lifecycle.capabilities.canEditVacating.allowed && !checkoutStatus ? (
             <ApgCard tier="account" className="p-5">
               <p className="text-sm text-zinc-600">
-                Need a date that does not satisfy the 14-day notice rule? Cancel this approved move-out
+                Need a date that does not satisfy the {VACATING_NOTICE_MIN_DAYS}-day notice rule? Cancel
+                this approved move-out
                 and submit a new request.
               </p>
               <button

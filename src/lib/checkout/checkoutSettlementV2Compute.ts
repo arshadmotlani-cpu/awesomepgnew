@@ -97,6 +97,7 @@ export function computeWaterfallWithApprovalBaseline(args: {
       durationMode: args.durationMode,
     }),
     checkoutTailRentPaise: args.baseline.depositBucket.tailRentPaise ?? 0,
+    prepaidAfterVacatingPaise: args.baseline.rentBucket.unusedPaise,
   });
 }
 
@@ -147,13 +148,30 @@ export async function computeWaterfallForSettlement(
     monthlyRentPaise: args.settlement.monthlyRentPaiseSnapshot,
   });
 
+  const { loadBillingCoverageModel } = await import('@/src/services/billingCoverage');
+  const { vacatingRequests } = await import('@/src/db/schema');
+  const [vacatingRow] = await db
+    .select({ noticeGivenDate: vacatingRequests.noticeGivenDate })
+    .from(vacatingRequests)
+    .where(eq(vacatingRequests.id, args.settlement.vacatingRequestId))
+    .limit(1);
+
+  const coverage = await loadBillingCoverageModel({
+    bookingId: args.settlement.bookingId,
+    vacatingDate: checkout,
+    noticeGivenDate: vacatingRow?.noticeGivenDate ?? undefined,
+    monthlyRentPaise: args.settlement.monthlyRentPaiseSnapshot,
+    treatAsApprovedForTail: true,
+  });
+
   return computeCheckoutSettlementV2({
     stayCheckInDate: checkIn,
     stayCheckoutDate: checkout,
     rentPaidPaise: money?.rent.receivedPaise ?? 0,
     monthlyRentPaise: args.settlement.monthlyRentPaiseSnapshot,
     depositCollectedPaise: depositHeld,
-    missingNoticeDays: args.settlement.noticeShortfallDays,
+    missingNoticeDays:
+      coverage?.noticeBreakdown?.missingNoticeDays ?? args.settlement.noticeShortfallDays,
     electricityPaise: electricityShare,
     electricityDeductFromDeposit: args.settlement.electricityDeductFromDeposit !== false,
     damageChargePaise: args.settlement.damageChargePaise,
@@ -164,6 +182,7 @@ export async function computeWaterfallForSettlement(
       durationMode: args.durationMode,
     }),
     checkoutTailRentPaise,
+    prepaidAfterVacatingPaise: coverage?.prepaidAfterVacatingPaise ?? 0,
   });
 }
 

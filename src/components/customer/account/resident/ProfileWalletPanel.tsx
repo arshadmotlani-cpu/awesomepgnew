@@ -19,6 +19,8 @@ type Props = {
   depositBalancePaise: number;
   depositDuePaise: number;
   availableRefundPaise: number;
+  unusedPrepaidRentPaise?: number;
+  depositRefundablePaise?: number;
   entries: DepositLedgerEntry[];
   hasOpenVacating: boolean;
   refundEligibility: DepositRefundEligibility;
@@ -97,6 +99,8 @@ export function ProfileWalletPanel({
   depositBalancePaise,
   depositDuePaise,
   availableRefundPaise,
+  unusedPrepaidRentPaise = 0,
+  depositRefundablePaise,
   entries,
   hasOpenVacating,
   refundEligibility,
@@ -124,9 +128,29 @@ export function ProfileWalletPanel({
   const referralWithdrawn = referralSummary?.withdrawnPaise ?? 0;
   const referralTotal = referralLocked + referralAvailable + referralWithdrawn;
 
+  const depositRefundable =
+    depositRefundablePaise ??
+    settlementPreview?.depositRefundablePaise ??
+    settlementPreview?.depositBalancePaise ??
+    depositBalancePaise;
+  const unusedPrepaid =
+    unusedPrepaidRentPaise > 0
+      ? unusedPrepaidRentPaise
+      : settlementPreview?.unusedPrepaidRentPaise ?? 0;
+  const showUnusedPrepaid = hasOpenVacating && unusedPrepaid > 0;
+  const refundHint =
+    settlementPreview?.electricityPending
+      ? 'Electricity bill pending — final amount at checkout'
+      : settlementPreview?.electricityAdjustmentPaise != null &&
+          settlementPreview.electricityAdjustmentPaise > 0
+        ? 'After notice, unused rent, and electricity'
+        : 'After notice and deductions';
+
   return (
     <div className="space-y-4 pb-2 max-md:space-y-3">
-      <div className="grid gap-3 max-md:grid-cols-1 sm:grid-cols-3">
+      <div
+        className={`grid gap-3 max-md:grid-cols-1 ${showUnusedPrepaid ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3'}`}
+      >
         <WalletMetricCard
           label="Security deposit held"
           value={paiseToInr(depositBalancePaise)}
@@ -137,10 +161,22 @@ export function ProfileWalletPanel({
           }
           accent={depositDuePaise > 0}
         />
+        {showUnusedPrepaid ? (
+          <WalletMetricCard
+            label="Unused prepaid rent"
+            value={paiseToInr(unusedPrepaid)}
+            hint="Rent paid for days after your approved move-out date."
+          />
+        ) : null}
         <WalletMetricCard
           label="Refundable at checkout"
-          value={paiseToInr(availableRefundPaise)}
-          hint="After notice and deductions"
+          value={
+            settlementPreview?.electricityPending && availableRefundPaise <= 0
+              ? 'Pending'
+              : paiseToInr(availableRefundPaise)
+          }
+          hint={refundHint}
+          accent={availableRefundPaise > 0}
         />
         <WalletMetricCard
           label="Referral earnings"
@@ -171,6 +207,51 @@ export function ProfileWalletPanel({
             {paiseToInr(depositBalancePaise)} is held until checkout. No payment is required right
             now.
           </p>
+        </ApgCard>
+      ) : null}
+
+      {showUnusedPrepaid || settlementPreview?.electricityAdjustmentPaise != null ? (
+        <ApgCard tier="resident">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-apg-silver">
+            Checkout refund breakdown
+          </h3>
+          <ul className="mt-3 space-y-2 text-sm">
+            <li className="flex justify-between gap-2">
+              <span className="text-apg-silver">Security deposit refundable</span>
+              <span className="tabular-nums font-medium text-white">{paiseToInr(depositRefundable)}</span>
+            </li>
+            {unusedPrepaid > 0 ? (
+              <li className="flex justify-between gap-2">
+                <span className="text-apg-silver">Unused prepaid rent</span>
+                <span className="tabular-nums font-medium text-emerald-300">
+                  {paiseToInr(unusedPrepaid)}
+                </span>
+              </li>
+            ) : null}
+            {settlementPreview?.electricityAdjustmentPaise != null &&
+            settlementPreview.electricityAdjustmentPaise > 0 ? (
+              <li className="flex justify-between gap-2">
+                <span className="text-apg-silver">Electricity due</span>
+                <span className="tabular-nums font-medium text-rose-300">
+                  −{paiseToInr(settlementPreview.electricityAdjustmentPaise)}
+                </span>
+              </li>
+            ) : settlementPreview?.electricityPending ? (
+              <li className="flex justify-between gap-2">
+                <span className="text-apg-silver">Electricity</span>
+                <span className="text-apg-silver">Pending final bill</span>
+              </li>
+            ) : null}
+            {!settlementPreview?.electricityPending &&
+            settlementPreview?.refundAmountPaise != null ? (
+              <li className="flex justify-between gap-2 border-t border-white/10 pt-2">
+                <span className="font-medium text-white">Total refundable</span>
+                <span className="tabular-nums font-bold text-apg-orange">
+                  {paiseToInr(settlementPreview.refundAmountPaise)}
+                </span>
+              </li>
+            ) : null}
+          </ul>
         </ApgCard>
       ) : null}
 

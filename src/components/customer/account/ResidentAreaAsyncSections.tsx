@@ -90,6 +90,8 @@ export async function ResidentProfileTabSection({
       bookingId={data.primaryBooking.bookingId}
       customerId={session.customerId}
       availableRefundPaise={data.walletAvailableRefundPaise}
+      unusedPrepaidRentPaise={data.walletUnusedPrepaidRentPaise}
+      depositRefundablePaise={data.walletDepositRefundablePaise}
       entries={data.depositEntries}
       hasOpenVacating={data.hasOpenVacating}
       refundEligibility={data.refundEligibility}

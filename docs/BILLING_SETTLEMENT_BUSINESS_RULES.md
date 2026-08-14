@@ -129,9 +129,9 @@ Every engine calculation must map to exactly one **BR-*** rule below. Implementa
 
 ## BR-RENT-UNUSED — Unused rent
 
-**Rule:** **Unused rent** = `rentPaid − rentConsumed`. This is **not** the same as “prepaid days after vacate” (notice display) — unused rent is the **money** left in the rent bucket after stay consumption.
+**Rule:** When paid coverage extends past vacating date, **unused prepaid rent** = BCM `prepaidAfterVacatingPaise` (days after vacate through paid-through × daily rate). Otherwise **unused rent** = `rentPaid − rentConsumed` (stay consumption).
 
-**SSOT:** V2 rent bucket.
+**SSOT:** V2 rent bucket with optional `prepaidAfterVacatingPaise` input from BCM.
 
 **Maps to:** `RULE_UNUSED_RENT`.
 
@@ -141,7 +141,7 @@ Every engine calculation must map to exactly one **BR-*** rule below. Implementa
 
 ## BR-NOTICE-CHARGE — Notice charge
 
-**Rule:** When notice policy applies (`noticeApplies !== false`), **full notice charge** = `missingNoticeDays × dailyRent`, where missing days come from notice engine vs required minimum (e.g. 14 days) given notice given date and vacating date, considering **clamped paid coverage**.
+**Rule:** When notice policy applies (`noticeApplies !== false`), **full notice charge** = `missingNoticeDays × dailyRent`, where missing days come from notice engine vs required minimum (e.g. 5 days) given notice given date and vacating date, considering **clamped paid coverage**.
 
 **SSOT:** [`computeNoticeDeductionBreakdown`](../src/lib/vacating/noticeDeductionEngine.ts) via BCM `noticeBreakdown`; V2 `notice.fullPaise`.
 
@@ -212,7 +212,7 @@ Every engine calculation must map to exactly one **BR-*** rule below. Implementa
 
 ## BR-MONTHLY-STAY — Monthly / open-ended stay
 
-**Rule:** Anniversary rent billing, 14-day (or policy) notice, vacating final-period tail, **Workflow A** room electricity on monthly invoices. Move-out settlement uses V2 + BCM as documented above.
+**Rule:** Anniversary rent billing, 5-day (or policy) notice, vacating final-period tail, **Workflow A** room electricity on monthly invoices. Move-out settlement uses V2 + BCM as documented above.
 
 **SSOT:** [`BILLING_ENGINE.md`](./BILLING_ENGINE.md) · [`noticeDeductionPolicy`](../src/lib/checkout/noticeDeductionPolicy.ts).
 

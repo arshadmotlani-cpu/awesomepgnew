@@ -10,10 +10,9 @@
  *                               future rent + electricity invoices
  *
  * Policy (spec):
- *   - If notice >= 14 days: no deposit deduction.
- *   - If notice < 14 days: deduct missingNoticeDays × dailyRent
- *     (dailyRent = floor(monthlyRent / 30), missingNoticeDays =
- *     max(0, 14 - noticeGivenDays)).
+ *   - If notice >= {@link VACATING_NOTICE_MIN_DAYS} days: no deposit deduction.
+ *   - If notice < min days: deduct missingNoticeDays × dailyRent
+ *     (dailyRent = floor(monthlyRent / 30), missingNoticeDays from notice engine).
  *
  * The monthly rent and computed deduction are snapshotted onto the
  * vacating_requests row at SUBMIT time, so a later rate change can't
@@ -53,6 +52,7 @@ import { reconcileBookingOccupancy } from '../lib/occupancySync';
 import {
   isNoticeCompliant,
   noticeShortfallDays,
+  VACATING_NOTICE_MIN_DAYS,
 } from './billing';
 import { computeNoticeDeductionForBooking } from './noticeDeduction';
 import { noticeDeductionLedgerReason } from '@/src/lib/vacating/noticeDeductionEngine';
@@ -1076,7 +1076,7 @@ export async function completeVacatingRequest(
         stored && typeof stored === 'object' && 'chargeableNoticeDays' in stored
           ? noticeDeductionLedgerReason(stored as NoticeDeductionBreakdown)
           : noticeDeductionLedgerReason({
-              noticeRequiredDays: 14,
+              noticeRequiredDays: VACATING_NOTICE_MIN_DAYS,
               noticeGivenDays: diffDays(current.noticeGivenDate, current.vacatingDate),
               missingNoticeDays: noticeShortfallDays({
                 noticeGivenDate: current.noticeGivenDate,

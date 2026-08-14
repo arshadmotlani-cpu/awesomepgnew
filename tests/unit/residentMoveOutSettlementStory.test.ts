@@ -17,7 +17,7 @@ test('Kunal-shaped story: money flow order and deposit refund', () => {
     monthlyRentPaiseSnapshot: 412_100,
     waterfall,
     mode: 'estimate',
-    deductionPaise: 192_300,
+    deductionPaise: 68_665,
   });
 
   assert.ok(story);
@@ -31,21 +31,18 @@ test('Kunal-shaped story: money flow order and deposit refund', () => {
     RESIDENT_STORY_LABELS.unusedRentBalance,
     RESIDENT_STORY_LABELS.noticePolicyCharge,
     RESIDENT_STORY_LABELS.paidUsingUnusedRent,
-    RESIDENT_STORY_LABELS.remainingNoticeCharge,
-    RESIDENT_STORY_LABELS.takenFromSecurityDeposit,
   ]);
 
   assert.equal(story.moneyFlowSteps[0]?.amountPaise, 247_200);
   assert.equal(story.moneyFlowSteps[1]?.amountPaise, 164_800);
-  assert.equal(story.moneyFlowSteps[2]?.amountPaise, 192_300);
-  assert.equal(story.moneyFlowSteps[3]?.amountPaise, 164_800);
-  assert.equal(story.moneyFlowSteps[5]?.amountPaise, 27_500);
+  assert.equal(story.moneyFlowSteps[2]?.amountPaise, 68_665);
+  assert.equal(story.moneyFlowSteps[3]?.amountPaise, 68_665);
 
-  assert.equal(story.deposit.remainingPaise, 384_600);
-  assert.equal(story.refund.expectedDepositRefundPaise, 384_600);
+  assert.equal(story.deposit.remainingPaise, 412_100);
+  assert.equal(story.refund.expectedDepositRefundPaise, 412_100);
   assert.equal(story.refund.showApproxPrefix, true);
   assert.equal(story.moveOutDetails.badge, 'short');
-  assert.equal(story.moveOutDetails.noticeShortDays, 14);
+  assert.equal(story.moveOutDetails.noticeShortDays, 5);
 });
 
 test('compliant notice: green badge and no notice charge flow', () => {

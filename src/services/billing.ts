@@ -31,9 +31,9 @@ import {
 } from './lateFeePolicyCore';
 
 /** Minimum calendar days of notice before vacating for zero deposit deduction. */
-export const VACATING_NOTICE_MIN_DAYS = 14;
+export const VACATING_NOTICE_MIN_DAYS = 5;
 
-/** Maximum missing-notice days charged (0-day notice → 14 × daily rent). */
+/** Maximum missing-notice days charged (0-day notice → minDays × daily rent). */
 export const VACATING_NOTICE_MAX_DEDUCTION_DAYS = VACATING_NOTICE_MIN_DAYS;
 
 /**

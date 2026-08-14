@@ -10,6 +10,7 @@ import {
 } from '@/src/lib/checkout/settlementDisplayFormat';
 import type { EstimatedSettlementPreview } from '@/src/lib/vacating/estimatedSettlementPreview';
 import type { VacatingBillingPresentation } from '@/src/lib/vacating/loadVacatingBillingPresentation';
+import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 
 export const SETTLEMENT_EXPLANATION_LINE_IDS = [
   'rent_paid',
@@ -272,7 +273,7 @@ export function buildMoveOutSettlementExplanations(
         'NoticeDeductionEngine',
         [
           `Notice given: ${presentation.noticeDisplay.noticeGivenDays ?? '—'} days`,
-          `Required: ${presentation.noticeDisplay.noticeRequiredDays ?? 14} days`,
+          `Required: ${presentation.noticeDisplay.noticeRequiredDays ?? VACATING_NOTICE_MIN_DAYS} days`,
           ...reasons,
         ],
       );

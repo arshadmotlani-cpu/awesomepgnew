@@ -55,7 +55,7 @@ test('fixed stay unlocked after auto-expiry completes booking', () => {
   assert.equal(result.canRequestRefund, true);
 });
 
-test('notice penalty zero when notice >= 14 days at booking', () => {
+test('notice penalty zero when notice >= 5 days at booking', () => {
   const deduction = estimateNoticeDeductionPaise({
     monthlyRentPaise: 30_000,
     noticeGivenDate: '2026-05-20',
@@ -68,10 +68,10 @@ test('notice penalty uses missing days × daily rent for short notice monthly pa
   const deduction = estimateNoticeDeductionPaise({
     monthlyRentPaise: 30_000,
     noticeGivenDate: '2026-06-05',
-    vacatingDate: '2026-06-10',
+    vacatingDate: '2026-06-09',
   });
-  // 5 days notice → 9 missing × floor(30000/30)=1000 → 9000
-  assert.equal(deduction, 9000);
+  // 4 days notice → 1 missing × floor(30000/30)=1000 → 1000
+  assert.equal(deduction, 1000);
 });
 
 test('monthly vacating locked until vacate date after approval', () => {

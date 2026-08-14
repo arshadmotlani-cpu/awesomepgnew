@@ -15,7 +15,7 @@ test('open-ended stay shows notice note', () => {
   assert.ok(stay);
   assert.equal(stay.isOpenEnded, true);
   assert.match(stay.displayLabel, /Continue living \(open-ended\)/);
-  assert.match(stay.noticeNote ?? '', /14-day notice/);
+  assert.match(stay.noticeNote ?? '', /5-day notice/);
 });
 
 test('fixed stay shows check-in and check-out with stay period note', () => {

@@ -8,6 +8,7 @@ import {
   cancelVacatingDateChangeRequestAction,
 } from '@/app/(customer)/account/resident/vacating-date-change-actions';
 import type { VacatingDateChangePreview } from '@/src/services/vacatingDateChange';
+import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 
 export function ChangeLeavingDateForm({
   bookingId,
@@ -57,8 +58,8 @@ export function ChangeLeavingDateForm({
     <div className="rounded-xl border border-zinc-200 bg-white p-4">
       <h3 className="text-sm font-semibold text-zinc-900">Change leaving date</h3>
       <p className="mt-1 text-xs text-zinc-600">
-        Current date: {formatDate(currentVacatingDate)}. The new date must still satisfy the 14-day
-        notice rule from when you submitted notice.
+        Current date: {formatDate(currentVacatingDate)}. The new date must still satisfy the{' '}
+        {VACATING_NOTICE_MIN_DAYS}-day notice rule from when you submitted notice.
       </p>
       <label className="mt-3 block text-xs font-medium text-zinc-700">
         New leaving date

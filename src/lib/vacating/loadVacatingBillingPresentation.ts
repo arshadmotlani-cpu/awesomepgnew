@@ -23,6 +23,7 @@ import {
   computeVacatingSettlementWaterfallFromContext,
   loadVacatingSettlementWaterfallContext,
 } from '@/src/lib/vacating/computeVacatingSettlementPreview';
+import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 
 export type { VacatingSettlementWaterfallContext };
 
@@ -67,7 +68,7 @@ export function noticeDisplayFromBillingCoverage(
   const notice = coverage.noticeBreakdown
     ? toNoticeSettlementDisplay(coverage.noticeBreakdown)
     : {
-        noticeRequiredDays: 14,
+        noticeRequiredDays: VACATING_NOTICE_MIN_DAYS,
         noticeGivenDays: 0,
         missingNoticeDays: 0,
         billingDay: coverage.billingDay,

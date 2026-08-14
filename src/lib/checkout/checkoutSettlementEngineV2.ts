@@ -67,6 +67,11 @@ export type CheckoutSettlementV2Input = {
   noticeApplies?: boolean;
   /** Tail rent for suppressed final anniversary period (approved move-out). */
   checkoutTailRentPaise?: number;
+  /**
+   * BCM prepaid after vacate (days after vacating through paid-through × daily rate).
+   * When > 0, unused rent bucket uses this instead of stay-based rentPaid − consumed.
+   */
+  prepaidAfterVacatingPaise?: number;
 };
 
 function stayDaysInclusive(checkIn: string, checkout: string): number {
@@ -83,9 +88,17 @@ export function computeCheckoutSettlementV2(
   const dailyRentPaise = dailyRateFromMonthly(monthlyRentPaise);
   const stayDays = stayDaysInclusive(input.stayCheckInDate, input.stayCheckoutDate);
 
-  const rentConsumedRaw = dailyRentPaise * stayDays;
-  const rentConsumedPaise = Math.min(rentPaidPaise, guardDepositPaise(rentConsumedRaw));
-  const unusedRentPaise = Math.max(0, rentPaidPaise - rentConsumedPaise);
+  const prepaidAfterVacatingPaise = guardDepositPaise(input.prepaidAfterVacatingPaise ?? 0);
+  let rentConsumedPaise: number;
+  let unusedRentPaise: number;
+  if (prepaidAfterVacatingPaise > 0) {
+    unusedRentPaise = Math.min(rentPaidPaise, prepaidAfterVacatingPaise);
+    rentConsumedPaise = Math.max(0, rentPaidPaise - unusedRentPaise);
+  } else {
+    const rentConsumedRaw = dailyRentPaise * stayDays;
+    rentConsumedPaise = Math.min(rentPaidPaise, guardDepositPaise(rentConsumedRaw));
+    unusedRentPaise = Math.max(0, rentPaidPaise - rentConsumedPaise);
+  }
 
   const noticeApplies = input.noticeApplies !== false;
   const missingNoticeDays = noticeApplies

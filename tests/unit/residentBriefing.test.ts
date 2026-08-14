@@ -26,7 +26,7 @@ test('buildResidentBriefingMessage greets resident and covers booking, PS4, vaca
   assert.match(text, /PS4/);
   assert.match(text, /₹350/);
   assert.match(text, /vacating date/i);
-  assert.match(text, /14 days notice/);
+  assert.match(text, /5 days notice/);
   assert.match(text, /request-vacating/);
 });
 

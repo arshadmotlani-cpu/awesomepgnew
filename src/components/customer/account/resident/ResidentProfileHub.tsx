@@ -39,6 +39,8 @@ type Props = {
   bookingId: string;
   customerId: string;
   availableRefundPaise: number;
+  unusedPrepaidRentPaise?: number;
+  depositRefundablePaise?: number;
   entries: DepositLedgerEntry[];
   hasOpenVacating: boolean;
   refundEligibility: DepositRefundEligibility;
@@ -71,6 +73,8 @@ export function ResidentProfileHub({
   bookingId,
   customerId,
   availableRefundPaise,
+  unusedPrepaidRentPaise = 0,
+  depositRefundablePaise,
   entries,
   hasOpenVacating,
   refundEligibility,
@@ -122,6 +126,8 @@ export function ResidentProfileHub({
           depositBalancePaise={depositBalancePaise}
           depositDuePaise={depositDuePaise}
           availableRefundPaise={availableRefundPaise}
+          unusedPrepaidRentPaise={unusedPrepaidRentPaise}
+          depositRefundablePaise={depositRefundablePaise}
           entries={entries}
           hasOpenVacating={hasOpenVacating}
           refundEligibility={refundEligibility}

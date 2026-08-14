@@ -143,7 +143,7 @@ export const RESIDENT_GUIDE: GuideCatalog = {
       id: 'vacating',
       title: 'Request vacating (move-out notice)',
       category: 'Move-out',
-      keywords: ['vacating', 'move out', 'leave', 'notice', 'penalty', '14 days'],
+      keywords: ['vacating', 'move out', 'leave', 'notice', 'penalty', '5 days'],
       summary: `Give at least ${VACATING_NOTICE_MIN_DAYS} days notice to avoid a deposit deduction.`,
       steps: [
         'Open Resident area → Request vacating (or the vacating link for your booking).',

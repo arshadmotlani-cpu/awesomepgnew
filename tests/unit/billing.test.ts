@@ -141,27 +141,26 @@ test('vacatingPenalty is deprecated fixed 5-day helper (legacy scripts only)', (
   assert.equal(vacatingPenalty(6_00_000), 100_000); // 5 × ₹200 = ₹1,000
 });
 
-test('maxNoticeDeduction is 14 × daily rent (worst case)', () => {
-  assert.equal(maxNoticeDeduction(6_00_000), 280_000); // 14 × ₹200
+test('maxNoticeDeduction is minDays × daily rent (worst case)', () => {
+  assert.equal(maxNoticeDeduction(6_00_000), 100_000); // 5 × ₹200
 });
 
 test('computeNoticeDeduction (legacy, no rent coverage): pro-rata missing notice days × daily rent', () => {
   const monthly = 408_000; // ₹4,080/mo → ₹136/day
   const deduction = computeNoticeDeduction(monthly, {
     noticeGivenDate: '2026-06-01',
-    vacatingDate: '2026-06-07', // 6 days notice → 8 missing
+    vacatingDate: '2026-06-07', // 6 days notice → compliant (≥5)
   });
-  assert.equal(deduction, 108_800); // 8 × ₹136
+  assert.equal(deduction, 0);
 });
 
 test('computeNoticeDeduction policy matrix', () => {
   const monthly = 300_000; // ₹3,000/mo → ₹100/day
   const cases = [
     { given: '2026-06-01', vacate: '2026-06-15', expected: 0 }, // 14 days
-    { given: '2026-06-01', vacate: '2026-06-14', expected: 100_00 }, // 13 days → 1 missing
-    { given: '2026-06-01', vacate: '2026-06-11', expected: 400_00 }, // 10 days → 4 missing
-    { given: '2026-06-01', vacate: '2026-06-06', expected: 900_00 }, // 5 days → 9 missing
-    { given: '2026-06-01', vacate: '2026-06-01', expected: 1400_00 }, // 0 days → 14 missing
+    { given: '2026-06-01', vacate: '2026-06-06', expected: 0 }, // 5 days → compliant
+    { given: '2026-06-01', vacate: '2026-06-05', expected: 100_00 }, // 4 days → 1 missing
+    { given: '2026-06-01', vacate: '2026-06-01', expected: 500_00 }, // 0 days → 5 missing
   ] as const;
   for (const c of cases) {
     assert.equal(
@@ -182,8 +181,8 @@ test('noticeShortfallDeduction multiplies shortfall by daily rate', () => {
 
 test('noticeShortfallDays matches missing notice days', () => {
   assert.equal(
-    noticeShortfallDays({ noticeGivenDate: '2026-06-01', vacatingDate: '2026-06-07' }),
-    8,
+    noticeShortfallDays({ noticeGivenDate: '2026-06-01', vacatingDate: '2026-06-05' }),
+    1,
   );
 });
 
@@ -197,13 +196,13 @@ test('computeNoticeDeduction: compliant notice is zero', () => {
   );
 });
 
-test('isNoticeCompliant: 14-day boundary inclusive', () => {
+test('isNoticeCompliant: 5-day boundary inclusive', () => {
   assert.equal(
-    isNoticeCompliant({ noticeGivenDate: '2026-06-01', vacatingDate: '2026-06-15' }),
+    isNoticeCompliant({ noticeGivenDate: '2026-06-01', vacatingDate: '2026-06-06' }),
     true,
   );
   assert.equal(
-    isNoticeCompliant({ noticeGivenDate: '2026-06-01', vacatingDate: '2026-06-14' }),
+    isNoticeCompliant({ noticeGivenDate: '2026-06-01', vacatingDate: '2026-06-05' }),
     false,
   );
   assert.equal(

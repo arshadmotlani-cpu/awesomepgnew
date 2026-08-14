@@ -230,23 +230,57 @@ export function buildAdminSettlementAuditBreakdown(
     rows: deductionRows,
   };
 
+  const depositRefundableBeforeElecOtherPaise =
+    waterfall
+      ? waterfall.depositBucket.refundablePaise +
+        electricityDeductPaise +
+        (waterfall.depositBucket.otherPaise ?? 0)
+      : detail.depositRefundablePaise;
+  const unusedPrepaidRefundPaise =
+    waterfall?.refund.unusedRentPortionPaise ?? preview.unusedRentRefundPaise ?? 0;
+  const otherDeductionsPaise = waterfall
+    ? waterfall.depositBucket.otherPaise
+    : damagePaise + cleaningPaise + customPaise;
+
   const totals: AdminSettlementAuditSection = {
     title: 'Deposit & refund',
     rows: [
       {
-        id: 'deposit_held',
-        label: 'Deposit held',
-        value: formatSettlementPaise(detail.depositRefundablePaise),
+        id: 'security_deposit_refundable',
+        label: 'Security deposit refundable',
+        value: formatSettlementPaise(depositRefundableBeforeElecOtherPaise),
+      },
+      ...(unusedPrepaidRefundPaise > 0
+        ? [
+            {
+              id: 'unused_prepaid_rent_refund',
+              label: 'Unused prepaid rent',
+              value: formatSettlementPaise(unusedPrepaidRefundPaise),
+              hint: notice?.unusedPrepaidRentDays
+                ? `${notice.unusedPrepaidRentDays} day${notice.unusedPrepaidRentDays === 1 ? '' : 's'} after vacate`
+                : undefined,
+            },
+          ]
+        : []),
+      {
+        id: 'electricity_total',
+        label: 'Electricity deduction',
+        value: electricityPending
+          ? PENDING_ELECTRICITY_LABEL
+          : formatSettlementPaise(electricityDeductPaise, true),
+        deduct: !electricityPending,
+      },
+      {
+        id: 'other_deductions_total',
+        label: 'Other deductions',
+        value: damagePending ? PENDING_DAMAGES_LABEL : formatSettlementPaise(otherDeductionsPaise, true),
+        deduct: !damagePending,
       },
       {
         id: 'final_refund',
         label: refundLabel,
         value: formatSettlementPaise(finalRefundPaise),
         emphasis: true,
-        hint:
-          waterfall && waterfall.refund.unusedRentPortionPaise > 0
-            ? `Includes ${paiseToInr(waterfall.refund.unusedRentPortionPaise)} unused rent credit`
-            : undefined,
       },
     ],
   };
