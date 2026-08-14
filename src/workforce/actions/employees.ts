@@ -173,7 +173,16 @@ export async function updateWorkforceEmployeeAction(
     revalidatePath('/workforce');
     revalidatePath('/staff');
     revalidatePath(`/staff/${id}`);
-    return { success: 'Employee updated.' };
+
+    const section = formStr(formData, 'saveSection');
+    const successBySection: Record<string, string> = {
+      'staff-details': 'Staff details saved.',
+      credentials: 'Credentials saved.',
+      salary: 'Salary and incentives saved.',
+      rights: 'Permissions saved.',
+      schedule: 'Week-off days saved.',
+    };
+    return { success: successBySection[section] ?? 'Employee updated.' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to update employee' };
   }

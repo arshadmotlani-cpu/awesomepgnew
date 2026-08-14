@@ -5,9 +5,11 @@ import { getIncentivePlan } from '@/src/workforce/services/incentivePlans';
 import { computeSalonPeriodIncentive } from '@/src/workforce/services/salonIncentive';
 import { resolvePreviousMonthPeriod } from '@/src/workforce/lib/payrollPeriod';
 import { weekOffDaysFromSchedule } from '@/src/workforce/lib/weekOff';
-import { requireStaffManagementAccess } from '@/src/hair/lib/auth/staffManagementAccess';
+import {
+  canEditStaffProfiles,
+  requireStaffManagementAccess,
+} from '@/src/hair/lib/auth/staffManagementAccess';
 import { getHairSession } from '@/src/hair/lib/auth/session';
-import { hasWorkforcePermission } from '@/src/workforce/permissions/presets';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 import { isSystemProviderEmployee } from '@/src/workforce/services/systemOwnerProvider';
 
@@ -31,7 +33,7 @@ export default async function EmployeeProfilePage({ params }: Props) {
 
   const incentivePlan = await getIncentivePlan(employeeId, 'fyh_salon');
   const weekOffDays = weekOffDaysFromSchedule(dash.schedule);
-  const canEdit = hasWorkforcePermission(access.grants, 'staff.edit');
+  const canEdit = canEditStaffProfiles(access);
   const canToggleIncentive =
     access.grants === null || viewerDash?.membership?.jobRole === 'owner';
 

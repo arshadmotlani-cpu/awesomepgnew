@@ -153,6 +153,7 @@ export function EmployeeProfilePanel({
         className="space-y-6 rounded-xl border border-[color:var(--fyh-border)] p-4"
       >
         <input type="hidden" name="employeeId" value={employee.id} />
+        <input type="hidden" name="saveSection" value={activeSection} />
         <input type="hidden" name="qrCodeUrl" value={qrPreview ?? employee.qrCodeUrl ?? ''} />
         <input type="hidden" name="salaryFrequency" value="monthly" />
         {(!canEditIncentiveRules || activeSection !== 'salary') ? (

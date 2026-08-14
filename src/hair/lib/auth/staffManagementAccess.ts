@@ -11,6 +11,12 @@ export type StaffManagementAccess = {
   grants: WorkforcePermissionGrants | null;
 };
 
+/** True when the viewer may edit employee profiles (super_admin or staff.edit). */
+export function canEditStaffProfiles(access: StaffManagementAccess): boolean {
+  if (access.grants === null) return true;
+  return hasWorkforcePermission(access.grants, 'staff.edit');
+}
+
 /**
  * Staff Management is available to Workforce users with staff.view or legacy super_admin.
  * Avoids redirecting ecosystem admins to /login → /dashboard/revenue.
