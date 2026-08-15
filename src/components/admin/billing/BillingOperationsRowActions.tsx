@@ -121,6 +121,7 @@ export function BillingOperationsRowActions({
           className={BTN}
           disabled={pending}
           onClick={() => {
+            if (!dueDate) return;
             startTransition(async () => {
               const fd = new FormData();
               fd.set('residentId', customerId);
