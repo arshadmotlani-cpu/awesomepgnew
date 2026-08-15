@@ -165,6 +165,15 @@ export default async function OperationsPage({
 
       <AdminSectionErrorBoundary title="Operations">
         <div className="space-y-8">
+          <OperationsMasterQueue
+            data={data}
+            isSuperAdmin={session.role === 'super_admin'}
+            recentRejections={recentRejections}
+            moveOutPipelineActiveItems={moveOutPipelineActiveItems}
+            approvalPreviewByRequestId={approvalPreviewByRequestId}
+            dateChangeBundle={dateChangeBundle}
+            focusRequestId={focusRequestId}
+          />
           <OperationsAttentionBoard
             totalCount={data.totalCount}
             cards={attentionCards}
@@ -175,15 +184,6 @@ export default async function OperationsPage({
             hideDateChangePanels={filter === 'vacating_requests'}
           />
           <OperationsActivityFeed groups={activityGroups} />
-          <OperationsMasterQueue
-            data={data}
-            isSuperAdmin={session.role === 'super_admin'}
-            recentRejections={recentRejections}
-            moveOutPipelineActiveItems={moveOutPipelineActiveItems}
-            approvalPreviewByRequestId={approvalPreviewByRequestId}
-            dateChangeBundle={dateChangeBundle}
-            focusRequestId={focusRequestId}
-          />
         </div>
       </AdminSectionErrorBoundary>
     </>
