@@ -134,8 +134,8 @@ export async function previewVacatingDateChange(input: {
   const requestedDate = normalizeIsoDateOnly(input.requestedVacatingDate);
   const today = formatDate(new Date());
 
-  if (!requestedDate || requestedDate <= today) {
-    return { ok: false, error: 'New leaving date must be after today.' };
+  if (!requestedDate || requestedDate < today) {
+    return { ok: false, error: 'Final stay date cannot be in the past.' };
   }
   if (requestedDate === currentDate) {
     return { ok: false, error: 'Choose a different leaving date.' };

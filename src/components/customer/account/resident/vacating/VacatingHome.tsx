@@ -2,47 +2,28 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ApgCard, StatusChip, StatusTimeline } from '@/src/components/customer/design-system';
+import { ApgCard } from '@/src/components/customer/design-system';
 import { DepositRefundRequestForm } from '@/src/components/customer/account/DepositRefundRequestForm';
-import { CancelVacatingForm } from '@/src/components/customer/CancelVacatingForm';
 import { MoveOutRefundSuccess } from '@/src/components/customer/account/resident/vacating/MoveOutRefundSuccess';
 import { ChangeLeavingDateForm } from '@/src/components/customer/account/resident/vacating/ChangeLeavingDateForm';
+import { ResidentMoveOutActionsCard } from '@/src/components/customer/account/resident/vacating/ResidentMoveOutActionsCard';
+import { ResidentMoveOutRefundCard } from '@/src/components/customer/account/resident/vacating/ResidentMoveOutRefundCard';
+import { ResidentMoveOutSummaryCard } from '@/src/components/customer/account/resident/vacating/ResidentMoveOutSummaryCard';
 import type { ResidentSettlementStatementContext } from '@/src/components/customer/account/resident/vacating/ResidentEstimatedSettlementBreakdown';
-import { ResidentMoveOutSettlementStory } from '@/src/components/customer/account/resident/vacating/ResidentMoveOutSettlementStory';
-import { cancelApprovedVacatingAction } from '@/app/(customer)/account/resident/vacating-date-change-actions';
-import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
-import {
-  buildVacatingSettlementLines,
-  vacatingNextStep,
-  vacatingStageIndex,
-} from '@/src/lib/residents/vacatingJourney';
-import {
-  buildVacatingTimelineStages,
-  currentStageLabel,
-  estimateRefundPaise,
-  expectedCompletionLabel,
-  isBeforeVacatingDate,
-  refundUnlockCountdown,
-  residentSettlementStatusLabel,
-} from '@/src/lib/residents/vacatingPresentation';
 import { isFixedStayDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
 import type { CheckoutSettlementWaterfall } from '@/src/lib/checkout/checkoutSettlementEngineV2';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
-import { formatDate, paiseToInr } from '@/src/lib/format';
+import { formatDate } from '@/src/lib/format';
 import { primaryBtn } from '@/src/lib/design-system/tokens';
 import type { EstimatedSettlementPreview } from '@/src/lib/vacating/estimatedSettlementPreview';
-import { ExitBrainRefundBreakdown } from '@/src/components/customer/account/resident/vacating/ExitBrainRefundBreakdown';
-import { ExitBrainTimeline } from '@/src/components/customer/account/resident/vacating/ExitBrainTimeline';
-import { ExitBrainChecklist } from '@/src/components/customer/account/resident/vacating/ExitBrainChecklist';
 import type { ResidentExitBrainSnapshot } from '@/src/lib/exit/exitBrainTypes';
 import {
-  isMoveOutLifecycleActive,
   isMoveOutLifecycleComplete,
-  isNoticeApprovedOrExitActive,
-  isNoticeSubmittedState,
   resolveExitLifecycleFromSnapshot,
-  residentMoveOutStatusLabel,
 } from '@/src/lib/exit/exitBrainLifecycleUi';
+import { buildResidentMoveOutRefundSummary } from '@/src/lib/residents/residentMoveOutRefundSummary';
+import { buildResidentMoveOutResidentActions } from '@/src/lib/residents/residentMoveOutResidentActions';
+import { estimateRefundPaise } from '@/src/lib/residents/vacatingPresentation';
 
 type Props = {
   bookingId: string;
@@ -81,49 +62,6 @@ function safeDateString(value: unknown): string | null {
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
 }
 
-function SettlementStoryBlock({
-  vacating,
-  vacatingDate,
-  noticeGiven,
-  depositHeldPaise,
-  monthlyRentPaise,
-  durationMode,
-  resolvedWaterfall,
-  settlementMode,
-  settlementDocument,
-  notice,
-}: {
-  vacating: VacatingForBookingRow;
-  vacatingDate: string | null;
-  noticeGiven: string | null;
-  depositHeldPaise: number;
-  monthlyRentPaise?: number;
-  durationMode: string;
-  resolvedWaterfall: CheckoutSettlementWaterfall;
-  settlementMode: EstimatedSettlementPreview['mode'];
-  settlementDocument: Props['settlementDocument'];
-  notice: Props['settlementNoticeDisplay'];
-}) {
-  return (
-    <ResidentMoveOutSettlementStory
-      noticeGivenDate={noticeGiven}
-      vacatingDate={vacatingDate}
-      vacatingStatus={vacating.status}
-      durationMode={durationMode}
-      depositHeldPaise={depositHeldPaise}
-      monthlyRentPaise={monthlyRentPaise}
-      monthlyRentPaiseSnapshot={vacating.monthlyRentPaiseSnapshot}
-      waterfall={resolvedWaterfall}
-      mode={settlementMode}
-      settlementDocument={settlementDocument}
-      noticeRentCoveredDays={vacating.noticeRentCoveredDays}
-      noticeChargeableDays={vacating.noticeChargeableDays}
-      deductionPaise={vacating.deductionPaise}
-      notice={notice}
-    />
-  );
-}
-
 export function VacatingHome({
   bookingId,
   bookingCode,
@@ -139,13 +77,9 @@ export function VacatingHome({
   checkoutSettlementSuppressed = false,
   depositHeldPaise,
   durationMode = 'monthly',
-  expectedCheckoutDate = null,
   estimatedSettlement = null,
   pendingDateChangeRequestId = null,
-  settlementDocument = null,
-  settlementNoticeDisplay = null,
   exitBrainSnapshot = null,
-  monthlyRentPaise,
 }: Props) {
   const router = useRouter();
   const fixedStay = isFixedStayDurationMode(durationMode);
@@ -160,57 +94,11 @@ export function VacatingHome({
   const settlementMode: EstimatedSettlementPreview['mode'] =
     estimatedSettlement?.mode ?? (settlementWaterfall != null ? 'final' : 'estimate');
 
-  const showSettlementStory =
-    vacating != null && isMoveOutLifecycleActive(lifecycle) && resolvedWaterfall != null;
-
   const refundGate = {
     allowed: lifecycle.capabilities.canRequestRefund.allowed,
     reason: lifecycle.capabilities.canRequestRefund.reason,
   };
 
-  const activeIndex = vacatingStageIndex({
-    vacatingStatus: vacating?.status ?? null,
-    checkoutStatus,
-    vacatingDate,
-    durationMode,
-    checkoutSettlementSuppressed,
-    finalRefundPaise: totalRefundPaise,
-  });
-
-  const timelineStages = buildVacatingTimelineStages({
-    vacatingStatus: vacating?.status ?? null,
-    checkoutStatus,
-    vacatingDate,
-    durationMode,
-    checkoutSettlementSuppressed,
-    finalRefundPaise: totalRefundPaise,
-    waterfall: settlementWaterfall,
-  });
-
-  const settlementStatusLabel = residentSettlementStatusLabel({
-    checkoutStatus,
-    waterfall: settlementWaterfall,
-  });
-
-  const nextStep = vacatingNextStep({
-    vacating,
-    checkoutStatus,
-    durationMode,
-    expectedCheckoutDate,
-    estimatedFinalRefundPaise: estimateRefundPaise(depositHeldPaise, vacating),
-    checkoutSettlementSuppressed,
-  });
-
-  const settlementLines = buildVacatingSettlementLines(vacating);
-  const v2RefundEstimate = estimatedSettlement?.estimatedRefundPaise ?? null;
-  const refundEstimate = v2RefundEstimate ?? estimateRefundPaise(depositHeldPaise, vacating);
-  const completionLabel = expectedCompletionLabel({ vacating, checkoutStatus });
-  const stageLabel = currentStageLabel(
-    vacating?.status ?? null,
-    checkoutStatus,
-    vacatingDate,
-    durationMode,
-  );
   const isRejected = vacating?.status === 'rejected';
   const isMoveOutComplete = isMoveOutLifecycleComplete(lifecycle);
 
@@ -220,89 +108,47 @@ export function VacatingHome({
     !checkoutSettlementSuppressed &&
     !isMoveOutComplete;
 
-  const showHeroCompletion =
-    completionLabel && !isMoveOutComplete && !showSettlementStory && activeIndex <= 3;
-
-  const beforeVacateDate =
-    isNoticeApprovedOrExitActive(lifecycle.state) &&
-    vacatingDate != null &&
-    isBeforeVacatingDate(vacatingDate);
-
   const showChangeLeavingDate =
     lifecycle.capabilities.canEditVacating.allowed &&
     !checkoutSettlementSuppressed &&
     !checkoutStatus &&
-    !isMoveOutComplete;
+    !isMoveOutComplete &&
+    !fixedStay;
 
   const changeLeavingDateBlockedReason =
     !showChangeLeavingDate &&
     vacating?.status === 'approved' &&
     vacatingDate &&
     !isRejected &&
-    !isMoveOutComplete
-      ? checkoutSettlementSuppressed
-        ? 'Move-out settlement is not available for this booking.'
-        : checkoutStatus
-          ? 'Checkout settlement has already started — contact the office to request a new final stay date.'
-          : lifecycle.capabilities.canEditVacating.reason ?? 'Leaving date cannot be changed right now.'
-      : null;
-
-  const showRefundLockedCard =
-    !showRefundForm &&
     !isMoveOutComplete &&
-    lifecycle.state === 'exit_active' &&
-    beforeVacateDate &&
-    activeIndex === 2;
-
-  const unlockCountdown =
-    showRefundLockedCard && vacatingDate
-      ? refundUnlockCountdown({ vacatingDate })
+    !fixedStay
+      ? checkoutSettlementSuppressed
+        ? 'Move-out settlement is not available for this booking. Contact the office if you need to change your date.'
+        : checkoutStatus
+          ? 'Your move-out is already being processed. Contact the office if you need a different final stay date.'
+          : lifecycle.capabilities.canEditVacating.reason ?? 'Your final stay date cannot be changed right now.'
       : null;
-
-  const heroDetail =
-    activeIndex >= 3 && settlementStatusLabel
-      ? settlementStatusLabel
-      : showRefundLockedCard && unlockCountdown
-        ? unlockCountdown.headline
-        : nextStep.detail;
 
   const successRefundPaise =
     totalRefundPaise ??
     settlementWaterfall?.refund.totalPaise ??
-    refundEstimate ??
+    estimatedSettlement?.estimatedRefundPaise ??
+    estimateRefundPaise(depositHeldPaise, vacating) ??
     0;
 
-  const storyBlock =
-    showSettlementStory && vacating && resolvedWaterfall ? (
-      <SettlementStoryBlock
-        vacating={vacating}
-        vacatingDate={vacatingDate}
-        noticeGiven={noticeGiven}
-        depositHeldPaise={depositHeldPaise}
-        monthlyRentPaise={monthlyRentPaise}
-        durationMode={durationMode}
-        resolvedWaterfall={resolvedWaterfall}
-        settlementMode={settlementMode}
-        settlementDocument={settlementDocument}
-        notice={settlementNoticeDisplay}
-      />
-    ) : null;
+  const refundSummary =
+    resolvedWaterfall != null ? buildResidentMoveOutRefundSummary(resolvedWaterfall) : null;
 
-  const exitBrainPanel =
-    exitBrainSnapshot &&
-    vacating &&
-    (isMoveOutLifecycleActive(lifecycle) || lifecycle.state === 'refund_completed') ? (
-      <div className="space-y-4">
-        {exitBrainSnapshot.lifecycle.state !== 'inactive' ? (
-          <p className="text-xs font-medium text-zinc-600">
-            Exit state: {exitBrainSnapshot.lifecycle.stateLabel}
-          </p>
-        ) : null}
-        <ExitBrainTimeline events={exitBrainSnapshot.timeline} theme="light" />
-        <ExitBrainChecklist items={exitBrainSnapshot.checklist} theme="light" />
-        <ExitBrainRefundBreakdown snapshot={exitBrainSnapshot} theme="light" />
-      </div>
-    ) : null;
+  const residentActions = buildResidentMoveOutResidentActions({
+    vacatingStatus: vacating?.status ?? null,
+    pendingDateChangeRequestId,
+    checkoutStatus,
+    checklist: exitBrainSnapshot?.checklist,
+    hasPayoutDetails: Boolean(resolvedPayoutUpiId),
+  });
+
+  const footerMessage =
+    'Once your move-out is completed, we will calculate the final settlement and process your refundable amount after any applicable deductions.';
 
   if (fixedStay) {
     return (
@@ -315,18 +161,22 @@ export function VacatingHome({
             bookingId={bookingId}
           />
         ) : (
-          <ApgCard tier="account" className="overflow-hidden p-0">
-            <div className="border-b border-zinc-200 bg-gradient-to-br from-zinc-50 via-white to-white px-5 py-6">
-              <p className="text-xs font-semibold uppercase tracking-wide text-apg-orange">
-                Fixed-stay checkout
-              </p>
-              <h2 className="mt-2 text-xl font-bold text-zinc-900">{nextStep.headline}</h2>
-              <p className="mt-1 text-sm text-zinc-600">{heroDetail}</p>
-            </div>
+          <ApgCard tier="resident" className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-apg-orange">
+              Fixed-stay checkout
+            </p>
+            <h2 className="text-lg font-semibold text-white">Your checkout</h2>
+            <p className="text-sm text-apg-silver">
+              {roomLabel} · Booking {bookingCode}
+            </p>
           </ApgCard>
         )}
-        {storyBlock}
-        {exitBrainPanel}
+        {refundSummary ? (
+          <ResidentMoveOutRefundCard
+            summary={refundSummary}
+            showApproxPrefix={settlementMode !== 'final'}
+          />
+        ) : null}
         {showRefundForm ? (
           <DepositRefundRequestForm
             bookingId={bookingId}
@@ -337,6 +187,9 @@ export function VacatingHome({
             onSubmitted={() => router.refresh()}
             compact
           />
+        ) : null}
+        {!isMoveOutComplete ? (
+          <p className="text-xs text-apg-silver">{footerMessage}</p>
         ) : null}
       </div>
     );
@@ -351,35 +204,7 @@ export function VacatingHome({
           payoutUpiId={resolvedPayoutUpiId}
           bookingId={bookingId}
         />
-      ) : (
-        <ApgCard tier="account" className="overflow-hidden p-0">
-          <div className="border-b border-zinc-200 bg-gradient-to-br from-zinc-50 via-white to-white px-5 py-6">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-apg-orange">
-                  {stageLabel}
-                </p>
-                <h2 className="mt-2 text-xl font-bold text-zinc-900">{nextStep.headline}</h2>
-                <p className="mt-1 text-sm text-zinc-600">{heroDetail}</p>
-                <p className="mt-2 text-xs text-zinc-500">
-                  {roomLabel} · Booking {bookingCode}
-                </p>
-              </div>
-              {vacating && lifecycle.state !== 'inactive' ? (
-                <StatusChip status={residentMoveOutStatusLabel(lifecycle)} />
-              ) : null}
-            </div>
-          </div>
-          {showHeroCompletion ? (
-            <dl className="grid grid-cols-1 gap-px bg-zinc-100 sm:grid-cols-2">
-              <div className="bg-white px-4 py-3 sm:col-span-2">
-                <dt className="text-[10px] font-medium uppercase text-zinc-500">Expected</dt>
-                <dd className="mt-1 text-sm font-medium text-zinc-900">{completionLabel}</dd>
-              </div>
-            </dl>
-          ) : null}
-        </ApgCard>
-      )}
+      ) : null}
 
       {!vacating ? (
         <Link href={`/account/resident/request-vacating/${bookingId}`} className={primaryBtn}>
@@ -387,11 +212,11 @@ export function VacatingHome({
         </Link>
       ) : isRejected ? (
         <>
-          <ApgCard tier="account" className="border-rose-200 bg-rose-50/60 p-5">
-            <p className="text-sm font-semibold text-rose-900">Move-out request not approved.</p>
+          <ApgCard tier="resident" className="border-rose-500/30 bg-rose-950/20">
+            <p className="text-sm font-semibold text-rose-200">Move-out request not approved</p>
             {vacating.notes?.trim() ? (
-              <p className="mt-2 text-sm text-rose-800">
-                Reason: <span className="font-medium">{vacating.notes.trim()}</span>
+              <p className="mt-2 text-sm text-rose-100/90">
+                {vacating.notes.trim()}
               </p>
             ) : null}
           </ApgCard>
@@ -399,21 +224,17 @@ export function VacatingHome({
             Submit new move-out request
           </Link>
         </>
-      ) : (
+      ) : !isMoveOutComplete ? (
         <>
-          <ApgCard tier="account" className="p-5">
-            <h3 className="text-sm font-semibold text-zinc-900">Your move-out timeline</h3>
-            <div className="mt-4">
-              <StatusTimeline
-                stages={timelineStages}
-                activeIndex={activeIndex}
-                orientation="vertical"
-              />
-            </div>
-          </ApgCard>
-
-          {storyBlock}
-          {exitBrainPanel}
+          {vacatingDate ? (
+            <ResidentMoveOutSummaryCard
+              vacatingDate={vacatingDate}
+              noticeGivenDate={noticeGiven}
+              vacatingStatus={vacating.status}
+              roomLabel={roomLabel}
+              bookingCode={bookingCode}
+            />
+          ) : null}
 
           {showChangeLeavingDate && vacatingDate ? (
             <div id="change-leaving-date">
@@ -425,40 +246,32 @@ export function VacatingHome({
               />
             </div>
           ) : changeLeavingDateBlockedReason ? (
-            <ApgCard tier="account" className="border-zinc-200 bg-zinc-50 p-5">
-              <h3 className="text-sm font-semibold text-zinc-900">Change final stay date</h3>
-              <p className="mt-1 text-sm text-zinc-600">{changeLeavingDateBlockedReason}</p>
-              <p className="mt-2 text-xs text-zinc-500">
-                Your approved final stay date is {formatDate(vacatingDate!)}. Bed release is the
-                following day at 11:00 AM.
-              </p>
+            <ApgCard tier="resident">
+              <h2 className="text-sm font-semibold text-white">Change final stay date</h2>
+              <p className="mt-2 text-sm text-apg-silver">{changeLeavingDateBlockedReason}</p>
+              {vacatingDate ? (
+                <p className="mt-2 text-xs text-apg-silver">
+                  Your approved final stay date is {formatDate(vacatingDate)}.
+                </p>
+              ) : null}
             </ApgCard>
           ) : null}
 
           {checkoutSettlement?.rejectionReason ? (
-            <ApgCard tier="account" className="border-amber-200 bg-amber-50/80 p-5">
-              <p className="text-sm font-semibold text-amber-900">Please resubmit your refund request</p>
-              <p className="mt-1 text-sm text-amber-800">{checkoutSettlement.rejectionReason}</p>
+            <ApgCard tier="resident" className="border-amber-500/30 bg-amber-950/20">
+              <p className="text-sm font-semibold text-amber-200">Please resubmit your refund details</p>
+              <p className="mt-1 text-sm text-amber-100/90">{checkoutSettlement.rejectionReason}</p>
             </ApgCard>
           ) : null}
 
-          {showRefundLockedCard && unlockCountdown && vacatingDate ? (
-            <ApgCard tier="account" className="p-5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold text-zinc-900">Refund request</h3>
-                <span className="rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-semibold text-indigo-800 ring-1 ring-indigo-200">
-                  {unlockCountdown.badgeText}
-                </span>
-              </div>
-              <p className="mt-2 text-sm font-medium text-zinc-900">{unlockCountdown.headline}</p>
-              <p className="mt-1 text-sm text-zinc-600">
-                Approved move-out date · {formatDate(vacatingDate)}
-              </p>
-              <p className="mt-2 text-xs text-zinc-500">
-                After this date, submit your UPI QR and final AC meter photo below.
-              </p>
-            </ApgCard>
+          {refundSummary ? (
+            <ResidentMoveOutRefundCard
+              summary={refundSummary}
+              showApproxPrefix={settlementMode !== 'final'}
+            />
           ) : null}
+
+          <ResidentMoveOutActionsCard items={residentActions} />
 
           {showRefundForm ? (
             <DepositRefundRequestForm
@@ -469,75 +282,30 @@ export function VacatingHome({
               exitBrainSnapshot={exitBrainSnapshot}
               onSubmitted={() => router.refresh()}
             />
-          ) : !showRefundLockedCard &&
-            !refundGate.allowed &&
-            isNoticeApprovedOrExitActive(lifecycle.state) &&
-            activeIndex === 2 ? (
-            <ApgCard tier="account" className="p-5">
-              <h3 className="text-sm font-semibold text-zinc-900">Refund request</h3>
-              <p className="mt-1 text-sm text-zinc-600">{refundGate.reason}</p>
+          ) : !refundGate.allowed && vacating.status === 'approved' && !showRefundForm ? (
+            <ApgCard tier="resident">
+              <p className="text-sm text-apg-silver">{refundGate.reason}</p>
             </ApgCard>
           ) : null}
 
-          {!showSettlementStory && settlementLines.length > 0 ? (
-            <ApgCard tier="account" className="p-5">
-              <h3 className="text-sm font-semibold text-zinc-900">Final settlement</h3>
-              <ul className="mt-3 space-y-2">
-                {settlementLines.map((line) => (
-                  <li key={line.label} className="flex items-center justify-between text-sm">
-                    <span className="text-zinc-700">{line.label}</span>
-                    <span className="tabular-nums font-semibold text-zinc-900">
-                      {paiseToInr(line.amountPaise)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </ApgCard>
+          <p className="text-xs text-apg-silver">{footerMessage}</p>
+        </>
+      ) : (
+        <>
+          {vacatingDate ? (
+            <ResidentMoveOutSummaryCard
+              vacatingDate={vacatingDate}
+              noticeGivenDate={noticeGiven}
+              vacatingStatus={vacating.status}
+              roomLabel={roomLabel}
+              bookingCode={bookingCode}
+            />
           ) : null}
-
-          {isNoticeSubmittedState(lifecycle.state) ? (
-            <CancelVacatingForm requestId={vacating.id} bookingId={bookingId} />
-          ) : null}
-
-          {lifecycle.capabilities.canEditVacating.allowed && !checkoutStatus ? (
-            <ApgCard tier="account" className="p-5">
-              <p className="text-sm text-zinc-600">
-                Need a date that does not satisfy the {VACATING_NOTICE_MIN_DAYS}-day notice rule? Cancel
-                this approved move-out
-                and submit a new request.
-              </p>
-              <button
-                type="button"
-                className="mt-3 text-sm font-medium text-rose-700 underline"
-                onClick={() =>
-                  void cancelApprovedVacatingAction(vacating.id).then((res) => {
-                    if (res.ok) router.refresh();
-                  })
-                }
-              >
-                Cancel approved move-out
-              </button>
-            </ApgCard>
+          {refundSummary ? (
+            <ResidentMoveOutRefundCard summary={refundSummary} showApproxPrefix={false} />
           ) : null}
         </>
       )}
-
-      {isMoveOutComplete ? (
-        <>
-          <ApgCard tier="account" className="p-5">
-            <h3 className="text-sm font-semibold text-zinc-900">Your move-out timeline</h3>
-            <div className="mt-4">
-              <StatusTimeline
-                stages={timelineStages}
-                activeIndex={activeIndex}
-                orientation="vertical"
-              />
-            </div>
-          </ApgCard>
-          {storyBlock}
-          {exitBrainPanel}
-        </>
-      ) : null}
     </div>
   );
 }

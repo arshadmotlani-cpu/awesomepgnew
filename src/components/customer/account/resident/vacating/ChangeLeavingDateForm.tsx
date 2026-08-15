@@ -1,15 +1,24 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { ApgCard } from '@/src/components/customer/design-system';
 import { formatDate, paiseToInr } from '@/src/lib/format';
+import { todayString } from '@/src/lib/dates';
 import {
   previewVacatingDateChangeAction,
   submitVacatingDateChangeAction,
   cancelVacatingDateChangeRequestAction,
 } from '@/app/(customer)/account/resident/vacating-date-change-actions';
 import type { VacatingDateChangePreview } from '@/src/services/vacatingDateChange';
-import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 import { buildVacatingDateConfirmation } from '@/src/lib/vacating/vacatingBedSemantics';
+
+function buildDateExplanation(vacatingDate: string): string {
+  const conf = buildVacatingDateConfirmation(vacatingDate);
+  if (conf.isTodaySelected) {
+    return 'If you leave today, today is your final paid/stay day. Your bed will be available tomorrow at 11:00 AM.';
+  }
+  return `If you select ${conf.finalStayDateLabel}, that will be your final paid/stay day. Your bed will be available ${conf.bedAvailableLabel}.`;
+}
 
 export function ChangeLeavingDateForm({
   bookingId,
@@ -27,22 +36,21 @@ export function ChangeLeavingDateForm({
   const [preview, setPreview] = useState<VacatingDateChangePreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const dateConfirmation = /^\d{4}-\d{2}-\d{2}$/.test(newDate)
-    ? buildVacatingDateConfirmation(newDate)
-    : null;
+  const today = todayString();
+  const dateExplanation = /^\d{4}-\d{2}-\d{2}$/.test(newDate) ? buildDateExplanation(newDate) : null;
 
   if (pendingRequestId) {
     return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-        <p className="font-semibold">Date change awaiting admin approval</p>
-        <p className="mt-1 text-amber-900/80">
-          The office is reviewing your new leaving date. You will see the updated estimate here after
-          approval.
+      <ApgCard tier="resident" className="border-amber-500/30 bg-amber-950/20">
+        <p className="text-sm font-semibold text-amber-200">Date change awaiting approval</p>
+        <p className="mt-1 text-sm text-amber-100/90">
+          The office is reviewing your new final stay date. You will see the updated estimate here
+          after approval.
         </p>
         <button
           type="button"
           disabled={pending}
-          className="mt-3 text-xs font-medium text-amber-900 underline"
+          className="mt-3 text-xs font-medium text-amber-200 underline disabled:opacity-50"
           onClick={() =>
             startTransition(async () => {
               const res = await cancelVacatingDateChangeRequestAction(pendingRequestId);
@@ -53,55 +61,54 @@ export function ChangeLeavingDateForm({
         >
           Withdraw date change request
         </button>
-        {error ? <p className="mt-2 text-xs text-rose-700">{error}</p> : null}
-      </div>
+        {error ? <p className="mt-2 text-xs text-rose-300">{error}</p> : null}
+      </ApgCard>
     );
   }
 
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-4">
-      <h3 className="text-sm font-semibold text-zinc-900">Change leaving date</h3>
-      <p className="mt-1 text-xs text-zinc-600">
-        Current date: {formatDate(currentVacatingDate)}. The new date must still satisfy the{' '}
-        {VACATING_NOTICE_MIN_DAYS}-day notice rule from when you submitted notice.
-      </p>
-      <label className="mt-3 block text-xs font-medium text-zinc-700">
-        New final stay date
+    <ApgCard tier="resident" className="space-y-4">
+      <div>
+        <h2 className="text-sm font-semibold text-white">Want to leave on a different date?</h2>
+        <p className="mt-1 text-xs text-apg-silver">
+          Current approved final stay date: {formatDate(currentVacatingDate)}
+        </p>
+      </div>
+
+      <label className="block text-xs font-medium text-apg-silver">
+        Final stay date
         <input
           type="date"
+          min={today}
           value={newDate}
           onChange={(e) => {
             setNewDate(e.target.value);
             setPreview(null);
             setError(null);
           }}
-          className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900"
+          className="mt-1.5 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white [color-scheme:dark]"
         />
       </label>
-      {dateConfirmation ? (
-        <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-950">
-          <p className="font-semibold text-sky-900">Move-out timing</p>
-          <ul className="mt-1 space-y-0.5">
-            {dateConfirmation.lines.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-        </div>
+
+      {dateExplanation ? (
+        <p className="text-xs text-apg-silver">{dateExplanation}</p>
       ) : null}
-      <label className="mt-3 block text-xs font-medium text-zinc-700">
+
+      <label className="block text-xs font-medium text-apg-silver">
         Note for admin (optional)
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={2}
-          className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900"
+          className="mt-1.5 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white"
         />
       </label>
-      <div className="mt-3 flex flex-wrap gap-2">
+
+      <div className="flex flex-wrap gap-2">
         <button
           type="button"
           disabled={pending || !newDate}
-          className="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 disabled:opacity-50"
+          className="rounded-lg border border-white/20 px-3 py-2 text-xs font-medium text-white hover:bg-white/5 disabled:opacity-50"
           onClick={() =>
             startTransition(async () => {
               setError(null);
@@ -115,12 +122,12 @@ export function ChangeLeavingDateForm({
             })
           }
         >
-          Preview refund impact
+          Preview impact
         </button>
         <button
           type="button"
           disabled={pending || !preview}
-          className="rounded-lg bg-apg-orange px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50"
+          className="rounded-lg bg-apg-orange px-4 py-2 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50"
           onClick={() =>
             startTransition(async () => {
               setError(null);
@@ -133,22 +140,24 @@ export function ChangeLeavingDateForm({
             })
           }
         >
-          Submit for admin approval
+          Submit change request
         </button>
       </div>
-      {error ? <p className="mt-2 text-xs text-rose-700">{error}</p> : null}
+
+      {error ? <p className="text-xs text-rose-300">{error}</p> : null}
+
       {preview ? (
-        <div className="mt-4 space-y-3 border-t border-zinc-100 pt-4">
-          <p className="text-sm font-medium text-zinc-900">
+        <div className="space-y-2 border-t border-white/10 pt-4">
+          <p className="text-sm font-medium text-white">
             {formatDate(preview.currentVacatingDate)} → {formatDate(preview.requestedVacatingDate)}
           </p>
-          <p className="text-sm text-zinc-700">{preview.refundDeltaLabel}</p>
-          <p className="text-xs text-zinc-500">
+          <p className="text-sm text-apg-silver">{preview.refundDeltaLabel}</p>
+          <p className="text-xs text-apg-silver">
             Current estimate {paiseToInr(preview.currentEstimatedRefundPaise)} → New estimate{' '}
             {paiseToInr(preview.requestedEstimatedRefundPaise)}
           </p>
         </div>
       ) : null}
-    </div>
+    </ApgCard>
   );
 }
