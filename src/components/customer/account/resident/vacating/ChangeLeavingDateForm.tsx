@@ -25,11 +25,15 @@ export function ChangeLeavingDateForm({
   bookingId,
   currentVacatingDate,
   pendingRequestId,
+  pendingPreview,
+  originalNoticeGivenDate,
   onSubmitted,
 }: {
   bookingId: string;
   currentVacatingDate: string;
   pendingRequestId?: string | null;
+  pendingPreview?: VacatingDateChangePreview | null;
+  originalNoticeGivenDate?: string | null;
   onSubmitted?: () => void;
 }) {
   const [newDate, setNewDate] = useState('');
@@ -67,17 +71,62 @@ export function ChangeLeavingDateForm({
   }, [bookingId, currentVacatingDate, newDate]);
 
   if (pendingRequestId) {
+    const impact = pendingPreview;
     return (
-      <ApgCard tier="resident" className="border-amber-500/30 bg-amber-950/20">
-        <p className="text-sm font-semibold text-amber-200">Date change awaiting approval</p>
-        <p className="mt-1 text-sm text-amber-100/90">
-          The office is reviewing your new final stay date. You will see the updated estimate here
-          after approval.
-        </p>
+      <ApgCard tier="resident" className="border-amber-500/30 bg-amber-950/20 space-y-4">
+        <div>
+          <p className="text-sm font-semibold text-amber-200">Date change awaiting approval</p>
+          <p className="mt-1 text-xs text-amber-100/80">Status: Awaiting admin approval</p>
+        </div>
+
+        {impact ? (
+          <>
+            <div className="grid gap-2 text-sm sm:grid-cols-2">
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-wide text-amber-200/70">
+                  Current approved stay
+                </p>
+                <p className="font-medium text-white">{formatDate(impact.currentVacatingDate)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-wide text-amber-200/70">
+                  Requested stay
+                </p>
+                <p className="font-medium text-white">{formatDate(impact.requestedVacatingDate)}</p>
+              </div>
+              {originalNoticeGivenDate || impact.noticeGivenDate ? (
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-amber-200/70">
+                    Original notice
+                  </p>
+                  <p className="font-medium text-white">
+                    {formatDate(originalNoticeGivenDate ?? impact.noticeGivenDate ?? '')}
+                  </p>
+                </div>
+              ) : null}
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-wide text-amber-200/70">
+                  Notice compliance
+                </p>
+                <p className="font-medium text-white">
+                  {impact.noticeCompliant
+                    ? `✓ ${impact.noticeComplianceLabel ?? '5-day notice satisfied'}`
+                    : impact.noticeComplianceLabel ?? '5-day notice not satisfied'}
+                </p>
+              </div>
+            </div>
+            <ResidentVacatingDateChangeImpact preview={impact} />
+          </>
+        ) : (
+          <p className="text-sm text-amber-100/90">
+            Your requested date change is with the office for review.
+          </p>
+        )}
+
         <button
           type="button"
           disabled={pending}
-          className="mt-3 text-xs font-medium text-amber-200 underline disabled:opacity-50"
+          className="text-xs font-medium text-amber-200 underline disabled:opacity-50"
           onClick={() =>
             startTransition(async () => {
               const res = await cancelVacatingDateChangeRequestAction(pendingRequestId);
@@ -88,7 +137,7 @@ export function ChangeLeavingDateForm({
         >
           Withdraw date change request
         </button>
-        {error ? <p className="mt-2 text-xs text-rose-300">{error}</p> : null}
+        {error ? <p className="text-xs text-rose-300">{error}</p> : null}
       </ApgCard>
     );
   }
@@ -98,12 +147,12 @@ export function ChangeLeavingDateForm({
       <div>
         <h2 className="text-sm font-semibold text-white">Change final stay date</h2>
         <p className="mt-1 text-xs text-apg-silver">
-          Current final stay date: {formatDate(currentVacatingDate)}
+          Current approved final stay date: {formatDate(currentVacatingDate)}
         </p>
       </div>
 
       <label className="block text-xs font-medium text-apg-silver">
-        Final stay date
+        New final stay date
         <input
           type="date"
           min={today}
@@ -156,7 +205,7 @@ export function ChangeLeavingDateForm({
             })
           }
         >
-          Confirm final stay date
+          Submit change request
         </button>
       </div>
     </ApgCard>

@@ -57,6 +57,7 @@ type Props = {
   developerTestEmail?: string | null;
   estimatedSettlement?: import('@/src/lib/vacating/estimatedSettlementPreview').EstimatedSettlementPreview | null;
   pendingDateChangeRequestId?: string | null;
+  pendingDateChangePreview?: import('@/src/services/vacatingDateChange').VacatingDateChangePreview | null;
   settlementContext?: import('@/src/components/customer/account/resident/vacating/ResidentEstimatedSettlementBreakdown').ResidentSettlementStatementContext | null;
   settlementDocument?: import('@/src/lib/vacating/settlementStatementModel').SettlementStatementDocumentModel | null;
   settlementNoticeDisplay?: import('@/src/lib/vacating/noticeDeductionPresentation').NoticeSettlementDisplay | null;
@@ -83,6 +84,7 @@ function vacatingHomeProps(props: Props) {
     monthlyRentPaise: props.monthlyRentPaise,
     estimatedSettlement: props.estimatedSettlement,
     pendingDateChangeRequestId: props.pendingDateChangeRequestId,
+    pendingDateChangePreview: props.pendingDateChangePreview,
     settlementContext: props.settlementContext,
     settlementDocument: props.settlementDocument,
     settlementNoticeDisplay: props.settlementNoticeDisplay,

@@ -410,6 +410,7 @@ export async function submitVacatingRequest(
   }
 
   try {
+    const submittedAt = new Date();
     const [row] = await db
       .insert(vacatingRequests)
       .values({
@@ -417,6 +418,8 @@ export async function submitVacatingRequest(
         customerId: booking.customerId,
         noticeGivenDate,
         vacatingDate,
+        originalNoticeSubmittedAt: submittedAt,
+        originalVacatingDate: vacatingDate,
         noticeCompliant,
         deductionPaise: deduction,
         depositRefundPaise: 0, // computed at completion time

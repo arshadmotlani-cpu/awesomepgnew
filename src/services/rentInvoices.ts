@@ -43,6 +43,7 @@ import {
   pgs,
   rentInvoices,
   rooms,
+  vacatingRequests,
   type RentInvoice,
 } from '../db/schema';
 import type { PricingSnapshot } from '../db/schema/bookings';
@@ -799,6 +800,23 @@ export async function evaluateAnniversaryRentGenerationEligibility(
   const anniversaryDate = dueDate;
   if (!isResidentActiveOnDate(stay, anniversaryDate)) {
     return { eligible: false, skipCode: 'inactive_on_anniversary' };
+  }
+
+  const [approvedVacating] = await db
+    .select({ vacatingDate: vacatingRequests.vacatingDate })
+    .from(vacatingRequests)
+    .where(
+      and(
+        eq(vacatingRequests.bookingId, input.bookingId),
+        eq(vacatingRequests.status, 'approved'),
+      ),
+    )
+    .limit(1);
+  if (
+    approvedVacating?.vacatingDate &&
+    billingMonth > firstOfMonth(String(approvedVacating.vacatingDate))
+  ) {
+    return { eligible: false, skipCode: 'vacating_past_checkout' };
   }
 
   let billingPeriod = billingPeriodForPolicy(billingCyclePolicy, {

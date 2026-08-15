@@ -130,6 +130,33 @@ export async function deactivateResidentExitBrain(bookingId: string): Promise<vo
     );
 }
 
+/** Sync expected checkout after approved vacating date change. */
+export async function syncExitBrainCheckoutDate(input: {
+  bookingId: string;
+  expectedCheckoutDate: string;
+  noticeGivenDate: string;
+  frozenNoticePenaltyPaise: number;
+}): Promise<void> {
+  const [existing] = await db
+    .select({ id: residentExitBrain.id })
+    .from(residentExitBrain)
+    .where(
+      and(eq(residentExitBrain.bookingId, input.bookingId), eq(residentExitBrain.status, 'active')),
+    )
+    .limit(1);
+  if (!existing) return;
+
+  await db
+    .update(residentExitBrain)
+    .set({
+      expectedCheckoutDate: input.expectedCheckoutDate,
+      noticeGivenDate: input.noticeGivenDate,
+      frozenNoticePenaltyPaise: input.frozenNoticePenaltyPaise,
+      updatedAt: new Date(),
+    })
+    .where(eq(residentExitBrain.id, existing.id));
+}
+
 export async function getExitBrainForBooking(
   bookingId: string,
 ): Promise<ResidentExitBrainRow | null> {

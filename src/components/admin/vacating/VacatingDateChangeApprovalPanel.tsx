@@ -46,6 +46,27 @@ export function VacatingDateChangeApprovalPanel({
         {formatDate(String(request.currentVacatingDate))} →{' '}
         {formatDate(String(request.requestedVacatingDate))}
       </p>
+      {request.preview?.noticeGivenDate ? (
+        <p className="mt-1 text-xs text-amber-200/80">
+          Original notice: {formatDate(request.preview.noticeGivenDate)} ·{' '}
+          {request.preview.noticeCompliant
+            ? '5-day notice satisfied for requested date'
+            : '5-day notice NOT satisfied for requested date'}
+        </p>
+      ) : null}
+      {request.preview?.direction === 'later' &&
+      (request.preview.additionalStayDays ?? 0) > 0 ? (
+        <p className="mt-1 text-xs text-amber-200/80">
+          Extension: {request.preview.additionalStayDays} additional days · additional rent{' '}
+          {paiseToInr(request.preview.additionalRentPaise ?? 0)}
+        </p>
+      ) : null}
+      {request.preview?.direction === 'earlier' &&
+      (request.preview.unusedPrepaidRentPaise ?? 0) > 0 ? (
+        <p className="mt-1 text-xs text-amber-200/80">
+          Unused prepaid rent if approved: {paiseToInr(request.preview.unusedPrepaidRentPaise ?? 0)}
+        </p>
+      ) : null}
       <p className="mt-1 text-xs text-amber-200/80">
         Refund delta: {paiseToInr(request.refundDeltaPaise)}
         {request.refundDeltaPaise >= 0 ? ' (increase)' : ' (decrease)'}

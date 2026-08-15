@@ -288,6 +288,28 @@ Do not compute parallel totals in components.
 
 ---
 
+## BR-MOVEOUT-NOTICE — Original notice vs date-change approval
+
+**Rule:** 5-day notice compliance uses `notice_given_date` vs requested/approved final stay (`diffDays >= 5`). Date-change submission time does **not** reset the notice clock.
+
+**Immutable history:** `original_notice_submitted_at` and `original_vacating_date` set on first notice submit; `notice_given_date` unchanged on date change.
+
+**SSOT:** [`billing.ts`](../src/services/billing.ts) `isNoticeCompliant` · [`noticeDeductionEngine.ts`](../src/lib/vacating/noticeDeductionEngine.ts).
+
+---
+
+## BR-MOVEOUT-DATECHANGE — Pending vs approved final stay
+
+**Rule:** Resident date changes create `vacating_date_change_requests` with `status = pending`. Approved final stay (`vacating_requests.vacating_date`) updates only on admin approval. Financial preview shown before approval via `preview_snapshot` + settlement V2.
+
+**Earlier date:** Unused prepaid rent from day after new final stay (BCM/V2, calendar days in paid period).
+
+**Later date:** Additional rent from waterfall consumed + tail delta; rent sync on apply.
+
+**SSOT:** [`vacatingDateChange.ts`](../src/services/vacatingDateChange.ts) · [`moveOutStateModel.ts`](../src/lib/vacating/moveOutStateModel.ts).
+
+---
+
 ## Change control
 
 - New business behavior → new **BR-*** entry here, invariant in [BILLING_ENGINE_INVARIANTS.md](./BILLING_ENGINE_INVARIANTS.md), regression test, then code.  

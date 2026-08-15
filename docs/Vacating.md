@@ -60,7 +60,9 @@ Full diagram: [[WORKFLOWS#Vacating]]
 
 **Date entry UX (2026-06-22):** Resident and admin vacating forms pre-fill the date picker from `expected_checkout_date` when set (otherwise today + notice period for residents, notice-compliant default for admin). Invalid dates never crash preview UI — `tryDiffDays()` returns safe fallbacks.
 
-**Past-due move-outs (2026-06-22):** When vacate date passes, the bed **does not** auto-release for new bookings until checkout settlement completes ([[DECISIONS#Checkout settlements as refund SSOT]]). UI switches to “Move-out overdue” / “checkout pending”; daily cron (`processVacatingPastDueDaily`) upserts high-priority `vacating_alert` action items with settlement deep links.
+**Bed release (monthly):** On admin approval of move-out, `stay_range` shortens to inclusive final stay date. Physical bed bookable from **next calendar day at 11:00 AM IST** ([`vacatingBedSemantics.ts`](../src/lib/vacating/vacatingBedSemantics.ts)). Pending date-change requests do **not** shorten stay or open the bed.
+
+**Date changes:** Resident submits → `pending` on `vacating_date_change_requests` → admin approves → `vacating_date` and stay updated. Notice compliance uses original `notice_given_date`, not change submission time.
 
 **Fixed-stay auto-expiry (2026-06-23):** Short stays (`fixed_stay`, `daily`, `weekly`) auto-complete at **11:00 AM IST** on `expected_checkout_date` via daily automation cron (06:00 UTC ≈ 11:30 IST; manual `/api/cron/expire-fixed-stays` for backfill). Bed is released immediately; checkout settlement opens in `awaiting_resident_details` for deposit refund. System vacating row + `fixed_stay_checkout_due` action item created. See `fixedStayAutoExpiry.ts`.
 
@@ -74,7 +76,8 @@ See [[ROUTES#Operations & Vacating]] · [[ROUTES#Where to act]]
 
 | Table | Role |
 |-------|------|
-| `vacating_requests` | Notice, status, penalty snapshot |
+| `vacating_requests` | Notice, status, penalty snapshot; `original_notice_submitted_at`, `original_vacating_date` |
+| `vacating_date_change_requests` | Pending/approved date changes with `preview_snapshot` |
 | `checkout_settlements` | Refund workflow (1:1 with approved vacate) |
 | `bed_reservations` | Shortened on approve (future move-outs) |
 | `rent_invoices` | Pro-rated checkout month; future cancelled |

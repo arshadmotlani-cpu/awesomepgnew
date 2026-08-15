@@ -30,12 +30,16 @@ export function ResidentVacatingDateChangeImpact({
 
   return (
     <div className="space-y-3 border-t border-white/10 pt-4">
-      {!preview.noticeCompliant ? (
+      {preview.noticeCompliant ? (
+        <p className="text-xs text-emerald-300/90">
+          ✓ {preview.noticeComplianceLabel ?? '5-day notice requirement satisfied'}
+        </p>
+      ) : (
         <p className="text-xs text-amber-200/90">
           This date gives less than 5 days notice. A notice shortfall charge applies before
           confirming.
         </p>
-      ) : null}
+      )}
       <div className="grid gap-2 text-sm sm:grid-cols-2">
         <div>
           <p className="text-[10px] font-medium uppercase tracking-wide text-apg-silver">
@@ -57,6 +61,18 @@ export function ResidentVacatingDateChangeImpact({
           <ImpactRow
             label="Unused prepaid rent"
             value={paiseToInr(requested.unusedPrepaidRentPaise)}
+          />
+        ) : null}
+        {preview.direction === 'later' && (preview.additionalStayDays ?? 0) > 0 ? (
+          <ImpactRow
+            label="Additional stay"
+            value={`${preview.additionalStayDays ?? 0} days`}
+          />
+        ) : null}
+        {preview.direction === 'later' && (preview.additionalRentPaise ?? 0) > 0 ? (
+          <ImpactRow
+            label="Additional rent"
+            value={paiseToInr(preview.additionalRentPaise ?? 0)}
           />
         ) : null}
         <ImpactRow

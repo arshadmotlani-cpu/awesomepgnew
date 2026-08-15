@@ -51,6 +51,7 @@ type Props = {
   monthlyRentPaise?: number;
   estimatedSettlement?: EstimatedSettlementPreview | null;
   pendingDateChangeRequestId?: string | null;
+  pendingDateChangePreview?: import('@/src/services/vacatingDateChange').VacatingDateChangePreview | null;
   settlementContext?: ResidentSettlementStatementContext | null;
   settlementDocument?: import('@/src/lib/vacating/settlementStatementModel').SettlementStatementDocumentModel | null;
   settlementNoticeDisplay?: import('@/src/lib/vacating/noticeDeductionPresentation').NoticeSettlementDisplay | null;
@@ -80,6 +81,7 @@ export function VacatingHome({
   durationMode = 'monthly',
   estimatedSettlement = null,
   pendingDateChangeRequestId = null,
+  pendingDateChangePreview = null,
   exitBrainSnapshot = null,
 }: Props) {
   const router = useRouter();
@@ -251,6 +253,8 @@ export function VacatingHome({
                 bookingId={bookingId}
                 currentVacatingDate={vacatingDate}
                 pendingRequestId={pendingDateChangeRequestId}
+                pendingPreview={pendingDateChangePreview}
+                originalNoticeGivenDate={noticeGiven}
                 onSubmitted={() => router.refresh()}
               />
             </div>

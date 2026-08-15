@@ -211,6 +211,7 @@ export async function ResidentRequestsTabSection({
         developerTestEmail={developerTestMode ? session.email : null}
         estimatedSettlement={data.primaryEstimatedSettlement}
         pendingDateChangeRequestId={data.primaryPendingDateChangeRequestId}
+        pendingDateChangePreview={data.primaryPendingDateChangePreview}
         settlementContext={data.primarySettlementContext}
         settlementDocument={data.primarySettlementDocument}
         settlementNoticeDisplay={data.primaryNoticeDisplay}

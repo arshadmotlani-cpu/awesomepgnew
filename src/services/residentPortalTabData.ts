@@ -653,6 +653,8 @@ export async function loadResidentRequestsTabData(input: {
   let primaryNoticeDisplay: import('@/src/lib/vacating/noticeDeductionPresentation').NoticeSettlementDisplay | null =
     null;
   let primaryPendingDateChangeRequestId: string | null = null;
+  let primaryPendingDateChangePreview: import('@/src/services/vacatingDateChange').VacatingDateChangePreview | null =
+    null;
   let primarySettlementContext: ResidentSettlementStatementContext | null = null;
   let primarySettlementDocument: SettlementStatementDocumentModel | null = null;
   let primaryExitBrainSnapshot: import('@/src/lib/exit/exitBrainTypes').ResidentExitBrainSnapshot | null =
@@ -689,6 +691,7 @@ export async function loadResidentRequestsTabData(input: {
     primaryEstimatedSettlement = bundle?.estimatedSettlement ?? null;
     primaryNoticeDisplay = bundle?.noticeDisplay ?? null;
     primaryPendingDateChangeRequestId = pendingDateChange?.id ?? null;
+    primaryPendingDateChangePreview = pendingDateChange?.preview ?? null;
     primarySettlementContext = {
       vacatingRequestId: primaryVacating.id,
       bookingId: primaryBooking.bookingId,
@@ -757,6 +760,7 @@ export async function loadResidentRequestsTabData(input: {
     checkoutSettlementByBooking: checkoutMaps.checkoutSettlementByBooking,
     primaryEstimatedSettlement,
     primaryPendingDateChangeRequestId,
+    primaryPendingDateChangePreview,
     primarySettlementContext,
     primarySettlementDocument,
     primaryNoticeDisplay,

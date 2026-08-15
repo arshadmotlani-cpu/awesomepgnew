@@ -114,6 +114,14 @@ export function isOpenNowFromSnapshot(
  */
 export function occupancyFactsForInventory(facts: RawBedOccupancyFacts): RawBedOccupancyFacts {
   if (facts.isOccupiedToday) return facts;
+  // On bed-release calendar day, keep vacating context until 11:00 AM IST gate passes.
+  if (
+    facts.vacatingDate &&
+    facts.vacatingStatus === 'approved' &&
+    !isBedReleasedForVacating(facts.vacatingDate)
+  ) {
+    return facts;
+  }
   return {
     ...facts,
     vacatingDate: undefined,

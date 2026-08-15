@@ -173,21 +173,25 @@ test('approve move-out requires settlement statement before confirm', () => {
   assert.match(pipelineQueue, /!preview\?\.estimatedSettlement/);
 });
 
-test('date change submit auto-applies without pending admin approval', () => {
+test('date change submit creates pending request for admin approval', () => {
   const vacatingDateChange = readFileSync(
     join(process.cwd(), 'src/services/vacatingDateChange.ts'),
     'utf8',
   );
-  assert.match(vacatingDateChange, /applyApprovedVacatingDateChange/);
-  assert.match(vacatingDateChange, /status: 'approved'/);
-  assert.doesNotMatch(vacatingDateChange, /status: 'pending',\s*\n\s*}\)\s*\n\s*\.returning/);
+  const submitBlock = vacatingDateChange.slice(
+    vacatingDateChange.indexOf('export async function submitVacatingDateChangeRequest'),
+    vacatingDateChange.indexOf('export async function applyApprovedVacatingDateChange'),
+  );
+  assert.match(submitBlock, /status: 'pending'/);
+  assert.doesNotMatch(submitBlock, /applyApprovedVacatingDateChange/);
 });
 
-test('resident date change form confirms immediately', () => {
+test('resident date change form submits for approval', () => {
   const form = readFileSync(
     join(process.cwd(), 'src/components/customer/account/resident/vacating/ChangeLeavingDateForm.tsx'),
     'utf8',
   );
-  assert.match(form, /Confirm final stay date/);
-  assert.doesNotMatch(form, /Submit change request/);
+  assert.match(form, /Submit change request/);
+  assert.match(form, /Date change awaiting approval/);
+  assert.match(form, /ResidentVacatingDateChangeImpact/);
 });

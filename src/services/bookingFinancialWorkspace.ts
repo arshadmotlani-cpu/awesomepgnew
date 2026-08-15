@@ -352,7 +352,9 @@ export async function loadBookingFinancialWorkspace(
     const dateChangeRow = await getPendingVacatingDateChangeForBooking(bookingId);
     if (dateChangeRow) {
       const preview =
-        (dateChangeRow.previewSnapshot as VacatingDateChangePreview | null) ?? null;
+        dateChangeRow.preview ??
+        (dateChangeRow.previewSnapshot as VacatingDateChangePreview | null) ??
+        null;
       let dateChangeStatement: SettlementStatementDocumentModel | null = null;
       if (preview?.requestedEstimatedSettlement) {
         dateChangeStatement = buildSettlementStatementModel({

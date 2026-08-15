@@ -21,6 +21,7 @@ import { computeNoticeDeductionForBooking } from '@/src/services/noticeDeduction
 import { scheduleAdminNotificationSync } from '@/src/services/adminLiveSync';
 import { reconcileBookingOccupancy } from '@/src/lib/occupancySync';
 import type { NoticeDeductionBreakdown } from '@/src/lib/vacating/noticeDeductionEngine';
+import { enrichVacatingDateChangePreview } from '@/src/lib/vacating/moveOutStateModel';
 import { stayRangeExclusiveEnd } from '@/src/lib/vacating/vacatingBedSemantics';
 
 export type VacatingDateChangePreview = {
@@ -33,6 +34,14 @@ export type VacatingDateChangePreview = {
   requestedEstimatedRefundPaise: number;
   refundDeltaPaise: number;
   refundDeltaLabel: string;
+  direction?: 'earlier' | 'later';
+  additionalStayDays?: number;
+  additionalRentPaise?: number;
+  unusedPrepaidRentPaise?: number;
+  noticeGivenDate?: string;
+  originalNoticeSubmittedAt?: string | null;
+  originalVacatingDate?: string;
+  noticeComplianceLabel?: string;
 };
 
 async function loadActiveVacatingForDateChange(args: {
@@ -179,17 +188,20 @@ export async function previewVacatingDateChange(input: {
 
   return {
     ok: true,
-    preview: {
-      currentVacatingDate: currentDate,
-      requestedVacatingDate: requestedDate,
-      noticeCompliant,
-      currentEstimatedSettlement: currentEstimated,
-      requestedEstimatedSettlement: requestedEstimated,
-      currentEstimatedRefundPaise: currentRefund,
-      requestedEstimatedRefundPaise: requestedRefund,
-      refundDeltaPaise: delta,
-      refundDeltaLabel,
-    },
+    preview: enrichVacatingDateChangePreview(
+      {
+        currentVacatingDate: currentDate,
+        requestedVacatingDate: requestedDate,
+        noticeCompliant,
+        currentEstimatedSettlement: currentEstimated,
+        requestedEstimatedSettlement: requestedEstimated,
+        currentEstimatedRefundPaise: currentRefund,
+        requestedEstimatedRefundPaise: requestedRefund,
+        refundDeltaPaise: delta,
+        refundDeltaLabel,
+      },
+      loaded.vacating,
+    ),
   };
 }
 
@@ -259,17 +271,20 @@ export async function previewAdminVacatingDateChange(input: {
 
   return {
     ok: true,
-    preview: {
-      currentVacatingDate: currentDate,
-      requestedVacatingDate: requestedDate,
-      noticeCompliant,
-      currentEstimatedSettlement: currentEstimated,
-      requestedEstimatedSettlement: requestedEstimated,
-      currentEstimatedRefundPaise: currentRefund,
-      requestedEstimatedRefundPaise: requestedRefund,
-      refundDeltaPaise: delta,
-      refundDeltaLabel,
-    },
+    preview: enrichVacatingDateChangePreview(
+      {
+        currentVacatingDate: currentDate,
+        requestedVacatingDate: requestedDate,
+        noticeCompliant,
+        currentEstimatedSettlement: currentEstimated,
+        requestedEstimatedSettlement: requestedEstimated,
+        currentEstimatedRefundPaise: currentRefund,
+        requestedEstimatedRefundPaise: requestedRefund,
+        refundDeltaPaise: delta,
+        refundDeltaLabel,
+      },
+      vacating,
+    ),
   };
 }
 
@@ -322,31 +337,23 @@ export async function submitVacatingDateChangeRequest(input: {
       refundDeltaPaise: previewRes.preview.refundDeltaPaise,
       previewSnapshot: previewRes.preview,
       residentNotes: input.residentNotes?.trim() || null,
-      status: 'approved',
-      reviewedAt: new Date(),
+      status: 'pending',
     })
     .returning({ id: vacatingDateChangeRequests.id });
-
-  await applyApprovedVacatingDateChange({
-    vacating: loaded.vacating,
-    newVacatingDate: previewRes.preview.requestedVacatingDate,
-    fromDateChangeRequestId: created.id,
-    syncRent: true,
-  });
 
   await db.insert(auditLog).values({
     actorType: 'customer',
     actorId: input.customerId,
     entity: 'vacating_date_change_request',
     entityId: created.id,
-    action: 'applied',
+    action: 'submitted',
     diff: {
       vacatingRequestId: loaded.vacating.id,
       fromDate: previewRes.preview.currentVacatingDate,
       toDate: previewRes.preview.requestedVacatingDate,
       refundDeltaPaise: previewRes.preview.refundDeltaPaise,
       noticeCompliant: previewRes.preview.noticeCompliant,
-      autoApplied: true,
+      direction: previewRes.preview.direction,
     },
   });
 
@@ -427,6 +434,14 @@ export async function applyApprovedVacatingDateChange(args: {
   }).catch((err) => console.error('[vacatingDateChange] settlement recompute failed', err));
 
   await reconcileBookingOccupancy(updated.bookingId);
+
+  const { syncExitBrainCheckoutDate } = await import('@/src/lib/exit/activateResidentExitBrain');
+  await syncExitBrainCheckoutDate({
+    bookingId: updated.bookingId,
+    expectedCheckoutDate: newDate,
+    noticeGivenDate: String(updated.noticeGivenDate),
+    frozenNoticePenaltyPaise: updated.deductionPaise,
+  }).catch((err) => console.error('[vacatingDateChange] exit brain sync failed', err));
 
   await db.insert(auditLog).values({
     actorType: args.resolvedByAdminId ? 'admin' : 'system',
@@ -582,7 +597,12 @@ export async function getPendingVacatingDateChangeForBooking(bookingId: string) 
     )
     .orderBy(desc(vacatingDateChangeRequests.createdAt))
     .limit(1);
-  return row ?? null;
+  if (!row) return null;
+  const preview = row.previewSnapshot as VacatingDateChangePreview | null;
+  return {
+    ...row,
+    preview: preview ?? null,
+  };
 }
 
 export async function listPendingVacatingDateChanges(limit = 50) {

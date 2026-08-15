@@ -71,6 +71,12 @@ export const vacatingRequests = pgTable(
       onDelete: 'set null',
     }),
     notes: text('notes'),
+    /** First notice submission timestamp — set once, never overwritten. */
+    originalNoticeSubmittedAt: timestamp('original_notice_submitted_at', {
+      withTimezone: true,
+    }),
+    /** First requested final stay date at notice submit. */
+    originalVacatingDate: date('original_vacating_date'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
