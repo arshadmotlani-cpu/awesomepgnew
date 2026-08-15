@@ -6,6 +6,7 @@ import {
   unusedPrepaidRentDaysAfterVacating,
 } from '../../src/lib/vacating/noticeDeductionEngine';
 import { noticeDeductionAppliesToBooking } from '../../src/lib/checkout/noticeDeductionPolicy';
+import { VACATING_NOTICE_MIN_DAYS } from '../../src/services/billing';
 
 test('compliant notice: chargeable = 0, deduction = 0', () => {
   const breakdown = computeNoticeDeductionBreakdown({
@@ -19,50 +20,50 @@ test('compliant notice: chargeable = 0, deduction = 0', () => {
   assert.equal(breakdown.noticeDeductionPaise, 0);
 });
 
-test('10 missing notice, 19 unused prepaid days → fully covered', () => {
+test('5 missing notice, 19 unused prepaid days → fully covered', () => {
   const breakdown = computeNoticeDeductionBreakdown({
     monthlyRentPaise: 300_000,
     noticeGivenDate: '2026-05-01',
-    vacatingDate: '2026-05-05',
+    vacatingDate: '2026-05-01',
     paidRentPeriods: [
       { periodStart: '2026-04-05', periodEnd: '2026-05-24', source: 'rent_invoice' },
     ],
   });
-  assert.equal(breakdown.missingNoticeDays, 10);
-  assert.equal(breakdown.unusedPrepaidRentDays, 19);
-  assert.equal(breakdown.noticeCoveredByPrepaidRent, 10);
+  assert.equal(breakdown.missingNoticeDays, VACATING_NOTICE_MIN_DAYS);
+  assert.equal(breakdown.unusedPrepaidRentDays, 23);
+  assert.equal(breakdown.noticeCoveredByPrepaidRent, VACATING_NOTICE_MIN_DAYS);
   assert.equal(breakdown.chargeableNoticeDays, 0);
   assert.equal(breakdown.noticeDeductionPaise, 0);
 });
 
-test('10 missing notice, 5 unused prepaid days → chargeable = 5', () => {
+test('5 missing notice, 3 unused prepaid days → chargeable = 2', () => {
   const breakdown = computeNoticeDeductionBreakdown({
     monthlyRentPaise: 300_000,
     noticeGivenDate: '2026-05-01',
-    vacatingDate: '2026-05-05',
+    vacatingDate: '2026-05-01',
     paidRentPeriods: [
-      { periodStart: '2026-04-05', periodEnd: '2026-05-10', source: 'rent_invoice' },
+      { periodStart: '2026-04-05', periodEnd: '2026-05-04', source: 'rent_invoice' },
     ],
   });
-  assert.equal(breakdown.missingNoticeDays, 10);
-  assert.equal(breakdown.unusedPrepaidRentDays, 5);
-  assert.equal(breakdown.noticeCoveredByPrepaidRent, 5);
-  assert.equal(breakdown.chargeableNoticeDays, 5);
-  assert.equal(breakdown.noticeDeductionPaise, 50_000);
+  assert.equal(breakdown.missingNoticeDays, VACATING_NOTICE_MIN_DAYS);
+  assert.equal(breakdown.unusedPrepaidRentDays, 3);
+  assert.equal(breakdown.noticeCoveredByPrepaidRent, 3);
+  assert.equal(breakdown.chargeableNoticeDays, 2);
+  assert.equal(breakdown.noticeDeductionPaise, 20_000);
 });
 
-test('14 missing notice, 15 unused prepaid → chargeable = 0', () => {
+test('5 missing notice, 15 unused prepaid → chargeable = 0', () => {
   const breakdown = computeNoticeDeductionBreakdown({
     monthlyRentPaise: 300_000,
-    noticeGivenDate: '2026-06-15',
-    vacatingDate: '2026-06-15',
+    noticeGivenDate: '2026-06-10',
+    vacatingDate: '2026-06-10',
     paidRentPeriods: [
       { periodStart: '2026-06-05', periodEnd: '2026-06-30', source: 'rent_invoice' },
     ],
   });
-  assert.equal(breakdown.missingNoticeDays, 14);
-  assert.equal(breakdown.unusedPrepaidRentDays, 15);
-  assert.equal(breakdown.noticeCoveredByPrepaidRent, 14);
+  assert.equal(breakdown.missingNoticeDays, VACATING_NOTICE_MIN_DAYS);
+  assert.equal(breakdown.unusedPrepaidRentDays, 20);
+  assert.equal(breakdown.noticeCoveredByPrepaidRent, VACATING_NOTICE_MIN_DAYS);
   assert.equal(breakdown.chargeableNoticeDays, 0);
 });
 
@@ -70,15 +71,15 @@ test('no prepaid after vacate: chargeable = missing notice days', () => {
   const breakdown = computeNoticeDeductionBreakdown({
     monthlyRentPaise: 300_000,
     noticeGivenDate: '2026-06-01',
-    vacatingDate: '2026-06-08',
+    vacatingDate: '2026-06-03',
     paidRentPeriods: [
-      { periodStart: '2026-05-05', periodEnd: '2026-06-07', source: 'rent_invoice' },
+      { periodStart: '2026-05-05', periodEnd: '2026-06-03', source: 'rent_invoice' },
     ],
   });
-  assert.equal(breakdown.missingNoticeDays, 7);
+  assert.equal(breakdown.missingNoticeDays, 3);
   assert.equal(breakdown.unusedPrepaidRentDays, 0);
-  assert.equal(breakdown.chargeableNoticeDays, 7);
-  assert.equal(breakdown.noticeDeductionPaise, 70_000);
+  assert.equal(breakdown.chargeableNoticeDays, 3);
+  assert.equal(breakdown.noticeDeductionPaise, 30_000);
 });
 
 test('fixed-stay booking: notice deduction policy does not apply', () => {

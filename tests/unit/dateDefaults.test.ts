@@ -8,6 +8,7 @@ import {
   defaultVacatingDate,
   normalizeBrowseStay,
 } from '../../src/lib/dateDefaults';
+import { VACATING_NOTICE_MIN_DAYS } from '../../src/services/billing';
 
 test('normalizeBrowseStay fills missing params with today and +30 nights', () => {
   const stay = normalizeBrowseStay({});
@@ -36,8 +37,9 @@ test('defaultExtensionUntilDate is strictly after current checkout', () => {
 test('defaultVacatingDate is notice-compliant offset from today', () => {
   const from = '2026-06-01';
   const vacating = defaultVacatingDate(from);
-  assert.equal(vacating, '2026-06-15');
-  assert.equal(DEFAULT_VACATING_NOTICE_DAYS, 14);
+  assert.equal(vacating, '2026-06-06');
+  assert.equal(DEFAULT_VACATING_NOTICE_DAYS, VACATING_NOTICE_MIN_DAYS);
+  assert.equal(DEFAULT_VACATING_NOTICE_DAYS, 5);
 });
 
 test('defaultBillingMonth returns first of month', () => {
