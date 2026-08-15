@@ -66,6 +66,7 @@ export type ResidentListRow = {
   bookingId: string | null;
   bookingCode: string | null;
   moveInDate: string | null;
+  isLivingToday: boolean;
   verificationSource: ResidentVerificationSource;
   onboardingBookingId: string | null;
   onboardingBookingStatus: string | null;
@@ -126,6 +127,7 @@ type ResidentListDbRow = {
   bed_id: string | null;
   monthly_rent_paise: number | null;
   move_in_date: string | null;
+  is_living_today: boolean | null;
   is_vacating: boolean;
   residency_status?: ResidencyStatus;
   is_website_signup: boolean;
@@ -169,6 +171,7 @@ function mapResidentListRow(row: ResidentListDbRow): ResidentListRow {
     bedId: row.bed_id ?? null,
     monthlyRentPaise: Number(row.monthly_rent_paise ?? 0),
     moveInDate: row.move_in_date ?? null,
+    isLivingToday: Boolean(row.is_living_today),
     tenancyStatus: deriveTenancyStatus({
       residencyStatus: row.residency_status,
       activeTenancy: row.booking_id
@@ -243,6 +246,7 @@ export async function listResidentsForAdmin(session: AdminSession): Promise<Resi
       t.monthly_rent_paise,
       t.move_in_date,
       t.pg_id,
+      coalesce(t.is_living_today, false) AS is_living_today,
       coalesce(t.is_vacating, false) AS is_vacating,
       ${customerVerificationSelectSql},
       EXISTS (
@@ -263,7 +267,7 @@ export async function listResidentsForAdmin(session: AdminSession): Promise<Resi
     WHERE c.archived_at IS NULL
       AND ${isNotOccupancyPlaceholderCustomerSql}
       AND ${customerIsVerifiedSql}
-    ORDER BY c.created_at DESC
+    ORDER BY lower(coalesce(t.pg_name, '')) ASC, lower(c.full_name) ASC
     LIMIT 200
   `);
 
@@ -298,6 +302,7 @@ export async function listUnverifiedWebsiteSignupsForAdmin(
       t.monthly_rent_paise,
       t.move_in_date,
       t.pg_id,
+      coalesce(t.is_living_today, false) AS is_living_today,
       coalesce(t.is_vacating, false) AS is_vacating,
       ${customerVerificationSelectSql},
       EXISTS (
@@ -355,6 +360,7 @@ export async function searchResidentsForAdmin(
     bookingId: r.bookingId,
     bookingCode: r.bookingCode,
     moveInDate: null,
+    isLivingToday: false,
     verificationSource: r.kycStatus === 'approved' ? ('kyc' as const) : null,
     onboardingBookingId: null,
     onboardingBookingStatus: null,

@@ -32,6 +32,18 @@ export function isResidentBedAssigned(ctx: ResidentBedContext): boolean {
   return ctx.tenancyStatus === 'active' || ctx.tenancyStatus === 'vacating';
 }
 
+/**
+ * Living today with an assigned bed — excludes vacating, upcoming move-in, and unassigned.
+ * Uses tenancy SSOT plus occupancy `isLivingToday` when present.
+ */
+export function isResidentActiveLiving(
+  ctx: ResidentBedContext & { isLivingToday?: boolean },
+): boolean {
+  if (ctx.tenancyStatus !== 'active') return false;
+  if (ctx.isLivingToday === false) return false;
+  return true;
+}
+
 export function isResidentBedAssignable(ctx: ResidentBedContext): boolean {
   if (ctx.tenancyStatus === 'blocked' || ctx.tenancyStatus === 'vacated') return false;
   return !isResidentBedAssigned(ctx);

@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic';
 export default async function ResidentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string; moveIn?: string }>;
+  searchParams: Promise<{ search?: string; moveIn?: string; status?: string }>;
 }) {
   const sp = await searchParams;
   let residents;
@@ -88,6 +88,7 @@ export default async function ResidentsPage({
           residents={residents}
           initialQuery={sp.search ?? ''}
           initialMoveInDate={sp.moveIn ?? ''}
+          initialStatusFilter={sp.status}
         />
       )}
 

@@ -4,6 +4,7 @@ import { deriveTenancyStatus } from '@/src/lib/residentActiveTenancy';
 import {
   isResidentBedAssigned,
   isResidentBedAssignable,
+  isResidentActiveLiving,
 } from '@/src/lib/residentBedAssignment';
 
 test('deriveTenancyStatus prioritizes active reservation over vacated residency flag', () => {
@@ -77,6 +78,12 @@ test('isResidentBedAssignable is false when bed is assigned', () => {
     }),
     false,
   );
+});
+
+test('isResidentActiveLiving excludes vacating and future move-in', () => {
+  assert.equal(isResidentActiveLiving({ tenancyStatus: 'active', isLivingToday: true }), true);
+  assert.equal(isResidentActiveLiving({ tenancyStatus: 'vacating', isLivingToday: true }), false);
+  assert.equal(isResidentActiveLiving({ tenancyStatus: 'active', isLivingToday: false }), false);
 });
 
 test('deriveTenancyStatus treats bedId as assigned even without booking id in status input', () => {

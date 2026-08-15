@@ -13,18 +13,15 @@ import {
   isResidentBedAssigned,
   viewBedAdminHref,
 } from '@/src/lib/residentBedAssignment';
+import {
+  filterResidentsForAdminList,
+  matchesResidentListStatusFilter,
+  parseResidentListStatusFilter,
+  RESIDENT_LIST_STATUS_FILTERS,
+  type ResidentListStatusFilter,
+} from '@/src/lib/residents/residentListPresentation';
 import { ResidentLifecycleBadge } from '@/src/lib/residents/residentLifecycleBadge';
 import type { ResidentListRow } from '@/src/services/residentAdmin';
-
-type StatusFilter = 'all' | 'active' | 'unassigned' | 'vacating' | 'kyc_pending';
-
-const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'active', label: 'Active' },
-  { id: 'unassigned', label: 'Unassigned' },
-  { id: 'vacating', label: 'Vacating' },
-  { id: 'kyc_pending', label: 'KYC pending' },
-];
 
 function statusBadge(r: ResidentListRow) {
   if (isResidentBedAssigned(r)) {
@@ -58,45 +55,45 @@ export function ResidentsTable({
   residents,
   initialQuery = '',
   initialMoveInDate = '',
+  initialStatusFilter,
 }: {
   residents: ResidentListRow[];
   initialQuery?: string;
   initialMoveInDate?: string;
+  initialStatusFilter?: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isNavigating, startTransition] = useTransition();
   const [query, setQuery] = useState(initialQuery);
   const [moveInDate, setMoveInDate] = useState(initialMoveInDate);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<ResidentListStatusFilter>(() =>
+    parseResidentListStatusFilter(initialStatusFilter),
+  );
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const digits = query.replace(/\D/g, '');
+  const statusMatched = useMemo(
+    () => residents.filter((r) => matchesResidentListStatusFilter(r, statusFilter)),
+    [residents, statusFilter],
+  );
 
-    return residents.filter((r) => {
-      if (statusFilter === 'active' && !isResidentBedAssigned(r)) return false;
-      if (statusFilter === 'unassigned' && !isResidentBedAssignable(r)) return false;
-      if (statusFilter === 'vacating' && r.tenancyStatus !== 'vacating') return false;
-      if (statusFilter === 'kyc_pending' && !r.hasPendingKycSubmission) return false;
+  const filtered = useMemo(
+    () =>
+      filterResidentsForAdminList(residents, {
+        statusFilter,
+        query,
+        moveInDate,
+      }),
+    [query, residents, statusFilter, moveInDate],
+  );
 
-      if (moveInDate && r.moveInDate !== moveInDate) return false;
-
-      if (!q) return true;
-
-      const nameMatch = r.fullName.toLowerCase().includes(q);
-      const emailMatch = r.email.toLowerCase().includes(q);
-      const phoneMatch = digits.length >= 2 && r.phone.replace(/\D/g, '').includes(digits);
-      const bookingMatch = r.bookingCode?.toLowerCase().includes(q);
-      const pgMatch = r.pgName?.toLowerCase().includes(q);
-      const bedMatch =
-        r.bedCode?.toLowerCase().includes(q) ||
-        r.roomNumber?.toLowerCase().includes(q) ||
-        `${r.roomNumber ?? ''} ${r.bedCode ?? ''}`.toLowerCase().includes(q);
-
-      return nameMatch || emailMatch || phoneMatch || bookingMatch || pgMatch || bedMatch;
-    });
-  }, [query, residents, statusFilter, moveInDate]);
+  function applyStatusFilter(next: ResidentListStatusFilter) {
+    setStatusFilter(next);
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === 'active') params.delete('status');
+    else params.set('status', next);
+    const qs = params.toString();
+    router.replace(`/admin/residents${qs ? `?${qs}` : ''}`);
+  }
 
   function openResidentProfile(customerId: string) {
     startTransition(() => {
@@ -117,11 +114,11 @@ export function ResidentsTable({
       <BulkKycWhatsAppReminder residents={residents} />
 
       <div className="flex flex-wrap gap-2">
-        {STATUS_FILTERS.map((f) => (
+        {RESIDENT_LIST_STATUS_FILTERS.map((f) => (
           <button
             key={f.id}
             type="button"
-            onClick={() => setStatusFilter(f.id)}
+            onClick={() => applyStatusFilter(f.id)}
             className={
               statusFilter === f.id
                 ? 'rounded-lg bg-[#FF5A1F] px-3 py-1.5 text-xs font-semibold text-white'
@@ -163,7 +160,7 @@ export function ResidentsTable({
           </button>
         ) : null}
         <p className="text-sm text-apg-silver">
-          Showing {filtered.length} of {residents.length}
+          Showing {filtered.length} of {statusMatched.length}
         </p>
       </div>
 

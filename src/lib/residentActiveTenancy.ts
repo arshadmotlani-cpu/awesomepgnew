@@ -98,6 +98,7 @@ export const activeTenancyLateralSql = sql`
       b.billing_anchor_date::text AS billing_anchor_date,
       to_char(lower(br.stay_range), 'YYYY-MM-DD') AS move_in_date,
       b.pricing_snapshot,
+      (CURRENT_DATE <@ br.stay_range) AS is_living_today,
       EXISTS (
         SELECT 1 FROM vacating_requests vr
         WHERE vr.booking_id = b.id
@@ -153,6 +154,7 @@ export type ActiveTenancyDbRow = {
   billing_anchor_date: string | null;
   move_in_date: string;
   pricing_snapshot: PricingSnapshot | null;
+  is_living_today: boolean;
   is_vacating: boolean;
   vacating_date: string | null;
   vacating_status: string | null;
@@ -176,6 +178,7 @@ export type ActiveTenancy = {
   durationMode: string;
   stayType: string;
   expectedCheckoutDate: string | null;
+  isLivingToday: boolean;
   isVacating: boolean;
   vacatingDate: string | null;
   vacatingStatus: string | null;
@@ -203,6 +206,7 @@ function mapActiveTenancyRow(row: ActiveTenancyDbRow): ActiveTenancy {
     durationMode: row.duration_mode,
     stayType: row.stay_type,
     expectedCheckoutDate: row.expected_checkout_date,
+    isLivingToday: row.is_living_today,
     isVacating: row.is_vacating,
     vacatingDate: row.vacating_date,
     vacatingStatus: row.vacating_status,
@@ -242,6 +246,7 @@ export async function getActiveTenancyForCustomer(
       b.billing_anchor_date::text AS billing_anchor_date,
       to_char(lower(br.stay_range), 'YYYY-MM-DD') AS move_in_date,
       b.pricing_snapshot,
+      (CURRENT_DATE <@ br.stay_range) AS is_living_today,
       EXISTS (
         SELECT 1 FROM vacating_requests vr
         WHERE vr.booking_id = b.id
@@ -285,6 +290,7 @@ export type { ResidentTenancyStatus, ResidentBedContext } from '@/src/lib/reside
 export {
   assignedBedShortLabel,
   isOnboardingBookingEligibleForBedAssignment,
+  isResidentActiveLiving,
   isResidentBedAssignmentEligible,
   isResidentBedAssignable,
   isResidentBedAssigned,
