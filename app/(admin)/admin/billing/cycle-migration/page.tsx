@@ -19,6 +19,12 @@ function parseFilter(raw: string | undefined): Filter {
   return 'needs_migration';
 }
 
+function isMigrationPreviewError(
+  preview: BillingCycleMigrationPreview | { ok: false; error: string },
+): preview is { ok: false; error: string } {
+  return 'ok' in preview && preview.ok === false;
+}
+
 async function loadPreviews(
   candidates: BillingCycleMigrationCandidateRow[],
 ): Promise<Record<string, BillingCycleMigrationPreview>> {
@@ -26,7 +32,7 @@ async function loadPreviews(
   for (const row of candidates) {
     if (row.migrationStatus !== 'eligible') continue;
     const preview = await previewBillingCycleMigration(row.bookingId);
-    if ('ok' in preview && preview.ok === false) continue;
+    if (isMigrationPreviewError(preview)) continue;
     previews[row.bookingId] = preview;
   }
   return previews;
