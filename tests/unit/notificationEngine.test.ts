@@ -10,11 +10,11 @@ test('notification engine exposes mark read helpers', () => {
   assert.match(src, /countUnreadForUser/);
 });
 
-test('admin notification drawer marks visible items read', () => {
+test('admin notification drawer loads unread inbox items', () => {
   const src = readFileSync(
     join(process.cwd(), 'src/components/admin/AdminNotificationCenter.tsx'),
     'utf8',
   );
-  assert.match(src, /markAllVisible/);
-  assert.match(src, /setUnreadCount\(0\)/);
+  assert.match(src, /\/api\/admin\/notifications\?state=unread/);
+  assert.match(src, /appendNotifReadParam/);
 });

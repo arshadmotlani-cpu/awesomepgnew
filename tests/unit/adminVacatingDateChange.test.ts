@@ -44,7 +44,7 @@ test('resident portal tab data exposes vacating date change eligibility', () => 
   assert.match(requestsHome, /id="resident-move-out"/);
   assert.match(requestsHome, /ResidentCancelMoveOutCard|VacatingHome/);
   assert.doesNotMatch(profileOverview, /ResidentHomeMoveOutStatus/);
-  assert.doesNotMatch(profileOverview, /Change final stay date/);
+  assert.match(profileOverview, /changeFinalStayHref/);
 });
 
 test('stayRangeExclusiveEnd aligns bed release with vacating semantics', () => {
