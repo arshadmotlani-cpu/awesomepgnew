@@ -116,46 +116,12 @@ export default async function OperationsPage({
     data.filterCounts,
     dateChangeBundle.dateChangeCount,
   );
-  // #region agent log
-  fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '2cf3ae' },
-    body: JSON.stringify({
-      sessionId: '2cf3ae',
-      runId: 'post-fix-v2',
-      hypothesisId: 'H2-client-fn-from-server',
-      location: 'operations/page.tsx:attentionCards',
-      message: 'attentionCards built on server',
-      data: { cardCount: attentionCards.length, filter },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
   const focusRequestId = parseDateChangeFocusId(focus);
 
   let recentRejections: Awaited<ReturnType<typeof listRecentPaymentProofRejectionsForAdmin>> = [];
   if (filter === 'waiting_for_approval') {
     try {
       recentRejections = await listRecentPaymentProofRejectionsForAdmin(session, 40);
-      // #region agent log
-      fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '2cf3ae' },
-        body: JSON.stringify({
-          sessionId: '2cf3ae',
-          runId: 'post-fix',
-          hypothesisId: 'H1-rejection-dates',
-          location: 'operations/page.tsx:recentRejections',
-          message: 'recentRejections loaded',
-          data: {
-            count: recentRejections.length,
-            rejectedAtType: recentRejections[0] ? typeof recentRejections[0].rejectedAt : null,
-            createdAtType: recentRejections[0] ? typeof recentRejections[0].createdAt : null,
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
     } catch (err) {
       logOperationsLoaderError('paymentRejections', filter, focus, err);
     }
