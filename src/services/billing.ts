@@ -85,6 +85,26 @@ export function firstAutoBillingDate(anchorDate: DateLike, billingDay: number): 
   return formatDate(dueDateForBillingDay(nextMonthStart, billingDay));
 }
 
+/**
+ * First calendar-month run date (YYYY-MM-01) on which the daily cron may bill
+ * after paid-through ends. Unlike `firstAutoBillingDate(anchor, 1)` this does not
+ * add an extra month when the day after coverage is already the 1st.
+ */
+export function firstAutoBillingRunDateAfterCoverage(
+  paidUntilDate: string | null,
+  checkInDate: DateLike,
+): string {
+  if (!paidUntilDate) {
+    return firstAutoBillingDate(checkInDate, STANDARD_CALENDAR_BILLING_DAY);
+  }
+  const dayAfter = formatDate(addDays(parseDate(paidUntilDate), 1));
+  const monthStart = firstOfMonth(dayAfter);
+  if (dayAfter <= monthStart) {
+    return monthStart;
+  }
+  return formatDate(addMonths(parseDate(monthStart), 1));
+}
+
 /** True when `today` is the resident's billing anniversary and past first auto date. */
 export function isBillingAnniversaryToday(
   today: DateLike,

@@ -20,11 +20,11 @@ import {
 } from '@/src/db/schema';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
-import { formatDate, parseDate, addDays, addMonths } from '@/src/lib/dates';
+import { formatDate, parseDate, addDays } from '@/src/lib/dates';
 import {
   STANDARD_CALENDAR_BILLING_DAY,
   billingPeriodForPolicy,
-  firstAutoBillingDate,
+  firstAutoBillingRunDateAfterCoverage,
   firstOfMonth,
   lastDayOfMonth,
   prorateForMonth,
@@ -32,10 +32,11 @@ import {
   type BillingCyclePolicy,
 } from '@/src/services/billing';
 import { loadBillingCoverageModel } from '@/src/services/billingCoverage';
+import { findFirstUncoveredCalendarMonth, parseBillingPeriodFromInvoiceNotes } from '@/src/lib/billing/billingCoverageModel';
 import { getBookingMoneyBalances } from '@/src/services/bookingMoneyBalances';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { resolveMonthlyRentPaiseForBooking } from '@/src/lib/billing/rentPricingSsot';
-import { createAdhocRentInvoice } from '@/src/services/rentInvoices';
+import { createAdhocRentInvoice, generateRentInvoicesForMonth } from '@/src/services/rentInvoices';
 
 export type BillingCycleMigrationPreview = {
   bookingId: string;
@@ -113,7 +114,7 @@ function computeTransitionPeriod(args: {
     monthlyRatePaise: args.monthlyRentPaise,
     billingMonth: monthStart,
     activeStart: transitionStart,
-    activeEnd: parseDate(periodEnd),
+    activeEnd: formatDate(addDays(parseDate(periodEnd), 1)),
   });
 
   if (proration.amountPaise <= 0) return null;
@@ -279,15 +280,7 @@ export async function previewBillingCycleMigration(
     blockedReason = `Active checkout settlement (${loaded.settlement.status}).`;
   }
 
-  const transitionStartAnchor = paidThroughDate
-    ? formatDate(addDays(paidThroughDate, 1))
-    : checkInDate;
-  const firstAuto = firstAutoBillingDate(
-    transitionStartAnchor === firstOfMonth(transitionStartAnchor)
-      ? transitionStartAnchor
-      : formatDate(addMonths(firstOfMonth(transitionStartAnchor), 1)),
-    STANDARD_CALENDAR_BILLING_DAY,
-  );
+  const firstAuto = firstAutoBillingRunDateAfterCoverage(paidThroughDate, checkInDate);
 
   const transition =
     alreadyOnTarget || lightweightPolicyFlip
@@ -362,15 +355,7 @@ export async function applyBillingCycleMigration(
   }
 
   const note = input.note?.trim() || 'Admin billing cycle migration to calendar month 1st.';
-  const transitionStartAnchor = p.paidThroughDate
-    ? formatDate(addDays(p.paidThroughDate, 1))
-    : p.checkInDate;
-  const firstAuto = firstAutoBillingDate(
-    transitionStartAnchor === firstOfMonth(transitionStartAnchor)
-      ? transitionStartAnchor
-      : formatDate(addMonths(firstOfMonth(transitionStartAnchor), 1)),
-    STANDARD_CALENDAR_BILLING_DAY,
-  );
+  const firstAuto = firstAutoBillingRunDateAfterCoverage(p.paidThroughDate, p.checkInDate);
 
   await db
     .update(residentBillingProfiles)
@@ -457,6 +442,34 @@ export async function applyBillingCycleMigration(
     }
   }
 
+  let uncoveredMonthInvoiceId: string | undefined;
+  const postCoverage = await loadBillingCoverageModel({
+    bookingId: input.bookingId,
+    monthlyRentPaise: p.monthlyRentPaise,
+    stayType: loaded.ctx.stayType,
+    durationMode: loaded.ctx.durationMode,
+  });
+  if (postCoverage) {
+    const uncoveredMonth = findFirstUncoveredCalendarMonth({
+      paidUntilDate: postCoverage.paidUntilDate,
+      firstAutoBillingDate: firstAuto,
+      paidInvoiceCoverage: postCoverage.paidInvoiceCoverage,
+    });
+    if (uncoveredMonth) {
+      const gen = await generateRentInvoicesForMonth({
+        billingMonth: uncoveredMonth,
+        asOf: formatDate(
+          addDays(parseDate(uncoveredMonth), STANDARD_CALENDAR_BILLING_DAY - 1),
+        ),
+        forceAll: true,
+        bookingIds: [input.bookingId],
+      });
+      if (gen.invoiceIds.length > 0) {
+        uncoveredMonthInvoiceId = gen.invoiceIds[0];
+      }
+    }
+  }
+
   await db.insert(auditLog).values({
     actorType: 'admin',
     actorId: session.adminId,
@@ -470,6 +483,7 @@ export async function applyBillingCycleMigration(
       toBillingDay: STANDARD_CALENDAR_BILLING_DAY,
       firstAutoBillingDate: firstAuto,
       transitionInvoiceId,
+      uncoveredMonthInvoiceId,
       note,
       openInvoicesRealigned: openInvoices.length,
     },
@@ -507,6 +521,30 @@ export async function generateBillingCycleTransitionInvoice(
 
   if (!bedRow?.bedId) {
     return { ok: false, error: 'Bed not found for booking.' };
+  }
+
+  const existingTransitions = await db
+    .select({ notes: rentInvoices.notes })
+    .from(rentInvoices)
+    .where(
+      and(
+        eq(rentInvoices.bookingId, bookingId),
+        eq(rentInvoices.isAdhoc, true),
+        eq(rentInvoices.invoiceSubtype, 'billing_cycle_transition'),
+        inArray(rentInvoices.status, ['pending', 'overdue', 'paid', 'payment_in_progress']),
+      ),
+    );
+  for (const row of existingTransitions) {
+    const parsed = parseBillingPeriodFromInvoiceNotes(row.notes);
+    if (
+      parsed?.periodStart === p.transition.periodStart &&
+      parsed?.periodEnd === p.transition.periodEnd
+    ) {
+      return {
+        ok: false,
+        error: `Transition invoice already exists for ${parsed.periodStart} → ${parsed.periodEnd}.`,
+      };
+    }
   }
 
   const periodNote = rentInvoiceBillingPeriodNoteForPolicy(

@@ -718,6 +718,8 @@ export async function evaluateAnniversaryRentGenerationEligibility(
       customerId: bookings.customerId,
       pricingSnapshot: bookings.pricingSnapshot,
       status: bookings.status,
+      stayType: bookings.stayType,
+      durationMode: bookings.durationMode,
     })
     .from(bookings)
     .where(eq(bookings.id, input.bookingId))
@@ -877,6 +879,29 @@ export async function evaluateAnniversaryRentGenerationEligibility(
   const pgId = (pgRow as { pg_id: string } | undefined)?.pg_id;
   if (!pgId) {
     return { eligible: false, skipCode: 'pg_not_found' };
+  }
+
+  if (billingCyclePolicy === 'calendar_month_1st') {
+    const { loadBillingCoverageModel } = await import('@/src/services/billingCoverage');
+    const { isCalendarBillingMonthFullyCovered } = await import(
+      '@/src/lib/billing/billingCoverageModel'
+    );
+    const coverage = await loadBillingCoverageModel({
+      bookingId: input.bookingId,
+      monthlyRentPaise: monthlyRent,
+      stayType: bookingRow.stayType,
+      durationMode: bookingRow.durationMode,
+    });
+    if (
+      coverage &&
+      isCalendarBillingMonthFullyCovered({
+        billingMonth,
+        paidUntilDate: coverage.paidUntilDate,
+        paidInvoiceCoverage: coverage.paidInvoiceCoverage,
+      })
+    ) {
+      return { eligible: false, skipCode: 'already_covered' };
+    }
   }
 
   return {

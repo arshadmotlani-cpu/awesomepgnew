@@ -11,6 +11,7 @@ import {
 import { noticeDeductionAppliesToBooking } from '@/src/lib/checkout/noticeDeductionPolicy';
 import {
   buildBillingCoverageModel,
+  parseBillingPeriodFromInvoiceNotes,
   rawPeriodFromInvoiceDueDate,
   type BillingCoverageModel,
   type BillingCoveragePeriod,
@@ -82,6 +83,7 @@ export async function loadBillingCoverageRawPeriods(bookingId: string): Promise<
       notes: rentInvoices.notes,
       paymentProofUrl: rentInvoices.paymentProofUrl,
       isAdhoc: rentInvoices.isAdhoc,
+      invoiceSubtype: rentInvoices.invoiceSubtype,
     })
     .from(rentInvoices)
     .where(eq(rentInvoices.bookingId, bookingId));
@@ -93,6 +95,26 @@ export async function loadBillingCoverageRawPeriods(bookingId: string): Promise<
     if (!isSettlementRentInvoice(inv)) continue;
     if (inv.paidPrincipalPaise <= 0 && inv.status !== 'paid') continue;
     coveredBillingMonths.add(firstOfMonth(String(inv.billingMonth)));
+
+    if (
+      inv.invoiceSubtype === 'billing_cycle_transition' ||
+      (inv.isAdhoc && inv.dueDate == null)
+    ) {
+      const parsed = parseBillingPeriodFromInvoiceNotes(inv.notes);
+      if (parsed) {
+        rawPaidPeriods.push({
+          periodStart: parsed.periodStart,
+          periodEnd: parsed.periodEnd,
+          source: 'rent_invoice',
+          sourceId: inv.id,
+          paidPrincipalPaise: Math.max(0, inv.paidPrincipalPaise),
+        });
+        continue;
+      }
+    }
+
+    if (!inv.dueDate) continue;
+
     rawPaidPeriods.push({
       ...rawPeriodFromInvoiceDueDate(String(inv.dueDate), billingDay, inv.id, {
         billingCyclePolicy,

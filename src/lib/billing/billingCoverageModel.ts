@@ -1,7 +1,7 @@
 /**
  * Billing coverage SSOT — separates invoice coverage, notice prepaid, settlement days, tail rent.
  */
-import { diffDays, formatDate, parseDate, addDays } from '@/src/lib/dates';
+import { diffDays, formatDate, parseDate, addDays, addMonths } from '@/src/lib/dates';
 import {
   computeNoticeDeductionBreakdown,
   resolvePaidThroughDate,
@@ -379,6 +379,87 @@ export function buildBillingCoverageModel(input: BuildBillingCoverageInput): Bil
     tailRentPaise: tailRent.shouldSuppressFinalInvoice ? tailRent.tailRentPaise : 0,
     noticeBreakdown,
   };
+}
+
+/** Parse billing period from invoice notes (ISO or "Billing period: 29 Jul 2026 → 31 Jul 2026"). */
+export function parseBillingPeriodFromInvoiceNotes(
+  notes: string | null | undefined,
+): { periodStart: string; periodEnd: string } | null {
+  if (!notes?.trim()) return null;
+  const iso = notes.match(/(\d{4}-\d{2}-\d{2})\s*→\s*(\d{4}-\d{2}-\d{2})/);
+  if (iso) {
+    return { periodStart: iso[1]!, periodEnd: iso[2]! };
+  }
+  const label = notes.match(/Billing period:\s*([^→]+?)→\s*(.+?)(?:\s*$|\s+Billing)/);
+  if (label) {
+    const start = parseDisplayBillingDate(label[1].trim());
+    const end = parseDisplayBillingDate(label[2].trim());
+    if (start && end) return { periodStart: start, periodEnd: end };
+  }
+  return null;
+}
+
+function parseDisplayBillingDate(text: string): string | null {
+  const m = text.match(/(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})/);
+  if (!m) {
+    const parsed = Date.parse(text);
+    if (Number.isNaN(parsed)) return null;
+    return formatDate(new Date(parsed));
+  }
+  const months: Record<string, number> = {
+    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+  };
+  const mon = months[m[2]!.toLowerCase()];
+  if (mon === undefined) return null;
+  const day = Number(m[1]);
+  const year = Number(m[3]);
+  return formatDate(new Date(Date.UTC(year, mon, day)));
+}
+
+/** Whether a calendar billing month is fully covered by paid rent periods. */
+export function isCalendarBillingMonthFullyCovered(args: {
+  billingMonth: string;
+  paidUntilDate: string | null;
+  paidInvoiceCoverage: BillingCoveragePeriod[];
+}): boolean {
+  const period = calendarMonthBillingPeriod(args.billingMonth);
+  if (args.paidUntilDate && args.paidUntilDate >= period.periodEnd) {
+    return true;
+  }
+  for (const p of args.paidInvoiceCoverage) {
+    if (p.periodStart <= period.periodStart && p.periodEnd >= period.periodEnd) {
+      return true;
+    }
+  }
+  const overlap = computeDaysPaidForSettlement({
+    moveInDate: period.periodStart,
+    vacatingDate: period.periodEnd,
+    paidInvoiceCoverage: args.paidInvoiceCoverage,
+  });
+  const daysInMonth = calendarDaysInclusive(period.periodStart, period.periodEnd);
+  return overlap.days >= daysInMonth;
+}
+
+/** First uncovered full calendar month between paid-through and first auto run (exclusive). */
+export function findFirstUncoveredCalendarMonth(args: {
+  paidUntilDate: string | null;
+  firstAutoBillingDate: string;
+  paidInvoiceCoverage: BillingCoveragePeriod[];
+}): string | null {
+  if (!args.paidUntilDate) return null;
+  let cursor = firstOfMonth(formatDate(addDays(parseDate(args.paidUntilDate), 1)));
+  const endExclusive = firstOfMonth(args.firstAutoBillingDate);
+  while (cursor < endExclusive) {
+    const covered = isCalendarBillingMonthFullyCovered({
+      billingMonth: cursor,
+      paidUntilDate: args.paidUntilDate,
+      paidInvoiceCoverage: args.paidInvoiceCoverage,
+    });
+    if (!covered) return cursor;
+    cursor = formatDate(addMonths(parseDate(cursor), 1));
+  }
+  return null;
 }
 
 /** Re-export for invoice row → raw period before clamp. */
