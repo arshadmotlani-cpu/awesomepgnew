@@ -36,11 +36,12 @@ test('syncRoomCapacityFromActiveBeds reassigns shared room types instead of muta
   assert.match(src, /roomTypeId: targetType\.id/);
 });
 
-test('room page no longer mounts legacy electricity widget', () => {
+test('room page uses operational room management panel', () => {
   const panel = readFileSync(
     join(process.cwd(), 'src/components/admin/PgRoomOperationsPanel.tsx'),
     'utf8',
   );
   assert.doesNotMatch(panel, /RoomElectricityCard/);
   assert.doesNotMatch(panel, /roomMeters/);
+  assert.match(panel, /RoomOperationalCard/);
 });

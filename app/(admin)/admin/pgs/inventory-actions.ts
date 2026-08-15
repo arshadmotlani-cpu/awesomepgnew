@@ -260,10 +260,20 @@ export async function configureRoomAction(
   }
 }
 
+export type ResizeRoomCapacitySuccess = {
+  ok: true;
+  capacity: number;
+  roomTypeName: string;
+};
+
+export type ResizeRoomCapacityActionResult =
+  | ResizeRoomCapacitySuccess
+  | { ok: false; error: string };
+
 export async function resizeRoomCapacityAction(
   pgId: string,
   formData: FormData,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<ResizeRoomCapacityActionResult> {
   try {
     const session = await requireAdminPermission('pgs:write');
     const roomId = formData.get('roomId')?.toString()?.trim();
@@ -280,7 +290,7 @@ export async function resizeRoomCapacityAction(
     const weeklyDepositPaise = parseRupeesPaise(formData.get('weeklyDeposit')?.toString()) ?? 0;
     const monthlyDepositPaise = parseRupeesPaise(formData.get('monthlyDeposit')?.toString()) ?? 0;
 
-    await resizeRoomCapacity(session, pgId, roomId, {
+    const result = await resizeRoomCapacity(session, pgId, roomId, {
       targetBedCount: preset.bedCount,
       roomTypeName: preset.roomTypeName,
       pricing: {
@@ -297,7 +307,11 @@ export async function resizeRoomCapacityAction(
     revalidatePublicPgBrowseCache({ pgId });
     revalidatePath('/admin/beds');
     revalidatePath('/admin/pricing');
-    return { ok: true };
+    return {
+      ok: true,
+      capacity: result.targetBedCount,
+      roomTypeName: result.roomTypeName,
+    };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
@@ -431,10 +445,22 @@ export async function archiveRoomAction(
   }
 }
 
+export type UpdateRoomPricingSuccess = {
+  ok: true;
+  rates: {
+    dailyPaise: number;
+    weeklyPaise: number;
+    monthlyPaise: number;
+    bedCount: number;
+  };
+};
+
+export type UpdateRoomPricingResult = UpdateRoomPricingSuccess | { ok: false; error: string };
+
 export async function updateRoomPricingAction(
   pgId: string,
   formData: FormData,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<UpdateRoomPricingResult> {
   try {
     const session = await requireAdminPermission('pgs:write');
     const roomId = formData.get('roomId')?.toString()?.trim();
@@ -449,7 +475,7 @@ export async function updateRoomPricingAction(
     const weeklyDepositPaise = parseRupeesPaise(formData.get('weeklyDeposit')?.toString()) ?? 0;
     const monthlyDepositPaise = parseRupeesPaise(formData.get('monthlyDeposit')?.toString()) ?? 0;
 
-    await updateRoomBedPricing(session, pgId, roomId, {
+    const rates = await updateRoomBedPricing(session, pgId, roomId, {
       dailyRatePaise: Math.round(daily * 100),
       weeklyRatePaise: Math.round(weekly * 100),
       monthlyRatePaise: Math.round(monthly * 100),
@@ -461,7 +487,15 @@ export async function updateRoomPricingAction(
     revalidatePgAdminPages(pgId);
     revalidatePublicPgBrowseCache({ pgId });
     revalidatePath('/admin/pricing');
-    return { ok: true };
+    return {
+      ok: true,
+      rates: {
+        dailyPaise: rates.dailyRatePaise,
+        weeklyPaise: rates.weeklyRatePaise,
+        monthlyPaise: rates.monthlyRatePaise,
+        bedCount: rates.bedCount,
+      },
+    };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }

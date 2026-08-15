@@ -3,11 +3,12 @@
 import { useMemo, useState } from 'react';
 import type { PgInventoryBedRow } from '@/src/services/pgInventory';
 import { CreateRoomWizard } from './CreateRoomWizard';
-import { RoomConfigurationEditor } from './RoomConfigurationEditor';
-import { RoomIntegrityBadge } from './RoomIntegrityBadge';
+import { useOperationsActionToast } from '@/src/components/admin/operations/OperationsActionToast';
+import { RoomOperationalCard } from '@/src/components/admin/rooms/RoomOperationalCard';
+import { RoomPricingQuickTable } from '@/src/components/admin/rooms/RoomPricingQuickTable';
+import type { RoomRateSnapshot } from '@/src/components/admin/rooms/roomCardFormatters';
 import type { RoomIntegrityResult } from '@/src/lib/roomIntegrity/types';
 import type { RoomExitQueueItem } from '@/src/lib/exit/loadRoomExitQueue';
-import { formatDate } from '@/src/lib/format';
 import {
   resolveRoomTypeNameForCapacity,
   roomCapacityFromActiveBedCount,
@@ -60,7 +61,10 @@ export function PgRoomOperationsPanel({
   roomIntegrity?: RoomIntegrityResult[];
   roomExitQueues?: Record<string, RoomExitQueueItem[]>;
 }) {
-  const [showAddBed, setShowAddBed] = useState(beds.length === 0);
+  const { showToast, toastNode } = useOperationsActionToast();
+  const [showAddRoom, setShowAddRoom] = useState(beds.length === 0);
+  const [showPricingTable, setShowPricingTable] = useState(false);
+  const [rateOverrides, setRateOverrides] = useState<Record<string, RoomRateSnapshot>>({});
 
   const integrityByRoomId = useMemo(
     () => new Map(roomIntegrity.map((r) => [r.roomId, r])),
@@ -105,30 +109,44 @@ export function PgRoomOperationsPanel({
     );
   }, [beds]);
 
+  const moveTargets = roomGroups.map((r) => ({
+    roomId: r.roomId,
+    label: `Room ${r.roomNumber} (${r.beds.length} beds)`,
+  }));
+
   const availableCount =
     availabilitySummary?.availableBeds ??
     beds.filter((b) => b.bedStatus === 'available').length;
   const occupiedCount = availabilitySummary?.occupiedBeds ?? null;
   const maintenanceCount = availabilitySummary?.maintenanceBeds ?? null;
 
+  function handleRateSaved(roomId: string, rates: RoomRateSnapshot) {
+    setRateOverrides((prev) => ({ ...prev, [roomId]: rates }));
+  }
+
+  function handleToast(message: string, tone: 'success' | 'error') {
+    showToast(message, tone);
+  }
+
   return (
     <section
       id="pg-section-rooms"
       className="scroll-mt-6 space-y-6 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6"
     >
+      {toastNode}
+
       <header className="space-y-2">
         <h2 className="text-lg font-semibold text-white">Rooms & rent</h2>
         <p className="text-sm text-zinc-400">
-          <strong className="text-zinc-300">Rent</strong> is set per bed (daily / weekly / monthly).
-          Sharing capacity follows the number of active beds in each room. Record electricity via{' '}
-          <strong className="text-zinc-300">Admin → Electricity → New bill</strong>.
+          Manage room types, beds, and rent from each room card. Listing photos and descriptions are
+          optional under <strong className="text-zinc-300">More → Room details</strong>.
         </p>
       </header>
 
       {beds.length === 0 ? (
         <ol className="space-y-2 rounded-xl border border-amber-500/30 bg-amber-950/20 p-4 text-sm text-amber-100">
           <li className="font-semibold">Setup order for this PG</li>
-          <li>1. Add at least one bed below (creates the room automatically).</li>
+          <li>1. Add your first room below.</li>
           <li>2. Enable QR collections and add Rent + Electricity categories.</li>
         </ol>
       ) : null}
@@ -162,69 +180,77 @@ export function PgRoomOperationsPanel({
         </p>
       ) : null}
 
-      <div className="rounded-xl border border-zinc-800">
+      <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={() => setShowAddBed((v) => !v)}
-          className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-zinc-200 hover:bg-zinc-950/50"
+          onClick={() => setShowAddRoom((v) => !v)}
+          className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white hover:brightness-110"
         >
-          <span>
-            {beds.length === 0 ? 'Step 1 — Add room & beds (rent)' : 'Add room or more beds'}
-          </span>
-          <span className="text-zinc-500">{showAddBed ? '−' : '+'}</span>
+          {showAddRoom ? '− Hide add room' : '+ Add room'}
         </button>
-        {showAddBed ? <CreateRoomWizard pgId={pgId} /> : null}
+        {roomGroups.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setShowPricingTable((v) => !v)}
+            className="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-200 hover:bg-zinc-800"
+          >
+            {showPricingTable ? '− Hide pricing table' : 'Manage pricing'}
+          </button>
+        ) : null}
       </div>
 
+      {showAddRoom ? (
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
+          <CreateRoomWizard
+            pgId={pgId}
+            onSuccess={(message) => showToast(`✓ ${message}`, 'success')}
+            onError={(message) => showToast(message, 'error')}
+          />
+        </div>
+      ) : null}
+
+      {showPricingTable && roomGroups.length > 0 ? (
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
+          <h3 className="mb-3 text-sm font-medium text-zinc-300">Quick pricing</h3>
+          <RoomPricingQuickTable
+            pgId={pgId}
+            rooms={roomGroups}
+            rateOverrides={rateOverrides}
+            onRateSaved={handleRateSaved}
+            onToast={handleToast}
+          />
+        </div>
+      ) : null}
+
       {roomGroups.length === 0 ? (
-        <p className="text-sm text-zinc-500">No rooms yet. Expand “Add first bed” above.</p>
+        <p className="text-sm text-zinc-500">No rooms yet. Click &quot;+ Add room&quot; above.</p>
       ) : (
-        <div className="space-y-4">
-          <h3 className="text-sm font-medium text-zinc-300">
-            {beds.length > 0 ? 'Per room: beds & pricing' : 'Rooms'}
-          </h3>
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium text-zinc-300">Rooms ({roomGroups.length})</h3>
           {roomGroups.map((room) => (
-            <article
+            <RoomOperationalCard
               key={room.roomId}
-              className="rounded-xl border border-zinc-800 bg-zinc-950/40 overflow-hidden"
-            >
-              <header className="border-b border-zinc-800 bg-zinc-950/60 px-4 py-3">
-                {roomExitQueues[room.roomId]?.length ? (
-                  <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-sm">
-                    <p className="font-medium text-amber-100">Leaving soon</p>
-                    <ul className="mt-2 space-y-1 text-xs text-amber-100/90">
-                      {roomExitQueues[room.roomId]!.map((item) => (
-                        <li key={item.bookingId}>
-                          {item.customerName} · {formatDate(item.expectedCheckoutDate)} ·{' '}
-                          {item.lifecycleLabel}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-                <RoomConfigurationEditor
-                  pgId={pgId}
-                  roomId={room.roomId}
-                  roomNumber={room.roomNumber}
-                  floorNumber={room.floorNumber}
-                  floorLabel={room.floorLabel}
-                  roomTypeName={room.roomTypeName}
-                  hasAc={room.hasAc}
-                  roomNotes={room.roomNotes}
-                  listingDescription={room.listingDescription}
-                  images={room.images}
-                  videos={room.videos}
-                  dimensions={room.dimensions}
-                  blobUploadConfigured={blobUploadConfigured}
-                  beds={room.beds}
-                  integrity={integrityByRoomId.get(room.roomId)}
-                  moveTargets={roomGroups.map((r) => ({
-                    roomId: r.roomId,
-                    label: `Room ${r.roomNumber} (${r.beds.length} beds)`,
-                  }))}
-                />
-              </header>
-            </article>
+              pgId={pgId}
+              roomId={room.roomId}
+              roomNumber={room.roomNumber}
+              floorNumber={room.floorNumber}
+              floorLabel={room.floorLabel}
+              roomTypeName={room.roomTypeName}
+              hasAc={room.hasAc}
+              roomNotes={room.roomNotes}
+              listingDescription={room.listingDescription}
+              images={room.images}
+              videos={room.videos}
+              dimensions={room.dimensions}
+              blobUploadConfigured={blobUploadConfigured}
+              beds={room.beds}
+              integrity={integrityByRoomId.get(room.roomId)}
+              moveTargets={moveTargets}
+              exitQueue={roomExitQueues[room.roomId]}
+              rateOverride={rateOverrides[room.roomId]}
+              onRateSaved={handleRateSaved}
+              onToast={handleToast}
+            />
           ))}
         </div>
       )}

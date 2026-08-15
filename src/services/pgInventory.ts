@@ -600,13 +600,20 @@ async function quickAddBedsInternal(
  * sharing type can keep different prices. Effective from is the 1st of the
  * current month so admin move-in dates like the 1st match saved room rent.
  */
+export type RoomBedPricingResult = {
+  dailyRatePaise: number;
+  weeklyRatePaise: number;
+  monthlyRatePaise: number;
+  bedCount: number;
+};
+
 export async function updateRoomBedPricing(
   session: AdminSession,
   pgId: string,
   roomId: string,
   input: BedPricingInput,
   opts?: { affectExistingTenants?: boolean },
-): Promise<void> {
+): Promise<RoomBedPricingResult> {
   assertPgAccess(session, pgId);
 
   if (
@@ -666,6 +673,13 @@ export async function updateRoomBedPricing(
   }
 
   revalidatePricingViews(pgRow?.slug);
+
+  return {
+    dailyRatePaise: input.dailyRatePaise,
+    weeklyRatePaise: input.weeklyRatePaise,
+    monthlyRatePaise: input.monthlyRatePaise,
+    bedCount: roomBeds.length,
+  };
 }
 
 export type UpdateRoomDetailsInput = {
@@ -1119,13 +1133,18 @@ export type ResizeRoomCapacityInput = {
   pricing?: BedPricingInput;
 };
 
+export type ResizeRoomCapacityResult = {
+  targetBedCount: number;
+  roomTypeName: string;
+};
+
 /** Add or remove beds to match a new room type — never silent; throws if blocked. */
 export async function resizeRoomCapacity(
   session: AdminSession,
   pgId: string,
   roomId: string,
   input: ResizeRoomCapacityInput,
-): Promise<void> {
+): Promise<ResizeRoomCapacityResult> {
   assertPgAccess(session, pgId);
   await assertRoomInPg(pgId, roomId);
 
@@ -1233,6 +1252,11 @@ export async function resizeRoomCapacity(
   });
 
   await assertRoomIntegrityOrThrow(roomId);
+
+  return {
+    targetBedCount: input.targetBedCount,
+    roomTypeName: input.roomTypeName,
+  };
 }
 
 /** Rename a bed code within its room. */
