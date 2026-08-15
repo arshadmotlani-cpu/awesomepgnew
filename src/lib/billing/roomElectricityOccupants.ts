@@ -57,7 +57,7 @@ export async function listCheckoutSettledCustomerIdsForRoomMonth(
   const monthEndIso = formatDate(monthEnd);
 
   const ledgerRows = await listCheckoutElectricityLedgerForRoomMonth(roomId, billingMonth, {
-    status: 'collected',
+    status: 'all',
   });
   for (const row of ledgerRows) {
     if (row.amountPaise > 0) excluded.add(row.customerId);
@@ -109,7 +109,7 @@ export async function loadRoomElectricityOccupantsForMonth(input: {
   const checkoutRows = await listCheckoutElectricityLedgerForRoomMonth(
     input.roomId,
     input.billingMonth,
-    { status: 'collected' },
+    { status: 'all' },
   );
   for (const row of checkoutRows) {
     const prev = checkoutCollectedByCustomerId.get(row.customerId) ?? 0;

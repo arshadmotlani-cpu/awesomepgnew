@@ -48,7 +48,7 @@ export function assessCheckoutSettlementReadiness(
   const zeroRefund = preview.finalRefundPaise <= 0;
   const electricityReady = hasCheckoutElectricityEvidence(detail);
   const refundDetailsReady =
-    zeroRefund || Boolean(detail.payoutUpiId?.trim()) || Boolean(detail.payoutQrUrl?.trim());
+    zeroRefund || Boolean(detail.payoutQrUrl?.trim()) || Boolean(detail.payoutUpiId?.trim());
 
   const items: CheckoutReadinessItem[] = [
     {

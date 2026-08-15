@@ -370,7 +370,7 @@ function hasResidentRefundDetails(
 ): boolean {
   if (!hasCheckoutElectricityEvidence(row)) return false;
   if (expectedRefundPaise <= 0) return true;
-  return Boolean(row.payoutUpiId?.trim()) || Boolean(row.payoutQrUrl?.trim());
+  return Boolean(row.payoutQrUrl?.trim()) || Boolean(row.payoutUpiId?.trim());
 }
 
 function buildPreview(
@@ -1758,7 +1758,7 @@ export async function submitResidentCheckoutDetails(input: {
     { expectedRefundPaise: preview.finalRefundPaise },
   );
   if (!validation.ok) {
-    return { ok: false, error: DEPOSIT_REFUND_MISSING_DETAILS_MESSAGE };
+    return { ok: false, error: validation.error };
   }
 
   await db

@@ -11,11 +11,10 @@ test('checkoutRequiresPayout is false when refund is zero', () => {
   assert.equal(checkoutRequiresPayout(1), true);
 });
 
-test('validateDepositRefundSubmission skips UPI when expected refund is zero', () => {
+test('validateDepositRefundSubmission skips QR when expected refund is zero', () => {
   const result = validateDepositRefundSubmission(
     {
       meterReadingPhotoUrl: 'https://example.com/meter.jpg',
-      payoutUpiId: null,
       payoutQrUrl: null,
     },
     { expectedRefundPaise: 0 },
@@ -23,18 +22,17 @@ test('validateDepositRefundSubmission skips UPI when expected refund is zero', (
   assert.equal(result.ok, true);
 });
 
-test('validateDepositRefundSubmission still requires UPI when refund is positive', () => {
+test('validateDepositRefundSubmission requires QR when refund is positive', () => {
   const result = validateDepositRefundSubmission(
     {
       meterReadingPhotoUrl: 'https://example.com/meter.jpg',
-      payoutUpiId: null,
       payoutQrUrl: null,
     },
     { expectedRefundPaise: 50000 },
   );
   assert.equal(result.ok, false);
   if (!result.ok) {
-    assert.ok(result.missing.includes('payout_upi_or_qr'));
+    assert.ok(result.missing.includes('payout_qr'));
   }
 });
 

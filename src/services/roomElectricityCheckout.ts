@@ -11,7 +11,6 @@ import {
   type RoomOccupantSlice,
 } from '@/src/lib/checkout/roomElectricityAllocation';
 import { firstOfMonth, monthBounds } from '@/src/services/billing';
-import { listCheckoutElectricityLedgerForRoomMonth } from '@/src/services/electricitySettlementLedger';
 
 export type { RoomElectricityCheckoutAllocation };
 
@@ -68,6 +67,50 @@ export async function loadRoomOccupantsForBillingPeriod(
   return [...byBooking.values()];
 }
 
+export type RoomElectricityCollectionRow = {
+  customerId: string;
+  amountPaise: number;
+  checkoutSettlementId?: string | null;
+};
+
+/** Build per-customer collected map — SSOT for checkout electricity remaining pool. */
+export function buildCollectedByCustomerIdForCheckout(input: {
+  contributions: RoomElectricityCollectionRow[];
+  ledgerRows: RoomElectricityCollectionRow[];
+  excludeCheckoutSettlementId?: string | null;
+}): Map<string, number> {
+  const collectedByCustomerId = new Map<string, number>();
+  if (input.contributions.length > 0) {
+    for (const row of input.contributions) {
+      if (
+        input.excludeCheckoutSettlementId &&
+        row.checkoutSettlementId === input.excludeCheckoutSettlementId
+      ) {
+        continue;
+      }
+      collectedByCustomerId.set(
+        row.customerId,
+        (collectedByCustomerId.get(row.customerId) ?? 0) + row.amountPaise,
+      );
+    }
+    return collectedByCustomerId;
+  }
+
+  for (const entry of input.ledgerRows) {
+    if (
+      input.excludeCheckoutSettlementId &&
+      entry.checkoutSettlementId === input.excludeCheckoutSettlementId
+    ) {
+      continue;
+    }
+    collectedByCustomerId.set(
+      entry.customerId,
+      (collectedByCustomerId.get(entry.customerId) ?? 0) + entry.amountPaise,
+    );
+  }
+  return collectedByCustomerId;
+}
+
 export async function buildRoomElectricityCheckoutAllocation(input: {
   roomId: string;
   customerId: string;
@@ -91,47 +134,14 @@ export async function buildRoomElectricityCheckoutAllocation(input: {
     periodEndExclusive,
   );
 
-  const ledgerRows = await listCheckoutElectricityLedgerForRoomMonth(
-    input.roomId,
-    billingMonth,
-    { status: 'collected' },
-  );
-
-  const { loadRoomElectricityContributionsForMonth } = await import(
+  const { loadRoomElectricityCollectedByCustomerForMonth } = await import(
     '@/src/services/electricityRoomContributions'
   );
-  const contributionsLoad = await loadRoomElectricityContributionsForMonth(
+  const collectedByCustomerId = await loadRoomElectricityCollectedByCustomerForMonth(
     input.roomId,
     billingMonth,
+    { excludeCheckoutSettlementId: input.excludeCheckoutSettlementId },
   );
-
-  const collectedByCustomerId = new Map<string, number>();
-  if (contributionsLoad.contributions.length > 0) {
-    for (const [customerId, amount] of contributionsLoad.byCustomerId) {
-      if (
-        input.excludeCheckoutSettlementId &&
-        contributionsLoad.contributions.some(
-          (c) =>
-            c.customerId === customerId &&
-            c.checkoutSettlementId === input.excludeCheckoutSettlementId,
-        )
-      ) {
-        continue;
-      }
-      collectedByCustomerId.set(customerId, amount);
-    }
-  } else {
-    for (const entry of ledgerRows) {
-      if (
-        input.excludeCheckoutSettlementId &&
-        entry.checkoutSettlementId === input.excludeCheckoutSettlementId
-      ) {
-        continue;
-      }
-      const prev = collectedByCustomerId.get(entry.customerId) ?? 0;
-      collectedByCustomerId.set(entry.customerId, prev + entry.amountPaise);
-    }
-  }
 
   return allocateRoomElectricityCheckout({
     billingMonth,

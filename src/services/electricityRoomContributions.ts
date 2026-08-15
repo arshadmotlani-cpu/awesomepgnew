@@ -9,11 +9,20 @@ import {
   electricityRoomContributions,
   roomElectricityLedgerCycles,
   roomElectricityLedgerEntries,
+  checkoutSettlements,
+  vacatingRequests,
+  beds,
+  bedReservations,
+  electricityInvoices,
+  electricityBills,
 } from '@/src/db/schema';
 import { formatDate } from '@/src/lib/dates';
 import type { DateLike } from '@/src/lib/dates';
 import { firstOfMonth } from '@/src/services/billing';
-import { listCheckoutElectricityLedgerForRoomMonth } from '@/src/services/electricitySettlementLedger';
+import {
+  listCheckoutElectricityLedgerForRoomMonth,
+  type ElectricitySettlementLedgerRow,
+} from '@/src/services/electricitySettlementLedger';
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -139,24 +148,26 @@ export async function recordCheckoutElectricityContributionInTx(
   const billingMonth = firstOfMonth(input.billingMonth);
   const contributionDate = input.contributionDate ?? billingMonth;
 
-  await tx
-    .insert(electricityRoomContributions)
-    .values({
-      roomId: input.roomId,
-      billingMonth,
-      customerId: input.customerId,
-      bookingId: input.bookingId,
-      amountPaise: input.amountPaise,
-      kind: 'checkout_recovery',
-      reason: input.reason ?? 'Recovered from deposit at checkout',
-      contributionDate,
-      occupancyStart: input.occupancyStart ?? null,
-      occupancyEnd: input.occupancyEnd ?? null,
-      checkoutSettlementId: input.checkoutSettlementId,
-    })
-    .onConflictDoNothing({
-      target: electricityRoomContributions.checkoutSettlementId,
-    });
+  const [existing] = await tx
+    .select({ id: electricityRoomContributions.id })
+    .from(electricityRoomContributions)
+    .where(eq(electricityRoomContributions.checkoutSettlementId, input.checkoutSettlementId))
+    .limit(1);
+  if (existing) return;
+
+  await tx.insert(electricityRoomContributions).values({
+    roomId: input.roomId,
+    billingMonth,
+    customerId: input.customerId,
+    bookingId: input.bookingId,
+    amountPaise: input.amountPaise,
+    kind: 'checkout_recovery',
+    reason: input.reason ?? 'Recovered from deposit at checkout',
+    contributionDate,
+    occupancyStart: input.occupancyStart ?? null,
+    occupancyEnd: input.occupancyEnd ?? null,
+    checkoutSettlementId: input.checkoutSettlementId,
+  });
 }
 
 async function loadContributionsFromTable(
@@ -208,7 +219,7 @@ async function loadLegacyContributionsForRoomMonth(
   const contributions: ElectricityRoomContributionRow[] = [];
 
   const checkoutRows = await listCheckoutElectricityLedgerForRoomMonth(roomId, billingMonth, {
-    status: 'collected',
+    status: 'all',
   });
   for (const row of checkoutRows) {
     contributions.push({
@@ -356,4 +367,187 @@ export async function listRoomElectricityContributionsForMonth(
 ): Promise<ElectricityRoomContributionRow[]> {
   const load = await loadRoomElectricityContributionsForMonth(roomId, billingMonth);
   return load.contributions;
+}
+
+const CHECKOUT_COLLECTION_STATUSES = [
+  'awaiting_admin_review',
+  'approved',
+  'refund_pending',
+  'completed',
+  'refund_paid',
+] as const;
+
+const COLLECTION_LEDGER_SOURCES = [
+  'checkout_settlement',
+  'manual',
+  'cash',
+  'upi',
+  'monthly_invoice',
+] as const;
+
+type CheckoutElectricityShareRow = {
+  customerId: string;
+  amountPaise: number;
+  checkoutSettlementId: string;
+};
+
+/** Locked checkout settlements with electricity deducted — SSOT fallback when ledger write failed. */
+async function loadCheckoutElectricitySharesFromSettlements(
+  roomId: string,
+  billingMonth: string,
+): Promise<CheckoutElectricityShareRow[]> {
+  const rows = await db
+    .select({
+      customerId: checkoutSettlements.customerId,
+      amountPaise: checkoutSettlements.electricitySharePaise,
+      checkoutSettlementId: checkoutSettlements.id,
+      status: checkoutSettlements.status,
+      electricityDeductFromDeposit: checkoutSettlements.electricityDeductFromDeposit,
+      vacatingDate: vacatingRequests.vacatingDate,
+    })
+    .from(checkoutSettlements)
+    .innerJoin(vacatingRequests, eq(vacatingRequests.id, checkoutSettlements.vacatingRequestId))
+    .innerJoin(bedReservations, eq(bedReservations.bookingId, checkoutSettlements.bookingId))
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .where(
+      and(
+        eq(beds.roomId, roomId),
+        eq(bedReservations.kind, 'primary'),
+        sql`${checkoutSettlements.status} IN (${sql.join(
+          CHECKOUT_COLLECTION_STATUSES.map((status) => sql`${status}`),
+          sql`, `,
+        )})`,
+        sql`${checkoutSettlements.electricitySharePaise} > 0`,
+        sql`${checkoutSettlements.electricityDeductFromDeposit} IS NOT FALSE`,
+        sql`date_trunc('month', ${vacatingRequests.vacatingDate}::timestamp)::date = ${billingMonth}::date`,
+      ),
+    );
+
+  return rows
+    .map((row) => ({
+      customerId: row.customerId,
+      amountPaise: row.amountPaise,
+      checkoutSettlementId: row.checkoutSettlementId,
+    }))
+    .filter((row) => row.amountPaise > 0);
+}
+
+async function loadPaidElectricityInvoiceCollectionsForRoomMonth(
+  roomId: string,
+  billingMonth: string,
+): Promise<Array<{ customerId: string; amountPaise: number }>> {
+  const rows = await db
+    .select({
+      customerId: electricityInvoices.customerId,
+      paidPaise: electricityInvoices.paidPaise,
+    })
+    .from(electricityInvoices)
+    .innerJoin(electricityBills, eq(electricityBills.id, electricityInvoices.electricityBillId))
+    .where(
+      and(
+        eq(electricityBills.roomId, roomId),
+        eq(electricityInvoices.billingMonth, billingMonth),
+        sql`${electricityInvoices.status} <> 'cancelled'`,
+        sql`${electricityInvoices.paidPaise} > 0`,
+      ),
+    );
+
+  const byCustomer = new Map<string, number>();
+  for (const row of rows) {
+    byCustomer.set(row.customerId, (byCustomer.get(row.customerId) ?? 0) + row.paidPaise);
+  }
+  return [...byCustomer.entries()].map(([customerId, amountPaise]) => ({
+    customerId,
+    amountPaise,
+  }));
+}
+
+/**
+ * Room-level electricity collected per resident for a billing month.
+ * Merges contributions, checkout settlements, ledger entries, and paid invoices.
+ */
+export async function loadRoomElectricityCollectedByCustomerForMonth(
+  roomId: string,
+  billingMonth: DateLike,
+  options?: { excludeCheckoutSettlementId?: string | null },
+): Promise<Map<string, number>> {
+  const month = firstOfMonth(billingMonth);
+  const collected = new Map<string, number>();
+  const creditedSettlementIds = new Set<string>();
+
+  const addAmount = (
+    customerId: string,
+    amountPaise: number,
+    checkoutSettlementId?: string | null,
+  ) => {
+    if (amountPaise <= 0 || !customerId) return;
+    if (
+      options?.excludeCheckoutSettlementId &&
+      checkoutSettlementId === options.excludeCheckoutSettlementId
+    ) {
+      return;
+    }
+    if (checkoutSettlementId) creditedSettlementIds.add(checkoutSettlementId);
+    collected.set(customerId, (collected.get(customerId) ?? 0) + amountPaise);
+  };
+
+  const contributionsLoad = await loadRoomElectricityContributionsForMonth(roomId, month);
+  for (const row of contributionsLoad.contributions) {
+    addAmount(row.customerId, row.amountPaise, row.checkoutSettlementId);
+  }
+
+  if (contributionsLoad.contributions.length === 0) {
+    const ledgerRows: ElectricitySettlementLedgerRow[] =
+      await listCheckoutElectricityLedgerForRoomMonth(roomId, month, { status: 'all' });
+    for (const row of ledgerRows) {
+      addAmount(row.customerId, row.amountPaise, row.checkoutSettlementId);
+    }
+
+    const [cycle] = await db
+      .select({ id: roomElectricityLedgerCycles.id })
+      .from(roomElectricityLedgerCycles)
+      .where(
+        and(
+          eq(roomElectricityLedgerCycles.roomId, roomId),
+          eq(roomElectricityLedgerCycles.billingMonth, month),
+        ),
+      )
+      .limit(1);
+
+    if (cycle) {
+      const entryRows = await db
+        .select({
+          customerId: roomElectricityLedgerEntries.customerId,
+          amountPaise: roomElectricityLedgerEntries.amountPaise,
+          source: roomElectricityLedgerEntries.source,
+          checkoutSettlementId: roomElectricityLedgerEntries.checkoutSettlementId,
+        })
+        .from(roomElectricityLedgerEntries)
+        .where(
+          and(
+            eq(roomElectricityLedgerEntries.cycleId, cycle.id),
+            inArray(roomElectricityLedgerEntries.source, [...COLLECTION_LEDGER_SOURCES]),
+          ),
+        );
+
+      for (const row of entryRows) {
+        addAmount(row.customerId, row.amountPaise, row.checkoutSettlementId);
+      }
+    }
+  }
+
+  const settlementShares = await loadCheckoutElectricitySharesFromSettlements(roomId, month);
+  for (const row of settlementShares) {
+    if (creditedSettlementIds.has(row.checkoutSettlementId)) continue;
+    addAmount(row.customerId, row.amountPaise, row.checkoutSettlementId);
+  }
+
+  const paidInvoices = await loadPaidElectricityInvoiceCollectionsForRoomMonth(roomId, month);
+  for (const row of paidInvoices) {
+    const existing = collected.get(row.customerId) ?? 0;
+    if (existing >= row.amountPaise) continue;
+    collected.set(row.customerId, Math.max(existing, row.amountPaise));
+  }
+
+  return collected;
 }

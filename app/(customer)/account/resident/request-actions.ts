@@ -50,7 +50,6 @@ export async function submitDepositRefundRequestAction(
   const bookingId = formData.get('bookingId')?.toString() ?? '';
   const meterReadingPhotoUrl = formData.get('meterReadingPhotoUrl')?.toString()?.trim() || null;
   const payoutQrUrl = formData.get('payoutQrUrl')?.toString()?.trim() || null;
-  const payoutUpiId = formData.get('payoutUpiId')?.toString()?.trim() || null;
 
   if (isDeveloperTestSession(session)) {
     await ensureApprovedVacatingForDeveloperTest({
@@ -79,7 +78,6 @@ export async function submitDepositRefundRequestAction(
     customerId: session.customerId,
     electricityMeterPhotoUrl: meterReadingPhotoUrl,
     electricityUseAverage: false,
-    payoutUpiId,
     payoutQrUrl,
   });
   if (!checkoutResult.ok) return { ok: false, error: checkoutResult.error };

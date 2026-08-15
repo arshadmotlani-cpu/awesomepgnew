@@ -197,7 +197,7 @@ export async function getRoomCheckoutElectricityReconciliation(
 ): Promise<RoomCheckoutElectricityReconciliation> {
   const month = firstOfMonth(billingMonth);
   const entries = await listCheckoutElectricityLedgerForRoomMonth(roomId, month, {
-    status: 'collected',
+    status: 'all',
   });
   const checkoutCollectedPaise = entries.reduce((sum, e) => sum + e.amountPaise, 0);
   const manualCreditsPaise = await sumManualElectricityCreditsForRoomMonth(roomId, month);
