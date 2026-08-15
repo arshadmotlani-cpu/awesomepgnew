@@ -173,7 +173,21 @@ test('approve move-out requires settlement statement before confirm', () => {
   assert.match(pipelineQueue, /!preview\?\.estimatedSettlement/);
 });
 
-test('cancelApprovedVacatingByCustomer blocks when checkout settlement exists', () => {
-  assert.match(vacatingService, /kind: 'settlement_started'/);
-  assert.match(vacatingService, /checkoutSettlements\.vacatingRequestId, current\.id/);
+test('date change submit auto-applies without pending admin approval', () => {
+  const vacatingDateChange = readFileSync(
+    join(process.cwd(), 'src/services/vacatingDateChange.ts'),
+    'utf8',
+  );
+  assert.match(vacatingDateChange, /applyApprovedVacatingDateChange/);
+  assert.match(vacatingDateChange, /status: 'approved'/);
+  assert.doesNotMatch(vacatingDateChange, /status: 'pending',\s*\n\s*}\)\s*\n\s*\.returning/);
+});
+
+test('resident date change form confirms immediately', () => {
+  const form = readFileSync(
+    join(process.cwd(), 'src/components/customer/account/resident/vacating/ChangeLeavingDateForm.tsx'),
+    'utf8',
+  );
+  assert.match(form, /Confirm final stay date/);
+  assert.doesNotMatch(form, /Submit change request/);
 });

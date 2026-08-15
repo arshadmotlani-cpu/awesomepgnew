@@ -15,6 +15,7 @@ type Props = {
   roommatesCount: number;
   roomCapacity: number;
   ps4Active?: boolean;
+  changeFinalStayHref?: string | null;
 };
 
 function StatRow({ label, value }: { label: string; value: string }) {
@@ -34,6 +35,7 @@ export function ProfileOverviewPanel({
   roommatesCount,
   roomCapacity,
   ps4Active = false,
+  changeFinalStayHref = null,
 }: Props) {
   const sharingLabel =
     roomCapacity <= 1 ? 'Private room' : `${roomCapacity}-sharing (${roommatesCount} roommate${roommatesCount === 1 ? '' : 's'})`;
@@ -50,6 +52,16 @@ export function ProfileOverviewPanel({
           <StatRow label="Billing cycle" value={billingCycleLabel} />
           <StatRow label="Monthly rent" value={paiseToInr(monthlyRentPaise)} />
           <StatRow label="Move-out status" value={moveOutStatus} />
+          {changeFinalStayHref ? (
+            <div className="py-3">
+              <Link
+                href={changeFinalStayHref}
+                className="text-sm font-semibold text-apg-orange hover:underline"
+              >
+                Change final stay date →
+              </Link>
+            </div>
+          ) : null}
           <StatRow label="Room sharing" value={sharingLabel} />
         </dl>
       </ApgCard>

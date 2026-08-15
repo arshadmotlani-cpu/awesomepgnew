@@ -122,7 +122,7 @@ export function ChangeLeavingDateForm({
       ) : null}
 
       <label className="block text-xs font-medium text-apg-silver">
-        Note for admin (optional)
+        Note (optional)
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -156,7 +156,7 @@ export function ChangeLeavingDateForm({
             })
           }
         >
-          Submit change request
+          Confirm final stay date
         </button>
       </div>
     </ApgCard>

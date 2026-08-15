@@ -4,7 +4,7 @@ import { ProfileOverviewPanel } from '@/src/components/customer/account/resident
 import { ProfileWalletPanel } from '@/src/components/customer/account/resident/ProfileWalletPanel';
 import { ProfileEditSection } from '@/src/components/customer/account/resident/ProfileEditSection';
 import { ResidentSubNav } from '@/src/components/customer/account/resident/ResidentSubpageLayout';
-import { residentProfileHref } from '@/src/lib/accountNavigation';
+import { residentProfileHref, residentTabHref } from '@/src/lib/accountNavigation';
 import type { ResidentProfileSub } from '@/src/lib/accountNavigation';
 import type { ResidentBookingRow } from '@/src/db/queries/customer';
 import type { DepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
@@ -106,6 +106,11 @@ export function ResidentProfileHub({
             roommatesCount={roommatesCount}
             roomCapacity={roomCapacity}
             ps4Active={ps4Active}
+            changeFinalStayHref={
+              canRequestVacatingDateChange
+                ? `${residentTabHref('requests', { category: 'move_out' })}#resident-move-out`
+                : null
+            }
           />
           <div className="mt-4">
             <ProfileEditSection

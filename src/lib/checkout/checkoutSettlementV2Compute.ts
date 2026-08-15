@@ -12,6 +12,7 @@ import {
   type CheckoutSettlementWaterfall,
 } from '@/src/lib/checkout/checkoutSettlementEngineV2';
 import { resolveCheckoutElectricitySharePaise } from '@/src/lib/checkout/electricitySettlementCalc';
+import { dailyRateFromBillingPeriod } from '@/src/lib/billing/billingCoverageModel';
 import { getBookingMoneyBalances } from '@/src/services/bookingMoneyBalances';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 
@@ -98,6 +99,7 @@ export function computeWaterfallWithApprovalBaseline(args: {
     }),
     checkoutTailRentPaise: args.baseline.depositBucket.tailRentPaise ?? 0,
     prepaidAfterVacatingPaise: args.baseline.rentBucket.unusedPaise,
+    periodDailyRentPaise: args.baseline.rentBucket.dailyRentPaise,
   });
 }
 
@@ -164,6 +166,26 @@ export async function computeWaterfallForSettlement(
     treatAsApprovedForTail: true,
   });
 
+  const periodDailyRentPaise = (() => {
+    if (!coverage) return undefined;
+    const period =
+      coverage.periodUsedForPrepaid ??
+      coverage.paidInvoiceCoverage.find(
+        (p) =>
+          (p.paidPrincipalPaise ?? 0) > 0 &&
+          p.periodStart <= checkout &&
+          p.periodEnd >= checkout,
+      );
+    if (!period?.paidPrincipalPaise || !period.periodStart || !period.periodEnd) {
+      return coverage.noticeBreakdown?.dailyRentPaise;
+    }
+    return dailyRateFromBillingPeriod(
+      period.paidPrincipalPaise,
+      period.periodStart,
+      period.periodEnd,
+    );
+  })();
+
   return computeCheckoutSettlementV2({
     stayCheckInDate: checkIn,
     stayCheckoutDate: checkout,
@@ -183,6 +205,7 @@ export async function computeWaterfallForSettlement(
     }),
     checkoutTailRentPaise,
     prepaidAfterVacatingPaise: coverage?.prepaidAfterVacatingPaise ?? 0,
+    periodDailyRentPaise,
   });
 }
 

@@ -24,8 +24,18 @@ export function ResidentVacatingDateChangeImpact({
   const deductionsPaise =
     requested.electricityDeductionPaise + requested.otherDeductionsPaise;
 
+  const noticeChargePaise =
+    preview.requestedEstimatedSettlement.waterfall.notice.fromDepositPaise +
+    preview.requestedEstimatedSettlement.waterfall.notice.fromUnusedRentPaise;
+
   return (
     <div className="space-y-3 border-t border-white/10 pt-4">
+      {!preview.noticeCompliant ? (
+        <p className="text-xs text-amber-200/90">
+          This date gives less than 5 days notice. A notice shortfall charge applies before
+          confirming.
+        </p>
+      ) : null}
       <div className="grid gap-2 text-sm sm:grid-cols-2">
         <div>
           <p className="text-[10px] font-medium uppercase tracking-wide text-apg-silver">
@@ -53,6 +63,9 @@ export function ResidentVacatingDateChangeImpact({
           label="Security deposit held"
           value={paiseToInr(preview.requestedEstimatedSettlement.depositHeldPaise)}
         />
+        {noticeChargePaise > 0 ? (
+          <ImpactRow label="Notice shortfall charge" value={paiseToInr(noticeChargePaise)} />
+        ) : null}
         <ImpactRow
           label="Electricity / deductions"
           value={
@@ -67,7 +80,7 @@ export function ResidentVacatingDateChangeImpact({
         />
         <div className="border-t border-white/10 pt-2">
           <ImpactRow
-            label="Estimated refundable amount"
+            label="Current refundable balance"
             value={paiseToInr(preview.requestedEstimatedRefundPaise)}
           />
         </div>

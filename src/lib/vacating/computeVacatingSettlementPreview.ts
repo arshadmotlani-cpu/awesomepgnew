@@ -10,6 +10,7 @@ import {
 import { resolveStayCheckInDate } from '@/src/lib/checkout/checkoutSettlementV2Compute';
 import { loadBillingCoverageModel } from '@/src/services/billingCoverage';
 import type { BillingCoverageModel } from '@/src/lib/billing/billingCoverageModel';
+import { dailyRateFromBillingPeriod } from '@/src/lib/billing/billingCoverageModel';
 import {
   formatDualDaysAndPaise,
   formatRentConsumedHint,
@@ -179,6 +180,28 @@ export function buildVacatingSettlementPreviewSections(
   return { sections, auditTrace, depositHeldPaise: args.depositHeldPaise };
 }
 
+function periodDailyRentFromCoverage(
+  coverage: BillingCoverageModel,
+  vacatingDate: string,
+): number | undefined {
+  const period =
+    coverage.periodUsedForPrepaid ??
+    coverage.paidInvoiceCoverage.find(
+      (p) =>
+        (p.paidPrincipalPaise ?? 0) > 0 &&
+        p.periodStart <= vacatingDate &&
+        p.periodEnd >= vacatingDate,
+    );
+  if (!period?.paidPrincipalPaise || !period.periodStart || !period.periodEnd) {
+    return undefined;
+  }
+  return dailyRateFromBillingPeriod(
+    period.paidPrincipalPaise,
+    period.periodStart,
+    period.periodEnd,
+  );
+}
+
 export type VacatingSettlementWaterfallContext = {
   checkInDate: string;
   vacatingDate: string;
@@ -189,6 +212,7 @@ export type VacatingSettlementWaterfallContext = {
   noticeApplies: boolean;
   checkoutTailRentPaise: number;
   prepaidAfterVacatingPaise?: number;
+  periodDailyRentPaise?: number;
 };
 
 export async function loadVacatingSettlementWaterfallContext(
@@ -222,6 +246,7 @@ export async function loadVacatingSettlementWaterfallContext(
 
   const missingNoticeDays = coverage.noticeBreakdown?.missingNoticeDays ?? 0;
   const checkoutTailRentPaise = coverage.tailRentPaise;
+  const periodDailyRentPaise = periodDailyRentFromCoverage(coverage, vacatingDate);
 
   return {
     ctx: {
@@ -237,6 +262,7 @@ export async function loadVacatingSettlementWaterfallContext(
       }),
       checkoutTailRentPaise,
       prepaidAfterVacatingPaise: coverage.prepaidAfterVacatingPaise,
+      periodDailyRentPaise,
     },
     coverage,
   };
@@ -260,6 +286,7 @@ export function computeVacatingSettlementWaterfallFromContext(
     noticeApplies: ctx.noticeApplies,
     checkoutTailRentPaise: ctx.checkoutTailRentPaise,
     prepaidAfterVacatingPaise: ctx.prepaidAfterVacatingPaise ?? 0,
+    periodDailyRentPaise: ctx.periodDailyRentPaise,
   });
 }
 

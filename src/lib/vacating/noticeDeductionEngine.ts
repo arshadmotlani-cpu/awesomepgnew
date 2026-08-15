@@ -8,6 +8,7 @@
  */
 
 import { diffDays, formatDate, parseDate, type DateLike } from '@/src/lib/dates';
+import { dailyRateFromBillingPeriod } from '@/src/lib/billing/billingCoverageModel';
 import {
   VACATING_NOTICE_MIN_DAYS,
   dailyRateFromMonthly,
@@ -49,14 +50,31 @@ export function resolvePaidThroughDate(
   paidPeriods: PaidRentCoveragePeriod[],
 ): { paidUntilDate: string | null; periodUsed: PaidRentCoveragePeriod | null } {
   const vacate = formatDate(parseDate(vacatingDate));
-  let periodUsed: PaidRentCoveragePeriod | null = null;
+  let containing: PaidRentCoveragePeriod | null = null;
+  let extending: PaidRentCoveragePeriod | null = null;
 
   for (const period of paidPeriods) {
-    if (period.periodEnd <= vacate) continue;
-    if (!periodUsed || period.periodEnd > periodUsed.periodEnd) {
-      periodUsed = period;
+    const principal = period.paidPrincipalPaise ?? 0;
+    if (principal <= 0) continue;
+    if (period.periodStart > vacate || period.periodEnd <= vacate) continue;
+
+    if (period.periodStart <= vacate && period.periodEnd > vacate) {
+      if (
+        !containing ||
+        period.periodEnd > containing.periodEnd ||
+        (period.periodEnd === containing.periodEnd &&
+          period.periodStart < containing.periodStart)
+      ) {
+        containing = period;
+      }
+    } else if (period.periodEnd > vacate) {
+      if (!extending || period.periodEnd > extending.periodEnd) {
+        extending = period;
+      }
     }
   }
+
+  const periodUsed = containing ?? extending;
 
   return {
     paidUntilDate: periodUsed?.periodEnd ?? null,
@@ -91,11 +109,21 @@ export function computeNoticeDeductionBreakdown(input: {
     vacatingDate,
     minDays,
   });
-  const dailyRentPaise = dailyRateFromMonthly(input.monthlyRentPaise);
   const paidRentPeriods = input.paidRentPeriods ?? [];
   const billingDay = input.billingDay ?? 5;
 
   const { paidUntilDate, periodUsed } = resolvePaidThroughDate(vacatingDate, paidRentPeriods);
+  const dailyRentPaise =
+    periodUsed?.paidPrincipalPaise != null &&
+    periodUsed.paidPrincipalPaise > 0 &&
+    periodUsed.periodStart &&
+    periodUsed.periodEnd
+      ? dailyRateFromBillingPeriod(
+          periodUsed.paidPrincipalPaise,
+          periodUsed.periodStart,
+          periodUsed.periodEnd,
+        )
+      : dailyRateFromMonthly(input.monthlyRentPaise);
   const unusedPrepaidRentDays = unusedPrepaidRentDaysAfterVacating(vacatingDate, paidUntilDate);
   const noticeCoveredByPrepaidRent = Math.min(missingNoticeDays, unusedPrepaidRentDays);
   const chargeableNoticeDays = Math.max(0, missingNoticeDays - noticeCoveredByPrepaidRent);

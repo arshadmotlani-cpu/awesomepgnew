@@ -69,9 +69,11 @@ export type CheckoutSettlementV2Input = {
   checkoutTailRentPaise?: number;
   /**
    * BCM prepaid after vacate (days after vacating through paid-through × daily rate).
-   * When > 0, unused rent bucket uses this instead of stay-based rentPaid − consumed.
+   * When > 0, unused rent bucket uses this capped by rent paid minus period-rate stay consumption.
    */
   prepaidAfterVacatingPaise?: number;
+  /** Billing-period daily rate from paid invoice coverage (replaces monthly ÷ 30 when set). */
+  periodDailyRentPaise?: number;
 };
 
 function stayDaysInclusive(checkIn: string, checkout: string): number {
@@ -85,11 +87,16 @@ export function computeCheckoutSettlementV2(
   const rentPaidPaise = guardDepositPaise(input.rentPaidPaise);
   const depositCollectedPaise = guardDepositPaise(input.depositCollectedPaise);
   const monthlyRentPaise = guardDepositPaise(input.monthlyRentPaise);
-  const dailyRentPaise = dailyRateFromMonthly(monthlyRentPaise);
+  const monthlyDailyRentPaise = dailyRateFromMonthly(monthlyRentPaise);
+  const periodDailyRentPaise =
+    input.periodDailyRentPaise != null && input.periodDailyRentPaise > 0
+      ? guardDepositPaise(input.periodDailyRentPaise)
+      : monthlyDailyRentPaise;
+  const dailyRentPaise = periodDailyRentPaise;
   const stayDays = stayDaysInclusive(input.stayCheckInDate, input.stayCheckoutDate);
 
   const prepaidAfterVacatingPaise = guardDepositPaise(input.prepaidAfterVacatingPaise ?? 0);
-  const stayConsumedRaw = guardDepositPaise(dailyRentPaise * stayDays);
+  const stayConsumedRaw = guardDepositPaise(periodDailyRentPaise * stayDays);
   const stayConsumedPaise = Math.min(rentPaidPaise, stayConsumedRaw);
   const rentAvailableAfterStay = Math.max(0, rentPaidPaise - stayConsumedPaise);
 
@@ -108,7 +115,7 @@ export function computeCheckoutSettlementV2(
     ? Math.max(0, Math.floor(input.missingNoticeDays))
     : 0;
   const noticeFullPaise = noticeApplies
-    ? guardDepositPaise(missingNoticeDays * dailyRentPaise)
+    ? guardDepositPaise(missingNoticeDays * periodDailyRentPaise)
     : 0;
 
   const noticeFromUnusedRentPaise = Math.min(unusedRentPaise, noticeFullPaise);

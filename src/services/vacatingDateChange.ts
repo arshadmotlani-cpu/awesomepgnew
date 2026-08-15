@@ -72,7 +72,11 @@ async function loadActiveVacatingForDateChange(args: {
   }
 
   const [anySettlement] = await db
-    .select({ id: checkoutSettlements.id, status: checkoutSettlements.status })
+    .select({
+      id: checkoutSettlements.id,
+      status: checkoutSettlements.status,
+      amountsLocked: checkoutSettlements.amountsLocked,
+    })
     .from(checkoutSettlements)
     .where(
       and(
@@ -84,10 +88,18 @@ async function loadActiveVacatingForDateChange(args: {
     .limit(1);
 
   if (anySettlement) {
-    return {
-      ok: false as const,
-      error: 'Leaving date cannot be changed after checkout settlement has started.',
-    };
+    const blocked =
+      anySettlement.amountsLocked ||
+      anySettlement.status === 'refund_pending' ||
+      anySettlement.status === 'completed' ||
+      anySettlement.status === 'refund_paid' ||
+      anySettlement.status === 'awaiting_admin_review';
+    if (blocked) {
+      return {
+        ok: false as const,
+        error: 'Leaving date cannot be changed after checkout settlement has started.',
+      };
+    }
   }
 
   return {
@@ -145,12 +157,6 @@ export async function previewVacatingDateChange(input: {
     noticeGivenDate: loaded.vacating.noticeGivenDate,
     vacatingDate: requestedDate,
   });
-  if (!noticeCompliant) {
-    return {
-      ok: false,
-      error: `The new date must still give at least ${VACATING_NOTICE_MIN_DAYS} days notice from when you submitted (${formatDate(parseDate(String(loaded.vacating.noticeGivenDate)))}). Cancel this move-out and submit a new request instead.`,
-    };
-  }
 
   const [currentEstimated, requestedEstimated] = await Promise.all([
     buildPreviewForDate(loaded.vacating, loaded.booking, currentDate),
@@ -293,7 +299,7 @@ export async function submitVacatingDateChangeRequest(input: {
     )
     .limit(1);
   if (pending) {
-    return { ok: false, error: 'A date change request is already waiting for admin approval.' };
+    return { ok: false, error: 'A date change is already in progress. Refresh and try again.' };
   }
 
   const previewRes = await previewVacatingDateChange({
@@ -316,21 +322,31 @@ export async function submitVacatingDateChangeRequest(input: {
       refundDeltaPaise: previewRes.preview.refundDeltaPaise,
       previewSnapshot: previewRes.preview,
       residentNotes: input.residentNotes?.trim() || null,
-      status: 'pending',
+      status: 'approved',
+      reviewedAt: new Date(),
     })
     .returning({ id: vacatingDateChangeRequests.id });
+
+  await applyApprovedVacatingDateChange({
+    vacating: loaded.vacating,
+    newVacatingDate: previewRes.preview.requestedVacatingDate,
+    fromDateChangeRequestId: created.id,
+    syncRent: true,
+  });
 
   await db.insert(auditLog).values({
     actorType: 'customer',
     actorId: input.customerId,
     entity: 'vacating_date_change_request',
     entityId: created.id,
-    action: 'submitted',
+    action: 'applied',
     diff: {
       vacatingRequestId: loaded.vacating.id,
       fromDate: previewRes.preview.currentVacatingDate,
       toDate: previewRes.preview.requestedVacatingDate,
       refundDeltaPaise: previewRes.preview.refundDeltaPaise,
+      noticeCompliant: previewRes.preview.noticeCompliant,
+      autoApplied: true,
     },
   });
 

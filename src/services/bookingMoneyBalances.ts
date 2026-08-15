@@ -13,18 +13,25 @@ import {
 } from '@/src/lib/billing/bookingMoneyBalances';
 import { breakdownBookingCheckoutPayment } from '@/src/lib/billing/bookingCheckoutTotals';
 import { resolveBookingDepositCreditAppliedPaise } from '@/src/lib/billing/bookingCheckoutTotals';
+import { sumSettlementRentPaidPaise } from '@/src/lib/billing/settlementRentInvoiceFilter';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 
 async function sumPaidRentInvoicesPaise(bookingId: string): Promise<number> {
-  const [row] = await db
+  const rows = await db
     .select({
-      total: sql<number>`coalesce(sum(${rentInvoices.paidPrincipalPaise}), 0)::bigint::int`,
+      status: rentInvoices.status,
+      billingMonth: rentInvoices.billingMonth,
+      invoiceNumber: rentInvoices.invoiceNumber,
+      notes: rentInvoices.notes,
+      paymentProofUrl: rentInvoices.paymentProofUrl,
+      isAdhoc: rentInvoices.isAdhoc,
+      paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
     })
     .from(rentInvoices)
     .where(eq(rentInvoices.bookingId, bookingId));
-  return Math.max(0, row?.total ?? 0);
+  return sumSettlementRentPaidPaise(rows);
 }
 
 async function electricityBalancesForBooking(bookingId: string): Promise<MoneyBalanceSlice> {

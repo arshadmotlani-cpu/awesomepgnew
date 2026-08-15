@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   buildBillingCoverageModel,
+  dailyRateFromBillingPeriod,
   rawPeriodFromInvoiceDueDate,
 } from '@/src/lib/billing/billingCoverageModel';
 import { computeVacatingFinalPeriodRentDecision } from '@/src/lib/billing/vacatingFinalPeriodRent';
@@ -203,6 +204,17 @@ test('Case G — 0083-like: earlier vacate unlocks unused prepaid from paid peri
 
   assert.ok(model15.prepaidAfterVacatingDays > model20.prepaidAfterVacatingDays);
   assert.ok(model15.prepaidAfterVacatingPaise > model20.prepaidAfterVacatingPaise);
+  assert.equal(model15.prepaidAfterVacatingDays, 6);
+  assert.equal(model15.prepaidAfterVacatingPaise, 77_262);
+  assert.equal(model20.prepaidAfterVacatingDays, 1);
+  assert.equal(model20.prepaidAfterVacatingPaise, 12_877);
+
+  const periodDaily0083 = dailyRateFromBillingPeriod(
+    monthly412080,
+    moveInJul21,
+    '2026-08-21',
+  );
+  assert.equal(periodDaily0083, 12_877);
 
   const waterfall20 = computeVacatingSettlementWaterfallFromContext({
     checkInDate: moveInJul21,
@@ -214,6 +226,7 @@ test('Case G — 0083-like: earlier vacate unlocks unused prepaid from paid peri
     noticeApplies: true,
     checkoutTailRentPaise: model20.tailRentPaise,
     prepaidAfterVacatingPaise: model20.prepaidAfterVacatingPaise,
+    periodDailyRentPaise: periodDaily0083,
   });
   const waterfall15 = computeVacatingSettlementWaterfallFromContext({
     checkInDate: moveInJul21,
@@ -225,11 +238,18 @@ test('Case G — 0083-like: earlier vacate unlocks unused prepaid from paid peri
     noticeApplies: true,
     checkoutTailRentPaise: model15.tailRentPaise,
     prepaidAfterVacatingPaise: model15.prepaidAfterVacatingPaise,
+    periodDailyRentPaise: periodDaily0083,
   });
 
   assert.equal(waterfall20.depositBucket.collectedPaise, deposit205900);
   assert.equal(waterfall15.depositBucket.collectedPaise, deposit205900);
-  assert.equal(waterfall20.refund.unusedRentPortionPaise, 0);
-  assert.ok(waterfall15.refund.unusedRentPortionPaise > 0);
+  assert.equal(waterfall20.rentBucket.consumedPaise, 399_187);
+  assert.equal(waterfall20.refund.unusedRentPortionPaise, 12_877);
+  assert.equal(waterfall20.refund.totalPaise, 218_777);
+  assert.equal(waterfall15.stay.stayDays, 26);
+  assert.equal(waterfall15.rentBucket.consumedPaise, 334_802);
+  assert.equal(waterfall15.rentBucket.dailyRentPaise, 12_877);
+  assert.equal(waterfall15.refund.unusedRentPortionPaise, 77_262);
+  assert.equal(waterfall15.refund.totalPaise, 283_162);
   assert.ok(waterfall15.refund.totalPaise > waterfall20.refund.totalPaise);
 });

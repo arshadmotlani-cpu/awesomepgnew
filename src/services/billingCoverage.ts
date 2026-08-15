@@ -1,7 +1,7 @@
 /**
  * Server loader for BillingCoverageModel — single SSOT for move-out money surfaces.
  */
-import { and, eq, ne, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   bedReservations,
@@ -24,6 +24,7 @@ import {
   firstOfMonth,
 } from '@/src/services/billing';
 import { getBookingMoneyBalances } from '@/src/services/bookingMoneyBalances';
+import { isSettlementRentInvoice } from '@/src/lib/billing/settlementRentInvoiceFilter';
 
 export type { BillingCoverageModel, BillingCoveragePeriod };
 
@@ -71,16 +72,19 @@ export async function loadBillingCoverageRawPeriods(bookingId: string): Promise<
       paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
       status: rentInvoices.status,
       billingMonth: rentInvoices.billingMonth,
+      invoiceNumber: rentInvoices.invoiceNumber,
+      notes: rentInvoices.notes,
+      paymentProofUrl: rentInvoices.paymentProofUrl,
+      isAdhoc: rentInvoices.isAdhoc,
     })
     .from(rentInvoices)
-    .where(
-      and(eq(rentInvoices.bookingId, bookingId), ne(rentInvoices.status, 'cancelled')),
-    );
+    .where(eq(rentInvoices.bookingId, bookingId));
 
   const rawPaidPeriods: BillingCoveragePeriod[] = [];
   const coveredBillingMonths = new Set<string>();
 
   for (const inv of invoiceRows) {
+    if (!isSettlementRentInvoice(inv)) continue;
     if (inv.paidPrincipalPaise <= 0 && inv.status !== 'paid') continue;
     coveredBillingMonths.add(firstOfMonth(String(inv.billingMonth)));
     rawPaidPeriods.push({
@@ -89,15 +93,12 @@ export async function loadBillingCoverageRawPeriods(bookingId: string): Promise<
     });
   }
 
-  const [bookingRow] = await db
-    .select({ rentReceivedPaise: bookings.rentReceivedPaise })
-    .from(bookings)
-    .where(eq(bookings.id, bookingId))
-    .limit(1);
+  const money = await getBookingMoneyBalances(bookingId);
+  const settlementRentReceivedPaise = money?.rent.receivedPaise ?? 0;
 
   if (
     moveInDate &&
-    (bookingRow?.rentReceivedPaise ?? 0) > 0 &&
+    settlementRentReceivedPaise > 0 &&
     !coveredBillingMonths.has(firstOfMonth(moveInDate))
   ) {
     const firstDue = formatDate(dueDateForBillingDay(firstOfMonth(moveInDate), billingDay));
@@ -107,7 +108,7 @@ export async function loadBillingCoverageRawPeriods(bookingId: string): Promise<
       periodEnd: checkoutPeriod.periodEnd,
       source: 'booking_checkout',
       sourceId: bookingId,
-      paidPrincipalPaise: Math.max(0, bookingRow?.rentReceivedPaise ?? 0),
+      paidPrincipalPaise: Math.max(0, settlementRentReceivedPaise),
     });
   }
 

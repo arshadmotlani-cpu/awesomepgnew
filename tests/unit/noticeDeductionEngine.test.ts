@@ -26,7 +26,12 @@ test('5 missing notice, 19 unused prepaid days → fully covered', () => {
     noticeGivenDate: '2026-05-01',
     vacatingDate: '2026-05-01',
     paidRentPeriods: [
-      { periodStart: '2026-04-05', periodEnd: '2026-05-24', source: 'rent_invoice' },
+      {
+        periodStart: '2026-04-05',
+        periodEnd: '2026-05-24',
+        source: 'rent_invoice',
+        paidPrincipalPaise: 300_000,
+      },
     ],
   });
   assert.equal(breakdown.missingNoticeDays, VACATING_NOTICE_MIN_DAYS);
@@ -42,7 +47,12 @@ test('5 missing notice, 3 unused prepaid days → chargeable = 2', () => {
     noticeGivenDate: '2026-05-01',
     vacatingDate: '2026-05-01',
     paidRentPeriods: [
-      { periodStart: '2026-04-05', periodEnd: '2026-05-04', source: 'rent_invoice' },
+      {
+        periodStart: '2026-04-05',
+        periodEnd: '2026-05-04',
+        source: 'rent_invoice',
+        paidPrincipalPaise: 300_000,
+      },
     ],
   });
   assert.equal(breakdown.missingNoticeDays, VACATING_NOTICE_MIN_DAYS);
@@ -58,7 +68,12 @@ test('5 missing notice, 15 unused prepaid → chargeable = 0', () => {
     noticeGivenDate: '2026-06-10',
     vacatingDate: '2026-06-10',
     paidRentPeriods: [
-      { periodStart: '2026-06-05', periodEnd: '2026-06-30', source: 'rent_invoice' },
+      {
+        periodStart: '2026-06-05',
+        periodEnd: '2026-06-30',
+        source: 'rent_invoice',
+        paidPrincipalPaise: 300_000,
+      },
     ],
   });
   assert.equal(breakdown.missingNoticeDays, VACATING_NOTICE_MIN_DAYS);
@@ -73,7 +88,12 @@ test('no prepaid after vacate: chargeable = missing notice days', () => {
     noticeGivenDate: '2026-06-01',
     vacatingDate: '2026-06-03',
     paidRentPeriods: [
-      { periodStart: '2026-05-05', periodEnd: '2026-06-03', source: 'rent_invoice' },
+      {
+        periodStart: '2026-05-05',
+        periodEnd: '2026-06-03',
+        source: 'rent_invoice',
+        paidPrincipalPaise: 300_000,
+      },
     ],
   });
   assert.equal(breakdown.missingNoticeDays, 3);
@@ -91,10 +111,27 @@ test('fixed-stay booking: notice deduction policy does not apply', () => {
 
 test('resolvePaidThroughDate picks latest period extending past vacate', () => {
   const { paidUntilDate } = resolvePaidThroughDate('2026-06-15', [
-    { periodStart: '2026-05-05', periodEnd: '2026-06-04' },
-    { periodStart: '2026-06-05', periodEnd: '2026-07-04' },
+    { periodStart: '2026-05-05', periodEnd: '2026-06-04', paidPrincipalPaise: 100_000 },
+    { periodStart: '2026-06-05', periodEnd: '2026-07-04', paidPrincipalPaise: 100_000 },
   ]);
   assert.equal(paidUntilDate, '2026-07-04');
+});
+
+test('resolvePaidThroughDate prefers containing period over far-future extension', () => {
+  const { paidUntilDate, periodUsed } = resolvePaidThroughDate('2026-08-15', [
+    {
+      periodStart: '2026-07-21',
+      periodEnd: '2026-08-21',
+      paidPrincipalPaise: 412_080,
+    },
+    {
+      periodStart: '2098-12-21',
+      periodEnd: '2099-01-05',
+      paidPrincipalPaise: 10_000,
+    },
+  ]);
+  assert.equal(paidUntilDate, '2026-08-21');
+  assert.equal(periodUsed?.periodEnd, '2026-08-21');
 });
 
 test('unusedPrepaidRentDaysAfterVacating counts days after vacate through paid-until', () => {
