@@ -1353,7 +1353,7 @@ export type AdminRentInvoiceRow = {
   bedCode: string;
   roomNumber: string;
   billingMonth: string;
-  dueDate: string;
+  dueDate: string | null;
   rentPaise: number;
   discountPaise: number;
   paidPrincipalPaise: number;

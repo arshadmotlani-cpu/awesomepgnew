@@ -126,6 +126,7 @@ export async function loadMonthlyBillingSnapshotForBooking(args: {
   const openDue =
     latestInvoice &&
     !['paid', 'cancelled'].includes(latestInvoice.status) &&
+    latestInvoice.dueDate != null &&
     latestInvoice.dueDate >= today
       ? latestInvoice.dueDate
       : null;

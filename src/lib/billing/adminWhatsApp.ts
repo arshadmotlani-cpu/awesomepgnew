@@ -9,7 +9,7 @@ export type BillingWhatsAppInput = {
   phone: string;
   pgName: string;
   amountPaise: number;
-  dueDate: string;
+  dueDate: string | null;
   billingMonth?: string;
   roomNumber?: string;
   isOverdue?: boolean;
@@ -215,7 +215,7 @@ export type BillingReminderQueueItem = {
   roomNumber?: string;
   bedCode?: string;
   amountPaise: number;
-  dueDate: string;
+  dueDate: string | null;
   billingMonth?: string;
   isOverdue: boolean;
 };

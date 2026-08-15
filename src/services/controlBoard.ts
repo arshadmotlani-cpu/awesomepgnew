@@ -54,7 +54,7 @@ function rowFromRentInvoice(r: AdminRentInvoiceRow): ControlBoardDrillDownRow {
     meta: r.invoiceNumber,
     billingKind: 'rent',
     billingMonth: r.billingMonth,
-    dueDate: r.dueDate,
+    dueDate: r.dueDate ?? undefined,
     isOverdue: r.effectiveStatus === 'overdue',
     href: `/admin/rent?status=${r.status}`,
   };
@@ -72,7 +72,7 @@ function rowFromElecInvoice(r: AdminElectricityInvoiceReminderRow): ControlBoard
     meta: r.invoiceNumber,
     billingKind: 'electricity',
     billingMonth: r.billingMonth,
-    dueDate: r.dueDate,
+    dueDate: r.dueDate ?? undefined,
     isOverdue: r.isOverdue,
     href: '/admin/electricity/dashboard',
   };

@@ -39,7 +39,7 @@ export type CollectionQueueItem = {
   financialInvoiceId?: string | null;
   invoiceNumber: string;
   amountPaise: number;
-  dueDate: string;
+  dueDate: string | null;
   daysOverdue: number;
   priority: CollectionPriority;
   effectiveStatus: string;
@@ -91,6 +91,7 @@ export function rentRowToQueueItem(row: AdminRentInvoiceRow, today: string): Col
   if (row.effectiveStatus === 'paid' || row.effectiveStatus === 'cancelled') return null;
 
   if (row.effectiveStatus === 'payment_in_progress') return null;
+  if (!row.dueDate) return null;
 
   const priority =
     row.effectiveStatus === 'overdue'
@@ -140,6 +141,7 @@ export function electricityRowToQueueItem(
   };
   if (!collectibility.bookingId) return null;
   if (!isElectricityAwaitingResidentPayment(collectibility)) return null;
+  if (!row.dueDate) return null;
 
   const priority = row.isOverdue ? 'overdue' : classifyDueDate(row.dueDate, today);
 
@@ -242,6 +244,7 @@ export function buildCollectionsCommandStats(input: {
     if (r.outstandingPaise <= 0 || r.effectiveStatus === 'paid' || r.effectiveStatus === 'cancelled') {
       continue;
     }
+    if (!r.dueDate) continue;
     countUnpaid(r.outstandingPaise, r.dueDate, r.effectiveStatus === 'overdue', r.effectiveStatus);
   }
   for (const e of input.allUnpaidElectricity) {

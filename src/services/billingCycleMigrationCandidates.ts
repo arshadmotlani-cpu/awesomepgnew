@@ -19,7 +19,18 @@ import type { AdminSession } from '@/src/lib/auth/session';
 import { formatDate, todayString } from '@/src/lib/dates';
 import { isMonthlyStayType } from '@/src/lib/stayType';
 import type { BillingCyclePolicy } from '@/src/services/billing';
-import { previewBillingCycleMigration } from '@/src/services/billingCycleMigration';
+import {
+  previewBillingCycleMigration,
+  type BillingCycleMigrationPreview,
+} from '@/src/services/billingCycleMigration';
+
+type MigrationPreviewResult = BillingCycleMigrationPreview | { ok: false; error: string };
+
+function isMigrationPreviewError(
+  preview: MigrationPreviewResult,
+): preview is { ok: false; error: string } {
+  return 'ok' in preview && preview.ok === false;
+}
 
 export type BillingCycleMigrationStatus =
   | 'already_on_1st'
@@ -67,10 +78,9 @@ function remainingPrepaidLabel(paidThrough: string | null): string | null {
 }
 
 function deriveMigrationStatus(
-  preview: Awaited<ReturnType<typeof previewBillingCycleMigration>>,
+  preview: BillingCycleMigrationPreview,
   migratedAt: Date | null,
 ): BillingCycleMigrationStatus {
-  if ('ok' in preview && preview.ok === false) return 'blocked';
   const p = preview;
   if (p.alreadyOnTarget) {
     return migratedAt ? 'migrated' : 'already_on_1st';
@@ -144,7 +154,7 @@ export async function listBillingCycleMigrationCandidates(
     }
 
     const preview = await previewBillingCycleMigration(row.bookingId);
-    if ('ok' in preview && preview.ok === false) {
+    if (isMigrationPreviewError(preview)) {
       candidates.push({
         bookingId: row.bookingId,
         customerId: row.customerId,

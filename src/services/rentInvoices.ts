@@ -616,11 +616,13 @@ export async function listBillingCycleOperations(
       ),
     );
 
-  const dueSoon: BillingCycleOperationRow[] = rows.map((r) => ({
-    ...r,
-    roomNumber: r.roomNumber ?? '',
-    daysUntilDue: diffDays(today, r.dueDate),
-  }));
+  const dueSoon: BillingCycleOperationRow[] = rows
+    .filter((r): r is typeof r & { dueDate: string } => r.dueDate != null)
+    .map((r) => ({
+      ...r,
+      roomNumber: r.roomNumber ?? '',
+      daysUntilDue: diffDays(today, r.dueDate),
+    }));
 
   const currentMonth = firstOfMonth(today);
   const generatedRows = await db
@@ -655,11 +657,13 @@ export async function listBillingCycleOperations(
       ),
     );
 
-  const generatedPending: BillingCycleOperationRow[] = generatedRows.map((r) => ({
-    ...r,
-    roomNumber: r.roomNumber ?? '',
-    daysUntilDue: diffDays(today, r.dueDate),
-  }));
+  const generatedPending: BillingCycleOperationRow[] = generatedRows
+    .filter((r): r is typeof r & { dueDate: string } => r.dueDate != null)
+    .map((r) => ({
+      ...r,
+      roomNumber: r.roomNumber ?? '',
+      daysUntilDue: diffDays(today, r.dueDate),
+    }));
 
   return { dueSoon, generatedPending };
 }
@@ -1927,7 +1931,13 @@ export async function recordRentPaymentFailure(input: {
 /** Rows from joins may omit new promo / proof-snapshot columns until migration runs. */
 export type RentInvoiceProjectInput = Omit<
   RentInvoice,
-  'discountPaise' | 'promoCode' | 'proofSubmittedAt' | 'proofSnapshotOutstandingPaise' | 'proofSnapshotLateFeePaise' | 'proofSnapshotPrincipalDuePaise'
+  | 'discountPaise'
+  | 'promoCode'
+  | 'proofSubmittedAt'
+  | 'proofSnapshotOutstandingPaise'
+  | 'proofSnapshotLateFeePaise'
+  | 'proofSnapshotPrincipalDuePaise'
+  | 'invoiceSubtype'
 > & {
   discountPaise?: number;
   promoCode?: string | null;
@@ -1935,6 +1945,8 @@ export type RentInvoiceProjectInput = Omit<
   proofSnapshotOutstandingPaise?: number | null;
   proofSnapshotLateFeePaise?: number | null;
   proofSnapshotPrincipalDuePaise?: number | null;
+  /** Defaults to `standard` when omitted (legacy join rows pre-migration). */
+  invoiceSubtype?: RentInvoice['invoiceSubtype'];
 };
 
 export type ProjectInvoiceOptions = {
@@ -2102,6 +2114,7 @@ export function projectInvoice(
     proofSnapshotOutstandingPaise: invoice.proofSnapshotOutstandingPaise ?? null,
     proofSnapshotLateFeePaise: invoice.proofSnapshotLateFeePaise ?? null,
     proofSnapshotPrincipalDuePaise: invoice.proofSnapshotPrincipalDuePaise ?? null,
+    invoiceSubtype: invoice.invoiceSubtype ?? 'standard',
   };
   if (inv.status === 'paid') {
     return {
@@ -3219,6 +3232,7 @@ export async function repairRentInvoiceDueDatesBeforeIssue(): Promise<{
   const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
 
   for (const row of rows) {
+    if (!row.dueDate) continue;
     const issueDate = formatDate(row.createdAt);
     const dueDate = clampDueDateOnOrAfterIssueDate(row.dueDate, issueDate);
     if (dueDate === row.dueDate) continue;

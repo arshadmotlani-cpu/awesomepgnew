@@ -81,7 +81,8 @@ export function projectedRowsFromAdminInvoices(input: {
 
   for (const inv of input.open) {
     if (inv.outstandingPaise <= 0) continue;
-    const overduePaise = inv.dueDate < input.todayIso ? inv.outstandingPaise : 0;
+    const overduePaise =
+      inv.dueDate != null && inv.dueDate < input.todayIso ? inv.outstandingPaise : 0;
     rows.push({
       outstandingPaise: inv.outstandingPaise,
       collectedPaise: 0,

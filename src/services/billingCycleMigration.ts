@@ -56,7 +56,7 @@ export type BillingCycleMigrationPreview = {
   lastPaidInvoice: {
     id: string;
     invoiceNumber: string;
-    dueDate: string;
+    dueDate: string | null;
     billingMonth: string;
     rentPaise: number;
   } | null;

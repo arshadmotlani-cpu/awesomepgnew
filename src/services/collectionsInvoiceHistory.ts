@@ -23,7 +23,7 @@ export type CollectionsInvoiceHistoryRow = {
   financialInvoiceId: string | null;
   invoiceNumber: string;
   billingMonth: string;
-  dueDate: string;
+  dueDate: string | null;
   status: string;
   effectiveStatus: string;
   lifecycleLabel: CollectionsLifecycleLabel;
@@ -185,7 +185,7 @@ export async function listResidentSafeInvoiceHistory(
     financialInvoiceId: string | null;
     invoiceNumber: string;
     billingMonth: string;
-    dueDate: string;
+    dueDate: string | null;
     lifecycleLabel: CollectionsLifecycleLabel;
     outstandingPaise: number;
     paidAt: Date | null;

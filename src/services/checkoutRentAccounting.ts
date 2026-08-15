@@ -353,7 +353,9 @@ async function applyOptionAInvoiceRepair(input: {
     outstandingRentPaise: beforeBalances?.rent.outstandingPaise ?? 0,
   };
 
-  const notes = await resolveAnniversaryInvoiceNotes(input.bookingId, invoice.dueDate);
+  const notes = invoice.dueDate
+    ? await resolveAnniversaryInvoiceNotes(input.bookingId, invoice.dueDate)
+    : (invoice.notes ?? '');
 
   if (!input.execute) {
     return {

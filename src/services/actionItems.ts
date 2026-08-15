@@ -1291,7 +1291,7 @@ export async function getActionItemDetail(
         id: inv.id,
         label: `Rent ${inv.billingMonth.slice(0, 7)}`,
         amountPaise: inv.rentPaise,
-        date: inv.dueDate,
+        date: inv.dueDate ?? inv.billingMonth,
         kind: inv.status,
       });
     }

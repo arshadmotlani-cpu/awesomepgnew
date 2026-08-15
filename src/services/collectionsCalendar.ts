@@ -74,6 +74,7 @@ export function buildCollectionsCalendarDays(input: {
   };
 
   for (const row of input.openRent) {
+    if (!row.dueDate) continue;
     const day = ensure(row.dueDate);
     if (!day) continue;
     if (row.outstandingPaise <= 0 && row.effectiveStatus !== 'payment_in_progress') continue;
@@ -134,7 +135,7 @@ export async function loadCollectionsCalendar(opts: {
   ]);
 
   let openRent = (openRentResult.ok ? openRentResult.data : []).filter(
-    (r) => r.dueDate >= start && r.dueDate <= end,
+    (r) => r.dueDate != null && r.dueDate >= start && r.dueDate <= end,
   );
   let paidRent = (paidRentResult.ok ? paidRentResult.data : []).filter((r) => {
     if (!r.paidAt) return false;

@@ -63,9 +63,9 @@ export function ResidentEntityPanel({
         invoiceHref: invoiceHrefFromMap(invoiceHrefMap, 'rent_invoices', r.id),
         amount: r.rentPaise,
         status: r.status,
-        date: formatDate(r.dueDate),
+        date: r.dueDate ? formatDate(r.dueDate) : '—',
         action:
-          r.status === 'pending' || r.status === 'overdue' ? (
+          r.dueDate && (r.status === 'pending' || r.status === 'overdue') ? (
             <AdminBillingWhatsAppButton
               kind="rent"
               customerName={r.customerFullName}

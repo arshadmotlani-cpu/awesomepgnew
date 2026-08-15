@@ -82,6 +82,9 @@ export function classifyOpenRentRow(
   if (label === 'Under Verification' || label === 'Payment Submitted') {
     return { bucket: 'awaiting', label };
   }
+  if (!row.dueDate) {
+    return { bucket: 'due_today', label: 'Due' };
+  }
   if (label === 'Overdue' || row.dueDate < todayIso) {
     return { bucket: 'overdue', label: label === 'Overdue' ? label : 'Overdue' };
   }
@@ -115,7 +118,7 @@ export function rentRowToCollectionsQueueRow(
     financialInvoiceId,
     invoiceNumber: row.invoiceNumber,
     amountPaise: row.outstandingPaise > 0 ? row.outstandingPaise : row.rentPaise - row.discountPaise,
-    dueDate: row.dueDate,
+    dueDate: row.dueDate ?? row.billingMonth,
     billingMonth: row.billingMonth,
     effectiveStatus: row.effectiveStatus,
     paidAt: row.paidAt,
@@ -170,7 +173,7 @@ export function paidTodayToCollectionsQueueRow(
     financialInvoiceId,
     invoiceNumber: row.invoiceNumber,
     amountPaise: row.rentPaise - row.discountPaise,
-    dueDate: row.dueDate,
+    dueDate: row.dueDate ?? row.billingMonth,
     billingMonth: row.billingMonth,
     effectiveStatus: 'paid',
     paidAt: row.paidAt,

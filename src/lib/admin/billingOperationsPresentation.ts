@@ -64,7 +64,7 @@ export type BillingPendingPaymentRow = {
   bookingId: string;
   invoiceNumber: string;
   generatedDate: string;
-  dueDate: string;
+  dueDate: string | null;
   daysOutstanding: number;
   amountDuePaise: number;
   lastReminderSentAt: Date | null;
@@ -243,6 +243,7 @@ export function buildPendingPaymentRows(input: {
     if (row.outstandingPaise <= 0) continue;
     if (row.effectiveStatus === 'paid' || row.effectiveStatus === 'cancelled') continue;
     if (row.effectiveStatus === 'payment_in_progress') continue;
+    if (!row.dueDate) continue;
 
     const generatedDate = row.createdAt.toISOString().slice(0, 10);
     const daysOutstanding = Math.max(0, diffDays(row.dueDate, input.todayIso));

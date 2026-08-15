@@ -20,7 +20,7 @@ type Props = {
   pgName: string;
   roomNumber: string;
   amountPaise: number;
-  dueDate: string;
+  dueDate: string | null;
   bookingId?: string;
   financialInvoiceId?: string | null;
   canMarkCash?: boolean;

@@ -21,20 +21,23 @@ export function BillingCycleOperationsPanel({
   const [reminderIndex, setReminderIndex] = useState(0);
   const [reminderOpen, setReminderOpen] = useState(false);
 
-  const sendRows: RentInvoiceSendRow[] = dueSoon.map((r) => ({
-    id: r.invoiceId,
-    customerId: r.customerId,
-    customerFullName: r.customerFullName,
-    customerPhone: r.customerPhone,
-    pgId: r.pgId,
-    pgName: r.pgName,
-    roomNumber: r.roomNumber,
-    rentPaise: r.rentPaise,
-    dueDate: r.dueDate,
-    isOverdue: r.status === 'overdue',
-  }));
+  const sendRows: RentInvoiceSendRow[] = dueSoon
+    .filter((r) => r.dueDate)
+    .map((r) => ({
+      id: r.invoiceId,
+      customerId: r.customerId,
+      customerFullName: r.customerFullName,
+      customerPhone: r.customerPhone,
+      pgId: r.pgId,
+      pgName: r.pgName,
+      roomNumber: r.roomNumber,
+      rentPaise: r.rentPaise,
+      dueDate: r.dueDate!,
+      isOverdue: r.status === 'overdue',
+    }));
 
   const sendOneReminder = useCallback(async (row: BillingCycleOperationRow) => {
+    if (!row.dueDate) return null;
     const fd = new FormData();
     fd.set('residentId', row.customerId);
     fd.set('pgId', row.pgId);

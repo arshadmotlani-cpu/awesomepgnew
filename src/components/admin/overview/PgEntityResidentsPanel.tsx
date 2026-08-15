@@ -29,7 +29,7 @@ export function PgEntityResidentsPanel({
   deposits: DepositRow[];
 }) {
   const rentQueue: BillingReminderQueueItem[] = rentInvoices
-    .filter((r) => r.status === 'pending' || r.status === 'overdue')
+    .filter((r) => (r.status === 'pending' || r.status === 'overdue') && r.dueDate)
     .map((r) => ({
       id: r.id,
       kind: 'rent' as const,
@@ -38,7 +38,7 @@ export function PgEntityResidentsPanel({
       pgName: r.pgName,
       roomNumber: r.roomNumber,
       amountPaise: r.rentPaise,
-      dueDate: r.dueDate,
+      dueDate: r.dueDate!,
       billingMonth: r.billingMonth,
       isOverdue: r.status === 'overdue',
     }));
@@ -85,7 +85,7 @@ export function PgEntityResidentsPanel({
             status: r.status,
             meta: formatDate(r.billingMonth),
             whatsapp:
-              r.status === 'pending' || r.status === 'overdue' ? (
+              r.dueDate && (r.status === 'pending' || r.status === 'overdue') ? (
                 <AdminBillingWhatsAppButton
                   kind="rent"
                   customerName={r.customerFullName}

@@ -1663,7 +1663,7 @@ export type RentInvoiceRow = {
   bookingId: string;
   bookingCode: string;
   billingMonth: string;
-  dueDate: string;
+  dueDate: string | null;
   rentPaise: number;
   discountPaise: number;
   promoCode: string | null;

@@ -19,7 +19,7 @@ export type RentInvoiceBreakdown = {
   invoiceNumber: string;
   billingMonth: string;
   billingMonthLabel: string;
-  dueDate: string;
+  dueDate: string | null;
   roomNumber: string;
   bedCode: string;
   monthlyRentPaise: number;

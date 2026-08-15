@@ -111,6 +111,7 @@ export async function listDueReminders(opts?: {
 
   for (const row of openResult.data) {
     if (row.outstandingPaise <= 0) continue;
+    if (!row.dueDate) continue;
     if (opts?.pgId && row.pgId !== opts.pgId) continue;
 
     for (const policy of policies) {

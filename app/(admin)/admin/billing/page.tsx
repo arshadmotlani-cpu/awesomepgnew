@@ -382,7 +382,9 @@ export default async function CollectionsModulePage({
           </header>
           <RentInvoicesBulkSendBar
             canSendLinks={canSendLinks}
-            rows={rentPendingRows.map((r) => ({
+            rows={rentPendingRows
+              .filter((r) => r.dueDate)
+              .map((r) => ({
                     id: r.id,
                     customerId: r.customerId,
                     customerFullName: r.customerFullName,
@@ -391,7 +393,7 @@ export default async function CollectionsModulePage({
                     pgName: r.pgName,
                     roomNumber: r.roomNumber,
                     rentPaise: r.outstandingPaise,
-                    dueDate: r.dueDate,
+                    dueDate: r.dueDate!,
                     isOverdue: r.effectiveStatus === 'overdue',
                   }))}
           />
@@ -525,7 +527,7 @@ function InvoiceTable({
     outstandingPaise?: number;
     status?: string;
     effectiveStatus?: string;
-    dueDate: string;
+    dueDate: string | null;
     bookingId?: string;
     isOverdue?: boolean;
   }>;
@@ -562,6 +564,7 @@ function InvoiceTable({
                 r.customerId &&
                 pgId &&
                 amount > 0 &&
+                r.dueDate &&
                 displayStatus !== 'paid' &&
                 displayStatus !== 'cancelled';
               const sourceTable = electricity ? 'electricity_invoices' : 'rent_invoices';
@@ -592,7 +595,7 @@ function InvoiceTable({
                     {r.pgName} · R{r.roomNumber}
                   </TD>
                   <TD className="text-right tabular-nums">{paiseToInr(amount)}</TD>
-                  <TD className="text-xs">{formatDate(r.dueDate)}</TD>
+                  <TD className="text-xs">{r.dueDate ? formatDate(r.dueDate) : '—'}</TD>
                   <TD>
                     {displayStatus ? (
                       <Badge tone={toneForStatus(displayStatus)}>{titleCase(displayStatus)}</Badge>
@@ -610,7 +613,7 @@ function InvoiceTable({
                         pgName={r.pgName}
                         amountPaise={amount}
                         purpose={electricity ? 'electricity' : 'rent'}
-                        dueDate={r.dueDate}
+                        dueDate={r.dueDate ?? undefined}
                         roomNumber={r.roomNumber}
                         isOverdue={r.isOverdue ?? displayStatus === 'overdue'}
                         bookingId={r.bookingId}
