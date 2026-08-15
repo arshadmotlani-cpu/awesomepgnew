@@ -50,6 +50,7 @@ type Props = {
   checkoutStatus?: string | null;
   vacatingDate?: string | null;
   settlementWaterfall?: CheckoutSettlementWaterfall | null;
+  canRequestVacatingDateChange?: boolean;
 };
 
 export function ResidentProfileHub({
@@ -84,6 +85,7 @@ export function ResidentProfileHub({
   checkoutStatus = null,
   vacatingDate = null,
   settlementWaterfall = null,
+  canRequestVacatingDateChange = false,
 }: Props) {
   const subNav = [
     { id: 'overview', label: 'Overview', href: residentProfileHref('overview') },
@@ -108,6 +110,7 @@ export function ResidentProfileHub({
             checkoutStatus={checkoutStatus}
             vacatingDate={vacatingDate}
             settlementWaterfall={settlementWaterfall}
+            canRequestVacatingDateChange={canRequestVacatingDateChange}
           />
           <div className="mt-4">
             <ProfileEditSection

@@ -112,6 +112,10 @@ export function MoveOutAdvancedTools({
                       settlementHref={settlementHrefByRequest[v.id]}
                       depositHeldPaise={depositHeldByBooking[v.bookingId] ?? 0}
                       approvalPreview={v.approvalPreview}
+                      bookingId={v.bookingId}
+                      bookingCode={v.bookingCode}
+                      vacatingDate={String(v.vacatingDate)}
+                      noticeGivenDate={String(v.noticeGivenDate)}
                     />
                   </TD>
                 </TR>

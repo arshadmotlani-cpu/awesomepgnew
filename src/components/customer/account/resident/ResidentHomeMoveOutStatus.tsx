@@ -13,11 +13,14 @@ export function ResidentHomeMoveOutStatus({
   checkoutStatus,
   vacatingDate,
   settlementWaterfall = null,
+  canRequestDateChange = false,
 }: {
   vacatingStatus: string | null;
   checkoutStatus: string | null;
   vacatingDate: string | null;
   settlementWaterfall?: CheckoutSettlementWaterfall | null;
+  /** True when resident can self-serve change-date (no checkout settlement yet). */
+  canRequestDateChange?: boolean;
 }) {
   if (!vacatingStatus && !checkoutStatus) return null;
 
@@ -39,12 +42,22 @@ export function ResidentHomeMoveOutStatus({
         </div>
         <StatusChip status={chipLabel} />
       </div>
-      <Link
-        href={legacyResidentTabHref('vacating')}
-        className="mt-4 inline-block text-xs font-semibold text-indigo-700 hover:text-indigo-600"
-      >
-        Open move-out journey →
-      </Link>
+      <div className="mt-4 flex flex-wrap gap-4">
+        <Link
+          href={legacyResidentTabHref('vacating')}
+          className="text-xs font-semibold text-indigo-700 hover:text-indigo-600"
+        >
+          Open move-out journey →
+        </Link>
+        {canRequestDateChange && vacatingStatus === 'approved' ? (
+          <Link
+            href={`${legacyResidentTabHref('vacating')}#change-leaving-date`}
+            className="text-xs font-semibold text-indigo-700 hover:text-indigo-600"
+          >
+            Change final stay date →
+          </Link>
+        ) : null}
+      </div>
     </ApgCard>
   );
 }

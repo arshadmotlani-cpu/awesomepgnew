@@ -10,6 +10,7 @@ import { ChangeLeavingDateForm } from '@/src/components/customer/account/residen
 import type { ResidentSettlementStatementContext } from '@/src/components/customer/account/resident/vacating/ResidentEstimatedSettlementBreakdown';
 import { ResidentMoveOutSettlementStory } from '@/src/components/customer/account/resident/vacating/ResidentMoveOutSettlementStory';
 import { cancelApprovedVacatingAction } from '@/app/(customer)/account/resident/vacating-date-change-actions';
+import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 import {
   buildVacatingSettlementLines,
   vacatingNextStep,
@@ -42,7 +43,6 @@ import {
   resolveExitLifecycleFromSnapshot,
   residentMoveOutStatusLabel,
 } from '@/src/lib/exit/exitBrainLifecycleUi';
-import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 
 type Props = {
   bookingId: string;
@@ -234,6 +234,19 @@ export function VacatingHome({
     !checkoutStatus &&
     !isMoveOutComplete;
 
+  const changeLeavingDateBlockedReason =
+    !showChangeLeavingDate &&
+    vacating?.status === 'approved' &&
+    vacatingDate &&
+    !isRejected &&
+    !isMoveOutComplete
+      ? checkoutSettlementSuppressed
+        ? 'Move-out settlement is not available for this booking.'
+        : checkoutStatus
+          ? 'Checkout settlement has already started — contact the office to request a new final stay date.'
+          : lifecycle.capabilities.canEditVacating.reason ?? 'Leaving date cannot be changed right now.'
+      : null;
+
   const showRefundLockedCard =
     !showRefundForm &&
     !isMoveOutComplete &&
@@ -403,12 +416,23 @@ export function VacatingHome({
           {exitBrainPanel}
 
           {showChangeLeavingDate && vacatingDate ? (
-            <ChangeLeavingDateForm
-              bookingId={bookingId}
-              currentVacatingDate={vacatingDate}
-              pendingRequestId={pendingDateChangeRequestId}
-              onSubmitted={() => router.refresh()}
-            />
+            <div id="change-leaving-date">
+              <ChangeLeavingDateForm
+                bookingId={bookingId}
+                currentVacatingDate={vacatingDate}
+                pendingRequestId={pendingDateChangeRequestId}
+                onSubmitted={() => router.refresh()}
+              />
+            </div>
+          ) : changeLeavingDateBlockedReason ? (
+            <ApgCard tier="account" className="border-zinc-200 bg-zinc-50 p-5">
+              <h3 className="text-sm font-semibold text-zinc-900">Change final stay date</h3>
+              <p className="mt-1 text-sm text-zinc-600">{changeLeavingDateBlockedReason}</p>
+              <p className="mt-2 text-xs text-zinc-500">
+                Your approved final stay date is {formatDate(vacatingDate!)}. Bed release is the
+                following day at 11:00 AM.
+              </p>
+            </ApgCard>
           ) : null}
 
           {checkoutSettlement?.rejectionReason ? (

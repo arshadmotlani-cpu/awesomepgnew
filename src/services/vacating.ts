@@ -1543,14 +1543,7 @@ export async function extendVacatingDate(input: {
       .returning();
 
     if (updated.status === 'approved') {
-      await db.execute(sql`
-        UPDATE bed_reservations
-        SET
-          stay_range = daterange(lower(stay_range), ${newDate}::date, '[)'),
-          updated_at = now()
-        WHERE booking_id = ${input.bookingId}
-          AND status IN ('hold', 'active')
-      `);
+      await shortenBookingReservationsToDate(input.bookingId, newDate);
       await db
         .update(bookings)
         .set({ expectedCheckoutDate: newDate, updatedAt: new Date() })

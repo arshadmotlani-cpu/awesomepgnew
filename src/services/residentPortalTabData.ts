@@ -25,6 +25,7 @@ import { buildResidentBillRowsFromDetail } from '@/src/lib/residents/residentPor
 import { buildResidentElectricityHistoryItems } from '@/src/lib/residents/residentElectricityHistoryPresentation';
 import { loadResidentElectricityBillExplanations } from '@/src/lib/residents/residentElectricityBillExplanation';
 import { billingCycleLabel, enrichBillDueRow, moveOutStatusLabel } from '@/src/lib/residents/residentPortalPresentation';
+import { isFixedStayDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
 import {
   loadPendingRentGenerationNotice,
   loadResidentMonthlyRentDisplay,
@@ -337,6 +338,16 @@ export async function loadResidentProfileTabData(input: {
     ? checkoutMaps.checkoutSettlementByBooking.get(primaryBooking.bookingId) ?? null
     : null;
 
+  const primaryCheckoutStatus = primaryBooking
+    ? checkoutMaps.checkoutByBooking.get(primaryBooking.bookingId) ?? null
+    : null;
+
+  const canRequestVacatingDateChange =
+    primaryVacating?.status === 'approved' &&
+    !primaryCheckoutStatus &&
+    !primaryVacating.checkoutSettlementSuppressed &&
+    !isFixedStayDurationMode(effectiveDurationMode ?? primaryBooking?.booking.durationMode);
+
   const depositEntries =
     walletBooking?.deposit?.entries ?? primaryBooking?.deposit?.entries ?? [];
 
@@ -361,6 +372,7 @@ export async function loadResidentProfileTabData(input: {
     primaryCheckoutSettlement,
     checkoutByBooking: checkoutMaps.checkoutByBooking,
     effectiveDurationMode,
+    canRequestVacatingDateChange,
   };
 }
 

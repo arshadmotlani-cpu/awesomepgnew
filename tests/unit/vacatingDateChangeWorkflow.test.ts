@@ -82,6 +82,8 @@ test('VacatingHome uses settlement story instead of legacy estimate hero', () =>
   assert.match(vacatingHome, /showSettlementStory/);
   assert.doesNotMatch(vacatingHome, /Estimated Refund ≈/);
   assert.doesNotMatch(vacatingHome, /<ResidentEstimatedSettlementBreakdown/);
+  assert.match(vacatingHome, /changeLeavingDateBlockedReason/);
+  assert.match(vacatingHome, /id="change-leaving-date"/);
 });
 
 test('booking financial workspace wires settlement statement document', () => {

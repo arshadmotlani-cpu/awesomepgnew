@@ -8,6 +8,7 @@ import {
   UndoVacatingApprovalButton,
   UndoVacatingCompletionButton,
 } from '@/src/components/admin/VacatingActions';
+import { AdminChangeVacatingDatePanel } from '@/src/components/admin/vacating/AdminChangeVacatingDatePanel';
 import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
 
 export function VacatingRowActions({
@@ -18,6 +19,8 @@ export function VacatingRowActions({
   approvalPreview,
   bookingId,
   bookingCode,
+  vacatingDate,
+  noticeGivenDate,
 }: {
   requestId: string;
   status: string;
@@ -26,6 +29,8 @@ export function VacatingRowActions({
   approvalPreview?: VacatingApprovalPreview;
   bookingId?: string;
   bookingCode?: string;
+  vacatingDate?: string;
+  noticeGivenDate?: string;
 }) {
   return (
     <div className="flex flex-col items-end gap-2">
@@ -52,6 +57,25 @@ export function VacatingRowActions({
         )
       ) : null}
 
+      {status === 'approved' && bookingId && vacatingDate && noticeGivenDate ? (
+        <details className="w-full max-w-lg text-right">
+          <summary
+            className="cursor-pointer rounded-lg border border-sky-500/40 px-3 py-1.5 text-xs font-semibold text-sky-200 hover:bg-sky-500/10"
+          >
+            Change vacating date
+          </summary>
+          <div className="mt-2 text-left">
+            <AdminChangeVacatingDatePanel
+              bookingId={bookingId}
+              currentVacatingDate={vacatingDate}
+              noticeGivenDate={noticeGivenDate}
+              vacatingStatus={status}
+              theme="dark"
+            />
+          </div>
+        </details>
+      ) : null}
+
       {status === 'pending' || status === 'approved' || status === 'completed' ? (
         <details className="text-right">
           <summary className="cursor-pointer text-[11px] text-apg-silver hover:text-white">
@@ -71,6 +95,17 @@ export function VacatingRowActions({
               </>
             ) : null}
             {status === 'completed' ? <UndoVacatingCompletionButton requestId={requestId} /> : null}
+            {status === 'pending' && bookingId && vacatingDate && noticeGivenDate ? (
+              <div className="mt-2 w-full max-w-md text-left">
+                <AdminChangeVacatingDatePanel
+                  bookingId={bookingId}
+                  currentVacatingDate={vacatingDate}
+                  noticeGivenDate={noticeGivenDate}
+                  vacatingStatus={status}
+                  theme="dark"
+                />
+              </div>
+            ) : null}
           </div>
         </details>
       ) : null}

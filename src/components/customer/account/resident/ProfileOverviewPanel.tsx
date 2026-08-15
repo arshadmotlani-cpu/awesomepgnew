@@ -20,6 +20,7 @@ type Props = {
   checkoutStatus?: string | null;
   vacatingDate?: string | null;
   settlementWaterfall?: CheckoutSettlementWaterfall | null;
+  canRequestVacatingDateChange?: boolean;
 };
 
 function StatRow({ label, value }: { label: string; value: string }) {
@@ -43,6 +44,7 @@ export function ProfileOverviewPanel({
   checkoutStatus = null,
   vacatingDate = null,
   settlementWaterfall = null,
+  canRequestVacatingDateChange = false,
 }: Props) {
   const sharingLabel =
     roomCapacity <= 1 ? 'Private room' : `${roomCapacity}-sharing (${roommatesCount} roommate${roommatesCount === 1 ? '' : 's'})`;
@@ -71,6 +73,7 @@ export function ProfileOverviewPanel({
           checkoutStatus={checkoutStatus}
           vacatingDate={vacatingDate}
           settlementWaterfall={settlementWaterfall}
+          canRequestDateChange={canRequestVacatingDateChange}
         />
       ) : null}
 

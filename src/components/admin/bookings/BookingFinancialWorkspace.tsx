@@ -10,10 +10,15 @@ import { CheckoutRefundReceiptFromDetail } from '@/src/components/admin/checkout
 import { DepositActivitySection } from '@/src/components/admin/deposits/DepositActivitySection';
 import { DepositSummaryCard } from '@/src/components/admin/deposits/DepositSummaryCard';
 import { SettlementStatementDocument } from '@/src/components/billing/SettlementStatementDocument';
+import { AdminChangeVacatingDatePanel } from '@/src/components/admin/vacating/AdminChangeVacatingDatePanel';
 import { VacatingDateChangeApprovalPanel } from '@/src/components/admin/vacating/VacatingDateChangeApprovalPanel';
 import { BookingFinancialWorkspaceNav } from '@/src/components/admin/bookings/BookingFinancialWorkspaceNav';
 import { settlementStatementPageHref } from '@/src/lib/billing/settlementStatementPdfLinks';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
+import {
+  formatBedAvailableLabel,
+  formatFinalStayDateLabel,
+} from '@/src/lib/vacating/vacatingBedSemantics';
 import { moveOutWorkflowWaitingOnLabel } from '@/src/lib/moveOut/moveOutWorkflowStages';
 import { vacatingWorkflowHref } from '@/src/lib/residents/commandCenterLinks';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
@@ -140,8 +145,9 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
                 <p className="text-sm text-apg-silver">
-                  Notice from {formatDate(data.vacating.noticeGivenDate)} · leaves{' '}
-                  {formatDate(data.vacating.vacatingDate)}
+                  Notice from {formatDate(data.vacating.noticeGivenDate)} · final stay{' '}
+                  {formatFinalStayDateLabel(String(data.vacating.vacatingDate))} · bed{' '}
+                  {formatBedAvailableLabel(String(data.vacating.vacatingDate))}
                 </p>
                 <p className="mt-1 text-sm text-white">
                   {data.exitBrainSnapshot ? (
@@ -207,6 +213,15 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
                   vacatingDate: String(data.pendingDateChange.requestedVacatingDate),
                 }}
                 statementDocument={data.pendingDateChange.statementDocument}
+              />
+            ) : null}
+            {data.vacating.status === 'pending' || data.vacating.status === 'approved' ? (
+              <AdminChangeVacatingDatePanel
+                bookingId={data.bookingId}
+                currentVacatingDate={String(data.vacating.vacatingDate)}
+                noticeGivenDate={String(data.vacating.noticeGivenDate)}
+                vacatingStatus={data.vacating.status}
+                theme="dark"
               />
             ) : null}
             {data.vacating.settlementStatement ? (

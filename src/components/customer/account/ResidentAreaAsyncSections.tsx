@@ -105,6 +105,7 @@ export async function ResidentProfileTabSection({
       checkoutStatus={data.checkoutByBooking.get(data.primaryBooking.bookingId) ?? null}
       vacatingDate={data.primaryVacating?.vacatingDate ?? null}
       settlementWaterfall={data.primaryCheckoutSettlement?.waterfall ?? null}
+      canRequestVacatingDateChange={data.canRequestVacatingDateChange}
     />
   );
 }

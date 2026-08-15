@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { AdminChangeVacatingDatePanel } from '@/src/components/admin/vacating/AdminChangeVacatingDatePanel';
 import {
   ApproveVacatingButton,
   CancelVacatingNoticeButton,
@@ -296,6 +297,18 @@ function MoveOutCard({
                 Move-out complete
               </p>
               <p className="mt-1 text-sm text-emerald-100">Bed released and checkout closed.</p>
+            </div>
+          ) : null}
+
+          {(row.vacatingStatus === 'approved' || row.vacatingStatus === 'pending') && trackingOnly ? (
+            <div className="mb-4">
+              <AdminChangeVacatingDatePanel
+                bookingId={row.bookingId}
+                currentVacatingDate={row.vacatingDate}
+                noticeGivenDate={row.noticeGivenDate}
+                vacatingStatus={row.vacatingStatus}
+                theme="dark"
+              />
             </div>
           ) : null}
 

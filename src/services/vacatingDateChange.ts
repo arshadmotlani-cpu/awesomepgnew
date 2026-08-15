@@ -21,6 +21,7 @@ import { computeNoticeDeductionForBooking } from '@/src/services/noticeDeduction
 import { scheduleAdminNotificationSync } from '@/src/services/adminLiveSync';
 import { reconcileBookingOccupancy } from '@/src/lib/occupancySync';
 import type { NoticeDeductionBreakdown } from '@/src/lib/vacating/noticeDeductionEngine';
+import { stayRangeExclusiveEnd } from '@/src/lib/vacating/vacatingBedSemantics';
 
 export type VacatingDateChangePreview = {
   currentVacatingDate: string;
@@ -186,6 +187,86 @@ export async function previewVacatingDateChange(input: {
   };
 }
 
+export async function previewAdminVacatingDateChange(input: {
+  bookingId: string;
+  requestedVacatingDate: string;
+}): Promise<{ ok: true; preview: VacatingDateChangePreview } | { ok: false; error: string }> {
+  const [vacating] = await db
+    .select()
+    .from(vacatingRequests)
+    .where(
+      and(
+        eq(vacatingRequests.bookingId, input.bookingId),
+        sql`${vacatingRequests.status} IN ('pending', 'approved')`,
+      ),
+    )
+    .limit(1);
+
+  if (!vacating) {
+    return { ok: false, error: 'No active move-out request on this booking.' };
+  }
+
+  const [booking] = await db
+    .select({ durationMode: bookings.durationMode, stayType: bookings.stayType })
+    .from(bookings)
+    .where(eq(bookings.id, input.bookingId))
+    .limit(1);
+
+  if (isFixedStayDurationMode(booking?.durationMode)) {
+    return { ok: false, error: 'Fixed-stay bookings cannot change leaving date this way.' };
+  }
+
+  const currentDate = normalizeIsoDateOnly(String(vacating.vacatingDate));
+  const requestedDate = normalizeIsoDateOnly(input.requestedVacatingDate);
+  const today = formatDate(new Date());
+
+  if (!requestedDate || requestedDate <= today) {
+    return { ok: false, error: 'New final stay date must be after today.' };
+  }
+  if (requestedDate === currentDate) {
+    return { ok: false, error: 'Choose a different final stay date.' };
+  }
+
+  const noticeCompliant = isNoticeCompliant({
+    noticeGivenDate: vacating.noticeGivenDate,
+    vacatingDate: requestedDate,
+  });
+
+  const [currentEstimated, requestedEstimated] = await Promise.all([
+    buildPreviewForDate(vacating, booking ?? {}, currentDate),
+    buildPreviewForDate(vacating, booking ?? {}, requestedDate),
+  ]);
+
+  if (!currentEstimated || !requestedEstimated) {
+    return { ok: false, error: 'Could not calculate estimated settlement.' };
+  }
+
+  const currentRefund = guardDepositPaise(currentEstimated.estimatedRefundPaise);
+  const requestedRefund = guardDepositPaise(requestedEstimated.estimatedRefundPaise);
+  const delta = requestedRefund - currentRefund;
+  const refundDeltaLabel =
+    delta === 0
+      ? 'No change to estimated refund'
+      : delta > 0
+        ? `Estimated refund increases by ${paiseToInr(delta)}`
+        : `Estimated refund decreases by ${paiseToInr(Math.abs(delta))}`;
+
+  return {
+    ok: true,
+    preview: {
+      currentVacatingDate: currentDate,
+      requestedVacatingDate: requestedDate,
+      noticeCompliant,
+      currentEstimatedSettlement: currentEstimated,
+      requestedEstimatedSettlement: requestedEstimated,
+      currentEstimatedRefundPaise: currentRefund,
+      requestedEstimatedRefundPaise: requestedRefund,
+      refundDeltaPaise: delta,
+      refundDeltaLabel,
+    },
+  };
+}
+
 export async function submitVacatingDateChangeRequest(input: {
   bookingId: string;
   customerId: string;
@@ -292,7 +373,7 @@ export async function applyApprovedVacatingDateChange(args: {
   await db.execute(sql`
     UPDATE bed_reservations
     SET
-      stay_range = daterange(lower(stay_range), ${newDate}::date, '[)'),
+      stay_range = daterange(lower(stay_range), ${stayRangeExclusiveEnd(newDate)}::date, '[)'),
       updated_at = now()
     WHERE booking_id = ${updated.bookingId}::uuid
       AND status IN ('hold', 'active')

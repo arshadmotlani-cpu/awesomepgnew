@@ -7,6 +7,18 @@ import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { revalidateVacatingLifecycleForBooking } from '@/src/lib/vacating/revalidateVacatingViews';
 import type { VacatingActionState } from '@/src/lib/vacating/vacatingActionTypes';
 
+export async function previewAdminVacatingDateChangeAction(
+  bookingId: string,
+  requestedVacatingDate: string,
+): Promise<
+  | { ok: true; preview: import('@/src/services/vacatingDateChange').VacatingDateChangePreview }
+  | { ok: false; error: string }
+> {
+  await requireAdminPermission('vacating:write');
+  const { previewAdminVacatingDateChange } = await import('@/src/services/vacatingDateChange');
+  return previewAdminVacatingDateChange({ bookingId, requestedVacatingDate });
+}
+
 export async function approveVacatingDateChangeAction(
   requestId: string,
 ): Promise<VacatingActionState> {
