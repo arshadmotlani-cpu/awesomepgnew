@@ -5,10 +5,13 @@ import { addDays, addMonths, diffDays, formatDate, parseDate, type DateLike } fr
 import type { PaidRentCoveragePeriod } from '@/src/lib/vacating/noticeDeductionEngine';
 import {
   anniversaryBillingPeriod,
+  calendarMonthBillingPeriod,
   dailyRateFromMonthly,
   dueDateForBillingDay,
   firstOfMonth,
+  firstPartialMonthPeriod,
   rentDueDateForMonth,
+  type BillingCyclePolicy,
 } from '@/src/services/billing';
 
 export const VACATING_FINAL_PERIOD_CANCEL_REASON_SUFFIX = 'final period in settlement';
@@ -35,6 +38,45 @@ function isAnniversaryPeriodPaid(
   paidPeriods: PaidRentCoveragePeriod[],
 ): boolean {
   return paidPeriods.some((p) => periodsMatch(period, p));
+}
+
+/** Walk billing cycles from move-in until `date` lies in [periodStart, periodEnd]. */
+export function resolveBillingPeriodContainingDate(args: {
+  date: DateLike;
+  billingDay: number;
+  moveInDate: DateLike;
+  billingCyclePolicy?: BillingCyclePolicy;
+}): { periodStart: string; periodEnd: string; dueDate: string } | null {
+  const policy = args.billingCyclePolicy ?? 'anniversary';
+  if (policy === 'calendar_month_1st') {
+    return resolveCalendarMonthPeriodContainingDate(args);
+  }
+  return resolveAnniversaryPeriodContainingDate(args);
+}
+
+/** Calendar-month policy: full calendar months + optional partial first month. */
+export function resolveCalendarMonthPeriodContainingDate(args: {
+  date: DateLike;
+  billingDay: number;
+  moveInDate: DateLike;
+}): { periodStart: string; periodEnd: string; dueDate: string } | null {
+  const target = formatDate(parseDate(args.date));
+  const moveIn = formatDate(parseDate(args.moveInDate));
+  if (target < moveIn) return null;
+
+  const partial = firstPartialMonthPeriod(moveIn);
+  if (target >= partial.periodStart && target <= partial.periodEnd) {
+    const due = formatDate(dueDateForBillingDay(firstOfMonth(moveIn), args.billingDay));
+    return { ...partial, dueDate: due };
+  }
+
+  const month = firstOfMonth(target);
+  const period = calendarMonthBillingPeriod(month);
+  const due = formatDate(dueDateForBillingDay(month, args.billingDay));
+  if (target >= period.periodStart && target <= period.periodEnd) {
+    return { ...period, dueDate: due };
+  }
+  return null;
 }
 
 /** Walk anniversary cycles from move-in until `date` lies in [periodStart, periodEnd]. */
@@ -78,6 +120,7 @@ export function computeVacatingFinalPeriodRentDecision(input: {
   moveInDate: DateLike;
   monthlyRentPaise: number;
   paidPeriods: PaidRentCoveragePeriod[];
+  billingCyclePolicy?: BillingCyclePolicy;
 }): VacatingFinalPeriodRentDecision {
   const empty: VacatingFinalPeriodRentDecision = {
     shouldSuppressFinalInvoice: false,
@@ -95,10 +138,11 @@ export function computeVacatingFinalPeriodRentDecision(input: {
   if (!input.vacatingApproved) return empty;
 
   const vacatingDate = formatDate(parseDate(input.vacatingDate));
-  const period = resolveAnniversaryPeriodContainingDate({
+  const period = resolveBillingPeriodContainingDate({
     date: vacatingDate,
     billingDay: input.billingDay,
     moveInDate: input.moveInDate,
+    billingCyclePolicy: input.billingCyclePolicy,
   });
   if (!period) return empty;
 

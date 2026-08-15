@@ -253,3 +253,39 @@ test('Case G — 0083-like: earlier vacate unlocks unused prepaid from paid peri
   assert.equal(waterfall15.refund.totalPaise, 283_162);
   assert.ok(waterfall15.refund.totalPaise > waterfall20.refund.totalPaise);
 });
+
+test('Calendar policy — partial first month invoice coverage Sep 1–30', () => {
+  const moveIn = '2026-08-15';
+  const raw = rawPeriodFromInvoiceDueDate('2026-09-01', 1, 'inv-cal', {
+    billingCyclePolicy: 'calendar_month_1st',
+    billingMonth: '2026-09-01',
+    moveInDate: moveIn,
+  });
+  assert.equal(raw.periodStart, '2026-09-01');
+  assert.equal(raw.periodEnd, '2026-09-30');
+
+  const partialRaw = rawPeriodFromInvoiceDueDate('2026-08-01', 1, 'inv-partial', {
+    billingCyclePolicy: 'calendar_month_1st',
+    billingMonth: '2026-08-01',
+    moveInDate: moveIn,
+  });
+  assert.equal(partialRaw.periodStart, '2026-08-15');
+  assert.equal(partialRaw.periodEnd, '2026-08-31');
+
+  const model = buildBillingCoverageModel({
+    bookingId: 'bk-cal',
+    moveInDate: moveIn,
+    billingDay: 1,
+    billingCyclePolicy: 'calendar_month_1st',
+    rawPaidPeriods: [
+      { ...partialRaw, paidPrincipalPaise: 200_000 },
+      { ...raw, paidPrincipalPaise: 412_100 },
+    ],
+    vacatingDate: '2026-09-20',
+    monthlyRentPaise: 412_100,
+    treatAsApprovedForTail: true,
+    noticeApplies: false,
+  });
+  assert.equal(model.billingCyclePolicy, 'calendar_month_1st');
+  assert.ok(model.paidInvoiceCoverage.length >= 2);
+});

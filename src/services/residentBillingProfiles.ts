@@ -18,9 +18,12 @@ import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import {
   billingDayFromMoveIn,
   computeNextRentDueDate,
+  defaultBillingDayForPolicy,
   dueDateForBillingDay,
   firstAutoBillingDate,
   firstOfMonth,
+  DEFAULT_NEW_RESIDENT_BILLING_POLICY,
+  type BillingCyclePolicy,
 } from '@/src/services/billing';
 import { formatDate } from '@/src/lib/dates';
 import { resolveMonthlyRentPaiseForBooking } from '@/src/lib/billing/rentPricingSsot';
@@ -46,6 +49,7 @@ export type ResidentBillingFormDefaults = {
   /** Next future rent due date for profile display (never a past cycle). */
   nextRentDueDate: string;
   billingDay: number;
+  billingCyclePolicy: BillingCyclePolicy;
   defaultPaymentMethod: string;
   pendingRentInvoiceId: string | null;
   pendingInvoiceNumber: string | null;
@@ -73,23 +77,39 @@ async function moveInDateForBooking(bookingId: string): Promise<string | null> {
   return stay?.moveIn ?? null;
 }
 
-async function billingDayForBooking(bookingId: string): Promise<number> {
-  const moveIn = await moveInDateForBooking(bookingId);
-  return moveIn ? billingDayFromMoveIn(moveIn) : 5;
-}
-
-function billingCycleFields(moveIn: string, billingDay: number) {
+function billingCycleFields(
+  moveIn: string,
+  billingDay: number,
+  policy: BillingCyclePolicy,
+) {
   return {
     billingAnchorDate: moveIn,
     firstAutoBillingDate: firstAutoBillingDate(moveIn, billingDay),
+    billingCyclePolicy: policy,
   };
 }
 
-/** Sync billing day from the resident's check-in date. */
+function isMonthlyLikeDuration(durationMode: string): boolean {
+  return (
+    durationMode !== 'fixed_stay' &&
+    durationMode !== 'daily' &&
+    durationMode !== 'weekly' &&
+    durationMode !== 'reserve'
+  );
+}
+
+/** Sync billing day from the resident's check-in date (admin move-in change only). */
 export async function syncBillingDayFromCheckIn(bookingId: string): Promise<number> {
   const moveIn = await moveInDateForBooking(bookingId);
-  const billingDay = moveIn ? billingDayFromMoveIn(moveIn) : 5;
-  const cycle = moveIn ? billingCycleFields(moveIn, billingDay) : {};
+  const [profile] = await db
+    .select({ billingCyclePolicy: residentBillingProfiles.billingCyclePolicy })
+    .from(residentBillingProfiles)
+    .where(eq(residentBillingProfiles.bookingId, bookingId))
+    .limit(1);
+
+  const policy = (profile?.billingCyclePolicy ?? 'anniversary') as BillingCyclePolicy;
+  const billingDay = moveIn ? defaultBillingDayForPolicy(policy, moveIn) : 5;
+  const cycle = moveIn ? billingCycleFields(moveIn, billingDay, policy) : {};
   await db
     .update(residentBillingProfiles)
     .set({ billingDay, ...cycle, updatedAt: new Date() })
@@ -149,13 +169,7 @@ export async function ensureBillingProfileForBooking(
   if (!pgRow) return null;
 
   const moveIn = await moveInDateForBooking(bookingId);
-  const billingDay = moveIn ? billingDayFromMoveIn(moveIn) : 5;
-  const cycle = moveIn ? billingCycleFields(moveIn, billingDay) : {};
-  const autoGenerate =
-    booking.durationMode !== 'fixed_stay' &&
-    booking.durationMode !== 'daily' &&
-    booking.durationMode !== 'weekly' &&
-    booking.durationMode !== 'reserve';
+  const autoGenerate = isMonthlyLikeDuration(booking.durationMode);
 
   const existing = await getBillingProfileForBooking(bookingId);
   if (existing) {
@@ -165,6 +179,24 @@ export async function ensureBillingProfileForBooking(
         : existing.rentAmountPaise > 0
           ? existing.rentAmountPaise
           : rentAmountPaise;
+
+    const policy = (existing.billingCyclePolicy ?? 'anniversary') as BillingCyclePolicy;
+    const billingDay =
+      policy === 'calendar_month_1st'
+        ? existing.billingDay
+        : moveIn
+          ? billingDayFromMoveIn(moveIn)
+          : existing.billingDay;
+    const cycle =
+      moveIn && policy === 'anniversary'
+        ? billingCycleFields(moveIn, billingDay, policy)
+        : moveIn && policy === 'calendar_month_1st'
+          ? {
+              billingAnchorDate: moveIn,
+              firstAutoBillingDate: existing.firstAutoBillingDate ?? firstAutoBillingDate(moveIn, billingDay),
+            }
+          : {};
+
     const [updated] = await db
       .update(residentBillingProfiles)
       .set({
@@ -179,6 +211,12 @@ export async function ensureBillingProfileForBooking(
     return updated ?? existing;
   }
 
+  const newPolicy: BillingCyclePolicy = autoGenerate
+    ? DEFAULT_NEW_RESIDENT_BILLING_POLICY
+    : 'anniversary';
+  const billingDay = moveIn ? defaultBillingDayForPolicy(newPolicy, moveIn) : 5;
+  const cycle = moveIn ? billingCycleFields(moveIn, billingDay, newPolicy) : {};
+
   const [created] = await db
     .insert(residentBillingProfiles)
     .values({
@@ -187,6 +225,7 @@ export async function ensureBillingProfileForBooking(
       pgId: pgRow.pgId,
       rentAmountPaise,
       billingDay,
+      billingCyclePolicy: newPolicy,
       defaultPaymentMethod: 'upi',
       autoGenerate,
       ...cycle,
@@ -268,6 +307,7 @@ export async function getResidentBillingFormDefaults(
     dueDate: activePending?.dueDate ?? nextRentDueDate,
     nextRentDueDate,
     billingDay: profile.billingDay,
+    billingCyclePolicy: (profile.billingCyclePolicy ?? 'anniversary') as BillingCyclePolicy,
     defaultPaymentMethod: profile.defaultPaymentMethod,
     pendingRentInvoiceId: activePending?.id ?? null,
     pendingInvoiceNumber: activePending?.invoiceNumber ?? null,

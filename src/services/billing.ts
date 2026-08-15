@@ -149,6 +149,97 @@ export function rentInvoiceBillingPeriodNote(periodStart: string, periodEnd: str
   return `Billing period: ${formatAnniversaryBillingPeriodLabel(periodStart, periodEnd)}`;
 }
 
+/** System-wide calendar billing day for new residents (1st of month). */
+export const STANDARD_CALENDAR_BILLING_DAY = 1;
+
+export type BillingCyclePolicy = 'anniversary' | 'calendar_month_1st';
+
+/** Default billing policy for new monthly/open-ended residents after calendar-cycle rollout. */
+export const DEFAULT_NEW_RESIDENT_BILLING_POLICY: BillingCyclePolicy = 'calendar_month_1st';
+
+export function defaultBillingDayForPolicy(
+  policy: BillingCyclePolicy,
+  moveInDate: DateLike,
+): number {
+  if (policy === 'calendar_month_1st') return STANDARD_CALENDAR_BILLING_DAY;
+  return billingDayFromMoveIn(moveInDate);
+}
+
+/** Last calendar day of the month containing `date` (YYYY-MM-DD). */
+export function lastDayOfMonth(date: DateLike): string {
+  const { start } = monthBounds(date);
+  const last = new Date(
+    Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), daysInMonth(date)),
+  );
+  return formatDate(last);
+}
+
+/** Partial first month: check-in through last day of check-in month. */
+export function firstPartialMonthPeriod(checkIn: DateLike): {
+  periodStart: string;
+  periodEnd: string;
+} {
+  return {
+    periodStart: formatDate(parseDate(checkIn)),
+    periodEnd: lastDayOfMonth(checkIn),
+  };
+}
+
+/** Full calendar month period for a billing month (YYYY-MM-01). */
+export function calendarMonthBillingPeriod(month: DateLike): {
+  periodStart: string;
+  periodEnd: string;
+} {
+  const { start } = monthBounds(month);
+  return {
+    periodStart: formatDate(start),
+    periodEnd: lastDayOfMonth(month),
+  };
+}
+
+/** Prorated first-month rent for calendar-month policy (calendar days, not /30). */
+export function firstMonthRentForCalendarPolicy(
+  monthlyRatePaise: number,
+  checkIn: DateLike,
+): {
+  amountPaise: number;
+  daysActive: number;
+  daysInMonth: number;
+  isFullMonth: boolean;
+} {
+  const billingMonth = firstOfMonth(checkIn);
+  const { end } = monthBounds(billingMonth);
+  return prorateForMonth({
+    monthlyRatePaise,
+    billingMonth,
+    activeStart: checkIn,
+    activeEnd: end,
+  });
+}
+
+export function billingPeriodForPolicy(
+  policy: BillingCyclePolicy,
+  args: {
+    dueDate: string;
+    billingDay: number;
+    billingMonth?: string;
+  },
+): { periodStart: string; periodEnd: string } {
+  if (policy === 'calendar_month_1st') {
+    const month = args.billingMonth ?? firstOfMonth(args.dueDate);
+    return calendarMonthBillingPeriod(month);
+  }
+  return anniversaryBillingPeriod(args.dueDate, args.billingDay);
+}
+
+export function rentInvoiceBillingPeriodNoteForPolicy(
+  policy: BillingCyclePolicy,
+  periodStart: string,
+  periodEnd: string,
+): string {
+  return `Billing period: ${formatAnniversaryBillingPeriodLabel(periodStart, periodEnd)}`;
+}
+
 /** Half-open stay [start, end): active on calendar date `date`. */
 export function isResidentActiveOnDate(
   stay: { start: string; end: string | null },

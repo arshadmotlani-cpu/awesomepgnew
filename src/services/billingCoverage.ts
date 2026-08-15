@@ -21,6 +21,8 @@ import {
   billingDayFromMoveIn,
   dueDateForBillingDay,
   firstOfMonth,
+  firstPartialMonthPeriod,
+  type BillingCyclePolicy,
 } from '@/src/services/billing';
 import { getBookingMoneyBalances } from '@/src/services/bookingMoneyBalances';
 import { isSettlementRentInvoice } from '@/src/lib/billing/settlementRentInvoiceFilter';
@@ -41,10 +43,14 @@ export type LoadBillingCoverageModelArgs = {
 export async function loadBillingCoverageRawPeriods(bookingId: string): Promise<{
   moveInDate: string | null;
   billingDay: number;
+  billingCyclePolicy: BillingCyclePolicy;
   rawPaidPeriods: BillingCoveragePeriod[];
 }> {
   const [profile] = await db
-    .select({ billingDay: residentBillingProfiles.billingDay })
+    .select({
+      billingDay: residentBillingProfiles.billingDay,
+      billingCyclePolicy: residentBillingProfiles.billingCyclePolicy,
+    })
     .from(residentBillingProfiles)
     .where(eq(residentBillingProfiles.bookingId, bookingId))
     .limit(1);
@@ -61,6 +67,7 @@ export async function loadBillingCoverageRawPeriods(bookingId: string): Promise<
     .limit(1);
 
   const moveInDate = stayRow?.lower ?? null;
+  const billingCyclePolicy = (profile?.billingCyclePolicy ?? 'anniversary') as BillingCyclePolicy;
   const billingDay =
     profile?.billingDay ?? (moveInDate ? billingDayFromMoveIn(moveInDate) : 5);
 
@@ -87,7 +94,11 @@ export async function loadBillingCoverageRawPeriods(bookingId: string): Promise<
     if (inv.paidPrincipalPaise <= 0 && inv.status !== 'paid') continue;
     coveredBillingMonths.add(firstOfMonth(String(inv.billingMonth)));
     rawPaidPeriods.push({
-      ...rawPeriodFromInvoiceDueDate(String(inv.dueDate), billingDay, inv.id),
+      ...rawPeriodFromInvoiceDueDate(String(inv.dueDate), billingDay, inv.id, {
+        billingCyclePolicy,
+        billingMonth: firstOfMonth(String(inv.billingMonth)),
+        moveInDate: moveInDate ?? undefined,
+      }),
       paidPrincipalPaise: Math.max(0, inv.paidPrincipalPaise),
     });
   }
@@ -100,8 +111,13 @@ export async function loadBillingCoverageRawPeriods(bookingId: string): Promise<
     settlementRentReceivedPaise > 0 &&
     !coveredBillingMonths.has(firstOfMonth(moveInDate))
   ) {
-    const firstDue = formatDate(dueDateForBillingDay(firstOfMonth(moveInDate), billingDay));
-    const checkoutPeriod = anniversaryBillingPeriod(firstDue, billingDay);
+    const checkoutPeriod =
+      billingCyclePolicy === 'calendar_month_1st'
+        ? firstPartialMonthPeriod(moveInDate)
+        : anniversaryBillingPeriod(
+            formatDate(dueDateForBillingDay(firstOfMonth(moveInDate), billingDay)),
+            billingDay,
+          );
     rawPaidPeriods.push({
       periodStart: checkoutPeriod.periodStart,
       periodEnd: checkoutPeriod.periodEnd,
@@ -111,13 +127,13 @@ export async function loadBillingCoverageRawPeriods(bookingId: string): Promise<
     });
   }
 
-  return { moveInDate, billingDay, rawPaidPeriods };
+  return { moveInDate, billingDay, billingCyclePolicy, rawPaidPeriods };
 }
 
 export async function loadBillingCoverageModel(
   args: LoadBillingCoverageModelArgs,
 ): Promise<BillingCoverageModel | null> {
-  const { moveInDate, billingDay, rawPaidPeriods } = await loadBillingCoverageRawPeriods(
+  const { moveInDate, billingDay, billingCyclePolicy, rawPaidPeriods } = await loadBillingCoverageRawPeriods(
     args.bookingId,
   );
   if (!moveInDate) return null;
@@ -133,6 +149,7 @@ export async function loadBillingCoverageModel(
     bookingId: args.bookingId,
     moveInDate,
     billingDay,
+    billingCyclePolicy,
     rawPaidPeriods,
     vacatingDate: args.vacatingDate,
     asOfDate: args.asOfDate,

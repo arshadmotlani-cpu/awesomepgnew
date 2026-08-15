@@ -256,17 +256,32 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-15 06:25:07 UTC
+### Pending pre-commit sync · 2026-08-15 07:14:09 UTC
 
-**Areas touched:** [[ROUTES]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Bookings]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `DATABASE.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (1):**
-- `app/(admin)/admin/pgs/inventory-actions.ts`
+**Staged code files (12):**
+- `app/(admin)/admin/residents/[customerId]/actions.ts`
+- `src/db/migrations/0144_billing_cycle_policy.sql`
+- `src/db/schema/enums.ts`
+- `src/db/schema/residentBillingProfiles.ts`
+- `src/lib/billing/billingCoverageModel.ts`
+- `src/lib/billing/billingCycleEngine.ts`
+- `src/lib/billing/checkoutRentProration.ts`
+- `src/lib/billing/vacatingFinalPeriodRent.ts`
+- `src/services/billing.ts`
+- `src/services/bookingPaymentFinancialProjection.ts`
+- `src/services/bookingPaymentInvoices.ts`
+- `src/services/rentInvoices.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

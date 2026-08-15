@@ -7,6 +7,10 @@ import { revalidateOccupancyViews } from '@/src/lib/occupancyRevalidate';
 import { syncActionItems } from '@/src/services/actionItems';
 import { createPaymentLink } from '@/src/services/paymentLinks';
 import { archiveResident, updateBookingMoveInDate, updateRentDueDateOverride, updateTenantTenancy } from '@/src/services/residentAdmin';
+import {
+  applyBillingCycleMigration,
+  generateBillingCycleTransitionInvoice,
+} from '@/src/services/billingCycleMigration';
 
 const SYNC_PATHS = [
   '/admin/residents',
@@ -129,6 +133,77 @@ export async function updateMoveInDateAction(
     };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Could not update check-in.' };
+  }
+}
+
+export type BillingCycleMigrationActionState = {
+  ok: boolean;
+  error?: string;
+  transitionInvoiceId?: string;
+  invoiceId?: string;
+};
+
+export async function applyBillingCycleMigrationAction(
+  _prev: BillingCycleMigrationActionState,
+  formData: FormData,
+): Promise<BillingCycleMigrationActionState> {
+  try {
+    const session = await requireAdminPermission('bookings:write');
+    const bookingId = formData.get('bookingId')?.toString() ?? '';
+    const customerId = formData.get('customerId')?.toString() ?? '';
+    const note = formData.get('note')?.toString()?.trim() ?? '';
+    const createTransitionInvoice = formData.get('createTransitionInvoice') === '1';
+
+    if (!bookingId) return { ok: false, error: 'Booking is required.' };
+
+    const result = await applyBillingCycleMigration(session, {
+      bookingId,
+      note: note || undefined,
+      createTransitionInvoice,
+    });
+    if (!result.ok) return result;
+
+    revalidateOperationalPaths(customerId, bookingId);
+    revalidatePath('/admin/revenue/billing');
+    revalidatePath('/admin/revenue/rent-due');
+    await syncActionItems(session).catch(() => undefined);
+
+    return {
+      ok: true,
+      transitionInvoiceId: result.transitionInvoiceId,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Could not apply migration.',
+    };
+  }
+}
+
+export async function generateBillingCycleTransitionInvoiceAction(
+  _prev: BillingCycleMigrationActionState,
+  formData: FormData,
+): Promise<BillingCycleMigrationActionState> {
+  try {
+    const session = await requireAdminPermission('bookings:write');
+    const bookingId = formData.get('bookingId')?.toString() ?? '';
+    const customerId = formData.get('customerId')?.toString() ?? '';
+
+    if (!bookingId) return { ok: false, error: 'Booking is required.' };
+
+    const result = await generateBillingCycleTransitionInvoice(session, bookingId);
+    if (!result.ok) return result;
+
+    revalidateOperationalPaths(customerId, bookingId);
+    revalidatePath('/admin/revenue/billing');
+    await syncActionItems(session).catch(() => undefined);
+
+    return { ok: true, invoiceId: result.invoiceId };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Could not create transition invoice.',
+    };
   }
 }
 

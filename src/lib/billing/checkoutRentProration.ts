@@ -1,10 +1,13 @@
 /**
- * Checkout rent allocation — anniversary billing SSOT.
- *
- * Monthly/open-ended checkout quotes one full month upfront; the first
- * rent invoice is also one full month. No calendar proration or advance credit.
+ * Checkout rent allocation — supports anniversary and calendar-month-1st billing.
  */
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
+import {
+  DEFAULT_NEW_RESIDENT_BILLING_POLICY,
+  firstMonthRentForCalendarPolicy,
+  firstOfMonth,
+  type BillingCyclePolicy,
+} from '@/src/services/billing';
 
 export type CheckoutRentProration = {
   quotedRentPaise: number;
@@ -30,16 +33,17 @@ function resolveMonthlyRentPaise(input: {
   return Math.max(0, input.subtotalPaise);
 }
 
-/** Pure — checkout rent is always one full month for monthly-like stays. */
 export function computeCheckoutRentProration(input: {
   subtotalPaise: number;
   discountPaise: number;
   durationMode: string;
   stayStartDate: string | null | undefined;
   pricingSnapshot?: PricingSnapshot | null;
+  billingCyclePolicy?: BillingCyclePolicy;
 }): CheckoutRentProration {
   const quotedRentPaise = Math.max(0, input.subtotalPaise - input.discountPaise);
   const monthlyRentPaise = resolveMonthlyRentPaise(input);
+  const policy = input.billingCyclePolicy ?? DEFAULT_NEW_RESIDENT_BILLING_POLICY;
 
   const isMonthlyLike =
     input.durationMode === 'open_ended' || input.durationMode === 'monthly';
@@ -55,6 +59,25 @@ export function computeCheckoutRentProration(input: {
       daysInMonth: null,
       isProrated: false,
       rentAllocationLabel: 'Rent',
+    };
+  }
+
+  if (policy === 'calendar_month_1st') {
+    const proration = firstMonthRentForCalendarPolicy(monthlyRentPaise, input.stayStartDate);
+    const billingMonth = firstOfMonth(input.stayStartDate);
+    const label = proration.isFullMonth
+      ? "First month's rent"
+      : `Rent for ${proration.daysActive}/${proration.daysInMonth} days`;
+    return {
+      quotedRentPaise: proration.amountPaise,
+      monthlyRentPaise,
+      firstMonthInvoiceRentPaise: proration.amountPaise,
+      advanceRentCreditPaise: 0,
+      billingMonth,
+      daysActive: proration.daysActive,
+      daysInMonth: proration.daysInMonth,
+      isProrated: !proration.isFullMonth,
+      rentAllocationLabel: label,
     };
   }
 

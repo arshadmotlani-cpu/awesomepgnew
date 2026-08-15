@@ -57,6 +57,7 @@ import { writeAuditLogNonBlocking } from '@/src/lib/audit/writeAuditLog';
 import { formatPostgresError } from '@/src/lib/db/postgresError';
 import {
   anniversaryBillingPeriod,
+  billingPeriodForPolicy,
   chargeableLateFeeDaysFromIssue,
   computeLateFee,
   daysOverdue,
@@ -65,12 +66,16 @@ import {
   dueDateForMonth,
   daysUntilLateFeeFromIssue,
   firstOfMonth,
+  firstMonthRentForCalendarPolicy,
+  firstPartialMonthPeriod,
   fullMonthlyRentPaise,
   graceEndDateFromIssue,
   isResidentActiveOnDate,
   lateFeePercentFromIssue,
   monthBounds,
   rentInvoiceBillingPeriodNote,
+  rentInvoiceBillingPeriodNoteForPolicy,
+  type BillingCyclePolicy,
 } from './billing';
 import { capLateFeeAtPrincipalPercent } from './lateFeePolicyCore';
 import type { AnyPaymentProvider } from './bookingLifecycle';
@@ -764,6 +769,8 @@ export async function evaluateAnniversaryRentGenerationEligibility(
   }
 
   const billingDay = profile?.billingDay ?? 5;
+  const billingCyclePolicy = (profile?.billingCyclePolicy ??
+    'anniversary') as BillingCyclePolicy;
   const stay = await loadStayWindow(input.bookingId);
   if (!stay) {
     return { eligible: false, skipCode: 'no_stay_window' };
@@ -784,7 +791,7 @@ export async function evaluateAnniversaryRentGenerationEligibility(
         ? formatDate(addDays(stay.start, 4))
         : calendarDue;
 
-  const rentPaise = fullMonthlyRentPaise(monthlyRent);
+  let rentPaise = fullMonthlyRentPaise(monthlyRent);
   if (rentPaise <= 0) {
     return { eligible: false, skipCode: 'zero_rent' };
   }
@@ -794,8 +801,26 @@ export async function evaluateAnniversaryRentGenerationEligibility(
     return { eligible: false, skipCode: 'inactive_on_anniversary' };
   }
 
-  const billingPeriod = anniversaryBillingPeriod(anniversaryDate, billingDay);
-  const invoiceNotes = rentInvoiceBillingPeriodNote(
+  let billingPeriod = billingPeriodForPolicy(billingCyclePolicy, {
+    dueDate: anniversaryDate,
+    billingDay,
+    billingMonth,
+  });
+
+  if (
+    billingCyclePolicy === 'calendar_month_1st' &&
+    firstOfMonth(stay.start) === billingMonth &&
+    stay.start > billingPeriod.periodStart
+  ) {
+    billingPeriod = firstPartialMonthPeriod(stay.start);
+    rentPaise = firstMonthRentForCalendarPolicy(monthlyRent, stay.start).amountPaise;
+    if (rentPaise <= 0) {
+      return { eligible: false, skipCode: 'zero_rent' };
+    }
+  }
+
+  const invoiceNotes = rentInvoiceBillingPeriodNoteForPolicy(
+    billingCyclePolicy,
     billingPeriod.periodStart,
     billingPeriod.periodEnd,
   );

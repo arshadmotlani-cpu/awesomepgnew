@@ -31,6 +31,7 @@ import {
 } from '../lib/pricing/depositRules';
 import { resolveMonthlyDepositPaise } from '../lib/pricing/monthlyDepositPolicy';
 import type { FixedStayPricingStrategy } from '../lib/pricing/types';
+import { firstMonthRentForCalendarPolicy } from './billing';
 
 export type PricingMode = 'daily' | 'weekly' | 'monthly' | 'open_ended' | 'fixed_stay';
 
@@ -336,19 +337,24 @@ export function computePriceBreakdown(input: ComputePriceInput): PriceQuote {
       subtotalPaise += proRataAmount;
     }
   } else {
-    // open_ended
+    // open_ended — calendar-month policy: prorate first partial month (calendar days).
     requirePositiveRate(rate.monthlyRatePaise, 'monthly');
     units = 1;
-    const amount = rate.monthlyRatePaise;
+    const proration = firstMonthRentForCalendarPolicy(rate.monthlyRatePaise, startDate);
+    const amount = proration.amountPaise;
+    const description = proration.isFullMonth
+      ? '1 month upfront (open-ended stay)'
+      : `${proration.daysActive}/${proration.daysInMonth} days (check-in to month end)`;
     lineItems.push({
       kind: 'monthly_cycle',
-      description: '1 month upfront (open-ended stay)',
-      units: 1,
+      description,
+      units: proration.daysActive,
       unitPricePaise: rate.monthlyRatePaise,
       amountPaise: amount,
     });
     subtotalPaise = amount;
-    notes = 'Open-ended stay: first month billed now, subsequent months billed monthly.';
+    notes =
+      'Open-ended stay: first partial month billed now; full months due on the 1st.';
   }
 
   const depositPaise = includeDeposit

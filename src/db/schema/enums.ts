@@ -186,6 +186,11 @@ export const auditActorTypeEnum = pgEnum('audit_actor_type', ['customer', 'admin
 // Phase 5.5 — resident billing.
 // ───────────────────────────────────────────────────────────────────────────
 
+export const billingCyclePolicyEnum = pgEnum('billing_cycle_policy', [
+  'anniversary',
+  'calendar_month_1st',
+]);
+
 export const rentInvoiceStatusEnum = pgEnum('rent_invoice_status', [
   'pending',
   'payment_in_progress',

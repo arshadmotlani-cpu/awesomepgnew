@@ -266,6 +266,28 @@ Do not compute parallel totals in components.
 
 ---
 
+---
+
+## BR-FIRST-MONTH — Calendar first month proration (new residents)
+
+**Rule:** New monthly/open-ended residents use `calendar_month_1st` billing policy. First month rent at checkout is prorated by **calendar days** in the check-in month (`floor(monthly × daysActive / daysInMonth)`), not `/30`.
+
+**SSOT:** [`firstMonthRentForCalendarPolicy`](../src/services/billing.ts) · [`checkoutRentProration.ts`](../src/lib/billing/checkoutRentProration.ts).
+
+**Examples:** Join 15 Aug → 17/31 days; next full rent due 1 Sep. Join 1 Aug → full August at checkout; next bill 1 Sep for September.
+
+---
+
+## BR-CALENDAR-CYCLE — 1st-of-month billing policy
+
+**Rule:** `billing_cycle_policy = calendar_month_1st` with `billing_day = 1`. Full calendar month invoices cover `YYYY-MM-01` through month-end. Existing residents remain on `anniversary` until individual admin migration.
+
+**Migration:** [`billingCycleMigration.ts`](../src/services/billingCycleMigration.ts) — preview transition gap, optional adhoc transition invoice, apply without changing check-in or paid historical invoices.
+
+**SSOT:** [`billingPeriodForPolicy`](../src/services/billing.ts) · [`billingCoverageModel.ts`](../src/lib/billing/billingCoverageModel.ts).
+
+---
+
 ## Change control
 
 - New business behavior → new **BR-*** entry here, invariant in [BILLING_ENGINE_INVARIANTS.md](./BILLING_ENGINE_INVARIANTS.md), regression test, then code.  

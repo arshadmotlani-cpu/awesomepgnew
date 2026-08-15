@@ -5,6 +5,7 @@ import { ArchiveResidentButton } from '@/src/components/admin/ArchiveResidentBut
 import { CreateChargeGeneratorForm } from '@/src/components/admin/CreateChargeGeneratorForm';
 import { EditMoveInDateForm } from '@/src/components/admin/EditMoveInDateForm';
 import { EditRentDueDateForm } from '@/src/components/admin/EditRentDueDateForm';
+import { BillingCycleMigrationPanel } from '@/src/components/admin/residents/BillingCycleMigrationPanel';
 import { FinalSettlementPanel } from '@/src/components/admin/FinalSettlementPanel';
 import { ResidentResidencyPanel } from '@/src/components/admin/residents/ResidentResidencyPanel';
 import { CommandCenterQuickActions } from '@/src/components/admin/residents/command-center/CommandCenterQuickActions';
@@ -20,6 +21,7 @@ import { CommandCenterTimeline } from '@/src/components/admin/residents/command-
 import { isMonthlyStayType } from '@/src/lib/stayType';
 import type { ResidentCommandCenterData } from '@/src/lib/residents/commandCenterTypes';
 import { getCheckoutSettlementDetailForBooking } from '@/src/services/checkoutSettlement';
+import { previewBillingCycleMigration } from '@/src/services/billingCycleMigration';
 
 export async function ResidentCommandCenter({
   data,
@@ -35,6 +37,15 @@ export async function ResidentCommandCenter({
   const checkoutDetail =
     data.settledTenancy && data.isVacated
       ? await getCheckoutSettlementDetailForBooking(data.settledTenancy.bookingId)
+      : null;
+
+  const billingCycleMigrationPreview =
+    data.activeTenancy && isMonthlyStayType(data.activeTenancy.stayType)
+      ? await previewBillingCycleMigration(data.activeTenancy.bookingId)
+      : null;
+  const migrationPreview =
+    billingCycleMigrationPreview && !('ok' in billingCycleMigrationPreview)
+      ? billingCycleMigrationPreview
       : null;
 
   return (
@@ -98,6 +109,13 @@ export async function ResidentCommandCenter({
                 customerId={data.customer.id}
                 currentNextDueDate={data.billingDefaults.nextRentDueDate}
                 billingDay={data.billingDefaults.billingDay}
+              />
+            ) : null}
+            {migrationPreview ? (
+              <BillingCycleMigrationPanel
+                bookingId={data.activeTenancy.bookingId}
+                customerId={data.customer.id}
+                preview={migrationPreview}
               />
             ) : null}
             {bedTenancySlot ?? null}

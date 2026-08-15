@@ -12,12 +12,19 @@ import {
 import {
   computeVacatingFinalPeriodRentDecision,
   resolveAnniversaryPeriodContainingDate,
+  resolveBillingPeriodContainingDate,
   type VacatingFinalPeriodRentDecision,
 } from '@/src/lib/billing/vacatingFinalPeriodRent';
 import {
   anniversaryBillingPeriod,
+  billingPeriodForPolicy,
+  calendarMonthBillingPeriod,
   dailyRateFromMonthly,
+  dueDateForBillingDay,
+  firstOfMonth,
+  firstPartialMonthPeriod,
   formatAnniversaryBillingPeriodLabel,
+  type BillingCyclePolicy,
 } from '@/src/services/billing';
 
 export type BillingCoveragePeriod = PaidRentCoveragePeriod;
@@ -73,6 +80,7 @@ export type BillingCoverageModel = {
   bookingId: string;
   moveInDate: string;
   billingDay: number;
+  billingCyclePolicy: BillingCyclePolicy;
   /** Paid rent invoices (and checkout fallback), clamped — never starts before move-in. */
   paidInvoiceCoverage: BillingCoveragePeriod[];
   /** Anniversary period containing `asOfDate` (defaults to vacating or today). */
@@ -101,6 +109,7 @@ export type BuildBillingCoverageInput = {
   bookingId: string;
   moveInDate: string;
   billingDay: number;
+  billingCyclePolicy?: BillingCyclePolicy;
   rawPaidPeriods: BillingCoveragePeriod[];
   vacatingDate?: string | null;
   asOfDate?: string | null;
@@ -156,6 +165,7 @@ export function expandMoveInCheckoutPeriodCoverage(
     billingDay: number;
     monthlyRentPaise: number;
     rentReceivedPaise?: number;
+    billingCyclePolicy?: BillingCyclePolicy;
   },
 ): BillingCoveragePeriod[] {
   const monthlyRentPaise = Math.max(0, args.monthlyRentPaise);
@@ -165,12 +175,20 @@ export function expandMoveInCheckoutPeriodCoverage(
   }
 
   const moveIn = formatDate(parseDate(args.moveInDate));
-  /** Day after move-in lies in the first residency anniversary period (not the pre-move-in window ending on move-in). */
-  const residencyAnchor = resolveAnniversaryPeriodContainingDate({
-    date: formatDate(addDays(moveIn, 1)),
-    billingDay: args.billingDay,
-    moveInDate: moveIn,
-  });
+  const policy = args.billingCyclePolicy ?? 'anniversary';
+  const residencyAnchor =
+    policy === 'calendar_month_1st'
+      ? (() => {
+          const partial = firstPartialMonthPeriod(moveIn);
+          if (partial.periodStart !== moveIn) return null;
+          const due = formatDate(dueDateForBillingDay(firstOfMonth(moveIn), args.billingDay));
+          return { ...partial, dueDate: due };
+        })()
+      : resolveAnniversaryPeriodContainingDate({
+          date: formatDate(addDays(moveIn, 1)),
+          billingDay: args.billingDay,
+          moveInDate: moveIn,
+        });
   if (!residencyAnchor || residencyAnchor.periodStart !== moveIn) return clamped;
 
   const out: BillingCoveragePeriod[] = [];
@@ -238,6 +256,7 @@ export function computeDaysPaidForSettlement(args: {
 export function buildBillingCoverageModel(input: BuildBillingCoverageInput): BillingCoverageModel {
   const moveInDate = formatDate(parseDate(input.moveInDate));
   const billingDay = Math.min(Math.max(1, input.billingDay), 31);
+  const billingCyclePolicy = input.billingCyclePolicy ?? 'anniversary';
   const monthlyRentPaise = Math.max(0, input.monthlyRentPaise ?? 0);
   let paidInvoiceCoverage = clampPaidInvoiceCoverage(input.rawPaidPeriods, moveInDate);
   if (!input.skipMoveInCoverageExpansion) {
@@ -249,6 +268,7 @@ export function buildBillingCoverageModel(input: BuildBillingCoverageInput): Bil
         billingDay,
         monthlyRentPaise,
         rentReceivedPaise: input.rentReceivedPaise,
+        billingCyclePolicy,
       },
     );
   }
@@ -261,10 +281,11 @@ export function buildBillingCoverageModel(input: BuildBillingCoverageInput): Bil
       ? formatDate(parseDate(input.asOfDate))
       : vacatingDate ?? formatDate(new Date());
 
-  const currentRaw = resolveAnniversaryPeriodContainingDate({
+  const currentRaw = resolveBillingPeriodContainingDate({
     date: asOf,
     billingDay,
     moveInDate,
+    billingCyclePolicy,
   });
   const currentBillingPeriod = currentRaw
     ? {
@@ -311,6 +332,7 @@ export function buildBillingCoverageModel(input: BuildBillingCoverageInput): Bil
         moveInDate,
         monthlyRentPaise,
         paidPeriods: paidInvoiceCoverage,
+        billingCyclePolicy,
       })
     : computeVacatingFinalPeriodRentDecision({
         vacatingApproved: false,
@@ -319,6 +341,7 @@ export function buildBillingCoverageModel(input: BuildBillingCoverageInput): Bil
         moveInDate,
         monthlyRentPaise: 0,
         paidPeriods: [],
+        billingCyclePolicy,
       });
 
   let noticeBreakdown: NoticeDeductionBreakdown | null = null;
@@ -341,6 +364,7 @@ export function buildBillingCoverageModel(input: BuildBillingCoverageInput): Bil
     bookingId: input.bookingId,
     moveInDate,
     billingDay,
+    billingCyclePolicy,
     paidInvoiceCoverage,
     currentBillingPeriod,
     vacatingDate,
@@ -362,8 +386,37 @@ export function rawPeriodFromInvoiceDueDate(
   dueDate: string,
   billingDay: number,
   sourceId: string,
+  opts?: {
+    billingCyclePolicy?: BillingCyclePolicy;
+    billingMonth?: string;
+    moveInDate?: string;
+  },
 ): BillingCoveragePeriod {
-  const billingPeriod = anniversaryBillingPeriod(dueDate, billingDay);
+  const policy = opts?.billingCyclePolicy ?? 'anniversary';
+  if (policy === 'calendar_month_1st' && opts?.billingMonth && opts?.moveInDate) {
+    const month = firstOfMonth(opts.billingMonth);
+    if (firstOfMonth(opts.moveInDate) === month && opts.moveInDate > calendarMonthBillingPeriod(month).periodStart) {
+      const partial = firstPartialMonthPeriod(opts.moveInDate);
+      return {
+        periodStart: partial.periodStart,
+        periodEnd: partial.periodEnd,
+        source: 'rent_invoice',
+        sourceId,
+      };
+    }
+    const cal = calendarMonthBillingPeriod(month);
+    return {
+      periodStart: cal.periodStart,
+      periodEnd: cal.periodEnd,
+      source: 'rent_invoice',
+      sourceId,
+    };
+  }
+  const billingPeriod = billingPeriodForPolicy(policy, {
+    dueDate,
+    billingDay,
+    billingMonth: opts?.billingMonth,
+  });
   return {
     periodStart: billingPeriod.periodStart,
     periodEnd: billingPeriod.periodEnd,

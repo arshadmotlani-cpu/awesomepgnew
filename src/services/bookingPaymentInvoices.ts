@@ -180,6 +180,7 @@ export async function applyBookingRentInvoiceOnPaymentSuccess(input: {
   const ensured = await ensureMonthlyRentInvoice({
     bookingId: input.booking.id,
     billingMonth: firstOfMonth(billingAnchor),
+    amountPaise: proration.firstMonthInvoiceRentPaise,
   });
 
   if (!ensured.ok) {

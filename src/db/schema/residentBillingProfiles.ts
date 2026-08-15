@@ -10,6 +10,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { billingCyclePolicyEnum } from './enums';
 import { bookings } from './bookings';
 import { customers } from './customers';
 import { pgs } from './pgs';
@@ -29,6 +30,11 @@ export const residentBillingProfiles = pgTable(
       .references(() => pgs.id, { onDelete: 'cascade' }),
     rentAmountPaise: bigint('rent_amount_paise', { mode: 'number' }).notNull(),
     billingDay: smallint('billing_day').notNull().default(5),
+    billingCyclePolicy: billingCyclePolicyEnum('billing_cycle_policy')
+      .notNull()
+      .default('anniversary'),
+    billingCycleMigratedAt: timestamp('billing_cycle_migrated_at', { withTimezone: true }),
+    billingCycleMigrationNote: text('billing_cycle_migration_note'),
     defaultPaymentMethod: text('default_payment_method').notNull().default('upi'),
     autoGenerate: boolean('auto_generate').notNull().default(true),
     billingAnchorDate: date('billing_anchor_date'),

@@ -79,6 +79,7 @@ export function buildBookingPaymentAllocationLines(
   options?: {
     stayStartDate?: string | null;
     paymentId?: string | null;
+    billingCyclePolicy?: import('@/src/services/billing').BillingCyclePolicy;
   },
 ): BookingPaymentAllocationLine[] {
   const snapshot = booking.pricingSnapshot;
@@ -90,6 +91,7 @@ export function buildBookingPaymentAllocationLines(
     durationMode: booking.durationMode,
     stayStartDate: options?.stayStartDate,
     pricingSnapshot: snapshot,
+    billingCyclePolicy: options?.billingCyclePolicy,
   });
 
     if (allocation.rentPaise > 0) {

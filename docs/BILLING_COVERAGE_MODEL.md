@@ -118,6 +118,20 @@ When vacating is exactly **one calendar day** after the first unpaid day followi
 
 ---
 
+---
+
+## Calendar-month billing policy
+
+When `billing_cycle_policy = calendar_month_1st`:
+
+- Paid invoice periods use `calendarMonthBillingPeriod(billingMonth)` for full months.
+- First partial month (check-in mid-month) uses `firstPartialMonthPeriod(moveIn)`.
+- `rawPeriodFromInvoiceDueDate` branches on policy — anniversary math is unchanged for legacy rows.
+
+Load path: `resident_billing_profiles.billing_cycle_policy` → `loadBillingCoverageRawPeriods` → `buildBillingCoverageModel`.
+
+---
+
 ## Related docs
 
 - [BILLING_ENGINE.md](./BILLING_ENGINE.md) — platform billing scheduler and products
