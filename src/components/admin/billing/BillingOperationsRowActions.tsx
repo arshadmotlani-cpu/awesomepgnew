@@ -55,7 +55,7 @@ export function BillingOperationsRowActions({
   }
 
   function onWhatsAppWithLink() {
-    if (amountPaise <= 0) return;
+    if (amountPaise <= 0 || !dueDate) return;
     startTransition(async () => {
       const fd = new FormData();
       fd.set('residentId', customerId);

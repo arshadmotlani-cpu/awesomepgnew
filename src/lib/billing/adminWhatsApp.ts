@@ -51,7 +51,7 @@ export function buildBillingWhatsAppMessage(input: BillingWhatsAppInput): string
       );
     }
     return (
-      `Hi ${firstName}, your rent of ${amount} for ${input.pgName} is due on ${input.dueDate}. ` +
+      `Hi ${firstName}, your rent of ${amount} for ${input.pgName} is due on ${input.dueDate ?? 'request'}. ` +
       `Please pay via UPI or QR to avoid late fees.`
     );
   }
@@ -83,7 +83,7 @@ export function buildBillingWhatsAppMessage(input: BillingWhatsAppInput): string
     );
   }
   return (
-    `Hi ${firstName}, your electricity share of ${amount} for ${input.pgName}${room} is due on ${input.dueDate}. ` +
+    `Hi ${firstName}, your electricity share of ${amount} for ${input.pgName}${room} is due on ${input.dueDate ?? 'request'}. ` +
     `Please pay from your resident dashboard or via QR.`
   );
 }

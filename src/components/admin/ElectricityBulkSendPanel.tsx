@@ -16,7 +16,7 @@ export type ElectricityInvoiceSendRow = {
   pgName: string;
   roomNumber: string;
   amountPaise: number;
-  dueDate: string | null;
+  dueDate: string;
   isOverdue?: boolean;
 };
 

@@ -14,7 +14,7 @@ export type RentInvoiceSendRow = {
   pgName: string;
   roomNumber: string;
   rentPaise: number;
-  dueDate: string | null;
+  dueDate: string;
   isOverdue?: boolean;
 };
 
