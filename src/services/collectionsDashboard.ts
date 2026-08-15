@@ -83,7 +83,7 @@ export function classifyOpenRentRow(
     return { bucket: 'awaiting', label };
   }
   if (!row.dueDate) {
-    return { bucket: 'due_today', label: 'Due' };
+    return { bucket: 'due_today', label: 'Awaiting Payment' };
   }
   if (label === 'Overdue' || row.dueDate < todayIso) {
     return { bucket: 'overdue', label: label === 'Overdue' ? label : 'Overdue' };

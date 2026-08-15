@@ -149,7 +149,7 @@ export function BillingCentrePendingCollectionsSection({
                         pgName={row.pgName}
                         amountPaise={row.amountPaise}
                         purpose={row.kind === 'electricity' ? 'electricity' : 'deposit'}
-                        dueDate={row.dueDate}
+                        dueDate={row.dueDate ?? undefined}
                         roomNumber={row.roomNumber}
                         isOverdue={row.daysOverdue > 0}
                         bookingId={row.bookingId}

@@ -271,7 +271,7 @@ export function buildPendingPaymentRows(input: {
     });
   }
 
-  return rows.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  return rows.sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''));
 }
 
 export function buildOverdueByBucket(
@@ -286,6 +286,7 @@ export function buildOverdueByBucket(
   };
 
   for (const row of pending) {
+    if (!row.dueDate) continue;
     if (row.dueDate >= todayIso && row.paymentStatus !== 'overdue') continue;
     const days = Math.max(1, diffDays(row.dueDate, todayIso));
     const overdueBucket = classifyOverdueBucket(days);

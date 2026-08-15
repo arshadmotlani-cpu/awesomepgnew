@@ -83,7 +83,9 @@ function sortQueue(a: CollectionQueueItem, b: CollectionQueueItem): number {
   const p = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
   if (p !== 0) return p;
   if (b.daysOverdue !== a.daysOverdue) return b.daysOverdue - a.daysOverdue;
-  return parseDate(a.dueDate).getTime() - parseDate(b.dueDate).getTime();
+  const aDue = a.dueDate ?? '';
+  const bDue = b.dueDate ?? '';
+  return parseDate(aDue).getTime() - parseDate(bDue).getTime();
 }
 
 export function rentRowToQueueItem(row: AdminRentInvoiceRow, today: string): CollectionQueueItem | null {

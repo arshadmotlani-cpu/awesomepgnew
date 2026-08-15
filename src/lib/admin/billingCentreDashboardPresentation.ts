@@ -55,7 +55,7 @@ export type BillingCentrePendingRow = {
   bookingId: string;
   invoiceNumber: string;
   amountPaise: number;
-  dueDate: string;
+  dueDate: string | null;
   daysOverdue: number;
   priority: string;
   paymentStatus: string;

@@ -251,6 +251,7 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
         onboardingBookingCode: null,
         onboardingPaymentApproved: false,
         hasPendingKycSubmission: false,
+        isLivingToday: false,
       });
     }
   }
@@ -282,6 +283,7 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
         onboardingBookingCode: null,
         onboardingPaymentApproved: false,
         hasPendingKycSubmission: q.category === 'kyc',
+        isLivingToday: false,
       };
       residentIndex.set(q.customerId, partial);
     }
