@@ -5,7 +5,6 @@ import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   bedReservations,
-  bookings,
   rentInvoices,
   residentBillingProfiles,
 } from '@/src/db/schema';
