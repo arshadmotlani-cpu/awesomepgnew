@@ -510,6 +510,21 @@ export async function approveVacatingDateChangeRequest(input: {
     },
   });
 
+  const [bookingRow] = await db
+    .select({ bookingCode: bookings.bookingCode })
+    .from(bookings)
+    .where(eq(bookings.id, row.bookingId))
+    .limit(1);
+
+  const { notifyVacatingUpdate } = await import('@/src/lib/email/notifications');
+  notifyVacatingUpdate({
+    customerId: row.customerId,
+    bookingCode: bookingRow?.bookingCode ?? row.bookingId,
+    status: 'approved',
+    vacatingDate: String(row.requestedVacatingDate),
+    note: `Your move-out date has been updated to ${String(row.requestedVacatingDate)}.`,
+  });
+
   scheduleAdminNotificationSync();
   return { ok: true };
 }

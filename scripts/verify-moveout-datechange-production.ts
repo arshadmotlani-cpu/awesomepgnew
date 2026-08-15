@@ -38,6 +38,27 @@ async function main() {
   console.log('=== Move-out date-change production verification ===');
   console.log(`mode: ${execute ? 'EXECUTE (mutating)' : 'read-only previews'}\n`);
 
+  const enum146 = await db.execute<{ enumlabel: string }>(sql`
+    SELECT enumlabel FROM pg_enum
+    WHERE enumtypid = 'action_item_type'::regtype AND enumlabel = 'vacating_date_change'
+  `);
+  if (enum146.length > 0) {
+    pass('migration-0146', 'action_item_type includes vacating_date_change');
+  } else {
+    fail('migration-0146', 'vacating_date_change enum missing — Operations activity feed will fail');
+  }
+
+  const col145 = await db.execute<{ column_name: string }>(sql`
+    SELECT column_name FROM information_schema.columns
+    WHERE table_name = 'vacating_requests'
+      AND column_name IN ('original_notice_submitted_at', 'original_vacating_date')
+  `);
+  if (col145.length >= 2) {
+    pass('migration-0145', 'original notice history columns present');
+  } else {
+    fail('migration-0145', `missing columns: found ${col145.map((c) => c.column_name).join(', ')}`);
+  }
+
   const candidates = await db.execute<{
     vacating_id: string;
     booking_id: string;

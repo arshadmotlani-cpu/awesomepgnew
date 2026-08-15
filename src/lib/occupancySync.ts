@@ -3,11 +3,12 @@
  * Prevents "map shows open, assign blocked" ghost occupancy.
  */
 
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { bedReservations, bookings } from '@/src/db/schema';
+import { bedReservations, bookings, vacatingRequests } from '@/src/db/schema';
 import { scheduleAvailabilityCacheInvalidation } from '@/src/lib/cache/invalidateAvailability';
 import { revalidateReservationLifecycleViews } from '@/src/lib/occupancyRevalidate';
+import { stayRangeExclusiveEnd } from '@/src/lib/vacating/vacatingBedSemantics';
 import { clearBedAdminMarks } from '@/src/services/bookingAdminOps';
 
 /**
@@ -65,6 +66,34 @@ export async function closeReservationsForTerminalBooking(
   return Array.isArray(rows) ? rows.length : 0;
 }
 
+/** Align active stay_range upper bound with approved vacating final stay (exclusive end). */
+export async function syncApprovedVacatingStayRange(bookingId: string): Promise<number> {
+  const [vr] = await db
+    .select({ vacatingDate: vacatingRequests.vacatingDate })
+    .from(vacatingRequests)
+    .where(
+      and(eq(vacatingRequests.bookingId, bookingId), eq(vacatingRequests.status, 'approved')),
+    )
+    .limit(1);
+
+  if (!vr?.vacatingDate) return 0;
+
+  const exclusiveEnd = stayRangeExclusiveEnd(String(vr.vacatingDate));
+  const result = await db.execute(sql`
+    UPDATE bed_reservations
+    SET
+      stay_range = daterange(lower(stay_range), ${exclusiveEnd}::date, '[)'),
+      updated_at = now()
+    WHERE booking_id = ${bookingId}::uuid
+      AND status IN ('hold', 'active')
+      AND upper(stay_range) IS DISTINCT FROM ${exclusiveEnd}::date
+    RETURNING id
+  `);
+
+  const rows = (result as unknown as { id?: string }[]) ?? [];
+  return Array.isArray(rows) ? rows.length : 0;
+}
+
 /** Reconcile all beds touched by a booking, then clear stale manual marks. */
 export async function reconcileBookingOccupancy(
   bookingId: string,
@@ -82,6 +111,12 @@ export async function reconcileBookingOccupancy(
 
   const terminalClosed = await closeReservationsForTerminalBooking(bookingId);
   const orphansReconciled = await reconcileOrphanBedReservations();
+  const stayRangeSynced = await syncApprovedVacatingStayRange(bookingId);
+  if (stayRangeSynced > 0) {
+    console.info(
+      `[occupancy] synced stay_range for ${stayRangeSynced} reservation(s) on booking ${bookingId}`,
+    );
+  }
 
   const bedsTouched: string[] = [];
   const beds = (bedRows as unknown as { bed_id?: string }[]) ?? [];

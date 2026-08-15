@@ -1,11 +1,22 @@
 /** Detect postgres/drizzle errors caused by code ahead of applied migrations. */
 export function isDatabaseSchemaMismatchError(err: unknown): boolean {
   const message = errorMessage(err);
-  return /column .* does not exist|relation .* does not exist|undefined column/i.test(message);
+  return (
+    /column .* does not exist|relation .* does not exist|undefined column/i.test(message) ||
+    /invalid input value for enum/i.test(message)
+  );
+}
+
+export function isVacatingDateChangeActionItemEnumMissing(err: unknown): boolean {
+  const message = errorMessage(err);
+  return /invalid input value for enum action_item_type.*vacating_date_change/i.test(message);
 }
 
 export function schemaMismatchHint(err: unknown): string {
   const message = errorMessage(err);
+  if (/vacating_date_change/i.test(message) && /action_item_type/i.test(message)) {
+    return 'Run migration src/db/migrations/0146_action_item_vacating_date_change.sql';
+  }
   if (/proof_snapshot_submitted_paise/i.test(message)) {
     return 'Run migration src/db/migrations/0122_proof_snapshot_submitted_paise.sql';
   }

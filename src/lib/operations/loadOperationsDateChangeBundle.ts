@@ -17,6 +17,15 @@ export type OperationsDateChangeBundle = {
   dateChangeCount: number;
 };
 
+export function emptyOperationsDateChangeBundle(): OperationsDateChangeBundle {
+  return {
+    pendingDateChanges: [],
+    dateChangeContextByRequestId: {},
+    statementDocumentByRequestId: {},
+    dateChangeCount: 0,
+  };
+}
+
 function rowToRequest(row: PendingVacatingDateChangeOpsRow): VacatingDateChangeRequest {
   return {
     id: row.requestId,

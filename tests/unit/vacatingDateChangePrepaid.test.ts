@@ -7,6 +7,7 @@ import {
   dailyRateFromBillingPeriod,
   rawPeriodFromInvoiceDueDate,
 } from '@/src/lib/billing/billingCoverageModel';
+import { computeDateChangeFinancialImpact } from '@/src/lib/vacating/moveOutStateModel';
 
 test('dailyRateFromBillingPeriod uses actual calendar days in billing period', () => {
   assert.equal(calendarDaysInclusive('2026-02-01', '2026-02-28'), 28);
@@ -46,6 +47,39 @@ test('computePrepaidRentAfterVacating uses invoice principal not monthly/30', ()
   assert.equal(prepaid.dailyRentPaise, periodDaily);
   assert.equal(prepaid.paise, periodDaily * 5);
   assert.notEqual(prepaid.dailyRentPaise, Math.floor(412_080 / 30));
+});
+
+test('date change financial impact unused prepaid matches net refund portion (0083-like)', () => {
+  const periodDaily = Math.floor(412_080 / 32);
+  const unusedSixDays = periodDaily * 6;
+  assert.equal(unusedSixDays, 77_262);
+
+  const currentWaterfall = {
+    depositBucket: { collectedPaise: 500000, electricityPaise: 0, otherPaise: 0, tailRentPaise: 0 },
+    notice: { fromDepositPaise: 0 },
+    refund: { unusedRentPortionPaise: periodDaily, totalPaise: 500000 + periodDaily },
+    rentBucket: { unusedPaise: periodDaily, consumedPaise: 0 },
+  } as import('@/src/lib/checkout/checkoutSettlementEngineV2').CheckoutSettlementWaterfall;
+
+  const requestedWaterfall = {
+    depositBucket: { collectedPaise: 500000, electricityPaise: 0, otherPaise: 0, tailRentPaise: 0 },
+    notice: { fromDepositPaise: 0 },
+    refund: { unusedRentPortionPaise: unusedSixDays, totalPaise: 500000 + unusedSixDays },
+    rentBucket: { unusedPaise: unusedSixDays, consumedPaise: 0 },
+  } as import('@/src/lib/checkout/checkoutSettlementEngineV2').CheckoutSettlementWaterfall;
+
+  const preview = {
+    currentVacatingDate: '2026-08-20',
+    requestedVacatingDate: '2026-08-15',
+    noticeCompliant: true,
+    refundDeltaPaise: unusedSixDays - periodDaily,
+    currentEstimatedSettlement: { waterfall: currentWaterfall },
+    requestedEstimatedSettlement: { waterfall: requestedWaterfall },
+  } as import('@/src/services/vacatingDateChange').VacatingDateChangePreview;
+
+  const impact = computeDateChangeFinancialImpact(preview);
+  assert.equal(impact.unusedPrepaidRentPaise, unusedSixDays);
+  assert.notEqual(impact.unusedPrepaidRentPaise, impact.refundDeltaPaise);
 });
 
 test('billing coverage prepaid increases when vacating earlier within paid period', () => {

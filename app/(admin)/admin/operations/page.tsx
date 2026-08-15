@@ -10,7 +10,11 @@ import { OperationsMasterQueue } from '@/src/components/admin/operations/Operati
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 import { resolveOperationsFocusParam } from '@/src/lib/approvals/approvalDeepLinks';
-import { loadOperationsDateChangeBundle } from '@/src/lib/operations/loadOperationsDateChangeBundle';
+import {
+  emptyOperationsDateChangeBundle,
+  loadOperationsDateChangeBundle,
+} from '@/src/lib/operations/loadOperationsDateChangeBundle';
+import type { OperationsActivityItem } from '@/src/lib/operations/loadOperationsActivityFeed';
 import {
   groupOperationsActivityByDay,
   loadOperationsActivityFeed,
@@ -76,19 +80,33 @@ export default async function OperationsPage({
     data = emptyUnifiedOperationsQueue(filter);
   }
 
-  const dateChangeBundle = await loadOperationsDateChangeBundle(session);
-  const activityItems = await loadOperationsActivityFeed(session);
-  const activityGroups = groupOperationsActivityByDay(activityItems);
+  let dateChangeBundle = emptyOperationsDateChangeBundle();
+  let activityGroups: Array<{ dayLabel: string; items: OperationsActivityItem[] }> = [];
+  try {
+    dateChangeBundle = await loadOperationsDateChangeBundle(session);
+  } catch (err) {
+    console.error('[operations] date-change bundle failed', err);
+  }
+  try {
+    const activityItems = await loadOperationsActivityFeed(session);
+    activityGroups = groupOperationsActivityByDay(activityItems);
+  } catch (err) {
+    console.error('[operations] activity feed failed', err);
+  }
   const attentionCards = buildOperationsAttentionCards(
     data.filterCounts,
     dateChangeBundle.dateChangeCount,
   );
   const focusRequestId = parseDateChangeFocusId(focus);
 
-  const recentRejections =
-    filter === 'waiting_for_approval'
-      ? await listRecentPaymentProofRejectionsForAdmin(session, 40)
-      : [];
+  let recentRejections: Awaited<ReturnType<typeof listRecentPaymentProofRejectionsForAdmin>> = [];
+  if (filter === 'waiting_for_approval') {
+    try {
+      recentRejections = await listRecentPaymentProofRejectionsForAdmin(session, 40);
+    } catch (err) {
+      console.error('[operations] payment rejection history failed', err);
+    }
+  }
 
   let moveOutPipelineActiveItems: MoveOutPipelineItemClient[] | undefined;
   let approvalPreviewByRequestId: Record<string, VacatingApprovalPreview> | undefined;

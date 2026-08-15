@@ -561,8 +561,14 @@ export function getRoomDetail(
           INNER JOIN ${vacatingRequests} vr ON vr.booking_id = bk.id
           WHERE br.bed_id = beds.id
             AND br.status = 'active'
-            AND ${refDate}::date <@ br.stay_range
             AND vr.status IN ('pending', 'approved')
+            AND (
+              ${refDate}::date <@ br.stay_range
+              OR (
+                vr.status = 'approved'
+                AND ${refDate}::date = (vr.vacating_date + interval '1 day')::date
+              )
+            )
           LIMIT 1
         )`,
         vacatingStatus: sql<'pending' | 'approved' | null>`(
@@ -572,8 +578,14 @@ export function getRoomDetail(
           INNER JOIN ${vacatingRequests} vr ON vr.booking_id = bk.id
           WHERE br.bed_id = beds.id
             AND br.status = 'active'
-            AND ${refDate}::date <@ br.stay_range
             AND vr.status IN ('pending', 'approved')
+            AND (
+              ${refDate}::date <@ br.stay_range
+              OR (
+                vr.status = 'approved'
+                AND ${refDate}::date = (vr.vacating_date + interval '1 day')::date
+              )
+            )
           LIMIT 1
         )`,
         reservedFrom: sql<string | null>`(

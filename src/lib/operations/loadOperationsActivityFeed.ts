@@ -3,6 +3,10 @@ import { db } from '@/src/db/client';
 import { actionItems, auditLog, notifications } from '@/src/db/schema';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
+import {
+  isVacatingDateChangeActionItemEnumMissing,
+  schemaMismatchHint,
+} from '@/src/lib/db/schemaMismatchError';
 import { vacatingDateChangeOperationsHref } from '@/src/lib/operations/operationsFilterLinks';
 import { formatDate } from '@/src/lib/dates';
 
@@ -19,6 +23,18 @@ const AUDIT_ENTITIES = [
   'vacating_date_change_request',
   'vacating_request',
   'checkout_settlements',
+] as const;
+
+const RESOLVED_ACTION_TYPES_BASE = [
+  'vacating_alert',
+  'payment_received',
+  'refund_pending',
+  'kyc_pending',
+] as const;
+
+const RESOLVED_ACTION_TYPES_WITH_DATE_CHANGE = [
+  'vacating_date_change',
+  ...RESOLVED_ACTION_TYPES_BASE,
 ] as const;
 
 function labelAuditActivity(entity: string, action: string): string | null {
@@ -83,6 +99,57 @@ function actionItemHref(
   return '/admin/operations';
 }
 
+async function loadResolvedActionItemsForFeed(since: Date) {
+  try {
+    return await db
+      .select({
+        id: actionItems.id,
+        type: actionItems.type,
+        title: actionItems.title,
+        pgId: actionItems.pgId,
+        metadata: actionItems.metadata,
+        updatedAt: actionItems.updatedAt,
+      })
+      .from(actionItems)
+      .where(
+        and(
+          eq(actionItems.status, 'resolved'),
+          gte(actionItems.updatedAt, since),
+          inArray(actionItems.type, [...RESOLVED_ACTION_TYPES_WITH_DATE_CHANGE]),
+        ),
+      )
+      .orderBy(desc(actionItems.updatedAt))
+      .limit(40);
+  } catch (err) {
+    if (isVacatingDateChangeActionItemEnumMissing(err)) {
+      console.warn(
+        '[operations activity] vacating_date_change enum missing —',
+        schemaMismatchHint(err),
+      );
+      return await db
+        .select({
+          id: actionItems.id,
+          type: actionItems.type,
+          title: actionItems.title,
+          pgId: actionItems.pgId,
+          metadata: actionItems.metadata,
+          updatedAt: actionItems.updatedAt,
+        })
+        .from(actionItems)
+        .where(
+          and(
+            eq(actionItems.status, 'resolved'),
+            gte(actionItems.updatedAt, since),
+            inArray(actionItems.type, [...RESOLVED_ACTION_TYPES_BASE]),
+          ),
+        )
+        .orderBy(desc(actionItems.updatedAt))
+        .limit(40);
+    }
+    throw err;
+  }
+}
+
 /** Recent operational events for the Operations command center (last 7 days). */
 export async function loadOperationsActivityFeed(
   session: AdminSession,
@@ -130,31 +197,7 @@ export async function loadOperationsActivityFeed(
     .orderBy(desc(notifications.createdAt))
     .limit(40);
 
-  const resolvedItems = await db
-    .select({
-      id: actionItems.id,
-      type: actionItems.type,
-      title: actionItems.title,
-      pgId: actionItems.pgId,
-      metadata: actionItems.metadata,
-      updatedAt: actionItems.updatedAt,
-    })
-    .from(actionItems)
-    .where(
-      and(
-        eq(actionItems.status, 'resolved'),
-        gte(actionItems.updatedAt, since),
-        inArray(actionItems.type, [
-          'vacating_date_change',
-          'vacating_alert',
-          'payment_received',
-          'refund_pending',
-          'kyc_pending',
-        ]),
-      ),
-    )
-    .orderBy(desc(actionItems.updatedAt))
-    .limit(40);
+  const resolvedItems = await loadResolvedActionItemsForFeed(since);
 
   const merged: OperationsActivityItem[] = [];
 

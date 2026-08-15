@@ -178,7 +178,14 @@ export function mapVacatingDateChangeToOpsItem(
     vacatingRequestId: row.vacatingRequestId,
     bookingCode: row.bookingCode,
     statusLabel: noticeOk ? '5-day notice OK' : 'Notice review',
-    amountPaise: row.refundDeltaPaise !== 0 ? row.refundDeltaPaise : undefined,
+    amountPaise:
+      direction === 'earlier' && unusedPrepaid > 0
+        ? unusedPrepaid
+        : direction === 'later' && additionalRent > 0
+          ? additionalRent
+          : row.refundDeltaPaise !== 0
+            ? row.refundDeltaPaise
+            : undefined,
     dateChangeRequestId: row.requestId,
   };
 }

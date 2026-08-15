@@ -10,7 +10,7 @@
  * Used by Residents list, Bed Maps, search, assign-bed guards, and diagnostics.
  */
 
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 
 /** Booking alias `bk`, reservation alias `br` (bed-map style). */
 export const occupancyReservationCoreSql = sql`
@@ -77,3 +77,17 @@ export const customerOccupiedTodayExistsSql = sql`
       AND CURRENT_DATE <@ br.stay_range
   )
 `;
+
+/**
+ * Vacating row attaches when refDate is inside stay_range OR on approved release morning
+ * (day after vacating_date — bed becomes bookable at 11 AM IST that calendar day).
+ */
+export function vacatingAttachOnRefDateSql(refDate: SQL): SQL {
+  return sql`(
+    ${refDate}::date <@ br.stay_range
+    OR (
+      vr.status = 'approved'
+      AND ${refDate}::date = (vr.vacating_date + interval '1 day')::date
+    )
+  )`;
+}
