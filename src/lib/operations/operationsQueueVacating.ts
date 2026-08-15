@@ -14,8 +14,11 @@ import {
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import { deriveMoveOutWorkflowStage } from '@/src/lib/moveOut/moveOutWorkflowStages';
 import { formatBedAvailableLabel, formatFinalStayDateLabel } from '@/src/lib/vacating/vacatingBedSemantics';
+import { vacatingDateChangeOperationsHref } from '@/src/lib/operations/operationsFilterLinks';
 import { moveOutOperationsQueueTarget } from '@/src/lib/operations/moveOutAdminAction';
 import type { MoveOutPipelineItem } from '@/src/lib/moveOut/moveOutPipeline';
+import type { PendingVacatingDateChangeOpsRow } from '@/src/services/vacatingDateChange';
+import { formatDate } from '@/src/lib/format';
 
 export { isTerminalVacatingPipelineItem } from '@/src/lib/operations/moveOutAdminAction';
 
@@ -136,5 +139,46 @@ export function mapVacatingPipelineItemToOpsItem(
       workflow.id === 'refund_ready' || workflow.id === 'settlement_review'
         ? item.estimatedRefundPaise
         : undefined,
+  };
+}
+
+export function mapVacatingDateChangeToOpsItem(
+  row: PendingVacatingDateChangeOpsRow,
+): UnifiedOpsItem {
+  const noticeOk = row.preview?.noticeCompliant ?? true;
+  const direction = row.preview?.direction;
+  const unusedPrepaid = row.preview?.unusedPrepaidRentPaise ?? 0;
+  const additionalRent = row.preview?.additionalRentPaise ?? 0;
+
+  let reason = `Leaving date change · ${formatDate(row.currentVacatingDate)} → ${formatDate(row.requestedVacatingDate)}`;
+  if (direction === 'earlier' && unusedPrepaid > 0) {
+    reason += ` · unused prepaid if approved`;
+  } else if (direction === 'later' && additionalRent > 0) {
+    reason += ` · additional rent if approved`;
+  }
+  if (!noticeOk) {
+    reason += ' · notice shortfall risk';
+  }
+
+  return {
+    id: `date_change:${row.requestId}`,
+    queue: 'vacating_requests',
+    customerId: row.customerId,
+    residentName: row.customerName,
+    residentPhone: row.customerPhone,
+    pgId: row.pgId,
+    pgName: row.pgName,
+    roomNumber: row.roomNumber,
+    bedCode: row.bedCode,
+    reason,
+    openHref: vacatingDateChangeOperationsHref(row.requestId),
+    openLabel: 'Review date change',
+    category: 'move_out',
+    bookingId: row.bookingId,
+    vacatingRequestId: row.vacatingRequestId,
+    bookingCode: row.bookingCode,
+    statusLabel: noticeOk ? '5-day notice OK' : 'Notice review',
+    amountPaise: row.refundDeltaPaise !== 0 ? row.refundDeltaPaise : undefined,
+    dateChangeRequestId: row.requestId,
   };
 }

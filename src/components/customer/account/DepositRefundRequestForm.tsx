@@ -10,6 +10,7 @@ import {
 import { ImageFileInputInline } from '@/src/components/shared/ImageFileInput';
 import { logResidentClientError } from '@/src/lib/client/residentClientLogger';
 import { coerceNonNegativePaise, paiseToInr } from '@/src/lib/format';
+import { PENDING_ELECTRICITY_LABEL } from '@/src/lib/checkout/settlementDisplayFormat';
 import { primaryBtn } from '@/src/lib/design-system/tokens';
 import type { DepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
 import { ExitBrainRefundBreakdown } from '@/src/components/customer/account/resident/vacating/ExitBrainRefundBreakdown';
@@ -156,7 +157,7 @@ export function DepositRefundRequestForm({
                 </span>
               </li>
             ) : settlementPreview.electricityPending ? (
-              <li>Electricity: pending final bill</li>
+              <li>{PENDING_ELECTRICITY_LABEL}</li>
             ) : null}
             {settlementPreview.refundAmountPaise != null ? (
               <li className="flex justify-between gap-2 border-t border-zinc-200 pt-1 font-semibold text-zinc-900">

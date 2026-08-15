@@ -550,6 +550,63 @@ async function syncVacatingAlerts(session: AdminSession): Promise<void> {
   }
 }
 
+async function syncVacatingDateChangeRequests(session: AdminSession): Promise<void> {
+  const { listPendingVacatingDateChangesForOps } = await import('@/src/services/vacatingDateChange');
+  const pending = await listPendingVacatingDateChangesForOps(50);
+  const activeKeys = new Set<string>();
+
+  for (const row of pending) {
+    if (!sessionCanAccessPg(session, row.pgId)) continue;
+
+    const sourceKey = `vacating_date_change:${row.requestId}`;
+    activeKeys.add(sourceKey);
+
+    await upsertActionItem({
+      type: 'vacating_date_change',
+      title: `${row.customerName} requested a move-out date change`,
+      pgId: row.pgId,
+      residentId: row.customerId,
+      dueDate: row.requestedVacatingDate,
+      priority: 'high',
+      sourceKey,
+      metadata: {
+        residentName: row.customerName,
+        residentPhone: row.customerPhone ?? undefined,
+        pgName: formatPgDisplayName(row.pgName),
+        roomNumber: row.roomNumber,
+        bedCode: row.bedCode,
+        bookingId: row.bookingId,
+        bookingCode: row.bookingCode,
+        vacatingRequestId: row.vacatingRequestId,
+        dateChangeRequestId: row.requestId,
+        noticeCompliant: row.preview?.noticeCompliant,
+        currentVacatingDate: row.currentVacatingDate,
+        requestedVacatingDate: row.requestedVacatingDate,
+        noticeGivenDate: row.noticeGivenDate,
+      },
+    });
+  }
+
+  const staleDateChanges = await db
+    .select({ sourceKey: actionItems.sourceKey })
+    .from(actionItems)
+    .where(
+      and(
+        eq(actionItems.type, 'vacating_date_change'),
+        inArray(actionItems.status, ['open', 'in_progress']),
+      ),
+    );
+
+  for (const row of staleDateChanges) {
+    if (!activeKeys.has(row.sourceKey)) {
+      await db
+        .update(actionItems)
+        .set({ status: 'resolved', updatedAt: new Date() })
+        .where(eq(actionItems.sourceKey, row.sourceKey));
+    }
+  }
+}
+
 async function archiveAdminNotificationsForSourceKeys(sourceKeys: string[]): Promise<void> {
   if (sourceKeys.length === 0) return;
   const adminRows = await db
@@ -1027,6 +1084,7 @@ export async function syncActionItems(session: AdminSession): Promise<void> {
     syncElectricityDue(session),
     syncKycPending(session),
     syncVacatingAlerts(session),
+    syncVacatingDateChangeRequests(session),
     syncCheckoutReviewActionItems(session),
     syncRefundsPending(session),
     syncDepositCollectionDue(session),

@@ -35,29 +35,8 @@ export function AdminNotificationCenter({ initialUnread = 0 }: { initialUnread?:
       if (json.ok) {
         const loaded = json.data ?? [];
         setItems(loaded);
-        if (loaded.length > 0) {
-          setUnreadCount(0);
-          const readRes = await fetch('/api/admin/notifications/read', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              markAllVisible: true,
-              notificationIds: loaded.map((item) => item.id),
-            }),
-          });
-          const readJson = (await readRes.json()) as { ok?: boolean; unreadCount?: number };
-          const nextUnread =
-            readJson.ok && typeof readJson.unreadCount === 'number' ? readJson.unreadCount : 0;
-          setUnreadCount(nextUnread);
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(
-              new CustomEvent('admin-badges-updated', {
-                detail: { unreadCount: nextUnread },
-              }),
-            );
-          }
-        } else {
-          setUnreadCount(0);
+        if (typeof json.unreadCount === 'number') {
+          setUnreadCount(json.unreadCount);
         }
       }
     } finally {

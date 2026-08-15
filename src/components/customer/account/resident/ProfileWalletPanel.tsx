@@ -2,6 +2,7 @@
 
 import { ApgCard } from '@/src/components/customer/design-system';
 import { RequestMoneySheet } from '@/src/components/customer/account/RequestMoneySheet';
+import { PENDING_ELECTRICITY_LABEL } from '@/src/lib/checkout/settlementDisplayFormat';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import type { DepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
 import type { DepositLedgerEntry } from '@/src/db/schema/depositLedger';
@@ -239,7 +240,7 @@ export function ProfileWalletPanel({
             ) : settlementPreview?.electricityPending ? (
               <li className="flex justify-between gap-2">
                 <span className="text-apg-silver">Electricity</span>
-                <span className="text-apg-silver">Pending final bill</span>
+                <span className="text-apg-silver">{PENDING_ELECTRICITY_LABEL}</span>
               </li>
             ) : null}
             {!settlementPreview?.electricityPending &&

@@ -60,6 +60,7 @@ export const NOTIFICATION_TAB_LABELS = {
 
 const TYPE_LABELS: Partial<Record<ActionItem['type'], string>> = {
   vacating_alert: 'New Vacating Notice',
+  vacating_date_change: 'Move-out Date Change',
   kyc_pending: 'New KYC Submission',
   rent_due: 'Rent Due',
   electricity_due: 'Electricity Due',
@@ -78,6 +79,13 @@ function notificationHref(type: ActionItem['type'], meta: ActionItemMetadata, re
 function buildDetail(type: ActionItem['type'], meta: ActionItemMetadata, dueDate: string | null): string | null {
   if (type === 'vacating_alert' && dueDate) {
     return `Vacates ${dueDate}`;
+  }
+  if (type === 'vacating_date_change') {
+    const current = meta.currentVacatingDate;
+    const requested = meta.requestedVacatingDate;
+    if (current && requested) return `${current} → ${requested}`;
+    if (requested) return `Requested ${requested}`;
+    if (meta.bookingCode) return `Booking ${meta.bookingCode}`;
   }
   if (type === 'extension_request' && dueDate) {
     return `Requested until ${dueDate}`;
@@ -121,6 +129,7 @@ function typeToModule(type: ActionItem['type']): AdminModule | 'deposits' {
     case 'fixed_stay_checkout_due':
       return 'operations';
     case 'vacating_alert':
+    case 'vacating_date_change':
     case 'extension_request':
     case 'maintenance_issue':
       return 'operations';

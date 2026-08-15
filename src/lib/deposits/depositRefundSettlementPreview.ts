@@ -1,11 +1,12 @@
 import { buildResidentElectricityAccount } from '@/src/lib/residents/residentElectricityAccount';
+import { loadResidentElectricityBillingState } from '@/src/lib/residents/residentElectricityBillingState';
 import { getVacatingForBooking } from '@/src/db/queries/customer';
 import { firstOfMonth } from '@/src/services/billing';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { buildVacatingSettlementPreview } from '@/src/lib/vacating/computeVacatingSettlementPreview';
 import { db } from '@/src/db/client';
-import { bookings } from '@/src/db/schema';
-import { eq } from 'drizzle-orm';
+import { bookings, bedReservations, beds, rooms } from '@/src/db/schema';
+import { and, eq } from 'drizzle-orm';
 
 export type DepositRefundSettlementPreview = {
   depositBalancePaise: number;
@@ -104,6 +105,43 @@ export async function getDepositRefundSettlementPreview(
       paidUntilDate,
       vacatingDate,
     };
+  }
+
+  if (vacatingDate) {
+    const roomRow = await db
+      .select({ roomId: rooms.id })
+      .from(bedReservations)
+      .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+      .innerJoin(rooms, eq(rooms.id, beds.roomId))
+      .where(
+        and(eq(bedReservations.bookingId, bookingId), eq(bedReservations.kind, 'primary')),
+      )
+      .limit(1)
+      .then((rows) => rows[0] ?? null);
+
+    const checkoutMonth = firstOfMonth(vacatingDate);
+    const elecBilling =
+      roomRow?.roomId
+        ? await loadResidentElectricityBillingState({
+            roomId: roomRow.roomId,
+            bookingId,
+            billingMonth: checkoutMonth,
+          })
+        : null;
+
+    if (elecBilling?.showPendingCard) {
+      return {
+        depositBalancePaise,
+        depositRefundablePaise,
+        unusedPrepaidRentPaise,
+        electricityAdjustmentPaise: null,
+        refundAmountPaise: null,
+        electricityPending: true,
+        electricityBillingMonth: checkoutMonth.slice(0, 7),
+        paidUntilDate,
+        vacatingDate,
+      };
+    }
   }
 
   if (vacatingDate && elecAccount.invoices.length === 0) {

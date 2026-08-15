@@ -7,7 +7,7 @@ import type { ActionItem } from '@/src/db/schema/actionItems';
 import type { ActionItemMetadata } from '@/src/lib/actionCenter/constants';
 import { paymentReviewWorkspaceHref } from '@/src/lib/operations/paymentReviewLinks';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
-import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
+import { operationsFilterHref, vacatingDateChangeOperationsHref } from '@/src/lib/operations/operationsFilterLinks';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 
 /** Open a specific payment proof in the Payment Review Workspace. */
@@ -33,6 +33,9 @@ export function buildApprovalDeepLink(
   }
   if (type === 'vacating_alert' && meta.vacatingRequestId) {
     return `/admin/vacating?read=${encodeURIComponent(`vacating:${meta.vacatingRequestId}`)}`;
+  }
+  if (type === 'vacating_date_change' && meta.dateChangeRequestId) {
+    return vacatingDateChangeOperationsHref(meta.dateChangeRequestId);
   }
   if (type === 'fixed_stay_checkout_due' && meta.settlementId) {
     return `/admin/checkout-settlements/${meta.settlementId}`;
@@ -103,6 +106,9 @@ export function finalizeApprovalNotificationDeepLink(
   }
   if (type === 'vacating_alert' && meta?.vacatingRequestId) {
     return `/admin/vacating?read=${encodeURIComponent(`vacating:${meta.vacatingRequestId}`)}`;
+  }
+  if (type === 'vacating_date_change' && meta?.dateChangeRequestId) {
+    return vacatingDateChangeOperationsHref(meta.dateChangeRequestId);
   }
   if (type === 'fixed_stay_checkout_due' && meta?.settlementId) {
     return `/admin/checkout-settlements/${meta.settlementId}`;

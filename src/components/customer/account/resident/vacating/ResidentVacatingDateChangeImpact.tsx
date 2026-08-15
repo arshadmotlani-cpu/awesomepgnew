@@ -1,6 +1,7 @@
 'use client';
 
 import { formatDate, paiseToInr } from '@/src/lib/format';
+import { PENDING_ELECTRICITY_LABEL } from '@/src/lib/checkout/settlementDisplayFormat';
 import type { VacatingDateChangePreview } from '@/src/services/vacatingDateChange';
 import { buildResidentMoveOutRefundSummary } from '@/src/lib/residents/residentMoveOutRefundSummary';
 
@@ -90,7 +91,7 @@ export function ResidentVacatingDateChangeImpact({
               : preview.requestedEstimatedSettlement.waterfall.depositBucket.electricityPaise ===
                   0 &&
                 preview.requestedEstimatedSettlement.mode === 'estimate'
-              ? 'Pending'
+              ? PENDING_ELECTRICITY_LABEL
               : paiseToInr(0)
           }
         />

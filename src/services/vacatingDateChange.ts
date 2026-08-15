@@ -582,6 +582,7 @@ export async function cancelVacatingDateChangeRequest(input: {
     },
   });
 
+  scheduleAdminNotificationSync();
   return { ok: true };
 }
 
@@ -612,4 +613,96 @@ export async function listPendingVacatingDateChanges(limit = 50) {
     .where(eq(vacatingDateChangeRequests.status, 'pending'))
     .orderBy(desc(vacatingDateChangeRequests.createdAt))
     .limit(limit);
+}
+
+export type PendingVacatingDateChangeOpsRow = {
+  requestId: string;
+  vacatingRequestId: string;
+  bookingId: string;
+  customerId: string;
+  customerName: string;
+  customerPhone: string | null;
+  bookingCode: string;
+  pgId: string;
+  pgName: string;
+  roomNumber: string;
+  bedCode: string;
+  noticeGivenDate: string;
+  currentVacatingDate: string;
+  requestedVacatingDate: string;
+  refundDeltaPaise: number;
+  preview: VacatingDateChangePreview | null;
+};
+
+/** Pending date-change requests with booking context for Operations queue. */
+export async function listPendingVacatingDateChangesForOps(
+  limit = 50,
+): Promise<PendingVacatingDateChangeOpsRow[]> {
+  const rows = await db.execute<{
+    request_id: string;
+    vacating_request_id: string;
+    booking_id: string;
+    customer_id: string;
+    customer_name: string;
+    customer_phone: string | null;
+    booking_code: string;
+    pg_id: string;
+    pg_name: string;
+    room_number: string;
+    bed_code: string;
+    notice_given_date: string;
+    current_vacating_date: string;
+    requested_vacating_date: string;
+    refund_delta_paise: number;
+    preview_snapshot: VacatingDateChangePreview | null;
+  }>(sql`
+    SELECT
+      vdcr.id AS request_id,
+      vdcr.vacating_request_id,
+      vdcr.booking_id,
+      vdcr.customer_id,
+      c.full_name AS customer_name,
+      c.phone AS customer_phone,
+      b.booking_code,
+      p.id AS pg_id,
+      p.name AS pg_name,
+      r.room_number::text AS room_number,
+      bed.bed_code,
+      vr.notice_given_date::text AS notice_given_date,
+      vdcr.current_vacating_date::text AS current_vacating_date,
+      vdcr.requested_vacating_date::text AS requested_vacating_date,
+      vdcr.refund_delta_paise,
+      vdcr.preview_snapshot AS preview_snapshot
+    FROM vacating_date_change_requests vdcr
+    INNER JOIN vacating_requests vr ON vr.id = vdcr.vacating_request_id
+    INNER JOIN bookings b ON b.id = vdcr.booking_id
+    INNER JOIN customers c ON c.id = vdcr.customer_id
+    INNER JOIN bed_reservations br ON br.booking_id = b.id AND br.kind = 'primary'
+    INNER JOIN beds bed ON bed.id = br.bed_id
+    INNER JOIN rooms r ON r.id = bed.room_id
+    INNER JOIN floors f ON f.id = r.floor_id
+    INNER JOIN pgs p ON p.id = f.pg_id
+    WHERE vdcr.status = 'pending'
+    ORDER BY vdcr.created_at DESC
+    LIMIT ${limit}
+  `);
+
+  return rows.map((row) => ({
+    requestId: row.request_id,
+    vacatingRequestId: row.vacating_request_id,
+    bookingId: row.booking_id,
+    customerId: row.customer_id,
+    customerName: row.customer_name,
+    customerPhone: row.customer_phone,
+    bookingCode: row.booking_code,
+    pgId: row.pg_id,
+    pgName: row.pg_name,
+    roomNumber: row.room_number,
+    bedCode: row.bed_code,
+    noticeGivenDate: row.notice_given_date,
+    currentVacatingDate: row.current_vacating_date,
+    requestedVacatingDate: row.requested_vacating_date,
+    refundDeltaPaise: Number(row.refund_delta_paise),
+    preview: (row.preview_snapshot as VacatingDateChangePreview | null) ?? null,
+  }));
 }

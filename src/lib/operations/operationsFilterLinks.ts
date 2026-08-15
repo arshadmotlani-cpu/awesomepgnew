@@ -44,6 +44,11 @@ export function operationsFilterHref(filter: OpsQueueFilter, focus?: string): st
   return base;
 }
 
+/** Deep link to a pending move-out date-change approval card on Operations. */
+export function vacatingDateChangeOperationsHref(requestId: string): string {
+  return operationsFilterHref('vacating_requests', `date_change:${requestId}`);
+}
+
 export function parseOperationsFilter(value: string | undefined): OpsQueueFilter | null {
   if (!value) return null;
   if (OPS_QUEUE_FILTERS.includes(value as OpsQueueFilter)) {

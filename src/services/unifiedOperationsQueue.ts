@@ -51,7 +51,7 @@ import { isRoomOsOperationsQueueEnabled } from '@/src/lib/operations/featureFlag
 import { enrichUnifiedOpsItemsWithFinancialInvoiceIds } from '@/src/lib/operations/operationsQueueFinancialLinks';
 import { loadRoomOsOperationsQueueItems } from '@/src/lib/operations/roomOsOperationsQueueAdapter';
 import { loadSupplementaryOperationsQueueItems } from '@/src/lib/operations/supplementaryOperationsQueue';
-import { mapVacatingPipelineItemToOpsItem } from '@/src/lib/operations/operationsQueueVacating';
+import { mapVacatingPipelineItemToOpsItem, mapVacatingDateChangeToOpsItem } from '@/src/lib/operations/operationsQueueVacating';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 import type { ResidentsQueueRow } from '@/src/lib/residents/residentOperationsResidentsView';
 import type { ResidentOpsQueueCategory } from '@/src/lib/residents/residentOperationsDashboard';
@@ -112,6 +112,7 @@ export type UnifiedOpsItem = {
   depositPaidPaise?: number;
   depositRemainingPaise?: number;
   paymentReviewKey?: string;
+  dateChangeRequestId?: string | null;
 };
 
 export type UnifiedOperationsQueue = {
@@ -206,6 +207,30 @@ async function loadOperationsQueueSlice<T>(
 function overdueReason(daysOverdue: number): string {
   if (daysOverdue <= 0) return 'Awaiting resident payment';
   return `Overdue by ${daysOverdue} day${daysOverdue === 1 ? '' : 's'}`;
+}
+
+async function appendPendingVacatingDateChangeOpsItems(
+  session: AdminSession,
+  items: UnifiedOpsItem[],
+  dismissalIndex: OperationsQueueDismissalIndex,
+): Promise<void> {
+  const { listPendingVacatingDateChangesForOps } = await import('@/src/services/vacatingDateChange');
+  const pending = await listPendingVacatingDateChangesForOps(50);
+  for (const row of pending) {
+    if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, row.pgId)) {
+      continue;
+    }
+    if (
+      isDismissedFromOperationsQueue(dismissalIndex, {
+        customerId: row.customerId,
+        bookingId: row.bookingId,
+        vacatingRequestId: row.vacatingRequestId,
+      })
+    ) {
+      continue;
+    }
+    items.push(mapVacatingDateChangeToOpsItem(row));
+  }
 }
 
 function electricityCollectionToItem(row: CollectionQueueItem): UnifiedOpsItem {
@@ -679,6 +704,8 @@ async function buildRoomOsUnifiedOperationsQueue(
     });
   }
 
+  await appendPendingVacatingDateChangeOpsItems(session, items, dismissalIndex);
+
   items = dedupeOperationsQueueItems(items);
 
   const counts = countOperationsQueueItems(items);
@@ -904,6 +931,8 @@ async function buildUnifiedOperationsQueue(
       ],
     });
   }
+
+  await appendPendingVacatingDateChangeOpsItems(session, items, dismissalIndex);
 
   items = dedupeOperationsQueueItems(items);
 

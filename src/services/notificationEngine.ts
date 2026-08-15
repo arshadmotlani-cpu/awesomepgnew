@@ -594,6 +594,7 @@ const INBOX_TYPE_LABELS: Record<string, string> = {
   deposit_collection_due: 'Deposit Due',
   kyc_pending: 'KYC Pending',
   vacating_alert: 'Vacating Notice',
+  vacating_date_change: 'Move-out Date Change',
   payment_proof_pending: 'Payment Proof',
   payment_proof_uploaded: 'Payment Awaiting Verification',
   checkout_settlement: 'Checkout',

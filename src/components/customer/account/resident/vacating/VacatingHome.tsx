@@ -148,7 +148,11 @@ export function VacatingHome({
     0;
 
   const refundSummary =
-    resolvedWaterfall != null ? buildResidentMoveOutRefundSummary(resolvedWaterfall) : null;
+    resolvedWaterfall != null
+      ? buildResidentMoveOutRefundSummary(resolvedWaterfall, {
+          isEstimate: !checkoutStatus && !settlementWaterfall,
+        })
+      : null;
 
   const residentActions = buildResidentMoveOutResidentActions({
     vacatingStatus: vacating?.status ?? null,

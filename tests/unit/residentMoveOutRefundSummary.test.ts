@@ -43,3 +43,22 @@ test('buildResidentMoveOutRefundSummary omits zero unused prepaid in UI layer', 
   );
   assert.equal(summary.unusedPrepaidRentPaise, 0);
 });
+
+test('buildResidentMoveOutRefundSummary flags electricity pending for estimates', () => {
+  const summary = buildResidentMoveOutRefundSummary(
+    mockWaterfall({
+      depositBucket: { collectedPaise: 500000, electricityPaise: 0, otherPaise: 0, tailRentPaise: 0 },
+    }),
+    { isEstimate: true },
+  );
+  assert.equal(summary.electricityPending, true);
+  assert.equal(summary.electricityDeductionPaise, 0);
+
+  const finalSummary = buildResidentMoveOutRefundSummary(
+    mockWaterfall({
+      depositBucket: { collectedPaise: 500000, electricityPaise: 0, otherPaise: 0, tailRentPaise: 0 },
+    }),
+    { isEstimate: false },
+  );
+  assert.equal(finalSummary.electricityPending, false);
+});

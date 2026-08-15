@@ -28,6 +28,7 @@ export const ACTION_ITEM_GROUP_LABELS: Record<ActionItemType, string> = {
   fixed_stay_checkout_due: 'Fixed Stay Checkouts',
   refund_request_submitted: 'Refund Requests Submitted',
   booking_approval: 'Booking Approval',
+  vacating_date_change: 'Move-out Date Changes',
 };
 
 export const ACTION_ITEM_GROUP_ORDER: ActionItemType[] = [
@@ -43,6 +44,7 @@ export const ACTION_ITEM_GROUP_ORDER: ActionItemType[] = [
   'extension_request',
   'kyc_pending',
   'vacating_alert',
+  'vacating_date_change',
   'maintenance_issue',
   'booking_approval',
 ];
@@ -77,4 +79,9 @@ export type ActionItemMetadata = {
   paymentSubmittedAt?: string;
   /** When true, all active admins receive an unread state (e.g. unassigned KYC). */
   notifyAllAdmins?: boolean;
+  dateChangeRequestId?: string;
+  noticeCompliant?: boolean;
+  currentVacatingDate?: string;
+  requestedVacatingDate?: string;
+  noticeGivenDate?: string;
 };

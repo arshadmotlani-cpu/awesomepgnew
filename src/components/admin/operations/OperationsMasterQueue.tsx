@@ -10,6 +10,8 @@ import type { MoveOutPipelineItemClient } from '@/src/lib/moveOut/moveOutPipelin
 import type { UnifiedOpsItem, UnifiedOperationsQueue } from '@/src/services/unifiedOperationsQueue';
 import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
 import type { PaymentProofRejectionHistoryRow } from '@/src/services/paymentProofRejectionService';
+import type { OperationsDateChangeBundle } from '@/src/lib/operations/loadOperationsDateChangeBundle';
+import { OperationsVacatingDateChangePanels } from '@/src/components/admin/operations/OperationsVacatingDateChangePanels';
 import { paiseToInr } from '@/src/lib/format';
 import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
 
@@ -34,12 +36,16 @@ export function OperationsMasterQueue({
   recentRejections = [],
   moveOutPipelineActiveItems,
   approvalPreviewByRequestId,
+  dateChangeBundle,
+  focusRequestId,
 }: {
   data: UnifiedOperationsQueue;
   isSuperAdmin?: boolean;
   recentRejections?: PaymentProofRejectionHistoryRow[];
   moveOutPipelineActiveItems?: MoveOutPipelineItemClient[];
   approvalPreviewByRequestId?: Record<string, VacatingApprovalPreview>;
+  dateChangeBundle?: OperationsDateChangeBundle;
+  focusRequestId?: string | null;
 }) {
   const activeFilter = data.filter;
 
@@ -62,26 +68,38 @@ export function OperationsMasterQueue({
       (item) => item.queue === 'vacating_requests' && !item.vacatingRequestId,
     );
     const pipelineItems = moveOutPipelineActiveItems ?? [];
-    const hasMoveOutActions = pipelineItems.some((item) =>
-      moveOutClientRequiresAdminActionNow(item),
-    );
+    const hasDateChangeActions = (dateChangeBundle?.pendingDateChanges.length ?? 0) > 0;
+    const hasMoveOutActions =
+      pipelineItems.some((item) => moveOutClientRequiresAdminActionNow(item)) ||
+      hasDateChangeActions;
 
     return (
       <div className="space-y-8">
         <OperationsFlashToast />
         <QueueHeader activeFilter={activeFilter} filterCounts={data.filterCounts} />
 
-        {hasMoveOutActions ? (
+        {hasDateChangeActions && dateChangeBundle ? (
+          <OperationsVacatingDateChangePanels
+            pendingDateChanges={dateChangeBundle.pendingDateChanges}
+            dateChangeContextByRequestId={dateChangeBundle.dateChangeContextByRequestId}
+            statementDocumentByRequestId={dateChangeBundle.statementDocumentByRequestId}
+            focusRequestId={focusRequestId}
+          />
+        ) : null}
+
+        {pipelineItems.some((item) => moveOutClientRequiresAdminActionNow(item)) ? (
           <MoveOutOpsActionPipeline
             items={pipelineItems}
             approvalPreviewByRequestId={approvalPreviewByRequestId}
           />
-        ) : (
+        ) : !hasDateChangeActions && ancillaryItems.length === 0 ? (
           <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-8 py-16 text-center">
             <p className="text-xl font-semibold text-emerald-100">Nothing in this queue</p>
-            <p className="mt-2 text-sm text-emerald-200/80">No admin action required right now.</p>
+            <p className="mt-2 text-sm text-emerald-200/80">
+              No additional move-out pipeline actions right now.
+            </p>
           </div>
-        )}
+        ) : null}
 
         {ancillaryItems.length > 0 ? (
           <div className="overflow-hidden rounded-2xl border border-white/10">

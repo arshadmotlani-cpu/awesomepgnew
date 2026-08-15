@@ -272,6 +272,7 @@ export const actionItemTypeEnum = pgEnum('action_item_type', [
   'fixed_stay_checkout_due',
   'refund_request_submitted',
   'booking_approval',
+  'vacating_date_change',
 ]);
 
 export const actionItemStatusEnum = pgEnum('action_item_status', [

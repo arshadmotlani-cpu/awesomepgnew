@@ -12,6 +12,7 @@ import {
   residentRequests,
   vacatingRequests,
 } from '@/src/db/schema';
+import { vacatingDateChangeRequests } from '@/src/db/schema/vacatingDateChangeRequests';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 
@@ -41,6 +42,10 @@ export async function evaluateNotificationDeepLink(
 
   if (readKey.startsWith('vacating:')) {
     return evaluateVacatingRead(readKey.slice('vacating:'.length));
+  }
+
+  if (readKey.startsWith('date_change:')) {
+    return evaluateDateChangeRead(readKey.slice('date_change:'.length));
   }
 
   if (readKey.startsWith('kyc:')) {
@@ -83,6 +88,24 @@ async function evaluateVacatingRead(vacatingRequestId: string): Promise<Notifica
   }
 
   if (row.status === 'completed' || row.status === 'rejected') {
+    return { status: 'resolved', message: RESOLVED_MESSAGE };
+  }
+
+  return { status: 'active', message: '' };
+}
+
+async function evaluateDateChangeRead(requestId: string): Promise<NotificationDeepLinkResult> {
+  if (!requestId) {
+    return { status: 'resolved', message: RESOLVED_MESSAGE };
+  }
+
+  const [row] = await db
+    .select({ status: vacatingDateChangeRequests.status })
+    .from(vacatingDateChangeRequests)
+    .where(eq(vacatingDateChangeRequests.id, requestId))
+    .limit(1);
+
+  if (!row || row.status !== 'pending') {
     return { status: 'resolved', message: RESOLVED_MESSAGE };
   }
 

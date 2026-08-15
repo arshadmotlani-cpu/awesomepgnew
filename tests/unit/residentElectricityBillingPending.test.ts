@@ -40,12 +40,22 @@ describe('Resident electricity billing pending UX', () => {
     assert.match(src, /electricityBillingPending/);
   });
 
-  it('operations queue does not surface electricity bills pending tab', () => {
-    const filterSrc = readFileSync(
-      join(process.cwd(), 'src/lib/operations/operationsFilterLinks.ts'),
+  it('deposit refund preview checks checkout-month electricity pending state', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'src/lib/deposits/depositRefundSettlementPreview.ts'),
       'utf8',
     );
-    assert.doesNotMatch(filterSrc, /electricity_billing_pending/);
-    assert.doesNotMatch(filterSrc, /Electricity bills pending/);
+    assert.match(src, /loadResidentElectricityBillingState/);
+    assert.match(src, /showPendingCard/);
+    assert.match(src, /electricityPending: true/);
+  });
+
+  it('resident refund card shows pending final meter label when estimate', () => {
+    const card = readFileSync(
+      join(process.cwd(), 'src/components/customer/account/resident/vacating/ResidentMoveOutRefundCard.tsx'),
+      'utf8',
+    );
+    assert.match(card, /electricityPending/);
+    assert.match(card, /Pending final meter/);
   });
 });

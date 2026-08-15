@@ -22,6 +22,9 @@ export function buildNotificationReadParam(type: ActionItem['type'], meta: Actio
   if (type === 'vacating_alert' && meta.vacatingRequestId) {
     return `vacating:${meta.vacatingRequestId}`;
   }
+  if (type === 'vacating_date_change' && meta.dateChangeRequestId) {
+    return `date_change:${meta.dateChangeRequestId}`;
+  }
   if (type === 'kyc_pending' && meta.submissionId) {
     return `kyc:${meta.submissionId}`;
   }

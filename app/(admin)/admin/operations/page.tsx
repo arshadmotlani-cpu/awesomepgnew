@@ -1,10 +1,20 @@
 import { redirect } from 'next/navigation';
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
+import {
+  OperationsAttentionBoard,
+  buildOperationsAttentionCards,
+} from '@/src/components/admin/operations/OperationsAttentionBoard';
+import { OperationsActivityFeed } from '@/src/components/admin/operations/OperationsActivityFeed';
 import { OperationsMasterQueue } from '@/src/components/admin/operations/OperationsMasterQueue';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 import { resolveOperationsFocusParam } from '@/src/lib/approvals/approvalDeepLinks';
+import { loadOperationsDateChangeBundle } from '@/src/lib/operations/loadOperationsDateChangeBundle';
+import {
+  groupOperationsActivityByDay,
+  loadOperationsActivityFeed,
+} from '@/src/lib/operations/loadOperationsActivityFeed';
 import { paymentReviewWorkspaceHref } from '@/src/lib/operations/paymentReviewLinks';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import {
@@ -25,6 +35,11 @@ import { listRecentPaymentProofRejectionsForAdmin } from '@/src/services/payment
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
+function parseDateChangeFocusId(focus: string | null): string | null {
+  if (!focus?.startsWith('date_change:')) return null;
+  return focus.slice('date_change:'.length).trim() || null;
+}
+
 export default async function OperationsPage({
   searchParams,
 }: {
@@ -32,12 +47,20 @@ export default async function OperationsPage({
 }) {
   const params = await searchParams;
   const session = await requireAdminSession('/admin/operations');
-  await ensureAdminPageNotificationsSeen('/admin/operations', '/admin/operations');
+  await ensureAdminPageNotificationsSeen(
+    '/admin/operations',
+    '/admin/operations',
+    params.focus ?? params.key,
+  );
 
   const filter = parseOperationsFilter(params.filter);
   const focus = resolveOperationsFocusParam(params);
 
-  if (filter === 'waiting_for_approval' && focus) {
+  if (focus?.startsWith('date_change:') && filter !== 'vacating_requests') {
+    redirect(operationsFilterHref('vacating_requests', focus));
+  }
+
+  if (filter === 'waiting_for_approval' && focus && !focus.startsWith('date_change:')) {
     redirect(paymentReviewWorkspaceHref(focus));
   }
 
@@ -52,6 +75,15 @@ export default async function OperationsPage({
     console.error('[operations] queue load failed', err);
     data = emptyUnifiedOperationsQueue(filter);
   }
+
+  const dateChangeBundle = await loadOperationsDateChangeBundle(session);
+  const activityItems = await loadOperationsActivityFeed(session);
+  const activityGroups = groupOperationsActivityByDay(activityItems);
+  const attentionCards = buildOperationsAttentionCards(
+    data.filterCounts,
+    dateChangeBundle.dateChangeCount,
+  );
+  const focusRequestId = parseDateChangeFocusId(focus);
 
   const recentRejections =
     filter === 'waiting_for_approval'
@@ -95,13 +127,27 @@ export default async function OperationsPage({
       />
 
       <AdminSectionErrorBoundary title="Operations">
-        <OperationsMasterQueue
-          data={data}
-          isSuperAdmin={session.role === 'super_admin'}
-          recentRejections={recentRejections}
-          moveOutPipelineActiveItems={moveOutPipelineActiveItems}
-          approvalPreviewByRequestId={approvalPreviewByRequestId}
-        />
+        <div className="space-y-8">
+          <OperationsAttentionBoard
+            totalCount={data.totalCount}
+            cards={attentionCards}
+            pendingDateChanges={dateChangeBundle.pendingDateChanges}
+            dateChangeContextByRequestId={dateChangeBundle.dateChangeContextByRequestId}
+            statementDocumentByRequestId={dateChangeBundle.statementDocumentByRequestId}
+            focusRequestId={focusRequestId}
+            hideDateChangePanels={filter === 'vacating_requests'}
+          />
+          <OperationsActivityFeed groups={activityGroups} />
+          <OperationsMasterQueue
+            data={data}
+            isSuperAdmin={session.role === 'super_admin'}
+            recentRejections={recentRejections}
+            moveOutPipelineActiveItems={moveOutPipelineActiveItems}
+            approvalPreviewByRequestId={approvalPreviewByRequestId}
+            dateChangeBundle={dateChangeBundle}
+            focusRequestId={focusRequestId}
+          />
+        </div>
       </AdminSectionErrorBoundary>
     </>
   );

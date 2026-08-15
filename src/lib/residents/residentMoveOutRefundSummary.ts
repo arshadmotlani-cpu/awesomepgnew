@@ -6,11 +6,14 @@ export type ResidentMoveOutRefundSummary = {
   electricityDeductionPaise: number;
   otherDeductionsPaise: number;
   estimatedRefundPaise: number;
+  /** Checkout final-meter electricity not yet calculated. */
+  electricityPending?: boolean;
 };
 
 /** Resident refund card — derived from checkout settlement waterfall SSOT. */
 export function buildResidentMoveOutRefundSummary(
   waterfall: CheckoutSettlementWaterfall,
+  options?: { isEstimate?: boolean },
 ): ResidentMoveOutRefundSummary {
   const otherDeductionsPaise =
     waterfall.notice.fromDepositPaise +
@@ -23,5 +26,7 @@ export function buildResidentMoveOutRefundSummary(
     electricityDeductionPaise: waterfall.depositBucket.electricityPaise,
     otherDeductionsPaise,
     estimatedRefundPaise: waterfall.refund.totalPaise,
+    electricityPending:
+      options?.isEstimate === true && waterfall.depositBucket.electricityPaise === 0,
   };
 }

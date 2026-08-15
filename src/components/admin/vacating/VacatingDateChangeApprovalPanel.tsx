@@ -41,19 +41,42 @@ export function VacatingDateChangeApprovalPanel({
 
   return (
     <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4">
-      <p className="text-sm font-semibold text-amber-100">Leaving date change — pending approval</p>
-      <p className="mt-1 text-sm text-amber-100/90">
-        {formatDate(String(request.currentVacatingDate))} →{' '}
-        {formatDate(String(request.requestedVacatingDate))}
-      </p>
-      {request.preview?.noticeGivenDate ? (
-        <p className="mt-1 text-xs text-amber-200/80">
-          Original notice: {formatDate(request.preview.noticeGivenDate)} ·{' '}
-          {request.preview.noticeCompliant
-            ? '5-day notice satisfied for requested date'
-            : '5-day notice NOT satisfied for requested date'}
-        </p>
-      ) : null}
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="text-sm font-semibold text-amber-100">Move-out date change</p>
+        {bookingContext ? (
+          <p className="text-xs text-amber-200/80">
+            {bookingContext.customerName} · {bookingContext.bookingCode}
+            {bookingContext.roomNumber ? ` · Room ${bookingContext.roomNumber}` : ''}
+          </p>
+        ) : null}
+      </div>
+      <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+        <div>
+          <dt className="text-xs text-amber-200/70">Current approved stay</dt>
+          <dd className="font-medium text-amber-50">{formatDate(String(request.currentVacatingDate))}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-amber-200/70">Requested stay</dt>
+          <dd className="font-medium text-amber-50">{formatDate(String(request.requestedVacatingDate))}</dd>
+        </div>
+        {request.preview?.noticeGivenDate ? (
+          <div>
+            <dt className="text-xs text-amber-200/70">Original notice</dt>
+            <dd className="font-medium text-amber-50">{formatDate(request.preview.noticeGivenDate)}</dd>
+          </div>
+        ) : null}
+        <div>
+          <dt className="text-xs text-amber-200/70">Notice compliance</dt>
+          <dd className="font-medium text-amber-50">
+            {request.preview?.noticeCompliant ? '✓ 5-day requirement satisfied' : 'Review notice shortfall'}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-amber-200/70">Current electricity</dt>
+          <dd className="font-medium text-amber-50">Not yet calculated</dd>
+          <p className="text-[11px] text-amber-200/70">Final meter reading required during refund process</p>
+        </div>
+      </dl>
       {request.preview?.direction === 'later' &&
       (request.preview.additionalStayDays ?? 0) > 0 ? (
         <p className="mt-1 text-xs text-amber-200/80">
