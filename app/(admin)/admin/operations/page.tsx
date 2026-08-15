@@ -122,6 +122,25 @@ export default async function OperationsPage({
   if (filter === 'waiting_for_approval') {
     try {
       recentRejections = await listRecentPaymentProofRejectionsForAdmin(session, 40);
+      // #region agent log
+      fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '2cf3ae' },
+        body: JSON.stringify({
+          sessionId: '2cf3ae',
+          runId: 'post-fix',
+          hypothesisId: 'H1-rejection-dates',
+          location: 'operations/page.tsx:recentRejections',
+          message: 'recentRejections loaded',
+          data: {
+            count: recentRejections.length,
+            rejectedAtType: recentRejections[0] ? typeof recentRejections[0].rejectedAt : null,
+            createdAtType: recentRejections[0] ? typeof recentRejections[0].createdAt : null,
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
     } catch (err) {
       logOperationsLoaderError('paymentRejections', filter, focus, err);
     }

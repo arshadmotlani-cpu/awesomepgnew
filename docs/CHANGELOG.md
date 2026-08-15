@@ -256,7 +256,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-15 09:29:25 UTC
+### Pending pre-commit sync · 2026-08-15 10:05:33 UTC
 
 **Areas touched:** [[ROUTES]]
 
@@ -265,8 +265,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
-**Staged code files (2):**
-- `app/(admin)/admin/error.tsx`
+**Staged code files (1):**
 - `app/(admin)/admin/operations/page.tsx`
 
 **Changed:**

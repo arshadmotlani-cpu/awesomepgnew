@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { formatDateTime } from '@/src/lib/format';
-import type { PaymentProofRejectionHistoryRow } from '@/src/services/paymentProofRejectionService';
+import type { PaymentProofRejectionHistoryRowClient } from '@/src/lib/operations/paymentProofRejectionClient';
 import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
 
 /**
@@ -10,7 +10,7 @@ import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks
 export function OperationsRejectedPaymentsSection({
   rows,
 }: {
-  rows: PaymentProofRejectionHistoryRow[];
+  rows: PaymentProofRejectionHistoryRowClient[];
 }) {
   return (
     <section className="rounded-2xl border border-white/10 bg-[#1A1F27]">

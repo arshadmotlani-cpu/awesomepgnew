@@ -9,7 +9,7 @@ import { moveOutClientRequiresAdminActionNow } from '@/src/lib/operations/moveOu
 import type { MoveOutPipelineItemClient } from '@/src/lib/moveOut/moveOutPipeline';
 import type { UnifiedOpsItem, UnifiedOperationsQueue } from '@/src/services/unifiedOperationsQueue';
 import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
-import type { PaymentProofRejectionHistoryRow } from '@/src/services/paymentProofRejectionService';
+import type { PaymentProofRejectionHistoryRowClient } from '@/src/lib/operations/paymentProofRejectionClient';
 import type { OperationsDateChangeBundle } from '@/src/lib/operations/loadOperationsDateChangeBundle';
 import { OperationsVacatingDateChangePanels } from '@/src/components/admin/operations/OperationsVacatingDateChangePanels';
 import { paiseToInr } from '@/src/lib/format';
@@ -41,7 +41,7 @@ export function OperationsMasterQueue({
 }: {
   data: UnifiedOperationsQueue;
   isSuperAdmin?: boolean;
-  recentRejections?: PaymentProofRejectionHistoryRow[];
+  recentRejections?: PaymentProofRejectionHistoryRowClient[];
   moveOutPipelineActiveItems?: MoveOutPipelineItemClient[];
   approvalPreviewByRequestId?: Record<string, VacatingApprovalPreview>;
   dateChangeBundle?: OperationsDateChangeBundle;

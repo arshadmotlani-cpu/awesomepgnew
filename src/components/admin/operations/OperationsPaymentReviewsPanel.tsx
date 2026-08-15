@@ -9,7 +9,7 @@ import { PaymentProofRejectionDialog } from '@/src/components/admin/operations/P
 import { PaymentProofRejectionHistory } from '@/src/components/admin/operations/PaymentProofRejectionHistory';
 import { useOperationsActionToast } from '@/src/components/admin/operations/OperationsActionToast';
 import { PaymentScreenshotPreview } from '@/src/components/admin/PaymentScreenshotPreview';
-import type { PaymentProofRejectionHistoryRow } from '@/src/services/paymentProofRejectionService';
+import type { PaymentProofRejectionHistoryRowClient } from '@/src/lib/operations/paymentProofRejectionClient';
 import { PipelineTestInvoiceBadge } from '@/src/components/admin/PipelineTestInvoiceBadge';
 import { InvoiceAdminRowActions } from '@/src/components/admin/InvoiceAdminRowActions';
 import { OPS_ORANGE, OPS_PANEL } from '@/src/components/admin/residentOps/residentOpsUi';
@@ -39,7 +39,7 @@ export function OperationsPaymentReviewsPanel({
 }: {
   items: PendingPaymentReviewItem[];
   reviewMode?: boolean;
-  rejectionHistory?: PaymentProofRejectionHistoryRow[];
+  rejectionHistory?: PaymentProofRejectionHistoryRowClient[];
 }) {
   const router = useRouter();
   const [busyKey, setBusyKey] = useState<string | null>(null);

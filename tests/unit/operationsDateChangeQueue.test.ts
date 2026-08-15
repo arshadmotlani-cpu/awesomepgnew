@@ -9,6 +9,7 @@ import {
 } from '@/src/lib/operations/operationsFilterLinks';
 import type { PendingVacatingDateChangeOpsRow } from '@/src/services/vacatingDateChange';
 import { toClientVacatingDateChangeRequest } from '@/src/lib/operations/vacatingDateChangeClient';
+import { toClientPaymentProofRejectionHistoryRow } from '@/src/lib/operations/paymentProofRejectionClient';
 import type { VacatingDateChangeRequest } from '@/src/db/schema/vacatingDateChangeRequests';
 import type { OperationsActivityItem } from '@/src/lib/operations/loadOperationsActivityFeed';
 
@@ -126,6 +127,39 @@ test('toClientVacatingDateChangeRequest serializes Date fields for RSC boundary'
   const roundTrip = JSON.parse(JSON.stringify(client));
   assert.equal(roundTrip.createdAt, client.createdAt);
   assert.equal(typeof roundTrip.createdAt, 'string');
+});
+
+test('toClientPaymentProofRejectionHistoryRow serializes Date fields for RSC boundary', () => {
+  const row = {
+    id: 'rej-1',
+    reviewKey: 'rent:inv-1',
+    entityType: 'rent_invoice' as const,
+    entityId: 'inv-1',
+    customerId: 'cust-1',
+    pgId: 'pg-1',
+    bookingId: 'bk-1',
+    reasonCode: 'amount_mismatch',
+    reasonLabel: 'Amount mismatch',
+    reasonDetail: null,
+    adminNote: null,
+    residentMessage: 'Please pay the correct amount.',
+    rejectedByAdminId: 'admin-1',
+    rejectedAt: new Date('2026-08-15T10:00:00.000Z'),
+    whatsappSent: true,
+    whatsappMessagePreview: 'Hi',
+    status: 'active' as const,
+    createdAt: new Date('2026-08-15T10:00:00.000Z'),
+    updatedAt: new Date('2026-08-15T10:05:00.000Z'),
+    rejectedByName: 'Admin',
+  };
+
+  const client = toClientPaymentProofRejectionHistoryRow(row);
+  assert.equal(client.rejectedAt, '2026-08-15T10:00:00.000Z');
+  assert.equal(client.createdAt, '2026-08-15T10:00:00.000Z');
+  assert.equal(client.updatedAt, '2026-08-15T10:05:00.000Z');
+  assert.equal(typeof client.rejectedAt, 'string');
+  const roundTrip = JSON.parse(JSON.stringify(client));
+  assert.equal(roundTrip.rejectedAt, client.rejectedAt);
 });
 
 test('operations activity feed items use ISO occurredAt strings', () => {

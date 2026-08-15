@@ -1,10 +1,10 @@
 import { formatDateTime } from '@/src/lib/format';
-import type { PaymentProofRejectionHistoryRow } from '@/src/services/paymentProofRejectionService';
+import type { PaymentProofRejectionHistoryRowClient } from '@/src/lib/operations/paymentProofRejectionClient';
 
 export function PaymentProofRejectionHistory({
   rows,
 }: {
-  rows: PaymentProofRejectionHistoryRow[];
+  rows: PaymentProofRejectionHistoryRowClient[];
 }) {
   if (rows.length === 0) return null;
 

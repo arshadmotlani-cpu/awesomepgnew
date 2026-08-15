@@ -32,6 +32,10 @@ import {
 } from '@/src/lib/approvals/paymentProofRejectionReasons';
 import { writeAuditLogNonBlocking } from '@/src/lib/audit/writeAuditLog';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
+import {
+  toClientPaymentProofRejectionHistoryRow,
+  type PaymentProofRejectionHistoryRowClient,
+} from '@/src/lib/operations/paymentProofRejectionClient';
 import { revalidateReservationLifecycleViews } from '@/src/lib/occupancyRevalidate';
 import { projectInvoice } from '@/src/services/rentInvoices';
 
@@ -64,6 +68,8 @@ export type PaymentProofRejectionRow = typeof paymentProofRejections.$inferSelec
 export type PaymentProofRejectionHistoryRow = PaymentProofRejectionRow & {
   rejectedByName: string | null;
 };
+
+export type { PaymentProofRejectionHistoryRowClient } from '@/src/lib/operations/paymentProofRejectionClient';
 
 export function reviewKindToEntityType(
   kind: PendingPaymentReviewItem['kind'],
@@ -421,7 +427,7 @@ export async function listActiveRejectionsForCustomer(
 export async function listPaymentProofRejectionsForEntity(
   entityType: PaymentProofEntityType,
   entityId: string,
-): Promise<PaymentProofRejectionHistoryRow[]> {
+): Promise<PaymentProofRejectionHistoryRowClient[]> {
   const rows = await db
     .select({
       rejection: paymentProofRejections,
@@ -437,14 +443,19 @@ export async function listPaymentProofRejectionsForEntity(
     )
     .orderBy(desc(paymentProofRejections.rejectedAt));
 
-  return rows.map((r) => ({ ...r.rejection, rejectedByName: r.rejectedByName }));
+  return rows.map((r) =>
+    toClientPaymentProofRejectionHistoryRow({
+      ...r.rejection,
+      rejectedByName: r.rejectedByName,
+    }),
+  );
 }
 
 /** Recent rejections across PGs the admin can access — Operations history panel. */
 export async function listRecentPaymentProofRejectionsForAdmin(
   session: AdminSession,
   limit = 40,
-): Promise<PaymentProofRejectionHistoryRow[]> {
+): Promise<PaymentProofRejectionHistoryRowClient[]> {
   const rows = await db
     .select({
       rejection: paymentProofRejections,
@@ -461,7 +472,12 @@ export async function listRecentPaymentProofRejectionsForAdmin(
     )
     .slice(0, limit);
 
-  return scoped.map((r) => ({ ...r.rejection, rejectedByName: r.rejectedByName }));
+  return scoped.map((r) =>
+    toClientPaymentProofRejectionHistoryRow({
+      ...r.rejection,
+      rejectedByName: r.rejectedByName,
+    }),
+  );
 }
 
 export async function rejectPaymentProof(

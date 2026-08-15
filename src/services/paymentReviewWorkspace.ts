@@ -30,7 +30,7 @@ import {
 import {
   listPaymentProofRejectionsForEntity,
   reviewKindToEntityType,
-  type PaymentProofRejectionHistoryRow,
+  type PaymentProofRejectionHistoryRowClient,
 } from '@/src/services/paymentProofRejectionService';
 
 export type PaymentReviewWorkspaceBookingContext = {
@@ -61,7 +61,7 @@ export type PaymentReviewWorkspaceData = {
   reviewKey: string;
   item: PendingPaymentReviewItem;
   breakdown: PaymentReviewBreakdown;
-  rejectionHistory: PaymentProofRejectionHistoryRow[];
+  rejectionHistory: PaymentProofRejectionHistoryRowClient[];
   booking: PaymentReviewWorkspaceBookingContext | null;
   kycStatus: 'pending' | 'approved' | 'rejected' | null;
   nextReviewKey: string | null;
