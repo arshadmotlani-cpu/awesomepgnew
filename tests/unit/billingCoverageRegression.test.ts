@@ -158,9 +158,78 @@ test('Case F — move-in checkout (0082): expand coverage, vacate in paid window
     missingNoticeDays: model.noticeBreakdown?.missingNoticeDays ?? 0,
     noticeApplies: true,
     checkoutTailRentPaise: model.tailRentPaise,
+    prepaidAfterVacatingPaise: model.prepaidAfterVacatingPaise,
   };
   const waterfall = computeVacatingSettlementWaterfallFromContext(ctx);
   assert.equal(waterfall.depositBucket.tailRentPaise, 0);
+  assert.equal(waterfall.depositBucket.collectedPaise, deposit205900);
   assert.equal(waterfall.depositBucket.refundablePaise, deposit205900);
+  assert.equal(waterfall.refund.unusedRentPortionPaise, 0);
   assert.equal(waterfall.refund.totalPaise, deposit205900);
+});
+
+test('Case G — 0083-like: earlier vacate unlocks unused prepaid from paid period', () => {
+  const rawFirstInvoice = rawPeriodFromInvoiceDueDate('2026-07-21', billingDay21, 'inv-0083');
+  const paidPeriod = {
+    ...rawFirstInvoice,
+    paidPrincipalPaise: monthly412080,
+  };
+
+  const model20 = buildBillingCoverageModel({
+    bookingId: 'bk-0083',
+    moveInDate: moveInJul21,
+    billingDay: billingDay21,
+    rawPaidPeriods: [paidPeriod],
+    vacatingDate: '2026-08-20',
+    noticeGivenDate: '2026-07-23',
+    monthlyRentPaise: monthly412080,
+    rentReceivedPaise: monthly412080,
+    treatAsApprovedForTail: true,
+    noticeApplies: true,
+  });
+
+  const model15 = buildBillingCoverageModel({
+    bookingId: 'bk-0083',
+    moveInDate: moveInJul21,
+    billingDay: billingDay21,
+    rawPaidPeriods: [paidPeriod],
+    vacatingDate: '2026-08-15',
+    noticeGivenDate: '2026-07-23',
+    monthlyRentPaise: monthly412080,
+    rentReceivedPaise: monthly412080,
+    treatAsApprovedForTail: true,
+    noticeApplies: true,
+  });
+
+  assert.ok(model15.prepaidAfterVacatingDays > model20.prepaidAfterVacatingDays);
+  assert.ok(model15.prepaidAfterVacatingPaise > model20.prepaidAfterVacatingPaise);
+
+  const waterfall20 = computeVacatingSettlementWaterfallFromContext({
+    checkInDate: moveInJul21,
+    vacatingDate: '2026-08-20',
+    rentPaidPaise: monthly412080,
+    depositHeldPaise: deposit205900,
+    monthlyRentPaise: monthly412080,
+    missingNoticeDays: model20.noticeBreakdown?.missingNoticeDays ?? 0,
+    noticeApplies: true,
+    checkoutTailRentPaise: model20.tailRentPaise,
+    prepaidAfterVacatingPaise: model20.prepaidAfterVacatingPaise,
+  });
+  const waterfall15 = computeVacatingSettlementWaterfallFromContext({
+    checkInDate: moveInJul21,
+    vacatingDate: '2026-08-15',
+    rentPaidPaise: monthly412080,
+    depositHeldPaise: deposit205900,
+    monthlyRentPaise: monthly412080,
+    missingNoticeDays: model15.noticeBreakdown?.missingNoticeDays ?? 0,
+    noticeApplies: true,
+    checkoutTailRentPaise: model15.tailRentPaise,
+    prepaidAfterVacatingPaise: model15.prepaidAfterVacatingPaise,
+  });
+
+  assert.equal(waterfall20.depositBucket.collectedPaise, deposit205900);
+  assert.equal(waterfall15.depositBucket.collectedPaise, deposit205900);
+  assert.equal(waterfall20.refund.unusedRentPortionPaise, 0);
+  assert.ok(waterfall15.refund.unusedRentPortionPaise > 0);
+  assert.ok(waterfall15.refund.totalPaise > waterfall20.refund.totalPaise);
 });

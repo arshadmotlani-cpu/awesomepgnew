@@ -27,17 +27,24 @@ test('admin change panel is wired to financial workspace and vacating row action
   assert.match(rowActions, /AdminChangeVacatingDatePanel/);
 });
 
-test('resident profile exposes change-date link when checkout not started', () => {
+test('resident portal tab data exposes vacating date change eligibility', () => {
   const profileData = readFileSync(
     join(process.cwd(), 'src/services/residentPortalTabData.ts'),
     'utf8',
   );
-  const moveOutStatus = readFileSync(
-    join(process.cwd(), 'src/components/customer/account/resident/ResidentHomeMoveOutStatus.tsx'),
+  const requestsHome = readFileSync(
+    join(process.cwd(), 'src/components/customer/account/resident/requests/RequestsHome.tsx'),
+    'utf8',
+  );
+  const profileOverview = readFileSync(
+    join(process.cwd(), 'src/components/customer/account/resident/ProfileOverviewPanel.tsx'),
     'utf8',
   );
   assert.match(profileData, /canRequestVacatingDateChange/);
-  assert.match(moveOutStatus, /Change final stay date/);
+  assert.match(requestsHome, /id="resident-move-out"/);
+  assert.match(requestsHome, /ResidentCancelMoveOutCard|VacatingHome/);
+  assert.doesNotMatch(profileOverview, /ResidentHomeMoveOutStatus/);
+  assert.doesNotMatch(profileOverview, /Change final stay date/);
 });
 
 test('stayRangeExclusiveEnd aligns bed release with vacating semantics', () => {

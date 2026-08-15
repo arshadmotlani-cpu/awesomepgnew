@@ -106,11 +106,6 @@ export function ResidentProfileHub({
             roommatesCount={roommatesCount}
             roomCapacity={roomCapacity}
             ps4Active={ps4Active}
-            vacatingStatus={vacatingStatus}
-            checkoutStatus={checkoutStatus}
-            vacatingDate={vacatingDate}
-            settlementWaterfall={settlementWaterfall}
-            canRequestVacatingDateChange={canRequestVacatingDateChange}
           />
           <div className="mt-4">
             <ProfileEditSection

@@ -18,24 +18,23 @@ export function ResidentMoveOutSummaryCard({
   noticeGivenDate,
   vacatingStatus,
   roomLabel,
-  bookingCode,
 }: {
   vacatingDate: string;
   noticeGivenDate: string | null;
   vacatingStatus: string;
   roomLabel: string;
-  bookingCode: string;
+  bookingCode?: string;
 }) {
   return (
     <ApgCard tier="resident" className="space-y-3">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-apg-orange">Move-out</p>
         <h1 className="mt-1 text-lg font-semibold text-white">Your move-out</h1>
-        <p className="mt-1 text-xs text-apg-silver">{roomLabel} · Booking {bookingCode}</p>
+        <p className="mt-1 text-xs text-apg-silver">{roomLabel}</p>
       </div>
       <dl className="space-y-2 text-sm">
         <div className="flex justify-between gap-3">
-          <dt className="text-apg-silver">Current approved final stay date</dt>
+          <dt className="text-apg-silver">Final stay date</dt>
           <dd className="font-semibold text-white">{formatFinalStayDateLabel(vacatingDate)}</dd>
         </div>
         {noticeGivenDate ? (

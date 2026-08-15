@@ -22,6 +22,53 @@ import {
 
 export type BillingCoveragePeriod = PaidRentCoveragePeriod;
 
+/** Calendar days inclusive between two YYYY-MM-DD dates. */
+export function calendarDaysInclusive(periodStart: string, periodEnd: string): number {
+  return Math.max(1, diffDays(periodStart, periodEnd) + 1);
+}
+
+/** Daily rent from actual billing-period rent ÷ calendar days in that period (28–31). */
+export function dailyRateFromBillingPeriod(
+  periodRentPaise: number,
+  periodStart: string,
+  periodEnd: string,
+): number {
+  if (periodRentPaise <= 0) return 0;
+  const days = calendarDaysInclusive(periodStart, periodEnd);
+  return Math.floor(periodRentPaise / days);
+}
+
+/** Unused prepaid rent after vacating — days after vacate × period daily rate from paid invoice. */
+export function computePrepaidRentAfterVacating(args: {
+  vacatingDate: string;
+  paidUntilDate: string | null;
+  period: BillingCoveragePeriod | null;
+  fallbackMonthlyRentPaise?: number;
+}): { days: number; paise: number; dailyRentPaise: number } {
+  const days = unusedPrepaidRentDaysAfterVacating(args.vacatingDate, args.paidUntilDate);
+  if (days <= 0) return { days: 0, paise: 0, dailyRentPaise: 0 };
+
+  const period = args.period;
+  if (
+    period?.paidPrincipalPaise != null &&
+    period.paidPrincipalPaise > 0 &&
+    period.periodStart &&
+    period.periodEnd
+  ) {
+    const dailyRentPaise = dailyRateFromBillingPeriod(
+      period.paidPrincipalPaise,
+      period.periodStart,
+      period.periodEnd,
+    );
+    return { days, paise: dailyRentPaise * days, dailyRentPaise };
+  }
+
+  const monthlyRentPaise = args.fallbackMonthlyRentPaise ?? 0;
+  const dailyRentPaise = dailyRateFromMonthly(monthlyRentPaise);
+  return { days, paise: dailyRentPaise * days, dailyRentPaise };
+}
+
+
 export type BillingCoverageModel = {
   bookingId: string;
   moveInDate: string;
@@ -238,8 +285,15 @@ export function buildBillingCoverageModel(input: BuildBillingCoverageInput): Bil
   const prepaidAfterVacatingDays = vacatingDate
     ? unusedPrepaidRentDaysAfterVacating(vacatingDate, paidUntilDate)
     : 0;
-  const dailyRentPaise = monthlyRentPaise > 0 ? dailyRateFromMonthly(monthlyRentPaise) : 0;
-  const prepaidAfterVacatingPaise = dailyRentPaise * prepaidAfterVacatingDays;
+  const prepaidRent = vacatingDate
+    ? computePrepaidRentAfterVacating({
+        vacatingDate,
+        paidUntilDate,
+        period: periodUsedForPrepaid,
+        fallbackMonthlyRentPaise: monthlyRentPaise,
+      })
+    : { days: 0, paise: 0, dailyRentPaise: 0 };
+  const prepaidAfterVacatingPaise = prepaidRent.paise;
 
   const daysPaid = vacatingDate
     ? computeDaysPaidForSettlement({

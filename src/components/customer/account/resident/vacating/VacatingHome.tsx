@@ -6,6 +6,7 @@ import { ApgCard } from '@/src/components/customer/design-system';
 import { DepositRefundRequestForm } from '@/src/components/customer/account/DepositRefundRequestForm';
 import { MoveOutRefundSuccess } from '@/src/components/customer/account/resident/vacating/MoveOutRefundSuccess';
 import { ChangeLeavingDateForm } from '@/src/components/customer/account/resident/vacating/ChangeLeavingDateForm';
+import { ResidentCancelMoveOutCard } from '@/src/components/customer/account/resident/vacating/ResidentCancelMoveOutCard';
 import { ResidentMoveOutActionsCard } from '@/src/components/customer/account/resident/vacating/ResidentMoveOutActionsCard';
 import { ResidentMoveOutRefundCard } from '@/src/components/customer/account/resident/vacating/ResidentMoveOutRefundCard';
 import { ResidentMoveOutSummaryCard } from '@/src/components/customer/account/resident/vacating/ResidentMoveOutSummaryCard';
@@ -112,6 +113,14 @@ export function VacatingHome({
     lifecycle.capabilities.canEditVacating.allowed &&
     !checkoutSettlementSuppressed &&
     !checkoutStatus &&
+    !isMoveOutComplete &&
+    !fixedStay;
+
+  const showCancelMoveOut =
+    vacating &&
+    (vacating.status === 'pending' || vacating.status === 'approved') &&
+    !checkoutStatus &&
+    !checkoutSettlementSuppressed &&
     !isMoveOutComplete &&
     !fixedStay;
 
@@ -255,6 +264,13 @@ export function VacatingHome({
                 </p>
               ) : null}
             </ApgCard>
+          ) : null}
+
+          {showCancelMoveOut ? (
+            <ResidentCancelMoveOutCard
+              requestId={vacating.id}
+              vacatingStatus={vacating.status}
+            />
           ) : null}
 
           {checkoutSettlement?.rejectionReason ? (

@@ -49,11 +49,11 @@ export function ResidentMoveOutRefundCard({
         {summary.unusedPrepaidRentPaise > 0 ? (
           <Row label="Unused prepaid rent" amountPaise={summary.unusedPrepaidRentPaise} />
         ) : null}
-        {summary.electricityDeductionPaise > 0 ? (
-          <Row label="Electricity deduction" amountPaise={summary.electricityDeductionPaise} />
-        ) : null}
-        {summary.otherDeductionsPaise > 0 ? (
-          <Row label="Other deductions" amountPaise={summary.otherDeductionsPaise} />
+        {summary.electricityDeductionPaise + summary.otherDeductionsPaise > 0 ? (
+          <Row
+            label="Electricity / deductions"
+            amountPaise={summary.electricityDeductionPaise + summary.otherDeductionsPaise}
+          />
         ) : null}
       </dl>
       <div className="border-t border-white/10 pt-3">

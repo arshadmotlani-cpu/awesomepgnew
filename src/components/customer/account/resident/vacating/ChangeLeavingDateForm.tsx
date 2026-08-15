@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { ApgCard } from '@/src/components/customer/design-system';
-import { formatDate, paiseToInr } from '@/src/lib/format';
+import { formatDate } from '@/src/lib/format';
 import { todayString } from '@/src/lib/dates';
 import {
   previewVacatingDateChangeAction,
@@ -11,13 +11,14 @@ import {
 } from '@/app/(customer)/account/resident/vacating-date-change-actions';
 import type { VacatingDateChangePreview } from '@/src/services/vacatingDateChange';
 import { buildVacatingDateConfirmation } from '@/src/lib/vacating/vacatingBedSemantics';
+import { ResidentVacatingDateChangeImpact } from '@/src/components/customer/account/resident/vacating/ResidentVacatingDateChangeImpact';
 
 function buildDateExplanation(vacatingDate: string): string {
   const conf = buildVacatingDateConfirmation(vacatingDate);
   if (conf.isTodaySelected) {
-    return 'If you leave today, today is your final paid/stay day. Your bed will be available tomorrow at 11:00 AM.';
+    return 'If you select today, today will be your final paid/stay day. Your bed will be available tomorrow at 11:00 AM.';
   }
-  return `If you select ${conf.finalStayDateLabel}, that will be your final paid/stay day. Your bed will be available ${conf.bedAvailableLabel}.`;
+  return `If you select ${conf.finalStayDateLabel}, ${conf.finalStayDateLabel} will be your final paid/stay day. Your bed will be available from ${conf.bedAvailableLabel}.`;
 }
 
 export function ChangeLeavingDateForm({
@@ -36,8 +37,34 @@ export function ChangeLeavingDateForm({
   const [preview, setPreview] = useState<VacatingDateChangePreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const previewRequestIdRef = useRef(0);
   const today = todayString();
   const dateExplanation = /^\d{4}-\d{2}-\d{2}$/.test(newDate) ? buildDateExplanation(newDate) : null;
+  const canSubmit = Boolean(preview) && !error && !pending;
+
+  useEffect(() => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate) || newDate === currentVacatingDate) {
+      setPreview(null);
+      return;
+    }
+
+    const requestId = ++previewRequestIdRef.current;
+    const timer = window.setTimeout(() => {
+      startTransition(async () => {
+        setError(null);
+        const res = await previewVacatingDateChangeAction(bookingId, newDate);
+        if (requestId !== previewRequestIdRef.current) return;
+        if (!res.ok || !res.preview) {
+          setError(res.ok ? 'Could not calculate impact.' : res.error);
+          setPreview(null);
+          return;
+        }
+        setPreview(res.preview);
+      });
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [bookingId, currentVacatingDate, newDate]);
 
   if (pendingRequestId) {
     return (
@@ -69,9 +96,9 @@ export function ChangeLeavingDateForm({
   return (
     <ApgCard tier="resident" className="space-y-4">
       <div>
-        <h2 className="text-sm font-semibold text-white">Want to leave on a different date?</h2>
+        <h2 className="text-sm font-semibold text-white">Change final stay date</h2>
         <p className="mt-1 text-xs text-apg-silver">
-          Current approved final stay date: {formatDate(currentVacatingDate)}
+          Current final stay date: {formatDate(currentVacatingDate)}
         </p>
       </div>
 
@@ -104,29 +131,18 @@ export function ChangeLeavingDateForm({
         />
       </label>
 
+      {pending && !preview ? (
+        <p className="text-xs text-apg-silver">Calculating impact…</p>
+      ) : null}
+
+      {error ? <p className="text-xs text-rose-300">{error}</p> : null}
+
+      {preview ? <ResidentVacatingDateChangeImpact preview={preview} /> : null}
+
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          disabled={pending || !newDate}
-          className="rounded-lg border border-white/20 px-3 py-2 text-xs font-medium text-white hover:bg-white/5 disabled:opacity-50"
-          onClick={() =>
-            startTransition(async () => {
-              setError(null);
-              const res = await previewVacatingDateChangeAction(bookingId, newDate);
-              if (!res.ok || !res.preview) {
-                setError(res.ok ? 'Could not preview.' : res.error);
-                setPreview(null);
-                return;
-              }
-              setPreview(res.preview);
-            })
-          }
-        >
-          Preview impact
-        </button>
-        <button
-          type="button"
-          disabled={pending || !preview}
+          disabled={!canSubmit}
           className="rounded-lg bg-apg-orange px-4 py-2 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50"
           onClick={() =>
             startTransition(async () => {
@@ -143,21 +159,6 @@ export function ChangeLeavingDateForm({
           Submit change request
         </button>
       </div>
-
-      {error ? <p className="text-xs text-rose-300">{error}</p> : null}
-
-      {preview ? (
-        <div className="space-y-2 border-t border-white/10 pt-4">
-          <p className="text-sm font-medium text-white">
-            {formatDate(preview.currentVacatingDate)} → {formatDate(preview.requestedVacatingDate)}
-          </p>
-          <p className="text-sm text-apg-silver">{preview.refundDeltaLabel}</p>
-          <p className="text-xs text-apg-silver">
-            Current estimate {paiseToInr(preview.currentEstimatedRefundPaise)} → New estimate{' '}
-            {paiseToInr(preview.requestedEstimatedRefundPaise)}
-          </p>
-        </div>
-      ) : null}
     </ApgCard>
   );
 }

@@ -130,8 +130,14 @@ test('deduction plan uses deposit notice portion only', () => {
 test('early move-out: prepaid after vacate refunds when notice compliant', () => {
   const monthlyRentPaise = 412_080; // ₹4,121
   const daily = Math.floor(monthlyRentPaise / 30); // 13_736
+  const stayDays = 26; // Jul 21 → Aug 15 inclusive
   const prepaidDays = 6;
   const prepaidAfterVacatingPaise = daily * prepaidDays;
+  const stayConsumedPaise = daily * stayDays;
+  const unusedFromPrepaid = Math.min(
+    prepaidAfterVacatingPaise,
+    monthlyRentPaise - stayConsumedPaise,
+  );
 
   const w = computeCheckoutSettlementV2({
     stayCheckInDate: '2026-07-21',
@@ -144,10 +150,31 @@ test('early move-out: prepaid after vacate refunds when notice compliant', () =>
     prepaidAfterVacatingPaise,
   });
 
-  assert.equal(w.rentBucket.unusedPaise, prepaidAfterVacatingPaise);
-  assert.equal(w.rentBucket.consumedPaise, monthlyRentPaise - prepaidAfterVacatingPaise);
-  assert.equal(w.refund.unusedRentPortionPaise, prepaidAfterVacatingPaise);
-  assert.equal(w.refund.totalPaise, 205_900 + prepaidAfterVacatingPaise);
+  assert.equal(w.rentBucket.consumedPaise, stayConsumedPaise);
+  assert.equal(w.rentBucket.unusedPaise, unusedFromPrepaid);
+  assert.equal(w.refund.unusedRentPortionPaise, unusedFromPrepaid);
+  assert.equal(w.refund.totalPaise, 205_900 + unusedFromPrepaid);
+});
+
+test('prepaid after vacate does not consume entire rent when stay already used paid rent', () => {
+  const monthlyRentPaise = 412_080;
+  const daily = Math.floor(monthlyRentPaise / 30);
+  const stayDays = 31; // Jul 21 → Aug 20 inclusive
+  const prepaidAfterVacatingPaise = daily; // one day after vacate
+  const w = computeCheckoutSettlementV2({
+    stayCheckInDate: '2026-07-21',
+    stayCheckoutDate: '2026-08-20',
+    rentPaidPaise: monthlyRentPaise,
+    monthlyRentPaise,
+    depositCollectedPaise: 205_900,
+    missingNoticeDays: 0,
+    noticeApplies: true,
+    prepaidAfterVacatingPaise,
+  });
+  assert.equal(w.rentBucket.consumedPaise, monthlyRentPaise);
+  assert.equal(w.rentBucket.unusedPaise, 0);
+  assert.equal(w.refund.unusedRentPortionPaise, 0);
+  assert.equal(w.refund.totalPaise, 205_900);
 });
 
 test('tail rent deducted from deposit after notice', () => {

@@ -6,7 +6,7 @@ import type { ResidentMoveOutActionItem } from '@/src/lib/residents/residentMove
 export function ResidentMoveOutActionsCard({ items }: { items: ResidentMoveOutActionItem[] }) {
   return (
     <ApgCard tier="resident">
-      <h2 className="text-sm font-semibold text-white">What you need to do on move-out</h2>
+      <h2 className="text-sm font-semibold text-white">Before you leave</h2>
       <ul className="mt-4 space-y-3">
         {items.map((item) => (
           <li key={item.id} className="flex items-start gap-3 text-sm">

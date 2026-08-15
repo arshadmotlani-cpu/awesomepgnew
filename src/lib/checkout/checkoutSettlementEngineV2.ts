@@ -89,14 +89,17 @@ export function computeCheckoutSettlementV2(
   const stayDays = stayDaysInclusive(input.stayCheckInDate, input.stayCheckoutDate);
 
   const prepaidAfterVacatingPaise = guardDepositPaise(input.prepaidAfterVacatingPaise ?? 0);
+  const stayConsumedRaw = guardDepositPaise(dailyRentPaise * stayDays);
+  const stayConsumedPaise = Math.min(rentPaidPaise, stayConsumedRaw);
+  const rentAvailableAfterStay = Math.max(0, rentPaidPaise - stayConsumedPaise);
+
   let rentConsumedPaise: number;
   let unusedRentPaise: number;
   if (prepaidAfterVacatingPaise > 0) {
-    unusedRentPaise = Math.min(rentPaidPaise, prepaidAfterVacatingPaise);
-    rentConsumedPaise = Math.max(0, rentPaidPaise - unusedRentPaise);
+    unusedRentPaise = Math.min(prepaidAfterVacatingPaise, rentAvailableAfterStay);
+    rentConsumedPaise = stayConsumedPaise;
   } else {
-    const rentConsumedRaw = dailyRentPaise * stayDays;
-    rentConsumedPaise = Math.min(rentPaidPaise, guardDepositPaise(rentConsumedRaw));
+    rentConsumedPaise = stayConsumedPaise;
     unusedRentPaise = Math.max(0, rentPaidPaise - rentConsumedPaise);
   }
 

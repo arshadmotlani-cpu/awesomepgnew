@@ -66,20 +66,27 @@ test('date change compliance uses fixed noticeGivenDate with 5-day minimum', () 
 });
 
 test('resident move-out UI wires simplified cards and change-leaving-date flow', () => {
+  const requestsHome = readFileSync(
+    join(process.cwd(), 'src/components/customer/account/resident/requests/RequestsHome.tsx'),
+    'utf8',
+  );
   assert.match(vacatingHome, /ResidentMoveOutSummaryCard/);
   assert.match(vacatingHome, /ResidentMoveOutRefundCard/);
   assert.match(vacatingHome, /ResidentMoveOutActionsCard/);
+  assert.match(vacatingHome, /ResidentCancelMoveOutCard/);
   assert.match(vacatingHome, /ChangeLeavingDateForm/);
   assert.doesNotMatch(vacatingHome, /ResidentMoveOutSettlementStory/);
   assert.doesNotMatch(vacatingHome, /StatusTimeline/);
   assert.doesNotMatch(vacatingHome, /ExitBrainTimeline/);
   assert.doesNotMatch(vacatingHome, /Your move-out timeline/);
+  assert.match(requestsHome, /hasActiveMoveOut/);
+  assert.match(requestsHome, /id="resident-move-out"/);
   assert.match(residentPortalTabData, /loadVacatingBillingPresentation/);
   assert.match(residentPortalTabData, /primarySettlementContext/);
   assert.match(residentPortalTabData, /getPendingVacatingDateChangeForBooking/);
-  assert.match(requestsHome, /estimatedSettlement=/);
-  assert.match(requestsHome, /settlementContext=/);
-  assert.match(requestsHome, /pendingDateChangeRequestId=/);
+  assert.match(requestsHome, /estimatedSettlement:/);
+  assert.match(requestsHome, /settlementContext:/);
+  assert.match(requestsHome, /pendingDateChangeRequestId:/);
 });
 
 test('VacatingHome uses resident refund card instead of legacy settlement story', () => {

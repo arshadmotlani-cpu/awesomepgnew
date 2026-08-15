@@ -20,6 +20,8 @@ export type PaidRentCoveragePeriod = {
   periodEnd: string;
   source?: 'rent_invoice' | 'booking_checkout';
   sourceId?: string;
+  /** Principal collected on this invoice — used for period-accurate daily rates. */
+  paidPrincipalPaise?: number;
 };
 
 export type NoticeDeductionBreakdown = {

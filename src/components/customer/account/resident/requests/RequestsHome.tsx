@@ -20,7 +20,7 @@ import {
   type RequestCategoryId,
 } from '@/src/lib/residents/requestCenter';
 import { accountProfileHref, residentProfileHref, residentTabHref } from '@/src/lib/accountNavigation';
-import { requestStatusTone, primaryBtn } from '@/src/lib/design-system/tokens';
+import { requestStatusTone } from '@/src/lib/design-system/tokens';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 
 type Props = {
@@ -63,38 +63,67 @@ type Props = {
   exitBrainSnapshot?: import('@/src/lib/exit/exitBrainTypes').ResidentExitBrainSnapshot | null;
 };
 
-export function RequestsHome({
-  customerId,
-  bookingId,
-  bookingCode = null,
-  pgId,
-  fromBedId,
-  roomLabel,
-  refundableBalancePaise,
-  hasDepositDue,
-  activeRequests,
-  selectedRequestId,
-  startMake,
-  initialCategory = null,
-  vacating,
-  bookingStatus = 'confirmed',
-  durationMode = 'monthly',
-  expectedCheckoutDate = null,
-  bookingCreatedAt,
-  checkoutSettlementStatus = null,
-  checkoutSettlement = null,
-  checkoutSettlementSuppressed = false,
-  monthlyRentPaise = 0,
-  depositHeldPaise = 0,
-  moveInDate = '',
-  developerTestEmail = null,
-  estimatedSettlement = null,
-  pendingDateChangeRequestId = null,
-  settlementContext = null,
-  settlementDocument = null,
-  settlementNoticeDisplay = null,
-  exitBrainSnapshot = null,
-}: Props) {
+function vacatingHomeProps(props: Props) {
+  return {
+    bookingId: props.bookingId,
+    bookingCode: props.bookingCode ?? '',
+    roomLabel: props.roomLabel,
+    customerId: props.customerId,
+    vacating: props.vacating,
+    checkoutStatus: props.checkoutSettlementStatus ?? null,
+    checkoutSettlement: props.checkoutSettlement,
+    settlementWaterfall: props.checkoutSettlement?.waterfall ?? null,
+    totalRefundPaise: props.checkoutSettlement?.totalRefundPaise ?? null,
+    payoutUpiId: props.checkoutSettlement?.payoutUpiId ?? null,
+    refundPaidAt: props.checkoutSettlement?.refundPaidAt ?? null,
+    checkoutSettlementSuppressed: props.checkoutSettlementSuppressed,
+    depositHeldPaise: props.depositHeldPaise ?? 0,
+    durationMode: props.durationMode,
+    expectedCheckoutDate: props.expectedCheckoutDate,
+    monthlyRentPaise: props.monthlyRentPaise,
+    estimatedSettlement: props.estimatedSettlement,
+    pendingDateChangeRequestId: props.pendingDateChangeRequestId,
+    settlementContext: props.settlementContext,
+    settlementDocument: props.settlementDocument,
+    settlementNoticeDisplay: props.settlementNoticeDisplay,
+    exitBrainSnapshot: props.exitBrainSnapshot,
+  };
+}
+
+export function RequestsHome(props: Props) {
+  const {
+    customerId,
+    bookingId,
+    bookingCode = null,
+    pgId,
+    fromBedId,
+    roomLabel,
+    refundableBalancePaise,
+    hasDepositDue,
+    activeRequests,
+    selectedRequestId,
+    startMake,
+    initialCategory = null,
+    vacating,
+    bookingStatus = 'confirmed',
+    durationMode = 'monthly',
+    expectedCheckoutDate = null,
+    bookingCreatedAt,
+    checkoutSettlementStatus = null,
+    checkoutSettlement = null,
+    checkoutSettlementSuppressed = false,
+    monthlyRentPaise = 0,
+    depositHeldPaise = 0,
+    moveInDate = '',
+    developerTestEmail = null,
+    estimatedSettlement = null,
+    pendingDateChangeRequestId = null,
+    settlementContext = null,
+    settlementDocument = null,
+    settlementNoticeDisplay = null,
+    exitBrainSnapshot = null,
+  } = props;
+
   const router = useRouter();
   const normalizedInitial = normalizeRequestCategoryId(initialCategory ?? undefined);
   const [making, setMaking] = useState(startMake);
@@ -105,12 +134,24 @@ export function RequestsHome({
     [activeRequests, selectedRequestId],
   );
 
+  const hasActiveMoveOut =
+    (vacating != null && vacating.status !== 'rejected') || Boolean(checkoutSettlementStatus);
+
+  const startNewMoveOutOnly =
+    making && makeCategory === 'move_out' && !hasActiveMoveOut;
+
   useEffect(() => {
+    if (normalizedInitial === 'move_out' && hasActiveMoveOut) {
+      requestAnimationFrame(() => {
+        document.getElementById('resident-move-out')?.scrollIntoView({ behavior: 'smooth' });
+      });
+      return;
+    }
     if (normalizedInitial) {
       setMakeCategory(normalizedInitial);
       setMaking(true);
     }
-  }, [normalizedInitial]);
+  }, [normalizedInitial, hasActiveMoveOut]);
 
   const visibleCategories = REQUEST_CATEGORIES;
 
@@ -123,6 +164,10 @@ export function RequestsHome({
   }
 
   function selectCategory(id: RequestCategoryId) {
+    if (id === 'move_out' && hasActiveMoveOut) {
+      document.getElementById('resident-move-out')?.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
     setMakeCategory(id);
     setMaking(true);
   }
@@ -131,33 +176,8 @@ export function RequestsHome({
     return <RequestDetailView request={selected} onBack={closeDetail} />;
   }
 
-  if (making && makeCategory === 'move_out') {
-    return (
-      <VacatingHome
-        bookingId={bookingId}
-        bookingCode={bookingCode ?? ''}
-        roomLabel={roomLabel}
-        customerId={customerId}
-        vacating={vacating}
-        checkoutStatus={checkoutSettlementStatus}
-        checkoutSettlement={checkoutSettlement}
-        settlementWaterfall={checkoutSettlement?.waterfall ?? null}
-        totalRefundPaise={checkoutSettlement?.totalRefundPaise ?? null}
-        payoutUpiId={checkoutSettlement?.payoutUpiId ?? null}
-        refundPaidAt={checkoutSettlement?.refundPaidAt ?? null}
-        checkoutSettlementSuppressed={checkoutSettlementSuppressed}
-        depositHeldPaise={depositHeldPaise}
-        durationMode={durationMode}
-        expectedCheckoutDate={expectedCheckoutDate}
-        monthlyRentPaise={monthlyRentPaise}
-        estimatedSettlement={estimatedSettlement}
-        pendingDateChangeRequestId={pendingDateChangeRequestId}
-        settlementContext={settlementContext}
-        settlementDocument={settlementDocument}
-        settlementNoticeDisplay={settlementNoticeDisplay}
-        exitBrainSnapshot={exitBrainSnapshot}
-      />
-    );
+  if (startNewMoveOutOnly) {
+    return <VacatingHome {...vacatingHomeProps(props)} />;
   }
 
   if (making && makeCategory === 'room_change') {
@@ -207,6 +227,12 @@ export function RequestsHome({
           Maintenance, room change, move-out, complaints, and support — each with a clear status.
         </p>
       </ApgCard>
+
+      {hasActiveMoveOut ? (
+        <div id="resident-move-out" className="space-y-4">
+          <VacatingHome {...vacatingHomeProps(props)} />
+        </div>
+      ) : null}
 
       {activeRequests.length > 0 ? (
         <ApgCard tier="resident">

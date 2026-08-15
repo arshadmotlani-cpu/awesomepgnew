@@ -6,7 +6,6 @@ import type { buildBriefingInputForBooking } from '@/src/lib/cockroach/briefingF
 import { legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
 import { ResidentHomeActiveRequests } from '@/src/components/customer/account/resident/ResidentHomeActiveRequests';
 import { ResidentHomeAdminWaiting } from '@/src/components/customer/account/resident/ResidentHomeAdminWaiting';
-import { ResidentHomeMoveOutStatus } from '@/src/components/customer/account/resident/ResidentHomeMoveOutStatus';
 import { ResidentHomeNextPayment } from '@/src/components/customer/account/resident/ResidentHomeNextPayment';
 import { ResidentHomePrimaryAction } from '@/src/components/customer/account/resident/ResidentHomePrimaryAction';
 import { ResidentHomeStatusCard } from '@/src/components/customer/account/resident/ResidentHomeStatusCard';
@@ -152,15 +151,6 @@ export function ResidentHomePanel({
       <ResidentHomeWhatNext message={whatNext} />
 
       {!hasOutstandingBills ? <ResidentHomeNextPayment payment={firstPayment} /> : null}
-
-      {(hasOpenVacating || vacatingStatus || checkoutStatus) && (
-        <ResidentHomeMoveOutStatus
-          vacatingStatus={vacatingStatus}
-          checkoutStatus={checkoutStatus}
-          vacatingDate={vacatingDate}
-          settlementWaterfall={settlementWaterfall}
-        />
-      )}
 
       <ResidentHomeActiveRequests requests={bookingRequests} />
 

@@ -5,6 +5,7 @@ import { getCustomerSession } from '@/src/lib/auth/session';
 import { revalidateVacatingLifecycleForBooking } from '@/src/lib/vacating/revalidateVacatingViews';
 import {
   cancelApprovedVacatingByCustomer,
+  cancelVacatingRequestByCustomer,
 } from '@/src/services/vacating';
 import {
   previewVacatingDateChange,
@@ -85,6 +86,31 @@ export async function cancelApprovedVacatingAction(
           : result.kind === 'wrong_status'
             ? 'This move-out can no longer be cancelled.'
             : 'Could not cancel move-out.';
+    return { ok: false, error: message };
+  }
+
+  revalidatePath('/account/profile');
+  await revalidateVacatingLifecycleForBooking(result.bookingId, session.customerId);
+  return { ok: true };
+}
+
+export async function cancelPendingVacatingAction(
+  requestId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const session = await getCustomerSession();
+  if (!session) return { ok: false, error: 'Sign in required.' };
+
+  const result = await cancelVacatingRequestByCustomer({
+    requestId,
+    customerId: session.customerId,
+  });
+  if (!result.ok) {
+    const message =
+      result.kind === 'forbidden'
+        ? 'Access denied.'
+        : result.kind === 'wrong_status'
+          ? 'This move-out can no longer be cancelled.'
+          : 'Move-out request not found.';
     return { ok: false, error: message };
   }
 

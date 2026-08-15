@@ -83,9 +83,10 @@ export async function loadBillingCoverageRawPeriods(bookingId: string): Promise<
   for (const inv of invoiceRows) {
     if (inv.paidPrincipalPaise <= 0 && inv.status !== 'paid') continue;
     coveredBillingMonths.add(firstOfMonth(String(inv.billingMonth)));
-    rawPaidPeriods.push(
-      rawPeriodFromInvoiceDueDate(String(inv.dueDate), billingDay, inv.id),
-    );
+    rawPaidPeriods.push({
+      ...rawPeriodFromInvoiceDueDate(String(inv.dueDate), billingDay, inv.id),
+      paidPrincipalPaise: Math.max(0, inv.paidPrincipalPaise),
+    });
   }
 
   const [bookingRow] = await db
@@ -106,6 +107,7 @@ export async function loadBillingCoverageRawPeriods(bookingId: string): Promise<
       periodEnd: checkoutPeriod.periodEnd,
       source: 'booking_checkout',
       sourceId: bookingId,
+      paidPrincipalPaise: Math.max(0, bookingRow?.rentReceivedPaise ?? 0),
     });
   }
 
