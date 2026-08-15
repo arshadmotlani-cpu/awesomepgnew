@@ -2,18 +2,13 @@
 
 import Link from 'next/link';
 import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
-import type { OpsQueueFilter } from '@/src/lib/operations/operationsFilterLinks';
+import type { OperationsAttentionCard } from '@/src/lib/operations/operationsAttentionCards';
 import type { VacatingDateChangeRequestClient } from '@/src/lib/operations/vacatingDateChangeClient';
 import type { VacatingDateChangeBookingContext } from '@/src/components/admin/vacating/VacatingDateChangeApprovalPanel';
 import type { SettlementStatementDocumentModel } from '@/src/lib/vacating/settlementStatementModel';
 import { OperationsVacatingDateChangePanels } from '@/src/components/admin/operations/OperationsVacatingDateChangePanels';
 
-type AttentionCard = {
-  id: string;
-  label: string;
-  count: number;
-  href: string;
-};
+type AttentionCard = OperationsAttentionCard;
 
 export function OperationsAttentionBoard({
   totalCount,
@@ -81,52 +76,4 @@ export function OperationsAttentionBoard({
       )}
     </section>
   );
-}
-
-export function buildOperationsAttentionCards(
-  filterCounts: Array<{ id: OpsQueueFilter; label: string; count: number }>,
-  dateChangeCount: number,
-): AttentionCard[] {
-  const countByFilter = Object.fromEntries(filterCounts.map((c) => [c.id, c.count])) as Record<
-    OpsQueueFilter,
-    number
-  >;
-
-  const cards: AttentionCard[] = [];
-
-  if (dateChangeCount > 0) {
-    cards.push({
-      id: 'date_change',
-      label: 'Move-out date changes',
-      count: dateChangeCount,
-      href: operationsFilterHref('vacating_requests'),
-    });
-  }
-
-  const vacatingTotal = countByFilter.vacating_requests ?? 0;
-  const vacatingOther = Math.max(0, vacatingTotal - dateChangeCount);
-  if (vacatingOther > 0) {
-    cards.push({
-      id: 'vacating_other',
-      label: 'Move-out actions',
-      count: vacatingOther,
-      href: operationsFilterHref('vacating_requests'),
-    });
-  }
-
-  const push = (id: OpsQueueFilter, label: string) => {
-    const count = countByFilter[id] ?? 0;
-    if (count <= 0) return;
-    cards.push({ id, label, count, href: operationsFilterHref(id) });
-  };
-
-  push('waiting_for_approval', 'Payment proofs');
-  push('refund_due', 'Payouts pending');
-  push('booking_approval', 'Booking approvals');
-  push('kyc_review', 'KYC review');
-  push('rent_due', 'Rent due');
-  push('electricity_due', 'Electricity due');
-  push('deposit_due', 'Deposit due');
-
-  return cards;
 }

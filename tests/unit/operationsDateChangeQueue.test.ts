@@ -162,6 +162,18 @@ test('toClientPaymentProofRejectionHistoryRow serializes Date fields for RSC bou
   assert.equal(roundTrip.rejectedAt, client.rejectedAt);
 });
 
+test('operations page imports attention cards builder from server-safe module', () => {
+  const page = readFileSync(
+    join(process.cwd(), 'app/(admin)/admin/operations/page.tsx'),
+    'utf8',
+  );
+  assert.match(page, /from '@\/src\/lib\/operations\/operationsAttentionCards'/);
+  assert.doesNotMatch(
+    page,
+    /buildOperationsAttentionCards[\s\S]*from '@\/src\/components\/admin\/operations\/OperationsAttentionBoard'/,
+  );
+});
+
 test('operations activity feed items use ISO occurredAt strings', () => {
   const item: OperationsActivityItem = {
     id: 'audit:1',

@@ -3,8 +3,8 @@ import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionEr
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import {
   OperationsAttentionBoard,
-  buildOperationsAttentionCards,
 } from '@/src/components/admin/operations/OperationsAttentionBoard';
+import { buildOperationsAttentionCards } from '@/src/lib/operations/operationsAttentionCards';
 import { OperationsActivityFeed } from '@/src/components/admin/operations/OperationsActivityFeed';
 import { OperationsMasterQueue } from '@/src/components/admin/operations/OperationsMasterQueue';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
@@ -116,6 +116,21 @@ export default async function OperationsPage({
     data.filterCounts,
     dateChangeBundle.dateChangeCount,
   );
+  // #region agent log
+  fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '2cf3ae' },
+    body: JSON.stringify({
+      sessionId: '2cf3ae',
+      runId: 'post-fix-v2',
+      hypothesisId: 'H2-client-fn-from-server',
+      location: 'operations/page.tsx:attentionCards',
+      message: 'attentionCards built on server',
+      data: { cardCount: attentionCards.length, filter },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
   const focusRequestId = parseDateChangeFocusId(focus);
 
   let recentRejections: Awaited<ReturnType<typeof listRecentPaymentProofRejectionsForAdmin>> = [];

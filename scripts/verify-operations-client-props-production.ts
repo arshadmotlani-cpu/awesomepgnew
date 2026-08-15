@@ -1,5 +1,5 @@
 /**
- * Full Operations page payload serialization audit (read-only production).
+ * Deep scan: every Operations page prop destined for client components.
  */
 import { readFileSync } from 'node:fs';
 import { eq } from 'drizzle-orm';
@@ -13,7 +13,6 @@ function loadDatabaseUrl(): void {
       const value = match?.[1]?.trim().replace(/^["']|["']$/g, '');
       if (value) {
         process.env.DATABASE_URL = value;
-        console.log(`Using DATABASE_URL from ${path}`);
         return;
       }
     } catch {
@@ -81,17 +80,11 @@ function findNonSerializable(
   return issues;
 }
 
-function assertJsonSafe(label: string, value: unknown): void {
+function scan(label: string, value: unknown): void {
   const issues = findNonSerializable(value);
-  const json = JSON.stringify(value);
-  console.log(label, {
-    jsonOk: json.length > 0,
-    jsonBytes: json.length,
-    nonSerializable: issues.slice(0, 20),
-    nonSerializableCount: issues.length,
-  });
+  console.log(label, { issueCount: issues.length, sample: issues.slice(0, 15) });
   if (issues.length > 0) {
-    throw new Error(`${label} has non-serializable values: ${issues.slice(0, 5).join(', ')}`);
+    throw new Error(`${label}: ${issues.slice(0, 8).join(', ')}`);
   }
 }
 
@@ -115,62 +108,39 @@ async function main() {
   };
 
   const filter = 'waiting_for_approval';
-  let data = emptyUnifiedOperationsQueue(filter);
-  try {
-    data = await loadUnifiedOperationsQueue(session, filter, null);
-  } catch (err) {
-    console.error('unifiedQueue loader failed', err);
-  }
-
-  let dateChangeBundle = emptyOperationsDateChangeBundle();
-  try {
-    dateChangeBundle = await loadOperationsDateChangeBundle(session);
-  } catch (err) {
-    console.error('dateChangeBundle loader failed', err);
-  }
-
-  let activityGroups: Awaited<ReturnType<typeof groupOperationsActivityByDay>> = [];
-  try {
-    const activityItems = await loadOperationsActivityFeed(session);
-    activityGroups = groupOperationsActivityByDay(activityItems);
-  } catch (err) {
-    console.error('activityFeed loader failed', err);
-  }
-
+  const data = await loadUnifiedOperationsQueue(session, filter, null);
+  const dateChangeBundle = await loadOperationsDateChangeBundle(session);
+  const activityGroups = groupOperationsActivityByDay(await loadOperationsActivityFeed(session));
   const attentionCards = buildOperationsAttentionCards(
     data.filterCounts,
     dateChangeBundle.dateChangeCount,
   );
+  const recentRejections = await listRecentPaymentProofRejectionsForAdmin(session, 40);
 
-  let recentRejections: Awaited<ReturnType<typeof listRecentPaymentProofRejectionsForAdmin>> = [];
-  try {
-    recentRejections = await listRecentPaymentProofRejectionsForAdmin(session, 40);
-  } catch (err) {
-    console.error('paymentRejections loader failed', err);
+  // Props → OperationsAttentionBoard (client)
+  scan('attentionBoard', {
+    totalCount: data.totalCount,
+    cards: attentionCards,
+    pendingDateChanges: dateChangeBundle.pendingDateChanges,
+    dateChangeContextByRequestId: dateChangeBundle.dateChangeContextByRequestId,
+    statementDocumentByRequestId: dateChangeBundle.statementDocumentByRequestId,
+    focusRequestId: null,
+    hideDateChangePanels: filter === 'vacating_requests',
+  });
+
+  // Props → OperationsActivityFeed (client)
+  scan('activityFeed', { groups: activityGroups });
+
+  // Props → OperationsMasterQueue children (client)
+  scan('waitingForApprovalTable', { items: data.paymentReviews });
+  scan('rejectedPayments', { rows: recentRejections });
+
+  // Deep scan each payment review item
+  for (let i = 0; i < data.paymentReviews.length; i++) {
+    scan(`paymentReview[${i}]`, data.paymentReviews[i]);
   }
 
-  assertJsonSafe('unifiedQueue', data);
-  assertJsonSafe('dateChangeBundle', dateChangeBundle);
-  assertJsonSafe('activityGroups', activityGroups);
-  assertJsonSafe('attentionCards', attentionCards);
-  assertJsonSafe('recentRejections', recentRejections);
-
-  const fullPageProps = {
-    data,
-    dateChangeBundle,
-    activityGroups,
-    attentionCards,
-    recentRejections,
-    isSuperAdmin: session.role === 'super_admin',
-  };
-  assertJsonSafe('fullPageProps', fullPageProps);
-
-  console.log('PASS full Operations waiting_for_approval payload is JSON-safe');
-  console.log('paymentReviews', data.paymentReviews.length);
-  console.log('recentRejections', recentRejections.length);
-  if (recentRejections[0]) {
-    console.log('sample rejection rejectedAt type', typeof recentRejections[0].rejectedAt);
-  }
+  console.log('PASS all client-bound Operations props are JSON-safe');
 }
 
 main()
