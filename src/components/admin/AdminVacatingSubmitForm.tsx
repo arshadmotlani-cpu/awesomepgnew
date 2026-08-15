@@ -15,6 +15,7 @@ import { isOpenEndedStayEnd, todayString } from '@/src/lib/dates';
 import { paiseToInr } from '@/src/lib/format';
 import { previewNoticeDeductionForAdminAction } from '@/src/lib/vacating/previewNoticeDeductionAction';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
+import { buildVacatingDateConfirmation } from '@/src/lib/vacating/vacatingBedSemantics';
 
 function resolveDefaultVacatingDate(expectedCheckoutDate?: string | null): string {
   if (expectedCheckoutDate && !isOpenEndedStayEnd(expectedCheckoutDate)) {
@@ -63,6 +64,9 @@ export function AdminVacatingSubmitForm({
   if (hasExistingVacating) return null;
 
   const penalty = breakdown?.noticeDeductionPaise ?? 0;
+  const dateConfirmation = /^\d{4}-\d{2}-\d{2}$/.test(vacatingDate)
+    ? buildVacatingDateConfirmation(vacatingDate)
+    : null;
 
   return (
     <form
@@ -76,7 +80,7 @@ export function AdminVacatingSubmitForm({
         File vacating notice
       </p>
       <label className="block text-sm">
-        <span className="text-apg-silver">Vacating date</span>
+        <span className="text-apg-silver">Final stay date</span>
         <input
           type="date"
           name="vacatingDate"
@@ -87,6 +91,16 @@ export function AdminVacatingSubmitForm({
           className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 px-3 py-2 text-sm"
         />
       </label>
+      {dateConfirmation ? (
+        <div className="rounded-lg border border-sky-500/30 bg-sky-500/10 p-3 text-xs text-sky-100">
+          <p className="font-semibold text-sky-50">Move-out timing</p>
+          <ul className="mt-1 space-y-0.5">
+            {dateConfirmation.lines.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <label className="block text-sm">
         <span className="text-apg-silver">Notes (optional)</span>
         <textarea
@@ -116,8 +130,8 @@ export function AdminVacatingSubmitForm({
       <label className="flex items-start gap-2 text-xs text-apg-silver">
         <input type="checkbox" name="openBedForBooking" defaultChecked className="mt-0.5" />
         <span>
-          Open bed on website from vacating date — pre-bookable while tenant is still in notice
-          (auto-approves vacating)
+          Open bed on website after final stay — bed available next day at 11:00 AM (auto-approves
+          vacating)
         </span>
       </label>
       {state.error ? <p className="text-xs text-rose-300">{state.error}</p> : null}
@@ -125,7 +139,7 @@ export function AdminVacatingSubmitForm({
       <AdminConfirmSubmit
         formId={formId}
         title="Add vacating notice?"
-        description="Starts the notice workflow. If auto-approve is checked, the bed opens for website pre-booking from the vacating date. Use Cancel notice later if this was a mistake — do not click Complete unless the tenant has left."
+        description="Starts the notice workflow. If auto-approve is checked, the bed opens for website pre-booking after final stay (next day at 11:00 AM). Use Cancel notice later if this was a mistake — do not click Complete unless the tenant has left."
         confirmLabel="Add to vacating queue"
         pending={pending}
         className="w-full rounded-lg bg-[#FF5A1F] px-3 py-2 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-60"

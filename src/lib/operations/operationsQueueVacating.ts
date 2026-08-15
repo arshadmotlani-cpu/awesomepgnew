@@ -13,6 +13,7 @@ import {
 } from '@/src/lib/payout/payoutDisplayTerminology';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import { deriveMoveOutWorkflowStage } from '@/src/lib/moveOut/moveOutWorkflowStages';
+import { formatBedAvailableLabel, formatFinalStayDateLabel } from '@/src/lib/vacating/vacatingBedSemantics';
 import { moveOutOperationsQueueTarget } from '@/src/lib/operations/moveOutAdminAction';
 import type { MoveOutPipelineItem } from '@/src/lib/moveOut/moveOutPipeline';
 
@@ -83,7 +84,7 @@ function moveOutOpsOpenHref(item: MoveOutPipelineItem): string {
 function moveOutOpsReason(item: MoveOutPipelineItem): string {
   const workflow = deriveMoveOutWorkflowStage(item);
   if (workflow.id === 'pending_request') {
-    return `Move-out notice · leaves ${item.vacatingDate}`;
+    return `Move-out notice · final stay ${formatFinalStayDateLabel(item.vacatingDate)} · bed ${formatBedAvailableLabel(item.vacatingDate)}`;
   }
   if (workflow.id === 'settlement_review') {
     return 'Action required — settlement review';

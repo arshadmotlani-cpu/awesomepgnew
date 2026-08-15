@@ -256,27 +256,21 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-14 23:54:15 UTC
+### Pending pre-commit sync · 2026-08-15 00:14:59 UTC
 
-**Areas touched:** [[DATABASE]], [[Residents]], [[Vacating]], [[Billing]]
+**Areas touched:** [[Residents]], [[Vacating]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
 - `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (8):**
-- `src/db/schema/checkoutSettlements.ts`
-- `src/db/schema/vacatingRequests.ts`
-- `src/lib/residents/residentMoveOutSettlementStory.ts`
-- `src/lib/vacating/computeVacatingSettlementPreview.ts`
-- `src/lib/vacating/loadVacatingBillingPresentation.ts`
-- `src/lib/vacating/moveOutSettlementExplanation.ts`
-- `src/services/billing.ts`
+**Staged code files (4):**
+- `src/lib/residents/residentOperationsDashboard.ts`
+- `src/lib/residents/stayBillingRules.ts`
+- `src/lib/vacating/vacatingBedSemantics.ts`
 - `src/services/vacating.ts`
 
 **Changed:**

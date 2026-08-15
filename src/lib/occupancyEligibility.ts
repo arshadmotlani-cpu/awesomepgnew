@@ -48,15 +48,15 @@ export function isReservationStatusEligibleForOccupancy(
 
 /**
  * Whether vacating approval should shorten the stay range to open the bed for
- * pre-booking. Same-day checkout must not shorten before completion — half-open
- * range `[start, today)` excludes today and breaks checkout.
+ * pre-booking. Uses half-open end `stayRangeExclusiveEnd(vacatingDate)` so the
+ * final paid/stay day remains in range; bed is released the next day at 11 AM.
  */
 export function shouldShortenStayOnVacatingApproval(
   vacatingDate: string,
   today?: string,
 ): boolean {
   const t = today ?? formatDate(new Date());
-  return vacatingDate > t;
+  return vacatingDate >= t;
 }
 
 /**

@@ -4,6 +4,10 @@ import { bookingFinancialWorkspaceSectionHref } from '@/src/lib/bookings/booking
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import { deriveCheckoutOpsNextAction } from '@/src/lib/residents/checkoutOpsQueueCopy';
 import { vacatingRowRequiresAdminOpsAction } from '@/src/lib/operations/moveOutAdminAction';
+import {
+  formatBedAvailableLabel,
+  formatFinalStayDateLabel,
+} from '@/src/lib/vacating/vacatingBedSemantics';
 import { isActiveCheckoutSettlement } from '@/src/lib/residents/residentLifecycleState';
 import type { CollectionQueueItem } from '@/src/lib/billing/collectionsQueue';
 import type { KycSubmissionListRow } from '@/src/services/kyc';
@@ -389,7 +393,7 @@ export function buildResidentOperationsDashboard(input: {
       bedCode: v.bedCode,
       issue:
         v.status === 'pending'
-          ? `Move-out notice · leaves ${formatDisplayDate(v.vacatingDate)}`
+          ? `Move-out notice · final stay ${formatFinalStayDateLabel(v.vacatingDate)} · bed ${formatBedAvailableLabel(v.vacatingDate)}`
           : copy.issue,
       nextAction: copy.nextAction,
       primaryActionLabel: copy.primaryActionLabel,

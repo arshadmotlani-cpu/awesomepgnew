@@ -19,8 +19,8 @@ test('isReservationStatusEligibleForOccupancy allows active and hold', () => {
   assert.equal(isReservationStatusEligibleForOccupancy('completed'), false);
 });
 
-test('shouldShortenStayOnVacatingApproval skips same-day checkout', () => {
-  assert.equal(shouldShortenStayOnVacatingApproval('2026-06-13', '2026-06-13'), false);
+test('shouldShortenStayOnVacatingApproval includes same-day final stay', () => {
+  assert.equal(shouldShortenStayOnVacatingApproval('2026-06-13', '2026-06-13'), true);
   assert.equal(shouldShortenStayOnVacatingApproval('2026-06-12', '2026-06-13'), false);
   assert.equal(shouldShortenStayOnVacatingApproval('2026-06-14', '2026-06-13'), true);
 });

@@ -13,6 +13,10 @@ import {
 } from '@/src/components/admin/VacatingActions';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import {
+  formatBedAvailableLabel,
+  formatFinalStayDateLabel,
+} from '@/src/lib/vacating/vacatingBedSemantics';
+import {
   buildExitLifecycleFromBedVacating,
   isNoticeApprovedOrExitActive,
   isNoticeSubmittedState,
@@ -62,7 +66,8 @@ export function BedDetailAdvancedTools({
             {bed.vacating ? (
               <div className="rounded-xl border border-orange-400/30 bg-orange-500/10 p-3">
                 <p className="text-xs font-semibold text-orange-200">
-                  Move-out · leaves {formatDate(bed.vacating.vacatingDate)}
+                  Move-out · final stay {formatFinalStayDateLabel(bed.vacating.vacatingDate)} · bed{' '}
+                  {formatBedAvailableLabel(bed.vacating.vacatingDate)}
                 </p>
                 <p className="mt-1 text-sm text-orange-50">
                   Notice fee {paiseToInr(bed.vacating.deductionPaise)}

@@ -17,7 +17,7 @@ import { isOpenEndedStayEnd, todayString } from '@/src/lib/dates';
 import { paiseToInr } from '@/src/lib/format';
 import { previewNoticeDeductionForCustomerAction } from '@/src/lib/vacating/previewNoticeDeductionAction';
 import { estimateVacateDepositPreview } from '@/src/lib/vacating/depositRefundEligibility';
-import { VACATING_CHECKOUT_DEADLINE_COPY } from '@/src/lib/residents/stayBillingRules';
+import { buildVacatingDateConfirmation } from '@/src/lib/vacating/vacatingBedSemantics';
 
 const idleState: VacatingActionState = { status: 'idle' };
 
@@ -59,6 +59,14 @@ export function VacatingRequestForm({
     [breakdown, depositHeldPaise, monthlyRentPaise, vacatingDate],
   );
 
+  const dateConfirmation = useMemo(
+    () =>
+      /^\d{4}-\d{2}-\d{2}$/.test(vacatingDate)
+        ? buildVacatingDateConfirmation(vacatingDate)
+        : null,
+    [vacatingDate],
+  );
+
   return (
     <form
       action={action}
@@ -69,7 +77,7 @@ export function VacatingRequestForm({
 
       <label className="block">
         <span className="text-xs font-medium uppercase tracking-wide text-zinc-600">
-          Vacate date
+          Final stay date
         </span>
         <input
           type="date"
@@ -82,10 +90,21 @@ export function VacatingRequestForm({
         />
       </label>
 
+      {dateConfirmation ? (
+        <div className="rounded-xl border border-sky-200 bg-sky-50/90 p-4 text-sm text-sky-950">
+          <p className="font-semibold text-sky-900">Your move-out dates</p>
+          <ul className="mt-2 space-y-1 text-xs leading-relaxed">
+            {dateConfirmation.lines.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <div className={`${ACCOUNT_SURFACE} p-4 text-sm text-zinc-700`}>
         <p className="font-medium text-zinc-900">Important information</p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed">
-          <li>{VACATING_CHECKOUT_DEADLINE_COPY}</li>
+          <li>The date you select is your last paid night — not the day the bed becomes free.</li>
           <li>Electricity will be calculated on the day of vacating.</li>
           <li>Final settlement will be completed after vacating.</li>
           <li>

@@ -72,6 +72,7 @@ import {
 } from './vacatingCheckoutBilling';
 import { scheduleAdminNotificationSync } from '@/src/services/adminLiveSync';
 import { ACTIVE_VACATING_STATUSES } from '@/src/lib/vacating/activeRequestPolicy';
+import { stayRangeExclusiveEnd } from '@/src/lib/vacating/vacatingBedSemantics';
 
 function serializeNoticeBreakdown(breakdown: NoticeDeductionBreakdown) {
   return {
@@ -233,22 +234,23 @@ function monthlyRentFromBooking(snapshot: PricingSnapshot | null): number {
   return snapshot.perBed.reduce((acc, b) => acc + (b.monthlyRatePaise ?? 0), 0);
 }
 
-/** Shorten active reservations so beds open from vacating date onward. */
-async function shortenBookingReservationsToDate(bookingId: string, endDate: string) {
+/** Shorten active reservations — final stay day inclusive; bed released next day 11 AM. */
+async function shortenBookingReservationsToDate(bookingId: string, finalStayDate: string) {
+  const stayRangeEndExclusive = stayRangeExclusiveEnd(finalStayDate);
   await db.transaction(async (tx) => {
     await tx.execute(sql`
       UPDATE bed_reservations
       SET
-        stay_range = daterange(lower(stay_range), ${endDate}::date, '[)'),
+        stay_range = daterange(lower(stay_range), ${stayRangeEndExclusive}::date, '[)'),
         updated_at = now()
       WHERE booking_id = ${bookingId}
         AND status IN ('hold', 'active')
-        AND upper(stay_range) > ${endDate}::date
+        AND upper(stay_range) > ${stayRangeEndExclusive}::date
     `);
 
     await tx
       .update(bookings)
-      .set({ expectedCheckoutDate: endDate, updatedAt: new Date() })
+      .set({ expectedCheckoutDate: finalStayDate, updatedAt: new Date() })
       .where(eq(bookings.id, bookingId));
 
     const { enqueuePropertyIndexRebuildFromWriter, resolvePgIdForBooking } = await import(

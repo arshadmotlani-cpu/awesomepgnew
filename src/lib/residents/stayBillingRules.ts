@@ -5,7 +5,7 @@ export const STAY_CYCLE_HOURS = 24;
 
 /** Shown on vacating / checkout surfaces. */
 export const VACATING_CHECKOUT_DEADLINE_COPY =
-  'Vacate before 11:00 AM on your checkout date.';
+  'Your selected vacating date is your final paid stay date. Vacate by 11:00 AM the following day — your bed is released for new residents at that time.';
 
 export const STAY_TIMING_RULE_COPY =
   `Check-in: ${STAY_CHECK_IN_TIME}. Check-out: ${STAY_CHECK_OUT_TIME} next day. ` +

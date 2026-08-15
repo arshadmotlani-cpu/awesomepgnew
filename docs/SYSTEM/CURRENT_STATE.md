@@ -222,3 +222,6 @@ See [[BUGS]] for full list. Highlights:
 
 <!-- DOC_SYNC_TOUCH_2026-08-14 -->
 > **2026-08-14 18:24:18 UTC** — Code changed in: Routes. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-08-15 -->
+> **2026-08-15 00:14:59 UTC** — Code changed in: Residents, Vacating. Manual review recommended.

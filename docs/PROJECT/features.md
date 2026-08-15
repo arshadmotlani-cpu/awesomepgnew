@@ -383,3 +383,6 @@
 
 <!-- DOC_SYNC_TOUCH_2026-08-14 -->
 > **2026-08-14 18:39:51 UTC** — Code changed in: Routes, Action Center. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-08-15 -->
+> **2026-08-15 00:14:59 UTC** — Code changed in: Residents, Vacating. Manual review recommended.

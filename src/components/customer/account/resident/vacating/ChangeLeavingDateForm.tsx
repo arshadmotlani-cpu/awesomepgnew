@@ -9,6 +9,7 @@ import {
 } from '@/app/(customer)/account/resident/vacating-date-change-actions';
 import type { VacatingDateChangePreview } from '@/src/services/vacatingDateChange';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
+import { buildVacatingDateConfirmation } from '@/src/lib/vacating/vacatingBedSemantics';
 
 export function ChangeLeavingDateForm({
   bookingId,
@@ -26,6 +27,9 @@ export function ChangeLeavingDateForm({
   const [preview, setPreview] = useState<VacatingDateChangePreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const dateConfirmation = /^\d{4}-\d{2}-\d{2}$/.test(newDate)
+    ? buildVacatingDateConfirmation(newDate)
+    : null;
 
   if (pendingRequestId) {
     return (
@@ -62,7 +66,7 @@ export function ChangeLeavingDateForm({
         {VACATING_NOTICE_MIN_DAYS}-day notice rule from when you submitted notice.
       </p>
       <label className="mt-3 block text-xs font-medium text-zinc-700">
-        New leaving date
+        New final stay date
         <input
           type="date"
           value={newDate}
@@ -74,6 +78,16 @@ export function ChangeLeavingDateForm({
           className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900"
         />
       </label>
+      {dateConfirmation ? (
+        <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-950">
+          <p className="font-semibold text-sky-900">Move-out timing</p>
+          <ul className="mt-1 space-y-0.5">
+            {dateConfirmation.lines.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <label className="mt-3 block text-xs font-medium text-zinc-700">
         Note for admin (optional)
         <textarea

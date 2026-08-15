@@ -13,6 +13,7 @@ import {
   type BedOccupancySnapshot,
 } from '@/src/lib/bedOccupancyEngine';
 import { todayString } from '@/src/lib/dates';
+import { isBedReleasedForVacating } from '@/src/lib/vacating/vacatingBedSemantics';
 
 export type RawBedOccupancyFacts = {
   bedId: string;
@@ -97,6 +98,13 @@ export function isOpenNowFromSnapshot(
   if (snapshot.publicState !== 'available') return false;
   const asOf = input.asOfDate ?? todayString();
   if (snapshot.bookableFromDate && snapshot.bookableFromDate > asOf) return false;
+  if (
+    input.vacatingDate &&
+    snapshot.bookableFromDate === asOf &&
+    !isBedReleasedForVacating(input.vacatingDate)
+  ) {
+    return false;
+  }
   return true;
 }
 

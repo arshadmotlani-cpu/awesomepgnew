@@ -20,6 +20,11 @@ import {
 import { isMonthlyStayType, stayTypeFromPricingMode } from '@/src/lib/stayType';
 import type { BedAvailabilityView, CustomerBedAvailabilityView } from '@/src/lib/bedAvailabilityState';
 import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
+import {
+  bedAvailableCalendarDate,
+  formatBedAvailableLabel,
+  isBedReleasedForVacating,
+} from '@/src/lib/vacating/vacatingBedSemantics';
 
 export const TURNOVER_BUFFER_DAYS = RESERVE_CLEANING_BUFFER_DAYS;
 
@@ -182,7 +187,7 @@ export function resolveBookableFromDate(input: BedOccupancyInput): string | null
   if (input.isOccupiedToday) {
     if (isMonthlyTenancy(input)) {
       if (input.vacatingStatus === 'approved' && input.vacatingDate) {
-        return applyTurnoverBuffer(input.vacatingDate);
+        return bedAvailableCalendarDate(input.vacatingDate);
       }
       return null;
     }
@@ -192,7 +197,7 @@ export function resolveBookableFromDate(input: BedOccupancyInput): string | null
   }
 
   if (input.vacatingStatus === 'approved' && input.vacatingDate) {
-    return applyTurnoverBuffer(input.vacatingDate);
+    return bedAvailableCalendarDate(input.vacatingDate);
   }
 
   const checkout = resolveContractualCheckoutDate(input);
@@ -398,7 +403,7 @@ export function toCustomerAvailabilityView(
         ? `Move-out was ${formatShortDate(input.vacatingDate)}`
         : `Notice expired ${formatShortDate(input.vacatingDate)} · admin review needed`
       : input.vacatingStatus === 'approved'
-        ? `Available from ${formatShortDate(input.vacatingDate)}`
+        ? `Available from ${formatBedAvailableLabel(input.vacatingDate)}`
         : `Leaving ${formatShortDate(input.vacatingDate)}`;
     return {
       kind: 'notice',
@@ -528,14 +533,14 @@ export function toAdminAvailabilityView(
       return {
         kind: 'pre_bookable',
         label: input.occupantFirstName ?? 'Occupied',
-        sublabel: `Hold from ${formatShortDate(input.vacatingDate)}`,
+        sublabel: `Available from ${formatBedAvailableLabel(input.vacatingDate)}`,
       };
     }
     return {
       kind: 'notice',
       label: input.occupantFirstName ?? 'Occupied',
       sublabel:
-        `Notice · leaves ${formatShortDate(input.vacatingDate)}` +
+        `Final stay ${formatShortDate(input.vacatingDate)}` +
         (interest > 0 ? ` · ${interest} interested` : ''),
     };
   }
@@ -601,7 +606,7 @@ export function canBookBedFromSnapshot(
   const snap = snapshot ?? computeBedOccupancySnapshot(input);
   if (snap.publicState === 'maintenance' || input.bedStatus !== 'available') return false;
   if (input.manualOccupied || input.isOccupiedToday) return false;
-  if (input.vacatingDate) return false;
+  if (input.vacatingDate && !isBedReleasedForVacating(input.vacatingDate)) return false;
   if (snap.publicState === 'occupied' && isMonthlyTenancy(input)) return false;
   if (input.isAvailableNow) return true;
   if (snap.bookableFromDate) return true;
