@@ -441,19 +441,39 @@ export function isCalendarBillingMonthFullyCovered(args: {
   return overlap.days >= daysInMonth;
 }
 
-/** First uncovered full calendar month between paid-through and first auto run (exclusive). */
+/** First uncovered full calendar month between paid-through and first auto run. */
 export function findFirstUncoveredCalendarMonth(args: {
   paidUntilDate: string | null;
   firstAutoBillingDate: string;
   paidInvoiceCoverage: BillingCoveragePeriod[];
+  /** When past first auto date, include that billing month if still uncovered (e.g. missed cron). */
+  asOf?: string;
 }): string | null {
-  if (!args.paidUntilDate) return null;
-  let cursor = firstOfMonth(formatDate(addDays(parseDate(args.paidUntilDate), 1)));
-  const endExclusive = firstOfMonth(args.firstAutoBillingDate);
+  const paidThrough =
+    args.paidUntilDate ??
+    args.paidInvoiceCoverage.reduce<string | null>(
+      (best, p) => (!best || p.periodEnd > best ? p.periodEnd : best),
+      null,
+    );
+  if (!paidThrough) return null;
+  const asOf = args.asOf ?? formatDate(new Date());
+  const dayAfterPaid = formatDate(addDays(parseDate(paidThrough), 1));
+  let cursor = firstOfMonth(dayAfterPaid);
+  const firstAutoMonth = firstOfMonth(args.firstAutoBillingDate);
+  const endExclusive =
+    asOf >= args.firstAutoBillingDate
+      ? formatDate(addMonths(parseDate(firstAutoMonth), 1))
+      : firstAutoMonth;
   while (cursor < endExclusive) {
+    const period = calendarMonthBillingPeriod(cursor);
+    // Paid-through inside this month — remainder is transition proration, not a full-month bill.
+    if (paidThrough >= period.periodStart) {
+      cursor = formatDate(addMonths(parseDate(cursor), 1));
+      continue;
+    }
     const covered = isCalendarBillingMonthFullyCovered({
       billingMonth: cursor,
-      paidUntilDate: args.paidUntilDate,
+      paidUntilDate: paidThrough,
       paidInvoiceCoverage: args.paidInvoiceCoverage,
     });
     if (!covered) return cursor;

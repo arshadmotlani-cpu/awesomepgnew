@@ -20,7 +20,7 @@ import {
 } from '@/src/db/schema';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
-import { formatDate, parseDate, addDays } from '@/src/lib/dates';
+import { formatDate, parseDate, addDays, todayString } from '@/src/lib/dates';
 import {
   STANDARD_CALENDAR_BILLING_DAY,
   billingPeriodForPolicy,
@@ -37,6 +37,7 @@ import { getBookingMoneyBalances } from '@/src/services/bookingMoneyBalances';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { resolveMonthlyRentPaiseForBooking } from '@/src/lib/billing/rentPricingSsot';
 import { createAdhocRentInvoice, generateRentInvoicesForMonth } from '@/src/services/rentInvoices';
+import { listBillingCycleMigrationCandidates } from '@/src/services/billingCycleMigrationCandidates';
 
 export type BillingCycleMigrationPreview = {
   bookingId: string;
@@ -80,7 +81,13 @@ export type BillingCycleMigrationPreview = {
 };
 
 export type BillingCycleMigrationApplyResult =
-  | { ok: true; profileUpdated: true; transitionInvoiceId?: string }
+  | {
+      ok: true;
+      profileUpdated: boolean;
+      skipped?: boolean;
+      transitionInvoiceId?: string;
+      uncoveredMonthInvoiceId?: string;
+    }
   | { ok: false; error: string };
 
 function maxPaidThroughDate(paidThrough: string | null, periods: { periodEnd: string }[]): string | null {
@@ -343,7 +350,7 @@ export async function applyBillingCycleMigration(
     return { ok: false, error: p.blockedReason ?? 'Migration blocked.' };
   }
   if (p.alreadyOnTarget) {
-    return { ok: false, error: 'Resident is already on 1st-of-month billing.' };
+    return { ok: true, profileUpdated: false, skipped: true };
   }
 
   const loaded = await loadBookingMigrationContext(input.bookingId);
@@ -422,23 +429,48 @@ export async function applyBillingCycleMigration(
     p.transition.amountPaise > 0 &&
     !p.lightweightPolicyFlip
   ) {
-    const periodNote = rentInvoiceBillingPeriodNoteForPolicy(
-      'calendar_month_1st',
-      p.transition.periodStart,
-      p.transition.periodEnd,
-    );
-    const created = await createAdhocRentInvoice({
-      bookingId: input.bookingId,
-      customerId: loaded.ctx.customerId,
-      bedId: loaded.ctx.bedId,
-      pgId: loaded.ctx.pgId,
-      amountPaise: p.transition.amountPaise,
-      title: 'Billing cycle transition rent',
-      description: `${p.transition.explanation} ${periodNote}`,
-      invoiceSubtype: 'billing_cycle_transition',
-    });
-    if (created.ok) {
-      transitionInvoiceId = created.invoiceId;
+    const existingTransitions = await db
+      .select({ id: rentInvoices.id, notes: rentInvoices.notes })
+      .from(rentInvoices)
+      .where(
+        and(
+          eq(rentInvoices.bookingId, input.bookingId),
+          eq(rentInvoices.isAdhoc, true),
+          eq(rentInvoices.invoiceSubtype, 'billing_cycle_transition'),
+          inArray(rentInvoices.status, ['pending', 'overdue', 'paid', 'payment_in_progress']),
+        ),
+      );
+    let alreadyExists = false;
+    for (const row of existingTransitions) {
+      const parsed = parseBillingPeriodFromInvoiceNotes(row.notes);
+      if (
+        parsed?.periodStart === p.transition.periodStart &&
+        parsed?.periodEnd === p.transition.periodEnd
+      ) {
+        transitionInvoiceId = row.id;
+        alreadyExists = true;
+        break;
+      }
+    }
+    if (!alreadyExists) {
+      const periodNote = rentInvoiceBillingPeriodNoteForPolicy(
+        'calendar_month_1st',
+        p.transition.periodStart,
+        p.transition.periodEnd,
+      );
+      const created = await createAdhocRentInvoice({
+        bookingId: input.bookingId,
+        customerId: loaded.ctx.customerId,
+        bedId: loaded.ctx.bedId,
+        pgId: loaded.ctx.pgId,
+        amountPaise: p.transition.amountPaise,
+        title: 'Billing cycle transition rent',
+        description: `${p.transition.explanation} ${periodNote}`,
+        invoiceSubtype: 'billing_cycle_transition',
+      });
+      if (created.ok) {
+        transitionInvoiceId = created.invoiceId;
+      }
     }
   }
 
@@ -454,6 +486,7 @@ export async function applyBillingCycleMigration(
       paidUntilDate: postCoverage.paidUntilDate,
       firstAutoBillingDate: firstAuto,
       paidInvoiceCoverage: postCoverage.paidInvoiceCoverage,
+      asOf: todayString(),
     });
     if (uncoveredMonth) {
       const gen = await generateRentInvoicesForMonth({
@@ -489,7 +522,130 @@ export async function applyBillingCycleMigration(
     },
   });
 
-  return { ok: true, profileUpdated: true, transitionInvoiceId };
+  return {
+    ok: true,
+    profileUpdated: true,
+    transitionInvoiceId,
+    uncoveredMonthInvoiceId,
+  };
+}
+
+export type BulkBillingCycleMigrationResult = {
+  bookingId: string;
+  bookingCode: string;
+  customerName: string;
+  action: 'skipped' | 'policy_flip' | 'financial_transition' | 'blocked' | 'error';
+  detail: string;
+  transitionInvoiceId?: string;
+  uncoveredMonthInvoiceId?: string;
+};
+
+/**
+ * Programmatic bulk migration for all active monthly residents (cron/script).
+ * Uses canonical preview + apply — idempotent per resident.
+ */
+export async function executeBulkBillingCycleMigration(
+  session: AdminSession,
+  opts?: { dryRun?: boolean; note?: string },
+): Promise<BulkBillingCycleMigrationResult[]> {
+  const candidates = await listBillingCycleMigrationCandidates(session, { includeOnTarget: true });
+  const results: BulkBillingCycleMigrationResult[] = [];
+  const note =
+    opts?.note?.trim() ||
+    'Automated billing cycle migration to calendar month 1st (production script).';
+
+  for (const row of candidates) {
+    const preview = await previewBillingCycleMigration(row.bookingId);
+    if ('ok' in preview && preview.ok === false) {
+      results.push({
+        bookingId: row.bookingId,
+        bookingCode: row.bookingId,
+        customerName: row.customerName,
+        action: 'error',
+        detail: preview.error,
+      });
+      continue;
+    }
+    const p = preview as BillingCycleMigrationPreview;
+
+    const [bk] = await db
+      .select({ bookingCode: bookings.bookingCode })
+      .from(bookings)
+      .where(eq(bookings.id, row.bookingId))
+      .limit(1);
+    const bookingCode = bk?.bookingCode ?? row.bookingId;
+
+    if (p.alreadyOnTarget) {
+      results.push({
+        bookingId: row.bookingId,
+        bookingCode,
+        customerName: p.customerName,
+        action: 'skipped',
+        detail: 'Already on calendar_month_1st + billing day 1',
+      });
+      continue;
+    }
+
+    if (p.blocked) {
+      results.push({
+        bookingId: row.bookingId,
+        bookingCode,
+        customerName: p.customerName,
+        action: 'blocked',
+        detail: p.blockedReason ?? 'blocked',
+      });
+      continue;
+    }
+
+    const needsTransition =
+      p.transition != null && p.transition.amountPaise > 0 && !p.lightweightPolicyFlip;
+    const actionLabel = needsTransition ? 'financial_transition' : 'policy_flip';
+
+    if (opts?.dryRun) {
+      const transitionDetail = needsTransition
+        ? `transition ${p.transition!.periodStart}→${p.transition!.periodEnd} ₹${(p.transition!.amountPaise / 100).toFixed(2)}`
+        : 'no transition';
+      results.push({
+        bookingId: row.bookingId,
+        bookingCode,
+        customerName: p.customerName,
+        action: actionLabel,
+        detail: `dry-run: ${transitionDetail}; firstAuto=${p.firstAutoBillingDate}`,
+      });
+      continue;
+    }
+
+    const applied = await applyBillingCycleMigration(session, {
+      bookingId: row.bookingId,
+      note,
+      createTransitionInvoice: needsTransition,
+    });
+
+    if (!applied.ok) {
+      results.push({
+        bookingId: row.bookingId,
+        bookingCode,
+        customerName: p.customerName,
+        action: 'error',
+        detail: applied.error,
+      });
+      continue;
+    }
+
+    results.push({
+      bookingId: row.bookingId,
+      bookingCode,
+      customerName: p.customerName,
+      action: applied.skipped ? 'skipped' : actionLabel,
+      detail: applied.skipped
+        ? 'Already migrated'
+        : `firstAuto=${p.firstAutoBillingDate}`,
+      transitionInvoiceId: applied.transitionInvoiceId,
+      uncoveredMonthInvoiceId: applied.uncoveredMonthInvoiceId,
+    });
+  }
+
+  return results;
 }
 
 export async function generateBillingCycleTransitionInvoice(

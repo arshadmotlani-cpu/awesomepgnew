@@ -93,13 +93,14 @@ export async function loadBillingCoverageRawPeriods(bookingId: string): Promise<
 
   for (const inv of invoiceRows) {
     if (!isSettlementRentInvoice(inv)) continue;
-    if (inv.paidPrincipalPaise <= 0 && inv.status !== 'paid') continue;
+    if (inv.status !== 'paid' && inv.paidPrincipalPaise <= 0) continue;
     coveredBillingMonths.add(firstOfMonth(String(inv.billingMonth)));
 
     if (
       inv.invoiceSubtype === 'billing_cycle_transition' ||
       (inv.isAdhoc && inv.dueDate == null)
     ) {
+      if (inv.status !== 'paid') continue;
       const parsed = parseBillingPeriodFromInvoiceNotes(inv.notes);
       if (parsed) {
         rawPaidPeriods.push({
@@ -111,6 +112,18 @@ export async function loadBillingCoverageRawPeriods(bookingId: string): Promise<
         });
         continue;
       }
+    }
+
+    const notesPeriod = parseBillingPeriodFromInvoiceNotes(inv.notes);
+    if (notesPeriod && inv.status === 'paid') {
+      rawPaidPeriods.push({
+        periodStart: notesPeriod.periodStart,
+        periodEnd: notesPeriod.periodEnd,
+        source: 'rent_invoice',
+        sourceId: inv.id,
+        paidPrincipalPaise: Math.max(0, inv.paidPrincipalPaise),
+      });
+      continue;
     }
 
     if (!inv.dueDate) continue;

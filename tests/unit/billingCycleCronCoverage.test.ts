@@ -85,19 +85,60 @@ describe('calendar month coverage', () => {
     });
     assert.equal(month, '2026-08-01');
   });
+
+  test('finds August when first auto is Aug 1 and asOf past Aug 1 (Syed missed cron)', () => {
+    const month = findFirstUncoveredCalendarMonth({
+      paidUntilDate: '2026-07-28',
+      firstAutoBillingDate: '2026-08-01',
+      paidInvoiceCoverage: [],
+      asOf: '2026-08-16',
+    });
+    assert.equal(month, '2026-08-01');
+  });
+
+  test('does not bill full August when paid through Aug 12 (Saswat-like)', () => {
+    const month = findFirstUncoveredCalendarMonth({
+      paidUntilDate: '2026-08-12',
+      firstAutoBillingDate: '2026-09-01',
+      paidInvoiceCoverage: [
+        {
+          periodStart: '2026-08-08',
+          periodEnd: '2026-08-12',
+          source: 'rent_invoice',
+          sourceId: 'aug',
+          paidPrincipalPaise: 412_100,
+        },
+      ],
+      asOf: '2026-08-16',
+    });
+    assert.equal(month, null);
+  });
 });
 
 describe('Syed Ahmed transition proration reference', () => {
-  test('Jul 29–31 proration at ₹3,606/month', () => {
+  test('Jul 29–31 proration at ₹3,606/month (3 calendar days)', () => {
     const pr = prorateForMonth({
       monthlyRatePaise: 360_600,
       billingMonth: '2026-07-01',
       activeStart: '2026-07-29',
-      activeEnd: '2026-07-31',
+      activeEnd: '2026-08-01',
     });
-    assert.ok(pr.daysActive >= 2 && pr.daysActive <= 3);
+    assert.equal(pr.daysActive, 3);
     assert.equal(pr.daysInMonth, 31);
-    // User cited ₹233 in prod brief; calendar proration is ~₹349 at full rate
-    assert.ok(pr.amountPaise > 20_000 && pr.amountPaise < 40_000);
+    // floor(360600×3/31) = 34896 paise = ₹348.96 (not ₹233 from buggy 2-day count)
+    assert.equal(pr.amountPaise, Math.floor((360_600 * 3) / 31));
+  });
+
+  test('Saswat Aug 13–31 proration at ₹4,121/month (19 calendar days)', () => {
+    const pr = prorateForMonth({
+      monthlyRatePaise: 412_100,
+      billingMonth: '2026-08-01',
+      activeStart: '2026-08-13',
+      activeEnd: '2026-09-01',
+    });
+    assert.equal(pr.daysActive, 19);
+    assert.equal(pr.daysInMonth, 31);
+    // floor(412100×19/31) = 252576 paise = ₹2525.76 (not ₹2393 from 18-day bug)
+    assert.equal(pr.amountPaise, Math.floor((412_100 * 19) / 31));
   });
 });
