@@ -95,6 +95,7 @@ export async function updateRentDueDateAction(
     revalidateOperationalPaths(customerId, bookingId);
     revalidatePath('/admin/revenue/billing');
     revalidatePath('/admin/revenue/rent-due');
+    revalidatePath('/admin/billing/cycle-migration');
     revalidatePath('/admin/deposits/collected');
     await syncActionItems(session).catch(() => undefined);
 
@@ -166,6 +167,7 @@ export async function applyBillingCycleMigrationAction(
     revalidateOperationalPaths(customerId, bookingId);
     revalidatePath('/admin/revenue/billing');
     revalidatePath('/admin/revenue/rent-due');
+    revalidatePath('/admin/billing/cycle-migration');
     await syncActionItems(session).catch(() => undefined);
 
     return {

@@ -200,6 +200,11 @@ export const rentInvoiceStatusEnum = pgEnum('rent_invoice_status', [
   'cancelled',
 ]);
 
+export const rentInvoiceSubtypeEnum = pgEnum('rent_invoice_subtype', [
+  'standard',
+  'billing_cycle_transition',
+]);
+
 export const electricityInvoiceStatusEnum = pgEnum('electricity_invoice_status', [
   'pending',
   'paid',

@@ -121,13 +121,14 @@ export function canTransitionFinancialStatus(
 
 export function rentStatusToUnifiedStatus(
   status: string,
-  dueDate: string,
+  dueDate: string | null,
 ): FinancialInvoiceStatus {
   if (status === 'paid') return 'paid';
   if (status === 'cancelled') return 'cancelled';
   if (status === 'payment_in_progress') return 'payment_in_progress';
   if (status === 'expired') return 'expired';
   if (status === 'overdue') return 'overdue';
+  if (!dueDate) return 'sent';
   if (dueDate < new Date().toISOString().slice(0, 10)) return 'overdue';
   return 'sent';
 }
@@ -139,7 +140,7 @@ export function rentStatusToUnifiedStatus(
 export function mergeFinancialStatusFromRent(
   currentFinancial: FinancialInvoiceStatus | null | undefined,
   rentStatus: string,
-  dueDate: string,
+  dueDate: string | null,
   hasPaymentProof: boolean,
 ): FinancialInvoiceStatus {
   const fromRent = rentStatusToUnifiedStatus(rentStatus, dueDate);

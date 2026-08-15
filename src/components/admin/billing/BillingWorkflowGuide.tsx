@@ -98,6 +98,22 @@ export function BillingWorkflowGuide({
             Residents list →
           </Link>
         </li>
+
+        <li className="rounded-xl border border-white/10 bg-[#1A1F27] p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#FF5A1F]">
+            5 · 1st-of-month migration
+          </p>
+          <p className="mt-1 text-apg-silver">
+            Review active residents not on billing day 1 and migrate individually — never bulk
+            overwrite.
+          </p>
+          <Link
+            href="/admin/billing/cycle-migration"
+            className="mt-2 inline-block text-xs font-semibold text-[#FF5A1F] hover:underline"
+          >
+            Migration queue →
+          </Link>
+        </li>
       </ol>
 
       {isMonthEnd && roomsMissingElectricity > 0 ? (

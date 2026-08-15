@@ -15,7 +15,7 @@ import { bookings } from './bookings';
 import { customers } from './customers';
 import { pgs } from './pgs';
 import { payments } from './payments';
-import { rentInvoiceStatusEnum } from './enums';
+import { rentInvoiceStatusEnum, rentInvoiceSubtypeEnum } from './enums';
 
 /**
  * Monthly rent invoice for a single (booking, billing_month) pair.
@@ -46,7 +46,7 @@ export const rentInvoices = pgTable(
       .notNull()
       .references(() => pgs.id, { onDelete: 'restrict' }),
     billingMonth: date('billing_month').notNull(),
-    dueDate: date('due_date').notNull(),
+    dueDate: date('due_date'),
     rentPaise: bigint('rent_paise', { mode: 'number' }).notNull(),
     discountPaise: bigint('discount_paise', { mode: 'number' }).notNull().default(0),
     promoCode: text('promo_code'),
@@ -78,6 +78,7 @@ export const rentInvoices = pgTable(
     cancellationReason: text('cancellation_reason'),
     notes: text('notes'),
     isAdhoc: boolean('is_adhoc').notNull().default(false),
+    invoiceSubtype: rentInvoiceSubtypeEnum('invoice_subtype').notNull().default('standard'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

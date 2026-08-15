@@ -161,13 +161,13 @@ export function BillingCycleMigrationPanel({
             </label>
             <AdminConfirmSubmit
               formId={applyFormId}
-              title="Apply billing cycle migration?"
-              description="Sets calendar-month policy and billing day 1. Open invoices are realigned. Historical paid invoices are not modified."
-              confirmLabel="Apply migration"
+              title="Migrate to 1st-of-month billing?"
+              description="Sets calendar-month policy and billing day 1. Open invoices are realigned. Historical paid invoices are not modified. Transition bills have no due date and no late fee."
+              confirmLabel="Migrate to 1st-of-month"
               pending={applyPending}
               className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-xs font-semibold text-white hover:brightness-110"
             >
-              Apply migration
+              Migrate to 1st-of-month
             </AdminConfirmSubmit>
           </form>
         </div>
@@ -176,8 +176,11 @@ export function BillingCycleMigrationPanel({
       {applyState.error ? <p className="text-xs text-rose-300">{applyState.error}</p> : null}
       {applyState.ok ? (
         <p className="text-xs text-emerald-300">
-          Billing cycle migrated.
-          {applyState.transitionInvoiceId ? ` Transition invoice created.` : ''}
+          ✓ Billing cycle changed to 1st
+          {applyState.transitionInvoiceId
+            ? ' · ✓ Transition bill generated (no due date / no late fee)'
+            : ''}
+          · Next normal bill follows 1st-of-month schedule.
         </p>
       ) : null}
       {transitionState.error ? <p className="text-xs text-rose-300">{transitionState.error}</p> : null}

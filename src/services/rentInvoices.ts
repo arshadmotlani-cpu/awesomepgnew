@@ -1242,6 +1242,7 @@ export async function markOverdueInvoices(
     .where(
       and(
         eq(rentInvoices.status, 'pending'),
+        ne(rentInvoices.invoiceSubtype, 'billing_cycle_transition'),
         // due_date < today (overdue starts on the 6th — diffDays(due_date, today) > 0)
         sql`${rentInvoices.dueDate} < ${today}::date`,
       ),
@@ -2127,6 +2128,29 @@ export function projectInvoice(
     };
   }
 
+  if (inv.invoiceSubtype === 'billing_cycle_transition') {
+    const rentDuePaise = computeRentDuePaise(inv.rentPaise, inv.discountPaise);
+    const outstandingPaise = Math.max(
+      0,
+      rentDuePaise - inv.paidPrincipalPaise - inv.paidLateFeePaise,
+    );
+    const hasPartial =
+      outstandingPaise > 0 && (inv.paidPrincipalPaise > 0 || inv.paidLateFeePaise > 0);
+    return {
+      ...inv,
+      accruedLateFeePaise: 0,
+      outstandingPaise,
+      effectiveStatus:
+        inv.status === 'payment_in_progress'
+          ? 'payment_in_progress'
+          : hasPartial
+            ? 'partial'
+            : outstandingPaise > 0
+              ? 'pending'
+              : 'paid',
+    };
+  }
+
   if (!options?.bypassProofSnapshot && hasFrozenProofSnapshot(inv)) {
     const rentDuePaise = computeRentDuePaise(inv.rentPaise, inv.discountPaise);
     const accruedLateFeePaise = capLateFeeAtPrincipalPercent(
@@ -2278,7 +2302,8 @@ export async function createAdhocRentInvoice(input: {
   amountPaise: number;
   title: string;
   description?: string;
-  dueDate?: string;
+  dueDate?: string | null;
+  invoiceSubtype?: 'standard' | 'billing_cycle_transition';
 }): Promise<
   | { ok: true; invoiceId: string; invoiceNumber: string }
   | { ok: false; error: string }
@@ -2289,7 +2314,13 @@ export async function createAdhocRentInvoice(input: {
 
   const billingMonth = firstOfMonth(formatDate(new Date()));
   const issueDate = new Date();
-  const dueDate = formatDate(graceEndDateFromIssue(issueDate));
+  const subtype = input.invoiceSubtype ?? 'standard';
+  const dueDate =
+    subtype === 'billing_cycle_transition'
+      ? null
+      : input.dueDate === undefined
+        ? formatDate(graceEndDateFromIssue(issueDate))
+        : input.dueDate;
   const notes = input.description?.trim()
     ? `${input.title.trim()} — ${input.description.trim()}`
     : input.title.trim();
@@ -2312,6 +2343,7 @@ export async function createAdhocRentInvoice(input: {
             status: 'pending',
             notes,
             isAdhoc: true,
+            invoiceSubtype: subtype,
           })
           .returning({
             id: rentInvoices.id,

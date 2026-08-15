@@ -450,7 +450,7 @@ export async function applyBillingCycleMigration(
       amountPaise: p.transition.amountPaise,
       title: 'Billing cycle transition rent',
       description: `${p.transition.explanation} ${periodNote}`,
-      dueDate: p.transition.dueDate,
+      invoiceSubtype: 'billing_cycle_transition',
     });
     if (created.ok) {
       transitionInvoiceId = created.invoiceId;
@@ -523,7 +523,7 @@ export async function generateBillingCycleTransitionInvoice(
     amountPaise: p.transition.amountPaise,
     title: 'Billing cycle transition rent',
     description: `${p.transition.explanation} ${periodNote}`,
-    dueDate: p.transition.dueDate,
+    invoiceSubtype: 'billing_cycle_transition',
   });
 
   if (!created.ok) return created;
