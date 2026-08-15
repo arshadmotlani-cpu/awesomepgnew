@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 import { AdminReviewSettlementScan } from '@/src/components/admin/vacating/AdminReviewSettlementScan';
 import { formatDate, paiseToInr } from '@/src/lib/format';
+import type { VacatingDateChangeRequestClient } from '@/src/lib/operations/vacatingDateChangeClient';
 import type { VacatingDateChangeRequest } from '@/src/db/schema/vacatingDateChangeRequests';
 import type { VacatingDateChangePreview } from '@/src/services/vacatingDateChange';
 import type { SettlementStatementDocumentModel } from '@/src/lib/vacating/settlementStatementModel';
@@ -25,12 +26,24 @@ export type VacatingDateChangeBookingContext = {
   vacatingDate: string;
 };
 
+/** Panel only reads date strings and preview — timestamps may be Date (server) or ISO (client). */
+export type VacatingDateChangeRequestForPanel = Omit<
+  VacatingDateChangeRequest,
+  'createdAt' | 'updatedAt' | 'reviewedAt'
+> & {
+  createdAt?: VacatingDateChangeRequest['createdAt'] | VacatingDateChangeRequestClient['createdAt'];
+  updatedAt?: VacatingDateChangeRequest['updatedAt'] | VacatingDateChangeRequestClient['updatedAt'];
+  reviewedAt?:
+    | VacatingDateChangeRequest['reviewedAt']
+    | VacatingDateChangeRequestClient['reviewedAt'];
+};
+
 export function VacatingDateChangeApprovalPanel({
   request,
   bookingContext,
   statementDocument,
 }: {
-  request: VacatingDateChangeRequest & {
+  request: VacatingDateChangeRequestForPanel & {
     preview?: VacatingDateChangePreview | null;
   };
   bookingContext?: VacatingDateChangeBookingContext;

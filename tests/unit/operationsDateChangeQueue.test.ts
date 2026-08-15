@@ -8,6 +8,9 @@ import {
   vacatingDateChangeOperationsHref,
 } from '@/src/lib/operations/operationsFilterLinks';
 import type { PendingVacatingDateChangeOpsRow } from '@/src/services/vacatingDateChange';
+import { toClientVacatingDateChangeRequest } from '@/src/lib/operations/vacatingDateChangeClient';
+import type { VacatingDateChangeRequest } from '@/src/db/schema/vacatingDateChangeRequests';
+import type { OperationsActivityItem } from '@/src/lib/operations/loadOperationsActivityFeed';
 
 function mockDateChangeRow(
   overrides: Partial<PendingVacatingDateChangeOpsRow> = {},
@@ -28,6 +31,8 @@ function mockDateChangeRow(
     currentVacatingDate: '2026-08-20',
     requestedVacatingDate: '2026-08-15',
     refundDeltaPaise: -5000,
+    createdAt: new Date('2026-08-15T10:00:00.000Z'),
+    updatedAt: new Date('2026-08-15T10:00:00.000Z'),
     preview: {
       noticeCompliant: true,
       direction: 'earlier',
@@ -90,4 +95,46 @@ test('move-out tab renders date change approval panels', () => {
   );
   assert.match(src, /OperationsVacatingDateChangePanels/);
   assert.match(src, /dateChangeBundle/);
+});
+
+test('toClientVacatingDateChangeRequest serializes Date fields for RSC boundary', () => {
+  const row: VacatingDateChangeRequest = {
+    id: 'req-1',
+    vacatingRequestId: 'vr-1',
+    bookingId: 'bk-1',
+    customerId: 'cust-1',
+    currentVacatingDate: '2026-08-20',
+    requestedVacatingDate: '2026-08-15',
+    status: 'pending',
+    currentEstimatedRefundPaise: 100000,
+    requestedEstimatedRefundPaise: 105000,
+    refundDeltaPaise: -5000,
+    previewSnapshot: null,
+    residentNotes: null,
+    adminNotes: null,
+    reviewedByAdminId: null,
+    reviewedAt: null,
+    createdAt: new Date('2026-08-15T10:00:00.000Z'),
+    updatedAt: new Date('2026-08-15T11:00:00.000Z'),
+  };
+
+  const client = toClientVacatingDateChangeRequest(row);
+  assert.equal(client.createdAt, '2026-08-15T10:00:00.000Z');
+  assert.equal(client.updatedAt, '2026-08-15T11:00:00.000Z');
+  assert.equal(client.reviewedAt, null);
+
+  const roundTrip = JSON.parse(JSON.stringify(client));
+  assert.equal(roundTrip.createdAt, client.createdAt);
+  assert.equal(typeof roundTrip.createdAt, 'string');
+});
+
+test('operations activity feed items use ISO occurredAt strings', () => {
+  const item: OperationsActivityItem = {
+    id: 'audit:1',
+    label: 'Move-out date change requested',
+    occurredAt: '2026-08-15T10:00:00.000Z',
+  };
+  const serialized = JSON.stringify(item);
+  assert.match(serialized, /2026-08-15T10:00:00.000Z/);
+  assert.doesNotMatch(serialized, /"occurredAt":\{/);
 });

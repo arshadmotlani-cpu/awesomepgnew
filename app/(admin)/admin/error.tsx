@@ -12,25 +12,11 @@ export default function AdminError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('[admin] page error', error);
-    // #region agent log
-    fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'b2af77' },
-      body: JSON.stringify({
-        sessionId: 'b2af77',
-        hypothesisId: 'H4',
-        location: 'admin/error.tsx',
-        message: 'admin error boundary',
-        data: {
-          digest: error.digest,
-          name: error.name,
-          message: error.message?.slice(0, 300),
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
+    console.error('[admin] page error', {
+      digest: error.digest,
+      name: error.name,
+      message: error.message,
+    });
   }, [error]);
 
   return (
@@ -38,11 +24,7 @@ export default function AdminError({
       <ApgOsMark size={40} className="mb-4 opacity-80" />
       <ErrorState
         title="This page could not load"
-        description={
-          error.digest
-            ? 'The server hit an error while loading this page. This is usually a temporary database timeout or connection issue — not lost data.'
-            : 'The server hit an error while loading this page. This is usually a temporary database timeout or connection issue — not lost data.'
-        }
+        description="The server hit an error while loading this page. Try again in a moment — your data is safe."
         onRetry={() => reset()}
       />
       {error.digest ? (

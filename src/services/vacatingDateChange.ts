@@ -647,6 +647,8 @@ export type PendingVacatingDateChangeOpsRow = {
   requestedVacatingDate: string;
   refundDeltaPaise: number;
   preview: VacatingDateChangePreview | null;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 /** Pending date-change requests with booking context for Operations queue. */
@@ -670,6 +672,8 @@ export async function listPendingVacatingDateChangesForOps(
     requested_vacating_date: string;
     refund_delta_paise: number;
     preview_snapshot: VacatingDateChangePreview | null;
+    created_at: Date;
+    updated_at: Date;
   }>(sql`
     SELECT
       vdcr.id AS request_id,
@@ -687,7 +691,9 @@ export async function listPendingVacatingDateChangesForOps(
       vdcr.current_vacating_date::text AS current_vacating_date,
       vdcr.requested_vacating_date::text AS requested_vacating_date,
       vdcr.refund_delta_paise,
-      vdcr.preview_snapshot AS preview_snapshot
+      vdcr.preview_snapshot AS preview_snapshot,
+      vdcr.created_at,
+      vdcr.updated_at
     FROM vacating_date_change_requests vdcr
     INNER JOIN vacating_requests vr ON vr.id = vdcr.vacating_request_id
     INNER JOIN bookings b ON b.id = vdcr.booking_id
@@ -719,5 +725,7 @@ export async function listPendingVacatingDateChangesForOps(
     requestedVacatingDate: row.requested_vacating_date,
     refundDeltaPaise: Number(row.refund_delta_paise),
     preview: (row.preview_snapshot as VacatingDateChangePreview | null) ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   }));
 }

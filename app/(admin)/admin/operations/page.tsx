@@ -35,9 +35,28 @@ import type { MoveOutPipelineItemClient } from '@/src/lib/moveOut/moveOutPipelin
 import { loadPendingVacatingApprovalPreviews } from '@/src/lib/vacating/loadAdminVacatingPageData';
 import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
 import { listRecentPaymentProofRejectionsForAdmin } from '@/src/services/paymentProofRejectionService';
+import { logger } from '@/src/lib/logger';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
+
+function logOperationsLoaderError(
+  loader: string,
+  filter: string,
+  focus: string | null,
+  err: unknown,
+): void {
+  const error = err instanceof Error ? err : new Error(String(err));
+  logger.error('operations page loader failed', {
+    loader,
+    filter,
+    focus,
+    commit: process.env.VERCEL_GIT_COMMIT_SHA ?? 'local',
+    errorName: error.name,
+    errorMessage: error.message,
+    stack: error.stack,
+  });
+}
 
 function parseDateChangeFocusId(focus: string | null): string | null {
   if (!focus?.startsWith('date_change:')) return null;
@@ -76,7 +95,7 @@ export default async function OperationsPage({
   try {
     data = await loadUnifiedOperationsQueue(session, filter, focus);
   } catch (err) {
-    console.error('[operations] queue load failed', err);
+    logOperationsLoaderError('unifiedQueue', filter, focus, err);
     data = emptyUnifiedOperationsQueue(filter);
   }
 
@@ -85,13 +104,13 @@ export default async function OperationsPage({
   try {
     dateChangeBundle = await loadOperationsDateChangeBundle(session);
   } catch (err) {
-    console.error('[operations] date-change bundle failed', err);
+    logOperationsLoaderError('dateChangeBundle', filter, focus, err);
   }
   try {
     const activityItems = await loadOperationsActivityFeed(session);
     activityGroups = groupOperationsActivityByDay(activityItems);
   } catch (err) {
-    console.error('[operations] activity feed failed', err);
+    logOperationsLoaderError('activityFeed', filter, focus, err);
   }
   const attentionCards = buildOperationsAttentionCards(
     data.filterCounts,
@@ -104,7 +123,7 @@ export default async function OperationsPage({
     try {
       recentRejections = await listRecentPaymentProofRejectionsForAdmin(session, 40);
     } catch (err) {
-      console.error('[operations] payment rejection history failed', err);
+      logOperationsLoaderError('paymentRejections', filter, focus, err);
     }
   }
 
@@ -129,7 +148,7 @@ export default async function OperationsPage({
         return client;
       });
     } catch (err) {
-      console.error('[operations] move-out pipeline load failed', err);
+      logOperationsLoaderError('moveOutPipeline', filter, focus, err);
       moveOutPipelineActiveItems = [];
       approvalPreviewByRequestId = {};
     }

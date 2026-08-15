@@ -1,5 +1,6 @@
 import type { AdminSession } from '@/src/lib/auth/session';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
+import { jsonSafe } from '@/src/lib/depositPageDebug';
 import {
   listPendingVacatingDateChangesForOps,
   type PendingVacatingDateChangeOpsRow,
@@ -9,9 +10,13 @@ import type { VacatingDateChangeRequest } from '@/src/db/schema/vacatingDateChan
 import { buildSettlementStatementModel } from '@/src/lib/vacating/settlementStatementModel';
 import { buildFallbackPgLetterhead } from '@/src/lib/billing/pgLetterheadFallback';
 import type { SettlementStatementDocumentModel } from '@/src/lib/vacating/settlementStatementModel';
+import {
+  toClientVacatingDateChangeRequest,
+  type VacatingDateChangeRequestClient,
+} from '@/src/lib/operations/vacatingDateChangeClient';
 
 export type OperationsDateChangeBundle = {
-  pendingDateChanges: VacatingDateChangeRequest[];
+  pendingDateChanges: VacatingDateChangeRequestClient[];
   dateChangeContextByRequestId: Record<string, VacatingDateChangeBookingContext>;
   statementDocumentByRequestId: Record<string, SettlementStatementDocumentModel | null>;
   dateChangeCount: number;
@@ -43,8 +48,8 @@ function rowToRequest(row: PendingVacatingDateChangeOpsRow): VacatingDateChangeR
     adminNotes: null,
     reviewedByAdminId: null,
     reviewedAt: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   };
 }
 
@@ -57,7 +62,9 @@ export async function loadOperationsDateChangeBundle(
     adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, row.pgId),
   );
 
-  const pendingDateChanges = scoped.map(rowToRequest);
+  const pendingDateChanges = scoped.map((row) =>
+    toClientVacatingDateChangeRequest(rowToRequest(row)),
+  );
   const dateChangeContextByRequestId: Record<string, VacatingDateChangeBookingContext> = {};
   const statementDocumentByRequestId: Record<string, SettlementStatementDocumentModel | null> = {};
 
@@ -100,10 +107,10 @@ export async function loadOperationsDateChangeBundle(
     }
   }
 
-  return {
+  return jsonSafe({
     pendingDateChanges,
     dateChangeContextByRequestId,
     statementDocumentByRequestId,
     dateChangeCount: scoped.length,
-  };
+  });
 }

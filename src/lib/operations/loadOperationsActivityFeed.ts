@@ -8,13 +8,13 @@ import {
   schemaMismatchHint,
 } from '@/src/lib/db/schemaMismatchError';
 import { vacatingDateChangeOperationsHref } from '@/src/lib/operations/operationsFilterLinks';
-import { formatDate } from '@/src/lib/dates';
+import { toIsoTimestampSafe, formatDate } from '@/src/lib/dates';
 
 export type OperationsActivityItem = {
   id: string;
   label: string;
   detail?: string;
-  occurredAt: Date;
+  occurredAt: string;
   statusBadge?: string;
   href?: string;
 };
@@ -211,7 +211,7 @@ export async function loadOperationsActivityFeed(
       id: `audit:${row.id}`,
       label: residentName ? `${label} · ${residentName}` : label,
       detail: row.entity.replace(/_/g, ' '),
-      occurredAt: row.createdAt,
+      occurredAt: toIsoTimestampSafe(row.createdAt) ?? '',
       statusBadge: auditStatusBadge(row.action),
     });
   }
@@ -221,7 +221,7 @@ export async function loadOperationsActivityFeed(
       id: `notif:${row.id}`,
       label: row.title,
       detail: row.body.split('\n')[0] ?? undefined,
-      occurredAt: row.createdAt,
+      occurredAt: toIsoTimestampSafe(row.createdAt) ?? '',
       statusBadge: row.isRead ? 'Seen' : 'New',
       href: row.deepLink,
     });
@@ -239,13 +239,16 @@ export async function loadOperationsActivityFeed(
       id: `action:${row.id}`,
       label: residentName ? `${label} · ${residentName}` : label,
       detail: row.title,
-      occurredAt: row.updatedAt,
+      occurredAt: toIsoTimestampSafe(row.updatedAt) ?? '',
       statusBadge: 'Resolved',
       href: actionItemHref(row.type, meta),
     });
   }
 
-  merged.sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
+  merged.sort(
+    (a, b) =>
+      new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime(),
+  );
 
   return merged.slice(0, limit);
 }
@@ -258,7 +261,7 @@ export function groupOperationsActivityByDay(
   const yesterday = formatDate(new Date(Date.now() - 86400000));
 
   for (const item of items) {
-    const dayKey = formatDate(item.occurredAt);
+    const dayKey = formatDate(new Date(item.occurredAt));
     const dayLabel =
       dayKey === today ? 'Today' : dayKey === yesterday ? 'Yesterday' : dayKey;
     const bucket = groups.get(dayLabel) ?? [];

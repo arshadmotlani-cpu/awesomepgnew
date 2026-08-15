@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
 import type { OpsQueueFilter } from '@/src/lib/operations/operationsFilterLinks';
-import type { VacatingDateChangeRequest } from '@/src/db/schema/vacatingDateChangeRequests';
+import type { VacatingDateChangeRequestClient } from '@/src/lib/operations/vacatingDateChangeClient';
 import type { VacatingDateChangeBookingContext } from '@/src/components/admin/vacating/VacatingDateChangeApprovalPanel';
 import type { SettlementStatementDocumentModel } from '@/src/lib/vacating/settlementStatementModel';
 import { OperationsVacatingDateChangePanels } from '@/src/components/admin/operations/OperationsVacatingDateChangePanels';
@@ -26,7 +26,7 @@ export function OperationsAttentionBoard({
 }: {
   totalCount: number;
   cards: AttentionCard[];
-  pendingDateChanges: VacatingDateChangeRequest[];
+  pendingDateChanges: VacatingDateChangeRequestClient[];
   dateChangeContextByRequestId: Record<string, VacatingDateChangeBookingContext>;
   statementDocumentByRequestId?: Record<string, SettlementStatementDocumentModel | null>;
   focusRequestId?: string | null;

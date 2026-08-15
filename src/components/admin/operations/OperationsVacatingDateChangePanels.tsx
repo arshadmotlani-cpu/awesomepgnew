@@ -2,7 +2,7 @@
 
 import { VacatingDateChangeApprovalPanel } from '@/src/components/admin/vacating/VacatingDateChangeApprovalPanel';
 import type { VacatingDateChangeBookingContext } from '@/src/components/admin/vacating/VacatingDateChangeApprovalPanel';
-import type { VacatingDateChangeRequest } from '@/src/db/schema/vacatingDateChangeRequests';
+import type { VacatingDateChangeRequestClient } from '@/src/lib/operations/vacatingDateChangeClient';
 import type { VacatingDateChangePreview } from '@/src/services/vacatingDateChange';
 import type { SettlementStatementDocumentModel } from '@/src/lib/vacating/settlementStatementModel';
 
@@ -13,7 +13,7 @@ export function OperationsVacatingDateChangePanels({
   focusRequestId,
   title = 'Move-out date changes',
 }: {
-  pendingDateChanges: VacatingDateChangeRequest[];
+  pendingDateChanges: VacatingDateChangeRequestClient[];
   dateChangeContextByRequestId: Record<string, VacatingDateChangeBookingContext>;
   statementDocumentByRequestId?: Record<string, SettlementStatementDocumentModel | null>;
   focusRequestId?: string | null;
