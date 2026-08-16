@@ -31,6 +31,7 @@ import {
   isVisibleResidentInvoiceStatus,
   loadResidentMonthlyRentDisplay,
 } from '@/src/lib/residents/residentPortalFinancials';
+import { buildResidentRentBillPresentation } from '@/src/lib/residents/residentBillingPeriodDisplay';
 
 export type ResidentInvoiceCard = {
   id: string;
@@ -239,11 +240,16 @@ export async function loadResidentAccountContext(
             : projected.accruedLateFeePaise;
         const rentDuePaise = computeRentDuePaise(inv.rentPaise, inv.discountPaise);
         const finalAmount = rentDuePaise + lateFee;
+        const rentDisplay = buildResidentRentBillPresentation({
+          billingMonth: inv.billingMonth,
+          notes: inv.notes,
+          invoiceSubtype: inv.invoiceSubtype,
+        });
         invoices.push({
           id: inv.id,
           kind: 'rent',
           invoiceNumber: inv.invoiceNumber,
-          label: `Rent · ${billingMonthLabel(inv.billingMonth)}`,
+          label: rentDisplay.listLabel,
           stayDurationLabel,
           checkInLabel,
           checkOutLabel,
@@ -265,7 +271,7 @@ export async function loadResidentAccountContext(
             id: inv.id,
             label: inv.paidAt
               ? `Rent · paid ${formatDate(inv.paidAt)}`
-              : `Rent · ${billingMonthLabel(inv.billingMonth)}`,
+              : rentDisplay.listLabel,
             paidPaise: inv.paidPrincipalPaise + inv.paidLateFeePaise,
             paidAt: inv.paidAt?.toISOString() ?? null,
             status: inv.status,

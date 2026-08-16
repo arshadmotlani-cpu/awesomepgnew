@@ -1672,6 +1672,7 @@ export type RentInvoiceRow = {
   lateFeeLockedPaise: number | null;
   status: 'pending' | 'payment_in_progress' | 'paid' | 'overdue' | 'expired' | 'cancelled';
   paidAt: Date | null;
+  invoiceSubtype: 'standard' | 'billing_cycle_transition';
   notes: string | null;
   paymentProofUrl: string | null;
   proofSubmittedAt: Date | null;
@@ -1701,6 +1702,7 @@ export function listRentInvoicesForBooking(
         lateFeeLockedPaise: rentInvoices.lateFeeLockedPaise,
         status: rentInvoices.status,
         paidAt: rentInvoices.paidAt,
+        invoiceSubtype: rentInvoices.invoiceSubtype,
         notes: rentInvoices.notes,
         paymentProofUrl: rentInvoices.paymentProofUrl,
         proofSubmittedAt: rentInvoices.proofSubmittedAt,

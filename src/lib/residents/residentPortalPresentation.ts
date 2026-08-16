@@ -19,15 +19,18 @@ export function moveOutStatusLabel(input: {
 export function enrichBillDueRow(
   row: import('@/src/components/customer/account/resident/ResidentPaymentsPanel').PaymentDueRow,
 ): import('@/src/components/customer/account/resident/ResidentPaymentsV2Hub').BillDueRow {
-  const label = row.label.toLowerCase();
-  if (label.startsWith('rent')) {
+  if (row.key.startsWith('rent-')) {
+    const periodCopy = row.billingPeriodLine ?? row.billingPeriodLabel;
     return {
       ...row,
       kind: 'rent',
-      why: 'Monthly rent for your current bed.',
-      calc: `${row.label} · billed on your move-in anniversary cycle`,
+      why: row.transitionExplanation ?? undefined,
+      calc: periodCopy
+        ? `${periodCopy}. Your payment on the due date covers your stay for this period.`
+        : 'Monthly rent for your current bed.',
     };
   }
+  const label = row.label.toLowerCase();
   if (label.includes('electricity') || label.startsWith('elec')) {
     const useProRata = row.electricityUseProRata === true;
     return {

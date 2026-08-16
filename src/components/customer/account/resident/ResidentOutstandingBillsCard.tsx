@@ -6,8 +6,7 @@ import type { PaymentDueRow } from '@/src/components/customer/account/resident/R
 
 function billKindLabel(row: PaymentDueRow): string {
   if (row.key.startsWith('rent-')) {
-    const monthPart = row.label.replace(/^Rent ·\s*/, '');
-    return `${monthPart} Rent`;
+    return row.label;
   }
   if (row.key.startsWith('elec-')) {
     const monthPart = row.label.replace(/^Electricity ·\s*/, '');
@@ -81,10 +80,15 @@ export function ResidentOutstandingBillsCard({
                   Due {paiseToInr(depositDuePaise ?? row.amountPaise)}
                 </p>
               ) : (
-                <p className="text-xs text-zinc-500">
-                  Status: {titleCase(row.status)}
-                  {row.dueDate ? ` · Due ${formatDate(row.dueDate)}` : ''}
-                </p>
+                <>
+                  {row.billingPeriodLabel ? (
+                    <p className="mt-0.5 text-xs text-zinc-600">{row.billingPeriodLabel}</p>
+                  ) : null}
+                  <p className="mt-0.5 text-xs text-zinc-500">
+                    Status: {titleCase(row.status)}
+                    {row.dueDate ? ` · Due ${formatDate(row.dueDate)}` : ''}
+                  </p>
+                </>
               )}
             </div>
             <p className="text-sm font-semibold tabular-nums text-zinc-900">

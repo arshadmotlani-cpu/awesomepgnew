@@ -13,6 +13,10 @@ export type PaymentDueRow = {
   invoiceNumber?: string;
   rejectionReason?: string;
   rejectionMessage?: string;
+  /** Rent invoice inclusive billing period, e.g. "1 September 2026 – 30 September 2026" */
+  billingPeriodLabel?: string | null;
+  billingPeriodLine?: string | null;
+  transitionExplanation?: string | null;
   /** When set, drives resident-facing electricity calculation copy. */
   electricityUseProRata?: boolean;
   /** Electricity invoice id — used to load room settlement breakdown. */

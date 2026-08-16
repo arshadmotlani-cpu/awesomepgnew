@@ -17,6 +17,27 @@ import type { PaymentDueRow } from '@/src/components/customer/account/resident/R
 import type { UpcomingPaymentRow } from '@/src/components/customer/account/resident/ResidentUpcomingPayments';
 import { isCancelledResidentInvoiceStatus } from '@/src/lib/residents/residentPortalDisplay';
 import { electricityUseProRataFromRow } from '@/src/lib/residents/residentElectricityHistoryPresentation';
+import { buildResidentRentBillPresentation } from '@/src/lib/residents/residentBillingPeriodDisplay';
+
+export type ResidentBillRentInvoice = {
+  billingMonth: string;
+  notes: string | null;
+  invoiceSubtype: 'standard' | 'billing_cycle_transition';
+};
+
+function rentBillDisplayFields(r: ResidentBillRentInvoice) {
+  const pres = buildResidentRentBillPresentation({
+    billingMonth: r.billingMonth,
+    notes: r.notes,
+    invoiceSubtype: r.invoiceSubtype,
+  });
+  return {
+    label: pres.listLabel,
+    billingPeriodLabel: pres.periodLabel,
+    billingPeriodLine: pres.billingPeriodLine,
+    transitionExplanation: pres.transitionExplanation,
+  };
+}
 
 export type ResidentBillDetail = {
   bookingId: string;
@@ -85,9 +106,13 @@ export function buildResidentBillRowsFromDetail(
 
     for (const r of rentRows) {
       if (isCancelledResidentInvoiceStatus(r.status)) {
+        const display = rentBillDisplayFields(r);
         cancelledBillRows.push({
           id: r.id,
-          label: `Rent · ${formatDate(r.billingMonth)}`,
+          label: display.label,
+          billingPeriodLabel: display.billingPeriodLabel,
+          billingPeriodLine: display.billingPeriodLine,
+          transitionExplanation: display.transitionExplanation,
           amountPaise: r.rentPaise,
           paidAt: null,
           status: 'cancelled',
@@ -98,9 +123,13 @@ export function buildResidentBillRowsFromDetail(
       if (r.status === 'paid') {
         if (options.paidWindowDays == null || isWithinLastDays(r.paidAt, options.paidWindowDays)) {
           const mode = paymentModeLabel(paymentProviders, r.paymentId);
+          const display = rentBillDisplayFields(r);
           paidBillRows.push({
             id: r.id,
-            label: `Rent · ${formatDate(r.billingMonth)}`,
+            label: display.label,
+            billingPeriodLabel: display.billingPeriodLabel,
+            billingPeriodLine: display.billingPeriodLine,
+            transitionExplanation: display.transitionExplanation,
             amountPaise: r.paidPrincipalPaise + r.paidLateFeePaise,
             paidAt: r.paidAt ? formatDate(r.paidAt) : null,
             status: 'paid',
@@ -126,11 +155,15 @@ export function buildResidentBillRowsFromDetail(
       const outstanding = projected.outstandingPaise;
       if (outstanding <= 0) continue;
 
+      const display = rentBillDisplayFields(r);
       const rentRejection = rejectionFor(activeRejections, 'rent_invoice', r.id);
       if (rentRejection && !r.paymentProofUrl) {
         rejectedBillRows.push({
           key: `rent-${r.id}`,
-          label: `Rent · ${formatDate(r.billingMonth)}`,
+          label: display.label,
+          billingPeriodLabel: display.billingPeriodLabel,
+          billingPeriodLine: display.billingPeriodLine,
+          transitionExplanation: display.transitionExplanation,
           amountPaise: outstanding,
           dueDate: r.dueDate,
           href: `/account/resident/pay-rent/${r.id}`,
@@ -145,7 +178,10 @@ export function buildResidentBillRowsFromDetail(
       if (projected.effectiveStatus === 'payment_in_progress') {
         pendingApprovalRows.push({
           key: `rent-${r.id}`,
-          label: `Rent · ${formatDate(r.billingMonth)}`,
+          label: display.label,
+          billingPeriodLabel: display.billingPeriodLabel,
+          billingPeriodLine: display.billingPeriodLine,
+          transitionExplanation: display.transitionExplanation,
           amountPaise: outstanding,
           dueDate: r.dueDate,
           href: `/account/resident/pay-rent/${r.id}`,
@@ -157,7 +193,10 @@ export function buildResidentBillRowsFromDetail(
       if (!firstUnpaidRentId) firstUnpaidRentId = r.id;
       const row: PaymentDueRow = {
         key: `rent-${r.id}`,
-        label: `Rent · ${formatDate(r.billingMonth)}`,
+        label: display.label,
+        billingPeriodLabel: display.billingPeriodLabel,
+        billingPeriodLine: display.billingPeriodLine,
+        transitionExplanation: display.transitionExplanation,
         amountPaise: outstanding,
         dueDate: r.dueDate,
         href: `/account/resident/pay-rent/${r.id}`,
@@ -168,6 +207,7 @@ export function buildResidentBillRowsFromDetail(
       homeUpcoming.push({
         key: row.key,
         label: row.label,
+        billingPeriodLabel: row.billingPeriodLabel,
         amountPaise: row.amountPaise,
         dueDate: row.dueDate,
         href: row.href,
@@ -179,9 +219,13 @@ export function buildResidentBillRowsFromDetail(
         r.paidPrincipalPaise + r.paidLateFeePaise > 0
       ) {
         const mode = paymentModeLabel(paymentProviders, r.paymentId);
+        const partialDisplay = rentBillDisplayFields(r);
         paidBillRows.push({
           id: r.id,
-          label: `Rent · ${formatDate(r.billingMonth)}`,
+          label: partialDisplay.label,
+          billingPeriodLabel: partialDisplay.billingPeriodLabel,
+          billingPeriodLine: partialDisplay.billingPeriodLine,
+          transitionExplanation: partialDisplay.transitionExplanation,
           amountPaise: r.paidPrincipalPaise + r.paidLateFeePaise,
           paidAt: r.paidAt ? formatDate(r.paidAt) : null,
           status: 'partial',

@@ -23,6 +23,9 @@ export function ResidentHomeNextPayment({ payment }: { payment: UpcomingPaymentR
       <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-base font-medium text-zinc-900">{payment.label}</p>
+          {payment.billingPeriodLabel ? (
+            <p className="mt-0.5 text-sm text-zinc-700">{payment.billingPeriodLabel}</p>
+          ) : null}
           <p className="mt-0.5 text-xs text-zinc-500">
             {payment.dueDate ? (
               <>

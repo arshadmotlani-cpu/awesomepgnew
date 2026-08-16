@@ -29,6 +29,7 @@ import {
   ACCOUNT_PAGE_TITLE,
 } from '@/src/components/customer/accountStyles';
 import { loadRentInvoiceBreakdown } from '@/src/lib/billing/rentInvoiceBreakdown';
+import { buildResidentRentBillPresentation } from '@/src/lib/residents/residentBillingPeriodDisplay';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import { projectInvoice, rentInvoiceIssueDate } from '@/src/services/rentInvoices';
 import {
@@ -78,6 +79,7 @@ export default async function PayRentPage({
       paidAt: rentInvoices.paidAt,
       paymentProofUrl: rentInvoices.paymentProofUrl,
       notes: rentInvoices.notes,
+      invoiceSubtype: rentInvoices.invoiceSubtype,
       pgId: rentInvoices.pgId,
       cancelledAt: rentInvoices.cancelledAt,
       cancellationReason: rentInvoices.cancellationReason,
@@ -104,8 +106,13 @@ export default async function PayRentPage({
 
   const projected = projectInvoice(row);
   const rentBreakdown = await loadRentInvoiceBreakdown(invoiceId);
+  const billPresentation = buildResidentRentBillPresentation({
+    billingMonth: row.billingMonth,
+    notes: row.notes,
+    invoiceSubtype: row.invoiceSubtype,
+  });
   const amountLabel = paiseToInr(projected.outstandingPaise);
-  const periodLabel = formatDate(row.billingMonth);
+  const periodLabel = billPresentation.periodLabel;
   const backHref = residentTabHref('payments');
   const issueDate = rentInvoiceIssueDate(row);
   const dueDateLabel = projected.graceEndDate ?? formatDate(row.dueDate);
@@ -127,8 +134,18 @@ export default async function PayRentPage({
 
       <ApgCard tier="account" className="p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-zinc-900">Your bill</h2>
+          <h2 className="text-sm font-semibold text-zinc-900">
+            {billPresentation.isTransition ? 'Billing transition' : 'Your bill'}
+          </h2>
           <StatusChip status={projected.effectiveStatus} toneMap={STATUS_TONE} />
+        </div>
+        <div className="mb-4 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3">
+          <p className="text-sm font-semibold text-zinc-900">{billPresentation.titleLabel}</p>
+          <p className="mt-1 text-sm font-medium text-zinc-800">{billPresentation.periodLabel}</p>
+          <p className="mt-1 text-xs text-zinc-600">{billPresentation.billingPeriodLine}</p>
+          {billPresentation.transitionExplanation ? (
+            <p className="mt-2 text-xs text-zinc-600">{billPresentation.transitionExplanation}</p>
+          ) : null}
         </div>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
           <InvoiceBreakdownRow label="Rent" value={paiseToInr(rentAfterDiscount)} />
@@ -152,7 +169,7 @@ export default async function PayRentPage({
       <ViewBillDetailsCollapsible>
         <dl className="mb-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
           <InvoiceBreakdownRow label="Invoice ID" value={row.invoiceNumber} />
-          <InvoiceBreakdownRow label="Billing period" value={periodLabel} />
+          <InvoiceBreakdownRow label="Billing period" value={billPresentation.periodLabel} />
           <InvoiceBreakdownRow label="Room / bed" value={`R${row.roomNumber} · ${row.bedCode}`} />
           {(row.discountPaise ?? 0) > 0 ? (
             <InvoiceBreakdownRow
@@ -194,7 +211,7 @@ export default async function PayRentPage({
             initialOutstandingPaise={projected.outstandingPaise - projected.accruedLateFeePaise}
             lateFeePaise={projected.accruedLateFeePaise}
             periodLabel={periodLabel}
-            confirmMessageBase={`You are paying ${amountLabel} for rent for ${periodLabel}.`}
+            confirmMessageBase={`You are paying ${amountLabel} for rent covering ${periodLabel}.`}
             qrImageUrl={rentCategory?.qrCodeImageUrl ?? DEFAULT_RENT_DEPOSIT_QR_PATH}
             upiId={rentCategory?.upiId ?? DEFAULT_RENT_DEPOSIT_UPI_ID}
             existingProofUrl={row.paymentProofUrl}

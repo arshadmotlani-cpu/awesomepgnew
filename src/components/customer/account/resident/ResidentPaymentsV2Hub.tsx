@@ -27,6 +27,9 @@ export type PaidHistoryRow = {
   paidAt: string | null;
   status: string;
   invoiceNumber?: string;
+  billingPeriodLabel?: string | null;
+  billingPeriodLine?: string | null;
+  transitionExplanation?: string | null;
   /** View invoice page (share / HTML document). */
   detailHref?: string | null;
   subtitle?: string | null;
@@ -72,7 +75,17 @@ function BillCard({ row }: { row: BillDueRow }) {
       <div className="flex flex-col gap-3 max-md:gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-white">{row.label}</p>
-          {row.why ? <p className="mt-1 text-xs text-apg-silver">{row.why}</p> : null}
+          {row.billingPeriodLabel ? (
+            <p className="mt-1.5 text-sm font-medium text-white/90">{row.billingPeriodLabel}</p>
+          ) : null}
+          {row.billingPeriodLine ? (
+            <p className="mt-1 text-xs text-apg-silver">{row.billingPeriodLine}</p>
+          ) : null}
+          {row.transitionExplanation ? (
+            <p className="mt-1 text-xs text-apg-silver">{row.transitionExplanation}</p>
+          ) : row.why ? (
+            <p className="mt-1 text-xs text-apg-silver">{row.why}</p>
+          ) : null}
           {row.dueDate ? (
             <p className="mt-1 text-xs text-apg-silver">Due {formatDate(row.dueDate)}</p>
           ) : null}
@@ -228,9 +241,14 @@ export function ResidentPaymentsV2Hub({
               <h2 className="text-sm font-semibold text-white">Pending approval</h2>
               <ul className="mt-3 space-y-2">
                 {pendingApprovalRows.map((row) => (
-                  <li key={row.key} className="flex justify-between text-sm">
-                    <span className="text-apg-silver">{row.label}</span>
-                    <span className="font-semibold text-white">{paiseToInr(row.amountPaise)}</span>
+                  <li key={row.key} className="flex justify-between gap-3 text-sm">
+                    <div className="min-w-0">
+                      <span className="text-apg-silver">{row.label}</span>
+                      {row.billingPeriodLabel ? (
+                        <p className="mt-0.5 text-xs text-apg-silver/80">{row.billingPeriodLabel}</p>
+                      ) : null}
+                    </div>
+                    <span className="font-semibold text-white shrink-0">{paiseToInr(row.amountPaise)}</span>
                   </li>
                 ))}
               </ul>
@@ -287,6 +305,9 @@ export function ResidentPaymentsV2Hub({
                   <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
                     <div>
                       <p className="text-sm font-medium text-white">{row.label}</p>
+                      {row.billingPeriodLabel ? (
+                        <p className="mt-0.5 text-xs text-apg-silver">{row.billingPeriodLabel}</p>
+                      ) : null}
                       {row.paymentModeLabel ? (
                         <p className="text-xs text-apg-silver">Paid via {row.paymentModeLabel}</p>
                       ) : row.subtitle ? (

@@ -5,6 +5,7 @@ import { ACCOUNT_SURFACE } from '@/src/components/customer/accountStyles';
 export type UpcomingPaymentRow = {
   key: string;
   label: string;
+  billingPeriodLabel?: string | null;
   amountPaise: number;
   dueDate: string | null;
   href: string | null;
@@ -30,6 +31,9 @@ export function ResidentUpcomingPayments({ rows }: { rows: UpcomingPaymentRow[] 
           <li key={row.key} className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0">
             <div>
               <p className="text-sm font-medium text-zinc-900">{row.label}</p>
+              {row.billingPeriodLabel ? (
+                <p className="text-xs text-zinc-600">{row.billingPeriodLabel}</p>
+              ) : null}
               <p className="text-xs text-zinc-500">
                 {row.dueDate ? `Due ${formatDate(row.dueDate)}` : 'Due soon'} · {row.status}
               </p>
