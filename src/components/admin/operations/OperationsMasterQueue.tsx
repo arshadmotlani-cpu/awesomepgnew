@@ -1,9 +1,9 @@
-import Link from 'next/link';
 import { OperationsFlashToast } from '@/src/components/admin/operations/OperationsFlashToast';
+import { OperationsQueueChip } from '@/src/components/admin/operations/OperationsQueueChip';
 import { OperationsOpsRowActions } from '@/src/components/admin/operations/OperationsOpsRowActions';
 import { OperationsWaitingForApprovalTable } from '@/src/components/admin/operations/OperationsWaitingForApprovalTable';
 import { OperationsRejectedPaymentsSection } from '@/src/components/admin/operations/OperationsRejectedPaymentsSection';
-import { OPS_QUEUE_LABELS, operationsFilterHref, type OpsQueueFilter } from '@/src/lib/operations/operationsFilterLinks';
+import { OPS_QUEUE_LABELS, type OpsQueueFilter } from '@/src/lib/operations/operationsFilterLinks';
 import { MoveOutOpsActionPipeline } from '@/src/components/admin/moveOut/MoveOutOpsActionPipeline';
 import { moveOutClientRequiresAdminActionNow } from '@/src/lib/operations/moveOutAdminAction';
 import type { MoveOutPipelineItemClient } from '@/src/lib/moveOut/moveOutPipeline';
@@ -14,7 +14,6 @@ import type { OperationsDateChangeBundle } from '@/src/lib/operations/loadOperat
 import { OperationsVacatingDateChangePanels } from '@/src/components/admin/operations/OperationsVacatingDateChangePanels';
 import { paiseToInr } from '@/src/lib/format';
 import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
-import { operationsQueueChipClass } from '@/src/lib/operations/operationsQueueChipStyles';
 
 function OutstandingCell({ item }: { item: UnifiedOpsItem }) {
   const lines = item.outstandingLines ?? [];
@@ -256,18 +255,15 @@ function QueueHeader({
       </section>
 
       <section className="flex flex-wrap gap-2">
-        {filterCounts.map((chip) => {
-          const selected = activeFilter === chip.id;
-          return (
-            <Link
-              key={chip.id}
-              href={operationsFilterHref(chip.id)}
-              className={operationsQueueChipClass(chip.count, selected)}
-            >
-              {chip.label} ({chip.count})
-            </Link>
-          );
-        })}
+        {filterCounts.map((chip) => (
+          <OperationsQueueChip
+            key={chip.id}
+            id={chip.id}
+            label={chip.label}
+            count={chip.count}
+            selected={activeFilter === chip.id}
+          />
+        ))}
       </section>
     </>
   );

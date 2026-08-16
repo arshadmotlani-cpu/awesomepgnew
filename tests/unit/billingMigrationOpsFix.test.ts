@@ -7,6 +7,7 @@ import {
 import {
   operationsQueueChipClass,
   operationsQueueChipNeedsAttention,
+  operationsQueueCountBadgeClass,
 } from '../../src/lib/operations/operationsQueueChipStyles';
 
 describe('transition invoices in collections queue', () => {
@@ -81,13 +82,20 @@ describe('shouldSkipCalendarMonthRentGeneration', () => {
 });
 
 describe('operationsQueueChipStyles', () => {
-  test('zero count is neutral', () => {
+  test('zero count is inactive', () => {
     assert.equal(operationsQueueChipNeedsAttention(0), false);
-    assert.match(operationsQueueChipClass(0, false), /text-apg-silver/);
+    assert.match(operationsQueueChipClass(0, false), /apg-silver\/50/);
+    assert.match(operationsQueueCountBadgeClass(0, false), /transparent/);
   });
 
   test('non-zero count is attention', () => {
-    assert.equal(operationsQueueChipNeedsAttention(3), true);
-    assert.match(operationsQueueChipClass(3, false), /FF5A1F/);
+    assert.equal(operationsQueueChipNeedsAttention(4), true);
+    assert.match(operationsQueueChipClass(4, false), /FF5A1F/);
+    assert.match(operationsQueueCountBadgeClass(4, false), /bg-\[#FF5A1F\]/);
+  });
+
+  test('selected state overrides attention styling', () => {
+    assert.match(operationsQueueChipClass(3, true), /bg-\[#FF5A1F\]/);
+    assert.match(operationsQueueCountBadgeClass(3, true), /white\/20/);
   });
 });
