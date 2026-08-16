@@ -65,7 +65,7 @@ test('canBookBedFromSnapshot blocks when bed not yet released', () => {
     vacatingStatus: 'approved' as const,
     durationMode: 'monthly',
     stayType: 'monthly_stay',
-    asOfDate: '2026-08-16',
+    asOfDate: '2026-08-15',
   };
   const snap = computeBedOccupancySnapshot(input);
   assert.equal(snap.bookableFromDate, '2026-08-16');

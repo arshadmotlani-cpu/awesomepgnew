@@ -606,7 +606,12 @@ export function canBookBedFromSnapshot(
   const snap = snapshot ?? computeBedOccupancySnapshot(input);
   if (snap.publicState === 'maintenance' || input.bedStatus !== 'available') return false;
   if (input.manualOccupied || input.isOccupiedToday) return false;
-  if (input.vacatingDate && !isBedReleasedForVacating(input.vacatingDate)) return false;
+  if (input.vacatingDate && input.asOfDate) {
+    const releaseDay = bedAvailableCalendarDate(input.vacatingDate);
+    if (input.asOfDate < releaseDay) return false;
+  } else if (input.vacatingDate && !isBedReleasedForVacating(input.vacatingDate)) {
+    return false;
+  }
   if (snap.publicState === 'occupied' && isMonthlyTenancy(input)) return false;
   if (input.isAvailableNow) return true;
   if (snap.bookableFromDate) return true;
