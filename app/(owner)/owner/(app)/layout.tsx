@@ -9,11 +9,15 @@ export default async function OwnerAppLayout({ children }: { children: React.Rea
   const activePath = hdrs.get('x-owner-pathname') ?? '/dashboard';
 
   return (
-    <div className="flex min-h-screen">
+    <div className="oo-shell flex">
       <OwnerSidebar activePath={activePath} />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="oo-app-column">
         <OwnerTopBar admin={admin} />
-        <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
+        <main
+          className="oo-safe-px flex min-h-0 flex-col overflow-y-auto overflow-x-hidden p-4 pb-[max(1rem,var(--oo-safe-bottom))] md:p-6"
+        >
+          {children}
+        </main>
       </div>
     </div>
   );

@@ -1,16 +1,6 @@
 import Link from 'next/link';
 import { OWNER_OS } from '@/src/lib/brand/ownerOsMetadata';
-
-const NAV = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/net-worth', label: 'Net Worth' },
-  { href: '/cashflow', label: 'Cashflow' },
-  { href: '/assets', label: 'Assets' },
-  { href: '/liabilities', label: 'Liabilities' },
-  { href: '/investments', label: 'Investments' },
-  { href: '/wealth', label: 'Wealth' },
-  { href: '/settings', label: 'Settings' },
-] as const;
+import { ownerNavItems } from '@/src/owner/lib/ownerNav';
 
 export function OwnerSidebar({ activePath }: { activePath?: string }) {
   return (
@@ -20,7 +10,7 @@ export function OwnerSidebar({ activePath }: { activePath?: string }) {
         <p className="text-sm font-semibold text-white">{OWNER_OS.name}</p>
       </div>
       <nav className="space-y-1">
-        {NAV.map((item) => (
+        {ownerNavItems.map((item) => (
           <Link
             key={item.href}
             href={item.href}
