@@ -6,6 +6,7 @@ import {
 import { propertyBasisPaise } from '@/src/owner/lib/wealth/propertyValuation';
 import { ownershipSharePaise } from '@/src/owner/lib/wealth/types';
 import { coerceWealthPaise } from '@/src/owner/lib/wealth/paiseCoercion';
+import { getPropertyFinancialSummary } from '@/src/owner/services/propertyFinancials';
 
 export default async function OwnerAssetsPage() {
   const properties = await listProperties().catch(() => []);
@@ -23,11 +24,14 @@ export default async function OwnerAssetsPage() {
           latest?.valuePaise != null
             ? coerceWealthPaise(latest.valuePaise)
             : propertyBasisPaise(basis);
-        const currentValuePaise = rawCurrent;
-        const ownerCurrent = ownershipSharePaise(currentValuePaise, basis.ownershipPctBps);
+        const ownerCurrent = ownershipSharePaise(rawCurrent, basis.ownershipPctBps);
         const ownerBasis = ownershipSharePaise(propertyBasisPaise(basis), basis.ownershipPctBps);
         const appreciationPct =
           ownerBasis > 0 ? ((ownerCurrent - ownerBasis) / ownerBasis) * 100 : 0;
+
+        const financials = await getPropertyFinancialSummary(asset.id, {
+          ownerCurrentValuePaise: ownerCurrent,
+        }).catch(() => null);
 
         const purchaseYear = property.purchaseDate
           ? property.purchaseDate.slice(0, 4)
@@ -43,6 +47,10 @@ export default async function OwnerAssetsPage() {
           appreciationPaise: ownerCurrent - ownerBasis,
           appreciationPct,
           purchaseYear,
+          monthlyIncomePaise: financials?.monthlyIncomePaise ?? 0,
+          monthlyExpensePaise: financials?.monthlyExpensePaise ?? 0,
+          loanOutstandingPaise: financials?.loanOutstandingPaise ?? 0,
+          netEquityPaise: financials?.equityPaise ?? ownerCurrent,
         };
       } catch (e) {
         console.error('[owner] assets row failed', asset.id, e);

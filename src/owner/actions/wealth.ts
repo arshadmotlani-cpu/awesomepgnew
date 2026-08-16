@@ -50,6 +50,8 @@ export async function createExpenseAction(
       category: String(formData.get('category') ?? 'OTHER') as ExpenseCategory,
       subcategory: String(formData.get('subcategory') ?? '') || null,
       accountId: String(formData.get('accountId') ?? '') || null,
+      assetId: String(formData.get('assetId') ?? '') || null,
+      liabilityId: String(formData.get('liabilityId') ?? '') || null,
       notes: String(formData.get('notes') ?? '') || null,
       createdBy: admin.id,
     });
@@ -67,21 +69,43 @@ export async function createPropertyAction(
 ): Promise<WealthActionState> {
   try {
     const admin = await requireOwnerAuth();
+
+    const breakdown = {
+      registration: Number(formData.get('registrationRupees') ?? 0),
+      stampDuty: Number(formData.get('stampDutyRupees') ?? 0),
+      legalFees: Number(formData.get('legalFeesRupees') ?? 0),
+      brokerage: Number(formData.get('brokerageRupees') ?? 0),
+      renovation: Number(formData.get('renovationRupees') ?? 0),
+      other: Number(formData.get('otherAcquisitionRupees') ?? 0),
+    };
+    const breakdownTotal = Object.values(breakdown).reduce((s, v) => s + v, 0);
+    const directCosts = Number(formData.get('purchaseCostsRupees') ?? 0);
+    const purchaseCostsRupees = breakdownTotal > 0 ? breakdownTotal : directCosts;
+
     await createProperty({
       name: String(formData.get('name') ?? ''),
       propertyType: String(formData.get('propertyType') ?? 'residential'),
       address: String(formData.get('address') ?? '') || null,
       city: String(formData.get('city') ?? '') || null,
+      state: String(formData.get('state') ?? '') || null,
+      country: String(formData.get('country') ?? '') || null,
+      postalCode: String(formData.get('postalCode') ?? '') || null,
       purchaseDate: String(formData.get('purchaseDate') ?? '') || null,
       purchasePriceRupees: Number(formData.get('purchasePriceRupees') ?? 0),
-      purchaseCostsRupees: Number(formData.get('purchaseCostsRupees') ?? 0),
+      purchaseCostsRupees,
+      purchaseCostsBreakdown: breakdownTotal > 0 ? breakdown : undefined,
       ownershipPct: Number(formData.get('ownershipPct') ?? 100),
+      linkedPgId: String(formData.get('linkedPgId') ?? '') || null,
+      appreciationMethod: String(formData.get('appreciationMethod') ?? 'FLAT_ANNUAL'),
       annualAppreciationPct: formData.get('annualAppreciationPct')
         ? Number(formData.get('annualAppreciationPct'))
         : null,
       currentValueRupees: formData.get('currentValueRupees')
         ? Number(formData.get('currentValueRupees'))
         : null,
+      valuationDate: String(formData.get('valuationDate') ?? '') || null,
+      monthlyRentalIncomeRupees: Number(formData.get('monthlyRentalIncomeRupees') ?? 0),
+      otherMonthlyIncomeRupees: Number(formData.get('otherMonthlyIncomeRupees') ?? 0),
       notes: String(formData.get('notes') ?? '') || null,
       createdBy: admin.id,
     });
@@ -90,6 +114,74 @@ export async function createPropertyAction(
     return { success: 'Property created' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to create property' };
+  }
+}
+
+export async function createIncomeAction(
+  _prev: WealthActionState,
+  formData: FormData,
+): Promise<WealthActionState> {
+  try {
+    const admin = await requireOwnerAuth();
+    await createManualIncome({
+      amountRupees: Number(formData.get('amountRupees') ?? 0),
+      incomeDate: String(formData.get('incomeDate') ?? ''),
+      description: String(formData.get('description') ?? ''),
+      accountId: String(formData.get('accountId') ?? '') || null,
+      assetId: String(formData.get('assetId') ?? '') || null,
+      notes: String(formData.get('notes') ?? '') || null,
+      createdBy: admin.id,
+    });
+    revalidatePath('/income');
+    revalidatePath('/dashboard');
+    return { success: 'Income recorded' };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to record income' };
+  }
+}
+
+export async function createPropertyExpenseAction(
+  _prev: WealthActionState,
+  formData: FormData,
+): Promise<WealthActionState> {
+  try {
+    const admin = await requireOwnerAuth();
+    const assetId = String(formData.get('assetId') ?? '') || null;
+    const frequency = String(formData.get('frequency') ?? 'ONE_TIME');
+
+    if (frequency !== 'ONE_TIME') {
+      await createRecurringObligation({
+        name: String(formData.get('description') ?? 'Property expense'),
+        amountRupees: Number(formData.get('amountRupees') ?? 0),
+        frequency: frequency as 'MONTHLY' | 'YEARLY' | 'QUARTERLY',
+        category: String(formData.get('category') ?? 'PROPERTY') as ExpenseCategory,
+        assetId,
+        nextDueDate: String(formData.get('expenseDate') ?? '') || null,
+        notes: String(formData.get('notes') ?? '') || null,
+        createdBy: admin.id,
+      });
+    } else {
+      await createManualExpense({
+        amountRupees: Number(formData.get('amountRupees') ?? 0),
+        expenseDate: String(formData.get('expenseDate') ?? ''),
+        description: String(formData.get('description') ?? ''),
+        category: String(formData.get('category') ?? 'PROPERTY') as ExpenseCategory,
+        assetId,
+        accountId: String(formData.get('accountId') ?? '') || null,
+        notes: String(formData.get('notes') ?? '') || null,
+        createdBy: admin.id,
+      });
+    }
+
+    const assetIdForRevalidate = assetId;
+    if (assetIdForRevalidate) {
+      revalidatePath(`/assets/${assetIdForRevalidate}`);
+    }
+    revalidatePath('/expenses');
+    revalidatePath('/assets');
+    return { success: 'Expense recorded' };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to record expense' };
   }
 }
 

@@ -34,6 +34,7 @@ export const OWNER_PUBLIC_PREFIXES = [
   '/dashboard',
   '/net-worth',
   '/cashflow',
+  '/income',
   '/assets',
   '/properties',
   '/liabilities',

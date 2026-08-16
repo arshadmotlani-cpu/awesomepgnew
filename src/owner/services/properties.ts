@@ -80,14 +80,20 @@ export async function createProperty(input: {
   address?: string | null;
   city?: string | null;
   state?: string | null;
+  country?: string | null;
+  postalCode?: string | null;
   purchaseDate?: string | null;
   purchasePriceRupees: number;
   purchaseCostsRupees?: number;
+  purchaseCostsBreakdown?: Record<string, number>;
   ownershipPct?: number;
   linkedPgId?: string | null;
   annualAppreciationPct?: number | null;
+  appreciationMethod?: string;
   currentValueRupees?: number | null;
   valuationDate?: string | null;
+  monthlyRentalIncomeRupees?: number;
+  otherMonthlyIncomeRupees?: number;
   notes?: string | null;
   createdBy?: string | null;
 }) {
@@ -113,9 +119,15 @@ export async function createProperty(input: {
       address: input.address?.trim() || null,
       city: input.city?.trim() || null,
       state: input.state?.trim() || null,
+      country: input.country?.trim() || null,
+      postalCode: input.postalCode?.trim() || null,
       purchaseDate: input.purchaseDate ?? null,
       purchasePricePaise: paiseFromRupees(input.purchasePriceRupees),
       purchaseCostsPaise: paiseFromRupees(input.purchaseCostsRupees ?? 0),
+      purchaseCostsBreakdownJson: input.purchaseCostsBreakdown ?? {},
+      appreciationMethod: input.appreciationMethod ?? 'FLAT_ANNUAL',
+      monthlyRentalIncomePaise: paiseFromRupees(input.monthlyRentalIncomeRupees ?? 0),
+      otherMonthlyIncomePaise: paiseFromRupees(input.otherMonthlyIncomeRupees ?? 0),
       linkedPgId: input.linkedPgId ?? null,
       notes: input.notes?.trim() || null,
     })

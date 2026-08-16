@@ -31,14 +31,17 @@ type ExpenseRow = {
 };
 
 type AccountOption = { id: string; name: string };
+type AssetOption = { id: string; name: string };
 
 export function ExpensesUi({
   expenses,
   accounts,
+  assets,
   expensesBySource,
 }: {
   expenses: ExpenseRow[];
   accounts: AccountOption[];
+  assets: AssetOption[];
   expensesBySource: Array<{ sourceSystem: string; totalPaise: number }>;
 }) {
   const [state, formAction, pending] = useActionState<WealthActionState, FormData>(
@@ -48,15 +51,15 @@ export function ExpensesUi({
   const totalConsolidated = expensesBySource.reduce((s, r) => s + r.totalPaise, 0);
 
   return (
-    <div className="space-y-6">
+    <div className="oo-page-stack">
       <header>
-        <h1 className="text-2xl font-semibold text-white">Expenses</h1>
-        <p className="mt-1 text-sm text-[color:var(--oo-muted)]">
-          Consolidated view across Owner OS and connected engines. No double counting.
+        <h1 className="oo-page-title">Expenses</h1>
+        <p className="oo-page-subtitle">
+          Consolidated across Owner OS and connected engines. Principal repayments are not expenses.
         </p>
       </header>
 
-      <section className="rounded-xl border border-white/10 bg-[color:var(--oo-surface)] p-4">
+      <section className="oo-card oo-card-compact">
         <h2 className="text-sm font-medium text-white">This month — by source</h2>
         <p className="mt-1 text-2xl font-semibold tabular-nums text-white">
           {paiseToInr(totalConsolidated)}
@@ -76,9 +79,9 @@ export function ExpensesUi({
         </div>
       </section>
 
-      <section className="rounded-xl border border-white/10 bg-[color:var(--oo-surface)] p-4">
-        <h2 className="text-sm font-medium text-white">Add manual expense</h2>
-        <form action={formAction} className="mt-3 grid gap-3 sm:grid-cols-2">
+      <section className="oo-form-section">
+        <h2 className="oo-form-section-title">Add manual expense</h2>
+        <form action={formAction} className="oo-form-grid">
           <input
             name="description"
             placeholder="Description"
@@ -122,10 +125,16 @@ export function ExpensesUi({
             placeholder="Notes"
             className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
           />
+          <select name="assetId" className="oo-form-input">
+            <option value="">Link to property (optional)</option>
+            {assets.map((a) => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
           <button
             type="submit"
             disabled={pending}
-            className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="oo-btn-primary disabled:opacity-50"
           >
             {pending ? 'Saving…' : 'Record expense'}
           </button>

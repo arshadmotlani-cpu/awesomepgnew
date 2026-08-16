@@ -25,34 +25,58 @@ export function LiabilityFormUi() {
   );
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="oo-page-stack mx-auto max-w-2xl">
       <header>
-        <h1 className="text-2xl font-semibold text-white">Add liability</h1>
+        <h1 className="oo-page-title">Add liability</h1>
+        <p className="oo-page-subtitle">Loans, EMIs, and debt linked to properties.</p>
       </header>
-      <form action={formAction} className="space-y-4 rounded-xl border border-white/10 bg-[color:var(--oo-surface)] p-4">
-        <input name="name" placeholder="Loan name" required className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white" />
-        <input name="lender" placeholder="Lender" className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white" />
-        <select name="liabilityType" className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white">
+      <form action={formAction} className="oo-form-section oo-form-grid">
+        <input name="name" placeholder="Loan name" required className="oo-form-input" />
+        <input name="lender" placeholder="Lender" className="oo-form-input" />
+        <select name="liabilityType" className="oo-form-input">
           {LIABILITY_TYPES.map((t) => (
             <option key={t} value={t}>{t.replaceAll('_', ' ')}</option>
           ))}
         </select>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <input name="originalPrincipalRupees" type="number" step="0.01" placeholder="Original principal (₹)" required className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white" />
-          <input name="currentPrincipalRupees" type="number" step="0.01" placeholder="Current principal (₹)" className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white" />
-          <input name="interestRatePct" type="number" step="0.01" placeholder="Interest rate %" className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white" />
-          <input name="tenureMonths" type="number" placeholder="Tenure (months)" className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white" />
-          <input name="startDate" type="date" className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white" />
-          <input name="fixedPaymentRupees" type="number" step="0.01" placeholder="Fixed payment (₹)" className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white" />
-        </div>
-        <div className="flex gap-3">
-          <button type="submit" disabled={pending} className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-medium text-white">
+        <input
+          name="originalPrincipalRupees"
+          type="number"
+          step="0.01"
+          placeholder="Original principal (₹)"
+          required
+          className="oo-form-input oo-form-input-money"
+        />
+        <input
+          name="currentPrincipalRupees"
+          type="number"
+          step="0.01"
+          placeholder="Current principal (₹)"
+          className="oo-form-input oo-form-input-money"
+        />
+        <input
+          name="interestRatePct"
+          type="number"
+          step="0.01"
+          placeholder="Interest rate %"
+          className="oo-form-input"
+        />
+        <input name="tenureMonths" type="number" placeholder="Tenure (months)" className="oo-form-input" />
+        <input name="startDate" type="date" className="oo-form-input" />
+        <input
+          name="fixedPaymentRupees"
+          type="number"
+          step="0.01"
+          placeholder="EMI / fixed payment (₹)"
+          className="oo-form-input oo-form-input-money"
+        />
+        <input name="assetId" placeholder="Linked asset ID (optional)" className="oo-form-input" />
+        <div className="oo-form-actions col-span-full">
+          <button type="submit" disabled={pending} className="oo-btn-primary">
             Create loan
           </button>
-          <Link href="/liabilities" className="rounded-lg border border-white/10 px-4 py-2 text-sm text-white">Cancel</Link>
+          <Link href="/liabilities" className="oo-btn-secondary">Cancel</Link>
         </div>
-        {state.error ? <p className="text-sm text-red-400">{state.error}</p> : null}
-        {state.success ? <p className="text-sm text-emerald-400">{state.success}</p> : null}
+        {state.error ? <p className="text-sm text-red-400 col-span-full">{state.error}</p> : null}
       </form>
     </div>
   );
@@ -60,10 +84,24 @@ export function LiabilityFormUi() {
 
 type AccountOption = { id: string; name: string };
 
+type PaymentRow = {
+  id: string;
+  entryDate: string;
+  description: string;
+  eventType: string;
+  amountPaise: number;
+  category: string | null;
+  principalPaise: number;
+  interestPaise: number;
+};
+
 export function LiabilityDetailUi({
   liability,
   due,
   accounts,
+  payments,
+  totalPrincipalPaidPaise,
+  totalInterestPaidPaise,
 }: {
   liability: {
     id: string;
@@ -71,6 +109,7 @@ export function LiabilityDetailUi({
     lender: string | null;
     liabilityType: string;
     currentPrincipalPaise: number;
+    originalPrincipalPaise: number;
     interestRateBps: number;
   };
   due: {
@@ -80,71 +119,140 @@ export function LiabilityDetailUi({
     dueDate: string | null;
   } | null;
   accounts: AccountOption[];
+  payments: PaymentRow[];
+  totalPrincipalPaidPaise: number;
+  totalInterestPaidPaise: number;
 }) {
   const [state, formAction, pending] = useActionState<WealthActionState, FormData>(
     payLiabilityAction,
     {},
   );
 
+  const suggestedPayment =
+    due && due.totalDuePaise > 0 ? (due.totalDuePaise / 100).toFixed(2) : '';
+
   return (
-    <div className="space-y-6">
+    <div className="oo-page-stack">
       <header>
-        <h1 className="text-2xl font-semibold text-white">{liability.name}</h1>
-        <p className="mt-1 text-sm text-[color:var(--oo-muted)]">
+        <h1 className="oo-page-title">{liability.name}</h1>
+        <p className="oo-page-subtitle">
           {liability.lender ?? liability.liabilityType.replaceAll('_', ' ')} ·{' '}
           {(liability.interestRateBps / 100).toFixed(2)}% interest
         </p>
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border border-white/10 bg-[color:var(--oo-surface)] p-4">
-          <p className="text-xs text-[color:var(--oo-muted)]">Outstanding principal</p>
-          <p className="text-xl font-semibold tabular-nums text-white">
-            {paiseToInr(liability.currentPrincipalPaise)}
+      <section className="oo-card oo-card-liability p-4">
+        <h2 className="oo-form-section-title">What you owe</h2>
+        <div className="oo-stat-grid mt-2">
+          <div>
+            <p className="oo-label">Outstanding principal</p>
+            <p className="oo-money-primary mt-1 oo-value-expense">
+              {paiseToInr(liability.currentPrincipalPaise)}
+            </p>
+          </div>
+          <div>
+            <p className="oo-label">Interest accrued / due</p>
+            <p className="oo-money-primary mt-1 oo-value-expense">
+              {paiseToInr(due?.interestDuePaise ?? 0)}
+            </p>
+          </div>
+          <div>
+            <p className="oo-label">Total due now</p>
+            <p className="oo-money-hero mt-1 oo-value-expense">
+              {paiseToInr(due?.totalDuePaise ?? 0)}
+            </p>
+          </div>
+        </div>
+        {due?.dueDate ? (
+          <p className="oo-meta mt-3">
+            Next due date: <span className="text-white">{due.dueDate}</span>
+          </p>
+        ) : null}
+        <div className="mt-3 flex flex-wrap gap-4">
+          <p className="oo-meta">
+            Principal paid: <span className="text-white">{paiseToInr(totalPrincipalPaidPaise)}</span>
+          </p>
+          <p className="oo-meta">
+            Interest paid: <span className="text-white">{paiseToInr(totalInterestPaidPaise)}</span>
           </p>
         </div>
-        <div className="rounded-xl border border-white/10 bg-[color:var(--oo-surface)] p-4">
-          <p className="text-xs text-[color:var(--oo-muted)]">Interest due</p>
-          <p className="text-xl font-semibold tabular-nums text-white">
-            {paiseToInr(due?.interestDuePaise ?? 0)}
-          </p>
-        </div>
-        <div className="rounded-xl border border-white/10 bg-[color:var(--oo-surface)] p-4">
-          <p className="text-xs text-[color:var(--oo-muted)]">Total due</p>
-          <p className="text-xl font-semibold tabular-nums text-white">
-            {paiseToInr(due?.totalDuePaise ?? 0)}
-          </p>
-        </div>
-      </div>
+      </section>
 
-      <section className="rounded-xl border border-white/10 bg-[color:var(--oo-surface)] p-4">
-        <h2 className="text-sm font-medium text-white">Record payment</h2>
-        <p className="mt-1 text-xs text-[color:var(--oo-muted)]">
-          Interest posts as expense; principal reduces liability. Net worth impact is correct.
+      <section className="oo-form-section">
+        <h2 className="oo-form-section-title">Pay loan</h2>
+        <p className="oo-form-hint">
+          Interest posts as expense. Principal reduces liability only — never counted as expense.
         </p>
-        <form action={formAction} className="mt-3 grid gap-3 sm:grid-cols-2">
+        <form action={formAction} className="oo-form-grid mt-3">
           <input type="hidden" name="liabilityId" value={liability.id} />
-          <input name="amountRupees" type="number" step="0.01" placeholder="Payment amount (₹)" required className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white" />
-          <input name="paymentDate" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white" />
-          <select name="accountId" className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white">
+          <input
+            name="amountRupees"
+            type="number"
+            step="0.01"
+            placeholder="Payment amount (₹)"
+            required
+            defaultValue={suggestedPayment}
+            className="oo-form-input oo-form-input-money"
+          />
+          <input
+            name="paymentDate"
+            type="date"
+            required
+            defaultValue={new Date().toISOString().slice(0, 10)}
+            className="oo-form-input"
+          />
+          <select name="accountId" className="oo-form-input">
             <option value="">Payment account</option>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>{a.name}</option>
             ))}
           </select>
-          <select name="allocationMode" className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white">
-            <option value="AUTO">Auto allocate</option>
+          <select name="allocationMode" className="oo-form-input" defaultValue="AUTO">
+            <option value="AUTO">Auto split principal / interest</option>
             <option value="MANUAL">Manual split</option>
           </select>
-          <input name="manualInterestRupees" type="number" step="0.01" placeholder="Manual interest (₹)" className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white" />
-          <input name="manualPrincipalRupees" type="number" step="0.01" placeholder="Manual principal (₹)" className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white" />
-          <button type="submit" disabled={pending} className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-medium text-white">
-            Record payment
+          <input
+            name="manualInterestRupees"
+            type="number"
+            step="0.01"
+            placeholder="Manual interest (₹)"
+            className="oo-form-input"
+          />
+          <input
+            name="manualPrincipalRupees"
+            type="number"
+            step="0.01"
+            placeholder="Manual principal (₹)"
+            className="oo-form-input"
+          />
+          <button type="submit" disabled={pending} className="oo-btn-primary min-h-[2.75rem]">
+            {pending ? 'Processing…' : 'PAY'}
           </button>
         </form>
         {state.error ? <p className="mt-2 text-sm text-red-400">{state.error}</p> : null}
         {state.success ? <p className="mt-2 text-sm text-emerald-400">{state.success}</p> : null}
       </section>
+
+      {payments.length > 0 ? (
+        <section>
+          <h2 className="oo-section-title-strong mb-3">Payment history</h2>
+          <div className="space-y-2">
+            {payments.map((p) => (
+              <div key={p.id} className="oo-card flex items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="font-medium text-white truncate">{p.description}</p>
+                  <p className="oo-meta">
+                    {p.entryDate}
+                    {p.principalPaise > 0 ? ` · Principal ${paiseToInr(p.principalPaise)}` : ''}
+                    {p.interestPaise > 0 ? ` · Interest ${paiseToInr(p.interestPaise)}` : ''}
+                  </p>
+                </div>
+                <p className="oo-money-secondary shrink-0">{paiseToInr(p.amountPaise)}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

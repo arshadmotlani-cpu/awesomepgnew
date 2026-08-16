@@ -264,3 +264,71 @@ export async function listExpensesWithSource(opts?: {
     .orderBy(desc(ooJournalEntries.entryDate), desc(ooJournalEntries.createdAt))
     .limit(opts?.limit ?? 200);
 }
+
+export async function listIncomeWithSource(opts?: {
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+}) {
+  const conditions = [eq(ooJournalLines.eventType, 'INCOME')];
+  if (opts?.startDate) conditions.push(gte(ooJournalEntries.entryDate, opts.startDate));
+  if (opts?.endDate) conditions.push(lte(ooJournalEntries.entryDate, opts.endDate));
+
+  return ownerDb
+    .select({
+      id: ooJournalLines.id,
+      entryId: ooJournalEntries.id,
+      entryDate: ooJournalEntries.entryDate,
+      description: ooJournalEntries.description,
+      sourceSystem: ooJournalEntries.sourceSystem,
+      amountPaise: ooJournalLines.amountPaise,
+      accountId: ooJournalLines.accountId,
+      assetId: ooJournalLines.assetId,
+      businessId: ooJournalLines.businessId,
+      notes: ooJournalLines.notes,
+    })
+    .from(ooJournalLines)
+    .innerJoin(ooJournalEntries, eq(ooJournalLines.entryId, ooJournalEntries.id))
+    .where(and(...conditions))
+    .orderBy(desc(ooJournalEntries.entryDate), desc(ooJournalEntries.createdAt))
+    .limit(opts?.limit ?? 200);
+}
+
+export async function listLiabilityPayments(liabilityId: string, limit = 50) {
+  const conditions = [
+    eq(ooJournalLines.liabilityId, liabilityId),
+    inArray(ooJournalLines.eventType, ['LIABILITY_PAYMENT', 'EXPENSE']),
+  ];
+
+  const lines = await ownerDb
+    .select({
+      id: ooJournalLines.id,
+      entryId: ooJournalEntries.id,
+      entryDate: ooJournalEntries.entryDate,
+      description: ooJournalEntries.description,
+      eventType: ooJournalLines.eventType,
+      amountPaise: ooJournalLines.amountPaise,
+      category: ooJournalLines.category,
+    })
+    .from(ooJournalLines)
+    .innerJoin(ooJournalEntries, eq(ooJournalLines.entryId, ooJournalEntries.id))
+    .where(and(...conditions))
+    .orderBy(desc(ooJournalEntries.entryDate))
+    .limit(limit);
+
+  const lineIds = lines.map((l) => l.id);
+  const allocations =
+    lineIds.length > 0
+      ? await ownerDb
+          .select()
+          .from(ooJournalLineAllocations)
+          .where(inArray(ooJournalLineAllocations.journalLineId, lineIds))
+      : [];
+
+  const allocByLine = new Map(allocations.map((a) => [a.journalLineId, a]));
+
+  return lines.map((line) => ({
+    ...line,
+    allocation: allocByLine.get(line.id) ?? null,
+  }));
+}

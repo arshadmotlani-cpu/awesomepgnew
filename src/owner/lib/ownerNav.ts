@@ -11,6 +11,7 @@ import {
   Settings,
   TrendingUp,
   Wallet,
+  Coins,
 } from 'lucide-react';
 
 export type OwnerNavItem = {
@@ -48,6 +49,7 @@ export const ownerNavGroups: OwnerNavGroup[] = [
     id: 'cashflow',
     title: 'Cash flow',
     items: [
+      { href: '/income', label: 'Income', icon: Coins },
       { href: '/cashflow', label: 'Cashflow', icon: Banknote },
       { href: '/expenses', label: 'Expenses', icon: Receipt },
     ],

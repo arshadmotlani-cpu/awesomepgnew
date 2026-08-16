@@ -84,9 +84,21 @@ export const ooProperties = pgTable(
     address: text('address'),
     city: text('city'),
     state: text('state'),
+    country: text('country'),
+    postalCode: text('postal_code'),
     purchaseDate: date('purchase_date'),
     purchasePricePaise: bigint('purchase_price_paise', { mode: 'number' }).notNull().default(0),
     purchaseCostsPaise: bigint('purchase_costs_paise', { mode: 'number' }).notNull().default(0),
+    purchaseCostsBreakdownJson: jsonb('purchase_costs_breakdown_json')
+      .$type<Record<string, number>>()
+      .default({}),
+    appreciationMethod: text('appreciation_method').notNull().default('FLAT_ANNUAL'),
+    monthlyRentalIncomePaise: bigint('monthly_rental_income_paise', { mode: 'number' })
+      .notNull()
+      .default(0),
+    otherMonthlyIncomePaise: bigint('other_monthly_income_paise', { mode: 'number' })
+      .notNull()
+      .default(0),
     linkedPgId: uuid('linked_pg_id'),
     notes: text('notes'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

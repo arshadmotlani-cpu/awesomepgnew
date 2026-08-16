@@ -15,6 +15,13 @@
       "when": 1754373600000,
       "tag": "0002_wealth_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1754377200000,
+      "tag": "0003_property_enrichment",
+      "breakpoints": true
     }
   ]
 }

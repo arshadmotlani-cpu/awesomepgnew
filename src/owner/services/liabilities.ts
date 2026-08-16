@@ -326,5 +326,31 @@ export async function getLiabilityDetail(id: string) {
     .where(eq(ooLiabilitySchedules.liabilityId, id))
     .orderBy(desc(ooLiabilitySchedules.dueDate));
 
-  return { liability, due, schedules };
+  const { listLiabilityPayments } = await import('@/src/owner/services/journal');
+  const payments = await listLiabilityPayments(id);
+
+  const totalPrincipalPaid = payments.reduce((sum, p) => {
+    if (p.eventType === 'LIABILITY_PAYMENT') {
+      return sum + Number(p.allocation?.principalPaise ?? p.amountPaise);
+    }
+    return sum;
+  }, 0);
+  const totalInterestPaid = payments.reduce((sum, p) => {
+    if (p.eventType === 'EXPENSE' && p.category === 'LOAN_INTEREST') {
+      return sum + p.amountPaise;
+    }
+    if (p.allocation?.interestPaise) {
+      return sum + Number(p.allocation.interestPaise);
+    }
+    return sum;
+  }, 0);
+
+  return {
+    liability,
+    due,
+    schedules,
+    payments,
+    totalPrincipalPaidPaise: totalPrincipalPaid,
+    totalInterestPaidPaise: totalInterestPaid,
+  };
 }

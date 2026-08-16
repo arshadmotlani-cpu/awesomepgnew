@@ -115,7 +115,7 @@ export async function syncPgFacts(month?: string): Promise<SyncResult> {
     const periodStart = summary.periodStart;
     const periodEnd = summary.periodEnd;
 
-    const facts: IntegrationFactInput[] = [
+    const ecosystemFacts: IntegrationFactInput[] = [
       {
         sourceSystem: 'AWESOME_PG',
         externalRef: `awesome_pg:revenue:${periodStart}:${periodEnd}`,
@@ -142,9 +142,46 @@ export async function syncPgFacts(month?: string): Promise<SyncResult> {
       },
     ];
 
-    for (const fact of facts) {
+    for (const fact of ecosystemFacts) {
       await upsertIntegrationFact(fact);
       factsUpserted += 1;
+    }
+
+    const { getPgFinancialMetrics } = await import('@/src/services/financialMetricsEngine');
+    const pgMetrics = await getPgFinancialMetrics(month);
+    const { findAssetIdForPg } = await import('@/src/owner/services/propertyFinancials');
+
+    for (const pg of pgMetrics) {
+      const assetId = await findAssetIdForPg(pg.pgId);
+      if (!assetId) continue;
+
+      const pgFacts: IntegrationFactInput[] = [
+        {
+          sourceSystem: 'AWESOME_PG',
+          externalRef: `awesome_pg:pg:${pg.pgId}:revenue:${periodStart}:${periodEnd}`,
+          periodStart,
+          periodEnd,
+          kind: 'REVENUE',
+          amountPaise: pg.operatingRevenuePaise,
+          assetId,
+          metadataJson: { pgId: pg.pgId, pgName: pg.pgName },
+        },
+        {
+          sourceSystem: 'AWESOME_PG',
+          externalRef: `awesome_pg:pg:${pg.pgId}:profit:${periodStart}:${periodEnd}`,
+          periodStart,
+          periodEnd,
+          kind: 'PROFIT',
+          amountPaise: pg.operatingRevenuePaise,
+          assetId,
+          metadataJson: { pgId: pg.pgId, pgName: pg.pgName },
+        },
+      ];
+
+      for (const fact of pgFacts) {
+        await upsertIntegrationFact(fact);
+        factsUpserted += 1;
+      }
     }
   } catch (e) {
     errors.push(e instanceof Error ? e.message : 'PG sync failed');
