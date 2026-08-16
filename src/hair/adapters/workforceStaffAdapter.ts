@@ -5,19 +5,22 @@ import {
   listEmployeesForEngine,
   type EmployeeWithMembership,
 } from '@/src/workforce/brains/employeeBrain';
-import { listBookableEmployees } from '@/src/workforce/services/appointmentsBridge';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 
 /** Bookable roster for appointments / POS — Workforce when enabled. */
 export async function listBookableStaffForSalon(): Promise<
-  Array<{ id: string; fullName: string; phone: string | null; isActive: boolean }>
+  Array<{ id: string; fullName: string; phone: string | null; photoUrl: string | null; isActive: boolean }>
 > {
   if (isWorkforceEngineEnabled()) {
-    const rows = await listBookableEmployees('fyh_salon');
+    const rows = await listEmployeesForEngine('fyh_salon', {
+      activeOnly: true,
+      receiveBookingsOnly: true,
+    });
     return rows.map((r) => ({
-      id: r.employeeId,
-      fullName: r.fullName,
-      phone: r.mobile,
+      id: r.employee.id,
+      fullName: r.employee.fullName,
+      phone: r.employee.mobile,
+      photoUrl: r.employee.photoUrl ?? null,
       isActive: true,
     }));
   }
@@ -27,6 +30,7 @@ export async function listBookableStaffForSalon(): Promise<
       id: fyhStaff.id,
       fullName: fyhStaff.fullName,
       phone: fyhStaff.phone,
+      photoUrl: fyhStaff.photoUrl,
       isActive: fyhStaff.isActive,
     })
     .from(fyhStaff)

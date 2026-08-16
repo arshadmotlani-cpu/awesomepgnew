@@ -79,7 +79,11 @@ export default async function AppointmentsPage({ searchParams }: Props) {
       ) : null}
       <AppointmentsCalendar
         initialAppointments={serialized}
-        staff={scopedStaff.map((s) => ({ id: s.id, fullName: s.fullName }))}
+        staff={scopedStaff.map((s) => ({
+          id: s.id,
+          fullName: s.fullName,
+          photoUrl: s.photoUrl,
+        }))}
         resources={resources.map((r) => ({ id: r.id, name: r.name }))}
         customers={customers.map((c) => ({
           id: c.id,
@@ -94,6 +98,7 @@ export default async function AppointmentsPage({ searchParams }: Props) {
           pricePaise: s.pricePaise,
         }))}
         dayIso={dayIso}
+        timezone={timezone}
         dayStartHour={open.hour}
         dayEndHour={Math.min(24, close.hour + (close.minute > 0 ? 1 : 0))}
         preselectCustomerId={preselectCustomerId ?? null}

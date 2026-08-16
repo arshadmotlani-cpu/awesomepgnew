@@ -1,6 +1,7 @@
 import { and, asc, eq, gte, lt, notInArray } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import {
+  fyhAdminUsers,
   fyhAppointmentServices,
   fyhAppointments,
   fyhCustomerTimeline,
@@ -58,6 +59,8 @@ export type AppointmentCalendarRow = {
   source: FyhAppointmentSource;
   bufferMinutes: number;
   invoiceId: string | null;
+  createdByAdminId: string | null;
+  createdByName: string | null;
   services: Array<{
     id: string;
     serviceId: string;
@@ -253,11 +256,14 @@ export async function listAppointmentsInRange(
       source: fyhAppointments.source,
       bufferMinutes: fyhAppointments.bufferMinutes,
       invoiceId: fyhAppointments.invoiceId,
+      createdByAdminId: fyhAppointments.createdByAdminId,
+      createdByName: fyhAdminUsers.displayName,
     })
     .from(fyhAppointments)
     .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhAppointments.customerId))
     .innerJoin(fyhStaff, eq(fyhStaff.id, fyhAppointments.staffId))
     .leftJoin(fyhResources, eq(fyhResources.id, fyhAppointments.resourceId))
+    .leftJoin(fyhAdminUsers, eq(fyhAdminUsers.id, fyhAppointments.createdByAdminId))
     .where(and(...conditions))
     .orderBy(asc(fyhAppointments.startAt));
 
@@ -305,8 +311,62 @@ export async function listAppointmentsInRange(
 }
 
 export async function getAppointmentById(id: string) {
-  const rows = await listAppointmentsInRange(new Date(0), new Date('2100-01-01'));
-  return rows.find((r) => r.id === id) ?? null;
+  const { inArray } = await import('drizzle-orm');
+  const appts = await hairDb
+    .select({
+      id: fyhAppointments.id,
+      customerId: fyhAppointments.customerId,
+      customerName: fyhCustomers.fullName,
+      customerPhone: fyhCustomers.phone,
+      staffId: fyhAppointments.staffId,
+      staffName: fyhStaff.fullName,
+      resourceId: fyhAppointments.resourceId,
+      resourceName: fyhResources.name,
+      startAt: fyhAppointments.startAt,
+      endAt: fyhAppointments.endAt,
+      status: fyhAppointments.status,
+      notes: fyhAppointments.notes,
+      source: fyhAppointments.source,
+      bufferMinutes: fyhAppointments.bufferMinutes,
+      invoiceId: fyhAppointments.invoiceId,
+      createdByAdminId: fyhAppointments.createdByAdminId,
+      createdByName: fyhAdminUsers.displayName,
+    })
+    .from(fyhAppointments)
+    .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhAppointments.customerId))
+    .innerJoin(fyhStaff, eq(fyhStaff.id, fyhAppointments.staffId))
+    .leftJoin(fyhResources, eq(fyhResources.id, fyhAppointments.resourceId))
+    .leftJoin(fyhAdminUsers, eq(fyhAdminUsers.id, fyhAppointments.createdByAdminId))
+    .where(eq(fyhAppointments.id, id))
+    .limit(1);
+
+  const a = appts[0];
+  if (!a) return null;
+
+  const services = await hairDb
+    .select()
+    .from(fyhAppointmentServices)
+    .where(eq(fyhAppointmentServices.appointmentId, id))
+    .orderBy(asc(fyhAppointmentServices.sortOrder));
+
+  const durationMinutes = Math.max(
+    1,
+    Math.round((a.endAt.getTime() - a.startAt.getTime()) / 60_000),
+  );
+
+  return {
+    ...a,
+    resourceId: a.resourceId ?? null,
+    resourceName: a.resourceName ?? null,
+    services: services.map((s) => ({
+      id: s.id,
+      serviceId: s.serviceId,
+      name: s.nameSnapshot,
+      durationMinutes: s.durationMinutes,
+      pricePaise: s.pricePaise,
+    })),
+    durationMinutes,
+  };
 }
 
 export async function createAppointment(input: CreateAppointmentInput) {
@@ -518,4 +578,133 @@ export async function updateAppointmentNotes(id: string, notes: string | null) {
     .update(fyhAppointments)
     .set({ notes, updatedAt: new Date() })
     .where(eq(fyhAppointments.id, id));
+}
+
+export type UpdateAppointmentInput = {
+  id: string;
+  customerId?: string;
+  staffId?: string;
+  resourceId?: string | null;
+  startAt?: Date;
+  endAt?: Date;
+  serviceIds?: string[];
+  notes?: string | null;
+  status?: FyhAppointmentStatus;
+};
+
+export async function updateAppointment(input: UpdateAppointmentInput) {
+  const [existing] = await hairDb
+    .select()
+    .from(fyhAppointments)
+    .where(eq(fyhAppointments.id, input.id))
+    .limit(1);
+  if (!existing) throw new Error('Appointment not found');
+
+  if (existing.invoiceId) {
+    if (input.customerId && input.customerId !== existing.customerId) {
+      throw new Error('Cannot change customer on an invoiced appointment');
+    }
+    if (input.serviceIds) {
+      const currentIds = (
+        await hairDb
+          .select({ serviceId: fyhAppointmentServices.serviceId })
+          .from(fyhAppointmentServices)
+          .where(eq(fyhAppointmentServices.appointmentId, input.id))
+          .orderBy(asc(fyhAppointmentServices.sortOrder))
+      ).map((r) => r.serviceId);
+      const same =
+        currentIds.length === input.serviceIds.length &&
+        currentIds.every((id, i) => id === input.serviceIds![i]);
+      if (!same) {
+        throw new Error('Cannot change services on an invoiced appointment');
+      }
+    }
+  }
+
+  const staffId = input.staffId ?? existing.staffId;
+  const resourceId = input.resourceId === undefined ? existing.resourceId : input.resourceId;
+  const startAt = input.startAt ?? existing.startAt;
+  let endAt = input.endAt ?? existing.endAt;
+
+  if (input.serviceIds && !existing.invoiceId) {
+    const snapshots = await loadServiceSnapshots(input.serviceIds);
+    await assertStaffCanPerform(staffId, input.serviceIds);
+
+    const currentServices = await hairDb
+      .select()
+      .from(fyhAppointmentServices)
+      .where(eq(fyhAppointmentServices.appointmentId, input.id));
+    const snapshotDuration = snapshots.reduce((sum, s) => sum + s.durationMinutes, 0);
+    const slotDuration = Math.round((existing.endAt.getTime() - existing.startAt.getTime()) / 60_000);
+    const hadCustomDuration = slotDuration !== currentServices.reduce((sum, s) => sum + s.durationMinutes, 0);
+
+    if (!hadCustomDuration) {
+      endAt = new Date(startAt.getTime() + snapshotDuration * 60_000);
+    }
+
+    await hairDb.delete(fyhAppointmentServices).where(eq(fyhAppointmentServices.appointmentId, input.id));
+    await hairDb.insert(fyhAppointmentServices).values(
+      snapshots.map((snap, idx) => ({
+        appointmentId: input.id,
+        serviceId: snap.serviceId,
+        nameSnapshot: snap.nameSnapshot,
+        durationMinutes: snap.durationMinutes,
+        pricePaise: snap.pricePaise,
+        gstBps: snap.gstBps,
+        sortOrder: idx,
+      })),
+    );
+  }
+
+  if (endAt.getTime() <= startAt.getTime()) {
+    throw new Error('End time must be after start time');
+  }
+
+  if (!isActiveCalendarStatus(existing.status) && existing.status !== 'completed') {
+    if (input.startAt || input.endAt || input.staffId || input.resourceId !== undefined) {
+      throw new Error('Cannot reschedule a cancelled or paid appointment');
+    }
+  }
+
+  await assertWorkingHours(staffId, startAt, endAt);
+  await assertNoConflicts({
+    staffId,
+    resourceId,
+    startAt,
+    endAt,
+    bufferMinutes: existing.bufferMinutes,
+    excludeId: existing.id,
+  });
+
+  if (input.status && input.status !== existing.status) {
+    if (input.status === 'paid') {
+      throw new Error('Mark paid via invoice payment — not a manual status');
+    }
+    if (!canTransitionAppointmentStatus(existing.status, input.status)) {
+      throw new Error(`Cannot change status from ${existing.status} to ${input.status}`);
+    }
+  }
+
+  await hairDb
+    .update(fyhAppointments)
+    .set({
+      customerId: input.customerId ?? existing.customerId,
+      staffId,
+      resourceId,
+      startAt,
+      endAt,
+      notes: input.notes === undefined ? existing.notes : input.notes,
+      status: input.status ?? existing.status,
+      updatedAt: new Date(),
+    })
+    .where(eq(fyhAppointments.id, input.id));
+
+  if (input.status && input.status !== existing.status) {
+    await appendTimeline(existing.customerId, `Appointment ${input.status.replace(/_/g, ' ')}`, `Status → ${input.status}`, {
+      appointmentId: input.id,
+      status: input.status,
+    });
+  }
+
+  return input.id;
 }

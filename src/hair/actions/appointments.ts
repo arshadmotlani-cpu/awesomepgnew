@@ -7,6 +7,7 @@ import type { FyhAppointmentStatus } from '@/src/hair/db/schema/appointments';
 import {
   createAppointment,
   rescheduleAppointment,
+  updateAppointment,
   updateAppointmentNotes,
   updateAppointmentStatus,
 } from '@/src/hair/services/appointments';
@@ -100,6 +101,38 @@ export async function saveAppointmentNotesAction(id: string, notes: string): Pro
     return { success: 'Notes saved' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to save notes' };
+  }
+}
+
+export async function updateAppointmentAction(input: {
+  id: string;
+  customerId?: string;
+  staffId?: string;
+  resourceId?: string | null;
+  startAtIso?: string;
+  endAtIso?: string;
+  serviceIds?: string[];
+  notes?: string;
+  status?: FyhAppointmentStatus;
+}): Promise<ApptActionState> {
+  try {
+    await requirePermission('page:appointments');
+    await updateAppointment({
+      id: input.id,
+      customerId: input.customerId,
+      staffId: input.staffId,
+      resourceId: input.resourceId,
+      startAt: input.startAtIso ? new Date(input.startAtIso) : undefined,
+      endAt: input.endAtIso ? new Date(input.endAtIso) : undefined,
+      serviceIds: input.serviceIds,
+      notes: input.notes,
+      status: input.status,
+    });
+    revalidatePath('/appointments');
+    revalidatePath('/dashboard/revenue');
+    return { success: 'Appointment updated' };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to update appointment' };
   }
 }
 
