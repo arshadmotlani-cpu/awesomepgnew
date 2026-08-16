@@ -883,21 +883,45 @@ export async function evaluateAnniversaryRentGenerationEligibility(
 
   if (billingCyclePolicy === 'calendar_month_1st') {
     const { loadBillingCoverageModel } = await import('@/src/services/billingCoverage');
-    const { isCalendarBillingMonthFullyCovered } = await import(
-      '@/src/lib/billing/billingCoverageModel'
-    );
+    const {
+      isCalendarBillingMonthFullyCovered,
+      parseBillingPeriodFromInvoiceNotes,
+      shouldSkipCalendarMonthRentGeneration,
+    } = await import('@/src/lib/billing/billingCoverageModel');
     const coverage = await loadBillingCoverageModel({
       bookingId: input.bookingId,
       monthlyRentPaise: monthlyRent,
       stayType: bookingRow.stayType,
       durationMode: bookingRow.durationMode,
     });
+
+    const pendingTransitions = await db
+      .select({ notes: rentInvoices.notes })
+      .from(rentInvoices)
+      .where(
+        and(
+          eq(rentInvoices.bookingId, input.bookingId),
+          eq(rentInvoices.invoiceSubtype, 'billing_cycle_transition'),
+          inArray(rentInvoices.status, ['pending', 'overdue', 'payment_in_progress']),
+        ),
+      );
+    const pendingTransitionPeriods = pendingTransitions
+      .map((row) => parseBillingPeriodFromInvoiceNotes(row.notes))
+      .filter((p): p is NonNullable<typeof p> => p != null)
+      .map((p) => ({
+        periodStart: p.periodStart,
+        periodEnd: p.periodEnd,
+        source: 'rent_invoice' as const,
+        sourceId: 'pending_transition',
+      }));
+
     if (
       coverage &&
-      isCalendarBillingMonthFullyCovered({
+      shouldSkipCalendarMonthRentGeneration({
         billingMonth,
         paidUntilDate: coverage.paidUntilDate,
         paidInvoiceCoverage: coverage.paidInvoiceCoverage,
+        pendingTransitionPeriods,
       })
     ) {
       return { eligible: false, skipCode: 'already_covered' };

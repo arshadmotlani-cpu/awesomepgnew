@@ -482,6 +482,38 @@ export function findFirstUncoveredCalendarMonth(args: {
   return null;
 }
 
+/** Skip full-month cron when paid coverage or pending bridge transitions account for the month. */
+export function shouldSkipCalendarMonthRentGeneration(args: {
+  billingMonth: string;
+  paidUntilDate: string | null;
+  paidInvoiceCoverage: BillingCoveragePeriod[];
+  pendingTransitionPeriods: BillingCoveragePeriod[];
+}): boolean {
+  if (
+    isCalendarBillingMonthFullyCovered({
+      billingMonth: args.billingMonth,
+      paidUntilDate: args.paidUntilDate,
+      paidInvoiceCoverage: args.paidInvoiceCoverage,
+    })
+  ) {
+    return true;
+  }
+  const period = calendarMonthBillingPeriod(args.billingMonth);
+  for (const p of args.pendingTransitionPeriods) {
+    if (p.periodEnd >= period.periodEnd) {
+      return true;
+    }
+  }
+  let effectiveEnd = args.paidUntilDate;
+  for (const p of args.paidInvoiceCoverage) {
+    if (!effectiveEnd || p.periodEnd > effectiveEnd) effectiveEnd = p.periodEnd;
+  }
+  for (const p of args.pendingTransitionPeriods) {
+    if (!effectiveEnd || p.periodEnd > effectiveEnd) effectiveEnd = p.periodEnd;
+  }
+  return effectiveEnd != null && effectiveEnd >= period.periodEnd;
+}
+
 /** Re-export for invoice row → raw period before clamp. */
 export function rawPeriodFromInvoiceDueDate(
   dueDate: string,

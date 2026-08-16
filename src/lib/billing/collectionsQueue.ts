@@ -1,4 +1,5 @@
 import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
+import { parseBillingPeriodFromInvoiceNotes } from '@/src/lib/billing/billingCoverageModel';
 import { addDays, diffDays, formatDate, parseDate } from '@/src/lib/dates';
 import type { AdminElectricityInvoiceReminderRow } from '@/src/db/queries/admin';
 import {
@@ -93,6 +94,38 @@ export function rentRowToQueueItem(row: AdminRentInvoiceRow, today: string): Col
   if (row.effectiveStatus === 'paid' || row.effectiveStatus === 'cancelled') return null;
 
   if (row.effectiveStatus === 'payment_in_progress') return null;
+
+  if (row.invoiceSubtype === 'billing_cycle_transition') {
+    const parsed = parseBillingPeriodFromInvoiceNotes(row.notes);
+    const periodLabel = parsed
+      ? `${parsed.periodStart} → ${parsed.periodEnd}`
+      : billingPeriodLabel(row.billingMonth);
+    return {
+      id: `rent-${row.id}`,
+      kind: 'rent',
+      customerId: row.customerId,
+      customerFullName: row.customerFullName,
+      customerPhone: row.customerPhone,
+      pgId: row.pgId,
+      pgName: row.pgName,
+      roomNumber: row.roomNumber,
+      bedCode: row.bedCode,
+      bookingId: row.bookingId,
+      sourceTable: 'rent_invoices',
+      sourceId: row.id,
+      invoiceNumber: row.invoiceNumber,
+      amountPaise: row.outstandingPaise,
+      dueDate: null,
+      daysOverdue: 0,
+      priority: 'pending',
+      effectiveStatus: row.effectiveStatus,
+      invoiceLabel: 'Billing cycle transition',
+      billingMonth: row.billingMonth,
+      categoryLabel: 'Billing transition',
+      periodLabel,
+    };
+  }
+
   if (!row.dueDate) return null;
 
   const priority =

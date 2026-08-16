@@ -449,3 +449,6 @@ Enforced by `tests/unit/roomOsArchitecture.test.ts`.
 
 <!-- DOC_SYNC_TOUCH_2026-08-15 -->
 > **2026-08-15 05:13:51 UTC** — Code changed in: Routes, Billing, Vacating. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-08-16 -->
+> **2026-08-16 09:56:08 UTC** — Code changed in: Billing, Residents. Manual review recommended.

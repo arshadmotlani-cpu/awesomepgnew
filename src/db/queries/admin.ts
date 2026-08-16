@@ -1368,6 +1368,8 @@ export type AdminRentInvoiceRow = {
   /** SSOT outstanding including late fees and partial payments */
   outstandingPaise: number;
   effectiveStatus: string;
+  invoiceSubtype?: 'standard' | 'billing_cycle_transition' | null;
+  isAdhoc?: boolean;
 };
 
 export function listAdminRentInvoices(
@@ -1503,6 +1505,8 @@ export function listAdminOpenRentInvoices(filter?: {
         proofSnapshotOutstandingPaise: rentInvoices.proofSnapshotOutstandingPaise,
         proofSnapshotLateFeePaise: rentInvoices.proofSnapshotLateFeePaise,
         proofSnapshotPrincipalDuePaise: rentInvoices.proofSnapshotPrincipalDuePaise,
+        isAdhoc: rentInvoices.isAdhoc,
+        invoiceSubtype: rentInvoices.invoiceSubtype,
       })
       .from(rentInvoices)
       .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))
@@ -1541,7 +1545,8 @@ export function listAdminOpenRentInvoices(filter?: {
         notes: r.notes,
         cancelledAt: null,
         cancellationReason: null,
-        isAdhoc: false,
+        isAdhoc: r.isAdhoc ?? false,
+        invoiceSubtype: r.invoiceSubtype ?? 'standard',
         createdAt: r.createdAt,
         updatedAt: r.createdAt,
       });
@@ -1549,6 +1554,8 @@ export function listAdminOpenRentInvoices(filter?: {
         ...r,
         outstandingPaise: projected.outstandingPaise,
         effectiveStatus: projected.effectiveStatus,
+        invoiceSubtype: r.invoiceSubtype ?? 'standard',
+        isAdhoc: r.isAdhoc ?? false,
       };
     });
   });

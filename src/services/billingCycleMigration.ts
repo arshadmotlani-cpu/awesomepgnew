@@ -648,6 +648,110 @@ export async function executeBulkBillingCycleMigration(
   return results;
 }
 
+/**
+ * Create a post-migration bridge transition invoice for an explicit uncovered period
+ * (e.g. Saswat Sep 9–30 after paid-through Sep 8).
+ */
+export async function createBillingCycleBridgeInvoice(
+  session: AdminSession,
+  input: {
+    bookingId: string;
+    periodStart: string;
+    periodEnd: string;
+    note?: string;
+  },
+): Promise<{ ok: true; invoiceId: string; amountPaise: number } | { ok: false; error: string }> {
+  const loaded = await loadBookingMigrationContext(input.bookingId);
+  if (!loaded.ctx || !loaded.moveInDate) {
+    return { ok: false, error: 'Booking not found.' };
+  }
+  if (
+    !adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, loaded.ctx.pgId)
+  ) {
+    return { ok: false, error: 'Access denied.' };
+  }
+
+  const billingMonth = firstOfMonth(input.periodStart);
+  const resolved = await resolveMonthlyRentPaiseForBooking(input.bookingId, billingMonth);
+  const proration = prorateForMonth({
+    monthlyRatePaise: resolved.rentPaise,
+    billingMonth,
+    activeStart: input.periodStart,
+    activeEnd: formatDate(addDays(parseDate(input.periodEnd), 1)),
+  });
+  if (proration.amountPaise <= 0) {
+    return { ok: false, error: 'Bridge period has zero rent.' };
+  }
+
+  const existingTransitions = await db
+    .select({ id: rentInvoices.id, notes: rentInvoices.notes })
+    .from(rentInvoices)
+    .where(
+      and(
+        eq(rentInvoices.bookingId, input.bookingId),
+        eq(rentInvoices.isAdhoc, true),
+        eq(rentInvoices.invoiceSubtype, 'billing_cycle_transition'),
+        inArray(rentInvoices.status, ['pending', 'overdue', 'paid', 'payment_in_progress']),
+      ),
+    );
+  for (const row of existingTransitions) {
+    const parsed = parseBillingPeriodFromInvoiceNotes(row.notes);
+    if (
+      parsed?.periodStart === input.periodStart &&
+      parsed?.periodEnd === input.periodEnd
+    ) {
+      return {
+        ok: true,
+        invoiceId: row.id,
+        amountPaise: proration.amountPaise,
+      };
+    }
+  }
+
+  const [bedRow] = await db
+    .select({ bedId: bedReservations.bedId })
+    .from(bedReservations)
+    .where(and(eq(bedReservations.bookingId, input.bookingId), eq(bedReservations.kind, 'primary')))
+    .limit(1);
+  if (!bedRow?.bedId) return { ok: false, error: 'Bed not found.' };
+
+  const periodNote = rentInvoiceBillingPeriodNoteForPolicy(
+    'calendar_month_1st',
+    input.periodStart,
+    input.periodEnd,
+  );
+  const explanation = `Prorated bridge rent for ${proration.daysActive}/${proration.daysInMonth} days (${input.periodStart} → ${input.periodEnd}) before regular 1st-of-month billing.`;
+
+  const created = await createAdhocRentInvoice({
+    bookingId: input.bookingId,
+    customerId: loaded.ctx.customerId,
+    bedId: bedRow.bedId,
+    pgId: loaded.ctx.pgId,
+    amountPaise: proration.amountPaise,
+    title: 'Billing cycle transition rent',
+    description: `${explanation} ${periodNote}`,
+    invoiceSubtype: 'billing_cycle_transition',
+  });
+  if (!created.ok) return created;
+
+  await db.insert(auditLog).values({
+    actorType: 'admin',
+    actorId: session.adminId,
+    entity: 'booking',
+    entityId: input.bookingId,
+    action: 'billing_cycle_bridge_invoice',
+    diff: {
+      invoiceId: created.invoiceId,
+      periodStart: input.periodStart,
+      periodEnd: input.periodEnd,
+      amountPaise: proration.amountPaise,
+      note: input.note,
+    },
+  });
+
+  return { ok: true, invoiceId: created.invoiceId, amountPaise: proration.amountPaise };
+}
+
 export async function generateBillingCycleTransitionInvoice(
   session: AdminSession,
   bookingId: string,

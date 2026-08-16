@@ -349,7 +349,7 @@ function residentsRowToItem(row: ResidentsQueueRow): UnifiedOpsItem | null {
       pgName: row.pgName,
       roomNumber: row.roomNumber,
       bedCode: row.bedCode,
-      reason: overdueReason(daysOverdue),
+      reason: row.reason,
       openHref: `/admin/residents/${row.customerId}#open-bills`,
       openLabel: 'Open bills',
       category: row.category,

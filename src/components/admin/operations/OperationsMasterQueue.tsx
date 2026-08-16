@@ -14,6 +14,7 @@ import type { OperationsDateChangeBundle } from '@/src/lib/operations/loadOperat
 import { OperationsVacatingDateChangePanels } from '@/src/components/admin/operations/OperationsVacatingDateChangePanels';
 import { paiseToInr } from '@/src/lib/format';
 import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
+import { operationsQueueChipClass } from '@/src/lib/operations/operationsQueueChipStyles';
 
 function OutstandingCell({ item }: { item: UnifiedOpsItem }) {
   const lines = item.outstandingLines ?? [];
@@ -261,12 +262,7 @@ function QueueHeader({
             <Link
               key={chip.id}
               href={operationsFilterHref(chip.id)}
-              className={
-                'rounded-full px-3 py-1.5 text-xs font-medium transition ' +
-                (selected
-                  ? 'bg-[#FF5A1F] text-white'
-                  : 'border border-white/10 text-apg-silver hover:text-white')
-              }
+              className={operationsQueueChipClass(chip.count, selected)}
             >
               {chip.label} ({chip.count})
             </Link>

@@ -331,13 +331,15 @@ export function buildResidentOperationsDashboard(input: {
       b.priority === 'overdue' ? 'rent_overdue' : isRent ? 'rent_due' : 'electricity_due';
 
     const dueLabel =
-      b.priority === 'overdue'
-        ? `Overdue · ${b.daysOverdue} day${b.daysOverdue === 1 ? '' : 's'}`
-        : b.priority === 'due_today'
-          ? 'Due today'
-          : b.priority === 'due_soon'
-            ? 'Due soon'
-            : 'Waiting for payment';
+      b.categoryLabel === 'Billing transition'
+        ? 'Billing transition payment — collect before next monthly cycle'
+        : b.priority === 'overdue'
+          ? `Overdue · ${b.daysOverdue} day${b.daysOverdue === 1 ? '' : 's'}`
+          : b.priority === 'due_today'
+            ? 'Due today'
+            : b.priority === 'due_soon'
+              ? 'Due soon'
+              : 'Awaiting resident payment';
 
     queue.push({
       id: b.id,
@@ -348,7 +350,10 @@ export function buildResidentOperationsDashboard(input: {
       pgName: b.pgName,
       roomNumber: b.roomNumber,
       bedCode: b.bedCode ?? null,
-      issue: `${b.invoiceLabel} · ${dueLabel}`,
+      issue:
+        b.categoryLabel === 'Billing transition'
+          ? `Billing transition · ${b.periodLabel}`
+          : `${b.invoiceLabel} · ${dueLabel}`,
       nextAction: 'Resident pays and uploads payment screenshot',
       primaryActionLabel: 'Open resident',
       primaryHref: b.financialInvoiceId
