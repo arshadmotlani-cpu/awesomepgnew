@@ -2,6 +2,7 @@
  * Awesome PG adapter — consumes financialMetricsEngine + deposit/outstanding public APIs only.
  */
 import { getFinancialMetrics } from '@/src/services/financialMetricsEngine';
+import { getOwnerFinancialSummary } from '@/src/services/ownerFinancialSummary';
 import { getDepositPortfolioMetrics } from '@/src/services/depositLedgerMetrics';
 import { getPortfolioRentStats } from '@/src/services/residentFinancialEngine';
 import { moneyValue } from '@/src/personalFinance/explain';
@@ -9,14 +10,15 @@ import type { EngineContribution } from '@/src/personalFinance/types';
 
 export async function loadPgContribution(billingMonth?: string): Promise<EngineContribution> {
   try {
-    const [metrics, deposits, rentStats] = await Promise.all([
+    const [metrics, deposits, rentStats, ownerSummary] = await Promise.all([
       getFinancialMetrics(billingMonth),
       getDepositPortfolioMetrics(billingMonth),
       getPortfolioRentStats().catch(() => null),
+      getOwnerFinancialSummary({ month: billingMonth }).catch(() => null),
     ]);
 
     const revenuePaise = metrics.operating.operatingRevenuePaise;
-    const expensesPaise = 0;
+    const expensesPaise = ownerSummary?.expensePaise ?? 0;
     const profitPaise = revenuePaise - expensesPaise;
     const assetsPaise = deposits.heldPaise ?? 0;
     const liabilitiesPaise = rentStats?.outstandingPaise ?? 0;
@@ -46,11 +48,13 @@ export async function loadPgContribution(billingMonth?: string): Promise<EngineC
         paise: expensesPaise,
         brain: 'finance',
         engine: 'awesome_pg',
-        calculation: 'No public PG expense API — 0 until Expense Brain / PG opex API ships',
-        sourceApi: 'unconnected',
-        provisional: true,
-        connected: false,
-        lineage: [],
+        calculation: ownerSummary
+          ? 'getOwnerFinancialSummary().expensePaise'
+          : 'No public PG expense API — 0 until synced',
+        sourceApi: 'getOwnerFinancialSummary',
+        provisional: !ownerSummary || expensesPaise === 0,
+        connected: ownerSummary != null,
+        lineage: [{ label: 'Operating expenses', paise: expensesPaise }],
       }),
       profitPaise: moneyValue({
         id: 'pg_business_profit',

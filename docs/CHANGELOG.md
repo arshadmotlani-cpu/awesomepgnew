@@ -256,7 +256,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-16 16:12:13 UTC
+### Pending pre-commit sync · 2026-08-16 20:32:04 UTC
 
 **Areas touched:** [[ROUTES]]
 
@@ -265,9 +265,22 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
-**Staged code files (2):**
-- `app/(capital)/(app)/layout.tsx`
-- `app/(owner)/owner/(app)/layout.tsx`
+**Staged code files (15):**
+- `app/(owner)/layout.tsx`
+- `app/(owner)/not-found.tsx`
+- `app/(owner)/owner/(app)/accounts/page.tsx`
+- `app/(owner)/owner/(app)/assets/[id]/page.tsx`
+- `app/(owner)/owner/(app)/assets/page.tsx`
+- `app/(owner)/owner/(app)/dashboard/page.tsx`
+- `app/(owner)/owner/(app)/error.tsx`
+- `app/(owner)/owner/(app)/expenses/page.tsx`
+- `app/(owner)/owner/(app)/integrations/page.tsx`
+- `app/(owner)/owner/(app)/liabilities/[id]/page.tsx`
+- `app/(owner)/owner/(app)/liabilities/new/page.tsx`
+- `app/(owner)/owner/(app)/liabilities/page.tsx`
+- `app/(owner)/owner/(app)/properties/new/page.tsx`
+- `app/(owner)/owner/auth/login/login-form.tsx`
+- `app/(owner)/owner/auth/login/page.tsx`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

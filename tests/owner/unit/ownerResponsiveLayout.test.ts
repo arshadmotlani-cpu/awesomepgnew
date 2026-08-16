@@ -43,7 +43,8 @@ test('Owner nav items shared between sidebar and mobile drawer', () => {
   const nav = read('src/owner/lib/ownerNav.ts');
   const sidebar = read('src/owner/components/OwnerSidebar.tsx');
   const mobileNav = read('src/owner/components/OwnerMobileNav.tsx');
+  assert.match(nav, /ownerNavGroups/);
   assert.match(nav, /net-worth/);
-  assert.match(sidebar, /ownerNavItems/);
-  assert.match(mobileNav, /ownerNavItems/);
+  assert.match(sidebar, /ownerNavGroups/);
+  assert.match(mobileNav, /ownerNavGroups/);
 });

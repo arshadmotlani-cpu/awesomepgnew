@@ -4,6 +4,7 @@
  */
 import { getDealershipReportKpis } from '@/src/capital/services/analytics';
 import { loadCapitalContribution } from '@/src/personalFinance/adapters/capital';
+import { loadOwnerLedgerContribution } from '@/src/personalFinance/adapters/ownerLedger';
 import { loadPgContribution } from '@/src/personalFinance/adapters/pg';
 import { loadSalonContribution } from '@/src/personalFinance/adapters/salon';
 import { notConnectedMoney, notConnectedPercent } from '@/src/personalFinance/adapters/unconnected';
@@ -27,7 +28,7 @@ export async function getPersonalFinanceSnapshot(opts?: {
 }): Promise<PersonalFinanceSnapshot> {
   const includeWorkforce = opts?.includeWorkforce !== false;
 
-  const [pg, salon, capital, workforce, billingOps, capitalKpis] = await Promise.all([
+  const [pg, salon, capital, workforce, billingOps, capitalKpis, ownerLedger] = await Promise.all([
     loadPgContribution(opts?.billingMonth),
     loadSalonContribution(),
     loadCapitalContribution(),
@@ -36,6 +37,16 @@ export async function getPersonalFinanceSnapshot(opts?: {
       : Promise.resolve(null as EngineContribution | null),
     loadBillingOperationsDashboard().catch(() => null),
     getDealershipReportKpis().catch(() => null),
+    loadOwnerLedgerContribution().catch(() => ({
+      available: false as const,
+      bankBalancePaise: 0,
+      propertyValuePaise: 0,
+      loansPaise: 0,
+      monthlyExpensesPaise: 0,
+      monthlyIncomePaise: 0,
+      netWorthPaise: 0,
+      error: 'Owner ledger unavailable',
+    })),
   ]);
 
   const contributions: EngineContribution[] = [pg, salon, capital];
@@ -75,7 +86,19 @@ export async function getPersonalFinanceSnapshot(opts?: {
     ],
   });
 
-  const propertyValue = notConnectedMoney('property_value', 'Property Value', 'Real Estate Engine');
+  const propertyValue = ownerLedger.available
+    ? moneyValue({
+        id: 'property_value',
+        label: 'Property Value',
+        paise: ownerLedger.propertyValuePaise,
+        brain: 'owner',
+        engine: 'personal_finance',
+        calculation: 'Σ property valuations × ownership % (Owner DB)',
+        sourceApi: 'properties.getTotalPropertyValuePaise',
+        connected: true,
+        lineage: [{ label: 'Property portfolio', paise: ownerLedger.propertyValuePaise }],
+      })
+    : notConnectedMoney('property_value', 'Property Value', 'Real Estate Engine');
 
   const vehiclePortfolio = capital.assetsPaise;
 
@@ -86,9 +109,47 @@ export async function getPersonalFinanceSnapshot(opts?: {
     'Σ connected investment Engines (Capital vehicle portfolio today)',
   );
 
-  const bankBalance = notConnectedMoney('bank_balance', 'Bank Balance', 'Bank / Cash Engine');
-  const loans = notConnectedMoney('loans', 'Loans', 'Loans Engine');
-  const emis = notConnectedMoney('emis', 'EMIs', 'Loans Engine');
+  const bankBalance = ownerLedger.available
+    ? moneyValue({
+        id: 'bank_balance',
+        label: 'Bank Balance',
+        paise: ownerLedger.bankBalancePaise,
+        brain: 'owner',
+        engine: 'personal_finance',
+        calculation: 'Σ financial account ledger balances',
+        sourceApi: 'journal.getTotalBankBalancePaise',
+        connected: true,
+        lineage: [{ label: 'Cash & bank', paise: ownerLedger.bankBalancePaise }],
+      })
+    : notConnectedMoney('bank_balance', 'Bank Balance', 'Bank / Cash Engine');
+
+  const loans = ownerLedger.available
+    ? moneyValue({
+        id: 'loans',
+        label: 'Loans',
+        paise: ownerLedger.loansPaise,
+        brain: 'owner',
+        engine: 'personal_finance',
+        calculation: 'Σ liability principal + accrued interest',
+        sourceApi: 'liabilities.getTotalLiabilityPaise',
+        connected: true,
+        lineage: [{ label: 'Outstanding liabilities', paise: ownerLedger.loansPaise }],
+      })
+    : notConnectedMoney('loans', 'Loans', 'Loans Engine');
+
+  const emis = ownerLedger.available
+    ? moneyValue({
+        id: 'emis',
+        label: 'EMIs',
+        paise: ownerLedger.loansPaise,
+        brain: 'owner',
+        engine: 'personal_finance',
+        calculation: 'Same as loans — total liability exposure',
+        sourceApi: 'liabilities.getTotalLiabilityPaise',
+        connected: true,
+        lineage: [{ label: 'Loan obligations', paise: ownerLedger.loansPaise }],
+      })
+    : notConnectedMoney('emis', 'EMIs', 'Loans Engine');
   const insurance = notConnectedMoney('insurance', 'Insurance', 'Insurance Engine');
   const upcomingPayments = notConnectedMoney(
     'upcoming_payments',
@@ -96,11 +157,24 @@ export async function getPersonalFinanceSnapshot(opts?: {
     'Payments / Liability Engine',
   );
   const upcomingEmis = notConnectedMoney('upcoming_loan_emis', 'Upcoming Loan EMIs', 'Loans Engine');
-  const todayExpenses = notConnectedMoney(
-    'today_expenses',
-    "Today's Expenses",
-    'Cross-engine expense APIs',
-  );
+  const todayExpenses = ownerLedger.available
+    ? moneyValue({
+        id: 'today_expenses',
+        label: "Today's Expenses",
+        paise: ownerLedger.monthlyExpensesPaise,
+        brain: 'owner',
+        engine: 'personal_finance',
+        calculation: 'Owner ledger MTD expenses (journal + integration facts)',
+        sourceApi: 'wealthCalculation.getWealthSnapshot',
+        connected: true,
+        provisional: true,
+        lineage: [{ label: 'MTD expenses', paise: ownerLedger.monthlyExpensesPaise }],
+      })
+    : notConnectedMoney(
+        'today_expenses',
+        "Today's Expenses",
+        'Cross-engine expense APIs',
+      );
   const todayProfit = notConnectedMoney(
     'today_profit',
     "Today's Profit",

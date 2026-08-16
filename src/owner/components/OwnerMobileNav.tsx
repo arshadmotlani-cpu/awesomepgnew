@@ -6,7 +6,12 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Menu, X } from 'lucide-react';
 import { OWNER_OS } from '@/src/lib/brand/ownerOsMetadata';
-import { ownerNavItems } from '@/src/owner/lib/ownerNav';
+import { ownerNavGroups } from '@/src/owner/lib/ownerNav';
+
+function isNavActive(pathname: string, href: string): boolean {
+  if (href === '/dashboard') return pathname === '/dashboard';
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 export function OwnerMobileNav() {
   const pathname = usePathname();
@@ -54,39 +59,50 @@ export function OwnerMobileNav() {
                 className="flex shrink-0 flex-col border-b border-white/10"
                 style={{ paddingTop: 'var(--oo-safe-top)' }}
               >
-                <div className="flex items-center justify-between gap-2 px-3 py-3 min-h-14">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-[#FF5A1F]">Owner OS</p>
-                  <p className="text-sm font-semibold text-white">{OWNER_OS.name}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={closeMenu}
-                  aria-label="Close navigation menu"
-                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-white/10 text-white hover:bg-white/10"
-                >
-                  <X className="h-5 w-5" />
-                </button>
+                <div className="flex min-h-14 items-center justify-between gap-2 px-3 py-3">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#FF5A1F]">
+                      Owner OS
+                    </p>
+                    <p className="text-sm font-semibold text-white">{OWNER_OS.name}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeMenu}
+                    aria-label="Close navigation menu"
+                    className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-white/10 text-white hover:bg-white/10"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
                 </div>
               </div>
               <nav
-                className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-3"
+                className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-2"
                 style={{ paddingBottom: 'max(0.75rem, var(--oo-safe-bottom))' }}
               >
-                {ownerNavItems.map((item) => {
-                  const active = pathname === item.href;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={closeMenu}
-                      className="oo-nav-link flex min-h-11 items-center"
-                      data-active={active ? 'true' : 'false'}
-                    >
-                      {item.label}
-                    </Link>
-                  );
-                })}
+                {ownerNavGroups.map((group) => (
+                  <div key={group.id} className="mb-4 last:mb-0">
+                    <p className="oo-nav-group-title px-2 pb-1">{group.title}</p>
+                    <div className="space-y-0.5">
+                      {group.items.map((item) => {
+                        const active = isNavActive(pathname ?? '', item.href);
+                        const Icon = item.icon;
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={closeMenu}
+                            className="oo-nav-link flex min-h-11 items-center gap-3 px-3"
+                            data-active={active ? 'true' : 'false'}
+                          >
+                            <Icon className="h-4 w-4 shrink-0 opacity-80" aria-hidden />
+                            <span className="font-medium">{item.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </nav>
             </div>
           </div>,

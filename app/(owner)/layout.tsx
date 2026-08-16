@@ -9,7 +9,7 @@ export const metadata: Metadata = ownerOsMetadata;
 
 export default function OwnerRootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="oo-root">
+    <div className="oo-root min-h-[100dvh]">
       <Suspense fallback={null}>{children}</Suspense>
     </div>
   );

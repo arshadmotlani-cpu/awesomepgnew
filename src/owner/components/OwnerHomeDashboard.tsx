@@ -8,6 +8,8 @@ import { BrainHealthPanel } from '@/src/owner/components/BrainHealthPanel';
 import { BusinessHealthPanel } from '@/src/owner/components/BusinessHealthPanel';
 import { OwnerTasksPanel } from '@/src/owner/components/OwnerTasksPanel';
 import { RecentEventsPanel } from '@/src/owner/components/RecentEventsPanel';
+import { WealthCommandPanel } from '@/src/owner/components/wealth/WealthCommandPanel';
+import type { WealthSnapshot } from '@/src/owner/services/wealthCalculation';
 
 function Section({
   title,
@@ -18,7 +20,7 @@ function Section({
 }) {
   return (
     <section>
-      <h2 className="mb-3 text-sm font-medium text-[color:var(--oo-muted,#9CA3AF)]">{title}</h2>
+      <h2 className="oo-section-title mb-3">{title}</h2>
       {children}
     </section>
   );
@@ -64,7 +66,15 @@ function ConnectLaterSection({ items }: { items: ExplainableValue[] }) {
   );
 }
 
-export function OwnerHomeDashboard({ snapshot }: { snapshot: OwnerOsSnapshot }) {
+export function OwnerHomeDashboard({
+  snapshot,
+  wealth,
+  upcomingDues = [],
+}: {
+  snapshot: OwnerOsSnapshot;
+  wealth?: WealthSnapshot | null;
+  upcomingDues?: Array<{ id: string; name: string; totalDuePaise: number; dueDate: string | null }>;
+}) {
   const [explain, setExplain] = useState<ExplainableValue | null>(null);
   const finance = snapshot.finance;
 
@@ -86,17 +96,30 @@ export function OwnerHomeDashboard({ snapshot }: { snapshot: OwnerOsSnapshot }) 
   ].filter((m) => m.connected !== false);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8">
       <header>
-        <p className="text-xs uppercase tracking-wide text-[#FF5A1F]">Owner OS</p>
-        <h1 className="text-2xl font-semibold text-white">Your operating system</h1>
-        <p className="mt-1 text-sm text-[color:var(--oo-muted,#9CA3AF)]">
-          Personal Finance Brain · click any number to explain · as of{' '}
-          {new Date(finance.asOf).toLocaleString('en-IN')}
+        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#FF5A1F]">
+          Owner OS
+        </p>
+        <h1 className="oo-page-title mt-1">Dashboard</h1>
+        <p className="oo-page-subtitle">
+          Personal CFO view · tap any metric to explain ·{' '}
+          <time className="font-medium text-[color:var(--oo-text-secondary)]">
+            {new Date(finance.asOf).toLocaleString('en-IN', {
+              dateStyle: 'medium',
+              timeStyle: 'short',
+            })}
+          </time>
         </p>
       </header>
 
-      <Section title="Position">
+      <WealthCommandPanel wealth={wealth ?? null} upcomingDues={upcomingDues} />
+
+      <Section title="Balance sheet (Brain)">
+        <p className="oo-meta mb-3">
+          Net worth is assets minus liabilities. Business profit and income are cash-flow signals —
+          not net worth by themselves.
+        </p>
         <MetricGrid>
           {heroMetrics.map((v) => (
             <ExplainableMetricCard key={v.id} value={v} onExplain={setExplain} />
@@ -114,7 +137,7 @@ export function OwnerHomeDashboard({ snapshot }: { snapshot: OwnerOsSnapshot }) 
         </Section>
       ) : null}
 
-      <Section title="Income">
+      <Section title="Income streams">
         <MetricGrid>
           {incomeMetrics.map((v) => (
             <ExplainableMetricCard key={v.id} value={v} onExplain={setExplain} />
@@ -122,7 +145,7 @@ export function OwnerHomeDashboard({ snapshot }: { snapshot: OwnerOsSnapshot }) 
         </MetricGrid>
       </Section>
 
-      <Section title="Businesses">
+      <Section title="Business performance">
         <div className="grid gap-3 lg:grid-cols-2">
           {finance.contributions.map((c) => (
             <div

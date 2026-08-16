@@ -13,7 +13,9 @@ export default function OwnerLoginForm() {
   const [state, formAction, pending] = useActionState(loginAction, initialState);
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
+    <div
+      className="flex min-h-[100dvh] items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]"
+    >
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[color:var(--oo-surface)] p-6 shadow-xl">
         <div className="mb-6 text-center">
           <p className="text-xs uppercase tracking-wide text-[#FF5A1F]">Owner OS</p>

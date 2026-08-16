@@ -2,14 +2,18 @@
  * FYH Salon adapter — consumes financialDashboard / revenueDashboard public snapshots only.
  */
 import { getRevenueDashboardSnapshot } from '@/src/hair/services/revenueDashboard';
+import { getFyhOwnerFinancialSummary } from '@/src/hair/services/ownerFinancialSummary';
 import { moneyValue } from '@/src/personalFinance/explain';
 import type { EngineContribution } from '@/src/personalFinance/types';
 
 export async function loadSalonContribution(): Promise<EngineContribution> {
   try {
-    const snap = await getRevenueDashboardSnapshot();
+    const [snap, ownerSummary] = await Promise.all([
+      getRevenueDashboardSnapshot(),
+      getFyhOwnerFinancialSummary().catch(() => null),
+    ]);
     const revenuePaise = snap.mtdRevenuePaise ?? 0;
-    const expensesPaise = 0;
+    const expensesPaise = ownerSummary?.expensePaise ?? 0;
     const profitPaise = revenuePaise - expensesPaise;
 
     return {
@@ -35,11 +39,13 @@ export async function loadSalonContribution(): Promise<EngineContribution> {
         paise: expensesPaise,
         brain: 'finance',
         engine: 'fyh_salon',
-        calculation: 'No public salon opex total API — 0 provisional',
-        sourceApi: 'unconnected',
-        provisional: true,
-        connected: false,
-        lineage: [],
+        calculation: ownerSummary
+          ? 'getFyhOwnerFinancialSummary().expensePaise'
+          : 'fyh_expenses MTD sum',
+        sourceApi: 'getFyhOwnerFinancialSummary',
+        provisional: !ownerSummary,
+        connected: ownerSummary != null,
+        lineage: [{ label: 'Operating expenses', paise: expensesPaise }],
       }),
       profitPaise: moneyValue({
         id: 'salon_business_profit',
