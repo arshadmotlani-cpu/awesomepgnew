@@ -23,6 +23,7 @@ import type { AdminSession } from '@/src/lib/auth/session';
 import { formatDate, parseDate, addDays, todayString } from '@/src/lib/dates';
 import {
   STANDARD_CALENDAR_BILLING_DAY,
+  billingDayFromMoveIn,
   billingPeriodForPolicy,
   firstAutoBillingRunDateAfterCoverage,
   firstOfMonth,
@@ -32,7 +33,12 @@ import {
   type BillingCyclePolicy,
 } from '@/src/services/billing';
 import { loadBillingCoverageModel } from '@/src/services/billingCoverage';
-import { findFirstUncoveredCalendarMonth, parseBillingPeriodFromInvoiceNotes } from '@/src/lib/billing/billingCoverageModel';
+import {
+  findFirstUncoveredCalendarMonth,
+  parseBillingPeriodFromInvoiceNotes,
+  type BillingCoveragePeriod,
+} from '@/src/lib/billing/billingCoverageModel';
+import { resolveAnniversaryPeriodContainingDate } from '@/src/lib/billing/vacatingFinalPeriodRent';
 import { getBookingMoneyBalances } from '@/src/services/bookingMoneyBalances';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { resolveMonthlyRentPaiseForBooking } from '@/src/lib/billing/rentPricingSsot';
@@ -98,6 +104,48 @@ function maxPaidThroughDate(paidThrough: string | null, periods: { periodEnd: st
   return best;
 }
 
+/**
+ * Paid-through for migration — anniversary residents prepaid through the end of the
+ * anniversary period containing the day after their last payment (not invoice note end alone).
+ */
+export function resolvePaidThroughForBillingMigration(args: {
+  moveInDate: string;
+  billingDay: number;
+  billingCyclePolicy: BillingCyclePolicy;
+  paidInvoiceCoverage: BillingCoveragePeriod[];
+  paidUntilFromVacating: string | null;
+  lastPaidInvoice: {
+    paidAt: Date | null;
+    status: string;
+  } | null;
+}): string | null {
+  let best = maxPaidThroughDate(args.paidUntilFromVacating, args.paidInvoiceCoverage);
+
+  if (args.lastPaidInvoice?.status === 'paid' && args.lastPaidInvoice.paidAt) {
+    const paidAt = formatDate(args.lastPaidInvoice.paidAt);
+    const anniversaryDay = billingDayFromMoveIn(args.moveInDate);
+    const containing = resolveAnniversaryPeriodContainingDate({
+      date: formatDate(addDays(paidAt, 1)),
+      billingDay: anniversaryDay,
+      moveInDate: args.moveInDate,
+    });
+    if (containing && (!best || containing.periodEnd > best)) {
+      best = containing.periodEnd;
+    }
+  }
+
+  return best;
+}
+
+/** Transition period overlaps prepaid coverage when it starts on or before paid-through. */
+export function billingTransitionOverlapsPaidThrough(
+  periodStart: string,
+  paidThroughDate: string | null,
+): boolean {
+  if (!paidThroughDate) return false;
+  return periodStart <= paidThroughDate;
+}
+
 function computeTransitionPeriod(args: {
   moveInDate: string;
   paidThroughDate: string | null;
@@ -116,6 +164,10 @@ function computeTransitionPeriod(args: {
 
   const periodEnd = lastDayOfMonth(transitionStart);
   if (transitionStart > periodEnd) return null;
+
+  if (paidThrough && paidThrough >= periodEnd) {
+    return null;
+  }
 
   const proration = prorateForMonth({
     monthlyRatePaise: args.monthlyRentPaise,
@@ -212,6 +264,8 @@ async function loadBookingMigrationContext(bookingId: string) {
       dueDate: rentInvoices.dueDate,
       billingMonth: rentInvoices.billingMonth,
       rentPaise: rentInvoices.rentPaise,
+      paidAt: rentInvoices.paidAt,
+      status: rentInvoices.status,
     })
     .from(rentInvoices)
     .where(
@@ -261,10 +315,16 @@ export async function previewBillingCycleMigration(
     durationMode: loaded.ctx.durationMode,
   });
 
-  const paidThroughDate = maxPaidThroughDate(
-    coverage?.paidUntilDate ?? null,
-    coverage?.paidInvoiceCoverage ?? [],
-  );
+  const paidThroughDate = resolvePaidThroughForBillingMigration({
+    moveInDate: checkInDate,
+    billingDay: currentBillingDay,
+    billingCyclePolicy: currentPolicy,
+    paidInvoiceCoverage: coverage?.paidInvoiceCoverage ?? [],
+    paidUntilFromVacating: coverage?.paidUntilDate ?? null,
+    lastPaidInvoice: loaded.lastPaid
+      ? { paidAt: loaded.lastPaid.paidAt, status: loaded.lastPaid.status }
+      : null,
+  });
 
   const alreadyOnTarget =
     currentPolicy === targetPolicy && currentBillingDay === STANDARD_CALENDAR_BILLING_DAY;
@@ -683,6 +743,18 @@ export async function createBillingCycleBridgeInvoice(
     return { ok: false, error: 'Bridge period has zero rent.' };
   }
 
+  const preview = await previewBillingCycleMigration(input.bookingId);
+  if ('ok' in preview && preview.ok === false) {
+    return { ok: false, error: preview.error };
+  }
+  const paidThrough = (preview as BillingCycleMigrationPreview).paidThroughDate;
+  if (billingTransitionOverlapsPaidThrough(input.periodStart, paidThrough)) {
+    return {
+      ok: false,
+      error: `Bridge period starts on or before paid-through date (${paidThrough ?? 'unknown'}).`,
+    };
+  }
+
   const existingTransitions = await db
     .select({ id: rentInvoices.id, notes: rentInvoices.notes })
     .from(rentInvoices)
@@ -750,6 +822,98 @@ export async function createBillingCycleBridgeInvoice(
   });
 
   return { ok: true, invoiceId: created.invoiceId, amountPaise: proration.amountPaise };
+}
+
+/**
+ * Cancel pending transition invoices that overlap prepaid anniversary coverage.
+ */
+export async function cancelOverlappingBillingTransitionInvoices(
+  session: AdminSession,
+  bookingId: string,
+  reason: string,
+): Promise<{
+  paidThroughDate: string | null;
+  cancelledIds: string[];
+  keptIds: string[];
+}> {
+  const preview = await previewBillingCycleMigration(bookingId);
+  if ('ok' in preview && preview.ok === false) {
+    return { paidThroughDate: null, cancelledIds: [], keptIds: [] };
+  }
+  const p = preview as BillingCycleMigrationPreview;
+
+  const loaded = await loadBookingMigrationContext(bookingId);
+  if (!loaded.ctx) {
+    return { paidThroughDate: p.paidThroughDate, cancelledIds: [], keptIds: [] };
+  }
+  if (
+    !adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, loaded.ctx.pgId)
+  ) {
+    throw new Error('Access denied.');
+  }
+
+  const rows = await db
+    .select({
+      id: rentInvoices.id,
+      invoiceNumber: rentInvoices.invoiceNumber,
+      notes: rentInvoices.notes,
+      status: rentInvoices.status,
+    })
+    .from(rentInvoices)
+    .where(
+      and(
+        eq(rentInvoices.bookingId, bookingId),
+        eq(rentInvoices.isAdhoc, true),
+        eq(rentInvoices.invoiceSubtype, 'billing_cycle_transition'),
+        inArray(rentInvoices.status, ['pending', 'overdue']),
+      ),
+    );
+
+  const cancelledIds: string[] = [];
+  const keptIds: string[] = [];
+
+  for (const row of rows) {
+    const parsed = parseBillingPeriodFromInvoiceNotes(row.notes);
+    if (
+      parsed &&
+      p.paidThroughDate &&
+      billingTransitionOverlapsPaidThrough(parsed.periodStart, p.paidThroughDate)
+    ) {
+      await db
+        .update(rentInvoices)
+        .set({
+          status: 'cancelled',
+          cancelledAt: new Date(),
+          cancellationReason: reason,
+          updatedAt: new Date(),
+        })
+        .where(eq(rentInvoices.id, row.id));
+      await db.insert(auditLog).values({
+        actorType: 'admin',
+        actorId: session.adminId,
+        entity: 'rent_invoice',
+        entityId: row.id,
+        action: 'cancelled',
+        diff: {
+          reason,
+          invoiceNumber: row.invoiceNumber,
+          overlapPaidThrough: p.paidThroughDate,
+          periodStart: parsed.periodStart,
+          periodEnd: parsed.periodEnd,
+        },
+      });
+      cancelledIds.push(row.id);
+    } else {
+      keptIds.push(row.id);
+    }
+  }
+
+  if (cancelledIds.length > 0) {
+    const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
+    await syncManyToUnified(cancelledIds, 'rent');
+  }
+
+  return { paidThroughDate: p.paidThroughDate, cancelledIds, keptIds };
 }
 
 export async function generateBillingCycleTransitionInvoice(

@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import { firstOfMonth, lastDayOfMonth, prorateForMonth } from '../../src/services/billing';
+import {
+  billingTransitionOverlapsPaidThrough,
+  resolvePaidThroughForBillingMigration,
+} from '../../src/services/billingCycleMigration';
+import { resolveAnniversaryPeriodContainingDate } from '../../src/lib/billing/vacatingFinalPeriodRent';
+import { addDays, formatDate } from '../../src/lib/dates';
 
 /** Pure transition math mirrored from billingCycleMigration for unit tests. */
 function computeTransitionPeriod(args: {
@@ -10,30 +16,33 @@ function computeTransitionPeriod(args: {
 }) {
   const paidThrough = args.paidThroughDate;
   let transitionStart = paidThrough
-    ? new Date(`${paidThrough}T00:00:00Z`)
-    : new Date(`${args.moveInDate}T00:00:00Z`);
-  if (paidThrough) {
-    transitionStart.setUTCDate(transitionStart.getUTCDate() + 1);
-  }
-  const transitionStartStr = transitionStart.toISOString().slice(0, 10);
-  const monthStart = firstOfMonth(transitionStartStr);
-  if (transitionStartStr === monthStart) return null;
+    ? formatDate(addDays(paidThrough, 1))
+    : args.moveInDate;
+  if (transitionStart < args.moveInDate) transitionStart = args.moveInDate;
+  const monthStart = firstOfMonth(transitionStart);
+  if (transitionStart === monthStart) return null;
 
-  const periodEnd = lastDayOfMonth(transitionStartStr);
+  const periodEnd = lastDayOfMonth(transitionStart);
+  if (paidThrough && paidThrough >= periodEnd) return null;
+
   const proration = prorateForMonth({
     monthlyRatePaise: args.monthlyRentPaise,
     billingMonth: monthStart,
-    activeStart: transitionStartStr,
-    activeEnd: new Date(`${periodEnd}T00:00:00Z`),
+    activeStart: transitionStart,
+    activeEnd: formatDate(addDays(parseDate(periodEnd), 1)),
   });
   if (proration.amountPaise <= 0) return null;
   return {
-    periodStart: transitionStartStr,
+    periodStart: transitionStart,
     periodEnd,
     amountPaise: proration.amountPaise,
     daysActive: proration.daysActive,
     daysInMonth: proration.daysInMonth,
   };
+}
+
+function parseDate(s: string) {
+  return new Date(`${s}T00:00:00.000Z`);
 }
 
 describe('billing cycle migration transition preview', () => {
@@ -63,7 +72,7 @@ describe('billing cycle migration transition preview', () => {
       monthlyRatePaise: 300_000,
       billingMonth: '2026-09-01',
       activeStart: '2026-09-21',
-      activeEnd: new Date('2026-09-30T00:00:00Z'),
+      activeEnd: formatDate(addDays('2026-09-30', 1)),
     });
     assert.equal(t!.daysActive, expected.daysActive);
     assert.equal(t!.daysInMonth, 30);
@@ -101,5 +110,52 @@ describe('billing cycle migration flags', () => {
     const lightweight =
       'anniversary' === 'anniversary' && 1 === 1 && 'calendar_month_1st' === 'calendar_month_1st';
     assert.equal(lightweight, true);
+  });
+});
+
+describe('resolvePaidThroughForBillingMigration', () => {
+  test('Saswat: paid Aug 8 → prepaid through Sep 8', () => {
+    const moveIn = '2026-08-08';
+    const billingDay = 8;
+    const containing = resolveAnniversaryPeriodContainingDate({
+      date: formatDate(addDays('2026-08-08', 1)),
+      billingDay,
+      moveInDate: moveIn,
+    });
+    assert.equal(containing?.periodEnd, '2026-09-08');
+
+    const paidThrough = resolvePaidThroughForBillingMigration({
+      moveInDate: moveIn,
+      billingDay,
+      billingCyclePolicy: 'anniversary',
+      paidInvoiceCoverage: [
+        { periodStart: '2026-07-08', periodEnd: '2026-08-08', paidPrincipalPaise: 412_080 },
+      ],
+      paidUntilFromVacating: null,
+      lastPaidInvoice: { paidAt: new Date('2026-08-08T03:04:10.014Z'), status: 'paid' },
+    });
+    assert.equal(paidThrough, '2026-09-08');
+  });
+
+  test('paid through Sep 8 → bridge Sep 9–30 only', () => {
+    const t = computeTransitionPeriod({
+      moveInDate: '2026-08-08',
+      paidThroughDate: '2026-09-08',
+      monthlyRentPaise: 412_080,
+    });
+    assert.ok(t);
+    assert.equal(t!.periodStart, '2026-09-09');
+    assert.equal(t!.periodEnd, '2026-09-30');
+    assert.equal(t!.daysActive, 22);
+  });
+});
+
+describe('billingTransitionOverlapsPaidThrough', () => {
+  test('Aug 13 transition overlaps paid through Sep 8', () => {
+    assert.equal(billingTransitionOverlapsPaidThrough('2026-08-13', '2026-09-08'), true);
+  });
+
+  test('Sep 9 bridge does not overlap paid through Sep 8', () => {
+    assert.equal(billingTransitionOverlapsPaidThrough('2026-09-09', '2026-09-08'), false);
   });
 });
