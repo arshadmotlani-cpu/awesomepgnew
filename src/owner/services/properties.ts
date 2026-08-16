@@ -9,11 +9,13 @@ import {
 import {
   computeAppreciationMetrics,
   projectionHorizons,
-  propertyBasisPaise,
+  acquisitionBasisPaise,
+  resolveCurrentMarketValuePaise,
   ownerShareBasisPaise,
+  ownerShareMarketValuePaise,
   NON_PROJECTED_KINDS,
 } from '@/src/owner/lib/wealth/propertyValuation';
-import { ownershipSharePaise, paiseFromRupees } from '@/src/owner/lib/wealth/types';
+import { paiseFromRupees } from '@/src/owner/lib/wealth/types';
 import { writeAuditLog } from '@/src/owner/services/auditLog';
 
 export async function listProperties() {
@@ -208,18 +210,25 @@ export async function getPropertyDetail(assetId: string) {
     ownershipPctBps: base.asset.ownershipPctBps,
   };
 
-  const currentValuePaise =
-    latest?.valuePaise ?? propertyBasisPaise(basis);
+  const currentMarketValuePaise = resolveCurrentMarketValuePaise(
+    latest?.valuePaise,
+    base.property.purchasePricePaise,
+  );
 
   const appreciation = computeAppreciationMetrics({
     basis,
-    currentValuePaise,
+    currentValuePaise: currentMarketValuePaise,
     purchaseDate: base.property.purchaseDate,
   });
 
+  const ownerMarketValuePaise = ownerShareMarketValuePaise(
+    currentMarketValuePaise,
+    basis.ownershipPctBps,
+  );
+
   const projections =
     assumption
-      ? projectionHorizons(ownerShareBasisPaise(basis), assumption.annualRateBps)
+      ? projectionHorizons(ownerMarketValuePaise, assumption.annualRateBps)
       : null;
 
   return {
@@ -227,7 +236,10 @@ export async function getPropertyDetail(assetId: string) {
     valuations,
     latestValuation: latest,
     assumption,
-    currentValuePaise,
+    currentMarketValuePaise,
+    acquisitionBasisPaise: acquisitionBasisPaise(basis),
+    ownerAcquisitionBasisPaise: ownerShareBasisPaise(basis),
+    ownerMarketValuePaise,
     appreciation,
     projections,
   };
@@ -243,8 +255,11 @@ export async function getTotalPropertyValuePaise(): Promise<number> {
       purchaseCostsPaise: property.purchaseCostsPaise,
       ownershipPctBps: asset.ownershipPctBps,
     };
-    const valuePaise = latest?.valuePaise ?? propertyBasisPaise(basis);
-    total += ownershipSharePaise(valuePaise, asset.ownershipPctBps);
+    const marketValuePaise = resolveCurrentMarketValuePaise(
+      latest?.valuePaise,
+      property.purchasePricePaise,
+    );
+    total += ownerShareMarketValuePaise(marketValuePaise, asset.ownershipPctBps);
   }
   return total;
 }

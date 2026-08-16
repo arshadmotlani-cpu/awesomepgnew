@@ -3,8 +3,11 @@ import {
   listProperties,
   getLatestValuation,
 } from '@/src/owner/services/properties';
-import { propertyBasisPaise } from '@/src/owner/lib/wealth/propertyValuation';
-import { ownershipSharePaise } from '@/src/owner/lib/wealth/types';
+import {
+  resolveCurrentMarketValuePaise,
+  ownerShareMarketValuePaise,
+  ownerShareBasisPaise,
+} from '@/src/owner/lib/wealth/propertyValuation';
 import { coerceWealthPaise } from '@/src/owner/lib/wealth/paiseCoercion';
 import { getPropertyFinancialSummary } from '@/src/owner/services/propertyFinancials';
 
@@ -20,12 +23,15 @@ export default async function OwnerAssetsPage() {
           purchaseCostsPaise: coerceWealthPaise(property.purchaseCostsPaise),
           ownershipPctBps: coerceWealthPaise(asset.ownershipPctBps),
         };
-        const rawCurrent =
-          latest?.valuePaise != null
-            ? coerceWealthPaise(latest.valuePaise)
-            : propertyBasisPaise(basis);
-        const ownerCurrent = ownershipSharePaise(rawCurrent, basis.ownershipPctBps);
-        const ownerBasis = ownershipSharePaise(propertyBasisPaise(basis), basis.ownershipPctBps);
+        const marketValuePaise = resolveCurrentMarketValuePaise(
+          latest?.valuePaise != null ? coerceWealthPaise(latest.valuePaise) : null,
+          basis.purchasePricePaise,
+        );
+        const ownerCurrent = ownerShareMarketValuePaise(
+          marketValuePaise,
+          basis.ownershipPctBps,
+        );
+        const ownerBasis = ownerShareBasisPaise(basis);
         const appreciationPct =
           ownerBasis > 0 ? ((ownerCurrent - ownerBasis) / ownerBasis) * 100 : 0;
 

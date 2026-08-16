@@ -2,11 +2,11 @@
 
 import { useActionState, useState } from 'react';
 import Link from 'next/link';
-import { paiseToInr } from '@/src/lib/format';
 import {
   createPropertyAction,
   type WealthActionState,
 } from '@/src/owner/actions/wealth';
+import { MoneyInput } from '@/src/owner/components/ui/MoneyInput';
 
 const PROPERTY_TYPES = [
   { value: 'pg', label: 'PG' },
@@ -98,18 +98,13 @@ export function PropertyFormUi({ pgOptions }: { pgOptions: PgOption[] }) {
           <h2 className="oo-form-section-title">Purchase details</h2>
           <div className="oo-form-grid">
             <FormField label="Purchase date">
-              <input name="purchaseDate" type="date" className="oo-form-input" />
+              <input name="purchaseDate" type="date" className="oo-form-input oo-form-input-date" />
             </FormField>
-            <FormField label="Purchase price (₹)" hint="Required">
-              <input
-                name="purchasePriceRupees"
-                type="number"
-                step="0.01"
-                required
-                className="oo-form-input oo-form-input-money"
-                placeholder="0"
-              />
-            </FormField>
+            <MoneyInput
+              name="purchasePriceRupees"
+              label="Purchase price (₹)"
+              required
+            />
             <FormField label="Ownership %" hint="Your share — default 100%">
               <input
                 name="ownershipPct"
@@ -129,35 +124,19 @@ export function PropertyFormUi({ pgOptions }: { pgOptions: PgOption[] }) {
           </button>
           {showAdvanced ? (
             <div className="oo-form-grid mt-3">
-              <FormField label="Registration (₹)">
-                <input name="registrationRupees" type="number" step="0.01" className="oo-form-input" />
-              </FormField>
-              <FormField label="Stamp duty (₹)">
-                <input name="stampDutyRupees" type="number" step="0.01" className="oo-form-input" />
-              </FormField>
-              <FormField label="Legal fees (₹)">
-                <input name="legalFeesRupees" type="number" step="0.01" className="oo-form-input" />
-              </FormField>
-              <FormField label="Brokerage (₹)">
-                <input name="brokerageRupees" type="number" step="0.01" className="oo-form-input" />
-              </FormField>
-              <FormField label="Renovation at acquisition (₹)">
-                <input name="renovationRupees" type="number" step="0.01" className="oo-form-input" />
-              </FormField>
-              <FormField label="Other acquisition costs (₹)">
-                <input name="otherAcquisitionRupees" type="number" step="0.01" className="oo-form-input" />
-              </FormField>
+              <MoneyInput name="registrationRupees" label="Registration (₹)" />
+              <MoneyInput name="stampDutyRupees" label="Stamp duty (₹)" />
+              <MoneyInput name="legalFeesRupees" label="Legal fees (₹)" />
+              <MoneyInput name="brokerageRupees" label="Brokerage (₹)" />
+              <MoneyInput name="renovationRupees" label="Renovation at acquisition (₹)" />
+              <MoneyInput name="otherAcquisitionRupees" label="Other acquisition costs (₹)" />
             </div>
           ) : (
-            <FormField label="Total purchase costs (₹)" hint="Registration, stamp duty, legal, etc.">
-              <input
-                name="purchaseCostsRupees"
-                type="number"
-                step="0.01"
-                className="oo-form-input oo-form-input-money"
-                placeholder="0"
-              />
-            </FormField>
+            <MoneyInput
+              name="purchaseCostsRupees"
+              label="Total purchase costs (₹)"
+              hint="Registration, stamp duty, legal, etc."
+            />
           )}
           <p className="oo-form-hint mt-2">
             Total investment = purchase price + acquisition costs. Net worth counts your ownership
@@ -168,21 +147,13 @@ export function PropertyFormUi({ pgOptions }: { pgOptions: PgOption[] }) {
         <section className="oo-form-section">
           <h2 className="oo-form-section-title">Current value & appreciation</h2>
           <div className="oo-form-grid">
-            <FormField label="Current estimated value (₹)">
-              <input
-                name="currentValueRupees"
-                type="number"
-                step="0.01"
-                className="oo-form-input oo-form-input-money"
-                placeholder="Market estimate"
-              />
-            </FormField>
+            <MoneyInput name="currentValueRupees" label="Current estimated value (₹)" />
             <FormField label="Valuation date">
               <input
                 name="valuationDate"
                 type="date"
                 defaultValue={new Date().toISOString().slice(0, 10)}
-                className="oo-form-input"
+                className="oo-form-input oo-form-input-date"
               />
             </FormField>
             <FormField label="Expected appreciation % / year">
@@ -220,24 +191,12 @@ export function PropertyFormUi({ pgOptions }: { pgOptions: PgOption[] }) {
                 ))}
               </select>
             </FormField>
-            <FormField label="Monthly rental / PG income (₹)" hint="Only if not linked to PG">
-              <input
-                name="monthlyRentalIncomeRupees"
-                type="number"
-                step="0.01"
-                className="oo-form-input oo-form-input-money"
-                placeholder="0"
-              />
-            </FormField>
-            <FormField label="Other monthly income (₹)">
-              <input
-                name="otherMonthlyIncomeRupees"
-                type="number"
-                step="0.01"
-                className="oo-form-input oo-form-input-money"
-                placeholder="0"
-              />
-            </FormField>
+            <MoneyInput
+              name="monthlyRentalIncomeRupees"
+              label="Monthly rental / PG income (₹)"
+              hint="Only if not linked to PG"
+            />
+            <MoneyInput name="otherMonthlyIncomeRupees" label="Other monthly income (₹)" />
           </div>
         </section>
 

@@ -15,8 +15,34 @@ export function propertyBasisPaise(basis: PropertyBasis): number {
   return coerceWealthPaise(basis.purchasePricePaise) + coerceWealthPaise(basis.purchaseCostsPaise);
 }
 
+/** Total acquisition basis (purchase + explicit costs) — NOT current market value. */
+export function acquisitionBasisPaise(basis: PropertyBasis): number {
+  return propertyBasisPaise(basis);
+}
+
+/**
+ * Current market value when no valuation exists defaults to purchase price only.
+ * Acquisition costs affect appreciation math, not implicit market value.
+ */
+export function resolveCurrentMarketValuePaise(
+  latestValuationPaise: number | null | undefined,
+  purchasePricePaise: number,
+): number {
+  if (latestValuationPaise != null) {
+    return coerceWealthPaise(latestValuationPaise);
+  }
+  return coerceWealthPaise(purchasePricePaise);
+}
+
 export function ownerShareBasisPaise(basis: PropertyBasis): number {
-  return ownershipSharePaise(propertyBasisPaise(basis), basis.ownershipPctBps);
+  return ownershipSharePaise(acquisitionBasisPaise(basis), basis.ownershipPctBps);
+}
+
+export function ownerShareMarketValuePaise(
+  marketValuePaise: number,
+  ownershipPctBps: number,
+): number {
+  return ownershipSharePaise(marketValuePaise, ownershipPctBps);
 }
 
 export function computeAppreciationMetrics(input: {

@@ -7,6 +7,7 @@ import {
   type WealthActionState,
 } from '@/src/owner/actions/wealth';
 import { SourceBadge } from '@/src/owner/components/wealth/SourceBadge';
+import { MoneyInput } from '@/src/owner/components/ui/MoneyInput';
 
 type IncomeRow = {
   id: string;
@@ -24,7 +25,6 @@ type PeriodSummary = {
 };
 
 type AccountOption = { id: string; name: string };
-type AssetOption = { id: string; name: string };
 
 const PERIOD_LABELS: Record<string, string> = {
   today: 'Today',
@@ -39,12 +39,10 @@ export function IncomeUi({
   cashFlow,
   recentIncome,
   accounts,
-  assets,
 }: {
   cashFlow: Record<string, PeriodSummary>;
   recentIncome: IncomeRow[];
   accounts: AccountOption[];
-  assets: AssetOption[];
 }) {
   const [state, formAction, pending] = useActionState<WealthActionState, FormData>(
     createIncomeAction,
@@ -59,7 +57,8 @@ export function IncomeUi({
       <header>
         <h1 className="oo-page-title">Income</h1>
         <p className="oo-page-subtitle">
-          Aggregated from connected engines and manual entries. No double counting.
+          Owner-level income (salary, dividends, business). Property income is managed on each
+          property page — not duplicated here.
         </p>
       </header>
 
@@ -85,30 +84,20 @@ export function IncomeUi({
         <h2 className="oo-form-section-title">Record manual income</h2>
         <form action={formAction} className="oo-form-grid">
           <input name="description" placeholder="Description" required className="oo-form-input" />
-          <input
-            name="amountRupees"
-            type="number"
-            step="0.01"
-            placeholder="Amount (₹)"
-            required
-            className="oo-form-input oo-form-input-money"
-          />
-          <input
-            name="incomeDate"
-            type="date"
-            required
-            defaultValue={new Date().toISOString().slice(0, 10)}
-            className="oo-form-input"
-          />
+          <MoneyInput name="amountRupees" label="Amount (₹)" required />
+          <div className="oo-form-field">
+            <label className="oo-form-label">Date</label>
+            <input
+              name="incomeDate"
+              type="date"
+              required
+              defaultValue={new Date().toISOString().slice(0, 10)}
+              className="oo-form-input oo-form-input-date"
+            />
+          </div>
           <select name="accountId" className="oo-form-input">
             <option value="">Deposit account (optional)</option>
             {accounts.map((a) => (
-              <option key={a.id} value={a.id}>{a.name}</option>
-            ))}
-          </select>
-          <select name="assetId" className="oo-form-input">
-            <option value="">Link to property (optional)</option>
-            {assets.map((a) => (
               <option key={a.id} value={a.id}>{a.name}</option>
             ))}
           </select>

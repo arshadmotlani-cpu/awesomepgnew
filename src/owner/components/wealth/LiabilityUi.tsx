@@ -8,6 +8,7 @@ import {
   payLiabilityAction,
   type WealthActionState,
 } from '@/src/owner/actions/wealth';
+import { MoneyInput } from '@/src/owner/components/ui/MoneyInput';
 
 const LIABILITY_TYPES = [
   'EMI',
@@ -46,13 +47,7 @@ export function LiabilityFormUi() {
           required
           className="oo-form-input oo-form-input-money"
         />
-        <input
-          name="currentPrincipalRupees"
-          type="number"
-          step="0.01"
-          placeholder="Current principal (₹)"
-          className="oo-form-input oo-form-input-money"
-        />
+        <MoneyInput name="currentPrincipalRupees" label="Current principal (₹)" />
         <input
           name="interestRatePct"
           type="number"
@@ -185,14 +180,11 @@ export function LiabilityDetailUi({
         </p>
         <form action={formAction} className="oo-form-grid mt-3">
           <input type="hidden" name="liabilityId" value={liability.id} />
-          <input
+          <MoneyInput
             name="amountRupees"
-            type="number"
-            step="0.01"
-            placeholder="Payment amount (₹)"
+            label="Payment amount (₹)"
+            defaultValue={Number(suggestedPayment) || 0}
             required
-            defaultValue={suggestedPayment}
-            className="oo-form-input oo-form-input-money"
           />
           <input
             name="paymentDate"

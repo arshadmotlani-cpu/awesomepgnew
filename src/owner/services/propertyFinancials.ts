@@ -316,3 +316,64 @@ export async function listPgLinkedProperties() {
     .from(ooProperties)
     .where(sql`${ooProperties.linkedPgId} IS NOT NULL`);
 }
+
+export type PropertyIncomeEntry = {
+  id: string;
+  date: string;
+  description: string;
+  sourceSystem: string;
+  amountPaise: number;
+  kind: 'journal' | 'integration';
+};
+
+/** Property-scoped income history — not duplicated in general income forms. */
+export async function listPropertyIncomeHistory(assetId: string, limit = 50) {
+  const journalRows = await ownerDb
+    .select({
+      id: ooJournalLines.id,
+      entryDate: ooJournalEntries.entryDate,
+      description: ooJournalEntries.description,
+      sourceSystem: ooJournalEntries.sourceSystem,
+      amountPaise: ooJournalLines.amountPaise,
+    })
+    .from(ooJournalLines)
+    .innerJoin(ooJournalEntries, eq(ooJournalLines.entryId, ooJournalEntries.id))
+    .where(
+      and(eq(ooJournalLines.assetId, assetId), eq(ooJournalLines.eventType, 'INCOME')),
+    )
+    .orderBy(sql`${ooJournalEntries.entryDate} DESC`)
+    .limit(limit);
+
+  const integrationRows = await ownerDb
+    .select()
+    .from(ooIntegrationFacts)
+    .where(
+      and(
+        eq(ooIntegrationFacts.assetId, assetId),
+        inArray(ooIntegrationFacts.kind, ['REVENUE', 'PROFIT']),
+      ),
+    )
+    .orderBy(sql`${ooIntegrationFacts.periodEnd} DESC`)
+    .limit(limit);
+
+  const entries: PropertyIncomeEntry[] = [
+    ...journalRows.map((r) => ({
+      id: r.id,
+      date: r.entryDate,
+      description: r.description,
+      sourceSystem: r.sourceSystem,
+      amountPaise: Number(r.amountPaise),
+      kind: 'journal' as const,
+    })),
+    ...integrationRows.map((r) => ({
+      id: r.id,
+      date: r.periodEnd,
+      description: `${r.sourceSystem} ${r.kind}`,
+      sourceSystem: r.sourceSystem,
+      amountPaise: Number(r.amountPaise),
+      kind: 'integration' as const,
+    })),
+  ];
+
+  return entries.sort((a, b) => b.date.localeCompare(a.date)).slice(0, limit);
+}

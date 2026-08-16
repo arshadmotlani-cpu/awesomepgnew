@@ -14,9 +14,10 @@
   --fyh-success: #10b981;
   --fyh-warning: #e8c066;
   --fyh-danger: #f87171;
-  --fyh-text-primary: #f5f5f0;
-  --fyh-text-secondary: #c8c8c0;
-  --fyh-text-muted: #8a8a82;
+  --fyh-text-primary: #ffffff;
+  --fyh-text-secondary: #e8e8e0;
+  --fyh-text-muted: #c8c8c0;
+  --fyh-scheduler-time: #ffffff;
   --fyh-border: rgba(255, 255, 255, 0.08);
   --fyh-border-strong: rgba(255, 255, 255, 0.12);
   --fyh-border-hover: rgba(255, 255, 255, 0.18);

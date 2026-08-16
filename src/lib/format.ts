@@ -1,10 +1,9 @@
 /**
  * Display helpers. Money is stored as integer paise everywhere; UI converts.
+ * Indian numbering (en-IN): 3300000 → ₹33,00,000
  */
 
-const inrFormatter = new Intl.NumberFormat('en-IN', {
-  style: 'currency',
-  currency: 'INR',
+const inrNumberFormatter = new Intl.NumberFormat('en-IN', {
   maximumFractionDigits: 0,
 });
 
@@ -24,8 +23,59 @@ export function coerceNonNegativePaise(value: unknown): number {
   return Math.max(0, Math.round(asPlainNumber(value)));
 }
 
+/**
+ * Format rupee amount with Indian grouping (no currency symbol).
+ * formatInrAmount(3300000) → "33,00,000"
+ */
+export function formatInrAmount(
+  rupees: number,
+  opts?: { decimals?: number; allowNegative?: boolean },
+): string {
+  const value = opts?.allowNegative ? rupees : Math.abs(rupees);
+  const hasDecimals = opts?.decimals != null || !Number.isInteger(value);
+  const decimals = opts?.decimals ?? (Number.isInteger(value) ? 0 : 2);
+  const formatter =
+    decimals > 0
+      ? new Intl.NumberFormat('en-IN', {
+          minimumFractionDigits: decimals,
+          maximumFractionDigits: decimals,
+        })
+      : inrNumberFormatter;
+  const formatted = formatter.format(value);
+  return rupees < 0 && opts?.allowNegative ? `-${formatted}` : formatted;
+}
+
+/** formatInrFromRupees(3300000) → "₹33,00,000" */
+export function formatInrFromRupees(rupees: number, decimals?: number): string {
+  const formatted = formatInrAmount(rupees, { decimals });
+  return `₹${formatted}`;
+}
+
+/** Alias: paise → ₹ with Indian grouping. */
 export function paiseToInr(paise: number | bigint | string | null | undefined): string {
-  return inrFormatter.format(asPlainNumber(paise) / 100);
+  return formatInrFromRupees(asPlainNumber(paise) / 100);
+}
+
+/** Parse user input: strips ₹, commas, spaces. Returns rupees as number. */
+export function parseInrAmountInput(raw: string): number {
+  const cleaned = raw.replace(/[₹,\s]/g, '').trim();
+  if (cleaned === '' || cleaned === '-') return 0;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * Format percentage with sensible precision.
+ * formatPercent(8) → "8%", formatPercent(8.5) → "8.5%"
+ */
+export function formatPercent(value: number, maxDecimals = 1): string {
+  if (!Number.isFinite(value)) return '—';
+  const rounded =
+    maxDecimals === 0
+      ? Math.round(value)
+      : Number(value.toFixed(maxDecimals));
+  const str = maxDecimals === 0 ? String(rounded) : rounded.toString();
+  return `${str}%`;
 }
 
 const ISO_DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;

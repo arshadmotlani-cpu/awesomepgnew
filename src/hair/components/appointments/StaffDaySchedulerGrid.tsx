@@ -82,7 +82,7 @@ export function StaffDaySchedulerGrid({
         {/* Header row */}
         <div className="sticky top-0 z-30 flex border-b border-[color:var(--fyh-border)] bg-fyh-elevated/95 backdrop-blur">
           <div
-            className="sticky left-0 z-40 shrink-0 border-r border-[color:var(--fyh-border)] bg-fyh-elevated/95 px-3 flex items-center text-xs font-medium text-fyh-text-secondary"
+            className="sticky left-0 z-40 shrink-0 border-r border-[color:var(--fyh-border)] bg-fyh-elevated/95 px-3 flex items-center text-xs font-semibold text-white"
             style={{ width: STAFF_COL_WIDTH_PX, height: TIME_HEADER_HEIGHT_PX }}
           >
             Stylist
@@ -91,7 +91,7 @@ export function StaffDaySchedulerGrid({
             {slots.map((mins, i) => (
               <div
                 key={mins}
-                className="absolute top-0 flex items-center justify-center border-r border-[color:var(--fyh-border)]/50 text-[10px] tabular-nums text-fyh-text-muted"
+                className="absolute top-0 flex items-center justify-center border-r border-[color:var(--fyh-border)]/40 text-[11px] font-semibold tabular-nums text-white"
                 style={{
                   left: i * SLOT_WIDTH_PX,
                   width: SLOT_WIDTH_PX,

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { paiseToInr } from '@/src/lib/format';
+import { paiseToInr, formatPercent } from '@/src/lib/format';
 
 type PropertyRow = {
   assetId: string;
@@ -97,7 +97,7 @@ export function PropertyPortfolioUi({ properties }: { properties: PropertyRow[] 
                 <Metric label="Purchase" value={paiseToInr(p.purchasePricePaise)} />
                 <Metric
                   label="Gain"
-                  value={`${p.appreciationPct >= 0 ? '+' : ''}${p.appreciationPct.toFixed(1)}%`}
+                  value={`${p.appreciationPct >= 0 ? '+' : ''}${formatPercent(p.appreciationPct)}`}
                   tone={p.appreciationPct >= 0 ? 'positive' : 'negative'}
                 />
                 <Metric

@@ -2,11 +2,17 @@
   --oo-bg: #0b0f14;
   --oo-surface: #141a22;
   --oo-surface-elevated: #1a222c;
-  --oo-border: rgba(255, 255, 255, 0.1);
-  --oo-text: #f4f7fb;
-  --oo-text-secondary: #c5d0dc;
-  --oo-muted: #9aa7b8;
+  --oo-border: rgba(255, 255, 255, 0.14);
+  --oo-text: #ffffff;
+  --oo-text-secondary: #e8edf4;
+  --oo-muted: #c5d0dc;
   --oo-accent: #ff5a1f;
+  --oo-financial: #ffffff;
+  --oo-financial-positive: #6ee7b7;
+  --oo-financial-negative: #fca5a5;
+  --oo-input-text: #ffffff;
+  --oo-input-label: #f1f5f9;
+  --oo-scheduler-time: #ffffff;
 }
 
 .oo-root {
@@ -197,6 +203,43 @@
   color: var(--oo-muted);
 }
 
+.oo-meta-bright {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: var(--oo-text-secondary);
+}
+
+.oo-section-heading {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--oo-text);
+  margin-bottom: 0.75rem;
+}
+
+.oo-financial-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--oo-financial);
+}
+
+.oo-value-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.oo-value-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.oo-form-input-date {
+  color: var(--oo-input-text);
+  font-weight: 500;
+}
+
 .oo-card {
   border-radius: 0.875rem;
   border: 1px solid var(--oo-border);
@@ -315,8 +358,8 @@
 .oo-form-label {
   display: block;
   font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--oo-text-secondary);
+  font-weight: 600;
+  color: var(--oo-input-label);
   margin-bottom: 0.375rem;
 }
 
@@ -332,11 +375,12 @@
   width: 100%;
   min-height: 2.75rem;
   border-radius: 0.625rem;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.35);
   padding: 0.5rem 0.75rem;
   font-size: 0.9375rem;
-  color: var(--oo-text);
+  font-weight: 500;
+  color: var(--oo-input-text);
 }
 
 .oo-form-input-money {
