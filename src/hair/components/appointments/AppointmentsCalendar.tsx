@@ -204,9 +204,7 @@ export function AppointmentsCalendar({
             onClick={() => setView(id)}
             className={cn(
               'rounded-xl px-3 py-1.5 text-sm transition',
-              view === id
-                ? 'bg-fyh-forest text-fyh-text'
-                : 'text-fyh-text-secondary hover:bg-white/5',
+              view === id ? 'fyh-scheduler-tab-active' : 'fyh-scheduler-tab',
             )}
           >
             {label}

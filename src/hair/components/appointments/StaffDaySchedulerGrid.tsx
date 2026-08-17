@@ -77,12 +77,12 @@ export function StaffDaySchedulerGrid({
   }
 
   return (
-    <div className="fyh-glass overflow-auto max-h-[calc(100vh-14rem)]">
+    <div className="fyh-scheduler overflow-auto max-h-[calc(100vh-14rem)]">
       <div className="min-w-max">
         {/* Header row */}
-        <div className="sticky top-0 z-30 flex border-b border-[color:var(--fyh-border)] bg-fyh-elevated/95 backdrop-blur">
+        <div className="fyh-scheduler-header sticky top-0 z-30 flex">
           <div
-            className="sticky left-0 z-40 shrink-0 border-r border-[color:var(--fyh-border)] bg-fyh-elevated/95 px-3 flex items-center text-xs font-semibold text-white"
+            className="fyh-scheduler-staff-col fyh-scheduler-staff-label sticky left-0 z-40 shrink-0 px-3 flex items-center text-xs"
             style={{ width: STAFF_COL_WIDTH_PX, height: TIME_HEADER_HEIGHT_PX }}
           >
             Stylist
@@ -91,7 +91,7 @@ export function StaffDaySchedulerGrid({
             {slots.map((mins, i) => (
               <div
                 key={mins}
-                className="absolute top-0 flex items-center justify-center border-r border-[color:var(--fyh-border)]/40 text-[11px] font-semibold tabular-nums text-white"
+                className="fyh-scheduler-time-label fyh-scheduler-grid-slot absolute top-0 flex items-center justify-center text-[11px]"
                 style={{
                   left: i * SLOT_WIDTH_PX,
                   width: SLOT_WIDTH_PX,
@@ -110,11 +110,11 @@ export function StaffDaySchedulerGrid({
           return (
             <div
               key={s.id}
-              className="flex border-b border-[color:var(--fyh-border)]/60"
+              className="fyh-scheduler-row flex"
               style={{ height: STAFF_ROW_HEIGHT_PX }}
             >
               <div
-                className="sticky left-0 z-20 shrink-0 flex items-center gap-2 border-r border-[color:var(--fyh-border)] bg-fyh-elevated/95 px-2"
+                className="fyh-scheduler-staff-col sticky left-0 z-20 shrink-0 flex items-center gap-2 px-2"
                 style={{ width: STAFF_COL_WIDTH_PX }}
               >
                 {s.photoUrl ? (
@@ -124,11 +124,11 @@ export function StaffDaySchedulerGrid({
                     className="h-8 w-8 shrink-0 rounded-full object-cover"
                   />
                 ) : (
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-fyh-forest/30 text-xs font-semibold text-fyh-text">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-fyh-forest/30 text-xs font-semibold text-white">
                     {staffInitials(s.fullName)}
                   </div>
                 )}
-                <span className="truncate text-xs font-medium text-fyh-text">{s.fullName}</span>
+                <span className="fyh-scheduler-staff-label truncate text-xs">{s.fullName}</span>
               </div>
 
               <div
@@ -141,7 +141,7 @@ export function StaffDaySchedulerGrid({
                     key={mins}
                     type="button"
                     className={cn(
-                      'absolute top-0 bottom-0 border-r border-[color:var(--fyh-border)]/30 hover:bg-fyh-forest/8 transition-colors',
+                      'fyh-scheduler-grid-slot absolute top-0 bottom-0 hover:bg-fyh-forest/10 transition-colors',
                     )}
                     style={{
                       left: i * SLOT_WIDTH_PX,

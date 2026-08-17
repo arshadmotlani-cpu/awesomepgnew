@@ -161,13 +161,13 @@ function ColumnDrop({
   const totalMin = (dayEndHour - dayStartHour) * 60;
   return (
     <div className="min-w-[9.5rem] flex-1">
-      <div className="sticky top-0 z-20 border-b border-[color:var(--fyh-border)] bg-fyh-elevated/90 px-2 py-2 text-center text-xs font-medium text-fyh-text backdrop-blur">
+      <div className="sticky top-0 z-20 fyh-scheduler-header border-b px-2 py-2 text-center text-xs fyh-scheduler-staff-label backdrop-blur">
         {label}
       </div>
       <div
         ref={setNodeRef}
         className={cn(
-          'relative border-r border-[color:var(--fyh-border)]',
+          'relative border-r border-[color:var(--fyh-scheduler-grid-major)]',
           isOver && 'bg-fyh-forest/10',
         )}
         style={{ height: gridH }}
@@ -175,7 +175,7 @@ function ColumnDrop({
         {Array.from({ length: totalMin / SLOT_MIN }, (_, i) => (
           <div
             key={i}
-            className="pointer-events-none absolute inset-x-0 border-t border-[color:var(--fyh-border)]/40"
+            className="pointer-events-none absolute inset-x-0 border-t border-[color:var(--fyh-scheduler-grid-line)]"
             style={{ top: i * SLOT_MIN * PX_PER_MIN }}
           />
         ))}
@@ -188,15 +188,15 @@ function ColumnDrop({
 function TimeGutter({ dayStartHour, dayEndHour }: { dayStartHour: number; dayEndHour: number }) {
   const { gridH } = gridMetrics(dayStartHour, dayEndHour);
   return (
-    <div className="sticky left-0 z-30 w-14 shrink-0 bg-fyh-elevated/95">
-      <div className="h-[37px] border-b border-[color:var(--fyh-border)]" />
+    <div className="sticky left-0 z-30 w-14 shrink-0 bg-[color:var(--fyh-scheduler-staff-bg)]">
+      <div className="h-[37px] border-b border-[color:var(--fyh-scheduler-grid-major)]" />
       <div className="relative" style={{ height: gridH }}>
         {Array.from({ length: dayEndHour - dayStartHour + 1 }, (_, i) => {
           const h = dayStartHour + i;
           return (
             <div
               key={h}
-              className="absolute right-2 -translate-y-1/2 text-xs tabular-nums text-fyh-text-muted"
+              className="fyh-scheduler-time-label absolute right-2 -translate-y-1/2 text-xs tabular-nums"
               style={{ top: i * 60 * PX_PER_MIN }}
             >
               {String(h).padStart(2, '0')}:00
@@ -281,7 +281,7 @@ export function ResourceColumnSchedulerGrid({
 
   return (
     <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-      <div className="fyh-glass overflow-auto">
+      <div className="fyh-scheduler overflow-auto">
         <div className="flex min-w-max">
           <TimeGutter dayStartHour={dayStartHour} dayEndHour={dayEndHour} />
           {columns.length === 0 ? (

@@ -18,6 +18,11 @@
   --fyh-text-secondary: #e8e8e0;
   --fyh-text-muted: #c8c8c0;
   --fyh-scheduler-time: #ffffff;
+  --fyh-scheduler-grid-line: rgba(255, 255, 255, 0.14);
+  --fyh-scheduler-grid-major: rgba(255, 255, 255, 0.22);
+  --fyh-scheduler-border: rgba(255, 255, 255, 0.22);
+  --fyh-scheduler-header-bg: #1a1a1f;
+  --fyh-scheduler-staff-bg: #16161c;
   --fyh-border: rgba(255, 255, 255, 0.08);
   --fyh-border-strong: rgba(255, 255, 255, 0.12);
   --fyh-border-hover: rgba(255, 255, 255, 0.18);
@@ -608,4 +613,90 @@
 .fyh-table-compact tbody td {
   padding: 0.4375rem 0.5rem;
   font-size: 0.8125rem;
+}
+
+/* ——— Appointment scheduler (high-contrast time grid) ——— */
+.fyh-scheduler {
+  border: 1px solid var(--fyh-scheduler-border);
+  border-radius: var(--fyh-radius-lg);
+  background: var(--fyh-bg-elevated);
+}
+
+.fyh-scheduler-header {
+  background: var(--fyh-scheduler-header-bg);
+  border-bottom: 1px solid var(--fyh-scheduler-grid-major);
+}
+
+.fyh-scheduler-time-label {
+  color: #ffffff;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+.fyh-scheduler-staff-label {
+  color: #ffffff;
+  font-weight: 600;
+  -webkit-font-smoothing: antialiased;
+}
+
+.fyh-scheduler-staff-col {
+  background: var(--fyh-scheduler-staff-bg);
+  border-right: 1px solid var(--fyh-scheduler-grid-major);
+}
+
+.fyh-scheduler-grid-slot {
+  border-right: 1px solid var(--fyh-scheduler-grid-line);
+}
+
+.fyh-scheduler-row {
+  border-bottom: 1px solid var(--fyh-scheduler-grid-line);
+}
+
+.fyh-scheduler-tab {
+  color: #f3f4f6;
+  font-weight: 600;
+}
+
+.fyh-scheduler-tab:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.fyh-scheduler-tab-active {
+  color: var(--fyh-text-primary);
+  font-weight: 600;
+  background: var(--fyh-forest);
+}
+
+.fyh-theme-light .fyh-scheduler {
+  border-color: var(--fyh-border-strong);
+  background: var(--fyh-bg-surface);
+}
+
+.fyh-theme-light .fyh-scheduler-header {
+  background: var(--fyh-bg-elevated);
+  border-bottom-color: var(--fyh-border-strong);
+}
+
+.fyh-theme-light .fyh-scheduler-time-label,
+.fyh-theme-light .fyh-scheduler-staff-label {
+  color: var(--fyh-text-primary);
+}
+
+.fyh-theme-light .fyh-scheduler-staff-col {
+  background: var(--fyh-bg-elevated);
+  border-right-color: var(--fyh-border-strong);
+}
+
+.fyh-theme-light .fyh-scheduler-grid-slot {
+  border-right-color: var(--fyh-border-strong);
+}
+
+.fyh-theme-light .fyh-scheduler-row {
+  border-bottom-color: var(--fyh-border);
+}
+
+.fyh-theme-light .fyh-scheduler-tab {
+  color: var(--fyh-text-primary);
 }
