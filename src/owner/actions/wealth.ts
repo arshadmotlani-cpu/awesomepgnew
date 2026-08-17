@@ -7,6 +7,16 @@ import type { ExpenseCategory, LiabilityType } from '@/src/owner/lib/wealth/type
 import { createFinancialAccount } from '@/src/owner/services/financialAccounts';
 import { createManualExpense, createManualIncome } from '@/src/owner/services/expenses';
 import { createProperty, addPropertyValuation } from '@/src/owner/services/properties';
+import {
+  createPropertyIncomeSource,
+  updatePropertyIncomeSource,
+  changePropertyIncomeRent,
+  deletePropertyIncomeSource,
+} from '@/src/owner/services/propertyIncomeSources';
+import type {
+  PropertyIncomeSourceType,
+  PropertyIncomeSourceStatus,
+} from '@/src/owner/lib/wealth/propertyIncomeTypes';
 import { createLiability, payLiability } from '@/src/owner/services/liabilities';
 import { syncAllEngineFacts } from '@/src/owner/services/integrationSync';
 import {
@@ -82,6 +92,23 @@ export async function createPropertyAction(
     const directCosts = Number(formData.get('purchaseCostsRupees') ?? 0);
     const purchaseCostsRupees = breakdownTotal > 0 ? breakdownTotal : directCosts;
 
+    const linkedPgId = String(formData.get('linkedPgId') ?? '') || null;
+
+    let incomeSources: Array<{
+      sourceType: PropertyIncomeSourceType;
+      name: string;
+      tenantName?: string | null;
+      monthlyAmountRupees: number;
+      securityDepositRupees?: number;
+      startDate?: string | null;
+      status?: PropertyIncomeSourceStatus;
+      notes?: string | null;
+    }> = [];
+    const incomeSourcesJson = String(formData.get('incomeSourcesJson') ?? '').trim();
+    if (incomeSourcesJson) {
+      incomeSources = JSON.parse(incomeSourcesJson) as typeof incomeSources;
+    }
+
     await createProperty({
       name: String(formData.get('name') ?? ''),
       propertyType: String(formData.get('propertyType') ?? 'residential'),
@@ -95,7 +122,7 @@ export async function createPropertyAction(
       purchaseCostsRupees,
       purchaseCostsBreakdown: breakdownTotal > 0 ? breakdown : undefined,
       ownershipPct: Number(formData.get('ownershipPct') ?? 100),
-      linkedPgId: String(formData.get('linkedPgId') ?? '') || null,
+      linkedPgId,
       appreciationMethod: String(formData.get('appreciationMethod') ?? 'FLAT_ANNUAL'),
       annualAppreciationPct: formData.get('annualAppreciationPct')
         ? Number(formData.get('annualAppreciationPct'))
@@ -106,6 +133,7 @@ export async function createPropertyAction(
       valuationDate: String(formData.get('valuationDate') ?? '') || null,
       monthlyRentalIncomeRupees: Number(formData.get('monthlyRentalIncomeRupees') ?? 0),
       otherMonthlyIncomeRupees: Number(formData.get('otherMonthlyIncomeRupees') ?? 0),
+      incomeSources,
       notes: String(formData.get('notes') ?? '') || null,
       createdBy: admin.id,
     });
@@ -173,15 +201,105 @@ export async function createPropertyExpenseAction(
       });
     }
 
-    const assetIdForRevalidate = assetId;
-    if (assetIdForRevalidate) {
-      revalidatePath(`/assets/${assetIdForRevalidate}`);
-    }
+    if (assetId) revalidatePath(`/assets/${assetId}`);
     revalidatePath('/expenses');
     revalidatePath('/assets');
+    revalidatePath('/dashboard');
     return { success: 'Expense recorded' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to record expense' };
+  }
+}
+
+export async function createPropertyIncomeSourceAction(
+  _prev: WealthActionState,
+  formData: FormData,
+): Promise<WealthActionState> {
+  try {
+    const admin = await requireOwnerAuth();
+    const assetId = String(formData.get('assetId') ?? '');
+    await createPropertyIncomeSource({
+      assetId,
+      sourceType: String(formData.get('sourceType') ?? 'SHOP') as PropertyIncomeSourceType,
+      name: String(formData.get('name') ?? ''),
+      tenantName: String(formData.get('tenantName') ?? '') || null,
+      monthlyAmountRupees: Number(formData.get('monthlyAmountRupees') ?? 0),
+      securityDepositRupees: Number(formData.get('securityDepositRupees') ?? 0),
+      startDate: String(formData.get('startDate') ?? '') || null,
+      status: (String(formData.get('status') ?? 'ACTIVE') as PropertyIncomeSourceStatus),
+      notes: String(formData.get('notes') ?? '') || null,
+      createdBy: admin.id,
+    });
+    revalidatePath(`/assets/${assetId}`);
+    revalidatePath('/assets');
+    revalidatePath('/dashboard');
+    revalidatePath('/income');
+    return { success: 'Income source added' };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to add income source' };
+  }
+}
+
+export async function updatePropertyIncomeSourceAction(
+  _prev: WealthActionState,
+  formData: FormData,
+): Promise<WealthActionState> {
+  try {
+    const admin = await requireOwnerAuth();
+    const id = String(formData.get('id') ?? '');
+    const assetId = String(formData.get('assetId') ?? '');
+    await updatePropertyIncomeSource({
+      id,
+      name: String(formData.get('name') ?? ''),
+      tenantName: String(formData.get('tenantName') ?? '') || null,
+      status: String(formData.get('status') ?? 'ACTIVE') as PropertyIncomeSourceStatus,
+      notes: String(formData.get('notes') ?? '') || null,
+      actorId: admin.id,
+    });
+    revalidatePath(`/assets/${assetId}`);
+    revalidatePath('/dashboard');
+    return { success: 'Income source updated' };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to update income source' };
+  }
+}
+
+export async function changePropertyIncomeRentAction(
+  _prev: WealthActionState,
+  formData: FormData,
+): Promise<WealthActionState> {
+  try {
+    const admin = await requireOwnerAuth();
+    const assetId = String(formData.get('assetId') ?? '');
+    await changePropertyIncomeRent({
+      incomeSourceId: String(formData.get('incomeSourceId') ?? ''),
+      monthlyAmountRupees: Number(formData.get('monthlyAmountRupees') ?? 0),
+      effectiveFrom: String(formData.get('effectiveFrom') ?? ''),
+      notes: String(formData.get('notes') ?? '') || null,
+      actorId: admin.id,
+    });
+    revalidatePath(`/assets/${assetId}`);
+    revalidatePath('/dashboard');
+    return { success: 'Rent updated' };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to update rent' };
+  }
+}
+
+export async function deletePropertyIncomeSourceAction(
+  _prev: WealthActionState,
+  formData: FormData,
+): Promise<WealthActionState> {
+  try {
+    const admin = await requireOwnerAuth();
+    const id = String(formData.get('id') ?? '');
+    const assetId = String(formData.get('assetId') ?? '');
+    await deletePropertyIncomeSource({ id, actorId: admin.id });
+    revalidatePath(`/assets/${assetId}`);
+    revalidatePath('/dashboard');
+    return { success: 'Income source removed' };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to remove income source' };
   }
 }
 

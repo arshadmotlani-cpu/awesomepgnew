@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 import { PropertyDetailUi } from '@/src/owner/components/wealth/PropertyDetailUi';
 import { getPropertyDetail } from '@/src/owner/services/properties';
 import { yearlyProjectionsFromValue } from '@/src/owner/lib/wealth/propertyValuation';
+import { computePropertyAnalytics } from '@/src/owner/lib/wealth/propertyAnalytics';
+import { getPropertyIncomeTotals } from '@/src/owner/services/propertyIncomeSources';
 import { coerceWealthPaise } from '@/src/owner/lib/wealth/paiseCoercion';
 import {
   getPropertyFinancialSummary,
@@ -29,7 +31,19 @@ export default async function OwnerAssetDetailPage({
     ownerCurrentValuePaise: coerceWealthPaise(detail.appreciation.ownerCurrentValuePaise),
   };
 
+  const purchasePricePaise = coerceWealthPaise(detail.property.purchasePricePaise);
+  const purchaseCostsPaise = coerceWealthPaise(detail.property.purchaseCostsPaise);
+  const ownerPurchasePricePaise = Math.round(
+    (purchasePricePaise * coerceWealthPaise(detail.asset.ownershipPctBps)) / 10000,
+  );
+  const ownerPurchaseCostsPaise = Math.round(
+    (purchaseCostsPaise * coerceWealthPaise(detail.asset.ownershipPctBps)) / 10000,
+  );
+
   const ownerMarketValuePaise = coerceWealthPaise(detail.ownerMarketValuePaise);
+  const ownerEstimatedMarketValuePaise = coerceWealthPaise(detail.ownerEstimatedMarketValuePaise);
+  const valueState = detail.valueState;
+  const ownerEstimatedAppreciationPaise = ownerEstimatedMarketValuePaise - ownerPurchasePricePaise;
   const currentYear = new Date().getFullYear();
   const yearlyProjections =
     detail.assumption
@@ -43,6 +57,20 @@ export default async function OwnerAssetDetailPage({
 
   const financials = await getPropertyFinancialSummary(id, {
     ownerCurrentValuePaise: ownerMarketValuePaise,
+  });
+
+  const monthBounds = { start: new Date().toISOString().slice(0, 7) + '-01', end: new Date().toISOString().slice(0, 10) };
+  const incomeTotals = await getPropertyIncomeTotals(id, {
+    periodStart: monthBounds.start,
+    periodEnd: monthBounds.end,
+  });
+
+  const analytics = computePropertyAnalytics({
+    ownerBasisPaise: coerceWealthPaise(detail.ownerAcquisitionBasisPaise),
+    ownerCurrentValuePaise: ownerMarketValuePaise,
+    yearlyIncomePaise: financials?.yearlyIncomePaise ?? incomeTotals.grossAnnualizedPaise,
+    yearlyExpensePaise: financials?.yearlyExpensePaise ?? 0,
+    purchaseDate: detail.property.purchaseDate,
   });
 
   const incomeHistory = await listPropertyIncomeHistory(id).catch(() => []);
@@ -59,15 +87,6 @@ export default async function OwnerAssetDetailPage({
     })
     .from(ooLiabilities)
     .where(and(eq(ooLiabilities.assetId, id), eq(ooLiabilities.isActive, 1)));
-
-  const purchasePricePaise = coerceWealthPaise(detail.property.purchasePricePaise);
-  const purchaseCostsPaise = coerceWealthPaise(detail.property.purchaseCostsPaise);
-  const ownerPurchasePricePaise = Math.round(
-    (purchasePricePaise * coerceWealthPaise(detail.asset.ownershipPctBps)) / 10000,
-  );
-  const ownerPurchaseCostsPaise = Math.round(
-    (purchaseCostsPaise * coerceWealthPaise(detail.asset.ownershipPctBps)) / 10000,
-  );
 
   return (
     <PropertyDetailUi
@@ -90,6 +109,11 @@ export default async function OwnerAssetDetailPage({
         ownerAcquisitionBasisPaise: coerceWealthPaise(detail.ownerAcquisitionBasisPaise),
         currentMarketValuePaise: coerceWealthPaise(detail.currentMarketValuePaise),
         ownerMarketValuePaise,
+        ownerEstimatedMarketValuePaise,
+        valueSource: valueState.valueSource,
+        yearsHeld: valueState.yearsHeld,
+        estimatedAppreciationPaise: ownerEstimatedAppreciationPaise,
+        estimatedAppreciationPct: valueState.estimatedAppreciationPct,
         appreciation,
         valuations: detail.valuations.map((v) => ({
           id: v.id,
@@ -109,6 +133,8 @@ export default async function OwnerAssetDetailPage({
               yearlyExpensePaise: financials.yearlyExpensePaise,
               netMonthlyIncomePaise: financials.netMonthlyIncomePaise,
               netYearlyIncomePaise: financials.netYearlyIncomePaise,
+              actualMonthlyIncomePaise: financials.actualMonthlyIncomePaise,
+              actualYearlyIncomePaise: financials.actualYearlyIncomePaise,
               loanOutstandingPaise: financials.loanOutstandingPaise,
               monthlyEmiPaise: financials.monthlyEmiPaise,
               nextDueDate: financials.nextDueDate,
@@ -123,6 +149,8 @@ export default async function OwnerAssetDetailPage({
               yearlyExpensePaise: 0,
               netMonthlyIncomePaise: 0,
               netYearlyIncomePaise: 0,
+              actualMonthlyIncomePaise: 0,
+              actualYearlyIncomePaise: 0,
               loanOutstandingPaise: 0,
               monthlyEmiPaise: 0,
               nextDueDate: null,
@@ -132,6 +160,7 @@ export default async function OwnerAssetDetailPage({
                 journalPaise: 0,
                 integrationPaise: 0,
                 configuredBaselinePaise: 0,
+                incomeSourceGrossMonthlyPaise: 0,
               },
             },
         incomeHistory: incomeHistory.map((e) => ({
@@ -149,6 +178,9 @@ export default async function OwnerAssetDetailPage({
             ? coerceWealthPaise(l.fixedPaymentPaise)
             : null,
         })),
+        incomeTotals,
+        grossRentalYieldPct: analytics.rentalYieldPct,
+        netRentalYieldPct: analytics.netRentalYieldPct,
       }}
     />
   );

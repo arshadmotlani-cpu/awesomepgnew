@@ -42,13 +42,12 @@ describe('Owner wealth OS wiring', () => {
     assert.match(src, /WealthCommandPanel/);
   });
 
-  test('wealth schema migration exists', () => {
+  test('property income migration exists', () => {
     const sql = readFileSync(
-      join(process.cwd(), 'src/owner/db/migrations/0002_wealth_foundation.sql'),
+      join(process.cwd(), 'src/owner/db/migrations/0005_property_income_sources.sql'),
       'utf8',
     );
-    assert.match(sql, /oo_journal_entries/);
-    assert.match(sql, /oo_liabilities/);
-    assert.match(sql, /oo_integration_facts/);
+    assert.match(sql, /oo_property_income_sources/);
+    assert.match(sql, /oo_property_income_rent_history/);
   });
 });

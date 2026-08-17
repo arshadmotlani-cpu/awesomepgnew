@@ -39,10 +39,18 @@ export function IncomeUi({
   cashFlow,
   recentIncome,
   accounts,
+  incomeBreakdown,
 }: {
   cashFlow: Record<string, PeriodSummary>;
   recentIncome: IncomeRow[];
   accounts: AccountOption[];
+  incomeBreakdown?: {
+    propertyExpectedMonthlyPaise: number;
+    propertyActualPaise: number;
+    businessIncomePaise: number;
+    otherIncomePaise: number;
+    propertyBySource: Array<{ assetId: string; name: string; grossMonthlyPaise: number }>;
+  } | null;
 }) {
   const [state, formAction, pending] = useActionState<WealthActionState, FormData>(
     createIncomeAction,
@@ -69,6 +77,41 @@ export function IncomeUi({
           Net {paiseToInr(month.netPaise)} after expenses {paiseToInr(month.expensePaise)}
         </p>
       </section>
+
+      {incomeBreakdown ? (
+        <section className="oo-card p-4">
+          <h2 className="oo-section-title-strong mb-3">Monthly income breakdown</h2>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="oo-meta-bright">Property (expected recurring)</span>
+              <span>{paiseToInr(incomeBreakdown.propertyExpectedMonthlyPaise)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="oo-meta-bright">Property (actual MTD)</span>
+              <span>{paiseToInr(incomeBreakdown.propertyActualPaise)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="oo-meta-bright">Business</span>
+              <span>{paiseToInr(incomeBreakdown.businessIncomePaise)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="oo-meta-bright">Other (manual)</span>
+              <span>{paiseToInr(incomeBreakdown.otherIncomePaise)}</span>
+            </div>
+          </div>
+          {incomeBreakdown.propertyBySource.length > 0 ? (
+            <div className="mt-3 border-t border-white/10 pt-3 space-y-1">
+              <p className="oo-label">Property drill-down</p>
+              {incomeBreakdown.propertyBySource.map((p) => (
+                <div key={p.assetId} className="flex justify-between text-sm">
+                  <span className="oo-meta-bright">{p.name}</span>
+                  <span>{paiseToInr(p.grossMonthlyPaise)} / mo</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <div className="oo-stat-grid">
         {Object.entries(cashFlow).map(([key, row]) => (

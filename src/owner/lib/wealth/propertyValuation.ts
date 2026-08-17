@@ -1,4 +1,3 @@
-import { and, desc, eq, gte, lte, ne } from 'drizzle-orm';
 import {
   ownershipSharePaise,
   type ValuationKind,
@@ -21,8 +20,126 @@ export function acquisitionBasisPaise(basis: PropertyBasis): number {
 }
 
 /**
- * Current market value when no valuation exists defaults to purchase price only.
- * Acquisition costs affect appreciation math, not implicit market value.
+ * User-recorded valuations (ACTUAL, APPRAISAL, MARKET_ESTIMATE) count as actual current value.
+ * PROJECTED and system auto-corrections do not override the appreciation model.
+ */
+export function isUserRecordedValuation(kind: string, notes?: string | null): boolean {
+  if (kind === 'PROJECTED') return false;
+  if (notes?.toLowerCase().includes('production correction')) return false;
+  return true;
+}
+
+/**
+ * Completed full annual compounding periods between purchase date and as-of date.
+ * Rule: calendar years elapsed minus one if the as-of date is before the purchase anniversary.
+ * Example: purchase 2020-01-01, as-of 2026-08-17 → 6 completed years (2020→2026).
+ */
+export function completedAppreciationYears(purchaseDate: string, asOfDate: string): number {
+  const [py, pm, pd] = purchaseDate.split('-').map((n) => Number(n));
+  const [ay, am, ad] = asOfDate.split('-').map((n) => Number(n));
+  let years = ay - py;
+  if (am < pm || (am === pm && ad < pd)) {
+    years -= 1;
+  }
+  return Math.max(0, years);
+}
+
+export function projectPropertyValue(input: {
+  basisPaise: number;
+  annualRateBps: number;
+  years: number;
+}): number {
+  const rate = input.annualRateBps / 10000;
+  return Math.round(input.basisPaise * Math.pow(1 + rate, input.years));
+}
+
+/**
+ * Illustrative market value from flat annual appreciation on purchase price.
+ * Used only when no user-recorded valuation exists.
+ */
+export function estimatedMarketValueFromAppreciation(input: {
+  purchasePricePaise: number;
+  purchaseDate: string;
+  annualRateBps: number;
+  asOfDate?: string;
+}): number {
+  const purchase = coerceWealthPaise(input.purchasePricePaise);
+  const asOf = input.asOfDate ?? new Date().toISOString().slice(0, 10);
+  const years = completedAppreciationYears(input.purchaseDate, asOf);
+  if (years <= 0 || input.annualRateBps <= 0) return purchase;
+  return projectPropertyValue({
+    basisPaise: purchase,
+    annualRateBps: input.annualRateBps,
+    years,
+  });
+}
+
+export type PropertyValueState = {
+  /** User-recorded valuation (ACTUAL / APPRAISAL / MARKET_ESTIMATE), if any */
+  actualMarketValuePaise: number | null;
+  /** Modelled value from purchase + appreciation assumption */
+  estimatedMarketValuePaise: number;
+  /** Value used for net worth: actual if recorded, else estimated */
+  currentValueForNetWorthPaise: number;
+  valueSource: 'actual' | 'estimated';
+  yearsHeld: number;
+  estimatedAppreciationPaise: number;
+  estimatedAppreciationPct: number;
+};
+
+export function resolvePropertyValueState(input: {
+  latestValuationPaise?: number | null;
+  latestValuationKind?: string | null;
+  latestValuationNotes?: string | null;
+  purchasePricePaise: number;
+  purchaseDate?: string | null;
+  annualRateBps?: number | null;
+  asOfDate?: string;
+}): PropertyValueState {
+  const purchase = coerceWealthPaise(input.purchasePricePaise);
+  const asOf = input.asOfDate ?? new Date().toISOString().slice(0, 10);
+
+  const estimatedMarketValuePaise =
+    input.purchaseDate && input.annualRateBps != null && input.annualRateBps > 0
+      ? estimatedMarketValueFromAppreciation({
+          purchasePricePaise: purchase,
+          purchaseDate: input.purchaseDate,
+          annualRateBps: input.annualRateBps,
+          asOfDate: asOf,
+        })
+      : purchase;
+
+  const hasActual =
+    input.latestValuationPaise != null &&
+    isUserRecordedValuation(
+      input.latestValuationKind ?? 'MARKET_ESTIMATE',
+      input.latestValuationNotes,
+    );
+
+  const actualMarketValuePaise = hasActual
+    ? coerceWealthPaise(input.latestValuationPaise)
+    : null;
+
+  const currentValueForNetWorthPaise = actualMarketValuePaise ?? estimatedMarketValuePaise;
+  const yearsHeld = input.purchaseDate ? completedAppreciationYears(input.purchaseDate, asOf) : 0;
+  const estimatedAppreciationPaise = estimatedMarketValuePaise - purchase;
+  const estimatedAppreciationPct =
+    purchase > 0 ? (estimatedAppreciationPaise / purchase) * 100 : 0;
+
+  return {
+    actualMarketValuePaise,
+    estimatedMarketValuePaise,
+    currentValueForNetWorthPaise,
+    valueSource: hasActual ? 'actual' : 'estimated',
+    yearsHeld,
+    estimatedAppreciationPaise,
+    estimatedAppreciationPct,
+  };
+}
+
+/**
+ * Legacy helper — returns user valuation or purchase price only (no appreciation model).
+ * Prefer resolvePropertyValueState for net worth and property detail.
  */
 export function resolveCurrentMarketValuePaise(
   latestValuationPaise: number | null | undefined,
@@ -79,15 +196,6 @@ export function computeAppreciationMetrics(input: {
     appreciationPct,
     annualizedPct,
   };
-}
-
-export function projectPropertyValue(input: {
-  basisPaise: number;
-  annualRateBps: number;
-  years: number;
-}): number {
-  const rate = input.annualRateBps / 10000;
-  return Math.round(input.basisPaise * Math.pow(1 + rate, input.years));
 }
 
 export function projectionHorizons(basisPaise: number, annualRateBps: number) {

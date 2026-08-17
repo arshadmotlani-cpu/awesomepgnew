@@ -30,6 +30,12 @@ export const ooAssetTypeEnum = pgEnum('oo_asset_type', [
   'OTHER',
 ]);
 
+export const ooAssetClassEnum = pgEnum('oo_asset_class', [
+  'FIXED',
+  'MOVABLE',
+  'FINANCIAL',
+]);
+
 export const ooLiabilityTypeEnum = pgEnum('oo_liability_type', [
   'EMI',
   'INTEREST_ONLY',
@@ -84,4 +90,20 @@ export const ooRecurringFrequencyEnum = pgEnum('oo_recurring_frequency', [
   'MONTHLY',
   'QUARTERLY',
   'YEARLY',
+]);
+
+export const ooPropertyIncomeSourceTypeEnum = pgEnum('oo_property_income_source_type', [
+  'PG',
+  'SHOP',
+  'OFFICE',
+  'RESIDENTIAL_RENT',
+  'COMMERCIAL_RENT',
+  'PARKING',
+  'OTHER',
+]);
+
+export const ooPropertyIncomeSourceStatusEnum = pgEnum('oo_property_income_source_status', [
+  'ACTIVE',
+  'VACANT',
+  'INACTIVE',
 ]);

@@ -10,8 +10,8 @@ import {
   getTotalBankBalancePaise,
   sumJournalByEventType,
 } from '@/src/owner/services/journal';
-import { getTotalPropertyValuePaise } from '@/src/owner/services/properties';
-import { getTotalLiabilityPaise } from '@/src/owner/services/liabilities';
+import { getAssetBreakdown } from '@/src/owner/services/assetAggregation';
+import { getOwnerIncomeBreakdown } from '@/src/owner/services/ownerIncomeBreakdown';
 import { sumLiabilityPrincipalPaid } from '@/src/owner/services/reconciliation';
 
 export type WealthSnapshot = {
@@ -22,6 +22,11 @@ export type WealthSnapshot = {
   bankBalancePaise: number;
   propertyValuePaise: number;
   investmentValuePaise: number;
+  assetBreakdown: {
+    fixedAssetsPaise: number;
+    movableAssetsPaise: number;
+    financialAssetsPaise: number;
+  };
   cashFlow: Record<PeriodKey, {
     incomePaise: number;
     expensePaise: number;
@@ -32,6 +37,12 @@ export type WealthSnapshot = {
     operatingCashFlowPaise: number;
     liabilityPrincipalPaidPaise: number;
     unrealizedAssetChangePaise: number;
+  };
+  incomeBreakdown: {
+    propertyExpectedMonthlyPaise: number;
+    propertyActualPaise: number;
+    businessIncomePaise: number;
+    otherIncomePaise: number;
   };
 };
 
@@ -94,16 +105,19 @@ export async function getWealthSnapshot(opts?: {
 }): Promise<WealthSnapshot> {
   const asOf = opts?.asOfDate ?? new Date().toISOString().slice(0, 10);
 
-  const [bankBalancePaise, propertyValuePaise, liabilityPaise, investmentValuePaise] =
-    await Promise.all([
-      getTotalBankBalancePaise(),
-      getTotalPropertyValuePaise(),
-      getTotalLiabilityPaise(),
-      opts?.investmentValuePaise ?? 0,
-    ]);
+  const capitalVehiclePaise = opts?.investmentValuePaise ?? 0;
 
-  const totalAssetsPaise = bankBalancePaise + propertyValuePaise + investmentValuePaise;
-  const netWorthPaise = totalAssetsPaise - liabilityPaise;
+  const breakdown = await getAssetBreakdown({
+    asOfDate: asOf,
+    capitalVehiclePaise,
+  });
+
+  const bankBalancePaise = breakdown.financialAssetsPaise;
+  const propertyValuePaise = breakdown.fixedAssetsPaise;
+  const investmentValuePaise = capitalVehiclePaise;
+  const totalAssetsPaise = breakdown.totalAssetsPaise;
+  const liabilityPaise = breakdown.totalLiabilitiesPaise;
+  const netWorthPaise = breakdown.netWorthPaise;
 
   const periods: PeriodKey[] = ['today', 'week', 'month', 'quarter', 'year', 'lifetime'];
   const cashFlow: WealthSnapshot['cashFlow'] = {
@@ -160,6 +174,8 @@ export async function getWealthSnapshot(opts?: {
     endDate: monthBounds.end,
   });
 
+  const incomeBreakdown = await getOwnerIncomeBreakdown('month', asOf);
+
   return {
     asOf,
     totalAssetsPaise,
@@ -168,12 +184,23 @@ export async function getWealthSnapshot(opts?: {
     bankBalancePaise,
     propertyValuePaise,
     investmentValuePaise,
+    assetBreakdown: {
+      fixedAssetsPaise: breakdown.fixedAssetsPaise,
+      movableAssetsPaise: breakdown.movableAssetsPaise,
+      financialAssetsPaise: breakdown.financialAssetsPaise,
+    },
     cashFlow,
     expensesBySource,
     wealthChange: {
       operatingCashFlowPaise: cashFlow.month.netPaise,
       liabilityPrincipalPaidPaise: liabilityPrincipalPaid,
       unrealizedAssetChangePaise: 0,
+    },
+    incomeBreakdown: {
+      propertyExpectedMonthlyPaise: incomeBreakdown.propertyExpectedMonthlyPaise,
+      propertyActualPaise: incomeBreakdown.propertyActualPaise,
+      businessIncomePaise: incomeBreakdown.businessIncomePaise,
+      otherIncomePaise: incomeBreakdown.otherIncomePaise,
     },
   };
 }

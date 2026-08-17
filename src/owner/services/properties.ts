@@ -10,13 +10,18 @@ import {
   computeAppreciationMetrics,
   projectionHorizons,
   acquisitionBasisPaise,
-  resolveCurrentMarketValuePaise,
+  resolvePropertyValueState,
   ownerShareBasisPaise,
   ownerShareMarketValuePaise,
   NON_PROJECTED_KINDS,
 } from '@/src/owner/lib/wealth/propertyValuation';
 import { paiseFromRupees } from '@/src/owner/lib/wealth/types';
 import { writeAuditLog } from '@/src/owner/services/auditLog';
+import {
+  createPropertyIncomeSource,
+  ensurePgIncomeSourceForProperty,
+} from '@/src/owner/services/propertyIncomeSources';
+import type { PropertyIncomeSourceType } from '@/src/owner/lib/wealth/propertyIncomeTypes';
 
 export async function listProperties() {
   return ownerDb
@@ -96,6 +101,16 @@ export async function createProperty(input: {
   valuationDate?: string | null;
   monthlyRentalIncomeRupees?: number;
   otherMonthlyIncomeRupees?: number;
+  incomeSources?: Array<{
+    sourceType: PropertyIncomeSourceType;
+    name: string;
+    tenantName?: string | null;
+    monthlyAmountRupees: number;
+    securityDepositRupees?: number;
+    startDate?: string | null;
+    status?: 'ACTIVE' | 'VACANT' | 'INACTIVE';
+    notes?: string | null;
+  }>;
   notes?: string | null;
   createdBy?: string | null;
 }) {
@@ -106,6 +121,7 @@ export async function createProperty(input: {
     .values({
       name: input.name.trim(),
       assetType: 'PROPERTY',
+      assetClass: 'FIXED',
       ownershipPctBps,
       linkedPgId: input.linkedPgId ?? null,
       notes: input.notes?.trim() || null,
@@ -141,6 +157,51 @@ export async function createProperty(input: {
       annualRateBps: Math.round(input.annualAppreciationPct * 100),
       effectiveFrom: input.purchaseDate ?? new Date().toISOString().slice(0, 10),
     });
+  }
+
+  if (input.linkedPgId) {
+    await ensurePgIncomeSourceForProperty(asset.id, input.linkedPgId);
+  }
+
+  if (input.incomeSources?.length) {
+    for (const src of input.incomeSources) {
+      if (src.sourceType === 'PG' && input.linkedPgId) continue;
+      await createPropertyIncomeSource({
+        assetId: asset.id,
+        sourceType: src.sourceType,
+        name: src.name,
+        tenantName: src.tenantName,
+        monthlyAmountRupees: src.monthlyAmountRupees,
+        securityDepositRupees: src.securityDepositRupees,
+        startDate: src.startDate ?? input.purchaseDate,
+        status: src.status ?? 'ACTIVE',
+        notes: src.notes,
+        createdBy: input.createdBy,
+      });
+    }
+  } else if (!input.linkedPgId) {
+    const legacyRental = input.monthlyRentalIncomeRupees ?? 0;
+    const legacyOther = input.otherMonthlyIncomeRupees ?? 0;
+    if (legacyRental > 0) {
+      await createPropertyIncomeSource({
+        assetId: asset.id,
+        sourceType: 'OTHER',
+        name: 'Monthly rental',
+        monthlyAmountRupees: legacyRental,
+        startDate: input.purchaseDate,
+        createdBy: input.createdBy,
+      });
+    }
+    if (legacyOther > 0) {
+      await createPropertyIncomeSource({
+        assetId: asset.id,
+        sourceType: 'OTHER',
+        name: 'Other income',
+        monthlyAmountRupees: legacyOther,
+        startDate: input.purchaseDate,
+        createdBy: input.createdBy,
+      });
+    }
   }
 
   if (input.currentValueRupees != null && input.currentValueRupees > 0) {
@@ -196,13 +257,64 @@ export async function addPropertyValuation(input: {
   return row;
 }
 
-export async function getPropertyDetail(assetId: string) {
+/** Production-safe correction of erroneous purchase/cost fields with audit trail. */
+export async function correctPropertyAcquisitionFields(input: {
+  propertyId: string;
+  assetId: string;
+  purchasePricePaise: number;
+  purchaseCostsPaise: number;
+  purchaseCostsBreakdown?: Record<string, number>;
+  reason: string;
+  actorId?: string | null;
+}) {
+  const existing = await getPropertyByAssetId(input.assetId);
+  if (!existing) {
+    throw new Error(`Property not found for asset ${input.assetId}`);
+  }
+
+  const before = {
+    purchasePricePaise: existing.property.purchasePricePaise,
+    purchaseCostsPaise: existing.property.purchaseCostsPaise,
+    purchaseCostsBreakdownJson: existing.property.purchaseCostsBreakdownJson,
+  };
+
+  const [updated] = await ownerDb
+    .update(ooProperties)
+    .set({
+      purchasePricePaise: input.purchasePricePaise,
+      purchaseCostsPaise: input.purchaseCostsPaise,
+      purchaseCostsBreakdownJson: input.purchaseCostsBreakdown ?? {},
+      updatedAt: new Date(),
+    })
+    .where(eq(ooProperties.id, input.propertyId))
+    .returning();
+
+  await writeAuditLog({
+    entityType: 'property',
+    entityId: input.propertyId,
+    action: 'production_correct_acquisition_fields',
+    beforeJson: before as unknown as Record<string, unknown>,
+    afterJson: {
+      purchasePricePaise: input.purchasePricePaise,
+      purchaseCostsPaise: input.purchaseCostsPaise,
+      purchaseCostsBreakdownJson: input.purchaseCostsBreakdown ?? {},
+      reason: input.reason,
+      property: updated,
+    } as unknown as Record<string, unknown>,
+    actorId: input.actorId ?? null,
+  });
+
+  return updated;
+}
+
+export async function getPropertyDetail(assetId: string, asOfDate?: string) {
   const base = await getPropertyByAssetId(assetId);
   if (!base) return null;
 
   const valuations = await listValuationHistory(assetId);
   const latest = await getLatestValuation(assetId);
   const assumption = await getCurrentAppreciationAssumption(assetId);
+  const asOf = asOfDate ?? new Date().toISOString().slice(0, 10);
 
   const basis = {
     purchasePricePaise: base.property.purchasePricePaise,
@@ -210,19 +322,32 @@ export async function getPropertyDetail(assetId: string) {
     ownershipPctBps: base.asset.ownershipPctBps,
   };
 
-  const currentMarketValuePaise = resolveCurrentMarketValuePaise(
-    latest?.valuePaise,
-    base.property.purchasePricePaise,
-  );
+  const valueState = resolvePropertyValueState({
+    latestValuationPaise: latest?.valuePaise,
+    latestValuationKind: latest?.kind,
+    latestValuationNotes: latest?.notes,
+    purchasePricePaise: base.property.purchasePricePaise,
+    purchaseDate: base.property.purchaseDate,
+    annualRateBps: assumption?.annualRateBps,
+    asOfDate: asOf,
+  });
+
+  const currentMarketValuePaise = valueState.currentValueForNetWorthPaise;
 
   const appreciation = computeAppreciationMetrics({
     basis,
     currentValuePaise: currentMarketValuePaise,
     purchaseDate: base.property.purchaseDate,
+    asOfDate: asOf,
   });
 
   const ownerMarketValuePaise = ownerShareMarketValuePaise(
     currentMarketValuePaise,
+    basis.ownershipPctBps,
+  );
+
+  const ownerEstimatedMarketValuePaise = ownerShareMarketValuePaise(
+    valueState.estimatedMarketValuePaise,
     basis.ownershipPctBps,
   );
 
@@ -236,30 +361,37 @@ export async function getPropertyDetail(assetId: string) {
     valuations,
     latestValuation: latest,
     assumption,
+    valueState,
     currentMarketValuePaise,
     acquisitionBasisPaise: acquisitionBasisPaise(basis),
     ownerAcquisitionBasisPaise: ownerShareBasisPaise(basis),
     ownerMarketValuePaise,
+    ownerEstimatedMarketValuePaise,
     appreciation,
     projections,
   };
 }
 
-export async function getTotalPropertyValuePaise(): Promise<number> {
+export async function getTotalPropertyValuePaise(asOfDate?: string): Promise<number> {
   const properties = await listProperties();
+  const asOf = asOfDate ?? new Date().toISOString().slice(0, 10);
   let total = 0;
   for (const { property, asset } of properties) {
     const latest = await getLatestValuation(asset.id);
-    const basis = {
+    const assumption = await getCurrentAppreciationAssumption(asset.id);
+    const valueState = resolvePropertyValueState({
+      latestValuationPaise: latest?.valuePaise,
+      latestValuationKind: latest?.kind,
+      latestValuationNotes: latest?.notes,
       purchasePricePaise: property.purchasePricePaise,
-      purchaseCostsPaise: property.purchaseCostsPaise,
-      ownershipPctBps: asset.ownershipPctBps,
-    };
-    const marketValuePaise = resolveCurrentMarketValuePaise(
-      latest?.valuePaise,
-      property.purchasePricePaise,
+      purchaseDate: property.purchaseDate,
+      annualRateBps: assumption?.annualRateBps,
+      asOfDate: asOf,
+    });
+    total += ownerShareMarketValuePaise(
+      valueState.currentValueForNetWorthPaise,
+      asset.ownershipPctBps,
     );
-    total += ownerShareMarketValuePaise(marketValuePaise, asset.ownershipPctBps);
   }
   return total;
 }

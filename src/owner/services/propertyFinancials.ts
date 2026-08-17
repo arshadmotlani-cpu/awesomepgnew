@@ -116,10 +116,13 @@ export type PropertyFinancialSummary = {
   yearlyExpensePaise: number;
   netMonthlyIncomePaise: number;
   netYearlyIncomePaise: number;
+  actualMonthlyIncomePaise: number;
+  actualYearlyIncomePaise: number;
   incomeSources: {
     journalPaise: number;
     integrationPaise: number;
     configuredBaselinePaise: number;
+    incomeSourceGrossMonthlyPaise: number;
   };
   expenseSources: {
     journalPaise: number;
@@ -209,18 +212,18 @@ export async function getPropertyFinancialSummary(
   });
 
   const linkedPg = base.property.linkedPgId ?? base.asset.linkedPgId;
-  const configuredMonthlyRental = linkedPg
-    ? 0
-    : coerceWealthPaise(base.property.monthlyRentalIncomePaise);
-  const configuredOtherMonthly = coerceWealthPaise(base.property.otherMonthlyIncomePaise);
-  const configuredBaselineMonth = configuredMonthlyRental + configuredOtherMonthly;
 
-  const monthlyIncome =
-    journalIncomeMonth + integrationIncomeMonth + configuredBaselineMonth;
+  const { getPropertyIncomeTotals } = await import('@/src/owner/services/propertyIncomeSources');
+  const incomeTotals = await getPropertyIncomeTotals(assetId, {
+    periodStart: monthBounds.start,
+    periodEnd: monthBounds.end,
+  });
+  const configuredBaselineMonth = incomeTotals.grossMonthlyPaise;
+
+  const monthlyIncome = configuredBaselineMonth;
   const monthlyExpense =
     journalExpenseMonth + integrationExpenseMonth + (await sumRecurringMonthlyForAsset(assetId));
-  const yearlyIncome =
-    journalIncomeYear + integrationIncomeYear + configuredBaselineMonth * 12;
+  const yearlyIncome = configuredBaselineMonth * 12;
   const yearlyExpense =
     journalExpenseYear +
     integrationExpenseYear +
@@ -280,10 +283,13 @@ export async function getPropertyFinancialSummary(
     yearlyExpensePaise: yearlyExpense,
     netMonthlyIncomePaise: monthlyIncome - monthlyExpense,
     netYearlyIncomePaise: yearlyIncome - yearlyExpense,
+    actualMonthlyIncomePaise: journalIncomeMonth + integrationIncomeMonth,
+    actualYearlyIncomePaise: journalIncomeYear + integrationIncomeYear,
     incomeSources: {
       journalPaise: journalIncomeMonth,
       integrationPaise: integrationIncomeMonth,
       configuredBaselinePaise: configuredBaselineMonth,
+      incomeSourceGrossMonthlyPaise: configuredBaselineMonth,
     },
     expenseSources: {
       journalPaise: journalExpenseMonth,

@@ -7,6 +7,7 @@ import {
   type WealthActionState,
 } from '@/src/owner/actions/wealth';
 import { MoneyInput } from '@/src/owner/components/ui/MoneyInput';
+import { PropertyIncomeSourcesEditor } from '@/src/owner/components/wealth/PropertyIncomeSourcesEditor';
 
 const PROPERTY_TYPES = [
   { value: 'pg', label: 'PG' },
@@ -48,6 +49,8 @@ export function PropertyFormUi({ pgOptions }: { pgOptions: PgOption[] }) {
     {},
   );
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [incomeSourcesJson, setIncomeSourcesJson] = useState('');
+  const [linkedPgId, setLinkedPgId] = useState('');
 
   return (
     <div className="oo-page-stack mx-auto max-w-2xl">
@@ -147,7 +150,11 @@ export function PropertyFormUi({ pgOptions }: { pgOptions: PgOption[] }) {
         <section className="oo-form-section">
           <h2 className="oo-form-section-title">Current value & appreciation</h2>
           <div className="oo-form-grid">
-            <MoneyInput name="currentValueRupees" label="Current estimated value (₹)" />
+            <MoneyInput
+              name="currentValueRupees"
+              label="Current market value (₹) — optional"
+              hint="Leave blank to derive estimated current value from purchase date + appreciation %. If entered, this becomes your actual recorded value."
+            />
             <FormField label="Valuation date">
               <input
                 name="valuationDate"
@@ -177,12 +184,17 @@ export function PropertyFormUi({ pgOptions }: { pgOptions: PgOption[] }) {
 
         <section className="oo-form-section">
           <h2 className="oo-form-section-title">Property income</h2>
-          <div className="oo-form-grid">
+          <div className="oo-form-grid mb-4">
             <FormField
               label="Link to Awesome PG"
-              hint="When linked, PG revenue syncs automatically — do not enter PG rent manually"
+              hint="When linked, PG revenue syncs automatically — add shops/offices below"
             >
-              <select name="linkedPgId" className="oo-form-input">
+              <select
+                name="linkedPgId"
+                className="oo-form-input"
+                value={linkedPgId}
+                onChange={(e) => setLinkedPgId(e.target.value)}
+              >
                 <option value="">No PG link</option>
                 {pgOptions.map((pg) => (
                   <option key={pg.id} value={pg.id}>
@@ -191,13 +203,12 @@ export function PropertyFormUi({ pgOptions }: { pgOptions: PgOption[] }) {
                 ))}
               </select>
             </FormField>
-            <MoneyInput
-              name="monthlyRentalIncomeRupees"
-              label="Monthly rental / PG income (₹)"
-              hint="Only if not linked to PG"
-            />
-            <MoneyInput name="otherMonthlyIncomeRupees" label="Other monthly income (₹)" />
           </div>
+          <input type="hidden" name="incomeSourcesJson" value={incomeSourcesJson} />
+          <PropertyIncomeSourcesEditor
+            linkedPgId={linkedPgId || undefined}
+            onChange={(_, json) => setIncomeSourcesJson(json)}
+          />
         </section>
 
         <div className="oo-form-actions">

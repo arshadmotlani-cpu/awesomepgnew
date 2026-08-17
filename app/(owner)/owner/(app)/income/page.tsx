@@ -1,14 +1,16 @@
 import { IncomeUi } from '@/src/owner/components/wealth/IncomeUi';
 import { getWealthSnapshot } from '@/src/owner/services/wealthCalculation';
+import { getOwnerIncomeBreakdown } from '@/src/owner/services/ownerIncomeBreakdown';
 import { listIncomeWithSource } from '@/src/owner/services/journal';
 import { listFinancialAccounts } from '@/src/owner/services/financialAccounts';
 import { coerceWealthPaise } from '@/src/owner/lib/wealth/paiseCoercion';
 
 export default async function OwnerIncomePage() {
-  const [snapshot, incomeRows, accounts] = await Promise.all([
+  const [snapshot, incomeRows, accounts, incomeBreakdown] = await Promise.all([
     getWealthSnapshot().catch(() => null),
     listIncomeWithSource({ limit: 50 }).catch(() => []),
     listFinancialAccounts().catch(() => []),
+    getOwnerIncomeBreakdown('month').catch(() => null),
   ]);
 
   const cashFlow = snapshot?.cashFlow ?? {
@@ -23,6 +25,7 @@ export default async function OwnerIncomePage() {
   return (
     <IncomeUi
       cashFlow={cashFlow}
+      incomeBreakdown={incomeBreakdown}
       recentIncome={incomeRows.map((r) => ({
         id: r.id,
         entryDate: r.entryDate,

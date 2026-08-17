@@ -9,6 +9,7 @@ import {
 } from '@/src/owner/actions/wealth';
 import { SourceBadge } from '@/src/owner/components/wealth/SourceBadge';
 import { MoneyInput } from '@/src/owner/components/ui/MoneyInput';
+import { PropertyIncomeSection } from '@/src/owner/components/wealth/PropertyIncomeSection';
 
 type ValuationRow = {
   id: string;
@@ -31,6 +32,8 @@ type PropertyFinancials = {
   yearlyExpensePaise: number;
   netMonthlyIncomePaise: number;
   netYearlyIncomePaise: number;
+  actualMonthlyIncomePaise: number;
+  actualYearlyIncomePaise: number;
   loanOutstandingPaise: number;
   monthlyEmiPaise: number;
   nextDueDate: string | null;
@@ -40,6 +43,7 @@ type PropertyFinancials = {
     journalPaise: number;
     integrationPaise: number;
     configuredBaselinePaise: number;
+    incomeSourceGrossMonthlyPaise: number;
   };
 };
 
@@ -73,6 +77,11 @@ type PropertyDetail = {
   ownerAcquisitionBasisPaise: number;
   currentMarketValuePaise: number;
   ownerMarketValuePaise: number;
+  ownerEstimatedMarketValuePaise: number;
+  valueSource: 'actual' | 'estimated';
+  yearsHeld: number;
+  estimatedAppreciationPaise: number;
+  estimatedAppreciationPct: number;
   appreciation: {
     appreciationPaise: number;
     appreciationPct: number;
@@ -86,6 +95,27 @@ type PropertyDetail = {
   financials: PropertyFinancials;
   incomeHistory: IncomeHistoryRow[];
   liabilities: LiabilitySummary[];
+  incomeTotals: {
+    grossMonthlyPaise: number;
+    grossAnnualizedPaise: number;
+    activeCount: number;
+    vacantCount: number;
+    byType: Record<string, number>;
+    pgIntegrationActualPaise: number;
+    sources: Array<{
+      id: string;
+      name: string;
+      sourceType: string;
+      tenantName: string | null;
+      monthlyAmountPaise: number;
+      status: string;
+      sourceSystem: string | null;
+      isPgSynced: boolean;
+      pgIntegrationActualPaise: number;
+    }>;
+  };
+  grossRentalYieldPct: number | null;
+  netRentalYieldPct: number | null;
 };
 
 export function PropertyDetailUi({ detail }: { detail: PropertyDetail }) {
@@ -120,20 +150,58 @@ export function PropertyDetailUi({ detail }: { detail: PropertyDetail }) {
         <h2 className="oo-section-heading">Asset value</h2>
         <div className="oo-value-breakdown">
           <Row label="Purchase price" value={paiseToInr(detail.property.purchasePricePaise)} />
+          {detail.property.purchaseDate ? (
+            <Row label="Purchase date" value={detail.property.purchaseDate} />
+          ) : null}
           <Row label="Acquisition costs" value={paiseToInr(detail.property.purchaseCostsPaise)} />
           <Row
             label="Total acquisition basis"
             value={paiseToInr(detail.ownerAcquisitionBasisPaise)}
             strong
           />
+          {annualRatePct ? (
+            <Row label="Expected appreciation" value={`${annualRatePct}% / year`} />
+          ) : null}
+          {detail.yearsHeld > 0 ? (
+            <Row label="Years held" value={`${detail.yearsHeld} years`} />
+          ) : null}
+          {detail.valueSource === 'estimated' ? (
+            <>
+              <Row
+                label="Estimated current value"
+                value={paiseToInr(detail.ownerEstimatedMarketValuePaise)}
+                strong
+                highlight
+              />
+              <Row
+                label="Estimated appreciation"
+                value={paiseToInr(detail.estimatedAppreciationPaise)}
+                tone={detail.estimatedAppreciationPaise >= 0 ? 'positive' : 'negative'}
+              />
+              <Row
+                label="Estimated appreciation %"
+                value={formatPercent(detail.estimatedAppreciationPct)}
+                tone={detail.estimatedAppreciationPct >= 0 ? 'positive' : 'negative'}
+              />
+            </>
+          ) : (
+            <>
+              <Row
+                label="Current actual market value"
+                value={paiseToInr(detail.ownerMarketValuePaise)}
+                strong
+                highlight
+              />
+              {annualRatePct ? (
+                <Row
+                  label={`Modelled value at ${annualRatePct}% / year`}
+                  value={paiseToInr(detail.ownerEstimatedMarketValuePaise)}
+                />
+              ) : null}
+            </>
+          )}
           <Row
-            label="Current market value"
-            value={paiseToInr(detail.ownerMarketValuePaise)}
-            strong
-            highlight
-          />
-          <Row
-            label="Appreciation"
+            label="Appreciation (on basis)"
             value={formatPercent(detail.appreciation.appreciationPct)}
             tone={detail.appreciation.appreciationPct >= 0 ? 'positive' : 'negative'}
           />
@@ -179,7 +247,9 @@ export function PropertyDetailUi({ detail }: { detail: PropertyDetail }) {
         <section className="oo-form-section border-dashed">
           <h2 className="oo-section-heading">Value outlook ({annualRatePct}% / year)</h2>
           <p className="oo-form-hint">
-            Projections start from actual current value — illustrative only, not net worth.
+            {detail.valueSource === 'actual'
+              ? 'Future projections start from your recorded actual market value — illustrative only, not net worth.'
+              : 'Estimated current year from appreciation model; later years projected — illustrative only, not net worth.'}
           </p>
           <div className="mt-3 space-y-2">
             {detail.yearlyProjections.map((row) => (
@@ -187,7 +257,11 @@ export function PropertyDetailUi({ detail }: { detail: PropertyDetail }) {
                 <div>
                   <p className="oo-financial-value text-sm">{row.year}</p>
                   <p className="oo-meta-bright">
-                    {row.isProjected ? 'Projected' : 'Current actual'}
+                    {row.isProjected
+                      ? 'Projected'
+                      : detail.valueSource === 'actual'
+                        ? 'Current actual'
+                        : 'Estimated current'}
                   </p>
                 </div>
                 <p className="oo-money-secondary">{paiseToInr(row.valuePaise)}</p>
@@ -198,57 +272,29 @@ export function PropertyDetailUi({ detail }: { detail: PropertyDetail }) {
       ) : null}
 
       {/* ——— PROPERTY INCOME ——— */}
-      <section className="oo-form-section oo-card-cashflow">
-        <h2 className="oo-section-heading">Property income</h2>
-        <p className="oo-form-hint mb-3">
-          Income for this property only. Not duplicated in general My Income.
-        </p>
-        {detail.property.linkedPgId ? (
-          <div className="mb-3 flex items-center gap-2">
-            <SourceBadge source="AWESOME_PG" />
-            <span className="oo-meta-bright">
-              Linked to {detail.property.linkedPgName ?? 'Awesome PG'} — synced automatically
-            </span>
-          </div>
-        ) : null}
-        <div className="oo-stat-grid">
-          <Stat label="Monthly income" value={paiseToInr(detail.financials.monthlyIncomePaise)} income />
-          <Stat label="Yearly run rate" value={paiseToInr(detail.financials.yearlyIncomePaise)} income />
-          <Stat
-            label="From connected systems"
-            value={paiseToInr(detail.financials.incomeSources.integrationPaise)}
-          />
-          <Stat
-            label="Manual / configured"
-            value={paiseToInr(detail.financials.incomeSources.configuredBaselinePaise)}
-          />
-        </div>
-        {detail.incomeHistory.length > 0 ? (
-          <div className="mt-3 space-y-2">
-            <p className="oo-label">Income history</p>
-            {detail.incomeHistory.slice(0, 8).map((row) => (
-              <div key={row.id} className="flex justify-between gap-2 text-sm">
-                <span className="oo-meta-bright truncate">
-                  {row.date} · {row.description}
-                  <SourceBadge source={row.sourceSystem} />
-                </span>
-                <span className="oo-value-income shrink-0">{paiseToInr(row.amountPaise)}</span>
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </section>
+      <PropertyIncomeSection
+        assetId={detail.asset.id}
+        linkedPgId={detail.property.linkedPgId}
+        linkedPgName={detail.property.linkedPgName}
+        totals={detail.incomeTotals}
+        grossRentalYieldPct={detail.grossRentalYieldPct}
+        netRentalYieldPct={detail.netRentalYieldPct}
+      />
 
       {/* ——— PROPERTY EXPENSES ——— */}
       <section className="oo-form-section">
         <h2 className="oo-section-heading">Property expenses</h2>
         <div className="oo-stat-grid mb-3">
-          <Stat label="Monthly expenses" value={paiseToInr(detail.financials.monthlyExpensePaise)} expense />
-          <Stat label="Yearly expenses" value={paiseToInr(detail.financials.yearlyExpensePaise)} expense />
+          <Stat label="Gross income" value={paiseToInr(detail.financials.monthlyIncomePaise)} income />
+          <Stat label="Expenses" value={paiseToInr(detail.financials.monthlyExpensePaise)} expense />
           <Stat
-            label="Net monthly income"
+            label="Net property income"
             value={paiseToInr(detail.financials.netMonthlyIncomePaise)}
             income
+          />
+          <Stat
+            label="Actual received (MTD)"
+            value={paiseToInr(detail.financials.actualMonthlyIncomePaise)}
           />
         </div>
         <form action={expAction} className="oo-form-grid border-t border-white/10 pt-3">

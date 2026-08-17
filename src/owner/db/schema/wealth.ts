@@ -13,12 +13,15 @@ import {
 } from 'drizzle-orm/pg-core';
 import { ooAdminUsers } from './admin';
 import {
+  ooAssetClassEnum,
   ooAssetTypeEnum,
   ooEconomicEventTypeEnum,
   ooExpenseCategoryEnum,
   ooIntegrationFactKindEnum,
   ooLiabilityTypeEnum,
   ooPaymentAllocationModeEnum,
+  ooPropertyIncomeSourceStatusEnum,
+  ooPropertyIncomeSourceTypeEnum,
   ooRecurringFrequencyEnum,
   ooScheduleStatusEnum,
   ooSourceSystemEnum,
@@ -57,6 +60,7 @@ export const ooAssets = pgTable(
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
     name: text('name').notNull(),
     assetType: ooAssetTypeEnum('asset_type').notNull(),
+    assetClass: ooAssetClassEnum('asset_class').notNull().default('FIXED'),
     ownershipPctBps: integer('ownership_pct_bps').notNull().default(10000),
     businessId: uuid('business_id').references(() => ooBusinesses.id, { onDelete: 'set null' }),
     linkedPgId: uuid('linked_pg_id'),
@@ -105,6 +109,97 @@ export const ooProperties = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('oo_properties_asset_idx').on(t.assetId)],
+);
+
+export const ooPropertyIncomeSources = pgTable(
+  'oo_property_income_sources',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    assetId: uuid('asset_id')
+      .notNull()
+      .references(() => ooAssets.id, { onDelete: 'cascade' }),
+    sourceType: ooPropertyIncomeSourceTypeEnum('source_type').notNull(),
+    name: text('name').notNull(),
+    tenantName: text('tenant_name'),
+    monthlyAmountPaise: bigint('monthly_amount_paise', { mode: 'number' }).notNull().default(0),
+    securityDepositPaise: bigint('security_deposit_paise', { mode: 'number' }).notNull().default(0),
+    startDate: date('start_date'),
+    endDate: date('end_date'),
+    status: ooPropertyIncomeSourceStatusEnum('status').notNull().default('ACTIVE'),
+    sourceSystem: ooSourceSystemEnum('source_system'),
+    sourceReferenceId: text('source_reference_id'),
+    linkedPgId: uuid('linked_pg_id'),
+    notes: text('notes'),
+    createdBy: uuid('created_by').references(() => ooAdminUsers.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('oo_property_income_sources_asset_idx').on(t.assetId),
+    index('oo_property_income_sources_status_idx').on(t.status),
+    index('oo_property_income_sources_pg_idx').on(t.linkedPgId),
+  ],
+);
+
+export const ooPropertyIncomeRentHistory = pgTable(
+  'oo_property_income_rent_history',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    incomeSourceId: uuid('income_source_id')
+      .notNull()
+      .references(() => ooPropertyIncomeSources.id, { onDelete: 'cascade' }),
+    effectiveFrom: date('effective_from').notNull(),
+    effectiveTo: date('effective_to'),
+    monthlyAmountPaise: bigint('monthly_amount_paise', { mode: 'number' }).notNull(),
+    notes: text('notes'),
+    createdBy: uuid('created_by').references(() => ooAdminUsers.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('oo_property_income_rent_history_source_idx').on(
+      t.incomeSourceId,
+      t.effectiveFrom,
+    ),
+  ],
+);
+
+export const ooMovableAssets = pgTable(
+  'oo_movable_assets',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    assetId: uuid('asset_id')
+      .notNull()
+      .references(() => ooAssets.id, { onDelete: 'cascade' }),
+    movableType: text('movable_type').notNull().default('vehicle'),
+    make: text('make'),
+    model: text('model'),
+    purchaseDate: date('purchase_date'),
+    purchasePricePaise: bigint('purchase_price_paise', { mode: 'number' }).notNull().default(0),
+    rateMethod: text('rate_method').notNull().default('FLAT_ANNUAL'),
+    annualRateBps: integer('annual_rate_bps').notNull().default(0),
+    isDepreciation: integer('is_depreciation').notNull().default(1),
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('oo_movable_assets_asset_idx').on(t.assetId)],
+);
+
+export const ooMovableValuations = pgTable(
+  'oo_movable_valuations',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    assetId: uuid('asset_id')
+      .notNull()
+      .references(() => ooAssets.id, { onDelete: 'cascade' }),
+    valuationDate: date('valuation_date').notNull(),
+    valuePaise: bigint('value_paise', { mode: 'number' }).notNull(),
+    kind: ooValuationKindEnum('kind').notNull().default('MARKET_ESTIMATE'),
+    notes: text('notes'),
+    createdBy: uuid('created_by').references(() => ooAdminUsers.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('oo_movable_valuations_asset_idx').on(t.assetId, t.valuationDate)],
 );
 
 export const ooPropertyValuations = pgTable(

@@ -31,17 +31,45 @@ export function WealthCommandPanel({
   }
 
   const month = wealth.cashFlow.month;
+  const breakdown = wealth.assetBreakdown;
 
   return (
     <div className="space-y-5">
       <section className="oo-card oo-card-hero">
         <p className="oo-label">Net worth</p>
         <p className="oo-money-hero mt-1">{paiseToInr(wealth.netWorthPaise)}</p>
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <MiniStat label="Assets" value={paiseToInr(wealth.totalAssetsPaise)} />
-          <MiniStat label="Liabilities" value={paiseToInr(wealth.totalLiabilitiesPaise)} />
+
+        <div className="mt-4 space-y-2 border-t border-white/10 pt-4">
+          <BreakdownRow label="Property / fixed assets" value={breakdown.fixedAssetsPaise} />
+          <BreakdownRow label="Movable assets" value={breakdown.movableAssetsPaise} />
+          <BreakdownRow label="Financial / liquid" value={breakdown.financialAssetsPaise} />
+          <BreakdownRow
+            label="Total assets"
+            value={wealth.totalAssetsPaise}
+            strong
+          />
+          <BreakdownRow label="Liabilities" value={wealth.totalLiabilitiesPaise} tone="liability" />
+          <BreakdownRow label="Net worth" value={wealth.netWorthPaise} strong highlight />
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
           <MiniStat label="Cash flow (MTD)" value={paiseToInr(month.netPaise)} />
           <MiniStat label="Property value" value={paiseToInr(wealth.propertyValuePaise)} />
+          <MiniStat label="Bank / cash" value={paiseToInr(wealth.bankBalancePaise)} />
+        </div>
+      </section>
+
+      <section>
+        <h2 className="oo-section-title mb-3">Monthly income</h2>
+        <div className="oo-card p-4 space-y-2">
+          <IncomeRow label="Property (expected)" value={wealth.incomeBreakdown.propertyExpectedMonthlyPaise} />
+          <IncomeRow label="Property (actual MTD)" value={wealth.incomeBreakdown.propertyActualPaise} />
+          <IncomeRow label="Business" value={wealth.incomeBreakdown.businessIncomePaise} />
+          <IncomeRow label="Other" value={wealth.incomeBreakdown.otherIncomePaise} />
+          <div className="flex justify-between border-t border-white/10 pt-2 font-semibold text-white">
+            <span>Total (actual + business + other)</span>
+            <span className="tabular-nums">{paiseToInr(wealth.cashFlow.month.incomePaise)}</span>
+          </div>
         </div>
       </section>
 
@@ -110,11 +138,47 @@ export function WealthCommandPanel({
   );
 }
 
+function BreakdownRow({
+  label,
+  value,
+  strong,
+  highlight,
+  tone,
+}: {
+  label: string;
+  value: number;
+  strong?: boolean;
+  highlight?: boolean;
+  tone?: 'liability';
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className={strong ? 'oo-section-title-strong text-sm' : 'oo-meta'}>{label}</span>
+      <span
+        className={`tabular-nums ${strong ? 'oo-money-primary' : 'text-sm text-white'} ${
+          highlight ? 'text-[#FF5A1F]' : ''
+        } ${tone === 'liability' ? 'text-amber-300' : ''}`}
+      >
+        {paiseToInr(value)}
+      </span>
+    </div>
+  );
+}
+
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p className="oo-meta">{label}</p>
       <p className="mt-0.5 text-sm font-semibold tabular-nums text-white">{value}</p>
+    </div>
+  );
+}
+
+function IncomeRow({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex justify-between text-sm">
+      <span className="oo-meta-bright">{label}</span>
+      <span className="tabular-nums text-white">{paiseToInr(value)}</span>
     </div>
   );
 }
