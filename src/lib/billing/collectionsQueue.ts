@@ -80,13 +80,17 @@ const PRIORITY_ORDER: Record<CollectionPriority, number> = {
   pending: 3,
 };
 
+/** Sort key only — null/empty due dates sort after dated invoices (never parseDate("")). */
+function dueDateSortMillis(dueDate: string | null | undefined): number {
+  if (dueDate == null || dueDate.trim() === '') return Number.POSITIVE_INFINITY;
+  return parseDate(dueDate).getTime();
+}
+
 function sortQueue(a: CollectionQueueItem, b: CollectionQueueItem): number {
   const p = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
   if (p !== 0) return p;
   if (b.daysOverdue !== a.daysOverdue) return b.daysOverdue - a.daysOverdue;
-  const aDue = a.dueDate ?? '';
-  const bDue = b.dueDate ?? '';
-  return parseDate(aDue).getTime() - parseDate(bDue).getTime();
+  return dueDateSortMillis(a.dueDate) - dueDateSortMillis(b.dueDate);
 }
 
 export function rentRowToQueueItem(row: AdminRentInvoiceRow, today: string): CollectionQueueItem | null {
