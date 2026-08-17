@@ -565,6 +565,27 @@ export async function approveVacatingRequest(input: {
     context: 'approve',
   });
 
+  const noticeBreakdown = await computeNoticeDeductionForBooking({
+    bookingId: current.bookingId,
+    noticeGivenDate: String(current.noticeGivenDate),
+    vacatingDate: String(current.vacatingDate),
+    monthlyRentPaise: current.monthlyRentPaiseSnapshot,
+  });
+
+  const [noticeSynced] = await db
+    .update(vacatingRequests)
+    .set({
+      deductionPaise: noticeBreakdown.noticeDeductionPaise,
+      noticeRentCoveredDays: noticeBreakdown.noticeCoveredByPrepaidRent,
+      noticeChargeableDays: noticeBreakdown.chargeableNoticeDays,
+      noticeBreakdownJson: noticeBreakdown,
+      updatedAt: new Date(),
+    })
+    .where(eq(vacatingRequests.id, input.requestId))
+    .returning();
+
+  const frozenNoticePaise = noticeSynced?.deductionPaise ?? current.deductionPaise;
+
   const { activateResidentExitBrain } = await import('@/src/lib/exit/activateResidentExitBrain');
   await activateResidentExitBrain({
     vacatingRequestId: current.id,
@@ -572,7 +593,7 @@ export async function approveVacatingRequest(input: {
     customerId: current.customerId,
     noticeGivenDate: String(current.noticeGivenDate),
     expectedCheckoutDate: String(current.vacatingDate),
-    frozenNoticePenaltyPaise: current.deductionPaise,
+    frozenNoticePenaltyPaise: frozenNoticePaise,
   });
 
   const [updated] = await db

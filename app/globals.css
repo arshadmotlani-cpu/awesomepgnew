@@ -216,11 +216,13 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 2.25rem;
-    padding-inline: 0.875rem;
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+    padding-inline: 1rem;
     border-radius: 0.75rem;
-    font-size: 0.8125rem;
-    line-height: 1.2;
+    font-size: 0.9375rem;
+    line-height: 1.25;
+    font-weight: 500;
   }
 
   .apg-resident-top-nav-link:active {

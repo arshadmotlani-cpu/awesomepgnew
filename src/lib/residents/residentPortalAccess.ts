@@ -63,6 +63,49 @@ export async function customerHasActiveConfirmedStay(customerId: string): Promis
 }
 
 /**
+ * Checkout limbo: confirmed booking with primary bed still reserved (active/hold)
+ * even when stay_range no longer includes today — resident must finish move-out in portal.
+ */
+export async function customerHasCheckoutLimboPortalAccess(customerId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: bookings.id })
+    .from(bookings)
+    .innerJoin(
+      bedReservations,
+      and(eq(bedReservations.bookingId, bookings.id), eq(bedReservations.kind, 'primary')),
+    )
+    .where(
+      and(
+        eq(bookings.customerId, customerId),
+        eq(bookings.status, 'confirmed'),
+        sql`${bookings.durationMode}::text <> 'reserve'`,
+        inArray(bedReservations.status, ['active', 'hold']),
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
+}
+
+/**
+ * Recently completed non-reserve stay — historical bills, deposit, move-out receipts.
+ */
+export async function customerHasCompletedStayPortalAccess(customerId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: bookings.id })
+    .from(bookings)
+    .where(
+      and(
+        eq(bookings.customerId, customerId),
+        eq(bookings.status, 'completed'),
+        sql`${bookings.durationMode}::text <> 'reserve'`,
+      ),
+    )
+    .orderBy(desc(bookings.updatedAt))
+    .limit(1);
+  return Boolean(row);
+}
+
+/**
  * Booking code for an open reserve that should own post-login routing.
  * Returns null when the customer already has an active non-reserve tenancy
  * (active stay wins — unfinished reserves must not hijack the portal).
@@ -104,5 +147,7 @@ export async function customerHasResidentPortalAccess(customerId: string): Promi
   }
   // No active stay — reserve funnel must not unlock resident billing UI.
   if (await customerHasOpenReserveLifecycle(customerId)) return false;
+  if (await customerHasCheckoutLimboPortalAccess(customerId)) return true;
+  if (await customerHasCompletedStayPortalAccess(customerId)) return true;
   return false;
 }

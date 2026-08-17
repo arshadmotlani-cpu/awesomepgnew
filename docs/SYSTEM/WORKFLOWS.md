@@ -285,3 +285,6 @@ flowchart TD
 
 <!-- DOC_SYNC_TOUCH_2026-08-16 -->
 > **2026-08-16 09:56:08 UTC** — Code changed in: Billing, Residents. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-08-17 -->
+> **2026-08-17 06:18:02 UTC** — Code changed in: Routes, Residents, Vacating. Manual review recommended.

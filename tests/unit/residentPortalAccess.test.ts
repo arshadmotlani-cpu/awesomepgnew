@@ -14,6 +14,11 @@ test('resident portal SSOT: active stay unlocks portal before reserve block', ()
   assert.match(src, /if \(tenancy && tenancy\.durationMode !== 'reserve'\) \{\s*return true;/);
 });
 
+test('resident portal SSOT: checkout limbo and completed stays keep canonical UI', () => {
+  assert.match(src, /customerHasCheckoutLimboPortalAccess/);
+  assert.match(src, /customerHasCompletedStayPortalAccess/);
+});
+
 test('open reserve redirect suppressed when active tenancy exists', () => {
   assert.match(src, /Returns null when the customer already has an active non-reserve tenancy/);
   const fnStart = src.indexOf('export async function getOpenReserveBookingCode');

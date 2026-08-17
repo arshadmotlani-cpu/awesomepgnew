@@ -59,7 +59,7 @@ export function ResidentHubShell({
               <Link
                 key={tab}
                 href={residentTabHref(tab)}
-                className={`apg-resident-top-nav-link shrink-0 snap-start whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-[color,background-color,box-shadow,transform] duration-200 ease-out ${
+                className={`apg-resident-top-nav-link shrink-0 snap-start whitespace-nowrap rounded-lg px-4 py-2.5 text-base font-medium min-h-11 transition-[color,background-color,box-shadow,transform] duration-200 ease-out ${
                   activeTab === tab
                     ? 'bg-apg-orange/15 text-apg-orange ring-1 ring-apg-orange/30 max-md:ring-0 max-md:shadow-[0_4px_16px_-4px_rgba(255,90,31,0.45)]'
                     : 'text-apg-silver hover:bg-white/5 hover:text-white'
