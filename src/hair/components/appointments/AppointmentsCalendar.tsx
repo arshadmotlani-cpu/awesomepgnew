@@ -333,7 +333,6 @@ export function AppointmentsCalendar({
         }}
         prefill={createPrefill}
         staff={staff}
-        resources={resources}
         timezone={timezone}
         preselectCustomerId={preselectCustomerId}
         onSuccess={() => {

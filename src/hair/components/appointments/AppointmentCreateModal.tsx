@@ -23,7 +23,6 @@ import { formatSalonDisplayDate } from '@/src/hair/lib/formatSalonDate';
 import type { PosCustomerHit } from '@/src/hair/services/quickSale';
 import type {
   CreateSlotPrefill,
-  ResourceOpt,
   StaffOpt,
 } from './calendarTypes';
 import { minutesToSlotLabel } from './schedulerConstants';
@@ -54,7 +53,6 @@ type Props = {
   onClose: () => void;
   prefill: CreateSlotPrefill | null;
   staff: StaffOpt[];
-  resources: ResourceOpt[];
   timezone: string;
   preselectCustomerId?: string | null;
   onSuccess: () => void;
@@ -65,7 +63,6 @@ export function AppointmentCreateModal({
   onClose,
   prefill,
   staff,
-  resources,
   timezone,
   preselectCustomerId,
   onSuccess,
@@ -86,7 +83,6 @@ export function AppointmentCreateModal({
 
   const [sameStaffForAll, setSameStaffForAll] = useState(true);
   const [appointmentStaffId, setAppointmentStaffId] = useState(prefill?.staffId ?? staff[0]?.id ?? '');
-  const [resourceId, setResourceId] = useState('');
   const [consultedByStaffId, setConsultedByStaffId] = useState('');
   const [status, setStatus] = useState<FyhAppointmentStatus>('booked');
   const [walkIn, setWalkIn] = useState(false);
@@ -105,6 +101,15 @@ export function AppointmentCreateModal({
   useEffect(() => {
     if (prefill?.staffId) setAppointmentStaffId(prefill.staffId);
   }, [prefill?.staffId]);
+
+  useEffect(() => {
+    if (!open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -293,14 +298,14 @@ export function AppointmentCreateModal({
                   <p className="fyh-section-eyebrow">Client search</p>
                   {selectedCustomer ? (
                     <div className="mt-2 space-y-2">
-                      <div className="fyh-card !p-3">
-                        <p className="font-semibold text-fyh-text">{selectedCustomer.fullName}</p>
-                        <p className="text-sm text-fyh-text-secondary">{selectedCustomer.phone}</p>
+                      <div className="fyh-panel !p-3">
+                        <p className="font-semibold text-fyh-on-panel">{selectedCustomer.fullName}</p>
+                        <p className="text-sm text-fyh-on-panel-muted">{selectedCustomer.phone}</p>
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="mt-1"
+                          className="mt-1 text-fyh-on-panel-muted hover:text-fyh-on-panel"
                           onClick={() => {
                             setSelectedCustomer(null);
                             setBookingContext(null);
@@ -316,20 +321,21 @@ export function AppointmentCreateModal({
                       />
                     </div>
                   ) : (
-                    <FyhCustomerSearch
-                      className="mt-2"
-                      autoFocus
-                      createContext="appointment_booking"
-                      onSelect={handleCustomerSelect}
-                    />
+                    <div className="fyh-panel-muted mt-2">
+                      <FyhCustomerSearch
+                        autoFocus
+                        createContext="appointment_booking"
+                        onSelect={handleCustomerSelect}
+                      />
+                    </div>
                   )}
                 </div>
 
                 {prefill ? (
-                  <div className="fyh-card grid gap-2 sm:grid-cols-5 !p-3">
+                  <div className="fyh-panel-muted grid gap-2 sm:grid-cols-4 !p-3">
                     <div>
                       <p className="fyh-label">Date</p>
-                      <p className="font-semibold text-fyh-text">{displayDate}</p>
+                      <p className="fyh-panel-value">{displayDate}</p>
                     </div>
                     <div>
                       <p className="fyh-label">Staff</p>
@@ -345,28 +351,15 @@ export function AppointmentCreateModal({
                     </div>
                     <div>
                       <p className="fyh-label">Start</p>
-                      <p className="font-semibold text-fyh-text">{minutesToSlotLabel(startMinutes)}</p>
+                      <p className="fyh-panel-value">{minutesToSlotLabel(startMinutes)}</p>
                     </div>
                     <div>
                       <p className="fyh-label">End</p>
-                      <p className="font-semibold text-fyh-text">
+                      <p className="fyh-panel-value">
                         {endAtPreview
                           ? formatHmInSalonTz(endAtPreview, timezone)
                           : minutesToSlotLabel(startMinutes)}
                       </p>
-                    </div>
-                    <div>
-                      <p className="fyh-label">Chair</p>
-                      <select
-                        value={resourceId}
-                        onChange={(e) => setResourceId(e.target.value)}
-                        className="fyh-select mt-0.5 !h-9"
-                      >
-                        <option value="">None</option>
-                        {resources.map((r) => (
-                          <option key={r.id} value={r.id}>{r.name}</option>
-                        ))}
-                      </select>
                     </div>
                   </div>
                 ) : null}
@@ -381,20 +374,24 @@ export function AppointmentCreateModal({
                     aria-label="Search services"
                   />
                   {serviceQuery.trim().length >= 1 ? (
-                    <ul className="mt-2 divide-y divide-[color:var(--fyh-border)] overflow-hidden rounded-[var(--fyh-radius)] border border-[color:var(--fyh-border-strong)] bg-[color:var(--fyh-bg-elevated)]">
+                    <ul
+                      className="fyh-picker-dropdown divide-y divide-[color:var(--fyh-border-panel)] !p-0"
+                      role="listbox"
+                      aria-label="Service search results"
+                    >
                       {serviceSearching ? (
-                        <li className="px-3 py-3 text-center text-sm text-fyh-text-muted">Searching…</li>
+                        <li className="px-3 py-3 text-center text-sm text-fyh-on-panel-muted">Searching…</li>
                       ) : serviceHits.length > 0 ? (
                         serviceHits.map((hit) => {
                           const inBasket = basket.some((b) => b.serviceId === hit.id);
                           return (
                             <li
                               key={hit.id}
-                              className="flex items-center justify-between gap-3 px-3 py-2.5"
+                              className="flex items-center justify-between gap-3 bg-[color:var(--fyh-bg-panel)] px-3 py-2.5"
                             >
                               <div>
-                                <p className="font-semibold text-fyh-text">{hit.name}</p>
-                                <p className="text-xs text-fyh-text-secondary">
+                                <p className="font-semibold text-fyh-on-panel">{hit.name}</p>
+                                <p className="text-xs text-fyh-on-panel-muted">
                                   {hit.durationMinutes} min · {formatInrFromPaise(hit.pricePaise)}
                                   {hit.category ? ` · ${hit.category}` : ''}
                                 </p>
@@ -411,7 +408,7 @@ export function AppointmentCreateModal({
                           );
                         })
                       ) : (
-                        <li className="px-3 py-3 text-center text-sm text-fyh-text-muted">
+                        <li className="px-3 py-3 text-center text-sm text-fyh-on-panel-muted">
                           No services found
                         </li>
                       )}
@@ -422,7 +419,7 @@ export function AppointmentCreateModal({
                 <div>
                   <div className="flex items-center justify-between">
                     <p className="fyh-section-eyebrow">Selected services</p>
-                    <label className="flex items-center gap-2 text-xs text-fyh-text-secondary">
+                    <label className="flex items-center gap-2 text-xs text-fyh-text-label">
                       <input
                         type="checkbox"
                         checked={sameStaffForAll}
@@ -435,16 +432,14 @@ export function AppointmentCreateModal({
                   {basket.length === 0 ? (
                     <p className="mt-2 text-sm text-fyh-text-muted">Add services from search above</p>
                   ) : (
-                    <ul className="mt-2 space-y-1.5">
-                      {basket.map((line, idx) => (
-                        <li
-                          key={line.key}
-                          className="flex flex-wrap items-center gap-2 rounded-[var(--fyh-radius)] border border-[color:var(--fyh-border)] bg-[color:var(--fyh-bg-elevated)] px-3 py-2"
-                        >
-                          <span className="text-fyh-text-muted">{idx + 1}.</span>
-                          <span className="min-w-0 flex-1 font-semibold text-fyh-text">{line.name}</span>
-                          <span className="text-xs text-fyh-text-secondary">{line.durationMinutes}m</span>
-                          <span className="text-sm font-semibold text-fyh-text">
+                    <ul className="fyh-basket-scroll mt-2 space-y-1.5">
+                      {basket.map((line) => (
+                        <li key={line.key} className="fyh-basket-row">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-fyh-on-panel">{line.name}</p>
+                            <p className="text-xs text-fyh-on-panel-muted">{line.durationMinutes} min</p>
+                          </div>
+                          <span className="fyh-money-value text-sm">
                             {formatInrFromPaise(line.pricePaise)}
                           </span>
                           {!sameStaffForAll ? (
@@ -458,7 +453,7 @@ export function AppointmentCreateModal({
                               ))}
                             </select>
                           ) : (
-                            <span className="text-xs text-fyh-text-muted">
+                            <span className="text-xs text-fyh-on-panel-muted">
                               {staff.find((s) => s.id === line.staffId)?.fullName}
                             </span>
                           )}
@@ -466,12 +461,19 @@ export function AppointmentCreateModal({
                             type="button"
                             variant="ghost"
                             size="sm"
+                            className="text-fyh-on-panel-muted hover:text-fyh-danger"
                             onClick={() => removeFromBasket(line.key)}
                           >
-                            ×
+                            Remove
                           </Button>
                         </li>
                       ))}
+                      <li className="fyh-basket-total">
+                        <span>TOTAL</span>
+                        <span className="fyh-money-value-accent">
+                          {formatInrFromPaise(servicesTotalPaise)}
+                        </span>
+                      </li>
                     </ul>
                   )}
                 </div>
@@ -544,33 +546,33 @@ export function AppointmentCreateModal({
               </section>
 
               <aside className="space-y-3">
-                <div className="fyh-card !p-3">
+                <div className="fyh-panel-financial !p-3">
                   <p className="fyh-section-eyebrow">Payment summary</p>
                   <dl className="mt-2 space-y-1.5 text-sm">
                     <div className="flex justify-between">
-                      <dt className="text-fyh-text-secondary">Services</dt>
-                      <dd className="font-semibold text-fyh-text">
+                      <dt className="fyh-panel-label">Services</dt>
+                      <dd className="fyh-money-value">
                         {formatInrFromPaise(servicesTotalPaise)}
                       </dd>
                     </div>
                     <div className="flex justify-between">
-                      <dt className="text-fyh-text-secondary">Available credit</dt>
-                      <dd className="font-semibold text-fyh-text">{formatInrFromPaise(walletPaise)}</dd>
+                      <dt className="fyh-panel-label">Available credit</dt>
+                      <dd className="fyh-money-value">{formatInrFromPaise(walletPaise)}</dd>
                     </div>
-                    <div className="flex justify-between border-t border-[color:var(--fyh-border)] pt-2">
-                      <dt className="text-fyh-text-secondary">Balance due at checkout</dt>
-                      <dd className="text-base font-semibold text-fyh-accent">
+                    <div className="flex justify-between border-t border-[color:var(--fyh-border-panel)] pt-2">
+                      <dt className="fyh-panel-label font-semibold">Balance due</dt>
+                      <dd className="fyh-money-value-accent text-base">
                         {formatInrFromPaise(balanceDuePaise)}
                       </dd>
                     </div>
                   </dl>
-                  <p className="mt-2 text-xs text-fyh-text-muted">
+                  <p className="mt-2 text-xs text-fyh-on-panel-muted">
                     Wallet credit is applied at checkout. Advance payments increase available credit.
                   </p>
                 </div>
 
                 {selectedCustomer ? (
-                  <div className="fyh-card space-y-2 !p-3">
+                  <div className="fyh-panel-financial space-y-2 !p-3">
                     <p className="fyh-section-eyebrow">Advance / payment</p>
                     <div>
                       <label className="fyh-label">Advance amount ₹</label>
@@ -605,7 +607,7 @@ export function AppointmentCreateModal({
                     ) : null}
                     <Button
                       type="button"
-                      variant="secondary"
+                      variant="primary"
                       className="w-full"
                       disabled={advancePending}
                       onClick={handleAddAdvance}
@@ -625,7 +627,6 @@ export function AppointmentCreateModal({
             <form action={createAction} className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               {prefill ? <input type="hidden" name="startAt" value={startAtIso} /> : null}
               <input type="hidden" name="staffId" value={appointmentStaffId} />
-              <input type="hidden" name="resourceId" value={resourceId} />
               {selectedCustomer ? (
                 <input type="hidden" name="customerId" value={selectedCustomer.id} />
               ) : null}
@@ -636,7 +637,7 @@ export function AppointmentCreateModal({
               <input type="hidden" name="recurrenceWeeks" value={recurrenceWeeks} />
               <input type="hidden" name="notes" value={combinedNotes} />
               <input type="hidden" name="status" value={status} />
-              <Button type="button" variant="ghost" onClick={onClose}>
+              <Button type="button" variant="secondary" onClick={onClose}>
                 Cancel
               </Button>
               <Button type="submit" disabled={!canSubmit}>

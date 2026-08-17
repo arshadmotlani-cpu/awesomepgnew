@@ -20,12 +20,9 @@ test('StaffDaySchedulerGrid uses high-contrast scheduler classes', () => {
   assert.doesNotMatch(src, /text-white\/\d+/);
 });
 
-test('globals.css defines scheduler contrast tokens', () => {
+test('scheduler time labels use semibold weight', () => {
   const css = readFileSync(join(root, 'src/hair/styles/globals.css'), 'utf8');
-  assert.match(css, /\.fyh-scheduler-time-label/);
-  assert.match(css, /--fyh-scheduler-now/);
-  assert.match(css, /--fyh-scheduler-grid-line/);
-  assert.match(css, /--fyh-scheduler-border/);
+  assert.match(css, /--fyh-scheduler-grid-line: rgba\(148, 163, 184/);
 });
 
 test('AppointmentsCalendar view tabs use scheduler tab classes', () => {

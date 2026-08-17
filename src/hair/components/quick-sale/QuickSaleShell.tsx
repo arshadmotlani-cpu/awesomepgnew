@@ -376,17 +376,22 @@ export function QuickSaleShell({
         <p className="qs-section-label">{appointmentId ? 'Appointment checkout' : 'Customer'}</p>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-2">
-            <p className="fyh-card-title">{customer?.fullName}</p>
-            <p className="text-sm text-fyh-text-muted">
-              {customer?.customerCode} · {customer?.phone}
-            </p>
             {customer ? (
-              <FyhCustomerContextStrip
-                customerId={customer.id}
-                customerName={customer.fullName}
-                variant="compact"
-              />
-            ) : null}
+              <div className="fyh-panel !p-3">
+                <p className="font-semibold text-fyh-on-panel">{customer.fullName}</p>
+                <p className="text-sm text-fyh-on-panel-muted">
+                  {customer.customerCode} · {customer.phone}
+                </p>
+                <FyhCustomerContextStrip
+                  customerId={customer.id}
+                  customerName={customer.fullName}
+                  variant="compact"
+                  className="mt-2"
+                />
+              </div>
+            ) : (
+              <p className="text-sm text-fyh-text-label">Select a customer to continue</p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -557,20 +562,20 @@ export function QuickSaleShell({
       {priced ? (
         <>
           {/* Totals */}
-          <section className="qs-section">
+          <section className="fyh-panel-financial">
             <p className="qs-section-label">Totals</p>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-fyh-text-muted">Subtotal</span>
-                <span className="tabular-nums font-medium">{formatInrFromPaise(priced.totals.subtotalBasePaise)}</span>
+                <span className="fyh-panel-label">Subtotal</span>
+                <span className="fyh-money-value tabular-nums">{formatInrFromPaise(priced.totals.subtotalBasePaise)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-fyh-text-muted">GST</span>
-                <span className="tabular-nums font-medium">{formatInrFromPaise(priced.totals.taxPaise)}</span>
+                <span className="fyh-panel-label">GST</span>
+                <span className="fyh-money-value tabular-nums">{formatInrFromPaise(priced.totals.taxPaise)}</span>
               </div>
               {priced.totals.lineDiscountPaise > 0 ? (
                 <div className="flex justify-between">
-                  <span className="text-fyh-text-muted">Line discount</span>
+                  <span className="fyh-panel-label">Line discount</span>
                   <span className="tabular-nums font-medium text-fyh-danger">
                     −{formatInrFromPaise(priced.totals.lineDiscountPaise)}
                   </span>
@@ -578,15 +583,15 @@ export function QuickSaleShell({
               ) : null}
               {membershipDiscountPaise > 0 ? (
                 <div className="flex justify-between">
-                  <span className="text-fyh-text-muted">Membership</span>
+                  <span className="fyh-panel-label">Membership</span>
                   <span className="tabular-nums font-medium text-fyh-danger">
                     −{formatInrFromPaise(membershipDiscountPaise)}
                   </span>
                 </div>
               ) : null}
-              <div className="flex justify-between border-t border-[color:var(--fyh-border)] pt-3">
-                <span className="text-base font-semibold text-fyh-text">Grand total</span>
-                <span className="fyh-kpi-hero tabular-nums text-fyh-accent">
+              <div className="flex justify-between border-t border-[color:var(--fyh-border-panel)] pt-3">
+                <span className="text-base font-semibold text-fyh-on-panel">Grand total</span>
+                <span className="fyh-money-value-accent tabular-nums text-lg">
                   {formatInrFromPaise(priced.totals.grandTotalPaise)}
                 </span>
               </div>

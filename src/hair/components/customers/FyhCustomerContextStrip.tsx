@@ -42,7 +42,7 @@ export function FyhCustomerContextStrip({
 
   if (loading) {
     return (
-      <div className={cn('fyh-customer-context text-fyh-text-muted', className)}>
+      <div className={cn('fyh-customer-context text-fyh-on-panel-muted', className)}>
         Loading customer…
       </div>
     );

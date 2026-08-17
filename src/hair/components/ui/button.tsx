@@ -26,7 +26,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           variant === 'secondary' &&
             'border border-[color:var(--fyh-border-strong)] bg-[color:var(--fyh-bg-surface)] text-fyh-text hover:border-[color:var(--fyh-border-hover)] hover:bg-[color:var(--fyh-bg-elevated)]',
           variant === 'ghost' &&
-            'font-medium text-fyh-text-secondary hover:bg-white/8 hover:text-fyh-text',
+            'font-medium text-fyh-text-label hover:bg-white/8 hover:text-fyh-text',
           className,
         )}
         {...props}

@@ -73,16 +73,18 @@ export function AdvancePaymentShell() {
             Add money to wallet · no invoice
           </p>
         </div>
-        <FyhCustomerSearch
-          autoFocus
-          createContext="quick_sale"
-          placeholder="Search by name, phone, customer code..."
-          onSelect={(hit) => {
-            setCustomer(hit);
-            setStep('pay');
-            setError(null);
-          }}
-        />
+        <div className="fyh-panel-muted">
+          <FyhCustomerSearch
+            autoFocus
+            createContext="quick_sale"
+            placeholder="Search by name, phone, customer code..."
+            onSelect={(hit) => {
+              setCustomer(hit);
+              setStep('pay');
+              setError(null);
+            }}
+          />
+        </div>
       </div>
     );
   }
@@ -111,20 +113,21 @@ export function AdvancePaymentShell() {
         ) : null}
       </div>
 
-      <label className="block text-sm text-fyh-text-secondary">
-        Amount ₹ *
-        <Input
-          type="number"
-          min={1}
-          step={1}
-          value={amountRupees}
-          onChange={(e) => setAmountRupees(e.target.value)}
-          className="mt-1 h-12 text-lg"
-        />
-      </label>
+      <div className="fyh-panel-financial space-y-4">
+        <label className="block text-sm fyh-panel-label">
+          Amount ₹ *
+          <Input
+            type="number"
+            min={1}
+            step={1}
+            value={amountRupees}
+            onChange={(e) => setAmountRupees(e.target.value)}
+            className="mt-1 h-12 text-lg"
+          />
+        </label>
 
-      <fieldset className="space-y-2">
-        <legend className="text-sm text-fyh-text-secondary">Payment method</legend>
+        <fieldset className="space-y-2">
+          <legend className="text-sm fyh-panel-label">Payment method</legend>
         <div className="grid grid-cols-2 gap-2">
           {METHODS.map((m) => (
             <button
@@ -143,11 +146,11 @@ export function AdvancePaymentShell() {
         </div>
       </fieldset>
 
-      <label className="block text-sm text-fyh-text-secondary">
+      <label className="block text-sm fyh-panel-label">
         Reference (optional)
         <Input value={reference} onChange={(e) => setReference(e.target.value)} className="mt-1 h-10" />
       </label>
-      <label className="block text-sm text-fyh-text-secondary">
+      <label className="block text-sm fyh-panel-label">
         Notes (optional)
         <Input value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1 h-10" />
       </label>
@@ -158,6 +161,7 @@ export function AdvancePaymentShell() {
         type="button"
         disabled={pending || !customer}
         className="h-12 w-full"
+        variant="primary"
         onClick={() => {
           if (!customer) return;
           const amountPaise = Math.round(Number(amountRupees || 0) * 100);
@@ -180,6 +184,7 @@ export function AdvancePaymentShell() {
       >
         {pending ? 'Saving…' : 'Credit wallet'}
       </Button>
+      </div>
     </div>
   );
 }

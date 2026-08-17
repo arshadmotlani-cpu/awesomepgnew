@@ -95,26 +95,27 @@ export function FyhCustomerSearch({
 
       {showResults ? (
         <ul
-          className="mt-2 divide-y divide-[color:var(--fyh-border)] overflow-hidden rounded-[var(--fyh-radius)] border border-[color:var(--fyh-border-strong)] bg-[color:var(--fyh-bg-elevated)]"
+          className="fyh-picker-dropdown divide-y divide-[color:var(--fyh-border-panel)] !p-0"
           role="listbox"
+          aria-label="Customer search results"
         >
           {searching ? (
-            <li className="px-3 py-3 text-center text-sm text-fyh-text-muted">Searching…</li>
+            <li className="px-3 py-3 text-center text-sm text-fyh-on-panel-muted">Searching…</li>
           ) : hits.length > 0 ? (
             hits.map((hit) => (
-              <li key={hit.id}>
+              <li key={hit.id} className="bg-[color:var(--fyh-bg-panel)]">
                 <button
                   type="button"
                   role="option"
-                  className="flex w-full flex-col gap-0.5 px-3 py-2.5 text-left hover:bg-[color-mix(in_srgb,var(--fyh-accent)_8%,transparent)]"
+                  className="flex w-full flex-col gap-0.5 px-3 py-2.5 text-left hover:bg-[color-mix(in_srgb,var(--fyh-accent)_10%,var(--fyh-bg-panel))]"
                   onClick={() => {
                     onSelect(hit);
                     setQuery('');
                     setHits([]);
                   }}
                 >
-                  <span className="font-semibold text-fyh-text">{hit.fullName}</span>
-                  <span className="text-xs text-fyh-text-secondary">
+                  <span className="font-semibold text-fyh-on-panel">{hit.fullName}</span>
+                  <span className="text-xs text-fyh-on-panel-muted">
                     {hit.phone}
                     {hit.customerCode ? ` · ${hit.customerCode}` : ''}
                     {hit.walletBalancePaise > 0
@@ -126,8 +127,8 @@ export function FyhCustomerSearch({
             ))
           ) : (
             <li className="px-3 py-3 text-center">
-              <p className="text-sm text-fyh-text-muted">
-                {looksLikePhone ? 'No customer found for this number' : 'No customers found'}
+              <p className="text-sm text-fyh-on-panel-muted">
+                {looksLikePhone ? 'No customer found' : 'No customers found'}
               </p>
               <button
                 type="button"
@@ -135,7 +136,7 @@ export function FyhCustomerSearch({
                 onClick={() => openCreate()}
               >
                 <Plus className="h-4 w-4" />
-                Create new customer
+                Add customer
               </button>
             </li>
           )}

@@ -123,7 +123,7 @@ export function CustomerProfile({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="fyh-glass flex flex-wrap items-start gap-5 p-5">
+      <div className="fyh-panel flex flex-wrap items-start gap-5 !p-5">
         <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl border border-fyh-accent/30 bg-fyh-forest/20">
           {customer.photoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -142,10 +142,10 @@ export function CustomerProfile({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="fyh-section-eyebrow">Customer profile</p>
-              <h1 className="fyh-display mt-1 font-semibold tracking-tight">
+              <h1 className="fyh-display mt-1 font-semibold tracking-tight text-fyh-on-panel">
                 {customer.fullName}
               </h1>
-              <p className="mt-1 text-sm text-fyh-text-secondary">
+              <p className="mt-1 text-sm text-fyh-on-panel-muted">
                 {customer.phone}
                 {customer.whatsapp ? ` · WA ${customer.whatsapp}` : ''}
                 {customer.email ? ` · ${customer.email}` : ''}
