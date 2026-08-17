@@ -6,7 +6,7 @@ import { rescheduleAppointmentAction } from '@/src/hair/actions/appointments';
 import { Button } from '@/src/hair/components/ui/button';
 import { FYH_APPOINTMENT_STATUS_COLORS } from '@/src/hair/lib/appointmentStatus';
 import { cn } from '@/src/hair/lib/utils';
-import { AppointmentCreateDrawer } from './AppointmentCreateDrawer';
+import { AppointmentCreateModal } from './AppointmentCreateModal';
 import { AppointmentDetailDrawer } from './AppointmentDetailDrawer';
 import { AppointmentEditDrawer } from './AppointmentEditDrawer';
 import type {
@@ -322,7 +322,7 @@ export function AppointmentsCalendar({
         </div>
       ) : null}
 
-      <AppointmentCreateDrawer
+      <AppointmentCreateModal
         open={createOpen}
         onClose={() => {
           setCreatePrefill(null);
@@ -331,8 +331,6 @@ export function AppointmentsCalendar({
         prefill={createPrefill}
         staff={staff}
         resources={resources}
-        customers={customers}
-        services={services}
         timezone={timezone}
         preselectCustomerId={preselectCustomerId}
         onSuccess={() => {

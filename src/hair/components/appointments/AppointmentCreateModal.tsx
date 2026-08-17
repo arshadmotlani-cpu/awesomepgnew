@@ -1,0 +1,700 @@
+'use client';
+
+import { useActionState, useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import {
+  createAppointmentAction,
+  type ApptActionState,
+} from '@/src/hair/actions/appointments';
+import {
+  addAdvanceFromBookingAction,
+  loadCustomerBookingContextAction,
+  searchServicesForBookingAction,
+} from '@/src/hair/actions/booking';
+import { CustomerVisitHistoryPanel } from '@/src/hair/components/booking/CustomerVisitHistoryPanel';
+import { FyhCustomerSearch } from '@/src/hair/components/booking/FyhCustomerSearch';
+import { Button } from '@/src/hair/components/ui/button';
+import { Input } from '@/src/hair/components/ui/input';
+import { FYH_APPOINTMENT_STATUS_COLORS } from '@/src/hair/lib/appointmentStatus';
+import type { FyhAppointmentStatus } from '@/src/hair/db/schema/appointments';
+import { formatInrFromPaise } from '@/src/hair/lib/money';
+import type { AdvancePaymentMethod } from '@/src/hair/services/loyaltyOps';
+import type { BookingServiceHit, CustomerBookingContext } from '@/src/hair/services/bookingContext';
+import { formatSalonDisplayDate } from '@/src/hair/lib/formatSalonDate';
+import type { PosCustomerHit } from '@/src/hair/services/quickSale';
+import type {
+  CreateSlotPrefill,
+  ResourceOpt,
+  StaffOpt,
+} from './calendarTypes';
+import { minutesToSlotLabel } from './schedulerConstants';
+import { formatHmInSalonTz, utcFromDayAndMinutes } from './schedulerTime';
+
+type BasketLine = {
+  key: string;
+  serviceId: string;
+  name: string;
+  durationMinutes: number;
+  pricePaise: number;
+  staffId: string;
+};
+
+const CREATE_INITIAL: ApptActionState = {};
+
+const PAYMENT_METHODS: { id: AdvancePaymentMethod; label: string }[] = [
+  { id: 'cash', label: 'Cash' },
+  { id: 'upi', label: 'UPI' },
+  { id: 'card', label: 'Card' },
+  { id: 'bank', label: 'Bank' },
+];
+
+const CREATE_STATUSES: FyhAppointmentStatus[] = ['booked', 'confirmed', 'arrived'];
+
+type Props = {
+  open: boolean;
+  onClose: () => void;
+  prefill: CreateSlotPrefill | null;
+  staff: StaffOpt[];
+  resources: ResourceOpt[];
+  timezone: string;
+  preselectCustomerId?: string | null;
+  onSuccess: () => void;
+};
+
+export function AppointmentCreateModal({
+  open,
+  onClose,
+  prefill,
+  staff,
+  resources,
+  timezone,
+  preselectCustomerId,
+  onSuccess,
+}: Props) {
+  const [createState, createAction, createPending] = useActionState(
+    createAppointmentAction,
+    CREATE_INITIAL,
+  );
+  const [advancePending, startAdvance] = useTransition();
+
+  const [selectedCustomer, setSelectedCustomer] = useState<PosCustomerHit | null>(null);
+  const [bookingContext, setBookingContext] = useState<CustomerBookingContext | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  const [serviceQuery, setServiceQuery] = useState('');
+  const [serviceHits, setServiceHits] = useState<BookingServiceHit[]>([]);
+  const [serviceSearching, setServiceSearching] = useState(false);
+  const [basket, setBasket] = useState<BasketLine[]>([]);
+
+  const [sameStaffForAll, setSameStaffForAll] = useState(true);
+  const [appointmentStaffId, setAppointmentStaffId] = useState(prefill?.staffId ?? staff[0]?.id ?? '');
+  const [resourceId, setResourceId] = useState('');
+  const [consultedByStaffId, setConsultedByStaffId] = useState('');
+  const [status, setStatus] = useState<FyhAppointmentStatus>('booked');
+  const [walkIn, setWalkIn] = useState(false);
+  const [recurrenceWeeks, setRecurrenceWeeks] = useState('1');
+  const [notes, setNotes] = useState('');
+
+  const [advanceRupees, setAdvanceRupees] = useState('');
+  const [advanceMethod, setAdvanceMethod] = useState<AdvancePaymentMethod>('cash');
+  const [advanceError, setAdvanceError] = useState<string | null>(null);
+  const [advanceSuccess, setAdvanceSuccess] = useState<string | null>(null);
+
+  const startMinutes = prefill?.startMinutes ?? 10 * 60;
+  const dayIso = prefill?.dayIso ?? '';
+  const slotStaffId = prefill?.staffId ?? staff[0]?.id ?? '';
+
+  useEffect(() => {
+    if (prefill?.staffId) setAppointmentStaffId(prefill.staffId);
+  }, [prefill?.staffId]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (preselectCustomerId && !selectedCustomer) {
+      loadCustomerBookingContextAction(preselectCustomerId).then((ctx) => {
+        setBookingContext(ctx);
+        setSelectedCustomer({
+          id: ctx.customer.id,
+          fullName: ctx.customer.fullName,
+          phone: ctx.customer.phone,
+          customerCode: null,
+          walletBalancePaise: ctx.customer.walletBalancePaise,
+        });
+      });
+    }
+  }, [open, preselectCustomerId, selectedCustomer]);
+
+  useEffect(() => {
+    if (createState.success) {
+      onSuccess();
+      onClose();
+    }
+  }, [createState.success, onClose, onSuccess]);
+
+  useEffect(() => {
+    const q = serviceQuery.trim();
+    if (q.length < 1) {
+      setServiceHits([]);
+      return;
+    }
+    const t = window.setTimeout(async () => {
+      setServiceSearching(true);
+      try {
+        setServiceHits(await searchServicesForBookingAction(q));
+      } finally {
+        setServiceSearching(false);
+      }
+    }, 150);
+    return () => window.clearTimeout(t);
+  }, [serviceQuery]);
+
+  const refreshCustomerContext = useCallback(async (customerId: string) => {
+    const ctx = await loadCustomerBookingContextAction(customerId);
+    setBookingContext(ctx);
+    setSelectedCustomer((prev) =>
+      prev
+        ? { ...prev, walletBalancePaise: ctx.customer.walletBalancePaise }
+        : {
+            id: ctx.customer.id,
+            fullName: ctx.customer.fullName,
+            phone: ctx.customer.phone,
+            customerCode: null,
+            walletBalancePaise: ctx.customer.walletBalancePaise,
+          },
+    );
+  }, []);
+
+  const handleCustomerSelect = async (hit: PosCustomerHit) => {
+    setSelectedCustomer(hit);
+    await refreshCustomerContext(hit.id);
+  };
+
+  const addServiceToBasket = (hit: BookingServiceHit) => {
+    if (basket.some((b) => b.serviceId === hit.id)) return;
+    const staffForLine = sameStaffForAll ? appointmentStaffId : slotStaffId;
+    setBasket((prev) => [
+      ...prev,
+      {
+        key: `${hit.id}-${Date.now()}`,
+        serviceId: hit.id,
+        name: hit.name,
+        durationMinutes: hit.durationMinutes,
+        pricePaise: hit.pricePaise,
+        staffId: staffForLine,
+      },
+    ]);
+  };
+
+  const removeFromBasket = (key: string) => {
+    setBasket((prev) => prev.filter((b) => b.key !== key));
+  };
+
+  const updateLineStaff = (key: string, staffId: string) => {
+    setBasket((prev) => prev.map((b) => (b.key === key ? { ...b, staffId } : b)));
+  };
+
+  useEffect(() => {
+    if (!sameStaffForAll) return;
+    setBasket((prev) => prev.map((b) => ({ ...b, staffId: appointmentStaffId })));
+  }, [sameStaffForAll, appointmentStaffId]);
+
+  const durationMinutes = useMemo(
+    () => basket.reduce((sum, b) => sum + b.durationMinutes, 0),
+    [basket],
+  );
+  const servicesTotalPaise = useMemo(
+    () => basket.reduce((sum, b) => sum + b.pricePaise, 0),
+    [basket],
+  );
+
+  const startAtIso = prefill
+    ? utcFromDayAndMinutes(dayIso, startMinutes, timezone).toISOString()
+    : '';
+  const endMinutes = startMinutes + durationMinutes;
+  const endAtPreview =
+    prefill && durationMinutes > 0
+      ? utcFromDayAndMinutes(dayIso, endMinutes, timezone)
+      : null;
+
+  const walletPaise = bookingContext?.financial.walletPaise ?? selectedCustomer?.walletBalancePaise ?? 0;
+  const balanceDuePaise = Math.max(0, servicesTotalPaise - walletPaise);
+
+  const staffAssignmentsNote = useMemo(() => {
+    if (sameStaffForAll || basket.length === 0) return '';
+    const parts = basket.map((b) => {
+      const name = staff.find((s) => s.id === b.staffId)?.fullName ?? '—';
+      return `${b.name}: ${name}`;
+    });
+    return `Service staff: ${parts.join('; ')}`;
+  }, [basket, sameStaffForAll, staff]);
+
+  const consultedNote = consultedByStaffId
+    ? `Consulted by: ${staff.find((s) => s.id === consultedByStaffId)?.fullName ?? '—'}`
+    : '';
+
+  const combinedNotes = [notes.trim(), consultedNote, staffAssignmentsNote]
+    .filter(Boolean)
+    .join('\n');
+
+  const handleAddAdvance = () => {
+    if (!selectedCustomer) return;
+    const rupees = Number(advanceRupees);
+    if (!Number.isFinite(rupees) || rupees <= 0) {
+      setAdvanceError('Enter a valid advance amount');
+      return;
+    }
+    setAdvanceError(null);
+    setAdvanceSuccess(null);
+    startAdvance(async () => {
+      try {
+        await addAdvanceFromBookingAction({
+          customerId: selectedCustomer.id,
+          amountPaise: Math.round(rupees * 100),
+          method: advanceMethod,
+        });
+        setAdvanceRupees('');
+        setAdvanceSuccess('Advance added to customer wallet');
+        await refreshCustomerContext(selectedCustomer.id);
+      } catch (e) {
+        setAdvanceError(e instanceof Error ? e.message : 'Failed to add advance');
+      }
+    });
+  };
+
+  if (!open) return null;
+
+  const displayDate = dayIso ? formatSalonDisplayDate(dayIso) : '—';
+  const staffName = staff.find((s) => s.id === appointmentStaffId)?.fullName ?? '—';
+  const canSubmit = selectedCustomer && basket.length > 0 && !createPending;
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
+      >
+        <div
+          className="fyh-booking-modal flex h-[100dvh] w-full flex-col overflow-hidden border-white/15 bg-fyh-elevated shadow-2xl sm:h-auto sm:max-h-[92vh] sm:w-[min(92vw,1100px)] sm:rounded-2xl sm:border"
+          role="dialog"
+          aria-labelledby="booking-modal-title"
+        >
+          <header className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6 sm:py-4">
+            <h2 id="booking-modal-title" className="fyh-display text-lg font-semibold text-white sm:text-xl">
+              New appointment
+            </h2>
+            <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+              Close
+            </Button>
+          </header>
+
+          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+            <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
+              <section className="space-y-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
+                    Client search
+                  </p>
+                  {selectedCustomer ? (
+                    <div className="mt-2 rounded-xl border border-white/15 bg-black/25 px-4 py-3">
+                      <p className="font-semibold text-white">{selectedCustomer.fullName}</p>
+                      <p className="text-sm text-white/80">{selectedCustomer.phone}</p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="mt-2"
+                        onClick={() => {
+                          setSelectedCustomer(null);
+                          setBookingContext(null);
+                        }}
+                      >
+                        Change customer
+                      </Button>
+                    </div>
+                  ) : (
+                    <FyhCustomerSearch
+                      className="mt-2"
+                      autoFocus
+                      onSelect={handleCustomerSelect}
+                    />
+                  )}
+                </div>
+
+                {prefill ? (
+                  <div className="grid gap-3 rounded-xl border border-white/10 bg-black/20 p-4 sm:grid-cols-5">
+                    <div>
+                      <p className="text-xs text-white/60">Date</p>
+                      <p className="font-semibold text-white">{displayDate}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-white/60">Staff</p>
+                      <select
+                        value={appointmentStaffId}
+                        onChange={(e) => setAppointmentStaffId(e.target.value)}
+                        className="mt-0.5 w-full rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-sm font-semibold text-white"
+                      >
+                        {staff.map((s) => (
+                          <option key={s.id} value={s.id}>{s.fullName}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <p className="text-xs text-white/60">Start</p>
+                      <p className="font-semibold text-white">{minutesToSlotLabel(startMinutes)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-white/60">End</p>
+                      <p className="font-semibold text-white">
+                        {endAtPreview
+                          ? formatHmInSalonTz(endAtPreview, timezone)
+                          : minutesToSlotLabel(startMinutes)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-white/60">Chair</p>
+                      <select
+                        value={resourceId}
+                        onChange={(e) => setResourceId(e.target.value)}
+                        className="mt-0.5 w-full rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-sm text-white"
+                      >
+                        <option value="">None</option>
+                        {resources.map((r) => (
+                          <option key={r.id} value={r.id}>{r.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
+                    Service search
+                  </p>
+                  <Input
+                    className="mt-2 h-11 text-white placeholder:text-white/50"
+                    placeholder="Search services…"
+                    value={serviceQuery}
+                    onChange={(e) => setServiceQuery(e.target.value)}
+                    aria-label="Search services"
+                  />
+                  {serviceQuery.trim().length >= 1 ? (
+                    <ul className="mt-2 divide-y divide-white/10 overflow-hidden rounded-xl border border-white/15 bg-black/30">
+                      {serviceSearching ? (
+                        <li className="px-4 py-4 text-center text-sm text-white/70">Searching…</li>
+                      ) : serviceHits.length > 0 ? (
+                        serviceHits.map((hit) => {
+                          const inBasket = basket.some((b) => b.serviceId === hit.id);
+                          return (
+                            <li
+                              key={hit.id}
+                              className="flex items-center justify-between gap-3 px-4 py-3"
+                            >
+                              <div>
+                                <p className="font-semibold text-white">{hit.name}</p>
+                                <p className="text-sm text-white/75">
+                                  {hit.durationMinutes} min · {formatInrFromPaise(hit.pricePaise)}
+                                  {hit.category ? ` · ${hit.category}` : ''}
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                disabled={inBasket}
+                                onClick={() => addServiceToBasket(hit)}
+                              >
+                                {inBasket ? 'Added' : '+ Add'}
+                              </Button>
+                            </li>
+                          );
+                        })
+                      ) : (
+                        <li className="px-4 py-4 text-center text-sm text-white/70">
+                          No services found
+                        </li>
+                      )}
+                    </ul>
+                  ) : null}
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
+                      Selected services
+                    </p>
+                    <label className="flex items-center gap-2 text-sm text-white/80">
+                      <input
+                        type="checkbox"
+                        checked={sameStaffForAll}
+                        onChange={(e) => setSameStaffForAll(e.target.checked)}
+                        className="accent-fyh-forest"
+                      />
+                      Same staff for all
+                    </label>
+                  </div>
+                  {basket.length === 0 ? (
+                    <p className="mt-2 text-sm text-white/60">Add services from search above</p>
+                  ) : (
+                    <ul className="mt-2 space-y-2">
+                      {basket.map((line, idx) => (
+                        <li
+                          key={line.key}
+                          className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2"
+                        >
+                          <span className="text-white/60">{idx + 1}.</span>
+                          <span className="min-w-0 flex-1 font-semibold text-white">{line.name}</span>
+                          <span className="text-sm text-white/80">{line.durationMinutes}m</span>
+                          <span className="text-sm font-semibold text-white">
+                            {formatInrFromPaise(line.pricePaise)}
+                          </span>
+                          {!sameStaffForAll ? (
+                            <select
+                              value={line.staffId}
+                              onChange={(e) => updateLineStaff(line.key, e.target.value)}
+                              className="rounded-lg border border-white/15 bg-black/30 px-2 py-1 text-sm text-white"
+                            >
+                              {staff.map((s) => (
+                                <option key={s.id} value={s.id}>{s.fullName}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="text-sm text-white/70">
+                              Staff {staff.find((s) => s.id === line.staffId)?.fullName}
+                            </span>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeFromBasket(line.key)}
+                          >
+                            ×
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="text-xs text-white/70">Consulted by</label>
+                    <select
+                      value={consultedByStaffId}
+                      onChange={(e) => setConsultedByStaffId(e.target.value)}
+                      className="mt-1 flex h-10 w-full rounded-xl border border-white/15 bg-black/30 px-3 text-sm text-white"
+                    >
+                      <option value="">—</option>
+                      {staff.map((s) => (
+                        <option key={s.id} value={s.id}>{s.fullName}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-white/70">Status</label>
+                    <select
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value as FyhAppointmentStatus)}
+                      className="mt-1 flex h-10 w-full rounded-xl border border-white/15 bg-black/30 px-3 text-sm text-white"
+                    >
+                      {CREATE_STATUSES.map((s) => (
+                        <option key={s} value={s}>
+                          {FYH_APPOINTMENT_STATUS_COLORS[s].label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2 text-sm text-white/85">
+                    <input
+                      type="checkbox"
+                      checked={walkIn}
+                      onChange={(e) => {
+                        setWalkIn(e.target.checked);
+                        if (e.target.checked) setStatus('arrived');
+                      }}
+                      className="accent-fyh-forest"
+                    />
+                    Walk-in
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-white/85">Repeat weeks</label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={12}
+                      value={recurrenceWeeks}
+                      onChange={(e) => setRecurrenceWeeks(e.target.value)}
+                      className="h-9 w-20 text-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-white/70">Notes</label>
+                  <Input
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Appointment notes"
+                    className="mt-1 text-white"
+                  />
+                </div>
+              </section>
+
+              <aside className="space-y-4">
+                {selectedCustomer && bookingContext ? (
+                  <div className="rounded-xl border border-white/15 bg-black/30 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
+                      Last visit / credit
+                    </p>
+                    {bookingContext.lastVisit ? (
+                      <button
+                        type="button"
+                        className="mt-2 text-left"
+                        onClick={() => setHistoryOpen(true)}
+                      >
+                        <p className="text-sm text-white/70">Last visit</p>
+                        <p className="font-semibold text-white underline decoration-white/30">
+                          {bookingContext.lastVisit.displayDate}
+                        </p>
+                        <p className="mt-1 text-xs text-fyh-forest">View history →</p>
+                      </button>
+                    ) : (
+                      <p className="mt-2 text-sm text-white/70">No previous visits</p>
+                    )}
+                    <div className="mt-4 space-y-1 border-t border-white/10 pt-3">
+                      <p className="text-sm text-white/70">Available credit</p>
+                      <p className="text-xl font-semibold text-white">
+                        {formatInrFromPaise(walletPaise)}
+                      </p>
+                      {bookingContext.financial.duePaise > 0 ? (
+                        <p className="text-sm text-white/70">
+                          Due {formatInrFromPaise(bookingContext.financial.duePaise)}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="rounded-xl border border-white/15 bg-black/30 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
+                    Payment summary
+                  </p>
+                  <dl className="mt-3 space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <dt className="text-white/75">Services</dt>
+                      <dd className="font-semibold text-white">
+                        {formatInrFromPaise(servicesTotalPaise)}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-white/75">Available credit</dt>
+                      <dd className="font-semibold text-white">{formatInrFromPaise(walletPaise)}</dd>
+                    </div>
+                    <div className="flex justify-between border-t border-white/10 pt-2">
+                      <dt className="text-white/75">Balance due at checkout</dt>
+                      <dd className="text-lg font-semibold text-white">
+                        {formatInrFromPaise(balanceDuePaise)}
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="mt-2 text-xs text-white/55">
+                    Wallet credit is applied at checkout. Advance payments increase available credit.
+                  </p>
+                </div>
+
+                {selectedCustomer ? (
+                  <div className="rounded-xl border border-white/15 bg-black/30 p-4 space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
+                      Advance / payment
+                    </p>
+                    <div>
+                      <label className="text-xs text-white/70">Advance amount ₹</label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={advanceRupees}
+                        onChange={(e) => setAdvanceRupees(e.target.value)}
+                        className="mt-1 text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-white/70">Payment method</label>
+                      <select
+                        value={advanceMethod}
+                        onChange={(e) =>
+                          setAdvanceMethod(e.target.value as AdvancePaymentMethod)
+                        }
+                        className="mt-1 flex h-10 w-full rounded-xl border border-white/15 bg-black/30 px-3 text-sm text-white"
+                      >
+                        {PAYMENT_METHODS.map((m) => (
+                          <option key={m.id} value={m.id}>{m.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {advanceError ? (
+                      <p className="text-sm text-fyh-danger">{advanceError}</p>
+                    ) : null}
+                    {advanceSuccess ? (
+                      <p className="text-sm text-fyh-forest">{advanceSuccess}</p>
+                    ) : null}
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="w-full"
+                      disabled={advancePending}
+                      onClick={handleAddAdvance}
+                    >
+                      {advancePending ? 'Saving…' : 'Add advance'}
+                    </Button>
+                  </div>
+                ) : null}
+              </aside>
+            </div>
+          </div>
+
+          <footer
+            className="shrink-0 border-t border-white/10 bg-fyh-elevated px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6"
+          >
+            {createState.error ? (
+              <p className="mb-2 text-sm text-fyh-danger">{createState.error}</p>
+            ) : null}
+            <form action={createAction} className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              {prefill ? <input type="hidden" name="startAt" value={startAtIso} /> : null}
+              <input type="hidden" name="staffId" value={appointmentStaffId} />
+              <input type="hidden" name="resourceId" value={resourceId} />
+              {selectedCustomer ? (
+                <input type="hidden" name="customerId" value={selectedCustomer.id} />
+              ) : null}
+              {basket.map((b) => (
+                <input key={b.key} type="hidden" name="serviceIds" value={b.serviceId} />
+              ))}
+              {walkIn ? <input type="hidden" name="source" value="walk_in" /> : null}
+              <input type="hidden" name="recurrenceWeeks" value={recurrenceWeeks} />
+              <input type="hidden" name="notes" value={combinedNotes} />
+              <input type="hidden" name="status" value={status} />
+              <Button type="button" variant="ghost" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={!canSubmit}>
+                {createPending ? 'Creating…' : 'Create appointment'}
+              </Button>
+            </form>
+          </footer>
+        </div>
+      </div>
+
+      {selectedCustomer ? (
+        <CustomerVisitHistoryPanel
+          customerId={selectedCustomer.id}
+          customerName={selectedCustomer.fullName}
+          open={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+        />
+      ) : null}
+    </>
+  );
+}

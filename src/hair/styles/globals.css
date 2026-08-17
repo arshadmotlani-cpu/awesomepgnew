@@ -700,3 +700,14 @@
 .fyh-theme-light .fyh-scheduler-tab {
   color: var(--fyh-text-primary);
 }
+
+/* Appointment booking modal — high-contrast workspace */
+.fyh-booking-modal {
+  color: #ffffff;
+}
+
+.fyh-booking-modal input,
+.fyh-booking-modal select,
+.fyh-booking-modal textarea {
+  color: #ffffff;
+}

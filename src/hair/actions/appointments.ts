@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requirePermission } from '@/src/hair/lib/auth/permissions';
 import type { FyhAppointmentStatus } from '@/src/hair/db/schema/appointments';
+import { isFyhAppointmentStatus } from '@/src/hair/lib/appointmentStatus';
 import {
   createAppointment,
   rescheduleAppointment,
@@ -42,6 +43,10 @@ export async function createAppointmentAction(
       serviceIds,
       notes: formStr(formData, 'notes') || null,
       source: formStr(formData, 'source') === 'walk_in' ? 'walk_in' : 'booking',
+      status: (() => {
+        const raw = formStr(formData, 'status');
+        return isFyhAppointmentStatus(raw) ? (raw as FyhAppointmentStatus) : undefined;
+      })(),
       recurrenceWeeks: Number(formStr(formData, 'recurrenceWeeks') || '1'),
       createdByAdminId: session.id,
     });
