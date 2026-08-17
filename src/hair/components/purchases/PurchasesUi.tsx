@@ -38,7 +38,7 @@ export function PurchaseRecordsList({ purchases }: { purchases: PurchaseListRow[
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="fyh-section-eyebrow">Procurement</p>
-          <h1 className="fyh-display mt-1 text-3xl font-semibold">Purchases</h1>
+          <h1 className="fyh-display mt-1 font-semibold">Purchases</h1>
           <p className="mt-1 text-sm text-fyh-text-secondary">
             Record vendor purchases — stock, payable, and expense created together
           </p>

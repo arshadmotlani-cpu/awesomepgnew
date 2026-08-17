@@ -5,7 +5,7 @@ import { Button } from '@/src/capital/components/ui/button';
 
 export default function CapitalNotFound() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-6 text-center">
+    <div className="flex min-h-[100dvh] flex-col items-center justify-center p-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))] text-center">
       <div className="mb-6">
         <CapitalBrandLogo size={64} className="mx-auto" />
       </div>

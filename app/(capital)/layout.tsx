@@ -10,7 +10,7 @@ export const metadata: Metadata = capitalOsMetadata;
 
 export default function CapitalRootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="ac-capital-root ac-mesh-bg min-h-screen">
+    <div className="ac-capital-root ac-mesh-bg min-h-[100dvh]">
       <CapitalPwaRegister />
       <Suspense fallback={null}>{children}</Suspense>
     </div>

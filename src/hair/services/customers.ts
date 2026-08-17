@@ -35,6 +35,8 @@ export type QuickCustomerInput = {
   fullName: string;
   phone: string;
   gender?: FyhCustomerGender | null;
+  /** Timeline label e.g. Quick Sale, Appointment booking */
+  createdVia?: string;
 };
 
 export async function createCustomerQuick(input: QuickCustomerInput) {
@@ -61,7 +63,7 @@ export async function createCustomerQuick(input: QuickCustomerInput) {
       customerId: row.id,
       eventType: 'customer_created',
       title: 'Customer created',
-      body: `${row.fullName} · Quick Sale`,
+      body: `${row.fullName} · ${input.createdVia ?? 'Quick Sale'}`,
     });
     return row;
   });

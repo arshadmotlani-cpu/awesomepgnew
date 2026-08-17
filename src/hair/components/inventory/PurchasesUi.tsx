@@ -33,7 +33,7 @@ export function PurchasesList({ orders }: { orders: PoListItem[] }) {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="fyh-section-eyebrow">Inventory</p>
-          <h1 className="fyh-display mt-1 text-3xl font-semibold">Purchase orders</h1>
+          <h1 className="fyh-display mt-1 font-semibold">Purchase orders</h1>
           <p className="mt-1 text-sm text-fyh-text-secondary">
             Create POs and receive goods into stock
           </p>
@@ -256,7 +256,7 @@ export function PurchaseOrderDetail({
     <div className="space-y-6">
       <div>
         <p className="fyh-section-eyebrow">PO</p>
-        <h1 className="fyh-display mt-1 text-3xl font-semibold">{detail.po.poNumber}</h1>
+        <h1 className="fyh-display mt-1 font-semibold">{detail.po.poNumber}</h1>
         <p className="mt-1 text-sm text-fyh-text-secondary">
           {detail.vendorName} · <span className="capitalize">{detail.po.status}</span>
         </p>

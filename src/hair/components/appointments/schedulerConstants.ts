@@ -1,9 +1,9 @@
 /** Fixed 30-minute scheduler grid (Spalon-style day view). */
 export const SLOT_MIN = 30;
-export const SLOT_WIDTH_PX = 56;
-export const STAFF_ROW_HEIGHT_PX = 64;
-export const STAFF_COL_WIDTH_PX = 148;
-export const TIME_HEADER_HEIGHT_PX = 36;
+export const SLOT_WIDTH_PX = 52;
+export const STAFF_ROW_HEIGHT_PX = 56;
+export const STAFF_COL_WIDTH_PX = 132;
+export const TIME_HEADER_HEIGHT_PX = 32;
 
 export function snapMinutes(mins: number): number {
   return Math.round(mins / SLOT_MIN) * SLOT_MIN;

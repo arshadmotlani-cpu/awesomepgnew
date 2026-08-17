@@ -10,8 +10,8 @@ import {
   loadCustomerBookingContextAction,
   searchServicesForBookingAction,
 } from '@/src/hair/actions/booking';
-import { CustomerVisitHistoryPanel } from '@/src/hair/components/booking/CustomerVisitHistoryPanel';
 import { FyhCustomerSearch } from '@/src/hair/components/booking/FyhCustomerSearch';
+import { FyhCustomerContextStrip } from '@/src/hair/components/customers/FyhCustomerContextStrip';
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
 import { FYH_APPOINTMENT_STATUS_COLORS } from '@/src/hair/lib/appointmentStatus';
@@ -78,7 +78,6 @@ export function AppointmentCreateModal({
 
   const [selectedCustomer, setSelectedCustomer] = useState<PosCustomerHit | null>(null);
   const [bookingContext, setBookingContext] = useState<CustomerBookingContext | null>(null);
-  const [historyOpen, setHistoryOpen] = useState(false);
 
   const [serviceQuery, setServiceQuery] = useState('');
   const [serviceHits, setServiceHits] = useState<BookingServiceHit[]>([]);
@@ -263,24 +262,23 @@ export function AppointmentCreateModal({
   if (!open) return null;
 
   const displayDate = dayIso ? formatSalonDisplayDate(dayIso) : '—';
-  const staffName = staff.find((s) => s.id === appointmentStaffId)?.fullName ?? '—';
   const canSubmit = selectedCustomer && basket.length > 0 && !createPending;
 
   return (
     <>
       <div
-        className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4"
+        className="fyh-modal-overlay"
         onClick={(e) => {
           if (e.target === e.currentTarget) onClose();
         }}
       >
         <div
-          className="fyh-booking-modal flex h-[100dvh] w-full flex-col overflow-hidden border-white/15 bg-fyh-elevated shadow-2xl sm:h-auto sm:max-h-[92vh] sm:w-[min(92vw,1100px)] sm:rounded-2xl sm:border"
+          className="fyh-modal-panel fyh-booking-modal sm:max-w-[min(92vw,1100px)]"
           role="dialog"
           aria-labelledby="booking-modal-title"
         >
-          <header className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6 sm:py-4">
-            <h2 id="booking-modal-title" className="fyh-display text-lg font-semibold text-white sm:text-xl">
+          <header className="fyh-modal-header flex items-center justify-between">
+            <h2 id="booking-modal-title" className="fyh-modal-title">
               New appointment
             </h2>
             <Button type="button" variant="ghost" size="sm" onClick={onClose}>
@@ -288,52 +286,57 @@ export function AppointmentCreateModal({
             </Button>
           </header>
 
-          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-            <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
-              <section className="space-y-4">
+          <div className="fyh-modal-body">
+            <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
+              <section className="space-y-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
-                    Client search
-                  </p>
+                  <p className="fyh-section-eyebrow">Client search</p>
                   {selectedCustomer ? (
-                    <div className="mt-2 rounded-xl border border-white/15 bg-black/25 px-4 py-3">
-                      <p className="font-semibold text-white">{selectedCustomer.fullName}</p>
-                      <p className="text-sm text-white/80">{selectedCustomer.phone}</p>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="mt-2"
-                        onClick={() => {
-                          setSelectedCustomer(null);
-                          setBookingContext(null);
-                        }}
-                      >
-                        Change customer
-                      </Button>
+                    <div className="mt-2 space-y-2">
+                      <div className="fyh-card !p-3">
+                        <p className="font-semibold text-fyh-text">{selectedCustomer.fullName}</p>
+                        <p className="text-sm text-fyh-text-secondary">{selectedCustomer.phone}</p>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="mt-1"
+                          onClick={() => {
+                            setSelectedCustomer(null);
+                            setBookingContext(null);
+                          }}
+                        >
+                          Change customer
+                        </Button>
+                      </div>
+                      <FyhCustomerContextStrip
+                        customerId={selectedCustomer.id}
+                        customerName={selectedCustomer.fullName}
+                        variant="compact"
+                      />
                     </div>
                   ) : (
                     <FyhCustomerSearch
                       className="mt-2"
-                      tone="booking"
                       autoFocus
+                      createContext="appointment_booking"
                       onSelect={handleCustomerSelect}
                     />
                   )}
                 </div>
 
                 {prefill ? (
-                  <div className="grid gap-3 rounded-xl border border-white/10 bg-black/20 p-4 sm:grid-cols-5">
+                  <div className="fyh-card grid gap-2 sm:grid-cols-5 !p-3">
                     <div>
-                      <p className="text-xs text-white/60">Date</p>
-                      <p className="font-semibold text-white">{displayDate}</p>
+                      <p className="fyh-label">Date</p>
+                      <p className="font-semibold text-fyh-text">{displayDate}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-white/60">Staff</p>
+                      <p className="fyh-label">Staff</p>
                       <select
                         value={appointmentStaffId}
                         onChange={(e) => setAppointmentStaffId(e.target.value)}
-                        className="mt-0.5 w-full rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-sm font-semibold text-white"
+                        className="fyh-select mt-0.5 !h-9"
                       >
                         {staff.map((s) => (
                           <option key={s.id} value={s.id}>{s.fullName}</option>
@@ -341,23 +344,23 @@ export function AppointmentCreateModal({
                       </select>
                     </div>
                     <div>
-                      <p className="text-xs text-white/60">Start</p>
-                      <p className="font-semibold text-white">{minutesToSlotLabel(startMinutes)}</p>
+                      <p className="fyh-label">Start</p>
+                      <p className="font-semibold text-fyh-text">{minutesToSlotLabel(startMinutes)}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-white/60">End</p>
-                      <p className="font-semibold text-white">
+                      <p className="fyh-label">End</p>
+                      <p className="font-semibold text-fyh-text">
                         {endAtPreview
                           ? formatHmInSalonTz(endAtPreview, timezone)
                           : minutesToSlotLabel(startMinutes)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-white/60">Chair</p>
+                      <p className="fyh-label">Chair</p>
                       <select
                         value={resourceId}
                         onChange={(e) => setResourceId(e.target.value)}
-                        className="mt-0.5 w-full rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-sm text-white"
+                        className="fyh-select mt-0.5 !h-9"
                       >
                         <option value="">None</option>
                         {resources.map((r) => (
@@ -369,31 +372,29 @@ export function AppointmentCreateModal({
                 ) : null}
 
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
-                    Service search
-                  </p>
+                  <p className="fyh-section-eyebrow">Service search</p>
                   <Input
-                    className="mt-2 h-11 text-white placeholder:text-white/50"
+                    className="mt-2"
                     placeholder="Search services…"
                     value={serviceQuery}
                     onChange={(e) => setServiceQuery(e.target.value)}
                     aria-label="Search services"
                   />
                   {serviceQuery.trim().length >= 1 ? (
-                    <ul className="mt-2 divide-y divide-white/10 overflow-hidden rounded-xl border border-white/15 bg-black/30">
+                    <ul className="mt-2 divide-y divide-[color:var(--fyh-border)] overflow-hidden rounded-[var(--fyh-radius)] border border-[color:var(--fyh-border-strong)] bg-[color:var(--fyh-bg-elevated)]">
                       {serviceSearching ? (
-                        <li className="px-4 py-4 text-center text-sm text-white/70">Searching…</li>
+                        <li className="px-3 py-3 text-center text-sm text-fyh-text-muted">Searching…</li>
                       ) : serviceHits.length > 0 ? (
                         serviceHits.map((hit) => {
                           const inBasket = basket.some((b) => b.serviceId === hit.id);
                           return (
                             <li
                               key={hit.id}
-                              className="flex items-center justify-between gap-3 px-4 py-3"
+                              className="flex items-center justify-between gap-3 px-3 py-2.5"
                             >
                               <div>
-                                <p className="font-semibold text-white">{hit.name}</p>
-                                <p className="text-sm text-white/75">
+                                <p className="font-semibold text-fyh-text">{hit.name}</p>
+                                <p className="text-xs text-fyh-text-secondary">
                                   {hit.durationMinutes} min · {formatInrFromPaise(hit.pricePaise)}
                                   {hit.category ? ` · ${hit.category}` : ''}
                                 </p>
@@ -410,7 +411,7 @@ export function AppointmentCreateModal({
                           );
                         })
                       ) : (
-                        <li className="px-4 py-4 text-center text-sm text-white/70">
+                        <li className="px-3 py-3 text-center text-sm text-fyh-text-muted">
                           No services found
                         </li>
                       )}
@@ -420,47 +421,45 @@ export function AppointmentCreateModal({
 
                 <div>
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
-                      Selected services
-                    </p>
-                    <label className="flex items-center gap-2 text-sm text-white/80">
+                    <p className="fyh-section-eyebrow">Selected services</p>
+                    <label className="flex items-center gap-2 text-xs text-fyh-text-secondary">
                       <input
                         type="checkbox"
                         checked={sameStaffForAll}
                         onChange={(e) => setSameStaffForAll(e.target.checked)}
-                        className="accent-fyh-forest"
+                        className="fyh-checkbox"
                       />
                       Same staff for all
                     </label>
                   </div>
                   {basket.length === 0 ? (
-                    <p className="mt-2 text-sm text-white/60">Add services from search above</p>
+                    <p className="mt-2 text-sm text-fyh-text-muted">Add services from search above</p>
                   ) : (
-                    <ul className="mt-2 space-y-2">
+                    <ul className="mt-2 space-y-1.5">
                       {basket.map((line, idx) => (
                         <li
                           key={line.key}
-                          className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2"
+                          className="flex flex-wrap items-center gap-2 rounded-[var(--fyh-radius)] border border-[color:var(--fyh-border)] bg-[color:var(--fyh-bg-elevated)] px-3 py-2"
                         >
-                          <span className="text-white/60">{idx + 1}.</span>
-                          <span className="min-w-0 flex-1 font-semibold text-white">{line.name}</span>
-                          <span className="text-sm text-white/80">{line.durationMinutes}m</span>
-                          <span className="text-sm font-semibold text-white">
+                          <span className="text-fyh-text-muted">{idx + 1}.</span>
+                          <span className="min-w-0 flex-1 font-semibold text-fyh-text">{line.name}</span>
+                          <span className="text-xs text-fyh-text-secondary">{line.durationMinutes}m</span>
+                          <span className="text-sm font-semibold text-fyh-text">
                             {formatInrFromPaise(line.pricePaise)}
                           </span>
                           {!sameStaffForAll ? (
                             <select
                               value={line.staffId}
                               onChange={(e) => updateLineStaff(line.key, e.target.value)}
-                              className="rounded-lg border border-white/15 bg-black/30 px-2 py-1 text-sm text-white"
+                              className="fyh-select !h-8 !w-auto text-xs"
                             >
                               {staff.map((s) => (
                                 <option key={s.id} value={s.id}>{s.fullName}</option>
                               ))}
                             </select>
                           ) : (
-                            <span className="text-sm text-white/70">
-                              Staff {staff.find((s) => s.id === line.staffId)?.fullName}
+                            <span className="text-xs text-fyh-text-muted">
+                              {staff.find((s) => s.id === line.staffId)?.fullName}
                             </span>
                           )}
                           <Button
@@ -477,13 +476,13 @@ export function AppointmentCreateModal({
                   )}
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-2 sm:grid-cols-2">
                   <div>
-                    <label className="text-xs text-white/70">Consulted by</label>
+                    <label className="fyh-label">Consulted by</label>
                     <select
                       value={consultedByStaffId}
                       onChange={(e) => setConsultedByStaffId(e.target.value)}
-                      className="mt-1 flex h-10 w-full rounded-xl border border-white/15 bg-black/30 px-3 text-sm text-white"
+                      className="fyh-select mt-1"
                     >
                       <option value="">—</option>
                       {staff.map((s) => (
@@ -492,11 +491,11 @@ export function AppointmentCreateModal({
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-white/70">Status</label>
+                    <label className="fyh-label">Status</label>
                     <select
                       value={status}
                       onChange={(e) => setStatus(e.target.value as FyhAppointmentStatus)}
-                      className="mt-1 flex h-10 w-full rounded-xl border border-white/15 bg-black/30 px-3 text-sm text-white"
+                      className="fyh-select mt-1"
                     >
                       {CREATE_STATUSES.map((s) => (
                         <option key={s} value={s}>
@@ -507,8 +506,8 @@ export function AppointmentCreateModal({
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-4">
-                  <label className="flex items-center gap-2 text-sm text-white/85">
+                <div className="flex flex-wrap gap-3">
+                  <label className="flex items-center gap-2 text-sm text-fyh-text-secondary">
                     <input
                       type="checkbox"
                       checked={walkIn}
@@ -516,120 +515,82 @@ export function AppointmentCreateModal({
                         setWalkIn(e.target.checked);
                         if (e.target.checked) setStatus('arrived');
                       }}
-                      className="accent-fyh-forest"
+                      className="fyh-checkbox"
                     />
                     Walk-in
                   </label>
                   <div className="flex items-center gap-2">
-                    <label className="text-sm text-white/85">Repeat weeks</label>
+                    <label className="text-sm text-fyh-text-secondary">Repeat weeks</label>
                     <Input
                       type="number"
                       min={1}
                       max={12}
                       value={recurrenceWeeks}
                       onChange={(e) => setRecurrenceWeeks(e.target.value)}
-                      className="h-9 w-20 text-white"
+                      className="h-9 w-20"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-xs text-white/70">Notes</label>
+                  <label className="fyh-label">Notes</label>
                   <Input
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     placeholder="Appointment notes"
-                    className="mt-1 text-white"
+                    className="mt-1"
                   />
                 </div>
               </section>
 
-              <aside className="space-y-4">
-                {selectedCustomer && bookingContext ? (
-                  <div className="rounded-xl border border-white/15 bg-black/30 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
-                      Last visit / credit
-                    </p>
-                    {bookingContext.lastVisit ? (
-                      <button
-                        type="button"
-                        className="mt-2 text-left"
-                        onClick={() => setHistoryOpen(true)}
-                      >
-                        <p className="text-sm text-white/70">Last visit</p>
-                        <p className="font-semibold text-white underline decoration-white/30">
-                          {bookingContext.lastVisit.displayDate}
-                        </p>
-                        <p className="mt-1 text-xs text-fyh-forest">View history →</p>
-                      </button>
-                    ) : (
-                      <p className="mt-2 text-sm text-white/70">No previous visits</p>
-                    )}
-                    <div className="mt-4 space-y-1 border-t border-white/10 pt-3">
-                      <p className="text-sm text-white/70">Available credit</p>
-                      <p className="text-xl font-semibold text-white">
-                        {formatInrFromPaise(walletPaise)}
-                      </p>
-                      {bookingContext.financial.duePaise > 0 ? (
-                        <p className="text-sm text-white/70">
-                          Due {formatInrFromPaise(bookingContext.financial.duePaise)}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="rounded-xl border border-white/15 bg-black/30 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
-                    Payment summary
-                  </p>
-                  <dl className="mt-3 space-y-2 text-sm">
+              <aside className="space-y-3">
+                <div className="fyh-card !p-3">
+                  <p className="fyh-section-eyebrow">Payment summary</p>
+                  <dl className="mt-2 space-y-1.5 text-sm">
                     <div className="flex justify-between">
-                      <dt className="text-white/75">Services</dt>
-                      <dd className="font-semibold text-white">
+                      <dt className="text-fyh-text-secondary">Services</dt>
+                      <dd className="font-semibold text-fyh-text">
                         {formatInrFromPaise(servicesTotalPaise)}
                       </dd>
                     </div>
                     <div className="flex justify-between">
-                      <dt className="text-white/75">Available credit</dt>
-                      <dd className="font-semibold text-white">{formatInrFromPaise(walletPaise)}</dd>
+                      <dt className="text-fyh-text-secondary">Available credit</dt>
+                      <dd className="font-semibold text-fyh-text">{formatInrFromPaise(walletPaise)}</dd>
                     </div>
-                    <div className="flex justify-between border-t border-white/10 pt-2">
-                      <dt className="text-white/75">Balance due at checkout</dt>
-                      <dd className="text-lg font-semibold text-white">
+                    <div className="flex justify-between border-t border-[color:var(--fyh-border)] pt-2">
+                      <dt className="text-fyh-text-secondary">Balance due at checkout</dt>
+                      <dd className="text-base font-semibold text-fyh-accent">
                         {formatInrFromPaise(balanceDuePaise)}
                       </dd>
                     </div>
                   </dl>
-                  <p className="mt-2 text-xs text-white/55">
+                  <p className="mt-2 text-xs text-fyh-text-muted">
                     Wallet credit is applied at checkout. Advance payments increase available credit.
                   </p>
                 </div>
 
                 {selectedCustomer ? (
-                  <div className="rounded-xl border border-white/15 bg-black/30 p-4 space-y-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
-                      Advance / payment
-                    </p>
+                  <div className="fyh-card space-y-2 !p-3">
+                    <p className="fyh-section-eyebrow">Advance / payment</p>
                     <div>
-                      <label className="text-xs text-white/70">Advance amount ₹</label>
+                      <label className="fyh-label">Advance amount ₹</label>
                       <Input
                         type="number"
                         min={0}
                         step="0.01"
                         value={advanceRupees}
                         onChange={(e) => setAdvanceRupees(e.target.value)}
-                        className="mt-1 text-white"
+                        className="mt-1"
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-white/70">Payment method</label>
+                      <label className="fyh-label">Payment method</label>
                       <select
                         value={advanceMethod}
                         onChange={(e) =>
                           setAdvanceMethod(e.target.value as AdvancePaymentMethod)
                         }
-                        className="mt-1 flex h-10 w-full rounded-xl border border-white/15 bg-black/30 px-3 text-sm text-white"
+                        className="fyh-select mt-1"
                       >
                         {PAYMENT_METHODS.map((m) => (
                           <option key={m.id} value={m.id}>{m.label}</option>
@@ -640,7 +601,7 @@ export function AppointmentCreateModal({
                       <p className="text-sm text-fyh-danger">{advanceError}</p>
                     ) : null}
                     {advanceSuccess ? (
-                      <p className="text-sm text-fyh-forest">{advanceSuccess}</p>
+                      <p className="text-sm text-fyh-success">{advanceSuccess}</p>
                     ) : null}
                     <Button
                       type="button"
@@ -657,9 +618,7 @@ export function AppointmentCreateModal({
             </div>
           </div>
 
-          <footer
-            className="shrink-0 border-t border-white/10 bg-fyh-elevated px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6"
-          >
+          <footer className="fyh-modal-footer">
             {createState.error ? (
               <p className="mb-2 text-sm text-fyh-danger">{createState.error}</p>
             ) : null}
@@ -687,15 +646,6 @@ export function AppointmentCreateModal({
           </footer>
         </div>
       </div>
-
-      {selectedCustomer ? (
-        <CustomerVisitHistoryPanel
-          customerId={selectedCustomer.id}
-          customerName={selectedCustomer.fullName}
-          open={historyOpen}
-          onClose={() => setHistoryOpen(false)}
-        />
-      ) : null}
     </>
   );
 }

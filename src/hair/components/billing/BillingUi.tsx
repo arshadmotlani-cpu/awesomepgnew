@@ -24,7 +24,7 @@ export function BillingUi({ invoices }: { invoices: BillingInvoiceRow[] }) {
     <div className="space-y-6">
       <div>
         <p className="fyh-section-eyebrow">Money</p>
-        <h1 className="fyh-display mt-1 text-3xl font-semibold">Billing</h1>
+        <h1 className="fyh-display mt-1 font-semibold">Billing</h1>
         <p className="mt-1 text-sm text-fyh-text-secondary">
           Invoices from appointment checkout. Retail product sales use the Products catalog when
           that flow is enabled; today most invoices come from completed appointments.

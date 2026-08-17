@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { FyhCustomerSearch } from '@/src/hair/components/booking/FyhCustomerSearch';
+import { FyhCustomerContextStrip } from '@/src/hair/components/customers/FyhCustomerContextStrip';
 import { submitAdvancePaymentAction } from '@/src/hair/actions/advancePayment';
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
@@ -30,10 +31,10 @@ export function AdvancePaymentShell() {
 
   if (step === 'done' && customer) {
     return (
-      <div className="mx-auto max-w-lg space-y-8 py-12 text-center">
+      <div className="mx-auto max-w-lg space-y-4 py-12 text-center">
         <div>
           <p className="fyh-section-eyebrow">Advance Payment</p>
-          <h1 className="fyh-display mt-2 text-3xl font-semibold text-fyh-text">Wallet credited</h1>
+          <h1 className="fyh-display mt-2 font-semibold text-fyh-text">Wallet credited</h1>
           <p className="mt-2 text-sm text-fyh-text-secondary">
             {customer.fullName} · new balance{' '}
             {newBalance != null ? formatInrFromPaise(newBalance) : '—'}
@@ -64,18 +65,18 @@ export function AdvancePaymentShell() {
 
   if (step === 'customer') {
     return (
-      <div className="mx-auto max-w-xl space-y-8 py-6 md:py-10">
+      <div className="mx-auto max-w-xl space-y-4 py-6 md:py-10">
         <div>
           <p className="fyh-section-eyebrow">Advance Payment</p>
-          <h1 className="fyh-display mt-1 text-3xl font-semibold text-fyh-text">Find customer</h1>
+          <h1 className="fyh-display mt-1 font-semibold text-fyh-text">Find customer</h1>
           <p className="mt-1 text-sm text-fyh-text-muted">
             Add money to wallet · no invoice
           </p>
         </div>
         <FyhCustomerSearch
           autoFocus
+          createContext="quick_sale"
           placeholder="Search by name, phone, customer code..."
-          inputClassName="h-14 text-lg"
           onSelect={(hit) => {
             setCustomer(hit);
             setStep('pay');
@@ -100,6 +101,14 @@ export function AdvancePaymentShell() {
         <p className="text-sm text-fyh-text-muted">
           Current wallet {formatInrFromPaise(customer?.walletBalancePaise ?? 0)}
         </p>
+        {customer ? (
+          <FyhCustomerContextStrip
+            customerId={customer.id}
+            customerName={customer.fullName}
+            variant="compact"
+            className="mt-3"
+          />
+        ) : null}
       </div>
 
       <label className="block text-sm text-fyh-text-secondary">

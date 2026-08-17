@@ -42,7 +42,7 @@ export function ProductsList({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="fyh-section-eyebrow">Inventory</p>
-          <h1 className="fyh-display mt-1 text-3xl font-semibold">Products</h1>
+          <h1 className="fyh-display mt-1 font-semibold">Products</h1>
           <p className="mt-1 text-sm text-fyh-text-secondary">
             Professional supplies for services · Retail items for billing
           </p>

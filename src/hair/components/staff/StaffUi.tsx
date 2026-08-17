@@ -24,7 +24,7 @@ export function StaffPage({
     <div className="space-y-6">
       <div>
         <p className="fyh-section-eyebrow">Team</p>
-        <h1 className="fyh-display mt-1 text-3xl font-semibold">Staff</h1>
+        <h1 className="fyh-display mt-1 font-semibold">Staff</h1>
         <p className="mt-1 text-sm text-fyh-text-secondary">
           Assign stylists to services. Commissions accrue on paid invoices.{' '}
           <Link href="/fyh/staff/performance" className="text-fyh-accent underline-offset-2 hover:underline">

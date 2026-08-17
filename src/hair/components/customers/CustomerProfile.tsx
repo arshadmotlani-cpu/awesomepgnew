@@ -142,7 +142,7 @@ export function CustomerProfile({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="fyh-section-eyebrow">Customer profile</p>
-              <h1 className="fyh-display mt-1 text-3xl font-semibold tracking-tight">
+              <h1 className="fyh-display mt-1 font-semibold tracking-tight">
                 {customer.fullName}
               </h1>
               <p className="mt-1 text-sm text-fyh-text-secondary">

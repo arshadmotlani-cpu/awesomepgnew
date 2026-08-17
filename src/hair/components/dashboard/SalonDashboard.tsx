@@ -94,11 +94,11 @@ export function SalonDashboard({
   const { collectionsVsSales, todayCollectionsByMethod } = financial;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="fyh-section-eyebrow">Command center</p>
-          <h1 className="fyh-display mt-2 text-3xl font-semibold tracking-tight text-fyh-text">
+          <h1 className="fyh-display mt-2 font-semibold tracking-tight text-fyh-text">
             Dashboard
           </h1>
           <p className="mt-2 text-base text-fyh-text-secondary">

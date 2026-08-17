@@ -15,11 +15,11 @@ export function ReportShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="fyh-page">
+      <div className="fyh-page-header">
         <div>
           <p className="fyh-section-eyebrow">Reports</p>
-          <h1 className="fyh-display mt-1 text-3xl font-semibold">{title}</h1>
+          <h1 className="fyh-display mt-1 font-semibold">{title}</h1>
           {subtitle ? (
             <p className="mt-1 text-sm text-fyh-text-secondary">{subtitle}</p>
           ) : null}

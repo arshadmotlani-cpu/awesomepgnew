@@ -12,11 +12,11 @@ export function DashboardShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-8 pb-10">
+    <div className="fyh-page pb-6">
       <div>
         <p className="fyh-section-eyebrow">{eyebrow}</p>
-        <h1 className="fyh-display mt-2 text-3xl font-semibold tracking-tight text-fyh-text">{title}</h1>
-        {subtitle ? <p className="mt-2 text-sm text-fyh-text-secondary">{subtitle}</p> : null}
+        <h1 className="fyh-display mt-1 font-semibold tracking-tight text-fyh-text">{title}</h1>
+        {subtitle ? <p className="mt-1 text-sm text-fyh-text-secondary">{subtitle}</p> : null}
       </div>
       {children}
     </div>

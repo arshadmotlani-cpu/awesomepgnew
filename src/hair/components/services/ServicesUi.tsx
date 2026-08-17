@@ -42,7 +42,7 @@ export function ServicesList({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="fyh-section-eyebrow">Menu</p>
-          <h1 className="fyh-display mt-1 text-3xl font-semibold">Services</h1>
+          <h1 className="fyh-display mt-1 font-semibold">Services</h1>
           <p className="mt-1 text-sm text-fyh-text-secondary">
             What you sell — priced for appointments, billing, and packages
           </p>

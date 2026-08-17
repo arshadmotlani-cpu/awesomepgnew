@@ -124,7 +124,7 @@ export function StaffDaySchedulerGrid({
                     className="h-8 w-8 shrink-0 rounded-full object-cover"
                   />
                 ) : (
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-fyh-forest/30 text-xs font-semibold text-white">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--fyh-accent)_22%,transparent)] text-[10px] font-semibold text-fyh-text">
                     {staffInitials(s.fullName)}
                   </div>
                 )}
@@ -141,7 +141,7 @@ export function StaffDaySchedulerGrid({
                     key={mins}
                     type="button"
                     className={cn(
-                      'fyh-scheduler-grid-slot absolute top-0 bottom-0 hover:bg-fyh-forest/10 transition-colors',
+                      'fyh-scheduler-grid-slot absolute top-0 bottom-0 hover:bg-[color-mix(in_srgb,var(--fyh-accent)_12%,transparent)] transition-colors',
                     )}
                     style={{
                       left: i * SLOT_WIDTH_PX,
@@ -156,7 +156,7 @@ export function StaffDaySchedulerGrid({
 
                 {showNowLine && nowLeft !== null ? (
                   <div
-                    className="pointer-events-none absolute top-0 bottom-0 z-20 w-0.5 bg-fyh-accent"
+                    className="fyh-scheduler-now-line pointer-events-none absolute top-0 bottom-0 z-20 w-0.5"
                     style={{ left: nowLeft }}
                   />
                 ) : null}

@@ -434,7 +434,7 @@ export function InvoiceRegisterUi({
       <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="fyh-section-eyebrow">Billing</p>
-          <h1 className="fyh-display mt-1 text-3xl font-semibold">Invoice Register</h1>
+          <h1 className="fyh-display mt-1 font-semibold">Invoice Register</h1>
           <p className="mt-2 text-sm text-fyh-text-secondary">
             Every invoice from Quick Sale, appointments, and historical import — searchable and
             exportable.

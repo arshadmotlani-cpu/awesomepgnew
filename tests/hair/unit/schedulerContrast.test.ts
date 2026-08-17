@@ -23,7 +23,7 @@ test('StaffDaySchedulerGrid uses high-contrast scheduler classes', () => {
 test('globals.css defines scheduler contrast tokens', () => {
   const css = readFileSync(join(root, 'src/hair/styles/globals.css'), 'utf8');
   assert.match(css, /\.fyh-scheduler-time-label/);
-  assert.match(css, /color:\s*#ffffff/);
+  assert.match(css, /--fyh-scheduler-now/);
   assert.match(css, /--fyh-scheduler-grid-line/);
   assert.match(css, /--fyh-scheduler-border/);
 });

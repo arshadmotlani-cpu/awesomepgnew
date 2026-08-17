@@ -1,7 +1,12 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requirePermission } from '@/src/hair/lib/auth/permissions';
+import { requireHairAuth } from '@/src/hair/lib/auth/guards';
+import {
+  HairPermissionError,
+  hasPermission,
+  requirePermission,
+} from '@/src/hair/lib/auth/permissions';
 import type { AdvancePaymentMethod } from '@/src/hair/services/loyaltyOps';
 import { recordAdvancePayment } from '@/src/hair/services/loyaltyOps';
 import {
@@ -11,8 +16,21 @@ import {
   searchServicesForBooking,
 } from '@/src/hair/services/bookingContext';
 
+async function requireCustomerContextPermission() {
+  const admin = await requireHairAuth();
+  const allowed =
+    hasPermission(admin, 'page:appointments') ||
+    hasPermission(admin, 'page:quick_sale') ||
+    hasPermission(admin, 'page:billing') ||
+    hasPermission(admin, 'page:customers');
+  if (!allowed) {
+    throw new HairPermissionError('Missing permission to view customer context');
+  }
+  return admin;
+}
+
 export async function searchCustomersForBookingAction(query: string) {
-  await requirePermission('page:appointments');
+  await requireCustomerContextPermission();
   return searchCustomersForPos(query);
 }
 
@@ -26,8 +44,14 @@ export async function loadCustomerBookingContextAction(customerId: string) {
   return getCustomerBookingContext(customerId);
 }
 
+/** Customer wallet / last visit — Quick Sale, appointments, billing. */
+export async function loadCustomerContextForPosAction(customerId: string) {
+  await requireCustomerContextPermission();
+  return getCustomerBookingContext(customerId);
+}
+
 export async function loadCustomerVisitHistoryAction(customerId: string) {
-  await requirePermission('page:appointments');
+  await requireCustomerContextPermission();
   return getCustomerVisitHistory(customerId);
 }
 

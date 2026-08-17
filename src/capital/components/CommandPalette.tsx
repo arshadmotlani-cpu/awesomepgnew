@@ -49,7 +49,7 @@ export function CommandPalette() {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 pt-[15vh]">
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 pt-[max(15vh,calc(env(safe-area-inset-top)+1rem))] pb-[max(1rem,env(safe-area-inset-bottom))]">
       <Command
         className="ac-glass-card w-full max-w-lg overflow-hidden rounded-xl border border-white/10 shadow-2xl"
         shouldFilter={false}

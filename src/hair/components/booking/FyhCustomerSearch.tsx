@@ -1,10 +1,19 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Plus } from 'lucide-react';
 import { searchCustomersForBookingAction } from '@/src/hair/actions/booking';
 import { Input } from '@/src/hair/components/ui/input';
+import { inferQuickSaleCustomerPrefill } from '@/src/hair/lib/quickSaleCustomerPrefill';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import type { PosCustomerHit } from '@/src/hair/services/quickSale';
+import {
+  FyhCustomerCreateButton,
+  FyhCustomerCreateModal,
+  type FyhCustomerCreatePrefill,
+} from '@/src/hair/components/customers/FyhCustomerCreateModal';
+import type { SalonCustomerCreateContext } from '@/src/hair/actions/quickSaleCustomer';
+import { cn } from '@/src/hair/lib/utils';
 
 type Props = {
   onSelect: (customer: PosCustomerHit) => void;
@@ -12,7 +21,8 @@ type Props = {
   autoFocus?: boolean;
   className?: string;
   inputClassName?: string;
-  tone?: 'default' | 'booking';
+  createContext?: SalonCustomerCreateContext;
+  showCreateButton?: boolean;
 };
 
 export function FyhCustomerSearch({
@@ -21,11 +31,17 @@ export function FyhCustomerSearch({
   autoFocus = false,
   className,
   inputClassName,
-  tone = 'default',
+  createContext = 'appointment_booking',
+  showCreateButton = true,
 }: Props) {
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<PosCustomerHit[]>([]);
   const [searching, setSearching] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createPrefill, setCreatePrefill] = useState<FyhCustomerCreatePrefill>({
+    fullName: '',
+    phone: '',
+  });
 
   useEffect(() => {
     const q = query.trim();
@@ -44,52 +60,61 @@ export function FyhCustomerSearch({
     return () => window.clearTimeout(t);
   }, [query]);
 
-  const listTone =
-    tone === 'booking'
-      ? 'divide-white/10 border-white/15 bg-black/40'
-      : 'divide-[color:var(--fyh-border)] border-[color:var(--fyh-border)] bg-black/10';
-  const nameTone = tone === 'booking' ? 'text-white' : 'text-fyh-text';
-  const metaTone = tone === 'booking' ? 'text-white/75' : 'text-fyh-text-muted';
-  const emptyTone = tone === 'booking' ? 'text-white/70' : 'text-fyh-text-muted';
-  const hoverTone = tone === 'booking' ? 'hover:bg-white/10' : 'hover:bg-white/5';
+  const trimmed = query.trim();
+  const showResults = trimmed.length >= 1;
+  const digitsOnly = trimmed.replace(/\D/g, '');
+  const looksLikePhone = digitsOnly.length >= 6;
+
+  function openCreate(prefill?: FyhCustomerCreatePrefill) {
+    setCreatePrefill(prefill ?? inferQuickSaleCustomerPrefill(trimmed));
+    setCreateOpen(true);
+  }
+
+  function handleCreated(customer: PosCustomerHit) {
+    onSelect(customer);
+    setQuery('');
+    setHits([]);
+    setCreateOpen(false);
+  }
 
   return (
     <div className={className}>
-      <Input
-        autoFocus={autoFocus}
-        aria-label="Search customer"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder={placeholder}
-        className={
-          inputClassName ??
-          (tone === 'booking'
-            ? 'h-12 text-base text-white placeholder:text-white/50'
-            : 'h-12 text-base')
-        }
-      />
-      {query.trim().length >= 1 ? (
+      <div className="flex gap-2">
+        <Input
+          autoFocus={autoFocus}
+          aria-label="Search customer"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={placeholder}
+          className={cn('flex-1', inputClassName)}
+        />
+        {showCreateButton ? (
+          <FyhCustomerCreateButton onClick={() => openCreate()} />
+        ) : null}
+      </div>
+
+      {showResults ? (
         <ul
-          className={`mt-2 divide-y overflow-hidden rounded-xl border ${listTone}`}
+          className="mt-2 divide-y divide-[color:var(--fyh-border)] overflow-hidden rounded-[var(--fyh-radius)] border border-[color:var(--fyh-border-strong)] bg-[color:var(--fyh-bg-elevated)]"
           role="listbox"
         >
           {searching ? (
-            <li className={`px-4 py-5 text-center text-sm ${emptyTone}`}>Searching…</li>
+            <li className="px-3 py-3 text-center text-sm text-fyh-text-muted">Searching…</li>
           ) : hits.length > 0 ? (
             hits.map((hit) => (
               <li key={hit.id}>
                 <button
                   type="button"
                   role="option"
-                  className={`flex w-full flex-col gap-0.5 px-4 py-3 text-left ${hoverTone}`}
+                  className="flex w-full flex-col gap-0.5 px-3 py-2.5 text-left hover:bg-[color-mix(in_srgb,var(--fyh-accent)_8%,transparent)]"
                   onClick={() => {
                     onSelect(hit);
                     setQuery('');
                     setHits([]);
                   }}
                 >
-                  <span className={`font-semibold ${nameTone}`}>{hit.fullName}</span>
-                  <span className={`text-sm ${metaTone}`}>
+                  <span className="font-semibold text-fyh-text">{hit.fullName}</span>
+                  <span className="text-xs text-fyh-text-secondary">
                     {hit.phone}
                     {hit.customerCode ? ` · ${hit.customerCode}` : ''}
                     {hit.walletBalancePaise > 0
@@ -100,10 +125,30 @@ export function FyhCustomerSearch({
               </li>
             ))
           ) : (
-            <li className={`px-4 py-5 text-center text-sm ${emptyTone}`}>No customers found</li>
+            <li className="px-3 py-3 text-center">
+              <p className="text-sm text-fyh-text-muted">
+                {looksLikePhone ? 'No customer found for this number' : 'No customers found'}
+              </p>
+              <button
+                type="button"
+                className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-fyh-accent hover:text-fyh-accent-soft"
+                onClick={() => openCreate()}
+              >
+                <Plus className="h-4 w-4" />
+                Create new customer
+              </button>
+            </li>
           )}
         </ul>
       ) : null}
+
+      <FyhCustomerCreateModal
+        open={createOpen}
+        prefill={createPrefill}
+        context={createContext}
+        onClose={() => setCreateOpen(false)}
+        onCreated={handleCreated}
+      />
     </div>
   );
 }

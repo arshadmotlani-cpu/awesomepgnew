@@ -26,7 +26,7 @@ export function AdjustmentsList({ adjustments }: { adjustments: AdjustmentRow[] 
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="fyh-section-eyebrow">Inventory</p>
-          <h1 className="fyh-display mt-1 text-3xl font-semibold">Stock adjustments</h1>
+          <h1 className="fyh-display mt-1 font-semibold">Stock adjustments</h1>
           <p className="mt-1 text-sm text-fyh-text-secondary">
             Manual corrections for counts, damage, or shrinkage
           </p>

@@ -12,7 +12,7 @@ export function MovementsList({ movements }: { movements: MovementRow[] }) {
     <div className="space-y-4">
       <div>
         <p className="fyh-section-eyebrow">Inventory</p>
-        <h1 className="fyh-display mt-1 text-3xl font-semibold">Stock movements</h1>
+        <h1 className="fyh-display mt-1 font-semibold">Stock movements</h1>
         <p className="mt-1 text-sm text-fyh-text-secondary">
           Append-only ledger of all stock changes
         </p>

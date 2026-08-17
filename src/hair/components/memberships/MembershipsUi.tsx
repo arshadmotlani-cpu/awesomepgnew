@@ -7,7 +7,7 @@ export function MembershipsList({ memberships }: { memberships: FyhMembershipPla
     <div className="space-y-4">
       <div>
         <p className="fyh-section-eyebrow">Configuration</p>
-        <h1 className="fyh-display mt-1 text-3xl font-semibold">Memberships</h1>
+        <h1 className="fyh-display mt-1 font-semibold">Memberships</h1>
         <p className="mt-1 text-sm text-fyh-text-secondary">
           Subscription plans with recurring benefits — validity periods, discounts, priority booking,
           and member perks. Separate from one-time service packages.

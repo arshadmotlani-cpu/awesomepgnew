@@ -24,7 +24,7 @@ export function HairAppHeader({ admin, navEntries }: HairAppHeaderProps) {
   return (
     <>
       <header className="sticky top-0 z-[100] border-b border-[color:var(--fyh-border-strong)] bg-fyh-elevated/90 backdrop-blur-xl">
-        <div className="flex h-12 min-h-12 items-center gap-2 px-3 sm:gap-3 sm:px-4 md:px-5">
+        <div className="flex h-11 min-h-11 items-center gap-2 px-3 sm:gap-2.5 sm:px-3.5 md:px-4">
           <Button
             type="button"
             variant="ghost"

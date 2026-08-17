@@ -21,6 +21,7 @@ import { ResourceColumnSchedulerGrid } from './ResourceColumnSchedulerGrid';
 import { StaffDaySchedulerGrid } from './StaffDaySchedulerGrid';
 import { ApptCardBody } from './schedulerUi';
 import { addDaysIso, formatHmInSalonTz, salonDayKeyFromUtc, weekDayKeys } from './schedulerTime';
+import { formatSalonDisplayDate } from '@/src/hair/lib/formatSalonDate';
 
 type ViewMode = 'day' | 'week' | 'timeline' | 'chair' | 'stylist';
 
@@ -149,7 +150,7 @@ export function AppointmentsCalendar({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="fyh-section-eyebrow">Floor</p>
-          <h1 className="fyh-display mt-1 text-3xl font-semibold">Appointments</h1>
+          <h1 className="fyh-display mt-1 font-semibold">Appointments</h1>
           <p className="mt-1 text-sm text-fyh-text-secondary">
             Click empty slots to book · drag edges to resize · Raise Sale from detail
           </p>
@@ -174,7 +175,9 @@ export function AppointmentsCalendar({
           >
             Next
           </Button>
-          <span className="px-2 text-sm tabular-nums text-fyh-text">{dayIso}</span>
+          <span className="px-2 text-sm font-semibold tabular-nums text-fyh-text">
+            {formatSalonDisplayDate(dayIso)}
+          </span>
           <Button
             type="button"
             size="sm"
@@ -203,7 +206,7 @@ export function AppointmentsCalendar({
             type="button"
             onClick={() => setView(id)}
             className={cn(
-              'rounded-xl px-3 py-1.5 text-sm transition',
+              'rounded-lg px-2.5 py-1 text-xs font-semibold transition',
               view === id ? 'fyh-scheduler-tab-active' : 'fyh-scheduler-tab',
             )}
           >
@@ -265,7 +268,7 @@ export function AppointmentsCalendar({
                   d === dayIso && 'ring-1 ring-fyh-accent/40',
                 )}
               >
-                <p className="text-xs font-medium text-fyh-accent">{d}</p>
+                <p className="text-xs font-semibold text-fyh-text">{formatSalonDisplayDate(d)}</p>
                 {list.length === 0 ? (
                   <p className="text-xs text-fyh-text-muted">Empty</p>
                 ) : (

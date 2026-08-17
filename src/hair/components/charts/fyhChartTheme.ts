@@ -1,14 +1,14 @@
 'use client';
 
 export const FYH_CHART_TOOLTIP = {
-  background: 'rgba(22, 22, 26, 0.96)',
-  border: '1px solid rgba(255,255,255,0.1)',
-  borderRadius: 10,
-  color: '#F5F5F0',
+  background: 'rgba(16, 24, 39, 0.96)',
+  border: '1px solid rgba(148, 163, 184, 0.35)',
+  borderRadius: 8,
+  color: '#F8FAFC',
   fontSize: 12,
 };
 
-export const FYH_CHART_COLORS = ['#10B981', '#C9A227', '#60A5FA', '#A78BFA', '#F87171', '#34D399'];
+export const FYH_CHART_COLORS = ['#22D3EE', '#6366F1', '#67E8F9', '#818CF8', '#34D399', '#F87171'];
 
 export function formatChartInr(paise: number): string {
   const rupees = paise / 100;

@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { MoreVertical } from 'lucide-react';
-import { createQuickCustomerFromForm } from '@/src/hair/actions/quickSaleCustomer';
+import { FyhCustomerSearch } from '@/src/hair/components/booking/FyhCustomerSearch';
+import { FyhCustomerContextStrip } from '@/src/hair/components/customers/FyhCustomerContextStrip';
 import {
   completeQuickSaleAction,
   holdQuickSaleAction,
   listQuickSaleHoldsAction,
   loadQuickSaleHoldAction,
   previewQuickSaleTotalsAction,
-  searchCustomersForPosAction,
 } from '@/src/hair/actions/quickSale';
 import { QuickSaleBasketTable } from '@/src/hair/components/quick-sale/QuickSaleBasketTable';
 import { QuickSalePaymentPanel } from '@/src/hair/components/quick-sale/QuickSalePaymentPanel';
@@ -21,7 +21,6 @@ import type { BillableItem, BillableItemType } from '@/src/hair/domain/catalog/t
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
-import { inferQuickSaleCustomerPrefill } from '@/src/hair/lib/quickSaleCustomerPrefill';
 import {
   clearQuickSaleSession,
   loadQuickSaleSession,
@@ -35,10 +34,6 @@ import type { FyhBillingSettings } from '@/src/hair/db/schema/settings';
 
 type SelectedCustomer = PosCustomerHit;
 type TabFilter = QuickSaleTab;
-
-function normalizePhoneDigits(phone: string) {
-  return phone.replace(/\D/g, '');
-}
 
 function matchesBillable(item: BillableItem, q: string) {
   const trimmed = q.trim().toLowerCase();
@@ -75,10 +70,6 @@ export function QuickSaleShell({
   const [appointmentId, setAppointmentId] = useState<string | null>(
     appointmentPrefill?.appointmentId ?? null,
   );
-  const [searchQ, setSearchQ] = useState('');
-  const [searchHits, setSearchHits] = useState<PosCustomerHit[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [addOpen, setAddOpen] = useState(false);
   const [tab, setTab] = useState<TabFilter>('service');
   const [catalogQ, setCatalogQ] = useState('');
   const [lines, setLines] = useState<BasketLine[]>(appointmentPrefill?.lines ?? []);
@@ -100,7 +91,6 @@ export function QuickSaleShell({
   const [staffNames, setStaffNames] = useState<Record<string, string>>({});
   const [sessionHydrated, setSessionHydrated] = useState(false);
   const [pending, startTransition] = useTransition();
-  const customerSearchRef = useRef<HTMLInputElement>(null);
   const catalogSearchRef = useRef<HTMLInputElement>(null);
 
   const basket: Basket | null = customer
@@ -197,38 +187,11 @@ export function QuickSaleShell({
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       e.preventDefault();
-      if (step === 'customer') customerSearchRef.current?.focus();
-      else if (step === 'sale') catalogSearchRef.current?.focus();
+      if (step === 'sale') catalogSearchRef.current?.focus();
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [step]);
-
-  useEffect(() => {
-    if (searchQ.trim().length < 1) {
-      setSearchHits([]);
-      return;
-    }
-    const t = window.setTimeout(async () => {
-      setSearching(true);
-      try {
-        const hits = await searchCustomersForPosAction(searchQ);
-        setSearchHits(hits);
-        const digits = normalizePhoneDigits(searchQ);
-        if (digits.length >= 10) {
-          const exact = hits.filter((h) => normalizePhoneDigits(h.phone) === digits);
-          if (exact.length === 1) {
-            setCustomer(exact[0]!);
-            setHoldInvoiceId(null);
-            setStep('sale');
-          }
-        }
-      } finally {
-        setSearching(false);
-      }
-    }, 200);
-    return () => window.clearTimeout(t);
-  }, [searchQ]);
 
   useEffect(() => {
     if (!customer?.id || lines.length === 0) {
@@ -267,7 +230,6 @@ export function QuickSaleShell({
     clearQuickSaleSession();
     setCustomer(null);
     setAppointmentId(null);
-    setSearchQ('');
     setLines([]);
     setPayments([]);
     setFlags({});
@@ -364,66 +326,33 @@ export function QuickSaleShell({
 
   if (step === 'customer') {
     return (
-      <div className="mx-auto max-w-xl space-y-8 py-6 md:py-10">
+      <div className="fyh-page mx-auto max-w-xl py-4 md:py-6">
         {appointmentError ? (
-          <p className="rounded-xl border border-fyh-danger/30 bg-fyh-danger/10 px-4 py-3 text-sm text-fyh-danger">
-            {appointmentError}
-          </p>
+          <p className="fyh-alert-danger-box">{appointmentError}</p>
         ) : null}
         <div>
           <p className="fyh-section-eyebrow">Quick Sale</p>
-          <h1 className="fyh-display mt-1 text-3xl font-semibold text-fyh-text">Find customer</h1>
+          <h1 className="fyh-display mt-1 font-semibold text-fyh-text">Find customer</h1>
         </div>
-        <div className="flex gap-2">
-          <Input
-            ref={customerSearchRef}
-            autoFocus
-            aria-label="Search customer by name, phone, or code"
-            value={searchQ}
-            onChange={(e) => setSearchQ(e.target.value)}
-            placeholder="Search name / phone / customer code"
-            className="h-14 min-w-0 flex-1 text-lg"
-          />
-          <Button type="button" className="h-14 shrink-0" onClick={() => setAddOpen(true)}>
-            + Add Customer
-          </Button>
-        </div>
-        {searchQ.trim().length >= 1 ? (
-          <ul className="divide-y divide-[color:var(--fyh-border)] overflow-hidden rounded-2xl border border-[color:var(--fyh-border)] bg-black/10">
-            {searching ? (
-              <li className="px-5 py-6 text-center text-sm text-fyh-text-muted">Searching…</li>
-            ) : searchHits.length > 0 ? (
-              searchHits.map((hit) => (
-                <li key={hit.id}>
-                  <button
-                    type="button"
-                    className="flex w-full flex-col gap-0.5 px-5 py-4 text-left hover:bg-white/5"
-                    onClick={() => {
-                      setCustomer(hit);
-                      setStep('sale');
-                    }}
-                  >
-                    <span className="font-semibold text-fyh-text">{hit.fullName}</span>
-                    <span className="text-sm text-fyh-text-muted">
-                      {hit.customerCode} · {hit.phone}
-                    </span>
-                  </button>
-                </li>
-              ))
-            ) : (
-              <li className="px-5 py-6 text-center text-sm text-fyh-text-muted">No matching customer</li>
-            )}
-          </ul>
-        ) : null}
+        <FyhCustomerSearch
+          autoFocus
+          createContext="quick_sale"
+          placeholder="Search name / phone / customer code"
+          onSelect={(hit) => {
+            setCustomer(hit);
+            setHoldInvoiceId(null);
+            setStep('sale');
+          }}
+        />
         {heldBills.length > 0 ? (
           <section className="space-y-2">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-fyh-text-muted">Held bills</h2>
-            <ul className="divide-y divide-[color:var(--fyh-border)] rounded-xl border border-[color:var(--fyh-border)] bg-black/10">
+            <h2 className="fyh-label uppercase tracking-wide">Held bills</h2>
+            <ul className="divide-y divide-[color:var(--fyh-border)] rounded-[var(--fyh-radius-lg)] border border-[color:var(--fyh-border-strong)] bg-[color:var(--fyh-bg-surface)]">
               {heldBills.map((hold) => (
                 <li key={hold.invoiceId}>
                   <button
                     type="button"
-                    className="flex w-full justify-between px-4 py-3 text-left hover:bg-white/5"
+                    className="flex w-full justify-between px-3 py-2.5 text-left hover:bg-[color-mix(in_srgb,var(--fyh-accent)_6%,transparent)]"
                     onClick={() => resumeHold(hold.invoiceId)}
                   >
                     <span className="text-sm font-medium">{hold.customerName}</span>
@@ -436,18 +365,6 @@ export function QuickSaleShell({
             </ul>
           </section>
         ) : null}
-        {addOpen ? (
-          <QuickAddCustomerModal
-            prefill={inferQuickSaleCustomerPrefill(searchQ)}
-            onClose={() => setAddOpen(false)}
-            onCreated={(c) => {
-              setCustomer(c);
-              setSearchQ(c.fullName || c.phone);
-              setAddOpen(false);
-              setStep('sale');
-            }}
-          />
-        ) : null}
       </div>
     );
   }
@@ -458,14 +375,18 @@ export function QuickSaleShell({
       <section className="qs-section">
         <p className="qs-section-label">{appointmentId ? 'Appointment checkout' : 'Customer'}</p>
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="fyh-display text-xl font-semibold text-fyh-text">{customer?.fullName}</p>
-            <p className="mt-1 text-sm text-fyh-text-muted">
+          <div className="min-w-0 flex-1 space-y-2">
+            <p className="fyh-card-title">{customer?.fullName}</p>
+            <p className="text-sm text-fyh-text-muted">
               {customer?.customerCode} · {customer?.phone}
-              {customer?.walletBalancePaise ? (
-                <> · Wallet {formatInrFromPaise(customer.walletBalancePaise)}</>
-              ) : null}
             </p>
+            {customer ? (
+              <FyhCustomerContextStrip
+                customerId={customer.id}
+                customerName={customer.fullName}
+                variant="compact"
+              />
+            ) : null}
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -724,60 +645,6 @@ export function QuickSaleShell({
           {pending ? 'Processing…' : 'Confirm sale'}
         </Button>
       </section>
-    </div>
-  );
-}
-
-function QuickAddCustomerModal({
-  prefill,
-  onClose,
-  onCreated,
-}: {
-  prefill: { fullName: string; phone: string };
-  onClose: () => void;
-  onCreated: (c: SelectedCustomer) => void;
-}) {
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <form
-        className="fyh-glass w-full max-w-md space-y-4 p-6"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void (async () => {
-            setSaving(true);
-            setError(null);
-            try {
-              const res = await createQuickCustomerFromForm(new FormData(e.currentTarget));
-              if (!res.ok) {
-                setError(res.error);
-                return;
-              }
-              onCreated({ ...res.customer, walletBalancePaise: 0 });
-            } catch (err) {
-              setError(err instanceof Error ? err.message : 'Could not create customer');
-            } finally {
-              setSaving(false);
-            }
-          })();
-        }}
-      >
-        <h2 className="fyh-display text-xl font-semibold">Add customer</h2>
-        <Input name="fullName" required defaultValue={prefill.fullName} placeholder="Name" />
-        <Input name="phone" required type="tel" defaultValue={prefill.phone} placeholder="Phone" />
-        <input type="hidden" name="gender" value="female" />
-        {error ? <p className="text-sm text-fyh-danger">{error}</p> : null}
-        <div className="flex gap-2">
-          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={saving} className="flex-1">
-            {saving ? 'Saving…' : 'Save'}
-          </Button>
-        </div>
-      </form>
     </div>
   );
 }

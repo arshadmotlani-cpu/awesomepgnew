@@ -1,10 +1,14 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requirePermission } from '@/src/hair/lib/auth/permissions';
-import { createCustomerQuick } from '@/src/hair/services/customers';
+import { requireHairAuth } from '@/src/hair/lib/auth/guards';
+import {
+  HairPermissionError,
+  hasPermission,
+} from '@/src/hair/lib/auth/permissions';
+import { createCustomer, createCustomerQuick } from '@/src/hair/services/customers';
 
-export type QuickCustomerCreateResult =
+export type SalonCustomerCreateResult =
   | {
       ok: true;
       customer: {
@@ -16,23 +20,84 @@ export type QuickCustomerCreateResult =
     }
   | { ok: false; error: string };
 
-/** Quick Sale add-customer — JSON-safe result (no redirect, no Date/BigInt). */
-export async function createQuickCustomerFromForm(
+export type SalonCustomerCreateContext = 'quick_sale' | 'appointment_booking' | 'advance_payment';
+
+const CONTEXT_LABEL: Record<SalonCustomerCreateContext, string> = {
+  quick_sale: 'Quick Sale',
+  appointment_booking: 'Appointment booking',
+  advance_payment: 'Advance payment',
+};
+
+async function requireSalonCustomerCreatePermission() {
+  const admin = await requireHairAuth();
+  const allowed =
+    hasPermission(admin, 'page:quick_sale') ||
+    hasPermission(admin, 'page:appointments') ||
+    hasPermission(admin, 'page:customers');
+  if (!allowed) {
+    throw new HairPermissionError('Missing permission to create customers');
+  }
+  return admin;
+}
+
+function parseGender(raw: string): 'female' | 'male' | 'other' | 'prefer_not_to_say' {
+  const g = raw.trim();
+  if (g === 'male' || g === 'other' || g === 'prefer_not_to_say') return g;
+  return 'female';
+}
+
+function hasExtendedFields(formData: FormData): boolean {
+  const email = String(formData.get('email') ?? '').trim();
+  const dob = String(formData.get('dateOfBirth') ?? '').trim();
+  const notes = String(formData.get('notes') ?? '').trim();
+  return Boolean(email || dob || notes);
+}
+
+/** Shared salon customer create — Quick Sale, appointments, advance payment. */
+export async function createSalonCustomerFromForm(
   formData: FormData,
-): Promise<QuickCustomerCreateResult> {
+): Promise<SalonCustomerCreateResult> {
   try {
-    await requirePermission('page:quick_sale');
+    await requireSalonCustomerCreatePermission();
+
     const fullName = String(formData.get('fullName') ?? '').trim();
     const phone = String(formData.get('phone') ?? '').trim();
-    const genderRaw = String(formData.get('gender') ?? 'female').trim();
-    const gender =
-      genderRaw === 'male' || genderRaw === 'other' || genderRaw === 'prefer_not_to_say'
-        ? genderRaw
-        : 'female';
+    const gender = parseGender(String(formData.get('gender') ?? 'female'));
+    const contextRaw = String(formData.get('context') ?? 'quick_sale').trim();
+    const context: SalonCustomerCreateContext =
+      contextRaw === 'appointment_booking' || contextRaw === 'advance_payment'
+        ? contextRaw
+        : 'quick_sale';
+    const label = CONTEXT_LABEL[context];
 
-    const row = await createCustomerQuick({ fullName, phone, gender });
+    if (!fullName) return { ok: false, error: 'Customer name is required' };
+    if (!phone) return { ok: false, error: 'Phone number is required' };
+
+    let row;
+
+    if (hasExtendedFields(formData)) {
+      row = await createCustomer({
+        fullName,
+        phone,
+        gender,
+        email: String(formData.get('email') ?? '').trim() || null,
+        dateOfBirth: String(formData.get('dateOfBirth') ?? '').trim() || null,
+        notes: String(formData.get('notes') ?? '').trim() || null,
+        source: 'walk_in',
+        forceCreate: true,
+      });
+    } else {
+      row = await createCustomerQuick({
+        fullName,
+        phone,
+        gender,
+        createdVia: label,
+      });
+    }
+
     revalidatePath('/customers');
     revalidatePath('/dashboard/revenue');
+    revalidatePath('/appointments');
 
     return {
       ok: true,
@@ -51,3 +116,15 @@ export async function createQuickCustomerFromForm(
     };
   }
 }
+
+/** @deprecated Prefer createSalonCustomerFromForm */
+export async function createQuickCustomerFromForm(
+  formData: FormData,
+): Promise<SalonCustomerCreateResult> {
+  if (!formData.has('context')) {
+    formData.set('context', 'quick_sale');
+  }
+  return createSalonCustomerFromForm(formData);
+}
+
+export type QuickCustomerCreateResult = SalonCustomerCreateResult;

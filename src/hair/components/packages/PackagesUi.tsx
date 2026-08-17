@@ -7,7 +7,7 @@ export function PackagesList({ packages }: { packages: FyhPackagePlan[] }) {
     <div className="space-y-4">
       <div>
         <p className="fyh-section-eyebrow">Configuration</p>
-        <h1 className="fyh-display mt-1 text-3xl font-semibold">Packages</h1>
+        <h1 className="fyh-display mt-1 font-semibold">Packages</h1>
         <p className="mt-1 text-sm text-fyh-text-secondary">
           Bundles of services sold together as a one-time purchase — for example Hair Cut + Hair Spa
           + Beard. Full create/edit flows ship in a follow-up.
