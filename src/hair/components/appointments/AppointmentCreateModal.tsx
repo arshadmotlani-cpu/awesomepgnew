@@ -315,6 +315,7 @@ export function AppointmentCreateModal({
                   ) : (
                     <FyhCustomerSearch
                       className="mt-2"
+                      tone="booking"
                       autoFocus
                       onSelect={handleCustomerSelect}
                     />

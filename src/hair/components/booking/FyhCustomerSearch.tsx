@@ -11,6 +11,8 @@ type Props = {
   placeholder?: string;
   autoFocus?: boolean;
   className?: string;
+  inputClassName?: string;
+  tone?: 'default' | 'booking';
 };
 
 export function FyhCustomerSearch({
@@ -18,6 +20,8 @@ export function FyhCustomerSearch({
   placeholder = 'Search by name or mobile number',
   autoFocus = false,
   className,
+  inputClassName,
+  tone = 'default',
 }: Props) {
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<PosCustomerHit[]>([]);
@@ -40,6 +44,15 @@ export function FyhCustomerSearch({
     return () => window.clearTimeout(t);
   }, [query]);
 
+  const listTone =
+    tone === 'booking'
+      ? 'divide-white/10 border-white/15 bg-black/40'
+      : 'divide-[color:var(--fyh-border)] border-[color:var(--fyh-border)] bg-black/10';
+  const nameTone = tone === 'booking' ? 'text-white' : 'text-fyh-text';
+  const metaTone = tone === 'booking' ? 'text-white/75' : 'text-fyh-text-muted';
+  const emptyTone = tone === 'booking' ? 'text-white/70' : 'text-fyh-text-muted';
+  const hoverTone = tone === 'booking' ? 'hover:bg-white/10' : 'hover:bg-white/5';
+
   return (
     <div className={className}>
       <Input
@@ -48,31 +61,37 @@ export function FyhCustomerSearch({
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder={placeholder}
-        className="h-12 text-base text-white placeholder:text-white/50"
+        className={
+          inputClassName ??
+          (tone === 'booking'
+            ? 'h-12 text-base text-white placeholder:text-white/50'
+            : 'h-12 text-base')
+        }
       />
       {query.trim().length >= 1 ? (
         <ul
-          className="mt-2 divide-y divide-white/10 overflow-hidden rounded-xl border border-white/15 bg-black/40"
+          className={`mt-2 divide-y overflow-hidden rounded-xl border ${listTone}`}
           role="listbox"
         >
           {searching ? (
-            <li className="px-4 py-5 text-center text-sm text-white/70">Searching…</li>
+            <li className={`px-4 py-5 text-center text-sm ${emptyTone}`}>Searching…</li>
           ) : hits.length > 0 ? (
             hits.map((hit) => (
               <li key={hit.id}>
                 <button
                   type="button"
                   role="option"
-                  className="flex w-full flex-col gap-0.5 px-4 py-3 text-left hover:bg-white/10"
+                  className={`flex w-full flex-col gap-0.5 px-4 py-3 text-left ${hoverTone}`}
                   onClick={() => {
                     onSelect(hit);
                     setQuery('');
                     setHits([]);
                   }}
                 >
-                  <span className="font-semibold text-white">{hit.fullName}</span>
-                  <span className="text-sm text-white/75">
+                  <span className={`font-semibold ${nameTone}`}>{hit.fullName}</span>
+                  <span className={`text-sm ${metaTone}`}>
                     {hit.phone}
+                    {hit.customerCode ? ` · ${hit.customerCode}` : ''}
                     {hit.walletBalancePaise > 0
                       ? ` · Credit ${formatInrFromPaise(hit.walletBalancePaise)}`
                       : ''}
@@ -81,7 +100,7 @@ export function FyhCustomerSearch({
               </li>
             ))
           ) : (
-            <li className="px-4 py-5 text-center text-sm text-white/70">No customers found</li>
+            <li className={`px-4 py-5 text-center text-sm ${emptyTone}`}>No customers found</li>
           )}
         </ul>
       ) : null}

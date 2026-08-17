@@ -1,11 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, useTransition } from 'react';
-import {
-  searchCustomersForAdvanceAction,
-  submitAdvancePaymentAction,
-} from '@/src/hair/actions/advancePayment';
+import { useState, useTransition } from 'react';
+import { FyhCustomerSearch } from '@/src/hair/components/booking/FyhCustomerSearch';
+import { submitAdvancePaymentAction } from '@/src/hair/actions/advancePayment';
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
@@ -22,9 +20,6 @@ const METHODS: { id: AdvancePaymentMethod; label: string }[] = [
 export function AdvancePaymentShell() {
   const [step, setStep] = useState<'customer' | 'pay' | 'done'>('customer');
   const [customer, setCustomer] = useState<PosCustomerHit | null>(null);
-  const [searchQ, setSearchQ] = useState('');
-  const [hits, setHits] = useState<PosCustomerHit[]>([]);
-  const [searching, setSearching] = useState(false);
   const [amountRupees, setAmountRupees] = useState('');
   const [method, setMethod] = useState<AdvancePaymentMethod>('cash');
   const [reference, setReference] = useState('');
@@ -32,22 +27,6 @@ export function AdvancePaymentShell() {
   const [error, setError] = useState<string | null>(null);
   const [newBalance, setNewBalance] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
-
-  useEffect(() => {
-    if (searchQ.trim().length < 1) {
-      setHits([]);
-      return;
-    }
-    const t = window.setTimeout(async () => {
-      setSearching(true);
-      try {
-        setHits(await searchCustomersForAdvanceAction(searchQ));
-      } finally {
-        setSearching(false);
-      }
-    }, 150);
-    return () => window.clearTimeout(t);
-  }, [searchQ]);
 
   if (step === 'done' && customer) {
     return (
@@ -70,7 +49,6 @@ export function AdvancePaymentShell() {
             onClick={() => {
               setStep('customer');
               setCustomer(null);
-              setSearchQ('');
               setAmountRupees('');
               setReference('');
               setNotes('');
@@ -94,40 +72,16 @@ export function AdvancePaymentShell() {
             Add money to wallet · no invoice
           </p>
         </div>
-        <Input
+        <FyhCustomerSearch
           autoFocus
-          value={searchQ}
-          onChange={(e) => setSearchQ(e.target.value)}
           placeholder="Search by name, phone, customer code..."
-          className="h-14 text-lg"
+          inputClassName="h-14 text-lg"
+          onSelect={(hit) => {
+            setCustomer(hit);
+            setStep('pay');
+            setError(null);
+          }}
         />
-        <ul className="divide-y divide-[color:var(--fyh-border)] overflow-hidden rounded-2xl border border-[color:var(--fyh-border)] bg-black/10">
-          {searching && searchQ ? (
-            <li className="px-5 py-8 text-center text-sm text-fyh-text-muted">Searching…</li>
-          ) : null}
-          {!searching &&
-            hits.map((hit) => (
-              <li key={hit.id}>
-                <button
-                  type="button"
-                  className="flex w-full flex-col gap-0.5 px-5 py-4 text-left transition hover:bg-white/5"
-                  onClick={() => {
-                    setCustomer(hit);
-                    setStep('pay');
-                    setError(null);
-                  }}
-                >
-                  <span className="text-base font-semibold text-fyh-text">{hit.fullName}</span>
-                  <span className="text-sm tabular-nums text-fyh-text-muted">
-                    Wallet {formatInrFromPaise(hit.walletBalancePaise)}
-                  </span>
-                </button>
-              </li>
-            ))}
-          {!searching && searchQ.length >= 1 && hits.length === 0 ? (
-            <li className="px-5 py-10 text-center text-sm text-fyh-text-muted">No customer found</li>
-          ) : null}
-        </ul>
       </div>
     );
   }
