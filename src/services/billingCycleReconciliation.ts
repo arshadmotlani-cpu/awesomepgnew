@@ -24,10 +24,75 @@ import {
   sumPaidElectricityForBillingMonth,
   sumPaidRentForBillingMonth,
 } from '@/src/lib/billing/financialMetrics';
-import { countActiveElectricityInvoiceDuplicates } from '@/src/services/electricityInvoiceDuplicates';
+import { countActiveElectricityInvoiceDuplicatesForMonth } from '@/src/services/electricityInvoiceDuplicates';
 import { getJuneElectricityOpsCompletion } from '@/src/lib/admin/juneElectricityOpsAudit';
+import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 import type { AdminSession } from '@/src/lib/auth/session';
+
+/** Certification checks that require admin action on the current billing cycle. */
+export const ACTIONABLE_RECONCILIATION_CHECK_IDS = [
+  'no_failures',
+  'no_duplicates',
+  'registry_sync',
+  'payment_reviews',
+] as const;
+
+export type ActionableReconciliationCheckId = (typeof ACTIONABLE_RECONCILIATION_CHECK_IDS)[number];
+
+export function isActionableReconciliationCheck(id: string): boolean {
+  return (ACTIONABLE_RECONCILIATION_CHECK_IDS as readonly string[]).includes(id);
+}
+
+export function reconcileActionableReviewHref(
+  checks: BillingReconciliationCheck[],
+  billingMonth: string,
+): string {
+  const month = billingMonth.slice(0, 7);
+  const failing = checks.find((c) => !c.pass && isActionableReconciliationCheck(c.id));
+  if (!failing) return `/admin/billing?tab=dashboard&month=${month}`;
+  switch (failing.id) {
+    case 'no_failures':
+      return `/admin/billing?tab=failures&month=${month}`;
+    case 'no_duplicates':
+      return '/admin/electricity/duplicates';
+    case 'registry_sync':
+      return `/admin/billing?tab=dashboard&month=${month}`;
+    case 'payment_reviews':
+      return operationsFilterHref('waiting_for_approval');
+    default:
+      return `/admin/billing?tab=dashboard&month=${month}`;
+  }
+}
+
+export function deriveActionableReconciliation(
+  checks: BillingReconciliationCheck[],
+  billingMonth: string,
+): {
+  actionableIssueCount: number;
+  actionableFailures: string[];
+  actionableHeadline: string;
+  actionableStatus: 'success' | 'failed';
+  actionableReviewHref: string;
+} {
+  const actionableChecks = checks.filter((c) => isActionableReconciliationCheck(c.id));
+  const failing = actionableChecks.filter((c) => !c.pass);
+  const actionableIssueCount = failing.length;
+  const actionableFailures = failing.map((c) => `${c.label}: ${c.detail}`);
+  const actionableStatus = actionableIssueCount === 0 ? 'success' : 'failed';
+  const actionableHeadline =
+    actionableStatus === 'success'
+      ? 'Billing reconciled'
+      : `${actionableIssueCount} billing issue${actionableIssueCount === 1 ? '' : 's'} need attention`;
+  const actionableReviewHref = reconcileActionableReviewHref(checks, billingMonth);
+  return {
+    actionableIssueCount,
+    actionableFailures,
+    actionableHeadline,
+    actionableStatus,
+    actionableReviewHref,
+  };
+}
 
 export type BillingReconciliationCheck = {
   id: string;
@@ -60,6 +125,11 @@ export type BillingCycleReconciliation = {
   };
   checks: BillingReconciliationCheck[];
   failures: string[];
+  actionableIssueCount: number;
+  actionableFailures: string[];
+  actionableHeadline: string;
+  actionableStatus: 'success' | 'failed';
+  actionableReviewHref: string;
 };
 
 function monthLabel(billingMonth: string): string {
@@ -108,7 +178,7 @@ async function countOrphanRentInvoices(billingMonth: string): Promise<number> {
     WHERE fi.id IS NULL
       AND ri.billing_month = ${billingMonth}::date
       AND ri.is_adhoc = false
-      AND ri.status IN ('pending', 'overdue', 'payment_in_progress', 'paid')
+      AND ri.status IN ('pending', 'overdue', 'payment_in_progress')
   `);
   return Number(Array.from(rows)[0]?.cnt ?? 0);
 }
@@ -122,12 +192,15 @@ async function countOrphanElectricityInvoices(billingMonth: string): Promise<num
     INNER JOIN customers c ON c.id = ei.customer_id
     WHERE fi.id IS NULL
       AND ei.billing_month = ${billingMonth}::date
-      AND ei.status IN ('pending', 'paid')
+      AND ei.status = 'pending'
   `);
   return Number(Array.from(rows)[0]?.cnt ?? 0);
 }
 
-async function countMissingPaymentReviewProofs(session: AdminSession): Promise<{
+async function countMissingPaymentReviewProofs(
+  session: AdminSession,
+  billingMonth: string,
+): Promise<{
   missing: number;
   detail: string;
 }> {
@@ -135,9 +208,13 @@ async function countMissingPaymentReviewProofs(session: AdminSession): Promise<{
     db
       .select({ id: rentInvoices.id })
       .from(rentInvoices)
+      .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))
+      .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
       .where(
         and(
+          collectibleResidentFilters(),
           eq(rentInvoices.isAdhoc, false),
+          eq(rentInvoices.billingMonth, billingMonth),
           sql`${rentInvoices.paymentProofUrl} IS NOT NULL`,
           inArray(rentInvoices.status, ['pending', 'overdue', 'payment_in_progress']),
         ),
@@ -145,8 +222,12 @@ async function countMissingPaymentReviewProofs(session: AdminSession): Promise<{
     db
       .select({ id: electricityInvoices.id })
       .from(electricityInvoices)
+      .innerJoin(bookings, eq(bookings.id, electricityInvoices.bookingId))
+      .innerJoin(customers, eq(customers.id, electricityInvoices.customerId))
       .where(
         and(
+          collectibleResidentFilters(),
+          eq(electricityInvoices.billingMonth, billingMonth),
           eq(electricityInvoices.status, 'pending'),
           sql`${electricityInvoices.paymentProofUrl} IS NOT NULL`,
         ),
@@ -409,13 +490,13 @@ export async function evaluateBillingCycleReconciliation(
         ),
       )
       .then((r) => r[0]?.count ?? 0),
-    countActiveElectricityInvoiceDuplicates(),
+    countActiveElectricityInvoiceDuplicatesForMonth(billingMonth),
     countDriftedFinancialInvoices(billingMonth),
     countOrphanRentInvoices(billingMonth),
     countOrphanElectricityInvoices(billingMonth),
     countRentSkippedForMonth(billingMonth),
     countElectricitySkippedForMonth(billingMonth),
-    countMissingPaymentReviewProofs(session),
+    countMissingPaymentReviewProofs(session, billingMonth),
     billingMonth.startsWith('2026-06') ? getJuneElectricityOpsCompletion() : Promise.resolve(null),
   ]);
 
@@ -489,11 +570,14 @@ export async function evaluateBillingCycleReconciliation(
       ? '✓ Billing completed successfully'
       : `${failures.length} reconciliation issue${failures.length === 1 ? '' : 's'} need attention`;
 
+  const actionable = deriveActionableReconciliation(checks, billingMonth);
+
   return {
     billingMonth,
     monthLabel: label,
     status,
     headline,
+    ...actionable,
     metrics: {
       rentResidentsBilled: rentResidentsRow,
       electricityResidentsBilled: elecResidentsRow,

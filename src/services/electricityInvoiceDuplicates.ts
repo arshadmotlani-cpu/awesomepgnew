@@ -90,6 +90,44 @@ export async function countActiveElectricityInvoiceDuplicates(): Promise<number>
   return rows[0]?.group_count ?? 0;
 }
 
+/** Month-scoped duplicate groups — used for billing-cycle reconciliation (not global history). */
+export async function countActiveElectricityInvoiceDuplicatesForMonth(
+  billingMonthInput: DateLike,
+): Promise<number> {
+  const billingMonth = firstOfMonth(billingMonthInput);
+  const caps = await getElectricityInvoiceSchemaCaps();
+
+  const rows = caps.roomId
+    ? await db.execute<{ group_count: number }>(sql`
+        SELECT COUNT(*)::int AS group_count
+        FROM (
+          SELECT ei.room_id, ei.billing_month, ei.customer_id
+          FROM electricity_invoices ei
+          WHERE ei.status <> 'cancelled'
+            AND ei.billing_month = ${billingMonth}::date
+          ${supersededFilter(caps)}
+          ${pipelineTestFilter()}
+          GROUP BY ei.room_id, ei.billing_month, ei.customer_id
+          HAVING COUNT(*) > 1
+        ) dupes
+      `)
+    : await db.execute<{ group_count: number }>(sql`
+        SELECT COUNT(*)::int AS group_count
+        FROM (
+          SELECT eb.room_id, ei.billing_month, ei.customer_id
+          FROM electricity_invoices ei
+          INNER JOIN electricity_bills eb ON eb.id = ei.electricity_bill_id
+          WHERE ei.status <> 'cancelled'
+            AND ei.billing_month = ${billingMonth}::date
+          ${pipelineTestFilter()}
+          GROUP BY eb.room_id, ei.billing_month, ei.customer_id
+          HAVING COUNT(*) > 1
+        ) dupes
+      `);
+
+  return rows[0]?.group_count ?? 0;
+}
+
 export async function listElectricityInvoiceDuplicateGroups(): Promise<
   ElectricityInvoiceDuplicateGroup[]
 > {

@@ -50,16 +50,22 @@ describe('Owner OS connected metrics', () => {
     assert.match(src, /RecentEventsPanel/);
   });
 
-  test('OwnerSummaryCard has no Personal Finance metrics on PG admin', () => {
+  test('Owner OS nav link has no Personal Finance metrics on PG admin', () => {
     const { readFileSync } = require('node:fs') as typeof import('node:fs');
     const { join } = require('node:path') as typeof import('node:path');
-    const src = readFileSync(
-      join(process.cwd(), 'src/components/admin/overview/owner/OwnerSummaryCard.tsx'),
+    const navSrc = readFileSync(
+      join(process.cwd(), 'src/components/admin/OwnerOsNavLink.tsx'),
       'utf8',
     );
-    assert.match(src, /Open Owner OS/);
-    assert.doesNotMatch(src, /formatMetricDisplay/);
-    assert.doesNotMatch(src, /PersonalFinanceSnapshot/);
+    const topNavSrc = readFileSync(
+      join(process.cwd(), 'src/components/admin/AdminTopNav.tsx'),
+      'utf8',
+    );
+    assert.match(navSrc, /Owner OS/);
+    assert.doesNotMatch(navSrc, /formatMetricDisplay/);
+    assert.doesNotMatch(navSrc, /PersonalFinanceSnapshot/);
+    assert.match(topNavSrc, /OwnerOsNavLink/);
+    assert.match(topNavSrc, /showOwnerOsLink/);
   });
 
   test('Forecast and Tax routes are not exposed in Owner sidebar', () => {

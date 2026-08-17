@@ -2,6 +2,7 @@
 
 import { AdminQuickMenu } from '@/src/components/admin/AdminQuickMenu';
 import { AdminNotificationCenter } from '@/src/components/admin/AdminNotificationCenter';
+import { OwnerOsNavLink } from '@/src/components/admin/OwnerOsNavLink';
 import { useAdminNavBadges } from '@/src/components/admin/AdminLiveRefreshProvider';
 import { LogoutButton } from '@/src/components/auth/LogoutButton';
 import { ApgOsLogoLockup } from '@/src/components/brand/apg-os/ApgOsLogoLockup';
@@ -11,9 +12,11 @@ import { MobileNav } from './MobileNav';
 export function AdminTopNav({
   adminName,
   adminRole,
+  showOwnerOsLink = false,
 }: {
   adminName?: string | null;
   adminRole?: string | null;
+  showOwnerOsLink?: boolean;
 }) {
   const badges = useAdminNavBadges();
   const unreadTotal = badges.notifications ?? 0;
@@ -31,6 +34,7 @@ export function AdminTopNav({
 
       <div className="ml-auto flex shrink-0 items-center pr-0.5">
         <div className="flex items-center gap-0.5 sm:gap-2">
+          {showOwnerOsLink ? <OwnerOsNavLink /> : null}
           <AdminNotificationCenter initialUnread={unreadTotal} />
           <div
             className="hidden items-center gap-2 rounded-md border border-white/10 bg-[#1A1F27] px-2 py-1 sm:flex"

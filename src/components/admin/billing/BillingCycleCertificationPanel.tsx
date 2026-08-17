@@ -30,12 +30,12 @@ export function BillingCycleCertificationPanel({
   const m = reconciliation.metrics;
   const month = reconciliation.billingMonth.slice(0, 7);
   const tab = (id: string) => `/admin/billing?tab=${id}&month=${month}`;
-  const success = reconciliation.status === 'success';
+  const actionableSuccess = reconciliation.actionableStatus === 'success';
 
   return (
     <section
       className={
-        success
+        actionableSuccess
           ? 'mb-8 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-6'
           : 'mb-8 rounded-2xl border border-rose-500/40 bg-rose-500/10 p-6'
       }
@@ -43,23 +43,23 @@ export function BillingCycleCertificationPanel({
       <header className="mb-4">
         <p
           className={
-            success
+            actionableSuccess
               ? 'text-lg font-semibold text-emerald-100'
               : 'text-lg font-semibold text-rose-100'
           }
         >
-          {reconciliation.headline}
+          {actionableSuccess ? '✓ Billing reconciled' : reconciliation.actionableHeadline}
         </p>
         <p className="mt-1 text-sm text-apg-silver">
           {reconciliation.monthLabel} · verified automatically from live invoice data
         </p>
       </header>
 
-      {!success ? (
+      {!actionableSuccess ? (
         <div className="mb-5 rounded-xl border border-rose-400/30 bg-rose-950/30 p-4">
           <p className="text-sm font-medium text-rose-100">What needs attention</p>
           <ul className="mt-2 space-y-1 text-sm text-rose-50/90">
-            {reconciliation.failures.map((line) => (
+            {reconciliation.actionableFailures.map((line) => (
               <li key={line}>• {line}</li>
             ))}
           </ul>

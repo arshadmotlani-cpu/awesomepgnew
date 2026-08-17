@@ -13,6 +13,7 @@ import { AdminPushRegistration } from '@/src/components/admin/AdminPushRegistrat
 import { AdminMoneyInputGuard } from '@/src/components/admin/AdminMoneyInputGuard';
 import { NotificationReadOnArrival } from '@/src/components/admin/NotificationReadOnArrival';
 import { apgOsAdminMetadata } from '@/src/lib/brand/apgOsAdminMetadata';
+import { isPersonalFinanceOsEnabled } from '@/src/personalFinance';
 import '@/src/styles/apg-os-tokens.css';
 
 export const maxDuration = 60;
@@ -23,6 +24,7 @@ export const metadata: Metadata = apgOsAdminMetadata;
 
 export default async function AdminGroupLayout({ children }: { children: ReactNode }) {
   const session = await requireAdminSession('/admin');
+  const lifeOsEnabled = isPersonalFinanceOsEnabled();
   const [badges, sidebarLayout] = await profileAdminStep('adminLayout', () =>
     Promise.all([loadAdminNavBadges(session), getResolvedSidebarLayout(session)]),
   );
@@ -50,7 +52,11 @@ export default async function AdminGroupLayout({ children }: { children: ReactNo
           <Sidebar />
         </aside>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <AdminTopNav adminName={session.fullName} adminRole={session.role} />
+          <AdminTopNav
+            adminName={session.fullName}
+            adminRole={session.role}
+            showOwnerOsLink={lifeOsEnabled}
+          />
           <main className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-4 sm:py-6 lg:px-8 lg:py-8">
             <div className="apg-admin-scroll flex min-h-0 w-full min-w-0 flex-1 flex-col gap-5 overflow-y-auto overflow-x-auto sm:gap-6">
               <AdminActionDrawerProvider>{children}</AdminActionDrawerProvider>

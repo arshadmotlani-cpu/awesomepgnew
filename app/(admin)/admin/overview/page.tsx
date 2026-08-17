@@ -4,7 +4,6 @@ import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { BillingCertificationNotice } from '@/src/components/admin/overview/BillingCertificationNotice';
 import { OwnerDashboard } from '@/src/components/admin/overview/owner/OwnerDashboard';
 import { OwnerDashboardWithTrends } from '@/src/components/admin/overview/owner/OwnerTrendChartsAsync';
-import { OwnerSummaryCard } from '@/src/components/admin/overview/owner/OwnerSummaryCard';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { moduleHref } from '@/src/lib/admin/navigation';
 import { requireAdminSession } from '@/src/lib/auth/guards';
@@ -59,29 +58,21 @@ export default async function OverviewPage() {
     <>
       <ModuleBreadcrumbs items={[{ label: 'PG Overview' }]} />
       <AdminSectionErrorBoundary title="PG Overview">
-        {lifeOsEnabled ? (
-          <div className="mt-2">
-            <OwnerSummaryCard />
-          </div>
-        ) : null}
-
         {billingCert.ok && billingCert.reconciliation ? (
-          <div className="mt-8">
+          <div className="mt-3">
             <BillingCertificationNotice reconciliation={billingCert.reconciliation} />
           </div>
         ) : billingCert.error ? (
-          <div className="mt-8">
+          <div className="mt-3">
             <BillingCertificationNotice error={billingCert.error} />
           </div>
         ) : null}
 
         {baseData && ctx ? (
-          <div className="mt-10 space-y-4 border-t border-white/10 pt-8">
+          <div className="mt-4 space-y-4">
             <div>
               <h2 className="text-base font-semibold text-white">Awesome PG portfolio</h2>
-              <p className="text-sm text-apg-silver">
-                Engine-local PG overview. Financial life dashboard is on owner.awesomepg.in only.
-              </p>
+              <p className="text-sm text-apg-silver">Engine-local PG operations and portfolio health.</p>
             </div>
             <Suspense fallback={<TrendsFallback data={baseData} />}>
               <OwnerDashboardWithTrends
@@ -92,12 +83,12 @@ export default async function OverviewPage() {
             </Suspense>
           </div>
         ) : !overviewResult.ok ? (
-          <div className="mt-8">
+          <div className="mt-4">
             <DbStatusBanner error={overviewResult.error} />
           </div>
         ) : null}
 
-        <p className="mt-8 text-sm text-apg-silver">
+        <p className="mt-6 text-sm text-apg-silver">
           Action items live in{' '}
           <a href={moduleHref('operations')} className="font-medium text-[#FF5A1F] hover:underline">
             Operations
