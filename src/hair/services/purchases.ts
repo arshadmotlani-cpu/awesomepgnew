@@ -216,7 +216,7 @@ export async function createStockAdjustment(input: {
   const [product] = await hairDb
     .select()
     .from(fyhProducts)
-    .where(and(orgFilter(fyhProducts.organizationId, ctx), locationFilter(fyhProducts.locationId, ctx), eq(fyhProducts.id, input.productId)))
+    .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.id, input.productId)))
     .limit(1);
   if (!product) throw new Error('Product not found');
 
