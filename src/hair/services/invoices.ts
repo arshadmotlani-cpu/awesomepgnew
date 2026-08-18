@@ -401,7 +401,7 @@ export async function resolveQuickSaleDrafts(
       const [product] = await hairDb
         .select()
         .from(fyhProducts)
-        .where(and(orgFilter(fyhProducts.organizationId, ctx), locationFilter(fyhProducts.locationId, ctx), eq(fyhProducts.id, line.refId)))
+        .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.id, line.refId)))
         .limit(1);
       if (!product || !product.isActive) throw new Error('Product not found');
       const gross = product.sellingPricePaise * qty;
