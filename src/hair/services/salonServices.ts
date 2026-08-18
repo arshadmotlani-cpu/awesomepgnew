@@ -187,7 +187,7 @@ export async function getServiceStaffIds(serviceId: string, ctx?: TenantContext 
   const rows = await hairDb
     .select({ staffId: fyhServiceStaff.staffId })
     .from(fyhServiceStaff)
-    .where(and(orgFilter(fyhServiceStaff.organizationId, ctx), locationFilter(fyhServiceStaff.locationId, ctx), eq(fyhServiceStaff.serviceId, serviceId)));
+    .where(and(orgFilter(fyhServiceStaff.organizationId, ctx), eq(fyhServiceStaff.serviceId, serviceId)));
   return rows.map((r) => r.staffId);
 }
 

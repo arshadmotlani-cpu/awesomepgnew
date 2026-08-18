@@ -457,7 +457,7 @@ export async function getVendorActivityTimeline(
   const notes = await hairDb
     .select()
     .from(fyhVendorNotes)
-    .where(and(orgFilter(fyhVendorNotes.organizationId, ctx), locationFilter(fyhVendorNotes.locationId, ctx), eq(fyhVendorNotes.vendorId, vendorId)))
+    .where(and(orgFilter(fyhVendorNotes.organizationId, ctx), eq(fyhVendorNotes.vendorId, vendorId)))
     .orderBy(desc(fyhVendorNotes.createdAt))
     .limit(limit);
 
