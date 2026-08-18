@@ -1,36 +1,47 @@
+import { redirect } from 'next/navigation';
 import { AppointmentsCalendar } from '@/src/hair/components/appointments/AppointmentsCalendar';
+import {
+  buildAppointmentsHref,
+  isValidAppointmentDayIso,
+  resolveAppointmentDate,
+} from '@/src/hair/lib/appointmentDate';
 import { listAppointmentsInRange, listResources } from '@/src/hair/services/appointments';
 import { listCustomers } from '@/src/hair/services/customers';
 import { listBookableServices } from '@/src/hair/services/salonServices';
 import { listBookableStaff } from '@/src/hair/services/staff';
 import { getSalonSettings } from '@/src/hair/services/settings';
-import { parseHm, salonDayBounds, zonedLocalToUtc } from '@/src/hair/lib/salonTime';
+import { parseHm, salonDayOfWeek, zonedLocalToUtc } from '@/src/hair/lib/salonTime';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { resolvePermissions } from '@/src/workforce/brains/employeeBrain';
 import { hasWorkforcePermission } from '@/src/workforce/permissions/presets';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 
+export const dynamic = 'force-dynamic';
+
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
-
-function parseDayIso(raw: string | undefined, timezone: string) {
-  if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return salonDayBounds(timezone).dayKey;
-  return raw;
-}
 
 export default async function AppointmentsPage({ searchParams }: Props) {
   const sp = await searchParams;
   const settings = await getSalonSettings();
   const timezone = settings.timezone || 'Asia/Kolkata';
 
-  const dateRaw = sp.date;
-  const dayIso = parseDayIso(Array.isArray(dateRaw) ? dateRaw[0] : dateRaw, timezone);
+  const dateRaw = Array.isArray(sp.date) ? sp.date[0] : sp.date;
   const customerRaw = sp.customerId;
   const preselectCustomerId = Array.isArray(customerRaw) ? customerRaw[0] : customerRaw;
 
-  const [y, m, d] = dayIso.split('-').map(Number);
-  const localDow = new Date(y!, m! - 1, d!).getDay();
+  if (!isValidAppointmentDayIso(dateRaw)) {
+    const todayKey = resolveAppointmentDate({ timezone });
+    redirect(
+      buildAppointmentsHref(todayKey, { customerId: preselectCustomerId ?? undefined }),
+    );
+  }
+
+  const dayIso = dateRaw!;
+
+  const dayAnchor = zonedLocalToUtc(`${dayIso}T12:00:00`, timezone);
+  const localDow = salonDayOfWeek(timezone, dayAnchor);
   const hours = settings.businessHours?.find((h) => h.dayOfWeek === localDow);
   const open = parseHm(hours?.open ?? '10:00');
   const close = parseHm(hours?.close ?? '20:00');

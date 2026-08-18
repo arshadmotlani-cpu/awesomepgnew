@@ -1,40 +1,31 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { Plus } from 'lucide-react';
 import {
-  createExpenseAction,
   deleteExpenseAction,
   type ExpenseActionState,
 } from '@/src/hair/actions/expenses';
+import { NewExpenseModal } from '@/src/hair/components/expenses/NewExpenseModal';
 import { Button } from '@/src/hair/components/ui/button';
-import { Input } from '@/src/hair/components/ui/input';
 import type { FyhExpense } from '@/src/hair/db/schema';
 import {
-  FYH_EXPENSE_CATEGORIES,
   FYH_EXPENSE_CATEGORY_LABELS,
   FYH_EXPENSE_PAYMENT_LABELS,
-  FYH_EXPENSE_PAYMENT_METHODS,
 } from '@/src/hair/lib/expenseCategories';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 
 const initialState: ExpenseActionState = {};
-const fieldClass =
-  'fyh-input w-full text-[0.8125rem] outline-none focus:border-fyh-accent/50';
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 export function ExpensesPageUi({
   expenses,
   staffName,
-  showForm,
 }: {
   expenses: FyhExpense[];
   staffName: string;
-  showForm?: boolean;
 }) {
+  const [modalOpen, setModalOpen] = useState(false);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -45,25 +36,17 @@ export function ExpensesPageUi({
             Record salon operating expenses
           </p>
         </div>
-        {!showForm ? (
-          <a href="#add-expense">
-            <Button type="button">
-              <Plus className="mr-2 h-4 w-4" />
-              Add expense
-            </Button>
-          </a>
-        ) : null}
+        <Button type="button" onClick={() => setModalOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add expense
+        </Button>
       </div>
 
-      {showForm ? (
-        <div id="add-expense">
-          <ExpenseForm staffName={staffName} />
-        </div>
-      ) : (
-        <div id="add-expense" className="fyh-glass p-5">
-          <ExpenseForm staffName={staffName} />
-        </div>
-      )}
+      <NewExpenseModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        staffName={staffName}
+      />
 
       <div className="fyh-glass overflow-hidden">
         {expenses.length === 0 ? (
@@ -123,89 +106,5 @@ function ExpenseRow({ expense }: { expense: FyhExpense }) {
         {state.error ? <p className="text-xs text-fyh-danger">{state.error}</p> : null}
       </td>
     </tr>
-  );
-}
-
-export function ExpenseForm({ staffName }: { staffName: string }) {
-  const [state, formAction, pending] = useActionState(createExpenseAction, initialState);
-
-  return (
-    <form action={formAction} className="space-y-4">
-      <h2 className="text-lg font-semibold">Add expense</h2>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2 sm:col-span-2">
-          <label className="fyh-label" htmlFor="title">
-            Title *
-          </label>
-          <Input id="title" name="title" required placeholder="e.g. Electricity bill" />
-        </div>
-        <div className="space-y-2">
-          <label className="fyh-label" htmlFor="category">
-            Category *
-          </label>
-          <select id="category" name="category" required className={fieldClass} defaultValue="general">
-            {FYH_EXPENSE_CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {FYH_EXPENSE_CATEGORY_LABELS[c]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-2">
-          <label className="fyh-label" htmlFor="expenseDate">
-            Expense date *
-          </label>
-          <Input id="expenseDate" name="expenseDate" type="date" required defaultValue={todayIso()} />
-        </div>
-        <div className="space-y-2">
-          <label className="fyh-label" htmlFor="amountRupees">
-            Amount (₹) *
-          </label>
-          <Input id="amountRupees" name="amountRupees" type="number" min={0} step="0.01" required />
-        </div>
-        <div className="space-y-2">
-          <label className="fyh-label" htmlFor="paymentMethod">
-            Payment method *
-          </label>
-          <select
-            id="paymentMethod"
-            name="paymentMethod"
-            required
-            className={fieldClass}
-            defaultValue="cash"
-          >
-            {FYH_EXPENSE_PAYMENT_METHODS.map((m) => (
-              <option key={m} value={m}>
-                {FYH_EXPENSE_PAYMENT_LABELS[m]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-2 sm:col-span-2">
-          <label className="fyh-label" htmlFor="attachmentUrl">
-            Attachment URL
-          </label>
-          <Input id="attachmentUrl" name="attachmentUrl" type="url" placeholder="https://…" />
-        </div>
-        <div className="space-y-2 sm:col-span-2">
-          <label className="fyh-label" htmlFor="notes">
-            Notes
-          </label>
-          <textarea id="notes" name="notes" rows={2} className={fieldClass} />
-        </div>
-        <div className="space-y-2 sm:col-span-2">
-          <label className="fyh-label" htmlFor="staffName">
-            Staff
-          </label>
-          <Input id="staffName" name="staffName" value={staffName} readOnly className="bg-black/20" />
-        </div>
-      </div>
-
-      {state.error ? <p className="text-sm text-fyh-danger">{state.error}</p> : null}
-
-      <Button type="submit" disabled={pending}>
-        {pending ? 'Saving…' : 'Save expense'}
-      </Button>
-    </form>
   );
 }

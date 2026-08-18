@@ -1,7 +1,7 @@
 'use client';
 
 import { useHairTheme } from '@/src/hair/components/HairProviders';
-import { Button } from '@/src/hair/components/ui/button';
+import { FyhAppearanceLivePreview } from '@/src/hair/components/settings/FyhAppearanceLivePreview';
 import {
   FYH_ACCENT_OPTIONS,
   type FyhAccentId,
@@ -123,40 +123,12 @@ export function AppearanceSettingsPanel() {
         <h3 className="text-sm font-semibold uppercase tracking-wide text-fyh-text-secondary">
           Preview
         </h3>
-        <div
-          className="rounded-xl border border-[color:var(--fyh-border-strong)] p-4"
-          style={{
-            background: 'var(--fyh-bg-surface)',
-            color: 'var(--fyh-text-primary)',
-          }}
-        >
-          <div className="fyh-panel-muted !p-4">
-            <p className="text-sm font-semibold text-fyh-on-panel">Dashboard</p>
-            <div className="mt-3 flex items-end justify-between gap-4">
-              <div>
-                <p className="text-xs text-fyh-on-panel-muted">Revenue</p>
-                <p className="fyh-money-value-accent text-2xl font-bold tabular-nums">₹75,000</p>
-              </div>
-              <Button type="button" size="sm">New appointment</Button>
-            </div>
-            <div className="mt-3 flex gap-2">
-              <span
-                className="rounded-md px-2 py-1 text-xs font-semibold"
-                style={{
-                  background: 'var(--fyh-nav-active-bg)',
-                  color: 'var(--fyh-accent)',
-                }}
-              >
-                Active tab
-              </span>
-              <span className="rounded-md border border-[color:var(--fyh-border)] px-2 py-1 text-xs text-fyh-on-panel-muted">
-                Secondary
-              </span>
-            </div>
-          </div>
-        </div>
+        <p className="text-sm text-fyh-text-muted">
+          Miniature of the real FYHAIR interface — updates instantly with your theme and accent.
+        </p>
+        <FyhAppearanceLivePreview theme={theme} accent={accent} />
         <p className="text-xs text-fyh-text-muted">
-          Changes apply immediately and persist across sessions on this device.
+          Changes apply immediately across the app and persist on this device.
         </p>
       </section>
     </div>

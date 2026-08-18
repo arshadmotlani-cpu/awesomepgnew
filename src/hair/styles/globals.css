@@ -62,7 +62,23 @@
   --fyh-shadow-panel-strong: 0 8px 28px rgba(4, 10, 22, 0.35);
   --fyh-money-accent: var(--fyh-accent);
 
-  /* ——— Density scale (~10–15% tighter) ——— */
+  /* Semantic aliases (--fy-*) for theme documentation and preview */
+  --fy-bg: var(--fyh-bg);
+  --fy-surface: var(--fyh-bg-surface);
+  --fy-surface-raised: var(--fyh-surface-raised);
+  --fy-surface-hover: var(--fyh-table-hover);
+  --fy-border: var(--fyh-border);
+  --fy-border-strong: var(--fyh-border-strong);
+  --fy-text: var(--fyh-text-primary);
+  --fy-text-secondary: var(--fyh-text-secondary);
+  --fy-text-muted: var(--fyh-text-muted);
+  --fy-input: var(--fyh-input-bg);
+  --fy-input-text: var(--fyh-text-primary);
+  --fy-grid: var(--fyh-scheduler-grid-line);
+  --fy-accent: var(--fyh-accent);
+  --fy-accent-soft: var(--fyh-accent-soft);
+  --fy-accent-strong: var(--fyh-accent-hover);
+  --fy-focus: var(--fyh-border-hover);
   --fyh-control-h: 2.375rem;
   --fyh-control-h-mobile: 2.75rem;
   --fyh-radius: 0.625rem;
@@ -995,7 +1011,7 @@
 
 .fyh-scheduler-tab:hover {
   color: var(--fyh-text-primary);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--fyh-table-hover);
 }
 
 .fyh-scheduler-tab-active {
@@ -1113,4 +1129,131 @@
 
 .fyh-customer-context-link:hover {
   color: var(--fyh-accent-soft);
+}
+
+/* ——— Appearance settings live preview ——— */
+.fyh-appearance-preview {
+  border: 1px solid var(--fy-border-strong);
+  border-radius: var(--fyh-radius-lg);
+  overflow: hidden;
+  background: var(--fy-bg);
+  color: var(--fy-text);
+  box-shadow: var(--fyh-shadow-panel-strong);
+  isolation: isolate;
+}
+
+.fyh-appearance-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.5rem;
+  border-bottom: 1px solid var(--fy-border-strong);
+  background: color-mix(in srgb, var(--fy-surface-raised) 88%, var(--fy-bg));
+}
+
+.fyh-appearance-preview-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+  font-size: 0.6875rem;
+}
+
+.fyh-appearance-preview-logo-mark {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 9999px;
+  background: var(--fy-accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--fy-accent) 45%, transparent);
+}
+
+.fyh-appearance-preview-search {
+  flex: 1;
+  min-width: 0;
+}
+
+.fyh-appearance-preview-admin {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.625rem;
+}
+
+.fyh-appearance-preview-avatar {
+  display: flex;
+  height: 1.25rem;
+  width: 1.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--fy-accent) 40%, var(--fy-border));
+  background: color-mix(in srgb, var(--fy-accent) 14%, var(--fy-surface));
+  color: var(--fy-accent);
+  font-size: 0.5625rem;
+  font-weight: 700;
+}
+
+.fyh-appearance-preview-body {
+  display: flex;
+  min-height: 11.5rem;
+}
+
+.fyh-appearance-preview-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  width: 5.5rem;
+  flex-shrink: 0;
+  padding: 0.375rem;
+  border-right: 1px solid var(--fy-border);
+  background: var(--fy-surface-raised);
+}
+
+.fyh-appearance-preview-main {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem;
+  background: var(--fy-bg);
+}
+
+.fyh-appearance-preview-scheduler {
+  font-size: 0.5625rem;
+}
+
+.fyh-appearance-preview-scheduler-header,
+.fyh-appearance-preview-scheduler-row {
+  display: grid;
+  grid-template-columns: 2.25rem 1fr 1fr;
+}
+
+.fyh-appearance-preview-time {
+  font-size: 0.5625rem;
+  padding: 0.25rem 0.125rem;
+}
+
+.fyh-appearance-preview-slot {
+  min-height: 1.375rem;
+  padding: 0.125rem;
+}
+
+.fyh-appearance-preview-appt {
+  display: block;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  border: 1px solid color-mix(in srgb, var(--fy-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--fy-accent) 20%, var(--fy-surface));
+  color: var(--fy-text);
+  font-size: 0.5625rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.fyh-appearance-preview-now-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  background: var(--fyh-scheduler-now);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--fyh-scheduler-now) 55%, transparent);
 }

@@ -9,6 +9,8 @@ import {
   fyhStaff,
 } from '@/src/hair/db/schema';
 import { shouldHideServiceFromBillable } from '@/src/hair/lib/serviceCatalogHygiene';
+import { buildAppointmentsHref, salonDayKeyFromInstant } from '@/src/hair/lib/appointmentDate';
+import { getSalonSettings } from '@/src/hair/services/settings';
 
 export type HairSearchHit = {
   type: 'customer' | 'invoice' | 'appointment' | 'staff' | 'service' | 'product';
@@ -21,6 +23,8 @@ export type HairSearchHit = {
 export async function searchHair(query: string, limit = 20): Promise<HairSearchHit[]> {
   const q = query.trim();
   if (q.length < 2) return [];
+  const settings = await getSalonSettings();
+  const timezone = settings.timezone || 'Asia/Kolkata';
   const pattern = `%${q}%`;
   const hits: HairSearchHit[] = [];
 
@@ -92,7 +96,7 @@ export async function searchHair(query: string, limit = 20): Promise<HairSearchH
       id: a.id,
       title: a.customerName,
       subtitle: `${a.status} · ${a.startAt.toISOString().slice(0, 16).replace('T', ' ')} · ${a.phone}`,
-      href: `/appointments?date=${a.startAt.toISOString().slice(0, 10)}`,
+      href: buildAppointmentsHref(salonDayKeyFromInstant(a.startAt, timezone)),
     });
   }
 

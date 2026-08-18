@@ -1,18 +1,29 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { Banknote, Receipt, type LucideIcon } from 'lucide-react';
+import { Banknote, Receipt, ReceiptText, type LucideIcon } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { NewExpenseModal } from '@/src/hair/components/expenses/NewExpenseModal';
 import { cn } from '@/src/hair/lib/utils';
 
-const ACTIONS: Array<{
+type NavAction = {
   id: string;
   label: string;
   description: string;
   href: string;
   Icon: LucideIcon;
-}> = [
+};
+
+type ModalAction = {
+  id: string;
+  label: string;
+  description: string;
+  Icon: LucideIcon;
+  opens: 'expense_modal';
+};
+
+const NAV_ACTIONS: NavAction[] = [
   {
     id: 'express_sale',
     label: 'Express Sale',
@@ -29,10 +40,25 @@ const ACTIONS: Array<{
   },
 ];
 
-export function HairQuickActionsMenu() {
+const MODAL_ACTIONS: ModalAction[] = [
+  {
+    id: 'add_expense',
+    label: 'Add Expense',
+    description: 'Record a new business expense',
+    Icon: ReceiptText,
+    opens: 'expense_modal',
+  },
+];
+
+type Props = {
+  staffName: string;
+};
+
+export function HairQuickActionsMenu({ staffName }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [expenseModalOpen, setExpenseModalOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [panelPos, setPanelPos] = useState({ top: 56, left: 16 });
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -102,31 +128,25 @@ export function HairQuickActionsMenu() {
         >
           <p className="fyh-kpi-label px-1.5 pb-2">Quick actions</p>
           <div className="space-y-1.5">
-            {ACTIONS.map((item) => (
-              <button
+            {NAV_ACTIONS.map((item) => (
+              <QuickActionNavRow
                 key={item.id}
-                type="button"
-                role="menuitem"
-                onClick={() => {
+                item={item}
+                onNavigate={(href) => {
                   setOpen(false);
-                  router.push(item.href);
+                  router.push(href);
                 }}
-                className={cn(
-                  'flex w-full items-start gap-2.5 rounded-lg px-2 py-2.5 text-left transition',
-                  'border border-transparent bg-[color:var(--fyh-bg-surface)]/80',
-                  'hover:border-[color:var(--fyh-border-strong)] hover:bg-[color:var(--fyh-bg-surface)] hover:shadow-sm',
-                )}
-              >
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-fyh-forest/25 text-fyh-accent">
-                  <item.Icon className="h-4 w-4" aria-hidden />
-                </span>
-                <span className="min-w-0 pt-0.5">
-                  <span className="block text-[13px] font-semibold text-fyh-text">{item.label}</span>
-                  <span className="mt-0.5 block text-xs leading-snug text-fyh-text-secondary">
-                    {item.description}
-                  </span>
-                </span>
-              </button>
+              />
+            ))}
+            {MODAL_ACTIONS.map((item) => (
+              <QuickActionModalRow
+                key={item.id}
+                item={item}
+                onSelect={() => {
+                  setOpen(false);
+                  setExpenseModalOpen(true);
+                }}
+              />
             ))}
           </div>
         </div>
@@ -142,8 +162,8 @@ export function HairQuickActionsMenu() {
         className={cn(
           'flex h-9 w-9 items-center justify-center rounded-lg border transition',
           'border-[color:var(--fyh-border-strong)] bg-[color:var(--fyh-bg-surface)]/60 text-fyh-text',
-          'hover:border-fyh-accent/45 hover:bg-[color:var(--fyh-bg-surface)] hover:shadow-sm',
-          open && 'border-fyh-accent/50 bg-[color:var(--fyh-bg-surface)] shadow-sm',
+          'hover:border-[color:var(--fyh-border-hover)] hover:bg-[color:var(--fyh-bg-surface)] hover:shadow-sm',
+          open && 'border-[color:var(--fyh-accent)] bg-[color:var(--fyh-bg-surface)] shadow-sm',
         )}
         aria-label="Quick actions"
         aria-expanded={open}
@@ -156,6 +176,76 @@ export function HairQuickActionsMenu() {
         </span>
       </button>
       {mounted && panel ? createPortal(panel, document.body) : null}
+      <NewExpenseModal
+        open={expenseModalOpen}
+        onClose={() => setExpenseModalOpen(false)}
+        staffName={staffName}
+      />
     </div>
+  );
+}
+
+function QuickActionNavRow({
+  item,
+  onNavigate,
+}: {
+  item: NavAction;
+  onNavigate: (href: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={() => onNavigate(item.href)}
+      className={cn(
+        'flex w-full items-start gap-2.5 rounded-lg px-2 py-2.5 text-left transition',
+        'border border-transparent bg-[color:var(--fyh-bg-surface)]/80',
+        'hover:border-[color:var(--fyh-border-strong)] hover:bg-[color:var(--fyh-bg-surface)] hover:shadow-sm',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--fyh-accent)]',
+      )}
+    >
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[color:var(--fyh-nav-active-bg)] text-fyh-accent">
+        <item.Icon className="h-4 w-4" aria-hidden />
+      </span>
+      <span className="min-w-0 pt-0.5">
+        <span className="block text-[13px] font-semibold text-fyh-text">{item.label}</span>
+        <span className="mt-0.5 block text-xs leading-snug text-fyh-text-secondary">
+          {item.description}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+function QuickActionModalRow({
+  item,
+  onSelect,
+}: {
+  item: ModalAction;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      aria-label={item.label}
+      onClick={onSelect}
+      className={cn(
+        'flex w-full items-start gap-2.5 rounded-lg px-2 py-2.5 text-left transition',
+        'border border-transparent bg-[color:var(--fyh-bg-surface)]/80',
+        'hover:border-[color:var(--fyh-border-strong)] hover:bg-[color:var(--fyh-bg-surface)] hover:shadow-sm',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--fyh-accent)]',
+      )}
+    >
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[color:var(--fyh-nav-active-bg)] text-fyh-accent">
+        <item.Icon className="h-4 w-4" aria-hidden />
+      </span>
+      <span className="min-w-0 pt-0.5">
+        <span className="block text-[13px] font-semibold text-fyh-text">{item.label}</span>
+        <span className="mt-0.5 block text-xs leading-snug text-fyh-text-secondary">
+          {item.description}
+        </span>
+      </span>
+    </button>
   );
 }

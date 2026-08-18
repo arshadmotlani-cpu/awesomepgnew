@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { rescheduleAppointmentAction } from '@/src/hair/actions/appointments';
 import { Button } from '@/src/hair/components/ui/button';
+import { buildAppointmentsHref, salonTodayKey } from '@/src/hair/lib/appointmentDate';
 import { FYH_APPOINTMENT_STATUS_COLORS } from '@/src/hair/lib/appointmentStatus';
 import { cn } from '@/src/hair/lib/utils';
 import { AppointmentCreateModal } from './AppointmentCreateModal';
@@ -145,6 +146,11 @@ export function AppointmentsCalendar({
 
   const createOpen = Boolean(createPrefill) || showCreateToolbar;
 
+  const navExtra = { customerId: preselectCustomerId };
+  const goToDate = (targetDayIso: string) => {
+    router.push(buildAppointmentsHref(targetDayIso, navExtra));
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -160,18 +166,23 @@ export function AppointmentsCalendar({
             type="button"
             variant="secondary"
             size="sm"
-            onClick={() => router.push(`/appointments?date=${addDaysIso(dayIso, -1)}`)}
+            onClick={() => goToDate(addDaysIso(dayIso, -1))}
           >
             Prev
           </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={() => router.push('/appointments')}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => goToDate(salonTodayKey(timezone))}
+          >
             Today
           </Button>
           <Button
             type="button"
             variant="secondary"
             size="sm"
-            onClick={() => router.push(`/appointments?date=${addDaysIso(dayIso, 1)}`)}
+            onClick={() => goToDate(addDaysIso(dayIso, 1))}
           >
             Next
           </Button>
@@ -262,7 +273,7 @@ export function AppointmentsCalendar({
               <button
                 key={d}
                 type="button"
-                onClick={() => router.push(`/appointments?date=${d}`)}
+                onClick={() => goToDate(d)}
                 className={cn(
                   'fyh-glass space-y-2 p-3 text-left',
                   d === dayIso && 'ring-1 ring-fyh-accent/40',

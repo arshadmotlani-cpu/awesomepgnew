@@ -1,7 +1,6 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { requirePermission } from '@/src/hair/lib/auth/permissions';
 import {
@@ -50,7 +49,7 @@ export async function createExpenseAction(
     });
 
     revalidatePath('/expenses');
-    redirect('/expenses');
+    return { success: 'Expense recorded.' };
   } catch (e) {
     if (e && typeof e === 'object' && 'digest' in e) throw e;
     return { error: e instanceof Error ? e.message : 'Failed to record expense' };

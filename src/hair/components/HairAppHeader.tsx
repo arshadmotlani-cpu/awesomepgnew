@@ -36,7 +36,7 @@ export function HairAppHeader({ admin, navEntries }: HairAppHeaderProps) {
             <Menu className="h-4 w-4" />
           </Button>
 
-          <HairQuickActionsMenu />
+          <HairQuickActionsMenu staffName={admin.displayName ?? 'Staff'} />
 
           <Link
             href="/dashboard/revenue"
