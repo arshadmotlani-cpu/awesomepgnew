@@ -53,11 +53,28 @@ else
 fi
 
 has_hair_db_url() {
-  [[ -n "${HAIR_DATABASE_URL:-}" ]] \
-    || [[ -n "${FORYOURHAIR_DATABASE_URL:-}" ]] \
-    || [[ -n "${HAIR_DATABASE_DATABASE_URL:-}" ]] \
-    || [[ -n "${HAIR_POSTGRES_URL:-}" ]] \
-    || [[ -n "${HAIR_POSTGRES_PRISMA_URL:-}" ]]
+  if is_production_deployment; then
+    [[ -n "${HAIR_DATABASE_URL:-}" ]] \
+      || [[ -n "${FORYOURHAIR_DATABASE_URL:-}" ]] \
+      || [[ -n "${HAIR_DATABASE_DATABASE_URL:-}" ]] \
+      || [[ -n "${HAIR_POSTGRES_URL:-}" ]] \
+      || [[ -n "${HAIR_POSTGRES_PRISMA_URL:-}" ]]
+    return
+  fi
+  # Preview: canonical staging URL only — never fall back to production Neon integration.
+  [[ -n "${HAIR_DATABASE_URL:-}" ]] || [[ -n "${FYH_STAGING_DATABASE_URL:-}" ]]
+}
+
+has_platform_db_url() {
+  if is_production_deployment; then
+    [[ -n "${PLATFORM_DATABASE_URL:-}" ]] \
+      || [[ -n "${PLATFORM_DATABASE_DATABASE_URL:-}" ]] \
+      || [[ -n "${PLATFORM_DATABASE_POSTGRES_URL:-}" ]] \
+      || [[ -n "${PLATFORM_DATABASE_POSTGRES_PRISMA_URL:-}" ]] \
+      || [[ -n "${PLATFORM_POSTGRES_URL:-}" ]]
+    return
+  fi
+  [[ -n "${PLATFORM_DATABASE_URL:-}" ]] || [[ -n "${PLATFORM_STAGING_DATABASE_URL:-}" ]]
 }
 
 if has_hair_db_url; then
@@ -71,7 +88,7 @@ if has_hair_db_url; then
     echo "⚠ Hair db:migrate failed — continuing build."
   fi
 else
-  echo "⚠ Hair database URL not set (HAIR_DATABASE_URL) — skipping For Your Hair migrations."
+  echo "⚠ Hair database URL not set (HAIR_DATABASE_URL / FYH_STAGING_DATABASE_URL on Preview) — skipping For Your Hair migrations."
 fi
 
 has_owner_db_url() {
@@ -96,19 +113,12 @@ else
   echo "⚠ Owner database URL not set (OWNER_DATABASE_URL or OWNER_DATABASE_POSTGRES_URL) — skipping Owner OS migrations."
 fi
 
-has_platform_db_url() {
-  [[ -n "${PLATFORM_DATABASE_URL:-}" ]] \
-    || [[ -n "${PLATFORM_DATABASE_DATABASE_URL:-}" ]] \
-    || [[ -n "${PLATFORM_DATABASE_POSTGRES_URL:-}" ]] \
-    || [[ -n "${PLATFORM_DATABASE_POSTGRES_PRISMA_URL:-}" ]] \
-    || [[ -n "${PLATFORM_POSTGRES_URL:-}" ]]
-}
-
 if has_platform_db_url; then
   echo "=== Platform database migrations ==="
   if is_production_deployment; then
     npm run platform:db:migrate
   elif npm run platform:db:migrate; then
+    true
   else
     echo "⚠ Platform db:migrate failed — continuing build."
   fi
