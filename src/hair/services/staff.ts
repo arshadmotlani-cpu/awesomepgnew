@@ -16,6 +16,7 @@ export async function listStaff(includeInactive = false, ctx?: TenantContext | n
     });
     return rows.map((r) => ({
       id: r.employee.id,
+      organizationId: r.employee.organizationId ?? null,
       fullName: r.employee.fullName,
       phone: r.employee.mobile,
       email: r.employee.email,
