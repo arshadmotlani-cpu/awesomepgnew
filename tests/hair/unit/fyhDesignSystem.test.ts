@@ -14,11 +14,12 @@ test('globals.css defines three-level surfaces and input tokens', () => {
   assert.match(css, /--fyh-bg-panel:/);
   assert.match(css, /--fyh-bg-panel-muted:/);
   assert.match(css, /--fyh-text-on-panel:/);
-  assert.match(css, /--fyh-input-bg:\s*#0b1220/);
+  assert.match(css, /--fyh-input-token:\s*#0b1220/);
   assert.match(css, /--fyh-input-placeholder:\s*#aebbcd/);
   assert.match(css, /\.fyh-panel-financial/);
   assert.match(css, /\.fyh-basket-row/);
   assert.match(css, /\.fyh-panel-muted/);
+  assert.match(css, /--fyh-overlay:/);
 });
 
 test('primary button uses cyan accent not forest green fill', () => {

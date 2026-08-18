@@ -1,41 +1,62 @@
 @import "tailwindcss";
+@import "./appearance-accents.css";
 
 :root,
 .fyh-theme-dark {
-  /* ——— Navy / cyan salon ERP palette ——— */
-  --fyh-bg-base: #070b14;
+  /* ——— Semantic design tokens (dark default) ——— */
+  --fyh-bg: #070b14;
+  --fyh-surface: #151f31;
+  --fyh-surface-raised: #1a2438;
+  --fyh-surface-elevated: #1e2d45;
+  --fyh-border-token: rgba(148, 163, 184, 0.22);
+  --fyh-border-strong-token: rgba(148, 163, 184, 0.38);
+  --fyh-text: #ffffff;
+  --fyh-text-secondary-token: #d5deea;
+  --fyh-text-muted-token: #aab7c8;
+  --fyh-input-token: #0b1220;
+  --fyh-input-border-token: rgba(90, 107, 130, 0.55);
+  --fyh-overlay: rgba(4, 8, 16, 0.78);
+
+  /* ——— Layered dark navy surfaces ——— */
+  --fyh-bg-base: var(--fyh-bg);
   --fyh-bg-elevated: #101827;
   --fyh-bg-content: #101827;
-  --fyh-bg-surface: #151f31;
-  --fyh-bg-panel: #f4f7fb;
-  --fyh-bg-panel-muted: #e8edf5;
+  --fyh-bg-surface: var(--fyh-surface);
+  --fyh-bg-panel: var(--fyh-surface-elevated);
+  --fyh-bg-panel-muted: var(--fyh-surface-raised);
   --fyh-bg-glass: rgba(16, 24, 39, 0.92);
+
+  /* Accent defaults (cyan) — overridden by data-fyh-accent */
   --fyh-accent: #22d3ee;
   --fyh-accent-soft: #67e8f9;
-  --fyh-forest: #6366f1;
-  --fyh-forest-deep: #4f46e5;
-  --fyh-moss: #818cf8;
+  --fyh-forest: var(--fyh-accent);
+  --fyh-forest-deep: #0891b2;
+  --fyh-moss: #67e8f9;
+
+  /* Semantic status (independent of accent) */
   --fyh-success: #34d399;
   --fyh-warning: #fbbf24;
   --fyh-danger: #f87171;
-  --fyh-text-primary: #ffffff;
-  --fyh-text-secondary: #d5deea;
-  --fyh-text-muted: #aab7c8;
+
+  --fyh-text-primary: var(--fyh-text);
+  --fyh-text-secondary: var(--fyh-text-secondary-token);
+  --fyh-text-muted: var(--fyh-text-muted-token);
   --fyh-text-label: #e8eef6;
-  --fyh-text-on-panel: #0b1220;
-  --fyh-text-on-panel-muted: #334155;
-  --fyh-border: rgba(148, 163, 184, 0.22);
-  --fyh-border-strong: rgba(148, 163, 184, 0.38);
-  --fyh-border-hover: rgba(34, 211, 238, 0.45);
-  --fyh-border-panel: rgba(100, 116, 139, 0.28);
-  --fyh-glow: rgba(34, 211, 238, 0.14);
-  --fyh-nav-active-bg: rgba(99, 102, 241, 0.18);
+  --fyh-text-on-panel: #f1f5f9;
+  --fyh-text-on-panel-muted: #b8c5d6;
+
+  --fyh-border: var(--fyh-border-token);
+  --fyh-border-strong: var(--fyh-border-strong-token);
+  --fyh-border-hover: color-mix(in srgb, var(--fyh-accent) 45%, transparent);
+  --fyh-border-panel: rgba(100, 116, 139, 0.32);
+  --fyh-glow: color-mix(in srgb, var(--fyh-accent) 14%, transparent);
+  --fyh-nav-active-bg: color-mix(in srgb, var(--fyh-accent) 18%, transparent);
   --fyh-table-stripe: rgba(255, 255, 255, 0.03);
-  --fyh-table-hover: rgba(34, 211, 238, 0.06);
+  --fyh-table-hover: color-mix(in srgb, var(--fyh-accent) 6%, transparent);
   --fyh-surface: var(--fyh-bg-surface);
-  --fyh-surface-muted: #1a2438;
-  --fyh-input-bg: #0b1220;
-  --fyh-input-border: rgba(90, 107, 130, 0.55);
+  --fyh-surface-muted: var(--fyh-surface-raised);
+  --fyh-input-bg: var(--fyh-input-token);
+  --fyh-input-border: var(--fyh-input-border-token);
   --fyh-input-placeholder: #aebbcd;
   --fyh-shadow-panel: 0 4px 18px rgba(4, 10, 22, 0.28);
   --fyh-shadow-panel-strong: 0 8px 28px rgba(4, 10, 22, 0.35);
@@ -61,47 +82,52 @@
   --fyh-scheduler-border: rgba(148, 163, 184, 0.38);
   --fyh-scheduler-header-bg: #0d1526;
   --fyh-scheduler-staff-bg: #121a2e;
-  --fyh-scheduler-now: #22d3ee;
+  --fyh-scheduler-now: var(--fyh-accent);
 }
 
 .fyh-theme-light {
-  --fyh-bg-base: #eef2f8;
+  --fyh-bg: #eef2f8;
+  --fyh-surface: #ffffff;
+  --fyh-surface-raised: #f1f5f9;
+  --fyh-surface-elevated: #ffffff;
+  --fyh-border-token: rgba(100, 116, 139, 0.28);
+  --fyh-border-strong-token: rgba(100, 116, 139, 0.42);
+  --fyh-text: #0f172a;
+  --fyh-text-secondary-token: #334155;
+  --fyh-text-muted-token: #64748b;
+  --fyh-input-token: #ffffff;
+  --fyh-input-border-token: rgba(100, 116, 139, 0.45);
+  --fyh-overlay: rgba(15, 23, 42, 0.45);
+
+  --fyh-bg-base: var(--fyh-bg);
   --fyh-bg-elevated: #f8fafc;
   --fyh-bg-content: #f8fafc;
-  --fyh-bg-surface: #ffffff;
-  --fyh-bg-panel: #ffffff;
-  --fyh-bg-panel-muted: #f1f5f9;
+  --fyh-bg-surface: var(--fyh-surface);
+  --fyh-bg-panel: var(--fyh-surface-elevated);
+  --fyh-bg-panel-muted: var(--fyh-surface-raised);
   --fyh-bg-glass: rgba(255, 255, 255, 0.94);
-  --fyh-accent: #0891b2;
-  --fyh-accent-soft: #06b6d4;
-  --fyh-forest: #4f46e5;
-  --fyh-forest-deep: #4338ca;
-  --fyh-moss: #6366f1;
+
   --fyh-success: #059669;
   --fyh-warning: #d97706;
   --fyh-danger: #dc2626;
-  --fyh-text-primary: #0f172a;
-  --fyh-text-secondary: #334155;
-  --fyh-text-muted: #64748b;
+
+  --fyh-text-primary: var(--fyh-text);
+  --fyh-text-secondary: var(--fyh-text-secondary-token);
+  --fyh-text-muted: var(--fyh-text-muted-token);
   --fyh-text-label: #334155;
   --fyh-text-on-panel: #0f172a;
   --fyh-text-on-panel-muted: #475569;
-  --fyh-border: rgba(100, 116, 139, 0.28);
+
+  --fyh-border: var(--fyh-border-token);
   --fyh-border-panel: rgba(100, 116, 139, 0.22);
-  --fyh-input-bg: #ffffff;
-  --fyh-input-border: rgba(100, 116, 139, 0.45);
+  --fyh-input-bg: var(--fyh-input-token);
+  --fyh-input-border: var(--fyh-input-border-token);
   --fyh-input-placeholder: #94a3b8;
   --fyh-shadow-panel: 0 4px 16px rgba(15, 23, 42, 0.08);
   --fyh-shadow-panel-strong: 0 8px 24px rgba(15, 23, 42, 0.12);
   --fyh-money-accent: var(--fyh-accent);
-  --fyh-border-strong: rgba(100, 116, 139, 0.42);
-  --fyh-border-hover: rgba(8, 145, 178, 0.5);
-  --fyh-glow: rgba(8, 145, 178, 0.12);
-  --fyh-nav-active-bg: rgba(99, 102, 241, 0.1);
-  --fyh-table-stripe: rgba(99, 102, 241, 0.04);
-  --fyh-table-hover: rgba(8, 145, 178, 0.06);
-  --fyh-surface: var(--fyh-bg-surface);
-  --fyh-surface-muted: #f1f5f9;
+  --fyh-border-strong: var(--fyh-border-strong-token);
+  --fyh-surface-muted: var(--fyh-surface-raised);
   --fyh-scheduler-time: var(--fyh-text-primary);
   --fyh-scheduler-grid-line: rgba(100, 116, 139, 0.22);
   --fyh-scheduler-grid-major: rgba(100, 116, 139, 0.36);
@@ -162,8 +188,8 @@
 .fyh-forest-bg {
   background-color: var(--fyh-bg-base);
   background-image:
-    radial-gradient(ellipse at 20% 0%, rgba(34, 211, 238, 0.07), transparent 50%),
-    radial-gradient(ellipse at 80% 100%, rgba(99, 102, 241, 0.06), transparent 45%);
+    radial-gradient(ellipse at 20% 0%, color-mix(in srgb, var(--fyh-accent) 7%, transparent), transparent 50%),
+    radial-gradient(ellipse at 80% 100%, color-mix(in srgb, var(--fyh-forest) 6%, transparent), transparent 45%);
 }
 
 /* ——— Page layout ——— */
@@ -275,7 +301,7 @@
 
 .fyh-panel .fyh-money-value-accent,
 .fyh-panel-financial .fyh-money-value-accent {
-  color: #0891b2;
+  color: var(--fyh-money-accent);
 }
 
 .fyh-panel-label {
@@ -297,7 +323,7 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  background: rgba(4, 8, 16, 0.78);
+  background: var(--fyh-overlay);
   padding: 0;
   overflow: hidden;
 }
@@ -675,7 +701,7 @@
   color: #041018;
   background: var(--fyh-accent);
   border: 1px solid color-mix(in srgb, var(--fyh-accent) 70%, white);
-  box-shadow: 0 4px 14px rgba(34, 211, 238, 0.25);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--fyh-accent) 25%, transparent);
   transition: background 0.2s, box-shadow 0.2s;
 }
 

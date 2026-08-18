@@ -6,6 +6,7 @@ import { cn } from '@/src/hair/lib/utils';
 
 export const SETTINGS_SECTIONS = [
   { href: '/settings/salon', label: 'Salon' },
+  { href: '/settings/appearance', label: 'Appearance' },
   { href: '/settings/gst-invoice', label: 'GST / Invoice' },
   { href: '/settings/printer', label: 'Printer' },
   { href: '/settings/whatsapp', label: 'WhatsApp' },

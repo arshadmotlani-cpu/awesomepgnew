@@ -1,58 +1,89 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import {
+  applyFyhAppearanceToDocument,
+  FYH_DEFAULT_APPEARANCE,
+  type FyhAccentId,
+  type FyhAppearance,
+  type FyhThemeMode,
+  persistFyhAppearance,
+  readStoredFyhAppearance,
+} from '@/src/hair/lib/appearance';
 
-type Theme = 'light' | 'dark';
-
-type ThemeContextValue = {
-  theme: Theme;
-  setTheme: (theme: Theme) => void;
+type AppearanceContextValue = {
+  theme: FyhThemeMode;
+  accent: FyhAccentId;
+  appearance: FyhAppearance;
+  setTheme: (theme: FyhThemeMode) => void;
+  setAccent: (accent: FyhAccentId) => void;
+  setAppearance: (patch: Partial<FyhAppearance>) => void;
   toggleTheme: () => void;
 };
 
-const ThemeContext = createContext<ThemeContextValue | null>(null);
-
-const STORAGE_KEY = 'fyh-theme';
+const AppearanceContext = createContext<AppearanceContextValue | null>(null);
 
 export function HairProviders({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('dark');
+  const [appearance, setAppearanceState] = useState<FyhAppearance>(FYH_DEFAULT_APPEARANCE);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY) as Theme | null;
-    const preferred =
-      stored === 'light' || stored === 'dark'
-        ? stored
-        : window.matchMedia('(prefers-color-scheme: light)').matches
-          ? 'light'
-          : 'dark';
-    setThemeState(preferred);
+    setAppearanceState(readStoredFyhAppearance());
     setReady(true);
   }, []);
 
   useEffect(() => {
     if (!ready) return;
-    const root = document.documentElement;
-    root.classList.remove('fyh-theme-light', 'fyh-theme-dark');
-    root.classList.add(theme === 'light' ? 'fyh-theme-light' : 'fyh-theme-dark');
-    window.localStorage.setItem(STORAGE_KEY, theme);
-  }, [theme, ready]);
+    applyFyhAppearanceToDocument(appearance);
+    persistFyhAppearance(appearance);
+  }, [appearance, ready]);
 
-  const setTheme = useCallback((next: Theme) => setThemeState(next), []);
-  const toggleTheme = useCallback(
-    () => setThemeState((t) => (t === 'dark' ? 'light' : 'dark')),
-    [],
+  const setTheme = useCallback((theme: FyhThemeMode) => {
+    setAppearanceState((prev) => ({ ...prev, theme }));
+  }, []);
+
+  const setAccent = useCallback((accent: FyhAccentId) => {
+    setAppearanceState((prev) => ({ ...prev, accent }));
+  }, []);
+
+  const setAppearance = useCallback((patch: Partial<FyhAppearance>) => {
+    setAppearanceState((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    setAppearanceState((prev) => ({
+      ...prev,
+      theme: prev.theme === 'dark' ? 'light' : 'dark',
+    }));
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      theme: appearance.theme,
+      accent: appearance.accent,
+      appearance,
+      setTheme,
+      setAccent,
+      setAppearance,
+      toggleTheme,
+    }),
+    [appearance, setAccent, setAppearance, setTheme, toggleTheme],
   );
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>
-      {children}
-    </ThemeContext.Provider>
+    <AppearanceContext.Provider value={value}>{children}</AppearanceContext.Provider>
   );
 }
 
-export function useHairTheme() {
-  const ctx = useContext(ThemeContext);
+export function useHairTheme(): AppearanceContextValue {
+  const ctx = useContext(AppearanceContext);
   if (!ctx) throw new Error('useHairTheme must be used within HairProviders');
   return ctx;
 }

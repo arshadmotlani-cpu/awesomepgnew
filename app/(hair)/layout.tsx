@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { Geist, Geist_Mono } from 'next/font/google';
 import '@/src/hair/styles/globals.css';
+import { FyhAppearanceScript } from '@/src/hair/components/FyhAppearanceScript';
 import { HairProviders } from '@/src/hair/components/HairProviders';
 import { fyhMetadata } from '@/src/lib/brand/fyhMetadata';
 
@@ -25,6 +26,7 @@ export const metadata: Metadata = fyhMetadata;
 export default function HairRootLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className={`${geistSans.variable} ${geistMono.variable} fyh-root fyh-forest-bg`}>
+      <FyhAppearanceScript />
       <HairProviders>
         <Suspense fallback={null}>{children}</Suspense>
       </HairProviders>

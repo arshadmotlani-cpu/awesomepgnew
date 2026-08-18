@@ -1,0 +1,122 @@
+/**
+ * FYHAIR accent presets — applied via data-fyh-accent on <html>.
+ * Status colours (--fyh-success, --fyh-warning, --fyh-danger) stay semantic.
+ */
+
+:root,
+.fyh-theme-dark,
+.fyh-theme-light {
+  --fyh-accent-hover: color-mix(in srgb, var(--fyh-accent) 82%, black);
+}
+
+[data-fyh-accent='cyan'] {
+  --fyh-accent: #22d3ee;
+  --fyh-accent-soft: #67e8f9;
+  --fyh-money-accent: var(--fyh-accent);
+  --fyh-border-hover: color-mix(in srgb, var(--fyh-accent) 45%, transparent);
+  --fyh-glow: color-mix(in srgb, var(--fyh-accent) 14%, transparent);
+  --fyh-nav-active-bg: color-mix(in srgb, var(--fyh-accent) 18%, transparent);
+  --fyh-table-hover: color-mix(in srgb, var(--fyh-accent) 6%, transparent);
+  --fyh-scheduler-now: var(--fyh-accent);
+  --fyh-forest: var(--fyh-accent);
+  --fyh-forest-deep: #0891b2;
+  --fyh-moss: #67e8f9;
+}
+
+[data-fyh-accent='blue'] {
+  --fyh-accent: #3b82f6;
+  --fyh-accent-soft: #60a5fa;
+  --fyh-money-accent: var(--fyh-accent);
+  --fyh-border-hover: color-mix(in srgb, var(--fyh-accent) 45%, transparent);
+  --fyh-glow: color-mix(in srgb, var(--fyh-accent) 14%, transparent);
+  --fyh-nav-active-bg: color-mix(in srgb, var(--fyh-accent) 18%, transparent);
+  --fyh-table-hover: color-mix(in srgb, var(--fyh-accent) 6%, transparent);
+  --fyh-scheduler-now: var(--fyh-accent);
+  --fyh-forest: var(--fyh-accent);
+  --fyh-forest-deep: #2563eb;
+  --fyh-moss: #93c5fd;
+}
+
+[data-fyh-accent='purple'] {
+  --fyh-accent: #a855f7;
+  --fyh-accent-soft: #c084fc;
+  --fyh-money-accent: var(--fyh-accent);
+  --fyh-border-hover: color-mix(in srgb, var(--fyh-accent) 45%, transparent);
+  --fyh-glow: color-mix(in srgb, var(--fyh-accent) 14%, transparent);
+  --fyh-nav-active-bg: color-mix(in srgb, var(--fyh-accent) 18%, transparent);
+  --fyh-table-hover: color-mix(in srgb, var(--fyh-accent) 6%, transparent);
+  --fyh-scheduler-now: var(--fyh-accent);
+  --fyh-forest: var(--fyh-accent);
+  --fyh-forest-deep: #9333ea;
+  --fyh-moss: #d8b4fe;
+}
+
+[data-fyh-accent='pink'] {
+  --fyh-accent: #ec4899;
+  --fyh-accent-soft: #f472b6;
+  --fyh-money-accent: var(--fyh-accent);
+  --fyh-border-hover: color-mix(in srgb, var(--fyh-accent) 45%, transparent);
+  --fyh-glow: color-mix(in srgb, var(--fyh-accent) 14%, transparent);
+  --fyh-nav-active-bg: color-mix(in srgb, var(--fyh-accent) 18%, transparent);
+  --fyh-table-hover: color-mix(in srgb, var(--fyh-accent) 6%, transparent);
+  --fyh-scheduler-now: var(--fyh-accent);
+  --fyh-forest: var(--fyh-accent);
+  --fyh-forest-deep: #db2777;
+  --fyh-moss: #fbcfe8;
+}
+
+[data-fyh-accent='red'] {
+  --fyh-accent: #ef4444;
+  --fyh-accent-soft: #f87171;
+  --fyh-money-accent: var(--fyh-accent);
+  --fyh-border-hover: color-mix(in srgb, var(--fyh-accent) 45%, transparent);
+  --fyh-glow: color-mix(in srgb, var(--fyh-accent) 14%, transparent);
+  --fyh-nav-active-bg: color-mix(in srgb, var(--fyh-accent) 18%, transparent);
+  --fyh-table-hover: color-mix(in srgb, var(--fyh-accent) 6%, transparent);
+  --fyh-scheduler-now: var(--fyh-accent);
+  --fyh-forest: var(--fyh-accent);
+  --fyh-forest-deep: #dc2626;
+  --fyh-moss: #fecaca;
+}
+
+[data-fyh-accent='orange'] {
+  --fyh-accent: #f97316;
+  --fyh-accent-soft: #fb923c;
+  --fyh-money-accent: var(--fyh-accent);
+  --fyh-border-hover: color-mix(in srgb, var(--fyh-accent) 45%, transparent);
+  --fyh-glow: color-mix(in srgb, var(--fyh-accent) 14%, transparent);
+  --fyh-nav-active-bg: color-mix(in srgb, var(--fyh-accent) 18%, transparent);
+  --fyh-table-hover: color-mix(in srgb, var(--fyh-accent) 6%, transparent);
+  --fyh-scheduler-now: var(--fyh-accent);
+  --fyh-forest: var(--fyh-accent);
+  --fyh-forest-deep: #ea580c;
+  --fyh-moss: #fdba74;
+}
+
+[data-fyh-accent='yellow'] {
+  --fyh-accent: #eab308;
+  --fyh-accent-soft: #facc15;
+  --fyh-money-accent: var(--fyh-accent);
+  --fyh-border-hover: color-mix(in srgb, var(--fyh-accent) 45%, transparent);
+  --fyh-glow: color-mix(in srgb, var(--fyh-accent) 14%, transparent);
+  --fyh-nav-active-bg: color-mix(in srgb, var(--fyh-accent) 18%, transparent);
+  --fyh-table-hover: color-mix(in srgb, var(--fyh-accent) 6%, transparent);
+  --fyh-scheduler-now: var(--fyh-accent);
+  --fyh-forest: var(--fyh-accent);
+  --fyh-forest-deep: #ca8a04;
+  --fyh-moss: #fde047;
+}
+
+[data-fyh-accent='green'] {
+  --fyh-accent: #22c55e;
+  --fyh-accent-soft: #4ade80;
+  --fyh-money-accent: var(--fyh-accent);
+  --fyh-border-hover: color-mix(in srgb, var(--fyh-accent) 45%, transparent);
+  --fyh-glow: color-mix(in srgb, var(--fyh-accent) 14%, transparent);
+  --fyh-nav-active-bg: color-mix(in srgb, var(--fyh-accent) 18%, transparent);
+  --fyh-table-hover: color-mix(in srgb, var(--fyh-accent) 6%, transparent);
+  --fyh-scheduler-now: var(--fyh-accent);
+  --fyh-forest: var(--fyh-accent);
+  --fyh-forest-deep: #16a34a;
+  --fyh-moss: #86efac;
+}
