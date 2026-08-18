@@ -46,9 +46,9 @@ async function resolveWorkforcePermissions(
     const grants =
       (await resolvePermissions(employeeId, salon.engineId)) ??
       codeTemplateForAccessRole(salon.jobRole);
-    return grants;
+    return grants.permissions;
   }
-  return codeTemplateForAccessRole(membershipRole === 'staff' ? 'staff' : 'manager');
+  return codeTemplateForAccessRole(membershipRole === 'staff' ? 'staff' : 'manager').permissions;
 }
 
 /**
