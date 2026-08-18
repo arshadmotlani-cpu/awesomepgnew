@@ -6,6 +6,7 @@ import { buildInvoiceRegisterPdfHtml } from '@/src/hair/lib/export/invoiceRegist
 import { invoicePublicViewUrl } from '@/src/hair/lib/invoicePublicLinks';
 import type { SalonSettings } from '@/src/hair/services/settings';
 import type { InvoiceRegisterRow } from '@/src/hair/services/invoiceRegisterQueries';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
 
 export { buildInvoiceRegisterPdfHtml } from '@/src/hair/lib/export/invoiceRegisterPdf';
 

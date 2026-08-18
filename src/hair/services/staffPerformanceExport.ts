@@ -5,6 +5,7 @@
 import ExcelJS from 'exceljs';
 import { paiseToCsvRupees, rowsToCsv } from '@/src/hair/lib/export/csv';
 import type { StaffPerformanceCommandCenterSnapshot } from '@/src/hair/services/staffPerformanceDashboard';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
 
 export type StaffPerformanceExportSheet = {
   name: string;
