@@ -8,6 +8,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
 import { fyhAdminUsers } from './admin';
 
 export const FYH_HISTORICAL_IMPORT_STATUSES = ['running', 'completed', 'failed'] as const;
@@ -40,6 +41,7 @@ export const fyhHistoricalImportBatches = pgTable(
   'fyh_historical_import_batches',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     fileName: text('file_name').notNull(),
     fileSha256: text('file_sha256').notNull(),
     uploadedByAdminId: uuid('uploaded_by_admin_id').references(() => fyhAdminUsers.id, {
@@ -58,6 +60,7 @@ export const fyhHistoricalImportRowErrors = pgTable(
   'fyh_historical_import_row_errors',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     batchId: uuid('batch_id')
       .notNull()
       .references(() => fyhHistoricalImportBatches.id, { onDelete: 'cascade' }),

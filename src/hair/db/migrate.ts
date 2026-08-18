@@ -1,5 +1,11 @@
 import { loadAppEnv } from '@/src/lib/db/loadEnv';
-loadAppEnv();
+import { loadStagingEnv } from '@/src/lib/db/loadStagingEnv';
+
+if (process.env.STAGING_ONLY === '1') {
+  loadStagingEnv();
+} else {
+  loadAppEnv();
+}
 
 import { sql } from 'drizzle-orm';
 import { readMigrationFiles } from 'drizzle-orm/migrator';

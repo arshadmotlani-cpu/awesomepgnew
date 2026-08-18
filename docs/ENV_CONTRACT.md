@@ -7,6 +7,7 @@ Single Vercel deployment hosts three products. Each product uses its **own** Pos
 | Awesome PG | `www.awesomepg.in` | `DATABASE_URL` (or `POSTGRES_URL`) |
 | Automotive Capital | `invest.awesomepg.in` | `INVEST_DATABASE_URL` |
 | For Your Hair | `fyhair.awesomepg.in` | `HAIR_DATABASE_URL` |
+| Platform SaaS (FYH) | shared host | `PLATFORM_DATABASE_URL` (staging first) |
 
 Shared: `AUTH_SECRET` (≥32 chars for builds and sessions).
 
@@ -23,6 +24,7 @@ Neon integration variables are often **present but empty** in `.env.local` after
 ```bash
 npm run env:check              # PG database (default)
 npm run env:check -- --product=hair
+npm run env:check -- --product=platform
 npm run env:check -- --product=capital
 ```
 

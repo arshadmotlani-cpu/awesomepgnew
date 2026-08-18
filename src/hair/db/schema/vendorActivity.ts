@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { index, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
 import { fyhPurchases } from './purchases';
 import { fyhVendors } from './vendors';
 
@@ -7,6 +8,8 @@ export const fyhPurchaseAuditEvents = pgTable(
   'fyh_purchase_audit_events',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     purchaseId: uuid('purchase_id')
       .notNull()
       .references(() => fyhPurchases.id, { onDelete: 'cascade' }),
@@ -23,6 +26,7 @@ export const fyhVendorNotes = pgTable(
   'fyh_vendor_notes',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     vendorId: uuid('vendor_id')
       .notNull()
       .references(() => fyhVendors.id, { onDelete: 'cascade' }),

@@ -10,6 +10,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
 import type { FyhProductType } from '@/src/hair/lib/productTypes';
 import { fyhBrands } from './brands';
 
@@ -17,6 +18,7 @@ export const fyhProducts = pgTable(
   'fyh_products',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     name: text('name').notNull(),
     brandId: uuid('brand_id')
       .notNull()

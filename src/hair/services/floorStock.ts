@@ -1,8 +1,10 @@
-import { desc, eq, isNull } from 'drizzle-orm';
+import { desc, eq, isNull, and } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import { fyhBrands, fyhFloorIssues, fyhProducts } from '@/src/hair/db/schema';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
-export async function listOpenFloorIssues() {
+export async function listOpenFloorIssues(ctx?: TenantContext | null) {
   return hairDb
     .select({
       issue: fyhFloorIssues,
@@ -13,6 +15,12 @@ export async function listOpenFloorIssues() {
     .from(fyhFloorIssues)
     .innerJoin(fyhProducts, eq(fyhProducts.id, fyhFloorIssues.productId))
     .innerJoin(fyhBrands, eq(fyhBrands.id, fyhProducts.brandId))
-    .where(isNull(fyhFloorIssues.returnedAt))
+    .where(
+      and(
+        orgFilter(fyhFloorIssues.organizationId, ctx),
+        locationFilter(fyhFloorIssues.locationId, ctx),
+        isNull(fyhFloorIssues.returnedAt),
+      ),
+    )
     .orderBy(desc(fyhFloorIssues.issuedAt));
 }

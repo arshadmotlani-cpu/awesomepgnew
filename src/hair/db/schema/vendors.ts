@@ -10,6 +10,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
 import { fyhProducts } from './products';
 
 export const FYH_PO_STATUSES = ['draft', 'ordered', 'received', 'cancelled'] as const;
@@ -19,6 +20,7 @@ export const fyhVendors = pgTable(
   'fyh_vendors',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     name: text('name').notNull(),
     companyName: text('company_name'),
     contactName: text('contact_name'),
@@ -43,6 +45,8 @@ export const fyhPurchaseOrders = pgTable(
   'fyh_purchase_orders',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     vendorId: uuid('vendor_id')
       .notNull()
       .references(() => fyhVendors.id, { onDelete: 'restrict' }),
@@ -62,6 +66,8 @@ export const fyhPurchaseOrderLines = pgTable(
   'fyh_purchase_order_lines',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     purchaseOrderId: uuid('purchase_order_id')
       .notNull()
       .references(() => fyhPurchaseOrders.id, { onDelete: 'cascade' }),
@@ -85,6 +91,8 @@ export const fyhGoodsReceipts = pgTable(
   'fyh_goods_receipts',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     purchaseOrderId: uuid('purchase_order_id').references(() => fyhPurchaseOrders.id, {
       onDelete: 'set null',
     }),
@@ -105,6 +113,8 @@ export const fyhGoodsReceiptLines = pgTable(
   'fyh_goods_receipt_lines',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     goodsReceiptId: uuid('goods_receipt_id')
       .notNull()
       .references(() => fyhGoodsReceipts.id, { onDelete: 'cascade' }),
@@ -130,6 +140,8 @@ export const fyhStockAdjustments = pgTable(
   'fyh_stock_adjustments',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     productId: uuid('product_id')
       .notNull()
       .references(() => fyhProducts.id, { onDelete: 'restrict' }),
@@ -149,6 +161,8 @@ export const fyhProductBatches = pgTable(
   'fyh_product_batches',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     productId: uuid('product_id')
       .notNull()
       .references(() => fyhProducts.id, { onDelete: 'restrict' }),

@@ -11,6 +11,8 @@ import {
 import { shouldHideServiceFromBillable } from '@/src/hair/lib/serviceCatalogHygiene';
 import { buildAppointmentsHref, salonDayKeyFromInstant } from '@/src/hair/lib/appointmentDate';
 import { getSalonSettings } from '@/src/hair/services/settings';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 export type HairSearchHit = {
   type: 'customer' | 'invoice' | 'appointment' | 'staff' | 'service' | 'product';
@@ -20,10 +22,10 @@ export type HairSearchHit = {
   href: string;
 };
 
-export async function searchHair(query: string, limit = 20): Promise<HairSearchHit[]> {
+export async function searchHair(query: string, limit = 20, ctx?: TenantContext | null): Promise<HairSearchHit[]> {
   const q = query.trim();
   if (q.length < 2) return [];
-  const settings = await getSalonSettings();
+  const settings = await getSalonSettings(ctx);
   const timezone = settings.timezone || 'Asia/Kolkata';
   const pattern = `%${q}%`;
   const hits: HairSearchHit[] = [];
@@ -37,6 +39,7 @@ export async function searchHair(query: string, limit = 20): Promise<HairSearchH
     .from(fyhCustomers)
     .where(
       and(
+        orgFilter(fyhCustomers.organizationId, ctx),
         eq(fyhCustomers.isActive, true),
         or(ilike(fyhCustomers.fullName, pattern), ilike(fyhCustomers.phone, pattern)),
       ),
@@ -59,7 +62,13 @@ export async function searchHair(query: string, limit = 20): Promise<HairSearchH
       status: fyhInvoices.status,
     })
     .from(fyhInvoices)
-    .where(ilike(fyhInvoices.invoiceNumber, pattern))
+    .where(
+      and(
+        orgFilter(fyhInvoices.organizationId, ctx),
+        locationFilter(fyhInvoices.locationId, ctx),
+        ilike(fyhInvoices.invoiceNumber, pattern),
+      ),
+    )
     .limit(5);
   for (const inv of invoices) {
     hits.push({
@@ -82,10 +91,14 @@ export async function searchHair(query: string, limit = 20): Promise<HairSearchH
     .from(fyhAppointments)
     .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhAppointments.customerId))
     .where(
-      or(
-        ilike(fyhCustomers.fullName, pattern),
-        ilike(fyhCustomers.phone, pattern),
-        sql`cast(${fyhAppointments.id} as text) ilike ${pattern}`,
+      and(
+        orgFilter(fyhAppointments.organizationId, ctx),
+        locationFilter(fyhAppointments.locationId, ctx),
+        or(
+          ilike(fyhCustomers.fullName, pattern),
+          ilike(fyhCustomers.phone, pattern),
+          sql`cast(${fyhAppointments.id} as text) ilike ${pattern}`,
+        ),
       ),
     )
     .orderBy(asc(fyhAppointments.startAt))
@@ -103,7 +116,13 @@ export async function searchHair(query: string, limit = 20): Promise<HairSearchH
   const staff = await hairDb
     .select({ id: fyhStaff.id, fullName: fyhStaff.fullName, role: fyhStaff.role })
     .from(fyhStaff)
-    .where(and(eq(fyhStaff.isActive, true), ilike(fyhStaff.fullName, pattern)))
+    .where(
+      and(
+        orgFilter(fyhStaff.organizationId, ctx),
+        eq(fyhStaff.isActive, true),
+        ilike(fyhStaff.fullName, pattern),
+      ),
+    )
     .limit(5);
   for (const s of staff) {
     hits.push({
@@ -118,7 +137,13 @@ export async function searchHair(query: string, limit = 20): Promise<HairSearchH
   const services = await hairDb
     .select({ id: fyhServices.id, name: fyhServices.name, code: fyhServices.code, category: fyhServices.category })
     .from(fyhServices)
-    .where(and(eq(fyhServices.isActive, true), ilike(fyhServices.name, pattern)))
+    .where(
+      and(
+        orgFilter(fyhServices.organizationId, ctx),
+        eq(fyhServices.isActive, true),
+        ilike(fyhServices.name, pattern),
+      ),
+    )
     .limit(5);
   for (const s of services) {
     if (shouldHideServiceFromBillable(s.name, s.code)) continue;
@@ -134,7 +159,13 @@ export async function searchHair(query: string, limit = 20): Promise<HairSearchH
   const products = await hairDb
     .select({ id: fyhProducts.id, name: fyhProducts.name })
     .from(fyhProducts)
-    .where(and(eq(fyhProducts.isActive, true), ilike(fyhProducts.name, pattern)))
+    .where(
+      and(
+        orgFilter(fyhProducts.organizationId, ctx),
+        eq(fyhProducts.isActive, true),
+        ilike(fyhProducts.name, pattern),
+      ),
+    )
     .limit(5);
   for (const p of products) {
     hits.push({

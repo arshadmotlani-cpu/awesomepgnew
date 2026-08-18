@@ -5,6 +5,7 @@ import {
   CUSTOMER_SESSION_COOKIE,
   SIGNUP_SESSION_COOKIE,
 } from '@/src/lib/auth/constants';
+import { PLATFORM_SESSION_COOKIE } from '@/src/platform/lib/auth/constants';
 import {
   capitalMiddleware,
   shouldRunCapitalMiddleware,
@@ -68,8 +69,47 @@ function pgApexToWwwRedirect(request: NextRequest): NextResponse | null {
   return NextResponse.redirect(url, 308);
 }
 
+function needsPlatformAuth(pathname: string): boolean {
+  if (!pathname.startsWith('/platform')) return false;
+  if (pathname === '/platform/auth/login' || pathname.startsWith('/platform/auth/login')) {
+    return false;
+  }
+  return true;
+}
+
+function platformMiddleware(request: NextRequest): NextResponse | null {
+  const { pathname } = request.nextUrl;
+  if (!pathname.startsWith('/platform')) return null;
+
+  const requestHeaders = attachMonitoringHeaders(request);
+
+  if (pathname === '/platform' || pathname === '/platform/') {
+    return NextResponse.redirect(new URL('/platform/dashboard', request.url));
+  }
+
+  const hasPlatformSession = Boolean(request.cookies.get(PLATFORM_SESSION_COOKIE)?.value);
+
+  if (pathname === '/platform/auth/login' || pathname.startsWith('/platform/auth/login')) {
+    if (hasPlatformSession) {
+      return NextResponse.redirect(new URL('/platform/dashboard', request.url));
+    }
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
+  if (needsPlatformAuth(pathname) && !hasPlatformSession) {
+    const login = new URL('/platform/auth/login', request.url);
+    login.searchParams.set('next', `${pathname}${request.nextUrl.search}`);
+    return NextResponse.redirect(login);
+  }
+
+  return NextResponse.next({ request: { headers: requestHeaders } });
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  const platformResponse = platformMiddleware(request);
+  if (platformResponse) return platformResponse;
 
   if (shouldRunHairMiddleware(request)) {
     return hairMiddleware(request);

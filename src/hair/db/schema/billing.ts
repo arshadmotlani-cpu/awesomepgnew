@@ -11,6 +11,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
 import { fyhAppointments } from './appointments';
 import { fyhCustomers } from './customers';
 import { fyhHistoricalImportBatches } from './historicalImport';
@@ -66,6 +67,8 @@ export const fyhInvoices = pgTable(
   'fyh_invoices',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     invoiceNumber: text('invoice_number').notNull(),
     customerId: uuid('customer_id')
       .notNull()
@@ -122,6 +125,8 @@ export const fyhInvoiceLines = pgTable(
   'fyh_invoice_lines',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     invoiceId: uuid('invoice_id')
       .notNull()
       .references(() => fyhInvoices.id, { onDelete: 'cascade' }),
@@ -155,6 +160,8 @@ export const fyhInvoicePayments = pgTable(
   'fyh_invoice_payments',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     invoiceId: uuid('invoice_id')
       .notNull()
       .references(() => fyhInvoices.id, { onDelete: 'cascade' }),
@@ -178,6 +185,8 @@ export const fyhCreditNotes = pgTable(
   'fyh_credit_notes',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     creditNoteNumber: text('credit_note_number').notNull(),
     invoiceId: uuid('invoice_id')
       .notNull()

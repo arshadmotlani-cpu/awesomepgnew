@@ -23,6 +23,8 @@ import {
   type FyhInvoiceStatus,
   type FyhPaymentMethod,
 } from '@/src/hair/db/schema';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 export const DEFAULT_REGISTER_PAGE_SIZE = 50;
 
@@ -208,8 +210,7 @@ async function attachLinesAndPayments(rows: InvoiceRegisterRow[]): Promise<Invoi
 }
 
 export async function queryInvoiceRegister(
-  filters: InvoiceRegisterFilters = {},
-): Promise<InvoiceRegisterResult> {
+  filters: InvoiceRegisterFilters = {}, ctx?: TenantContext | null): Promise<InvoiceRegisterResult> {
   const limit = pageLimit(filters);
   const offset = pageOffset(filters, limit);
   const where = buildWhere(filters);
@@ -259,8 +260,7 @@ export async function queryInvoiceRegister(
 /** Fetch all rows matching filters for export (capped). */
 export async function queryInvoiceRegisterForExport(
   filters: InvoiceRegisterFilters = {},
-  maxRows = 10_000,
-): Promise<InvoiceRegisterRow[]> {
+  maxRows = 10_000, ctx?: TenantContext | null): Promise<InvoiceRegisterRow[]> {
   const where = buildWhere(filters);
   const invoiceRows = await hairDb
     .select({

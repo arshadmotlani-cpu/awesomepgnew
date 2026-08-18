@@ -86,8 +86,7 @@ export function exportStaffPerformanceCsv(snapshot: StaffPerformanceCommandCente
 }
 
 export async function exportStaffPerformanceExcel(
-  snapshot: StaffPerformanceCommandCenterSnapshot,
-): Promise<Buffer> {
+  snapshot: StaffPerformanceCommandCenterSnapshot, ctx?: TenantContext | null): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'FYH';
   for (const sheet of buildStaffPerformanceExportSheets(snapshot)) {

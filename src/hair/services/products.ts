@@ -5,6 +5,8 @@ import type { FyhProduct } from '@/src/hair/db/schema';
 import type { FyhProductType } from '@/src/hair/lib/productTypes';
 import { parseProductType } from '@/src/hair/lib/productTypes';
 import { applyMovement } from '@/src/hair/services/stock';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 function toPaise(rupees: number): number {
   return Math.round(Number(rupees || 0) * 100);
@@ -37,11 +39,14 @@ function validateProductInput(input: ProductInput) {
   return name;
 }
 
-export async function listProducts(opts?: {
-  q?: string;
-  status?: 'active' | 'inactive' | 'all';
-}): Promise<ProductWithBrand[]> {
-  const conditions = [];
+export async function listProducts(
+  opts?: {
+    q?: string;
+    status?: 'active' | 'inactive' | 'all';
+  },
+  ctx?: TenantContext | null,
+): Promise<ProductWithBrand[]> {
+  const conditions = [orgFilter(fyhProducts.organizationId, ctx)];
   const status = opts?.status ?? 'active';
   if (status === 'active') conditions.push(eq(fyhProducts.isActive, true));
   if (status === 'inactive') conditions.push(eq(fyhProducts.isActive, false));
@@ -59,7 +64,7 @@ export async function listProducts(opts?: {
     })
     .from(fyhProducts)
     .innerJoin(fyhBrands, eq(fyhBrands.id, fyhProducts.brandId))
-    .where(conditions.length ? and(...conditions) : undefined)
+    .where(and(...conditions))
     .orderBy(asc(fyhProducts.name))
     .limit(300);
 
@@ -67,15 +72,21 @@ export async function listProducts(opts?: {
 }
 
 /** Professional products for service consumable kits. */
-export async function listConsumableProducts() {
+export async function listConsumableProducts(ctx?: TenantContext | null) {
   return hairDb
     .select()
     .from(fyhProducts)
-    .where(and(eq(fyhProducts.isActive, true), eq(fyhProducts.productType, 'professional')))
+    .where(
+      and(
+        orgFilter(fyhProducts.organizationId, ctx),
+        eq(fyhProducts.isActive, true),
+        eq(fyhProducts.productType, 'professional'),
+      ),
+    )
     .orderBy(asc(fyhProducts.name));
 }
 
-export async function getProduct(id: string): Promise<ProductWithBrand | null> {
+export async function getProduct(id: string, ctx?: TenantContext | null): Promise<ProductWithBrand | null> {
   const [row] = await hairDb
     .select({
       product: fyhProducts,
@@ -83,12 +94,12 @@ export async function getProduct(id: string): Promise<ProductWithBrand | null> {
     })
     .from(fyhProducts)
     .innerJoin(fyhBrands, eq(fyhBrands.id, fyhProducts.brandId))
-    .where(eq(fyhProducts.id, id))
+    .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.id, id)))
     .limit(1);
   return row ? { ...row.product, brandName: row.brandName } : null;
 }
 
-export async function createProduct(input: ProductInput) {
+export async function createProduct(input: ProductInput, ctx?: TenantContext | null) {
   const name = validateProductInput(input);
   const openingQty = input.stockQty ?? 0;
   const productType = parseProductType(input.productType);
@@ -100,6 +111,7 @@ export async function createProduct(input: ProductInput) {
     const [row] = await tx
       .insert(fyhProducts)
       .values({
+        ...tenantOrgDefaults(ctx),
         name,
         brandId: input.brandId,
         description: input.description?.trim() || null,
@@ -112,27 +124,31 @@ export async function createProduct(input: ProductInput) {
       .returning();
 
     if (openingQty > 0) {
-      await applyMovement(db, {
-        productId: row!.id,
-        quantityDelta: openingQty,
-        movementType: 'opening',
-        notes: 'Opening stock',
-      });
+      await applyMovement(
+        db,
+        {
+          productId: row!.id,
+          quantityDelta: openingQty,
+          movementType: 'opening',
+          notes: 'Opening stock',
+        },
+        ctx,
+      );
     }
 
-    const created = await getProduct(row!.id);
+    const created = await getProduct(row!.id, ctx);
     return created!;
   });
 }
 
-export async function updateProduct(id: string, input: ProductInput) {
+export async function updateProduct(id: string, input: ProductInput, ctx?: TenantContext | null) {
   const name = validateProductInput(input);
   const isActive = input.isActive !== false;
   const productType = parseProductType(input.productType);
   const sellingPricePaise =
     productType === 'retail' ? toPaise(input.sellingPriceRupees ?? 0) : 0;
 
-  const existing = await getProduct(id);
+  const existing = await getProduct(id, ctx);
   if (!existing) throw new Error('Product not found');
 
   const desiredQty = input.stockQty ?? Number(existing.stockQty);
@@ -154,36 +170,42 @@ export async function updateProduct(id: string, input: ProductInput) {
         archivedAt: isActive ? null : new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(fyhProducts.id, id));
+      .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.id, id)));
 
     if (delta !== 0) {
-      await applyMovement(db, {
-        productId: id,
-        quantityDelta: delta,
-        movementType: 'adjustment',
-        referenceType: 'product_edit',
-        referenceId: id,
-        notes: 'Stock corrected via product edit',
-      });
+      await applyMovement(
+        db,
+        {
+          productId: id,
+          quantityDelta: delta,
+          movementType: 'adjustment',
+          referenceType: 'product_edit',
+          referenceId: id,
+          notes: 'Stock corrected via product edit',
+        },
+        ctx,
+      );
     }
 
-    const updated = await getProduct(id);
+    const updated = await getProduct(id, ctx);
     return updated!;
   });
 }
 
-export async function archiveProduct(id: string) {
+export async function archiveProduct(id: string, ctx?: TenantContext | null) {
   const [row] = await hairDb
     .update(fyhProducts)
     .set({ isActive: false, archivedAt: new Date(), updatedAt: new Date() })
-    .where(eq(fyhProducts.id, id))
+    .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.id, id)))
     .returning();
   if (!row) throw new Error('Product not found');
   return row;
 }
 
-export async function deleteProduct(id: string) {
-  const existing = await getProduct(id);
+export async function deleteProduct(id: string, ctx?: TenantContext | null) {
+  const existing = await getProduct(id, ctx);
   if (!existing) throw new Error('Product not found');
-  await hairDb.delete(fyhProducts).where(eq(fyhProducts.id, id));
+  await hairDb
+    .delete(fyhProducts)
+    .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.id, id)));
 }

@@ -8,6 +8,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { organizationIdCol } from './tenantColumns';
 import { fyhProducts } from './products';
 import { fyhServices } from './services';
 import { fyhStaff } from './staff';
@@ -21,6 +22,7 @@ export const fyhServiceStaff = pgTable(
     staffId: uuid('staff_id')
       .notNull()
       .references(() => fyhStaff.id, { onDelete: 'cascade' }),
+    organizationId: organizationIdCol(),
   },
   (t) => [primaryKey({ columns: [t.serviceId, t.staffId] })],
 );
@@ -29,6 +31,7 @@ export const fyhServiceConsumables = pgTable(
   'fyh_service_consumables',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     serviceId: uuid('service_id')
       .notNull()
       .references(() => fyhServices.id, { onDelete: 'cascade' }),

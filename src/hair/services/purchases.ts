@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import {
   fyhGoodsReceiptLines,
@@ -10,6 +10,8 @@ import {
   fyhVendors,
 } from '@/src/hair/db/schema';
 import { applyMovement, updateWeightedAverageCost } from '@/src/hair/services/stock';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 export type PoLineInput = {
   productId: string;
@@ -34,7 +36,7 @@ async function nextPoNumber(): Promise<string> {
   return `PO-${ts}`;
 }
 
-export async function listPurchaseOrders(limit = 100) {
+export async function listPurchaseOrders(limit = 100, ctx?: TenantContext | null) {
   return hairDb
     .select({
       po: fyhPurchaseOrders,
@@ -46,7 +48,7 @@ export async function listPurchaseOrders(limit = 100) {
     .limit(limit);
 }
 
-export async function getPurchaseOrder(id: string) {
+export async function getPurchaseOrder(id: string, ctx?: TenantContext | null) {
   const [header] = await hairDb
     .select({
       po: fyhPurchaseOrders,
@@ -54,7 +56,7 @@ export async function getPurchaseOrder(id: string) {
     })
     .from(fyhPurchaseOrders)
     .innerJoin(fyhVendors, eq(fyhVendors.id, fyhPurchaseOrders.vendorId))
-    .where(eq(fyhPurchaseOrders.id, id))
+    .where(and(orgFilter(fyhPurchaseOrders.organizationId, ctx), locationFilter(fyhPurchaseOrders.locationId, ctx), eq(fyhPurchaseOrders.id, id)))
     .limit(1);
   if (!header) return null;
 
@@ -65,7 +67,7 @@ export async function getPurchaseOrder(id: string) {
     })
     .from(fyhPurchaseOrderLines)
     .innerJoin(fyhProducts, eq(fyhProducts.id, fyhPurchaseOrderLines.productId))
-    .where(eq(fyhPurchaseOrderLines.purchaseOrderId, id));
+    .where(and(orgFilter(fyhPurchaseOrderLines.organizationId, ctx), locationFilter(fyhPurchaseOrderLines.locationId, ctx), eq(fyhPurchaseOrderLines.purchaseOrderId, id)));
 
   return { ...header, lines };
 }
@@ -75,13 +77,13 @@ export async function createPurchaseOrder(input: {
   notes?: string | null;
   lines: PoLineInput[];
   markOrdered?: boolean;
-}) {
+}, ctx?: TenantContext | null) {
   if (!input.lines.length) throw new Error('At least one line is required');
 
   const [vendor] = await hairDb
     .select()
     .from(fyhVendors)
-    .where(eq(fyhVendors.id, input.vendorId))
+    .where(and(orgFilter(fyhVendors.organizationId, ctx), eq(fyhVendors.id, input.vendorId)))
     .limit(1);
   if (!vendor) throw new Error('Vendor not found');
 
@@ -119,13 +121,13 @@ export async function receiveGoodsReceipt(input: {
   purchaseOrderId?: string | null;
   notes?: string | null;
   lines: GrnLineInput[];
-}) {
+}, ctx?: TenantContext | null) {
   if (!input.lines.length) throw new Error('At least one line is required');
 
   const [vendor] = await hairDb
     .select()
     .from(fyhVendors)
-    .where(eq(fyhVendors.id, input.vendorId))
+    .where(and(orgFilter(fyhVendors.organizationId, ctx), eq(fyhVendors.id, input.vendorId)))
     .limit(1);
   if (!vendor) throw new Error('Vendor not found');
 
@@ -133,7 +135,7 @@ export async function receiveGoodsReceipt(input: {
     const [po] = await hairDb
       .select()
       .from(fyhPurchaseOrders)
-      .where(eq(fyhPurchaseOrders.id, input.purchaseOrderId))
+      .where(and(orgFilter(fyhPurchaseOrders.organizationId, ctx), locationFilter(fyhPurchaseOrders.locationId, ctx), eq(fyhPurchaseOrders.id, input.purchaseOrderId)))
       .limit(1);
     if (!po) throw new Error('Purchase order not found');
     if (po.status === 'cancelled') throw new Error('Cannot receive against a cancelled PO');
@@ -181,14 +183,14 @@ export async function receiveGoodsReceipt(input: {
       await tx
         .update(fyhPurchaseOrders)
         .set({ status: 'received' })
-        .where(eq(fyhPurchaseOrders.id, input.purchaseOrderId));
+        .where(and(orgFilter(fyhPurchaseOrders.organizationId, ctx), locationFilter(fyhPurchaseOrders.locationId, ctx), eq(fyhPurchaseOrders.id, input.purchaseOrderId)));
     }
 
     return grn!;
   });
 }
 
-export async function listAdjustments(limit = 100) {
+export async function listAdjustments(limit = 100, ctx?: TenantContext | null) {
   return hairDb
     .select({
       adjustment: fyhStockAdjustments,
@@ -205,7 +207,7 @@ export async function createStockAdjustment(input: {
   quantityDelta: number;
   reason: string;
   notes?: string | null;
-}) {
+}, ctx?: TenantContext | null) {
   const delta = Number(input.quantityDelta);
   if (delta === 0) throw new Error('Adjustment quantity cannot be zero');
   const reason = input.reason.trim();
@@ -214,7 +216,7 @@ export async function createStockAdjustment(input: {
   const [product] = await hairDb
     .select()
     .from(fyhProducts)
-    .where(eq(fyhProducts.id, input.productId))
+    .where(and(orgFilter(fyhProducts.organizationId, ctx), locationFilter(fyhProducts.locationId, ctx), eq(fyhProducts.id, input.productId)))
     .limit(1);
   if (!product) throw new Error('Product not found');
 
@@ -244,7 +246,7 @@ export async function createStockAdjustment(input: {
   });
 }
 
-export async function listGoodsReceipts(limit = 100) {
+export async function listGoodsReceipts(limit = 100, ctx?: TenantContext | null) {
   return hairDb
     .select({
       grn: fyhGoodsReceipts,

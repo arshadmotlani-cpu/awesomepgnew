@@ -13,6 +13,8 @@ import { countActiveCustomers } from '@/src/hair/services/customers';
 import { todayRevenuePaise } from '@/src/hair/services/invoices';
 import { getSalonSettings } from '@/src/hair/services/settings';
 import { salonDayBounds, salonDayOfWeek } from '@/src/hair/lib/salonTime';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 export type DashboardScheduleItem = {
   id: string;
@@ -73,7 +75,7 @@ function formatWhen(d: Date, timezone: string) {
   }).format(d);
 }
 
-export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
+export async function getDashboardSnapshot(ctx?: TenantContext | null): Promise<DashboardSnapshot> {
   let totalCustomers = 0;
   try {
     totalCustomers = await countActiveCustomers();
@@ -216,7 +218,7 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
         const services = await hairDb
           .select({ name: fyhAppointmentServices.nameSnapshot })
           .from(fyhAppointmentServices)
-          .where(eq(fyhAppointmentServices.appointmentId, r.id));
+          .where(and(orgFilter(fyhAppointmentServices.organizationId, ctx), locationFilter(fyhAppointmentServices.locationId, ctx), eq(fyhAppointmentServices.appointmentId, r.id)));
         return {
           id: r.id,
           timeLabel: formatHm(r.startAt, timezone),
@@ -254,7 +256,7 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
         const services = await hairDb
           .select({ name: fyhAppointmentServices.nameSnapshot })
           .from(fyhAppointmentServices)
-          .where(eq(fyhAppointmentServices.appointmentId, r.id));
+          .where(and(orgFilter(fyhAppointmentServices.organizationId, ctx), locationFilter(fyhAppointmentServices.locationId, ctx), eq(fyhAppointmentServices.appointmentId, r.id)));
         return {
           id: r.id,
           whenLabel: formatWhen(r.startAt, timezone),

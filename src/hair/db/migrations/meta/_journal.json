@@ -232,6 +232,27 @@
       "when": 1756800000000,
       "tag": "0033_workforce_system_provider",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1756900000000,
+      "tag": "0034_saas_tenant_nullable",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1757000000000,
+      "tag": "0035_saas_support_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1757100000000,
+      "tag": "0036_saas_unique_indexes",
+      "breakpoints": true
     }
   ]
 }

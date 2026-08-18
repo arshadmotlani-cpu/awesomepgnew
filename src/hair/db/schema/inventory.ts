@@ -7,6 +7,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
 import { fyhProducts } from './products';
 
 export const FYH_STOCK_MOVEMENT_TYPES = [
@@ -28,6 +29,8 @@ export const fyhStockMovements = pgTable(
   'fyh_stock_movements',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     productId: uuid('product_id')
       .notNull()
       .references(() => fyhProducts.id, { onDelete: 'restrict' }),

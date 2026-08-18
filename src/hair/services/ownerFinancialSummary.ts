@@ -5,6 +5,8 @@ import { and, gte, lte, sum } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import { fyhExpenses } from '@/src/hair/db/schema';
 import { getRevenueDashboardSnapshot } from '@/src/hair/services/revenueDashboard';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 function resolveBillingMonth(month?: string): string {
   if (month && /^\d{4}-\d{2}$/.test(month)) return month;
@@ -29,19 +31,28 @@ export type FyhOwnerFinancialSummary = {
   profitPaise: number;
 };
 
-export async function getFyhOwnerFinancialSummary(opts?: {
-  month?: string;
-}): Promise<FyhOwnerFinancialSummary> {
+export async function getFyhOwnerFinancialSummary(
+  opts?: {
+    month?: string;
+  },
+  ctx?: TenantContext | null,
+): Promise<FyhOwnerFinancialSummary> {
   const billingMonth = resolveBillingMonth(opts?.month);
   const { start, end } = monthBounds(billingMonth);
 
-  const snap = await getRevenueDashboardSnapshot();
+  const snap = await getRevenueDashboardSnapshot(ctx);
   const revenuePaise = snap.mtdRevenuePaise ?? 0;
 
   const [expenseRow] = await hairDb
     .select({ total: sum(fyhExpenses.amountPaise) })
     .from(fyhExpenses)
-    .where(and(gte(fyhExpenses.expenseDate, start), lte(fyhExpenses.expenseDate, end)));
+    .where(
+      and(
+        orgFilter(fyhExpenses.organizationId, ctx),
+        gte(fyhExpenses.expenseDate, start),
+        lte(fyhExpenses.expenseDate, end),
+      ),
+    );
 
   const expensePaise = Number(expenseRow?.total ?? 0);
 

@@ -1,4 +1,4 @@
-import { desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import {
   fyhBrands,
@@ -17,6 +17,8 @@ import {
 } from '@/src/hair/lib/purchaseEvents';
 import { applyMovement, updateWeightedAverageCost } from '@/src/hair/services/stock';
 import { refreshPayableBalance } from '@/src/hair/services/vendorPaymentEngine';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 export type PurchaseLineInput = {
   productId: string;
@@ -56,13 +58,13 @@ function validateLines(lines: PurchaseLineInput[]) {
   }
 }
 
-export async function createPurchase(input: CreatePurchaseInput) {
+export async function createPurchase(input: CreatePurchaseInput, ctx?: TenantContext | null) {
   validateLines(input.lines);
 
   const [vendor] = await hairDb
     .select()
     .from(fyhVendors)
-    .where(eq(fyhVendors.id, input.vendorId))
+    .where(and(orgFilter(fyhVendors.organizationId, ctx), eq(fyhVendors.id, input.vendorId)))
     .limit(1);
   if (!vendor) throw new Error('Vendor not found');
   if (!vendor.isActive) throw new Error('Vendor is archived');
@@ -147,7 +149,7 @@ export async function createPurchase(input: CreatePurchaseInput) {
   });
 }
 
-export async function getPurchaseEngineDetail(purchaseId: string) {
+export async function getPurchaseEngineDetail(purchaseId: string, ctx?: TenantContext | null) {
   const [header] = await hairDb
     .select({
       purchase: fyhPurchases,
@@ -155,7 +157,7 @@ export async function getPurchaseEngineDetail(purchaseId: string) {
     })
     .from(fyhPurchases)
     .innerJoin(fyhVendors, eq(fyhVendors.id, fyhPurchases.vendorId))
-    .where(eq(fyhPurchases.id, purchaseId))
+    .where(and(orgFilter(fyhPurchases.organizationId, ctx), locationFilter(fyhPurchases.locationId, ctx), eq(fyhPurchases.id, purchaseId)))
     .limit(1);
   if (!header) return null;
 
@@ -168,12 +170,12 @@ export async function getPurchaseEngineDetail(purchaseId: string) {
     .from(fyhPurchaseLines)
     .innerJoin(fyhProducts, eq(fyhProducts.id, fyhPurchaseLines.productId))
     .innerJoin(fyhBrands, eq(fyhBrands.id, fyhProducts.brandId))
-    .where(eq(fyhPurchaseLines.purchaseId, purchaseId));
+    .where(and(orgFilter(fyhPurchaseLines.organizationId, ctx), locationFilter(fyhPurchaseLines.locationId, ctx), eq(fyhPurchaseLines.purchaseId, purchaseId)));
 
   const [payable] = await hairDb
     .select()
     .from(fyhVendorPayables)
-    .where(eq(fyhVendorPayables.purchaseId, purchaseId))
+    .where(and(orgFilter(fyhVendorPayables.organizationId, ctx), eq(fyhVendorPayables.purchaseId, purchaseId)))
     .limit(1);
 
   return { ...header, lines, payable: payable ?? null };
@@ -195,6 +197,7 @@ export async function attachPurchaseInvoice(
     attachmentContentType: string;
     staffName: string;
   },
+  ctx?: TenantContext | null,
 ) {
   const [updated] = await hairDb
     .update(fyhPurchases)
@@ -205,13 +208,13 @@ export async function attachPurchaseInvoice(
       attachmentUploadedBy: input.staffName.trim(),
       updatedAt: new Date(),
     })
-    .where(eq(fyhPurchases.id, purchaseId))
+    .where(and(orgFilter(fyhPurchases.organizationId, ctx), locationFilter(fyhPurchases.locationId, ctx), eq(fyhPurchases.id, purchaseId)))
     .returning();
   if (!updated) throw new Error('Purchase not found');
   return updated;
 }
 
-export async function updatePurchase(purchaseId: string, input: UpdatePurchaseInput) {
+export async function updatePurchase(purchaseId: string, input: UpdatePurchaseInput, ctx?: TenantContext | null) {
   validateLines(input.lines);
 
   return hairDb.transaction(async (tx) => {
@@ -222,7 +225,7 @@ export async function updatePurchase(purchaseId: string, input: UpdatePurchaseIn
     const [purchase] = await tx
       .select()
       .from(fyhPurchases)
-      .where(eq(fyhPurchases.id, purchaseId))
+      .where(and(orgFilter(fyhPurchases.organizationId, ctx), locationFilter(fyhPurchases.locationId, ctx), eq(fyhPurchases.id, purchaseId)))
       .limit(1);
     if (!purchase) throw new Error('Purchase not found');
     if (purchase.status !== 'posted') throw new Error('Cannot edit a cancelled purchase');
@@ -230,14 +233,14 @@ export async function updatePurchase(purchaseId: string, input: UpdatePurchaseIn
     const [payable] = await tx
       .select()
       .from(fyhVendorPayables)
-      .where(eq(fyhVendorPayables.purchaseId, purchaseId))
+      .where(and(orgFilter(fyhVendorPayables.organizationId, ctx), eq(fyhVendorPayables.purchaseId, purchaseId)))
       .limit(1);
     if (!payable) throw new Error('Payable not found');
 
     const oldLines = await tx
       .select()
       .from(fyhPurchaseLines)
-      .where(eq(fyhPurchaseLines.purchaseId, purchaseId));
+      .where(and(orgFilter(fyhPurchaseLines.organizationId, ctx), locationFilter(fyhPurchaseLines.locationId, ctx), eq(fyhPurchaseLines.purchaseId, purchaseId)));
 
     const lineTotals = input.lines.map((line) => {
       const qty = Number(line.quantity);
@@ -291,7 +294,7 @@ export async function updatePurchase(purchaseId: string, input: UpdatePurchaseIn
       }
     }
 
-    await tx.delete(fyhPurchaseLines).where(eq(fyhPurchaseLines.purchaseId, purchaseId));
+    await tx.delete(fyhPurchaseLines).where(and(orgFilter(fyhPurchaseLines.organizationId, ctx), locationFilter(fyhPurchaseLines.locationId, ctx), eq(fyhPurchaseLines.purchaseId, purchaseId)));
     for (const line of lineTotals) {
       await tx.insert(fyhPurchaseLines).values({
         purchaseId,
@@ -311,12 +314,12 @@ export async function updatePurchase(purchaseId: string, input: UpdatePurchaseIn
         totalPaise: newTotalPaise,
         updatedAt: new Date(),
       })
-      .where(eq(fyhPurchases.id, purchaseId));
+      .where(and(orgFilter(fyhPurchases.organizationId, ctx), locationFilter(fyhPurchases.locationId, ctx), eq(fyhPurchases.id, purchaseId)));
 
     await tx
       .update(fyhVendorPayables)
       .set({ amountPaise: newTotalPaise, updatedAt: new Date() })
-      .where(eq(fyhVendorPayables.id, payable.id));
+      .where(and(orgFilter(fyhVendorPayables.organizationId, ctx), eq(fyhVendorPayables.id, payable.id)));
 
     await refreshPayableBalance(db, payable.id);
 
@@ -328,7 +331,7 @@ export async function updatePurchase(purchaseId: string, input: UpdatePurchaseIn
         notes: input.notes?.trim() || null,
         updatedAt: new Date(),
       })
-      .where(eq(fyhExpenses.purchaseId, purchaseId));
+      .where(and(orgFilter(fyhExpenses.organizationId, ctx), locationFilter(fyhExpenses.locationId, ctx), eq(fyhExpenses.purchaseId, purchaseId)));
 
     await tx.insert(fyhPurchaseAuditEvents).values({
       purchaseId,
@@ -354,7 +357,7 @@ export async function updatePurchase(purchaseId: string, input: UpdatePurchaseIn
     const [updated] = await tx
       .select()
       .from(fyhPurchases)
-      .where(eq(fyhPurchases.id, purchaseId))
+      .where(and(orgFilter(fyhPurchases.organizationId, ctx), locationFilter(fyhPurchases.locationId, ctx), eq(fyhPurchases.id, purchaseId)))
       .limit(1);
     return updated!;
   });

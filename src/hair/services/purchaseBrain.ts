@@ -1,4 +1,4 @@
-import { desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import {
   fyhPurchases,
@@ -11,6 +11,8 @@ import {
 } from '@/src/hair/db/schema';
 import { getPurchaseEngineDetail } from '@/src/hair/services/purchaseEngine';
 import { getVendorUnallocatedAdvance } from '@/src/hair/services/vendorPaymentEngine';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 export { explainPurchase } from '@/src/hair/lib/purchaseExplain';
 
@@ -31,7 +33,7 @@ export type VendorLedgerPaymentRow = {
   unallocatedPaise: number;
 };
 
-export async function listPurchases(limit = 200) {
+export async function listPurchases(limit = 200, ctx?: TenantContext | null) {
   return hairDb
     .select({
       purchase: fyhPurchases,
@@ -42,26 +44,30 @@ export async function listPurchases(limit = 200) {
     .from(fyhPurchases)
     .innerJoin(fyhVendors, eq(fyhVendors.id, fyhPurchases.vendorId))
     .leftJoin(fyhVendorPayables, eq(fyhVendorPayables.purchaseId, fyhPurchases.id))
+    .where(and(orgFilter(fyhPurchases.organizationId, ctx), locationFilter(fyhPurchases.locationId, ctx)))
     .orderBy(desc(fyhPurchases.purchaseDate), desc(fyhPurchases.createdAt))
     .limit(limit);
 }
 
-export async function getPurchase(purchaseId: string) {
-  return getPurchaseEngineDetail(purchaseId);
+export async function getPurchase(purchaseId: string, ctx?: TenantContext | null) {
+  return getPurchaseEngineDetail(purchaseId, ctx);
 }
 
-export async function getVendorOutstanding(vendorId: string) {
+export async function getVendorOutstanding(vendorId: string, ctx?: TenantContext | null) {
   // Invoice-level payables only — vendor total is always derived, never stored.
   const [row] = await hairDb
     .select({
       outstandingPaise: sql<number>`coalesce(sum(${fyhVendorPayables.balancePaise}), 0)`,
     })
     .from(fyhVendorPayables)
-    .where(eq(fyhVendorPayables.vendorId, vendorId));
+    .where(and(orgFilter(fyhVendorPayables.organizationId, ctx), eq(fyhVendorPayables.vendorId, vendorId)));
   return Number(row?.outstandingPaise ?? 0);
 }
 
-export async function getVendorLedgerInvoices(vendorId: string): Promise<VendorLedgerInvoiceRow[]> {
+export async function getVendorLedgerInvoices(
+  vendorId: string,
+  ctx?: TenantContext | null,
+): Promise<VendorLedgerInvoiceRow[]> {
   const rows = await hairDb
     .select({
       purchase: fyhPurchases,
@@ -69,7 +75,13 @@ export async function getVendorLedgerInvoices(vendorId: string): Promise<VendorL
     })
     .from(fyhVendorPayables)
     .innerJoin(fyhPurchases, eq(fyhPurchases.id, fyhVendorPayables.purchaseId))
-    .where(eq(fyhVendorPayables.vendorId, vendorId))
+    .where(
+      and(
+        orgFilter(fyhVendorPayables.organizationId, ctx),
+        locationFilter(fyhPurchases.locationId, ctx),
+        eq(fyhVendorPayables.vendorId, vendorId),
+      ),
+    )
     .orderBy(desc(fyhPurchases.purchaseDate), desc(fyhPurchases.createdAt));
 
   return rows.map(({ purchase, payable }) => ({
@@ -84,11 +96,14 @@ export async function getVendorLedgerInvoices(vendorId: string): Promise<VendorL
   }));
 }
 
-export async function listVendorLedgerPayments(vendorId: string): Promise<VendorLedgerPaymentRow[]> {
+export async function listVendorLedgerPayments(
+  vendorId: string,
+  ctx?: TenantContext | null,
+): Promise<VendorLedgerPaymentRow[]> {
   const payments = await hairDb
     .select()
     .from(fyhVendorPayments)
-    .where(eq(fyhVendorPayments.vendorId, vendorId))
+    .where(and(orgFilter(fyhVendorPayments.organizationId, ctx), eq(fyhVendorPayments.vendorId, vendorId)))
     .orderBy(desc(fyhVendorPayments.paymentDate), desc(fyhVendorPayments.createdAt));
 
   const rows: VendorLedgerPaymentRow[] = [];
@@ -98,7 +113,12 @@ export async function listVendorLedgerPayments(vendorId: string): Promise<Vendor
         total: sql<number>`coalesce(sum(${fyhVendorPaymentAllocations.amountPaise}), 0)`,
       })
       .from(fyhVendorPaymentAllocations)
-      .where(eq(fyhVendorPaymentAllocations.paymentId, payment.id));
+      .where(
+        and(
+          orgFilter(fyhVendorPaymentAllocations.organizationId, ctx),
+          eq(fyhVendorPaymentAllocations.paymentId, payment.id),
+        ),
+      );
 
     const allocatedPaise = Number(allocRow?.total ?? 0);
     const unallocatedPaise =
@@ -108,19 +128,19 @@ export async function listVendorLedgerPayments(vendorId: string): Promise<Vendor
   return rows;
 }
 
-export async function getVendorLedger(vendorId: string) {
+export async function getVendorLedger(vendorId: string, ctx?: TenantContext | null) {
   const [vendor] = await hairDb
     .select()
     .from(fyhVendors)
-    .where(eq(fyhVendors.id, vendorId))
+    .where(and(orgFilter(fyhVendors.organizationId, ctx), eq(fyhVendors.id, vendorId)))
     .limit(1);
   if (!vendor) return null;
 
   const [outstandingPaise, invoices, payments, unallocatedAdvancePaise] = await Promise.all([
-    getVendorOutstanding(vendorId),
-    getVendorLedgerInvoices(vendorId),
-    listVendorLedgerPayments(vendorId),
-    getVendorUnallocatedAdvance(vendorId),
+    getVendorOutstanding(vendorId, ctx),
+    getVendorLedgerInvoices(vendorId, ctx),
+    listVendorLedgerPayments(vendorId, ctx),
+    getVendorUnallocatedAdvance(vendorId, ctx),
   ]);
 
   return {
@@ -131,4 +151,3 @@ export async function getVendorLedger(vendorId: string) {
     payments,
   };
 }
-

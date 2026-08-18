@@ -16,6 +16,8 @@ import { getSalonSettings } from '@/src/hair/services/settings';
 import { enqueueNotification } from '@/src/hair/services/loyaltyOps';
 import { listLowStockProducts } from '@/src/hair/services/stock';
 import { receivablesReport } from '@/src/hair/services/reportQueries';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 /** Template kinds including salon-configured invoice body (not always in fyh_notification_templates). */
 export type NotificationTemplateKind = FyhNotificationKind | 'whatsapp_invoice';
@@ -53,11 +55,11 @@ function resolveTemplateKind(kind: NotificationTemplateKind): FyhNotificationKin
   return kind;
 }
 
-async function getDbTemplateBody(kind: FyhNotificationKind): Promise<string | null> {
+async function getDbTemplateBody(kind: FyhNotificationKind, ctx?: TenantContext | null): Promise<string | null> {
   const [row] = await hairDb
     .select({ body: fyhNotificationTemplates.body, isActive: fyhNotificationTemplates.isActive })
     .from(fyhNotificationTemplates)
-    .where(eq(fyhNotificationTemplates.kind, kind))
+    .where(and(orgFilter(fyhNotificationTemplates.organizationId, ctx), eq(fyhNotificationTemplates.kind, kind)))
     .limit(1);
   if (!row?.isActive) return null;
   return row.body;
@@ -67,15 +69,14 @@ async function getDbTemplateBody(kind: FyhNotificationKind): Promise<string | nu
 export async function renderTemplate(
   kind: NotificationTemplateKind,
   vars: Record<string, string>,
-  settings?: FyhCommunicationSettings | null,
-): Promise<string> {
+  settings?: FyhCommunicationSettings | null, ctx?: TenantContext | null): Promise<string> {
   const overrideKey = SETTINGS_OVERRIDE_BY_KIND[kind];
   const overrideBody = overrideKey ? settings?.[overrideKey]?.trim() : undefined;
   if (overrideBody) return interpolateTemplate(overrideBody, vars);
 
   const dbKind = resolveTemplateKind(kind);
   if (dbKind) {
-    const dbBody = await getDbTemplateBody(dbKind);
+    const dbBody = await getDbTemplateBody(dbKind, ctx);
     if (dbBody) return interpolateTemplate(dbBody, vars);
   }
 
@@ -114,7 +115,7 @@ export async function dispatchNotification(input: {
   recipient: string;
   context?: Record<string, string>;
   subject?: string;
-}): Promise<{ outboxId: string; body: string; waUrl: string } | null> {
+}, ctx?: TenantContext | null): Promise<{ outboxId: string; body: string; waUrl: string } | null> {
   const settings = await getSalonSettings();
   if (!settings.whatsappSettings.enabled) return null;
 
@@ -139,7 +140,7 @@ export async function enqueuePostCheckoutNotifications(input: {
   invoiceNumber: string;
   grandTotalPaise: number;
   baseUrl?: string;
-}): Promise<void> {
+}, ctx?: TenantContext | null): Promise<void> {
   const settings = await getSalonSettings();
   if (!settings.whatsappSettings.enabled) return;
 
@@ -200,7 +201,7 @@ async function wasRecentlyQueued(
 }
 
 /** Stub processor: marks pending rows sent when WhatsApp is enabled and recipient is valid. */
-export async function processOutboxBatch(limit = 20): Promise<{
+export async function processOutboxBatch(limit = 20, ctx?: TenantContext | null): Promise<{
   processed: number;
   sent: number;
   failed: number;
@@ -209,7 +210,7 @@ export async function processOutboxBatch(limit = 20): Promise<{
   const rows = await hairDb
     .select()
     .from(fyhNotificationOutbox)
-    .where(eq(fyhNotificationOutbox.status, 'pending'))
+    .where(and(orgFilter(fyhNotificationOutbox.organizationId, ctx), eq(fyhNotificationOutbox.status, 'pending')))
     .orderBy(fyhNotificationOutbox.scheduledFor)
     .limit(limit);
 
@@ -223,7 +224,7 @@ export async function processOutboxBatch(limit = 20): Promise<{
       await hairDb
         .update(fyhNotificationOutbox)
         .set({ status: 'sent', sentAt: new Date(), error: null })
-        .where(eq(fyhNotificationOutbox.id, row.id));
+        .where(and(orgFilter(fyhNotificationOutbox.organizationId, ctx), eq(fyhNotificationOutbox.id, row.id)));
       sent += 1;
     } else {
       await hairDb
@@ -234,7 +235,7 @@ export async function processOutboxBatch(limit = 20): Promise<{
             ? 'Invalid recipient phone'
             : 'WhatsApp disabled in settings',
         })
-        .where(eq(fyhNotificationOutbox.id, row.id));
+        .where(and(orgFilter(fyhNotificationOutbox.organizationId, ctx), eq(fyhNotificationOutbox.id, row.id)));
       failed += 1;
     }
   }
@@ -242,7 +243,7 @@ export async function processOutboxBatch(limit = 20): Promise<{
   return { processed: rows.length, sent, failed };
 }
 
-export async function sendAppointmentReminders(): Promise<number> {
+export async function sendAppointmentReminders(ctx?: TenantContext | null): Promise<number> {
   const settings = await getSalonSettings();
   if (!settings.whatsappSettings.enabled) return 0;
 
@@ -288,7 +289,7 @@ export async function sendAppointmentReminders(): Promise<number> {
   return count;
 }
 
-export async function sendBirthdayMessages(): Promise<number> {
+export async function sendBirthdayMessages(ctx?: TenantContext | null): Promise<number> {
   const settings = await getSalonSettings();
   if (!settings.whatsappSettings.enabled) return 0;
 
@@ -331,7 +332,7 @@ export async function sendBirthdayMessages(): Promise<number> {
   return count;
 }
 
-export async function sendMembershipExpiryWarnings(daysAhead = 7): Promise<number> {
+export async function sendMembershipExpiryWarnings(daysAhead = 7, ctx?: TenantContext | null): Promise<number> {
   const settings = await getSalonSettings();
   if (!settings.whatsappSettings.enabled) return 0;
 
@@ -373,7 +374,7 @@ export async function sendMembershipExpiryWarnings(daysAhead = 7): Promise<numbe
   return count;
 }
 
-export async function sendOutstandingPaymentReminders(): Promise<number> {
+export async function sendOutstandingPaymentReminders(ctx?: TenantContext | null): Promise<number> {
   const settings = await getSalonSettings();
   if (!settings.whatsappSettings.enabled) return 0;
 
@@ -402,7 +403,7 @@ export async function sendOutstandingPaymentReminders(): Promise<number> {
   return count;
 }
 
-export async function sendLowStockAlerts(): Promise<number> {
+export async function sendLowStockAlerts(ctx?: TenantContext | null): Promise<number> {
   const settings = await getSalonSettings();
   if (!settings.whatsappSettings.enabled) return 0;
 
@@ -433,7 +434,7 @@ export async function buildNotificationPreview(input: {
   grandTotalPaise?: number;
   invoiceNumber?: string;
   baseUrl?: string;
-}): Promise<{ body: string; waUrl: string } | null> {
+}, ctx?: TenantContext | null): Promise<{ body: string; waUrl: string } | null> {
   const settings = await getSalonSettings();
   const recipient = normalizeRecipientPhone(input.customerPhone);
   if (!recipient) return null;

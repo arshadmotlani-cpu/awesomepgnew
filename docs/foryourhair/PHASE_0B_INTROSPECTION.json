@@ -1,0 +1,2757 @@
+{
+  "generatedAt": "2026-08-18T11:16:36.472Z",
+  "databaseUrlHost": "ep-billowing-bar-au20886r-pooler.c-10.us-east-1.aws.neon.tech/neondb",
+  "tableStats": [
+    {
+      "schema": "public",
+      "table": "fyh_admin_users",
+      "rowEstimate": 1,
+      "totalBytes": 49152
+    },
+    {
+      "schema": "public",
+      "table": "fyh_appointment_services",
+      "rowEstimate": 2012,
+      "totalBytes": 737280
+    },
+    {
+      "schema": "public",
+      "table": "fyh_appointments",
+      "rowEstimate": 1953,
+      "totalBytes": 1122304
+    },
+    {
+      "schema": "public",
+      "table": "fyh_auth_sessions",
+      "rowEstimate": 73,
+      "totalBytes": 106496
+    },
+    {
+      "schema": "public",
+      "table": "fyh_brands",
+      "rowEstimate": 311,
+      "totalBytes": 180224
+    },
+    {
+      "schema": "public",
+      "table": "fyh_bridal_events",
+      "rowEstimate": 0,
+      "totalBytes": 24576
+    },
+    {
+      "schema": "public",
+      "table": "fyh_bridal_profiles",
+      "rowEstimate": 149,
+      "totalBytes": 81920
+    },
+    {
+      "schema": "public",
+      "table": "fyh_commission_entries",
+      "rowEstimate": 1155,
+      "totalBytes": 425984
+    },
+    {
+      "schema": "public",
+      "table": "fyh_commission_rules",
+      "rowEstimate": 0,
+      "totalBytes": 32768
+    },
+    {
+      "schema": "public",
+      "table": "fyh_credit_notes",
+      "rowEstimate": 0,
+      "totalBytes": 40960
+    },
+    {
+      "schema": "public",
+      "table": "fyh_customer_memberships",
+      "rowEstimate": 290,
+      "totalBytes": 114688
+    },
+    {
+      "schema": "public",
+      "table": "fyh_customer_notes",
+      "rowEstimate": 0,
+      "totalBytes": 24576
+    },
+    {
+      "schema": "public",
+      "table": "fyh_customer_packages",
+      "rowEstimate": 154,
+      "totalBytes": 73728
+    },
+    {
+      "schema": "public",
+      "table": "fyh_customer_timeline",
+      "rowEstimate": 6225,
+      "totalBytes": 2293760
+    },
+    {
+      "schema": "public",
+      "table": "fyh_customers",
+      "rowEstimate": 2910,
+      "totalBytes": 1277952
+    },
+    {
+      "schema": "public",
+      "table": "fyh_expenses",
+      "rowEstimate": 378,
+      "totalBytes": 294912
+    },
+    {
+      "schema": "public",
+      "table": "fyh_financial_ledger",
+      "rowEstimate": 2769,
+      "totalBytes": 991232
+    },
+    {
+      "schema": "public",
+      "table": "fyh_floor_issues",
+      "rowEstimate": 0,
+      "totalBytes": 32768
+    },
+    {
+      "schema": "public",
+      "table": "fyh_goods_receipt_lines",
+      "rowEstimate": 117,
+      "totalBytes": 98304
+    },
+    {
+      "schema": "public",
+      "table": "fyh_goods_receipts",
+      "rowEstimate": 117,
+      "totalBytes": 98304
+    },
+    {
+      "schema": "public",
+      "table": "fyh_historical_import_batches",
+      "rowEstimate": 77,
+      "totalBytes": 319488
+    },
+    {
+      "schema": "public",
+      "table": "fyh_historical_import_row_errors",
+      "rowEstimate": 2,
+      "totalBytes": 81920
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoice_line_attributions",
+      "rowEstimate": 1536,
+      "totalBytes": 557056
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoice_lines",
+      "rowEstimate": 2136,
+      "totalBytes": 991232
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoice_payments",
+      "rowEstimate": 1757,
+      "totalBytes": 524288
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoices",
+      "rowEstimate": 1992,
+      "totalBytes": 1548288
+    },
+    {
+      "schema": "public",
+      "table": "fyh_membership_plans",
+      "rowEstimate": 1,
+      "totalBytes": 49152
+    },
+    {
+      "schema": "public",
+      "table": "fyh_notification_outbox",
+      "rowEstimate": 1946,
+      "totalBytes": 786432
+    },
+    {
+      "schema": "public",
+      "table": "fyh_notification_templates",
+      "rowEstimate": 10,
+      "totalBytes": 65536
+    },
+    {
+      "schema": "public",
+      "table": "fyh_package_plans",
+      "rowEstimate": 1,
+      "totalBytes": 49152
+    },
+    {
+      "schema": "public",
+      "table": "fyh_product_batches",
+      "rowEstimate": 0,
+      "totalBytes": 24576
+    },
+    {
+      "schema": "public",
+      "table": "fyh_products",
+      "rowEstimate": 834,
+      "totalBytes": 311296
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchase_audit_events",
+      "rowEstimate": 31,
+      "totalBytes": 90112
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchase_lines",
+      "rowEstimate": 377,
+      "totalBytes": 155648
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchase_order_lines",
+      "rowEstimate": 0,
+      "totalBytes": 24576
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchase_orders",
+      "rowEstimate": 0,
+      "totalBytes": 40960
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchase_return_lines",
+      "rowEstimate": 33,
+      "totalBytes": 40960
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchase_returns",
+      "rowEstimate": 33,
+      "totalBytes": 65536
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchases",
+      "rowEstimate": 377,
+      "totalBytes": 262144
+    },
+    {
+      "schema": "public",
+      "table": "fyh_resources",
+      "rowEstimate": 2,
+      "totalBytes": 81920
+    },
+    {
+      "schema": "public",
+      "table": "fyh_service_categories",
+      "rowEstimate": 6,
+      "totalBytes": 65536
+    },
+    {
+      "schema": "public",
+      "table": "fyh_service_consumables",
+      "rowEstimate": 0,
+      "totalBytes": 73728
+    },
+    {
+      "schema": "public",
+      "table": "fyh_service_staff",
+      "rowEstimate": 4,
+      "totalBytes": 57344
+    },
+    {
+      "schema": "public",
+      "table": "fyh_services",
+      "rowEstimate": 194,
+      "totalBytes": 319488
+    },
+    {
+      "schema": "public",
+      "table": "fyh_settings",
+      "rowEstimate": 1,
+      "totalBytes": 401408
+    },
+    {
+      "schema": "public",
+      "table": "fyh_staff",
+      "rowEstimate": 6,
+      "totalBytes": 65536
+    },
+    {
+      "schema": "public",
+      "table": "fyh_staff_schedules",
+      "rowEstimate": 12,
+      "totalBytes": 65536
+    },
+    {
+      "schema": "public",
+      "table": "fyh_stock_adjustments",
+      "rowEstimate": 120,
+      "totalBytes": 81920
+    },
+    {
+      "schema": "public",
+      "table": "fyh_stock_movements",
+      "rowEstimate": 2014,
+      "totalBytes": 917504
+    },
+    {
+      "schema": "public",
+      "table": "fyh_vendor_notes",
+      "rowEstimate": 0,
+      "totalBytes": 24576
+    },
+    {
+      "schema": "public",
+      "table": "fyh_vendor_payables",
+      "rowEstimate": 377,
+      "totalBytes": 229376
+    },
+    {
+      "schema": "public",
+      "table": "fyh_vendor_payment_allocations",
+      "rowEstimate": 162,
+      "totalBytes": 90112
+    },
+    {
+      "schema": "public",
+      "table": "fyh_vendor_payments",
+      "rowEstimate": 129,
+      "totalBytes": 163840
+    },
+    {
+      "schema": "public",
+      "table": "fyh_vendors",
+      "rowEstimate": 423,
+      "totalBytes": 229376
+    },
+    {
+      "schema": "public",
+      "table": "wf_attendance",
+      "rowEstimate": 0,
+      "totalBytes": 24576
+    },
+    {
+      "schema": "public",
+      "table": "wf_audit_log",
+      "rowEstimate": 2,
+      "totalBytes": 49152
+    },
+    {
+      "schema": "public",
+      "table": "wf_auth_sessions",
+      "rowEstimate": 0,
+      "totalBytes": 32768
+    },
+    {
+      "schema": "public",
+      "table": "wf_employees",
+      "rowEstimate": 2,
+      "totalBytes": 114688
+    },
+    {
+      "schema": "public",
+      "table": "wf_engine_memberships",
+      "rowEstimate": 2,
+      "totalBytes": 65536
+    },
+    {
+      "schema": "public",
+      "table": "wf_events",
+      "rowEstimate": 9,
+      "totalBytes": 65536
+    },
+    {
+      "schema": "public",
+      "table": "wf_incentive_plans",
+      "rowEstimate": 1,
+      "totalBytes": 65536
+    },
+    {
+      "schema": "public",
+      "table": "wf_incentives",
+      "rowEstimate": 0,
+      "totalBytes": 32768
+    },
+    {
+      "schema": "public",
+      "table": "wf_payroll_lines",
+      "rowEstimate": 0,
+      "totalBytes": 32768
+    },
+    {
+      "schema": "public",
+      "table": "wf_payroll_runs",
+      "rowEstimate": 0,
+      "totalBytes": 16384
+    },
+    {
+      "schema": "public",
+      "table": "wf_permission_grants",
+      "rowEstimate": 2,
+      "totalBytes": 122880
+    },
+    {
+      "schema": "public",
+      "table": "wf_role_templates",
+      "rowEstimate": 2,
+      "totalBytes": 49152
+    },
+    {
+      "schema": "public",
+      "table": "wf_schedules",
+      "rowEstimate": 14,
+      "totalBytes": 49152
+    }
+  ],
+  "indexes": [
+    {
+      "schema": "public",
+      "table": "fyh_admin_users",
+      "indexName": "fyh_admin_users_email_key",
+      "indexDef": "CREATE UNIQUE INDEX fyh_admin_users_email_key ON public.fyh_admin_users USING btree (email)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_admin_users",
+      "indexName": "fyh_admin_users_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_admin_users_pkey ON public.fyh_admin_users USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_appointment_services",
+      "indexName": "fyh_appointment_services_appointment_idx",
+      "indexDef": "CREATE INDEX fyh_appointment_services_appointment_idx ON public.fyh_appointment_services USING btree (appointment_id, sort_order)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_appointment_services",
+      "indexName": "fyh_appointment_services_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_appointment_services_pkey ON public.fyh_appointment_services USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_appointment_services",
+      "indexName": "fyh_appointment_services_service_idx",
+      "indexDef": "CREATE INDEX fyh_appointment_services_service_idx ON public.fyh_appointment_services USING btree (service_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_appointments",
+      "indexName": "fyh_appointments_customer_idx",
+      "indexDef": "CREATE INDEX fyh_appointments_customer_idx ON public.fyh_appointments USING btree (customer_id, start_at)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_appointments",
+      "indexName": "fyh_appointments_invoice_idx",
+      "indexDef": "CREATE INDEX fyh_appointments_invoice_idx ON public.fyh_appointments USING btree (invoice_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_appointments",
+      "indexName": "fyh_appointments_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_appointments_pkey ON public.fyh_appointments USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_appointments",
+      "indexName": "fyh_appointments_recurrence_idx",
+      "indexDef": "CREATE INDEX fyh_appointments_recurrence_idx ON public.fyh_appointments USING btree (recurrence_parent_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_appointments",
+      "indexName": "fyh_appointments_resource_time_idx",
+      "indexDef": "CREATE INDEX fyh_appointments_resource_time_idx ON public.fyh_appointments USING btree (resource_id, start_at, end_at)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_appointments",
+      "indexName": "fyh_appointments_staff_time_idx",
+      "indexDef": "CREATE INDEX fyh_appointments_staff_time_idx ON public.fyh_appointments USING btree (staff_id, start_at, end_at)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_appointments",
+      "indexName": "fyh_appointments_start_at_idx",
+      "indexDef": "CREATE INDEX fyh_appointments_start_at_idx ON public.fyh_appointments USING btree (start_at)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_appointments",
+      "indexName": "fyh_appointments_status_idx",
+      "indexDef": "CREATE INDEX fyh_appointments_status_idx ON public.fyh_appointments USING btree (status)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_auth_sessions",
+      "indexName": "fyh_auth_sessions_admin_idx",
+      "indexDef": "CREATE INDEX fyh_auth_sessions_admin_idx ON public.fyh_auth_sessions USING btree (admin_user_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_auth_sessions",
+      "indexName": "fyh_auth_sessions_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_auth_sessions_pkey ON public.fyh_auth_sessions USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_auth_sessions",
+      "indexName": "fyh_auth_sessions_token_idx",
+      "indexDef": "CREATE INDEX fyh_auth_sessions_token_idx ON public.fyh_auth_sessions USING btree (token_hash)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_brands",
+      "indexName": "fyh_brands_name_key",
+      "indexDef": "CREATE UNIQUE INDEX fyh_brands_name_key ON public.fyh_brands USING btree (name)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_brands",
+      "indexName": "fyh_brands_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_brands_pkey ON public.fyh_brands USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_brands",
+      "indexName": "fyh_brands_vendor_idx",
+      "indexDef": "CREATE INDEX fyh_brands_vendor_idx ON public.fyh_brands USING btree (vendor_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_bridal_events",
+      "indexName": "fyh_bridal_events_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_bridal_events_pkey ON public.fyh_bridal_events USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_bridal_events",
+      "indexName": "fyh_bridal_events_profile_idx",
+      "indexDef": "CREATE INDEX fyh_bridal_events_profile_idx ON public.fyh_bridal_events USING btree (bridal_profile_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_bridal_profiles",
+      "indexName": "fyh_bridal_profiles_customer_idx",
+      "indexDef": "CREATE INDEX fyh_bridal_profiles_customer_idx ON public.fyh_bridal_profiles USING btree (customer_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_bridal_profiles",
+      "indexName": "fyh_bridal_profiles_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_bridal_profiles_pkey ON public.fyh_bridal_profiles USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_commission_entries",
+      "indexName": "fyh_commission_entries_line_idx",
+      "indexDef": "CREATE INDEX fyh_commission_entries_line_idx ON public.fyh_commission_entries USING btree (invoice_line_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_commission_entries",
+      "indexName": "fyh_commission_entries_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_commission_entries_pkey ON public.fyh_commission_entries USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_commission_entries",
+      "indexName": "fyh_commission_entries_staff_period_idx",
+      "indexDef": "CREATE INDEX fyh_commission_entries_staff_period_idx ON public.fyh_commission_entries USING btree (staff_id, period_date)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_commission_entries",
+      "indexName": "fyh_commission_entries_status_idx",
+      "indexDef": "CREATE INDEX fyh_commission_entries_status_idx ON public.fyh_commission_entries USING btree (status)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_commission_rules",
+      "indexName": "fyh_commission_rules_effective_idx",
+      "indexDef": "CREATE INDEX fyh_commission_rules_effective_idx ON public.fyh_commission_rules USING btree (is_active, priority, effective_from, effective_to)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_commission_rules",
+      "indexName": "fyh_commission_rules_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_commission_rules_pkey ON public.fyh_commission_rules USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_commission_rules",
+      "indexName": "fyh_commission_rules_scope_idx",
+      "indexDef": "CREATE INDEX fyh_commission_rules_scope_idx ON public.fyh_commission_rules USING btree (scope, scope_ref_id, is_active)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_credit_notes",
+      "indexName": "fyh_credit_notes_customer_idx",
+      "indexDef": "CREATE INDEX fyh_credit_notes_customer_idx ON public.fyh_credit_notes USING btree (customer_id, issued_at)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_credit_notes",
+      "indexName": "fyh_credit_notes_invoice_idx",
+      "indexDef": "CREATE INDEX fyh_credit_notes_invoice_idx ON public.fyh_credit_notes USING btree (invoice_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_credit_notes",
+      "indexName": "fyh_credit_notes_number_uidx",
+      "indexDef": "CREATE UNIQUE INDEX fyh_credit_notes_number_uidx ON public.fyh_credit_notes USING btree (credit_note_number)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_credit_notes",
+      "indexName": "fyh_credit_notes_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_credit_notes_pkey ON public.fyh_credit_notes USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_customer_memberships",
+      "indexName": "fyh_customer_memberships_customer_idx",
+      "indexDef": "CREATE INDEX fyh_customer_memberships_customer_idx ON public.fyh_customer_memberships USING btree (customer_id, is_active)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_customer_memberships",
+      "indexName": "fyh_customer_memberships_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_customer_memberships_pkey ON public.fyh_customer_memberships USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_customer_notes",
+      "indexName": "fyh_customer_notes_customer_idx",
+      "indexDef": "CREATE INDEX fyh_customer_notes_customer_idx ON public.fyh_customer_notes USING btree (customer_id, created_at DESC)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_customer_notes",
+      "indexName": "fyh_customer_notes_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_customer_notes_pkey ON public.fyh_customer_notes USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_customer_packages",
+      "indexName": "fyh_customer_packages_customer_idx",
+      "indexDef": "CREATE INDEX fyh_customer_packages_customer_idx ON public.fyh_customer_packages USING btree (customer_id, is_active)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_customer_packages",
+      "indexName": "fyh_customer_packages_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_customer_packages_pkey ON public.fyh_customer_packages USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_customer_timeline",
+      "indexName": "fyh_customer_timeline_customer_idx",
+      "indexDef": "CREATE INDEX fyh_customer_timeline_customer_idx ON public.fyh_customer_timeline USING btree (customer_id, occurred_at DESC)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_customer_timeline",
+      "indexName": "fyh_customer_timeline_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_customer_timeline_pkey ON public.fyh_customer_timeline USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_customers",
+      "indexName": "fyh_customers_active_idx",
+      "indexDef": "CREATE INDEX fyh_customers_active_idx ON public.fyh_customers USING btree (is_active)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_customers",
+      "indexName": "fyh_customers_code_uidx",
+      "indexDef": "CREATE UNIQUE INDEX fyh_customers_code_uidx ON public.fyh_customers USING btree (customer_code) WHERE (customer_code IS NOT NULL)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_customers",
+      "indexName": "fyh_customers_email_idx",
+      "indexDef": "CREATE INDEX fyh_customers_email_idx ON public.fyh_customers USING btree (email)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_customers",
+      "indexName": "fyh_customers_name_idx",
+      "indexDef": "CREATE INDEX fyh_customers_name_idx ON public.fyh_customers USING btree (full_name)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_customers",
+      "indexName": "fyh_customers_phone_active_uidx",
+      "indexDef": "CREATE UNIQUE INDEX fyh_customers_phone_active_uidx ON public.fyh_customers USING btree (phone) WHERE (is_active = true)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_customers",
+      "indexName": "fyh_customers_phone_idx",
+      "indexDef": "CREATE INDEX fyh_customers_phone_idx ON public.fyh_customers USING btree (phone)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_customers",
+      "indexName": "fyh_customers_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_customers_pkey ON public.fyh_customers USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_customers",
+      "indexName": "fyh_customers_whatsapp_idx",
+      "indexDef": "CREATE INDEX fyh_customers_whatsapp_idx ON public.fyh_customers USING btree (whatsapp)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_expenses",
+      "indexName": "fyh_expenses_category_idx",
+      "indexDef": "CREATE INDEX fyh_expenses_category_idx ON public.fyh_expenses USING btree (category)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_expenses",
+      "indexName": "fyh_expenses_date_idx",
+      "indexDef": "CREATE INDEX fyh_expenses_date_idx ON public.fyh_expenses USING btree (expense_date DESC)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_expenses",
+      "indexName": "fyh_expenses_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_expenses_pkey ON public.fyh_expenses USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_expenses",
+      "indexName": "fyh_expenses_purchase_idx",
+      "indexDef": "CREATE INDEX fyh_expenses_purchase_idx ON public.fyh_expenses USING btree (purchase_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_financial_ledger",
+      "indexName": "fyh_financial_ledger_customer_created_idx",
+      "indexDef": "CREATE INDEX fyh_financial_ledger_customer_created_idx ON public.fyh_financial_ledger USING btree (customer_id, created_at DESC)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_financial_ledger",
+      "indexName": "fyh_financial_ledger_customer_idx",
+      "indexDef": "CREATE INDEX fyh_financial_ledger_customer_idx ON public.fyh_financial_ledger USING btree (customer_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_financial_ledger",
+      "indexName": "fyh_financial_ledger_invoice_idx",
+      "indexDef": "CREATE INDEX fyh_financial_ledger_invoice_idx ON public.fyh_financial_ledger USING btree (invoice_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_financial_ledger",
+      "indexName": "fyh_financial_ledger_kind_idx",
+      "indexDef": "CREATE INDEX fyh_financial_ledger_kind_idx ON public.fyh_financial_ledger USING btree (kind)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_financial_ledger",
+      "indexName": "fyh_financial_ledger_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_financial_ledger_pkey ON public.fyh_financial_ledger USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_floor_issues",
+      "indexName": "fyh_floor_issues_open_idx",
+      "indexDef": "CREATE INDEX fyh_floor_issues_open_idx ON public.fyh_floor_issues USING btree (returned_at)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_floor_issues",
+      "indexName": "fyh_floor_issues_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_floor_issues_pkey ON public.fyh_floor_issues USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_floor_issues",
+      "indexName": "fyh_floor_issues_product_idx",
+      "indexDef": "CREATE INDEX fyh_floor_issues_product_idx ON public.fyh_floor_issues USING btree (product_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_goods_receipt_lines",
+      "indexName": "fyh_goods_receipt_lines_grn_idx",
+      "indexDef": "CREATE INDEX fyh_goods_receipt_lines_grn_idx ON public.fyh_goods_receipt_lines USING btree (goods_receipt_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_goods_receipt_lines",
+      "indexName": "fyh_goods_receipt_lines_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_goods_receipt_lines_pkey ON public.fyh_goods_receipt_lines USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_goods_receipt_lines",
+      "indexName": "fyh_goods_receipt_lines_product_idx",
+      "indexDef": "CREATE INDEX fyh_goods_receipt_lines_product_idx ON public.fyh_goods_receipt_lines USING btree (product_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_goods_receipts",
+      "indexName": "fyh_goods_receipts_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_goods_receipts_pkey ON public.fyh_goods_receipts USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_goods_receipts",
+      "indexName": "fyh_goods_receipts_po_idx",
+      "indexDef": "CREATE INDEX fyh_goods_receipts_po_idx ON public.fyh_goods_receipts USING btree (purchase_order_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_goods_receipts",
+      "indexName": "fyh_goods_receipts_vendor_idx",
+      "indexDef": "CREATE INDEX fyh_goods_receipts_vendor_idx ON public.fyh_goods_receipts USING btree (vendor_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_historical_import_batches",
+      "indexName": "fyh_historical_import_batches_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_historical_import_batches_pkey ON public.fyh_historical_import_batches USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_historical_import_batches",
+      "indexName": "fyh_historical_import_batches_sha_idx",
+      "indexDef": "CREATE INDEX fyh_historical_import_batches_sha_idx ON public.fyh_historical_import_batches USING btree (file_sha256, status)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_historical_import_row_errors",
+      "indexName": "fyh_historical_import_row_errors_batch_idx",
+      "indexDef": "CREATE INDEX fyh_historical_import_row_errors_batch_idx ON public.fyh_historical_import_row_errors USING btree (batch_id, row_number)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_historical_import_row_errors",
+      "indexName": "fyh_historical_import_row_errors_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_historical_import_row_errors_pkey ON public.fyh_historical_import_row_errors USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoice_line_attributions",
+      "indexName": "fyh_invoice_line_attr_line_idx",
+      "indexDef": "CREATE INDEX fyh_invoice_line_attr_line_idx ON public.fyh_invoice_line_attributions USING btree (invoice_line_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoice_line_attributions",
+      "indexName": "fyh_invoice_line_attr_staff_metric_idx",
+      "indexDef": "CREATE INDEX fyh_invoice_line_attr_staff_metric_idx ON public.fyh_invoice_line_attributions USING btree (staff_id, revenue_metric, created_at)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoice_line_attributions",
+      "indexName": "fyh_invoice_line_attributions_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_invoice_line_attributions_pkey ON public.fyh_invoice_line_attributions USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoice_lines",
+      "indexName": "fyh_invoice_lines_invoice_idx",
+      "indexDef": "CREATE INDEX fyh_invoice_lines_invoice_idx ON public.fyh_invoice_lines USING btree (invoice_id, sort_order)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoice_lines",
+      "indexName": "fyh_invoice_lines_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_invoice_lines_pkey ON public.fyh_invoice_lines USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoice_lines",
+      "indexName": "fyh_invoice_lines_product_idx",
+      "indexDef": "CREATE INDEX fyh_invoice_lines_product_idx ON public.fyh_invoice_lines USING btree (product_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoice_lines",
+      "indexName": "fyh_invoice_lines_service_idx",
+      "indexDef": "CREATE INDEX fyh_invoice_lines_service_idx ON public.fyh_invoice_lines USING btree (service_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoice_lines",
+      "indexName": "fyh_invoice_lines_staff_idx",
+      "indexDef": "CREATE INDEX fyh_invoice_lines_staff_idx ON public.fyh_invoice_lines USING btree (staff_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoice_payments",
+      "indexName": "fyh_invoice_payments_invoice_idx",
+      "indexDef": "CREATE INDEX fyh_invoice_payments_invoice_idx ON public.fyh_invoice_payments USING btree (invoice_id, paid_at)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoice_payments",
+      "indexName": "fyh_invoice_payments_method_idx",
+      "indexDef": "CREATE INDEX fyh_invoice_payments_method_idx ON public.fyh_invoice_payments USING btree (method)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoice_payments",
+      "indexName": "fyh_invoice_payments_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_invoice_payments_pkey ON public.fyh_invoice_payments USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoices",
+      "indexName": "fyh_invoices_appointment_uidx",
+      "indexDef": "CREATE UNIQUE INDEX fyh_invoices_appointment_uidx ON public.fyh_invoices USING btree (appointment_id) WHERE (appointment_id IS NOT NULL)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoices",
+      "indexName": "fyh_invoices_created_idx",
+      "indexDef": "CREATE INDEX fyh_invoices_created_idx ON public.fyh_invoices USING btree (created_at)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoices",
+      "indexName": "fyh_invoices_customer_idx",
+      "indexDef": "CREATE INDEX fyh_invoices_customer_idx ON public.fyh_invoices USING btree (customer_id, created_at)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoices",
+      "indexName": "fyh_invoices_import_batch_idx",
+      "indexDef": "CREATE INDEX fyh_invoices_import_batch_idx ON public.fyh_invoices USING btree (import_batch_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoices",
+      "indexName": "fyh_invoices_import_batch_row_uidx",
+      "indexDef": "CREATE UNIQUE INDEX fyh_invoices_import_batch_row_uidx ON public.fyh_invoices USING btree (import_batch_id, import_row_key) WHERE ((import_batch_id IS NOT NULL) AND (import_row_key IS NOT NULL))",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoices",
+      "indexName": "fyh_invoices_import_row_key_uidx",
+      "indexDef": "CREATE UNIQUE INDEX fyh_invoices_import_row_key_uidx ON public.fyh_invoices USING btree (import_row_key) WHERE (import_row_key IS NOT NULL)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoices",
+      "indexName": "fyh_invoices_number_uidx",
+      "indexDef": "CREATE UNIQUE INDEX fyh_invoices_number_uidx ON public.fyh_invoices USING btree (invoice_number)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoices",
+      "indexName": "fyh_invoices_paid_status_idx",
+      "indexDef": "CREATE INDEX fyh_invoices_paid_status_idx ON public.fyh_invoices USING btree (paid_at DESC, status) WHERE (paid_at IS NOT NULL)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoices",
+      "indexName": "fyh_invoices_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_invoices_pkey ON public.fyh_invoices USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoices",
+      "indexName": "fyh_invoices_quick_sale_draft_idx",
+      "indexDef": "CREATE INDEX fyh_invoices_quick_sale_draft_idx ON public.fyh_invoices USING btree (source, status, updated_at DESC) WHERE ((source = 'quick_sale'::text) AND (status = 'draft'::text))",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoices",
+      "indexName": "fyh_invoices_status_idx",
+      "indexDef": "CREATE INDEX fyh_invoices_status_idx ON public.fyh_invoices USING btree (status)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_invoices",
+      "indexName": "fyh_invoices_stylist_idx",
+      "indexDef": "CREATE INDEX fyh_invoices_stylist_idx ON public.fyh_invoices USING btree (stylist_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_membership_plans",
+      "indexName": "fyh_membership_plans_active_idx",
+      "indexDef": "CREATE INDEX fyh_membership_plans_active_idx ON public.fyh_membership_plans USING btree (is_active)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_membership_plans",
+      "indexName": "fyh_membership_plans_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_membership_plans_pkey ON public.fyh_membership_plans USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_notification_outbox",
+      "indexName": "fyh_notification_outbox_kind_idx",
+      "indexDef": "CREATE INDEX fyh_notification_outbox_kind_idx ON public.fyh_notification_outbox USING btree (kind)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_notification_outbox",
+      "indexName": "fyh_notification_outbox_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_notification_outbox_pkey ON public.fyh_notification_outbox USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_notification_outbox",
+      "indexName": "fyh_notification_outbox_status_idx",
+      "indexDef": "CREATE INDEX fyh_notification_outbox_status_idx ON public.fyh_notification_outbox USING btree (status, scheduled_for)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_notification_templates",
+      "indexName": "fyh_notification_templates_kind_idx",
+      "indexDef": "CREATE INDEX fyh_notification_templates_kind_idx ON public.fyh_notification_templates USING btree (kind)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_notification_templates",
+      "indexName": "fyh_notification_templates_kind_key",
+      "indexDef": "CREATE UNIQUE INDEX fyh_notification_templates_kind_key ON public.fyh_notification_templates USING btree (kind)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_notification_templates",
+      "indexName": "fyh_notification_templates_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_notification_templates_pkey ON public.fyh_notification_templates USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_package_plans",
+      "indexName": "fyh_package_plans_active_idx",
+      "indexDef": "CREATE INDEX fyh_package_plans_active_idx ON public.fyh_package_plans USING btree (is_active)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_package_plans",
+      "indexName": "fyh_package_plans_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_package_plans_pkey ON public.fyh_package_plans USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_product_batches",
+      "indexName": "fyh_product_batches_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_product_batches_pkey ON public.fyh_product_batches USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_product_batches",
+      "indexName": "fyh_product_batches_product_idx",
+      "indexDef": "CREATE INDEX fyh_product_batches_product_idx ON public.fyh_product_batches USING btree (product_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_products",
+      "indexName": "fyh_products_active_idx",
+      "indexDef": "CREATE INDEX fyh_products_active_idx ON public.fyh_products USING btree (is_active)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_products",
+      "indexName": "fyh_products_category_idx",
+      "indexDef": "CREATE INDEX fyh_products_category_idx ON public.fyh_products USING btree (category)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_products",
+      "indexName": "fyh_products_name_idx",
+      "indexDef": "CREATE INDEX fyh_products_name_idx ON public.fyh_products USING btree (name)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_products",
+      "indexName": "fyh_products_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_products_pkey ON public.fyh_products USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchase_audit_events",
+      "indexName": "fyh_purchase_audit_events_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_purchase_audit_events_pkey ON public.fyh_purchase_audit_events USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchase_audit_events",
+      "indexName": "fyh_purchase_audit_events_purchase_idx",
+      "indexDef": "CREATE INDEX fyh_purchase_audit_events_purchase_idx ON public.fyh_purchase_audit_events USING btree (purchase_id, created_at DESC)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchase_lines",
+      "indexName": "fyh_purchase_lines_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_purchase_lines_pkey ON public.fyh_purchase_lines USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchase_lines",
+      "indexName": "fyh_purchase_lines_purchase_idx",
+      "indexDef": "CREATE INDEX fyh_purchase_lines_purchase_idx ON public.fyh_purchase_lines USING btree (purchase_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchase_order_lines",
+      "indexName": "fyh_purchase_order_lines_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_purchase_order_lines_pkey ON public.fyh_purchase_order_lines USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchase_order_lines",
+      "indexName": "fyh_purchase_order_lines_po_idx",
+      "indexDef": "CREATE INDEX fyh_purchase_order_lines_po_idx ON public.fyh_purchase_order_lines USING btree (purchase_order_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchase_order_lines",
+      "indexName": "fyh_purchase_order_lines_product_idx",
+      "indexDef": "CREATE INDEX fyh_purchase_order_lines_product_idx ON public.fyh_purchase_order_lines USING btree (product_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchase_orders",
+      "indexName": "fyh_purchase_orders_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_purchase_orders_pkey ON public.fyh_purchase_orders USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchase_orders",
+      "indexName": "fyh_purchase_orders_po_number_idx",
+      "indexDef": "CREATE UNIQUE INDEX fyh_purchase_orders_po_number_idx ON public.fyh_purchase_orders USING btree (po_number)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchase_orders",
+      "indexName": "fyh_purchase_orders_status_idx",
+      "indexDef": "CREATE INDEX fyh_purchase_orders_status_idx ON public.fyh_purchase_orders USING btree (status)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchase_orders",
+      "indexName": "fyh_purchase_orders_vendor_idx",
+      "indexDef": "CREATE INDEX fyh_purchase_orders_vendor_idx ON public.fyh_purchase_orders USING btree (vendor_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchase_return_lines",
+      "indexName": "fyh_purchase_return_lines_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_purchase_return_lines_pkey ON public.fyh_purchase_return_lines USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchase_return_lines",
+      "indexName": "fyh_purchase_return_lines_return_idx",
+      "indexDef": "CREATE INDEX fyh_purchase_return_lines_return_idx ON public.fyh_purchase_return_lines USING btree (return_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchase_returns",
+      "indexName": "fyh_purchase_returns_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_purchase_returns_pkey ON public.fyh_purchase_returns USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchase_returns",
+      "indexName": "fyh_purchase_returns_purchase_idx",
+      "indexDef": "CREATE INDEX fyh_purchase_returns_purchase_idx ON public.fyh_purchase_returns USING btree (purchase_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchase_returns",
+      "indexName": "fyh_purchase_returns_vendor_idx",
+      "indexDef": "CREATE INDEX fyh_purchase_returns_vendor_idx ON public.fyh_purchase_returns USING btree (vendor_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchases",
+      "indexName": "fyh_purchases_date_idx",
+      "indexDef": "CREATE INDEX fyh_purchases_date_idx ON public.fyh_purchases USING btree (purchase_date DESC)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchases",
+      "indexName": "fyh_purchases_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_purchases_pkey ON public.fyh_purchases USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchases",
+      "indexName": "fyh_purchases_purchase_number_key",
+      "indexDef": "CREATE UNIQUE INDEX fyh_purchases_purchase_number_key ON public.fyh_purchases USING btree (purchase_number)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_purchases",
+      "indexName": "fyh_purchases_vendor_idx",
+      "indexDef": "CREATE INDEX fyh_purchases_vendor_idx ON public.fyh_purchases USING btree (vendor_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_resources",
+      "indexName": "fyh_resources_active_idx",
+      "indexDef": "CREATE INDEX fyh_resources_active_idx ON public.fyh_resources USING btree (is_active)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_resources",
+      "indexName": "fyh_resources_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_resources_pkey ON public.fyh_resources USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_resources",
+      "indexName": "fyh_resources_sort_order_idx",
+      "indexDef": "CREATE INDEX fyh_resources_sort_order_idx ON public.fyh_resources USING btree (sort_order, name)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_resources",
+      "indexName": "fyh_resources_type_idx",
+      "indexDef": "CREATE INDEX fyh_resources_type_idx ON public.fyh_resources USING btree (type)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_service_categories",
+      "indexName": "fyh_service_categories_name_key",
+      "indexDef": "CREATE UNIQUE INDEX fyh_service_categories_name_key ON public.fyh_service_categories USING btree (name)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_service_categories",
+      "indexName": "fyh_service_categories_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_service_categories_pkey ON public.fyh_service_categories USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_service_categories",
+      "indexName": "fyh_service_categories_slug_key",
+      "indexDef": "CREATE UNIQUE INDEX fyh_service_categories_slug_key ON public.fyh_service_categories USING btree (slug)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_service_consumables",
+      "indexName": "fyh_service_consumables_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_service_consumables_pkey ON public.fyh_service_consumables USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_service_consumables",
+      "indexName": "fyh_service_consumables_service_idx",
+      "indexDef": "CREATE INDEX fyh_service_consumables_service_idx ON public.fyh_service_consumables USING btree (service_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_service_staff",
+      "indexName": "fyh_service_staff_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_service_staff_pkey ON public.fyh_service_staff USING btree (service_id, staff_id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_services",
+      "indexName": "fyh_services_active_idx",
+      "indexDef": "CREATE INDEX fyh_services_active_idx ON public.fyh_services USING btree (is_active)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_services",
+      "indexName": "fyh_services_category_idx",
+      "indexDef": "CREATE INDEX fyh_services_category_idx ON public.fyh_services USING btree (category)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_services",
+      "indexName": "fyh_services_code_uidx",
+      "indexDef": "CREATE UNIQUE INDEX fyh_services_code_uidx ON public.fyh_services USING btree (code)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_services",
+      "indexName": "fyh_services_display_order_idx",
+      "indexDef": "CREATE INDEX fyh_services_display_order_idx ON public.fyh_services USING btree (display_order, name)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_services",
+      "indexName": "fyh_services_name_idx",
+      "indexDef": "CREATE INDEX fyh_services_name_idx ON public.fyh_services USING btree (name)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_services",
+      "indexName": "fyh_services_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_services_pkey ON public.fyh_services USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_settings",
+      "indexName": "fyh_settings_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_settings_pkey ON public.fyh_settings USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_staff",
+      "indexName": "fyh_staff_active_idx",
+      "indexDef": "CREATE INDEX fyh_staff_active_idx ON public.fyh_staff USING btree (is_active)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_staff",
+      "indexName": "fyh_staff_name_idx",
+      "indexDef": "CREATE INDEX fyh_staff_name_idx ON public.fyh_staff USING btree (full_name)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_staff",
+      "indexName": "fyh_staff_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_staff_pkey ON public.fyh_staff USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_staff_schedules",
+      "indexName": "fyh_staff_schedules_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_staff_schedules_pkey ON public.fyh_staff_schedules USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_staff_schedules",
+      "indexName": "fyh_staff_schedules_staff_dow_uidx",
+      "indexDef": "CREATE UNIQUE INDEX fyh_staff_schedules_staff_dow_uidx ON public.fyh_staff_schedules USING btree (staff_id, day_of_week)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_staff_schedules",
+      "indexName": "fyh_staff_schedules_staff_idx",
+      "indexDef": "CREATE INDEX fyh_staff_schedules_staff_idx ON public.fyh_staff_schedules USING btree (staff_id, day_of_week)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_stock_adjustments",
+      "indexName": "fyh_stock_adjustments_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_stock_adjustments_pkey ON public.fyh_stock_adjustments USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_stock_adjustments",
+      "indexName": "fyh_stock_adjustments_product_idx",
+      "indexDef": "CREATE INDEX fyh_stock_adjustments_product_idx ON public.fyh_stock_adjustments USING btree (product_id, created_at)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_stock_movements",
+      "indexName": "fyh_stock_movements_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_stock_movements_pkey ON public.fyh_stock_movements USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_stock_movements",
+      "indexName": "fyh_stock_movements_product_idx",
+      "indexDef": "CREATE INDEX fyh_stock_movements_product_idx ON public.fyh_stock_movements USING btree (product_id, created_at)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_stock_movements",
+      "indexName": "fyh_stock_movements_reference_idx",
+      "indexDef": "CREATE INDEX fyh_stock_movements_reference_idx ON public.fyh_stock_movements USING btree (reference_type, reference_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_stock_movements",
+      "indexName": "fyh_stock_movements_type_idx",
+      "indexDef": "CREATE INDEX fyh_stock_movements_type_idx ON public.fyh_stock_movements USING btree (movement_type)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_vendor_notes",
+      "indexName": "fyh_vendor_notes_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_vendor_notes_pkey ON public.fyh_vendor_notes USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_vendor_notes",
+      "indexName": "fyh_vendor_notes_vendor_idx",
+      "indexDef": "CREATE INDEX fyh_vendor_notes_vendor_idx ON public.fyh_vendor_notes USING btree (vendor_id, created_at DESC)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_vendor_payables",
+      "indexName": "fyh_vendor_payables_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_vendor_payables_pkey ON public.fyh_vendor_payables USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_vendor_payables",
+      "indexName": "fyh_vendor_payables_purchase_id_key",
+      "indexDef": "CREATE UNIQUE INDEX fyh_vendor_payables_purchase_id_key ON public.fyh_vendor_payables USING btree (purchase_id)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_vendor_payables",
+      "indexName": "fyh_vendor_payables_status_idx",
+      "indexDef": "CREATE INDEX fyh_vendor_payables_status_idx ON public.fyh_vendor_payables USING btree (status)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_vendor_payables",
+      "indexName": "fyh_vendor_payables_vendor_idx",
+      "indexDef": "CREATE INDEX fyh_vendor_payables_vendor_idx ON public.fyh_vendor_payables USING btree (vendor_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_vendor_payment_allocations",
+      "indexName": "fyh_vendor_payment_alloc_alloc_idx",
+      "indexDef": "CREATE INDEX fyh_vendor_payment_alloc_alloc_idx ON public.fyh_vendor_payment_allocations USING btree (payable_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_vendor_payment_allocations",
+      "indexName": "fyh_vendor_payment_alloc_payment_idx",
+      "indexDef": "CREATE INDEX fyh_vendor_payment_alloc_payment_idx ON public.fyh_vendor_payment_allocations USING btree (payment_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_vendor_payment_allocations",
+      "indexName": "fyh_vendor_payment_allocations_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_vendor_payment_allocations_pkey ON public.fyh_vendor_payment_allocations USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_vendor_payments",
+      "indexName": "fyh_vendor_payments_date_idx",
+      "indexDef": "CREATE INDEX fyh_vendor_payments_date_idx ON public.fyh_vendor_payments USING btree (payment_date DESC)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_vendor_payments",
+      "indexName": "fyh_vendor_payments_number_idx",
+      "indexDef": "CREATE UNIQUE INDEX fyh_vendor_payments_number_idx ON public.fyh_vendor_payments USING btree (payment_number)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_vendor_payments",
+      "indexName": "fyh_vendor_payments_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_vendor_payments_pkey ON public.fyh_vendor_payments USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "fyh_vendor_payments",
+      "indexName": "fyh_vendor_payments_status_idx",
+      "indexDef": "CREATE INDEX fyh_vendor_payments_status_idx ON public.fyh_vendor_payments USING btree (status)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_vendor_payments",
+      "indexName": "fyh_vendor_payments_vendor_idx",
+      "indexDef": "CREATE INDEX fyh_vendor_payments_vendor_idx ON public.fyh_vendor_payments USING btree (vendor_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_vendors",
+      "indexName": "fyh_vendors_active_idx",
+      "indexDef": "CREATE INDEX fyh_vendors_active_idx ON public.fyh_vendors USING btree (is_active)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_vendors",
+      "indexName": "fyh_vendors_name_idx",
+      "indexDef": "CREATE INDEX fyh_vendors_name_idx ON public.fyh_vendors USING btree (name)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "fyh_vendors",
+      "indexName": "fyh_vendors_pkey",
+      "indexDef": "CREATE UNIQUE INDEX fyh_vendors_pkey ON public.fyh_vendors USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "wf_attendance",
+      "indexName": "wf_attendance_employee_engine_date_uidx",
+      "indexDef": "CREATE UNIQUE INDEX wf_attendance_employee_engine_date_uidx ON public.wf_attendance USING btree (employee_id, engine_id, work_date)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "wf_attendance",
+      "indexName": "wf_attendance_pkey",
+      "indexDef": "CREATE UNIQUE INDEX wf_attendance_pkey ON public.wf_attendance USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "wf_audit_log",
+      "indexName": "wf_audit_employee_idx",
+      "indexDef": "CREATE INDEX wf_audit_employee_idx ON public.wf_audit_log USING btree (employee_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "wf_audit_log",
+      "indexName": "wf_audit_log_pkey",
+      "indexDef": "CREATE UNIQUE INDEX wf_audit_log_pkey ON public.wf_audit_log USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "wf_auth_sessions",
+      "indexName": "wf_auth_sessions_employee_idx",
+      "indexDef": "CREATE INDEX wf_auth_sessions_employee_idx ON public.wf_auth_sessions USING btree (employee_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "wf_auth_sessions",
+      "indexName": "wf_auth_sessions_pkey",
+      "indexDef": "CREATE UNIQUE INDEX wf_auth_sessions_pkey ON public.wf_auth_sessions USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "wf_auth_sessions",
+      "indexName": "wf_auth_sessions_token_idx",
+      "indexDef": "CREATE INDEX wf_auth_sessions_token_idx ON public.wf_auth_sessions USING btree (token_hash)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "wf_employees",
+      "indexName": "wf_employees_email_uidx",
+      "indexDef": "CREATE UNIQUE INDEX wf_employees_email_uidx ON public.wf_employees USING btree (email) WHERE (email IS NOT NULL)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "wf_employees",
+      "indexName": "wf_employees_legacy_admin_idx",
+      "indexDef": "CREATE INDEX wf_employees_legacy_admin_idx ON public.wf_employees USING btree (legacy_admin_user_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "wf_employees",
+      "indexName": "wf_employees_mobile_uidx",
+      "indexDef": "CREATE UNIQUE INDEX wf_employees_mobile_uidx ON public.wf_employees USING btree (mobile) WHERE (mobile IS NOT NULL)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "wf_employees",
+      "indexName": "wf_employees_one_system_provider",
+      "indexDef": "CREATE UNIQUE INDEX wf_employees_one_system_provider ON public.wf_employees USING btree (is_system_provider) WHERE (is_system_provider = true)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "wf_employees",
+      "indexName": "wf_employees_pkey",
+      "indexDef": "CREATE UNIQUE INDEX wf_employees_pkey ON public.wf_employees USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "wf_employees",
+      "indexName": "wf_employees_status_idx",
+      "indexDef": "CREATE INDEX wf_employees_status_idx ON public.wf_employees USING btree (status)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "wf_engine_memberships",
+      "indexName": "wf_engine_memberships_pkey",
+      "indexDef": "CREATE UNIQUE INDEX wf_engine_memberships_pkey ON public.wf_engine_memberships USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "wf_engine_memberships",
+      "indexName": "wf_membership_employee_engine_uidx",
+      "indexDef": "CREATE UNIQUE INDEX wf_membership_employee_engine_uidx ON public.wf_engine_memberships USING btree (employee_id, engine_id)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "wf_engine_memberships",
+      "indexName": "wf_membership_engine_idx",
+      "indexDef": "CREATE INDEX wf_membership_engine_idx ON public.wf_engine_memberships USING btree (engine_id, is_active)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "wf_events",
+      "indexName": "wf_events_event_id_uidx",
+      "indexDef": "CREATE UNIQUE INDEX wf_events_event_id_uidx ON public.wf_events USING btree (event_id)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "wf_events",
+      "indexName": "wf_events_pkey",
+      "indexDef": "CREATE UNIQUE INDEX wf_events_pkey ON public.wf_events USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "wf_events",
+      "indexName": "wf_events_type_idx",
+      "indexDef": "CREATE INDEX wf_events_type_idx ON public.wf_events USING btree (event_type)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "wf_incentive_plans",
+      "indexName": "wf_incentive_plans_employee_engine_uidx",
+      "indexDef": "CREATE UNIQUE INDEX wf_incentive_plans_employee_engine_uidx ON public.wf_incentive_plans USING btree (employee_id, engine_id)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "wf_incentive_plans",
+      "indexName": "wf_incentive_plans_engine_idx",
+      "indexDef": "CREATE INDEX wf_incentive_plans_engine_idx ON public.wf_incentive_plans USING btree (engine_id, plan_type)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "wf_incentive_plans",
+      "indexName": "wf_incentive_plans_pkey",
+      "indexDef": "CREATE UNIQUE INDEX wf_incentive_plans_pkey ON public.wf_incentive_plans USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "wf_incentives",
+      "indexName": "wf_incentives_employee_engine_idx",
+      "indexDef": "CREATE INDEX wf_incentives_employee_engine_idx ON public.wf_incentives USING btree (employee_id, engine_id, effective_date)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "wf_incentives",
+      "indexName": "wf_incentives_engine_status_idx",
+      "indexDef": "CREATE INDEX wf_incentives_engine_status_idx ON public.wf_incentives USING btree (engine_id, status)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "wf_incentives",
+      "indexName": "wf_incentives_pkey",
+      "indexDef": "CREATE UNIQUE INDEX wf_incentives_pkey ON public.wf_incentives USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "wf_payroll_lines",
+      "indexName": "wf_payroll_lines_employee_idx",
+      "indexDef": "CREATE INDEX wf_payroll_lines_employee_idx ON public.wf_payroll_lines USING btree (employee_id)",
+      "isUnique": false,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "wf_payroll_lines",
+      "indexName": "wf_payroll_lines_pkey",
+      "indexDef": "CREATE UNIQUE INDEX wf_payroll_lines_pkey ON public.wf_payroll_lines USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "wf_payroll_lines",
+      "indexName": "wf_payroll_lines_run_employee_uidx",
+      "indexDef": "CREATE UNIQUE INDEX wf_payroll_lines_run_employee_uidx ON public.wf_payroll_lines USING btree (payroll_run_id, employee_id)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "wf_payroll_runs",
+      "indexName": "wf_payroll_runs_pkey",
+      "indexDef": "CREATE UNIQUE INDEX wf_payroll_runs_pkey ON public.wf_payroll_runs USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "wf_permission_grants",
+      "indexName": "wf_permission_grants_pkey",
+      "indexDef": "CREATE UNIQUE INDEX wf_permission_grants_pkey ON public.wf_permission_grants USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "wf_permission_grants",
+      "indexName": "wf_permission_membership_uidx",
+      "indexDef": "CREATE UNIQUE INDEX wf_permission_membership_uidx ON public.wf_permission_grants USING btree (membership_id)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "wf_role_templates",
+      "indexName": "wf_role_templates_engine_role_uidx",
+      "indexDef": "CREATE UNIQUE INDEX wf_role_templates_engine_role_uidx ON public.wf_role_templates USING btree (engine_id, access_role)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "wf_role_templates",
+      "indexName": "wf_role_templates_pkey",
+      "indexDef": "CREATE UNIQUE INDEX wf_role_templates_pkey ON public.wf_role_templates USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    },
+    {
+      "schema": "public",
+      "table": "wf_schedules",
+      "indexName": "wf_schedules_employee_engine_day_uidx",
+      "indexDef": "CREATE UNIQUE INDEX wf_schedules_employee_engine_day_uidx ON public.wf_schedules USING btree (employee_id, engine_id, day_of_week)",
+      "isUnique": true,
+      "isPrimary": false
+    },
+    {
+      "schema": "public",
+      "table": "wf_schedules",
+      "indexName": "wf_schedules_pkey",
+      "indexDef": "CREATE UNIQUE INDEX wf_schedules_pkey ON public.wf_schedules USING btree (id)",
+      "isUnique": true,
+      "isPrimary": true
+    }
+  ],
+  "foreignKeys": [
+    {
+      "constraintName": "fyh_appointment_services_appointment_id_fkey",
+      "table": "fyh_appointment_services",
+      "column": "appointment_id",
+      "foreignTable": "fyh_appointments",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_appointment_services_service_id_fkey",
+      "table": "fyh_appointment_services",
+      "column": "service_id",
+      "foreignTable": "fyh_services",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_appointments_created_by_admin_id_fkey",
+      "table": "fyh_appointments",
+      "column": "created_by_admin_id",
+      "foreignTable": "fyh_admin_users",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_appointments_customer_id_fkey",
+      "table": "fyh_appointments",
+      "column": "customer_id",
+      "foreignTable": "fyh_customers",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_appointments_invoice_fk",
+      "table": "fyh_appointments",
+      "column": "invoice_id",
+      "foreignTable": "fyh_invoices",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_appointments_recurrence_parent_fk",
+      "table": "fyh_appointments",
+      "column": "recurrence_parent_id",
+      "foreignTable": "fyh_appointments",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_appointments_resource_id_fkey",
+      "table": "fyh_appointments",
+      "column": "resource_id",
+      "foreignTable": "fyh_resources",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_appointments_staff_id_fkey",
+      "table": "fyh_appointments",
+      "column": "staff_id",
+      "foreignTable": "fyh_staff",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_auth_sessions_admin_user_id_fkey",
+      "table": "fyh_auth_sessions",
+      "column": "admin_user_id",
+      "foreignTable": "fyh_admin_users",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_brands_vendor_id_fkey",
+      "table": "fyh_brands",
+      "column": "vendor_id",
+      "foreignTable": "fyh_vendors",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_bridal_events_bridal_profile_id_fkey",
+      "table": "fyh_bridal_events",
+      "column": "bridal_profile_id",
+      "foreignTable": "fyh_bridal_profiles",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_bridal_profiles_customer_id_fkey",
+      "table": "fyh_bridal_profiles",
+      "column": "customer_id",
+      "foreignTable": "fyh_customers",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_commission_entries_invoice_line_id_fkey",
+      "table": "fyh_commission_entries",
+      "column": "invoice_line_id",
+      "foreignTable": "fyh_invoice_lines",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_commission_entries_staff_id_fkey",
+      "table": "fyh_commission_entries",
+      "column": "staff_id",
+      "foreignTable": "fyh_staff",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_credit_notes_customer_id_fkey",
+      "table": "fyh_credit_notes",
+      "column": "customer_id",
+      "foreignTable": "fyh_customers",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_credit_notes_invoice_id_fkey",
+      "table": "fyh_credit_notes",
+      "column": "invoice_id",
+      "foreignTable": "fyh_invoices",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_customer_memberships_customer_id_fkey",
+      "table": "fyh_customer_memberships",
+      "column": "customer_id",
+      "foreignTable": "fyh_customers",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_customer_memberships_plan_id_fkey",
+      "table": "fyh_customer_memberships",
+      "column": "plan_id",
+      "foreignTable": "fyh_membership_plans",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_customer_notes_created_by_admin_id_fkey",
+      "table": "fyh_customer_notes",
+      "column": "created_by_admin_id",
+      "foreignTable": "fyh_admin_users",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_customer_notes_customer_id_fkey",
+      "table": "fyh_customer_notes",
+      "column": "customer_id",
+      "foreignTable": "fyh_customers",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_customer_packages_customer_id_fkey",
+      "table": "fyh_customer_packages",
+      "column": "customer_id",
+      "foreignTable": "fyh_customers",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_customer_packages_plan_id_fkey",
+      "table": "fyh_customer_packages",
+      "column": "plan_id",
+      "foreignTable": "fyh_package_plans",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_customer_timeline_customer_id_fkey",
+      "table": "fyh_customer_timeline",
+      "column": "customer_id",
+      "foreignTable": "fyh_customers",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_expenses_purchase_id_fkey",
+      "table": "fyh_expenses",
+      "column": "purchase_id",
+      "foreignTable": "fyh_purchases",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_financial_ledger_customer_id_fkey",
+      "table": "fyh_financial_ledger",
+      "column": "customer_id",
+      "foreignTable": "fyh_customers",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_financial_ledger_invoice_id_fkey",
+      "table": "fyh_financial_ledger",
+      "column": "invoice_id",
+      "foreignTable": "fyh_invoices",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_floor_issues_product_id_fkey",
+      "table": "fyh_floor_issues",
+      "column": "product_id",
+      "foreignTable": "fyh_products",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_goods_receipt_lines_goods_receipt_id_fkey",
+      "table": "fyh_goods_receipt_lines",
+      "column": "goods_receipt_id",
+      "foreignTable": "fyh_goods_receipts",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_goods_receipt_lines_product_id_fkey",
+      "table": "fyh_goods_receipt_lines",
+      "column": "product_id",
+      "foreignTable": "fyh_products",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_goods_receipts_purchase_order_id_fkey",
+      "table": "fyh_goods_receipts",
+      "column": "purchase_order_id",
+      "foreignTable": "fyh_purchase_orders",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_goods_receipts_vendor_id_fkey",
+      "table": "fyh_goods_receipts",
+      "column": "vendor_id",
+      "foreignTable": "fyh_vendors",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_historical_import_batches_uploaded_by_admin_id_fkey",
+      "table": "fyh_historical_import_batches",
+      "column": "uploaded_by_admin_id",
+      "foreignTable": "fyh_admin_users",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_historical_import_row_errors_batch_id_fkey",
+      "table": "fyh_historical_import_row_errors",
+      "column": "batch_id",
+      "foreignTable": "fyh_historical_import_batches",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_invoice_line_attributions_invoice_line_id_fkey",
+      "table": "fyh_invoice_line_attributions",
+      "column": "invoice_line_id",
+      "foreignTable": "fyh_invoice_lines",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_invoice_line_attributions_staff_id_fkey",
+      "table": "fyh_invoice_line_attributions",
+      "column": "staff_id",
+      "foreignTable": "fyh_staff",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_invoice_lines_invoice_id_fkey",
+      "table": "fyh_invoice_lines",
+      "column": "invoice_id",
+      "foreignTable": "fyh_invoices",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_invoice_lines_product_id_fkey",
+      "table": "fyh_invoice_lines",
+      "column": "product_id",
+      "foreignTable": "fyh_products",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_invoice_lines_service_id_fkey",
+      "table": "fyh_invoice_lines",
+      "column": "service_id",
+      "foreignTable": "fyh_services",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_invoice_lines_staff_id_fkey",
+      "table": "fyh_invoice_lines",
+      "column": "staff_id",
+      "foreignTable": "fyh_staff",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_invoice_payments_invoice_id_fkey",
+      "table": "fyh_invoice_payments",
+      "column": "invoice_id",
+      "foreignTable": "fyh_invoices",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_invoices_appointment_id_fkey",
+      "table": "fyh_invoices",
+      "column": "appointment_id",
+      "foreignTable": "fyh_appointments",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_invoices_customer_id_fkey",
+      "table": "fyh_invoices",
+      "column": "customer_id",
+      "foreignTable": "fyh_customers",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_invoices_import_batch_id_fkey",
+      "table": "fyh_invoices",
+      "column": "import_batch_id",
+      "foreignTable": "fyh_historical_import_batches",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_invoices_stylist_id_fkey",
+      "table": "fyh_invoices",
+      "column": "stylist_id",
+      "foreignTable": "fyh_staff",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_package_plans_service_id_fkey",
+      "table": "fyh_package_plans",
+      "column": "service_id",
+      "foreignTable": "fyh_services",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_product_batches_product_id_fkey",
+      "table": "fyh_product_batches",
+      "column": "product_id",
+      "foreignTable": "fyh_products",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_products_brand_id_fkey",
+      "table": "fyh_products",
+      "column": "brand_id",
+      "foreignTable": "fyh_brands",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_purchase_audit_events_purchase_id_fkey",
+      "table": "fyh_purchase_audit_events",
+      "column": "purchase_id",
+      "foreignTable": "fyh_purchases",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_purchase_lines_product_id_fkey",
+      "table": "fyh_purchase_lines",
+      "column": "product_id",
+      "foreignTable": "fyh_products",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_purchase_lines_purchase_id_fkey",
+      "table": "fyh_purchase_lines",
+      "column": "purchase_id",
+      "foreignTable": "fyh_purchases",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_purchase_order_lines_product_id_fkey",
+      "table": "fyh_purchase_order_lines",
+      "column": "product_id",
+      "foreignTable": "fyh_products",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_purchase_order_lines_purchase_order_id_fkey",
+      "table": "fyh_purchase_order_lines",
+      "column": "purchase_order_id",
+      "foreignTable": "fyh_purchase_orders",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_purchase_orders_vendor_id_fkey",
+      "table": "fyh_purchase_orders",
+      "column": "vendor_id",
+      "foreignTable": "fyh_vendors",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_purchase_return_lines_product_id_fkey",
+      "table": "fyh_purchase_return_lines",
+      "column": "product_id",
+      "foreignTable": "fyh_products",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_purchase_return_lines_return_id_fkey",
+      "table": "fyh_purchase_return_lines",
+      "column": "return_id",
+      "foreignTable": "fyh_purchase_returns",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_purchase_returns_payable_id_fkey",
+      "table": "fyh_purchase_returns",
+      "column": "payable_id",
+      "foreignTable": "fyh_vendor_payables",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_purchase_returns_purchase_id_fkey",
+      "table": "fyh_purchase_returns",
+      "column": "purchase_id",
+      "foreignTable": "fyh_purchases",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_purchase_returns_vendor_id_fkey",
+      "table": "fyh_purchase_returns",
+      "column": "vendor_id",
+      "foreignTable": "fyh_vendors",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_purchases_vendor_id_fkey",
+      "table": "fyh_purchases",
+      "column": "vendor_id",
+      "foreignTable": "fyh_vendors",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_service_consumables_product_id_fkey",
+      "table": "fyh_service_consumables",
+      "column": "product_id",
+      "foreignTable": "fyh_products",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_service_consumables_service_id_fkey",
+      "table": "fyh_service_consumables",
+      "column": "service_id",
+      "foreignTable": "fyh_services",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_service_staff_service_id_fkey",
+      "table": "fyh_service_staff",
+      "column": "service_id",
+      "foreignTable": "fyh_services",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_service_staff_staff_id_fkey",
+      "table": "fyh_service_staff",
+      "column": "staff_id",
+      "foreignTable": "fyh_staff",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_staff_schedules_staff_id_fkey",
+      "table": "fyh_staff_schedules",
+      "column": "staff_id",
+      "foreignTable": "fyh_staff",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_stock_adjustments_product_id_fkey",
+      "table": "fyh_stock_adjustments",
+      "column": "product_id",
+      "foreignTable": "fyh_products",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_stock_movements_product_id_fkey",
+      "table": "fyh_stock_movements",
+      "column": "product_id",
+      "foreignTable": "fyh_products",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_vendor_notes_vendor_id_fkey",
+      "table": "fyh_vendor_notes",
+      "column": "vendor_id",
+      "foreignTable": "fyh_vendors",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_vendor_payables_purchase_id_fkey",
+      "table": "fyh_vendor_payables",
+      "column": "purchase_id",
+      "foreignTable": "fyh_purchases",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_vendor_payables_vendor_id_fkey",
+      "table": "fyh_vendor_payables",
+      "column": "vendor_id",
+      "foreignTable": "fyh_vendors",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_vendor_payment_allocations_payable_id_fkey",
+      "table": "fyh_vendor_payment_allocations",
+      "column": "payable_id",
+      "foreignTable": "fyh_vendor_payables",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_vendor_payment_allocations_payment_id_fkey",
+      "table": "fyh_vendor_payment_allocations",
+      "column": "payment_id",
+      "foreignTable": "fyh_vendor_payments",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "fyh_vendor_payments_vendor_id_fkey",
+      "table": "fyh_vendor_payments",
+      "column": "vendor_id",
+      "foreignTable": "fyh_vendors",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "wf_attendance_employee_id_fkey",
+      "table": "wf_attendance",
+      "column": "employee_id",
+      "foreignTable": "wf_employees",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "wf_audit_log_actor_employee_id_fkey",
+      "table": "wf_audit_log",
+      "column": "actor_employee_id",
+      "foreignTable": "wf_employees",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "wf_audit_log_employee_id_fkey",
+      "table": "wf_audit_log",
+      "column": "employee_id",
+      "foreignTable": "wf_employees",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "wf_auth_sessions_employee_id_fkey",
+      "table": "wf_auth_sessions",
+      "column": "employee_id",
+      "foreignTable": "wf_employees",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "wf_engine_memberships_employee_id_fkey",
+      "table": "wf_engine_memberships",
+      "column": "employee_id",
+      "foreignTable": "wf_employees",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "wf_incentive_plans_employee_id_fkey",
+      "table": "wf_incentive_plans",
+      "column": "employee_id",
+      "foreignTable": "wf_employees",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "wf_incentives_created_by_employee_id_fkey",
+      "table": "wf_incentives",
+      "column": "created_by_employee_id",
+      "foreignTable": "wf_employees",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "wf_incentives_employee_id_fkey",
+      "table": "wf_incentives",
+      "column": "employee_id",
+      "foreignTable": "wf_employees",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "wf_payroll_lines_employee_id_fkey",
+      "table": "wf_payroll_lines",
+      "column": "employee_id",
+      "foreignTable": "wf_employees",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "wf_payroll_lines_payroll_run_id_fkey",
+      "table": "wf_payroll_lines",
+      "column": "payroll_run_id",
+      "foreignTable": "wf_payroll_runs",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "wf_permission_grants_membership_id_fkey",
+      "table": "wf_permission_grants",
+      "column": "membership_id",
+      "foreignTable": "wf_engine_memberships",
+      "foreignColumn": "id"
+    },
+    {
+      "constraintName": "wf_schedules_employee_id_fkey",
+      "table": "wf_schedules",
+      "column": "employee_id",
+      "foreignTable": "wf_employees",
+      "foreignColumn": "id"
+    }
+  ],
+  "uniqueConstraints": [
+    {
+      "table": "fyh_admin_users",
+      "constraintName": "fyh_admin_users_email_key",
+      "columns": [
+        "email"
+      ]
+    },
+    {
+      "table": "fyh_brands",
+      "constraintName": "fyh_brands_name_key",
+      "columns": [
+        "name"
+      ]
+    },
+    {
+      "table": "fyh_notification_templates",
+      "constraintName": "fyh_notification_templates_kind_key",
+      "columns": [
+        "kind"
+      ]
+    },
+    {
+      "table": "fyh_purchases",
+      "constraintName": "fyh_purchases_purchase_number_key",
+      "columns": [
+        "purchase_number"
+      ]
+    },
+    {
+      "table": "fyh_service_categories",
+      "constraintName": "fyh_service_categories_name_key",
+      "columns": [
+        "name"
+      ]
+    },
+    {
+      "table": "fyh_service_categories",
+      "constraintName": "fyh_service_categories_slug_key",
+      "columns": [
+        "slug"
+      ]
+    },
+    {
+      "table": "fyh_staff_schedules",
+      "constraintName": "fyh_staff_schedules_staff_dow_uidx",
+      "columns": [
+        "staff_id",
+        "day_of_week"
+      ]
+    },
+    {
+      "table": "fyh_vendor_payables",
+      "constraintName": "fyh_vendor_payables_purchase_id_key",
+      "columns": [
+        "purchase_id"
+      ]
+    }
+  ],
+  "fyhTableCount": 54,
+  "wfTableCount": 13
+}

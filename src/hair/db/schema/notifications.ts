@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { boolean, index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
 
 export const FYH_OUTBOX_STATUSES = ['pending', 'sent', 'failed'] as const;
 export type FyhOutboxStatus = (typeof FYH_OUTBOX_STATUSES)[number];
@@ -23,6 +24,7 @@ export const fyhNotificationTemplates = pgTable(
   'fyh_notification_templates',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     kind: text('kind').$type<FyhNotificationKind>().notNull().unique(),
     channel: text('channel').notNull().default('whatsapp'),
     subject: text('subject'),
@@ -37,6 +39,7 @@ export const fyhNotificationOutbox = pgTable(
   'fyh_notification_outbox',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     kind: text('kind').$type<FyhNotificationKind>().notNull(),
     channel: text('channel').notNull().default('whatsapp'),
     recipient: text('recipient').notNull(),

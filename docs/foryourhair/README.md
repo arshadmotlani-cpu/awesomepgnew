@@ -42,7 +42,22 @@ HAIR_DEV_HOST=1
 npm run hair:db:migrate
 npm run hair:db:seed
 npm run hair:db:studio
+npm run hair:db:introspect          # read-only SaaS introspection (row counts, FKs)
+npm run hair:db:introspect -- --json  # writes docs/foryourhair/PHASE_0B_INTROSPECTION.json
 ```
+
+## SaaS migration (Phase 0)
+
+Read-only audit and Phase 0B preparation docs:
+
+| Doc | Purpose |
+|-----|---------|
+| [PHASE_0A_SAAS_AUDIT.md](./PHASE_0A_SAAS_AUDIT.md) | Full architecture audit |
+| [PHASE_0B_DECISIONS.md](./PHASE_0B_DECISIONS.md) | Resolved architecture decisions |
+| [PHASE_0B_TENANT_CONTEXT.md](./PHASE_0B_TENANT_CONTEXT.md) | TenantContext + service audit |
+| [PHASE_0B_BOOTSTRAP_MIGRATION.md](./PHASE_0B_BOOTSTRAP_MIGRATION.md) | Single-salon bootstrap plan |
+| [PHASE_0B_AUTH_MIGRATION.md](./PHASE_0B_AUTH_MIGRATION.md) | Auth migration without breaking `fyh_session` |
+| [PHASE_0B_INTROSPECTION.md](./PHASE_0B_INTROSPECTION.md) | DB introspection summary |
 
 ## DNS / Vercel
 

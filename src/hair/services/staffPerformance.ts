@@ -10,6 +10,8 @@ import {
   fyhStaff,
   type FyhRevenueMetric,
 } from '@/src/hair/db/schema';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 export type StaffPerformanceSummary = {
   serviceRevenuePaise: number;
@@ -31,8 +33,7 @@ function emptySummary(): StaffPerformanceSummary {
 
 export async function getStaffPerformanceSummary(
   staffId: string,
-  range: DateRange,
-): Promise<StaffPerformanceSummary> {
+  range: DateRange, ctx?: TenantContext | null): Promise<StaffPerformanceSummary> {
   const rows = await hairDb
     .select({
       metric: fyhInvoiceLineAttributions.revenueMetric,
@@ -96,7 +97,7 @@ export async function getStaffPerformanceLeaderboard(
   }));
 }
 
-export async function getStaffTotalLeaderboard(range: DateRange, limit = 10) {
+export async function getStaffTotalLeaderboard(range: DateRange, limit = 10, ctx?: TenantContext | null) {
   const rows = await hairDb
     .select({
       staffId: fyhInvoiceLineAttributions.staffId,
@@ -125,7 +126,7 @@ export async function getStaffTotalLeaderboard(range: DateRange, limit = 10) {
   }));
 }
 
-export async function salonMetricTotal(metric: FyhRevenueMetric, range: DateRange) {
+export async function salonMetricTotal(metric: FyhRevenueMetric, range: DateRange, ctx?: TenantContext | null) {
   const rows = await hairDb
     .select({
       total: sql<number>`coalesce(sum(${fyhInvoiceLineAttributions.attributedNetPaise}), 0)::bigint`,
@@ -223,8 +224,7 @@ function salonMonthBounds(timezone: string, monthOffset: number, now = new Date(
 export async function getStaffMonthlyTrend(
   staffId: string,
   months = 6,
-  timezone = 'Asia/Kolkata',
-): Promise<StaffMonthlyTrendPoint[]> {
+  timezone = 'Asia/Kolkata', ctx?: TenantContext | null): Promise<StaffMonthlyTrendPoint[]> {
   const points: StaffMonthlyTrendPoint[] = [];
   for (let i = months - 1; i >= 0; i--) {
     const { monthKey, label, from, to } = salonMonthBounds(timezone, i);
@@ -242,12 +242,11 @@ export type StaffTargetProgress = {
 
 export async function getStaffTargetProgress(
   staffId: string,
-  range: DateRange,
-): Promise<StaffTargetProgress> {
+  range: DateRange, ctx?: TenantContext | null): Promise<StaffTargetProgress> {
   const [staff] = await hairDb
     .select({ performanceTargetPaise: fyhStaff.performanceTargetPaise })
     .from(fyhStaff)
-    .where(eq(fyhStaff.id, staffId))
+    .where(and(orgFilter(fyhStaff.organizationId, ctx), eq(fyhStaff.id, staffId)))
     .limit(1);
 
   const targetPaise = Number(staff?.performanceTargetPaise ?? 0);
@@ -264,14 +263,14 @@ export type StaffCommissionTotals = {
   paidPaise: number;
 };
 
-export async function getStaffCommissionTotals(staffId: string): Promise<StaffCommissionTotals> {
+export async function getStaffCommissionTotals(staffId: string, ctx?: TenantContext | null): Promise<StaffCommissionTotals> {
   const [row] = await hairDb
     .select({
       pendingPaise: sql<number>`coalesce(sum(case when ${fyhCommissionEntries.status} = 'pending' then ${fyhCommissionEntries.amountPaise} else 0 end), 0)::bigint`,
       paidPaise: sql<number>`coalesce(sum(case when ${fyhCommissionEntries.status} = 'paid' then ${fyhCommissionEntries.amountPaise} else 0 end), 0)::bigint`,
     })
     .from(fyhCommissionEntries)
-    .where(eq(fyhCommissionEntries.staffId, staffId));
+    .where(and(orgFilter(fyhCommissionEntries.organizationId, ctx), locationFilter(fyhCommissionEntries.locationId, ctx), eq(fyhCommissionEntries.staffId, staffId)));
 
   return {
     pendingPaise: Number(row?.pendingPaise ?? 0),
@@ -281,8 +280,7 @@ export async function getStaffCommissionTotals(staffId: string): Promise<StaffCo
 
 export async function getStaffCommissionInRange(
   staffId: string,
-  range: DateRange,
-): Promise<StaffCommissionTotals & { totalPaise: number }> {
+  range: DateRange, ctx?: TenantContext | null): Promise<StaffCommissionTotals & { totalPaise: number }> {
   const fromKey = range.from.toISOString().slice(0, 10);
   const toKey = range.to.toISOString().slice(0, 10);
   const [row] = await hairDb
@@ -318,8 +316,7 @@ export async function getStaffTopCatalogItems(
   staffId: string,
   range: DateRange,
   metric: FyhRevenueMetric,
-  limit = 8,
-): Promise<StaffTopCatalogItem[]> {
+  limit = 8, ctx?: TenantContext | null): Promise<StaffTopCatalogItem[]> {
   const rows = await hairDb
     .select({
       name: fyhInvoiceLines.nameSnapshot,
@@ -350,7 +347,7 @@ export async function getStaffTopCatalogItems(
   }));
 }
 
-export async function getStaffWorkingDays(staffId: string, range: DateRange): Promise<number> {
+export async function getStaffWorkingDays(staffId: string, range: DateRange, ctx?: TenantContext | null): Promise<number> {
   const [row] = await hairDb
     .select({
       days: sql<number>`count(distinct (${fyhInvoices.paidAt})::date)::int`,
@@ -380,8 +377,7 @@ export type StaffRecentInvoiceRow = {
 export async function getStaffRecentInvoices(
   staffId: string,
   range: DateRange,
-  limit = 12,
-): Promise<StaffRecentInvoiceRow[]> {
+  limit = 12, ctx?: TenantContext | null): Promise<StaffRecentInvoiceRow[]> {
   const rows = await hairDb
     .select({
       invoiceId: fyhInvoices.id,

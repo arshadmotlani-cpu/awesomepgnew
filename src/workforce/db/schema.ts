@@ -12,6 +12,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { organizationIdCol, locationIdCol, userIdCol } from '@/src/hair/db/schema/tenantColumns';
 import type {
   WorkforceEmployeeStatus,
   WorkforceEngineId,
@@ -31,6 +32,9 @@ export const wfEmployees = pgTable(
   'wf_employees',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    userId: userIdCol(),
+    fyhStaffId: uuid('fyh_staff_id'),
     fullName: text('full_name').notNull(),
     mobile: text('mobile'),
     email: text('email'),
@@ -76,6 +80,7 @@ export const wfEngineMemberships = pgTable(
   'wf_engine_memberships',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     employeeId: uuid('employee_id')
       .notNull()
       .references(() => wfEmployees.id, { onDelete: 'cascade' }),
@@ -105,6 +110,7 @@ export const wfPermissionGrants = pgTable(
   'wf_permission_grants',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     membershipId: uuid('membership_id')
       .notNull()
       .references(() => wfEngineMemberships.id, { onDelete: 'cascade' }),
@@ -123,6 +129,7 @@ export const wfRoleTemplates = pgTable(
   'wf_role_templates',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     engineId: text('engine_id').$type<WorkforceEngineId>().notNull(),
     accessRole: text('access_role').$type<WorkforceJobRole>().notNull(),
     permissions: jsonb('permissions').$type<WorkforcePermissionKey[]>().notNull().default([]),
@@ -137,6 +144,8 @@ export const wfSchedules = pgTable(
   'wf_schedules',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     employeeId: uuid('employee_id')
       .notNull()
       .references(() => wfEmployees.id, { onDelete: 'cascade' }),
@@ -159,6 +168,8 @@ export const wfAttendance = pgTable(
   'wf_attendance',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     employeeId: uuid('employee_id')
       .notNull()
       .references(() => wfEmployees.id, { onDelete: 'cascade' }),
@@ -182,6 +193,7 @@ export const wfAttendance = pgTable(
 /** Payroll foundation — draft runs; calculation expands later. */
 export const wfPayrollRuns = pgTable('wf_payroll_runs', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
   engineId: text('engine_id').$type<WorkforceEngineId>().notNull(),
   periodStart: date('period_start').notNull(),
   periodEnd: date('period_end').notNull(),
@@ -193,6 +205,7 @@ export const wfPayrollLines = pgTable(
   'wf_payroll_lines',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     payrollRunId: uuid('payroll_run_id')
       .notNull()
       .references(() => wfPayrollRuns.id, { onDelete: 'cascade' }),
@@ -217,6 +230,7 @@ export const wfIncentives = pgTable(
   'wf_incentives',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     employeeId: uuid('employee_id')
       .notNull()
       .references(() => wfEmployees.id, { onDelete: 'cascade' }),
@@ -242,6 +256,7 @@ export const wfIncentivePlans = pgTable(
   'wf_incentive_plans',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     employeeId: uuid('employee_id')
       .notNull()
       .references(() => wfEmployees.id, { onDelete: 'cascade' }),
@@ -283,6 +298,7 @@ export const wfAuditLog = pgTable(
   'wf_audit_log',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     employeeId: uuid('employee_id').references(() => wfEmployees.id, { onDelete: 'set null' }),
     actorEmployeeId: uuid('actor_employee_id').references(() => wfEmployees.id, {
       onDelete: 'set null',
@@ -298,6 +314,7 @@ export const wfEvents = pgTable(
   'wf_events',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     eventId: uuid('event_id').notNull().default(sql`gen_random_uuid()`),
     eventType: text('event_type').notNull(),
     employeeId: uuid('employee_id'),

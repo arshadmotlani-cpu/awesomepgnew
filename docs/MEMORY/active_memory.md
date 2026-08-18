@@ -7,6 +7,8 @@
 
 ## Current Focus
 
+- **FYHAIR SaaS migration (Phase 0A/0B)** — Read-only audit complete; Phase 0B design docs ready. **Do not implement schema until decisions signed off.** Next: provision Platform DB, bootstrap migration on staging. → `docs/foryourhair/PHASE_0A_SAAS_AUDIT.md`, `PHASE_0B_*`
+
 - **Workforce Engine v1 (HIGHEST PRIORITY)** — Permanent employee system replacing FYH staff. Phase 1 complete (DB/auth/ranks/permissions). Phases 2–5: Add Employee popup → role dashboards → attendance/pay → Brain wiring. Flag `WORKFORCE_ENGINE=1`. Do not extend `fyh_staff`. Do not touch Health Brain / PG / Capital. Health Score must stay 100. → `docs/WORKFORCE_ENGINE.md`
 
 - **Ecosystem Baseline v1 (FROZEN 2026-08-05)** — Minimum quality floor: Health Score = 100, no Brain regressions, Brain/Engine registration law. Independent verify: `npx tsx --tsconfig tsconfig.json scripts/independent-ecosystem-baseline-audit.ts`. → `docs/ECOSYSTEM_BASELINE_V1.md`

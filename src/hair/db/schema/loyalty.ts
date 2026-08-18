@@ -10,6 +10,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
 import { fyhCustomers } from './customers';
 import { fyhServices } from './services';
 
@@ -20,6 +21,7 @@ export const fyhMembershipPlans = pgTable(
   'fyh_membership_plans',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     name: text('name').notNull(),
     tier: text('tier').$type<FyhMembershipTier>().notNull(),
     discountBps: integer('discount_bps').notNull().default(0),
@@ -39,6 +41,7 @@ export const fyhCustomerMemberships = pgTable(
   'fyh_customer_memberships',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     customerId: uuid('customer_id')
       .notNull()
       .references(() => fyhCustomers.id, { onDelete: 'cascade' }),
@@ -57,6 +60,7 @@ export const fyhPackagePlans = pgTable(
   'fyh_package_plans',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     name: text('name').notNull(),
     serviceId: uuid('service_id').references(() => fyhServices.id, { onDelete: 'set null' }),
     totalSessions: integer('total_sessions').notNull().default(1),
@@ -72,6 +76,7 @@ export const fyhCustomerPackages = pgTable(
   'fyh_customer_packages',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     customerId: uuid('customer_id')
       .notNull()
       .references(() => fyhCustomers.id, { onDelete: 'cascade' }),
@@ -92,6 +97,7 @@ export const fyhBridalProfiles = pgTable(
   'fyh_bridal_profiles',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     customerId: uuid('customer_id')
       .notNull()
       .references(() => fyhCustomers.id, { onDelete: 'cascade' }),
@@ -120,6 +126,7 @@ export const fyhBridalEvents = pgTable(
   'fyh_bridal_events',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     bridalProfileId: uuid('bridal_profile_id')
       .notNull()
       .references(() => fyhBridalProfiles.id, { onDelete: 'cascade' }),

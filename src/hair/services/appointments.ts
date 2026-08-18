@@ -23,6 +23,8 @@ import {
   isActiveCalendarStatus,
 } from '@/src/hair/lib/appointmentStatus';
 import { shouldHideServiceFromBillable } from '@/src/hair/lib/serviceCatalogHygiene';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 /** Statuses that do not occupy a bookable slot (excluded from conflict checks). */
 const NON_OCCUPYING = ['cancelled', 'no_show', 'completed', 'paid'] as const;
@@ -221,11 +223,11 @@ async function appendTimeline(
   });
 }
 
-export async function listResources() {
+export async function listResources(ctx?: TenantContext | null) {
   return hairDb
     .select()
     .from(fyhResources)
-    .where(eq(fyhResources.isActive, true))
+    .where(and(orgFilter(fyhResources.organizationId, ctx), locationFilter(fyhResources.locationId, ctx), eq(fyhResources.isActive, true)))
     .orderBy(asc(fyhResources.sortOrder), asc(fyhResources.name));
 }
 
@@ -233,8 +235,14 @@ export async function listAppointmentsInRange(
   from: Date,
   to: Date,
   opts?: { staffId?: string | null },
+  ctx?: TenantContext | null,
 ): Promise<AppointmentCalendarRow[]> {
-  const conditions = [gte(fyhAppointments.startAt, from), lt(fyhAppointments.startAt, to)];
+  const conditions = [
+    orgFilter(fyhAppointments.organizationId, ctx),
+    locationFilter(fyhAppointments.locationId, ctx),
+    gte(fyhAppointments.startAt, from),
+    lt(fyhAppointments.startAt, to),
+  ];
   if (opts?.staffId) {
     conditions.push(eq(fyhAppointments.staffId, opts.staffId));
   }
@@ -274,9 +282,13 @@ export async function listAppointmentsInRange(
     .select()
     .from(fyhAppointmentServices)
     .where(
-      inArray(
-        fyhAppointmentServices.appointmentId,
-        appts.map((a) => a.id),
+      and(
+        orgFilter(fyhAppointmentServices.organizationId, ctx),
+        locationFilter(fyhAppointmentServices.locationId, ctx),
+        inArray(
+          fyhAppointmentServices.appointmentId,
+          appts.map((a) => a.id),
+        ),
       ),
     )
     .orderBy(asc(fyhAppointmentServices.sortOrder));
@@ -310,7 +322,7 @@ export async function listAppointmentsInRange(
   });
 }
 
-export async function getAppointmentById(id: string) {
+export async function getAppointmentById(id: string, ctx?: TenantContext | null) {
   const { inArray } = await import('drizzle-orm');
   const appts = await hairDb
     .select({
@@ -337,7 +349,7 @@ export async function getAppointmentById(id: string) {
     .innerJoin(fyhStaff, eq(fyhStaff.id, fyhAppointments.staffId))
     .leftJoin(fyhResources, eq(fyhResources.id, fyhAppointments.resourceId))
     .leftJoin(fyhAdminUsers, eq(fyhAdminUsers.id, fyhAppointments.createdByAdminId))
-    .where(eq(fyhAppointments.id, id))
+    .where(and(orgFilter(fyhAppointments.organizationId, ctx), locationFilter(fyhAppointments.locationId, ctx), eq(fyhAppointments.id, id)))
     .limit(1);
 
   const a = appts[0];
@@ -346,7 +358,7 @@ export async function getAppointmentById(id: string) {
   const services = await hairDb
     .select()
     .from(fyhAppointmentServices)
-    .where(eq(fyhAppointmentServices.appointmentId, id))
+    .where(and(orgFilter(fyhAppointmentServices.organizationId, ctx), locationFilter(fyhAppointmentServices.locationId, ctx), eq(fyhAppointmentServices.appointmentId, id)))
     .orderBy(asc(fyhAppointmentServices.sortOrder));
 
   const durationMinutes = Math.max(
@@ -369,7 +381,7 @@ export async function getAppointmentById(id: string) {
   };
 }
 
-export async function createAppointment(input: CreateAppointmentInput) {
+export async function createAppointment(input: CreateAppointmentInput, ctx?: TenantContext | null) {
   const settings = await getSalonSettings();
   const buffer = input.bufferMinutes ?? settings?.defaultBufferMinutes ?? 0;
   const snapshots = await loadServiceSnapshots(input.serviceIds);
@@ -451,7 +463,7 @@ export async function createAppointment(input: CreateAppointmentInput) {
   const [customer] = await hairDb
     .select({ fullName: fyhCustomers.fullName })
     .from(fyhCustomers)
-    .where(eq(fyhCustomers.id, input.customerId))
+    .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, input.customerId)))
     .limit(1);
 
   await appendTimeline(
@@ -469,7 +481,7 @@ export async function createAppointment(input: CreateAppointmentInput) {
         fullName: fyhCustomers.fullName,
       })
       .from(fyhCustomers)
-      .where(eq(fyhCustomers.id, input.customerId))
+      .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, input.customerId)))
       .limit(1);
     const recipient = cust?.whatsapp?.trim() || cust?.phone?.trim();
     if (cust && recipient) {
@@ -499,17 +511,20 @@ export async function createAppointment(input: CreateAppointmentInput) {
   return createdIds[0]!;
 }
 
-export async function rescheduleAppointment(input: {
-  id: string;
-  startAt: Date;
-  endAt?: Date;
-  staffId?: string;
-  resourceId?: string | null;
-}) {
+export async function rescheduleAppointment(
+  input: {
+    id: string;
+    startAt: Date;
+    endAt?: Date;
+    staffId?: string;
+    resourceId?: string | null;
+  },
+  ctx?: TenantContext | null,
+) {
   const [existing] = await hairDb
     .select()
     .from(fyhAppointments)
-    .where(eq(fyhAppointments.id, input.id))
+    .where(and(orgFilter(fyhAppointments.organizationId, ctx), locationFilter(fyhAppointments.locationId, ctx), eq(fyhAppointments.id, input.id)))
     .limit(1);
   if (!existing) throw new Error('Appointment not found');
   if (!isActiveCalendarStatus(existing.status) && existing.status !== 'completed') {
@@ -542,19 +557,19 @@ export async function rescheduleAppointment(input: {
       endAt,
       updatedAt: new Date(),
     })
-    .where(eq(fyhAppointments.id, input.id));
+    .where(and(orgFilter(fyhAppointments.organizationId, ctx), locationFilter(fyhAppointments.locationId, ctx), eq(fyhAppointments.id, input.id)));
 
   return input.id;
 }
 
-export async function updateAppointmentStatus(id: string, status: FyhAppointmentStatus) {
+export async function updateAppointmentStatus(id: string, status: FyhAppointmentStatus, ctx?: TenantContext | null) {
   if (status === 'paid') {
     throw new Error('Mark paid via invoice payment — not a manual status');
   }
   const [existing] = await hairDb
     .select()
     .from(fyhAppointments)
-    .where(eq(fyhAppointments.id, id))
+    .where(and(orgFilter(fyhAppointments.organizationId, ctx), locationFilter(fyhAppointments.locationId, ctx), eq(fyhAppointments.id, id)))
     .limit(1);
   if (!existing) throw new Error('Appointment not found');
   if (!canTransitionAppointmentStatus(existing.status, status)) {
@@ -563,7 +578,7 @@ export async function updateAppointmentStatus(id: string, status: FyhAppointment
   await hairDb
     .update(fyhAppointments)
     .set({ status, updatedAt: new Date() })
-    .where(eq(fyhAppointments.id, id));
+    .where(and(orgFilter(fyhAppointments.organizationId, ctx), locationFilter(fyhAppointments.locationId, ctx), eq(fyhAppointments.id, id)));
 
   await appendTimeline(existing.customerId, `Appointment ${status.replace(/_/g, ' ')}`, `Status → ${status}`, {
     appointmentId: id,
@@ -573,11 +588,11 @@ export async function updateAppointmentStatus(id: string, status: FyhAppointment
   return id;
 }
 
-export async function updateAppointmentNotes(id: string, notes: string | null) {
+export async function updateAppointmentNotes(id: string, notes: string | null, ctx?: TenantContext | null) {
   await hairDb
     .update(fyhAppointments)
     .set({ notes, updatedAt: new Date() })
-    .where(eq(fyhAppointments.id, id));
+    .where(and(orgFilter(fyhAppointments.organizationId, ctx), locationFilter(fyhAppointments.locationId, ctx), eq(fyhAppointments.id, id)));
 }
 
 export type UpdateAppointmentInput = {
@@ -592,11 +607,11 @@ export type UpdateAppointmentInput = {
   status?: FyhAppointmentStatus;
 };
 
-export async function updateAppointment(input: UpdateAppointmentInput) {
+export async function updateAppointment(input: UpdateAppointmentInput, ctx?: TenantContext | null) {
   const [existing] = await hairDb
     .select()
     .from(fyhAppointments)
-    .where(eq(fyhAppointments.id, input.id))
+    .where(and(orgFilter(fyhAppointments.organizationId, ctx), locationFilter(fyhAppointments.locationId, ctx), eq(fyhAppointments.id, input.id)))
     .limit(1);
   if (!existing) throw new Error('Appointment not found');
 
@@ -609,7 +624,7 @@ export async function updateAppointment(input: UpdateAppointmentInput) {
         await hairDb
           .select({ serviceId: fyhAppointmentServices.serviceId })
           .from(fyhAppointmentServices)
-          .where(eq(fyhAppointmentServices.appointmentId, input.id))
+          .where(and(orgFilter(fyhAppointmentServices.organizationId, ctx), locationFilter(fyhAppointmentServices.locationId, ctx), eq(fyhAppointmentServices.appointmentId, input.id)))
           .orderBy(asc(fyhAppointmentServices.sortOrder))
       ).map((r) => r.serviceId);
       const same =
@@ -633,7 +648,7 @@ export async function updateAppointment(input: UpdateAppointmentInput) {
     const currentServices = await hairDb
       .select()
       .from(fyhAppointmentServices)
-      .where(eq(fyhAppointmentServices.appointmentId, input.id));
+      .where(and(orgFilter(fyhAppointmentServices.organizationId, ctx), locationFilter(fyhAppointmentServices.locationId, ctx), eq(fyhAppointmentServices.appointmentId, input.id)));
     const snapshotDuration = snapshots.reduce((sum, s) => sum + s.durationMinutes, 0);
     const slotDuration = Math.round((existing.endAt.getTime() - existing.startAt.getTime()) / 60_000);
     const hadCustomDuration = slotDuration !== currentServices.reduce((sum, s) => sum + s.durationMinutes, 0);
@@ -642,7 +657,7 @@ export async function updateAppointment(input: UpdateAppointmentInput) {
       endAt = new Date(startAt.getTime() + snapshotDuration * 60_000);
     }
 
-    await hairDb.delete(fyhAppointmentServices).where(eq(fyhAppointmentServices.appointmentId, input.id));
+    await hairDb.delete(fyhAppointmentServices).where(and(orgFilter(fyhAppointmentServices.organizationId, ctx), locationFilter(fyhAppointmentServices.locationId, ctx), eq(fyhAppointmentServices.appointmentId, input.id)));
     await hairDb.insert(fyhAppointmentServices).values(
       snapshots.map((snap, idx) => ({
         appointmentId: input.id,
@@ -697,7 +712,7 @@ export async function updateAppointment(input: UpdateAppointmentInput) {
       status: input.status ?? existing.status,
       updatedAt: new Date(),
     })
-    .where(eq(fyhAppointments.id, input.id));
+    .where(and(orgFilter(fyhAppointments.organizationId, ctx), locationFilter(fyhAppointments.locationId, ctx), eq(fyhAppointments.id, input.id)));
 
   if (input.status && input.status !== existing.status) {
     await appendTimeline(existing.customerId, `Appointment ${input.status.replace(/_/g, ' ')}`, `Status → ${input.status}`, {

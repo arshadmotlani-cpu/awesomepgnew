@@ -6,6 +6,9 @@ import { eq } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import { fyhAdminUsers } from '@/src/hair/db/schema';
 import { HAIR_SESSION_COOKIE } from '@/src/hair/lib/auth/constants';
+import { FYH_ORG_COOKIE, FYH_LOCATION_COOKIE } from '@/src/hair/lib/tenant/cookies';
+import { listActiveMembershipsForUser } from '@/src/platform/services/memberships';
+import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
 import { verifyPassword } from '@/src/hair/lib/auth/crypto';
 import {
   requireHairHost,
@@ -32,6 +35,31 @@ import { findEmployeeByLoginId } from '@/src/workforce/auth/identity';
 import { employeeToHairAdmin } from '@/src/workforce/compat/hairAdminBridge';
 import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
 import { hasWorkforcePermission } from '@/src/workforce/permissions/resolve';
+
+async function setTenantCookiesForUser(userId: string) {
+  if (!isFyhSaasTenantEnabled()) return;
+  const memberships = await listActiveMembershipsForUser(userId);
+  if (memberships.length !== 1) return;
+  const membership = memberships[0]!;
+  const cookieStore = await cookies();
+  cookieStore.set(FYH_ORG_COOKIE, membership.organizationId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 365 * 24 * 60 * 60,
+  });
+  const locationId = membership.allowedLocationIds[0];
+  if (locationId) {
+    cookieStore.set(FYH_LOCATION_COOKIE, locationId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 365 * 24 * 60 * 60,
+    });
+  }
+}
 
 export type LoginState = { error?: string };
 
@@ -104,6 +132,14 @@ export async function loginAction(
           ? await resolvePermissions(emp.id, salon.engineId)
           : null) ?? codeTemplateForAccessRole(salon?.jobRole ?? 'staff');
       const admin = employeeToHairAdmin(emp, grants);
+
+      if (emp.userId && isFyhSaasTenantEnabled()) {
+        const platformMemberships = await listActiveMembershipsForUser(emp.userId);
+        if (platformMemberships.length > 1) {
+          redirect(safeHairNextPath('/select-organization', admin));
+        }
+        await setTenantCookiesForUser(emp.userId);
+      }
 
       const home = hasWorkforcePermission(grants, 'staff.view')
         ? '/workforce/home'

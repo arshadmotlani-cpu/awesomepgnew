@@ -24,7 +24,7 @@ function formatDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-export async function exportInvoiceRegisterExcel(rows: InvoiceRegisterRow[]): Promise<Buffer> {
+export async function exportInvoiceRegisterExcel(rows: InvoiceRegisterRow[], ctx?: TenantContext | null): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   const sheet = wb.addWorksheet('Invoice Register');
 
@@ -139,6 +139,6 @@ export async function exportInvoiceRegisterPdfHtml(input: {
   settings: SalonSettings | null;
   period: { from: Date | null; to: Date | null };
   generatedAt?: Date;
-}): Promise<string> {
+}, ctx?: TenantContext | null): Promise<string> {
   return buildInvoiceRegisterPdfHtml(input);
 }

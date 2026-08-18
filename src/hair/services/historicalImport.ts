@@ -29,6 +29,8 @@ import {
   applyServiceMapToRows,
   buildHistoricalServiceMap,
 } from '@/src/hair/services/historicalImportServiceMap';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 export type ImportHistoricalOptions = {
   fileName: string;
@@ -110,11 +112,11 @@ async function findExistingBatch(fileSha256: string) {
   return batch ?? null;
 }
 
-async function findExistingInvoiceByRowKey(rowKey: string) {
+async function findExistingInvoiceByRowKey(rowKey: string, ctx?: TenantContext | null) {
   const [inv] = await hairDb
     .select({ id: fyhInvoices.id })
     .from(fyhInvoices)
-    .where(eq(fyhInvoices.importRowKey, rowKey))
+    .where(and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx), eq(fyhInvoices.importRowKey, rowKey)))
     .limit(1);
   return inv ?? null;
 }
@@ -134,6 +136,7 @@ async function persistHistoricalRow(
   batchId: string,
   row: HistoricalSalesRow,
   pdfOutputDir?: string,
+  ctx?: TenantContext | null,
 ): Promise<{
   imported: boolean;
   skipped: boolean;
@@ -147,7 +150,7 @@ async function persistHistoricalRow(
   const validationError = validateHistoricalRow(row);
   if (validationError) throw new Error(validationError);
 
-  const existing = await findExistingInvoiceByRowKey(rowKey);
+  const existing = await findExistingInvoiceByRowKey(rowKey, ctx);
   if (existing) {
     return {
       imported: false,
@@ -266,8 +269,7 @@ function itemsTolerance(lineCount: number): number {
 }
 
 export async function importHistoricalSales(
-  opts: ImportHistoricalOptions,
-): Promise<ImportHistoricalResult> {
+  opts: ImportHistoricalOptions, ctx?: TenantContext | null): Promise<ImportHistoricalResult> {
   const fileSha256 = sha256(opts.buffer);
   const settings = await getSalonSettings();
   const defaultGstBps = settings.defaultGstBps ?? 1800;
@@ -356,7 +358,7 @@ export async function importHistoricalSales(
 
     for (const row of rows) {
       try {
-        const result = await persistHistoricalRow(db, batch.id, row, opts.pdfOutputDir);
+        const result = await persistHistoricalRow(db, batch.id, row, opts.pdfOutputDir, ctx);
         if (result.skipped) {
           summary.skipped += 1;
         } else if (result.imported) {
@@ -390,7 +392,7 @@ export async function importHistoricalSales(
         summary,
         completedAt: new Date(),
       })
-      .where(eq(fyhHistoricalImportBatches.id, batch.id));
+      .where(and(orgFilter(fyhHistoricalImportBatches.organizationId, ctx), eq(fyhHistoricalImportBatches.id, batch.id)));
 
     return batch.id;
   });
@@ -398,17 +400,17 @@ export async function importHistoricalSales(
   return { batchId, summary };
 }
 
-export async function previewHistoricalSales(buffer: Buffer) {
+export async function previewHistoricalSales(buffer: Buffer, ctx?: TenantContext | null) {
   const settings = await getSalonSettings();
   const defaultGstBps = settings.defaultGstBps ?? 1800;
   return parseHistoricalSalesWorkbook(buffer, defaultGstBps);
 }
 
-export async function getHistoricalImportBatch(batchId: string) {
+export async function getHistoricalImportBatch(batchId: string, ctx?: TenantContext | null) {
   const [batch] = await hairDb
     .select()
     .from(fyhHistoricalImportBatches)
-    .where(eq(fyhHistoricalImportBatches.id, batchId))
+    .where(and(orgFilter(fyhHistoricalImportBatches.organizationId, ctx), eq(fyhHistoricalImportBatches.id, batchId)))
     .limit(1);
   return batch ?? null;
 }

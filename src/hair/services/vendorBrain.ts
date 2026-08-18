@@ -12,6 +12,8 @@ import {
 } from '@/src/hair/db/schema';
 import { getVendorOutstanding } from '@/src/hair/services/purchaseBrain';
 import { getVendorUnallocatedAdvance } from '@/src/hair/services/vendorPaymentEngine';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 export type VendorDashboard = {
   outstandingPaise: number;
@@ -78,11 +80,11 @@ export function defaultStatementDateRange(): { from: string; to: string } {
   };
 }
 
-export async function getVendorDashboard(vendorId: string): Promise<VendorDashboard | null> {
+export async function getVendorDashboard(vendorId: string, ctx?: TenantContext | null): Promise<VendorDashboard | null> {
   const [vendor] = await hairDb
     .select()
     .from(fyhVendors)
-    .where(eq(fyhVendors.id, vendorId))
+    .where(and(orgFilter(fyhVendors.organizationId, ctx), eq(fyhVendors.id, vendorId)))
     .limit(1);
   if (!vendor) return null;
 
@@ -105,7 +107,7 @@ export async function getVendorDashboard(vendorId: string): Promise<VendorDashbo
       total: sql<number>`coalesce(sum(${fyhPurchaseReturns.creditPaise}), 0)`,
     })
     .from(fyhPurchaseReturns)
-    .where(eq(fyhPurchaseReturns.vendorId, vendorId));
+    .where(and(orgFilter(fyhPurchaseReturns.organizationId, ctx), locationFilter(fyhPurchaseReturns.locationId, ctx), eq(fyhPurchaseReturns.vendorId, vendorId)));
 
   const [lastPurchase] = await hairDb
     .select({
@@ -206,12 +208,11 @@ async function sumOpeningBalance(vendorId: string, beforeDate: string): Promise<
 
 export async function getVendorStatement(
   vendorId: string,
-  period: { from: string; to: string },
-): Promise<VendorStatement | null> {
+  period: { from: string; to: string }, ctx?: TenantContext | null): Promise<VendorStatement | null> {
   const [vendor] = await hairDb
     .select()
     .from(fyhVendors)
-    .where(eq(fyhVendors.id, vendorId))
+    .where(and(orgFilter(fyhVendors.organizationId, ctx), eq(fyhVendors.id, vendorId)))
     .limit(1);
   if (!vendor) return null;
 
@@ -361,14 +362,13 @@ export async function getVendorStatement(
 
 export async function getVendorActivityTimeline(
   vendorId: string,
-  limit = 100,
-): Promise<VendorTimelineEvent[]> {
+  limit = 100, ctx?: TenantContext | null): Promise<VendorTimelineEvent[]> {
   const events: VendorTimelineEvent[] = [];
 
   const purchases = await hairDb
     .select()
     .from(fyhPurchases)
-    .where(eq(fyhPurchases.vendorId, vendorId))
+    .where(and(orgFilter(fyhPurchases.organizationId, ctx), locationFilter(fyhPurchases.locationId, ctx), eq(fyhPurchases.vendorId, vendorId)))
     .orderBy(desc(fyhPurchases.createdAt))
     .limit(limit);
 
@@ -389,7 +389,7 @@ export async function getVendorActivityTimeline(
   const payments = await hairDb
     .select()
     .from(fyhVendorPayments)
-    .where(eq(fyhVendorPayments.vendorId, vendorId))
+    .where(and(orgFilter(fyhVendorPayments.organizationId, ctx), eq(fyhVendorPayments.vendorId, vendorId)))
     .orderBy(desc(fyhVendorPayments.createdAt))
     .limit(limit);
 
@@ -414,7 +414,7 @@ export async function getVendorActivityTimeline(
     })
     .from(fyhPurchaseReturns)
     .innerJoin(fyhPurchases, eq(fyhPurchases.id, fyhPurchaseReturns.purchaseId))
-    .where(eq(fyhPurchaseReturns.vendorId, vendorId))
+    .where(and(orgFilter(fyhPurchaseReturns.organizationId, ctx), locationFilter(fyhPurchaseReturns.locationId, ctx), eq(fyhPurchaseReturns.vendorId, vendorId)))
     .orderBy(desc(fyhPurchaseReturns.createdAt))
     .limit(limit);
 
@@ -438,7 +438,7 @@ export async function getVendorActivityTimeline(
     })
     .from(fyhPurchaseAuditEvents)
     .innerJoin(fyhPurchases, eq(fyhPurchases.id, fyhPurchaseAuditEvents.purchaseId))
-    .where(eq(fyhPurchases.vendorId, vendorId))
+    .where(and(orgFilter(fyhPurchases.organizationId, ctx), locationFilter(fyhPurchases.locationId, ctx), eq(fyhPurchases.vendorId, vendorId)))
     .orderBy(desc(fyhPurchaseAuditEvents.createdAt))
     .limit(limit);
 
@@ -457,7 +457,7 @@ export async function getVendorActivityTimeline(
   const notes = await hairDb
     .select()
     .from(fyhVendorNotes)
-    .where(eq(fyhVendorNotes.vendorId, vendorId))
+    .where(and(orgFilter(fyhVendorNotes.organizationId, ctx), locationFilter(fyhVendorNotes.locationId, ctx), eq(fyhVendorNotes.vendorId, vendorId)))
     .orderBy(desc(fyhVendorNotes.createdAt))
     .limit(limit);
 
@@ -498,10 +498,10 @@ export async function addVendorNote(input: {
   return row!;
 }
 
-export async function listPurchaseAuditEvents(purchaseId: string) {
+export async function listPurchaseAuditEvents(purchaseId: string, ctx?: TenantContext | null) {
   return hairDb
     .select()
     .from(fyhPurchaseAuditEvents)
-    .where(eq(fyhPurchaseAuditEvents.purchaseId, purchaseId))
+    .where(and(orgFilter(fyhPurchaseAuditEvents.organizationId, ctx), locationFilter(fyhPurchaseAuditEvents.locationId, ctx), eq(fyhPurchaseAuditEvents.purchaseId, purchaseId)))
     .orderBy(desc(fyhPurchaseAuditEvents.createdAt));
 }

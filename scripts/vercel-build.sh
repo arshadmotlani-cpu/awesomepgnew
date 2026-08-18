@@ -96,5 +96,25 @@ else
   echo "⚠ Owner database URL not set (OWNER_DATABASE_URL or OWNER_DATABASE_POSTGRES_URL) — skipping Owner OS migrations."
 fi
 
+has_platform_db_url() {
+  [[ -n "${PLATFORM_DATABASE_URL:-}" ]] \
+    || [[ -n "${PLATFORM_DATABASE_DATABASE_URL:-}" ]] \
+    || [[ -n "${PLATFORM_DATABASE_POSTGRES_URL:-}" ]] \
+    || [[ -n "${PLATFORM_DATABASE_POSTGRES_PRISMA_URL:-}" ]] \
+    || [[ -n "${PLATFORM_POSTGRES_URL:-}" ]]
+}
+
+if has_platform_db_url; then
+  echo "=== Platform database migrations ==="
+  if is_production_deployment; then
+    npm run platform:db:migrate
+  elif npm run platform:db:migrate; then
+  else
+    echo "⚠ Platform db:migrate failed — continuing build."
+  fi
+else
+  echo "⚠ Platform database URL not set (PLATFORM_DATABASE_URL) — skipping Platform migrations."
+fi
+
 bash scripts/vercel-build-repair.sh
 next build

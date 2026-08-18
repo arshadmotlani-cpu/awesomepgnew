@@ -38,6 +38,9 @@ import {
   computeGrandTotalFromParts as computeGrandTotalFromPartsLib,
   taxOnLine,
 } from '@/src/hair/lib/invoiceMath';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
 
 function taxOn(amountPaise: number, gstBps: number): number {
   return taxOnLine(amountPaise, gstBps);
@@ -92,7 +95,7 @@ export type QuickSaleLineInput = {
   soldByStaffId?: string | null;
 };
 
-export async function listInvoices(limit = 50) {
+export async function listInvoices(limit = 50, ctx?: TenantContext | null) {
   return hairDb
     .select({
       id: fyhInvoices.id,
@@ -117,7 +120,7 @@ export async function listInvoices(limit = 50) {
     .limit(limit);
 }
 
-export async function getInvoiceDetail(invoiceId: string) {
+export async function getInvoiceDetail(invoiceId: string, ctx?: TenantContext | null) {
   const [invoice] = await hairDb
     .select({
       invoice: fyhInvoices,
@@ -137,19 +140,19 @@ export async function getInvoiceDetail(invoiceId: string) {
     .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhInvoices.customerId))
     .leftJoin(fyhStaff, eq(fyhStaff.id, fyhInvoices.stylistId))
     .leftJoin(fyhSettings, sql`true`)
-    .where(eq(fyhInvoices.id, invoiceId))
+    .where(and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx), eq(fyhInvoices.id, invoiceId)))
     .limit(1);
   if (!invoice) return null;
 
   const lines = await hairDb
     .select()
     .from(fyhInvoiceLines)
-    .where(eq(fyhInvoiceLines.invoiceId, invoiceId))
+    .where(and(orgFilter(fyhInvoiceLines.organizationId, ctx), locationFilter(fyhInvoiceLines.locationId, ctx), eq(fyhInvoiceLines.invoiceId, invoiceId)))
     .orderBy(fyhInvoiceLines.sortOrder);
   const payments = await hairDb
     .select()
     .from(fyhInvoicePayments)
-    .where(eq(fyhInvoicePayments.invoiceId, invoiceId));
+    .where(and(orgFilter(fyhInvoicePayments.organizationId, ctx), locationFilter(fyhInvoicePayments.locationId, ctx), eq(fyhInvoicePayments.invoiceId, invoiceId)));
 
   return { ...invoice, lines, payments };
 }
@@ -160,7 +163,7 @@ function isPublicInvoiceVisible(invoice: typeof fyhInvoices.$inferSelect): boole
   return !(invoice.source === 'quick_sale' && invoice.status === 'draft');
 }
 
-export async function getInvoiceDetailByNumber(rawInvoiceNumber: string) {
+export async function getInvoiceDetailByNumber(rawInvoiceNumber: string, ctx?: TenantContext | null) {
   const invoiceNumber = decodeURIComponent(rawInvoiceNumber).trim();
   if (!invoiceNumber) return null;
 
@@ -183,19 +186,19 @@ export async function getInvoiceDetailByNumber(rawInvoiceNumber: string) {
     .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhInvoices.customerId))
     .leftJoin(fyhStaff, eq(fyhStaff.id, fyhInvoices.stylistId))
     .leftJoin(fyhSettings, sql`true`)
-    .where(eq(fyhInvoices.invoiceNumber, invoiceNumber))
+    .where(and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx), eq(fyhInvoices.invoiceNumber, invoiceNumber)))
     .limit(1);
   if (!invoice || !isPublicInvoiceVisible(invoice.invoice)) return null;
 
   const lines = await hairDb
     .select()
     .from(fyhInvoiceLines)
-    .where(eq(fyhInvoiceLines.invoiceId, invoice.invoice.id))
+    .where(and(orgFilter(fyhInvoiceLines.organizationId, ctx), locationFilter(fyhInvoiceLines.locationId, ctx), eq(fyhInvoiceLines.invoiceId, invoice.invoice.id)))
     .orderBy(fyhInvoiceLines.sortOrder);
   const payments = await hairDb
     .select()
     .from(fyhInvoicePayments)
-    .where(eq(fyhInvoicePayments.invoiceId, invoice.invoice.id));
+    .where(and(orgFilter(fyhInvoicePayments.organizationId, ctx), locationFilter(fyhInvoicePayments.locationId, ctx), eq(fyhInvoicePayments.invoiceId, invoice.invoice.id)));
 
   return { ...invoice, lines, payments };
 }
@@ -204,11 +207,25 @@ export function buildPublicInvoicePrintHtml(detail: InvoiceDetail): string {
   return buildPublicInvoiceDocumentHtml(detail);
 }
 
-export async function nextInvoiceNumberForTx(tx: typeof hairDb): Promise<string> {
-  return nextInvoiceNumber(tx);
+export async function nextInvoiceNumberForTx(tx: typeof hairDb, ctx?: TenantContext | null): Promise<string> {
+  return nextInvoiceNumber(tx, ctx);
 }
 
-async function nextInvoiceNumber(tx: typeof hairDb): Promise<string> {
+async function nextInvoiceNumber(tx: typeof hairDb, ctx?: TenantContext | null): Promise<string> {
+  if (ctx?.organizationId && isFyhSaasTenantEnabled()) {
+    const rows = await tx.execute<{ prefix: string; next_seq: number }>(sql`
+      UPDATE fyh_org_invoice_sequences
+      SET next_seq = next_seq + 1, updated_at = now()
+      WHERE organization_id = ${ctx.organizationId}
+      RETURNING prefix, next_seq
+    `);
+    const row = Array.isArray(rows) ? rows[0] : (rows as { rows?: Array<{ prefix: string; next_seq: number }> }).rows?.[0];
+    if (!row) throw new Error('Organization invoice sequence missing');
+    const seq = Number(row.next_seq) - 1;
+    const prefix = String(row.prefix || 'INV');
+    return `${prefix}-${String(seq).padStart(5, '0')}`;
+  }
+
   const rows = await tx.execute<{ invoice_prefix: string; invoice_next_seq: number }>(sql`
     UPDATE fyh_settings
     SET invoice_next_seq = invoice_next_seq + 1, updated_at = now()
@@ -227,6 +244,7 @@ export async function computeRedemptions(
   customerId: string,
   subtotalPaise: number,
   serviceIds: string[] = [],
+  ctx?: TenantContext | null,
 ) {
   const today = new Date().toISOString().slice(0, 10);
   let membershipDiscountPaise = 0;
@@ -288,7 +306,7 @@ export async function computeRedemptions(
       walletBalancePaise: fyhCustomers.walletBalancePaise,
     })
     .from(fyhCustomers)
-    .where(eq(fyhCustomers.id, customerId))
+    .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, customerId)))
     .limit(1);
 
   return {
@@ -312,11 +330,12 @@ export async function createInvoiceFromAppointment(
     notes?: string;
     createdByAdminId?: string | null;
   },
+  ctx?: TenantContext | null,
 ) {
   const [appt] = await hairDb
     .select({ invoiceId: fyhAppointments.invoiceId })
     .from(fyhAppointments)
-    .where(eq(fyhAppointments.id, appointmentId))
+    .where(and(orgFilter(fyhAppointments.organizationId, ctx), locationFilter(fyhAppointments.locationId, ctx), eq(fyhAppointments.id, appointmentId)))
     .limit(1);
   if (appt?.invoiceId) return appt.invoiceId;
 
@@ -346,8 +365,7 @@ export async function createInvoiceFromAppointment(
 }
 
 export async function resolveQuickSaleDrafts(
-  lines: QuickSaleLineInput[],
-): Promise<{ drafts: InvoiceLineDraft[]; meta: QuickSaleLineInput[] }> {
+  lines: QuickSaleLineInput[], ctx?: TenantContext | null): Promise<{ drafts: InvoiceLineDraft[]; meta: QuickSaleLineInput[] }> {
   if (!lines.length) throw new Error('Add at least one item to the cart');
   const drafts: InvoiceLineDraft[] = [];
   for (const line of lines) {
@@ -357,7 +375,7 @@ export async function resolveQuickSaleDrafts(
       const [svc] = await hairDb
         .select()
         .from(fyhServices)
-        .where(eq(fyhServices.id, line.refId))
+        .where(and(orgFilter(fyhServices.organizationId, ctx), eq(fyhServices.id, line.refId)))
         .limit(1);
       if (!svc || !svc.isActive) throw new Error('Service not found');
       const gross = svc.pricePaise * qty;
@@ -383,7 +401,7 @@ export async function resolveQuickSaleDrafts(
       const [product] = await hairDb
         .select()
         .from(fyhProducts)
-        .where(eq(fyhProducts.id, line.refId))
+        .where(and(orgFilter(fyhProducts.organizationId, ctx), locationFilter(fyhProducts.locationId, ctx), eq(fyhProducts.id, line.refId)))
         .limit(1);
       if (!product || !product.isActive) throw new Error('Product not found');
       const gross = product.sellingPricePaise * qty;
@@ -407,7 +425,7 @@ export async function resolveQuickSaleDrafts(
       const [plan] = await hairDb
         .select()
         .from(fyhPackagePlans)
-        .where(eq(fyhPackagePlans.id, line.refId))
+        .where(and(orgFilter(fyhPackagePlans.organizationId, ctx), eq(fyhPackagePlans.id, line.refId)))
         .limit(1);
       if (!plan || !plan.isActive) throw new Error('Package not found');
       drafts.push({
@@ -424,7 +442,7 @@ export async function resolveQuickSaleDrafts(
       const [plan] = await hairDb
         .select()
         .from(fyhMembershipPlans)
-        .where(eq(fyhMembershipPlans.id, line.refId))
+        .where(and(orgFilter(fyhMembershipPlans.organizationId, ctx), eq(fyhMembershipPlans.id, line.refId)))
         .limit(1);
       if (!plan || !plan.isActive) throw new Error('Membership not found');
       drafts.push({
@@ -515,14 +533,14 @@ export async function finalizeQuickSale(input: {
   return result.invoiceId;
 }
 
-export async function getInvoiceGrandTotal(invoiceId: string): Promise<number> {
+export async function getInvoiceGrandTotal(invoiceId: string, ctx?: TenantContext | null): Promise<number> {
   const [row] = await hairDb
     .select({
       grandTotalPaise: fyhInvoices.grandTotalPaise,
       amountPaidPaise: fyhInvoices.amountPaidPaise,
     })
     .from(fyhInvoices)
-    .where(eq(fyhInvoices.id, invoiceId))
+    .where(and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx), eq(fyhInvoices.id, invoiceId)))
     .limit(1);
   if (!row) throw new Error('Invoice not found');
   return Math.max(0, row.grandTotalPaise - row.amountPaidPaise);
@@ -532,13 +550,14 @@ export async function recordInvoicePayments(
   invoiceId: string,
   payments: PaymentSplitInput[],
   _createdByAdminId?: string | null,
+  ctx?: TenantContext | null,
 ) {
   await hairDb.transaction(async (tx) => {
     await tx.execute(sql`SELECT id FROM fyh_invoices WHERE id = ${invoiceId} FOR UPDATE`);
     const [invoice] = await tx
       .select()
       .from(fyhInvoices)
-      .where(eq(fyhInvoices.id, invoiceId))
+      .where(and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx), eq(fyhInvoices.id, invoiceId)))
       .limit(1);
     if (!invoice) throw new Error('Invoice not found');
     if (invoice.status === 'void') throw new Error('Invoice is void');
@@ -561,9 +580,9 @@ export async function recordInvoicePayments(
           amountPaidPaise: 0,
           updatedAt: new Date(),
         })
-        .where(eq(fyhInvoices.id, invoiceId));
+        .where(and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx), eq(fyhInvoices.id, invoiceId)));
       if (wasUnpaid) {
-        await applyPaidSideEffects(tx as unknown as typeof hairDb, invoiceId);
+        await applyPaidSideEffects(tx as unknown as typeof hairDb, invoiceId, ctx);
       }
       return;
     }
@@ -576,7 +595,7 @@ export async function recordInvoicePayments(
         const [customer] = await tx
           .select()
           .from(fyhCustomers)
-          .where(eq(fyhCustomers.id, invoice.customerId))
+          .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, invoice.customerId)))
           .limit(1);
         if (!customer || customer.walletBalancePaise < p.amountPaise) {
           throw new Error('Insufficient wallet balance');
@@ -587,7 +606,7 @@ export async function recordInvoicePayments(
             walletBalancePaise: customer.walletBalancePaise - p.amountPaise,
             updatedAt: new Date(),
           })
-          .where(eq(fyhCustomers.id, customer.id));
+          .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, customer.id)));
       }
       if (p.method === 'gift_card') {
         throw new Error('Gift card payments are not available yet');
@@ -613,10 +632,10 @@ export async function recordInvoicePayments(
         paidAt: paid ? new Date() : invoice.paidAt,
         updatedAt: new Date(),
       })
-      .where(eq(fyhInvoices.id, invoiceId));
+      .where(and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx), eq(fyhInvoices.id, invoiceId)));
 
     if (paid && wasUnpaid) {
-      await applyPaidSideEffects(tx as unknown as typeof hairDb, invoiceId);
+      await applyPaidSideEffects(tx as unknown as typeof hairDb, invoiceId, ctx);
     }
   });
 }
@@ -625,13 +644,14 @@ async function applyInventorySideEffects(
   db: typeof hairDb,
   invoiceId: string,
   lines: (typeof fyhInvoiceLines.$inferSelect)[],
+  ctx?: TenantContext | null,
 ) {
   for (const line of lines) {
     if (line.kind === 'service' && line.serviceId) {
       const kits = await db
         .select()
         .from(fyhServiceConsumables)
-        .where(eq(fyhServiceConsumables.serviceId, line.serviceId));
+        .where(and(orgFilter(fyhServiceConsumables.organizationId, ctx), eq(fyhServiceConsumables.serviceId, line.serviceId)));
       for (const kit of kits) {
         if (!kit.deductInventory) continue;
         const qty = Number(kit.quantity) * line.quantity;
@@ -662,6 +682,7 @@ async function applyInventorySideEffects(
 async function updateServiceLineStats(
   db: typeof hairDb,
   lines: (typeof fyhInvoiceLines.$inferSelect)[],
+  ctx?: TenantContext | null,
 ) {
   for (const line of lines) {
     if (line.kind !== 'service' || !line.serviceId) continue;
@@ -672,7 +693,7 @@ async function updateServiceLineStats(
         revenueGeneratedPaise: sql`${fyhServices.revenueGeneratedPaise} + ${line.lineTotalPaise}`,
         lastBookedAt: new Date(),
       })
-      .where(eq(fyhServices.id, line.serviceId));
+      .where(and(orgFilter(fyhServices.organizationId, ctx), eq(fyhServices.id, line.serviceId)));
   }
 }
 
@@ -681,6 +702,7 @@ async function applyLegacyCommissionFallback(
   db: typeof hairDb,
   invoice: { stylistId: string | null; paidAt: Date | null },
   lines: (typeof fyhInvoiceLines.$inferSelect)[],
+  ctx?: TenantContext | null,
 ) {
   if (!lines.length) return;
 
@@ -700,7 +722,7 @@ async function applyLegacyCommissionFallback(
     const [service] = await db
       .select()
       .from(fyhServices)
-      .where(eq(fyhServices.id, line.serviceId))
+      .where(and(orgFilter(fyhServices.organizationId, ctx), eq(fyhServices.id, line.serviceId)))
       .limit(1);
     const staffId = line.staffId ?? invoice.stylistId;
     if (!staffId || !service) continue;
@@ -712,7 +734,7 @@ async function applyLegacyCommissionFallback(
         amountPaise = Math.round((line.unitPricePaise * service.commissionPercentBps) / 10_000);
       }
     } else {
-      const [staff] = await db.select().from(fyhStaff).where(eq(fyhStaff.id, staffId)).limit(1);
+      const [staff] = await db.select().from(fyhStaff).where(and(orgFilter(fyhStaff.organizationId, ctx), eq(fyhStaff.id, staffId))).limit(1);
       if (staff?.defaultCommissionType === 'fixed') amountPaise = staff.defaultCommissionFixedPaise;
       if (staff?.defaultCommissionType === 'percentage') {
         amountPaise = Math.round(
@@ -732,12 +754,12 @@ async function applyLegacyCommissionFallback(
   }
 }
 
-export async function applyPaidSideEffects(db: typeof hairDb, invoiceId: string) {
-  const [invoice] = await db.select().from(fyhInvoices).where(eq(fyhInvoices.id, invoiceId)).limit(1);
+export async function applyPaidSideEffects(db: typeof hairDb, invoiceId: string, ctx?: TenantContext | null) {
+  const [invoice] = await db.select().from(fyhInvoices).where(and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx), eq(fyhInvoices.id, invoiceId))).limit(1);
   if (!invoice) return;
   if (invoice.source === 'historical_import') return;
 
-  const lines = await db.select().from(fyhInvoiceLines).where(eq(fyhInvoiceLines.invoiceId, invoiceId));
+  const lines = await db.select().from(fyhInvoiceLines).where(and(orgFilter(fyhInvoiceLines.organizationId, ctx), locationFilter(fyhInvoiceLines.locationId, ctx), eq(fyhInvoiceLines.invoiceId, invoiceId)));
   const isQuickSale = invoice.source === 'quick_sale';
 
   if (!isQuickSale) {
@@ -758,7 +780,7 @@ export async function applyPaidSideEffects(db: typeof hairDb, invoiceId: string)
   const [customer] = await db
     .select()
     .from(fyhCustomers)
-    .where(eq(fyhCustomers.id, invoice.customerId))
+    .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, invoice.customerId)))
     .limit(1);
   if (customer) {
     const totalVisits = customer.totalVisits + 1;
@@ -773,19 +795,19 @@ export async function applyPaidSideEffects(db: typeof hairDb, invoiceId: string)
         walletBalancePaise: Math.max(0, customer.walletBalancePaise - invoice.walletRedemptionPaise),
         updatedAt: new Date(),
       })
-      .where(eq(fyhCustomers.id, customer.id));
+      .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, customer.id)));
   }
 
-  await updateServiceLineStats(db, lines);
-  await evaluateCommissionsForInvoice(db, invoiceId);
-  await applyLegacyCommissionFallback(db, invoice, lines);
+  await updateServiceLineStats(db, lines, ctx);
+  await evaluateCommissionsForInvoice(db, invoiceId, ctx);
+  await applyLegacyCommissionFallback(db, invoice, lines, ctx);
 
   if (!isQuickSale) {
-    await applyInventorySideEffects(db, invoiceId, lines);
+    await applyInventorySideEffects(db, invoiceId, lines, ctx);
   }
 
   if (isQuickSale) {
-    await applyInventorySideEffects(db, invoiceId, lines);
+    await applyInventorySideEffects(db, invoiceId, lines, ctx);
     for (const line of lines) {
       if (line.kind === 'membership' && line.membershipId) {
         await sellMembershipWithDb(db, invoice.customerId, line.membershipId);
@@ -800,7 +822,7 @@ export async function applyPaidSideEffects(db: typeof hairDb, invoiceId: string)
     await db
       .update(fyhAppointments)
       .set({ status: 'paid', updatedAt: new Date() })
-      .where(eq(fyhAppointments.id, invoice.appointmentId));
+      .where(and(orgFilter(fyhAppointments.organizationId, ctx), locationFilter(fyhAppointments.locationId, ctx), eq(fyhAppointments.id, invoice.appointmentId)));
   }
 
   // Burn one package session only when package credit was applied and service matches
@@ -830,7 +852,7 @@ export async function applyPaidSideEffects(db: typeof hairDb, invoiceId: string)
         await db
           .update(fyhCustomerPackages)
           .set({ usedSessions: pkg.usedSessions + 1 })
-          .where(eq(fyhCustomerPackages.id, pkg.id));
+          .where(and(orgFilter(fyhCustomerPackages.organizationId, ctx), eq(fyhCustomerPackages.id, pkg.id)));
       }
     }
   }
@@ -844,7 +866,7 @@ export async function applyPaidSideEffects(db: typeof hairDb, invoiceId: string)
   });
 }
 
-export async function todayRevenuePaise() {
+export async function todayRevenuePaise(ctx?: TenantContext | null) {
   let timezone = 'Asia/Kolkata';
   try {
     const [settings] = await hairDb.select({ timezone: fyhSettings.timezone }).from(fyhSettings).limit(1);

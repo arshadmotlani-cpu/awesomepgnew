@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import {
   fyhSettings,
@@ -9,6 +9,8 @@ import {
   type FyhPrinterSettings,
   type FyhWhatsappSettings,
 } from '@/src/hair/db/schema/settings';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 const DEFAULT_HOURS: FyhBusinessHoursDay[] = [
   { dayOfWeek: 0, open: '10:00', close: '20:00', closed: true },
@@ -89,12 +91,17 @@ function mergeSettings<T extends Record<string, unknown>>(defaults: T, stored: T
   return { ...defaults, ...(stored ?? {}) };
 }
 
-export async function getSalonSettings() {
-  const [row] = await hairDb.select().from(fyhSettings).limit(1);
+export async function getSalonSettings(ctx?: TenantContext | null) {
+  const [row] = await hairDb
+    .select()
+    .from(fyhSettings)
+    .where(orgFilter(fyhSettings.organizationId, ctx))
+    .limit(1);
   if (!row) {
     const [created] = await hairDb
       .insert(fyhSettings)
       .values({
+        ...tenantOrgDefaults(ctx),
         businessHours: DEFAULT_HOURS,
         billingSettings: DEFAULT_BILLING_SETTINGS,
         printerSettings: DEFAULT_PRINTER_SETTINGS,
@@ -124,104 +131,120 @@ function normalizeSettingsRow(row: typeof fyhSettings.$inferSelect) {
 
 async function patchSettings(
   patch: Partial<typeof fyhSettings.$inferInsert>,
+  ctx?: TenantContext | null,
 ): Promise<SalonSettings> {
-  const existing = await getSalonSettings();
+  const existing = await getSalonSettings(ctx);
   const [row] = await hairDb
     .update(fyhSettings)
     .set({ ...patch, updatedAt: new Date() })
-    .where(eq(fyhSettings.id, existing.id))
+    .where(and(orgFilter(fyhSettings.organizationId, ctx), eq(fyhSettings.id, existing.id)))
     .returning();
   if (!row) throw new Error('Settings not found');
   return normalizeSettingsRow(row);
 }
 
-export async function updateSalonCoreSettings(input: SalonCoreInput) {
-  const existing = await getSalonSettings();
+export async function updateSalonCoreSettings(input: SalonCoreInput, ctx?: TenantContext | null) {
+  const existing = await getSalonSettings(ctx);
   const name = input.businessName.trim();
   if (!name) throw new Error('Business name is required');
-  return patchSettings({
-    businessName: name,
-    businessAddress: input.businessAddress?.trim() || null,
-    defaultBufferMinutes: Math.max(0, Math.round(input.defaultBufferMinutes)),
-    timezone: (input.timezone?.trim() || existing.timezone || 'Asia/Kolkata').slice(0, 64),
-    businessHours: input.businessHours,
-    googleReviewUrl: input.googleReviewUrl?.trim() || null,
-  });
+  return patchSettings(
+    {
+      businessName: name,
+      businessAddress: input.businessAddress?.trim() || null,
+      defaultBufferMinutes: Math.max(0, Math.round(input.defaultBufferMinutes)),
+      timezone: (input.timezone?.trim() || existing.timezone || 'Asia/Kolkata').slice(0, 64),
+      businessHours: input.businessHours,
+      googleReviewUrl: input.googleReviewUrl?.trim() || null,
+    },
+    ctx,
+  );
 }
 
-export async function updateGstInvoiceSettings(input: GstInvoiceSettingsInput) {
-  const existing = await getSalonSettings();
+export async function updateGstInvoiceSettings(input: GstInvoiceSettingsInput, ctx?: TenantContext | null) {
+  const existing = await getSalonSettings(ctx);
   const prefix = input.invoicePrefix.trim().toUpperCase() || 'FYH';
-  return patchSettings({
-    gstin: input.gstin?.trim() || null,
-    invoicePrefix: prefix,
-    defaultGstBps: Math.max(0, Math.round(input.defaultGstBps)),
-    invoiceNotes: input.invoiceNotes?.trim() || null,
-    billingSettings: {
-      ...existing.billingSettings,
-      businessEmail: input.businessEmail?.trim() || null,
+  return patchSettings(
+    {
+      gstin: input.gstin?.trim() || null,
+      invoicePrefix: prefix,
+      defaultGstBps: Math.max(0, Math.round(input.defaultGstBps)),
+      invoiceNotes: input.invoiceNotes?.trim() || null,
+      billingSettings: {
+        ...existing.billingSettings,
+        businessEmail: input.businessEmail?.trim() || null,
+      },
     },
-  });
+    ctx,
+  );
 }
 
-export async function updateCommunicationSettings(input: CommunicationSettingsInput) {
-  return patchSettings({
-    communicationSettings: {
-      whatsappInvoiceTemplate: input.communicationSettings.whatsappInvoiceTemplate?.trim() || undefined,
-      reviewRequestTemplate: input.communicationSettings.reviewRequestTemplate?.trim() || undefined,
+export async function updateCommunicationSettings(input: CommunicationSettingsInput, ctx?: TenantContext | null) {
+  return patchSettings(
+    {
+      communicationSettings: {
+        whatsappInvoiceTemplate: input.communicationSettings.whatsappInvoiceTemplate?.trim() || undefined,
+        reviewRequestTemplate: input.communicationSettings.reviewRequestTemplate?.trim() || undefined,
+      },
     },
-  });
+    ctx,
+  );
 }
 
-export async function updateBillingSettings(input: BillingSettingsInput) {
-  return patchSettings({ billingSettings: input.billingSettings });
+export async function updateBillingSettings(input: BillingSettingsInput, ctx?: TenantContext | null) {
+  return patchSettings({ billingSettings: input.billingSettings }, ctx);
 }
 
-export async function updateDailyClosingOpeningFloatPaise(openingFloatPaise: number) {
-  const existing = await getSalonSettings();
+export async function updateDailyClosingOpeningFloatPaise(openingFloatPaise: number, ctx?: TenantContext | null) {
+  const existing = await getSalonSettings(ctx);
   const paise = Math.max(0, Math.round(openingFloatPaise));
-  return updateBillingSettings({
-    billingSettings: {
-      ...existing.billingSettings,
-      dailyClosingOpeningFloatPaise: paise,
+  return updateBillingSettings(
+    {
+      billingSettings: {
+        ...existing.billingSettings,
+        dailyClosingOpeningFloatPaise: paise,
+      },
     },
-  });
+    ctx,
+  );
 }
 
 export function getDailyClosingOpeningFloatPaise(settings: SalonSettings): number {
   return Math.max(0, Math.round(settings.billingSettings.dailyClosingOpeningFloatPaise ?? 0));
 }
 
-export async function updatePrinterSettings(input: PrinterSettingsInput) {
+export async function updatePrinterSettings(input: PrinterSettingsInput, ctx?: TenantContext | null) {
   const width = input.printerSettings.receiptWidthMm;
   if (width !== 58 && width !== 80) {
     throw new Error('Receipt width must be 58mm or 80mm');
   }
-  return patchSettings({ printerSettings: input.printerSettings });
+  return patchSettings({ printerSettings: input.printerSettings }, ctx);
 }
 
-export async function updateWhatsappSettings(input: WhatsappSettingsInput) {
+export async function updateWhatsappSettings(input: WhatsappSettingsInput, ctx?: TenantContext | null) {
   const phone = input.whatsappSettings.businessPhone?.trim() || null;
-  return patchSettings({
-    whatsappSettings: {
-      enabled: Boolean(input.whatsappSettings.enabled),
-      businessPhone: phone,
+  return patchSettings(
+    {
+      whatsappSettings: {
+        enabled: Boolean(input.whatsappSettings.enabled),
+        businessPhone: phone,
+      },
     },
-  });
+    ctx,
+  );
 }
 
-export async function updateInventorySettings(input: InventorySettingsInput) {
-  return patchSettings({ inventorySettings: input.inventorySettings });
+export async function updateInventorySettings(input: InventorySettingsInput, ctx?: TenantContext | null) {
+  return patchSettings({ inventorySettings: input.inventorySettings }, ctx);
 }
 
 /** @deprecated use section-specific updaters */
-export async function updateSalonSettings(input: SalonSettingsInput) {
-  await updateSalonCoreSettings(input);
-  await updateGstInvoiceSettings(input);
+export async function updateSalonSettings(input: SalonSettingsInput, ctx?: TenantContext | null) {
+  await updateSalonCoreSettings(input, ctx);
+  await updateGstInvoiceSettings(input, ctx);
   if (input.communicationSettings) {
-    await updateCommunicationSettings({ communicationSettings: input.communicationSettings });
+    await updateCommunicationSettings({ communicationSettings: input.communicationSettings }, ctx);
   }
-  return getSalonSettings();
+  return getSalonSettings(ctx);
 }
 
 export { DEFAULT_HOURS };

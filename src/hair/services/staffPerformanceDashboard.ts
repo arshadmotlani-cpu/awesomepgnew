@@ -25,6 +25,8 @@ import {
   salonMetricTotal,
   type DateRange,
 } from '@/src/hair/services/staffPerformance';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 export type StaffKpiTotals = {
   serviceRevenuePaise: number;
@@ -451,7 +453,7 @@ export async function getStaffPerformanceCommandCenter(input?: {
   to?: string | null;
   staffIds?: string[];
   category?: StaffRevenueCategory;
-}): Promise<StaffPerformanceCommandCenterSnapshot> {
+}, ctx?: TenantContext | null): Promise<StaffPerformanceCommandCenterSnapshot> {
   const settings = await getSalonSettings();
   const timezone = settings.timezone?.trim() || 'Asia/Kolkata';
   const salonName = settings.businessName?.trim() || 'Salon';
@@ -486,7 +488,7 @@ export async function getStaffPerformanceCommandCenter(input?: {
     hairDb
       .select({ id: fyhStaff.id, name: fyhStaff.fullName })
       .from(fyhStaff)
-      .where(eq(fyhStaff.isActive, true))
+      .where(and(orgFilter(fyhStaff.organizationId, ctx), eq(fyhStaff.isActive, true)))
       .orderBy(asc(fyhStaff.fullName)),
   ]);
 
@@ -580,7 +582,7 @@ export async function getStaffPerformanceCommandCenter(input?: {
 }
 
 /** Back-compat wrapper used by older imports. */
-export async function getStaffPerformanceDashboardSnapshot(): Promise<StaffPerformanceCommandCenterSnapshot> {
+export async function getStaffPerformanceDashboardSnapshot(ctx?: TenantContext | null): Promise<StaffPerformanceCommandCenterSnapshot> {
   return getStaffPerformanceCommandCenter({ period: 'month' });
 }
 

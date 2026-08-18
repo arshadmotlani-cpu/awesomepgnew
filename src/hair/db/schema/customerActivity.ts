@@ -8,6 +8,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
 import { fyhAdminUsers } from './admin';
 import { fyhCustomers } from './customers';
 
@@ -28,6 +29,7 @@ export const fyhCustomerNotes = pgTable(
   'fyh_customer_notes',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     customerId: uuid('customer_id')
       .notNull()
       .references(() => fyhCustomers.id, { onDelete: 'cascade' }),
@@ -45,6 +47,7 @@ export const fyhCustomerTimeline = pgTable(
   'fyh_customer_timeline',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     customerId: uuid('customer_id')
       .notNull()
       .references(() => fyhCustomers.id, { onDelete: 'cascade' }),

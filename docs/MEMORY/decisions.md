@@ -7,6 +7,10 @@
 
 ---
 
+## 2026-08-18
+
+- **FYH SaaS Phase 0B decisions (revised)** — Cross-DB boundary: Platform `platform.*` SSOT; Hair mirrors `organization_id` / `location_id` / `user_id` **without PostgreSQL cross-DB FKs**; `platform.users` naming; mirror + reconcile validation. Stakeholder sign-off pending. → `docs/foryourhair/PHASE_0B_DECISIONS.md`
+
 ## 2026-08-05
 
 - **Ecosystem Baseline v1 (Accepted / Frozen)** — Platform floor: Health Score = 100; every Brain Healthy; new Engines register with Health Brain; new Brains must ship integrity audit + score + repair engine + events + audit trail + performance metrics. Any change that drops Health Score below 100 is incomplete until fixed. Stacks on Stability Phase. → [[ECOSYSTEM_BASELINE_V1]], [[STABILITY_PHASE]], independent audit `scripts/independent-ecosystem-baseline-audit.ts`

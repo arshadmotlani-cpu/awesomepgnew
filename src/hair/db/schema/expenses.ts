@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { bigint, date, index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
 import type { FyhExpenseCategory, FyhExpensePaymentMethod } from '@/src/hair/lib/expenseCategories';
 import { fyhPurchases } from './purchases';
 
@@ -7,6 +8,8 @@ export const fyhExpenses = pgTable(
   'fyh_expenses',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     title: text('title').notNull(),
     category: text('category').$type<FyhExpenseCategory>().notNull(),
     expenseDate: date('expense_date').notNull(),

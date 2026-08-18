@@ -13,6 +13,8 @@ import {
   getStaffTotalLeaderboard,
 } from '@/src/hair/services/staffPerformance';
 import { getSalonSettings } from '@/src/hair/services/settings';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 async function paidRevenueBetween(from: Date, to: Date) {
   const rows = await hairDb
@@ -117,7 +119,7 @@ export type ReportsSnapshot = {
   topStaffThisMonth: { staffId: string; name: string; revenuePaise: number }[];
 };
 
-export async function getReportsSnapshot(): Promise<ReportsSnapshot> {
+export async function getReportsSnapshot(ctx?: TenantContext | null): Promise<ReportsSnapshot> {
   const settings = await getSalonSettings();
   const timezone = settings.timezone?.trim() || 'Asia/Kolkata';
   const { start: todayStart, end: tomorrow } = salonDayBounds(timezone);

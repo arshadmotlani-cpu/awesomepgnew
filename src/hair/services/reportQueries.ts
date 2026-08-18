@@ -12,6 +12,8 @@ import {
   fyhBrands,
 } from '@/src/hair/db/schema';
 import { walletBalanceFromLedger } from '@/src/hair/domain/ledger/plan';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 export type ReportDateRange = { from: Date; to: Date };
 
@@ -120,7 +122,7 @@ export type ProductCatalogRow = {
 const TENDER_ACCOUNTS = ['cash', 'upi', 'card'] as const;
 
 /** Ledger-backed tender split for paid checkout movements in range. */
-export async function paymentMethodSplit(range: ReportDateRange): Promise<PaymentMethodSplitRow[]> {
+export async function paymentMethodSplit(range: ReportDateRange, ctx?: TenantContext | null): Promise<PaymentMethodSplitRow[]> {
   const rows = await hairDb
     .select({
       method: fyhFinancialLedger.method,
@@ -151,8 +153,7 @@ export async function paymentMethodSplit(range: ReportDateRange): Promise<Paymen
 /** Invoice snapshot discounts for paid bills in range. */
 export async function discountsReport(
   range: ReportDateRange,
-  page?: ReportPageOptions,
-): Promise<DiscountReportRow[]> {
+  page?: ReportPageOptions, ctx?: TenantContext | null): Promise<DiscountReportRow[]> {
   const totalDiscount = sql<number>`(${fyhInvoices.discountPaise} + ${fyhInvoices.membershipRedemptionPaise} + ${fyhInvoices.packageRedemptionPaise})`;
   const rows = await hairDb
     .select({
@@ -192,8 +193,7 @@ export async function discountsReport(
 /** GST detail from paid invoice snapshots in range. */
 export async function gstDetailReport(
   range: ReportDateRange,
-  page?: ReportPageOptions,
-): Promise<GstDetailRow[]> {
+  page?: ReportPageOptions, ctx?: TenantContext | null): Promise<GstDetailRow[]> {
   const rows = await hairDb
     .select({
       invoiceNumber: fyhInvoices.invoiceNumber,
@@ -224,7 +224,7 @@ export async function gstDetailReport(
 }
 
 /** Open receivables derived from ledger per customer. */
-export async function receivablesReport(page?: ReportPageOptions): Promise<ReceivableRow[]> {
+export async function receivablesReport(page?: ReportPageOptions, ctx?: TenantContext | null): Promise<ReceivableRow[]> {
   const balanceExpr = sql<number>`(
     coalesce(sum(case when ${fyhFinancialLedger.kind} = 'receivable_open' and ${fyhFinancialLedger.direction} = 'debit' then ${fyhFinancialLedger.amountPaise} else 0 end), 0)
     - coalesce(sum(case when ${fyhFinancialLedger.kind} in ('payment_received', 'receivable_settled') and ${fyhFinancialLedger.account} = 'accounts_receivable' and ${fyhFinancialLedger.direction} = 'credit' then ${fyhFinancialLedger.amountPaise} else 0 end), 0)
@@ -254,7 +254,7 @@ export async function receivablesReport(page?: ReportPageOptions): Promise<Recei
 }
 
 /** Advance credits posted to customer wallet via ledger. */
-export async function advancesReport(page?: ReportPageOptions): Promise<AdvanceRow[]> {
+export async function advancesReport(page?: ReportPageOptions, ctx?: TenantContext | null): Promise<AdvanceRow[]> {
   const rows = await hairDb
     .select({
       customerId: fyhFinancialLedger.customerId,
@@ -284,7 +284,7 @@ export async function advancesReport(page?: ReportPageOptions): Promise<AdvanceR
 }
 
 /** Wallet balances derived from ledger entries (not cached column). */
-export async function walletBalancesReport(page?: ReportPageOptions): Promise<WalletBalanceRow[]> {
+export async function walletBalancesReport(page?: ReportPageOptions, ctx?: TenantContext | null): Promise<WalletBalanceRow[]> {
   const rows = await hairDb
     .select({
       customerId: fyhFinancialLedger.customerId,
@@ -341,7 +341,7 @@ export async function walletBalancesReport(page?: ReportPageOptions): Promise<Wa
 }
 
 /** Customers with reward points or active membership label. */
-export async function loyaltyReport(page?: ReportPageOptions): Promise<LoyaltyRow[]> {
+export async function loyaltyReport(page?: ReportPageOptions, ctx?: TenantContext | null): Promise<LoyaltyRow[]> {
   const rows = await hairDb
     .select({
       customerId: fyhCustomers.id,
@@ -373,7 +373,7 @@ export async function loyaltyReport(page?: ReportPageOptions): Promise<LoyaltyRo
 }
 
 /** Active customer memberships with plan details. */
-export async function membershipsReport(page?: ReportPageOptions): Promise<MembershipReportRow[]> {
+export async function membershipsReport(page?: ReportPageOptions, ctx?: TenantContext | null): Promise<MembershipReportRow[]> {
   const rows = await hairDb
     .select({
       customerName: fyhCustomers.fullName,
@@ -386,7 +386,7 @@ export async function membershipsReport(page?: ReportPageOptions): Promise<Membe
     .from(fyhCustomerMemberships)
     .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhCustomerMemberships.customerId))
     .innerJoin(fyhMembershipPlans, eq(fyhMembershipPlans.id, fyhCustomerMemberships.planId))
-    .where(eq(fyhCustomerMemberships.isActive, true))
+    .where(and(orgFilter(fyhCustomerMemberships.organizationId, ctx), eq(fyhCustomerMemberships.isActive, true)))
     .orderBy(asc(fyhCustomerMemberships.expiresOn))
     .limit(pageLimit(page))
     .offset(pageOffset(page));
@@ -402,7 +402,7 @@ export async function membershipsReport(page?: ReportPageOptions): Promise<Membe
 }
 
 /** Active customer packages with remaining sessions. */
-export async function packagesReport(page?: ReportPageOptions): Promise<PackageReportRow[]> {
+export async function packagesReport(page?: ReportPageOptions, ctx?: TenantContext | null): Promise<PackageReportRow[]> {
   const rows = await hairDb
     .select({
       customerName: fyhCustomers.fullName,
@@ -415,7 +415,7 @@ export async function packagesReport(page?: ReportPageOptions): Promise<PackageR
     .from(fyhCustomerPackages)
     .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhCustomerPackages.customerId))
     .innerJoin(fyhPackagePlans, eq(fyhPackagePlans.id, fyhCustomerPackages.planId))
-    .where(eq(fyhCustomerPackages.isActive, true))
+    .where(and(orgFilter(fyhCustomerPackages.organizationId, ctx), eq(fyhCustomerPackages.isActive, true)))
     .orderBy(asc(fyhCustomerPackages.expiresOn))
     .limit(pageLimit(page))
     .offset(pageOffset(page));
@@ -483,12 +483,12 @@ async function queryProductCatalog(activeOnly: boolean): Promise<ProductCatalogR
 }
 
 /** Product catalog — delegates to stock service when report helpers exist. */
-export async function productsReport(): Promise<ProductCatalogRow[]> {
+export async function productsReport(ctx?: TenantContext | null): Promise<ProductCatalogRow[]> {
   return queryProductCatalog(true);
 }
 
 /** Current stock levels — uses stock service summary when available. */
-export async function stockReport(): Promise<ProductCatalogRow[]> {
+export async function stockReport(ctx?: TenantContext | null): Promise<ProductCatalogRow[]> {
   try {
     const { listStockSummary } = await import('@/src/hair/services/stock');
     const rows = await listStockSummary();
@@ -509,7 +509,7 @@ export async function stockReport(): Promise<ProductCatalogRow[]> {
 }
 
 /** Products at or below reorder level — uses stock service when available. */
-export async function lowStockReport(): Promise<ProductCatalogRow[]> {
+export async function lowStockReport(ctx?: TenantContext | null): Promise<ProductCatalogRow[]> {
   try {
     const { listLowStockProducts } = await import('@/src/hair/services/stock');
     const rows = await listLowStockProducts();

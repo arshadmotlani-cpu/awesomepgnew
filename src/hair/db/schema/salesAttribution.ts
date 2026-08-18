@@ -10,6 +10,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
 import { fyhInvoiceLines } from './billing';
 import { fyhStaff } from './staff';
 
@@ -23,6 +24,8 @@ export const fyhInvoiceLineAttributions = pgTable(
   'fyh_invoice_line_attributions',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     invoiceLineId: uuid('invoice_line_id')
       .notNull()
       .references(() => fyhInvoiceLines.id, { onDelete: 'cascade' }),
@@ -75,6 +78,7 @@ export const fyhCommissionRules = pgTable(
   'fyh_commission_rules',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     scope: text('scope').$type<FyhCommissionRuleScope>().notNull(),
     scopeRefId: uuid('scope_ref_id'),
     ruleType: text('rule_type').$type<FyhCommissionRuleType>().notNull(),

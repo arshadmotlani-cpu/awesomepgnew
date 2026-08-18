@@ -1,6 +1,8 @@
 import { and, eq } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import { fyhStaffSchedules } from '@/src/hair/db/schema';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 export type StaffScheduleRow = {
   dayOfWeek: number;
@@ -9,7 +11,7 @@ export type StaffScheduleRow = {
   isOff: boolean;
 };
 
-export async function listSchedulesForStaff(staffId: string) {
+export async function listSchedulesForStaff(staffId: string, ctx?: TenantContext | null) {
   return hairDb
     .select({
       dayOfWeek: fyhStaffSchedules.dayOfWeek,
@@ -18,21 +20,32 @@ export async function listSchedulesForStaff(staffId: string) {
       isOff: fyhStaffSchedules.isOff,
     })
     .from(fyhStaffSchedules)
-    .where(eq(fyhStaffSchedules.staffId, staffId));
+    .where(
+      and(
+        orgFilter(fyhStaffSchedules.organizationId, ctx),
+        locationFilter(fyhStaffSchedules.locationId, ctx),
+        eq(fyhStaffSchedules.staffId, staffId),
+      ),
+    );
 }
 
-export async function saveStaffDaySchedule(input: {
-  staffId: string;
-  dayOfWeek: number;
-  startTime: string;
-  endTime: string;
-  isOff: boolean;
-}) {
+export async function saveStaffDaySchedule(
+  input: {
+    staffId: string;
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+    isOff: boolean;
+  },
+  ctx?: TenantContext | null,
+) {
   const [existing] = await hairDb
     .select({ id: fyhStaffSchedules.id })
     .from(fyhStaffSchedules)
     .where(
       and(
+        orgFilter(fyhStaffSchedules.organizationId, ctx),
+        locationFilter(fyhStaffSchedules.locationId, ctx),
         eq(fyhStaffSchedules.staffId, input.staffId),
         eq(fyhStaffSchedules.dayOfWeek, input.dayOfWeek),
       ),
@@ -50,11 +63,18 @@ export async function saveStaffDaySchedule(input: {
     await hairDb
       .update(fyhStaffSchedules)
       .set(payload)
-      .where(eq(fyhStaffSchedules.id, existing.id));
+      .where(
+        and(
+          orgFilter(fyhStaffSchedules.organizationId, ctx),
+          locationFilter(fyhStaffSchedules.locationId, ctx),
+          eq(fyhStaffSchedules.id, existing.id),
+        ),
+      );
     return;
   }
 
   await hairDb.insert(fyhStaffSchedules).values({
+    ...tenantWriteDefaults(ctx),
     staffId: input.staffId,
     dayOfWeek: input.dayOfWeek,
     ...payload,

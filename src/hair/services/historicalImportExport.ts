@@ -10,6 +10,8 @@ import {
 import { appendInvoiceRegisterExcelSummary, computeRegisterSummaryTotals } from '@/src/hair/lib/export/invoiceRegisterExcelSummary';
 import { setExcelHyperlinkCell } from '@/src/hair/lib/export/excelHyperlink';
 import { invoicePublicViewUrl } from '@/src/hair/lib/invoicePublicLinks';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 const COL = {
   invoiceNumber: 1,
@@ -44,7 +46,7 @@ export type InvoiceRegisterRow = {
 
 const VIEW_INVOICE_COL = COL.viewInvoice;
 
-async function fetchRegisterRows(batchId: string): Promise<InvoiceRegisterRow[]> {
+async function fetchRegisterRows(batchId: string, ctx?: TenantContext | null): Promise<InvoiceRegisterRow[]> {
   const invoices = await hairDb
     .select({
       id: fyhInvoices.id,
@@ -62,7 +64,7 @@ async function fetchRegisterRows(batchId: string): Promise<InvoiceRegisterRow[]>
     .from(fyhInvoices)
     .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhInvoices.customerId))
     .innerJoin(fyhInvoicePayments, eq(fyhInvoicePayments.invoiceId, fyhInvoices.id))
-    .where(eq(fyhInvoices.importBatchId, batchId))
+    .where(and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx), eq(fyhInvoices.importBatchId, batchId)))
     .orderBy(fyhInvoices.paidAt);
 
   if (!invoices.length) return [];
@@ -175,10 +177,9 @@ function addRegisterSheet(workbook: ExcelJS.Workbook, sheetName: string, rows: I
 
 export async function exportHistoricalImportRegisters(
   batchId: string,
-  rows: InvoiceRegisterRow[],
-): Promise<Map<string, Buffer>> {
+  rows: InvoiceRegisterRow[], ctx?: TenantContext | null): Promise<Map<string, Buffer>> {
   if (!rows.length) {
-    rows = await fetchRegisterRows(batchId);
+    rows = await fetchRegisterRows(batchId, ctx);
   }
 
   const byMonth = new Map<string, InvoiceRegisterRow[]>();
@@ -224,8 +225,8 @@ function monthFromDate(isoDate: string): string {
   return months[d.getUTCMonth()] ?? 'Unknown';
 }
 
-export async function exportHistoricalImportBatchXlsx(batchId: string): Promise<Buffer> {
-  const rows = await fetchRegisterRows(batchId);
+export async function exportHistoricalImportBatchXlsx(batchId: string, ctx?: TenantContext | null): Promise<Buffer> {
+  const rows = await fetchRegisterRows(batchId, ctx);
   const wb = new ExcelJS.Workbook();
   addRegisterSheet(wb, 'Imported Invoices', rows);
   return Buffer.from(await wb.xlsx.writeBuffer());

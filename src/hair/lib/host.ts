@@ -58,6 +58,7 @@ export const HAIR_PUBLIC_PREFIXES = [
   '/reports',
   '/settings',
   '/profile',
+  '/select-organization',
 ] as const;
 
 /** Internal App Router prefix — avoids colliding with Automotive Capital routes. */

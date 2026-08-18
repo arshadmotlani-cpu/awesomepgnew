@@ -10,12 +10,14 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
 import type { FyhCommissionType } from './services';
 
 export const fyhStaff = pgTable(
   'fyh_staff',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     fullName: text('full_name').notNull(),
     phone: text('phone'),
     email: text('email'),

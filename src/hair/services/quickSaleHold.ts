@@ -22,6 +22,8 @@ import {
   type PaymentSplitInput,
   type QuickSaleLineInput,
 } from '@/src/hair/services/invoices';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 function holdInvoiceNumber() {
   return `HOLD-${randomBytes(4).toString('hex').toUpperCase()}`;
@@ -38,7 +40,7 @@ export type QuickSaleHoldSummary = {
   updatedAt: Date;
 };
 
-export async function listQuickSaleHolds(limit = 40): Promise<QuickSaleHoldSummary[]> {
+export async function listQuickSaleHolds(limit = 40, ctx?: TenantContext | null): Promise<QuickSaleHoldSummary[]> {
   const rows = await hairDb
     .select({
       invoiceId: fyhInvoices.id,
@@ -113,7 +115,7 @@ export type QuickSaleHoldDetail = {
   roundOffPaise: number;
 };
 
-export async function loadQuickSaleHold(invoiceId: string): Promise<QuickSaleHoldDetail | null> {
+export async function loadQuickSaleHold(invoiceId: string, ctx?: TenantContext | null): Promise<QuickSaleHoldDetail | null> {
   const [header] = await hairDb
     .select({
       invoice: fyhInvoices,
@@ -137,7 +139,7 @@ export async function loadQuickSaleHold(invoiceId: string): Promise<QuickSaleHol
   const lines = await hairDb
     .select()
     .from(fyhInvoiceLines)
-    .where(eq(fyhInvoiceLines.invoiceId, invoiceId))
+    .where(and(orgFilter(fyhInvoiceLines.organizationId, ctx), locationFilter(fyhInvoiceLines.locationId, ctx), eq(fyhInvoiceLines.invoiceId, invoiceId)))
     .orderBy(fyhInvoiceLines.sortOrder);
 
   const lineIds = lines.map((l) => l.id);
@@ -207,7 +209,7 @@ export async function saveQuickSaleHold(input: {
   walletRedeemPaise?: number;
   tipPaise?: number;
   roundOffPaise?: number;
-}): Promise<string> {
+}, ctx?: TenantContext | null): Promise<string> {
   const [customer] = await hairDb
     .select({ id: fyhCustomers.id })
     .from(fyhCustomers)
@@ -265,7 +267,7 @@ export async function saveQuickSaleHold(input: {
         )
         .limit(1);
       if (!existing) throw new Error('Held bill not found');
-      await tx.delete(fyhInvoiceLines).where(eq(fyhInvoiceLines.invoiceId, invoiceId));
+      await tx.delete(fyhInvoiceLines).where(and(orgFilter(fyhInvoiceLines.organizationId, ctx), locationFilter(fyhInvoiceLines.locationId, ctx), eq(fyhInvoiceLines.invoiceId, invoiceId)));
       await tx
         .update(fyhInvoices)
         .set({
@@ -281,7 +283,7 @@ export async function saveQuickSaleHold(input: {
           posDraft: input.posDraft ?? null,
           updatedAt: new Date(),
         })
-        .where(eq(fyhInvoices.id, invoiceId));
+        .where(and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx), eq(fyhInvoices.id, invoiceId)));
     } else {
       const invoiceNumber = holdInvoiceNumber();
       const [inv] = await tx

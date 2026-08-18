@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import { fyhStaff, type FyhCommissionType } from '@/src/hair/db/schema';
 import { listBookableStaffForSalon } from '@/src/hair/adapters/workforceStaffAdapter';
@@ -6,8 +6,10 @@ import { normalizeMobile } from '@/src/workforce/auth/mobile';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 import { createEmployee } from '@/src/workforce/services/employees';
 import { listEmployeesForEngine } from '@/src/workforce/brains/employeeBrain';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
-export async function listStaff(includeInactive = false) {
+export async function listStaff(includeInactive = false, ctx?: TenantContext | null) {
   if (isWorkforceEngineEnabled()) {
     const rows = await listEmployeesForEngine('fyh_salon', {
       activeOnly: !includeInactive,
@@ -32,15 +34,20 @@ export async function listStaff(includeInactive = false) {
   return hairDb
     .select()
     .from(fyhStaff)
-    .where(includeInactive ? undefined : eq(fyhStaff.isActive, true))
+    .where(
+      and(
+        orgFilter(fyhStaff.organizationId, ctx),
+        includeInactive ? undefined : eq(fyhStaff.isActive, true),
+      ),
+    )
     .orderBy(asc(fyhStaff.fullName));
 }
 
-export async function listBookableStaff() {
+export async function listBookableStaff(ctx?: TenantContext | null) {
   return listBookableStaffForSalon();
 }
 
-export async function getStaffById(id: string) {
+export async function getStaffById(id: string, ctx?: TenantContext | null) {
   if (isWorkforceEngineEnabled()) {
     const rows = await listEmployeesForEngine('fyh_salon', { activeOnly: false });
     const hit = rows.find((r) => r.employee.id === id);
@@ -62,15 +69,22 @@ export async function getStaffById(id: string) {
       updatedAt: hit.employee.updatedAt,
     };
   }
-  const [row] = await hairDb.select().from(fyhStaff).where(eq(fyhStaff.id, id)).limit(1);
+  const [row] = await hairDb
+    .select()
+    .from(fyhStaff)
+    .where(and(orgFilter(fyhStaff.organizationId, ctx), eq(fyhStaff.id, id)))
+    .limit(1);
   return row ?? null;
 }
 
-export async function createStaffQuick(input: {
-  fullName: string;
-  phone?: string | null;
-  role?: string | null;
-}) {
+export async function createStaffQuick(
+  input: {
+    fullName: string;
+    phone?: string | null;
+    role?: string | null;
+  },
+  ctx?: TenantContext | null,
+) {
   const fullName = input.fullName.trim();
   if (!fullName) throw new Error('Staff name is required');
 
@@ -115,6 +129,7 @@ export async function createStaffQuick(input: {
   const [row] = await hairDb
     .insert(fyhStaff)
     .values({
+      ...tenantOrgDefaults(ctx),
       fullName,
       phone: input.phone?.trim() || null,
       role: input.role?.trim() || null,

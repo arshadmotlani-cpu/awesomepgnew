@@ -2,6 +2,8 @@ import { and, asc, eq, ilike, or } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import { fyhVendors } from '@/src/hair/db/schema';
 import { detachBrandsFromVendor, syncVendorBrands } from '@/src/hair/services/brands';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 export type VendorInput = {
   name: string;
@@ -19,8 +21,8 @@ export type VendorInput = {
   brandNames?: string[];
 };
 
-export async function listVendors(opts?: { q?: string; status?: 'active' | 'inactive' | 'all' }) {
-  const conditions = [];
+export async function listVendors(opts?: { q?: string; status?: 'active' | 'inactive' | 'all' }, ctx?: TenantContext | null) {
+  const conditions = [orgFilter(fyhVendors.organizationId, ctx)];
   const status = opts?.status ?? 'active';
   if (status === 'active') conditions.push(eq(fyhVendors.isActive, true));
   if (status === 'inactive') conditions.push(eq(fyhVendors.isActive, false));
@@ -40,22 +42,27 @@ export async function listVendors(opts?: { q?: string; status?: 'active' | 'inac
   return hairDb
     .select()
     .from(fyhVendors)
-    .where(conditions.length ? and(...conditions) : undefined)
+    .where(and(...conditions))
     .orderBy(asc(fyhVendors.name))
     .limit(300);
 }
 
-export async function getVendor(id: string) {
-  const [row] = await hairDb.select().from(fyhVendors).where(eq(fyhVendors.id, id)).limit(1);
+export async function getVendor(id: string, ctx?: TenantContext | null) {
+  const [row] = await hairDb
+    .select()
+    .from(fyhVendors)
+    .where(and(orgFilter(fyhVendors.organizationId, ctx), eq(fyhVendors.id, id)))
+    .limit(1);
   return row ?? null;
 }
 
-export async function createVendor(input: VendorInput) {
+export async function createVendor(input: VendorInput, ctx?: TenantContext | null) {
   const name = input.name.trim();
   if (!name) throw new Error('Vendor name is required');
   const [row] = await hairDb
     .insert(fyhVendors)
     .values({
+      ...tenantOrgDefaults(ctx),
       name,
       companyName: input.companyName?.trim() || null,
       contactName: input.contactName?.trim() || null,
@@ -71,12 +78,12 @@ export async function createVendor(input: VendorInput) {
     })
     .returning();
   if (row && input.brandNames?.length) {
-    await syncVendorBrands(row.id, input.brandNames);
+    await syncVendorBrands(row.id, input.brandNames, ctx);
   }
   return row;
 }
 
-export async function updateVendor(id: string, input: VendorInput) {
+export async function updateVendor(id: string, input: VendorInput, ctx?: TenantContext | null) {
   const name = input.name.trim();
   if (!name) throw new Error('Vendor name is required');
   const [row] = await hairDb
@@ -95,22 +102,22 @@ export async function updateVendor(id: string, input: VendorInput) {
       notes: input.notes?.trim() || null,
       isActive: input.isActive !== false,
     })
-    .where(eq(fyhVendors.id, id))
+    .where(and(orgFilter(fyhVendors.organizationId, ctx), eq(fyhVendors.id, id)))
     .returning();
   if (!row) throw new Error('Vendor not found');
   if (input.brandNames) {
-    await syncVendorBrands(id, input.brandNames);
+    await syncVendorBrands(id, input.brandNames, ctx);
   }
   return row;
 }
 
-export async function archiveVendor(id: string) {
+export async function archiveVendor(id: string, ctx?: TenantContext | null) {
   const [row] = await hairDb
     .update(fyhVendors)
     .set({ isActive: false })
-    .where(eq(fyhVendors.id, id))
+    .where(and(orgFilter(fyhVendors.organizationId, ctx), eq(fyhVendors.id, id)))
     .returning();
   if (!row) throw new Error('Vendor not found');
-  await detachBrandsFromVendor(id);
+  await detachBrandsFromVendor(id, ctx);
   return row;
 }

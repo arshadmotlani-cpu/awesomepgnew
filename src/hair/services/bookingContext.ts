@@ -12,6 +12,8 @@ import { shouldHideServiceFromBillable } from '@/src/hair/lib/serviceCatalogHygi
 import { formatSalonDisplayDate } from '@/src/hair/lib/formatSalonDate';
 import { getCustomerFinancialSummary } from '@/src/hair/services/customerTimeline';
 import { searchCustomersForPos } from '@/src/hair/services/quickSale';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 export type BookingServiceHit = {
   id: string;
@@ -52,7 +54,7 @@ export type CustomerBookingContext = {
 };
 
 
-export async function searchServicesForBooking(query: string, limit = 25): Promise<BookingServiceHit[]> {
+export async function searchServicesForBooking(query: string, limit = 25, ctx?: TenantContext | null): Promise<BookingServiceHit[]> {
   const q = query.trim();
   if (q.length < 1) return [];
   const pattern = `%${q}%`;
@@ -93,7 +95,7 @@ export async function searchServicesForBooking(query: string, limit = 25): Promi
     }));
 }
 
-export async function getCustomerBookingContext(customerId: string): Promise<CustomerBookingContext> {
+export async function getCustomerBookingContext(customerId: string, ctx?: TenantContext | null): Promise<CustomerBookingContext> {
   const [customer] = await hairDb
     .select({
       id: fyhCustomers.id,
@@ -102,7 +104,7 @@ export async function getCustomerBookingContext(customerId: string): Promise<Cus
       walletBalancePaise: fyhCustomers.walletBalancePaise,
     })
     .from(fyhCustomers)
-    .where(eq(fyhCustomers.id, customerId))
+    .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, customerId)))
     .limit(1);
 
   if (!customer) throw new Error('Customer not found');
@@ -147,8 +149,7 @@ export async function getCustomerBookingContext(customerId: string): Promise<Cus
 
 export async function getCustomerVisitHistory(
   customerId: string,
-  limit = 30,
-): Promise<CustomerVisitRow[]> {
+  limit = 30, ctx?: TenantContext | null): Promise<CustomerVisitRow[]> {
   const rows = await hairDb
     .select({
       appointmentId: fyhAppointments.id,
@@ -178,7 +179,7 @@ export async function getCustomerVisitHistory(
     const services = await hairDb
       .select({ nameSnapshot: fyhAppointmentServices.nameSnapshot })
       .from(fyhAppointmentServices)
-      .where(eq(fyhAppointmentServices.appointmentId, row.appointmentId))
+      .where(and(orgFilter(fyhAppointmentServices.organizationId, ctx), locationFilter(fyhAppointmentServices.locationId, ctx), eq(fyhAppointmentServices.appointmentId, row.appointmentId)))
       .orderBy(asc(fyhAppointmentServices.sortOrder));
 
     const dayIso = row.startAt.toISOString().slice(0, 10);

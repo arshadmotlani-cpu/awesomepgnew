@@ -15,6 +15,8 @@ import {
   type FyhCommissionType,
   type FyhInvoiceLineKind,
 } from '@/src/hair/db/schema';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 type Db = typeof hairDb;
 
@@ -110,6 +112,7 @@ async function pickCommissionRule(
   row: AttributionRow,
   staffRole: string | null,
   paidAt: Date,
+  ctx?: TenantContext | null,
 ): Promise<FyhCommissionRule | null> {
   const scope = scopeForKind(row.kind);
   if (!scope) return null;
@@ -120,6 +123,7 @@ async function pickCommissionRule(
     .from(fyhCommissionRules)
     .where(
       and(
+        orgFilter(fyhCommissionRules.organizationId, ctx),
         eq(fyhCommissionRules.isActive, true),
         or(eq(fyhCommissionRules.scope, scope), eq(fyhCommissionRules.scope, 'global')),
         or(isNull(fyhCommissionRules.effectiveFrom), lte(fyhCommissionRules.effectiveFrom, paidAt)),
@@ -145,8 +149,9 @@ async function resolveCommissionPaise(
   row: AttributionRow,
   staff: typeof fyhStaff.$inferSelect,
   paidAt: Date,
+  ctx?: TenantContext | null,
 ): Promise<number> {
-  const rule = await pickCommissionRule(db, row, staff.role, paidAt);
+  const rule = await pickCommissionRule(db, row, staff.role, paidAt, ctx);
   if (rule?.config && typeof rule.config === 'object' && 'kind' in rule.config) {
     return computeFromRuleConfig(
       rule.config as FyhCommissionRuleConfig,
@@ -160,7 +165,7 @@ async function resolveCommissionPaise(
     const [service] = await db
       .select()
       .from(fyhServices)
-      .where(eq(fyhServices.id, row.serviceId))
+      .where(and(orgFilter(fyhServices.organizationId, ctx), eq(fyhServices.id, row.serviceId)))
       .limit(1);
     if (service?.overrideStaffCommission) {
       return computeFromStaffOrServiceDefaults({
@@ -186,8 +191,18 @@ async function resolveCommissionPaise(
  * Post-checkout commission job — reads fyh_invoice_line_attributions and writes fyh_commission_entries.
  * Skips lines that already have commission rows (idempotent on re-run).
  */
-export async function evaluateCommissionsForInvoice(db: Db, invoiceId: string): Promise<void> {
-  const [invoice] = await db.select().from(fyhInvoices).where(eq(fyhInvoices.id, invoiceId)).limit(1);
+export async function evaluateCommissionsForInvoice(db: Db, invoiceId: string, ctx?: TenantContext | null): Promise<void> {
+  const [invoice] = await db
+    .select()
+    .from(fyhInvoices)
+    .where(
+      and(
+        orgFilter(fyhInvoices.organizationId, ctx),
+        locationFilter(fyhInvoices.locationId, ctx),
+        eq(fyhInvoices.id, invoiceId),
+      ),
+    )
+    .limit(1);
   if (!invoice?.paidAt) return;
 
   const periodDate = invoice.paidAt.toISOString().slice(0, 10);
@@ -209,7 +224,13 @@ export async function evaluateCommissionsForInvoice(db: Db, invoiceId: string): 
     })
     .from(fyhInvoiceLineAttributions)
     .innerJoin(fyhInvoiceLines, eq(fyhInvoiceLines.id, fyhInvoiceLineAttributions.invoiceLineId))
-    .where(eq(fyhInvoiceLines.invoiceId, invoiceId));
+    .where(
+      and(
+        orgFilter(fyhInvoiceLineAttributions.organizationId, ctx),
+        locationFilter(fyhInvoiceLineAttributions.locationId, ctx),
+        eq(fyhInvoiceLines.invoiceId, invoiceId),
+      ),
+    );
 
   if (!rows.length) return;
 
@@ -220,7 +241,13 @@ export async function evaluateCommissionsForInvoice(db: Db, invoiceId: string): 
       staffId: fyhCommissionEntries.staffId,
     })
     .from(fyhCommissionEntries)
-    .where(inArray(fyhCommissionEntries.invoiceLineId, lineIds));
+    .where(
+      and(
+        orgFilter(fyhCommissionEntries.organizationId, ctx),
+        locationFilter(fyhCommissionEntries.locationId, ctx),
+        inArray(fyhCommissionEntries.invoiceLineId, lineIds),
+      ),
+    );
   const existingKeys = new Set(existing.map((e) => `${e.invoiceLineId}:${e.staffId}`));
 
   const staffCache = new Map<string, typeof fyhStaff.$inferSelect>();
@@ -231,16 +258,21 @@ export async function evaluateCommissionsForInvoice(db: Db, invoiceId: string): 
 
     let staff = staffCache.get(row.staffId);
     if (!staff) {
-      const [loaded] = await db.select().from(fyhStaff).where(eq(fyhStaff.id, row.staffId)).limit(1);
+      const [loaded] = await db
+        .select()
+        .from(fyhStaff)
+        .where(and(orgFilter(fyhStaff.organizationId, ctx), eq(fyhStaff.id, row.staffId)))
+        .limit(1);
       if (!loaded) continue;
       staff = loaded;
       staffCache.set(row.staffId, staff);
     }
 
-    const amountPaise = await resolveCommissionPaise(db, row, staff, invoice.paidAt);
+    const amountPaise = await resolveCommissionPaise(db, row, staff, invoice.paidAt, ctx);
     if (amountPaise <= 0) continue;
 
     toInsert.push({
+      ...tenantWriteDefaults(ctx),
       invoiceLineId: row.invoiceLineId,
       staffId: row.staffId,
       amountPaise,

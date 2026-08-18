@@ -21,6 +21,8 @@ import { paymentMethodSplit, type PaymentMethodSplitRow } from '@/src/hair/servi
 import { getReportsSnapshot, paidRevenueBetween } from '@/src/hair/services/reports';
 import { getSalonSettings } from '@/src/hair/services/settings';
 import { salonMetricTotal } from '@/src/hair/services/staffPerformance';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 export type MonthlyRevenuePoint = {
   monthKey: string;
@@ -384,7 +386,7 @@ export function buildRevenueDashboard(raw: RevenueDashboardSnapshot): RevenueDas
   return raw;
 }
 
-export async function getRevenueDashboardSnapshot(): Promise<RevenueDashboardSnapshot> {
+export async function getRevenueDashboardSnapshot(ctx?: TenantContext | null): Promise<RevenueDashboardSnapshot> {
   const settings = await getSalonSettings();
   const timezone = settings.timezone?.trim() || 'Asia/Kolkata';
   const { start, end, dayKey } = salonDayBounds(timezone);

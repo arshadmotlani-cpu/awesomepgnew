@@ -24,7 +24,8 @@ export async function probeHairQuickSaleMigrations(): Promise<HairMigrationProbe
     { label: '0021 fyh_historical_import_batches', query: sql`SELECT id FROM fyh_historical_import_batches LIMIT 0` },
     { label: '0021 fyh_invoices.import_row_key', query: sql`SELECT import_row_key FROM fyh_invoices LIMIT 0` },
     { label: '0022 wf_employees', query: sql`SELECT id FROM wf_employees LIMIT 0` },
-    { label: '0022 wf_engine_memberships', query: sql`SELECT id FROM wf_engine_memberships LIMIT 0` },
+    { label: '0034 fyh_customers.organization_id', query: sql`SELECT organization_id FROM fyh_customers LIMIT 0` },
+    { label: '0035 fyh_org_invoice_sequences', query: sql`SELECT organization_id FROM fyh_org_invoice_sequences LIMIT 0` },
   ];
   for (const c of checks) {
     try {

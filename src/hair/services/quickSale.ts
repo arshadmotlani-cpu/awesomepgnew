@@ -13,6 +13,8 @@ import { SALON_GST_BPS } from '@/src/hair/lib/taxConfig';
 import { computeRedemptions } from '@/src/hair/services/invoices';
 import { computeGrandTotalFromParts, sumCartLines } from '@/src/hair/lib/invoiceMath';
 import type { QuickSaleLineInput } from '@/src/hair/services/invoices';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 export type PosCustomerHit = {
   id: string;
@@ -22,7 +24,7 @@ export type PosCustomerHit = {
   walletBalancePaise: number;
 };
 
-export async function searchCustomersForPos(query: string, limit = 30): Promise<PosCustomerHit[]> {
+export async function searchCustomersForPos(query: string, limit = 30, ctx?: TenantContext | null): Promise<PosCustomerHit[]> {
   const q = query.trim();
   if (q.length < 1) return [];
   const pattern = `%${q}%`;
@@ -85,7 +87,7 @@ export type QuickSaleCatalog = {
   staff: Array<{ id: string; fullName: string }>;
 };
 
-export async function loadQuickSaleCatalog(): Promise<QuickSaleCatalog> {
+export async function loadQuickSaleCatalog(ctx?: TenantContext | null): Promise<QuickSaleCatalog> {
   const [services, products, packages, memberships, staff] = await Promise.all([
     hairDb
       .select({
@@ -99,7 +101,7 @@ export async function loadQuickSaleCatalog(): Promise<QuickSaleCatalog> {
       })
       .from(fyhServices)
       .leftJoin(fyhServiceCategories, eq(fyhServices.category, fyhServiceCategories.name))
-      .where(eq(fyhServices.isActive, true))
+      .where(and(orgFilter(fyhServices.organizationId, ctx), eq(fyhServices.isActive, true)))
       .orderBy(
         asc(sql`coalesce(${fyhServiceCategories.displayOrder}, 999)`),
         asc(fyhServices.name),
@@ -134,7 +136,7 @@ export async function loadQuickSaleCatalog(): Promise<QuickSaleCatalog> {
     hairDb
       .select({ id: fyhStaff.id, fullName: fyhStaff.fullName })
       .from(fyhStaff)
-      .where(eq(fyhStaff.isActive, true))
+      .where(and(orgFilter(fyhStaff.organizationId, ctx), eq(fyhStaff.isActive, true)))
       .orderBy(asc(fyhStaff.fullName)),
   ]);
 
@@ -171,8 +173,7 @@ export async function previewQuickSaleTotals(
     walletRedeemPaise?: number;
     tipPaise?: number;
     roundOffPaise?: number;
-  },
-): Promise<QuickSaleTotalsPreview> {
+  }, ctx?: TenantContext | null): Promise<QuickSaleTotalsPreview> {
   const { subtotalPaise, taxPaise } = sumCartLines(cartLines);
   const discountSubtotal = cartLines
     .filter((l) => l.kind === 'service' || l.kind === 'product')
@@ -205,7 +206,7 @@ export async function previewQuickSaleTotals(
   };
 }
 
-export async function searchStaffForPos(query: string, limit = 20) {
+export async function searchStaffForPos(query: string, limit = 20, ctx?: TenantContext | null) {
   const q = query.trim();
   if (q.length < 1) return [];
   const pattern = `%${q}%`;
@@ -217,11 +218,11 @@ export async function searchStaffForPos(query: string, limit = 20) {
     .limit(limit);
 }
 
-export async function getCustomerWalletBalance(customerId: string) {
+export async function getCustomerWalletBalance(customerId: string, ctx?: TenantContext | null) {
   const [row] = await hairDb
     .select({ walletBalancePaise: fyhCustomers.walletBalancePaise })
     .from(fyhCustomers)
-    .where(eq(fyhCustomers.id, customerId))
+    .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, customerId)))
     .limit(1);
   return row?.walletBalancePaise ?? 0;
 }

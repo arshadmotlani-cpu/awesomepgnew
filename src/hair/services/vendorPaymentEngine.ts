@@ -9,6 +9,8 @@ import {
 } from '@/src/hair/db/schema';
 import type { FyhVendorPaymentMethod } from '@/src/hair/lib/vendorPaymentMethods';
 import type { HairDb } from '@/src/hair/services/stock';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 export type VendorPaymentAllocationInput = {
   payableId: string;
@@ -45,7 +47,11 @@ function payableStatusFromBalance(
   return 'open';
 }
 
-async function sumActiveAllocationsForPayable(db: HairDb, payableId: string): Promise<number> {
+async function sumActiveAllocationsForPayable(
+  db: HairDb,
+  payableId: string,
+  ctx?: TenantContext | null,
+): Promise<number> {
   const rows = await db
     .select({
       amountPaise: fyhVendorPaymentAllocations.amountPaise,
@@ -56,7 +62,7 @@ async function sumActiveAllocationsForPayable(db: HairDb, payableId: string): Pr
       fyhVendorPayments,
       eq(fyhVendorPayments.id, fyhVendorPaymentAllocations.paymentId),
     )
-    .where(eq(fyhVendorPaymentAllocations.payableId, payableId));
+    .where(and(orgFilter(fyhVendorPaymentAllocations.organizationId, ctx), eq(fyhVendorPaymentAllocations.payableId, payableId)));
 
   return rows
     .filter((r) => r.paymentStatus === 'active')
@@ -64,24 +70,24 @@ async function sumActiveAllocationsForPayable(db: HairDb, payableId: string): Pr
 }
 
 /** Recompute payable balance from active allocations + return credits (audit SSOT). */
-export async function refreshPayableBalance(db: HairDb, payableId: string) {
+export async function refreshPayableBalance(db: HairDb, payableId: string, ctx?: TenantContext | null) {
   await db.execute(sql`SELECT id FROM fyh_vendor_payables WHERE id = ${payableId} FOR UPDATE`);
 
   const [payable] = await db
     .select()
     .from(fyhVendorPayables)
-    .where(eq(fyhVendorPayables.id, payableId))
+    .where(and(orgFilter(fyhVendorPayables.organizationId, ctx), eq(fyhVendorPayables.id, payableId)))
     .limit(1);
   if (!payable) throw new Error('Payable not found');
 
-  const allocated = await sumActiveAllocationsForPayable(db, payableId);
+  const allocated = await sumActiveAllocationsForPayable(db, payableId, ctx);
 
   const [returnRow] = await db
     .select({
       total: sql<number>`coalesce(sum(${fyhPurchaseReturns.creditPaise}), 0)`,
     })
     .from(fyhPurchaseReturns)
-    .where(eq(fyhPurchaseReturns.payableId, payableId));
+    .where(and(orgFilter(fyhPurchaseReturns.organizationId, ctx), locationFilter(fyhPurchaseReturns.locationId, ctx), eq(fyhPurchaseReturns.payableId, payableId)));
 
   const returnCredit = Number(returnRow?.total ?? 0);
   const balance = payable.amountPaise - allocated - returnCredit;
@@ -97,7 +103,7 @@ export async function refreshPayableBalance(db: HairDb, payableId: string) {
       status,
       updatedAt: new Date(),
     })
-    .where(eq(fyhVendorPayables.id, payableId));
+    .where(and(orgFilter(fyhVendorPayables.organizationId, ctx), eq(fyhVendorPayables.id, payableId)));
 
   return { balancePaise: balance, status };
 }
@@ -140,13 +146,13 @@ function validateAllocations(
   }
 }
 
-export async function nextVendorPaymentNumber(): Promise<string> {
+export async function nextVendorPaymentNumber(ctx?: TenantContext | null): Promise<string> {
   const ts = Date.now().toString(36).toUpperCase();
   const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
   return `VP-${ts}${rand}`;
 }
 
-export async function recordVendorPayment(input: RecordVendorPaymentInput) {
+export async function recordVendorPayment(input: RecordVendorPaymentInput, ctx?: TenantContext | null) {
   if (input.amountPaise <= 0) throw new Error('Payment amount must be positive');
   const allocations = input.allocations ?? [];
   validateAllocations(input.amountPaise, allocations);
@@ -189,10 +195,13 @@ export async function recordVendorPayment(input: RecordVendorPaymentInput) {
   });
 }
 
-export async function allocateVendorPayment(input: {
-  paymentId: string;
-  allocations: VendorPaymentAllocationInput[];
-}) {
+export async function allocateVendorPayment(
+  input: {
+    paymentId: string;
+    allocations: VendorPaymentAllocationInput[];
+  },
+  ctx?: TenantContext | null,
+) {
   if (!input.allocations.length) throw new Error('Add at least one allocation');
 
   return hairDb.transaction(async (tx) => {
@@ -204,7 +213,7 @@ export async function allocateVendorPayment(input: {
     const [payment] = await tx
       .select()
       .from(fyhVendorPayments)
-      .where(eq(fyhVendorPayments.id, input.paymentId))
+      .where(and(orgFilter(fyhVendorPayments.organizationId, ctx), eq(fyhVendorPayments.id, input.paymentId)))
       .limit(1);
     if (!payment) throw new Error('Payment not found');
     if (payment.status === 'reversed') throw new Error('Cannot allocate a reversed payment');
@@ -214,7 +223,7 @@ export async function allocateVendorPayment(input: {
         total: sql<number>`coalesce(sum(${fyhVendorPaymentAllocations.amountPaise}), 0)`,
       })
       .from(fyhVendorPaymentAllocations)
-      .where(eq(fyhVendorPaymentAllocations.paymentId, input.paymentId));
+      .where(and(orgFilter(fyhVendorPaymentAllocations.organizationId, ctx), eq(fyhVendorPaymentAllocations.paymentId, input.paymentId)));
 
     const alreadyAllocated = Number(allocatedRow?.total ?? 0);
     const newSum = input.allocations.reduce((s, a) => s + a.amountPaise, 0);
@@ -243,7 +252,7 @@ export async function allocateVendorPayment(input: {
   });
 }
 
-export async function reverseVendorPayment(input: ReverseVendorPaymentInput) {
+export async function reverseVendorPayment(input: ReverseVendorPaymentInput, ctx?: TenantContext | null) {
   const reason = input.reason.trim();
   if (!reason) throw new Error('Reversal reason is required');
 
@@ -256,7 +265,7 @@ export async function reverseVendorPayment(input: ReverseVendorPaymentInput) {
     const [payment] = await tx
       .select()
       .from(fyhVendorPayments)
-      .where(eq(fyhVendorPayments.id, input.paymentId))
+      .where(and(orgFilter(fyhVendorPayments.organizationId, ctx), eq(fyhVendorPayments.id, input.paymentId)))
       .limit(1);
     if (!payment) throw new Error('Payment not found');
     if (payment.status === 'reversed') throw new Error('Payment is already reversed');
@@ -264,7 +273,7 @@ export async function reverseVendorPayment(input: ReverseVendorPaymentInput) {
     const allocations = await tx
       .select({ payableId: fyhVendorPaymentAllocations.payableId })
       .from(fyhVendorPaymentAllocations)
-      .where(eq(fyhVendorPaymentAllocations.paymentId, payment.id));
+      .where(and(orgFilter(fyhVendorPaymentAllocations.organizationId, ctx), eq(fyhVendorPaymentAllocations.paymentId, payment.id)));
 
     await tx
       .update(fyhVendorPayments)
@@ -276,7 +285,7 @@ export async function reverseVendorPayment(input: ReverseVendorPaymentInput) {
         reversalReason: reason,
         updatedAt: new Date(),
       })
-      .where(eq(fyhVendorPayments.id, payment.id));
+      .where(and(orgFilter(fyhVendorPayments.organizationId, ctx), eq(fyhVendorPayments.id, payment.id)));
 
     const payableIds = [...new Set(allocations.map((a) => a.payableId))];
     for (const payableId of payableIds) {
@@ -287,11 +296,11 @@ export async function reverseVendorPayment(input: ReverseVendorPaymentInput) {
   });
 }
 
-export async function getPaymentUnallocatedPaise(paymentId: string): Promise<number> {
+export async function getPaymentUnallocatedPaise(paymentId: string, ctx?: TenantContext | null): Promise<number> {
   const [payment] = await hairDb
     .select()
     .from(fyhVendorPayments)
-    .where(eq(fyhVendorPayments.id, paymentId))
+    .where(and(orgFilter(fyhVendorPayments.organizationId, ctx), eq(fyhVendorPayments.id, paymentId)))
     .limit(1);
   if (!payment || payment.status === 'reversed') return 0;
 
@@ -300,12 +309,12 @@ export async function getPaymentUnallocatedPaise(paymentId: string): Promise<num
       total: sql<number>`coalesce(sum(${fyhVendorPaymentAllocations.amountPaise}), 0)`,
     })
     .from(fyhVendorPaymentAllocations)
-    .where(eq(fyhVendorPaymentAllocations.paymentId, paymentId));
+    .where(and(orgFilter(fyhVendorPaymentAllocations.organizationId, ctx), eq(fyhVendorPaymentAllocations.paymentId, paymentId)));
 
   return payment.amountPaise - Number(row?.total ?? 0);
 }
 
-export async function getVendorUnallocatedAdvance(vendorId: string): Promise<number> {
+export async function getVendorUnallocatedAdvance(vendorId: string, ctx?: TenantContext | null): Promise<number> {
   const payments = await hairDb
     .select()
     .from(fyhVendorPayments)
@@ -320,10 +329,10 @@ export async function getVendorUnallocatedAdvance(vendorId: string): Promise<num
   return total;
 }
 
-export async function listActiveVendorPayments(vendorId: string) {
+export async function listActiveVendorPayments(vendorId: string, ctx?: TenantContext | null) {
   return hairDb
     .select()
     .from(fyhVendorPayments)
-    .where(eq(fyhVendorPayments.vendorId, vendorId))
+    .where(and(orgFilter(fyhVendorPayments.organizationId, ctx), eq(fyhVendorPayments.vendorId, vendorId)))
     .orderBy(sql`${fyhVendorPayments.paymentDate} DESC`, sql`${fyhVendorPayments.createdAt} DESC`);
 }

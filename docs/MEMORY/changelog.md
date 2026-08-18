@@ -1005,5 +1005,11 @@ Files:
 
 ---
 
+## 2026-08-18
+
+- **FYH-SAAS-PHASE-0B-REV** — Revised `PHASE_0B_DECISIONS.md`: cross-DB boundary (no PG FKs to Platform), mirrored UUID list, `platform.users` naming, mirror/reconcile validation; clarified Phase 0A vs 0B introspection split in `PHASE_0A_SAAS_AUDIT.md`.
+
+- **FYH-SAAS-PHASE-0B** — Phase 0B preparation: resolved SaaS decisions (`PHASE_0B_DECISIONS.md`), TenantContext design + 44-service audit, bootstrap migration plan, auth migration plan, readonly introspection script (`hair:db:introspect`) + JSON baseline. Phase 0A audit archived in `docs/foryourhair/PHASE_0A_SAAS_AUDIT.md`.
+
 ## 2026-08-05
 - FEATURE: Workforce Engine v1 Phases 1–5 complete — connectors to Finance/Appointment/Customer/Owner; Health Brain frozen (self-check only). Health Score gate 100.

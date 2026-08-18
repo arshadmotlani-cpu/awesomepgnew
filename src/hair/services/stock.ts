@@ -9,6 +9,8 @@ import {
   type FyhStockMovementType,
 } from '@/src/hair/db/schema';
 import { DEFAULT_INVENTORY_SETTINGS } from '@/src/hair/services/settings';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 export type HairDb = typeof hairDb;
 
@@ -31,16 +33,20 @@ export type MovementFilters = {
   limit?: number;
 };
 
-export async function getInventorySettings(db: HairDb = hairDb): Promise<FyhInventorySettings> {
-  const [row] = await db.select({ inventorySettings: fyhSettings.inventorySettings }).from(fyhSettings).limit(1);
+export async function getInventorySettings(db: HairDb = hairDb, ctx?: TenantContext | null): Promise<FyhInventorySettings> {
+  const [row] = await db
+    .select({ inventorySettings: fyhSettings.inventorySettings })
+    .from(fyhSettings)
+    .where(orgFilter(fyhSettings.organizationId, ctx))
+    .limit(1);
   return { ...DEFAULT_INVENTORY_SETTINGS, ...row?.inventorySettings };
 }
 
-export async function getOnHand(productId: string, db: HairDb = hairDb): Promise<number> {
+export async function getOnHand(productId: string, db: HairDb = hairDb, ctx?: TenantContext | null): Promise<number> {
   const [row] = await db
     .select({ stockQty: fyhProducts.stockQty })
     .from(fyhProducts)
-    .where(eq(fyhProducts.id, productId))
+    .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.id, productId)))
     .limit(1);
   if (!row) throw new Error('Product not found');
   return Number(row.stockQty);
@@ -49,17 +55,18 @@ export async function getOnHand(productId: string, db: HairDb = hairDb): Promise
 export async function assertSufficientStock(
   db: HairDb,
   lines: { productId: string; quantity: number }[],
+  ctx?: TenantContext | null,
 ): Promise<void> {
-  const settings = await getInventorySettings(db);
+  const settings = await getInventorySettings(db, ctx);
   if (settings.allowNegativeStock) return;
 
   for (const line of lines) {
-    const onHand = await getOnHand(line.productId, db);
+    const onHand = await getOnHand(line.productId, db, ctx);
     if (onHand < line.quantity) {
       const [product] = await db
         .select({ name: fyhProducts.name })
         .from(fyhProducts)
-        .where(eq(fyhProducts.id, line.productId))
+        .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.id, line.productId)))
         .limit(1);
       throw new Error(
         `Insufficient stock for ${product?.name ?? 'product'}: have ${onHand}, need ${line.quantity}`,
@@ -68,17 +75,17 @@ export async function assertSufficientStock(
   }
 }
 
-export async function applyMovement(db: HairDb, input: ApplyMovementInput) {
+export async function applyMovement(db: HairDb, input: ApplyMovementInput, ctx?: TenantContext | null) {
   const delta = Number(input.quantityDelta);
   if (delta === 0) return null;
 
-  const settings = await getInventorySettings(db);
+  const settings = await getInventorySettings(db, ctx);
   const allowNegative = settings.allowNegativeStock === true;
 
   const [product] = await db
     .select()
     .from(fyhProducts)
-    .where(eq(fyhProducts.id, input.productId))
+    .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.id, input.productId)))
     .limit(1);
   if (!product) throw new Error('Product not found');
 
@@ -94,11 +101,12 @@ export async function applyMovement(db: HairDb, input: ApplyMovementInput) {
   await db
     .update(fyhProducts)
     .set({ stockQty: newQty, updatedAt: new Date() })
-    .where(eq(fyhProducts.id, input.productId));
+    .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.id, input.productId)));
 
   const [movement] = await db
     .insert(fyhStockMovements)
     .values({
+      ...tenantWriteDefaults(ctx),
       productId: input.productId,
       movementType: input.movementType,
       quantityDelta: delta,
@@ -112,8 +120,11 @@ export async function applyMovement(db: HairDb, input: ApplyMovementInput) {
   return movement;
 }
 
-export async function listMovements(filters: MovementFilters = {}) {
-  const conditions = [];
+export async function listMovements(filters: MovementFilters = {}, ctx?: TenantContext | null) {
+  const conditions = [
+    orgFilter(fyhStockMovements.organizationId, ctx),
+    locationFilter(fyhStockMovements.locationId, ctx),
+  ];
   if (filters.productId) conditions.push(eq(fyhStockMovements.productId, filters.productId));
   if (filters.movementType) conditions.push(eq(fyhStockMovements.movementType, filters.movementType));
   if (filters.referenceType) conditions.push(eq(fyhStockMovements.referenceType, filters.referenceType));
@@ -128,7 +139,7 @@ export async function listMovements(filters: MovementFilters = {}) {
     })
     .from(fyhStockMovements)
     .innerJoin(fyhProducts, eq(fyhProducts.id, fyhStockMovements.productId))
-    .where(conditions.length ? and(...conditions) : undefined)
+    .where(and(...conditions))
     .orderBy(desc(fyhStockMovements.createdAt))
     .limit(filters.limit ?? 200);
 }
@@ -138,6 +149,7 @@ export async function updateWeightedAverageCost(
   productId: string,
   receivedQty: number,
   unitCostPaise: number,
+  ctx?: TenantContext | null,
 ) {
   const qty = Number(receivedQty);
   if (qty <= 0) return;
@@ -145,7 +157,7 @@ export async function updateWeightedAverageCost(
   const [product] = await db
     .select({ stockQty: fyhProducts.stockQty, costPricePaise: fyhProducts.costPricePaise })
     .from(fyhProducts)
-    .where(eq(fyhProducts.id, productId))
+    .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.id, productId)))
     .limit(1);
   if (!product) throw new Error('Product not found');
 
@@ -160,15 +172,16 @@ export async function updateWeightedAverageCost(
   await db
     .update(fyhProducts)
     .set({ costPricePaise: newCost, updatedAt: new Date() })
-    .where(eq(fyhProducts.id, productId));
+    .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.id, productId)));
 }
 
-export async function listLowStockProducts() {
+export async function listLowStockProducts(ctx?: TenantContext | null) {
   return hairDb
     .select()
     .from(fyhProducts)
     .where(
       and(
+        orgFilter(fyhProducts.organizationId, ctx),
         eq(fyhProducts.isActive, true),
         sql`${fyhProducts.stockQty} <= ${fyhProducts.minStock}`,
         sql`${fyhProducts.minStock} > 0`,
@@ -177,7 +190,7 @@ export async function listLowStockProducts() {
     .orderBy(asc(fyhProducts.name));
 }
 
-export async function listStockSummary() {
+export async function listStockSummary(ctx?: TenantContext | null) {
   return hairDb
     .select({
       id: fyhProducts.id,
@@ -192,6 +205,6 @@ export async function listStockSummary() {
     })
     .from(fyhProducts)
     .innerJoin(fyhBrands, eq(fyhBrands.id, fyhProducts.brandId))
-    .where(eq(fyhProducts.isActive, true))
+    .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.isActive, true)))
     .orderBy(asc(fyhProducts.name));
 }

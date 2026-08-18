@@ -9,6 +9,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
 import { fyhProducts } from './products';
 import { fyhVendors } from './vendors';
 
@@ -19,6 +20,8 @@ export const fyhPurchases = pgTable(
   'fyh_purchases',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     vendorId: uuid('vendor_id')
       .notNull()
       .references(() => fyhVendors.id, { onDelete: 'restrict' }),
@@ -47,6 +50,8 @@ export const fyhPurchaseLines = pgTable(
   'fyh_purchase_lines',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     purchaseId: uuid('purchase_id')
       .notNull()
       .references(() => fyhPurchases.id, { onDelete: 'cascade' }),
@@ -71,6 +76,7 @@ export const fyhVendorPayables = pgTable(
   'fyh_vendor_payables',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     vendorId: uuid('vendor_id')
       .notNull()
       .references(() => fyhVendors.id, { onDelete: 'restrict' }),

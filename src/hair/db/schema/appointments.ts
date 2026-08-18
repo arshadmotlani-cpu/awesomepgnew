@@ -9,6 +9,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
 import { fyhAdminUsers } from './admin';
 import { fyhCustomers } from './customers';
 import { fyhServices } from './services';
@@ -47,6 +48,8 @@ export const fyhResources = pgTable(
   'fyh_resources',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     name: text('name').notNull(),
     type: text('type').$type<FyhResourceType>().notNull(),
     color: text('color'),
@@ -70,6 +73,8 @@ export const fyhStaffSchedules = pgTable(
   'fyh_staff_schedules',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     staffId: uuid('staff_id')
       .notNull()
       .references(() => fyhStaff.id, { onDelete: 'cascade' }),
@@ -93,6 +98,8 @@ export const fyhAppointments = pgTable(
   'fyh_appointments',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     customerId: uuid('customer_id')
       .notNull()
       .references(() => fyhCustomers.id, { onDelete: 'restrict' }),
@@ -138,6 +145,8 @@ export const fyhAppointmentServices = pgTable(
   'fyh_appointment_services',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     appointmentId: uuid('appointment_id')
       .notNull()
       .references(() => fyhAppointments.id, { onDelete: 'cascade' }),

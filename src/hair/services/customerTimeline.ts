@@ -36,6 +36,8 @@ export {
   paginateUnifiedTimeline,
   sortUnifiedTimeline,
 } from '@/src/hair/domain/customerTimeline/types';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 const TIMELINE_ONLY_EVENT_TYPES = new Set<FyhTimelineEventType>([
   'customer_created',
@@ -129,8 +131,7 @@ function appointmentTitle(status: string): string {
 }
 
 export async function getUnifiedCustomerTimeline(
-  customerId: string,
-): Promise<UnifiedTimelineEvent[]> {
+  customerId: string, ctx?: TenantContext | null): Promise<UnifiedTimelineEvent[]> {
   const [
     appointments,
     invoices,
@@ -151,7 +152,7 @@ export async function getUnifiedCustomerTimeline(
         notes: fyhAppointments.notes,
       })
       .from(fyhAppointments)
-      .where(eq(fyhAppointments.customerId, customerId))
+      .where(and(orgFilter(fyhAppointments.organizationId, ctx), locationFilter(fyhAppointments.locationId, ctx), eq(fyhAppointments.customerId, customerId)))
       .orderBy(desc(fyhAppointments.startAt)),
     hairDb
       .select({
@@ -165,7 +166,7 @@ export async function getUnifiedCustomerTimeline(
         paidAt: fyhInvoices.paidAt,
       })
       .from(fyhInvoices)
-      .where(eq(fyhInvoices.customerId, customerId))
+      .where(and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx), eq(fyhInvoices.customerId, customerId)))
       .orderBy(desc(fyhInvoices.createdAt)),
     hairDb
       .select({
@@ -180,7 +181,7 @@ export async function getUnifiedCustomerTimeline(
       })
       .from(fyhInvoicePayments)
       .innerJoin(fyhInvoices, eq(fyhInvoices.id, fyhInvoicePayments.invoiceId))
-      .where(eq(fyhInvoices.customerId, customerId))
+      .where(and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx), eq(fyhInvoices.customerId, customerId)))
       .orderBy(desc(fyhInvoicePayments.paidAt)),
     hairDb
       .select({
@@ -195,7 +196,7 @@ export async function getUnifiedCustomerTimeline(
         createdAt: fyhFinancialLedger.createdAt,
       })
       .from(fyhFinancialLedger)
-      .where(eq(fyhFinancialLedger.customerId, customerId))
+      .where(and(orgFilter(fyhFinancialLedger.organizationId, ctx), eq(fyhFinancialLedger.customerId, customerId)))
       .orderBy(desc(fyhFinancialLedger.createdAt)),
     hairDb
       .select({
@@ -209,7 +210,7 @@ export async function getUnifiedCustomerTimeline(
       })
       .from(fyhCustomerMemberships)
       .innerJoin(fyhMembershipPlans, eq(fyhMembershipPlans.id, fyhCustomerMemberships.planId))
-      .where(eq(fyhCustomerMemberships.customerId, customerId))
+      .where(and(orgFilter(fyhCustomerMemberships.organizationId, ctx), eq(fyhCustomerMemberships.customerId, customerId)))
       .orderBy(desc(fyhCustomerMemberships.createdAt)),
     hairDb
       .select({
@@ -224,17 +225,17 @@ export async function getUnifiedCustomerTimeline(
       })
       .from(fyhCustomerPackages)
       .innerJoin(fyhPackagePlans, eq(fyhPackagePlans.id, fyhCustomerPackages.planId))
-      .where(eq(fyhCustomerPackages.customerId, customerId))
+      .where(and(orgFilter(fyhCustomerPackages.organizationId, ctx), eq(fyhCustomerPackages.customerId, customerId)))
       .orderBy(desc(fyhCustomerPackages.createdAt)),
     hairDb
       .select()
       .from(fyhCustomerNotes)
-      .where(eq(fyhCustomerNotes.customerId, customerId))
+      .where(and(orgFilter(fyhCustomerNotes.organizationId, ctx), eq(fyhCustomerNotes.customerId, customerId)))
       .orderBy(desc(fyhCustomerNotes.createdAt)),
     hairDb
       .select()
       .from(fyhCustomerTimeline)
-      .where(eq(fyhCustomerTimeline.customerId, customerId))
+      .where(and(orgFilter(fyhCustomerTimeline.organizationId, ctx), eq(fyhCustomerTimeline.customerId, customerId)))
       .orderBy(asc(fyhCustomerTimeline.occurredAt), asc(fyhCustomerTimeline.createdAt)),
   ]);
 
@@ -457,8 +458,7 @@ async function sumCustomerAdvanceCreditPaise(customerId: string): Promise<number
 }
 
 export async function getCustomerFinancialSummary(
-  customerId: string,
-): Promise<CustomerFinancialSummary> {
+  customerId: string, ctx?: TenantContext | null): Promise<CustomerFinancialSummary> {
   const [duePaise, advancePaise, walletLedgerRows, activeMembershipRow, activePackageRow] =
     await Promise.all([
       sumCustomerReceivablePaise(hairDb, customerId),
@@ -470,7 +470,7 @@ export async function getCustomerFinancialSummary(
           amountPaise: fyhFinancialLedger.amountPaise,
         })
         .from(fyhFinancialLedger)
-        .where(eq(fyhFinancialLedger.customerId, customerId)),
+        .where(and(orgFilter(fyhFinancialLedger.organizationId, ctx), eq(fyhFinancialLedger.customerId, customerId))),
       hairDb
         .select({
           id: fyhCustomerMemberships.id,

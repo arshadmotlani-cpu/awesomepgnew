@@ -9,6 +9,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
 import type { FyhVendorPaymentMethod } from '@/src/hair/lib/vendorPaymentMethods';
 import { fyhProducts } from './products';
 import { fyhPurchases, fyhVendorPayables } from './purchases';
@@ -21,6 +22,7 @@ export const fyhVendorPayments = pgTable(
   'fyh_vendor_payments',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     vendorId: uuid('vendor_id')
       .notNull()
       .references(() => fyhVendors.id, { onDelete: 'restrict' }),
@@ -54,6 +56,7 @@ export const fyhVendorPaymentAllocations = pgTable(
   'fyh_vendor_payment_allocations',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     paymentId: uuid('payment_id')
       .notNull()
       .references(() => fyhVendorPayments.id, { onDelete: 'cascade' }),
@@ -73,6 +76,8 @@ export const fyhPurchaseReturns = pgTable(
   'fyh_purchase_returns',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     purchaseId: uuid('purchase_id')
       .notNull()
       .references(() => fyhPurchases.id, { onDelete: 'restrict' }),
@@ -99,6 +104,8 @@ export const fyhPurchaseReturnLines = pgTable(
   'fyh_purchase_return_lines',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     returnId: uuid('return_id')
       .notNull()
       .references(() => fyhPurchaseReturns.id, { onDelete: 'cascade' }),

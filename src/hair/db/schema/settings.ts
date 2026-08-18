@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
 
 export type FyhBusinessHoursDay = {
   dayOfWeek: number;
@@ -41,6 +42,7 @@ export type FyhSecuritySettings = Record<string, never>;
 
 export const fyhSettings = pgTable('fyh_settings', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: organizationIdCol(),
   businessName: text('business_name').notNull().default('For Your Hair'),
   timezone: text('timezone').notNull().default('Asia/Kolkata'),
   themeDefault: text('theme_default').notNull().default('dark'),

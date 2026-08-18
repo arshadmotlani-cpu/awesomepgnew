@@ -19,16 +19,18 @@ import {
 } from '@/src/hair/db/schema';
 import type { FyhPaymentMethod } from '@/src/hair/db/schema/billing';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
-export async function listMembershipPlans() {
+export async function listMembershipPlans(ctx?: TenantContext | null) {
   return hairDb
     .select()
     .from(fyhMembershipPlans)
-    .where(eq(fyhMembershipPlans.isActive, true))
+    .where(and(orgFilter(fyhMembershipPlans.organizationId, ctx), eq(fyhMembershipPlans.isActive, true)))
     .orderBy(asc(fyhMembershipPlans.name));
 }
 
-export async function ensureDefaultMembershipPlans() {
+export async function ensureDefaultMembershipPlans(ctx?: TenantContext | null) {
   const existing = await listMembershipPlans();
   if (existing.length > 0) return existing;
   const defaults: Array<{ name: string; tier: FyhMembershipTier; discountBps: number; pricePaise: number }> = [
@@ -48,7 +50,7 @@ export async function ensureDefaultMembershipPlans() {
   return listMembershipPlans();
 }
 
-export async function sellMembership(customerId: string, planId: string) {
+export async function sellMembership(customerId: string, planId: string, ctx?: TenantContext | null) {
   return hairDb.transaction(async (tx) => {
     return sellMembershipWithDb(tx as unknown as typeof hairDb, customerId, planId);
   });
@@ -58,11 +60,12 @@ export async function sellMembershipWithDb(
   db: typeof hairDb,
   customerId: string,
   planId: string,
+  ctx?: TenantContext | null,
 ) {
   const [plan] = await db
     .select()
     .from(fyhMembershipPlans)
-    .where(eq(fyhMembershipPlans.id, planId))
+    .where(and(orgFilter(fyhMembershipPlans.organizationId, ctx), eq(fyhMembershipPlans.id, planId)))
     .limit(1);
   if (!plan) throw new Error('Plan not found');
   const starts = new Date();
@@ -71,7 +74,7 @@ export async function sellMembershipWithDb(
   await db
     .update(fyhCustomerMemberships)
     .set({ isActive: false })
-    .where(eq(fyhCustomerMemberships.customerId, customerId));
+    .where(and(orgFilter(fyhCustomerMemberships.organizationId, ctx), eq(fyhCustomerMemberships.customerId, customerId)));
   const [row] = await db
     .insert(fyhCustomerMemberships)
     .values({
@@ -84,19 +87,19 @@ export async function sellMembershipWithDb(
   await db
     .update(fyhCustomers)
     .set({ membership: plan.name, updatedAt: new Date() })
-    .where(eq(fyhCustomers.id, customerId));
+    .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, customerId)));
   return row;
 }
 
-export async function listPackagePlans() {
+export async function listPackagePlans(ctx?: TenantContext | null) {
   return hairDb
     .select()
     .from(fyhPackagePlans)
-    .where(eq(fyhPackagePlans.isActive, true))
+    .where(and(orgFilter(fyhPackagePlans.organizationId, ctx), eq(fyhPackagePlans.isActive, true)))
     .orderBy(asc(fyhPackagePlans.name));
 }
 
-export async function sellPackage(customerId: string, planId: string) {
+export async function sellPackage(customerId: string, planId: string, ctx?: TenantContext | null) {
   return hairDb.transaction(async (tx) => {
     return sellPackageWithDb(tx as unknown as typeof hairDb, customerId, planId);
   });
@@ -106,8 +109,9 @@ export async function sellPackageWithDb(
   db: typeof hairDb,
   customerId: string,
   planId: string,
+  ctx?: TenantContext | null,
 ) {
-  const [plan] = await db.select().from(fyhPackagePlans).where(eq(fyhPackagePlans.id, planId)).limit(1);
+  const [plan] = await db.select().from(fyhPackagePlans).where(and(orgFilter(fyhPackagePlans.organizationId, ctx), eq(fyhPackagePlans.id, planId))).limit(1);
   if (!plan) throw new Error('Package not found');
   const expires = new Date();
   expires.setDate(expires.getDate() + plan.validityDays);
@@ -126,11 +130,11 @@ export async function sellPackageWithDb(
       packagesPurchased: sql`${fyhCustomers.packagesPurchased} + 1`,
       updatedAt: new Date(),
     })
-    .where(eq(fyhCustomers.id, customerId));
+    .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, customerId)));
   return row;
 }
 
-export async function listCommissionSummary() {
+export async function listCommissionSummary(ctx?: TenantContext | null) {
   return hairDb
     .select({
       staffId: fyhCommissionEntries.staffId,
@@ -144,14 +148,14 @@ export async function listCommissionSummary() {
     .orderBy(desc(sql`sum(${fyhCommissionEntries.amountPaise})`));
 }
 
-export async function markCommissionsPaid(staffId: string) {
+export async function markCommissionsPaid(staffId: string, ctx?: TenantContext | null) {
   await hairDb
     .update(fyhCommissionEntries)
     .set({ status: 'paid', paidAt: new Date() })
     .where(and(eq(fyhCommissionEntries.staffId, staffId), eq(fyhCommissionEntries.status, 'pending')));
 }
 
-export async function listBridalProfiles() {
+export async function listBridalProfiles(ctx?: TenantContext | null) {
   return hairDb
     .select({
       profile: fyhBridalProfiles,
@@ -194,7 +198,7 @@ export async function addBridalEvent(
   return row!;
 }
 
-export async function ensureNotificationTemplates() {
+export async function ensureNotificationTemplates(ctx?: TenantContext | null) {
   const kinds: Array<{ kind: FyhNotificationKind; body: string }> = [
     { kind: 'appointment_reminder', body: 'Hi {{name}}, reminder for your appointment tomorrow at {{time}}.' },
     { kind: 'appointment_confirmation', body: 'Hi {{name}}, your appointment is confirmed for {{time}}.' },
@@ -235,7 +239,7 @@ export async function enqueueNotification(input: {
   return row!;
 }
 
-export async function listOutbox(limit = 50) {
+export async function listOutbox(limit = 50, ctx?: TenantContext | null) {
   return hairDb
     .select()
     .from(fyhNotificationOutbox)
@@ -243,13 +247,13 @@ export async function listOutbox(limit = 50) {
     .limit(limit);
 }
 
-export async function processOutboxBatch(limit = 20) {
+export async function processOutboxBatch(limit = 20, ctx?: TenantContext | null) {
   const { processOutboxBatch: processBatch } = await import('@/src/hair/services/notifications');
   const result = await processBatch(limit);
   return result.processed;
 }
 
-export async function topUpWallet(customerId: string, amountPaise: number) {
+export async function topUpWallet(customerId: string, amountPaise: number, ctx?: TenantContext | null) {
   if (amountPaise <= 0) throw new Error('Top-up amount must be positive');
 
   return hairDb.transaction(async (tx) => {
@@ -282,7 +286,7 @@ export async function recordAdvancePayment(input: {
   method: AdvancePaymentMethod;
   reference?: string | null;
   notes?: string | null;
-}) {
+}, ctx?: TenantContext | null) {
   if (input.amountPaise <= 0) throw new Error('Amount must be positive');
 
   return hairDb.transaction(async (tx) => {
@@ -305,7 +309,7 @@ export async function recordAdvancePayment(input: {
     const [updated] = await tx
       .select({ walletBalancePaise: fyhCustomers.walletBalancePaise })
       .from(fyhCustomers)
-      .where(eq(fyhCustomers.id, customer.id))
+      .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, customer.id)))
       .limit(1);
 
     await tx.insert(fyhCustomerTimeline).values({

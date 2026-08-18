@@ -26,4 +26,6 @@ export * from './floorStock';
 export * from './purchases';
 export * from './vendorPayments';
 export * from './vendorActivity';
+export * from './tenantColumns';
+export * from './saas';
 export * from '@/src/workforce/db/schema';

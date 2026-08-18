@@ -49,6 +49,14 @@ export function assertHairDatabaseIsolated(): void {
       'HAIR_DATABASE_URL must not equal INVEST_DATABASE_URL — For Your Hair and Automotive Capital require separate databases.',
     );
   }
+  const owner = process.env.OWNER_DATABASE_URL?.trim();
+  const platform = process.env.PLATFORM_DATABASE_URL?.trim();
+  if (hair && owner && hair === owner) {
+    throw new Error('HAIR_DATABASE_URL must not equal OWNER_DATABASE_URL');
+  }
+  if (hair && platform && hair === platform) {
+    throw new Error('HAIR_DATABASE_URL must not equal PLATFORM_DATABASE_URL');
+  }
 }
 
 export function getHairDatabaseHost(): string | null {

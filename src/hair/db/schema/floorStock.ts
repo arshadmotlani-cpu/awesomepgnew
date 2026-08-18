@@ -1,11 +1,14 @@
 import { sql } from 'drizzle-orm';
 import { numeric, pgTable, text, timestamp, uuid, index } from 'drizzle-orm/pg-core';
+import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
 import { fyhProducts } from './products';
 
 export const fyhFloorIssues = pgTable(
   'fyh_floor_issues',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     productId: uuid('product_id')
       .notNull()
       .references(() => fyhProducts.id, { onDelete: 'restrict' }),

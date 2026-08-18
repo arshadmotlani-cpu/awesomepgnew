@@ -11,6 +11,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
 
 export const FYH_CUSTOMER_GENDERS = [
   'female',
@@ -58,6 +59,7 @@ export const fyhCustomers = pgTable(
   'fyh_customers',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     /** Display code e.g. CL00000174 */
     customerCode: text('customer_code'),
     fullName: text('full_name').notNull(),

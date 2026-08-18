@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import {
   fyhPurchaseLines,
@@ -10,6 +10,8 @@ import {
 import { applyMovement } from '@/src/hair/services/stock';
 import { refreshPayableBalance } from '@/src/hair/services/vendorPaymentEngine';
 import type { HairDb } from '@/src/hair/services/stock';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 export type PurchaseReturnLineInput = {
   productId: string;
@@ -37,6 +39,7 @@ function validateReturnLines(lines: PurchaseReturnLineInput[]) {
 async function getReturnedQtyByProduct(
   db: HairDb,
   purchaseId: string,
+  ctx?: TenantContext | null,
 ): Promise<Map<string, number>> {
   const rows = await db
     .select({
@@ -45,13 +48,13 @@ async function getReturnedQtyByProduct(
     })
     .from(fyhPurchaseReturnLines)
     .innerJoin(fyhPurchaseReturns, eq(fyhPurchaseReturns.id, fyhPurchaseReturnLines.returnId))
-    .where(eq(fyhPurchaseReturns.purchaseId, purchaseId))
+    .where(and(orgFilter(fyhPurchaseReturns.organizationId, ctx), locationFilter(fyhPurchaseReturns.locationId, ctx), eq(fyhPurchaseReturns.purchaseId, purchaseId)))
     .groupBy(fyhPurchaseReturnLines.productId);
 
   return new Map(rows.map((r) => [r.productId, Number(r.qty)]));
 }
 
-export async function recordPurchaseReturn(input: RecordPurchaseReturnInput) {
+export async function recordPurchaseReturn(input: RecordPurchaseReturnInput, ctx?: TenantContext | null) {
   validateReturnLines(input.lines);
 
   return hairDb.transaction(async (tx) => {
@@ -64,7 +67,7 @@ export async function recordPurchaseReturn(input: RecordPurchaseReturnInput) {
       })
       .from(fyhPurchases)
       .innerJoin(fyhVendorPayables, eq(fyhVendorPayables.purchaseId, fyhPurchases.id))
-      .where(eq(fyhPurchases.id, input.purchaseId))
+      .where(and(orgFilter(fyhPurchases.organizationId, ctx), locationFilter(fyhPurchases.locationId, ctx), eq(fyhPurchases.id, input.purchaseId)))
       .limit(1);
 
     if (!header) throw new Error('Purchase not found');
@@ -73,10 +76,10 @@ export async function recordPurchaseReturn(input: RecordPurchaseReturnInput) {
     const purchaseLines = await tx
       .select()
       .from(fyhPurchaseLines)
-      .where(eq(fyhPurchaseLines.purchaseId, input.purchaseId));
+      .where(and(orgFilter(fyhPurchaseLines.organizationId, ctx), locationFilter(fyhPurchaseLines.locationId, ctx), eq(fyhPurchaseLines.purchaseId, input.purchaseId)));
 
     const lineByProduct = new Map(purchaseLines.map((l) => [l.productId, l]));
-    const alreadyReturned = await getReturnedQtyByProduct(db, input.purchaseId);
+    const alreadyReturned = await getReturnedQtyByProduct(db, input.purchaseId, ctx);
 
     const computedLines = input.lines.map((line) => {
       const purchaseLine = lineByProduct.get(line.productId);
@@ -142,7 +145,7 @@ export async function recordPurchaseReturn(input: RecordPurchaseReturnInput) {
   });
 }
 
-export async function listPurchaseReturnsForVendor(vendorId: string) {
+export async function listPurchaseReturnsForVendor(vendorId: string, ctx?: TenantContext | null) {
   return hairDb
     .select({
       purchaseReturn: fyhPurchaseReturns,
@@ -150,6 +153,6 @@ export async function listPurchaseReturnsForVendor(vendorId: string) {
     })
     .from(fyhPurchaseReturns)
     .innerJoin(fyhPurchases, eq(fyhPurchases.id, fyhPurchaseReturns.purchaseId))
-    .where(eq(fyhPurchaseReturns.vendorId, vendorId))
+    .where(and(orgFilter(fyhPurchaseReturns.organizationId, ctx), locationFilter(fyhPurchaseReturns.locationId, ctx), eq(fyhPurchaseReturns.vendorId, vendorId)))
     .orderBy(sql`${fyhPurchaseReturns.returnDate} DESC`);
 }

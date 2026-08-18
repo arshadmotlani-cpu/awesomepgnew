@@ -18,6 +18,8 @@ import {
   getDailyClosingOpeningFloatPaise,
   getSalonSettings,
 } from '@/src/hair/services/settings';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 export type CollectionsByMethod = {
   cash: number;
@@ -254,7 +256,7 @@ async function advanceIssuedBetween(from: Date, to: Date): Promise<number> {
   }
 }
 
-export async function getFinancialDashboardSnapshot(): Promise<FinancialDashboardSnapshot> {
+export async function getFinancialDashboardSnapshot(ctx?: TenantContext | null): Promise<FinancialDashboardSnapshot> {
   const settings = await getSalonSettings();
   const timezone = settings.timezone?.trim() || 'Asia/Kolkata';
   const { start, end, dayKey } = salonDayBounds(timezone);
@@ -350,7 +352,7 @@ export async function getFinancialDashboardSnapshot(): Promise<FinancialDashboar
   };
 }
 
-export async function getDailyClosingSnapshot(): Promise<DailyClosingSnapshot> {
+export async function getDailyClosingSnapshot(ctx?: TenantContext | null): Promise<DailyClosingSnapshot> {
   const settings = await getSalonSettings();
   const timezone = settings.timezone?.trim() || 'Asia/Kolkata';
   const { start, end, dayKey } = salonDayBounds(timezone);

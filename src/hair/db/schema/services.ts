@@ -9,6 +9,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
 
 export const FYH_SERVICE_CATEGORY_PRESETS = [
   'Hair',
@@ -24,6 +25,7 @@ export type FyhCommissionType = (typeof FYH_COMMISSION_TYPES)[number];
 
 export const fyhServiceCategories = pgTable('fyh_service_categories', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
   name: text('name').notNull().unique(),
   slug: text('slug').notNull().unique(),
   isSystem: boolean('is_system').notNull().default(false),
@@ -35,6 +37,7 @@ export const fyhServices = pgTable(
   'fyh_services',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     name: text('name').notNull(),
     code: text('code'),
     category: text('category'),

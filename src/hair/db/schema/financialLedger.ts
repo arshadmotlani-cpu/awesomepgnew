@@ -7,6 +7,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
 import { fyhCustomers } from './customers';
 import { fyhInvoices } from './billing';
 import type {
@@ -19,6 +20,7 @@ export const fyhFinancialLedger = pgTable(
   'fyh_financial_ledger',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     customerId: uuid('customer_id')
       .notNull()
       .references(() => fyhCustomers.id, { onDelete: 'restrict' }),

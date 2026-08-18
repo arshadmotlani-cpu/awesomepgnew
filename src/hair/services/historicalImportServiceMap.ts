@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import { fyhServices } from '@/src/hair/db/schema';
 import type { HistoricalLineItem } from '@/src/hair/domain/import/historicalInvoice';
@@ -7,6 +7,8 @@ import {
   isTestServiceName,
   shouldHideServiceFromBillable,
 } from '@/src/hair/lib/serviceCatalogHygiene';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 const CATEGORY_NAMES = new Set(['hair', 'skin', 'makeup', 'nails']);
 
@@ -28,6 +30,7 @@ function normName(value: string): string {
 
 export async function buildHistoricalServiceMap(
   db: typeof hairDb = hairDb,
+  ctx?: TenantContext | null,
 ): Promise<HistoricalServiceMap> {
   const services = await db
     .select({
@@ -36,7 +39,7 @@ export async function buildHistoricalServiceMap(
       category: fyhServices.category,
     })
     .from(fyhServices)
-    .where(eq(fyhServices.isActive, true));
+    .where(and(orgFilter(fyhServices.organizationId, ctx), eq(fyhServices.isActive, true)));
 
   const byName = new Map<string, { id: string; name: string; category: string | null }>();
   const categoryDefault = new Map<string, { id: string; name: string }>();
@@ -138,4 +141,3 @@ export function applyServiceMapToRows<
     };
   });
 }
-

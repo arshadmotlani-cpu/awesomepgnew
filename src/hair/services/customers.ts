@@ -10,13 +10,31 @@ import {
   type FyhSkinType,
   type FyhTimelineEventType,
 } from '@/src/hair/db/schema';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
+import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
 export function normalizePhone(phone: string): string {
   return phone.replace(/[^\d+]/g, '').trim();
 }
 
 /** Atomic salon customer code e.g. CL00000175 */
-export async function nextCustomerCode(tx: typeof hairDb = hairDb): Promise<string> {
+export async function nextCustomerCode(tx: typeof hairDb = hairDb, ctx?: TenantContext | null): Promise<string> {
+  if (ctx?.organizationId && isFyhSaasTenantEnabled()) {
+    const rows = await tx.execute<{ next_seq: number }>(sql`
+      UPDATE fyh_org_customer_sequences
+      SET next_seq = next_seq + 1, updated_at = now()
+      WHERE organization_id = ${ctx.organizationId}
+      RETURNING next_seq
+    `);
+    const row = Array.isArray(rows)
+      ? rows[0]
+      : (rows as { rows?: Array<{ next_seq: number }> }).rows?.[0];
+    if (!row) throw new Error('Organization customer sequence missing');
+    const seq = Number(row.next_seq) - 1;
+    return `CL${String(seq).padStart(8, '0')}`;
+  }
+
   const rows = await tx.execute<{ customer_code_next_seq: number }>(sql`
     UPDATE fyh_settings
     SET customer_code_next_seq = customer_code_next_seq + 1, updated_at = now()
@@ -39,18 +57,19 @@ export type QuickCustomerInput = {
   createdVia?: string;
 };
 
-export async function createCustomerQuick(input: QuickCustomerInput) {
+export async function createCustomerQuick(input: QuickCustomerInput, ctx?: TenantContext | null) {
   const fullName = input.fullName.trim();
   const phone = normalizePhone(input.phone);
   if (!fullName) throw new Error('Customer name is required');
   if (!phone) throw new Error('Phone number is required');
 
   return hairDb.transaction(async (tx) => {
-    await assertPhoneUnique(phone, undefined, tx);
-    const customerCode = await nextCustomerCode(tx as unknown as typeof hairDb);
+    await assertPhoneUnique(phone, undefined, tx as unknown as typeof hairDb, ctx);
+    const customerCode = await nextCustomerCode(tx as unknown as typeof hairDb, ctx);
     const [row] = await tx
       .insert(fyhCustomers)
       .values({
+        ...tenantOrgDefaults(ctx),
         fullName,
         phone,
         gender: input.gender ?? 'female',
@@ -60,6 +79,7 @@ export async function createCustomerQuick(input: QuickCustomerInput) {
       .returning();
     if (!row) throw new Error('Failed to create customer');
     await tx.insert(fyhCustomerTimeline).values({
+      ...tenantOrgDefaults(ctx),
       customerId: row.id,
       eventType: 'customer_created',
       title: 'Customer created',
@@ -124,8 +144,13 @@ async function assertPhoneUnique(
   phone: string,
   excludeId?: string,
   db: Pick<typeof hairDb, 'select'> = hairDb,
+  ctx?: TenantContext | null,
 ) {
-  const conditions = [eq(fyhCustomers.phone, phone), eq(fyhCustomers.isActive, true)];
+  const conditions = [
+    orgFilter(fyhCustomers.organizationId, ctx),
+    eq(fyhCustomers.phone, phone),
+    eq(fyhCustomers.isActive, true),
+  ];
   if (excludeId) conditions.push(ne(fyhCustomers.id, excludeId));
   const [existing] = await db
     .select({ id: fyhCustomers.id, fullName: fyhCustomers.fullName })
@@ -137,12 +162,15 @@ async function assertPhoneUnique(
   }
 }
 
-export async function findSimilarCustomers(input: {
-  phone: string;
-  email?: string | null;
-  whatsapp?: string | null;
-  excludeId?: string;
-}): Promise<SimilarCustomer[]> {
+export async function findSimilarCustomers(
+  input: {
+    phone: string;
+    email?: string | null;
+    whatsapp?: string | null;
+    excludeId?: string;
+  },
+  ctx?: TenantContext | null,
+): Promise<SimilarCustomer[]> {
   const phone = normalizePhone(input.phone);
   const email = input.email?.trim().toLowerCase() || null;
   const whatsapp = input.whatsapp ? normalizePhone(input.whatsapp) : null;
@@ -173,6 +201,7 @@ export async function findSimilarCustomers(input: {
     .from(fyhCustomers)
     .where(
       and(
+        orgFilter(fyhCustomers.organizationId, ctx),
         eq(fyhCustomers.isActive, true),
         or(...orParts),
         input.excludeId ? ne(fyhCustomers.id, input.excludeId) : undefined,
@@ -190,9 +219,9 @@ export async function findSimilarCustomers(input: {
   });
 }
 
-export async function listCustomers(opts?: { q?: string; includeInactive?: boolean }) {
+export async function listCustomers(opts?: { q?: string; includeInactive?: boolean }, ctx?: TenantContext | null) {
   const q = opts?.q?.trim();
-  const conditions = [];
+  const conditions = [orgFilter(fyhCustomers.organizationId, ctx)];
   if (!opts?.includeInactive) conditions.push(eq(fyhCustomers.isActive, true));
   if (q) {
     const pattern = `%${q}%`;
@@ -211,33 +240,41 @@ export async function listCustomers(opts?: { q?: string; includeInactive?: boole
   return hairDb
     .select()
     .from(fyhCustomers)
-    .where(conditions.length ? and(...conditions) : undefined)
+    .where(and(...conditions))
     .orderBy(desc(fyhCustomers.updatedAt))
     .limit(200);
 }
 
-export async function getCustomer(id: string) {
-  const [row] = await hairDb.select().from(fyhCustomers).where(eq(fyhCustomers.id, id)).limit(1);
+export async function getCustomer(id: string, ctx?: TenantContext | null) {
+  const [row] = await hairDb
+    .select()
+    .from(fyhCustomers)
+    .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, id)))
+    .limit(1);
   return row ?? null;
 }
 
-export async function countActiveCustomers(): Promise<number> {
+export async function countActiveCustomers(ctx?: TenantContext | null): Promise<number> {
   const [row] = await hairDb
     .select({ total: count() })
     .from(fyhCustomers)
-    .where(eq(fyhCustomers.isActive, true));
+    .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.isActive, true)));
   return Number(row?.total ?? 0);
 }
 
-async function appendTimeline(input: {
-  customerId: string;
-  eventType: FyhTimelineEventType;
-  title: string;
-  body?: string | null;
-  occurredAt?: Date;
-  metadata?: Record<string, unknown>;
-}) {
+async function appendTimeline(
+  input: {
+    customerId: string;
+    eventType: FyhTimelineEventType;
+    title: string;
+    body?: string | null;
+    occurredAt?: Date;
+    metadata?: Record<string, unknown>;
+  },
+  ctx?: TenantContext | null,
+) {
   await hairDb.insert(fyhCustomerTimeline).values({
+    ...tenantOrgDefaults(ctx),
     customerId: input.customerId,
     eventType: input.eventType,
     title: input.title,
@@ -280,16 +317,19 @@ function customerValues(input: CustomerInput) {
   };
 }
 
-export async function createCustomer(input: CustomerInput) {
+export async function createCustomer(input: CustomerInput, ctx?: TenantContext | null) {
   const values = customerValues(input);
-  await assertPhoneUnique(values.phone);
+  await assertPhoneUnique(values.phone, undefined, hairDb, ctx);
 
   if (!input.forceCreate) {
-    const similar = await findSimilarCustomers({
-      phone: values.phone,
-      email: values.email,
-      whatsapp: values.whatsapp,
-    });
+    const similar = await findSimilarCustomers(
+      {
+        phone: values.phone,
+        email: values.email,
+        whatsapp: values.whatsapp,
+      },
+      ctx,
+    );
     if (similar.length) {
       const err = new Error('SIMILAR_CUSTOMER') as Error & { similar: SimilarCustomer[] };
       err.similar = similar;
@@ -297,92 +337,113 @@ export async function createCustomer(input: CustomerInput) {
     }
   }
 
-  const [row] = await hairDb.insert(fyhCustomers).values(values).returning();
-  await appendTimeline({
-    customerId: row.id,
-    eventType: 'customer_created',
-    title: 'Customer created',
-    body: `${row.fullName} added to salon CRM`,
-  });
+  const [row] = await hairDb
+    .insert(fyhCustomers)
+    .values({ ...values, ...tenantOrgDefaults(ctx) })
+    .returning();
+  await appendTimeline(
+    {
+      customerId: row.id,
+      eventType: 'customer_created',
+      title: 'Customer created',
+      body: `${row.fullName} added to salon CRM`,
+    },
+    ctx,
+  );
   return row;
 }
 
-export async function updateCustomer(id: string, input: CustomerInput) {
+export async function updateCustomer(id: string, input: CustomerInput, ctx?: TenantContext | null) {
   const values = customerValues(input);
-  await assertPhoneUnique(values.phone, id);
+  await assertPhoneUnique(values.phone, id, hairDb, ctx);
 
   const [row] = await hairDb
     .update(fyhCustomers)
     .set({ ...values, updatedAt: new Date() })
-    .where(eq(fyhCustomers.id, id))
+    .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, id)))
     .returning();
   if (!row) throw new Error('Customer not found');
 
-  await appendTimeline({
-    customerId: id,
-    eventType: 'profile_updated',
-    title: 'Profile updated',
-    body: 'Customer details saved',
-  });
+  await appendTimeline(
+    {
+      customerId: id,
+      eventType: 'profile_updated',
+      title: 'Profile updated',
+      body: 'Customer details saved',
+    },
+    ctx,
+  );
   return row;
 }
 
-export async function updateCustomerPhoto(id: string, photoUrl: string | null) {
+export async function updateCustomerPhoto(id: string, photoUrl: string | null, ctx?: TenantContext | null) {
   const [row] = await hairDb
     .update(fyhCustomers)
     .set({ photoUrl, updatedAt: new Date() })
-    .where(eq(fyhCustomers.id, id))
+    .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, id)))
     .returning();
   if (!row) throw new Error('Customer not found');
-  await appendTimeline({
-    customerId: id,
-    eventType: 'profile_updated',
-    title: photoUrl ? 'Profile photo updated' : 'Profile photo removed',
-  });
+  await appendTimeline(
+    {
+      customerId: id,
+      eventType: 'profile_updated',
+      title: photoUrl ? 'Profile photo updated' : 'Profile photo removed',
+    },
+    ctx,
+  );
   return row;
 }
 
-export async function archiveCustomer(id: string) {
+export async function archiveCustomer(id: string, ctx?: TenantContext | null) {
   const [row] = await hairDb
     .update(fyhCustomers)
     .set({ isActive: false, updatedAt: new Date() })
-    .where(eq(fyhCustomers.id, id))
+    .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, id)))
     .returning();
   if (!row) throw new Error('Customer not found');
   return row;
 }
 
-export async function listCustomerNotes(customerId: string) {
+export async function listCustomerNotes(customerId: string, ctx?: TenantContext | null) {
   return hairDb
     .select()
     .from(fyhCustomerNotes)
-    .where(eq(fyhCustomerNotes.customerId, customerId))
+    .where(
+      and(orgFilter(fyhCustomerNotes.organizationId, ctx), eq(fyhCustomerNotes.customerId, customerId)),
+    )
     .orderBy(desc(fyhCustomerNotes.createdAt));
 }
 
-export async function addCustomerNote(input: {
-  customerId: string;
-  body: string;
-  isAlert?: boolean;
-  adminId?: string | null;
-}) {
+export async function addCustomerNote(
+  input: {
+    customerId: string;
+    body: string;
+    isAlert?: boolean;
+    adminId?: string | null;
+  },
+  ctx?: TenantContext | null,
+) {
   const body = input.body.trim();
   if (!body) throw new Error('Note cannot be empty');
   const [note] = await hairDb
     .insert(fyhCustomerNotes)
     .values({
+      ...tenantOrgDefaults(ctx),
       customerId: input.customerId,
       body,
       isAlert: Boolean(input.isAlert),
       createdByAdminId: input.adminId ?? null,
     })
     .returning();
-  await appendTimeline({
-    customerId: input.customerId,
-    eventType: 'note',
-    title: input.isAlert ? 'Alert note added' : 'Note added',
-    body: body.slice(0, 200),
-  });
+  await appendTimeline(
+    {
+      customerId: input.customerId,
+      eventType: 'note',
+      title: input.isAlert ? 'Alert note added' : 'Note added',
+      body: body.slice(0, 200),
+    },
+    ctx,
+  );
   if (input.isAlert) {
     await hairDb
       .update(fyhCustomers)
@@ -390,25 +451,27 @@ export async function addCustomerNote(input: {
         importantAlerts: body,
         updatedAt: new Date(),
       })
-      .where(eq(fyhCustomers.id, input.customerId));
+      .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, input.customerId)));
   }
   return note;
 }
 
-export async function listCustomerTimeline(customerId: string) {
+export async function listCustomerTimeline(customerId: string, ctx?: TenantContext | null) {
   return hairDb
     .select()
     .from(fyhCustomerTimeline)
-    .where(eq(fyhCustomerTimeline.customerId, customerId))
+    .where(
+      and(orgFilter(fyhCustomerTimeline.organizationId, ctx), eq(fyhCustomerTimeline.customerId, customerId)),
+    )
     .orderBy(asc(fyhCustomerTimeline.occurredAt), asc(fyhCustomerTimeline.createdAt));
 }
 
-export async function getCustomerProfile(id: string) {
-  const customer = await getCustomer(id);
+export async function getCustomerProfile(id: string, ctx?: TenantContext | null) {
+  const customer = await getCustomer(id, ctx);
   if (!customer) return null;
   const [notes, timeline] = await Promise.all([
-    listCustomerNotes(id),
-    listCustomerTimeline(id),
+    listCustomerNotes(id, ctx),
+    listCustomerTimeline(id, ctx),
   ]);
   return { customer, notes, timeline };
 }
