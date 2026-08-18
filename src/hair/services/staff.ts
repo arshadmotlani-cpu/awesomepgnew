@@ -55,6 +55,7 @@ export async function getStaffById(id: string, ctx?: TenantContext | null) {
     if (!hit) return null;
     return {
       id: hit.employee.id,
+      organizationId: hit.employee.organizationId ?? null,
       fullName: hit.employee.fullName,
       phone: hit.employee.mobile,
       email: hit.employee.email,
