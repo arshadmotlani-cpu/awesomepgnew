@@ -89,7 +89,7 @@ export async function resolveTenantContext(): Promise<TenantContext | null> {
   const membershipRole = membershipRow.role as MembershipRole;
   const permissions = session.workforceEmployeeId
     ? await resolveWorkforcePermissions(session.workforceEmployeeId, membershipRole)
-    : codeTemplateForAccessRole('manager');
+    : codeTemplateForAccessRole('manager').permissions;
 
   return {
     userId,
