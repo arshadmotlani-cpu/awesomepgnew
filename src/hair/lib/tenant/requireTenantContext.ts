@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { hairAppRedirect } from '@/src/hair/lib/host';
 import {
   resolveTenantContext,
   TenantContextError,
@@ -17,10 +18,10 @@ export async function requireTenantContext(): Promise<TenantContext> {
 
 export async function requireTenantContextPage(): Promise<TenantContext> {
   if (!isFyhSaasTenantEnabled()) {
-    redirect('/login');
+    redirect(await hairAppRedirect('/login'));
   }
   const ctx = await resolveTenantContext();
-  if (!ctx) redirect('/login?error=tenant');
+  if (!ctx) redirect(await hairAppRedirect('/login?error=tenant'));
   return ctx;
 }
 

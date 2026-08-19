@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { getHairSession, type HairAdmin } from './session';
 import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
 import { requireTenantContext } from '@/src/hair/lib/tenant/requireTenantContext';
-import { isHairHostFromHeaders, isHairHost } from '@/src/hair/lib/host';
+import { isHairHostFromHeaders, isHairHost, hairAppRedirect } from '@/src/hair/lib/host';
 import {
   hasPermission,
   type HairPagePermission,
@@ -44,12 +44,12 @@ export async function requireHairAuth(): Promise<HairAdmin> {
 export async function requireHairAuthPage(): Promise<HairAdmin> {
   await requireHairHost();
   const session = await getHairSession();
-  if (!session) redirect('/login');
+  if (!session) redirect(await hairAppRedirect('/login'));
   if (isFyhSaasTenantEnabled()) {
     try {
       await requireTenantContext();
     } catch {
-      redirect('/login?error=tenant');
+      redirect(await hairAppRedirect('/login?error=tenant'));
     }
   }
   return session.admin;

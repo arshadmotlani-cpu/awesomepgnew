@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { hairAppRedirect } from '@/src/hair/lib/host';
 import { HairAuthError, requireHairAuth, requireHairAuthPage } from '@/src/hair/lib/auth/guards';
 import {
   hasPermission as checkPermission,
@@ -40,7 +41,7 @@ export async function requirePermission(key: HairPermission): Promise<HairAdmin>
 export async function requirePermissionPage(key: HairPermission): Promise<HairAdmin> {
   const admin = await requireHairAuthPage();
   if (!checkPermission(admin, key)) {
-    redirect('/dashboard');
+    redirect(await hairAppRedirect('/dashboard'));
   }
   return admin;
 }
@@ -49,7 +50,7 @@ export async function requirePagePermissionForPath(pathname: string): Promise<Ha
   const admin = await requireHairAuthPage();
   const key = pagePermissionForPath(pathname);
   if (key && !checkPermission(admin, key)) {
-    redirect('/dashboard');
+    redirect(await hairAppRedirect('/dashboard'));
   }
   return admin;
 }

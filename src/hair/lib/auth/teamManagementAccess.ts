@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { hairAppRedirect } from '@/src/hair/lib/host';
 import { requireHairAuthPage } from '@/src/hair/lib/auth/guards';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
@@ -115,16 +116,16 @@ export async function canViewTeamManagement(): Promise<boolean> {
 }
 
 export async function requireTeamManagementAccess(): Promise<TeamManagementAccess> {
-  if (!isFyhSaasTenantEnabled()) redirect('/staff');
+  if (!isFyhSaasTenantEnabled()) redirect(await hairAppRedirect('/staff'));
 
   await requireHairAuthPage();
   const ctx = await getTenantContextForPage();
-  if (!ctx) redirect('/select-organization');
+  if (!ctx) redirect(await hairAppRedirect('/select-organization'));
 
   const session = await getHairSession();
   const grants = await resolveWorkforceGrants(session);
   const caps = teamCapsForMembershipRole(ctx.membershipRole, grants);
-  if (!caps.canView) redirect('/me');
+  if (!caps.canView) redirect(await hairAppRedirect('/me'));
 
   return {
     membershipRole: ctx.membershipRole,

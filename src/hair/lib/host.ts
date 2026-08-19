@@ -59,10 +59,30 @@ export const HAIR_PUBLIC_PREFIXES = [
   '/settings',
   '/profile',
   '/select-organization',
+  '/team',
 ] as const;
 
 /** Internal App Router prefix — avoids colliding with Automotive Capital routes. */
 export const HAIR_INTERNAL_PREFIX = '/fyh';
+
+/**
+ * Map Hair auth/app redirects for Preview host (/fyh/* with x-hair-app).
+ * On fyhair.* public URLs stay as-is (/login, /dashboard, …).
+ */
+export async function hairAppRedirect(pathWithQuery: string): Promise<string> {
+  const { headers } = await import('next/headers');
+  const hdrs = await headers();
+  if (isHairHostFromHeaders(hdrs)) return pathWithQuery;
+  if (hdrs.get('x-hair-app') !== '1') return pathWithQuery;
+
+  const qIdx = pathWithQuery.indexOf('?');
+  const pathname = qIdx >= 0 ? pathWithQuery.slice(0, qIdx) : pathWithQuery;
+  const query = qIdx >= 0 ? pathWithQuery.slice(qIdx) : '';
+  const mapped = hairPublicToInternal(pathname);
+  if (mapped) return mapped + query;
+  if (pathname.startsWith(HAIR_INTERNAL_PREFIX)) return pathWithQuery;
+  return `${HAIR_INTERNAL_PREFIX}${pathname}${query}`;
+}
 
 function isHairPublicInvoicePath(pathname: string): boolean {
   return HAIR_PUBLIC_UNPROTECTED_PREFIXES.some(
