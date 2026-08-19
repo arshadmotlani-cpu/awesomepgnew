@@ -6,22 +6,23 @@ import { execFileSync } from 'node:child_process';
 
 const DEPLOY =
   process.env.PREVIEW_URL ??
-  'https://awesomepg-k59k-keo05die9-arshadmotlani-3160s-projects.vercel.app';
+  'https://awesomepg-k59k-q8cvwdp3w-arshadmotlani-3160s-projects.vercel.app';
 
 const CHECKS = [
-  { path: '/platform/auth/login', expect: /Login · Awesome PG|Sign in/i },
-  { path: '/fyh/auth/login', expect: /For Your Hair|Sign in/i },
-  { path: '/platform/admin', expect: /login|Login|Sign in|admin/i, allowRedirect: true },
-  { path: '/fyh/team', expect: /login|Sign in|For Your Hair/i, allowRedirect: true },
-  { path: '/platform/admin/organizations', expect: /login|Login|organizations/i, allowRedirect: true },
-  { path: '/platform/admin/plans', expect: /login|Login|plans/i, allowRedirect: true },
-  { path: '/platform/admin/subscriptions', expect: /login|Login|subscription/i, allowRedirect: true },
+  { path: '/platform/auth/login', title: /Login · Awesome PG/i },
+  { path: '/fyh/auth/login', title: /For Your Hair/i },
+  { path: '/platform/admin', status: [307, 308] },
+  { path: '/fyh/team', status: [307, 308] },
+  { path: '/fyh/dashboard', status: [307, 308] },
+  { path: '/platform/admin/organizations', status: [307, 308] },
+  { path: '/platform/admin/plans', status: [307, 308] },
+  { path: '/platform/admin/subscriptions', status: [307, 308] },
 ];
 
 function vercelCurl(path) {
   const out = execFileSync(
     'vercel',
-    ['curl', path, '--deployment', DEPLOY, '--yes', '-s', '-w', '\n__STATUS__%{http_code}'],
+    ['curl', path, '--deployment', DEPLOY, '--yes', '-s', '-w', '\n__STATUS__%{http_code}', '-o', '-'],
     { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 },
   );
   const idx = out.lastIndexOf('__STATUS__');
@@ -32,21 +33,20 @@ function vercelCurl(path) {
 
 let failed = 0;
 console.log('Preview UI smoke:', DEPLOY);
-for (const { path, expect, allowRedirect } of CHECKS) {
-  const { status, body } = vercelCurl(path);
-  const is404 =
-    (body.includes('<h1') && body.includes('Page not found')) ||
-    body.includes('This path is not part of');
-  const matches = expect.test(body);
-  const ok =
-    !is404 &&
-    (status === 200 || (allowRedirect && status >= 300 && status < 400)) &&
-    (status === 200 ? matches : true);
+for (const check of CHECKS) {
+  const { status, body } = vercelCurl(check.path);
+  const title = body.match(/<title>([^<]+)/)?.[1] ?? '';
+  let ok = false;
+  if (check.title) {
+    ok = status === 200 && check.title.test(title);
+  } else if (check.status) {
+    ok = check.status.includes(status);
+  }
   const mark = ok ? '✓' : '✗';
-  console.log(`${mark} ${status} ${path}`);
+  console.log(`${mark} ${status} ${check.path}${title ? ` (${title})` : ''}`);
   if (!ok) {
     failed += 1;
-    console.log('  snippet:', body.replace(/\s+/g, ' ').slice(0, 120));
+    if (check.title) console.log('  title:', title);
   }
 }
 

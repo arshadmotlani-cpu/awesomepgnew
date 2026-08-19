@@ -32,15 +32,27 @@ test('shouldRunPreviewFyhMiddleware only on preview /fyh paths', () => {
   });
 });
 
-test('previewFyhMiddleware attaches x-hair-app headers', () => {
-  const req = new NextRequest('https://awesomepg-abc.vercel.app/fyh/team', {
+test('previewFyhMiddleware redirects unauthenticated protected paths to /fyh/auth/login', () => {
+  const req = new NextRequest('https://awesomepg-abc.vercel.app/fyh/dashboard', {
+    headers: { host: 'awesomepg-abc.vercel.app' },
+  });
+  const headers = new Headers(req.headers);
+  const res = previewFyhMiddleware(req, headers);
+  assert.equal(res.status, 307);
+  const loc = res.headers.get('location') ?? '';
+  assert.ok(loc.includes('/fyh/auth/login'));
+  assert.ok(loc.includes('next=%2Fdashboard'));
+});
+
+test('previewFyhMiddleware attaches x-hair-app for public paths', () => {
+  const req = new NextRequest('https://awesomepg-abc.vercel.app/fyh/auth/login', {
     headers: { host: 'awesomepg-abc.vercel.app' },
   });
   const headers = new Headers(req.headers);
   const res = previewFyhMiddleware(req, headers);
   assert.equal(res.status, 200);
   assert.equal(headers.get('x-hair-app'), '1');
-  assert.equal(headers.get('x-hair-pathname'), '/fyh/team');
+  assert.equal(headers.get('x-hair-pathname'), '/fyh/auth/login');
 });
 
 test('root middleware allows /fyh on vercel.app when VERCEL_ENV=preview', () => {
