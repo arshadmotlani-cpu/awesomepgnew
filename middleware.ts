@@ -15,6 +15,10 @@ import {
   shouldRunHairMiddleware,
 } from '@/src/hair/middleware/hairMiddleware';
 import {
+  previewFyhMiddleware,
+  shouldRunPreviewFyhMiddleware,
+} from '@/src/hair/middleware/previewFyhMiddleware';
+import {
   ownerMiddleware,
   shouldRunOwnerMiddleware,
 } from '@/src/owner/middleware/ownerMiddleware';
@@ -107,6 +111,11 @@ function platformMiddleware(request: NextRequest): NextResponse | null {
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (shouldRunPreviewFyhMiddleware(pathname)) {
+    const requestHeaders = attachMonitoringHeaders(request);
+    return previewFyhMiddleware(request, requestHeaders);
+  }
 
   const platformResponse = platformMiddleware(request);
   if (platformResponse) return platformResponse;

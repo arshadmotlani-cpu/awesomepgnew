@@ -458,3 +458,6 @@ Enforced by `tests/unit/roomOsArchitecture.test.ts`.
 
 <!-- DOC_SYNC_TOUCH_2026-08-18 -->
 > **2026-08-18 19:48:18 UTC** — Code changed in: Routes, Auth. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-08-19 -->
+> **2026-08-19 20:16:40 UTC** — Code changed in: Auth. Manual review recommended.

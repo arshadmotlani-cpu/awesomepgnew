@@ -9,11 +9,21 @@ const PROJECT_ID = 'prj_IpT653A5B96DkeeMadDRCCHsTtkE';
 const KEYS = [
   'HAIR_DATABASE_URL',
   'PLATFORM_DATABASE_URL',
-  'FYH_STAGING_DATABASE_URL',
-  'PLATFORM_STAGING_DATABASE_URL',
   'FYH_SAAS_TENANT',
   'WORKFORCE_MEMBERSHIP_AUTH',
 ] as const;
+
+const PRODUCTION_HAIR_HOST_FRAGMENT = 'ep-billowing-bar-au20886r';
+
+function hostFromDatabaseUrl(url: string | undefined): string | null {
+  const trimmed = url?.trim();
+  if (!trimmed) return null;
+  try {
+    return new URL(trimmed.replace(/^postgres:/, 'postgresql:')).hostname;
+  } catch {
+    return null;
+  }
+}
 
 async function main() {
   const authPath = join(
@@ -45,6 +55,35 @@ async function main() {
     console.error('Or paste into .env.staging.local for local CLI (see .env.staging.local.example).');
     process.exit(1);
   }
+
+  const hairRow = preview.find((e) => e.key === 'HAIR_DATABASE_URL');
+  const hairHost = hostFromDatabaseUrl(hairRow?.value);
+  if (hairHost) {
+    console.log(`\nHair DB host (Preview): ${hairHost}`);
+    if (hairHost.includes(PRODUCTION_HAIR_HOST_FRAGMENT)) {
+      console.error(`Refusing: Hair Preview URL is production (${PRODUCTION_HAIR_HOST_FRAGMENT})`);
+      process.exit(1);
+    }
+  }
+  const platRow = preview.find((e) => e.key === 'PLATFORM_DATABASE_URL');
+  const platHost = hostFromDatabaseUrl(platRow?.value);
+  if (platHost) console.log(`Platform DB host (Preview): ${platHost}`);
+  if (hairHost && platHost && hairHost === platHost) {
+    console.error('Refusing: Hair and Platform Preview URLs share the same host');
+    process.exit(1);
+  }
+
+  const prod = body.envs.filter((e) => e.target?.includes('production'));
+  for (const key of ['FYH_SAAS_TENANT', 'WORKFORCE_MEMBERSHIP_AUTH']) {
+    const row = prod.find((e) => e.key === key);
+    const v = row?.value?.trim() || '(unset)';
+    if (v === '1') {
+      console.warn(`⚠ Production ${key} is enabled — do not enable SaaS on Production yet`);
+    } else {
+      console.log(`Production ${key}: ${v}`);
+    }
+  }
+
   console.log('\n✓ All staging Preview variables populated.');
 }
 
