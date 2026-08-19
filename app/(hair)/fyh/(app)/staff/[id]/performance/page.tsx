@@ -5,6 +5,7 @@ import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { salonDayBounds, salonMonthStartUtc } from '@/src/hair/lib/salonTime';
 import { getStaffById } from '@/src/hair/services/staff';
 import { getSalonSettings } from '@/src/hair/services/settings';
+import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 import {
   getStaffCommissionInRange,
   getStaffCommissionTotals,
@@ -25,6 +26,7 @@ type Props = { params: Promise<{ id: string }> };
 
 export default async function StaffPerformancePage({ params }: Props) {
   const { id } = await params;
+  const ctx = await getTenantContextForPage();
 
   // Staff may only open their own performance page under Workforce.
   if (isWorkforceEngineEnabled()) {
@@ -46,7 +48,7 @@ export default async function StaffPerformancePage({ params }: Props) {
   const staff = await getStaffById(id);
   if (!staff) notFound();
 
-  const settings = await getSalonSettings();
+  const settings = await getSalonSettings(ctx);
   const tz = settings.timezone?.trim() || 'Asia/Kolkata';
   const { end } = salonDayBounds(tz);
   const from = salonMonthStartUtc(tz);

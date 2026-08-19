@@ -11,6 +11,7 @@ import {
 } from '@/src/hair/db/schema/settings';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 const DEFAULT_HOURS: FyhBusinessHoursDay[] = [
   { dayOfWeek: 0, open: '10:00', close: '20:00', closed: true },
@@ -92,6 +93,7 @@ function mergeSettings<T extends Record<string, unknown>>(defaults: T, stored: T
 }
 
 export async function getSalonSettings(ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const [row] = await hairDb
     .select()
     .from(fyhSettings)
@@ -133,6 +135,7 @@ async function patchSettings(
   patch: Partial<typeof fyhSettings.$inferInsert>,
   ctx?: TenantContext | null,
 ): Promise<SalonSettings> {
+  ctx = await resolveTenantContextForService(ctx);
   const existing = await getSalonSettings(ctx);
   const [row] = await hairDb
     .update(fyhSettings)
@@ -144,6 +147,7 @@ async function patchSettings(
 }
 
 export async function updateSalonCoreSettings(input: SalonCoreInput, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const existing = await getSalonSettings(ctx);
   const name = input.businessName.trim();
   if (!name) throw new Error('Business name is required');
@@ -161,6 +165,7 @@ export async function updateSalonCoreSettings(input: SalonCoreInput, ctx?: Tenan
 }
 
 export async function updateGstInvoiceSettings(input: GstInvoiceSettingsInput, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const existing = await getSalonSettings(ctx);
   const prefix = input.invoicePrefix.trim().toUpperCase() || 'FYH';
   return patchSettings(
@@ -179,6 +184,7 @@ export async function updateGstInvoiceSettings(input: GstInvoiceSettingsInput, c
 }
 
 export async function updateCommunicationSettings(input: CommunicationSettingsInput, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   return patchSettings(
     {
       communicationSettings: {
@@ -191,10 +197,12 @@ export async function updateCommunicationSettings(input: CommunicationSettingsIn
 }
 
 export async function updateBillingSettings(input: BillingSettingsInput, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   return patchSettings({ billingSettings: input.billingSettings }, ctx);
 }
 
 export async function updateDailyClosingOpeningFloatPaise(openingFloatPaise: number, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const existing = await getSalonSettings(ctx);
   const paise = Math.max(0, Math.round(openingFloatPaise));
   return updateBillingSettings(
@@ -213,6 +221,7 @@ export function getDailyClosingOpeningFloatPaise(settings: SalonSettings): numbe
 }
 
 export async function updatePrinterSettings(input: PrinterSettingsInput, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const width = input.printerSettings.receiptWidthMm;
   if (width !== 58 && width !== 80) {
     throw new Error('Receipt width must be 58mm or 80mm');
@@ -221,6 +230,7 @@ export async function updatePrinterSettings(input: PrinterSettingsInput, ctx?: T
 }
 
 export async function updateWhatsappSettings(input: WhatsappSettingsInput, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const phone = input.whatsappSettings.businessPhone?.trim() || null;
   return patchSettings(
     {
@@ -234,11 +244,13 @@ export async function updateWhatsappSettings(input: WhatsappSettingsInput, ctx?:
 }
 
 export async function updateInventorySettings(input: InventorySettingsInput, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   return patchSettings({ inventorySettings: input.inventorySettings }, ctx);
 }
 
 /** @deprecated use section-specific updaters */
 export async function updateSalonSettings(input: SalonSettingsInput, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   await updateSalonCoreSettings(input, ctx);
   await updateGstInvoiceSettings(input, ctx);
   if (input.communicationSettings) {

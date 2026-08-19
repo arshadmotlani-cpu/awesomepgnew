@@ -23,6 +23,7 @@ import { getSalonSettings } from '@/src/hair/services/settings';
 import { salonMetricTotal } from '@/src/hair/services/staffPerformance';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 export type MonthlyRevenuePoint = {
   monthKey: string;
@@ -114,6 +115,7 @@ function monthLabel(monthKey: string, timezone: string): string {
 async function monthlyRevenueRollup(
   timezone: string,
   months = 12,
+  ctx?: TenantContext | null,
 ): Promise<MonthlyRevenuePoint[]> {
   const { dayKey } = salonDayBounds(timezone);
   const [y, m] = dayKey.split('-').map(Number);
@@ -126,13 +128,13 @@ async function monthlyRevenueRollup(
     const from = salonMonthStartUtc(timezone, new Date(Date.UTC(yy, mm - 1, 15)));
     const next = new Date(Date.UTC(yy, mm, 1));
     const to = salonMonthStartUtc(timezone, new Date(Date.UTC(next.getUTCFullYear(), next.getUTCMonth(), 15)));
-    const { revenuePaise } = await paidRevenueBetween(from, to);
+    const { revenuePaise } = await paidRevenueBetween(from, to, ctx);
     points.push({ monthKey, label: monthLabel(monthKey, timezone), revenuePaise });
   }
   return points;
 }
 
-async function revenueByCategoryBetween(from: Date, to: Date): Promise<CategoryRevenueRow[]> {
+async function revenueByCategoryBetween(from: Date, to: Date, ctx?: TenantContext | null): Promise<CategoryRevenueRow[]> {
   const rows = await hairDb
     .select({
       category: fyhServices.category,
@@ -144,6 +146,8 @@ async function revenueByCategoryBetween(from: Date, to: Date): Promise<CategoryR
     .leftJoin(fyhServices, eq(fyhServices.id, fyhInvoiceLines.serviceId))
     .where(
       and(
+        orgFilter(fyhInvoices.organizationId, ctx),
+        locationFilter(fyhInvoices.locationId, ctx),
         eq(fyhInvoices.status, 'paid'),
         gte(fyhInvoices.paidAt, from),
         lt(fyhInvoices.paidAt, to),
@@ -158,7 +162,7 @@ async function revenueByCategoryBetween(from: Date, to: Date): Promise<CategoryR
   }));
 }
 
-async function averageBillBetween(from: Date, to: Date): Promise<number> {
+async function averageBillBetween(from: Date, to: Date, ctx?: TenantContext | null): Promise<number> {
   const [row] = await hairDb
     .select({
       total: sql<number>`coalesce(sum(${fyhInvoices.grandTotalPaise}), 0)::bigint`,
@@ -166,13 +170,13 @@ async function averageBillBetween(from: Date, to: Date): Promise<number> {
     })
     .from(fyhInvoices)
     .where(
-      and(eq(fyhInvoices.status, 'paid'), gte(fyhInvoices.paidAt, from), lt(fyhInvoices.paidAt, to)),
+      and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx), eq(fyhInvoices.status, 'paid'), gte(fyhInvoices.paidAt, from), lt(fyhInvoices.paidAt, to)),
     );
   const c = Number(row?.c ?? 0);
   return c > 0 ? Math.round(Number(row?.total ?? 0) / c) : 0;
 }
 
-async function invoiceBreakdownMtd(from: Date, to: Date) {
+async function invoiceBreakdownMtd(from: Date, to: Date, ctx?: TenantContext | null) {
   const [row] = await hairDb
     .select({
       gross: sql<number>`coalesce(sum(${fyhInvoices.grandTotalPaise}), 0)::bigint`,
@@ -183,6 +187,8 @@ async function invoiceBreakdownMtd(from: Date, to: Date) {
     .from(fyhInvoices)
     .where(
       and(
+        orgFilter(fyhInvoices.organizationId, ctx),
+        locationFilter(fyhInvoices.locationId, ctx),
         sql`${fyhInvoices.status} in ('paid', 'refunded')`,
         gte(fyhInvoices.paidAt, from),
         lt(fyhInvoices.paidAt, to),
@@ -199,7 +205,7 @@ async function invoiceBreakdownMtd(from: Date, to: Date) {
   };
 }
 
-async function businessHealthToday(start: Date, end: Date) {
+async function businessHealthToday(start: Date, end: Date, ctx?: TenantContext | null) {
   const apptRows = await hairDb
     .select({
       status: fyhAppointments.status,
@@ -207,7 +213,7 @@ async function businessHealthToday(start: Date, end: Date) {
       c: count(),
     })
     .from(fyhAppointments)
-    .where(and(gte(fyhAppointments.startAt, start), lt(fyhAppointments.startAt, end)))
+    .where(and(orgFilter(fyhAppointments.organizationId, ctx), locationFilter(fyhAppointments.locationId, ctx), gte(fyhAppointments.startAt, start), lt(fyhAppointments.startAt, end)))
     .groupBy(fyhAppointments.status, fyhAppointments.customerId);
 
   let total = 0;
@@ -234,7 +240,7 @@ async function businessHealthToday(start: Date, end: Date) {
         visits: fyhCustomers.totalVisits,
       })
       .from(fyhCustomers)
-      .where(inArray(fyhCustomers.id, ids));
+      .where(and(orgFilter(fyhCustomers.organizationId, ctx), inArray(fyhCustomers.id, ids)));
     for (const c of custRows) {
       if (Number(c.visits ?? 0) > 1) repeat += 1;
       else newCust += 1;
@@ -252,11 +258,11 @@ async function businessHealthToday(start: Date, end: Date) {
   };
 }
 
-async function hourlyRevenueToday(start: Date, end: Date, timezone: string): Promise<HourlyRevenuePoint[]> {
+async function hourlyRevenueToday(start: Date, end: Date, timezone: string, ctx?: TenantContext | null): Promise<HourlyRevenuePoint[]> {
   const rows = await hairDb
     .select({ paidAt: fyhInvoices.paidAt, total: fyhInvoices.grandTotalPaise })
     .from(fyhInvoices)
-    .where(and(eq(fyhInvoices.status, 'paid'), gte(fyhInvoices.paidAt, start), lt(fyhInvoices.paidAt, end)));
+    .where(and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx), eq(fyhInvoices.status, 'paid'), gte(fyhInvoices.paidAt, start), lt(fyhInvoices.paidAt, end)));
 
   const buckets = Array.from({ length: 24 }, (_, hour) => ({
     hour,
@@ -280,7 +286,7 @@ async function hourlyRevenueToday(start: Date, end: Date, timezone: string): Pro
   return buckets;
 }
 
-async function revenueHeatmap7d(timezone: string, endDayKey: string): Promise<HeatmapCell[]> {
+async function revenueHeatmap7d(timezone: string, endDayKey: string, ctx?: TenantContext | null): Promise<HeatmapCell[]> {
   const dayKeys = lastNDayKeys(endDayKey, 7);
   const start = salonDayBounds(timezone, new Date(`${dayKeys[0]}T12:00:00Z`)).start;
   const end = salonDayBounds(timezone, new Date(`${endDayKey}T12:00:00Z`)).end;
@@ -288,7 +294,7 @@ async function revenueHeatmap7d(timezone: string, endDayKey: string): Promise<He
   const rows = await hairDb
     .select({ paidAt: fyhInvoices.paidAt, total: fyhInvoices.grandTotalPaise })
     .from(fyhInvoices)
-    .where(and(eq(fyhInvoices.status, 'paid'), gte(fyhInvoices.paidAt, start), lt(fyhInvoices.paidAt, end)));
+    .where(and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx), eq(fyhInvoices.status, 'paid'), gte(fyhInvoices.paidAt, start), lt(fyhInvoices.paidAt, end)));
 
   const cells: HeatmapCell[] = [];
   for (let d = 0; d < 7; d += 1) {
@@ -315,7 +321,7 @@ async function revenueHeatmap7d(timezone: string, endDayKey: string): Promise<He
   return cells;
 }
 
-async function outstandingTrend30(timezone: string, endDayKey: string): Promise<DailyRevenuePoint[]> {
+async function outstandingTrend30(timezone: string, endDayKey: string, ctx?: TenantContext | null): Promise<DailyRevenuePoint[]> {
   const dayKeys = lastNDayKeys(endDayKey, 30);
   const out: DailyRevenuePoint[] = dayKeys.map((dayKey) => ({ dayKey, revenuePaise: 0 }));
 
@@ -329,6 +335,7 @@ async function outstandingTrend30(timezone: string, endDayKey: string): Promise<
         .from(fyhFinancialLedger)
         .where(
           and(
+            orgFilter(fyhFinancialLedger.organizationId, ctx),
             eq(fyhFinancialLedger.kind, 'receivable_settled'),
             gte(fyhFinancialLedger.createdAt, start),
             lt(fyhFinancialLedger.createdAt, end),
@@ -342,12 +349,12 @@ async function outstandingTrend30(timezone: string, endDayKey: string): Promise<
   return out;
 }
 
-async function averageBillTrend30(timezone: string, endDayKey: string) {
+async function averageBillTrend30(timezone: string, endDayKey: string, ctx?: TenantContext | null) {
   const dayKeys = lastNDayKeys(endDayKey, 30);
   const points: { dayKey: string; avgPaise: number }[] = [];
   for (const dayKey of dayKeys) {
     const { start, end } = salonDayBounds(timezone, new Date(`${dayKey}T12:00:00Z`));
-    points.push({ dayKey, avgPaise: await averageBillBetween(start, end) });
+    points.push({ dayKey, avgPaise: await averageBillBetween(start, end, ctx) });
   }
   return points;
 }
@@ -357,10 +364,11 @@ async function buildSegmentCards(
   monthEnd: Date,
   prevMonthStart: Date,
   prevMonthEnd: Date,
+  ctx?: TenantContext | null,
 ): Promise<SegmentCard[]> {
   const [current, previous] = await Promise.all([
-    revenueByCategoryBetween(monthStart, monthEnd),
-    revenueByCategoryBetween(prevMonthStart, prevMonthEnd),
+    revenueByCategoryBetween(monthStart, monthEnd, ctx),
+    revenueByCategoryBetween(prevMonthStart, prevMonthEnd, ctx),
   ]);
   const prevMap = new Map(previous.map((r) => [r.category, r.revenuePaise]));
 
@@ -387,7 +395,8 @@ export function buildRevenueDashboard(raw: RevenueDashboardSnapshot): RevenueDas
 }
 
 export async function getRevenueDashboardSnapshot(ctx?: TenantContext | null): Promise<RevenueDashboardSnapshot> {
-  const settings = await getSalonSettings();
+  ctx = await resolveTenantContextForService(ctx);
+  const settings = await getSalonSettings(ctx);
   const timezone = settings.timezone?.trim() || 'Asia/Kolkata';
   const { start, end, dayKey } = salonDayBounds(timezone);
   const monthStart = salonMonthStartUtc(timezone);
@@ -395,11 +404,11 @@ export async function getRevenueDashboardSnapshot(ctx?: TenantContext | null): P
   const prevMonthStart = salonMonthStartUtc(timezone, new Date(monthStart.getTime() - 86_400_000));
 
   const [financial, reports, ops, mtdSplit, mtdBreakdown] = await Promise.all([
-    getFinancialDashboardSnapshot(),
-    getReportsSnapshot(),
-    getDashboardSnapshot(),
-    paymentMethodSplit({ from: monthStart, to: end }),
-    invoiceBreakdownMtd(monthStart, end),
+    getFinancialDashboardSnapshot(ctx),
+    getReportsSnapshot(ctx),
+    getDashboardSnapshot(ctx),
+    paymentMethodSplit({ from: monthStart, to: end }, ctx),
+    invoiceBreakdownMtd(monthStart, end, ctx),
   ]);
 
   const [
@@ -419,8 +428,8 @@ export async function getRevenueDashboardSnapshot(ctx?: TenantContext | null): P
     packagesRevenue,
     segmentCards,
   ] = await Promise.all([
-    monthlyRevenueRollup(timezone, 12),
-    revenueByCategoryBetween(monthStart, end),
+    monthlyRevenueRollup(timezone, 12, ctx),
+    revenueByCategoryBetween(monthStart, end, ctx),
     Promise.resolve(
       financial.topStaffToday.length
         ? financial.topStaffToday
@@ -430,18 +439,18 @@ export async function getRevenueDashboardSnapshot(ctx?: TenantContext | null): P
             revenuePaise: s.revenuePaise,
           })),
     ),
-    hourlyRevenueToday(start, end, timezone),
-    revenueHeatmap7d(timezone, dayKey),
-    outstandingTrend30(timezone, dayKey),
-    averageBillTrend30(timezone, dayKey),
-    businessHealthToday(start, end),
-    averageBillBetween(start, end),
-    averageBillBetween(monthStart, end),
-    salonMetricTotal('service', { from: monthStart, to: end }),
-    salonMetricTotal('product', { from: monthStart, to: end }),
-    salonMetricTotal('membership', { from: monthStart, to: end }),
-    salonMetricTotal('package', { from: monthStart, to: end }),
-    buildSegmentCards(monthStart, end, prevMonthStart, prevMonthEnd),
+    hourlyRevenueToday(start, end, timezone, ctx),
+    revenueHeatmap7d(timezone, dayKey, ctx),
+    outstandingTrend30(timezone, dayKey, ctx),
+    averageBillTrend30(timezone, dayKey, ctx),
+    businessHealthToday(start, end, ctx),
+    averageBillBetween(start, end, ctx),
+    averageBillBetween(monthStart, end, ctx),
+    salonMetricTotal('service', { from: monthStart, to: end }, ctx),
+    salonMetricTotal('product', { from: monthStart, to: end }, ctx),
+    salonMetricTotal('membership', { from: monthStart, to: end }, ctx),
+    salonMetricTotal('package', { from: monthStart, to: end }, ctx),
+    buildSegmentCards(monthStart, end, prevMonthStart, prevMonthEnd, ctx),
   ]);
 
   const mtdCollections = financial.todayCollectionsByMethod;

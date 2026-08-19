@@ -2,9 +2,11 @@ import { SalonSettingsForm } from '@/src/hair/components/settings/SalonSettingsF
 import { ResourcesPanel } from '@/src/hair/components/settings/ResourcesPanel';
 import { listResourcesAdmin } from '@/src/hair/services/resources';
 import { getSalonSettings } from '@/src/hair/services/settings';
+import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 
 export default async function SalonSettingsPage() {
-  const [settings, resources] = await Promise.all([getSalonSettings(), listResourcesAdmin()]);
+  const ctx = await getTenantContextForPage();
+  const [settings, resources] = await Promise.all([getSalonSettings(ctx), listResourcesAdmin()]);
 
   return (
     <div className="space-y-10">

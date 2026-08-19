@@ -18,6 +18,7 @@ import { listLowStockProducts } from '@/src/hair/services/stock';
 import { receivablesReport } from '@/src/hair/services/reportQueries';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 /** Template kinds including salon-configured invoice body (not always in fyh_notification_templates). */
 export type NotificationTemplateKind = FyhNotificationKind | 'whatsapp_invoice';
@@ -56,6 +57,7 @@ function resolveTemplateKind(kind: NotificationTemplateKind): FyhNotificationKin
 }
 
 async function getDbTemplateBody(kind: FyhNotificationKind, ctx?: TenantContext | null): Promise<string | null> {
+  ctx = await resolveTenantContextForService(ctx);
   const [row] = await hairDb
     .select({ body: fyhNotificationTemplates.body, isActive: fyhNotificationTemplates.isActive })
     .from(fyhNotificationTemplates)
@@ -70,6 +72,7 @@ export async function renderTemplate(
   kind: NotificationTemplateKind,
   vars: Record<string, string>,
   settings?: FyhCommunicationSettings | null, ctx?: TenantContext | null): Promise<string> {
+  ctx = await resolveTenantContextForService(ctx);
   const overrideKey = SETTINGS_OVERRIDE_BY_KIND[kind];
   const overrideBody = overrideKey ? settings?.[overrideKey]?.trim() : undefined;
   if (overrideBody) return interpolateTemplate(overrideBody, vars);
@@ -116,19 +119,20 @@ export async function dispatchNotification(input: {
   context?: Record<string, string>;
   subject?: string;
 }, ctx?: TenantContext | null): Promise<{ outboxId: string; body: string; waUrl: string } | null> {
-  const settings = await getSalonSettings();
+  ctx = await resolveTenantContextForService(ctx);
+  const settings = await getSalonSettings(ctx);
   if (!settings.whatsappSettings.enabled) return null;
 
   const recipient = normalizeRecipientPhone(input.recipient);
   if (!recipient) return null;
 
-  const body = await renderTemplate(input.kind, input.context ?? {}, settings.communicationSettings);
+  const body = await renderTemplate(input.kind, input.context ?? {}, settings.communicationSettings, ctx);
   const row = await enqueueNotification({
     kind: input.kind,
     recipient,
     body,
     subject: input.subject,
-  });
+  }, ctx);
   return { outboxId: row.id, body, waUrl: buildWhatsAppUrl(recipient, body) };
 }
 
@@ -141,7 +145,8 @@ export async function enqueuePostCheckoutNotifications(input: {
   grandTotalPaise: number;
   baseUrl?: string;
 }, ctx?: TenantContext | null): Promise<void> {
-  const settings = await getSalonSettings();
+  ctx = await resolveTenantContextForService(ctx);
+  const settings = await getSalonSettings(ctx);
   if (!settings.whatsappSettings.enabled) return;
 
   const recipient = normalizeRecipientPhone(input.phone, input.whatsapp);
@@ -154,13 +159,13 @@ export async function enqueuePostCheckoutNotifications(input: {
     link,
   };
 
-  const invoiceBody = await renderTemplate('whatsapp_invoice', vars, settings.communicationSettings);
+  const invoiceBody = await renderTemplate('whatsapp_invoice', vars, settings.communicationSettings, ctx);
   await enqueueNotification({
     kind: 'invoice_ready',
     recipient,
     body: invoiceBody,
     subject: 'Invoice ready',
-  });
+  }, ctx);
 
   if (settings.googleReviewUrl?.trim()) {
     const reviewVars = {
@@ -171,13 +176,14 @@ export async function enqueuePostCheckoutNotifications(input: {
       'review_request',
       reviewVars,
       settings.communicationSettings,
+      ctx,
     );
     await enqueueNotification({
       kind: 'review_request',
       recipient,
       body: reviewBody,
       subject: 'Review request',
-    });
+    }, ctx);
   }
 }
 
@@ -185,12 +191,15 @@ async function wasRecentlyQueued(
   kind: FyhNotificationKind,
   recipient: string,
   since: Date,
+  ctx?: TenantContext | null,
 ): Promise<boolean> {
+  ctx = await resolveTenantContextForService(ctx);
   const [row] = await hairDb
     .select({ id: fyhNotificationOutbox.id })
     .from(fyhNotificationOutbox)
     .where(
       and(
+        orgFilter(fyhNotificationOutbox.organizationId, ctx),
         eq(fyhNotificationOutbox.kind, kind),
         eq(fyhNotificationOutbox.recipient, recipient),
         gte(fyhNotificationOutbox.createdAt, since),
@@ -206,7 +215,8 @@ export async function processOutboxBatch(limit = 20, ctx?: TenantContext | null)
   sent: number;
   failed: number;
 }> {
-  const settings = await getSalonSettings();
+  ctx = await resolveTenantContextForService(ctx);
+  const settings = await getSalonSettings(ctx);
   const rows = await hairDb
     .select()
     .from(fyhNotificationOutbox)
@@ -244,7 +254,8 @@ export async function processOutboxBatch(limit = 20, ctx?: TenantContext | null)
 }
 
 export async function sendAppointmentReminders(ctx?: TenantContext | null): Promise<number> {
-  const settings = await getSalonSettings();
+  ctx = await resolveTenantContextForService(ctx);
+  const settings = await getSalonSettings(ctx);
   if (!settings.whatsappSettings.enabled) return 0;
 
   const timezone = settings.timezone || 'Asia/Kolkata';
@@ -265,6 +276,8 @@ export async function sendAppointmentReminders(ctx?: TenantContext | null): Prom
     .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhAppointments.customerId))
     .where(
       and(
+        orgFilter(fyhAppointments.organizationId, ctx),
+        locationFilter(fyhAppointments.locationId, ctx),
         gte(fyhAppointments.startAt, tomorrowStart),
         lte(fyhAppointments.startAt, tomorrowEnd),
         sql`${fyhAppointments.status} not in ('cancelled', 'no_show')`,
@@ -275,7 +288,7 @@ export async function sendAppointmentReminders(ctx?: TenantContext | null): Prom
   for (const row of rows) {
     const recipient = normalizeRecipientPhone(row.phone, row.whatsapp);
     if (!recipient) continue;
-    if (await wasRecentlyQueued('appointment_reminder', recipient, dedupeSince)) continue;
+    if (await wasRecentlyQueued('appointment_reminder', recipient, dedupeSince, ctx)) continue;
 
     const time = formatSalonDateTime(row.startAt, timezone);
     await dispatchNotification({
@@ -283,14 +296,15 @@ export async function sendAppointmentReminders(ctx?: TenantContext | null): Prom
       recipient,
       context: { name: row.fullName, time },
       subject: 'Appointment reminder',
-    });
+    }, ctx);
     count += 1;
   }
   return count;
 }
 
 export async function sendBirthdayMessages(ctx?: TenantContext | null): Promise<number> {
-  const settings = await getSalonSettings();
+  ctx = await resolveTenantContextForService(ctx);
+  const settings = await getSalonSettings(ctx);
   if (!settings.whatsappSettings.enabled) return 0;
 
   const timezone = settings.timezone || 'Asia/Kolkata';
@@ -308,7 +322,7 @@ export async function sendBirthdayMessages(ctx?: TenantContext | null): Promise<
       dateOfBirth: fyhCustomers.dateOfBirth,
     })
     .from(fyhCustomers)
-    .where(and(eq(fyhCustomers.isActive, true), sql`${fyhCustomers.dateOfBirth} is not null`));
+    .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.isActive, true), sql`${fyhCustomers.dateOfBirth} is not null`));
 
   let count = 0;
   for (const c of customers) {
@@ -318,7 +332,7 @@ export async function sendBirthdayMessages(ctx?: TenantContext | null): Promise<
 
     const recipient = normalizeRecipientPhone(c.phone, c.whatsapp);
     if (!recipient) continue;
-    if (await wasRecentlyQueued('birthday', recipient, dedupeSince)) continue;
+    if (await wasRecentlyQueued('birthday', recipient, dedupeSince, ctx)) continue;
 
     await dispatchNotification({
       kind: 'birthday',
@@ -326,14 +340,15 @@ export async function sendBirthdayMessages(ctx?: TenantContext | null): Promise<
       recipient,
       context: { name: c.fullName },
       subject: 'Birthday greeting',
-    });
+    }, ctx);
     count += 1;
   }
   return count;
 }
 
 export async function sendMembershipExpiryWarnings(daysAhead = 7, ctx?: TenantContext | null): Promise<number> {
-  const settings = await getSalonSettings();
+  ctx = await resolveTenantContextForService(ctx);
+  const settings = await getSalonSettings(ctx);
   if (!settings.whatsappSettings.enabled) return 0;
 
   const timezone = settings.timezone || 'Asia/Kolkata';
@@ -352,6 +367,7 @@ export async function sendMembershipExpiryWarnings(daysAhead = 7, ctx?: TenantCo
     .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhCustomerMemberships.customerId))
     .where(
       and(
+        orgFilter(fyhCustomerMemberships.organizationId, ctx),
         eq(fyhCustomerMemberships.isActive, true),
         eq(fyhCustomerMemberships.expiresOn, targetKey),
       ),
@@ -361,32 +377,33 @@ export async function sendMembershipExpiryWarnings(daysAhead = 7, ctx?: TenantCo
   for (const row of rows) {
     const recipient = normalizeRecipientPhone(row.phone, row.whatsapp);
     if (!recipient) continue;
-    if (await wasRecentlyQueued('membership_expiry', recipient, dedupeSince)) continue;
+    if (await wasRecentlyQueued('membership_expiry', recipient, dedupeSince, ctx)) continue;
 
     await dispatchNotification({
       kind: 'membership_expiry',
       recipient,
       context: { name: row.fullName, date: row.expiresOn },
       subject: 'Membership expiry',
-    });
+    }, ctx);
     count += 1;
   }
   return count;
 }
 
 export async function sendOutstandingPaymentReminders(ctx?: TenantContext | null): Promise<number> {
-  const settings = await getSalonSettings();
+  ctx = await resolveTenantContextForService(ctx);
+  const settings = await getSalonSettings(ctx);
   if (!settings.whatsappSettings.enabled) return 0;
 
   const dedupeSince = new Date(Date.now() - 20 * 60 * 60 * 1000);
-  const rows = await receivablesReport();
+  const rows = await receivablesReport(undefined, ctx);
   let count = 0;
 
   for (const row of rows) {
     if (row.balancePaise <= 0) continue;
     const recipient = normalizeRecipientPhone(row.phone);
     if (!recipient) continue;
-    if (await wasRecentlyQueued('outstanding_payment', recipient, dedupeSince)) continue;
+    if (await wasRecentlyQueued('outstanding_payment', recipient, dedupeSince, ctx)) continue;
 
     await dispatchNotification({
       kind: 'outstanding_payment',
@@ -397,25 +414,26 @@ export async function sendOutstandingPaymentReminders(ctx?: TenantContext | null
         amount: formatInrFromPaise(row.balancePaise),
       },
       subject: 'Outstanding payment',
-    });
+    }, ctx);
     count += 1;
   }
   return count;
 }
 
 export async function sendLowStockAlerts(ctx?: TenantContext | null): Promise<number> {
-  const settings = await getSalonSettings();
+  ctx = await resolveTenantContextForService(ctx);
+  const settings = await getSalonSettings(ctx);
   if (!settings.whatsappSettings.enabled) return 0;
 
   const businessPhone = settings.whatsappSettings.businessPhone?.trim();
   const recipient = businessPhone ? normalizeRecipientPhone(businessPhone) : null;
   if (!recipient) return 0;
 
-  const products = await listLowStockProducts();
+  const products = await listLowStockProducts(ctx);
   if (products.length === 0) return 0;
 
   const dedupeSince = new Date(Date.now() - 20 * 60 * 60 * 1000);
-  if (await wasRecentlyQueued('low_stock', recipient, dedupeSince)) return 0;
+  if (await wasRecentlyQueued('low_stock', recipient, dedupeSince, ctx)) return 0;
 
   const productList = products.map((p) => `${p.name} (${p.stockQty})`).join(', ');
   await dispatchNotification({
@@ -423,7 +441,7 @@ export async function sendLowStockAlerts(ctx?: TenantContext | null): Promise<nu
     recipient,
     context: { product: productList },
     subject: 'Low stock alert',
-  });
+  }, ctx);
   return 1;
 }
 
@@ -435,7 +453,8 @@ export async function buildNotificationPreview(input: {
   invoiceNumber?: string;
   baseUrl?: string;
 }, ctx?: TenantContext | null): Promise<{ body: string; waUrl: string } | null> {
-  const settings = await getSalonSettings();
+  ctx = await resolveTenantContextForService(ctx);
+  const settings = await getSalonSettings(ctx);
   const recipient = normalizeRecipientPhone(input.customerPhone);
   if (!recipient) return null;
 
@@ -458,6 +477,6 @@ export async function buildNotificationPreview(input: {
           link,
         };
 
-  const body = await renderTemplate(input.kind, vars, settings.communicationSettings);
+  const body = await renderTemplate(input.kind, vars, settings.communicationSettings, ctx);
   return { body, waUrl: buildWhatsAppUrl(recipient, body) };
 }

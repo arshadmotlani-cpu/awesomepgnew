@@ -4,6 +4,7 @@ import { hasWorkforcePermission } from '@/src/workforce/permissions/presets';
 import type { WorkforcePermissionGrants } from '@/src/workforce/types';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { requireHairAuthPage } from '@/src/hair/lib/auth/guards';
+import { isWorkforceMembershipAuthEnabled } from '@/src/hair/lib/tenant/flags';
 
 export type StaffManagementAccess = {
   canView: true;
@@ -31,6 +32,21 @@ export async function requireStaffManagementAccess(): Promise<StaffManagementAcc
 
   if (!session?.workforceEmployeeId) {
     redirect('/appointments');
+  }
+
+  if (isWorkforceMembershipAuthEnabled()) {
+    const grants: WorkforcePermissionGrants = {
+      permissions: Array.isArray(session.admin.permissions) ? session.admin.permissions : [],
+      maxBackdateDays: null,
+    };
+    if (!hasWorkforcePermission(grants, 'staff.view')) {
+      redirect('/me');
+    }
+    return {
+      canView: true,
+      canAdd: hasWorkforcePermission(grants, 'staff.add'),
+      grants,
+    };
   }
 
   const dash = await getEmployeeDashboard(session.workforceEmployeeId, 'fyh_salon');

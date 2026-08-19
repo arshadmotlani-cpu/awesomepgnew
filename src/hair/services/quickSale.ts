@@ -15,6 +15,7 @@ import { computeGrandTotalFromParts, sumCartLines } from '@/src/hair/lib/invoice
 import type { QuickSaleLineInput } from '@/src/hair/services/invoices';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 export type PosCustomerHit = {
   id: string;
@@ -25,6 +26,7 @@ export type PosCustomerHit = {
 };
 
 export async function searchCustomersForPos(query: string, limit = 30, ctx?: TenantContext | null): Promise<PosCustomerHit[]> {
+  ctx = await resolveTenantContextForService(ctx);
   const q = query.trim();
   if (q.length < 1) return [];
   const pattern = `%${q}%`;
@@ -48,7 +50,7 @@ export async function searchCustomersForPos(query: string, limit = 30, ctx?: Ten
       walletBalancePaise: fyhCustomers.walletBalancePaise,
     })
     .from(fyhCustomers)
-    .where(and(eq(fyhCustomers.isActive, true), or(...conditions)))
+    .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.isActive, true), or(...conditions)))
     .orderBy(asc(fyhCustomers.fullName))
     .limit(limit);
 
@@ -88,6 +90,7 @@ export type QuickSaleCatalog = {
 };
 
 export async function loadQuickSaleCatalog(ctx?: TenantContext | null): Promise<QuickSaleCatalog> {
+  ctx = await resolveTenantContextForService(ctx);
   const [services, products, packages, memberships, staff] = await Promise.all([
     hairDb
       .select({
@@ -115,9 +118,9 @@ export async function loadQuickSaleCatalog(ctx?: TenantContext | null): Promise<
         pricePaise: fyhProducts.sellingPricePaise,
       })
       .from(fyhProducts)
-      .where(and(eq(fyhProducts.isActive, true), eq(fyhProducts.productType, 'retail')))
+      .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.isActive, true), eq(fyhProducts.productType, 'retail')))
       .orderBy(asc(fyhProducts.name)),
-    listPackagePlans().then((rows) =>
+    listPackagePlans(ctx).then((rows) =>
       rows.map((p) => ({
         id: p.id,
         name: p.name,
@@ -125,7 +128,7 @@ export async function loadQuickSaleCatalog(ctx?: TenantContext | null): Promise<
         description: null as string | null,
       })),
     ),
-    listMembershipPlans().then((rows) =>
+    listMembershipPlans(ctx).then((rows) =>
       rows.map((p) => ({
         id: p.id,
         name: p.name,
@@ -174,6 +177,7 @@ export async function previewQuickSaleTotals(
     tipPaise?: number;
     roundOffPaise?: number;
   }, ctx?: TenantContext | null): Promise<QuickSaleTotalsPreview> {
+  ctx = await resolveTenantContextForService(ctx);
   const { subtotalPaise, taxPaise } = sumCartLines(cartLines);
   const discountSubtotal = cartLines
     .filter((l) => l.kind === 'service' || l.kind === 'product')
@@ -181,7 +185,7 @@ export async function previewQuickSaleTotals(
       (sum, l) => sum + Math.max(0, l.unitPricePaise * l.quantity - l.lineDiscountPaise),
       0,
     );
-  const redemptions = await computeRedemptions(customerId, discountSubtotal, []);
+  const redemptions = await computeRedemptions(customerId, discountSubtotal, [], ctx);
   const membershipDiscountPaise = redemptions.membershipDiscountPaise;
   const walletRedeemPaise = Math.min(
     Math.max(0, opts?.walletRedeemPaise ?? 0),
@@ -207,18 +211,20 @@ export async function previewQuickSaleTotals(
 }
 
 export async function searchStaffForPos(query: string, limit = 20, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const q = query.trim();
   if (q.length < 1) return [];
   const pattern = `%${q}%`;
   return hairDb
     .select({ id: fyhStaff.id, fullName: fyhStaff.fullName, role: fyhStaff.role })
     .from(fyhStaff)
-    .where(and(eq(fyhStaff.isActive, true), ilike(fyhStaff.fullName, pattern)))
+    .where(and(orgFilter(fyhStaff.organizationId, ctx), eq(fyhStaff.isActive, true), ilike(fyhStaff.fullName, pattern)))
     .orderBy(asc(fyhStaff.fullName))
     .limit(limit);
 }
 
 export async function getCustomerWalletBalance(customerId: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const [row] = await hairDb
     .select({ walletBalancePaise: fyhCustomers.walletBalancePaise })
     .from(fyhCustomers)

@@ -41,6 +41,7 @@ import {
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 function taxOn(amountPaise: number, gstBps: number): number {
   return taxOnLine(amountPaise, gstBps);
@@ -96,6 +97,7 @@ export type QuickSaleLineInput = {
 };
 
 export async function listInvoices(limit = 50, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   return hairDb
     .select({
       id: fyhInvoices.id,
@@ -111,9 +113,13 @@ export async function listInvoices(limit = 50, ctx?: TenantContext | null) {
     .from(fyhInvoices)
     .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhInvoices.customerId))
     .where(
-      or(
-        ne(fyhInvoices.status, 'draft'),
-        ne(fyhInvoices.source, 'quick_sale'),
+      and(
+        orgFilter(fyhInvoices.organizationId, ctx),
+        locationFilter(fyhInvoices.locationId, ctx),
+        or(
+          ne(fyhInvoices.status, 'draft'),
+          ne(fyhInvoices.source, 'quick_sale'),
+        ),
       ),
     )
     .orderBy(desc(fyhInvoices.createdAt))
@@ -121,6 +127,7 @@ export async function listInvoices(limit = 50, ctx?: TenantContext | null) {
 }
 
 export async function getInvoiceDetail(invoiceId: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const [invoice] = await hairDb
     .select({
       invoice: fyhInvoices,
@@ -139,7 +146,7 @@ export async function getInvoiceDetail(invoiceId: string, ctx?: TenantContext | 
     .from(fyhInvoices)
     .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhInvoices.customerId))
     .leftJoin(fyhStaff, eq(fyhStaff.id, fyhInvoices.stylistId))
-    .leftJoin(fyhSettings, sql`true`)
+    .leftJoin(fyhSettings, eq(fyhSettings.organizationId, fyhInvoices.organizationId))
     .where(and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx), eq(fyhInvoices.id, invoiceId)))
     .limit(1);
   if (!invoice) return null;
@@ -163,9 +170,15 @@ function isPublicInvoiceVisible(invoice: typeof fyhInvoices.$inferSelect): boole
   return !(invoice.source === 'quick_sale' && invoice.status === 'draft');
 }
 
+export function isPublicInvoiceLookupAllowed(ctx: TenantContext | null): boolean {
+  return !isFyhSaasTenantEnabled() || !!ctx;
+}
+
 export async function getInvoiceDetailByNumber(rawInvoiceNumber: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const invoiceNumber = decodeURIComponent(rawInvoiceNumber).trim();
   if (!invoiceNumber) return null;
+  if (!isPublicInvoiceLookupAllowed(ctx)) return null;
 
   const [invoice] = await hairDb
     .select({
@@ -185,7 +198,7 @@ export async function getInvoiceDetailByNumber(rawInvoiceNumber: string, ctx?: T
     .from(fyhInvoices)
     .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhInvoices.customerId))
     .leftJoin(fyhStaff, eq(fyhStaff.id, fyhInvoices.stylistId))
-    .leftJoin(fyhSettings, sql`true`)
+    .leftJoin(fyhSettings, eq(fyhSettings.organizationId, fyhInvoices.organizationId))
     .where(and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx), eq(fyhInvoices.invoiceNumber, invoiceNumber)))
     .limit(1);
   if (!invoice || !isPublicInvoiceVisible(invoice.invoice)) return null;
@@ -208,6 +221,7 @@ export function buildPublicInvoicePrintHtml(detail: InvoiceDetail): string {
 }
 
 export async function nextInvoiceNumberForTx(tx: typeof hairDb, ctx?: TenantContext | null): Promise<string> {
+  ctx = await resolveTenantContextForService(ctx);
   return nextInvoiceNumber(tx, ctx);
 }
 
@@ -246,6 +260,7 @@ export async function computeRedemptions(
   serviceIds: string[] = [],
   ctx?: TenantContext | null,
 ) {
+  ctx = await resolveTenantContextForService(ctx);
   const today = new Date().toISOString().slice(0, 10);
   let membershipDiscountPaise = 0;
   const [membership] = await hairDb
@@ -258,6 +273,7 @@ export async function computeRedemptions(
     .innerJoin(fyhMembershipPlans, eq(fyhMembershipPlans.id, fyhCustomerMemberships.planId))
     .where(
       and(
+        orgFilter(fyhCustomerMemberships.organizationId, ctx),
         eq(fyhCustomerMemberships.customerId, customerId),
         eq(fyhCustomerMemberships.isActive, true),
         gte(fyhCustomerMemberships.expiresOn, today),
@@ -283,6 +299,7 @@ export async function computeRedemptions(
       .innerJoin(fyhPackagePlans, eq(fyhPackagePlans.id, fyhCustomerPackages.planId))
       .where(
         and(
+          orgFilter(fyhCustomerPackages.organizationId, ctx),
           eq(fyhCustomerPackages.customerId, customerId),
           eq(fyhCustomerPackages.isActive, true),
           eq(fyhCustomerPackages.isFrozen, false),
@@ -332,6 +349,7 @@ export async function createInvoiceFromAppointment(
   },
   ctx?: TenantContext | null,
 ) {
+  ctx = await resolveTenantContextForService(ctx);
   const [appt] = await hairDb
     .select({ invoiceId: fyhAppointments.invoiceId })
     .from(fyhAppointments)
@@ -366,6 +384,7 @@ export async function createInvoiceFromAppointment(
 
 export async function resolveQuickSaleDrafts(
   lines: QuickSaleLineInput[], ctx?: TenantContext | null): Promise<{ drafts: InvoiceLineDraft[]; meta: QuickSaleLineInput[] }> {
+  ctx = await resolveTenantContextForService(ctx);
   if (!lines.length) throw new Error('Add at least one item to the cart');
   const drafts: InvoiceLineDraft[] = [];
   for (const line of lines) {
@@ -534,6 +553,7 @@ export async function finalizeQuickSale(input: {
 }
 
 export async function getInvoiceGrandTotal(invoiceId: string, ctx?: TenantContext | null): Promise<number> {
+  ctx = await resolveTenantContextForService(ctx);
   const [row] = await hairDb
     .select({
       grandTotalPaise: fyhInvoices.grandTotalPaise,
@@ -552,6 +572,7 @@ export async function recordInvoicePayments(
   _createdByAdminId?: string | null,
   ctx?: TenantContext | null,
 ) {
+  ctx = await resolveTenantContextForService(ctx);
   await hairDb.transaction(async (tx) => {
     await tx.execute(sql`SELECT id FROM fyh_invoices WHERE id = ${invoiceId} FOR UPDATE`);
     const [invoice] = await tx
@@ -612,6 +633,7 @@ export async function recordInvoicePayments(
         throw new Error('Gift card payments are not available yet');
       }
       await tx.insert(fyhInvoicePayments).values({
+        ...tenantWriteDefaults(ctx),
         invoiceId,
         method: p.method,
         amountPaise: p.amountPaise,
@@ -710,7 +732,12 @@ async function applyLegacyCommissionFallback(
   const attributed = await db
     .select({ invoiceLineId: fyhInvoiceLineAttributions.invoiceLineId })
     .from(fyhInvoiceLineAttributions)
-    .where(inArray(fyhInvoiceLineAttributions.invoiceLineId, lineIds));
+    .where(
+      and(
+        orgFilter(fyhInvoiceLineAttributions.organizationId, ctx),
+        inArray(fyhInvoiceLineAttributions.invoiceLineId, lineIds),
+      ),
+    );
   const linesWithAttribution = new Set(attributed.map((a) => a.invoiceLineId));
 
   const periodDate = (invoice.paidAt ?? new Date()).toISOString().slice(0, 10);
@@ -744,6 +771,7 @@ async function applyLegacyCommissionFallback(
     }
     if (amountPaise > 0) {
       await db.insert(fyhCommissionEntries).values({
+        ...tenantWriteDefaults(ctx),
         staffId,
         invoiceLineId: line.id,
         amountPaise,
@@ -755,6 +783,7 @@ async function applyLegacyCommissionFallback(
 }
 
 export async function applyPaidSideEffects(db: typeof hairDb, invoiceId: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const [invoice] = await db.select().from(fyhInvoices).where(and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx), eq(fyhInvoices.id, invoiceId))).limit(1);
   if (!invoice) return;
   if (invoice.source === 'historical_import') return;
@@ -858,6 +887,7 @@ export async function applyPaidSideEffects(db: typeof hairDb, invoiceId: string,
   }
 
   await db.insert(fyhCustomerTimeline).values({
+    ...tenantOrgDefaults(ctx),
     customerId: invoice.customerId,
     eventType: 'bill',
     title: `Invoice ${invoice.invoiceNumber} paid`,
@@ -867,9 +897,14 @@ export async function applyPaidSideEffects(db: typeof hairDb, invoiceId: string,
 }
 
 export async function todayRevenuePaise(ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   let timezone = 'Asia/Kolkata';
   try {
-    const [settings] = await hairDb.select({ timezone: fyhSettings.timezone }).from(fyhSettings).limit(1);
+    const [settings] = await hairDb
+      .select({ timezone: fyhSettings.timezone })
+      .from(fyhSettings)
+      .where(orgFilter(fyhSettings.organizationId, ctx))
+      .limit(1);
     timezone = settings?.timezone || 'Asia/Kolkata';
   } catch {
     timezone = 'Asia/Kolkata';
@@ -880,6 +915,8 @@ export async function todayRevenuePaise(ctx?: TenantContext | null) {
     .from(fyhInvoices)
     .where(
       and(
+        orgFilter(fyhInvoices.organizationId, ctx),
+        locationFilter(fyhInvoices.locationId, ctx),
         eq(fyhInvoices.status, 'paid'),
         gte(fyhInvoices.paidAt, start),
         lt(fyhInvoices.paidAt, end),

@@ -13,6 +13,7 @@ import {
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 export function normalizePhone(phone: string): string {
   return phone.replace(/[^\d+]/g, '').trim();
@@ -20,6 +21,7 @@ export function normalizePhone(phone: string): string {
 
 /** Atomic salon customer code e.g. CL00000175 */
 export async function nextCustomerCode(tx: typeof hairDb = hairDb, ctx?: TenantContext | null): Promise<string> {
+  ctx = await resolveTenantContextForService(ctx);
   if (ctx?.organizationId && isFyhSaasTenantEnabled()) {
     const rows = await tx.execute<{ next_seq: number }>(sql`
       UPDATE fyh_org_customer_sequences
@@ -58,6 +60,7 @@ export type QuickCustomerInput = {
 };
 
 export async function createCustomerQuick(input: QuickCustomerInput, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const fullName = input.fullName.trim();
   const phone = normalizePhone(input.phone);
   if (!fullName) throw new Error('Customer name is required');
@@ -171,6 +174,7 @@ export async function findSimilarCustomers(
   },
   ctx?: TenantContext | null,
 ): Promise<SimilarCustomer[]> {
+  ctx = await resolveTenantContextForService(ctx);
   const phone = normalizePhone(input.phone);
   const email = input.email?.trim().toLowerCase() || null;
   const whatsapp = input.whatsapp ? normalizePhone(input.whatsapp) : null;
@@ -220,6 +224,7 @@ export async function findSimilarCustomers(
 }
 
 export async function listCustomers(opts?: { q?: string; includeInactive?: boolean }, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const q = opts?.q?.trim();
   const conditions = [orgFilter(fyhCustomers.organizationId, ctx)];
   if (!opts?.includeInactive) conditions.push(eq(fyhCustomers.isActive, true));
@@ -246,6 +251,7 @@ export async function listCustomers(opts?: { q?: string; includeInactive?: boole
 }
 
 export async function getCustomer(id: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const [row] = await hairDb
     .select()
     .from(fyhCustomers)
@@ -255,6 +261,7 @@ export async function getCustomer(id: string, ctx?: TenantContext | null) {
 }
 
 export async function countActiveCustomers(ctx?: TenantContext | null): Promise<number> {
+  ctx = await resolveTenantContextForService(ctx);
   const [row] = await hairDb
     .select({ total: count() })
     .from(fyhCustomers)
@@ -318,6 +325,7 @@ function customerValues(input: CustomerInput) {
 }
 
 export async function createCustomer(input: CustomerInput, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const values = customerValues(input);
   await assertPhoneUnique(values.phone, undefined, hairDb, ctx);
 
@@ -354,6 +362,7 @@ export async function createCustomer(input: CustomerInput, ctx?: TenantContext |
 }
 
 export async function updateCustomer(id: string, input: CustomerInput, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const values = customerValues(input);
   await assertPhoneUnique(values.phone, id, hairDb, ctx);
 
@@ -377,6 +386,7 @@ export async function updateCustomer(id: string, input: CustomerInput, ctx?: Ten
 }
 
 export async function updateCustomerPhoto(id: string, photoUrl: string | null, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const [row] = await hairDb
     .update(fyhCustomers)
     .set({ photoUrl, updatedAt: new Date() })
@@ -395,6 +405,7 @@ export async function updateCustomerPhoto(id: string, photoUrl: string | null, c
 }
 
 export async function archiveCustomer(id: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const [row] = await hairDb
     .update(fyhCustomers)
     .set({ isActive: false, updatedAt: new Date() })
@@ -405,6 +416,7 @@ export async function archiveCustomer(id: string, ctx?: TenantContext | null) {
 }
 
 export async function listCustomerNotes(customerId: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   return hairDb
     .select()
     .from(fyhCustomerNotes)
@@ -423,6 +435,7 @@ export async function addCustomerNote(
   },
   ctx?: TenantContext | null,
 ) {
+  ctx = await resolveTenantContextForService(ctx);
   const body = input.body.trim();
   if (!body) throw new Error('Note cannot be empty');
   const [note] = await hairDb
@@ -457,6 +470,7 @@ export async function addCustomerNote(
 }
 
 export async function listCustomerTimeline(customerId: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   return hairDb
     .select()
     .from(fyhCustomerTimeline)
@@ -467,6 +481,7 @@ export async function listCustomerTimeline(customerId: string, ctx?: TenantConte
 }
 
 export async function getCustomerProfile(id: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const customer = await getCustomer(id, ctx);
   if (!customer) return null;
   const [notes, timeline] = await Promise.all([

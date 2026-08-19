@@ -1,9 +1,11 @@
 import { ReportEmpty, ReportShell, ReportTable } from '@/src/hair/components/reports/ReportShell';
 import { packagesReport } from '@/src/hair/services/reportQueries';
 import { getSalonSettings } from '@/src/hair/services/settings';
+import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 
 export default async function CustomersPackagesReportPage() {
-  const settings = await getSalonSettings();
+  const ctx = await getTenantContextForPage();
+  const settings = await getSalonSettings(ctx);
   const tz = settings.timezone?.trim() || 'Asia/Kolkata';
   const rows = await packagesReport();
 

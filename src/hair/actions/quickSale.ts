@@ -14,6 +14,7 @@ import {
   saveQuickSaleHold,
 } from '@/src/hair/services/quickSaleHold';
 import type { QuickSalePosDraft } from '@/src/hair/db/schema/billing';
+import { getTenantContextForAction } from '@/src/hair/lib/tenant/getTenantContext';
 
 export type QuickSaleActionState = { error?: string; success?: string; invoiceId?: string };
 
@@ -69,6 +70,7 @@ export async function completeQuickSaleAction(input: {
 > {
   try {
     await requirePermission('action:billing.checkout');
+    const ctx = await getTenantContextForAction();
     const enriched = await enrichBasketWithRedemptions(input.basket);
     const result = await checkoutFromBasket({
       basket: enriched,
@@ -82,7 +84,7 @@ export async function completeQuickSaleAction(input: {
     if (input.source === 'appointment' || input.appointmentId) {
       revalidatePath('/appointments');
     }
-    const detail = await getInvoiceDetail(result.invoiceId);
+    const detail = await getInvoiceDetail(result.invoiceId, ctx);
     const { buildInvoicePrintHtml } = await import('@/src/hair/services/invoices');
     const printHtml = detail ? buildInvoicePrintHtml(detail) : undefined;
     return {
@@ -117,11 +119,12 @@ export async function completeQuickSaleLegacyAction(input: {
   );
   try {
     await requirePermission('action:billing.checkout');
+    const ctx = await getTenantContextForAction();
     const invoiceId = await finalizeQuickSale(input);
     revalidatePath('/billing');
     revalidatePath('/dashboard/revenue');
     revalidatePath('/quick-sale');
-    const detail = await getInvoiceDetail(invoiceId);
+    const detail = await getInvoiceDetail(invoiceId, ctx);
     const printHtml = detail ? buildInvoicePrintHtml(detail) : undefined;
     return { success: 'Sale complete', invoiceId, printHtml };
   } catch (e) {

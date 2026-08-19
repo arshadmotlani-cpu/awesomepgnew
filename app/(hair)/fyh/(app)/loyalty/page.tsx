@@ -13,11 +13,13 @@ import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { LoyaltyForms } from '@/src/hair/components/loyalty/LoyaltyForms';
 import { CommissionRows } from '@/src/hair/components/loyalty/CommissionRows';
 import { NotificationOutboxPanel } from '@/src/hair/components/loyalty/NotificationOutboxPanel';
+import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 
 export const dynamic = 'force-dynamic';
 
 /** Combined loyalty / bridal / commission / automations console. */
 export default async function LoyaltyHubPage() {
+  const ctx = await getTenantContextForPage();
   await ensureDefaultMembershipPlans().catch(() => []);
   await ensureNotificationTemplates().catch(() => undefined);
 
@@ -27,7 +29,7 @@ export default async function LoyaltyHubPage() {
     listBridalProfiles().catch(() => []),
     listCommissionSummary().catch(() => []),
     listOutbox(20).catch(() => []),
-    listCustomers().catch(() => []),
+    listCustomers(undefined, ctx).catch(() => []),
   ]);
 
   const customerOpts = customers.map((c) => ({ id: c.id, fullName: c.fullName, phone: c.phone }));

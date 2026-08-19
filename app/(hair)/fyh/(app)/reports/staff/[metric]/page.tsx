@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { getStaffPerformanceLeaderboard } from '@/src/hair/services/staffPerformance';
 import { getSalonSettings } from '@/src/hair/services/settings';
+import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 import { salonDayBounds, salonMonthStartUtc } from '@/src/hair/lib/salonTime';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import type { FyhRevenueMetric } from '@/src/hair/db/schema';
@@ -19,7 +20,8 @@ export default async function StaffPerformanceReportPage({ params }: Props) {
   const cfg = METRICS[key];
   if (!cfg) notFound();
 
-  const settings = await getSalonSettings();
+  const ctx = await getTenantContextForPage();
+  const settings = await getSalonSettings(ctx);
   const tz = settings.timezone?.trim() || 'Asia/Kolkata';
   const { end } = salonDayBounds(tz);
   const from = salonMonthStartUtc(tz);

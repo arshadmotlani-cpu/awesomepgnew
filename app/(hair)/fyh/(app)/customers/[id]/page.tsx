@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { CustomerProfile } from '@/src/hair/components/customers/CustomerProfile';
 import { getCustomerProfile } from '@/src/hair/services/customers';
+import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 import {
   getCustomerFinancialSummary,
   getUnifiedCustomerTimeline,
@@ -12,7 +13,8 @@ type Props = {
 };
 
 async function CustomerAccountData({ id }: { id: string }) {
-  const profile = await getCustomerProfile(id);
+  const ctx = await getTenantContextForPage();
+  const profile = await getCustomerProfile(id, ctx);
   if (!profile) notFound();
 
   const [unifiedTimeline, financialSummary] = await Promise.all([

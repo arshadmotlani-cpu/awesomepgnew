@@ -17,6 +17,7 @@ import {
   recordInvoicePayments,
   type PaymentSplitInput,
 } from '@/src/hair/services/invoices';
+import { getTenantContextForAction } from '@/src/hair/lib/tenant/getTenantContext';
 
 export type ApptActionState = { error?: string; success?: string; id?: string; duePaise?: number };
 
@@ -159,7 +160,8 @@ export async function payInvoiceAction(
 ): Promise<ApptActionState> {
   try {
     const session = await requirePermission('action:billing.checkout');
-    await recordInvoicePayments(invoiceId, payments, session.id);
+    const ctx = await getTenantContextForAction();
+    await recordInvoicePayments(invoiceId, payments, session.id, ctx);
     revalidatePath('/billing');
     revalidatePath('/appointments');
     revalidatePath('/dashboard/revenue');

@@ -1,10 +1,12 @@
 import { paidRevenueBetween } from '@/src/hair/services/reports';
 import { getSalonSettings } from '@/src/hair/services/settings';
+import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 import { salonDayBounds, salonMonthStartUtc } from '@/src/hair/lib/salonTime';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 
 export default async function RevenueMonthlyPage() {
-  const settings = await getSalonSettings();
+  const ctx = await getTenantContextForPage();
+  const settings = await getSalonSettings(ctx);
   const tz = settings.timezone?.trim() || 'Asia/Kolkata';
   const { end } = salonDayBounds(tz);
   const monthStart = salonMonthStartUtc(tz);

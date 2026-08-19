@@ -1,6 +1,8 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import { fyhStaff } from '@/src/hair/db/schema';
+import { orgFilter } from '@/src/hair/lib/tenant/filters';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import {
   listEmployeesForEngine,
   type EmployeeWithMembership,
@@ -8,7 +10,9 @@ import {
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 
 /** Bookable roster for appointments / POS — Workforce when enabled. */
-export async function listBookableStaffForSalon(): Promise<
+export async function listBookableStaffForSalon(
+  ctx?: TenantContext | null,
+): Promise<
   Array<{ id: string; fullName: string; phone: string | null; photoUrl: string | null; isActive: boolean }>
 > {
   if (isWorkforceEngineEnabled()) {
@@ -16,7 +20,11 @@ export async function listBookableStaffForSalon(): Promise<
       activeOnly: true,
       receiveBookingsOnly: true,
     });
-    return rows.map((r) => ({
+    const scoped =
+      ctx?.organizationId
+        ? rows.filter((r) => r.employee.organizationId === ctx.organizationId)
+        : rows;
+    return scoped.map((r) => ({
       id: r.employee.id,
       fullName: r.employee.fullName,
       phone: r.employee.mobile,
@@ -34,7 +42,7 @@ export async function listBookableStaffForSalon(): Promise<
       isActive: fyhStaff.isActive,
     })
     .from(fyhStaff)
-    .where(eq(fyhStaff.isActive, true));
+    .where(and(eq(fyhStaff.isActive, true), orgFilter(fyhStaff.organizationId, ctx)));
   return rows;
 }
 

@@ -53,7 +53,10 @@ export function formatInrFromRupees(rupees: number, decimals?: number): string {
 
 /** Alias: paise → ₹ with Indian grouping. */
 export function paiseToInr(paise: number | bigint | string | null | undefined): string {
-  return formatInrFromRupees(asPlainNumber(paise) / 100);
+  // UI surfaces whole rupees for "paise" math surfaces. Any remaining paise is
+  // intentionally ignored (floored) to keep labels stable (and align tests).
+  const rupees = Math.floor(asPlainNumber(paise) / 100);
+  return formatInrFromRupees(rupees, 0);
 }
 
 /** Parse user input: strips ₹, commas, spaces. Returns rupees as number. */

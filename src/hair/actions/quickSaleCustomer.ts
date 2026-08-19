@@ -7,6 +7,7 @@ import {
   hasPermission,
 } from '@/src/hair/lib/auth/permissions';
 import { createCustomer, createCustomerQuick } from '@/src/hair/services/customers';
+import { getTenantContextForAction } from '@/src/hair/lib/tenant/getTenantContext';
 
 export type SalonCustomerCreateResult =
   | {
@@ -59,6 +60,7 @@ export async function createSalonCustomerFromForm(
 ): Promise<SalonCustomerCreateResult> {
   try {
     await requireSalonCustomerCreatePermission();
+    const ctx = await getTenantContextForAction();
 
     const fullName = String(formData.get('fullName') ?? '').trim();
     const phone = String(formData.get('phone') ?? '').trim();
@@ -85,14 +87,14 @@ export async function createSalonCustomerFromForm(
         notes: String(formData.get('notes') ?? '').trim() || null,
         source: 'walk_in',
         forceCreate: true,
-      });
+      }, ctx);
     } else {
       row = await createCustomerQuick({
         fullName,
         phone,
         gender,
         createdVia: label,
-      });
+      }, ctx);
     }
 
     revalidatePath('/customers');

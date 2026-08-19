@@ -15,8 +15,9 @@ import {
 import { getSalonSettings } from '@/src/hair/services/settings';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
-async function paidRevenueBetween(from: Date, to: Date) {
+async function paidRevenueBetween(from: Date, to: Date, ctx?: TenantContext | null) {
   const rows = await hairDb
     .select({
       total: sql<number>`coalesce(sum(${fyhInvoices.grandTotalPaise}), 0)::bigint`,
@@ -26,6 +27,8 @@ async function paidRevenueBetween(from: Date, to: Date) {
     .from(fyhInvoices)
     .where(
       and(
+        orgFilter(fyhInvoices.organizationId, ctx),
+        locationFilter(fyhInvoices.locationId, ctx),
         eq(fyhInvoices.status, 'paid'),
         gte(fyhInvoices.paidAt, from),
         lt(fyhInvoices.paidAt, to),
@@ -38,7 +41,7 @@ async function paidRevenueBetween(from: Date, to: Date) {
   };
 }
 
-async function topProductsBetween(from: Date, to: Date, limit = 5) {
+async function topProductsBetween(from: Date, to: Date, limit = 5, ctx?: TenantContext | null) {
   const rows = await hairDb
     .select({
       productId: fyhInvoiceLines.productId,
@@ -51,6 +54,8 @@ async function topProductsBetween(from: Date, to: Date, limit = 5) {
     .leftJoin(fyhProducts, eq(fyhProducts.id, fyhInvoiceLines.productId))
     .where(
       and(
+        orgFilter(fyhInvoices.organizationId, ctx),
+        locationFilter(fyhInvoices.locationId, ctx),
         eq(fyhInvoices.status, 'paid'),
         eq(fyhInvoiceLineAttributions.revenueMetric, 'product'),
         gte(fyhInvoices.paidAt, from),
@@ -70,7 +75,7 @@ async function topProductsBetween(from: Date, to: Date, limit = 5) {
     }));
 }
 
-async function topServicesBetween(from: Date, to: Date, limit = 5) {
+async function topServicesBetween(from: Date, to: Date, limit = 5, ctx?: TenantContext | null) {
   const rows = await hairDb
     .select({
       serviceId: fyhInvoiceLines.serviceId,
@@ -83,6 +88,8 @@ async function topServicesBetween(from: Date, to: Date, limit = 5) {
     .leftJoin(fyhServices, eq(fyhServices.id, fyhInvoiceLines.serviceId))
     .where(
       and(
+        orgFilter(fyhInvoices.organizationId, ctx),
+        locationFilter(fyhInvoices.locationId, ctx),
         eq(fyhInvoices.status, 'paid'),
         eq(fyhInvoiceLineAttributions.revenueMetric, 'service'),
         gte(fyhInvoices.paidAt, from),
@@ -102,8 +109,8 @@ async function topServicesBetween(from: Date, to: Date, limit = 5) {
     }));
 }
 
-async function staffRevenueBetween(from: Date, to: Date, limit = 5) {
-  return getStaffTotalLeaderboard({ from, to }, limit);
+async function staffRevenueBetween(from: Date, to: Date, limit = 5, ctx?: TenantContext | null) {
+  return getStaffTotalLeaderboard({ from, to }, limit, ctx);
 }
 
 export type ReportsSnapshot = {
@@ -120,7 +127,8 @@ export type ReportsSnapshot = {
 };
 
 export async function getReportsSnapshot(ctx?: TenantContext | null): Promise<ReportsSnapshot> {
-  const settings = await getSalonSettings();
+  ctx = await resolveTenantContextForService(ctx);
+  const settings = await getSalonSettings(ctx);
   const timezone = settings.timezone?.trim() || 'Asia/Kolkata';
   const { start: todayStart, end: tomorrow } = salonDayBounds(timezone);
   const weekStart = salonWeekStartUtc(timezone);
@@ -128,18 +136,18 @@ export async function getReportsSnapshot(ctx?: TenantContext | null): Promise<Re
 
   try {
     const [today, week, month] = await Promise.all([
-      paidRevenueBetween(todayStart, tomorrow),
-      paidRevenueBetween(weekStart, tomorrow),
-      paidRevenueBetween(monthStart, tomorrow),
+      paidRevenueBetween(todayStart, tomorrow, ctx),
+      paidRevenueBetween(weekStart, tomorrow, ctx),
+      paidRevenueBetween(monthStart, tomorrow, ctx),
     ]);
     const [topServicesThisMonth, topStaffThisMonth] = await Promise.all([
-      topServicesBetween(monthStart, tomorrow),
-      staffRevenueBetween(monthStart, tomorrow),
+      topServicesBetween(monthStart, tomorrow, 5, ctx),
+      staffRevenueBetween(monthStart, tomorrow, 5, ctx),
     ]);
 
     let todayRevenue = today.revenuePaise;
     try {
-      todayRevenue = await todayRevenuePaise();
+      todayRevenue = await todayRevenuePaise(ctx);
     } catch {
       // keep aggregate
     }

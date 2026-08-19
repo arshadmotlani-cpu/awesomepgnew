@@ -10,6 +10,7 @@ import { listCustomers } from '@/src/hair/services/customers';
 import { listBookableServices } from '@/src/hair/services/salonServices';
 import { listBookableStaff } from '@/src/hair/services/staff';
 import { getSalonSettings } from '@/src/hair/services/settings';
+import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 import { parseHm, salonDayOfWeek, zonedLocalToUtc } from '@/src/hair/lib/salonTime';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { resolvePermissions } from '@/src/workforce/brains/employeeBrain';
@@ -24,7 +25,8 @@ type Props = {
 
 export default async function AppointmentsPage({ searchParams }: Props) {
   const sp = await searchParams;
-  const settings = await getSalonSettings();
+  const ctx = await getTenantContextForPage();
+  const settings = await getSalonSettings(ctx);
   const timezone = settings.timezone || 'Asia/Kolkata';
 
   const dateRaw = Array.isArray(sp.date) ? sp.date[0] : sp.date;
@@ -67,7 +69,7 @@ export default async function AppointmentsPage({ searchParams }: Props) {
     listAppointmentsInRange(rangeStart, rangeEnd, { staffId: staffScopeId }),
     listBookableStaff(),
     listResources(),
-    listCustomers(),
+    listCustomers(undefined, ctx),
     listBookableServices(),
   ]);
 

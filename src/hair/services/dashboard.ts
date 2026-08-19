@@ -15,6 +15,7 @@ import { getSalonSettings } from '@/src/hair/services/settings';
 import { salonDayBounds, salonDayOfWeek } from '@/src/hair/lib/salonTime';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 export type DashboardScheduleItem = {
   id: string;
@@ -76,16 +77,17 @@ function formatWhen(d: Date, timezone: string) {
 }
 
 export async function getDashboardSnapshot(ctx?: TenantContext | null): Promise<DashboardSnapshot> {
+  ctx = await resolveTenantContextForService(ctx);
   let totalCustomers = 0;
   try {
-    totalCustomers = await countActiveCustomers();
+    totalCustomers = await countActiveCustomers(ctx);
   } catch {
     totalCustomers = 0;
   }
 
   let timezone = 'Asia/Kolkata';
   try {
-    const settings = await getSalonSettings();
+    const settings = await getSalonSettings(ctx);
     timezone = settings.timezone || 'Asia/Kolkata';
   } catch {
     timezone = 'Asia/Kolkata';
@@ -105,7 +107,7 @@ export async function getDashboardSnapshot(ctx?: TenantContext | null): Promise<
   let recentBills: DashboardBillItem[] = [];
 
   try {
-    todayRevenuePaiseValue = await todayRevenuePaise();
+    todayRevenuePaiseValue = await todayRevenuePaise(ctx);
   } catch {
     todayRevenuePaiseValue = 0;
   }
@@ -116,6 +118,8 @@ export async function getDashboardSnapshot(ctx?: TenantContext | null): Promise<
       .from(fyhAppointments)
       .where(
         and(
+          orgFilter(fyhAppointments.organizationId, ctx),
+          locationFilter(fyhAppointments.locationId, ctx),
           gte(fyhAppointments.startAt, start),
           lt(fyhAppointments.startAt, end),
           notInArray(fyhAppointments.status, [...TERMINAL]),
@@ -132,6 +136,8 @@ export async function getDashboardSnapshot(ctx?: TenantContext | null): Promise<
       .from(fyhAppointments)
       .where(
         and(
+          orgFilter(fyhAppointments.organizationId, ctx),
+          locationFilter(fyhAppointments.locationId, ctx),
           gte(fyhAppointments.startAt, start),
           lt(fyhAppointments.startAt, end),
           sql`${fyhAppointments.status} in ('arrived', 'in_service')`,
@@ -146,7 +152,7 @@ export async function getDashboardSnapshot(ctx?: TenantContext | null): Promise<
     const [row] = await hairDb
       .select({ total: count() })
       .from(fyhInvoices)
-      .where(sql`${fyhInvoices.status} in ('unpaid', 'partial')`);
+      .where(and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx), sql`${fyhInvoices.status} in ('unpaid', 'partial')`));
     pendingPayments = Number(row?.total ?? 0);
   } catch {
     pendingPayments = 0;
@@ -169,6 +175,8 @@ export async function getDashboardSnapshot(ctx?: TenantContext | null): Promise<
       )
       .where(
         and(
+          orgFilter(fyhAppointments.organizationId, ctx),
+          locationFilter(fyhAppointments.locationId, ctx),
           eq(fyhStaff.isActive, true),
           gte(fyhAppointments.startAt, start),
           lt(fyhAppointments.startAt, end),
@@ -187,6 +195,7 @@ export async function getDashboardSnapshot(ctx?: TenantContext | null): Promise<
       .from(fyhProducts)
       .where(
         and(
+          orgFilter(fyhProducts.organizationId, ctx),
           eq(fyhProducts.isActive, true),
           sql`${fyhProducts.stockQty} <= ${fyhProducts.minStock}`,
           sql`${fyhProducts.minStock} > 0`,
@@ -209,7 +218,7 @@ export async function getDashboardSnapshot(ctx?: TenantContext | null): Promise<
       .from(fyhAppointments)
       .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhAppointments.customerId))
       .innerJoin(fyhStaff, eq(fyhStaff.id, fyhAppointments.staffId))
-      .where(and(gte(fyhAppointments.startAt, start), lt(fyhAppointments.startAt, end)))
+      .where(and(orgFilter(fyhAppointments.organizationId, ctx), locationFilter(fyhAppointments.locationId, ctx), gte(fyhAppointments.startAt, start), lt(fyhAppointments.startAt, end)))
       .orderBy(asc(fyhAppointments.startAt))
       .limit(20);
 
@@ -244,6 +253,8 @@ export async function getDashboardSnapshot(ctx?: TenantContext | null): Promise<
       .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhAppointments.customerId))
       .where(
         and(
+          orgFilter(fyhAppointments.organizationId, ctx),
+          locationFilter(fyhAppointments.locationId, ctx),
           gte(fyhAppointments.startAt, now),
           notInArray(fyhAppointments.status, [...TERMINAL]),
         ),
@@ -280,6 +291,7 @@ export async function getDashboardSnapshot(ctx?: TenantContext | null): Promise<
       })
       .from(fyhInvoices)
       .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhInvoices.customerId))
+      .where(and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx)))
       .orderBy(desc(fyhInvoices.createdAt))
       .limit(8);
 

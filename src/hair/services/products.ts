@@ -7,6 +7,7 @@ import { parseProductType } from '@/src/hair/lib/productTypes';
 import { applyMovement } from '@/src/hair/services/stock';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 function toPaise(rupees: number): number {
   return Math.round(Number(rupees || 0) * 100);
@@ -46,6 +47,7 @@ export async function listProducts(
   },
   ctx?: TenantContext | null,
 ): Promise<ProductWithBrand[]> {
+  ctx = await resolveTenantContextForService(ctx);
   const conditions = [orgFilter(fyhProducts.organizationId, ctx)];
   const status = opts?.status ?? 'active';
   if (status === 'active') conditions.push(eq(fyhProducts.isActive, true));
@@ -73,6 +75,7 @@ export async function listProducts(
 
 /** Professional products for service consumable kits. */
 export async function listConsumableProducts(ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   return hairDb
     .select()
     .from(fyhProducts)
@@ -87,6 +90,7 @@ export async function listConsumableProducts(ctx?: TenantContext | null) {
 }
 
 export async function getProduct(id: string, ctx?: TenantContext | null): Promise<ProductWithBrand | null> {
+  ctx = await resolveTenantContextForService(ctx);
   const [row] = await hairDb
     .select({
       product: fyhProducts,
@@ -100,6 +104,7 @@ export async function getProduct(id: string, ctx?: TenantContext | null): Promis
 }
 
 export async function createProduct(input: ProductInput, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const name = validateProductInput(input);
   const openingQty = input.stockQty ?? 0;
   const productType = parseProductType(input.productType);
@@ -142,6 +147,7 @@ export async function createProduct(input: ProductInput, ctx?: TenantContext | n
 }
 
 export async function updateProduct(id: string, input: ProductInput, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const name = validateProductInput(input);
   const isActive = input.isActive !== false;
   const productType = parseProductType(input.productType);
@@ -193,6 +199,7 @@ export async function updateProduct(id: string, input: ProductInput, ctx?: Tenan
 }
 
 export async function archiveProduct(id: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const [row] = await hairDb
     .update(fyhProducts)
     .set({ isActive: false, archivedAt: new Date(), updatedAt: new Date() })
@@ -203,6 +210,7 @@ export async function archiveProduct(id: string, ctx?: TenantContext | null) {
 }
 
 export async function deleteProduct(id: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const existing = await getProduct(id, ctx);
   if (!existing) throw new Error('Product not found');
   await hairDb

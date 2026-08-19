@@ -67,6 +67,7 @@ export type OrganizationMembershipSummary = {
   organizationId: string;
   organizationName: string;
   organizationSlug: string;
+  /** Membership access role (owner/co_owner/manager/biller/staff) */
   role: string;
   locationNames: string[];
 };
@@ -82,7 +83,7 @@ export async function listOrganizationMembershipsForUser(
         organizationId: platformMemberships.organizationId,
         organizationName: platformOrganizations.name,
         organizationSlug: platformOrganizations.slug,
-        role: platformMemberships.role,
+        role: platformMemberships.accessRole,
         membershipId: platformMemberships.id,
       })
       .from(platformMemberships)

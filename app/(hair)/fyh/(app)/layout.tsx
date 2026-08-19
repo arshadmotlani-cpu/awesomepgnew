@@ -3,7 +3,9 @@ import { HairSidebar } from '@/src/hair/components/HairSidebar';
 import { HairTenantContextBar } from '@/src/hair/components/HairTenantContextBar';
 import { requireHairAuthPage } from '@/src/hair/lib/auth/guards';
 import { requirePagePermissionForPath } from '@/src/hair/lib/auth/permissions';
-import { filterNavByPermissions, visibleHairNavEntries } from '@/src/hair/lib/nav';
+import { canViewTeamManagement } from '@/src/hair/lib/auth/teamManagementAccess';
+import { filterNavByPermissions, visibleHairNavEntries, type HairNavEntry } from '@/src/hair/lib/nav';
+import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
 import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 import { ensureSalonOwnerProvider } from '@/src/workforce/services/systemOwnerProvider';
@@ -16,7 +18,28 @@ export default async function HairAppLayout({ children }: { children: React.Reac
     ? await requirePagePermissionForPath(pathname)
     : await requireHairAuthPage();
   void getTenantContextForPage();
-  const navEntries = filterNavByPermissions(admin, visibleHairNavEntries());
+  let navEntries = filterNavByPermissions(admin, visibleHairNavEntries());
+  if (isFyhSaasTenantEnabled() && (await canViewTeamManagement())) {
+    const teamEntry: HairNavEntry = {
+      type: 'link',
+      href: '/team',
+      label: 'Team',
+      iconKey: 'users',
+      permission: 'page:dashboard',
+    };
+    const staffIndex = navEntries.findIndex(
+      (entry) => entry.type === 'link' && entry.href === '/staff',
+    );
+    if (staffIndex >= 0) {
+      navEntries = [
+        ...navEntries.slice(0, staffIndex + 1),
+        teamEntry,
+        ...navEntries.slice(staffIndex + 1),
+      ];
+    } else {
+      navEntries = [...navEntries, teamEntry];
+    }
+  }
 
   if (isWorkforceEngineEnabled()) {
     void ensureSalonOwnerProvider('fyh_salon').catch(() => {

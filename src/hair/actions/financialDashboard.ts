@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/src/hair/lib/auth/permissions';
 import { updateDailyClosingOpeningFloatPaise } from '@/src/hair/services/settings';
+import { getTenantContextForAction } from '@/src/hair/lib/tenant/getTenantContext';
 
 export type DailyClosingActionState = { error?: string; success?: string };
 
@@ -23,8 +24,9 @@ export async function saveDailyClosingOpeningFloatAction(
 ): Promise<DailyClosingActionState> {
   try {
     await requirePermission('page:dashboard');
+    const ctx = await getTenantContextForAction();
     const paise = parseOpeningFloatPaise(String(formData.get('openingFloatRupees') ?? ''));
-    await updateDailyClosingOpeningFloatPaise(paise);
+    await updateDailyClosingOpeningFloatPaise(paise, ctx);
     revalidatePath('/dashboard/revenue');
     return { success: 'Opening float saved for tomorrow' };
   } catch (e) {
@@ -39,8 +41,9 @@ export async function closeDailyRegisterAction(
 ): Promise<DailyClosingActionState> {
   try {
     await requirePermission('page:dashboard');
+    const ctx = await getTenantContextForAction();
     const paise = parseOpeningFloatPaise(String(formData.get('closingCashRupees') ?? ''));
-    await updateDailyClosingOpeningFloatPaise(paise);
+    await updateDailyClosingOpeningFloatPaise(paise, ctx);
     revalidatePath('/dashboard/revenue');
     return { success: 'Day closed · opening float updated for tomorrow' };
   } catch (e) {

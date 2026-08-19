@@ -153,6 +153,7 @@ export function pagePermissionForPath(pathname: string): HairPagePermission | nu
     // Workforce pages self-guard with staff.* / finance.* — do not require settings.manage
     // (managers have staff admin without settings).
     ['/staff', 'page:dashboard'],
+    ['/team', 'page:dashboard'],
     ['/services', 'page:settings'],
     ['/products', 'page:settings'],
     ['/packages', 'page:settings'],

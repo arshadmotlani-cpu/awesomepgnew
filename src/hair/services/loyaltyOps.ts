@@ -220,15 +220,19 @@ export async function ensureNotificationTemplates(ctx?: TenantContext | null) {
   }
 }
 
-export async function enqueueNotification(input: {
-  kind: FyhNotificationKind;
-  recipient: string;
-  body: string;
-  subject?: string;
-}) {
+export async function enqueueNotification(
+  input: {
+    kind: FyhNotificationKind;
+    recipient: string;
+    body: string;
+    subject?: string;
+  },
+  ctx?: TenantContext | null,
+) {
   const [row] = await hairDb
     .insert(fyhNotificationOutbox)
     .values({
+      ...tenantOrgDefaults(ctx),
       kind: input.kind,
       recipient: input.recipient,
       body: input.body,

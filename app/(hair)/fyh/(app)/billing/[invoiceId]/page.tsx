@@ -7,6 +7,7 @@ import { InternalInvoiceActions } from '@/src/hair/components/billing/InternalIn
 import { Button } from '@/src/hair/components/ui/button';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { getInvoiceDetail } from '@/src/hair/services/invoices';
+import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 
 type Props = {
   params: Promise<{ invoiceId: string }>;
@@ -14,7 +15,8 @@ type Props = {
 
 export default async function InvoiceDetailPage({ params }: Props) {
   const { invoiceId } = await params;
-  const detail = await getInvoiceDetail(invoiceId);
+  const ctx = await getTenantContextForPage();
+  const detail = await getInvoiceDetail(invoiceId, ctx);
   if (!detail) notFound();
 
   const { invoice, customerName, customerPhone, stylistName, lines, payments, walletBalancePaise } =

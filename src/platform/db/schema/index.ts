@@ -25,18 +25,23 @@ export type PlatformLocationStatus = (typeof PLATFORM_LOCATION_STATUSES)[number]
 export const PLATFORM_MEMBERSHIP_ROLES = [
   'owner',
   'co_owner',
-  'member',
+  'manager',
+  'biller',
   'staff',
 ] as const;
 export type PlatformMembershipRole = (typeof PLATFORM_MEMBERSHIP_ROLES)[number];
 
 export const PLATFORM_SUBSCRIPTION_STATUSES = [
+  'trial',
   'active',
-  'trialing',
   'past_due',
+  'suspended',
   'cancelled',
 ] as const;
 export type PlatformSubscriptionStatus = (typeof PLATFORM_SUBSCRIPTION_STATUSES)[number];
+
+export const PLATFORM_INVITATION_STATUSES = ['pending', 'accepted', 'revoked', 'expired'] as const;
+export type PlatformInvitationStatus = (typeof PLATFORM_INVITATION_STATUSES)[number];
 
 export const platformUsers = platformSchema.table(
   'users',
@@ -124,7 +129,8 @@ export const platformMemberships = platformSchema.table(
     organizationId: uuid('organization_id')
       .notNull()
       .references(() => platformOrganizations.id, { onDelete: 'restrict' }),
-    role: text('role').$type<PlatformMembershipRole>().notNull().default('member'),
+    role: text('role').$type<PlatformMembershipRole>().notNull().default('staff'),
+    accessRole: text('access_role').$type<PlatformMembershipRole>().notNull().default('staff'),
     isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -191,5 +197,53 @@ export const platformOrganizationEntitlements = platformSchema.table(
   (t) => [
     index('platform_org_entitlements_org_idx').on(t.organizationId),
     uniqueIndex('platform_org_entitlements_org_feature_uidx').on(t.organizationId, t.featureKey),
+  ],
+);
+
+export const platformInvitations = platformSchema.table(
+  'invitations',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    email: text('email').notNull(),
+    token: text('token').notNull(),
+    organizationId: uuid('organization_id').references(() => platformOrganizations.id, {
+      onDelete: 'cascade',
+    }),
+    invitedByUserId: uuid('invited_by_user_id')
+      .notNull()
+      .references(() => platformUsers.id, { onDelete: 'restrict' }),
+    accessRole: text('access_role').$type<PlatformMembershipRole>().notNull(),
+    locationIds: jsonb('location_ids').$type<string[]>().notNull().default([]),
+    status: text('status').$type<PlatformInvitationStatus>().notNull().default('pending'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('platform_invitations_token_uidx').on(t.token),
+    index('platform_invitations_email_idx').on(t.email),
+    index('platform_invitations_org_idx').on(t.organizationId),
+  ],
+);
+
+export const platformSubscriptionEvents = platformSchema.table(
+  'subscription_events',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => platformOrganizations.id, { onDelete: 'cascade' }),
+    subscriptionId: uuid('subscription_id').references(() => platformOrganizationSubscriptions.id, {
+      onDelete: 'cascade',
+    }),
+    actorUserId: uuid('actor_user_id').references(() => platformUsers.id, { onDelete: 'set null' }),
+    eventType: text('event_type').notNull(),
+    detail: text('detail'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('platform_subscription_events_org_idx').on(t.organizationId, t.createdAt),
+    index('platform_subscription_events_subscription_idx').on(t.subscriptionId, t.createdAt),
   ],
 );

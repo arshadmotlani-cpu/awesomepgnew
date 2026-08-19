@@ -4,6 +4,7 @@ import { fyhVendors } from '@/src/hair/db/schema';
 import { detachBrandsFromVendor, syncVendorBrands } from '@/src/hair/services/brands';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 export type VendorInput = {
   name: string;
@@ -22,6 +23,7 @@ export type VendorInput = {
 };
 
 export async function listVendors(opts?: { q?: string; status?: 'active' | 'inactive' | 'all' }, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const conditions = [orgFilter(fyhVendors.organizationId, ctx)];
   const status = opts?.status ?? 'active';
   if (status === 'active') conditions.push(eq(fyhVendors.isActive, true));
@@ -48,6 +50,7 @@ export async function listVendors(opts?: { q?: string; status?: 'active' | 'inac
 }
 
 export async function getVendor(id: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const [row] = await hairDb
     .select()
     .from(fyhVendors)
@@ -57,6 +60,7 @@ export async function getVendor(id: string, ctx?: TenantContext | null) {
 }
 
 export async function createVendor(input: VendorInput, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const name = input.name.trim();
   if (!name) throw new Error('Vendor name is required');
   const [row] = await hairDb
@@ -84,6 +88,7 @@ export async function createVendor(input: VendorInput, ctx?: TenantContext | nul
 }
 
 export async function updateVendor(id: string, input: VendorInput, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const name = input.name.trim();
   if (!name) throw new Error('Vendor name is required');
   const [row] = await hairDb
@@ -112,6 +117,7 @@ export async function updateVendor(id: string, input: VendorInput, ctx?: TenantC
 }
 
 export async function archiveVendor(id: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const [row] = await hairDb
     .update(fyhVendors)
     .set({ isActive: false })

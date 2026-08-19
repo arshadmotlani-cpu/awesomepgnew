@@ -5,6 +5,7 @@ import { rowsToCsv, paiseToCsvRupees } from '@/src/hair/lib/export/csv';
 import { getReportsSnapshot } from '@/src/hair/services/reports';
 import { salonDayBounds, salonMonthStartUtc } from '@/src/hair/lib/salonTime';
 import { getSalonSettings } from '@/src/hair/services/settings';
+import { getTenantContextForAction } from '@/src/hair/lib/tenant/getTenantContext';
 import type {
   AdvanceRow,
   DiscountReportRow,
@@ -49,7 +50,8 @@ function escapeCsv(value: string | number): string {
 }
 
 async function defaultReportRange() {
-  const settings = await getSalonSettings();
+  const ctx = await getTenantContextForAction();
+  const settings = await getSalonSettings(ctx);
   const tz = settings.timezone?.trim() || 'Asia/Kolkata';
   const { end } = salonDayBounds(tz);
   return { from: salonMonthStartUtc(tz), to: end, tz };

@@ -20,6 +20,7 @@ import {
 } from '@/src/hair/services/settings';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 export type CollectionsByMethod = {
   cash: number;
@@ -117,9 +118,9 @@ export function collectionsVsSalesFromParts(
   };
 }
 
-async function aggregateOutstandingDuePaise(): Promise<number> {
+async function aggregateOutstandingDuePaise(ctx?: TenantContext | null): Promise<number> {
   try {
-    const rows = await receivablesReport();
+    const rows = await receivablesReport(undefined, ctx);
     const total = rows.reduce((sum, r) => sum + r.balancePaise, 0);
     if (total > 0) return total;
   } catch {
@@ -132,16 +133,16 @@ async function aggregateOutstandingDuePaise(): Promise<number> {
         total: sql<number>`coalesce(sum(${fyhInvoices.grandTotalPaise} - ${fyhInvoices.amountPaidPaise}), 0)::bigint`,
       })
       .from(fyhInvoices)
-      .where(sql`${fyhInvoices.status} in ('unpaid', 'partial')`);
+      .where(and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx), sql`${fyhInvoices.status} in ('unpaid', 'partial')`));
     return Math.max(0, Number(row?.total ?? 0));
   } catch {
     return 0;
   }
 }
 
-async function aggregateAdvanceLiabilityPaise(): Promise<number> {
+async function aggregateAdvanceLiabilityPaise(ctx?: TenantContext | null): Promise<number> {
   try {
-    const rows = await walletBalancesReport();
+    const rows = await walletBalancesReport(undefined, ctx);
     return rows.reduce((sum, r) => sum + r.balancePaise, 0);
   } catch {
     try {
@@ -149,7 +150,8 @@ async function aggregateAdvanceLiabilityPaise(): Promise<number> {
         .select({
           total: sql<number>`coalesce(sum(case when ${fyhFinancialLedger.kind} = 'advance_credit' and ${fyhFinancialLedger.direction} = 'credit' then ${fyhFinancialLedger.amountPaise} when ${fyhFinancialLedger.kind} = 'wallet_redemption' and ${fyhFinancialLedger.direction} = 'debit' then -${fyhFinancialLedger.amountPaise} else 0 end), 0)::bigint`,
         })
-        .from(fyhFinancialLedger);
+        .from(fyhFinancialLedger)
+        .where(orgFilter(fyhFinancialLedger.organizationId, ctx));
       return Math.max(0, Number(row?.total ?? 0));
     } catch {
       return 0;
@@ -157,7 +159,7 @@ async function aggregateAdvanceLiabilityPaise(): Promise<number> {
   }
 }
 
-async function monthlyRevenueTrend(timezone: string, endDayKey: string): Promise<DailyRevenuePoint[]> {
+async function monthlyRevenueTrend(timezone: string, endDayKey: string, ctx?: TenantContext | null): Promise<DailyRevenuePoint[]> {
   const dayKeys = lastNDayKeys(endDayKey, 30);
   const rangeStart = salonDayBounds(timezone, new Date(`${dayKeys[0]}T12:00:00Z`)).start;
   const rangeEnd = salonDayBounds(timezone, new Date(`${endDayKey}T12:00:00Z`)).end;
@@ -174,6 +176,8 @@ async function monthlyRevenueTrend(timezone: string, endDayKey: string): Promise
       .from(fyhInvoices)
       .where(
         and(
+          orgFilter(fyhInvoices.organizationId, ctx),
+          locationFilter(fyhInvoices.locationId, ctx),
           eq(fyhInvoices.status, 'paid'),
           gte(fyhInvoices.paidAt, rangeStart),
           lt(fyhInvoices.paidAt, rangeEnd),
@@ -192,7 +196,7 @@ async function monthlyRevenueTrend(timezone: string, endDayKey: string): Promise
   return buildMonthlyTrend(dayKeys, revenueByDay);
 }
 
-async function dueCollectedBetween(from: Date, to: Date): Promise<number> {
+async function dueCollectedBetween(from: Date, to: Date, ctx?: TenantContext | null): Promise<number> {
   try {
     const [settled] = await hairDb
       .select({
@@ -201,6 +205,7 @@ async function dueCollectedBetween(from: Date, to: Date): Promise<number> {
       .from(fyhFinancialLedger)
       .where(
         and(
+          orgFilter(fyhFinancialLedger.organizationId, ctx),
           eq(fyhFinancialLedger.kind, 'receivable_settled'),
           gte(fyhFinancialLedger.createdAt, from),
           lt(fyhFinancialLedger.createdAt, to),
@@ -221,6 +226,9 @@ async function dueCollectedBetween(from: Date, to: Date): Promise<number> {
       .innerJoin(fyhInvoices, eq(fyhInvoices.id, fyhFinancialLedger.invoiceId))
       .where(
         and(
+          orgFilter(fyhFinancialLedger.organizationId, ctx),
+          orgFilter(fyhInvoices.organizationId, ctx),
+          locationFilter(fyhInvoices.locationId, ctx),
           eq(fyhFinancialLedger.kind, 'payment_received'),
           eq(fyhFinancialLedger.account, 'accounts_receivable'),
           eq(fyhFinancialLedger.direction, 'credit'),
@@ -235,7 +243,7 @@ async function dueCollectedBetween(from: Date, to: Date): Promise<number> {
   }
 }
 
-async function advanceIssuedBetween(from: Date, to: Date): Promise<number> {
+async function advanceIssuedBetween(from: Date, to: Date, ctx?: TenantContext | null): Promise<number> {
   try {
     const [row] = await hairDb
       .select({
@@ -244,6 +252,7 @@ async function advanceIssuedBetween(from: Date, to: Date): Promise<number> {
       .from(fyhFinancialLedger)
       .where(
         and(
+          orgFilter(fyhFinancialLedger.organizationId, ctx),
           eq(fyhFinancialLedger.kind, 'advance_credit'),
           eq(fyhFinancialLedger.direction, 'credit'),
           gte(fyhFinancialLedger.createdAt, from),
@@ -257,7 +266,8 @@ async function advanceIssuedBetween(from: Date, to: Date): Promise<number> {
 }
 
 export async function getFinancialDashboardSnapshot(ctx?: TenantContext | null): Promise<FinancialDashboardSnapshot> {
-  const settings = await getSalonSettings();
+  ctx = await resolveTenantContextForService(ctx);
+  const settings = await getSalonSettings(ctx);
   const timezone = settings.timezone?.trim() || 'Asia/Kolkata';
   const { start, end, dayKey } = salonDayBounds(timezone);
   const range = { from: start, to: end };
@@ -276,7 +286,7 @@ export async function getFinancialDashboardSnapshot(ctx?: TenantContext | null):
   }));
 
   try {
-    const today = await paidRevenueBetween(start, end);
+    const today = await paidRevenueBetween(start, end, ctx);
     todaySalesCount = today.invoiceCount;
     todayRevenuePaise = today.revenuePaise;
   } catch {
@@ -284,29 +294,29 @@ export async function getFinancialDashboardSnapshot(ctx?: TenantContext | null):
   }
 
   try {
-    const split = await paymentMethodSplit(range);
+    const split = await paymentMethodSplit(range, ctx);
     todayCollectionsByMethod = collectionsFromPaymentSplit(split);
   } catch {
     todayCollectionsByMethod = { ...EMPTY_COLLECTIONS };
   }
 
   try {
-    outstandingDuePaise = await aggregateOutstandingDuePaise();
+    outstandingDuePaise = await aggregateOutstandingDuePaise(ctx);
   } catch {
     outstandingDuePaise = 0;
   }
 
   try {
-    advanceLiabilityPaise = await aggregateAdvanceLiabilityPaise();
+    advanceLiabilityPaise = await aggregateAdvanceLiabilityPaise(ctx);
   } catch {
     advanceLiabilityPaise = 0;
   }
 
   try {
     const [services, products, staff] = await Promise.all([
-      topServicesBetween(start, end, 5),
-      topProductsBetween(start, end, 5),
-      staffRevenueBetween(start, end, 5),
+      topServicesBetween(start, end, 5, ctx),
+      topProductsBetween(start, end, 5, ctx),
+      staffRevenueBetween(start, end, 5, ctx),
     ]);
     topServicesToday = services.map((s) => ({
       id: s.serviceId,
@@ -330,7 +340,7 @@ export async function getFinancialDashboardSnapshot(ctx?: TenantContext | null):
   }
 
   try {
-    monthlyTrend = await monthlyRevenueTrend(timezone, dayKey);
+    monthlyTrend = await monthlyRevenueTrend(timezone, dayKey, ctx);
   } catch {
     monthlyTrend = lastNDayKeys(dayKey, 30).map((k) => ({ dayKey: k, revenuePaise: 0 }));
   }
@@ -353,7 +363,8 @@ export async function getFinancialDashboardSnapshot(ctx?: TenantContext | null):
 }
 
 export async function getDailyClosingSnapshot(ctx?: TenantContext | null): Promise<DailyClosingSnapshot> {
-  const settings = await getSalonSettings();
+  ctx = await resolveTenantContextForService(ctx);
+  const settings = await getSalonSettings(ctx);
   const timezone = settings.timezone?.trim() || 'Asia/Kolkata';
   const { start, end, dayKey } = salonDayBounds(timezone);
   const range = { from: start, to: end };
@@ -364,19 +375,19 @@ export async function getDailyClosingSnapshot(ctx?: TenantContext | null): Promi
   let advanceIssuedPaise = 0;
 
   try {
-    collectionsByMethod = collectionsFromPaymentSplit(await paymentMethodSplit(range));
+    collectionsByMethod = collectionsFromPaymentSplit(await paymentMethodSplit(range, ctx));
   } catch {
     collectionsByMethod = { ...EMPTY_COLLECTIONS };
   }
 
   try {
-    dueCollectedPaise = await dueCollectedBetween(start, end);
+    dueCollectedPaise = await dueCollectedBetween(start, end, ctx);
   } catch {
     dueCollectedPaise = 0;
   }
 
   try {
-    advanceIssuedPaise = await advanceIssuedBetween(start, end);
+    advanceIssuedPaise = await advanceIssuedBetween(start, end, ctx);
   } catch {
     advanceIssuedPaise = 0;
   }

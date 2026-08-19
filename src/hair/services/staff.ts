@@ -8,8 +8,10 @@ import { createEmployee } from '@/src/workforce/services/employees';
 import { listEmployeesForEngine } from '@/src/workforce/brains/employeeBrain';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 export async function listStaff(includeInactive = false, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   if (isWorkforceEngineEnabled()) {
     const rows = await listEmployeesForEngine('fyh_salon', {
       activeOnly: !includeInactive,
@@ -45,10 +47,12 @@ export async function listStaff(includeInactive = false, ctx?: TenantContext | n
 }
 
 export async function listBookableStaff(ctx?: TenantContext | null) {
-  return listBookableStaffForSalon();
+  ctx = await resolveTenantContextForService(ctx);
+  return listBookableStaffForSalon(ctx);
 }
 
 export async function getStaffById(id: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   if (isWorkforceEngineEnabled()) {
     const rows = await listEmployeesForEngine('fyh_salon', { activeOnly: false });
     const hit = rows.find((r) => r.employee.id === id);
@@ -87,6 +91,7 @@ export async function createStaffQuick(
   },
   ctx?: TenantContext | null,
 ) {
+  ctx = await resolveTenantContextForService(ctx);
   const fullName = input.fullName.trim();
   if (!fullName) throw new Error('Staff name is required');
 

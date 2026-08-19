@@ -11,6 +11,7 @@ import {
 import { DEFAULT_INVENTORY_SETTINGS } from '@/src/hair/services/settings';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 export type HairDb = typeof hairDb;
 
@@ -34,6 +35,7 @@ export type MovementFilters = {
 };
 
 export async function getInventorySettings(db: HairDb = hairDb, ctx?: TenantContext | null): Promise<FyhInventorySettings> {
+  ctx = await resolveTenantContextForService(ctx);
   const [row] = await db
     .select({ inventorySettings: fyhSettings.inventorySettings })
     .from(fyhSettings)
@@ -43,6 +45,7 @@ export async function getInventorySettings(db: HairDb = hairDb, ctx?: TenantCont
 }
 
 export async function getOnHand(productId: string, db: HairDb = hairDb, ctx?: TenantContext | null): Promise<number> {
+  ctx = await resolveTenantContextForService(ctx);
   const [row] = await db
     .select({ stockQty: fyhProducts.stockQty })
     .from(fyhProducts)
@@ -57,6 +60,7 @@ export async function assertSufficientStock(
   lines: { productId: string; quantity: number }[],
   ctx?: TenantContext | null,
 ): Promise<void> {
+  ctx = await resolveTenantContextForService(ctx);
   const settings = await getInventorySettings(db, ctx);
   if (settings.allowNegativeStock) return;
 
@@ -76,6 +80,7 @@ export async function assertSufficientStock(
 }
 
 export async function applyMovement(db: HairDb, input: ApplyMovementInput, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const delta = Number(input.quantityDelta);
   if (delta === 0) return null;
 
@@ -121,6 +126,7 @@ export async function applyMovement(db: HairDb, input: ApplyMovementInput, ctx?:
 }
 
 export async function listMovements(filters: MovementFilters = {}, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const conditions = [
     orgFilter(fyhStockMovements.organizationId, ctx),
     locationFilter(fyhStockMovements.locationId, ctx),
@@ -151,6 +157,7 @@ export async function updateWeightedAverageCost(
   unitCostPaise: number,
   ctx?: TenantContext | null,
 ) {
+  ctx = await resolveTenantContextForService(ctx);
   const qty = Number(receivedQty);
   if (qty <= 0) return;
 
@@ -176,6 +183,7 @@ export async function updateWeightedAverageCost(
 }
 
 export async function listLowStockProducts(ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   return hairDb
     .select()
     .from(fyhProducts)
@@ -191,6 +199,7 @@ export async function listLowStockProducts(ctx?: TenantContext | null) {
 }
 
 export async function listStockSummary(ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   return hairDb
     .select({
       id: fyhProducts.id,

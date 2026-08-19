@@ -40,6 +40,7 @@ async function resolveWorkforcePermissions(
   employeeId: string,
   membershipRole: MembershipRole,
 ): Promise<WorkforcePermissionKey[]> {
+  const fallbackRole = membershipRole === 'staff' || membershipRole === 'biller' ? membershipRole : 'manager';
   const memberships = await listMemberships(employeeId);
   const salon = memberships.find((m) => m.engineId === 'fyh_salon') ?? memberships[0];
   if (salon) {
@@ -48,7 +49,21 @@ async function resolveWorkforcePermissions(
       codeTemplateForAccessRole(salon.jobRole);
     return grants.permissions;
   }
-  return codeTemplateForAccessRole(membershipRole === 'staff' ? 'staff' : 'manager').permissions;
+  return codeTemplateForAccessRole(fallbackRole).permissions;
+}
+
+function resolveMembershipTemplatePermissions(
+  membershipRole: MembershipRole,
+): WorkforcePermissionKey[] {
+  const accessRole =
+    membershipRole === 'owner' || membershipRole === 'co_owner'
+      ? 'owner'
+      : membershipRole === 'manager'
+        ? 'manager'
+        : membershipRole === 'biller'
+          ? 'biller'
+          : 'staff';
+  return codeTemplateForAccessRole(accessRole).permissions;
 }
 
 /**
@@ -86,10 +101,12 @@ export async function resolveTenantContext(): Promise<TenantContext | null> {
   }
   if (!locationId) return null;
 
-  const membershipRole = membershipRow.role as MembershipRole;
-  const permissions = session.workforceEmployeeId
-    ? await resolveWorkforcePermissions(session.workforceEmployeeId, membershipRole)
-    : codeTemplateForAccessRole('manager').permissions;
+  const membershipRole = (membershipRow.accessRole || membershipRow.role) as MembershipRole;
+  const permissions = isWorkforceMembershipAuthEnabled()
+    ? resolveMembershipTemplatePermissions(membershipRole)
+    : session.workforceEmployeeId
+      ? await resolveWorkforcePermissions(session.workforceEmployeeId, membershipRole)
+      : resolveMembershipTemplatePermissions(membershipRole);
 
   return {
     userId,

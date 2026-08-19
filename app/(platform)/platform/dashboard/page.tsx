@@ -45,10 +45,10 @@ export default async function PlatformDashboardPage() {
                 </p>
               </div>
               <Link
-                href="/platform/admin/organizations"
+                href="/platform/admin"
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
               >
-                Manage organizations
+                Open Platform Admin
               </Link>
             </div>
           </section>

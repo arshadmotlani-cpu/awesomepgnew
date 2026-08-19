@@ -8,6 +8,13 @@
       "when": 1756900000000,
       "tag": "0001_platform_initial",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1757000000000,
+      "tag": "0002_platform_admin_lifecycle",
+      "breakpoints": true
     }
   ]
 }

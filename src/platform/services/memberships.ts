@@ -1,7 +1,8 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import {
   platformMembershipLocations,
   platformMemberships,
+  platformOrganizationSubscriptions,
   platformOrganizations,
 } from '@/src/platform/db/schema';
 import { createPlatformClient } from '@/src/platform/db/client';
@@ -14,8 +15,13 @@ export type PlatformMembershipRow = {
   organizationName: string;
   organizationSlug: string;
   role: string;
+  accessRole: string;
   allowedLocationIds: string[];
 };
+
+function isSubscriptionAccessAllowed(status: string | null | undefined): boolean {
+  return !status || status === 'trial' || status === 'active' || status === 'past_due';
+}
 
 export async function loadMembershipForUserOrg(
   userId: string,
@@ -31,7 +37,9 @@ export async function loadMembershipForUserOrg(
         organizationId: platformMemberships.organizationId,
         organizationName: platformOrganizations.name,
         organizationSlug: platformOrganizations.slug,
-        role: platformMemberships.role,
+        // FYH SaaS permission resolution is driven by `access_role`.
+        role: platformMemberships.accessRole,
+        accessRole: platformMemberships.accessRole,
       })
       .from(platformMemberships)
       .innerJoin(
@@ -43,10 +51,18 @@ export async function loadMembershipForUserOrg(
           eq(platformMemberships.userId, userId),
           eq(platformMemberships.organizationId, organizationId),
           eq(platformMemberships.isActive, true),
+          inArray(platformOrganizations.status, ['active', 'trial']),
         ),
       )
       .limit(1);
     if (!membership) return null;
+
+    const [subscription] = await db
+      .select({ status: platformOrganizationSubscriptions.status })
+      .from(platformOrganizationSubscriptions)
+      .where(eq(platformOrganizationSubscriptions.organizationId, membership.organizationId))
+      .limit(1);
+    if (!isSubscriptionAccessAllowed(subscription?.status)) return null;
 
     const locRows = await db
       .select({ locationId: platformMembershipLocations.locationId })
@@ -59,7 +75,8 @@ export async function loadMembershipForUserOrg(
       organizationId: membership.organizationId,
       organizationName: membership.organizationName,
       organizationSlug: membership.organizationSlug,
-      role: membership.role,
+      role: membership.accessRole,
+      accessRole: membership.accessRole,
       allowedLocationIds: locRows.map((r) => r.locationId),
     };
   } finally {
@@ -78,7 +95,8 @@ export async function listActiveMembershipsForUser(userId: string): Promise<Plat
         organizationId: platformMemberships.organizationId,
         organizationName: platformOrganizations.name,
         organizationSlug: platformOrganizations.slug,
-        role: platformMemberships.role,
+        role: platformMemberships.accessRole,
+        accessRole: platformMemberships.accessRole,
       })
       .from(platformMemberships)
       .innerJoin(
@@ -89,12 +107,18 @@ export async function listActiveMembershipsForUser(userId: string): Promise<Plat
         and(
           eq(platformMemberships.userId, userId),
           eq(platformMemberships.isActive, true),
-          eq(platformOrganizations.status, 'active'),
+          inArray(platformOrganizations.status, ['active', 'trial']),
         ),
       );
 
     const results: PlatformMembershipRow[] = [];
     for (const membership of memberships) {
+      const [subscription] = await db
+        .select({ status: platformOrganizationSubscriptions.status })
+        .from(platformOrganizationSubscriptions)
+        .where(eq(platformOrganizationSubscriptions.organizationId, membership.organizationId))
+        .limit(1);
+      if (!isSubscriptionAccessAllowed(subscription?.status)) continue;
       const locRows = await db
         .select({ locationId: platformMembershipLocations.locationId })
         .from(platformMembershipLocations)
@@ -105,7 +129,8 @@ export async function listActiveMembershipsForUser(userId: string): Promise<Plat
         organizationId: membership.organizationId,
         organizationName: membership.organizationName,
         organizationSlug: membership.organizationSlug,
-        role: membership.role,
+        role: membership.accessRole,
+        accessRole: membership.accessRole,
         allowedLocationIds: locRows.map((r) => r.locationId),
       });
     }

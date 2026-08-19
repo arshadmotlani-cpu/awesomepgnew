@@ -25,6 +25,7 @@ import {
 import { shouldHideServiceFromBillable } from '@/src/hair/lib/serviceCatalogHygiene';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 /** Statuses that do not occupy a bookable slot (excluded from conflict checks). */
 const NON_OCCUPYING = ['cancelled', 'no_show', 'completed', 'paid'] as const;
@@ -73,18 +74,22 @@ export type AppointmentCalendarRow = {
   durationMinutes: number;
 };
 
-async function getSalonSettings() {
-  const [row] = await hairDb.select().from(fyhSettings).limit(1);
+async function getSalonSettings(ctx?: TenantContext | null) {
+  const [row] = await hairDb
+    .select()
+    .from(fyhSettings)
+    .where(orgFilter(fyhSettings.organizationId, ctx))
+    .limit(1);
   return row;
 }
 
-async function loadServiceSnapshots(serviceIds: string[]) {
+async function loadServiceSnapshots(serviceIds: string[], ctx?: TenantContext | null) {
   if (serviceIds.length === 0) throw new Error('Select at least one service');
   const { inArray } = await import('drizzle-orm');
   const services = await hairDb
     .select()
     .from(fyhServices)
-    .where(and(eq(fyhServices.isActive, true), inArray(fyhServices.id, serviceIds)));
+    .where(and(orgFilter(fyhServices.organizationId, ctx), eq(fyhServices.isActive, true), inArray(fyhServices.id, serviceIds)));
   const bookable = services.filter((s) => !shouldHideServiceFromBillable(s.name, s.code));
   if (bookable.length !== serviceIds.length) {
     const found = new Set(bookable.map((s) => s.id));
@@ -117,6 +122,7 @@ async function assertNoConflicts(input: {
   endAt: Date;
   bufferMinutes: number;
   excludeId?: string;
+  ctx?: TenantContext | null;
 }) {
   const staffRows = await hairDb
     .select({
@@ -128,6 +134,9 @@ async function assertNoConflicts(input: {
     .from(fyhAppointments)
     .where(
       and(
+        ...(input.ctx
+          ? [orgFilter(fyhAppointments.organizationId, input.ctx), locationFilter(fyhAppointments.locationId, input.ctx)]
+          : []),
         eq(fyhAppointments.staffId, input.staffId),
         notInArray(fyhAppointments.status, [...NON_OCCUPYING]),
       ),
@@ -156,6 +165,9 @@ async function assertNoConflicts(input: {
       .from(fyhAppointments)
       .where(
         and(
+          ...(input.ctx
+            ? [orgFilter(fyhAppointments.organizationId, input.ctx), locationFilter(fyhAppointments.locationId, input.ctx)]
+            : []),
           eq(fyhAppointments.resourceId, input.resourceId),
           notInArray(fyhAppointments.status, [...NON_OCCUPYING]),
         ),
@@ -174,8 +186,13 @@ async function assertNoConflicts(input: {
   }
 }
 
-async function assertWorkingHours(staffId: string, startAt: Date, endAt: Date) {
-  const settings = await getSalonSettings();
+async function assertWorkingHours(
+  staffId: string,
+  startAt: Date,
+  endAt: Date,
+  ctx?: TenantContext | null,
+) {
+  const settings = await getSalonSettings(ctx);
   const day = startAt.getDay();
   const hours = settings?.businessHours?.find((d) => d.dayOfWeek === day);
   const openHm = hours?.open ?? '10:00';
@@ -192,7 +209,14 @@ async function assertWorkingHours(staffId: string, startAt: Date, endAt: Date) {
   const [sched] = await hairDb
     .select()
     .from(fyhStaffSchedules)
-    .where(and(eq(fyhStaffSchedules.staffId, staffId), eq(fyhStaffSchedules.dayOfWeek, day)))
+    .where(
+      and(
+        orgFilter(fyhStaffSchedules.organizationId, ctx),
+        locationFilter(fyhStaffSchedules.locationId, ctx),
+        eq(fyhStaffSchedules.staffId, staffId),
+        eq(fyhStaffSchedules.dayOfWeek, day),
+      ),
+    )
     .limit(1);
   if (sched) {
     const staffCheck = isWithinWorkingWindow({
@@ -213,8 +237,10 @@ async function appendTimeline(
   title: string,
   body: string,
   metadata?: Record<string, unknown>,
+  ctx?: TenantContext | null,
 ) {
   await hairDb.insert(fyhCustomerTimeline).values({
+    ...tenantOrgDefaults(ctx),
     customerId,
     eventType: 'appointment',
     title,
@@ -224,6 +250,7 @@ async function appendTimeline(
 }
 
 export async function listResources(ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   return hairDb
     .select()
     .from(fyhResources)
@@ -237,6 +264,7 @@ export async function listAppointmentsInRange(
   opts?: { staffId?: string | null },
   ctx?: TenantContext | null,
 ): Promise<AppointmentCalendarRow[]> {
+  ctx = await resolveTenantContextForService(ctx);
   const conditions = [
     orgFilter(fyhAppointments.organizationId, ctx),
     locationFilter(fyhAppointments.locationId, ctx),
@@ -323,6 +351,7 @@ export async function listAppointmentsInRange(
 }
 
 export async function getAppointmentById(id: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const { inArray } = await import('drizzle-orm');
   const appts = await hairDb
     .select({
@@ -382,9 +411,10 @@ export async function getAppointmentById(id: string, ctx?: TenantContext | null)
 }
 
 export async function createAppointment(input: CreateAppointmentInput, ctx?: TenantContext | null) {
-  const settings = await getSalonSettings();
+  ctx = await resolveTenantContextForService(ctx);
+  const settings = await getSalonSettings(ctx);
   const buffer = input.bufferMinutes ?? settings?.defaultBufferMinutes ?? 0;
-  const snapshots = await loadServiceSnapshots(input.serviceIds);
+  const snapshots = await loadServiceSnapshots(input.serviceIds, ctx);
   await assertStaffCanPerform(input.staffId, input.serviceIds);
 
   const duration = snapshots.reduce((sum, s) => sum + s.durationMinutes, 0);
@@ -393,13 +423,14 @@ export async function createAppointment(input: CreateAppointmentInput, ctx?: Ten
   const status: FyhAppointmentStatus =
     input.status ?? (input.source === 'walk_in' ? 'arrived' : 'booked');
 
-  await assertWorkingHours(input.staffId, startAt, endAt);
+  await assertWorkingHours(input.staffId, startAt, endAt, ctx);
   await assertNoConflicts({
     staffId: input.staffId,
     resourceId: input.resourceId,
     startAt,
     endAt,
     bufferMinutes: buffer,
+    ctx,
   });
 
   const weeks = Math.max(1, Math.min(input.recurrenceWeeks ?? 1, 12));
@@ -410,13 +441,14 @@ export async function createAppointment(input: CreateAppointmentInput, ctx?: Ten
     const e = new Date(endAt.getTime() + w * 7 * 24 * 60 * 60 * 1000);
     if (w > 0) {
       try {
-        await assertWorkingHours(input.staffId, s, e);
+        await assertWorkingHours(input.staffId, s, e, ctx);
         await assertNoConflicts({
           staffId: input.staffId,
           resourceId: input.resourceId,
           startAt: s,
           endAt: e,
           bufferMinutes: buffer,
+          ctx,
         });
       } catch {
         continue; // skip conflicting recurrence occurrences
@@ -426,6 +458,7 @@ export async function createAppointment(input: CreateAppointmentInput, ctx?: Ten
     const [row] = await hairDb
       .insert(fyhAppointments)
       .values({
+        ...tenantWriteDefaults(ctx),
         customerId: input.customerId,
         staffId: input.staffId,
         resourceId: input.resourceId ?? null,
@@ -447,6 +480,7 @@ export async function createAppointment(input: CreateAppointmentInput, ctx?: Ten
     }
     await hairDb.insert(fyhAppointmentServices).values(
       snapshots.map((snap, idx) => ({
+        ...tenantWriteDefaults(ctx),
         appointmentId: row.id,
         serviceId: snap.serviceId,
         nameSnapshot: snap.nameSnapshot,
@@ -471,6 +505,7 @@ export async function createAppointment(input: CreateAppointmentInput, ctx?: Ten
     'Appointment booked',
     `${customer?.fullName ?? 'Customer'} · ${snapshots.map((s) => s.nameSnapshot).join(', ')}`,
     { appointmentId: createdIds[0], status },
+    ctx,
   );
 
   try {
@@ -490,7 +525,7 @@ export async function createAppointment(input: CreateAppointmentInput, ctx?: Ten
       );
       const { enqueueNotification } = await import('@/src/hair/services/loyaltyOps');
       const { getSalonSettings } = await import('@/src/hair/services/settings');
-      const settings = await getSalonSettings();
+      const settings = await getSalonSettings(ctx);
       const time = formatSalonDateTime(startAt, settings.timezone || 'Asia/Kolkata');
       const body = await renderTemplate(
         'appointment_confirmation',
@@ -521,6 +556,7 @@ export async function rescheduleAppointment(
   },
   ctx?: TenantContext | null,
 ) {
+  ctx = await resolveTenantContextForService(ctx);
   const [existing] = await hairDb
     .select()
     .from(fyhAppointments)
@@ -538,7 +574,7 @@ export async function rescheduleAppointment(
     input.endAt ??
     new Date(startAt.getTime() + (existing.endAt.getTime() - existing.startAt.getTime()));
 
-  await assertWorkingHours(staffId, startAt, endAt);
+  await assertWorkingHours(staffId, startAt, endAt, ctx);
   await assertNoConflicts({
     staffId,
     resourceId,
@@ -546,6 +582,7 @@ export async function rescheduleAppointment(
     endAt,
     bufferMinutes: existing.bufferMinutes,
     excludeId: existing.id,
+    ctx,
   });
 
   await hairDb
@@ -563,6 +600,7 @@ export async function rescheduleAppointment(
 }
 
 export async function updateAppointmentStatus(id: string, status: FyhAppointmentStatus, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   if (status === 'paid') {
     throw new Error('Mark paid via invoice payment — not a manual status');
   }
@@ -583,12 +621,13 @@ export async function updateAppointmentStatus(id: string, status: FyhAppointment
   await appendTimeline(existing.customerId, `Appointment ${status.replace(/_/g, ' ')}`, `Status → ${status}`, {
     appointmentId: id,
     status,
-  });
+  }, ctx);
 
   return id;
 }
 
 export async function updateAppointmentNotes(id: string, notes: string | null, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   await hairDb
     .update(fyhAppointments)
     .set({ notes, updatedAt: new Date() })
@@ -608,6 +647,7 @@ export type UpdateAppointmentInput = {
 };
 
 export async function updateAppointment(input: UpdateAppointmentInput, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const [existing] = await hairDb
     .select()
     .from(fyhAppointments)
@@ -642,7 +682,7 @@ export async function updateAppointment(input: UpdateAppointmentInput, ctx?: Ten
   let endAt = input.endAt ?? existing.endAt;
 
   if (input.serviceIds && !existing.invoiceId) {
-    const snapshots = await loadServiceSnapshots(input.serviceIds);
+    const snapshots = await loadServiceSnapshots(input.serviceIds, ctx);
     await assertStaffCanPerform(staffId, input.serviceIds);
 
     const currentServices = await hairDb
@@ -681,7 +721,7 @@ export async function updateAppointment(input: UpdateAppointmentInput, ctx?: Ten
     }
   }
 
-  await assertWorkingHours(staffId, startAt, endAt);
+  await assertWorkingHours(staffId, startAt, endAt, ctx);
   await assertNoConflicts({
     staffId,
     resourceId,
@@ -689,6 +729,7 @@ export async function updateAppointment(input: UpdateAppointmentInput, ctx?: Ten
     endAt,
     bufferMinutes: existing.bufferMinutes,
     excludeId: existing.id,
+    ctx,
   });
 
   if (input.status && input.status !== existing.status) {
@@ -718,7 +759,7 @@ export async function updateAppointment(input: UpdateAppointmentInput, ctx?: Ten
     await appendTimeline(existing.customerId, `Appointment ${input.status.replace(/_/g, ' ')}`, `Status → ${input.status}`, {
       appointmentId: input.id,
       status: input.status,
-    });
+    }, ctx);
   }
 
   return input.id;

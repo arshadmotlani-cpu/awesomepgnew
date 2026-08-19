@@ -19,6 +19,7 @@ import {
   type InvoiceRegisterFilters,
 } from '@/src/hair/services/invoiceRegisterQueries';
 import { getSalonSettings } from '@/src/hair/services/settings';
+import { getTenantContextForAction } from '@/src/hair/lib/tenant/getTenantContext';
 
 export type InvoiceRegisterExportFormat = 'xlsx' | 'csv' | 'pdf';
 
@@ -40,6 +41,7 @@ export async function exportInvoiceRegisterAction(input: {
 }): Promise<ExportInvoiceRegisterResult> {
   try {
     await requirePermission('page:billing');
+    const ctx = await getTenantContextForAction();
     const filters = filtersFromRecord(input.filters);
     const rows = await queryInvoiceRegisterForExport(filters);
     const stamp = new Date().toISOString().slice(0, 10);
@@ -63,7 +65,7 @@ export async function exportInvoiceRegisterAction(input: {
       };
     }
 
-    const settings = await getSalonSettings();
+    const settings = await getSalonSettings(ctx);
     return {
       ok: true,
       format: 'pdf',
@@ -84,7 +86,8 @@ export async function getInvoicePrintHtmlAction(invoiceId: string): Promise<
 > {
   try {
     await requirePermission('page:billing');
-    const detail = await getInvoiceDetail(invoiceId);
+    const ctx = await getTenantContextForAction();
+    const detail = await getInvoiceDetail(invoiceId, ctx);
     if (!detail) return { ok: false, error: 'Invoice not found' };
     return { ok: true, html: buildInvoicePrintHtml(detail) };
   } catch (e) {
@@ -105,7 +108,8 @@ export async function getInvoicePreviewAction(invoiceId: string): Promise<
 > {
   try {
     await requirePermission('page:billing');
-    const detail = await getInvoiceDetail(invoiceId);
+    const ctx = await getTenantContextForAction();
+    const detail = await getInvoiceDetail(invoiceId, ctx);
     if (!detail) return { ok: false, error: 'Invoice not found' };
     return {
       ok: true,

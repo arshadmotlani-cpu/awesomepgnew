@@ -1,7 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireHairAuth } from '@/src/hair/lib/auth/guards';
+import { HairPermissionError } from '@/src/hair/lib/auth/permissions';
+import { requireStaffManagementAccess } from '@/src/hair/lib/auth/staffManagementAccess';
 import { createStaffQuick } from '@/src/hair/services/staff';
 
 export type StaffActionState = {
@@ -18,7 +19,8 @@ export async function createStaffQuickAction(
   formData: FormData,
 ): Promise<StaffActionState> {
   try {
-    await requireHairAuth();
+    const access = await requireStaffManagementAccess();
+    if (!access.canAdd) throw new HairPermissionError('Missing permission: staff.add');
     await createStaffQuick({
       fullName: formStr(formData, 'fullName'),
       phone: formStr(formData, 'phone') || null,

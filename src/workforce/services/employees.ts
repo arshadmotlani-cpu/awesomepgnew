@@ -36,6 +36,14 @@ export type UpsertEmployeeInput = {
   email?: string | null;
   mobile?: string | null;
   password?: string | null;
+  /**
+   * Precomputed password hash (e.g. reused from Platform identity).
+   * When provided, we do not re-hash the password to avoid hash-salt drift.
+   */
+  passwordHash?: string | null;
+  /** Optional FYH SaaS tenant wiring (mirrors Platform org/user ids). */
+  organizationId?: string | null;
+  userId?: string | null;
   gender?: WorkforceGender;
   emergencyContact?: string | null;
   joiningDate?: string | null;
@@ -118,6 +126,7 @@ async function mirrorSalonStaffRow(employeeId: string, input: UpsertEmployeeInpu
     joiningDate: input.joiningDate ?? null,
     isActive: (input.status ?? 'active') === 'active',
     updatedAt: new Date(),
+    organizationId: input.organizationId ?? existing?.organizationId ?? null,
   };
   if (existing) {
     await hairDb.update(fyhStaff).set(values).where(eq(fyhStaff.id, employeeId));
@@ -157,15 +166,19 @@ export async function createEmployee(input: UpsertEmployeeInput) {
     await assertUniqueEmployeeIdentity({ email, mobile });
   }
 
-  const canLogin = input.canLogin ?? Boolean(input.password && input.password.length >= 6);
-  if (canLogin && (!input.password || input.password.length < 6)) {
-    throw new Error('Password is required (min 6 characters) when login is enabled.');
+  const canLoginByPassword =
+    Boolean(input.password && input.password.length >= 6) || input.passwordHash != null;
+  const canLogin = input.canLogin ?? canLoginByPassword;
+  if (canLogin && !input.passwordHash && (!input.password || input.password.length < 6)) {
+    throw new Error('Password is required (min 6 characters) or passwordHash when login is enabled.');
   }
 
   const passwordHash =
-    canLogin && input.password && input.password.length >= 6
-      ? hashPassword(input.password)
-      : null;
+    canLogin && input.passwordHash != null
+      ? input.passwordHash
+      : canLogin && input.password && input.password.length >= 6
+        ? hashPassword(input.password)
+        : null;
 
   const [emp] = await hairDb
     .insert(wfEmployees)
@@ -194,6 +207,8 @@ export async function createEmployee(input: UpsertEmployeeInput) {
       photoUrl: input.photoUrl ?? null,
       status: input.status ?? 'active',
       isSystemProvider: input.isSystemProvider ?? false,
+      organizationId: input.organizationId ?? null,
+      userId: input.userId ?? null,
     })
     .returning();
 

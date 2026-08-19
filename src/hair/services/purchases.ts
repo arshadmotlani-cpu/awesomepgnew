@@ -12,6 +12,7 @@ import {
 import { applyMovement, updateWeightedAverageCost } from '@/src/hair/services/stock';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 export type PoLineInput = {
   productId: string;
@@ -37,6 +38,7 @@ async function nextPoNumber(): Promise<string> {
 }
 
 export async function listPurchaseOrders(limit = 100, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   return hairDb
     .select({
       po: fyhPurchaseOrders,
@@ -44,11 +46,13 @@ export async function listPurchaseOrders(limit = 100, ctx?: TenantContext | null
     })
     .from(fyhPurchaseOrders)
     .innerJoin(fyhVendors, eq(fyhVendors.id, fyhPurchaseOrders.vendorId))
+    .where(and(orgFilter(fyhPurchaseOrders.organizationId, ctx), locationFilter(fyhPurchaseOrders.locationId, ctx)))
     .orderBy(desc(fyhPurchaseOrders.createdAt))
     .limit(limit);
 }
 
 export async function getPurchaseOrder(id: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const [header] = await hairDb
     .select({
       po: fyhPurchaseOrders,
@@ -78,6 +82,7 @@ export async function createPurchaseOrder(input: {
   lines: PoLineInput[];
   markOrdered?: boolean;
 }, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   if (!input.lines.length) throw new Error('At least one line is required');
 
   const [vendor] = await hairDb
@@ -94,6 +99,7 @@ export async function createPurchaseOrder(input: {
     const [po] = await tx
       .insert(fyhPurchaseOrders)
       .values({
+        ...tenantWriteDefaults(ctx),
         vendorId: input.vendorId,
         poNumber,
         status: markOrdered ? 'ordered' : 'draft',
@@ -105,6 +111,7 @@ export async function createPurchaseOrder(input: {
     for (const line of input.lines) {
       if (line.quantityOrdered <= 0) throw new Error('Quantity must be positive');
       await tx.insert(fyhPurchaseOrderLines).values({
+        ...tenantWriteDefaults(ctx),
         purchaseOrderId: po!.id,
         productId: line.productId,
         quantityOrdered: line.quantityOrdered,
@@ -122,6 +129,7 @@ export async function receiveGoodsReceipt(input: {
   notes?: string | null;
   lines: GrnLineInput[];
 }, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   if (!input.lines.length) throw new Error('At least one line is required');
 
   const [vendor] = await hairDb
@@ -147,6 +155,7 @@ export async function receiveGoodsReceipt(input: {
     const [grn] = await tx
       .insert(fyhGoodsReceipts)
       .values({
+        ...tenantWriteDefaults(ctx),
         vendorId: input.vendorId,
         purchaseOrderId: input.purchaseOrderId ?? null,
         notes: input.notes?.trim() || null,
@@ -158,9 +167,10 @@ export async function receiveGoodsReceipt(input: {
       if (qty <= 0) throw new Error('Quantity must be positive');
       const unitCostPaise = toPaise(line.unitCostRupees ?? 0);
 
-      await updateWeightedAverageCost(db, line.productId, qty, unitCostPaise);
+      await updateWeightedAverageCost(db, line.productId, qty, unitCostPaise, ctx);
 
       await tx.insert(fyhGoodsReceiptLines).values({
+        ...tenantWriteDefaults(ctx),
         goodsReceiptId: grn!.id,
         productId: line.productId,
         quantityReceived: qty,
@@ -176,7 +186,7 @@ export async function receiveGoodsReceipt(input: {
         referenceType: 'goods_receipt',
         referenceId: grn!.id,
         notes: `GRN from ${vendor.name}`,
-      });
+      }, ctx);
     }
 
     if (input.purchaseOrderId) {
@@ -191,6 +201,7 @@ export async function receiveGoodsReceipt(input: {
 }
 
 export async function listAdjustments(limit = 100, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   return hairDb
     .select({
       adjustment: fyhStockAdjustments,
@@ -198,6 +209,7 @@ export async function listAdjustments(limit = 100, ctx?: TenantContext | null) {
     })
     .from(fyhStockAdjustments)
     .innerJoin(fyhProducts, eq(fyhProducts.id, fyhStockAdjustments.productId))
+    .where(and(orgFilter(fyhStockAdjustments.organizationId, ctx), locationFilter(fyhStockAdjustments.locationId, ctx)))
     .orderBy(desc(fyhStockAdjustments.createdAt))
     .limit(limit);
 }
@@ -208,6 +220,7 @@ export async function createStockAdjustment(input: {
   reason: string;
   notes?: string | null;
 }, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const delta = Number(input.quantityDelta);
   if (delta === 0) throw new Error('Adjustment quantity cannot be zero');
   const reason = input.reason.trim();
@@ -226,6 +239,7 @@ export async function createStockAdjustment(input: {
     const [adjustment] = await tx
       .insert(fyhStockAdjustments)
       .values({
+        ...tenantWriteDefaults(ctx),
         productId: input.productId,
         quantityDelta: delta,
         reason,
@@ -240,13 +254,14 @@ export async function createStockAdjustment(input: {
       referenceType: 'stock_adjustment',
       referenceId: adjustment!.id,
       notes: reason,
-    });
+    }, ctx);
 
     return adjustment!;
   });
 }
 
 export async function listGoodsReceipts(limit = 100, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   return hairDb
     .select({
       grn: fyhGoodsReceipts,
@@ -254,6 +269,7 @@ export async function listGoodsReceipts(limit = 100, ctx?: TenantContext | null)
     })
     .from(fyhGoodsReceipts)
     .innerJoin(fyhVendors, eq(fyhVendors.id, fyhGoodsReceipts.vendorId))
+    .where(and(orgFilter(fyhGoodsReceipts.organizationId, ctx), locationFilter(fyhGoodsReceipts.locationId, ctx)))
     .orderBy(desc(fyhGoodsReceipts.receivedAt))
     .limit(limit);
 }

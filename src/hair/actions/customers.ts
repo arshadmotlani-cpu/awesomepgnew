@@ -25,6 +25,7 @@ import {
   updateCustomerPhoto,
 } from '@/src/hair/services/customers';
 import type { FyhCustomer } from '@/src/hair/db/schema';
+import { getTenantContextForAction } from '@/src/hair/lib/tenant/getTenantContext';
 
 export type CustomerActionState = {
   error?: string;
@@ -34,7 +35,8 @@ export type CustomerActionState = {
 
 export async function listCustomersAction(q?: string): Promise<FyhCustomer[]> {
   await requirePermission('page:customers');
-  return listCustomers({ q: q?.trim() || undefined });
+  const ctx = await getTenantContextForAction();
+  return listCustomers({ q: q?.trim() || undefined }, ctx);
 }
 
 function formStr(formData: FormData, key: string): string {
@@ -96,12 +98,13 @@ export async function checkSimilarCustomersAction(
 ): Promise<CustomerActionState> {
   try {
     await requirePermission('page:customers');
+    const ctx = await getTenantContextForAction();
     const similar = await findSimilarCustomers({
       phone: formStr(formData, 'phone'),
       email: formStr(formData, 'email') || null,
       whatsapp: formStr(formData, 'whatsapp') || null,
       excludeId: formStr(formData, 'excludeId') || undefined,
-    });
+    }, ctx);
     return similar.length ? { similar, error: 'Possible duplicate found' } : { success: 'No matches' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Lookup failed' };
@@ -114,7 +117,8 @@ export async function createCustomerAction(
 ): Promise<CustomerActionState> {
   try {
     await requirePermission('page:customers');
-    const customer = await createCustomer(parseCustomerForm(formData));
+    const ctx = await getTenantContextForAction();
+    const customer = await createCustomer(parseCustomerForm(formData), ctx);
     revalidatePath('/customers');
     revalidatePath('/dashboard/revenue');
     redirect(`/customers/${customer.id}`);
@@ -136,9 +140,10 @@ export async function updateCustomerAction(
 ): Promise<CustomerActionState> {
   try {
     await requirePermission('page:customers');
+    const ctx = await getTenantContextForAction();
     const id = formStr(formData, 'id');
     if (!id) return { error: 'Missing customer id' };
-    await updateCustomer(id, parseCustomerForm(formData));
+    await updateCustomer(id, parseCustomerForm(formData), ctx);
     revalidatePath('/customers');
     revalidatePath(`/customers/${id}`);
     revalidatePath('/dashboard/revenue');
@@ -154,9 +159,10 @@ export async function archiveCustomerAction(
 ): Promise<CustomerActionState> {
   try {
     await requirePermission('page:customers');
+    const ctx = await getTenantContextForAction();
     const id = formStr(formData, 'id');
     if (!id) return { error: 'Missing customer id' };
-    await archiveCustomer(id);
+    await archiveCustomer(id, ctx);
     revalidatePath('/customers');
     revalidatePath('/dashboard/revenue');
     redirect('/customers');
@@ -172,6 +178,7 @@ export async function addCustomerNoteAction(
 ): Promise<CustomerActionState> {
   try {
     const admin = await requirePermission('page:customers');
+    const ctx = await getTenantContextForAction();
     const id = formStr(formData, 'customerId');
     if (!id) return { error: 'Missing customer' };
     await addCustomerNote({
@@ -179,7 +186,7 @@ export async function addCustomerNoteAction(
       body: formStr(formData, 'body'),
       isAlert: formStr(formData, 'isAlert') === 'on' || formStr(formData, 'isAlert') === '1',
       adminId: admin.id,
-    });
+    }, ctx);
     revalidatePath(`/customers/${id}`);
     return { success: 'Note added.' };
   } catch (e) {
@@ -193,6 +200,7 @@ export async function uploadCustomerPhotoAction(
 ): Promise<CustomerActionState> {
   try {
     await requirePermission('page:customers');
+    const ctx = await getTenantContextForAction();
     const id = formStr(formData, 'customerId');
     if (!id) return { error: 'Missing customer' };
     const file = formData.get('photo');
@@ -209,7 +217,7 @@ export async function uploadCustomerPhotoAction(
       access: 'public',
       token: process.env.BLOB_READ_WRITE_TOKEN,
     });
-    await updateCustomerPhoto(id, blob.url);
+    await updateCustomerPhoto(id, blob.url, ctx);
     revalidatePath(`/customers/${id}`);
     return { success: 'Photo updated.' };
   } catch (e) {

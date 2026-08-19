@@ -3,9 +3,11 @@ import { salonDayBounds, salonMonthStartUtc } from '@/src/hair/lib/salonTime';
 import { ReportEmpty, ReportShell, ReportTable } from '@/src/hair/components/reports/ReportShell';
 import { paymentMethodSplit } from '@/src/hair/services/reportQueries';
 import { getSalonSettings } from '@/src/hair/services/settings';
+import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 
 export default async function FinancePaymentsReportPage() {
-  const settings = await getSalonSettings();
+  const ctx = await getTenantContextForPage();
+  const settings = await getSalonSettings(ctx);
   const tz = settings.timezone?.trim() || 'Asia/Kolkata';
   const { end } = salonDayBounds(tz);
   const from = salonMonthStartUtc(tz);

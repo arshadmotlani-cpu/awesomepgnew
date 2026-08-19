@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { PublicFyhInvoice } from '@/src/hair/components/billing/PublicFyhInvoice';
 import { getInvoiceDetailByNumber } from '@/src/hair/services/invoices';
+import { resolveTenantContextOptional } from '@/src/hair/lib/tenant/getTenantContext';
 
 type Props = {
   params: Promise<{ invoiceNumber: string }>;
@@ -18,7 +19,8 @@ export async function generateMetadata({ params }: Props) {
 
 export default async function PublicInvoicePage({ params }: Props) {
   const { invoiceNumber } = await params;
-  const detail = await getInvoiceDetailByNumber(invoiceNumber);
+  const ctx = await resolveTenantContextOptional();
+  const detail = await getInvoiceDetailByNumber(invoiceNumber, ctx);
   if (!detail) notFound();
 
   return <PublicFyhInvoice detail={detail} />;
