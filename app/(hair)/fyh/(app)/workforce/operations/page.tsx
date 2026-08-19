@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getHairSession } from '@/src/hair/lib/auth/session';
+import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 import { requireHairHost } from '@/src/hair/lib/auth/guards';
 import {
   getEmployeeDashboard,
@@ -39,7 +40,10 @@ export default async function WorkforceOperationsPage() {
     redirect('/me');
   }
 
-  const team = await listEmployeesForEngine('fyh_salon', { activeOnly: true });
+  const ctx = await getTenantContextForPage();
+  const orgId = ctx?.organizationId;
+
+  const team = await listEmployeesForEngine('fyh_salon', { activeOnly: true, organizationId: orgId });
   const bookable = await listBookableEmployees('fyh_salon');
   const payrollRuns = canViewSalary ? await listPayrollRuns('fyh_salon', 5) : [];
   const incentives = canViewSalary

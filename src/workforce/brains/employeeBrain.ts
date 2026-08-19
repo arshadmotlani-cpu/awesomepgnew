@@ -1,5 +1,6 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
+import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
 import {
   wfAttendance,
   wfAuditLog,
@@ -64,10 +65,19 @@ export async function getEmployee(employeeId: string): Promise<WfEmployee | null
 
 export async function listEmployeesForEngine(
   engineId: WorkforceEngineId,
-  opts?: { activeOnly?: boolean; receiveBookingsOnly?: boolean; excludeSystemProviders?: boolean },
+  opts?: {
+    activeOnly?: boolean;
+    receiveBookingsOnly?: boolean;
+    excludeSystemProviders?: boolean;
+    organizationId?: string;
+  },
 ): Promise<EmployeeWithMembership[]> {
   await ensureRoleTemplatesSeeded(engineId);
   const activeOnly = opts?.activeOnly !== false;
+  const orgScope =
+    isFyhSaasTenantEnabled() && opts?.organizationId
+      ? eq(wfEmployees.organizationId, opts.organizationId)
+      : undefined;
   const rows = await hairDb
     .select({
       employee: wfEmployees,
@@ -81,8 +91,9 @@ export async function listEmployeesForEngine(
             eq(wfEngineMemberships.engineId, engineId),
             eq(wfEngineMemberships.isActive, true),
             eq(wfEmployees.status, 'active'),
+            orgScope,
           )
-        : eq(wfEngineMemberships.engineId, engineId),
+        : and(eq(wfEngineMemberships.engineId, engineId), orgScope),
     );
 
   const out: EmployeeWithMembership[] = [];

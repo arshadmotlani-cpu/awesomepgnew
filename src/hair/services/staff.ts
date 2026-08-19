@@ -15,6 +15,7 @@ export async function listStaff(includeInactive = false, ctx?: TenantContext | n
   if (isWorkforceEngineEnabled()) {
     const rows = await listEmployeesForEngine('fyh_salon', {
       activeOnly: !includeInactive,
+      organizationId: ctx?.organizationId,
     });
     return rows.map((r) => ({
       id: r.employee.id,
@@ -54,7 +55,7 @@ export async function listBookableStaff(ctx?: TenantContext | null) {
 export async function getStaffById(id: string, ctx?: TenantContext | null) {
   ctx = await resolveTenantContextForService(ctx);
   if (isWorkforceEngineEnabled()) {
-    const rows = await listEmployeesForEngine('fyh_salon', { activeOnly: false });
+    const rows = await listEmployeesForEngine('fyh_salon', { activeOnly: false, organizationId: ctx?.organizationId });
     const hit = rows.find((r) => r.employee.id === id);
     if (!hit) return null;
     return {

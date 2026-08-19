@@ -75,7 +75,7 @@
     "hair:saas:bootstrap-verify": "tsx scripts/hair-saas-bootstrap-verify.ts",
     "hair:saas:tenant-reconcile": "tsx scripts/hair-saas-tenant-reconcile-readonly.ts",
     "hair:saas:apply-not-null": "tsx scripts/hair-saas-apply-not-null.ts",
-    "hair:saas:staging-preflight": "tsx scripts/hair-saas-staging-preflight.ts",
+    "hair:saas:staging-smoke": "tsx scripts/hair-saas-staging-smoke.ts",
     "staging:verify-vercel-env": "tsx scripts/staging-verify-vercel-env.ts",
     "staging:safety-gate": "tsx scripts/staging-safety-gate.ts",
     "staging:preflight": "tsx scripts/staging-safety-gate.ts && tsx scripts/hair-saas-staging-preflight.ts",

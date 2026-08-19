@@ -19,12 +19,9 @@ export async function listBookableStaffForSalon(
     const rows = await listEmployeesForEngine('fyh_salon', {
       activeOnly: true,
       receiveBookingsOnly: true,
+      organizationId: ctx?.organizationId,
     });
-    const scoped =
-      ctx?.organizationId
-        ? rows.filter((r) => r.employee.organizationId === ctx.organizationId)
-        : rows;
-    return scoped.map((r) => ({
+    return rows.map((r) => ({
       id: r.employee.id,
       fullName: r.employee.fullName,
       phone: r.employee.mobile,

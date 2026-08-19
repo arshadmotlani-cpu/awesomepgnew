@@ -109,7 +109,7 @@ CREATE TABLE IF NOT EXISTS platform.organization_entitlements (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
   organization_id uuid NOT NULL REFERENCES platform.organizations (id) ON DELETE RESTRICT,
   feature_key text NOT NULL,
-  limit integer,
+  "limit" integer,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
