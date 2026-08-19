@@ -1,5 +1,12 @@
 import { Suspense } from 'react';
+import type { Metadata } from 'next';
 import PlatformLoginForm from './login-form';
+
+export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = {
+  title: 'Platform sign in · Awesome PG',
+};
 
 export default function PlatformLoginPage() {
   return (

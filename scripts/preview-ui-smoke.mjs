@@ -9,7 +9,7 @@ const DEPLOY =
   'https://awesomepg-k59k-q8cvwdp3w-arshadmotlani-3160s-projects.vercel.app';
 
 const CHECKS = [
-  { path: '/platform/auth/login', title: /Login · Awesome PG/i },
+  { path: '/platform/auth/login', title: /Platform sign in|Login · Awesome PG/i },
   { path: '/fyh/auth/login', title: /For Your Hair/i },
   { path: '/platform/admin', status: [307, 308] },
   { path: '/fyh/team', status: [307, 308] },
