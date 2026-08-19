@@ -70,6 +70,8 @@ export function employeeToHairAdmin(
     hasWorkforcePermission(grants, 'system.settings');
   return {
     id: employee.legacyAdminUserId ?? employee.id,
+    organizationId: employee.organizationId ?? null,
+    userId: employee.userId ?? null,
     email: employee.email ?? employee.mobile ?? `${employee.id}@workforce.local`,
     passwordHash: employee.passwordHash ?? '',
     displayName: employee.fullName,
