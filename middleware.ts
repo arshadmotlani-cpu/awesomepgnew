@@ -6,7 +6,7 @@ import {
   SIGNUP_SESSION_COOKIE,
 } from '@/src/lib/auth/constants';
 import { PLATFORM_SESSION_COOKIE } from '@/src/platform/lib/auth/constants';
-import { readPlatformSessionCookiePayload } from '@/src/platform/lib/auth/sessionCookie';
+import { readPlatformSessionCookiePayloadEdge } from '@/src/platform/lib/auth/sessionCookieEdge';
 import {
   capitalMiddleware,
   shouldRunCapitalMiddleware,
@@ -82,7 +82,7 @@ function needsPlatformAuth(pathname: string): boolean {
   return true;
 }
 
-function platformMiddleware(request: NextRequest): NextResponse | null {
+async function platformMiddleware(request: NextRequest): Promise<NextResponse | null> {
   const { pathname } = request.nextUrl;
   if (!pathname.startsWith('/platform')) return null;
 
@@ -91,7 +91,7 @@ function platformMiddleware(request: NextRequest): NextResponse | null {
   requestHeaders.set('x-platform-pathname', pathname);
 
   const rawSessionCookie = request.cookies.get(PLATFORM_SESSION_COOKIE)?.value;
-  const validSession = readPlatformSessionCookiePayload(rawSessionCookie);
+  const validSession = await readPlatformSessionCookiePayloadEdge(rawSessionCookie);
 
   function withPlatformHeaders(response: NextResponse): NextResponse {
     response.headers.set('Cache-Control', 'no-store, must-revalidate');
@@ -132,7 +132,7 @@ function platformMiddleware(request: NextRequest): NextResponse | null {
   return withPlatformHeaders(NextResponse.next({ request: { headers: requestHeaders } }));
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (shouldRunPreviewFyhMiddleware(pathname)) {
@@ -140,7 +140,7 @@ export function middleware(request: NextRequest) {
     return previewFyhMiddleware(request, requestHeaders);
   }
 
-  const platformResponse = platformMiddleware(request);
+  const platformResponse = await platformMiddleware(request);
   if (platformResponse) return platformResponse;
 
   if (shouldRunHairMiddleware(request)) {

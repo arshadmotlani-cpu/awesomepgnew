@@ -56,21 +56,21 @@ test('previewFyhMiddleware attaches x-hair-app for public paths', () => {
 });
 
 test('root middleware allows /fyh on vercel.app when VERCEL_ENV=preview', () => {
-  withVercelEnv('preview', () => {
+  withVercelEnv('preview', async () => {
     const req = new NextRequest('https://awesomepg-abc.vercel.app/fyh/auth/login', {
       headers: { host: 'awesomepg-abc.vercel.app' },
     });
-    const res = middleware(req);
+    const res = await middleware(req);
     assert.notEqual(res.status, 404);
   });
 });
 
 test('root middleware blocks /fyh on vercel.app when not preview', () => {
-  withVercelEnv('production', () => {
+  withVercelEnv('production', async () => {
     const req = new NextRequest('https://awesomepg-abc.vercel.app/fyh/auth/login', {
       headers: { host: 'awesomepg-abc.vercel.app' },
     });
-    const res = middleware(req);
+    const res = await middleware(req);
     assert.equal(res.status, 404);
   });
 });
