@@ -6,6 +6,7 @@ import {
   SIGNUP_SESSION_COOKIE,
 } from '@/src/lib/auth/constants';
 import { PLATFORM_SESSION_COOKIE } from '@/src/platform/lib/auth/constants';
+import { readPlatformSessionCookiePayload } from '@/src/platform/lib/auth/sessionCookie';
 import {
   capitalMiddleware,
   shouldRunCapitalMiddleware,
@@ -86,27 +87,49 @@ function platformMiddleware(request: NextRequest): NextResponse | null {
   if (!pathname.startsWith('/platform')) return null;
 
   const requestHeaders = attachMonitoringHeaders(request);
+  requestHeaders.set('x-platform-app', '1');
+  requestHeaders.set('x-platform-pathname', pathname);
+
+  const rawSessionCookie = request.cookies.get(PLATFORM_SESSION_COOKIE)?.value;
+  const validSession = readPlatformSessionCookiePayload(rawSessionCookie);
+
+  function withPlatformHeaders(response: NextResponse): NextResponse {
+    response.headers.set('Cache-Control', 'no-store, must-revalidate');
+    response.headers.set('x-platform-app', '1');
+    if (rawSessionCookie && !validSession) {
+      response.cookies.set(PLATFORM_SESSION_COOKIE, '', {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        path: '/',
+        maxAge: 0,
+      });
+    }
+    return response;
+  }
 
   if (pathname === '/platform' || pathname === '/platform/') {
-    return NextResponse.redirect(new URL('/platform/dashboard', request.url));
+    return withPlatformHeaders(
+      NextResponse.redirect(new URL('/platform/dashboard', request.url)),
+    );
   }
-
-  const hasPlatformSession = Boolean(request.cookies.get(PLATFORM_SESSION_COOKIE)?.value);
 
   if (pathname === '/platform/auth/login' || pathname.startsWith('/platform/auth/login')) {
-    if (hasPlatformSession) {
-      return NextResponse.redirect(new URL('/platform/dashboard', request.url));
+    if (validSession) {
+      return withPlatformHeaders(
+        NextResponse.redirect(new URL('/platform/dashboard', request.url)),
+      );
     }
-    return NextResponse.next({ request: { headers: requestHeaders } });
+    return withPlatformHeaders(NextResponse.next({ request: { headers: requestHeaders } }));
   }
 
-  if (needsPlatformAuth(pathname) && !hasPlatformSession) {
+  if (needsPlatformAuth(pathname) && !validSession) {
     const login = new URL('/platform/auth/login', request.url);
     login.searchParams.set('next', `${pathname}${request.nextUrl.search}`);
-    return NextResponse.redirect(login);
+    return withPlatformHeaders(NextResponse.redirect(login));
   }
 
-  return NextResponse.next({ request: { headers: requestHeaders } });
+  return withPlatformHeaders(NextResponse.next({ request: { headers: requestHeaders } }));
 }
 
 export function middleware(request: NextRequest) {

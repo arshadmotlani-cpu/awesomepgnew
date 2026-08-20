@@ -1,5 +1,8 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { getPlatformAuthOptional } from '@/src/platform/lib/auth/guards';
 import PlatformLoginForm from './login-form';
 
 export const dynamic = 'force-dynamic';
@@ -8,7 +11,11 @@ export const metadata: Metadata = {
   title: 'Platform sign in · Awesome PG',
 };
 
-export default function PlatformLoginPage() {
+export default async function PlatformLoginPage() {
+  await headers();
+  const session = await getPlatformAuthOptional();
+  if (session) redirect('/platform/dashboard');
+
   return (
     <Suspense
       fallback={
