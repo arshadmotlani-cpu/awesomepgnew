@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 
 const DEPLOY =
   process.env.PREVIEW_URL ??
-  'https://awesomepg-k59k-q8cvwdp3w-arshadmotlani-3160s-projects.vercel.app';
+  'https://awesomepg-k59k-3sbpy64hw-arshadmotlani-3160s-projects.vercel.app';
 
 const CHECKS = [
   { path: '/platform/auth/login', title: /Platform sign in|Login · Awesome PG/i },
