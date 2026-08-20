@@ -1,0 +1,157 @@
+/* FYHAIR Platform Admin — B2B SaaS tokens */
+.plt-root {
+  --plt-bg: #0b0f14;
+  --plt-bg-elevated: #111820;
+  --plt-bg-surface: #151c24;
+  --plt-border: rgba(255, 255, 255, 0.08);
+  --plt-border-strong: rgba(255, 255, 255, 0.14);
+  --plt-text: #f1f5f9;
+  --plt-text-muted: #94a3b8;
+  --plt-text-subtle: #64748b;
+  --plt-accent: #10b981;
+  --plt-accent-hover: #34d399;
+  --plt-danger: #f87171;
+  --plt-warning: #fbbf24;
+  --plt-sidebar-width: 15rem;
+  --plt-header-height: 3.25rem;
+  --plt-radius: 0.5rem;
+  --plt-radius-lg: 0.75rem;
+  color: var(--plt-text);
+  background: var(--plt-bg);
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
+.plt-nav-group-title {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--plt-text-subtle);
+  padding: 0 0.5rem 0.25rem;
+}
+
+.plt-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.4375rem 0.75rem;
+  border-radius: var(--plt-radius);
+  font-size: 0.8125rem;
+  color: var(--plt-text-muted);
+  transition: background 0.15s, color 0.15s;
+}
+
+.plt-nav-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--plt-text);
+}
+
+.plt-nav-link[data-active='true'] {
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--plt-accent);
+}
+
+.plt-input {
+  background: var(--plt-bg);
+  border: 1px solid var(--plt-border-strong);
+  border-radius: var(--plt-radius);
+  padding: 0.4375rem 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--plt-text);
+  width: 100%;
+}
+
+.plt-input:focus {
+  outline: none;
+  border-color: var(--plt-accent);
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+.plt-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.4375rem 0.875rem;
+  border-radius: var(--plt-radius);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  background: var(--plt-accent);
+  color: #042f1a;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.plt-btn-primary:hover {
+  background: var(--plt-accent-hover);
+}
+
+.plt-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.4375rem 0.875rem;
+  border-radius: var(--plt-radius);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  background: transparent;
+  color: var(--plt-text-muted);
+  border: 1px solid var(--plt-border-strong);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.plt-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--plt-text);
+}
+
+.plt-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.4375rem 0.875rem;
+  border-radius: var(--plt-radius);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  background: rgba(248, 113, 113, 0.12);
+  color: var(--plt-danger);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  cursor: pointer;
+}
+
+.plt-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--plt-border);
+  border-radius: var(--plt-radius-lg);
+  background: var(--plt-bg-surface);
+}
+
+.plt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.plt-table th {
+  text-align: left;
+  padding: 0.625rem 0.875rem;
+  font-weight: 500;
+  color: var(--plt-text-subtle);
+  border-bottom: 1px solid var(--plt-border);
+  white-space: nowrap;
+}
+
+.plt-table td {
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid var(--plt-border);
+  vertical-align: middle;
+}
+
+.plt-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.plt-table tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}

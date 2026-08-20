@@ -8,6 +8,8 @@ import {
   createMemberInvitation,
   createOrganizationLocation,
   createOrganizationWithOwnerInvite,
+  revokeInvitation,
+  resendInvitation,
   setPlatformAdminMembership,
   setPlatformUserStatus,
   updateMemberAccess,
@@ -56,7 +58,7 @@ export async function createOrganizationAction(formData: FormData): Promise<void
 
   revalidatePath('/platform/admin');
   revalidatePath('/platform/admin/organizations');
-  redirect(`/platform/admin/organizations/${organizationId}`);
+  redirect(`/platform/admin/onboarding?success=1&orgId=${organizationId}`);
 }
 
 export async function savePlanAction(formData: FormData): Promise<void> {
@@ -187,6 +189,24 @@ export async function updatePlatformUserAction(formData: FormData): Promise<void
   );
   await setPlatformAdminMembership(userId, boolFromFormData(formData.get('isPlatformAdmin')));
   revalidatePath('/platform/admin/users');
+}
+
+export async function revokeInvitationAction(formData: FormData): Promise<void> {
+  const session = await requirePlatformAdminPage();
+  const invitationId = String(formData.get('invitationId') ?? '');
+  const organizationId = String(formData.get('organizationId') ?? '');
+  await revokeInvitation(invitationId, session.userId);
+  revalidatePath(`/platform/admin/organizations/${organizationId}`);
+  revalidatePath(`/platform/admin/organizations/${organizationId}/members`);
+}
+
+export async function resendInvitationAction(formData: FormData): Promise<void> {
+  const session = await requirePlatformAdminPage();
+  const invitationId = String(formData.get('invitationId') ?? '');
+  const organizationId = String(formData.get('organizationId') ?? '');
+  await resendInvitation(invitationId, session.userId);
+  revalidatePath(`/platform/admin/organizations/${organizationId}`);
+  revalidatePath(`/platform/admin/organizations/${organizationId}/members`);
 }
 
 export type AcceptInviteState = { error?: string };

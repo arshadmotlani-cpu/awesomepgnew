@@ -256,17 +256,31 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-20 05:19:24 UTC
+### Pending pre-commit sync · 2026-08-20 06:46:36 UTC
 
-**Areas touched:** [[Auth]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
-**Staged code files (1):**
-- `middleware.ts`
+**Staged code files (15):**
+- `app/(platform)/platform/admin/activity/page.tsx`
+- `app/(platform)/platform/admin/layout.tsx`
+- `app/(platform)/platform/admin/loading.tsx`
+- `app/(platform)/platform/admin/locations/page.tsx`
+- `app/(platform)/platform/admin/onboarding/page.tsx`
+- `app/(platform)/platform/admin/organizations/[id]/locations/page.tsx`
+- `app/(platform)/platform/admin/organizations/[id]/members/page.tsx`
+- `app/(platform)/platform/admin/organizations/[id]/page.tsx`
+- `app/(platform)/platform/admin/organizations/new/page.tsx`
+- `app/(platform)/platform/admin/organizations/page.tsx`
+- `app/(platform)/platform/admin/page.tsx`
+- `app/(platform)/platform/admin/plans/page.tsx`
+- `app/(platform)/platform/admin/search/page.tsx`
+- `app/(platform)/platform/admin/subscriptions/page.tsx`
+- `app/(platform)/platform/admin/users/page.tsx`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

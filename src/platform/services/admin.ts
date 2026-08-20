@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { hashPassword, randomToken } from '@/src/lib/auth/crypto';
 import { hairDb } from '@/src/hair/db/client';
 import { fyhSettings } from '@/src/hair/db/schema/settings';
@@ -41,6 +41,11 @@ export type PlatformDashboardStats = {
     slug: string;
     status: string;
     createdAt: Date;
+    ownerEmail: string | null;
+    planName: string | null;
+    locationCount: number;
+    memberCount: number;
+    subscriptionStatus: string | null;
   }>;
   recentSubscriptionActivity: Array<{
     id: string;
@@ -100,6 +105,101 @@ export type InviteMemberInput = {
   invitedByUserId: string;
   expiresInDays?: number;
 };
+
+export type PlatformOrganizationListItem = {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+  locationCount: number;
+  memberCount: number;
+  planName: string | null;
+  planId: string | null;
+  subscriptionStatus: string | null;
+  ownerEmail: string | null;
+  createdAt: Date;
+};
+
+export type OrganizationAttentionItem = {
+  organizationId: string;
+  organizationName: string;
+  slug: string;
+  reason: string;
+  severity: 'warning' | 'critical';
+};
+
+export type PlatformLocationListItem = {
+  id: string;
+  name: string;
+  organizationId: string;
+  organizationName: string;
+  status: string;
+  isPrimary: boolean;
+  address: string | null;
+  createdAt: Date;
+};
+
+export type PlatformSearchResult = {
+  type: 'organization' | 'user';
+  id: string;
+  label: string;
+  sublabel: string;
+  href: string;
+};
+
+type PlatformDb = ReturnType<typeof createPlatformClient>['db'];
+
+async function enrichOrganizationSummaries(
+  db: PlatformDb,
+  orgs: Array<typeof platformOrganizations.$inferSelect>,
+) {
+  const results = [];
+  for (const org of orgs) {
+    const locRows = await db
+      .select({ id: platformLocations.id })
+      .from(platformLocations)
+      .where(eq(platformLocations.organizationId, org.id));
+    const memberRows = await db
+      .select({ id: platformMemberships.id })
+      .from(platformMemberships)
+      .where(eq(platformMemberships.organizationId, org.id));
+    const [sub] = await db
+      .select({
+        planId: platformOrganizationSubscriptions.planId,
+        planName: platformPlans.name,
+        status: platformOrganizationSubscriptions.status,
+      })
+      .from(platformOrganizationSubscriptions)
+      .innerJoin(platformPlans, eq(platformOrganizationSubscriptions.planId, platformPlans.id))
+      .where(eq(platformOrganizationSubscriptions.organizationId, org.id))
+      .limit(1);
+    const [owner] = await db
+      .select({ email: platformUsers.email })
+      .from(platformMemberships)
+      .innerJoin(platformUsers, eq(platformMemberships.userId, platformUsers.id))
+      .where(
+        and(
+          eq(platformMemberships.organizationId, org.id),
+          eq(platformMemberships.accessRole, 'owner'),
+        ),
+      )
+      .limit(1);
+    results.push({
+      id: org.id,
+      name: org.name,
+      slug: org.slug,
+      status: org.status,
+      createdAt: org.createdAt,
+      ownerEmail: owner?.email ?? null,
+      planName: sub?.planName ?? null,
+      planId: sub?.planId ?? null,
+      locationCount: locRows.length,
+      memberCount: memberRows.length,
+      subscriptionStatus: sub?.status ?? null,
+    });
+  }
+  return results;
+}
 
 export async function getPlatformDashboardStats(): Promise<PlatformDashboardStats> {
   if (!hasPlatformDatabaseUrl()) {
@@ -169,13 +269,7 @@ export async function getPlatformDashboardStats(): Promise<PlatformDashboardStat
       totalLocations: Number(locationCount[0]?.total ?? 0),
       totalPlans: Number(planCount[0]?.total ?? 0),
       subscriptionsByStatus: Object.fromEntries(subs.map((row) => [row.status, Number(row.total)])),
-      recentOrganizations: orgs.map((org) => ({
-        id: org.id,
-        name: org.name,
-        slug: org.slug,
-        status: org.status,
-        createdAt: org.createdAt,
-      })),
+      recentOrganizations: await enrichOrganizationSummaries(db, orgs),
       recentSubscriptionActivity: events,
     };
   } finally {
@@ -1044,6 +1138,351 @@ export async function getInvitationByToken(token: string) {
       .where(eq(platformInvitations.token, token.trim()))
       .limit(1);
     return invite ?? null;
+  } finally {
+    await close();
+  }
+}
+
+export async function listOrganizationsForPlatformAdminFiltered(filters?: {
+  q?: string;
+  status?: string;
+  planId?: string;
+  sort?: 'created_desc' | 'created_asc' | 'name_asc' | 'name_desc';
+}): Promise<PlatformOrganizationListItem[]> {
+  if (!hasPlatformDatabaseUrl()) return [];
+  const { db, close } = createPlatformClient({ max: 1 });
+  try {
+    let orgs = await db.select().from(platformOrganizations);
+    const q = filters?.q?.trim().toLowerCase();
+    if (q) {
+      orgs = orgs.filter(
+        (org) =>
+          org.name.toLowerCase().includes(q) ||
+          org.slug.toLowerCase().includes(q),
+      );
+    }
+    if (filters?.status) {
+      orgs = orgs.filter((org) => org.status === filters.status);
+    }
+    const sort = filters?.sort ?? 'created_desc';
+    orgs.sort((a, b) => {
+      if (sort === 'name_asc') return a.name.localeCompare(b.name);
+      if (sort === 'name_desc') return b.name.localeCompare(a.name);
+      if (sort === 'created_asc') return a.createdAt.getTime() - b.createdAt.getTime();
+      return b.createdAt.getTime() - a.createdAt.getTime();
+    });
+
+    const enriched = await enrichOrganizationSummaries(db, orgs);
+    if (filters?.planId) {
+      return enriched.filter((row) => row.planId === filters.planId);
+    }
+    return enriched;
+  } finally {
+    await close();
+  }
+}
+
+export async function getOrganizationsNeedingAttention(): Promise<OrganizationAttentionItem[]> {
+  if (!hasPlatformDatabaseUrl()) return [];
+  const { db, close } = createPlatformClient({ max: 1 });
+  try {
+    const items: OrganizationAttentionItem[] = [];
+    const trialWindow = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+
+    const subs = await db
+      .select({
+        organizationId: platformOrganizationSubscriptions.organizationId,
+        status: platformOrganizationSubscriptions.status,
+        currentPeriodEnd: platformOrganizationSubscriptions.currentPeriodEnd,
+        orgName: platformOrganizations.name,
+        orgSlug: platformOrganizations.slug,
+        orgStatus: platformOrganizations.status,
+      })
+      .from(platformOrganizationSubscriptions)
+      .innerJoin(
+        platformOrganizations,
+        eq(platformOrganizationSubscriptions.organizationId, platformOrganizations.id),
+      );
+
+    for (const sub of subs) {
+      if (sub.status === 'past_due') {
+        items.push({
+          organizationId: sub.organizationId,
+          organizationName: sub.orgName,
+          slug: sub.orgSlug,
+          reason: 'Subscription past due',
+          severity: 'critical',
+        });
+      }
+      if (sub.status === 'suspended') {
+        items.push({
+          organizationId: sub.organizationId,
+          organizationName: sub.orgName,
+          slug: sub.orgSlug,
+          reason: 'Subscription suspended',
+          severity: 'critical',
+        });
+      }
+      if (
+        sub.status === 'trial' &&
+        sub.currentPeriodEnd &&
+        sub.currentPeriodEnd <= trialWindow
+      ) {
+        items.push({
+          organizationId: sub.organizationId,
+          organizationName: sub.orgName,
+          slug: sub.orgSlug,
+          reason: 'Trial expiring soon',
+          severity: 'warning',
+        });
+      }
+      if (sub.orgStatus === 'suspended') {
+        items.push({
+          organizationId: sub.organizationId,
+          organizationName: sub.orgName,
+          slug: sub.orgSlug,
+          reason: 'Organization suspended',
+          severity: 'critical',
+        });
+      }
+    }
+
+    const pendingOwnerInvites = await db
+      .select({
+        organizationId: platformInvitations.organizationId,
+        orgName: platformOrganizations.name,
+        orgSlug: platformOrganizations.slug,
+      })
+      .from(platformInvitations)
+      .innerJoin(platformOrganizations, eq(platformInvitations.organizationId, platformOrganizations.id))
+      .where(
+        and(
+          eq(platformInvitations.accessRole, 'owner'),
+          eq(platformInvitations.status, 'pending'),
+        ),
+      );
+
+    for (const invite of pendingOwnerInvites) {
+      if (!invite.organizationId) continue;
+      const [acceptedOwner] = await db
+        .select({ id: platformMemberships.id })
+        .from(platformMemberships)
+        .innerJoin(platformUsers, eq(platformMemberships.userId, platformUsers.id))
+        .where(
+          and(
+            eq(platformMemberships.organizationId, invite.organizationId),
+            eq(platformMemberships.accessRole, 'owner'),
+            eq(platformUsers.status, 'active'),
+          ),
+        )
+        .limit(1);
+      if (!acceptedOwner) {
+        items.push({
+          organizationId: invite.organizationId,
+          organizationName: invite.orgName,
+          slug: invite.orgSlug,
+          reason: 'Owner invitation pending',
+          severity: 'warning',
+        });
+      }
+    }
+
+    const seen = new Set<string>();
+    return items.filter((item) => {
+      const key = `${item.organizationId}:${item.reason}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  } finally {
+    await close();
+  }
+}
+
+export async function listAllPlatformLocations(): Promise<PlatformLocationListItem[]> {
+  if (!hasPlatformDatabaseUrl()) return [];
+  const { db, close } = createPlatformClient({ max: 1 });
+  try {
+    return await db
+      .select({
+        id: platformLocations.id,
+        name: platformLocations.name,
+        organizationId: platformLocations.organizationId,
+        organizationName: platformOrganizations.name,
+        status: platformLocations.status,
+        isPrimary: platformLocations.isPrimary,
+        address: platformLocations.address,
+        createdAt: platformLocations.createdAt,
+      })
+      .from(platformLocations)
+      .innerJoin(platformOrganizations, eq(platformLocations.organizationId, platformOrganizations.id))
+      .orderBy(desc(platformLocations.createdAt));
+  } finally {
+    await close();
+  }
+}
+
+export async function listPlatformSubscriptionEvents(options?: {
+  limit?: number;
+  organizationId?: string;
+}) {
+  if (!hasPlatformDatabaseUrl()) return [];
+  const limit = options?.limit ?? 50;
+  const { db, close } = createPlatformClient({ max: 1 });
+  try {
+    const conditions = options?.organizationId
+      ? eq(platformSubscriptionEvents.organizationId, options.organizationId)
+      : undefined;
+    const base = db
+      .select({
+        id: platformSubscriptionEvents.id,
+        organizationId: platformSubscriptionEvents.organizationId,
+        organizationName: platformOrganizations.name,
+        eventType: platformSubscriptionEvents.eventType,
+        detail: platformSubscriptionEvents.detail,
+        actorUserId: platformSubscriptionEvents.actorUserId,
+        actorEmail: platformUsers.email,
+        createdAt: platformSubscriptionEvents.createdAt,
+      })
+      .from(platformSubscriptionEvents)
+      .innerJoin(
+        platformOrganizations,
+        eq(platformSubscriptionEvents.organizationId, platformOrganizations.id),
+      )
+      .leftJoin(platformUsers, eq(platformSubscriptionEvents.actorUserId, platformUsers.id))
+      .orderBy(desc(platformSubscriptionEvents.createdAt))
+      .limit(limit);
+    if (conditions) {
+      return await base.where(conditions);
+    }
+    return await base;
+  } finally {
+    await close();
+  }
+}
+
+export async function searchPlatformAdmin(query: string): Promise<PlatformSearchResult[]> {
+  const q = query.trim();
+  if (!q || !hasPlatformDatabaseUrl()) return [];
+  const pattern = `%${q}%`;
+  const { db, close } = createPlatformClient({ max: 1 });
+  try {
+    const orgs = await db
+      .select({
+        id: platformOrganizations.id,
+        name: platformOrganizations.name,
+        slug: platformOrganizations.slug,
+      })
+      .from(platformOrganizations)
+      .where(or(ilike(platformOrganizations.name, pattern), ilike(platformOrganizations.slug, pattern)))
+      .limit(10);
+    const users = await db
+      .select({ id: platformUsers.id, email: platformUsers.email })
+      .from(platformUsers)
+      .where(ilike(platformUsers.email, pattern))
+      .limit(10);
+    const results: PlatformSearchResult[] = orgs.map((org) => ({
+      type: 'organization',
+      id: org.id,
+      label: org.name,
+      sublabel: org.slug,
+      href: `/platform/admin/organizations/${org.id}`,
+    }));
+    for (const user of users) {
+      results.push({
+        type: 'user',
+        id: user.id,
+        label: user.email,
+        sublabel: 'Platform user',
+        href: `/platform/admin/users`,
+      });
+    }
+    return results.slice(0, 20);
+  } finally {
+    await close();
+  }
+}
+
+export async function listUserOrganizationMemberships(
+  userIds: string[],
+): Promise<Record<string, Array<{ organizationName: string; role: string }>>> {
+  if (!hasPlatformDatabaseUrl() || userIds.length === 0) return {};
+  const { db, close } = createPlatformClient({ max: 1 });
+  try {
+    const rows = await db
+      .select({
+        userId: platformMemberships.userId,
+        organizationName: platformOrganizations.name,
+        accessRole: platformMemberships.accessRole,
+      })
+      .from(platformMemberships)
+      .innerJoin(platformOrganizations, eq(platformMemberships.organizationId, platformOrganizations.id))
+      .where(inArray(platformMemberships.userId, userIds));
+    const map: Record<string, Array<{ organizationName: string; role: string }>> = {};
+    for (const row of rows) {
+      if (!map[row.userId]) map[row.userId] = [];
+      map[row.userId].push({ organizationName: row.organizationName, role: row.accessRole });
+    }
+    return map;
+  } finally {
+    await close();
+  }
+}
+
+export async function revokeInvitation(invitationId: string, actorUserId: string): Promise<void> {
+  const { db, close } = createPlatformClient({ max: 1 });
+  try {
+    const [invite] = await db
+      .select()
+      .from(platformInvitations)
+      .where(eq(platformInvitations.id, invitationId))
+      .limit(1);
+    if (!invite) throw new Error('Invitation not found');
+    if (invite.status !== 'pending') throw new Error('Only pending invitations can be revoked');
+    await db
+      .update(platformInvitations)
+      .set({ status: 'revoked', updatedAt: new Date() })
+      .where(eq(platformInvitations.id, invitationId));
+    if (invite.organizationId) {
+      await logSubscriptionEvent({
+        organizationId: invite.organizationId,
+        actorUserId,
+        eventType: 'invitation_revoked',
+        detail: `Revoked ${invite.accessRole} invitation for ${invite.email}`,
+      });
+    }
+  } finally {
+    await close();
+  }
+}
+
+export async function resendInvitation(invitationId: string, actorUserId: string): Promise<void> {
+  const token = randomToken(24);
+  const { db, close } = createPlatformClient({ max: 1 });
+  try {
+    const [invite] = await db
+      .select()
+      .from(platformInvitations)
+      .where(eq(platformInvitations.id, invitationId))
+      .limit(1);
+    if (!invite) throw new Error('Invitation not found');
+    if (invite.status !== 'pending') throw new Error('Only pending invitations can be resent');
+    await db
+      .update(platformInvitations)
+      .set({
+        token,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        updatedAt: new Date(),
+      })
+      .where(eq(platformInvitations.id, invitationId));
+    if (invite.organizationId) {
+      await logSubscriptionEvent({
+        organizationId: invite.organizationId,
+        actorUserId,
+        eventType: 'invitation_resent',
+        detail: `Resent ${invite.accessRole} invitation to ${invite.email}`,
+      });
+    }
   } finally {
     await close();
   }
