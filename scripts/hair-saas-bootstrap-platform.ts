@@ -1,19 +1,23 @@
 /* eslint-disable no-console */
 /**
- * Phase 0B S4 — Bootstrap Platform org/location/users/memberships from staging Hair.
- * Staging only. Writes staging-bootstrap-ids.json artifact.
+ * Phase 0B S4 — Bootstrap Platform org/location/users/memberships from Hair.
+ * Staging: requireStagingEnv(). Production cutover: CONFIRM_PRODUCTION_CUTOVER=1 + production gate.
+ * Writes production-bootstrap-ids.json or staging-bootstrap-ids.json artifact.
  */
 import { writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
+import {
+  bootstrapArtifactPath,
+  isProductionCutoverWrite,
+  requireProductionCutoverWriteEnv,
+} from '@/src/lib/db/loadProductionCutoverEnv';
 import { requireStagingEnv } from '@/src/lib/db/loadStagingEnv';
-
-requireStagingEnv();
-
 import { createHairClient } from '@/src/hair/db/client';
 import { createPlatformClient } from '@/src/platform/db/client';
 import { fyhAdminUsers, fyhSettings } from '@/src/hair/db/schema';
-import { wfEmployees } from '@/src/workforce/db/schema';
+import { wfEmployees, wfEngineMemberships } from '@/src/workforce/db/schema';
+import { resolvePlatformAccessRoleFromWorkforce } from '@/src/platform/lib/bootstrapAccessRole';
+import type { PlatformMembershipRole } from '@/src/platform/db/schema';
 import {
   platformLocations,
   platformMembershipLocations,
@@ -24,16 +28,30 @@ import {
   platformUsers,
 } from '@/src/platform/db/schema';
 
-const ARTIFACT = resolve('staging-bootstrap-ids.json');
+if (isProductionCutoverWrite()) {
+  requireProductionCutoverWriteEnv();
+} else {
+  requireStagingEnv();
+}
+
+const ARTIFACT = bootstrapArtifactPath();
 
 async function main() {
   const hair = createHairClient({ max: 2 });
   const platform = createPlatformClient({ max: 2 });
 
-  const [settings] = await hair.db.select().from(fyhSettings).limit(1);
-  if (!settings) throw new Error('fyh_settings row missing');
+  const [settings] = await hair.db
+    .select()
+    .from(fyhSettings)
+    .where(isNull(fyhSettings.organizationId))
+    .orderBy(fyhSettings.id)
+    .limit(1);
+  if (!settings) throw new Error('Canonical fyh_settings row missing (organization_id IS NULL)');
 
   const slug = 'for-your-hair';
+  const planSlug = isProductionCutoverWrite() ? 'fyhair-production' : 'fyh-staging';
+  const planName = isProductionCutoverWrite() ? 'FYHAIR Production' : 'FYH Staging';
+
   const existing = await platform.db
     .select()
     .from(platformOrganizations)
@@ -58,10 +76,17 @@ async function main() {
     return;
   }
 
-  const [plan] = await platform.db
-    .insert(platformPlans)
-    .values({ slug: 'fyh-staging', name: 'FYH Staging' })
-    .returning();
+  let [plan] = await platform.db
+    .select()
+    .from(platformPlans)
+    .where(eq(platformPlans.slug, planSlug))
+    .limit(1);
+  if (!plan) {
+    [plan] = await platform.db
+      .insert(platformPlans)
+      .values({ slug: planSlug, name: planName })
+      .returning();
+  }
   if (!plan) throw new Error('Failed to create plan');
 
   const [org] = await platform.db
@@ -79,7 +104,7 @@ async function main() {
     .insert(platformLocations)
     .values({
       organizationId: org.id,
-      name: 'Primary',
+      name: settings.businessName ? `${settings.businessName} — Main` : 'Primary',
       isPrimary: true,
       address: settings.businessAddress,
     })
@@ -87,11 +112,24 @@ async function main() {
   if (!location) throw new Error('Failed to create location');
 
   const employees = await hair.db
-    .select()
+    .select({
+      employee: wfEmployees,
+      rank: wfEngineMemberships.rank,
+      jobRole: wfEngineMemberships.jobRole,
+    })
     .from(wfEmployees)
+    .leftJoin(
+      wfEngineMemberships,
+      and(
+        eq(wfEngineMemberships.employeeId, wfEmployees.id),
+        eq(wfEngineMemberships.engineId, 'fyh_salon'),
+        eq(wfEngineMemberships.isActive, true),
+      ),
+    )
     .where(and(eq(wfEmployees.canLogin, true), eq(wfEmployees.status, 'active')));
 
   const admins = await hair.db.select().from(fyhAdminUsers);
+  const adminByEmail = new Map(admins.map((a) => [a.email.trim().toLowerCase(), a]));
 
   const userMap: Record<string, string> = {};
   const emailToUserId = new Map<string, string>();
@@ -119,20 +157,17 @@ async function main() {
     return found.id;
   }
 
-  for (const emp of employees) {
-    if (!emp.email) continue;
-    const userId = await upsertUser(emp.email, emp.passwordHash);
-    userMap[`employee:${emp.id}`] = userId;
-
-    const role =
-      emp.isSystemProvider ? 'owner' : emp.email?.includes('arshad') ? 'owner' : 'member';
-
+  async function ensureMembership(
+    userId: string,
+    accessRole: PlatformMembershipRole,
+  ): Promise<void> {
     const [membership] = await platform.db
       .insert(platformMemberships)
       .values({
         userId,
         organizationId: org.id,
-        role,
+        role: accessRole,
+        accessRole,
         isActive: true,
       })
       .onConflictDoNothing()
@@ -161,18 +196,32 @@ async function main() {
     }
   }
 
+  for (const row of employees) {
+    const emp = row.employee;
+    if (!emp.email) continue;
+    const userId = await upsertUser(emp.email, emp.passwordHash);
+    userMap[`employee:${emp.id}`] = userId;
+
+    const legacyAdmin = adminByEmail.get(emp.email.trim().toLowerCase());
+    const accessRole = resolvePlatformAccessRoleFromWorkforce({
+      rank: row.rank,
+      jobRole: row.jobRole,
+      isSystemProvider: emp.isSystemProvider,
+      legacyAdminRole: legacyAdmin?.role ?? null,
+    });
+
+    await ensureMembership(userId, accessRole);
+  }
+
   for (const admin of admins) {
+    const normalized = admin.email.trim().toLowerCase();
+    if (emailToUserId.has(normalized)) continue;
     const userId = await upsertUser(admin.email, admin.passwordHash);
     userMap[`admin:${admin.id}`] = userId;
-    await platform.db
-      .insert(platformMemberships)
-      .values({
-        userId,
-        organizationId: org.id,
-        role: admin.role === 'super_admin' ? 'owner' : 'member',
-        isActive: true,
-      })
-      .onConflictDoNothing();
+    const accessRole = resolvePlatformAccessRoleFromWorkforce({
+      legacyAdminRole: admin.role,
+    });
+    await ensureMembership(userId, accessRole);
   }
 
   await platform.db.insert(platformOrganizationSubscriptions).values({

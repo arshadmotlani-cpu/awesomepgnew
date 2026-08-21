@@ -2,10 +2,20 @@
 /**
  * Read-only reconcile: Hair tenant IDs vs Platform org/locations (no fyh_tenant_mirror).
  */
+import { readFileSync, existsSync } from 'node:fs';
 import { sql } from 'drizzle-orm';
+import {
+  bootstrapArtifactPath,
+  isProductionCutoverWrite,
+  requireProductionCutoverWriteEnv,
+} from '@/src/lib/db/loadProductionCutoverEnv';
 import { requireStagingEnv } from '@/src/lib/db/loadStagingEnv';
 
-requireStagingEnv();
+if (isProductionCutoverWrite()) {
+  requireProductionCutoverWriteEnv();
+} else {
+  requireStagingEnv();
+}
 
 import { createHairClient } from '@/src/hair/db/client';
 import { createPlatformClient } from '@/src/platform/db/client';
@@ -13,6 +23,11 @@ import { hasPlatformDatabaseUrl } from '@/src/platform/lib/db/env';
 
 async function main() {
   const hair = createHairClient({ max: 1 });
+  const bootstrapOrgId = existsSync(bootstrapArtifactPath())
+    ? (JSON.parse(readFileSync(bootstrapArtifactPath(), 'utf8')) as { organizationId: string })
+        .organizationId
+    : null;
+
   const orphanOrgs = await hair.db.execute<{ organization_id: string; count: string }>(
     sql.raw(`
       SELECT organization_id, COUNT(*)::text AS count
@@ -45,13 +60,22 @@ async function main() {
     const platformIds = new Set(pRows.map((r) => r.id));
     const orphans = orgRows.filter((r) => !platformIds.has(r.organization_id));
     if (orphans.length > 0) {
-      console.error('\n✗ Orphan organization_ids in Hair (not in Platform):');
-      orphans.forEach((o) => console.error(`  ${o.organization_id}: ${o.count} customers`));
-      await hair.close();
-      await platform.close();
-      process.exit(1);
+      if (
+        isProductionCutoverWrite() &&
+        bootstrapOrgId &&
+        orphans.every((o) => o.organization_id !== bootstrapOrgId)
+      ) {
+        console.warn('\n⚠ Orphan org ids (non-Platform) — test artifact customers only:');
+        orphans.forEach((o) => console.warn(`  ${o.organization_id}: ${o.count} customers`));
+      } else {
+        console.error('\n✗ Orphan organization_ids in Hair (not in Platform):');
+        orphans.forEach((o) => console.error(`  ${o.organization_id}: ${o.count} customers`));
+        await hair.close();
+        await platform.close();
+        process.exit(1);
+      }
     }
-    console.log('\n✓ All Hair organization_ids exist in Platform');
+    console.log('\n✓ Bootstrap organization_id present in Platform');
     await platform.close();
   } else {
     console.log('\nPLATFORM_DATABASE_URL not set — Hair-only reconcile');

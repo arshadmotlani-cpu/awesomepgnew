@@ -1,13 +1,22 @@
 /* eslint-disable no-console */
 /**
  * Phase 0B S5 — Idempotent batched Hair tenant backfill from bootstrap artifact.
+ * Production: CONFIRM_PRODUCTION_CUTOVER=1 + production safety gate.
  */
 import { readFileSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { sql } from 'drizzle-orm';
+import {
+  bootstrapArtifactPath,
+  isProductionCutoverWrite,
+  requireProductionCutoverWriteEnv,
+} from '@/src/lib/db/loadProductionCutoverEnv';
 import { requireStagingEnv } from '@/src/lib/db/loadStagingEnv';
 
-requireStagingEnv();
+if (isProductionCutoverWrite()) {
+  requireProductionCutoverWriteEnv();
+} else {
+  requireStagingEnv();
+}
 
 import { createHairClient } from '@/src/hair/db/client';
 
@@ -21,16 +30,65 @@ type BootstrapArtifact = {
 };
 
 function loadArtifact(): BootstrapArtifact {
-  const path = resolve('staging-bootstrap-ids.json');
+  const path = bootstrapArtifactPath();
   if (existsSync(path)) {
     return JSON.parse(readFileSync(path, 'utf8')) as BootstrapArtifact;
   }
   const orgId = process.env.FYH_BOOTSTRAP_ORG_ID?.trim();
   const locId = process.env.FYH_BOOTSTRAP_LOC_ID?.trim();
   if (!orgId || !locId) {
-    throw new Error('staging-bootstrap-ids.json missing and FYH_BOOTSTRAP_ORG_ID/LOC_ID not set');
+    throw new Error(`${path} missing and FYH_BOOTSTRAP_ORG_ID/LOC_ID not set`);
   }
   return { organizationId: orgId, locationId: locId, userMap: {} };
+}
+
+/** Remove integration-test tenant rows (Tenant A/B) from production Hair before backfill. */
+async function cleanProductionTestArtifacts(db: ReturnType<typeof createHairClient>['db']) {
+  console.log('Cleaning integration-test artifacts (Tenant A/B only)…');
+  const settings = await db.execute(sql.raw(`
+    DELETE FROM fyh_settings
+    WHERE business_name IN ('Tenant A Salon', 'Tenant B Salon')
+    RETURNING 1
+  `));
+  const settingsDeleted = Array.isArray(settings) ? settings.length : 0;
+
+  await db.execute(sql.raw(`
+    DELETE FROM fyh_invoices
+    WHERE customer_id IN (
+      SELECT id FROM fyh_customers
+      WHERE full_name LIKE 'Tenant %' OR organization_id::text LIKE '00000000-0000-0000-%'
+    )
+  `));
+
+  const customers = await db.execute(sql.raw(`
+    DELETE FROM fyh_customers
+    WHERE full_name LIKE 'Tenant %' OR organization_id::text LIKE '00000000-0000-0000-%'
+    RETURNING 1
+  `));
+  const customersDeleted = Array.isArray(customers) ? customers.length : 0;
+
+  console.log(`  deleted test fyh_settings: ${settingsDeleted}`);
+  console.log(`  deleted test customers: ${customersDeleted}`);
+}
+
+/** Rename duplicate invoice_number rows (pre-org backfill) so per-org unique index can apply. */
+async function repairDuplicateInvoiceNumbers(db: ReturnType<typeof createHairClient>['db']) {
+  console.log('Repairing duplicate invoice_number rows before org backfill…');
+  const result = await db.execute(sql.raw(`
+    WITH ranked AS (
+      SELECT id, invoice_number,
+        ROW_NUMBER() OVER (PARTITION BY invoice_number ORDER BY created_at NULLS LAST, id) AS rn
+      FROM fyh_invoices
+      WHERE organization_id IS NULL
+    )
+    UPDATE fyh_invoices i
+    SET invoice_number = i.invoice_number || '-MIG-' || SUBSTRING(i.id::text, 1, 8)
+    FROM ranked r
+    WHERE i.id = r.id AND r.rn > 1
+    RETURNING i.id
+  `));
+  const repaired = Array.isArray(result) ? result.length : 0;
+  console.log(`  renamed duplicate invoice_number rows: ${repaired}`);
 }
 
 const ORG_ONLY_TABLES = [
@@ -73,6 +131,7 @@ const ORG_ONLY_TABLES = [
   'wf_incentives',
   'wf_audit_log',
   'wf_events',
+  'wf_employees',
 ];
 
 const ORG_LOC_TABLES = [
@@ -102,7 +161,6 @@ const ORG_LOC_TABLES = [
   'fyh_expenses',
   'wf_schedules',
   'wf_attendance',
-  'wf_employees',
 ];
 
 async function backfillOrgTable(db: ReturnType<typeof createHairClient>['db'], table: string, orgId: string) {
@@ -128,6 +186,11 @@ async function main() {
   const artifact = loadArtifact();
   const { organizationId: orgId, locationId: locId } = artifact;
   const { db, close } = createHairClient({ max: 1 });
+
+  if (isProductionCutoverWrite()) {
+    await cleanProductionTestArtifacts(db);
+    await repairDuplicateInvoiceNumbers(db);
+  }
 
   console.log(`Backfill org=${orgId} loc=${locId}`);
 

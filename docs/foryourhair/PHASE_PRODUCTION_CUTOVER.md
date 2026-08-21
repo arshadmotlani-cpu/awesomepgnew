@@ -655,23 +655,41 @@ YOU (Platform Admin)
 
 ## 9. Exact next action (recommended)
 
-**Step 1 (you, ~15 min, zero production risk):**
+**Phase 1–3 (Platform provision + bootstrap + backfill):** **Completed 2026-08-21** on production Hair + Platform. Artifact: `production-bootstrap-ids.json` (local, gitignored).
 
-1. Neon Console → Create project **`awesomepg-platform-production`**
-2. Copy pooled connection string to your secrets manager (**do not** add to Vercel Production yet)
-3. Local shell with that URL only:
-   ```bash
-   export PLATFORM_DATABASE_URL='postgresql://…'
-   npm run platform:db:migrate
-   npm run env:check -- --product=platform
-   ```
-4. Run GATE 1 SQL (§A4) — confirm `platform` schema, 0 orgs, host isolation
+**Operator CLI (Production Vercel env — writes require `CONFIRM_PRODUCTION_CUTOVER=1`):**
 
-**Step 2 (agent, before Phase 3):**
+| npm script | Purpose |
+|------------|---------|
+| `production:safety-gate` | Platform host isolation + SaaS flags OFF |
+| `production:preflight` | Safety gate + Hair read-only audit |
+| `hair:saas:production-preflight` | Hair read-only audit only |
+| `hair:saas:production-phase3` | Gate → bootstrap → backfill → verify → reconcile |
 
-- Add `scripts/production-safety-gate.ts` + patch `hair-saas-bootstrap-platform.ts` for `access_role` mapping from `wf_engine_memberships`
-- Commit staging reset/verify scripts
-- **Still no production Hair writes**
+```bash
+# Read-only preflight (no Hair writes)
+npx vercel env run --environment production -- npm run production:preflight
+
+# Phase 3 writes (maintenance window; snapshot Hair first)
+CONFIRM_PRODUCTION_CUTOVER=1 npx vercel env run --environment production -- npm run hair:saas:production-phase3
+```
+
+**Backfill edge cases (production):**
+
+- **Duplicate `invoice_number` among NULL-org rows:** `hair-saas-backfill-tenant.ts` renames duplicates (`-MIG-{id}`) before org assignment so `fyh_invoices_org_number_uidx` can apply.
+- **`wf_employees`:** org-only column (`organization_id`); not in org+location batch list.
+
+**Step next (Phase 4 — still requires approval):**
+
+1. Login smoke on production Hair with flags **OFF** (legacy auth).
+2. Enable `FYH_SAAS_TENANT=1` + `WORKFORCE_MEMBERSHIP_AUTH=1` on Vercel Production only after soak plan approved.
+3. Later: `hair:saas:apply-not-null` (migration `0037`).
+
+**Historical Step 1 (Platform DB provision — done via Vercel Neon integration `awesomepg-platform-production`):**
+
+1. ~~Neon Console → Create project~~ → use `vercel integration add neon --name awesomepg-platform-production …`
+2. Migrations: `npx vercel env run --environment production -- npm run platform:db:migrate`
+3. GATE 1 SQL (§A4) — confirm `platform` schema, 0 orgs pre-bootstrap
 
 ---
 
@@ -689,9 +707,12 @@ YOU (Platform Admin)
 
 | Check | 2026-08-21 |
 |-------|------------|
-| Production Hair written | **No** |
-| Production Platform written | **No** |
-| Production Vercel env changed | **No** |
+| Production Hair bootstrap/backfill (Phase 3) | **Yes** — org `for-your-hair`, 3300 customers, 2181 invoices |
+| Production Platform bootstrap | **Yes** — 1 org, 1 location, 2 users |
+| Production Hair written after tooling commit | **No further writes until Phase 4 approval** |
+| Production Vercel env changed | **No** (SaaS flags still unset) |
 | Production DNS changed | **No** |
 | `FYH_SAAS_TENANT` on Production | **Not enabled** (expected unset/0) |
-| This document executed cutover | **No — plan only** |
+| `WORKFORCE_MEMBERSHIP_AUTH` on Production | **Not enabled** |
+| Migration `0037` NOT NULL | **Not applied** |
+| Tooling commit (`production:safety-gate`, Phase 3 scripts) | See git history |

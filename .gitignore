@@ -61,3 +61,5 @@ next-env.d.ts
 .capital-deploy-credentials.json
 .env.vercel.*
 tmp/
+
+production-bootstrap-ids.json

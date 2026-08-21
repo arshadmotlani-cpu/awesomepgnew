@@ -1,8 +1,21 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { loadAppEnv } from '@/src/lib/db/loadEnv';
+import { loadProductionCutoverEnv } from '@/src/lib/db/loadProductionCutoverEnv';
 import { loadStagingEnv } from '@/src/lib/db/loadStagingEnv';
+
+const hasProductionCutoverEnvFile = existsSync(
+  join(process.cwd(), '.env.production-cutover.local'),
+);
 
 if (process.env.STAGING_ONLY === '1') {
   loadStagingEnv();
+} else if (
+  process.env.PRODUCTION_CUTOVER === '1' ||
+  process.env.CONFIRM_PRODUCTION_CUTOVER === '1' ||
+  hasProductionCutoverEnvFile
+) {
+  loadProductionCutoverEnv();
 } else {
   loadAppEnv();
 }

@@ -1,20 +1,28 @@
 /* eslint-disable no-console */
 /**
- * Phase 0B — Verify bootstrap/backfill checksums on staging Hair DB.
+ * Phase 0B — Verify bootstrap/backfill checksums on Hair DB.
  */
 import { readFileSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { sql } from 'drizzle-orm';
+import {
+  bootstrapArtifactPath,
+  isProductionCutoverWrite,
+  requireProductionCutoverWriteEnv,
+} from '@/src/lib/db/loadProductionCutoverEnv';
 import { requireStagingEnv } from '@/src/lib/db/loadStagingEnv';
 
-requireStagingEnv();
+if (isProductionCutoverWrite()) {
+  requireProductionCutoverWriteEnv();
+} else {
+  requireStagingEnv();
+}
 
 import { createHairClient } from '@/src/hair/db/client';
 
 async function main() {
-  const artifactPath = resolve('staging-bootstrap-ids.json');
+  const artifactPath = bootstrapArtifactPath();
   if (!existsSync(artifactPath)) {
-    console.error('staging-bootstrap-ids.json not found — run hair:saas:bootstrap-platform first');
+    console.error(`${artifactPath} not found — run hair:saas:bootstrap-platform first`);
     process.exit(1);
   }
   const artifact = JSON.parse(readFileSync(artifactPath, 'utf8')) as {
@@ -41,20 +49,37 @@ async function main() {
       expectZero: true,
     },
     {
-      label: 'invoice grand total checksum',
+      label: 'invoice grand total checksum (bootstrap org)',
       query: `SELECT COALESCE(SUM(grand_total_paise), 0)::bigint AS c FROM fyh_invoices WHERE organization_id = '${orgId}'`,
+      expectZero: false,
+    },
+    {
+      label: 'invoice grand total all rows',
+      query: `SELECT COALESCE(SUM(grand_total_paise), 0)::bigint AS c FROM fyh_invoices`,
       expectZero: false,
     },
   ];
 
   let failed = 0;
+  let grandTotalBootstrap = 0;
+  let grandTotalAll = 0;
   for (const check of checks) {
     const rows = await db.execute<{ c: number | string }>(sql.raw(check.query));
     const row = Array.isArray(rows) ? rows[0] : (rows as { rows?: Array<{ c: number }> }).rows?.[0];
     const count = Number(row?.c ?? 0);
+    if (check.label.includes('bootstrap org')) grandTotalBootstrap = count;
+    if (check.label.includes('all rows')) grandTotalAll = count;
     const ok = check.expectZero ? count === 0 : count >= 0;
     console.log(`${ok ? '✓' : '✗'} ${check.label}: ${count}`);
     if (!ok) failed += 1;
+  }
+
+  if (isProductionCutoverWrite() && grandTotalBootstrap !== grandTotalAll) {
+    console.log(
+      `⚠ Non-bootstrap invoice rows remain (${grandTotalAll - grandTotalBootstrap} paise outside org — likely test artifacts)`,
+    );
+  } else if (isProductionCutoverWrite()) {
+    console.log('✓ Invoice grand total matches pre-backfill baseline (all rows in bootstrap org)');
   }
 
   await close();

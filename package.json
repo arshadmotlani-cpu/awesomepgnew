@@ -78,6 +78,10 @@
     "hair:saas:staging-smoke": "tsx scripts/hair-saas-staging-smoke.ts",
     "staging:verify-vercel-env": "tsx scripts/staging-verify-vercel-env.ts",
     "staging:safety-gate": "tsx scripts/staging-safety-gate.ts",
+    "production:safety-gate": "tsx scripts/production-safety-gate.ts",
+    "production:preflight": "tsx scripts/production-safety-gate.ts && tsx scripts/hair-saas-production-preflight-readonly.ts",
+    "hair:saas:production-preflight": "tsx scripts/hair-saas-production-preflight-readonly.ts",
+    "hair:saas:production-phase3": "tsx scripts/production-safety-gate.ts && tsx scripts/hair-saas-bootstrap-platform.ts && tsx scripts/hair-saas-backfill-tenant.ts && tsx scripts/hair-saas-bootstrap-verify.ts && tsx scripts/hair-saas-tenant-reconcile-readonly.ts",
     "staging:preflight": "tsx scripts/staging-safety-gate.ts && tsx scripts/hair-saas-staging-preflight.ts",
     "staging:phase0b": "tsx scripts/staging-phase0b-run.ts"
   },
