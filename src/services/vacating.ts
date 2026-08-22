@@ -49,6 +49,7 @@ import {
   shouldShortenStayOnVacatingApproval,
 } from '../lib/occupancyEligibility';
 import { reconcileBookingOccupancy } from '../lib/occupancySync';
+import { resolveNoticeGivenDateForVacating } from '@/src/lib/vacating/noticeDateSsot';
 import {
   isNoticeCompliant,
   noticeShortfallDays,
@@ -565,9 +566,14 @@ export async function approveVacatingRequest(input: {
     context: 'approve',
   });
 
+  const noticeGivenDate = resolveNoticeGivenDateForVacating({
+    noticeGivenDate: String(current.noticeGivenDate),
+    originalNoticeSubmittedAt: current.originalNoticeSubmittedAt,
+  });
+
   const noticeBreakdown = await computeNoticeDeductionForBooking({
     bookingId: current.bookingId,
-    noticeGivenDate: String(current.noticeGivenDate),
+    noticeGivenDate,
     vacatingDate: String(current.vacatingDate),
     monthlyRentPaise: current.monthlyRentPaiseSnapshot,
   });

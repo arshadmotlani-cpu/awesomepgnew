@@ -12,6 +12,7 @@ import {
 import { NoticeSettlementPanel } from '@/src/components/shared/NoticeDeductionBreakdown';
 import { formatDate, formatDateTime, paiseToInr } from '@/src/lib/format';
 import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
+import { resolveAdminMoveOutFinancialSummary } from '@/src/lib/vacating/adminMoveOutFinancialSummary';
 import type { MoveOutUrgency } from '@/src/lib/vacating/approvalPreview';
 import type { MoveOutPipelineItemClient } from '@/src/lib/moveOut/moveOutPipeline';
 import { bookingFinancialWorkspaceSectionHref } from '@/src/lib/bookings/bookingFinancialLinks';
@@ -257,7 +258,13 @@ function MoveOutCard({
             ) : null}
             {!trackingOnly && !isComplete ? (
               <p className="mt-1 text-xs text-apg-silver/80">
-                Refund {paiseToInr(row.estimatedRefundPaise)}
+                Estimated refundable{' '}
+                {paiseToInr(
+                  resolveAdminMoveOutFinancialSummary(
+                    row,
+                    approvalPreviewByRequestId?.[row.vacatingRequestId],
+                  ).estimatedRefundPaise,
+                )}
               </p>
             ) : null}
           </div>
@@ -272,7 +279,13 @@ function MoveOutCard({
             <span className="text-apg-silver/60">{expanded ? '▴' : '▾'}</span>
           </div>
         </div>
-        {!trackingOnly ? <FinancialSummary row={row} className="mt-3" /> : null}
+        {!trackingOnly ? (
+          <FinancialSummary
+            row={row}
+            approvalPreviewByRequestId={approvalPreviewByRequestId}
+            className="mt-3"
+          />
+        ) : null}
       </button>
 
       {expanded ? (
@@ -359,37 +372,54 @@ function MoveOutCard({
 
 function FinancialSummary({
   row,
+  approvalPreviewByRequestId,
   className = '',
 }: {
   row: MoveOutPipelineItemClient;
+  approvalPreviewByRequestId?: Record<string, VacatingApprovalPreview>;
   className?: string;
 }) {
+  const preview = approvalPreviewByRequestId?.[row.vacatingRequestId];
+  const summary = resolveAdminMoveOutFinancialSummary(row, preview);
+
   return (
     <dl className={'flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums ' + className}>
       <div>
-        <dt className="inline text-apg-silver">Deposit </dt>
-        <dd className="inline text-white">{paiseToInr(row.depositHeldPaise)}</dd>
+        <dt className="inline text-apg-silver">Security deposit </dt>
+        <dd className="inline text-white">{paiseToInr(summary.securityDepositPaise)}</dd>
       </div>
-      {row.deductionPaise > 0 ? (
+      {summary.unusedPrepaidRentPaise != null && summary.unusedPrepaidRentPaise > 0 ? (
         <div>
-          <dt className="inline text-apg-silver">Notice </dt>
-          <dd className="inline text-rose-200/90">-{paiseToInr(row.deductionPaise)}</dd>
+          <dt className="inline text-apg-silver">Unused prepaid rent </dt>
+          <dd className="inline text-emerald-200/90">{paiseToInr(summary.unusedPrepaidRentPaise)}</dd>
         </div>
       ) : null}
-      {row.electricityDeductionPaise > 0 ? (
+      {summary.noticeDeductionPaise > 0 ? (
+        <div>
+          <dt className="inline text-apg-silver">Notice deduction </dt>
+          <dd className="inline text-rose-200/90">-{paiseToInr(summary.noticeDeductionPaise)}</dd>
+        </div>
+      ) : null}
+      {summary.electricityPending ? (
         <div>
           <dt className="inline text-apg-silver">Electricity </dt>
-          <dd className="inline text-rose-200/90">-{paiseToInr(row.electricityDeductionPaise)}</dd>
+          <dd className="inline text-amber-200/90">Pending</dd>
+        </div>
+      ) : summary.electricityDeductionPaise > 0 ? (
+        <div>
+          <dt className="inline text-apg-silver">Electricity </dt>
+          <dd className="inline text-rose-200/90">-{paiseToInr(summary.electricityDeductionPaise)}</dd>
         </div>
       ) : null}
       <div>
-        <dt className="inline text-apg-silver">Refund </dt>
+        <dt className="inline text-apg-silver">Estimated refundable </dt>
         <dd
           className={
-            'inline ' + (row.estimatedRefundPaise === 0 ? 'text-apg-silver' : 'text-emerald-200/90')
+            'inline ' +
+            (summary.estimatedRefundPaise === 0 ? 'text-apg-silver' : 'text-emerald-200/90')
           }
         >
-          {paiseToInr(row.estimatedRefundPaise)}
+          {paiseToInr(summary.estimatedRefundPaise)}
         </dd>
       </div>
     </dl>
@@ -446,30 +476,32 @@ function MoveOutPrimaryButton({
 
   if (row.continueKind === 'approve') {
     const preview = approvalPreviewByRequestId?.[row.vacatingRequestId];
-    if (!preview?.estimatedSettlement) {
+    if (preview) {
       return (
-        <span
-          className={className + ' cursor-not-allowed opacity-50'}
-          aria-disabled
-          title={
-            preview
-              ? 'Settlement preview could not be loaded — refresh or open move-out pipeline'
-              : 'Loading settlement preview…'
-          }
-        >
+        <ApproveVacatingButton
+          requestId={row.vacatingRequestId}
+          className={className}
+          label={label}
+          preview={preview}
+          bookingId={row.bookingId}
+          bookingCode={row.bookingCode}
+        />
+      );
+    }
+    if (row.continueHref) {
+      return (
+        <Link href={row.continueHref} className={className}>
           {label}
-        </span>
+        </Link>
       );
     }
     return (
-      <ApproveVacatingButton
-        requestId={row.vacatingRequestId}
+      <Link
+        href={`/admin/vacating?read=${encodeURIComponent(`vacating:${row.vacatingRequestId}`)}`}
         className={className}
-        label={label}
-        preview={preview}
-        bookingId={row.bookingId}
-        bookingCode={row.bookingCode}
-      />
+      >
+        {label}
+      </Link>
     );
   }
 

@@ -57,10 +57,15 @@ export async function toMoveOutAdvancedToolsRowAsync(
   const normalizedRow = normalizeVacatingRow(row);
   const held = guardDepositPaise(depositHeldPaise);
 
-  const approvalPreview =
-    normalizedRow.status === 'pending'
-      ? await buildVacatingApprovalPreviewAsync(normalizedRow, held)
-      : undefined;
+  let approvalPreview: VacatingApprovalPreview | undefined;
+  if (normalizedRow.status === 'pending') {
+    try {
+      approvalPreview = await buildVacatingApprovalPreviewAsync(normalizedRow, held);
+    } catch (err) {
+      console.error('[vacating] approval preview async failed; using sync fallback', row.id, err);
+      approvalPreview = buildVacatingApprovalPreview(normalizedRow, held);
+    }
+  }
 
   return {
     ...normalizedRow,

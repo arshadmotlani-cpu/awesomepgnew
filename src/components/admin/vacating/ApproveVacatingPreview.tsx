@@ -4,6 +4,7 @@ import { AdminReviewSettlementScan } from '@/src/components/admin/vacating/Admin
 import { formatDate } from '@/src/lib/format';
 import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
 import { buildSettlementStatementFromApprovalPreview } from '@/src/lib/vacating/settlementStatementModel';
+import { bedAvailableCalendarDate } from '@/src/lib/vacating/vacatingBedSemantics';
 
 export function ApproveVacatingPreview({
   preview,
@@ -72,7 +73,8 @@ export function ApproveVacatingPreview({
 
       <p className="text-xs text-zinc-500">
         After approval the bed opens for website pre-booking from{' '}
-        {formatDate(preview.moveOutDate)}. The tenant stays until then. Checkout settlement is created when
+        {formatDate(bedAvailableCalendarDate(preview.moveOutDate))} at 12:00 AM PG local time. The
+        tenant stays through {formatDate(preview.moveOutDate)}. Checkout settlement is created when
         the resident submits refund details.
       </p>
     </div>

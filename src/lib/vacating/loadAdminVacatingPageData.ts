@@ -3,7 +3,7 @@ import { listAdminVacatingRequests } from '@/src/db/queries/admin';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import type { MoveOutAdvancedToolsRow } from '@/src/lib/moveOut/moveOutAdvancedToolsProps';
-import { toMoveOutAdvancedToolsRowAsync } from '@/src/lib/moveOut/moveOutAdvancedToolsProps';
+import { toMoveOutAdvancedToolsRow, toMoveOutAdvancedToolsRowAsync } from '@/src/lib/moveOut/moveOutAdvancedToolsProps';
 import { toClientMoveOutPipelineItem, type MoveOutPipelineItemClient } from '@/src/lib/moveOut/moveOutPipeline';
 import {
   buildMoveOutCommandStats,
@@ -27,6 +27,7 @@ export async function loadPendingVacatingApprovalPreviews(input: {
   vacatingRows: AdminVacatingRow[];
   depositHeldByBooking: Record<string, number>;
 }): Promise<Record<string, VacatingApprovalPreview>> {
+  const { buildVacatingApprovalPreview } = await import('@/src/lib/vacating/approvalPreview');
   const entries: Array<[string, VacatingApprovalPreview]> = [];
   for (const row of input.vacatingRows) {
     if (row.status !== 'pending') continue;
@@ -35,10 +36,12 @@ export async function loadPendingVacatingApprovalPreviews(input: {
       const toolRow = await toMoveOutAdvancedToolsRowAsync(row, held);
       if (toolRow.approvalPreview) {
         entries.push([row.id, toolRow.approvalPreview]);
+        continue;
       }
     } catch (err) {
-      console.error('[vacating] approval preview skipped', row.id, row.bookingCode, err);
+      console.error('[vacating] approval preview async failed', row.id, row.bookingCode, err);
     }
+    entries.push([row.id, buildVacatingApprovalPreview(row, held)]);
   }
   return Object.fromEntries(entries);
 }
@@ -98,11 +101,12 @@ export async function loadAdminVacatingPageData(session: AdminSession): Promise<
       advancedToolRows.push(await toMoveOutAdvancedToolsRowAsync(v, held));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error('[admin/vacating] row skipped', v.id, v.bookingCode, err);
+      console.error('[admin/vacating] row degraded to sync preview', v.id, v.bookingCode, err);
+      advancedToolRows.push(toMoveOutAdvancedToolsRow(v, held));
       rowErrors.push({
         vacatingRequestId: v.id,
         bookingCode: v.bookingCode,
-        message,
+        message: `Settlement preview degraded: ${message}`,
       });
     }
   }
