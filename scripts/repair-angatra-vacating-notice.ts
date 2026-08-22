@@ -23,6 +23,8 @@ import { recomputeCheckoutSettlementV2ForVacating } from '@/src/services/checkou
 import { syncMoveOutUnusedRentWalletCredit } from '@/src/services/residentCreditLedger';
 
 const BOOKING_ID = process.env.BOOKING_ID ?? 'ad24c0d2-f2d1-4c08-99d1-74487560feb5';
+const VACATING_REQUEST_ID =
+  process.env.VACATING_REQUEST_ID ?? '198831f7-189c-4aaf-874b-c066d6323d05';
 const VACATING_DATE = process.env.VACATING_DATE ?? '2026-08-23';
 const execute = process.argv.includes('--execute');
 
@@ -67,6 +69,9 @@ async function main() {
     .where(eq(bookings.id, BOOKING_ID))
     .limit(1);
   if (!booking) throw new Error('Booking not found');
+  if (booking.bookingCode !== 'APG-2026-0013') {
+    throw new Error(`Booking code mismatch: expected APG-2026-0013, got ${booking.bookingCode}`);
+  }
 
   const [customer] = await db
     .select({ fullName: customers.fullName })
@@ -77,19 +82,20 @@ async function main() {
   const [existing] = await db
     .select()
     .from(vacatingRequests)
-    .where(
-      and(
-        eq(vacatingRequests.bookingId, BOOKING_ID),
-        sql`${vacatingRequests.status} IN ('pending', 'approved', 'completed')`,
-      ),
-    )
+    .where(eq(vacatingRequests.id, VACATING_REQUEST_ID))
     .limit(1);
 
-  const submittedAudit = await findSubmittedAudit();
-  if (!existing && !submittedAudit) {
-    console.error('No vacating row and no submitted audit trail — cannot restore.');
+  if (!existing) {
+    console.error('Vacating request not found:', VACATING_REQUEST_ID);
     process.exit(1);
   }
+  if (existing.bookingId !== BOOKING_ID) {
+    throw new Error(
+      `Vacating request ${VACATING_REQUEST_ID} does not belong to booking ${BOOKING_ID}`,
+    );
+  }
+
+  const submittedAudit = await findSubmittedAudit();
 
   const originalSubmittedAtRaw = existing?.originalNoticeSubmittedAt ?? submittedAudit?.created_at;
   if (!originalSubmittedAtRaw) {
@@ -134,9 +140,7 @@ async function main() {
     return;
   }
 
-  let vacatingId = existing?.id;
-
-  if (!existing) {
+  let vacatingId = existing.id;
     if (!submittedAudit?.entity_id) throw new Error('Audit entity_id missing for restore');
     const [restored] = await db
       .insert(vacatingRequests)
@@ -190,6 +194,22 @@ async function main() {
         updatedAt: new Date(),
       })
       .where(eq(vacatingRequests.id, existing.id));
+
+    await db.insert(auditLog).values({
+      actorType: 'admin',
+      actorId: null,
+      entity: 'vacating_request',
+      entityId: existing.id,
+      action: 'vacating_date_updated',
+      diff: {
+        bookingId: BOOKING_ID,
+        fromVacatingDate: String(existing.vacatingDate),
+        toVacatingDate: vacatingDate,
+        originalNoticeSubmittedAt: originalSubmittedAt.toISOString(),
+        noticeGivenDate,
+        noticeDeductionPaise: noticeBreakdown.noticeDeductionPaise,
+      },
+    });
   }
 
   if (!vacatingId) throw new Error('vacatingId missing after repair');
