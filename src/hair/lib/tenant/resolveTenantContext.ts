@@ -85,7 +85,8 @@ export async function resolveTenantContext(): Promise<TenantContext | null> {
   let membershipRow: Awaited<ReturnType<typeof loadMembershipForUserOrg>> = null;
   if (orgCookie) {
     membershipRow = await loadMembershipForUserOrg(userId, orgCookie);
-  } else {
+  }
+  if (!membershipRow) {
     const all = await listActiveMembershipsForUser(userId);
     if (all.length === 1) {
       membershipRow = all[0];

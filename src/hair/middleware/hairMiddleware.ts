@@ -26,9 +26,8 @@ export function hairMiddleware(request: NextRequest): NextResponse {
   const hasSession = Boolean(request.cookies.get(HAIR_SESSION_COOKIE)?.value);
 
   if (pathname === '/login' || pathname === '/auth/login') {
-    if (hasSession) {
-      return NextResponse.redirect(new URL('/landing', request.url));
-    }
+    // Cookie presence is not a validated session. Redirecting /login → /landing
+    // while /landing NEXT_REDIRECTs to /login causes a browser reload loop.
     const rewrite = new URL('/fyh/auth/login', request.url);
     rewrite.search = request.nextUrl.search;
     return NextResponse.rewrite(rewrite, { request: { headers: requestHeaders } });
@@ -39,8 +38,10 @@ export function hairMiddleware(request: NextRequest): NextResponse {
     return NextResponse.redirect(new URL(dest, request.url));
   }
 
-  if (pathname === '/fyh/auth/login' && hasSession) {
-    return NextResponse.redirect(new URL('/landing', request.url));
+  if (pathname === '/fyh/auth/login') {
+    const rewrite = new URL('/fyh/auth/login', request.url);
+    rewrite.search = request.nextUrl.search;
+    return NextResponse.rewrite(rewrite, { request: { headers: requestHeaders } });
   }
 
   if (isHairProtectedPath(pathname) && !hasSession) {

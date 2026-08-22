@@ -3,8 +3,8 @@ import { eq } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import { wfEmployees } from '@/src/workforce/db/schema';
 import { selectOrganizationAction } from '@/src/hair/actions/tenant';
-import { requireHairAuthPage } from '@/src/hair/lib/auth/guards';
 import { getHairSession } from '@/src/hair/lib/auth/session';
+import { requireHairHost } from '@/src/hair/lib/auth/guards';
 import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
 import { listActiveMembershipsForUser } from '@/src/platform/services/memberships';
 import { Button } from '@/src/hair/components/ui/button';
@@ -18,9 +18,10 @@ export default async function SelectOrganizationPage({
     redirect('/dashboard/revenue');
   }
 
-  await requireHairAuthPage();
+  await requireHairHost();
   const session = await getHairSession();
-  if (!session?.workforceEmployeeId) redirect('/login');
+  if (!session) redirect('/login');
+  if (!session.workforceEmployeeId) redirect('/login');
 
   const [emp] = await hairDb
     .select({ userId: wfEmployees.userId })

@@ -372,3 +372,6 @@ See [[DECISIONS#Operations as action hub]].
 
 <!-- DOC_SYNC_TOUCH_2026-08-20 -->
 > **2026-08-20 01:30:34 UTC** — Code changed in: Routes, Auth. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-08-22 -->
+> **2026-08-22 11:06:44 UTC** — Code changed in: Routes. Manual review recommended.

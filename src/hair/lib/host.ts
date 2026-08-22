@@ -31,7 +31,7 @@ export function isHairHostFromHeaders(
 }
 
 /** Customer-facing paths — no staff session required. */
-export const HAIR_PUBLIC_UNPROTECTED_PREFIXES = ['/i', '/invoice'] as const;
+export const HAIR_PUBLIC_UNPROTECTED_PREFIXES = ['/i', '/invoice', '/salon-software'] as const;
 
 /** Public path prefixes served on the For Your Hair host (browser URLs). */
 export const HAIR_PUBLIC_PREFIXES = [
@@ -97,6 +97,14 @@ export function isHairPublicPath(pathname: string): boolean {
   if (pathname.startsWith('/api/hair')) return true;
   if (isHairPublicInvoicePath(pathname)) return true;
   return HAIR_PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+/** Org picker must not require resolved tenant cookies (would loop with /login). */
+export function isHairTenantExemptPath(pathname: string): boolean {
+  const rest = pathname.startsWith(HAIR_INTERNAL_PREFIX)
+    ? pathname.slice(HAIR_INTERNAL_PREFIX.length) || '/'
+    : pathname;
+  return rest === '/select-organization' || rest.startsWith('/select-organization/');
 }
 
 export function isHairProtectedPath(pathname: string): boolean {
