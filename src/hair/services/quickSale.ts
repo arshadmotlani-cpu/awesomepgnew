@@ -11,7 +11,10 @@ import { listMembershipPlans, listPackagePlans } from '@/src/hair/services/loyal
 import { shouldHideServiceFromBillable } from '@/src/hair/lib/serviceCatalogHygiene';
 import { SALON_GST_BPS } from '@/src/hair/lib/taxConfig';
 import { computeRedemptions } from '@/src/hair/services/invoices';
-import { computeGrandTotalFromParts, sumCartLines } from '@/src/hair/lib/invoiceMath';
+import {
+  computeInclusiveGrandTotal,
+  sumInclusiveCartLines,
+} from '@/src/hair/domain/basket/gstInclusiveMath';
 import type { QuickSaleLineInput } from '@/src/hair/services/invoices';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
@@ -171,14 +174,21 @@ export async function previewQuickSaleTotals(
     lineDiscountPaise: number;
     gstBps: number;
   }>,
-  opts?: {
+  _opts?: {
     discountPaise?: number;
     walletRedeemPaise?: number;
     tipPaise?: number;
     roundOffPaise?: number;
   }, ctx?: TenantContext | null): Promise<QuickSaleTotalsPreview> {
   ctx = await resolveTenantContextForService(ctx);
-  const { subtotalPaise, taxPaise } = sumCartLines(cartLines);
+  const summed = sumInclusiveCartLines(
+    cartLines.map((l) => ({
+      unitSellingPricePaise: l.unitPricePaise,
+      quantity: l.quantity,
+      lineDiscountPaise: l.lineDiscountPaise,
+      gstBps: l.gstBps,
+    })),
+  );
   const discountSubtotal = cartLines
     .filter((l) => l.kind === 'service' || l.kind === 'product')
     .reduce(
@@ -187,23 +197,14 @@ export async function previewQuickSaleTotals(
     );
   const redemptions = await computeRedemptions(customerId, discountSubtotal, [], ctx);
   const membershipDiscountPaise = redemptions.membershipDiscountPaise;
-  const walletRedeemPaise = Math.min(
-    Math.max(0, opts?.walletRedeemPaise ?? 0),
-    redemptions.availableWalletPaise,
-  );
-  const { grandTotalPaise } = computeGrandTotalFromParts({
-    subtotalPaise,
-    taxPaise,
-    discountPaise: Math.max(0, opts?.discountPaise ?? 0),
+  const grandTotalPaise = computeInclusiveGrandTotal({
+    inclusiveFinalPaise: summed.inclusiveFinalPaise,
     membershipDiscountPaise,
     packageRedeemPaise: 0,
-    walletRedeemPaise,
-    tipPaise: Math.max(0, opts?.tipPaise ?? 0),
-    roundOffPaise: opts?.roundOffPaise ?? 0,
   });
   return {
-    subtotalPaise,
-    taxPaise,
+    subtotalPaise: summed.subtotalBasePaise,
+    taxPaise: summed.taxPaise,
     membershipDiscountPaise,
     grandTotalPaise,
     availableWalletPaise: redemptions.availableWalletPaise,

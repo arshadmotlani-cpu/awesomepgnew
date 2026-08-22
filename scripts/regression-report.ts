@@ -189,6 +189,27 @@ async function main() {
 
   const steps: StepResult[] = [];
 
+  console.log('── Hair money-math SSOT ──');
+  const invoiceMathPath = 'src/hair/lib/invoiceMath.ts';
+  if (existsSync(invoiceMathPath)) {
+    console.log(`  ✗ ${invoiceMathPath} exists — exclusive GST helper must stay deleted.`);
+    steps.push({
+      name: 'hair money-math: invoiceMath.ts absent',
+      command: `test ! -f ${invoiceMathPath}`,
+      ok: false,
+      code: 1,
+    });
+  } else {
+    console.log('  ✓ exclusive invoiceMath.ts is absent (canonical: gstInclusiveMath + priceBasket)');
+    steps.push({
+      name: 'hair money-math: invoiceMath.ts absent',
+      command: `test ! -f ${invoiceMathPath}`,
+      ok: true,
+      code: 0,
+    });
+  }
+  console.log('');
+
   if (!skipBuild && existsSync('package.json')) {
     console.log('── Build ──');
     steps.push(run('npm', ['run', 'build']));

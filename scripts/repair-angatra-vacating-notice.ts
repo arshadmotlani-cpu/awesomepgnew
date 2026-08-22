@@ -13,10 +13,9 @@ dotenv.config({ path: '.env.prod.live' });
 dotenv.config({ path: '.env.production.local' });
 dotenv.config();
 
-import { and, eq, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { closeDb, db } from '@/src/db/client';
 import { auditLog, bookings, customers, vacatingRequests } from '@/src/db/schema';
-import { formatDate, parseDate } from '@/src/lib/dates';
 import { resolveNoticeGivenDateForVacating } from '@/src/lib/vacating/noticeDateSsot';
 import { computeNoticeDeductionForBooking } from '@/src/services/noticeDeduction';
 import { recomputeCheckoutSettlementV2ForVacating } from '@/src/services/checkoutSettlement';
@@ -126,93 +125,76 @@ async function main() {
     durationMode: booking.durationMode,
   });
 
+  const { loadVacatingBillingPresentationBundle } = await import(
+    '@/src/lib/vacating/loadVacatingBillingPresentation'
+  );
+  const settlementBundle = await loadVacatingBillingPresentationBundle({
+    bookingId: BOOKING_ID,
+    noticeGivenDate,
+    vacatingDate,
+    monthlyRentPaiseSnapshot: monthlyRent,
+    durationMode: booking.durationMode,
+    mode: 'estimate',
+    treatAsApprovedForTail: true,
+  });
+  const w = settlementBundle?.estimatedSettlement?.waterfall;
+
   console.log('\n=== Angatra vacating repair (dry-run:', !execute, ') ===\n');
   console.log('Resident:', customer?.fullName, booking.bookingCode);
+  console.log('Vacating request:', existing.id);
   console.log('Original submission:', originalSubmittedAt.toISOString());
   console.log('Notice calculation date (SSOT):', noticeGivenDate);
   console.log('Requested vacating date:', vacatingDate);
-  console.log('Monthly rent snapshot:', monthlyRent);
-  console.log('Notice deduction:', noticeBreakdown.noticeDeductionPaise);
-  console.log('Existing active row:', existing?.id ?? '(none — will restore from audit)');
+  console.log('Notice given days:', noticeBreakdown.noticeGivenDays);
+  console.log('Notice shortfall days:', noticeBreakdown.missingNoticeDays);
+  console.log('Notice deduction (paise):', noticeBreakdown.noticeDeductionPaise);
+  if (w) {
+    console.log('Rent paid (paise):', w.rentBucket.paidPaise);
+    console.log('Rent consumed (paise):', w.rentBucket.consumedPaise);
+    console.log('Unused prepaid rent (paise):', w.rentBucket.unusedPaise);
+    console.log('Tail rent from deposit (paise):', w.depositBucket.tailRentPaise);
+    console.log('Deposit held (paise):', w.depositBucket.collectedPaise);
+    console.log('Estimated refund (paise):', settlementBundle?.estimatedSettlement?.estimatedRefundPaise);
+    console.log('Unused rent refund portion (paise):', w.refund.unusedRentPortionPaise);
+  }
 
   if (!execute) {
     console.log('\nDry run — pass --execute to apply.');
     return;
   }
 
-  let vacatingId = existing.id;
-    if (!submittedAudit?.entity_id) throw new Error('Audit entity_id missing for restore');
-    const [restored] = await db
-      .insert(vacatingRequests)
-      .values({
-        id: submittedAudit.entity_id,
-        bookingId: BOOKING_ID,
-        customerId: booking.customerId,
-        noticeGivenDate,
-        vacatingDate,
-        originalNoticeSubmittedAt: originalSubmittedAt,
-        originalVacatingDate: vacatingDate,
-        noticeCompliant: noticeBreakdown.missingNoticeDays === 0,
-        deductionPaise: noticeBreakdown.noticeDeductionPaise,
-        depositRefundPaise: 0,
-        monthlyRentPaiseSnapshot: monthlyRent,
-        noticeRentCoveredDays: noticeBreakdown.rentCoveredDays,
-        noticeChargeableDays: noticeBreakdown.chargeableNoticeDays,
-        noticeBreakdownJson: noticeBreakdown,
-        status: 'pending',
-        notes: 'Restored from audit trail after accidental customer cancel (2026-08-20).',
-      })
-      .returning({ id: vacatingRequests.id });
-    vacatingId = restored.id;
+  const vacatingId = existing.id;
 
-    await db.insert(auditLog).values({
-      actorType: 'admin',
-      actorId: null,
-      entity: 'vacating_request',
-      entityId: vacatingId,
-      action: 'restored_from_audit',
-      diff: {
-        bookingId: BOOKING_ID,
-        originalNoticeSubmittedAt: originalSubmittedAt.toISOString(),
-        noticeGivenDate,
-        vacatingDate,
-        sourceAuditEntityId: submittedAudit.entity_id,
-      },
-    });
-  } else {
-    await db
-      .update(vacatingRequests)
-      .set({
-        noticeGivenDate,
-        vacatingDate,
-        originalNoticeSubmittedAt: originalSubmittedAt,
-        noticeCompliant: noticeBreakdown.missingNoticeDays === 0,
-        deductionPaise: noticeBreakdown.noticeDeductionPaise,
-        noticeRentCoveredDays: noticeBreakdown.rentCoveredDays,
-        noticeChargeableDays: noticeBreakdown.chargeableNoticeDays,
-        noticeBreakdownJson: noticeBreakdown,
-        updatedAt: new Date(),
-      })
-      .where(eq(vacatingRequests.id, existing.id));
+  await db
+    .update(vacatingRequests)
+    .set({
+      noticeGivenDate,
+      vacatingDate,
+      originalNoticeSubmittedAt: originalSubmittedAt,
+      noticeCompliant: noticeBreakdown.missingNoticeDays === 0,
+      deductionPaise: noticeBreakdown.noticeDeductionPaise,
+      noticeRentCoveredDays: noticeBreakdown.rentCoveredDays,
+      noticeChargeableDays: noticeBreakdown.chargeableNoticeDays,
+      noticeBreakdownJson: noticeBreakdown,
+      updatedAt: new Date(),
+    })
+    .where(eq(vacatingRequests.id, existing.id));
 
-    await db.insert(auditLog).values({
-      actorType: 'admin',
-      actorId: null,
-      entity: 'vacating_request',
-      entityId: existing.id,
-      action: 'vacating_date_updated',
-      diff: {
-        bookingId: BOOKING_ID,
-        fromVacatingDate: String(existing.vacatingDate),
-        toVacatingDate: vacatingDate,
-        originalNoticeSubmittedAt: originalSubmittedAt.toISOString(),
-        noticeGivenDate,
-        noticeDeductionPaise: noticeBreakdown.noticeDeductionPaise,
-      },
-    });
-  }
-
-  if (!vacatingId) throw new Error('vacatingId missing after repair');
+  await db.insert(auditLog).values({
+    actorType: 'admin',
+    actorId: null,
+    entity: 'vacating_request',
+    entityId: existing.id,
+    action: 'vacating_date_updated',
+    diff: {
+      bookingId: BOOKING_ID,
+      fromVacatingDate: String(existing.vacatingDate),
+      toVacatingDate: vacatingDate,
+      originalNoticeSubmittedAt: originalSubmittedAt.toISOString(),
+      noticeGivenDate,
+      noticeDeductionPaise: noticeBreakdown.noticeDeductionPaise,
+    },
+  });
 
   await recomputeCheckoutSettlementV2ForVacating({
     vacatingRequestId: vacatingId,

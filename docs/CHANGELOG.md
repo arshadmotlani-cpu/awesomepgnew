@@ -256,33 +256,18 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-22 14:52:03 UTC
+### Pending pre-commit sync · 2026-08-22 15:23:52 UTC
 
-**Areas touched:** [[ROUTES]], [[Residents]], [[Vacating]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
-- `DECISIONS.md` — review for accuracy
-- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
-- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (14):**
-- `app/(admin)/admin/pgs/[pgId]/map/actions.ts`
-- `app/(hair)/fyh/(app)/layout.tsx`
-- `app/(hair)/fyh/(public)/salon-software/page.tsx`
-- `app/(hair)/fyh/auth/login/page.tsx`
+**Staged code files (2):**
 - `app/(hair)/fyh/select-organization/bind/route.ts`
-- `app/(hair)/fyh/select-organization/layout.tsx`
 - `app/(hair)/fyh/select-organization/page.tsx`
-- `app/(hair)/layout.tsx`
-- `src/lib/residents/residentPortalBillRows.ts`
-- `src/lib/vacating/computeVacatingSettlementPreview.ts`
-- `src/lib/vacating/estimatedSettlementPreview.ts`
-- `src/lib/vacating/loadVacatingBillingPresentation.ts`
-- `src/lib/vacating/settlementBillingRows.ts`
-- `src/lib/vacating/vacatingBedSemantics.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

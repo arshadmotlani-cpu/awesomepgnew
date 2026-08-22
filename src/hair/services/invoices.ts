@@ -34,18 +34,11 @@ import {
 import { escapeHtml, salonDayBounds } from '@/src/hair/lib/salonTime';
 import { SALON_GST_BPS } from '@/src/hair/lib/taxConfig';
 import { buildPublicInvoiceDocumentHtml } from '@/src/hair/lib/publicInvoiceDocument';
-import {
-  computeGrandTotalFromParts as computeGrandTotalFromPartsLib,
-  taxOnLine,
-} from '@/src/hair/lib/invoiceMath';
+import { sumInclusiveCartLines } from '@/src/hair/domain/basket/gstInclusiveMath';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
 import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
-
-function taxOn(amountPaise: number, gstBps: number): number {
-  return taxOnLine(amountPaise, gstBps);
-}
 
 export type PaymentSplitInput = { method: FyhPaymentMethod; amountPaise: number; reference?: string };
 
@@ -64,25 +57,30 @@ export type InvoiceLineDraft = {
 };
 
 export function priceLineDrafts(drafts: InvoiceLineDraft[]) {
-  let subtotalPaise = 0;
-  let taxPaise = 0;
+  const summed = sumInclusiveCartLines(
+    drafts.map((d) => ({
+      unitSellingPricePaise: d.unitPricePaise,
+      quantity: d.quantity,
+      lineDiscountPaise: d.lineDiscountPaise,
+      gstBps: d.gstBps,
+    })),
+  );
   const priced = drafts.map((d, sortOrder) => {
-    const net = Math.max(0, d.unitPricePaise * d.quantity - d.lineDiscountPaise);
-    const tax = taxOn(net, d.gstBps);
-    subtotalPaise += net;
-    taxPaise += tax;
+    const p = summed.priced[sortOrder]!;
     return {
       ...d,
-      taxPaise: tax,
-      lineTotalPaise: net + tax,
+      taxPaise: p.gstPaise,
+      lineTotalPaise: p.finalLinePaise,
       sortOrder,
     };
   });
-  return { priced, subtotalPaise, taxPaise };
-}
-
-export function computeGrandTotalFromParts(opts: Parameters<typeof computeGrandTotalFromPartsLib>[0]) {
-  return computeGrandTotalFromPartsLib(opts);
+  return {
+    priced,
+    subtotalPaise: summed.subtotalBasePaise,
+    taxPaise: summed.taxPaise,
+    lineDiscountPaise: summed.lineDiscountPaise,
+    inclusiveFinalPaise: summed.inclusiveFinalPaise,
+  };
 }
 
 export type QuickSaleLineInput = {

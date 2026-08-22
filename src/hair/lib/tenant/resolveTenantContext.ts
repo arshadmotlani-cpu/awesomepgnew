@@ -1,7 +1,4 @@
 import { cookies } from 'next/headers';
-import { eq } from 'drizzle-orm';
-import { hairDb } from '@/src/hair/db/client';
-import { wfEmployees } from '@/src/workforce/db/schema';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { employeeToHairAdmin } from '@/src/workforce/compat/hairAdminBridge';
 import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
@@ -10,6 +7,7 @@ import { listActiveMembershipsForUser } from '@/src/platform/services/membership
 import { isFyhSaasTenantEnabled, isWorkforceMembershipAuthEnabled } from './flags';
 import { FYH_ORG_COOKIE, FYH_LOCATION_COOKIE } from './cookies';
 import { pickResolvableMembership } from './selectOrganizationNav';
+import { resolvePlatformUserIdForHairSession } from './sessionIdentity';
 import type { TenantContext, MembershipRole } from './types';
 import type { WorkforcePermissionKey } from '@/src/workforce/types';
 
@@ -23,15 +21,11 @@ export class TenantContextError extends Error {
 async function resolveUserIdFromSession(
   session: NonNullable<Awaited<ReturnType<typeof getHairSession>>>,
 ): Promise<string | null> {
-  if (session.workforceEmployeeId) {
-    const [emp] = await hairDb
-      .select({ userId: wfEmployees.userId })
-      .from(wfEmployees)
-      .where(eq(wfEmployees.id, session.workforceEmployeeId))
-      .limit(1);
-    if (emp?.userId) return emp.userId;
-  }
-  return null;
+  return resolvePlatformUserIdForHairSession({
+    workforceEmployeeId: session.workforceEmployeeId,
+    adminId: session.admin.id,
+    adminEmail: session.admin.email,
+  });
 }
 
 async function resolveWorkforcePermissions(

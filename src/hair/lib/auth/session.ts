@@ -15,6 +15,7 @@ import {
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 import { getWorkforceSession, revokeWorkforceSession } from '@/src/workforce/auth/session';
 import { listMemberships, resolvePermissions } from '@/src/workforce/brains/employeeBrain';
+import { loadLinkedWorkforceEmployee } from '@/src/hair/lib/tenant/sessionIdentity';
 import { employeeToHairAdmin } from '@/src/workforce/compat/hairAdminBridge';
 import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
 import { FYH_ORG_COOKIE } from '@/src/hair/lib/tenant/cookies';
@@ -140,11 +141,17 @@ export async function getHairSession(): Promise<HairSession | null> {
     // DB expiry is authoritative; cookie maxAge is set at login.
   }
 
+  const linked = await loadLinkedWorkforceEmployee({
+    adminId: row.admin.id,
+    adminEmail: row.admin.email,
+  });
+
   return {
     sessionId: row.sessionId,
     admin: row.admin,
     expiresAt,
     rememberMe,
+    workforceEmployeeId: linked?.id,
   };
 }
 

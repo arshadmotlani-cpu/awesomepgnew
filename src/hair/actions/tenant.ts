@@ -3,10 +3,9 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { eq, and, inArray } from 'drizzle-orm';
-import { hairDb } from '@/src/hair/db/client';
-import { wfEmployees } from '@/src/workforce/db/schema';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { persistTenantCookies } from '@/src/hair/lib/tenant/persistTenantCookies';
+import { resolvePlatformUserIdForHairSession } from '@/src/hair/lib/tenant/sessionIdentity';
 import { FYH_LOCATION_COOKIE, FYH_ORG_COOKIE } from '@/src/hair/lib/tenant/cookies';
 import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
 import {
@@ -19,13 +18,12 @@ import { platformLocations } from '@/src/platform/db/schema';
 
 async function resolveUserIdFromSession(): Promise<string | null> {
   const session = await getHairSession();
-  if (!session?.workforceEmployeeId) return null;
-  const [emp] = await hairDb
-    .select({ userId: wfEmployees.userId })
-    .from(wfEmployees)
-    .where(eq(wfEmployees.id, session.workforceEmployeeId))
-    .limit(1);
-  return emp?.userId ?? null;
+  if (!session) return null;
+  return resolvePlatformUserIdForHairSession({
+    workforceEmployeeId: session.workforceEmployeeId,
+    adminId: session.admin.id,
+    adminEmail: session.admin.email,
+  });
 }
 
 export async function selectOrganizationAction(formData: FormData): Promise<void> {

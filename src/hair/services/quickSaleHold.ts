@@ -15,7 +15,7 @@ import {
   lineNetPaiseFromParts,
   persistLineAttributions,
 } from '@/src/hair/services/salesAttribution';
-import { computeGrandTotalFromParts } from '@/src/hair/lib/invoiceMath';
+import { computeInclusiveGrandTotal } from '@/src/hair/domain/basket/gstInclusiveMath';
 import {
   priceLineDrafts,
   resolveQuickSaleDrafts,
@@ -219,7 +219,8 @@ export async function saveQuickSaleHold(input: {
   if (!input.lines.length) throw new Error('Add at least one item before holding');
 
   const { drafts, meta: lineMeta } = await resolveQuickSaleDrafts(input.lines);
-  const { priced, subtotalPaise, taxPaise } = priceLineDrafts(drafts);
+  const { priced, subtotalPaise, taxPaise, lineDiscountPaise, inclusiveFinalPaise } =
+    priceLineDrafts(drafts);
 
   const discountSubtotal = drafts
     .filter((d) => d.kind === 'service' || d.kind === 'product')
@@ -229,7 +230,6 @@ export async function saveQuickSaleHold(input: {
     );
   const { computeRedemptions } = await import('@/src/hair/services/invoices');
   const redemptions = await computeRedemptions(input.customerId, discountSubtotal, []);
-  const discountPaise = Math.max(0, input.discountPaise ?? 0);
   const membershipDiscountPaise = redemptions.membershipDiscountPaise;
   const walletRedeemPaise = Math.min(
     Math.max(0, input.walletRedeemPaise ?? 0),
@@ -238,15 +238,10 @@ export async function saveQuickSaleHold(input: {
   const tipPaise = Math.max(0, input.tipPaise ?? 0);
   const roundOffPaise = input.roundOffPaise ?? 0;
 
-  const { taxPaiseAdjusted, grandTotalPaise } = computeGrandTotalFromParts({
-    subtotalPaise,
-    taxPaise,
-    discountPaise,
+  const grandTotalPaise = computeInclusiveGrandTotal({
+    inclusiveFinalPaise,
     membershipDiscountPaise,
     packageRedeemPaise: 0,
-    walletRedeemPaise,
-    tipPaise,
-    roundOffPaise,
   });
 
   const defaultStylist = priced.find((l) => l.staffId)?.staffId ?? null;
@@ -273,8 +268,8 @@ export async function saveQuickSaleHold(input: {
         .set({
           stylistId: defaultStylist,
           subtotalPaise,
-          discountPaise,
-          taxPaise: taxPaiseAdjusted,
+          discountPaise: lineDiscountPaise,
+          taxPaise,
           membershipRedemptionPaise: membershipDiscountPaise,
           walletRedemptionPaise: walletRedeemPaise,
           tipPaise,
@@ -296,8 +291,8 @@ export async function saveQuickSaleHold(input: {
           stylistId: defaultStylist,
           status: 'draft',
           subtotalPaise,
-          discountPaise,
-          taxPaise: taxPaiseAdjusted,
+          discountPaise: lineDiscountPaise,
+          taxPaise,
           membershipRedemptionPaise: membershipDiscountPaise,
           packageRedemptionPaise: 0,
           walletRedemptionPaise: walletRedeemPaise,

@@ -1,9 +1,6 @@
 import type { ReactNode } from 'react';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { eq } from 'drizzle-orm';
-import { hairDb } from '@/src/hair/db/client';
-import { wfEmployees } from '@/src/workforce/db/schema';
 import { selectOrganizationAction } from '@/src/hair/actions/tenant';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { requireHairHost } from '@/src/hair/lib/auth/guards';
@@ -15,6 +12,7 @@ import {
   isPersistedTenantSelection,
   pickResolvableMembership,
 } from '@/src/hair/lib/tenant/selectOrganizationNav';
+import { resolvePlatformUserIdForHairSession } from '@/src/hair/lib/tenant/sessionIdentity';
 import { listActiveMembershipsForUser } from '@/src/platform/services/memberships';
 import { Button } from '@/src/hair/components/ui/button';
 
@@ -52,34 +50,28 @@ export default async function SelectOrganizationPage({
   });
   if (nav.action === 'redirect') redirect(nav.to);
 
-  if (!session?.workforceEmployeeId) {
+  if (!session) {
+    redirect('/login');
+  }
+
+  const userId = await resolvePlatformUserIdForHairSession({
+    workforceEmployeeId: session.workforceEmployeeId,
+    adminId: session.admin.id,
+    adminEmail: session.admin.email,
+  });
+
+  if (!userId) {
     return (
       <SelectOrgShell title="Choose organization">
         <p className="mt-2 text-sm text-fyh-text-secondary">
-          Your salon login is active, but this account is not linked to a workforce employee yet.
-          Organization context cannot be selected until that link exists.
+          This login is active, but it is not linked to a platform organization membership yet.
+          Sign out and sign in again, or ask an owner to attach this account to For Your Hair.
         </p>
       </SelectOrgShell>
     );
   }
 
-  const [emp] = await hairDb
-    .select({ userId: wfEmployees.userId })
-    .from(wfEmployees)
-    .where(eq(wfEmployees.id, session.workforceEmployeeId))
-    .limit(1);
-
-  if (!emp?.userId) {
-    return (
-      <SelectOrgShell title="Choose organization">
-        <p className="mt-2 text-sm text-fyh-text-secondary">
-          This employee is not linked to a platform user, so organizations cannot be loaded.
-        </p>
-      </SelectOrgShell>
-    );
-  }
-
-  const memberships = await listActiveMembershipsForUser(emp.userId);
+  const memberships = await listActiveMembershipsForUser(userId);
   const single = pickResolvableMembership(memberships, orgCookie);
   const resolvableCount = memberships.filter((m) => m.allowedLocationIds.length > 0).length;
   if (

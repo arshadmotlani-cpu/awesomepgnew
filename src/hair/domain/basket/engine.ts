@@ -1,5 +1,8 @@
 import { buildAttributionPlan } from '@/src/hair/domain/basket/attribution';
-import { priceLineFromParts } from '@/src/hair/domain/basket/gstInclusiveMath';
+import {
+  computeInclusiveGrandTotal,
+  priceLineFromParts,
+} from '@/src/hair/domain/basket/gstInclusiveMath';
 import type { Basket, PricedBasket, PricedLine } from '@/src/hair/domain/basket/types';
 import { planCheckoutLedger } from '@/src/hair/domain/ledger/plan';
 
@@ -39,12 +42,12 @@ export function priceBasket(basket: Basket): PricedBasket {
   const lineDiscountPaise = lines.reduce((s, l) => s + l.discountPaise, 0);
   const membershipDiscountPaise = Math.max(0, basket.membershipDiscountPaise ?? 0);
   const packageRedemptionPaise = Math.max(0, basket.packageRedemptionPaise ?? 0);
-  const grandTotalPaise = Math.max(
-    0,
-    lines.reduce((s, l) => s + l.finalLinePaise, 0) -
-      membershipDiscountPaise -
-      packageRedemptionPaise,
-  );
+  const inclusiveFinalPaise = lines.reduce((s, l) => s + l.finalLinePaise, 0);
+  const grandTotalPaise = computeInclusiveGrandTotal({
+    inclusiveFinalPaise,
+    membershipDiscountPaise,
+    packageRedeemPaise: packageRedemptionPaise,
+  });
 
   const attributions = buildAttributionPlan(lines);
   const ledgerPlan = planCheckoutLedger({

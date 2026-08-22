@@ -5,6 +5,7 @@ import {
   platformMemberships,
   platformOrganizationSubscriptions,
   platformOrganizations,
+  platformUsers,
 } from '@/src/platform/db/schema';
 import { createPlatformClient } from '@/src/platform/db/client';
 import { hasPlatformDatabaseUrl } from '@/src/platform/lib/db/env';
@@ -19,6 +20,22 @@ export type PlatformMembershipRow = {
   accessRole: string;
   allowedLocationIds: string[];
 };
+
+export async function findPlatformUserIdByEmail(email: string): Promise<string | null> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized || !hasPlatformDatabaseUrl()) return null;
+  const { db, close } = createPlatformClient({ max: 1 });
+  try {
+    const [row] = await db
+      .select({ id: platformUsers.id })
+      .from(platformUsers)
+      .where(eq(platformUsers.email, normalized))
+      .limit(1);
+    return row?.id ?? null;
+  } finally {
+    await close();
+  }
+}
 
 function isSubscriptionAccessAllowed(status: string | null | undefined): boolean {
   return !status || status === 'trial' || status === 'active' || status === 'past_due';
