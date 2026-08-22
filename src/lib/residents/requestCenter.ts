@@ -40,7 +40,7 @@ export const REQUEST_CATEGORIES: RequestCategory[] = [
     whatsappMessage: (d) =>
       `Hi, I need maintenance help at Awesome PG.${d ? ` Issue: ${d}` : ''}`,
     wired: 'whatsapp',
-    primaryVisible: true,
+    primaryVisible: false,
   },
   {
     id: 'room_change',
@@ -49,7 +49,7 @@ export const REQUEST_CATEGORIES: RequestCategory[] = [
     confirmSentence: () =>
       'You are requesting a room change. Review the quote before submitting.',
     wired: 'room_change',
-    primaryVisible: true,
+    primaryVisible: false,
   },
   {
     id: 'move_out',
@@ -58,7 +58,7 @@ export const REQUEST_CATEGORIES: RequestCategory[] = [
     confirmSentence: () =>
       'You will submit a move-out request. After approval, submit your refund request from the Move-out page.',
     wired: 'move_out',
-    primaryVisible: true,
+    primaryVisible: false,
   },
   {
     id: 'complaint',
@@ -69,7 +69,7 @@ export const REQUEST_CATEGORIES: RequestCategory[] = [
     whatsappMessage: (d) =>
       `Hi, I would like to report an issue at Awesome PG.${d ? ` Details: ${d}` : ''}`,
     wired: 'whatsapp',
-    primaryVisible: true,
+    primaryVisible: false,
   },
   {
     id: 'support',
@@ -79,7 +79,7 @@ export const REQUEST_CATEGORIES: RequestCategory[] = [
     whatsappMessage: (d) =>
       `Hi, I need help at Awesome PG.${d ? ` ${d}` : ''}`,
     wired: 'whatsapp',
-    primaryVisible: true,
+    primaryVisible: false,
   },
 ];
 

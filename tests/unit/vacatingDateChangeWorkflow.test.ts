@@ -75,11 +75,14 @@ test('resident move-out UI wires simplified cards and change-leaving-date flow',
   assert.match(vacatingHome, /ResidentMoveOutActionsCard/);
   assert.match(vacatingHome, /ResidentCancelMoveOutCard/);
   assert.match(vacatingHome, /ChangeLeavingDateForm/);
-  assert.doesNotMatch(vacatingHome, /ResidentMoveOutSettlementStory/);
+  assert.match(vacatingHome, /ResidentMoveOutSettlementStory/);
+  assert.match(vacatingHome, /Other move-out steps/);
   assert.doesNotMatch(vacatingHome, /StatusTimeline/);
   assert.doesNotMatch(vacatingHome, /ExitBrainTimeline/);
   assert.doesNotMatch(vacatingHome, /Your move-out timeline/);
-  assert.match(requestsHome, /hasActiveMoveOut/);
+  assert.match(vacatingHome, /ResidentMoveOutSettlementSections/);
+  assert.doesNotMatch(requestsHome, /Request move-out/);
+  assert.match(requestsHome, /<VacatingHome/);
   assert.match(requestsHome, /id="resident-move-out"/);
   assert.match(residentPortalTabData, /loadVacatingBillingPresentation/);
   assert.match(residentPortalTabData, /primarySettlementContext/);
@@ -89,8 +92,9 @@ test('resident move-out UI wires simplified cards and change-leaving-date flow',
   assert.match(requestsHome, /pendingDateChangeRequestId:/);
 });
 
-test('VacatingHome uses resident refund card instead of legacy settlement story', () => {
+test('VacatingHome uses settlement story and resident refund card', () => {
   assert.match(vacatingHome, /buildResidentMoveOutRefundSummary/);
+  assert.match(vacatingHome, /ResidentMoveOutSettlementStory/);
   assert.doesNotMatch(vacatingHome, /showSettlementStory/);
   assert.doesNotMatch(vacatingHome, /Estimated Refund ≈/);
   assert.doesNotMatch(vacatingHome, /<ResidentEstimatedSettlementBreakdown/);

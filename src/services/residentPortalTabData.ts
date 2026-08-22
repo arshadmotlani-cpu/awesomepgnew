@@ -63,6 +63,7 @@ import { getMembershipForDashboard, isActiveTenant } from '@/src/services/playst
 import { getReferralSummaryForCustomer } from '@/src/services/referrals';
 import type { ResidentAccountContext } from '@/src/services/residentAccountContext';
 import { getPendingVacatingDateChangeForBooking } from '@/src/services/vacatingDateChange';
+import { resolveNoticeGivenDateForVacating } from '@/src/lib/vacating/noticeDateSsot';
 
 export type ResidentPortalBookingDetail = {
   booking: ResidentBookingRow;
@@ -277,6 +278,8 @@ export async function loadResidentProfileTabData(input: {
   const refundSettlementPreview = walletBooking
     ? await getDepositRefundSettlementPreview(walletBooking.bookingId)
     : null;
+  const { getResidentCreditBalance } = await import('@/src/services/residentCreditLedger');
+  const residentCreditBalancePaise = await getResidentCreditBalance(session.customerId);
 
   const refundEligibility = walletBooking
     ? getDepositRefundEligibility({
@@ -306,9 +309,12 @@ export async function loadResidentProfileTabData(input: {
       : null) ??
     walletBooking?.deposit?.refundableBalancePaise ??
     primaryBooking?.deposit?.refundableBalancePaise ??
-    depositWallet.availableCreditPaise;
+    depositWallet.availableCreditPaise + residentCreditBalancePaise;
 
-  const walletUnusedPrepaidRentPaise = refundSettlementPreview?.unusedPrepaidRentPaise ?? 0;
+  const walletUnusedPrepaidRentPaise = Math.max(
+    refundSettlementPreview?.unusedPrepaidRentPaise ?? 0,
+    residentCreditBalancePaise,
+  );
   const walletDepositRefundablePaise =
     refundSettlementPreview?.depositRefundablePaise ??
     walletBooking?.deposit?.refundableBalancePaise ??
@@ -668,13 +674,17 @@ export async function loadResidentRequestsTabData(input: {
   }
 
   if (primaryVacating && ['pending', 'approved'].includes(primaryVacating.status)) {
+    const immutableNoticeDate = resolveNoticeGivenDateForVacating({
+      noticeGivenDate: primaryVacating.noticeGivenDate,
+      originalNoticeSubmittedAt: primaryVacating.originalNoticeSubmittedAt,
+    });
     const { loadVacatingBillingPresentationBundle } = await import(
       '@/src/lib/vacating/loadVacatingBillingPresentation'
     );
     const [bundle, pendingDateChange] = await Promise.all([
       loadVacatingBillingPresentationBundle({
         bookingId: primaryBooking.bookingId,
-        noticeGivenDate: primaryVacating.noticeGivenDate,
+        noticeGivenDate: immutableNoticeDate,
         vacatingDate: primaryVacating.vacatingDate,
         monthlyRentPaiseSnapshot: primaryVacating.monthlyRentPaiseSnapshot,
         durationMode: effectiveDurationMode ?? primaryBooking.booking.durationMode,
@@ -701,7 +711,7 @@ export async function loadResidentRequestsTabData(input: {
       pgName: primaryBooking.booking.pgName,
       roomNumber: primaryBooking.booking.roomNumber,
       bedCode: primaryBooking.booking.bedCode,
-      noticeGivenDate: String(primaryVacating.noticeGivenDate),
+      noticeGivenDate: immutableNoticeDate,
       vacatingDate: String(primaryVacating.vacatingDate),
     };
     if (primaryEstimatedSettlement && primarySettlementContext) {
@@ -716,7 +726,7 @@ export async function loadResidentRequestsTabData(input: {
         pgName: primarySettlementContext.pgName,
         roomNumber: primarySettlementContext.roomNumber,
         bedCode: primarySettlementContext.bedCode,
-        noticeGivenDate: primarySettlementContext.noticeGivenDate,
+        noticeGivenDate: immutableNoticeDate,
         vacatingDate: primarySettlementContext.vacatingDate,
         letterhead: buildFallbackPgLetterhead(primarySettlementContext.pgName),
       });

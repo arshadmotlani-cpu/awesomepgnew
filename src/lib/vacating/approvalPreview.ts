@@ -1,4 +1,5 @@
-import { normalizeIsoDateOnly, tryDiffDays } from '@/src/lib/dates';
+import { normalizeIsoDateOnly, tryDiffDays, formatDate } from '@/src/lib/dates';
+import { resolveNoticeGivenDateForVacating } from '@/src/lib/vacating/noticeDateSsot';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import type { AdminVacatingRow } from '@/src/db/queries/admin';
 import type { NoticeDeductionBreakdown } from '@/src/lib/vacating/noticeDeductionEngine';
@@ -26,8 +27,15 @@ export type VacatingApprovalPreview = {
   pgName: string;
   roomNumber: string;
   bedCode: string;
+  /** Calendar date used for notice-period calculation (immutable after submit). */
+  noticeCalculationDate: string;
+  /** Timestamp when resident first submitted the move-out request. */
+  noticeSubmittedAt: string | null;
+  /** @deprecated Use noticeCalculationDate — kept for settlement statement compat. */
   noticeSubmittedDate: string;
   moveOutDate: string;
+  /** When admin opened/approved the request (null while pending). */
+  processingDate: string | null;
   noticeRequiredDays: number;
   noticeCompletedDays: number;
   depositHeldPaise: number;
@@ -45,21 +53,35 @@ export function buildVacatingApprovalPreview(
   row: VacatingApprovalPreviewRow,
   depositHeldPaise: number,
 ): VacatingApprovalPreview {
-  const noticeGivenDate = normalizeIsoDateOnly(row.noticeGivenDate);
+  const noticeGivenDate = resolveNoticeGivenDateForVacating({
+    noticeGivenDate: row.noticeGivenDate,
+    originalNoticeSubmittedAt: row.originalNoticeSubmittedAt,
+  });
   const vacatingDate = normalizeIsoDateOnly(row.vacatingDate);
   const noticeSpan = tryDiffDays(noticeGivenDate, vacatingDate);
   const noticeCompletedDays = Math.max(0, noticeSpan ?? 0);
   const estimatedDeductionPaise = guardDepositPaise(row.deductionPaise);
   const held = guardDepositPaise(depositHeldPaise);
   const estimatedRefundPaise = Math.max(0, held - estimatedDeductionPaise);
+  const processingDateRaw = row.resolvedAt ?? (row.status === 'pending' ? row.updatedAt : null);
+  const processingDate = processingDateRaw
+    ? processingDateRaw instanceof Date
+      ? formatDate(processingDateRaw)
+      : normalizeIsoDateOnly(String(processingDateRaw))
+    : null;
 
   return {
     residentName: row.customerFullName,
     pgName: row.pgName,
     roomNumber: row.roomNumber,
     bedCode: row.bedCode,
+    noticeCalculationDate: noticeGivenDate,
+    noticeSubmittedAt: row.originalNoticeSubmittedAt
+      ? row.originalNoticeSubmittedAt.toISOString()
+      : null,
     noticeSubmittedDate: noticeGivenDate,
     moveOutDate: vacatingDate,
+    processingDate,
     noticeRequiredDays: VACATING_NOTICE_MIN_DAYS,
     noticeCompletedDays,
     depositHeldPaise: held,
@@ -101,7 +123,10 @@ export async function buildVacatingApprovalPreviewAsync(
   );
   const bundle = await loadVacatingBillingPresentationBundle({
     bookingId: row.bookingId,
-    noticeGivenDate: row.noticeGivenDate,
+    noticeGivenDate: resolveNoticeGivenDateForVacating({
+      noticeGivenDate: row.noticeGivenDate,
+      originalNoticeSubmittedAt: row.originalNoticeSubmittedAt,
+    }),
     vacatingDate: row.vacatingDate,
     monthlyRentPaiseSnapshot: row.monthlyRentPaiseSnapshot,
     stayType: row.stayType,

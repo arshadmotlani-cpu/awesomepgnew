@@ -1907,6 +1907,7 @@ export type AdminVacatingRow = {
   roomNumber: string;
   noticeGivenDate: string;
   vacatingDate: string;
+  originalNoticeSubmittedAt: Date | null;
   noticeCompliant: boolean;
   deductionPaise: number;
   depositRefundPaise: number;
@@ -1940,6 +1941,7 @@ export function listAdminVacatingRequests(filter?: {
       room_number: string | null;
       notice_given_date: string;
       vacating_date: string;
+      original_notice_submitted_at: Date | null;
       notice_compliant: boolean;
       deduction_paise: number;
       deposit_refund_paise: number;
@@ -1967,6 +1969,7 @@ export function listAdminVacatingRequests(filter?: {
         loc.room_number,
         vr.notice_given_date::text AS notice_given_date,
         vr.vacating_date::text AS vacating_date,
+        vr.original_notice_submitted_at,
         vr.notice_compliant,
         vr.deduction_paise::bigint::int AS deduction_paise,
         vr.deposit_refund_paise::bigint::int AS deposit_refund_paise,
@@ -2020,6 +2023,7 @@ export function listAdminVacatingRequests(filter?: {
             roomNumber: r.room_number ?? '—',
             noticeGivenDate: normalizeIsoDateOnly(r.notice_given_date),
             vacatingDate: normalizeIsoDateOnly(r.vacating_date),
+            originalNoticeSubmittedAt: r.original_notice_submitted_at,
             noticeCompliant: r.notice_compliant,
             deductionPaise: guardDepositPaise(r.deduction_paise),
             depositRefundPaise: guardDepositPaise(r.deposit_refund_paise),

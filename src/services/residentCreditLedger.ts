@@ -48,6 +48,20 @@ export async function recordResidentCredit(input: {
  */
 export const ADVANCE_RENT_REASON_MARKER = 'advance_rent';
 
+export const MOVE_OUT_UNUSED_RENT_MARKER = 'move_out_unused_rent';
+
+export function moveOutUnusedRentCreditReason(vacatingRequestId: string): string {
+  return `${MOVE_OUT_UNUSED_RENT_MARKER}:${vacatingRequestId}`;
+}
+
+export function moveOutUnusedRentPayoutDebitReason(settlementId: string): string {
+  return `move_out_unused_rent_payout:${settlementId}`;
+}
+
+export function isMoveOutUnusedRentLedgerReason(reason: string): boolean {
+  return reason.startsWith(`${MOVE_OUT_UNUSED_RENT_MARKER}:`);
+}
+
 export async function postAdvanceRentCredit(input: {
   customerId: string;
   bookingId?: string | null;
@@ -93,6 +107,96 @@ export async function recordResidentCreditDebit(input: {
     reason: input.reason,
     createdByAdminId: input.createdByAdminId ?? null,
   });
+}
+
+export async function hasResidentCreditEntryWithReasonPrefix(
+  customerId: string,
+  reasonPrefix: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: residentCreditLedger.id })
+    .from(residentCreditLedger)
+    .where(
+      and(
+        eq(residentCreditLedger.customerId, customerId),
+        sql`${residentCreditLedger.reason} LIKE ${`${reasonPrefix}%`}`,
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
+}
+
+/**
+ * Credit eligible unused prepaid rent to resident wallet once per vacating request.
+ * SSOT amount from loadVacatingBillingPresentationBundle — no alternate math.
+ */
+export async function syncMoveOutUnusedRentWalletCredit(input: {
+  vacatingRequestId: string;
+  adminId?: string | null;
+}): Promise<{ ok: true; creditedPaise: number; skipped: boolean }> {
+  const { vacatingRequests, bookings } = await import('@/src/db/schema');
+  const [vr] = await db
+    .select({
+      id: vacatingRequests.id,
+      bookingId: vacatingRequests.bookingId,
+      customerId: vacatingRequests.customerId,
+      noticeGivenDate: vacatingRequests.noticeGivenDate,
+      originalNoticeSubmittedAt: vacatingRequests.originalNoticeSubmittedAt,
+      vacatingDate: vacatingRequests.vacatingDate,
+      monthlyRentPaiseSnapshot: vacatingRequests.monthlyRentPaiseSnapshot,
+      status: vacatingRequests.status,
+    })
+    .from(vacatingRequests)
+    .where(eq(vacatingRequests.id, input.vacatingRequestId))
+    .limit(1);
+  if (!vr || !['approved', 'completed'].includes(vr.status)) {
+    return { ok: true, creditedPaise: 0, skipped: true };
+  }
+
+  const reasonPrefix = moveOutUnusedRentCreditReason(vr.id);
+  const already = await hasResidentCreditEntryWithReasonPrefix(vr.customerId, reasonPrefix);
+  if (already) {
+    return { ok: true, creditedPaise: 0, skipped: true };
+  }
+
+  const [booking] = await db
+    .select({ stayType: bookings.stayType, durationMode: bookings.durationMode })
+    .from(bookings)
+    .where(eq(bookings.id, vr.bookingId))
+    .limit(1);
+
+  const { loadVacatingBillingPresentationBundle } = await import(
+    '@/src/lib/vacating/loadVacatingBillingPresentation'
+  );
+  const { resolveNoticeGivenDateForVacating } = await import('@/src/lib/vacating/noticeDateSsot');
+  const bundle = await loadVacatingBillingPresentationBundle({
+    bookingId: vr.bookingId,
+    noticeGivenDate: resolveNoticeGivenDateForVacating({
+      noticeGivenDate: vr.noticeGivenDate,
+      originalNoticeSubmittedAt: vr.originalNoticeSubmittedAt,
+    }),
+    vacatingDate: String(vr.vacatingDate),
+    monthlyRentPaiseSnapshot: vr.monthlyRentPaiseSnapshot,
+    stayType: booking?.stayType,
+    durationMode: booking?.durationMode,
+    mode: 'estimate',
+    treatAsApprovedForTail: true,
+  });
+
+  const amountPaise = bundle?.estimatedSettlement?.waterfall.refund.unusedRentPortionPaise ?? 0;
+  if (amountPaise <= 0) {
+    return { ok: true, creditedPaise: 0, skipped: true };
+  }
+
+  await recordResidentCredit({
+    customerId: vr.customerId,
+    bookingId: vr.bookingId,
+    amountPaise,
+    reason: `${reasonPrefix} Unused prepaid rent from move-out`,
+    createdByAdminId: input.adminId ?? null,
+  });
+
+  return { ok: true, creditedPaise: amountPaise, skipped: false };
 }
 
 /**

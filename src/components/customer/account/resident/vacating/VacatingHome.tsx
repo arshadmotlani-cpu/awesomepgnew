@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { DepositRefundRequestForm } from '@/src/components/customer/account/DepositRefundRequestForm';
@@ -15,7 +14,6 @@ import { isFixedStayDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
 import type { CheckoutSettlementWaterfall } from '@/src/lib/checkout/checkoutSettlementEngineV2';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 import { formatDate } from '@/src/lib/format';
-import { primaryBtn } from '@/src/lib/design-system/tokens';
 import type { EstimatedSettlementPreview } from '@/src/lib/vacating/estimatedSettlementPreview';
 import type { ResidentExitBrainSnapshot } from '@/src/lib/exit/exitBrainTypes';
 import {
@@ -25,6 +23,10 @@ import {
 import { buildResidentMoveOutRefundSummary } from '@/src/lib/residents/residentMoveOutRefundSummary';
 import { buildResidentMoveOutResidentActions } from '@/src/lib/residents/residentMoveOutResidentActions';
 import { estimateRefundPaise } from '@/src/lib/residents/vacatingPresentation';
+import { resolveNoticeGivenDateForVacating } from '@/src/lib/vacating/noticeDateSsot';
+import { ResidentMoveOutSettlementStory } from '@/src/components/customer/account/resident/vacating/ResidentMoveOutSettlementStory';
+import { ResidentMoveOutSettlementSections } from '@/src/components/customer/account/resident/vacating/ResidentMoveOutSettlementSections';
+import { VacatingRequestForm } from '@/src/components/customer/VacatingRequestForm';
 
 type Props = {
   bookingId: string;
@@ -79,17 +81,27 @@ export function VacatingHome({
   checkoutSettlementSuppressed = false,
   depositHeldPaise,
   durationMode = 'monthly',
+  expectedCheckoutDate = null,
+  monthlyRentPaise = 0,
   estimatedSettlement = null,
   pendingDateChangeRequestId = null,
   pendingDateChangePreview = null,
+  settlementDocument = null,
+  settlementNoticeDisplay = null,
   exitBrainSnapshot = null,
-}: Props) {
+  onBackToRequests,
+}: Props & { onBackToRequests?: () => void }) {
   const router = useRouter();
   const fixedStay = isFixedStayDurationMode(durationMode);
   const lifecycle = resolveExitLifecycleFromSnapshot(exitBrainSnapshot);
 
   const vacatingDate = safeDateString(vacating?.vacatingDate);
-  const noticeGiven = safeDateString(vacating?.noticeGivenDate);
+  const noticeGiven = vacating
+    ? resolveNoticeGivenDateForVacating({
+        noticeGivenDate: vacating.noticeGivenDate,
+        originalNoticeSubmittedAt: vacating.originalNoticeSubmittedAt,
+      })
+    : null;
   const resolvedPayoutUpiId = payoutUpiId ?? checkoutSettlement?.payoutUpiId ?? null;
   const resolvedRefundPaidAt = refundPaidAt ?? checkoutSettlement?.refundPaidAt ?? null;
 
@@ -222,9 +234,14 @@ export function VacatingHome({
       ) : null}
 
       {!vacating ? (
-        <Link href={`/account/resident/request-vacating/${bookingId}`} className={primaryBtn}>
-          Request move-out
-        </Link>
+        <VacatingRequestForm
+          bookingId={bookingId}
+          depositHeldPaise={depositHeldPaise}
+          monthlyRentPaise={monthlyRentPaise}
+          expectedCheckoutDate={expectedCheckoutDate}
+          variant="resident"
+          onBack={onBackToRequests}
+        />
       ) : isRejected ? (
         <>
           <ApgCard tier="resident" className="border-rose-500/30 bg-rose-950/20">
@@ -235,9 +252,14 @@ export function VacatingHome({
               </p>
             ) : null}
           </ApgCard>
-          <Link href={`/account/resident/request-vacating/${bookingId}`} className={primaryBtn}>
-            Submit new move-out request
-          </Link>
+          <VacatingRequestForm
+            bookingId={bookingId}
+            depositHeldPaise={depositHeldPaise}
+            monthlyRentPaise={monthlyRentPaise}
+            expectedCheckoutDate={expectedCheckoutDate}
+            variant="resident"
+            onBack={onBackToRequests}
+          />
         </>
       ) : !isMoveOutComplete ? (
         <>
@@ -281,6 +303,31 @@ export function VacatingHome({
             />
           ) : null}
 
+          {estimatedSettlement ? (
+            <ResidentMoveOutSettlementSections
+              preview={estimatedSettlement}
+              walletCreditPaise={estimatedSettlement.estimatedUnusedRentCreditPaise}
+            />
+          ) : null}
+
+          {resolvedWaterfall ? (
+            <ResidentMoveOutSettlementStory
+              noticeGivenDate={noticeGiven}
+              vacatingDate={vacatingDate}
+              vacatingStatus={vacating.status}
+              durationMode={durationMode}
+              depositHeldPaise={depositHeldPaise}
+              monthlyRentPaiseSnapshot={vacating.monthlyRentPaiseSnapshot}
+              waterfall={resolvedWaterfall}
+              mode={settlementMode}
+              settlementDocument={settlementDocument}
+              noticeRentCoveredDays={vacating.noticeRentCoveredDays}
+              noticeChargeableDays={vacating.noticeChargeableDays}
+              deductionPaise={vacating.deductionPaise}
+              notice={settlementNoticeDisplay}
+            />
+          ) : null}
+
           {checkoutSettlement?.rejectionReason ? (
             <ApgCard tier="resident" className="border-amber-500/30 bg-amber-950/20">
               <p className="text-sm font-semibold text-amber-200">Please resubmit your refund details</p>
@@ -288,29 +335,37 @@ export function VacatingHome({
             </ApgCard>
           ) : null}
 
-          {refundSummary ? (
+          {refundSummary && !resolvedWaterfall ? (
             <ResidentMoveOutRefundCard
               summary={refundSummary}
               showApproxPrefix={settlementMode !== 'final'}
             />
           ) : null}
 
-          <ResidentMoveOutActionsCard items={residentActions} />
+          <details className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+            <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-apg-silver">
+              Other move-out steps
+            </summary>
+            <div className="mt-3 space-y-3">
+              <ResidentMoveOutActionsCard items={residentActions} />
 
-          {showRefundForm ? (
-            <DepositRefundRequestForm
-              bookingId={bookingId}
-              customerId={customerId}
-              refundableBalancePaise={depositHeldPaise}
-              estimatedDeductionPaise={vacating.deductionPaise ?? 0}
-              exitBrainSnapshot={exitBrainSnapshot}
-              onSubmitted={() => router.refresh()}
-            />
-          ) : !refundGate.allowed && vacating.status === 'approved' && !showRefundForm ? (
-            <ApgCard tier="resident">
-              <p className="text-sm text-apg-silver">{refundGate.reason}</p>
-            </ApgCard>
-          ) : null}
+              {showRefundForm ? (
+                <DepositRefundRequestForm
+                  bookingId={bookingId}
+                  customerId={customerId}
+                  refundableBalancePaise={depositHeldPaise}
+                  estimatedDeductionPaise={vacating.deductionPaise ?? 0}
+                  exitBrainSnapshot={exitBrainSnapshot}
+                  onSubmitted={() => router.refresh()}
+                  compact
+                />
+              ) : !refundGate.allowed && vacating.status === 'approved' && !showRefundForm ? (
+                <ApgCard tier="resident">
+                  <p className="text-sm text-apg-silver">{refundGate.reason}</p>
+                </ApgCard>
+              ) : null}
+            </div>
+          </details>
 
           <p className="text-xs text-apg-silver">{footerMessage}</p>
         </>

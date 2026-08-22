@@ -3,6 +3,7 @@ import { db } from '@/src/db/client';
 import { vacatingRequests } from '@/src/db/schema';
 import { getAdminBookingDetail } from '@/src/db/queries/admin';
 import { buildFallbackPgLetterhead } from '@/src/lib/billing/pgLetterheadFallback';
+import { resolveNoticeGivenDateForVacating } from '@/src/lib/vacating/noticeDateSsot';
 import { loadEstimatedSettlementForVacating } from '@/src/lib/vacating/estimatedSettlementPreview';
 import {
   buildSettlementStatementModel,
@@ -26,9 +27,14 @@ export async function loadSettlementStatementForVacating(
   const primaryRes = b.reservations.find((r) => r.kind === 'primary') ?? b.reservations[0];
   if (!primaryRes) return null;
 
+  const noticeGivenDate = resolveNoticeGivenDateForVacating({
+    noticeGivenDate: vacating.noticeGivenDate,
+    originalNoticeSubmittedAt: vacating.originalNoticeSubmittedAt,
+  });
+
   const estimatedSettlement = await loadEstimatedSettlementForVacating({
     bookingId: vacating.bookingId,
-    noticeGivenDate: String(vacating.noticeGivenDate),
+    noticeGivenDate,
     vacatingDate: String(vacating.vacatingDate),
     monthlyRentPaiseSnapshot: vacating.monthlyRentPaiseSnapshot,
     noticeRentCoveredDays: vacating.noticeRentCoveredDays,
@@ -54,7 +60,7 @@ export async function loadSettlementStatementForVacating(
     pgName: primaryRes.pgName,
     roomNumber: primaryRes.roomNumber,
     bedCode: primaryRes.bedCode,
-    noticeGivenDate: String(vacating.noticeGivenDate),
+    noticeGivenDate,
     vacatingDate: String(vacating.vacatingDate),
     letterhead,
   });

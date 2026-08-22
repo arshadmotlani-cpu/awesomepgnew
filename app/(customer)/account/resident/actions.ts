@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import { requireCustomerOwnsBooking } from '@/src/lib/auth/guards';
 import { submitVacatingRequest, cancelVacatingRequestByCustomer } from '@/src/services/vacating';
-import { accountProfileHref } from '@/src/lib/accountNavigation';
+import { accountProfileHref, residentTabHref } from '@/src/lib/accountNavigation';
 import { revalidateVacatingLifecycleForBooking } from '@/src/lib/vacating/revalidateVacatingViews';
 
 export type VacatingActionState =
@@ -67,7 +67,7 @@ export async function submitVacatingAction(
   revalidatePath('/account/resident');
   revalidatePath('/account/bookings');
   await revalidateVacatingLifecycleForBooking(bookingId, ownership.customer.id);
-  redirect(accountProfileHref('resident', { tab: 'vacating' }));
+  redirect(residentTabHref('requests', { category: 'move_out' }));
 }
 
 export type CancelVacatingActionState =
@@ -110,5 +110,5 @@ export async function cancelVacatingAction(
 
   revalidatePath('/account/profile');
   await revalidateVacatingLifecycleForBooking(bookingId, ownership.customer.id);
-  redirect(accountProfileHref('resident', { tab: 'vacating' }));
+  redirect(residentTabHref('requests', { category: 'move_out' }));
 }

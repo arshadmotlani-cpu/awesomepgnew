@@ -181,6 +181,7 @@ export async function loadBookingFinancialWorkspace(
       bedCode: primaryRes.bedCode,
       noticeGivenDate: vacatingRow.noticeGivenDate,
       vacatingDate: vacatingRow.vacatingDate,
+      originalNoticeSubmittedAt: vacatingRow.originalNoticeSubmittedAt ?? null,
       noticeCompliant: vacatingRow.noticeCompliant,
       status: vacatingRow.status,
       deductionPaise: vacatingRow.deductionPaise,

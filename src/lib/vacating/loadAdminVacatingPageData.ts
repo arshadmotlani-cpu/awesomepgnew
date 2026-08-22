@@ -14,6 +14,7 @@ import { listPendingVacatingDateChanges } from '@/src/services/vacatingDateChang
 import type { VacatingDateChangeRequest } from '@/src/db/schema/vacatingDateChangeRequests';
 import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
 import type { VacatingDateChangeBookingContext } from '@/src/components/admin/vacating/VacatingDateChangeApprovalPanel';
+import { resolveNoticeGivenDateForVacating } from '@/src/lib/vacating/noticeDateSsot';
 
 export type VacatingRowLoadError = {
   vacatingRequestId: string;
@@ -180,7 +181,10 @@ export async function loadAdminVacatingPageData(session: AdminSession): Promise<
       pgName: v.pgName,
       roomNumber: v.roomNumber,
       bedCode: v.bedCode,
-      noticeGivenDate: String(v.noticeGivenDate),
+      noticeGivenDate: resolveNoticeGivenDateForVacating({
+        noticeGivenDate: v.noticeGivenDate,
+        originalNoticeSubmittedAt: v.originalNoticeSubmittedAt,
+      }),
       vacatingDate: String(change.requestedVacatingDate),
     };
   }

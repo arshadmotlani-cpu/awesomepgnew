@@ -1680,6 +1680,9 @@ export type RentInvoiceRow = {
   proofSnapshotLateFeePaise: number | null;
   proofSnapshotPrincipalDuePaise: number | null;
   paymentId: string | null;
+  isAdhoc: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 export function listRentInvoicesForBooking(
@@ -1710,6 +1713,9 @@ export function listRentInvoicesForBooking(
         proofSnapshotLateFeePaise: rentInvoices.proofSnapshotLateFeePaise,
         proofSnapshotPrincipalDuePaise: rentInvoices.proofSnapshotPrincipalDuePaise,
         paymentId: rentInvoices.paymentId,
+        isAdhoc: rentInvoices.isAdhoc,
+        createdAt: rentInvoices.createdAt,
+        updatedAt: rentInvoices.updatedAt,
       })
       .from(rentInvoices)
       .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))
@@ -1748,6 +1754,7 @@ export type ElectricityInvoiceRow = {
   totalPaise: number;
   monthlyOccupantCount: number;
   paymentId: string | null;
+  supersededByInvoiceId: string | null;
 };
 
 export function listElectricityInvoicesForBooking(
@@ -1785,6 +1792,7 @@ export function listElectricityInvoicesForBooking(
         totalPaise: electricityBills.totalPaise,
         monthlyOccupantCount: electricityBills.monthlyOccupantCount,
         paymentId: electricityInvoices.paymentId,
+        supersededByInvoiceId: electricityInvoices.supersededByInvoiceId,
       })
       .from(electricityInvoices)
       .innerJoin(bookings, eq(bookings.id, electricityInvoices.bookingId))
@@ -1801,6 +1809,7 @@ export type VacatingForBookingRow = {
   bookingId: string;
   noticeGivenDate: string;
   vacatingDate: string;
+  originalNoticeSubmittedAt: Date | null;
   noticeCompliant: boolean;
   deductionPaise: number;
   depositRefundPaise: number;

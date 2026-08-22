@@ -507,6 +507,13 @@ export async function recomputeCheckoutSettlementV2ForVacating(args: {
     stayType: args.stayType,
     durationMode: args.durationMode,
   });
+
+  const { syncMoveOutUnusedRentWalletCredit } = await import('@/src/services/residentCreditLedger');
+  await syncMoveOutUnusedRentWalletCredit({
+    vacatingRequestId: args.vacatingRequestId,
+  }).catch((err) => {
+    console.error('[checkout] unused rent wallet sync failed on recompute:', err);
+  });
 }
 
 async function lockApprovalBaselineIfNeeded(settlementId: string): Promise<void> {
@@ -2566,6 +2573,13 @@ export async function markCheckoutRefundPaid(input: {
       current.settlementWaterfallJson?.refund.depositPortionPaise ??
       refundPaise)
     : refundPaise;
+  const unusedRentPortionPaise = settlementUsesEngineV2(current)
+    ? Math.max(
+        0,
+        current.settlementWaterfallJson?.refund.unusedRentPortionPaise ??
+          refundPaise - depositLedgerRefundPaise,
+      )
+    : Math.max(0, refundPaise - depositLedgerRefundPaise);
   const idempotencyKey = `checkout:${current.id}`;
 
   const wallet = await getDepositSummaryForBooking(current.bookingId);
@@ -2627,6 +2641,28 @@ export async function markCheckoutRefundPaid(input: {
         updatedAt: new Date(),
       })
       .where(eq(checkoutSettlements.id, input.settlementId));
+  }
+
+  if (unusedRentPortionPaise > 0) {
+    const {
+      hasResidentCreditEntryWithReasonPrefix,
+      moveOutUnusedRentPayoutDebitReason,
+      recordResidentCreditDebit,
+    } = await import('@/src/services/residentCreditLedger');
+    const payoutDebitReason = moveOutUnusedRentPayoutDebitReason(current.id);
+    const alreadyDebited = await hasResidentCreditEntryWithReasonPrefix(
+      current.customerId,
+      payoutDebitReason,
+    );
+    if (!alreadyDebited) {
+      await recordResidentCreditDebit({
+        customerId: current.customerId,
+        bookingId: current.bookingId,
+        amountPaise: unusedRentPortionPaise,
+        reason: `${payoutDebitReason} Checkout payout — unused rent portion`,
+        createdByAdminId: input.adminId,
+      });
+    }
   }
 
   await db.insert(auditLog).values({

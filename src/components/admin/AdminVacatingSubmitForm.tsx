@@ -44,13 +44,14 @@ export function AdminVacatingSubmitForm({
     [expectedCheckoutDate],
   );
   const [vacatingDate, setVacatingDate] = useState(initialVacatingDate);
+  const [noticeGivenDate, setNoticeGivenDate] = useState(todayString());
   const [state, action, pending] = useActionState(submitAdminVacatingAction, {
     ok: false,
   } satisfies MapActionState);
 
   const { breakdown, loading } = useNoticeDeductionPreview(
     previewNoticeDeductionForAdminAction,
-    { bookingId, vacatingDate, monthlyRentPaise },
+    { bookingId, vacatingDate, monthlyRentPaise, noticeGivenDate },
   );
 
   useEffect(() => {
@@ -90,6 +91,21 @@ export function AdminVacatingSubmitForm({
           onChange={(e) => setVacatingDate(e.target.value)}
           className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 px-3 py-2 text-sm"
         />
+      </label>
+      <label className="block text-sm">
+        <span className="text-apg-silver">Notice given date</span>
+        <input
+          type="date"
+          name="noticeGivenDate"
+          required
+          max={todayString()}
+          value={noticeGivenDate}
+          onChange={(e) => setNoticeGivenDate(e.target.value)}
+          className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 px-3 py-2 text-sm"
+        />
+        <span className="mt-1 block text-[11px] text-apg-silver/80">
+          When the resident gave notice — used for the 5-day notice calculation (not admin processing date).
+        </span>
       </label>
       {dateConfirmation ? (
         <div className="rounded-lg border border-sky-500/30 bg-sky-500/10 p-3 text-xs text-sky-100">

@@ -19,7 +19,7 @@ import {
   type ActiveRequestItem,
   type RequestCategoryId,
 } from '@/src/lib/residents/requestCenter';
-import { accountProfileHref, residentProfileHref, residentTabHref } from '@/src/lib/accountNavigation';
+import { residentProfileHref, residentTabHref } from '@/src/lib/accountNavigation';
 import { requestStatusTone } from '@/src/lib/design-system/tokens';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 
@@ -81,7 +81,7 @@ function vacatingHomeProps(props: Props) {
     depositHeldPaise: props.depositHeldPaise ?? 0,
     durationMode: props.durationMode,
     expectedCheckoutDate: props.expectedCheckoutDate,
-    monthlyRentPaise: props.monthlyRentPaise,
+    monthlyRentPaise: props.monthlyRentPaise ?? 0,
     estimatedSettlement: props.estimatedSettlement,
     pendingDateChangeRequestId: props.pendingDateChangeRequestId,
     pendingDateChangePreview: props.pendingDateChangePreview,
@@ -96,33 +96,21 @@ export function RequestsHome(props: Props) {
   const {
     customerId,
     bookingId,
-    bookingCode = null,
     pgId,
     fromBedId,
     roomLabel,
-    refundableBalancePaise,
-    hasDepositDue,
     activeRequests,
     selectedRequestId,
     startMake,
     initialCategory = null,
     vacating,
-    bookingStatus = 'confirmed',
     durationMode = 'monthly',
     expectedCheckoutDate = null,
-    bookingCreatedAt,
     checkoutSettlementStatus = null,
-    checkoutSettlement = null,
-    checkoutSettlementSuppressed = false,
     monthlyRentPaise = 0,
     depositHeldPaise = 0,
     moveInDate = '',
-    developerTestEmail = null,
-    estimatedSettlement = null,
-    pendingDateChangeRequestId = null,
-    settlementContext = null,
-    settlementDocument = null,
-    settlementNoticeDisplay = null,
+    pendingDateChangePreview = null,
     exitBrainSnapshot = null,
   } = props;
 
@@ -136,29 +124,23 @@ export function RequestsHome(props: Props) {
     [activeRequests, selectedRequestId],
   );
 
-  const hasActiveMoveOut =
-    (vacating != null && vacating.status !== 'rejected') || Boolean(checkoutSettlementStatus);
-
-  const startNewMoveOutOnly =
-    making && makeCategory === 'move_out' && !hasActiveMoveOut;
+  const secondaryCategories = REQUEST_CATEGORIES.filter((c) => c.id !== 'move_out');
 
   useEffect(() => {
-    if (normalizedInitial === 'move_out' && hasActiveMoveOut) {
+    if (normalizedInitial === 'move_out') {
       requestAnimationFrame(() => {
         document.getElementById('resident-move-out')?.scrollIntoView({ behavior: 'smooth' });
       });
       return;
     }
-    if (normalizedInitial) {
+    if (normalizedInitial && normalizedInitial !== 'move_out') {
       setMakeCategory(normalizedInitial);
       setMaking(true);
     }
-  }, [normalizedInitial, hasActiveMoveOut]);
-
-  const visibleCategories = REQUEST_CATEGORIES;
+  }, [normalizedInitial]);
 
   function openDetail(id: string) {
-    router.push(accountProfileHref('resident', { tab: 'requests', request: id }));
+    router.push(residentTabHref('requests', { request: id }));
   }
 
   function closeDetail() {
@@ -166,7 +148,7 @@ export function RequestsHome(props: Props) {
   }
 
   function selectCategory(id: RequestCategoryId) {
-    if (id === 'move_out' && hasActiveMoveOut) {
+    if (id === 'move_out') {
       document.getElementById('resident-move-out')?.scrollIntoView({ behavior: 'smooth' });
       return;
     }
@@ -176,10 +158,6 @@ export function RequestsHome(props: Props) {
 
   if (selected) {
     return <RequestDetailView request={selected} onBack={closeDetail} />;
-  }
-
-  if (startNewMoveOutOnly) {
-    return <VacatingHome {...vacatingHomeProps(props)} />;
   }
 
   if (making && makeCategory === 'room_change') {
@@ -223,18 +201,9 @@ export function RequestsHome(props: Props) {
 
   return (
     <div className="space-y-4 pb-2">
-      <ApgCard tier="resident">
-        <h2 className="text-lg font-semibold text-white">Requests</h2>
-        <p className="mt-1 text-sm text-apg-silver">
-          Maintenance, room change, move-out, complaints, and support — each with a clear status.
-        </p>
-      </ApgCard>
-
-      {hasActiveMoveOut ? (
-        <div id="resident-move-out" className="space-y-4">
-          <VacatingHome {...vacatingHomeProps(props)} />
-        </div>
-      ) : null}
+      <div id="resident-move-out" className="space-y-4">
+        <VacatingHome {...vacatingHomeProps(props)} />
+      </div>
 
       {activeRequests.length > 0 ? (
         <ApgCard tier="resident">
@@ -267,19 +236,27 @@ export function RequestsHome(props: Props) {
         </ApgCard>
       ) : null}
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold text-white">Start a request</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {visibleCategories.map((cat) => (
-            <CategoryCard
-              key={cat.id}
-              title={cat.title}
-              description={cat.description}
-              onSelect={() => selectCategory(cat.id)}
-            />
-          ))}
-        </div>
-      </section>
+      {secondaryCategories.length > 0 ? (
+        <details className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+          <summary className="cursor-pointer text-sm font-semibold text-white">Other requests</summary>
+          <p className="mt-2 text-xs text-apg-silver">
+            Maintenance, room change, complaints, and support — secondary to your move-out flow above.
+          </p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {secondaryCategories.map((cat) => (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => selectCategory(cat.id)}
+                className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 text-left text-xs transition hover:border-apg-orange/30"
+              >
+                <span className="font-semibold text-white">{cat.title}</span>
+                <p className="mt-1 text-[11px] leading-snug text-apg-silver">{cat.description}</p>
+              </button>
+            ))}
+          </div>
+        </details>
+      ) : null}
 
       <p className="text-center text-xs text-apg-silver">
         Deposit refund is in{' '}
@@ -288,26 +265,5 @@ export function RequestsHome(props: Props) {
         </Link>
       </p>
     </div>
-  );
-}
-
-function CategoryCard({
-  title,
-  description,
-  onSelect,
-}: {
-  title: string;
-  description: string;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-left transition hover:border-apg-orange/35 hover:bg-white/[0.06]"
-    >
-      <p className="text-sm font-semibold text-white">{title}</p>
-      <p className="mt-1.5 text-xs leading-relaxed text-apg-silver">{description}</p>
-    </button>
   );
 }

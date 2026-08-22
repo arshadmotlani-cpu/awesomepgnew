@@ -20,6 +20,7 @@ function baseVacating(
     id: 'vr-stage-preview',
     bookingId: BOOKING_ID,
     noticeGivenDate: '2026-07-21',
+    originalNoticeSubmittedAt: new Date('2026-07-21T10:00:00.000Z'),
     noticeCompliant: false,
     deductionPaise: 27_500,
     depositRefundPaise: 0,

@@ -27,6 +27,31 @@ export function ApproveVacatingPreview({
 
   return (
     <div className="space-y-3">
+      <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-apg-silver">
+        <p>
+          <span className="font-semibold text-white">Notice for calculation:</span>{' '}
+          {formatDate(preview.noticeCalculationDate)}
+        </p>
+        {preview.noticeSubmittedAt ? (
+          <p className="mt-1">
+            <span className="font-semibold text-white">Resident submitted:</span>{' '}
+            {formatDate(preview.noticeSubmittedAt)}
+          </p>
+        ) : null}
+        {preview.processingDate ? (
+          <p className="mt-1">
+            <span className="font-semibold text-white">Admin processing:</span>{' '}
+            {formatDate(preview.processingDate)}
+            {preview.processingDate !== preview.noticeCalculationDate
+              ? ' (calculation uses notice date above, not this date)'
+              : null}
+          </p>
+        ) : null}
+        <p className="mt-1">
+          <span className="font-semibold text-white">Requested move-out:</span>{' '}
+          {formatDate(preview.moveOutDate)}
+        </p>
+      </div>
       {statement ? (
         <AdminReviewSettlementScan
           statement={statement}

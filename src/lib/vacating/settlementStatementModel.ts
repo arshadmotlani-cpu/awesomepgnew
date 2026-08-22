@@ -201,6 +201,7 @@ export function buildSettlementStatementFromApprovalPreview(args: {
     roomNumber: string;
     bedCode: string;
     noticeSubmittedDate: string;
+    noticeCalculationDate?: string;
     moveOutDate: string;
     estimatedSettlement: EstimatedSettlementPreview | null;
     settlementExplanations?: MoveOutSettlementExplanationReport | null;
@@ -222,7 +223,7 @@ export function buildSettlementStatementFromApprovalPreview(args: {
     pgName: args.preview.pgName,
     roomNumber: args.preview.roomNumber,
     bedCode: args.preview.bedCode,
-    noticeGivenDate: args.preview.noticeSubmittedDate,
+    noticeGivenDate: args.preview.noticeCalculationDate ?? args.preview.noticeSubmittedDate,
     vacatingDate: args.preview.moveOutDate,
     letterhead: buildFallbackPgLetterhead(args.preview.pgName),
   });

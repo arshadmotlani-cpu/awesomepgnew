@@ -367,7 +367,8 @@ export async function submitVacatingRequest(
     return { ok: false, kind: 'not_monthly' };
   }
 
-  const noticeGivenDate = formatDate(parseDate(input.noticeGivenDate ?? new Date()));
+  const submittedAt = new Date();
+  const noticeGivenDate = formatDate(parseDate(input.noticeGivenDate ?? submittedAt));
   const vacatingDate = formatDate(parseDate(input.vacatingDate));
   if (vacatingDate < noticeGivenDate) {
     return {
@@ -410,7 +411,6 @@ export async function submitVacatingRequest(
   }
 
   try {
-    const submittedAt = new Date();
     const [row] = await db
       .insert(vacatingRequests)
       .values({
@@ -649,6 +649,14 @@ export async function approveVacatingRequest(input: {
     await import('@/src/services/actionItems');
   await resolveVacatingApprovalActionItems(updated.id);
   await refreshAdminNotificationsFromActionItems();
+
+  const { syncMoveOutUnusedRentWalletCredit } = await import('@/src/services/residentCreditLedger');
+  await syncMoveOutUnusedRentWalletCredit({
+    vacatingRequestId: updated.id,
+    adminId: input.resolvedByAdminId ?? null,
+  }).catch((err) => {
+    console.error('[vacating] unused rent wallet sync failed on approve:', err);
+  });
 
   return { ok: true, request: updated };
 }
