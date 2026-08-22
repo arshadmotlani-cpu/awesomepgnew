@@ -17,19 +17,24 @@ import {
   listPaymentsForBooking,
   listRentInvoicesForBooking,
 } from '@/src/db/queries/customer';
-import { firstOfMonth } from '@/src/services/billing';
+import { calendarMonthBillingPeriod, firstMonthRentForCalendarPolicy, firstOfMonth } from '@/src/services/billing';
 import { todayString } from '@/src/lib/dates';
 import { paiseToInr } from '@/src/lib/format';
 import { resolveMonthlyRentPaiseForBooking } from '@/src/lib/billing/rentPricingSsot';
 import { computeResidentTotalDuePaise } from '@/src/lib/residents/residentPortalDisplay';
 import { buildResidentBillRowsFromDetail } from '@/src/lib/residents/residentPortalBillRows';
 import {
-  getBookingFinancialAccount,
+  computeBookingFinancialSummaryCore,
   getResidentFinancialAccount,
 } from '@/src/services/residentFinancialEngine';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
-import { projectInvoice } from '@/src/services/rentInvoices';
+import { _internals as rentInvoiceInternals, projectInvoice } from '@/src/services/rentInvoices';
 import { projectElectricityInvoice, getElectricityBreakdownForInvoice } from '@/src/services/electricityBilling';
+import {
+  buildPaidElectricityBookingMonthKeys,
+  isElectricityAwaitingResidentPayment,
+} from '@/src/lib/billing/electricityCollectibility';
+import { getBillingProfileForBooking } from '@/src/services/residentBillingProfiles';
 import { listActiveShantinagarResidents } from '@/src/services/shantinagarJulyRentProduction';
 import { getLatestPaymentLinkForResident } from '@/src/services/paymentLinks';
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
@@ -214,16 +219,33 @@ async function certifyResident(
     rentInvoiceAmountPaise = latestRent.rentPaise;
     const projected = projectInvoice(latestRent);
     invoiceOutstandingRentPaise = projected.outstandingPaise;
-    if (latestRent.rentPaise !== monthlyRentSsotPaise && latestRent.billingMonth === billingMonth) {
-      pushMismatch(
-        mismatches,
-        'rent_invoice_amount',
-        monthlyRentSsotPaise,
-        latestRent.rentPaise,
-        'rent pricing SSOT',
-        `rent_invoices.rent_paise (${latestRent.invoiceNumber})`,
-        'Current-month rent invoice amount ≠ SSOT',
-      );
+    if (firstOfMonth(latestRent.billingMonth) === billingMonth) {
+      let expectedInvoiceRentPaise = monthlyRentSsotPaise;
+      const stay = await rentInvoiceInternals.loadStayWindow(r.bookingId);
+      const profile = await getBillingProfileForBooking(r.bookingId);
+      const billingCyclePolicy = profile?.billingCyclePolicy ?? 'anniversary';
+      if (
+        stay &&
+        billingCyclePolicy === 'calendar_month_1st' &&
+        firstOfMonth(stay.start) === billingMonth &&
+        stay.start > calendarMonthBillingPeriod(billingMonth).periodStart
+      ) {
+        expectedInvoiceRentPaise = firstMonthRentForCalendarPolicy(
+          monthlyRentSsotPaise,
+          stay.start,
+        ).amountPaise;
+      }
+      if (latestRent.rentPaise !== expectedInvoiceRentPaise && latestRent.status !== 'paid') {
+        pushMismatch(
+          mismatches,
+          'rent_invoice_amount',
+          expectedInvoiceRentPaise,
+          latestRent.rentPaise,
+          billingCyclePolicy === 'calendar_month_1st' ? 'calendar partial-month rent SSOT' : 'rent pricing SSOT',
+          `rent_invoices.rent_paise (${latestRent.invoiceNumber})`,
+          'Current-month rent invoice amount ≠ expected invoice SSOT',
+        );
+      }
     }
   }
 
@@ -252,18 +274,24 @@ async function certifyResident(
         bedId: '',
         pgId,
         paymentId: row.paymentId ?? null,
-        isAdhoc: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        isAdhoc: row.isAdhoc,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
       }).outstandingPaise;
     }
   }
+
+  const paidElecMonthKeys = buildPaidElectricityBookingMonthKeys(
+    (elecList.ok ? elecList.data : [])
+      .filter((row) => row.status === 'paid')
+      .map((row) => ({ bookingId: r.bookingId, billingMonth: String(row.billingMonth) })),
+  );
 
   let totalInvoiceElecOutstandingPaise = 0;
   if (elecList.ok) {
     for (const row of elecList.data) {
       if (row.status === 'cancelled') continue;
-      totalInvoiceElecOutstandingPaise += projectElectricityInvoice({
+      const projectedElec = projectElectricityInvoice({
         id: row.id,
         invoiceNumber: row.invoiceNumber,
         electricityBillId: row.electricityBillId,
@@ -288,7 +316,25 @@ async function certifyResident(
         isPipelineTest: false,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
-      }).outstandingPaise;
+      });
+      const elecOutstanding = Math.max(0, projectedElec.outstandingPaise);
+      if (
+        isElectricityAwaitingResidentPayment(
+          {
+            id: row.id,
+            status: row.status,
+            paymentProofUrl: row.paymentProofUrl,
+            outstandingPaise: elecOutstanding,
+            effectiveStatus: projectedElec.effectiveStatus,
+            supersededByInvoiceId: row.supersededByInvoiceId ?? null,
+            bookingId: r.bookingId,
+            billingMonth: String(row.billingMonth),
+          },
+          paidElecMonthKeys,
+        )
+      ) {
+        totalInvoiceElecOutstandingPaise += elecOutstanding;
+      }
     }
   }
 
@@ -352,7 +398,7 @@ async function certifyResident(
   const depositHeldPaise = depositSummary?.refundableBalancePaise ?? 0;
   const refundBalancePaise = depositSummary?.refundableBalancePaise ?? 0;
 
-  const bookingAccount = await getBookingFinancialAccount({
+  const bookingAccount = await computeBookingFinancialSummaryCore({
     bookingId: r.bookingId,
     customerId: r.customerId,
     customerName: r.customerName,
@@ -374,9 +420,9 @@ async function certifyResident(
     'outstanding_rent',
     adminOutstandingRentPaise,
     totalInvoiceRentOutstandingPaise,
-    'getBookingFinancialAccount.rent.outstandingPaise (admin)',
+    'computeBookingFinancialSummaryCore.rent.outstandingPaise (invoice SSOT admin)',
     'sum(projectInvoice) all rent invoices',
-    'Admin rent outstanding ≠ invoice-engine rent outstanding',
+    'Invoice SSOT admin rent outstanding ≠ invoice-engine rent outstanding',
   );
 
   pushMismatch(
@@ -384,9 +430,9 @@ async function certifyResident(
     'outstanding_electricity',
     adminOutstandingElecPaise,
     totalInvoiceElecOutstandingPaise,
-    'getBookingFinancialAccount.electricity.outstandingPaise (admin)',
+    'computeBookingFinancialSummaryCore.electricity.outstandingPaise (invoice SSOT admin)',
     'sum(projectElectricityInvoice) all electricity invoices',
-    'Admin electricity outstanding ≠ invoice-engine electricity outstanding',
+    'Invoice SSOT admin electricity outstanding ≠ collectible invoice-engine electricity outstanding',
   );
 
   const adminDepositHeldPaise = bookingAccount.deposit.refundablePaise;
@@ -395,7 +441,7 @@ async function certifyResident(
     'deposit_held',
     adminDepositHeldPaise,
     depositHeldPaise,
-    'getBookingFinancialAccount.deposit.refundablePaise (admin RFE)',
+    'computeBookingFinancialSummaryCore.deposit.refundablePaise (invoice SSOT admin)',
     'getDepositSummaryForBooking.refundableBalancePaise (portal wallet)',
     'Portal wallet deposit held ≠ admin deposit ledger',
   );
@@ -435,7 +481,7 @@ async function certifyResident(
     'total_due',
     backendRecomputedTotalDuePaise,
     portalTotalDuePaise,
-    'admin RFE outstanding (rent+elec+deposit)',
+    'invoice SSOT admin outstanding (rent+elec+deposit)',
     'portal simulate computeResidentTotalDuePaise (payable rows only)',
     'Portal Total Due card ≠ backend recomputed total — check missing pay links or bill row filters',
   );
@@ -467,7 +513,7 @@ async function certifyResident(
       adminBackendTotal,
       backendRecomputedTotalDuePaise,
       'getResidentFinancialAccount',
-      'getBookingFinancialAccount',
+      'computeBookingFinancialSummaryCore (booking)',
       'Customer-level vs booking-level admin outstanding mismatch',
     );
   }

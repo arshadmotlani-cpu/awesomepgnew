@@ -6,6 +6,7 @@ import { eq, and, inArray } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import { wfEmployees } from '@/src/workforce/db/schema';
 import { getHairSession } from '@/src/hair/lib/auth/session';
+import { persistTenantCookies } from '@/src/hair/lib/tenant/persistTenantCookies';
 import { FYH_LOCATION_COOKIE, FYH_ORG_COOKIE } from '@/src/hair/lib/tenant/cookies';
 import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
 import {
@@ -35,32 +36,20 @@ export async function selectOrganizationAction(formData: FormData): Promise<void
   if (!organizationId) redirect('/select-organization?error=missing');
 
   const userId = await resolveUserIdFromSession();
-  if (!userId) redirect('/login');
+  if (!userId) redirect('/select-organization?error=invalid');
 
   const membership = await loadMembershipForUserOrg(userId, organizationId);
   if (!membership) redirect('/select-organization?error=invalid');
 
-  const cookieStore = await cookies();
-  cookieStore.set(FYH_ORG_COOKIE, organizationId, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 365 * 24 * 60 * 60,
-  });
-
   const locationId = membership.allowedLocationIds[0];
-  if (locationId) {
-    cookieStore.set(FYH_LOCATION_COOKIE, locationId, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 365 * 24 * 60 * 60,
-    });
-  }
+  if (!locationId) redirect('/select-organization?error=invalid');
 
-  const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard/revenue';
+  await persistTenantCookies(organizationId, locationId);
+
+  const safeNext =
+    next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/select-organization')
+      ? next
+      : '/dashboard/revenue';
   redirect(safeNext);
 }
 

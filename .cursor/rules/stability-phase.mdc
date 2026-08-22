@@ -1,19 +1,28 @@
 ---
-description: Stability Phase — dependency checks, tests, regression tests, no duplicated logic
+description: Stability Phase — blast radius, shared contracts, tests, regression tests, no duplicated logic
 alwaysApply: true
 ---
 
 # Stability Phase (Awesome PG)
 
-From 2026-08-01 onward, every feature and bug fix follows this workflow.
+From 2026-08-01 onward, every feature and bug fix follows this workflow. Priority is making the change **without breaking anything else**.
 
 ## Before changing code
 
 1. **Map dependents** — grep/import trace: who imports or calls the module you are editing?
-2. **Run related tests first** — baseline must be green before edits.
+2. **List blast radius in the reply before edits** — `This change affects: [files, functions, types, routes].` If unsure, treat it as affected and check it.
+3. **Run related tests first** — baseline must be green before edits.
    - PG: `npm run test:pg` (+ `npm run test:billing-settlement` if billing/settlement/resident money)
    - Hair: `npm run test:hair`
    - Capital: `npm run test:capital`
+
+## Shared contracts
+
+If you change a function signature, prop shape, API response, database schema, or shared type, update **every consumer in the same task**. If that is too large, **STOP** and report instead of a partial update.
+
+## Minimize the diff
+
+Touch only the files/lines needed for the request. No drive-by refactors, renames, reformats, or deleting code you do not understand — ask first.
 
 ## After changing code (mandatory)
 
@@ -23,15 +32,27 @@ It runs **build → unit/integration tests for affected products → billing-set
 
 **If any unrelated test fails: STOP.** Do not patch around it. Find and fix the regression first.
 
-## Bug fixes
+Do not mark work complete on “should work.” If you cannot verify (no coverage, cannot run tests), say so.
 
-Every bug fix **must include a regression test** that would have caught the bug.
+## Tests
+
+- If tests exist for the path, run them and keep them green.
+- Bug fixes **must include a regression test** that would have caught the bug.
+- If the path has **no** tests, add a **minimal** test covering the change.
 
 ## Business logic
 
 - **Never duplicate** rent, deposit, settlement, occupancy, or invoice math in UI or ad-hoc scripts.
 - Reuse existing services (`resolveMonthlyRentPaiseForBooking`, `getResidentFinancialAccount`, `projectInvoice`, etc.).
 - If two places disagree, consolidate into one shared module.
+- If duplicated logic, missing types, or global coupling is why things keep breaking, say so. Prefer a small structural fix over another workaround.
+
+## Impact Summary (end of every change)
+
+- What changed
+- What else you checked/updated as a result
+- What you did **not** change but flagged as a risk
+- Manual verification the operator should do
 
 ## Billing / production
 

@@ -12,9 +12,10 @@ Before any feature: classify **Engine** (actions) vs **Brain** (knowledge). Neve
 
 All changes follow `.cursor/rules/stability-phase.mdc` and `docs/STABILITY_PHASE.md`:
 
-- Map dependents before editing; run related tests first.
+- Map dependents before editing and list them in the reply before edits; run related tests first.
 - After changes: `npm run stability:report` (build + scoped tests + billing suite when applicable).
-- **STOP** on unrelated test failures. Bug fixes require regression tests.
+- **STOP** on unrelated test failures. Bug fixes require regression tests; add a minimal test if the path has none.
+- Shared contracts: update every consumer in the same task, or stop and report.
 - Reuse SSOT services — no duplicated business logic.
 - Billing changes: read-only production audit before deploy.
-- Commit/push only when the regression report is green.
+- Commit/push only when the regression report is green. End with an Impact Summary.

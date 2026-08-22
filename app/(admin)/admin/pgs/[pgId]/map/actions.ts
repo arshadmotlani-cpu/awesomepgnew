@@ -26,12 +26,17 @@ export async function submitAdminVacatingAction(
     const bookingId = String(formData.get('bookingId') ?? '');
     const pgId = String(formData.get('pgId') ?? '');
     const vacatingDate = String(formData.get('vacatingDate') ?? '');
+    const noticeGivenDateRaw = String(formData.get('noticeGivenDate') ?? '').trim();
     const notes = String(formData.get('notes') ?? '');
     const waiveDeduction = formData.get('waiveDeduction') === 'on';
     const openBedForBooking = formData.get('openBedForBooking') === 'on';
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(vacatingDate)) {
       return { ok: false, error: 'Vacating date must be YYYY-MM-DD.' };
+    }
+
+    if (noticeGivenDateRaw && !/^\d{4}-\d{2}-\d{2}$/.test(noticeGivenDateRaw)) {
+      return { ok: false, error: 'Notice given date must be YYYY-MM-DD.' };
     }
 
     if (!/^[0-9a-f-]{36}$/i.test(bookingId)) {
@@ -43,6 +48,7 @@ export async function submitAdminVacatingAction(
     const result = await submitVacatingRequest({
       bookingId,
       vacatingDate,
+      noticeGivenDate: noticeGivenDateRaw || undefined,
       notes: notes || null,
       waiveDeduction,
       openBedForBookingFromVacatingDate: openBedForBooking,

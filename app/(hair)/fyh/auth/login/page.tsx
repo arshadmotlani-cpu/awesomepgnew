@@ -9,6 +9,10 @@ import {
   safeHairNextPath,
 } from '@/src/hair/lib/auth/guards';
 import { hairAppRedirect } from '@/src/hair/lib/host';
+import { FYH_LOCATION_COOKIE, FYH_ORG_COOKIE } from '@/src/hair/lib/tenant/cookies';
+import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
+import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
+import { isPersistedTenantSelection } from '@/src/hair/lib/tenant/selectOrganizationNav';
 
 export default async function HairLoginRoute({
   searchParams,
@@ -17,6 +21,18 @@ export default async function HairLoginRoute({
 }) {
   const session = await getHairSession();
   if (session) {
+    if (isFyhSaasTenantEnabled()) {
+      const ctx = await getTenantContextForPage();
+      const cookieStore = await cookies();
+      const persisted = isPersistedTenantSelection(
+        ctx,
+        cookieStore.get(FYH_ORG_COOKIE)?.value,
+        cookieStore.get(FYH_LOCATION_COOKIE)?.value,
+      );
+      if (!persisted) {
+        redirect(await hairAppRedirect('/select-organization?nobind=1'));
+      }
+    }
     const params = await searchParams;
     const next = params.next?.trim();
     const dest = next

@@ -7,6 +7,14 @@
 
 ---
 
+## 2026-08-22
+
+- **SYSTEM-AUDIT** — Working architecture/logic audit for handoff: `docs/SYSTEM_AUDIT.md` (products, engines, DBs, env, auth, tests, fragile areas, MEMORY).
+- **SAAS-MULTITENANT-PLAN** — Gated conversion plan only: `docs/SAAS_MULTITENANT_PLAN.md` (pricing SSOT → schema → scoped queries → session → billing → subdomains). No conversion code.
+- **SAAS-READINESS** — Hair multi-tenant blunt audit: `docs/SAAS_READINESS.md`. Not safe for a second salon on the shared Hair DB (`FYH_SAAS_TENANT` default off; unscoped catalog/checkout; public invoice-by-number).
+- **SALON-SOFTWARE-WAITLIST** — Public `/salon-software` on Hair host; isolated `saas_waitlist_signups` (no FKs to fyh_* ops tables). Lead capture only.
+- **STABILITY-CASCADE-GUARDRAILS** — Merged prevent-cascading-breakages gaps into Stability Phase Cursor rule + runbook + `AGENTS.md` (blast radius in-reply, shared contracts, min-diff, Impact Summary, minimal tests). No new `.cursorrules` / `main.mdc`.
+
 ## 2026-08-05
 
 - **WORKFORCE-ENGINE-V1-PHASE1** — Closed Phase 1: Owner/Manager/Staff labels, designation UI, v1 roadmap in `docs/WORKFORCE_ENGINE.md`; Health Score gate remains 100.

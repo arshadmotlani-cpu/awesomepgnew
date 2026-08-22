@@ -23,6 +23,7 @@ import {
 } from '@/src/lib/checkout/settlementDisplayFormat';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import { buildSettlementBillingDatesSectionRows } from '@/src/lib/vacating/settlementBillingRows';
+import { resolveNoticeGivenDateForVacating } from '@/src/lib/vacating/noticeDateSsot';
 import { getBookingMoneyBalances } from '@/src/services/bookingMoneyBalances';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import type {
@@ -219,7 +220,10 @@ export async function loadVacatingSettlementWaterfallContext(
   input: EstimatedSettlementVacatingInput,
 ): Promise<{ ctx: VacatingSettlementWaterfallContext; coverage: BillingCoverageModel } | null> {
   const vacatingDate = normalizeIsoDateOnly(input.vacatingDate);
-  const noticeGivenDate = normalizeIsoDateOnly(input.noticeGivenDate);
+  const noticeGivenDate = resolveNoticeGivenDateForVacating({
+    noticeGivenDate: input.noticeGivenDate,
+    originalNoticeSubmittedAt: input.originalNoticeSubmittedAt,
+  });
   if (!vacatingDate) return null;
 
   const monthlyRentPaise = guardDepositPaise(input.monthlyRentPaiseSnapshot);
@@ -244,13 +248,20 @@ export async function loadVacatingSettlementWaterfallContext(
   const rentPaidPaise = guardDepositPaise(money?.rent.receivedPaise ?? 0);
   const depositHeldPaise = guardDepositPaise(wallet?.refundableBalancePaise ?? 0);
 
+  const prepaidAfterVacatingPaise = coverage.prepaidAfterVacatingPaise;
+  const prepaidPeriodStart =
+    coverage.periodUsedForPrepaid?.periodStart ?? coverage.currentBillingPeriod?.periodStart ?? null;
+  const rentStayStart =
+    prepaidPeriodStart && prepaidPeriodStart > checkIn ? prepaidPeriodStart : checkIn;
+
   const missingNoticeDays = coverage.noticeBreakdown?.missingNoticeDays ?? 0;
-  const checkoutTailRentPaise = coverage.tailRentPaise;
+  /** Prepaid leftover days are unused rent credit — never deposit "tail rent". */
+  const checkoutTailRentPaise = prepaidAfterVacatingPaise > 0 ? 0 : coverage.tailRentPaise;
   const periodDailyRentPaise = periodDailyRentFromCoverage(coverage, vacatingDate);
 
   return {
     ctx: {
-      checkInDate: checkIn,
+      checkInDate: rentStayStart,
       vacatingDate,
       rentPaidPaise,
       depositHeldPaise,
@@ -261,7 +272,7 @@ export async function loadVacatingSettlementWaterfallContext(
         durationMode: input.durationMode,
       }),
       checkoutTailRentPaise,
-      prepaidAfterVacatingPaise: coverage.prepaidAfterVacatingPaise,
+      prepaidAfterVacatingPaise,
       periodDailyRentPaise,
     },
     coverage,

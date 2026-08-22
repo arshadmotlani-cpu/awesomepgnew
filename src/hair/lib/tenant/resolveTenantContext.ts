@@ -6,12 +6,10 @@ import { getHairSession } from '@/src/hair/lib/auth/session';
 import { employeeToHairAdmin } from '@/src/workforce/compat/hairAdminBridge';
 import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
 import { listMemberships, resolvePermissions } from '@/src/workforce/brains/employeeBrain';
-import {
-  listActiveMembershipsForUser,
-  loadMembershipForUserOrg,
-} from '@/src/platform/services/memberships';
+import { listActiveMembershipsForUser } from '@/src/platform/services/memberships';
 import { isFyhSaasTenantEnabled, isWorkforceMembershipAuthEnabled } from './flags';
 import { FYH_ORG_COOKIE, FYH_LOCATION_COOKIE } from './cookies';
+import { pickResolvableMembership } from './selectOrganizationNav';
 import type { TenantContext, MembershipRole } from './types';
 import type { WorkforcePermissionKey } from '@/src/workforce/types';
 
@@ -82,17 +80,8 @@ export async function resolveTenantContext(): Promise<TenantContext | null> {
   const orgCookie = cookieStore.get(FYH_ORG_COOKIE)?.value?.trim();
   const locCookie = cookieStore.get(FYH_LOCATION_COOKIE)?.value?.trim();
 
-  let membershipRow: Awaited<ReturnType<typeof loadMembershipForUserOrg>> = null;
-  if (orgCookie) {
-    membershipRow = await loadMembershipForUserOrg(userId, orgCookie);
-  }
-  if (!membershipRow) {
-    const all = await listActiveMembershipsForUser(userId);
-    if (all.length === 1) {
-      membershipRow = all[0];
-    }
-  }
-
+  const all = await listActiveMembershipsForUser(userId);
+  const membershipRow = pickResolvableMembership(all, orgCookie);
   if (!membershipRow) return null;
 
   const allowedLocationIds = membershipRow.allowedLocationIds;

@@ -68,6 +68,7 @@ export async function getDepositRefundSettlementPreview(
     const settlementPreview = await buildVacatingSettlementPreview({
       bookingId,
       noticeGivenDate: vacating.noticeGivenDate,
+      originalNoticeSubmittedAt: vacating.originalNoticeSubmittedAt,
       vacatingDate: vacating.vacatingDate,
       monthlyRentPaiseSnapshot: monthlyRentPaise,
       noticeRentCoveredDays: vacating.noticeRentCoveredDays,

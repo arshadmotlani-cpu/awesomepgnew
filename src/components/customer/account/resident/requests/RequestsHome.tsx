@@ -133,7 +133,7 @@ export function RequestsHome(props: Props) {
       });
       return;
     }
-    if (normalizedInitial && normalizedInitial !== 'move_out') {
+    if (normalizedInitial) {
       setMakeCategory(normalizedInitial);
       setMaking(true);
     }

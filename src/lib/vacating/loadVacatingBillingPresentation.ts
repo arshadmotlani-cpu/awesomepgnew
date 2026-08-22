@@ -23,6 +23,7 @@ import {
   computeVacatingSettlementWaterfallFromContext,
   loadVacatingSettlementWaterfallContext,
 } from '@/src/lib/vacating/computeVacatingSettlementPreview';
+import { resolveNoticeGivenDateForVacating } from '@/src/lib/vacating/noticeDateSsot';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 
 export type { VacatingSettlementWaterfallContext };
@@ -96,7 +97,10 @@ export async function loadVacatingBillingPresentation(
   input: LoadVacatingBillingPresentationInput,
 ): Promise<VacatingBillingPresentation | null> {
   const vacatingDate = normalizeIsoDateOnly(input.vacatingDate);
-  const noticeGivenDate = normalizeIsoDateOnly(input.noticeGivenDate);
+  const noticeGivenDate = resolveNoticeGivenDateForVacating({
+    noticeGivenDate: input.noticeGivenDate,
+    originalNoticeSubmittedAt: input.originalNoticeSubmittedAt,
+  });
   if (!vacatingDate) return null;
 
   const precomputedWaterfall = input.waterfall ?? null;

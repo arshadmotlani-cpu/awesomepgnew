@@ -28,7 +28,15 @@ export default function HairRootLayout({ children }: { children: React.ReactNode
     <div className={`${geistSans.variable} ${geistMono.variable} fyh-root fyh-forest-bg`}>
       <FyhAppearanceScript />
       <HairProviders>
-        <Suspense fallback={null}>{children}</Suspense>
+        <Suspense
+          fallback={
+            <div className="flex min-h-[40vh] items-center justify-center p-8">
+              <div className="fyh-glass px-6 py-4 text-sm text-fyh-text-secondary">Loading…</div>
+            </div>
+          }
+        >
+          {children}
+        </Suspense>
       </HairProviders>
     </div>
   );

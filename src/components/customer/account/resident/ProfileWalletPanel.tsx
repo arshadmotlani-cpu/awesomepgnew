@@ -138,7 +138,7 @@ export function ProfileWalletPanel({
     unusedPrepaidRentPaise > 0
       ? unusedPrepaidRentPaise
       : settlementPreview?.unusedPrepaidRentPaise ?? 0;
-  const showUnusedPrepaid = hasOpenVacating && unusedPrepaid > 0;
+  const showUnusedPrepaid = hasOpenVacating;
   const refundHint =
     settlementPreview?.electricityPending
       ? 'Electricity bill pending — final amount at checkout'

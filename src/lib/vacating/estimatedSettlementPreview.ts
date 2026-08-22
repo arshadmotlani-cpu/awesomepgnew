@@ -32,6 +32,7 @@ export type EstimatedSettlementVacatingInput = {
   noticeBreakdownJson?: Partial<NoticeDeductionBreakdown> | null;
   stayType?: string | null;
   durationMode?: string | null;
+  originalNoticeSubmittedAt?: Date | string | null;
 };
 
 export type EstimatedSettlementPreview = {

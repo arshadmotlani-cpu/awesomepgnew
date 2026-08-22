@@ -1,7 +1,6 @@
-import { cookies, headers } from 'next/headers';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getHairSession, type HairAdmin } from './session';
-import { HAIR_SESSION_COOKIE } from './constants';
 import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
 import { requireTenantContext } from '@/src/hair/lib/tenant/requireTenantContext';
 import {
@@ -10,7 +9,7 @@ import {
   isHairTenantExemptPath,
   hairAppRedirect,
 } from '@/src/hair/lib/host';
-import { resolveTenantContextOptional } from '@/src/hair/lib/tenant/resolveTenantContext';
+import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 import {
   hasPermission,
   type HairPagePermission,
@@ -52,25 +51,15 @@ export async function requireHairAuthPage(): Promise<HairAdmin> {
   await requireHairHost();
   const session = await getHairSession();
   if (!session) {
-    const cookieStore = await cookies();
-    if (cookieStore.get(HAIR_SESSION_COOKIE)?.value) {
-      cookieStore.delete(HAIR_SESSION_COOKIE);
-    }
-    // #region agent log
-    fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'46caee'},body:JSON.stringify({sessionId:'46caee',runId:'post-fix',hypothesisId:'D',location:'guards.ts:requireHairAuthPage',message:'invalid session → login (cookie cleared)',data:{},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     redirect(await hairAppRedirect('/login'));
   }
   if (isFyhSaasTenantEnabled()) {
     const hdrs = await headers();
-    const pathname = hdrs.get('x-hair-pathname') ?? '';
+    const pathname = hdrs.get('x-hair-pathname') ?? hdrs.get('x-invoke-path') ?? '';
     if (!isHairTenantExemptPath(pathname)) {
-      const ctx = await resolveTenantContextOptional();
+      const ctx = await getTenantContextForPage();
       if (!ctx) {
-        // #region agent log
-        fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'46caee'},body:JSON.stringify({sessionId:'46caee',runId:'post-fix',hypothesisId:'E',location:'guards.ts:requireHairAuthPage',message:'tenant missing → select-organization',data:{pathname},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
-        redirect(await hairAppRedirect('/select-organization'));
+        redirect(await hairAppRedirect('/select-organization?nobind=1'));
       }
     }
   }

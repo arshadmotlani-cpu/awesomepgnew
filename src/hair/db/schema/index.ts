@@ -28,4 +28,5 @@ export * from './vendorPayments';
 export * from './vendorActivity';
 export * from './tenantColumns';
 export * from './saas';
+export * from './saasWaitlist';
 export * from '@/src/workforce/db/schema';

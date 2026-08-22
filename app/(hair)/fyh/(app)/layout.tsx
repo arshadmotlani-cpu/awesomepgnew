@@ -7,6 +7,7 @@ import { canViewTeamManagement } from '@/src/hair/lib/auth/teamManagementAccess'
 import { filterNavByPermissions, visibleHairNavEntries, type HairNavEntry } from '@/src/hair/lib/nav';
 import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
 import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
+import { isHairTenantExemptPath } from '@/src/hair/lib/host';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 import { ensureSalonOwnerProvider } from '@/src/workforce/services/systemOwnerProvider';
 import { headers } from 'next/headers';
@@ -14,6 +15,10 @@ import { headers } from 'next/headers';
 export default async function HairAppLayout({ children }: { children: React.ReactNode }) {
   const hdrs = await headers();
   const pathname = hdrs.get('x-hair-pathname') ?? hdrs.get('x-invoke-path') ?? '';
+  if (isHairTenantExemptPath(pathname)) {
+    return children;
+  }
+
   const admin = pathname
     ? await requirePagePermissionForPath(pathname)
     : await requireHairAuthPage();

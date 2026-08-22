@@ -6,6 +6,11 @@
 
 ---
 
+## 2026-08-22
+
+- **Full-system logic audit:** Working document at `docs/SYSTEM_AUDIT.md` — single Next.js multi-host app, not npm workspaces; PG settlement V1+V2 coexistence and Hair `invoiceMath` vs `priceBasket` are the sharpest money dual-paths; `ENV_CONTRACT.md` lags Owner DB and product count; `stability:report` product inference is a CI/process blind spot.
+- **Hair is not multi-tenant-safe:** `docs/SAAS_READINESS.md` — tenant filters no-op unless `FYH_SAAS_TENANT` is on; domain catalog/checkout unscoped; public invoice lookup by number is a cross-org read once numbers are per-org.
+
 ## 2026-07-03
 
 - **Approval pipeline SSOT:** Payment proofs must flow `listPendingPaymentReviews` → `action_items` (`paymentReviewKey`) → notifications (`finalizeApprovalNotificationDeepLink`) → Operations WFA queue. Never deep-link payment proofs to Billing Centre or use independent header counts per filter.

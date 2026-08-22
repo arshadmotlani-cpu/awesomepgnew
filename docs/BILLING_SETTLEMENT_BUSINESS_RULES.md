@@ -98,7 +98,7 @@ Every engine calculation must map to exactly one **BR-*** rule below. Implementa
 
 **Rule:** No tail when:
 
-- Vacating **inside** a **paid** anniversary window (Case C — rent for that period already collected).  
+- Vacating **inside** a **paid** anniversary/calendar window — leftover prepaid days are **unused prepaid rent credit**, never `checkoutTailRentPaise` on the deposit bucket. 
 - Vacating on **period end** with no unpaid tail window (Case A).  
 - Vacating **not approved** and not in preview mode (no suppression).  
 - Fixed-stay product (no anniversary tail path).
@@ -119,23 +119,25 @@ Every engine calculation must map to exactly one **BR-*** rule below. Implementa
 
 ## BR-RENT-CONSUMED — Rent used (consumed)
 
-**Rule:** **Rent consumed** = `min(rentPaid, stayDays × dailyRent)` where `stayDays` is inclusive calendar days from check-in through vacating date and `dailyRent = floor(monthlyRent / 30)`.
+**Rule:** **Rent consumed** for settlement display = inclusive calendar days from the **paid billing period start** (or check-in if later) through vacating date × period daily rate, capped at rent paid.
 
-**SSOT:** [`computeCheckoutSettlementV2`](../src/lib/checkout/checkoutSettlementEngineV2.ts) rent bucket.
+For a calendar-month resident leaving on the 25th with August prepaid: consumed = 1–25 August; unused = 26–month-end.
 
-**Maps to:** `RULE_RENT_CONSUMED_CAP`.
+**SSOT:** [`computeCheckoutSettlementV2`](../src/lib/checkout/checkoutSettlementEngineV2.ts) rent bucket; stay window from [`loadVacatingSettlementWaterfallContext`](../src/lib/vacating/computeVacatingSettlementPreview.ts).
 
 ---
 
 ## BR-RENT-UNUSED — Unused rent
 
-**Rule:** When paid coverage extends past vacating date, **unused prepaid rent** = BCM `prepaidAfterVacatingPaise` (days after vacate through paid-through × daily rate). Otherwise **unused rent** = `rentPaid − rentConsumed` (stay consumption).
+**Rule:** When paid coverage extends past vacating date, **unused prepaid rent** = BCM `prepaidAfterVacatingPaise` (calendar days after vacate through paid-through × period daily rate). That amount is **refundable unused prepaid rent**, not deposit tail rent.
 
-**SSOT:** V2 rent bucket with optional `prepaidAfterVacatingPaise` input from BCM.
+Do **not** cap unused prepaid by `rentPaid − (fullStayDays × dailyRate)` when fullStayDays is from original check-in through vacate — that zeroes unused rent for long stays that already paid the current month.
+
+When there is no prepaid-after-vacate coverage, unused rent = `max(0, rentPaid − stayConsumed)` for the rent-consumption window.
+
+**SSOT:** V2 rent bucket `prepaidAfterVacatingPaise` from BCM; wiring in `loadVacatingSettlementWaterfallContext` uses the **paid billing period start** (not original check-in) as V2 `stayCheckInDate` for consumption display.
 
 **Maps to:** `RULE_UNUSED_RENT`.
-
-**Zero unused:** Expected when stay consumption equals or exceeds rent paid (e.g. long stay, limited payments).
 
 ---
 

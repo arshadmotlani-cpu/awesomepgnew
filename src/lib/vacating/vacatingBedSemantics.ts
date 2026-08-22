@@ -1,12 +1,11 @@
 /**
  * Vacating date semantics — SSOT for Awesome PG monthly move-out.
  *
- * Selected vacating date = final paid/stay date (inclusive).
- * Physical bed release and new bookings = following calendar day at 11:00 AM IST.
+ * Selected vacating date = final occupied day (inclusive).
+ * Bed available-from = following calendar day at 12:00 AM in IST (PG local).
  */
 import { addDays, formatDate, parseDate, todayString } from '@/src/lib/dates';
-import { isPastFixedStayCheckout } from '@/src/lib/dates/ist';
-import { STAY_CHECK_OUT_TIME } from '@/src/lib/residents/stayBillingRules';
+import { toIstParts } from '@/src/lib/dates/ist';
 
 /** Normalize to YYYY-MM-DD — the resident's final paid/stay date. */
 export function finalStayDate(vacatingDate: string): string {
@@ -21,10 +20,13 @@ export function stayRangeExclusiveEnd(vacatingDate: string): string {
   return formatDate(addDays(parseDate(vacatingDate), 1));
 }
 
-/** Calendar date when the bed becomes available (at 11:00 AM IST on this date). */
+/** Calendar date when the bed becomes available (12:00 AM IST on this date). */
 export function bedAvailableCalendarDate(vacatingDate: string): string {
   return stayRangeExclusiveEnd(vacatingDate);
 }
+
+/** Display clock for monthly bed release (not the 11:00 AM short-stay cycle). */
+export const BED_AVAILABLE_FROM_CLOCK = '12:00 AM';
 
 export function formatFinalStayDateLabel(vacatingDate: string): string {
   const d = parseDate(finalStayDate(vacatingDate));
@@ -44,14 +46,16 @@ export function formatBedAvailableLabel(vacatingDate: string): string {
     year: 'numeric',
     timeZone: 'UTC',
   });
-  return `${datePart} at ${STAY_CHECK_OUT_TIME}`;
+  return `${datePart} at ${BED_AVAILABLE_FROM_CLOCK}`;
 }
 
 /**
- * True when IST is on or after the bed-available calendar date at 11:00 AM.
+ * True when IST calendar date is on or after the available-from date (midnight IST).
  */
 export function isBedReleasedForVacating(vacatingDate: string, now?: Date): boolean {
-  return isPastFixedStayCheckout(bedAvailableCalendarDate(vacatingDate), now);
+  const availableYmd = bedAvailableCalendarDate(vacatingDate);
+  const parts = toIstParts(now ?? new Date());
+  return parts.dateYmd >= availableYmd;
 }
 
 export type VacatingDateConfirmation = {
@@ -77,7 +81,7 @@ export function buildVacatingDateConfirmation(
   ];
   if (isTodaySelected) {
     lines.push(
-      `You may leave anytime today. Your bed becomes available tomorrow at ${STAY_CHECK_OUT_TIME}.`,
+      `You may leave anytime today. Your bed becomes available tomorrow at ${BED_AVAILABLE_FROM_CLOCK}.`,
     );
   }
   return { finalStayDateLabel, bedAvailableLabel, isTodaySelected, lines };

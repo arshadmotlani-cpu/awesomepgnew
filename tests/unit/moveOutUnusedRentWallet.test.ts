@@ -7,29 +7,24 @@ import {
 } from '../../src/lib/checkout/checkoutSettlementEngineV2';
 import { dailyRateFromMonthly } from '../../src/services/billing';
 
-test('prepaid unused rent is included in V2 refund total', () => {
+test('long-stay prepaid unused rent is not zeroed by check-in-to-vacate consumption', () => {
   const monthlyRentPaise = 459_000;
   const dailyRentPaise = dailyRateFromMonthly(monthlyRentPaise);
-  const depositHeldPaise = 450_000;
-  const rentPaidPaise = 918_000;
-  const prepaidAfterVacatingPaise = dailyRentPaise * 7;
-
+  const prepaidAfterVacatingPaise = dailyRentPaise * 6;
   const waterfall = computeCheckoutSettlementV2({
-    stayCheckInDate: '2026-08-01',
-    stayCheckoutDate: '2026-08-24',
-    rentPaidPaise,
+    stayCheckInDate: '2026-06-01',
+    stayCheckoutDate: '2026-08-25',
+    rentPaidPaise: 1_377_000,
     monthlyRentPaise,
-    depositCollectedPaise: depositHeldPaise,
-    missingNoticeDays: 1,
+    depositCollectedPaise: 450_000,
+    missingNoticeDays: 0,
     noticeApplies: true,
     prepaidAfterVacatingPaise,
+    checkoutTailRentPaise: 0,
   });
-
-  assert.ok(waterfall.refund.unusedRentPortionPaise >= 0);
-  assert.equal(
-    waterfall.refund.totalPaise,
-    waterfall.refund.depositPortionPaise + waterfall.refund.unusedRentPortionPaise,
-  );
+  assert.equal(waterfall.rentBucket.unusedPaise, prepaidAfterVacatingPaise);
+  assert.equal(waterfall.refund.unusedRentPortionPaise, prepaidAfterVacatingPaise);
+  assert.equal(waterfall.depositBucket.tailRentPaise, 0);
 });
 
 test('electricity and notice remain separate buckets in waterfall', () => {

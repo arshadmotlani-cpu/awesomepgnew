@@ -69,7 +69,8 @@ export type CheckoutSettlementV2Input = {
   checkoutTailRentPaise?: number;
   /**
    * BCM prepaid after vacate (days after vacating through paid-through × daily rate).
-   * When > 0, unused rent bucket uses this capped by rent paid minus period-rate stay consumption.
+   * When > 0, unused rent is this amount (capped by rent paid). Do not reduce it by
+   * full-stay consumption from original check-in — that zeros unused rent for long stays.
    */
   prepaidAfterVacatingPaise?: number;
   /** Billing-period daily rate from paid invoice coverage (replaces monthly ÷ 30 when set). */
@@ -98,12 +99,11 @@ export function computeCheckoutSettlementV2(
   const prepaidAfterVacatingPaise = guardDepositPaise(input.prepaidAfterVacatingPaise ?? 0);
   const stayConsumedRaw = guardDepositPaise(periodDailyRentPaise * stayDays);
   const stayConsumedPaise = Math.min(rentPaidPaise, stayConsumedRaw);
-  const rentAvailableAfterStay = Math.max(0, rentPaidPaise - stayConsumedPaise);
 
   let rentConsumedPaise: number;
   let unusedRentPaise: number;
   if (prepaidAfterVacatingPaise > 0) {
-    unusedRentPaise = Math.min(prepaidAfterVacatingPaise, rentAvailableAfterStay);
+    unusedRentPaise = Math.min(prepaidAfterVacatingPaise, rentPaidPaise);
     rentConsumedPaise = stayConsumedPaise;
   } else {
     rentConsumedPaise = stayConsumedPaise;

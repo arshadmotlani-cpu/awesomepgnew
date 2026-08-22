@@ -148,9 +148,9 @@ export function buildResidentBillRowsFromDetail(
         bedId: '',
         pgId: '',
         paymentId: r.paymentId ?? null,
-        isAdhoc: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        isAdhoc: r.isAdhoc,
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
       });
       const outstanding = projected.outstandingPaise;
       if (outstanding <= 0) continue;

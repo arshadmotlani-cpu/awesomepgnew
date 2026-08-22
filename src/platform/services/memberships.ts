@@ -1,5 +1,6 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import {
+  platformLocations,
   platformMembershipLocations,
   platformMemberships,
   platformOrganizationSubscriptions,
@@ -22,6 +23,34 @@ export type PlatformMembershipRow = {
 function isSubscriptionAccessAllowed(status: string | null | undefined): boolean {
   return !status || status === 'trial' || status === 'active' || status === 'past_due';
 }
+
+type PlatformDb = ReturnType<typeof createPlatformClient>['db'];
+
+/** Read-only: membership_locations, else active org locations (no writes). */
+async function allowedLocationIdsForMembership(
+  db: PlatformDb,
+  membershipId: string,
+  organizationId: string,
+): Promise<string[]> {
+  const locRows = await db
+    .select({ locationId: platformMembershipLocations.locationId })
+    .from(platformMembershipLocations)
+    .where(eq(platformMembershipLocations.membershipId, membershipId));
+  if (locRows.length > 0) return locRows.map((r) => r.locationId);
+
+  const orgLocs = await db
+    .select({ locationId: platformLocations.id })
+    .from(platformLocations)
+    .where(
+      and(
+        eq(platformLocations.organizationId, organizationId),
+        eq(platformLocations.status, 'active'),
+      ),
+    )
+    .orderBy(desc(platformLocations.isPrimary));
+  return orgLocs.map((r) => r.locationId);
+}
+
 
 export async function loadMembershipForUserOrg(
   userId: string,
@@ -64,10 +93,11 @@ export async function loadMembershipForUserOrg(
       .limit(1);
     if (!isSubscriptionAccessAllowed(subscription?.status)) return null;
 
-    const locRows = await db
-      .select({ locationId: platformMembershipLocations.locationId })
-      .from(platformMembershipLocations)
-      .where(eq(platformMembershipLocations.membershipId, membership.membershipId));
+    const allowedLocationIds = await allowedLocationIdsForMembership(
+      db,
+      membership.membershipId,
+      membership.organizationId,
+    );
 
     return {
       membershipId: membership.membershipId,
@@ -77,7 +107,7 @@ export async function loadMembershipForUserOrg(
       organizationSlug: membership.organizationSlug,
       role: membership.accessRole,
       accessRole: membership.accessRole,
-      allowedLocationIds: locRows.map((r) => r.locationId),
+      allowedLocationIds,
     };
   } finally {
     await close();
@@ -119,10 +149,11 @@ export async function listActiveMembershipsForUser(userId: string): Promise<Plat
         .where(eq(platformOrganizationSubscriptions.organizationId, membership.organizationId))
         .limit(1);
       if (!isSubscriptionAccessAllowed(subscription?.status)) continue;
-      const locRows = await db
-        .select({ locationId: platformMembershipLocations.locationId })
-        .from(platformMembershipLocations)
-        .where(eq(platformMembershipLocations.membershipId, membership.membershipId));
+      const allowedLocationIds = await allowedLocationIdsForMembership(
+        db,
+        membership.membershipId,
+        membership.organizationId,
+      );
       results.push({
         membershipId: membership.membershipId,
         userId: membership.userId,
@@ -131,7 +162,7 @@ export async function listActiveMembershipsForUser(userId: string): Promise<Plat
         organizationSlug: membership.organizationSlug,
         role: membership.accessRole,
         accessRole: membership.accessRole,
-        allowedLocationIds: locRows.map((r) => r.locationId),
+        allowedLocationIds,
       });
     }
     return results;

@@ -4,6 +4,7 @@ import {
   type SettlementDisplaySection,
 } from '@/src/lib/checkout/settlementDisplayFormat';
 import type { NoticeSettlementDisplay } from '@/src/lib/vacating/noticeDeductionPresentation';
+import { formatBedAvailableLabel } from '@/src/lib/vacating/vacatingBedSemantics';
 
 /** Shared "Billing & dates" rows for estimated and audit settlement sections. */
 export function buildSettlementBillingDatesSectionRows(args: {
@@ -26,12 +27,17 @@ export function buildSettlementBillingDatesSectionRows(args: {
     },
     {
       id: 'vacating_date',
-      label: 'Vacating date',
+      label: 'Vacating date (final occupied day)',
       value: formatSettlementDate(args.vacatingDate),
     },
     {
+      id: 'bed_available_from',
+      label: 'Bed available from',
+      value: formatBedAvailableLabel(args.vacatingDate),
+    },
+    {
       id: 'days_stayed',
-      label: 'Days stayed',
+      label: 'Days stayed (rent period)',
       value: formatSettlementDays(args.stayDays),
       hint: `${args.checkInDate} → ${args.checkoutDate}`,
     },

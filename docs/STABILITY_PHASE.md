@@ -11,6 +11,15 @@ Before modifying any module:
 - Grep for imports and call sites (`rg "from '@/src/services/foo'"`, `rg "foo\\("`).
 - List admin UI, resident UI, scripts, and tests that depend on it.
 - Note cross-product impact (PG vs Hair vs Capital).
+- In the reply **before edits**, list blast radius: `This change affects: [files, functions, types, routes].` If unsure, treat it as affected.
+
+### 1b. Shared contracts — all consumers or stop
+
+Changing a function signature, prop shape, API response, database schema, or shared type requires updating **every consumer in the same task**. If that is too large, **stop** and report instead of a partial update.
+
+### 1c. Minimize the diff
+
+Touch only the files/lines needed for the request. No drive-by refactors, renames, reformats, or deleting unexplained code without asking.
 
 ### 2. Run related tests before changes
 
@@ -36,6 +45,8 @@ This runs, in order:
 2. **Unit/integration tests** — scoped to affected products (pg / hair / capital)
 3. **Billing settlement suite** — when billing, resident money, checkout, or settlement paths change
 
+Do not mark work complete on “should work.” If you cannot verify (no coverage, cannot run tests), say so.
+
 ### 3b. Ecosystem Baseline v1 (frozen 2026-08-05)
 
 In addition to Stability Phase, every change must leave **Health Score = 100** with no Brain regression. New Engines/Brains must register with Health Brain (audit, score, repairs, events, audit trail, performance). See [ECOSYSTEM_BASELINE_V1.md](./ECOSYSTEM_BASELINE_V1.md).
@@ -53,6 +64,8 @@ If a test fails that is **not** explained by your change:
 ### 5. Bug fixes require regression tests
 
 Every bug fix adds (or extends) a test that fails on the old behavior and passes on the fix.
+
+If tests exist for the path, run them and keep them green. If the path has **no** tests, add a **minimal** test covering the change.
 
 Place tests next to the SSOT module:
 
@@ -73,6 +86,8 @@ Single sources of truth (examples):
 | Room capacity | Active bed count + `syncRoomCapacityFromActiveBeds()` |
 
 If UI and API disagree, fix the duplicate — do not add a third copy.
+
+If duplicated logic, missing types, or global coupling is why things keep breaking, say so. Prefer a small structural fix over another workaround.
 
 ### 7. Billing changes — production verification
 
@@ -99,6 +114,15 @@ The report includes:
 
 Commit and push only when the report exits **0**.
 
+### 8b. Impact Summary (end of every change)
+
+After the work, state:
+
+- What changed
+- What else you checked/updated as a result
+- What you did **not** change but flagged as a risk
+- Manual verification the operator should do
+
 ### 9. Billing Centre releases — Shantinagar Phase 1 certification (mandatory)
 
 Before any **Billing Centre** deploy (Phase 2+), every active Shantinagar resident must pass automated portal certification:
@@ -113,10 +137,12 @@ Phase 1 resident portal work is **not complete** until this cert passes with `CE
 
 ## Agent / developer checklist
 
-- [ ] Dependents identified
+- [ ] Dependents identified and listed in the reply before edits
+- [ ] Shared contracts: all consumers updated, or stopped and reported
 - [ ] Baseline tests green
 - [ ] Code change minimal; SSOT reused
-- [ ] Regression test added (bug fixes)
+- [ ] Regression test added (bug fixes); minimal test if the path had none
+- [ ] Impact Summary written
 - [ ] `npm run stability:report` green
 - [ ] Production read-only audit (if billing/inventory/money)
 - [ ] Shantinagar Phase 1 cert (`npm run cert:shantinagar-phase1`) before Billing Centre releases

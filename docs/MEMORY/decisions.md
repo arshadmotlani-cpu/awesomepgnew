@@ -7,6 +7,10 @@
 
 ---
 
+## 2026-08-22
+
+- **Stability Phase cascade-breakage guardrails (Accepted)** — Merged into existing Stability Phase (no second always-on Cursor rule): list blast radius before edits; update all shared-contract consumers or stop; minimize diff; Impact Summary; minimal test if the path had none. TypeScript strict and CI already in place — not new work. → [[STABILITY_PHASE]], `.cursor/rules/stability-phase.mdc`, `AGENTS.md`
+
 ## 2026-08-18
 
 - **FYH SaaS Phase 0B decisions (revised)** — Cross-DB boundary: Platform `platform.*` SSOT; Hair mirrors `organization_id` / `location_id` / `user_id` **without PostgreSQL cross-DB FKs**; `platform.users` naming; mirror + reconcile validation. Stakeholder sign-off pending. → `docs/foryourhair/PHASE_0B_DECISIONS.md`
