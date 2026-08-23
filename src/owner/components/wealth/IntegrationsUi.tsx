@@ -1,8 +1,8 @@
 'use client';
 
 import { useActionState } from 'react';
-import { paiseToInr } from '@/src/lib/format';
 import {
+import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
   syncIntegrationsAction,
   createRecurringObligationAction,
   type WealthActionState,
@@ -113,7 +113,7 @@ export function IntegrationsUi({
             <div key={r.id} className="flex justify-between text-sm">
               <span className="text-white">{r.name}</span>
               <span className="tabular-nums text-[color:var(--oo-muted)]">
-                {paiseToInr(r.amountPaise)} · {r.frequency}
+                <AmountWithWords paise={r.amountPaise} /> · {r.frequency}
               </span>
             </div>
           ))}

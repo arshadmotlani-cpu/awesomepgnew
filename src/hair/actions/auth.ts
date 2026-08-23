@@ -27,10 +27,7 @@ import {
   listMemberships,
   resolvePermissions,
 } from '@/src/workforce/brains/employeeBrain';
-import {
-  createWorkforceSession,
-  hairSessionCookieOptions as wfCookieOptions,
-} from '@/src/workforce/auth/session';
+import { createWorkforceSession } from '@/src/workforce/auth/session';
 import { findEmployeeByLoginId } from '@/src/workforce/auth/identity';
 import { employeeToHairAdmin } from '@/src/workforce/compat/hairAdminBridge';
 import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
@@ -133,7 +130,7 @@ export async function loginAction(
       cookieStore.set(
         HAIR_SESSION_COOKIE,
         token,
-        wfCookieOptions(process.env.NODE_ENV === 'production', maxAgeDays * 24 * 60 * 60),
+        hairSessionCookieOptions(process.env.NODE_ENV === 'production', maxAgeDays * 24 * 60 * 60),
       );
 
       const salon = memberships.find((m) => m.engineId === 'fyh_salon') ?? memberships[0];

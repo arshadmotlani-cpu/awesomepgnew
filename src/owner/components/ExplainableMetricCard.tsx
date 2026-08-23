@@ -1,8 +1,8 @@
 'use client';
 
-import { paiseToInr } from '@/src/lib/format';
 import { formatMetricDisplay, isMetricConnected } from '@/src/personalFinance/explain';
 import type { ExplainableValue } from '@/src/personalFinance/types';
+import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
 
 export function ExplainableMetricCard({
   value,
@@ -98,7 +98,7 @@ export function ExplainPanel({
                     <li key={`${l.label}-${i}`} className="flex justify-between gap-3 text-white">
                       <span>{l.label}</span>
                       <span className="tabular-nums text-[color:var(--oo-muted,#9CA3AF)]">
-                        {l.paise != null ? paiseToInr(l.paise) : '—'}
+                        {l.paise != null ? <AmountWithWords paise={l.paise} /> : '—'}
                       </span>
                     </li>
                   ))}

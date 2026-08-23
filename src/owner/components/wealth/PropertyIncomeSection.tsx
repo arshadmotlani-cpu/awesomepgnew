@@ -1,8 +1,9 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { paiseToInr, formatPercent } from '@/src/lib/format';
+import { formatPercent } from '@/src/lib/format';
 import {
+import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
   createPropertyIncomeSourceAction,
   updatePropertyIncomeSourceAction,
   changePropertyIncomeRentAction,
@@ -63,11 +64,11 @@ export function PropertyIncomeSection({
     <section className="oo-form-section oo-card-cashflow">
       <h2 className="oo-section-heading">Income</h2>
       <div className="mb-4">
-        <p className="oo-money-primary oo-value-income">{paiseToInr(totals.grossMonthlyPaise)} / month</p>
-        <p className="oo-meta-bright">{paiseToInr(totals.grossAnnualizedPaise)} / year (annualized)</p>
+        <p className="oo-money-primary oo-value-income"><AmountWithWords paise={totals.grossMonthlyPaise} /> / month</p>
+        <p className="oo-meta-bright"><AmountWithWords paise={totals.grossAnnualizedPaise} /> / year (annualized)</p>
         {totals.pgIntegrationActualPaise > 0 ? (
           <p className="oo-meta mt-1">
-            PG actual this period: {paiseToInr(totals.pgIntegrationActualPaise)} (received / synced)
+            PG actual this period: <AmountWithWords paise={totals.pgIntegrationActualPaise} /> (received / synced)
           </p>
         ) : null}
         {grossRentalYieldPct != null ? (
@@ -83,7 +84,7 @@ export function PropertyIncomeSection({
           {Object.entries(totals.byType).map(([type, amount]) => (
             <div key={type} className="flex justify-between text-sm">
               <span className="oo-meta-bright">{type.replace(/_/g, ' ')}</span>
-              <span className="tabular-nums text-white">{paiseToInr(amount)} / month</span>
+              <span className="tabular-nums text-white"><AmountWithWords paise={amount} /> / month</span>
             </div>
           ))}
         </div>
@@ -232,12 +233,12 @@ function IncomeSourceCard({
           <p className="oo-meta text-xs capitalize">{source.status}</p>
         </div>
         <p className="oo-money-secondary shrink-0">
-          {paiseToInr(source.monthlyAmountPaise)} / mo
+          <AmountWithWords paise={source.monthlyAmountPaise} /> / mo
         </p>
       </div>
       {source.isPgSynced && source.pgIntegrationActualPaise > 0 ? (
         <p className="oo-meta mt-1 text-xs">
-          PG actual this period: {paiseToInr(source.pgIntegrationActualPaise)}
+          PG actual this period: <AmountWithWords paise={source.pgIntegrationActualPaise} />
         </p>
       ) : null}
       {!source.isPgSynced ? (

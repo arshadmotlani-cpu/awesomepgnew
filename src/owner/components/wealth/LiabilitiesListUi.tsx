@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { paiseToInr } from '@/src/lib/format';
+import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
 
 type LiabilityRow = {
   id: string;
@@ -36,15 +36,15 @@ export function LiabilitiesListUi({ liabilities }: { liabilities: LiabilityRow[]
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="oo-card oo-card-compact oo-card-liability">
           <p className="oo-label">Total principal</p>
-          <p className="oo-money-primary mt-1">{paiseToInr(totalPrincipal)}</p>
+          <p className="oo-money-primary mt-1"><AmountWithWords paise={totalPrincipal} /></p>
         </div>
         <div className="oo-card oo-card-compact oo-card-liability">
           <p className="oo-label">Interest outstanding</p>
-          <p className="oo-money-primary mt-1">{paiseToInr(totalInterest)}</p>
+          <p className="oo-money-primary mt-1"><AmountWithWords paise={totalInterest} /></p>
         </div>
         <div className="oo-card oo-card-compact">
           <p className="oo-label">Due now (all loans)</p>
-          <p className="oo-money-primary mt-1">{paiseToInr(dueThisMonth)}</p>
+          <p className="oo-money-primary mt-1"><AmountWithWords paise={dueThisMonth} /></p>
         </div>
       </div>
 
@@ -74,11 +74,11 @@ export function LiabilitiesListUi({ liabilities }: { liabilities: LiabilityRow[]
                     {l.dueDate ? ` · Due ${l.dueDate}` : ''}
                   </p>
                 </div>
-                <p className="oo-money-secondary shrink-0">{paiseToInr(l.currentPrincipalPaise)}</p>
+                <p className="oo-money-secondary shrink-0"><AmountWithWords paise={l.currentPrincipalPaise} /></p>
               </div>
               {l.totalDuePaise > 0 ? (
                 <p className="oo-meta mt-2 text-amber-200/90">
-                  Payment due: {paiseToInr(l.totalDuePaise)}
+                  Payment due: <AmountWithWords paise={l.totalDuePaise} />
                 </p>
               ) : null}
             </Link>

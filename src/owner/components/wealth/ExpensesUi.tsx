@@ -1,8 +1,8 @@
 'use client';
 
 import { useActionState } from 'react';
-import { paiseToInr } from '@/src/lib/format';
 import {
+import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
   createExpenseAction,
   type WealthActionState,
 } from '@/src/owner/actions/wealth';
@@ -62,7 +62,7 @@ export function ExpensesUi({
       <section className="oo-card oo-card-compact">
         <h2 className="text-sm font-medium text-white">This month — by source</h2>
         <p className="mt-1 text-2xl font-semibold tabular-nums text-white">
-          {paiseToInr(totalConsolidated)}
+          <AmountWithWords paise={totalConsolidated} />
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           {expensesBySource.map((row) => (
@@ -72,7 +72,7 @@ export function ExpensesUi({
             >
               <SourceBadge source={row.sourceSystem} />
               <p className="mt-1 text-sm font-medium tabular-nums text-white">
-                {paiseToInr(row.totalPaise)}
+                <AmountWithWords paise={row.totalPaise} />
               </p>
             </div>
           ))}
@@ -163,7 +163,7 @@ export function ExpensesUi({
                     {e.entryDate} · {e.category?.replaceAll('_', ' ') ?? 'expense'}
                   </p>
                 </div>
-                <p className="font-semibold tabular-nums text-white">{paiseToInr(e.amountPaise)}</p>
+                <p className="font-semibold tabular-nums text-white"><AmountWithWords paise={e.amountPaise} /></p>
               </div>
             ))
           )}

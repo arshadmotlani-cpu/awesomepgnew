@@ -2,8 +2,8 @@
 
 import { useActionState } from 'react';
 import Link from 'next/link';
-import { paiseToInr } from '@/src/lib/format';
 import {
+import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
   createLiabilityAction,
   payLiabilityAction,
   type WealthActionState,
@@ -142,19 +142,19 @@ export function LiabilityDetailUi({
           <div>
             <p className="oo-label">Outstanding principal</p>
             <p className="oo-money-primary mt-1 oo-value-expense">
-              {paiseToInr(liability.currentPrincipalPaise)}
+              <AmountWithWords paise={liability.currentPrincipalPaise} />
             </p>
           </div>
           <div>
             <p className="oo-label">Interest accrued / due</p>
             <p className="oo-money-primary mt-1 oo-value-expense">
-              {paiseToInr(due?.interestDuePaise ?? 0)}
+              <AmountWithWords paise={due?.interestDuePaise ?? 0} />
             </p>
           </div>
           <div>
             <p className="oo-label">Total due now</p>
             <p className="oo-money-hero mt-1 oo-value-expense">
-              {paiseToInr(due?.totalDuePaise ?? 0)}
+              <AmountWithWords paise={due?.totalDuePaise ?? 0} />
             </p>
           </div>
         </div>
@@ -165,10 +165,10 @@ export function LiabilityDetailUi({
         ) : null}
         <div className="mt-3 flex flex-wrap gap-4">
           <p className="oo-meta">
-            Principal paid: <span className="text-white">{paiseToInr(totalPrincipalPaidPaise)}</span>
+            Principal paid: <span className="text-white"><AmountWithWords paise={totalPrincipalPaidPaise} /></span>
           </p>
           <p className="oo-meta">
-            Interest paid: <span className="text-white">{paiseToInr(totalInterestPaidPaise)}</span>
+            Interest paid: <span className="text-white"><AmountWithWords paise={totalInterestPaidPaise} /></span>
           </p>
         </div>
       </section>
@@ -235,11 +235,11 @@ export function LiabilityDetailUi({
                   <p className="font-medium text-white truncate">{p.description}</p>
                   <p className="oo-meta">
                     {p.entryDate}
-                    {p.principalPaise > 0 ? ` · Principal ${paiseToInr(p.principalPaise)}` : ''}
-                    {p.interestPaise > 0 ? ` · Interest ${paiseToInr(p.interestPaise)}` : ''}
+                    {p.principalPaise > 0 ? ` · Principal $<AmountWithWords paise={p.principalPaise} />` : ''}
+                    {p.interestPaise > 0 ? ` · Interest $<AmountWithWords paise={p.interestPaise} />` : ''}
                   </p>
                 </div>
-                <p className="oo-money-secondary shrink-0">{paiseToInr(p.amountPaise)}</p>
+                <p className="oo-money-secondary shrink-0"><AmountWithWords paise={p.amountPaise} /></p>
               </div>
             ))}
           </div>

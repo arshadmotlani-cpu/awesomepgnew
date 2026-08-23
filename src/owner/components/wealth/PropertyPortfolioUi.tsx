@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { paiseToInr, formatPercent } from '@/src/lib/format';
+import { formatPercent } from '@/src/lib/format';
+import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
 
 type PropertyRow = {
   assetId: string;
@@ -51,15 +52,15 @@ export function PropertyPortfolioUi({ properties }: { properties: PropertyRow[] 
         </div>
         <div className="oo-card oo-card-compact">
           <p className="oo-label">Current value</p>
-          <p className="oo-money-primary mt-1">{paiseToInr(totalCurrent)}</p>
+          <p className="oo-money-primary mt-1"><AmountWithWords paise={totalCurrent} /></p>
         </div>
         <div className="oo-card oo-card-compact oo-card-cashflow">
           <p className="oo-label">Net equity</p>
-          <p className="oo-money-primary mt-1 oo-value-income">{paiseToInr(totalEquity)}</p>
+          <p className="oo-money-primary mt-1 oo-value-income"><AmountWithWords paise={totalEquity} /></p>
         </div>
         <div className="oo-card oo-card-compact">
           <p className="oo-label">Monthly income</p>
-          <p className="oo-money-primary mt-1 oo-value-income">{paiseToInr(totalIncome)}</p>
+          <p className="oo-money-primary mt-1 oo-value-income"><AmountWithWords paise={totalIncome} /></p>
         </div>
       </div>
 
@@ -90,11 +91,11 @@ export function PropertyPortfolioUi({ properties }: { properties: PropertyRow[] 
                     {p.purchaseYear ? ` · Purchased ${p.purchaseYear}` : ''}
                   </p>
                 </div>
-                <p className="oo-money-secondary shrink-0">{paiseToInr(p.currentValuePaise)}</p>
+                <p className="oo-money-secondary shrink-0"><AmountWithWords paise={p.currentValuePaise} /></p>
               </div>
 
               <div className="oo-asset-metrics mt-3">
-                <Metric label="Purchase" value={paiseToInr(p.purchasePricePaise)} />
+                <Metric label="Purchase" value=<AmountWithWords paise={p.purchasePricePaise} /> />
                 <Metric
                   label="Gain"
                   value={`${p.appreciationPct >= 0 ? '+' : ''}${formatPercent(p.appreciationPct)}`}
@@ -102,22 +103,22 @@ export function PropertyPortfolioUi({ properties }: { properties: PropertyRow[] 
                 />
                 <Metric
                   label="Income/mo"
-                  value={paiseToInr(p.monthlyIncomePaise)}
+                  value=<AmountWithWords paise={p.monthlyIncomePaise} />
                   tone="income"
                 />
                 <Metric
                   label="Expenses/mo"
-                  value={paiseToInr(p.monthlyExpensePaise)}
+                  value=<AmountWithWords paise={p.monthlyExpensePaise} />
                   tone="expense"
                 />
                 <Metric
                   label="Loan"
-                  value={paiseToInr(p.loanOutstandingPaise)}
+                  value=<AmountWithWords paise={p.loanOutstandingPaise} />
                   tone="liability"
                 />
                 <Metric
                   label="Equity"
-                  value={paiseToInr(p.netEquityPaise)}
+                  value=<AmountWithWords paise={p.netEquityPaise} />
                   tone="income"
                 />
               </div>

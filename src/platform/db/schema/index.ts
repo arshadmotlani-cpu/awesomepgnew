@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
   boolean,
   index,
   integer,
@@ -272,4 +273,58 @@ export const platformBillingWebhookEvents = platformSchema.table('billing_webhoo
   processedAt: timestamp('processed_at', { withTimezone: true }).notNull().defaultNow(),
   payload: jsonb('payload').$type<Record<string, unknown>>(),
 });
+
+export const PLATFORM_SUBSCRIPTION_PAYMENT_STATUSES = [
+  'pending',
+  'approved',
+  'rejected',
+] as const;
+export type PlatformSubscriptionPaymentStatus =
+  (typeof PLATFORM_SUBSCRIPTION_PAYMENT_STATUSES)[number];
+
+export const platformBillingQrSettings = platformSchema.table('billing_qr_settings', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  qrImageUrl: text('qr_image_url'),
+  upiId: text('upi_id'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedByUserId: uuid('updated_by_user_id').references(() => platformUsers.id, {
+    onDelete: 'set null',
+  }),
+});
+
+export const platformSubscriptionPaymentSubmissions = platformSchema.table(
+  'subscription_payment_submissions',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => platformOrganizations.id, { onDelete: 'restrict' }),
+    planId: uuid('plan_id')
+      .notNull()
+      .references(() => platformPlans.id, { onDelete: 'restrict' }),
+    amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
+    transactionRef: text('transaction_ref').notNull(),
+    status: text('status')
+      .$type<PlatformSubscriptionPaymentStatus>()
+      .notNull()
+      .default('pending'),
+    possibleDuplicate: boolean('possible_duplicate').notNull().default(false),
+    duplicateOfIds: uuid('duplicate_of_ids').array().notNull().default(sql`'{}'::uuid[]`),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull().defaultNow(),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    reviewedBy: uuid('reviewed_by').references(() => platformUsers.id, { onDelete: 'set null' }),
+    reviewNote: text('review_note'),
+    periodStart: timestamp('period_start', { withTimezone: true }),
+    periodEnd: timestamp('period_end', { withTimezone: true }),
+  },
+  (t) => [
+    index('platform_subscription_payment_submissions_org_idx').on(t.organizationId, t.submittedAt),
+    index('platform_subscription_payment_submissions_status_idx').on(t.status, t.submittedAt),
+    uniqueIndex('platform_subscription_payment_submissions_approved_txn_uidx')
+      .on(sql`lower(trim(${t.transactionRef}))`)
+      .where(
+        sql`${t.status} = 'approved' AND ${t.transactionRef} IS NOT NULL AND length(trim(${t.transactionRef})) > 0`,
+      ),
+  ],
+);
 

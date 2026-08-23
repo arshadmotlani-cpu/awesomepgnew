@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   MapPin,
   Package,
+  Receipt,
   Rocket,
   Shield,
   Users,
@@ -46,6 +47,11 @@ export const platformNavGroups: PlatformNavGroup[] = [
     title: 'Revenue',
     items: [
       { href: '/platform/admin/subscriptions', label: 'Subscriptions', icon: CreditCard },
+      {
+        href: '/platform/admin/payment-submissions',
+        label: 'Payment reviews',
+        icon: Receipt,
+      },
       { href: '/platform/admin/plans', label: 'Plans', icon: Package },
     ],
   },

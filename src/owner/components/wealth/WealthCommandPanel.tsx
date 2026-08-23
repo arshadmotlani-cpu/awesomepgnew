@@ -1,9 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { paiseToInr } from '@/src/lib/format';
 import type { WealthSnapshot } from '@/src/owner/services/wealthCalculation';
 import { SourceBadge } from '@/src/owner/components/wealth/SourceBadge';
+import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
 
 type DueItem = {
   id: string;
@@ -37,7 +37,7 @@ export function WealthCommandPanel({
     <div className="space-y-5">
       <section className="oo-card oo-card-hero">
         <p className="oo-label">Net worth</p>
-        <p className="oo-money-hero mt-1">{paiseToInr(wealth.netWorthPaise)}</p>
+        <p className="oo-money-hero mt-1"><AmountWithWords paise={wealth.netWorthPaise} /></p>
 
         <div className="mt-4 space-y-2 border-t border-white/10 pt-4">
           <BreakdownRow label="Property / fixed assets" value={breakdown.fixedAssetsPaise} />
@@ -53,9 +53,9 @@ export function WealthCommandPanel({
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <MiniStat label="Cash flow (MTD)" value={paiseToInr(month.netPaise)} />
-          <MiniStat label="Property value" value={paiseToInr(wealth.propertyValuePaise)} />
-          <MiniStat label="Bank / cash" value={paiseToInr(wealth.bankBalancePaise)} />
+          <MiniStat label="Cash flow (MTD)" value=<AmountWithWords paise={month.netPaise} /> />
+          <MiniStat label="Property value" value=<AmountWithWords paise={wealth.propertyValuePaise} /> />
+          <MiniStat label="Bank / cash" value=<AmountWithWords paise={wealth.bankBalancePaise} /> />
         </div>
       </section>
 
@@ -68,7 +68,7 @@ export function WealthCommandPanel({
           <IncomeRow label="Other" value={wealth.incomeBreakdown.otherIncomePaise} />
           <div className="flex justify-between border-t border-white/10 pt-2 font-semibold text-white">
             <span>Total (actual + business + other)</span>
-            <span className="tabular-nums">{paiseToInr(wealth.cashFlow.month.incomePaise)}</span>
+            <span className="tabular-nums"><AmountWithWords paise={wealth.cashFlow.month.incomePaise} /></span>
           </div>
         </div>
       </section>
@@ -78,21 +78,21 @@ export function WealthCommandPanel({
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="oo-card oo-card-compact oo-card-cashflow">
             <p className="oo-label">Income</p>
-            <p className="oo-money-primary mt-1">{paiseToInr(month.incomePaise)}</p>
+            <p className="oo-money-primary mt-1"><AmountWithWords paise={month.incomePaise} /></p>
           </div>
           <div className="oo-card oo-card-compact oo-card-liability">
             <p className="oo-label">Expenses</p>
-            <p className="oo-money-primary mt-1">{paiseToInr(month.expensePaise)}</p>
+            <p className="oo-money-primary mt-1"><AmountWithWords paise={month.expensePaise} /></p>
           </div>
           <div className="oo-card oo-card-compact">
             <p className="oo-label">Operating cash flow</p>
             <p className="oo-money-primary mt-1">
-              {paiseToInr(wealth.wealthChange.operatingCashFlowPaise)}
+              <AmountWithWords paise={wealth.wealthChange.operatingCashFlowPaise} />
             </p>
           </div>
         </div>
         <p className="oo-meta mt-2">
-          Principal paid on loans ({paiseToInr(wealth.wealthChange.liabilityPrincipalPaidPaise)})
+          Principal paid on loans (<AmountWithWords paise={wealth.wealthChange.liabilityPrincipalPaidPaise} />)
           improves net worth — not counted as expense.
         </p>
       </section>
@@ -107,7 +107,7 @@ export function WealthCommandPanel({
                 className="rounded-lg border border-white/10 bg-black/20 px-3 py-2"
               >
                 <SourceBadge source={row.sourceSystem} />
-                <p className="oo-money-secondary mt-1">{paiseToInr(row.totalPaise)}</p>
+                <p className="oo-money-secondary mt-1"><AmountWithWords paise={row.totalPaise} /></p>
               </div>
             ))}
           </div>
@@ -128,7 +128,7 @@ export function WealthCommandPanel({
                 className="flex justify-between text-sm font-medium text-white hover:text-[#FF5A1F]"
               >
                 <span>{d.name}</span>
-                <span className="tabular-nums">{paiseToInr(d.totalDuePaise)}</span>
+                <span className="tabular-nums"><AmountWithWords paise={d.totalDuePaise} /></span>
               </Link>
             ))}
           </div>
@@ -159,7 +159,7 @@ function BreakdownRow({
           highlight ? 'text-[#FF5A1F]' : ''
         } ${tone === 'liability' ? 'text-amber-300' : ''}`}
       >
-        {paiseToInr(value)}
+        <AmountWithWords paise={value} />
       </span>
     </div>
   );
@@ -178,7 +178,7 @@ function IncomeRow({ label, value }: { label: string; value: number }) {
   return (
     <div className="flex justify-between text-sm">
       <span className="oo-meta-bright">{label}</span>
-      <span className="tabular-nums text-white">{paiseToInr(value)}</span>
+      <span className="tabular-nums text-white"><AmountWithWords paise={value} /></span>
     </div>
   );
 }

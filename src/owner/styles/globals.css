@@ -445,6 +445,47 @@
   min-width: 0;
 }
 
+/* INR amount-in-words — confirmation only, never competes with the figure */
+.oo-amount-with-words {
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
+  vertical-align: top;
+}
+
+.oo-amount-with-words-end {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.oo-amount-figure {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.oo-amount-words,
+.oo-form-amount-words {
+  display: block;
+  margin-top: 0.15rem;
+  max-width: 100%;
+  font-size: 0.6875rem;
+  font-weight: 400;
+  line-height: 1.35;
+  letter-spacing: 0;
+  color: var(--oo-muted);
+  font-variant-numeric: normal;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.oo-form-field .oo-amount-words,
+.oo-form-amount-words {
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
 /* Prevent horizontal overflow sitewide */
 .oo-shell,
 .oo-app-column,

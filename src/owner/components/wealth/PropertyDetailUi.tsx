@@ -1,7 +1,8 @@
 'use client';
 
 import { useActionState } from 'react';
-import { paiseToInr, formatPercent } from '@/src/lib/format';
+import { formatPercent } from '@/src/lib/format';
+import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
 import {
   addValuationAction,
   createPropertyExpenseAction,
@@ -149,14 +150,14 @@ export function PropertyDetailUi({ detail }: { detail: PropertyDetail }) {
       <section className="oo-form-section">
         <h2 className="oo-section-heading">Asset value</h2>
         <div className="oo-value-breakdown">
-          <Row label="Purchase price" value={paiseToInr(detail.property.purchasePricePaise)} />
+          <Row label="Purchase price" paise={detail.property.purchasePricePaise} />
           {detail.property.purchaseDate ? (
             <Row label="Purchase date" value={detail.property.purchaseDate} />
           ) : null}
-          <Row label="Acquisition costs" value={paiseToInr(detail.property.purchaseCostsPaise)} />
+          <Row label="Acquisition costs" paise={detail.property.purchaseCostsPaise} />
           <Row
             label="Total acquisition basis"
-            value={paiseToInr(detail.ownerAcquisitionBasisPaise)}
+            paise={detail.ownerAcquisitionBasisPaise}
             strong
           />
           {annualRatePct ? (
@@ -169,13 +170,13 @@ export function PropertyDetailUi({ detail }: { detail: PropertyDetail }) {
             <>
               <Row
                 label="Estimated current value"
-                value={paiseToInr(detail.ownerEstimatedMarketValuePaise)}
+                paise={detail.ownerEstimatedMarketValuePaise}
                 strong
                 highlight
               />
               <Row
                 label="Estimated appreciation"
-                value={paiseToInr(detail.estimatedAppreciationPaise)}
+                paise={detail.estimatedAppreciationPaise}
                 tone={detail.estimatedAppreciationPaise >= 0 ? 'positive' : 'negative'}
               />
               <Row
@@ -188,14 +189,14 @@ export function PropertyDetailUi({ detail }: { detail: PropertyDetail }) {
             <>
               <Row
                 label="Current actual market value"
-                value={paiseToInr(detail.ownerMarketValuePaise)}
+                paise={detail.ownerMarketValuePaise}
                 strong
                 highlight
               />
               {annualRatePct ? (
                 <Row
                   label={`Modelled value at ${annualRatePct}% / year`}
-                  value={paiseToInr(detail.ownerEstimatedMarketValuePaise)}
+                  paise={detail.ownerEstimatedMarketValuePaise}
                 />
               ) : null}
             </>
@@ -264,7 +265,7 @@ export function PropertyDetailUi({ detail }: { detail: PropertyDetail }) {
                         : 'Estimated current'}
                   </p>
                 </div>
-                <p className="oo-money-secondary">{paiseToInr(row.valuePaise)}</p>
+                <AmountWithWords paise={row.valuePaise} align="end" amountClassName="oo-money-secondary" />
               </div>
             ))}
           </div>
@@ -285,16 +286,16 @@ export function PropertyDetailUi({ detail }: { detail: PropertyDetail }) {
       <section className="oo-form-section">
         <h2 className="oo-section-heading">Property expenses</h2>
         <div className="oo-stat-grid mb-3">
-          <Stat label="Gross income" value={paiseToInr(detail.financials.monthlyIncomePaise)} income />
-          <Stat label="Expenses" value={paiseToInr(detail.financials.monthlyExpensePaise)} expense />
+          <Stat label="Gross income" paise={detail.financials.monthlyIncomePaise} income />
+          <Stat label="Expenses" paise={detail.financials.monthlyExpensePaise} expense />
           <Stat
             label="Net property income"
-            value={paiseToInr(detail.financials.netMonthlyIncomePaise)}
+            paise={detail.financials.netMonthlyIncomePaise}
             income
           />
           <Stat
             label="Actual received (MTD)"
-            value={paiseToInr(detail.financials.actualMonthlyIncomePaise)}
+            paise={detail.financials.actualMonthlyIncomePaise}
           />
         </div>
         <form action={expAction} className="oo-form-grid border-t border-white/10 pt-3">
@@ -337,16 +338,16 @@ export function PropertyDetailUi({ detail }: { detail: PropertyDetail }) {
           <div className="oo-stat-grid">
             <Stat
               label="Loan outstanding"
-              value={paiseToInr(detail.financials.loanOutstandingPaise)}
+              paise={detail.financials.loanOutstandingPaise}
               expense
             />
             {detail.financials.monthlyEmiPaise > 0 ? (
-              <Stat label="Monthly EMI" value={paiseToInr(detail.financials.monthlyEmiPaise)} />
+              <Stat label="Monthly EMI" paise={detail.financials.monthlyEmiPaise} />
             ) : null}
             {detail.financials.nextDueDate ? (
               <Stat
                 label={`Next due ${detail.financials.nextDueDate}`}
-                value={paiseToInr(detail.financials.nextDueAmountPaise)}
+                paise={detail.financials.nextDueAmountPaise}
                 expense
               />
             ) : null}
@@ -359,7 +360,11 @@ export function PropertyDetailUi({ detail }: { detail: PropertyDetail }) {
             >
               <div className="flex justify-between">
                 <span className="oo-financial-value">{l.name}</span>
-                <span className="oo-value-expense">{paiseToInr(l.currentPrincipalPaise)}</span>
+                <AmountWithWords
+                  paise={l.currentPrincipalPaise}
+                  align="end"
+                  amountClassName="oo-value-expense"
+                />
               </div>
             </a>
           ))}
@@ -370,10 +375,12 @@ export function PropertyDetailUi({ detail }: { detail: PropertyDetail }) {
       <section className="oo-card oo-card-hero">
         <h2 className="oo-section-heading">Property equity</h2>
         <p className="oo-label">Current value − outstanding liabilities</p>
-        <p className="oo-money-hero mt-1">{paiseToInr(detail.financials.equityPaise)}</p>
-        <p className="oo-meta-bright mt-2">
-          {paiseToInr(detail.ownerMarketValuePaise)} asset −{' '}
-          {paiseToInr(detail.financials.loanOutstandingPaise)} loan
+        <AmountWithWords paise={detail.financials.equityPaise} amountClassName="oo-money-hero mt-1" />
+        <p className="oo-meta-bright mt-2 flex flex-wrap items-start justify-start gap-x-2 gap-y-1">
+          <AmountWithWords paise={detail.ownerMarketValuePaise} />
+          <span>asset −</span>
+          <AmountWithWords paise={detail.financials.loanOutstandingPaise} />
+          <span>loan</span>
         </p>
       </section>
 
@@ -388,7 +395,7 @@ export function PropertyDetailUi({ detail }: { detail: PropertyDetail }) {
                   <p className="oo-financial-value text-sm">{v.valuationDate}</p>
                   <p className="oo-meta-bright">{v.kind.replaceAll('_', ' ')}</p>
                 </div>
-                <p className="oo-money-secondary">{paiseToInr(v.valuePaise)}</p>
+                <AmountWithWords paise={v.valuePaise} align="end" amountClassName="oo-money-secondary" />
               </div>
             ))}
           </div>
@@ -401,47 +408,49 @@ export function PropertyDetailUi({ detail }: { detail: PropertyDetail }) {
 function Row({
   label,
   value,
+  paise,
   strong,
   highlight,
   tone,
 }: {
   label: string;
-  value: string;
+  value?: string;
+  paise?: number;
   strong?: boolean;
   highlight?: boolean;
   tone?: 'positive' | 'negative';
 }) {
+  const amountClass = `oo-financial-value ${strong ? 'font-semibold' : ''} ${highlight ? 'oo-money-primary' : ''} ${tone === 'positive' ? 'oo-value-income' : ''} ${tone === 'negative' ? 'oo-value-expense' : ''}`;
   return (
     <div className="oo-value-row">
       <span className="oo-label">{label}</span>
-      <span
-        className={`oo-financial-value ${strong ? 'font-semibold' : ''} ${highlight ? 'oo-money-primary' : ''} ${tone === 'positive' ? 'oo-value-income' : ''} ${tone === 'negative' ? 'oo-value-expense' : ''}`}
-      >
-        {value}
-      </span>
+      {paise != null ? (
+        <AmountWithWords paise={paise} align="end" amountClassName={amountClass} />
+      ) : (
+        <span className={amountClass}>{value}</span>
+      )}
     </div>
   );
 }
 
 function Stat({
   label,
-  value,
+  paise,
   income,
   expense,
 }: {
   label: string;
-  value: string;
+  paise: number;
   income?: boolean;
   expense?: boolean;
 }) {
   return (
     <div className="oo-card oo-card-compact">
       <p className="oo-label">{label}</p>
-      <p
-        className={`oo-money-primary mt-1 ${income ? 'oo-value-income' : ''} ${expense ? 'oo-value-expense' : ''}`}
-      >
-        {value}
-      </p>
+      <AmountWithWords
+        paise={paise}
+        amountClassName={`oo-money-primary mt-1 ${income ? 'oo-value-income' : ''} ${expense ? 'oo-value-expense' : ''}`}
+      />
     </div>
   );
 }

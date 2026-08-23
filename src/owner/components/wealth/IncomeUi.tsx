@@ -1,8 +1,8 @@
 'use client';
 
 import { useActionState } from 'react';
-import { paiseToInr } from '@/src/lib/format';
 import {
+import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
   createIncomeAction,
   type WealthActionState,
 } from '@/src/owner/actions/wealth';
@@ -72,9 +72,9 @@ export function IncomeUi({
 
       <section className="oo-card oo-card-hero">
         <p className="oo-label">This month — gross income</p>
-        <p className="oo-money-hero mt-1 oo-value-income">{paiseToInr(month.incomePaise)}</p>
+        <p className="oo-money-hero mt-1 oo-value-income"><AmountWithWords paise={month.incomePaise} /></p>
         <p className="oo-meta mt-2">
-          Net {paiseToInr(month.netPaise)} after expenses {paiseToInr(month.expensePaise)}
+          Net <AmountWithWords paise={month.netPaise} /> after expenses <AmountWithWords paise={month.expensePaise} />
         </p>
       </section>
 
@@ -84,19 +84,19 @@ export function IncomeUi({
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="oo-meta-bright">Property (expected recurring)</span>
-              <span>{paiseToInr(incomeBreakdown.propertyExpectedMonthlyPaise)}</span>
+              <span><AmountWithWords paise={incomeBreakdown.propertyExpectedMonthlyPaise} /></span>
             </div>
             <div className="flex justify-between">
               <span className="oo-meta-bright">Property (actual MTD)</span>
-              <span>{paiseToInr(incomeBreakdown.propertyActualPaise)}</span>
+              <span><AmountWithWords paise={incomeBreakdown.propertyActualPaise} /></span>
             </div>
             <div className="flex justify-between">
               <span className="oo-meta-bright">Business</span>
-              <span>{paiseToInr(incomeBreakdown.businessIncomePaise)}</span>
+              <span><AmountWithWords paise={incomeBreakdown.businessIncomePaise} /></span>
             </div>
             <div className="flex justify-between">
               <span className="oo-meta-bright">Other (manual)</span>
-              <span>{paiseToInr(incomeBreakdown.otherIncomePaise)}</span>
+              <span><AmountWithWords paise={incomeBreakdown.otherIncomePaise} /></span>
             </div>
           </div>
           {incomeBreakdown.propertyBySource.length > 0 ? (
@@ -105,7 +105,7 @@ export function IncomeUi({
               {incomeBreakdown.propertyBySource.map((p) => (
                 <div key={p.assetId} className="flex justify-between text-sm">
                   <span className="oo-meta-bright">{p.name}</span>
-                  <span>{paiseToInr(p.grossMonthlyPaise)} / mo</span>
+                  <span><AmountWithWords paise={p.grossMonthlyPaise} /> / mo</span>
                 </div>
               ))}
             </div>
@@ -117,8 +117,8 @@ export function IncomeUi({
         {Object.entries(cashFlow).map(([key, row]) => (
           <div key={key} className="oo-card oo-card-compact">
             <p className="oo-label">{PERIOD_LABELS[key] ?? key}</p>
-            <p className="oo-money-primary mt-1 oo-value-income">{paiseToInr(row.incomePaise)}</p>
-            <p className="oo-meta mt-1">Net {paiseToInr(row.netPaise)}</p>
+            <p className="oo-money-primary mt-1 oo-value-income"><AmountWithWords paise={row.incomePaise} /></p>
+            <p className="oo-meta mt-1">Net <AmountWithWords paise={row.netPaise} /></p>
           </div>
         ))}
       </div>
@@ -168,7 +168,7 @@ export function IncomeUi({
                   <p className="oo-meta">{row.entryDate}</p>
                 </div>
                 <p className="oo-money-secondary oo-value-income shrink-0">
-                  {paiseToInr(row.amountPaise)}
+                  <AmountWithWords paise={row.amountPaise} />
                 </p>
               </div>
             ))
@@ -177,8 +177,8 @@ export function IncomeUi({
       </section>
 
       <p className="oo-meta">
-        Year-to-date gross: <span className="text-white">{paiseToInr(year.incomePaise)}</span>
-        · Net: <span className="text-white">{paiseToInr(year.netPaise)}</span>
+        Year-to-date gross: <span className="text-white"><AmountWithWords paise={year.incomePaise} /></span>
+        · Net: <span className="text-white"><AmountWithWords paise={year.netPaise} /></span>
       </p>
     </div>
   );

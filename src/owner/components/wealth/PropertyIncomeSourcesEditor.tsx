@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { paiseToInr } from '@/src/lib/format';
 import { PROPERTY_INCOME_SOURCE_TYPES } from '@/src/owner/lib/wealth/propertyIncomeTypes';
+import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
 
 export type DraftIncomeSource = {
   sourceType: string;
@@ -74,7 +74,7 @@ export function PropertyIncomeSourcesEditor({
               <div>
                 <p className="text-sm font-medium text-white">{s.name}</p>
                 <p className="oo-meta text-xs">
-                  {s.sourceType} · {paiseToInr(s.monthlyAmountRupees * 100)} / month · {s.status}
+                  {s.sourceType} · <AmountWithWords paise={s.monthlyAmountRupees * 100} /> / month · {s.status}
                 </p>
               </div>
               <button type="button" onClick={() => removeAt(i)} className="text-xs text-red-400">
@@ -83,7 +83,7 @@ export function PropertyIncomeSourcesEditor({
             </div>
           ))}
           <p className="oo-meta">
-            Gross monthly (sources): {paiseToInr(totalMonthly * 100)}
+            Gross monthly (sources): <AmountWithWords paise={totalMonthly * 100} />
           </p>
         </div>
       ) : (

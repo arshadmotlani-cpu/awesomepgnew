@@ -29,6 +29,13 @@
       "when": 1758800000000,
       "tag": "0004_saas_phase_e_status_incomplete",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1758900000000,
+      "tag": "0005_manual_qr_subscription",
+      "breakpoints": true
     }
   ]
 }

@@ -4,14 +4,16 @@ import { redirect } from 'next/navigation';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
 import { resolvePlatformUserIdForHairSession } from '@/src/hair/lib/tenant/sessionIdentity';
-import { createCheckoutSession } from '@/src/platform/billing/stripe';
 import { listMembershipsForBilling } from '@/src/platform/services/memberships';
+import { submitSubscriptionPayment } from '@/src/platform/services/manualSubscriptionPayments';
 
-export async function startSubscribeCheckoutAction(formData: FormData): Promise<void> {
+export async function submitManualSubscribePaymentAction(formData: FormData): Promise<void> {
   if (!isFyhSaasTenantEnabled()) redirect('/dashboard/revenue');
 
   const organizationId = String(formData.get('organizationId') ?? '').trim();
+  const transactionRef = String(formData.get('transactionRef') ?? '').trim();
   if (!organizationId) redirect('/subscribe?error=missing');
+  if (!transactionRef) redirect(`/subscribe?error=txn&org=${encodeURIComponent(organizationId)}`);
 
   const session = await getHairSession();
   if (!session) redirect('/login');
@@ -24,22 +26,26 @@ export async function startSubscribeCheckoutAction(formData: FormData): Promise<
   if (!userId) redirect('/subscribe?error=invalid');
 
   const memberships = await listMembershipsForBilling(userId);
-  if (!memberships.some((m) => m.organizationId === organizationId)) {
-    redirect('/subscribe?error=invalid');
+  const membership = memberships.find((m) => m.organizationId === organizationId);
+  if (!membership) redirect('/subscribe?error=invalid');
+  if (membership.accessRole !== 'owner' && membership.accessRole !== 'co_owner') {
+    redirect('/subscribe?error=forbidden');
   }
 
-  const origin = process.env.FYH_PUBLIC_ORIGIN?.trim() || 'https://fyhair.awesomepg.in';
-  let checkoutUrl: string;
   try {
-    const result = await createCheckoutSession({
+    await submitSubscriptionPayment({
       organizationId,
-      successUrl: `${origin}/subscribe?success=1`,
-      cancelUrl: `${origin}/subscribe?canceled=1`,
-      customerEmail: session.admin.email,
+      userId,
+      transactionRef,
     });
-    checkoutUrl = result.checkoutUrl;
   } catch {
-    redirect('/subscribe?error=checkout');
+    redirect(`/subscribe?error=submit&org=${encodeURIComponent(organizationId)}`);
   }
-  redirect(checkoutUrl);
+
+  redirect(`/subscribe?submitted=1&org=${encodeURIComponent(organizationId)}`);
+}
+
+/** @deprecated Thin alias — live subscribe uses manual QR + transaction ID, not Stripe. */
+export async function startSubscribeCheckoutAction(formData: FormData): Promise<void> {
+  return submitManualSubscribePaymentAction(formData);
 }

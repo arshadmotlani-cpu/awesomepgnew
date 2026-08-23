@@ -1,6 +1,7 @@
 import { PropertyPortfolioUi } from '@/src/owner/components/wealth/PropertyPortfolioUi';
 import { MovablePortfolioUi } from '@/src/owner/components/wealth/MovablePortfolioUi';
 import {
+import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
   listProperties,
   getLatestValuation,
   getCurrentAppreciationAssumption,
@@ -18,7 +19,6 @@ import { coerceWealthPaise } from '@/src/owner/lib/wealth/paiseCoercion';
 import { getPropertyFinancialSummary } from '@/src/owner/services/propertyFinancials';
 import { getMovableAssetDetail, listMovableAssets } from '@/src/owner/services/movableAssets';
 import { ownerShareMovableValuePaise } from '@/src/owner/lib/wealth/movableAssetValuation';
-import { paiseToInr } from '@/src/lib/format';
 
 export default async function OwnerAssetsPage() {
   const properties = await listProperties().catch(() => []);
@@ -127,7 +127,7 @@ export default async function OwnerAssetsPage() {
           <div className="oo-card oo-card-compact oo-card-cashflow">
             <p className="oo-label">Total property income / month</p>
             <p className="oo-money-primary mt-1 oo-value-income">
-              {paiseToInr(portfolioIncome.totalGrossMonthlyPaise)}
+              <AmountWithWords paise={portfolioIncome.totalGrossMonthlyPaise} />
             </p>
           </div>
           <div className="oo-card oo-card-compact">

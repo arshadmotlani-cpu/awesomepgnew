@@ -60,3 +60,10 @@ test('Phase E Stripe modules use PLATFORM_STRIPE_* and do not import PG Razorpay
       /\bimport\s+Stripe\s+from\s+['"]stripe['"]/.test(client),
   );
 });
+
+test('subscribe action is unwired from createCheckoutSession', () => {
+  const code = codeWithoutComments(join(root, 'src/hair/actions/subscribe.ts'));
+  assert.equal(/\bcreateCheckoutSession\b/.test(code), false);
+  assert.equal(/billing\/stripe/.test(code), false);
+  assert.ok(/\bsubmitSubscriptionPayment\b/.test(code));
+});

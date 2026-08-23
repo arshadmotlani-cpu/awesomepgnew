@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { formatInrAmount, parseInrAmountInput } from '@/src/lib/format';
+import { AmountInWords } from '@/src/owner/components/ui/AmountWithWords';
 
 type MoneyInputProps = {
   name: string;
@@ -57,6 +58,7 @@ export function MoneyInput({
         required={required && rupees <= 0}
         aria-required={required}
       />
+      <AmountInWords input={display} className="oo-form-amount-words" />
       {hint ? <p className="oo-form-hint">{hint}</p> : null}
     </div>
   );

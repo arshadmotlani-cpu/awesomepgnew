@@ -1,8 +1,8 @@
 'use client';
 
 import { useActionState } from 'react';
-import { paiseToInr } from '@/src/lib/format';
 import {
+import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
   createAccountAction,
   type WealthActionState,
 } from '@/src/owner/actions/wealth';
@@ -33,7 +33,7 @@ export function AccountsUi({ accounts }: { accounts: AccountRow[] }) {
       <section className="rounded-xl border border-white/10 bg-[color:var(--oo-surface)] p-4">
         <p className="text-xs uppercase tracking-wide text-[color:var(--oo-muted)]">Total balance</p>
         <p className="mt-1 text-2xl font-semibold tabular-nums text-white">
-          {paiseToInr(totalBalance)}
+          <AmountWithWords paise={totalBalance} />
         </p>
       </section>
 
@@ -75,7 +75,7 @@ export function AccountsUi({ accounts }: { accounts: AccountRow[] }) {
               <p className="font-medium text-white">{a.name}</p>
               <p className="text-xs text-[color:var(--oo-muted)]">{a.accountType}</p>
             </div>
-            <p className="font-semibold tabular-nums text-white">{paiseToInr(a.balancePaise)}</p>
+            <p className="font-semibold tabular-nums text-white"><AmountWithWords paise={a.balancePaise} /></p>
           </div>
         ))}
       </div>
