@@ -5,14 +5,13 @@ import { submitSaasWaitlistAction, type SaasWaitlistActionState } from '@/src/ha
 
 const initial: SaasWaitlistActionState = { ok: false };
 
-export function SalonSoftwareWaitlistForm() {
+export function SalonSoftwareWaitlistForm({ variant = 'default' }: { variant?: 'default' | 'sales' } = {}) {
   const [state, formAction, pending] = useActionState(submitSaasWaitlistAction, initial);
 
   if (state.ok) {
     return (
       <p className="rounded-lg border border-[color:var(--fyh-border-token)] bg-[color:var(--fyh-surface)] p-4 text-sm text-[color:var(--fyh-text-secondary-token)]">
-        You are on the list. We will email you when self-serve signup opens. This does not create a salon
-        account.
+        You're in. We'll email you when your early access is ready.
       </p>
     );
   }
@@ -48,7 +47,7 @@ export function SalonSoftwareWaitlistForm() {
       </div>
       {state.error ? <p className="text-sm text-[color:var(--fyh-danger)]">{state.error}</p> : null}
       <button type="submit" disabled={pending} className="fyh-btn-primary justify-self-start px-4 py-2 text-sm">
-        {pending ? 'Sending…' : 'Join the waitlist'}
+        {pending ? 'Sending…' : variant === 'sales' ? 'Get early access' : 'Join the waitlist'}
       </button>
     </form>
   );

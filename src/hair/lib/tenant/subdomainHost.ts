@@ -31,6 +31,8 @@ const RESERVED_LABELS = new Set([
   'static',
   'fyhair',
   'foryourhair',
+  'staging',
+  'subscribe',
 ]);
 
 /**
