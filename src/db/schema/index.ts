@@ -41,6 +41,7 @@ export * from './systemHealth';
 export * from './deployments';
 export * from './pgPaymentCategories';
 export * from './pgPaymentRecords';
+export * from './pgApprovedTransactionRefs';
 export * from './meterLogs';
 export * from './roomElectricityPrepaidLedger';
 export * from './electricitySettlementLedger';

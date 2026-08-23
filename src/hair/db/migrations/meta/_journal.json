@@ -295,6 +295,13 @@
       "when": 1758500000000,
       "tag": "0042_saas_phase_c_public_token",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1758800000000,
+      "tag": "0043_saas_phase_d_session",
+      "breakpoints": true
     }
   ]
 }

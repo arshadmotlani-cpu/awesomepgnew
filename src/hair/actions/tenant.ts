@@ -3,7 +3,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { eq, and, inArray } from 'drizzle-orm';
-import { getHairSession } from '@/src/hair/lib/auth/session';
+import { getHairSession, updateHairSessionTenant } from '@/src/hair/lib/auth/session';
 import { persistTenantCookies } from '@/src/hair/lib/tenant/persistTenantCookies';
 import { resolvePlatformUserIdForHairSession } from '@/src/hair/lib/tenant/sessionIdentity';
 import { FYH_LOCATION_COOKIE, FYH_ORG_COOKIE } from '@/src/hair/lib/tenant/cookies';
@@ -42,6 +42,13 @@ export async function selectOrganizationAction(formData: FormData): Promise<void
   const locationId = membership.allowedLocationIds[0];
   if (!locationId) redirect('/select-organization?error=invalid');
 
+  const session = await getHairSession();
+  if (!session) redirect('/select-organization?error=invalid');
+  await updateHairSessionTenant({
+    sessionId: session.sessionId,
+    organizationId,
+    locationId,
+  });
   await persistTenantCookies(organizationId, locationId);
 
   const safeNext =
@@ -60,12 +67,22 @@ export async function switchLocationAction(formData: FormData): Promise<void> {
   const userId = await resolveUserIdFromSession();
   if (!userId) return;
 
+  const sessionForLoc = await getHairSession();
   const cookieStore = await cookies();
-  const orgId = cookieStore.get(FYH_ORG_COOKIE)?.value?.trim();
+  const orgId = sessionForLoc?.organizationId ?? cookieStore.get(FYH_ORG_COOKIE)?.value?.trim();
   if (!orgId) return;
 
   const membership = await loadMembershipForUserOrg(userId, orgId);
   if (!membership?.allowedLocationIds.includes(locationId)) return;
+
+  const session = await getHairSession();
+  if (session) {
+    await updateHairSessionTenant({
+      sessionId: session.sessionId,
+      organizationId: orgId,
+      locationId,
+    });
+  }
 
   cookieStore.set(FYH_LOCATION_COOKIE, locationId, {
     httpOnly: true,

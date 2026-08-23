@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm';
-import { bigint, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import {
+  bigint,
+  boolean,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import type { PriorOutstandingItem } from '@/src/lib/billing/bookingCheckoutTotals';
 import { pgPaymentRecordStatusEnum } from './enums';
 import { bookings } from './bookings';
@@ -28,6 +37,8 @@ export const pgPaymentRecords = pgTable(
     status: pgPaymentRecordStatusEnum('status').notNull().default('pending'),
     paymentScreenshotUrl: text('payment_screenshot_url'),
     transactionRef: text('transaction_ref'),
+    possibleDuplicate: boolean('possible_duplicate').notNull().default(false),
+    duplicateOfIds: uuid('duplicate_of_ids').array().notNull().default(sql`'{}'::uuid[]`),
     proofSnapshotCheckoutTotalPaise: bigint('proof_snapshot_checkout_total_paise', {
       mode: 'number',
     }),

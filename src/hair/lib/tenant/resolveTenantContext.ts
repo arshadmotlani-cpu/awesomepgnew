@@ -1,13 +1,17 @@
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { getHairSession } from '@/src/hair/lib/auth/session';
-import { employeeToHairAdmin } from '@/src/workforce/compat/hairAdminBridge';
 import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
 import { listMemberships, resolvePermissions } from '@/src/workforce/brains/employeeBrain';
-import { listActiveMembershipsForUser } from '@/src/platform/services/memberships';
+import { loadMembershipForUserOrg } from '@/src/platform/services/memberships';
 import { isFyhSaasTenantEnabled, isWorkforceMembershipAuthEnabled } from './flags';
 import { FYH_ORG_COOKIE, FYH_LOCATION_COOKIE } from './cookies';
-import { pickResolvableMembership } from './selectOrganizationNav';
 import { resolvePlatformUserIdForHairSession } from './sessionIdentity';
+import {
+  isSessionHostOrgMismatch,
+  parseHairTenantSlug,
+  resolveOrganizationBySlug,
+} from './subdomain';
+import { resolveRequestHostname } from '@/src/hair/lib/host';
 import type { TenantContext, MembershipRole } from './types';
 import type { WorkforcePermissionKey } from '@/src/workforce/types';
 
@@ -15,6 +19,13 @@ export class TenantContextError extends Error {
   constructor(message = 'Tenant context required') {
     super(message);
     this.name = 'TenantContextError';
+  }
+}
+
+export class TenantSubscriptionLockedError extends Error {
+  constructor(message = 'Subscription required') {
+    super(message);
+    this.name = 'TenantSubscriptionLockedError';
   }
 }
 
@@ -59,13 +70,14 @@ function resolveMembershipTemplatePermissions(
 }
 
 /**
- * Returns tenant context when SaaS flag is on and resolution succeeds; null when flag off.
+ * Phase D: organization_id comes from the server-verified session row.
+ * Cookies are mirrors only — a mismatched fyh_org_id is rejected (forge closed).
  */
 export async function resolveTenantContext(): Promise<TenantContext | null> {
   if (!isFyhSaasTenantEnabled()) return null;
 
   const session = await getHairSession();
-  if (!session) return null;
+  if (!session?.organizationId) return null;
 
   const userId = await resolveUserIdFromSession(session);
   if (!userId) return null;
@@ -74,12 +86,35 @@ export async function resolveTenantContext(): Promise<TenantContext | null> {
   const orgCookie = cookieStore.get(FYH_ORG_COOKIE)?.value?.trim();
   const locCookie = cookieStore.get(FYH_LOCATION_COOKIE)?.value?.trim();
 
-  const all = await listActiveMembershipsForUser(userId);
-  const membershipRow = pickResolvableMembership(all, orgCookie);
+  if (orgCookie && orgCookie !== session.organizationId) {
+    return null;
+  }
+
+  // Phase F: tenant subdomain binds org — session must match host slug's org
+  const hdrs = await headers();
+  const hostSlug =
+    hdrs.get('x-hair-tenant-slug')?.trim() ||
+    parseHairTenantSlug(resolveRequestHostname(hdrs));
+  if (hostSlug) {
+    const hostOrg = await resolveOrganizationBySlug(hostSlug);
+    if (
+      !hostOrg ||
+      isSessionHostOrgMismatch(session.organizationId, hostOrg.organizationId)
+    ) {
+      return null;
+    }
+  }
+
+  const membershipRow = await loadMembershipForUserOrg(userId, session.organizationId);
   if (!membershipRow) return null;
 
   const allowedLocationIds = membershipRow.allowedLocationIds;
-  let locationId = locCookie ?? allowedLocationIds[0];
+  let locationId =
+    session.locationId && allowedLocationIds.includes(session.locationId)
+      ? session.locationId
+      : locCookie && allowedLocationIds.includes(locCookie)
+        ? locCookie
+        : allowedLocationIds[0];
   if (!locationId || !allowedLocationIds.includes(locationId)) {
     locationId = allowedLocationIds[0];
   }
@@ -94,7 +129,7 @@ export async function resolveTenantContext(): Promise<TenantContext | null> {
 
   return {
     userId,
-    organizationId: membershipRow.organizationId,
+    organizationId: session.organizationId,
     locationId,
     membershipId: membershipRow.membershipId,
     membershipRole,
@@ -111,4 +146,13 @@ export async function resolveTenantContextOptional(): Promise<TenantContext | nu
   } catch {
     return null;
   }
+}
+
+/** Pure helper for tests: given session org + optional cookie org, decide if cookie is forge. */
+export function isOrgCookieForge(
+  sessionOrganizationId: string,
+  orgCookie: string | null | undefined,
+): boolean {
+  const c = orgCookie?.trim();
+  return !!c && c !== sessionOrganizationId;
 }

@@ -13,12 +13,15 @@ import {
   shouldRefreshHairSession,
 } from './sessionPolicy';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
-import { getWorkforceSession, revokeWorkforceSession } from '@/src/workforce/auth/session';
+import {
+  getWorkforceSession,
+  revokeWorkforceSession,
+  updateWorkforceSessionTenant,
+} from '@/src/workforce/auth/session';
 import { listMemberships, resolvePermissions } from '@/src/workforce/brains/employeeBrain';
 import { loadLinkedWorkforceEmployee } from '@/src/hair/lib/tenant/sessionIdentity';
 import { employeeToHairAdmin } from '@/src/workforce/compat/hairAdminBridge';
 import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
-import { FYH_ORG_COOKIE } from '@/src/hair/lib/tenant/cookies';
 import { isWorkforceMembershipAuthEnabled } from '@/src/hair/lib/tenant/flags';
 import {
   listActiveMembershipsForUser,
@@ -39,13 +42,16 @@ export type HairSession = {
   admin: HairAdmin;
   expiresAt: Date;
   rememberMe: boolean;
-  /** Present when authenticated via Workforce Engine */
   workforceEmployeeId?: string;
+  /** Phase D SSOT — from session row, not cookie. */
+  organizationId: string;
+  locationId: string | null;
 };
 
 export async function createHairSession(
   adminId: string,
   rememberMe = true,
+  opts?: { organizationId?: string; locationId?: string | null },
 ): Promise<{ token: string; maxAgeDays: number }> {
   const token = randomToken(32);
   const tokenHash = sha256(token);
@@ -58,13 +64,15 @@ export async function createHairSession(
     .from(fyhAdminUsers)
     .where(eq(fyhAdminUsers.id, adminId))
     .limit(1);
-  if (!admin?.organizationId) {
+  const organizationId = opts?.organizationId ?? admin?.organizationId;
+  if (!organizationId) {
     throw new Error('Admin user is missing organization_id');
   }
 
   await hairDb.insert(fyhAuthSessions).values({
     adminUserId: adminId,
-    organizationId: admin.organizationId,
+    organizationId,
+    locationId: opts?.locationId ?? null,
     tokenHash,
     expiresAt,
     ipAddress: hdrs.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
@@ -74,18 +82,37 @@ export async function createHairSession(
   return { token, maxAgeDays };
 }
 
+export async function updateHairSessionTenant(input: {
+  sessionId: string;
+  organizationId: string;
+  locationId?: string | null;
+}): Promise<void> {
+  if (isWorkforceEngineEnabled()) {
+    await updateWorkforceSessionTenant(input);
+    // Also update legacy fyh session row if present for this session id
+  }
+  await hairDb
+    .update(fyhAuthSessions)
+    .set({
+      organizationId: input.organizationId,
+      locationId: input.locationId ?? null,
+    })
+    .where(and(eq(fyhAuthSessions.id, input.sessionId), isNull(fyhAuthSessions.revokedAt)));
+}
+
 export async function getHairSession(): Promise<HairSession | null> {
   if (isWorkforceEngineEnabled()) {
     const wf = await getWorkforceSession();
     if (wf) {
       let grants = codeTemplateForAccessRole('staff');
       if (isWorkforceMembershipAuthEnabled() && wf.employee.userId) {
-        const cookieStore = await cookies();
-        const orgId = cookieStore.get(FYH_ORG_COOKIE)?.value?.trim();
-        const membership = orgId
-          ? await loadMembershipForUserOrg(wf.employee.userId, orgId)
-          : null;
-        const membershipsForUser = membership ? [] : await listActiveMembershipsForUser(wf.employee.userId);
+        const membership = await loadMembershipForUserOrg(
+          wf.employee.userId,
+          wf.organizationId,
+        );
+        const membershipsForUser = membership
+          ? []
+          : await listActiveMembershipsForUser(wf.employee.userId);
         const effectiveMembership =
           membership ?? (membershipsForUser.length === 1 ? membershipsForUser[0] : null);
         grants = templateForMembershipRole(
@@ -105,6 +132,8 @@ export async function getHairSession(): Promise<HairSession | null> {
         expiresAt: wf.expiresAt,
         rememberMe: wf.rememberMe,
         workforceEmployeeId: wf.employee.id,
+        organizationId: wf.organizationId,
+        locationId: wf.locationId,
       };
     }
   }
@@ -121,6 +150,8 @@ export async function getHairSession(): Promise<HairSession | null> {
       sessionId: fyhAuthSessions.id,
       expiresAt: fyhAuthSessions.expiresAt,
       createdAt: fyhAuthSessions.createdAt,
+      organizationId: fyhAuthSessions.organizationId,
+      locationId: fyhAuthSessions.locationId,
       admin: fyhAdminUsers,
     })
     .from(fyhAuthSessions)
@@ -134,7 +165,7 @@ export async function getHairSession(): Promise<HairSession | null> {
     )
     .limit(1);
 
-  if (!row) return null;
+  if (!row || !row.organizationId) return null;
 
   const rememberMe =
     row.expiresAt.getTime() - row.createdAt.getTime() >
@@ -147,8 +178,6 @@ export async function getHairSession(): Promise<HairSession | null> {
       .update(fyhAuthSessions)
       .set({ expiresAt })
       .where(eq(fyhAuthSessions.id, row.sessionId));
-    // Cookie refresh must not run during RSC render (Next.js restriction).
-    // DB expiry is authoritative; cookie maxAge is set at login.
   }
 
   const linked = await loadLinkedWorkforceEmployee({
@@ -162,6 +191,8 @@ export async function getHairSession(): Promise<HairSession | null> {
     expiresAt,
     rememberMe,
     workforceEmployeeId: linked?.id,
+    organizationId: row.organizationId,
+    locationId: row.locationId ?? null,
   };
 }
 

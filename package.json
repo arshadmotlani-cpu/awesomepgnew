@@ -83,7 +83,9 @@
     "hair:saas:production-preflight": "tsx scripts/hair-saas-production-preflight-readonly.ts",
     "hair:saas:production-phase3": "tsx scripts/production-safety-gate.ts && tsx scripts/hair-saas-bootstrap-platform.ts && tsx scripts/hair-saas-backfill-tenant.ts && tsx scripts/hair-saas-bootstrap-verify.ts && tsx scripts/hair-saas-tenant-reconcile-readonly.ts",
     "staging:preflight": "tsx scripts/staging-safety-gate.ts && tsx scripts/hair-saas-staging-preflight.ts",
-    "staging:phase0b": "tsx scripts/staging-phase0b-run.ts"
+    "staging:phase0b": "tsx scripts/staging-phase0b-run.ts",
+    "platform:stripe:webhook-verify-staging": "tsx scripts/platform-stripe-webhook-verify-staging.ts",
+    "saas:phase-e-f:staging-smoke": "tsx scripts/saas-phase-e-f-staging-smoke.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -126,6 +128,7 @@
     "react-hook-form": "^7.81.0",
     "recharts": "^3.9.2",
     "sharp": "^0.34.5",
+    "stripe": "^22.5.0",
     "tailwind-merge": "^3.6.0",
     "web-push": "^3.6.7",
     "zod": "^4.4.3",

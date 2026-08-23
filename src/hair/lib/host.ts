@@ -1,3 +1,5 @@
+import { isHairTenantSubdomain, parseHairTenantSlug } from '@/src/hair/lib/tenant/subdomainHost';
+
 /** Resolve the public hostname from request headers (Vercel-safe). */
 export function resolveRequestHostname(
   headerSource: Headers | { get(name: string): string | null },
@@ -10,7 +12,7 @@ export function resolveRequestHostname(
 
 export function isHairHost(host: string): boolean {
   const h = host.split(':')[0]?.toLowerCase() ?? '';
-  return (
+  if (
     h === 'fyhair.awesomepg.in' ||
     h === 'fyhair.localhost' ||
     h === 'fyhair.localhost.localdomain' ||
@@ -21,7 +23,18 @@ export function isHairHost(host: string): boolean {
     (process.env.NODE_ENV === 'development' &&
       h === 'localhost' &&
       process.env.HAIR_DEV_HOST === '1')
-  );
+  ) {
+    return true;
+  }
+  // Phase F: {slug}.fyhair.app (and staging parents)
+  return isHairTenantSubdomain(h);
+}
+
+/** Tenant slug from Host header, or null on apex / non-tenant. */
+export function resolveHairTenantSlugFromHeaders(
+  headerSource: Headers | { get(name: string): string | null },
+): string | null {
+  return parseHairTenantSlug(resolveRequestHostname(headerSource));
 }
 
 export function isHairHostFromHeaders(
@@ -59,6 +72,7 @@ export const HAIR_PUBLIC_PREFIXES = [
   '/settings',
   '/profile',
   '/select-organization',
+  '/subscribe',
   '/team',
 ] as const;
 
@@ -104,7 +118,12 @@ export function isHairTenantExemptPath(pathname: string): boolean {
   const rest = pathname.startsWith(HAIR_INTERNAL_PREFIX)
     ? pathname.slice(HAIR_INTERNAL_PREFIX.length) || '/'
     : pathname;
-  return rest === '/select-organization' || rest.startsWith('/select-organization/');
+  return (
+    rest === '/select-organization' ||
+    rest.startsWith('/select-organization/') ||
+    rest === '/subscribe' ||
+    rest.startsWith('/subscribe/')
+  );
 }
 
 export function isHairProtectedPath(pathname: string): boolean {

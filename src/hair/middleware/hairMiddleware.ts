@@ -6,6 +6,7 @@ import {
   isHairHostFromHeaders,
   isHairProtectedPath,
   isHairPublicPath,
+  resolveHairTenantSlugFromHeaders,
 } from '@/src/hair/lib/host';
 
 export function hairMiddleware(request: NextRequest): NextResponse {
@@ -18,12 +19,27 @@ export function hairMiddleware(request: NextRequest): NextResponse {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-hair-app', '1');
   requestHeaders.set('x-hair-pathname', pathname);
+  const tenantSlug = resolveHairTenantSlugFromHeaders(request.headers);
+  if (tenantSlug) {
+    requestHeaders.set('x-hair-tenant-slug', tenantSlug);
+  }
 
   if (!isHairPublicPath(pathname)) {
     return new NextResponse(null, { status: 404 });
   }
 
   const hasSession = Boolean(request.cookies.get(HAIR_SESSION_COOKIE)?.value);
+
+  // Phase F: tenant subdomain cannot switch orgs via picker
+  if (
+    tenantSlug &&
+    (pathname === '/select-organization' ||
+      pathname.startsWith('/select-organization/') ||
+      pathname === '/fyh/select-organization' ||
+      pathname.startsWith('/fyh/select-organization/'))
+  ) {
+    return NextResponse.redirect(new URL('/dashboard/revenue', request.url));
+  }
 
   if (pathname === '/login' || pathname === '/auth/login') {
     // Cookie presence is not a validated session. Redirecting /login → /landing

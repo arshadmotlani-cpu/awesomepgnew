@@ -37,6 +37,8 @@ export const PLATFORM_SUBSCRIPTION_STATUSES = [
   'past_due',
   'suspended',
   'cancelled',
+  'incomplete',
+  'unpaid',
 ] as const;
 export type PlatformSubscriptionStatus = (typeof PLATFORM_SUBSCRIPTION_STATUSES)[number];
 
@@ -177,10 +179,21 @@ export const platformOrganizationSubscriptions = platformSchema.table(
     status: text('status').$type<PlatformSubscriptionStatus>().notNull().default('active'),
     currentPeriodStart: timestamp('current_period_start', { withTimezone: true }),
     currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }),
+    stripeCustomerId: text('stripe_customer_id'),
+    stripeSubscriptionId: text('stripe_subscription_id'),
+    stripePriceId: text('stripe_price_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('platform_org_subscriptions_org_idx').on(t.organizationId)],
+  (t) => [
+    index('platform_org_subscriptions_org_idx').on(t.organizationId),
+    uniqueIndex('platform_org_subscriptions_stripe_sub_uidx')
+      .on(t.stripeSubscriptionId)
+      .where(sql`${t.stripeSubscriptionId} is not null`),
+    uniqueIndex('platform_org_subscriptions_stripe_customer_uidx')
+      .on(t.stripeCustomerId)
+      .where(sql`${t.stripeCustomerId} is not null`),
+  ],
 );
 
 export const platformOrganizationEntitlements = platformSchema.table(
@@ -240,10 +253,23 @@ export const platformSubscriptionEvents = platformSchema.table(
     actorUserId: uuid('actor_user_id').references(() => platformUsers.id, { onDelete: 'set null' }),
     eventType: text('event_type').notNull(),
     detail: text('detail'),
+    stripeEventId: text('stripe_event_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index('platform_subscription_events_org_idx').on(t.organizationId, t.createdAt),
     index('platform_subscription_events_subscription_idx').on(t.subscriptionId, t.createdAt),
+    uniqueIndex('platform_subscription_events_stripe_event_uidx')
+      .on(t.stripeEventId)
+      .where(sql`${t.stripeEventId} is not null`),
   ],
 );
+
+export const platformBillingWebhookEvents = platformSchema.table('billing_webhook_events', {
+  eventId: text('event_id').primaryKey(),
+  provider: text('provider').notNull().default('stripe'),
+  eventType: text('event_type').notNull(),
+  processedAt: timestamp('processed_at', { withTimezone: true }).notNull().defaultNow(),
+  payload: jsonb('payload').$type<Record<string, unknown>>(),
+});
+

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getHairSession } from '@/src/hair/lib/auth/session';
+import { getHairSession, updateHairSessionTenant } from '@/src/hair/lib/auth/session';
 import { persistTenantCookies } from '@/src/hair/lib/tenant/persistTenantCookies';
 import { pickResolvableMembership } from '@/src/hair/lib/tenant/selectOrganizationNav';
 import { resolvePlatformUserIdForHairSession } from '@/src/hair/lib/tenant/sessionIdentity';
@@ -35,6 +35,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('/select-organization?nobind=1', request.url));
   }
 
+  await updateHairSessionTenant({
+    sessionId: session.sessionId,
+    organizationId: picked.organizationId,
+    locationId,
+  });
   await persistTenantCookies(picked.organizationId, locationId);
   return NextResponse.redirect(new URL(next, request.url));
 }

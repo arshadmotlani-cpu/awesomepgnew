@@ -10,31 +10,24 @@ import { isModuleActive } from '@/src/lib/admin/navigation';
 import { useAdminNavBadges } from '@/src/components/admin/AdminLiveRefreshProvider';
 import type { SidebarNavItem } from '@/src/components/admin/sidebar/SidebarLayoutProvider';
 
-export function DraggableSidebarRow({
+function SidebarRowChrome({
   item,
   activePath,
   onNavigateStart,
-  onPinToggle,
-  overlay = false,
-  dragEnabled = true,
+  dragHandle,
+  menuButton,
+  isDragging = false,
 }: {
   item: SidebarNavItem;
   activePath: string;
   onNavigateStart: (href: string) => void;
-  onPinToggle: (key: SidebarNavItem['key'], pinned: boolean) => void;
-  overlay?: boolean;
-  dragEnabled?: boolean;
+  dragHandle?: React.ReactNode;
+  menuButton?: React.ReactNode;
+  isDragging?: boolean;
 }) {
   const badges = useAdminNavBadges();
   const def = SIDEBAR_MODULE_REGISTRY[item.key];
   const Icon = def.icon;
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: item.key,
-    disabled: overlay || !dragEnabled,
-  });
-  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
-  const rowRef = useRef<HTMLLIElement | null>(null);
-
   const active = item.module
     ? isModuleActive(activePath, item.module)
     : activePath === item.href || activePath.startsWith(`${item.href}/`);
@@ -43,6 +36,74 @@ export function DraggableSidebarRow({
     : item.module
       ? badges[item.module]
       : undefined;
+
+  return (
+    <div
+      className={`flex items-center gap-0.5 rounded-md transition-shadow ${
+        isDragging ? 'scale-[1.02] shadow-lg ring-1 ring-apg-orange/30' : ''
+      }`}
+    >
+      {dragHandle}
+      <div className="min-w-0 flex-1">
+        <AdminNavLink
+          href={item.href}
+          label={item.label}
+          icon={Icon}
+          active={active}
+          badgeCount={badgeCount}
+          onNavigateStart={onNavigateStart}
+          truncateLabel={item.key !== 'payment_reviews'}
+        />
+      </div>
+      {menuButton}
+    </div>
+  );
+}
+
+/** Presentational clone for DragOverlay — must NOT call useSortable (duplicate ids break drops). */
+export function SidebarRowDragPreview({
+  item,
+  activePath,
+}: {
+  item: SidebarNavItem;
+  activePath: string;
+}) {
+  return (
+    <div className="rounded-md border border-apg-orange/40 bg-[#252b35] px-1 py-0.5 opacity-95 shadow-xl">
+      <SidebarRowChrome
+        item={item}
+        activePath={activePath}
+        onNavigateStart={() => undefined}
+        isDragging
+        dragHandle={
+          <span className="flex h-11 w-6 shrink-0 items-center justify-center text-[11px] text-apg-silver/80">
+            ⋮⋮
+          </span>
+        }
+      />
+    </div>
+  );
+}
+
+export function DraggableSidebarRow({
+  item,
+  activePath,
+  onNavigateStart,
+  onPinToggle,
+  dragEnabled = true,
+}: {
+  item: SidebarNavItem;
+  activePath: string;
+  onNavigateStart: (href: string) => void;
+  onPinToggle: (key: SidebarNavItem['key'], pinned: boolean) => void;
+  dragEnabled?: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.key,
+    disabled: !dragEnabled,
+  });
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const rowRef = useRef<HTMLLIElement | null>(null);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -77,54 +138,51 @@ export function DraggableSidebarRow({
   return (
     <li
       ref={setRefs}
-      style={overlay ? undefined : style}
-      className={`group relative ${isDragging && !overlay ? 'z-40 opacity-90' : ''}`}
+      style={style}
+      className={`group relative ${isDragging ? 'z-40 opacity-40' : ''}`}
       onContextMenu={(e) => {
         e.preventDefault();
         openMenuAt(e.clientX, e.clientY);
       }}
     >
-      <div
-        className={`flex items-center gap-0.5 rounded-md transition-shadow ${
-          isDragging && !overlay ? 'scale-[1.02] shadow-lg ring-1 ring-apg-orange/30' : ''
-        }`}
-      >
-        {dragEnabled ? (
+      <SidebarRowChrome
+        item={item}
+        activePath={activePath}
+        onNavigateStart={onNavigateStart}
+        isDragging={isDragging}
+        dragHandle={
+          dragEnabled ? (
+            <button
+              type="button"
+              className="flex h-11 w-6 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-[11px] leading-none text-apg-silver/70 opacity-40 transition-opacity group-hover:opacity-100 hover:bg-white/5 hover:text-apg-silver active:cursor-grabbing"
+              aria-label={`Drag ${item.label}`}
+              {...attributes}
+              {...listeners}
+              onClick={(e) => {
+                // Never navigate when interacting with the handle.
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+            >
+              ⋮⋮
+            </button>
+          ) : null
+        }
+        menuButton={
           <button
             type="button"
-            className="flex h-11 w-6 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-[11px] leading-none text-apg-silver/70 opacity-40 transition-opacity group-hover:opacity-100 hover:bg-white/5 hover:text-apg-silver active:cursor-grabbing"
-            aria-label={`Drag ${item.label}`}
-            {...(overlay ? {} : { ...attributes, ...listeners })}
+            onClick={(e) => {
+              e.stopPropagation();
+              const rect = rowRef.current?.getBoundingClientRect();
+              openMenuAt(rect?.right ?? e.clientX, rect?.top ?? e.clientY);
+            }}
+            className="mr-1 flex h-8 w-7 shrink-0 items-center justify-center rounded-md text-apg-silver/60 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-white/5 hover:text-white"
+            aria-label={`${item.label} options`}
           >
-            ⋮⋮
+            ⋯
           </button>
-        ) : null}
-
-        <div className="min-w-0 flex-1">
-          <AdminNavLink
-            href={item.href}
-            label={item.label}
-            icon={Icon}
-            active={active}
-            badgeCount={badgeCount}
-            onNavigateStart={onNavigateStart}
-            truncateLabel={item.key !== 'payment_reviews'}
-          />
-        </div>
-
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            const rect = rowRef.current?.getBoundingClientRect();
-            openMenuAt(rect?.right ?? e.clientX, rect?.top ?? e.clientY);
-          }}
-          className="mr-1 flex h-8 w-7 shrink-0 items-center justify-center rounded-md text-apg-silver/60 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-white/5 hover:text-white"
-          aria-label={`${item.label} options`}
-        >
-          ⋯
-        </button>
-      </div>
+        }
+      />
 
       {menu && typeof document !== 'undefined'
         ? createPortal(

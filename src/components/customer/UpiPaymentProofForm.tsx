@@ -1,26 +1,21 @@
 'use client';
 
-import { useEffect, useId, useState } from 'react';
-import { ImageFileInput } from '@/src/components/shared/ImageFileInput';
-import { resolveBlobLinkHref } from '@/src/lib/storage/blobImageDisplay';
+import { useId, useState } from 'react';
 import { logPaymentClientException } from '@/src/lib/client/paymentClientLogger';
-import { uploadPaymentScreenshotClient } from '@/src/lib/client/uploadPaymentScreenshotClient';
 
 type SubmitResult = { ok: boolean; message?: string };
 
 export function UpiPaymentProofForm({
   amountLabel,
-  heading = 'Pay via QR + upload proof',
+  heading = 'Pay via QR + enter transaction ID',
   instructions,
   qrImageUrl,
   upiId,
-  existingProofUrl,
+  existingTransactionRef,
   rejectionReason,
   rejectionMessage,
-  proofViewHref,
-  uploadScreenshot = uploadPaymentScreenshotClient,
   submitProof,
-  doneMessage = 'Payment proof submitted. An admin will verify the screenshot and mark it paid.',
+  doneMessage = 'Payment submitted. An admin will verify the transaction ID and mark it paid.',
   variant = 'dark',
   qrFootnote,
   logContext,
@@ -30,16 +25,13 @@ export function UpiPaymentProofForm({
   instructions?: string;
   qrImageUrl?: string | null;
   upiId?: string | null;
-  existingProofUrl?: string | null;
+  /** When set and no rejection, treat as already submitted. */
+  existingTransactionRef?: string | null;
   rejectionReason?: string | null;
   rejectionMessage?: string | null;
-  /** Server route for viewing data-URL proofs in a new tab. */
-  proofViewHref?: string;
-  /** Override for tests; default uses /api/customer/payment-screenshot (no Server Action refresh). */
-  uploadScreenshot?: (formData: FormData) => Promise<string>;
   submitProof: (args: {
-    screenshotUrl: string;
-    transactionRef?: string;
+    transactionRef: string;
+    screenshotUrl?: string | null;
   }) => Promise<SubmitResult>;
   doneMessage?: string;
   /** Light surfaces for booking checkout; dark glass for resident dashboard. */
@@ -65,14 +57,10 @@ export function UpiPaymentProofForm({
 }) {
   const isLight = variant === 'light';
   const inputId = useId();
-  const [screenshotUrl, setScreenshotUrl] = useState(existingProofUrl ?? '');
-  const [previewObjectUrl, setPreviewObjectUrl] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
-  const [transactionRef, setTransactionRef] = useState('');
-  const [uploading, setUploading] = useState(false);
+  const [transactionRef, setTransactionRef] = useState(existingTransactionRef ?? '');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(Boolean(existingProofUrl) && !rejectionReason);
+  const [done, setDone] = useState(Boolean(existingTransactionRef?.trim()) && !rejectionReason);
   const [qrFailed, setQrFailed] = useState(false);
   const [qrNonce, setQrNonce] = useState(0);
 
@@ -99,71 +87,24 @@ export function UpiPaymentProofForm({
           </p>
         ) : null}
         <p className={`mt-3 text-xs ${isLight ? 'text-rose-700' : 'text-rose-100/90'}`}>
-          Please upload a new payment screenshot below.
+          Please submit a new transaction ID below.
         </p>
       </div>
     ) : null;
 
-  useEffect(() => {
-    return () => {
-      if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
-    };
-  }, [previewObjectUrl]);
-
-  const previewSrc =
-    previewObjectUrl ?? resolveBlobLinkHref(screenshotUrl, proofViewHref) ?? null;
-
-  async function onFile(file: File | null) {
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setError('Please upload a photo or screenshot (image file).');
-      return;
-    }
-    setUploading(true);
-    setError(null);
-    setFileName(file.name);
-    if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
-    setPreviewObjectUrl(URL.createObjectURL(file));
-    try {
-      const fd = new FormData();
-      fd.append('file', file);
-      if (logContext?.uploadType) fd.append('uploadType', logContext.uploadType);
-      if (logContext?.bookingId) fd.append('bookingId', logContext.bookingId);
-      if (logContext?.pgId) fd.append('pgId', logContext.pgId);
-      const url = await uploadScreenshot(fd);
-      setScreenshotUrl(url);
-    } catch (err) {
-      logPaymentClientException('Payment screenshot upload failed', err, {
-        page: logContext?.page ?? 'upi-payment-proof',
-        invoiceId: logContext?.invoiceId ?? null,
-        bookingId: logContext?.bookingId ?? null,
-        residentId: logContext?.residentId ?? null,
-        paymentLinkId: logContext?.paymentLinkId ?? null,
-        membershipId: logContext?.membershipId ?? null,
-        extensionId: logContext?.extensionId ?? null,
-      });
-      setScreenshotUrl('');
-      setFileName(null);
-      if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
-      setPreviewObjectUrl(null);
-      setError(err instanceof Error ? err.message : 'Upload failed');
-    } finally {
-      setUploading(false);
-    }
-  }
-
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!screenshotUrl) {
-      setError('Upload a photo of your payment (screenshot or UPI receipt).');
+    const trimmed = transactionRef.trim();
+    if (!trimmed) {
+      setError('Enter the UPI transaction ID from your payment confirmation.');
       return;
     }
     setPending(true);
     setError(null);
     try {
       const result = await submitProof({
-        screenshotUrl,
-        transactionRef: transactionRef || undefined,
+        transactionRef: trimmed,
+        screenshotUrl: null,
       });
       if (!result.ok) {
         setError(result.message ?? 'Submission failed.');
@@ -208,8 +149,6 @@ export function UpiPaymentProofForm({
   }
 
   if (done) {
-    const viewHref = resolveBlobLinkHref(screenshotUrl, proofViewHref);
-
     return (
       <div
         className={
@@ -219,16 +158,6 @@ export function UpiPaymentProofForm({
         }
       >
         {doneMessage}
-        {viewHref ? (
-          <a
-            href={viewHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 block font-medium text-[#FF5A1F] hover:underline"
-          >
-            View uploaded photo →
-          </a>
-        ) : null}
       </div>
     );
   }
@@ -255,7 +184,7 @@ export function UpiPaymentProofForm({
           .
           {instructions
             ? ` ${instructions}`
-            : ' Scan the QR, pay via UPI, then upload a photo of the payment.'}
+            : ' Scan the QR, pay via UPI, then enter the transaction ID from your UPI app. An admin will verify it.'}
         </p>
       </div>
 
@@ -315,102 +244,32 @@ export function UpiPaymentProofForm({
         </div>
       ) : null}
 
-      <div className="space-y-2">
-        <p className={`text-sm font-medium ${isLight ? 'text-zinc-900' : 'text-white'}`}>
-          Step 2 — Upload payment screenshot <span className="text-[#FF5A1F]">*</span>
-        </p>
-
-        <ImageFileInput
-          id={inputId}
-          inputClassName="sr-only"
-          onFileSelected={(file) => void onFile(file ?? null)}
-        />
-
-        <label
-          htmlFor={inputId}
-          className={
-            'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-8 text-center transition ' +
-            (screenshotUrl
-              ? isLight
-                ? 'border-emerald-300 bg-emerald-50'
-                : 'border-emerald-500/50 bg-emerald-500/10'
-              : isLight
-                ? 'border-zinc-300 bg-white hover:border-[#FF5A1F]/50'
-                : 'border-[#FF5A1F]/40 bg-[#FF5A1F]/5 hover:border-[#FF5A1F]/70 hover:bg-[#FF5A1F]/10')
-          }
-        >
-          {uploading ? (
-            <span className={`text-sm font-medium ${isLight ? 'text-zinc-600' : 'text-zinc-300'}`}>
-              Uploading…
-            </span>
-          ) : screenshotUrl ? (
-            <>
-              <span className="text-2xl" aria-hidden>
-                ✓
-              </span>
-              <span
-                className={`text-sm font-semibold ${isLight ? 'text-emerald-700' : 'text-emerald-300'}`}
-              >
-                Screenshot uploaded
-              </span>
-              {fileName ? (
-                <span
-                  className={`max-w-full truncate text-xs ${isLight ? 'text-zinc-500' : 'text-zinc-300'}`}
-                >
-                  {fileName}
-                </span>
-              ) : null}
-              <span className={`text-xs ${isLight ? 'text-zinc-500' : 'text-zinc-300'}`}>
-                Tap to replace
-              </span>
-            </>
-          ) : (
-            <>
-              <span className="text-2xl" aria-hidden>
-                📷
-              </span>
-              <span
-                className={`text-sm font-semibold ${isLight ? 'text-zinc-900' : 'text-white'}`}
-              >
-                Choose screenshot from gallery
-              </span>
-              <span className={`text-xs ${isLight ? 'text-zinc-500' : 'text-zinc-300'}`}>
-                Photo library, Files, or saved UPI payment receipt
-              </span>
-            </>
-          )}
-        </label>
-
-        {previewSrc && !uploading ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={previewSrc}
-            alt="Payment screenshot preview"
-            className={`mx-auto max-h-40 rounded-lg border object-contain ${isLight ? 'border-zinc-200' : 'border-white/10'}`}
-          />
-        ) : null}
-      </div>
-
-      <label className="block text-sm">
-        <span className={`font-medium ${isLight ? 'text-zinc-600' : 'text-zinc-300'}`}>
-          UPI reference (optional)
+      <label className="block text-sm" htmlFor={inputId}>
+        <span className={`font-medium ${isLight ? 'text-zinc-900' : 'text-white'}`}>
+          UPI transaction ID <span className="text-[#FF5A1F]">*</span>
         </span>
         <input
+          id={inputId}
           type="text"
           value={transactionRef}
           onChange={(e) => setTransactionRef(e.target.value)}
           placeholder="e.g. 123456789012"
+          autoComplete="off"
+          required
           className={
             isLight
               ? 'mt-1.5 w-full rounded-lg border border-zinc-300 px-3 py-2.5 text-sm text-zinc-900'
               : 'apg-input-dark mt-1.5 w-full rounded-lg px-3 py-2.5 text-sm'
           }
         />
+        <span className={`mt-1 block text-xs ${isLight ? 'text-zinc-500' : 'text-zinc-400'}`}>
+          Copy the reference / UTR from your UPI payment confirmation.
+        </span>
       </label>
 
       <button
         type="submit"
-        disabled={pending || uploading || !screenshotUrl}
+        disabled={pending || !transactionRef.trim()}
         className={
           isLight
             ? 'sticky bottom-0 z-10 w-full rounded-lg bg-[#FF5A1F] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-sm font-semibold text-white shadow-[0_-4px_12px_rgba(0,0,0,0.08)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 sm:static sm:shadow-none'

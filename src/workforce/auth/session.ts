@@ -21,12 +21,16 @@ export type WorkforceSession = {
   expiresAt: Date;
   rememberMe: boolean;
   activeEngineId: WorkforceEngineId | null;
+  /** Phase D SSOT — from session row, not cookie. */
+  organizationId: string;
+  locationId: string | null;
 };
 
 export async function createWorkforceSession(
   employeeId: string,
   rememberMe = true,
   activeEngineId: WorkforceEngineId | null = 'fyh_salon',
+  opts?: { organizationId?: string; locationId?: string | null },
 ): Promise<{ token: string; maxAgeDays: number }> {
   const token = randomToken(32);
   const tokenHash = sha256(token);
@@ -38,13 +42,15 @@ export async function createWorkforceSession(
     .from(wfEmployees)
     .where(eq(wfEmployees.id, employeeId))
     .limit(1);
-  if (!employee?.organizationId) {
+  const organizationId = opts?.organizationId ?? employee?.organizationId;
+  if (!organizationId) {
     throw new Error('Employee is missing organization_id');
   }
 
   await hairDb.insert(wfAuthSessions).values({
     employeeId,
-    organizationId: employee.organizationId,
+    organizationId,
+    locationId: opts?.locationId ?? null,
     tokenHash,
     expiresAt,
     activeEngineId,
@@ -62,6 +68,20 @@ export async function createWorkforceSession(
   return { token, maxAgeDays };
 }
 
+export async function updateWorkforceSessionTenant(input: {
+  sessionId: string;
+  organizationId: string;
+  locationId?: string | null;
+}): Promise<void> {
+  await hairDb
+    .update(wfAuthSessions)
+    .set({
+      organizationId: input.organizationId,
+      locationId: input.locationId ?? null,
+    })
+    .where(and(eq(wfAuthSessions.id, input.sessionId), isNull(wfAuthSessions.revokedAt)));
+}
+
 export async function getWorkforceSession(): Promise<WorkforceSession | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(HAIR_SESSION_COOKIE)?.value;
@@ -76,6 +96,8 @@ export async function getWorkforceSession(): Promise<WorkforceSession | null> {
       expiresAt: wfAuthSessions.expiresAt,
       createdAt: wfAuthSessions.createdAt,
       activeEngineId: wfAuthSessions.activeEngineId,
+      organizationId: wfAuthSessions.organizationId,
+      locationId: wfAuthSessions.locationId,
       employee: wfEmployees,
     })
     .from(wfAuthSessions)
@@ -91,6 +113,7 @@ export async function getWorkforceSession(): Promise<WorkforceSession | null> {
 
   if (!row) return null;
   if (row.employee.status !== 'active' || !row.employee.canLogin) return null;
+  if (!row.organizationId) return null;
 
   const rememberMe =
     row.expiresAt.getTime() - row.createdAt.getTime() >
@@ -111,6 +134,8 @@ export async function getWorkforceSession(): Promise<WorkforceSession | null> {
     expiresAt,
     rememberMe,
     activeEngineId: (row.activeEngineId as WorkforceEngineId | null) ?? null,
+    organizationId: row.organizationId,
+    locationId: row.locationId ?? null,
   };
 }
 
@@ -119,21 +144,8 @@ export async function revokeWorkforceSession(): Promise<void> {
   const token = cookieStore.get(HAIR_SESSION_COOKIE)?.value;
   if (!token) return;
   const tokenHash = sha256(token);
-  const [row] = await hairDb
-    .select({ id: wfAuthSessions.id, employeeId: wfAuthSessions.employeeId })
-    .from(wfAuthSessions)
-    .where(and(eq(wfAuthSessions.tokenHash, tokenHash), isNull(wfAuthSessions.revokedAt)))
-    .limit(1);
-  if (!row) return;
   await hairDb
     .update(wfAuthSessions)
     .set({ revokedAt: new Date() })
-    .where(eq(wfAuthSessions.id, row.id));
-  await publishEmployeeEvent({
-    eventType: 'employee.logout',
-    employeeId: row.employeeId,
-    sourceRef: 'workforce.auth.revokeSession',
-  });
+    .where(eq(wfAuthSessions.tokenHash, tokenHash));
 }
-
-export { hairSessionCookieOptions } from '@/src/hair/lib/auth/session';

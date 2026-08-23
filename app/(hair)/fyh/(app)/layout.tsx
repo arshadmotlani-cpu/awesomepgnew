@@ -8,6 +8,13 @@ import { filterNavByPermissions, visibleHairNavEntries, type HairNavEntry } from
 import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
 import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 import { isHairTenantExemptPath } from '@/src/hair/lib/host';
+import { getHairSession } from '@/src/hair/lib/auth/session';
+import {
+  getOrganizationSubscriptionStatus,
+  isOrganizationSubscriptionLocked,
+  isSubscriptionGracePeriod,
+} from '@/src/platform/services/memberships';
+import { redirect } from 'next/navigation';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 import { ensureSalonOwnerProvider } from '@/src/workforce/services/systemOwnerProvider';
 import { headers } from 'next/headers';
@@ -17,6 +24,15 @@ export default async function HairAppLayout({ children }: { children: React.Reac
   const pathname = hdrs.get('x-hair-pathname') ?? hdrs.get('x-invoke-path') ?? '';
   if (isHairTenantExemptPath(pathname)) {
     return children;
+  }
+
+  if (isFyhSaasTenantEnabled()) {
+    const session = await getHairSession();
+    if (session?.organizationId) {
+      if (await isOrganizationSubscriptionLocked(session.organizationId)) {
+        redirect('/subscribe');
+      }
+    }
   }
 
   const admin = pathname
@@ -59,9 +75,28 @@ export default async function HairAppLayout({ children }: { children: React.Reac
         <HairAppHeader admin={admin} navEntries={navEntries} />
         <HairTenantContextBar />
         <main className="relative z-0 flex-1 overflow-auto p-[var(--fyh-space-page)] md:p-[var(--fyh-space-page-md)]">
+          <PastDueBillingBanner />
           {children}
         </main>
       </div>
+    </div>
+  );
+}
+
+
+async function PastDueBillingBanner() {
+  if (!isFyhSaasTenantEnabled()) return null;
+  const session = await getHairSession();
+  if (!session?.organizationId) return null;
+  const status = await getOrganizationSubscriptionStatus(session.organizationId);
+  if (!isSubscriptionGracePeriod(status)) return null;
+  return (
+    <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+      Billing past due — update payment on{' '}
+      <a href="/subscribe" className="underline">
+        Subscribe
+      </a>
+      .
     </div>
   );
 }

@@ -282,6 +282,7 @@ export const wfAuthSessions = pgTable(
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
     organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
     employeeId: uuid('employee_id')
       .notNull()
       .references(() => wfEmployees.id, { onDelete: 'cascade' }),

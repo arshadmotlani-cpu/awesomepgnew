@@ -13,6 +13,7 @@ import {
 import type { AdminModule } from '@/src/lib/admin/navigation';
 import type { SidebarModuleKey } from '@/src/lib/admin/sidebarModules';
 import type { AdminNavBadges } from '@/src/services/adminNavBadges';
+import { sidebarOrderFingerprint } from '@/src/components/admin/sidebar/sidebarOrder';
 
 export type SidebarNavItem = {
   key: SidebarModuleKey;
@@ -33,11 +34,12 @@ type SidebarLayoutContextValue = {
   setDragEnabled: (enabled: boolean) => void;
   markLocalSidebarMutation: () => void;
   persistInFlightRef: { current: boolean };
+  confirmedOrderFingerprintRef: { current: string };
 };
 
 const SidebarLayoutContext = createContext<SidebarLayoutContextValue | null>(null);
 
-const LOCAL_MUTATION_GUARD_MS = 2000;
+const LOCAL_MUTATION_GUARD_MS = 2500;
 
 export function SidebarLayoutProvider({
   initialItems,
@@ -52,6 +54,9 @@ export function SidebarLayoutProvider({
   const [dragEnabled, setDragEnabled] = useState(true);
   const lastLocalMutationAtRef = useRef(0);
   const persistInFlightRef = useRef(false);
+  const confirmedOrderFingerprintRef = useRef(sidebarOrderFingerprint(initialItems));
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
 
   const markLocalSidebarMutation = useCallback(() => {
     lastLocalMutationAtRef.current = Date.now();
@@ -59,8 +64,25 @@ export function SidebarLayoutProvider({
 
   useEffect(() => {
     if (persistInFlightRef.current) return;
-    if (Date.now() - lastLocalMutationAtRef.current < LOCAL_MUTATION_GUARD_MS) return;
-    setItems(initialItems);
+
+    const serverFp = sidebarOrderFingerprint(initialItems);
+    const localFp = sidebarOrderFingerprint(itemsRef.current);
+    const withinGuard =
+      Date.now() - lastLocalMutationAtRef.current < LOCAL_MUTATION_GUARD_MS;
+
+    // Server caught up to what we just saved — adopt quietly.
+    if (serverFp === confirmedOrderFingerprintRef.current) {
+      if (serverFp !== localFp) setItems(initialItems);
+      return;
+    }
+
+    // During/after a local drag, ignore stale server props that still have the old order.
+    if (withinGuard) return;
+
+    if (serverFp !== localFp) {
+      setItems(initialItems);
+      confirmedOrderFingerprintRef.current = serverFp;
+    }
   }, [initialItems]);
 
   const value = useMemo(
@@ -72,6 +94,7 @@ export function SidebarLayoutProvider({
       setDragEnabled,
       markLocalSidebarMutation,
       persistInFlightRef,
+      confirmedOrderFingerprintRef,
     }),
     [items, isSuperAdmin, dragEnabled, markLocalSidebarMutation],
   );
@@ -104,13 +127,20 @@ export function entriesFromItems(items: SidebarNavItem[]) {
 }
 
 export function reassignSidebarSortOrders(items: SidebarNavItem[]): SidebarNavItem[] {
-  const pinned = items
+  const seen = new Set<SidebarNavItem['key']>();
+  const deduped = items.filter((item) => {
+    if (seen.has(item.key)) return false;
+    seen.add(item.key);
+    return true;
+  });
+
+  const pinned = deduped
     .filter((i) => !i.hidden && i.pinned)
     .sort((a, b) => a.sortOrder - b.sortOrder);
-  const regular = items
+  const regular = deduped
     .filter((i) => !i.hidden && !i.pinned)
     .sort((a, b) => a.sortOrder - b.sortOrder);
-  const hidden = items.filter((i) => i.hidden).sort((a, b) => a.sortOrder - b.sortOrder);
+  const hidden = deduped.filter((i) => i.hidden).sort((a, b) => a.sortOrder - b.sortOrder);
   return [...pinned, ...regular, ...hidden].map((item, index) => ({
     ...item,
     sortOrder: index,
@@ -119,17 +149,19 @@ export function reassignSidebarSortOrders(items: SidebarNavItem[]): SidebarNavIt
 
 export function usePersistSidebarLayout() {
   const {
-    items,
     setItems,
     setDragEnabled,
     persistInFlightRef,
     markLocalSidebarMutation,
+    confirmedOrderFingerprintRef,
   } = useSidebarLayout();
+  const rollbackItemsRef = useRef<SidebarNavItem[] | null>(null);
 
   const persist = useCallback(
-    async (nextItems: SidebarNavItem[]) => {
+    async (nextItems: SidebarNavItem[], previousItems: SidebarNavItem[]) => {
       const normalized = reassignSidebarSortOrders(nextItems);
-      const previous = items;
+      const fingerprint = sidebarOrderFingerprint(normalized);
+      rollbackItemsRef.current = previousItems;
       markLocalSidebarMutation();
       setItems(normalized);
       persistInFlightRef.current = true;
@@ -138,27 +170,44 @@ export function usePersistSidebarLayout() {
       );
 
       try {
+        let lastError: string | undefined;
         for (let attempt = 0; attempt < 2; attempt++) {
           const result = await persistSidebarLayoutAction(entriesFromItems(normalized));
-          if (result.ok) return true;
+          if (result.ok) {
+            confirmedOrderFingerprintRef.current = fingerprint;
+            return true;
+          }
+          lastError = result.error;
           if (attempt === 0) await new Promise((r) => setTimeout(r, 400));
         }
 
-        setItems(previous);
+        const rollback = rollbackItemsRef.current;
+        if (rollback) setItems(rollback);
         setDragEnabled(false);
         if (typeof window !== 'undefined') {
           window.dispatchEvent(
             new CustomEvent('sidebar-persist-failed', {
-              detail: { message: 'Could not save sidebar order — drag disabled.' },
+              detail: {
+                message:
+                  lastError ??
+                  'Could not save sidebar order — drag disabled. Click Retry drag to try again.',
+              },
             }),
           );
         }
         return false;
       } finally {
         persistInFlightRef.current = false;
+        rollbackItemsRef.current = null;
       }
     },
-    [items, setItems, setDragEnabled, persistInFlightRef, markLocalSidebarMutation],
+    [
+      setItems,
+      setDragEnabled,
+      persistInFlightRef,
+      markLocalSidebarMutation,
+      confirmedOrderFingerprintRef,
+    ],
   );
 
   return persist;

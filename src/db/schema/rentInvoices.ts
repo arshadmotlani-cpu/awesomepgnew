@@ -60,6 +60,9 @@ export const rentInvoices = pgTable(
     lateFeeLockedPaise: bigint('late_fee_locked_paise', { mode: 'number' }),
     status: rentInvoiceStatusEnum('status').notNull().default('pending'),
     paymentProofUrl: text('payment_proof_url'),
+    paymentProofTransactionRef: text('payment_proof_transaction_ref'),
+    possibleDuplicate: boolean('possible_duplicate').notNull().default(false),
+    duplicateOfIds: uuid('duplicate_of_ids').array().notNull().default(sql`'{}'::uuid[]`),
     /** When proof was uploaded; late-fee accrual stops after this moment. */
     proofSubmittedAt: timestamp('proof_submitted_at', { withTimezone: true }),
     /** Outstanding paise frozen at proof submission — approval uses this, not live accrual. */

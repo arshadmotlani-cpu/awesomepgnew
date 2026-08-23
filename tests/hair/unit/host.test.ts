@@ -70,3 +70,16 @@ test('select-organization is tenant-exempt on public and /fyh paths', () => {
   assert.equal(isHairTenantExemptPath('/fyh/select-organization'), true);
   assert.equal(isHairTenantExemptPath('/landing'), false);
 });
+
+test('subscribe paywall is tenant-exempt and publicly routable', () => {
+  assert.equal(isHairTenantExemptPath('/subscribe'), true);
+  assert.equal(isHairTenantExemptPath('/fyh/subscribe'), true);
+  assert.equal(isHairPublicPath('/subscribe'), true);
+  assert.equal(hairPublicToInternal('/subscribe'), '/fyh/subscribe');
+});
+
+test('Phase F tenant subdomains are Hair hosts', () => {
+  assert.equal(isHairHost('acme.fyhair.app'), true);
+  assert.equal(isHairHost('acme.fyhair.localhost'), true);
+  assert.equal(isHairHost('www.fyhair.app'), false);
+});

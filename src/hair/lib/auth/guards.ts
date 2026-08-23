@@ -10,6 +10,7 @@ import {
   hairAppRedirect,
 } from '@/src/hair/lib/host';
 import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
+import { isOrganizationSubscriptionLocked } from '@/src/platform/services/memberships';
 import {
   hasPermission,
   type HairPagePermission,
@@ -59,6 +60,12 @@ export async function requireHairAuthPage(): Promise<HairAdmin> {
     if (!isHairTenantExemptPath(pathname)) {
       const ctx = await getTenantContextForPage();
       if (!ctx) {
+        if (
+          session.organizationId &&
+          (await isOrganizationSubscriptionLocked(session.organizationId))
+        ) {
+          redirect(await hairAppRedirect('/subscribe'));
+        }
         redirect(await hairAppRedirect('/select-organization?nobind=1'));
       }
     }

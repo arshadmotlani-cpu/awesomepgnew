@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  boolean,
   index,
   pgTable,
   text,
@@ -34,6 +35,8 @@ export const playstationMemberships = pgTable(
     amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
     paymentProofUrl: text('payment_proof_url'),
     transactionRef: text('transaction_ref'),
+    possibleDuplicate: boolean('possible_duplicate').notNull().default(false),
+    duplicateOfIds: uuid('duplicate_of_ids').array().notNull().default(sql`'{}'::uuid[]`),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

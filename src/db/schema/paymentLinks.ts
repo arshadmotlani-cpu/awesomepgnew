@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { bigint, index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { bigint, boolean, index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { bookings } from './bookings';
 import { customers } from './customers';
 import { pgs } from './pgs';
@@ -24,6 +24,9 @@ export const paymentLinks = pgTable(
     title: text('title'),
     description: text('description'),
     paymentProofUrl: text('payment_proof_url'),
+    paymentProofTransactionRef: text('payment_proof_transaction_ref'),
+    possibleDuplicate: boolean('possible_duplicate').notNull().default(false),
+    duplicateOfIds: uuid('duplicate_of_ids').array().notNull().default(sql`'{}'::uuid[]`),
     bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'set null' }),
     rentInvoiceId: uuid('rent_invoice_id').references(() => rentInvoices.id, {
       onDelete: 'set null',

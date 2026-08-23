@@ -69,6 +69,9 @@ export const electricityInvoices = pgTable(
     /** 'pay_page' | 'public_share' */
     viewedSource: text('viewed_source'),
     paymentProofUrl: text('payment_proof_url'),
+    paymentProofTransactionRef: text('payment_proof_transaction_ref'),
+    possibleDuplicate: boolean('possible_duplicate').notNull().default(false),
+    duplicateOfIds: uuid('duplicate_of_ids').array().notNull().default(sql`'{}'::uuid[]`),
     unitsShare: numeric('units_share', { precision: 10, scale: 2 }),
     activeDays: integer('active_days'),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),

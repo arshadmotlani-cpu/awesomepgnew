@@ -36,7 +36,7 @@ import { employeeToHairAdmin } from '@/src/workforce/compat/hairAdminBridge';
 import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
 import { hasWorkforcePermission } from '@/src/workforce/permissions/resolve';
 
-async function setTenantCookiesForUser(userId: string) {
+async function bindSingleOrgTenantForUser(userId: string) {
   if (!isFyhSaasTenantEnabled()) return;
   const memberships = await listActiveMembershipsForUser(userId);
   if (memberships.length !== 1) return;
@@ -114,10 +114,20 @@ export async function loginAction(
       const memberships = await listMemberships(emp.id);
       const live = memberships.filter((m) => m.engineId === 'fyh_salon');
       const activeEngine = live[0]?.engineId ?? memberships[0]?.engineId ?? 'fyh_salon';
+      let stampOrg = emp.organizationId ?? undefined;
+      let stampLoc: string | null | undefined;
+      if (emp.userId && isFyhSaasTenantEnabled()) {
+        const platformMemberships = await listActiveMembershipsForUser(emp.userId);
+        if (platformMemberships.length === 1) {
+          stampOrg = platformMemberships[0]!.organizationId;
+          stampLoc = platformMemberships[0]!.allowedLocationIds[0] ?? null;
+        }
+      }
       const { token, maxAgeDays } = await createWorkforceSession(
         emp.id,
         rememberMe,
         activeEngine,
+        { organizationId: stampOrg, locationId: stampLoc },
       );
       const cookieStore = await cookies();
       cookieStore.set(
@@ -138,7 +148,7 @@ export async function loginAction(
         if (platformMemberships.length > 1) {
           redirect(safeHairNextPath('/select-organization', admin));
         }
-        await setTenantCookiesForUser(emp.userId);
+        await bindSingleOrgTenantForUser(emp.userId);
       }
 
       const home = hasWorkforcePermission(grants, 'staff.view')
@@ -163,7 +173,9 @@ export async function loginAction(
   }
 
   resetLoginRateLimit(ip);
-  const { token, maxAgeDays } = await createHairSession(admin.id, rememberMe);
+  const { token, maxAgeDays } = await createHairSession(admin.id, rememberMe, {
+    organizationId: admin.organizationId ?? undefined,
+  });
   const cookieStore = await cookies();
   cookieStore.set(
     HAIR_SESSION_COOKIE,

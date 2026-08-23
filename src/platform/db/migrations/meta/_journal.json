@@ -15,6 +15,20 @@
       "when": 1757000000000,
       "tag": "0002_platform_admin_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1758700000000,
+      "tag": "0003_saas_phase_e_stripe",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1758800000000,
+      "tag": "0004_saas_phase_e_status_incomplete",
+      "breakpoints": true
     }
   ]
 }
