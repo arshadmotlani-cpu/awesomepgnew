@@ -21,6 +21,9 @@ import {
 import { computeRedemptions } from '@/src/hair/services/invoices';
 import { applyPaidSideEffects, nextInvoiceNumberForTx } from '@/src/hair/services/invoices';
 import type { PaymentSplitInput } from '@/src/hair/services/invoices';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter, locationFilter, tenantWriteDefaults } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 export type CheckoutFromBasketInput = {
   basket: Basket;
@@ -30,6 +33,7 @@ export type CheckoutFromBasketInput = {
   allowUnpaid?: boolean;
   source?: 'quick_sale' | 'appointment';
   appointmentId?: string;
+  ctx?: TenantContext | null;
 };
 
 export type CheckoutFromBasketResult = {
@@ -69,7 +73,7 @@ function validateCheckoutPayments(
   }
 }
 
-export async function enrichBasketWithRedemptions(basket: Basket): Promise<Basket> {
+export async function enrichBasketWithRedemptions(basket: Basket, ctx?: TenantContext | null): Promise<Basket> {
   const discountSubtotal = basket.lines
     .filter((l) => l.billableRef.type === 'service' || l.billableRef.type === 'product')
     .reduce((sum, l) => {
@@ -80,7 +84,7 @@ export async function enrichBasketWithRedemptions(basket: Basket): Promise<Baske
   const serviceIds = basket.lines
     .filter((l) => l.billableRef.type === 'service')
     .map((l) => l.billableRef.id);
-  const redemptions = await computeRedemptions(basket.customerId, discountSubtotal, serviceIds);
+  const redemptions = await computeRedemptions(basket.customerId, discountSubtotal, serviceIds, ctx);
   return {
     ...basket,
     membershipDiscountPaise: redemptions.membershipDiscountPaise,
@@ -92,13 +96,16 @@ export async function enrichBasketWithRedemptions(basket: Basket): Promise<Baske
 export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promise<CheckoutFromBasketResult> {
   const err = validateBasket(input.basket);
   if (err) throw new Error(err);
+  const ctx = await resolveTenantContextForService(input.ctx);
+  const writeDefaults = tenantWriteDefaults(ctx);
+
 
   const source = input.source ?? 'quick_sale';
   if (source === 'appointment' && !input.appointmentId) {
     throw new Error('appointmentId is required for appointment checkout');
   }
 
-  const enriched = await enrichBasketWithRedemptions(input.basket);
+  const enriched = await enrichBasketWithRedemptions(input.basket, ctx);
   const priced = priceBasket(enriched);
   const payments = paymentsFromBasket(enriched);
   const paySum = payments.reduce((s, p) => s + p.amountPaise, 0);
@@ -107,7 +114,15 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
   const defaultStylist =
     priced.lines.find((l) => l.primaryStaffId)?.primaryStaffId ?? null;
 
-  const invoiceId = await hairDb.transaction(async (tx) => {
+  
+  const [customerRow] = await hairDb
+    .select({ id: fyhCustomers.id })
+    .from(fyhCustomers)
+    .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, enriched.customerId)))
+    .limit(1);
+  if (!customerRow) throw new Error('Customer not found');
+
+const invoiceId = await hairDb.transaction(async (tx) => {
     const db = tx as unknown as typeof hairDb;
 
     if (input.holdInvoiceId) {
@@ -115,7 +130,12 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
         .select()
         .from(fyhInvoices)
         .where(
-          and(eq(fyhInvoices.id, input.holdInvoiceId), eq(fyhInvoices.status, 'draft')),
+          and(
+            eq(fyhInvoices.id, input.holdInvoiceId),
+            eq(fyhInvoices.status, 'draft'),
+            orgFilter(fyhInvoices.organizationId, ctx),
+            locationFilter(fyhInvoices.locationId, ctx),
+          ),
         )
         .limit(1);
       if (!hold) throw new Error('Held bill not found');
@@ -129,8 +149,8 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
     }
 
     const invoiceNumber = input.holdInvoiceId
-      ? await nextInvoiceNumberForTx(db)
-      : await nextInvoiceNumberForTx(db);
+      ? await nextInvoiceNumberForTx(db, ctx)
+      : await nextInvoiceNumberForTx(db, ctx);
 
     const finalNumber = invoiceNumber;
 
@@ -154,6 +174,7 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
                 : 'unpaid';
 
     const invoiceValues = {
+      ...writeDefaults,
       invoiceNumber: input.holdInvoiceId ? finalNumber : finalNumber,
       customerId: enriched.customerId,
       appointmentId: source === 'appointment' ? input.appointmentId! : null,
@@ -181,7 +202,7 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
       [inv] = await db
         .update(fyhInvoices)
         .set({ ...invoiceValues, updatedAt: new Date() })
-        .where(eq(fyhInvoices.id, input.holdInvoiceId))
+        .where(and(eq(fyhInvoices.id, input.holdInvoiceId), orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx)))
         .returning();
     } else {
       [inv] = await db.insert(fyhInvoices).values(invoiceValues).returning();
@@ -192,6 +213,7 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
       .insert(fyhInvoiceLines)
       .values(
         priced.lines.map((line, sortOrder) => ({
+          ...writeDefaults,
           invoiceId: inv.id,
           kind: line.billableRef.type,
           serviceId: line.serviceId,
@@ -219,6 +241,7 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
       if (!lineAttrs.length) continue;
       await db.insert(fyhInvoiceLineAttributions).values(
         lineAttrs.map((a) => ({
+          ...writeDefaults,
           invoiceLineId: row.id,
           staffId: a.staffId,
           role: a.role,
@@ -235,6 +258,7 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
       const applied = Math.min(p.amountPaise, remaining);
       if (applied > 0) {
         await db.insert(fyhInvoicePayments).values({
+          ...writeDefaults,
           invoiceId: inv.id,
           method: p.method,
           amountPaise: applied,
@@ -248,7 +272,7 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
       customerId: enriched.customerId,
       invoiceId: inv.id,
       entries: priced.ledgerPlan,
-    });
+    }, ctx);
 
     const overpay = Math.max(0, paySum - grandTotal);
     if (overpay > 0 && enriched.flags.creditOverpayAsAdvance) {
@@ -257,9 +281,9 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
         invoiceId: inv.id,
         amountPaise: overpay,
         reference: `Overpay on ${inv.invoiceNumber}`,
-      });
+      }, ctx);
     } else {
-      await reconcileCustomerWalletCache(db, enriched.customerId);
+      await reconcileCustomerWalletCache(db, enriched.customerId, ctx);
     }
 
     const timelineTitle =
@@ -272,6 +296,7 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
         : `Total ₹${(grandTotal / 100).toFixed(2)} · paid ₹${(payApplied / 100).toFixed(2)}`;
 
     await db.insert(fyhCustomerTimeline).values({
+      ...writeDefaults,
       customerId: enriched.customerId,
       eventType: 'bill',
       title: timelineTitle,
@@ -294,11 +319,11 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
           status: apptStatus,
           updatedAt: new Date(),
         })
-        .where(eq(fyhAppointments.id, input.appointmentId));
+        .where(and(orgFilter(fyhAppointments.organizationId, ctx), locationFilter(fyhAppointments.locationId, ctx), eq(fyhAppointments.id, input.appointmentId)));
     }
 
     if (status === 'paid' || grandTotal === 0) {
-      await applyPaidSideEffects(db, inv.id);
+      await applyPaidSideEffects(db, inv.id, ctx);
     }
 
     return inv.id;
@@ -318,13 +343,13 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
         whatsapp: fyhCustomers.whatsapp,
       })
       .from(fyhCustomers)
-      .where(eq(fyhCustomers.id, enriched.customerId))
+      .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, enriched.customerId)))
       .limit(1);
     if (customer) {
       const [invRow] = await hairDb
-        .select({ invoiceNumber: fyhInvoices.invoiceNumber })
+        .select({ invoiceNumber: fyhInvoices.invoiceNumber, publicAccessToken: fyhInvoices.publicAccessToken })
         .from(fyhInvoices)
-        .where(eq(fyhInvoices.id, invoiceId))
+        .where(and(orgFilter(fyhInvoices.organizationId, ctx), eq(fyhInvoices.id, invoiceId)))
         .limit(1);
       if (invRow) {
         const { enqueuePostCheckoutNotifications } = await import('@/src/hair/services/notifications');
@@ -334,6 +359,7 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
           phone: customer.phone,
           whatsapp: customer.whatsapp,
           invoiceNumber: invRow.invoiceNumber,
+          publicAccessToken: invRow.publicAccessToken,
           grandTotalPaise: priced.totals.grandTotalPaise,
         });
       }

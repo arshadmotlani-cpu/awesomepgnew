@@ -142,6 +142,7 @@ export async function enqueuePostCheckoutNotifications(input: {
   phone: string | null;
   whatsapp?: string | null;
   invoiceNumber: string;
+  publicAccessToken: string;
   grandTotalPaise: number;
   baseUrl?: string;
 }, ctx?: TenantContext | null): Promise<void> {
@@ -152,7 +153,7 @@ export async function enqueuePostCheckoutNotifications(input: {
   const recipient = normalizeRecipientPhone(input.phone, input.whatsapp);
   if (!recipient) return;
 
-  const link = invoicePublicViewUrl(input.invoiceNumber);
+  const link = input.publicAccessToken ? invoicePublicViewUrl(input.publicAccessToken) : '';
   const vars = {
     name: input.customerName,
     amount: formatInrFromPaise(input.grandTotalPaise),
@@ -451,6 +452,7 @@ export async function buildNotificationPreview(input: {
   customerPhone: string;
   grandTotalPaise?: number;
   invoiceNumber?: string;
+  publicAccessToken?: string;
   baseUrl?: string;
 }, ctx?: TenantContext | null): Promise<{ body: string; waUrl: string } | null> {
   ctx = await resolveTenantContextForService(ctx);
@@ -462,7 +464,7 @@ export async function buildNotificationPreview(input: {
     input.kind === 'review_request'
       ? settings.googleReviewUrl?.trim() ?? ''
       : input.invoiceNumber
-        ? invoicePublicViewUrl(input.invoiceNumber)
+        ? input.publicAccessToken ? invoicePublicViewUrl(input.publicAccessToken) : ''
         : '';
 
   const vars: Record<string, string> =

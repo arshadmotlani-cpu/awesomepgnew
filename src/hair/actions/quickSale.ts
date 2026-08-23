@@ -77,6 +77,7 @@ export async function completeQuickSaleAction(input: {
       holdInvoiceId: input.holdInvoiceId,
       source: input.source,
       appointmentId: input.appointmentId,
+      ctx,
     });
     revalidatePath('/billing');
     revalidatePath('/dashboard/revenue');

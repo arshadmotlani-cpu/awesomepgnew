@@ -10,8 +10,14 @@ import { staffModeForType } from '@/src/hair/domain/catalog/types';
 import { shouldHideServiceFromBillable } from '@/src/hair/lib/serviceCatalogHygiene';
 import { SALON_GST_BPS } from '@/src/hair/lib/taxConfig';
 import { listMembershipPlans, listPackagePlans } from '@/src/hair/services/loyaltyOps';
+import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { orgFilter } from '@/src/hair/lib/tenant/filters';
 
-export async function loadBillableCatalog(): Promise<BillableItem[]> {
+/**
+ * Billable catalog for POS / Quick Sale.
+ * Always org-scoped (Phase C): never returns another salon's catalog rows.
+ */
+export async function loadBillableCatalog(ctx?: TenantContext | null): Promise<BillableItem[]> {
   const [services, products, packages, memberships] = await Promise.all([
     hairDb
       .select({
@@ -25,7 +31,7 @@ export async function loadBillableCatalog(): Promise<BillableItem[]> {
       })
       .from(fyhServices)
       .leftJoin(fyhServiceCategories, eq(fyhServices.category, fyhServiceCategories.name))
-      .where(eq(fyhServices.isActive, true))
+      .where(and(orgFilter(fyhServices.organizationId, ctx), eq(fyhServices.isActive, true)))
       .orderBy(asc(fyhServices.name)),
     hairDb
       .select({
@@ -36,10 +42,16 @@ export async function loadBillableCatalog(): Promise<BillableItem[]> {
         isActive: fyhProducts.isActive,
       })
       .from(fyhProducts)
-      .where(and(eq(fyhProducts.isActive, true), eq(fyhProducts.productType, 'retail')))
+      .where(
+        and(
+          orgFilter(fyhProducts.organizationId, ctx),
+          eq(fyhProducts.isActive, true),
+          eq(fyhProducts.productType, 'retail'),
+        ),
+      )
       .orderBy(asc(fyhProducts.name)),
-    listPackagePlans(),
-    listMembershipPlans(),
+    listPackagePlans(ctx),
+    listMembershipPlans(ctx),
   ]);
 
   const items: BillableItem[] = [];
@@ -104,8 +116,9 @@ export async function loadBillableCatalog(): Promise<BillableItem[]> {
 export async function resolveBillableItem(
   type: BillableItemType,
   id: string,
+  ctx?: TenantContext | null,
 ): Promise<BillableItem | null> {
-  const catalog = await loadBillableCatalog();
+  const catalog = await loadBillableCatalog(ctx);
   return catalog.find((c) => c.type === type && c.id === id) ?? null;
 }
 

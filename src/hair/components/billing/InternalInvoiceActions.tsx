@@ -6,12 +6,13 @@ import { Button } from '@/src/hair/components/ui/button';
 
 type Props = {
   invoiceNumber: string;
+  publicAccessToken: string;
   status: string;
 };
 
-export function InternalInvoiceActions({ invoiceNumber, status }: Props) {
+export function InternalInvoiceActions({ invoiceNumber, publicAccessToken, status }: Props) {
   const [copied, setCopied] = useState(false);
-  const customerUrl = invoicePublicViewUrl(invoiceNumber);
+  const customerUrl = invoicePublicViewUrl(publicAccessToken);
 
   async function copyCustomerLink() {
     try {

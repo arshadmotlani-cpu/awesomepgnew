@@ -90,6 +90,7 @@ export function InvoicePreviewModal({ invoiceId, onClose }: Props) {
               {preview ? (
                 <PublicFyhInvoiceActions
                   invoiceNumber={preview.invoiceNumber}
+                  publicAccessToken={preview.publicAccessToken}
                   customerPhone={preview.customerPhone}
                   customerName={preview.customerName}
                   grandTotalLabel={preview.grandTotalLabel}

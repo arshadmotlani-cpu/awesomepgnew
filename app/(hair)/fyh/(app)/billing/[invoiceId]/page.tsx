@@ -41,7 +41,7 @@ export default async function InvoiceDetailPage({ params }: Props) {
               Back to register
             </Button>
           </Link>
-          <InternalInvoiceActions invoiceNumber={invoice.invoiceNumber} status={invoice.status} />
+          <InternalInvoiceActions invoiceNumber={invoice.invoiceNumber} publicAccessToken={invoice.publicAccessToken} status={invoice.status} />
         </div>
       </div>
 

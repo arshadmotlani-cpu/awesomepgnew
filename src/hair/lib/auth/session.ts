@@ -53,8 +53,18 @@ export async function createHairSession(
   const expiresAt = hairSessionExpiry(rememberMe);
 
   const hdrs = await headers();
+  const [admin] = await hairDb
+    .select({ organizationId: fyhAdminUsers.organizationId })
+    .from(fyhAdminUsers)
+    .where(eq(fyhAdminUsers.id, adminId))
+    .limit(1);
+  if (!admin?.organizationId) {
+    throw new Error('Admin user is missing organization_id');
+  }
+
   await hairDb.insert(fyhAuthSessions).values({
     adminUserId: adminId,
+    organizationId: admin.organizationId,
     tokenHash,
     expiresAt,
     ipAddress: hdrs.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,

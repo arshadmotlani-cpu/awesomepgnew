@@ -7,6 +7,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
@@ -23,15 +24,22 @@ export const FYH_SERVICE_CATEGORY_PRESETS = [
 export const FYH_COMMISSION_TYPES = ['none', 'fixed', 'percentage'] as const;
 export type FyhCommissionType = (typeof FYH_COMMISSION_TYPES)[number];
 
-export const fyhServiceCategories = pgTable('fyh_service_categories', {
+export const fyhServiceCategories = pgTable(
+  'fyh_service_categories',
+  {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
     organizationId: organizationIdCol(),
-  name: text('name').notNull().unique(),
-  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull(),
   isSystem: boolean('is_system').notNull().default(false),
   displayOrder: integer('display_order').notNull().default(100),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+  },
+  (t) => [
+    uniqueIndex('fyh_service_categories_org_name_uidx').on(t.organizationId, t.name),
+    uniqueIndex('fyh_service_categories_org_slug_uidx').on(t.organizationId, t.slug),
+  ],
+);
 
 export const fyhServices = pgTable(
   'fyh_services',

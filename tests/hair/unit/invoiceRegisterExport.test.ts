@@ -11,9 +11,9 @@ import type { InvoiceRegisterRow } from '@/src/hair/services/invoiceRegisterQuer
 
 describe('invoicePublicViewUrl', () => {
   it('uses public /i/{invoiceNumber} path without auth billing UUID', () => {
-    const url = invoicePublicViewUrl('FYH-00099');
+    const url = invoicePublicViewUrl('11111111-1111-1111-1111-111111111111');
     assert.match(url, /^https:\/\//);
-    assert.ok(url.includes('/i/FYH-00099'));
+    assert.ok(url.includes('/i/11111111-1111-1111-1111-111111111111'));
     assert.ok(!url.includes('/billing/'));
   });
 });
@@ -24,6 +24,7 @@ describe('exportInvoiceRegisterExcel hyperlinks', () => {
       {
         id: '11111111-1111-1111-1111-111111111111',
         invoiceNumber: 'FYH-00099',
+        publicAccessToken: '11111111-1111-1111-1111-111111111111',
         invoiceDate: new Date('2026-04-15T10:00:00.000Z'),
         customerName: 'Test Customer',
         mobile: '9876543210',
@@ -50,9 +51,9 @@ describe('exportInvoiceRegisterExcel hyperlinks', () => {
     const cell = sheet.getCell(2, 12);
     const value = cell.value as ExcelJS.CellHyperlinkValue;
     assert.equal(value.text, 'View Invoice');
-    const expected = invoicePublicViewUrl(rows[0]!.invoiceNumber);
+    const expected = invoicePublicViewUrl(rows[0]!.publicAccessToken);
     assert.equal(value.hyperlink, expected);
-    assert.match(value.hyperlink, /^https:\/\/.+\/i\/FYH-00099$/);
+    assert.match(value.hyperlink, /^https:\/\/.+\/i\/11111111-1111-1111-1111-111111111111$/);
 
     if (!process.env.FYH_APP_URL && !process.env.NEXT_PUBLIC_APP_URL) {
       assert.ok(expected.startsWith(FYH_PUBLIC_HOST));

@@ -168,15 +168,15 @@ function isPublicInvoiceVisible(invoice: typeof fyhInvoices.$inferSelect): boole
   return !(invoice.source === 'quick_sale' && invoice.status === 'draft');
 }
 
-export function isPublicInvoiceLookupAllowed(ctx: TenantContext | null): boolean {
-  return !isFyhSaasTenantEnabled() || !!ctx;
+export function isPublicInvoiceLookupAllowed(_ctx: TenantContext | null): boolean {
+  // Phase C: number-only public lookup is never allowed (flag on or off).
+  return false;
 }
 
 export async function getInvoiceDetailByNumber(rawInvoiceNumber: string, ctx?: TenantContext | null) {
   ctx = await resolveTenantContextForService(ctx);
   const invoiceNumber = decodeURIComponent(rawInvoiceNumber).trim();
   if (!invoiceNumber) return null;
-  if (!isPublicInvoiceLookupAllowed(ctx)) return null;
 
   const [invoice] = await hairDb
     .select({
@@ -214,6 +214,52 @@ export async function getInvoiceDetailByNumber(rawInvoiceNumber: string, ctx?: T
   return { ...invoice, lines, payments };
 }
 
+
+/** Public invoice page SSOT — lookup by opaque token only (globally unique). */
+export async function getInvoiceDetailByPublicToken(rawToken: string) {
+  const token = decodeURIComponent(rawToken).trim();
+  if (!token) return null;
+  // Reject non-UUID guesses (old number-only URLs fail closed).
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(token)) {
+    return null;
+  }
+
+  const [invoice] = await hairDb
+    .select({
+      invoice: fyhInvoices,
+      customerName: fyhCustomers.fullName,
+      customerPhone: fyhCustomers.phone,
+      customerCode: fyhCustomers.customerCode,
+      walletBalancePaise: fyhCustomers.walletBalancePaise,
+      stylistName: fyhStaff.fullName,
+      businessName: fyhSettings.businessName,
+      businessAddress: fyhSettings.businessAddress,
+      gstin: fyhSettings.gstin,
+      invoiceNotes: fyhSettings.invoiceNotes,
+      whatsappSettings: fyhSettings.whatsappSettings,
+      billingSettings: fyhSettings.billingSettings,
+    })
+    .from(fyhInvoices)
+    .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhInvoices.customerId))
+    .leftJoin(fyhStaff, eq(fyhStaff.id, fyhInvoices.stylistId))
+    .leftJoin(fyhSettings, eq(fyhSettings.organizationId, fyhInvoices.organizationId))
+    .where(eq(fyhInvoices.publicAccessToken, token))
+    .limit(1);
+  if (!invoice || !isPublicInvoiceVisible(invoice.invoice)) return null;
+
+  const lines = await hairDb
+    .select()
+    .from(fyhInvoiceLines)
+    .where(eq(fyhInvoiceLines.invoiceId, invoice.invoice.id))
+    .orderBy(fyhInvoiceLines.sortOrder);
+  const payments = await hairDb
+    .select()
+    .from(fyhInvoicePayments)
+    .where(eq(fyhInvoicePayments.invoiceId, invoice.invoice.id));
+
+  return { ...invoice, lines, payments };
+}
+
 export function buildPublicInvoicePrintHtml(detail: InvoiceDetail): string {
   return buildPublicInvoiceDocumentHtml(detail);
 }
@@ -241,7 +287,7 @@ async function nextInvoiceNumber(tx: typeof hairDb, ctx?: TenantContext | null):
   const rows = await tx.execute<{ invoice_prefix: string; invoice_next_seq: number }>(sql`
     UPDATE fyh_settings
     SET invoice_next_seq = invoice_next_seq + 1, updated_at = now()
-    WHERE id = (SELECT id FROM fyh_settings LIMIT 1)
+    WHERE organization_id = fyh_default_organization_id()
     RETURNING invoice_prefix, invoice_next_seq
   `);
   const row = Array.isArray(rows) ? rows[0] : (rows as { rows?: Array<{ invoice_prefix: string; invoice_next_seq: number }> }).rows?.[0];
@@ -363,7 +409,7 @@ export async function createInvoiceFromAppointment(
   const basket = await buildBasketFromAppointment(appointmentId);
 
   for (const p of opts?.productIds ?? []) {
-    const item = await resolveBillableItem('product', p.productId);
+    const item = await resolveBillableItem('product', p.productId, ctx);
     if (!item) continue;
     const line = basketLineFromBillableItem(item);
     line.quantity = Math.max(1, p.quantity);
@@ -376,6 +422,7 @@ export async function createInvoiceFromAppointment(
     appointmentId,
     allowUnpaid: true,
     notes: opts?.notes,
+    ctx,
   });
   return result.invoiceId;
 }
@@ -495,7 +542,7 @@ export async function createQuickSaleInvoice(
   );
   const { checkoutFromBasket } = await import('@/src/hair/domain/checkout/pipeline');
   const basket = await buildBasketFromQuickSaleLines(customerId, lines, [], {});
-  const result = await checkoutFromBasket({ basket, allowUnpaid: true, notes: _opts?.notes });
+  const result = await checkoutFromBasket({ basket, allowUnpaid: true, notes: _opts?.notes, ctx: undefined });
   return result.invoiceId;
 }
 
@@ -546,6 +593,7 @@ export async function finalizeQuickSale(input: {
     basket,
     holdInvoiceId: input.holdInvoiceId,
     notes: input.notes,
+    ctx: await resolveTenantContextForService(undefined),
   });
   return result.invoiceId;
 }

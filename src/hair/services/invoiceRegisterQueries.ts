@@ -46,6 +46,7 @@ export type InvoiceRegisterFilters = {
 export type InvoiceRegisterRow = {
   id: string;
   invoiceNumber: string;
+  publicAccessToken: string;
   invoiceDate: Date;
   customerName: string;
   mobile: string;
@@ -225,6 +226,7 @@ export async function queryInvoiceRegister(
     .select({
       id: fyhInvoices.id,
       invoiceNumber: fyhInvoices.invoiceNumber,
+      publicAccessToken: fyhInvoices.publicAccessToken,
       invoiceDate: fyhInvoices.createdAt,
       customerName: fyhCustomers.fullName,
       mobile: fyhCustomers.phone,
@@ -266,6 +268,7 @@ export async function queryInvoiceRegisterForExport(
     .select({
       id: fyhInvoices.id,
       invoiceNumber: fyhInvoices.invoiceNumber,
+      publicAccessToken: fyhInvoices.publicAccessToken,
       invoiceDate: fyhInvoices.createdAt,
       customerName: fyhCustomers.fullName,
       mobile: fyhCustomers.phone,

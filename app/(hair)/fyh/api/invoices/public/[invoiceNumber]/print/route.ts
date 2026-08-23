@@ -1,16 +1,14 @@
 import { NextResponse } from 'next/server';
 import {
   buildPublicInvoicePrintHtml,
-  getInvoiceDetailByNumber,
+  getInvoiceDetailByPublicToken,
 } from '@/src/hair/services/invoices';
-import { resolveTenantContextOptional } from '@/src/hair/lib/tenant/getTenantContext';
 
 type RouteContext = { params: Promise<{ invoiceNumber: string }> };
 
 export async function GET(request: Request, context: RouteContext) {
-  const { invoiceNumber } = await context.params;
-  const tenantContext = await resolveTenantContextOptional();
-  const detail = await getInvoiceDetailByNumber(invoiceNumber, tenantContext);
+  const { invoiceNumber: token } = await context.params;
+  const detail = await getInvoiceDetailByPublicToken(token);
   if (!detail) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }

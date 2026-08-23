@@ -48,7 +48,7 @@ export async function exportInvoiceRegisterExcel(rows: InvoiceRegisterRow[], ctx
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i]!;
     const rowNum = i + 2;
-    const viewUrl = invoicePublicViewUrl(r.invoiceNumber);
+    const viewUrl = invoicePublicViewUrl(r.publicAccessToken);
 
     sheet.addRow([
       r.invoiceNumber,
@@ -128,7 +128,7 @@ export function exportInvoiceRegisterCsv(rows: InvoiceRegisterRow[]): string {
     paiseToCsvRupees(r.grandTotalPaise),
     paiseToCsvRupees(r.paidPaise),
     r.status,
-    invoicePublicViewUrl(r.invoiceNumber),
+    invoicePublicViewUrl(r.publicAccessToken),
   ]);
 
   return rowsToCsv(headers, data);

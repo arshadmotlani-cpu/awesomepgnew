@@ -11,6 +11,12 @@ import {
 } from 'drizzle-orm/pg-core';
 import { organizationIdCol } from './tenantColumns';
 
+export const fyhTenantMirror = pgTable('fyh_tenant_mirror', {
+  organizationId: organizationIdCol().primaryKey(),
+  displayName: text('display_name'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const fyhOrgInvoiceSequences = pgTable('fyh_org_invoice_sequences', {
   organizationId: organizationIdCol().primaryKey(),
   prefix: text('prefix').notNull().default('INV'),

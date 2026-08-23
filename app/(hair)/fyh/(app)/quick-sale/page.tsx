@@ -12,7 +12,7 @@ export default async function QuickSalePage({
   const params = await searchParams;
   const ctx = await getTenantContextForPage();
   const [billableItems, settings, appointmentPrefill] = await Promise.all([
-    loadBillableCatalog(),
+    loadBillableCatalog(ctx),
     getSalonSettings(ctx),
     params.appointmentId
       ? loadAppointmentCheckoutPrefill(params.appointmentId).catch((e) => ({

@@ -7,6 +7,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
@@ -25,7 +26,7 @@ export const fyhPurchases = pgTable(
     vendorId: uuid('vendor_id')
       .notNull()
       .references(() => fyhVendors.id, { onDelete: 'restrict' }),
-    purchaseNumber: text('purchase_number').notNull().unique(),
+    purchaseNumber: text('purchase_number').notNull(),
     vendorInvoiceRef: text('vendor_invoice_ref'),
     purchaseDate: date('purchase_date').notNull(),
     totalPaise: bigint('total_paise', { mode: 'number' }).notNull().default(0),
@@ -41,6 +42,7 @@ export const fyhPurchases = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    uniqueIndex('fyh_purchases_org_purchase_number_uidx').on(t.organizationId, t.purchaseNumber),
     index('fyh_purchases_vendor_idx').on(t.vendorId),
     index('fyh_purchases_date_idx').on(t.purchaseDate),
   ],

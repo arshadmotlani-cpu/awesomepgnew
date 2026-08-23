@@ -18,12 +18,15 @@ export function fyhPublicBaseUrl(): string {
   return FYH_PUBLIC_HOST;
 }
 
-/** Public customer invoice page — no login required. */
-export function invoicePublicViewUrl(invoiceNumber: string): string {
-  return `${fyhPublicBaseUrl()}/i/${encodeURIComponent(invoiceNumber)}`;
+/**
+ * Public customer invoice page — opaque token only (Phase C).
+ * Knowing/guessing an invoice number is never enough.
+ */
+export function invoicePublicViewUrl(publicAccessToken: string): string {
+  return `${fyhPublicBaseUrl()}/i/${encodeURIComponent(publicAccessToken)}`;
 }
 
-/** Public print/download endpoint (HTML receipt). */
-export function invoicePublicPrintUrl(invoiceNumber: string): string {
-  return `${fyhPublicBaseUrl()}/fyh/api/invoices/public/${encodeURIComponent(invoiceNumber)}/print?download=1`;
+/** Public print/download endpoint (HTML receipt) — opaque token only. */
+export function invoicePublicPrintUrl(publicAccessToken: string): string {
+  return `${fyhPublicBaseUrl()}/fyh/api/invoices/public/${encodeURIComponent(publicAccessToken)}/print?download=1`;
 }

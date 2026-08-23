@@ -23,6 +23,7 @@ export function PublicFyhInvoice({ detail }: Props) {
           <div className="fyh-invoice-toolbar">
             <PublicFyhInvoiceActions
               invoiceNumber={vm.invoiceNumber}
+              publicAccessToken={detail.invoice.publicAccessToken}
               customerPhone={vm.customerPhone}
               customerName={vm.customerName}
               grandTotalLabel={formatInrFromPaise(detail.invoice.grandTotalPaise)}

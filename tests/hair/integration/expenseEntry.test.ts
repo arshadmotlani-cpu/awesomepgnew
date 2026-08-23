@@ -3,7 +3,10 @@ loadAppEnv();
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createExpense, listExpenses } from '@/src/hair/services/expenses';
+import { eq } from 'drizzle-orm';
+import { hairDb } from '@/src/hair/db/client';
+import { fyhExpenses } from '@/src/hair/db/schema';
+import { createExpense } from '@/src/hair/services/expenses';
 import { migrationSkipMessage, probeHairQuickSaleMigrations } from './migrationGuard.ts';
 
 test('createExpense inserts exactly one expense row', async (t) => {
@@ -11,20 +14,19 @@ test('createExpense inserts exactly one expense row', async (t) => {
   if (!probe.ok) t.skip(migrationSkipMessage(probe));
 
   const suffix = Date.now().toString(36);
-  const before = await listExpenses(500);
+  const title = `Quick action expense ${suffix}`;
   const row = await createExpense({
-    title: `Quick action expense ${suffix}`,
+    title,
     category: 'general',
     expenseDate: '2026-08-18',
     amountRupees: 250,
     paymentMethod: 'cash',
     staffName: 'Test Staff',
   });
-  const after = await listExpenses(500);
 
-  assert.equal(after.length, before.length + 1);
-  const saved = after.find((e) => e.id === row.id);
-  assert.ok(saved);
-  assert.equal(saved?.title, `Quick action expense ${suffix}`);
-  assert.equal(saved?.amountPaise, 25_000);
+  // Avoid shared listExpenses(500) length races under concurrent traffic.
+  const saved = await hairDb.select().from(fyhExpenses).where(eq(fyhExpenses.id, row.id));
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0]?.title, title);
+  assert.equal(saved[0]?.amountPaise, 25_000);
 });

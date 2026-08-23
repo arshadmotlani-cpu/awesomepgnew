@@ -31,6 +31,7 @@ function inr(paise: number): number {
 export type InvoiceRegisterRow = {
   invoiceId: string;
   invoiceNumber: string;
+  publicAccessToken: string;
   invoiceDate: string;
   customerName: string;
   mobileNumber: string;
@@ -51,6 +52,7 @@ async function fetchRegisterRows(batchId: string, ctx?: TenantContext | null): P
     .select({
       id: fyhInvoices.id,
       invoiceNumber: fyhInvoices.invoiceNumber,
+      publicAccessToken: fyhInvoices.publicAccessToken,
       invoiceDate: fyhInvoices.paidAt,
       customerName: fyhCustomers.fullName,
       mobileNumber: fyhCustomers.phone,
@@ -141,7 +143,7 @@ function addRegisterSheet(workbook: ExcelJS.Workbook, sheetName: string, rows: I
     setExcelHyperlinkCell(
       sheet.getCell(rowNum, VIEW_INVOICE_COL),
       'View Invoice',
-      invoicePublicViewUrl(r.invoiceNumber),
+      invoicePublicViewUrl(r.publicAccessToken),
     );
   }
 

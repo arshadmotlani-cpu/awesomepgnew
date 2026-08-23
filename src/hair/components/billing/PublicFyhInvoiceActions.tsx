@@ -9,6 +9,7 @@ function buildWhatsAppUrl(recipient: string, body: string): string {
 
 type Props = {
   invoiceNumber: string;
+  publicAccessToken: string;
   customerPhone: string;
   customerName: string;
   grandTotalLabel: string;
@@ -18,13 +19,14 @@ type Props = {
 
 export function PublicFyhInvoiceActions({
   invoiceNumber,
+  publicAccessToken,
   customerPhone,
   customerName,
   grandTotalLabel,
   onClose,
 }: Props) {
-  const pdfUrl = invoicePublicPrintUrl(invoiceNumber);
-  const publicUrl = invoicePublicViewUrl(invoiceNumber);
+  const pdfUrl = invoicePublicPrintUrl(publicAccessToken);
+  const publicUrl = invoicePublicViewUrl(publicAccessToken);
 
   function printInvoice() {
     window.print();

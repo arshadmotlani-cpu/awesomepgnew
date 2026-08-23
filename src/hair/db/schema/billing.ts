@@ -70,6 +70,8 @@ export const fyhInvoices = pgTable(
     organizationId: organizationIdCol(),
     locationId: locationIdCol(),
     invoiceNumber: text('invoice_number').notNull(),
+    /** Opaque public link token — never expose org-scoped invoice numbers alone. */
+    publicAccessToken: uuid('public_access_token').notNull().default(sql`gen_random_uuid()`),
     customerId: uuid('customer_id')
       .notNull()
       .references(() => fyhCustomers.id, { onDelete: 'restrict' }),
@@ -111,7 +113,11 @@ export const fyhInvoices = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex('fyh_invoices_number_uidx').on(t.invoiceNumber),
+    uniqueIndex('fyh_invoices_org_number_uidx').on(t.organizationId, t.invoiceNumber),
+    uniqueIndex('fyh_invoices_public_access_token_uidx').on(t.publicAccessToken),
+    uniqueIndex('fyh_invoices_org_import_row_key_uidx')
+      .on(t.organizationId, t.importRowKey)
+      .where(sql`${t.importRowKey} is not null`),
     uniqueIndex('fyh_invoices_appointment_uidx').on(t.appointmentId),
     index('fyh_invoices_customer_idx').on(t.customerId, t.createdAt),
     index('fyh_invoices_status_idx').on(t.status),
@@ -202,7 +208,7 @@ export const fyhCreditNotes = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex('fyh_credit_notes_number_uidx').on(t.creditNoteNumber),
+    uniqueIndex('fyh_credit_notes_org_number_uidx').on(t.organizationId, t.creditNoteNumber),
     index('fyh_credit_notes_invoice_idx').on(t.invoiceId),
     index('fyh_credit_notes_customer_idx').on(t.customerId, t.issuedAt),
   ],

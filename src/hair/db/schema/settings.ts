@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { organizationIdCol, locationIdCol, userIdCol } from './tenantColumns';
 
 export type FyhBusinessHoursDay = {
@@ -40,7 +40,9 @@ export type FyhInventorySettings = {
 
 export type FyhSecuritySettings = Record<string, never>;
 
-export const fyhSettings = pgTable('fyh_settings', {
+export const fyhSettings = pgTable(
+  'fyh_settings',
+  {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   organizationId: organizationIdCol(),
   businessName: text('business_name').notNull().default('For Your Hair'),
@@ -64,4 +66,6 @@ export const fyhSettings = pgTable('fyh_settings', {
   inventorySettings: jsonb('inventory_settings').$type<FyhInventorySettings>(),
   securitySettings: jsonb('security_settings').$type<FyhSecuritySettings>(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+  },
+  (t) => [uniqueIndex('fyh_settings_org_uidx').on(t.organizationId)],
+);

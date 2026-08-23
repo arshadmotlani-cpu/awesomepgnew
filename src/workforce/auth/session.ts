@@ -33,9 +33,18 @@ export async function createWorkforceSession(
   const maxAgeDays = rememberMe ? HAIR_SESSION_TTL_DAYS_REMEMBER : HAIR_SESSION_TTL_DAYS;
   const expiresAt = hairSessionExpiry(rememberMe);
   const hdrs = await headers();
+  const [employee] = await hairDb
+    .select({ organizationId: wfEmployees.organizationId })
+    .from(wfEmployees)
+    .where(eq(wfEmployees.id, employeeId))
+    .limit(1);
+  if (!employee?.organizationId) {
+    throw new Error('Employee is missing organization_id');
+  }
 
   await hairDb.insert(wfAuthSessions).values({
     employeeId,
+    organizationId: employee.organizationId,
     tokenHash,
     expiresAt,
     activeEngineId,

@@ -260,6 +260,41 @@
       "when": 1758000000000,
       "tag": "0038_saas_waitlist_signups",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1758100000000,
+      "tag": "0037_saas_not_null",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1758200000000,
+      "tag": "0039_saas_phase_b",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1758300000000,
+      "tag": "0040_saas_phase_b_defaults",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1758400000000,
+      "tag": "0041_saas_phase_b_sequences",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1758500000000,
+      "tag": "0042_saas_phase_c_public_token",
+      "breakpoints": true
     }
   ]
 }

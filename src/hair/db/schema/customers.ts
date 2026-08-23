@@ -109,7 +109,12 @@ export const fyhCustomers = pgTable(
     index('fyh_customers_email_idx').on(t.email),
     index('fyh_customers_name_idx').on(t.fullName),
     index('fyh_customers_active_idx').on(t.isActive),
-    uniqueIndex('fyh_customers_code_uidx').on(t.customerCode),
+    uniqueIndex('fyh_customers_org_code_uidx')
+      .on(t.organizationId, t.customerCode)
+      .where(sql`${t.customerCode} is not null`),
+    uniqueIndex('fyh_customers_org_phone_uidx')
+      .on(t.organizationId, t.phone)
+      .where(sql`${t.phone} is not null and ${t.isActive} = true`),
   ],
 );
 

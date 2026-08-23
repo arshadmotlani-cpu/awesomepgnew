@@ -40,7 +40,7 @@ export async function nextCustomerCode(tx: typeof hairDb = hairDb, ctx?: TenantC
   const rows = await tx.execute<{ customer_code_next_seq: number }>(sql`
     UPDATE fyh_settings
     SET customer_code_next_seq = customer_code_next_seq + 1, updated_at = now()
-    WHERE id = (SELECT id FROM fyh_settings LIMIT 1)
+    WHERE organization_id = fyh_default_organization_id()
     RETURNING customer_code_next_seq
   `);
   const row = Array.isArray(rows)

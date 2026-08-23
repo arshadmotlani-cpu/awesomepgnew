@@ -69,8 +69,12 @@ export const wfEmployees = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex('wf_employees_mobile_uidx').on(t.mobile),
-    uniqueIndex('wf_employees_email_uidx').on(t.email),
+    uniqueIndex('wf_employees_org_mobile_uidx')
+      .on(t.organizationId, t.mobile)
+      .where(sql`${t.mobile} is not null`),
+    uniqueIndex('wf_employees_org_email_uidx')
+      .on(t.organizationId, t.email)
+      .where(sql`${t.email} is not null`),
     index('wf_employees_status_idx').on(t.status),
     index('wf_employees_legacy_admin_idx').on(t.legacyAdminUserId),
   ],
@@ -277,6 +281,7 @@ export const wfAuthSessions = pgTable(
   'wf_auth_sessions',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
     employeeId: uuid('employee_id')
       .notNull()
       .references(() => wfEmployees.id, { onDelete: 'cascade' }),
@@ -291,6 +296,7 @@ export const wfAuthSessions = pgTable(
   (t) => [
     index('wf_auth_sessions_token_idx').on(t.tokenHash),
     index('wf_auth_sessions_employee_idx').on(t.employeeId),
+    index('wf_auth_sessions_organization_id_idx').on(t.organizationId),
   ],
 );
 
