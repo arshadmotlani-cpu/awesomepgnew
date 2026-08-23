@@ -63,7 +63,13 @@ export async function toMoveOutAdvancedToolsRowAsync(
       approvalPreview = await buildVacatingApprovalPreviewAsync(normalizedRow, held);
     } catch (err) {
       console.error('[vacating] approval preview async failed; using sync fallback', row.id, err);
-      approvalPreview = buildVacatingApprovalPreview(normalizedRow, held);
+      try {
+        approvalPreview = buildVacatingApprovalPreview(normalizedRow, held);
+      } catch (syncErr) {
+        // Pending row must still serialize into Ops queue even if preview math fails.
+        console.error('[vacating] approval preview sync fallback failed', row.id, syncErr);
+        approvalPreview = undefined;
+      }
     }
   }
 

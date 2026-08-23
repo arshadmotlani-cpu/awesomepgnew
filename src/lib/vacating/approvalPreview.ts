@@ -1,4 +1,4 @@
-import { normalizeIsoDateOnly, tryDiffDays, formatDate } from '@/src/lib/dates';
+import { normalizeIsoDateOnly, tryDiffDays, formatDate, toIsoTimestampSafe } from '@/src/lib/dates';
 import { resolveNoticeGivenDateForVacating } from '@/src/lib/vacating/noticeDateSsot';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import type { AdminVacatingRow } from '@/src/db/queries/admin';
@@ -76,9 +76,8 @@ export function buildVacatingApprovalPreview(
     roomNumber: row.roomNumber,
     bedCode: row.bedCode,
     noticeCalculationDate: noticeGivenDate,
-    noticeSubmittedAt: row.originalNoticeSubmittedAt
-      ? row.originalNoticeSubmittedAt.toISOString()
-      : null,
+    // Drivers may return timestamp as string — never assume Date#toISOString.
+    noticeSubmittedAt: toIsoTimestampSafe(row.originalNoticeSubmittedAt),
     noticeSubmittedDate: noticeGivenDate,
     moveOutDate: vacatingDate,
     processingDate,

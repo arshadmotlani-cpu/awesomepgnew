@@ -41,7 +41,12 @@ export async function loadPendingVacatingApprovalPreviews(input: {
     } catch (err) {
       console.error('[vacating] approval preview async failed', row.id, row.bookingCode, err);
     }
-    entries.push([row.id, buildVacatingApprovalPreview(row, held)]);
+    try {
+      entries.push([row.id, buildVacatingApprovalPreview(row, held)]);
+    } catch (err) {
+      // One corrupt/legacy timestamp must not wipe the Operations move-out queue.
+      console.error('[vacating] approval preview sync fallback failed', row.id, row.bookingCode, err);
+    }
   }
   return Object.fromEntries(entries);
 }

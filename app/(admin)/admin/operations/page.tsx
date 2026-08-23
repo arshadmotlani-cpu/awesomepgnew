@@ -130,23 +130,33 @@ export default async function OperationsPage({
   let moveOutPipelineActiveItems: MoveOutPipelineItemClient[] | undefined;
   let approvalPreviewByRequestId: Record<string, VacatingApprovalPreview> | undefined;
   if (filter === 'vacating_requests') {
+    // Pipeline rows and settlement previews are loaded separately so a preview
+    // failure (e.g. legacy timestamp string) cannot blank the pending queue while
+    // the Move-out count chip still shows 1.
     try {
       const bundle = await loadMoveOutPipelineBundle(session);
-      approvalPreviewByRequestId = await loadPendingVacatingApprovalPreviews({
-        vacatingRows: bundle.vacatingRows,
-        depositHeldByBooking: bundle.depositHeldByBooking,
-      });
-      moveOutPipelineActiveItems = bundle.activeItems.map((item) => {
-        const client = toClientMoveOutPipelineItem(item);
-        const preview = approvalPreviewByRequestId![item.vacatingRequestId];
-        if (preview?.estimatedSettlement) {
-          return {
-            ...client,
-            estimatedRefundPaise: preview.estimatedSettlement.estimatedRefundPaise,
-          };
-        }
-        return client;
-      });
+      moveOutPipelineActiveItems = bundle.activeItems.map((item) =>
+        toClientMoveOutPipelineItem(item),
+      );
+      try {
+        approvalPreviewByRequestId = await loadPendingVacatingApprovalPreviews({
+          vacatingRows: bundle.vacatingRows,
+          depositHeldByBooking: bundle.depositHeldByBooking,
+        });
+        moveOutPipelineActiveItems = moveOutPipelineActiveItems.map((client) => {
+          const preview = approvalPreviewByRequestId![client.vacatingRequestId];
+          if (preview?.estimatedSettlement) {
+            return {
+              ...client,
+              estimatedRefundPaise: preview.estimatedSettlement.estimatedRefundPaise,
+            };
+          }
+          return client;
+        });
+      } catch (err) {
+        logOperationsLoaderError('moveOutApprovalPreviews', filter, focus, err);
+        approvalPreviewByRequestId = {};
+      }
     } catch (err) {
       logOperationsLoaderError('moveOutPipeline', filter, focus, err);
       moveOutPipelineActiveItems = [];
