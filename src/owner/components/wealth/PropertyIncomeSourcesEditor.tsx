@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { PROPERTY_INCOME_SOURCE_TYPES } from '@/src/owner/lib/wealth/propertyIncomeTypes';
-import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
+import { AmountWithWords, AmountInWords } from '@/src/owner/components/ui/AmountWithWords';
 
 export type DraftIncomeSource = {
   sourceType: string;
@@ -128,10 +128,15 @@ export function PropertyIncomeSourcesEditor({
             type="number"
             min={0}
             className="oo-form-input"
+            inputMode="decimal"
             value={draft.monthlyAmountRupees || ''}
             onChange={(e) =>
               setDraft({ ...draft, monthlyAmountRupees: Number(e.target.value) || 0 })
             }
+          />
+          <AmountInWords
+            input={draft.monthlyAmountRupees ? String(draft.monthlyAmountRupees) : ''}
+            className="oo-form-amount-words"
           />
         </div>
         <div className="oo-form-field">

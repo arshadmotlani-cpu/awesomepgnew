@@ -2,7 +2,7 @@
 
 import { formatMetricDisplay, isMetricConnected } from '@/src/personalFinance/explain';
 import type { ExplainableValue } from '@/src/personalFinance/types';
-import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
+import { AmountWithWords, AmountInWords } from '@/src/owner/components/ui/AmountWithWords';
 
 export function ExplainableMetricCard({
   value,
@@ -32,6 +32,9 @@ export function ExplainableMetricCard({
       >
         {formatMetricDisplay(value)}
       </p>
+      {connected && value.kind === 'money' ? (
+        <AmountInWords paise={value.paise} className="mt-1 text-left" />
+      ) : null}
       <p className="mt-2 text-[10px] text-[color:var(--oo-muted,#9CA3AF)]">
         {connected ? value.engine.replaceAll('_', ' ') : 'Connect later'}
         {value.provisional && connected ? ' · provisional' : ''}
@@ -62,6 +65,9 @@ export function ExplainPanel({
             <p className="mt-1 text-2xl font-semibold tabular-nums text-white">
               {formatMetricDisplay(value)}
             </p>
+            {connected && value.kind === 'money' ? (
+              <AmountInWords paise={value.paise} className="mt-1 text-left" />
+            ) : null}
           </div>
           <button
             type="button"

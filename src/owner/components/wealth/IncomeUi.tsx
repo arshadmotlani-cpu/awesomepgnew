@@ -2,10 +2,10 @@
 
 import { useActionState } from 'react';
 import {
-import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
   createIncomeAction,
   type WealthActionState,
 } from '@/src/owner/actions/wealth';
+import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
 import { SourceBadge } from '@/src/owner/components/wealth/SourceBadge';
 import { MoneyInput } from '@/src/owner/components/ui/MoneyInput';
 

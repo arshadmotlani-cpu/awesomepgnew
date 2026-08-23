@@ -95,7 +95,7 @@ export function PropertyPortfolioUi({ properties }: { properties: PropertyRow[] 
               </div>
 
               <div className="oo-asset-metrics mt-3">
-                <Metric label="Purchase" value=<AmountWithWords paise={p.purchasePricePaise} /> />
+                <Metric label="Purchase" value={<AmountWithWords paise={p.purchasePricePaise} />} />
                 <Metric
                   label="Gain"
                   value={`${p.appreciationPct >= 0 ? '+' : ''}${formatPercent(p.appreciationPct)}`}
@@ -103,22 +103,22 @@ export function PropertyPortfolioUi({ properties }: { properties: PropertyRow[] 
                 />
                 <Metric
                   label="Income/mo"
-                  value=<AmountWithWords paise={p.monthlyIncomePaise} />
+                  value={<AmountWithWords paise={p.monthlyIncomePaise} />}
                   tone="income"
                 />
                 <Metric
                   label="Expenses/mo"
-                  value=<AmountWithWords paise={p.monthlyExpensePaise} />
+                  value={<AmountWithWords paise={p.monthlyExpensePaise} />}
                   tone="expense"
                 />
                 <Metric
                   label="Loan"
-                  value=<AmountWithWords paise={p.loanOutstandingPaise} />
+                  value={<AmountWithWords paise={p.loanOutstandingPaise} />}
                   tone="liability"
                 />
                 <Metric
                   label="Equity"
-                  value=<AmountWithWords paise={p.netEquityPaise} />
+                  value={<AmountWithWords paise={p.netEquityPaise} />}
                   tone="income"
                 />
               </div>
@@ -136,7 +136,7 @@ function Metric({
   tone,
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   tone?: 'positive' | 'negative' | 'income' | 'expense' | 'liability';
 }) {
   const toneClass =

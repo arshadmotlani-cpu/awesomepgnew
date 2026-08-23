@@ -47,14 +47,14 @@ export function MovablePortfolioUi({ movables }: { movables: MovableRow[] }) {
                 <p className="oo-money-secondary"><AmountWithWords paise={m.currentValuePaise} /></p>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-                <Stat label="Purchase" value=<AmountWithWords paise={m.purchasePricePaise} /> />
+                <Stat label="Purchase" value={<AmountWithWords paise={m.purchasePricePaise} />} />
                 <Stat
                   label={m.isDepreciation ? 'Depreciation' : 'Appreciation'}
                   value={formatPercent(m.annualRatePct)}
                 />
                 <Stat
                   label="Gain / loss"
-                  value=<AmountWithWords paise={gainLoss} />
+                  value={<AmountWithWords paise={gainLoss} />}
                   tone={gainLoss >= 0 ? 'positive' : 'negative'}
                 />
                 <Stat label="Gain / loss %" value={formatPercent(gainPct)} />
@@ -73,7 +73,7 @@ function Stat({
   tone,
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   tone?: 'positive' | 'negative';
 }) {
   return (

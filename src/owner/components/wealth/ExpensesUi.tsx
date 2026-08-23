@@ -2,10 +2,11 @@
 
 import { useActionState } from 'react';
 import {
-import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
   createExpenseAction,
   type WealthActionState,
 } from '@/src/owner/actions/wealth';
+import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
+import { MoneyInput } from '@/src/owner/components/ui/MoneyInput';
 import { SourceBadge } from '@/src/owner/components/wealth/SourceBadge';
 
 const CATEGORIES = [
@@ -88,11 +89,9 @@ export function ExpensesUi({
             required
             className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
           />
-          <input
+          <MoneyInput
             name="amountRupees"
-            type="number"
-            step="0.01"
-            placeholder="Amount (₹)"
+            label="Amount (₹)"
             required
             className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
           />

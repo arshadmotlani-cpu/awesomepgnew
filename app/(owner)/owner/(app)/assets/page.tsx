@@ -1,7 +1,7 @@
 import { PropertyPortfolioUi } from '@/src/owner/components/wealth/PropertyPortfolioUi';
 import { MovablePortfolioUi } from '@/src/owner/components/wealth/MovablePortfolioUi';
-import {
 import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
+import {
   listProperties,
   getLatestValuation,
   getCurrentAppreciationAssumption,

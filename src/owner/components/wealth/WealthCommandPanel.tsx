@@ -53,9 +53,9 @@ export function WealthCommandPanel({
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <MiniStat label="Cash flow (MTD)" value=<AmountWithWords paise={month.netPaise} /> />
-          <MiniStat label="Property value" value=<AmountWithWords paise={wealth.propertyValuePaise} /> />
-          <MiniStat label="Bank / cash" value=<AmountWithWords paise={wealth.bankBalancePaise} /> />
+          <MiniStat label="Cash flow (MTD)" value={<AmountWithWords paise={month.netPaise} />} />
+          <MiniStat label="Property value" value={<AmountWithWords paise={wealth.propertyValuePaise} />} />
+          <MiniStat label="Bank / cash" value={<AmountWithWords paise={wealth.bankBalancePaise} />} />
         </div>
       </section>
 
@@ -165,7 +165,7 @@ function BreakdownRow({
   );
 }
 
-function MiniStat({ label, value }: { label: string; value: string }) {
+function MiniStat({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
       <p className="oo-meta">{label}</p>

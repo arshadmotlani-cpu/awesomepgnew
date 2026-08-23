@@ -2,8 +2,8 @@
 
 import { useActionState, useState } from 'react';
 import { formatPercent } from '@/src/lib/format';
-import {
 import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
+import {
   createPropertyIncomeSourceAction,
   updatePropertyIncomeSourceAction,
   changePropertyIncomeRentAction,

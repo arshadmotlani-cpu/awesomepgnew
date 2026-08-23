@@ -3,11 +3,11 @@
 import { useActionState } from 'react';
 import Link from 'next/link';
 import {
-import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
   createLiabilityAction,
   payLiabilityAction,
   type WealthActionState,
 } from '@/src/owner/actions/wealth';
+import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
 import { MoneyInput } from '@/src/owner/components/ui/MoneyInput';
 
 const LIABILITY_TYPES = [
@@ -39,13 +39,10 @@ export function LiabilityFormUi() {
             <option key={t} value={t}>{t.replaceAll('_', ' ')}</option>
           ))}
         </select>
-        <input
+        <MoneyInput
           name="originalPrincipalRupees"
-          type="number"
-          step="0.01"
-          placeholder="Original principal (₹)"
+          label="Original principal (₹)"
           required
-          className="oo-form-input oo-form-input-money"
         />
         <MoneyInput name="currentPrincipalRupees" label="Current principal (₹)" />
         <input
@@ -57,13 +54,7 @@ export function LiabilityFormUi() {
         />
         <input name="tenureMonths" type="number" placeholder="Tenure (months)" className="oo-form-input" />
         <input name="startDate" type="date" className="oo-form-input" />
-        <input
-          name="fixedPaymentRupees"
-          type="number"
-          step="0.01"
-          placeholder="EMI / fixed payment (₹)"
-          className="oo-form-input oo-form-input-money"
-        />
+        <MoneyInput name="fixedPaymentRupees" label="EMI / fixed payment (₹)" />
         <input name="assetId" placeholder="Linked asset ID (optional)" className="oo-form-input" />
         <div className="oo-form-actions col-span-full">
           <button type="submit" disabled={pending} className="oo-btn-primary">
@@ -203,18 +194,14 @@ export function LiabilityDetailUi({
             <option value="AUTO">Auto split principal / interest</option>
             <option value="MANUAL">Manual split</option>
           </select>
-          <input
+          <MoneyInput
             name="manualInterestRupees"
-            type="number"
-            step="0.01"
-            placeholder="Manual interest (₹)"
+            label="Manual interest (₹)"
             className="oo-form-input"
           />
-          <input
+          <MoneyInput
             name="manualPrincipalRupees"
-            type="number"
-            step="0.01"
-            placeholder="Manual principal (₹)"
+            label="Manual principal (₹)"
             className="oo-form-input"
           />
           <button type="submit" disabled={pending} className="oo-btn-primary min-h-[2.75rem]">
@@ -235,8 +222,18 @@ export function LiabilityDetailUi({
                   <p className="font-medium text-white truncate">{p.description}</p>
                   <p className="oo-meta">
                     {p.entryDate}
-                    {p.principalPaise > 0 ? ` · Principal $<AmountWithWords paise={p.principalPaise} />` : ''}
-                    {p.interestPaise > 0 ? ` · Interest $<AmountWithWords paise={p.interestPaise} />` : ''}
+                    {p.principalPaise > 0 ? (
+                      <>
+                        {' · Principal '}
+                        <AmountWithWords paise={p.principalPaise} />
+                      </>
+                    ) : null}
+                    {p.interestPaise > 0 ? (
+                      <>
+                        {' · Interest '}
+                        <AmountWithWords paise={p.interestPaise} />
+                      </>
+                    ) : null}
                   </p>
                 </div>
                 <p className="oo-money-secondary shrink-0"><AmountWithWords paise={p.amountPaise} /></p>
