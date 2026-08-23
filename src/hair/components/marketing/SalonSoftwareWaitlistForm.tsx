@@ -5,7 +5,11 @@ import { submitSaasWaitlistAction, type SaasWaitlistActionState } from '@/src/ha
 
 const initial: SaasWaitlistActionState = { ok: false };
 
-export function SalonSoftwareWaitlistForm({ variant = 'default' }: { variant?: 'default' | 'sales' } = {}) {
+export function SalonSoftwareWaitlistForm({
+  variant = 'default',
+}: {
+  variant?: 'default' | 'sales';
+}) {
   const [state, formAction, pending] = useActionState(submitSaasWaitlistAction, initial);
 
   if (state.ok) {
