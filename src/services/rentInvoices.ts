@@ -2469,14 +2469,26 @@ export async function createAdhocRentInvoice(input: {
 export async function submitRentPaymentProof(
   customerId: string,
   invoiceId: string,
-  paymentProofUrl: string,
+  proof: { transactionRef: string; paymentProofUrl?: string | null },
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  if (!paymentProofUrl.trim()) {
-    return { ok: false, message: 'Payment photo is required.' };
-  }
-
-  const proofUrl = paymentProofUrl.trim();
+  const proofUrl = proof.paymentProofUrl?.trim() || null;
+  const rawTxn = proof.transactionRef.trim();
   const idempotencyKey = `rent-proof-submit:${invoiceId}`;
+
+  let flags: {
+    normalizedRef: string;
+    possibleDuplicate: boolean;
+    duplicateOfIds: string[];
+  };
+  try {
+    const { resolveDuplicateFlagsForSubmit } = await import('@/src/services/pgTransactionRefIndex');
+    flags = await resolveDuplicateFlagsForSubmit({
+      transactionRef: proof.transactionRef,
+      exclude: { kind: 'rent_invoice', id: invoiceId },
+    });
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
 
   const result = await db.transaction(async (tx) => {
     const [invoice] = await tx
@@ -2501,53 +2513,15 @@ export async function submitRentPaymentProof(
       return { ok: false as const, message: 'This invoice is not awaiting payment.' };
     }
 
-    const projected = projectInvoice(invoice);
-    const expectedAmountPaise =
-      invoice.proofSnapshotOutstandingPaise ?? projected.outstandingPaise;
-    const {
-      evaluatePaymentReviewInvariants,
-      paymentReviewInvariantErrorMessage,
-    } = await import('@/src/lib/payments/paymentReviewInvariants');
-    const { hasDuplicatePendingPaymentProofUrl } = await import(
-      '@/src/lib/payments/duplicatePendingPaymentProof'
-    );
-    const duplicatePendingScreenshot = await hasDuplicatePendingPaymentProofUrl({
-      pgId: invoice.pgId,
-      paymentProofUrl: proofUrl,
-      exclude: { kind: 'rent', id: invoice.id },
-    });
-    const [bookingRow] = await tx
-      .select({ status: bookings.status })
-      .from(bookings)
-      .where(eq(bookings.id, invoice.bookingId))
-      .limit(1);
-    const invariant = evaluatePaymentReviewInvariants({
-      kind: 'rent',
-      invoiceId: invoice.id,
-      customerId: invoice.customerId,
-      bookingId: invoice.bookingId,
-      billingMonth: invoice.billingMonth,
-      expectedAmountPaise,
-      proofAmountPaise: expectedAmountPaise,
-      paymentProofUrl: proofUrl,
-      status: invoice.status,
-      bookingStatus: bookingRow?.status ?? null,
-      duplicatePendingScreenshot,
-    });
-    if (!invariant.ok) {
-      return {
-        ok: false as const,
-        message: paymentReviewInvariantErrorMessage(invariant),
-        invariantViolations: invariant.violations,
-        invoiceMeta: {
-          invoiceId: invoice.id,
-          customerId: invoice.customerId,
-          billingMonth: invoice.billingMonth,
-        },
-      };
-    }
-
-    if (invoice.paymentProofUrl === proofUrl) {
+    const { normalizeTransactionRef } = await import('@/src/lib/payments/transactionRefDuplicate');
+    const { hasTxnOrScreenshotProof } = await import('@/src/services/pgTransactionRefIndex');
+    if (
+      normalizeTransactionRef(invoice.paymentProofTransactionRef) === flags.normalizedRef &&
+      hasTxnOrScreenshotProof({
+        paymentProofUrl: invoice.paymentProofUrl,
+        transactionRef: invoice.paymentProofTransactionRef,
+      })
+    ) {
       if (invoice.proofSnapshotOutstandingPaise == null) {
         const snapshot = buildRentProofFinancialSnapshot(
           invoice,
@@ -2567,6 +2541,55 @@ export async function submitRentPaymentProof(
       return { ok: true as const };
     }
 
+    const projected = projectInvoice(invoice);
+    const expectedAmountPaise =
+      invoice.proofSnapshotOutstandingPaise ?? projected.outstandingPaise;
+    const {
+      evaluatePaymentReviewInvariants,
+      paymentReviewInvariantErrorMessage,
+    } = await import('@/src/lib/payments/paymentReviewInvariants');
+    const { hasDuplicatePendingPaymentProofUrl } = await import(
+      '@/src/lib/payments/duplicatePendingPaymentProof'
+    );
+    const duplicatePendingScreenshot = proofUrl
+      ? await hasDuplicatePendingPaymentProofUrl({
+          pgId: invoice.pgId,
+          paymentProofUrl: proofUrl,
+          exclude: { kind: 'rent', id: invoice.id },
+        })
+      : false;
+    const [bookingRow] = await tx
+      .select({ status: bookings.status })
+      .from(bookings)
+      .where(eq(bookings.id, invoice.bookingId))
+      .limit(1);
+    const invariant = evaluatePaymentReviewInvariants({
+      kind: 'rent',
+      invoiceId: invoice.id,
+      customerId: invoice.customerId,
+      bookingId: invoice.bookingId,
+      billingMonth: invoice.billingMonth,
+      expectedAmountPaise,
+      proofAmountPaise: expectedAmountPaise,
+      paymentProofUrl: proofUrl,
+      transactionRef: rawTxn,
+      status: invoice.status,
+      bookingStatus: bookingRow?.status ?? null,
+      duplicatePendingScreenshot,
+    });
+    if (!invariant.ok) {
+      return {
+        ok: false as const,
+        message: paymentReviewInvariantErrorMessage(invariant),
+        invariantViolations: invariant.violations,
+        invoiceMeta: {
+          invoiceId: invoice.id,
+          customerId: invoice.customerId,
+          billingMonth: invoice.billingMonth,
+        },
+      };
+    }
+
     const previousStatus = invoice.status;
     const nextStatus = previousStatus === 'payment_in_progress' ? previousStatus : 'payment_in_progress';
     const submittedAt = new Date();
@@ -2576,6 +2599,9 @@ export async function submitRentPaymentProof(
       .update(rentInvoices)
       .set({
         paymentProofUrl: proofUrl,
+        paymentProofTransactionRef: rawTxn,
+        possibleDuplicate: flags.possibleDuplicate,
+        duplicateOfIds: flags.duplicateOfIds,
         status: nextStatus,
         proofSubmittedAt: snapshot.proofSubmittedAt,
         proofSnapshotOutstandingPaise: snapshot.proofSnapshotOutstandingPaise,
@@ -2632,15 +2658,17 @@ export async function submitRentPaymentProof(
     .where(eq(rentInvoices.id, invoiceId))
     .limit(1);
 
-  const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
-  await linkResidentUpload({
-    storagePath: proofUrl,
-    adminQueue: 'collections',
-    linkedEntity: 'rent_invoice',
-    linkedEntityId: invoiceId,
-    bookingId: invoiceMeta?.bookingId ?? null,
-    pgId: invoiceMeta?.pgId ?? null,
-  }).catch(() => undefined);
+  if (proofUrl) {
+    const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
+    await linkResidentUpload({
+      storagePath: proofUrl,
+      adminQueue: 'collections',
+      linkedEntity: 'rent_invoice',
+      linkedEntityId: invoiceId,
+      bookingId: invoiceMeta?.bookingId ?? null,
+      pgId: invoiceMeta?.pgId ?? null,
+    }).catch(() => undefined);
+  }
 
   const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
   let financialInvoiceId: string | null = null;
@@ -2660,7 +2688,7 @@ export async function submitRentPaymentProof(
       rentInvoiceId: invoiceId,
       financialInvoiceId,
       eventType: 'invoice.proof_submitted',
-      payload: { paymentProofUrl: proofUrl },
+      payload: { paymentProofUrl: proofUrl, transactionRef: rawTxn },
     });
   }
 
@@ -2681,6 +2709,9 @@ export async function listPendingRentProofsForPg(pgId: string) {
       billingMonth: rentInvoices.billingMonth,
       rentPaise: rentInvoices.rentPaise,
       paymentProofUrl: rentInvoices.paymentProofUrl,
+      paymentProofTransactionRef: rentInvoices.paymentProofTransactionRef,
+      possibleDuplicate: rentInvoices.possibleDuplicate,
+      duplicateOfIds: rentInvoices.duplicateOfIds,
     })
     .from(rentInvoices)
     .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
@@ -2690,7 +2721,10 @@ export async function listPendingRentProofsForPg(pgId: string) {
       and(
         eq(rentInvoices.pgId, pgId),
         inArray(rentInvoices.status, ['pending', 'overdue', 'payment_in_progress']),
-        isNotNull(rentInvoices.paymentProofUrl),
+        or(
+          isNotNull(rentInvoices.paymentProofUrl),
+          isNotNull(rentInvoices.paymentProofTransactionRef),
+        ),
       ),
     )
     .orderBy(desc(rentInvoices.updatedAt));
@@ -2715,8 +2749,16 @@ export async function approveRentPaymentProof(
   if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, invoice.pgId)) {
     return { ok: false, message: 'Access denied.' };
   }
-  if (!invoice.paymentProofUrl) {
-    return { ok: false, message: 'No payment photo uploaded.' };
+  {
+    const { hasTxnOrScreenshotProof } = await import('@/src/services/pgTransactionRefIndex');
+    if (
+      !hasTxnOrScreenshotProof({
+        paymentProofUrl: invoice.paymentProofUrl,
+        transactionRef: invoice.paymentProofTransactionRef,
+      })
+    ) {
+      return { ok: false, message: 'No payment proof uploaded.' };
+    }
   }
   if (!['pending', 'overdue', 'payment_in_progress'].includes(invoice.status)) {
     return { ok: false, message: 'Invoice is not awaiting payment.' };
@@ -2733,7 +2775,7 @@ export async function approveRentPaymentProof(
     const { hasDuplicatePendingPaymentProofUrl } = await import(
       '@/src/lib/payments/duplicatePendingPaymentProof'
     );
-    const duplicatePendingScreenshot = invoice.paymentProofUrl
+    const duplicatePendingScreenshot = invoice.paymentProofUrl?.trim()
       ? await hasDuplicatePendingPaymentProofUrl({
           pgId: invoice.pgId,
           paymentProofUrl: invoice.paymentProofUrl,
@@ -2754,6 +2796,7 @@ export async function approveRentPaymentProof(
       expectedAmountPaise,
       proofAmountPaise: invoice.proofSnapshotOutstandingPaise ?? expectedAmountPaise,
       paymentProofUrl: invoice.paymentProofUrl,
+      transactionRef: invoice.paymentProofTransactionRef,
       status: invoice.status,
       bookingStatus: bookingRow?.status ?? null,
       duplicatePendingScreenshot,
@@ -2773,6 +2816,30 @@ export async function approveRentPaymentProof(
       });
       return { ok: false, message: paymentReviewInvariantErrorMessage(invariant) };
     }
+  }
+
+
+  try {
+    const { insertApprovedTransactionRefOrThrow } = await import(
+      '@/src/services/pgTransactionRefIndex'
+    );
+    const { approvedTransactionRefConflictMessage } = await import(
+      '@/src/lib/payments/transactionRefDuplicate'
+    );
+    await insertApprovedTransactionRefOrThrow({
+      transactionRef: invoice.paymentProofTransactionRef,
+      sourceKind: 'rent_invoice',
+      sourceId: invoice.id,
+      approvedByAdminId: session.adminId,
+    });
+  } catch (err) {
+    const { approvedTransactionRefConflictMessage } = await import(
+      '@/src/lib/payments/transactionRefDuplicate'
+    );
+    if (err instanceof Error && err.message === approvedTransactionRefConflictMessage()) {
+      return { ok: false, message: err.message };
+    }
+    throw err;
   }
 
   const invoiceWithSnapshot = (await ensureRentProofSnapshot(invoiceId)) ?? invoice;

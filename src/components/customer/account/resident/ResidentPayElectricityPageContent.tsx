@@ -121,10 +121,10 @@ export function ResidentPayElectricityPageContent({
           <ResidentPayElectricityClient
             invoiceId={invoice.id}
             amountLabel={amountLabel}
-            confirmMessage={`You are paying ${amountLabel} for electricity for ${periodLabel}. Pay the exact amount via UPI, then upload your payment screenshot for verification.`}
+            confirmMessage={`You are paying ${amountLabel} for electricity for ${periodLabel}. Pay the exact amount via UPI, then enter the UPI transaction ID for verification.`}
             qrImageUrl={data.qrImageUrl}
             upiId={data.upiId}
-            existingProofUrl={invoice.paymentProofUrl}
+            existingTransactionRef={invoice.paymentProofTransactionRef}
             rejectionReason={activeRejection?.reasonLabel ?? null}
             rejectionMessage={activeRejection?.residentMessage ?? null}
             rejectedAt={activeRejection?.rejectedAt ?? null}

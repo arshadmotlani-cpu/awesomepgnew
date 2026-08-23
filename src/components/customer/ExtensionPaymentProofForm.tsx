@@ -1,6 +1,5 @@
 'use client';
 
-import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { UpiPaymentProofForm } from './UpiPaymentProofForm';
 
 async function safeJson<T>(res: Response): Promise<T | null> {
@@ -14,35 +13,37 @@ async function safeJson<T>(res: Response): Promise<T | null> {
 export function ExtensionPaymentProofForm({
   extensionId,
   amountLabel,
-  uploadScreenshot,
-  existingProofUrl,
+  existingTransactionRef,
   qrImageUrl,
   upiId,
+  rejectionReason,
+  rejectionMessage,
 }: {
   extensionId: string;
   amountLabel: string;
-  uploadScreenshot?: (formData: FormData) => Promise<string>;
-  existingProofUrl?: string | null;
+  existingTransactionRef?: string | null;
   qrImageUrl?: string | null;
   upiId?: string | null;
+  rejectionReason?: string | null;
+  rejectionMessage?: string | null;
 }) {
   return (
     <UpiPaymentProofForm
       amountLabel={amountLabel}
-      heading="Pay extension via QR + upload proof"
-      instructions="Scan the rent / deposit QR, pay the extension amount via UPI, then upload a photo of the payment."
+      heading="Pay extension via QR + transaction ID"
+      instructions="Scan the rent / deposit QR, pay the extension amount via UPI, then enter the transaction ID from your UPI app."
       qrImageUrl={qrImageUrl}
       upiId={upiId}
-      existingProofUrl={existingProofUrl}
-      proofViewHref={customerPaymentProofViewUrl('extension', extensionId)}
-      uploadScreenshot={uploadScreenshot}
+      existingTransactionRef={existingTransactionRef}
+      rejectionReason={rejectionReason}
+      rejectionMessage={rejectionMessage}
       logContext={{ page: 'extension-payment', extensionId, uploadType: 'extension_payment' }}
       submitProof={async ({ screenshotUrl, transactionRef }) => {
         const res = await fetch(`/api/stay-extension/${extensionId}/payment-proof`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            paymentProofUrl: screenshotUrl,
+            paymentProofUrl: screenshotUrl ?? null,
             transactionRef,
           }),
         });

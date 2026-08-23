@@ -78,6 +78,7 @@ export default async function PayRentPage({
       status: rentInvoices.status,
       paidAt: rentInvoices.paidAt,
       paymentProofUrl: rentInvoices.paymentProofUrl,
+      paymentProofTransactionRef: rentInvoices.paymentProofTransactionRef,
       notes: rentInvoices.notes,
       invoiceSubtype: rentInvoices.invoiceSubtype,
       pgId: rentInvoices.pgId,
@@ -214,7 +215,7 @@ export default async function PayRentPage({
             confirmMessageBase={`You are paying ${amountLabel} for rent covering ${periodLabel}.`}
             qrImageUrl={rentCategory?.qrCodeImageUrl ?? DEFAULT_RENT_DEPOSIT_QR_PATH}
             upiId={rentCategory?.upiId ?? DEFAULT_RENT_DEPOSIT_UPI_ID}
-            existingProofUrl={row.paymentProofUrl}
+            existingTransactionRef={row.paymentProofTransactionRef}
             rejectionReason={activeRejection?.reasonLabel ?? null}
             rejectionMessage={activeRejection?.residentMessage ?? null}
             rejectedAt={activeRejection?.rejectedAt ?? null}

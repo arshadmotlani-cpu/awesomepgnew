@@ -28,6 +28,7 @@ export const electricityInvoiceLegacySelect = {
   firstViewedAt: electricityInvoices.firstViewedAt,
   viewedSource: electricityInvoices.viewedSource,
   paymentProofUrl: electricityInvoices.paymentProofUrl,
+  paymentProofTransactionRef: electricityInvoices.paymentProofTransactionRef,
   unitsShare: electricityInvoices.unitsShare,
   activeDays: electricityInvoices.activeDays,
   cancelledAt: electricityInvoices.cancelledAt,
@@ -55,6 +56,7 @@ export type ElectricityInvoiceLegacyRow = {
   firstViewedAt: Date | null;
   viewedSource: string | null;
   paymentProofUrl: string | null;
+  paymentProofTransactionRef: string | null;
   unitsShare: string | null;
   activeDays: number | null;
   cancelledAt: Date | null;
@@ -81,6 +83,9 @@ export function asElectricityInvoiceRow(
     isPipelineTest: extras?.isPipelineTest ?? row.isPipelineTest ?? false,
     firstViewedAt: row.firstViewedAt ?? null,
     viewedSource: row.viewedSource ?? null,
+    paymentProofTransactionRef: row.paymentProofTransactionRef ?? null,
+    possibleDuplicate: false,
+    duplicateOfIds: [],
   };
 }
 

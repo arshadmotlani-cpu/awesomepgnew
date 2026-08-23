@@ -14,13 +14,14 @@ type Props = {
   instructions?: string;
   qrImageUrl?: string | null;
   upiId?: string | null;
-  existingProofUrl?: string | null;
-  proofViewHref?: string;
+  existingTransactionRef?: string | null;
   rejectionReason?: string | null;
   rejectionMessage?: string | null;
   rejectedAt?: Date | string | null;
-  uploadScreenshot?: (formData: FormData) => Promise<string>;
-  submitProof: (args: { screenshotUrl: string; transactionRef?: string }) => Promise<SubmitResult>;
+  submitProof: (args: {
+    transactionRef: string;
+    screenshotUrl?: string | null;
+  }) => Promise<SubmitResult>;
   logContext?: {
     page: string;
     invoiceId?: string;
@@ -54,19 +55,17 @@ export function ResidentPaymentConfirmFlow({
   instructions,
   qrImageUrl,
   upiId,
-  existingProofUrl,
-  proofViewHref,
+  existingTransactionRef,
   rejectionReason,
   rejectionMessage,
   rejectedAt,
-  uploadScreenshot,
   submitProof,
   logContext,
   successChecklist,
   backHref,
 }: Props) {
   const [step, setStep] = useState<Step>(
-    existingProofUrl && !rejectionReason ? 'success' : 'confirm',
+    existingTransactionRef?.trim() && !rejectionReason ? 'success' : 'confirm',
   );
 
   const rejectionBanner =
@@ -76,8 +75,8 @@ export function ResidentPaymentConfirmFlow({
           reasonLabel={rejectionReason ?? 'Payment rejected'}
           residentMessage={rejectionMessage}
           rejectedAt={rejectedAt}
-          actionHref="#upload-new-screenshot"
-          actionLabel="Upload New Screenshot"
+          actionHref="#enter-transaction-id"
+          actionLabel="Enter new transaction ID"
           showTimeline
         />
       </div>
@@ -117,16 +116,14 @@ export function ResidentPaymentConfirmFlow({
   return (
     <>
       {rejectionBanner}
-      <div id="upload-new-screenshot">
+      <div id="enter-transaction-id">
         <UpiPaymentProofForm
           variant="light"
           amountLabel={amountLabel}
           instructions={instructions}
           qrImageUrl={qrImageUrl}
           upiId={upiId}
-          existingProofUrl={existingProofUrl}
-          proofViewHref={proofViewHref}
-          uploadScreenshot={uploadScreenshot}
+          existingTransactionRef={existingTransactionRef}
           logContext={logContext}
           submitProof={async (args) => {
             const result = await submitProof(args);

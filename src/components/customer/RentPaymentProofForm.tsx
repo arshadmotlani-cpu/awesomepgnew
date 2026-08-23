@@ -1,37 +1,42 @@
 'use client';
 
-import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { UpiPaymentProofForm } from './UpiPaymentProofForm';
 
 export function RentPaymentProofForm({
   invoiceId,
   amountLabel,
-  uploadScreenshot,
-  existingProofUrl,
+  existingTransactionRef,
   qrImageUrl,
   upiId,
+  rejectionReason,
+  rejectionMessage,
 }: {
   invoiceId: string;
   amountLabel: string;
-  uploadScreenshot: (formData: FormData) => Promise<string>;
-  existingProofUrl?: string | null;
+  existingTransactionRef?: string | null;
   qrImageUrl?: string | null;
   upiId?: string | null;
+  rejectionReason?: string | null;
+  rejectionMessage?: string | null;
 }) {
   return (
     <UpiPaymentProofForm
       amountLabel={amountLabel}
-      instructions="Scan the rent / deposit QR, pay the exact amount due via UPI, then upload a photo of the payment."
+      instructions="Scan the rent / deposit QR, pay the exact amount due via UPI, then enter the transaction ID from your UPI app."
       qrImageUrl={qrImageUrl}
       upiId={upiId}
-      existingProofUrl={existingProofUrl}
-      proofViewHref={customerPaymentProofViewUrl('rent', invoiceId)}
-      uploadScreenshot={uploadScreenshot}
-      submitProof={async ({ screenshotUrl }) => {
+      existingTransactionRef={existingTransactionRef}
+      rejectionReason={rejectionReason}
+      rejectionMessage={rejectionMessage}
+      logContext={{ page: 'rent-payment', invoiceId, uploadType: 'payment_proof' }}
+      submitProof={async ({ screenshotUrl, transactionRef }) => {
         const res = await fetch(`/api/rent-invoice/${invoiceId}/payment-proof`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ paymentProofUrl: screenshotUrl }),
+          body: JSON.stringify({
+            paymentProofUrl: screenshotUrl ?? null,
+            transactionRef,
+          }),
         });
         const data = (await res.json()) as { ok: boolean; message?: string };
         return { ok: res.ok && data.ok, message: data.message };

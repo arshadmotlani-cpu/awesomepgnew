@@ -1,17 +1,13 @@
 'use client';
 
-import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { UpiPaymentProofForm } from './UpiPaymentProofForm';
-import {
-  submitPaymentLinkProofAction,
-  uploadPaymentLinkScreenshotAction,
-} from '@/app/(customer)/pay/actions';
+import { submitPaymentLinkProofAction } from '@/app/(customer)/pay/actions';
 
 export function PaymentLinkProofForm({
   linkId,
   amountLabel,
   qrImageUrl,
-  existingProofUrl,
+  existingTransactionRef,
   rejectionReason,
   rejectionMessage,
   title,
@@ -19,7 +15,7 @@ export function PaymentLinkProofForm({
   linkId: string;
   amountLabel: string;
   qrImageUrl?: string | null;
-  existingProofUrl?: string | null;
+  existingTransactionRef?: string | null;
   rejectionReason?: string | null;
   rejectionMessage?: string | null;
   title?: string | null;
@@ -27,20 +23,18 @@ export function PaymentLinkProofForm({
   return (
     <UpiPaymentProofForm
       amountLabel={amountLabel}
-      heading={title ? `Pay: ${title}` : 'Pay via QR + upload proof'}
-      instructions="Scan the QR, pay the exact amount via UPI, then upload a screenshot of the payment."
+      heading={title ? `Pay: ${title}` : 'Pay via QR + transaction ID'}
+      instructions="Scan the QR, pay the exact amount via UPI, then enter the transaction ID from your UPI app."
       qrImageUrl={qrImageUrl}
-      existingProofUrl={existingProofUrl}
+      existingTransactionRef={existingTransactionRef}
       rejectionReason={rejectionReason}
       rejectionMessage={rejectionMessage}
-      proofViewHref={customerPaymentProofViewUrl('deposit_link', linkId)}
       logContext={{ page: 'payment-link', paymentLinkId: linkId }}
-      uploadScreenshot={async (formData) => {
-        formData.set('linkId', linkId);
-        return uploadPaymentLinkScreenshotAction(formData);
-      }}
-      submitProof={async ({ screenshotUrl }) => {
-        const result = await submitPaymentLinkProofAction(linkId, screenshotUrl);
+      submitProof={async ({ screenshotUrl, transactionRef }) => {
+        const result = await submitPaymentLinkProofAction(linkId, {
+          transactionRef,
+          paymentProofUrl: screenshotUrl ?? null,
+        });
         return { ok: result.ok, message: result.ok ? undefined : result.message };
       }}
     />

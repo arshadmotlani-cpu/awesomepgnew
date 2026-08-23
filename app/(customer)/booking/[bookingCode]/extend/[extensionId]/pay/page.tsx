@@ -63,6 +63,7 @@ export default async function ExtensionPayPage(
   const [extMeta] = await db
     .select({
       paymentProofUrl: stayExtensions.paymentProofUrl,
+      paymentProofTransactionRef: stayExtensions.paymentProofTransactionRef,
       pgId: floors.pgId,
     })
     .from(stayExtensions)
@@ -176,7 +177,7 @@ export default async function ExtensionPayPage(
                   <ExtensionPaymentProofForm
                     extensionId={ext.id}
                     amountLabel={totalLabel}
-                    existingProofUrl={extMeta?.paymentProofUrl}
+                    existingTransactionRef={extMeta?.paymentProofTransactionRef}
                     qrImageUrl={rentCategory?.qrCodeImageUrl ?? DEFAULT_RENT_DEPOSIT_QR_PATH}
                     upiId={rentCategory?.upiId ?? DEFAULT_RENT_DEPOSIT_UPI_ID}
                   />

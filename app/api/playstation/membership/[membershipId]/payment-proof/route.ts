@@ -16,23 +16,26 @@ export async function POST(
 
   const { membershipId } = await ctx.params;
 
-  let body: { paymentProofUrl?: string; transactionRef?: string };
+  let body: { paymentProofUrl?: string | null; transactionRef?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ ok: false, message: 'Invalid JSON' }, { status: 400 });
   }
 
-  if (!body.paymentProofUrl?.trim()) {
-    return NextResponse.json({ ok: false, message: 'Payment screenshot is required.' }, { status: 400 });
+  if (!body.transactionRef?.trim()) {
+    return NextResponse.json(
+      { ok: false, message: 'Transaction ID is required.' },
+      { status: 400 },
+    );
   }
 
   try {
     await submitMembershipPaymentProof({
       membershipId,
       customerId: session.customerId,
-      paymentProofUrl: body.paymentProofUrl,
       transactionRef: body.transactionRef,
+      paymentProofUrl: body.paymentProofUrl ?? null,
     });
     return NextResponse.json({ ok: true });
   } catch (err) {

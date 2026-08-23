@@ -1,14 +1,15 @@
 /**
  * Payment Review invariants — a pending Operations review must never exist
  * unless structural facts are real (resident, invoice, payable amount,
- * uploaded screenshot, valid billing month).
+ * transaction ID and/or uploaded screenshot, valid billing month).
  *
- * Reviews are derived from proof URLs on invoices; there is no separate
- * review table. Rejecting proof attach = never creating a pending review.
+ * Reviews are derived from proof URLs / txn refs on invoices; there is no
+ * separate review table. Rejecting proof attach = never creating a pending review.
  */
 
 import { isDataProofUrl } from '@/src/lib/payments/proofResponse';
 import { isPrivateBlobUrl } from '@/src/lib/storage/blob';
+import { normalizeTransactionRef } from '@/src/lib/payments/transactionRefDuplicate';
 
 export type PaymentReviewKind = 'rent' | 'electricity' | 'extension' | 'deposit_link' | 'qr';
 
@@ -20,6 +21,7 @@ export type PaymentReviewInvariantCode =
   | 'INVALID_AMOUNT'
   | 'AMOUNT_MISMATCH'
   | 'MISSING_SCREENSHOT'
+  | 'MISSING_PROOF'
   | 'INVALID_SCREENSHOT'
   | 'NOT_AWAITING_PAYMENT'
   | 'DUPLICATE_SCREENSHOT'
@@ -42,6 +44,8 @@ export type PaymentReviewInvariantInput = {
   /** Frozen proof snapshot amount when present. */
   proofAmountPaise?: number | null | undefined;
   paymentProofUrl: string | null | undefined;
+  /** UPI transaction / UTR reference — accepted as proof without screenshot. */
+  transactionRef?: string | null | undefined;
   status?: string | null | undefined;
   /** Booking lifecycle status — cancelled bookings cannot host a live review. */
   bookingStatus?: string | null | undefined;
@@ -206,13 +210,16 @@ export function evaluatePaymentReviewInvariants(
     });
   }
 
-  if (!input.paymentProofUrl?.trim()) {
+  const hasTxn = Boolean(normalizeTransactionRef(input.transactionRef));
+  const hasScreenshot = Boolean(input.paymentProofUrl?.trim());
+
+  if (!hasTxn && !hasScreenshot) {
     violations.push({
-      code: 'MISSING_SCREENSHOT',
-      message: 'Payment review requires an uploaded screenshot.',
-      field: 'paymentProofUrl',
+      code: 'MISSING_PROOF',
+      message: 'Payment review requires a transaction ID or an uploaded screenshot.',
+      field: 'transactionRef',
     });
-  } else if (!isValidPaymentReviewScreenshotUrl(input.paymentProofUrl)) {
+  } else if (hasScreenshot && !isValidPaymentReviewScreenshotUrl(input.paymentProofUrl)) {
     violations.push({
       code: 'INVALID_SCREENSHOT',
       message:
@@ -221,7 +228,7 @@ export function evaluatePaymentReviewInvariants(
     });
   }
 
-  if (input.duplicatePendingScreenshot) {
+  if (input.duplicatePendingScreenshot && hasScreenshot) {
     violations.push({
       code: 'DUPLICATE_SCREENSHOT',
       message:
@@ -232,10 +239,10 @@ export function evaluatePaymentReviewInvariants(
 
   if (input.status) {
     const status = input.status.trim().toLowerCase();
-    if (TERMINAL_INVOICE_STATUSES.has(status) && input.paymentProofUrl?.trim()) {
+    if (TERMINAL_INVOICE_STATUSES.has(status) && (hasScreenshot || hasTxn)) {
       violations.push({
         code: 'ORPHAN_PROOF',
-        message: `Proof URL remains on terminal status ${input.status} — not awaiting review.`,
+        message: `Proof remains on terminal status ${input.status} — not awaiting review.`,
         field: 'status',
       });
     } else if (input.requireAwaitingStatus !== false && !AWAITING_STATUSES.has(status)) {

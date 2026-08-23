@@ -141,7 +141,7 @@ export default async function PaymentLinkPage({
               linkId={link.id}
               amountLabel={paiseToInr(finalPaise)}
               qrImageUrl={link.upiQrUrl}
-              existingProofUrl={link.paymentProofUrl}
+              existingTransactionRef={link.paymentProofTransactionRef}
               rejectionReason={activeRejection?.reasonLabel ?? null}
               rejectionMessage={activeRejection?.residentMessage ?? null}
               title={link.title}

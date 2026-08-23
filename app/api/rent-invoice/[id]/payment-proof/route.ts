@@ -12,25 +12,24 @@ export async function POST(
   }
 
   const { id } = await ctx.params;
-  let body: { paymentProofUrl?: string };
+  let body: { paymentProofUrl?: string | null; transactionRef?: string };
   try {
-    body = (await req.json()) as { paymentProofUrl?: string };
+    body = (await req.json()) as { paymentProofUrl?: string | null; transactionRef?: string };
   } catch {
     return NextResponse.json({ ok: false, message: 'Invalid JSON.' }, { status: 400 });
   }
 
-  if (!body.paymentProofUrl?.trim()) {
+  if (!body.transactionRef?.trim()) {
     return NextResponse.json(
-      { ok: false, message: 'paymentProofUrl is required.' },
+      { ok: false, message: 'Transaction ID is required.' },
       { status: 400 },
     );
   }
 
-  const result = await submitRentPaymentProof(
-    session.customerId,
-    id,
-    body.paymentProofUrl,
-  );
+  const result = await submitRentPaymentProof(session.customerId, id, {
+    transactionRef: body.transactionRef,
+    paymentProofUrl: body.paymentProofUrl ?? null,
+  });
   if (!result.ok) {
     return NextResponse.json({ ok: false, message: result.message }, { status: 400 });
   }

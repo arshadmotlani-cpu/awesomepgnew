@@ -17,7 +17,7 @@ type Props = {
   confirmMessageBase: string;
   qrImageUrl?: string | null;
   upiId?: string | null;
-  existingProofUrl?: string | null;
+  existingTransactionRef?: string | null;
   rejectionReason?: string | null;
   rejectionMessage?: string | null;
   rejectedAt?: Date | string | null;
@@ -28,7 +28,7 @@ export function ResidentPayRentWithPromo(props: Props) {
   const [outstandingPaise, setOutstandingPaise] = useState(props.initialOutstandingPaise);
 
   const amountLabel = paiseToInr(outstandingPaise + props.lateFeePaise);
-  const confirmMessage = `You are paying ${amountLabel} for rent for ${props.periodLabel}. Pay the exact amount via UPI, then upload your payment screenshot for verification.`;
+  const confirmMessage = `You are paying ${amountLabel} for rent for ${props.periodLabel}. Pay the exact amount via UPI, then enter the UPI transaction ID for verification.`;
 
   return (
     <>
@@ -50,7 +50,7 @@ export function ResidentPayRentWithPromo(props: Props) {
         confirmMessage={confirmMessage}
         qrImageUrl={props.qrImageUrl}
         upiId={props.upiId}
-        existingProofUrl={props.existingProofUrl}
+        existingTransactionRef={props.existingTransactionRef}
         rejectionReason={props.rejectionReason}
         rejectionMessage={props.rejectionMessage}
         rejectedAt={props.rejectedAt}

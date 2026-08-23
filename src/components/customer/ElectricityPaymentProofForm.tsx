@@ -1,38 +1,40 @@
 'use client';
 
-import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { UpiPaymentProofForm } from './UpiPaymentProofForm';
 
 export function ElectricityPaymentProofForm({
   invoiceId,
   amountLabel,
-  uploadScreenshot,
-  existingProofUrl,
+  existingTransactionRef,
   qrImageUrl,
   upiId,
+  rejectionReason,
+  rejectionMessage,
 }: {
   invoiceId: string;
   amountLabel: string;
-  uploadScreenshot: (formData: FormData) => Promise<string>;
-  existingProofUrl?: string | null;
+  existingTransactionRef?: string | null;
   qrImageUrl?: string | null;
   upiId?: string | null;
+  rejectionReason?: string | null;
+  rejectionMessage?: string | null;
 }) {
   return (
     <UpiPaymentProofForm
       amountLabel={amountLabel}
-      instructions="Scan the electricity / daily / reservation QR, pay via UPI, then upload a photo of the payment."
+      instructions="Scan the electricity / daily / reservation QR, pay via UPI, then enter the transaction ID from your UPI app."
       qrImageUrl={qrImageUrl}
       upiId={upiId}
-      existingProofUrl={existingProofUrl}
-      proofViewHref={customerPaymentProofViewUrl('electricity', invoiceId)}
-      uploadScreenshot={uploadScreenshot}
+      existingTransactionRef={existingTransactionRef}
+      rejectionReason={rejectionReason}
+      rejectionMessage={rejectionMessage}
+      logContext={{ page: 'electricity-payment', invoiceId, uploadType: 'electricity_payment' }}
       submitProof={async ({ screenshotUrl, transactionRef }) => {
         const res = await fetch(`/api/electricity-invoice/${invoiceId}/payment-proof`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            paymentProofUrl: screenshotUrl,
+            paymentProofUrl: screenshotUrl ?? null,
             transactionRef,
           }),
         });

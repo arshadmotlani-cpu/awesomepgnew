@@ -294,6 +294,3 @@ export function hasTxnOrScreenshotProof(input: {
       input.paymentProofUrl?.trim(),
   );
 }
-
-void or;
-void and;
