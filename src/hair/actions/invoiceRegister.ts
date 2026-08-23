@@ -100,6 +100,7 @@ export async function getInvoicePreviewAction(invoiceId: string): Promise<
       ok: true;
       sheetHtml: string;
       invoiceNumber: string;
+      publicAccessToken: string;
       customerName: string;
       customerPhone: string;
       grandTotalLabel: string;
@@ -115,6 +116,7 @@ export async function getInvoicePreviewAction(invoiceId: string): Promise<
       ok: true,
       sheetHtml: renderPublicInvoiceSheetHtml(detail),
       invoiceNumber: detail.invoice.invoiceNumber,
+      publicAccessToken: detail.invoice.publicAccessToken,
       customerName: detail.customerName,
       customerPhone: detail.customerPhone,
       grandTotalLabel: formatInrFromPaise(detail.invoice.grandTotalPaise),

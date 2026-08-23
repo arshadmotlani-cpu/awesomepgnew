@@ -8,6 +8,7 @@ import { PUBLIC_INVOICE_STYLES } from '@/src/hair/lib/publicInvoiceDocument';
 type PreviewData = {
   sheetHtml: string;
   invoiceNumber: string;
+  publicAccessToken: string;
   customerName: string;
   customerPhone: string;
   grandTotalLabel: string;
@@ -43,6 +44,7 @@ export function InvoicePreviewModal({ invoiceId, onClose }: Props) {
       setPreview({
         sheetHtml: res.sheetHtml,
         invoiceNumber: res.invoiceNumber,
+        publicAccessToken: res.publicAccessToken,
         customerName: res.customerName,
         customerPhone: res.customerPhone,
         grandTotalLabel: res.grandTotalLabel,
