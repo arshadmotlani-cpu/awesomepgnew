@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { SalonSoftwareWaitlistForm } from '@/src/hair/components/marketing/SalonSoftwareWaitlistForm';
 import { Fraunces, IBM_Plex_Mono, Inter } from 'next/font/google';
 
@@ -63,7 +64,7 @@ export function SalonSoftwareLanding() {
           '--ss-ivory': '#F5F1E8',
           '--ss-muted': '#B8C4BC',
           fontFamily: 'var(--ss-body), system-ui, sans-serif',
-        } as React.CSSProperties
+        } as CSSProperties
       }
     >
       <a
