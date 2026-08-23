@@ -10,13 +10,43 @@ export type AssetBreakdown = {
   financialAssetsPaise: number;
   totalAssetsPaise: number;
   totalLiabilitiesPaise: number;
+  /**
+   * Gross net worth = total assets (before liabilities).
+   * Same number as `totalAssetsPaise` — named for dashboard UX clarity.
+   */
+  grossNetWorthPaise: number;
+  /** Actual net worth = total assets − total liabilities. */
   netWorthPaise: number;
   /** Capital vehicle portfolio used only when Owner DB has no movable assets */
   capitalVehicleFallbackPaise: number;
 };
 
 /**
- * Net worth aggregation with fixed / movable / financial asset classes.
+ * Pure position math — single source for Gross NW vs NW.
+ * Gross Net Worth = Total Assets.
+ * Net Worth = Total Assets − Total Liabilities.
+ */
+export function computeWealthPosition(
+  totalAssetsPaise: number,
+  totalLiabilitiesPaise: number,
+): {
+  totalAssetsPaise: number;
+  totalLiabilitiesPaise: number;
+  grossNetWorthPaise: number;
+  netWorthPaise: number;
+} {
+  const assets = Number(totalAssetsPaise) || 0;
+  const liabilities = Number(totalLiabilitiesPaise) || 0;
+  return {
+    totalAssetsPaise: assets,
+    totalLiabilitiesPaise: liabilities,
+    grossNetWorthPaise: assets,
+    netWorthPaise: assets - liabilities,
+  };
+}
+
+/**
+ * Wealth aggregation with fixed / movable / financial asset classes.
  * Movable: Owner DB movable assets; falls back to Capital vehicle portfolio when empty.
  * Financial: bank/cash balances (journal-derived).
  */
@@ -40,16 +70,17 @@ export async function getAssetBreakdown(opts?: {
   const movableAssetsPaise = movableDbPaise + capitalVehicleFallbackPaise;
 
   const totalAssetsPaise = fixedAssetsPaise + movableAssetsPaise + financialAssetsPaise;
-  const netWorthPaise = totalAssetsPaise - totalLiabilitiesPaise;
+  const position = computeWealthPosition(totalAssetsPaise, totalLiabilitiesPaise);
 
   return {
     asOf,
     fixedAssetsPaise,
     movableAssetsPaise,
     financialAssetsPaise,
-    totalAssetsPaise,
-    totalLiabilitiesPaise,
-    netWorthPaise,
+    totalAssetsPaise: position.totalAssetsPaise,
+    totalLiabilitiesPaise: position.totalLiabilitiesPaise,
+    grossNetWorthPaise: position.grossNetWorthPaise,
+    netWorthPaise: position.netWorthPaise,
     capitalVehicleFallbackPaise,
   };
 }

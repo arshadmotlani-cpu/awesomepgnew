@@ -78,8 +78,16 @@ export function OwnerHomeDashboard({
   const [explain, setExplain] = useState<ExplainableValue | null>(null);
   const finance = snapshot.finance;
 
+  // Dashboard headline wealth = assets (gross), not assets − liabilities.
+  const grossNetWorthMetric: ExplainableValue = {
+    ...finance.assets,
+    id: 'gross_net_worth',
+    label: 'Gross Net Worth',
+    calculation: 'Total assets (before liabilities) — same as Assets',
+  };
   const heroMetrics: ExplainableValue[] = [
-    finance.currentNetWorth,
+    grossNetWorthMetric,
+    finance.liabilities,
     finance.businessProfit,
     finance.cashAvailable,
     finance.monthlyIncome,
@@ -117,8 +125,8 @@ export function OwnerHomeDashboard({
 
       <Section title="Balance sheet (Brain)">
         <p className="oo-meta mb-3">
-          Net worth is assets minus liabilities. Business profit and income are cash-flow signals —
-          not net worth by themselves.
+          Gross net worth is total assets before liabilities. Actual net worth (assets − liabilities)
+          lives on the Net Worth page. Business profit and income are cash-flow signals.
         </p>
         <MetricGrid>
           {heroMetrics.map((v) => (

@@ -18,6 +18,9 @@ export type WealthSnapshot = {
   asOf: string;
   totalAssetsPaise: number;
   totalLiabilitiesPaise: number;
+  /** Gross net worth = total assets (before liabilities). */
+  grossNetWorthPaise: number;
+  /** Actual net worth = total assets − total liabilities. */
   netWorthPaise: number;
   bankBalancePaise: number;
   propertyValuePaise: number;
@@ -117,6 +120,7 @@ export async function getWealthSnapshot(opts?: {
   const investmentValuePaise = capitalVehiclePaise;
   const totalAssetsPaise = breakdown.totalAssetsPaise;
   const liabilityPaise = breakdown.totalLiabilitiesPaise;
+  const grossNetWorthPaise = breakdown.grossNetWorthPaise;
   const netWorthPaise = breakdown.netWorthPaise;
 
   const periods: PeriodKey[] = ['today', 'week', 'month', 'quarter', 'year', 'lifetime'];
@@ -180,6 +184,7 @@ export async function getWealthSnapshot(opts?: {
     asOf,
     totalAssetsPaise,
     totalLiabilitiesPaise: liabilityPaise,
+    grossNetWorthPaise,
     netWorthPaise,
     bankBalancePaise,
     propertyValuePaise,

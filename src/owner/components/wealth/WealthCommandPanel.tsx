@@ -36,8 +36,11 @@ export function WealthCommandPanel({
   return (
     <div className="space-y-5">
       <section className="oo-card oo-card-hero">
-        <p className="oo-label">Net worth</p>
-        <p className="oo-money-hero mt-1"><AmountWithWords paise={wealth.netWorthPaise} /></p>
+        <p className="oo-label">Your wealth</p>
+        <p className="oo-meta mt-1">Gross net worth — total assets before liabilities</p>
+        <p className="oo-money-hero mt-1">
+          <AmountWithWords paise={wealth.grossNetWorthPaise} />
+        </p>
 
         <div className="mt-4 space-y-2 border-t border-white/10 pt-4">
           <BreakdownRow label="Property / fixed assets" value={breakdown.fixedAssetsPaise} />
@@ -49,8 +52,14 @@ export function WealthCommandPanel({
             strong
           />
           <BreakdownRow label="Liabilities" value={wealth.totalLiabilitiesPaise} tone="liability" />
-          <BreakdownRow label="Net worth" value={wealth.netWorthPaise} strong highlight />
         </div>
+        <p className="oo-meta mt-3">
+          Actual net worth (assets − liabilities) is on the{' '}
+          <Link href="/net-worth" className="font-medium text-[#FF5A1F] hover:underline">
+            Net Worth
+          </Link>{' '}
+          page.
+        </p>
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
           <MiniStat label="Cash flow (MTD)" value={<AmountWithWords paise={month.netPaise} />} />

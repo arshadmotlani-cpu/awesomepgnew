@@ -50,4 +50,38 @@ describe('Owner wealth OS wiring', () => {
     assert.match(sql, /oo_property_income_sources/);
     assert.match(sql, /oo_property_income_rent_history/);
   });
+
+  test('dashboard wealth panel headlines Gross net worth, not assets − liabilities', () => {
+    const panel = readFileSync(
+      join(process.cwd(), 'src/owner/components/wealth/WealthCommandPanel.tsx'),
+      'utf8',
+    );
+    assert.match(panel, /grossNetWorthPaise/);
+    assert.match(panel, /Gross net worth/);
+    assert.doesNotMatch(panel, /oo-money-hero[\s\S]{0,200}netWorthPaise/);
+    const dash = readFileSync(
+      join(process.cwd(), 'src/owner/components/OwnerHomeDashboard.tsx'),
+      'utf8',
+    );
+    assert.match(dash, /Gross Net Worth/);
+    assert.match(dash, /gross_net_worth/);
+  });
+
+  test('net-worth page uses ledger NetWorthStatement with assets − liabilities', () => {
+    const page = readFileSync(
+      join(process.cwd(), 'app/(owner)/owner/(app)/net-worth/page.tsx'),
+      'utf8',
+    );
+    assert.match(page, /NetWorthStatement/);
+    assert.match(page, /getWealthSnapshot/);
+    assert.match(page, /netWorthPaise/);
+    assert.match(page, /listLiabilities/);
+    const statement = readFileSync(
+      join(process.cwd(), 'src/owner/components/NetWorthStatement.tsx'),
+      'utf8',
+    );
+    assert.match(statement, /Less: liabilities/);
+    assert.match(statement, /Total assets/);
+    assert.match(statement, /Your total wealth after liabilities/);
+  });
 });
