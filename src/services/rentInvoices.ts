@@ -1977,7 +1977,7 @@ export async function recordRentPaymentFailure(input: {
 // View helpers (dynamic late-fee accrual on read)
 // ───────────────────────────────────────────────────────────────────────────
 
-/** Rows from joins may omit new promo / proof-snapshot columns until migration runs. */
+/** Rows from joins may omit new promo / proof-snapshot / txn-ref columns until migration runs. */
 export type RentInvoiceProjectInput = Omit<
   RentInvoice,
   | 'discountPaise'
@@ -1987,6 +1987,9 @@ export type RentInvoiceProjectInput = Omit<
   | 'proofSnapshotLateFeePaise'
   | 'proofSnapshotPrincipalDuePaise'
   | 'invoiceSubtype'
+  | 'paymentProofTransactionRef'
+  | 'possibleDuplicate'
+  | 'duplicateOfIds'
 > & {
   discountPaise?: number;
   promoCode?: string | null;
@@ -1996,6 +1999,9 @@ export type RentInvoiceProjectInput = Omit<
   proofSnapshotPrincipalDuePaise?: number | null;
   /** Defaults to `standard` when omitted (legacy join rows pre-migration). */
   invoiceSubtype?: RentInvoice['invoiceSubtype'];
+  paymentProofTransactionRef?: string | null;
+  possibleDuplicate?: boolean;
+  duplicateOfIds?: string[] | null;
 };
 
 export type ProjectInvoiceOptions = {
@@ -2164,6 +2170,9 @@ export function projectInvoice(
     proofSnapshotLateFeePaise: invoice.proofSnapshotLateFeePaise ?? null,
     proofSnapshotPrincipalDuePaise: invoice.proofSnapshotPrincipalDuePaise ?? null,
     invoiceSubtype: invoice.invoiceSubtype ?? 'standard',
+    paymentProofTransactionRef: invoice.paymentProofTransactionRef ?? null,
+    possibleDuplicate: invoice.possibleDuplicate ?? false,
+    duplicateOfIds: invoice.duplicateOfIds ?? [],
   };
   if (inv.status === 'paid') {
     return {
