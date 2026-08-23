@@ -2,7 +2,7 @@
  * PG-side scan + registry for normalized transaction refs across proof tables.
  */
 
-import { and, eq, ne, or, sql } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   electricityInvoices,
@@ -129,7 +129,7 @@ export async function findPgTransactionRefMatches(input: {
   for (const r of extRows) {
     matches.push({
       id: r.id,
-      status: r.status === 'approved' || r.status === 'completed' ? 'approved' : r.status,
+      status: r.status === 'approved' || r.status === 'paid' ? 'approved' : r.status,
       sourceKind: 'stay_extension',
       submittedAt: r.updatedAt,
     });
@@ -152,7 +152,7 @@ export async function findPgTransactionRefMatches(input: {
   for (const r of linkRows) {
     matches.push({
       id: r.id,
-      status: r.status === 'paid' || r.status === 'completed' ? 'approved' : 'pending',
+      status: r.status === 'paid' || r.status === 'active' ? 'approved' : 'pending',
       sourceKind: 'payment_link',
       submittedAt: r.createdAt,
       customerId: r.residentId,

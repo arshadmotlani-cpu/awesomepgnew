@@ -155,8 +155,8 @@ async function insertTransaction(
     toPlan?: Ps4PlanId | null;
     notes?: string;
     adminId?: string;
-    paymentProofUrl?: string;
-    transactionRef?: string;
+    paymentProofUrl?: string | null;
+    transactionRef?: string | null;
   },
 ) {
   await db.insert(membershipTransactions).values({
@@ -338,7 +338,7 @@ export async function submitMembershipPaymentProof(input: {
 
   await insertTransaction(input.membershipId, 'payment_proof', {
     amountPaise: membership.amountPaise,
-    paymentProofUrl: proofUrl,
+    paymentProofUrl: proofUrl ?? undefined,
     transactionRef: rawTxn,
   });
 

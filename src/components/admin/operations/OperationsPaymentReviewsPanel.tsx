@@ -49,12 +49,18 @@ export function OperationsPaymentReviewsPanel({
   const [rejectDialogItem, setRejectDialogItem] = useState<PendingPaymentReviewItem | null>(
     null,
   );
+  const [duplicatesOnly, setDuplicatesOnly] = useState(false);
   const { showToast, toastNode } = useOperationsActionToast();
 
+  const filteredItems = useMemo(() => {
+    if (!duplicatesOnly) return items;
+    return items.filter((i) => i.possibleDuplicate);
+  }, [items, duplicatesOnly]);
+
   const visibleItems = useMemo(() => {
-    if (!reviewMode || items.length <= 1) return items;
-    return [items[0]];
-  }, [items, reviewMode]);
+    if (!reviewMode || filteredItems.length <= 1) return filteredItems;
+    return [filteredItems[0]];
+  }, [filteredItems, reviewMode]);
 
   function advanceAfterAction(
     _currentKey: string,
@@ -78,6 +84,12 @@ export function OperationsPaymentReviewsPanel({
   }
 
   async function handleApprove(item: PendingPaymentReviewItem) {
+    if (item.possibleDuplicate) {
+      const msg =
+        item.approveConfirmMessage ??
+        'This transaction ID is flagged as a possible duplicate of another payment. Approving again may fail if it was already approved. Continue?';
+      if (typeof window !== 'undefined' && !window.confirm(msg)) return;
+    }
     setBusyKey(item.key);
     setError(null);
     setInfo(null);
@@ -117,6 +129,24 @@ export function OperationsPaymentReviewsPanel({
   return (
     <div className="space-y-5">
       {toastNode}
+
+      <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
+        <button
+          type="button"
+          onClick={() => setDuplicatesOnly(false)}
+          className={!duplicatesOnly ? 'font-semibold text-[#FF5A1F]' : 'text-apg-silver underline'}
+        >
+          All pending
+        </button>
+        <button
+          type="button"
+          onClick={() => setDuplicatesOnly(true)}
+          className={duplicatesOnly ? 'font-semibold text-[#FF5A1F]' : 'text-apg-silver underline'}
+        >
+          Duplicates only
+        </button>
+        <span className="text-apg-silver">{filteredItems.length} shown</span>
+      </div>
       {rejectDialogItem ? (
         <PaymentProofRejectionDialog
           item={rejectDialogItem}
@@ -195,8 +225,15 @@ export function OperationsPaymentReviewsPanel({
                     </div>
                     {item.referenceNumber ? (
                       <div className="sm:col-span-2">
-                        <dt className="uppercase tracking-wide">Reference</dt>
-                        <dd className="mt-0.5 font-medium text-white">{item.referenceNumber}</dd>
+                        <dt className="uppercase tracking-wide">UPI transaction ID</dt>
+                        <dd className="mt-0.5 font-mono text-base font-semibold text-white">
+                          {item.referenceNumber}
+                        </dd>
+                        {item.possibleDuplicate ? (
+                          <p className="mt-1 text-xs font-medium text-amber-300">
+                            Duplicate reference ID
+                          </p>
+                        ) : null}
                       </div>
                     ) : null}
                   </dl>
@@ -227,12 +264,18 @@ export function OperationsPaymentReviewsPanel({
               </div>
 
               <div className="lg:sticky lg:top-4 lg:self-start">
-                <PaymentScreenshotPreview
-                  url={item.screenshotUrl}
-                  viewHref={adminPaymentProofViewUrl(item.kind, item.entityId)}
-                  alt={`${item.residentName} payment proof`}
-                  variant="review"
-                />
+                {item.screenshotUrl?.trim() ? (
+                  <PaymentScreenshotPreview
+                    url={item.screenshotUrl}
+                    viewHref={adminPaymentProofViewUrl(item.kind, item.entityId)}
+                    alt={`${item.residentName} payment proof`}
+                    variant="review"
+                  />
+                ) : (
+                  <div className="rounded-xl border border-white/10 bg-[#121820] p-4 text-sm text-apg-silver">
+                    No screenshot — verify using the transaction ID.
+                  </div>
+                )}
               </div>
             </div>
 

@@ -35,7 +35,7 @@ export async function approveSubscriptionPaymentAction(formData: FormData): Prom
   revalidatePath('/platform/admin/payment-submissions');
   revalidatePath('/platform/admin/subscriptions');
   if (!result.ok) {
-    redirect(reviewPath(`error=${encodeURIComponent(result.error)}`));
+    redirect(reviewPath(`error=${encodeURIComponent(result.message)}`));
   }
   redirect(reviewPath('approved=1'));
 }
@@ -46,10 +46,10 @@ export async function rejectSubscriptionPaymentAction(formData: FormData): Promi
   const note = String(formData.get('reviewNote') ?? '').trim();
   if (!id) redirect(reviewPath('error=missing'));
 
-  const result = await rejectSubmission(id, note || 'Rejected', session.userId);
+  const result = await rejectSubmission(id, session.userId, note || 'Rejected');
   revalidatePath('/platform/admin/payment-submissions');
   if (!result.ok) {
-    redirect(reviewPath(`error=${encodeURIComponent(result.error)}`));
+    redirect(reviewPath(`error=${encodeURIComponent(result.message)}`));
   }
   redirect(reviewPath('rejected=1'));
 }

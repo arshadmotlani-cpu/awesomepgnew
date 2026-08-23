@@ -820,6 +820,7 @@ export async function listOwnerPayments(
       status: pgPaymentRecords.status,
       paymentScreenshotUrl: pgPaymentRecords.paymentScreenshotUrl,
       transactionRef: pgPaymentRecords.transactionRef,
+      possibleDuplicate: pgPaymentRecords.possibleDuplicate,
       createdAt: pgPaymentRecords.createdAt,
       bookingId: pgPaymentRecords.bookingId,
       bookingCode: bookings.bookingCode,

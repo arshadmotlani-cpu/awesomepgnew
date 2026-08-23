@@ -471,6 +471,7 @@ function buildQrReviewItem(
     lifecycleState: isBookingCheckout ? 'reservation_request' : 'payment_collection',
     submittedAmountPaise: p.proofSnapshotSubmittedPaise ?? null,
     referenceNumber: p.transactionRef ?? null,
+    possibleDuplicate: p.possibleDuplicate ?? false,
     proofSubmittedAt: p.createdAt?.toISOString?.() ?? null,
     billingMonth,
   };
@@ -497,11 +498,13 @@ async function buildRentReviewItem(
   const { hasDuplicatePendingPaymentProofUrl } = await import(
     '@/src/lib/payments/duplicatePendingPaymentProof'
   );
-  const duplicatePendingScreenshot = await hasDuplicatePendingPaymentProofUrl({
-    pgId: pg.id,
-    paymentProofUrl: r.paymentProofUrl!,
-    exclude: { kind: 'rent', id: invoice.id },
-  });
+  const duplicatePendingScreenshot = r.paymentProofUrl?.trim()
+    ? await hasDuplicatePendingPaymentProofUrl({
+        pgId: pg.id,
+        paymentProofUrl: r.paymentProofUrl,
+        exclude: { kind: 'rent', id: invoice.id },
+      })
+    : false;
   const [bookingRow] = await db
     .select({ status: bookings.status })
     .from(bookings)
@@ -516,6 +519,7 @@ async function buildRentReviewItem(
     expectedAmountPaise: frozenOutstanding,
     proofAmountPaise: invoice.proofSnapshotOutstandingPaise ?? frozenOutstanding,
     paymentProofUrl: r.paymentProofUrl,
+    transactionRef: r.paymentProofTransactionRef,
     status: invoice.status,
     bookingStatus: bookingRow?.status ?? null,
     duplicatePendingScreenshot,
@@ -566,7 +570,9 @@ async function buildRentReviewItem(
     title: `${r.customerName} · Rent ${r.invoiceNumber}`,
     subtitle: `Room ${r.roomNumber} · ${r.bedCode} · ${r.billingMonth.slice(0, 7)}`,
     amountPaise: frozenOutstanding,
-    screenshotUrl: r.paymentProofUrl!,
+    screenshotUrl: r.paymentProofUrl ?? '',
+    referenceNumber: r.paymentProofTransactionRef ?? null,
+    possibleDuplicate: r.possibleDuplicate ?? false,
     entityId: r.invoiceId,
     customerId: invoice.customerId,
     bookingId: invoice.bookingId,
@@ -576,7 +582,7 @@ async function buildRentReviewItem(
     outstandingAfterApprovalPaise: 0,
     overpaidPaise: 0,
     outstandingSummary:
-      'Verify screenshot — approval records amount frozen at proof submission',
+      'Verify transaction ID — approval records amount frozen at proof submission',
     canPartialApprove: false,
     canReject: true,
     invoiceNumber: r.invoiceNumber,
@@ -590,7 +596,7 @@ async function buildRentReviewItem(
       lines: expectedLines,
       totalExpectedPaise: frozenOutstanding,
       receivedPaise: null,
-      resultLabel: 'Verify screenshot — approval records amount frozen at proof submission',
+      resultLabel: 'Verify transaction ID — approval records amount frozen at proof submission',
     }),
     bookingContext: contextFromItem(
       {
@@ -624,11 +630,13 @@ async function buildElectricityReviewItem(
   const { hasDuplicatePendingPaymentProofUrl } = await import(
     '@/src/lib/payments/duplicatePendingPaymentProof'
   );
-  const duplicatePendingScreenshot = await hasDuplicatePendingPaymentProofUrl({
-    pgId: pg.id,
-    paymentProofUrl: e.paymentProofUrl!,
-    exclude: { kind: 'electricity', id: invoice.id },
-  });
+  const duplicatePendingScreenshot = e.paymentProofUrl?.trim()
+    ? await hasDuplicatePendingPaymentProofUrl({
+        pgId: pg.id,
+        paymentProofUrl: e.paymentProofUrl,
+        exclude: { kind: 'electricity', id: invoice.id },
+      })
+    : false;
   const [bookingRow] = await db
     .select({ status: bookings.status })
     .from(bookings)
@@ -643,6 +651,7 @@ async function buildElectricityReviewItem(
     expectedAmountPaise: expectedTotalPaise,
     proofAmountPaise: expectedTotalPaise,
     paymentProofUrl: e.paymentProofUrl,
+    transactionRef: e.paymentProofTransactionRef,
     status: invoice.status,
     bookingStatus: bookingRow?.status ?? null,
     duplicatePendingScreenshot,
@@ -697,7 +706,9 @@ async function buildElectricityReviewItem(
     title: `Electricity · ${e.invoiceNumber}`,
     subtitle: `Room ${e.roomNumber}`,
     amountPaise: expectedTotalPaise,
-    screenshotUrl: e.paymentProofUrl!,
+    screenshotUrl: e.paymentProofUrl ?? '',
+    referenceNumber: e.paymentProofTransactionRef ?? null,
+    possibleDuplicate: e.possibleDuplicate ?? false,
     entityId: e.invoiceId,
     customerId: invoice.customerId,
     bookingId: invoice.bookingId,
@@ -707,7 +718,7 @@ async function buildElectricityReviewItem(
     outstandingAfterApprovalPaise: 0,
     overpaidPaise: 0,
     outstandingSummary:
-      'Verify screenshot — approval records full electricity due',
+      'Verify transaction ID — approval records full electricity due',
     canPartialApprove: false,
     canReject: true,
     invoiceNumber: e.invoiceNumber,
@@ -721,7 +732,7 @@ async function buildElectricityReviewItem(
       lines: expectedLines,
       totalExpectedPaise: expectedTotalPaise,
       receivedPaise: null,
-      resultLabel: 'Verify screenshot — approval records full electricity due',
+      resultLabel: 'Verify transaction ID — approval records full electricity due',
     }),
     bookingContext: contextFromItem(
       {
@@ -761,11 +772,13 @@ async function buildExtensionReviewItem(
   const { hasDuplicatePendingPaymentProofUrl } = await import(
     '@/src/lib/payments/duplicatePendingPaymentProof'
   );
-  const duplicatePendingScreenshot = await hasDuplicatePendingPaymentProofUrl({
-    pgId: pg.id,
-    paymentProofUrl: x.paymentProofUrl!,
-    exclude: { kind: 'extension', id: x.extensionId },
-  });
+  const duplicatePendingScreenshot = x.paymentProofUrl?.trim()
+    ? await hasDuplicatePendingPaymentProofUrl({
+        pgId: pg.id,
+        paymentProofUrl: x.paymentProofUrl,
+        exclude: { kind: 'extension', id: x.extensionId },
+      })
+    : false;
   const invariant = evaluatePaymentReviewInvariants({
     kind: 'extension',
     invoiceId: x.extensionId,
@@ -775,6 +788,7 @@ async function buildExtensionReviewItem(
     expectedAmountPaise: x.amountPaise,
     proofAmountPaise: x.amountPaise,
     paymentProofUrl: x.paymentProofUrl,
+    transactionRef: x.paymentProofTransactionRef,
     status: 'pending',
     bookingStatus: row?.bookingStatus ?? null,
     duplicatePendingScreenshot,
@@ -816,7 +830,9 @@ async function buildExtensionReviewItem(
     title: `${x.customerName} · Extension ${x.bookingCode}`,
     subtitle: 'Stay extension payment',
     amountPaise: x.amountPaise,
-    screenshotUrl: x.paymentProofUrl!,
+    screenshotUrl: x.paymentProofUrl ?? '',
+    referenceNumber: x.paymentProofTransactionRef ?? null,
+    possibleDuplicate: x.possibleDuplicate ?? false,
     entityId: x.extensionId,
     customerId: row?.customerId ?? null,
     bookingId: row?.bookingId ?? null,
@@ -890,11 +906,13 @@ async function buildDepositLinkReviewItem(
   const { hasDuplicatePendingPaymentProofUrl } = await import(
     '@/src/lib/payments/duplicatePendingPaymentProof'
   );
-  const duplicatePendingScreenshot = await hasDuplicatePendingPaymentProofUrl({
-    pgId: pg.id,
-    paymentProofUrl: d.paymentProofUrl!,
-    exclude: { kind: 'deposit_link', id: d.linkId },
-  });
+  const duplicatePendingScreenshot = d.paymentProofUrl?.trim()
+    ? await hasDuplicatePendingPaymentProofUrl({
+        pgId: pg.id,
+        paymentProofUrl: d.paymentProofUrl,
+        exclude: { kind: 'deposit_link', id: d.linkId },
+      })
+    : false;
   const invariant = evaluatePaymentReviewInvariants({
     kind: 'deposit_link',
     invoiceId: d.linkId,
@@ -904,6 +922,7 @@ async function buildDepositLinkReviewItem(
     expectedAmountPaise: d.amountPaise,
     proofAmountPaise: d.amountPaise,
     paymentProofUrl: d.paymentProofUrl,
+    transactionRef: d.paymentProofTransactionRef,
     status: 'active',
     bookingStatus,
     duplicatePendingScreenshot,
@@ -941,7 +960,9 @@ async function buildDepositLinkReviewItem(
     title: `${d.customerName} · ${d.title ?? 'Additional deposit'}`,
     subtitle: 'Additional security deposit',
     amountPaise: d.amountPaise,
-    screenshotUrl: d.paymentProofUrl!,
+    screenshotUrl: d.paymentProofUrl ?? '',
+    referenceNumber: d.paymentProofTransactionRef ?? null,
+    possibleDuplicate: d.possibleDuplicate ?? false,
     entityId: d.linkId,
     customerId: linkRow?.residentId ?? null,
     bookingId: d.bookingId,
@@ -1006,7 +1027,9 @@ async function loadPendingPaymentReviewItems(
   const qrItems = (
     await Promise.all(
       qrRows
-        .filter((p) => p.paymentScreenshotUrl?.trim())
+        .filter((p) =>
+          p.paymentScreenshotUrl?.trim() || p.transactionRef?.trim(),
+        )
         .map(async (p) => {
           const isBookingCheckout = Boolean(p.bookingCode || p.bookingId);
           const bookingDetails = p.bookingId ? bookingDetailsById.get(p.bookingId) ?? null : null;
@@ -1045,18 +1068,39 @@ async function loadPendingPaymentReviewItems(
       listPendingDepositLinkProofsForPg(pg.id),
     ]);
 
+    const { hasTxnOrScreenshotProof } = await import('@/src/services/pgTransactionRefIndex');
     const pgItems = await Promise.all([
       ...(rentProofs ?? [])
-        .filter((r) => r.paymentProofUrl)
+        .filter((r) =>
+          hasTxnOrScreenshotProof({
+            paymentProofUrl: r.paymentProofUrl,
+            transactionRef: r.paymentProofTransactionRef,
+          }),
+        )
         .map((r) => buildRentReviewItem(pg, r)),
       ...(elecProofs ?? [])
-        .filter((e) => e.paymentProofUrl)
+        .filter((e) =>
+          hasTxnOrScreenshotProof({
+            paymentProofUrl: e.paymentProofUrl,
+            transactionRef: e.paymentProofTransactionRef,
+          }),
+        )
         .map((e) => buildElectricityReviewItem(pg, e)),
       ...(extProofs ?? [])
-        .filter((x) => x.paymentProofUrl)
+        .filter((x) =>
+          hasTxnOrScreenshotProof({
+            paymentProofUrl: x.paymentProofUrl,
+            transactionRef: x.paymentProofTransactionRef,
+          }),
+        )
         .map((x) => buildExtensionReviewItem(pg, x)),
       ...(depositLinks ?? [])
-        .filter((d) => d.paymentProofUrl)
+        .filter((d) =>
+          hasTxnOrScreenshotProof({
+            paymentProofUrl: d.paymentProofUrl,
+            transactionRef: d.paymentProofTransactionRef,
+          }),
+        )
         .map((d) => buildDepositLinkReviewItem(pg, d)),
     ]);
     for (const item of pgItems) {

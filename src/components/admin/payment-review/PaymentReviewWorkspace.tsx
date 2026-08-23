@@ -89,6 +89,12 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
   const actionsDisabled = busy || approved;
 
   async function handleApprove() {
+    if (item.possibleDuplicate) {
+      const msg =
+        item.approveConfirmMessage ??
+        'This transaction ID is flagged as a possible duplicate of another payment. Approving again may fail if it was already approved. Continue?';
+      if (typeof window !== 'undefined' && !window.confirm(msg)) return;
+    }
     setBusy(true);
     setApproved(false);
     setError(null);
@@ -248,6 +254,16 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
               </section>
             ) : null}
 
+            {item.referenceNumber ? (
+              <section className="rounded-xl border border-white/10 bg-[#121820] p-5">
+                <h2 className="text-base font-semibold text-white">UPI transaction ID</h2>
+                <p className="mt-3 font-mono text-lg font-semibold text-white">{item.referenceNumber}</p>
+                {item.possibleDuplicate ? (
+                  <p className="mt-2 text-xs font-medium text-amber-300">Duplicate reference ID</p>
+                ) : null}
+              </section>
+            ) : null}
+
             <section
               className={`rounded-xl border p-5 ${
                 verification.differenceTone === 'exact'
@@ -263,7 +279,7 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
                   emphasize
                 />
                 <FieldRow
-                  label="Screenshot amount"
+                  label="Submitted amount"
                   value={paiseToInr(verification.screenshotAmountPaise)}
                   emphasize
                   className="text-emerald-300"
@@ -271,8 +287,8 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
                 <FieldRow label="Difference" value={diff.text} emphasize className={diff.className} />
               </dl>
               <p className="mt-4 text-xs text-apg-silver">
-                Approve confirms the booking using contract rent and deposit values. The screenshot is
-                verification only.
+                Approve confirms the booking using contract rent and deposit values. Verify the UPI
+                transaction ID (and screenshot if present).
               </p>
             </section>
 
@@ -287,12 +303,18 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
           </div>
 
           <aside className="lg:sticky lg:top-4 lg:self-start">
-            <PaymentScreenshotPreview
-              url={item.screenshotUrl}
-              viewHref={adminPaymentProofViewUrl(item.kind, item.entityId)}
-              alt={`${item.residentName} payment proof`}
-              variant="review"
-            />
+            {item.screenshotUrl?.trim() ? (
+              <PaymentScreenshotPreview
+                url={item.screenshotUrl}
+                viewHref={adminPaymentProofViewUrl(item.kind, item.entityId)}
+                alt={`${item.residentName} payment proof`}
+                variant="review"
+              />
+            ) : (
+              <div className="rounded-xl border border-white/10 bg-[#121820] p-4 text-sm text-apg-silver">
+                No screenshot — verify using the transaction ID.
+              </div>
+            )}
           </aside>
         </div>
         </div>

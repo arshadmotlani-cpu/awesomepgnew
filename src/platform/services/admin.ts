@@ -416,6 +416,9 @@ export async function listOrganizationDetailsForAdmin(
           currentPeriodEnd: platformOrganizationSubscriptions.currentPeriodEnd,
           createdAt: platformOrganizationSubscriptions.createdAt,
           updatedAt: platformOrganizationSubscriptions.updatedAt,
+          stripeCustomerId: platformOrganizationSubscriptions.stripeCustomerId,
+          stripeSubscriptionId: platformOrganizationSubscriptions.stripeSubscriptionId,
+          stripePriceId: platformOrganizationSubscriptions.stripePriceId,
           planName: platformPlans.name,
           planSlug: platformPlans.slug,
         })

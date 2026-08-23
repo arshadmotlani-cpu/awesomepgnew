@@ -40,6 +40,9 @@ jobs:
       - name: Lint private blob display
         run: node_modules/.bin/tsx scripts/lint-private-blob-display.ts
 
+      - name: Deploy typecheck (app, excludes tests)
+        run: npm run typecheck:deploy
+
       - name: Unit and integration tests
         run: TEST_CONCURRENCY=1 node scripts/run-unit-tests.mjs
 

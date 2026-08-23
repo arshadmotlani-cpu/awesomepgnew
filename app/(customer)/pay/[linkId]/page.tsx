@@ -150,7 +150,7 @@ export default async function PaymentLinkPage({
         </section>
       ) : (
         <p className="mt-6 text-center text-xs text-zinc-500">
-          After paying, upload proof from your resident account or share screenshot with admin.
+          After paying, submit your UPI transaction ID from your resident account or share it with admin.
         </p>
       )}
 

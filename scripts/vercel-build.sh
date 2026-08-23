@@ -127,4 +127,10 @@ else
 fi
 
 bash scripts/vercel-build-repair.sh
+
+echo "=== Deploy typecheck (app graph, excludes tests) ==="
+# Fail the build with the full app error list before Next's first-error typecheck.
+# Prevents the recurring push→fix-one→fail-next cycle.
+npx tsc -p tsconfig.deploy.json --noEmit --pretty false
+
 next build

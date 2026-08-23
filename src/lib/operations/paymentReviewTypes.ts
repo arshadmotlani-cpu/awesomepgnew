@@ -62,7 +62,7 @@ export type PendingPaymentReviewItem = {
   title: string;
   subtitle: string;
   amountPaise: number;
-  screenshotUrl: string;
+  screenshotUrl: string; // may be empty when txn-ID-only proof
   entityId: string;
   customerId: string | null;
   bookingId: string | null;
@@ -91,6 +91,9 @@ export type PendingPaymentReviewItem = {
   invoiceAmountPaise?: number | null;
   submittedAmountPaise?: number | null;
   referenceNumber?: string | null;
+  possibleDuplicate?: boolean;
+  duplicateOfIds?: string[];
+  approveConfirmMessage?: string | null;
   proofSubmittedAt?: string | null;
   billingMonth?: string | null;
   isPipelineTest?: boolean;

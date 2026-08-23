@@ -38,6 +38,7 @@ export type ResidentPayElectricityPageData = {
   roomNumber: string;
   pgId: string;
   paymentProofUrl: string | null;
+  paymentProofTransactionRef: string | null;
   calculation: Awaited<ReturnType<typeof getElectricityBreakdownForInvoice>>;
   explanation: ResidentElectricityBillExplanation | null;
   activeRejection: Awaited<ReturnType<typeof getActiveRejectionForEntity>>;
@@ -63,6 +64,7 @@ export async function loadResidentPayElectricityPageData(
       roomNumber: rooms.roomNumber,
       pgId: floors.pgId,
       paymentProofUrl: electricityInvoices.paymentProofUrl,
+      paymentProofTransactionRef: electricityInvoices.paymentProofTransactionRef,
     })
     .from(electricityInvoices)
     .innerJoin(bookings, eq(bookings.id, electricityInvoices.bookingId))
@@ -95,6 +97,7 @@ export async function loadResidentPayElectricityPageData(
     roomNumber: row.roomNumber,
     pgId: row.pgId,
     paymentProofUrl: row.paymentProofUrl,
+    paymentProofTransactionRef: row.paymentProofTransactionRef,
     calculation,
     explanation,
     activeRejection,
