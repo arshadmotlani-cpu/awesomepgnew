@@ -79,8 +79,8 @@ export async function ResidentProfileTabSection({
       depositBalancePaise={data.walletDepositHeldPaise}
       depositDuePaise={data.primaryDepositCard?.depositDuePaise ?? 0}
       moveOutStatus={data.moveOutStatus}
-      roommatesCount={Math.max(0, 4 - 1)}
-      roomCapacity={4}
+      roommatesCount={data.roommatesCount}
+      roomCapacity={data.roomCapacity}
       ps4Active={Boolean(data.ps4Membership)}
       fullName={data.customer.fullName}
       email={data.customer.email}

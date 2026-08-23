@@ -64,6 +64,11 @@ import { getReferralSummaryForCustomer } from '@/src/services/referrals';
 import type { ResidentAccountContext } from '@/src/services/residentAccountContext';
 import { getPendingVacatingDateChangeForBooking } from '@/src/services/vacatingDateChange';
 import { resolveNoticeGivenDateForVacating } from '@/src/lib/vacating/noticeDateSsot';
+import { countActiveBedsInRoom } from '@/src/lib/roomCapacitySsotDb';
+import {
+  resolveEffectiveRoomCapacity,
+  roommateCountFromRoomCapacity,
+} from '@/src/lib/roomCapacitySsot';
 
 export type ResidentPortalBookingDetail = {
   booking: ResidentBookingRow;
@@ -357,6 +362,11 @@ export async function loadResidentProfileTabData(input: {
   const depositEntries =
     walletBooking?.deposit?.entries ?? primaryBooking?.deposit?.entries ?? [];
 
+  const roomId = primaryBooking?.booking.roomId ?? null;
+  const activeBedCount = roomId ? await countActiveBedsInRoom(roomId) : 0;
+  const roomCapacity = resolveEffectiveRoomCapacity({ activeBedCount });
+  const roommatesCount = roommateCountFromRoomCapacity(roomCapacity);
+
   return {
     primaryBooking,
     customer,
@@ -379,6 +389,8 @@ export async function loadResidentProfileTabData(input: {
     checkoutByBooking: checkoutMaps.checkoutByBooking,
     effectiveDurationMode,
     canRequestVacatingDateChange,
+    roomCapacity,
+    roommatesCount,
   };
 }
 

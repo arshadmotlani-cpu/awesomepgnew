@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { formatDate, paiseToInr } from '@/src/lib/format';
+import { residentProfileRoomSharingLabel } from '@/src/lib/roomCapacitySsot';
 import { residentPaymentsHref } from '@/src/lib/accountNavigation';
 import type { CheckoutSettlementWaterfall } from '@/src/lib/checkout/checkoutSettlementEngineV2';
 import type { ResidentBookingRow } from '@/src/db/queries/customer';
@@ -37,8 +38,9 @@ export function ProfileOverviewPanel({
   ps4Active = false,
   changeFinalStayHref = null,
 }: Props) {
-  const sharingLabel =
-    roomCapacity <= 1 ? 'Private room' : `${roomCapacity}-sharing (${roommatesCount} roommate${roommatesCount === 1 ? '' : 's'})`;
+  // roommatesCount is derived as capacity-1 upstream; label uses capacity SSOT only.
+  void roommatesCount;
+  const sharingLabel = residentProfileRoomSharingLabel(roomCapacity);
 
   return (
     <div className="space-y-4 pb-2 max-md:space-y-5">

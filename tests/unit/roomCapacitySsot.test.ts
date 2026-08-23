@@ -7,6 +7,8 @@ import {
   resolveRoomTypeNameForCapacity,
   roomCapacityFromActiveBedCount,
   sharingLabelFromActiveBedCount,
+  roommateCountFromRoomCapacity,
+  residentProfileRoomSharingLabel,
 } from '@/src/lib/roomCapacitySsot';
 
 test('room capacity SSOT derives sharing from active bed count', () => {
@@ -44,4 +46,9 @@ test('room page uses operational room management panel', () => {
   assert.doesNotMatch(panel, /RoomElectricityCard/);
   assert.doesNotMatch(panel, /roomMeters/);
   assert.match(panel, /RoomOperationalCard/);
+});
+
+test('roommate count is sharing capacity minus the resident', () => {
+  assert.equal(roommateCountFromRoomCapacity(3), 2);
+  assert.equal(residentProfileRoomSharingLabel(3), '3-sharing (2 roommates)');
 });

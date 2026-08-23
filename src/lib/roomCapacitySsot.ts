@@ -37,3 +37,19 @@ export function resolveEffectiveRoomCapacity(input: {
   if (fromBeds > 0) return fromBeds;
   return Math.max(1, Math.floor(input.storedCapacity ?? 1));
 }
+
+/**
+ * Configured roommate slots for a resident profile:
+ * sharing capacity minus the resident's own bed (never count self as a roommate).
+ */
+export function roommateCountFromRoomCapacity(roomCapacity: number): number {
+  return Math.max(0, roomCapacityFromActiveBedCount(roomCapacity) - 1);
+}
+
+/** Resident profile "Room sharing" label from configured room capacity. */
+export function residentProfileRoomSharingLabel(roomCapacity: number): string {
+  const capacity = roomCapacityFromActiveBedCount(roomCapacity);
+  if (capacity <= 1) return 'Private room';
+  const roommates = roommateCountFromRoomCapacity(capacity);
+  return `${capacity}-sharing (${roommates} roommate${roommates === 1 ? '' : 's'})`;
+}
