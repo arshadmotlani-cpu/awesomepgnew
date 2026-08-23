@@ -121,7 +121,13 @@ export default async function PlatformOrganizationDetailPage({ params }: Props) 
             </label>
             <label className="grid gap-1 text-sm">
               <span className="text-[var(--plt-text-muted)]">Slug</span>
-              <input name="slug" defaultValue={organization.slug} className="plt-input" />
+              <input name="slug" type="hidden" value={organization.slug} />
+              <p className="rounded-md border border-[var(--plt-border)] bg-black/20 px-3 py-2 font-mono text-sm text-[var(--plt-text-muted)]">
+                {organization.slug}
+              </p>
+              <p className="mt-1 text-xs text-[var(--plt-text-subtle)]">
+                Assigned at create and locked (changing it would break existing salon access).
+              </p>
             </label>
             <label className="grid gap-1 text-sm">
               <span className="text-[var(--plt-text-muted)]">Timezone</span>

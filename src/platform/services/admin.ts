@@ -22,6 +22,7 @@ import {
   type PlatformUserStatus,
 } from '@/src/platform/db/schema';
 import { hasPlatformDatabaseUrl } from '@/src/platform/lib/db/env';
+import { allocateUniqueOrgSlug } from '@/src/platform/lib/orgSlug';
 
 type OrgStatus = typeof platformOrganizations.$inferInsert.status;
 type SubscriptionStatus = typeof platformOrganizationSubscriptions.$inferInsert.status;
@@ -80,7 +81,8 @@ export type OrganizationDetail = typeof platformOrganizations.$inferSelect & {
 
 export type CreateOrganizationInput = {
   organizationName: string;
-  slug: string;
+  /** Ignored when present — slug is derived from organizationName server-side. */
+  slug?: string;
   businessEmail: string;
   firstOwnerName: string;
   firstOwnerEmail: string;
@@ -620,8 +622,6 @@ async function logSubscriptionEvent(input: {
 export async function createOrganizationWithOwnerInvite(
   input: CreateOrganizationInput,
 ): Promise<{ organizationId: string; invitationToken: string }> {
-  const slug = normalizeSlug(input.slug);
-  if (!slug) throw new Error('Organization slug is required');
   const timezone = input.defaultTimezone?.trim() || 'Asia/Kolkata';
   const organizationId = randomUUID();
   const locationId = randomUUID();
@@ -642,6 +642,18 @@ export async function createOrganizationWithOwnerInvite(
 
   const { db, close } = createPlatformClient({ max: 1 });
   try {
+    const slug = await allocateUniqueOrgSlug({
+      salonName: input.organizationName,
+      isTaken: async (candidate) => {
+        const [existing] = await db
+          .select({ id: platformOrganizations.id })
+          .from(platformOrganizations)
+          .where(eq(platformOrganizations.slug, candidate))
+          .limit(1);
+        return Boolean(existing);
+      },
+    });
+
     const [plan] = await db.select().from(platformPlans).where(eq(platformPlans.id, input.planId)).limit(1);
     if (!plan) throw new Error('Plan not found');
 
@@ -955,7 +967,8 @@ export async function updateOrganizationStatus(
 export async function updateOrganizationBasics(input: {
   organizationId: string;
   name: string;
-  slug: string;
+  /** Slug is locked after create — accepted for form compat but ignored. */
+  slug?: string;
   defaultTimezone?: string | null;
   gstin?: string | null;
 }): Promise<void> {
@@ -965,7 +978,6 @@ export async function updateOrganizationBasics(input: {
       .update(platformOrganizations)
       .set({
         name: input.name.trim(),
-        slug: normalizeSlug(input.slug),
         defaultTimezone: input.defaultTimezone?.trim() || 'Asia/Kolkata',
         gstin: input.gstin?.trim() || null,
         updatedAt: new Date(),

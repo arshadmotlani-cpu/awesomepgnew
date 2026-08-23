@@ -35,7 +35,6 @@ export async function createOrganizationAction(formData: FormData): Promise<void
   const session = await requirePlatformAdminPage();
   const { organizationId } = await createOrganizationWithOwnerInvite({
     organizationName: String(formData.get('organizationName') ?? ''),
-    slug: String(formData.get('slug') ?? ''),
     businessEmail: String(formData.get('businessEmail') ?? ''),
     firstOwnerName: String(formData.get('firstOwnerName') ?? ''),
     firstOwnerEmail: String(formData.get('firstOwnerEmail') ?? ''),

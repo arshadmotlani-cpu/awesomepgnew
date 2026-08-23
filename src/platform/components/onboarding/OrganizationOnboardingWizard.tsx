@@ -8,13 +8,12 @@ type Props = {
   plans: PlatformPlanRecord[];
 };
 
-const STEPS = ['Organization', 'Location', 'Subscription', 'Owner', 'Review'] as const;
+const STEPS = ['Salon', 'Location', 'Subscription', 'Owner', 'Review'] as const;
 
 export function OrganizationOnboardingWizard({ plans }: Props) {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState({
     organizationName: '',
-    slug: '',
     businessEmail: '',
     defaultTimezone: 'Asia/Kolkata',
     gstin: '',
@@ -30,21 +29,11 @@ export function OrganizationOnboardingWizard({ plans }: Props) {
   });
 
   function update(field: string, value: string) {
-    setForm((prev) => {
-      const next = { ...prev, [field]: value };
-      if (field === 'organizationName' && !prev.slug) {
-        next.slug = value
-          .trim()
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-+|-+$/g, '');
-      }
-      return next;
-    });
+    setForm((prev) => ({ ...prev, [field]: value }));
   }
 
   function canNext(): boolean {
-    if (step === 0) return Boolean(form.organizationName && form.slug && form.businessEmail);
+    if (step === 0) return Boolean(form.organizationName && form.businessEmail);
     if (step === 1) return Boolean(form.primaryLocationName);
     if (step === 2) return Boolean(form.planId);
     if (step === 3) return Boolean(form.firstOwnerName && form.firstOwnerEmail);
@@ -73,7 +62,6 @@ export function OrganizationOnboardingWizard({ plans }: Props) {
 
       <form action={createOrganizationAction} className="rounded-lg border border-[var(--plt-border)] bg-[var(--plt-bg-surface)] p-6">
         <input type="hidden" name="organizationName" value={form.organizationName} />
-        <input type="hidden" name="slug" value={form.slug} />
         <input type="hidden" name="businessEmail" value={form.businessEmail} />
         <input type="hidden" name="defaultTimezone" value={form.defaultTimezone} />
         <input type="hidden" name="gstin" value={form.gstin} />
@@ -89,14 +77,10 @@ export function OrganizationOnboardingWizard({ plans }: Props) {
 
         {step === 0 && (
           <div className="grid gap-4">
-            <h2 className="text-sm font-semibold">Organization details</h2>
+            <h2 className="text-sm font-semibold">Salon details</h2>
             <label className="grid gap-1 text-sm">
-              <span className="text-[var(--plt-text-muted)]">Organization name</span>
+              <span className="text-[var(--plt-text-muted)]">Salon name</span>
               <input required value={form.organizationName} onChange={(e) => update('organizationName', e.target.value)} className="plt-input" />
-            </label>
-            <label className="grid gap-1 text-sm">
-              <span className="text-[var(--plt-text-muted)]">Slug</span>
-              <input required value={form.slug} onChange={(e) => update('slug', e.target.value)} className="plt-input" />
             </label>
             <label className="grid gap-1 text-sm">
               <span className="text-[var(--plt-text-muted)]">Business email</span>
@@ -185,7 +169,7 @@ export function OrganizationOnboardingWizard({ plans }: Props) {
           <div className="space-y-3 text-sm">
             <h2 className="font-semibold">Review & provision</h2>
             <dl className="grid gap-2 text-[var(--plt-text-muted)]">
-              <div><dt className="text-xs text-[var(--plt-text-subtle)]">Organization</dt><dd className="text-[var(--plt-text)]">{form.organizationName} ({form.slug})</dd></div>
+              <div><dt className="text-xs text-[var(--plt-text-subtle)]">Salon</dt><dd className="text-[var(--plt-text)]">{form.organizationName}</dd></div>
               <div><dt className="text-xs text-[var(--plt-text-subtle)]">Location</dt><dd className="text-[var(--plt-text)]">{form.primaryLocationName}</dd></div>
               <div><dt className="text-xs text-[var(--plt-text-subtle)]">Plan</dt><dd className="text-[var(--plt-text)]">{plans.find((p) => p.id === form.planId)?.name ?? form.planId}</dd></div>
               <div><dt className="text-xs text-[var(--plt-text-subtle)]">Owner</dt><dd className="text-[var(--plt-text)]">{form.firstOwnerName} · {form.firstOwnerEmail}</dd></div>
