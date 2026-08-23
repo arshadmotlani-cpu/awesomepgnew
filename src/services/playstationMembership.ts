@@ -302,8 +302,8 @@ export async function upgradeMembership(
 export async function submitMembershipPaymentProof(input: {
   membershipId: string;
   customerId: string;
-  paymentProofUrl: string;
-  transactionRef?: string;
+  transactionRef: string;
+  paymentProofUrl?: string | null;
 }) {
   const [membership] = await db
     .select()
@@ -317,29 +317,41 @@ export async function submitMembershipPaymentProof(input: {
     throw new Error('This membership is not awaiting payment.');
   }
 
+  const proofUrl = input.paymentProofUrl?.trim() || null;
+  const rawTxn = input.transactionRef.trim();
+  const { resolveDuplicateFlagsForSubmit } = await import('@/src/services/pgTransactionRefIndex');
+  const flags = await resolveDuplicateFlagsForSubmit({
+    transactionRef: input.transactionRef,
+    exclude: { kind: 'playstation_membership', id: input.membershipId },
+  });
+
   await db
     .update(playstationMemberships)
     .set({
-      paymentProofUrl: input.paymentProofUrl.trim(),
-      transactionRef: input.transactionRef?.trim() || null,
+      paymentProofUrl: proofUrl,
+      transactionRef: rawTxn,
+      possibleDuplicate: flags.possibleDuplicate,
+      duplicateOfIds: flags.duplicateOfIds,
       updatedAt: new Date(),
     })
     .where(eq(playstationMemberships.id, input.membershipId));
 
   await insertTransaction(input.membershipId, 'payment_proof', {
     amountPaise: membership.amountPaise,
-    paymentProofUrl: input.paymentProofUrl,
-    transactionRef: input.transactionRef,
+    paymentProofUrl: proofUrl,
+    transactionRef: rawTxn,
   });
 
-  const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
-  await linkResidentUpload({
-    storagePath: input.paymentProofUrl.trim(),
-    adminQueue: 'playstation',
-    linkedEntity: 'playstation_membership',
-    linkedEntityId: input.membershipId,
-    pgId: membership.pgId,
-  }).catch(() => undefined);
+  if (proofUrl) {
+    const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
+    await linkResidentUpload({
+      storagePath: proofUrl,
+      adminQueue: 'playstation',
+      linkedEntity: 'playstation_membership',
+      linkedEntityId: input.membershipId,
+      pgId: membership.pgId,
+    }).catch(() => undefined);
+  }
 }
 
 export async function activateMembership(membershipId: string, adminId?: string) {
@@ -349,6 +361,16 @@ export async function activateMembership(membershipId: string, adminId?: string)
     .where(eq(playstationMemberships.id, membershipId))
     .limit(1);
   if (!membership) throw new Error('Membership not found.');
+
+  const { insertApprovedTransactionRefOrThrow } = await import(
+    '@/src/services/pgTransactionRefIndex'
+  );
+  await insertApprovedTransactionRefOrThrow({
+    transactionRef: membership.transactionRef,
+    sourceKind: 'playstation_membership',
+    sourceId: membership.id,
+    approvedByAdminId: adminId ?? null,
+  });
 
   const plan = PS4_PLANS[membership.plan];
   const now = new Date();
@@ -379,7 +401,16 @@ export async function activateMembership(membershipId: string, adminId?: string)
 /** Called when booking payment succeeds — activates linked pending PS4 add-on. */
 export async function activatePendingMembershipForBooking(bookingId: string) {
   const pending = await getPendingMembershipForBooking(bookingId);
-  if (!pending || !pending.paymentProofUrl) return null;
+  if (!pending) return null;
+  const { hasTxnOrScreenshotProof } = await import('@/src/services/pgTransactionRefIndex');
+  if (
+    !hasTxnOrScreenshotProof({
+      paymentProofUrl: pending.paymentProofUrl,
+      transactionRef: pending.transactionRef,
+    })
+  ) {
+    return null;
+  }
   await activateMembership(pending.id);
   return pending.id;
 }

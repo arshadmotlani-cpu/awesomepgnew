@@ -2,7 +2,7 @@
  * Resident charge generator — structured deposit / rent / custom charges with payment links.
  */
 
-import { and, eq, isNotNull } from 'drizzle-orm';
+import { and, eq, isNotNull, or } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   bedReservations,
@@ -318,7 +318,7 @@ export async function createResidentCharge(
 export async function submitDepositLinkPaymentProof(
   linkId: string,
   customerId: string,
-  paymentProofUrl: string,
+  proof: { transactionRef: string; paymentProofUrl?: string | null },
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   if (!customerId?.trim()) {
     return { ok: false, message: 'Sign in required.' };
@@ -337,11 +337,24 @@ export async function submitDepositLinkPaymentProof(
   if (link.purpose !== 'deposit' || !link.bookingId) {
     return { ok: false, message: 'This link is not a deposit collection request.' };
   }
-  if (!paymentProofUrl.trim()) {
-    return { ok: false, message: 'Payment photo is required.' };
+
+  const proofUrl = proof.paymentProofUrl?.trim() || null;
+  const rawTxn = proof.transactionRef.trim();
+
+  let flags: {
+    possibleDuplicate: boolean;
+    duplicateOfIds: string[];
+  };
+  try {
+    const { resolveDuplicateFlagsForSubmit } = await import('@/src/services/pgTransactionRefIndex');
+    flags = await resolveDuplicateFlagsForSubmit({
+      transactionRef: proof.transactionRef,
+      exclude: { kind: 'payment_link', id: linkId },
+    });
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
   }
 
-  const proofUrl = paymentProofUrl.trim();
   const {
     evaluatePaymentReviewInvariants,
     paymentReviewInvariantErrorMessage,
@@ -349,11 +362,13 @@ export async function submitDepositLinkPaymentProof(
   const { hasDuplicatePendingPaymentProofUrl } = await import(
     '@/src/lib/payments/duplicatePendingPaymentProof'
   );
-  const duplicatePendingScreenshot = await hasDuplicatePendingPaymentProofUrl({
-    pgId: link.pgId,
-    paymentProofUrl: proofUrl,
-    exclude: { kind: 'deposit_link', id: linkId },
-  });
+  const duplicatePendingScreenshot = proofUrl
+    ? await hasDuplicatePendingPaymentProofUrl({
+        pgId: link.pgId,
+        paymentProofUrl: proofUrl,
+        exclude: { kind: 'deposit_link', id: linkId },
+      })
+    : false;
   const [bookingRow] = link.bookingId
     ? await db
         .select({ status: bookings.status })
@@ -370,6 +385,7 @@ export async function submitDepositLinkPaymentProof(
     expectedAmountPaise: link.amount,
     proofAmountPaise: link.amount,
     paymentProofUrl: proofUrl,
+    transactionRef: rawTxn,
     status: link.status,
     bookingStatus: bookingRow?.status ?? null,
     duplicatePendingScreenshot,
@@ -392,22 +408,29 @@ export async function submitDepositLinkPaymentProof(
   await db.transaction(async (tx) => {
     await tx
       .update(paymentLinks)
-      .set({ paymentProofUrl: proofUrl })
+      .set({
+        paymentProofUrl: proofUrl,
+        paymentProofTransactionRef: rawTxn,
+        possibleDuplicate: flags.possibleDuplicate,
+        duplicateOfIds: flags.duplicateOfIds,
+      })
       .where(eq(paymentLinks.id, linkId));
 
     const { supersedeActiveRejection } = await import('@/src/services/paymentProofRejectionService');
     await supersedeActiveRejection('payment_link', linkId, tx);
   });
 
-  const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
-  await linkResidentUpload({
-    storagePath: proofUrl,
-    adminQueue: 'operations',
-    linkedEntity: 'payment_link',
-    linkedEntityId: linkId,
-    bookingId: link.bookingId,
-    pgId: link.pgId,
-  }).catch(() => undefined);
+  if (proofUrl) {
+    const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
+    await linkResidentUpload({
+      storagePath: proofUrl,
+      adminQueue: 'operations',
+      linkedEntity: 'payment_link',
+      linkedEntityId: linkId,
+      bookingId: link.bookingId,
+      pgId: link.pgId,
+    }).catch(() => undefined);
+  }
 
   const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
   scheduleAdminNotificationSync();
@@ -423,6 +446,9 @@ export async function listPendingDepositLinkProofsForPg(pgId: string) {
       roomNumber: paymentLinks.title,
       amountPaise: paymentLinks.amount,
       paymentProofUrl: paymentLinks.paymentProofUrl,
+      paymentProofTransactionRef: paymentLinks.paymentProofTransactionRef,
+      possibleDuplicate: paymentLinks.possibleDuplicate,
+      duplicateOfIds: paymentLinks.duplicateOfIds,
       title: paymentLinks.title,
       bookingId: paymentLinks.bookingId,
     })
@@ -433,7 +459,10 @@ export async function listPendingDepositLinkProofsForPg(pgId: string) {
         eq(paymentLinks.pgId, pgId),
         eq(paymentLinks.purpose, 'deposit'),
         eq(paymentLinks.status, 'active'),
-        isNotNull(paymentLinks.paymentProofUrl),
+        or(
+          isNotNull(paymentLinks.paymentProofUrl),
+          isNotNull(paymentLinks.paymentProofTransactionRef),
+        ),
         isNotNull(paymentLinks.bookingId),
       ),
     );
@@ -452,8 +481,16 @@ export async function approveDepositLinkPaymentProof(
   if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, link.pgId)) {
     return { ok: false, message: 'Access denied.' };
   }
-  if (!link.paymentProofUrl) {
-    return { ok: false, message: 'No payment photo uploaded.' };
+  {
+    const { hasTxnOrScreenshotProof } = await import('@/src/services/pgTransactionRefIndex');
+    if (
+      !hasTxnOrScreenshotProof({
+        paymentProofUrl: link.paymentProofUrl,
+        transactionRef: link.paymentProofTransactionRef,
+      })
+    ) {
+      return { ok: false, message: 'No payment proof uploaded.' };
+    }
   }
   if (link.status !== 'active' || link.purpose !== 'deposit' || !link.bookingId) {
     return { ok: false, message: 'This deposit link is not awaiting approval.' };
@@ -466,11 +503,13 @@ export async function approveDepositLinkPaymentProof(
   const { hasDuplicatePendingPaymentProofUrl } = await import(
     '@/src/lib/payments/duplicatePendingPaymentProof'
   );
-  const duplicatePendingScreenshot = await hasDuplicatePendingPaymentProofUrl({
-    pgId: link.pgId,
-    paymentProofUrl: link.paymentProofUrl,
-    exclude: { kind: 'deposit_link', id: linkId },
-  });
+  const duplicatePendingScreenshot = link.paymentProofUrl?.trim()
+    ? await hasDuplicatePendingPaymentProofUrl({
+        pgId: link.pgId,
+        paymentProofUrl: link.paymentProofUrl,
+        exclude: { kind: 'deposit_link', id: linkId },
+      })
+    : false;
   const [bookingRow] = await db
     .select({ status: bookings.status })
     .from(bookings)
@@ -485,6 +524,7 @@ export async function approveDepositLinkPaymentProof(
     expectedAmountPaise: link.amount,
     proofAmountPaise: link.amount,
     paymentProofUrl: link.paymentProofUrl,
+    transactionRef: link.paymentProofTransactionRef,
     status: link.status,
     bookingStatus: bookingRow?.status ?? null,
     duplicatePendingScreenshot,
@@ -502,6 +542,30 @@ export async function approveDepositLinkPaymentProof(
       violations: invariant.violations,
     });
     return { ok: false, message: paymentReviewInvariantErrorMessage(invariant) };
+  }
+
+
+  try {
+    const { insertApprovedTransactionRefOrThrow } = await import(
+      '@/src/services/pgTransactionRefIndex'
+    );
+    const { approvedTransactionRefConflictMessage } = await import(
+      '@/src/lib/payments/transactionRefDuplicate'
+    );
+    await insertApprovedTransactionRefOrThrow({
+      transactionRef: link.paymentProofTransactionRef,
+      sourceKind: 'payment_link',
+      sourceId: link.id,
+      approvedByAdminId: session.adminId,
+    });
+  } catch (err) {
+    const { approvedTransactionRefConflictMessage } = await import(
+      '@/src/lib/payments/transactionRefDuplicate'
+    );
+    if (err instanceof Error && err.message === approvedTransactionRefConflictMessage()) {
+      return { ok: false, message: err.message };
+    }
+    throw err;
   }
 
   const providerPaymentId = `deposit-link-proof-${linkId}`;

@@ -526,8 +526,10 @@ export async function runJuneElectricityProductionCertification(input: {
       const upload = await submitElectricityPaymentProof(
         pipeline.customerId,
         pipeline.invoiceId,
-        proofUrl,
-        'CERT-PIPELINE-TEST',
+        {
+          transactionRef: 'CERT-PIPELINE-TEST',
+          paymentProofUrl: proofUrl,
+        },
       );
       pass(
         step(

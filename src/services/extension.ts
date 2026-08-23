@@ -31,7 +31,7 @@
  * condition resolution from PROJECT_PLAN.md §8.6.
  */
 
-import { and, asc, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, or, sql } from 'drizzle-orm';
 import { db } from '../db/client';
 import {
   auditLog,
@@ -563,8 +563,7 @@ export async function markExpiredExtensions(): Promise<{
 export async function submitExtensionPaymentProof(
   customerId: string,
   extensionId: string,
-  paymentProofUrl: string,
-  transactionRef?: string,
+  proof: { transactionRef: string; paymentProofUrl?: string | null },
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const [ext] = await db
     .select({
@@ -581,11 +580,24 @@ export async function submitExtensionPaymentProof(
   if (ext.status !== 'pending') {
     return { ok: false, message: 'This extension is not awaiting payment.' };
   }
-  if (!paymentProofUrl.trim()) {
-    return { ok: false, message: 'Payment photo is required.' };
+
+  const proofUrl = proof.paymentProofUrl?.trim() || null;
+  const rawTxn = proof.transactionRef.trim();
+
+  let flags: {
+    possibleDuplicate: boolean;
+    duplicateOfIds: string[];
+  };
+  try {
+    const { resolveDuplicateFlagsForSubmit } = await import('@/src/services/pgTransactionRefIndex');
+    flags = await resolveDuplicateFlagsForSubmit({
+      transactionRef: proof.transactionRef,
+      exclude: { kind: 'stay_extension', id: extensionId },
+    });
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
   }
 
-  const proofUrl = paymentProofUrl.trim();
   const [pgRow] = await db
     .select({ pgId: floors.pgId, bookingStatus: bookings.status, customerId: bookings.customerId })
     .from(bookings)
@@ -603,13 +615,14 @@ export async function submitExtensionPaymentProof(
   const { hasDuplicatePendingPaymentProofUrl } = await import(
     '@/src/lib/payments/duplicatePendingPaymentProof'
   );
-  const duplicatePendingScreenshot = pgRow
-    ? await hasDuplicatePendingPaymentProofUrl({
-        pgId: pgRow.pgId,
-        paymentProofUrl: proofUrl,
-        exclude: { kind: 'extension', id: extensionId },
-      })
-    : false;
+  const duplicatePendingScreenshot =
+    proofUrl && pgRow
+      ? await hasDuplicatePendingPaymentProofUrl({
+          pgId: pgRow.pgId,
+          paymentProofUrl: proofUrl,
+          exclude: { kind: 'extension', id: extensionId },
+        })
+      : false;
   const invariant = evaluatePaymentReviewInvariants({
     kind: 'extension',
     invoiceId: extensionId,
@@ -619,6 +632,7 @@ export async function submitExtensionPaymentProof(
     expectedAmountPaise: ext.quotedTotalPaise,
     proofAmountPaise: ext.quotedTotalPaise,
     paymentProofUrl: proofUrl,
+    transactionRef: rawTxn,
     status: ext.status,
     bookingStatus: pgRow?.bookingStatus ?? null,
     duplicatePendingScreenshot,
@@ -643,7 +657,9 @@ export async function submitExtensionPaymentProof(
       .update(stayExtensions)
       .set({
         paymentProofUrl: proofUrl,
-        paymentProofTransactionRef: transactionRef?.trim() || null,
+        paymentProofTransactionRef: rawTxn,
+        possibleDuplicate: flags.possibleDuplicate,
+        duplicateOfIds: flags.duplicateOfIds,
         updatedAt: new Date(),
       })
       .where(eq(stayExtensions.id, extensionId));
@@ -652,14 +668,16 @@ export async function submitExtensionPaymentProof(
     await supersedeActiveRejection('stay_extension', extensionId, tx);
   });
 
-  const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
-  await linkResidentUpload({
-    storagePath: proofUrl,
-    adminQueue: 'extensions',
-    linkedEntity: 'stay_extension',
-    linkedEntityId: extensionId,
-    bookingId: ext.bookingId,
-  }).catch(() => undefined);
+  if (proofUrl) {
+    const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
+    await linkResidentUpload({
+      storagePath: proofUrl,
+      adminQueue: 'extensions',
+      linkedEntity: 'stay_extension',
+      linkedEntityId: extensionId,
+      bookingId: ext.bookingId,
+    }).catch(() => undefined);
+  }
 
   const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
   scheduleAdminNotificationSync();
@@ -675,6 +693,9 @@ export async function listPendingExtensionProofsForPg(pgId: string) {
       customerName: customers.fullName,
       amountPaise: stayExtensions.quotedTotalPaise,
       paymentProofUrl: stayExtensions.paymentProofUrl,
+      paymentProofTransactionRef: stayExtensions.paymentProofTransactionRef,
+      possibleDuplicate: stayExtensions.possibleDuplicate,
+      duplicateOfIds: stayExtensions.duplicateOfIds,
     })
     .from(stayExtensions)
     .innerJoin(bookings, eq(bookings.id, stayExtensions.bookingId))
@@ -682,7 +703,10 @@ export async function listPendingExtensionProofsForPg(pgId: string) {
     .where(
       and(
         eq(stayExtensions.status, 'pending'),
-        isNotNull(stayExtensions.paymentProofUrl),
+        or(
+          isNotNull(stayExtensions.paymentProofUrl),
+          isNotNull(stayExtensions.paymentProofTransactionRef),
+        ),
         sql`EXISTS (
           SELECT 1 FROM ${bedReservations} br
           JOIN ${beds} b ON b.id = br.bed_id
@@ -707,8 +731,16 @@ export async function approveExtensionPaymentProof(
     .where(eq(stayExtensions.id, extensionId))
     .limit(1);
   if (!ext) return { ok: false, message: 'Extension not found.' };
-  if (!ext.paymentProofUrl) {
-    return { ok: false, message: 'No payment photo uploaded.' };
+  {
+    const { hasTxnOrScreenshotProof } = await import('@/src/services/pgTransactionRefIndex');
+    if (
+      !hasTxnOrScreenshotProof({
+        paymentProofUrl: ext.paymentProofUrl,
+        transactionRef: ext.paymentProofTransactionRef,
+      })
+    ) {
+      return { ok: false, message: 'No payment proof uploaded.' };
+    }
   }
   if (ext.status !== 'pending') {
     return { ok: false, message: 'Extension is not awaiting payment.' };
@@ -739,11 +771,13 @@ export async function approveExtensionPaymentProof(
   const { hasDuplicatePendingPaymentProofUrl } = await import(
     '@/src/lib/payments/duplicatePendingPaymentProof'
   );
-  const duplicatePendingScreenshot = await hasDuplicatePendingPaymentProofUrl({
-    pgId: pgRow.pgId,
-    paymentProofUrl: ext.paymentProofUrl,
-    exclude: { kind: 'extension', id: extensionId },
-  });
+  const duplicatePendingScreenshot = ext.paymentProofUrl?.trim()
+    ? await hasDuplicatePendingPaymentProofUrl({
+        pgId: pgRow.pgId,
+        paymentProofUrl: ext.paymentProofUrl,
+        exclude: { kind: 'extension', id: extensionId },
+      })
+    : false;
   const invariant = evaluatePaymentReviewInvariants({
     kind: 'extension',
     invoiceId: extensionId,
@@ -753,6 +787,7 @@ export async function approveExtensionPaymentProof(
     expectedAmountPaise: ext.quotedTotalPaise,
     proofAmountPaise: ext.quotedTotalPaise,
     paymentProofUrl: ext.paymentProofUrl,
+    transactionRef: ext.paymentProofTransactionRef,
     status: ext.status,
     bookingStatus: pgRow.bookingStatus,
     duplicatePendingScreenshot,
@@ -770,6 +805,30 @@ export async function approveExtensionPaymentProof(
       violations: invariant.violations,
     });
     return { ok: false, message: paymentReviewInvariantErrorMessage(invariant) };
+  }
+
+
+  try {
+    const { insertApprovedTransactionRefOrThrow } = await import(
+      '@/src/services/pgTransactionRefIndex'
+    );
+    const { approvedTransactionRefConflictMessage } = await import(
+      '@/src/lib/payments/transactionRefDuplicate'
+    );
+    await insertApprovedTransactionRefOrThrow({
+      transactionRef: ext.paymentProofTransactionRef,
+      sourceKind: 'stay_extension',
+      sourceId: ext.id,
+      approvedByAdminId: session.adminId,
+    });
+  } catch (err) {
+    const { approvedTransactionRefConflictMessage } = await import(
+      '@/src/lib/payments/transactionRefDuplicate'
+    );
+    if (err instanceof Error && err.message === approvedTransactionRefConflictMessage()) {
+      return { ok: false, message: err.message };
+    }
+    throw err;
   }
 
   const { recordExtensionPaymentSuccess } = await import('./bookingLifecycle');

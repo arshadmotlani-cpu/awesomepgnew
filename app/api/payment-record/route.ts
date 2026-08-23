@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     categoryId?: string;
     amountPaise?: number;
     month?: string;
-    paymentScreenshotUrl?: string;
+    paymentScreenshotUrl?: string | null;
     transactionRef?: string;
   };
   try {
@@ -25,9 +25,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, message: 'Invalid JSON' }, { status: 400 });
   }
 
-  if (!body.pgId || !body.categoryId || !body.paymentScreenshotUrl) {
+  if (!body.pgId || !body.categoryId) {
     return NextResponse.json(
-      { ok: false, message: 'pgId, categoryId, and paymentScreenshotUrl are required.' },
+      { ok: false, message: 'pgId and categoryId are required.' },
+      { status: 400 },
+    );
+  }
+  if (!body.transactionRef?.trim()) {
+    return NextResponse.json(
+      { ok: false, message: 'Transaction ID is required.' },
       { status: 400 },
     );
   }
@@ -44,7 +50,7 @@ export async function POST(req: NextRequest) {
       customerId: session.customerId,
       amountPaise: Math.round(amountPaise),
       month: body.month,
-      paymentScreenshotUrl: body.paymentScreenshotUrl,
+      paymentScreenshotUrl: body.paymentScreenshotUrl ?? null,
       transactionRef: body.transactionRef,
     });
     return NextResponse.json({ ok: true, record });

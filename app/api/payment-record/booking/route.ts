@@ -13,7 +13,7 @@ export const maxDuration = 60;
 type PaymentRecordBookingBody = {
   bookingCode?: string;
   amountPaise?: number;
-  paymentScreenshotUrl?: string;
+  paymentScreenshotUrl?: string | null;
   transactionRef?: string;
   membershipId?: string;
   membershipAmountPaise?: number;
@@ -89,8 +89,11 @@ export async function POST(req: NextRequest) {
     }
 
     bookingCode = body.bookingCode;
-    if (!body.bookingCode || !body.paymentScreenshotUrl) {
-      return jsonError('bookingCode and paymentScreenshotUrl are required.', errorId, 400);
+    if (!body.bookingCode) {
+      return jsonError('bookingCode is required.', errorId, 400);
+    }
+    if (!body.transactionRef?.trim()) {
+      return jsonError('Transaction ID is required.', errorId, 400);
     }
 
     const amountPaise = Number(body.amountPaise);
@@ -102,7 +105,7 @@ export async function POST(req: NextRequest) {
       bookingCode: body.bookingCode,
       customerId: session.customerId,
       amountPaise: Math.round(amountPaise),
-      paymentScreenshotUrl: body.paymentScreenshotUrl,
+      paymentScreenshotUrl: body.paymentScreenshotUrl ?? null,
       transactionRef: body.transactionRef,
       membershipId: body.membershipId,
       membershipAmountPaise: body.membershipAmountPaise

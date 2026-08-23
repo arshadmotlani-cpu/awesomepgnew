@@ -130,6 +130,7 @@ async function main() {
       customerId,
       amountPaise: bookingRes.totalPaise,
       paymentScreenshotUrl: proofUrl,
+      transactionRef: `E2E-REJ-${Date.now()}`,
     });
     console.log(`[PASS] payment proof upload: record ${record.id}`);
 
@@ -188,6 +189,7 @@ async function main() {
       customerId,
       amountPaise: bookingRes.totalPaise,
       paymentScreenshotUrl: reuploadUrl,
+      transactionRef: `E2E-REJ-REUPLOAD-${Date.now()}`,
     });
     if (record2.id !== record.id) {
       throw new Error('Re-upload should update same pending pg_payment_record');

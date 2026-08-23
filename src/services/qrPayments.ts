@@ -35,8 +35,8 @@ export type SubmitPaymentInput = {
   customerId: string;
   amountPaise: number;
   month?: string;
-  paymentScreenshotUrl: string;
-  transactionRef?: string;
+  paymentScreenshotUrl?: string | null;
+  transactionRef: string;
   bookingId?: string;
 };
 
@@ -44,8 +44,8 @@ export type SubmitBookingPaymentInput = {
   bookingCode: string;
   customerId: string;
   amountPaise: number;
-  paymentScreenshotUrl: string;
-  transactionRef?: string;
+  paymentScreenshotUrl?: string | null;
+  transactionRef: string;
   /** Pending PS4 add-on purchased with this booking — proof stored separately. */
   membershipId?: string;
   membershipAmountPaise?: number;
@@ -158,6 +158,12 @@ export async function setPgPaymentEnabled(session: AdminSession, pgId: string, e
 export async function submitPaymentRecord(input: SubmitPaymentInput) {
   if (input.amountPaise <= 0) throw new Error('Amount must be greater than zero.');
 
+  const { resolveDuplicateFlagsForSubmit } = await import('@/src/services/pgTransactionRefIndex');
+  const { assertTransactionRefRequired } = await import(
+    '@/src/lib/payments/transactionRefDuplicate'
+  );
+  assertTransactionRefRequired(input.transactionRef);
+
   if (input.bookingId) {
     const [booking] = await db
       .select({ bookingCode: bookings.bookingCode, customerId: bookings.customerId })
@@ -220,6 +226,13 @@ export async function submitPaymentRecord(input: SubmitPaymentInput) {
     if (dup) throw new Error('You already have a pending payment for this category and month.');
   }
 
+  const proofUrl = input.paymentScreenshotUrl?.trim() || null;
+  const rawTxn = input.transactionRef.trim();
+  const flags = await resolveDuplicateFlagsForSubmit({
+    transactionRef: input.transactionRef,
+    exclude: undefined,
+  });
+
   const [row] = await db
     .insert(pgPaymentRecords)
     .values({
@@ -229,21 +242,25 @@ export async function submitPaymentRecord(input: SubmitPaymentInput) {
       bookingId: input.bookingId ?? null,
       amountPaise: input.amountPaise,
       month,
-      paymentScreenshotUrl: input.paymentScreenshotUrl.trim(),
-      transactionRef: input.transactionRef?.trim() || null,
+      paymentScreenshotUrl: proofUrl,
+      transactionRef: rawTxn,
+      possibleDuplicate: flags.possibleDuplicate,
+      duplicateOfIds: flags.duplicateOfIds,
       status: 'pending',
     })
     .returning();
 
-  const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
-  await linkResidentUpload({
-    storagePath: input.paymentScreenshotUrl.trim(),
-    adminQueue: 'collections',
-    linkedEntity: 'pg_payment_record',
-    linkedEntityId: row.id,
-    bookingId: input.bookingId ?? null,
-    pgId: input.pgId,
-  }).catch(() => undefined);
+  if (proofUrl) {
+    const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
+    await linkResidentUpload({
+      storagePath: proofUrl,
+      adminQueue: 'collections',
+      linkedEntity: 'pg_payment_record',
+      linkedEntityId: row.id,
+      bookingId: input.bookingId ?? null,
+      pgId: input.pgId,
+    }).catch(() => undefined);
+  }
 
   return row;
 }
@@ -251,6 +268,11 @@ export async function submitPaymentRecord(input: SubmitPaymentInput) {
 /** Submit UPI proof for a new booking checkout (rent + deposit + reservation request). */
 export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInput) {
   if (input.amountPaise <= 0) throw new Error('Amount must be greater than zero.');
+
+  const { assertTransactionRefRequired } = await import(
+    '@/src/lib/payments/transactionRefDuplicate'
+  );
+  assertTransactionRefRequired(input.transactionRef);
 
   const [booking] = await db
     .select({
@@ -284,10 +306,15 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
     throw new Error('Payment QR is not configured for this PG yet.');
   }
 
+  const { hasTxnOrScreenshotProof, resolveDuplicateFlagsForSubmit } = await import(
+    '@/src/services/pgTransactionRefIndex'
+  );
+
   const [dup] = await db
     .select({
       id: pgPaymentRecords.id,
       paymentScreenshotUrl: pgPaymentRecords.paymentScreenshotUrl,
+      transactionRef: pgPaymentRecords.transactionRef,
     })
     .from(pgPaymentRecords)
     .where(
@@ -297,13 +324,26 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
       ),
     )
     .limit(1);
-  if (dup?.paymentScreenshotUrl?.trim()) {
+  if (
+    dup &&
+    hasTxnOrScreenshotProof({
+      paymentProofUrl: dup.paymentScreenshotUrl,
+      transactionRef: dup.transactionRef,
+    })
+  ) {
     throw new Error('Payment proof is already pending review for this booking.');
   }
 
-  const proof = {
-    paymentScreenshotUrl: input.paymentScreenshotUrl.trim(),
+  const proofUrl = input.paymentScreenshotUrl?.trim() || null;
+  const rawTxn = input.transactionRef.trim();
+  const flags = await resolveDuplicateFlagsForSubmit({
     transactionRef: input.transactionRef,
+    exclude: dup ? { kind: 'pg_payment_record', id: dup.id } : undefined,
+  });
+
+  const proof = {
+    paymentScreenshotUrl: proofUrl,
+    transactionRef: rawTxn,
   };
 
   const { getBookingPaymentContext } = await import('./depositCollection');
@@ -336,6 +376,7 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
       .select({
         id: pgPaymentRecords.id,
         paymentScreenshotUrl: pgPaymentRecords.paymentScreenshotUrl,
+        transactionRef: pgPaymentRecords.transactionRef,
       })
       .from(pgPaymentRecords)
       .where(
@@ -345,7 +386,13 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
         ),
       )
       .limit(1);
-    if (dupInTx?.paymentScreenshotUrl?.trim()) {
+    if (
+      dupInTx &&
+      hasTxnOrScreenshotProof({
+        paymentProofUrl: dupInTx.paymentScreenshotUrl,
+        transactionRef: dupInTx.transactionRef,
+      })
+    ) {
       throw new Error('Payment proof is already pending review for this booking.');
     }
 
@@ -356,7 +403,9 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
         .set({
           amountPaise: input.amountPaise,
           paymentScreenshotUrl: proof.paymentScreenshotUrl,
-          transactionRef: proof.transactionRef?.trim() || null,
+          transactionRef: proof.transactionRef,
+          possibleDuplicate: flags.possibleDuplicate,
+          duplicateOfIds: flags.duplicateOfIds,
           ...snapshotValues,
           reviewedByAdminId: null,
           reviewedAt: null,
@@ -375,7 +424,9 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
           customerId: input.customerId,
           amountPaise: input.amountPaise,
           paymentScreenshotUrl: proof.paymentScreenshotUrl,
-          transactionRef: proof.transactionRef?.trim() || null,
+          transactionRef: proof.transactionRef,
+          possibleDuplicate: flags.possibleDuplicate,
+          duplicateOfIds: flags.duplicateOfIds,
           status: 'pending',
           bookingId: booking.id,
           ...snapshotValues,
@@ -426,7 +477,7 @@ function runPostBookingPaymentSubmitSideEffects(input: {
   bookingId: string;
   bookingCode: string;
   pgId: string;
-  proofUrl: string;
+  proofUrl: string | null;
   customerId: string;
   amountPaise: number;
   membershipId?: string;
@@ -435,23 +486,25 @@ function runPostBookingPaymentSubmitSideEffects(input: {
 }): void {
   void (async () => {
     try {
-      const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
-      await linkResidentUpload({
-        storagePath: input.proofUrl,
-        adminQueue: 'collections',
-        linkedEntity: 'pg_payment_record',
-        linkedEntityId: input.row.id,
-        bookingId: input.bookingId,
-        pgId: input.pgId,
-      }).catch(() => undefined);
+      if (input.proofUrl) {
+        const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
+        await linkResidentUpload({
+          storagePath: input.proofUrl,
+          adminQueue: 'collections',
+          linkedEntity: 'pg_payment_record',
+          linkedEntityId: input.row.id,
+          bookingId: input.bookingId,
+          pgId: input.pgId,
+        }).catch(() => undefined);
+      }
 
-      if (input.membershipId && input.membershipAmountPaise) {
+      if (input.membershipId && input.membershipAmountPaise && input.transactionRef?.trim()) {
         const { submitMembershipPaymentProof } = await import('./playstationMembership');
         await submitMembershipPaymentProof({
           membershipId: input.membershipId,
           customerId: input.customerId,
           paymentProofUrl: input.proofUrl,
-          transactionRef: input.transactionRef ?? undefined,
+          transactionRef: input.transactionRef,
         });
       }
 
@@ -514,7 +567,7 @@ function runPostBookingPaymentSubmitSideEffects(input: {
             bedCode: loc?.bedCode ?? null,
             amountPaise: input.amountPaise,
             paymentSubmittedAt: input.row.createdAt ?? new Date(),
-            screenshotUrl: input.proofUrl,
+            screenshotUrl: input.proofUrl ?? '',
           });
         }
       } catch (notifyErr) {
@@ -919,6 +972,28 @@ export async function reviewPaymentRecord(
     .limit(1);
   if (!record) throw new Error('Payment record not found.');
   assertPgAccess(session, record.pgId);
+
+  if (record.status === 'pending') {
+    try {
+      const { insertApprovedTransactionRefOrThrow } = await import(
+        '@/src/services/pgTransactionRefIndex'
+      );
+      await insertApprovedTransactionRefOrThrow({
+        transactionRef: record.transactionRef,
+        sourceKind: 'pg_payment_record',
+        sourceId: record.id,
+        approvedByAdminId: session.adminId,
+      });
+    } catch (err) {
+      const { approvedTransactionRefConflictMessage } = await import(
+        '@/src/lib/payments/transactionRefDuplicate'
+      );
+      if (err instanceof Error && err.message === approvedTransactionRefConflictMessage()) {
+        throw err;
+      }
+      throw err;
+    }
+  }
 
   const { finalizeStaleBookingPaymentReview } = await import('./paymentProofReviewCleanup');
 

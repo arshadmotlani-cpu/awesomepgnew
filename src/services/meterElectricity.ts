@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';import { db } from '@/src/db/client';
+import { and, desc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';import { db } from '@/src/db/client';
 import {
   beds,
   bookings,
@@ -436,8 +436,7 @@ export async function getRoomElectricityForCustomer(
 export async function submitElectricityPaymentProof(
   customerId: string,
   invoiceId: string,
-  paymentProofUrl: string,
-  transactionRef?: string,
+  proof: { transactionRef: string; paymentProofUrl?: string | null },
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const invoice = await fetchElectricityInvoiceById(invoiceId);
   if (!invoice || invoice.customerId !== customerId) {
@@ -446,11 +445,24 @@ export async function submitElectricityPaymentProof(
   if (invoice.status !== 'pending') {
     return { ok: false, message: 'This invoice is not awaiting payment.' };
   }
-  if (!paymentProofUrl.trim()) {
-    return { ok: false, message: 'Payment screenshot is required.' };
+
+  const proofUrl = proof.paymentProofUrl?.trim() || null;
+  const rawTxn = proof.transactionRef.trim();
+
+  let flags: {
+    possibleDuplicate: boolean;
+    duplicateOfIds: string[];
+  };
+  try {
+    const { resolveDuplicateFlagsForSubmit } = await import('@/src/services/pgTransactionRefIndex');
+    flags = await resolveDuplicateFlagsForSubmit({
+      transactionRef: proof.transactionRef,
+      exclude: { kind: 'electricity_invoice', id: invoiceId },
+    });
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
   }
 
-  const proofUrl = paymentProofUrl.trim();
   const {
     evaluatePaymentReviewInvariants,
     paymentReviewInvariantErrorMessage,
@@ -463,13 +475,14 @@ export async function submitElectricityPaymentProof(
     .from(electricityBills)
     .where(eq(electricityBills.id, invoice.electricityBillId))
     .limit(1);
-  const duplicatePendingScreenshot = pgRowForDup
-    ? await hasDuplicatePendingPaymentProofUrl({
-        pgId: pgRowForDup.pgId,
-        paymentProofUrl: proofUrl,
-        exclude: { kind: 'electricity', id: invoice.id },
-      })
-    : false;
+  const duplicatePendingScreenshot =
+    proofUrl && pgRowForDup
+      ? await hasDuplicatePendingPaymentProofUrl({
+          pgId: pgRowForDup.pgId,
+          paymentProofUrl: proofUrl,
+          exclude: { kind: 'electricity', id: invoice.id },
+        })
+      : false;
   const [bookingRow] = await db
     .select({ status: bookings.status })
     .from(bookings)
@@ -484,6 +497,7 @@ export async function submitElectricityPaymentProof(
     expectedAmountPaise: invoice.amountPaise,
     proofAmountPaise: invoice.amountPaise,
     paymentProofUrl: proofUrl,
+    transactionRef: rawTxn,
     status: invoice.status,
     bookingStatus: bookingRow?.status ?? null,
     duplicatePendingScreenshot,
@@ -509,6 +523,9 @@ export async function submitElectricityPaymentProof(
       .update(electricityInvoices)
       .set({
         paymentProofUrl: proofUrl,
+        paymentProofTransactionRef: rawTxn,
+        possibleDuplicate: flags.possibleDuplicate,
+        duplicateOfIds: flags.duplicateOfIds,
         updatedAt: new Date(),
       })
       .where(eq(electricityInvoices.id, invoiceId));
@@ -517,20 +534,22 @@ export async function submitElectricityPaymentProof(
     await supersedeActiveRejection('electricity_invoice', invoiceId, tx);
   });
 
-  const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
   const [pgRow] = await db
     .select({ pgId: electricityBills.pgId })
     .from(electricityBills)
     .where(eq(electricityBills.id, invoice.electricityBillId))
     .limit(1);
-  await linkResidentUpload({
-    storagePath: proofUrl,
-    adminQueue: 'collections',
-    linkedEntity: 'electricity_invoice',
-    linkedEntityId: invoiceId,
-    bookingId: invoice.bookingId,
-    pgId: pgRow?.pgId ?? null,
-  }).catch(() => undefined);
+  if (proofUrl) {
+    const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
+    await linkResidentUpload({
+      storagePath: proofUrl,
+      adminQueue: 'collections',
+      linkedEntity: 'electricity_invoice',
+      linkedEntityId: invoiceId,
+      bookingId: invoice.bookingId,
+      pgId: pgRow?.pgId ?? null,
+    }).catch(() => undefined);
+  }
 
   const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
   scheduleAdminNotificationSync();
@@ -549,6 +568,9 @@ export async function listPendingElectricityProofsForPg(pgId: string) {
       roomNumber: rooms.roomNumber,
       amountPaise: electricityInvoices.amountPaise,
       paymentProofUrl: electricityInvoices.paymentProofUrl,
+      paymentProofTransactionRef: electricityInvoices.paymentProofTransactionRef,
+      possibleDuplicate: electricityInvoices.possibleDuplicate,
+      duplicateOfIds: electricityInvoices.duplicateOfIds,
     })
     .from(electricityInvoices)
     .innerJoin(electricityBills, eq(electricityBills.id, electricityInvoices.electricityBillId))
@@ -557,7 +579,10 @@ export async function listPendingElectricityProofsForPg(pgId: string) {
       and(
         eq(electricityBills.pgId, pgId),
         eq(electricityInvoices.status, 'pending'),
-        sql`${electricityInvoices.paymentProofUrl} IS NOT NULL`,
+        or(
+          isNotNull(electricityInvoices.paymentProofUrl),
+          isNotNull(electricityInvoices.paymentProofTransactionRef),
+        ),
       ),
     )
     .orderBy(desc(electricityInvoices.updatedAt));
@@ -569,8 +594,16 @@ export async function approveElectricityPaymentProof(
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const invoice = await fetchElectricityInvoiceById(invoiceId);
   if (!invoice) return { ok: false, message: 'Invoice not found.' };
-  if (!invoice.paymentProofUrl) {
-    return { ok: false, message: 'No payment proof uploaded.' };
+  {
+    const { hasTxnOrScreenshotProof } = await import('@/src/services/pgTransactionRefIndex');
+    if (
+      !hasTxnOrScreenshotProof({
+        paymentProofUrl: invoice.paymentProofUrl,
+        transactionRef: invoice.paymentProofTransactionRef,
+      })
+    ) {
+      return { ok: false, message: 'No payment proof uploaded.' };
+    }
   }
   if (invoice.status !== 'pending') {
     return { ok: false, message: 'Invoice is not pending.' };
@@ -591,13 +624,14 @@ export async function approveElectricityPaymentProof(
     .from(electricityBills)
     .where(eq(electricityBills.id, invoice.electricityBillId))
     .limit(1);
-  const duplicatePendingScreenshot = pgRow
-    ? await hasDuplicatePendingPaymentProofUrl({
-        pgId: pgRow.pgId,
-        paymentProofUrl: invoice.paymentProofUrl,
-        exclude: { kind: 'electricity', id: invoice.id },
-      })
-    : false;
+  const duplicatePendingScreenshot =
+    invoice.paymentProofUrl?.trim() && pgRow
+      ? await hasDuplicatePendingPaymentProofUrl({
+          pgId: pgRow.pgId,
+          paymentProofUrl: invoice.paymentProofUrl,
+          exclude: { kind: 'electricity', id: invoice.id },
+        })
+      : false;
   const [bookingRow] = await db
     .select({ status: bookings.status })
     .from(bookings)
@@ -612,6 +646,7 @@ export async function approveElectricityPaymentProof(
     expectedAmountPaise: refundPaise,
     proofAmountPaise: refundPaise,
     paymentProofUrl: invoice.paymentProofUrl,
+    transactionRef: invoice.paymentProofTransactionRef,
     status: invoice.status,
     bookingStatus: bookingRow?.status ?? null,
     duplicatePendingScreenshot,
@@ -630,6 +665,30 @@ export async function approveElectricityPaymentProof(
       violations: invariant.violations,
     });
     return { ok: false, message: paymentReviewInvariantErrorMessage(invariant) };
+  }
+
+
+  try {
+    const { insertApprovedTransactionRefOrThrow } = await import(
+      '@/src/services/pgTransactionRefIndex'
+    );
+    const { approvedTransactionRefConflictMessage } = await import(
+      '@/src/lib/payments/transactionRefDuplicate'
+    );
+    await insertApprovedTransactionRefOrThrow({
+      transactionRef: invoice.paymentProofTransactionRef,
+      sourceKind: 'electricity_invoice',
+      sourceId: invoice.id,
+      approvedByAdminId: session.adminId,
+    });
+  } catch (err) {
+    const { approvedTransactionRefConflictMessage } = await import(
+      '@/src/lib/payments/transactionRefDuplicate'
+    );
+    if (err instanceof Error && err.message === approvedTransactionRefConflictMessage()) {
+      return { ok: false, message: err.message };
+    }
+    throw err;
   }
 
   const { applyApprovedPaymentAtomic } = await import('@/src/services/paymentSettlementAtomic');

@@ -20,7 +20,7 @@ describe('submitDepositLinkPaymentProof identity', () => {
     const result = await submitDepositLinkPaymentProof(
       '00000000-0000-0000-0000-000000000001',
       '',
-      'https://example.com/proof.png',
+      { transactionRef: 'TEST-TXN', paymentProofUrl: 'https://example.com/proof.png' },
     );
     assert.equal(result.ok, false);
     if (!result.ok) {

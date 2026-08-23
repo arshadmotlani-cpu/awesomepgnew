@@ -594,7 +594,7 @@ const BED_ALREADY_RESERVED_MESSAGE = 'This bed is no longer available for the se
 
 export async function activateBedReserveRequestForBooking(
   bookingId: string,
-  proof: { paymentScreenshotUrl: string; transactionRef?: string | null },
+  proof: { paymentScreenshotUrl?: string | null; transactionRef?: string | null },
   existingTx?: DbTx,
 ): Promise<void> {
   const run = async (tx: DbTx) => {
@@ -674,7 +674,7 @@ export async function activateBedReserveRequestForBooking(
               status: 'under_review',
               amountPaise: booking.totalPaise,
               monthlyRateSnapshotPaise: monthlyRatePaise,
-              paymentProofUrl: proof.paymentScreenshotUrl.trim(),
+              paymentProofUrl: proof.paymentScreenshotUrl?.trim() || null,
               transactionRef: proof.transactionRef?.trim() || null,
               holdExpiresAt: reviewExpiresAt,
             })
@@ -697,7 +697,7 @@ export async function activateBedReserveRequestForBooking(
         .update(bedReserveHolds)
         .set({
           status: 'under_review',
-          paymentProofUrl: proof.paymentScreenshotUrl.trim(),
+          paymentProofUrl: proof.paymentScreenshotUrl?.trim() || null,
           transactionRef: proof.transactionRef?.trim() || null,
           holdExpiresAt: reviewExpiresAt,
           updatedAt: new Date(),
