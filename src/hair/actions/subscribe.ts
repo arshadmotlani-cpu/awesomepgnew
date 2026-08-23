@@ -20,6 +20,7 @@ export async function submitManualSubscribePaymentAction(formData: FormData): Pr
 
   const userId = await resolvePlatformUserIdForHairSession({
     workforceEmployeeId: session.workforceEmployeeId,
+    adminId: session.admin.id,
     adminEmail: session.admin.email,
   });
   if (!userId) redirect('/subscribe?error=invalid');

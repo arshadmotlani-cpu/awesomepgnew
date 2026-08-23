@@ -38,6 +38,7 @@ export default async function SubscribePage({
 
   const userId = await resolvePlatformUserIdForHairSession({
     workforceEmployeeId: session.workforceEmployeeId,
+    adminId: session.admin.id,
     adminEmail: session.admin.email,
   });
   const memberships = userId ? await listMembershipsForBilling(userId) : [];
