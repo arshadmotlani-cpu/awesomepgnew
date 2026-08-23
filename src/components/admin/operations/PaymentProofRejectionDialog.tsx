@@ -49,7 +49,7 @@ export function PaymentProofRejectionDialog({ item, open, onClose, onRejected }:
 
   useEffect(() => {
     if (!open) return;
-    const initialReason = defaultRejectionReasonCode(item.screenshotUrl);
+    const initialReason = defaultRejectionReasonCode(item.screenshotUrl, item.referenceNumber);
     setStep('confirm');
     setReasonCode(initialReason);
     setReasonDetail('');

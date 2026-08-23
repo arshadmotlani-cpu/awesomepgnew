@@ -133,9 +133,11 @@ export async function upsertBillingQrSettings(input: {
       .limit(1);
 
     const qrImageUrl =
-      input.qrImageUrl !== undefined ? input.qrImageUrl?.trim() || null : existing?.qrImageUrl ?? null;
+      input.qrImageUrl !== undefined
+        ? input.qrImageUrl?.trim() || null
+        : (existing?.qrImageUrl ?? null);
     const upiId =
-      input.upiId !== undefined ? input.upiId?.trim() || null : existing?.upiId ?? null;
+      input.upiId !== undefined ? input.upiId?.trim() || null : (existing?.upiId ?? null);
     const updatedByUserId = input.updatedByUserId ?? existing?.updatedByUserId ?? null;
     const updatedAt = new Date();
 
@@ -372,7 +374,9 @@ export async function approveSubmission(
   id: string,
   reviewerUserId: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  if (!hasPlatformDatabaseUrl()) return { ok: false, message: 'Platform database is not configured' };
+  if (!hasPlatformDatabaseUrl()) {
+    return { ok: false, message: 'Platform database is not configured' };
+  }
   const { db, close } = createPlatformClient({ max: 1 });
   try {
     const [submission] = await db
@@ -457,7 +461,9 @@ export async function rejectSubmission(
   reviewerUserId: string,
   note?: string | null,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  if (!hasPlatformDatabaseUrl()) return { ok: false, message: 'Platform database is not configured' };
+  if (!hasPlatformDatabaseUrl()) {
+    return { ok: false, message: 'Platform database is not configured' };
+  }
   const { db, close } = createPlatformClient({ max: 1 });
   try {
     const [submission] = await db

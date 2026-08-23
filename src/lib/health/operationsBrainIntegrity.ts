@@ -2,7 +2,7 @@
  * Operations Brain — payment-review invariant scan over a pending queue sample.
  */
 
-import { and, eq, isNotNull, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, or, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { electricityInvoices, paymentLinks, rentInvoices, stayExtensions } from '@/src/db/schema';
 import {
@@ -56,13 +56,17 @@ export async function runOperationsBrainIntegrityAudit(opts?: {
       billingMonth: rentInvoices.billingMonth,
       status: rentInvoices.status,
       paymentProofUrl: rentInvoices.paymentProofUrl,
+      paymentProofTransactionRef: rentInvoices.paymentProofTransactionRef,
       rentPaise: rentInvoices.rentPaise,
       proofSnapshotOutstandingPaise: rentInvoices.proofSnapshotOutstandingPaise,
     })
     .from(rentInvoices)
     .where(
       and(
-        isNotNull(rentInvoices.paymentProofUrl),
+        or(
+          isNotNull(rentInvoices.paymentProofUrl),
+          isNotNull(rentInvoices.paymentProofTransactionRef),
+        ),
         sql`${rentInvoices.status} IN ('pending', 'overdue', 'payment_in_progress')`,
       ),
     )
@@ -81,6 +85,7 @@ export async function runOperationsBrainIntegrityAudit(opts?: {
       expectedAmountPaise: expected,
       proofAmountPaise: expected,
       paymentProofUrl: inv.paymentProofUrl,
+      transactionRef: inv.paymentProofTransactionRef,
       status: inv.status,
     });
     if (!invariant.ok) {
@@ -105,12 +110,16 @@ export async function runOperationsBrainIntegrityAudit(opts?: {
       billingMonth: electricityInvoices.billingMonth,
       status: electricityInvoices.status,
       paymentProofUrl: electricityInvoices.paymentProofUrl,
+      paymentProofTransactionRef: electricityInvoices.paymentProofTransactionRef,
       amountPaise: electricityInvoices.amountPaise,
     })
     .from(electricityInvoices)
     .where(
       and(
-        isNotNull(electricityInvoices.paymentProofUrl),
+        or(
+          isNotNull(electricityInvoices.paymentProofUrl),
+          isNotNull(electricityInvoices.paymentProofTransactionRef),
+        ),
         eq(electricityInvoices.status, 'pending'),
       ),
     )
@@ -128,6 +137,7 @@ export async function runOperationsBrainIntegrityAudit(opts?: {
       expectedAmountPaise: inv.amountPaise,
       proofAmountPaise: inv.amountPaise,
       paymentProofUrl: inv.paymentProofUrl,
+      transactionRef: inv.paymentProofTransactionRef,
       status: inv.status,
     });
     if (!invariant.ok) {
@@ -150,11 +160,18 @@ export async function runOperationsBrainIntegrityAudit(opts?: {
       bookingId: stayExtensions.bookingId,
       status: stayExtensions.status,
       paymentProofUrl: stayExtensions.paymentProofUrl,
+      paymentProofTransactionRef: stayExtensions.paymentProofTransactionRef,
       quotedTotalPaise: stayExtensions.quotedTotalPaise,
     })
     .from(stayExtensions)
     .where(
-      and(eq(stayExtensions.status, 'pending'), isNotNull(stayExtensions.paymentProofUrl)),
+      and(
+        eq(stayExtensions.status, 'pending'),
+        or(
+          isNotNull(stayExtensions.paymentProofUrl),
+          isNotNull(stayExtensions.paymentProofTransactionRef),
+        ),
+      ),
     )
     .limit(Math.ceil(limit / 4));
 
@@ -169,6 +186,7 @@ export async function runOperationsBrainIntegrityAudit(opts?: {
       expectedAmountPaise: ext.quotedTotalPaise,
       proofAmountPaise: ext.quotedTotalPaise,
       paymentProofUrl: ext.paymentProofUrl,
+      transactionRef: ext.paymentProofTransactionRef,
       status: ext.status,
       requireAwaitingStatus: true,
     });
@@ -198,6 +216,7 @@ export async function runOperationsBrainIntegrityAudit(opts?: {
       bookingId: paymentLinks.bookingId,
       status: paymentLinks.status,
       paymentProofUrl: paymentLinks.paymentProofUrl,
+      paymentProofTransactionRef: paymentLinks.paymentProofTransactionRef,
       amount: paymentLinks.amount,
     })
     .from(paymentLinks)
@@ -205,7 +224,10 @@ export async function runOperationsBrainIntegrityAudit(opts?: {
       and(
         eq(paymentLinks.purpose, 'deposit'),
         eq(paymentLinks.status, 'active'),
-        isNotNull(paymentLinks.paymentProofUrl),
+        or(
+          isNotNull(paymentLinks.paymentProofUrl),
+          isNotNull(paymentLinks.paymentProofTransactionRef),
+        ),
       ),
     )
     .limit(Math.ceil(limit / 4));
@@ -221,6 +243,7 @@ export async function runOperationsBrainIntegrityAudit(opts?: {
       expectedAmountPaise: link.amount,
       proofAmountPaise: link.amount,
       paymentProofUrl: link.paymentProofUrl,
+      transactionRef: link.paymentProofTransactionRef,
       status: link.status,
     });
     if (!invariant.ok) {

@@ -57,6 +57,7 @@ test('defaultRejectionReasonCode uses screenshot_not_uploaded when missing', () 
   assert.equal(defaultRejectionReasonCode(''), 'screenshot_not_uploaded');
   assert.equal(defaultRejectionReasonCode(null), 'screenshot_not_uploaded');
   assert.equal(defaultRejectionReasonCode('   '), 'screenshot_not_uploaded');
+  assert.equal(defaultRejectionReasonCode(null, 'UTR1'), 'duplicate');
   assert.equal(
     defaultRejectionReasonCode('https://blob.example/proof.jpg'),
     'incorrect_screenshot',

@@ -33,7 +33,6 @@ export async function approveSubscriptionPaymentAction(formData: FormData): Prom
 
   const result = await approveSubmission(id, session.userId);
   revalidatePath('/platform/admin/payment-submissions');
-  revalidatePath('/platform/admin/subscriptions');
   if (!result.ok) {
     redirect(reviewPath(`error=${encodeURIComponent(result.message)}`));
   }

@@ -128,7 +128,7 @@ export default async function PayPs4Page({
           </ul>
         </section>
       ) : membership.status === 'pending_payment' ? (
-        membership.paymentProofUrl ? (
+        (membership.transactionRef || membership.paymentProofUrl) ? (
           <div className="space-y-3">
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
               Payment proof received — lounge access activates once admin verifies your UPI payment
@@ -140,7 +140,7 @@ export default async function PayPs4Page({
               rel="noopener noreferrer"
               className="text-sm font-medium text-[#FF5A1F] hover:underline"
             >
-              View uploaded screenshot →
+              Payment submitted — awaiting verification →
             </a>
           </div>
         ) : (
@@ -153,6 +153,7 @@ export default async function PayPs4Page({
             <Ps4PaymentProofForm
               membershipId={membership.id}
               amountLabel={paiseToInr(membership.amountPaise)}
+              existingTransactionRef={membership.transactionRef}
               qrImageUrl={qrImageUrl}
               upiId={upiId}
             />

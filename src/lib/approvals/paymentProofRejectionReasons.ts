@@ -106,12 +106,20 @@ export function hasUploadedPaymentScreenshot(screenshotUrl: string | null | unde
   return Boolean(screenshotUrl?.trim());
 }
 
+export function hasPaymentProofEvidence(input: {
+  screenshotUrl?: string | null;
+  transactionRef?: string | null;
+}): boolean {
+  return Boolean(input.screenshotUrl?.trim() || input.transactionRef?.trim());
+}
+
 export function defaultRejectionReasonCode(
   screenshotUrl: string | null | undefined,
+  transactionRef?: string | null,
 ): PaymentProofRejectionReasonCode {
-  return hasUploadedPaymentScreenshot(screenshotUrl)
-    ? 'incorrect_screenshot'
-    : 'screenshot_not_uploaded';
+  if (hasUploadedPaymentScreenshot(screenshotUrl)) return 'incorrect_screenshot';
+  if (transactionRef?.trim()) return 'duplicate';
+  return 'screenshot_not_uploaded';
 }
 export function rejectionReasonLabel(code: PaymentProofRejectionReasonCode): string {
   return PAYMENT_PROOF_REJECTION_REASONS.find((r) => r.code === code)?.label ?? code;

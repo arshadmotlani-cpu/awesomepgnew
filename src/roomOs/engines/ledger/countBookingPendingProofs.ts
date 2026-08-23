@@ -2,7 +2,7 @@
  * Count pending payment proofs scoped to a booking — mirrors paymentProofQueue filters.
  */
 
-import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, or, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   electricityInvoices,
@@ -23,7 +23,16 @@ export async function countBookingPendingPaymentProofs(bookingId: string): Promi
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(pgPaymentRecords)
-      .where(and(eq(pgPaymentRecords.bookingId, bookingId), eq(pgPaymentRecords.status, 'pending'))),
+      .where(
+        and(
+          eq(pgPaymentRecords.bookingId, bookingId),
+          eq(pgPaymentRecords.status, 'pending'),
+          or(
+            isNotNull(pgPaymentRecords.paymentScreenshotUrl),
+            isNotNull(pgPaymentRecords.transactionRef),
+          ),
+        ),
+      ),
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(rentInvoices)
@@ -31,7 +40,7 @@ export async function countBookingPendingPaymentProofs(bookingId: string): Promi
         and(
           eq(rentInvoices.bookingId, bookingId),
           inArray(rentInvoices.status, ['pending', 'overdue', 'payment_in_progress']),
-          isNotNull(rentInvoices.paymentProofUrl),
+          or(isNotNull(rentInvoices.paymentProofUrl), isNotNull(rentInvoices.paymentProofTransactionRef)),
         ),
       ),
     db
@@ -41,7 +50,7 @@ export async function countBookingPendingPaymentProofs(bookingId: string): Promi
         and(
           eq(electricityInvoices.bookingId, bookingId),
           eq(electricityInvoices.status, 'pending'),
-          isNotNull(electricityInvoices.paymentProofUrl),
+          or(isNotNull(electricityInvoices.paymentProofUrl), isNotNull(electricityInvoices.paymentProofTransactionRef)),
         ),
       ),
     db
@@ -51,7 +60,7 @@ export async function countBookingPendingPaymentProofs(bookingId: string): Promi
         and(
           eq(stayExtensions.bookingId, bookingId),
           eq(stayExtensions.status, 'pending'),
-          isNotNull(stayExtensions.paymentProofUrl),
+          or(isNotNull(stayExtensions.paymentProofUrl), isNotNull(stayExtensions.paymentProofTransactionRef)),
         ),
       ),
     db
@@ -62,7 +71,7 @@ export async function countBookingPendingPaymentProofs(bookingId: string): Promi
           eq(paymentLinks.bookingId, bookingId),
           eq(paymentLinks.purpose, 'deposit'),
           eq(paymentLinks.status, 'active'),
-          isNotNull(paymentLinks.paymentProofUrl),
+          or(isNotNull(paymentLinks.paymentProofUrl), isNotNull(paymentLinks.paymentProofTransactionRef)),
         ),
       ),
   ]);

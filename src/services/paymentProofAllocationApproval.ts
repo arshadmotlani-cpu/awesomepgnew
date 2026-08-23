@@ -19,6 +19,7 @@ import { recordDepositCollected } from '@/src/services/deposits';
 import { recordResidentCredit } from '@/src/services/residentCreditLedger';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import { recordDepositPaymentFromLink } from '@/src/services/invoicePayment';
+import { hasTxnOrScreenshotProof } from '@/src/services/pgTransactionRefIndex';
 
 export type PaymentProofAllocationInput = AdminPaymentAllocationInput;
 
@@ -142,8 +143,13 @@ async function approveRentWithAllocation(
     .where(eq(rentInvoices.id, invoiceId))
     .limit(1);
   if (!invoice) return { ok: false, message: 'Invoice not found.' };
-  if (!invoice.paymentProofUrl) {
-    return { ok: false, message: 'No payment photo uploaded.' };
+  if (
+    !hasTxnOrScreenshotProof({
+      paymentProofUrl: invoice.paymentProofUrl,
+      transactionRef: invoice.paymentProofTransactionRef,
+    })
+  ) {
+    return { ok: false, message: 'No payment proof (transaction ID or screenshot) submitted.' };
   }
 
   const paymentId = `rent-proof-${invoiceId}`;
@@ -226,8 +232,13 @@ async function approveElectricityWithAllocation(
   const { fetchElectricityInvoiceById } = await import('@/src/lib/db/electricityInvoiceSelect');
   const invoice = await fetchElectricityInvoiceById(invoiceId);
   if (!invoice) return { ok: false, message: 'Invoice not found.' };
-  if (!invoice.paymentProofUrl) {
-    return { ok: false, message: 'No payment proof uploaded.' };
+  if (
+    !hasTxnOrScreenshotProof({
+      paymentProofUrl: invoice.paymentProofUrl,
+      transactionRef: invoice.paymentProofTransactionRef,
+    })
+  ) {
+    return { ok: false, message: 'No payment proof (transaction ID or screenshot) submitted.' };
   }
 
   const paymentId = `qr-proof-${invoiceId}`;
@@ -277,8 +288,13 @@ async function approveDepositLinkWithAllocation(
     .where(eq(paymentLinks.id, linkId))
     .limit(1);
   if (!link) return { ok: false, message: 'Payment link not found.' };
-  if (!link.paymentProofUrl) {
-    return { ok: false, message: 'No payment photo uploaded.' };
+  if (
+    !hasTxnOrScreenshotProof({
+      paymentProofUrl: link.paymentProofUrl,
+      transactionRef: link.paymentProofTransactionRef,
+    })
+  ) {
+    return { ok: false, message: 'No payment proof (transaction ID or screenshot) submitted.' };
   }
   if (!link.bookingId) return { ok: false, message: 'Deposit link missing booking.' };
 

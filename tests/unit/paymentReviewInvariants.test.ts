@@ -126,4 +126,24 @@ describe('paymentReviewInvariants', () => {
       assert.ok(result.violations.some((v) => v.code === 'ORPHAN_PROOF'));
     }
   });
+
+  it('accepts transactionRef without screenshot', () => {
+    const result = base({
+      paymentProofUrl: null,
+      transactionRef: 'UTR123456789',
+    });
+    assert.equal(result.ok, true);
+  });
+
+  it('rejects when both screenshot and transactionRef are missing', () => {
+    const result = base({
+      paymentProofUrl: null,
+      transactionRef: '',
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.ok(result.violations.some((v) => v.code === 'MISSING_PROOF'));
+    }
+  });
+
 });
