@@ -8,7 +8,7 @@
     "env:check": "tsx scripts/check-env.ts",
     "db:status": "tsx src/db/migrationStatus.ts",
     "build": "next build",
-    "typecheck:deploy": "tsc -p tsconfig.deploy.json --noEmit --pretty false",
+    "typecheck:deploy": "next typegen && tsc -p tsconfig.deploy.json --noEmit --pretty false",
     "vercel-build": "bash scripts/vercel-build.sh",
     "start": "next start",
     "lint": "eslint",

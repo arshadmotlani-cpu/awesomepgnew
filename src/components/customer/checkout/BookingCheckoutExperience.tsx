@@ -215,7 +215,8 @@ export function BookingCheckoutExperience({
   }, [payNowPaise, screenshotAmountInr]);
   const showHybridRent = shouldShowHybridRentBreakdown(rentLineItems);
   const hasScreenshot = Boolean(screenshotUrl);
-  const canSubmit = hasScreenshot && !uploading && !pending;
+  const hasTxn = Boolean(transactionRef.trim());
+  const canSubmit = hasTxn && !uploading && !pending;
 
   useEffect(() => {
     return () => {
@@ -313,15 +314,15 @@ export function BookingCheckoutExperience({
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!screenshotUrl) {
-      setError('Upload a payment screenshot before submitting.');
+    if (!transactionRef.trim()) {
+      setError('Enter the UPI transaction ID from your payment confirmation.');
       return;
     }
     setPending(true);
     setError(null);
     const screenshotAmountPaise = Math.round(Number(screenshotAmountInr.replace(/,/g, '')) * 100);
     if (!Number.isFinite(screenshotAmountPaise) || screenshotAmountPaise <= 0) {
-      setError('Enter the amount shown on your payment screenshot.');
+      setError('Enter the amount you paid via UPI.');
       setPending(false);
       return;
     }
@@ -340,8 +341,8 @@ export function BookingCheckoutExperience({
         body: JSON.stringify({
           bookingCode,
           amountPaise: screenshotAmountPaise,
-          paymentScreenshotUrl: screenshotUrl,
-          transactionRef: transactionRef || undefined,
+          paymentScreenshotUrl: screenshotUrl || null,
+          transactionRef: transactionRef.trim(),
           membershipId,
           membershipAmountPaise,
         }),
@@ -698,7 +699,7 @@ export function BookingCheckoutExperience({
               <span className="text-2xl" aria-hidden>
                 📷
               </span>
-              <span className="text-sm font-semibold text-white">Tap to upload screenshot</span>
+              <span className="text-sm font-semibold text-white">Upload screenshot (optional)</span>
               <span className="text-xs text-apg-muted">Photo from gallery or camera</span>
             </>
           )}
@@ -725,12 +726,12 @@ export function BookingCheckoutExperience({
             className="apg-input-dark mt-1.5 w-full rounded-[12px] px-3 py-2.5 text-sm text-white"
           />
           <span className="mt-1 block text-[11px] text-apg-muted">
-            Enter the exact UPI amount from your screenshot. Defaults to {payNowLabel} for full payment.
+            Enter the exact UPI amount paid. Defaults to {payNowLabel} for full payment.
           </span>
         </label>
 
         <label className="mt-4 block">
-          <span className="text-xs text-apg-muted">UPI reference (optional)</span>
+          <span className="text-xs text-apg-muted">UPI transaction ID *</span>
           <input
             type="text"
             value={transactionRef}
@@ -765,7 +766,7 @@ export function BookingCheckoutExperience({
                 : 'cursor-not-allowed bg-white/10 text-apg-muted')
             }
           >
-            {pending ? 'Submitting…' : hasScreenshot ? 'Submit payment' : 'Upload screenshot to continue'}
+            {pending ? 'Submitting…' : hasTxn ? 'Submit payment' : 'Enter transaction ID to continue'}
           </button>
         </div>
       </div>

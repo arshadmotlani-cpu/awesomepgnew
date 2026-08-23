@@ -71,8 +71,8 @@ export function PgPaymentModal({
       setPending(false);
       return;
     }
-    if (!screenshotUrl) {
-      setError('Upload a payment screenshot.');
+    if (!transactionRef.trim()) {
+      setError('Enter the UPI transaction ID.');
       setPending(false);
       return;
     }
@@ -85,8 +85,8 @@ export function PgPaymentModal({
           categoryId: category.id,
           amountPaise: Math.round(rupees * 100),
           month: isRent ? month : undefined,
-          paymentScreenshotUrl: screenshotUrl,
-          transactionRef: transactionRef || undefined,
+          paymentScreenshotUrl: screenshotUrl || null,
+          transactionRef: transactionRef.trim(),
         }),
       });
       const data = (await res.json()) as { ok: boolean; message?: string };
@@ -168,7 +168,7 @@ export function PgPaymentModal({
             </div>
           ) : null}
           <p className="mt-2 text-xs text-apg-silver">
-            Scan the QR, pay via UPI, then upload your screenshot below.
+            Scan the QR, pay via UPI, then enter the transaction ID below.
           </p>
         </div>
 
@@ -200,7 +200,7 @@ export function PgPaymentModal({
           ) : null}
 
           <label className="block text-sm">
-            <span className="text-apg-silver">UPI transaction ref (optional)</span>
+            <span className="text-apg-silver">UPI transaction ID *</span>
             <input
               type="text"
               value={transactionRef}
@@ -210,7 +210,7 @@ export function PgPaymentModal({
           </label>
 
           <div>
-            <span className="text-sm text-apg-silver">Payment screenshot *</span>
+            <span className="text-sm text-apg-silver">Payment screenshot (optional)</span>
             <label
               htmlFor={screenshotInputId}
               className="mt-1 flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-white/20 px-3 py-3 text-sm text-apg-silver hover:border-[#FF5A1F]/50"
@@ -229,7 +229,7 @@ export function PgPaymentModal({
 
           <button
             type="submit"
-            disabled={pending || uploading}
+            disabled={pending || uploading || !transactionRef.trim()}
             className="w-full rounded-lg bg-[#FF5A1F] py-2.5 text-sm font-semibold text-white disabled:opacity-60"
           >
             {pending ? 'Submitting…' : 'Submit payment proof'}

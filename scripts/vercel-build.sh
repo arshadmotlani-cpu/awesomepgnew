@@ -129,8 +129,9 @@ fi
 bash scripts/vercel-build-repair.sh
 
 echo "=== Deploy typecheck (app graph, excludes tests) ==="
-# Fail the build with the full app error list before Next's first-error typecheck.
-# Prevents the recurring push→fix-one→fail-next cycle.
+# Generate Next PageProps/Route types first — plain tsc cannot see them until typegen/build.
+npx next typegen
+# Fail with the full app error list before Next's first-error typecheck.
 npx tsc -p tsconfig.deploy.json --noEmit --pretty false
 
 next build
