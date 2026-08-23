@@ -136,13 +136,13 @@ export async function upsertBillingQrSettings(input: {
       input.qrImageUrl !== undefined ? input.qrImageUrl?.trim() || null : existing?.qrImageUrl ?? null;
     const upiId =
       input.upiId !== undefined ? input.upiId?.trim() || null : existing?.upiId ?? null;
-    const updatedAt = new Date();
     const updatedByUserId = input.updatedByUserId ?? existing?.updatedByUserId ?? null;
+    const updatedAt = new Date();
 
     if (existing) {
       const [row] = await db
         .update(platformBillingQrSettings)
-        .set({ qrImageUrl, upiId, updatedAt, updatedByUserId })
+        .set({ qrImageUrl, upiId, updatedByUserId, updatedAt })
         .where(eq(platformBillingQrSettings.id, existing.id))
         .returning();
       return {
@@ -156,7 +156,7 @@ export async function upsertBillingQrSettings(input: {
 
     const [row] = await db
       .insert(platformBillingQrSettings)
-      .values({ qrImageUrl, upiId, updatedAt, updatedByUserId })
+      .values({ qrImageUrl, upiId, updatedByUserId, updatedAt })
       .returning();
     return {
       id: row!.id,
@@ -195,6 +195,7 @@ async function findTransactionRefMatches(
   return rows.map((r) => ({
     id: r.id,
     status: r.status,
+    sourceKind: 'subscription_payment_submission',
     submittedAt: r.submittedAt,
     reviewedAt: r.reviewedAt,
     organizationId: r.organizationId,
@@ -258,11 +259,12 @@ export async function submitSubscriptionPayment(input: {
 }
 
 function mapSubmissionRow(
-  row: typeof platformSubscriptionPaymentSubmissions.$inferSelect & {
-    organizationName?: string | null;
-    planName?: string | null;
+  row: typeof platformSubscriptionPaymentSubmissions.$inferSelect,
+  extras?: {
+    organizationName?: string;
+    planName?: string;
+    siblings?: TransactionRefMatch[];
   },
-  siblings: TransactionRefMatch[] = [],
 ): SubscriptionPaymentSubmission {
   const self: TransactionRefMatch = {
     id: row.id,
@@ -271,14 +273,15 @@ function mapSubmissionRow(
     reviewedAt: row.reviewedAt,
     organizationId: row.organizationId,
   };
+  const siblings = extras?.siblings ?? [];
   const label = labelDuplicateContext(self, siblings);
   return {
     id: row.id,
     organizationId: row.organizationId,
-    organizationName: row.organizationName ?? undefined,
+    organizationName: extras?.organizationName,
     planId: row.planId,
-    planName: row.planName ?? undefined,
-    amountPaise: Number(row.amountPaise),
+    planName: extras?.planName,
+    amountPaise: row.amountPaise,
     transactionRef: row.transactionRef,
     status: row.status,
     possibleDuplicate: row.possibleDuplicate || label.isDuplicate,
@@ -312,11 +315,11 @@ export async function listPendingSubmissions(options?: {
       .from(platformSubscriptionPaymentSubmissions)
       .innerJoin(
         platformOrganizations,
-        eq(platformSubscriptionPaymentSubmissions.organizationId, platformOrganizations.id),
+        eq(platformOrganizations.id, platformSubscriptionPaymentSubmissions.organizationId),
       )
       .innerJoin(
         platformPlans,
-        eq(platformSubscriptionPaymentSubmissions.planId, platformPlans.id),
+        eq(platformPlans.id, platformSubscriptionPaymentSubmissions.planId),
       )
       .where(
         and(
@@ -328,24 +331,21 @@ export async function listPendingSubmissions(options?: {
       )
       .orderBy(desc(platformSubscriptionPaymentSubmissions.submittedAt));
 
-    const results: SubscriptionPaymentSubmission[] = [];
+    const out: SubscriptionPaymentSubmission[] = [];
     for (const row of rows) {
       const normalized = normalizeTransactionRef(row.submission.transactionRef);
       const siblings = normalized
         ? await findTransactionRefMatches(db, normalized, row.submission.id)
         : [];
-      results.push(
-        mapSubmissionRow(
-          {
-            ...row.submission,
-            organizationName: row.organizationName,
-            planName: row.planName,
-          },
+      out.push(
+        mapSubmissionRow(row.submission, {
+          organizationName: row.organizationName,
+          planName: row.planName,
           siblings,
-        ),
+        }),
       );
     }
-    return results;
+    return out;
   } finally {
     await close();
   }
@@ -371,8 +371,8 @@ export async function listSubmissionsForOrg(
 export async function approveSubmission(
   id: string,
   reviewerUserId: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!hasPlatformDatabaseUrl()) return { ok: false, error: 'Platform database is not configured' };
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (!hasPlatformDatabaseUrl()) return { ok: false, message: 'Platform database is not configured' };
   const { db, close } = createPlatformClient({ max: 1 });
   try {
     const [submission] = await db
@@ -380,9 +380,9 @@ export async function approveSubmission(
       .from(platformSubscriptionPaymentSubmissions)
       .where(eq(platformSubscriptionPaymentSubmissions.id, id))
       .limit(1);
-    if (!submission) return { ok: false, error: 'Submission not found' };
+    if (!submission) return { ok: false, message: 'Submission not found' };
     if (submission.status !== 'pending') {
-      return { ok: false, error: `Submission is already ${submission.status}` };
+      return { ok: false, message: 'Only pending submissions can be approved' };
     }
 
     const [plan] = await db
@@ -390,7 +390,7 @@ export async function approveSubmission(
       .from(platformPlans)
       .where(eq(platformPlans.id, submission.planId))
       .limit(1);
-    if (!plan) return { ok: false, error: 'Plan not found' };
+    if (!plan) return { ok: false, message: 'Plan not found' };
 
     const billingInterval = resolveBillingIntervalFromPlanLimits(
       (plan.limits as Record<string, unknown>) ?? {},
@@ -415,10 +415,7 @@ export async function approveSubmission(
           .select()
           .from(platformOrganizationSubscriptions)
           .where(
-            eq(
-              platformOrganizationSubscriptions.organizationId,
-              submission.organizationId,
-            ),
+            eq(platformOrganizationSubscriptions.organizationId, submission.organizationId),
           )
           .limit(1);
         if (!subscription) throw new Error('Organization subscription not found');
@@ -444,7 +441,7 @@ export async function approveSubmission(
       });
     } catch (err) {
       if (isApprovedTransactionRefUniqueViolation(err)) {
-        return { ok: false, error: approvedTransactionRefConflictMessage() };
+        return { ok: false, message: approvedTransactionRefConflictMessage() };
       }
       throw err;
     }
@@ -457,10 +454,10 @@ export async function approveSubmission(
 
 export async function rejectSubmission(
   id: string,
-  note: string,
   reviewerUserId: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!hasPlatformDatabaseUrl()) return { ok: false, error: 'Platform database is not configured' };
+  note?: string | null,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (!hasPlatformDatabaseUrl()) return { ok: false, message: 'Platform database is not configured' };
   const { db, close } = createPlatformClient({ max: 1 });
   try {
     const [submission] = await db
@@ -468,18 +465,18 @@ export async function rejectSubmission(
       .from(platformSubscriptionPaymentSubmissions)
       .where(eq(platformSubscriptionPaymentSubmissions.id, id))
       .limit(1);
-    if (!submission) return { ok: false, error: 'Submission not found' };
+    if (!submission) return { ok: false, message: 'Submission not found' };
     if (submission.status !== 'pending') {
-      return { ok: false, error: `Submission is already ${submission.status}` };
+      return { ok: false, message: 'Only pending submissions can be rejected' };
     }
 
     await db
       .update(platformSubscriptionPaymentSubmissions)
       .set({
         status: 'rejected',
-        reviewNote: note.trim() || 'Rejected',
         reviewedAt: new Date(),
         reviewedBy: reviewerUserId,
+        reviewNote: note?.trim() || null,
       })
       .where(eq(platformSubscriptionPaymentSubmissions.id, id));
 
@@ -489,10 +486,14 @@ export async function rejectSubmission(
   }
 }
 
-/** Resolve display amount for subscribe UI (null if plan amount missing). */
 export async function getSubscribeAmountForOrganization(
   organizationId: string,
-): Promise<{ planId: string; planName: string; amountPaise: number; billingInterval: 'month' | 'year' } | null> {
+): Promise<{
+  planId: string;
+  planName: string;
+  amountPaise: number;
+  billingInterval: 'month' | 'year';
+} | null> {
   if (!hasPlatformDatabaseUrl()) return null;
   const { db, close } = createPlatformClient({ max: 1 });
   try {
