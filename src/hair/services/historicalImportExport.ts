@@ -91,11 +91,12 @@ async function fetchRegisterRows(batchId: string, ctx?: TenantContext | null): P
   return invoices.map((inv) => ({
     invoiceId: inv.id,
     invoiceNumber: inv.invoiceNumber,
+    publicAccessToken: inv.publicAccessToken,
     invoiceDate: inv.invoiceDate?.toISOString().slice(0, 10) ?? '',
     customerName: inv.customerName,
     mobileNumber: inv.mobileNumber,
     service: (serviceByInvoice.get(inv.id) ?? []).join(', '),
-    paymentMode: inv.paymentMode,
+    paymentMode: inv.paymentMode ?? '',
     amountInr: inr(inv.subtotalPaise),
     gstInr: inr(inv.taxPaise),
     grandTotalInr: inr(inv.grandTotalPaise),

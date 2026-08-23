@@ -39,7 +39,7 @@ export function locationFilter(column: AnyColumn, ctx?: TenantContext | null): S
 }
 
 export function tenantOrgDefaults(ctx?: TenantContext | null): {
-  organizationId?: string | SQL;
+  organizationId?: string;
 } {
   if (isFyhSaasTenantEnabled()) {
     if (!ctx?.organizationId) {
@@ -63,8 +63,9 @@ export function tenantLocationDefaults(ctx?: TenantContext | null): { locationId
   return {};
 }
 
+/** Plain UUID writes only — never SQL expressions (those break Drizzle $inferInsert). */
 export function tenantWriteDefaults(ctx?: TenantContext | null): {
-  organizationId?: string | SQL;
+  organizationId?: string;
   locationId?: string;
 } {
   return { ...tenantOrgDefaults(ctx), ...tenantLocationDefaults(ctx) };
