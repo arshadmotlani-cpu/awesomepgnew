@@ -46,11 +46,15 @@ const MENU = [
   },
 ] as const;
 
-const RECEIPT_LINES = [
+const RECEIPT_LINES: ReadonlyArray<{
+  label: string;
+  amount: string;
+  strong?: boolean;
+}> = [
   { label: 'Haircut', amount: '₹450' },
   { label: 'GST 18%', amount: '₹81' },
   { label: 'Total', amount: '₹531', strong: true },
-] as const;
+];
 
 export function SalonSoftwareLanding() {
   return (
