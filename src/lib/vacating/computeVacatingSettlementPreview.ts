@@ -255,8 +255,19 @@ export async function loadVacatingSettlementWaterfallContext(
     prepaidPeriodStart && prepaidPeriodStart > checkIn ? prepaidPeriodStart : checkIn;
 
   const missingNoticeDays = coverage.noticeBreakdown?.missingNoticeDays ?? 0;
-  /** Prepaid leftover days are unused rent credit — never deposit "tail rent". */
-  const checkoutTailRentPaise = prepaidAfterVacatingPaise > 0 ? 0 : coverage.tailRentPaise;
+  /**
+   * Prepaid leftover days are unused-rent credit — never deposit "tail rent".
+   * Also: if vacating falls inside an already-paid invoice period, do not charge
+   * deposit for those prepaid occupancy days (calendar-month SSOT).
+   */
+  const vacatingInsidePaidPeriod = coverage.paidInvoiceCoverage.some(
+    (p) =>
+      (p.paidPrincipalPaise ?? 0) > 0 &&
+      p.periodStart <= vacatingDate &&
+      vacatingDate <= p.periodEnd,
+  );
+  const checkoutTailRentPaise =
+    prepaidAfterVacatingPaise > 0 || vacatingInsidePaidPeriod ? 0 : coverage.tailRentPaise;
   const periodDailyRentPaise = periodDailyRentFromCoverage(coverage, vacatingDate);
 
   return {

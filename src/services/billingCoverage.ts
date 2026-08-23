@@ -20,6 +20,7 @@ import { formatDate } from '@/src/lib/dates';
 import {
   anniversaryBillingPeriod,
   billingDayFromMoveIn,
+  calendarMonthBillingPeriod,
   dueDateForBillingDay,
   firstOfMonth,
   firstPartialMonthPeriod,
@@ -114,7 +115,39 @@ export async function loadBillingCoverageRawPeriods(bookingId: string): Promise<
       }
     }
 
+    const billingMonth = firstOfMonth(String(inv.billingMonth));
     const notesPeriod = parseBillingPeriodFromInvoiceNotes(inv.notes);
+
+    /**
+     * Calendar-month SSOT: regular monthly invoices cover the billing month
+     * (1st → last day), not free-text notes. Bad notes (e.g. Angatra August
+     * invoice labeled "1 Jul → 1 Aug") must not erase prepaid Aug days after
+     * vacate or invent deposit "tail rent" for already-paid days.
+     */
+    if (billingCyclePolicy === 'calendar_month_1st' && inv.status === 'paid') {
+      const cal = calendarMonthBillingPeriod(billingMonth);
+      const notesMatchCalendar =
+        notesPeriod != null &&
+        notesPeriod.periodStart === cal.periodStart &&
+        notesPeriod.periodEnd === cal.periodEnd;
+      if (!notesPeriod || !notesMatchCalendar) {
+        rawPaidPeriods.push({
+          ...rawPeriodFromInvoiceDueDate(
+            inv.dueDate ? String(inv.dueDate) : cal.periodStart,
+            billingDay,
+            inv.id,
+            {
+              billingCyclePolicy,
+              billingMonth,
+              moveInDate: moveInDate ?? undefined,
+            },
+          ),
+          paidPrincipalPaise: Math.max(0, inv.paidPrincipalPaise),
+        });
+        continue;
+      }
+    }
+
     if (notesPeriod && inv.status === 'paid') {
       rawPaidPeriods.push({
         periodStart: notesPeriod.periodStart,
@@ -131,7 +164,7 @@ export async function loadBillingCoverageRawPeriods(bookingId: string): Promise<
     rawPaidPeriods.push({
       ...rawPeriodFromInvoiceDueDate(String(inv.dueDate), billingDay, inv.id, {
         billingCyclePolicy,
-        billingMonth: firstOfMonth(String(inv.billingMonth)),
+        billingMonth,
         moveInDate: moveInDate ?? undefined,
       }),
       paidPrincipalPaise: Math.max(0, inv.paidPrincipalPaise),

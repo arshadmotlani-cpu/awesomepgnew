@@ -400,6 +400,15 @@ function FinancialSummary({
           <dd className="inline text-rose-200/90">-{paiseToInr(summary.noticeDeductionPaise)}</dd>
         </div>
       ) : null}
+      {summary.netUnusedRentWalletCreditPaise != null &&
+      summary.netUnusedRentWalletCreditPaise > 0 ? (
+        <div>
+          <dt className="inline text-apg-silver">Net unused rent credit </dt>
+          <dd className="inline text-emerald-200/90">
+            {paiseToInr(summary.netUnusedRentWalletCreditPaise)}
+          </dd>
+        </div>
+      ) : null}
       {summary.electricityPending ? (
         <div>
           <dt className="inline text-apg-silver">Electricity </dt>

@@ -256,9 +256,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-22 19:04:52 UTC
+### Pending pre-commit sync · 2026-08-23 04:13:23 UTC
 
-**Areas touched:** [[Vacating]]
+**Areas touched:** [[Residents]], [[Vacating]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
@@ -268,10 +268,10 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
 **Staged code files (4):**
-- `src/lib/moveOut/moveOutAdvancedToolsProps.ts`
+- `src/lib/residents/residentMoveOutRefundSummary.ts`
 - `src/lib/vacating/adminMoveOutFinancialSummary.ts`
-- `src/lib/vacating/loadAdminVacatingPageData.ts`
-- `src/services/vacating.ts`
+- `src/lib/vacating/calendarMonthPrepaidMoveOutSettlement.ts`
+- `src/lib/vacating/computeVacatingSettlementPreview.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed
