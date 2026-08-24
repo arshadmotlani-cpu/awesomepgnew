@@ -18,15 +18,32 @@ import {
   platformPlans,
   platformSubscriptionEvents,
   platformUsers,
+  PLATFORM_SUBSCRIPTION_STATUSES,
   type PlatformMembershipRole,
+  type PlatformOrgStatus,
+  type PlatformSubscriptionStatus,
   type PlatformUserStatus,
 } from '@/src/platform/db/schema';
 import { hasPlatformDatabaseUrl } from '@/src/platform/lib/db/env';
 import { allocateUniqueOrgSlug } from '@/src/platform/lib/orgSlug';
 import { formatTrialAdminLabel, resolveCreateSubscriptionPeriod } from '@/src/platform/lib/subscriptionTrial';
 
-type OrgStatus = typeof platformOrganizations.$inferInsert.status;
-type SubscriptionStatus = typeof platformOrganizationSubscriptions.$inferInsert.status;
+type OrgStatus = PlatformOrgStatus;
+type SubscriptionStatus = PlatformSubscriptionStatus;
+
+function requireSubscriptionStatus(
+  value: PlatformSubscriptionStatus | string | null | undefined,
+): PlatformSubscriptionStatus {
+  if (
+    typeof value === 'string' &&
+    (PLATFORM_SUBSCRIPTION_STATUSES as readonly string[]).includes(value)
+  ) {
+    return value as PlatformSubscriptionStatus;
+  }
+  throw new Error(
+    `subscriptionStatus is required (expected one of: ${PLATFORM_SUBSCRIPTION_STATUSES.join(', ')})`,
+  );
+}
 
 export type PlatformDashboardStats = {
   totalOrganizations: number;
@@ -629,6 +646,7 @@ export async function createOrganizationWithOwnerInvite(
   input: CreateOrganizationInput,
 ): Promise<{ organizationId: string; invitationToken: string }> {
   const timezone = input.defaultTimezone?.trim() || 'Asia/Kolkata';
+  const subscriptionStatus = requireSubscriptionStatus(input.subscriptionStatus);
   const organizationId = randomUUID();
   const locationId = randomUUID();
   const userId = randomUUID();
@@ -664,7 +682,7 @@ export async function createOrganizationWithOwnerInvite(
     if (!plan) throw new Error('Plan not found');
 
     const subscriptionPeriod = resolveCreateSubscriptionPeriod({
-      subscriptionStatus: input.subscriptionStatus,
+      subscriptionStatus,
       trialEndsAt: input.trialEndsAt,
     });
 
@@ -673,7 +691,7 @@ export async function createOrganizationWithOwnerInvite(
         id: organizationId,
         slug,
         name: input.organizationName.trim(),
-        status: input.subscriptionStatus === 'trial' ? 'trial' : 'active',
+        status: subscriptionStatus === 'trial' ? 'trial' : 'active',
         defaultTimezone: timezone,
         gstin: input.gstin?.trim() || null,
       });
@@ -706,7 +724,7 @@ export async function createOrganizationWithOwnerInvite(
         id: subscriptionId,
         organizationId,
         planId: plan.id,
-        status: input.subscriptionStatus,
+        status: subscriptionStatus,
         currentPeriodStart: subscriptionPeriod.currentPeriodStart,
         currentPeriodEnd: subscriptionPeriod.currentPeriodEnd,
       });
@@ -749,7 +767,7 @@ export async function createOrganizationWithOwnerInvite(
     subscriptionId,
     actorUserId: input.actorUserId,
     eventType: 'organization_created',
-    detail: `${input.organizationName.trim()} created on ${input.subscriptionStatus} plan`,
+    detail: `${input.organizationName.trim()} created on ${subscriptionStatus} plan`,
   });
 
   return { organizationId, invitationToken };
