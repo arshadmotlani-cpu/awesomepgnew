@@ -42,6 +42,9 @@ jobs:
 
       - name: Deploy typecheck (app, excludes tests)
         run: npm run typecheck:deploy
+        env:
+          # Default ~2GB heap OOMs on this monorepo's TS graph; 8GB is the known-working ceiling.
+          NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Unit and integration tests
         run: TEST_CONCURRENCY=1 node scripts/run-unit-tests.mjs
@@ -51,6 +54,7 @@ jobs:
         env:
           AUTH_SECRET: ci-build-auth-secret-min-32-chars-long
           SKIP_MIGRATION_GATE: '1'
+          NODE_OPTIONS: --max-old-space-size=8192
 
   e2e:
     runs-on: ubuntu-latest

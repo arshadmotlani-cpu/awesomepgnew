@@ -128,6 +128,9 @@ fi
 
 bash scripts/vercel-build-repair.sh
 
+# Monorepo TS graph OOMs under Node's default ~2GB heap; 8GB is the known-working ceiling.
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}"
+
 echo "=== Deploy typecheck (app graph, excludes tests) ==="
 # Generate Next PageProps/Route types first — plain tsc cannot see them until typegen/build.
 npx next typegen

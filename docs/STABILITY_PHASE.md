@@ -39,6 +39,8 @@ Establish a green baseline:
 npm run stability:report
 ```
 
+`npm run build` (and deploy typecheck) set `NODE_OPTIONS=--max-old-space-size=8192`. The default Node heap (~2GB) OOMs during TypeScript on this monorepo; **8GB is the deliberate known-working ceiling** used for local/CI builds — not an arbitrary jump to 16GB.
+
 This runs, in order:
 
 1. **Build** — `npm run build`

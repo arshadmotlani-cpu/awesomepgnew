@@ -170,11 +170,14 @@ test('approve move-out requires settlement statement before confirm', () => {
   assert.match(vacatingActions, /title="Review move-out"/);
   assert.match(vacatingActions, /confirmLabel="Approve move-out"/);
 
+  // MoveOutPipelineQueue intentionally does not gate on estimatedSettlement
+  // (Aug 23: review must open even when preview load fails). VacatingActions
+  // still requires a statement before confirm.
   const pipelineQueue = readFileSync(
     join(process.cwd(), 'src/components/admin/moveOut/MoveOutPipelineQueue.tsx'),
     'utf8',
   );
-  assert.match(pipelineQueue, /!preview\?\.estimatedSettlement/);
+  assert.doesNotMatch(pipelineQueue, /!preview\?\.estimatedSettlement/);
 });
 
 test('date change submit creates pending request for admin approval', () => {
