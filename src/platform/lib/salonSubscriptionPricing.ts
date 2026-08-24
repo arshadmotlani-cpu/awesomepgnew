@@ -1,6 +1,7 @@
 /**
  * Standard salon SaaS catalog pricing (Platform Engine).
  * Charge amount lives on plan.limits.amountPaise; list price is display-only.
+ * Per-org custom price = dedicated plan slug `org-custom-{organizationId}` (admin UI).
  */
 
 export const STANDARD_SALON_LIST_PRICE_PAISE = 1_500_000; // ₹15,000
@@ -11,12 +12,42 @@ export const STANDARD_SALON_PRICE_LABEL = 'Limited-time price';
 /** Plan slugs that use the standard annual catalog price. */
 export const STANDARD_SALON_PLAN_SLUGS = ['fyhair-production', 'fyh-staging'] as const;
 
+const ORG_CUSTOM_PLAN_PREFIX = 'org-custom-';
+
+export function organizationCustomPlanSlug(organizationId: string): string {
+  return `${ORG_CUSTOM_PLAN_PREFIX}${organizationId}`;
+}
+
+export function isOrganizationCustomPlanSlug(slug: string | null | undefined): boolean {
+  return Boolean(slug?.startsWith(ORG_CUSTOM_PLAN_PREFIX));
+}
+
 export function standardSalonPlanLimits(extra: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     ...extra,
     amountPaise: STANDARD_SALON_PRICE_PAISE,
     listPricePaise: STANDARD_SALON_LIST_PRICE_PAISE,
     billingInterval: STANDARD_SALON_BILLING_INTERVAL,
+  };
+}
+
+/** Build plan.limits for a per-org exclusive annual price (rupees → paise). */
+export function customSalonAnnualPlanLimits(
+  yearlyRupees: number,
+  baseLimits: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const rupees = Math.round(yearlyRupees);
+  if (!Number.isFinite(rupees) || rupees < 1) {
+    throw new Error('Custom yearly price must be at least ₹1.');
+  }
+  const amountPaise = rupees * 100;
+  const { amountPaise: _a, listPricePaise: _l, billingInterval: _b, ...rest } = baseLimits;
+  return {
+    ...rest,
+    amountPaise,
+    listPricePaise: STANDARD_SALON_LIST_PRICE_PAISE,
+    billingInterval: STANDARD_SALON_BILLING_INTERVAL,
+    customAnnual: true,
   };
 }
 

@@ -26,7 +26,15 @@ import {
 } from '@/src/platform/db/schema';
 import { hasPlatformDatabaseUrl } from '@/src/platform/lib/db/env';
 import { allocateUniqueOrgSlug } from '@/src/platform/lib/orgSlug';
+import {
+  customSalonAnnualPlanLimits,
+  isOrganizationCustomPlanSlug,
+  organizationCustomPlanSlug,
+  STANDARD_SALON_PLAN_SLUGS,
+  STANDARD_SALON_PRICE_PAISE,
+} from '@/src/platform/lib/salonSubscriptionPricing';
 import { formatTrialAdminLabel, resolveCreateSubscriptionPeriod } from '@/src/platform/lib/subscriptionTrial';
+import { resolveAmountPaiseFromPlanLimits } from '@/src/platform/services/manualSubscriptionPayments';
 
 type OrgStatus = PlatformOrgStatus;
 type SubscriptionStatus = PlatformSubscriptionStatus;
@@ -446,6 +454,7 @@ export async function listOrganizationDetailsForAdmin(
           stripePriceId: platformOrganizationSubscriptions.stripePriceId,
           planName: platformPlans.name,
           planSlug: platformPlans.slug,
+          planLimits: platformPlans.limits,
         })
         .from(platformOrganizationSubscriptions)
         .leftJoin(platformPlans, eq(platformOrganizationSubscriptions.planId, platformPlans.id))
@@ -454,13 +463,43 @@ export async function listOrganizationDetailsForAdmin(
         .limit(1),
     ]);
 
+    const sub = subRows[0] ?? null;
+    let amountPaise: number | null = null;
+    if (sub?.planLimits) {
+      try {
+        amountPaise = resolveAmountPaiseFromPlanLimits(
+          (sub.planLimits as Record<string, unknown>) ?? {},
+        );
+      } catch {
+        amountPaise = null;
+      }
+    }
+
     return {
       ...org,
       locations,
       members: memberRows,
       invitations,
       entitlements,
-      subscription: subRows[0] ?? null,
+      subscription: sub
+        ? {
+            id: sub.id,
+            organizationId: sub.organizationId,
+            planId: sub.planId,
+            status: sub.status,
+            currentPeriodStart: sub.currentPeriodStart,
+            currentPeriodEnd: sub.currentPeriodEnd,
+            createdAt: sub.createdAt,
+            updatedAt: sub.updatedAt,
+            stripeCustomerId: sub.stripeCustomerId,
+            stripeSubscriptionId: sub.stripeSubscriptionId,
+            stripePriceId: sub.stripePriceId,
+            planName: sub.planName,
+            planSlug: sub.planSlug,
+            amountPaise,
+            isCustomAnnualPrice: isOrganizationCustomPlanSlug(sub.planSlug),
+          }
+        : null,
     };
   } finally {
     await close();
@@ -1157,6 +1196,137 @@ export async function updateSubscription(input: {
         detail: `Subscription created as ${input.status}`,
       });
     }
+  } finally {
+    await close();
+  }
+}
+
+/**
+ * Set a clickable per-org exclusive annual price (creates/updates org-custom plan + assigns it).
+ * Charge path stays plan.limits.amountPaise — no hardcoded rupees in submit.
+ */
+export async function setOrganizationCustomAnnualPrice(input: {
+  organizationId: string;
+  yearlyRupees: number;
+  actorUserId: string;
+}): Promise<{ planId: string; amountPaise: number }> {
+  if (!hasPlatformDatabaseUrl()) throw new Error('Platform database is not configured');
+  const { db, close } = createPlatformClient({ max: 1 });
+  try {
+    const [org] = await db
+      .select()
+      .from(platformOrganizations)
+      .where(eq(platformOrganizations.id, input.organizationId))
+      .limit(1);
+    if (!org) throw new Error('Organization not found');
+
+    const [subscription] = await db
+      .select()
+      .from(platformOrganizationSubscriptions)
+      .where(eq(platformOrganizationSubscriptions.organizationId, input.organizationId))
+      .limit(1);
+    if (!subscription) throw new Error('Organization has no subscription yet');
+
+    const [currentPlan] = await db
+      .select()
+      .from(platformPlans)
+      .where(eq(platformPlans.id, subscription.planId))
+      .limit(1);
+
+    const baseLimits = (currentPlan?.limits as Record<string, unknown>) ?? {};
+    const limits = customSalonAnnualPlanLimits(input.yearlyRupees, baseLimits);
+    const amountPaise = limits.amountPaise as number;
+    const slug = organizationCustomPlanSlug(input.organizationId);
+    const name = `${org.name} — custom annual`;
+
+    const [existingCustom] = await db
+      .select()
+      .from(platformPlans)
+      .where(eq(platformPlans.slug, slug))
+      .limit(1);
+
+    let planId: string;
+    if (existingCustom) {
+      await db
+        .update(platformPlans)
+        .set({ name, limits })
+        .where(eq(platformPlans.id, existingCustom.id));
+      planId = existingCustom.id;
+    } else {
+      planId = randomUUID();
+      await db.insert(platformPlans).values({ id: planId, slug, name, limits });
+    }
+
+    await db
+      .update(platformOrganizationSubscriptions)
+      .set({ planId, updatedAt: new Date() })
+      .where(eq(platformOrganizationSubscriptions.id, subscription.id));
+
+    await logSubscriptionEvent({
+      organizationId: input.organizationId,
+      subscriptionId: subscription.id,
+      actorUserId: input.actorUserId,
+      eventType: 'custom_annual_price_set',
+      detail: `Custom annual price set to ₹${Math.round(input.yearlyRupees).toLocaleString('en-IN')}`,
+    });
+
+    return { planId, amountPaise };
+  } finally {
+    await close();
+  }
+}
+
+/** Restore org to the standard salon catalog plan (₹6,500/year). */
+export async function clearOrganizationCustomAnnualPrice(input: {
+  organizationId: string;
+  actorUserId: string;
+}): Promise<void> {
+  if (!hasPlatformDatabaseUrl()) throw new Error('Platform database is not configured');
+  const { db, close } = createPlatformClient({ max: 1 });
+  try {
+    const [subscription] = await db
+      .select()
+      .from(platformOrganizationSubscriptions)
+      .where(eq(platformOrganizationSubscriptions.organizationId, input.organizationId))
+      .limit(1);
+    if (!subscription) throw new Error('Organization has no subscription yet');
+
+    const preferredSlugs = [...STANDARD_SALON_PLAN_SLUGS];
+    let standardPlan:
+      | { id: string; slug: string }
+      | undefined;
+    for (const slug of preferredSlugs) {
+      const [row] = await db
+        .select({ id: platformPlans.id, slug: platformPlans.slug })
+        .from(platformPlans)
+        .where(eq(platformPlans.slug, slug))
+        .limit(1);
+      if (row) {
+        standardPlan = row;
+        break;
+      }
+    }
+    if (!standardPlan) {
+      const [fallback] = await db
+        .select({ id: platformPlans.id, slug: platformPlans.slug })
+        .from(platformPlans)
+        .limit(1);
+      if (!fallback) throw new Error('No standard plan found to restore');
+      standardPlan = fallback;
+    }
+
+    await db
+      .update(platformOrganizationSubscriptions)
+      .set({ planId: standardPlan.id, updatedAt: new Date() })
+      .where(eq(platformOrganizationSubscriptions.id, subscription.id));
+
+    await logSubscriptionEvent({
+      organizationId: input.organizationId,
+      subscriptionId: subscription.id,
+      actorUserId: input.actorUserId,
+      eventType: 'custom_annual_price_cleared',
+      detail: `Restored to standard plan ${standardPlan.slug} (₹${(STANDARD_SALON_PRICE_PAISE / 100).toLocaleString('en-IN')}/year)`,
+    });
   } finally {
     await close();
   }

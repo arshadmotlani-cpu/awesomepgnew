@@ -5,6 +5,9 @@ import { join } from 'node:path';
 import {
   STANDARD_SALON_LIST_PRICE_PAISE,
   STANDARD_SALON_PRICE_PAISE,
+  customSalonAnnualPlanLimits,
+  isOrganizationCustomPlanSlug,
+  organizationCustomPlanSlug,
   resolveListPricePaiseFromPlanLimits,
   standardSalonPlanLimits,
 } from '@/src/platform/lib/salonSubscriptionPricing';
@@ -44,6 +47,11 @@ test('landing and subscribe surfaces show list + sale pricing', () => {
   assert.match(landing, /STANDARD_SALON_LIST_PRICE_PAISE/);
   assert.match(landing, /STANDARD_SALON_PRICE_PAISE/);
   assert.match(landing, /line-through/);
+  assert.match(landing, /SAVE/);
+  // Hero (above the fold) must show struck list price, not sale-only copy
+  const heroSlice = landing.slice(0, landing.indexOf('id="pricing"'));
+  assert.match(heroSlice, /line-through/);
+  assert.match(heroSlice, /STANDARD_SALON_LIST_PRICE_PAISE/);
 
   const subscribe = readFileSync(
     join(process.cwd(), 'app/(hair)/fyh/(public)/subscribe/page.tsx'),
@@ -54,6 +62,16 @@ test('landing and subscribe surfaces show list + sale pricing', () => {
   assert.match(subscribe, /Limited-time price/);
 });
 
+test('custom annual plan limits stamp exclusive amount without hardcoding in submit', () => {
+  const limits = customSalonAnnualPlanLimits(5_000, { locations: 2 });
+  assert.equal(limits.amountPaise, 500_000);
+  assert.equal(limits.billingInterval, 'year');
+  assert.equal(limits.locations, 2);
+  const slug = organizationCustomPlanSlug('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
+  assert.equal(isOrganizationCustomPlanSlug(slug), true);
+  assert.equal(isOrganizationCustomPlanSlug('fyhair-production'), false);
+});
+
 test('submit path still stamps amount from plan limits (not hardcoded rupees)', () => {
   const src = readFileSync(
     join(process.cwd(), 'src/platform/services/manualSubscriptionPayments.ts'),
@@ -61,4 +79,14 @@ test('submit path still stamps amount from plan limits (not hardcoded rupees)', 
   );
   assert.match(src, /resolveAmountPaiseFromPlanLimits/);
   assert.doesNotMatch(src, /650_000|650000/);
+});
+
+test('org admin detail exposes custom annual price form', () => {
+  const src = readFileSync(
+    join(process.cwd(), 'app/(platform)/platform/admin/organizations/[id]/page.tsx'),
+    'utf8',
+  );
+  assert.match(src, /setCustomAnnualPriceAction/);
+  assert.match(src, /yearlyRupees/);
+  assert.match(src, /Custom annual price/);
 });

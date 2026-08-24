@@ -5,11 +5,13 @@ import { redirect } from 'next/navigation';
 import { requirePlatformAdminPage } from '@/src/platform/lib/auth/guards';
 import {
   acceptInvitation,
+  clearOrganizationCustomAnnualPrice,
   createMemberInvitation,
   createOrganizationLocation,
   createOrganizationWithOwnerInvite,
   revokeInvitation,
   resendInvitation,
+  setOrganizationCustomAnnualPrice,
   setPlatformAdminMembership,
   setPlatformUserStatus,
   updateMemberAccess,
@@ -172,6 +174,36 @@ export async function updateSubscriptionAction(formData: FormData): Promise<void
       | 'suspended'
       | 'cancelled',
     currentPeriodEnd: String(formData.get('currentPeriodEnd') ?? ''),
+    actorUserId: session.userId,
+  });
+  revalidatePath('/platform/admin');
+  revalidatePath('/platform/admin/subscriptions');
+  revalidatePath(`/platform/admin/organizations/${organizationId}`);
+}
+
+export async function setCustomAnnualPriceAction(formData: FormData): Promise<void> {
+  const session = await requirePlatformAdminPage();
+  const organizationId = String(formData.get('organizationId') ?? '');
+  const raw = String(formData.get('yearlyRupees') ?? '').replace(/,/g, '').trim();
+  const yearlyRupees = Number(raw);
+  if (!Number.isFinite(yearlyRupees) || yearlyRupees < 1) {
+    throw new Error('Enter a valid yearly price in rupees (e.g. 5000).');
+  }
+  await setOrganizationCustomAnnualPrice({
+    organizationId,
+    yearlyRupees,
+    actorUserId: session.userId,
+  });
+  revalidatePath('/platform/admin');
+  revalidatePath('/platform/admin/subscriptions');
+  revalidatePath(`/platform/admin/organizations/${organizationId}`);
+}
+
+export async function clearCustomAnnualPriceAction(formData: FormData): Promise<void> {
+  const session = await requirePlatformAdminPage();
+  const organizationId = String(formData.get('organizationId') ?? '');
+  await clearOrganizationCustomAnnualPrice({
+    organizationId,
     actorUserId: session.userId,
   });
   revalidatePath('/platform/admin');

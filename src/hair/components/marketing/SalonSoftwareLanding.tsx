@@ -119,10 +119,33 @@ export function SalonSoftwareLanding() {
               The point-of-sale, appointments, and GST billing system built for salons that never stop
               moving - running every day at For Your Hair, with your first month free.
             </p>
-            <p className="mt-5 max-w-xl text-sm font-medium text-[var(--ss-ivory)]/90">
-              Your first month is free. After that, {formatInrFromPaise(STANDARD_SALON_PRICE_PAISE)}
-              /year — no surprises.
-            </p>
+            <div className="mt-5 max-w-xl">
+              <p className="text-sm text-[var(--ss-muted)]">Your first month is free. After that:</p>
+              <p className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span
+                  className="text-lg text-[var(--ss-muted)] line-through decoration-2 decoration-[var(--ss-muted)]"
+                  aria-label={`Was ${formatInrFromPaise(STANDARD_SALON_LIST_PRICE_PAISE)}`}
+                >
+                  {formatInrFromPaise(STANDARD_SALON_LIST_PRICE_PAISE)}
+                </span>
+                <span className="text-xl font-semibold text-[var(--ss-ivory)]">
+                  {formatInrFromPaise(STANDARD_SALON_PRICE_PAISE)}
+                  <span className="ml-1 text-sm font-normal text-[var(--ss-muted)]">/year</span>
+                </span>
+              </p>
+              <p
+                className="mt-2 text-[10px] tracking-[0.18em] text-[var(--ss-brass)]"
+                style={{ fontFamily: 'var(--ss-mono), monospace' }}
+              >
+                {STANDARD_SALON_PRICE_LABEL.toUpperCase()} · SAVE{' '}
+                {Math.round(
+                  ((STANDARD_SALON_LIST_PRICE_PAISE - STANDARD_SALON_PRICE_PAISE) /
+                    STANDARD_SALON_LIST_PRICE_PAISE) *
+                    100,
+                )}
+                %
+              </p>
+            </div>
             <div className="mt-8 flex flex-wrap gap-3">
               <a
                 href="#free-month"
@@ -134,7 +157,7 @@ export function SalonSoftwareLanding() {
                 href="#pricing"
                 className="rounded-md border border-[var(--ss-muted)]/40 px-5 py-3 text-sm font-medium text-[var(--ss-ivory)] transition hover:border-[var(--ss-brass)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ss-ivory)]"
               >
-                Talk to us for pricing
+                See annual pricing
               </a>
             </div>
           </div>
@@ -233,7 +256,10 @@ export function SalonSoftwareLanding() {
             Priced annually for salons serious about running properly — your first month is free.
           </p>
           <div className="mt-8 flex flex-wrap items-baseline gap-x-4 gap-y-2">
-            <span className="text-lg text-[var(--ss-muted)] line-through decoration-[var(--ss-muted)]/80">
+            <span
+              className="text-2xl text-[var(--ss-muted)] line-through decoration-2 decoration-[var(--ss-muted)]"
+              aria-label={`Was ${formatInrFromPaise(STANDARD_SALON_LIST_PRICE_PAISE)}`}
+            >
               {formatInrFromPaise(STANDARD_SALON_LIST_PRICE_PAISE)}
             </span>
             <span
@@ -248,7 +274,13 @@ export function SalonSoftwareLanding() {
             className="mt-3 text-xs tracking-[0.18em] text-[var(--ss-brass)]"
             style={{ fontFamily: 'var(--ss-mono), monospace' }}
           >
-            {STANDARD_SALON_PRICE_LABEL.toUpperCase()}
+            {STANDARD_SALON_PRICE_LABEL.toUpperCase()} · SAVE{' '}
+            {Math.round(
+              ((STANDARD_SALON_LIST_PRICE_PAISE - STANDARD_SALON_PRICE_PAISE) /
+                STANDARD_SALON_LIST_PRICE_PAISE) *
+                100,
+            )}
+            %
           </p>
           <a
             href="#free-month"
