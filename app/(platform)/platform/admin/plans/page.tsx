@@ -2,16 +2,43 @@ import { savePlanAction } from '@/src/platform/actions/admin';
 import { PageHeader } from '@/src/platform/components/ui/PageHeader';
 import { DataTable } from '@/src/platform/components/ui/DataTable';
 import { listPlatformPlans } from '@/src/platform/services/admin';
+import {
+  formatInrFromPaise,
+  resolveListPricePaiseFromPlanLimits,
+} from '@/src/platform/lib/salonSubscriptionPricing';
+import { resolveAmountPaiseFromPlanLimits, resolveBillingIntervalFromPlanLimits } from '@/src/platform/services/manualSubscriptionPayments';
 
 function formatLimits(limits: Record<string, unknown>): string {
   const users = limits.users;
   const locations = limits.locations;
-  const price = limits.priceMonthly ?? limits.price;
   const parts: string[] = [];
   if (typeof locations === 'number') parts.push(`${locations} loc`);
   if (typeof users === 'number') parts.push(`${users} users`);
-  if (typeof price === 'number') parts.push(`₹${price}/mo`);
+  try {
+    const amount = resolveAmountPaiseFromPlanLimits(limits);
+    const interval = resolveBillingIntervalFromPlanLimits(limits);
+    parts.push(`${formatInrFromPaise(amount)}/${interval === 'year' ? 'yr' : 'mo'}`);
+  } catch {
+    const price = limits.priceMonthly ?? limits.price;
+    if (typeof price === 'number') parts.push(`₹${price}/mo`);
+  }
   return parts.length > 0 ? parts.join(' · ') : 'See JSON';
+}
+
+function formatPlanPrice(limits: Record<string, unknown>): string {
+  try {
+    const amount = resolveAmountPaiseFromPlanLimits(limits);
+    const list = resolveListPricePaiseFromPlanLimits(limits);
+    const interval = resolveBillingIntervalFromPlanLimits(limits);
+    const suffix = interval === 'year' ? '/yr' : '/mo';
+    if (list && list > amount) {
+      return `${formatInrFromPaise(list)} → ${formatInrFromPaise(amount)}${suffix}`;
+    }
+    return `${formatInrFromPaise(amount)}${suffix}`;
+  } catch {
+    const price = limits.priceMonthly ?? limits.price;
+    return typeof price === 'number' ? `₹${price}/mo` : 'Not configured';
+  }
 }
 
 function formatDate(value: Date | string | null | undefined): string {
@@ -75,11 +102,7 @@ export default async function PlatformPlansPage() {
           {
             key: 'price',
             header: 'Price',
-            cell: (row) => {
-              const limits = (row.limits as Record<string, unknown>) ?? {};
-              const price = limits.priceMonthly ?? limits.price;
-              return typeof price === 'number' ? `₹${price}/mo` : 'Not configured';
-            },
+            cell: (row) => formatPlanPrice((row.limits as Record<string, unknown>) ?? {}),
           },
           { key: 'created', header: 'Created', cell: (row) => formatDate(row.createdAt) },
           {

@@ -52,14 +52,16 @@ describe('allocateUniqueOrgSlug', () => {
 });
 
 describe('onboarding UX copy', () => {
-  it('wizard has no subdomain/URL wording and no slug field label', () => {
+  it('wizard has no subdomain/URL wording, no slug field label, and no manual trial date', () => {
     const src = readFileSync(
       join(process.cwd(), 'src/platform/components/onboarding/OrganizationOnboardingWizard.tsx'),
       'utf8',
     );
     assert.match(src, /Salon name/);
+    assert.match(src, /30-day free trial starts when the salon is created\./);
     assert.doesNotMatch(src, /subdomain/i);
     assert.doesNotMatch(src, /web address/i);
     assert.doesNotMatch(src, />\s*Slug\s*</);
+    assert.doesNotMatch(src, /Trial \/ period end/);
   });
 });

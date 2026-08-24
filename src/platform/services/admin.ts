@@ -23,6 +23,7 @@ import {
 } from '@/src/platform/db/schema';
 import { hasPlatformDatabaseUrl } from '@/src/platform/lib/db/env';
 import { allocateUniqueOrgSlug } from '@/src/platform/lib/orgSlug';
+import { formatTrialAdminLabel, resolveCreateSubscriptionPeriod } from '@/src/platform/lib/subscriptionTrial';
 
 type OrgStatus = typeof platformOrganizations.$inferInsert.status;
 type SubscriptionStatus = typeof platformOrganizationSubscriptions.$inferInsert.status;
@@ -118,6 +119,8 @@ export type PlatformOrganizationListItem = {
   planName: string | null;
   planId: string | null;
   subscriptionStatus: string | null;
+  subscriptionCurrentPeriodEnd: Date | null;
+  trialLabel: string | null;
   ownerEmail: string | null;
   createdAt: Date;
 };
@@ -170,6 +173,7 @@ async function enrichOrganizationSummaries(
         planId: platformOrganizationSubscriptions.planId,
         planName: platformPlans.name,
         status: platformOrganizationSubscriptions.status,
+        currentPeriodEnd: platformOrganizationSubscriptions.currentPeriodEnd,
       })
       .from(platformOrganizationSubscriptions)
       .innerJoin(platformPlans, eq(platformOrganizationSubscriptions.planId, platformPlans.id))
@@ -198,6 +202,8 @@ async function enrichOrganizationSummaries(
       locationCount: locRows.length,
       memberCount: memberRows.length,
       subscriptionStatus: sub?.status ?? null,
+      subscriptionCurrentPeriodEnd: sub?.currentPeriodEnd ?? null,
+      trialLabel: formatTrialAdminLabel(sub?.status ?? null, sub?.currentPeriodEnd ?? null),
     });
   }
   return results;
@@ -657,6 +663,11 @@ export async function createOrganizationWithOwnerInvite(
     const [plan] = await db.select().from(platformPlans).where(eq(platformPlans.id, input.planId)).limit(1);
     if (!plan) throw new Error('Plan not found');
 
+    const subscriptionPeriod = resolveCreateSubscriptionPeriod({
+      subscriptionStatus: input.subscriptionStatus,
+      trialEndsAt: input.trialEndsAt,
+    });
+
     await db.transaction(async (tx) => {
       await tx.insert(platformOrganizations).values({
         id: organizationId,
@@ -696,8 +707,8 @@ export async function createOrganizationWithOwnerInvite(
         organizationId,
         planId: plan.id,
         status: input.subscriptionStatus,
-        currentPeriodStart: new Date(),
-        currentPeriodEnd: input.trialEndsAt ? new Date(input.trialEndsAt) : null,
+        currentPeriodStart: subscriptionPeriod.currentPeriodStart,
+        currentPeriodEnd: subscriptionPeriod.currentPeriodEnd,
       });
       const entitlements = entitlementRows(
         organizationId,
@@ -1247,8 +1258,11 @@ export async function getOrganizationsNeedingAttention(): Promise<OrganizationAt
           organizationId: sub.organizationId,
           organizationName: sub.orgName,
           slug: sub.orgSlug,
-          reason: 'Trial expiring soon',
-          severity: 'warning',
+          reason:
+            sub.currentPeriodEnd <= new Date()
+              ? 'Trial expired - awaiting payment'
+              : 'Trial expiring soon',
+          severity: sub.currentPeriodEnd <= new Date() ? 'critical' : 'warning',
         });
       }
       if (sub.orgStatus === 'suspended') {

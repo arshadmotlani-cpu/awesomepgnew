@@ -256,22 +256,19 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-24 08:51:14 UTC
+### Pending pre-commit sync · 2026-08-24 08:51:31 UTC
 
-**Areas touched:** [[ROUTES]], [[Vacating]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
-- `DECISIONS.md` — review for accuracy
-- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
-- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
 **Staged code files (3):**
-- `app/(customer)/pgs/page.tsx`
-- `app/page.tsx`
-- `src/lib/vacating/vacatingBedSemantics.ts`
+- `app/(platform)/platform/admin/organizations/[id]/page.tsx`
+- `app/(platform)/platform/admin/organizations/page.tsx`
+- `app/(platform)/platform/admin/plans/page.tsx`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

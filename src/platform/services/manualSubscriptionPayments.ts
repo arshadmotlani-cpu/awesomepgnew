@@ -20,6 +20,7 @@ import {
 } from '@/src/platform/db/schema';
 import { createPlatformClient } from '@/src/platform/db/client';
 import { hasPlatformDatabaseUrl } from '@/src/platform/lib/db/env';
+import { resolveListPricePaiseFromPlanLimits } from '@/src/platform/lib/salonSubscriptionPricing';
 
 export type BillingQrSettings = {
   id: string;
@@ -51,7 +52,7 @@ export type SubscriptionPaymentSubmission = {
   approveConfirmMessage?: string | null;
 };
 
-function resolveAmountPaiseFromPlanLimits(limits: Record<string, unknown>): number {
+export function resolveAmountPaiseFromPlanLimits(limits: Record<string, unknown>): number {
   const amountPaise = limits.amountPaise ?? limits.amount_paise;
   if (typeof amountPaise === 'number' && Number.isFinite(amountPaise) && amountPaise > 0) {
     return Math.round(amountPaise);
@@ -498,6 +499,7 @@ export async function getSubscribeAmountForOrganization(
   planId: string;
   planName: string;
   amountPaise: number;
+  listPricePaise: number | null;
   billingInterval: 'month' | 'year';
 } | null> {
   if (!hasPlatformDatabaseUrl()) return null;
@@ -516,11 +518,13 @@ export async function getSubscribeAmountForOrganization(
       .limit(1);
     if (!plan) return null;
     const limits = (plan.limits as Record<string, unknown>) ?? {};
+    const listPricePaise = resolveListPricePaiseFromPlanLimits(limits);
     try {
       return {
         planId: plan.id,
         planName: plan.name,
         amountPaise: resolveAmountPaiseFromPlanLimits(limits),
+        listPricePaise,
         billingInterval: resolveBillingIntervalFromPlanLimits(limits),
       };
     } catch {
@@ -528,6 +532,7 @@ export async function getSubscribeAmountForOrganization(
         planId: plan.id,
         planName: plan.name,
         amountPaise: 0,
+        listPricePaise,
         billingInterval: resolveBillingIntervalFromPlanLimits(limits),
       };
     }

@@ -119,6 +119,11 @@ export default async function PlatformOrganizationsPage({ searchParams }: Props)
               ),
           },
           {
+            key: 'trial',
+            header: 'Trial',
+            cell: (row) => row.trialLabel ?? '—',
+          },
+          {
             key: 'status',
             header: 'Status',
             cell: (row) => <OrgStatusBadge status={row.status} />,

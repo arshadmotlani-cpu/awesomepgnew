@@ -9,6 +9,7 @@ import {
 } from '@/src/platform/db/schema';
 import { createPlatformClient } from '@/src/platform/db/client';
 import { hasPlatformDatabaseUrl } from '@/src/platform/lib/db/env';
+import { isTrialPeriodActive } from '@/src/platform/lib/subscriptionTrial';
 
 export type PlatformMembershipRow = {
   membershipId: string;
@@ -39,13 +40,21 @@ export async function findPlatformUserIdByEmail(email: string): Promise<string |
 
 /**
  * Phase E SaaS access policy:
- * - trial | active → full ERP
+ * - trial → full ERP only while now < currentPeriodEnd
+ * - active → full ERP
  * - past_due → grace (allowed) + billing banner
  * - cancelled | unpaid | incomplete | suspended | other → hard lock
  * - missing subscription row → allowed (legacy)
  */
-export function isSubscriptionAccessAllowed(status: string | null | undefined): boolean {
-  return !status || status === 'trial' || status === 'active' || status === 'past_due';
+export function isSubscriptionAccessAllowed(
+  status: string | null | undefined,
+  options?: { currentPeriodEnd?: Date | null; now?: Date },
+): boolean {
+  if (!status || status === 'active' || status === 'past_due') return true;
+  if (status === 'trial') {
+    return isTrialPeriodActive(options?.currentPeriodEnd, options?.now);
+  }
+  return false;
 }
 
 export function isSubscriptionGracePeriod(status: string | null | undefined): boolean {
@@ -55,15 +64,25 @@ export function isSubscriptionGracePeriod(status: string | null | undefined): bo
 export async function getOrganizationSubscriptionStatus(
   organizationId: string,
 ): Promise<string | null> {
+  const row = await getOrganizationSubscriptionAccessRow(organizationId);
+  return row?.status ?? null;
+}
+
+async function getOrganizationSubscriptionAccessRow(
+  organizationId: string,
+): Promise<{ status: string; currentPeriodEnd: Date | null } | null> {
   if (!hasPlatformDatabaseUrl()) return null;
   const { db, close } = createPlatformClient({ max: 1 });
   try {
     const [row] = await db
-      .select({ status: platformOrganizationSubscriptions.status })
+      .select({
+        status: platformOrganizationSubscriptions.status,
+        currentPeriodEnd: platformOrganizationSubscriptions.currentPeriodEnd,
+      })
       .from(platformOrganizationSubscriptions)
       .where(eq(platformOrganizationSubscriptions.organizationId, organizationId))
       .limit(1);
-    return row?.status ?? null;
+    return row ?? null;
   } finally {
     await close();
   }
@@ -72,9 +91,11 @@ export async function getOrganizationSubscriptionStatus(
 export async function isOrganizationSubscriptionLocked(
   organizationId: string,
 ): Promise<boolean> {
-  const status = await getOrganizationSubscriptionStatus(organizationId);
-  if (status == null) return false;
-  return !isSubscriptionAccessAllowed(status);
+  const row = await getOrganizationSubscriptionAccessRow(organizationId);
+  if (row == null) return false;
+  return !isSubscriptionAccessAllowed(row.status, {
+    currentPeriodEnd: row.currentPeriodEnd,
+  });
 }
 
 export type PlatformMembershipBillingRow = PlatformMembershipRow & {
@@ -114,7 +135,10 @@ export async function listMembershipsForBilling(
     const results: PlatformMembershipBillingRow[] = [];
     for (const membership of memberships) {
       const [subscription] = await db
-        .select({ status: platformOrganizationSubscriptions.status })
+        .select({
+          status: platformOrganizationSubscriptions.status,
+          currentPeriodEnd: platformOrganizationSubscriptions.currentPeriodEnd,
+        })
         .from(platformOrganizationSubscriptions)
         .where(eq(platformOrganizationSubscriptions.organizationId, membership.organizationId))
         .limit(1);
@@ -134,7 +158,9 @@ export async function listMembershipsForBilling(
         accessRole: membership.accessRole,
         allowedLocationIds,
         subscriptionStatus: status,
-        accessAllowed: isSubscriptionAccessAllowed(status),
+        accessAllowed: isSubscriptionAccessAllowed(status, {
+          currentPeriodEnd: subscription?.currentPeriodEnd,
+        }),
       });
     }
     return results;
@@ -206,11 +232,20 @@ export async function loadMembershipForUserOrg(
     if (!membership) return null;
 
     const [subscription] = await db
-      .select({ status: platformOrganizationSubscriptions.status })
+      .select({
+        status: platformOrganizationSubscriptions.status,
+        currentPeriodEnd: platformOrganizationSubscriptions.currentPeriodEnd,
+      })
       .from(platformOrganizationSubscriptions)
       .where(eq(platformOrganizationSubscriptions.organizationId, membership.organizationId))
       .limit(1);
-    if (!isSubscriptionAccessAllowed(subscription?.status)) return null;
+    if (
+      !isSubscriptionAccessAllowed(subscription?.status, {
+        currentPeriodEnd: subscription?.currentPeriodEnd,
+      })
+    ) {
+      return null;
+    }
 
     const allowedLocationIds = await allowedLocationIdsForMembership(
       db,
@@ -263,11 +298,20 @@ export async function listActiveMembershipsForUser(userId: string): Promise<Plat
     const results: PlatformMembershipRow[] = [];
     for (const membership of memberships) {
       const [subscription] = await db
-        .select({ status: platformOrganizationSubscriptions.status })
+        .select({
+          status: platformOrganizationSubscriptions.status,
+          currentPeriodEnd: platformOrganizationSubscriptions.currentPeriodEnd,
+        })
         .from(platformOrganizationSubscriptions)
         .where(eq(platformOrganizationSubscriptions.organizationId, membership.organizationId))
         .limit(1);
-      if (!isSubscriptionAccessAllowed(subscription?.status)) continue;
+      if (
+        !isSubscriptionAccessAllowed(subscription?.status, {
+          currentPeriodEnd: subscription?.currentPeriodEnd,
+        })
+      ) {
+        continue;
+      }
       const allowedLocationIds = await allowedLocationIdsForMembership(
         db,
         membership.membershipId,

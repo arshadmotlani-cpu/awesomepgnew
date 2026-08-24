@@ -11,6 +11,7 @@ import {
 } from '@/src/lib/payments/transactionRefDuplicate';
 import {
   computeSubscriptionPeriod,
+  resolveAmountPaiseFromPlanLimits,
   resolveBillingIntervalFromPlanLimits,
 } from '@/src/platform/services/manualSubscriptionPayments';
 
@@ -74,6 +75,14 @@ test('billing interval + period from plan limits', () => {
   assert.equal(month.periodEnd.getUTCMonth(), 8); // Sep (0-indexed)
   const year = computeSubscriptionPeriod('year', from);
   assert.equal(year.periodEnd.getUTCFullYear(), 2027);
+});
+
+test('resolveAmountPaiseFromPlanLimits prefers amountPaise over priceYearly', () => {
+  assert.equal(
+    resolveAmountPaiseFromPlanLimits({ amountPaise: 650_000, priceYearly: 15000 }),
+    650_000,
+  );
+  assert.equal(resolveAmountPaiseFromPlanLimits({ priceYearly: 6500 }), 650_000);
 });
 
 test('subscribe action does not import Stripe checkout', () => {

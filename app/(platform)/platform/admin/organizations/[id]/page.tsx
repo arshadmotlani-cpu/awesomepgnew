@@ -15,6 +15,7 @@ import {
   listPlatformPlans,
   listPlatformSubscriptionEvents,
 } from '@/src/platform/services/admin';
+import { formatTrialAdminLabel } from '@/src/platform/lib/subscriptionTrial';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -45,6 +46,10 @@ export default async function PlatformOrganizationDetailPage({ params }: Props) 
   }
 
   const owner = organization.members.find((m) => m.accessRole === 'owner');
+  const trialLabel = formatTrialAdminLabel(
+    organization.subscription?.status ?? null,
+    organization.subscription?.currentPeriodEnd ?? null,
+  );
 
   return (
     <>
@@ -67,7 +72,7 @@ export default async function PlatformOrganizationDetailPage({ params }: Props) 
         activeTab="overview"
       />
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <div className="rounded-lg border border-[var(--plt-border)] bg-[var(--plt-bg-surface)] px-4 py-3">
           <p className="text-xs text-[var(--plt-text-subtle)]">Status</p>
           <div className="mt-1"><OrgStatusBadge status={organization.status} /></div>
@@ -83,6 +88,10 @@ export default async function PlatformOrganizationDetailPage({ params }: Props) 
         <div className="rounded-lg border border-[var(--plt-border)] bg-[var(--plt-bg-surface)] px-4 py-3">
           <p className="text-xs text-[var(--plt-text-subtle)]">Members</p>
           <p className="mt-1 text-sm font-medium">{organization.members.length}</p>
+        </div>
+        <div className="rounded-lg border border-[var(--plt-border)] bg-[var(--plt-bg-surface)] px-4 py-3">
+          <p className="text-xs text-[var(--plt-text-subtle)]">Trial</p>
+          <p className="mt-1 text-sm font-medium">{trialLabel ?? '—'}</p>
         </div>
       </div>
 
@@ -111,6 +120,10 @@ export default async function PlatformOrganizationDetailPage({ params }: Props) 
                   '—'
                 )}
               </dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-[var(--plt-text-subtle)]">Trial status</dt>
+              <dd>{trialLabel ?? '—'}</dd>
             </div>
           </dl>
           <form action={updateOrganizationAction} className="grid gap-3 border-t border-[var(--plt-border)] pt-4">
@@ -178,6 +191,11 @@ export default async function PlatformOrganizationDetailPage({ params }: Props) 
                 <option value="cancelled">Cancelled</option>
               </select>
             </label>
+            {trialLabel ? (
+              <p className="rounded-md border border-[var(--plt-border)] bg-black/10 px-3 py-2 text-sm text-[var(--plt-text-muted)]">
+                {trialLabel}
+              </p>
+            ) : null}
             <label className="grid gap-1 text-sm">
               <span className="text-[var(--plt-text-muted)]">Current period end</span>
               <input

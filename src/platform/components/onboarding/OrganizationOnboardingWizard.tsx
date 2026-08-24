@@ -22,7 +22,6 @@ export function OrganizationOnboardingWizard({ plans }: Props) {
     primaryLocationAddress: '',
     planId: '',
     subscriptionStatus: 'trial',
-    trialEndsAt: '',
     firstOwnerName: '',
     firstOwnerEmail: '',
     firstOwnerPhone: '',
@@ -70,7 +69,6 @@ export function OrganizationOnboardingWizard({ plans }: Props) {
         <input type="hidden" name="primaryLocationAddress" value={form.primaryLocationAddress} />
         <input type="hidden" name="planId" value={form.planId} />
         <input type="hidden" name="subscriptionStatus" value={form.subscriptionStatus} />
-        <input type="hidden" name="trialEndsAt" value={form.trialEndsAt} />
         <input type="hidden" name="firstOwnerName" value={form.firstOwnerName} />
         <input type="hidden" name="firstOwnerEmail" value={form.firstOwnerEmail} />
         <input type="hidden" name="firstOwnerPhone" value={form.firstOwnerPhone} />
@@ -127,20 +125,13 @@ export function OrganizationOnboardingWizard({ plans }: Props) {
                 ))}
               </select>
             </label>
-            <label className="grid gap-1 text-sm">
-              <span className="text-[var(--plt-text-muted)]">Status</span>
-              <select value={form.subscriptionStatus} onChange={(e) => update('subscriptionStatus', e.target.value)} className="plt-input">
-                <option value="trial">Trial</option>
-                <option value="active">Active</option>
-                <option value="past_due">Past due</option>
-                <option value="suspended">Suspended</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </label>
-            <label className="grid gap-1 text-sm">
-              <span className="text-[var(--plt-text-muted)]">Trial / period end</span>
-              <input type="date" value={form.trialEndsAt} onChange={(e) => update('trialEndsAt', e.target.value)} className="plt-input" />
-            </label>
+            <div className="grid gap-1 rounded-md border border-[var(--plt-border)] bg-black/10 px-3 py-3 text-sm">
+              <span className="text-[var(--plt-text-muted)]">Trial</span>
+              <p className="text-[var(--plt-text)]">30-day free trial starts when the salon is created.</p>
+              <p className="text-xs text-[var(--plt-text-subtle)]">
+                After that, the salon will land on the existing subscribe screen until payment is approved.
+              </p>
+            </div>
           </div>
         )}
 
