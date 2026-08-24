@@ -7,9 +7,10 @@
  *   node scripts/run-unit-tests.mjs           — full monorepo
  *   node scripts/run-unit-tests.mjs hair      — tests/hair only (default serial: --test-concurrency=1)
  *   node scripts/run-unit-tests.mjs capital   — tests/capital only
- *   node scripts/run-unit-tests.mjs pg        — Awesome PG (tests/unit + tests/integration)
+ *   node scripts/run-unit-tests.mjs pg        — Awesome PG (default serial: --test-concurrency=1)
  *
  * Override concurrency: TEST_CONCURRENCY=4 node scripts/run-unit-tests.mjs hair
+ * Default serial for hair/pg matches CI (TEST_CONCURRENCY=1) and avoids parallel source-scan flakes.
  */
 import { spawnSync } from 'node:child_process';
 import { readdirSync, statSync } from 'node:fs';
@@ -70,7 +71,7 @@ if (productArg) {
 
 const args = ['--import', 'tsx', '--test'];
 let concurrency = process.env.TEST_CONCURRENCY?.trim();
-if (!concurrency && productArg === 'hair') {
+if (!concurrency && (productArg === 'hair' || productArg === 'pg')) {
   concurrency = '1';
 }
 if (concurrency) args.push(`--test-concurrency=${concurrency}`);

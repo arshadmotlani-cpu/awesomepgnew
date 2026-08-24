@@ -25,14 +25,15 @@ function parseOptionalDate(raw: string | null | undefined): Date | null {
 }
 
 export function resolveCreateSubscriptionPeriod(input: {
-  subscriptionStatus: string;
+  subscriptionStatus: string | null | undefined;
   trialEndsAt?: string | null;
   now?: Date;
 }): { currentPeriodStart: Date; currentPeriodEnd: Date | null } {
   const now = input.now ?? new Date();
   const override = parseOptionalDate(input.trialEndsAt);
+  const status = input.subscriptionStatus ?? 'trial';
 
-  if (input.subscriptionStatus === 'trial') {
+  if (status === 'trial') {
     const { start, end } = computeTrialPeriod(now);
     return {
       currentPeriodStart: start,

@@ -50,12 +50,13 @@ describe('Resident electricity billing pending UX', () => {
     assert.match(src, /electricityPending: true/);
   });
 
-  it('resident refund card shows pending final meter label when estimate', () => {
+  it('resident refund card shows pending electricity label when estimate', () => {
     const card = readFileSync(
       join(process.cwd(), 'src/components/customer/account/resident/vacating/ResidentMoveOutRefundCard.tsx'),
       'utf8',
     );
     assert.match(card, /electricityPending/);
-    assert.match(card, /Pending final meter/);
+    assert.match(card, />Pending</);
+    assert.match(card, /electricity pending/);
   });
 });

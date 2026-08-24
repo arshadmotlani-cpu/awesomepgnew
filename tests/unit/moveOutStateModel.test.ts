@@ -11,8 +11,9 @@ function emptyWaterfall(refundTotal = 100_000, unusedRent = 0, consumed = 50_000
   return {
     stay: { stayDays: 10, periodStart: '2026-08-01', periodEnd: '2026-08-10' },
     rentBucket: {
-      paidPaise: consumed,
+      paidPaise: consumed + unusedRent,
       consumedPaise: consumed,
+      unusedPaise: unusedRent,
       dailyRentPaise: 5000,
       periodDailyRentPaise: 5000,
     },

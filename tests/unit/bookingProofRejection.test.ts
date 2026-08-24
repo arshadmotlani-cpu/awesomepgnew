@@ -21,7 +21,8 @@ test('submitBookingPaymentRecord updates cleared pending record on re-upload', (
   const nextFn = fn.indexOf('\nexport async function getPendingBookingPaymentRecord');
   const body = fn.slice(0, nextFn);
 
-  assert.match(body, /if \(dup\?\.paymentScreenshotUrl\?\.trim\(\)\)/);
+  // Cleared pending rows (no txn/screenshot) may be updated; rows with proof stay blocked.
+  assert.match(body, /hasTxnOrScreenshotProof/);
   assert.match(body, /update\(pgPaymentRecords\)/);
   assert.match(body, /supersedeActiveRejection\('pg_payment_record'/);
 });
