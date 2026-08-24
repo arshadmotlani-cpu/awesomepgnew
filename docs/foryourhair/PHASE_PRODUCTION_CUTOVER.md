@@ -184,7 +184,7 @@ SELECT COUNT(*) FROM platform.organizations;
 
 ```sql
 INSERT INTO platform.plans (slug, name, limits)
-VALUES ('fyhair-production', 'FYHAIR Production', '{"locations": 1, "seats": 50}'::jsonb)
+VALUES ('fyhair-production', 'FYHAIR Production', '{"locations": 1, "seats": 50, "amountPaise": 650000, "listPricePaise": 1500000, "billingInterval": "year"}'::jsonb)
 ON CONFLICT (slug) DO NOTHING;
 ```
 

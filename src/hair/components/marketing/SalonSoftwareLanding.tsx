@@ -1,5 +1,11 @@
 import type { CSSProperties } from 'react';
 import { SalonSoftwareWaitlistForm } from '@/src/hair/components/marketing/SalonSoftwareWaitlistForm';
+import {
+  STANDARD_SALON_LIST_PRICE_PAISE,
+  STANDARD_SALON_PRICE_LABEL,
+  STANDARD_SALON_PRICE_PAISE,
+  formatInrFromPaise,
+} from '@/src/platform/lib/salonSubscriptionPricing';
 import { Fraunces, IBM_Plex_Mono, Inter } from 'next/font/google';
 
 const display = Fraunces({
@@ -72,10 +78,10 @@ export function SalonSoftwareLanding() {
       }
     >
       <a
-        href="#early-access"
+        href="#free-month"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-[var(--ss-brass)] focus:px-3 focus:py-2 focus:text-[var(--ss-panel)]"
       >
-        Skip to early access
+        Skip to free month request
       </a>
 
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
@@ -86,10 +92,10 @@ export function SalonSoftwareLanding() {
           SALON SOFTWARE
         </p>
         <a
-          href="#early-access"
+          href="#free-month"
           className="rounded-md bg-[var(--ss-brass)] px-4 py-2 text-sm font-semibold text-[var(--ss-panel)] transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ss-ivory)]"
         >
-          Get early access
+          Start your free month
         </a>
       </header>
 
@@ -111,14 +117,18 @@ export function SalonSoftwareLanding() {
             </h1>
             <p className="mt-5 max-w-xl text-lg leading-relaxed text-[var(--ss-muted)]">
               The point-of-sale, appointments, and GST billing system built for salons that never stop
-              moving — running every day at For Your Hair.
+              moving - running every day at For Your Hair, with your first month free.
+            </p>
+            <p className="mt-5 max-w-xl text-sm font-medium text-[var(--ss-ivory)]/90">
+              Your first month is free. After that, {formatInrFromPaise(STANDARD_SALON_PRICE_PAISE)}
+              /year — no surprises.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <a
-                href="#early-access"
+                href="#free-month"
                 className="rounded-md bg-[var(--ss-brass)] px-5 py-3 text-sm font-semibold text-[var(--ss-panel)] transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ss-ivory)]"
               >
-                Get early access
+                Start your free month
               </a>
               <a
                 href="#pricing"
@@ -217,23 +227,40 @@ export function SalonSoftwareLanding() {
             className="mt-3 max-w-2xl text-3xl text-[var(--ss-ivory)] sm:text-4xl"
             style={{ fontFamily: 'var(--ss-display), Georgia, serif', fontWeight: 600 }}
           >
-            Pricing built around your salon&apos;s size — talk to us.
+            One annual price. Built for salons that run properly.
           </h2>
           <p className="mt-4 max-w-xl text-[var(--ss-muted)]">
-            Every floor is different. We&apos;ll match a plan to your chairs, staff, and pace — no
-            guesswork from a generic price grid.
+            Priced annually for salons serious about running properly — your first month is free.
+          </p>
+          <div className="mt-8 flex flex-wrap items-baseline gap-x-4 gap-y-2">
+            <span className="text-lg text-[var(--ss-muted)] line-through decoration-[var(--ss-muted)]/80">
+              {formatInrFromPaise(STANDARD_SALON_LIST_PRICE_PAISE)}
+            </span>
+            <span
+              className="text-4xl text-[var(--ss-ivory)] sm:text-5xl"
+              style={{ fontFamily: 'var(--ss-display), Georgia, serif', fontWeight: 600 }}
+            >
+              {formatInrFromPaise(STANDARD_SALON_PRICE_PAISE)}
+              <span className="ml-2 text-lg font-normal text-[var(--ss-muted)]">/ year</span>
+            </span>
+          </div>
+          <p
+            className="mt-3 text-xs tracking-[0.18em] text-[var(--ss-brass)]"
+            style={{ fontFamily: 'var(--ss-mono), monospace' }}
+          >
+            {STANDARD_SALON_PRICE_LABEL.toUpperCase()}
           </p>
           <a
-            href="#early-access"
+            href="#free-month"
             className="mt-8 inline-flex rounded-md bg-[var(--ss-brass)] px-5 py-3 text-sm font-semibold text-[var(--ss-panel)] transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ss-ivory)]"
           >
-            Get pricing
+            Start your free month
           </a>
         </section>
 
-        {/* Early access */}
+        {/* Free month */}
         <section
-          id="early-access"
+          id="free-month"
           className="border-t border-[var(--ss-muted)]/15 bg-[var(--ss-panel)] py-20"
         >
           <div className="mx-auto grid max-w-6xl gap-10 px-6 lg:grid-cols-2 lg:items-start">
@@ -242,17 +269,20 @@ export function SalonSoftwareLanding() {
                 className="text-xs tracking-[0.22em] text-[var(--ss-brass)]"
                 style={{ fontFamily: 'var(--ss-mono), monospace' }}
               >
-                EARLY ACCESS
+                BEGIN YOUR FREE MONTH
               </p>
               <h2
                 className="mt-3 text-3xl text-[var(--ss-ivory)] sm:text-4xl"
                 style={{ fontFamily: 'var(--ss-display), Georgia, serif', fontWeight: 600 }}
               >
-                Get early access
+                Request your free month
               </h2>
               <p className="mt-4 text-[var(--ss-muted)] leading-relaxed">
-                Tell us about your salon. We&apos;ll follow up when your spot is ready — the same
-                system already running the floor at For Your Hair.
+                Tell us about your salon and we&apos;ll reach out to get your free month set up on the
+                same system already running the floor at For Your Hair.
+              </p>
+              <p className="mt-3 text-sm text-[var(--ss-ivory)]/85">
+                We keep your details private and only use them to contact you about your setup.
               </p>
             </div>
             <div className="rounded-xl border border-[var(--ss-muted)]/20 bg-[var(--ss-bg)] p-6">
@@ -285,23 +315,23 @@ export function SalonSoftwareLanding() {
           }
         }
         /* Sales form theme overrides inside this page */
-        #early-access .fyh-input,
-        #early-access input,
-        #early-access textarea {
+        #free-month .fyh-input,
+        #free-month input,
+        #free-month textarea {
           background: #16281F;
           border: 1px solid rgba(184, 196, 188, 0.35);
           color: #F5F1E8;
           border-radius: 0.375rem;
           padding: 0.625rem 0.75rem;
         }
-        #early-access .fyh-btn-primary,
-        #early-access button[type='submit'] {
+        #free-month .fyh-btn-primary,
+        #free-month button[type='submit'] {
           background: #C9A227;
           color: #16281F;
           border-radius: 0.375rem;
           font-weight: 600;
         }
-        #early-access label span {
+        #free-month label span {
           color: #B8C4BC;
         }
       `}</style>

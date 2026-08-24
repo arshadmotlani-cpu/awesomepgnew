@@ -4,7 +4,7 @@ import { SalonSoftwareLanding } from '@/src/hair/components/marketing/SalonSoftw
 export const metadata: Metadata = {
   title: 'Salon software — every walk-in, billed in seconds',
   description:
-    'Point-of-sale, appointments, and GST billing for walk-in salons. Running every day at For Your Hair. Get early access.',
+    'Point-of-sale, appointments, and GST billing for walk-in salons. Running every day at For Your Hair. Start your free month.',
   robots: { index: true, follow: true },
 };
 

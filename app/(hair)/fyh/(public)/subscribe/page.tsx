@@ -11,15 +11,7 @@ import {
   getSubscribeAmountForOrganization,
   listSubmissionsForOrg,
 } from '@/src/platform/services/manualSubscriptionPayments';
-
-function formatInrFromPaise(paise: number): string {
-  if (!paise || paise <= 0) return '—';
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(paise / 100);
-}
+import { formatInrFromPaise } from '@/src/platform/lib/salonSubscriptionPricing';
 
 export default async function SubscribePage({
   searchParams,
@@ -101,6 +93,11 @@ export default async function SubscribePage({
           const canPay =
             (m.accessRole === 'owner' || m.accessRole === 'co_owner') &&
             (!m.accessAllowed || m.subscriptionStatus === 'past_due');
+          const showListPrice =
+            planInfo &&
+            planInfo.amountPaise > 0 &&
+            planInfo.listPricePaise != null &&
+            planInfo.listPricePaise > planInfo.amountPaise;
 
           return (
             <li key={m.membershipId} className="border-b border-fyh-border pb-6">
@@ -110,10 +107,27 @@ export default async function SubscribePage({
                 {planInfo ? ` · ${planInfo.planName}` : ''}
               </p>
               {planInfo && planInfo.amountPaise > 0 ? (
-                <p className="mt-1 text-sm text-fyh-text">
-                  Amount due: {formatInrFromPaise(planInfo.amountPaise)}
-                  {planInfo.billingInterval === 'year' ? ' / year' : ' / month'}
-                </p>
+                <div className="mt-2 space-y-1">
+                  {showListPrice ? (
+                    <p className="text-sm text-fyh-text-secondary">
+                      <span className="line-through">
+                        {formatInrFromPaise(planInfo.listPricePaise!)}
+                      </span>
+                      <span className="mx-2 text-fyh-text">
+                        {formatInrFromPaise(planInfo.amountPaise)}
+                        {planInfo.billingInterval === 'year' ? ' / year' : ' / month'}
+                      </span>
+                      <span className="text-xs uppercase tracking-wide text-fyh-text-secondary">
+                        Limited-time price
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="text-sm text-fyh-text">
+                      Amount due: {formatInrFromPaise(planInfo.amountPaise)}
+                      {planInfo.billingInterval === 'year' ? ' / year' : ' / month'}
+                    </p>
+                  )}
+                </div>
               ) : null}
 
               {canPay ? (

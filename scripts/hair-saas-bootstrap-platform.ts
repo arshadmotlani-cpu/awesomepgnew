@@ -27,6 +27,7 @@ import {
   platformPlans,
   platformUsers,
 } from '@/src/platform/db/schema';
+import { standardSalonPlanLimits } from '@/src/platform/lib/salonSubscriptionPricing';
 
 if (isProductionCutoverWrite()) {
   requireProductionCutoverWriteEnv();
@@ -84,8 +85,21 @@ async function main() {
   if (!plan) {
     [plan] = await platform.db
       .insert(platformPlans)
-      .values({ slug: planSlug, name: planName })
+      .values({
+        slug: planSlug,
+        name: planName,
+        limits: standardSalonPlanLimits({ locations: 1, seats: 50 }),
+      })
       .returning();
+  } else {
+    const existingLimits = (plan.limits as Record<string, unknown>) ?? {};
+    const nextLimits = standardSalonPlanLimits(existingLimits);
+    const [updated] = await platform.db
+      .update(platformPlans)
+      .set({ limits: nextLimits })
+      .where(eq(platformPlans.id, plan.id))
+      .returning();
+    if (updated) plan = updated;
   }
   if (!plan) throw new Error('Failed to create plan');
 

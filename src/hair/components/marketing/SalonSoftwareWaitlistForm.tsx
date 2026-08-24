@@ -15,7 +15,7 @@ export function SalonSoftwareWaitlistForm({
   if (state.ok) {
     return (
       <p className="rounded-lg border border-[color:var(--fyh-border-token)] bg-[color:var(--fyh-surface)] p-4 text-sm text-[color:var(--fyh-text-secondary-token)]">
-        You're in. We'll email you when your early access is ready.
+        Thanks - we'll reach out to get your salon set up.
       </p>
     );
   }
@@ -51,7 +51,7 @@ export function SalonSoftwareWaitlistForm({
       </div>
       {state.error ? <p className="text-sm text-[color:var(--fyh-danger)]">{state.error}</p> : null}
       <button type="submit" disabled={pending} className="fyh-btn-primary justify-self-start px-4 py-2 text-sm">
-        {pending ? 'Sending…' : variant === 'sales' ? 'Get early access' : 'Join the waitlist'}
+        {pending ? 'Sending…' : variant === 'sales' ? 'Start your free month' : 'Request setup'}
       </button>
     </form>
   );

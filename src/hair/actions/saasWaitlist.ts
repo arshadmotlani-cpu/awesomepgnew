@@ -36,7 +36,7 @@ export async function submitSaasWaitlistAction(
   } catch (err) {
     const msg = err instanceof Error ? err.message : '';
     if (msg.includes('saas_waitlist_signups_email_uidx') || msg.toLowerCase().includes('unique')) {
-      return { ok: false, error: 'That email is already on the waitlist.' };
+      return { ok: false, error: 'That email has already requested a free month.' };
     }
     return { ok: false, error: 'Could not save your request. Try again later.' };
   }

@@ -152,7 +152,13 @@ async function ensureDefaultPlan(): Promise<string> {
   return upsertPlatformPlan({
     slug: 'fyhair-staging-default',
     name: 'FYHAIR Staging Default',
-    limitsJson: JSON.stringify({ locations: 5, users: 25 }),
+    limitsJson: JSON.stringify({
+      locations: 5,
+      users: 25,
+      amountPaise: 650000,
+      listPricePaise: 1500000,
+      billingInterval: 'year',
+    }),
   });
 }
 
