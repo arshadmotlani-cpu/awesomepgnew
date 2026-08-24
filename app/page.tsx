@@ -31,6 +31,10 @@ export default async function Home() {
     heroImage: pg.heroImage,
     totalBeds: pg.totalBeds,
     availableBeds: pg.availableBeds,
+    occupiedBeds: pg.occupiedBeds,
+    reservedBeds: pg.reservedBeds,
+    maintenanceBeds: pg.maintenanceBeds,
+    futureOpenings: pg.futureOpenings,
     startingFromPaise: pg.startingFromPaise,
     hasPaymentEnabled: pg.hasPaymentEnabled,
   }));

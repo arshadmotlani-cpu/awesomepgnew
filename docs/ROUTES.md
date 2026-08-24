@@ -378,3 +378,6 @@ See [[DECISIONS#Operations as action hub]].
 
 <!-- DOC_SYNC_TOUCH_2026-08-23 -->
 > **2026-08-23 10:43:24 UTC** — Code changed in: Routes, Vacating. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-08-24 -->
+> **2026-08-24 08:51:14 UTC** — Code changed in: Routes, Vacating. Manual review recommended.

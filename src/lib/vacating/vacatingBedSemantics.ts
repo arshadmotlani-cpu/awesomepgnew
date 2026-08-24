@@ -38,15 +38,18 @@ export function formatFinalStayDateLabel(vacatingDate: string): string {
   });
 }
 
+/**
+ * Customer-facing bed-available copy (no year).
+ * Example vacate 24 Aug → "25 Aug · 12:00 AM"
+ */
 export function formatBedAvailableLabel(vacatingDate: string): string {
   const d = parseDate(bedAvailableCalendarDate(vacatingDate));
   const datePart = d.toLocaleDateString('en-IN', {
     day: 'numeric',
-    month: 'long',
-    year: 'numeric',
+    month: 'short',
     timeZone: 'UTC',
   });
-  return `${datePart} at ${BED_AVAILABLE_FROM_CLOCK}`;
+  return `${datePart} · ${BED_AVAILABLE_FROM_CLOCK}`;
 }
 
 /**

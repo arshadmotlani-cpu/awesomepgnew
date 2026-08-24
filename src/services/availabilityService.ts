@@ -7,6 +7,7 @@ import {
   aggregateOccupancyCounts,
   type OccupancyAggregateCounts,
 } from '@/src/lib/bedOccupancyResolve';
+import type { FutureOpeningGroup } from '@/src/lib/pgAvailabilityBadge';
 import {
   fetchBedOccupancyRows,
   getOccupancyCountsByPg,
@@ -27,9 +28,11 @@ export type AvailabilitySummary = {
   blockedBeds: number;
   vacatingSoon: number;
   occupancyPct: number;
+  /** Confirmed future openings grouped by bookable-from date (SSOT). */
+  futureOpenings: FutureOpeningGroup[];
 };
 
-export type { OccupancyAggregateCounts };
+export type { OccupancyAggregateCounts, FutureOpeningGroup };
 
 const EMPTY_SUMMARY: AvailabilitySummary = {
   totalBeds: 0,
@@ -43,6 +46,7 @@ const EMPTY_SUMMARY: AvailabilitySummary = {
   blockedBeds: 0,
   vacatingSoon: 0,
   occupancyPct: 0,
+  futureOpenings: [],
 };
 
 function toSummary(counts: OccupancyAggregateCounts): AvailabilitySummary {
@@ -58,6 +62,7 @@ function toSummary(counts: OccupancyAggregateCounts): AvailabilitySummary {
     blockedBeds: counts.blockedBeds,
     vacatingSoon: counts.vacatingSoon,
     occupancyPct: counts.occupancyPct,
+    futureOpenings: counts.futureOpenings,
   };
 }
 

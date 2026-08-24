@@ -41,7 +41,8 @@ test('fixed occupied shows available from checkout plus turnover buffer', () => 
   assert.equal(snap.publicState, 'occupied');
   assert.equal(snap.bookableFromDate, '2026-07-01');
   const view = toCustomerAvailabilityView(input, snap);
-  assert.match(view.sublabel ?? '', /1 July 2026/);
+  assert.match(view.sublabel ?? '', /Available from 1 Jul/);
+  assert.doesNotMatch(view.sublabel ?? '', /2026/);
 });
 
 test('fixed post-checkout without settlement becomes available after buffer', () => {

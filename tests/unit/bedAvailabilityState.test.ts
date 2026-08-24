@@ -43,7 +43,8 @@ test('finite checkout while checked in shows Occupied not Available soon', () =>
   });
   assert.equal(view.kind, 'occupied');
   assert.equal(view.label, 'Occupied');
-  assert.match(view.sublabel ?? '', /August 2027/);
+  assert.match(view.sublabel ?? '', /Until 1 Aug/);
+  assert.doesNotMatch(view.sublabel ?? '', /2027/);
 });
 
 test('vacant bed with stale stay end date shows Available now (inventory SSOT)', () => {

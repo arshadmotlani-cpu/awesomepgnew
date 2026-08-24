@@ -7,7 +7,7 @@ import { RoachieSpotlight } from '@/src/components/cockroach/RoachieSpotlight';
 import { COCKROACH_AI_NAME } from '@/src/lib/cockroach/branding';
 import { MASCOT_IMAGES } from '@/src/lib/cockroach/mascotAssets';
 import { BOOK_THIS_BED, HOLD_THIS_BED } from '@/src/lib/booking/bookingFunnelLabels';
-import { formatDate } from '@/src/lib/format';
+import { formatCustomerDayMonth } from '@/src/lib/pgAvailabilityBadge';
 
 type CoachStep = {
   targetSelector: string;
@@ -24,7 +24,7 @@ function measureTarget(root: HTMLElement, selector: string): DOMRect | null {
 }
 
 function buildSteps(root: HTMLElement, opensDate?: string | null): CoachStep[] {
-  const opensLabel = opensDate ? formatDate(opensDate) : 'when the bed opens';
+  const opensLabel = opensDate ? formatCustomerDayMonth(opensDate) : 'when the bed opens';
   const steps: CoachStep[] = [];
 
   if (root.querySelector('[data-roachie-bed-action="pre-book"]')) {

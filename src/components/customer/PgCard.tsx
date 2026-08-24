@@ -4,6 +4,11 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { defaultBrowseStayQuery } from '@/src/lib/dateDefaults';
 import { paiseToInr } from '@/src/lib/format';
+import {
+  formatPublicAvailabilityBadge,
+  isFutureAvailabilityBadge,
+  type FutureOpeningGroup,
+} from '@/src/lib/pgAvailabilityBadge';
 import { AmenityList } from './AmenityList';
 import { GenderBadge } from './GenderBadge';
 import { PgFavoriteButton } from './PgFavoriteButton';
@@ -25,6 +30,7 @@ export type PgCardData = {
   occupiedBeds?: number;
   reservedBeds?: number;
   maintenanceBeds?: number;
+  futureOpenings?: FutureOpeningGroup[];
   startingFromPaise: number;
   hasPaymentEnabled?: boolean;
 };
@@ -39,12 +45,19 @@ export function PgCard({
   const occupied = pg.occupiedBeds ?? Math.max(0, pg.totalBeds - pg.availableBeds);
   const reserved = pg.reservedBeds ?? 0;
   const maintenance = pg.maintenanceBeds ?? 0;
-  const availabilityBadge =
-    pg.totalBeds > 0 && pg.availableBeds === 0
-      ? maintenance > 0 && occupied + reserved === 0
-        ? `${maintenance} under maintenance`
-        : 'Fully occupied · no beds'
-      : `${pg.availableBeds} of ${pg.totalBeds} beds free today`;
+  const futureOpenings = pg.futureOpenings ?? [];
+  const availabilityBadge = formatPublicAvailabilityBadge({
+    totalBeds: pg.totalBeds,
+    openNowBeds: pg.availableBeds,
+    occupiedBeds: occupied,
+    reservedBeds: reserved,
+    maintenanceBeds: maintenance,
+    futureOpenings,
+  });
+  const futureHighlight = isFutureAvailabilityBadge({
+    openNowBeds: pg.availableBeds,
+    futureOpenings,
+  });
 
   return (
     <motion.div whileHover={{ y: -6, scale: 1.01 }} transition={{ type: 'spring', stiffness: 320, damping: 24 }} className="apg-glass overflow-hidden rounded-2xl">
@@ -70,7 +83,13 @@ export function PgCard({
           <div className="absolute left-3 top-3 flex gap-1.5">
             <GenderBadge policy={pg.genderPolicy} />
           </div>
-          <div className="absolute right-3 top-3 rounded-full border border-white/10 bg-black/50 px-2 py-0.5 text-[11px] font-semibold text-apg-silver backdrop-blur">
+          <div
+            className={
+              futureHighlight
+                ? 'absolute right-3 top-3 max-w-[70%] rounded-full border border-emerald-400/40 bg-emerald-500/20 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-200 backdrop-blur'
+                : 'absolute right-3 top-3 max-w-[70%] rounded-full border border-white/10 bg-black/50 px-2 py-0.5 text-[11px] font-semibold text-apg-silver backdrop-blur'
+            }
+          >
             {availabilityBadge}
           </div>
           <PgFavoriteButton pgSlug={pg.slug} pgName={pg.name} />
@@ -92,11 +111,14 @@ export function PgCard({
 
           <AmenityList amenities={pg.amenities} />
 
-          {pg.totalBeds > 0 && (reserved > 0 || maintenance > 0) ? (
+          {pg.totalBeds > 0 && (reserved > 0 || maintenance > 0 || futureOpenings.length > 0) ? (
             <p className="text-[11px] text-apg-silver/80">
-              {pg.availableBeds} available · {occupied} occupied
+              {pg.availableBeds} available now · {occupied} occupied
               {reserved > 0 ? ` · ${reserved} reserved` : ''}
               {maintenance > 0 ? ` · ${maintenance} under maintenance` : ''}
+              {futureOpenings.length > 0
+                ? ` · ${futureOpenings.reduce((s, g) => s + g.bedCount, 0)} opening soon`
+                : ''}
             </p>
           ) : null}
 

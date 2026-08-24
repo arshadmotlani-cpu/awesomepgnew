@@ -114,13 +114,14 @@ export type CustomerPgListRow = {
   occupiedBeds: number;
   reservedBeds: number;
   maintenanceBeds: number;
+  /** Confirmed future openings from occupancy SSOT (approved vacate / known bookable-from). */
+  futureOpenings: Array<{ availableFromDate: string; bedCount: number }>;
   startingFromPaise: number;
   hasPaymentEnabled: boolean;
 };
 
 /**
- * Public PG list. "Available beds" is computed against today only — the
- * customer can refine by date once they click into a PG.
+ * Public PG list. Open-now beds + confirmed future openings from occupancy SSOT.
  */
 export function listPublicPgs(): Promise<QueryResult<CustomerPgListRow[]>> {
   return guard(async () => {
@@ -197,6 +198,7 @@ export function listPublicPgs(): Promise<QueryResult<CustomerPgListRow[]>> {
           occupiedBeds: counts?.occupiedBeds ?? 0,
           reservedBeds: counts?.reservedBeds ?? 0,
           maintenanceBeds: counts?.maintenanceBeds ?? 0,
+          futureOpenings: counts?.futureOpenings ?? [],
           startingFromPaise: r.startingFromPaise,
           hasPaymentEnabled: r.hasPaymentEnabled,
           displayOrder: presented.displayOrder,
@@ -300,6 +302,7 @@ export type CustomerRoomCard = {
   floorLabel: string;
   totalBeds: number;
   availableBeds: number;
+  futureOpenings: Array<{ availableFromDate: string; bedCount: number }>;
   monthlyRatePaise: number;
   dailyRatePaise: number;
   weeklyRatePaise: number;
@@ -371,6 +374,7 @@ export function listRoomsForPg(
       ...r,
       capacity: r.totalBeds,
       availableBeds: countsByRoom.get(r.roomId)?.availableBeds ?? 0,
+      futureOpenings: countsByRoom.get(r.roomId)?.futureOpenings ?? [],
     }));
   });
 }

@@ -25,7 +25,8 @@ test('today selected → bed available tomorrow calendar date', () => {
 
 test('month-end vacating → next month bed availability date', () => {
   assert.equal(bedAvailableCalendarDate('2026-08-31'), '2026-09-01');
-  assert.match(formatBedAvailableLabel('2026-08-31'), /1 September 2026 at 12:00 AM/);
+  assert.match(formatBedAvailableLabel('2026-08-31'), /1 Sept · 12:00 AM/);
+  assert.doesNotMatch(formatBedAvailableLabel('2026-08-31'), /2026/);
 });
 
 test('February leap year — 28 Feb final stay → 29 Feb bed date', () => {
@@ -96,7 +97,8 @@ test('half-open stay_range ends day after final stay — no extra rent day for 1
 test('confirmation copy includes rent charge for selected final stay date', () => {
   const conf = buildVacatingDateConfirmation('2026-08-18');
   assert.match(conf.lines.join('\n'), /charged rent for 18 August 2026/);
-  assert.match(conf.lines.join('\n'), /19 August 2026 at 12:00 AM/);
+  assert.match(conf.lines.join('\n'), /19 Aug · 12:00 AM/);
+  assert.doesNotMatch(conf.bedAvailableLabel, /2026/);
 });
 
 test('5-day notice validation unchanged — uses noticeGivenDate not bed release date', async () => {

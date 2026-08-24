@@ -246,3 +246,6 @@ See [[BUGS]] for full list. Highlights:
 
 <!-- DOC_SYNC_TOUCH_2026-08-23 -->
 > **2026-08-23 04:13:23 UTC** — Code changed in: Residents, Vacating. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-08-24 -->
+> **2026-08-24 08:51:14 UTC** — Code changed in: Routes, Vacating. Manual review recommended.

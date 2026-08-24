@@ -175,6 +175,12 @@ export type OccupancyAggregateCounts = {
   blockedBeds: number;
   vacatingSoon: number;
   occupancyPct: number;
+  /**
+   * Beds not open now but with a confirmed bookable-from date (approved vacate /
+   * fixed checkout). Grouped by date ascending. Pending move-outs are excluded
+   * because resolveBookableFromDate returns null until approved.
+   */
+  futureOpenings: Array<{ availableFromDate: string; bedCount: number }>;
 };
 
 export function resolveFromSelectorBed(bed: {
@@ -226,6 +232,8 @@ export function aggregateOccupancyCounts(
   let maintenanceBeds = 0;
   let blockedBeds = 0;
   let vacatingSoon = 0;
+  const asOf = resolved[0]?.input.asOfDate ?? todayString();
+  const futureByDate = new Map<string, number>();
 
   for (const r of resolved) {
     if (r.isOpenNow) openNowBeds += 1;
@@ -236,6 +244,14 @@ export function aggregateOccupancyCounts(
     if (r.input.bedStatus === 'maintenance') maintenanceBeds += 1;
     if (r.input.bedStatus === 'blocked') blockedBeds += 1;
     if (r.input.vacatingDate) vacatingSoon += 1;
+
+    // Confirmed future opening: not free today, but SSOT has a bookable-from date.
+    if (!r.isOpenNow) {
+      const from = r.snapshot.bookableFromDate;
+      if (from && from >= asOf) {
+        futureByDate.set(from, (futureByDate.get(from) ?? 0) + 1);
+      }
+    }
   }
 
   const occupancyDenominator = totalBeds - maintenanceBeds - blockedBeds;
@@ -243,6 +259,10 @@ export function aggregateOccupancyCounts(
     occupancyDenominator === 0
       ? 0
       : Math.round((occupiedBeds / occupancyDenominator) * 1000) / 10;
+
+  const futureOpenings = [...futureByDate.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([availableFromDate, bedCount]) => ({ availableFromDate, bedCount }));
 
   return {
     totalBeds,
@@ -255,5 +275,6 @@ export function aggregateOccupancyCounts(
     blockedBeds,
     vacatingSoon,
     occupancyPct,
+    futureOpenings,
   };
 }

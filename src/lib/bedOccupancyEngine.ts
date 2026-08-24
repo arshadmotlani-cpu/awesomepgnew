@@ -343,11 +343,22 @@ export function computeBedOccupancySnapshot(input: BedOccupancyInput): BedOccupa
   };
 }
 
+/** Customer-facing short date — day + short month, no year. */
 function formatShortDate(iso: string): string {
   const d = new Date(iso + 'T00:00:00Z');
   return d.toLocaleDateString('en-IN', {
     day: 'numeric',
-    month: 'long',
+    month: 'short',
+    timeZone: 'UTC',
+  });
+}
+
+/** Admin / audit short date — includes year. */
+function formatAdminShortDate(iso: string): string {
+  const d = new Date(iso + 'T00:00:00Z');
+  return d.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
     year: 'numeric',
     timeZone: 'UTC',
   });
@@ -489,7 +500,7 @@ export function toAdminAvailabilityView(
       kind: 'under_review',
       label: 'Under review',
       sublabel: input.underReviewMoveIn
-        ? `Reservation request · move-in ${formatShortDate(input.underReviewMoveIn)}`
+        ? `Reservation request · move-in ${formatAdminShortDate(input.underReviewMoveIn)}`
         : 'Reservation request · awaiting admin approval',
     };
   }
@@ -507,7 +518,7 @@ export function toAdminAvailabilityView(
     return {
       kind: 'reserved',
       label: 'Reserved',
-      sublabel: `Reserved until ${formatShortDate(reserveCheckIn)}`,
+      sublabel: `Reserved until ${formatAdminShortDate(reserveCheckIn)}`,
     };
   }
 
@@ -515,7 +526,7 @@ export function toAdminAvailabilityView(
     return {
       kind: 'booked',
       label: 'Booked',
-      sublabel: `Move-in ${formatShortDate(input.reservedFrom)}`,
+      sublabel: `Move-in ${formatAdminShortDate(input.reservedFrom)}`,
     };
   }
 
@@ -540,7 +551,7 @@ export function toAdminAvailabilityView(
       kind: 'notice',
       label: input.occupantFirstName ?? 'Occupied',
       sublabel:
-        `Final stay ${formatShortDate(input.vacatingDate)}` +
+        `Final stay ${formatAdminShortDate(input.vacatingDate)}` +
         (interest > 0 ? ` · ${interest} interested` : ''),
     };
   }
@@ -551,10 +562,10 @@ export function toAdminAvailabilityView(
     let sublabel: string | undefined;
     if (isFixedTenancy(input) && checkout) {
       sublabel = bookable
-        ? `Available from ${formatShortDate(bookable)}`
-        : `Until ${formatShortDate(checkout)}`;
+        ? `Available from ${formatAdminShortDate(bookable)}`
+        : `Until ${formatAdminShortDate(checkout)}`;
     } else if (checkout && !isMonthlyTenancy(input)) {
-      sublabel = `Until ${formatShortDate(checkout)}`;
+      sublabel = `Until ${formatAdminShortDate(checkout)}`;
     }
     return {
       kind: 'occupied',
@@ -588,7 +599,7 @@ export function toAdminAvailabilityView(
     return {
       kind: 'pre_bookable',
       label: 'Hold',
-      sublabel: `From ${formatShortDate(bookable)}`,
+      sublabel: `From ${formatAdminShortDate(bookable)}`,
     };
   }
 

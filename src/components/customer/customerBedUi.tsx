@@ -11,6 +11,8 @@ import { resolveBedOccupancy } from '@/src/lib/bedOccupancyResolve';
 import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
 import { customerBookableFromDate } from '@/src/lib/dates';
 import { formatDate, paiseToInr } from '@/src/lib/format';
+import { formatCustomerDayMonth } from '@/src/lib/pgAvailabilityBadge';
+import { bedAvailableCalendarDate } from '@/src/lib/vacating/vacatingBedSemantics';
 import type { BedSelectorBed } from './customerBedTypes';
 import { BedStateTile, type BedVisualState } from '@/src/components/customer/design-system';
 import { BOOK_THIS_BED, HOLD_THIS_BED } from '@/src/lib/booking/bookingFunnelLabels';
@@ -138,7 +140,14 @@ export function CustomerBedDetailSheet({
   const isFuturePreBook = !bed.isAvailableNow && Boolean(bookableFrom) && !isNotice && !isReserved;
   const showBookActions = canBookBed(bed) && !isReserved;
   const showReserve = showBookActions && !bed.activeBedReserveCheckIn;
-  const opensDate = isNotice ? bed.vacatingDate : isFuturePreBook ? bookableFrom : null;
+  const opensDate = isNotice
+    ? bed.vacatingDate
+      ? bedAvailableCalendarDate(bed.vacatingDate)
+      : null
+    : isFuturePreBook
+      ? bookableFrom
+      : null;
+  const opensDateLabel = opensDate ? formatCustomerDayMonth(opensDate) : null;
 
   useEffect(() => {
     if (presentation === 'bottomSheet') return;
@@ -298,7 +307,7 @@ export function CustomerBedDetailSheet({
               ) : null}
               <p className="text-xs leading-relaxed text-apg-silver">
                 <strong className="text-white">{HOLD_THIS_BED}</strong> — plan your move-in when this
-                bed opens{opensDate ? ` (${formatDate(opensDate)})` : ''}. Pay 50% rent to hold it
+                bed opens{opensDateLabel ? ` (${opensDateLabel})` : ''}. Pay 50% rent to hold it
                 longer if you are not ready to move in yet.
               </p>
             </div>
@@ -338,7 +347,7 @@ export function CustomerBedDetailSheet({
                   {isFuturePreBook ? (
                     <>
                       <strong className="text-white">{HOLD_THIS_BED}</strong> — move in when the bed
-                      opens{opensDate ? ` (${formatDate(opensDate)})` : ''}. Pay 50% rent to secure
+                      opens{opensDateLabel ? ` (${opensDateLabel})` : ''}. Pay 50% rent to secure
                       it sooner.
                     </>
                   ) : (

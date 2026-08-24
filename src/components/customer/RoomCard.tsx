@@ -1,6 +1,10 @@
 import Link from 'next/link';
 import { paiseToInr } from '@/src/lib/format';
 import type { CustomerRoomCard } from '@/src/db/queries/customer';
+import {
+  formatPublicAvailabilityBadge,
+  isFutureAvailabilityBadge,
+} from '@/src/lib/pgAvailabilityBadge';
 
 type Props = {
   room: CustomerRoomCard;
@@ -9,7 +13,18 @@ type Props = {
 
 export function RoomCard({ room, pgSlug }: Props) {
   const href = `/pgs/${pgSlug}/rooms/${room.roomId}`;
-  const allBooked = room.availableBeds === 0;
+  const futureOpenings = room.futureOpenings ?? [];
+  const openNow = room.availableBeds;
+  const allBookedNow = openNow === 0;
+  const futureHighlight = isFutureAvailabilityBadge({
+    openNowBeds: openNow,
+    futureOpenings,
+  });
+  const availabilityBadge = formatPublicAvailabilityBadge({
+    totalBeds: room.totalBeds,
+    openNowBeds: openNow,
+    futureOpenings,
+  });
 
   return (
     <Link
@@ -17,7 +32,9 @@ export function RoomCard({ room, pgSlug }: Props) {
       data-roachie-focus="room-pick"
       className={
         'group flex flex-col gap-3 rounded-2xl border p-5 transition-all apg-glass ' +
-        (allBooked ? 'opacity-70' : 'hover:-translate-y-1 hover:border-apg-orange/35')
+        (allBookedNow && !futureHighlight
+          ? 'opacity-70'
+          : 'hover:-translate-y-1 hover:border-apg-orange/35')
       }
     >
       <div className="flex items-start justify-between gap-3">
@@ -33,15 +50,15 @@ export function RoomCard({ room, pgSlug }: Props) {
         </div>
         <span
           className={
-            'shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ' +
-            (allBooked
-              ? 'bg-white/5 text-apg-muted ring-white/10'
-              : 'bg-emerald-500/15 text-emerald-300 ring-emerald-400/30')
+            'max-w-[55%] shrink-0 rounded-full px-2.5 py-0.5 text-right text-[11px] font-semibold ring-1 ring-inset ' +
+            (futureHighlight
+              ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-400/30'
+              : allBookedNow
+                ? 'bg-white/5 text-apg-muted ring-white/10'
+                : 'bg-emerald-500/15 text-emerald-300 ring-emerald-400/30')
           }
         >
-          {allBooked && room.totalBeds > 0
-            ? 'Occupied today'
-            : `${room.availableBeds} of ${room.totalBeds} free now`}
+          {availabilityBadge}
         </span>
       </div>
 
@@ -61,7 +78,7 @@ export function RoomCard({ room, pgSlug }: Props) {
           </span>
         </div>
         <span className="text-xs font-semibold text-apg-orange group-hover:translate-x-0.5 transition-transform">
-          {allBooked ? 'View beds →' : 'Pick a bed →'}
+          {allBookedNow && !futureHighlight ? 'View beds →' : 'Pick a bed →'}
         </span>
       </div>
     </Link>
