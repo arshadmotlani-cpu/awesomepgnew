@@ -7,6 +7,10 @@
 
 ---
 
+## 2026-08-25
+
+- **FYH-TEST-01** — `tests/hair/integration/rcVisitLoop.test.ts` fails intermittently against the shared Hair DB: two consecutive runs failed on different scenarios (scenario 19 "Stylist is already booked for this time" from `assertNoConflicts`, then scenario 1 stock-decrement assertion), while an earlier run passed the whole suite. Scenarios contend over the same seeded stylist and product stock, so whichever runs first can violate the other's precondition. **Confound:** the working tree also carried uncommitted in-flight Hair appointment work (`appointments.ts` client-change lock, `AppointmentEditDrawer`, new `appointmentClientLock.test.ts`) during these runs, so rule out that branch before treating this as pure test isolation. Blocks a clean `stability:report` → [[BUGS#FYH-TEST-01]]
+
 ## 2026-07-11
 
 - **OPS-BA-02** — Sidebar/Overview badges used `residentsPage.allQueueCount` while Operations page used unified queue; after Booking Approval cleared, badges stayed inflated. Fixed: `loadAdminNavBadges` reads `operationsTotalPendingCount` from unified queue only; revalidate `/admin` layout after booking mutations.

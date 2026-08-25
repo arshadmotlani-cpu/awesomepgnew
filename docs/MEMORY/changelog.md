@@ -7,6 +7,10 @@
 
 ---
 
+## 2026-08-25
+
+- **ADMIN-WORDMARKS** — Bold product wordmarks (PG / Soft / Capital / Owner / Platform) added to all five admin panel top bars in each product's own colour; regression test `tests/unit/adminPanelWordmarks.test.ts`. Logged [[BUGS#FYH-TEST-01]] Hair integration isolation flake.
+
 ## 2026-08-22
 
 - **SYSTEM-AUDIT** — Working architecture/logic audit for handoff: `docs/SYSTEM_AUDIT.md` (products, engines, DBs, env, auth, tests, fragile areas, MEMORY).

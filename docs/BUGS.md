@@ -25,6 +25,7 @@
 | RES-LIST-01 | Low | `listResidentsForAdmin` LIMIT 200 may omit older vacated residents in ops timeline | Open resident profile directly by ID |
 | VAC-SAME-01 | Low | Same-day vacating approve shortens `[start,today)` excluding today — completion must not shorten before move-out day | See `vacatingCheckout.test.ts`; use complete flow same day |
 | FIN-AUDIT-01 | Low | Historical invoices may have `amountPaise` ≠ line sum or unreconciled payments | Run `npx tsx scripts/audit-financials.ts` then `repair-financials.ts --dry-run` |
+| FYH-TEST-01 | Medium | `tests/hair/integration/rcVisitLoop.test.ts` scenarios share one seeded stylist and product stock, so they intermittently fail each other (booking conflict or stock assertion) and redden `stability:report`; runs were made with uncommitted appointment-lock work in the tree, so confirm against a clean tree | Re-run the file; needs per-scenario stylist/product fixtures to fix properly |
 
 ---
 

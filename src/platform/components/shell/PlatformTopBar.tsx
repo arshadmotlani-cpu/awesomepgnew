@@ -25,6 +25,9 @@ export function PlatformTopBar({ adminEmail, onMenuClick }: Props) {
     <header
       className="flex h-[var(--plt-header-height)] shrink-0 items-center gap-3 border-b border-[var(--plt-border)] bg-[var(--plt-bg-elevated)] px-4"
     >
+      <span className="shrink-0 text-xl font-extrabold tracking-tight text-[var(--plt-accent)] sm:text-2xl">
+        Platform
+      </span>
       <button
         type="button"
         className="rounded-md p-1.5 text-[var(--plt-text-muted)] hover:bg-white/5 lg:hidden"

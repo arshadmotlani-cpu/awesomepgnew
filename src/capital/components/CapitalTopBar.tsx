@@ -15,6 +15,9 @@ export function CapitalTopBar({ admin }: CapitalTopBarProps) {
   return (
     <header className="ac-app-header">
       <div className="ac-app-header-row">
+        <span className="shrink-0 text-xl font-extrabold tracking-tight text-ac-accent sm:text-2xl">
+          Capital
+        </span>
         <CapitalMobileNav />
         <div className="ac-app-header-title md:hidden">
           <p className="truncate text-xs uppercase tracking-wide text-ac-accent">

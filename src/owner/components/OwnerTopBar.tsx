@@ -10,6 +10,9 @@ export function OwnerTopBar({ admin }: { admin: OwnerAdmin }) {
   return (
     <header className="oo-app-header">
       <div className="oo-app-header-row">
+        <span className="shrink-0 text-xl font-extrabold tracking-tight text-[color:var(--oo-accent,#FF5A1F)] sm:text-2xl">
+          Owner
+        </span>
         <OwnerMobileNav />
         <OwnerMobileSectionTitle />
         <div className="oo-app-header-title hidden min-w-0 md:block">
