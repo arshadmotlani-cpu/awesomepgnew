@@ -100,6 +100,9 @@ export type OrganizationDetail = typeof platformOrganizations.$inferSelect & {
     | (typeof platformOrganizationSubscriptions.$inferSelect & {
         planName: string | null;
         planSlug: string | null;
+        /** Derived from plan limits, not a subscription column. Null when limits are unparseable. */
+        amountPaise: number | null;
+        isCustomAnnualPrice: boolean;
       })
     | null;
   entitlements: Array<typeof platformOrganizationEntitlements.$inferSelect>;
