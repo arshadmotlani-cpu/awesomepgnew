@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Platform SaaS concept mark">
+  <title>Brand concept</title>
+  <!-- Parent / structural: 2×2 node grid with connecting edges (orchestration, not a vertical product) -->
+  <rect width="32" height="32" rx="8" fill="#020617"/>
+  <circle cx="11" cy="11" r="2.6" fill="#E2E8F0"/>
+  <circle cx="21" cy="11" r="2.6" fill="#E2E8F0"/>
+  <circle cx="11" cy="21" r="2.6" fill="#E2E8F0"/>
+  <circle cx="21" cy="21" r="2.6" fill="#64748B"/>
+  <path d="M11 11h10M11 11v10M21 11v10M11 21h10" fill="none" stroke="#475569" stroke-width="1.6"/>
+</svg>

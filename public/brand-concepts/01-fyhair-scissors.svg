@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="For Your Hair concept mark">
+  <title>Brand concept</title>
+  <!-- Bottle-green field + brass scissors arcs (abstract, favicon-safe) -->
+  <rect width="32" height="32" rx="8" fill="#1A3A32"/>
+  <!-- Pivot -->
+  <circle cx="16" cy="16" r="2.2" fill="#C4A574"/>
+  <!-- Blades as thick arcs -->
+  <path d="M9 8.5c4.2 1.2 7.2 4.8 7.8 9.2" fill="none" stroke="#C4A574" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M23 8.5c-4.2 1.2-7.2 4.8-7.8 9.2" fill="none" stroke="#C4A574" stroke-width="2.4" stroke-linecap="round"/>
+  <!-- Handles -->
+  <circle cx="8.2" cy="7.2" r="2.4" fill="none" stroke="#C4A574" stroke-width="1.8"/>
+  <circle cx="23.8" cy="7.2" r="2.4" fill="none" stroke="#C4A574" stroke-width="1.8"/>
+</svg>

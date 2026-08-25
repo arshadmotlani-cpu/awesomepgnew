@@ -249,3 +249,6 @@ See [[BUGS]] for full list. Highlights:
 
 <!-- DOC_SYNC_TOUCH_2026-08-24 -->
 > **2026-08-24 08:51:14 UTC** — Code changed in: Routes, Vacating. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-08-25 -->
+> **2026-08-25 08:30:39 UTC** — Code changed in: Routes. Manual review recommended.

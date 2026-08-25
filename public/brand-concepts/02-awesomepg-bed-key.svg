@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Awesome PG concept mark">
+  <title>Brand concept</title>
+  <!-- Bed frame + key notch: booking a specific bed, not a generic house -->
+  <rect width="32" height="32" rx="8" fill="#0B0F14"/>
+  <!-- Bed posts -->
+  <path d="M7 12v11M25 12v11" fill="none" stroke="#FF5A1F" stroke-width="2.2" stroke-linecap="round"/>
+  <!-- Mattress / rail -->
+  <path d="M7 18h18" fill="none" stroke="#F4F6F8" stroke-width="2.4" stroke-linecap="round"/>
+  <!-- Headboard -->
+  <path d="M9 12h14" fill="none" stroke="#F4F6F8" stroke-width="2" stroke-linecap="round"/>
+  <!-- Key bow as small circle cut into corner accent -->
+  <circle cx="22.5" cy="8.5" r="3" fill="none" stroke="#FF5A1F" stroke-width="1.8"/>
+  <path d="M22.5 11.5v4.5M21 14h3" fill="none" stroke="#FF5A1F" stroke-width="1.6" stroke-linecap="round"/>
+</svg>

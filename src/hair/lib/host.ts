@@ -44,7 +44,12 @@ export function isHairHostFromHeaders(
 }
 
 /** Customer-facing paths — no staff session required. */
-export const HAIR_PUBLIC_UNPROTECTED_PREFIXES = ['/i', '/invoice', '/salon-software'] as const;
+export const HAIR_PUBLIC_UNPROTECTED_PREFIXES = [
+  '/i',
+  '/invoice',
+  '/salon-software',
+  '/brand-concepts',
+] as const;
 
 /** Public path prefixes served on the For Your Hair host (browser URLs). */
 export const HAIR_PUBLIC_PREFIXES = [

@@ -65,6 +65,12 @@ test('salon-software marketing page is public and unauthenticated', () => {
   assert.equal(hairPublicToInternal('/salon-software'), '/fyh/salon-software');
 });
 
+test('brand-concepts review page is public on hair host', () => {
+  assert.equal(isHairPublicPath('/brand-concepts'), true);
+  assert.equal(isHairProtectedPath('/brand-concepts'), false);
+  assert.equal(hairPublicToInternal('/brand-concepts'), '/fyh/brand-concepts');
+});
+
 test('select-organization is tenant-exempt on public and /fyh paths', () => {
   assert.equal(isHairTenantExemptPath('/select-organization'), true);
   assert.equal(isHairTenantExemptPath('/fyh/select-organization'), true);
