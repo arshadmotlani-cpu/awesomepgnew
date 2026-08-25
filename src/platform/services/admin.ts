@@ -37,7 +37,6 @@ import { formatTrialAdminLabel, resolveCreateSubscriptionPeriod } from '@/src/pl
 import { resolveAmountPaiseFromPlanLimits } from '@/src/platform/services/manualSubscriptionPayments';
 
 type OrgStatus = PlatformOrgStatus;
-type SubscriptionStatus = PlatformSubscriptionStatus;
 
 function requireSubscriptionStatus(
   value: PlatformSubscriptionStatus | string | null | undefined,
@@ -121,7 +120,7 @@ export type CreateOrganizationInput = {
   primaryLocationName: string;
   primaryLocationAddress?: string | null;
   planId: string;
-  subscriptionStatus: SubscriptionStatus;
+  subscriptionStatus: string;
   trialEndsAt?: string | null;
   invoicePrefix?: string | null;
   entitlements?: Record<string, number | null>;
@@ -1153,10 +1152,11 @@ export async function updateMemberAccess(input: {
 export async function updateSubscription(input: {
   organizationId: string;
   planId: string;
-  status: SubscriptionStatus;
+  status: string;
   currentPeriodEnd?: string | null;
   actorUserId: string;
 }): Promise<void> {
+  const status = requireSubscriptionStatus(input.status);
   const { db, close } = createPlatformClient({ max: 1 });
   try {
     const [existing] = await db
@@ -1169,7 +1169,7 @@ export async function updateSubscription(input: {
         .update(platformOrganizationSubscriptions)
         .set({
           planId: input.planId,
-          status: input.status,
+          status,
           currentPeriodEnd: input.currentPeriodEnd ? new Date(input.currentPeriodEnd) : null,
           updatedAt: new Date(),
         })
@@ -1179,7 +1179,7 @@ export async function updateSubscription(input: {
         subscriptionId: existing.id,
         actorUserId: input.actorUserId,
         eventType: 'subscription_updated',
-        detail: `Subscription set to ${input.status}`,
+        detail: `Subscription set to ${status}`,
       });
     } else {
       const subscriptionId = randomUUID();
@@ -1187,7 +1187,7 @@ export async function updateSubscription(input: {
         id: subscriptionId,
         organizationId: input.organizationId,
         planId: input.planId,
-        status: input.status,
+        status,
         currentPeriodStart: new Date(),
         currentPeriodEnd: input.currentPeriodEnd ? new Date(input.currentPeriodEnd) : null,
       });
@@ -1196,7 +1196,7 @@ export async function updateSubscription(input: {
         subscriptionId,
         actorUserId: input.actorUserId,
         eventType: 'subscription_created',
-        detail: `Subscription created as ${input.status}`,
+        detail: `Subscription created as ${status}`,
       });
     }
   } finally {

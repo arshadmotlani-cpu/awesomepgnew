@@ -655,10 +655,13 @@ export async function updateAppointment(input: UpdateAppointmentInput, ctx?: Ten
     .limit(1);
   if (!existing) throw new Error('Appointment not found');
 
+  if (input.customerId && input.customerId !== existing.customerId) {
+    throw new Error(
+      'Cannot change client on an existing appointment. Cancel this appointment and create a new one.',
+    );
+  }
+
   if (existing.invoiceId) {
-    if (input.customerId && input.customerId !== existing.customerId) {
-      throw new Error('Cannot change customer on an invoiced appointment');
-    }
     if (input.serviceIds) {
       const currentIds = (
         await hairDb

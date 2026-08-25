@@ -5,7 +5,10 @@ import { getHairSession } from '@/src/hair/lib/auth/session';
 import { requireHairHost } from '@/src/hair/lib/auth/guards';
 import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
 import { resolvePlatformUserIdForHairSession } from '@/src/hair/lib/tenant/sessionIdentity';
-import { listMembershipsForBilling } from '@/src/platform/services/memberships';
+import {
+  isComplimentarySubscription,
+  listMembershipsForBilling,
+} from '@/src/platform/services/memberships';
 import {
   getBillingQrSettings,
   getSubscribeAmountForOrganization,
@@ -34,6 +37,22 @@ export default async function SubscribePage({
     adminEmail: session.admin.email,
   });
   const memberships = userId ? await listMembershipsForBilling(userId) : [];
+  const boundOrg = memberships.find((m) => m.organizationId === session.organizationId);
+  if (
+    boundOrg &&
+    isComplimentarySubscription(boundOrg.subscriptionStatus) &&
+    boundOrg.accessAllowed
+  ) {
+    redirect('/dashboard/revenue');
+  }
+  if (
+    memberships.length > 0 &&
+    memberships.every(
+      (m) => isComplimentarySubscription(m.subscriptionStatus) && m.accessAllowed,
+    )
+  ) {
+    redirect('/dashboard/revenue');
+  }
   const locked = memberships.filter((m) => !m.accessAllowed);
   const qr = await getBillingQrSettings();
 
@@ -92,6 +111,7 @@ export default async function SubscribePage({
           const existingTxn = pendingByOrg.get(m.organizationId);
           const canPay =
             (m.accessRole === 'owner' || m.accessRole === 'co_owner') &&
+            !isComplimentarySubscription(m.subscriptionStatus) &&
             (!m.accessAllowed || m.subscriptionStatus === 'past_due');
           const showListPrice =
             planInfo &&

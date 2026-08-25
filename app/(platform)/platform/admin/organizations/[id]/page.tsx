@@ -189,6 +189,7 @@ export default async function PlatformOrganizationDetailPage({ params }: Props) 
               <select name="status" defaultValue={organization.subscription?.status ?? 'trial'} className="plt-input">
                 <option value="trial">Trial</option>
                 <option value="active">Active</option>
+                <option value="complimentary">Complimentary — no billing</option>
                 <option value="past_due">Past due</option>
                 <option value="suspended">Suspended</option>
                 <option value="cancelled">Cancelled</option>

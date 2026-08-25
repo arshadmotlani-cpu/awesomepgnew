@@ -5,11 +5,13 @@ import {
   isSubscriptionGracePeriod,
 } from '@/src/platform/services/memberships';
 
-test('subscription gating allows trial, active, and past_due', () => {
+test('subscription gating allows trial, active, past_due, and complimentary', () => {
   assert.equal(isSubscriptionAccessAllowed('trial'), true);
   assert.equal(isSubscriptionAccessAllowed('active'), true);
   assert.equal(isSubscriptionAccessAllowed('past_due'), true);
+  assert.equal(isSubscriptionAccessAllowed('complimentary'), true);
   assert.equal(isSubscriptionGracePeriod('past_due'), true);
+  assert.equal(isSubscriptionGracePeriod('complimentary'), false);
 });
 
 test('subscription gating hard-locks cancelled, unpaid, incomplete, suspended', () => {

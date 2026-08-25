@@ -6,6 +6,7 @@ const ORG_STATUS_STYLES: Record<string, string> = {
 
 const SUB_STATUS_STYLES: Record<string, string> = {
   trial: 'bg-sky-500/15 text-sky-400',
+  complimentary: 'bg-violet-500/15 text-violet-400',
   active: 'bg-emerald-500/15 text-emerald-400',
   past_due: 'bg-amber-500/15 text-amber-400',
   suspended: 'bg-red-500/15 text-red-400',

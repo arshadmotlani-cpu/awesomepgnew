@@ -125,13 +125,39 @@ export function OrganizationOnboardingWizard({ plans }: Props) {
                 ))}
               </select>
             </label>
-            <div className="grid gap-1 rounded-md border border-[var(--plt-border)] bg-black/10 px-3 py-3 text-sm">
-              <span className="text-[var(--plt-text-muted)]">Trial</span>
-              <p className="text-[var(--plt-text)]">30-day free trial starts when the salon is created.</p>
-              <p className="text-xs text-[var(--plt-text-subtle)]">
-                After that, the salon will land on the existing subscribe screen until payment is approved.
-              </p>
-            </div>
+            <label className="flex items-start gap-3 rounded-md border border-[var(--plt-border)] bg-black/10 px-3 py-3 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={form.subscriptionStatus === 'complimentary'}
+                onChange={(e) =>
+                  update('subscriptionStatus', e.target.checked ? 'complimentary' : 'trial')
+                }
+              />
+              <span>
+                <span className="font-medium text-[var(--plt-text)]">Complimentary — no billing</span>
+                <span className="mt-1 block text-xs text-[var(--plt-text-subtle)]">
+                  Full product access with no trial countdown and no payment. Separate from a custom
+                  yearly price, which still requires a transaction ID.
+                </span>
+              </span>
+            </label>
+            {form.subscriptionStatus === 'complimentary' ? (
+              <div className="grid gap-1 rounded-md border border-[var(--plt-border)] bg-black/10 px-3 py-3 text-sm">
+                <span className="text-[var(--plt-text-muted)]">Complimentary</span>
+                <p className="text-[var(--plt-text)]">
+                  This salon never sees /subscribe and is never charged.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-1 rounded-md border border-[var(--plt-border)] bg-black/10 px-3 py-3 text-sm">
+                <span className="text-[var(--plt-text-muted)]">Trial</span>
+                <p className="text-[var(--plt-text)]">30-day free trial starts when the salon is created.</p>
+                <p className="text-xs text-[var(--plt-text-subtle)]">
+                  After that, the salon will land on the existing subscribe screen until payment is approved.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -163,6 +189,14 @@ export function OrganizationOnboardingWizard({ plans }: Props) {
               <div><dt className="text-xs text-[var(--plt-text-subtle)]">Salon</dt><dd className="text-[var(--plt-text)]">{form.organizationName}</dd></div>
               <div><dt className="text-xs text-[var(--plt-text-subtle)]">Location</dt><dd className="text-[var(--plt-text)]">{form.primaryLocationName}</dd></div>
               <div><dt className="text-xs text-[var(--plt-text-subtle)]">Plan</dt><dd className="text-[var(--plt-text)]">{plans.find((p) => p.id === form.planId)?.name ?? form.planId}</dd></div>
+              <div>
+                <dt className="text-xs text-[var(--plt-text-subtle)]">Access</dt>
+                <dd className="text-[var(--plt-text)]">
+                  {form.subscriptionStatus === 'complimentary'
+                    ? 'Complimentary — no billing'
+                    : '30-day trial, then payment'}
+                </dd>
+              </div>
               <div><dt className="text-xs text-[var(--plt-text-subtle)]">Owner</dt><dd className="text-[var(--plt-text)]">{form.firstOwnerName} · {form.firstOwnerEmail}</dd></div>
             </dl>
           </div>

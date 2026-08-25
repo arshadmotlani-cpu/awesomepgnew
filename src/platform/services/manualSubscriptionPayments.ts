@@ -220,11 +220,15 @@ export async function submitSubscriptionPayment(input: {
       .select({
         id: platformOrganizationSubscriptions.id,
         planId: platformOrganizationSubscriptions.planId,
+        status: platformOrganizationSubscriptions.status,
       })
       .from(platformOrganizationSubscriptions)
       .where(eq(platformOrganizationSubscriptions.organizationId, input.organizationId))
       .limit(1);
     if (!subscription) throw new Error('Organization subscription not found');
+    if (subscription.status === 'complimentary') {
+      throw new Error('Complimentary organizations do not submit payment');
+    }
 
     const [plan] = await db
       .select()

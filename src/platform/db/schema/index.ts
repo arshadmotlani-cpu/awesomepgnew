@@ -35,6 +35,7 @@ export type PlatformMembershipRole = (typeof PLATFORM_MEMBERSHIP_ROLES)[number];
 export const PLATFORM_SUBSCRIPTION_STATUSES = [
   'trial',
   'active',
+  'complimentary',
   'past_due',
   'suspended',
   'cancelled',

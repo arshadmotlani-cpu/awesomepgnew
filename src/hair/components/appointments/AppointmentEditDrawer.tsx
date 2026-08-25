@@ -45,7 +45,6 @@ export function AppointmentEditDrawer({
   appointment,
   staff,
   resources,
-  customers,
   services,
   timezone,
   dayStartHour,
@@ -62,7 +61,6 @@ export function AppointmentEditDrawer({
   const initialStartMins = minutesInSalonTz(new Date(appointment.startAt), timezone);
   const initialEndMins = minutesInSalonTz(new Date(appointment.endAt), timezone);
 
-  const [customerId, setCustomerId] = useState(appointment.customerId);
   const [staffId, setStaffId] = useState(appointment.staffId);
   const [resourceId, setResourceId] = useState(appointment.resourceId ?? '');
   const [startMinutes, setStartMinutes] = useState(initialStartMins);
@@ -74,7 +72,6 @@ export function AppointmentEditDrawer({
   const [status, setStatus] = useState<FyhAppointmentStatus>(appointment.status);
 
   useEffect(() => {
-    setCustomerId(appointment.customerId);
     setStaffId(appointment.staffId);
     setResourceId(appointment.resourceId ?? '');
     setStartMinutes(minutesInSalonTz(new Date(appointment.startAt), timezone));
@@ -127,7 +124,6 @@ export function AppointmentEditDrawer({
     startTransition(async () => {
       const res = await updateAppointmentAction({
         id: appointment.id,
-        customerId: locked ? undefined : customerId,
         staffId,
         resourceId: resourceId || null,
         startAtIso,
@@ -163,19 +159,14 @@ export function AppointmentEditDrawer({
 
         <div className="space-y-3 text-sm">
           <div className="space-y-1">
-            <label className="text-sm text-fyh-text-secondary">Customer</label>
-            <select
-              disabled={locked}
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              className="flex h-11 w-full rounded-xl border border-[color:var(--fyh-border)] bg-black/20 px-3 text-sm text-fyh-text disabled:opacity-60"
-            >
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.fullName} · {c.phone}
-                </option>
-              ))}
-            </select>
+            <label className="text-sm text-fyh-text-secondary">Client</label>
+            <p className="flex min-h-11 items-center rounded-xl border border-[color:var(--fyh-border)] bg-black/10 px-3 text-sm text-fyh-text">
+              {appointment.customerName}
+              {appointment.customerPhone ? ` · ${appointment.customerPhone}` : ''}
+            </p>
+            <p className="text-xs text-fyh-text-muted">
+              To change the client, cancel this appointment and create a new one.
+            </p>
           </div>
 
           <div className="space-y-1">

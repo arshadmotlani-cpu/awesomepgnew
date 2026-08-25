@@ -93,3 +93,34 @@ test('updateAppointment preserves custom slot duration on service change', async
     extendedEnd.getTime() - created!.startAt.getTime(),
   );
 });
+
+test('updateAppointment rejects a different client and still allows other field edits', async (t) => {
+  const probe = await probeHairQuickSaleMigrations();
+  if (!probe.ok) t.skip(migrationSkipMessage(probe));
+
+  const f = await requireRcFixtures();
+  const customer = await createRcCustomer('appt-client-lock');
+  const other = await createRcCustomer('appt-client-lock-2');
+  const apptId = await createAppointmentNextSlot({
+    customerId: customer.id,
+    staffId: f.staff.id,
+    serviceIds: [f.cut.id],
+    source: 'booking',
+  });
+
+  await assert.rejects(
+    () => updateAppointment({ id: apptId, customerId: other.id }),
+    /Cannot change client on an existing appointment/,
+  );
+
+  await updateAppointment({ id: apptId, customerId: customer.id, notes: 'same client ok' });
+  await updateAppointment({ id: apptId, serviceIds: [f.blow.id], notes: 'other fields ok' });
+
+  const [row] = await hairDb
+    .select()
+    .from(fyhAppointments)
+    .where(eq(fyhAppointments.id, apptId))
+    .limit(1);
+  assert.equal(row!.customerId, customer.id);
+  assert.equal(row!.notes, 'other fields ok');
+});

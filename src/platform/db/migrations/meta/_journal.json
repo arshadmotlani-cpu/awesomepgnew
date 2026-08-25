@@ -36,6 +36,13 @@
       "when": 1758900000000,
       "tag": "0005_manual_qr_subscription",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1759000000000,
+      "tag": "0006_complimentary_subscription",
+      "breakpoints": true
     }
   ]
 }

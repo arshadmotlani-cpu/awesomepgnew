@@ -40,17 +40,24 @@ export async function findPlatformUserIdByEmail(email: string): Promise<string |
 
 /**
  * Phase E SaaS access policy:
+ * - complimentary → full ERP permanently (no period-end check)
  * - trial → full ERP only while now < currentPeriodEnd
  * - active → full ERP
  * - past_due → grace (allowed) + billing banner
  * - cancelled | unpaid | incomplete | suspended | other → hard lock
  * - missing subscription row → allowed (legacy)
  */
+export function isComplimentarySubscription(status: string | null | undefined): boolean {
+  return status === 'complimentary';
+}
+
 export function isSubscriptionAccessAllowed(
   status: string | null | undefined,
   options?: { currentPeriodEnd?: Date | null; now?: Date },
 ): boolean {
-  if (!status || status === 'active' || status === 'past_due') return true;
+  if (!status || status === 'active' || status === 'past_due' || status === 'complimentary') {
+    return true;
+  }
   if (status === 'trial') {
     return isTrialPeriodActive(options?.currentPeriodEnd, options?.now);
   }

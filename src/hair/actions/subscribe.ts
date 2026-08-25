@@ -4,7 +4,10 @@ import { redirect } from 'next/navigation';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
 import { resolvePlatformUserIdForHairSession } from '@/src/hair/lib/tenant/sessionIdentity';
-import { listMembershipsForBilling } from '@/src/platform/services/memberships';
+import {
+  isComplimentarySubscription,
+  listMembershipsForBilling,
+} from '@/src/platform/services/memberships';
 import { submitSubscriptionPayment } from '@/src/platform/services/manualSubscriptionPayments';
 
 export async function submitManualSubscribePaymentAction(formData: FormData): Promise<void> {
@@ -30,6 +33,9 @@ export async function submitManualSubscribePaymentAction(formData: FormData): Pr
   if (!membership) redirect('/subscribe?error=invalid');
   if (membership.accessRole !== 'owner' && membership.accessRole !== 'co_owner') {
     redirect('/subscribe?error=forbidden');
+  }
+  if (isComplimentarySubscription(membership.subscriptionStatus)) {
+    redirect('/dashboard/revenue');
   }
 
   try {

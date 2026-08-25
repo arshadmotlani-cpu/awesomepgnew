@@ -83,9 +83,10 @@ export default async function PlatformSubscriptionsPage() {
                     <option key={plan.id} value={plan.id}>{plan.name}</option>
                   ))}
                 </select>
-                <select name="status" defaultValue={row.status} className="plt-input py-1 text-xs max-w-[100px]">
+                <select name="status" defaultValue={row.status} className="plt-input py-1 text-xs max-w-[140px]">
                   <option value="trial">Trial</option>
                   <option value="active">Active</option>
+                  <option value="complimentary">Complimentary — no billing</option>
                   <option value="past_due">Past due</option>
                   <option value="suspended">Suspended</option>
                   <option value="cancelled">Cancelled</option>

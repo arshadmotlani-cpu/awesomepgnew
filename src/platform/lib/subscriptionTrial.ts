@@ -41,6 +41,13 @@ export function resolveCreateSubscriptionPeriod(input: {
     };
   }
 
+  if (status === 'complimentary') {
+    return {
+      currentPeriodStart: now,
+      currentPeriodEnd: null,
+    };
+  }
+
   return {
     currentPeriodStart: now,
     currentPeriodEnd: override,
@@ -70,6 +77,7 @@ export function formatTrialAdminLabel(
   currentPeriodEnd: Date | null | undefined,
   now: Date = new Date(),
 ): string | null {
+  if (status === 'complimentary') return 'Complimentary — no billing';
   if (status !== 'trial') return null;
   if (!currentPeriodEnd) return 'Trial';
   if (!isTrialPeriodActive(currentPeriodEnd, now)) {

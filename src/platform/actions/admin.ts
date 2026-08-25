@@ -46,12 +46,7 @@ export async function createOrganizationAction(formData: FormData): Promise<void
     primaryLocationName: String(formData.get('primaryLocationName') ?? ''),
     primaryLocationAddress: String(formData.get('primaryLocationAddress') ?? ''),
     planId: String(formData.get('planId') ?? ''),
-    subscriptionStatus: String(formData.get('subscriptionStatus') ?? 'trial') as
-      | 'trial'
-      | 'active'
-      | 'past_due'
-      | 'suspended'
-      | 'cancelled',
+    subscriptionStatus: String(formData.get('subscriptionStatus') ?? 'trial'),
     trialEndsAt: String(formData.get('trialEndsAt') ?? ''),
     invoicePrefix: String(formData.get('invoicePrefix') ?? ''),
     actorUserId: session.userId,
@@ -167,12 +162,7 @@ export async function updateSubscriptionAction(formData: FormData): Promise<void
   await updateSubscription({
     organizationId,
     planId: String(formData.get('planId') ?? ''),
-    status: String(formData.get('status') ?? 'trial') as
-      | 'trial'
-      | 'active'
-      | 'past_due'
-      | 'suspended'
-      | 'cancelled',
+    status: String(formData.get('status') ?? 'trial'),
     currentPeriodEnd: String(formData.get('currentPeriodEnd') ?? ''),
     actorUserId: session.userId,
   });

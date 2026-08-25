@@ -59,6 +59,7 @@ describe('onboarding UX copy', () => {
     );
     assert.match(src, /Salon name/);
     assert.match(src, /30-day free trial starts when the salon is created\./);
+    assert.match(src, /Complimentary — no billing/);
     assert.doesNotMatch(src, /subdomain/i);
     assert.doesNotMatch(src, /web address/i);
     assert.doesNotMatch(src, />\s*Slug\s*</);

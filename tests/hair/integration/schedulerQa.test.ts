@@ -255,7 +255,7 @@ test('scheduler QA J — invoiced appointment blocks customer/service mutation',
 
   await assert.rejects(
     () => updateAppointment({ id: apptId, customerId: other.id }),
-    /Cannot change customer/,
+    /Cannot change client/,
   );
   await assert.rejects(
     () => updateAppointment({ id: apptId, serviceIds: [f.blow.id] }),
