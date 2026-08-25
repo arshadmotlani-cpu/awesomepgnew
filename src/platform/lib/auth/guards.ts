@@ -22,7 +22,10 @@ export async function requirePlatformAuthPage() {
 
 export async function requirePlatformAdminPage() {
   const session = await requirePlatformAuthPage();
-  if (!session.isPlatformAdmin) redirect('/platform/dashboard');
+  if (!session.isPlatformAdmin) {
+    // Do not silently dump non-admins onto a page that looks like "admin home".
+    redirect('/platform/dashboard?error=platform_admin_required');
+  }
   return session;
 }
 

@@ -24,6 +24,12 @@ export function hairMiddleware(request: NextRequest): NextResponse {
     requestHeaders.set('x-hair-tenant-slug', tenantSlug);
   }
 
+  // Platform SaaS shares the fyhair host. Never 404 /platform/* here —
+  // platformMiddleware should already have handled these, but keep a safe pass-through.
+  if (pathname.startsWith('/platform')) {
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
   if (!isHairPublicPath(pathname)) {
     return new NextResponse(null, { status: 404 });
   }

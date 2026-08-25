@@ -8,6 +8,7 @@ import {
   revokePlatformSession,
   writePlatformSessionCookie,
 } from '@/src/platform/lib/auth/session';
+import { safePlatformNext } from '@/src/platform/lib/auth/safePlatformNext';
 
 export type PlatformLoginState = { error?: string };
 
@@ -26,9 +27,7 @@ export async function platformLoginAction(
   const { token, maxAgeSeconds } = await createPlatformSession(result.userId, rememberMe);
   await writePlatformSessionCookie(token, maxAgeSeconds);
 
-  const safeNext =
-    next.startsWith('/platform') && !next.startsWith('//') ? next : '/platform/dashboard';
-  redirect(safeNext);
+  redirect(safePlatformNext(next));
 }
 
 export async function platformLogoutAction(): Promise<void> {

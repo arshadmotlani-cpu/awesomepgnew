@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Capital OS concept mark">
+  <title>Automotive Capital — concept</title>
+  <rect width="64" height="64" rx="14" fill="#0F172A"/>
+  <rect x="14" y="36" width="8" height="14" rx="2" fill="#34D399"/>
+  <rect x="28" y="26" width="8" height="24" rx="2" fill="#10B981"/>
+  <rect x="42" y="16" width="8" height="34" rx="2" fill="#6EE7B7"/>
+  <path d="M12 50 H52" stroke="#059669" stroke-width="3" stroke-linecap="round"/>
+</svg>

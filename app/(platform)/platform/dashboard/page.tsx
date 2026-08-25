@@ -3,9 +3,13 @@ import { platformLogoutAction } from '@/src/platform/actions/auth';
 import { requirePlatformAuthPage } from '@/src/platform/lib/auth/guards';
 import { listOrganizationMembershipsForUser } from '@/src/platform/services/organizations';
 
-export default async function PlatformDashboardPage() {
+type Props = { searchParams: Promise<{ error?: string }> };
+
+export default async function PlatformDashboardPage({ searchParams }: Props) {
   const session = await requirePlatformAuthPage();
+  const params = await searchParams;
   const orgMemberships = await listOrganizationMembershipsForUser(session.userId);
+  const needsAdmin = params.error === 'platform_admin_required';
 
   return (
     <div className="min-h-[100dvh] bg-slate-950 text-slate-100">
@@ -27,6 +31,17 @@ export default async function PlatformDashboardPage() {
       </header>
 
       <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
+        {needsAdmin ? (
+          <section className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-6">
+            <h2 className="text-base font-semibold text-amber-100">Platform admin required</h2>
+            <p className="mt-2 text-sm text-amber-100/80">
+              That page (including salon onboarding) is only available to platform administrators.
+              Ask an existing platform admin to grant you access under Users → Platform
+              Administrators.
+            </p>
+          </section>
+        ) : null}
+
         <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
           <h2 className="text-base font-semibold">Signed in as</h2>
           <p className="mt-2 text-sm text-slate-300">{session.email}</p>
@@ -37,19 +52,27 @@ export default async function PlatformDashboardPage() {
 
         {session.isPlatformAdmin ? (
           <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h2 className="text-base font-semibold">Platform administration</h2>
                 <p className="mt-1 text-sm text-slate-400">
                   Manage organizations, plans, and platform access.
                 </p>
               </div>
-              <Link
-                href="/platform/admin"
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
-              >
-                Open Platform Admin
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/platform/admin/onboarding"
+                  className="rounded-lg border border-emerald-500/50 px-4 py-2 text-sm font-medium text-emerald-300 hover:bg-emerald-500/10"
+                >
+                  Create salon
+                </Link>
+                <Link
+                  href="/platform/admin"
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
+                >
+                  Open Platform Admin
+                </Link>
+              </div>
             </div>
           </section>
         ) : null}
