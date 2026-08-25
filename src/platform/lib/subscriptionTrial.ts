@@ -3,7 +3,26 @@
  * Product "trial_start / trial_end" maps onto currentPeriodStart / currentPeriodEnd.
  */
 
+import {
+  PLATFORM_SUBSCRIPTION_STATUSES,
+  type PlatformSubscriptionStatus,
+} from '@/src/platform/db/schema';
+
 export const TRIAL_LENGTH_DAYS = 30;
+
+export function asPlatformSubscriptionStatus(
+  value: string | null | undefined,
+): PlatformSubscriptionStatus {
+  if (
+    typeof value === 'string' &&
+    (PLATFORM_SUBSCRIPTION_STATUSES as readonly string[]).includes(value)
+  ) {
+    return value as PlatformSubscriptionStatus;
+  }
+  throw new Error(
+    `subscriptionStatus is required (expected one of: ${PLATFORM_SUBSCRIPTION_STATUSES.join(', ')})`,
+  );
+}
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -25,13 +44,13 @@ function parseOptionalDate(raw: string | null | undefined): Date | null {
 }
 
 export function resolveCreateSubscriptionPeriod(input: {
-  subscriptionStatus: string | null | undefined;
+  subscriptionStatus: PlatformSubscriptionStatus | null | undefined;
   trialEndsAt?: string | null;
   now?: Date;
 }): { currentPeriodStart: Date; currentPeriodEnd: Date | null } {
   const now = input.now ?? new Date();
   const override = parseOptionalDate(input.trialEndsAt);
-  const status = input.subscriptionStatus ?? 'trial';
+  const status: PlatformSubscriptionStatus = input.subscriptionStatus ?? 'trial';
 
   if (status === 'trial') {
     const { start, end } = computeTrialPeriod(now);
@@ -73,7 +92,7 @@ export function trialDaysRemaining(
 }
 
 export function formatTrialAdminLabel(
-  status: string | null | undefined,
+  status: PlatformSubscriptionStatus | null | undefined,
   currentPeriodEnd: Date | null | undefined,
   now: Date = new Date(),
 ): string | null {

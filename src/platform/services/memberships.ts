@@ -6,6 +6,7 @@ import {
   platformOrganizationSubscriptions,
   platformOrganizations,
   platformUsers,
+  type PlatformSubscriptionStatus,
 } from '@/src/platform/db/schema';
 import { createPlatformClient } from '@/src/platform/db/client';
 import { hasPlatformDatabaseUrl } from '@/src/platform/lib/db/env';
@@ -47,12 +48,14 @@ export async function findPlatformUserIdByEmail(email: string): Promise<string |
  * - cancelled | unpaid | incomplete | suspended | other → hard lock
  * - missing subscription row → allowed (legacy)
  */
-export function isComplimentarySubscription(status: string | null | undefined): boolean {
+export function isComplimentarySubscription(
+  status: PlatformSubscriptionStatus | null | undefined,
+): boolean {
   return status === 'complimentary';
 }
 
 export function isSubscriptionAccessAllowed(
-  status: string | null | undefined,
+  status: PlatformSubscriptionStatus | null | undefined,
   options?: { currentPeriodEnd?: Date | null; now?: Date },
 ): boolean {
   if (!status || status === 'active' || status === 'past_due' || status === 'complimentary') {
@@ -64,20 +67,22 @@ export function isSubscriptionAccessAllowed(
   return false;
 }
 
-export function isSubscriptionGracePeriod(status: string | null | undefined): boolean {
+export function isSubscriptionGracePeriod(
+  status: PlatformSubscriptionStatus | null | undefined,
+): boolean {
   return status === 'past_due';
 }
 
 export async function getOrganizationSubscriptionStatus(
   organizationId: string,
-): Promise<string | null> {
+): Promise<PlatformSubscriptionStatus | null> {
   const row = await getOrganizationSubscriptionAccessRow(organizationId);
   return row?.status ?? null;
 }
 
 async function getOrganizationSubscriptionAccessRow(
   organizationId: string,
-): Promise<{ status: string; currentPeriodEnd: Date | null } | null> {
+): Promise<{ status: PlatformSubscriptionStatus; currentPeriodEnd: Date | null } | null> {
   if (!hasPlatformDatabaseUrl()) return null;
   const { db, close } = createPlatformClient({ max: 1 });
   try {
@@ -106,7 +111,7 @@ export async function isOrganizationSubscriptionLocked(
 }
 
 export type PlatformMembershipBillingRow = PlatformMembershipRow & {
-  subscriptionStatus: string | null;
+  subscriptionStatus: PlatformSubscriptionStatus | null;
   accessAllowed: boolean;
 };
 

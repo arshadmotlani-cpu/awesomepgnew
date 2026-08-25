@@ -18,7 +18,6 @@ import {
   platformPlans,
   platformSubscriptionEvents,
   platformUsers,
-  PLATFORM_SUBSCRIPTION_STATUSES,
   type PlatformMembershipRole,
   type PlatformOrgStatus,
   type PlatformSubscriptionStatus,
@@ -33,24 +32,14 @@ import {
   STANDARD_SALON_PLAN_SLUGS,
   STANDARD_SALON_PRICE_PAISE,
 } from '@/src/platform/lib/salonSubscriptionPricing';
-import { formatTrialAdminLabel, resolveCreateSubscriptionPeriod } from '@/src/platform/lib/subscriptionTrial';
+import {
+  asPlatformSubscriptionStatus,
+  formatTrialAdminLabel,
+  resolveCreateSubscriptionPeriod,
+} from '@/src/platform/lib/subscriptionTrial';
 import { resolveAmountPaiseFromPlanLimits } from '@/src/platform/services/manualSubscriptionPayments';
 
 type OrgStatus = PlatformOrgStatus;
-
-function requireSubscriptionStatus(
-  value: PlatformSubscriptionStatus | string | null | undefined,
-): PlatformSubscriptionStatus {
-  if (
-    typeof value === 'string' &&
-    (PLATFORM_SUBSCRIPTION_STATUSES as readonly string[]).includes(value)
-  ) {
-    return value as PlatformSubscriptionStatus;
-  }
-  throw new Error(
-    `subscriptionStatus is required (expected one of: ${PLATFORM_SUBSCRIPTION_STATUSES.join(', ')})`,
-  );
-}
 
 export type PlatformDashboardStats = {
   totalOrganizations: number;
@@ -71,7 +60,7 @@ export type PlatformDashboardStats = {
     planName: string | null;
     locationCount: number;
     memberCount: number;
-    subscriptionStatus: string | null;
+    subscriptionStatus: PlatformSubscriptionStatus | null;
   }>;
   recentSubscriptionActivity: Array<{
     id: string;
@@ -120,7 +109,7 @@ export type CreateOrganizationInput = {
   primaryLocationName: string;
   primaryLocationAddress?: string | null;
   planId: string;
-  subscriptionStatus: string;
+  subscriptionStatus: PlatformSubscriptionStatus;
   trialEndsAt?: string | null;
   invoicePrefix?: string | null;
   entitlements?: Record<string, number | null>;
@@ -145,7 +134,7 @@ export type PlatformOrganizationListItem = {
   memberCount: number;
   planName: string | null;
   planId: string | null;
-  subscriptionStatus: string | null;
+  subscriptionStatus: PlatformSubscriptionStatus | null;
   subscriptionCurrentPeriodEnd: Date | null;
   trialLabel: string | null;
   ownerEmail: string | null;
@@ -687,7 +676,7 @@ export async function createOrganizationWithOwnerInvite(
   input: CreateOrganizationInput,
 ): Promise<{ organizationId: string; invitationToken: string }> {
   const timezone = input.defaultTimezone?.trim() || 'Asia/Kolkata';
-  const subscriptionStatus = requireSubscriptionStatus(input.subscriptionStatus);
+  const subscriptionStatus = asPlatformSubscriptionStatus(input.subscriptionStatus);
   const organizationId = randomUUID();
   const locationId = randomUUID();
   const userId = randomUUID();
@@ -1152,11 +1141,11 @@ export async function updateMemberAccess(input: {
 export async function updateSubscription(input: {
   organizationId: string;
   planId: string;
-  status: string;
+  status: PlatformSubscriptionStatus;
   currentPeriodEnd?: string | null;
   actorUserId: string;
 }): Promise<void> {
-  const status = requireSubscriptionStatus(input.status);
+  const status = asPlatformSubscriptionStatus(input.status);
   const { db, close } = createPlatformClient({ max: 1 });
   try {
     const [existing] = await db

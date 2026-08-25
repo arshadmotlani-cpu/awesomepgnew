@@ -5,12 +5,31 @@ import { join } from 'node:path';
 import { isSubscriptionAccessAllowed } from '@/src/platform/services/memberships';
 import {
   TRIAL_LENGTH_DAYS,
+  asPlatformSubscriptionStatus,
   computeTrialPeriod,
   formatTrialAdminLabel,
   resolveCreateSubscriptionPeriod,
 } from '@/src/platform/lib/subscriptionTrial';
 
 const root = process.cwd();
+
+test('subscriptionStatus helpers reject unconstrained strings', () => {
+  assert.equal(asPlatformSubscriptionStatus('trial'), 'trial');
+  assert.equal(asPlatformSubscriptionStatus('complimentary'), 'complimentary');
+  assert.throws(() => asPlatformSubscriptionStatus('not-a-status'), /subscriptionStatus is required/);
+  assert.throws(() => asPlatformSubscriptionStatus(null), /subscriptionStatus is required/);
+
+  const trialSrc = readFileSync(join(root, 'src/platform/lib/subscriptionTrial.ts'), 'utf8');
+  const adminSrc = readFileSync(join(root, 'src/platform/services/admin.ts'), 'utf8');
+  const membershipsSrc = readFileSync(join(root, 'src/platform/services/memberships.ts'), 'utf8');
+  assert.match(trialSrc, /subscriptionStatus:\s*PlatformSubscriptionStatus/);
+  assert.match(adminSrc, /subscriptionStatus:\s*PlatformSubscriptionStatus/);
+  assert.match(membershipsSrc, /status:\s*PlatformSubscriptionStatus \| null \| undefined/);
+  assert.doesNotMatch(
+    trialSrc,
+    /export function resolveCreateSubscriptionPeriod\(input: \{\s*subscriptionStatus:\s*string/s,
+  );
+});
 
 test('trial orgs get a 30-day default period at create', () => {
   const now = new Date('2026-08-24T07:00:00.000Z');

@@ -21,6 +21,7 @@ import {
   updateSubscription,
   upsertPlatformPlan,
 } from '@/src/platform/services/admin';
+import { asPlatformSubscriptionStatus } from '@/src/platform/lib/subscriptionTrial';
 
 function boolFromFormData(value: FormDataEntryValue | null): boolean {
   return value === 'on' || value === 'true' || value === '1';
@@ -46,7 +47,9 @@ export async function createOrganizationAction(formData: FormData): Promise<void
     primaryLocationName: String(formData.get('primaryLocationName') ?? ''),
     primaryLocationAddress: String(formData.get('primaryLocationAddress') ?? ''),
     planId: String(formData.get('planId') ?? ''),
-    subscriptionStatus: String(formData.get('subscriptionStatus') ?? 'trial'),
+    subscriptionStatus: asPlatformSubscriptionStatus(
+      String(formData.get('subscriptionStatus') ?? 'trial'),
+    ),
     trialEndsAt: String(formData.get('trialEndsAt') ?? ''),
     invoicePrefix: String(formData.get('invoicePrefix') ?? ''),
     actorUserId: session.userId,
@@ -162,7 +165,7 @@ export async function updateSubscriptionAction(formData: FormData): Promise<void
   await updateSubscription({
     organizationId,
     planId: String(formData.get('planId') ?? ''),
-    status: String(formData.get('status') ?? 'trial'),
+    status: asPlatformSubscriptionStatus(String(formData.get('status') ?? 'trial')),
     currentPeriodEnd: String(formData.get('currentPeriodEnd') ?? ''),
     actorUserId: session.userId,
   });
