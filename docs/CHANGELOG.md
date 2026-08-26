@@ -256,19 +256,25 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-25 16:19:56 UTC
+### Pending pre-commit sync · 2026-08-26 10:49:21 UTC
 
-**Areas touched:** [[ROUTES]]
+**Areas touched:** [[ROUTES]], [[Billing]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (3):**
-- `app/(hair)/fyh/(public)/subscribe/page.tsx`
-- `app/(platform)/platform/admin/organizations/[id]/page.tsx`
-- `app/(platform)/platform/admin/subscriptions/page.tsx`
+**Staged code files (6):**
+- `app/(customer)/account/resident/room-change-actions.ts`
+- `app/(customer)/pay/[linkId]/page.tsx`
+- `app/(customer)/pay/actions.ts`
+- `app/api/cron/automation/route.ts`
+- `src/services/residentFinancialEngine.ts`
+- `src/services/unifiedInvoices.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

@@ -56,6 +56,15 @@ async function applyLinePayment(
       relatedPaymentId: providerPaymentId,
     });
     await syncDepositCollectionFromLedger(bookingId);
+    return;
+  }
+
+  if (line.sourceTable === 'financial_invoices' && line.sourceId) {
+    const { markUnifiedInvoicePaid } = await import('@/src/services/unifiedInvoices');
+    await markUnifiedInvoicePaid(line.sourceId, providerPaymentId, {
+      type: 'system',
+      id: null,
+    });
   }
 }
 
@@ -133,6 +142,13 @@ export async function allocateInvoicePayment(input: {
       updatedAt: new Date(),
     })
     .where(eq(financialInvoices.id, input.invoiceId));
+
+  if (newStatus === 'paid') {
+    const { tryCompleteRoomChangeAfterInvoice } = await import(
+      '@/src/services/roomTransferLifecycle'
+    );
+    await tryCompleteRoomChangeAfterInvoice(input.invoiceId).catch(() => undefined);
+  }
 
   return { ok: true };
 }

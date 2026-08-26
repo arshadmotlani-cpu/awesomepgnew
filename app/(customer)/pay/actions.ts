@@ -1,7 +1,10 @@
 'use server';
 
 import { assertActivePaymentLink } from '@/src/lib/billing/paymentLinkAccess';
-import { submitDepositLinkPaymentProof } from '@/src/services/residentCharges';
+import {
+  submitDepositLinkPaymentProof,
+  submitInvoiceLinkPaymentProof,
+} from '@/src/services/residentCharges';
 import { submitRentPaymentProof } from '@/src/services/rentInvoices';
 
 export type PaymentLinkAuthError = { ok: false; status: 401 | 403 | 404; message: string };
@@ -18,6 +21,10 @@ export async function submitPaymentLinkProofAction(
 
   if (link.rentInvoiceId) {
     return submitRentPaymentProof(link.residentId, link.rentInvoiceId, proof);
+  }
+
+  if (link.invoiceId) {
+    return submitInvoiceLinkPaymentProof(linkId, link.residentId, proof);
   }
 
   if (link.purpose === 'deposit' && link.bookingId) {

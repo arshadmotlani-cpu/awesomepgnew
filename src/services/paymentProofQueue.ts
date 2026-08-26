@@ -942,8 +942,11 @@ async function buildDepositLinkReviewItem(
     return null;
   }
 
+  const isInvoiceLink = d.purpose === 'combined' && Boolean(d.invoiceId);
+  const chargeLabel = d.title ?? (isInvoiceLink ? 'Combined invoice' : 'Additional deposit');
+
   const expectedLines: PaymentReviewExpectedLine[] = [
-    { label: d.title ?? 'Additional deposit', amountPaise: d.amountPaise },
+    { label: chargeLabel, amountPaise: d.amountPaise },
   ];
 
   return {
@@ -956,9 +959,9 @@ async function buildDepositLinkReviewItem(
     bookingCode,
     roomNumber: d.roomNumber ?? null,
     bedCode: null,
-    paymentTypeLabel: 'Security deposit',
-    title: `${d.customerName} · ${d.title ?? 'Additional deposit'}`,
-    subtitle: 'Additional security deposit',
+    paymentTypeLabel: isInvoiceLink ? 'Combined invoice' : 'Security deposit',
+    title: `${d.customerName} · ${chargeLabel}`,
+    subtitle: isInvoiceLink ? 'Combined invoice payment' : 'Additional security deposit',
     amountPaise: d.amountPaise,
     screenshotUrl: d.paymentProofUrl ?? '',
     referenceNumber: d.paymentProofTransactionRef ?? null,

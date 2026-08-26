@@ -10,6 +10,7 @@ import {
   bedReservations,
   beds,
   customers,
+  financialInvoices,
   floors,
   pgs,
   roomChangeRequests,
@@ -18,23 +19,15 @@ import {
 } from '@/src/db/schema';
 import { classifyTransferAvailability } from '@/src/lib/roomTransfer/transferAvailability';
 import { todayString } from '@/src/lib/dates';
+import { toIstParts } from '@/src/lib/dates/ist';
 import { resolveAction, upsertOpenAction } from '@/src/services/unresolvedActions';
 import { scheduleAdminNotificationSync } from '@/src/services/adminLiveSync';
 import { assertBookingExitOperationsAllowed } from '@/src/lib/exit/exitBrainGuards';
+import { roomChangeChargesSettled, applyRoomChangeWalletSurplusOnComplete } from '@/src/services/roomTransferBilling';
+import type { RoomShiftQuoteSnapshot } from '@/src/services/roomShiftQuote';
+import { applyResidentBedTransfer, isPgUniqueViolation } from '@/src/services/roomTransferTenancy';
 
 const OPEN_TRANSFER_STATUSES = ['submitted', 'approved', 'waiting'] as const;
-
-async function bookingPgId(bookingId: string): Promise<string | null> {
-  const [row] = await db
-    .select({ pgId: floors.pgId })
-    .from(bedReservations)
-    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
-    .innerJoin(rooms, eq(rooms.id, beds.roomId))
-    .innerJoin(floors, eq(floors.id, rooms.floorId))
-    .where(and(eq(bedReservations.bookingId, bookingId), eq(bedReservations.kind, 'primary')))
-    .limit(1);
-  return row?.pgId ?? null;
-}
 
 export async function syncRoomTransferApprovalAction(requestId: string): Promise<void> {
   const [row] = await db
@@ -49,22 +42,182 @@ export async function syncRoomTransferApprovalAction(requestId: string): Promise
     .from(roomChangeRequests)
     .where(eq(roomChangeRequests.id, requestId))
     .limit(1);
-  if (!row || row.status !== 'submitted') return;
-
-  const pgId = await bookingPgId(row.bookingId);
-  const modeLabel = row.transferMode === 'scheduled' ? 'Scheduled' : 'Immediate';
-  await upsertOpenAction({
-    actionType: 'room_transfer_approval',
-    entityType: 'room_change_request',
+  if (!row) return;
+  // Self-serve immediate/scheduled transfers do not need admin approval.
+  await db.insert(auditLog).values({
+    actorType: 'system',
+    actorId: null,
+    entity: 'room_change_request',
     entityId: row.id,
-    residentId: row.customerId,
-    pgId,
-    sourceKey: `room_transfer:${row.id}`,
-    href: '/admin/requests',
-    label: `${modeLabel} room transfer approval`,
-    priority: row.transferMode === 'scheduled' ? 'high' : 'medium',
+    action: 'self_serve_recorded',
+    diff: {
+      status: row.status,
+      transferMode: row.transferMode,
+      expectedTransferDate: row.expectedTransferDate,
+    },
   });
-  scheduleAdminNotificationSync();
+}
+
+export async function placeRoomTransferHold(input: {
+  requestId: string;
+  toBedId: string;
+  transferDate: string;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  const today = toIstParts(new Date()).dateYmd;
+  try {
+    await db.insert(roomTransferBedHolds).values({
+      bedId: input.toBedId,
+      roomChangeRequestId: input.requestId,
+      holdFromDate: today,
+      transferDate: input.transferDate,
+      status: 'active',
+    });
+  } catch (err) {
+    if (isPgUniqueViolation(err)) {
+      return { ok: false, message: 'That bed is already reserved for another transfer.' };
+    }
+    throw err;
+  }
+  return { ok: true };
+}
+
+export async function tryCompleteRoomChangeRequest(requestId: string): Promise<{
+  ok: true;
+  status: string;
+} | { ok: false; message: string }> {
+  const [row] = await db
+    .select()
+    .from(roomChangeRequests)
+    .where(eq(roomChangeRequests.id, requestId))
+    .limit(1);
+  if (!row) return { ok: false, message: 'Request not found.' };
+  if (row.status === 'completed') return { ok: true, status: 'completed' };
+  if (row.status === 'cancelled' || row.status === 'rejected') {
+    return { ok: false, message: `Request is ${row.status}.` };
+  }
+
+  const settled = await roomChangeChargesSettled(requestId);
+  if (!settled) return { ok: true, status: row.status };
+
+  const scenario = await classifyTransferAvailability(row.toBedId);
+  if (!scenario || scenario.mode === 'waitlist') {
+    return { ok: false, message: 'Destination bed is no longer available for transfer.' };
+  }
+  if (row.transferMode && scenario.mode !== row.transferMode && scenario.mode !== 'immediate') {
+    return {
+      ok: false,
+      message: `Transfer mode changed — bed is now ${scenario.label.toLowerCase()}.`,
+    };
+  }
+
+  const transferDate = row.expectedTransferDate ?? scenario.expectedTransferDate;
+  const todayIst = toIstParts(new Date()).dateYmd;
+  const canOccupy = todayIst >= transferDate;
+
+  if (!canOccupy) {
+    await db
+      .update(roomChangeRequests)
+      .set({ status: 'approved', updatedAt: new Date() })
+      .where(eq(roomChangeRequests.id, requestId));
+    const [hold] = await db
+      .select({ id: roomTransferBedHolds.id })
+      .from(roomTransferBedHolds)
+      .where(
+        and(
+          eq(roomTransferBedHolds.roomChangeRequestId, requestId),
+          eq(roomTransferBedHolds.status, 'active'),
+        ),
+      )
+      .limit(1);
+    if (!hold) {
+      const placed = await placeRoomTransferHold({
+        requestId,
+        toBedId: row.toBedId,
+        transferDate,
+      });
+      if (!placed.ok) return placed;
+    }
+    await db.insert(auditLog).values({
+      actorType: 'system',
+      actorId: null,
+      entity: 'room_change_request',
+      entityId: requestId,
+      action: 'scheduled_paid',
+      diff: { transferDate },
+    });
+    return { ok: true, status: 'approved' };
+  }
+
+  const moved = await applyResidentBedTransfer({
+    bookingId: row.bookingId,
+    toBedId: row.toBedId,
+    transferDate,
+    actorType: 'system',
+    actorId: row.customerId,
+  });
+  if (!moved.ok) return { ok: false, message: moved.message };
+
+  const quote = row.quoteSnapshot as RoomShiftQuoteSnapshot | null;
+  if (quote?.walletSurplusPaise) {
+    await applyRoomChangeWalletSurplusOnComplete({
+      requestId: row.id,
+      customerId: row.customerId,
+      bookingId: row.bookingId,
+      walletSurplusPaise: quote.walletSurplusPaise,
+    });
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(roomChangeRequests)
+      .set({ status: 'completed', completedAt: new Date(), updatedAt: new Date() })
+      .where(eq(roomChangeRequests.id, requestId));
+    await tx
+      .update(roomTransferBedHolds)
+      .set({ status: 'released', releasedAt: new Date(), updatedAt: new Date() })
+      .where(eq(roomTransferBedHolds.roomChangeRequestId, requestId));
+    await tx.insert(auditLog).values({
+      actorType: 'system',
+      actorId: null,
+      entity: 'room_change_request',
+      entityId: requestId,
+      action: 'transfer_completed',
+      diff: { transferDate, toBedId: row.toBedId },
+    });
+  });
+
+  return { ok: true, status: 'completed' };
+}
+
+export async function tryCompleteRoomChangeAfterInvoice(invoiceId: string): Promise<void> {
+  const [inv] = await db
+    .select({
+      sourceTable: financialInvoices.sourceTable,
+      sourceId: financialInvoices.sourceId,
+    })
+    .from(financialInvoices)
+    .where(eq(financialInvoices.id, invoiceId))
+    .limit(1);
+  if (!inv?.sourceTable?.startsWith('room_change_') || !inv.sourceId) return;
+  if (inv.sourceTable === 'room_change_pay_all') {
+    const { markRoomChangeChildInvoicesPaidFromPayAll } = await import(
+      '@/src/services/roomTransferBilling'
+    );
+    await markRoomChangeChildInvoicesPaidFromPayAll(invoiceId);
+  }
+  await tryCompleteRoomChangeRequest(inv.sourceId);
+}
+
+export async function processDueScheduledRoomTransfers(): Promise<{ completed: number; errors: number }> {
+  const due = await listRoomTransfersDueToday();
+  let completed = 0;
+  let errors = 0;
+  for (const row of due) {
+    const result = await tryCompleteRoomChangeRequest(row.id);
+    if (result.ok && result.status === 'completed') completed += 1;
+    else if (!result.ok) errors += 1;
+  }
+  return { completed, errors };
 }
 
 export async function approveRoomChangeRequest(input: {
@@ -311,7 +464,7 @@ export async function listRoomTransfersDueToday(): Promise<
     roomNumber: string | null;
   }>
 > {
-  const today = todayString();
+  const today = toIstParts(new Date()).dateYmd;
   const rows = await db
     .select({
       id: roomChangeRequests.id,

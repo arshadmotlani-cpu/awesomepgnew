@@ -1,14 +1,20 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import Link from 'next/link';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { paiseToInr } from '@/src/lib/format';
 import { primaryBtn, secondaryBtn } from '@/src/lib/design-system/tokens';
 import type { RoomShiftQuoteSnapshot } from '@/src/services/roomShiftQuote';
-import type { RoomChangeBedOption } from '@/app/(customer)/account/resident/room-change-actions';
+import type {
+  RoomChangeBedOption,
+  RoomChangeDestinationPg,
+  RoomChangeSubmitResult,
+} from '@/app/(customer)/account/resident/room-change-actions';
 import {
   fetchRoomChangeAvailabilityAction,
+  fetchRoomChangeDestinationPgsAction,
   joinBedWaitlistAction,
   quoteRoomChangeAction,
   submitRoomChangeAction,
@@ -24,6 +30,8 @@ type Props = {
   moveInDate: string;
   onClose: () => void;
 };
+
+type Step = 'pg' | 'beds' | 'review' | 'payment' | 'done';
 
 function scenarioBadgeClass(mode: 'immediate' | 'scheduled' | 'waitlist'): string {
   if (mode === 'immediate') {
@@ -46,23 +54,46 @@ export function RoomChangeFlow({
   onClose,
 }: Props) {
   const router = useRouter();
+  const [step, setStep] = useState<Step>('pg');
+  const [destinationPgs, setDestinationPgs] = useState<RoomChangeDestinationPg[]>([]);
+  const [selectedPgId, setSelectedPgId] = useState<string | null>(null);
   const [beds, setBeds] = useState<RoomChangeBedOption[]>([]);
   const [selectedBedId, setSelectedBedId] = useState<string | null>(null);
   const [quote, setQuote] = useState<RoomShiftQuoteSnapshot | null>(null);
+  const [submitResult, setSubmitResult] = useState<RoomChangeSubmitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  const selectedPg = destinationPgs.find((p) => p.id === selectedPgId) ?? null;
   const selectedBed = beds.find((b) => b.bedId === selectedBedId) ?? null;
 
-  function loadBeds() {
+  useEffect(() => {
     startTransition(async () => {
       setError(null);
-      const res = await fetchRoomChangeAvailabilityAction({ pgId, fromBedId });
+      const res = await fetchRoomChangeDestinationPgsAction({ currentPgId: pgId });
+      if (!res.ok) {
+        setError(res.message);
+        return;
+      }
+      setDestinationPgs(res.data?.pgs ?? []);
+      const current = res.data?.pgs.find((p) => p.isCurrentPg);
+      if (current) setSelectedPgId(current.id);
+    });
+  }, [pgId]);
+
+  function loadBeds(pg: string) {
+    startTransition(async () => {
+      setError(null);
+      setBeds([]);
+      setSelectedBedId(null);
+      setQuote(null);
+      const res = await fetchRoomChangeAvailabilityAction({ pgId: pg, fromBedId });
       if (!res.ok) {
         setError(res.message);
         return;
       }
       setBeds(res.beds);
+      setStep('beds');
     });
   }
 
@@ -92,6 +123,7 @@ export function RoomChangeFlow({
         toBedId: selectedBed.bedId,
         shiftDate: selectedBed.scenario.expectedTransferDate,
         moveInDate,
+        fromRoomLabel: roomLabel,
       });
       if (!res.ok) {
         setError(res.message);
@@ -99,6 +131,7 @@ export function RoomChangeFlow({
         return;
       }
       setQuote(res.quote);
+      setStep('review');
     });
   }
 
@@ -116,77 +149,218 @@ export function RoomChangeFlow({
         setError(res.message);
         return;
       }
-      router.refresh();
-      onClose();
+      setSubmitResult(res.data);
+      if (res.data.status === 'completed' || res.data.totalDuePaise <= 0) {
+        setStep('done');
+        router.refresh();
+      } else {
+        setStep('payment');
+      }
     });
+  }
+
+  if (step === 'done') {
+    return (
+      <div className="space-y-4 pb-2">
+        <ApgCard tier="resident">
+          <h2 className="text-lg font-semibold text-white">Room change confirmed</h2>
+          <p className="mt-2 text-sm text-apg-silver">
+            {submitResult?.status === 'completed'
+              ? 'Your bed transfer is complete. Your account will reflect the new room shortly.'
+              : 'Your room change is scheduled. We will move you automatically on the transfer date after payment is confirmed.'}
+          </p>
+          <button type="button" onClick={onClose} className={`${primaryBtn} mt-4 w-full`}>
+            Done
+          </button>
+        </ApgCard>
+      </div>
+    );
+  }
+
+  if (step === 'payment' && submitResult) {
+    return (
+      <div className="space-y-4 pb-2">
+        <ApgCard tier="resident">
+          <h2 className="text-lg font-semibold text-white">Complete payment</h2>
+          <p className="mt-1 text-sm text-apg-silver">
+            Pay to confirm your room change. Your transfer starts automatically once payment is verified.
+          </p>
+          <p className="mt-3 text-lg font-bold text-apg-orange">
+            Total due: {paiseToInr(submitResult.totalDuePaise)}
+          </p>
+          {submitResult.payAllHref ? (
+            <Link href={submitResult.payAllHref} className={`${primaryBtn} mt-4 block w-full text-center`}>
+              Pay all charges
+            </Link>
+          ) : null}
+          {submitResult.individual.length > 0 ? (
+            <ul className="mt-4 space-y-2">
+              {submitResult.individual.map((item) => (
+                <li key={item.invoiceId} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-apg-silver">{item.label}</span>
+                  {item.href ? (
+                    <Link href={item.href} className="text-apg-orange hover:underline">
+                      {paiseToInr(item.amountPaise)} →
+                    </Link>
+                  ) : (
+                    <span className="text-white">{paiseToInr(item.amountPaise)}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </ApgCard>
+        <button type="button" onClick={onClose} className={`${secondaryBtn} w-full`}>
+          Back to requests
+        </button>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-4 pb-2">
       <ApgCard tier="resident">
-        <h2 className="text-lg font-semibold text-white">Room transfer</h2>
+        <h2 className="text-lg font-semibold text-white">Room change</h2>
         <p className="mt-1 text-sm text-apg-silver">
-          Current: {roomLabel} · {paiseToInr(monthlyRentPaise)}/mo
+          Current: {roomLabel} · {paiseToInr(monthlyRentPaise)}/mo · Deposit held{' '}
+          {paiseToInr(depositHeldPaise)}
         </p>
-        <p className="mt-2 text-xs text-apg-silver">
-          Each bed shows whether your move is <strong className="text-white">Immediate</strong> (vacant
-          now) or <strong className="text-white">Scheduled</strong> (after the current occupant checks
-          out).
-        </p>
-        {beds.length === 0 ? (
-          <button type="button" onClick={loadBeds} disabled={pending} className={`${primaryBtn} mt-4`}>
-            {pending ? 'Loading…' : 'Browse transfer options'}
-          </button>
-        ) : (
-          <ul className="mt-4 max-h-56 space-y-2 overflow-y-auto">
-            {beds.map((bed) => (
-              <li key={bed.bedId}>
+
+        {step === 'pg' ? (
+          <>
+            <p className="mt-3 text-xs text-apg-silver">
+              Choose which property you want to move to. You can transfer within your current PG or
+              to another Awesome PG.
+            </p>
+            {destinationPgs.length === 0 ? (
+              <p className="mt-4 text-sm text-apg-silver">Loading properties…</p>
+            ) : (
+              <ul className="mt-4 max-h-56 space-y-2 overflow-y-auto">
+                {destinationPgs.map((pg) => (
+                  <li key={pg.id}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPgId(pg.id)}
+                      className={`w-full rounded-xl border px-3 py-2 text-left text-sm transition ${
+                        selectedPgId === pg.id
+                          ? 'border-apg-orange/50 bg-apg-orange/10 text-white'
+                          : 'border-white/10 text-apg-silver hover:border-white/20'
+                      }`}
+                    >
+                      <span className="font-medium">{pg.name}</span>
+                      {pg.isCurrentPg ? (
+                        <span className="ml-2 text-[10px] uppercase text-emerald-300">Current PG</span>
+                      ) : null}
+                      {pg.city ? (
+                        <span className="mt-0.5 block text-xs text-apg-silver">{pg.city}</span>
+                      ) : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {selectedPgId ? (
+              <button
+                type="button"
+                onClick={() => loadBeds(selectedPgId)}
+                disabled={pending}
+                className={`${primaryBtn} mt-4 w-full`}
+              >
+                {pending ? 'Loading beds…' : `Browse beds at ${selectedPg?.name ?? 'property'}`}
+              </button>
+            ) : null}
+          </>
+        ) : null}
+
+        {step === 'beds' || step === 'review' ? (
+          <>
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <p className="text-xs text-apg-silver">
+                {selectedPg?.name ?? 'Selected property'} — beds show{' '}
+                <strong className="text-white">Immediate</strong>,{' '}
+                <strong className="text-white">Scheduled</strong>, or{' '}
+                <strong className="text-white">Waitlist</strong>.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setStep('pg');
+                  setBeds([]);
+                  setSelectedBedId(null);
+                  setQuote(null);
+                }}
+                className="shrink-0 text-xs text-apg-orange hover:underline"
+              >
+                Change PG
+              </button>
+            </div>
+            {beds.length === 0 ? (
+              <p className="mt-4 text-sm text-apg-silver">No transfer options available right now.</p>
+            ) : (
+              <ul className="mt-4 max-h-56 space-y-2 overflow-y-auto">
+                {beds.map((bed) => (
+                  <li key={bed.bedId}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedBedId(bed.bedId);
+                        setQuote(null);
+                        if (step === 'review') setStep('beds');
+                      }}
+                      className={`w-full rounded-xl border px-3 py-2 text-left text-sm transition ${
+                        selectedBedId === bed.bedId
+                          ? 'border-apg-orange/50 bg-apg-orange/10 text-white'
+                          : 'border-white/10 text-apg-silver hover:border-white/20'
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span>
+                          Room {bed.roomNumber} · Bed {bed.bedCode} — {paiseToInr(bed.monthlyRentPaise)}/mo
+                        </span>
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${scenarioBadgeClass(bed.scenario.mode)}`}
+                        >
+                          {bed.scenario.label}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-apg-silver">
+                        {bed.scenario.mode === 'immediate'
+                          ? `Earliest move: ${bed.scenario.expectedTransferDate} (today)`
+                          : bed.scenario.mode === 'scheduled'
+                            ? `Checkout ${bed.scenario.occupantCheckoutDate} · Transfer ${bed.scenario.expectedTransferDate}`
+                            : 'Join waitlist — we will notify you when this bed opens'}
+                      </p>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {selectedBed && step === 'beds' && !quote ? (
+              selectedBed.scenario.mode === 'waitlist' ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    setSelectedBedId(bed.bedId);
-                    setQuote(null);
-                  }}
-                  className={`w-full rounded-xl border px-3 py-2 text-left text-sm transition ${
-                    selectedBedId === bed.bedId
-                      ? 'border-apg-orange/50 bg-apg-orange/10 text-white'
-                      : 'border-white/10 text-apg-silver hover:border-white/20'
-                  }`}
+                  onClick={joinWaitlist}
+                  disabled={pending}
+                  className={`${primaryBtn} mt-4 w-full`}
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span>
-                      Room {bed.roomNumber} · Bed {bed.bedCode} — {paiseToInr(bed.monthlyRentPaise)}/mo
-                    </span>
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${scenarioBadgeClass(bed.scenario.mode)}`}
-                    >
-                      {bed.scenario.label}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-apg-silver">
-                    {bed.scenario.mode === 'immediate'
-                      ? `Earliest move: ${bed.scenario.expectedTransferDate} (today)`
-                      : `Checkout ${bed.scenario.occupantCheckoutDate} · Transfer ${bed.scenario.expectedTransferDate}`}
-                  </p>
+                  Join waitlist
                 </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        {selectedBed && !quote ? (
-          selectedBed.scenario.mode === 'waitlist' ? (
-            <button type="button" onClick={joinWaitlist} disabled={pending} className={`${primaryBtn} mt-4 w-full`}>
-              Join waitlist
-            </button>
-          ) : (
-            <button type="button" onClick={loadQuote} disabled={pending} className={`${primaryBtn} mt-4 w-full`}>
-              Preview billing ({selectedBed.scenario.label})
-            </button>
-          )
+              ) : (
+                <button
+                  type="button"
+                  onClick={loadQuote}
+                  disabled={pending}
+                  className={`${primaryBtn} mt-4 w-full`}
+                >
+                  {pending ? 'Calculating…' : `Review billing (${selectedBed.scenario.label})`}
+                </button>
+              )
+            ) : null}
+          </>
         ) : null}
       </ApgCard>
 
-      {quote ? (
+      {quote && step === 'review' ? (
         <ApgCard tier="resident">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-semibold text-white">Transfer summary</h3>
@@ -196,6 +370,17 @@ export function RoomChangeFlow({
               {quote.transferLabel} transfer
             </span>
           </div>
+          {quote.toPgName ? (
+            <p className="mt-2 text-xs text-apg-silver">
+              Destination:{' '}
+              <span className="text-white">
+                {quote.toPgName}
+                {quote.toRoomNumber && quote.toBedCode
+                  ? ` · Room ${quote.toRoomNumber} · Bed ${quote.toBedCode}`
+                  : ''}
+              </span>
+            </p>
+          ) : null}
           {quote.transferMode === 'scheduled' && quote.occupantCheckoutDate ? (
             <dl className="mt-3 space-y-1 text-xs text-apg-silver">
               <div className="flex justify-between">
@@ -203,14 +388,14 @@ export function RoomChangeFlow({
                 <dd className="text-white">{quote.occupantCheckoutDate}</dd>
               </div>
               <div className="flex justify-between">
-                <dt>Expected transfer date</dt>
+                <dt>Your transfer date</dt>
                 <dd className="text-white">{quote.expectedTransferDate}</dd>
               </div>
             </dl>
           ) : (
             <p className="mt-2 text-xs text-apg-silver">
-              Move type: <span className="text-white">Immediate</span> — after admin approval and
-              required payments you can move right away.
+              Move type: <span className="text-white">Immediate</span> — after payment your bed
+              transfer completes automatically.
             </p>
           )}
           <ul className="mt-3 space-y-2">
@@ -228,7 +413,21 @@ export function RoomChangeFlow({
             Total due: {paiseToInr(quote.totalDuePaise)}
           </p>
           <button type="button" onClick={submit} disabled={pending} className={`${primaryBtn} mt-4 w-full`}>
-            Submit {quote.transferLabel.toLowerCase()} transfer request
+            {pending
+              ? 'Confirming…'
+              : quote.totalDuePaise > 0
+                ? 'Confirm & pay'
+                : 'Confirm room change'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setQuote(null);
+              setStep('beds');
+            }}
+            className="mt-2 w-full text-center text-xs text-apg-silver hover:text-white"
+          >
+            Back to bed list
           </button>
         </ApgCard>
       ) : null}

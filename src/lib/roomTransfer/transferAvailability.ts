@@ -18,6 +18,7 @@ import {
 import { BLOCKING_RESERVATION_STATUS_SQL } from '@/src/lib/reservationBlocking';
 import { formatDate, parseDate, todayString } from '@/src/lib/dates';
 import { isBedAvailable } from '@/src/services/availability';
+import { bedAvailableCalendarDate } from '@/src/lib/vacating/vacatingBedSemantics';
 
 export type RoomTransferMode = 'immediate' | 'scheduled' | 'waitlist';
 
@@ -111,7 +112,7 @@ export async function classifyTransferAvailability(
       mode: 'immediate',
       expectedTransferDate: asOfDate,
       label: 'Immediate',
-      summary: 'Destination bed is vacant — move as soon as admin approves and payments clear.',
+      summary: 'Destination bed is vacant — move after required payments, without admin approval.',
     };
   }
 
@@ -142,7 +143,7 @@ export async function classifyTransferAvailability(
   }
 
   const checkoutDate = vacating.vacatingDate;
-  const expectedTransferDate = checkoutDate;
+  const expectedTransferDate = bedAvailableCalendarDate(checkoutDate);
 
   return {
     mode: 'scheduled',
@@ -150,8 +151,12 @@ export async function classifyTransferAvailability(
     occupantCheckoutDate: checkoutDate,
     sourceVacatingRequestId: vacating.vacatingRequestId,
     label: 'Scheduled',
-    summary: `Reserved after current occupant checks out on ${checkoutDate}.`,
+    summary: `Bed available ${expectedTransferDate} at 12:00 AM (after checkout on ${checkoutDate}).`,
   };
+}
+
+export function scheduledTransferDateFromVacatingDate(vacatingDate: string): string {
+  return bedAvailableCalendarDate(vacatingDate);
 }
 
 export function transferModeLabel(mode: RoomTransferMode): 'Immediate' | 'Scheduled' | 'Waitlist' {

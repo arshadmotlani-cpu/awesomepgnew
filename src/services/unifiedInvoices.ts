@@ -973,6 +973,11 @@ export async function markUnifiedInvoicePaid(
   });
 
   await logInvoiceAudit(invoiceId, 'paid', { paymentId }, actor);
+
+  const { tryCompleteRoomChangeAfterInvoice } = await import(
+    '@/src/services/roomTransferLifecycle'
+  );
+  await tryCompleteRoomChangeAfterInvoice(invoiceId).catch(() => undefined);
 }
 
 export async function createPaymentLinkForInvoice(invoiceId: string) {
@@ -990,7 +995,7 @@ export async function createPaymentLinkForInvoice(invoiceId: string) {
       ? 'electricity'
       : detail.invoiceType === 'deposit'
         ? 'deposit'
-        : detail.invoiceType === 'combined'
+        : detail.invoiceType === 'combined' || detail.invoiceType === 'room_shift'
           ? 'combined'
           : 'rent';
 
@@ -1011,6 +1016,7 @@ export async function createPaymentLinkForInvoice(invoiceId: string) {
     depositComponentPaise: depositComponent > 0 ? depositComponent : undefined,
     invoiceNumber: detail.invoiceNumber,
     invoiceBreakdown: detail.breakdown ?? undefined,
+    bookingId: detail.bookingId ?? undefined,
   });
 
   if (!link.ok) return link;

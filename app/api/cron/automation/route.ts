@@ -8,6 +8,7 @@ import { processFixedStayAutoExpiryBatch } from '@/src/services/fixedStayAutoExp
 import { processVacatingPastDueDaily } from '@/src/services/vacatingPastDue';
 import { syncActionItemsForCron } from '@/src/services/actionItems';
 import { runGhostBookingAudit } from '@/src/services/ghostBookingAudit';
+import { processDueScheduledRoomTransfers } from '@/src/services/roomTransferLifecycle';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -35,6 +36,10 @@ async function handle(req: NextRequest) {
   const fixedStayExpiry = await processFixedStayAutoExpiryBatch();
   await syncActionItemsForCron().catch(() => undefined);
   const ghostAudit = await runGhostBookingAudit().catch(() => ({ issues: [] }));
+  const scheduledRoomTransfers = await processDueScheduledRoomTransfers().catch(() => ({
+    completed: 0,
+    errors: 0,
+  }));
 
   return Response.json({
     ok: true,
@@ -43,6 +48,7 @@ async function handle(req: NextRequest) {
     actionItemsSynced: true,
     vacatingPastDue,
     fixedStayExpiry,
+    scheduledRoomTransfers,
     ghostBookingIssues:
       'summary' in ghostAudit ? ghostAudit.summary.totalIssues : 0,
     at: new Date().toISOString(),

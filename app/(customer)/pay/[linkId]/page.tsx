@@ -129,7 +129,9 @@ export default async function PaymentLinkPage({
         </section>
       ) : null}
 
-      {(link.purpose === 'deposit' && link.bookingId) || link.rentInvoiceId ? (
+      {(link.purpose === 'deposit' && link.bookingId) ||
+      link.rentInvoiceId ||
+      link.invoiceId ? (
         <section className="mt-6">
           <PaymentFlowErrorBoundary
             page="payment-link"

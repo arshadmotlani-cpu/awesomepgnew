@@ -252,3 +252,6 @@ See [[BUGS]] for full list. Highlights:
 
 <!-- DOC_SYNC_TOUCH_2026-08-25 -->
 > **2026-08-25 08:30:39 UTC** — Code changed in: Routes. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-08-26 -->
+> **2026-08-26 10:49:21 UTC** — Code changed in: Routes, Billing. Manual review recommended.

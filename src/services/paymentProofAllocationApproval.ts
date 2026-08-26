@@ -296,6 +296,12 @@ async function approveDepositLinkWithAllocation(
   ) {
     return { ok: false, message: 'No payment proof (transaction ID or screenshot) submitted.' };
   }
+
+  if (link.purpose === 'combined' && link.invoiceId) {
+    const { approveDepositLinkPaymentProof } = await import('@/src/services/residentCharges');
+    return approveDepositLinkPaymentProof(session, linkId);
+  }
+
   if (!link.bookingId) return { ok: false, message: 'Deposit link missing booking.' };
 
   const paymentId = `deposit-link-proof-${linkId}`;

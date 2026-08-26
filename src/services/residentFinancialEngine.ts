@@ -410,7 +410,13 @@ async function buildOtherCategory(
     .where(
       and(
         eq(financialInvoices.customerId, customerId),
-        inArray(financialInvoices.invoiceType, ['custom', 'penalty', 'damage', 'ps4']),
+        inArray(financialInvoices.invoiceType, [
+          'custom',
+          'penalty',
+          'damage',
+          'ps4',
+          'room_shift',
+        ]),
         eq(financialInvoices.isDocumentOnly, false),
         inArray(financialInvoices.status, ['draft', 'sent', 'overdue', 'partial']),
       ),

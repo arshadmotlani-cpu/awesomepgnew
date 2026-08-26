@@ -438,6 +438,129 @@ export async function submitDepositLinkPaymentProof(
   return { ok: true };
 }
 
+export async function submitInvoiceLinkPaymentProof(
+  linkId: string,
+  customerId: string,
+  proof: { transactionRef: string; paymentProofUrl?: string | null },
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (!customerId?.trim()) {
+    return { ok: false, message: 'Sign in required.' };
+  }
+  const [link] = await db
+    .select()
+    .from(paymentLinks)
+    .where(eq(paymentLinks.id, linkId))
+    .limit(1);
+  if (!link || link.status !== 'active') {
+    return { ok: false, message: 'Payment link not found or no longer active.' };
+  }
+  if (link.residentId !== customerId) {
+    return { ok: false, message: 'This payment link belongs to another resident.' };
+  }
+  if (!link.invoiceId) {
+    return { ok: false, message: 'This link is not tied to an invoice.' };
+  }
+
+  const proofUrl = proof.paymentProofUrl?.trim() || null;
+  const rawTxn = proof.transactionRef.trim();
+
+  let flags: {
+    possibleDuplicate: boolean;
+    duplicateOfIds: string[];
+  };
+  try {
+    const { resolveDuplicateFlagsForSubmit } = await import('@/src/services/pgTransactionRefIndex');
+    flags = await resolveDuplicateFlagsForSubmit({
+      transactionRef: proof.transactionRef,
+      exclude: { kind: 'payment_link', id: linkId },
+    });
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+
+  const {
+    evaluatePaymentReviewInvariants,
+    paymentReviewInvariantErrorMessage,
+  } = await import('@/src/lib/payments/paymentReviewInvariants');
+  const { hasDuplicatePendingPaymentProofUrl } = await import(
+    '@/src/lib/payments/duplicatePendingPaymentProof'
+  );
+  const duplicatePendingScreenshot = proofUrl
+    ? await hasDuplicatePendingPaymentProofUrl({
+        pgId: link.pgId,
+        paymentProofUrl: proofUrl,
+        exclude: { kind: 'deposit_link', id: linkId },
+      })
+    : false;
+  const [bookingRow] = link.bookingId
+    ? await db
+        .select({ status: bookings.status })
+        .from(bookings)
+        .where(eq(bookings.id, link.bookingId))
+        .limit(1)
+    : [null];
+  const invariant = evaluatePaymentReviewInvariants({
+    kind: 'deposit_link',
+    invoiceId: linkId,
+    customerId: link.residentId,
+    bookingId: link.bookingId,
+    billingMonth: null,
+    expectedAmountPaise: link.amount,
+    proofAmountPaise: link.amount,
+    paymentProofUrl: proofUrl,
+    transactionRef: rawTxn,
+    status: link.status,
+    bookingStatus: bookingRow?.status ?? null,
+    duplicatePendingScreenshot,
+  });
+  if (!invariant.ok) {
+    const { alertHealthBrainPaymentReviewInvariant } = await import(
+      '@/src/lib/health/healthBrainIncidents'
+    );
+    await alertHealthBrainPaymentReviewInvariant({
+      kind: 'deposit_link',
+      invoiceId: linkId,
+      customerId: link.residentId,
+      paymentProofUrl: proofUrl,
+      source: 'proof_submit',
+      violations: invariant.violations,
+    });
+    return { ok: false, message: paymentReviewInvariantErrorMessage(invariant) };
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(paymentLinks)
+      .set({
+        paymentProofUrl: proofUrl,
+        paymentProofTransactionRef: rawTxn,
+        possibleDuplicate: flags.possibleDuplicate,
+        duplicateOfIds: flags.duplicateOfIds,
+      })
+      .where(eq(paymentLinks.id, linkId));
+
+    const { supersedeActiveRejection } = await import('@/src/services/paymentProofRejectionService');
+    await supersedeActiveRejection('payment_link', linkId, tx);
+  });
+
+  if (proofUrl) {
+    const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
+    await linkResidentUpload({
+      storagePath: proofUrl,
+      adminQueue: 'operations',
+      linkedEntity: 'payment_link',
+      linkedEntityId: linkId,
+      bookingId: link.bookingId,
+      pgId: link.pgId,
+    }).catch(() => undefined);
+  }
+
+  const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
+  scheduleAdminNotificationSync();
+
+  return { ok: true };
+}
+
 export async function listPendingDepositLinkProofsForPg(pgId: string) {
   return db
     .select({
@@ -451,19 +574,23 @@ export async function listPendingDepositLinkProofsForPg(pgId: string) {
       duplicateOfIds: paymentLinks.duplicateOfIds,
       title: paymentLinks.title,
       bookingId: paymentLinks.bookingId,
+      purpose: paymentLinks.purpose,
+      invoiceId: paymentLinks.invoiceId,
     })
     .from(paymentLinks)
     .innerJoin(customers, eq(customers.id, paymentLinks.residentId))
     .where(
       and(
         eq(paymentLinks.pgId, pgId),
-        eq(paymentLinks.purpose, 'deposit'),
         eq(paymentLinks.status, 'active'),
         or(
           isNotNull(paymentLinks.paymentProofUrl),
           isNotNull(paymentLinks.paymentProofTransactionRef),
         ),
-        isNotNull(paymentLinks.bookingId),
+        or(
+          and(eq(paymentLinks.purpose, 'deposit'), isNotNull(paymentLinks.bookingId)),
+          and(eq(paymentLinks.purpose, 'combined'), isNotNull(paymentLinks.invoiceId)),
+        ),
       ),
     );
 }
@@ -492,7 +619,87 @@ export async function approveDepositLinkPaymentProof(
       return { ok: false, message: 'No payment proof uploaded.' };
     }
   }
-  if (link.status !== 'active' || link.purpose !== 'deposit' || !link.bookingId) {
+  if (link.status !== 'active') {
+    return { ok: false, message: 'This payment link is not awaiting approval.' };
+  }
+
+  if (link.purpose === 'combined' && link.invoiceId) {
+    const {
+      evaluatePaymentReviewInvariants,
+      paymentReviewInvariantErrorMessage,
+    } = await import('@/src/lib/payments/paymentReviewInvariants');
+    const { hasDuplicatePendingPaymentProofUrl } = await import(
+      '@/src/lib/payments/duplicatePendingPaymentProof'
+    );
+    const duplicatePendingScreenshot = link.paymentProofUrl?.trim()
+      ? await hasDuplicatePendingPaymentProofUrl({
+          pgId: link.pgId,
+          paymentProofUrl: link.paymentProofUrl,
+          exclude: { kind: 'deposit_link', id: linkId },
+        })
+      : false;
+    const [bookingRow] = link.bookingId
+      ? await db
+          .select({ status: bookings.status })
+          .from(bookings)
+          .where(eq(bookings.id, link.bookingId))
+          .limit(1)
+      : [null];
+    const invariant = evaluatePaymentReviewInvariants({
+      kind: 'deposit_link',
+      invoiceId: linkId,
+      customerId: link.residentId,
+      bookingId: link.bookingId,
+      billingMonth: null,
+      expectedAmountPaise: link.amount,
+      proofAmountPaise: link.amount,
+      paymentProofUrl: link.paymentProofUrl,
+      transactionRef: link.paymentProofTransactionRef,
+      status: link.status,
+      bookingStatus: bookingRow?.status ?? null,
+      duplicatePendingScreenshot,
+    });
+    if (!invariant.ok) {
+      return { ok: false, message: paymentReviewInvariantErrorMessage(invariant) };
+    }
+
+    try {
+      const { insertApprovedTransactionRefOrThrow } = await import(
+        '@/src/services/pgTransactionRefIndex'
+      );
+      await insertApprovedTransactionRefOrThrow({
+        transactionRef: link.paymentProofTransactionRef,
+        sourceKind: 'payment_link',
+        sourceId: link.id,
+        approvedByAdminId: session.adminId,
+      });
+    } catch (err) {
+      const { approvedTransactionRefConflictMessage } = await import(
+        '@/src/lib/payments/transactionRefDuplicate'
+      );
+      if (err instanceof Error && err.message === approvedTransactionRefConflictMessage()) {
+        return { ok: false, message: err.message };
+      }
+      throw err;
+    }
+
+    const { allocateInvoicePayment } = await import('@/src/services/invoicePayment');
+    const paymentResult = await allocateInvoicePayment({
+      invoiceId: link.invoiceId,
+      amountPaise: link.amount,
+      providerPaymentId: `invoice-link-proof-${linkId}`,
+      offlineProvider: 'upi_manual',
+    });
+    if (!paymentResult.ok) {
+      return { ok: false, message: paymentResult.error };
+    }
+
+    await db.update(paymentLinks).set({ status: 'paid' }).where(eq(paymentLinks.id, linkId));
+    revalidateFinancialViews();
+    return { ok: true };
+  }
+
+  if (link.purpose !== 'deposit' || !link.bookingId) {
     return { ok: false, message: 'This deposit link is not awaiting approval.' };
   }
 
