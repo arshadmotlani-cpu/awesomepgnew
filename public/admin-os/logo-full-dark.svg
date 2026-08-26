@@ -1,10 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 184" role="img" aria-label="APG OS Admin Panel">
-  <g transform="translate(20,16)">
-    <path d="M76 8 L136 44 L136 116 L76 152 L16 116 L16 44 Z" fill="rgba(37,99,235,0.12)" stroke="#60A5FA" stroke-width="8" stroke-linejoin="round"/>
-    <path fill="#3B82F6" fill-rule="evenodd" d="M76 36 L106 122 H96 L90 104 H62 L56 122 H46 Z M54 96 H98 L76 68 Z"/>
-  </g>
-  <text x="168" y="68" fill="#FFFFFF" font-family="ui-sans-serif, system-ui, -apple-system, sans-serif" font-size="40" font-weight="600" letter-spacing="-1.2">APG OS</text>
-  <text x="169" y="96" fill="#94A3B8" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="500" letter-spacing="2.2">ADMIN PANEL</text>
-  <text x="169" y="124" fill="#64748B" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10" font-weight="500" letter-spacing="1.6">OPERATE. MANAGE. CONTROL.</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 462" role="img" aria-label="PG">
+  <image href="pg-admin-mark.png" width="512" height="462" preserveAspectRatio="xMidYMid meet"/>
 </svg>

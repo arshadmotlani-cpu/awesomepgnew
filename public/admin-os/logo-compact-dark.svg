@@ -1,9 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 120" role="img" aria-label="APG OS">
-  <g transform="translate(12,8)">
-    <path d="M52 6 L92 32 L92 84 L52 110 L12 84 L12 32 Z" fill="#2563EB" stroke="#3B82F6" stroke-width="6" stroke-linejoin="round"/>
-    <path fill="#FFFFFF" fill-rule="evenodd" d="M52 28 L72 92 H66 L62 82 H42 L38 92 H32 Z M40 76 H64 L52 56 Z"/>
-  </g>
-  <text x="112" y="52" fill="#FFFFFF" font-family="ui-sans-serif, system-ui, sans-serif" font-size="28" font-weight="600" letter-spacing="-0.8">APG OS</text>
-  <text x="113" y="72" fill="#94A3B8" font-family="ui-sans-serif, system-ui, sans-serif" font-size="9" font-weight="500" letter-spacing="1.8">ADMIN PANEL</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 462" role="img" aria-label="PG">
+  <image href="pg-admin-mark.png" width="512" height="462" preserveAspectRatio="xMidYMid meet"/>
 </svg>

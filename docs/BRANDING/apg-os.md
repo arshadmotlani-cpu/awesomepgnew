@@ -16,21 +16,24 @@ Enterprise · Control · Operating system
 
 ## Symbol
 
-Sentinel shield + geometric **A** (Concept 02 — approved).
+Interlocking geometric **PG** mark (metallic white P, orange→gold G) on dark charcoal rounded square. The mark itself is the logo — no “ADMIN” word, house, or bed.
 
 ## Logo usage
 
-- Sidebar: compact lockup (`ApgOsSidebarBrand`)
-- Auth: `AdminLoginShell` + `ApgOsLogoLockup`
-- Favicons: SVG under `/admin-os/`
+- Sidebar: `ApgOsSidebarBrand` (uses `ApgOsMark`)
+- Header: `ApgOsMark` in `AdminTopNav`
+- Auth: `AdminLoginShell`
+- Favicons: PNG under `/admin-os/` (`pg-admin-mark.png` is canonical)
 
 ## Do
 
 - Use `apgOsAdminMetadata` on all admin layouts
-- Use shield geometry from `apgOsIconGeometry.ts` for any new SVG
+- Use `public/admin-os/pg-admin-mark.png` as the only mark source
 
 ## Don’t
 
+- Redesign or substitute a different PG monogram
+- Stretch, crop, or add taglines to the mark
 - Reintroduce customer orange in **shell** chrome (in-app CTAs may still use legacy orange until a separate pass)
 - Use Awesome PG house mark on admin login
 

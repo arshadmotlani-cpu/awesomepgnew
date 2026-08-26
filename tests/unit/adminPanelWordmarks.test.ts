@@ -9,13 +9,18 @@ function read(rel: string) {
   return readFileSync(join(root, rel), 'utf8');
 }
 
+test('Awesome PG admin header uses the finalized PG mark, not a text wordmark', () => {
+  const source = read('src/components/admin/AdminTopNav.tsx');
+  assert.match(source, /from '@\/src\/components\/brand\/apg-os\/ApgOsMark'/);
+  assert.match(source, /<ApgOsMark\b/);
+  assert.doesNotMatch(
+    source,
+    /font-extrabold[^>]*>\s*PG\s*<\/span>/s,
+    'header must not render a text "PG" wordmark in place of the logo',
+  );
+});
+
 const HEADERS: Array<{ product: string; file: string; label: string; color: RegExp }> = [
-  {
-    product: 'Awesome PG',
-    file: 'src/components/admin/AdminTopNav.tsx',
-    label: 'PG',
-    color: /--apg-os-primary,#2563EB/,
-  },
   {
     product: 'Hair (Soft)',
     file: 'src/hair/components/HairAppHeader.tsx',
@@ -45,10 +50,7 @@ const HEADERS: Array<{ product: string; file: string; label: string; color: RegE
 for (const { product, file, label, color } of HEADERS) {
   test(`${product} admin header shows the "${label}" wordmark in its brand colour`, () => {
     const source = read(file);
-    const wordmark = new RegExp(
-      `font-extrabold[^>]*>\\s*${label}\\s*<\\/span>`,
-      's',
-    );
+    const wordmark = new RegExp(`font-extrabold[^>]*>\\s*${label}\\s*<\\/span>`, 's');
 
     assert.match(source, wordmark, `${file} must render a bold "${label}" wordmark`);
     assert.match(source, color, `${file} wordmark must use the product brand colour`);

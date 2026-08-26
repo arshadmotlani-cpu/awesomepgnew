@@ -18,7 +18,7 @@ Customer PNG fallbacks: `public/icons/apg-*` (exported).
 
 ## APG OS — `public/admin-os/`
 
-See `docs/BRANDING/apg-os.md`. Full SVG set already in repo.
+Canonical mark: `pg-admin-mark.png` (interlocking PG). PNG icons: `favicon-*.png`, `icon-*.png`, `apple-touch-icon.png`. SVG filenames remain as wrappers around those PNGs.
 
 ## Capital OS — `public/capital-os/`
 
@@ -49,7 +49,7 @@ Same size ladder. Purple FY monogram SVGs.
 
 | Check | Awesome PG | APG OS | Capital | FYH |
 |-------|------------|--------|---------|-----|
-| Favicon loads | `/awesome-pg/favicon-32.svg` | `/admin-os/favicon-32.svg` | `/capital-os/favicon-32.svg` | `/fyh/favicon-32.svg` |
+| Favicon loads | `/awesome-pg/favicon-32.svg` | `/admin-os/favicon-32.png` | `/capital-os/favicon-32.svg` | `/fyh/favicon-32.svg` |
 | Title template | layout | admin layout | capital layout | hair layout |
 | Login branded | N/A (OTP) | AdminLoginShell | Capital login | FyhLoginBrandHeader |
 | Sidebar branded | SiteHeader | ApgOsSidebarBrand | CapitalOsLogoLockup | FyhSidebarBrand |

@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="APG OS">
-  <path d="M256 88 L401.435 172 L401.435 340 L256 424 L110.565 340 L110.565 172 Z" fill="none" stroke="#FFFFFF" stroke-width="22" stroke-linejoin="round"/>
-  <path fill="#FFFFFF" fill-rule="evenodd" d="M256 176 L328 348 H304 L256 248 L208 348 H184 Z M228 292 H284 L256 252 Z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="PG">
+  <image href="icon-512.png" width="512" height="512" preserveAspectRatio="xMidYMid meet"/>
 </svg>

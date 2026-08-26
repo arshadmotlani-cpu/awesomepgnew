@@ -3,23 +3,21 @@ import { APG_OS, APG_OS_BRAND } from '@/src/lib/brand/apgOsTokens';
 
 const iconBase = '/admin-os';
 
-const svgIcon = (file: string, sizes: string) =>
-  ({ url: `${iconBase}/${file}`, sizes, type: 'image/svg+xml' }) as const;
+const pngIcon = (file: string, sizes: string) =>
+  ({ url: `${iconBase}/${file}`, sizes, type: 'image/png' }) as const;
 
 export const apgOsAdminIcons: Metadata['icons'] = {
   icon: [
-    svgIcon('favicon-16.svg', '16x16'),
-    svgIcon('favicon-20.svg', '20x20'),
-    svgIcon('favicon-24.svg', '24x24'),
-    svgIcon('favicon-32.svg', '32x32'),
-    svgIcon('favicon-48.svg', '48x48'),
-    svgIcon('icon-64.svg', '64x64'),
-    svgIcon('icon-128.svg', '128x128'),
-    svgIcon('icon-192.svg', '192x192'),
-    svgIcon('icon-512.svg', '512x512'),
+    pngIcon('favicon-16.png', '16x16'),
+    pngIcon('favicon-32.png', '32x32'),
+    pngIcon('favicon-48.png', '48x48'),
+    pngIcon('icon-64.png', '64x64'),
+    pngIcon('icon-128.png', '128x128'),
+    pngIcon('icon-192.png', '192x192'),
+    pngIcon('icon-512.png', '512x512'),
   ],
-  apple: [svgIcon('apple-touch-icon.svg', '180x180')],
-  shortcut: `${iconBase}/favicon-32.svg`,
+  apple: [pngIcon('apple-touch-icon.png', '180x180')],
+  shortcut: `${iconBase}/favicon-32.png`,
 };
 
 /** Shared metadata for all Admin Panel routes (auth + authenticated shell). */
@@ -44,7 +42,7 @@ export const apgOsAdminMetadata: Metadata = {
     siteName: APG_OS.name,
     images: [
       {
-        url: `${iconBase}/og-mark.svg`,
+        url: `${iconBase}/icon-512.png`,
         width: 512,
         height: 512,
         alt: `${APG_OS.name} mark`,
@@ -53,7 +51,7 @@ export const apgOsAdminMetadata: Metadata = {
   },
   other: {
     'msapplication-TileColor': APG_OS_BRAND.color.bgShell,
-    'msapplication-TileImage': `${iconBase}/icon-512.svg`,
+    'msapplication-TileImage': `${iconBase}/icon-512.png`,
     'mobile-web-app-capable': 'yes',
   },
 };
