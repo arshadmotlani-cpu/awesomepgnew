@@ -3,20 +3,22 @@ import { CAPITAL_OS, CAPITAL_OS_BRAND } from '@/src/lib/brand/capitalOsTokens';
 
 const base = CAPITAL_OS_BRAND.assetBase;
 
-const svgIcon = (file: string, sizes: string) =>
-  ({ url: `${base}/${file}`, sizes, type: 'image/svg+xml' }) as const;
+const pngIcon = (file: string, sizes: string) =>
+  ({ url: `${base}/${file}`, sizes, type: 'image/png' }) as const;
 
 export const capitalOsIcons: Metadata['icons'] = {
   icon: [
-    svgIcon('favicon-16.svg', '16x16'),
-    svgIcon('favicon-32.svg', '32x32'),
-    svgIcon('icon-192.svg', '192x192'),
-    svgIcon('icon-512.svg', '512x512'),
-    { url: '/capital/icons/favicon-32.png', sizes: '32x32', type: 'image/png' },
+    pngIcon('favicon-16.png', '16x16'),
+    pngIcon('favicon-32.png', '32x32'),
+    pngIcon('favicon-48.png', '48x48'),
+    pngIcon('icon-64.png', '64x64'),
+    pngIcon('icon-128.png', '128x128'),
+    pngIcon('icon-192.png', '192x192'),
+    pngIcon('icon-512.png', '512x512'),
     { url: '/capital/icons/favicon.ico', sizes: '32x32' },
   ],
-  apple: [svgIcon('apple-touch-icon.svg', '180x180')],
-  shortcut: `${base}/favicon-32.svg`,
+  apple: [pngIcon('apple-touch-icon.png', '180x180')],
+  shortcut: `${base}/favicon-32.png`,
 };
 
 export const capitalOsMetadata: Metadata = {
@@ -34,17 +36,17 @@ export const capitalOsMetadata: Metadata = {
     description: CAPITAL_OS.tagline,
     images: [
       {
-        url: `${base}/og-mark.svg`,
+        url: `${base}/icon-512.png`,
         width: 512,
         height: 512,
-        alt: CAPITAL_OS.name,
+        alt: 'AUTO',
       },
     ],
   },
   twitter: {
     card: 'summary',
     title: CAPITAL_OS.name,
-    images: [`${base}/og-mark.svg`],
+    images: [`${base}/icon-512.png`],
   },
   appleWebApp: {
     capable: true,

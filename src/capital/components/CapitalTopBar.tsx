@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Search } from 'lucide-react';
 import { logoutAction } from '@/src/capital/actions/auth';
 import { CapitalMobileNav } from '@/src/capital/components/CapitalMobileNav';
+import { CapitalOsMark } from '@/src/components/brand/capital-os/CapitalOsMark';
 import { Button } from '@/src/capital/components/ui/button';
 import { Input } from '@/src/capital/components/ui/input';
 import { CAPITAL_OS } from '@/src/lib/brand/capitalOsTokens';
@@ -15,9 +16,7 @@ export function CapitalTopBar({ admin }: CapitalTopBarProps) {
   return (
     <header className="ac-app-header">
       <div className="ac-app-header-row">
-        <span className="shrink-0 text-xl font-extrabold tracking-tight text-ac-accent sm:text-2xl">
-          Capital
-        </span>
+        <CapitalOsMark size={32} className="shrink-0" title="AUTO" />
         <CapitalMobileNav />
         <div className="ac-app-header-title md:hidden">
           <p className="truncate text-xs uppercase tracking-wide text-ac-accent">

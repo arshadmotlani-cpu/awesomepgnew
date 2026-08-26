@@ -11,39 +11,39 @@
   "categories": ["business", "finance", "productivity"],
   "icons": [
     {
-      "src": "/capital-os/favicon-32.svg",
+      "src": "/capital-os/favicon-32.png",
       "sizes": "32x32",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/capital-os/icon-64.svg",
+      "src": "/capital-os/icon-64.png",
       "sizes": "64x64",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/capital-os/icon-128.svg",
+      "src": "/capital-os/icon-128.png",
       "sizes": "128x128",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/capital-os/apple-touch-icon.svg",
+      "src": "/capital-os/apple-touch-icon.png",
       "sizes": "180x180",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/capital-os/icon-192.svg",
+      "src": "/capital-os/icon-192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/capital-os/icon-512.svg",
+      "src": "/capital-os/icon-512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
     },
     {

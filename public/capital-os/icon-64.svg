@@ -1,8 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Capital OS">
-  <rect x="96" y="96" width="320" height="320" rx="72" fill="#0F172A"/>
-  <rect x="140" y="320" width="56" height="80" rx="8" fill="#22C55E"/>
-  <rect x="228" y="260" width="56" height="140" rx="8" fill="#22C55E"/>
-  <rect x="316" y="200" width="56" height="200" rx="8" fill="#22C55E"/>
-  <line x1="120" y1="400" x2="392" y2="400" stroke="#16A34A" stroke-width="12" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="AUTO">
+  <image href="icon-64.png" width="64" height="64" preserveAspectRatio="xMidYMid meet"/>
 </svg>

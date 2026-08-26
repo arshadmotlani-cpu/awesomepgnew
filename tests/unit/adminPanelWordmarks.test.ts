@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 
@@ -20,18 +20,23 @@ test('Awesome PG admin header uses the finalized PG mark, not a text wordmark', 
   );
 });
 
+test('Automotive Capital admin header uses the finalized AUTO mark, not a text wordmark', () => {
+  const source = read('src/capital/components/CapitalTopBar.tsx');
+  assert.match(source, /from '@\/src\/components\/brand\/capital-os\/CapitalOsMark'/);
+  assert.match(source, /<CapitalOsMark\b/);
+  assert.doesNotMatch(
+    source,
+    /font-extrabold[^>]*>\s*Capital\s*<\/span>/s,
+    'header must not render a text "Capital" wordmark in place of the logo',
+  );
+});
+
 const HEADERS: Array<{ product: string; file: string; label: string; color: RegExp }> = [
   {
     product: 'Hair (Soft)',
     file: 'src/hair/components/HairAppHeader.tsx',
     label: 'Soft',
     color: /#C4A574/,
-  },
-  {
-    product: 'Automotive Capital',
-    file: 'src/capital/components/CapitalTopBar.tsx',
-    label: 'Capital',
-    color: /text-ac-accent/,
   },
   {
     product: 'Owner OS',

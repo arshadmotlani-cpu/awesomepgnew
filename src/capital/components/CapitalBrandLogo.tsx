@@ -8,17 +8,17 @@ type CapitalBrandLogoProps = {
   alt?: string;
 };
 
-/** Capital OS brand mark (SVG). */
+/** Automotive Capital AUTO wordmark (reference PNG). */
 export function CapitalBrandLogo({
   size = 32,
   className,
   priority: _priority = false,
-  alt = 'Capital OS',
+  alt = 'AUTO',
 }: CapitalBrandLogoProps) {
   return (
     <CapitalOsMark
       size={size}
-      className={cn('rounded-lg object-cover shadow-lg shadow-black/30', className)}
+      className={cn(className)}
       title={alt}
     />
   );
