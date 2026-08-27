@@ -1,6 +1,7 @@
 import { logoutAction } from '@/src/owner/actions/auth';
 import { OwnerMobileNav } from '@/src/owner/components/OwnerMobileNav';
 import { OwnerMobileSectionTitle } from '@/src/owner/components/OwnerMobileSectionTitle';
+import { OwnerOsMark } from '@/src/components/brand/owner-os/OwnerOsMark';
 import { OWNER_OS } from '@/src/lib/brand/ownerOsMetadata';
 import type { OwnerAdmin } from '@/src/owner/lib/auth/session';
 
@@ -10,9 +11,7 @@ export function OwnerTopBar({ admin }: { admin: OwnerAdmin }) {
   return (
     <header className="oo-app-header">
       <div className="oo-app-header-row">
-        <span className="shrink-0 text-xl font-extrabold tracking-tight text-[color:var(--oo-accent,#FF5A1F)] sm:text-2xl">
-          Owner
-        </span>
+        <OwnerOsMark size={28} className="shrink-0 sm:h-8" title="NET WORTH" />
         <OwnerMobileNav />
         <OwnerMobileSectionTitle />
         <div className="oo-app-header-title hidden min-w-0 md:block">

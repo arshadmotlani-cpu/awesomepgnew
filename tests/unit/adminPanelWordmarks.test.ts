@@ -9,14 +9,14 @@ function read(rel: string) {
   return readFileSync(join(root, rel), 'utf8');
 }
 
-test('Salon Software admin header uses the finalized SOFT mark, not a text wordmark', () => {
-  const source = read('src/hair/components/HairAppHeader.tsx');
-  assert.match(source, /from '@\/src\/components\/brand\/fyh\/FyhMark'/);
-  assert.match(source, /<FyhMark\b/);
+test('Net Worth admin header uses the finalized NET WORTH mark, not a text wordmark', () => {
+  const source = read('src/owner/components/OwnerTopBar.tsx');
+  assert.match(source, /from '@\/src\/components\/brand\/owner-os\/OwnerOsMark'/);
+  assert.match(source, /<OwnerOsMark\b/);
   assert.doesNotMatch(
     source,
-    /font-extrabold[^>]*>\s*Soft\s*<\/span>/s,
-    'header must not render a text "Soft" wordmark in place of the logo',
+    /font-extrabold[^>]*>\s*Owner\s*<\/span>/s,
+    'header must not render a text "Owner" wordmark in place of the logo',
   );
 });
 
@@ -42,13 +42,18 @@ test('Automotive Capital admin header uses the finalized AUTO mark, not a text w
   );
 });
 
+test('Salon Software admin header uses the finalized SOFT mark, not a text wordmark', () => {
+  const source = read('src/hair/components/HairAppHeader.tsx');
+  assert.match(source, /from '@\/src\/components\/brand\/fyh\/FyhMark'/);
+  assert.match(source, /<FyhMark\b/);
+  assert.doesNotMatch(
+    source,
+    /font-extrabold[^>]*>\s*Soft\s*<\/span>/s,
+    'header must not render a text "Soft" wordmark in place of the logo',
+  );
+});
+
 const HEADERS: Array<{ product: string; file: string; label: string; color: RegExp }> = [
-  {
-    product: 'Owner OS',
-    file: 'src/owner/components/OwnerTopBar.tsx',
-    label: 'Owner',
-    color: /--oo-accent,#FF5A1F/,
-  },
   {
     product: 'Platform',
     file: 'src/platform/components/shell/PlatformTopBar.tsx',

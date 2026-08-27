@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { OWNER_OS } from '@/src/lib/brand/ownerOsMetadata';
+import { OwnerOsMark } from '@/src/components/brand/owner-os/OwnerOsMark';
 import { ownerNavGroups } from '@/src/owner/lib/ownerNav';
 
 function isNavActive(activePath: string | undefined, href: string): boolean {
@@ -12,10 +12,7 @@ export function OwnerSidebar({ activePath }: { activePath?: string }) {
   return (
     <aside className="hidden w-56 shrink-0 border-r border-white/10 bg-[#0f141b] p-4 md:block">
       <div className="mb-6">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#FF5A1F]">
-          Owner OS
-        </p>
-        <p className="text-sm font-semibold text-white">{OWNER_OS.name}</p>
+        <OwnerOsMark size={32} className="max-w-full" title="NET WORTH" />
       </div>
       <nav className="space-y-4">
         {ownerNavGroups.map((group) => (

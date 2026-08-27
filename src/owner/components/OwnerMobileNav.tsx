@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Menu, X } from 'lucide-react';
-import { OWNER_OS } from '@/src/lib/brand/ownerOsMetadata';
+import { OwnerOsMark } from '@/src/components/brand/owner-os/OwnerOsMark';
 import { ownerNavGroups } from '@/src/owner/lib/ownerNav';
 
 function isNavActive(pathname: string, href: string): boolean {
@@ -60,12 +60,7 @@ export function OwnerMobileNav() {
                 style={{ paddingTop: 'var(--oo-safe-top)' }}
               >
                 <div className="flex min-h-14 items-center justify-between gap-2 px-3 py-3">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#FF5A1F]">
-                      Owner OS
-                    </p>
-                    <p className="text-sm font-semibold text-white">{OWNER_OS.name}</p>
-                  </div>
+                  <OwnerOsMark size={28} className="max-w-[min(100%,11rem)]" title="NET WORTH" />
                   <button
                     type="button"
                     onClick={closeMenu}

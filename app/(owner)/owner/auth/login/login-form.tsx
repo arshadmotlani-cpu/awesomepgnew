@@ -3,6 +3,7 @@
 import { useActionState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { loginAction, type LoginState } from '@/src/owner/actions/auth';
+import { OwnerOsMark } from '@/src/components/brand/owner-os/OwnerOsMark';
 import { OWNER_OS } from '@/src/lib/brand/ownerOsMetadata';
 
 const initialState: LoginState = {};
@@ -18,8 +19,10 @@ export default function OwnerLoginForm() {
     >
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[color:var(--oo-surface)] p-6 shadow-xl">
         <div className="mb-6 text-center">
-          <p className="text-xs uppercase tracking-wide text-[#FF5A1F]">Owner OS</p>
-          <h1 className="mt-1 text-xl font-semibold text-white">Sign in</h1>
+          <div className="mx-auto mb-4 flex justify-center">
+            <OwnerOsMark size={40} className="max-w-full" title="NET WORTH" />
+          </div>
+          <h1 className="text-xl font-semibold text-white">Sign in</h1>
           <p className="mt-1 text-sm text-[color:var(--oo-muted)]">{OWNER_OS.tagline}</p>
         </div>
         <form action={formAction} className="space-y-4">
