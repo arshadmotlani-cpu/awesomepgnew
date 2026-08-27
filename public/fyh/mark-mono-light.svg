@@ -1,6 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="For Your Hair">
-  <rect x="80" y="80" width="352" height="352" rx="88" fill="none"/>
-  <path fill="#4C1D95" d="M168 160 H344 V200 H216 V272 H320 V312 H216 V352 H168 Z"/>
-  <path fill="#4C1D95" d="M296 160 H344 V256 Q344 312 296 352 H256 V312 Q288 288 288 256 V160 H296 Z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="SOFT">
+  <image href="icon-512.png" width="512" height="512" preserveAspectRatio="xMidYMid meet"/>
 </svg>

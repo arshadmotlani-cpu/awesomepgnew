@@ -1,6 +1,3 @@
-import { FYH_FIELD, FYH_F_PATH, FYH_Y_PATH, FYH_VIEWBOX } from '@/src/lib/brand/fyhIconGeometry';
-import { FYH_BRAND } from '@/src/lib/brand/fyhBrandTokens';
-
 export type FyhIconStyle = 'filled' | 'light' | 'monochrome';
 export type FyhIconSurface = 'dark' | 'light';
 
@@ -12,48 +9,29 @@ type FyhMarkProps = {
   title?: string;
 };
 
-function palette(style: FyhIconStyle, surface: FyhIconSurface) {
-  const m = FYH_BRAND.mark;
+/** Final Salon Software admin mark (reference PNG). Do not substitute a redesigned SVG. */
+export const FYH_MARK_SRC = '/fyh/soft-admin-mark.png';
+export const FYH_MARK_INTRINSIC = { width: 512, height: 152 } as const;
 
-  if (style === 'monochrome') {
-    const letter = surface === 'light' ? '#4C1D95' : '#FFFFFF';
-    return { field: 'none', letter };
-  }
-
-  if (style === 'light' || surface === 'light') {
-    return { field: '#EDE9FE', letter: m.primaryHover };
-  }
-
-  return { field: '#5B21B6', letter: m.onMark };
-}
-
-/** FY monogram — purple brand mark (UI chrome stays forest/gold). */
+/** SOFT wordmark — Salon Software admin panel logo. */
 export function FyhMark({
   size = 32,
-  style = 'filled',
-  surface = 'dark',
   className,
-  title = 'For Your Hair',
+  title = 'SOFT',
 }: FyhMarkProps) {
-  const colors = palette(style, surface);
-  const { x, y, size: s, r } = FYH_FIELD;
-
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox={`0 0 ${FYH_VIEWBOX} ${FYH_VIEWBOX}`}
-      role="img"
-      aria-label={title}
-      className={className}
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <title>{title}</title>
-      {colors.field !== 'none' ? (
-        <rect x={x} y={y} width={s} height={s} rx={r} fill={colors.field} />
-      ) : null}
-      <path fill={colors.letter} d={FYH_F_PATH} />
-      <path fill={colors.letter} d={FYH_Y_PATH} />
-    </svg>
+    // Native img preserves the source aspect ratio (do not force a square box).
+    // eslint-disable-next-line @next/next/no-img-element -- static public brand asset; must not crop/stretch
+    <img
+      src={FYH_MARK_SRC}
+      alt={title}
+      width={FYH_MARK_INTRINSIC.width}
+      height={FYH_MARK_INTRINSIC.height}
+      draggable={false}
+      className={['block max-w-none shrink-0 object-contain object-center', className]
+        .filter(Boolean)
+        .join(' ')}
+      style={{ height: size, width: 'auto' }}
+    />
   );
 }

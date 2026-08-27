@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { Menu, X } from 'lucide-react';
 import { logoutAction } from '@/src/hair/actions/auth';
+import { FyhMark } from '@/src/components/brand/fyh/FyhMark';
 import { FyhSidebarBrand } from '@/src/components/brand/fyh/FyhSidebarBrand';
 import { ThemeToggle } from '@/src/hair/components/ThemeToggle';
 import { HairGlobalSearch } from '@/src/hair/components/HairGlobalSearch';
@@ -25,9 +26,7 @@ export function HairAppHeader({ admin, navEntries }: HairAppHeaderProps) {
     <>
       <header className="sticky top-0 z-[100] border-b border-[color:var(--fyh-border-strong)] bg-fyh-elevated/90 backdrop-blur-xl">
         <div className="flex h-11 min-h-11 items-center gap-2 px-3 sm:gap-2.5 sm:px-3.5 md:px-4">
-          <span className="fyh-display shrink-0 text-lg font-extrabold tracking-tight text-[#C4A574] sm:text-xl">
-            Soft
-          </span>
+          <FyhMark size={28} className="shrink-0 sm:h-8" title="SOFT" />
           <Button
             type="button"
             variant="ghost"
