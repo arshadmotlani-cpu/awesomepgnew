@@ -5,6 +5,8 @@ import { bedAvailableCalendarDate } from '@/src/lib/vacating/vacatingBedSemantic
 
 export type AdminMoveOutFinancialSummary = {
   securityDepositPaise: number;
+  tailRentPaise: number;
+  refundableDepositPaise: number;
   /** Gross unused prepaid rent (before notice). */
   unusedPrepaidRentPaise: number | null;
   noticeDeductionPaise: number;
@@ -28,6 +30,8 @@ export function resolveAdminMoveOutFinancialSummary(
     const refund = buildResidentMoveOutRefundSummary(waterfall, { isEstimate: true });
     return {
       securityDepositPaise: refund.securityDepositPaise,
+      tailRentPaise: refund.tailRentPaise,
+      refundableDepositPaise: refund.refundableDepositPaise,
       unusedPrepaidRentPaise: refund.unusedPrepaidRentPaise,
       noticeDeductionPaise: refund.noticeDeductionPaise,
       netUnusedRentWalletCreditPaise: refund.netUnusedRentWalletCreditPaise,
@@ -40,6 +44,8 @@ export function resolveAdminMoveOutFinancialSummary(
 
   return {
     securityDepositPaise: row.depositHeldPaise,
+    tailRentPaise: 0,
+    refundableDepositPaise: row.estimatedRefundPaise,
     unusedPrepaidRentPaise: null,
     noticeDeductionPaise: row.deductionPaise,
     netUnusedRentWalletCreditPaise: null,

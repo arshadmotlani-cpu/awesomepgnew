@@ -243,11 +243,11 @@ test('Case G — 0083-like: earlier vacate unlocks unused prepaid from paid peri
 
   assert.equal(waterfall20.depositBucket.collectedPaise, deposit205900);
   assert.equal(waterfall15.depositBucket.collectedPaise, deposit205900);
-  assert.equal(waterfall20.rentBucket.consumedPaise, 399_187);
+  assert.equal(waterfall20.rentBucket.consumedPaise, monthly412080 - model20.prepaidAfterVacatingPaise);
   assert.equal(waterfall20.refund.unusedRentPortionPaise, 12_877);
   assert.equal(waterfall20.refund.totalPaise, 218_777);
   assert.equal(waterfall15.stay.stayDays, 26);
-  assert.equal(waterfall15.rentBucket.consumedPaise, 334_802);
+  assert.equal(waterfall15.rentBucket.consumedPaise, monthly412080 - model15.prepaidAfterVacatingPaise);
   assert.equal(waterfall15.rentBucket.dailyRentPaise, 12_877);
   assert.equal(waterfall15.refund.unusedRentPortionPaise, 77_262);
   assert.equal(waterfall15.refund.totalPaise, 283_162);

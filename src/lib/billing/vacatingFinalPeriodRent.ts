@@ -6,6 +6,7 @@ import type { PaidRentCoveragePeriod } from '@/src/lib/vacating/noticeDeductionE
 import {
   anniversaryBillingPeriod,
   calendarMonthBillingPeriod,
+  dailyRateFromCalendarMonth,
   dailyRateFromMonthly,
   dueDateForBillingDay,
   firstOfMonth,
@@ -190,7 +191,14 @@ export function computeVacatingFinalPeriodRentDecision(input: {
       tailDays = diffDays(tailPeriodStart, tailPeriodEnd) + 1;
     }
   }
-  const dailyRentPaise = dailyRateFromMonthly(input.monthlyRentPaise);
+  const billingCyclePolicy = input.billingCyclePolicy ?? 'anniversary';
+  const dailyRentPaise =
+    billingCyclePolicy === 'calendar_month_1st' && period.periodStart
+      ? dailyRateFromCalendarMonth(
+          input.monthlyRentPaise,
+          firstOfMonth(period.periodStart),
+        )
+      : dailyRateFromMonthly(input.monthlyRentPaise);
   const tailRentPaise = Math.max(0, tailDays * dailyRentPaise);
 
   const cancellationReason = `Vacating notice — ${VACATING_FINAL_PERIOD_CANCEL_REASON_SUFFIX}`;

@@ -97,18 +97,15 @@ export function computeCheckoutSettlementV2(
   const stayDays = stayDaysInclusive(input.stayCheckInDate, input.stayCheckoutDate);
 
   const prepaidAfterVacatingPaise = guardDepositPaise(input.prepaidAfterVacatingPaise ?? 0);
-  const stayConsumedRaw = guardDepositPaise(periodDailyRentPaise * stayDays);
-  const stayConsumedPaise = Math.min(rentPaidPaise, stayConsumedRaw);
 
-  let rentConsumedPaise: number;
-  let unusedRentPaise: number;
-  if (prepaidAfterVacatingPaise > 0) {
-    unusedRentPaise = Math.min(prepaidAfterVacatingPaise, rentPaidPaise);
-    rentConsumedPaise = stayConsumedPaise;
-  } else {
-    rentConsumedPaise = stayConsumedPaise;
-    unusedRentPaise = Math.max(0, rentPaidPaise - rentConsumedPaise);
-  }
+  /**
+   * Unused prepaid rent comes ONLY from billing coverage after vacate (prepaidAfterVacatingPaise).
+   * Never infer unused rent as lifetime rent paid minus a stay-consumption estimate — that
+   * incorrectly refunds long-stay residents when the current billing month is unpaid.
+   */
+  const unusedRentPaise = Math.min(prepaidAfterVacatingPaise, rentPaidPaise);
+  /** Paid rent allocated to occupancy through vacate — excludes unused prepaid credit. */
+  const rentConsumedPaise = Math.max(0, rentPaidPaise - unusedRentPaise);
 
   const noticeApplies = input.noticeApplies !== false;
   const missingNoticeDays = noticeApplies
@@ -163,13 +160,19 @@ export function computeCheckoutSettlementV2(
       step: 2,
       label: 'Rent consumed',
       amountPaise: rentConsumedPaise,
-      explanation: `${stayDays} day${stayDays === 1 ? '' : 's'} × daily rent (${dailyRentPaise} paise/day)`,
+      explanation:
+        unusedRentPaise > 0
+          ? `Paid rent through vacate (${rentConsumedPaise} paise) — unused prepaid after vacate is credited separately`
+          : `${stayDays} day${stayDays === 1 ? '' : 's'} of stay through vacate — paid rent consumed (${rentConsumedPaise} paise)`,
     },
     {
       step: 2,
       label: 'Unused rent',
       amountPaise: unusedRentPaise,
-      explanation: 'Rent paid minus rent consumed for actual stay',
+      explanation:
+        unusedRentPaise > 0
+          ? 'Prepaid rent for paid days after vacate (billing coverage SSOT)'
+          : 'No prepaid rent remains after vacate date',
     },
     {
       step: 3,
@@ -208,9 +211,10 @@ export function computeCheckoutSettlementV2(
       ? [
           {
             step: 5,
-            label: 'Rent through vacate date',
+            label: 'Tail rent (unpaid occupancy)',
             amountPaise: tailRentPaise,
-            explanation: 'Final anniversary period (tail days) — no separate rent invoice',
+            explanation:
+              'Unpaid rent for occupied days in the final billing period — deducted from deposit',
           } satisfies CheckoutSettlementWaterfallLine,
         ]
       : []),

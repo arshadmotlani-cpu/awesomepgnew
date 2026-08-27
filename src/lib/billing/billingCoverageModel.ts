@@ -357,6 +357,7 @@ export function buildBillingCoverageModel(input: BuildBillingCoverageInput): Bil
       vacatingDate,
       paidRentPeriods: paidInvoiceCoverage,
       billingDay,
+      billingCyclePolicy,
     });
   }
 

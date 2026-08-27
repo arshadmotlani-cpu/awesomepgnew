@@ -19,6 +19,7 @@ test('notice fully covered by unused rent — deposit untouched', () => {
     missingNoticeDays: Math.ceil(noticeFromRent / DAILY),
     noticeApplies: true,
     electricityPaise: 0,
+    prepaidAfterVacatingPaise: unusedRent,
   });
   assert.equal(w.rentBucket.unusedPaise, unusedRent);
   assert.equal(w.notice.fullPaise, noticeFromRent);
@@ -44,6 +45,7 @@ test('sign-off: notice from unused rent; remaining unused rent refunds with depo
     missingNoticeDays: 15, // notice 150_000
     noticeApplies: true,
     electricityPaise: 0,
+    prepaidAfterVacatingPaise: 250_000,
   });
 
   assert.equal(w.rentBucket.consumedPaise, 150_000);
@@ -66,6 +68,7 @@ test('notice exceeds unused rent — remainder from deposit', () => {
     missingNoticeDays: 12,
     noticeApplies: true,
     electricityPaise: 0,
+    prepaidAfterVacatingPaise: 50_000,
   });
   assert.equal(w.rentBucket.unusedPaise, 50_000);
   assert.equal(w.notice.fromUnusedRentPaise, 50_000);
@@ -79,6 +82,7 @@ test('full accounting transparency — notice from rent, electricity from deposi
   const rentPaid = 412_100;
   const noticeFromRent = 200_000;
   const missingNoticeDays = Math.ceil(noticeFromRent / daily);
+  const prepaidAfterVacatingPaise = 232_100;
 
   const w = computeCheckoutSettlementV2({
     stayCheckInDate: '2026-01-01',
@@ -89,11 +93,12 @@ test('full accounting transparency — notice from rent, electricity from deposi
     missingNoticeDays,
     noticeApplies: true,
     electricityPaise: 52_000,
+    prepaidAfterVacatingPaise,
   });
 
   assert.equal(w.rentBucket.paidPaise, rentPaid);
-  assert.ok(w.rentBucket.consumedPaise <= rentPaid);
-  assert.equal(w.rentBucket.unusedPaise, rentPaid - w.rentBucket.consumedPaise);
+  assert.equal(w.rentBucket.consumedPaise, rentPaid - prepaidAfterVacatingPaise);
+  assert.equal(w.rentBucket.unusedPaise, prepaidAfterVacatingPaise);
   assert.equal(w.notice.fromUnusedRentPaise, noticeFromRent);
   assert.equal(
     w.notice.unusedRentRemainingPaise,
@@ -130,9 +135,7 @@ test('deduction plan uses deposit notice portion only', () => {
 test('early move-out: prepaid after vacate refunds when notice compliant', () => {
   const monthlyRentPaise = 412_080;
   const periodDaily = 12_877; // 32-day Jul 21–Aug 21 period
-  const stayDays = 26;
   const prepaidAfterVacatingPaise = 77_262;
-  const stayConsumedPaise = periodDaily * stayDays;
 
   const w = computeCheckoutSettlementV2({
     stayCheckInDate: '2026-07-21',
@@ -146,7 +149,7 @@ test('early move-out: prepaid after vacate refunds when notice compliant', () =>
     periodDailyRentPaise: periodDaily,
   });
 
-  assert.equal(w.rentBucket.consumedPaise, stayConsumedPaise);
+  assert.equal(w.rentBucket.consumedPaise, monthlyRentPaise - prepaidAfterVacatingPaise);
   assert.equal(w.rentBucket.unusedPaise, prepaidAfterVacatingPaise);
   assert.equal(w.refund.unusedRentPortionPaise, prepaidAfterVacatingPaise);
   assert.equal(w.refund.totalPaise, 205_900 + prepaidAfterVacatingPaise);
@@ -167,7 +170,7 @@ test('prepaid after vacate does not consume entire rent when stay already used p
     prepaidAfterVacatingPaise,
     periodDailyRentPaise: periodDaily,
   });
-  assert.equal(w.rentBucket.consumedPaise, periodDaily * 31);
+  assert.equal(w.rentBucket.consumedPaise, monthlyRentPaise - prepaidAfterVacatingPaise);
   assert.equal(w.rentBucket.unusedPaise, prepaidAfterVacatingPaise);
   assert.equal(w.refund.unusedRentPortionPaise, prepaidAfterVacatingPaise);
   assert.equal(w.refund.totalPaise, 205_900 + prepaidAfterVacatingPaise);

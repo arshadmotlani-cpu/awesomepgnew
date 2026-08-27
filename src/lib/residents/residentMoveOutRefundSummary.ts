@@ -3,6 +3,10 @@ import type { CheckoutSettlementWaterfall } from '@/src/lib/checkout/checkoutSet
 export type ResidentMoveOutRefundSummary = {
   /** Full security deposit held — independent of unused rent. */
   securityDepositPaise: number;
+  /** Unpaid occupancy in the final billing period — deducted from deposit. */
+  tailRentPaise: number;
+  /** Deposit remaining after tail rent and other deposit-bucket charges (before electricity when pending). */
+  refundableDepositPaise: number;
   /** Gross unused prepaid rent (before notice). */
   unusedPrepaidRentPaise: number;
   /** Notice shortfall charged from unused rent (not deposit when unused covers it). */
@@ -31,6 +35,8 @@ export function buildResidentMoveOutRefundSummary(
 
   return {
     securityDepositPaise: waterfall.depositBucket.collectedPaise,
+    tailRentPaise: waterfall.depositBucket.tailRentPaise,
+    refundableDepositPaise: waterfall.depositBucket.refundablePaise,
     unusedPrepaidRentPaise: waterfall.rentBucket.unusedPaise,
     noticeDeductionPaise: waterfall.notice.fullPaise,
     netUnusedRentWalletCreditPaise: waterfall.refund.unusedRentPortionPaise,

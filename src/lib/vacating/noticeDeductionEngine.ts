@@ -11,9 +11,12 @@ import { diffDays, formatDate, parseDate, type DateLike } from '@/src/lib/dates'
 import { dailyRateFromBillingPeriod } from '@/src/lib/billing/billingCoverageModel';
 import {
   VACATING_NOTICE_MIN_DAYS,
+  dailyRateFromCalendarMonth,
   dailyRateFromMonthly,
+  firstOfMonth,
   formatAnniversaryBillingPeriodLabel,
   noticeShortfallDays,
+  type BillingCyclePolicy,
 } from '@/src/services/billing';
 
 export type PaidRentCoveragePeriod = {
@@ -100,6 +103,7 @@ export function computeNoticeDeductionBreakdown(input: {
   paidRentPeriods?: PaidRentCoveragePeriod[];
   billingDay?: number;
   minDays?: number;
+  billingCyclePolicy?: BillingCyclePolicy;
 }): NoticeDeductionBreakdown {
   const minDays = input.minDays ?? VACATING_NOTICE_MIN_DAYS;
   const vacatingDate = formatDate(parseDate(input.vacatingDate));
@@ -123,7 +127,9 @@ export function computeNoticeDeductionBreakdown(input: {
           periodUsed.periodStart,
           periodUsed.periodEnd,
         )
-      : dailyRateFromMonthly(input.monthlyRentPaise);
+      : input.billingCyclePolicy === 'calendar_month_1st'
+        ? dailyRateFromCalendarMonth(input.monthlyRentPaise, firstOfMonth(vacatingDate))
+        : dailyRateFromMonthly(input.monthlyRentPaise);
   const unusedPrepaidRentDays = unusedPrepaidRentDaysAfterVacating(vacatingDate, paidUntilDate);
   const noticeCoveredByPrepaidRent = Math.min(missingNoticeDays, unusedPrepaidRentDays);
   const chargeableNoticeDays = Math.max(0, missingNoticeDays - noticeCoveredByPrepaidRent);

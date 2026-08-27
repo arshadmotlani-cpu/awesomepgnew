@@ -48,7 +48,7 @@ test('1–4 calendar-month prepaid leaving 25th: unused is 26–31, deposit in r
   const unusedDays = 6;
 
   assert.equal(w.stay.stayDays, consumedDays);
-  assert.equal(w.rentBucket.consumedPaise, DAILY * consumedDays);
+  assert.equal(w.rentBucket.consumedPaise, MONTHLY * 2 - DAILY * unusedDays);
   assert.equal(w.rentBucket.unusedPaise, DAILY * unusedDays);
   assert.equal(w.depositBucket.tailRentPaise, 0);
   assert.equal(w.notice.fullPaise, 0);

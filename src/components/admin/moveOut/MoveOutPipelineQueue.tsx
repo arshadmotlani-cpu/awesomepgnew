@@ -388,7 +388,19 @@ function FinancialSummary({
         <dt className="inline text-apg-silver">Security deposit </dt>
         <dd className="inline text-white">{paiseToInr(summary.securityDepositPaise)}</dd>
       </div>
-      {summary.unusedPrepaidRentPaise != null && summary.unusedPrepaidRentPaise > 0 ? (
+      {summary.tailRentPaise > 0 ? (
+        <div>
+          <dt className="inline text-apg-silver">Tail rent </dt>
+          <dd className="inline text-rose-200/90">-{paiseToInr(summary.tailRentPaise)}</dd>
+        </div>
+      ) : null}
+      {preview?.estimatedSettlement ? (
+        <div>
+          <dt className="inline text-apg-silver">Refundable deposit </dt>
+          <dd className="inline text-white">{paiseToInr(summary.refundableDepositPaise)}</dd>
+        </div>
+      ) : null}
+      {summary.unusedPrepaidRentPaise != null ? (
         <div>
           <dt className="inline text-apg-silver">Unused prepaid rent </dt>
           <dd className="inline text-emerald-200/90">{paiseToInr(summary.unusedPrepaidRentPaise)}</dd>

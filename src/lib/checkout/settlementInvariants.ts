@@ -7,12 +7,9 @@ export function assertCheckoutSettlementWaterfallConsistent(w: CheckoutSettlemen
   const consumed = guardDepositPaise(w.rentBucket.consumedPaise);
   const unused = guardDepositPaise(w.rentBucket.unusedPaise);
   if (paid !== consumed + unused) {
-    const prepaidOverlay = unused > 0 && consumed <= paid && unused <= paid;
-    if (!prepaidOverlay) {
-      throw new Error(
-        `rent bucket: paid ${paid} !== consumed ${consumed} + unused ${unused}`,
-      );
-    }
+    throw new Error(
+      `rent bucket: paid ${paid} !== consumed ${consumed} + unused ${unused}`,
+    );
   }
 
   const collected = guardDepositPaise(w.depositBucket.collectedPaise);

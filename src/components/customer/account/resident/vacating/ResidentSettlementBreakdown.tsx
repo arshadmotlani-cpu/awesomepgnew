@@ -59,18 +59,19 @@ export function ResidentSettlementBreakdown({
             <Line label="Rent Used" amountPaise={waterfall.rentBucket.consumedPaise} />
             <Line label="Unused Rent" amountPaise={waterfall.rentBucket.unusedPaise} />
             <Line label="Notice Deduction" amountPaise={waterfall.notice.fullPaise} deduct />
+            <Line label="Security Deposit" amountPaise={waterfall.depositBucket.collectedPaise} />
+            {waterfall.depositBucket.tailRentPaise > 0 ? (
+              <Line
+                label="Tail rent (unpaid occupancy)"
+                amountPaise={waterfall.depositBucket.tailRentPaise}
+                deduct
+              />
+            ) : null}
             <Line
               label="Electricity Deduction"
               amountPaise={waterfall.depositBucket.electricityPaise}
               deduct
             />
-            {waterfall.depositBucket.tailRentPaise > 0 ? (
-              <Line
-                label="Rent through vacate date"
-                amountPaise={waterfall.depositBucket.tailRentPaise}
-                deduct
-              />
-            ) : null}
             {damagePaise > 0 ? (
               <Line label="Damage Charges" amountPaise={damagePaise} deduct />
             ) : null}

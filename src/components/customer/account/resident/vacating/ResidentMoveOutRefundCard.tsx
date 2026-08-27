@@ -52,9 +52,11 @@ export function ResidentMoveOutRefundCard({
       </div>
       <dl className="space-y-2.5">
         <Row label="Security deposit" amountPaise={summary.securityDepositPaise} />
-        {summary.unusedPrepaidRentPaise > 0 ? (
-          <Row label="Unused prepaid rent" amountPaise={summary.unusedPrepaidRentPaise} />
+        {summary.tailRentPaise > 0 ? (
+          <Row label="Tail rent (unpaid occupancy)" amountPaise={summary.tailRentPaise} deduct />
         ) : null}
+        <Row label="Refundable deposit" amountPaise={summary.refundableDepositPaise} />
+        <Row label="Unused prepaid rent" amountPaise={summary.unusedPrepaidRentPaise} />
         {summary.noticeDeductionPaise > 0 ? (
           <Row
             label="Notice deduction (from unused rent)"
@@ -92,7 +94,7 @@ export function ResidentMoveOutRefundCard({
           </span>
         </div>
         <p className="mt-1 text-[11px] text-apg-silver">
-          ≈ Security deposit + net unused rent credit
+          ≈ Refundable deposit + net unused rent credit
           {summary.electricityPending ? ' (electricity pending)' : ''}
         </p>
       </div>

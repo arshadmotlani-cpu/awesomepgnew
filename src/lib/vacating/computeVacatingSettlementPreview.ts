@@ -12,6 +12,10 @@ import { loadBillingCoverageModel } from '@/src/services/billingCoverage';
 import type { BillingCoverageModel } from '@/src/lib/billing/billingCoverageModel';
 import { dailyRateFromBillingPeriod } from '@/src/lib/billing/billingCoverageModel';
 import {
+  dailyRateFromCalendarMonth,
+  firstOfMonth,
+} from '@/src/services/billing';
+import {
   formatDualDaysAndPaise,
   formatRentConsumedHint,
   formatSettlementDays,
@@ -130,14 +134,14 @@ export function buildVacatingSettlementPreviewSections(
       rows: [
         {
           id: 'deposit_held',
-          label: 'Deposit held',
+          label: 'Security deposit',
           value: formatSettlementPaise(args.depositHeldPaise),
         },
         ...(waterfall.depositBucket.tailRentPaise > 0
           ? [
               {
                 id: 'tail_rent_through_vacate',
-                label: 'Rent through vacate date',
+                label: 'Tail rent (unpaid occupancy)',
                 value: formatSettlementPaise(waterfall.depositBucket.tailRentPaise, true),
                 deduct: true,
               },
@@ -145,7 +149,7 @@ export function buildVacatingSettlementPreviewSections(
           : []),
         {
           id: 'estimated_refundable_deposit',
-          label: 'Estimated refundable deposit',
+          label: 'Refundable deposit',
           value: formatSettlementPaise(waterfall.depositBucket.refundablePaise),
         },
       ],
@@ -184,6 +188,7 @@ export function buildVacatingSettlementPreviewSections(
 function periodDailyRentFromCoverage(
   coverage: BillingCoverageModel,
   vacatingDate: string,
+  monthlyRentPaise: number,
 ): number | undefined {
   const period =
     coverage.periodUsedForPrepaid ??
@@ -193,14 +198,17 @@ function periodDailyRentFromCoverage(
         p.periodStart <= vacatingDate &&
         p.periodEnd >= vacatingDate,
     );
-  if (!period?.paidPrincipalPaise || !period.periodStart || !period.periodEnd) {
-    return undefined;
+  if (period?.paidPrincipalPaise && period.periodStart && period.periodEnd) {
+    return dailyRateFromBillingPeriod(
+      period.paidPrincipalPaise,
+      period.periodStart,
+      period.periodEnd,
+    );
   }
-  return dailyRateFromBillingPeriod(
-    period.paidPrincipalPaise,
-    period.periodStart,
-    period.periodEnd,
-  );
+  if (coverage.billingCyclePolicy === 'calendar_month_1st' && monthlyRentPaise > 0) {
+    return dailyRateFromCalendarMonth(monthlyRentPaise, firstOfMonth(vacatingDate));
+  }
+  return undefined;
 }
 
 export type VacatingSettlementWaterfallContext = {
@@ -249,10 +257,6 @@ export async function loadVacatingSettlementWaterfallContext(
   const depositHeldPaise = guardDepositPaise(wallet?.refundableBalancePaise ?? 0);
 
   const prepaidAfterVacatingPaise = coverage.prepaidAfterVacatingPaise;
-  const prepaidPeriodStart =
-    coverage.periodUsedForPrepaid?.periodStart ?? coverage.currentBillingPeriod?.periodStart ?? null;
-  const rentStayStart =
-    prepaidPeriodStart && prepaidPeriodStart > checkIn ? prepaidPeriodStart : checkIn;
 
   const missingNoticeDays = coverage.noticeBreakdown?.missingNoticeDays ?? 0;
   /**
@@ -268,11 +272,15 @@ export async function loadVacatingSettlementWaterfallContext(
   );
   const checkoutTailRentPaise =
     prepaidAfterVacatingPaise > 0 || vacatingInsidePaidPeriod ? 0 : coverage.tailRentPaise;
-  const periodDailyRentPaise = periodDailyRentFromCoverage(coverage, vacatingDate);
+  const periodDailyRentPaise = periodDailyRentFromCoverage(
+    coverage,
+    vacatingDate,
+    monthlyRentPaise,
+  );
 
   return {
     ctx: {
-      checkInDate: rentStayStart,
+      checkInDate: checkIn,
       vacatingDate,
       rentPaidPaise,
       depositHeldPaise,

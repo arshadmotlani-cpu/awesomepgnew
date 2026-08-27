@@ -20,6 +20,7 @@ function baselineSettlement(): {
     damageChargePaise: 0,
     cleaningChargePaise: 0,
     customChargePaise: 0,
+    prepaidAfterVacatingPaise: 322_080,
   });
 
   const settlement = {

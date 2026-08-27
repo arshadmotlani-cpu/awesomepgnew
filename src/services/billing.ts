@@ -410,6 +410,21 @@ export function dailyRateFromMonthly(monthlyRatePaise: number): number {
   return Math.floor(monthlyRatePaise / 30);
 }
 
+/**
+ * Calendar-month daily rate — monthly rent ÷ actual days in the billing month (28–31).
+ * Used for unpaid tail rent and notice on `calendar_month_1st` when no paid invoice period applies.
+ */
+export function dailyRateFromCalendarMonth(
+  monthlyRatePaise: number,
+  billingMonth: DateLike,
+): number {
+  if (monthlyRatePaise <= 0) return 0;
+  const month = firstOfMonth(formatDate(parseDate(billingMonth)));
+  const { periodStart, periodEnd } = calendarMonthBillingPeriod(month);
+  const days = Math.max(1, diffDays(periodStart, periodEnd) + 1);
+  return Math.floor(monthlyRatePaise / days);
+}
+
 /** Worst-case notice deduction (0 calendar days of notice). For admin previews only. */
 export function maxNoticeDeduction(monthlyRatePaise: number): number {
   return (

@@ -206,6 +206,20 @@ function assertCoverageInvariants(
       ),
     );
   }
+
+  const expectedUnused = Math.min(
+    guardDepositPaise(coverage.prepaidAfterVacatingPaise),
+    guardDepositPaise(w.rentBucket.paidPaise),
+  );
+  if (w.rentBucket.unusedPaise !== expectedUnused) {
+    failures.push(
+      fail(
+        'UNUSED_PREPAID_DRIFT',
+        `Waterfall unused ${w.rentBucket.unusedPaise} !== BCM prepaid-after-vacate ${expectedUnused}`,
+        'UNUSED_PREPAID_DRIFT',
+      ),
+    );
+  }
 }
 
 function assertExplainabilityInvariants(
