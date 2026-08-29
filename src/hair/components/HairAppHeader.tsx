@@ -5,7 +5,6 @@ import { useState } from 'react';
 import { Menu, X } from 'lucide-react';
 import { logoutAction } from '@/src/hair/actions/auth';
 import { FyhMark } from '@/src/components/brand/fyh/FyhMark';
-import { FyhSidebarBrand } from '@/src/components/brand/fyh/FyhSidebarBrand';
 import { ThemeToggle } from '@/src/hair/components/ThemeToggle';
 import { HairGlobalSearch } from '@/src/hair/components/HairGlobalSearch';
 import { HairQuickActionsMenu } from '@/src/hair/components/HairQuickActionsMenu';
@@ -26,7 +25,7 @@ export function HairAppHeader({ admin, navEntries }: HairAppHeaderProps) {
     <>
       <header className="sticky top-0 z-[100] border-b border-[color:var(--fyh-border-strong)] bg-fyh-elevated/90 backdrop-blur-xl">
         <div className="flex h-11 min-h-11 items-center gap-2 px-3 sm:gap-2.5 sm:px-3.5 md:px-4">
-          <FyhMark size={28} className="shrink-0 sm:h-8" title="SOFT" />
+          <FyhMark size={28} className="shrink-0 sm:h-8" title="Salon Software" />
           <Button
             type="button"
             variant="ghost"
@@ -39,19 +38,6 @@ export function HairAppHeader({ admin, navEntries }: HairAppHeaderProps) {
           </Button>
 
           <HairQuickActionsMenu staffName={admin.displayName ?? 'Staff'} />
-
-          <Link
-            href="/dashboard/revenue"
-            className="hidden min-w-0 max-w-[10rem] shrink sm:block lg:max-w-[12rem]"
-          >
-            <FyhSidebarBrand className="!h-auto !border-0 !px-0 !py-0" />
-          </Link>
-          <Link
-            href="/dashboard/revenue"
-            className="fyh-display truncate text-sm font-semibold text-fyh-text sm:hidden"
-          >
-            For Your Hair
-          </Link>
 
           <div className="flex min-w-0 flex-1 justify-center px-2 sm:px-4">
             <HairGlobalSearch />
@@ -84,7 +70,7 @@ export function HairAppHeader({ admin, navEntries }: HairAppHeaderProps) {
           />
           <div className="absolute inset-y-0 left-0 flex w-[min(100vw-3rem,14rem)] flex-col bg-fyh-elevated shadow-2xl">
             <div className="flex items-center justify-between border-b border-[color:var(--fyh-border-strong)] p-2">
-              <FyhSidebarBrand className="!h-12 !flex-1 !border-0" />
+              <FyhMark size={28} className="shrink-0" title="Salon Software" />
               <Button
                 type="button"
                 variant="ghost"
@@ -96,7 +82,7 @@ export function HairAppHeader({ admin, navEntries }: HairAppHeaderProps) {
               </Button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto" onClick={() => setMobileNavOpen(false)}>
-              <HairSidebar entries={navEntries} className="!flex h-full w-full border-0" />
+              <HairSidebar entries={navEntries} showBrand={false} className="!flex h-full w-full border-0" />
             </div>
           </div>
         </div>

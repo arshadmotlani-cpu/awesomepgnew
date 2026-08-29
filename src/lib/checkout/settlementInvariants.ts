@@ -29,11 +29,14 @@ export function assertCheckoutSettlementWaterfallConsistent(w: CheckoutSettlemen
   }
 
   const unusedAfterNotice = guardDepositPaise(w.notice.unusedRentRemainingPaise);
+  const outstandingRentInvoice = guardDepositPaise(w.outstandingRentInvoicePaise ?? 0);
   const totalRefund = guardDepositPaise(w.refund.totalPaise);
-  const expectedTotal = guardDepositPaise(refundable + unusedAfterNotice);
+  const expectedTotal = guardDepositPaise(
+    Math.max(0, refundable + unusedAfterNotice - outstandingRentInvoice),
+  );
   if (totalRefund !== expectedTotal) {
     throw new Error(
-      `refund: total ${totalRefund} !== refundable ${refundable} + unused rent ${unusedAfterNotice}`,
+      `refund: total ${totalRefund} !== refundable ${refundable} + unused rent ${unusedAfterNotice} − outstanding invoice ${outstandingRentInvoice}`,
     );
   }
 }

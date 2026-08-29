@@ -89,7 +89,7 @@ function waterfallFromCoverage(coverage: ReturnType<typeof cvCoverage>) {
     monthlyRentPaise: CV_MONTHLY_RENT,
     missingNoticeDays: coverage.noticeBreakdown?.missingNoticeDays ?? 0,
     noticeApplies: true,
-    checkoutTailRentPaise: coverage.tailRentPaise,
+    checkoutTailRentPaise: 0,
     prepaidAfterVacatingPaise: coverage.prepaidAfterVacatingPaise,
     periodDailyRentPaise: dailyRateFromMonthly(CV_MONTHLY_RENT),
   };
@@ -108,13 +108,10 @@ test('CV Laxminarayana — long stay, Sep unpaid, Sep 3 move-out → unused prep
   assert.equal(waterfall.notice.missingNoticeDays, 0);
 
   const tailDaily = dailyRateFromMonthly(CV_MONTHLY_RENT);
-  assert.equal(waterfall.depositBucket.tailRentPaise, tailDaily * 3);
-  assert.equal(
-    waterfall.depositBucket.refundablePaise,
-    CV_DEPOSIT - waterfall.depositBucket.tailRentPaise,
-  );
-  assert.equal(waterfall.refund.totalPaise, waterfall.depositBucket.refundablePaise);
-  assert.equal(waterfall.refund.totalPaise, 628_600);
+  assert.equal(waterfall.depositBucket.tailRentPaise, 0);
+  assert.equal(coverage.tailRentPaise, tailDaily * 3);
+  assert.equal(waterfall.depositBucket.refundablePaise, CV_DEPOSIT);
+  assert.equal(waterfall.refund.totalPaise, CV_DEPOSIT);
 
   assertCheckoutSettlementWaterfallConsistent(waterfall);
 });
@@ -183,18 +180,19 @@ test('move-out exactly on last paid day — unused prepaid zero', () => {
 });
 
 test('move-out after paid coverage with unpaid tail — no fake prepaid credit', () => {
-  const { waterfall } = waterfallFromCoverage(cvCoverage(CV_VACATE, false));
+  const coverage = cvCoverage(CV_VACATE, false);
+  const { waterfall } = waterfallFromCoverage(coverage);
   assert.equal(waterfall.rentBucket.unusedPaise, 0);
-  assert.ok(waterfall.depositBucket.tailRentPaise > 0);
+  assert.ok(coverage.tailRentPaise > 0);
+  assert.equal(waterfall.depositBucket.tailRentPaise, 0);
 });
 
-test('unpaid current month — occupied days are tail rent, not unused credit', () => {
-  const { waterfall } = waterfallFromCoverage(cvCoverage(CV_VACATE, false));
+test('unpaid current month — occupied days are tail rent invoice, not unused credit', () => {
+  const coverage = cvCoverage(CV_VACATE, false);
+  const { waterfall } = waterfallFromCoverage(coverage);
   assert.equal(waterfall.rentBucket.unusedPaise, 0);
-  assert.equal(
-    waterfall.depositBucket.refundablePaise + waterfall.depositBucket.tailRentPaise,
-    CV_DEPOSIT,
-  );
+  assert.equal(waterfall.depositBucket.refundablePaise, CV_DEPOSIT);
+  assert.ok(coverage.tailRentPaise > 0);
 });
 
 test('notice fully satisfied — zero notice deduction (CV case)', () => {
@@ -237,22 +235,26 @@ test('electricity pending — estimate refund excludes finalized electricity', (
 });
 
 test('deposit + tail rent display reconciles with refund summary', () => {
-  const { waterfall } = waterfallFromCoverage(cvCoverage(CV_VACATE, false));
-  const summary = buildResidentMoveOutRefundSummary(waterfall, { isEstimate: true });
+  const coverage = cvCoverage(CV_VACATE, false);
+  const { waterfall } = waterfallFromCoverage(coverage);
+  const summary = buildResidentMoveOutRefundSummary(waterfall, {
+    isEstimate: true,
+    tailRentInvoicePaise: coverage.tailRentPaise,
+  });
   assert.equal(summary.securityDepositPaise, CV_DEPOSIT);
-  assert.equal(summary.tailRentPaise, waterfall.depositBucket.tailRentPaise);
+  assert.equal(summary.tailRentPaise, coverage.tailRentPaise);
   assert.equal(summary.refundableDepositPaise, waterfall.depositBucket.refundablePaise);
-  assert.equal(
-    summary.securityDepositPaise - summary.tailRentPaise,
-    summary.refundableDepositPaise,
-  );
   assert.equal(summary.unusedPrepaidRentPaise, 0);
   assert.equal(summary.estimatedRefundPaise, summary.refundableDepositPaise);
 });
 
 test('admin and resident summaries match for CV case', () => {
-  const { waterfall } = waterfallFromCoverage(cvCoverage(CV_VACATE, false));
-  const resident = buildResidentMoveOutRefundSummary(waterfall, { isEstimate: true });
+  const coverage = cvCoverage(CV_VACATE, false);
+  const { waterfall } = waterfallFromCoverage(coverage);
+  const resident = buildResidentMoveOutRefundSummary(waterfall, {
+    isEstimate: true,
+    tailRentInvoicePaise: coverage.tailRentPaise,
+  });
   const admin = resolveAdminMoveOutFinancialSummary(
     {
       vacatingRequestId: 'vr-cv',
@@ -266,6 +268,7 @@ test('admin and resident summaries match for CV case', () => {
       estimatedSettlement: {
         waterfall,
         estimatedRefundPaise: waterfall.refund.totalPaise,
+        outstandingTailRentInvoicePaise: coverage.tailRentPaise,
       },
     } as never,
   );

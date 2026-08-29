@@ -39,10 +39,13 @@ export type CheckoutSettlementWaterfall = {
   depositBucket: {
     collectedPaise: number;
     electricityPaise: number;
+    /** Legacy deposit-tail rent — always 0 for invoice-based move-out settlements. */
     tailRentPaise: number;
     otherPaise: number;
     refundablePaise: number;
   };
+  /** Payable final-period rent invoice outstanding (projectInvoice SSOT) — not a deposit deduction. */
+  outstandingRentInvoicePaise?: number;
   refund: {
     depositPortionPaise: number;
     unusedRentPortionPaise: number;
@@ -65,8 +68,13 @@ export type CheckoutSettlementV2Input = {
   customChargePaise?: number;
   /** When false (fixed-stay), notice step is skipped. */
   noticeApplies?: boolean;
-  /** Tail rent for suppressed final anniversary period (approved move-out). */
+  /**
+   * Legacy deposit-tail rent — keep 0 for invoice-based move-out.
+   * Historical locked baselines may still pass a non-zero value when replaying old snapshots.
+   */
   checkoutTailRentPaise?: number;
+  /** Final-period rent invoice outstanding — reduces payout, never depositBucket.tailRentPaise. */
+  outstandingRentInvoicePaise?: number;
   /**
    * BCM prepaid after vacate (days after vacating through paid-through × daily rate).
    * When > 0, unused rent is this amount (capped by rent paid). Do not reduce it by
@@ -131,6 +139,9 @@ export function computeCheckoutSettlementV2(
     guardDepositPaise(input.cleaningChargePaise ?? 0) +
     guardDepositPaise(input.customChargePaise ?? 0);
   const tailRentPaise = guardDepositPaise(input.checkoutTailRentPaise ?? 0);
+  const outstandingRentInvoicePaise = guardDepositPaise(
+    input.outstandingRentInvoicePaise ?? 0,
+  );
 
   let depositRemaining = depositCollectedPaise;
   depositRemaining -= noticeFromDepositPaise;
@@ -140,7 +151,7 @@ export function computeCheckoutSettlementV2(
   const depositRefundablePaise = Math.max(0, guardDepositPaise(depositRemaining));
 
   const totalRefundPaise = guardDepositPaise(
-    depositRefundablePaise + unusedRentAfterNoticePaise,
+    Math.max(0, depositRefundablePaise + unusedRentAfterNoticePaise - outstandingRentInvoicePaise),
   );
 
   const lines: CheckoutSettlementWaterfallLine[] = [
@@ -211,10 +222,21 @@ export function computeCheckoutSettlementV2(
       ? [
           {
             step: 5,
-            label: 'Tail rent (unpaid occupancy)',
+            label: 'Tail rent (legacy deposit deduction)',
             amountPaise: tailRentPaise,
             explanation:
-              'Unpaid rent for occupied days in the final billing period — deducted from deposit',
+              'Historical locked settlement — unpaid occupancy deducted from deposit (legacy model)',
+          } satisfies CheckoutSettlementWaterfallLine,
+        ]
+      : []),
+    ...(outstandingRentInvoicePaise > 0
+      ? [
+          {
+            step: 5,
+            label: 'Outstanding rent invoice (through vacate)',
+            amountPaise: outstandingRentInvoicePaise,
+            explanation:
+              'Final-period rent invoice outstanding — payable separately and netted from total refund',
           } satisfies CheckoutSettlementWaterfallLine,
         ]
       : []),
@@ -271,6 +293,8 @@ export function computeCheckoutSettlementV2(
       otherPaise,
       refundablePaise: depositRefundablePaise,
     },
+    outstandingRentInvoicePaise:
+      outstandingRentInvoicePaise > 0 ? outstandingRentInvoicePaise : undefined,
     refund: {
       depositPortionPaise: depositRefundablePaise,
       unusedRentPortionPaise: unusedRentAfterNoticePaise,
@@ -318,10 +342,13 @@ export function buildCheckoutSettlementV2DeductionPlan(
       reason: `Notice period fee (${waterfall.notice.missingNoticeDays} missing day${waterfall.notice.missingNoticeDays === 1 ? '' : 's'} — deposit portion)`,
     });
   }
-  if (waterfall.depositBucket.tailRentPaise > 0) {
+  if (
+    waterfall.depositBucket.tailRentPaise > 0 &&
+    !(waterfall.outstandingRentInvoicePaise && waterfall.outstandingRentInvoicePaise > 0)
+  ) {
     deductions.push({
       amountPaise: waterfall.depositBucket.tailRentPaise,
-      reason: 'Rent through vacate date (final billing period)',
+      reason: 'Rent through vacate date (final billing period — legacy deposit tail)',
     });
   }
   if (waterfall.depositBucket.electricityPaise > 0) {

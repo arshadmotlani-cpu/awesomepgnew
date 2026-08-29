@@ -493,7 +493,7 @@ export async function loadResidentCommandCenter(
             customerId,
           })
         : Promise.resolve(null),
-      listResidentInvoiceHistory(customerId, 40),
+      listResidentInvoiceHistory(customerId, 200),
       buildPendingReviews({
         customerId,
         customerName: customer.fullName,

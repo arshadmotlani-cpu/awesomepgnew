@@ -26,6 +26,16 @@ export type CommandCenterBillRow = {
   createdAt: Date;
   notes?: string | null;
   paidAt?: Date | null;
+  dueDate?: string | null;
+  pgName?: string;
+  roomNumber?: string | null;
+  bedCode?: string | null;
+  paidPaise?: number;
+  outstandingPaise?: number;
+  lateFeePaise?: number;
+  billingPeriod?: string | null;
+  bookingId?: string | null;
+  bookingCode?: string | null;
 };
 
 export type CommandCenterBookingHistoryRow = {

@@ -225,6 +225,7 @@ test('calendar-month coverage loader prefers billing month over bad invoice note
 
 test('settlement context never charges deposit tail when vacating inside paid period', () => {
   const source = readFileSync('src/lib/vacating/computeVacatingSettlementPreview.ts', 'utf8');
-  assert.match(source, /vacatingInsidePaidPeriod/);
-  assert.match(source, /checkoutTailRentPaise/);
+  assert.match(source, /never deposit tail rent/);
+  assert.match(source, /checkoutTailRentPaise = 0/);
+  assert.match(source, /outstanding_final_rent_invoice/);
 });

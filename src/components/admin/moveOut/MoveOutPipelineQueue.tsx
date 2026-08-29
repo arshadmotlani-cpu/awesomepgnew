@@ -390,8 +390,8 @@ function FinancialSummary({
       </div>
       {summary.tailRentPaise > 0 ? (
         <div>
-          <dt className="inline text-apg-silver">Tail rent </dt>
-          <dd className="inline text-rose-200/90">-{paiseToInr(summary.tailRentPaise)}</dd>
+          <dt className="inline text-apg-silver">Outstanding rent invoice </dt>
+          <dd className="inline text-amber-200/90">{paiseToInr(summary.tailRentPaise)}</dd>
         </div>
       ) : null}
       {preview?.estimatedSettlement ? (

@@ -256,17 +256,40 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-27 12:08:16 UTC
+### Pending pre-commit sync · 2026-08-29 06:02:03 UTC
 
-**Areas touched:** [[ROUTES]]
+**Areas touched:** [[ROUTES]], [[Billing]], [[Residents]], [[Vacating]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `DECISIONS.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (1):**
+**Staged code files (20):**
+- `app/(capital)/auth/login/page.tsx`
+- `app/(capital)/not-found.tsx`
+- `app/(hair)/fyh/auth/login/page-client.tsx`
+- `app/(owner)/not-found.tsx`
 - `app/(owner)/owner/auth/login/login-form.tsx`
+- `src/lib/billing/billingCoverageModel.ts`
+- `src/lib/billing/billingEngineValidation.ts`
+- `src/lib/billing/lateFeeCountdown.ts`
+- `src/lib/billing/vacatingFinalPeriodRent.ts`
+- `src/lib/residents/commandCenterTypes.ts`
+- `src/lib/residents/residentMoveOutRefundSummary.ts`
+- `src/lib/vacating/adminMoveOutFinancialSummary.ts`
+- `src/lib/vacating/computeVacatingSettlementPreview.ts`
+- `src/lib/vacating/estimatedSettlementPreview.ts`
+- `src/lib/vacating/loadVacatingBillingPresentation.ts`
+- `src/lib/vacating/moveOutSettlementExplanation.ts`
+- `src/lib/vacating/moveOutStateModel.ts`
+- `src/services/rentInvoices.ts`
+- `src/services/vacating.ts`
+- `src/services/vacatingCheckoutBilling.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

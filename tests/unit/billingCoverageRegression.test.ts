@@ -105,7 +105,7 @@ test('tail decision Case B matches billing coverage model', () => {
   assert.equal(decision.tailRentPaise, model.tailRentPaise);
 });
 
-test('waterfall tail matches coverage for Case B', () => {
+test('waterfall invoice outstanding matches coverage for Case B', () => {
   const model = modelForVacate('2026-08-08');
   const ctx: VacatingSettlementWaterfallContext = {
     checkInDate: moveInJul7,
@@ -115,10 +115,16 @@ test('waterfall tail matches coverage for Case B', () => {
     monthlyRentPaise: monthly387k,
     missingNoticeDays: model.noticeBreakdown?.missingNoticeDays ?? 0,
     noticeApplies: true,
-    checkoutTailRentPaise: model.tailRentPaise,
+    checkoutTailRentPaise: 0,
+    outstandingRentInvoicePaise: model.tailRentPaise,
   };
   const waterfall = computeVacatingSettlementWaterfallFromContext(ctx);
-  assert.equal(waterfall.depositBucket.tailRentPaise, model.tailRentPaise);
+  assert.equal(waterfall.depositBucket.tailRentPaise, 0);
+  assert.equal(waterfall.outstandingRentInvoicePaise, model.tailRentPaise);
+  assert.equal(
+    waterfall.refund.totalPaise,
+    waterfall.depositBucket.refundablePaise - model.tailRentPaise,
+  );
 });
 
 /** APG-2026-0082 — move-in on invoice period end; full month rent at checkout; partial deposit. */

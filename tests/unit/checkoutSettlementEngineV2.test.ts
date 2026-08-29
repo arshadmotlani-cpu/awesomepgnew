@@ -176,7 +176,28 @@ test('prepaid after vacate does not consume entire rent when stay already used p
   assert.equal(w.refund.totalPaise, 205_900 + prepaidAfterVacatingPaise);
 });
 
-test('tail rent deducted from deposit after notice', () => {
+test('outstanding rent invoice reduces payout without deposit tail', () => {
+  const outstandingRent = 71_400;
+  const w = computeCheckoutSettlementV2({
+    stayCheckInDate: '2026-07-05',
+    stayCheckoutDate: '2026-08-07',
+    rentPaidPaise: 500_000,
+    monthlyRentPaise: 150_000,
+    depositCollectedPaise: 412_100,
+    missingNoticeDays: 0,
+    checkoutTailRentPaise: 0,
+    outstandingRentInvoicePaise: outstandingRent,
+    electricityPaise: 0,
+  });
+  assert.equal(w.depositBucket.tailRentPaise, 0);
+  assert.equal(w.depositBucket.refundablePaise, 412_100);
+  assert.equal(w.outstandingRentInvoicePaise, outstandingRent);
+  assert.equal(w.refund.totalPaise, 412_100 - outstandingRent);
+  const plan = buildCheckoutSettlementV2DeductionPlan(w);
+  assert.ok(!plan.some((d) => d.reason.includes('Rent through vacate date')));
+});
+
+test('legacy deposit tail backward compatibility when checkoutTailRentPaise passed', () => {
   const tailRent = 30_000;
   const w = computeCheckoutSettlementV2({
     stayCheckInDate: '2026-07-05',

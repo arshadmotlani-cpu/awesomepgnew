@@ -43,6 +43,7 @@ export type EstimatedSettlementPreview = {
   estimatedUnusedRentCreditPaise: number;
   estimatedRefundableDepositPaise: number;
   depositHeldPaise: number;
+  outstandingTailRentInvoicePaise: number;
   disclaimer: string;
   mode: 'estimate' | 'baseline' | 'final';
 };
@@ -173,13 +174,17 @@ export function estimatedSettlementFromCheckoutWaterfall(args: {
             label: 'Deposit held',
             value: formatSettlementPaise(args.detail.depositRefundablePaise),
           },
-          ...(w.depositBucket.tailRentPaise > 0
+          ...((
+            w.outstandingRentInvoicePaise ??
+            (w.depositBucket.tailRentPaise > 0 ? w.depositBucket.tailRentPaise : 0)
+          ) > 0
             ? [
                 {
-                  id: 'tail_rent_through_vacate',
-                  label: 'Rent through vacate date',
-                  value: formatSettlementPaise(w.depositBucket.tailRentPaise, true),
-                  deduct: true,
+                  id: 'tail_rent_invoice',
+                  label: 'Outstanding rent invoice (through vacate)',
+                  value: formatSettlementPaise(
+                    w.outstandingRentInvoicePaise ?? w.depositBucket.tailRentPaise,
+                  ),
                 },
               ]
             : []),
@@ -221,6 +226,8 @@ export function estimatedSettlementFromCheckoutWaterfall(args: {
     estimatedUnusedRentCreditPaise: w.refund.unusedRentPortionPaise,
     estimatedRefundableDepositPaise: w.depositBucket.refundablePaise,
     depositHeldPaise: args.detail.depositRefundablePaise,
+    outstandingTailRentInvoicePaise:
+      w.outstandingRentInvoicePaise ?? w.depositBucket.tailRentPaise,
     disclaimer:
       mode === 'final'
         ? `Final refund${w.refund.unusedRentPortionPaise > 0 ? ` — includes ${paiseToInr(w.refund.unusedRentPortionPaise)} unused rent credit` : ''}`

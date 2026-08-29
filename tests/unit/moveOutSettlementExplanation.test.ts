@@ -47,7 +47,8 @@ function presentationForVacate(vacatingDate: string, rentPaidPaise = 412_100): V
     monthlyRentPaise: monthly387k,
     missingNoticeDays: coverage.noticeBreakdown?.missingNoticeDays ?? 0,
     noticeApplies: true,
-    checkoutTailRentPaise: coverage.tailRentPaise,
+    checkoutTailRentPaise: 0,
+    outstandingRentInvoicePaise: coverage.tailRentPaise,
   };
   const waterfall = computeVacatingSettlementWaterfallFromContext(ctx);
   const noticeDisplay = noticeDisplayFromBillingCoverage(coverage);
@@ -60,6 +61,7 @@ function presentationForVacate(vacatingDate: string, rentPaidPaise = 412_100): V
     waterfall,
     coverage,
     depositHeldPaise: ctx.depositHeldPaise,
+    outstandingTailRentInvoicePaise: coverage.tailRentPaise,
     mode: 'estimate',
   });
   return {
@@ -75,6 +77,7 @@ function presentationForVacate(vacatingDate: string, rentPaidPaise = 412_100): V
       estimatedUnusedRentCreditPaise: waterfall.refund.unusedRentPortionPaise,
       estimatedRefundableDepositPaise: waterfall.depositBucket.refundablePaise,
       depositHeldPaise,
+      outstandingTailRentInvoicePaise: coverage.tailRentPaise,
       disclaimer: ESTIMATED_REFUND_DISCLAIMER,
       mode: 'estimate',
     },
@@ -107,7 +110,7 @@ test('Case A — vacate 7 Aug: explanations complete and consistent', () => {
 test('Case B — vacate 8 Aug: tail rent explained', () => {
   const p = presentationForVacate('2026-08-08');
   assertValid(p, '2026-08-08');
-  const tail = p.waterfall.depositBucket.tailRentPaise;
+  const tail = p.coverage.tailRentPaise;
   assert.ok(tail > 0);
   const tailLine = buildMoveOutSettlementExplanations(p, {
     bookingId: 'bk',
@@ -141,7 +144,8 @@ test('Case D — no paid invoices', () => {
     monthlyRentPaise: monthly387k,
     missingNoticeDays: coverage.noticeBreakdown?.missingNoticeDays ?? 0,
     noticeApplies: true,
-    checkoutTailRentPaise: coverage.tailRentPaise,
+    checkoutTailRentPaise: 0,
+    outstandingRentInvoicePaise: coverage.tailRentPaise,
   };
   const waterfall = computeVacatingSettlementWaterfallFromContext(ctx);
   const noticeDisplay = noticeDisplayFromBillingCoverage(coverage);
@@ -153,6 +157,7 @@ test('Case D — no paid invoices', () => {
     waterfall,
     coverage,
     depositHeldPaise: ctx.depositHeldPaise,
+    outstandingTailRentInvoicePaise: coverage.tailRentPaise,
     mode: 'estimate',
   });
   const presentation: VacatingBillingPresentation = {
@@ -168,6 +173,7 @@ test('Case D — no paid invoices', () => {
       estimatedUnusedRentCreditPaise: waterfall.refund.unusedRentPortionPaise,
       estimatedRefundableDepositPaise: waterfall.depositBucket.refundablePaise,
       depositHeldPaise,
+      outstandingTailRentInvoicePaise: coverage.tailRentPaise,
       disclaimer: ESTIMATED_REFUND_DISCLAIMER,
       mode: 'estimate',
     },
@@ -200,7 +206,8 @@ test('Case E — multiple paid invoices', () => {
     monthlyRentPaise: monthly387k,
     missingNoticeDays: coverage.noticeBreakdown?.missingNoticeDays ?? 0,
     noticeApplies: true,
-    checkoutTailRentPaise: coverage.tailRentPaise,
+    checkoutTailRentPaise: 0,
+    outstandingRentInvoicePaise: coverage.tailRentPaise,
   };
   const waterfall = computeVacatingSettlementWaterfallFromContext(ctx);
   const noticeDisplay = noticeDisplayFromBillingCoverage(coverage);
@@ -212,6 +219,7 @@ test('Case E — multiple paid invoices', () => {
     waterfall,
     coverage,
     depositHeldPaise: ctx.depositHeldPaise,
+    outstandingTailRentInvoicePaise: coverage.tailRentPaise,
     mode: 'estimate',
   });
   const presentation: VacatingBillingPresentation = {
@@ -227,6 +235,7 @@ test('Case E — multiple paid invoices', () => {
       estimatedUnusedRentCreditPaise: waterfall.refund.unusedRentPortionPaise,
       estimatedRefundableDepositPaise: waterfall.depositBucket.refundablePaise,
       depositHeldPaise,
+      outstandingTailRentInvoicePaise: coverage.tailRentPaise,
       disclaimer: ESTIMATED_REFUND_DISCLAIMER,
       mode: 'estimate',
     },

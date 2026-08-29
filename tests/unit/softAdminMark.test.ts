@@ -32,6 +32,12 @@ test('Soft admin mark component is used in sidebar, header, and login chrome', (
   ];
   for (const file of files) {
     const source = read(file);
-    assert.match(source, /FyhMark|FyhSidebarBrand|FyhLoginBrandHeader/, `${file} must render Soft branding mark`);
+    assert.match(
+      source,
+      /FyhMark|FyhSidebarBrand|FyhLoginBrandHeader/,
+      `${file} must render Soft branding mark`,
+    );
+    assert.doesNotMatch(source, /FYH_ERP/, `${file} must not render legacy salon ERP lockup text`);
+    assert.doesNotMatch(source, /For Your Hair/, `${file} must not render For Your Hair branding text`);
   }
 });

@@ -180,18 +180,23 @@ export function computeVacatingFinalPeriodRentDecision(input: {
     tailPeriodStart = dayAfterPaidUntil;
   }
   const tailPeriodEnd = vacatingDate;
+  const billingCyclePolicy = input.billingCyclePolicy ?? 'anniversary';
   let tailDays = 0;
   if (tailPeriodStart <= tailPeriodEnd) {
-    const daysFromFirstUnpaidToVacate =
-      dayAfterPaidUntil != null ? diffDays(dayAfterPaidUntil, vacatingDate) : null;
-    // Vacate exactly one calendar day after first unpaid day → single tail day (vacating date only).
-    if (daysFromFirstUnpaidToVacate === 1) {
-      tailDays = 1;
-    } else {
+    if (billingCyclePolicy === 'calendar_month_1st') {
+      // Calendar-month: inclusive chargeable days from period start (or first unpaid day) through vacate.
       tailDays = diffDays(tailPeriodStart, tailPeriodEnd) + 1;
+    } else {
+      const daysFromFirstUnpaidToVacate =
+        dayAfterPaidUntil != null ? diffDays(dayAfterPaidUntil, vacatingDate) : null;
+      // Anniversary: vacate exactly one day after first unpaid day → single tail day (vacating date only).
+      if (daysFromFirstUnpaidToVacate === 1) {
+        tailDays = 1;
+      } else {
+        tailDays = diffDays(tailPeriodStart, tailPeriodEnd) + 1;
+      }
     }
   }
-  const billingCyclePolicy = input.billingCyclePolicy ?? 'anniversary';
   const dailyRentPaise =
     billingCyclePolicy === 'calendar_month_1st' && period.periodStart
       ? dailyRateFromCalendarMonth(

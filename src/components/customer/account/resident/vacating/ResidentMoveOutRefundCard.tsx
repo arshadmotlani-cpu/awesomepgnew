@@ -53,7 +53,10 @@ export function ResidentMoveOutRefundCard({
       <dl className="space-y-2.5">
         <Row label="Security deposit" amountPaise={summary.securityDepositPaise} />
         {summary.tailRentPaise > 0 ? (
-          <Row label="Tail rent (unpaid occupancy)" amountPaise={summary.tailRentPaise} deduct />
+          <Row
+            label="Outstanding rent invoice (through vacate)"
+            amountPaise={summary.tailRentPaise}
+          />
         ) : null}
         <Row label="Refundable deposit" amountPaise={summary.refundableDepositPaise} />
         <Row label="Unused prepaid rent" amountPaise={summary.unusedPrepaidRentPaise} />

@@ -112,9 +112,11 @@ function NavGroup({ group }: { group: HairNavGroup }) {
 export function HairSidebar({
   entries,
   className,
+  showBrand = true,
 }: {
   entries?: HairNavEntry[];
   className?: string;
+  showBrand?: boolean;
 }) {
   const navEntries = entries ?? visibleHairNavEntries();
 
@@ -125,7 +127,7 @@ export function HairSidebar({
         className,
       )}
     >
-      <FyhSidebarBrand />
+      {showBrand ? <FyhSidebarBrand /> : null}
       <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
         {navEntries.map((entry) =>
           entry.type === 'link' ? (

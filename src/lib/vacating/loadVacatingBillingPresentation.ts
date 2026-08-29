@@ -44,23 +44,15 @@ export type VacatingBillingPresentation = {
   billingCoverageDaysPaid: DaysPaidDisplayRow;
 };
 
-/** When checkout amounts are locked, BCM live tail can drift from stored waterfall — align for display/validation. */
+/** When checkout amounts are locked, preserve BCM invoice tail — do not adopt legacy deposit tail. */
 export function alignCoverageToLockedWaterfall(
   coverage: BillingCoverageModel,
   locked: CheckoutSettlementWaterfall,
 ): BillingCoverageModel {
-  const tailPaise = locked.depositBucket.tailRentPaise;
-  return {
-    ...coverage,
-    tailRentPaise: tailPaise,
-    finalInvoiceSuppression: tailPaise > 0 ? true : coverage.finalInvoiceSuppression,
-    tailRent: {
-      ...coverage.tailRent,
-      tailRentPaise: tailPaise,
-      tailDays: tailPaise > 0 ? coverage.tailRent.tailDays : 0,
-      shouldSuppressFinalInvoice: tailPaise > 0,
-    },
-  };
+  if (locked.depositBucket.tailRentPaise > 0 && !locked.outstandingRentInvoicePaise) {
+    return coverage;
+  }
+  return coverage;
 }
 
 export function noticeDisplayFromBillingCoverage(
@@ -126,18 +118,46 @@ export async function loadVacatingBillingPresentation(
     ctx = loaded.ctx;
   }
 
-  const waterfall =
+  let waterfall =
     precomputedWaterfall ??
     (ctx ? computeVacatingSettlementWaterfallFromContext(ctx) : null);
   if (!waterfall || !ctx) return null;
 
-  if (precomputedWaterfall) {
+  const useLegacyLockedDepositTail =
+    precomputedWaterfall != null &&
+    precomputedWaterfall.depositBucket.tailRentPaise > 0 &&
+    !precomputedWaterfall.outstandingRentInvoicePaise;
+
+  if (precomputedWaterfall && !useLegacyLockedDepositTail) {
     coverage = alignCoverageToLockedWaterfall(coverage, precomputedWaterfall);
     ctx = {
       ...ctx,
-      checkoutTailRentPaise: precomputedWaterfall.depositBucket.tailRentPaise,
+      checkoutTailRentPaise: 0,
       missingNoticeDays: precomputedWaterfall.notice.missingNoticeDays,
     };
+  }
+
+  const { resolveFinalPeriodRentInvoiceOutstandingForBooking } = await import(
+    '@/src/lib/checkout/checkoutSettlementV2Compute'
+  );
+  const invoiceOutstanding = await resolveFinalPeriodRentInvoiceOutstandingForBooking({
+    bookingId: input.bookingId,
+    vacatingDate,
+  });
+  const outstandingTailRentInvoicePaise =
+    invoiceOutstanding.invoiceId != null
+      ? invoiceOutstanding.outstandingPaise
+      : useLegacyLockedDepositTail
+        ? precomputedWaterfall!.depositBucket.tailRentPaise
+        : precomputedWaterfall?.outstandingRentInvoicePaise ?? coverage.tailRentPaise;
+
+  if (!useLegacyLockedDepositTail) {
+    ctx = {
+      ...ctx,
+      checkoutTailRentPaise: 0,
+      outstandingRentInvoicePaise: invoiceOutstanding.outstandingPaise,
+    };
+    waterfall = computeVacatingSettlementWaterfallFromContext(ctx);
   }
 
   const noticeDisplay = noticeDisplayFromBillingCoverage(coverage);
@@ -154,6 +174,7 @@ export async function loadVacatingBillingPresentation(
     waterfall,
     coverage,
     depositHeldPaise: ctx.depositHeldPaise,
+    outstandingTailRentInvoicePaise,
     mode,
   });
 
@@ -165,6 +186,7 @@ export async function loadVacatingBillingPresentation(
     estimatedUnusedRentCreditPaise: waterfall.refund.unusedRentPortionPaise,
     estimatedRefundableDepositPaise: waterfall.depositBucket.refundablePaise,
     depositHeldPaise,
+    outstandingTailRentInvoicePaise,
     disclaimer: ESTIMATED_REFUND_DISCLAIMER,
     mode,
   };

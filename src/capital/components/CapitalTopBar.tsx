@@ -5,7 +5,6 @@ import { CapitalMobileNav } from '@/src/capital/components/CapitalMobileNav';
 import { CapitalOsMark } from '@/src/components/brand/capital-os/CapitalOsMark';
 import { Button } from '@/src/capital/components/ui/button';
 import { Input } from '@/src/capital/components/ui/input';
-import { CAPITAL_OS } from '@/src/lib/brand/capitalOsTokens';
 import type { CapitalAdmin } from '@/src/capital/lib/auth/session';
 
 type CapitalTopBarProps = {
@@ -16,14 +15,8 @@ export function CapitalTopBar({ admin }: CapitalTopBarProps) {
   return (
     <header className="ac-app-header">
       <div className="ac-app-header-row">
-        <CapitalOsMark size={32} className="shrink-0" title="AUTO" />
+        <CapitalOsMark size={32} className="shrink-0" title="Automotive Capital" />
         <CapitalMobileNav />
-        <div className="ac-app-header-title md:hidden">
-          <p className="truncate text-xs uppercase tracking-wide text-ac-accent">
-            {CAPITAL_OS.name}
-          </p>
-          <p className="truncate text-sm font-semibold text-ac-text">{CAPITAL_OS.legalName}</p>
-        </div>
         <form action="/assets" method="get" className="relative hidden max-w-md flex-1 md:block">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ac-text-muted" />
           <Input

@@ -558,14 +558,6 @@ export async function approveVacatingRequest(input: {
     await reconcileBookingOccupancy(current.bookingId);
   }
 
-  await syncCheckoutRentForVacating({
-    bookingId: current.bookingId,
-    vacatingDate: current.vacatingDate,
-    actorId: input.resolvedByAdminId ?? null,
-    actorType: input.resolvedByAdminId ? 'admin' : 'system',
-    context: 'approve',
-  });
-
   const noticeGivenDate = resolveNoticeGivenDateForVacating({
     noticeGivenDate: String(current.noticeGivenDate),
     originalNoticeSubmittedAt: current.originalNoticeSubmittedAt,
@@ -585,10 +577,20 @@ export async function approveVacatingRequest(input: {
       noticeRentCoveredDays: noticeBreakdown.noticeCoveredByPrepaidRent,
       noticeChargeableDays: noticeBreakdown.chargeableNoticeDays,
       noticeBreakdownJson: noticeBreakdown,
+      status: 'approved',
+      resolvedByAdminId: input.resolvedByAdminId ?? null,
       updatedAt: new Date(),
     })
     .where(eq(vacatingRequests.id, input.requestId))
     .returning();
+
+  await syncCheckoutRentForVacating({
+    bookingId: current.bookingId,
+    vacatingDate: current.vacatingDate,
+    actorId: input.resolvedByAdminId ?? null,
+    actorType: input.resolvedByAdminId ? 'admin' : 'system',
+    context: 'approve',
+  });
 
   const frozenNoticePaise = noticeSynced?.deductionPaise ?? current.deductionPaise;
 
@@ -602,15 +604,10 @@ export async function approveVacatingRequest(input: {
     frozenNoticePenaltyPaise: frozenNoticePaise,
   });
 
-  const [updated] = await db
-    .update(vacatingRequests)
-    .set({
-      status: 'approved',
-      resolvedByAdminId: input.resolvedByAdminId ?? null,
-      updatedAt: new Date(),
-    })
-    .where(eq(vacatingRequests.id, input.requestId))
-    .returning();
+  const updated = noticeSynced;
+  if (!updated) {
+    return { ok: false, kind: 'not_found' };
+  }
 
   await db.insert(auditLog).values({
     actorType: input.resolvedByAdminId ? 'admin' : 'system',

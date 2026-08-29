@@ -44,6 +44,7 @@ export type BuildVacatingSettlementPreviewSectionsArgs = {
   waterfall: CheckoutSettlementWaterfall;
   coverage: BillingCoverageModel;
   depositHeldPaise: number;
+  outstandingTailRentInvoicePaise?: number;
   mode: EstimatedSettlementPreview['mode'];
 };
 
@@ -137,16 +138,28 @@ export function buildVacatingSettlementPreviewSections(
           label: 'Security deposit',
           value: formatSettlementPaise(args.depositHeldPaise),
         },
-        ...(waterfall.depositBucket.tailRentPaise > 0
-          ? [
-              {
-                id: 'tail_rent_through_vacate',
-                label: 'Tail rent (unpaid occupancy)',
-                value: formatSettlementPaise(waterfall.depositBucket.tailRentPaise, true),
-                deduct: true,
-              },
-            ]
-          : []),
+        {
+          id: 'notice_from_deposit_row',
+          label: 'Less notice (from deposit)',
+          value: formatSettlementPaise(waterfall.notice.fromDepositPaise, true),
+          deduct: waterfall.notice.fromDepositPaise > 0,
+        },
+        {
+          id: 'pending_electricity_deposit',
+          label: 'Less electricity',
+          value: hasPendingElectricity
+            ? PENDING_ELECTRICITY_LABEL
+            : formatSettlementPaise(waterfall.depositBucket.electricityPaise, true),
+          deduct: !hasPendingElectricity && waterfall.depositBucket.electricityPaise > 0,
+        },
+        {
+          id: 'pending_damages_deposit',
+          label: 'Less damage / cleaning / other',
+          value: hasPendingDamage
+            ? PENDING_DAMAGES_LABEL
+            : formatSettlementPaise(waterfall.depositBucket.otherPaise, true),
+          deduct: !hasPendingDamage && waterfall.depositBucket.otherPaise > 0,
+        },
         {
           id: 'estimated_refundable_deposit',
           label: 'Refundable deposit',
@@ -155,11 +168,43 @@ export function buildVacatingSettlementPreviewSections(
       ],
     },
     {
+      title: 'Refund summary',
+      rows: [
+        {
+          id: 'unused_prepaid_refund',
+          label: 'Unused prepaid rent',
+          value: formatSettlementPaise(waterfall.refund.unusedRentPortionPaise),
+        },
+        ...((args.outstandingTailRentInvoicePaise ??
+          waterfall.outstandingRentInvoicePaise ??
+          0) > 0
+          ? [
+              {
+                id: 'outstanding_final_rent_invoice',
+                label: 'Outstanding final-period rent invoice',
+                value: formatSettlementPaise(
+                  args.outstandingTailRentInvoicePaise ??
+                    waterfall.outstandingRentInvoicePaise ??
+                    0,
+                  true,
+                ),
+                deduct: true,
+              },
+            ]
+          : []),
+        {
+          id: 'final_estimated_refund',
+          label: mode === 'final' ? 'Final estimated refund' : 'Estimated refund',
+          value: formatSettlementPaise(waterfall.refund.totalPaise),
+        },
+      ],
+    },
+    {
       title: 'Pending deductions',
       rows: [
         {
           id: 'pending_electricity',
-          label: 'Electricity',
+          label: 'Electricity (detail)',
           value: hasPendingElectricity
             ? PENDING_ELECTRICITY_LABEL
             : formatSettlementPaise(waterfall.depositBucket.electricityPaise, true),
@@ -220,6 +265,7 @@ export type VacatingSettlementWaterfallContext = {
   missingNoticeDays: number;
   noticeApplies: boolean;
   checkoutTailRentPaise: number;
+  outstandingRentInvoicePaise?: number;
   prepaidAfterVacatingPaise?: number;
   periodDailyRentPaise?: number;
 };
@@ -236,7 +282,11 @@ export async function loadVacatingSettlementWaterfallContext(
 
   const monthlyRentPaise = guardDepositPaise(input.monthlyRentPaiseSnapshot);
 
-  const [money, wallet, coverage] = await Promise.all([
+  const { resolveFinalPeriodRentInvoiceOutstandingForBooking } = await import(
+    '@/src/lib/checkout/checkoutSettlementV2Compute'
+  );
+
+  const [money, wallet, coverage, finalPeriodInvoice] = await Promise.all([
     getBookingMoneyBalances(input.bookingId),
     getDepositSummaryForBooking(input.bookingId),
     loadBillingCoverageModel({
@@ -247,6 +297,10 @@ export async function loadVacatingSettlementWaterfallContext(
       stayType: input.stayType,
       durationMode: input.durationMode,
       treatAsApprovedForTail: true,
+    }),
+    resolveFinalPeriodRentInvoiceOutstandingForBooking({
+      bookingId: input.bookingId,
+      vacatingDate,
     }),
   ]);
 
@@ -259,19 +313,8 @@ export async function loadVacatingSettlementWaterfallContext(
   const prepaidAfterVacatingPaise = coverage.prepaidAfterVacatingPaise;
 
   const missingNoticeDays = coverage.noticeBreakdown?.missingNoticeDays ?? 0;
-  /**
-   * Prepaid leftover days are unused-rent credit — never deposit "tail rent".
-   * Also: if vacating falls inside an already-paid invoice period, do not charge
-   * deposit for those prepaid occupancy days (calendar-month SSOT).
-   */
-  const vacatingInsidePaidPeriod = coverage.paidInvoiceCoverage.some(
-    (p) =>
-      (p.paidPrincipalPaise ?? 0) > 0 &&
-      p.periodStart <= vacatingDate &&
-      vacatingDate <= p.periodEnd,
-  );
-  const checkoutTailRentPaise =
-    prepaidAfterVacatingPaise > 0 || vacatingInsidePaidPeriod ? 0 : coverage.tailRentPaise;
+  /** Occupancy rent through vacate is always a rent invoice — never deposit tail rent. */
+  const checkoutTailRentPaise = 0;
   const periodDailyRentPaise = periodDailyRentFromCoverage(
     coverage,
     vacatingDate,
@@ -291,6 +334,7 @@ export async function loadVacatingSettlementWaterfallContext(
         durationMode: input.durationMode,
       }),
       checkoutTailRentPaise,
+      outstandingRentInvoicePaise: finalPeriodInvoice.outstandingPaise,
       prepaidAfterVacatingPaise,
       periodDailyRentPaise,
     },
@@ -315,6 +359,7 @@ export function computeVacatingSettlementWaterfallFromContext(
     customChargePaise: 0,
     noticeApplies: ctx.noticeApplies,
     checkoutTailRentPaise: ctx.checkoutTailRentPaise,
+    outstandingRentInvoicePaise: ctx.outstandingRentInvoicePaise ?? 0,
     prepaidAfterVacatingPaise: ctx.prepaidAfterVacatingPaise ?? 0,
     periodDailyRentPaise: ctx.periodDailyRentPaise,
   });

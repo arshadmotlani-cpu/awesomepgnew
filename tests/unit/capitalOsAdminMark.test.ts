@@ -33,5 +33,7 @@ test('Capital admin mark component is used in sidebar, header, login, and mobile
   for (const file of files) {
     const source = read(file);
     assert.match(source, /CapitalOsMark|CapitalOsLogoLockup/, `${file} must render Capital branding mark`);
+    assert.doesNotMatch(source, /CAPITAL_OS\.name/, `${file} must not render Capital OS text lockup`);
+    assert.doesNotMatch(source, /CAPITAL_OS\.legalName/, `${file} must not render Automotive Capital text lockup`);
   }
 });

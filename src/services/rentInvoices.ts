@@ -219,6 +219,14 @@ function monthLabel(billingMonth: DateLike): string {
  * index on `invoice_number` will reject a collision with SQLSTATE 23505,
  * in which case the caller can retry with `count + 2`.
  */
+/** Exported for vacating proration invoice creation. */
+export async function nextInvoiceNumberForBillingMonth(
+  billingMonth: DateLike,
+  attempt = 0,
+): Promise<string> {
+  return nextInvoiceNumber(billingMonth, attempt);
+}
+
 async function nextInvoiceNumber(billingMonth: DateLike, attempt = 0): Promise<string> {
   const label = monthLabel(billingMonth);
   const [{ count }] = await db
@@ -808,19 +816,24 @@ export async function evaluateAnniversaryRentGenerationEligibility(
     return { eligible: false, skipCode: 'inactive_on_anniversary' };
   }
 
-  const [approvedVacating] = await db
-    .select({ vacatingDate: vacatingRequests.vacatingDate })
+  const [activeVacating] = await db
+    .select({
+      vacatingDate: vacatingRequests.vacatingDate,
+      status: vacatingRequests.status,
+      monthlyRentPaiseSnapshot: vacatingRequests.monthlyRentPaiseSnapshot,
+    })
     .from(vacatingRequests)
     .where(
       and(
         eq(vacatingRequests.bookingId, input.bookingId),
-        eq(vacatingRequests.status, 'approved'),
+        inArray(vacatingRequests.status, ['pending', 'approved']),
       ),
     )
+    .orderBy(sql`${vacatingRequests.updatedAt} DESC`)
     .limit(1);
   if (
-    approvedVacating?.vacatingDate &&
-    billingMonth > firstOfMonth(String(approvedVacating.vacatingDate))
+    activeVacating?.vacatingDate &&
+    billingMonth > firstOfMonth(String(activeVacating.vacatingDate))
   ) {
     return { eligible: false, skipCode: 'vacating_past_checkout' };
   }
@@ -843,29 +856,83 @@ export async function evaluateAnniversaryRentGenerationEligibility(
     }
   }
 
-  const invoiceNotes = rentInvoiceBillingPeriodNoteForPolicy(
+  let invoiceNotes = rentInvoiceBillingPeriodNoteForPolicy(
     billingCyclePolicy,
     billingPeriod.periodStart,
     billingPeriod.periodEnd,
   );
 
-  const { resolveVacatingFinalPeriodInvoiceSuppression } = await import(
-    './vacatingCheckoutBilling'
-  );
-  const { shouldSuppressAnniversaryInvoiceForVacating } = await import(
-    '@/src/lib/billing/vacatingFinalPeriodRent'
-  );
-  const vacatingDecision = await resolveVacatingFinalPeriodInvoiceSuppression(input.bookingId);
-  if (
-    vacatingDecision &&
-    shouldSuppressAnniversaryInvoiceForVacating({
-      decision: vacatingDecision,
+  if (activeVacating?.vacatingDate) {
+    const { resolveVacatingAwareRentCharge } = await import(
+      '@/src/lib/billing/billingCoverageModel'
+    );
+    const { loadBillingCoverageModel } = await import('@/src/services/billingCoverage');
+    const vacatingDate = formatDate(parseDate(String(activeVacating.vacatingDate)));
+    const coverage = await loadBillingCoverageModel({
+      bookingId: input.bookingId,
+      vacatingDate,
+      monthlyRentPaise: activeVacating.monthlyRentPaiseSnapshot ?? monthlyRent,
+      treatAsApprovedForTail: true,
+    });
+    const [existingInvoice] = await db
+      .select({
+        id: rentInvoices.id,
+        rentPaise: rentInvoices.rentPaise,
+        paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
+        status: rentInvoices.status,
+      })
+      .from(rentInvoices)
+      .where(
+        and(
+          eq(rentInvoices.bookingId, input.bookingId),
+          eq(rentInvoices.billingMonth, billingMonth),
+          eq(rentInvoices.isAdhoc, false),
+        ),
+      )
+      .limit(1);
+
+    const vacatingCharge = resolveVacatingAwareRentCharge({
       billingMonth,
       billingDay,
-      anniversaryDueDate: anniversaryDate,
-    })
-  ) {
-    return { eligible: false, skipCode: 'vacating_final_period' };
+      billingCyclePolicy,
+      moveInDate: stay.start,
+      monthlyRentPaise: activeVacating.monthlyRentPaiseSnapshot ?? monthlyRent,
+      paidInvoiceCoverage: coverage?.paidInvoiceCoverage ?? [],
+      activeVacating: {
+        status: activeVacating.status as 'pending' | 'approved',
+        vacatingDate,
+      },
+      fullMonthRentPaise: rentPaise,
+      billingPeriod,
+      existingInvoice: existingInvoice ?? null,
+    });
+
+    if (
+      vacatingCharge.billingAction === 'skip_past_checkout' ||
+      vacatingCharge.billingAction === 'skip_already_paid' ||
+      vacatingCharge.billingAction === 'skip_no_charge'
+    ) {
+      return { eligible: false, skipCode: `vacating_${vacatingCharge.billingAction}` };
+    }
+    if (vacatingCharge.billingAction === 'no_change' && existingInvoice) {
+      return { eligible: false, skipCode: 'vacating_invoice_current' };
+    }
+    if (
+      vacatingCharge.billingAction === 'generate_prorated' ||
+      vacatingCharge.billingAction === 'adjust_existing'
+    ) {
+      rentPaise = vacatingCharge.chargeablePaise;
+      if (vacatingCharge.chargeablePeriodStart && vacatingCharge.chargeablePeriodEnd) {
+        billingPeriod = {
+          periodStart: vacatingCharge.chargeablePeriodStart,
+          periodEnd: vacatingCharge.chargeablePeriodEnd,
+        };
+      }
+      invoiceNotes = vacatingCharge.invoiceNotes ?? invoiceNotes;
+      if (rentPaise <= 0) {
+        return { eligible: false, skipCode: 'vacating_zero_proration' };
+      }
+    }
   }
 
   const [pgRow] = await db.execute<{ pg_id: string }>(sql`

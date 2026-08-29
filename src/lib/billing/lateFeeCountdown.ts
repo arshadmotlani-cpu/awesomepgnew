@@ -23,22 +23,24 @@ export function buildLateFeeCountdown(
     if (daysUntil === 0) {
       return {
         phase: 'grace',
-        message: 'Last day to pay without late fee',
+        message: 'Due today',
         daysUntilLateFee: 0,
       };
     }
     const dayLabel = daysUntil === 1 ? 'day' : 'days';
     return {
       phase: 'grace',
-      message: `${daysUntil} ${dayLabel} left before late fee starts`,
+      message: `Due in ${daysUntil} ${dayLabel}`,
       daysUntilLateFee: daysUntil,
     };
   }
 
+  const overdueDays = chargeableDays;
+  const overdueLabel = overdueDays === 1 ? '1 day overdue' : `${overdueDays} days overdue`;
   const percentToday = lateFeePercentFromIssue(issueDate, today);
   return {
     phase: 'late',
-    message: `Late fee: ${percentToday}% applied`,
+    message: `${overdueLabel} · Late fee ${percentToday}%`,
     percentToday,
     percentTomorrow: percentToday + 1,
   };

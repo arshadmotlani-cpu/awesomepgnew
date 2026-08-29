@@ -6,7 +6,6 @@ import { OwnerOsNavLink } from '@/src/components/admin/OwnerOsNavLink';
 import { useAdminNavBadges } from '@/src/components/admin/AdminLiveRefreshProvider';
 import { LogoutButton } from '@/src/components/auth/LogoutButton';
 import { ApgOsMark } from '@/src/components/brand/apg-os/ApgOsMark';
-import { APG_OS } from '@/src/lib/brand/apgOsTokens';
 import { MobileNav } from './MobileNav';
 
 export function AdminTopNav({
@@ -26,8 +25,6 @@ export function AdminTopNav({
       <ApgOsMark size={32} className="shrink-0" title="PG" />
       <MobileNav />
       <AdminQuickMenu />
-
-      <p className="hidden text-sm font-medium tracking-tight text-apg-silver lg:block">{APG_OS.subtitle}</p>
 
       <div className="ml-auto flex shrink-0 items-center pr-0.5">
         <div className="flex items-center gap-0.5 sm:gap-2">

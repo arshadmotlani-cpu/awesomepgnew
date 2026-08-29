@@ -256,8 +256,147 @@ export async function generateInvoiceFromSsot(
   };
 }
 
-/** List unified invoices for a resident (invoice history). */
-export async function listResidentInvoiceHistory(customerId: string, limit = 30) {
-  const { listUnifiedInvoices } = await import('@/src/services/unifiedInvoices');
-  return listUnifiedInvoices({ customerId, limit });
+/** List unified invoices for a resident with projectInvoice money fields (SSOT). */
+export type ResidentInvoiceHistoryRow = {
+  id: string;
+  invoiceNumber: string;
+  invoiceType: string;
+  customerName: string;
+  customerPhone: string;
+  pgName: string;
+  roomNumber: string | null;
+  bedCode: string | null;
+  amountPaise: number;
+  status: string;
+  createdAt: Date;
+  dueDate: string | null;
+  paidAt: Date | null;
+  notes: string | null;
+  paidPaise: number;
+  outstandingPaise: number;
+  lateFeePaise: number;
+  billingPeriod: string | null;
+  bookingId: string | null;
+  bookingCode: string | null;
+};
+
+export async function listResidentInvoiceHistory(
+  customerId: string,
+  limit = 200,
+): Promise<ResidentInvoiceHistoryRow[]> {
+  const { bookings, electricityInvoices, rentInvoices } = await import('@/src/db/schema');
+  const { customers, pgs } = await import('@/src/db/schema');
+  const { desc, eq } = await import('drizzle-orm');
+  const { parseBillingPeriodFromInvoiceNotes } = await import(
+    '@/src/lib/billing/billingCoverageModel'
+  );
+  const { projectInvoice } = await import('@/src/services/rentInvoices');
+  const { projectElectricityInvoice } = await import('@/src/services/electricityBilling');
+
+  const rows = await db
+    .select({
+      id: financialInvoices.id,
+      invoiceNumber: financialInvoices.invoiceNumber,
+      invoiceType: financialInvoices.invoiceType,
+      customerName: customers.fullName,
+      customerPhone: customers.phone,
+      pgName: pgs.name,
+      roomNumber: financialInvoices.roomNumber,
+      bedCode: financialInvoices.bedCode,
+      amountPaise: financialInvoices.amountPaise,
+      status: financialInvoices.status,
+      createdAt: financialInvoices.createdAt,
+      dueDate: financialInvoices.dueDate,
+      paidAt: financialInvoices.paidAt,
+      notes: financialInvoices.notes,
+      sourceTable: financialInvoices.sourceTable,
+      sourceId: financialInvoices.sourceId,
+      bookingId: financialInvoices.bookingId,
+      bookingCode: bookings.bookingCode,
+    })
+    .from(financialInvoices)
+    .innerJoin(customers, eq(customers.id, financialInvoices.customerId))
+    .innerJoin(pgs, eq(pgs.id, financialInvoices.pgId))
+    .leftJoin(bookings, eq(bookings.id, financialInvoices.bookingId))
+    .where(eq(financialInvoices.customerId, customerId))
+    .orderBy(desc(financialInvoices.createdAt))
+    .limit(limit);
+
+  const rentIds = rows
+    .filter((r) => r.sourceTable === 'rent_invoices' && r.sourceId)
+    .map((r) => r.sourceId!);
+  const elecIds = rows
+    .filter((r) => r.sourceTable === 'electricity_invoices' && r.sourceId)
+    .map((r) => r.sourceId!);
+
+  const [rentRows, elecRows] = await Promise.all([
+    rentIds.length > 0
+      ? db.select().from(rentInvoices).where(inArray(rentInvoices.id, rentIds))
+      : Promise.resolve([]),
+    elecIds.length > 0
+      ? db.select().from(electricityInvoices).where(inArray(electricityInvoices.id, elecIds))
+      : Promise.resolve([]),
+  ]);
+
+  const rentById = new Map(rentRows.map((r) => [r.id, r]));
+  const elecById = new Map(elecRows.map((r) => [r.id, r]));
+
+  return rows.map((row) => {
+    const base = {
+      id: row.id,
+      invoiceNumber: row.invoiceNumber,
+      invoiceType: row.invoiceType,
+      customerName: row.customerName,
+      customerPhone: row.customerPhone,
+      pgName: row.pgName,
+      roomNumber: row.roomNumber,
+      bedCode: row.bedCode,
+      amountPaise: row.amountPaise,
+      status: row.status,
+      createdAt: row.createdAt,
+      dueDate: row.dueDate ?? null,
+      paidAt: row.paidAt,
+      notes: row.notes,
+      bookingId: row.bookingId,
+      bookingCode: row.bookingCode,
+    };
+
+    if (row.sourceTable === 'rent_invoices' && row.sourceId) {
+      const ri = rentById.get(row.sourceId);
+      if (ri) {
+        const projected = projectInvoice(ri);
+        const period = parseBillingPeriodFromInvoiceNotes(ri.notes);
+        return {
+          ...base,
+          paidPaise: (ri.paidPrincipalPaise ?? 0) + (ri.paidLateFeePaise ?? 0),
+          outstandingPaise: projected.outstandingPaise,
+          lateFeePaise: projected.accruedLateFeePaise,
+          billingPeriod: period ? `${period.periodStart} → ${period.periodEnd}` : null,
+        };
+      }
+    }
+
+    if (row.sourceTable === 'electricity_invoices' && row.sourceId) {
+      const ei = elecById.get(row.sourceId);
+      if (ei) {
+        const projected = projectElectricityInvoice(ei);
+        return {
+          ...base,
+          paidPaise: ei.paidPaise ?? 0,
+          outstandingPaise: projected.outstandingPaise,
+          lateFeePaise: projected.accruedLateFeePaise ?? 0,
+          billingPeriod: ei.billingMonth ? String(ei.billingMonth).slice(0, 7) : null,
+        };
+      }
+    }
+
+    const paidAtAmount = row.paidAt ? row.amountPaise : 0;
+    return {
+      ...base,
+      paidPaise: paidAtAmount,
+      outstandingPaise: row.paidAt ? 0 : row.amountPaise,
+      lateFeePaise: 0,
+      billingPeriod: null,
+    };
+  });
 }

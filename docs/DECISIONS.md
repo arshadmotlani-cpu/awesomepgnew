@@ -313,3 +313,6 @@ Cross-links: [[ARCHITECTURE]] · [[WORKFLOWS]] · [[AI_CONTEXT]] · [[BUGS]]
 
 <!-- DOC_SYNC_TOUCH_2026-08-27 -->
 > **2026-08-27 11:57:18 UTC** — Code changed in: Billing, Residents, Vacating. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-08-29 -->
+> **2026-08-29 06:02:03 UTC** — Code changed in: Routes, Billing, Residents, Vacating. Manual review recommended.

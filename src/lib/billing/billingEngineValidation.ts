@@ -153,18 +153,18 @@ function assertCoverageInvariants(
     }
   }
 
-  if (w.depositBucket.tailRentPaise !== coverage.tailRentPaise) {
+  if (coverage.tailRentPaise > 0 && w.depositBucket.tailRentPaise !== 0) {
     failures.push(
       fail(
-        'TAIL_MISMATCH',
-        `Waterfall tail ${w.depositBucket.tailRentPaise} !== BCM ${coverage.tailRentPaise}`,
-        'TAIL_MISMATCH',
+        'TAIL_DEPOSIT_BUCKET',
+        `Tail rent must be invoice-only — deposit tail ${w.depositBucket.tailRentPaise} with BCM tail ${coverage.tailRentPaise}`,
+        'TAIL_DEPOSIT_BUCKET',
       ),
     );
   }
 
   const vac = coverage.vacatingDate;
-  if (vac && w.depositBucket.tailRentPaise > 0) {
+  if (vac && coverage.tailRentPaise > 0) {
     const insidePaid = coverage.paidInvoiceCoverage.some(
       (p) => p.periodStart <= vac && vac <= p.periodEnd,
     );
@@ -172,7 +172,7 @@ function assertCoverageInvariants(
       failures.push(
         fail(
           'TAIL_IN_PAID_PERIOD',
-          `Tail ${w.depositBucket.tailRentPaise} but vacate ${vac} inside paid window`,
+          `Tail ${coverage.tailRentPaise} but vacate ${vac} inside paid window`,
           'TAIL_IN_PAID_PERIOD',
         ),
       );
@@ -181,7 +181,7 @@ function assertCoverageInvariants(
 
   const tailStart = coverage.tailRent.tailPeriodStart;
   const tailEnd = coverage.tailRent.tailPeriodEnd;
-  if (w.depositBucket.tailRentPaise > 0 && tailStart && tailEnd) {
+  if (coverage.tailRentPaise > 0 && tailStart && tailEnd) {
     for (const d of datesInclusive(tailStart, tailEnd)) {
       if (dateInPaidCoverage(d, coverage.paidInvoiceCoverage)) {
         failures.push(
@@ -229,6 +229,7 @@ function assertExplainabilityInvariants(
 ): void {
   const w = presentation.waterfall;
   const preview = presentation.estimatedSettlement;
+  const { coverage } = presentation;
 
   for (const requiredId of SETTLEMENT_EXPLANATION_LINE_IDS) {
     const found = report.lines.find((l) => l.id === requiredId);
@@ -270,7 +271,7 @@ function assertExplainabilityInvariants(
     notice_charge: w.notice.fullPaise,
     notice_from_unused_rent: w.notice.fromUnusedRentPaise,
     notice_from_deposit: w.notice.fromDepositPaise,
-    tail_rent: w.depositBucket.tailRentPaise,
+    tail_rent: w.outstandingRentInvoicePaise ?? coverage.tailRentPaise,
     electricity_deduction: w.depositBucket.electricityPaise,
     other_deductions: w.depositBucket.otherPaise,
     refund_total: w.refund.totalPaise,
@@ -300,7 +301,7 @@ function assertExplainabilityInvariants(
     { lineId: 'rent_consumed', rowId: 'rent_consumed' },
     { lineId: 'unused_rent', rowId: 'unused_prepaid_rent' },
     { lineId: 'notice_from_deposit', rowId: 'notice_from_deposit', deduct: true },
-    { lineId: 'tail_rent', rowId: 'tail_rent_through_vacate', deduct: true },
+    { lineId: 'tail_rent', rowId: 'outstanding_final_rent_invoice', deduct: true },
     { lineId: 'deposit_refundable', rowId: 'estimated_refundable_deposit' },
   ];
 

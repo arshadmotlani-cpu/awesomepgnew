@@ -7,7 +7,7 @@ test('grace countdown shows days remaining before late fee', () => {
   assert.equal(state.phase, 'grace');
   if (state.phase !== 'grace') return;
   assert.equal(state.daysUntilLateFee, 4);
-  assert.match(state.message, /4 days left before late fee starts/);
+  assert.match(state.message, /Due in 4 days/);
 });
 
 test('grace countdown shows last-day message', () => {
@@ -15,16 +15,17 @@ test('grace countdown shows last-day message', () => {
   assert.equal(state.phase, 'grace');
   if (state.phase !== 'grace') return;
   assert.equal(state.daysUntilLateFee, 0);
-  assert.equal(state.message, 'Last day to pay without late fee');
+  assert.equal(state.message, 'Due today');
 });
 
-test('late phase shows percent today and tomorrow', () => {
+test('late phase shows percent today and overdue copy', () => {
   const state = buildLateFeeCountdown('2026-08-01', '2026-08-06');
   assert.equal(state.phase, 'late');
   if (state.phase !== 'late') return;
   assert.equal(state.percentToday, 1);
   assert.equal(state.percentTomorrow, 2);
-  assert.match(state.message, /Late fee: 1% applied/);
+  assert.match(state.message, /1 day overdue/);
+  assert.match(state.message, /Late fee 1%/);
 });
 
 test('mid-month issue countdown matches 10th example', () => {
@@ -32,5 +33,5 @@ test('mid-month issue countdown matches 10th example', () => {
   assert.equal(state.phase, 'grace');
   if (state.phase !== 'grace') return;
   assert.equal(state.daysUntilLateFee, 2);
-  assert.match(state.message, /2 days left before late fee starts/);
+  assert.match(state.message, /Due in 2 days/);
 });

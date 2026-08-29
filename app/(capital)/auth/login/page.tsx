@@ -4,9 +4,8 @@ import { useActionState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { loginAction, type LoginState } from '@/src/capital/actions/auth';
 import { CapitalOsLogoLockup } from '@/src/components/brand/capital-os/CapitalOsLogoLockup';
-import { CAPITAL_OS } from '@/src/lib/brand/capitalOsTokens';
 import { Button } from '@/src/capital/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/capital/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/src/capital/components/ui/card';
 import { Input } from '@/src/capital/components/ui/input';
 
 const initialState: LoginState = {};
@@ -26,7 +25,6 @@ export default function LoginPage() {
             <CapitalOsLogoLockup markSize={64} />
           </div>
           <CardTitle>Sign in</CardTitle>
-          <CardDescription>{CAPITAL_OS.tagline}</CardDescription>
         </CardHeader>
         <CardContent>
           <form action={formAction} className="space-y-4">

@@ -4,7 +4,6 @@ import { useActionState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { loginAction, type LoginState } from '@/src/owner/actions/auth';
 import { OwnerOsMark } from '@/src/components/brand/owner-os/OwnerOsMark';
-import { OWNER_OS } from '@/src/lib/brand/ownerOsMetadata';
 
 const initialState: LoginState = {};
 
@@ -23,7 +22,6 @@ export default function OwnerLoginForm() {
             <OwnerOsMark size={40} className="max-w-full" title="NET WORTH" />
           </div>
           <h1 className="text-xl font-semibold text-white">Sign in</h1>
-          <p className="mt-1 text-sm text-[color:var(--oo-muted)]">{OWNER_OS.tagline}</p>
         </div>
         <form action={formAction} className="space-y-4">
           <input type="hidden" name="next" value={next} />

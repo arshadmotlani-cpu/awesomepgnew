@@ -24,6 +24,7 @@ import {
   firstOfMonth,
   firstPartialMonthPeriod,
   formatAnniversaryBillingPeriodLabel,
+  rentInvoiceBillingPeriodNoteForPolicy,
   type BillingCyclePolicy,
 } from '@/src/services/billing';
 
@@ -557,4 +558,189 @@ export function rawPeriodFromInvoiceDueDate(
     source: 'rent_invoice',
     sourceId,
   };
+}
+
+export type VacatingAwareRentBillingAction =
+  | 'generate_full'
+  | 'generate_prorated'
+  | 'skip_past_checkout'
+  | 'skip_already_paid'
+  | 'skip_no_charge'
+  | 'adjust_existing'
+  | 'no_change';
+
+export type ActiveVacatingForBilling = {
+  status: 'pending' | 'approved';
+  vacatingDate: string;
+};
+
+export type ExistingRentInvoiceForVacatingAdjust = {
+  id: string;
+  rentPaise: number;
+  paidPrincipalPaise: number;
+  status: string;
+};
+
+export type VacatingAwareRentCharge = {
+  billingAction: VacatingAwareRentBillingAction;
+  chargeablePeriodStart: string | null;
+  chargeablePeriodEnd: string | null;
+  chargeableDays: number;
+  chargeablePaise: number;
+  fullMonthPaise: number;
+  invoiceBillingMonth: string | null;
+  invoiceNotes: string | null;
+  settlementTailRentPaise: number;
+  collectViaRentInvoice: boolean;
+  adjustBlockedReason: 'partial_payment_exceeds_new_charge' | null;
+};
+
+/** SSOT — vacating date controls chargeable rent for cron, vacating sync, and settlement gating. */
+export function resolveVacatingAwareRentCharge(input: {
+  billingMonth: string;
+  billingDay: number;
+  billingCyclePolicy: BillingCyclePolicy;
+  moveInDate: string;
+  monthlyRentPaise: number;
+  paidInvoiceCoverage: BillingCoveragePeriod[];
+  activeVacating: ActiveVacatingForBilling | null;
+  fullMonthRentPaise: number;
+  billingPeriod: { periodStart: string; periodEnd: string };
+  existingInvoice?: ExistingRentInvoiceForVacatingAdjust | null;
+}): VacatingAwareRentCharge {
+  const billingMonth = firstOfMonth(input.billingMonth);
+  const fullMonthPaise = input.fullMonthRentPaise;
+  const defaultNotes = rentInvoiceBillingPeriodNoteForPolicy(
+    input.billingCyclePolicy,
+    input.billingPeriod.periodStart,
+    input.billingPeriod.periodEnd,
+  );
+
+  const base = (
+    overrides: Partial<VacatingAwareRentCharge>,
+  ): VacatingAwareRentCharge => ({
+    billingAction: 'generate_full',
+    chargeablePeriodStart: input.billingPeriod.periodStart,
+    chargeablePeriodEnd: input.billingPeriod.periodEnd,
+    chargeableDays: calendarDaysInclusive(
+      input.billingPeriod.periodStart,
+      input.billingPeriod.periodEnd,
+    ),
+    chargeablePaise: fullMonthPaise,
+    fullMonthPaise,
+    invoiceBillingMonth: billingMonth,
+    invoiceNotes: defaultNotes,
+    settlementTailRentPaise: 0,
+    collectViaRentInvoice: true,
+    adjustBlockedReason: null,
+    ...overrides,
+  });
+
+  if (!input.activeVacating) {
+    if (input.existingInvoice) {
+      return base({ billingAction: 'no_change' });
+    }
+    return base({ billingAction: 'generate_full' });
+  }
+
+  const vacatingDate = formatDate(parseDate(input.activeVacating.vacatingDate));
+  const checkoutMonth = firstOfMonth(vacatingDate);
+
+  if (billingMonth > checkoutMonth) {
+    return base({
+      billingAction: 'skip_past_checkout',
+      chargeablePaise: 0,
+      chargeableDays: 0,
+      invoiceBillingMonth: null,
+      invoiceNotes: null,
+      collectViaRentInvoice: false,
+    });
+  }
+
+  const vacatingInsidePaid = input.paidInvoiceCoverage.some(
+    (p) =>
+      (p.paidPrincipalPaise ?? 0) > 0 &&
+      p.periodStart <= vacatingDate &&
+      vacatingDate <= p.periodEnd,
+  );
+  if (vacatingInsidePaid) {
+    return base({
+      billingAction: 'skip_already_paid',
+      chargeablePaise: 0,
+      chargeableDays: 0,
+      settlementTailRentPaise: 0,
+      collectViaRentInvoice: false,
+    });
+  }
+
+  const tailDecision = computeVacatingFinalPeriodRentDecision({
+    vacatingApproved: true,
+    vacatingDate,
+    billingDay: input.billingDay,
+    moveInDate: input.moveInDate,
+    monthlyRentPaise: input.monthlyRentPaise,
+    paidPeriods: input.paidInvoiceCoverage,
+    billingCyclePolicy: input.billingCyclePolicy,
+  });
+
+  const invoiceMonth = tailDecision.invoiceBillingMonth
+    ? firstOfMonth(tailDecision.invoiceBillingMonth)
+    : null;
+
+  if (!tailDecision.shouldSuppressFinalInvoice || invoiceMonth !== billingMonth) {
+    if (input.existingInvoice) {
+      return base({ billingAction: 'no_change' });
+    }
+    return base({ billingAction: 'generate_full' });
+  }
+
+  const chargeablePaise = tailDecision.tailRentPaise;
+  const chargeableStart = tailDecision.tailPeriodStart;
+  const chargeableEnd = tailDecision.tailPeriodEnd;
+  const proratedNotes =
+    chargeableStart && chargeableEnd
+      ? `${rentInvoiceBillingPeriodNoteForPolicy(
+          input.billingCyclePolicy,
+          chargeableStart,
+          chargeableEnd,
+        )} (move-out proration)`
+      : defaultNotes;
+
+  if (chargeablePaise <= 0) {
+    return base({
+      billingAction: 'skip_no_charge',
+      chargeablePaise: 0,
+      chargeableDays: 0,
+      settlementTailRentPaise: 0,
+      collectViaRentInvoice: false,
+    });
+  }
+
+  const proratedBase = base({
+    chargeablePeriodStart: chargeableStart,
+    chargeablePeriodEnd: chargeableEnd,
+    chargeableDays: tailDecision.tailDays,
+    chargeablePaise,
+    invoiceNotes: proratedNotes,
+    settlementTailRentPaise: 0,
+    collectViaRentInvoice: true,
+  });
+
+  const existing = input.existingInvoice;
+  if (!existing) {
+    return { ...proratedBase, billingAction: 'generate_prorated' };
+  }
+
+  const paid = existing.paidPrincipalPaise ?? 0;
+  if (paid > chargeablePaise) {
+    return {
+      ...proratedBase,
+      billingAction: 'no_change',
+      adjustBlockedReason: 'partial_payment_exceeds_new_charge',
+    };
+  }
+  if (existing.rentPaise === chargeablePaise) {
+    return { ...proratedBase, billingAction: 'no_change' };
+  }
+  return { ...proratedBase, billingAction: 'adjust_existing' };
 }

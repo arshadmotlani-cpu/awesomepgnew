@@ -27,9 +27,6 @@ export default function HairLoginPage() {
 
       <div className="fyh-glass fyh-animate-in relative z-10 w-full max-w-md p-8 sm:p-10">
         <FyhLoginBrandHeader />
-        <p className="-mt-4 mb-8 text-center text-sm text-fyh-text-secondary">
-          Sign in to your premium salon operating system
-        </p>
 
         <form action={formAction} className="space-y-4">
           <input type="hidden" name="next" value={next} />

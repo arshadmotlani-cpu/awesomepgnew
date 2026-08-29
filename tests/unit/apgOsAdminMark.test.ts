@@ -32,5 +32,6 @@ test('PG admin mark component is used in sidebar, header, and login chrome', () 
   for (const file of files) {
     const source = read(file);
     assert.match(source, /ApgOsMark/, `${file} must render ApgOsMark`);
+    assert.doesNotMatch(source, /ApgOsWordmark/, `${file} must not render ApgOsWordmark`);
   }
 });

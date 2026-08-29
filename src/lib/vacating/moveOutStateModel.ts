@@ -33,7 +33,13 @@ export type MoveOutResidentView = {
 };
 
 function waterfallRentOwed(w: CheckoutSettlementWaterfall): number {
-  return w.rentBucket.consumedPaise + w.depositBucket.tailRentPaise;
+  return (
+    w.rentBucket.consumedPaise +
+    (w.outstandingRentInvoicePaise ?? 0) +
+    (w.depositBucket.tailRentPaise > 0 && !w.outstandingRentInvoicePaise
+      ? w.depositBucket.tailRentPaise
+      : 0)
+  );
 }
 
 /** Derive earlier/later financial impact from settlement waterfall diff. */

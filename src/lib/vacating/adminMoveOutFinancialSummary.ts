@@ -27,7 +27,10 @@ export function resolveAdminMoveOutFinancialSummary(
 
   if (preview?.estimatedSettlement) {
     const waterfall = preview.estimatedSettlement.waterfall;
-    const refund = buildResidentMoveOutRefundSummary(waterfall, { isEstimate: true });
+    const refund = buildResidentMoveOutRefundSummary(waterfall, {
+      isEstimate: true,
+      tailRentInvoicePaise: preview.estimatedSettlement.outstandingTailRentInvoicePaise,
+    });
     return {
       securityDepositPaise: refund.securityDepositPaise,
       tailRentPaise: refund.tailRentPaise,

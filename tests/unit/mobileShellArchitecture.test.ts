@@ -21,7 +21,8 @@ test('Owner mobile shell separates safe-area padding from header touch row', () 
   assert.match(topBar, /oo-app-header-row/);
   assert.doesNotMatch(topBar, /sticky top-0/);
   assert.doesNotMatch(topBar, /min-h-14.*pt-\[/);
-  assert.match(topBar, /OWNER_OS\.name/);
+  assert.match(topBar, /OwnerOsMark/);
+  assert.doesNotMatch(topBar, /OWNER_OS\.name/);
   assert.match(layout, /oo-app-column/);
 });
 
@@ -37,7 +38,8 @@ test('Capital mobile shell separates safe-area padding from header touch row', (
   assert.match(topBar, /ac-app-header-row/);
   assert.doesNotMatch(topBar, /sticky top-0/);
   assert.match(topBar, /hidden shrink-0 md:block/);
-  assert.match(topBar, /CAPITAL_OS\.legalName/);
+  assert.match(topBar, /CapitalOsMark/);
+  assert.doesNotMatch(topBar, /CAPITAL_OS\.legalName/);
   assert.match(layout, /ac-app-column/);
   assert.match(layout, /mb-4 flex md:hidden/);
 });

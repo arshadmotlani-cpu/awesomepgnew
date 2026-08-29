@@ -16,7 +16,7 @@ import {
   buildVacatingApprovalPreview,
 } from '@/src/lib/vacating/approvalPreview';
 
-test('pending preview path: tail rent in waterfall reduces refundable deposit (Aug 8 vacate)', () => {
+test('pending preview path: invoice outstanding reduces payout, not deposit (Aug 8 vacate)', () => {
   const monthlyRentPaise = 387_000;
   const dailyRentPaise = dailyRateFromMonthly(monthlyRentPaise);
   const depositHeldPaise = 412_100;
@@ -43,7 +43,8 @@ test('pending preview path: tail rent in waterfall reduces refundable deposit (A
     monthlyRentPaise,
     missingNoticeDays: 0,
     noticeApplies: true,
-    checkoutTailRentPaise: decision.tailRentPaise,
+    checkoutTailRentPaise: 0,
+    outstandingRentInvoicePaise: decision.tailRentPaise,
   };
 
   const waterfall = computeVacatingSettlementWaterfallFromContext(ctx);
@@ -51,12 +52,13 @@ test('pending preview path: tail rent in waterfall reduces refundable deposit (A
 
   assert.equal(waterfall.stay.stayDays, 33);
   assert.equal(waterfall.rentBucket.consumedPaise, rentPaidPaise);
-  assert.equal(waterfall.depositBucket.tailRentPaise, decision.tailRentPaise);
+  assert.equal(waterfall.depositBucket.tailRentPaise, 0);
+  assert.equal(waterfall.outstandingRentInvoicePaise, decision.tailRentPaise);
+  assert.equal(waterfall.depositBucket.refundablePaise, depositHeldPaise);
   assert.equal(
-    waterfall.depositBucket.refundablePaise,
+    waterfall.refund.totalPaise,
     depositHeldPaise - decision.tailRentPaise,
   );
-  assert.notEqual(waterfall.depositBucket.refundablePaise, depositHeldPaise);
 });
 
 test('vacate on period end (7 Aug): tail zero; rent consumed can cap at rent paid', () => {

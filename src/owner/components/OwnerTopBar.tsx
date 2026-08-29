@@ -2,7 +2,6 @@ import { logoutAction } from '@/src/owner/actions/auth';
 import { OwnerMobileNav } from '@/src/owner/components/OwnerMobileNav';
 import { OwnerMobileSectionTitle } from '@/src/owner/components/OwnerMobileSectionTitle';
 import { OwnerOsMark } from '@/src/components/brand/owner-os/OwnerOsMark';
-import { OWNER_OS } from '@/src/lib/brand/ownerOsMetadata';
 import type { OwnerAdmin } from '@/src/owner/lib/auth/session';
 
 export function OwnerTopBar({ admin }: { admin: OwnerAdmin }) {
@@ -16,9 +15,6 @@ export function OwnerTopBar({ admin }: { admin: OwnerAdmin }) {
         <OwnerMobileSectionTitle />
         <div className="oo-app-header-title hidden min-w-0 md:block">
           <p className="truncate text-sm font-medium text-white">{displayName}</p>
-          <p className="truncate text-xs text-[color:var(--oo-text-secondary)]">
-            {OWNER_OS.name}
-          </p>
         </div>
         <div className="oo-app-header-actions">
           <form action={logoutAction}>

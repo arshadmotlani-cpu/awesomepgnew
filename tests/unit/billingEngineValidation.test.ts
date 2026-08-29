@@ -42,7 +42,8 @@ function fixturePresentation(vacatingDate: string): VacatingBillingPresentation 
     monthlyRentPaise: monthly387k,
     missingNoticeDays: coverage.noticeBreakdown?.missingNoticeDays ?? 0,
     noticeApplies: true,
-    checkoutTailRentPaise: coverage.tailRentPaise,
+    checkoutTailRentPaise: 0,
+    outstandingRentInvoicePaise: coverage.tailRentPaise,
   };
   const waterfall = computeVacatingSettlementWaterfallFromContext(ctx);
   const noticeDisplay = noticeDisplayFromBillingCoverage(coverage);
@@ -55,6 +56,7 @@ function fixturePresentation(vacatingDate: string): VacatingBillingPresentation 
     waterfall,
     coverage,
     depositHeldPaise: ctx.depositHeldPaise,
+    outstandingTailRentInvoicePaise: coverage.tailRentPaise,
     mode: 'estimate',
   });
   return {
@@ -70,6 +72,7 @@ function fixturePresentation(vacatingDate: string): VacatingBillingPresentation 
       estimatedUnusedRentCreditPaise: waterfall.refund.unusedRentPortionPaise,
       estimatedRefundableDepositPaise: waterfall.depositBucket.refundablePaise,
       depositHeldPaise,
+      outstandingTailRentInvoicePaise: coverage.tailRentPaise,
       disclaimer: ESTIMATED_REFUND_DISCLAIMER,
       mode: 'estimate',
     },
@@ -112,7 +115,8 @@ test('validateBillingEngineSettlement passes Case F (0082 move-in checkout)', ()
     monthlyRentPaise: monthly412080,
     missingNoticeDays: coverage.noticeBreakdown?.missingNoticeDays ?? 0,
     noticeApplies: true,
-    checkoutTailRentPaise: coverage.tailRentPaise,
+    checkoutTailRentPaise: 0,
+    outstandingRentInvoicePaise: coverage.tailRentPaise,
   };
   const waterfall = computeVacatingSettlementWaterfallFromContext(ctx);
   const noticeDisplay = noticeDisplayFromBillingCoverage(coverage);
@@ -125,6 +129,7 @@ test('validateBillingEngineSettlement passes Case F (0082 move-in checkout)', ()
     waterfall,
     coverage,
     depositHeldPaise: ctx.depositHeldPaise,
+    outstandingTailRentInvoicePaise: coverage.tailRentPaise,
     mode: 'estimate',
   });
   const presentation: VacatingBillingPresentation = {
@@ -140,6 +145,7 @@ test('validateBillingEngineSettlement passes Case F (0082 move-in checkout)', ()
       estimatedUnusedRentCreditPaise: waterfall.refund.unusedRentPortionPaise,
       estimatedRefundableDepositPaise: waterfall.depositBucket.refundablePaise,
       depositHeldPaise,
+      outstandingTailRentInvoicePaise: coverage.tailRentPaise,
       disclaimer: ESTIMATED_REFUND_DISCLAIMER,
       mode: 'estimate',
     },
@@ -174,36 +180,43 @@ test('INV-N1 detects notice split mismatch', () => {
   assert.ok(result.failures.some((f) => f.signature === 'NOTICE_SPLIT_MISMATCH'));
 });
 
-test('alignCoverageToLockedWaterfall prevents TAIL_MISMATCH when locked tail is zero', () => {
+test('alignCoverageToLockedWaterfall preserves BCM invoice tail — does not adopt legacy deposit tail', () => {
   const presentation = fixturePresentation('2026-08-08');
-  const ctxZeroTail = { ...presentation.ctx, checkoutTailRentPaise: 0 };
-  const lockedTailZero = computeVacatingSettlementWaterfallFromContext(ctxZeroTail);
-  const aligned = alignCoverageToLockedWaterfall(presentation.coverage, lockedTailZero);
-  assert.equal(aligned.tailRentPaise, 0);
+  const ctxInvoiceModel = {
+    ...presentation.ctx,
+    checkoutTailRentPaise: 0,
+    outstandingRentInvoicePaise: presentation.coverage.tailRentPaise,
+  };
+  const lockedZeroDepositTail = computeVacatingSettlementWaterfallFromContext(ctxInvoiceModel);
+  assert.equal(lockedZeroDepositTail.depositBucket.tailRentPaise, 0);
+  const aligned = alignCoverageToLockedWaterfall(presentation.coverage, lockedZeroDepositTail);
+  assert.equal(aligned.tailRentPaise, presentation.coverage.tailRentPaise);
   const noticeGivenDays = Math.max(0, diffDays('2026-07-01', '2026-08-08'));
   const { sections, auditTrace, depositHeldPaise } = buildVacatingSettlementPreviewSections({
     notice: presentation.noticeDisplay,
     vacatingDate: '2026-08-08',
     noticeGivenDate: '2026-07-01',
     noticeGivenDays,
-    waterfall: lockedTailZero,
+    waterfall: lockedZeroDepositTail,
     coverage: aligned,
     depositHeldPaise: presentation.ctx.depositHeldPaise,
+    outstandingTailRentInvoicePaise: presentation.coverage.tailRentPaise,
     mode: 'estimate',
   });
   const patched: VacatingBillingPresentation = {
     ...presentation,
     coverage: aligned,
-    waterfall: lockedTailZero,
-    ctx: ctxZeroTail,
+    waterfall: lockedZeroDepositTail,
+    ctx: ctxInvoiceModel,
     estimatedSettlement: {
       ...presentation.estimatedSettlement,
       sections,
       auditTrace,
-      waterfall: lockedTailZero,
-      estimatedRefundPaise: lockedTailZero.refund.totalPaise,
-      estimatedUnusedRentCreditPaise: lockedTailZero.refund.unusedRentPortionPaise,
-      estimatedRefundableDepositPaise: lockedTailZero.depositBucket.refundablePaise,
+      waterfall: lockedZeroDepositTail,
+      estimatedRefundPaise: lockedZeroDepositTail.refund.totalPaise,
+      estimatedUnusedRentCreditPaise: lockedZeroDepositTail.refund.unusedRentPortionPaise,
+      estimatedRefundableDepositPaise: lockedZeroDepositTail.depositBucket.refundablePaise,
+      outstandingTailRentInvoicePaise: presentation.coverage.tailRentPaise,
       depositHeldPaise,
     },
   };

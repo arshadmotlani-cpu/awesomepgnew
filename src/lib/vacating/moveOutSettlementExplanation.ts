@@ -147,7 +147,7 @@ function zeroAmountReasons(
         : [];
     case 'tail_rent':
       return [
-        w.depositBucket.tailRentPaise === 0
+        (w.outstandingRentInvoicePaise ?? 0) === 0 && w.depositBucket.tailRentPaise === 0
           ? presentation.coverage.tailRent.cancellationReason ??
             'No tail rent — vacate inside paid period, on period end, or move-out not in final unpaid window.'
           : '',
@@ -307,12 +307,14 @@ export function buildMoveOutSettlementExplanations(
       return l;
     })(),
     (() => {
+      const tailInvoicePaise =
+        w.outstandingRentInvoicePaise ?? presentation.coverage.tailRentPaise;
       const l = line(
         'tail_rent',
-        'Tail rent',
-        w.depositBucket.tailRentPaise,
-        coverage.tailRent.tailDays > 0
-          ? `tailDays ${coverage.tailRent.tailDays} × daily ${paiseToInr(daily)} = ${paiseToInr(w.depositBucket.tailRentPaise)} (final invoice suppressed: ${coverage.finalInvoiceSuppression})`
+        'Outstanding rent invoice',
+        tailInvoicePaise,
+        tailInvoicePaise > 0
+          ? `Final-period rent invoice outstanding = ${paiseToInr(tailInvoicePaise)} (payable through vacate — not deducted from deposit)`
           : `No tail rent — ${coverage.tailRent.cancellationReason ?? 'vacate inside paid period or on period end'}`,
         SETTLEMENT_BUSINESS_RULES.RULE_TAIL_FROM_FINAL_PERIOD,
         'BillingCoverageModel',
@@ -360,7 +362,7 @@ export function buildMoveOutSettlementExplanations(
       'deposit_refundable',
       'Deposit remaining',
       w.depositBucket.refundablePaise,
-      `${paiseToInr(ctx.depositHeldPaise)} − notice deposit ${paiseToInr(w.notice.fromDepositPaise)} − tail ${paiseToInr(w.depositBucket.tailRentPaise)} − electricity ${paiseToInr(w.depositBucket.electricityPaise)} − other ${paiseToInr(w.depositBucket.otherPaise)} = ${paiseToInr(w.depositBucket.refundablePaise)}`,
+      `${paiseToInr(ctx.depositHeldPaise)} − notice deposit ${paiseToInr(w.notice.fromDepositPaise)} − electricity ${paiseToInr(w.depositBucket.electricityPaise)} − other ${paiseToInr(w.depositBucket.otherPaise)}${w.depositBucket.tailRentPaise > 0 ? ` − legacy tail ${paiseToInr(w.depositBucket.tailRentPaise)}` : ''} = ${paiseToInr(w.depositBucket.refundablePaise)}`,
       SETTLEMENT_BUSINESS_RULES.RULE_DEPOSIT_REFUNDABLE,
       'CheckoutSettlementEngineV2',
       reasons,
@@ -369,7 +371,7 @@ export function buildMoveOutSettlementExplanations(
       'refund_total',
       'Refund',
       w.refund.totalPaise,
-      `${paiseToInr(w.depositBucket.refundablePaise)} (deposit remaining) + ${paiseToInr(w.notice.unusedRentRemainingPaise)} (unused rent after notice) = ${paiseToInr(w.refund.totalPaise)}`,
+      `${paiseToInr(w.depositBucket.refundablePaise)} (deposit remaining) + ${paiseToInr(w.notice.unusedRentRemainingPaise)} (unused rent after notice)${(w.outstandingRentInvoicePaise ?? 0) > 0 ? ` − outstanding rent invoice ${paiseToInr(w.outstandingRentInvoicePaise ?? 0)}` : ''} = ${paiseToInr(w.refund.totalPaise)}`,
       SETTLEMENT_BUSINESS_RULES.RULE_REFUND_TOTAL,
       'CheckoutSettlementEngineV2',
       reasons,

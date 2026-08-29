@@ -10,6 +10,7 @@ import { FinalSettlementPanel } from '@/src/components/admin/FinalSettlementPane
 import { ResidentResidencyPanel } from '@/src/components/admin/residents/ResidentResidencyPanel';
 import { CommandCenterQuickActions } from '@/src/components/admin/residents/command-center/CommandCenterQuickActions';
 import {
+  CommandCenterInvoices,
   CommandCenterBills,
   CommandCenterBookingHistory,
   CommandCenterCurrentStay,
@@ -77,7 +78,7 @@ export async function ResidentCommandCenter({
             bookingDepositsSlot={bookingDepositsSlot}
           />
           <CommandCenterQuickActions data={data} />
-          <CommandCenterBills data={data} />
+          <CommandCenterInvoices data={data} />
           <CommandCenterRequests data={data} />
           <CommandCenterBookingHistory data={data} />
           {timelineSlot ?? <CommandCenterTimeline timeline={data.timeline} />}

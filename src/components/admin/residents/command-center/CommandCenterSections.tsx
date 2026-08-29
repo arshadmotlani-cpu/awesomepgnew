@@ -302,6 +302,91 @@ function MoneyStat({
   );
 }
 
+export function CommandCenterInvoices({ data }: { data: ResidentCommandCenterData }) {
+  const bills = data.invoiceHistory;
+  return (
+    <CommandCenterSection
+      id="invoices"
+      title="Invoices"
+      description="All invoices across every stay and PG for this resident."
+      badge={
+        bills.length > 0 ? (
+          <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-xs font-semibold text-apg-silver">
+            {bills.length}
+          </span>
+        ) : undefined
+      }
+    >
+      {bills.length === 0 ? (
+        <EmptyState>No invoices on record.</EmptyState>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-white/10 text-xs uppercase tracking-wide text-apg-silver">
+                <th className="py-2 pr-3 font-medium">Invoice</th>
+                <th className="py-2 pr-3 font-medium">Type</th>
+                <th className="py-2 pr-3 font-medium">PG / Booking</th>
+                <th className="py-2 pr-3 font-medium">Period</th>
+                <th className="py-2 pr-3 font-medium">Total</th>
+                <th className="py-2 pr-3 font-medium">Paid</th>
+                <th className="py-2 pr-3 font-medium">Outstanding</th>
+                <th className="py-2 pr-3 font-medium">Late fee</th>
+                <th className="py-2 pr-3 font-medium">Status</th>
+                <th className="py-2 pr-3 font-medium">Issued</th>
+                <th className="py-2 font-medium">Due</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {bills.map((inv) => (
+                <tr key={inv.id}>
+                  <td className="py-2.5 pr-3">
+                    <Link
+                      href={`/admin/invoices/${inv.id}`}
+                      className="font-medium text-[#FF5A1F] hover:underline"
+                    >
+                      {inv.invoiceNumber}
+                    </Link>
+                  </td>
+                  <td className="py-2.5 pr-3 text-apg-silver">{titleCase(inv.invoiceType)}</td>
+                  <td className="py-2.5 pr-3 text-apg-silver">
+                    {inv.pgName}
+                    {inv.bookingCode ? ` · ${inv.bookingCode}` : inv.roomNumber ? ` · R${inv.roomNumber}` : ''}
+                  </td>
+                  <td className="py-2.5 pr-3 text-xs text-apg-silver">
+                    {inv.billingPeriod ?? '—'}
+                  </td>
+                  <td className="py-2.5 pr-3 tabular-nums text-white">{paiseToInr(inv.amountPaise)}</td>
+                  <td className="py-2.5 pr-3 tabular-nums text-emerald-200/90">
+                    {inv.paidPaise != null ? paiseToInr(inv.paidPaise) : '—'}
+                  </td>
+                  <td className="py-2.5 pr-3 tabular-nums text-amber-200/90">
+                    {inv.outstandingPaise != null && inv.outstandingPaise > 0
+                      ? paiseToInr(inv.outstandingPaise)
+                      : '—'}
+                  </td>
+                  <td className="py-2.5 pr-3 tabular-nums text-apg-silver">
+                    {inv.lateFeePaise != null && inv.lateFeePaise > 0
+                      ? paiseToInr(inv.lateFeePaise)
+                      : '—'}
+                  </td>
+                  <td className="py-2.5 pr-3">
+                    <Badge tone={toneForStatus(inv.status)}>{titleCase(inv.status)}</Badge>
+                  </td>
+                  <td className="py-2.5 pr-3 text-apg-silver">{formatDateTime(inv.createdAt)}</td>
+                  <td className="py-2.5 text-apg-silver">
+                    {inv.dueDate ? formatDate(inv.dueDate) : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </CommandCenterSection>
+  );
+}
+
 export function CommandCenterBills({ data }: { data: ResidentCommandCenterData }) {
   const bills = data.invoiceHistory;
   return (
