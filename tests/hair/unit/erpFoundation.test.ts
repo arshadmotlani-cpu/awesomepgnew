@@ -11,27 +11,29 @@ import { workforceGrantsToHairPermissions } from '@/src/workforce/compat/hairAdm
 import { defaultGrantsFor } from '@/src/workforce/permissions/presets';
 
 describe('ERP foundation', () => {
-  it('Configuration contains only Services and Products', () => {
+  it('Configuration contains Services, Products, Memberships, and Packages', () => {
     const configuration = HAIR_NAV_ENTRIES.find(
       (e) => e.type === 'group' && e.id === 'configuration',
     );
     assert.ok(configuration && configuration.type === 'group');
-    assert.deepEqual(
-      configuration.children.map((c) => c.label),
-      ['Services', 'Products'],
-    );
+    assert.deepEqual(configuration.children.map((c) => c.label), [
+      'Services',
+      'Products',
+      'Memberships',
+      'Packages',
+    ]);
   });
 
-  it('places Purchases between Vendors and Expenses', () => {
-    const labels = HAIR_NAV_ENTRIES.filter((e) => e.type === 'link').map((e) =>
+  it('places Purchases before Expenses without Vendors in primary nav', () => {
+    const labels = HAIR_NAV_ENTRIES.filter((e) => e.type === 'link' && !e.hidden).map((e) =>
       e.type === 'link' ? e.label : '',
     );
-    const vendorsIdx = labels.indexOf('Vendors');
     const purchasesIdx = labels.indexOf('Purchases');
     const expensesIdx = labels.indexOf('Expenses');
     const loyaltyIdx = labels.indexOf('Loyalty');
-    assert.ok(vendorsIdx >= 0 && purchasesIdx >= 0 && expensesIdx >= 0 && loyaltyIdx >= 0);
-    assert.ok(vendorsIdx < purchasesIdx, 'Vendors before Purchases');
+    assert.ok(purchasesIdx >= 0 && expensesIdx >= 0 && loyaltyIdx >= 0);
+    assert.equal(labels.includes('Vendors'), false);
+    assert.equal(labels.includes('Inventory'), false);
     assert.ok(purchasesIdx < expensesIdx, 'Purchases before Expenses');
     assert.ok(expensesIdx < loyaltyIdx, 'Expenses before Loyalty');
   });

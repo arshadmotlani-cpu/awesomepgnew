@@ -1,13 +1,15 @@
 import Link from 'next/link';
 import { PurchaseRecordForm } from '@/src/hair/components/purchases/PurchasesUi';
 import { Button } from '@/src/hair/components/ui/button';
+import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 import { listProducts } from '@/src/hair/services/products';
 import { listVendors } from '@/src/hair/services/vendors';
 
 export default async function NewPurchasePage() {
+  const ctx = await getTenantContextForPage();
   const [vendors, products] = await Promise.all([
-    listVendors({ status: 'active' }),
-    listProducts({ status: 'active' }),
+    listVendors({ status: 'active' }, ctx),
+    listProducts({ status: 'active' }, ctx),
   ]);
 
   return (

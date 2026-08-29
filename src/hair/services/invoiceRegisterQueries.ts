@@ -25,6 +25,7 @@ import {
 } from '@/src/hair/db/schema';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { salonTodayKey } from '@/src/hair/lib/appointmentDate';
 
 export const DEFAULT_REGISTER_PAGE_SIZE = 50;
 
@@ -323,4 +324,21 @@ export function parseRegisterFiltersFromSearchParams(
     sort: (pick('sort') as InvoiceRegisterFilters['sort']) || 'created_at',
     sortDir: pick('sortDir') === 'asc' ? 'asc' : 'desc',
   };
+}
+
+/** True when `/billing/invoices` should redirect to today's salon-local date range. */
+export function shouldDefaultInvoiceRegisterToToday(
+  params: Record<string, string | string[] | undefined>,
+): boolean {
+  const pick = (key: string) => {
+    const v = params[key];
+    return typeof v === 'string' ? v.trim() : '';
+  };
+  if (pick('all') === '1') return false;
+  if (pick('from') || pick('to')) return false;
+  return true;
+}
+
+export function invoiceRegisterTodayIso(timezone = 'Asia/Kolkata'): string {
+  return salonTodayKey(timezone);
 }

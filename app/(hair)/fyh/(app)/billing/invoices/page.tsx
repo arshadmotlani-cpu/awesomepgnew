@@ -1,8 +1,13 @@
 import { Suspense } from 'react';
+import { redirect } from 'next/navigation';
 import { InvoiceRegisterUi } from '@/src/hair/components/billing/InvoiceRegisterUi';
+import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
+import { getSalonSettings } from '@/src/hair/services/settings';
 import {
+  invoiceRegisterTodayIso,
   parseRegisterFiltersFromSearchParams,
   queryInvoiceRegister,
+  shouldDefaultInvoiceRegisterToToday,
 } from '@/src/hair/services/invoiceRegisterQueries';
 
 type PageProps = {
@@ -21,6 +26,14 @@ function filtersToRecord(
 
 async function InvoiceRegisterPageInner({ searchParams }: PageProps) {
   const params = await searchParams;
+
+  if (shouldDefaultInvoiceRegisterToToday(params)) {
+    const ctx = await getTenantContextForPage();
+    const settings = await getSalonSettings(ctx);
+    const today = invoiceRegisterTodayIso(settings.timezone || 'Asia/Kolkata');
+    redirect(`/billing/invoices?from=${today}&to=${today}`);
+  }
+
   const filters = parseRegisterFiltersFromSearchParams(params);
   const result = await queryInvoiceRegister(filters);
 

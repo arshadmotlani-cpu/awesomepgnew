@@ -1,34 +1,12 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { HAIR_NAV_ENTRIES, visibleHairNavEntries } from '@/src/hair/lib/nav';
-
-function visibleLabels(): string[] {
-  return visibleHairNavEntries().map((entry) =>
-    entry.type === 'link' ? entry.label : entry.label,
-  );
-}
-
-function visibleHrefs(): string[] {
-  const hrefs: string[] = [];
-  for (const entry of visibleHairNavEntries()) {
-    if (entry.type === 'link') {
-      hrefs.push(entry.href);
-    } else {
-      hrefs.push(...entry.children.map((c) => c.href));
-    }
-  }
-  return hrefs;
-}
-
-function findGroup(id: string) {
-  const group = HAIR_NAV_ENTRIES.find((e) => e.type === 'group' && e.id === id);
-  assert.ok(group && group.type === 'group');
-  return group;
-}
+import { HAIR_NAV_ENTRIES } from '@/src/hair/lib/nav';
 
 describe('FYH sidebar navigation', () => {
   it('orders operational modules before Configuration', () => {
-    const labels = visibleLabels();
+    const labels = HAIR_NAV_ENTRIES.filter((e) => !e.hidden).map((entry) =>
+      entry.type === 'link' ? entry.label : entry.label,
+    );
     const staffIdx = labels.indexOf('Staff');
     const configurationIdx = labels.indexOf('Configuration');
     const settingsIdx = labels.indexOf('Settings');
@@ -41,71 +19,65 @@ describe('FYH sidebar navigation', () => {
   });
 
   it('places Staff Performance under Dashboard, not Workforce', () => {
-    const dashboard = findGroup('dashboard');
+    const dashboard = HAIR_NAV_ENTRIES.find((e) => e.type === 'group' && e.id === 'dashboard');
+    assert.ok(dashboard && dashboard.type === 'group');
     assert.deepEqual(
       dashboard.children.map((c) => c.label),
       ['Revenue Dashboard', 'Staff Performance'],
-    );
-    assert.deepEqual(
-      dashboard.children.map((c) => c.href),
-      ['/dashboard/revenue', '/dashboard/staff-performance'],
     );
     const workforceGroup = HAIR_NAV_ENTRIES.find((e) => e.type === 'group' && e.id === 'workforce');
     assert.equal(workforceGroup, undefined, 'Workforce nav group must not exist');
   });
 
-  it('places Services and Products under Configuration', () => {
-    const configuration = findGroup('configuration');
-    assert.deepEqual(
-      configuration.children.map((c) => c.label),
-      ['Services', 'Products'],
-    );
-    assert.deepEqual(
-      configuration.children.map((c) => c.href),
-      ['/services', '/products'],
-    );
+  it('places catalog items under Configuration including Memberships and Packages', () => {
+    const configuration = HAIR_NAV_ENTRIES.find((e) => e.type === 'group' && e.id === 'configuration');
+    assert.ok(configuration && configuration.type === 'group');
+    assert.deepEqual(configuration.children.map((c) => c.label), [
+      'Services',
+      'Products',
+      'Memberships',
+      'Packages',
+    ]);
   });
 
-  it('places Vendors between Inventory and Expenses', () => {
-    const topLevel = visibleHairNavEntries().filter((e) => e.type === 'link');
+  it('does not expose Inventory or Vendors as top-level nav links', () => {
+    const topLevel = HAIR_NAV_ENTRIES.filter((e) => e.type === 'link' && !e.hidden);
     const labels = topLevel.map((e) => (e.type === 'link' ? e.label : ''));
-    const inventoryIdx = labels.indexOf('Inventory');
-    const vendorsIdx = labels.indexOf('Vendors');
-    const purchasesIdx = labels.indexOf('Purchases');
-    const expensesIdx = labels.indexOf('Expenses');
-    const loyaltyIdx = labels.indexOf('Loyalty');
-    assert.ok(inventoryIdx >= 0 && vendorsIdx >= 0 && purchasesIdx >= 0 && expensesIdx >= 0 && loyaltyIdx >= 0);
-    assert.ok(inventoryIdx < vendorsIdx, 'Inventory before Vendors');
-    assert.ok(vendorsIdx < purchasesIdx, 'Vendors before Purchases');
-    assert.ok(purchasesIdx < expensesIdx, 'Purchases before Expenses');
-    assert.ok(expensesIdx < loyaltyIdx, 'Expenses before Loyalty');
+    assert.equal(labels.includes('Inventory'), false);
+    assert.equal(labels.includes('Vendors'), false);
+    assert.ok(labels.includes('Purchases'));
+    assert.ok(labels.includes('Expenses'));
   });
 
   it('exposes Staff as a top-level link', () => {
-    const topLevelLinks = visibleHairNavEntries().filter((e) => e.type === 'link');
+    const topLevelLinks = HAIR_NAV_ENTRIES.filter((e) => e.type === 'link' && !e.hidden);
     const hrefs = topLevelLinks.map((e) => (e.type === 'link' ? e.href : ''));
     assert.ok(hrefs.includes('/staff'), 'Staff must be top-level at /staff');
   });
 
   it('does not expose catalog items as top-level links', () => {
-    const topLevelLinks = visibleHairNavEntries().filter((e) => e.type === 'link');
+    const topLevelLinks = HAIR_NAV_ENTRIES.filter((e) => e.type === 'link' && !e.hidden);
     const hrefs = topLevelLinks.map((e) => (e.type === 'link' ? e.href : ''));
-    for (const href of ['/services', '/products']) {
+    for (const href of ['/services', '/products', '/memberships', '/packages']) {
       assert.equal(hrefs.includes(href), false, `${href} should not be top-level`);
     }
   });
 
-  it('keeps billing, staff, inventory, expenses, and catalog routes reachable', () => {
-    const hrefs = visibleHrefs();
+  it('keeps billing, purchases, expenses, and catalog routes reachable from nav', () => {
+    const hrefs: string[] = [];
+    for (const entry of HAIR_NAV_ENTRIES) {
+      if (entry.type === 'link' && !entry.hidden) hrefs.push(entry.href);
+      if (entry.type === 'group') hrefs.push(...entry.children.map((c) => c.href));
+    }
     for (const href of [
       '/billing/invoices',
       '/services',
       '/products',
+      '/memberships',
+      '/packages',
       '/staff',
-      '/vendors',
       '/purchases',
       '/expenses',
-      '/inventory',
       '/dashboard/staff-performance',
     ]) {
       assert.ok(hrefs.includes(href), `missing nav href ${href}`);

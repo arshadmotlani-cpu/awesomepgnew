@@ -89,20 +89,6 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
   { type: 'link', href: '/staff', label: 'Staff', iconKey: 'clipboard-list', permission: 'page:dashboard' },
   {
     type: 'link',
-    href: '/inventory',
-    label: 'Inventory',
-    iconKey: 'warehouse',
-    permission: 'page:inventory',
-  },
-  {
-    type: 'link',
-    href: '/vendors',
-    label: 'Vendors',
-    iconKey: 'truck',
-    permission: 'page:inventory',
-  },
-  {
-    type: 'link',
     href: '/purchases',
     label: 'Purchases',
     iconKey: 'shopping-bag',
@@ -153,6 +139,8 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
     children: [
       { href: '/services', label: 'Services' },
       { href: '/products', label: 'Products' },
+      { href: '/memberships', label: 'Memberships' },
+      { href: '/packages', label: 'Packages' },
     ],
   },
   {

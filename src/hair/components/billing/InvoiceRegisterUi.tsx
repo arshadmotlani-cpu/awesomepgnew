@@ -347,6 +347,28 @@ function RegisterFilterBar({
           </select>
         </div>
       </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {fromDate && toDate && fromDate === toDate ? (
+          <span className="inline-flex rounded-md bg-fyh-accent/15 px-2 py-0.5 text-xs font-semibold text-fyh-accent">
+            Showing {fromDate}
+          </span>
+        ) : null}
+        {fromDate || toDate ? (
+          <button
+            type="button"
+            className="text-xs font-medium text-fyh-accent hover:underline"
+            onClick={() => {
+              setFromDate('');
+              setToDate('');
+              onReplace({ from: undefined, to: undefined, all: '1', page: '1' });
+            }}
+          >
+            View all invoices
+          </button>
+        ) : filters.all === '1' ? (
+          <span className="text-xs text-fyh-text-muted">Showing all dates</span>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -384,7 +406,9 @@ export function InvoiceRegisterUi({
     [filterRecord, router],
   );
 
-  const filterBarKey = `${filters.from ?? ''}|${filters.to ?? ''}|${filters.paymentMode ?? ''}|${filters.status ?? ''}`;
+  const filterBarKey = `${filters.from ?? ''}|${filters.to ?? ''}|${filters.paymentMode ?? ''}|${filters.status ?? ''}|${filters.all ?? ''}`;
+
+  const isSingleDayFilter = Boolean(filters.from && filters.to && filters.from === filters.to);
 
   function runExport(format: InvoiceRegisterExportFormat) {
     setExportError(null);
@@ -502,10 +526,25 @@ export function InvoiceRegisterUi({
       {rows.length === 0 ? (
         <div className="flex flex-1 items-center justify-center px-6 py-16 text-center">
           <div>
-            <p className="fyh-display text-xl font-semibold">No invoices found</p>
-            <p className="mt-2 text-sm text-fyh-text-muted">
-              Try adjusting filters or use the search bar above to find invoices.
+            <p className="fyh-display text-xl font-semibold">
+              {isSingleDayFilter ? 'No invoices today' : 'No invoices found'}
             </p>
+            <p className="mt-2 text-sm text-fyh-text-muted">
+              {isSingleDayFilter
+                ? 'There are no invoices for the selected date. Try another day or view all invoices.'
+                : 'Try adjusting filters or use the search bar above to find invoices.'}
+            </p>
+            {isSingleDayFilter ? (
+              <button
+                type="button"
+                className="mt-4 text-sm font-medium text-fyh-accent hover:underline"
+                onClick={() =>
+                  replaceFilters({ from: undefined, to: undefined, all: '1', page: '1' })
+                }
+              >
+                View all invoices
+              </button>
+            ) : null}
           </div>
         </div>
       ) : (
