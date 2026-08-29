@@ -21,13 +21,12 @@ test('Awesome PG admin header uses the finalized PG mark, not a text wordmark', 
   );
 });
 
-test('Automotive Capital admin header uses the finalized AUTO mark, not a text wordmark', () => {
+test('Automotive Capital admin header uses CapitalOsMark PNG, not a text wordmark', () => {
   const source = read('src/capital/components/CapitalTopBar.tsx');
   assert.match(source, /from '@\/src\/components\/brand\/capital-os\/CapitalOsMark'/);
   assert.match(source, /<CapitalOsMark\b/);
   assert.doesNotMatch(source, /CAPITAL_OS\.name/, 'header must not render Capital OS text');
   assert.doesNotMatch(source, /CAPITAL_OS\.legalName/, 'header must not render Automotive Capital text');
-  assert.doesNotMatch(source, /auto-admin-mark\.png/, 'header must not use rectangular PNG mark');
   assert.doesNotMatch(
     source,
     /font-extrabold[^>]*>\s*Capital\s*<\/span>/s,
@@ -35,13 +34,12 @@ test('Automotive Capital admin header uses the finalized AUTO mark, not a text w
   );
 });
 
-test('Salon Software admin header uses the finalized SOFT mark, not a text wordmark', () => {
+test('Salon Software admin header uses FyhMark PNG, not a text wordmark', () => {
   const source = read('src/hair/components/HairAppHeader.tsx');
   assert.match(source, /from '@\/src\/components\/brand\/fyh\/FyhMark'/);
   assert.match(source, /<FyhMark\b/);
   assert.doesNotMatch(source, /For Your Hair/, 'header must not render For Your Hair text');
   assert.doesNotMatch(source, /FyhSidebarBrand/, 'header must not duplicate sidebar branding lockup');
-  assert.doesNotMatch(source, /soft-admin-mark\.png/, 'header must not use rectangular PNG mark');
   assert.doesNotMatch(
     source,
     /font-extrabold[^>]*>\s*Soft\s*<\/span>/s,
@@ -49,12 +47,11 @@ test('Salon Software admin header uses the finalized SOFT mark, not a text wordm
   );
 });
 
-test('Net Worth admin header uses the finalized NET WORTH mark, not a text wordmark', () => {
+test('Net Worth admin header uses OwnerOsMark PNG, not a text wordmark', () => {
   const source = read('src/owner/components/OwnerTopBar.tsx');
   assert.match(source, /from '@\/src\/components\/brand\/owner-os\/OwnerOsMark'/);
   assert.match(source, /<OwnerOsMark\b/);
   assert.doesNotMatch(source, /OWNER_OS\.name/, 'header must not render Owner OS text');
-  assert.doesNotMatch(source, /net-worth-admin-mark\.png/, 'header must not use rectangular PNG mark');
   assert.doesNotMatch(
     source,
     /font-extrabold[^>]*>\s*Owner\s*<\/span>/s,

@@ -25,7 +25,7 @@ const SAAS_SURFACES = [
 ];
 
 const ADMIN_BRAND_IMPORTS =
-  /AdminProductWordmark|ApgOsMark|FyhMark|CapitalOsMark|OwnerOsMark|ApgOsLogoLockup|CapitalOsLogoLockup|FyhSidebarBrand|FyhLoginBrandHeader/;
+  /ApgOsMark|FyhMark|CapitalOsMark|OwnerOsMark|ApgOsLogoLockup|CapitalOsLogoLockup|FyhSidebarBrand|FyhLoginBrandHeader/;
 
 test('SaaS marketing, Platform, and customer sites do not import admin product marks', () => {
   for (const file of SAAS_SURFACES) {
@@ -35,7 +35,7 @@ test('SaaS marketing, Platform, and customer sites do not import admin product m
       ADMIN_BRAND_IMPORTS,
       `${file} must not import admin product wordmarks (SaaS/customer identity is independent)`,
     );
-    assert.doesNotMatch(source, /adminWordmarkTokens/);
+    assert.doesNotMatch(source, /adminMarkIntrinsic/);
     assert.doesNotMatch(source, /soft-admin-mark\.png/);
     assert.doesNotMatch(source, /auto-admin-mark\.png/);
     assert.doesNotMatch(source, /net-worth-admin-mark\.png/);
@@ -45,9 +45,9 @@ test('SaaS marketing, Platform, and customer sites do not import admin product m
 test('Salon Software marketing page keeps its own SALON SOFTWARE identity', () => {
   const landing = read('src/hair/components/marketing/SalonSoftwareLanding.tsx');
   assert.match(landing, /SALON SOFTWARE/);
-  assert.doesNotMatch(landing, /product="soft"/);
+  assert.doesNotMatch(landing, /FyhMark/);
+  assert.doesNotMatch(landing, /soft-admin-mark\.png/);
   assert.doesNotMatch(landing, />\s*SOFT\s*</);
-  assert.doesNotMatch(landing, /AdminProductWordmark/);
 });
 
 test('Platform chrome keeps FYHAIR SaaS / Platform identity', () => {
@@ -55,21 +55,21 @@ test('Platform chrome keeps FYHAIR SaaS / Platform identity', () => {
   const topBar = read('src/platform/components/shell/PlatformTopBar.tsx');
   assert.match(sidebar, /FYHAIR SaaS/);
   assert.match(topBar, />\s*Platform\s*</);
-  assert.doesNotMatch(sidebar, /AdminProductWordmark|FyhMark/);
-  assert.doesNotMatch(topBar, /AdminProductWordmark|FyhMark/);
+  assert.doesNotMatch(sidebar, /FyhMark|soft-admin-mark/);
+  assert.doesNotMatch(topBar, /FyhMark|soft-admin-mark/);
 });
 
-test('AdminProductWordmark is only imported by SOFT/AUTO/NET WORTH admin mark wrappers', () => {
+test('Admin mark PNG components are isolated to SOFT/AUTO/NET WORTH wrappers', () => {
   const importers = [
     'src/components/brand/fyh/FyhMark.tsx',
     'src/components/brand/capital-os/CapitalOsMark.tsx',
     'src/components/brand/owner-os/OwnerOsMark.tsx',
   ];
   for (const file of importers) {
-    assert.match(read(file), /AdminProductWordmark/, `${file} must wrap AdminProductWordmark`);
+    assert.match(read(file), /<img\b/, `${file} must render transparent PNG mark`);
   }
 
   const pgMark = read('src/components/brand/apg-os/ApgOsMark.tsx');
-  assert.doesNotMatch(pgMark, /AdminProductWordmark/);
+  assert.doesNotMatch(pgMark, /soft-admin-mark|auto-admin-mark|net-worth-admin-mark/);
   assert.match(pgMark, /pg-admin-mark\.png/);
 });
