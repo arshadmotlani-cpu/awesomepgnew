@@ -7,7 +7,7 @@ export default function HairNotFound() {
   return (
     <div className="flex min-h-[60vh] items-center justify-center p-6">
       <div className="fyh-glass max-w-md p-8 text-center">
-        <FyhMark size={56} className="mx-auto mb-4" />
+        <FyhMark size={48} className="mx-auto mb-4" title="SOFT" />
         <p className="text-xs uppercase tracking-[0.28em] text-fyh-accent">404</p>
         <h1 className="fyh-display mt-2 text-3xl font-semibold">Page not found</h1>
         <p className="mt-2 text-sm text-fyh-text-secondary">

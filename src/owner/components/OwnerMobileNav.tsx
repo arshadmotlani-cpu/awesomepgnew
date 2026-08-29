@@ -60,7 +60,7 @@ export function OwnerMobileNav() {
                 style={{ paddingTop: 'var(--oo-safe-top)' }}
               >
                 <div className="flex min-h-14 items-center justify-between gap-2 px-3 py-3">
-                  <OwnerOsMark size={28} className="max-w-[min(100%,11rem)]" title="NET WORTH" />
+                  <OwnerOsMark size={32} className="max-w-[min(100%,11rem)]" title="NET WORTH" />
                   <button
                     type="button"
                     onClick={closeMenu}

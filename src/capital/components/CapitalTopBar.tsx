@@ -15,7 +15,7 @@ export function CapitalTopBar({ admin }: CapitalTopBarProps) {
   return (
     <header className="ac-app-header">
       <div className="ac-app-header-row">
-        <CapitalOsMark size={32} className="shrink-0" title="Automotive Capital" />
+        <CapitalOsMark size={32} className="shrink-0" title="AUTO" />
         <CapitalMobileNav />
         <form action="/assets" method="get" className="relative hidden max-w-md flex-1 md:block">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ac-text-muted" />

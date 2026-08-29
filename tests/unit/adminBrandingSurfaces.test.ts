@@ -29,6 +29,7 @@ const SOFT_SURFACES = [
   'src/components/brand/fyh/FyhLoginBrandHeader.tsx',
   'src/hair/components/HairSidebar.tsx',
   'app/(hair)/fyh/auth/login/page-client.tsx',
+  'app/(hair)/fyh/not-found.tsx',
 ];
 
 const OWNER_SURFACES = [
@@ -76,6 +77,9 @@ test('Capital admin branding surfaces show AUTO mark only — no legacy lockup t
     /CAPITAL_OS\.tagline/,
     />\s*Capital\s*OS\s*</,
     />\s*Automotive\s*Capital\s*</,
+    /auto-admin-mark\.png/,
+    /\bADMIN\b/,
+    /\bERP\b/,
   ];
   for (const file of CAPITAL_SURFACES) {
     const source = read(file);
@@ -89,11 +93,12 @@ test('Capital admin branding surfaces show AUTO mark only — no legacy lockup t
 });
 
 test('Soft admin branding surfaces show SOFT mark only — no legacy salon ERP lockup', () => {
-  const forbidden = [
-    /FYH_ERP/,
+  const logoForbidden = [
     /For Your Hair/,
     /Luxury Salon ERP/,
     /For Your Hair ERP/,
+    /soft-admin-mark\.png/,
+    /\bADMIN PANEL\b/,
   ];
   for (const file of SOFT_SURFACES) {
     const source = read(file);
@@ -102,15 +107,22 @@ test('Soft admin branding surfaces show SOFT mark only — no legacy salon ERP l
       /FyhMark|FyhSidebarBrand|FyhLoginBrandHeader/,
       `${file} must render Soft branding mark`,
     );
-    assertNoForbiddenBranding(file, forbidden);
+    assertNoForbiddenBranding(file, logoForbidden);
   }
 
   const header = read('src/hair/components/HairAppHeader.tsx');
   assert.doesNotMatch(header, /FyhSidebarBrand/, 'header must not duplicate sidebar branding lockup');
+  assert.doesNotMatch(header, /FYH_ERP/, 'header must not render legacy salon ERP lockup text');
 });
 
 test('Net Worth admin branding surfaces show mark only — no Owner OS visible branding', () => {
-  const forbidden = [/OWNER_OS\.name/, /OWNER_OS\.tagline/, />\s*Owner\s*OS\s*</];
+  const forbidden = [
+    /OWNER_OS\.name/,
+    /OWNER_OS\.tagline/,
+    />\s*Owner\s*OS\s*</,
+    /net-worth-admin-mark\.png/,
+    /\bADMIN\b/,
+  ];
   for (const file of OWNER_SURFACES) {
     const source = read(file);
     if (file !== 'src/owner/components/OwnerMobileSectionTitle.tsx') {

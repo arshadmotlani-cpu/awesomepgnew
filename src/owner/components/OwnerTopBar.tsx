@@ -10,7 +10,7 @@ export function OwnerTopBar({ admin }: { admin: OwnerAdmin }) {
   return (
     <header className="oo-app-header">
       <div className="oo-app-header-row">
-        <OwnerOsMark size={28} className="shrink-0 sm:h-8" title="NET WORTH" />
+        <OwnerOsMark size={32} className="shrink-0" title="NET WORTH" />
         <OwnerMobileNav />
         <OwnerMobileSectionTitle />
         <div className="oo-app-header-title hidden min-w-0 md:block">

@@ -25,7 +25,7 @@ export function HairAppHeader({ admin, navEntries }: HairAppHeaderProps) {
     <>
       <header className="sticky top-0 z-[100] border-b border-[color:var(--fyh-border-strong)] bg-fyh-elevated/90 backdrop-blur-xl">
         <div className="flex h-11 min-h-11 items-center gap-2 px-3 sm:gap-2.5 sm:px-3.5 md:px-4">
-          <FyhMark size={28} className="shrink-0 sm:h-8" title="Salon Software" />
+          <FyhMark size={32} className="shrink-0" title="SOFT" />
           <Button
             type="button"
             variant="ghost"
@@ -70,7 +70,7 @@ export function HairAppHeader({ admin, navEntries }: HairAppHeaderProps) {
           />
           <div className="absolute inset-y-0 left-0 flex w-[min(100vw-3rem,14rem)] flex-col bg-fyh-elevated shadow-2xl">
             <div className="flex items-center justify-between border-b border-[color:var(--fyh-border-strong)] p-2">
-              <FyhMark size={28} className="shrink-0" title="Salon Software" />
+              <FyhMark size={32} className="shrink-0" title="SOFT" />
               <Button
                 type="button"
                 variant="ghost"

@@ -7,7 +7,7 @@ export function FyhSidebarBrand({ className }: { className?: string }) {
         .filter(Boolean)
         .join(' ')}
     >
-      <FyhMark size={30} className="shrink-0" title="Salon Software" />
+      <FyhMark size={32} className="shrink-0" title="SOFT" />
     </div>
   );
 }

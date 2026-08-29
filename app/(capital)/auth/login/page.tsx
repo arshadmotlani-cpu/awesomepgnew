@@ -22,7 +22,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex justify-center">
-            <CapitalOsLogoLockup markSize={64} />
+            <CapitalOsLogoLockup markSize={48} />
           </div>
           <CardTitle>Sign in</CardTitle>
         </CardHeader>

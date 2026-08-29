@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 
@@ -9,17 +9,23 @@ function read(rel: string) {
   return readFileSync(join(root, rel), 'utf8');
 }
 
-test('Net Worth admin mark is the finalized local PNG, not a redesigned SVG path', () => {
+test('Net Worth admin mark is a premium CSS wordmark, not a rectangular PNG', () => {
   const markSource = read('src/components/brand/owner-os/OwnerOsMark.tsx');
-  assert.match(markSource, /export const OWNER_OS_MARK_SRC = '\/owner-os\/net-worth-admin-mark\.png'/);
-  assert.match(markSource, /width: 512/);
-  assert.match(markSource, /height: 120/);
-  assert.match(markSource, /object-contain/);
-  assert.match(markSource, /width: 'auto'/);
+  assert.match(markSource, /AdminProductWordmark/);
+  assert.match(markSource, /product="netWorth"/);
+  assert.doesNotMatch(markSource, /<img\b/);
+  assert.doesNotMatch(markSource, /net-worth-admin-mark\.png/);
   assert.doesNotMatch(markSource, /owner-os-ring|Owner OS</);
+});
 
-  const fsPath = join(root, 'public/owner-os/net-worth-admin-mark.png');
-  assert.equal(existsSync(fsPath), true, `${fsPath} must exist`);
+test('AdminProductWordmark renders NET WORTH as one cohesive teal wordmark', () => {
+  const wordmark = read('src/components/brand/AdminProductWordmark.tsx');
+  const tokens = read('src/lib/brand/adminWordmarkTokens.ts');
+  assert.match(tokens, /label: 'NET WORTH'/);
+  assert.match(tokens, /#2DD4BF/);
+  assert.match(wordmark, /\{token\.label\}/);
+  assert.doesNotMatch(wordmark, /<img\b/);
+  assert.doesNotMatch(tokens, /fontScale: 0\.5/, 'NET WORTH must not be optically half-height');
 });
 
 test('Net Worth admin mark component is used in sidebar, header, mobile nav, login, and not-found', () => {
@@ -34,6 +40,7 @@ test('Net Worth admin mark component is used in sidebar, header, mobile nav, log
     const source = read(file);
     assert.match(source, /OwnerOsMark/, `${file} must render OwnerOsMark`);
     assert.doesNotMatch(source, /OWNER_OS\.name/, `${file} must not render Owner OS branding text`);
+    assert.doesNotMatch(source, /net-worth-admin-mark\.png/, `${file} must not use rectangular PNG mark`);
   }
 });
 

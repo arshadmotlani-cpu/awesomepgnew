@@ -8,7 +8,7 @@ type CapitalBrandLogoProps = {
   alt?: string;
 };
 
-/** Automotive Capital AUTO wordmark (reference PNG). */
+/** Automotive Capital AUTO wordmark. */
 export function CapitalBrandLogo({
   size = 32,
   className,

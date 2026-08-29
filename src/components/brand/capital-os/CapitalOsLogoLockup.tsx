@@ -13,7 +13,7 @@ export function CapitalOsLogoLockup({
 }: CapitalOsLogoLockupProps) {
   return (
     <div className={['flex min-w-0 items-center', className].filter(Boolean).join(' ')}>
-      <CapitalOsMark size={markSize} className="shrink-0" title="Automotive Capital" />
+      <CapitalOsMark size={markSize} className="shrink-0" title="AUTO" />
     </div>
   );
 }

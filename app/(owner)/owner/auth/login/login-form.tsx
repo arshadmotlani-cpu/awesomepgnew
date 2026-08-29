@@ -19,7 +19,7 @@ export default function OwnerLoginForm() {
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[color:var(--oo-surface)] p-6 shadow-xl">
         <div className="mb-6 text-center">
           <div className="mx-auto mb-4 flex justify-center">
-            <OwnerOsMark size={40} className="max-w-full" title="NET WORTH" />
+            <OwnerOsMark size={48} className="max-w-full" title="NET WORTH" />
           </div>
           <h1 className="text-xl font-semibold text-white">Sign in</h1>
         </div>
