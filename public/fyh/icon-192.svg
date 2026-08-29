@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="SOFT">
-  <image href="icon-192.png" width="192" height="192" preserveAspectRatio="xMidYMid meet"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="SOFT">
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="#14101F"/>
+  <text x="256" y="268" text-anchor="middle" dominant-baseline="middle" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="188" font-weight="800" fill="#7C3AED" letter-spacing="-0.06em">SOFT</text>
 </svg>
