@@ -17,6 +17,11 @@ import { createPlatformClient } from '@/src/platform/db/client';
 import { fyhAdminUsers, fyhSettings } from '@/src/hair/db/schema';
 import { wfEmployees, wfEngineMemberships } from '@/src/workforce/db/schema';
 import { resolvePlatformAccessRoleFromWorkforce } from '@/src/platform/lib/bootstrapAccessRole';
+import {
+  OWNER_SALON_ORG_SLUG,
+  OWNER_SALON_PLAN_SLUGS,
+} from '@/src/platform/lib/ownerSalonTenant';
+import { resolveCreateSubscriptionPeriod } from '@/src/platform/lib/subscriptionTrial';
 import type { PlatformMembershipRole } from '@/src/platform/db/schema';
 import {
   platformLocations,
@@ -49,8 +54,10 @@ async function main() {
     .limit(1);
   if (!settings) throw new Error('Canonical fyh_settings row missing (organization_id IS NULL)');
 
-  const slug = 'for-your-hair';
-  const planSlug = isProductionCutoverWrite() ? 'fyhair-production' : 'fyh-staging';
+  const slug = OWNER_SALON_ORG_SLUG;
+  const planSlug = isProductionCutoverWrite()
+    ? OWNER_SALON_PLAN_SLUGS.production
+    : OWNER_SALON_PLAN_SLUGS.staging;
   const planName = isProductionCutoverWrite() ? 'FYHAIR Production' : 'FYH Staging';
 
   const existing = await platform.db
@@ -241,7 +248,8 @@ async function main() {
   await platform.db.insert(platformOrganizationSubscriptions).values({
     organizationId: org.id,
     planId: plan.id,
-    status: 'active',
+    status: 'complimentary',
+    ...resolveCreateSubscriptionPeriod({ subscriptionStatus: 'complimentary' }),
   });
 
   const artifact = {

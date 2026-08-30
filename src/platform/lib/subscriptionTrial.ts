@@ -105,3 +105,9 @@ export function formatTrialAdminLabel(
   const days = trialDaysRemaining(currentPeriodEnd, now);
   return days === 1 ? '1 day left' : `${days} days left`;
 }
+
+export function isComplimentarySubscriptionStatus(
+  status: PlatformSubscriptionStatus | null | undefined,
+): boolean {
+  return status === 'complimentary';
+}

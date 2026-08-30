@@ -2,6 +2,7 @@ export const ROLE_DESCRIPTIONS: Record<string, string> = {
   owner: 'Full organization access',
   co_owner: 'Full organization access except platform administration',
   manager: 'Manage staff/team and operational areas according to permissions',
+  receptionist: 'Front-desk access — customers, appointments, billing, memberships, and packages',
   biller: 'Billing, appointments, and payment operations only',
   staff: 'Own appointments, services, performance and permitted operational information',
 };

@@ -12,10 +12,12 @@ import { EmptyState } from '@/src/platform/components/ui/EmptyState';
 import { InvitationStatusBadge } from '@/src/platform/components/ui/StatusBadge';
 import { RoleBadge, RoleDescription } from '@/src/platform/components/ui/RoleBadge';
 import { listOrganizationDetailsForAdmin } from '@/src/platform/services/admin';
+import {
+  PLATFORM_TENANT_ACCESS_ROLES,
+  platformTenantRoleLabel,
+} from '@/src/platform/lib/tenantAccessRoles';
 
 type Props = { params: Promise<{ id: string }> };
-
-const ACCESS_ROLES = ['owner', 'co_owner', 'manager', 'biller', 'staff'] as const;
 
 function formatDate(value: Date | string | null | undefined): string {
   if (!value) return '—';
@@ -73,8 +75,8 @@ export default async function PlatformOrganizationMembersPage({ params }: Props)
             <label className="grid gap-1 text-sm">
               <span className="text-[var(--plt-text-muted)]">Access role</span>
               <select name="accessRole" defaultValue="staff" className="plt-input">
-                {ACCESS_ROLES.map((role) => (
-                  <option key={role} value={role}>{role.replace('_', ' ')}</option>
+                {PLATFORM_TENANT_ACCESS_ROLES.map((role) => (
+                  <option key={role} value={role}>{platformTenantRoleLabel(role)}</option>
                 ))}
               </select>
             </label>
@@ -121,8 +123,8 @@ export default async function PlatformOrganizationMembersPage({ params }: Props)
                       <label className="grid gap-1 text-sm">
                         <span className="text-[var(--plt-text-muted)]">Access role</span>
                         <select name="accessRole" defaultValue={member.accessRole} className="plt-input">
-                          {ACCESS_ROLES.map((role) => (
-                            <option key={role} value={role}>{role.replace('_', ' ')}</option>
+                          {PLATFORM_TENANT_ACCESS_ROLES.map((role) => (
+                            <option key={role} value={role}>{platformTenantRoleLabel(role)}</option>
                           ))}
                         </select>
                       </label>

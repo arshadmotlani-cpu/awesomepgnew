@@ -18,6 +18,8 @@ import {
   listPlatformSubscriptionEvents,
 } from '@/src/platform/services/admin';
 import { formatInrFromPaise, STANDARD_SALON_PRICE_PAISE } from '@/src/platform/lib/salonSubscriptionPricing';
+import { OWNER_SALON_PRODUCT_LABEL } from '@/src/platform/lib/ownerSalonTenant';
+import { formatSubscriptionAnnualCharge } from '@/src/platform/lib/subscriptionChargeDisplay';
 import { formatTrialAdminLabel } from '@/src/platform/lib/subscriptionTrial';
 
 type Props = { params: Promise<{ id: string }> };
@@ -53,6 +55,10 @@ export default async function PlatformOrganizationDetailPage({ params }: Props) 
     organization.subscription?.status ?? null,
     organization.subscription?.currentPeriodEnd ?? null,
   );
+  const annualCharge = formatSubscriptionAnnualCharge({
+    status: organization.subscription?.status ?? null,
+    amountPaise: organization.subscription?.amountPaise ?? null,
+  });
 
   return (
     <>
@@ -75,14 +81,22 @@ export default async function PlatformOrganizationDetailPage({ params }: Props) 
         activeTab="overview"
       />
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
         <div className="rounded-lg border border-[var(--plt-border)] bg-[var(--plt-bg-surface)] px-4 py-3">
           <p className="text-xs text-[var(--plt-text-subtle)]">Status</p>
           <div className="mt-1"><OrgStatusBadge status={organization.status} /></div>
         </div>
         <div className="rounded-lg border border-[var(--plt-border)] bg-[var(--plt-bg-surface)] px-4 py-3">
+          <p className="text-xs text-[var(--plt-text-subtle)]">Product</p>
+          <p className="mt-1 text-sm font-medium">{OWNER_SALON_PRODUCT_LABEL}</p>
+        </div>
+        <div className="rounded-lg border border-[var(--plt-border)] bg-[var(--plt-bg-surface)] px-4 py-3">
           <p className="text-xs text-[var(--plt-text-subtle)]">Plan</p>
           <p className="mt-1 text-sm font-medium">{organization.subscription?.planName ?? '—'}</p>
+        </div>
+        <div className="rounded-lg border border-[var(--plt-border)] bg-[var(--plt-bg-surface)] px-4 py-3">
+          <p className="text-xs text-[var(--plt-text-subtle)]">Annual charge</p>
+          <p className="mt-1 text-sm font-medium">{annualCharge}</p>
         </div>
         <div className="rounded-lg border border-[var(--plt-border)] bg-[var(--plt-bg-surface)] px-4 py-3">
           <p className="text-xs text-[var(--plt-text-subtle)]">Locations</p>
@@ -91,10 +105,6 @@ export default async function PlatformOrganizationDetailPage({ params }: Props) 
         <div className="rounded-lg border border-[var(--plt-border)] bg-[var(--plt-bg-surface)] px-4 py-3">
           <p className="text-xs text-[var(--plt-text-subtle)]">Members</p>
           <p className="mt-1 text-sm font-medium">{organization.members.length}</p>
-        </div>
-        <div className="rounded-lg border border-[var(--plt-border)] bg-[var(--plt-bg-surface)] px-4 py-3">
-          <p className="text-xs text-[var(--plt-text-subtle)]">Trial</p>
-          <p className="mt-1 text-sm font-medium">{trialLabel ?? '—'}</p>
         </div>
       </div>
 
@@ -123,6 +133,10 @@ export default async function PlatformOrganizationDetailPage({ params }: Props) 
                   '—'
                 )}
               </dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-[var(--plt-text-subtle)]">Billing</dt>
+              <dd>{annualCharge}</dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt className="text-[var(--plt-text-subtle)]">Trial status</dt>

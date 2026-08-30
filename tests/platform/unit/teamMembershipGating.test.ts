@@ -26,7 +26,8 @@ test('missing subscription status remains allowed for legacy orgs', () => {
   assert.equal(isSubscriptionAccessAllowed(undefined), true);
 });
 
-test('salon team roles exclude legacy member label', () => {
-  const roles = ['owner', 'co_owner', 'manager', 'biller', 'staff'];
+test('salon team roles include receptionist and exclude legacy member label', () => {
+  const roles = ['owner', 'co_owner', 'manager', 'receptionist', 'biller', 'staff'];
   assert.ok(!roles.includes('member'));
+  assert.ok(roles.includes('receptionist'));
 });

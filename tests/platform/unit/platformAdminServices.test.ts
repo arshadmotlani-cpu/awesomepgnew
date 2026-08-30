@@ -13,6 +13,7 @@ test('ROLE_DESCRIPTIONS keys cover organization roles', () => {
   assert.match(ROLE_DESCRIPTIONS.owner, /Full organization/);
   assert.match(ROLE_DESCRIPTIONS.co_owner, /platform administration/);
   assert.ok(ROLE_DESCRIPTIONS.manager);
+  assert.ok(ROLE_DESCRIPTIONS.receptionist);
   assert.ok(ROLE_DESCRIPTIONS.biller);
   assert.ok(ROLE_DESCRIPTIONS.staff);
 });

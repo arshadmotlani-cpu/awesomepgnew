@@ -256,7 +256,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-30 09:35:08 UTC
+### Pending pre-commit sync · 2026-08-30 09:44:01 UTC
 
 **Areas touched:** [[ROUTES]]
 
@@ -265,12 +265,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
-**Staged code files (5):**
-- `app/(hair)/fyh/(app)/access-denied/page.tsx`
-- `app/(hair)/fyh/(app)/dashboard/front-desk/page.tsx`
-- `app/(hair)/fyh/(app)/dashboard/revenue/page.tsx`
-- `app/(hair)/fyh/(app)/dashboard/staff-performance/page.tsx`
-- `app/(hair)/fyh/(app)/layout.tsx`
+**Staged code files (2):**
+- `app/(platform)/platform/admin/organizations/[id]/members/page.tsx`
+- `app/(platform)/platform/admin/organizations/[id]/page.tsx`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed
