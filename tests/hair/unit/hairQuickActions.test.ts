@@ -77,3 +77,11 @@ test('HairAppHeader passes staffName into Quick Actions', () => {
   const src = readFileSync(join(root, 'src/hair/components/HairAppHeader.tsx'), 'utf8');
   assert.match(src, /<HairQuickActionsMenu staffName=/);
 });
+
+test('HairGlobalSearch uses Input with leading-icon padding (not raw fyh-input)', () => {
+  const src = readFileSync(join(root, 'src/hair/components/HairGlobalSearch.tsx'), 'utf8');
+  assert.match(src, /from '@\/src\/hair\/components\/ui\/input'/);
+  assert.match(src, /pl-9/);
+  assert.doesNotMatch(src, /fyh-input/);
+  assert.match(src, /Search customers, appointments/);
+});

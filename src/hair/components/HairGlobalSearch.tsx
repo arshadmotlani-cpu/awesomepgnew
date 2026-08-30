@@ -6,6 +6,9 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { Search } from 'lucide-react';
 import { searchHairAction } from '@/src/hair/actions/search';
 import type { HairSearchHit } from '@/src/hair/services/search';
+import { Input } from '@/src/hair/components/ui/input';
+
+const SEARCH_INPUT_CLASS = 'h-9 min-h-9 w-full pl-9 text-[0.8125rem]';
 
 function isInvoiceRegisterPath(pathname: string): boolean {
   return pathname === '/billing/invoices';
@@ -45,12 +48,12 @@ function InvoiceRegisterSearch({
   }, [draft, router, searchParams, urlQ]);
 
   return (
-    <input
+    <Input
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
       onInput={(e) => setDraft(e.currentTarget.value)}
       placeholder="Search invoice #, customer, mobile…"
-      className="fyh-input h-9 w-full pl-9 text-[0.8125rem]"
+      className={SEARCH_INPUT_CLASS}
       aria-label="Search invoices in register"
     />
   );
@@ -69,14 +72,14 @@ export function HairGlobalSearch() {
   return (
     <div className="relative w-full max-w-md lg:max-w-lg">
       <Search
-        className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fyh-text-muted"
+        className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 shrink-0 -translate-y-1/2 text-fyh-text-muted"
         aria-hidden
       />
       {registerMode ? (
         <InvoiceRegisterSearch urlQ={urlQ} searchParams={searchParams} />
       ) : (
         <>
-          <input
+          <Input
             value={q}
             onChange={(e) => {
               const value = e.target.value;
@@ -94,7 +97,7 @@ export function HairGlobalSearch() {
               });
             }}
             placeholder="Search customers, appointments…"
-            className="fyh-input h-9 w-full pl-9 text-[0.8125rem]"
+            className={SEARCH_INPUT_CLASS}
             aria-label="Search customers and appointments"
           />
           {hits.length > 0 ? (
