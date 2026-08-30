@@ -9,6 +9,7 @@ import {
 } from '@/src/owner/actions/wealth';
 import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
 import { MoneyInput } from '@/src/owner/components/ui/MoneyInput';
+import { StableDateInput } from '@/src/components/forms/StableDateInput';
 
 const LIABILITY_TYPES = [
   'EMI',
@@ -88,6 +89,7 @@ export function LiabilityDetailUi({
   payments,
   totalPrincipalPaidPaise,
   totalInterestPaidPaise,
+  todayIso,
 }: {
   liability: {
     id: string;
@@ -108,6 +110,7 @@ export function LiabilityDetailUi({
   payments: PaymentRow[];
   totalPrincipalPaidPaise: number;
   totalInterestPaidPaise: number;
+  todayIso: string;
 }) {
   const [state, formAction, pending] = useActionState<WealthActionState, FormData>(
     payLiabilityAction,
@@ -116,14 +119,17 @@ export function LiabilityDetailUi({
 
   const suggestedPayment =
     due && due.totalDuePaise > 0 ? (due.totalDuePaise / 100).toFixed(2) : '';
+  const typeLabel = (liability.liabilityType ?? 'CUSTOM').replaceAll('_', ' ');
+  const interestRatePct = Number.isFinite(liability.interestRateBps)
+    ? (liability.interestRateBps / 100).toFixed(2)
+    : '0.00';
 
   return (
     <div className="oo-page-stack">
       <header>
         <h1 className="oo-page-title">{liability.name}</h1>
         <p className="oo-page-subtitle">
-          {liability.lender ?? liability.liabilityType.replaceAll('_', ' ')} ·{' '}
-          {(liability.interestRateBps / 100).toFixed(2)}% interest
+          {liability.lender ?? typeLabel} · {interestRatePct}% interest
         </p>
       </header>
 
@@ -177,11 +183,10 @@ export function LiabilityDetailUi({
             defaultValue={Number(suggestedPayment) || 0}
             required
           />
-          <input
+          <StableDateInput
             name="paymentDate"
-            type="date"
             required
-            defaultValue={new Date().toISOString().slice(0, 10)}
+            defaultDateIso={todayIso}
             className="oo-form-input"
           />
           <select name="accountId" className="oo-form-input">

@@ -8,6 +8,7 @@ import {
 import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
 import { SourceBadge } from '@/src/owner/components/wealth/SourceBadge';
 import { MoneyInput } from '@/src/owner/components/ui/MoneyInput';
+import { StableDateInput } from '@/src/components/forms/StableDateInput';
 
 type IncomeRow = {
   id: string;
@@ -130,11 +131,9 @@ export function IncomeUi({
           <MoneyInput name="amountRupees" label="Amount (₹)" required />
           <div className="oo-form-field">
             <label className="oo-form-label">Date</label>
-            <input
+            <StableDateInput
               name="incomeDate"
-              type="date"
               required
-              defaultValue={new Date().toISOString().slice(0, 10)}
               className="oo-form-input oo-form-input-date"
             />
           </div>

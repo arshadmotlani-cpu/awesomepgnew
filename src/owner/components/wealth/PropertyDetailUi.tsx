@@ -11,6 +11,7 @@ import {
 import { SourceBadge } from '@/src/owner/components/wealth/SourceBadge';
 import { MoneyInput } from '@/src/owner/components/ui/MoneyInput';
 import { PropertyIncomeSection } from '@/src/owner/components/wealth/PropertyIncomeSection';
+import { StableDateInput } from '@/src/components/forms/StableDateInput';
 
 type ValuationRow = {
   id: string;
@@ -220,11 +221,9 @@ export function PropertyDetailUi({ detail }: { detail: PropertyDetail }) {
           />
           <div className="oo-form-field">
             <label className="oo-form-label">Valuation date</label>
-            <input
+            <StableDateInput
               name="valuationDate"
-              type="date"
               required
-              defaultValue={new Date().toISOString().slice(0, 10)}
               className="oo-form-input oo-form-input-date"
             />
           </div>
@@ -304,11 +303,9 @@ export function PropertyDetailUi({ detail }: { detail: PropertyDetail }) {
           <MoneyInput name="amountRupees" label="Amount (₹)" required />
           <div className="oo-form-field">
             <label className="oo-form-label">Date</label>
-            <input
+            <StableDateInput
               name="expenseDate"
-              type="date"
               required
-              defaultValue={new Date().toISOString().slice(0, 10)}
               className="oo-form-input oo-form-input-date"
             />
           </div>

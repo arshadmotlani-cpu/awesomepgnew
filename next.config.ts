@@ -2,6 +2,12 @@ import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs';
 
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_DEPLOY_ID:
+      process.env.VERCEL_GIT_COMMIT_SHA ??
+      process.env.VERCEL_DEPLOYMENT_ID ??
+      'development',
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: '10mb',

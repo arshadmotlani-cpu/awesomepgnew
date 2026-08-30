@@ -14,3 +14,28 @@ export function coerceWealthPaise(value: unknown): number {
 export function coerceWealthBps(value: unknown): number {
   return coerceWealthPaise(value);
 }
+
+export type SerializedLiabilityDue = {
+  principalDuePaise: number;
+  interestDuePaise: number;
+  totalDuePaise: number;
+  dueDate: string | null;
+};
+
+/** Coerce liability due snapshot for RSC → client boundaries. */
+export function serializeLiabilityDue(
+  due: {
+    principalDuePaise: unknown;
+    interestDuePaise: unknown;
+    totalDuePaise: unknown;
+    dueDate: string | null;
+  } | null,
+): SerializedLiabilityDue | null {
+  if (!due) return null;
+  return {
+    principalDuePaise: coerceWealthPaise(due.principalDuePaise),
+    interestDuePaise: coerceWealthPaise(due.interestDuePaise),
+    totalDuePaise: coerceWealthPaise(due.totalDuePaise),
+    dueDate: due.dueDate,
+  };
+}

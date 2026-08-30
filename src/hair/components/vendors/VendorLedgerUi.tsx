@@ -14,6 +14,7 @@ import {
 } from '@/src/hair/actions/vendorLedger';
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
+import { StableDateInput } from '@/src/components/forms/StableDateInput';
 import { ImageFileInputInline } from '@/src/components/shared/ImageFileInput';
 import type { FyhVendor } from '@/src/hair/db/schema';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
@@ -553,12 +554,10 @@ function VendorPaymentForm({
             <label className="fyh-label" htmlFor="paymentDate">
               Payment date *
             </label>
-            <Input
+            <StableDateInput
               id="paymentDate"
               name="paymentDate"
-              type="date"
               required
-              defaultValue={new Date().toISOString().slice(0, 10)}
             />
           </div>
           <div className="space-y-2">
@@ -835,12 +834,10 @@ function ReturnDialog({
               <label className="fyh-label" htmlFor="returnDate">
                 Return date *
               </label>
-              <Input
+              <StableDateInput
                 id="returnDate"
                 name="returnDate"
-                type="date"
                 required
-                defaultValue={new Date().toISOString().slice(0, 10)}
               />
             </div>
 

@@ -13,6 +13,7 @@ import {
 import { PROPERTY_INCOME_SOURCE_TYPES } from '@/src/owner/lib/wealth/propertyIncomeTypes';
 import { MoneyInput } from '@/src/owner/components/ui/MoneyInput';
 import { SourceBadge } from '@/src/owner/components/wealth/SourceBadge';
+import { StableDateInput } from '@/src/components/forms/StableDateInput';
 
 type IncomeSourceRow = {
   id: string;
@@ -150,11 +151,9 @@ export function PropertyIncomeSection({
               <MoneyInput name="monthlyAmountRupees" label="Monthly rent (₹)" required />
               <div className="oo-form-field">
                 <label className="oo-form-label">Start date</label>
-                <input
+                <StableDateInput
                   name="startDate"
-                  type="date"
                   className="oo-form-input oo-form-input-date"
-                  defaultValue={new Date().toISOString().slice(0, 10)}
                 />
               </div>
               <div className="oo-form-field">
@@ -292,11 +291,9 @@ function IncomeSourceCard({
           />
           <div className="oo-form-field">
             <label className="oo-form-label">Effective from</label>
-            <input
+            <StableDateInput
               name="effectiveFrom"
-              type="date"
               required
-              defaultValue={new Date().toISOString().slice(0, 10)}
               className="oo-form-input oo-form-input-date"
             />
           </div>

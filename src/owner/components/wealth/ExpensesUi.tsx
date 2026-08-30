@@ -8,6 +8,7 @@ import {
 import { AmountWithWords } from '@/src/owner/components/ui/AmountWithWords';
 import { MoneyInput } from '@/src/owner/components/ui/MoneyInput';
 import { SourceBadge } from '@/src/owner/components/wealth/SourceBadge';
+import { StableDateInput } from '@/src/components/forms/StableDateInput';
 
 const CATEGORIES = [
   'PERSONAL',
@@ -95,11 +96,9 @@ export function ExpensesUi({
             required
             className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
           />
-          <input
+          <StableDateInput
             name="expenseDate"
-            type="date"
             required
-            defaultValue={new Date().toISOString().slice(0, 10)}
             className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
           />
           <select

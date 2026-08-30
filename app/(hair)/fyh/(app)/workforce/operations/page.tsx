@@ -17,6 +17,8 @@ import { listIncentives, listPayrollRuns } from '@/src/workforce/services/compen
 import { getEmployeeSchedule } from '@/src/workforce/services/schedules';
 import { WorkingHoursEditor } from '@/src/workforce/components/WorkingHoursEditor';
 import { workforceAccessRoleLabel } from '@/src/workforce/labels';
+import { StableDateInput } from '@/src/components/forms/StableDateInput';
+import { appTodayIso } from '@/src/lib/dates/appTodayIso';
 import { hasWorkforcePermission } from '@/src/workforce/permissions/presets';
 import { isWorkforceEngineEnabled, type WorkforceJobRole } from '@/src/workforce/types';
 
@@ -42,6 +44,7 @@ export default async function WorkforceOperationsPage() {
 
   const ctx = await getTenantContextForPage();
   const orgId = ctx?.organizationId;
+  const todayIso = appTodayIso();
 
   const team = await listEmployeesForEngine('fyh_salon', { activeOnly: true, organizationId: orgId });
   const bookable = await listBookableEmployees('fyh_salon');
@@ -246,11 +249,10 @@ export default async function WorkforceOperationsPage() {
                 placeholder="₹"
                 className="rounded-lg border border-[color:var(--fyh-border)] bg-transparent px-3 py-2"
               />
-              <input
+              <StableDateInput
                 name="effectiveDate"
-                type="date"
                 required
-                defaultValue={new Date().toISOString().slice(0, 10)}
+                defaultDateIso={todayIso}
                 className="rounded-lg border border-[color:var(--fyh-border)] bg-transparent px-3 py-2"
               />
               <button

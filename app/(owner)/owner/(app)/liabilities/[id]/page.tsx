@@ -2,7 +2,12 @@ import { notFound } from 'next/navigation';
 import { LiabilityDetailUi } from '@/src/owner/components/wealth/LiabilityUi';
 import { getLiabilityDetail } from '@/src/owner/services/liabilities';
 import { getAccountsWithBalancesResolved } from '@/src/owner/services/financialAccounts';
-import { coerceWealthPaise } from '@/src/owner/lib/wealth/paiseCoercion';
+import {
+  coerceWealthBps,
+  coerceWealthPaise,
+  serializeLiabilityDue,
+} from '@/src/owner/lib/wealth/paiseCoercion';
+import { appTodayIso } from '@/src/lib/dates/appTodayIso';
 
 export default async function OwnerLiabilityDetailPage({
   params,
@@ -17,18 +22,21 @@ export default async function OwnerLiabilityDetailPage({
 
   if (!detail) notFound();
 
+  const todayIso = appTodayIso();
+
   return (
     <LiabilityDetailUi
+      todayIso={todayIso}
       liability={{
         id: detail.liability.id,
         name: detail.liability.name,
         lender: detail.liability.lender,
-        liabilityType: detail.liability.liabilityType,
+        liabilityType: detail.liability.liabilityType ?? 'CUSTOM',
         currentPrincipalPaise: coerceWealthPaise(detail.liability.currentPrincipalPaise),
         originalPrincipalPaise: coerceWealthPaise(detail.liability.originalPrincipalPaise),
-        interestRateBps: coerceWealthPaise(detail.liability.interestRateBps),
+        interestRateBps: coerceWealthBps(detail.liability.interestRateBps),
       }}
-      due={detail.due}
+      due={serializeLiabilityDue(detail.due)}
       accounts={accounts.map((a) => ({ id: a.id, name: a.name }))}
       payments={detail.payments.map((p) => ({
         id: p.id,

@@ -12,6 +12,7 @@ import { CurrencyInput } from '@/src/capital/components/forms/CurrencyInput';
 import { MoneyDisplay } from '@/src/capital/components/MoneyDisplay';
 import { Button } from '@/src/capital/components/ui/button';
 import { Input } from '@/src/capital/components/ui/input';
+import { StableDateInput } from '@/src/components/forms/StableDateInput';
 import { useRefreshCapitalView } from '@/src/capital/hooks/useRefreshCapitalView';
 import { formatInrPlain } from '@/src/capital/lib/money';
 
@@ -258,11 +259,10 @@ export function InvestmentBudgetPanel({
                 placeholder="Amount (₹)"
                 required
               />
-              <Input
+              <StableDateInput
                 name="occurredAt"
-                type="date"
                 required
-                defaultValue={new Date().toISOString().slice(0, 10)}
+                className="flex h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-ac-text placeholder:text-ac-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ac-accent/40 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
             <Button type="submit" size="sm" disabled={costPending}>

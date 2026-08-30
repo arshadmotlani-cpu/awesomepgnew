@@ -5,6 +5,7 @@ import {
   getLiabilityCalculator,
   type LiabilityContext,
 } from '@/src/owner/lib/liabilities/calculators';
+import { coerceWealthBps, coerceWealthPaise } from '@/src/owner/lib/wealth/paiseCoercion';
 import { paiseFromRupees, todayIsoDate } from '@/src/owner/lib/wealth/types';
 import { createJournalEntry } from '@/src/owner/services/journal';
 import { writeAuditLog } from '@/src/owner/services/auditLog';
@@ -13,14 +14,16 @@ function toContext(row: typeof ooLiabilities.$inferSelect): LiabilityContext {
   return {
     id: row.id,
     liabilityType: row.liabilityType,
-    currentPrincipalPaise: row.currentPrincipalPaise,
-    originalPrincipalPaise: row.originalPrincipalPaise,
-    interestRateBps: row.interestRateBps,
-    accruedInterestPaise: row.accruedInterestPaise,
+    currentPrincipalPaise: coerceWealthPaise(row.currentPrincipalPaise),
+    originalPrincipalPaise: coerceWealthPaise(row.originalPrincipalPaise),
+    interestRateBps: coerceWealthBps(row.interestRateBps),
+    accruedInterestPaise: coerceWealthPaise(row.accruedInterestPaise),
     lastAccrualDate: row.lastAccrualDate,
     startDate: row.startDate,
     tenureMonths: row.tenureMonths,
-    fixedPaymentPaise: row.fixedPaymentPaise,
+    fixedPaymentPaise: row.fixedPaymentPaise
+      ? coerceWealthPaise(row.fixedPaymentPaise)
+      : null,
     repaymentFrequency: row.repaymentFrequency,
     rulesJson: row.rulesJson ?? {},
   };

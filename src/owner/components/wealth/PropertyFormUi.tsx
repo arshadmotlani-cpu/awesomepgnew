@@ -8,6 +8,7 @@ import {
 } from '@/src/owner/actions/wealth';
 import { MoneyInput } from '@/src/owner/components/ui/MoneyInput';
 import { PropertyIncomeSourcesEditor } from '@/src/owner/components/wealth/PropertyIncomeSourcesEditor';
+import { StableDateInput } from '@/src/components/forms/StableDateInput';
 
 const PROPERTY_TYPES = [
   { value: 'pg', label: 'PG' },
@@ -156,10 +157,8 @@ export function PropertyFormUi({ pgOptions }: { pgOptions: PgOption[] }) {
               hint="Leave blank to derive estimated current value from purchase date + appreciation %. If entered, this becomes your actual recorded value."
             />
             <FormField label="Valuation date">
-              <input
+              <StableDateInput
                 name="valuationDate"
-                type="date"
-                defaultValue={new Date().toISOString().slice(0, 10)}
                 className="oo-form-input oo-form-input-date"
               />
             </FormField>
