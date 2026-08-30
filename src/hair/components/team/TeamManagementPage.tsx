@@ -11,6 +11,7 @@ const ROLE_LABEL: Record<PlatformMembershipRole, string> = {
   owner: 'Owner',
   co_owner: 'Co-owner',
   manager: 'Manager',
+  receptionist: 'Receptionist',
   biller: 'Biller',
   staff: 'Staff',
 };

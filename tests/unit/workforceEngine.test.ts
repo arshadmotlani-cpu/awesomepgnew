@@ -85,9 +85,10 @@ describe('Workforce labels', () => {
     assert.equal(workforceRankLabel('team_member'), 'Staff');
   });
 
-  test('access role labels cover four roles', () => {
+  test('access role labels cover five roles', () => {
     assert.equal(workforceAccessRoleLabel('owner'), 'Owner');
     assert.equal(workforceAccessRoleLabel('manager'), 'Manager');
+    assert.equal(workforceAccessRoleLabel('receptionist'), 'Receptionist');
     assert.equal(workforceAccessRoleLabel('biller'), 'Biller');
     assert.equal(workforceAccessRoleLabel('staff'), 'Staff');
   });

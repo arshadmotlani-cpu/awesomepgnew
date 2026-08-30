@@ -45,6 +45,24 @@ const BILLER_TEMPLATE: WorkforcePermissionKey[] = [
   'cash_drawer.manage',
 ];
 
+/** Front-desk role — create/view/collect only; no admin, inventory, or financial config. */
+const RECEPTIONIST_TEMPLATE: WorkforcePermissionKey[] = [
+  'dashboard.view',
+  'dashboard.view_customers',
+  'customers.view',
+  'customers.edit',
+  'appointments.receive_bookings',
+  'appointments.view_all',
+  'appointments.edit',
+  'billing.view',
+  'billing.create_invoice',
+  'services.view',
+  'packages.view',
+  'memberships.view',
+  'calendar.view',
+  'cash_drawer.view',
+];
+
 const STAFF_TEMPLATE: WorkforcePermissionKey[] = [
   'appointments.view_own',
   'appointments.receive_bookings',
@@ -53,11 +71,12 @@ const STAFF_TEMPLATE: WorkforcePermissionKey[] = [
 ];
 
 const TEMPLATE_BY_ROLE: Record<
-  'owner' | 'manager' | 'biller' | 'staff',
+  'owner' | 'manager' | 'receptionist' | 'biller' | 'staff',
   { permissions: WorkforcePermissionKey[]; maxBackdateDays: number | null }
 > = {
   owner: { permissions: OWNER_TEMPLATE, maxBackdateDays: null },
   manager: { permissions: MANAGER_TEMPLATE, maxBackdateDays: 7 },
+  receptionist: { permissions: RECEPTIONIST_TEMPLATE, maxBackdateDays: 0 },
   biller: { permissions: BILLER_TEMPLATE, maxBackdateDays: 2 },
   staff: { permissions: STAFF_TEMPLATE, maxBackdateDays: 0 },
 };
@@ -69,9 +88,9 @@ export const CODE_ROLE_TEMPLATES: Record<
 > = {
   owner: TEMPLATE_BY_ROLE.owner,
   manager: TEMPLATE_BY_ROLE.manager,
+  receptionist: TEMPLATE_BY_ROLE.receptionist,
   biller: TEMPLATE_BY_ROLE.biller,
   staff: TEMPLATE_BY_ROLE.staff,
-  receptionist: TEMPLATE_BY_ROLE.biller,
   stylist: TEMPLATE_BY_ROLE.staff,
   barber: TEMPLATE_BY_ROLE.staff,
   beautician: TEMPLATE_BY_ROLE.staff,

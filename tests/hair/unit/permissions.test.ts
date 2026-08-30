@@ -60,7 +60,7 @@ test('pagePermissionForPath maps public and internal routes', () => {
   assert.equal(pagePermissionForPath('/inventory'), 'page:inventory');
   assert.equal(pagePermissionForPath('/expenses'), 'page:expenses');
   assert.equal(pagePermissionForPath('/fyh/reports/revenue/daily'), 'page:reports');
-  assert.equal(pagePermissionForPath('/services'), 'page:settings');
+  assert.equal(pagePermissionForPath('/services'), 'page:services');
   assert.equal(pagePermissionForPath('/settings/permissions'), 'page:settings');
 });
 

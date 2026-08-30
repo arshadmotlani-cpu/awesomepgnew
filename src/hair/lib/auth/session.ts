@@ -31,6 +31,7 @@ import {
 function templateForMembershipRole(role: string) {
   if (role === 'owner' || role === 'co_owner') return codeTemplateForAccessRole('owner');
   if (role === 'manager') return codeTemplateForAccessRole('manager');
+  if (role === 'receptionist') return codeTemplateForAccessRole('receptionist');
   if (role === 'biller') return codeTemplateForAccessRole('biller');
   return codeTemplateForAccessRole('staff');
 }

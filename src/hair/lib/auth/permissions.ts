@@ -41,7 +41,7 @@ export async function requirePermission(key: HairPermission): Promise<HairAdmin>
 export async function requirePermissionPage(key: HairPermission): Promise<HairAdmin> {
   const admin = await requireHairAuthPage();
   if (!checkPermission(admin, key)) {
-    redirect(await hairAppRedirect('/dashboard'));
+    redirect(await hairAppRedirect('/access-denied'));
   }
   return admin;
 }
@@ -50,7 +50,7 @@ export async function requirePagePermissionForPath(pathname: string): Promise<Ha
   const admin = await requireHairAuthPage();
   const key = pagePermissionForPath(pathname);
   if (key && !checkPermission(admin, key)) {
-    redirect(await hairAppRedirect('/dashboard'));
+    redirect(await hairAppRedirect('/access-denied'));
   }
   return admin;
 }

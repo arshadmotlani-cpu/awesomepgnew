@@ -14,7 +14,7 @@ export const WORKFORCE_RANKS = ['owner', 'manager', 'team_member'] as const;
 export type WorkforceRank = (typeof WORKFORCE_RANKS)[number];
 
 /** ERP access role — stored in wf_engine_memberships.job_role. */
-export const WORKFORCE_ACCESS_ROLES = ['owner', 'manager', 'biller', 'staff'] as const;
+export const WORKFORCE_ACCESS_ROLES = ['owner', 'manager', 'receptionist', 'biller', 'staff'] as const;
 export type WorkforceAccessRole = (typeof WORKFORCE_ACCESS_ROLES)[number];
 
 /** Legacy job_role values still present in migrated rows. */

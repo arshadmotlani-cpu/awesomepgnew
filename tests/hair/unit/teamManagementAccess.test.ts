@@ -12,6 +12,7 @@ test('owner and co_owner can assign all operational roles including co_owner', (
     'owner',
     'co_owner',
     'manager',
+    'receptionist',
     'biller',
     'staff',
   ]);
@@ -19,6 +20,7 @@ test('owner and co_owner can assign all operational roles including co_owner', (
     'owner',
     'co_owner',
     'manager',
+    'receptionist',
     'biller',
     'staff',
   ]);
@@ -29,6 +31,7 @@ test('owner and co_owner can assign all operational roles including co_owner', (
 test('manager cannot assign owner or co_owner', () => {
   assert.deepEqual(allowedAssignRolesForMembershipRole('manager'), [
     'manager',
+    'receptionist',
     'biller',
     'staff',
   ]);

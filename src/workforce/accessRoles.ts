@@ -8,9 +8,8 @@ export function rankFromAccessRole(accessRole: WorkforceJobRole): WorkforceRank 
   return 'team_member';
 }
 
-/** Map retired roles → one of the four access roles (permissions + display). */
+/** Map retired roles → one of the access roles (permissions + display). */
 const LEGACY_ACCESS_ROLE_MAP: Record<string, WorkforceJobRole> = {
-  receptionist: 'biller',
   accountant: 'biller',
   stylist: 'staff',
   barber: 'staff',

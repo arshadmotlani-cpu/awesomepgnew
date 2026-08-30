@@ -32,7 +32,8 @@ export function workforceHomePathForGrants(grants: WorkforcePermissionGrants | n
     return '/me';
   }
   if (hasWorkforcePermission(grants, 'appointments.view_all')) return '/appointments';
-  if (hasWorkforcePermission(grants, 'dashboard.view')) return '/dashboard/revenue';
+  if (hasWorkforcePermission(grants, 'dashboard.view_revenue')) return '/dashboard/revenue';
+  if (hasWorkforcePermission(grants, 'dashboard.view')) return '/dashboard/front-desk';
   return '/me';
 }
 

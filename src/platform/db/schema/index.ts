@@ -27,6 +27,7 @@ export const PLATFORM_MEMBERSHIP_ROLES = [
   'owner',
   'co_owner',
   'manager',
+  'receptionist',
   'biller',
   'staff',
 ] as const;

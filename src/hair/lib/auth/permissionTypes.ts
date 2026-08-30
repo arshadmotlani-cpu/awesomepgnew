@@ -1,10 +1,15 @@
 /** Page access keys — control nav visibility and route guards. */
 export const HAIR_PAGE_PERMISSIONS = [
   'page:dashboard',
+  'page:dashboard_revenue',
+  'page:dashboard_staff',
   'page:customers',
   'page:appointments',
   'page:billing',
   'page:quick_sale',
+  'page:services',
+  'page:memberships',
+  'page:packages',
   'page:inventory',
   'page:purchases',
   'page:expenses',
@@ -53,10 +58,15 @@ export const PERMISSIONS_CATALOG: ReadonlyArray<{
   description: string;
 }> = [
   { key: 'page:dashboard', label: 'Dashboard', group: 'page', description: 'Live business intelligence dashboards' },
+  { key: 'page:dashboard_revenue', label: 'Revenue dashboard', group: 'page', description: 'Revenue KPIs and financial dashboards' },
+  { key: 'page:dashboard_staff', label: 'Staff performance dashboard', group: 'page', description: 'Staff performance metrics' },
   { key: 'page:customers', label: 'Customers', group: 'page', description: 'CRM and profiles' },
   { key: 'page:appointments', label: 'Appointments', group: 'page', description: 'Calendar and booking' },
   { key: 'page:billing', label: 'Billing', group: 'page', description: 'Invoices and payments' },
   { key: 'page:quick_sale', label: 'Quick Sale', group: 'page', description: 'POS checkout' },
+  { key: 'page:services', label: 'Services', group: 'page', description: 'View service menu and prices' },
+  { key: 'page:memberships', label: 'Memberships', group: 'page', description: 'View membership plans' },
+  { key: 'page:packages', label: 'Packages', group: 'page', description: 'View service packages' },
   { key: 'page:inventory', label: 'Inventory', group: 'page', description: 'Stock and product cost' },
   { key: 'page:purchases', label: 'Purchases', group: 'page', description: 'Record vendor purchases and stock inward' },
   { key: 'page:expenses', label: 'Expenses', group: 'page', description: 'Salon expense records' },
@@ -137,7 +147,13 @@ export function pagePermissionForPath(pathname: string): HairPagePermission | nu
   if (path.startsWith('/fyh')) {
     path = path.slice(4) || '/';
   }
+  const exemptPrefixes = ['/profile', '/access-denied'];
+  for (const prefix of exemptPrefixes) {
+    if (path === prefix || path.startsWith(`${prefix}/`)) return null;
+  }
   const rules: Array<[prefix: string, key: HairPagePermission]> = [
+    ['/dashboard/revenue', 'page:dashboard_revenue'],
+    ['/dashboard/staff-performance', 'page:dashboard_staff'],
     ['/dashboard', 'page:dashboard'],
     ['/customers', 'page:customers'],
     ['/appointments', 'page:appointments'],
@@ -154,10 +170,10 @@ export function pagePermissionForPath(pathname: string): HairPagePermission | nu
     // (managers have staff admin without settings).
     ['/staff', 'page:dashboard'],
     ['/team', 'page:dashboard'],
-    ['/services', 'page:settings'],
+    ['/services', 'page:services'],
     ['/products', 'page:settings'],
-    ['/packages', 'page:settings'],
-    ['/memberships', 'page:settings'],
+    ['/packages', 'page:packages'],
+    ['/memberships', 'page:memberships'],
     ['/loyalty', 'page:customers'],
     ['/workforce', 'page:dashboard'],
     ['/me', 'page:appointments'],

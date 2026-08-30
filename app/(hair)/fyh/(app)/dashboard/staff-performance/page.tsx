@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import { requirePermissionPage } from '@/src/hair/lib/auth/permissions';
 import { StaffPerformanceCommandCenter } from '@/src/hair/components/dashboard/StaffPerformanceCommandCenter';
 import { parseStaffPerformanceSearchParams } from '@/src/hair/lib/staffPerformancePeriod';
 import { getStaffPerformanceCommandCenter } from '@/src/hair/services/staffPerformanceDashboard';
@@ -12,6 +13,7 @@ function first(v: string | string[] | undefined): string | undefined {
 }
 
 export default async function StaffPerformanceDashboardPage({ searchParams }: Props) {
+  await requirePermissionPage('page:dashboard_staff');
   const sp = await searchParams;
   const parsed = parseStaffPerformanceSearchParams({
     period: first(sp.period),

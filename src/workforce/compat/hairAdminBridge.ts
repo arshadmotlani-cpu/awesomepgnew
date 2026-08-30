@@ -16,12 +16,15 @@ export function workforceGrantsToHairPermissions(
     p.has('dashboard.view_revenue') ||
     p.has('dashboard.view_expenses') ||
     p.has('dashboard.view_staff') ||
+    p.has('dashboard.view_customers') ||
     p.has('staff.view') ||
     p.has('staff.edit') ||
     p.has('staff.add')
   ) {
     out.add('page:dashboard');
   }
+  if (p.has('dashboard.view_revenue')) out.add('page:dashboard_revenue');
+  if (p.has('dashboard.view_staff')) out.add('page:dashboard_staff');
   if (p.has('customers.view') || p.has('dashboard.view_customers')) out.add('page:customers');
   if (
     p.has('appointments.view_all') ||
@@ -31,15 +34,16 @@ export function workforceGrantsToHairPermissions(
   ) {
     out.add('page:appointments');
   }
-  if (
-    p.has('billing.view') ||
-    p.has('billing.create_invoice') ||
-    p.has('billing.edit_invoice')
-  ) {
+  if (p.has('billing.view') || p.has('billing.create_invoice') || p.has('billing.edit_invoice')) {
     out.add('page:billing');
+  }
+  if (p.has('billing.create_invoice') || p.has('billing.edit_invoice')) {
     out.add('page:quick_sale');
     out.add('action:billing.checkout');
   }
+  if (p.has('services.view')) out.add('page:services');
+  if (p.has('packages.view')) out.add('page:packages');
+  if (p.has('memberships.view')) out.add('page:memberships');
   if (p.has('inventory.view') || p.has('inventory.edit')) {
     out.add('page:inventory');
     out.add('page:purchases');

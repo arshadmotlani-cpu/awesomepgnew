@@ -18,8 +18,14 @@ describe('Workforce permission library', () => {
     assert.ok(keys.size >= 40);
   });
 
-  test('only four access roles in product UI', () => {
-    assert.deepEqual([...WORKFORCE_ACCESS_ROLES], ['owner', 'manager', 'biller', 'staff']);
+  test('five access roles in product UI', () => {
+    assert.deepEqual([...WORKFORCE_ACCESS_ROLES], [
+      'owner',
+      'manager',
+      'receptionist',
+      'biller',
+      'staff',
+    ]);
   });
 
   test('legacy stylist maps to staff template', () => {

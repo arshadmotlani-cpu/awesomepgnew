@@ -68,11 +68,24 @@ export async function upsertRoleTemplate(input: {
 /** Seed DB templates from code defaults when table is empty for an engine. */
 export async function ensureRoleTemplatesSeeded(engineId: WorkforceEngineId = 'fyh_salon') {
   const existing = await listRoleTemplates(engineId);
-  if (existing.length > 0) return;
+  const roles: WorkforceJobRole[] = ['owner', 'manager', 'receptionist', 'biller', 'staff'];
+  const existingRoles = new Set(existing.map((row) => row.accessRole));
 
-  const roles: WorkforceJobRole[] = ['owner', 'manager', 'biller', 'staff'];
+  if (existing.length === 0) {
+    for (const role of roles) {
+      const tpl = codeTemplateForAccessRole(role);
+      await upsertRoleTemplate({
+        engineId,
+        accessRole: role,
+        permissions: tpl.permissions,
+        maxBackdateDays: tpl.maxBackdateDays,
+      });
+    }
+    return;
+  }
 
   for (const role of roles) {
+    if (existingRoles.has(role)) continue;
     const tpl = codeTemplateForAccessRole(role);
     await upsertRoleTemplate({
       engineId,

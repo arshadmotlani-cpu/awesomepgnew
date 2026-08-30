@@ -22,6 +22,8 @@ export function workforceAccessRoleLabel(accessRole: WorkforceJobRole | string):
       return 'Owner';
     case 'manager':
       return 'Manager';
+    case 'receptionist':
+      return 'Receptionist';
     case 'biller':
       return 'Biller';
     case 'staff':

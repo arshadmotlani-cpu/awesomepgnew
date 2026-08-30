@@ -152,6 +152,79 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
   },
 ];
 
+/** Front-desk navigation — receptionist and similar limited roles. */
+export const FRONT_DESK_NAV_ENTRIES: HairNavEntry[] = [
+  {
+    type: 'link',
+    href: '/dashboard/front-desk',
+    label: 'Dashboard',
+    iconKey: 'layout-dashboard',
+    permission: 'page:dashboard',
+  },
+  {
+    type: 'link',
+    href: '/customers',
+    label: 'Customers',
+    iconKey: 'users',
+    permission: 'page:customers',
+  },
+  {
+    type: 'link',
+    href: '/appointments',
+    label: 'Appointments',
+    iconKey: 'calendar-days',
+    permission: 'page:appointments',
+  },
+  {
+    type: 'group',
+    id: 'billing',
+    label: 'Billing',
+    iconKey: 'receipt',
+    defaultExpanded: true,
+    permission: 'page:billing',
+    children: [{ href: '/billing/invoices', label: 'Invoices' }],
+  },
+  {
+    type: 'link',
+    href: '/memberships',
+    label: 'Memberships',
+    iconKey: 'heart',
+    permission: 'page:memberships',
+  },
+  {
+    type: 'link',
+    href: '/packages',
+    label: 'Packages',
+    iconKey: 'package',
+    permission: 'page:packages',
+  },
+  {
+    type: 'link',
+    href: '/profile',
+    label: 'Profile',
+    iconKey: 'users',
+  },
+];
+
+/** Limited front-desk profile: billing access without admin configuration surfaces. */
+export function isFrontDeskNavProfile(admin: PermissionAdmin): boolean {
+  return (
+    hasPermission(admin, 'page:billing') &&
+    !hasPermission(admin, 'page:settings') &&
+    !hasPermission(admin, 'page:inventory') &&
+    !hasPermission(admin, 'page:reports') &&
+    (hasPermission(admin, 'page:memberships') || hasPermission(admin, 'page:packages'))
+  );
+}
+
+export function resolveNavEntries(
+  admin: PermissionAdmin,
+  entries: HairNavEntry[] = HAIR_NAV_ENTRIES,
+): HairNavEntry[] {
+  const source = isFrontDeskNavProfile(admin) ? FRONT_DESK_NAV_ENTRIES : entries;
+  return filterNavByPermissions(admin, source);
+}
+
 export function filterNavByPermissions(
   admin: PermissionAdmin,
   entries: HairNavEntry[] = HAIR_NAV_ENTRIES,

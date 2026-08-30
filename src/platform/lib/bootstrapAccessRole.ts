@@ -25,6 +25,7 @@ export function resolvePlatformAccessRoleFromWorkforce(
 
   if (rank === 'owner' || job === 'owner') return 'owner';
   if (job === 'manager' || rank === 'manager') return 'manager';
+  if (job === 'receptionist') return 'receptionist';
   if (job === 'biller') return 'biller';
   return 'staff';
 }

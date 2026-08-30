@@ -94,7 +94,7 @@ export async function requireSuperAdminPage(): Promise<HairAdmin> {
 
 const LANDING_PRIORITY: Array<[HairPagePermission, string]> = [
   ['page:appointments', '/appointments'],
-  ['page:dashboard', '/dashboard/revenue'],
+  ['page:dashboard', '/dashboard/front-desk'],
   ['page:customers', '/customers'],
   ['page:billing', '/billing/invoices'],
   ['page:reports', '/reports'],
@@ -104,7 +104,7 @@ const LANDING_PRIORITY: Array<[HairPagePermission, string]> = [
 
 /** Role-aware post-login landing — never hardcode /dashboard parent. */
 export function resolveDefaultLandingPath(admin: PermissionAdmin): string {
-  if (admin.role === 'super_admin' && hasPermission(admin, 'page:dashboard')) {
+  if (admin.role === 'super_admin' && hasPermission(admin, 'page:dashboard_revenue')) {
     return '/dashboard/revenue';
   }
   if (hasPermission(admin, 'page:appointments')) {
@@ -121,7 +121,10 @@ export function resolveDashboardChildPath(admin: PermissionAdmin): string {
   if (!hasPermission(admin, 'page:dashboard')) {
     return resolveDefaultLandingPath(admin);
   }
-  return '/dashboard/revenue';
+  if (hasPermission(admin, 'page:dashboard_revenue')) {
+    return '/dashboard/revenue';
+  }
+  return '/dashboard/front-desk';
 }
 
 export function safeHairNextPath(next: string, admin?: PermissionAdmin): string {

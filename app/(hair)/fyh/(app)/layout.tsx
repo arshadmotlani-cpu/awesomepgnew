@@ -4,7 +4,7 @@ import { HairTenantContextBar } from '@/src/hair/components/HairTenantContextBar
 import { requireHairAuthPage } from '@/src/hair/lib/auth/guards';
 import { requirePagePermissionForPath } from '@/src/hair/lib/auth/permissions';
 import { canViewTeamManagement } from '@/src/hair/lib/auth/teamManagementAccess';
-import { filterNavByPermissions, visibleHairNavEntries, type HairNavEntry } from '@/src/hair/lib/nav';
+import { filterNavByPermissions, resolveNavEntries, visibleHairNavEntries, type HairNavEntry } from '@/src/hair/lib/nav';
 import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
 import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 import { isHairTenantExemptPath } from '@/src/hair/lib/host';
@@ -39,7 +39,7 @@ export default async function HairAppLayout({ children }: { children: React.Reac
     ? await requirePagePermissionForPath(pathname)
     : await requireHairAuthPage();
   void getTenantContextForPage();
-  let navEntries = filterNavByPermissions(admin, visibleHairNavEntries());
+  let navEntries = resolveNavEntries(admin, visibleHairNavEntries());
   if (isFyhSaasTenantEnabled() && (await canViewTeamManagement())) {
     const teamEntry: HairNavEntry = {
       type: 'link',

@@ -33,10 +33,11 @@ const OWNER_ASSIGN_ROLES: PlatformMembershipRole[] = [
   'owner',
   'co_owner',
   'manager',
+  'receptionist',
   'biller',
   'staff',
 ];
-const MANAGER_ASSIGN_ROLES: PlatformMembershipRole[] = ['manager', 'biller', 'staff'];
+const MANAGER_ASSIGN_ROLES: PlatformMembershipRole[] = ['manager', 'receptionist', 'biller', 'staff'];
 
 export function allowedAssignRolesForMembershipRole(role: MembershipRole): PlatformMembershipRole[] {
   if (role === 'owner' || role === 'co_owner') return OWNER_ASSIGN_ROLES;

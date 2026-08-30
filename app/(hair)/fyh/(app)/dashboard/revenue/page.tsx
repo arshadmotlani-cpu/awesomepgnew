@@ -1,12 +1,9 @@
-import { Suspense } from 'react';
+import { requirePermissionPage } from '@/src/hair/lib/auth/permissions';
 import { RevenueDashboard } from '@/src/hair/components/dashboard/RevenueDashboard';
 import { getRevenueDashboardSnapshot } from '@/src/hair/services/revenueDashboard';
 
 export default async function RevenueDashboardPage() {
+  await requirePermissionPage('page:dashboard_revenue');
   const data = await getRevenueDashboardSnapshot();
-  return (
-    <Suspense fallback={<div className="p-6 text-sm text-fyh-text-muted">Loading revenue dashboard…</div>}>
-      <RevenueDashboard data={data} />
-    </Suspense>
-  );
+  return <RevenueDashboard data={data} />;
 }
