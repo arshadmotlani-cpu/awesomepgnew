@@ -16,7 +16,7 @@ export function PlatformSidebar({ activePath, open, onClose }: Props) {
       {open ? (
         <button
           type="button"
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-900/20 lg:hidden"
           aria-label="Close navigation"
           onClick={onClose}
         />
@@ -36,7 +36,7 @@ export function PlatformSidebar({ activePath, open, onClose }: Props) {
           </div>
           <button
             type="button"
-            className="rounded-md p-1 text-[var(--plt-text-muted)] hover:bg-white/5 lg:hidden"
+            className="rounded-md p-1 text-[var(--plt-text-muted)] hover:bg-[var(--plt-hover)] lg:hidden"
             onClick={onClose}
             aria-label="Close menu"
           >

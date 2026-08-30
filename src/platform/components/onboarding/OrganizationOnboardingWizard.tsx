@@ -50,7 +50,7 @@ export function OrganizationOnboardingWizard({ plans }: Props) {
               i === step
                 ? 'bg-[var(--plt-accent)]/15 text-[var(--plt-accent)]'
                 : i < step
-                  ? 'bg-white/5 text-[var(--plt-text-muted)]'
+                  ? 'bg-[var(--plt-bg-muted)] text-[var(--plt-text-muted)]'
                   : 'text-[var(--plt-text-subtle)]',
             ].join(' ')}
           >
@@ -125,7 +125,7 @@ export function OrganizationOnboardingWizard({ plans }: Props) {
                 ))}
               </select>
             </label>
-            <label className="flex items-start gap-3 rounded-md border border-[var(--plt-border)] bg-black/10 px-3 py-3 text-sm">
+            <label className="flex items-start gap-3 rounded-md border border-[var(--plt-border)] bg-[var(--plt-bg-muted)] px-3 py-3 text-sm">
               <input
                 type="checkbox"
                 className="mt-1"
@@ -143,14 +143,14 @@ export function OrganizationOnboardingWizard({ plans }: Props) {
               </span>
             </label>
             {form.subscriptionStatus === 'complimentary' ? (
-              <div className="grid gap-1 rounded-md border border-[var(--plt-border)] bg-black/10 px-3 py-3 text-sm">
+              <div className="grid gap-1 rounded-md border border-[var(--plt-border)] bg-[var(--plt-bg-muted)] px-3 py-3 text-sm">
                 <span className="text-[var(--plt-text-muted)]">Complimentary</span>
                 <p className="text-[var(--plt-text)]">
                   This salon never sees /subscribe and is never charged.
                 </p>
               </div>
             ) : (
-              <div className="grid gap-1 rounded-md border border-[var(--plt-border)] bg-black/10 px-3 py-3 text-sm">
+              <div className="grid gap-1 rounded-md border border-[var(--plt-border)] bg-[var(--plt-bg-muted)] px-3 py-3 text-sm">
                 <span className="text-[var(--plt-text-muted)]">Trial</span>
                 <p className="text-[var(--plt-text)]">30-day free trial starts when the salon is created.</p>
                 <p className="text-xs text-[var(--plt-text-subtle)]">

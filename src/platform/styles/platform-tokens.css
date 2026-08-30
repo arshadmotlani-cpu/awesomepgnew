@@ -1,17 +1,19 @@
-/* FYHAIR Platform Admin — B2B SaaS tokens */
+/* FYHAIR Platform Admin — light SaaS tokens */
 .plt-root {
-  --plt-bg: #0b0f14;
-  --plt-bg-elevated: #111820;
-  --plt-bg-surface: #151c24;
-  --plt-border: rgba(255, 255, 255, 0.08);
-  --plt-border-strong: rgba(255, 255, 255, 0.14);
-  --plt-text: #f1f5f9;
-  --plt-text-muted: #94a3b8;
-  --plt-text-subtle: #64748b;
+  --plt-bg: #f8fafc;
+  --plt-bg-elevated: #ffffff;
+  --plt-bg-surface: #ffffff;
+  --plt-bg-muted: #f1f5f9;
+  --plt-border: rgba(15, 23, 42, 0.08);
+  --plt-border-strong: rgba(15, 23, 42, 0.14);
+  --plt-text: #0f172a;
+  --plt-text-muted: #475569;
+  --plt-text-subtle: #94a3b8;
   --plt-accent: #10b981;
-  --plt-accent-hover: #34d399;
-  --plt-danger: #f87171;
-  --plt-warning: #fbbf24;
+  --plt-accent-hover: #059669;
+  --plt-danger: #dc2626;
+  --plt-warning: #d97706;
+  --plt-hover: rgba(15, 23, 42, 0.04);
   --plt-sidebar-width: 15rem;
   --plt-header-height: 3.25rem;
   --plt-radius: 0.5rem;
@@ -42,17 +44,18 @@
 }
 
 .plt-nav-link:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--plt-hover);
   color: var(--plt-text);
 }
 
 .plt-nav-link[data-active='true'] {
-  background: rgba(16, 185, 129, 0.12);
-  color: var(--plt-accent);
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--plt-accent-hover);
+  font-weight: 500;
 }
 
 .plt-input {
-  background: var(--plt-bg);
+  background: var(--plt-bg-elevated);
   border: 1px solid var(--plt-border-strong);
   border-radius: var(--plt-radius);
   padding: 0.4375rem 0.75rem;
@@ -64,7 +67,7 @@
 .plt-input:focus {
   outline: none;
   border-color: var(--plt-accent);
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
 }
 
 .plt-btn-primary {
@@ -76,7 +79,7 @@
   font-size: 0.8125rem;
   font-weight: 500;
   background: var(--plt-accent);
-  color: #042f1a;
+  color: #ffffff;
   border: none;
   cursor: pointer;
   transition: background 0.15s;
@@ -94,7 +97,7 @@
   border-radius: var(--plt-radius);
   font-size: 0.8125rem;
   font-weight: 500;
-  background: transparent;
+  background: var(--plt-bg-elevated);
   color: var(--plt-text-muted);
   border: 1px solid var(--plt-border-strong);
   cursor: pointer;
@@ -102,7 +105,7 @@
 }
 
 .plt-btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--plt-bg-muted);
   color: var(--plt-text);
 }
 
@@ -114,10 +117,24 @@
   border-radius: var(--plt-radius);
   font-size: 0.8125rem;
   font-weight: 500;
-  background: rgba(248, 113, 113, 0.12);
+  background: rgba(220, 38, 38, 0.08);
   color: var(--plt-danger);
-  border: 1px solid rgba(248, 113, 113, 0.3);
+  border: 1px solid rgba(220, 38, 38, 0.2);
   cursor: pointer;
+}
+
+.plt-card {
+  border-radius: var(--plt-radius-lg);
+  border: 1px solid var(--plt-border);
+  background: var(--plt-bg-surface);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.plt-alert-warning {
+  border-radius: var(--plt-radius-lg);
+  border: 1px solid rgba(217, 119, 6, 0.25);
+  background: rgba(251, 191, 36, 0.12);
+  color: #92400e;
 }
 
 .plt-table-wrap {
@@ -125,6 +142,7 @@
   border: 1px solid var(--plt-border);
   border-radius: var(--plt-radius-lg);
   background: var(--plt-bg-surface);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .plt-table {
@@ -140,6 +158,7 @@
   color: var(--plt-text-subtle);
   border-bottom: 1px solid var(--plt-border);
   white-space: nowrap;
+  background: var(--plt-bg-muted);
 }
 
 .plt-table td {
@@ -153,5 +172,5 @@
 }
 
 .plt-table tbody tr:hover td {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--plt-hover);
 }

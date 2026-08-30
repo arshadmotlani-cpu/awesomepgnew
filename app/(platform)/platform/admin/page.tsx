@@ -131,7 +131,7 @@ export default async function PlatformAdminHomePage() {
                       <SubscriptionStatusBadge status={status} />
                       <span className="text-[var(--plt-text-muted)]">{count}</span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-white/5">
+                    <div className="h-1.5 rounded-full bg-[var(--plt-bg-muted)]">
                       <div
                         className="h-full rounded-full bg-[var(--plt-accent)]/60"
                         style={{ width: `${Math.min(100, pct)}%` }}

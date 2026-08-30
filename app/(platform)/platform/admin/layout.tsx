@@ -1,4 +1,3 @@
-import '@/src/platform/styles/platform-tokens.css';
 import { requirePlatformAdminPage } from '@/src/platform/lib/auth/guards';
 import { getPlatformSession } from '@/src/platform/lib/auth/session';
 import { PlatformShell } from '@/src/platform/components/shell/PlatformShell';

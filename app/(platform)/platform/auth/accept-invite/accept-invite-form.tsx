@@ -20,38 +20,38 @@ export function AcceptInviteForm({
 
   return (
     <>
-      <p className="mt-2 text-sm text-slate-400">
+      <p className="mt-2 text-sm text-[var(--plt-text-muted)]">
         Invitation for {email} to join {organizationName ?? 'the organization'} as {accessRole}.
       </p>
       <form action={formAction} className="mt-6 grid gap-4">
         <input type="hidden" name="token" value={token} />
         <label className="grid gap-2 text-sm">
-          <span>Full name</span>
-          <input name="fullName" required className="rounded-lg bg-slate-950 px-3 py-2" />
+          <span className="text-[var(--plt-text-muted)]">Full name</span>
+          <input name="fullName" required className="plt-input" />
         </label>
         <label className="grid gap-2 text-sm">
-          <span>Mobile</span>
-          <input name="mobile" className="rounded-lg bg-slate-950 px-3 py-2" />
+          <span className="text-[var(--plt-text-muted)]">Mobile</span>
+          <input name="mobile" className="plt-input" />
         </label>
         <label className="grid gap-2 text-sm">
-          <span>Password</span>
+          <span className="text-[var(--plt-text-muted)]">Password</span>
           <input
             name="password"
             type="password"
             minLength={8}
             required
-            className="rounded-lg bg-slate-950 px-3 py-2"
+            className="plt-input"
           />
         </label>
         {state.error ? (
-          <p className="rounded-lg border border-red-900/50 bg-red-950/40 px-3 py-2 text-sm text-red-200">
+          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {state.error}
           </p>
         ) : null}
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-60"
+          className="plt-btn-primary w-fit"
         >
           {pending ? 'Accepting…' : 'Accept invitation'}
         </button>

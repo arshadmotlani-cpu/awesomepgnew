@@ -16,14 +16,14 @@ export default function PlatformLoginForm() {
   const [state, formAction, pending] = useActionState(platformLoginAction, initialState);
 
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-slate-950 px-4 py-10 text-slate-100">
-      <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/80 p-8 shadow-2xl">
+    <div className="plt-root flex min-h-[100dvh] items-center justify-center px-4 py-10">
+      <div className="plt-card w-full max-w-md p-8 shadow-lg">
         <div className="mb-8 text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--plt-text-subtle)]">
             Awesome PG Platform
           </p>
-          <h1 className="mt-2 text-2xl font-semibold text-white">Platform sign in</h1>
-          <p className="mt-2 text-sm text-slate-400">
+          <h1 className="mt-2 text-2xl font-semibold text-[var(--plt-text)]">Platform sign in</h1>
+          <p className="mt-2 text-sm text-[var(--plt-text-muted)]">
             Organization owners and platform administrators
           </p>
         </div>
@@ -31,7 +31,7 @@ export default function PlatformLoginForm() {
         <form action={formAction} className="space-y-4">
           <input type="hidden" name="next" value={next} />
           <div className="space-y-2">
-            <label htmlFor="email" className="text-sm font-medium text-slate-300">
+            <label htmlFor="email" className="text-sm font-medium text-[var(--plt-text-muted)]">
               Email
             </label>
             <input
@@ -40,12 +40,12 @@ export default function PlatformLoginForm() {
               type="email"
               autoComplete="username"
               required
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none ring-emerald-500/30 focus:ring-2"
+              className="plt-input"
               placeholder="you@example.com"
             />
           </div>
           <div className="space-y-2">
-            <label htmlFor="password" className="text-sm font-medium text-slate-300">
+            <label htmlFor="password" className="text-sm font-medium text-[var(--plt-text-muted)]">
               Password
             </label>
             <input
@@ -54,32 +54,28 @@ export default function PlatformLoginForm() {
               type="password"
               autoComplete="current-password"
               required
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none ring-emerald-500/30 focus:ring-2"
+              className="plt-input"
               placeholder="••••••••"
             />
           </div>
-          <label className="flex items-center gap-2 text-sm text-slate-400">
-            <input type="checkbox" name="rememberMe" className="rounded border-slate-600" />
+          <label className="flex items-center gap-2 text-sm text-[var(--plt-text-muted)]">
+            <input type="checkbox" name="rememberMe" className="rounded border-[var(--plt-border-strong)]" />
             Remember me
           </label>
           {state.error ? (
-            <p className="rounded-lg border border-red-900/50 bg-red-950/40 px-3 py-2 text-sm text-red-200">
+            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {state.error}
             </p>
           ) : null}
-          <button
-            type="submit"
-            disabled={pending}
-            className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-60"
-          >
+          <button type="submit" disabled={pending} className="plt-btn-primary w-full justify-center py-2.5">
             {pending ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
 
-        <div className="mt-6 space-y-2 text-center text-sm text-slate-500">
+        <div className="mt-6 space-y-2 text-center text-sm text-[var(--plt-text-subtle)]">
           <p>
             Salon staff?{' '}
-            <Link href="/fyh/auth/login" className="text-emerald-400 hover:underline">
+            <Link href="/fyh/auth/login" className="text-[var(--plt-accent-hover)] hover:underline">
               For Your Hair login
             </Link>
           </p>

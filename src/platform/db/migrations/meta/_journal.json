@@ -50,6 +50,13 @@
       "when": 1759100000000,
       "tag": "0007_owner_salon_complimentary",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1759200000000,
+      "tag": "0008_grant_ecosystem_platform_admin",
+      "breakpoints": true
     }
   ]
 }

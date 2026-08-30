@@ -28,7 +28,7 @@ export default async function PlatformLoginPage({
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-[100dvh] items-center justify-center bg-slate-950 text-slate-400">
+        <div className="plt-root flex min-h-[100dvh] items-center justify-center text-[var(--plt-text-muted)]">
           Loading…
         </div>
       }

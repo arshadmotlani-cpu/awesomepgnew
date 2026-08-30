@@ -10,7 +10,7 @@ export const ROLE_DESCRIPTIONS: Record<string, string> = {
 export function RoleBadge({ role }: { role: string }) {
   const label = role.replace('_', ' ');
   return (
-    <span className="inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium bg-white/8 text-[var(--plt-text-muted)] capitalize">
+    <span className="inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium bg-[var(--plt-bg-muted)] text-[var(--plt-text-muted)] capitalize">
       {label}
     </span>
   );

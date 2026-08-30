@@ -16,7 +16,7 @@ export default async function OnboardingPage({ searchParams }: Props) {
       <div data-platform-page="onboarding-success">
         <PageHeader title="Onboarding complete" subtitle="The organization has been provisioned." />
         <div className="max-w-lg rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-6">
-          <p className="text-sm font-medium text-emerald-400">Organization created successfully</p>
+          <p className="text-sm font-medium text-emerald-700">Organization created successfully</p>
           <p className="mt-2 text-sm text-[var(--plt-text-muted)]">
             The owner invitation is pending. They will receive instructions to accept and set their
             password.
@@ -42,7 +42,7 @@ export default async function OnboardingPage({ searchParams }: Props) {
       />
       {plans.length === 0 ? (
         <div className="max-w-lg rounded-lg border border-amber-500/30 bg-amber-500/10 p-6">
-          <p className="text-sm font-medium text-amber-200">No plans configured yet</p>
+          <p className="text-sm font-medium text-amber-800">No plans configured yet</p>
           <p className="mt-2 text-sm text-[var(--plt-text-muted)]">
             Create at least one subscription plan before onboarding a salon.
           </p>

@@ -30,7 +30,7 @@ export function PlatformTopBar({ adminEmail, onMenuClick }: Props) {
       </span>
       <button
         type="button"
-        className="rounded-md p-1.5 text-[var(--plt-text-muted)] hover:bg-white/5 lg:hidden"
+        className="rounded-md p-1.5 text-[var(--plt-text-muted)] hover:bg-[var(--plt-hover)] lg:hidden"
         onClick={onMenuClick}
         aria-label="Open menu"
       >
@@ -53,7 +53,7 @@ export function PlatformTopBar({ adminEmail, onMenuClick }: Props) {
       <div className="flex items-center gap-2">
         <button
           type="button"
-          className="rounded-md p-1.5 text-[var(--plt-text-muted)] hover:bg-white/5"
+          className="rounded-md p-1.5 text-[var(--plt-text-muted)] hover:bg-[var(--plt-hover)]"
           aria-label="Notifications"
           title="No new notifications"
         >
