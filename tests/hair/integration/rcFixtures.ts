@@ -23,17 +23,10 @@ import {
   fyhStockMovements,
 } from '@/src/hair/db/schema';
 import { applyMovement } from '@/src/hair/services/stock';
-import { PRODUCTION_HAIR_HOST_FRAGMENT } from '@/src/lib/db/loadStagingEnv';
+import { assertHairIntegrationTestWritesAllowed } from '@/src/hair/lib/db/integrationWriteGuard';
 
 function assertHairIntegrationWritesAllowed() {
-  if (process.env.HAIR_ALLOW_INTEGRATION_WRITES === '1') return;
-  const url = process.env.HAIR_DATABASE_URL ?? '';
-  if (url.includes(PRODUCTION_HAIR_HOST_FRAGMENT)) {
-    throw new Error(
-      'Refusing Hair integration test writes against production Hair database. ' +
-        'Use a dedicated test database or set HAIR_ALLOW_INTEGRATION_WRITES=1.',
-    );
-  }
+  assertHairIntegrationTestWritesAllowed();
 }
 
 export async function requireRcFixtures() {

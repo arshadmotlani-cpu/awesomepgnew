@@ -20,7 +20,17 @@ export function testBrandWhere(alias = ''): string {
 
 export function testVendorWhere(alias = ''): string {
   const col = alias ? `${alias}.name` : 'name';
-  return `(${col} LIKE 'RC Vendor %' OR ${col} LIKE 'PB Vendor %' OR ${col} LIKE 'VB %Vendor%' OR ${col} LIKE 'VL Vendor %')`;
+  return `(
+    ${col} LIKE 'RC Vendor %'
+    OR ${col} LIKE 'PB Vendor%'
+    OR ${col} LIKE 'VB %'
+    OR ${col} LIKE 'VL %'
+  )`;
+}
+
+/** Purchases tied to integration-test vendors. */
+export function testPurchaseVendorJoinWhere(vendorAlias = 'v'): string {
+  return testVendorWhere(vendorAlias);
 }
 
 export function testServiceWhere(alias = ''): string {
@@ -32,4 +42,12 @@ export function testServiceWhere(alias = ''): string {
 export const TEST_MEMBERSHIP_PLAN_WHERE = `name LIKE 'RC %'`;
 export const TEST_PACKAGE_PLAN_WHERE = `name LIKE 'RC %'`;
 export const TEST_EXPENSE_TITLE_WHERE = `title LIKE 'Quick action expense %'`;
+
+/** Orphaned inventory purchase expenses left after test purchase rows were removed. */
+export const TEST_PURCHASE_EXPENSE_TITLE_WHERE = `(
+  title LIKE 'Purchase PUR-% — PB Vendor%'
+  OR title LIKE 'Purchase PUR-% — VB %'
+  OR title LIKE 'Purchase PUR-% — VL %'
+  OR title LIKE 'Purchase PUR-% — RC Vendor %'
+)`;
 export const TEST_APPOINTMENT_START_WHERE = `start_at >= '2099-01-01'::timestamptz`;

@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
+import { assertHairIntegrationTestWritesAllowed } from '@/src/hair/lib/db/integrationWriteGuard';
 
 export type HairMigrationProbe = {
   ok: boolean;
@@ -11,6 +12,7 @@ const MIGRATE_CMD = 'npm run hair:db:migrate';
 
 /** Probes columns/tables required for Quick Sale + attribution integration tests. */
 export async function probeHairQuickSaleMigrations(): Promise<HairMigrationProbe> {
+  assertHairIntegrationTestWritesAllowed();
   const missing: string[] = [];
   const checks: Array<{ label: string; query: ReturnType<typeof sql> }> = [
     { label: '0012 fyh_invoices.source', query: sql`SELECT source FROM fyh_invoices LIMIT 0` },

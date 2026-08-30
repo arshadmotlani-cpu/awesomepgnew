@@ -7,7 +7,7 @@ import {
   invoiceRegisterTodayIso,
   shouldDefaultInvoiceRegisterToToday,
 } from '@/src/hair/services/invoiceRegisterQueries';
-import { testCustomerWhere, testProductWhere } from '@/src/hair/lib/testArtifactPatterns';
+import { testCustomerWhere, testProductWhere, testVendorWhere } from '@/src/hair/lib/testArtifactPatterns';
 
 const root = process.cwd();
 
@@ -65,6 +65,14 @@ describe('integration test artifact patterns', () => {
   it('matches RC customers and Inv Ops products', () => {
     assert.match(testCustomerWhere(), /RC Customer %/);
     assert.match(testProductWhere(), /Inv Ops %/);
+  });
+
+  it('matches vendorBrain and vendorLedger test vendors', () => {
+    const where = testVendorWhere();
+    assert.match(where, /VB %/);
+    assert.match(where, /VL %/);
+    assert.match(where, /PB Vendor%/);
+    assert.doesNotMatch(where, /VB %Vendor%/);
   });
 });
 

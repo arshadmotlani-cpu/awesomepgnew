@@ -77,5 +77,11 @@ if (!concurrency && (productArg === 'hair' || productArg === 'pg')) {
 if (concurrency) args.push(`--test-concurrency=${concurrency}`);
 args.push(...files);
 
-const result = spawnSync(process.execPath, args, { stdio: 'inherit' });
+const childEnv = { ...process.env };
+if (productArg === 'hair') {
+  childEnv.NODE_ENV = 'test';
+  childEnv.HAIR_INTEGRATION_TEST = '1';
+}
+
+const result = spawnSync(process.execPath, args, { stdio: 'inherit', env: childEnv });
 process.exit(result.status ?? 1);

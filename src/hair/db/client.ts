@@ -2,6 +2,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres, { type Sql } from 'postgres';
 import { parseDatabaseUrl } from '@/src/lib/db/connectionOptions';
 import { getHairDatabaseUrl, assertHairDatabaseIsolated } from '@/src/hair/lib/db/env';
+import { assertHairDatabaseClientAllowed } from '@/src/hair/lib/db/integrationWriteGuard';
 import * as schema from '@/src/hair/db/schema';
 
 type DrizzleClient = ReturnType<typeof drizzle<typeof schema>>;
@@ -19,6 +20,7 @@ function init(): DrizzleClient {
   const global = dbGlobal();
   if (global.drizzle) return global.drizzle;
 
+  assertHairDatabaseClientAllowed();
   const url = getHairDatabaseUrl();
   assertHairDatabaseIsolated();
   const { connectionString, options } = parseDatabaseUrl(url);
@@ -39,6 +41,7 @@ export const hairDb: DrizzleClient = new Proxy({} as DrizzleClient, {
 });
 
 export function createHairClient(options?: { max?: number }) {
+  assertHairDatabaseClientAllowed('script');
   const url = getHairDatabaseUrl();
   const parsed = parseDatabaseUrl(url);
   const client = postgres(parsed.connectionString, {

@@ -3,11 +3,13 @@ import type { createHairClient } from '@/src/hair/db/client';
 import {
   TEST_APPOINTMENT_START_WHERE,
   TEST_EXPENSE_TITLE_WHERE,
+  TEST_PURCHASE_EXPENSE_TITLE_WHERE,
   TEST_MEMBERSHIP_PLAN_WHERE,
   TEST_PACKAGE_PLAN_WHERE,
   testBrandWhere,
   testCustomerWhere,
   testProductWhere,
+  testPurchaseVendorJoinWhere,
   testServiceWhere,
   testVendorWhere,
 } from '@/src/hair/lib/testArtifactPatterns';
@@ -57,8 +59,21 @@ async function auditCounts(db: HairDb): Promise<TestArtifactAuditRow[]> {
       sql: `SELECT count(*)::int AS c FROM fyh_vendors WHERE ${testVendorWhere()}`,
     },
     {
+      label: 'purchases (test vendors)',
+      sql: `SELECT count(*)::int AS c FROM fyh_purchases pur
+        INNER JOIN fyh_vendors v ON v.id = pur.vendor_id
+        WHERE ${testPurchaseVendorJoinWhere('v')}`,
+    },
+    {
+      label: 'expenses (test vendor purchases)',
+      sql: `SELECT count(*)::int AS c FROM fyh_expenses e
+        INNER JOIN fyh_purchases pur ON pur.id = e.purchase_id
+        INNER JOIN fyh_vendors v ON v.id = pur.vendor_id
+        WHERE ${testPurchaseVendorJoinWhere('v')}`,
+    },
+    {
       label: 'test expenses',
-      sql: `SELECT count(*)::int AS c FROM fyh_expenses WHERE ${TEST_EXPENSE_TITLE_WHERE}`,
+      sql: `SELECT count(*)::int AS c FROM fyh_expenses WHERE ${TEST_EXPENSE_TITLE_WHERE} OR ${TEST_PURCHASE_EXPENSE_TITLE_WHERE}`,
     },
     {
       label: 'RC membership plans',
@@ -204,7 +219,7 @@ export async function cleanupHairIntegrationTestArtifacts(
     },
     {
       label: 'test expenses',
-      sql: `DELETE FROM fyh_expenses WHERE ${TEST_EXPENSE_TITLE_WHERE} RETURNING id`,
+      sql: `DELETE FROM fyh_expenses WHERE ${TEST_EXPENSE_TITLE_WHERE} OR ${TEST_PURCHASE_EXPENSE_TITLE_WHERE} RETURNING id`,
     },
     {
       label: 'stock movements (test products)',
@@ -325,11 +340,40 @@ export async function cleanupHairIntegrationTestArtifacts(
         RETURNING p.id`,
     },
     {
+      label: 'purchase return lines (test vendors)',
+      sql: `DELETE FROM fyh_purchase_return_lines prl
+        USING fyh_purchase_returns pr, fyh_vendors v
+        WHERE prl.return_id = pr.id AND pr.vendor_id = v.id AND ${testVendorWhere('v')}
+        RETURNING prl.id`,
+    },
+    {
+      label: 'purchase returns (test vendors)',
+      sql: `DELETE FROM fyh_purchase_returns pr
+        USING fyh_vendors v
+        WHERE pr.vendor_id = v.id AND ${testVendorWhere('v')}
+        RETURNING pr.id`,
+    },
+    {
       label: 'vendor payables (test vendors)',
       sql: `DELETE FROM fyh_vendor_payables pay
         USING fyh_vendors v
         WHERE pay.vendor_id = v.id AND ${testVendorWhere('v')}
         RETURNING pay.id`,
+    },
+    {
+      label: 'expenses (test vendor purchases)',
+      sql: `DELETE FROM fyh_expenses e
+        USING fyh_purchases pur, fyh_vendors v
+        WHERE e.purchase_id = pur.id AND pur.vendor_id = v.id AND ${testVendorWhere('v')}
+        RETURNING e.id`,
+    },
+    {
+      label: 'stock movements (test vendor purchases)',
+      sql: `DELETE FROM fyh_stock_movements m
+        USING fyh_purchases pur, fyh_vendors v
+        WHERE m.reference_type = 'purchase' AND m.reference_id = pur.id
+          AND pur.vendor_id = v.id AND ${testVendorWhere('v')}
+        RETURNING m.id`,
     },
     {
       label: 'purchase audit events (test vendors)',
@@ -394,7 +438,7 @@ export async function cleanupHairIntegrationTestArtifacts(
     {
       label: 'tenant test settings',
       sql: `DELETE FROM fyh_settings
-        WHERE business_name IN ('Tenant A Salon', 'Tenant B Salon', 'Hostile A Salon')
+        WHERE business_name IN ('Tenant A Salon', 'Tenant B Salon', 'Hostile A Salon', 'Hostile B Salon')
         RETURNING id`,
     },
   ];

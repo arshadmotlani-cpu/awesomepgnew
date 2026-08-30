@@ -19,6 +19,7 @@ import {
   listInvoices,
 } from '@/src/hair/services/invoices';
 import { getCustomer, listCustomers } from '@/src/hair/services/customers';
+import { assertHairIntegrationTestWritesAllowed } from '@/src/hair/lib/db/integrationWriteGuard';
 import { migrationSkipMessage, probeHairQuickSaleMigrations } from './migrationGuard.ts';
 
 function makeTenantContext(organizationId: string, locationId: string): TenantContext {
@@ -34,6 +35,7 @@ function makeTenantContext(organizationId: string, locationId: string): TenantCo
 }
 
 test('Phase C hostile two-org isolation (catalog, ledger, public token)', async (t) => {
+  assertHairIntegrationTestWritesAllowed();
   const probe = await probeHairQuickSaleMigrations();
   if (!probe.ok) t.skip(migrationSkipMessage(probe));
 

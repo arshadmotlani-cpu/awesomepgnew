@@ -11,6 +11,7 @@ import { fyhSettings } from '@/src/hair/db/schema/settings';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { getInvoiceDetailByNumber, listInvoices } from '@/src/hair/services/invoices';
 import { listCustomers } from '@/src/hair/services/customers';
+import { assertHairIntegrationTestWritesAllowed } from '@/src/hair/lib/db/integrationWriteGuard';
 
 function makeTenantContext(organizationId: string, locationId: string): TenantContext {
   return {
@@ -25,6 +26,7 @@ function makeTenantContext(organizationId: string, locationId: string): TenantCo
 }
 
 test('tenant-aware customer and invoice reads stay inside active organization', async () => {
+  assertHairIntegrationTestWritesAllowed();
   const prev = process.env.FYH_SAAS_TENANT;
   process.env.FYH_SAAS_TENANT = '1';
 
