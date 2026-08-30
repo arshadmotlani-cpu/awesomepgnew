@@ -43,6 +43,13 @@
       "when": 1759000000000,
       "tag": "0006_complimentary_subscription",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1759100000000,
+      "tag": "0007_owner_salon_complimentary",
+      "breakpoints": true
     }
   ]
 }
