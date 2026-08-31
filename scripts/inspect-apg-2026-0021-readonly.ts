@@ -119,6 +119,34 @@ async function main() {
   `);
 
   console.log(JSON.stringify({ booking, rooms, rcs, links, fins, ledger, rents, customer }, null, 2));
+
+  const audit = {
+    A_booking: booking,
+    B_invoices: { financial: fins, rent: rents },
+    C_frozen_quote: (rcs as Array<{ quote_summary: unknown }>)[0]?.quote_summary ?? null,
+    D_deposit_payment: (links as Array<{ id: string; purpose: string; status: string; amount_paise: number }>).find(
+      (l) => l.purpose === 'deposit',
+    ),
+    E_bed_assignment: rooms,
+    F_september_rent: (rents as Array<{ invoice_number: string; billing_month: string; status: string; rent_paise: number }>).find(
+      (r) => r.billing_month?.startsWith('2026-09'),
+    ),
+    G_must_change_after_fix: [
+      'Deposit link → paid after admin approve',
+      'Deposit ledger +321140 once',
+      'INV-2026-SHA-0004 → paid',
+      'New-rent invoice ₹191 still payable until paid',
+      'Room transfer after all charges settled',
+      'September rent → ₹760000 after transfer + Sep 1 bed price',
+    ],
+    H_must_not_change: [
+      'Frozen quote_snapshot amounts (31-Aug rates)',
+      'Aug rent invoice paid ₹412080',
+      'Historical deposit ₹400000 ledger row',
+      'Deposit due ₹321140 on room-change quote',
+    ],
+  };
+  console.log('\n--- AUDIT A–H ---\n', JSON.stringify(audit, null, 2));
 }
 
 main().then(() => process.exit(0)).catch((e) => {

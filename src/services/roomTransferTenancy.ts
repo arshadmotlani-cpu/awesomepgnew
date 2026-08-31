@@ -21,7 +21,11 @@ import { assertBookingExitOperationsAllowed } from '@/src/lib/exit/exitBrainGuar
 import { assertBookingOperationalGates } from '@/src/lib/occupancyEligibility';
 import { siblingBedIdsInRoom } from '@/src/services/tenantAssignmentInternals';
 import { loadBedPrice } from '@/src/services/pricing';
-import { recalculatePendingRentInvoicesForBooking } from '@/src/services/rentInvoices';
+import {
+  recalculatePendingRentInvoicesForBooking,
+  reconcileRentInvoicesAfterRoomTransfer,
+} from '@/src/services/rentInvoices';
+import { resolvePostTransferMonthlyRentPaise } from '@/src/lib/billing/postTransferRentPricing';
 import { reconcileBookingOccupancy } from '@/src/lib/occupancySync';
 
 function pgUniqueViolation(err: unknown): boolean {
@@ -105,8 +109,12 @@ export async function applyResidentBedTransfer(input: {
     perBed: [],
     computedAt: new Date().toISOString(),
   }) as PricingSnapshot;
-  const newPrice = await loadBedPrice(input.toBedId, input.transferDate);
-  if (!newPrice) return { ok: false, message: 'Could not load destination bed pricing.' };
+  const ongoingMonthlyRent =
+    (await resolvePostTransferMonthlyRentPaise(input.toBedId, input.transferDate)) ??
+    (await loadBedPrice(input.toBedId, input.transferDate))?.monthlyRatePaise;
+  if (ongoingMonthlyRent == null) {
+    return { ok: false, message: 'Could not load destination bed pricing.' };
+  }
 
   const blocksWholeRoom = booking.blocksRoomAvailability;
   const reservationBedIds = blocksWholeRoom
@@ -137,9 +145,9 @@ export async function applyResidentBedTransfer(input: {
 
       if (snapshot.perBed[0]) {
         snapshot.perBed[0].bedId = input.toBedId;
-        snapshot.perBed[0].monthlyRatePaise = newPrice.monthlyRatePaise;
+        snapshot.perBed[0].monthlyRatePaise = ongoingMonthlyRent;
         snapshot.perBed[0].lineTotalPaise =
-          newPrice.monthlyRatePaise * Math.max(1, snapshot.perBed[0].units ?? 1);
+          ongoingMonthlyRent * Math.max(1, snapshot.perBed[0].units ?? 1);
       }
       const subtotalPaise = snapshot.perBed.reduce(
         (acc, bed) => acc + (bed.lineTotalPaise ?? 0),
@@ -196,6 +204,12 @@ export async function applyResidentBedTransfer(input: {
     bookingId: input.bookingId,
     pricingSnapshot: snapshot,
     adminId: input.actorId,
+  });
+
+  await reconcileRentInvoicesAfterRoomTransfer({
+    bookingId: input.bookingId,
+    transferDate: input.transferDate,
+    actorId: input.actorId,
   });
 
   await reconcileBookingOccupancy(input.bookingId);

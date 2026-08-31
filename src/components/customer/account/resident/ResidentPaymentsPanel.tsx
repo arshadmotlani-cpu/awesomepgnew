@@ -13,6 +13,10 @@ export type PaymentDueRow = {
   invoiceNumber?: string;
   rejectionReason?: string;
   rejectionMessage?: string;
+  /** Rent invoice generation date — drives grace/late-fee countdown (rent only). */
+  rentIssueDate?: string | null;
+  /** Accrued late fee included in amountPaise for rent rows. */
+  lateFeePaise?: number;
   /** Rent invoice inclusive billing period, e.g. "1 September 2026 – 30 September 2026" */
   billingPeriodLabel?: string | null;
   billingPeriodLine?: string | null;

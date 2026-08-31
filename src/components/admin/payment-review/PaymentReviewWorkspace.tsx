@@ -277,6 +277,18 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
                   {booking.roomChange.shiftDate ? ` · ${booking.roomChange.shiftDate}` : ''}
                   {` · ${titleCase(booking.roomChange.status)}`}
                 </p>
+                {booking.roomChange.settlementMessage ? (
+                  <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+                    {booking.roomChange.settlementMessage}
+                  </p>
+                ) : null}
+                {booking.roomChange.grossNewBedRentPaise >
+                booking.roomChange.rentAdjustmentPaise ? (
+                  <p className="mt-2 text-xs text-apg-silver">
+                    New-room remaining rent (gross): {paiseToInr(booking.roomChange.grossNewBedRentPaise)}{' '}
+                    · Net due after credit: {paiseToInr(booking.roomChange.rentAdjustmentPaise)}
+                  </p>
+                ) : null}
                 {booking.roomChange.lines.length > 0 ? (
                   <dl className="mt-4 space-y-3">
                     {booking.roomChange.lines.map((line) => (

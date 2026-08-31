@@ -202,6 +202,8 @@ export function buildResidentBillRowsFromDetail(
         href: `/account/resident/pay-rent/${r.id}`,
         status: labelResidentStatus(projected.effectiveStatus),
         invoiceNumber: r.invoiceNumber,
+        rentIssueDate: r.createdAt ? formatDate(r.createdAt) : r.dueDate,
+        lateFeePaise: projected.accruedLateFeePaise,
       };
       dueBillRows.push(row);
       homeUpcoming.push({

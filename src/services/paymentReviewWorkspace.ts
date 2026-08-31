@@ -26,6 +26,8 @@ import {
   stayTypeBusinessLabel,
 } from '@/src/lib/stayType';
 import type { RoomShiftQuoteSnapshot } from '@/src/services/roomShiftQuote';
+import { formatRoomChangeQuoteForDisplay } from '@/src/lib/roomTransfer/quoteDisplay';
+import { projectRoomChangeSettlementStatus } from '@/src/lib/roomTransfer/roomChangeSettlementStatus';
 import { getBookingMoneyBalances } from '@/src/services/bookingMoneyBalances';
 import {
   getNextPendingPaymentReviewKey,
@@ -51,8 +53,11 @@ export type PaymentReviewRoomChangeContext = {
   totalDuePaise: number;
   depositDuePaise: number;
   rentAdjustmentPaise: number;
+  grossNewBedRentPaise: number;
   feeDuePaise: number;
   lines: PaymentReviewRoomChangeLine[];
+  settlementPhase: string | null;
+  settlementMessage: string | null;
 };
 
 export type PaymentReviewWorkspaceBookingContext = {
@@ -218,13 +223,21 @@ async function loadRoomChangeContext(
   if (!rcr) return null;
 
   const quote = rcr.quoteSnapshot as RoomShiftQuoteSnapshot | null;
-  const lines: PaymentReviewRoomChangeLine[] = Array.isArray(quote?.lines)
-    ? quote.lines.map((line) => ({
-        label: String(line.label ?? 'Line'),
-        amountPaise: coerceNonNegativePaise(line.amountPaise),
-        kind: line.kind === 'credit' ? 'credit' : 'charge',
+  const display = quote ? formatRoomChangeQuoteForDisplay(quote) : null;
+  const settlement = await projectRoomChangeSettlementStatus({ bookingId });
+  const lines: PaymentReviewRoomChangeLine[] = display
+    ? display.lines.map((line) => ({
+        label: line.note ? `${line.label} (${line.note})` : line.label,
+        amountPaise: line.amountPaise,
+        kind: line.kind,
       }))
-    : [];
+    : Array.isArray(quote?.lines)
+      ? quote.lines.map((line) => ({
+          label: String(line.label ?? 'Line'),
+          amountPaise: coerceNonNegativePaise(line.amountPaise),
+          kind: line.kind === 'credit' ? 'credit' : 'charge',
+        }))
+      : [];
 
   return {
     status: rcr.status,
@@ -237,8 +250,13 @@ async function loadRoomChangeContext(
     totalDuePaise: coerceNonNegativePaise(quote?.totalDuePaise),
     depositDuePaise: coerceNonNegativePaise(quote?.depositDuePaise),
     rentAdjustmentPaise: coerceNonNegativePaise(quote?.newRentDuePaise),
+    grossNewBedRentPaise: coerceNonNegativePaise(
+      quote?.newRentChargePaise ?? display?.grossNewBedRentPaise,
+    ),
     feeDuePaise: coerceNonNegativePaise(quote?.feeDuePaise),
     lines,
+    settlementPhase: settlement.phase,
+    settlementMessage: settlement.message || null,
   };
 }
 

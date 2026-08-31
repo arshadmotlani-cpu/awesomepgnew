@@ -401,7 +401,15 @@ export function RoomChangeFlow({
           <ul className="mt-3 space-y-2">
             {quote.lines.map((line) => (
               <li key={line.label} className="flex justify-between text-sm">
-                <span className="text-apg-silver">{line.label}</span>
+                <span className="text-apg-silver">
+                  {line.label}
+                  {line.label === 'New bed remaining rent' &&
+                  quote.newRentChargePaise > quote.newRentDuePaise ? (
+                    <span className="block text-xs text-apg-silver/80">
+                      Net due after credit: {paiseToInr(quote.newRentDuePaise)}
+                    </span>
+                  ) : null}
+                </span>
                 <span className={line.kind === 'credit' ? 'text-emerald-300' : 'text-white'}>
                   {line.kind === 'credit' ? '−' : ''}
                   {paiseToInr(line.amountPaise)}

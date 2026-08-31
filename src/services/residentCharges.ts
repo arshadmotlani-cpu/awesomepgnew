@@ -780,41 +780,58 @@ export async function approveDepositLinkPaymentProof(
 
   const providerPaymentId = `deposit-link-proof-${linkId}`;
 
-  if (link.invoiceId) {
-    const { allocateInvoicePayment } = await import('@/src/services/invoicePayment');
-    const paymentResult = await allocateInvoicePayment({
-      invoiceId: link.invoiceId,
-      amountPaise: link.amount,
-      providerPaymentId,
-      offlineProvider: 'upi_manual',
-    });
-    if (
-      !paymentResult.ok &&
-      paymentResult.error !== 'Invoice is already paid.' &&
-      paymentResult.error !== 'Nothing due on this invoice.'
-    ) {
-      return { ok: false, message: paymentResult.error };
+  try {
+    if (link.invoiceId) {
+      const { allocateInvoicePayment } = await import('@/src/services/invoicePayment');
+      const paymentResult = await allocateInvoicePayment({
+        invoiceId: link.invoiceId,
+        amountPaise: link.amount,
+        providerPaymentId,
+        offlineProvider: 'upi_manual',
+      });
+      if (
+        !paymentResult.ok &&
+        paymentResult.error !== 'Invoice is already paid.' &&
+        paymentResult.error !== 'Nothing due on this invoice.'
+      ) {
+        return { ok: false, message: paymentResult.error };
+      }
+    } else {
+      const depositResult = await recordDepositPaymentFromLink({
+        linkId,
+        bookingId: link.bookingId,
+        customerId: link.residentId,
+        amountPaise: link.amount,
+        providerPaymentId,
+      });
+      if (!depositResult.ok) {
+        return { ok: false, message: depositResult.error };
+      }
     }
-  } else {
-    const depositResult = await recordDepositPaymentFromLink({
-      linkId,
-      bookingId: link.bookingId,
-      customerId: link.residentId,
-      amountPaise: link.amount,
-      providerPaymentId,
-    });
-    if (!depositResult.ok) {
-      return { ok: false, message: depositResult.error };
+
+    const { syncDepositCollectionFromLedger } = await import('./depositCollection');
+    await syncDepositCollectionFromLedger(link.bookingId);
+
+    const [freshLink] = await db
+      .select({ status: paymentLinks.status })
+      .from(paymentLinks)
+      .where(eq(paymentLinks.id, linkId))
+      .limit(1);
+    if (freshLink?.status !== 'paid') {
+      await db
+        .update(paymentLinks)
+        .set({ status: 'paid' })
+        .where(eq(paymentLinks.id, linkId));
     }
+  } catch (err) {
+    const { approvedTransactionRefConflictMessage } = await import(
+      '@/src/lib/payments/transactionRefDuplicate'
+    );
+    if (err instanceof Error && err.message === approvedTransactionRefConflictMessage()) {
+      return { ok: false, message: err.message };
+    }
+    throw err;
   }
-
-  const { syncDepositCollectionFromLedger } = await import('./depositCollection');
-  await syncDepositCollectionFromLedger(link.bookingId);
-
-  await db
-    .update(paymentLinks)
-    .set({ status: 'paid' })
-    .where(eq(paymentLinks.id, linkId));
 
   revalidateFinancialViews();
   return { ok: true };

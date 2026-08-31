@@ -3064,6 +3064,88 @@ export async function recalculatePendingRentInvoicesForBooking(args: {
   return { updatedCount: invoiceChanges.length, invoiceChanges };
 }
 
+/**
+ * After room transfer — reconcile pending rent invoices from transfer month onward
+ * using authoritative bed pricing per billing month (handles September race).
+ */
+export async function reconcileRentInvoicesAfterRoomTransfer(input: {
+  bookingId: string;
+  transferDate: string;
+  actorId: string;
+}): Promise<{
+  updatedCount: number;
+  invoiceChanges: Array<{
+    invoiceId: string;
+    billingMonth: string;
+    fromPaise: number;
+    toPaise: number;
+  }>;
+}> {
+  const transferMonth = firstOfMonth(input.transferDate);
+  const pending = await db
+    .select()
+    .from(rentInvoices)
+    .where(
+      and(
+        eq(rentInvoices.bookingId, input.bookingId),
+        inArray(rentInvoices.status, ['pending', 'overdue', 'sent']),
+        sql`${rentInvoices.billingMonth} >= ${transferMonth}::date`,
+      ),
+    );
+
+  const invoiceChanges: Array<{
+    invoiceId: string;
+    billingMonth: string;
+    fromPaise: number;
+    toPaise: number;
+  }> = [];
+  const now = new Date();
+
+  await db.transaction(async (tx) => {
+    for (const inv of pending) {
+      const resolved = await resolveMonthlyRentPaiseForBooking(
+        input.bookingId,
+        inv.billingMonth,
+      );
+      const newPaise =
+        resolved.rentPaise > 0 ? fullMonthlyRentPaise(resolved.rentPaise) : 0;
+      if (newPaise <= 0 || newPaise === inv.rentPaise) continue;
+
+      await tx
+        .update(rentInvoices)
+        .set({ rentPaise: newPaise, updatedAt: now })
+        .where(eq(rentInvoices.id, inv.id));
+
+      invoiceChanges.push({
+        invoiceId: inv.id,
+        billingMonth: inv.billingMonth,
+        fromPaise: inv.rentPaise,
+        toPaise: newPaise,
+      });
+    }
+
+    if (invoiceChanges.length > 0) {
+      await tx.insert(auditLog).values({
+        actorType: 'system',
+        actorId: input.actorId,
+        entity: 'rent_invoice',
+        entityId: input.bookingId,
+        action: 'recalculate_after_room_transfer',
+        diff: { transferDate: input.transferDate, invoiceChanges },
+      });
+    }
+  });
+
+  if (invoiceChanges.length > 0) {
+    const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+    for (const change of invoiceChanges) {
+      await syncRentInvoiceToUnified(change.invoiceId).catch(() => undefined);
+    }
+  }
+
+  return { updatedCount: invoiceChanges.length, invoiceChanges };
+}
+
 /** After a check-in date change — sync billing day, pro-rate amounts, and due dates. */
 export async function recalculateRentAfterMoveInChange(args: {
   bookingId: string;

@@ -17,6 +17,7 @@ import {
 import { requestStatusTone, primaryBtn, secondaryBtn } from '@/src/lib/design-system/tokens';
 import { ResidentElectricityBillCalculationPanel } from '@/src/components/customer/account/resident/ResidentElectricityBillCalculationPanel';
 import { ResidentElectricityPendingCard } from '@/src/components/customer/account/resident/ResidentElectricityPendingCard';
+import { LateFeeCountdown } from '@/src/components/billing/LateFeeCountdown';
 import type { ResidentElectricityBillingState } from '@/src/lib/residents/residentElectricityBillingState';
 import { computeResidentTotalDuePaise } from '@/src/lib/residents/residentPortalDisplay';
 import type { PaymentDueRow } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
@@ -88,6 +89,16 @@ function BillCard({ row }: { row: BillDueRow }) {
           ) : null}
           {row.dueDate ? (
             <p className="mt-1 text-xs text-apg-silver">Due {formatDate(row.dueDate)}</p>
+          ) : null}
+          {row.kind === 'rent' && row.rentIssueDate ? (
+            <div className="mt-1">
+              <LateFeeCountdown issueDate={row.rentIssueDate} className="text-xs text-apg-silver" />
+            </div>
+          ) : null}
+          {row.kind === 'rent' && (row.lateFeePaise ?? 0) > 0 ? (
+            <p className="mt-0.5 text-xs text-amber-200">
+              Includes late fee {paiseToInr(row.lateFeePaise!)}
+            </p>
           ) : null}
         </div>
         <div className="flex w-full flex-row items-center justify-between gap-2 sm:w-auto sm:flex-col sm:items-end">
