@@ -6,6 +6,7 @@
  */
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 import { resolveVerifiedProofAmountPaise } from '@/src/lib/operations/paymentReviewProofAmount';
+import { coerceNonNegativePaise } from '@/src/lib/format';
 
 export type PaymentReviewVerification = {
   monthlyRentPaise: number;
@@ -103,10 +104,12 @@ export function buildPaymentReviewVerification(
 
   const bookingExpected = expectedPaymentPaiseFromBooking(item);
   if (bookingExpected != null) {
-    const monthlyRentPaise =
-      booking?.monthlyRentPaise ?? monthlyRentPaiseFromBooking(item);
-    const depositRequiredPaise =
-      booking?.depositRequiredPaise ?? depositRequiredPaiseFromBooking(item);
+    const monthlyRentPaise = coerceNonNegativePaise(
+      booking?.monthlyRentPaise ?? monthlyRentPaiseFromBooking(item),
+    );
+    const depositRequiredPaise = coerceNonNegativePaise(
+      booking?.depositRequiredPaise ?? depositRequiredPaiseFromBooking(item),
+    );
     const expectedPaymentPaise = monthlyRentPaise + depositRequiredPaise;
     const differencePaise = expectedPaymentPaise - screenshotAmountPaise;
     return {
@@ -120,13 +123,21 @@ export function buildPaymentReviewVerification(
     };
   }
 
-  const expectedPaymentPaise =
-    item.invoiceAmountPaise != null ? item.invoiceAmountPaise : item.expectedTotalPaise;
+  const expectedPaymentPaise = coerceNonNegativePaise(
+    item.invoiceAmountPaise != null ? item.invoiceAmountPaise : item.expectedTotalPaise,
+  );
   const differencePaise = expectedPaymentPaise - screenshotAmountPaise;
 
+  const monthlyRentPaise = coerceNonNegativePaise(
+    booking?.monthlyRentPaise ?? monthlyRentPaiseFromBooking(item),
+  );
+  const depositRequiredPaise = coerceNonNegativePaise(
+    booking?.depositRequiredPaise ?? depositRequiredPaiseFromBooking(item),
+  );
+
   return {
-    monthlyRentPaise: 0,
-    depositRequiredPaise: 0,
+    monthlyRentPaise,
+    depositRequiredPaise,
     expectedPaymentPaise,
     screenshotAmountPaise,
     receivedPaise: screenshotAmountPaise,

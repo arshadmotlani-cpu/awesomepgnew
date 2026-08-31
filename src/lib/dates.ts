@@ -58,6 +58,30 @@ export function diffDays(start: DateLike, end: DateLike): number {
   return Math.round((e.getTime() - s.getTime()) / MS_PER_DAY);
 }
 
+/**
+ * First occupied date from a Postgres daterange (string or driver object).
+ * Accepts `[2026-06-01,)` and `["2026-06-01",)`. Never throws.
+ */
+export function parseReservationStayRangeStart(stayRange: unknown): string | null {
+  if (typeof stayRange === 'string') {
+    const trimmed = stayRange.trim();
+    const quoted = trimmed.match(/^\["(\d{4}-\d{2}-\d{2})/);
+    if (quoted) return quoted[1] ?? null;
+    const unquoted = trimmed.match(/^\[(\d{4}-\d{2}-\d{2})/);
+    if (unquoted) return unquoted[1] ?? null;
+    return null;
+  }
+  if (stayRange && typeof stayRange === 'object') {
+    const rec = stayRange as { lower?: unknown; start?: unknown };
+    const lower = rec.lower ?? rec.start;
+    if (lower instanceof Date && Number.isFinite(lower.getTime())) {
+      return formatDate(lower);
+    }
+    if (typeof lower === 'string') return parseReservationStayRangeStart(`[${lower},)`);
+  }
+  return null;
+}
+
 /** Normalize ISO timestamps or date strings to YYYY-MM-DD for display + date math. */
 export function normalizeIsoDateOnly(value: string | null | undefined): string {
   if (!value) return '';

@@ -15,6 +15,7 @@ import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks
 import { paymentReviewWorkspaceHref } from '@/src/lib/operations/paymentReviewLinks';
 import { stashOperationsApprovedToast } from '@/src/lib/operations/operationsActionToastFlash';
 import { buildPaymentReviewVerification } from '@/src/lib/operations/paymentReviewVerification';
+import { transactionRefLooksLikeUpiVpa } from '@/src/lib/payments/safePaymentApprovalError';
 import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import type { PaymentReviewWorkspaceData } from '@/src/services/paymentReviewWorkspace';
 
@@ -227,6 +228,12 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
           </div>
         </header>
 
+        {data.bookingLoadError ? (
+          <p className="border-b border-amber-400/20 bg-amber-500/10 px-5 py-3 text-sm text-amber-100">
+            {data.bookingLoadError}
+          </p>
+        ) : null}
+
         {error ? (
           <p className="border-b border-rose-400/20 bg-rose-500/10 px-5 py-3 text-sm text-rose-200">
             {error}
@@ -244,25 +251,78 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
                   ) : null}
                   <FieldRow
                     label="Monthly rent"
-                    value={paiseToInr(verification.monthlyRentPaise)}
+                    value={
+                      booking?.monthlyRentPaise == null && verification.monthlyRentPaise <= 0
+                        ? 'Unavailable'
+                        : paiseToInr(verification.monthlyRentPaise)
+                    }
                   />
                   <FieldRow
                     label="Required deposit"
-                    value={paiseToInr(verification.depositRequiredPaise)}
+                    value={
+                      !booking && verification.depositRequiredPaise <= 0
+                        ? 'Unavailable'
+                        : paiseToInr(verification.depositRequiredPaise)
+                    }
                   />
                 </dl>
               </section>
             ) : null}
 
+            {booking?.roomChange ? (
+              <section>
+                <h2 className="text-base font-semibold text-white">Room change adjustment</h2>
+                <p className="mt-2 text-sm text-apg-silver">
+                  {booking.roomChange.fromLabel} → {booking.roomChange.toLabel}
+                  {booking.roomChange.shiftDate ? ` · ${booking.roomChange.shiftDate}` : ''}
+                  {` · ${titleCase(booking.roomChange.status)}`}
+                </p>
+                {booking.roomChange.lines.length > 0 ? (
+                  <dl className="mt-4 space-y-3">
+                    {booking.roomChange.lines.map((line) => (
+                      <FieldRow
+                        key={`${line.label}-${line.amountPaise}`}
+                        label={line.label}
+                        value={`${line.kind === 'credit' ? '−' : ''}${paiseToInr(line.amountPaise)}`}
+                        className={line.kind === 'credit' ? 'text-emerald-300' : undefined}
+                      />
+                    ))}
+                    <FieldRow
+                      label="Room-change total due"
+                      value={paiseToInr(booking.roomChange.totalDuePaise)}
+                      emphasize
+                    />
+                  </dl>
+                ) : (
+                  <p className="mt-3 text-sm text-apg-silver">No room change adjustment lines.</p>
+                )}
+              </section>
+            ) : null}
+
             {item.referenceNumber ? (
               <section className="rounded-xl border border-white/10 bg-[#121820] p-5">
-                <h2 className="text-base font-semibold text-white">UPI transaction ID</h2>
+                <h2 className="text-base font-semibold text-white">
+                  {transactionRefLooksLikeUpiVpa(item.referenceNumber)
+                    ? 'Resident UPI ID'
+                    : 'UPI transaction ID'}
+                </h2>
                 <p className="mt-3 font-mono text-lg font-semibold text-white">{item.referenceNumber}</p>
+                {transactionRefLooksLikeUpiVpa(item.referenceNumber) ? (
+                  <p className="mt-2 text-xs text-amber-200">
+                    This looks like a UPI ID, not a bank UTR. Approval still works if the screenshot
+                    matches — paste the 12-digit UTR when you have it.
+                  </p>
+                ) : null}
                 {item.possibleDuplicate ? (
                   <p className="mt-2 text-xs font-medium text-amber-300">Duplicate reference ID</p>
                 ) : null}
               </section>
-            ) : null}
+            ) : (
+              <section className="rounded-xl border border-white/10 bg-[#121820] p-5">
+                <h2 className="text-base font-semibold text-white">UPI transaction ID</h2>
+                <p className="mt-3 text-sm text-apg-silver">Not provided</p>
+              </section>
+            )}
 
             <section
               className={`rounded-xl border p-5 ${
@@ -287,8 +347,9 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
                 <FieldRow label="Difference" value={diff.text} emphasize className={diff.className} />
               </dl>
               <p className="mt-4 text-xs text-apg-silver">
-                Approve confirms the booking using contract rent and deposit values. Verify the UPI
-                transaction ID (and screenshot if present).
+                Expected is this payment&apos;s amount (deposit link or invoice). Monthly rent and
+                required deposit come from the booking ledger — they are not zeroed for deposit
+                reviews. Verify the UPI transaction ID (and screenshot if present).
               </p>
             </section>
 

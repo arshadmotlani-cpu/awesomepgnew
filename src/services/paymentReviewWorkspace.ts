@@ -2,7 +2,7 @@
  * Payment Review Workspace — single loader SSOT for /admin/payment-review/[reviewKey].
  */
 
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   bedReservations,
@@ -11,6 +11,7 @@ import {
   customers,
   floors,
   pgPaymentRecords,
+  roomChangeRequests,
   rooms,
 } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
@@ -18,10 +19,13 @@ import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import { buildPaymentReviewBreakdown } from '@/src/lib/operations/paymentReviewBreakdown';
 import type { PaymentReviewBreakdown } from '@/src/lib/operations/paymentReviewBreakdown';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
+import { parseReservationStayRangeStart } from '@/src/lib/dates';
+import { coerceNonNegativePaise } from '@/src/lib/format';
 import {
   adminBookingStatusLabel,
   stayTypeBusinessLabel,
 } from '@/src/lib/stayType';
+import type { RoomShiftQuoteSnapshot } from '@/src/services/roomShiftQuote';
 import { getBookingMoneyBalances } from '@/src/services/bookingMoneyBalances';
 import {
   getNextPendingPaymentReviewKey,
@@ -32,6 +36,24 @@ import {
   reviewKindToEntityType,
   type PaymentProofRejectionHistoryRowClient,
 } from '@/src/services/paymentProofRejectionService';
+
+export type PaymentReviewRoomChangeLine = {
+  label: string;
+  amountPaise: number;
+  kind: 'credit' | 'charge';
+};
+
+export type PaymentReviewRoomChangeContext = {
+  status: string;
+  fromLabel: string;
+  toLabel: string;
+  shiftDate: string | null;
+  totalDuePaise: number;
+  depositDuePaise: number;
+  rentAdjustmentPaise: number;
+  feeDuePaise: number;
+  lines: PaymentReviewRoomChangeLine[];
+};
 
 export type PaymentReviewWorkspaceBookingContext = {
   bookingId: string;
@@ -55,6 +77,7 @@ export type PaymentReviewWorkspaceBookingContext = {
   createdAt: string | null;
   residentNotes: string | null;
   adminNotes: string | null;
+  roomChange: PaymentReviewRoomChangeContext | null;
 };
 
 export type PaymentReviewWorkspaceData = {
@@ -65,6 +88,7 @@ export type PaymentReviewWorkspaceData = {
   booking: PaymentReviewWorkspaceBookingContext | null;
   kycStatus: 'pending' | 'approved' | 'rejected' | null;
   nextReviewKey: string | null;
+  bookingLoadError: string | null;
 };
 
 export type LoadPaymentReviewWorkspaceResult =
@@ -110,9 +134,33 @@ async function loadBookingContext(
 
   if (!row) return null;
 
-  const balances = await getBookingMoneyBalances(bookingId);
-  const moveInMatch = row.stayRange?.match(/^\["(\d{4}-\d{2}-\d{2})/);
-  const checkInDate = moveInMatch?.[1] ?? row.billingAnchorDate ?? null;
+  let depositRequiredPaise = coerceNonNegativePaise(row.depositPaise);
+  try {
+    const balances = await getBookingMoneyBalances(bookingId, { repairDepositCache: false });
+    if (balances) {
+      depositRequiredPaise = coerceNonNegativePaise(balances.deposit.requiredPaise);
+    }
+  } catch {
+    // Booking row deposit_paise remains the display fallback.
+  }
+
+  const checkInDate =
+    parseReservationStayRangeStart(row.stayRange) ?? row.billingAnchorDate ?? null;
+  const monthlyRentPaise = coerceNonNegativePaise(
+    coerceNonNegativePaise(row.subtotalPaise) - coerceNonNegativePaise(row.discountPaise),
+  );
+
+  let roomChange: PaymentReviewRoomChangeContext | null = null;
+  try {
+    roomChange = await loadRoomChangeContext(bookingId);
+  } catch {
+    roomChange = null;
+  }
+
+  const createdAt =
+    row.createdAt instanceof Date && Number.isFinite(row.createdAt.getTime())
+      ? row.createdAt.toISOString()
+      : null;
 
   return {
     bookingId: row.bookingId,
@@ -134,8 +182,8 @@ async function loadBookingContext(
         : row.reservationStatus === 'hold' || row.reservationStatus === 'under_review'
           ? 'Reserved'
           : row.reservationStatus,
-    monthlyRentPaise: Math.max(0, row.subtotalPaise - row.discountPaise),
-    depositRequiredPaise: balances?.deposit.requiredPaise ?? row.depositPaise,
+    monthlyRentPaise,
+    depositRequiredPaise,
     checkInDate,
     expectedMoveInDate: checkInDate,
     expectedCheckoutDate: row.expectedCheckoutDate,
@@ -146,9 +194,51 @@ async function loadBookingContext(
     durationLabel: row.expectedCheckoutDate
       ? `${checkInDate ?? '—'} → ${row.expectedCheckoutDate}`
       : checkInDate,
-    createdAt: row.createdAt?.toISOString() ?? null,
+    createdAt,
     residentNotes: row.notes,
     adminNotes: row.adminOpsNotes,
+    roomChange,
+  };
+}
+
+async function loadRoomChangeContext(
+  bookingId: string,
+): Promise<PaymentReviewRoomChangeContext | null> {
+  const [rcr] = await db
+    .select({
+      status: roomChangeRequests.status,
+      requestedShiftDate: roomChangeRequests.requestedShiftDate,
+      expectedTransferDate: roomChangeRequests.expectedTransferDate,
+      quoteSnapshot: roomChangeRequests.quoteSnapshot,
+    })
+    .from(roomChangeRequests)
+    .where(eq(roomChangeRequests.bookingId, bookingId))
+    .orderBy(desc(roomChangeRequests.createdAt))
+    .limit(1);
+  if (!rcr) return null;
+
+  const quote = rcr.quoteSnapshot as RoomShiftQuoteSnapshot | null;
+  const lines: PaymentReviewRoomChangeLine[] = Array.isArray(quote?.lines)
+    ? quote.lines.map((line) => ({
+        label: String(line.label ?? 'Line'),
+        amountPaise: coerceNonNegativePaise(line.amountPaise),
+        kind: line.kind === 'credit' ? 'credit' : 'charge',
+      }))
+    : [];
+
+  return {
+    status: rcr.status,
+    fromLabel: quote?.fromRoomLabel?.trim() || 'Previous bed',
+    toLabel:
+      [quote?.toPgName, quote?.toRoomNumber ? `Room ${quote.toRoomNumber}` : null, quote?.toBedCode]
+        .filter(Boolean)
+        .join(' · ') || 'New bed',
+    shiftDate: rcr.expectedTransferDate ?? rcr.requestedShiftDate ?? quote?.shiftDate ?? null,
+    totalDuePaise: coerceNonNegativePaise(quote?.totalDuePaise),
+    depositDuePaise: coerceNonNegativePaise(quote?.depositDuePaise),
+    rentAdjustmentPaise: coerceNonNegativePaise(quote?.newRentDuePaise),
+    feeDuePaise: coerceNonNegativePaise(quote?.feeDuePaise),
+    lines,
   };
 }
 
@@ -177,10 +267,15 @@ export async function loadPaymentReviewWorkspace(
   }
 
   const breakdown = buildPaymentReviewBreakdown(item);
-  const rejectionHistory = await listPaymentProofRejectionsForEntity(
-    reviewKindToEntityType(item.kind),
-    item.entityId,
-  );
+  let rejectionHistory: PaymentProofRejectionHistoryRowClient[] = [];
+  try {
+    rejectionHistory = await listPaymentProofRejectionsForEntity(
+      reviewKindToEntityType(item.kind),
+      item.entityId,
+    );
+  } catch {
+    rejectionHistory = [];
+  }
 
   let kycStatus: PaymentReviewWorkspaceData['kycStatus'] = null;
   if (item.customerId) {
@@ -192,11 +287,25 @@ export async function loadPaymentReviewWorkspace(
     kycStatus = customer?.kycStatus ?? null;
   }
 
-  const booking = item.bookingId
-    ? await loadBookingContext(item.bookingId, item.pgName)
-    : null;
+  let booking: PaymentReviewWorkspaceBookingContext | null = null;
+  let bookingLoadError: string | null = null;
+  if (item.bookingId) {
+    try {
+      booking = await loadBookingContext(item.bookingId, item.pgName);
+      if (!booking) {
+        bookingLoadError = 'Booking financials could not be loaded for this review.';
+      }
+    } catch {
+      bookingLoadError = 'Booking financials could not be loaded for this review.';
+    }
+  }
 
-  const nextReviewKey = await getNextPendingPaymentReviewKey(session, reviewKey);
+  let nextReviewKey: string | null = null;
+  try {
+    nextReviewKey = await getNextPendingPaymentReviewKey(session, reviewKey);
+  } catch {
+    nextReviewKey = null;
+  }
 
   return {
     ok: true,
@@ -208,6 +317,7 @@ export async function loadPaymentReviewWorkspace(
       booking,
       kycStatus,
       nextReviewKey,
+      bookingLoadError,
     },
   };
 }

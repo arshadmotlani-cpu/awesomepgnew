@@ -19,6 +19,7 @@ import {
 import type { PaymentProofRejectionReasonCode } from '@/src/lib/approvals/paymentProofRejectionReasons';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 import { formatPostgresError } from '@/src/lib/db/postgresError';
+import { userFacingPaymentApprovalError } from '@/src/lib/payments/safePaymentApprovalError';
 import { startPaymentApprovalTimer } from '@/src/lib/payments/paymentApprovalTiming';
 import { scheduleAfterPaymentApproval } from '@/src/lib/payments/scheduleAfterPaymentApproval';
 
@@ -110,7 +111,7 @@ export async function approvePaymentReviewVerificationAction(
   } catch (err) {
     return {
       ok: false as const,
-      message: formatPostgresError(err),
+      message: userFacingPaymentApprovalError(err),
     };
   }
 }
@@ -535,41 +536,46 @@ export async function approveDepositLinkProofAction(
   currentKey?: string,
 ) {
   const timer = startPaymentApprovalTimer('approveDepositLinkProofAction');
-  const session = await requireAdminPermission('payments:write');
-  timer.mark('auth');
+  try {
+    const session = await requireAdminPermission('payments:write');
+    timer.mark('auth');
 
-  const result = await approveDepositLinkPaymentProof(session, linkId);
-  timer.mark('settle_critical');
+    const result = await approveDepositLinkPaymentProof(session, linkId);
+    timer.mark('settle_critical');
 
-  if (!result.ok) {
-    timer.finish({ ok: false, linkId });
-    return result;
-  }
+    if (!result.ok) {
+      timer.finish({ ok: false, linkId });
+      return result;
+    }
 
-  scheduleAfterPaymentApproval(async () => {
-    await persistApprovalAllocationAfterSuccess({
-      kind: 'deposit_link',
-      entityId: linkId,
-      pgId,
-      approvedByAdminId: session.adminId,
+    scheduleAfterPaymentApproval(async () => {
+      await persistApprovalAllocationAfterSuccess({
+        kind: 'deposit_link',
+        entityId: linkId,
+        pgId,
+        approvedByAdminId: session.adminId,
+      });
     });
-  });
-  timer.mark('schedule_deferred');
+    timer.mark('schedule_deferred');
 
-  revalidatePaymentReviewSurfacesFast(pgId);
-  revalidatePaymentReviewSurfacesDeferred(pgId, ['/admin/collections', '/admin/residents']);
-  timer.mark('revalidate_fast');
+    revalidatePaymentReviewSurfacesFast(pgId);
+    revalidatePaymentReviewSurfacesDeferred(pgId, ['/admin/collections', '/admin/residents']);
+    timer.mark('revalidate_fast');
 
-  const steps = timer.finish({
-    ok: true,
-    linkId,
-    skippedNextKeyLookup: true,
-    currentKey: currentKey ?? null,
-  });
+    const steps = timer.finish({
+      ok: true,
+      linkId,
+      skippedNextKeyLookup: true,
+      currentKey: currentKey ?? null,
+    });
 
-  return {
-    ok: true as const,
-    nextKey: null as string | null,
-    timing: steps,
-  };
+    return {
+      ok: true as const,
+      nextKey: null as string | null,
+      timing: steps,
+    };
+  } catch (err) {
+    timer.finish({ ok: false, linkId });
+    return { ok: false as const, message: userFacingPaymentApprovalError(err) };
+  }
 }

@@ -608,6 +608,9 @@ export async function approveDepositLinkPaymentProof(
   if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, link.pgId)) {
     return { ok: false, message: 'Access denied.' };
   }
+  if (link.status === 'paid') {
+    return { ok: true };
+  }
   {
     const { hasTxnOrScreenshotProof } = await import('@/src/services/pgTransactionRefIndex');
     if (
@@ -790,6 +793,23 @@ export async function approveDepositLinkPaymentProof(
     return { ok: false, message: depositResult.error };
   }
 
+  if (link.invoiceId) {
+    const { allocateInvoicePayment } = await import('@/src/services/invoicePayment');
+    const paymentResult = await allocateInvoicePayment({
+      invoiceId: link.invoiceId,
+      amountPaise: link.amount,
+      providerPaymentId,
+      offlineProvider: 'upi_manual',
+    });
+    if (
+      !paymentResult.ok &&
+      paymentResult.error !== 'Invoice is already paid.' &&
+      paymentResult.error !== 'Nothing due on this invoice.'
+    ) {
+      return { ok: false, message: paymentResult.error };
+    }
+  }
+
   const { syncDepositCollectionFromLedger } = await import('./depositCollection');
   await syncDepositCollectionFromLedger(link.bookingId);
 
@@ -797,28 +817,6 @@ export async function approveDepositLinkPaymentProof(
     .update(paymentLinks)
     .set({ status: 'paid' })
     .where(eq(paymentLinks.id, linkId));
-
-  const [ctx] = await db
-    .select({
-      customerName: customers.fullName,
-      pgName: pgs.name,
-    })
-    .from(customers)
-    .innerJoin(pgs, eq(pgs.id, link.pgId))
-    .where(eq(customers.id, link.residentId))
-    .limit(1);
-
-  const { emitPaymentReceivedAutomation } = await import('@/src/services/automationEngine');
-  void emitPaymentReceivedAutomation({
-    pgId: link.pgId,
-    customerId: link.residentId,
-    bookingId: link.bookingId,
-    paymentId: providerPaymentId,
-    amountPaise: link.amount,
-    pgName: ctx?.pgName ?? 'PG',
-    customerName: ctx?.customerName ?? 'Resident',
-    paymentPurpose: 'deposit',
-  });
 
   revalidateFinancialViews();
   return { ok: true };

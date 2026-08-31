@@ -9,6 +9,7 @@
 
 import { isDataProofUrl } from '@/src/lib/payments/proofResponse';
 import { isPrivateBlobUrl } from '@/src/lib/storage/blob';
+import { asPlainNumber } from '@/src/lib/format';
 import { normalizeTransactionRef } from '@/src/lib/payments/transactionRefDuplicate';
 
 export type PaymentReviewKind = 'rent' | 'electricity' | 'extension' | 'deposit_link' | 'qr';
@@ -186,8 +187,8 @@ export function evaluatePaymentReviewInvariants(
     });
   }
 
-  const expected = input.expectedAmountPaise;
-  if (expected == null || !Number.isFinite(expected) || expected <= 0) {
+  const expected = asPlainNumber(input.expectedAmountPaise);
+  if (input.expectedAmountPaise == null || !Number.isFinite(expected) || expected <= 0) {
     violations.push({
       code: 'INVALID_AMOUNT',
       message: 'Expected amount must be a positive paise value.',
@@ -195,10 +196,11 @@ export function evaluatePaymentReviewInvariants(
     });
   }
 
-  const proofAmount = input.proofAmountPaise;
+  const proofAmount =
+    input.proofAmountPaise == null ? null : asPlainNumber(input.proofAmountPaise);
   if (
     proofAmount != null &&
-    expected != null &&
+    input.expectedAmountPaise != null &&
     Number.isFinite(proofAmount) &&
     Number.isFinite(expected) &&
     proofAmount !== expected

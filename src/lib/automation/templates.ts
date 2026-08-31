@@ -109,7 +109,7 @@ export function renderAutomationTemplate(
       return {
         subject: `Deposit paid in full — ${ctx.pgName}`,
         body:
-          `Hi ${ctx.name}, thank you — your security deposit for ${ctx.pgName} is now paid in full.`,
+          `Hi ${ctx.name}, your deposit payment of ${amount} has been verified and approved.`,
       };
     default:
       return {
