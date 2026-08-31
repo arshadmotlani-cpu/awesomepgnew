@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache';
 import { getHairSession } from '@/src/hair/lib/auth/session';
-import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
 import { getEmployeeDashboard } from '@/src/workforce/brains/employeeBrain';
 import { createEmployee, updateEmployee } from '@/src/workforce/services/employees';
 import { getIncentivePlan } from '@/src/workforce/services/incentivePlans';
@@ -31,33 +30,12 @@ import {
   isIncentivePlanActive,
   normalizeIncentivePlan,
 } from '@/src/workforce/lib/incentiveRuleEngine';
+import { resolveEmployeeCreateTenant } from '@/src/workforce/lib/resolveEmployeeTenant';
 
 export type WorkforceActionState = { error?: string; success?: string; employeeId?: string };
 
 function formStr(formData: FormData, key: string): string {
   return String(formData.get(key) ?? '').trim();
-}
-
-function resolveEmployeeTenantFromSession(session: Awaited<ReturnType<typeof getHairSession>>) {
-  if (!session) {
-    throw new Error('You must be signed in to add employees.');
-  }
-  if (!isFyhSaasTenantEnabled()) {
-    return {
-      organizationId: session.organizationId || undefined,
-      locationId: session.locationId || undefined,
-    };
-  }
-  if (!session.organizationId) {
-    throw new Error('Organization context is missing. Sign in again or contact support.');
-  }
-  if (!session.locationId) {
-    throw new Error('Location context is missing. Select a location and try again.');
-  }
-  return {
-    organizationId: session.organizationId,
-    locationId: session.locationId,
-  };
 }
 
 function parseAccessRole(raw: string): WorkforceJobRole {
@@ -85,7 +63,7 @@ export async function createWorkforceEmployeeAction(
   try {
     if (!isWorkforceEngineEnabled()) return { error: 'Workforce Engine is not enabled.' };
     const session = await requireWorkforcePermission('staff.add');
-    const tenant = resolveEmployeeTenantFromSession(session);
+    const tenant = await resolveEmployeeCreateTenant(session);
     const accessRole = parseAccessRole(formStr(formData, 'accessRole'));
     const password = formStr(formData, 'password');
     const receiveBookings = formData.get('receiveBookings') === '1';

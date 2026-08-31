@@ -114,6 +114,11 @@ function resolveTenantColumns(input: Pick<UpsertEmployeeInput, 'organizationId' 
   };
 }
 
+/** wf_employees / memberships / grants / audit / incentive plans have organization_id only. */
+function organizationTenantCols(t: { organizationId?: string; locationId?: string }) {
+  return t.organizationId ? { organizationId: t.organizationId } : {};
+}
+
 async function assertUniqueEmployeeIdentity(input: {
   email?: string | null;
   mobile?: string | null;
@@ -265,7 +270,7 @@ export async function createEmployee(input: UpsertEmployeeInput) {
         status: input.status ?? 'active',
         isSystemProvider: input.isSystemProvider ?? false,
         userId: input.userId ?? null,
-        ...tenantCols,
+        ...organizationTenantCols(tenantCols),
       })
       .returning();
 
@@ -277,7 +282,7 @@ export async function createEmployee(input: UpsertEmployeeInput) {
         rank,
         jobRole: accessRole,
         isActive: true,
-        ...tenantCols,
+        ...organizationTenantCols(tenantCols),
       })
       .returning();
 
@@ -286,7 +291,7 @@ export async function createEmployee(input: UpsertEmployeeInput) {
       permissions: usesRoleTemplate ? [] : effectivePermissions,
       maxBackdateDays,
       usesRoleTemplate,
-      ...tenantCols,
+      ...organizationTenantCols(tenantCols),
     });
 
     await mirrorSalonStaffRow(
@@ -313,7 +318,7 @@ export async function createEmployee(input: UpsertEmployeeInput) {
         planType: input.incentivePlan.planType,
         config: input.incentivePlan.config,
         effectiveFrom: input.incentivePlan.effectiveFrom ?? null,
-        ...tenantCols,
+        ...organizationTenantCols(tenantCols),
       });
     }
 
@@ -322,7 +327,7 @@ export async function createEmployee(input: UpsertEmployeeInput) {
       actorEmployeeId: input.actorEmployeeId ?? null,
       action: 'employee.created',
       diff: { engineId, accessRole, rank },
-      ...tenantCols,
+      ...organizationTenantCols(tenantCols),
     });
 
     return created!;

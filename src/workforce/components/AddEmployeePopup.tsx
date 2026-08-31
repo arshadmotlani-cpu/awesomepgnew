@@ -61,18 +61,55 @@ function panelClass(active: boolean) {
  * Same tab structure as the employee profile for create and future editing.
  */
 export function AddEmployeePopup() {
+  const [open, setOpen] = useState(false);
+  const [dialogKey, setDialogKey] = useState(0);
+  const [banner, setBanner] = useState<string | null>(null);
+  const router = useRouter();
+
+  function openDialog() {
+    setBanner(null);
+    setDialogKey((k) => k + 1);
+    setOpen(true);
+  }
+
+  return (
+    <>
+      <Button type="button" onClick={openDialog}>
+        Add employee
+      </Button>
+
+      {banner && !open ? <p className="fyh-alert-success mt-2 text-sm">{banner}</p> : null}
+
+      {open ? (
+        <AddEmployeeDialog
+          key={dialogKey}
+          onClose={() => setOpen(false)}
+          onCreated={(message) => {
+            setBanner(message);
+            setOpen(false);
+            router.refresh();
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function AddEmployeeDialog({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: (message: string) => void;
+}) {
   const titleId = useId();
   const formRef = useRef<HTMLFormElement>(null);
-  const [open, setOpen] = useState(false);
-  const [ackedSuccess, setAckedSuccess] = useState<string | undefined>(undefined);
   const [activeSection, setActiveSection] = useState<EmployeeProfileSectionId>('staff-details');
   const [receiveBookings, setReceiveBookings] = useState(true);
   const [salaryInr, setSalaryInr] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [qrPreview, setQrPreview] = useState<string | null>(null);
   const [state, action, pending] = useActionState(createWorkforceEmployeeAction, initial);
-  const router = useRouter();
-  const showModal = open && state.success === ackedSuccess;
 
   const salaryPaise = salaryInr ? Math.round(Number(salaryInr) * 100) : 0;
   const defaultRules = defaultSalonRulesConfig();
@@ -87,15 +124,12 @@ export function AddEmployeePopup() {
   }, {});
 
   useEffect(() => {
-    if (state.success && state.success !== ackedSuccess) {
-      router.refresh();
-    }
-  }, [state.success, ackedSuccess, router]);
+    if (state.success) onCreated(state.success);
+  }, [state.success, onCreated]);
 
   useEffect(() => {
-    if (!showModal) return;
     const onKey = (e: globalThis.KeyboardEvent) => {
-      if (e.key === 'Escape' && !pending) setOpen(false);
+      if (e.key === 'Escape' && !pending) onClose();
     };
     window.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
@@ -104,17 +138,7 @@ export function AddEmployeePopup() {
       window.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
     };
-  }, [showModal, pending]);
-
-  function openDialog() {
-    setAckedSuccess(state.success);
-    setActiveSection('staff-details');
-    setReceiveBookings(true);
-    setSalaryInr('');
-    setShowAdvanced(false);
-    setQrPreview(null);
-    setOpen(true);
-  }
+  }, [pending, onClose]);
 
   function validateStaffDetails(): boolean {
     const form = formRef.current;
@@ -155,22 +179,12 @@ export function AddEmployeePopup() {
   }
 
   return (
-    <>
-      <Button type="button" onClick={openDialog}>
-        Add employee
-      </Button>
-
-      {state.success && !showModal ? (
-        <p className="fyh-alert-success mt-2 text-sm">{state.success}</p>
-      ) : null}
-
-      {showModal ? (
         <div className="fixed inset-0 z-[600]" role="presentation">
           <button
             type="button"
             className="fyh-form-modal-backdrop absolute inset-0"
             aria-label="Close add employee dialog"
-            onClick={() => !pending && setOpen(false)}
+            onClick={() => !pending && onClose()}
           />
           <div className="pointer-events-none fixed inset-0 flex items-end justify-center p-0 sm:items-center sm:p-4">
             <div
@@ -188,7 +202,7 @@ export function AddEmployeePopup() {
                   <button
                     type="button"
                     className="rounded-md px-2 py-1 text-sm text-fyh-text-secondary hover:bg-[color:var(--fyh-surface-muted)]"
-                    onClick={() => !pending && setOpen(false)}
+                    onClick={() => !pending && onClose()}
                     aria-label="Close"
                   >
                     ✕
@@ -487,7 +501,9 @@ export function AddEmployeePopup() {
                     </Section>
                   </div>
 
-                  {state.error ? <p className="fyh-alert-danger mt-4 text-sm">{state.error}</p> : null}
+                  {!pending && state.error ? (
+                    <p className="fyh-alert-danger mt-4 text-sm">{state.error}</p>
+                  ) : null}
                 </div>
 
                 <div className="shrink-0 border-t border-[color:var(--fyh-border-strong)] bg-[color:var(--fyh-bg-surface)] px-5 py-4">
@@ -497,7 +513,7 @@ export function AddEmployeePopup() {
                         type="button"
                         variant="secondary"
                         disabled={pending}
-                        onClick={() => setOpen(false)}
+                        onClick={onClose}
                       >
                         Cancel
                       </Button>
@@ -522,8 +538,6 @@ export function AddEmployeePopup() {
             </div>
           </div>
         </div>
-      ) : null}
-    </>
   );
 }
 

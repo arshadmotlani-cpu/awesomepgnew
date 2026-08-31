@@ -12,6 +12,7 @@ const SAFE_USER_ERRORS = new Set([
   'Organization context is required to create an employee.',
   'Organization context is missing. Sign in again or contact support.',
   'Location context is missing. Select a location and try again.',
+  'Your organization has no active location configured. Please configure a location before creating an employee.',
   'You must be signed in to add employees.',
   'Workforce Engine is not enabled.',
   'Employee not found.',
@@ -42,7 +43,12 @@ const SAFE_USER_ERRORS = new Set([
 ]);
 
 function looksLikeSensitiveDump(message: string): boolean {
-  return /Failed query|insert into|select |update |delete from|password_hash|aadhaar_number|pan_number|account_number|ifsc_code|upi_id|data:image\/|base64,|bound values|params:/i.test(
+  if (/Failed query:/i.test(message)) return true;
+  if (/\binsert into\b/i.test(message)) return true;
+  if (/\bdelete from\b/i.test(message)) return true;
+  if (/\bupdate\s+[\w."]+\s+set\b/i.test(message)) return true;
+  if (/\bselect\s+(?:\*|[\w."]+(?:\s*,\s*[\w."]+)*)\s+from\b/i.test(message)) return true;
+  return /password_hash|aadhaar_number|pan_number|account_number|ifsc_code|upi_id|data:image\/|base64,|bound values|params:/i.test(
     message,
   );
 }
@@ -52,6 +58,8 @@ function isSafeValidationMessage(message: string): boolean {
   if (message.startsWith('Missing permission:')) return true;
   if (/end time must be after start time/i.test(message)) return true;
   if (/start and end times are required/i.test(message)) return true;
+  if (/^please select/i.test(message) && !/\bfrom\b/i.test(message)) return true;
+  if (/^select (a |an )[a-z]/i.test(message) && !/\bfrom\b/i.test(message)) return true;
   return false;
 }
 

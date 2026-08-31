@@ -30,6 +30,24 @@ describe('sanitizeWorkforceEmployeeError', () => {
       sanitizeWorkforceEmployeeError(new Error('Organization context is missing. Sign in again or contact support.')),
       'Organization context is missing. Sign in again or contact support.',
     );
+    assert.equal(
+      sanitizeWorkforceEmployeeError(new Error('Location context is missing. Select a location and try again.')),
+      'Location context is missing. Select a location and try again.',
+    );
+    assert.equal(
+      sanitizeWorkforceEmployeeError(
+        new Error(
+          'Your organization has no active location configured. Please configure a location before creating an employee.',
+        ),
+      ),
+      'Your organization has no active location configured. Please configure a location before creating an employee.',
+    );
+    assert.equal(
+      sanitizeWorkforceEmployeeError(new Error('Please select a location.')),
+      'Please select a location.',
+    );
+    assert.equal(sanitizeWorkforceEmployeeError(new Error('Select an employee.')), 'Select an employee.');
+    assert.equal(sanitizeWorkforceEmployeeError(new Error('Please select...')), 'Please select...');
   });
 
   test('maps unique email violations to a safe duplicate message', () => {
@@ -65,6 +83,13 @@ describe('sanitizeWorkforceEmployeeError', () => {
     const msg = sanitizeWorkforceEmployeeError(new Error('insert into wf_employees password_hash=$1'));
     assert.equal(msg, 'Unable to create employee right now. Please try again.');
   });
+
+  test('still blocks genuine SELECT SQL while allowing English Select a location', () => {
+    assert.equal(
+      sanitizeWorkforceEmployeeError(new Error('select * from wf_employees')),
+      'Unable to create employee right now. Please try again.',
+    );
+  });
 });
 
 describe('Add Employee form submission guards', () => {
@@ -92,6 +117,14 @@ describe('Add Employee form submission guards', () => {
     assert.match(popup, /onSubmit=\{handleFormSubmit\}/);
   });
 
+  test('reopening the modal remounts action state so a prior error is cleared', () => {
+    const popup = readSrc('src/workforce/components/AddEmployeePopup.tsx');
+    assert.match(popup, /setDialogKey/);
+    assert.match(popup, /key=\{dialogKey\}/);
+    assert.match(popup, /\{open \? \(/);
+    assert.match(popup, /!pending && state\.error/);
+  });
+
   test('QR is a file field, not a hidden base64 qrCodeUrl', () => {
     const popup = readSrc('src/workforce/components/AddEmployeePopup.tsx');
     assert.match(popup, /name="qrCodeFile"/);
@@ -104,7 +137,8 @@ describe('Add Employee form submission guards', () => {
 describe('createWorkforceEmployeeAction tenant wiring', () => {
   test('passes session organization and location into createEmployee', () => {
     const src = readSrc('src/workforce/actions/employees.ts');
-    assert.match(src, /resolveEmployeeTenantFromSession/);
+    assert.match(src, /resolveEmployeeCreateTenant/);
+    assert.doesNotMatch(src, /if \(!session\.locationId\)/);
     assert.match(src, /organizationId: tenant\.organizationId/);
     assert.match(src, /locationId: tenant\.locationId/);
     assert.match(src, /sanitizeWorkforceEmployeeError/);
