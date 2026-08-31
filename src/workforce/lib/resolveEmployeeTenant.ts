@@ -3,7 +3,7 @@ import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
 import { resolveTenantContext } from '@/src/hair/lib/tenant/resolveTenantContext';
 
 export const NO_ORG_LOCATION_CONFIGURED =
-  'Your organization has no active location configured. Please configure a location before creating an employee.';
+  'No staff location is configured. Please select or configure a location before creating an employee.';
 
 /** Same priority as resolveTenantContext: session loc → cookie loc → first allowed. */
 export function resolveLocationIdForEmployeeCreate(input: {

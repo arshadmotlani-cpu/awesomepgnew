@@ -13,6 +13,7 @@ const SAFE_USER_ERRORS = new Set([
   'Organization context is missing. Sign in again or contact support.',
   'Location context is missing. Select a location and try again.',
   'Your organization has no active location configured. Please configure a location before creating an employee.',
+  'No staff location is configured. Please select or configure a location before creating an employee.',
   'You must be signed in to add employees.',
   'Workforce Engine is not enabled.',
   'Employee not found.',
@@ -64,7 +65,14 @@ function isSafeValidationMessage(message: string): boolean {
 }
 
 /** User-facing message for workforce employee create/update failures. */
-export function sanitizeWorkforceEmployeeError(err: unknown): string {
+export function sanitizeWorkforceEmployeeError(
+  err: unknown,
+  kind: 'create' | 'update' = 'create',
+): string {
+  const generic =
+    kind === 'update'
+      ? 'Unable to save this employee right now. Please try again.'
+      : GENERIC_CREATE_ERROR;
   const raw = err instanceof Error ? err.message : String(err);
   if (looksLikeSensitiveDump(raw)) {
     const pg = extractPostgresError(err);
@@ -77,7 +85,7 @@ export function sanitizeWorkforceEmployeeError(err: unknown): string {
       }
       return 'An employee with these details already exists.';
     }
-    return GENERIC_CREATE_ERROR;
+    return generic;
   }
 
   if (isSafeValidationMessage(raw)) {
@@ -92,7 +100,7 @@ export function sanitizeWorkforceEmployeeError(err: unknown): string {
     return 'An employee with these details already exists.';
   }
 
-  return GENERIC_CREATE_ERROR;
+  return generic;
 }
 
 /** Log full PostgreSQL detail server-side without exposing it to the client. */

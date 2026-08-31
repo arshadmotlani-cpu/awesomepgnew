@@ -180,12 +180,19 @@ export function parseHrFieldsFromForm(
   }
 
   const incentivePlan =
-    formData.has('serviceIncentiveEnabled') || formData.has('productIncentiveEnabled')
+    formData.has('incentiveConfigPreserve') &&
+    !formData.has('serviceRuleCount') &&
+    !formData.has('productRuleCount')
       ? parseIncentivePlanFromForm(formData, salaryPaise, {
           ...opts,
           existingIncentiveConfig: existingConfig,
         })
-      : buildDefaultIncentivePlan(opts?.defaultIncentiveEnabled !== false);
+      : formData.has('serviceIncentiveEnabled') || formData.has('productIncentiveEnabled')
+        ? parseIncentivePlanFromForm(formData, salaryPaise, {
+            ...opts,
+            existingIncentiveConfig: existingConfig,
+          })
+        : buildDefaultIncentivePlan(opts?.defaultIncentiveEnabled !== false);
 
   return {
     employee: {

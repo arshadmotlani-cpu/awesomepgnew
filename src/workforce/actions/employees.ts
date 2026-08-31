@@ -1,7 +1,6 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { getHairSession } from '@/src/hair/lib/auth/session';
 import { getEmployeeDashboard } from '@/src/workforce/brains/employeeBrain';
 import { createEmployee, updateEmployee } from '@/src/workforce/services/employees';
 import { getIncentivePlan } from '@/src/workforce/services/incentivePlans';
@@ -47,6 +46,8 @@ function parseAccessRole(raw: string): WorkforceJobRole {
 }
 
 async function resolveQrCodeUrlFromForm(formData: FormData): Promise<string | null> {
+  const stored = formStr(formData, 'qrCodeStoredUrl');
+  if (stored) return persistEmployeeQrCodeUrl(stored);
   const file = formData.get('qrCodeFile');
   if (file instanceof File && file.size > 0) {
     return persistEmployeeQrFromFile(file);
@@ -137,7 +138,7 @@ export async function createWorkforceEmployeeAction(
     return { success: 'Employee created.', employeeId: emp.id };
   } catch (e) {
     logWorkforceEmployeeDbError('createWorkforceEmployeeAction', e);
-    return { error: sanitizeWorkforceEmployeeError(e) };
+    return { error: sanitizeWorkforceEmployeeError(e, 'create') };
   }
 }
 
@@ -147,73 +148,100 @@ export async function updateWorkforceEmployeeAction(
 ): Promise<WorkforceActionState> {
   try {
     if (!isWorkforceEngineEnabled()) return { error: 'Workforce Engine is not enabled.' };
-    await requireWorkforcePermission('staff.edit');
-    const session = await getHairSession();
+    const session = await requireWorkforcePermission('staff.edit');
     const id = formStr(formData, 'employeeId');
     if (!id) return { error: 'Missing employee' };
 
-    const accessRole = parseAccessRole(formStr(formData, 'accessRole'));
-    const perms = formData
-      .getAll('permissions')
-      .map(String)
-      .filter((k) => (WORKFORCE_PERMISSION_KEYS as readonly string[]).includes(k)) as WorkforcePermissionKey[];
-    const template = codeTemplateForAccessRole(accessRole);
-    const password = formStr(formData, 'password');
-    const receiveBookings = formData.get('receiveBookings') === '1';
-
-    const existingPlan = await getIncentivePlan(id, 'fyh_salon');
-    const sessionDash = session?.workforceEmployeeId
-      ? await getEmployeeDashboard(session.workforceEmployeeId, 'fyh_salon')
-      : null;
-    const viewerIsOwner =
-      session?.admin.role === 'super_admin' ||
-      sessionDash?.membership?.jobRole === 'owner';
-
-    const existingNormalized = existingPlan
-      ? normalizeIncentivePlan(existingPlan.planType, existingPlan.config)
-      : null;
-
-    const hr = parseHrFieldsFromForm(formData, {
-      canToggleIncentive: viewerIsOwner,
-      defaultIncentiveEnabled: existingPlan
-        ? isIncentivePlanActive(existingPlan.planType, existingPlan.config)
-        : true,
-      existingIncentiveConfig: existingNormalized,
-    });
-
     const section = formStr(formData, 'saveSection');
-    let scheduleDays;
-    if (section === 'schedule') {
-      scheduleDays = reconcileScheduleWithWeekOff(
+    const actorEmployeeId = session.workforceEmployeeId ?? null;
+
+    if (section === 'credentials') {
+      const qrCodeUrl = await resolveQrCodeUrlFromForm(formData);
+      const hr = parseHrFieldsFromForm(formData, { canToggleIncentive: false });
+      await updateEmployee(id, {
+        bankAccountHolderName: hr.employee.bankAccountHolderName,
+        bankName: hr.employee.bankName,
+        accountNumber: hr.employee.accountNumber,
+        ifscCode: hr.employee.ifscCode,
+        upiId: hr.employee.upiId,
+        primaryPaymentMethod: hr.employee.primaryPaymentMethod,
+        ...(qrCodeUrl ? { qrCodeUrl } : {}),
+        actorEmployeeId,
+      });
+    } else if (section === 'schedule') {
+      const tenant = await resolveEmployeeCreateTenant(session);
+      const hr = parseHrFieldsFromForm(formData, { canToggleIncentive: false });
+      const scheduleDays = reconcileScheduleWithWeekOff(
         parseScheduleDaysFromForm(formData),
         hr.weekOffDays,
       );
       validateScheduleDays(scheduleDays);
+      await updateEmployee(id, {
+        weekOffDays: hr.weekOffDays,
+        scheduleDays,
+        organizationId: tenant.organizationId,
+        locationId: tenant.locationId,
+        actorEmployeeId,
+      });
+    } else if (section === 'salary') {
+      const existingPlan = await getIncentivePlan(id, 'fyh_salon');
+      const sessionDash = session.workforceEmployeeId
+        ? await getEmployeeDashboard(session.workforceEmployeeId, 'fyh_salon')
+        : null;
+      const viewerIsOwner =
+        session.admin.role === 'super_admin' ||
+        sessionDash?.membership?.jobRole === 'owner';
+      const existingNormalized = existingPlan
+        ? normalizeIncentivePlan(existingPlan.planType, existingPlan.config)
+        : null;
+      const hr = parseHrFieldsFromForm(formData, {
+        canToggleIncentive: viewerIsOwner,
+        defaultIncentiveEnabled: existingPlan
+          ? isIncentivePlanActive(existingPlan.planType, existingPlan.config)
+          : true,
+        existingIncentiveConfig: existingNormalized,
+      });
+      await updateEmployee(id, {
+        salaryPaise: hr.employee.salaryPaise,
+        salaryFrequency: 'monthly',
+        incentivePlan: hr.incentivePlan,
+        actorEmployeeId,
+      });
+    } else if (section === 'rights') {
+      const accessRole = parseAccessRole(formStr(formData, 'accessRole'));
+      const perms = formData
+        .getAll('permissions')
+        .map(String)
+        .filter((k) => (WORKFORCE_PERMISSION_KEYS as readonly string[]).includes(k)) as WorkforcePermissionKey[];
+      const template = codeTemplateForAccessRole(accessRole);
+      await updateEmployee(id, {
+        accessRole,
+        permissions: perms,
+        maxBackdateDays: template.maxBackdateDays,
+        actorEmployeeId,
+      });
+    } else {
+      const accessRole = parseAccessRole(formStr(formData, 'accessRole'));
+      const password = formStr(formData, 'password');
+      const receiveBookings = formData.get('receiveBookings') === '1';
+      const template = codeTemplateForAccessRole(accessRole);
+      await updateEmployee(id, {
+        fullName: formStr(formData, 'fullName') || undefined,
+        email: formStr(formData, 'email') || null,
+        mobile: formStr(formData, 'mobile') || null,
+        ...(password.length >= 6 ? { password, canLogin: true } : {}),
+        gender: (formStr(formData, 'gender') || undefined) as 'unspecified' | undefined,
+        emergencyContact: formStr(formData, 'emergencyContact') || null,
+        joiningDate: formStr(formData, 'joiningDate') || null,
+        aadhaarNumber: formStr(formData, 'aadhaarNumber') || null,
+        panNumber: formStr(formData, 'panNumber') || null,
+        status: formStr(formData, 'status') === 'inactive' ? 'inactive' : 'active',
+        accessRole,
+        maxBackdateDays: template.maxBackdateDays,
+        receiveBookings,
+        actorEmployeeId,
+      });
     }
-
-    await updateEmployee(id, {
-      fullName: formStr(formData, 'fullName') || undefined,
-      email: formStr(formData, 'email') || null,
-      mobile: formStr(formData, 'mobile') || null,
-      password: password || null,
-      gender: (formStr(formData, 'gender') || undefined) as 'unspecified' | undefined,
-      emergencyContact: formStr(formData, 'emergencyContact') || null,
-      joiningDate: formStr(formData, 'joiningDate') || null,
-      aadhaarNumber: formStr(formData, 'aadhaarNumber') || null,
-      panNumber: formStr(formData, 'panNumber') || null,
-      status: formStr(formData, 'status') === 'inactive' ? 'inactive' : 'active',
-      accessRole,
-      permissions: perms.length ? perms : undefined,
-      maxBackdateDays: template.maxBackdateDays,
-      receiveBookings,
-      canLogin: password.length >= 6,
-      actorEmployeeId: session?.workforceEmployeeId ?? null,
-      ...hr.employee,
-      qrCodeUrl: (await resolveQrCodeUrlFromForm(formData)) ?? undefined,
-      weekOffDays: section === 'schedule' ? hr.weekOffDays : undefined,
-      scheduleDays,
-      incentivePlan: hr.incentivePlan,
-    });
 
     revalidatePath('/workforce');
     revalidatePath('/staff');
@@ -229,6 +257,6 @@ export async function updateWorkforceEmployeeAction(
     return { success: successBySection[section] ?? 'Employee updated.' };
   } catch (e) {
     logWorkforceEmployeeDbError('updateWorkforceEmployeeAction', e);
-    return { error: sanitizeWorkforceEmployeeError(e) };
+    return { error: sanitizeWorkforceEmployeeError(e, 'update') };
   }
 }

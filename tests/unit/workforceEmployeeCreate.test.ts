@@ -37,6 +37,14 @@ describe('sanitizeWorkforceEmployeeError', () => {
     assert.equal(
       sanitizeWorkforceEmployeeError(
         new Error(
+          'No staff location is configured. Please select or configure a location before creating an employee.',
+        ),
+      ),
+      'No staff location is configured. Please select or configure a location before creating an employee.',
+    );
+    assert.equal(
+      sanitizeWorkforceEmployeeError(
+        new Error(
           'Your organization has no active location configured. Please configure a location before creating an employee.',
         ),
       ),
@@ -106,15 +114,19 @@ describe('Add Employee form submission guards', () => {
     assert.doesNotMatch(nav, /type="submit"/);
   });
 
-  test('Enter in schedule/time fields is blocked; only Create employee may submit', () => {
+  test('Enter in schedule/time fields is blocked; only explicit Create employee may run', () => {
     assert.equal(shouldBlockEmployeeFormEnter(null), true);
     assert.equal(shouldAllowEmployeeFormSubmit(null), false);
     const popup = readSrc('src/workforce/components/AddEmployeePopup.tsx');
     assert.match(popup, /data-create-employee="1"/);
     assert.match(popup, /shouldBlockEmployeeFormEnter/);
-    assert.match(popup, /shouldAllowEmployeeFormSubmit/);
     assert.match(popup, /onKeyDown=\{handleFormKeyDown\}/);
     assert.match(popup, /onSubmit=\{handleFormSubmit\}/);
+    assert.match(popup, /e\.preventDefault\(\)/);
+    assert.match(popup, /handleCreateEmployee/);
+    assert.match(popup, /type="button"/);
+    assert.doesNotMatch(popup, /action=\{action\}/);
+    assert.doesNotMatch(popup, /type="submit" data-create-employee/);
   });
 
   test('reopening the modal remounts action state so a prior error is cleared', () => {
@@ -122,7 +134,7 @@ describe('Add Employee form submission guards', () => {
     assert.match(popup, /setDialogKey/);
     assert.match(popup, /key=\{dialogKey\}/);
     assert.match(popup, /\{open \? \(/);
-    assert.match(popup, /!pending && state\.error/);
+    assert.match(popup, /clientError \|\| \(!busy && state\.error\)/);
   });
 
   test('QR is a file field, not a hidden base64 qrCodeUrl', () => {
@@ -130,6 +142,7 @@ describe('Add Employee form submission guards', () => {
     assert.match(popup, /name="qrCodeFile"/);
     assert.doesNotMatch(popup, /name="qrCodeUrl"/);
     assert.doesNotMatch(popup, /data:image/);
+    assert.match(popup, /persistQrFileInFormData/);
     assert.doesNotMatch(popup, /startTransition\(\(\) => action/);
   });
 });

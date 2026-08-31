@@ -93,6 +93,22 @@ describe('Workforce schedule editor helpers', () => {
     assert.equal(days.find((d) => d.dayOfWeek === 1)?.isOff, true);
   });
 
+  test('unchecking weekly off restores a working day even if schedule isOff was stale', () => {
+    const days = reconcileScheduleWithWeekOff(
+      [{ dayOfWeek: 1, startTime: '09:00', endTime: '18:00', isOff: true }],
+      [],
+    );
+    assert.equal(days.find((d) => d.dayOfWeek === 1)?.isOff, false);
+  });
+
+  test('multiple weekly offs and Sunday-only work', () => {
+    const multi = reconcileScheduleWithWeekOff(normalizeScheduleDays(), [0, 1, 6]);
+    assert.equal(multi.filter((d) => d.isOff).map((d) => d.dayOfWeek).join(','), '0,1,6');
+    const sunday = reconcileScheduleWithWeekOff(normalizeScheduleDays(), [0]);
+    assert.equal(sunday.find((d) => d.dayOfWeek === 0)?.isOff, true);
+    assert.equal(sunday.filter((d) => d.dayOfWeek !== 0).every((d) => !d.isOff), true);
+  });
+
   test('applyWeekOffToExistingSchedule preserves custom working times', () => {
     const existing = normalizeScheduleDays([
       { dayOfWeek: 1, startTime: '09:30', endTime: '17:30', isOff: false },

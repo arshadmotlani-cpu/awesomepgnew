@@ -3,9 +3,9 @@
 import { useActionState, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  shouldAllowEmployeeFormSubmit,
   shouldBlockEmployeeFormEnter,
 } from '@/src/workforce/lib/addEmployeeFormGuard';
+import { persistQrFileInFormData } from '@/src/workforce/lib/uploadEmployeeQrClient';
 import {
   createWorkforceEmployeeAction,
   type WorkforceActionState,
@@ -109,7 +109,10 @@ function AddEmployeeDialog({
   const [salaryInr, setSalaryInr] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [qrPreview, setQrPreview] = useState<string | null>(null);
+  const [qrBusy, setQrBusy] = useState(false);
+  const [clientError, setClientError] = useState<string | null>(null);
   const [state, action, pending] = useActionState(createWorkforceEmployeeAction, initial);
+  const busy = pending || qrBusy;
 
   const salaryPaise = salaryInr ? Math.round(Number(salaryInr) * 100) : 0;
   const defaultRules = defaultSalonRulesConfig();
@@ -129,7 +132,7 @@ function AddEmployeeDialog({
 
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
-      if (e.key === 'Escape' && !pending) onClose();
+      if (e.key === 'Escape' && !busy) onClose();
     };
     window.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
@@ -138,7 +141,7 @@ function AddEmployeeDialog({
       window.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
     };
-  }, [pending, onClose]);
+  }, [busy, onClose]);
 
   function validateStaffDetails(): boolean {
     const form = formRef.current;
@@ -172,9 +175,28 @@ function AddEmployeeDialog({
   }
 
   function handleFormSubmit(e: FormEvent<HTMLFormElement>) {
-    const submitter = (e.nativeEvent as SubmitEvent).submitter;
-    if (!shouldAllowEmployeeFormSubmit(submitter)) {
-      e.preventDefault();
+    e.preventDefault();
+  }
+
+  async function handleCreateEmployee() {
+    const form = formRef.current;
+    if (!form) return;
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+    const fd = new FormData(form);
+    setClientError(null);
+    setQrBusy(true);
+    try {
+      const qr = await persistQrFileInFormData(fd);
+      if (qr.error) {
+        setClientError(qr.error);
+        return;
+      }
+      action(fd);
+    } finally {
+      setQrBusy(false);
     }
   }
 
@@ -184,7 +206,7 @@ function AddEmployeeDialog({
             type="button"
             className="fyh-form-modal-backdrop absolute inset-0"
             aria-label="Close add employee dialog"
-            onClick={() => !pending && onClose()}
+            onClick={() => !busy && onClose()}
           />
           <div className="pointer-events-none fixed inset-0 flex items-end justify-center p-0 sm:items-center sm:p-4">
             <div
@@ -202,7 +224,7 @@ function AddEmployeeDialog({
                   <button
                     type="button"
                     className="rounded-md px-2 py-1 text-sm text-fyh-text-secondary hover:bg-[color:var(--fyh-surface-muted)]"
-                    onClick={() => !pending && onClose()}
+                    onClick={() => !busy && onClose()}
                     aria-label="Close"
                   >
                     ✕
@@ -220,7 +242,6 @@ function AddEmployeeDialog({
 
               <form
                 ref={formRef}
-                action={action}
                 onKeyDown={handleFormKeyDown}
                 onSubmit={handleFormSubmit}
                 className="flex min-h-0 flex-1 flex-col"
@@ -501,8 +522,8 @@ function AddEmployeeDialog({
                     </Section>
                   </div>
 
-                  {!pending && state.error ? (
-                    <p className="fyh-alert-danger mt-4 text-sm">{state.error}</p>
+                  {clientError || (!busy && state.error) ? (
+                    <p className="fyh-alert-danger mt-4 text-sm">{clientError || state.error}</p>
                   ) : null}
                 </div>
 
@@ -512,23 +533,28 @@ function AddEmployeeDialog({
                       <Button
                         type="button"
                         variant="secondary"
-                        disabled={pending}
+                        disabled={busy}
                         onClick={onClose}
                       >
                         Cancel
                       </Button>
                       {sectionIndex > 0 ? (
-                        <Button type="button" variant="secondary" disabled={pending} onClick={handleBack}>
+                        <Button type="button" variant="secondary" disabled={busy} onClick={handleBack}>
                           Back
                         </Button>
                       ) : null}
                     </div>
                     {isLastSection ? (
-                      <Button type="submit" data-create-employee="1" disabled={pending}>
-                        {pending ? 'Creating…' : CREATE_CONTINUE_LABELS.schedule}
+                      <Button
+                        type="button"
+                        data-create-employee="1"
+                        disabled={busy}
+                        onClick={() => void handleCreateEmployee()}
+                      >
+                        {busy ? 'Creating…' : CREATE_CONTINUE_LABELS.schedule}
                       </Button>
                     ) : (
-                      <Button type="button" disabled={pending} onClick={handleContinue}>
+                      <Button type="button" disabled={busy} onClick={handleContinue}>
                         {CREATE_CONTINUE_LABELS[activeSection]}
                       </Button>
                     )}

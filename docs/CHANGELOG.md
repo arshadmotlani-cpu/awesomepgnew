@@ -256,7 +256,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-08-30 10:24:58 UTC
+### Pending pre-commit sync · 2026-08-31 13:39:33 UTC
 
 **Areas touched:** [[ROUTES]]
 
@@ -265,17 +265,8 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
-**Staged code files (10):**
-- `app/(platform)/platform/admin/layout.tsx`
-- `app/(platform)/platform/admin/onboarding/page.tsx`
-- `app/(platform)/platform/admin/organizations/[id]/page.tsx`
-- `app/(platform)/platform/admin/page.tsx`
-- `app/(platform)/platform/auth/accept-invite/accept-invite-form.tsx`
-- `app/(platform)/platform/auth/accept-invite/page.tsx`
-- `app/(platform)/platform/auth/login/login-form.tsx`
-- `app/(platform)/platform/auth/login/page.tsx`
-- `app/(platform)/platform/dashboard/page.tsx`
-- `app/(platform)/platform/layout.tsx`
+**Staged code files (1):**
+- `app/(hair)/fyh/api/staff/qr/route.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

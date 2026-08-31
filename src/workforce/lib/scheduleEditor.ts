@@ -108,7 +108,7 @@ export function reconcileScheduleWithWeekOff(
   const offSet = new Set(weekOffDays);
   return normalizeScheduleDays(scheduleDays).map((day) => ({
     ...day,
-    isOff: offSet.has(day.dayOfWeek) ? true : day.isOff,
+    isOff: offSet.has(day.dayOfWeek),
   }));
 }
 

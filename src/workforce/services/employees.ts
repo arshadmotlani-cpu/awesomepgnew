@@ -565,6 +565,8 @@ export async function updateEmployee(
       engineId,
       days: reconcileScheduleWithWeekOff(input.scheduleDays, weekOff),
       actorEmployeeId: input.actorEmployeeId,
+      organizationId: input.organizationId ?? undefined,
+      locationId: input.locationId ?? null,
     });
   } else if (input.weekOffDays) {
     const existing = await getEmployeeSchedule(employeeId, engineId);
@@ -584,6 +586,8 @@ export async function updateEmployee(
       engineId,
       days: applyWeekOffToExistingSchedule(base, input.weekOffDays),
       actorEmployeeId: input.actorEmployeeId,
+      organizationId: input.organizationId ?? undefined,
+      locationId: input.locationId ?? null,
     });
   }
 
@@ -599,7 +603,11 @@ export async function updateEmployee(
     employeeId,
     actorEmployeeId: input.actorEmployeeId,
     action: 'employee.updated',
-    diff: { ...input, password: input.password ? '[set]' : undefined },
+    diff: {
+      ...input,
+      password: input.password ? '[set]' : undefined,
+      qrCodeUrl: input.qrCodeUrl ? '[qr]' : undefined,
+    },
   });
   await publishEmployeeEvent({
     eventType: 'employee.updated',

@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useId, useState } from 'react';
+import { useActionState, useEffect, useId, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import {
   updateWorkforceEmployeeAction,
@@ -26,6 +26,7 @@ import {
 } from '@/src/workforce/components/EmployeeProfileNav';
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
+import { persistQrFileInFormData } from '@/src/workforce/lib/uploadEmployeeQrClient';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import type { WfEmployee, WfEngineMembership, WfIncentivePlan } from '@/src/workforce/db/schema';
 import type { WorkforcePermissionGrants } from '@/src/workforce/types';
@@ -98,6 +99,9 @@ export function EmployeeProfilePanel({
   const formId = useId();
   const [activeSection, setActiveSection] = useState<EmployeeProfileSectionId>('staff-details');
   const [state, action, pending] = useActionState(updateWorkforceEmployeeAction, initial);
+  const [qrBusy, setQrBusy] = useState(false);
+  const [clientError, setClientError] = useState<string | null>(null);
+  const busy = pending || qrBusy;
   const [showAdvanced, setShowAdvanced] = useState(true);
   const [qrPreview, setQrPreview] = useState<string | null>(employee.qrCodeUrl);
   const [receiveBookings, setReceiveBookings] = useState(
@@ -119,6 +123,24 @@ export function EmployeeProfilePanel({
     return acc;
   }, {});
 
+  async function handleProfileSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    setClientError(null);
+    setQrBusy(true);
+    try {
+      const qr = await persistQrFileInFormData(fd);
+      if (qr.error) {
+        setClientError(qr.error);
+        return;
+      }
+      action(fd);
+    } finally {
+      setQrBusy(false);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -136,15 +158,15 @@ export function EmployeeProfilePanel({
       {state.success ? (
         <p className="fyh-alert-success-box text-sm">{state.success}</p>
       ) : null}
-      {state.error ? (
-        <p className="fyh-alert-danger-box text-sm">{state.error}</p>
+      {clientError || state.error ? (
+        <p className="fyh-alert-danger-box text-sm">{clientError || state.error}</p>
       ) : null}
 
       <EmployeeProfileNav active={activeSection} onChange={setActiveSection} />
 
       <form
         id={formId}
-        action={action}
+        onSubmit={(e) => void handleProfileSubmit(e)}
         className="space-y-6 rounded-xl border border-[color:var(--fyh-border)] p-4"
       >
         <input type="hidden" name="employeeId" value={employee.id} />
@@ -297,7 +319,7 @@ export function EmployeeProfilePanel({
 
             <SectionSaveFooter
               canEdit={canEdit}
-              pending={pending}
+              pending={busy}
               label={SECTION_SAVE_LABELS['staff-details']}
             />
           </div>
@@ -392,7 +414,7 @@ export function EmployeeProfilePanel({
             </Section>
             <SectionSaveFooter
               canEdit={canEdit}
-              pending={pending}
+              pending={busy}
               label={SECTION_SAVE_LABELS.credentials}
             />
           </div>
@@ -493,7 +515,7 @@ export function EmployeeProfilePanel({
 
             <SectionSaveFooter
               canEdit={canEdit}
-              pending={pending}
+              pending={busy}
               label={SECTION_SAVE_LABELS.salary}
             />
           </div>
@@ -549,7 +571,7 @@ export function EmployeeProfilePanel({
             </Section>
             <SectionSaveFooter
               canEdit={canEdit}
-              pending={pending}
+              pending={busy}
               label={SECTION_SAVE_LABELS.rights}
             />
           </div>
@@ -570,7 +592,7 @@ export function EmployeeProfilePanel({
             </Section>
             <SectionSaveFooter
               canEdit={canEdit}
-              pending={pending}
+              pending={busy}
               label={SECTION_SAVE_LABELS.schedule}
             />
           </div>
