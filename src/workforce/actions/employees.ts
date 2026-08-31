@@ -231,6 +231,7 @@ export async function updateWorkforceEmployeeAction(
       canLogin: password.length >= 6,
       actorEmployeeId: session?.workforceEmployeeId ?? null,
       ...hr.employee,
+      qrCodeUrl: (await resolveQrCodeUrlFromForm(formData)) ?? undefined,
       weekOffDays: section === 'schedule' ? hr.weekOffDays : undefined,
       scheduleDays,
       incentivePlan: hr.incentivePlan,

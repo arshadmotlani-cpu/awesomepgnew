@@ -149,7 +149,6 @@ export function EmployeeProfilePanel({
       >
         <input type="hidden" name="employeeId" value={employee.id} />
         <input type="hidden" name="saveSection" value={activeSection} />
-        <input type="hidden" name="qrCodeUrl" value={qrPreview ?? employee.qrCodeUrl ?? ''} />
         <input type="hidden" name="salaryFrequency" value="monthly" />
         {(!canEditIncentiveRules || activeSection !== 'salary') ? (
           <input
@@ -366,6 +365,7 @@ export function EmployeeProfilePanel({
                 {canEdit ? (
                   <input
                     type="file"
+                    name="qrCodeFile"
                     accept="image/*"
                     className={fieldClass}
                     onChange={(e) => {

@@ -1,7 +1,11 @@
 'use client';
 
-import { useActionState, useEffect, useId, useRef, useState } from 'react';
+import { useActionState, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import {
+  shouldAllowEmployeeFormSubmit,
+  shouldBlockEmployeeFormEnter,
+} from '@/src/workforce/lib/addEmployeeFormGuard';
 import {
   createWorkforceEmployeeAction,
   type WorkforceActionState,
@@ -11,7 +15,7 @@ import {
   WORKFORCE_PERMISSION_LIBRARY,
   WORKFORCE_PERMISSION_GROUP_LABELS,
 } from '@/src/workforce/types';
-import { WORKFORCE_PAYMENT_METHODS, type WorkforcePaymentMethod } from '@/src/workforce/types/hr';
+import { WORKFORCE_PAYMENT_METHODS } from '@/src/workforce/types/hr';
 import { defaultSalonRulesConfig } from '@/src/workforce/lib/incentiveRuleEngine';
 import { IncentiveRuleBuilder } from '@/src/workforce/components/IncentiveRuleBuilder';
 import { workforceAccessRoleLabel } from '@/src/workforce/labels';
@@ -60,6 +64,7 @@ export function AddEmployeePopup() {
   const titleId = useId();
   const formRef = useRef<HTMLFormElement>(null);
   const [open, setOpen] = useState(false);
+  const [ackedSuccess, setAckedSuccess] = useState<string | undefined>(undefined);
   const [activeSection, setActiveSection] = useState<EmployeeProfileSectionId>('staff-details');
   const [receiveBookings, setReceiveBookings] = useState(true);
   const [salaryInr, setSalaryInr] = useState('');
@@ -67,6 +72,7 @@ export function AddEmployeePopup() {
   const [qrPreview, setQrPreview] = useState<string | null>(null);
   const [state, action, pending] = useActionState(createWorkforceEmployeeAction, initial);
   const router = useRouter();
+  const showModal = open && state.success === ackedSuccess;
 
   const salaryPaise = salaryInr ? Math.round(Number(salaryInr) * 100) : 0;
   const defaultRules = defaultSalonRulesConfig();
@@ -81,20 +87,14 @@ export function AddEmployeePopup() {
   }, {});
 
   useEffect(() => {
-    if (state.success) {
-      setOpen(false);
-      setActiveSection('staff-details');
-      setReceiveBookings(true);
-      setSalaryInr('');
-      setShowAdvanced(false);
-      setQrPreview(null);
+    if (state.success && state.success !== ackedSuccess) {
       router.refresh();
     }
-  }, [state.success, router]);
+  }, [state.success, ackedSuccess, router]);
 
   useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
+    if (!showModal) return;
+    const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key === 'Escape' && !pending) setOpen(false);
     };
     window.addEventListener('keydown', onKey);
@@ -104,7 +104,17 @@ export function AddEmployeePopup() {
       window.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
     };
-  }, [open, pending]);
+  }, [showModal, pending]);
+
+  function openDialog() {
+    setAckedSuccess(state.success);
+    setActiveSection('staff-details');
+    setReceiveBookings(true);
+    setSalaryInr('');
+    setShowAdvanced(false);
+    setQrPreview(null);
+    setOpen(true);
+  }
 
   function validateStaffDetails(): boolean {
     const form = formRef.current;
@@ -131,17 +141,30 @@ export function AddEmployeePopup() {
     }
   }
 
+  function handleFormKeyDown(e: KeyboardEvent<HTMLFormElement>) {
+    if (e.key === 'Enter' && shouldBlockEmployeeFormEnter(e.target)) {
+      e.preventDefault();
+    }
+  }
+
+  function handleFormSubmit(e: FormEvent<HTMLFormElement>) {
+    const submitter = (e.nativeEvent as SubmitEvent).submitter;
+    if (!shouldAllowEmployeeFormSubmit(submitter)) {
+      e.preventDefault();
+    }
+  }
+
   return (
     <>
-      <Button type="button" onClick={() => setOpen(true)}>
+      <Button type="button" onClick={openDialog}>
         Add employee
       </Button>
 
-      {state.success && !open ? (
+      {state.success && !showModal ? (
         <p className="fyh-alert-success mt-2 text-sm">{state.success}</p>
       ) : null}
 
-      {open ? (
+      {showModal ? (
         <div className="fixed inset-0 z-[600]" role="presentation">
           <button
             type="button"
@@ -181,7 +204,13 @@ export function AddEmployeePopup() {
                 <EmployeeProfileNav active={activeSection} onChange={setActiveSection} />
               </div>
 
-              <form ref={formRef} action={action} className="flex min-h-0 flex-1 flex-col">
+              <form
+                ref={formRef}
+                action={action}
+                onKeyDown={handleFormKeyDown}
+                onSubmit={handleFormSubmit}
+                className="flex min-h-0 flex-1 flex-col"
+              >
                 <input type="hidden" name="salaryFrequency" value="monthly" />
 
                 <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
@@ -479,7 +508,7 @@ export function AddEmployeePopup() {
                       ) : null}
                     </div>
                     {isLastSection ? (
-                      <Button type="submit" disabled={pending}>
+                      <Button type="submit" data-create-employee="1" disabled={pending}>
                         {pending ? 'Creating…' : CREATE_CONTINUE_LABELS.schedule}
                       </Button>
                     ) : (
