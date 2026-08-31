@@ -40,6 +40,7 @@ import {
   isDepositCollectionAdjustmentReason,
 } from '@/src/lib/deposits/constants';
 import { applyDepositDeduction } from '@/src/services/depositSettlement';
+import { parsePaymentsRelatedId } from '@/src/lib/payments/paymentsRelatedId';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Public types
@@ -159,8 +160,11 @@ export async function recordDepositCollected(input: {
     throw new Error('recordDepositCollected: amountPaise must be > 0');
   }
 
+  const reason = input.reason.trim();
+  const relatedPaymentUuid = parsePaymentsRelatedId(input.relatedPaymentId);
+
   return db.transaction(async (tx) => {
-    if (input.relatedPaymentId) {
+    if (relatedPaymentUuid) {
       const [existing] = await tx
         .select({ id: depositLedger.id })
         .from(depositLedger)
@@ -168,7 +172,20 @@ export async function recordDepositCollected(input: {
           and(
             eq(depositLedger.bookingId, input.bookingId),
             eq(depositLedger.entryKind, 'collected'),
-            eq(depositLedger.relatedPaymentId, input.relatedPaymentId),
+            eq(depositLedger.relatedPaymentId, relatedPaymentUuid),
+          ),
+        )
+        .limit(1);
+      if (existing) return { ok: true as const, entryId: existing.id, created: false };
+    } else if (reason) {
+      const [existing] = await tx
+        .select({ id: depositLedger.id })
+        .from(depositLedger)
+        .where(
+          and(
+            eq(depositLedger.bookingId, input.bookingId),
+            eq(depositLedger.entryKind, 'collected'),
+            eq(depositLedger.reason, reason),
           ),
         )
         .limit(1);
@@ -182,8 +199,8 @@ export async function recordDepositCollected(input: {
         customerId: input.customerId,
         entryKind: 'collected',
         amountPaise: input.amountPaise,
-        reason: input.reason,
-        relatedPaymentId: input.relatedPaymentId ?? null,
+        reason,
+        relatedPaymentId: relatedPaymentUuid,
         createdByAdminId: input.createdByAdminId ?? null,
       })
       .returning({ id: depositLedger.id });

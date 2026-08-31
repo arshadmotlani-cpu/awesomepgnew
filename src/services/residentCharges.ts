@@ -779,19 +779,6 @@ export async function approveDepositLinkPaymentProof(
   }
 
   const providerPaymentId = `deposit-link-proof-${linkId}`;
-  const depositResult = await recordDepositPaymentFromLink({
-    linkId,
-    bookingId: link.bookingId,
-    customerId: link.residentId,
-    amountPaise: link.amount,
-    providerPaymentId,
-    reason: link.title
-      ? `${link.title} (additional deposit)`
-      : `Deposit payment link ${linkId}`,
-  });
-  if (!depositResult.ok) {
-    return { ok: false, message: depositResult.error };
-  }
 
   if (link.invoiceId) {
     const { allocateInvoicePayment } = await import('@/src/services/invoicePayment');
@@ -807,6 +794,17 @@ export async function approveDepositLinkPaymentProof(
       paymentResult.error !== 'Nothing due on this invoice.'
     ) {
       return { ok: false, message: paymentResult.error };
+    }
+  } else {
+    const depositResult = await recordDepositPaymentFromLink({
+      linkId,
+      bookingId: link.bookingId,
+      customerId: link.residentId,
+      amountPaise: link.amount,
+      providerPaymentId,
+    });
+    if (!depositResult.ok) {
+      return { ok: false, message: depositResult.error };
     }
   }
 

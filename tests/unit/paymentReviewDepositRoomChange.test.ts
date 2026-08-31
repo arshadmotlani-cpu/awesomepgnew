@@ -7,6 +7,11 @@ import {
   transactionRefLooksLikeUpiVpa,
   userFacingPaymentApprovalError,
 } from '@/src/lib/payments/safePaymentApprovalError';
+import {
+  depositLinkLedgerReason,
+  invoiceDepositLedgerReason,
+  parsePaymentsRelatedId,
+} from '@/src/lib/payments/paymentsRelatedId';
 import { approvedTransactionRefConflictMessage } from '@/src/lib/payments/transactionRefDuplicate';
 import { evaluatePaymentReviewInvariants } from '@/src/lib/payments/paymentReviewInvariants';
 import { ROOM_SHIFT_FEE_PAISE, applyRoomShiftCreditWaterfall } from '@/src/services/roomShiftQuote';
@@ -86,6 +91,26 @@ describe('payment review deposit + room-change', () => {
     assert.equal(waterfall.newRentDuePaise, 19_101);
     assert.equal(waterfall.depositDuePaise, 321_140);
     assert.equal(waterfall.totalDuePaise, 340_241);
+  });
+
+  test('deposit link provider id is not a payments UUID', () => {
+    const linkId = '0d3e7d24-c6b7-474a-ac39-80f7e70e2990';
+    const providerId = `deposit-link-proof-${linkId}`;
+    assert.equal(parsePaymentsRelatedId(providerId), null);
+    assert.equal(depositLinkLedgerReason(linkId), `deposit-link:${linkId}`);
+    assert.equal(
+      invoiceDepositLedgerReason('b-1', 'req-1'),
+      'invoice-deposit:b-1:req-1',
+    );
+    assert.equal(parsePaymentsRelatedId(linkId), linkId);
+  });
+
+  test('database uuid errors map to safe approval message', () => {
+    const msg = userFacingPaymentApprovalError(
+      new Error('invalid input syntax for type uuid: "deposit-link-proof-abc"'),
+    );
+    assert.equal(msg, 'Payment could not be recorded. Please try again.');
+    assert.equal(msg.includes('uuid'), false);
   });
 
   test('UPI VPA is detected separately from UTR', () => {

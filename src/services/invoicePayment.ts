@@ -7,6 +7,10 @@ import { db } from '@/src/db/client';
 import { financialInvoices, rentInvoices } from '@/src/db/schema';
 import type { FinancialInvoice, InvoiceBreakdown } from '@/src/db/schema/financialInvoices';
 import { syncDepositCollectionFromLedger } from '@/src/services/depositCollection';
+import {
+  depositLinkLedgerReason,
+  invoiceDepositLedgerReason,
+} from '@/src/lib/payments/paymentsRelatedId';
 import { recordDepositCollected } from '@/src/services/deposits';
 import { fetchElectricityInvoiceById } from '@/src/lib/db/electricityInvoiceSelect';
 import { applyApprovedPaymentAtomic } from '@/src/services/paymentSettlementAtomic';
@@ -48,11 +52,14 @@ async function applyLinePayment(
   }
 
   if (line.kind === 'deposit' && bookingId) {
+    const reason = line.sourceId
+      ? invoiceDepositLedgerReason(bookingId, line.sourceId)
+      : `invoice-deposit-payment:${providerPaymentId}`;
     await recordDepositCollected({
       bookingId,
       customerId,
       amountPaise,
-      reason: `Invoice payment ${providerPaymentId}`,
+      reason,
       relatedPaymentId: providerPaymentId,
     });
     await syncDepositCollectionFromLedger(bookingId);
@@ -234,7 +241,7 @@ export async function recordDepositPaymentFromLink(input: {
     bookingId: input.bookingId,
     customerId: input.customerId,
     amountPaise: input.amountPaise,
-    reason: input.reason ?? `Deposit payment link ${input.linkId}`,
+    reason: depositLinkLedgerReason(input.linkId),
     relatedPaymentId: input.providerPaymentId,
   });
   await syncDepositCollectionFromLedger(input.bookingId);
