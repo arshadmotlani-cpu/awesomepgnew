@@ -90,8 +90,7 @@ describe('Workforce HR UI contracts', () => {
     assert.match(src, /name="fullName"/);
     assert.match(src, /name="bankAccountHolderName"/);
     assert.match(src, /name="salaryInr"/);
-    assert.match(src, /WeekOffPicker/);
-    assert.match(src, /WorkingHoursFields/);
+    assert.match(src, /ShiftScheduleSection/);
     assert.match(src, /Advanced Permission Overrides/);
     assert.match(src, /IncentiveRuleBuilder/);
 
@@ -101,7 +100,7 @@ describe('Workforce HR UI contracts', () => {
     assert.ok(staffBlock);
     assert.doesNotMatch(staffBlock!, /name="salaryInr"/);
     assert.doesNotMatch(staffBlock!, /name="bankAccountHolderName"/);
-    assert.doesNotMatch(staffBlock!, /WeekOffPicker/);
+    assert.doesNotMatch(staffBlock!, /ShiftScheduleSection/);
 
     const credentialsBlock = src.split("activeSection === 'credentials'")[1]?.split(
       "activeSection === 'salary'",
@@ -140,7 +139,7 @@ describe('Workforce HR UI contracts', () => {
     assert.match(profileSrc, /activeSection === 'salary'/);
     assert.match(profileSrc, /activeSection === 'rights'/);
     assert.match(profileSrc, /activeSection === 'schedule'/);
-    assert.match(profileSrc, /WorkingHoursEditor/);
+    assert.match(profileSrc, /ShiftScheduleSection/);
     assert.match(profileSrc, /IncentiveRuleBuilder/);
     assert.match(profileSrc, /SECTION_SAVE_LABELS/);
     assert.doesNotMatch(profileSrc, /Salary Effective From/i);
@@ -151,7 +150,7 @@ describe('Workforce HR UI contracts', () => {
     assert.ok(staffBlock);
     assert.doesNotMatch(staffBlock!, /name="salaryInr"/);
     assert.doesNotMatch(staffBlock!, /name="bankAccountHolderName"/);
-    assert.doesNotMatch(staffBlock!, /WeekOffPicker/);
+    assert.doesNotMatch(staffBlock!, /ShiftScheduleSection/);
 
     const credentialsBlock = profileSrc.split("activeSection === 'credentials'")[1]?.split(
       "activeSection === 'salary'",
@@ -174,8 +173,8 @@ describe('Workforce HR UI contracts', () => {
       'Preserve HR fields',
     )[0];
     assert.ok(scheduleFormBlock);
-    assert.match(scheduleFormBlock!, /WeekOffPicker/);
+    assert.match(scheduleFormBlock!, /ShiftScheduleSection/);
 
-    assert.match(profileSrc, /WorkingHoursEditor/);
+    assert.doesNotMatch(profileSrc, /WorkingHoursEditor/);
   });
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useId, useState, useTransition } from 'react';
+import { useActionState, useEffect, useId, useState } from 'react';
 import Link from 'next/link';
 import {
   updateWorkforceEmployeeAction,
@@ -18,12 +18,8 @@ import {
 } from '@/src/workforce/lib/incentiveRuleEngine';
 import { IncentiveRuleBuilder } from '@/src/workforce/components/IncentiveRuleBuilder';
 import { workforceAccessRoleLabel } from '@/src/workforce/labels';
-import { formatWeekOffDays } from '@/src/workforce/lib/weekOff';
-import { WeekOffPicker } from '@/src/workforce/components/WeekOffPicker';
-import {
-  WorkingHoursEditor,
-  type ScheduleDayValue,
-} from '@/src/workforce/components/WorkingHoursEditor';
+import { ShiftScheduleSection } from '@/src/workforce/components/ShiftScheduleSection';
+import type { ScheduleDayValue } from '@/src/workforce/lib/scheduleEditor';
 import {
   EmployeeProfileNav,
   type EmployeeProfileSectionId,
@@ -62,7 +58,7 @@ const SECTION_SAVE_LABELS: Record<EmployeeProfileSectionId, string> = {
   credentials: 'Save credentials',
   salary: 'Save salary & incentives',
   rights: 'Save permissions',
-  schedule: 'Save week-off days',
+  schedule: 'Save schedule',
 };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -102,7 +98,6 @@ export function EmployeeProfilePanel({
   const formId = useId();
   const [activeSection, setActiveSection] = useState<EmployeeProfileSectionId>('staff-details');
   const [state, action, pending] = useActionState(updateWorkforceEmployeeAction, initial);
-  const [, startTransition] = useTransition();
   const [showAdvanced, setShowAdvanced] = useState(true);
   const [qrPreview, setQrPreview] = useState<string | null>(employee.qrCodeUrl);
   const [receiveBookings, setReceiveBookings] = useState(
@@ -149,7 +144,7 @@ export function EmployeeProfilePanel({
 
       <form
         id={formId}
-        action={(fd) => startTransition(() => action(fd))}
+        action={action}
         className="space-y-6 rounded-xl border border-[color:var(--fyh-border)] p-4"
       >
         <input type="hidden" name="employeeId" value={employee.id} />
@@ -562,14 +557,16 @@ export function EmployeeProfilePanel({
 
         {activeSection === 'schedule' ? (
           <div className="space-y-6">
-            <Section title="Weekly off days">
-              {canEdit ? (
-                <WeekOffPicker defaultOffDays={weekOffDays} />
-              ) : (
-                <p className="text-sm text-fyh-text-secondary">
-                  Weekly off: {formatWeekOffDays(weekOffDays)}
-                </p>
-              )}
+            <Section title="Shift schedule">
+              <p className="text-xs text-fyh-text-secondary">
+                Weekly off days and working hours stay in sync. Selecting a day as weekly off
+                automatically marks it Off below.
+              </p>
+              <ShiftScheduleSection
+                initialSchedule={scheduleDays}
+                readOnly={!canEdit}
+                formFieldNames={canEdit}
+              />
             </Section>
             <SectionSaveFooter
               canEdit={canEdit}
@@ -632,25 +629,6 @@ export function EmployeeProfilePanel({
           </>
         ) : null}
       </form>
-
-      {activeSection === 'schedule' ? (
-        <section className="mt-6 space-y-3 rounded-xl border border-[color:var(--fyh-border)] p-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-fyh-text-secondary">
-            Working hours
-          </h2>
-          <p className="text-xs text-fyh-text-secondary">
-            Set start and end times for each day. Use the Off checkbox for days the employee does not
-            work.
-          </p>
-          <WorkingHoursEditor
-            employeeId={employee.id}
-            employeeName={employee.fullName}
-            initial={scheduleDays}
-            embedded
-            readOnly={!canEdit}
-          />
-        </section>
-      ) : null}
     </div>
   );
 }

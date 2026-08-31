@@ -2,10 +2,19 @@
 
 import { revalidatePath } from 'next/cache';
 import { getHairSession } from '@/src/hair/lib/auth/session';
+import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
 import { getEmployeeDashboard } from '@/src/workforce/brains/employeeBrain';
 import { createEmployee, updateEmployee } from '@/src/workforce/services/employees';
 import { getIncentivePlan } from '@/src/workforce/services/incentivePlans';
 import { requireWorkforcePermission } from '@/src/workforce/permissions/guards';
+import {
+  logWorkforceEmployeeDbError,
+  sanitizeWorkforceEmployeeError,
+} from '@/src/workforce/lib/workforceDbError';
+import {
+  persistEmployeeQrCodeUrl,
+  persistEmployeeQrFromFile,
+} from '@/src/workforce/lib/persistEmployeeQr';
 import {
   isWorkforceEngineEnabled,
   WORKFORCE_ACCESS_ROLES,
@@ -15,14 +24,40 @@ import { WORKFORCE_PERMISSION_KEYS, type WorkforcePermissionKey } from '@/src/wo
 import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
 import { parseHrFieldsFromForm, parseScheduleDaysFromForm } from '@/src/workforce/actions/parseHrForm';
 import {
+  reconcileScheduleWithWeekOff,
+  validateScheduleDays,
+} from '@/src/workforce/lib/scheduleEditor';
+import {
   isIncentivePlanActive,
   normalizeIncentivePlan,
 } from '@/src/workforce/lib/incentiveRuleEngine';
 
-export type WorkforceActionState = { error?: string; success?: string };
+export type WorkforceActionState = { error?: string; success?: string; employeeId?: string };
 
 function formStr(formData: FormData, key: string): string {
   return String(formData.get(key) ?? '').trim();
+}
+
+function resolveEmployeeTenantFromSession(session: Awaited<ReturnType<typeof getHairSession>>) {
+  if (!session) {
+    throw new Error('You must be signed in to add employees.');
+  }
+  if (!isFyhSaasTenantEnabled()) {
+    return {
+      organizationId: session.organizationId || undefined,
+      locationId: session.locationId || undefined,
+    };
+  }
+  if (!session.organizationId) {
+    throw new Error('Organization context is missing. Sign in again or contact support.');
+  }
+  if (!session.locationId) {
+    throw new Error('Location context is missing. Select a location and try again.');
+  }
+  return {
+    organizationId: session.organizationId,
+    locationId: session.locationId,
+  };
 }
 
 function parseAccessRole(raw: string): WorkforceJobRole {
@@ -33,14 +68,24 @@ function parseAccessRole(raw: string): WorkforceJobRole {
   return 'staff';
 }
 
+async function resolveQrCodeUrlFromForm(formData: FormData): Promise<string | null> {
+  const file = formData.get('qrCodeFile');
+  if (file instanceof File && file.size > 0) {
+    return persistEmployeeQrFromFile(file);
+  }
+  const legacy = formStr(formData, 'qrCodeUrl');
+  if (legacy) return persistEmployeeQrCodeUrl(legacy);
+  return null;
+}
+
 export async function createWorkforceEmployeeAction(
   _prev: WorkforceActionState,
   formData: FormData,
 ): Promise<WorkforceActionState> {
   try {
     if (!isWorkforceEngineEnabled()) return { error: 'Workforce Engine is not enabled.' };
-    await requireWorkforcePermission('staff.add');
-    const session = await getHairSession();
+    const session = await requireWorkforcePermission('staff.add');
+    const tenant = resolveEmployeeTenantFromSession(session);
     const accessRole = parseAccessRole(formStr(formData, 'accessRole'));
     const password = formStr(formData, 'password');
     const receiveBookings = formData.get('receiveBookings') === '1';
@@ -72,9 +117,15 @@ export async function createWorkforceEmployeeAction(
       canToggleIncentive: viewerIsOwner,
       defaultIncentiveEnabled: true,
     });
-    const scheduleDays = parseScheduleDaysFromForm(formData);
+    const scheduleDays = reconcileScheduleWithWeekOff(
+      parseScheduleDaysFromForm(formData),
+      hr.weekOffDays,
+    );
+    validateScheduleDays(scheduleDays);
 
-    await createEmployee({
+    const qrCodeUrl = await resolveQrCodeUrlFromForm(formData);
+
+    const emp = await createEmployee({
       fullName: formStr(formData, 'fullName'),
       email,
       mobile: formStr(formData, 'mobile') || null,
@@ -91,8 +142,11 @@ export async function createWorkforceEmployeeAction(
       maxBackdateDays,
       receiveBookings,
       canLogin: password.length >= 6,
-      actorEmployeeId: session?.workforceEmployeeId ?? null,
+      actorEmployeeId: session.workforceEmployeeId ?? null,
+      organizationId: tenant.organizationId,
+      locationId: tenant.locationId,
       ...hr.employee,
+      qrCodeUrl,
       salaryPaise: hr.employee.salaryPaise ?? 0,
       weekOffDays: hr.weekOffDays,
       scheduleDays,
@@ -102,9 +156,10 @@ export async function createWorkforceEmployeeAction(
     revalidatePath('/workforce');
     revalidatePath('/staff');
     revalidatePath('/appointments');
-    return { success: 'Employee created.' };
+    return { success: 'Employee created.', employeeId: emp.id };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : 'Failed to create employee' };
+    logWorkforceEmployeeDbError('createWorkforceEmployeeAction', e);
+    return { error: sanitizeWorkforceEmployeeError(e) };
   }
 }
 
@@ -148,6 +203,16 @@ export async function updateWorkforceEmployeeAction(
       existingIncentiveConfig: existingNormalized,
     });
 
+    const section = formStr(formData, 'saveSection');
+    let scheduleDays;
+    if (section === 'schedule') {
+      scheduleDays = reconcileScheduleWithWeekOff(
+        parseScheduleDaysFromForm(formData),
+        hr.weekOffDays,
+      );
+      validateScheduleDays(scheduleDays);
+    }
+
     await updateEmployee(id, {
       fullName: formStr(formData, 'fullName') || undefined,
       email: formStr(formData, 'email') || null,
@@ -166,7 +231,8 @@ export async function updateWorkforceEmployeeAction(
       canLogin: password.length >= 6,
       actorEmployeeId: session?.workforceEmployeeId ?? null,
       ...hr.employee,
-      weekOffDays: hr.weekOffDays,
+      weekOffDays: section === 'schedule' ? hr.weekOffDays : undefined,
+      scheduleDays,
       incentivePlan: hr.incentivePlan,
     });
 
@@ -174,16 +240,16 @@ export async function updateWorkforceEmployeeAction(
     revalidatePath('/staff');
     revalidatePath(`/staff/${id}`);
 
-    const section = formStr(formData, 'saveSection');
     const successBySection: Record<string, string> = {
       'staff-details': 'Staff details saved.',
       credentials: 'Credentials saved.',
       salary: 'Salary and incentives saved.',
       rights: 'Permissions saved.',
-      schedule: 'Week-off days saved.',
+      schedule: 'Schedule saved.',
     };
     return { success: successBySection[section] ?? 'Employee updated.' };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : 'Failed to update employee' };
+    logWorkforceEmployeeDbError('updateWorkforceEmployeeAction', e);
+    return { error: sanitizeWorkforceEmployeeError(e) };
   }
 }

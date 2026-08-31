@@ -6,10 +6,10 @@ import {
   type WorkforceScheduleActionState,
 } from '@/src/workforce/actions/operations';
 import { WeeklyScheduleGrid } from '@/src/workforce/components/WeeklyScheduleGrid';
-import { normalizeScheduleDays, type ScheduleDayState } from '@/src/workforce/lib/scheduleEditor';
+import { normalizeScheduleDays, type ScheduleDayState, type ScheduleDayValue } from '@/src/workforce/lib/scheduleEditor';
 import { Button } from '@/src/hair/components/ui/button';
 
-export type ScheduleDayValue = ScheduleDayState;
+export type { ScheduleDayValue } from '@/src/workforce/lib/scheduleEditor';
 
 const initial: WorkforceScheduleActionState = {};
 

@@ -2,9 +2,12 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import {
   applyScheduleDayToTargets,
+  applyWeekOffToExistingSchedule,
   normalizeScheduleDays,
+  reconcileScheduleWithWeekOff,
   resolveAdjacentScheduleField,
   resolveVerticalScheduleField,
+  syncScheduleWithWeekOff,
   validateScheduleDays,
 } from '@/src/workforce/lib/scheduleEditor';
 import { parseScheduleDaysFromForm } from '@/src/workforce/actions/parseHrForm';
@@ -56,6 +59,51 @@ describe('Workforce schedule editor helpers', () => {
     });
   });
 
+  test('syncScheduleWithWeekOff marks Monday off when selected in weekly off days', () => {
+    const days = normalizeScheduleDays();
+    const synced = syncScheduleWithWeekOff(days, [1]);
+    const mon = synced.find((d) => d.dayOfWeek === 1);
+    const tue = synced.find((d) => d.dayOfWeek === 2);
+    assert.equal(mon?.isOff, true);
+    assert.equal(mon?.startTime, '11:00');
+    assert.equal(tue?.isOff, false);
+  });
+
+  test('syncScheduleWithWeekOff restores Monday working when unchecked', () => {
+    const off = syncScheduleWithWeekOff(normalizeScheduleDays(), [1]);
+    const restored = syncScheduleWithWeekOff(off, []);
+    const mon = restored.find((d) => d.dayOfWeek === 1);
+    assert.equal(mon?.isOff, false);
+    assert.equal(mon?.startTime, '11:00');
+    assert.equal(mon?.endTime, '20:00');
+  });
+
+  test('syncScheduleWithWeekOff applies to all weekdays generically', () => {
+    for (let dow = 0; dow <= 6; dow += 1) {
+      const synced = syncScheduleWithWeekOff(normalizeScheduleDays(), [dow]);
+      assert.equal(synced.find((d) => d.dayOfWeek === dow)?.isOff, true);
+    }
+  });
+
+  test('reconcileScheduleWithWeekOff makes weekly off authoritative on persist', () => {
+    const days = reconcileScheduleWithWeekOff(
+      [{ dayOfWeek: 1, startTime: '09:00', endTime: '18:00', isOff: false }],
+      [1],
+    );
+    assert.equal(days.find((d) => d.dayOfWeek === 1)?.isOff, true);
+  });
+
+  test('applyWeekOffToExistingSchedule preserves custom working times', () => {
+    const existing = normalizeScheduleDays([
+      { dayOfWeek: 1, startTime: '09:30', endTime: '17:30', isOff: false },
+    ]);
+    const updated = applyWeekOffToExistingSchedule(existing, [1]);
+    const mon = updated.find((d) => d.dayOfWeek === 1);
+    assert.equal(mon?.isOff, true);
+    assert.equal(mon?.startTime, '09:30');
+    assert.equal(mon?.endTime, '17:30');
+  });
+
   test('copy schedule preserves off days when skipOffDays is true', () => {
     const days = normalizeScheduleDays();
     const copied = applyScheduleDayToTargets(days, 1, [0, 1, 2, 3, 4, 5, 6], {
@@ -105,6 +153,56 @@ describe('Workforce schedule save action contracts', () => {
     assert.equal(mon?.endTime, '20:00');
     assert.equal(mon?.isOff, false);
     assert.equal(sun?.isOff, true);
+  });
+
+  test('create and update employee actions reconcile weekly off with working hours', () => {
+    const { readFileSync } = require('node:fs') as typeof import('node:fs');
+    const { join } = require('node:path') as typeof import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/workforce/actions/employees.ts'), 'utf8');
+    assert.match(src, /reconcileScheduleWithWeekOff/);
+    assert.match(src, /validateScheduleDays\(scheduleDays\)/);
+  });
+});
+
+describe('Workforce weekly off appointment enforcement', () => {
+  test('isWithinWorkingHours rejects weekly off days', async () => {
+    const { isWithinWorkingHours } = await import('@/src/workforce/services/schedules');
+    assert.equal(
+      isWithinWorkingHours({ startTime: '10:00', endTime: '20:00', isOff: true }, '14:00'),
+      false,
+    );
+    assert.equal(
+      isWithinWorkingHours({ startTime: '10:00', endTime: '20:00', isOff: false }, '14:00'),
+      true,
+    );
+  });
+
+  test('appointment booking enforces workforce schedule before legacy table', () => {
+    const { readFileSync } = require('node:fs') as typeof import('node:fs');
+    const { join } = require('node:path') as typeof import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/hair/services/appointments.ts'), 'utf8');
+    assert.match(src, /getWorkingHoursForDay/);
+    assert.match(src, /closed: daySchedule\.isOff/);
+  });
+
+  test('schedule upsert mirrors workforce rows to legacy staff schedules', () => {
+    const { readFileSync } = require('node:fs') as typeof import('node:fs');
+    const { join } = require('node:path') as typeof import('node:path');
+    const src = readFileSync(join(process.cwd(), 'src/workforce/services/schedules.ts'), 'utf8');
+    assert.match(src, /mirrorWeeklyScheduleToLegacyStaffSchedules/);
+    assert.match(src, /saveStaffDaySchedule/);
+  });
+
+  test('ShiftScheduleSection keeps weekly off and working hours in one state model', () => {
+    const { readFileSync } = require('node:fs') as typeof import('node:fs');
+    const { join } = require('node:path') as typeof import('node:path');
+    const src = readFileSync(
+      join(process.cwd(), 'src/workforce/components/ShiftScheduleSection.tsx'),
+      'utf8',
+    );
+    assert.match(src, /syncScheduleWithWeekOff/);
+    assert.match(src, /weekOffDaysFromSchedule/);
+    assert.match(src, /WeeklyScheduleGrid/);
   });
 });
 

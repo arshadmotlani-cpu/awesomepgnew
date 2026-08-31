@@ -151,8 +151,7 @@ describe('Workforce Add Employee popup', () => {
     assert.match(src, /EmployeeProfileNav/);
     assert.match(src, /EMPLOYEE_PROFILE_SECTIONS/);
     assert.match(src, /IncentiveRuleBuilder/);
-    assert.match(src, /WeekOffPicker/);
-    assert.match(src, /WorkingHoursFields/);
+    assert.match(src, /ShiftScheduleSection/);
     assert.match(src, /Advanced Permission Overrides/);
     assert.match(src, /role="dialog"/);
     assert.match(src, /Appointment bookable/);

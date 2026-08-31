@@ -2,9 +2,12 @@ import { and, eq } from 'drizzle-orm';
 import { hashPassword } from '@/src/hair/lib/auth/crypto';
 import { hairDb } from '@/src/hair/db/client';
 import { fyhStaff } from '@/src/hair/db/schema';
+import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
 import {
+  wfAuditLog,
   wfEmployees,
   wfEngineMemberships,
+  wfIncentivePlans,
   wfPermissionGrants,
   wfSchedules,
 } from '@/src/workforce/db/schema';
@@ -12,6 +15,7 @@ import { normalizeMobile } from '@/src/workforce/auth/mobile';
 import { normalizeEmail } from '@/src/workforce/auth/identity';
 import { rankFromAccessRole } from '@/src/workforce/accessRoles';
 import { publishEmployeeEvent } from '@/src/workforce/events/publish';
+import { formatPostgresError } from '@/src/lib/db/postgresError';
 import { writeEmployeeAudit } from '@/src/workforce/brains/employeeBrain';
 import { publishWorkforceEcosystemRefresh } from '@/src/workforce/connectors/ecosystemRefresh';
 import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
@@ -27,8 +31,17 @@ import type {
   WorkforceSalaryFrequency,
 } from '@/src/workforce/types/hr';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
-import { upsertEmployeeWeeklySchedule } from '@/src/workforce/services/schedules';
-import { scheduleFromWeekOffDays, type DayScheduleInput } from '@/src/workforce/lib/weekOff';
+import { upsertEmployeeWeeklySchedule, getEmployeeSchedule, mirrorWeeklyScheduleToLegacyStaffSchedules } from '@/src/workforce/services/schedules';
+import {
+  DEFAULT_WEEK_SCHEDULE,
+  scheduleFromWeekOffDays,
+  weekOffDaysFromSchedule,
+  type DayScheduleInput,
+} from '@/src/workforce/lib/weekOff';
+import {
+  applyWeekOffToExistingSchedule,
+  reconcileScheduleWithWeekOff,
+} from '@/src/workforce/lib/scheduleEditor';
 import { upsertIncentivePlan } from '@/src/workforce/services/incentivePlans';
 
 export type UpsertEmployeeInput = {
@@ -43,6 +56,7 @@ export type UpsertEmployeeInput = {
   passwordHash?: string | null;
   /** Optional FYH SaaS tenant wiring (mirrors Platform org/user ids). */
   organizationId?: string | null;
+  locationId?: string | null;
   userId?: string | null;
   gender?: WorkforceGender;
   emergencyContact?: string | null;
@@ -82,41 +96,66 @@ export type UpsertEmployeeInput = {
   isSystemProvider?: boolean;
 };
 
+type HairDbClient = typeof hairDb;
+
+function resolveTenantColumns(input: Pick<UpsertEmployeeInput, 'organizationId' | 'locationId'>) {
+  if (isFyhSaasTenantEnabled()) {
+    if (!input.organizationId) {
+      throw new Error('Organization context is required to create an employee.');
+    }
+    if (!input.locationId) {
+      throw new Error('Location context is missing. Select a location and try again.');
+    }
+    return { organizationId: input.organizationId, locationId: input.locationId };
+  }
+  return {
+    ...(input.organizationId ? { organizationId: input.organizationId } : {}),
+    ...(input.locationId ? { locationId: input.locationId } : {}),
+  };
+}
+
 async function assertUniqueEmployeeIdentity(input: {
   email?: string | null;
   mobile?: string | null;
   excludeEmployeeId?: string;
+  organizationId?: string | null;
+  tx?: HairDbClient;
 }) {
+  const db = input.tx ?? hairDb;
   const email = input.email ? normalizeEmail(input.email) : null;
   const mobile = input.mobile ? normalizeMobile(input.mobile) : null;
 
   if (email) {
-    const [existing] = await hairDb
-      .select({ id: wfEmployees.id })
-      .from(wfEmployees)
-      .where(eq(wfEmployees.email, email))
-      .limit(1);
+    const where = input.organizationId
+      ? and(eq(wfEmployees.email, email), eq(wfEmployees.organizationId, input.organizationId))
+      : eq(wfEmployees.email, email);
+    const [existing] = await db.select({ id: wfEmployees.id }).from(wfEmployees).where(where).limit(1);
     if (existing && existing.id !== input.excludeEmployeeId) {
       throw new Error('An employee with this email already exists.');
     }
   }
 
   if (mobile) {
-    const [existing] = await hairDb
-      .select({ id: wfEmployees.id })
-      .from(wfEmployees)
-      .where(eq(wfEmployees.mobile, mobile))
-      .limit(1);
+    const where = input.organizationId
+      ? and(eq(wfEmployees.mobile, mobile), eq(wfEmployees.organizationId, input.organizationId))
+      : eq(wfEmployees.mobile, mobile);
+    const [existing] = await db.select({ id: wfEmployees.id }).from(wfEmployees).where(where).limit(1);
     if (existing && existing.id !== input.excludeEmployeeId) {
       throw new Error('An employee with this phone number already exists.');
     }
   }
 }
 
-async function mirrorSalonStaffRow(employeeId: string, input: UpsertEmployeeInput) {
+async function mirrorSalonStaffRow(
+  employeeId: string,
+  input: UpsertEmployeeInput,
+  tx?: HairDbClient,
+) {
   if (!isWorkforceEngineEnabled()) return;
+  const db = tx ?? hairDb;
   const accessRole = input.accessRole ?? input.jobRole ?? 'staff';
-  const [existing] = await hairDb.select().from(fyhStaff).where(eq(fyhStaff.id, employeeId)).limit(1);
+  const [existing] = await db.select().from(fyhStaff).where(eq(fyhStaff.id, employeeId)).limit(1);
+  const staffOrgId = input.organizationId ?? existing?.organizationId ?? null;
   const values = {
     fullName: input.fullName,
     phone: input.mobile ? normalizeMobile(input.mobile) : null,
@@ -126,12 +165,12 @@ async function mirrorSalonStaffRow(employeeId: string, input: UpsertEmployeeInpu
     joiningDate: input.joiningDate ?? null,
     isActive: (input.status ?? 'active') === 'active',
     updatedAt: new Date(),
-    organizationId: input.organizationId ?? existing?.organizationId ?? null,
+    ...(staffOrgId ? { organizationId: staffOrgId } : {}),
   };
   if (existing) {
-    await hairDb.update(fyhStaff).set(values).where(eq(fyhStaff.id, employeeId));
+    await db.update(fyhStaff).set(values).where(eq(fyhStaff.id, employeeId));
   } else {
-    await hairDb.insert(fyhStaff).values({
+    await db.insert(fyhStaff).values({
       id: employeeId,
       ...values,
       performanceTargetPaise: 0,
@@ -162,9 +201,12 @@ export async function createEmployee(input: UpsertEmployeeInput) {
   const email = input.email ? normalizeEmail(input.email) : null;
   const mobile = input.mobile ? normalizeMobile(input.mobile) : null;
   if (!email && !input.isSystemProvider) throw new Error('Email address is required.');
-  if (email || mobile) {
-    await assertUniqueEmployeeIdentity({ email, mobile });
-  }
+  const tenantCols = input.isSystemProvider
+    ? {
+        ...(input.organizationId ? { organizationId: input.organizationId } : {}),
+        ...(input.locationId ? { locationId: input.locationId } : {}),
+      }
+    : resolveTenantColumns(input);
 
   const canLoginByPassword =
     Boolean(input.password && input.password.length >= 6) || input.passwordHash != null;
@@ -180,91 +222,170 @@ export async function createEmployee(input: UpsertEmployeeInput) {
         ? hashPassword(input.password)
         : null;
 
-  const [emp] = await hairDb
-    .insert(wfEmployees)
-    .values({
-      id: input.id,
-      fullName: input.fullName.trim(),
-      email,
-      mobile,
-      passwordHash,
-      canLogin: canLogin && Boolean(passwordHash),
-      gender: input.gender ?? 'unspecified',
-      emergencyContact: input.emergencyContact ?? null,
-      joiningDate: input.joiningDate ?? null,
-      aadhaarNumber: input.aadhaarNumber ?? null,
-      panNumber: input.panNumber ?? null,
-      salaryPaise: input.salaryPaise ?? 0,
-      salaryFrequency: input.salaryFrequency ?? 'monthly',
-      salaryEffectiveFrom: input.salaryEffectiveFrom ?? null,
-      bankAccountHolderName: input.bankAccountHolderName ?? null,
-      bankName: input.bankName ?? null,
-      accountNumber: input.accountNumber ?? null,
-      ifscCode: input.ifscCode ?? null,
-      primaryPaymentMethod: input.primaryPaymentMethod ?? 'upi',
-      upiId: input.upiId ?? null,
-      qrCodeUrl: input.qrCodeUrl ?? null,
-      photoUrl: input.photoUrl ?? null,
-      status: input.status ?? 'active',
-      isSystemProvider: input.isSystemProvider ?? false,
-      organizationId: input.organizationId ?? null,
-      userId: input.userId ?? null,
-    })
-    .returning();
-
-  const [mem] = await hairDb
-    .insert(wfEngineMemberships)
-    .values({
-      employeeId: emp!.id,
-      engineId,
-      rank,
-      jobRole: accessRole,
-      isActive: true,
-    })
-    .returning();
-
-  await hairDb.insert(wfPermissionGrants).values({
-    membershipId: mem!.id,
-    permissions: usesRoleTemplate ? [] : effectivePermissions,
-    maxBackdateDays,
-    usesRoleTemplate,
-  });
-
-  await mirrorSalonStaffRow(emp!.id, { ...input, accessRole });
-
   const weekOff = input.weekOffDays ?? [0];
-  await upsertEmployeeWeeklySchedule({
-    employeeId: emp!.id,
-    engineId,
-    days: input.scheduleDays ?? scheduleFromWeekOffDays(weekOff),
-    actorEmployeeId: input.actorEmployeeId,
+  const resolvedDays = input.scheduleDays
+    ? reconcileScheduleWithWeekOff(input.scheduleDays, weekOff)
+    : scheduleFromWeekOffDays(weekOff);
+
+  const emp = await hairDb.transaction(async (tx) => {
+    if (email || mobile) {
+      await assertUniqueEmployeeIdentity({
+        email,
+        mobile,
+        organizationId: tenantCols.organizationId ?? input.organizationId ?? null,
+        tx: tx as unknown as HairDbClient,
+      });
+    }
+
+    const [created] = await tx
+      .insert(wfEmployees)
+      .values({
+        id: input.id,
+        fullName: input.fullName.trim(),
+        email,
+        mobile,
+        passwordHash,
+        canLogin: canLogin && Boolean(passwordHash),
+        gender: input.gender ?? 'unspecified',
+        emergencyContact: input.emergencyContact ?? null,
+        joiningDate: input.joiningDate ?? null,
+        aadhaarNumber: input.aadhaarNumber ?? null,
+        panNumber: input.panNumber ?? null,
+        salaryPaise: input.salaryPaise ?? 0,
+        salaryFrequency: input.salaryFrequency ?? 'monthly',
+        salaryEffectiveFrom: input.salaryEffectiveFrom ?? null,
+        bankAccountHolderName: input.bankAccountHolderName ?? null,
+        bankName: input.bankName ?? null,
+        accountNumber: input.accountNumber ?? null,
+        ifscCode: input.ifscCode ?? null,
+        primaryPaymentMethod: input.primaryPaymentMethod ?? 'upi',
+        upiId: input.upiId ?? null,
+        qrCodeUrl: input.qrCodeUrl ?? null,
+        photoUrl: input.photoUrl ?? null,
+        status: input.status ?? 'active',
+        isSystemProvider: input.isSystemProvider ?? false,
+        userId: input.userId ?? null,
+        ...tenantCols,
+      })
+      .returning();
+
+    const [mem] = await tx
+      .insert(wfEngineMemberships)
+      .values({
+        employeeId: created!.id,
+        engineId,
+        rank,
+        jobRole: accessRole,
+        isActive: true,
+        ...tenantCols,
+      })
+      .returning();
+
+    await tx.insert(wfPermissionGrants).values({
+      membershipId: mem!.id,
+      permissions: usesRoleTemplate ? [] : effectivePermissions,
+      maxBackdateDays,
+      usesRoleTemplate,
+      ...tenantCols,
+    });
+
+    await mirrorSalonStaffRow(
+      created!.id,
+      { ...input, accessRole, organizationId: tenantCols.organizationId ?? input.organizationId },
+      tx as unknown as HairDbClient,
+    );
+
+    await upsertEmployeeWeeklySchedule({
+      employeeId: created!.id,
+      engineId,
+      days: resolvedDays,
+      actorEmployeeId: input.actorEmployeeId,
+      organizationId: tenantCols.organizationId,
+      locationId: tenantCols.locationId ?? input.locationId ?? null,
+      tx: tx as unknown as HairDbClient,
+      deferSideEffects: true,
+    });
+
+    if (input.incentivePlan) {
+      await tx.insert(wfIncentivePlans).values({
+        employeeId: created!.id,
+        engineId,
+        planType: input.incentivePlan.planType,
+        config: input.incentivePlan.config,
+        effectiveFrom: input.incentivePlan.effectiveFrom ?? null,
+        ...tenantCols,
+      });
+    }
+
+    await tx.insert(wfAuditLog).values({
+      employeeId: created!.id,
+      actorEmployeeId: input.actorEmployeeId ?? null,
+      action: 'employee.created',
+      diff: { engineId, accessRole, rank },
+      ...tenantCols,
+    });
+
+    return created!;
   });
 
-  if (input.incentivePlan) {
-    await upsertIncentivePlan({
-      employeeId: emp!.id,
+  const tenantScope =
+    tenantCols.organizationId && (tenantCols.locationId ?? input.locationId)
+      ? {
+          organizationId: tenantCols.organizationId,
+          locationId: tenantCols.locationId ?? input.locationId!,
+        }
+      : null;
+
+  try {
+    await mirrorWeeklyScheduleSideEffects(
+      emp.id,
+      resolvedDays,
       engineId,
-      plan: input.incentivePlan,
-    });
+      input.actorEmployeeId,
+      tenantScope,
+    );
+  } catch (err) {
+    console.error(
+      '[workforce.createEmployee] post-commit schedule mirror failed:',
+      formatPostgresError(err),
+    );
   }
 
-  await writeEmployeeAudit({
-    employeeId: emp!.id,
-    actorEmployeeId: input.actorEmployeeId,
-    action: 'employee.created',
-    diff: { engineId, accessRole, rank },
-  });
-  await publishEmployeeEvent({
-    eventType: 'employee.created',
-    employeeId: emp!.id,
-    engineId,
-    sourceRef: 'workforce.services.createEmployee',
-  });
+  try {
+    await publishEmployeeEvent({
+      eventType: 'employee.created',
+      employeeId: emp.id,
+      engineId,
+      sourceRef: 'workforce.services.createEmployee',
+    });
+  } catch (err) {
+    console.error(
+      '[workforce.createEmployee] post-commit event publish failed:',
+      formatPostgresError(err),
+    );
+  }
+
   void publishWorkforceEcosystemRefresh(engineId).catch(() => {
     /* connectors are best-effort; never block hire */
   });
 
-  return emp!;
+  return emp;
+}
+
+async function mirrorWeeklyScheduleSideEffects(
+  employeeId: string,
+  days: DayScheduleInput[],
+  engineId: WorkforceEngineId,
+  actorEmployeeId?: string | null,
+  tenant?: { organizationId: string; locationId: string } | null,
+) {
+  await mirrorWeeklyScheduleToLegacyStaffSchedules(employeeId, days, tenant);
+  await publishEmployeeEvent({
+    eventType: 'employee.schedule.updated',
+    employeeId,
+    engineId,
+    payload: { days: days.length, actorEmployeeId: actorEmployeeId ?? null },
+  });
 }
 
 export async function updateEmployee(
@@ -319,6 +440,7 @@ export async function updateEmployee(
     email: input.email,
     mobile: input.mobile,
     excludeEmployeeId: employeeId,
+    organizationId: current.organizationId,
   });
 
   await hairDb.update(wfEmployees).set(patch).where(eq(wfEmployees.id, employeeId));
@@ -427,11 +549,35 @@ export async function updateEmployee(
     joiningDate: input.joiningDate,
   });
 
-  if (input.weekOffDays) {
+  if (input.scheduleDays) {
+    const weekOff =
+      input.weekOffDays ??
+      weekOffDaysFromSchedule(
+        input.scheduleDays.map((d) => ({ dayOfWeek: d.dayOfWeek, isOff: Boolean(d.isOff) })),
+      );
     await upsertEmployeeWeeklySchedule({
       employeeId,
       engineId,
-      days: scheduleFromWeekOffDays(input.weekOffDays),
+      days: reconcileScheduleWithWeekOff(input.scheduleDays, weekOff),
+      actorEmployeeId: input.actorEmployeeId,
+    });
+  } else if (input.weekOffDays) {
+    const existing = await getEmployeeSchedule(employeeId, engineId);
+    const base =
+      existing.length > 0
+        ? existing.map((row) => ({
+            dayOfWeek: row.dayOfWeek,
+            startTime: row.startTime,
+            endTime: row.endTime,
+            lunchStart: row.lunchStart,
+            lunchEnd: row.lunchEnd,
+            isOff: row.isOff,
+          }))
+        : DEFAULT_WEEK_SCHEDULE;
+    await upsertEmployeeWeeklySchedule({
+      employeeId,
+      engineId,
+      days: applyWeekOffToExistingSchedule(base, input.weekOffDays),
       actorEmployeeId: input.actorEmployeeId,
     });
   }

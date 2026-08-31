@@ -11,6 +11,9 @@ export type ScheduleDayState = {
   isOff: boolean;
 };
 
+/** Alias used by employee profile / schedule editors. */
+export type ScheduleDayValue = ScheduleDayState;
+
 export function normalizeScheduleDays(initial?: Array<ScheduleDayState | DayScheduleInput>): ScheduleDayState[] {
   const byDay = new Map((initial ?? DEFAULT_WEEK_SCHEDULE).map((d) => [d.dayOfWeek, d]));
   return DAY_LABELS.map((_, dayOfWeek) => {
@@ -83,4 +86,49 @@ export function applyScheduleDayToTargets(
 
 export function workingDayTargets(days: ScheduleDayState[]): number[] {
   return days.filter((d) => !d.isOff).map((d) => d.dayOfWeek);
+}
+
+/** Apply weekly-off selection to a schedule while preserving per-day times. */
+export function syncScheduleWithWeekOff(
+  days: ScheduleDayState[],
+  offDays: number[],
+): ScheduleDayState[] {
+  const offSet = new Set(offDays);
+  return days.map((day) => ({
+    ...day,
+    isOff: offSet.has(day.dayOfWeek),
+  }));
+}
+
+/** Weekly off is authoritative — off-day flags always win on persist. */
+export function reconcileScheduleWithWeekOff(
+  scheduleDays: DayScheduleInput[],
+  weekOffDays: number[],
+): ScheduleDayState[] {
+  const offSet = new Set(weekOffDays);
+  return normalizeScheduleDays(scheduleDays).map((day) => ({
+    ...day,
+    isOff: offSet.has(day.dayOfWeek) ? true : day.isOff,
+  }));
+}
+
+/** Update off flags on an existing schedule without resetting working times. */
+export function applyWeekOffToExistingSchedule(
+  existing: DayScheduleInput[],
+  weekOffDays: number[],
+): ScheduleDayState[] {
+  const offSet = new Set(weekOffDays);
+  return normalizeScheduleDays(existing).map((day) => ({
+    ...day,
+    isOff: offSet.has(day.dayOfWeek),
+  }));
+}
+
+export function scheduleDaysToInput(days: ScheduleDayState[]): DayScheduleInput[] {
+  return days.map((day) => ({
+    dayOfWeek: day.dayOfWeek,
+    startTime: day.startTime,
+    endTime: day.endTime,
+    isOff: day.isOff,
+  }));
 }

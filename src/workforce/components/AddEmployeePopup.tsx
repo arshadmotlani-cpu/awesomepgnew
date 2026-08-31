@@ -1,6 +1,7 @@
 'use client';
 
-import { useActionState, useEffect, useId, useRef, useState, useTransition } from 'react';
+import { useActionState, useEffect, useId, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   createWorkforceEmployeeAction,
   type WorkforceActionState,
@@ -14,8 +15,7 @@ import { WORKFORCE_PAYMENT_METHODS, type WorkforcePaymentMethod } from '@/src/wo
 import { defaultSalonRulesConfig } from '@/src/workforce/lib/incentiveRuleEngine';
 import { IncentiveRuleBuilder } from '@/src/workforce/components/IncentiveRuleBuilder';
 import { workforceAccessRoleLabel } from '@/src/workforce/labels';
-import { WeekOffPicker } from '@/src/workforce/components/WeekOffPicker';
-import { WorkingHoursFields } from '@/src/workforce/components/WorkingHoursFields';
+import { ShiftScheduleSection } from '@/src/workforce/components/ShiftScheduleSection';
 import {
   EmployeeProfileNav,
   EMPLOYEE_PROFILE_SECTIONS,
@@ -66,7 +66,7 @@ export function AddEmployeePopup() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [qrPreview, setQrPreview] = useState<string | null>(null);
   const [state, action, pending] = useActionState(createWorkforceEmployeeAction, initial);
-  const [, startTransition] = useTransition();
+  const router = useRouter();
 
   const salaryPaise = salaryInr ? Math.round(Number(salaryInr) * 100) : 0;
   const defaultRules = defaultSalonRulesConfig();
@@ -88,8 +88,9 @@ export function AddEmployeePopup() {
       setSalaryInr('');
       setShowAdvanced(false);
       setQrPreview(null);
+      router.refresh();
     }
-  }, [state.success]);
+  }, [state.success, router]);
 
   useEffect(() => {
     if (!open) return;
@@ -180,14 +181,7 @@ export function AddEmployeePopup() {
                 <EmployeeProfileNav active={activeSection} onChange={setActiveSection} />
               </div>
 
-              <form
-                ref={formRef}
-                action={(fd) => {
-                  startTransition(() => action(fd));
-                }}
-                className="flex min-h-0 flex-1 flex-col"
-              >
-                <input type="hidden" name="qrCodeUrl" value={qrPreview ?? ''} />
+              <form ref={formRef} action={action} className="flex min-h-0 flex-1 flex-col">
                 <input type="hidden" name="salaryFrequency" value="monthly" />
 
                 <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
@@ -343,6 +337,7 @@ export function AddEmployeePopup() {
                           <span className="fyh-form-label">QR Code</span>
                           <input
                             type="file"
+                            name="qrCodeFile"
                             accept="image/*"
                             className={fieldClass}
                             onChange={(e) => {
@@ -454,15 +449,12 @@ export function AddEmployeePopup() {
                   </div>
 
                   <div className={panelClass(activeSection === 'schedule')}>
-                    <Section title="Weekly off days">
-                      <WeekOffPicker defaultOffDays={[0]} />
-                    </Section>
-                    <Section title="Working hours">
+                    <Section title="Shift schedule">
                       <p className="text-xs text-fyh-text-secondary">
-                        Set start and end times for each day. Use Off for days the employee does not
-                        work.
+                        Select weekly off days — each off day is automatically marked Off in working
+                        hours. Adjust start and end times for working days.
                       </p>
-                      <WorkingHoursFields />
+                      <ShiftScheduleSection formFieldNames />
                     </Section>
                   </div>
 

@@ -53,6 +53,22 @@ test('working hours and lunch break validation', () => {
   );
 });
 
+test('working hours rejects stylist weekly off day', () => {
+  const startAt = new Date('2026-07-27T11:00:00');
+  const endAt = new Date('2026-07-27T12:00:00');
+  const result = isWithinWorkingWindow({
+    startAt,
+    endAt,
+    openHm: '10:00',
+    closeHm: '20:00',
+    closed: true,
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.match(result.reason, /off this day/i);
+  }
+});
+
 test('appointment status transitions — paid only via payment engine', () => {
   assert.equal(canTransitionAppointmentStatus('booked', 'confirmed'), true);
   assert.equal(canTransitionAppointmentStatus('booked', 'paid'), false);

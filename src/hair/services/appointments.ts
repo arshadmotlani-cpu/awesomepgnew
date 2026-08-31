@@ -23,6 +23,7 @@ import {
   isActiveCalendarStatus,
 } from '@/src/hair/lib/appointmentStatus';
 import { shouldHideServiceFromBillable } from '@/src/hair/lib/serviceCatalogHygiene';
+import { getWorkingHoursForDay } from '@/src/workforce/services/appointmentsBridge';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
@@ -205,6 +206,24 @@ async function assertWorkingHours(
     closed: hours?.closed,
   });
   if (!salonCheck.ok) throw new Error(salonCheck.reason);
+
+  const daySchedule = await getWorkingHoursForDay({
+    employeeId: staffId,
+    dayOfWeek: day,
+  });
+  if (daySchedule) {
+    const staffCheck = isWithinWorkingWindow({
+      startAt,
+      endAt,
+      openHm: daySchedule.startTime,
+      closeHm: daySchedule.endTime,
+      lunchStartHm: daySchedule.lunchStart,
+      lunchEndHm: daySchedule.lunchEnd,
+      closed: daySchedule.isOff,
+    });
+    if (!staffCheck.ok) throw new Error(staffCheck.reason);
+    return;
+  }
 
   const [sched] = await hairDb
     .select()
