@@ -118,7 +118,7 @@ export async function projectRoomChangeSettlementStatus(input: {
   let phase: RoomChangeSettlementPhase;
   let message: string;
 
-  if (chargesSettled && request.status !== 'completed') {
+  if (chargesSettled) {
     phase = 'ready_to_transfer';
     message =
       'All room-change charges are paid. Transfer will complete when the transfer date is reached and the destination bed is available.';

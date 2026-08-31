@@ -3088,7 +3088,7 @@ export async function reconcileRentInvoicesAfterRoomTransfer(input: {
     .where(
       and(
         eq(rentInvoices.bookingId, input.bookingId),
-        inArray(rentInvoices.status, ['pending', 'overdue', 'sent']),
+        inArray(rentInvoices.status, ['pending', 'overdue']),
         sql`${rentInvoices.billingMonth} >= ${transferMonth}::date`,
       ),
     );
