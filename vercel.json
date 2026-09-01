@@ -27,7 +27,7 @@
     },
     {
       "path": "/api/cron/room-os-outbox",
-      "schedule": "*/5 * * * *"
+      "schedule": "10 4 * * *"
     },
     {
       "path": "/api/cron/resident-brain-integrity",
@@ -43,7 +43,7 @@
     },
     {
       "path": "/api/cron/owner-os-event-inbox",
-      "schedule": "*/15 * * * *"
+      "schedule": "25 4 * * *"
     }
   ]
 }

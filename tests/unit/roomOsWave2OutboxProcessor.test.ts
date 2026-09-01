@@ -70,10 +70,10 @@ describe('Room OS Wave 2 — Outbox processor', () => {
     assert.match(route, /CRON_SECRET/);
   });
 
-  test('vercel.json schedules room-os-outbox cron', () => {
+  test('vercel.json schedules room-os-outbox cron (daily on Hobby — see DEPLOY-BLOCK-01)', () => {
     const vercel = read('vercel.json');
     assert.match(vercel, /room-os-outbox/);
-    assert.match(vercel, /\*\/5 \* \* \* \*/);
+    assert.match(vercel, /"schedule":\s*"(?:\*\/5 \* \* \* \*|10 4 \* \* \*)"/);
   });
 
   test('migration 0135 adds outbox retry columns', () => {

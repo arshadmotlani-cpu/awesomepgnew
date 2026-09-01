@@ -276,13 +276,13 @@ describe('payment workflow regression', () => {
     assert.match(cleanup, /extractPostgresError\(err\)/);
   });
 
-  test('approvePaymentReviewVerificationAction surfaces full PostgreSQL errors', () => {
+  test('approvePaymentReviewVerificationAction surfaces safe payment approval errors', () => {
     const actions = read('app/(admin)/admin/payments/actions.ts');
     const fn = actions.slice(
       actions.indexOf('export async function approvePaymentReviewVerificationAction'),
       actions.indexOf('export async function approveQrPaymentAction'),
     );
-    assert.match(fn, /formatPostgresError\(err\)/);
+    assert.match(fn, /userFacingPaymentApprovalError\(err\)/);
   });
 
   test('queue loader does not call getQrBookingPaymentReview on page load', () => {

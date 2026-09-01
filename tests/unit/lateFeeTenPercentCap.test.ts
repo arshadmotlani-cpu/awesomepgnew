@@ -128,7 +128,7 @@ test('paid rent invoice projection unaffected — uses locked late fee', () => {
   assert.equal(projected.outstandingPaise, 0);
 });
 
-test('projectElectricityInvoice uses capped late fee for open invoice', () => {
+test('projectElectricityInvoice accrues zero late fee on open invoices (deadline only)', () => {
   const projected = projectElectricityInvoice({
     id: 'e1',
     amountPaise: 286_000,
@@ -151,8 +151,8 @@ test('projectElectricityInvoice uses capped late fee for open invoice', () => {
     updatedAt: new Date(),
   } as Parameters<typeof projectElectricityInvoice>[0], '2026-10-01');
 
-  assert.equal(projected.accruedLateFeePaise, 28_600);
-  assert.equal(projected.outstandingPaise, 286_000 + 28_600);
+  assert.equal(projected.accruedLateFeePaise, 0);
+  assert.equal(projected.outstandingPaise, 286_000);
 });
 
 test('proof snapshot late fee capped in rent projection', () => {

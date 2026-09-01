@@ -69,10 +69,10 @@ async function main() {
   const orphaned = await (async () => {
     const { db: db2, close: close2 } = createClient({ max: 1 });
     const r = await db2.execute<{ ref: string }>(sql`
-      SELECT atr.transaction_ref AS ref
+      SELECT atr.transaction_ref_normalized AS ref
       FROM pg_approved_transaction_refs atr
-      LEFT JOIN rent_invoices ri ON ri.payment_proof_transaction_ref = atr.transaction_ref
-      LEFT JOIN payment_links pl ON pl.payment_proof_transaction_ref = atr.transaction_ref
+      LEFT JOIN rent_invoices ri ON ri.payment_proof_transaction_ref = atr.transaction_ref_normalized
+      LEFT JOIN payment_links pl ON pl.payment_proof_transaction_ref = atr.transaction_ref_normalized
       WHERE ri.id IS NULL AND pl.id IS NULL
       LIMIT 20
     `);

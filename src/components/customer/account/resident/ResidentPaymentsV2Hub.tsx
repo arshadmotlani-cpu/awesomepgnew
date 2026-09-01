@@ -142,7 +142,7 @@ function BillCard({ row }: { row: BillDueRow }) {
           href={row.href}
           className={`${primaryBtn} mt-3 w-full`}
         >
-          {row.status === 'Rejected' ? 'Upload new screenshot' : `Pay ${paiseToInr(row.amountPaise)}`}
+          {row.status === 'Rejected' ? 'Resubmit transaction ID' : `Pay ${paiseToInr(row.amountPaise)}`}
         </Link>
       ) : null}
       {row.rejectionReason ? (
@@ -217,7 +217,7 @@ export function ResidentPaymentsV2Hub({
 
           {pendingApprovalRows.length > 0 ? (
             <p className="rounded-xl border border-sky-400/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
-              Payment submitted — we are reviewing your screenshot.
+              Payment submitted — we are reviewing your transaction ID.
             </p>
           ) : null}
 

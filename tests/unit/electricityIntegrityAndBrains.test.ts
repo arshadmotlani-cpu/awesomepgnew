@@ -1,11 +1,11 @@
 /**
- * Electricity invoice integrity + late fee waiver tests.
+ * Electricity invoice integrity — deadline-only billing (no late-fee accrual on open invoices).
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 
-describe('electricity late fee waiver', () => {
+describe('electricity billing — no late-fee accrual', () => {
   it('projectElectricityInvoice skips late fee when lateFeeWaived is true', () => {
     const projected = projectElectricityInvoice(
       {
@@ -38,11 +38,11 @@ describe('electricity late fee waiver', () => {
       '2026-08-10',
     );
     assert.equal(projected.accruedLateFeePaise, 0);
-    assert.equal(projected.effectiveStatus, 'pending');
+    assert.equal(projected.effectiveStatus, 'overdue');
     assert.equal(projected.outstandingPaise, 67_016);
   });
 
-  it('projectElectricityInvoice accrues late fee when not waived and overdue', () => {
+  it('projectElectricityInvoice accrues zero late fee even when overdue and not waived', () => {
     const projected = projectElectricityInvoice(
       {
         id: 'inv-2',
@@ -73,8 +73,9 @@ describe('electricity late fee waiver', () => {
       },
       '2026-08-10',
     );
-    assert.ok(projected.accruedLateFeePaise > 0);
+    assert.equal(projected.accruedLateFeePaise, 0);
     assert.equal(projected.effectiveStatus, 'overdue');
+    assert.equal(projected.outstandingPaise, 67_016);
   });
 });
 
