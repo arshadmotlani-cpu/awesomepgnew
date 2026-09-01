@@ -309,3 +309,6 @@ flowchart TD
 
 <!-- DOC_SYNC_TOUCH_2026-08-31 -->
 > **2026-08-31 14:03:49 UTC** — Code changed in: Routes, Bookings. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-09-01 -->
+> **2026-09-01 08:31:49 UTC** — Code changed in: Residents. Manual review recommended.

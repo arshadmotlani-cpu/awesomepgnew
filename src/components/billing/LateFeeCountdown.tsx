@@ -1,3 +1,5 @@
+'use client';
+
 import { buildLateFeeCountdown } from '@/src/lib/billing/lateFeeCountdown';
 import type { DateLike } from '@/src/lib/dates';
 

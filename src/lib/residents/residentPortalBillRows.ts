@@ -9,6 +9,7 @@ import type {
   listRentInvoicesForBooking,
 } from '@/src/db/queries/customer';
 import { formatDate, titleCase } from '@/src/lib/format';
+import { formatDate as formatIsoDate } from '@/src/lib/dates';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import { projectInvoice } from '@/src/services/rentInvoices';
 import { formatPaymentModeLabel } from '@/src/lib/billing/paymentModeLabels';
@@ -202,7 +203,7 @@ export function buildResidentBillRowsFromDetail(
         href: `/account/resident/pay-rent/${r.id}`,
         status: labelResidentStatus(projected.effectiveStatus),
         invoiceNumber: r.invoiceNumber,
-        rentIssueDate: r.createdAt ? formatDate(r.createdAt) : r.dueDate,
+        rentIssueDate: r.createdAt ? formatIsoDate(r.createdAt) : r.dueDate,
         lateFeePaise: projected.accruedLateFeePaise,
       };
       dueBillRows.push(row);
