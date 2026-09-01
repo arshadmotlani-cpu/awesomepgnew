@@ -17,6 +17,7 @@ import {
   projectElectricityInvoice,
 } from './electricityBilling';
 import { fetchElectricityInvoiceById } from '@/src/lib/db/electricityInvoiceSelect';
+import { electricityInvoiceWithoutSucceededProofPaymentSql } from '@/src/lib/operations/paymentReviewQueueEligibility';
 import { electricityInvoices } from '@/src/db/schema/electricityInvoices';
 import { resolveRoomPreviousMeterReading } from '@/src/services/roomMeterReadingSsot';
 
@@ -583,6 +584,7 @@ export async function listPendingElectricityProofsForPg(pgId: string) {
           isNotNull(electricityInvoices.paymentProofUrl),
           isNotNull(electricityInvoices.paymentProofTransactionRef),
         ),
+        electricityInvoiceWithoutSucceededProofPaymentSql(),
       ),
     )
     .orderBy(desc(electricityInvoices.updatedAt));

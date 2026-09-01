@@ -4,13 +4,17 @@
  */
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { actionItems, bookings, pgPaymentRecords, unresolvedActions } from '@/src/db/schema';
+import { actionItems, bookings, pgPaymentRecords, rentInvoices, unresolvedActions } from '@/src/db/schema';
 import {
   bookingSupersededByNewerAnchoredStaySql,
   staleBookingPaymentReviewSql,
 } from '@/src/lib/operations/paymentReviewSsot';
 import { finalizeStaleBookingPaymentReview } from '@/src/services/paymentProofReviewCleanup';
 import { resolveAction } from '@/src/services/unresolvedActions';
+import {
+  staleRentInvoicePaymentReviewSql,
+} from '@/src/lib/operations/paymentReviewQueueEligibility';
+import { healRentInvoiceFromSucceededProofPayment } from '@/src/services/rentInvoices';
 
 export type PaymentReviewReconciliationReport = {
   supersededOrphanBookings: number;
@@ -248,4 +252,29 @@ export async function reconcileBookingPaymentReviewQueue(): Promise<PaymentRevie
     finalizedStaleRecords: staleRows.length,
     ...artifactCleanup,
   };
+}
+
+export type InvoicePaymentReviewReconciliationReport = {
+  healedRentInvoices: number;
+  healedElectricityInvoices: number;
+};
+
+/**
+ * Heal invoice proof rows that still look pending while settlement payment already succeeded.
+ * Prevents approved payments from remaining in Operations waiting_for_approval.
+ */
+export async function reconcileInvoicePaymentReviewQueue(): Promise<InvoicePaymentReviewReconciliationReport> {
+  const staleRentRows = await db.execute<{ id: string }>(sql`
+    SELECT ${rentInvoices.id}::text AS id
+    FROM ${rentInvoices}
+    WHERE ${staleRentInvoicePaymentReviewSql}
+  `);
+
+  let healedRentInvoices = 0;
+  for (const row of staleRentRows) {
+    const healed = await healRentInvoiceFromSucceededProofPayment(row.id);
+    if (healed) healedRentInvoices += 1;
+  }
+
+  return { healedRentInvoices, healedElectricityInvoices: 0 };
 }

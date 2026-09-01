@@ -949,7 +949,8 @@ async function buildUnifiedOperationsQueue(
   };
 }
 
-function applyUnifiedOperationsFilter(
+/** @internal — exported for queue parity unit tests */
+export function applyUnifiedOperationsFilter(
   base: {
     allItems: UnifiedOpsItem[];
     paymentReviews: PendingPaymentReviewItem[];
@@ -964,11 +965,21 @@ function applyUnifiedOperationsFilter(
   const filter = filterInput ?? defaultOperationsFilter(counts);
   const filtered = filterOperationsQueueItems(base.allItems, filter);
 
+  const activeReviewKeys = new Set(
+    base.allItems
+      .filter((item) => item.queue === 'waiting_for_approval' && item.paymentReviewKey)
+      .map((item) => item.paymentReviewKey as string),
+  );
+  const paymentReviews =
+    filter === 'waiting_for_approval'
+      ? base.paymentReviews.filter((review) => activeReviewKeys.has(review.key))
+      : base.paymentReviews;
+
   const queue: UnifiedOperationsQueue = {
     items: filtered,
     filter,
     filterCounts,
-    paymentReviews: base.paymentReviews,
+    paymentReviews,
     focusReviewKey: focusReviewKey ?? null,
     totalCount: base.allItems.length,
   };

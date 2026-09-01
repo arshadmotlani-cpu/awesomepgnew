@@ -121,6 +121,10 @@ import {
   hasFrozenFinancialProof,
   paymentProofFinancialFreezeMissingMessage,
 } from '@/src/lib/payments/paymentProofModel';
+import {
+  proofApprovalProviderPaymentId,
+  rentInvoiceWithoutSucceededProofPaymentSql,
+} from '@/src/lib/operations/paymentReviewQueueEligibility';
 
 const INVOICE_PREFIX = 'RNT';
 
@@ -179,6 +183,11 @@ export type RecordRentPaymentSuccessInput = {
   paidAt?: Date;
   /** Skip receipts, automations, and payment-link side effects. */
   historical?: boolean;
+  /**
+   * Heal invoice state when settlement payment already exists (orphan proof queue row).
+   * Skips payment insert; applies invoice + unified mirror updates only.
+   */
+  reconcileFromExistingPaymentId?: string;
 };
 
 export type RecordRentPaymentSuccessResult =
@@ -1643,18 +1652,37 @@ export async function recordRentPaymentSuccess(
 
   const provider = (input.offlineProvider ?? input.provider) as AnyPaymentProvider;
 
-  // Idempotency probe.
-  const [existing] = await db
-    .select({ id: payments.id })
-    .from(payments)
-    .where(
-      and(
-        eq(payments.provider, provider),
-        eq(payments.providerPaymentId, input.providerPaymentId),
-      ),
-    )
-    .limit(1);
-  if (existing) {
+  const reconcilePaymentId = input.reconcileFromExistingPaymentId?.trim() || null;
+
+  // Idempotency probe — when payment exists but invoice was not settled, reconcile below.
+  const [existing] = reconcilePaymentId
+    ? [{ id: reconcilePaymentId }]
+    : await db
+        .select({ id: payments.id })
+        .from(payments)
+        .where(
+          and(
+            eq(payments.provider, provider),
+            eq(payments.providerPaymentId, input.providerPaymentId),
+          ),
+        )
+        .limit(1);
+
+  if (existing && invoice.status === 'paid') {
+    return {
+      ok: true,
+      paymentId: existing.id,
+      invoiceId: invoice.id,
+      stateChanged: false,
+    };
+  }
+
+  if (existing && !reconcilePaymentId) {
+    const healed = await recordRentPaymentSuccess({
+      ...input,
+      reconcileFromExistingPaymentId: existing.id,
+    });
+    if (healed.ok) return healed;
     return {
       ok: true,
       paymentId: existing.id,
@@ -1715,20 +1743,24 @@ export async function recordRentPaymentSuccess(
   );
   try {
     const result = await db.transaction(async (tx) => {
-      const [payment] = await tx
-        .insert(payments)
-        .values({
-          bookingId: invoice.bookingId,
-          purpose: 'rent',
-          provider,
-          providerPaymentId: input.providerPaymentId,
-          providerOrderId: input.providerOrderId ?? null,
-          amountPaise: input.amountPaise,
-          status: 'succeeded',
-          rawPayload: (input.rawPayload as object | undefined) ?? null,
-          paidAt,
-        })
-        .returning({ id: payments.id });
+      const payment = reconcilePaymentId
+        ? { id: reconcilePaymentId }
+        : (
+            await tx
+              .insert(payments)
+              .values({
+                bookingId: invoice.bookingId,
+                purpose: 'rent',
+                provider,
+                providerPaymentId: input.providerPaymentId,
+                providerOrderId: input.providerOrderId ?? null,
+                amountPaise: input.amountPaise,
+                status: 'succeeded',
+                rawPayload: (input.rawPayload as object | undefined) ?? null,
+                paidAt,
+              })
+              .returning({ id: payments.id })
+          )[0]!;
 
       await tx
         .update(rentInvoices)
@@ -2801,6 +2833,7 @@ export async function listPendingRentProofsForPg(pgId: string) {
           isNotNull(rentInvoices.paymentProofUrl),
           isNotNull(rentInvoices.paymentProofTransactionRef),
         ),
+        rentInvoiceWithoutSucceededProofPaymentSql(),
       ),
     )
     .orderBy(desc(rentInvoices.updatedAt));
@@ -2964,6 +2997,62 @@ export async function approveRentPaymentProof(
 
   timer.finish({ ok: false, invoiceId });
   return { ok: false, message: result.reason };
+}
+
+/**
+ * Heal rent invoice + Operations queue when settlement payment exists but invoice
+ * still shows proof-pending (orphan queue row after idempotent approval).
+ */
+export async function healRentInvoiceFromSucceededProofPayment(
+  invoiceId: string,
+): Promise<boolean> {
+  const providerPaymentId = proofApprovalProviderPaymentId('rent', invoiceId);
+  const [payment] = await db
+    .select({
+      id: payments.id,
+      amountPaise: payments.amountPaise,
+      paidAt: payments.paidAt,
+    })
+    .from(payments)
+    .where(
+      and(eq(payments.providerPaymentId, providerPaymentId), eq(payments.status, 'succeeded')),
+    )
+    .limit(1);
+  if (!payment) return false;
+
+  const result = await recordRentPaymentSuccess({
+    invoiceId,
+    provider: 'mock',
+    offlineProvider: 'upi_manual',
+    providerPaymentId,
+    amountPaise: payment.amountPaise,
+    paidAt: payment.paidAt ?? undefined,
+    rawPayload: { source: 'reconcile_proof_settlement' },
+    reconcileFromExistingPaymentId: payment.id,
+  });
+
+  if (result.ok && result.stateChanged) {
+    const { resolvePaymentReviewArtifactsForKey } = await import(
+      '@/src/services/paymentProofReviewCleanup'
+    );
+    await resolvePaymentReviewArtifactsForKey(`rent-${invoiceId}`);
+    return true;
+  }
+
+  const [refreshed] = await db
+    .select({ status: rentInvoices.status })
+    .from(rentInvoices)
+    .where(eq(rentInvoices.id, invoiceId))
+    .limit(1);
+  if (refreshed?.status === 'paid') {
+    const { resolvePaymentReviewArtifactsForKey } = await import(
+      '@/src/services/paymentProofReviewCleanup'
+    );
+    await resolvePaymentReviewArtifactsForKey(`rent-${invoiceId}`);
+    return true;
+  }
+
+  return false;
 }
 
 export async function rejectRentPaymentProof(
