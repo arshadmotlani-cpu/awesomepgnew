@@ -4,7 +4,7 @@
  */
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { actionItems, bookings, pgPaymentRecords, rentInvoices, unresolvedActions } from '@/src/db/schema';
+import { actionItems, bookings, paymentProofRejections, pgPaymentRecords, rentInvoices, unresolvedActions } from '@/src/db/schema';
 import {
   bookingSupersededByNewerAnchoredStaySql,
   staleBookingPaymentReviewSql,
@@ -15,6 +15,7 @@ import {
   staleRentInvoicePaymentReviewSql,
 } from '@/src/lib/operations/paymentReviewQueueEligibility';
 import { healRentInvoiceFromSucceededProofPayment } from '@/src/services/rentInvoices';
+import type { PaymentProofEntityType } from '@/src/db/schema';
 
 export type PaymentReviewReconciliationReport = {
   supersededOrphanBookings: number;
@@ -277,4 +278,47 @@ export async function reconcileInvoicePaymentReviewQueue(): Promise<InvoicePayme
   }
 
   return { healedRentInvoices, healedElectricityInvoices: 0 };
+}
+
+export type RejectedProofQueueReconciliationReport = {
+  healedEntityProofs: number;
+  closedReviewArtifacts: number;
+};
+
+/**
+ * Heal legacy rows where rejection was recorded but txn-only proof fields were not cleared.
+ * Generic queue fix — not resident-specific.
+ */
+export async function reconcileRejectedProofQueueGhosts(): Promise<RejectedProofQueueReconciliationReport> {
+  const { clearActionableProofAfterRejection, entityHasActionablePaymentProof } = await import(
+    '@/src/services/paymentProofRejectionService'
+  );
+  const { resolvePaymentReviewArtifactsForKey } = await import(
+    '@/src/services/paymentProofReviewCleanup'
+  );
+
+  const activeRejections = await db
+    .select({
+      reviewKey: paymentProofRejections.reviewKey,
+      entityType: paymentProofRejections.entityType,
+      entityId: paymentProofRejections.entityId,
+    })
+    .from(paymentProofRejections)
+    .where(eq(paymentProofRejections.status, 'active'));
+
+  let healedEntityProofs = 0;
+  let closedReviewArtifacts = 0;
+
+  for (const row of activeRejections) {
+    const entityType = row.entityType as PaymentProofEntityType;
+    const stillHasProof = await entityHasActionablePaymentProof(entityType, row.entityId);
+    if (!stillHasProof) continue;
+
+    await clearActionableProofAfterRejection(entityType, row.entityId);
+    await resolvePaymentReviewArtifactsForKey(row.reviewKey);
+    healedEntityProofs += 1;
+    closedReviewArtifacts += 1;
+  }
+
+  return { healedEntityProofs, closedReviewArtifacts };
 }

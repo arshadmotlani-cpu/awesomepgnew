@@ -132,7 +132,19 @@ describe('payment review queue after approval SSOT', () => {
     );
   });
 
-  test('rejected workflow unchanged — pending without proof is not awaiting', () => {
+  test('rejected workflow — active rejection is not awaiting', () => {
+    assert.equal(
+      isRentInvoiceAwaitingPaymentReview({
+        status: 'payment_in_progress',
+        paymentProofUrl: null,
+        paymentProofTransactionRef: '624462640131',
+        hasActiveRejection: true,
+      }),
+      false,
+    );
+  });
+
+  test('rejected workflow — pending without proof is not awaiting', () => {
     assert.equal(
       isRentInvoiceAwaitingPaymentReview({
         status: 'pending',

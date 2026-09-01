@@ -15,6 +15,8 @@ test('rejectPaymentProof clears proof and writes rejection row', () => {
   assert.match(src, /writeAuditLogNonBlocking/);
   assert.match(src, /scheduleAdminNotificationSync/);
   assert.match(src, /supersedeActiveRejection/);
+  assert.match(src, /paymentProofTransactionRef: null/);
+  assert.match(src, /transactionRef: null/);
 });
 
 test('booking QR rejection cancels holds and booking via cleanupRejectedBookingRequest', () => {

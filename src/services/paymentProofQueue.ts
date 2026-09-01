@@ -1010,6 +1010,10 @@ async function fetchPendingPaymentReviews(
       '@/src/services/paymentReviewReconciliation'
     );
     await reconcileInvoicePaymentReviewQueue();
+    const { reconcileRejectedProofQueueGhosts } = await import(
+      '@/src/services/paymentReviewReconciliation'
+    );
+    await reconcileRejectedProofQueueGhosts();
   } catch (err) {
     console.error('[payment-review] reconciliation failed — continuing with queue read', err);
   }

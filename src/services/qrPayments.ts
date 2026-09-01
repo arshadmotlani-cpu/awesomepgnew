@@ -15,6 +15,7 @@ import {
 import { isDatabaseSchemaMismatchError, schemaMismatchHint } from '@/src/lib/db/schemaMismatchError';
 import type { PriorOutstandingItem } from '@/src/lib/billing/bookingCheckoutTotals';
 import { isBookingCheckoutEligibleForPaymentReview } from '@/src/lib/operations/paymentReviewSsot';
+import { pgPaymentRecordWithoutActiveRejectionSql } from '@/src/lib/operations/paymentReviewQueueEligibility';
 import type { OverpaymentDisposition } from '@/src/lib/operations/paymentReviewTypes';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
@@ -801,6 +802,9 @@ export async function listOwnerPayments(
     conditions.push(eq(pgPaymentRecords.pgId, filters.pgId));
   }
   if (filters?.status) conditions.push(eq(pgPaymentRecords.status, filters.status));
+  if (filters?.status === 'pending') {
+    conditions.push(pgPaymentRecordWithoutActiveRejectionSql());
+  }
   if (filters?.month) conditions.push(eq(pgPaymentRecords.month, filters.month));
 
   return db

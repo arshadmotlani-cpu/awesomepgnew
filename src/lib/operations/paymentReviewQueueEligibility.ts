@@ -10,7 +10,9 @@ import { sql } from 'drizzle-orm';
 import {
   electricityInvoices,
   paymentLinks,
+  paymentProofRejections,
   payments,
+  pgPaymentRecords,
   rentInvoices,
   stayExtensions,
 } from '@/src/db/schema';
@@ -66,7 +68,9 @@ export function isRentInvoiceAwaitingPaymentReview(input: {
   paymentProofUrl?: string | null;
   paymentProofTransactionRef?: string | null;
   hasSucceededProofPayment?: boolean;
+  hasActiveRejection?: boolean;
 }): boolean {
+  if (input.hasActiveRejection) return false;
   if (!isInvoiceStatusAwaitingPaymentReview(input.status)) return false;
   if (
     !hasTxnOrScreenshotProof({
@@ -114,6 +118,39 @@ export function depositLinkWithoutSucceededProofPaymentSql() {
         OR p.provider_payment_id = 'invoice-link-proof-' || ${paymentLinks.id}::text
       )
   )`;
+}
+
+function activeRejectionNotExistsSql(
+  entityType: 'rent_invoice' | 'electricity_invoice' | 'payment_link' | 'stay_extension' | 'pg_payment_record',
+  entityIdColumn: unknown,
+) {
+  return sql`NOT EXISTS (
+    SELECT 1 FROM ${paymentProofRejections} ppr
+    WHERE ppr.entity_type = ${entityType}
+      AND ppr.entity_id = ${entityIdColumn}
+      AND ppr.status = 'active'
+  )`;
+}
+
+/** Rejected proof must not remain actionable in Operations. */
+export function rentInvoiceWithoutActiveRejectionSql() {
+  return activeRejectionNotExistsSql('rent_invoice', rentInvoices.id);
+}
+
+export function electricityInvoiceWithoutActiveRejectionSql() {
+  return activeRejectionNotExistsSql('electricity_invoice', electricityInvoices.id);
+}
+
+export function depositLinkWithoutActiveRejectionSql() {
+  return activeRejectionNotExistsSql('payment_link', paymentLinks.id);
+}
+
+export function extensionWithoutActiveRejectionSql() {
+  return activeRejectionNotExistsSql('stay_extension', stayExtensions.id);
+}
+
+export function pgPaymentRecordWithoutActiveRejectionSql() {
+  return activeRejectionNotExistsSql('pg_payment_record', pgPaymentRecords.id);
 }
 
 /** Rent invoice has proof on file but settlement payment already succeeded — heal, do not queue. */

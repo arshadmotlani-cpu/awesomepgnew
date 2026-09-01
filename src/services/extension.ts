@@ -49,7 +49,7 @@ import type { AdminSession } from '../lib/auth/session';
 import { env } from '../lib/env';
 import { formatDate, parseDate, type DateLike } from '../lib/dates';
 import { extensionCapMessage } from '../lib/bedAvailabilityWindows';
-import { extensionWithoutSucceededProofPaymentSql } from '@/src/lib/operations/paymentReviewQueueEligibility';
+import { extensionWithoutActiveRejectionSql, extensionWithoutSucceededProofPaymentSql } from '@/src/lib/operations/paymentReviewQueueEligibility';
 import { isBedAvailable } from './availability';
 import { quoteExtension as priceExtension, type ExtensionQuote } from './pricing';
 
@@ -709,6 +709,7 @@ export async function listPendingExtensionProofsForPg(pgId: string) {
           isNotNull(stayExtensions.paymentProofTransactionRef),
         ),
         extensionWithoutSucceededProofPaymentSql(),
+        extensionWithoutActiveRejectionSql(),
         sql`EXISTS (
           SELECT 1 FROM ${bedReservations} br
           JOIN ${beds} b ON b.id = br.bed_id

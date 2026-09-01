@@ -317,12 +317,19 @@ async function clearEntityProof(
         .where(eq(rentInvoices.id, entityId))
         .limit(1);
       if (!invoice) return;
-      const projected = projectInvoice({ ...invoice, status: 'pending', paymentProofUrl: null });
+      const projected = projectInvoice({
+        ...invoice,
+        status: 'pending',
+        paymentProofUrl: null,
+        paymentProofTransactionRef: null,
+      });
       const nextStatus = projected.effectiveStatus === 'overdue' ? 'overdue' : 'pending';
       await executor
         .update(rentInvoices)
         .set({
           paymentProofUrl: null,
+          paymentProofTransactionRef: null,
+          possibleDuplicate: false,
           status: nextStatus,
           proofSubmittedAt: null,
           proofSnapshotOutstandingPaise: null,
@@ -336,19 +343,33 @@ async function clearEntityProof(
     case 'electricity_invoice':
       await executor
         .update(electricityInvoices)
-        .set({ paymentProofUrl: null, updatedAt: now })
+        .set({
+          paymentProofUrl: null,
+          paymentProofTransactionRef: null,
+          possibleDuplicate: false,
+          updatedAt: now,
+        })
         .where(eq(electricityInvoices.id, entityId));
       break;
     case 'payment_link':
       await executor
         .update(paymentLinks)
-        .set({ paymentProofUrl: null })
+        .set({
+          paymentProofUrl: null,
+          paymentProofTransactionRef: null,
+          possibleDuplicate: false,
+        })
         .where(eq(paymentLinks.id, entityId));
       break;
     case 'stay_extension':
       await executor
         .update(stayExtensions)
-        .set({ paymentProofUrl: null, updatedAt: now })
+        .set({
+          paymentProofUrl: null,
+          paymentProofTransactionRef: null,
+          possibleDuplicate: false,
+          updatedAt: now,
+        })
         .where(eq(stayExtensions.id, entityId));
       break;
     case 'pg_payment_record':
@@ -356,6 +377,8 @@ async function clearEntityProof(
         .update(pgPaymentRecords)
         .set({
           paymentScreenshotUrl: null,
+          transactionRef: null,
+          possibleDuplicate: false,
           status: 'pending',
           reviewedByAdminId: null,
           reviewedAt: null,
@@ -364,6 +387,22 @@ async function clearEntityProof(
         .where(eq(pgPaymentRecords.id, entityId));
       break;
   }
+}
+
+/** Clear lingering actionable proof after rejection — queue heal for legacy txn-only rows. */
+export async function clearActionableProofAfterRejection(
+  entityType: PaymentProofEntityType,
+  entityId: string,
+): Promise<void> {
+  await clearEntityProof(entityType, entityId);
+}
+
+export async function entityHasActionablePaymentProof(
+  entityType: PaymentProofEntityType,
+  entityId: string,
+): Promise<boolean> {
+  const ctx = await loadEntityContext(entityType, entityId);
+  return ctx?.hasProof ?? false;
 }
 
 async function appendInvoiceAuditEvent(
@@ -534,7 +573,7 @@ export async function rejectPaymentProof(
   }
 
   if (!ctx.hasProof) {
-    return { ok: false, message: 'No payment photo uploaded.' };
+    return { ok: false, message: 'No payment proof on file.' };
   }
 
   const reasonLabel = rejectionReasonLabel(input.reasonCode);

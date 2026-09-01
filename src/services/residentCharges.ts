@@ -15,7 +15,7 @@ import {
   pgs,
   rooms,
 } from '@/src/db/schema';
-import { depositLinkWithoutSucceededProofPaymentSql } from '@/src/lib/operations/paymentReviewQueueEligibility';
+import { depositLinkWithoutActiveRejectionSql, depositLinkWithoutSucceededProofPaymentSql } from '@/src/lib/operations/paymentReviewQueueEligibility';
 import { buildChargeRequestWhatsAppUrl } from '@/src/lib/billing/adminWhatsApp';
 import { expressSaleIdempotencyKey } from '@/src/lib/billing/invoiceStateMachine';
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
@@ -589,6 +589,7 @@ export async function listPendingDepositLinkProofsForPg(pgId: string) {
           isNotNull(paymentLinks.paymentProofTransactionRef),
         ),
         depositLinkWithoutSucceededProofPaymentSql(),
+        depositLinkWithoutActiveRejectionSql(),
         or(
           and(eq(paymentLinks.purpose, 'deposit'), isNotNull(paymentLinks.bookingId)),
           and(eq(paymentLinks.purpose, 'combined'), isNotNull(paymentLinks.invoiceId)),

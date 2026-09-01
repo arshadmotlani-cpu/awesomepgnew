@@ -123,6 +123,7 @@ import {
 } from '@/src/lib/payments/paymentProofModel';
 import {
   proofApprovalProviderPaymentId,
+  rentInvoiceWithoutActiveRejectionSql,
   rentInvoiceWithoutSucceededProofPaymentSql,
 } from '@/src/lib/operations/paymentReviewQueueEligibility';
 
@@ -2834,6 +2835,7 @@ export async function listPendingRentProofsForPg(pgId: string) {
           isNotNull(rentInvoices.paymentProofTransactionRef),
         ),
         rentInvoiceWithoutSucceededProofPaymentSql(),
+        rentInvoiceWithoutActiveRejectionSql(),
       ),
     )
     .orderBy(desc(rentInvoices.updatedAt));
