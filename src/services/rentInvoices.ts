@@ -117,7 +117,10 @@ import {
   clampDueDateOnOrAfterIssueDate,
   resolveRentInvoiceDueDate,
 } from '@/src/lib/billing/invoiceDueDate';
-import { paymentProofFinancialFreezeMissingMessage } from '@/src/lib/payments/paymentProofModel';
+import {
+  hasFrozenFinancialProof,
+  paymentProofFinancialFreezeMissingMessage,
+} from '@/src/lib/payments/paymentProofModel';
 
 const INVOICE_PREFIX = 'RNT';
 
@@ -2086,11 +2089,11 @@ export type ProjectInvoiceOptions = {
 function hasFrozenProofSnapshot(
   invoice: RentInvoiceProjectInput,
 ): invoice is RentInvoiceProjectInput & { proofSnapshotOutstandingPaise: number } {
-  return (
-    invoice.proofSnapshotOutstandingPaise != null &&
-    invoice.proofSnapshotOutstandingPaise >= 0 &&
-    Boolean(invoice.paymentProofUrl)
-  );
+  return hasFrozenFinancialProof({
+    proofSnapshotOutstandingPaise: invoice.proofSnapshotOutstandingPaise,
+    proofSubmittedAt: invoice.proofSubmittedAt,
+    paymentProofTransactionRef: invoice.paymentProofTransactionRef,
+  });
 }
 
 /** Financial snapshot frozen at payment-proof upload — SSOT for review + approval. */
@@ -2126,8 +2129,13 @@ export async function ensureRentProofSnapshot(
     .from(rentInvoices)
     .where(eq(rentInvoices.id, invoiceId))
     .limit(1);
-  if (!invoice?.paymentProofUrl) return invoice ?? null;
+  if (!invoice) return null;
   if (invoice.proofSnapshotOutstandingPaise != null) return invoice;
+
+  const { normalizeTransactionRef } = await import('@/src/lib/payments/transactionRefDuplicate');
+  const hasTxn = Boolean(normalizeTransactionRef(invoice.paymentProofTransactionRef));
+  const hasLegacyScreenshot = Boolean(invoice.paymentProofUrl?.trim());
+  if (!hasTxn && !hasLegacyScreenshot) return invoice;
 
   const anchor = invoice.proofSubmittedAt ?? invoice.updatedAt;
   const snapshot = buildRentProofFinancialSnapshot(invoice, anchor);

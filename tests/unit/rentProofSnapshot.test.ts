@@ -64,6 +64,7 @@ describe('rent proof financial snapshot', () => {
       ...baseInvoice,
       status: 'payment_in_progress',
       paymentProofUrl: 'proofs/rent.jpg',
+      paymentProofTransactionRef: '624346908874',
       proofSubmittedAt: snapshot.proofSubmittedAt,
       proofSnapshotOutstandingPaise: snapshot.proofSnapshotOutstandingPaise,
       proofSnapshotLateFeePaise: snapshot.proofSnapshotLateFeePaise,
@@ -90,13 +91,28 @@ describe('rent proof financial snapshot', () => {
     const invoice = {
       ...baseInvoice,
       status: 'payment_in_progress' as const,
-      paymentProofUrl: 'proofs/rent.jpg',
+      paymentProofUrl: null,
+      paymentProofTransactionRef: '624346908874',
       proofSubmittedAt: new Date('2026-07-07'),
       proofSnapshotOutstandingPaise: 472_872,
       proofSnapshotLateFeePaise: 9_272,
       proofSnapshotPrincipalDuePaise: 463_600,
     };
     assert.equal(rentProofApprovalAmountPaise(invoice), 472_872);
+  });
+
+  test('screenshot without transaction ID is not approvable', () => {
+    const invoice = {
+      ...baseInvoice,
+      status: 'payment_in_progress' as const,
+      paymentProofUrl: 'proofs/rent.jpg',
+      paymentProofTransactionRef: null,
+      proofSubmittedAt: new Date('2026-07-07'),
+      proofSnapshotOutstandingPaise: 472_872,
+      proofSnapshotLateFeePaise: 9_272,
+      proofSnapshotPrincipalDuePaise: 463_600,
+    };
+    assert.equal(rentProofApprovalAmountPaise(invoice), null);
   });
 
   test('pre-proof invoices still accrue live', () => {

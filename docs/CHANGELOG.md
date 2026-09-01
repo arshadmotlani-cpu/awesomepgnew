@@ -256,9 +256,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-09-01 14:18:24 UTC
+### Pending pre-commit sync · 2026-09-01 15:59:26 UTC
 
-**Areas touched:** [[Billing]], [[Residents]], [[Electricity]]
+**Areas touched:** [[Billing]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
@@ -267,11 +267,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (5):**
-- `src/lib/billing/electricityDueCountdown.ts`
-- `src/lib/residents/residentPortalBillRowSafe.ts`
-- `src/lib/residents/residentPortalBillRows.ts`
-- `src/services/electricityBilling.ts`
+**Staged code files (1):**
 - `src/services/rentInvoices.ts`
 
 **Changed:**

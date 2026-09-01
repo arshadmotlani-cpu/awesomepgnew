@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  hasFrozenFinancialProof,
   paymentProofFinancialFreezeMissingMessage,
   paymentProofIncompleteMessage,
   paymentProofScreenshotNotRequiredNote,
@@ -23,6 +24,22 @@ test('hasTxnOrScreenshotProof accepts txn without screenshot', () => {
     true,
   );
   assert.equal(hasTxnOrScreenshotProof({ transactionRef: null, paymentProofUrl: null }), false);
+});
+
+test('hasFrozenFinancialProof requires txn + snapshot, never screenshot alone', () => {
+  const frozen = {
+    proofSnapshotOutstandingPaise: 412_080,
+    proofSubmittedAt: new Date('2026-08-31'),
+    paymentProofTransactionRef: '624462640131',
+  };
+  assert.equal(hasFrozenFinancialProof(frozen), true);
+  assert.equal(
+    hasFrozenFinancialProof({
+      ...frozen,
+      paymentProofTransactionRef: null,
+    }),
+    false,
+  );
 });
 
 test('pending booking QR record with txn only is eligible for review', () => {
