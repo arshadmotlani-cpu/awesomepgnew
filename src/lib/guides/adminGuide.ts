@@ -348,7 +348,7 @@ export const ADMIN_GUIDE: GuideCatalog = {
       steps: [
         'Open Collections → filter pending for that PG/resident.',
         'If proof exists — verify amount matches invoice exactly, then Approve.',
-        'If no proof — ask resident to upload screenshot from pay page.',
+        'If no proof — ask resident to submit their UPI transaction ID from the pay page.',
         'If wrong amount — reject proof; resident pays difference or admin records adjustment.',
         'Check booking detail → payments table for duplicate submissions.',
       ],

@@ -295,7 +295,7 @@ export function buildResidentOperationsDashboard(input: {
       roomNumber: p.roomNumber,
       bedCode: p.bedCode,
       issue: `${kindLabel} screenshot awaiting admin review`,
-      nextAction: 'Verify payment screenshot and approve or reject',
+      nextAction: 'Verify transaction ID and approve or reject',
       primaryActionLabel: 'Review payment',
       primaryHref: '/admin/operations?filter=waiting_for_approval',
       sortPriority: 0,
@@ -354,7 +354,7 @@ export function buildResidentOperationsDashboard(input: {
         b.categoryLabel === 'Billing transition'
           ? `Billing transition · ${b.periodLabel}`
           : `${b.invoiceLabel} · ${dueLabel}`,
-      nextAction: 'Resident pays and uploads payment screenshot',
+      nextAction: 'Resident pays and submits UPI transaction ID',
       primaryActionLabel: 'Open resident',
       primaryHref: b.financialInvoiceId
         ? `/admin/invoices/${b.financialInvoiceId}`

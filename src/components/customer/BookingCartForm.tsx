@@ -125,8 +125,8 @@ export function BookingCartForm({
   const submitLabel = isPreBook ? `${HOLD_THIS_BED} & continue to payment` : `${BOOK_BED_ACTION} & continue to payment`;
   const pendingLabel = isPreBook ? 'Holding your bed…' : 'Booking your bed…';
   const stepHint = isPreBook
-    ? `You're holding this bed for check-in on ${formatDate(startDate)}. Next: pay via UPI QR and upload proof — admin confirms once verified.`
-    : 'This bed is available now. Next: pay rent + deposit via UPI QR and upload proof for admin approval.';
+    ? `You're holding this bed for check-in on ${formatDate(startDate)}. Next: pay via UPI QR and submit your transaction ID — admin confirms once verified.`
+    : 'This bed is available now. Next: pay rent + deposit via UPI QR and submit your transaction ID for admin approval.';
 
   if (simpleCheckout) {
     return (

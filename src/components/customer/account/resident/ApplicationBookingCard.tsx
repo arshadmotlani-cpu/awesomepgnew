@@ -6,6 +6,7 @@ import type { MyBookingCardModel } from '@/src/lib/account/myBookingRowPresentat
 import type { PaymentProofRejectionRow } from '@/src/services/paymentProofRejectionService';
 import { PaymentRejectionStatusPanel } from '@/src/components/customer/payments/PaymentRejectionStatusPanel';
 import { duration, easing } from '@/src/lib/design-system/motion';
+import { paymentProofTxnResubmitLabel } from '@/src/lib/payments/paymentProofModel';
 import { surface } from '@/src/lib/design-system/tokens';
 
 function statusChipClasses(model: MyBookingCardModel, hasRejection: boolean): string {
@@ -29,17 +30,17 @@ function rejectionAction(rejection: PaymentProofRejectionRow, bookingCode: strin
     case 'rent_invoice':
       return {
         href: `/account/resident/pay-rent/${rejection.entityId}`,
-        label: 'Upload New Screenshot',
+        label: paymentProofTxnResubmitLabel(),
       };
     case 'electricity_invoice':
       return {
         href: `/account/resident/pay-electricity/${rejection.entityId}`,
-        label: 'Upload New Screenshot',
+        label: paymentProofTxnResubmitLabel(),
       };
     case 'payment_link':
       return {
         href: `/pay/${rejection.entityId}`,
-        label: 'Upload New Screenshot',
+        label: paymentProofTxnResubmitLabel(),
       };
     case 'stay_extension':
       return {

@@ -269,7 +269,7 @@ export function bookingTimelineDetailForStatus(status: BookingStatus): string | 
     case 'pending_approval':
       return 'Payment proof submitted — awaiting admin approval in Operations';
     case 'pending_payment':
-      return 'Bed held — resident must pay and upload proof';
+      return 'Bed held — resident must pay and submit transaction ID';
     case 'superseded':
       return 'Replaced by a newer confirmed booking for the same stay';
     case 'cancelled':

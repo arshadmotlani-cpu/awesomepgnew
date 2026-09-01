@@ -98,5 +98,5 @@ test('buildOperationsPaymentWhatsAppMessage uses rent template for single rent l
   assert.match(message, /Hi Harshal/);
   assert.match(message, /July/);
   assert.match(message, /https:\/\/example.com\/i\/token/);
-  assert.match(message, /After payment upload/);
+  assert.match(message, /submit your UPI transaction ID/);
 });

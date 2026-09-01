@@ -30,7 +30,7 @@ export function OperationsWaitingForApprovalTable({
     return (
       <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-8 py-16 text-center">
         <p className="text-xl font-semibold text-emerald-100">Nothing waiting for approval</p>
-        <p className="mt-2 text-sm text-emerald-200/80">Uploaded payment screenshots appear here.</p>
+        <p className="mt-2 text-sm text-emerald-200/80">Transaction IDs awaiting verification appear here.</p>
       </div>
     );
   }

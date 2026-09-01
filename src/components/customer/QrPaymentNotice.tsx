@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export function QrPaymentNotice({
   title = 'Pay with UPI QR',
-  description = 'All payments are handled via QR codes on each PG listing. Browse PGs, open Payments, scan the QR, and submit your payment screenshot for owner approval.',
+  description = 'All payments are handled via QR codes on each PG listing. Browse PGs, open Payments, scan the QR, and submit your UPI transaction ID for owner approval.',
   href = '/pgs',
 }: {
   title?: string;

@@ -4,8 +4,11 @@ import {
   hasFrozenFinancialProof,
   paymentProofFinancialFreezeMissingMessage,
   paymentProofIncompleteMessage,
+  paymentProofPendingReviewMessage,
   paymentProofScreenshotNotRequiredNote,
   paymentProofTxnOnlyLabel,
+  paymentProofTxnResubmitLabel,
+  paymentProofTxnSubmitInstruction,
 } from '@/src/lib/payments/paymentProofModel';
 import { hasTxnOrScreenshotProof } from '@/src/services/pgTransactionRefIndex';
 import { isPaymentRecordEligibleForReview } from '@/src/lib/operations/paymentReviewSsot';
@@ -16,6 +19,11 @@ test('txn-only proof model copy', () => {
   assert.match(paymentProofIncompleteMessage(), /transaction ID/i);
   assert.match(paymentProofFinancialFreezeMissingMessage(), /resubmit/i);
   assert.doesNotMatch(paymentProofFinancialFreezeMissingMessage(), /screenshot/i);
+  assert.match(paymentProofTxnSubmitInstruction(), /transaction ID/i);
+  assert.doesNotMatch(paymentProofTxnSubmitInstruction(), /screenshot/i);
+  assert.match(paymentProofTxnResubmitLabel(), /transaction ID/i);
+  assert.match(paymentProofPendingReviewMessage(), /transaction ID/i);
+  assert.doesNotMatch(paymentProofPendingReviewMessage(), /screenshot/i);
 });
 
 test('hasTxnOrScreenshotProof accepts txn without screenshot', () => {

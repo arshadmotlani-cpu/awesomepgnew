@@ -7,6 +7,7 @@ import { ImageFileInput } from '@/src/components/shared/ImageFileInput';
 import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { resolveBlobLinkHref } from '@/src/lib/storage/blobImageDisplay';
 import { paiseToInr } from '@/src/lib/format';
+import { paymentProofTxnResubmitLabel } from '@/src/lib/payments/paymentProofModel';
 import { logPaymentClientException } from '@/src/lib/client/paymentClientLogger';
 import { uploadPaymentScreenshotClient } from '@/src/lib/client/uploadPaymentScreenshotClient';
 import { stayTypeFromPricingMode, stayTypeLabel } from '@/src/lib/stayType';
@@ -404,7 +405,7 @@ export function BookingCheckoutExperience({
         residentMessage={rejectionMessage}
         rejectedAt={rejectedAt}
         actionHref="#booking-upload-proof"
-        actionLabel="Upload New Screenshot"
+        actionLabel={paymentProofTxnResubmitLabel()}
         showTimeline
       />
     ) : null;

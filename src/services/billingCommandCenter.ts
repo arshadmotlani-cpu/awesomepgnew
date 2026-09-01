@@ -127,7 +127,7 @@ export async function loadBillingCommandCenterSnapshot(
     },
     {
       id: 'payment_reviews',
-      label: 'Payment screenshots to review',
+      label: 'Payment proofs to review',
       count: paymentReviewCount,
       href: operationsFilterHref('waiting_for_approval'),
       tone: paymentReviewCount > 0 ? 'urgent' : 'default',

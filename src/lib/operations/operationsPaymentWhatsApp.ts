@@ -7,6 +7,7 @@ import {
 import { buildDepositDueWhatsAppMessage } from '@/src/lib/billing/adminWhatsApp';
 import { paiseToInr } from '@/src/lib/format';
 import { whatsAppPhoneDigits } from '@/src/lib/kyc/adminWhatsApp';
+import { paymentProofTxnSubmitInstruction } from '@/src/lib/payments/paymentProofModel';
 import type { UnifiedOpsOutstandingLine } from '@/src/services/unifiedOperationsQueue';
 
 function residentGreeting(name: string): string {
@@ -24,7 +25,7 @@ function pendingPaymentBlock(input: {
     `Amount: ${paiseToInr(input.amountPaise)}\n\n` +
     `Open your payment page:\n${input.paymentUrl}\n\n` +
     `You may pay using:\nQR Code · UPI ID · Exact Amount\n\n` +
-    `After payment upload screenshot.`
+    `${paymentProofTxnSubmitInstruction()}`
   );
 }
 

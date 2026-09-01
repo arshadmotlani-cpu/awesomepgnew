@@ -393,7 +393,7 @@ export function RentInvoicePromoField({
         <p className={`mt-2 ${styles.error}`}>{error}</p>
       ) : (
         <p className="mt-2 text-xs text-apg-silver">
-          Apply before payment — discount is locked once you upload proof.
+          Apply before payment — discount is locked once you submit your transaction ID.
         </p>
       )}
     </div>

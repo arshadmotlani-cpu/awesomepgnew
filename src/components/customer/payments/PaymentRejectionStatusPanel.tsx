@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { motion, useReducedMotion } from 'framer-motion';
 import { formatDateTime } from '@/src/lib/format';
 import { duration, easing } from '@/src/lib/design-system/motion';
+import { paymentProofTxnResubmitLabel } from '@/src/lib/payments/paymentProofModel';
 import { StatusTimeline, type TimelineStage } from '@/src/components/customer/design-system/StatusTimeline';
 
 export type PaymentRejectionStatusPanelProps = {
@@ -23,7 +24,7 @@ const TIMELINE_STAGES: TimelineStage[] = [
   { id: 'uploaded', label: 'Payment Uploaded' },
   { id: 'rejected', label: 'Rejected' },
   { id: 'reason', label: 'Reason' },
-  { id: 'reupload', label: 'Upload New Screenshot' },
+  { id: 'reupload', label: paymentProofTxnResubmitLabel() },
 ];
 
 export function PaymentRejectionStatusPanel({
@@ -31,7 +32,7 @@ export function PaymentRejectionStatusPanel({
   residentMessage,
   rejectedAt,
   actionHref,
-  actionLabel = 'Upload New Screenshot',
+  actionLabel = paymentProofTxnResubmitLabel(),
   showTimeline = true,
   className = '',
 }: PaymentRejectionStatusPanelProps) {

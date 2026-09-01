@@ -10,7 +10,8 @@ import {
   type ResidentElectricityHistoryItem,
 } from '@/src/components/customer/account/resident/ResidentElectricityHistory';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
-import { legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
+import { legacyResidentTabHref } from '@/src/lib/accountNavigation';
+import { paymentProofPendingApprovalDescription, paymentProofPendingReviewMessage } from '@/src/lib/payments/paymentProofModel';
 import { ResidentOutstandingBillsCard } from '@/src/components/customer/account/resident/ResidentOutstandingBillsCard';
 import type { PaymentDueRow } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
 
@@ -147,7 +148,7 @@ export function ResidentPaymentsHub({
 
       {pendingApprovalRows.length > 0 ? (
         <p className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-          Payment submitted — we are reviewing your screenshot.
+          {paymentProofPendingReviewMessage()}
         </p>
       ) : (
         <Link href={legacyResidentTabHref('home')} className={PRIMARY_BTN}>
@@ -164,7 +165,7 @@ export function ResidentPaymentsHub({
 
       <BillList
         title="Pending approval"
-        description="Screenshot uploaded — waiting for admin to confirm payment."
+        description={paymentProofPendingApprovalDescription()}
         rows={pendingApprovalRows}
         emptyMessage="No payments awaiting approval."
       />
@@ -194,7 +195,7 @@ export function ResidentPaymentsHub({
         <h2 className="text-sm font-semibold text-zinc-900">What happens when you pay</h2>
         <ol className="mt-3 list-decimal space-y-2 pl-4 text-sm text-zinc-600">
           <li>You review the bill amount and due date.</li>
-          <li>You confirm, then pay by UPI and upload a screenshot.</li>
+          <li>You confirm, then pay by UPI and submit your transaction ID.</li>
           <li>We verify payment and update your bill status here.</li>
         </ol>
         <p className="mt-3 text-xs text-zinc-500">

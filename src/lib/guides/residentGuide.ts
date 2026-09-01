@@ -89,12 +89,12 @@ export const RESIDENT_GUIDE: GuideCatalog = {
       title: 'Pay monthly rent',
       category: 'Payments',
       keywords: ['rent', 'invoice', 'monthly', 'pay', 'upi', 'qr', 'overdue', 'due'],
-      summary: 'Each month you get a rent invoice — pay via UPI QR and upload proof.',
+      summary: 'Each month you get a rent invoice — pay via UPI QR and submit your transaction ID.',
       steps: [
         'Open Resident area or the rent invoice link from email/WhatsApp.',
         'Tap Pay on the pending rent invoice.',
         'Scan the PG UPI QR and pay the exact invoice amount.',
-        'Upload your payment screenshot and submit.',
+        'Enter your UPI transaction ID and submit.',
         'Status updates to Paid once admin approves your proof (or auto-verified if enabled).',
       ],
       tip: 'Pay before the due date to avoid late fees. Overdue invoices show a penalty on the invoice.',
@@ -108,7 +108,7 @@ export const RESIDENT_GUIDE: GuideCatalog = {
       steps: [
         'When a bill is generated, you see it under Resident area → Electricity.',
         'Open the invoice — it shows units used, rate, and your share.',
-        'Tap Pay, scan UPI QR, pay exact amount, upload screenshot.',
+        'Tap Pay, scan UPI QR, pay exact amount, submit your transaction ID.',
         'Meter photos and readings are recorded by the PG each month.',
       ],
       tip: 'If you moved mid-month, your share is calculated for the days you occupied the bed.',
@@ -208,10 +208,10 @@ export const RESIDENT_GUIDE: GuideCatalog = {
       keywords: ['problem', 'stuck', 'payment not showing', 'kyc pending', 'help', 'support'],
       summary: 'Quick fixes for the most common resident questions.',
       bullets: [
-        'Payment submitted but still pending — allow time for admin review; ensure screenshot shows amount, UPI ref, and date.',
+        'Payment submitted but still pending — allow time for admin review; ensure your transaction ID and amount match the invoice.',
         'KYC stuck on pending — wait for admin review (usually same day); re-upload if rejected.',
         'Cannot see Resident tab — you need at least one confirmed booking.',
-        'Wrong amount paid — contact PG on WhatsApp with booking code and screenshot.',
+        'Wrong amount paid — contact PG on WhatsApp with booking code and UPI transaction ID.',
         'Forgot Password — use Forgot Password on the Login page (OTP reset).',
       ],
       links: [

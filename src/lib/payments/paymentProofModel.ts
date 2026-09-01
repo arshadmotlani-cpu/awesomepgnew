@@ -52,3 +52,23 @@ export function paymentProofTxnOnlyLabel(): string {
 export function paymentProofScreenshotNotRequiredNote(): string {
   return 'Screenshot not required.';
 }
+
+/** Resident-facing: after UPI pay, submit txn ID (not screenshot). */
+export function paymentProofTxnSubmitInstruction(): string {
+  return 'After payment, submit your UPI transaction ID from your payment app.';
+}
+
+/** CTA when proof was rejected — resident resubmits txn ID. */
+export function paymentProofTxnResubmitLabel(): string {
+  return 'Resubmit transaction ID';
+}
+
+/** Banner while admin reviews submitted txn ID. */
+export function paymentProofPendingReviewMessage(): string {
+  return 'Payment submitted — we are reviewing your transaction ID.';
+}
+
+/** List/card description for pending-approval rows. */
+export function paymentProofPendingApprovalDescription(): string {
+  return 'Transaction ID submitted — waiting for admin to confirm payment.';
+}

@@ -10,7 +10,7 @@ const FOCUS_TIPS: Record<string, string> = {
   'confirm-booking': 'Your deposit is refundable. Living-here stays bill monthly after move-in — no fixed checkout date needed upfront.',
   vacating: `When you plan to move out, submit vacating here at least ${VACATING_NOTICE_MIN_DAYS} days before your last day to protect your deposit refund.`,
   'ps4-service':
-    `${PS4_LOUNGE_HEADLINE} — ${PS4_LOUNGE_HOURLY_NOTE} Membership plans: ${ps4PlanRatesSummary()}. Subscribe here, pay via UPI QR + upload proof; lounge access activates once admin verifies (same as PG booking checkout).`,
+    `${PS4_LOUNGE_HEADLINE} — ${PS4_LOUNGE_HOURLY_NOTE} Membership plans: ${ps4PlanRatesSummary()}. Subscribe here, pay via UPI QR and submit your transaction ID; lounge access activates once admin verifies (same as PG booking checkout).`,
   'pay-rent': 'Pay rent from here before the 5th to avoid late fees. Electricity is billed separately when your PG uses meter split.',
 };
 

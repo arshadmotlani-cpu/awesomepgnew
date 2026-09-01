@@ -56,7 +56,7 @@ export default async function NewPs4SubscriptionPage() {
           </label>
         ))}
         <p className="text-xs text-zinc-600">
-          Payment uses the electricity / daily UPI QR — scan, pay, upload proof; admin verifies before
+          Payment uses the electricity / daily UPI QR — scan, pay, submit your transaction ID; admin verifies before
           lounge access activates (same as PG booking checkout).
         </p>
         <button

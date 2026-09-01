@@ -23,7 +23,7 @@ test('rent collection WhatsApp message uses public invoice URL', () => {
   assert.match(message, /July Rent invoice for Awesome PG/);
   assert.match(message, /₹7,211/);
   assert.match(message, /https:\/\/www\.awesomepg\.in\/i\/abc123sharetoken/);
-  assert.match(message, /upload the payment screenshot/);
+  assert.match(message, /submit your UPI transaction ID/);
   assert.doesNotMatch(message, /Pay here/);
 });
 

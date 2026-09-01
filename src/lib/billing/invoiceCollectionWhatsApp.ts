@@ -2,6 +2,7 @@
  * Official invoice collection WhatsApp messages — one invoice per message, public /i/{token} URL.
  */
 import { paiseToInr } from '@/src/lib/format';
+import { paymentProofTxnSubmitInstruction } from '@/src/lib/payments/paymentProofModel';
 import { whatsAppPhoneDigits } from '@/src/lib/kyc/adminWhatsApp';
 import type { FinancialInvoiceType } from '@/src/db/schema/enums';
 
@@ -48,7 +49,7 @@ export function buildRentCollectionWhatsAppMessage(input: {
     `Amount:\n${amount}\n\n` +
     `Please review and pay using the secure link below.\n\n` +
     `${input.publicInvoiceUrl}\n\n` +
-    `After payment upload the payment screenshot.\n\n` +
+    `${paymentProofTxnSubmitInstruction()}\n\n` +
     `Thank you.`
   );
 }
@@ -67,7 +68,7 @@ export function buildElectricityCollectionWhatsAppMessage(input: {
     `Amount:\n${amount}\n\n` +
     `Please review and pay using the secure link below.\n\n` +
     `${input.publicInvoiceUrl}\n\n` +
-    `After payment upload the payment screenshot.\n\n` +
+    `${paymentProofTxnSubmitInstruction()}\n\n` +
     `Thank you.`
   );
 }
@@ -85,7 +86,7 @@ export function buildGenericInvoiceCollectionWhatsAppMessage(input: {
     `Amount:\n${amount}\n\n` +
     `Please review and pay using the secure link below.\n\n` +
     `${input.publicInvoiceUrl}\n\n` +
-    `After payment upload the payment screenshot.\n\n` +
+    `${paymentProofTxnSubmitInstruction()}\n\n` +
     `Thank you.`
   );
 }

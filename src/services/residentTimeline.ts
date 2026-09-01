@@ -761,7 +761,7 @@ export function deriveTimelineSummary(
   if (subject.bookingStatus === 'pending_payment') {
     return {
       existsSummary: 'Yes — booking exists but payment proof not submitted yet.',
-      nextAction: 'Resident: pay and upload proof on booking page',
+      nextAction: 'Resident: pay and submit transaction ID on booking page',
       blockedReason: 'Booking awaiting resident payment.',
     };
   }
