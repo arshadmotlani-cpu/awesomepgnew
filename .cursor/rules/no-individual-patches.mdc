@@ -1,0 +1,40 @@
+---
+description: Never patch individual residents — fix shared logic, test generically, reconcile data only via auditable mechanisms
+alwaysApply: true
+---
+
+# No Individual Patches (Awesome PG)
+
+Never individually repair, hardcode, special-case, or manually alter a resident's data to make a bug appear fixed.
+
+Individual resident records may **only** be used to: reproduce the bug, inspect state, understand the failure, verify the generic fix afterward.
+
+## Scope
+
+All Awesome PG modules: residents, bookings, rooms/beds, room changes, move-outs, deposits, refunds, rent, electricity, invoices, payments, wallets, billing, notifications, admin operations, resident portal, staff/workforce, pricing, settlements.
+
+## Required workflow
+
+1. Diagnose using the affected resident.
+2. Find the underlying **generic** cause in shared code/workflow.
+3. Fix the shared application/service/workflow/database logic.
+4. Add a regression test.
+5. Verify against **multiple** resident states (normal booking, room change, no due, pending approval, etc.).
+6. If historical data reconciliation is needed, use a **generic, auditable, idempotent** mechanism for **all** affected records — ask before any data repair.
+
+## Never
+
+- Hardcode resident/booking/invoice IDs or amounts for one case
+- One-off SQL or manual production financial changes to hide a software bug
+- Fake/default financial values or blanket exception suppression without root cause
+
+## Distinguish clearly
+
+- **A. Fix the software** (always first)
+- **B. Reconcile historical data** (only after generic fix; never one-resident patches)
+
+## Bug report must state
+
+Root cause · shared code/workflow · generic fix · regression test · affected population · whether historical reconciliation is needed · how reconciliation works generically · deployment status
+
+**Goal:** Make Awesome PG work correctly for **every** resident — not make one resident work.
