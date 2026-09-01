@@ -120,7 +120,7 @@ export function approvedTransactionRefConflictMessage(): string {
   return 'This transaction ID is already approved on another payment. Reject this submission or use a different ID.';
 }
 
-export function isApprovedTransactionRefUniqueViolation(err: unknown): boolean {
+function approvedTransactionRefUniqueViolationOnNode(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
   const e = err as { code?: string; constraint?: string; message?: string };
   if (e.code !== '23505') return false;
@@ -131,4 +131,12 @@ export function isApprovedTransactionRefUniqueViolation(err: unknown): boolean {
     hay.includes('pg_approved_transaction_refs') ||
     hay.includes('subscription_payment_submissions')
   );
+}
+
+export function isApprovedTransactionRefUniqueViolation(err: unknown): boolean {
+  if (approvedTransactionRefUniqueViolationOnNode(err)) return true;
+  if (err && typeof err === 'object' && 'cause' in err) {
+    return isApprovedTransactionRefUniqueViolation((err as { cause: unknown }).cause);
+  }
+  return false;
 }

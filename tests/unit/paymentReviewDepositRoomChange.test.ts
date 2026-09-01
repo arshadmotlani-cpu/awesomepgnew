@@ -12,7 +12,7 @@ import {
   invoiceDepositLedgerReason,
   parsePaymentsRelatedId,
 } from '@/src/lib/payments/paymentsRelatedId';
-import { approvedTransactionRefConflictMessage } from '@/src/lib/payments/transactionRefDuplicate';
+import { approvedTransactionRefConflictMessage, isApprovedTransactionRefUniqueViolation } from '@/src/lib/payments/transactionRefDuplicate';
 import { evaluatePaymentReviewInvariants } from '@/src/lib/payments/paymentReviewInvariants';
 import { ROOM_SHIFT_FEE_PAISE, applyRoomShiftCreditWaterfall } from '@/src/services/roomShiftQuote';
 import { renderAutomationTemplate } from '@/src/lib/automation/templates';
@@ -117,6 +117,17 @@ describe('payment review deposit + room-change', () => {
     assert.equal(transactionRefLooksLikeUpiVpa('name@oksbi'), true);
     assert.equal(transactionRefLooksLikeUpiVpa('ABC123XYZ456'), false);
     assert.equal(transactionRefLooksLikeUpiVpa(null), false);
+  });
+
+  test('orphaned UTR lock — Drizzle-wrapped 23505 is detected', () => {
+    const wrapped = Object.assign(new Error('Failed query'), {
+      cause: {
+        code: '23505',
+        constraint: 'pg_approved_transaction_refs_pkey',
+        message: 'duplicate key value violates unique constraint',
+      },
+    });
+    assert.equal(isApprovedTransactionRefUniqueViolation(wrapped), true);
   });
 
   test('approval error never includes SQL', () => {
