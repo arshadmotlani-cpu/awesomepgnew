@@ -62,3 +62,22 @@ test('payment_in_progress rent rows skip rentIssueDate (no countdown on approval
   assert.equal(pendingApprovalRows.length, 1);
   assert.equal(pendingApprovalRows[0]?.rentIssueDate, undefined);
 });
+
+test('malformed rent invoice does not crash entire bill builder', () => {
+  const bad = {
+    ...baseRentInvoice,
+    id: 'inv-bad',
+    billingMonth: 'not-a-date',
+  };
+  const result = buildResidentBillRowsFromDetail([
+    {
+      bookingId: 'booking-1',
+      rent: { ok: true, data: [baseRentInvoice, bad] },
+      electricity: { ok: true, data: [] },
+    },
+  ]);
+  assert.ok(result.dueBillRows.length >= 1);
+  const unavailable = result.dueBillRows.find((r) => r.key === 'rent-unavailable-inv-bad');
+  assert.ok(unavailable);
+  assert.equal(unavailable?.href, null);
+});

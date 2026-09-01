@@ -209,30 +209,14 @@ export function PgPaymentModal({
             />
           </label>
 
-          <div>
-            <span className="text-sm text-apg-silver">Payment screenshot (optional)</span>
-            <label
-              htmlFor={screenshotInputId}
-              className="mt-1 flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-white/20 px-3 py-3 text-sm text-apg-silver hover:border-[#FF5A1F]/50"
-            >
-              <ImageFileInput
-                id={screenshotInputId}
-                inputClassName="hidden"
-                disabled={uploading}
-                onFileSelected={(file) => void onFile(file ?? null)}
-              />
-              {uploading ? 'Uploading…' : screenshotUrl ? 'Screenshot uploaded ✓' : 'Upload screenshot'}
-            </label>
-          </div>
-
           {error ? <p className="text-sm text-rose-400">{error}</p> : null}
 
           <button
             type="submit"
-            disabled={pending || uploading || !transactionRef.trim()}
+            disabled={pending || !transactionRef.trim()}
             className="w-full rounded-lg bg-[#FF5A1F] py-2.5 text-sm font-semibold text-white disabled:opacity-60"
           >
-            {pending ? 'Submitting…' : 'Submit payment proof'}
+            {pending ? 'Submitting…' : 'Submit transaction ID'}
           </button>
         </form>
       </div>

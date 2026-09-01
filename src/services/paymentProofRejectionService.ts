@@ -37,6 +37,7 @@ import {
   type PaymentProofRejectionHistoryRowClient,
 } from '@/src/lib/operations/paymentProofRejectionClient';
 import { revalidateReservationLifecycleViews } from '@/src/lib/occupancyRevalidate';
+import { hasTxnOrScreenshotProof } from '@/src/services/pgTransactionRefIndex';
 import { projectInvoice } from '@/src/services/rentInvoices';
 
 /** Drizzle client or transaction — pass when superseding inside an upload transaction. */
@@ -146,7 +147,10 @@ async function loadEntityContext(
         phone: row.phone,
         billLabel: `Rent · ${row.invoice.billingMonth.slice(0, 7)} (${row.invoice.invoiceNumber})`,
         amountPaise: projected.outstandingPaise,
-        hasProof: Boolean(row.invoice.paymentProofUrl),
+        hasProof: hasTxnOrScreenshotProof({
+          paymentProofUrl: row.invoice.paymentProofUrl,
+          transactionRef: row.invoice.paymentProofTransactionRef,
+        }),
       };
     }
     case 'electricity_invoice': {
@@ -155,6 +159,7 @@ async function loadEntityContext(
           customerId: electricityInvoices.customerId,
           bookingId: electricityInvoices.bookingId,
           paymentProofUrl: electricityInvoices.paymentProofUrl,
+          paymentProofTransactionRef: electricityInvoices.paymentProofTransactionRef,
           invoiceNumber: electricityInvoices.invoiceNumber,
           billingMonth: electricityInvoices.billingMonth,
           amountPaise: electricityInvoices.amountPaise,
@@ -182,7 +187,10 @@ async function loadEntityContext(
         phone: row.phone,
         billLabel: `Electricity · ${row.billingMonth.slice(0, 7)} (${row.invoiceNumber})`,
         amountPaise: row.amountPaise,
-        hasProof: Boolean(row.paymentProofUrl),
+        hasProof: hasTxnOrScreenshotProof({
+          paymentProofUrl: row.paymentProofUrl,
+          transactionRef: row.paymentProofTransactionRef,
+        }),
       };
     }
     case 'payment_link': {
@@ -192,6 +200,7 @@ async function loadEntityContext(
           pgId: paymentLinks.pgId,
           bookingId: paymentLinks.bookingId,
           paymentProofUrl: paymentLinks.paymentProofUrl,
+          paymentProofTransactionRef: paymentLinks.paymentProofTransactionRef,
           title: paymentLinks.title,
           amount: paymentLinks.amount,
           customerName: customers.fullName,
@@ -210,7 +219,10 @@ async function loadEntityContext(
         phone: row.phone,
         billLabel: row.title ?? 'Security deposit',
         amountPaise: row.amount,
-        hasProof: Boolean(row.paymentProofUrl),
+        hasProof: hasTxnOrScreenshotProof({
+          paymentProofUrl: row.paymentProofUrl,
+          transactionRef: row.paymentProofTransactionRef,
+        }),
       };
     }
     case 'stay_extension': {
@@ -218,6 +230,7 @@ async function loadEntityContext(
         .select({
           bookingId: stayExtensions.bookingId,
           paymentProofUrl: stayExtensions.paymentProofUrl,
+          paymentProofTransactionRef: stayExtensions.paymentProofTransactionRef,
           quotedTotalPaise: stayExtensions.quotedTotalPaise,
           customerId: bookings.customerId,
           customerName: customers.fullName,
@@ -246,7 +259,10 @@ async function loadEntityContext(
         phone: row.phone,
         billLabel: `Extension · ${row.bookingCode}`,
         amountPaise: row.quotedTotalPaise,
-        hasProof: Boolean(row.paymentProofUrl),
+        hasProof: hasTxnOrScreenshotProof({
+          paymentProofUrl: row.paymentProofUrl,
+          transactionRef: row.paymentProofTransactionRef,
+        }),
       };
     }
     case 'pg_payment_record': {
@@ -256,6 +272,7 @@ async function loadEntityContext(
           pgId: pgPaymentRecords.pgId,
           bookingId: pgPaymentRecords.bookingId,
           paymentScreenshotUrl: pgPaymentRecords.paymentScreenshotUrl,
+          transactionRef: pgPaymentRecords.transactionRef,
           amountPaise: pgPaymentRecords.amountPaise,
           customerName: customers.fullName,
           phone: customers.phone,
@@ -277,7 +294,10 @@ async function loadEntityContext(
           ? `Booking checkout · ${row.bookingCode}`
           : 'Booking payment',
         amountPaise: row.amountPaise,
-        hasProof: Boolean(row.paymentScreenshotUrl),
+        hasProof: hasTxnOrScreenshotProof({
+          paymentProofUrl: row.paymentScreenshotUrl,
+          transactionRef: row.transactionRef,
+        }),
       };
     }
   }

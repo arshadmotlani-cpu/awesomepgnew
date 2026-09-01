@@ -91,8 +91,10 @@ export const openBookingRowSupersededByNewerAnchoredStaySql = sql`
 /** Pending booking checkout proofs that must be finalized (never shown in Operations). */
 export const staleBookingPaymentReviewSql = sql`
   pr.status = 'pending'
-  AND pr.payment_screenshot_url IS NOT NULL
-  AND trim(pr.payment_screenshot_url) <> ''
+  AND (
+    (pr.payment_screenshot_url IS NOT NULL AND trim(pr.payment_screenshot_url) <> '')
+    OR (pr.transaction_ref IS NOT NULL AND trim(pr.transaction_ref) <> '')
+  )
   AND (
     pr.booking_id IS NULL
     OR b.id IS NULL
@@ -132,8 +134,8 @@ export function isBookingCheckoutEligibleForPaymentReview(
 
 export function isPaymentRecordEligibleForReview(
   recordStatus: string | null | undefined,
-  hasScreenshot: boolean,
+  hasProof: boolean,
 ): boolean {
   if (recordStatus !== 'pending') return false;
-  return hasScreenshot;
+  return hasProof;
 }

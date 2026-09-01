@@ -117,6 +117,7 @@ import {
   clampDueDateOnOrAfterIssueDate,
   resolveRentInvoiceDueDate,
 } from '@/src/lib/billing/invoiceDueDate';
+import { paymentProofFinancialFreezeMissingMessage } from '@/src/lib/payments/paymentProofModel';
 
 const INVOICE_PREFIX = 'RNT';
 
@@ -2916,7 +2917,7 @@ export async function approveRentPaymentProof(
   if (amountPaise == null || amountPaise <= 0) {
     return {
       ok: false,
-      message: 'Payment snapshot missing — ask the resident to re-upload proof.',
+      message: paymentProofFinancialFreezeMissingMessage(),
     };
   }
 

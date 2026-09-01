@@ -9,9 +9,12 @@ import type {
   listRentInvoicesForBooking,
 } from '@/src/db/queries/customer';
 import { formatDate, titleCase } from '@/src/lib/format';
-import { formatDate as formatIsoDate } from '@/src/lib/dates';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
-import { projectInvoice } from '@/src/services/rentInvoices';
+import { projectInvoice, rentInvoiceIssueDate } from '@/src/services/rentInvoices';
+import {
+  logResidentBillRowProjectionError,
+  unavailableBillDueRow,
+} from '@/src/lib/residents/residentPortalBillRowSafe';
 import { formatPaymentModeLabel } from '@/src/lib/billing/paymentModeLabels';
 import type { PaidHistoryRow } from '@/src/components/customer/account/resident/ResidentPaymentsV2Hub';
 import type { PaymentDueRow } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
@@ -106,6 +109,7 @@ export function buildResidentBillRowsFromDetail(
     const electricityRows = d.electricity.ok ? d.electricity.data : [];
 
     for (const r of rentRows) {
+      try {
       if (isCancelledResidentInvoiceStatus(r.status)) {
         const display = rentBillDisplayFields(r);
         cancelledBillRows.push({
@@ -203,7 +207,7 @@ export function buildResidentBillRowsFromDetail(
         href: `/account/resident/pay-rent/${r.id}`,
         status: labelResidentStatus(projected.effectiveStatus),
         invoiceNumber: r.invoiceNumber,
-        rentIssueDate: r.createdAt ? formatIsoDate(r.createdAt) : r.dueDate,
+        rentIssueDate: r.createdAt ? rentInvoiceIssueDate(r) : r.dueDate,
         lateFeePaise: projected.accruedLateFeePaise,
       };
       dueBillRows.push(row);
@@ -237,9 +241,26 @@ export function buildResidentBillRowsFromDetail(
           subtitle: mode ? `Paid via ${mode}` : null,
         });
       }
+      } catch (error) {
+        logResidentBillRowProjectionError({
+          scope: 'rent',
+          entityId: r.id,
+          bookingId: d.bookingId,
+          bookingCode: r.bookingCode,
+          error,
+        });
+        dueBillRows.push(
+          unavailableBillDueRow({
+            key: `rent-unavailable-${r.id}`,
+            invoiceNumber: r.invoiceNumber,
+            label: `Rent · ${r.invoiceNumber ?? r.id}`,
+          }),
+        );
+      }
     }
 
     for (const e of electricityRows) {
+      try {
       if (isCancelledResidentInvoiceStatus(e.status)) {
         cancelledBillRows.push({
           id: e.id,
@@ -346,6 +367,7 @@ export function buildResidentBillRowsFromDetail(
         status: labelResidentStatus(projected.effectiveStatus),
         invoiceNumber: e.invoiceNumber,
         electricityUseProRata: useProRata,
+        electricityDueDate: e.dueDate,
       };
       dueBillRows.push(row);
       homeUpcoming.push({
@@ -356,6 +378,22 @@ export function buildResidentBillRowsFromDetail(
         href: row.href,
         status: row.status,
       });
+      } catch (error) {
+        logResidentBillRowProjectionError({
+          scope: 'electricity',
+          entityId: e.id,
+          bookingId: d.bookingId,
+          bookingCode: e.bookingCode,
+          error,
+        });
+        dueBillRows.push(
+          unavailableBillDueRow({
+            key: `elec-unavailable-${e.id}`,
+            invoiceNumber: e.invoiceNumber,
+            label: `Electricity · ${e.invoiceNumber ?? e.id}`,
+          }),
+        );
+      }
     }
   }
 

@@ -4,7 +4,7 @@ import { InvoiceBreakdownRow } from '@/src/components/customer/account/resident/
 import { StatusChip } from '@/src/components/customer/design-system';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { ResidentElectricityBillCalculationPanel } from '@/src/components/customer/account/resident/ResidentElectricityBillCalculationPanel';
-import { LateFeeCountdown } from '@/src/components/billing/LateFeeCountdown';
+import { ElectricityDueCountdown } from '@/src/components/billing/ElectricityDueCountdown';
 import { ViewBillDetailsCollapsible } from '@/src/components/billing/ViewBillDetailsCollapsible';
 import { PaymentFlowErrorBoundary } from '@/src/components/customer/payments/PaymentFlowErrorBoundary';
 import { residentTabHref } from '@/src/lib/accountNavigation';
@@ -41,8 +41,7 @@ export function ResidentPayElectricityPageContent({
   const amountLabel = paiseToInr(outstanding);
   const periodLabel = formatDate(invoice.billingMonth);
   const resolvedBackHref = backHref ?? residentTabHref('payments');
-  const issueDate = invoice.createdAt ?? invoice.dueDate;
-  const dueDateLabel = projection.graceEndDate ?? invoice.dueDate;
+  const dueDateLabel = invoice.dueDate;
   const showCountdown =
     projection.effectiveStatus !== 'paid' && projection.effectiveStatus !== 'cancelled';
 
@@ -71,19 +70,12 @@ export function ResidentPayElectricityPageContent({
         </div>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
           <InvoiceBreakdownRow label="Electricity" value={paiseToInr(invoice.amountPaise)} />
-          {projection.accruedLateFeePaise > 0 ? (
-            <InvoiceBreakdownRow
-              label={`Late fee (${projection.lateFeePercent ?? projection.daysOverdue}%)`}
-              value={`+${paiseToInr(projection.accruedLateFeePaise)}`}
-              tone="danger"
-            />
-          ) : null}
           <InvoiceBreakdownRow label="Total to pay" value={amountLabel} emphasis />
           <InvoiceBreakdownRow label="Due date" value={formatDate(dueDateLabel)} />
         </dl>
         {showCountdown ? (
           <div className="mt-3">
-            <LateFeeCountdown issueDate={issueDate} />
+            <ElectricityDueCountdown dueDate={dueDateLabel} />
           </div>
         ) : null}
       </ApgCard>

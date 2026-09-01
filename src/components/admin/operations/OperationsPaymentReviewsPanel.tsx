@@ -120,7 +120,7 @@ export function OperationsPaymentReviewsPanel({
     return (
       <div className="rounded-2xl border border-white/10 bg-[#1A1F27] p-8 text-center">
         <p className="text-sm text-apg-silver">
-          No payment screenshots awaiting review. When residents upload proof, they appear here.
+          No payment proofs awaiting review. When residents submit a transaction ID, they appear here.
         </p>
       </div>
     );
@@ -273,7 +273,7 @@ export function OperationsPaymentReviewsPanel({
                   />
                 ) : (
                   <div className="rounded-xl border border-white/10 bg-[#121820] p-4 text-sm text-apg-silver">
-                    No screenshot — verify using the transaction ID.
+                    Payment proof: Transaction ID. Screenshot not required.
                   </div>
                 )}
               </div>

@@ -206,35 +206,25 @@ export function projectElectricityInvoice(
       daysOverdue: 0,
     };
   }
-  const issueDate = electricityInvoiceIssueDate(invoice);
-  const lateFeeWaived = invoice.lateFeeWaived === true;
-  const accrued = lateFeeWaived
-    ? 0
-    : computeElectricityLateFee({
-        amountPaise: invoice.amountPaise,
-        issueDate,
-        today,
-      });
-  const chargeableDays = lateFeeWaived ? 0 : chargeableLateFeeDaysFromIssue(issueDate, today);
-  const projectionFields = {
-    graceEndDate: formatDate(graceEndDateFromIssue(issueDate)),
-    lateFeePercent: lateFeeWaived ? 0 : lateFeePercentFromIssue(issueDate, today),
-    daysUntilLateFee: lateFeeWaived ? undefined : daysUntilLateFeeFromIssue(issueDate, today),
-  };
-  const outstandingPaise = Math.max(0, invoice.amountPaise + accrued - invoice.paidPaise);
+  // Electricity has a visible payment deadline but NO percentage-based late fee (rent-only rule).
+  const outstandingPaise = Math.max(0, invoice.amountPaise - invoice.paidPaise);
+  const daysUntilDue = diffDays(today, invoice.dueDate);
+  const daysOverdue = daysUntilDue < 0 ? -daysUntilDue : 0;
   const hasPartial = outstandingPaise > 0 && invoice.paidPaise > 0;
   const effectiveStatus = hasPartial
     ? 'partial'
-    : chargeableDays > 0
+    : outstandingPaise > 0 && daysUntilDue < 0
       ? 'overdue'
       : 'pending';
   return {
     invoice,
     effectiveStatus,
-    accruedLateFeePaise: accrued,
+    accruedLateFeePaise: 0,
     outstandingPaise,
-    daysOverdue: chargeableDays,
-    ...projectionFields,
+    daysOverdue,
+    graceEndDate: invoice.dueDate,
+    lateFeePercent: 0,
+    daysUntilLateFee: daysUntilDue > 0 ? daysUntilDue : undefined,
   };
 }
 

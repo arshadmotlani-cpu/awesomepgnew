@@ -24,45 +24,45 @@ export type PaymentProofRejectionReasonOption = {
 export const PAYMENT_PROOF_REJECTION_REASONS: PaymentProofRejectionReasonOption[] = [
   {
     code: 'screenshot_not_uploaded',
-    label: 'Payment screenshot not uploaded',
+    label: 'Transaction ID missing',
     messageTemplate:
-      'We could not verify your payment because no payment screenshot was uploaded.\n\nPlease upload a clear screenshot of the successful transaction for verification.\n\nOnce uploaded, we will review it as soon as possible.\n\nThank you.',
+      'We could not verify your payment because no UPI transaction ID was submitted.\n\nPlease open the bill in your resident portal, pay via UPI, and submit the transaction ID from your payment app.\n\nScreenshot is not required.\n\nThank you.',
   },
   {
     code: 'incorrect_screenshot',
-    label: 'Incorrect screenshot',
+    label: 'Incorrect transaction reference',
     messageTemplate:
-      'We could not verify your payment because the uploaded screenshot does not match the payment.\n\nPlease upload the correct payment screenshot for verification.\n\nOnce uploaded, we will review it as soon as possible.\n\nThank you.',
+      'We could not verify your payment because the transaction ID does not match our records.\n\nPlease submit the correct UPI transaction ID for this bill.\n\nThank you.',
   },
   {
     code: 'not_clear',
-    label: 'Screenshot not clear',
+    label: 'Transaction ID not verifiable',
     messageTemplate:
-      'The payment screenshot you uploaded is not clear enough for us to verify.\n\nPlease upload a clearer screenshot showing the full transaction details.\n\nOnce uploaded, we will review it as soon as possible.\n\nThank you.',
+      'We could not verify the transaction ID you submitted.\n\nPlease double-check the UTR/reference from your UPI app and submit it again.\n\nThank you.',
   },
   {
     code: 'wrong_amount',
     label: 'Wrong amount',
     messageTemplate:
-      'The amount in your payment screenshot does not match the bill amount.\n\nPlease pay the correct amount and upload a new screenshot for verification.\n\nThank you.',
+      'The amount paid does not match the bill amount.\n\nPlease pay the correct amount and submit the transaction ID for verification.\n\nThank you.',
   },
   {
     code: 'not_received',
     label: 'Payment not received',
     messageTemplate:
-      'We have not received this payment in our account yet.\n\nIf you have already paid, please upload a screenshot showing the successful transaction.\n\nOtherwise, please complete the payment and upload proof.\n\nThank you.',
+      'We have not received this payment in our account yet.\n\nIf you have already paid, please submit the UPI transaction ID from your payment app.\n\nOtherwise, please complete the payment and submit the transaction ID.\n\nThank you.',
   },
   {
     code: 'wrong_bill',
     label: 'Wrong bill selected',
     messageTemplate:
-      'The payment screenshot appears to be for a different bill.\n\nPlease upload the correct screenshot for this bill.\n\nThank you.',
+      'The transaction ID appears to be for a different bill.\n\nPlease submit the correct transaction ID for this bill.\n\nThank you.',
   },
   {
     code: 'duplicate',
     label: 'Duplicate payment',
     messageTemplate:
-      'This payment screenshot has already been submitted or processed.\n\nIf you need to pay again, please upload a new screenshot for the latest payment.\n\nThank you.',
+      'This transaction ID has already been submitted or processed.\n\nIf you need to pay again, please submit a new transaction ID for the latest payment.\n\nThank you.',
   },
   {
     code: 'already_processed',
@@ -74,7 +74,7 @@ export const PAYMENT_PROOF_REJECTION_REASONS: PaymentProofRejectionReasonOption[
     code: 'other',
     label: 'Other',
     messageTemplate:
-      'We could not approve your payment screenshot.\n\nPlease upload a new screenshot for verification.\n\nThank you.',
+      'We could not approve this payment.\n\nPlease submit the UPI transaction ID again from your resident portal.\n\nThank you.',
   },
 ];
 
@@ -95,8 +95,8 @@ export type PaymentProofRejectionQuickAction = {
 
 /** One-tap reason chips shown above the dropdown. */
 export const PAYMENT_PROOF_REJECTION_QUICK_ACTIONS: PaymentProofRejectionQuickAction[] = [
-  { code: 'screenshot_not_uploaded', buttonLabel: '❌ Screenshot Missing' },
-  { code: 'incorrect_screenshot', buttonLabel: '❌ Incorrect Screenshot' },
+  { code: 'screenshot_not_uploaded', buttonLabel: '❌ Transaction ID missing' },
+  { code: 'incorrect_screenshot', buttonLabel: '❌ Incorrect transaction ID' },
   { code: 'wrong_amount', buttonLabel: '❌ Wrong Amount' },
   { code: 'duplicate', buttonLabel: '❌ Duplicate' },
   { code: 'not_received', buttonLabel: '❌ Payment Not Received' },
@@ -117,8 +117,7 @@ export function defaultRejectionReasonCode(
   screenshotUrl: string | null | undefined,
   transactionRef?: string | null,
 ): PaymentProofRejectionReasonCode {
-  if (hasUploadedPaymentScreenshot(screenshotUrl)) return 'incorrect_screenshot';
-  if (transactionRef?.trim()) return 'duplicate';
+  if (hasPaymentProofEvidence({ screenshotUrl, transactionRef })) return 'incorrect_screenshot';
   return 'screenshot_not_uploaded';
 }
 export function rejectionReasonLabel(code: PaymentProofRejectionReasonCode): string {
@@ -141,7 +140,7 @@ export function buildResidentRejectionMessage(input: {
 
   let body = reason?.messageTemplate ?? PAYMENT_PROOF_REJECTION_REASONS[0]!.messageTemplate;
   if (input.reasonCode === 'other' && input.reasonDetail?.trim()) {
-    body = `${input.reasonDetail.trim()}\n\nPlease upload a new screenshot for verification.\n\nThank you.`;
+    body = `${input.reasonDetail.trim()}\n\nPlease submit the UPI transaction ID again from your resident portal.\n\nThank you.`;
   }
 
   return `Hi ${firstName},\n\n${amountLine}${body}`;

@@ -23,6 +23,7 @@ export type PaymentDueRow = {
   transitionExplanation?: string | null;
   /** When set, drives resident-facing electricity calculation copy. */
   electricityUseProRata?: boolean;
+  electricityDueDate?: string | null;
   /** Electricity invoice id — used to load room settlement breakdown. */
   electricityInvoiceId?: string;
 };

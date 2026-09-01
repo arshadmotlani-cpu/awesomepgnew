@@ -18,7 +18,7 @@ test('buildResidentRejectionMessage includes resident name and bill', () => {
   assert.ok(msg.includes('Hi Manju'));
   assert.ok(msg.includes('Rent · 2026-07'));
   assert.ok(msg.includes('₹5,000'));
-  assert.ok(msg.includes('upload'));
+  assert.ok(msg.includes('transaction ID') || msg.includes('UPI'));
 });
 
 test('validateRejectionInput requires other detail', () => {
@@ -53,11 +53,11 @@ test('all rejection reasons have labels and templates', () => {
   }
 });
 
-test('defaultRejectionReasonCode uses screenshot_not_uploaded when missing', () => {
+test('defaultRejectionReasonCode uses transaction_id missing when no proof evidence', () => {
   assert.equal(defaultRejectionReasonCode(''), 'screenshot_not_uploaded');
   assert.equal(defaultRejectionReasonCode(null), 'screenshot_not_uploaded');
   assert.equal(defaultRejectionReasonCode('   '), 'screenshot_not_uploaded');
-  assert.equal(defaultRejectionReasonCode(null, 'UTR1'), 'duplicate');
+  assert.equal(defaultRejectionReasonCode(null, 'UTR1'), 'incorrect_screenshot');
   assert.equal(
     defaultRejectionReasonCode('https://blob.example/proof.jpg'),
     'incorrect_screenshot',

@@ -65,7 +65,7 @@ export function PaymentProofRejectionDialog({ item, open, onClose, onRejected }:
         amountPaise: item.amountPaise,
       }),
     );
-  }, [open, item.residentName, billLabel, item.amountPaise, item.screenshotUrl]);
+  }, [open, item.residentName, billLabel, item.amountPaise, item.screenshotUrl, item.referenceNumber]);
 
   useEffect(() => {
     if (!open || messageTouched) return;
@@ -168,9 +168,9 @@ export function PaymentProofRejectionDialog({ item, open, onClose, onRejected }:
           <p className="mt-1 text-sm text-apg-silver">
             {item.residentName} · {billLabel}
           </p>
-          {!hasScreenshot ? (
+          {!item.referenceNumber?.trim() ? (
             <p className="mt-2 text-xs text-amber-200/90">
-              No payment screenshot on file — defaulted to “Payment screenshot not uploaded”.
+              No transaction ID on file — defaulted to “Transaction ID missing”.
             </p>
           ) : null}
         </div>

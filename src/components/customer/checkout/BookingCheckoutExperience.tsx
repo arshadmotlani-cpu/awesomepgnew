@@ -79,8 +79,7 @@ export type BookingCheckoutExperienceProps = {
 const STEPS = [
   { n: 1, label: 'Scan QR' },
   { n: 2, label: 'Pay exact amount' },
-  { n: 3, label: 'Upload screenshot' },
-  { n: 4, label: 'Submit' },
+  { n: 3, label: 'Submit transaction ID' },
 ] as const;
 
 function checkoutStayTypeLabel(mode: string, isReserve: boolean): string {
@@ -386,7 +385,7 @@ export function BookingCheckoutExperience({
           rel="noopener noreferrer"
           className="inline-block text-sm font-semibold text-apg-orange hover:underline"
         >
-          View uploaded screenshot →
+          View payment proof →
         </a>
         <Link
           href={`/booking/${bookingCode}`}
@@ -439,7 +438,7 @@ export function BookingCheckoutExperience({
           {isReserveBooking ? 'Complete reserve payment' : 'Complete payment'}
         </h1>
         <p className="mt-1 text-xs text-apg-muted">
-          Pay the exact total below, then upload your UPI screenshot.
+          Pay the exact total below, then submit your UPI transaction ID. Screenshot not required.
         </p>
 
         <dl className="mt-5 space-y-2.5 text-sm">
@@ -540,7 +539,7 @@ export function BookingCheckoutExperience({
             {isReserveBooking ? 'Complete hold payment' : 'Complete payment'}
           </h1>
           <p className="mt-1 text-xs text-apg-muted">
-            Pay the exact total below, then upload your UPI screenshot.
+            Pay the exact total below, then submit your UPI transaction ID. Screenshot not required.
           </p>
           <dl className="mt-5 space-y-3 text-sm">
             {pricingLines
@@ -668,53 +667,13 @@ export function BookingCheckoutExperience({
         ))}
       </ol>
 
-      {/* Single upload */}
+      {/* Transaction ID proof */}
       <section className="rounded-[16px] border border-white/10 bg-white/[0.03] p-5 shadow-sm">
-        <p className="text-sm font-semibold text-white">Upload payment screenshot</p>
-        <ImageFileInput
-          id={uploadInputId}
-          inputClassName="sr-only"
-          disabled={uploading}
-          onFileSelected={(file) => void onFile(file ?? null)}
-        />
-        <label
-          htmlFor={uploadInputId}
-          className={
-            'mt-3 flex min-h-[120px] cursor-pointer flex-col items-center justify-center gap-2 rounded-[14px] border-2 border-dashed px-4 py-6 text-center transition ' +
-            (hasScreenshot
-              ? 'border-emerald-500/40 bg-emerald-500/10'
-              : 'border-white/15 hover:border-apg-orange/40 hover:bg-apg-orange/5')
-          }
-        >
-          {uploading ? (
-            <span className="text-sm text-apg-silver">Uploading…</span>
-          ) : hasScreenshot ? (
-            <>
-              <span className="text-sm font-semibold text-emerald-300">Screenshot ready</span>
-              {fileName ? <span className="max-w-full truncate text-xs text-apg-muted">{fileName}</span> : null}
-              <span className="text-xs text-apg-muted">Tap to replace</span>
-            </>
-          ) : (
-            <>
-              <span className="text-2xl" aria-hidden>
-                📷
-              </span>
-              <span className="text-sm font-semibold text-white">Upload screenshot (optional)</span>
-              <span className="text-xs text-apg-muted">Photo from gallery or camera</span>
-            </>
-          )}
-        </label>
-        {previewSrc && !uploading ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={previewSrc}
-            alt="Payment screenshot preview"
-            className="mx-auto mt-3 max-h-40 rounded-lg border border-white/10 object-contain"
-          />
-        ) : null}
+        <p className="text-sm font-semibold text-white">Submit payment proof</p>
+        <p className="mt-1 text-xs text-apg-muted">UPI transaction ID is required. Screenshot not required.</p>
 
         <label className="mt-4 block">
-          <span className="text-xs text-apg-muted">Amount on screenshot (₹)</span>
+          <span className="text-xs text-apg-muted">Amount paid (₹)</span>
           <input
             type="number"
             min={1}

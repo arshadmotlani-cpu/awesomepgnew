@@ -841,7 +841,7 @@ async function buildExtensionReviewItem(
     receivedPaise: null,
     outstandingAfterApprovalPaise: 0,
     overpaidPaise: 0,
-    outstandingSummary: 'Verify screenshot — approval confirms extension payment',
+    outstandingSummary: 'Verify transaction ID — approval confirms extension payment',
     canPartialApprove: false,
     canReject: true,
     bookingDetails: bookingDetails ?? undefined,
@@ -849,7 +849,7 @@ async function buildExtensionReviewItem(
       lines: expectedLines,
       totalExpectedPaise: x.amountPaise,
       receivedPaise: null,
-      resultLabel: 'Verify screenshot — approval confirms extension payment',
+      resultLabel: 'Verify transaction ID — approval confirms extension payment',
     }),
     bookingContext: contextFromItem(
       {
@@ -974,14 +974,14 @@ async function buildDepositLinkReviewItem(
     receivedPaise: null,
     outstandingAfterApprovalPaise: 0,
     overpaidPaise: 0,
-    outstandingSummary: 'Verify screenshot — approval records deposit collection',
+    outstandingSummary: 'Verify transaction ID — approval records deposit collection',
     canPartialApprove: false,
     canReject: true,
     paymentExplanation: buildSimplePaymentExplanation({
       lines: expectedLines,
       totalExpectedPaise: d.amountPaise,
       receivedPaise: null,
-      resultLabel: 'Verify screenshot — approval records deposit collection',
+      resultLabel: 'Verify transaction ID — approval records deposit collection',
     }),
     bookingContext: contextFromItem(
       {

@@ -432,8 +432,10 @@ async function loadBookingIdsWithApprovedCheckoutProof(): Promise<Set<string>> {
       and(
         eq(pgPaymentRecords.status, 'approved'),
         sql`${pgPaymentRecords.bookingId} IS NOT NULL`,
-        sql`${pgPaymentRecords.paymentScreenshotUrl} IS NOT NULL`,
-        sql`trim(${pgPaymentRecords.paymentScreenshotUrl}) <> ''`,
+        sql`(
+          (${pgPaymentRecords.paymentScreenshotUrl} IS NOT NULL AND trim(${pgPaymentRecords.paymentScreenshotUrl}) <> '')
+          OR (${pgPaymentRecords.transactionRef} IS NOT NULL AND trim(${pgPaymentRecords.transactionRef}) <> '')
+        )`,
       ),
     );
   return new Set(rows.map((r) => r.bookingId).filter(Boolean) as string[]);

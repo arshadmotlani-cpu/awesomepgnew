@@ -384,7 +384,7 @@ export function buildSimplePaymentExplanation(input: {
   const shortfall =
     received != null ? Math.max(0, input.totalExpectedPaise - received) : 0;
 
-  let resultLabel = input.resultLabel ?? 'Verify screenshot before approving';
+  let resultLabel = input.resultLabel ?? 'Verify transaction ID before approving';
   let resultTone: PaymentExplanationView['resultTone'] = 'info';
   if (overpaid > 0) {
     resultLabel = `Overpaid by ${formatInrPlain(overpaid)}`;

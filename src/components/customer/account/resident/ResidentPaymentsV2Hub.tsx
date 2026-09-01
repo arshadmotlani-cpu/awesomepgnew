@@ -18,6 +18,7 @@ import { requestStatusTone, primaryBtn, secondaryBtn } from '@/src/lib/design-sy
 import { ResidentElectricityBillCalculationPanel } from '@/src/components/customer/account/resident/ResidentElectricityBillCalculationPanel';
 import { ResidentElectricityPendingCard } from '@/src/components/customer/account/resident/ResidentElectricityPendingCard';
 import { LateFeeCountdown } from '@/src/components/billing/LateFeeCountdown';
+import { ElectricityDueCountdown } from '@/src/components/billing/ElectricityDueCountdown';
 import type { ResidentElectricityBillingState } from '@/src/lib/residents/residentElectricityBillingState';
 import { computeResidentTotalDuePaise } from '@/src/lib/residents/residentPortalDisplay';
 import type { PaymentDueRow } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
@@ -93,6 +94,11 @@ function BillCard({ row }: { row: BillDueRow }) {
           {row.kind === 'rent' && row.rentIssueDate ? (
             <div className="mt-1">
               <LateFeeCountdown issueDate={row.rentIssueDate} className="text-xs text-apg-silver" />
+            </div>
+          ) : null}
+          {row.kind === 'electricity' && row.electricityDueDate ? (
+            <div className="mt-1">
+              <ElectricityDueCountdown dueDate={row.electricityDueDate} className="text-xs text-apg-silver" />
             </div>
           ) : null}
           {row.kind === 'rent' && (row.lateFeePaise ?? 0) > 0 ? (

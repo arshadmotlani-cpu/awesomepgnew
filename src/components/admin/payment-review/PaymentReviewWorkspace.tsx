@@ -313,16 +313,13 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
 
             {item.referenceNumber ? (
               <section className="rounded-xl border border-white/10 bg-[#121820] p-5">
-                <h2 className="text-base font-semibold text-white">
-                  {transactionRefLooksLikeUpiVpa(item.referenceNumber)
-                    ? 'Resident UPI ID'
-                    : 'UPI transaction ID'}
-                </h2>
+                <h2 className="text-base font-semibold text-white">Payment proof: Transaction ID</h2>
+                <p className="mt-1 text-xs text-apg-silver">Screenshot not required.</p>
                 <p className="mt-3 font-mono text-lg font-semibold text-white">{item.referenceNumber}</p>
                 {transactionRefLooksLikeUpiVpa(item.referenceNumber) ? (
                   <p className="mt-2 text-xs text-amber-200">
-                    This looks like a UPI ID, not a bank UTR. Approval still works if the screenshot
-                    matches — paste the 12-digit UTR when you have it.
+                    This looks like a UPI ID, not a bank UTR. Verify the bank reference from the
+                    resident&apos;s payment app when possible.
                   </p>
                 ) : null}
                 {item.possibleDuplicate ? (
@@ -361,7 +358,7 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
               <p className="mt-4 text-xs text-apg-silver">
                 Expected is this payment&apos;s amount (deposit link or invoice). Monthly rent and
                 required deposit come from the booking ledger — they are not zeroed for deposit
-                reviews. Verify the UPI transaction ID (and screenshot if present).
+                reviews. Verify the UPI transaction ID. Screenshot not required.
               </p>
             </section>
 
@@ -385,7 +382,8 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
               />
             ) : (
               <div className="rounded-xl border border-white/10 bg-[#121820] p-4 text-sm text-apg-silver">
-                No screenshot — verify using the transaction ID.
+                <p className="font-medium text-white">Payment proof: Transaction ID</p>
+                <p className="mt-2">Screenshot not required — verify using the transaction ID above.</p>
               </div>
             )}
           </aside>

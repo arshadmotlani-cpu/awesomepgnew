@@ -186,7 +186,7 @@ function derivePriority(
       statusTone: 'orange',
       statusLabel: 'Waiting for admin review',
       estimatedMinutes: 1,
-      residentChecks: [{ label: 'Payment screenshot uploaded', done: true, who: 'resident' }],
+      residentChecks: [{ label: 'Transaction ID submitted', done: true, who: 'resident' }],
       adminChecks: [{ label: 'Approve or reject payment', done: false, who: 'admin' }],
       waitingOnResident: false,
     };
@@ -200,7 +200,7 @@ function derivePriority(
       estimatedMinutes: 0,
       residentChecks: [
         { label: 'Pay invoice', done: false, who: 'resident' },
-        { label: 'Upload payment screenshot', done: false, who: 'resident' },
+        { label: 'Submit UPI transaction ID', done: false, who: 'resident' },
       ],
       adminChecks: [],
       waitingOnResident: true,
@@ -229,9 +229,9 @@ function plainNextStep(row: ResidentsQueueRow, priority: WorkPriorityBand): stri
   if (priority === 'needs_approval') return 'Review refund and complete checkout';
   if (row.category === 'bed_assignment') return 'Assign a bed';
   if (row.category === 'kyc') return 'Review ID documents';
-  if (row.category === 'payment_proof') return 'Verify payment screenshot';
+  if (row.category === 'payment_proof') return 'Verify transaction ID';
   if (row.category === 'rent_due' || row.category === 'electricity_due') {
-    return 'Waiting for resident to pay and upload screenshot';
+    return 'Waiting for resident to pay and submit transaction ID';
   }
   if (row.category === 'rent_overdue') return 'Follow up on overdue payment';
   return row.nextAction.replace(/settlement/gi, 'checkout').replace(/SSOT|pipeline/gi, '').trim();
