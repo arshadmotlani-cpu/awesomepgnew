@@ -19,9 +19,9 @@
 <!-- DOC_SYNC_STATE_START -->
 ## Automated doc sync
 
-> **Last sync:** 2026-08-31 19:03:39 UTC  
-> **Areas touched:** [[Deposits]]  
+> **Last sync:** 2026-09-01 08:31:49 UTC  
+> **Areas touched:** [[Residents]]  
 > **Docs flagged:** CHANGELOG.md, PROJECT/features.md, SYSTEM/CURRENT_STATE.md, SYSTEM/WORKFLOWS.md  
-> **Staged code files:** 6  
-> **Action:** Review [[CHANGELOG#Pending pre-commit sync · 2026-08-31]] (Pending section) before push.
+> **Staged code files:** 3  
+> **Action:** Review [[CHANGELOG#Pending pre-commit sync · 2026-09-01]] (Pending section) before push.
 <!-- DOC_SYNC_STATE_END -->
