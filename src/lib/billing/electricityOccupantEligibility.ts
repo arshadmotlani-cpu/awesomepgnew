@@ -1,6 +1,20 @@
 /**
- * Who should receive a monthly electricity invoice for a bed in a billing month.
- * Aligns billing with occupancy SSOT — excludes cancelled/hold reservations.
+ * Who occupies a *bed* during a billing month (bed-scoped listing).
+ *
+ * CONSTITUTIONAL BOUNDARY — Awesome PG Electricity Engine:
+ * This module MUST NOT be used to reconstruct electricity liability, room
+ * occupancy intervals, daily allocation, or bill amounts.
+ *
+ * Canonical electricity occupancy SSOT:
+ *   roomElectricityOccupancyCoverage → roomElectricityOccupants
+ *   → roomElectricityMonthlyAllocation → createElectricityBill
+ *
+ * Allowed uses:
+ * - AUDIT-ONLY / operational bed assignment diagnostics
+ * - Metadata that never drives invoice amounts
+ *
+ * Same-room bed changes (B3 → B1) are ONE continuous room electricity stay.
+ * Resolving "who is on this bed now" must never rewrite that history.
  */
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
@@ -30,7 +44,10 @@ function billingMonthRange(billingMonth: string): { monthStartIso: string; month
   };
 }
 
-/** Primary occupants eligible for monthly electricity on a bed during a billing month. */
+/**
+ * Primary occupants listed on a bed during a billing month.
+ * NOT an electricity liability source — see file header.
+ */
 export async function listBedOccupantsForBillingMonth(
   bedId: string,
   billingMonth: string,
@@ -108,15 +125,15 @@ export async function listBedOccupantsForBillingMonth(
     }));
 }
 
-/** Canonical occupant for a bed+month — null when vacant or ambiguous. */
+/**
+ * @deprecated Electricity invoice ownership must use room-level historical coverage.
+ * Kept for diagnostic scripts that explicitly inspect a single bed row.
+ */
 export async function resolveBedOccupantForBillingMonth(
   bedId: string,
   billingMonth: string,
   opts?: { includeFixedStay?: boolean },
 ): Promise<BedMonthOccupant | null> {
   const occupants = await listBedOccupantsForBillingMonth(bedId, billingMonth, opts);
-  if (occupants.length === 0) return null;
-  const customerIds = new Set(occupants.map((o) => o.customerId));
-  if (customerIds.size > 1) return null;
   return occupants[0] ?? null;
 }

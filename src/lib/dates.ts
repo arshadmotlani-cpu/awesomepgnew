@@ -92,6 +92,24 @@ export function normalizeIsoDateOnly(value: string | null | undefined): string {
   return trimmed;
 }
 
+/**
+ * Parse Postgres daterange bound text (`2026-08-01`, `"2026-08-01"`, empty, infinity).
+ * Never throws — returns null for open/invalid bounds.
+ */
+export function tryParseDateBound(raw: string | null | undefined): string | null {
+  if (raw == null) return null;
+  const trimmed = raw.trim().replace(/^"|"$/g, '');
+  if (!trimmed || trimmed === 'infinity' || trimmed === '-infinity') return null;
+  const normalized = normalizeIsoDateOnly(trimmed);
+  if (!ISO_DATE_RE.test(normalized)) return null;
+  try {
+    parseDate(normalized);
+    return normalized;
+  } catch {
+    return null;
+  }
+}
+
 /** Milliseconds since epoch for sorting — never throws; accepts Date or ISO string. */
 export function timestampMsSafe(value: unknown): number {
   if (value instanceof Date) {

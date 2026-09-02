@@ -313,6 +313,7 @@ async function loadOccupantsForPreflight(
     occupants: load.occupants,
     totalWeight: load.totalWeight,
     daysInMonth: load.daysInMonth,
+    billingDays: load.billingDays,
   };
 }
 
@@ -350,7 +351,7 @@ async function preflightRoom(
     ctx.billingMonth,
   );
 
-  const { occupants, totalWeight } = await loadOccupantsForPreflight(
+  const { occupants, totalWeight, billingDays } = await loadOccupantsForPreflight(
     ctx.roomId,
     ctx.billingMonth,
     true,
@@ -367,6 +368,7 @@ async function preflightRoom(
     checkoutCollectedByCustomerId,
     useProRata: totalWeight > 0,
     activeBedCount: await countActiveBedsInRoom(ctx.roomId),
+    billingDays,
   });
 
   const residentAllocationsPaise = allocation.invoices

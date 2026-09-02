@@ -45,6 +45,7 @@ import {
   rooms,
 } from '../db/schema';
 import { loadRoomElectricityOccupantsForMonth } from '@/src/lib/billing/roomElectricityOccupants';
+import { assertElectricityBreakdownCommitReady } from '@/src/lib/billing/assertElectricityBreakdownCommitReady';
 import { composeElectricityBillBreakdown, loadElectricityBillBreakdown, personalizeElectricityBreakdown } from '@/src/lib/billing/buildElectricityBillBreakdown';
 import type { ElectricityBillCalculationBreakdown } from '@/src/lib/billing/electricityBillBreakdownTypes';
 import type { NewElectricityInvoice } from '../db/schema/electricityInvoices';
@@ -129,7 +130,8 @@ export type CreateElectricityBillResult =
     }
   | { ok: false; kind: 'already_exists'; existingBillId: string }
   | { ok: false; kind: 'invalid_input'; message: string }
-  | { ok: false; kind: 'no_such_room' };
+  | { ok: false; kind: 'no_such_room' }
+  | { ok: false; kind: 'breakdown_failed'; message: string };
 
 /**
  * Minimum invoice fields for late-fee / outstanding projection.
@@ -366,37 +368,9 @@ export async function createElectricityBill(
     prepaidCreditPaise: room.prepaidCreditPaise ?? 0,
   });
 
-  // 2. Find monthly residents currently occupying any bed in the room
-  //    during the billing month.
-  //
-  //    Eligibility:
-  //      bookings.status = 'confirmed'
-  //      bookings.duration_mode IN ('monthly', 'open_ended')
-  //      bed_reservations.status = 'active'
-  //      bed_reservations.stay_range && [monthStart, monthEnd)
-  //      bed belongs to this room
-  //
-  //    De-duplicate by booking_id (a resident with 2 beds in the same
-  //    room pays for both as separate splits? per spec they are 2
-  //    monthly residents → 2 splits. So we de-dupe by (booking,bed) not
-  //    booking — the simpler reading is "monthly residents in the room"
-  //    counted per bed they hold).
-  //
-  //    Actually re-reading the spec example: "Bed 1 Monthly, Bed 2
-  //    Monthly, Bed 3 Daily, Bed 4 Weekly → Monthly Occupants: 2".
-  //    Each monthly bed counts once. So we count distinct (booking,bed)
-  //    pairs but emit one invoice per UNIQUE booking. The amount per
-  //    invoice is multiplied by the booking's bed count in the room.
-  //
-  //    For v1 simplicity: count and bill PER booking, with each
-  //    booking's share = (per_resident_paise * beds_in_room_for_that_booking).
-  //    This matches the spec example exactly (4 beds in 4 separate
-  //    bookings → 2 monthly bookings → 2 invoices of ₹750).
-  //
-  //    Edge case: one booking has both Bed 1 + Bed 2 monthly in the
-  //    same room → bedsInRoom = 2 → that booking pays
-  //    2 × per_resident_paise. This is the only fair reading: the
-  //    booking is "using 2 beds worth of electricity share".
+  // 2. Reconstruct historical resident + room coverage for the month.
+  //    Bed changes inside this room coalesce; completed reservation
+  //    segments remain facts, and cross-room moves naturally split.
   const occupantLoad = await loadRoomElectricityOccupantsForMonth({
     roomId: input.roomId,
     billingMonth,
@@ -404,7 +378,7 @@ export async function createElectricityBill(
     useProRataByActiveDays: Boolean(input.useProRataByActiveDays),
   });
 
-  const totalOccupantsAll = occupantLoad.occupants.reduce((acc, o) => acc + o.bedCount, 0);
+  const totalOccupantsAll = occupantLoad.occupants.length;
   const totalWeight = occupantLoad.totalWeight;
   const checkoutCollectedByCustomerId = occupantLoad.checkoutCollectedByCustomerId;
 
@@ -434,8 +408,9 @@ export async function createElectricityBill(
     manualCreditPaise: contributionsLoad.contributions.length > 0 ? undefined : manualCreditPaise,
     occupants: occupantLoad.occupants,
     checkoutCollectedByCustomerId,
-    useProRata: Boolean(input.useProRataByActiveDays && totalWeight > 0),
+    useProRata: true,
     activeBedCount,
+    billingDays: occupantLoad.billingDays,
   });
 
   const prepaidCreditAppliedPaise = allocation.prepaidCreditAppliedPaise;
@@ -445,6 +420,10 @@ export async function createElectricityBill(
   const perResidentPaise = allocation.perResidentPaise;
   const remainderPaise = allocation.remainderPaise;
   const billableOccupantCount = allocation.billableOccupantCount;
+  const residentInvoiceTotalPaise = allocation.invoices.reduce(
+    (sum, invoice) => sum + invoice.amountPaise,
+    0,
+  );
 
   logElectricityBillCreate('occupants_loaded', {
     requestId,
@@ -469,7 +448,7 @@ export async function createElectricityBill(
     excludedCheckoutResidents: allocation.invoices.filter((i) => i.excludedBecauseCheckoutPaid).length,
   });
 
-  const useProRata = Boolean(input.useProRataByActiveDays && totalWeight > 0);
+  const useProRata = true;
   const invoiceAllocationByBooking = new Map(
     allocation.invoices
       .filter((line) => !line.excludedBecauseCheckoutPaid && line.amountPaise > 0)
@@ -482,33 +461,84 @@ export async function createElectricityBill(
   const issuedAt = new Date();
   const dueDateIso = formatDate(electricityDueDate(issuedAt));
 
-  // 3. Transactional insert.
+  // Prepaid note is metadata for the breakdown — resolve before financial writes.
+  let prepaidCreditNote: string | null = null;
+  if (prepaidCreditAppliedPaise > 0) {
+    const [latestAdded] = await db
+      .select({ paidByNote: roomElectricityPrepaidLedger.paidByNote })
+      .from(roomElectricityPrepaidLedger)
+      .where(
+        and(
+          eq(roomElectricityPrepaidLedger.roomId, input.roomId),
+          eq(roomElectricityPrepaidLedger.entryKind, 'added'),
+        ),
+      )
+      .orderBy(sql`${roomElectricityPrepaidLedger.createdAt} DESC`)
+      .limit(1);
+    prepaidCreditNote = latestAdded?.paidByNote ?? 'Previous tenant offline payment';
+  }
+
+  // Breakdown must be complete BEFORE any bill/invoice/ledger commit.
+  let calculationBreakdown: ElectricityBillCalculationBreakdown;
+  try {
+    calculationBreakdown = await composeElectricityBillBreakdown({
+      roomId: input.roomId,
+      roomNumber: room.roomNumber,
+      billingMonth,
+      previousReadingUnits: input.previousReadingUnits,
+      currentReadingUnits: input.currentReadingUnits,
+      ratePerUnitPaise: input.ratePerUnitPaise,
+      grossTotalPaise,
+      prepaidCreditPaise: prepaidCreditAppliedPaise,
+      prepaidCreditNote,
+      manualCreditPaise: manualCreditAppliedPaise,
+      checkoutCreditAppliedPaise,
+      remainingBillPaise: residentInvoiceTotalPaise,
+      useProRata,
+      occupantLoad,
+      invoiceAmountByBookingId: invoiceAllocationByBooking,
+      allocation,
+      previousContributions: contributionsLoad.contributions.map((row) => ({
+        customerId: row.customerId,
+        customerName: row.customerName,
+        bookingId: row.bookingId,
+        amountPaise: row.amountPaise,
+        kind: row.kind,
+        reason: row.reason,
+        contributionDate: row.contributionDate,
+        occupancyStart: row.occupancyStart,
+        occupancyEnd: row.occupancyEnd,
+      })),
+    });
+    assertElectricityBreakdownCommitReady({
+      breakdown: calculationBreakdown,
+      grossTotalPaise,
+      invoiceTotalPaise: residentInvoiceTotalPaise,
+    });
+  } catch (breakdownErr) {
+    const message =
+      breakdownErr instanceof Error
+        ? breakdownErr.message
+        : 'Could not compose electricity calculation breakdown.';
+    logElectricityBillCreate('failed', {
+      requestId,
+      step: 'calculation_breakdown_precommit',
+      message,
+    });
+    return { ok: false, kind: 'breakdown_failed', message };
+  }
+
+  // 3. Transactional insert — bill + breakdown + invoices + ledger atomically.
   type PendingNotify = {
     customerId: string;
     amountPaise: number;
   };
   const pendingNotifications: PendingNotify[] = [];
-  let prepaidCreditNote: string | null = null;
   const invoiceSchemaCaps = await getElectricityInvoiceSchemaCaps();
 
   try {
     logElectricityBillCreate('transaction_started', { requestId });
     const result = await db.transaction(async (tx) => {
-      if (prepaidCreditAppliedPaise > 0) {
-        const [latestAdded] = await tx
-          .select({ paidByNote: roomElectricityPrepaidLedger.paidByNote })
-          .from(roomElectricityPrepaidLedger)
-          .where(
-            and(
-              eq(roomElectricityPrepaidLedger.roomId, input.roomId),
-              eq(roomElectricityPrepaidLedger.entryKind, 'added'),
-            ),
-          )
-          .orderBy(sql`${roomElectricityPrepaidLedger.createdAt} DESC`)
-          .limit(1);
-        prepaidCreditNote = latestAdded?.paidByNote ?? 'Previous tenant offline payment';
-      }
-
       const [bill] = await tx
         .insert(electricityBills)
         .values({
@@ -526,6 +556,7 @@ export async function createElectricityBill(
           prepaidCreditAppliedPaise,
           prepaidCreditNote,
           checkoutCreditAppliedPaise,
+          calculationBreakdown,
           createdByAdminId: input.createdByAdminId ?? null,
           notes: input.notes ?? null,
         })
@@ -552,12 +583,12 @@ export async function createElectricityBill(
           const amount = invoiceAllocationByBooking.get(bk.bookingId);
           if (amount == null || amount <= 0) continue;
 
-          const unitsShare = useProRata
-            ? roundToHundredth((unitsConsumed * bk.weight) / totalWeight)
-            : roundToHundredth(
-                (unitsConsumed * bk.bedCount) / Math.max(1, activeBedCount),
-              );
-          const activeDays = useProRata ? bk.weight : occupantLoad.daysInMonth;
+          const calculatedShare = allocation.calculatedShareByCustomerId.get(bk.customerId) ?? 0;
+          const unitsShare =
+            grossTotalPaise > 0
+              ? roundToHundredth((unitsConsumed * calculatedShare) / grossTotalPaise)
+              : 0;
+          const activeDays = bk.occupiedDates?.length ?? bk.weight;
           const representativeBed = [...bk.bedIds].sort()[0]!;
           const existing = byCustomer.get(bk.customerId);
           if (existing) {
@@ -739,40 +770,6 @@ export async function createElectricityBill(
       currentReadingUnits: input.currentReadingUnits,
       electricityBillId: result.billId,
     }).catch(() => undefined);
-
-    const calculationBreakdown = await composeElectricityBillBreakdown({
-      roomId: input.roomId,
-      roomNumber: room.roomNumber,
-      billingMonth,
-      previousReadingUnits: input.previousReadingUnits,
-      currentReadingUnits: input.currentReadingUnits,
-      ratePerUnitPaise: input.ratePerUnitPaise,
-      grossTotalPaise,
-      prepaidCreditPaise: prepaidCreditAppliedPaise,
-      prepaidCreditNote,
-      manualCreditPaise: manualCreditAppliedPaise,
-      checkoutCreditAppliedPaise,
-      remainingBillPaise: netSplittablePaise,
-      useProRata,
-      occupantLoad,
-      invoiceAmountByBookingId: invoiceAllocationByBooking,
-      previousContributions: contributionsLoad.contributions.map((row) => ({
-        customerId: row.customerId,
-        customerName: row.customerName,
-        bookingId: row.bookingId,
-        amountPaise: row.amountPaise,
-        kind: row.kind,
-        reason: row.reason,
-        contributionDate: row.contributionDate,
-        occupancyStart: row.occupancyStart,
-        occupancyEnd: row.occupancyEnd,
-      })),
-    });
-
-    await db
-      .update(electricityBills)
-      .set({ calculationBreakdown, updatedAt: new Date() })
-      .where(eq(electricityBills.id, result.billId));
 
     const { notifyElectricityReminder } = await import('@/src/lib/email/notifications');
     for (const n of pendingNotifications) {

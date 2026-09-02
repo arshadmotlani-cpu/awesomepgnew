@@ -32,7 +32,7 @@ export type ElectricityTimelineEntry = {
 };
 
 export type ElectricityBillCalculationBreakdown = {
-  version: 1;
+  version: 1 | 2;
   roomNumber: string;
   billingMonth: string;
   meter: {
@@ -70,6 +70,28 @@ export type ElectricityBillCalculationBreakdown = {
   remainingBillPaise: number;
   useProRata: boolean;
   timeline: ElectricityTimelineEntry[];
+  roomCoverage?: Array<{
+    customerId: string;
+    bookingId: string;
+    intervals: Array<{ startDate: string; endDateExclusive: string }>;
+    occupiedDates: string[];
+  }>;
+  dailyAllocation?: Array<{
+    date: string;
+    roomPoolPaise: number;
+    occupantCustomerIds: string[];
+    perOccupantPaise: number;
+    roundingRemainderPaise: number;
+    emptyRoomPaise: number;
+  }>;
+  conservation?: {
+    residentCalculatedSharesPaise: number;
+    contributionAppliedPaise: number;
+    invoiceTotalPaise: number;
+    emptyDayPaise: number;
+    dailyRoundingRemainderPaise: number;
+    accountedTotalPaise: number;
+  };
   generatedAt: string;
 };
 
@@ -95,6 +117,8 @@ export type RoomElectricityTimelineRow = {
   stayEnd: string | null;
   vacatedOn: string | null;
   role: 'departed' | 'active';
+  occupiedDates?: string[];
+  intervals?: Array<{ startDate: string; endDateExclusive: string }>;
   settlement: {
     electricitySharePaise: number;
     recoveredFromDepositPaise: number;

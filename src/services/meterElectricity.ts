@@ -8,7 +8,7 @@ import {
   roomElectricityPrepaidLedger,
   rooms,
 } from '@/src/db/schema';
-import { diffDays, formatDate, parseDate } from '@/src/lib/dates';
+import { diffDays, formatDate, parseDate, tryParseDateBound } from '@/src/lib/dates';
 import { firstOfMonth, monthBounds } from './billing';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
@@ -291,15 +291,18 @@ export async function activeDaysInRoomForMonth(
       and(
         eq(bookings.id, bookingId),
         eq(beds.roomId, roomId),
-        sql`bed_reservations.status IN ('hold','active')`,
+        sql`bed_reservations.status IN ('active','completed')`,
         sql`bed_reservations.stay_range && daterange(${monthStartIso}::date, ${monthEndIso}::date, '[)')`,
       ),
     );
 
   let totalDays = 0;
   for (const row of rows) {
-    const aStart = parseDate(row.lower);
-    const aEnd = row.upper ? parseDate(row.upper) : monthEnd;
+    const lowerIso = tryParseDateBound(row.lower);
+    if (!lowerIso) continue;
+    const aStart = parseDate(lowerIso);
+    const upperIso = tryParseDateBound(row.upper);
+    const aEnd = upperIso ? parseDate(upperIso) : monthEnd;
     const intersectStart = aStart > monthStart ? aStart : monthStart;
     const intersectEnd = aEnd < monthEnd ? aEnd : monthEnd;
     if (intersectEnd > intersectStart) {

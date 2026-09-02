@@ -10,6 +10,8 @@ export type MonthlyElectricityOccupant = {
   customerId: string;
   bedCount: number;
   weight: number;
+  /** Unique calendar dates covered in this room; bed identity is intentionally absent. */
+  occupiedDates?: string[];
 };
 
 export type MonthlyElectricityInvoiceLine = {
@@ -17,6 +19,32 @@ export type MonthlyElectricityInvoiceLine = {
   customerId: string;
   amountPaise: number;
   excludedBecauseCheckoutPaid: boolean;
+};
+
+export type DailyRoomElectricityAllocation = {
+  date: string;
+  roomPoolPaise: number;
+  occupantCustomerIds: string[];
+  perOccupantPaise: number;
+  roundingRemainderPaise: number;
+  emptyRoomPaise: number;
+};
+
+export type MonthlyElectricityAllocationResult = {
+  prepaidCreditAppliedPaise: number;
+  checkoutCreditAppliedPaise: number;
+  manualCreditAppliedPaise: number;
+  roomContributionsAppliedPaise: number;
+  netSplittablePaise: number;
+  billableOccupantCount: number;
+  invoices: MonthlyElectricityInvoiceLine[];
+  perResidentPaise: number;
+  remainderPaise: number;
+  emptyDayPaise: number;
+  dailyRoundingRemainderPaise: number;
+  calculatedShareByCustomerId: Map<string, number>;
+  contributionAppliedByCustomerId: Map<string, number>;
+  dailyAllocation: DailyRoomElectricityAllocation[];
 };
 
 export function allocateMonthlyElectricityInvoices(input: {
@@ -30,22 +58,23 @@ export function allocateMonthlyElectricityInvoices(input: {
   useProRata: boolean;
   /** Active beds in the room — SSOT divisor for equal split. */
   activeBedCount: number;
-}): {
-  prepaidCreditAppliedPaise: number;
-  checkoutCreditAppliedPaise: number;
-  manualCreditAppliedPaise: number;
-  roomContributionsAppliedPaise: number;
-  netSplittablePaise: number;
-  billableOccupantCount: number;
-  invoices: MonthlyElectricityInvoiceLine[];
-  perResidentPaise: number;
-  remainderPaise: number;
-} {
+  /** Every calendar date in the billing month. Enables canonical daily room sharing. */
+  billingDays?: string[];
+}): MonthlyElectricityAllocationResult {
   const prepaidCreditAppliedPaise = Math.min(
     Math.max(0, input.prepaidCreditPaise),
     input.grossTotalPaise,
   );
   const afterPrepaidPaise = input.grossTotalPaise - prepaidCreditAppliedPaise;
+
+  if (input.billingDays && input.billingDays.length > 0) {
+    return allocateDailyRoomElectricity({
+      ...input,
+      billingDays: input.billingDays,
+      prepaidCreditAppliedPaise,
+      afterPrepaidPaise,
+    });
+  }
 
   const useContributionsSsot =
     input.contributionsByCustomerId != null && input.contributionsByCustomerId.size > 0;
@@ -113,6 +142,11 @@ export function allocateMonthlyElectricityInvoices(input: {
       invoices,
       perResidentPaise: 0,
       remainderPaise: 0,
+      emptyDayPaise: 0,
+      dailyRoundingRemainderPaise: 0,
+      calculatedShareByCustomerId: new Map(),
+      contributionAppliedByCustomerId: new Map(),
+      dailyAllocation: [],
     };
   }
 
@@ -153,5 +187,127 @@ export function allocateMonthlyElectricityInvoices(input: {
     invoices,
     perResidentPaise: useProRata ? 0 : equalSplit.perResidentPaise,
     remainderPaise: useProRata ? weightedShares!.remainderPaise : equalSplit.remainderPaise,
+    emptyDayPaise: 0,
+    dailyRoundingRemainderPaise: 0,
+    calculatedShareByCustomerId: new Map(
+      invoices.map((invoice) => [invoice.customerId, invoice.amountPaise]),
+    ),
+    contributionAppliedByCustomerId: new Map(),
+    dailyAllocation: [],
+  };
+}
+
+function allocateDailyRoomElectricity(input: {
+  grossTotalPaise: number;
+  prepaidCreditPaise: number;
+  contributionsByCustomerId?: Map<string, number>;
+  manualCreditPaise?: number;
+  occupants: MonthlyElectricityOccupant[];
+  checkoutCollectedByCustomerId: Map<string, number>;
+  useProRata: boolean;
+  activeBedCount: number;
+  billingDays: string[];
+  prepaidCreditAppliedPaise: number;
+  afterPrepaidPaise: number;
+}): MonthlyElectricityAllocationResult {
+  const useContributionsSsot =
+    input.contributionsByCustomerId != null && input.contributionsByCustomerId.size > 0;
+  const contributionSource = useContributionsSsot
+    ? input.contributionsByCustomerId!
+    : input.checkoutCollectedByCustomerId;
+  const manualCreditAppliedPaise = useContributionsSsot
+    ? 0
+    : Math.min(Math.max(0, input.manualCreditPaise ?? 0), input.afterPrepaidPaise);
+  const roomPoolPaise = Math.max(0, input.afterPrepaidPaise - manualCreditAppliedPaise);
+  const baseDailyPaise = Math.floor(roomPoolPaise / input.billingDays.length);
+  const dailyPoolRemainder = roomPoolPaise % input.billingDays.length;
+
+  const occupancyByDate = new Map<string, Set<string>>();
+  for (const occupant of input.occupants) {
+    for (const date of new Set(occupant.occupiedDates ?? [])) {
+      if (!input.billingDays.includes(date)) continue;
+      const residents = occupancyByDate.get(date) ?? new Set<string>();
+      residents.add(occupant.customerId);
+      occupancyByDate.set(date, residents);
+    }
+  }
+
+  const calculatedShareByCustomerId = new Map<string, number>();
+  const dailyAllocation: DailyRoomElectricityAllocation[] = [];
+  let emptyDayPaise = 0;
+  let dailyRoundingRemainderPaise = 0;
+
+  input.billingDays.forEach((date, dayIndex) => {
+    const dayPool = baseDailyPaise + (dayIndex < dailyPoolRemainder ? 1 : 0);
+    const occupantCustomerIds = [...(occupancyByDate.get(date) ?? [])].sort();
+    if (occupantCustomerIds.length === 0) {
+      emptyDayPaise += dayPool;
+      dailyAllocation.push({
+        date,
+        roomPoolPaise: dayPool,
+        occupantCustomerIds,
+        perOccupantPaise: 0,
+        roundingRemainderPaise: 0,
+        emptyRoomPaise: dayPool,
+      });
+      return;
+    }
+
+    const perOccupantPaise = Math.floor(dayPool / occupantCustomerIds.length);
+    const roundingRemainderPaise = dayPool - perOccupantPaise * occupantCustomerIds.length;
+    dailyRoundingRemainderPaise += roundingRemainderPaise;
+    for (const customerId of occupantCustomerIds) {
+      calculatedShareByCustomerId.set(
+        customerId,
+        (calculatedShareByCustomerId.get(customerId) ?? 0) + perOccupantPaise,
+      );
+    }
+    dailyAllocation.push({
+      date,
+      roomPoolPaise: dayPool,
+      occupantCustomerIds,
+      perOccupantPaise,
+      roundingRemainderPaise,
+      emptyRoomPaise: 0,
+    });
+  });
+
+  const contributionAppliedByCustomerId = new Map<string, number>();
+  const invoices: MonthlyElectricityInvoiceLine[] = [];
+  let roomContributionsAppliedPaise = 0;
+  const occupantByCustomerId = new Map(
+    input.occupants.map((occupant) => [occupant.customerId, occupant]),
+  );
+
+  for (const [customerId, calculatedShare] of calculatedShareByCustomerId) {
+    const contribution = Math.max(0, contributionSource.get(customerId) ?? 0);
+    const applied = Math.min(calculatedShare, contribution);
+    contributionAppliedByCustomerId.set(customerId, applied);
+    roomContributionsAppliedPaise += applied;
+    const occupant = occupantByCustomerId.get(customerId);
+    if (!occupant) continue;
+    invoices.push({
+      bookingId: occupant.bookingId,
+      customerId,
+      amountPaise: calculatedShare - applied,
+      excludedBecauseCheckoutPaid: applied >= calculatedShare && calculatedShare > 0,
+    });
+  }
+
+  return {
+    prepaidCreditAppliedPaise: input.prepaidCreditAppliedPaise,
+    checkoutCreditAppliedPaise: roomContributionsAppliedPaise,
+    manualCreditAppliedPaise,
+    roomContributionsAppliedPaise,
+    netSplittablePaise: roomPoolPaise,
+    billableOccupantCount: calculatedShareByCustomerId.size,
+    invoices,
+    perResidentPaise: 0,
+    remainderPaise: emptyDayPaise + dailyRoundingRemainderPaise,
+    emptyDayPaise,
+    dailyRoundingRemainderPaise,
+    calculatedShareByCustomerId,
+    contributionAppliedByCustomerId,
+    dailyAllocation,
   };
 }

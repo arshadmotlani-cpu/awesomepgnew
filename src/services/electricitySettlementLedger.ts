@@ -7,14 +7,15 @@ import { db } from '@/src/db/client';
 import {
   beds,
   bedReservations,
+  bookings,
   checkoutSettlements,
   customers,
   electricitySettlementLedger,
   vacatingRequests,
 } from '@/src/db/schema';
-import { formatDate, parseDate } from '@/src/lib/dates';
+import { mergeRoomElectricityCoverage } from '@/src/lib/billing/roomElectricityOccupancyCoverage';
 import { resolveCheckoutElectricityDeductionPaise } from '@/src/lib/checkout/electricitySettlementCalc';
-import { firstOfMonth, monthBounds } from '@/src/services/billing';
+import { firstOfMonth } from '@/src/services/billing';
 import type { CheckoutSettlement } from '@/src/db/schema/checkoutSettlements';
 import type { DateLike } from '@/src/lib/dates';
 import { sumManualElectricityCreditsForRoomMonth } from '@/src/services/electricitySettlementLedgerView';
@@ -55,30 +56,43 @@ function billingMonthFromVacatingDate(vacatingDate: DateLike): string {
 async function resolveStayPeriodForBookingMonth(
   bookingId: string,
   billingMonth: string,
+  roomId: string,
 ): Promise<{ start: string | null; end: string | null }> {
-  const { start: monthStart, end: monthEnd } = monthBounds(billingMonth);
-
-  const [row] = await db
+  const rows = await db
     .select({
+      roomId: beds.roomId,
+      bedId: bedReservations.bedId,
+      customerId: bookings.customerId,
       lower: sql<string>`lower(${bedReservations.stayRange})::text`,
       upper: sql<string | null>`upper(${bedReservations.stayRange})::text`,
     })
     .from(bedReservations)
-    .where(and(eq(bedReservations.bookingId, bookingId), eq(bedReservations.kind, 'primary')))
-    .orderBy(sql`${bedReservations.createdAt} DESC`)
-    .limit(1);
-
-  if (!row?.lower) return { start: null, end: null };
-
-  const stayStart = parseDate(row.lower);
-  const stayEnd = row.upper ? parseDate(row.upper) : monthEnd;
-  const intersectStart = stayStart > monthStart ? stayStart : monthStart;
-  const intersectEnd = stayEnd < monthEnd ? stayEnd : monthEnd;
-  if (intersectEnd <= intersectStart) return { start: null, end: null };
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
+    .where(
+      and(
+        eq(bedReservations.bookingId, bookingId),
+        eq(bedReservations.kind, 'primary'),
+        eq(beds.roomId, roomId),
+      ),
+    );
+  const coverage = mergeRoomElectricityCoverage({
+    roomId,
+    billingMonth,
+    segments: rows.map((row) => ({
+      roomId: row.roomId,
+      bookingId,
+      customerId: row.customerId,
+      bedId: row.bedId,
+      startDate: row.lower,
+      endDateExclusive: row.upper,
+    })),
+  })[0];
+  if (!coverage) return { start: null, end: null };
 
   return {
-    start: formatDate(intersectStart),
-    end: formatDate(new Date(intersectEnd.getTime() - 86400000)),
+    start: coverage.stayStart,
+    end: coverage.stayEnd,
   };
 }
 
@@ -103,7 +117,11 @@ export async function recordCheckoutElectricityLedgerEntry(input: {
   if (amountPaise <= 0) return;
 
   const billingMonth = billingMonthFromVacatingDate(vacatingDate);
-  const stayPeriod = await resolveStayPeriodForBookingMonth(settlement.bookingId, billingMonth);
+  const stayPeriod = await resolveStayPeriodForBookingMonth(
+    settlement.bookingId,
+    billingMonth,
+    roomId,
+  );
 
   await db
     .insert(electricitySettlementLedger)

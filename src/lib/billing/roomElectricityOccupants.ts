@@ -1,6 +1,7 @@
 /**
  * Room-level electricity occupant discovery for monthly billing.
- * Excludes checkout-settled residents so they never enter allocation or receive invoices.
+ * Historical primary reservations are merged by resident + room. Checkout
+ * contributions are applied after each resident's daily share is calculated.
  */
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
@@ -17,13 +18,23 @@ import {
 } from '@/src/db/schema';
 import type { MonthlyElectricityOccupant } from '@/src/lib/billing/roomElectricityMonthlyAllocation';
 import { isMonthlyElectricityBillableOccupant } from '@/src/lib/billing/electricityOccupancyEligibility';
-import { diffDays, formatDate, parseDate } from '@/src/lib/dates';
+import {
+  billingMonthCalendarDays,
+  mergeRoomElectricityCoverage,
+  totalRoomResidentDays,
+  type RoomElectricityCoverageInterval,
+} from '@/src/lib/billing/roomElectricityOccupancyCoverage';
+import { diffDays, formatDate, tryParseDateBound } from '@/src/lib/dates';
 import { paiseToInr } from '@/src/lib/format';
 import { monthBounds } from '@/src/services/billing';
 import { listCheckoutElectricityLedgerForRoomMonth } from '@/src/services/electricitySettlementLedger';
 
 export type RoomElectricityOccupantRow = MonthlyElectricityOccupant & {
   bedIds: string[];
+  bookingIds: string[];
+  intervals: RoomElectricityCoverageInterval[];
+  customerName?: string;
+  bookingCode?: string;
 };
 
 export type ElectricityOccupantExclusionTrace = {
@@ -41,12 +52,13 @@ export type RoomElectricityOccupantLoadResult = {
   occupants: RoomElectricityOccupantRow[];
   totalWeight: number;
   daysInMonth: number;
+  billingDays: string[];
   checkoutCollectedByCustomerId: Map<string, number>;
   excludedCustomerIds: string[];
   exclusionTraces: ElectricityOccupantExclusionTrace[];
 };
 
-/** Customers whose June electricity was collected at checkout — must not be allocated or invoiced. */
+/** Customers with checkout collection; retained in coverage so credit applies to their own share. */
 export async function listCheckoutSettledCustomerIdsForRoomMonth(
   roomId: string,
   billingMonth: string,
@@ -86,8 +98,8 @@ export async function listCheckoutSettledCustomerIdsForRoomMonth(
     );
 
   for (const row of settlementRows) {
-    // Any checkout workflow row for this room/month is a billing boundary — exclude
-    // from monthly allocation whether or not electricity deduction is finalized yet.
+    // Keep the checkout boundary trace; allocation applies any collection only
+    // after reconstructing this resident's historical daily share.
     excluded.add(row.customerId);
   }
 
@@ -156,36 +168,17 @@ export async function loadRoomElectricityOccupantsForMonth(input: {
       and(
         eq(beds.roomId, input.roomId),
         eq(bedReservations.kind, 'primary'),
-        eq(bedReservations.status, 'active'),
-        eq(bookings.status, 'confirmed'),
-        inArray(
-          bookings.durationMode,
-          input.includeFixedStay
-            ? ['monthly', 'open_ended', 'fixed_stay']
-            : ['monthly', 'open_ended'],
-        ),
+        inArray(bedReservations.status, ['active', 'completed']),
+        inArray(bookings.status, ['confirmed', 'completed', 'superseded']),
         eq(bookings.isTest, false),
         eq(customers.isTest, false),
-        sql`${customers.residencyStatus} NOT IN ('vacated', 'blocked')`,
         sql`${bedReservations.stayRange} && daterange(${monthStartIso}::date, ${monthEndIso}::date, '[)')`,
       ),
     );
 
-  function activeDaysInMonth(lower: string, upper: string | null): number {
-    const aStart = parseDate(lower);
-    const aEnd = upper ? parseDate(upper) : monthEnd;
-    const intersectStart = aStart > monthStart ? aStart : monthStart;
-    const intersectEnd = aEnd < monthEnd ? aEnd : monthEnd;
-    if (intersectEnd <= intersectStart) return 0;
-    return diffDays(intersectStart, intersectEnd);
-  }
-
-  const byBooking = new Map<
-    string,
-    { bookingId: string; customerId: string; bedIds: Set<string>; weight: number }
-  >();
   const excludedCustomerIds = new Set<string>();
   const exclusionTraces: ElectricityOccupantExclusionTrace[] = [];
+  const eligibleSegments = [];
 
   for (const row of occupantRows) {
     if (
@@ -194,6 +187,7 @@ export async function loadRoomElectricityOccupantsForMonth(input: {
         bookingStatus: row.bookingStatus,
         residencyStatus: row.residencyStatus,
         customerEmail: row.customerEmail,
+        historicalCoverage: true,
       })
     ) {
       exclusionTraces.push({
@@ -204,28 +198,22 @@ export async function loadRoomElectricityOccupantsForMonth(input: {
       continue;
     }
     if (settledCustomerIds.has(row.customerId)) {
-      excludedCustomerIds.add(row.customerId);
       exclusionTraces.push({
         customerId: row.customerId,
         bookingId: row.bookingId,
         reason: 'checkout_settled',
       });
-      continue;
     }
     if ((checkoutCollectedByCustomerId.get(row.customerId) ?? 0) > 0) {
-      excludedCustomerIds.add(row.customerId);
       exclusionTraces.push({
         customerId: row.customerId,
         bookingId: row.bookingId,
         reason: 'checkout_collected',
       });
-      continue;
     }
 
-    const bedDays = input.useProRataByActiveDays
-      ? activeDaysInMonth(row.lower, row.upper)
-      : 1;
-    if (bedDays <= 0) {
+    const startDate = tryParseDateBound(row.lower);
+    if (!startDate) {
       exclusionTraces.push({
         customerId: row.customerId,
         bookingId: row.bookingId,
@@ -233,35 +221,40 @@ export async function loadRoomElectricityOccupantsForMonth(input: {
       });
       continue;
     }
-
-    const cur = byBooking.get(row.bookingId);
-    if (cur) {
-      cur.bedIds.add(row.bedId);
-      cur.weight += bedDays;
-    } else {
-      byBooking.set(row.bookingId, {
-        bookingId: row.bookingId,
-        customerId: row.customerId,
-        bedIds: new Set([row.bedId]),
-        weight: bedDays,
-      });
-    }
+    eligibleSegments.push({
+      roomId: input.roomId,
+      bookingId: row.bookingId,
+      customerId: row.customerId,
+      customerName: row.customerName,
+      bedId: row.bedId,
+      startDate,
+      endDateExclusive: tryParseDateBound(row.upper),
+    });
   }
 
-  const occupants: RoomElectricityOccupantRow[] = [...byBooking.values()].map((bk) => ({
-    bookingId: bk.bookingId,
-    customerId: bk.customerId,
-    bedCount: bk.bedIds.size,
-    weight: bk.weight,
-    bedIds: [...bk.bedIds],
+  const coverage = mergeRoomElectricityCoverage({
+    roomId: input.roomId,
+    billingMonth: input.billingMonth,
+    segments: eligibleSegments,
+  });
+  const occupants: RoomElectricityOccupantRow[] = coverage.map((resident) => ({
+    bookingId: resident.invoiceBookingId,
+    bookingIds: resident.bookingIds,
+    customerId: resident.customerId,
+    customerName: resident.customerName,
+    bedCount: 1,
+    weight: resident.activeDays,
+    bedIds: resident.bedIds,
+    intervals: resident.intervals,
+    occupiedDates: resident.occupiedDates,
   }));
-
-  const totalWeight = occupants.reduce((sum, o) => sum + o.weight, 0);
+  const totalWeight = totalRoomResidentDays(coverage);
 
   return {
     occupants,
     totalWeight,
     daysInMonth,
+    billingDays: billingMonthCalendarDays(input.billingMonth),
     checkoutCollectedByCustomerId,
     excludedCustomerIds: [...excludedCustomerIds],
     exclusionTraces,

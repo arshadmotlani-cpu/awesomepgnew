@@ -30,6 +30,13 @@ export async function exportRoomElectricityAuditAction(input: {
     }
 
     const { audit, paymentHistory, pgName, billingMonth } = bundle;
+    if (!audit) {
+      return {
+        ok: false,
+        error:
+          'Full electricity audit is incomplete for this bill (missing breakdown/ledger). Export unavailable until artifacts are present.',
+      };
+    }
     const roomNumber = audit.roomSummary.roomNumber;
 
     if (input.format === 'xlsx') {

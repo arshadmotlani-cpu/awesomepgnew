@@ -1,5 +1,8 @@
 /**
- * Audit and repair electricity invoice ownership — invoice resident must match bed occupant for billing month.
+ * Audit electricity invoice ownership against ROOM-LEVEL historical occupancy.
+ *
+ * Invoice.bedId is audit metadata only — never reconstruct liability from the
+ * current bed occupant. Same-room B3→B1 must not flag a mismatch.
  */
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
@@ -16,12 +19,12 @@ import {
 } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { revalidateAdminSurfaces } from '@/src/lib/admin/revalidateSurfaces';
-import { resolveBedOccupantForBillingMonth } from '@/src/lib/billing/electricityOccupantEligibility';
 import {
   isPipelineTestResidentEmail,
   normalizePipelineTestEmail,
   PIPELINE_TEST_RESIDENT_EMAIL,
 } from '@/src/lib/billing/pipelineTestResident';
+import { loadRoomElectricityOccupantsForMonth } from '@/src/lib/billing/roomElectricityOccupants';
 import { firstOfMonth } from '@/src/services/billing';
 
 export type ElectricityOwnershipAuditRow = {
@@ -59,6 +62,35 @@ export type ElectricityOwnershipRepairResult = {
   errors: string[];
 };
 
+type RoomMonthExpectedOccupant = {
+  customerId: string;
+  customerName: string;
+  bookingId: string;
+  bookingCode: string;
+};
+
+async function loadExpectedOccupantsByRoomMonth(
+  roomId: string,
+  billingMonth: string,
+): Promise<Map<string, RoomMonthExpectedOccupant>> {
+  const load = await loadRoomElectricityOccupantsForMonth({
+    roomId,
+    billingMonth,
+    includeFixedStay: true,
+    useProRataByActiveDays: true,
+  });
+  const byCustomer = new Map<string, RoomMonthExpectedOccupant>();
+  for (const occ of load.occupants) {
+    byCustomer.set(occ.customerId, {
+      customerId: occ.customerId,
+      customerName: occ.customerName ?? 'Room occupant',
+      bookingId: occ.bookingId,
+      bookingCode: occ.bookingCode ?? occ.bookingId,
+    });
+  }
+  return byCustomer;
+}
+
 export async function auditElectricityInvoiceOwnership(
   billingMonthInput: string,
   opts?: { roomNumber?: string; pgNamePattern?: string },
@@ -77,6 +109,7 @@ export async function auditElectricityInvoiceOwnership(
       roomNumber: rooms.roomNumber,
       bedCode: beds.bedCode,
       bedId: electricityInvoices.bedId,
+      roomId: electricityBills.roomId,
       billingMonth: electricityInvoices.billingMonth,
       amountPaise: electricityInvoices.amountPaise,
       paidPaise: electricityInvoices.paidPaise,
@@ -88,7 +121,7 @@ export async function auditElectricityInvoiceOwnership(
     .innerJoin(bookings, eq(bookings.id, electricityInvoices.bookingId))
     .innerJoin(customers, eq(customers.id, electricityInvoices.customerId))
     .innerJoin(beds, eq(beds.id, electricityInvoices.bedId))
-    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(rooms, eq(rooms.id, electricityBills.roomId))
     .innerJoin(floors, eq(floors.id, rooms.floorId))
     .innerJoin(pgs, eq(pgs.id, floors.pgId))
     .where(
@@ -103,29 +136,28 @@ export async function auditElectricityInvoiceOwnership(
     )
     .orderBy(pgs.name, rooms.roomNumber, beds.bedCode);
 
+  const expectedByRoom = new Map<string, Map<string, RoomMonthExpectedOccupant>>();
   const audited: ElectricityOwnershipAuditRow[] = [];
 
   for (const row of rows) {
-    const expected = await resolveBedOccupantForBillingMonth(row.bedId, billingMonth, {
-      includeFixedStay: true,
-    });
+    let expectedMap = expectedByRoom.get(row.roomId);
+    if (!expectedMap) {
+      expectedMap = await loadExpectedOccupantsByRoomMonth(row.roomId, billingMonth);
+      expectedByRoom.set(row.roomId, expectedMap);
+    }
+    const expected = expectedMap.get(row.customerId) ?? null;
 
     const flags: string[] = [];
     if (row.isPipelineTest) flags.push('pipeline_test');
     if (row.customerIsTest || row.bookingIsTest) flags.push('test_account');
     if (isPipelineTestResidentEmail(row.residentEmail)) flags.push('pipeline_test_resident');
 
+    // Room-level historical coverage only — never current-bed reconstruction.
     if (!expected) {
       if (!row.isPipelineTest && row.amountPaise > 0) {
-        flags.push('resident_not_assigned_to_bed');
+        flags.push('resident_not_in_room_coverage');
       }
-    } else if (expected.customerId !== row.customerId) {
-      flags.push('resident_not_assigned_to_bed');
-      flags.push('room_assignment_mismatch');
     }
-
-    const billRoomMatchesBed = true; // joined via invoice bed → room
-    if (!billRoomMatchesBed) flags.push('room_mismatch');
 
     audited.push({
       invoiceId: row.invoiceId,
@@ -160,6 +192,10 @@ export async function auditElectricityInvoiceOwnership(
   };
 }
 
+/**
+ * Repair only cancels unpaid invoices whose resident is outside room coverage.
+ * Never reassigns ownership from current bed occupancy (that would rewrite history).
+ */
 export async function repairMisassignedElectricityInvoices(
   session: AdminSession,
   billingMonthInput: string,
@@ -184,10 +220,7 @@ export async function repairMisassignedElectricityInvoices(
   result.cancelled.push(...pipelineCancelled.cancelled);
 
   const toRepair = report.rows.filter(
-    (r) =>
-      !r.isPipelineTest &&
-      (r.flags.includes('resident_not_assigned_to_bed') ||
-        r.flags.includes('room_assignment_mismatch')),
+    (r) => !r.isPipelineTest && r.flags.includes('resident_not_in_room_coverage'),
   );
 
   for (const row of toRepair) {
@@ -196,55 +229,22 @@ export async function repairMisassignedElectricityInvoices(
       continue;
     }
 
-    const expected = await resolveBedOccupantForBillingMonth(row.bedId, report.billingMonth, {
-      includeFixedStay: true,
-    });
-
-    if (!expected) {
-      if (!opts?.dryRun) {
+    if (!opts?.dryRun) {
+      try {
         await db
           .update(electricityInvoices)
           .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
           .where(eq(electricityInvoices.id, row.invoiceId));
         const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
         await syncManyToUnified([row.invoiceId], 'electricity').catch(() => undefined);
-      }
-      result.cancelled.push(row.invoiceNumber);
-      continue;
-    }
-
-    if (expected.customerName === row.residentName) continue;
-
-    if (!opts?.dryRun) {
-      try {
-        await db
-          .update(electricityInvoices)
-          .set({
-            customerId: expected.customerId,
-            bookingId: expected.bookingId,
-            bedId: expected.bedId,
-            updatedAt: new Date(),
-          })
-          .where(eq(electricityInvoices.id, row.invoiceId));
-        const { syncElectricityInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
-        await syncElectricityInvoiceToUnified(row.invoiceId).catch(() => undefined);
-        result.reassigned.push({
-          invoiceNumber: row.invoiceNumber,
-          from: row.residentName,
-          to: expected.customerName,
-        });
       } catch (err) {
         result.errors.push(
           `${row.invoiceNumber}: ${err instanceof Error ? err.message : String(err)}`,
         );
+        continue;
       }
-    } else {
-      result.reassigned.push({
-        invoiceNumber: row.invoiceNumber,
-        from: row.residentName,
-        to: expected.customerName,
-      });
     }
+    result.cancelled.push(row.invoiceNumber);
   }
 
   if (!opts?.dryRun && (result.cancelled.length > 0 || result.reassigned.length > 0)) {
@@ -259,6 +259,7 @@ export async function repairMisassignedElectricityInvoices(
         cancelled: result.cancelled,
         reassigned: result.reassigned,
         skippedPaid: result.skippedPaid,
+        mode: 'room_coverage_only',
       },
     });
 

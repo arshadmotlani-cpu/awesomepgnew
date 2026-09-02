@@ -57,14 +57,31 @@ export type RoomElectricityAuditBundle = {
   pgId: string;
   pgName: string;
   billingMonth: string;
-  audit: RoomElectricityAuditView;
-  operator: RoomElectricityOperatorView;
+  audit: RoomElectricityAuditView | null;
+  operator: RoomElectricityOperatorView | null;
   breakdown: ElectricityBillCalculationBreakdown | null;
   ledger: ElectricitySettlementLedgerView | null;
   distribution: RoomElectricityAuditDistributionRow[];
   paymentHistory: ElectricityPaymentHistoryRow[];
   navigation: RoomElectricityAuditNavigation;
+  domainWarnings: Array<{ code: string; message: string }>;
 };
+
+export type RoomElectricityAuditLoadResult =
+  | { ok: true; bundle: RoomElectricityAuditBundle }
+  | {
+      ok: false;
+      code:
+        | 'not_found'
+        | 'missing_room'
+        | 'missing_breakdown'
+        | 'incomplete_generation'
+        | 'unexpected_error';
+      message: string;
+      recoverable: boolean;
+      billId?: string;
+      operatorHint?: string;
+    };
 
 async function loadPriorOutstandingByBooking(
   roomId: string,
@@ -133,13 +150,55 @@ async function buildNavigation(input: {
   return { siblingBills, sameRoomOtherMonths };
 }
 
+export async function loadRoomElectricityAuditBundleResult(
+  billId: string,
+): Promise<RoomElectricityAuditLoadResult> {
+  try {
+    const bundle = await loadRoomElectricityAuditBundleInner(billId);
+    if (!bundle) {
+      return {
+        ok: false,
+        code: 'not_found',
+        message: 'Electricity bill not found.',
+        recoverable: false,
+        billId,
+      };
+    }
+    return { ok: true, bundle };
+  } catch (err) {
+    console.error('[electricity] audit bundle load failed', {
+      domain: 'electricity',
+      command: 'loadRoomElectricityAuditBundle',
+      billId,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return {
+      ok: false,
+      code: 'unexpected_error',
+      message:
+        'Electricity bill details could not be assembled. Retry, or open the bill from Billing Centre.',
+      recoverable: true,
+      billId,
+    };
+  }
+}
+
+/** @deprecated Prefer loadRoomElectricityAuditBundleResult. */
 export async function loadRoomElectricityAuditBundle(
+  billId: string,
+): Promise<RoomElectricityAuditBundle | null> {
+  const result = await loadRoomElectricityAuditBundleResult(billId);
+  return result.ok ? result.bundle : null;
+}
+
+async function loadRoomElectricityAuditBundleInner(
   billId: string,
 ): Promise<RoomElectricityAuditBundle | null> {
   const detail = await getElectricityBillDetail(billId);
   if (!detail.ok || !detail.data?.bill) return null;
 
   const bill = detail.data.bill;
+  const domainWarnings: Array<{ code: string; message: string }> = [];
 
   const [billRow] = await db
     .select({
@@ -163,9 +222,23 @@ export async function loadRoomElectricityAuditBundle(
       roomId,
       billingMonth,
       fallbackTotalBillPaise: bill.totalPaise,
-    }),
+    }).catch(() => null),
     loadElectricityBillBreakdown(billId),
   ]);
+
+  if (!calculationBreakdown) {
+    domainWarnings.push({
+      code: 'missing_breakdown',
+      message:
+        'Calculation breakdown is missing or could not be rebuilt. Invoice amounts below remain authoritative.',
+    });
+  }
+  if (!ledger) {
+    domainWarnings.push({
+      code: 'missing_ledger',
+      message: 'Settlement ledger view is unavailable for this room/month.',
+    });
+  }
 
   const invoiceIds = detail.data.distribution.map((d) => d.invoiceId);
   const invoiceMeta =
@@ -252,12 +325,21 @@ export async function loadRoomElectricityAuditBundle(
           financialInvoiceIdByElectricityInvoiceId: financialMap,
           pgName: bill.pgName,
           priorOutstandingByBookingId,
-          billGeneratedAt: billRow.createdAt.toISOString(),
+          billGeneratedAt:
+            billRow.createdAt instanceof Date && Number.isFinite(billRow.createdAt.getTime())
+              ? billRow.createdAt.toISOString()
+              : new Date().toISOString(),
           invoiceProjectionByBookingId,
         })
       : null;
 
-  if (!audit) return null;
+  if (!audit) {
+    domainWarnings.push({
+      code: 'incomplete_artifacts',
+      message:
+        'Full room electricity audit could not be built. Showing invoice distribution only.',
+    });
+  }
 
   const paymentHistory = await loadElectricityPaymentHistoryForBill({
     roomId,
@@ -331,11 +413,13 @@ export async function loadRoomElectricityAuditBundle(
     );
   }
 
-  const operator = buildRoomElectricityOperatorView({
-    audit,
-    invoiceHistoryByBookingId,
-    paymentHistoryByBookingId,
-  });
+  const operator = audit
+    ? buildRoomElectricityOperatorView({
+        audit,
+        invoiceHistoryByBookingId,
+        paymentHistoryByBookingId,
+      })
+    : null;
 
   const navigation = await buildNavigation({
     billId,
@@ -357,5 +441,6 @@ export async function loadRoomElectricityAuditBundle(
     distribution,
     paymentHistory,
     navigation,
+    domainWarnings,
   };
 }

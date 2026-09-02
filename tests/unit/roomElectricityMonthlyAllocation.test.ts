@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { allocateMonthlyElectricityInvoices } from '@/src/lib/billing/roomElectricityMonthlyAllocation';
+import { billingMonthCalendarDays } from '@/src/lib/billing/roomElectricityOccupancyCoverage';
 
 test('checkout payer is excluded from monthly electricity invoices', () => {
   const checkout = new Map<string, number>([['resident-a', 22_400]]);
@@ -138,4 +139,180 @@ test('july bill ignores june contributions when contributions map is empty', () 
 
   assert.equal(result.netSplittablePaise, 300_000);
   assert.equal(result.invoices.filter((i) => i.amountPaise > 0).length, 2);
+});
+
+const augustDays = billingMonthCalendarDays('2026-08-01');
+
+function dailyAllocation(input: {
+  grossTotalPaise?: number;
+  occupants: Array<{
+    bookingId: string;
+    customerId: string;
+    occupiedDates: string[];
+  }>;
+  contributions?: Map<string, number>;
+  prepaidCreditPaise?: number;
+}) {
+  return allocateMonthlyElectricityInvoices({
+    grossTotalPaise: input.grossTotalPaise ?? 3_100,
+    prepaidCreditPaise: input.prepaidCreditPaise ?? 0,
+    contributionsByCustomerId: input.contributions,
+    occupants: input.occupants.map((occupant) => ({
+      ...occupant,
+      bedCount: 99,
+      weight: occupant.occupiedDates.length,
+    })),
+    checkoutCollectedByCustomerId: new Map(),
+    useProRata: false,
+    activeBedCount: 99,
+    billingDays: augustDays,
+  });
+}
+
+test('daily room allocation ignores bed count and splits full-month residents equally', () => {
+  const result = dailyAllocation({
+    occupants: [
+      { bookingId: 'a', customerId: 'a', occupiedDates: augustDays },
+      { bookingId: 'b', customerId: 'b', occupiedDates: augustDays },
+    ],
+  });
+  assert.deepEqual(
+    result.invoices.map((row) => row.amountPaise),
+    [1_550, 1_550],
+  );
+});
+
+test('leave and join dates split liability at the half-open daily boundary', () => {
+  const result = dailyAllocation({
+    occupants: [
+      { bookingId: 'a', customerId: 'a', occupiedDates: augustDays.slice(0, 15) },
+      { bookingId: 'b', customerId: 'b', occupiedDates: augustDays.slice(15) },
+    ],
+  });
+  assert.equal(result.calculatedShareByCustomerId.get('a'), 1_500);
+  assert.equal(result.calculatedShareByCustomerId.get('b'), 1_600);
+});
+
+test('empty room-days remain operator absorbed and are not redivided', () => {
+  const result = dailyAllocation({
+    occupants: [{ bookingId: 'a', customerId: 'a', occupiedDates: augustDays.slice(10) }],
+  });
+  assert.equal(result.emptyDayPaise, 1_000);
+  assert.equal(result.invoices[0]?.amountPaise, 2_100);
+});
+
+test('daily occupant count changes determine each resident share', () => {
+  const result = dailyAllocation({
+    occupants: [
+      { bookingId: 'a', customerId: 'a', occupiedDates: augustDays },
+      { bookingId: 'b', customerId: 'b', occupiedDates: augustDays.slice(15) },
+    ],
+  });
+  assert.equal(result.invoices.find((row) => row.customerId === 'a')?.amountPaise, 2_300);
+  assert.equal(result.invoices.find((row) => row.customerId === 'b')?.amountPaise, 800);
+});
+
+test('simultaneous join leave and bed movement does not duplicate a daily share', () => {
+  const result = dailyAllocation({
+    occupants: [
+      { bookingId: 'moving', customerId: 'moving', occupiedDates: augustDays },
+      { bookingId: 'leaving', customerId: 'leaving', occupiedDates: augustDays.slice(0, 15) },
+      { bookingId: 'joining', customerId: 'joining', occupiedDates: augustDays.slice(15) },
+    ],
+  });
+  assert.equal(result.dailyAllocation.every((day) => day.occupantCustomerIds.length === 2), true);
+  assert.equal(result.calculatedShareByCustomerId.get('moving'), 1_550);
+});
+
+test('repeated daily generation is deterministic and idempotent', () => {
+  const input = {
+    grossTotalPaise: 10_007,
+    occupants: [
+      { bookingId: 'a', customerId: 'a', occupiedDates: augustDays },
+      { bookingId: 'b', customerId: 'b', occupiedDates: augustDays.slice(7) },
+    ],
+  };
+  assert.deepEqual(dailyAllocation(input), dailyAllocation(input));
+});
+
+test('checkout contribution applies only against that resident calculated share', () => {
+  const result = dailyAllocation({
+    occupants: [
+      { bookingId: 'a', customerId: 'a', occupiedDates: augustDays },
+      { bookingId: 'b', customerId: 'b', occupiedDates: augustDays },
+    ],
+    contributions: new Map([['a', 1_000]]),
+  });
+  assert.equal(result.calculatedShareByCustomerId.get('a'), 1_550);
+  assert.equal(result.contributionAppliedByCustomerId.get('a'), 1_000);
+  assert.equal(result.invoices.find((row) => row.customerId === 'a')?.amountPaise, 550);
+  assert.equal(result.invoices.find((row) => row.customerId === 'b')?.amountPaise, 1_550);
+});
+
+test('resident shares plus empty and rounding paise conserve the room pool', () => {
+  const result = dailyAllocation({
+    grossTotalPaise: 100,
+    occupants: [
+      { bookingId: 'a', customerId: 'a', occupiedDates: augustDays },
+      { bookingId: 'b', customerId: 'b', occupiedDates: augustDays },
+    ],
+  });
+  const residentShares = [...result.calculatedShareByCustomerId.values()].reduce(
+    (sum, amount) => sum + amount,
+    0,
+  );
+  assert.equal(
+    residentShares + result.emptyDayPaise + result.dailyRoundingRemainderPaise,
+    result.netSplittablePaise,
+  );
+});
+
+test('property matrix conserves paise across daily occupancy and rounding variants', () => {
+  for (let residentCount = 0; residentCount <= 6; residentCount += 1) {
+    for (const grossTotalPaise of [0, 1, 29, 31, 97, 3_101, 99_999]) {
+      const occupants = Array.from({ length: residentCount }, (_, index) => ({
+        bookingId: `booking-${index}`,
+        customerId: `resident-${index}`,
+        occupiedDates: augustDays.filter(
+          (_, dayIndex) => (dayIndex + index) % (index + 2) !== 0,
+        ),
+      }));
+      const result = dailyAllocation({ grossTotalPaise, occupants });
+      const residentShares = [...result.calculatedShareByCustomerId.values()].reduce(
+        (sum, amount) => sum + amount,
+        0,
+      );
+      assert.equal(
+        residentShares + result.emptyDayPaise + result.dailyRoundingRemainderPaise,
+        result.netSplittablePaise,
+        `residents=${residentCount} gross=${grossTotalPaise}`,
+      );
+    }
+  }
+});
+
+test('production-shaped month handles transfers, joins, departures, empty days and contribution', () => {
+  const result = dailyAllocation({
+    grossTotalPaise: 459_203,
+    occupants: [
+      { bookingId: 'continuous', customerId: 'continuous', occupiedDates: augustDays },
+      { bookingId: 'departed', customerId: 'departed', occupiedDates: augustDays.slice(0, 9) },
+      { bookingId: 'joined', customerId: 'joined', occupiedDates: augustDays.slice(14) },
+      { bookingId: 'short-stay', customerId: 'short-stay', occupiedDates: augustDays.slice(20, 25) },
+    ],
+    contributions: new Map([['departed', 40_000]]),
+  });
+  const invoices = result.invoices.reduce((sum, row) => sum + row.amountPaise, 0);
+  const contributions = [...result.contributionAppliedByCustomerId.values()].reduce(
+    (sum, amount) => sum + amount,
+    0,
+  );
+  assert.equal(
+    invoices +
+      contributions +
+      result.emptyDayPaise +
+      result.dailyRoundingRemainderPaise,
+    result.netSplittablePaise,
+  );
+  assert.equal(result.dailyAllocation.length, 31);
 });

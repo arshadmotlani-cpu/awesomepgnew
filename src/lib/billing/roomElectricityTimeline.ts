@@ -14,36 +14,16 @@ import {
   vacatingRequests,
 } from '@/src/db/schema';
 import type { RoomElectricityTimelineRow } from '@/src/lib/billing/electricityBillBreakdownTypes';
+import { mergeRoomElectricityCoverage } from '@/src/lib/billing/roomElectricityOccupancyCoverage';
 import {
   resolveCheckoutElectricityDeductionPaise,
   resolveCheckoutElectricitySharePaise,
 } from '@/src/lib/checkout/electricitySettlementCalc';
-import { diffDays, formatDate, parseDate } from '@/src/lib/dates';
+import { formatDate } from '@/src/lib/dates';
 import { monthBounds } from '@/src/services/billing';
 
 export type { RoomElectricityTimelineRow } from '@/src/lib/billing/electricityBillBreakdownTypes';
 export { stayLabelForTimelineRow } from '@/src/lib/billing/electricityBillBreakdownPure';
-
-function activeDaysInMonth(
-  lower: string,
-  upper: string | null,
-  monthStart: Date,
-  monthEnd: Date,
-): { days: number; stayStart: string; stayEnd: string | null } {
-  const aStart = parseDate(lower);
-  const aEnd = upper ? parseDate(upper) : monthEnd;
-  const intersectStart = aStart > monthStart ? aStart : monthStart;
-  const intersectEnd = aEnd < monthEnd ? aEnd : monthEnd;
-  if (intersectEnd <= intersectStart) {
-    return { days: 0, stayStart: formatDate(monthStart), stayEnd: null };
-  }
-  const lastOccupied = new Date(intersectEnd.getTime() - 86400000);
-  return {
-    days: diffDays(intersectStart, intersectEnd),
-    stayStart: formatDate(intersectStart),
-    stayEnd: formatDate(lastOccupied),
-  };
-}
 
 export async function loadRoomElectricityTimelineForMonth(input: {
   roomId: string;
@@ -52,13 +32,12 @@ export async function loadRoomElectricityTimelineForMonth(input: {
   const { start: monthStart, end: monthEnd } = monthBounds(input.billingMonth);
   const monthStartIso = formatDate(monthStart);
   const monthEndIso = formatDate(monthEnd);
-  const daysInMonth = diffDays(monthStart, monthEnd);
-
   const reservationRows = await db
     .select({
       bookingId: bookings.id,
       customerId: bookings.customerId,
       customerName: customers.fullName,
+      bedId: beds.id,
       reservationStatus: bedReservations.status,
       bookingStatus: bookings.status,
       lower: sql<string>`lower(${bedReservations.stayRange})::text`,
@@ -74,7 +53,8 @@ export async function loadRoomElectricityTimelineForMonth(input: {
         eq(bedReservations.kind, 'primary'),
         eq(bookings.isTest, false),
         eq(customers.isTest, false),
-        inArray(bookings.durationMode, ['monthly', 'open_ended', 'fixed_stay']),
+        inArray(bedReservations.status, ['active', 'completed']),
+        inArray(bookings.status, ['confirmed', 'completed', 'superseded']),
         sql`${bedReservations.stayRange} && daterange(${monthStartIso}::date, ${monthEndIso}::date, '[)')`,
       ),
     );
@@ -96,8 +76,6 @@ export async function loadRoomElectricityTimelineForMonth(input: {
         inArray(electricitySettlementLedger.status, ['collected', 'applied']),
       ),
     );
-
-  const ledgerByBooking = new Map(ledgerRows.map((r) => [r.bookingId, r]));
 
   const settlementRows = await db
     .select({
@@ -123,72 +101,84 @@ export async function loadRoomElectricityTimelineForMonth(input: {
       ),
     );
 
-  const settlementByBooking = new Map(settlementRows.map((r) => [r.bookingId, r]));
+  const coverage = mergeRoomElectricityCoverage({
+    roomId: input.roomId,
+    billingMonth: input.billingMonth,
+    segments: reservationRows.map((row) => ({
+      roomId: input.roomId,
+      bookingId: row.bookingId,
+      customerId: row.customerId,
+      customerName: row.customerName,
+      bedId: row.bedId,
+      startDate: row.lower,
+      endDateExclusive: row.upper,
+    })),
+  });
 
-  const byBooking = new Map<string, RoomElectricityTimelineRow>();
-
-  for (const row of reservationRows) {
-    const { days, stayStart, stayEnd } = activeDaysInMonth(
-      row.lower,
-      row.upper,
-      monthStart,
-      monthEnd,
+  const timeline: RoomElectricityTimelineRow[] = [];
+  for (const resident of coverage) {
+    const reservationFacts = reservationRows.filter((row) =>
+      resident.bookingIds.includes(row.bookingId),
     );
-    if (days <= 0) continue;
-
-    const entireMonth = days >= daysInMonth;
-    const settlement = settlementByBooking.get(row.bookingId);
-    const ledger = ledgerByBooking.get(row.bookingId);
+    const settlement = settlementRows.find((row) => resident.bookingIds.includes(row.bookingId));
+    const residentLedgerRows = ledgerRows.filter((row) =>
+      resident.bookingIds.includes(row.bookingId),
+    );
+    const ledgerAmount = residentLedgerRows.reduce((sum, row) => sum + row.amountPaise, 0);
+    const ledger = residentLedgerRows[0];
     const vacatedOn = settlement?.vacatingDate ?? null;
 
-    const isActive =
-      row.reservationStatus === 'active' &&
-      row.bookingStatus === 'confirmed' &&
-      !vacatedOn;
+    const isActive = reservationFacts.some(
+      (row) => row.reservationStatus === 'active' && row.bookingStatus === 'confirmed',
+    ) && !vacatedOn;
 
     let settlementDetail: RoomElectricityTimelineRow['settlement'] = null;
     if (settlement || ledger) {
       const sharePaise = settlement
         ? resolveCheckoutElectricitySharePaise(settlement)
-        : (ledger?.amountPaise ?? 0);
+        : ledgerAmount;
       const fromDeposit = settlement
         ? settlement.electricityDeductFromDeposit !== false
           ? resolveCheckoutElectricityDeductionPaise(settlement)
           : 0
         : 0;
-      const ledgerAmount = ledger?.amountPaise ?? fromDeposit;
+      const creditAmount = ledgerAmount || fromDeposit;
       const collectedAtCheckout =
         settlement && settlement.electricityDeductFromDeposit === false
           ? sharePaise
-          : Math.max(0, ledgerAmount - fromDeposit);
+          : Math.max(0, creditAmount - fromDeposit);
 
       settlementDetail = {
         electricitySharePaise: sharePaise,
         recoveredFromDepositPaise: fromDeposit,
         collectedDuringCheckoutPaise: collectedAtCheckout,
-        creditAppliedToRoomBillPaise: ledgerAmount,
-        ledgerAmountPaise: ledgerAmount,
+        creditAppliedToRoomBillPaise: creditAmount,
+        ledgerAmountPaise: creditAmount,
       };
     }
 
-    byBooking.set(row.bookingId, {
-      bookingId: row.bookingId,
-      customerId: row.customerId,
-      customerName: row.customerName,
-      reservationStatus: row.reservationStatus,
-      bookingStatus: row.bookingStatus,
-      lower: row.lower,
-      upper: row.upper,
-      activeDays: days,
-      stayStart: ledger?.stayPeriodStart ?? stayStart,
-      stayEnd: ledger?.stayPeriodEnd ?? stayEnd,
+    const representative = reservationFacts.at(-1);
+    if (!representative) continue;
+    timeline.push({
+      bookingId: resident.invoiceBookingId,
+      customerId: resident.customerId,
+      customerName: resident.customerName ?? 'Resident',
+      reservationStatus: representative.reservationStatus,
+      bookingStatus: representative.bookingStatus,
+      lower: resident.intervals[0]?.startDate ?? resident.stayStart,
+      upper: resident.intervals.at(-1)?.endDateExclusive ?? null,
+      activeDays: resident.activeDays,
+      stayStart: ledger?.stayPeriodStart ?? resident.stayStart,
+      stayEnd: ledger?.stayPeriodEnd ?? resident.stayEnd,
       vacatedOn,
       role: isActive ? 'active' : 'departed',
       settlement: settlementDetail,
+      occupiedDates: resident.occupiedDates,
+      intervals: resident.intervals,
     });
   }
 
-  return [...byBooking.values()].sort((a, b) => {
+  return timeline.sort((a, b) => {
     if (a.role !== b.role) return a.role === 'departed' ? -1 : 1;
     return a.stayStart.localeCompare(b.stayStart);
   });

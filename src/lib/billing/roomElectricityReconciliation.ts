@@ -1,7 +1,7 @@
 /**
  * Room-month electricity occupant vs invoice reconciliation with explicit exclusion reasons.
  */
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   customers,
@@ -13,7 +13,7 @@ import {
   loadRoomElectricityOccupantsForMonth,
   type RoomElectricityOccupantRow,
 } from '@/src/lib/billing/roomElectricityOccupants';
-import { isMonthlyElectricityBillableOccupant } from '@/src/lib/billing/electricityOccupancyEligibility';
+import type { ElectricityBillCalculationBreakdown } from '@/src/lib/billing/electricityBillBreakdownTypes';
 
 export type ElectricityOccupantExclusionReason =
   | 'checkout_settled'
@@ -45,6 +45,11 @@ export type RoomElectricityReconciliationReport = {
   eligibleCount: number;
   invoicedCount: number;
   missingInvoiceCustomerIds: string[];
+  duplicateInvoiceCustomerIds: string[];
+  duplicateResidentDayKeys: string[];
+  nonzeroLateFeeInvoiceIds: string[];
+  emptyDayPaise: number;
+  conservationDriftPaise: number;
   peerMismatch: boolean;
 };
 
@@ -59,7 +64,11 @@ export async function reconcileRoomElectricityBilling(input: {
     .limit(1);
 
   const [bill] = await db
-    .select({ id: electricityBills.id, totalPaise: electricityBills.totalPaise })
+    .select({
+      id: electricityBills.id,
+      totalPaise: electricityBills.totalPaise,
+      calculationBreakdown: electricityBills.calculationBreakdown,
+    })
     .from(electricityBills)
     .where(
       and(
@@ -88,6 +97,7 @@ export async function reconcileRoomElectricityBilling(input: {
           customerId: electricityInvoices.customerId,
           bookingId: electricityInvoices.bookingId,
           status: electricityInvoices.status,
+          lateFeeLockedPaise: electricityInvoices.lateFeeLockedPaise,
           customerName: customers.fullName,
         })
         .from(electricityInvoices)
@@ -100,8 +110,24 @@ export async function reconcileRoomElectricityBilling(input: {
         )
     : [];
 
-  const invoiceByCustomer = new Map(
-    invoiceRows.map((r) => [r.customerId, r] as const),
+  const activeInvoiceRows = invoiceRows.filter((row) => row.status !== 'cancelled');
+  const invoiceByCustomer = new Map(activeInvoiceRows.map((r) => [r.customerId, r] as const));
+  const invoiceCountByCustomer = new Map<string, number>();
+  for (const invoice of activeInvoiceRows) {
+    invoiceCountByCustomer.set(
+      invoice.customerId,
+      (invoiceCountByCustomer.get(invoice.customerId) ?? 0) + 1,
+    );
+  }
+  const duplicateInvoiceCustomerIds = [...invoiceCountByCustomer]
+    .filter(([, count]) => count > 1)
+    .map(([customerId]) => customerId);
+  const nonzeroLateFeeInvoiceIds = activeInvoiceRows
+    .filter((invoice) => (invoice.lateFeeLockedPaise ?? 0) !== 0)
+    .map((invoice) => invoice.id);
+  const breakdown = (bill?.calculationBreakdown ?? null) as ElectricityBillCalculationBreakdown | null;
+  const timelineByCustomer = new Map(
+    (breakdown?.timeline ?? []).map((entry) => [entry.customerId, entry] as const),
   );
 
   const allCustomerIds = new Set<string>([
@@ -118,9 +144,7 @@ export async function reconcileRoomElectricityBilling(input: {
     const [customer] = await db
       .select({
         fullName: customers.fullName,
-        email: customers.email,
         isTest: customers.isTest,
-        residencyStatus: customers.residencyStatus,
       })
       .from(customers)
       .where(eq(customers.id, customerId))
@@ -147,20 +171,6 @@ export async function reconcileRoomElectricityBilling(input: {
       exclusionReason = 'non_billable_status';
     }
 
-    if (
-      included &&
-      customer &&
-      !isMonthlyElectricityBillableOccupant({
-        reservationStatus: 'active',
-        bookingStatus: 'confirmed',
-        residencyStatus: customer.residencyStatus,
-        customerEmail: customer.email,
-      })
-    ) {
-      included = false;
-      exclusionReason = 'non_billable_status';
-    }
-
     occupants.push({
       customerId,
       customerName: customer?.fullName ?? invoice?.customerName ?? customerId,
@@ -177,12 +187,54 @@ export async function reconcileRoomElectricityBilling(input: {
   const eligible = occupants.filter((o) => o.included);
   const invoiced = eligible.filter((o) => o.invoiceId);
   const missingInvoiceCustomerIds = eligible
-    .filter((o) => !o.invoiceId)
+    .filter((o) => {
+      if (o.invoiceId) return false;
+      const timeline = timelineByCustomer.get(o.customerId);
+      if (!timeline) return true;
+      return (
+        timeline.calculatedSharePaise -
+          timeline.creditAppliedToRoomBillPaise >
+        0
+      );
+    })
     .map((o) => o.customerId);
 
   const invoicedWithoutEligible = occupants.filter((o) => o.invoiceId && !o.included);
+  const duplicateCoverageRows = await db.execute(sql`
+    SELECT customer_id::text, occupied_day::text
+    FROM (
+      SELECT b.customer_id, gs::date AS occupied_day, count(DISTINCT br.id) AS source_count
+      FROM bed_reservations br
+      JOIN bookings b ON b.id = br.booking_id
+      JOIN beds bed ON bed.id = br.bed_id
+      CROSS JOIN LATERAL generate_series(
+        greatest(lower(br.stay_range), ${input.billingMonth}::date),
+        least(
+          coalesce(upper(br.stay_range), (${input.billingMonth}::date + interval '1 month')::date),
+          (${input.billingMonth}::date + interval '1 month')::date
+        ) - interval '1 day',
+        interval '1 day'
+      ) gs
+      WHERE bed.room_id = ${input.roomId}::uuid
+        AND br.kind = 'primary'
+        AND br.status IN ('active', 'completed')
+      GROUP BY b.customer_id, gs::date
+      HAVING count(DISTINCT br.id) > 1
+    ) duplicate_days
+  `);
+  const duplicateResidentDayKeys = (
+    duplicateCoverageRows as unknown as Array<{ customer_id: string; occupied_day: string }>
+  ).map((row) => `${row.customer_id}:${row.occupied_day}`);
+  const conservationDriftPaise = breakdown?.conservation
+    ? breakdown.conservation.accountedTotalPaise - (bill?.totalPaise ?? 0)
+    : 0;
+  const emptyDayPaise = breakdown?.conservation?.emptyDayPaise ?? 0;
   const peerMismatch =
-    missingInvoiceCustomerIds.length > 0 || invoicedWithoutEligible.length > 0;
+    missingInvoiceCustomerIds.length > 0 ||
+    invoicedWithoutEligible.length > 0 ||
+    duplicateInvoiceCustomerIds.length > 0 ||
+    nonzeroLateFeeInvoiceIds.length > 0 ||
+    conservationDriftPaise !== 0;
 
   return {
     roomId: input.roomId,
@@ -194,6 +246,11 @@ export async function reconcileRoomElectricityBilling(input: {
     eligibleCount: eligible.length,
     invoicedCount: invoiced.length,
     missingInvoiceCustomerIds,
+    duplicateInvoiceCustomerIds,
+    duplicateResidentDayKeys,
+    nonzeroLateFeeInvoiceIds,
+    emptyDayPaise,
+    conservationDriftPaise,
     peerMismatch,
   };
 }

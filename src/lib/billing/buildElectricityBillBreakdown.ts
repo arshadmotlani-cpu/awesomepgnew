@@ -6,6 +6,7 @@ import { db } from '@/src/db/client';
 import { electricityBills, electricityInvoices, rooms } from '@/src/db/schema';
 import type { RoomElectricityOccupantLoadResult } from '@/src/lib/billing/roomElectricityOccupants';
 import type { ElectricityBillCalculationBreakdown } from '@/src/lib/billing/electricityBillBreakdownTypes';
+import type { MonthlyElectricityAllocationResult } from '@/src/lib/billing/roomElectricityMonthlyAllocation';
 import { buildElectricityBillBreakdownFromContext } from '@/src/lib/billing/electricityBillBreakdownPure';
 import { loadRoomElectricityTimelineForMonth } from '@/src/lib/billing/roomElectricityTimeline';
 
@@ -31,6 +32,7 @@ export async function composeElectricityBillBreakdown(input: {
   useProRata: boolean;
   occupantLoad: RoomElectricityOccupantLoadResult;
   invoiceAmountByBookingId: Map<string, number>;
+  allocation?: MonthlyElectricityAllocationResult;
   previousContributions?: ElectricityBillCalculationBreakdown['previousContributions'];
 }): Promise<ElectricityBillCalculationBreakdown> {
   const timelineRows = await loadRoomElectricityTimelineForMonth({
@@ -69,10 +71,29 @@ export async function composeElectricityBillBreakdown(input: {
     timelineRows,
     checkoutCredits,
     previousContributions: input.previousContributions,
+    calculatedShareByCustomerId: input.allocation?.calculatedShareByCustomerId,
+    contributionAppliedByCustomerId: input.allocation?.contributionAppliedByCustomerId,
+    dailyAllocation: input.allocation?.dailyAllocation,
+    emptyDayPaise: input.allocation?.emptyDayPaise,
+    dailyRoundingRemainderPaise: input.allocation?.dailyRoundingRemainderPaise,
   });
 }
 
 export async function loadElectricityBillBreakdown(
+  billId: string,
+): Promise<ElectricityBillCalculationBreakdown | null> {
+  try {
+    return await loadElectricityBillBreakdownUnsafe(billId);
+  } catch (err) {
+    console.error('[electricity] loadElectricityBillBreakdown failed', {
+      billId,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+}
+
+async function loadElectricityBillBreakdownUnsafe(
   billId: string,
 ): Promise<ElectricityBillCalculationBreakdown | null> {
   const [bill] = await db

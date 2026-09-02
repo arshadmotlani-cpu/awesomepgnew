@@ -103,7 +103,17 @@ export async function beginElectricityBillGenerationJob(input: {
     billingMonth,
   });
   if (active) {
-    return { kind: 'already_running', job: active };
+    const STUCK_MS = 15 * 60 * 1000;
+    const ageMs = Date.now() - active.startedAt.getTime();
+    if (ageMs > STUCK_MS) {
+      await completeElectricityBillGenerationJob({
+        jobId: active.id,
+        status: 'failed',
+        errorMessage: 'Generation job timed out (stuck running). Safe to retry.',
+      });
+    } else {
+      return { kind: 'already_running', job: active };
+    }
   }
 
   try {

@@ -186,6 +186,8 @@ export async function createElectricityBillAction(
       const message =
         result.kind === 'invalid_input'
           ? result.message
+          : result.kind === 'breakdown_failed'
+            ? result.message
           : result.kind === 'no_such_room'
             ? 'That room no longer exists.'
             : 'Failed to create bill.';

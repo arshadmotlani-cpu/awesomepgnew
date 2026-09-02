@@ -106,7 +106,7 @@ async function expectedAllocation(roomId: string, spec: (typeof ROOM_SPECS)[numb
   }
 
   const manualCreditPaise = await sumManualElectricityCreditsForRoomMonth(roomId, BILLING_MONTH);
-  const { occupants, totalWeight } = await loadRoomElectricityOccupantsForMonth({
+  const { occupants, totalWeight, billingDays } = await loadRoomElectricityOccupantsForMonth({
     roomId,
     billingMonth: BILLING_MONTH,
     includeFixedStay: true,
@@ -121,6 +121,7 @@ async function expectedAllocation(roomId: string, spec: (typeof ROOM_SPECS)[numb
     checkoutCollectedByCustomerId,
     useProRata: totalWeight > 0,
     activeBedCount: await countActiveBedsInRoom(roomId),
+    billingDays,
   });
 }
 

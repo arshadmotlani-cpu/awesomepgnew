@@ -8,13 +8,15 @@ import type {
   ElectricityTimelineEntry,
   RoomElectricityTimelineRow,
 } from '@/src/lib/billing/electricityBillBreakdownTypes';
-import { diffDays, formatDate, parseDate } from '@/src/lib/dates';
+import { diffDays, tryParseDateBound } from '@/src/lib/dates';
 import { monthBounds, splitElectricityWeighted } from '@/src/services/billing';
 
 function formatStayLabel(stayStart: string, stayEnd: string | null, entireMonth: boolean): string {
   if (entireMonth) return 'Entire month';
-  if (!stayEnd) return `${formatDate(parseDate(stayStart))} → ongoing`;
-  return `${formatDate(parseDate(stayStart))} → ${formatDate(parseDate(stayEnd))}`;
+  const start = tryParseDateBound(stayStart) ?? stayStart;
+  if (!stayEnd) return `${start} → ongoing`;
+  const end = tryParseDateBound(stayEnd) ?? stayEnd;
+  return `${start} → ${end}`;
 }
 
 export function stayLabelForTimelineRow(
@@ -95,6 +97,11 @@ export function buildElectricityBillBreakdownFromContext(input: {
     reason: string | null;
     contributionDate: string;
   }>;
+  calculatedShareByCustomerId?: Map<string, number>;
+  contributionAppliedByCustomerId?: Map<string, number>;
+  dailyAllocation?: ElectricityBillCalculationBreakdown['dailyAllocation'];
+  emptyDayPaise?: number;
+  dailyRoundingRemainderPaise?: number;
 }): ElectricityBillCalculationBreakdown {
   const unitsConsumed = Math.round((input.currentReadingUnits - input.previousReadingUnits) * 100) / 100;
   const { start: monthStart, end: monthEnd } = monthBounds(input.billingMonth);
@@ -105,8 +112,11 @@ export function buildElectricityBillBreakdownFromContext(input: {
 
   const timeline: ElectricityTimelineEntry[] = input.timelineRows.map((row, idx) => {
     const monthlyInvoiceAmountPaise = input.invoiceAmountByBookingId.get(row.bookingId) ?? 0;
+    const dailyCalculatedShare = input.calculatedShareByCustomerId?.get(row.customerId);
     const calculatedFromMeter =
-      row.settlement?.electricitySharePaise && row.settlement.electricitySharePaise > 0
+      dailyCalculatedShare != null
+        ? dailyCalculatedShare
+        : row.settlement?.electricitySharePaise && row.settlement.electricitySharePaise > 0
         ? row.settlement.electricitySharePaise
         : input.useProRata && totalWeight > 0
           ? proRataSharePaise(input.grossTotalPaise, row.activeDays, weights, idx)
@@ -141,9 +151,21 @@ export function buildElectricityBillBreakdownFromContext(input: {
     (previousContributions.length > 0
       ? contributionsTotal
       : input.checkoutCreditAppliedPaise + input.manualCreditPaise);
+  const residentCalculatedSharesPaise = input.calculatedShareByCustomerId
+    ? [...input.calculatedShareByCustomerId.values()].reduce((sum, amount) => sum + amount, 0)
+    : 0;
+  const contributionAppliedPaise = input.contributionAppliedByCustomerId
+    ? [...input.contributionAppliedByCustomerId.values()].reduce((sum, amount) => sum + amount, 0)
+    : 0;
+  const invoiceTotalPaise = [...input.invoiceAmountByBookingId.values()].reduce(
+    (sum, amount) => sum + amount,
+    0,
+  );
+  const emptyDayPaise = input.emptyDayPaise ?? 0;
+  const dailyRoundingRemainderPaise = input.dailyRoundingRemainderPaise ?? 0;
 
   return {
-    version: 1,
+    version: input.dailyAllocation ? 2 : 1,
     roomNumber: input.roomNumber,
     billingMonth: input.billingMonth,
     meter: {
@@ -164,6 +186,30 @@ export function buildElectricityBillBreakdownFromContext(input: {
     remainingBillPaise: input.remainingBillPaise,
     useProRata: input.useProRata,
     timeline,
+    roomCoverage: input.dailyAllocation
+      ? input.timelineRows.map((row) => ({
+          customerId: row.customerId,
+          bookingId: row.bookingId,
+          intervals: row.intervals ?? [],
+          occupiedDates: row.occupiedDates ?? [],
+        }))
+      : undefined,
+    dailyAllocation: input.dailyAllocation,
+    conservation: input.dailyAllocation
+      ? {
+          residentCalculatedSharesPaise,
+          contributionAppliedPaise,
+          invoiceTotalPaise,
+          emptyDayPaise,
+          dailyRoundingRemainderPaise,
+          accountedTotalPaise:
+            input.prepaidCreditPaise +
+            input.manualCreditPaise +
+            residentCalculatedSharesPaise +
+            emptyDayPaise +
+            dailyRoundingRemainderPaise,
+        }
+      : undefined,
     generatedAt: new Date().toISOString(),
   };
 }
