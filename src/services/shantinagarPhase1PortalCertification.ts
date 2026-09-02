@@ -2,7 +2,7 @@
  * Shantinagar Phase 1 — resident portal production certification.
  * Every active resident: portal amounts must match invoice-engine SSOT and admin RFE.
  */
-import { and, desc, eq, ilike, ne } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, ne } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   bookings,
@@ -11,16 +11,22 @@ import {
   electricityInvoices,
   pgs,
   rentInvoices,
+  vacatingRequests,
 } from '@/src/db/schema';
 import {
   listElectricityInvoicesForBooking,
   listPaymentsForBooking,
   listRentInvoicesForBooking,
 } from '@/src/db/queries/customer';
-import { calendarMonthBillingPeriod, firstMonthRentForCalendarPolicy, firstOfMonth } from '@/src/services/billing';
+import { firstOfMonth } from '@/src/services/billing';
 import { todayString } from '@/src/lib/dates';
 import { paiseToInr } from '@/src/lib/format';
 import { resolveMonthlyRentPaiseForBooking } from '@/src/lib/billing/rentPricingSsot';
+import {
+  resolveExpectedRentInvoiceAmountPaise,
+  sumPortalPayableOutstandingPaise,
+} from '@/src/lib/billing/expectedRentInvoiceAmount';
+import type { BillingCoveragePeriod } from '@/src/lib/billing/billingCoverageModel';
 import { computeResidentTotalDuePaise } from '@/src/lib/residents/residentPortalDisplay';
 import { buildResidentBillRowsFromDetail } from '@/src/lib/residents/residentPortalBillRows';
 import {
@@ -38,7 +44,9 @@ import { getBillingProfileForBooking } from '@/src/services/residentBillingProfi
 import { listActiveShantinagarResidents } from '@/src/services/shantinagarJulyRentProduction';
 import { getLatestPaymentLinkForResident } from '@/src/services/paymentLinks';
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
+import { ACTIVE_VACATING_STATUSES } from '@/src/lib/vacating/activeRequestPolicy';
 import type { PaymentDueRow } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
+import type { BillingCyclePolicy } from '@/src/services/billing';
 
 export type CertMismatch = {
   field: string;
@@ -220,28 +228,75 @@ async function certifyResident(
     const projected = projectInvoice(latestRent);
     invoiceOutstandingRentPaise = projected.outstandingPaise;
     if (firstOfMonth(latestRent.billingMonth) === billingMonth) {
-      let expectedInvoiceRentPaise = monthlyRentSsotPaise;
       const stay = await rentInvoiceInternals.loadStayWindow(r.bookingId);
       const profile = await getBillingProfileForBooking(r.bookingId);
-      const billingCyclePolicy = profile?.billingCyclePolicy ?? 'anniversary';
-      if (
-        stay &&
-        billingCyclePolicy === 'calendar_month_1st' &&
-        firstOfMonth(stay.start) === billingMonth &&
-        stay.start > calendarMonthBillingPeriod(billingMonth).periodStart
-      ) {
-        expectedInvoiceRentPaise = firstMonthRentForCalendarPolicy(
-          monthlyRentSsotPaise,
-          stay.start,
-        ).amountPaise;
+      const billingCyclePolicy = (profile?.billingCyclePolicy ??
+        'anniversary') as BillingCyclePolicy;
+      const billingDay = profile?.billingDay ?? 5;
+
+      const [activeVacating] = await db
+        .select({
+          status: vacatingRequests.status,
+          vacatingDate: vacatingRequests.vacatingDate,
+        })
+        .from(vacatingRequests)
+        .where(
+          and(
+            eq(vacatingRequests.bookingId, r.bookingId),
+            inArray(vacatingRequests.status, [...ACTIVE_VACATING_STATUSES]),
+          ),
+        )
+        .orderBy(desc(vacatingRequests.updatedAt))
+        .limit(1);
+
+      let paidInvoiceCoverage: BillingCoveragePeriod[] = [];
+      if (activeVacating?.vacatingDate && stay) {
+        const { loadBillingCoverageModel } = await import('@/src/services/billingCoverage');
+        const coverage = await loadBillingCoverageModel({
+          bookingId: r.bookingId,
+          vacatingDate: String(activeVacating.vacatingDate),
+          monthlyRentPaise: monthlyRentSsotPaise,
+          treatAsApprovedForTail: true,
+        });
+        paidInvoiceCoverage = coverage?.paidInvoiceCoverage ?? [];
       }
-      if (latestRent.rentPaise !== expectedInvoiceRentPaise && latestRent.status !== 'paid') {
+
+      const expected = resolveExpectedRentInvoiceAmountPaise({
+        billingMonth,
+        monthlyRentPaise: monthlyRentSsotPaise,
+        billingCyclePolicy,
+        billingDay,
+        moveInDate: stay?.start ?? billingMonth,
+        paidInvoiceCoverage,
+        activeVacating: activeVacating
+          ? {
+              status: activeVacating.status as 'pending' | 'approved',
+              vacatingDate: String(activeVacating.vacatingDate),
+            }
+          : null,
+        existingInvoice: {
+          id: latestRent.id,
+          rentPaise: latestRent.rentPaise,
+          paidPrincipalPaise: latestRent.paidPrincipalPaise,
+          status: latestRent.status,
+        },
+      });
+
+      if (
+        expected.source !== 'vacating_skip' &&
+        latestRent.rentPaise !== expected.amountPaise &&
+        latestRent.status !== 'paid'
+      ) {
         pushMismatch(
           mismatches,
           'rent_invoice_amount',
-          expectedInvoiceRentPaise,
+          expected.amountPaise,
           latestRent.rentPaise,
-          billingCyclePolicy === 'calendar_month_1st' ? 'calendar partial-month rent SSOT' : 'rent pricing SSOT',
+          expected.source === 'vacating_move_out_proration'
+            ? 'vacating-aware rent invoice SSOT'
+            : expected.source === 'calendar_first_month_partial'
+              ? 'calendar partial-month rent SSOT'
+              : 'rent pricing SSOT',
           `rent_invoices.rent_paise (${latestRent.invoiceNumber})`,
           'Current-month rent invoice amount ≠ expected invoice SSOT',
         );
@@ -473,17 +528,48 @@ async function certifyResident(
     paymentProviders,
   });
 
+  // Portal Total Due = payable-now only (excludes payment_in_progress awaiting approval).
+  // Must not compare against admin outstanding, which still counts proof-pending invoices.
+  const rentPayablePaise = sumPortalPayableOutstandingPaise(
+    (rentList.ok ? rentList.data : [])
+      .filter((row) => row.status !== 'cancelled')
+      .map((row) =>
+        projectInvoice({
+          ...row,
+          cancelledAt: null,
+          cancellationReason: null,
+          customerId: r.customerId,
+          bedId: '',
+          pgId,
+          paymentId: row.paymentId ?? null,
+          isAdhoc: row.isAdhoc,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+        }),
+      ),
+  );
+  // Electricity collectibility already excludes proof-pending / paid / superseded rows.
+  const elecPayablePaise = totalInvoiceElecOutstandingPaise;
+
+  let depositPayablePaise = 0;
+  if (depositDuePaise > 0) {
+    const existing = await getLatestPaymentLinkForResident(r.customerId, 'deposit');
+    if (existing?.status === 'active' && existing.bookingId === r.bookingId) {
+      depositPayablePaise = depositDuePaise;
+    }
+  }
+
   const backendRecomputedTotalDuePaise =
-    adminOutstandingRentPaise + adminOutstandingElecPaise + depositDuePaise;
+    rentPayablePaise + elecPayablePaise + depositPayablePaise;
 
   pushMismatch(
     mismatches,
     'total_due',
     backendRecomputedTotalDuePaise,
     portalTotalDuePaise,
-    'invoice SSOT admin outstanding (rent+elec+deposit)',
+    'payable-now invoice SSOT (excludes payment_in_progress) + deposit pay link',
     'portal simulate computeResidentTotalDuePaise (payable rows only)',
-    'Portal Total Due card ≠ backend recomputed total — check missing pay links or bill row filters',
+    'Portal Total Due card ≠ backend recomputed payable-now total — check missing pay links or bill row filters',
   );
 
   const portalInvoiceCount =
@@ -503,16 +589,19 @@ async function certifyResident(
       'Portal wallet deposit refundable ≠ admin financial account',
     );
 
-    const adminBackendTotal =
+    // Admin outstanding (includes payment_in_progress) — distinct from portal payable-now Total Due.
+    const bookingAdminTotalDuePaise =
+      adminOutstandingRentPaise + adminOutstandingElecPaise + depositDuePaise;
+    const customerAdminTotalDuePaise =
       adminAccount.rent.outstandingPaise +
       adminAccount.electricity.outstandingPaise +
       adminAccount.deposit.outstandingPaise;
     pushMismatch(
       mismatches,
       'admin_total_due',
-      adminBackendTotal,
-      backendRecomputedTotalDuePaise,
-      'getResidentFinancialAccount',
+      customerAdminTotalDuePaise,
+      bookingAdminTotalDuePaise,
+      'getResidentFinancialAccount (customer)',
       'computeBookingFinancialSummaryCore (booking)',
       'Customer-level vs booking-level admin outstanding mismatch',
     );
