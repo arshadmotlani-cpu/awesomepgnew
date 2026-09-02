@@ -15,6 +15,8 @@ export type BedSelectorBed = {
   reservedFrom?: string | null;
   /** Active 50% reserve hold — bed shows Reserved; daily/weekly still allowed. */
   activeBedReserveCheckIn?: string | null;
+  /** Destination bed held for an in-progress room change. */
+  transferHoldActive?: boolean;
   stayType?: string | null;
   durationMode?: string | null;
   expectedCheckoutDate?: string | null;

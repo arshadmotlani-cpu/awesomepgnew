@@ -53,6 +53,7 @@ import {
 } from '@/src/lib/reservationBlocking';
 import { BED_RESERVE_HOLD_INVENTORY_STATUS_SQL } from '@/src/lib/reservationLifecycle/bedReserveOccupancySql';
 import { getPgAvailabilitySummaries, getRoomAvailabilitySummaries } from '@/src/services/availabilityService';
+import { fetchBedOccupancyRows } from '@/src/services/bedOccupancyBatch';
 import { logger } from '@/src/lib/logger';
 import { safeQuery } from '@/src/lib/healing/safeQuery';
 import { traceQuery } from '@/src/lib/monitoring/traceQuery';
@@ -416,6 +417,8 @@ export type CustomerRoomDetail = {
     reservedFrom?: string | null;
     /** Active 50% reserve hold — holder check-in date. */
     activeBedReserveCheckIn?: string | null;
+    /** Destination bed held for an in-progress room change. */
+    transferHoldActive?: boolean;
     /** Admin marked occupied — shown as Occupied on customer website. */
     manualOccupied?: boolean;
     /** Unpaid checkouts in progress — shown as interest, not occupancy. */
@@ -480,201 +483,75 @@ export function getRoomDetail(
 
     if (!meta) return null;
 
-    const bedRows = await db
-      .select({
-        bedId: beds.id,
-        bedCode: beds.bedCode,
-        status: beds.status,
-        manualOccupied: beds.manualOccupied,
-        maintenanceReason: beds.maintenanceReason,
-        maintenanceReasonCustom: beds.maintenanceReasonCustom,
-        maintenanceStartedAt: beds.maintenanceStartedAt,
-        maintenanceExpectedCompletion: beds.maintenanceExpectedCompletion,
-        maintenanceNotes: beds.maintenanceNotes,
-        // Correlated references to the outer `beds.id` / `beds.status` are
-        // qualified literals to avoid the ambiguity bug — see the note in
-        // listPublicPgs above.
-        isAvailableNow: sql<boolean>`false`,
-        isOccupiedToday: sql<boolean>`(${bedOccupiedTodayExistsSql})`,
-        nextAvailableDate: sql<string | null>`(
-          SELECT to_char(sub.d, 'YYYY-MM-DD')
-          FROM (
-            SELECT max(upper(br.stay_range)) AS d
-            FROM ${bedReservations} br
-            WHERE br.bed_id = beds.id
-              AND br.status = 'active'
-              AND lower(br.stay_range) <= ${refDate}::date
-              AND upper(br.stay_range) > ${refDate}::date
-          ) sub
-          WHERE sub.d IS NOT NULL AND sub.d < '2090-01-01'::date
-        )`,
-        interestCount: sql<number>`coalesce((
-          SELECT count(distinct bk.id)::int
-          FROM ${bedReservations} br
-          INNER JOIN ${bookings} bk ON bk.id = br.booking_id
-          WHERE br.bed_id = beds.id
-            AND br.kind = 'primary'
-            AND (${sql.raw(RESERVATION_REQUEST_INTEREST_PAIR_SQL)})
-            AND ${refDate}::date <@ br.stay_range
-        ), 0)`,
-        underReviewBlocked: sql<boolean>`EXISTS (
-          SELECT 1
-          FROM ${bedReservations} br
-          INNER JOIN ${bookings} bk ON bk.id = br.booking_id
-          WHERE br.bed_id = beds.id
-            AND br.kind = 'primary'
-            AND (${sql.raw(UNDER_REVIEW_RESERVATION_PAIR_SQL)})
-            AND ${refDate}::date <@ br.stay_range
-        )`,
-        noticeInterestCount: sql<number>`coalesce((
-          SELECT count(distinct bni.visitor_key)::int
-          FROM bed_notice_interest bni
-          WHERE bni.bed_id = beds.id
-        ), 0)`,
-        stayType: sql<string | null>`(
-          SELECT bk.stay_type::text
-          FROM ${bedReservations} br
-          INNER JOIN ${bookings} bk ON bk.id = br.booking_id
-          WHERE br.bed_id = beds.id
-            AND br.status = 'active'
-            AND ${refDate}::date <@ br.stay_range
-          LIMIT 1
-        )`,
-        durationMode: sql<string | null>`(
-          SELECT bk.duration_mode::text
-          FROM ${bedReservations} br
-          INNER JOIN ${bookings} bk ON bk.id = br.booking_id
-          WHERE br.bed_id = beds.id
-            AND br.status = 'active'
-            AND ${refDate}::date <@ br.stay_range
-          LIMIT 1
-        )`,
-        expectedCheckoutDate: sql<string | null>`(
-          SELECT bk.expected_checkout_date::text
-          FROM ${bedReservations} br
-          INNER JOIN ${bookings} bk ON bk.id = br.booking_id
-          WHERE br.bed_id = beds.id
-            AND br.status = 'active'
-            AND ${refDate}::date <@ br.stay_range
-          LIMIT 1
-        )`,
-        vacatingDate: sql<string | null>`(
-          SELECT vr.vacating_date::text
-          FROM ${bedReservations} br
-          INNER JOIN ${bookings} bk ON bk.id = br.booking_id
-          INNER JOIN ${vacatingRequests} vr ON vr.booking_id = bk.id
-          WHERE br.bed_id = beds.id
-            AND br.status = 'active'
-            AND vr.status IN ('pending', 'approved')
-            AND (
-              ${refDate}::date <@ br.stay_range
-              OR (
-                vr.status = 'approved'
-                AND ${refDate}::date = (vr.vacating_date + interval '1 day')::date
-              )
-            )
-          LIMIT 1
-        )`,
-        vacatingStatus: sql<'pending' | 'approved' | null>`(
-          SELECT vr.status
-          FROM ${bedReservations} br
-          INNER JOIN ${bookings} bk ON bk.id = br.booking_id
-          INNER JOIN ${vacatingRequests} vr ON vr.booking_id = bk.id
-          WHERE br.bed_id = beds.id
-            AND br.status = 'active'
-            AND vr.status IN ('pending', 'approved')
-            AND (
-              ${refDate}::date <@ br.stay_range
-              OR (
-                vr.status = 'approved'
-                AND ${refDate}::date = (vr.vacating_date + interval '1 day')::date
-              )
-            )
-          LIMIT 1
-        )`,
-        reservedFrom: sql<string | null>`(
-          SELECT lower(br.stay_range)::text
-          FROM ${bedReservations} br
-          INNER JOIN ${bookings} bk ON bk.id = br.booking_id
-          WHERE br.bed_id = beds.id
-            AND br.status = 'active'
-            AND bk.status = 'confirmed'
-            AND lower(br.stay_range) > ${refDate}::date
-          LIMIT 1
-        )`,
-        activeBedReserveCheckIn: sql<string | null>`(
-          coalesce(
-            (
-              SELECT brh.check_in_date::text
-              FROM ${bedReserveHolds} brh
-              WHERE brh.bed_id = beds.id
-                AND ${sql.raw(BED_RESERVE_HOLD_INVENTORY_STATUS_SQL)}
-                AND brh.check_in_date >= ${refDate}::date
-              ORDER BY brh.created_at DESC
-              LIMIT 1
-            ),
-            CASE
-              WHEN beds.manual_reserved_check_in IS NOT NULL
-                AND beds.manual_reserved_start <= ${refDate}::date
-                AND beds.manual_reserved_check_in >= ${refDate}::date
-              THEN beds.manual_reserved_check_in::text
-              ELSE NULL
-            END
-          )
-        )`,
-        dailyRatePaise: sql<number>`coalesce((
-          SELECT bp.daily_rate_paise::bigint::int FROM ${bedPrices} bp
-          WHERE bp.bed_id = beds.id
-            AND bp.effective_from <= ${refDate}::date
-            AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
-          ORDER BY bp.effective_from DESC LIMIT 1
-        ), 0)`,
-        weeklyRatePaise: sql<number>`coalesce((
-          SELECT bp.weekly_rate_paise::bigint::int FROM ${bedPrices} bp
-          WHERE bp.bed_id = beds.id
-            AND bp.effective_from <= ${refDate}::date
-            AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
-          ORDER BY bp.effective_from DESC LIMIT 1
-        ), 0)`,
-        monthlyRatePaise: sql<number>`coalesce((
-          SELECT bp.monthly_rate_paise::bigint::int FROM ${bedPrices} bp
-          WHERE bp.bed_id = beds.id
-            AND bp.effective_from <= ${refDate}::date
-            AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
-          ORDER BY bp.effective_from DESC LIMIT 1
-        ), 0)`,
-        securityDepositPaise: sql<number>`coalesce((
-          SELECT bp.security_deposit_paise::bigint::int FROM ${bedPrices} bp
-          WHERE bp.bed_id = beds.id
-            AND bp.effective_from <= ${refDate}::date
-            AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
-          ORDER BY bp.effective_from DESC LIMIT 1
-        ), 0)`,
-        dailySecurityDepositPaise: sql<number>`coalesce((
-          SELECT bp.daily_security_deposit_paise::bigint::int FROM ${bedPrices} bp
-          WHERE bp.bed_id = beds.id
-            AND bp.effective_from <= ${refDate}::date
-            AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
-          ORDER BY bp.effective_from DESC LIMIT 1
-        ), 0)`,
-        weeklySecurityDepositPaise: sql<number>`coalesce((
-          SELECT bp.weekly_security_deposit_paise::bigint::int FROM ${bedPrices} bp
-          WHERE bp.bed_id = beds.id
-            AND bp.effective_from <= ${refDate}::date
-            AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
-          ORDER BY bp.effective_from DESC LIMIT 1
-        ), 0)`,
-        monthlySecurityDepositPaise: sql<number>`coalesce((
-          SELECT bp.monthly_security_deposit_paise::bigint::int FROM ${bedPrices} bp
-          WHERE bp.bed_id = beds.id
-            AND bp.effective_from <= ${refDate}::date
-            AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
-          ORDER BY bp.effective_from DESC LIMIT 1
-        ), 0)`,
-      })
-      .from(beds)
-      .where(and(eq(beds.roomId, meta.roomId), sql`${beds.archivedAt} IS NULL`))
-      .orderBy(asc(beds.bedCode));
+    const [occupancyRows, bedRows] = await Promise.all([
+      fetchBedOccupancyRows({ roomId: meta.roomId, asOfDate: refDate }),
+      db
+        .select({
+          bedId: beds.id,
+          bedCode: beds.bedCode,
+          status: beds.status,
+          manualOccupied: beds.manualOccupied,
+          noticeInterestCount: sql<number>`coalesce((
+            SELECT count(distinct bni.visitor_key)::int
+            FROM bed_notice_interest bni
+            WHERE bni.bed_id = beds.id
+          ), 0)`,
+          dailyRatePaise: sql<number>`coalesce((
+            SELECT bp.daily_rate_paise::bigint::int FROM ${bedPrices} bp
+            WHERE bp.bed_id = beds.id
+              AND bp.effective_from <= ${refDate}::date
+              AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
+            ORDER BY bp.effective_from DESC LIMIT 1
+          ), 0)`,
+          weeklyRatePaise: sql<number>`coalesce((
+            SELECT bp.weekly_rate_paise::bigint::int FROM ${bedPrices} bp
+            WHERE bp.bed_id = beds.id
+              AND bp.effective_from <= ${refDate}::date
+              AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
+            ORDER BY bp.effective_from DESC LIMIT 1
+          ), 0)`,
+          monthlyRatePaise: sql<number>`coalesce((
+            SELECT bp.monthly_rate_paise::bigint::int FROM ${bedPrices} bp
+            WHERE bp.bed_id = beds.id
+              AND bp.effective_from <= ${refDate}::date
+              AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
+            ORDER BY bp.effective_from DESC LIMIT 1
+          ), 0)`,
+          securityDepositPaise: sql<number>`coalesce((
+            SELECT bp.security_deposit_paise::bigint::int FROM ${bedPrices} bp
+            WHERE bp.bed_id = beds.id
+              AND bp.effective_from <= ${refDate}::date
+              AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
+            ORDER BY bp.effective_from DESC LIMIT 1
+          ), 0)`,
+          dailySecurityDepositPaise: sql<number>`coalesce((
+            SELECT bp.daily_security_deposit_paise::bigint::int FROM ${bedPrices} bp
+            WHERE bp.bed_id = beds.id
+              AND bp.effective_from <= ${refDate}::date
+              AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
+            ORDER BY bp.effective_from DESC LIMIT 1
+          ), 0)`,
+          weeklySecurityDepositPaise: sql<number>`coalesce((
+            SELECT bp.weekly_security_deposit_paise::bigint::int FROM ${bedPrices} bp
+            WHERE bp.bed_id = beds.id
+              AND bp.effective_from <= ${refDate}::date
+              AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
+            ORDER BY bp.effective_from DESC LIMIT 1
+          ), 0)`,
+          monthlySecurityDepositPaise: sql<number>`coalesce((
+            SELECT bp.monthly_security_deposit_paise::bigint::int FROM ${bedPrices} bp
+            WHERE bp.bed_id = beds.id
+              AND bp.effective_from <= ${refDate}::date
+              AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
+            ORDER BY bp.effective_from DESC LIMIT 1
+          ), 0)`,
+        })
+        .from(beds)
+        .where(and(eq(beds.roomId, meta.roomId), sql`${beds.archivedAt} IS NULL`))
+        .orderBy(asc(beds.bedCode)),
+    ]);
+
+    const occupancyByBedId = new Map(occupancyRows.map((row) => [row.bedId, row]));
 
     const { publicDisplayName, displayOrder, pgImages, pgVideos, ...roomMeta } = meta;
     const dimensions = parseRoomDimensions(roomMeta.dimensions);
@@ -696,28 +573,30 @@ export function getRoomDetail(
         displayOrder,
       }).name,
       beds: bedRows.map((row) => {
+        const occupancy = occupancyByBedId.get(row.bedId);
         const resolved = resolveBedOccupancy({
           bedId: row.bedId,
-          bedStatus: row.status,
+          bedStatus: occupancy?.bedStatus ?? row.status,
           asOfDate: refDate,
-          isOccupiedToday: row.isOccupiedToday,
-          manualOccupied: row.manualOccupied ?? false,
-          maintenanceReason: row.maintenanceReason,
-          maintenanceReasonCustom: row.maintenanceReasonCustom,
-          maintenanceStartedAt: row.maintenanceStartedAt,
-          maintenanceExpectedCompletion: row.maintenanceExpectedCompletion,
-          maintenanceNotes: row.maintenanceNotes,
-          stayType: row.stayType,
-          durationMode: row.durationMode,
-          expectedCheckoutDate: row.expectedCheckoutDate,
-          stayUpper: row.nextAvailableDate,
-          vacatingDate: row.vacatingDate,
-          vacatingStatus: row.vacatingStatus,
-          activeBedReserveCheckIn: row.activeBedReserveCheckIn,
-          reservedFrom: row.reservedFrom,
+          isOccupiedToday: occupancy?.isOccupiedToday ?? false,
+          manualOccupied: occupancy?.manualOccupied ?? row.manualOccupied ?? false,
+          maintenanceReason: occupancy?.maintenanceReason,
+          maintenanceReasonCustom: occupancy?.maintenanceReasonCustom,
+          maintenanceStartedAt: occupancy?.maintenanceStartedAt,
+          maintenanceExpectedCompletion: occupancy?.maintenanceExpectedCompletion,
+          maintenanceNotes: occupancy?.maintenanceNotes,
+          stayType: occupancy?.stayType,
+          durationMode: occupancy?.durationMode,
+          expectedCheckoutDate: occupancy?.expectedCheckoutDate,
+          stayUpper: occupancy?.stayUpper,
+          vacatingDate: occupancy?.vacatingDate,
+          vacatingStatus: occupancy?.vacatingStatus,
+          activeBedReserveCheckIn: occupancy?.activeBedReserveCheckIn,
+          reservedFrom: occupancy?.reservedFrom,
           noticeInterestCount: row.noticeInterestCount,
-          holdInterestCount: row.interestCount,
-          underReviewRequest: row.underReviewBlocked,
+          holdInterestCount: occupancy?.holdInterestCount,
+          underReviewRequest: occupancy?.underReviewRequest,
+          transferHoldActive: occupancy?.transferHoldActive,
         });
         return {
           bedId: row.bedId,
@@ -725,17 +604,18 @@ export function getRoomDetail(
           status: row.status,
           manualOccupied: row.manualOccupied,
           isAvailableNow: resolved.isOpenNow,
-          isOccupiedToday: row.isOccupiedToday,
-          nextAvailableDate: resolved.snapshot.bookableFromDate ?? row.nextAvailableDate,
-          interestCount: row.interestCount,
+          isOccupiedToday: occupancy?.isOccupiedToday ?? false,
+          nextAvailableDate: resolved.snapshot.bookableFromDate ?? occupancy?.stayUpper ?? null,
+          interestCount: occupancy?.holdInterestCount ?? 0,
           noticeInterestCount: row.noticeInterestCount,
-          vacatingDate: row.vacatingDate,
-          vacatingStatus: row.vacatingStatus,
-          reservedFrom: row.reservedFrom,
-          activeBedReserveCheckIn: row.activeBedReserveCheckIn,
-          stayType: row.stayType,
-          durationMode: row.durationMode,
-          expectedCheckoutDate: row.expectedCheckoutDate,
+          vacatingDate: occupancy?.vacatingDate,
+          vacatingStatus: occupancy?.vacatingStatus,
+          reservedFrom: occupancy?.reservedFrom,
+          activeBedReserveCheckIn: occupancy?.activeBedReserveCheckIn,
+          transferHoldActive: occupancy?.transferHoldActive ?? false,
+          stayType: occupancy?.stayType,
+          durationMode: occupancy?.durationMode,
+          expectedCheckoutDate: occupancy?.expectedCheckoutDate,
           dailyRatePaise: row.dailyRatePaise,
           weeklyRatePaise: row.weeklyRatePaise,
           monthlyRatePaise: row.monthlyRatePaise,

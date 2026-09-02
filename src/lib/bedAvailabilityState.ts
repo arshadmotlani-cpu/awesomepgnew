@@ -110,6 +110,7 @@ export function deriveCustomerBedAvailabilityView(input: {
   availableUntilDate?: string | null;
   noticeInterestCount?: number;
   holdInterestCount?: number;
+  transferHoldActive?: boolean;
   stayType?: string | null;
   durationMode?: string | null;
   expectedCheckoutDate?: string | null;
@@ -129,6 +130,7 @@ export function deriveCustomerBedAvailabilityView(input: {
     reservedFrom: input.reservedFrom,
     noticeInterestCount: input.noticeInterestCount,
     holdInterestCount: input.holdInterestCount,
+    transferHoldActive: input.transferHoldActive,
     availableUntilDate: input.availableUntilDate,
   }).customerView;
 }

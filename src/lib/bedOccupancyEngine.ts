@@ -400,6 +400,14 @@ export function toCustomerAvailabilityView(
     return { kind: 'occupied', label: 'Occupied' };
   }
 
+  if (input.transferHoldActive && !input.isOccupiedToday) {
+    return {
+      kind: 'reserved',
+      label: 'Reserved',
+      sublabel: 'Reserved for room change',
+    };
+  }
+
   if (snap.publicState === 'reserved' && input.activeBedReserveCheckIn) {
     const checkIn = input.activeBedReserveCheckIn;
     return {

@@ -31,6 +31,7 @@ function bedAvailability(bed: BedSelectorBed) {
     availableUntilDate: bed.availableUntilDate,
     noticeInterestCount: bed.noticeInterestCount,
     holdInterestCount: bed.interestCount,
+    transferHoldActive: bed.transferHoldActive,
     stayType: bed.stayType,
     durationMode: bed.durationMode,
     expectedCheckoutDate: bed.expectedCheckoutDate,
@@ -53,6 +54,7 @@ export function canBookBed(bed: BedSelectorBed): boolean {
     reservedFrom: bed.reservedFrom,
     noticeInterestCount: bed.noticeInterestCount,
     holdInterestCount: bed.interestCount,
+    transferHoldActive: bed.transferHoldActive,
     availableUntilDate: bed.availableUntilDate,
   }).isBookable;
 }
