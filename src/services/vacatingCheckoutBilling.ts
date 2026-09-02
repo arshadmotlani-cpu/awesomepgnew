@@ -42,6 +42,36 @@ export type VacatingCheckoutBillingResult = {
 
 const VACATING_CANCEL_REASON_PREFIX = 'Vacating notice';
 
+/** Matches notes written by `resolveVacatingAwareRentCharge` prorated checkout invoices. */
+export const VACATING_MOVE_OUT_PRORATION_NOTE_MARKER = '(move-out proration)';
+
+export function vacatingProrationInvoiceNeedsRestore(input: {
+  invoiceNotes: string | null;
+  invoiceRentPaise: number;
+  paidPrincipalPaise: number;
+  eligibleRentPaise: number;
+  eligibleNotes: string | null;
+  hasActiveVacating: boolean;
+  /** When true, invoice was fully paid at the prorated amount — never rewrite. */
+  invoiceFullyPaid?: boolean;
+}): { toPaise: number; toNotes: string } | null {
+  if (input.hasActiveVacating) return null;
+  if (input.invoiceFullyPaid) return null;
+  if (!input.invoiceNotes?.includes(VACATING_MOVE_OUT_PRORATION_NOTE_MARKER)) return null;
+  if (input.eligibleRentPaise <= 0 || !input.eligibleNotes) return null;
+  if (
+    input.invoiceRentPaise > 0 &&
+    input.paidPrincipalPaise >= input.invoiceRentPaise
+  ) {
+    return null;
+  }
+
+  const toPaise = Math.max(input.eligibleRentPaise, input.paidPrincipalPaise);
+  const toNotes = input.eligibleNotes;
+  if (toPaise === input.invoiceRentPaise && toNotes === input.invoiceNotes) return null;
+  return { toPaise, toNotes };
+}
+
 function pgErrorCode(err: unknown): string | null {
   if (!err || typeof err !== 'object') return null;
   const direct = (err as { code?: unknown }).code;
@@ -577,11 +607,163 @@ export async function syncVacatingCheckoutRentBilling(input: {
   };
 }
 
+/**
+ * When vacating is withdrawn/rejected, restore pending prorated checkout invoices
+ * to the normal full-month charge from anniversary generation SSOT.
+ */
+export async function restoreVacatingProratedRentInvoicesForBooking(args: {
+  bookingId: string;
+  adminId?: string | null;
+}): Promise<{
+  updatedCount: number;
+  invoiceChanges: Array<{
+    invoiceId: string;
+    billingMonth: string;
+    fromPaise: number;
+    toPaise: number;
+  }>;
+}> {
+  const active = await loadActiveVacatingForBilling(args.bookingId);
+  if (active) return { updatedCount: 0, invoiceChanges: [] };
+
+  const pending = await db
+    .select({
+      id: rentInvoices.id,
+      billingMonth: rentInvoices.billingMonth,
+      rentPaise: rentInvoices.rentPaise,
+      paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
+      notes: rentInvoices.notes,
+    })
+    .from(rentInvoices)
+    .where(
+      and(
+        eq(rentInvoices.bookingId, args.bookingId),
+        eq(rentInvoices.isAdhoc, false),
+        inArray(rentInvoices.status, ['pending', 'overdue']),
+        sql`${rentInvoices.notes} LIKE ${`%${VACATING_MOVE_OUT_PRORATION_NOTE_MARKER}%`}`,
+        sql`coalesce(${rentInvoices.paidPrincipalPaise}, 0) < ${rentInvoices.rentPaise}`,
+      ),
+    );
+
+  if (pending.length === 0) return { updatedCount: 0, invoiceChanges: [] };
+
+  const { evaluateAnniversaryRentGenerationEligibility } = await import(
+    '@/src/services/rentInvoices'
+  );
+  const asOf = formatDate(new Date());
+  const invoiceChanges: Array<{
+    invoiceId: string;
+    billingMonth: string;
+    fromPaise: number;
+    toPaise: number;
+  }> = [];
+  const now = new Date();
+
+  await db.transaction(async (tx) => {
+    for (const inv of pending) {
+      const eligibility = await evaluateAnniversaryRentGenerationEligibility({
+        bookingId: args.bookingId,
+        billingMonth: inv.billingMonth,
+        asOf,
+      });
+      if (!eligibility.eligible) continue;
+
+      const paidPrincipal = inv.paidPrincipalPaise ?? 0;
+      const restore = vacatingProrationInvoiceNeedsRestore({
+        invoiceNotes: inv.notes,
+        invoiceRentPaise: inv.rentPaise,
+        paidPrincipalPaise: paidPrincipal,
+        eligibleRentPaise: eligibility.rentPaise,
+        eligibleNotes: eligibility.invoiceNotes ?? null,
+        hasActiveVacating: false,
+        invoiceFullyPaid: paidPrincipal >= inv.rentPaise && inv.rentPaise > 0,
+      });
+      if (!restore) continue;
+
+      await tx
+        .update(rentInvoices)
+        .set({
+          rentPaise: restore.toPaise,
+          notes: restore.toNotes,
+          updatedAt: now,
+        })
+        .where(eq(rentInvoices.id, inv.id));
+
+      invoiceChanges.push({
+        invoiceId: inv.id,
+        billingMonth: inv.billingMonth,
+        fromPaise: inv.rentPaise,
+        toPaise: restore.toPaise,
+      });
+    }
+
+    if (invoiceChanges.length > 0) {
+      await tx.insert(auditLog).values({
+        actorType: args.adminId ? 'admin' : 'system',
+        actorId: args.adminId ?? null,
+        entity: 'rent_invoice',
+        entityId: args.bookingId,
+        action: 'vacating_proration_restored',
+        diff: { invoiceChanges },
+      });
+    }
+  });
+
+  if (invoiceChanges.length > 0) {
+    const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
+    await syncManyToUnified(
+      invoiceChanges.map((c) => c.invoiceId),
+      'rent',
+    );
+  }
+
+  return { updatedCount: invoiceChanges.length, invoiceChanges };
+}
+
+/** Heal pending prorated invoices left behind after vacating withdrawal (platform-wide). */
+export async function healOrphanedVacatingProratedRentInvoices(): Promise<{
+  healedBookings: number;
+  healedInvoices: number;
+}> {
+  const rows = await db.execute<{ booking_id: string }>(sql`
+    SELECT DISTINCT ri.booking_id
+    FROM rent_invoices ri
+    INNER JOIN bookings bk ON bk.id = ri.booking_id AND bk.status = 'confirmed'
+    INNER JOIN bed_reservations br ON br.booking_id = ri.booking_id
+      AND br.kind = 'primary'
+      AND br.status = 'active'
+    WHERE ri.is_adhoc = false
+      AND ri.status IN ('pending', 'overdue')
+      AND ri.notes LIKE ${`%${VACATING_MOVE_OUT_PRORATION_NOTE_MARKER}%`}
+      AND coalesce(ri.paid_principal_paise, 0) < ri.rent_paise
+      AND NOT EXISTS (
+        SELECT 1 FROM vacating_requests vr
+        WHERE vr.booking_id = ri.booking_id
+          AND vr.status IN ('pending', 'approved')
+      )
+  `);
+
+  let healedInvoices = 0;
+  for (const row of rows) {
+    const result = await restoreVacatingProratedRentInvoicesForBooking({
+      bookingId: row.booking_id,
+    });
+    healedInvoices += result.updatedCount;
+  }
+
+  return { healedBookings: rows.length, healedInvoices };
+}
+
 /** Undo future-month cancellations when a vacating notice is withdrawn. */
 export async function restoreRentBillingAfterVacatingCancel(args: {
   bookingId: string;
   adminId?: string | null;
-}): Promise<{ uncancelled: number; recalculated: number }> {
+}): Promise<{ uncancelled: number; recalculated: number; prorationRestored: number }> {
+  const proration = await restoreVacatingProratedRentInvoicesForBooking({
+    bookingId: args.bookingId,
+    adminId: args.adminId,
+  });
+
   const uncancelledRows = await db
     .update(rentInvoices)
     .set({
@@ -615,7 +797,11 @@ export async function restoreRentBillingAfterVacatingCancel(args: {
     adminId: args.adminId,
   });
 
-  return { uncancelled: uncancelledRows.length, recalculated: updatedCount };
+  return {
+    uncancelled: uncancelledRows.length,
+    recalculated: updatedCount,
+    prorationRestored: proration.updatedCount,
+  };
 }
 
 /** Active vacating proration decision for anniversary generation. */

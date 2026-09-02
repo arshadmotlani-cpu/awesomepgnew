@@ -151,6 +151,13 @@ export async function runDailyRentBillingJob(opts?: {
 
   await autoRetryEligibleBillingFailures().catch(() => undefined);
 
+  const { healOrphanedVacatingProratedRentInvoices } = await import(
+    '@/src/services/vacatingCheckoutBilling'
+  );
+  await healOrphanedVacatingProratedRentInvoices().catch((err) => {
+    console.error('[billing-scheduler] vacating proration heal failed', err);
+  });
+
   const [run] = await db
     .insert(billingGenerationRuns)
     .values({

@@ -1117,6 +1117,18 @@ export async function generateRentInvoicesForMonth(
       continue;
     }
 
+    const { restoreVacatingProratedRentInvoicesForBooking } = await import(
+      '@/src/services/vacatingCheckoutBilling'
+    );
+    await restoreVacatingProratedRentInvoicesForBooking({
+      bookingId: c.bookingId,
+    }).catch((err) => {
+      console.error('[rent-generate] vacating proration restore failed', {
+        bookingId: c.bookingId,
+        err,
+      });
+    });
+
     const eligibility = await evaluateAnniversaryRentGenerationEligibility({
       bookingId: c.bookingId,
       customerId: c.customerId,

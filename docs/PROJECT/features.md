@@ -416,3 +416,6 @@
 
 <!-- DOC_SYNC_TOUCH_2026-09-01 -->
 > **2026-09-01 08:31:49 UTC** — Code changed in: Residents. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-09-02 -->
+> **2026-09-02 05:57:27 UTC** — Code changed in: Billing, Vacating. Manual review recommended.
