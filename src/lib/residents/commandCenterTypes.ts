@@ -55,6 +55,8 @@ export type CommandCenterRoomChangeRow = {
   bookingId: string;
   bookingCode: string | null;
   status: string;
+  workflowState: string;
+  expiresAt: Date | null;
   requestedShiftDate: string;
   createdAt: Date;
 };

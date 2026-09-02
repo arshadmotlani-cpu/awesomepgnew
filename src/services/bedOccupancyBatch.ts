@@ -28,6 +28,7 @@ import {
   type ResolvedBedOccupancy,
 } from '@/src/lib/bedOccupancyResolve';
 import { todayString } from '@/src/lib/dates';
+import { roomChangeEngineSchemaReady } from '@/src/lib/roomTransfer/roomChangeEngineSchema';
 
 export type BedOccupancyBatchRow = RawBedOccupancyFacts & {
   pgId?: string;
@@ -48,6 +49,25 @@ export async function fetchBedOccupancyRows(
   filter: FetchFilter = {},
 ): Promise<BedOccupancyBatchRow[]> {
   const refDate = filter.asOfDate ?? todayString();
+  const hasRoomChangeEngineSchema = await roomChangeEngineSchemaReady();
+  const transferHoldActiveSql = hasRoomChangeEngineSchema
+    ? sql<boolean>`EXISTS (
+        SELECT 1 FROM room_transfer_bed_holds rth
+        WHERE rth.bed_id = beds.id
+          AND rth.status = 'active'
+          AND (
+            rth.expires_at > now()
+            OR EXISTS (
+              SELECT 1 FROM room_change_requests rcr
+              WHERE rcr.id = rth.room_change_request_id
+                AND rcr.workflow_state IN ('READY_TO_TRANSFER', 'TRANSFERRING')
+            )
+          )
+      )`
+    : sql<boolean>`EXISTS (
+        SELECT 1 FROM room_transfer_bed_holds rth
+        WHERE rth.bed_id = beds.id AND rth.status = 'active'
+      )`;
   const conditions = [isNull(beds.archivedAt)];
 
   if (filter.pgId) {
@@ -207,10 +227,7 @@ export async function fetchBedOccupancyRows(
           AND (${sql.raw(UNDER_REVIEW_RESERVATION_PAIR_SQL)})
           AND ${refDate}::date <@ br.stay_range
       )`,
-      transferHoldActive: sql<boolean>`EXISTS (
-        SELECT 1 FROM room_transfer_bed_holds rth
-        WHERE rth.bed_id = beds.id AND rth.status = 'active'
-      )`,
+      transferHoldActive: transferHoldActiveSql,
     })
     .from(beds)
     .innerJoin(rooms, eq(rooms.id, beds.roomId))

@@ -462,7 +462,9 @@ export function CommandCenterRequests({ data }: { data: ResidentCommandCenterDat
   const rows = data.openRequests.filter(
     (r) => r.type !== 'deposit_refund' && ['submitted', 'under_review'].includes(r.status),
   );
-  const roomChanges = data.roomChanges.filter((r) => ['submitted', 'draft'].includes(r.status));
+  const roomChanges = data.roomChanges.filter(
+    (r) => !['COMPLETED', 'CANCELLED', 'EXPIRED', 'FAILED'].includes(r.workflowState),
+  );
 
   if (rows.length === 0 && roomChanges.length === 0) return null;
 
@@ -489,7 +491,11 @@ export function CommandCenterRequests({ data }: { data: ResidentCommandCenterDat
               <div>
                 <p className="text-sm font-medium text-white">Room change</p>
                 <p className="text-xs text-apg-silver">
-                  {titleCase(rc.status)} · shift {formatDate(rc.requestedShiftDate)}
+                  {titleCase(rc.workflowState.replace(/_/g, ' '))} · shift{' '}
+                  {formatDate(rc.requestedShiftDate)}
+                  {rc.expiresAt && rc.workflowState === 'PAYMENT_PENDING'
+                    ? ` · payment hold until ${rc.expiresAt.toLocaleString('en-IN')}`
+                    : ''}
                 </p>
               </div>
               <WorkflowButton href={bookingWorkflowHref(rc.bookingId)} label="Open booking" />

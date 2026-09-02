@@ -645,31 +645,8 @@ async function buildRoomOsUnifiedOperationsQueue(
     items.push(mapLegacyBookingApprovalToOpsItem(b));
   }
 
-  const { listDueRoomTransferOperations } = await import('@/src/services/roomTransferExecution');
-  const dueTransfers = await listDueRoomTransferOperations();
-  for (const transfer of dueTransfers) {
-    if (
-      transfer.pgId &&
-      !adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, transfer.pgId)
-    ) {
-      continue;
-    }
-    items.push({
-      id: `room-transfer-due-${transfer.id}`,
-      queue: 'vacating_requests',
-      customerId: transfer.customerId,
-      residentName: transfer.customerName,
-      pgId: transfer.pgId,
-      pgName: transfer.pgName,
-      roomNumber: transfer.roomNumber,
-      bedCode: transfer.bedCode,
-      reason: `Scheduled room transfer due today (${transfer.transferDate})`,
-      openHref: '/admin/requests',
-      openLabel: 'Execute transfer',
-      bookingId: transfer.bookingId,
-      statusLabel: 'Transfer due',
-    });
-  }
+  // Normal room changes are self-service and complete automatically.
+  // Their invoices appear in financial due queues; there is no approval/execution task.
 
   for (const row of depositDueRows) {
     if (row.bookingId && approvedCheckoutBookingIds.has(row.bookingId)) continue;
@@ -873,31 +850,8 @@ async function buildUnifiedOperationsQueue(
     items.push(mapLegacyBookingApprovalToOpsItem(b));
   }
 
-  const { listDueRoomTransferOperations } = await import('@/src/services/roomTransferExecution');
-  const dueTransfers = await listDueRoomTransferOperations();
-  for (const transfer of dueTransfers) {
-    if (
-      transfer.pgId &&
-      !adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, transfer.pgId)
-    ) {
-      continue;
-    }
-    items.push({
-      id: `room-transfer-due-${transfer.id}`,
-      queue: 'vacating_requests',
-      customerId: transfer.customerId,
-      residentName: transfer.customerName,
-      pgId: transfer.pgId,
-      pgName: transfer.pgName,
-      roomNumber: transfer.roomNumber,
-      bedCode: transfer.bedCode,
-      reason: `Scheduled room transfer due today (${transfer.transferDate})`,
-      openHref: '/admin/requests',
-      openLabel: 'Execute transfer',
-      bookingId: transfer.bookingId,
-      statusLabel: 'Transfer due',
-    });
-  }
+  // Normal room changes are self-service. Outstanding charge lines already
+  // surface in the financial queues and completion is attempted automatically.
 
   for (const row of depositDueRows) {
     if (row.bookingId && approvedCheckoutBookingIds.has(row.bookingId)) continue;

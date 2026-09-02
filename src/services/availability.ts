@@ -53,6 +53,7 @@ import { bedBlocksInventory } from '@/src/lib/inventoryBlocking';
 import { resolveBedOccupancy } from '@/src/lib/bedOccupancyResolve';
 import { fetchBedOccupancyRows } from '@/src/services/bedOccupancyBatch';
 import { BLOCKING_RESERVATION_STATUS_SQL } from '../lib/reservationBlocking';
+import { roomChangeEngineSchemaReady } from '@/src/lib/roomTransfer/roomChangeEngineSchema';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Pure helpers
@@ -608,11 +609,28 @@ export async function getPgAvailability(
   const bedIds = bedRows.map((b) => b.bedId);
   let transferHoldBedIds = new Set<string>();
   if (bedIds.length > 0) {
-    const holdRows = (await db.execute<{ bed_id: string }>(sql`
+    const hasRoomChangeEngineSchema = await roomChangeEngineSchemaReady();
+    const holdRows = (await db.execute<{ bed_id: string }>(
+      hasRoomChangeEngineSchema
+        ? sql`
+      SELECT bed_id FROM room_transfer_bed_holds
+      WHERE status = 'active'
+        AND (
+          expires_at > now()
+          OR EXISTS (
+            SELECT 1 FROM room_change_requests rcr
+            WHERE rcr.id = room_transfer_bed_holds.room_change_request_id
+              AND rcr.workflow_state IN ('READY_TO_TRANSFER', 'TRANSFERRING')
+          )
+        )
+        AND bed_id = ANY(${sql.raw(`'{${bedIds.join(',')}}'::uuid[]`)})
+    `
+        : sql`
       SELECT bed_id FROM room_transfer_bed_holds
       WHERE status = 'active'
         AND bed_id = ANY(${sql.raw(`'{${bedIds.join(',')}}'::uuid[]`)})
-    `)) as { bed_id: string }[];
+    `,
+    )) as { bed_id: string }[];
     transferHoldBedIds = new Set(holdRows.map((h) => h.bed_id));
   }
 

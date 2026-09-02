@@ -115,6 +115,8 @@ async function listRoomChangesForCustomer(
       bookingId: roomChangeRequests.bookingId,
       bookingCode: bookings.bookingCode,
       status: roomChangeRequests.status,
+      workflowState: roomChangeRequests.workflowState,
+      expiresAt: roomChangeRequests.expiresAt,
       requestedShiftDate: roomChangeRequests.requestedShiftDate,
       createdAt: roomChangeRequests.createdAt,
     })
@@ -129,6 +131,8 @@ async function listRoomChangesForCustomer(
     bookingId: r.bookingId,
     bookingCode: r.bookingCode,
     status: r.status,
+    workflowState: r.workflowState,
+    expiresAt: r.expiresAt,
     requestedShiftDate: r.requestedShiftDate,
     createdAt: r.createdAt,
   }));

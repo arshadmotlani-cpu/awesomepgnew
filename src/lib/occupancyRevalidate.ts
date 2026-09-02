@@ -1,7 +1,15 @@
 import { revalidatePath } from 'next/cache';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { bedReserveHolds, beds, bookings, floors, pgs, rooms } from '@/src/db/schema';
+import {
+  bedReservations,
+  bedReserveHolds,
+  beds,
+  bookings,
+  floors,
+  pgs,
+  rooms,
+} from '@/src/db/schema';
 import { scheduleAvailabilityCacheInvalidation } from '@/src/lib/cache/invalidateAvailability';
 
 export type ReservationLifecycleRevalidateInput = {
@@ -93,8 +101,16 @@ export async function revalidateReservationLifecycleForBookingIds(
       pgSlug: pgs.slug,
     })
     .from(bookings)
+    .leftJoin(
+      bedReservations,
+      and(
+        eq(bedReservations.bookingId, bookings.id),
+        eq(bedReservations.kind, 'primary'),
+        eq(bedReservations.status, 'active'),
+      ),
+    )
     .leftJoin(bedReserveHolds, eq(bedReserveHolds.bookingId, bookings.id))
-    .leftJoin(beds, eq(beds.id, bedReserveHolds.bedId))
+    .leftJoin(beds, sql`${beds.id} = coalesce(${bedReservations.bedId}, ${bedReserveHolds.bedId})`)
     .leftJoin(rooms, eq(rooms.id, beds.roomId))
     .leftJoin(floors, eq(floors.id, rooms.floorId))
     .leftJoin(pgs, eq(pgs.id, floors.pgId))

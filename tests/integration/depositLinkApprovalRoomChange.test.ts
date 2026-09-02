@@ -76,7 +76,10 @@ describe('deposit link approval room-change (APG-2026-0021)', () => {
       'utf8',
     );
     assert.match(lifecycle, /const settled = await roomChangeChargesSettled\(requestId\)/);
-    assert.match(lifecycle, /if \(!settled\) return \{ ok: true, status: row\.status \}/);
+    assert.match(
+      lifecycle,
+      /if \(!settled\) \{[\s\S]*return \{ ok: true, status: 'payment_pending' \}/,
+    );
   });
 
   test('5 — ₹191.01 new-room rent remains payable after deposit only', () => {

@@ -19,6 +19,7 @@ import { BLOCKING_RESERVATION_STATUS_SQL } from '@/src/lib/reservationBlocking';
 import { formatDate, parseDate, todayString } from '@/src/lib/dates';
 import { isBedAvailable } from '@/src/services/availability';
 import { bedAvailableCalendarDate } from '@/src/lib/vacating/vacatingBedSemantics';
+import { roomChangeEngineSchemaReady } from '@/src/lib/roomTransfer/roomChangeEngineSchema';
 
 export type RoomTransferMode = 'immediate' | 'scheduled' | 'waitlist';
 
@@ -43,10 +44,26 @@ export type TransferBedOption = {
 
 /** Active room-transfer holds block public booking and other transfers. */
 export async function bedHasActiveRoomTransferHold(bedId: string): Promise<boolean> {
+  const hasRoomChangeEngineSchema = await roomChangeEngineSchemaReady();
   const [row] = await db
     .select({ id: roomTransferBedHolds.id })
     .from(roomTransferBedHolds)
-    .where(and(eq(roomTransferBedHolds.bedId, bedId), eq(roomTransferBedHolds.status, 'active')))
+    .where(
+      and(
+        eq(roomTransferBedHolds.bedId, bedId),
+        eq(roomTransferBedHolds.status, 'active'),
+        hasRoomChangeEngineSchema
+          ? sql`(
+          ${roomTransferBedHolds.expiresAt} > now()
+          OR EXISTS (
+            SELECT 1 FROM room_change_requests rcr
+            WHERE rcr.id = ${roomTransferBedHolds.roomChangeRequestId}
+              AND rcr.workflow_state IN ('READY_TO_TRANSFER', 'TRANSFERRING')
+          )
+        )`
+          : sql`true`,
+      ),
+    )
     .limit(1);
   return Boolean(row);
 }

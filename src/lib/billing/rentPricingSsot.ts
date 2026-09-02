@@ -2,7 +2,7 @@
  * Rent pricing SSOT: bed_prices / negotiated room config → billing profile → invoice.
  * Booking pricing snapshots are historical — never preferred over current catalog.
  */
-import { and, eq, inArray, ne } from 'drizzle-orm';
+import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   bedReservations,
@@ -12,6 +12,7 @@ import {
   floors,
   rentInvoices,
   residentBillingProfiles,
+  roomChangeRequests,
   rooms,
 } from '@/src/db/schema';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
@@ -33,8 +34,28 @@ export type RentPricingSource =
   | 'bed_price'
   | 'private_room_config'
   | 'billing_profile'
+  | 'room_change_frozen_quote'
   | 'pricing_snapshot'
   | 'none';
+
+function hasPostgresCode(error: unknown, code: string): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 6 && current; depth += 1) {
+    if (
+      typeof current === 'object' &&
+      current !== null &&
+      'code' in current &&
+      (current as { code?: string }).code === code
+    ) {
+      return true;
+    }
+    current =
+      typeof current === 'object' && current !== null
+        ? (current as { cause?: unknown }).cause
+        : null;
+  }
+  return false;
+}
 
 function monthlyRentFromSnapshot(snapshot: PricingSnapshot | null): number {
   if (!snapshot || !Array.isArray(snapshot.perBed)) return 0;
@@ -63,6 +84,51 @@ export async function resolveMonthlyRentPaiseForBooking(
   billingMonth: string,
 ): Promise<{ rentPaise: number; source: RentPricingSource }> {
   const month = firstOfMonth(billingMonth);
+  let pendingTransfer:
+    | {
+        expectedTransferDate: string | null;
+        quoteSnapshot: unknown;
+      }
+    | undefined;
+  try {
+    [pendingTransfer] = await db
+      .select({
+        expectedTransferDate: roomChangeRequests.expectedTransferDate,
+        quoteSnapshot: roomChangeRequests.quoteSnapshot,
+      })
+      .from(roomChangeRequests)
+      .where(
+        and(
+          eq(roomChangeRequests.bookingId, bookingId),
+          sql`${roomChangeRequests.workflowState} IN ('TARGET_HELD', 'PAYMENT_PENDING', 'READY_TO_TRANSFER', 'TRANSFERRING')`,
+          sql`(
+            ${roomChangeRequests.expiresAt} > now()
+            OR (
+              ${roomChangeRequests.settledAt} IS NOT NULL
+              AND ${roomChangeRequests.settledAt} <= ${roomChangeRequests.expiresAt}
+            )
+          )`,
+        ),
+      )
+      .limit(1);
+  } catch (error) {
+    // Rolling deploy compatibility: the pre-deploy production certification
+    // runs new code immediately before migration 0149 is applied.
+    if (!hasPostgresCode(error, '42703')) throw error;
+  }
+  const transferQuote = pendingTransfer?.quoteSnapshot as {
+    newMonthlyRentPaise?: number;
+  } | null;
+  if (
+    pendingTransfer?.expectedTransferDate &&
+    firstOfMonth(pendingTransfer.expectedTransferDate) <= month &&
+    (transferQuote?.newMonthlyRentPaise ?? 0) > 0
+  ) {
+    return {
+      rentPaise: transferQuote!.newMonthlyRentPaise!,
+      source: 'room_change_frozen_quote',
+    };
+  }
   const bedId = await activeBedIdForBooking(bookingId);
 
   const [booking] = await db
@@ -115,7 +181,11 @@ export async function resolveMonthlyRentPaiseForBooking(
 }
 
 function isCanonicalSource(source: RentPricingSource): boolean {
-  return source === 'bed_price' || source === 'private_room_config';
+  return (
+    source === 'bed_price' ||
+    source === 'private_room_config' ||
+    source === 'room_change_frozen_quote'
+  );
 }
 
 /** Write profile rent from bed_prices / room config (never from stale snapshot). */

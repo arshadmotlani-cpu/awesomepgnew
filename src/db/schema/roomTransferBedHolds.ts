@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { date, index, pgEnum, pgTable, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { date, index, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { beds } from './beds';
 import { roomChangeRequests } from './roomChangeRequests';
 
@@ -21,6 +21,9 @@ export const roomTransferBedHolds = pgTable(
     status: roomTransferHoldStatusEnum('status').notNull().default('active'),
     holdFromDate: date('hold_from_date').notNull(),
     transferDate: date('transfer_date').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    releaseReason: text('release_reason'),
     releasedAt: timestamp('released_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

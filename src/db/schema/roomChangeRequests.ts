@@ -1,10 +1,11 @@
-import { pgEnum, pgTable, text, timestamp, uuid, jsonb, index } from 'drizzle-orm/pg-core';
+import { pgEnum, pgTable, text, timestamp, uuid, jsonb, index, integer, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { bookings } from './bookings';
 import { customers } from './customers';
 import { beds } from './beds';
 import { adminUsers } from './adminUsers';
 import { vacatingRequests } from './vacatingRequests';
+import type { RoomChangeWorkflowState } from '@/src/lib/roomTransfer/stateMachine';
 
 export const roomChangeStatusEnum = pgEnum('room_change_status', [
   'draft',
@@ -44,6 +45,18 @@ export const roomChangeRequests = pgTable(
       { onDelete: 'set null' },
     ),
     status: roomChangeStatusEnum('status').notNull().default('submitted'),
+    workflowState: text('workflow_state')
+      .$type<RoomChangeWorkflowState>()
+      .notNull()
+      .default('REQUESTED'),
+    stateVersion: integer('state_version').notNull().default(1),
+    quoteVersion: integer('quote_version').notNull().default(1),
+    quoteHash: text('quote_hash'),
+    heldAt: timestamp('held_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    settledAt: timestamp('settled_at', { withTimezone: true }),
+    failedAt: timestamp('failed_at', { withTimezone: true }),
+    failureReason: text('failure_reason'),
     adminNotes: text('admin_notes'),
     reviewedByAdminId: uuid('reviewed_by_admin_id').references(() => adminUsers.id, {
       onDelete: 'set null',
@@ -56,6 +69,10 @@ export const roomChangeRequests = pgTable(
     index('room_change_requests_booking_idx').on(t.bookingId),
     index('room_change_requests_status_idx').on(t.status),
     index('room_change_requests_to_bed_status_idx').on(t.toBedId, t.status),
+    index('room_change_requests_workflow_expiry_idx').on(t.workflowState, t.expiresAt),
+    uniqueIndex('room_change_requests_one_open_per_booking_uidx')
+      .on(t.bookingId)
+      .where(sql`${t.workflowState} NOT IN ('COMPLETED', 'CANCELLED', 'EXPIRED', 'FAILED')`),
   ],
 );
 

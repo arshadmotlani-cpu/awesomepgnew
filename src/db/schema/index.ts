@@ -77,6 +77,7 @@ export * from './sidebarLayouts';
 export * from './referrals';
 export * from './roomChangeRequests';
 export * from './roomTransferBedHolds';
+export * from './roomChangeEvents';
 export * from './bedWaitlistEntries';
 export * from './operationsQueueDismissals';
 export * from './userNotifications';

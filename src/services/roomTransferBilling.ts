@@ -5,7 +5,7 @@
 
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { bookings, financialInvoices, rooms, beds, floors } from '@/src/db/schema';
+import { financialInvoices, roomChangeRequests, rooms, beds, floors } from '@/src/db/schema';
 import type { InvoiceBreakdown } from '@/src/db/schema/financialInvoices';
 import { formatDate } from '@/src/lib/dates';
 import { nextFinancialInvoiceNumber } from '@/src/lib/billing/invoiceNumbering.server';
@@ -23,8 +23,8 @@ import {
 export const ROOM_CHANGE_CREDIT_REASON_PREFIX = 'room_change_unused_rent:';
 export const ROOM_CHANGE_CREDIT_APPLY_PREFIX = 'room_change_credit_apply:';
 
-function dueDateFromIssue(): string {
-  return formatDate(new Date());
+function roomChangeDueDate(expiresAt?: Date | null): string {
+  return formatDate(expiresAt ?? new Date());
 }
 
 async function destinationContext(toBedId: string): Promise<{
@@ -59,6 +59,7 @@ async function upsertRoomChangeInvoice(input: {
   label: string;
   invoiceType: 'room_shift' | 'deposit';
   breakdown: InvoiceBreakdown;
+  expiresAt?: Date | null;
 }): Promise<string | null> {
   if (input.amountPaise <= 0) return null;
 
@@ -90,7 +91,7 @@ async function upsertRoomChangeInvoice(input: {
       amountPaise: input.amountPaise,
       breakdown: input.breakdown,
       status: 'sent',
-      dueDate: dueDateFromIssue(),
+      dueDate: roomChangeDueDate(input.expiresAt),
       sentAt: new Date(),
       notes: input.label,
       shareToken: createInvoiceShareToken(),
@@ -112,6 +113,11 @@ export async function ensureRoomChangeInvoices(input: {
   individual: Array<{ label: string; amountPaise: number; href: string | null; invoiceId: string }>;
 }> {
   const dest = await destinationContext(input.quote.toBedId);
+  const [request] = await db
+    .select({ expiresAt: roomChangeRequests.expiresAt })
+    .from(roomChangeRequests)
+    .where(eq(roomChangeRequests.id, input.requestId))
+    .limit(1);
   const invoiceIds: NonNullable<RoomShiftQuoteSnapshot['invoiceIds']> = {
     ...(input.quote.invoiceIds ?? {}),
   };
@@ -179,19 +185,9 @@ export async function ensureRoomChangeInvoices(input: {
           },
         ],
       },
+      expiresAt: request?.expiresAt,
     });
     if (id) invoiceIds[child.key] = id;
-  }
-
-  if (input.quote.depositDuePaise > 0) {
-    await db
-      .update(bookings)
-      .set({
-        depositPaise: input.quote.depositRequiredPaise,
-        depositDuePaise: input.quote.depositDuePaise,
-        updatedAt: new Date(),
-      })
-      .where(eq(bookings.id, input.bookingId));
   }
 
   const payAllLines = children
@@ -223,6 +219,7 @@ export async function ensureRoomChangeInvoices(input: {
         otherPaise: input.quote.feeDuePaise,
         lines: payAllLines,
       },
+      expiresAt: request?.expiresAt,
     });
     if (payAllId) invoiceIds.payAll = payAllId;
   }
@@ -304,7 +301,61 @@ export async function roomChangeChargesSettled(requestId: string): Promise<boole
     .from(financialInvoices)
     .where(eq(financialInvoices.sourceId, requestId));
 
+  if (rows.length === 0) {
+    const [request] = await db
+      .select({ quoteSnapshot: roomChangeRequests.quoteSnapshot })
+      .from(roomChangeRequests)
+      .where(eq(roomChangeRequests.id, requestId))
+      .limit(1);
+    const quote = request?.quoteSnapshot as RoomShiftQuoteSnapshot | null;
+    return (quote?.totalDuePaise ?? 0) <= 0;
+  }
   return roomChangeChargesSettledFromRows(rows);
+}
+
+export async function roomChangeSettlementTimestamp(requestId: string): Promise<Date | null> {
+  const rows = await db
+    .select({
+      sourceTable: financialInvoices.sourceTable,
+      status: financialInvoices.status,
+      amountPaise: financialInvoices.amountPaise,
+      paidAt: financialInvoices.paidAt,
+    })
+    .from(financialInvoices)
+    .where(eq(financialInvoices.sourceId, requestId));
+
+  if (rows.length === 0) {
+    const [request] = await db
+      .select({
+        quoteSnapshot: roomChangeRequests.quoteSnapshot,
+        heldAt: roomChangeRequests.heldAt,
+        createdAt: roomChangeRequests.createdAt,
+      })
+      .from(roomChangeRequests)
+      .where(eq(roomChangeRequests.id, requestId))
+      .limit(1);
+    const quote = request?.quoteSnapshot as RoomShiftQuoteSnapshot | null;
+    return (quote?.totalDuePaise ?? 0) <= 0
+      ? request?.heldAt ?? request?.createdAt ?? null
+      : null;
+  }
+  if (!roomChangeChargesSettledFromRows(rows)) return null;
+  const payAll = rows.find(
+    (row) =>
+      row.sourceTable === ROOM_CHANGE_INVOICE_SOURCE.payAll &&
+      (row.status === 'paid' || row.status === 'settled'),
+  );
+  if (payAll?.paidAt) return payAll.paidAt;
+
+  const requiredChildren = rows.filter(
+    (row) =>
+      row.amountPaise > 0 &&
+      row.sourceTable !== ROOM_CHANGE_INVOICE_SOURCE.payAll,
+  );
+  if (requiredChildren.length === 0) return new Date(0);
+  const paidTimes = requiredChildren.map((row) => row.paidAt?.getTime() ?? 0);
+  if (paidTimes.some((time) => time === 0)) return null;
+  return new Date(Math.max(...paidTimes));
 }
 
 /** Credit wallet surplus from quote after transfer completes (idempotent). */
@@ -336,27 +387,15 @@ export async function markRoomChangeChildInvoicesPaidFromPayAll(payAllInvoiceId:
   const lines = payAll.breakdown?.lines ?? [];
   for (const line of lines) {
     if (line.sourceTable === 'financial_invoices' && line.sourceId) {
-      await db
-        .update(financialInvoices)
-        .set({
-          status: 'paid',
-          paidAt: new Date(),
-          breakdown: {
-            ...(await loadBreakdown(line.sourceId)),
-            paidPaise: line.amountPaise,
-          },
-          updatedAt: new Date(),
-        })
-        .where(eq(financialInvoices.id, line.sourceId));
+      const { allocateInvoicePayment } = await import('@/src/services/invoicePayment');
+      const result = await allocateInvoicePayment({
+        invoiceId: line.sourceId,
+        amountPaise: line.amountPaise,
+        providerPaymentId: `room-change-pay-all:${payAllInvoiceId}:${line.sourceId}`,
+      });
+      if (!result.ok && result.error !== 'Invoice is already paid.') {
+        throw new Error(result.error);
+      }
     }
   }
-}
-
-async function loadBreakdown(invoiceId: string): Promise<InvoiceBreakdown> {
-  const [row] = await db
-    .select({ breakdown: financialInvoices.breakdown })
-    .from(financialInvoices)
-    .where(eq(financialInvoices.id, invoiceId))
-    .limit(1);
-  return row?.breakdown ?? {};
 }

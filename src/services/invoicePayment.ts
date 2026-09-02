@@ -67,11 +67,15 @@ async function applyLinePayment(
   }
 
   if (line.sourceTable === 'financial_invoices' && line.sourceId) {
-    const { markUnifiedInvoicePaid } = await import('@/src/services/unifiedInvoices');
-    await markUnifiedInvoicePaid(line.sourceId, providerPaymentId, {
-      type: 'system',
-      id: null,
+    const result = await allocateInvoicePayment({
+      invoiceId: line.sourceId,
+      amountPaise,
+      providerPaymentId: `${providerPaymentId}:child:${line.sourceId}`,
+      offlineProvider,
     });
+    if (!result.ok && result.error !== 'Invoice is already paid.') {
+      throw new Error(result.error);
+    }
   }
 }
 

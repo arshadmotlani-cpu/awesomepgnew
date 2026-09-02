@@ -11,6 +11,8 @@ import {
   bookings,
   floors,
   rentInvoices,
+  roomChangeRequests,
+  roomTransferBedHolds,
   rooms,
 } from '@/src/db/schema';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
@@ -27,12 +29,17 @@ import {
 } from '@/src/services/rentInvoices';
 import { resolvePostTransferMonthlyRentPaise } from '@/src/lib/billing/postTransferRentPricing';
 import { reconcileBookingOccupancy } from '@/src/lib/occupancySync';
+import { appendRoomChangeEvent } from '@/src/services/roomChangeEvents';
+import {
+  assertRoomChangeTransition,
+  type RoomChangeWorkflowState,
+} from '@/src/lib/roomTransfer/stateMachine';
 
 function pgUniqueViolation(err: unknown): boolean {
   let current: unknown = err;
   for (let i = 0; i < 5 && current; i++) {
     if (typeof current === 'object' && current && 'code' in current) {
-      if ((current as { code?: string }).code === '23505') return true;
+      if (['23505', '23P01'].includes((current as { code?: string }).code ?? '')) return true;
     }
     current = typeof current === 'object' && current ? (current as { cause?: unknown }).cause : null;
   }
@@ -50,6 +57,8 @@ export async function applyResidentBedTransfer(input: {
   actorType: 'admin' | 'customer' | 'system';
   actorId: string;
   skipExitGuard?: boolean;
+  roomChangeRequestId?: string;
+  settledAt?: Date;
 }): Promise<{ ok: true; fromBedId: string; pgId: string } | { ok: false; message: string }> {
   if (!input.skipExitGuard) {
     const exitGuard = await assertBookingExitOperationsAllowed({
@@ -66,7 +75,7 @@ export async function applyResidentBedTransfer(input: {
     bedId: input.toBedId,
     startDate: input.transferDate,
     endDate: null,
-  });
+  }, { skipRoomTransferHoldCheck: Boolean(input.roomChangeRequestId) });
   if (!available) {
     return { ok: false, message: 'Destination bed is not available for the transfer date.' };
   }
@@ -104,7 +113,6 @@ export async function applyResidentBedTransfer(input: {
     )
     .limit(1);
   if (!fromCtx) return { ok: false, message: 'No active bed assignment found.' };
-
   const snapshot = (booking.pricingSnapshot ?? {
     perBed: [],
     computedAt: new Date().toISOString(),
@@ -123,6 +131,70 @@ export async function applyResidentBedTransfer(input: {
 
   try {
     await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT id FROM bookings WHERE id = ${input.bookingId}::uuid FOR UPDATE`,
+      );
+      await tx.execute(
+        sql`SELECT id FROM beds WHERE id IN (${fromCtx.bedId}::uuid, ${input.toBedId}::uuid) ORDER BY id FOR UPDATE`,
+      );
+      if (input.roomChangeRequestId) {
+        const [request] = await tx
+          .select({
+            bookingId: roomChangeRequests.bookingId,
+            toBedId: roomChangeRequests.toBedId,
+            workflowState: roomChangeRequests.workflowState,
+          })
+          .from(roomChangeRequests)
+          .where(eq(roomChangeRequests.id, input.roomChangeRequestId))
+          .for('update')
+          .limit(1);
+        if (
+          !request ||
+          request.bookingId !== input.bookingId ||
+          request.toBedId !== input.toBedId ||
+          !['PAYMENT_PENDING', 'READY_TO_TRANSFER', 'TRANSFERRING'].includes(
+            request.workflowState,
+          )
+        ) {
+          throw new Error('Room-change request is no longer eligible for transfer.');
+        }
+        if (request.workflowState !== 'TRANSFERRING') {
+          assertRoomChangeTransition(
+            request.workflowState as RoomChangeWorkflowState,
+            'TRANSFERRING',
+          );
+        }
+        await tx
+          .update(roomChangeRequests)
+          .set({
+            workflowState: 'TRANSFERRING',
+            stateVersion: sql`${roomChangeRequests.stateVersion} + 1`,
+            updatedAt: new Date(),
+          })
+          .where(eq(roomChangeRequests.id, input.roomChangeRequestId));
+        await tx.insert(auditLog).values({
+          actorType: input.actorType,
+          actorId: input.actorId,
+          entity: 'room_change_request',
+          entityId: input.roomChangeRequestId,
+          action: 'transfer_started',
+          diff: { toBedId: input.toBedId, transferDate: input.transferDate },
+        });
+        const [ownedHold] = await tx
+          .select({ id: roomTransferBedHolds.id })
+          .from(roomTransferBedHolds)
+          .where(
+            and(
+              eq(roomTransferBedHolds.roomChangeRequestId, input.roomChangeRequestId),
+              eq(roomTransferBedHolds.bedId, input.toBedId),
+              eq(roomTransferBedHolds.status, 'active'),
+            ),
+          )
+          .for('update')
+          .limit(1);
+        if (!ownedHold) throw new Error('Room-change target hold is missing.');
+      }
+
       await tx.execute(sql`
         UPDATE bed_reservations
         SET
@@ -175,10 +247,62 @@ export async function applyResidentBedTransfer(input: {
           transferDate: input.transferDate,
         },
       });
+
+      if (input.roomChangeRequestId) {
+        const completedAt = new Date();
+        await tx
+          .update(roomTransferBedHolds)
+          .set({
+            status: 'released',
+            consumedAt: completedAt,
+            releasedAt: completedAt,
+            releaseReason: 'transfer_completed',
+            updatedAt: completedAt,
+          })
+          .where(eq(roomTransferBedHolds.roomChangeRequestId, input.roomChangeRequestId));
+        assertRoomChangeTransition('TRANSFERRING', 'COMPLETED');
+        await tx
+          .update(roomChangeRequests)
+          .set({
+            status: 'completed',
+            workflowState: 'COMPLETED',
+            completedAt,
+            settledAt: input.settledAt ?? completedAt,
+            stateVersion: sql`${roomChangeRequests.stateVersion} + 1`,
+            updatedAt: completedAt,
+          })
+          .where(eq(roomChangeRequests.id, input.roomChangeRequestId));
+        await tx.insert(auditLog).values({
+          actorType: 'system',
+          actorId: null,
+          entity: 'room_change_request',
+          entityId: input.roomChangeRequestId,
+          action: 'transfer_completed',
+          diff: {
+            fromBedId: fromCtx.bedId,
+            toBedId: input.toBedId,
+            transferDate: input.transferDate,
+          },
+        });
+        await appendRoomChangeEvent(tx, {
+          requestId: input.roomChangeRequestId,
+          eventType: 'completed',
+          idempotencyKey: `room-change:${input.roomChangeRequestId}:completed`,
+          payload: {
+            fromBedId: fromCtx.bedId,
+            toBedId: input.toBedId,
+            transferDate: input.transferDate,
+          },
+        });
+      }
+
     });
   } catch (err) {
     if (pgUniqueViolation(err)) {
       return { ok: false, message: 'That bed was just taken by another resident.' };
+    }
+    if (err instanceof Error && err.message.startsWith('Room-change')) {
+      return { ok: false, message: err.message };
     }
     throw err;
   }

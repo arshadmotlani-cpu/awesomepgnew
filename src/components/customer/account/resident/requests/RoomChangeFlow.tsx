@@ -13,6 +13,7 @@ import type {
   RoomChangeSubmitResult,
 } from '@/app/(customer)/account/resident/room-change-actions';
 import {
+  cancelRoomChangeAction,
   fetchRoomChangeAvailabilityAction,
   fetchRoomChangeDestinationPgsAction,
   joinBedWaitlistAction,
@@ -63,6 +64,7 @@ export function RoomChangeFlow({
   const [submitResult, setSubmitResult] = useState<RoomChangeSubmitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const selectedPg = destinationPgs.find((p) => p.id === selectedPgId) ?? null;
   const selectedBed = beds.find((b) => b.bedId === selectedBedId) ?? null;
@@ -80,6 +82,19 @@ export function RoomChangeFlow({
       if (current) setSelectedPgId(current.id);
     });
   }, [pgId]);
+
+  useEffect(() => {
+    if (!submitResult?.expiresAt) return;
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [submitResult?.expiresAt]);
+
+  const remainingMs = submitResult?.expiresAt
+    ? Math.max(0, new Date(submitResult.expiresAt).getTime() - nowMs)
+    : 0;
+  const remainingHours = Math.floor(remainingMs / 3_600_000);
+  const remainingMinutes = Math.floor((remainingMs % 3_600_000) / 60_000);
+  const remainingSeconds = Math.floor((remainingMs % 60_000) / 1_000);
 
   function loadBeds(pg: string) {
     startTransition(async () => {
@@ -143,6 +158,8 @@ export function RoomChangeFlow({
         bookingId,
         toBedId: selectedBed.bedId,
         shiftDate: quote.expectedTransferDate,
+        moveInDate,
+        fromRoomLabel: roomLabel,
         quoteSnapshot: quote,
       });
       if (!res.ok) {
@@ -156,6 +173,20 @@ export function RoomChangeFlow({
       } else {
         setStep('payment');
       }
+    });
+  }
+
+  function cancelSubmittedRequest() {
+    if (!submitResult) return;
+    startTransition(async () => {
+      setError(null);
+      const result = await cancelRoomChangeAction({ requestId: submitResult.requestId });
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+      router.refresh();
+      onClose();
     });
   }
 
@@ -185,6 +216,9 @@ export function RoomChangeFlow({
           <p className="mt-1 text-sm text-apg-silver">
             Pay to confirm your room change. Your transfer starts automatically once payment is verified.
           </p>
+          <p className="mt-2 text-sm font-medium text-amber-200" aria-live="polite">
+            Target bed reserved for {remainingHours}h {remainingMinutes}m {remainingSeconds}s
+          </p>
           <p className="mt-3 text-lg font-bold text-apg-orange">
             Total due: {paiseToInr(submitResult.totalDuePaise)}
           </p>
@@ -210,8 +244,13 @@ export function RoomChangeFlow({
             </ul>
           ) : null}
         </ApgCard>
-        <button type="button" onClick={onClose} className={`${secondaryBtn} w-full`}>
-          Back to requests
+        <button
+          type="button"
+          onClick={cancelSubmittedRequest}
+          disabled={pending}
+          className={`${secondaryBtn} w-full`}
+        >
+          Cancel room change
         </button>
       </div>
     );

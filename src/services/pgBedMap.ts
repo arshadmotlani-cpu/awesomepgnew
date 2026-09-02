@@ -1,11 +1,15 @@
 import { sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import type { BedAvailabilityView } from '@/src/lib/bedAvailabilityState';
-import { resolveBedOccupancy } from '@/src/lib/bedOccupancyResolve';
+import {
+  resolveBedOccupancy,
+  type RawBedOccupancyFacts,
+} from '@/src/lib/bedOccupancyResolve';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { todayString } from '@/src/lib/dates';
 import { occupancyReservationCoreSql } from '@/src/lib/occupancySsot';
+import { roomChangeEngineSchemaReady } from '@/src/lib/roomTransfer/roomChangeEngineSchema';
 
 import type { BedBlockReason } from '@/src/lib/inventoryBlocking';
 
@@ -191,7 +195,7 @@ function buildOccupant(
   };
 }
 
-function buildBed(row: RawRow): PgBedMapBed {
+function buildBed(row: RawRow, occupancy?: RawBedOccupancyFacts): PgBedMapBed {
   const occupant = buildOccupant(row, 'customer', 'booking', row.move_in_date, 'monthly_rent_paise');
   const reserved = buildOccupant(
     row,
@@ -229,8 +233,8 @@ function buildBed(row: RawRow): PgBedMapBed {
         }
       : null;
 
-  const isOccupiedToday = occupant !== null;
-  const manualOccupied = Boolean(row.manual_occupied);
+  const isOccupiedToday = occupancy?.isOccupiedToday ?? (occupant !== null);
+  const manualOccupied = occupancy?.manualOccupied ?? Boolean(row.manual_occupied);
   const manualReservedCheckIn =
     row.manual_reserved_check_in && row.manual_reserved_check_in >= todayString()
       ? row.manual_reserved_check_in
@@ -245,40 +249,46 @@ function buildBed(row: RawRow): PgBedMapBed {
         : null;
 
   const resolved = resolveBedOccupancy({
-    bedId: row.bed_id,
-    bedStatus: row.bed_status,
-    isOccupiedToday,
+    ...(occupancy ?? {
+      bedId: row.bed_id,
+      bedStatus: row.bed_status,
+      isOccupiedToday,
+    }),
     manualOccupied,
-    stayType: isOccupiedToday ? row.stay_type : null,
-    durationMode: isOccupiedToday ? row.duration_mode : null,
-    expectedCheckoutDate: isOccupiedToday ? row.expected_checkout_date : null,
-    stayUpper: isOccupiedToday ? row.stay_upper : null,
-    vacatingDate: isOccupiedToday ? vacating?.vacatingDate : undefined,
-    vacatingStatus: isOccupiedToday ? vacating?.status : undefined,
+    stayType: occupancy?.stayType ?? (isOccupiedToday ? row.stay_type : null),
+    durationMode: occupancy?.durationMode ?? (isOccupiedToday ? row.duration_mode : null),
+    expectedCheckoutDate:
+      occupancy?.expectedCheckoutDate ?? (isOccupiedToday ? row.expected_checkout_date : null),
+    stayUpper: occupancy?.stayUpper ?? (isOccupiedToday ? row.stay_upper : null),
+    vacatingDate: occupancy?.vacatingDate ?? (isOccupiedToday ? vacating?.vacatingDate : undefined),
+    vacatingStatus:
+      occupancy?.vacatingStatus ?? (isOccupiedToday ? vacating?.status : undefined),
     manualReservedCheckIn: effectiveReserveCheckIn,
-    activeBedReserveCheckIn: bedReserveCheckIn,
-    reservedFrom: row.reserved_from,
+    activeBedReserveCheckIn: occupancy?.activeBedReserveCheckIn ?? bedReserveCheckIn,
+    reservedFrom: occupancy?.reservedFrom ?? row.reserved_from,
     occupantFirstName: occupant?.customerName.split(' ')[0],
-    interestCount: row.interest_count,
+    interestCount: occupancy?.holdInterestCount ?? row.interest_count,
     noticeInterestCount: row.notice_interest_count,
-    underReviewRequest: Boolean(underReview),
+    underReviewRequest: occupancy?.underReviewRequest ?? Boolean(underReview),
     underReviewMoveIn: row.review_move_in,
-    transferHoldActive: Boolean(row.transfer_hold_request_id),
-    maintenanceReason: row.maintenance_reason,
-    maintenanceReasonCustom: row.maintenance_reason_custom,
-    maintenanceStartedAt: row.maintenance_started_at,
-    maintenanceExpectedCompletion: row.maintenance_expected_completion,
-    maintenanceNotes: row.maintenance_notes,
+    transferHoldActive: occupancy?.transferHoldActive ?? Boolean(row.transfer_hold_request_id),
+    maintenanceReason: occupancy?.maintenanceReason ?? row.maintenance_reason,
+    maintenanceReasonCustom:
+      occupancy?.maintenanceReasonCustom ?? row.maintenance_reason_custom,
+    maintenanceStartedAt: occupancy?.maintenanceStartedAt ?? row.maintenance_started_at,
+    maintenanceExpectedCompletion:
+      occupancy?.maintenanceExpectedCompletion ?? row.maintenance_expected_completion,
+    maintenanceNotes: occupancy?.maintenanceNotes ?? row.maintenance_notes,
   });
 
   const availability = resolved.adminView;
   const isAvailableNow = resolved.isOpenNow;
 
   let blockReason: BedBlockReason = 'none';
-  if (underReview) blockReason = 'under_review';
-  else if (row.transfer_hold_request_id) blockReason = 'transfer_hold';
+  if (resolved.input.underReviewRequest) blockReason = 'under_review';
+  else if (resolved.input.transferHoldActive) blockReason = 'transfer_hold';
   else if (reserved) blockReason = 'reserved_incoming';
-  else if (occupant) blockReason = 'occupied';
+  else if (isOccupiedToday) blockReason = 'occupied';
   else if (bedReserveCheckIn) blockReason = 'bed_reserve';
   else if (row.bed_status === 'maintenance') blockReason = 'maintenance';
 
@@ -320,6 +330,31 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
   if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, pgId)) {
     return null;
   }
+
+  const hasRoomChangeEngineSchema = await roomChangeEngineSchemaReady();
+  const transferHoldJoin = hasRoomChangeEngineSchema
+    ? sql`
+    LEFT JOIN LATERAL (
+      SELECT rcr.id::text AS transfer_hold_request_id
+      FROM room_transfer_bed_holds rth
+      INNER JOIN room_change_requests rcr ON rcr.id = rth.room_change_request_id
+      WHERE rth.bed_id = b.id
+        AND rth.status = 'active'
+        AND (
+          rth.expires_at > now()
+          OR rcr.workflow_state IN ('READY_TO_TRANSFER', 'TRANSFERRING')
+        )
+      LIMIT 1
+    ) xfer ON true`
+    : sql`
+    LEFT JOIN LATERAL (
+      SELECT rcr.id::text AS transfer_hold_request_id
+      FROM room_transfer_bed_holds rth
+      INNER JOIN room_change_requests rcr ON rcr.id = rth.room_change_request_id
+      WHERE rth.bed_id = b.id
+        AND rth.status = 'active'
+      LIMIT 1
+    ) xfer ON true`;
 
   const rows = Array.from(
     await db.execute<RawRow>(sql`
@@ -540,14 +575,7 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
       ORDER BY br.created_at DESC
       LIMIT 1
     ) review_req ON true
-    LEFT JOIN LATERAL (
-      SELECT rcr.id::text AS transfer_hold_request_id
-      FROM room_transfer_bed_holds rth
-      INNER JOIN room_change_requests rcr ON rcr.id = rth.room_change_request_id
-      WHERE rth.bed_id = b.id
-        AND rth.status = 'active'
-      LIMIT 1
-    ) xfer ON true
+    ${transferHoldJoin}
     LEFT JOIN LATERAL (
       SELECT count(distinct bni.visitor_key)::int AS notice_interest_count
       FROM bed_notice_interest bni
@@ -558,6 +586,12 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
     ORDER BY f.floor_number ASC, r.room_number ASC, b.bed_code ASC
   `),
   );
+
+  const { fetchBedOccupancyRows, resolveBedOccupancyRows } = await import(
+    '@/src/services/bedOccupancyBatch'
+  );
+  const occupancyRows = await fetchBedOccupancyRows({ pgId });
+  const occupancyByBedId = new Map(occupancyRows.map((row) => [row.bedId, row]));
 
   const floorMap = new Map<number, { floorLabel: string; rooms: Map<string, PgBedMapRoom> }>();
 
@@ -582,7 +616,7 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
       floor.rooms.set(row.room_id, room);
     }
 
-    room.beds.push(buildBed(row));
+    room.beds.push(buildBed(row, occupancyByBedId.get(row.bed_id)));
   }
 
   const floors: PgBedMapFloor[] = [...floorMap.entries()]
@@ -597,12 +631,9 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
 
   const allBeds = floors.flatMap((f) => f.rooms.flatMap((r) => r.beds));
 
-  const { fetchBedOccupancyRows, resolveBedOccupancyRows } = await import(
-    '@/src/services/bedOccupancyBatch'
-  );
   const { aggregateOccupancyCounts } = await import('@/src/lib/bedOccupancyResolve');
   const occupancyAgg = aggregateOccupancyCounts(
-    resolveBedOccupancyRows(await fetchBedOccupancyRows({ pgId })),
+    resolveBedOccupancyRows(occupancyRows),
   );
 
   const summary: PgBedMapSummary = {

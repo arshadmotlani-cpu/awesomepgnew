@@ -2,31 +2,39 @@
  * Generic room-transfer occupancy reconciliation — idempotent, no resident-specific logic.
  */
 
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { auditLog, bedReservations, roomChangeRequests, roomTransferBedHolds } from '@/src/db/schema';
 import { formatDate, parseDate } from '@/src/lib/dates';
 import { applyResidentBedTransfer } from '@/src/services/roomTransferTenancy';
-
-const TERMINAL_REQUEST_STATUSES = ['completed', 'cancelled', 'rejected'] as const;
+import { roomChangeEngineSchemaReady } from '@/src/lib/roomTransfer/roomChangeEngineSchema';
 
 /** Release holds left active after terminal room-change requests. */
 export async function releaseStaleRoomTransferHolds(): Promise<{ released: number }> {
+  const hasRoomChangeEngineSchema = await roomChangeEngineSchemaReady();
+  const terminalPredicate = hasRoomChangeEngineSchema
+    ? sql`EXISTS (
+          SELECT 1 FROM room_change_requests rcr
+          WHERE rcr.id = ${roomTransferBedHolds.roomChangeRequestId}
+            AND rcr.workflow_state IN ('COMPLETED', 'CANCELLED', 'EXPIRED', 'FAILED')
+        )`
+    : sql`EXISTS (
+          SELECT 1 FROM room_change_requests rcr
+          WHERE rcr.id = ${roomTransferBedHolds.roomChangeRequestId}
+            AND rcr.status IN ('completed', 'cancelled', 'rejected')
+        )`;
   const rows = await db
     .update(roomTransferBedHolds)
     .set({
       status: 'released',
       releasedAt: new Date(),
+      releaseReason: 'stale_or_expired_reconciliation',
       updatedAt: new Date(),
     })
     .where(
       and(
         eq(roomTransferBedHolds.status, 'active'),
-        sql`EXISTS (
-          SELECT 1 FROM room_change_requests rcr
-          WHERE rcr.id = ${roomTransferBedHolds.roomChangeRequestId}
-            AND rcr.status IN ('completed', 'cancelled', 'rejected')
-        )`,
+        terminalPredicate,
       ),
     )
     .returning({ id: roomTransferBedHolds.id });
@@ -121,12 +129,25 @@ export async function runRoomTransferOccupancyReconciliation(): Promise<{
   duplicateActivePrimary: number;
 }> {
   const holds = await releaseStaleRoomTransferHolds();
-  const assignments = await reconcileCompletedRoomChangeBedAssignments();
+  const mismatches = await db.execute<{ cnt: number }>(sql`
+    SELECT count(*)::int AS cnt
+    FROM room_change_requests rcr
+    WHERE rcr.workflow_state = 'COMPLETED'
+      AND NOT EXISTS (
+        SELECT 1 FROM bed_reservations br
+        WHERE br.booking_id = rcr.booking_id
+          AND br.bed_id = rcr.to_bed_id
+          AND br.kind = 'primary'
+          AND br.status = 'active'
+          AND CURRENT_DATE <@ br.stay_range
+      )
+  `);
   const duplicateActivePrimary = await countDuplicateActivePrimaryBedAssignments();
   return {
     staleHoldsReleased: holds.released,
-    completedAssignmentsScanned: assignments.scanned,
-    completedAssignmentsRepaired: assignments.repaired,
+    completedAssignmentsScanned: mismatches[0]?.cnt ?? 0,
+    // Production repair remains a separate, explicitly approved generic command.
+    completedAssignmentsRepaired: 0,
     duplicateActivePrimary,
   };
 }

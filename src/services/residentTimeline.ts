@@ -462,7 +462,7 @@ export async function buildResidentTimeline(
       evt({
         kind: 'submitted',
         label: 'Room change request',
-        status: rc.status,
+        status: rc.workflowState.toLowerCase(),
         recordId: rc.id,
         sourceTable: 'room_change_requests',
         timestamp: rc.createdAt,
@@ -472,12 +472,16 @@ export async function buildResidentTimeline(
         adminHref: `/admin/bookings/${rc.bookingId}`,
       }),
     );
-    if (rc.status !== 'submitted' && rc.updatedAt.getTime() - rc.createdAt.getTime() > 1000) {
+    if (
+      rc.workflowState !== 'REQUESTED' &&
+      rc.updatedAt.getTime() - rc.createdAt.getTime() > 1000
+    ) {
+      const workflowStatus = rc.workflowState.toLowerCase();
       events.push(
         evt({
-          kind: kindForStatus(rc.status),
-          label: `Room change ${rc.status}`,
-          status: rc.status,
+          kind: kindForStatus(workflowStatus),
+          label: `Room change ${workflowStatus.replace(/_/g, ' ')}`,
+          status: workflowStatus,
           recordId: rc.id,
           sourceTable: 'room_change_requests',
           timestamp: rc.updatedAt,

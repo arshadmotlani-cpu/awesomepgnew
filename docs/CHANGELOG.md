@@ -256,35 +256,33 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-09-02 20:43:14 UTC
+### Pending pre-commit sync · 2026-09-02 21:49:55 UTC
 
-**Areas touched:** [[ROUTES]], [[Billing]], [[Electricity]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Bed Assignment]], [[Residents]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `DATABASE.md` — review for accuracy
+- `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (16):**
-- `app/(admin)/admin/electricity/bills/[id]/page.tsx`
-- `app/(admin)/admin/electricity/bills/actions.ts`
-- `app/(admin)/admin/electricity/new/actions.ts`
-- `src/lib/billing/assertElectricityBreakdownCommitReady.ts`
-- `src/lib/billing/buildElectricityBillBreakdown.ts`
-- `src/lib/billing/electricityBillBreakdownPure.ts`
-- `src/lib/billing/electricityBillBreakdownTypes.ts`
-- `src/lib/billing/electricityOccupancyEligibility.ts`
-- `src/lib/billing/electricityOccupantEligibility.ts`
-- `src/lib/billing/roomElectricityMonthlyAllocation.ts`
-- `src/lib/billing/roomElectricityOccupancyCoverage.ts`
-- `src/lib/billing/roomElectricityOccupants.ts`
-- `src/lib/billing/roomElectricityReconciliation.ts`
-- `src/lib/billing/roomElectricityTimeline.ts`
-- `src/services/electricityBilling.ts`
-- `src/services/meterElectricity.ts`
+**Staged code files (12):**
+- `app/(admin)/admin/room-change-actions.ts`
+- `app/(customer)/account/resident/room-change-actions.ts`
+- `src/db/migrations/0149_room_change_engine.sql`
+- `src/db/migrations/meta/_journal.json`
+- `src/db/schema/index.ts`
+- `src/db/schema/roomChangeEvents.ts`
+- `src/db/schema/roomChangeRequests.ts`
+- `src/db/schema/roomTransferBedHolds.ts`
+- `src/lib/billing/rentPricingSsot.ts`
+- `src/lib/occupancyRevalidate.ts`
+- `src/lib/residents/commandCenterTypes.ts`
+- `src/services/pgBedMap.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

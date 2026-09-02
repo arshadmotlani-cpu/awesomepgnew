@@ -18,12 +18,17 @@ export type RoomChangeSettlementPhase =
   | 'deposit_approved'
   | 'charges_payable'
   | 'ready_to_transfer'
-  | 'transfer_completed';
+  | 'transfer_completed'
+  | 'cancelled'
+  | 'expired'
+  | 'failed';
 
 export type RoomChangeSettlementStatus = {
   requestId: string | null;
   phase: RoomChangeSettlementPhase;
   requestStatus: string | null;
+  workflowState: string | null;
+  expiresAt: string | null;
   depositInvoicePaid: boolean;
   chargesSettled: boolean;
   outstandingPaise: number;
@@ -34,7 +39,7 @@ export async function projectRoomChangeSettlementStatus(input: {
   bookingId: string;
   requestId?: string | null;
 }): Promise<RoomChangeSettlementStatus> {
-  const [request] = input.requestId
+  const [initialRequest] = input.requestId
     ? await db
         .select()
         .from(roomChangeRequests)
@@ -47,11 +52,13 @@ export async function projectRoomChangeSettlementStatus(input: {
         .orderBy(desc(roomChangeRequests.createdAt))
         .limit(1);
 
-  if (!request) {
+  if (!initialRequest) {
     return {
       requestId: null,
       phase: 'none',
       requestStatus: null,
+      workflowState: null,
+      expiresAt: null,
       depositInvoicePaid: false,
       chargesSettled: false,
       outstandingPaise: 0,
@@ -59,15 +66,50 @@ export async function projectRoomChangeSettlementStatus(input: {
     };
   }
 
-  if (request.status === 'completed') {
+  const { tryCompleteRoomChangeRequest } = await import(
+    '@/src/services/roomTransferLifecycle'
+  );
+  await tryCompleteRoomChangeRequest(initialRequest.id).catch(() => undefined);
+  const [request] = await db
+    .select()
+    .from(roomChangeRequests)
+    .where(eq(roomChangeRequests.id, initialRequest.id))
+    .limit(1);
+  if (!request) {
+    throw new Error('Room-change request disappeared during projection.');
+  }
+
+  if (request.workflowState === 'COMPLETED' || request.status === 'completed') {
     return {
       requestId: request.id,
       phase: 'transfer_completed',
       requestStatus: request.status,
+      workflowState: request.workflowState,
+      expiresAt: request.expiresAt?.toISOString() ?? null,
       depositInvoicePaid: true,
       chargesSettled: true,
       outstandingPaise: 0,
       message: 'Room change completed.',
+    };
+  }
+
+  if (['CANCELLED', 'EXPIRED', 'FAILED'].includes(request.workflowState)) {
+    const phase = request.workflowState.toLowerCase() as 'cancelled' | 'expired' | 'failed';
+    return {
+      requestId: request.id,
+      phase,
+      requestStatus: request.status,
+      workflowState: request.workflowState,
+      expiresAt: request.expiresAt?.toISOString() ?? null,
+      depositInvoicePaid: false,
+      chargesSettled: false,
+      outstandingPaise: 0,
+      message:
+        phase === 'expired'
+          ? 'The 72-hour room-change payment window expired. The target bed was released.'
+          : phase === 'cancelled'
+            ? 'Room change cancelled. The target bed was released.'
+            : 'Room change could not continue. Operations has been alerted.',
     };
   }
 
@@ -127,7 +169,7 @@ export async function projectRoomChangeSettlementStatus(input: {
     message = `Deposit recorded. Outstanding room-change charges: ${(outstandingPaise / 100).toFixed(2)} INR still payable before transfer.`;
   } else if (!depositRecorded) {
     phase = 'deposit_pending';
-    message = 'Additional deposit payment is pending approval or payment.';
+    message = 'Additional deposit payment is pending.';
   } else {
     phase = 'charges_payable';
     message = 'Room-change charges are payable. Pay individual invoices or pay all.';
@@ -142,6 +184,8 @@ export async function projectRoomChangeSettlementStatus(input: {
     requestId: request.id,
     phase,
     requestStatus: request.status,
+    workflowState: request.workflowState,
+    expiresAt: request.expiresAt?.toISOString() ?? null,
     depositInvoicePaid: depositRecorded,
     chargesSettled,
     outstandingPaise,
@@ -162,6 +206,8 @@ export async function projectRoomChangeSettlementStatusByRequestId(
       requestId: null,
       phase: 'none',
       requestStatus: null,
+      workflowState: null,
+      expiresAt: null,
       depositInvoicePaid: false,
       chargesSettled: false,
       outstandingPaise: 0,
