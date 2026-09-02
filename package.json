@@ -27,6 +27,7 @@
     "test:owner": "node scripts/run-unit-tests.mjs owner",
     "test:billing-settlement": "npx tsx --test tests/unit/billingEngineValidation.test.ts tests/unit/moveOutSettlementExplanation.test.ts tests/unit/settlementRuleRegistry.test.ts tests/unit/billingCoverageRegression.test.ts tests/unit/calendarMonthMoveOutSettlementRegression.test.ts tests/unit/calendarMonthMoveOut25th.test.ts tests/unit/checkoutSettlementEngineV2.test.ts tests/unit/checkoutSettlementPersistInvoiceTail.test.ts tests/unit/approvalBaselineCheckout.test.ts tests/unit/vacatingPriorityRentBilling.test.ts",
     "cert:electricity-room-coverage-readonly": "npx tsx scripts/audit-electricity-room-coverage-readonly.ts",
+    "cert:room-change-occupancy-readonly": "npx tsx scripts/audit-room-change-occupancy-readonly.ts",
     "stability:report": "npx tsx scripts/regression-report.ts",
     "stability:report:ci": "npx tsx scripts/regression-report.ts --ci",
     "cert:shantinagar-phase1": "npx tsx scripts/run-shantinagar-phase1-portal-certification.ts",

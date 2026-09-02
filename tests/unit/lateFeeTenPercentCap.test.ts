@@ -66,27 +66,26 @@ test('rent unpaid 30/60/120 days — late fee frozen at 10%', () => {
   }
 });
 
-test('electricity below cap unchanged', () => {
+test('electricity never accrues a late fee', () => {
   const amount = 286_000;
   const issueDate = '2026-07-01';
   const today = '2026-07-10'; // 5 chargeable days
   assert.equal(
     computeElectricityLateFee({ amountPaise: amount, issueDate, today }),
-    14_300,
+    0,
   );
 });
 
-test('electricity reaches 10% and stays capped', () => {
+test('electricity remains zero beyond the former cap window', () => {
   const amount = 286_000;
-  const cap = 28_600;
   const issueDate = '2026-07-01';
   assert.equal(
     computeElectricityLateFee({ amountPaise: amount, issueDate, today: '2026-07-15' }),
-    cap,
+    0,
   );
   assert.equal(
     computeElectricityLateFee({ amountPaise: amount, issueDate, today: '2026-09-01' }),
-    cap,
+    0,
   );
 });
 

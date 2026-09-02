@@ -375,8 +375,8 @@ export function electricityDaysOverdue(dueDate: DateLike, today: DateLike): numb
 }
 
 /**
- * Late fee accrued on an electricity invoice as of `today`.
- * Prefers `issueDate` (generation date); falls back to stored `due_date`.
+ * Electricity keeps its due-date/countdown but never accrues a late fee.
+ * Rent late-fee policy is independent and remains unchanged.
  */
 export function computeElectricityLateFee(args: {
   amountPaise: number;
@@ -384,17 +384,8 @@ export function computeElectricityLateFee(args: {
   issueDate?: DateLike;
   today?: DateLike;
 }): number {
-  if (args.amountPaise <= 0) return 0;
-  const today = args.today ?? formatDate(new Date());
-  const chargeableDays =
-    args.issueDate != null
-      ? chargeableLateFeeDaysFromIssue(args.issueDate, today)
-      : args.dueDate != null
-        ? electricityDaysOverdue(args.dueDate, today)
-        : 0;
-  if (chargeableDays === 0) return 0;
-  const fee = Math.floor((args.amountPaise * chargeableDays) / 100);
-  return capLateFeeAtPrincipalPercent(args.amountPaise, fee);
+  void args;
+  return 0;
 }
 
 /**

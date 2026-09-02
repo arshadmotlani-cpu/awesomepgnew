@@ -38,6 +38,10 @@ type TransferRow = {
   booking_code: string;
   resident_name: string;
   status: string;
+  workflow_state: string;
+  quote_hash: string | null;
+  expires_at: Date | null;
+  settled_at: Date | null;
   from_room: string;
   from_bed: string;
   to_room: string;
@@ -48,6 +52,11 @@ type TransferRow = {
   current_bed_id: string | null;
   current_room: string | null;
   current_bed: string | null;
+  open_invoice_count: number;
+  paid_paise: number;
+  source_electricity_boundary_ok: boolean;
+  target_electricity_boundary_ok: boolean;
+  terminal_target_reservation_exists: boolean;
 };
 
 async function main() {
@@ -58,6 +67,10 @@ async function main() {
       bk.booking_code,
       c.full_name AS resident_name,
       rcr.status::text AS status,
+      rcr.workflow_state,
+      rcr.quote_hash,
+      rcr.expires_at,
+      rcr.settled_at,
       fr.room_number AS from_room,
       fb.bed_code AS from_bed,
       tr.room_number AS to_room,
@@ -66,11 +79,56 @@ async function main() {
       rcr.to_bed_id::text AS to_bed_id,
       EXISTS (
         SELECT 1 FROM room_transfer_bed_holds h
-        WHERE h.room_change_request_id = rcr.id AND h.status = 'active'
+        WHERE h.room_change_request_id = rcr.id
+          AND h.status = 'active'
+          AND (
+            h.expires_at > now()
+            OR rcr.workflow_state IN ('READY_TO_TRANSFER', 'TRANSFERRING')
+          )
       ) AS hold_active,
       cur.bed_id::text AS current_bed_id,
       cur.room_number AS current_room,
-      cur.bed_code AS current_bed
+      cur.bed_code AS current_bed,
+      (
+        SELECT count(*)::int
+        FROM financial_invoices fi
+        WHERE fi.source_id = rcr.id
+          AND fi.status IN ('draft', 'sent', 'payment_in_progress', 'processing', 'partial', 'overdue')
+      ) AS open_invoice_count,
+      (
+        SELECT coalesce(sum(
+          CASE
+            WHEN fi.source_table = 'room_change_pay_all'
+              AND fi.status IN ('paid', 'settled')
+            THEN fi.amount_paise
+            WHEN fi.source_table <> 'room_change_pay_all'
+              AND fi.status IN ('paid', 'settled')
+            THEN fi.amount_paise
+            ELSE 0
+          END
+        ), 0)::bigint
+        FROM financial_invoices fi
+        WHERE fi.source_id = rcr.id
+      ) AS paid_paise
+      , EXISTS (
+        SELECT 1 FROM bed_reservations source_br
+        WHERE source_br.booking_id = rcr.booking_id
+          AND source_br.bed_id = rcr.from_bed_id
+          AND upper(source_br.stay_range) = rcr.expected_transfer_date::date
+      ) AS source_electricity_boundary_ok
+      , EXISTS (
+        SELECT 1 FROM bed_reservations target_br
+        WHERE target_br.booking_id = rcr.booking_id
+          AND target_br.bed_id = rcr.to_bed_id
+          AND lower(target_br.stay_range) = rcr.expected_transfer_date::date
+      ) AS target_electricity_boundary_ok
+      , EXISTS (
+        SELECT 1 FROM bed_reservations target_br
+        WHERE target_br.booking_id = rcr.booking_id
+          AND target_br.bed_id = rcr.to_bed_id
+          AND lower(target_br.stay_range) = rcr.expected_transfer_date::date
+          AND target_br.created_at >= rcr.created_at
+      ) AS terminal_target_reservation_exists
     FROM room_change_requests rcr
     INNER JOIN bookings bk ON bk.id = rcr.booking_id
     INNER JOIN customers c ON c.id = bk.customer_id
@@ -117,16 +175,23 @@ async function main() {
       [
         t.booking_code,
         t.resident_name,
-        `status=${t.status}`,
+        `status=${t.status}/${t.workflow_state}`,
         `${t.from_room}-${t.from_bed} → ${t.to_room}-${t.to_bed}`,
         `current=${t.current_room ?? '?'} ${t.current_bed ?? '?'}`,
         `hold=${t.hold_active}`,
+        `expires=${t.expires_at?.toISOString() ?? '-'}`,
+        `settled=${t.settled_at?.toISOString() ?? '-'}`,
+        `openInvoices=${t.open_invoice_count}`,
         `SSOT old=${oldState} open=${oldOpen}`,
         `SSOT new=${newState} open=${newOpen}`,
       ].join(' | '),
     );
 
-    if (t.status === 'completed') {
+    if (!t.quote_hash) {
+      violations.push(`${t.booking_code}: canonical room-change row has no frozen quote hash`);
+    }
+
+    if (t.workflow_state === 'COMPLETED') {
       if (t.current_bed_id !== t.to_bed_id) {
         violations.push(
           `${t.booking_code}: completed but allocation on ${t.current_room}-${t.current_bed} not ${t.to_room}-${t.to_bed}`,
@@ -141,7 +206,16 @@ async function main() {
       if (t.hold_active) {
         violations.push(`${t.booking_code}: completed but transfer hold still active on target`);
       }
-    } else if (['submitted', 'waiting', 'approved'].includes(t.status)) {
+      if (!t.source_electricity_boundary_ok || !t.target_electricity_boundary_ok) {
+        violations.push(
+          `${t.booking_code}: completed transfer does not have matching half-open electricity reservation boundaries`,
+        );
+      }
+    } else if (
+      ['REQUESTED', 'QUOTED', 'TARGET_HELD', 'PAYMENT_PENDING', 'READY_TO_TRANSFER', 'TRANSFERRING'].includes(
+        t.workflow_state,
+      )
+    ) {
       if (t.current_bed_id !== t.from_bed_id) {
         violations.push(
           `${t.booking_code}: pending transfer but resident not on source bed (${t.current_room}-${t.current_bed})`,
@@ -150,10 +224,76 @@ async function main() {
       if (newOpen) {
         violations.push(`${t.booking_code}: pending transfer but target publicly open (${newState})`);
       }
-      if (!t.hold_active && ['submitted', 'waiting', 'approved'].includes(t.status)) {
+      if (!t.hold_active) {
         violations.push(`${t.booking_code}: pending transfer without active hold on target`);
       }
+      if (
+        t.workflow_state === 'PAYMENT_PENDING' &&
+        t.expires_at &&
+        t.expires_at.getTime() <= Date.now()
+      ) {
+        violations.push(`${t.booking_code}: payment-pending request is past its 72-hour deadline`);
+      }
+    } else if (['CANCELLED', 'EXPIRED', 'FAILED'].includes(t.workflow_state)) {
+      if (t.hold_active) {
+        violations.push(`${t.booking_code}: terminal ${t.workflow_state} request still blocks target`);
+      }
+      if (t.open_invoice_count > 0) {
+        violations.push(
+          `${t.booking_code}: terminal ${t.workflow_state} request has ${t.open_invoice_count} open invoices`,
+        );
+      }
+      if (t.terminal_target_reservation_exists) {
+        violations.push(
+          `${t.booking_code}: terminal ${t.workflow_state} request created a target electricity occupancy segment`,
+        );
+      }
     }
+  }
+
+  const globalInvariantRows = await db.execute<{
+    duplicate_open_requests: number;
+    duplicate_active_primary: number;
+    duplicate_active_holds: number;
+  }>(sql`
+    SELECT
+      (
+        SELECT count(*)::int FROM (
+          SELECT booking_id
+          FROM room_change_requests
+          WHERE workflow_state NOT IN ('COMPLETED', 'CANCELLED', 'EXPIRED', 'FAILED')
+          GROUP BY booking_id
+          HAVING count(*) > 1
+        ) rows
+      ) AS duplicate_open_requests,
+      (
+        SELECT count(*)::int FROM (
+          SELECT booking_id
+          FROM bed_reservations
+          WHERE kind = 'primary' AND status = 'active' AND CURRENT_DATE <@ stay_range
+          GROUP BY booking_id
+          HAVING count(*) > 1
+        ) rows
+      ) AS duplicate_active_primary,
+      (
+        SELECT count(*)::int FROM (
+          SELECT bed_id
+          FROM room_transfer_bed_holds
+          WHERE status = 'active'
+          GROUP BY bed_id
+          HAVING count(*) > 1
+        ) rows
+      ) AS duplicate_active_holds
+  `);
+  const global = globalInvariantRows[0];
+  if (global?.duplicate_open_requests) {
+    violations.push(`platform: ${global.duplicate_open_requests} bookings have multiple open room changes`);
+  }
+  if (global?.duplicate_active_primary) {
+    violations.push(`platform: ${global.duplicate_active_primary} bookings have multiple active primary beds`);
+  }
+  if (global?.duplicate_active_holds) {
+    violations.push(`platform: ${global.duplicate_active_holds} beds have multiple active transfer holds`);
   }
 
   const pgRows = await db.execute<{ id: string; slug: string; name: string }>(sql`

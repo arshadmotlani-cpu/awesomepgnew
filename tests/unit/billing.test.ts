@@ -334,7 +334,7 @@ test('electricityDaysOverdue: 0 on due date, ticks up after', () => {
   assert.equal(electricityDaysOverdue('2026-07-05', '2026-07-01'), 0); // pre-due
 });
 
-test('computeElectricityLateFee: 1%/day from issue date after grace', () => {
+test('computeElectricityLateFee: always zero while due date remains visible', () => {
   const amount = 1500_00;
   const issueDate = '2026-07-01';
   assert.equal(
@@ -343,11 +343,11 @@ test('computeElectricityLateFee: 1%/day from issue date after grace', () => {
   );
   assert.equal(
     computeElectricityLateFee({ amountPaise: amount, issueDate, today: '2026-07-06' }),
-    15_00,
+    0,
   );
   assert.equal(
     computeElectricityLateFee({ amountPaise: amount, issueDate, today: '2026-07-15' }),
-    150_00,
+    0,
   );
 });
 
