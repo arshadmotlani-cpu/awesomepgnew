@@ -606,6 +606,16 @@ export async function getPgAvailability(
   // overlapping the requested range OR the look-ahead horizon used for the
   // "next available" hint.
   const bedIds = bedRows.map((b) => b.bedId);
+  let transferHoldBedIds = new Set<string>();
+  if (bedIds.length > 0) {
+    const holdRows = (await db.execute<{ bed_id: string }>(sql`
+      SELECT bed_id FROM room_transfer_bed_holds
+      WHERE status = 'active'
+        AND bed_id = ANY(${sql.raw(`'{${bedIds.join(',')}}'::uuid[]`)})
+    `)) as { bed_id: string }[];
+    transferHoldBedIds = new Set(holdRows.map((h) => h.bed_id));
+  }
+
   let reservations: Array<{ bedId: string; stayRange: string }> = [];
   if (bedIds.length > 0) {
     const startIso = formatDate(start);
@@ -642,7 +652,7 @@ export async function getPgAvailability(
 
   const beds_: PgAvailabilityBed[] = bedRows.map((b) => {
     const busyAll = busyByBed.get(b.bedId) ?? [];
-    const bedBookable = b.bedStatus === 'available';
+    const bedBookable = b.bedStatus === 'available' && !transferHoldBedIds.has(b.bedId);
 
     // "Available" for the requested range = bed is bookable AND no busy
     // interval overlaps [start, end).

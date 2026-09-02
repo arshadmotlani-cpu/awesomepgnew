@@ -207,6 +207,10 @@ export async function fetchBedOccupancyRows(
           AND (${sql.raw(UNDER_REVIEW_RESERVATION_PAIR_SQL)})
           AND ${refDate}::date <@ br.stay_range
       )`,
+      transferHoldActive: sql<boolean>`EXISTS (
+        SELECT 1 FROM room_transfer_bed_holds rth
+        WHERE rth.bed_id = beds.id AND rth.status = 'active'
+      )`,
     })
     .from(beds)
     .innerJoin(rooms, eq(rooms.id, beds.roomId))
@@ -237,6 +241,7 @@ export async function fetchBedOccupancyRows(
     activeBedReserveCheckIn: row.activeBedReserveCheckIn,
     holdInterestCount: row.holdInterestCount,
     underReviewRequest: row.underReviewRequest,
+    transferHoldActive: row.transferHoldActive,
   }));
 }
 

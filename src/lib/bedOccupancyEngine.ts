@@ -239,6 +239,17 @@ export function computeBedOccupancySnapshot(input: BedOccupancyInput): BedOccupa
     };
   }
 
+  if (input.transferHoldActive && !input.isOccupiedToday) {
+    return {
+      publicState: 'reserved',
+      adminState: 'reserved',
+      bookableFromDate: null,
+      checkoutSettlementId: null,
+      isMonthlyTenancy: monthly,
+      isFixedTenancy: fixed,
+    };
+  }
+
   if (input.manualOccupied && !input.isOccupiedToday) {
     return {
       publicState: 'occupied',
@@ -505,6 +516,14 @@ export function toAdminAvailabilityView(
     };
   }
 
+  if (input.transferHoldActive && !input.isOccupiedToday) {
+    return {
+      kind: 'reserved',
+      label: 'Held',
+      sublabel: 'Reserved for room change',
+    };
+  }
+
   if (input.manualOccupied && !input.isOccupiedToday) {
     return {
       kind: 'occupied',
@@ -616,6 +635,7 @@ export function canBookBedFromSnapshot(
 ): boolean {
   const snap = snapshot ?? computeBedOccupancySnapshot(input);
   if (snap.publicState === 'maintenance' || input.bedStatus !== 'available') return false;
+  if (input.transferHoldActive) return false;
   if (input.manualOccupied || input.isOccupiedToday) return false;
   if (input.vacatingDate && input.asOfDate) {
     const releaseDay = bedAvailableCalendarDate(input.vacatingDate);

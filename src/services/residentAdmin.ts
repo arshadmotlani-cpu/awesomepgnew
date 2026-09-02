@@ -37,14 +37,12 @@ import {
   type ActiveTenancy,
 } from '@/src/lib/residentActiveTenancy';
 import { formatDate, parseDate } from '@/src/lib/dates';
-import { isBedAvailable } from '@/src/services/availability';
 import { correctDepositCollected, getDepositSummaryForBooking } from '@/src/services/deposits';
 import {
   recalculatePendingRentInvoicesForBooking,
   recalculateRentAfterMoveInChange,
 } from '@/src/services/rentInvoices';
 import { billingDayFromMoveIn } from '@/src/services/billing';
-import { siblingBedIdsInRoom } from '@/src/services/tenantAssignmentInternals';
 import { isUnboundedStayUpper } from '@/src/lib/dates';
 
 export type ResidentListRow = {
@@ -572,38 +570,25 @@ export async function updateTenantTenancy(
       return { ok: false, error: gates.reason };
     }
 
-    const available = await isBedAvailable({
-      bedId: newBedId,
-      startDate: today,
-      endDate: null,
+    const { applyResidentBedTransfer } = await import('@/src/services/roomTransferTenancy');
+    const moved = await applyResidentBedTransfer({
+      bookingId: input.bookingId,
+      toBedId: newBedId,
+      transferDate: today,
+      actorType: 'admin',
+      actorId: session.adminId,
     });
-    if (!available) {
-      return { ok: false, error: 'Selected bed is not available for those dates.' };
+    if (!moved.ok) {
+      return { ok: false, error: moved.message };
     }
 
-    await db.execute(sql`
-      UPDATE bed_reservations
-      SET status = 'completed', updated_at = now()
-      WHERE booking_id = ${input.bookingId}
-        AND status = 'active'
-    `);
-
-    const reservationBedIds = blocksWholeRoom
-      ? [newBedId, ...(await siblingBedIdsInRoom(newBedId))]
-      : [newBedId];
-
-    for (const bedId of reservationBedIds) {
-      await db.insert(bedReservations).values({
-        bookingId: input.bookingId,
-        bedId,
-        stayRange: sql`daterange(${today}::date, NULL, '[)')` as unknown as string,
-        kind: 'primary',
-        status: 'active',
-      });
-    }
-
-    if (snapshot.perBed[0]) {
-      snapshot.perBed[0].bedId = newBedId;
+    const [refreshed] = await db
+      .select({ pricingSnapshot: bookings.pricingSnapshot })
+      .from(bookings)
+      .where(eq(bookings.id, input.bookingId))
+      .limit(1);
+    if (refreshed?.pricingSnapshot) {
+      Object.assign(snapshot, refreshed.pricingSnapshot as PricingSnapshot);
     }
   }
 

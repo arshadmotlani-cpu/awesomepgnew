@@ -209,6 +209,13 @@ export async function tryCompleteRoomChangeAfterInvoice(invoiceId: string): Prom
 }
 
 export async function processDueScheduledRoomTransfers(): Promise<{ completed: number; errors: number }> {
+  const { runRoomTransferOccupancyReconciliation } = await import(
+    '@/src/lib/roomTransfer/occupancyReconciliation'
+  );
+  await runRoomTransferOccupancyReconciliation().catch((err) => {
+    console.error('[room-transfer] occupancy reconciliation failed', err);
+  });
+
   const due = await listRoomTransfersDueToday();
   let completed = 0;
   let errors = 0;

@@ -4,7 +4,7 @@
 
 import { eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { auditLog, roomChangeRequests, roomTransferBedHolds } from '@/src/db/schema';
+import { auditLog, roomChangeRequests } from '@/src/db/schema';
 import { listRoomTransfersDueToday } from '@/src/services/roomTransferLifecycle';
 
 export async function listDueRoomTransferOperations(): Promise<
@@ -52,24 +52,28 @@ export async function completeRoomTransferJourney(input: {
     .where(eq(roomChangeRequests.id, input.requestId))
     .limit(1);
   if (!row) return { ok: false, message: 'Transfer request not found.' };
+  if (row.status === 'completed') return { ok: true };
+  if (!['approved', 'submitted', 'waiting'].includes(row.status)) {
+    return { ok: false, message: `Transfer is not completable (status: ${row.status}).` };
+  }
 
-  await db.transaction(async (tx) => {
-    await tx
-      .update(roomChangeRequests)
-      .set({ status: 'completed', completedAt: new Date(), updatedAt: new Date() })
-      .where(eq(roomChangeRequests.id, input.requestId));
-    await tx
-      .update(roomTransferBedHolds)
-      .set({ status: 'released', releasedAt: new Date(), updatedAt: new Date() })
-      .where(eq(roomTransferBedHolds.roomChangeRequestId, input.requestId));
-    await tx.insert(auditLog).values({
-      actorType: 'admin',
-      actorId: input.adminId,
-      entity: 'room_change_request',
-      entityId: row.id,
-      action: 'transfer_completed',
-      diff: {},
-    });
+  const { tryCompleteRoomChangeRequest } = await import('@/src/services/roomTransferLifecycle');
+  const result = await tryCompleteRoomChangeRequest(input.requestId);
+  if (!result.ok) return { ok: false, message: result.message };
+  if (result.status !== 'completed') {
+    return {
+      ok: false,
+      message: `Physical transfer not completed (status: ${result.status}). Ensure charges are settled and the transfer date has been reached.`,
+    };
+  }
+
+  await db.insert(auditLog).values({
+    actorType: 'admin',
+    actorId: input.adminId,
+    entity: 'room_change_request',
+    entityId: row.id,
+    action: 'transfer_journey_completed',
+    diff: { via: 'tryCompleteRoomChangeRequest' },
   });
 
   return { ok: true };
