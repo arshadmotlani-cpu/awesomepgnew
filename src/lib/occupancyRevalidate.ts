@@ -24,6 +24,8 @@ export function revalidateReservationLifecycleBase(): void {
     revalidatePath('/pgs');
     revalidatePath('/account/bookings');
     revalidatePath('/account/profile');
+    revalidatePath('/account/resident');
+    revalidatePath('/account/resident', 'layout');
     revalidatePath('/reserve/new');
     // Admin shell layout loads sidebar badges — bust it so counts drop immediately.
     revalidatePath('/admin', 'layout');

@@ -272,6 +272,11 @@ const contracts: Array<[string, string, RegExp]> = [
     /FOR UPDATE[\s\S]*FOR UPDATE/,
   ],
   [
+    '47b — paid occupy-today steps PAYMENT_PENDING through READY_TO_TRANSFER',
+    'src/services/roomTransferTenancy.ts',
+    /PAYMENT_PENDING'[\s\S]*READY_TO_TRANSFER'[\s\S]*TRANSFERRING'/,
+  ],
+  [
     '48 — completion consumes the hold in the tenancy transaction',
     'src/services/roomTransferTenancy.ts',
     /consumedAt:[\s\S]*workflowState: 'COMPLETED'/,

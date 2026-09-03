@@ -315,3 +315,6 @@ flowchart TD
 
 <!-- DOC_SYNC_TOUCH_2026-09-02 -->
 > **2026-09-02 05:57:27 UTC** — Code changed in: Billing, Vacating. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-09-03 -->
+> **2026-09-03 05:08:08 UTC** — Code changed in: Billing, Bed Assignment. Manual review recommended.

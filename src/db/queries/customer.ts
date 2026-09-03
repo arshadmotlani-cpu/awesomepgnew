@@ -16,6 +16,7 @@ import {
   sortPublicPgs,
 } from '@/src/lib/publicPgPresentation';
 import { bedOccupiedTodayExistsSql } from '@/src/lib/occupancySsot';
+import { pickAuthoritativePrimaryStay } from '@/src/lib/occupancy/authoritativePrimaryStay';
 import {
   beds,
   bedPrices,
@@ -1442,17 +1443,9 @@ export type ResidentBookingRow = {
   depositDueDate: string | null;
 };
 
-/** One row per booking — multi-bed bookings keep the lowest bed_id row. */
-function dedupeResidentBookingsByBookingId(
-  rows: ResidentBookingRow[],
-): ResidentBookingRow[] {
-  return Array.from(new Map(rows.map((item) => [item.bookingId, item])).values());
-}
-
 /**
  * List monthly bookings owned by `customerId`. Returns ONE row per booking.
- * Multi-bed bookings join one row per primary reservation; we collapse to a
- * single representative bed (lowest bed_id) for the resident dashboard.
+ * Current room/bed follows occupancy SSOT (active stay today), not reservation UUID order.
  */
 export function listResidentBookingsForCustomer(
   customerId: string,
@@ -1474,7 +1467,9 @@ export function listResidentBookingsForCustomer(
         pgSlug: pgs.slug,
         durationMode: bookings.durationMode,
         status: bookings.status,
-        checkInDate: sql<string>`to_char(lower(${bedReservations.stayRange}), 'YYYY-MM-DD')`,
+        reservationStatus: bedReservations.status,
+        inStayToday: sql<boolean>`CURRENT_DATE <@ ${bedReservations.stayRange}`,
+        stayStart: sql<string>`to_char(lower(${bedReservations.stayRange}), 'YYYY-MM-DD')`,
         expectedCheckoutDate: bookings.expectedCheckoutDate,
         pricingSnapshot: bookings.pricingSnapshot,
         depositPaise: bookings.depositPaise,
@@ -1502,42 +1497,64 @@ export function listResidentBookingsForCustomer(
           inArray(bookings.status, ['confirmed', 'completed']),
         ),
       )
-      .orderBy(desc(bookings.createdAt), asc(bedReservations.bedId));
+      .orderBy(desc(bookings.createdAt));
 
-    const mapped = rows.map((r) => {
-      const snapshot = r.pricingSnapshot as PricingSnapshot | null;
+    const grouped = new Map<string, typeof rows>();
+    for (const row of rows) {
+      const list = grouped.get(row.bookingId) ?? [];
+      list.push(row);
+      grouped.set(row.bookingId, list);
+    }
+
+    return [...grouped.values()].map((group) => {
+      const chosen = pickAuthoritativePrimaryStay(
+        group.map((r) => ({
+          ...r,
+          bookingStatus: r.status,
+          upcomingMonthly:
+            r.reservationStatus === 'active' &&
+            !r.inStayToday &&
+            ['monthly', 'open_ended'].includes(r.durationMode),
+          stayStart: r.stayStart,
+          status: r.reservationStatus,
+        })),
+      ) ?? {
+        ...group[0]!,
+        bookingStatus: group[0]!.status,
+        upcomingMonthly: false,
+        status: group[0]!.reservationStatus,
+      };
+      const snapshot = chosen.pricingSnapshot as PricingSnapshot | null;
       const monthlyRentPaise = snapshot?.perBed.reduce(
         (acc, b) => acc + (b.monthlyRatePaise ?? 0),
         0,
       ) ?? 0;
       return {
-        bookingId: r.bookingId,
-        bookingCode: r.bookingCode,
-        customerId: r.customerId,
-        customerFullName: r.customerFullName,
-        customerPhone: r.customerPhone,
-        pgId: r.pgId,
-        pgName: r.pgName,
-        pgSlug: r.pgSlug,
-        bedCode: r.bedCode,
-        roomId: r.roomId,
-        roomNumber: r.roomNumber,
-        durationMode: r.durationMode as ResidentBookingRow['durationMode'],
-        status: r.status,
-        checkInDate: r.checkInDate,
-        expectedCheckoutDate: r.expectedCheckoutDate,
-        createdAt: r.createdAt,
+        bookingId: chosen.bookingId,
+        bookingCode: chosen.bookingCode,
+        customerId: chosen.customerId,
+        customerFullName: chosen.customerFullName,
+        customerPhone: chosen.customerPhone,
+        pgId: chosen.pgId,
+        pgName: chosen.pgName,
+        pgSlug: chosen.pgSlug,
+        bedCode: chosen.bedCode,
+        roomId: chosen.roomId,
+        roomNumber: chosen.roomNumber,
+        durationMode: chosen.durationMode as ResidentBookingRow['durationMode'],
+        status: chosen.bookingStatus,
+        checkInDate: chosen.stayStart,
+        expectedCheckoutDate: chosen.expectedCheckoutDate,
+        createdAt: chosen.createdAt,
         monthlyRentPaise,
-        depositPaise: r.depositPaise,
-        adminDuesStatus: r.adminDuesStatus,
-        adminDepositRefundStatus: r.adminDepositRefundStatus,
-        depositCollectionStatus: r.depositCollectionStatus,
-        depositDuePaise: r.depositDuePaise,
-        depositDueDate: r.depositDueDate,
+        depositPaise: chosen.depositPaise,
+        adminDuesStatus: chosen.adminDuesStatus,
+        adminDepositRefundStatus: chosen.adminDepositRefundStatus,
+        depositCollectionStatus: chosen.depositCollectionStatus,
+        depositDuePaise: chosen.depositDuePaise,
+        depositDueDate: chosen.depositDueDate,
       };
     });
-
-    return dedupeResidentBookingsByBookingId(mapped);
   });
 }
 

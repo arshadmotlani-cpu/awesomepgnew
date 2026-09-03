@@ -135,10 +135,20 @@ export async function loadResidentAccountContext(
     bookings.ok && bookings.data.length > 0
       ? Array.from(new Map(bookings.data.map((b) => [b.bookingId, b])).values())
       : [];
-  const primaryBooking =
+  let primaryBooking =
     (tenancy ? uniqueBookings.find((b) => b.bookingId === tenancy.bookingId) : null) ??
     uniqueBookings[0] ??
     null;
+  if (primaryBooking && tenancy && primaryBooking.bookingId === tenancy.bookingId) {
+    primaryBooking = {
+      ...primaryBooking,
+      pgId: tenancy.pgId,
+      pgName: tenancy.pgName,
+      roomId: tenancy.roomId,
+      roomNumber: tenancy.roomNumber,
+      bedCode: tenancy.bedCode,
+    };
+  }
 
   const financialSummary = primaryBooking
     ? await getResidentFinancialAccount(customerId)

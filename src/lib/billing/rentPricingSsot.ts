@@ -74,6 +74,10 @@ async function activeBedIdForBooking(bookingId: string): Promise<string | null> 
         eq(bedReservations.status, 'active'),
       ),
     )
+    .orderBy(
+      sql`(CURRENT_DATE <@ ${bedReservations.stayRange}) DESC`,
+      sql`lower(${bedReservations.stayRange}) DESC`,
+    )
     .limit(1);
   return row?.bedId ?? null;
 }

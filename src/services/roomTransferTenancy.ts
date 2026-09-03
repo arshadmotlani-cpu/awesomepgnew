@@ -158,11 +158,21 @@ export async function applyResidentBedTransfer(input: {
         ) {
           throw new Error('Room-change request is no longer eligible for transfer.');
         }
-        if (request.workflowState !== 'TRANSFERRING') {
-          assertRoomChangeTransition(
-            request.workflowState as RoomChangeWorkflowState,
-            'TRANSFERRING',
-          );
+        let workflow = request.workflowState as RoomChangeWorkflowState;
+        if (workflow === 'PAYMENT_PENDING') {
+          assertRoomChangeTransition('PAYMENT_PENDING', 'READY_TO_TRANSFER');
+          await tx
+            .update(roomChangeRequests)
+            .set({
+              workflowState: 'READY_TO_TRANSFER',
+              stateVersion: sql`${roomChangeRequests.stateVersion} + 1`,
+              updatedAt: new Date(),
+            })
+            .where(eq(roomChangeRequests.id, input.roomChangeRequestId));
+          workflow = 'READY_TO_TRANSFER';
+        }
+        if (workflow !== 'TRANSFERRING') {
+          assertRoomChangeTransition(workflow, 'TRANSFERRING');
         }
         await tx
           .update(roomChangeRequests)
@@ -301,7 +311,10 @@ export async function applyResidentBedTransfer(input: {
     if (pgUniqueViolation(err)) {
       return { ok: false, message: 'That bed was just taken by another resident.' };
     }
-    if (err instanceof Error && err.message.startsWith('Room-change')) {
+    if (
+      err instanceof Error &&
+      (err.message.startsWith('Room-change') || err.message.startsWith('Invalid room-change'))
+    ) {
       return { ok: false, message: err.message };
     }
     throw err;
@@ -329,6 +342,12 @@ export async function applyResidentBedTransfer(input: {
     pricingSnapshot: snapshot,
     adminId: input.actorId,
   });
+
+  const { syncBillingProfileRentFromSsot, syncPendingRentInvoicesFromSsot } = await import(
+    '@/src/lib/billing/rentPricingSsot'
+  );
+  await syncBillingProfileRentFromSsot(input.bookingId, transferMonth);
+  await syncPendingRentInvoicesFromSsot(input.bookingId, transferMonth);
 
   await reconcileRentInvoicesAfterRoomTransfer({
     bookingId: input.bookingId,

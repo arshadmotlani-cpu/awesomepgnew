@@ -977,7 +977,9 @@ export async function markUnifiedInvoicePaid(
   const { tryCompleteRoomChangeAfterInvoice } = await import(
     '@/src/services/roomTransferLifecycle'
   );
-  await tryCompleteRoomChangeAfterInvoice(invoiceId).catch(() => undefined);
+  await tryCompleteRoomChangeAfterInvoice(invoiceId).catch((err) => {
+    console.error('[room-transfer] complete after invoice failed', invoiceId, err);
+  });
 }
 
 export async function createPaymentLinkForInvoice(invoiceId: string) {

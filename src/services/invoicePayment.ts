@@ -158,7 +158,9 @@ export async function allocateInvoicePayment(input: {
     const { tryCompleteRoomChangeAfterInvoice } = await import(
       '@/src/services/roomTransferLifecycle'
     );
-    await tryCompleteRoomChangeAfterInvoice(input.invoiceId).catch(() => undefined);
+    await tryCompleteRoomChangeAfterInvoice(input.invoiceId).catch((err) => {
+      console.error('[room-transfer] complete after invoice failed', input.invoiceId, err);
+    });
   }
 
   return { ok: true };
