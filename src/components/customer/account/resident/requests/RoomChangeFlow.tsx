@@ -190,11 +190,11 @@ export function RoomChangeFlow({
     return (
       <div className="space-y-4 pb-2">
         <ApgCard tier="resident">
-          <h2 className="text-lg font-semibold text-white">Room change confirmed</h2>
+          <h2 className="text-lg font-semibold text-white">Change Bed confirmed</h2>
           <p className="mt-2 text-sm text-apg-silver">
             {submitResult?.status === 'completed'
-              ? 'Your bed transfer is complete. Any remaining room-change charges are on Payments.'
-              : 'Your room change is scheduled. We will move you on the transfer date. Any charges stay on Payments.'}
+              ? 'Your bed transfer is complete. Any remaining Change Bed charges stay on Payments.'
+              : 'Your Change Bed request is scheduled. We will move you on the transfer date. Any charges stay on Payments.'}
           </p>
           <button type="button" onClick={onClose} className={`${primaryBtn} mt-4 w-full`}>
             Done
@@ -210,7 +210,7 @@ export function RoomChangeFlow({
         <ApgCard tier="resident">
           <h2 className="text-lg font-semibold text-white">Complete payment</h2>
           <p className="mt-1 text-sm text-apg-silver">
-            Pay to confirm your room change. Your transfer starts automatically once payment is verified.
+            Pay remaining charges on Payments. Payment does not authorize the transfer — your bed is already secured.
           </p>
           <p className="mt-2 text-sm font-medium text-amber-200" aria-live="polite">
             Target bed reserved for {remainingHours}h {remainingMinutes}m {remainingSeconds}s
@@ -246,7 +246,7 @@ export function RoomChangeFlow({
           disabled={pending}
           className={`${secondaryBtn} w-full`}
         >
-          Cancel room change
+          Cancel Change Bed
         </button>
       </div>
     );
@@ -255,7 +255,7 @@ export function RoomChangeFlow({
   return (
     <div className="space-y-4 pb-2">
       <ApgCard tier="resident">
-        <h2 className="text-lg font-semibold text-white">Room change</h2>
+        <h2 className="text-lg font-semibold text-white">Change Bed</h2>
         <p className="mt-1 text-sm text-apg-silver">
           Current: {roomLabel} · {paiseToInr(monthlyRentPaise)}/mo · Deposit held{' '}
           {paiseToInr(depositHeldPaise)}
@@ -429,8 +429,8 @@ export function RoomChangeFlow({
             </dl>
           ) : (
             <p className="mt-2 text-xs text-apg-silver">
-              Move type: <span className="text-white">Immediate</span> — after payment your bed
-              transfer completes automatically.
+              Move type: <span className="text-white">Immediate</span> — confirming secures the new
+              bed and completes the transfer. Remaining charges stay payable on Payments.
             </p>
           )}
           <ul className="mt-3 space-y-2">
@@ -456,11 +456,7 @@ export function RoomChangeFlow({
             Total due: {paiseToInr(quote.totalDuePaise)}
           </p>
           <button type="button" onClick={submit} disabled={pending} className={`${primaryBtn} mt-4 w-full`}>
-            {pending
-              ? 'Confirming…'
-              : quote.totalDuePaise > 0
-                ? 'Confirm & pay'
-                : 'Confirm room change'}
+            {pending ? 'Confirming…' : 'Confirm Change Bed'}
           </button>
           <button
             type="button"

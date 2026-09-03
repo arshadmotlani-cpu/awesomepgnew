@@ -44,8 +44,8 @@ export const REQUEST_CATEGORIES: RequestCategory[] = [
   },
   {
     id: 'room_change',
-    title: 'Room Change',
-    description: 'Move to another available bed in your PG with automatic pricing.',
+    title: 'Change Bed',
+    description: 'Move to another available bed in your PG.',
     confirmSentence: () =>
       'You are requesting a room change. Review the quote before submitting.',
     wired: 'room_change',
@@ -53,7 +53,7 @@ export const REQUEST_CATEGORIES: RequestCategory[] = [
   },
   {
     id: 'move_out',
-    title: 'Move-out',
+    title: 'Move Out',
     description: 'Submit your move-out notice and track deposit refund steps.',
     confirmSentence: () =>
       'You will submit a move-out request. After approval, submit your refund request from the Move-out page.',
@@ -117,7 +117,7 @@ export type ActiveRequestItem = {
 
 export function requestTypeLabel(type: string): string {
   if (type === 'vacating' || type === 'move_out') return 'Move-out notice';
-  if (type === 'room_change') return 'Room change';
+  if (type === 'room_change') return 'Change Bed';
   if (type === 'deposit_refund') return 'Deposit refund';
   if (type === 'deposit_due_extension') return 'More time for deposit';
   if (type === 'stay_extension') return 'Stay extension';

@@ -117,15 +117,16 @@ test('requested vacating date is independent from notice submission date', () =>
   assert.notEqual(noticeGivenDate, vacatingDate);
 });
 
-test('direct move-out flow renders date form inline on requests page', () => {
+test('move-out form is behind Continue on the requests page', () => {
   const requestsHome = readFileSync(
     join(process.cwd(), 'src/components/customer/account/resident/requests/RequestsHome.tsx'),
     'utf8',
   );
   assert.match(requestsHome, /id="resident-move-out"/);
   assert.match(requestsHome, /VacatingHome/);
+  assert.match(requestsHome, /Continue to Move Out/);
   assert.doesNotMatch(requestsHome, /Request move-out/);
-  assert.match(requestsHome, /Other requests/);
+  assert.doesNotMatch(requestsHome, /Other requests/);
 });
 
 test('resident and admin settlement use shared vacating billing presentation SSOT', () => {
