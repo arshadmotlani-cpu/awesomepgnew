@@ -278,7 +278,7 @@ export default async function CollectionsModulePage({
       />
       <PageHeader
         title="Billing Center"
-        description="Generate and manage monthly PG bills."
+        description="Monitor automatic rent billing and generate electricity bills from meter readings."
         actions={
           <Link
             href="/admin/collections"
@@ -291,7 +291,6 @@ export default async function CollectionsModulePage({
 
       <BillingPrimaryActions
         billingMonth={billingMonth}
-        canGenerateRent={canGenerateRent}
         generationStatus={{
           billingMonth,
           monthLabel,

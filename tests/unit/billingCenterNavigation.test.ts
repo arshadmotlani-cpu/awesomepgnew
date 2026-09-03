@@ -33,19 +33,32 @@ test('Collections and Billing Center are distinct modules', () => {
   );
 });
 
-test('Billing Center page mounts primary generation actions', () => {
+test('Billing Center rent card is status-only — no manual Generate Rent button', () => {
   const page = read('app/(admin)/admin/billing/page.tsx');
   const primary = read('src/components/admin/billing/BillingPrimaryActions.tsx');
-  const rentActions = read('app/(admin)/admin/rent/actions.ts');
+  const collectionsTools = read('src/components/admin/CollectionsBillingTools.tsx');
   assert.match(page, /BillingPrimaryActions/);
-  assert.match(page, /Generate and manage monthly PG bills/);
-  assert.match(primary, /generateRentBillsAction/);
-  assert.match(primary, /Generate Rent Bills/);
+  assert.match(primary, /Rent bills are generated automatically on the 1st of each month/);
+  assert.match(primary, /All rent bills generated/);
+  assert.match(primary, /need attention/);
+  assert.match(primary, /tab=failures/);
+  assert.doesNotMatch(primary, /Generate Rent Bills/);
+  assert.doesNotMatch(primary, /generateRentBillsAction/);
+  assert.doesNotMatch(primary, /GenerateInvoicesButton/);
+  assert.doesNotMatch(collectionsTools, /GenerateInvoicesButton/);
+  assert.match(primary, /Generate Electricity Bills/);
   assert.match(primary, /\/admin\/billing\/electricity\/generate/);
-  assert.match(primary, /generateRentBillsAction/);
+});
+
+test('automatic rent generation cron and idempotent engine remain intact', () => {
+  const cron = read('app/api/cron/generate-monthly-rent/route.ts');
+  const rentInvoices = read('src/services/rentInvoices.ts');
+  const rentActions = read('app/(admin)/admin/rent/actions.ts');
+  assert.match(cron, /runDailyRentBillingJob/);
+  assert.match(rentInvoices, /generateRentInvoicesForMonth/);
+  assert.match(rentInvoices, /idempotent/i);
   assert.match(rentActions, /generateRentInvoicesForMonth/);
-  assert.match(rentActions, /already existed/);
-  assert.doesNotMatch(primary, /computeLateFee|totalPaise\s*\*|rentPaise\s*\*/);
+  assert.match(rentActions, /generateRentBillsAction/);
 });
 
 test('Billing Center page requires admin session', () => {

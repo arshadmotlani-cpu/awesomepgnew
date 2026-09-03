@@ -1,8 +1,5 @@
 import Link from 'next/link';
-import {
-  GenerateInvoicesButton,
-  MarkOverdueButton,
-} from '@/src/components/admin/RentBillingActions';
+import { MarkOverdueButton } from '@/src/components/admin/RentBillingActions';
 import { CollectionsHistoricalPaymentPanel } from '@/src/components/admin/CollectionsHistoricalPaymentPanel';
 import { CollectionsMonthPicker } from '@/src/components/admin/CollectionsMonthPicker';
 import { moduleHref } from '@/src/lib/admin/navigation';
@@ -60,16 +57,19 @@ export function CollectionsBillingTools({
             </ul>
             <div className="mt-4 space-y-3">
               <CollectionsMonthPicker billingMonth={billingMonth} />
-              {canGenerateRent ? (
-                <div className="flex flex-wrap items-end gap-2">
-                  <GenerateInvoicesButton billingMonth={billingMonth} forceAll />
-                  <MarkOverdueButton />
-                </div>
-              ) : (
-                <p className="text-xs text-apg-silver">
-                  Rent generation requires <span className="text-white">rent:write</span> permission.
-                </p>
-              )}
+              <p className="text-xs text-apg-silver">
+                Rent bills are generated automatically on the 1st of each month by the scheduled
+                billing engine. Review exceptions instead of regenerating.
+              </p>
+              <div className="flex flex-wrap items-end gap-2">
+                {canGenerateRent ? <MarkOverdueButton /> : null}
+                <Link
+                  href={`/admin/billing?tab=failures&month=${monthLabel}`}
+                  className="inline-flex items-center justify-center rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-500/20"
+                >
+                  Review generation failures →
+                </Link>
+              </div>
             </div>
             <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <Link
