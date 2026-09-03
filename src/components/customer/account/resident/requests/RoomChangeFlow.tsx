@@ -167,12 +167,8 @@ export function RoomChangeFlow({
         return;
       }
       setSubmitResult(res.data);
-      if (res.data.status === 'completed' || res.data.totalDuePaise <= 0) {
-        setStep('done');
-        router.refresh();
-      } else {
-        setStep('payment');
-      }
+      setStep('done');
+      router.refresh();
     });
   }
 
@@ -197,8 +193,8 @@ export function RoomChangeFlow({
           <h2 className="text-lg font-semibold text-white">Room change confirmed</h2>
           <p className="mt-2 text-sm text-apg-silver">
             {submitResult?.status === 'completed'
-              ? 'Your bed transfer is complete. Your account will reflect the new room shortly.'
-              : 'Your room change is scheduled. We will move you automatically on the transfer date after payment is confirmed.'}
+              ? 'Your bed transfer is complete. Any remaining room-change charges are on Payments.'
+              : 'Your room change is scheduled. We will move you on the transfer date. Any charges stay on Payments.'}
           </p>
           <button type="button" onClick={onClose} className={`${primaryBtn} mt-4 w-full`}>
             Done

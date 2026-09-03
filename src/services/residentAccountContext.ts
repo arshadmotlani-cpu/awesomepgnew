@@ -433,6 +433,34 @@ export async function loadResidentAccountContext(
     }
   }
 
+  if (financialSummary) {
+    const seen = new Set(invoices.map((inv) => inv.id));
+    for (const item of financialSummary.other.items) {
+      if (item.outstandingPaise <= 0) continue;
+      if (seen.has(item.id)) continue;
+      seen.add(item.id);
+      const fiId = item.financialInvoiceId ?? item.id;
+      invoices.push({
+        id: item.id,
+        kind: 'accommodation',
+        invoiceNumber: item.invoiceNumber ?? item.id,
+        label: item.label,
+        stayDurationLabel: null,
+        checkInLabel: null,
+        checkOutLabel: null,
+        rentPaise: item.outstandingPaise,
+        electricityPaise: 0,
+        depositPaidPaise: 0,
+        finalAmountPaise: item.outstandingPaise,
+        status: item.status,
+        dueDate: item.dueDate ?? null,
+        payHref: invoiceDetailHref(fiId, 'resident'),
+        detailHref: invoiceDetailHref(fiId, 'resident'),
+        paymentLinkUrl: null,
+      });
+    }
+  }
+
   const fiMap = await batchLookupFinancialInvoiceIds(
     invoices
       .filter(

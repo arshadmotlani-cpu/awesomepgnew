@@ -32,7 +32,6 @@ import {
   assertRoomChangeTransition,
   roomChangeDeadlinePassed,
   roomChangeExpiresAt,
-  settlementMetRoomChangeDeadline,
   type RoomChangeWorkflowState,
 } from '@/src/lib/roomTransfer/stateMachine';
 import { isBedAvailable } from '@/src/services/availability';
@@ -334,28 +333,13 @@ export async function tryCompleteRoomChangeRequest(requestId: string): Promise<{
     return { ok: false, message: `Request is ${row.workflowState.toLowerCase()}.` };
   }
 
+  // Occupancy is independent of invoice settlement. Unpaid room-change
+  // charges remain normal dues and must not expire or block the transfer.
   const settled = await roomChangeChargesSettled(requestId);
   const settledAt = settled
     ? (await roomChangeSettlementTimestamp(requestId)) ?? row.heldAt ?? row.createdAt
     : null;
   const expiresAt = row.expiresAt ?? roomChangeExpiresAt(row.heldAt ?? row.createdAt);
-
-  if (!settled) {
-    if (roomChangeDeadlinePassed(expiresAt)) {
-      const expired = await expireRoomChangeRequest(requestId);
-      return expired.ok
-        ? { ok: true, status: expired.status }
-        : expired;
-    }
-    return { ok: true, status: 'payment_pending' };
-  }
-  if (!settlementMetRoomChangeDeadline(settledAt, expiresAt)) {
-    const expired = await expireRoomChangeRequest(requestId);
-    return expired.ok
-      ? { ok: true, status: expired.status }
-      : expired;
-  }
-  const effectiveSettledAt = settledAt ?? row.heldAt ?? row.createdAt;
 
   const transferDate = row.expectedTransferDate ?? row.requestedShiftDate;
   const todayIst = toIstParts(new Date()).dateYmd;
@@ -369,7 +353,7 @@ export async function tryCompleteRoomChangeRequest(requestId: string): Promise<{
         .set({
           status: 'approved',
           workflowState: 'READY_TO_TRANSFER',
-          settledAt: effectiveSettledAt,
+          settledAt: settledAt ?? row.settledAt,
           stateVersion: row.stateVersion + 1,
           updatedAt: new Date(),
         })
@@ -405,13 +389,13 @@ export async function tryCompleteRoomChangeRequest(requestId: string): Promise<{
       actorId: null,
       entity: 'room_change_request',
       entityId: requestId,
-      action: 'scheduled_paid',
+      action: 'scheduled_accepted',
       diff: { transferDate },
     });
     return { ok: true, status: 'approved' };
   }
 
-  const [hold] = await db
+  let [hold] = await db
     .select({ id: roomTransferBedHolds.id })
     .from(roomTransferBedHolds)
     .where(
@@ -422,6 +406,26 @@ export async function tryCompleteRoomChangeRequest(requestId: string): Promise<{
       ),
     )
     .limit(1);
+  if (!hold) {
+    const placed = await placeRoomTransferHold({
+      requestId,
+      toBedId: row.toBedId,
+      transferDate,
+      expiresAt,
+    });
+    if (!placed.ok) return placed;
+    [hold] = await db
+      .select({ id: roomTransferBedHolds.id })
+      .from(roomTransferBedHolds)
+      .where(
+        and(
+          eq(roomTransferBedHolds.roomChangeRequestId, requestId),
+          eq(roomTransferBedHolds.bedId, row.toBedId),
+          eq(roomTransferBedHolds.status, 'active'),
+        ),
+      )
+      .limit(1);
+  }
   if (!hold) {
     return { ok: false, message: 'Destination hold is missing; Operations has been alerted.' };
   }
@@ -441,7 +445,7 @@ export async function tryCompleteRoomChangeRequest(requestId: string): Promise<{
     actorType: 'system',
     actorId: row.customerId,
     roomChangeRequestId: row.id,
-    settledAt: effectiveSettledAt,
+    settledAt: settledAt ?? undefined,
   });
   if (!moved.ok) return { ok: false, message: moved.message };
 

@@ -163,21 +163,21 @@ export async function projectRoomChangeSettlementStatus(input: {
   if (chargesSettled) {
     phase = 'ready_to_transfer';
     message =
-      'All room-change charges are paid. Transfer will complete when the transfer date is reached and the destination bed is available.';
+      'All room-change charges are paid. Occupancy completes when the destination date is reached.';
   } else if (depositRecorded && !chargesSettled) {
     phase = 'deposit_approved';
-    message = `Deposit recorded. Outstanding room-change charges: ${(outstandingPaise / 100).toFixed(2)} INR still payable before transfer.`;
+    message = `Transfer is not waiting on payment. Outstanding room-change charges: ${(outstandingPaise / 100).toFixed(2)} INR remain payable.`;
   } else if (!depositRecorded) {
-    phase = 'deposit_pending';
-    message = 'Additional deposit payment is pending.';
+    phase = 'charges_payable';
+    message = 'Room-change charges are payable on Bills Due. They do not block the bed transfer.';
   } else {
     phase = 'charges_payable';
-    message = 'Room-change charges are payable. Pay individual invoices or pay all.';
+    message = 'Room-change charges are payable on Bills Due. They do not block the bed transfer.';
   }
 
   if (!depositRecorded && outstandingPaise > 0) {
     phase = 'charges_payable';
-    message = 'Room-change charges are payable. Pay individual invoices or pay all.';
+    message = 'Room-change charges are payable on Bills Due. They do not block the bed transfer.';
   }
 
   return {

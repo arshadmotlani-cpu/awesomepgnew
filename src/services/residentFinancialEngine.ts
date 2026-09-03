@@ -429,6 +429,7 @@ async function buildOtherCategory(
         ? 0
         : Math.max(0, fi.amountPaise - paidAmount);
     if (outstanding <= 0 && fi.status !== 'partial') continue;
+    if (fi.sourceTable === 'room_change_pay_all') continue;
     requiredPaise += fi.amountPaise;
     paidPaise += paidAmount;
     outstandingPaise += outstanding;

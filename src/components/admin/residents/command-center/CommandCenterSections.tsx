@@ -491,10 +491,12 @@ export function CommandCenterRequests({ data }: { data: ResidentCommandCenterDat
               <div>
                 <p className="text-sm font-medium text-white">Room change</p>
                 <p className="text-xs text-apg-silver">
-                  {titleCase(rc.workflowState.replace(/_/g, ' '))} · shift{' '}
-                  {formatDate(rc.requestedShiftDate)}
-                  {rc.expiresAt && rc.workflowState === 'PAYMENT_PENDING'
-                    ? ` · payment hold until ${rc.expiresAt.toLocaleString('en-IN')}`
+                  {rc.workflowState === 'COMPLETED'
+                    ? 'Room change completed'
+                    : titleCase(rc.workflowState.replace(/_/g, ' '))}{' '}
+                  · shift {formatDate(rc.requestedShiftDate)}
+                  {rc.workflowState === 'COMPLETED'
+                    ? ' · outstanding charges remain payable'
                     : ''}
                 </p>
               </div>

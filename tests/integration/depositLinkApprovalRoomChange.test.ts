@@ -64,7 +64,7 @@ describe('deposit link approval room-change (APG-2026-0021)', () => {
     assert.match(fn, /return;/);
   });
 
-  test('4 — deposit approval alone does not complete room transfer', () => {
+  test('4 — unpaid room-change amount does not block occupancy completion', () => {
     const rows = [
       { sourceTable: ROOM_CHANGE_INVOICE_SOURCE.deposit, status: 'paid', amountPaise: 321_140 },
       { sourceTable: ROOM_CHANGE_INVOICE_SOURCE.newRent, status: 'sent', amountPaise: 19_101 },
@@ -75,8 +75,8 @@ describe('deposit link approval room-change (APG-2026-0021)', () => {
       join(process.cwd(), 'src/services/roomTransferLifecycle.ts'),
       'utf8',
     );
-    assert.match(lifecycle, /const settled = await roomChangeChargesSettled\(requestId\)/);
-    assert.match(
+    assert.match(lifecycle, /Occupancy is independent of invoice settlement/);
+    assert.doesNotMatch(
       lifecycle,
       /if \(!settled\) \{[\s\S]*return \{ ok: true, status: 'payment_pending' \}/,
     );

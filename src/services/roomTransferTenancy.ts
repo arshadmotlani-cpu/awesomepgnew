@@ -152,7 +152,7 @@ export async function applyResidentBedTransfer(input: {
           !request ||
           request.bookingId !== input.bookingId ||
           request.toBedId !== input.toBedId ||
-          !['PAYMENT_PENDING', 'READY_TO_TRANSFER', 'TRANSFERRING'].includes(
+          !['TARGET_HELD', 'PAYMENT_PENDING', 'READY_TO_TRANSFER', 'TRANSFERRING'].includes(
             request.workflowState,
           )
         ) {

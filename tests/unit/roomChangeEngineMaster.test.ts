@@ -302,9 +302,9 @@ const contracts: Array<[string, string, RegExp]> = [
     /assertRoomChangeTransition/,
   ],
   [
-    '53 — submit is an atomic composite into PAYMENT_PENDING or READY_TO_TRANSFER',
+    '53 — submit accepts immediately into READY_TO_TRANSFER',
     'app/(customer)/account/resident/room-change-actions.ts',
-    /Atomic composite/,
+    /workflowState: 'READY_TO_TRANSFER'/,
   ],
 ];
 

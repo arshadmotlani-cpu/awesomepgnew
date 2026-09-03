@@ -291,8 +291,8 @@ export async function submitRoomChangeAction(input: {
           expectedTransferDate: transferDate,
           sourceVacatingRequestId: scenario.sourceVacatingRequestId ?? null,
           status: 'submitted',
-          // Atomic composite: REQUESTED → QUOTED → TARGET_HELD → PAYMENT_PENDING|READY_TO_TRANSFER.
-          workflowState: authoritativeQuote.totalDuePaise > 0 ? 'PAYMENT_PENDING' : 'READY_TO_TRANSFER',
+          // Accepted request: occupancy is not gated on payment.
+          workflowState: 'READY_TO_TRANSFER',
           heldAt,
           expiresAt,
         })
@@ -329,11 +329,8 @@ export async function submitRoomChangeAction(input: {
       });
       await appendRoomChangeEvent(tx, {
         requestId: request.id,
-        eventType: authoritativeQuote.totalDuePaise > 0 ? 'payment_required' : 'ready',
-        idempotencyKey:
-          authoritativeQuote.totalDuePaise > 0
-            ? `room-change:${request.id}:payment-required`
-            : `room-change:${request.id}:ready`,
+        eventType: 'ready',
+        idempotencyKey: `room-change:${request.id}:ready`,
         payload: {
           expiresAt: expiresAt.toISOString(),
           totalDuePaise: authoritativeQuote.totalDuePaise,
@@ -368,6 +365,7 @@ export async function submitRoomChangeAction(input: {
   const completion = await tryCompleteRoomChangeRequest(inserted.id);
 
   revalidatePath('/account/profile');
+  revalidatePath('/account/resident');
   return {
     ok: true,
     data: {
