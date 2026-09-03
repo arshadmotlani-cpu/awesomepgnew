@@ -46,8 +46,9 @@ test('Billing Center rent card is status-only — no manual Generate Rent button
   assert.doesNotMatch(primary, /generateRentBillsAction/);
   assert.doesNotMatch(primary, /GenerateInvoicesButton/);
   assert.doesNotMatch(collectionsTools, /GenerateInvoicesButton/);
-  assert.match(primary, /Generate Electricity Bills/);
+  assert.match(primary, /Open Electricity Billing/);
   assert.match(primary, /\/admin\/billing\/electricity\/generate/);
+  assert.match(primary, /Select a PG to view billing status/);
 });
 
 test('automatic rent generation cron and idempotent engine remain intact', () => {

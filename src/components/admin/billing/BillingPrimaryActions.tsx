@@ -106,39 +106,29 @@ export function BillingPrimaryActions({ billingMonth, generationStatus }: Props)
               <p className="mt-0.5 text-xs text-apg-silver">{monthLabel}</p>
             </div>
             <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-apg-silver">
-              {electricity.statusLabel}
+              PG-scoped
             </span>
           </div>
-          <dl className="mt-3 grid grid-cols-2 gap-2 text-center">
-            <div className="rounded-lg border border-white/5 bg-black/20 px-2 py-2">
-              <dt className="text-[10px] uppercase text-apg-silver">Need bills</dt>
-              <dd className="mt-0.5 text-sm font-semibold tabular-nums text-white">
-                {electricity.roomsNeedingBillCount}
-              </dd>
-            </div>
-            <div className="rounded-lg border border-white/5 bg-black/20 px-2 py-2">
-              <dt className="text-[10px] uppercase text-apg-silver">Need meters</dt>
-              <dd className="mt-0.5 text-sm font-semibold tabular-nums text-white">
-                {electricity.roomsWaitingMeterCount}
-              </dd>
-            </div>
-          </dl>
+          <p className="mt-3 text-xs text-apg-silver">
+            Select a PG to view billing status. Meter readings and generation are scoped to one PG
+            at a time — never all PGs together.
+          </p>
           {electricity.roomsWaitingMeterCount > 0 ? (
-            <p className="mt-3 text-xs text-amber-200">
-              {electricity.roomsWaitingMeterCount} room
-              {electricity.roomsWaitingMeterCount === 1 ? '' : 's'} need meter readings (entered
-              during generation).
+            <p className="mt-2 text-xs text-amber-200">
+              Across all PGs, {electricity.roomsWaitingMeterCount} AC room
+              {electricity.roomsWaitingMeterCount === 1 ? '' : 's'} still lack a bill for this month
+              (open electricity billing to work PG by PG).
             </p>
           ) : (
-            <p className="mt-3 text-xs text-emerald-200">
-              All occupied AC rooms already have an electricity bill for this month.
+            <p className="mt-2 text-xs text-emerald-200">
+              No AC rooms are missing electricity bills for this month.
             </p>
           )}
           <Link
             href={`/admin/billing/electricity/generate?month=${monthValue}`}
             className={`${SECONDARY} mt-4`}
           >
-            Generate Electricity Bills →
+            Open Electricity Billing →
           </Link>
         </div>
       </div>
