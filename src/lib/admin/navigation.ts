@@ -2,6 +2,7 @@ export type AdminModule =
   | 'overview'
   | 'revenue'
   | 'collections'
+  | 'billing'
   | 'invoices'
   | 'deposits'
   | 'refunds'
@@ -42,6 +43,13 @@ export const ADMIN_MODULES: Record<AdminModule, AdminModuleMeta> = {
     label: 'Collections',
     description: 'Receivables queues, calendar, reminders, and collection reports',
     href: '/admin/collections',
+    sidebar: true,
+  },
+  billing: {
+    id: 'billing',
+    label: 'Billing Center',
+    description: 'Generate and manage monthly PG rent and electricity bills',
+    href: '/admin/billing',
     sidebar: true,
   },
   invoices: {
@@ -142,7 +150,7 @@ export function moduleHref(module: AdminModule, billingMonth?: string): string {
 }
 
 export function modulePgHref(
-  module: Exclude<AdminModule, 'overview' | 'pgs' | 'panel'>,
+  module: Exclude<AdminModule, 'overview' | 'pgs' | 'panel' | 'billing'>,
   pgId: string,
   billingMonth?: string,
 ): string {
@@ -152,7 +160,7 @@ export function modulePgHref(
 export function moduleResidentHref(
   module: Exclude<
     AdminModule,
-    'overview' | 'analytics' | 'system' | 'pgs' | 'residents' | 'kyc' | 'panel'
+    'overview' | 'analytics' | 'system' | 'pgs' | 'residents' | 'kyc' | 'panel' | 'billing'
   >,
   pgId: string,
   residentId: string,
@@ -176,12 +184,19 @@ export function pathnameToModule(pathname: string): AdminModule | null {
   if (pathname.startsWith('/admin/panel')) return 'panel';
   if (pathname.startsWith('/admin/uploads')) return 'system';
   if (pathname.startsWith('/admin/pricing')) return 'pgs';
-  if (pathname.startsWith('/admin/deposits')) return 'deposits';
-  if (pathname.startsWith('/admin/revenue/billing') || pathname.startsWith('/admin/collections')) {
+  // Billing Center is its own module — must resolve before generic /admin/* matching.
+  if (pathname === '/admin/billing' || pathname.startsWith('/admin/billing/')) {
+    return 'billing';
+  }
+  if (pathname.startsWith('/admin/revenue/billing')) {
     return 'revenue';
   }
+  if (pathname === '/admin/collections' || pathname.startsWith('/admin/collections/')) {
+    return 'collections';
+  }
+  if (pathname.startsWith('/admin/deposits')) return 'deposits';
   for (const mod of SIDEBAR_MODULES) {
-    if (mod.id === 'overview') continue;
+    if (mod.id === 'overview' || mod.id === 'billing') continue;
     if (pathname === mod.href || pathname.startsWith(`${mod.href}/`)) return mod.id;
   }
   return null;

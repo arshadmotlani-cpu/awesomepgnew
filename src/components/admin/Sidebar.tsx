@@ -20,7 +20,12 @@ export function Sidebar({
     if (!optimisticHref) return;
     if (pathname === optimisticHref || pathname.startsWith(`${optimisticHref}/`)) {
       setOptimisticHref(null);
+      return;
     }
+    // Soft navigation can hang or abort on heavy admin pages; never leave the
+    // sidebar stuck on a destination that never became the real pathname.
+    const timer = window.setTimeout(() => setOptimisticHref(null), 8_000);
+    return () => window.clearTimeout(timer);
   }, [optimisticHref, pathname]);
 
   const activePath = optimisticHref ?? pathname;

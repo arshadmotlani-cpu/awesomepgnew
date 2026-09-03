@@ -36,6 +36,7 @@ import {
   buildCollectionsQueue,
 } from '@/src/lib/billing/collectionsQueue';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
+import { BillingPrimaryActions } from '@/src/components/admin/billing/BillingPrimaryActions';
 import {
   BillingFailuresPanel,
   BillingGeneratedTodayPanel,
@@ -143,7 +144,12 @@ export default async function CollectionsModulePage({
 
   const dashboardSnapshotPromise =
     tab === 'dashboard'
-      ? loadBillingCentreDashboardSnapshot(session, billingMonth, dashboardFilters)
+      ? loadBillingCentreDashboardSnapshot(session, billingMonth, dashboardFilters).catch(
+          (err) => {
+            console.error('[billing-center] dashboard snapshot failed', err);
+            return null;
+          },
+        )
       : Promise.resolve(null);
 
   const needsPaidData = tab === 'billing' || tab === 'paid';
@@ -234,6 +240,28 @@ export default async function CollectionsModulePage({
   const needsBillCount = billingOverview.filter(
     (r) => isRentBillingOverviewActionable(r) && r.isDueForGeneration,
   ).length;
+  const rentGeneratedCount = billingOverview.filter((r) => r.invoiceStatus !== 'none').length;
+  const rentPendingCount = billingOverview.filter(
+    (r) => isRentBillingOverviewActionable(r) && r.invoiceStatus === 'none',
+  ).length;
+  const rentStatusLabel =
+    rentPendingCount === 0 && rentGeneratedCount > 0
+      ? 'Generated'
+      : rentGeneratedCount > 0 && rentPendingCount > 0
+        ? 'Partial'
+        : needsBillCount > 0
+          ? 'Ready'
+          : 'Needs attention';
+  const electricityWaitingMeters = roomsMissingElectricity.length;
+  const electricityStatusLabel =
+    electricityWaitingMeters > 0
+      ? `${electricityWaitingMeters} waiting for meter readings`
+      : 'Ready for generation';
+  const monthLabel = new Date(`${billingMonth.slice(0, 7)}-01T00:00:00Z`).toLocaleString('en-IN', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
 
   const today = new Date();
   const currentMonth = `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, '0')}-01`;
@@ -250,15 +278,35 @@ export default async function CollectionsModulePage({
       />
       <PageHeader
         title="Billing Center"
-        description="Automatic rent generation, payment approvals, electricity bills, and collections."
+        description="Generate and manage monthly PG bills."
         actions={
           <Link
             href="/admin/collections"
-            className="inline-flex min-h-[36px] items-center rounded-lg bg-[#FF5A1F] px-3 text-xs font-semibold text-white hover:brightness-110"
+            className="inline-flex min-h-[36px] items-center rounded-lg border border-white/15 bg-white/5 px-3 text-xs font-semibold text-white hover:bg-white/10"
           >
             Open Collections
           </Link>
         }
+      />
+
+      <BillingPrimaryActions
+        billingMonth={billingMonth}
+        canGenerateRent={canGenerateRent}
+        generationStatus={{
+          billingMonth,
+          monthLabel,
+          rent: {
+            statusLabel: rentStatusLabel,
+            generatedCount: rentGeneratedCount,
+            pendingCount: rentPendingCount,
+            candidateCount: billingOverview.length,
+          },
+          electricity: {
+            statusLabel: electricityStatusLabel,
+            roomsNeedingBillCount: electricityWaitingMeters,
+            roomsWaitingMeterCount: electricityWaitingMeters,
+          },
+        }}
       />
 
       <BillingCommandCentreHeader

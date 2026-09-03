@@ -74,9 +74,16 @@ export async function generateRentBillsAction(
       collectionDueDay,
     });
     revalidateBillingPaths();
+    const monthLabel = billingMonth.slice(0, 7);
     return {
       status: 'ok',
-      message: `Created ${result.invoicesCreated} rent invoice(s) for ${billingMonth.slice(0, 7)} (skipped ${result.invoicesSkipped}; ${result.candidateBookings} active residents).`,
+      message: [
+        `${monthLabel}`,
+        `✓ ${result.invoicesCreated} bills generated`,
+        `• ${result.invoicesSkipped} already existed`,
+        `• ${result.candidateBookings} residents checked`,
+        `• 0 errors`,
+      ].join('\n'),
     };
   } catch (err) {
     return {

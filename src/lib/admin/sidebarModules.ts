@@ -39,6 +39,7 @@ const MODULE_ICONS: Record<AdminModule, ComponentType<SVGProps<SVGSVGElement>>> 
   overview: IconDashboard,
   revenue: IconCard,
   collections: IconClipboard,
+  billing: IconCard,
   invoices: IconDocument,
   deposits: IconCard,
   refunds: IconDoor,
@@ -98,8 +99,8 @@ export const SIDEBAR_MODULE_REGISTRY: Record<SidebarModuleKey, SidebarModuleDef>
     key: 'billing',
     label: 'Billing Center',
     href: '/admin/billing',
-    icon: IconCard,
-    module: 'collections',
+    icon: MODULE_ICONS.billing,
+    module: 'billing',
   },
   invoices: {
     key: 'invoices',
