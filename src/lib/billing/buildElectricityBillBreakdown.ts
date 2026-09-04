@@ -79,6 +79,34 @@ export async function composeElectricityBillBreakdown(input: {
   });
 }
 
+/**
+ * Audit/detail path: return only the stored calculation_breakdown JSON.
+ * Never rebuild from live occupancy — historical bills must display as generated.
+ */
+export async function loadStoredElectricityBillBreakdown(
+  billId: string,
+): Promise<ElectricityBillCalculationBreakdown | null> {
+  try {
+    const [bill] = await db
+      .select({ calculationBreakdown: electricityBills.calculationBreakdown })
+      .from(electricityBills)
+      .where(eq(electricityBills.id, billId))
+      .limit(1);
+    if (!bill?.calculationBreakdown) return null;
+    const stored = bill.calculationBreakdown as ElectricityBillCalculationBreakdown;
+    return {
+      ...stored,
+      previousContributions: stored.previousContributions ?? [],
+    };
+  } catch (err) {
+    console.error('[electricity] loadStoredElectricityBillBreakdown failed', {
+      billId,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+}
+
 export async function loadElectricityBillBreakdown(
   billId: string,
 ): Promise<ElectricityBillCalculationBreakdown | null> {

@@ -12,7 +12,9 @@ import {
   roomElectricityLedgerCycles,
   roomElectricityLedgerEntries,
 } from '@/src/db/schema';
-import { isProductionElectricityBillFilter } from '@/src/lib/billing/electricityProductionFilter';
+import {
+  isProductionElectricityInvoiceFilter,
+} from '@/src/lib/billing/electricityProductionFilter';
 import { formatDate } from '@/src/lib/format';
 import { firstOfMonth } from '@/src/services/billing';
 import { loadRoomElectricityContributionsForMonth } from '@/src/services/electricityRoomContributions';
@@ -202,7 +204,7 @@ export async function loadElectricityPaymentHistoryForBill(input: {
     .where(
       and(
         inArray(electricityInvoices.bookingId, input.bookingIds),
-        isProductionElectricityBillFilter(),
+        isProductionElectricityInvoiceFilter(),
         ne(electricityInvoices.status, 'cancelled'),
         or(
           eq(electricityInvoices.roomId, input.roomId),
@@ -382,7 +384,7 @@ export async function loadElectricityPaymentHistoryForBooking(input: {
     .where(
       and(
         eq(electricityInvoices.bookingId, input.bookingId),
-        isProductionElectricityBillFilter(),
+        isProductionElectricityInvoiceFilter(),
         ne(electricityInvoices.status, 'cancelled'),
       ),
     );

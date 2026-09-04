@@ -25,6 +25,9 @@ test('electricity audit load result type contract is non-throwing domain result'
   assert.match(source, /missing_breakdown/);
   assert.match(source, /incomplete_generation/);
   assert.match(source, /domainWarnings/);
+  assert.match(source, /isProductionElectricityInvoiceFilter/);
+  assert.match(source, /loadStoredElectricityBillBreakdown/);
+  assert.match(source, /billSummary/);
 });
 
 test('details page consumes typed audit result — not raw throw', async () => {
@@ -33,5 +36,7 @@ test('details page consumes typed audit result — not raw throw', async () => {
   );
   assert.match(source, /loadRoomElectricityAuditBundleResult/);
   assert.match(source, /Electricity bill details unavailable/);
+  assert.match(source, /billSummary/);
+  assert.match(source, /Back to Electricity Billing/);
   assert.doesNotMatch(source, /loadRoomElectricityAuditBundle\(/);
 });

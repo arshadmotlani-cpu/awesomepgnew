@@ -1865,11 +1865,28 @@ export function getElectricityBillDetail(billId: string): Promise<
   }>
 > {
   return guard(async () => {
-    const bills = await listAdminElectricityBills();
-    const bill =
-      bills.ok && bills.data
-        ? bills.data.find((b) => b.id === billId) ?? null
-        : null;
+    // Load the single bill by id — never list the full fleet (timeout / soft-nav abort risk).
+    const [bill] = await db
+      .select({
+        id: electricityBills.id,
+        pgName: pgs.name,
+        roomNumber: rooms.roomNumber,
+        billingMonth: electricityBills.billingMonth,
+        unitsConsumed: electricityBills.unitsConsumed,
+        ratePerUnitPaise: electricityBills.ratePerUnitPaise,
+        totalPaise: electricityBills.totalPaise,
+        monthlyOccupantCount: electricityBills.monthlyOccupantCount,
+        perResidentPaise: electricityBills.perResidentPaise,
+        roundingRemainderPaise: electricityBills.roundingRemainderPaise,
+        invoicesCount: sql<number>`(SELECT count(*)::int FROM electricity_invoices WHERE electricity_bill_id = ${electricityBills.id})`,
+        invoicesPaidCount: sql<number>`(SELECT count(*)::int FROM electricity_invoices WHERE electricity_bill_id = ${electricityBills.id} AND status = 'paid')`,
+        createdAt: electricityBills.createdAt,
+      })
+      .from(electricityBills)
+      .innerJoin(rooms, eq(rooms.id, electricityBills.roomId))
+      .innerJoin(pgs, eq(pgs.id, electricityBills.pgId))
+      .where(and(eq(electricityBills.id, billId), isProductionElectricityBillFilter()))
+      .limit(1);
 
     const distribution = await db
       .select({
@@ -1887,10 +1904,16 @@ export function getElectricityBillDetail(billId: string): Promise<
       .from(electricityInvoices)
       .innerJoin(bookings, eq(bookings.id, electricityInvoices.bookingId))
       .innerJoin(customers, eq(customers.id, electricityInvoices.customerId))
-      .innerJoin(beds, eq(beds.id, electricityInvoices.bedId))
+      .leftJoin(beds, eq(beds.id, electricityInvoices.bedId))
       .where(eq(electricityInvoices.electricityBillId, billId));
 
-    return { bill, distribution };
+    return {
+      bill: bill ?? null,
+      distribution: distribution.map((row) => ({
+        ...row,
+        bedCode: row.bedCode ?? '—',
+      })),
+    };
   });
 }
 

@@ -289,10 +289,11 @@ export function PgElectricityBillingChecklistClient({
                         <>
                           {' · '}
                           <Link
-                            href={`/admin/electricity/bills/${room.billId}`}
+                            href={`/admin/electricity/bills/${room.billId}?month=${encodeURIComponent(billingMonth.slice(0, 7))}&pgId=${encodeURIComponent(selectedPgId)}`}
                             className="text-[#FF5A1F] hover:underline"
+                            prefetch={false}
                           >
-                            View bill
+                            View bill →
                           </Link>
                         </>
                       ) : null}

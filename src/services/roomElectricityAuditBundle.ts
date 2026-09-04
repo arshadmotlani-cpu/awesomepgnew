@@ -7,14 +7,17 @@ import { getElectricityBillDetail } from '@/src/db/queries/admin';
 import { listElectricityInvoicesForBooking, type ElectricityInvoiceRow } from '@/src/db/queries/customer';
 import { db } from '@/src/db/client';
 import { electricityBills, electricityInvoices, rooms } from '@/src/db/schema';
-import { loadElectricityBillBreakdown } from '@/src/lib/billing/buildElectricityBillBreakdown';
+import { loadStoredElectricityBillBreakdown } from '@/src/lib/billing/buildElectricityBillBreakdown';
 import {
   buildRoomElectricityAuditView,
   type RoomElectricityAuditInvoiceProjection,
   type RoomElectricityAuditView,
 } from '@/src/lib/billing/buildRoomElectricityAuditView';
 import type { ElectricityBillCalculationBreakdown } from '@/src/lib/billing/electricityBillBreakdownTypes';
-import { isProductionElectricityBillFilter } from '@/src/lib/billing/electricityProductionFilter';
+import {
+  isProductionElectricityBillFilter,
+  isProductionElectricityInvoiceFilter,
+} from '@/src/lib/billing/electricityProductionFilter';
 import {
   buildRoomElectricityOperatorView,
   mapElectricityInvoiceToHistoryRow,
@@ -49,6 +52,21 @@ export type RoomElectricityAuditDistributionRow = {
   paidAt: Date | null;
   unitsShare: number | null;
   activeDays: number | null;
+  dueDate: string | null;
+};
+
+/** Authoritative stored bill fields for the detail/audit header (never recalculated). */
+export type RoomElectricityBillSummary = {
+  roomNumber: string;
+  previousReadingUnits: number;
+  currentReadingUnits: number;
+  unitsConsumed: number;
+  ratePerUnitPaise: number;
+  totalPaise: number;
+  dueDate: string | null;
+  paymentStatus: 'Paid' | 'Pending' | 'Partially paid';
+  /** Current electricity late-fee policy is always ₹0. */
+  lateFeePaise: 0;
 };
 
 export type RoomElectricityAuditBundle = {
@@ -57,6 +75,7 @@ export type RoomElectricityAuditBundle = {
   pgId: string;
   pgName: string;
   billingMonth: string;
+  billSummary: RoomElectricityBillSummary;
   audit: RoomElectricityAuditView | null;
   operator: RoomElectricityOperatorView | null;
   breakdown: ElectricityBillCalculationBreakdown | null;
@@ -92,6 +111,9 @@ async function loadPriorOutstandingByBooking(
   if (bookingIds.length === 0) return map;
 
   const month = firstOfMonth(billingMonth);
+  // Filter on electricity_invoices.is_pipeline_test — do NOT use
+  // isProductionElectricityBillFilter() here (that column lives on electricity_bills
+  // and is not joined, which previously threw and became unexpected_error).
   const priorRows = await db
     .select()
     .from(electricityInvoices)
@@ -100,7 +122,7 @@ async function loadPriorOutstandingByBooking(
         eq(electricityInvoices.roomId, roomId),
         lt(electricityInvoices.billingMonth, month),
         inArray(electricityInvoices.bookingId, bookingIds),
-        isProductionElectricityBillFilter(),
+        isProductionElectricityInvoiceFilter(),
       ),
     );
 
@@ -112,6 +134,17 @@ async function loadPriorOutstandingByBooking(
   }
 
   return map;
+}
+
+function deriveBillPaymentStatus(
+  distribution: Array<{ status: string; amountPaise: number; paidPaise: number }>,
+): RoomElectricityBillSummary['paymentStatus'] {
+  const active = distribution.filter((d) => d.status !== 'cancelled');
+  if (active.length === 0) return 'Pending';
+  const allPaid = active.every((d) => d.status === 'paid' || d.paidPaise >= d.amountPaise);
+  if (allPaid) return 'Paid';
+  const anyPaid = active.some((d) => d.paidPaise > 0 || d.status === 'paid');
+  return anyPaid ? 'Partially paid' : 'Pending';
 }
 
 async function buildNavigation(input: {
@@ -206,6 +239,9 @@ async function loadRoomElectricityAuditBundleInner(
       pgId: electricityBills.pgId,
       previousReadingUnits: electricityBills.previousReadingUnits,
       currentReadingUnits: electricityBills.currentReadingUnits,
+      unitsConsumed: electricityBills.unitsConsumed,
+      ratePerUnitPaise: electricityBills.ratePerUnitPaise,
+      totalPaise: electricityBills.totalPaise,
       createdAt: electricityBills.createdAt,
     })
     .from(electricityBills)
@@ -223,14 +259,15 @@ async function loadRoomElectricityAuditBundleInner(
       billingMonth,
       fallbackTotalBillPaise: bill.totalPaise,
     }).catch(() => null),
-    loadElectricityBillBreakdown(billId),
+    // Stored only — never rebuild from live occupancy for the audit/detail view.
+    loadStoredElectricityBillBreakdown(billId),
   ]);
 
   if (!calculationBreakdown) {
     domainWarnings.push({
       code: 'missing_breakdown',
       message:
-        'Calculation breakdown is missing or could not be rebuilt. Invoice amounts below remain authoritative.',
+        'Detailed calculation breakdown was not stored for this historical bill. Invoice amounts below remain authoritative.',
     });
   }
   if (!ledger) {
@@ -266,9 +303,26 @@ async function loadRoomElectricityAuditBundleInner(
         paidAt: meta?.paidAt ?? row.paidAt ?? null,
         unitsShare: meta?.unitsShare != null ? Number(meta.unitsShare) : null,
         activeDays: meta?.activeDays ?? null,
+        dueDate: meta?.dueDate ?? null,
       };
     },
   );
+
+  const dueDates = distribution
+    .map((d) => d.dueDate)
+    .filter((d): d is string => Boolean(d))
+    .sort();
+  const billSummary: RoomElectricityBillSummary = {
+    roomNumber: bill.roomNumber,
+    previousReadingUnits: Number(billRow.previousReadingUnits),
+    currentReadingUnits: Number(billRow.currentReadingUnits),
+    unitsConsumed: Number(billRow.unitsConsumed),
+    ratePerUnitPaise: billRow.ratePerUnitPaise,
+    totalPaise: billRow.totalPaise,
+    dueDate: dueDates[0] ?? null,
+    paymentStatus: deriveBillPaymentStatus(distribution),
+    lateFeePaise: 0,
+  };
 
   const financialMap =
     distribution.length > 0
@@ -277,7 +331,7 @@ async function loadRoomElectricityAuditBundleInner(
             sourceTable: 'electricity_invoices' as const,
             sourceId: d.invoiceId,
           })),
-        )
+        ).catch(() => new Map<string, string>())
       : new Map<string, string>();
 
   const bookingIds = [
@@ -291,7 +345,17 @@ async function loadRoomElectricityAuditBundleInner(
     roomId,
     billingMonth,
     bookingIds,
-  );
+  ).catch((err) => {
+    console.error('[electricity] prior outstanding load failed', {
+      billId,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    domainWarnings.push({
+      code: 'prior_outstanding_unavailable',
+      message: 'Prior outstanding carry-forward could not be loaded for this view.',
+    });
+    return new Map<string, number>();
+  });
 
   const invoiceProjectionByBookingId = new Map<string, RoomElectricityAuditInvoiceProjection>();
   for (const inv of invoiceMeta) {
@@ -337,7 +401,7 @@ async function loadRoomElectricityAuditBundleInner(
     domainWarnings.push({
       code: 'incomplete_artifacts',
       message:
-        'Full room electricity audit could not be built. Showing invoice distribution only.',
+        'Full room electricity audit could not be built. Showing stored bill and invoice distribution.',
     });
   }
 
@@ -346,7 +410,7 @@ async function loadRoomElectricityAuditBundleInner(
     billingMonth,
     bookingIds,
     financialInvoiceIdByElectricityInvoiceId: financialMap,
-  });
+  }).catch(() => [] as ElectricityPaymentHistoryRow[]);
 
   const allElectricityInvoiceIds: Array<{ sourceTable: 'electricity_invoices'; sourceId: string }> =
     [];
@@ -368,7 +432,7 @@ async function loadRoomElectricityAuditBundleInner(
 
   const extendedFinMap =
     allElectricityInvoiceIds.length > 0
-      ? await resolveFinancialInvoiceIdMap(allElectricityInvoiceIds)
+      ? await resolveFinancialInvoiceIdMap(allElectricityInvoiceIds).catch(() => financialMap)
       : financialMap;
 
   const allHistoryIds = allElectricityInvoiceIds.map((x) => x.sourceId);
@@ -409,7 +473,7 @@ async function loadRoomElectricityAuditBundleInner(
       await loadElectricityPaymentHistoryForBooking({
         bookingId,
         financialInvoiceIdByElectricityInvoiceId: extendedFinMap,
-      }),
+      }).catch(() => [] as ElectricityPaymentHistoryRow[]),
     );
   }
 
@@ -426,7 +490,7 @@ async function loadRoomElectricityAuditBundleInner(
     roomId,
     pgId: billRow.pgId,
     billingMonth,
-  });
+  }).catch(() => ({ siblingBills: [], sameRoomOtherMonths: [] }));
 
   return {
     billId,
@@ -434,6 +498,7 @@ async function loadRoomElectricityAuditBundleInner(
     pgId: billRow.pgId,
     pgName: bill.pgName,
     billingMonth,
+    billSummary,
     audit,
     operator,
     breakdown: calculationBreakdown,
