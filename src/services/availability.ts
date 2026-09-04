@@ -216,7 +216,15 @@ export async function isBedAvailable(
   const rows = await fetchBedOccupancyRows({ bedId: input.bedId, asOfDate: checkIn });
   const row = rows[0];
   if (!row) return false;
-  const { isBookable } = resolveBedOccupancy(row);
+  // Room-change completion places an active transfer hold on the destination,
+  // then asks isBedAvailable(..., { skipRoomTransferHoldCheck: true }).
+  // Inventory skip alone is not enough — occupancy SSOT still sets
+  // transferHoldActive and canBookBedFromSnapshot returns false, so same-day
+  // transfers never complete. Clear the hold flag only for that internal path.
+  const facts = options?.skipRoomTransferHoldCheck
+    ? { ...row, transferHoldActive: false }
+    : row;
+  const { isBookable } = resolveBedOccupancy(facts);
   return isBookable;
 }
 

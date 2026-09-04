@@ -209,6 +209,9 @@ export async function quoteRoomChangeAction(input: {
 export type RoomChangeSubmitResult = {
   requestId: string;
   status: string;
+  /** Whether tryCompleteRoomChangeRequest succeeded after submit. */
+  completionOk: boolean;
+  completionMessage?: string;
   expiresAt: string;
   payAllHref: string | null;
   individual: Array<{ label: string; amountPaise: number; href: string | null; invoiceId: string }>;
@@ -363,14 +366,24 @@ export async function submitRoomChangeAction(input: {
   await recordSelfServiceRoomChange(inserted.id);
 
   const completion = await tryCompleteRoomChangeRequest(inserted.id);
+  if (!completion.ok) {
+    console.error('[room-change] tryComplete after submit failed', {
+      requestId: inserted.id,
+      message: completion.message,
+      transferDate,
+    });
+  }
 
   revalidatePath('/account/profile');
   revalidatePath('/account/resident');
+  revalidatePath('/account');
   return {
     ok: true,
     data: {
       requestId: inserted.id,
       status: completion.ok ? completion.status : 'submitted',
+      completionOk: completion.ok,
+      completionMessage: completion.ok ? undefined : completion.message,
       expiresAt: expiresAt.toISOString(),
       payAllHref: billing.payAllHref,
       individual: billing.individual,

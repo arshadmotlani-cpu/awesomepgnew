@@ -71,3 +71,40 @@ test('Q — PAYMENT_PENDING leftover requests can still occupy through READY_TO_
     /PAYMENT_PENDING'[\s\S]*READY_TO_TRANSFER'[\s\S]*TRANSFERRING'/,
   );
 });
+
+test('R — isBedAvailable skipRoomTransferHoldCheck clears occupancy transferHoldActive', () => {
+  const availability = read('src/services/availability.ts');
+  assert.match(availability, /skipRoomTransferHoldCheck/);
+  assert.match(availability, /transferHoldActive: false/);
+  assert.match(
+    availability,
+    /Room-change completion places an active transfer hold[\s\S]*transferHoldActive: false/,
+  );
+  // Public customers still blocked by hold via inventory path when skip is off.
+  assert.match(read('src/lib/inventoryBlocking.ts'), /bedHasActiveRoomTransferHold/);
+  assert.match(
+    read('src/lib/bedOccupancyEngine.ts'),
+    /if \(input\.transferHoldActive\) return false/,
+  );
+});
+
+test('S — same-day immediate transfer completion uses skip hold availability', () => {
+  const lifecycle = read('src/services/roomTransferLifecycle.ts');
+  assert.match(lifecycle, /skipRoomTransferHoldCheck: true/);
+  assert.match(lifecycle, /applyResidentBedTransfer/);
+  const tenancy = read('src/services/roomTransferTenancy.ts');
+  assert.match(tenancy, /skipRoomTransferHoldCheck: Boolean\(input\.roomChangeRequestId\)/);
+});
+
+test('T — submit surfaces completion failure without silently claiming completed', () => {
+  const submit = read('app/(customer)/account/resident/room-change-actions.ts');
+  assert.match(submit, /tryComplete after submit failed/);
+  assert.match(submit, /completionOk/);
+  assert.match(submit, /status: completion\.ok \? completion\.status : 'submitted'/);
+});
+
+test('U — expired requests are not revived by completion path', () => {
+  const lifecycle = read('src/services/roomTransferLifecycle.ts');
+  assert.match(lifecycle, /\['CANCELLED', 'EXPIRED', 'FAILED'\]\.includes\(row\.workflowState\)/);
+  assert.match(lifecycle, /Request is \$\{row\.workflowState\.toLowerCase\(\)\}\./);
+});
