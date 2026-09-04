@@ -56,7 +56,7 @@ describe('room change financial consistency', () => {
       futureRentSchedule: [],
     });
     assert.equal(display.grossNewBedRentPaise, 23_262);
-    assert.equal(display.netNewBedRentDuePaise, 19_101);
+    assert.equal(display.netNewBedRentDuePaise, 10_101);
     assert.ok(display.summaryLines.some((l) => l.includes('Net due')));
   });
 
@@ -118,7 +118,7 @@ describe('room change financial consistency', () => {
     }
   });
 
-  test('frozen quote deposit due unchanged at 321140', () => {
+  test('frozen quote deposit due unchanged at 321140; fee remains payable', () => {
     const waterfall = applyRoomShiftCreditWaterfall({
       oldRentDuePaise: 0,
       newRentChargePaise: 23_262,
@@ -127,6 +127,8 @@ describe('room change financial consistency', () => {
       unusedPrepaidCreditPaise: 13_161,
     });
     assert.equal(waterfall.depositDuePaise, 321_140);
+    assert.equal(waterfall.feeDuePaise, ROOM_SHIFT_FEE_PAISE);
+    assert.equal(waterfall.newRentDuePaise, 10_101);
     assert.equal(waterfall.totalDuePaise, 340_241);
   });
 });

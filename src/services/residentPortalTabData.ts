@@ -22,6 +22,7 @@ import { getDepositRefundSettlementPreview } from '@/src/lib/deposits/depositRef
 import type { ConciergeContext } from '@/src/lib/concierge/answers';
 import { loadResidentBrainSnapshot } from '@/src/lib/residents/loadResidentBrainSnapshot';
 import { buildResidentBillRowsFromDetail } from '@/src/lib/residents/residentPortalBillRows';
+import { listResidentFinancialInvoiceDueRows } from '@/src/lib/residents/residentFinancialInvoiceDueRows';
 import { buildResidentElectricityHistoryItems } from '@/src/lib/residents/residentElectricityHistoryPresentation';
 import { loadResidentElectricityBillExplanations } from '@/src/lib/residents/residentElectricityBillExplanation';
 import { billingCycleLabel, enrichBillDueRow, moveOutStatusLabel } from '@/src/lib/residents/residentPortalPresentation';
@@ -440,6 +441,10 @@ export async function loadResidentPaymentsTabData(input: {
     rejectedBillRows.push(...allBills.rejectedBillRows);
     paidBillRows.push(...allBills.paidBillRows);
     cancelledBillRows.push(...allBills.cancelledBillRows);
+
+    // Room-change / custom financial invoices (not rent_invoices / electricity_invoices).
+    const financialDue = await listResidentFinancialInvoiceDueRows(session.customerId);
+    dueBillRows.push(...financialDue);
 
     const primaryDepositCard = detail[0]
       ? await getBookingFinancialAccount({

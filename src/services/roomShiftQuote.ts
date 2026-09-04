@@ -145,7 +145,11 @@ export function settleRoomShiftRentSides(input: {
   };
 }
 
-/** Apply unused prepaid credit: fee → new rent → old rent → deposit. Surplus → wallet. */
+/**
+ * Apply unused prepaid *rent* credit to rent/deposit obligations only.
+ * Room-change fee is a separate service charge — prepaid rent credit must not
+ * extinguish it (same-room or cross-room). Surplus → wallet.
+ */
 export function applyRoomShiftCreditWaterfall(input: {
   oldRentDuePaise: number;
   newRentChargePaise: number;
@@ -170,7 +174,7 @@ export function applyRoomShiftCreditWaterfall(input: {
     return due - apply;
   };
 
-  const feeDuePaise = take(Math.max(0, input.shiftFeePaise));
+  const feeDuePaise = Math.max(0, input.shiftFeePaise);
   const newRentDuePaise = take(Math.max(0, input.newRentChargePaise));
   const oldRentDueAfterCreditPaise = take(Math.max(0, input.oldRentDuePaise));
   const depositDuePaise = take(Math.max(0, input.depositTopUpPaise));

@@ -58,8 +58,7 @@ test('existing engines remain wired after Continue', () => {
   assert.match(requestsHome, /<RoomChangeFlow/);
   assert.match(roomChangeFlow, /submitRoomChangeAction/);
   assert.doesNotMatch(roomChangeFlow, /Confirm & pay/);
-  assert.match(roomChangeFlow, /setStep\('done'\)/);
-  assert.doesNotMatch(roomChangeFlow, /setStep\('payment'\)/);
+  assert.match(roomChangeFlow, /totalDuePaise > 0 \? 'payment' : 'done'/);
   assert.match(roomChangeFlow, /Payment does not authorize the transfer/);
   assert.match(roomChangeFlow, /Confirm Change Bed/);
 });

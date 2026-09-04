@@ -82,7 +82,7 @@ describe('deposit link approval room-change (APG-2026-0021)', () => {
     );
   });
 
-  test('5 — ₹191.01 new-room rent remains payable after deposit only', () => {
+  test('5 — new-room rent remains payable after deposit only', () => {
     const waterfall = applyRoomShiftCreditWaterfall({
       oldRentDuePaise: 0,
       newRentChargePaise: 23_262,
@@ -90,7 +90,7 @@ describe('deposit link approval room-change (APG-2026-0021)', () => {
       depositTopUpPaise: 321_140,
       unusedPrepaidCreditPaise: 13_161,
     });
-    assert.equal(waterfall.newRentDuePaise, 19_101);
+    assert.equal(waterfall.newRentDuePaise, 10_101);
 
     const afterDepositPaid = [
       { sourceTable: ROOM_CHANGE_INVOICE_SOURCE.deposit, status: 'paid', amountPaise: 321_140 },
@@ -98,6 +98,11 @@ describe('deposit link approval room-change (APG-2026-0021)', () => {
         sourceTable: ROOM_CHANGE_INVOICE_SOURCE.newRent,
         status: 'sent',
         amountPaise: waterfall.newRentDuePaise,
+      },
+      {
+        sourceTable: ROOM_CHANGE_INVOICE_SOURCE.fee,
+        status: 'sent',
+        amountPaise: waterfall.feeDuePaise,
       },
     ];
     assert.equal(roomChangeChargesSettledFromRows(afterDepositPaid), false);
@@ -112,7 +117,7 @@ describe('deposit link approval room-change (APG-2026-0021)', () => {
     assert.match(reconcile, /reconcileRentInvoicesAfterRoomTransfer/);
   });
 
-  test('7 — frozen Aug 31 quote amounts unchanged', () => {
+  test('7 — frozen Aug 31 quote total unchanged; fee remains payable', () => {
     const waterfall = applyRoomShiftCreditWaterfall({
       oldRentDuePaise: 0,
       newRentChargePaise: 23_262,
@@ -120,9 +125,9 @@ describe('deposit link approval room-change (APG-2026-0021)', () => {
       depositTopUpPaise: 321_140,
       unusedPrepaidCreditPaise: 13_161,
     });
-    assert.equal(waterfall.newRentDuePaise, 19_101);
+    assert.equal(waterfall.newRentDuePaise, 10_101);
     assert.equal(waterfall.depositDuePaise, 321_140);
-    assert.equal(waterfall.feeDuePaise, 0);
+    assert.equal(waterfall.feeDuePaise, ROOM_SHIFT_FEE_PAISE);
     assert.equal(waterfall.totalDuePaise, 340_241);
     assert.equal(depositLinkLedgerReason(LINK_ID), `deposit-link:${LINK_ID}`);
   });

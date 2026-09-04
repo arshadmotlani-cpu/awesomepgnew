@@ -45,7 +45,7 @@ test('settleRoomShiftRentSides — paid month credits unused prepaid remainder',
   );
 });
 
-test('applyRoomShiftCreditWaterfall — credit covers fee before rent', () => {
+test('applyRoomShiftCreditWaterfall — prepaid rent credit does not cover room-change fee', () => {
   const waterfall = applyRoomShiftCreditWaterfall({
     oldRentDuePaise: 5_000,
     newRentChargePaise: 10_000,
@@ -53,14 +53,29 @@ test('applyRoomShiftCreditWaterfall — credit covers fee before rent', () => {
     depositTopUpPaise: 0,
     unusedPrepaidCreditPaise: 12_000,
   });
-  assert.equal(waterfall.feeDuePaise, 0);
-  assert.equal(waterfall.newRentDuePaise, 7_000);
-  assert.equal(waterfall.oldRentDueAfterCreditPaise, 5_000);
+  assert.equal(waterfall.feeDuePaise, ROOM_SHIFT_FEE_PAISE);
+  assert.equal(waterfall.newRentDuePaise, 0);
+  assert.equal(waterfall.oldRentDueAfterCreditPaise, 3_000);
   assert.equal(waterfall.creditAppliedPaise, 12_000);
-  assert.equal(waterfall.totalDuePaise, 12_000);
+  assert.equal(waterfall.totalDuePaise, ROOM_SHIFT_FEE_PAISE + 3_000);
 });
 
-test('applyRoomShiftCreditWaterfall — surplus goes to wallet', () => {
+test('applyRoomShiftCreditWaterfall — same-room equal rent leaves fee payable', () => {
+  const remainder = 370_872;
+  const waterfall = applyRoomShiftCreditWaterfall({
+    oldRentDuePaise: 0,
+    newRentChargePaise: remainder,
+    shiftFeePaise: ROOM_SHIFT_FEE_PAISE,
+    depositTopUpPaise: 0,
+    unusedPrepaidCreditPaise: remainder,
+  });
+  assert.equal(waterfall.feeDuePaise, ROOM_SHIFT_FEE_PAISE);
+  assert.equal(waterfall.newRentDuePaise, 0);
+  assert.equal(waterfall.totalDuePaise, ROOM_SHIFT_FEE_PAISE);
+  assert.equal(waterfall.walletSurplusPaise, 0);
+});
+
+test('applyRoomShiftCreditWaterfall — surplus goes to wallet after rent/deposit', () => {
   const waterfall = applyRoomShiftCreditWaterfall({
     oldRentDuePaise: 0,
     newRentChargePaise: 5_000,
@@ -68,8 +83,10 @@ test('applyRoomShiftCreditWaterfall — surplus goes to wallet', () => {
     depositTopUpPaise: 0,
     unusedPrepaidCreditPaise: 20_000,
   });
-  assert.equal(waterfall.totalDuePaise, 0);
-  assert.equal(waterfall.walletSurplusPaise, 6_000);
+  assert.equal(waterfall.feeDuePaise, ROOM_SHIFT_FEE_PAISE);
+  assert.equal(waterfall.newRentDuePaise, 0);
+  assert.equal(waterfall.totalDuePaise, ROOM_SHIFT_FEE_PAISE);
+  assert.equal(waterfall.walletSurplusPaise, 15_000);
 });
 
 test('roomChangeChargesSettledFromRows — pay-all paid satisfies all charges', () => {

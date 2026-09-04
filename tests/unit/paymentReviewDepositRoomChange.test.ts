@@ -79,7 +79,7 @@ describe('payment review deposit + room-change', () => {
     assert.equal(v.depositRequiredPaise, 321_140);
   });
 
-  test('3-sharing → 1-sharing waterfall matches APG-2026-0021 quote', () => {
+  test('3-sharing → 1-sharing waterfall matches APG-2026-0021 total with fee payable', () => {
     const waterfall = applyRoomShiftCreditWaterfall({
       oldRentDuePaise: 0,
       newRentChargePaise: 23_262,
@@ -87,8 +87,8 @@ describe('payment review deposit + room-change', () => {
       depositTopUpPaise: 321_140,
       unusedPrepaidCreditPaise: 13_161,
     });
-    assert.equal(waterfall.feeDuePaise, 0);
-    assert.equal(waterfall.newRentDuePaise, 19_101);
+    assert.equal(waterfall.feeDuePaise, ROOM_SHIFT_FEE_PAISE);
+    assert.equal(waterfall.newRentDuePaise, 10_101);
     assert.equal(waterfall.depositDuePaise, 321_140);
     assert.equal(waterfall.totalDuePaise, 340_241);
   });

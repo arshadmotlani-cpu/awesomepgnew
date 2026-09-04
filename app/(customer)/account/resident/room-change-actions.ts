@@ -376,6 +376,7 @@ export async function submitRoomChangeAction(input: {
 
   revalidatePath('/account/profile');
   revalidatePath('/account/resident');
+  revalidatePath('/account/resident/payments');
   revalidatePath('/account');
   return {
     ok: true,

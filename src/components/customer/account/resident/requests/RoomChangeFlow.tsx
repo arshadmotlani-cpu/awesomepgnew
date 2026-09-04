@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { paiseToInr } from '@/src/lib/format';
 import { primaryBtn, secondaryBtn } from '@/src/lib/design-system/tokens';
+import { residentPaymentsHref } from '@/src/lib/accountNavigation';
 import type { RoomShiftQuoteSnapshot } from '@/src/services/roomShiftQuote';
 import type {
   RoomChangeBedOption,
@@ -167,7 +168,8 @@ export function RoomChangeFlow({
         return;
       }
       setSubmitResult(res.data);
-      setStep('done');
+      // Occupancy may already be complete; unpaid Change Bed charges still need a pay surface.
+      setStep(res.data.totalDuePaise > 0 ? 'payment' : 'done');
       router.refresh();
     });
   }
@@ -205,24 +207,38 @@ export function RoomChangeFlow({
   }
 
   if (step === 'payment' && submitResult) {
+    const transferDone = submitResult.status === 'completed';
     return (
       <div className="space-y-4 pb-2">
         <ApgCard tier="resident">
-          <h2 className="text-lg font-semibold text-white">Complete payment</h2>
+          <h2 className="text-lg font-semibold text-white">
+            {transferDone ? 'Change Bed complete — pay remaining charges' : 'Complete payment'}
+          </h2>
           <p className="mt-1 text-sm text-apg-silver">
-            Pay remaining charges on Payments. Payment does not authorize the transfer — your bed is already secured.
+            {transferDone
+              ? 'Your bed transfer is already done. Unpaid Change Bed charges stay on Payments → Bills Due.'
+              : 'Pay remaining charges on Payments. Payment does not authorize the transfer — your bed is already secured.'}
           </p>
-          <p className="mt-2 text-sm font-medium text-amber-200" aria-live="polite">
-            Target bed reserved for {remainingHours}h {remainingMinutes}m {remainingSeconds}s
-          </p>
+          {!transferDone && submitResult.expiresAt ? (
+            <p className="mt-2 text-sm font-medium text-amber-200" aria-live="polite">
+              Target bed reserved for {remainingHours}h {remainingMinutes}m {remainingSeconds}s
+            </p>
+          ) : null}
           <p className="mt-3 text-lg font-bold text-apg-orange">
             Total due: {paiseToInr(submitResult.totalDuePaise)}
           </p>
           {submitResult.payAllHref ? (
             <Link href={submitResult.payAllHref} className={`${primaryBtn} mt-4 block w-full text-center`}>
-              Pay all charges
+              Pay {paiseToInr(submitResult.totalDuePaise)}
             </Link>
-          ) : null}
+          ) : (
+            <Link
+              href={residentPaymentsHref('due')}
+              className={`${primaryBtn} mt-4 block w-full text-center`}
+            >
+              Open Bills Due
+            </Link>
+          )}
           {submitResult.individual.length > 0 ? (
             <ul className="mt-4 space-y-2">
               {submitResult.individual.map((item) => (
@@ -240,14 +256,20 @@ export function RoomChangeFlow({
             </ul>
           ) : null}
         </ApgCard>
-        <button
-          type="button"
-          onClick={cancelSubmittedRequest}
-          disabled={pending}
-          className={`${secondaryBtn} w-full`}
-        >
-          Cancel Change Bed
-        </button>
+        {!transferDone ? (
+          <button
+            type="button"
+            onClick={cancelSubmittedRequest}
+            disabled={pending}
+            className={`${secondaryBtn} w-full`}
+          >
+            Cancel Change Bed
+          </button>
+        ) : (
+          <button type="button" onClick={onClose} className={`${secondaryBtn} w-full`}>
+            Done
+          </button>
+        )}
       </div>
     );
   }

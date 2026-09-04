@@ -5,7 +5,7 @@
  * from this module. Do not duplicate outstanding/required/paid math elsewhere.
  */
 
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { fetchElectricityInvoicesByBookingId } from '@/src/lib/db/electricityInvoiceSelect';
 import { db } from '@/src/db/client';
 import {
@@ -410,15 +410,21 @@ async function buildOtherCategory(
     .where(
       and(
         eq(financialInvoices.customerId, customerId),
-        inArray(financialInvoices.invoiceType, [
-          'custom',
-          'penalty',
-          'damage',
-          'ps4',
-          'room_shift',
-        ]),
         eq(financialInvoices.isDocumentOnly, false),
         inArray(financialInvoices.status, ['draft', 'sent', 'overdue', 'partial']),
+        or(
+          inArray(financialInvoices.invoiceType, [
+            'custom',
+            'penalty',
+            'damage',
+            'ps4',
+            'room_shift',
+          ]),
+          and(
+            eq(financialInvoices.invoiceType, 'deposit'),
+            eq(financialInvoices.sourceTable, 'room_change_deposit'),
+          ),
+        ),
       ),
     );
 
