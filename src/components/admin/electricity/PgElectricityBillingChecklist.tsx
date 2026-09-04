@@ -282,9 +282,46 @@ export function PgElectricityBillingChecklistClient({
                   </div>
 
                   {room.status === 'already_billed' ? (
+                    <div className="mt-3 grid gap-3 sm:grid-cols-4">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-apg-silver">
+                          Previous reading
+                        </p>
+                        <p className="mt-0.5 text-sm font-medium text-white">
+                          {room.previousReadingUnits?.toLocaleString('en-IN') ?? '—'} units
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-apg-silver">
+                          Current reading
+                        </p>
+                        <p className="mt-0.5 text-sm font-medium text-white">
+                          {room.currentReadingUnits?.toLocaleString('en-IN') ?? '—'} units
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-apg-silver">Units</p>
+                        <p className="mt-0.5 text-sm text-white">
+                          {room.unitsConsumed?.toLocaleString('en-IN') ?? '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-apg-silver">
+                          Room total
+                        </p>
+                        <p className="mt-0.5 text-sm font-medium text-emerald-200">
+                          {room.billTotalPaise != null ? paiseToInr(room.billTotalPaise) : '—'}
+                          {room.ratePerUnitPaise
+                            ? ` · ${paiseToInr(room.ratePerUnitPaise)}/unit`
+                            : ''}
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {room.status === 'already_billed' && room.billId ? (
                     <p className="mt-2 text-xs text-emerald-200">
-                      ✓ Billed
-                      {room.billTotalPaise != null ? ` · ${paiseToInr(room.billTotalPaise)}` : ''}
+                      ✓ Already billed
                       {room.billId ? (
                         <>
                           {' · '}

@@ -269,9 +269,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-09-04 10:20:58 UTC
+### Pending pre-commit sync · 2026-09-04 12:15:19 UTC
 
-**Areas touched:** [[ROUTES]], [[Residents]], [[Billing]]
+**Areas touched:** [[ROUTES]], [[Billing]], [[Electricity]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
@@ -281,10 +281,14 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (3):**
-- `app/(customer)/account/resident/room-change-actions.ts`
-- `src/lib/residents/residentFinancialInvoiceDueRows.ts`
-- `src/services/residentFinancialEngine.ts`
+**Staged code files (7):**
+- `app/(admin)/admin/billing/page.tsx`
+- `src/lib/billing/electricityBillMissingInvoiceRepairPlan.ts`
+- `src/lib/billing/electricityReadingsWithoutBills.ts`
+- `src/lib/billing/fleetElectricityBillingStatus.ts`
+- `src/lib/billing/pgElectricityBillingChecklist.ts`
+- `src/lib/billing/roomElectricityPendingAdmin.ts`
+- `src/services/electricityBilling.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

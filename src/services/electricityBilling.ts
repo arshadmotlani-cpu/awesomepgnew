@@ -1220,48 +1220,15 @@ export type RoomMissingElectricityRow = {
 export async function listRoomsMissingElectricityBill(
   billingMonth: DateLike,
 ): Promise<RoomMissingElectricityRow[]> {
-  const month = firstOfMonth(billingMonth);
-  const { start: monthStart, end: monthEnd } = monthBounds(month);
-  const monthStartIso = formatDate(monthStart);
-  const monthEndIso = formatDate(monthEnd);
-
-  const rows = await db.execute<{
-    room_id: string;
-    room_number: string;
-    pg_id: string;
-    pg_name: string;
-  }>(sql`
-    SELECT DISTINCT
-      r.id::text AS room_id,
-      r.room_number,
-      p.id::text AS pg_id,
-      p.name AS pg_name
-    FROM rooms r
-    INNER JOIN floors f ON f.id = r.floor_id
-    INNER JOIN pgs p ON p.id = f.pg_id
-    INNER JOIN beds bd ON bd.room_id = r.id AND bd.archived_at IS NULL AND bd.status != 'maintenance'
-    INNER JOIN bed_reservations br ON br.bed_id = bd.id
-    INNER JOIN bookings b ON b.id = br.booking_id
-    INNER JOIN room_types rt ON rt.id = r.room_type_id
-    WHERE r.archived_at IS NULL
-      AND p.archived_at IS NULL
-      AND rt.has_ac = true
-      AND br.status = 'active'
-      AND b.status = 'confirmed'
-      AND b.duration_mode IN ('monthly', 'open_ended')
-      AND br.stay_range && daterange(${monthStartIso}::date, ${monthEndIso}::date, '[)')
-      AND NOT EXISTS (
-        SELECT 1 FROM electricity_bills eb
-        WHERE eb.room_id = r.id AND eb.billing_month = ${month}::date
-      )
-    ORDER BY p.name, r.room_number
-  `);
-
+  const { listFleetRoomsMissingElectricityBill } = await import(
+    '@/src/lib/billing/fleetElectricityBillingStatus'
+  );
+  const rows = await listFleetRoomsMissingElectricityBill(firstOfMonth(billingMonth));
   return rows.map((row) => ({
-    roomId: row.room_id,
-    roomNumber: row.room_number,
-    pgId: row.pg_id,
-    pgName: row.pg_name,
+    roomId: row.roomId,
+    roomNumber: row.roomNumber,
+    pgId: row.pgId,
+    pgName: row.pgName,
   }));
 }
 

@@ -194,6 +194,7 @@ async function main() {
     checkoutCollectedByCustomerId: new Map(),
     useProRata: true,
     activeBedCount: await countActiveBedsInRoom(room.roomId),
+    billingDays: occupantLoad.billingDays,
   });
   console.log('  Allocation preview:');
   for (const line of preview.invoices.filter((i) => i.amountPaise > 0)) {

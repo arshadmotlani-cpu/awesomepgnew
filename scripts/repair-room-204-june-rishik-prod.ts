@@ -421,6 +421,7 @@ async function verifySurfaces(
     checkoutCollectedByCustomerId: new Map(),
     useProRata: true,
     activeBedCount: await countActiveBedsInRoom(ROOM_ID),
+    billingDays: occupantLoad.billingDays,
   });
 
   console.log('\n=== FINAL RECONCILIATION ===');

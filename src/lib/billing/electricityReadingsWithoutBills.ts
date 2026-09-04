@@ -82,7 +82,7 @@ export async function runElectricityReadingsWithoutBillsAudit(opts: {
           SELECT 1
           FROM beds bd
           JOIN bed_reservations br ON br.bed_id = bd.id
-            AND br.status = 'active' AND br.kind = 'primary'
+            AND br.status IN ('active', 'completed') AND br.kind = 'primary'
             AND br.stay_range && daterange(
               ${billingMonth}::date,
               (${billingMonth}::date + interval '1 month')::date,
@@ -213,7 +213,7 @@ export async function runElectricityReadingsWithoutBillsAudit(opts: {
           SELECT 1
           FROM beds bd
           JOIN bed_reservations br ON br.bed_id = bd.id
-            AND br.status = 'active' AND br.kind = 'primary'
+            AND br.status IN ('active', 'completed') AND br.kind = 'primary'
             AND br.stay_range && daterange(
               ${billingMonth}::date,
               (${billingMonth}::date + interval '1 month')::date,

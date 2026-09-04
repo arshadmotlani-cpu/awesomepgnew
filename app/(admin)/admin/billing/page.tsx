@@ -69,6 +69,7 @@ import {
 import { loadBillingCentreDashboardSnapshot } from '@/src/services/billingCentreDashboard';
 import { listRentBillingOverview, listBillingCycleOperations, type BillingCycleOperationRow } from '@/src/services/rentInvoices';
 import { listRoomsMissingElectricityBill } from '@/src/services/electricityBilling';
+import { loadFleetElectricityBillingSummary } from '@/src/lib/billing/fleetElectricityBillingStatus';
 import type { AdminRentInvoiceRow } from '@/src/db/queries/admin';
 
 export const dynamic = 'force-dynamic';
@@ -163,6 +164,7 @@ export default async function CollectionsModulePage({
     pgs,
     billingOverview,
     roomsMissingElectricity,
+    fleetElectricitySummary,
     billingHealth,
     billingSnapshot,
     rentPaid,
@@ -180,6 +182,7 @@ export default async function CollectionsModulePage({
     listPgs(),
     listRentBillingOverview(billingMonth),
     listRoomsMissingElectricityBill(billingMonth),
+    loadFleetElectricityBillingSummary(billingMonth),
     getBillingHealthSnapshot(),
     loadBillingCommandCenterSnapshot(session, billingMonth, { reconcile: false }),
     needsPaidData
@@ -252,11 +255,14 @@ export default async function CollectionsModulePage({
         : needsBillCount > 0
           ? 'Ready'
           : 'Needs attention';
-  const electricityWaitingMeters = roomsMissingElectricity.length;
+  const electricityWaitingMeters = fleetElectricitySummary.needMeterReading;
+  const electricityNeedingBills = fleetElectricitySummary.needBill;
   const electricityStatusLabel =
     electricityWaitingMeters > 0
       ? `${electricityWaitingMeters} waiting for meter readings`
-      : 'Ready for generation';
+      : electricityNeedingBills > 0
+        ? `${electricityNeedingBills} rooms need bills`
+        : 'Ready for generation';
   const monthLabel = new Date(`${billingMonth.slice(0, 7)}-01T00:00:00Z`).toLocaleString('en-IN', {
     month: 'long',
     year: 'numeric',
@@ -302,7 +308,7 @@ export default async function CollectionsModulePage({
           },
           electricity: {
             statusLabel: electricityStatusLabel,
-            roomsNeedingBillCount: electricityWaitingMeters,
+            roomsNeedingBillCount: electricityNeedingBills,
             roomsWaitingMeterCount: electricityWaitingMeters,
           },
         }}

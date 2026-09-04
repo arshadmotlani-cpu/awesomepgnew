@@ -6,10 +6,10 @@ import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { beds, electricityBills, floors, pgs, roomTypes, rooms } from '@/src/db/schema';
 import { DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE } from '@/src/lib/billing/constants';
-import { firstOfMonth, monthBounds } from '@/src/services/billing';
-import { formatDate } from '@/src/lib/dates';
+import { firstOfMonth } from '@/src/services/billing';
 import { resolveOfficialPreviousReading } from '@/src/services/meterTimelineService';
 import type { RoomPreviousMeterSource } from '@/src/lib/billing/roomMeterReadingSsot';
+import { loadRoomElectricityOccupantsForMonth } from '@/src/lib/billing/roomElectricityOccupants';
 
 export type PgElectricityRoomStatus =
   | 'already_billed'
@@ -26,6 +26,8 @@ export type PgElectricityChecklistRoom = {
   previousReadingUnits: number | null;
   previousReadingSource: RoomPreviousMeterSource | null;
   previousBillingMonthLabel: string | null;
+  currentReadingUnits: number | null;
+  unitsConsumed: number | null;
   ratePerUnitPaise: number;
   billId: string | null;
   billTotalPaise: number | null;
@@ -89,9 +91,6 @@ export async function loadPgElectricityBillingChecklist(input: {
   billingMonth: string;
 }): Promise<PgElectricityBillingChecklist | null> {
   const billingMonth = firstOfMonth(input.billingMonth);
-  const { start: monthStart, end: monthEnd } = monthBounds(billingMonth);
-  const monthStartIso = formatDate(monthStart);
-  const monthEndIso = formatDate(monthEnd);
 
   const [pg] = await db
     .select({ id: pgs.id, name: pgs.name })
@@ -141,6 +140,10 @@ export async function loadPgElectricityBillingChecklist(input: {
       .select({
         id: electricityBills.id,
         totalPaise: electricityBills.totalPaise,
+        previousReadingUnits: electricityBills.previousReadingUnits,
+        currentReadingUnits: electricityBills.currentReadingUnits,
+        unitsConsumed: electricityBills.unitsConsumed,
+        ratePerUnitPaise: electricityBills.ratePerUnitPaise,
       })
       .from(electricityBills)
       .where(
@@ -157,10 +160,12 @@ export async function loadPgElectricityBillingChecklist(input: {
         roomId: room.roomId,
         roomNumber: room.roomNumber,
         status: 'already_billed',
-        previousReadingUnits: null,
-        previousReadingSource: null,
-        previousBillingMonthLabel: null,
-        ratePerUnitPaise: DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE,
+        previousReadingUnits: Number(existingBill.previousReadingUnits),
+        previousReadingSource: 'last_monthly_bill',
+        previousBillingMonthLabel: monthLabel(billingMonth),
+        currentReadingUnits: Number(existingBill.currentReadingUnits),
+        unitsConsumed: Number(existingBill.unitsConsumed),
+        ratePerUnitPaise: existingBill.ratePerUnitPaise,
         billId: existingBill.id,
         billTotalPaise: existingBill.totalPaise,
         activeBedCount,
@@ -179,6 +184,8 @@ export async function loadPgElectricityBillingChecklist(input: {
         previousReadingUnits: null,
         previousReadingSource: null,
         previousBillingMonthLabel: null,
+        currentReadingUnits: null,
+        unitsConsumed: null,
         ratePerUnitPaise: DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE,
         billId: null,
         billTotalPaise: null,
@@ -189,20 +196,13 @@ export async function loadPgElectricityBillingChecklist(input: {
       continue;
     }
 
-    const occupants = await db.execute<{ count: number }>(sql`
-      SELECT count(DISTINCT b.id)::int AS count
-      FROM bed_reservations br
-      INNER JOIN beds bd ON bd.id = br.bed_id
-      INNER JOIN bookings b ON b.id = br.booking_id
-      WHERE bd.room_id = ${room.roomId}::uuid
-        AND bd.archived_at IS NULL
-        AND bd.status != 'maintenance'
-        AND br.status = 'active'
-        AND b.status = 'confirmed'
-        AND b.duration_mode IN ('monthly', 'open_ended')
-        AND br.stay_range && daterange(${monthStartIso}::date, ${monthEndIso}::date, '[)')
-    `);
-    const billableOccupantCount = Number(occupants[0]?.count ?? 0);
+    const occupantLoad = await loadRoomElectricityOccupantsForMonth({
+      roomId: room.roomId,
+      billingMonth,
+      includeFixedStay: true,
+      useProRataByActiveDays: true,
+    });
+    const billableOccupantCount = occupantLoad.occupants.length;
 
     if (billableOccupantCount === 0) {
       checklistRooms.push({
@@ -212,6 +212,8 @@ export async function loadPgElectricityBillingChecklist(input: {
         previousReadingUnits: null,
         previousReadingSource: null,
         previousBillingMonthLabel: null,
+        currentReadingUnits: null,
+        unitsConsumed: null,
         ratePerUnitPaise: DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE,
         billId: null,
         billTotalPaise: null,
@@ -231,6 +233,8 @@ export async function loadPgElectricityBillingChecklist(input: {
         previousReadingUnits: null,
         previousReadingSource: 'none',
         previousBillingMonthLabel: null,
+        currentReadingUnits: null,
+        unitsConsumed: null,
         ratePerUnitPaise: baseline.ratePerUnitPaise,
         billId: null,
         billTotalPaise: null,
@@ -248,6 +252,8 @@ export async function loadPgElectricityBillingChecklist(input: {
       previousReadingUnits: baseline.previousReadingUnits,
       previousReadingSource: baseline.source,
       previousBillingMonthLabel: billingMonthLabel(baseline.lastBillingMonth),
+      currentReadingUnits: null,
+      unitsConsumed: null,
       ratePerUnitPaise: baseline.ratePerUnitPaise,
       billId: null,
       billTotalPaise: null,
