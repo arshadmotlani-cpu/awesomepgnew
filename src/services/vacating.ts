@@ -235,7 +235,13 @@ function monthlyRentFromBooking(snapshot: PricingSnapshot | null): number {
   return snapshot.perBed.reduce((acc, b) => acc + (b.monthlyRatePaise ?? 0), 0);
 }
 
-/** Shorten active reservations — final stay day inclusive; bed released next day 11 AM. */
+/**
+ * Shorten reservations — final stay day inclusive; bed released next calendar day.
+ *
+ * Open-ended stays store `upper(stay_range) IS NULL`. PostgreSQL treats
+ * `NULL > date` as unknown, so a strict `>` predicate never closes them.
+ * Use `IS DISTINCT FROM` so NULL and later finite uppers both shorten.
+ */
 async function shortenBookingReservationsToDate(bookingId: string, finalStayDate: string) {
   const stayRangeEndExclusive = stayRangeExclusiveEnd(finalStayDate);
   await db.transaction(async (tx) => {
@@ -245,8 +251,9 @@ async function shortenBookingReservationsToDate(bookingId: string, finalStayDate
         stay_range = daterange(lower(stay_range), ${stayRangeEndExclusive}::date, '[)'),
         updated_at = now()
       WHERE booking_id = ${bookingId}
-        AND status IN ('hold', 'active')
-        AND upper(stay_range) > ${stayRangeEndExclusive}::date
+        AND status IN ('hold', 'active', 'completed')
+        AND upper(stay_range) IS DISTINCT FROM ${stayRangeEndExclusive}::date
+        AND (upper(stay_range) IS NULL OR upper(stay_range) > ${stayRangeEndExclusive}::date)
     `);
 
     await tx

@@ -252,8 +252,9 @@ export async function expireFixedStayBooking(bookingId: string): Promise<ExpireF
       stay_range = daterange(lower(stay_range), ${checkoutIso}::date, '[)'),
       updated_at = now()
     WHERE booking_id = ${booking.id}
-      AND status IN ('hold', 'active')
-      AND upper(stay_range) > ${checkoutIso}::date
+      AND status IN ('hold', 'active', 'completed')
+      AND upper(stay_range) IS DISTINCT FROM ${checkoutIso}::date
+      AND (upper(stay_range) IS NULL OR upper(stay_range) > ${checkoutIso}::date)
   `);
 
   await db

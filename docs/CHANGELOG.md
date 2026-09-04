@@ -269,11 +269,12 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-09-04 13:49:14 UTC
+### Pending pre-commit sync · 2026-09-04 14:27:16 UTC
 
-**Areas touched:** [[Bed Assignment]], [[Residents]]
+**Areas touched:** [[Billing]], [[Vacating]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
 - `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
@@ -281,10 +282,10 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
 **Staged code files (4):**
-- `src/lib/residentBedAssignment.ts`
-- `src/lib/residents/residentLifecycleBadge.tsx`
-- `src/services/residentAdmin.ts`
-- `src/services/residentOperationsDashboard.ts`
+- `src/lib/billing/electricityBillAllocationReconcilePlan.ts`
+- `src/lib/billing/resolveElectricityStayEndExclusive.ts`
+- `src/lib/billing/roomElectricityOccupants.ts`
+- `src/services/vacating.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

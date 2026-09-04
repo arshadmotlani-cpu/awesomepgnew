@@ -24,6 +24,7 @@ import {
   totalRoomResidentDays,
   type RoomElectricityCoverageInterval,
 } from '@/src/lib/billing/roomElectricityOccupancyCoverage';
+import { resolveElectricityStayEndExclusive } from '@/src/lib/billing/resolveElectricityStayEndExclusive';
 import { diffDays, formatDate, tryParseDateBound } from '@/src/lib/dates';
 import { paiseToInr } from '@/src/lib/format';
 import { monthBounds } from '@/src/services/billing';
@@ -153,12 +154,23 @@ export async function loadRoomElectricityOccupantsForMonth(input: {
       residencyStatus: customers.residencyStatus,
       bookingCode: bookings.bookingCode,
       bookingStatus: bookings.status,
+      expectedCheckoutDate: bookings.expectedCheckoutDate,
       bedId: beds.id,
       bedCode: beds.bedCode,
       reservationId: bedReservations.id,
       reservationStatus: bedReservations.status,
       lower: sql<string>`lower(${bedReservations.stayRange})::text`,
       upper: sql<string>`upper(${bedReservations.stayRange})::text`,
+      vacatingDate: sql<string | null>`(
+        SELECT vr.vacating_date::text
+        FROM vacating_requests vr
+        WHERE vr.booking_id = bed_reservations.booking_id
+          AND vr.status IN ('approved', 'completed')
+        ORDER BY
+          CASE vr.status WHEN 'completed' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,
+          vr.vacating_date DESC NULLS LAST
+        LIMIT 1
+      )`,
     })
     .from(bedReservations)
     .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
@@ -221,6 +233,28 @@ export async function loadRoomElectricityOccupantsForMonth(input: {
       });
       continue;
     }
+    const endDateExclusive = resolveElectricityStayEndExclusive({
+      stayRangeUpper: row.upper,
+      vacatingDate: row.vacatingDate,
+      expectedCheckoutDate: row.expectedCheckoutDate
+        ? tryParseDateBound(String(row.expectedCheckoutDate).slice(0, 10))
+        : null,
+      reservationStatus: row.reservationStatus,
+      bookingStatus: row.bookingStatus,
+    });
+    // Vacating clamp may remove all overlap with the billing month even when the
+    // raw open-ended stay_range still intersects the month window.
+    if (endDateExclusive) {
+      const end = tryParseDateBound(endDateExclusive);
+      if (end && end <= monthStartIso) {
+        exclusionTraces.push({
+          customerId: row.customerId,
+          bookingId: row.bookingId,
+          reason: 'no_month_overlap',
+        });
+        continue;
+      }
+    }
     eligibleSegments.push({
       roomId: input.roomId,
       bookingId: row.bookingId,
@@ -228,7 +262,7 @@ export async function loadRoomElectricityOccupantsForMonth(input: {
       customerName: row.customerName,
       bedId: row.bedId,
       startDate,
-      endDateExclusive: tryParseDateBound(row.upper),
+      endDateExclusive,
     });
   }
 
