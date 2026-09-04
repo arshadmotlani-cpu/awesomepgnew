@@ -6,6 +6,7 @@ import { and, eq, inArray, or } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { financialInvoices } from '@/src/db/schema';
 import { invoiceDetailHref } from '@/src/lib/billing/invoiceRoutes';
+import { isResidentPortalPayAllSource } from '@/src/lib/residents/residentPayableNowProjection';
 import { ROOM_CHANGE_INVOICE_SOURCE } from '@/src/services/roomShiftQuote';
 import type { PaymentDueRow } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
 import { titleCase } from '@/src/lib/format';
@@ -54,6 +55,7 @@ export function mapFinancialInvoiceToDueRow(input: {
   paymentLinkId: string | null;
 }): PaymentDueRow | null {
   if (isRoomChangePayAllSource(input.sourceTable)) return null;
+  if (isResidentPortalPayAllSource(input.sourceTable)) return null;
   const outstanding = Math.max(0, input.amountPaise - input.paidPaise);
   if (outstanding <= 0) return null;
 
@@ -124,6 +126,7 @@ export async function listResidentFinancialInvoiceDueRows(
   const due: PaymentDueRow[] = [];
   for (const row of rows) {
     if (isRoomChangePayAllSource(row.sourceTable)) continue;
+    if (isResidentPortalPayAllSource(row.sourceTable)) continue;
     const paidPaise =
       row.breakdown?.paidPaise ?? (row.status === 'paid' ? row.amountPaise : 0);
     const mapped = mapFinancialInvoiceToDueRow({

@@ -23,6 +23,12 @@ import type { ConciergeContext } from '@/src/lib/concierge/answers';
 import { loadResidentBrainSnapshot } from '@/src/lib/residents/loadResidentBrainSnapshot';
 import { buildResidentBillRowsFromDetail } from '@/src/lib/residents/residentPortalBillRows';
 import { listResidentFinancialInvoiceDueRows } from '@/src/lib/residents/residentFinancialInvoiceDueRows';
+import {
+  buildResidentPayableNowRows,
+  computeResidentPayableNowTotalPaise,
+  resolveResidentPayAllPresentation,
+} from '@/src/lib/residents/residentPayableNowProjection';
+import { ensureResidentPayAllPaymentHref } from '@/src/services/residentPayAllPayment';
 import { buildResidentElectricityHistoryItems } from '@/src/lib/residents/residentElectricityHistoryPresentation';
 import { loadResidentElectricityBillExplanations } from '@/src/lib/residents/residentElectricityBillExplanation';
 import { billingCycleLabel, enrichBillDueRow, moveOutStatusLabel } from '@/src/lib/residents/residentPortalPresentation';
@@ -579,6 +585,30 @@ export async function loadResidentPaymentsTabData(input: {
     otherPaidPaise: financialAccount?.other.paidPaise ?? 0,
   };
 
+  const payableNowRows = buildResidentPayableNowRows({
+    dueRows: dueBillRows,
+    rejectedRows: rejectedBillRows,
+    bookingId: primaryBooking?.bookingId ?? null,
+  });
+  const payableNowTotalPaise = computeResidentPayableNowTotalPaise(payableNowRows);
+  const payAllDraft = resolveResidentPayAllPresentation(payableNowRows);
+  let payAllHref = payAllDraft.href;
+  if (
+    payAllDraft.needsAggregateLink &&
+    primaryBooking &&
+    payableNowRows.length > 1
+  ) {
+    payAllHref = await ensureResidentPayAllPaymentHref({
+      customerId: session.customerId,
+      bookingId: primaryBooking.bookingId,
+      pgId: primaryBooking.booking.pgId,
+      pgName: primaryBooking.booking.pgName,
+      roomNumber: primaryBooking.booking.roomNumber,
+      bedCode: primaryBooking.booking.bedCode,
+      payables: payableNowRows,
+    });
+  }
+
   return {
     primaryBooking,
     enrichedDueRows,
@@ -591,6 +621,12 @@ export async function loadResidentPaymentsTabData(input: {
     electricityHistory: electricityHistoryWithExplanations,
     historyHref: walletBooking ? `/account/resident/history/${walletBooking.bookingId}` : null,
     lifetimeTotals,
+    payableNowTotalPaise,
+    payAll: {
+      visible: payAllDraft.visible && Boolean(payAllHref),
+      href: payAllHref,
+      totalPaise: payableNowTotalPaise,
+    },
   };
 }
 

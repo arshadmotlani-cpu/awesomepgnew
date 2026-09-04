@@ -269,23 +269,21 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-09-04 14:27:16 UTC
+### Pending pre-commit sync · 2026-09-04 14:58:08 UTC
 
-**Areas touched:** [[Billing]], [[Vacating]]
+**Areas touched:** [[Residents]], [[Billing]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (4):**
-- `src/lib/billing/electricityBillAllocationReconcilePlan.ts`
-- `src/lib/billing/resolveElectricityStayEndExclusive.ts`
-- `src/lib/billing/roomElectricityOccupants.ts`
-- `src/services/vacating.ts`
+**Staged code files (3):**
+- `src/lib/residents/residentFinancialInvoiceDueRows.ts`
+- `src/lib/residents/residentPayableNowProjection.ts`
+- `src/services/residentFinancialEngine.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

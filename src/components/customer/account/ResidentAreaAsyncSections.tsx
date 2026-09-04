@@ -138,6 +138,8 @@ export async function ResidentPaymentsTabSection({
       electricityHistory={data.electricityHistory}
       historyHref={data.historyHref}
       lifetimeTotals={data.lifetimeTotals}
+      payableNowTotalPaise={data.payableNowTotalPaise}
+      payAll={data.payAll}
     />
   );
 }

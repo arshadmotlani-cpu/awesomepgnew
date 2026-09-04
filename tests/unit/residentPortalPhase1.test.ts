@@ -69,7 +69,8 @@ describe('Phase 1 resident portal UI dedupe', () => {
     );
     assert.match(src, /showCancelled/);
     assert.match(src, /Show cancelled invoices/);
-    assert.match(src, /computeResidentTotalDuePaise/);
+    assert.match(src, /payableNowTotalPaise/);
+    assert.match(src, /Pay all/);
     assert.match(src, /paymentModeLabel/);
   });
 
@@ -79,7 +80,9 @@ describe('Phase 1 resident portal UI dedupe', () => {
       'utf8',
     );
     assert.match(src, /buildResidentBillRowsFromDetail/);
-    assert.match(src, /resolveResidentMonthlyRentPaise/);
+    assert.match(src, /buildResidentPayableNowRows/);
+    assert.match(src, /ensureResidentPayAllPaymentHref/);
+    assert.match(src, /resolvePrimaryBooking/);
     const area = readFileSync(
       join(process.cwd(), 'src/components/customer/account/ResidentAreaSection.tsx'),
       'utf8',

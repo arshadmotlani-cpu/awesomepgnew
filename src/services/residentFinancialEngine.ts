@@ -510,6 +510,7 @@ async function buildOtherCategory(
         : Math.max(0, fi.amountPaise - paidAmount);
     if (outstanding <= 0 && fi.status !== 'partial') continue;
     if (fi.sourceTable === 'room_change_pay_all') continue;
+    if (fi.sourceTable === 'resident_portal_pay_all') continue;
     if (
       fi.sourceTable === ROOM_CHANGE_INVOICE_SOURCE.oldRent ||
       fi.sourceTable === ROOM_CHANGE_INVOICE_SOURCE.newRent

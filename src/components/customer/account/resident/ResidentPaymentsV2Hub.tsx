@@ -20,8 +20,9 @@ import { ResidentElectricityPendingCard } from '@/src/components/customer/accoun
 import { LateFeeCountdown } from '@/src/components/billing/LateFeeCountdown';
 import { ElectricityDueCountdown } from '@/src/components/billing/ElectricityDueCountdown';
 import type { ResidentElectricityBillingState } from '@/src/lib/residents/residentElectricityBillingState';
-import { computeResidentTotalDuePaise } from '@/src/lib/residents/residentPortalDisplay';
 import type { PaymentDueRow } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
+import type { ResidentElectricityBillExplanation } from '@/src/lib/residents/residentElectricityBillExplanationTypes';
+
 export type PaidHistoryRow = {
   id: string;
   label: string;
@@ -37,8 +38,6 @@ export type PaidHistoryRow = {
   subtitle?: string | null;
   paymentModeLabel?: string | null;
 };
-
-import type { ResidentElectricityBillExplanation } from '@/src/lib/residents/residentElectricityBillExplanationTypes';
 
 export type BillDueRow = PaymentDueRow & {
   why?: string;
@@ -66,6 +65,12 @@ type Props = {
   electricityHistory?: ResidentElectricityHistoryItem[];
   historyHref: string | null;
   lifetimeTotals: LifetimeTotals;
+  payableNowTotalPaise: number;
+  payAll: {
+    visible: boolean;
+    href: string | null;
+    totalPaise: number;
+  };
 };
 
 function BillCard({ row }: { row: BillDueRow }) {
@@ -169,6 +174,8 @@ export function ResidentPaymentsV2Hub({
   electricityHistory = [],
   historyHref,
   lifetimeTotals,
+  payableNowTotalPaise,
+  payAll,
 }: Props) {
   const [showCancelled, setShowCancelled] = useState(false);
   const subNav = [
@@ -177,7 +184,7 @@ export function ResidentPaymentsV2Hub({
   ];
 
   const payableDue = dueRows.filter((r) => r.href);
-  const totalDuePaise = computeResidentTotalDuePaise(dueRows);
+  const totalDuePaise = payableNowTotalPaise;
   const showElectricityPending = electricityBillingPending?.showPendingCard === true;
   const hideZeroDueHeader = showElectricityPending && totalDuePaise === 0;
 
@@ -202,12 +209,17 @@ export function ResidentPaymentsV2Hub({
                     {paiseToInr(totalDuePaise)}
                   </p>
                 )}
-                {payableDue.length > 1 ? (
+                {payableDue.length > 1 && !payAll.visible ? (
                   <p className="mt-2 text-xs text-apg-silver">
                     Pay each bill separately using the buttons below.
                   </p>
                 ) : null}
               </div>
+              {payAll.visible && payAll.href && payAll.totalPaise > 0 ? (
+                <Link href={payAll.href} className={primaryBtn}>
+                  Pay all {paiseToInr(payAll.totalPaise)}
+                </Link>
+              ) : null}
             </div>
           </ApgCard>
 
