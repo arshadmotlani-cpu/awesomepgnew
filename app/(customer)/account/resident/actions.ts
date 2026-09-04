@@ -1,12 +1,14 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import { requireCustomerOwnsBooking } from '@/src/lib/auth/guards';
 import { submitVacatingRequest, cancelVacatingRequestByCustomer } from '@/src/services/vacating';
 import { accountProfileHref, residentTabHref } from '@/src/lib/accountNavigation';
-import { revalidateVacatingLifecycleForBooking } from '@/src/lib/vacating/revalidateVacatingViews';
+import {
+  revalidateResidentMoveOutCustomerViews,
+  revalidateVacatingLifecycleForBooking,
+} from '@/src/lib/vacating/revalidateVacatingViews';
 
 export type VacatingActionState =
   | { status: 'idle' }
@@ -63,9 +65,7 @@ export async function submitVacatingAction(
       message: `Could not submit (${result.kind}).`,
     };
   }
-  revalidatePath('/account/profile');
-  revalidatePath('/account/resident');
-  revalidatePath('/account/bookings');
+  revalidateResidentMoveOutCustomerViews();
   await revalidateVacatingLifecycleForBooking(bookingId, ownership.customer.id);
   redirect(residentTabHref('requests', { category: 'move_out' }));
 }
@@ -108,7 +108,7 @@ export async function cancelVacatingAction(
     return { status: 'error', message: 'Vacating request not found.' };
   }
 
-  revalidatePath('/account/profile');
+  revalidateResidentMoveOutCustomerViews();
   await revalidateVacatingLifecycleForBooking(bookingId, ownership.customer.id);
   redirect(residentTabHref('requests', { category: 'move_out' }));
 }

@@ -66,6 +66,13 @@ export async function revalidateVacatingLifecycleForBooking(
   });
 }
 
+/** Resident hub surfaces after move-out request submit or withdraw. */
+export function revalidateResidentMoveOutCustomerViews() {
+  revalidatePath('/account/profile', 'layout');
+  revalidatePath('/account/resident');
+  revalidatePath('/account/bookings');
+}
+
 /** Sync action items / notification badges, then revalidate admin notification surfaces. */
 export async function revalidateVacatingLifecycleAndNotifications(
   bookingId: string,

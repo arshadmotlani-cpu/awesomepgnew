@@ -1,32 +1,28 @@
 'use client';
 
-import { useActionState, useMemo, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import {
   submitVacatingAction,
   type VacatingActionState,
 } from '@/app/(customer)/account/resident/actions';
-import { NoticeSettlementPanel } from '@/src/components/shared/NoticeDeductionBreakdown';
-import { useNoticeDeductionPreview } from '@/src/components/shared/useNoticeDeductionPreview';
-import { toNoticeSettlementDisplay } from '@/src/lib/vacating/noticeDeductionPresentation';
+import { previewMoveOutSettlementAction } from '@/app/(customer)/account/resident/move-out-preview-actions';
 import {
   ACCOUNT_SURFACE,
   ACCOUNT_SURFACE_PRIMARY_BTN,
 } from '@/src/components/customer/accountStyles';
 import { ApgCard } from '@/src/components/customer/design-system';
+import { MoveOutDatePicker } from '@/src/components/customer/account/resident/vacating/MoveOutDatePicker';
+import { ResidentMoveOutRequestPreviewPanel } from '@/src/components/customer/account/resident/vacating/ResidentMoveOutRequestPreviewPanel';
 import { defaultVacatingDate } from '@/src/lib/dateDefaults';
 import { isOpenEndedStayEnd, todayString } from '@/src/lib/dates';
-import { formatDate, paiseToInr } from '@/src/lib/format';
-import { previewNoticeDeductionForCustomerAction } from '@/src/lib/vacating/previewNoticeDeductionAction';
-import { estimateVacateDepositPreview } from '@/src/lib/vacating/depositRefundEligibility';
-import { buildVacatingDateConfirmation } from '@/src/lib/vacating/vacatingBedSemantics';
-import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
+import type { ResidentMoveOutRequestPreview } from '@/src/lib/vacating/residentMoveOutRequestPreview';
 import { primaryBtn } from '@/src/lib/design-system/tokens';
 
 const idleState: VacatingActionState = { status: 'idle' };
 
 export function VacatingRequestForm({
   bookingId,
-  depositHeldPaise,
+  depositHeldPaise: _depositHeldPaise,
   monthlyRentPaise,
   expectedCheckoutDate,
   variant = 'standalone',
@@ -48,35 +44,36 @@ export function VacatingRequestForm({
       : defaultVacatingDate();
   const [state, action, pending] = useActionState(submitVacatingAction, idleState);
   const [vacatingDate, setVacatingDate] = useState(initialDate);
-  const noticeSubmittedDate = todayString();
+  const [preview, setPreview] = useState<ResidentMoveOutRequestPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
-  const { breakdown, loading } = useNoticeDeductionPreview(
-    previewNoticeDeductionForCustomerAction,
-    { bookingId, vacatingDate, monthlyRentPaise, noticeGivenDate: noticeSubmittedDate },
-  );
+  useEffect(() => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(vacatingDate)) return;
 
-  const preview = useMemo(
-    () =>
-      /^\d{4}-\d{2}-\d{2}$/.test(vacatingDate)
-        ? estimateVacateDepositPreview({
-            depositHeldPaise,
-            monthlyRentPaise,
-            vacatingDate,
-            noticeBreakdown: breakdown ? toNoticeSettlementDisplay(breakdown) : null,
-          })
-        : null,
-    [breakdown, depositHeldPaise, monthlyRentPaise, vacatingDate],
-  );
+    const requestId = ++requestIdRef.current;
+    const timer = setTimeout(() => {
+      setPreviewLoading(true);
+      setPreviewError(null);
+      void previewMoveOutSettlementAction({
+        bookingId,
+        vacatingDate,
+        monthlyRentPaise,
+      }).then((result) => {
+        if (requestId !== requestIdRef.current) return;
+        setPreviewLoading(false);
+        if (!result.ok) {
+          setPreview(null);
+          setPreviewError(result.error);
+          return;
+        }
+        setPreview(result.preview);
+      });
+    }, 200);
 
-  const dateConfirmation = useMemo(
-    () =>
-      /^\d{4}-\d{2}-\d{2}$/.test(vacatingDate)
-        ? buildVacatingDateConfirmation(vacatingDate)
-        : null,
-    [vacatingDate],
-  );
-
-  const noticeDisplay = preview?.noticeBreakdown ?? (breakdown ? toNoticeSettlementDisplay(breakdown) : null);
+    return () => clearTimeout(timer);
+  }, [bookingId, vacatingDate, monthlyRentPaise]);
 
   const shellClass = resident
     ? 'space-y-4'
@@ -107,94 +104,45 @@ export function VacatingRequestForm({
           <p className="text-xs font-semibold uppercase tracking-wide text-apg-orange">Move-out</p>
           <h2 className="text-lg font-semibold text-white">Select your move-out date</h2>
           <p className="text-sm text-apg-silver">
-            Choose your final stay date. Estimates update as you pick a date.
+            Choose your final stay date. Settlement updates as you pick a date.
           </p>
         </ApgCard>
       ) : null}
 
       <input type="hidden" name="bookingId" value={bookingId} />
 
-      <label className="block">
-        <span className={labelClass}>Move-out date</span>
-        <input
-          type="date"
-          name="vacatingDate"
-          required
-          min={todayString()}
+      {resident ? (
+        <MoveOutDatePicker
           value={vacatingDate}
-          onChange={(e) => setVacatingDate(e.target.value)}
-          className={fieldClass}
+          onChange={setVacatingDate}
+          theme="dark"
+          minDate={todayString()}
         />
-      </label>
+      ) : (
+        <label className="block">
+          <span className={labelClass}>Move-out date</span>
+          <input
+            type="date"
+            name="vacatingDate"
+            required
+            min={todayString()}
+            value={vacatingDate}
+            onChange={(e) => setVacatingDate(e.target.value)}
+            className={fieldClass}
+          />
+        </label>
+      )}
 
-      {dateConfirmation ? (
-        <div
-          className={
-            resident
-              ? 'rounded-xl border border-sky-500/30 bg-sky-500/10 p-4 text-sm text-sky-100'
-              : 'rounded-xl border border-sky-200 bg-sky-50/90 p-4 text-sm text-sky-950'
-          }
-        >
-          <p className={resident ? 'font-semibold text-sky-50' : 'font-semibold text-sky-900'}>
-            Your move-out dates
-          </p>
-          <ul className="mt-2 space-y-1 text-xs leading-relaxed">
-            {dateConfirmation.lines.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {loading ? (
+      {preview ? (
+        <ResidentMoveOutRequestPreviewPanel preview={preview} loading={previewLoading} />
+      ) : previewLoading ? (
         <p className={`text-xs ${resident ? 'text-apg-silver' : 'text-zinc-500'}`}>
           Calculating settlement estimate…
         </p>
       ) : null}
 
-      {!loading && noticeDisplay ? (
-        <ApgCard tier="resident" className="space-y-3">
-          <dl className="grid gap-3 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-xs text-apg-silver">Notice submitted</dt>
-              <dd className="font-semibold text-white">{formatDate(noticeSubmittedDate)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-apg-silver">Requested move-out</dt>
-              <dd className="font-semibold text-white">{formatDate(vacatingDate)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-apg-silver">Notice period required</dt>
-              <dd className="font-semibold text-white">{VACATING_NOTICE_MIN_DAYS} days</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-apg-silver">Monthly rent (reference)</dt>
-              <dd className="font-semibold text-white">{paiseToInr(monthlyRentPaise)}</dd>
-            </div>
-          </dl>
-          <NoticeSettlementPanel settlement={noticeDisplay} variant="resident" />
-        </ApgCard>
-      ) : null}
-
-      {preview ? (
-        <ApgCard tier="resident">
-          <dl className="grid gap-3 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-xs text-apg-silver">Deposit held</dt>
-              <dd className="font-semibold text-white">{paiseToInr(depositHeldPaise)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-apg-silver">Estimated refundable amount</dt>
-              <dd className="font-semibold text-emerald-400">
-                {paiseToInr(preview.estimatedRefundablePaise)}
-              </dd>
-            </div>
-          </dl>
-          <p className="mt-3 text-[11px] text-apg-silver">
-            Includes deposit after notice deductions. Unused prepaid rent is credited to your wallet
-            after admin approval.
-          </p>
-        </ApgCard>
+      {previewError ? (
+        <p className="rounded-lg bg-rose-950/40 px-3 py-2 text-sm text-rose-200">{previewError}</p>
       ) : null}
 
       <div
@@ -208,13 +156,10 @@ export function VacatingRequestForm({
           Important information
         </p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed">
-          <li>The date you select is your last paid night — not the day the bed becomes free.</li>
-          <li>Electricity will be calculated on the day of vacating.</li>
-          <li>Final settlement will be completed after vacating.</li>
-          <li>
-            Deposit refund cannot be requested until your vacate date arrives and your move-out
-            request is approved.
-          </li>
+          <li>Your selected date is your final stay date.</li>
+          <li>Your bed becomes available the next day at 12:00 AM.</li>
+          <li>Rent is adjusted according to your final stay date and payment status.</li>
+          <li>Electricity due up to your move-out date is included in final settlement.</li>
         </ul>
       </div>
 

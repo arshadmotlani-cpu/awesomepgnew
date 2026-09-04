@@ -5,6 +5,19 @@
 
 ---
 
+## 2026-09-04 (same-room Change Bed dues on Bills Due)
+
+### Fixed
+- Resident Payments → Bills Due omitted `financial_invoices` room-change charges (only rent/electricity/deposit ledger)
+- Same-day Change Bed submit always skipped the payment step even when `totalDuePaise > 0`
+- Unused prepaid rent credit no longer extinguishes the canonical ₹90 room-change fee
+
+### Added
+- `listResidentFinancialInvoiceDueRows` — projects room-change / custom financial invoices into Bills Due (excludes pay-all)
+- Regression tests: `tests/unit/sameRoomChangeBedDues.test.ts`
+
+---
+
 ## 2026-06-25 (database environment SSOT)
 
 ### Added
@@ -256,17 +269,25 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-09-04 08:30:55 UTC
+### Pending pre-commit sync · 2026-09-04 10:19:20 UTC
 
-**Areas touched:** [[ROUTES]]
+**Areas touched:** [[ROUTES]], [[Vacating]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
+- `DECISIONS.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (1):**
-- `app/(customer)/account/resident/room-change-actions.ts`
+**Staged code files (6):**
+- `app/(customer)/account/resident/actions.ts`
+- `app/(customer)/account/resident/move-out-preview-actions.ts`
+- `src/lib/vacating/residentMoveOutElectricityPreview.ts`
+- `src/lib/vacating/residentMoveOutRentPresentation.ts`
+- `src/lib/vacating/residentMoveOutRequestPreview.ts`
+- `src/lib/vacating/revalidateVacatingViews.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed
