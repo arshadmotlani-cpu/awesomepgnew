@@ -9,7 +9,9 @@ import {
   beds,
   bookings,
   customers,
+  financialInvoices,
   floors,
+  paymentLinks,
   pgPaymentRecords,
   roomChangeRequests,
   rooms,
@@ -26,8 +28,14 @@ import {
   stayTypeBusinessLabel,
 } from '@/src/lib/stayType';
 import type { RoomShiftQuoteSnapshot } from '@/src/services/roomShiftQuote';
+import { ROOM_SHIFT_FEE_PAISE } from '@/src/services/roomShiftQuote';
 import { formatRoomChangeQuoteForDisplay } from '@/src/lib/roomTransfer/quoteDisplay';
 import { projectRoomChangeSettlementStatus } from '@/src/lib/roomTransfer/roomChangeSettlementStatus';
+import {
+  isSameRoomBedChangeFromLabels,
+  resolvePaymentReviewPurpose,
+  type PaymentReviewPurposeResolution,
+} from '@/src/lib/payments/paymentReviewPurpose';
 import { getBookingMoneyBalances } from '@/src/services/bookingMoneyBalances';
 import {
   getNextPendingPaymentReviewKey,
@@ -55,6 +63,9 @@ export type PaymentReviewRoomChangeContext = {
   rentAdjustmentPaise: number;
   grossNewBedRentPaise: number;
   feeDuePaise: number;
+  shiftFeePaise: number;
+  oldRentDuePaise: number;
+  sameRoom: boolean;
   lines: PaymentReviewRoomChangeLine[];
   settlementPhase: string | null;
   settlementMessage: string | null;
@@ -94,6 +105,7 @@ export type PaymentReviewWorkspaceData = {
   kycStatus: 'pending' | 'approved' | 'rejected' | null;
   nextReviewKey: string | null;
   bookingLoadError: string | null;
+  paymentPurpose: PaymentReviewPurposeResolution;
 };
 
 export type LoadPaymentReviewWorkspaceResult =
@@ -254,6 +266,12 @@ async function loadRoomChangeContext(
       quote?.newRentChargePaise ?? display?.grossNewBedRentPaise,
     ),
     feeDuePaise: coerceNonNegativePaise(quote?.feeDuePaise),
+    shiftFeePaise: coerceNonNegativePaise(quote?.shiftFeePaise ?? ROOM_SHIFT_FEE_PAISE),
+    oldRentDuePaise: coerceNonNegativePaise(quote?.oldRentDueAfterCreditPaise),
+    sameRoom: isSameRoomBedChangeFromLabels({
+      fromRoomLabel: quote?.fromRoomLabel,
+      toRoomNumber: quote?.toRoomNumber,
+    }),
     lines,
     settlementPhase: settlement.phase,
     settlementMessage: settlement.message || null,
@@ -325,17 +343,95 @@ export async function loadPaymentReviewWorkspace(
     nextReviewKey = null;
   }
 
+  let invoiceType: string | null = null;
+  let invoiceNotes: string | null = null;
+  let invoiceSourceTable: string | null = null;
+  let paymentLinkPurpose: string | null = null;
+  if (item.kind === 'deposit_link') {
+    try {
+      const [link] = await db
+        .select({
+          purpose: paymentLinks.purpose,
+          invoiceId: paymentLinks.invoiceId,
+        })
+        .from(paymentLinks)
+        .where(eq(paymentLinks.id, item.entityId))
+        .limit(1);
+      paymentLinkPurpose = link?.purpose ?? null;
+      if (link?.invoiceId) {
+        const [inv] = await db
+          .select({
+            invoiceType: financialInvoices.invoiceType,
+            notes: financialInvoices.notes,
+            sourceTable: financialInvoices.sourceTable,
+          })
+          .from(financialInvoices)
+          .where(eq(financialInvoices.id, link.invoiceId))
+          .limit(1);
+        invoiceType = inv?.invoiceType ?? null;
+        invoiceNotes = inv?.notes ?? null;
+        invoiceSourceTable = inv?.sourceTable ?? null;
+      }
+    } catch {
+      // Classification falls back to kind-only labels.
+    }
+  }
+
+  const paymentPurpose = resolvePaymentReviewPurpose({
+    kind: item.kind,
+    amountPaise: item.amountPaise,
+    invoiceType,
+    invoiceNotes,
+    invoiceSourceTable,
+    paymentLinkPurpose,
+    roomChange: booking?.roomChange
+      ? {
+          sameRoom: booking.roomChange.sameRoom,
+          shiftFeePaise: booking.roomChange.shiftFeePaise,
+          feeDuePaise: booking.roomChange.feeDuePaise,
+          newRentDuePaise: booking.roomChange.rentAdjustmentPaise,
+          depositDuePaise: booking.roomChange.depositDuePaise,
+          oldRentDuePaise: booking.roomChange.oldRentDuePaise,
+          totalDuePaise: booking.roomChange.totalDuePaise,
+        }
+      : null,
+  });
+
+  const classifiedItem: PendingPaymentReviewItem = {
+    ...item,
+    paymentTypeLabel: paymentPurpose.label,
+    subtitle:
+      paymentPurpose.purpose === 'ROOM_CHANGE_FEE'
+        ? paymentPurpose.sameRoomBedChange
+          ? 'Same-room bed change fee'
+          : 'Room change fee'
+        : paymentPurpose.purpose === 'ROOM_CHANGE_SETTLEMENT'
+          ? 'Room change settlement'
+          : paymentPurpose.purpose === 'DEPOSIT_COLLECTION'
+            ? item.subtitle
+            : item.subtitle,
+    outstandingSummary:
+      paymentPurpose.purpose === 'ROOM_CHANGE_FEE' ||
+      paymentPurpose.purpose === 'ROOM_CHANGE_SETTLEMENT'
+        ? 'Verify transaction ID — approval allocates to the room-change invoice'
+        : item.outstandingSummary,
+    bookingContext: item.bookingContext
+      ? { ...item.bookingContext, bookingType: paymentPurpose.label }
+      : item.bookingContext,
+  };
+
   return {
     ok: true,
     data: {
       reviewKey,
-      item,
+      item: classifiedItem,
       breakdown,
       rejectionHistory,
       booking,
       kycStatus,
       nextReviewKey,
       bookingLoadError,
+      paymentPurpose,
     },
   };
 }

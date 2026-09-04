@@ -14,9 +14,11 @@ import {
   beds,
   bookings,
   customers,
+  financialInvoices,
   paymentLinks,
   pgs,
   rentInvoices,
+  roomChangeRequests,
   rooms,
 } from '@/src/db/schema';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
@@ -46,7 +48,11 @@ import {
 } from '@/src/lib/operations/paymentReviewVerification';
 import { isBookingCheckoutEligibleForPaymentReview } from '@/src/lib/operations/paymentReviewSsot';
 import { reconcileBookingPaymentReviewQueue } from '@/src/services/paymentReviewReconciliation';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import {
+  isSameRoomBedChangeFromLabels,
+  resolvePaymentReviewPurpose,
+} from '@/src/lib/payments/paymentReviewPurpose';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { cache } from 'react';
 import { adminRequestScopeKey } from '@/src/lib/admin/adminRequestCache';
 
@@ -943,7 +949,89 @@ async function buildDepositLinkReviewItem(
   }
 
   const isInvoiceLink = d.purpose === 'combined' && Boolean(d.invoiceId);
-  const chargeLabel = d.title ?? (isInvoiceLink ? 'Combined invoice' : 'Additional deposit');
+  let chargeLabel = d.title ?? (isInvoiceLink ? 'Combined invoice' : 'Additional deposit');
+  let paymentTypeLabel = isInvoiceLink ? 'Combined invoice' : 'Security deposit';
+  let subtitle = isInvoiceLink ? 'Combined invoice payment' : 'Additional security deposit';
+  let outstandingSummary = 'Verify transaction ID — approval records deposit collection';
+
+  if (d.invoiceId) {
+    try {
+      const [inv] = await db
+        .select({
+          invoiceType: financialInvoices.invoiceType,
+          notes: financialInvoices.notes,
+          sourceTable: financialInvoices.sourceTable,
+        })
+        .from(financialInvoices)
+        .where(eq(financialInvoices.id, d.invoiceId))
+        .limit(1);
+      if (inv) {
+        let sameRoom = false;
+        let roomChange: Parameters<typeof resolvePaymentReviewPurpose>[0]['roomChange'] = null;
+        if (d.bookingId && inv.invoiceType === 'room_shift') {
+          const [rcr] = await db
+            .select({ quoteSnapshot: roomChangeRequests.quoteSnapshot })
+            .from(roomChangeRequests)
+            .where(eq(roomChangeRequests.bookingId, d.bookingId))
+            .orderBy(desc(roomChangeRequests.createdAt))
+            .limit(1);
+          const quote = rcr?.quoteSnapshot as
+            | {
+                fromRoomLabel?: string;
+                toRoomNumber?: string;
+                feeDuePaise?: number;
+                newRentDuePaise?: number;
+                depositDuePaise?: number;
+                oldRentDueAfterCreditPaise?: number;
+                totalDuePaise?: number;
+                shiftFeePaise?: number;
+              }
+            | null
+            | undefined;
+          if (quote) {
+            sameRoom = isSameRoomBedChangeFromLabels({
+              fromRoomLabel: quote.fromRoomLabel,
+              toRoomNumber: quote.toRoomNumber,
+            });
+            roomChange = {
+              sameRoom,
+              shiftFeePaise: quote.shiftFeePaise,
+              feeDuePaise: quote.feeDuePaise ?? 0,
+              newRentDuePaise: quote.newRentDuePaise ?? 0,
+              depositDuePaise: quote.depositDuePaise ?? 0,
+              oldRentDuePaise: quote.oldRentDueAfterCreditPaise ?? 0,
+              totalDuePaise: quote.totalDuePaise ?? d.amountPaise,
+            };
+          }
+        }
+        const purpose = resolvePaymentReviewPurpose({
+          kind: 'deposit_link',
+          amountPaise: d.amountPaise,
+          invoiceType: inv.invoiceType,
+          invoiceNotes: inv.notes,
+          invoiceSourceTable: inv.sourceTable,
+          paymentLinkPurpose: d.purpose,
+          roomChange,
+        });
+        paymentTypeLabel = purpose.label;
+        chargeLabel = d.title ?? purpose.label;
+        subtitle =
+          purpose.purpose === 'ROOM_CHANGE_FEE'
+            ? purpose.sameRoomBedChange
+              ? 'Same-room bed change fee'
+              : 'Room change fee'
+            : purpose.purpose === 'ROOM_CHANGE_SETTLEMENT'
+              ? 'Room change settlement'
+              : subtitle;
+        outstandingSummary =
+          purpose.purpose === 'ROOM_CHANGE_FEE' || purpose.purpose === 'ROOM_CHANGE_SETTLEMENT'
+            ? 'Verify transaction ID — approval allocates to the room-change invoice'
+            : outstandingSummary;
+      }
+    } catch {
+      // Keep deposit/combined defaults.
+    }
+  }
 
   const expectedLines: PaymentReviewExpectedLine[] = [
     { label: chargeLabel, amountPaise: d.amountPaise },
@@ -959,9 +1047,9 @@ async function buildDepositLinkReviewItem(
     bookingCode,
     roomNumber: d.roomNumber ?? null,
     bedCode: null,
-    paymentTypeLabel: isInvoiceLink ? 'Combined invoice' : 'Security deposit',
+    paymentTypeLabel,
     title: `${d.customerName} · ${chargeLabel}`,
-    subtitle: isInvoiceLink ? 'Combined invoice payment' : 'Additional security deposit',
+    subtitle,
     amountPaise: d.amountPaise,
     screenshotUrl: d.paymentProofUrl ?? '',
     referenceNumber: d.paymentProofTransactionRef ?? null,
@@ -974,7 +1062,7 @@ async function buildDepositLinkReviewItem(
     receivedPaise: null,
     outstandingAfterApprovalPaise: 0,
     overpaidPaise: 0,
-    outstandingSummary: 'Verify transaction ID — approval records deposit collection',
+    outstandingSummary,
     canPartialApprove: false,
     canReject: true,
     paymentExplanation: buildSimplePaymentExplanation({

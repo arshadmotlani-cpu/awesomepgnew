@@ -68,7 +68,10 @@ function ApproveSpinner() {
 
 export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceData }) {
   const router = useRouter();
-  const { item, booking, rejectionHistory } = data;
+  const { item, booking, rejectionHistory, paymentPurpose } = data;
+  const showRoomChangeWaterfall =
+    paymentPurpose.showRoomChangeWaterfall && Boolean(booking?.roomChange);
+  const isSimpleBedChangeFee = paymentPurpose.purpose === 'ROOM_CHANGE_FEE';
   const [busy, setBusy] = useState(false);
   const [approved, setApproved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -198,7 +201,7 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
               </p>
               <h1 className="mt-1 text-xl font-semibold text-white">{item.residentName}</h1>
               <p className="mt-1 text-sm text-apg-silver">
-                {item.bookingContext?.bookingType ?? item.paymentTypeLabel}
+                {paymentPurpose.label}
                 {booking ? ` · ${booking.bookingCode}` : null}
                 {item.bookingCode && !booking ? ` · ${item.bookingCode}` : null}
               </p>
@@ -244,32 +247,53 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
           <div className="space-y-6">
             {booking || verification.monthlyRentPaise > 0 || verification.depositRequiredPaise > 0 ? (
               <section>
-                <h2 className="text-base font-semibold text-white">Booking</h2>
+                <h2 className="text-base font-semibold text-white">
+                  {isSimpleBedChangeFee ? 'Charge' : 'Booking'}
+                </h2>
                 <dl className="mt-4 space-y-3">
                   {booking?.bookingCode ? (
                     <FieldRow label="Booking" value={booking.bookingCode} />
                   ) : null}
-                  <FieldRow
-                    label="Monthly rent"
-                    value={
-                      booking?.monthlyRentPaise == null && verification.monthlyRentPaise <= 0
-                        ? 'Unavailable'
-                        : paiseToInr(verification.monthlyRentPaise)
-                    }
-                  />
-                  <FieldRow
-                    label="Required deposit"
-                    value={
-                      !booking && verification.depositRequiredPaise <= 0
-                        ? 'Unavailable'
-                        : paiseToInr(verification.depositRequiredPaise)
-                    }
-                  />
+                  {isSimpleBedChangeFee ? (
+                    <>
+                      <FieldRow label="Charge" value={paymentPurpose.label} />
+                      <FieldRow
+                        label="Amount"
+                        value={paiseToInr(item.amountPaise)}
+                        emphasize
+                      />
+                      {booking?.roomChange ? (
+                        <FieldRow
+                          label="Bed"
+                          value={`${booking.roomChange.fromLabel} → ${booking.roomChange.toLabel}`}
+                        />
+                      ) : null}
+                    </>
+                  ) : (
+                    <>
+                      <FieldRow
+                        label="Monthly rent"
+                        value={
+                          booking?.monthlyRentPaise == null && verification.monthlyRentPaise <= 0
+                            ? 'Unavailable'
+                            : paiseToInr(verification.monthlyRentPaise)
+                        }
+                      />
+                      <FieldRow
+                        label="Required deposit"
+                        value={
+                          !booking && verification.depositRequiredPaise <= 0
+                            ? 'Unavailable'
+                            : paiseToInr(verification.depositRequiredPaise)
+                        }
+                      />
+                    </>
+                  )}
                 </dl>
               </section>
             ) : null}
 
-            {booking?.roomChange ? (
+            {showRoomChangeWaterfall && booking?.roomChange ? (
               <section>
                 <h2 className="text-base font-semibold text-white">Room change adjustment</h2>
                 <p className="mt-2 text-sm text-apg-silver">

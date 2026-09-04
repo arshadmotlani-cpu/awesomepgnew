@@ -12,6 +12,7 @@ import {
   paymentCategoryBusinessLabel,
   stayTypeBusinessLabel,
 } from '@/src/lib/stayType';
+import { resolvePaymentReviewPurpose } from '@/src/lib/payments/paymentReviewPurpose';
 
 export type PaymentBookingContextView = {
   bookingCode: string | null;
@@ -263,9 +264,15 @@ export function buildPaymentBookingContext(
   }
 
   if (item.kind === 'deposit_link') {
+    const purpose = resolvePaymentReviewPurpose({
+      kind: 'deposit_link',
+      amountPaise: item.amountPaise,
+      paymentLinkPurpose: 'deposit',
+    });
+    // Prefer queue item labels when already specific; fall back for true deposits.
     return {
       bookingCode: item.bookingCode,
-      bookingType: 'Deposit Collection',
+      bookingType: item.paymentTypeLabel?.trim() || purpose.label,
       pgName: item.pgName,
       roomNumber: item.roomNumber,
       bedCode: item.bedCode,
@@ -275,8 +282,12 @@ export function buildPaymentBookingContext(
       pricingRule: null,
       rentCalculation: null,
       rentAmountPaise: null,
-      depositPolicy: 'Additional deposit requested',
-      requiredDepositPaise: item.amountPaise,
+      depositPolicy:
+        purpose.purpose === 'DEPOSIT_COLLECTION'
+          ? 'Additional deposit requested'
+          : 'Not a deposit collection',
+      requiredDepositPaise:
+        purpose.purpose === 'DEPOSIT_COLLECTION' ? item.amountPaise : null,
     };
   }
 
