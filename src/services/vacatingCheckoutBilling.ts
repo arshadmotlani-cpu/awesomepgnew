@@ -425,7 +425,7 @@ async function applyVacatingAwareRentCharge(args: {
           break;
         }
         if (
-          ['pending', 'overdue', 'partial'].includes(existing.status) &&
+          ['pending', 'overdue', 'partial', 'payment_in_progress'].includes(existing.status) &&
           existing.rentPaise !== args.charge.chargeablePaise
         ) {
           invoiceUpdated = await adjustExistingRentInvoiceForVacating({
@@ -450,7 +450,7 @@ async function applyVacatingAwareRentCharge(args: {
   if (
     args.charge.billingAction === 'generate_full' &&
     existing &&
-    ['pending', 'overdue', 'partial'].includes(existing.status) &&
+    ['pending', 'overdue', 'partial', 'payment_in_progress'].includes(existing.status) &&
     existing.rentPaise !== args.charge.chargeablePaise &&
     (existing.paidPrincipalPaise ?? 0) <= args.charge.chargeablePaise &&
     args.charge.invoiceNotes

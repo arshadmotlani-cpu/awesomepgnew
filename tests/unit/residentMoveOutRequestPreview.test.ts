@@ -113,17 +113,20 @@ test('CASE A — unpaid September rent + early move-out prorates liability', () 
   assert.ok(charge.chargeablePaise < FULL_MONTH);
   assert.equal(charge.chargeablePeriodEnd, VACATE);
 
+  // Screenshot regression: invoice still full-month unpaid on the ledger —
+  // presentation must still show rent-through = chargeable, not ₹0 / full month.
   const { coverage, waterfall } = buildWaterfall({
     vacatingDate: VACATE,
     rentPaidPaise: 0,
-    outstandingRentInvoicePaise: charge.chargeablePaise,
+    outstandingRentInvoicePaise: FULL_MONTH,
     prepaidAfterVacatingPaise: 0,
   });
+  assert.equal(coverage.tailRentPaise, charge.chargeablePaise);
   const finalPeriodInvoice: FinalPeriodRentInvoiceOutstanding = {
     invoiceId: 'inv-sep',
     rentPaise: FULL_MONTH,
     paidPrincipalPaise: 0,
-    outstandingPaise: charge.chargeablePaise,
+    outstandingPaise: FULL_MONTH,
   };
   const rent = buildResidentMoveOutRentSection({
     vacatingDate: VACATE,
@@ -137,7 +140,10 @@ test('CASE A — unpaid September rent + early move-out prorates liability', () 
   assert.match(rent.headline, /currently unpaid/i);
   assert.match(rent.headline, /adjusted to your valid move-out date/i);
   assert.equal(rent.paidPaise, 0);
+  assert.equal(rent.monthlyRentPaise, MONTHLY_RENT);
+  assert.equal(rent.rentThroughVacatingPaise, charge.chargeablePaise);
   assert.equal(rent.finalRentSettlementPaise, charge.chargeablePaise);
+  assert.equal(rent.remainingRentLiabilityPaise, charge.chargeablePaise);
   assert.equal(rent.unusedPrepaidRentPaise, 0);
   assert.match(rent.billingCycleNote, /1st of every month/i);
 });
@@ -178,13 +184,67 @@ test('CASE B — paid September rent + early move-out → unused prepaid wallet 
   assert.ok(rent.unusedPrepaidRentPaise > 0);
 });
 
-test('partial rent payment scenario', () => {
+test('partial rent payment scenario — paid below rent-through liability', () => {
+  const { coverage, waterfall } = buildWaterfall({
+    vacatingDate: VACATE,
+    rentPaidPaise: 100_000,
+    outstandingRentInvoicePaise: FULL_MONTH - 100_000,
+    prepaidAfterVacatingPaise: 0,
+  });
+  const through = coverage.tailRentPaise;
+  assert.ok(through > 100_000);
+  const rent = buildResidentMoveOutRentSection({
+    vacatingDate: VACATE,
+    monthlyRentPaise: MONTHLY_RENT,
+    coverage,
+    waterfall,
+    finalPeriodInvoice: {
+      invoiceId: 'inv-sep',
+      rentPaise: FULL_MONTH,
+      paidPrincipalPaise: 100_000,
+      outstandingPaise: FULL_MONTH - 100_000,
+    },
+  });
+  assert.equal(rent.scenario, 'partial');
+  assert.equal(rent.rentThroughVacatingPaise, through);
+  assert.equal(rent.remainingRentLiabilityPaise, through - 100_000);
+  assert.equal(rent.finalRentSettlementPaise, through - 100_000);
+  assert.equal(rent.unusedPrepaidRentPaise, 0);
+});
+
+test('partial rent payment above rent-through → excess is prepaid credit', () => {
   const partialPaid = Math.floor(FULL_MONTH / 2);
-  const outstanding = FULL_MONTH - partialPaid;
   const { coverage, waterfall } = buildWaterfall({
     vacatingDate: VACATE,
     rentPaidPaise: partialPaid,
-    outstandingRentInvoicePaise: outstanding,
+    outstandingRentInvoicePaise: FULL_MONTH - partialPaid,
+    prepaidAfterVacatingPaise: 0,
+  });
+  const through = coverage.tailRentPaise;
+  assert.ok(partialPaid > through);
+  const rent = buildResidentMoveOutRentSection({
+    vacatingDate: VACATE,
+    monthlyRentPaise: MONTHLY_RENT,
+    coverage,
+    waterfall,
+    finalPeriodInvoice: {
+      invoiceId: 'inv-sep',
+      rentPaise: FULL_MONTH,
+      paidPrincipalPaise: partialPaid,
+      outstandingPaise: FULL_MONTH - partialPaid,
+    },
+  });
+  assert.equal(rent.rentThroughVacatingPaise, through);
+  assert.equal(rent.remainingRentLiabilityPaise, 0);
+  assert.equal(rent.finalRentSettlementPaise, 0);
+  assert.equal(rent.unusedPrepaidRentPaise, partialPaid - through);
+});
+
+test('unpaid → no wallet credit for nonexistent prepaid', () => {
+  const { coverage, waterfall } = buildWaterfall({
+    vacatingDate: VACATE,
+    rentPaidPaise: 0,
+    outstandingRentInvoicePaise: FULL_MONTH,
     prepaidAfterVacatingPaise: 0,
   });
   const rent = buildResidentMoveOutRentSection({
@@ -195,13 +255,103 @@ test('partial rent payment scenario', () => {
     finalPeriodInvoice: {
       invoiceId: 'inv-sep',
       rentPaise: FULL_MONTH,
-      paidPrincipalPaise: partialPaid,
-      outstandingPaise: outstanding,
+      paidPrincipalPaise: 0,
+      outstandingPaise: FULL_MONTH,
     },
   });
-  assert.equal(rent.scenario, 'partial');
-  assert.ok(rent.remainingRentLiabilityPaise > 0);
-  assert.ok(rent.finalRentSettlementPaise > 0);
+  assert.equal(rent.unusedPrepaidRentPaise, 0);
+  assert.ok(rent.rentThroughVacatingPaise > 0);
+});
+
+test('canonical outstanding helper caps full-month unpaid to tail', async () => {
+  const { canonicalOutstandingRentLiabilityPaise } = await import(
+    '@/src/lib/vacating/canonicalRentThroughMoveOut'
+  );
+  assert.equal(
+    canonicalOutstandingRentLiabilityPaise({
+      invoiceOutstandingPaise: FULL_MONTH,
+      paidPrincipalPaise: 0,
+      tailRentPaise: 240_380,
+    }),
+    240_380,
+  );
+  assert.equal(
+    canonicalOutstandingRentLiabilityPaise({
+      invoiceOutstandingPaise: 100_000,
+      paidPrincipalPaise: 50_000,
+      tailRentPaise: 240_380,
+    }),
+    100_000,
+  );
+});
+
+test('extend day 10 → 15 and earlier day 10 → 7 recalculate through amount', () => {
+  const base = {
+    billingMonth: '2026-09-01',
+    billingDay: 1,
+    billingCyclePolicy: 'calendar_month_1st' as const,
+    moveInDate: '2026-06-01',
+    monthlyRentPaise: MONTHLY_RENT,
+    paidInvoiceCoverage: paidAugCoverage(),
+    fullMonthRentPaise: FULL_MONTH,
+    billingPeriod: sepPeriod(),
+    existingInvoice: {
+      id: 'inv-sep',
+      rentPaise: FULL_MONTH,
+      paidPrincipalPaise: 0,
+      status: 'pending',
+    },
+  };
+  const d10 = resolveVacatingAwareRentCharge({
+    ...base,
+    activeVacating: { status: 'pending', vacatingDate: '2026-09-10' },
+  });
+  const d15 = resolveVacatingAwareRentCharge({
+    ...base,
+    activeVacating: { status: 'pending', vacatingDate: '2026-09-15' },
+  });
+  const d7 = resolveVacatingAwareRentCharge({
+    ...base,
+    activeVacating: { status: 'pending', vacatingDate: '2026-09-07' },
+  });
+  assert.equal(d10.billingAction, 'adjust_existing');
+  assert.equal(d15.billingAction, 'adjust_existing');
+  assert.equal(d7.billingAction, 'adjust_existing');
+  assert.ok(d15.chargeablePaise > d10.chargeablePaise);
+  assert.ok(d7.chargeablePaise < d10.chargeablePaise);
+  assert.equal(d10.chargeableDays, 10);
+  assert.equal(d15.chargeableDays, 15);
+  assert.equal(d7.chargeableDays, 7);
+});
+
+test('paid invoice never rewritten — skip_already_paid when vacate inside paid period', () => {
+  const charge = resolveVacatingAwareRentCharge({
+    billingMonth: '2026-09-01',
+    billingDay: 1,
+    billingCyclePolicy: 'calendar_month_1st',
+    moveInDate: '2026-06-01',
+    monthlyRentPaise: MONTHLY_RENT,
+    paidInvoiceCoverage: [
+      ...paidAugCoverage(),
+      {
+        periodStart: '2026-09-01',
+        periodEnd: '2026-09-30',
+        paidPrincipalPaise: FULL_MONTH,
+        source: 'rent_invoice' as const,
+      },
+    ],
+    activeVacating: { status: 'approved', vacatingDate: VACATE },
+    fullMonthRentPaise: FULL_MONTH,
+    billingPeriod: sepPeriod(),
+    existingInvoice: {
+      id: 'inv-sep',
+      rentPaise: FULL_MONTH,
+      paidPrincipalPaise: FULL_MONTH,
+      status: 'paid',
+    },
+  });
+  assert.equal(charge.billingAction, 'skip_already_paid');
+  assert.equal(charge.chargeablePaise, 0);
 });
 
 test('UI does not contain confusing prepaid copy', () => {

@@ -144,9 +144,19 @@ export async function loadVacatingBillingPresentation(
     bookingId: input.bookingId,
     vacatingDate,
   });
+  const { canonicalOutstandingRentLiabilityPaise } = await import(
+    '@/src/lib/vacating/canonicalRentThroughMoveOut'
+  );
+  // Move-out date is a billing boundary: never let preview/waterfall keep a
+  // full-month unpaid face value when BCM already knows the prorated liability.
+  const effectiveInvoiceOutstandingPaise = canonicalOutstandingRentLiabilityPaise({
+    invoiceOutstandingPaise: invoiceOutstanding.outstandingPaise,
+    paidPrincipalPaise: invoiceOutstanding.paidPrincipalPaise,
+    tailRentPaise: coverage.tailRentPaise,
+  });
   const outstandingTailRentInvoicePaise =
     invoiceOutstanding.invoiceId != null
-      ? invoiceOutstanding.outstandingPaise
+      ? effectiveInvoiceOutstandingPaise
       : useLegacyLockedDepositTail
         ? precomputedWaterfall!.depositBucket.tailRentPaise
         : precomputedWaterfall?.outstandingRentInvoicePaise ?? coverage.tailRentPaise;
@@ -155,7 +165,7 @@ export async function loadVacatingBillingPresentation(
     ctx = {
       ...ctx,
       checkoutTailRentPaise: 0,
-      outstandingRentInvoicePaise: invoiceOutstanding.outstandingPaise,
+      outstandingRentInvoicePaise: effectiveInvoiceOutstandingPaise,
     };
     waterfall = computeVacatingSettlementWaterfallFromContext(ctx);
   }

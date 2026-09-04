@@ -409,12 +409,23 @@ export async function applyApprovedVacatingDateChange(args: {
 
   if (args.syncRent !== false) {
     const { syncVacatingCheckoutRentBilling } = await import('@/src/services/vacatingCheckoutBilling');
-    await syncVacatingCheckoutRentBilling({
+    const rentSync = await syncVacatingCheckoutRentBilling({
       bookingId: updated.bookingId,
       vacatingDate: newDate,
       actorId: args.resolvedByAdminId ?? null,
       actorType: args.resolvedByAdminId ? 'admin' : 'system',
-    }).catch((err) => console.error('[vacatingDateChange] rent sync failed', err));
+    });
+    if ('ok' in rentSync) {
+      throw new Error(`Checkout rent sync failed after date change: ${rentSync.error}`);
+    }
+    if (
+      rentSync.charge?.billingAction === 'adjust_existing' &&
+      rentSync.invoiceUpdated !== true
+    ) {
+      throw new Error(
+        'Checkout rent liability was not reconciled to the new move-out date.',
+      );
+    }
   }
 
   const [bookingRow] = await db

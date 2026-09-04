@@ -110,18 +110,24 @@ async function syncCheckoutRentForVacating(input: {
   actorType?: 'admin' | 'system';
   context: string;
 }) {
-  try {
-    const result = await syncVacatingCheckoutRentBilling({
-      bookingId: input.bookingId,
-      vacatingDate: input.vacatingDate,
-      actorId: input.actorId,
-      actorType: input.actorType,
-    });
-    if ('ok' in result && result.ok === false) {
-      console.warn(`[vacating] checkout rent sync skipped (${input.context}):`, result.error);
-    }
-  } catch (err) {
-    console.error(`[vacating] checkout rent sync failed (${input.context}):`, err);
+  const result = await syncVacatingCheckoutRentBilling({
+    bookingId: input.bookingId,
+    vacatingDate: input.vacatingDate,
+    actorId: input.actorId,
+    actorType: input.actorType,
+  });
+  if ('ok' in result) {
+    console.error(`[vacating] checkout rent sync skipped (${input.context}):`, result.error);
+    throw new Error(`Checkout rent sync failed (${input.context}): ${result.error}`);
+  }
+  if (result.charge?.billingAction === 'adjust_existing' && result.invoiceUpdated !== true) {
+    console.error(
+      `[vacating] checkout rent adjust expected but invoice not updated (${input.context})`,
+      { bookingId: input.bookingId, vacatingDate: input.vacatingDate, charge: result.charge },
+    );
+    throw new Error(
+      `Checkout rent liability was not reconciled to move-out date (${input.context}).`,
+    );
   }
 }
 
