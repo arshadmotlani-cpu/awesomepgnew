@@ -265,6 +265,7 @@ export function PgBlockBooking({
         <CustomerBedDetailSheet
           presentation="bottomSheet"
           bed={selectedBed.bed}
+          pgName={pgName}
           roomLabel={`Room ${selectedBed.bedRoom.roomNumber} · ${selectedBed.roomCard.roomType}`}
           onClose={() => setSelectedBedId(null)}
           onBook={(options) => openPanel(selectedBed.bed, options)}

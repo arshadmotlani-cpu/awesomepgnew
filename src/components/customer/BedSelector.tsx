@@ -19,6 +19,7 @@ type Props = {
   beds: BedSelectorBed[];
   theme?: 'dark' | 'light';
   roomLabel?: string;
+  pgName?: string;
 };
 
 function assignTourRoles(beds: BedSelectorBed[]): Map<string, TourRole> {
@@ -47,7 +48,12 @@ function assignTourRoles(beds: BedSelectorBed[]): Map<string, TourRole> {
   return roles;
 }
 
-export function BedSelector({ beds, theme = 'light', roomLabel = 'This room' }: Props) {
+export function BedSelector({
+  beds,
+  theme = 'light',
+  roomLabel = 'This room',
+  pgName,
+}: Props) {
   const dark = theme === 'dark';
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detailBedId, setDetailBedId] = useState<string | null>(null);
@@ -158,6 +164,7 @@ export function BedSelector({ beds, theme = 'light', roomLabel = 'This room' }: 
       {detailBedView ? (
         <CustomerBedDetailSheet
           bed={detailBedView}
+          pgName={pgName}
           roomLabel={roomLabel}
           onClose={() => setDetailBedId(null)}
           onBook={(options) => openPanelForBed(detailBedView.bedId, options)}

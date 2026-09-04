@@ -9,13 +9,17 @@ import {
 } from '@/src/lib/bedAvailabilityState';
 import { resolveBedOccupancy } from '@/src/lib/bedOccupancyResolve';
 import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
+import { BOOK_THIS_BED, HOLD_THIS_BED } from '@/src/lib/booking/bookingFunnelLabels';
+import { displayMonthlyDepositPaise } from '@/src/lib/customerDepositDisplay';
 import { customerBookableFromDate } from '@/src/lib/dates';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import { formatCustomerDayMonth } from '@/src/lib/pgAvailabilityBadge';
 import { bedAvailableCalendarDate } from '@/src/lib/vacating/vacatingBedSemantics';
 import type { BedSelectorBed } from './customerBedTypes';
 import { BedStateTile, type BedVisualState } from '@/src/components/customer/design-system';
-import { BOOK_THIS_BED, HOLD_THIS_BED } from '@/src/lib/booking/bookingFunnelLabels';
+
+/** Public billing-cycle copy — calendar month rent due on the 1st. */
+export const PUBLIC_BED_BILLING_CYCLE_LABEL = 'Rent billed on the 1st of every month.';
 
 function bedAvailability(bed: BedSelectorBed) {
   return deriveCustomerBedAvailabilityView({
@@ -78,6 +82,57 @@ function visualStateForKind(kind: BedAvailabilityKind, selected?: boolean): BedV
   }
 }
 
+/** Compact status chip title for the universal bed details popup. */
+export function publicBedStatusTitle(kind: BedAvailabilityKind): string {
+  switch (kind) {
+    case 'open_now':
+    case 'hold_interest':
+      return 'AVAILABLE NOW';
+    case 'pre_bookable':
+      return 'AVAILABLE SOON';
+    case 'notice':
+      return 'ON NOTICE';
+    case 'maintenance':
+      return 'MAINTENANCE';
+    case 'reserved':
+    case 'booked':
+      return 'RESERVED';
+    case 'occupied':
+    case 'under_review':
+    case 'blocked':
+    default:
+      return 'OCCUPIED';
+  }
+}
+
+function unavailableMessage(input: {
+  kind: BedAvailabilityKind;
+  opensDateLabel: string | null;
+}): string {
+  if (input.kind === 'notice') {
+    return input.opensDateLabel
+      ? `Available from ${input.opensDateLabel}.`
+      : 'Not available for booking while on notice.';
+  }
+  if (input.kind === 'maintenance') return 'Not currently available.';
+  if (input.kind === 'reserved' || input.kind === 'booked') {
+    return 'Currently reserved.';
+  }
+  if (input.kind === 'occupied') {
+    return 'Not available for booking while occupied.';
+  }
+  return 'Not available for booking at the moment.';
+}
+
+const CTA_ENABLED =
+  'w-full rounded-lg bg-apg-orange py-2.5 text-sm font-semibold text-white apg-glow-btn hover:brightness-110';
+const CTA_SECONDARY_ENABLED =
+  'w-full rounded-lg border border-apg-orange/40 bg-apg-orange/10 py-2.5 text-sm font-semibold text-white hover:bg-apg-orange/20';
+const CTA_DISABLED =
+  'w-full cursor-not-allowed rounded-lg bg-white/5 py-2.5 text-sm font-semibold text-apg-silver/50';
+const CTA_SECONDARY_DISABLED =
+  'w-full cursor-not-allowed rounded-lg border border-white/10 bg-transparent py-2.5 text-sm font-semibold text-apg-silver/40';
+
 export function CustomerBedTile({
   bed,
   isSelected,
@@ -88,7 +143,6 @@ export function CustomerBedTile({
   onSelect: () => void;
 }) {
   const availability = bedAvailability(bed);
-  const bookable = canBookBed(bed);
   const state = visualStateForKind(availability.kind, isSelected);
 
   return (
@@ -98,7 +152,8 @@ export function CustomerBedTile({
       sublabel={availability.sublabel}
       state={state}
       selected={isSelected}
-      disabled={!bookable && availability.kind !== 'notice' && availability.kind !== 'maintenance' && !isSelected}
+      // Every bed stays clickable — bookability only gates popup CTAs.
+      disabled={false}
       onSelect={onSelect}
     />
   );
@@ -107,6 +162,7 @@ export function CustomerBedTile({
 export function CustomerBedDetailSheet({
   bed,
   roomLabel,
+  pgName,
   onClose,
   onBook,
   onPreBook,
@@ -116,6 +172,8 @@ export function CustomerBedDetailSheet({
 }: {
   bed: BedSelectorBed;
   roomLabel: string;
+  /** Optional PG name shown above room/bed context. */
+  pgName?: string;
   onClose: () => void;
   onBook: (options?: { shortStayOnly?: boolean; reserveCheckIn?: string }) => void;
   onPreBook: () => void;
@@ -132,6 +190,7 @@ export function CustomerBedDetailSheet({
   }, [bed.bedId, bed.noticeInterestCount]);
 
   const availability = bedAvailability({ ...bed, noticeInterestCount: noticeCount });
+  const statusTitle = publicBedStatusTitle(availability.kind);
   const isMaintenance = availability.kind === 'maintenance';
   const isNotice = availability.kind === 'notice';
   const isAvailable = availability.kind === 'open_now' || availability.kind === 'hold_interest';
@@ -140,8 +199,10 @@ export function CustomerBedDetailSheet({
   const reserveLastStay = reserveCheckIn ? reserveBufferDate(reserveCheckIn) : null;
   const bookableFrom = customerBookableFromDate(bed.nextAvailableDate);
   const isFuturePreBook = !bed.isAvailableNow && Boolean(bookableFrom) && !isNotice && !isReserved;
-  const showBookActions = canBookBed(bed) && !isReserved;
-  const showReserve = showBookActions && !bed.activeBedReserveCheckIn;
+  const bookable = canBookBed(bed);
+  /** Standard Book / Hold (50%) — only when SSOT says bookable and not a reserve short-stay-only case. */
+  const showEnabledBookHold = bookable && !isReserved;
+  const showReserve = showEnabledBookHold && !bed.activeBedReserveCheckIn;
   const opensDate = isNotice
     ? bed.vacatingDate
       ? bedAvailableCalendarDate(bed.vacatingDate)
@@ -150,6 +211,7 @@ export function CustomerBedDetailSheet({
       ? bookableFrom
       : null;
   const opensDateLabel = opensDate ? formatCustomerDayMonth(opensDate) : null;
+  const monthlyDepositPaise = displayMonthlyDepositPaise(bed);
 
   useEffect(() => {
     if (presentation === 'bottomSheet') return;
@@ -173,11 +235,29 @@ export function CustomerBedDetailSheet({
       .catch(() => undefined);
   }, [bed.bedId, isNotice, isAvailable, onNoticeInterestUpdate]);
 
+  const statusTone =
+    availability.kind === 'open_now'
+      ? 'border-emerald-400/40 bg-emerald-500/10'
+      : isMaintenance
+        ? 'border-red-400/40 bg-red-500/10'
+        : isNotice
+          ? 'border-orange-400/40 bg-orange-500/10'
+          : isReserved
+            ? 'border-violet-400/40 bg-violet-500/10'
+            : 'border-white/10 bg-white/[0.03]';
+
   const body = (
     <>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-medium uppercase tracking-wider text-apg-muted">
+          {pgName ? (
+            <p className="text-[11px] font-medium uppercase tracking-wider text-apg-muted">
+              {pgName}
+            </p>
+          ) : null}
+          <p
+            className={`text-[11px] font-medium uppercase tracking-wider text-apg-muted ${pgName ? 'mt-0.5' : ''}`}
+          >
             {roomLabel}
           </p>
           <h2 id={titleId} className="text-lg font-semibold text-white">
@@ -196,173 +276,181 @@ export function CustomerBedDetailSheet({
         ) : null}
       </div>
 
-      <div
-        className={`mt-4 rounded-[14px] border px-4 py-3 ${
-          availability.kind === 'open_now'
-            ? 'border-emerald-400/40 bg-emerald-500/10'
-            : isMaintenance
-              ? 'border-red-400/40 bg-red-500/10'
-              : 'border-white/10 bg-white/[0.03]'
-        }`}
-      >
-        {availability.kind === 'open_now' ? (
-          <p className="mb-2 inline-flex items-center gap-2 text-xs font-semibold text-emerald-300">
-            <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
-            Available now
-          </p>
-        ) : null}
-        <p className="text-sm font-semibold text-white">{availability.label}</p>
+      <div className={`mt-4 rounded-[14px] border px-4 py-3 ${statusTone}`}>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white">
+          {statusTitle}
+        </p>
+        <p className="mt-1 text-sm font-semibold text-white">{availability.label}</p>
         {availability.sublabel ? (
           <p className="mt-1 text-xs text-apg-silver">{availability.sublabel}</p>
         ) : null}
-        {isNotice ? (
+        {opensDateLabel ? (
           <p className="mt-2 text-xs font-medium text-orange-200">
-            {noticeCount > 0
-              ? `${noticeCount} ${noticeCount === 1 ? 'person is' : 'people are'} interested in this bed`
-              : 'Someone is still living here — you can hold this bed for when they leave.'}
+            Available from: {opensDateLabel}
+          </p>
+        ) : null}
+        {isNotice && noticeCount > 0 ? (
+          <p className="mt-2 text-xs font-medium text-orange-200">
+            {noticeCount} {noticeCount === 1 ? 'person is' : 'people are'} interested in this bed
           </p>
         ) : null}
       </div>
 
-          {isReserved && reserveCheckIn && reserveLastStay ? (
-            <div className="mt-4 rounded-xl border border-violet-400/30 bg-violet-500/10 px-4 py-3 text-sm">
-              <p className="font-semibold text-violet-100">Someone is holding this bed</p>
-              <p className="mt-2 text-xs leading-relaxed text-apg-silver">
-                They are <strong className="text-white">not living here yet</strong> — they paid to
-                keep the bed until they move in on{' '}
-                <strong className="text-white">{formatDate(reserveCheckIn)}</strong>.
-              </p>
-              <p className="mt-2 text-xs leading-relaxed text-apg-silver">
-                Until then, you can book a <strong className="text-white">fixed-date stay</strong>{' '}
-                stay if you need the bed sooner. Your checkout must be on or before{' '}
-                <strong className="text-white">{formatDate(reserveLastStay)}</strong> (one day is
-                kept free for cleaning before the holder arrives).
-              </p>
-              <p className="mt-2 text-xs text-apg-silver">
-                Monthly or open-ended move-in is not available on this bed right now.
-              </p>
-            </div>
-          ) : null}
+      <div
+        className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm"
+        data-roachie-tour="bed-sheet-pricing"
+      >
+        <dl className="space-y-2">
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-apg-silver">Monthly rent</dt>
+            <dd className="font-semibold text-white">{paiseToInr(bed.monthlyRatePaise)}</dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-apg-silver">Security deposit</dt>
+            <dd className="font-semibold text-white">{paiseToInr(monthlyDepositPaise)}</dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-apg-silver">Billing</dt>
+            <dd className="text-right text-xs font-medium text-white sm:text-sm">
+              {PUBLIC_BED_BILLING_CYCLE_LABEL}
+            </dd>
+          </div>
+        </dl>
+      </div>
 
-          {showBookActions ? null : isReserved ? null : isMaintenance ? (
-            <div className="mt-4 space-y-3">
-              <p className="text-sm text-red-100">
-                This bed is under maintenance and cannot be booked right now. You can still review
-                photos and pricing below.
-              </p>
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm">
-                <p className="font-semibold text-white">Pricing</p>
-                <ul className="mt-2 space-y-1 text-apg-silver">
-                  <li>Daily: {paiseToInr(bed.dailyRatePaise)}</li>
-                  <li>Weekly: {paiseToInr(bed.weeklyRatePaise)}</li>
-                  <li>Monthly: {paiseToInr(bed.monthlyRatePaise)}</li>
-                  <li>Security deposit: {paiseToInr(bed.securityDepositPaise)}</li>
-                </ul>
-              </div>
-            </div>
+      {isReserved && reserveCheckIn && reserveLastStay ? (
+        <div className="mt-4 rounded-xl border border-violet-400/30 bg-violet-500/10 px-4 py-3 text-sm">
+          <p className="font-semibold text-violet-100">Currently reserved</p>
+          <p className="mt-2 text-xs leading-relaxed text-apg-silver">
+            Someone is holding this bed until they move in on{' '}
+            <strong className="text-white">{formatDate(reserveCheckIn)}</strong>. Until then, a
+            fixed-date stay may still be possible if your checkout is on or before{' '}
+            <strong className="text-white">{formatDate(reserveLastStay)}</strong>.
+          </p>
+        </div>
+      ) : null}
+
+      {isReserved && reserveCheckIn ? (
+        <div className="mt-5 flex flex-col gap-2" data-roachie-tour="bed-sheet-actions">
+          <button
+            type="button"
+            data-roachie-bed-action="book-short-stay"
+            onClick={() =>
+              onBook({ shortStayOnly: true, reserveCheckIn: reserveCheckIn ?? undefined })
+            }
+            className={CTA_ENABLED}
+          >
+            Book fixed-date stay
+          </button>
+          <button type="button" disabled aria-disabled className={CTA_DISABLED}>
+            {BOOK_THIS_BED}
+          </button>
+          <button type="button" disabled aria-disabled className={CTA_SECONDARY_DISABLED}>
+            {HOLD_THIS_BED} — 50% rent
+          </button>
+          <p className="text-xs leading-relaxed text-apg-silver">
+            Monthly Book / Hold are unavailable while this bed is reserved.
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full rounded-lg border border-white/15 py-2.5 text-sm font-semibold text-apg-silver hover:bg-white/5 hover:text-white"
+          >
+            Close
+          </button>
+        </div>
+      ) : isNotice ? (
+        <div className="mt-5 flex flex-col gap-2" data-roachie-tour="bed-sheet-actions">
+          <button type="button" disabled aria-disabled className={CTA_DISABLED}>
+            {BOOK_THIS_BED}
+          </button>
+          <button
+            type="button"
+            data-roachie-bed-action="pre-book"
+            onClick={onPreBook}
+            className={CTA_ENABLED}
+          >
+            {HOLD_THIS_BED}
+          </button>
+          {showReserve ? (
+            <button
+              type="button"
+              data-roachie-bed-action="reserve"
+              onClick={onReserve}
+              className={CTA_SECONDARY_ENABLED}
+            >
+              {HOLD_THIS_BED} — 50% rent
+            </button>
           ) : (
-            <p className="mt-4 text-sm text-apg-silver">
-              {availability.kind === 'occupied'
-                ? 'Someone is living here right now. Check back when the bed opens up.'
-                : 'This bed is not available for booking at the moment.'}
-            </p>
+            <button type="button" disabled aria-disabled className={CTA_SECONDARY_DISABLED}>
+              {HOLD_THIS_BED} — 50% rent
+            </button>
           )}
-
-          {isReserved ? (
-            <div className="mt-5 flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  onBook({ shortStayOnly: true, reserveCheckIn: reserveCheckIn ?? undefined })
-                }
-                className="w-full rounded-lg bg-apg-orange py-2.5 text-sm font-semibold text-white apg-glow-btn hover:brightness-110"
-              >
-                Book fixed-date stay
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className="w-full rounded-lg border border-white/15 py-2.5 text-sm font-semibold text-apg-silver hover:bg-white/5 hover:text-white"
-              >
-                Close
-              </button>
-            </div>
-          ) : isNotice ? (
-            <div className="mt-5 flex flex-col gap-2" data-roachie-tour="bed-sheet-actions">
-              <button
-                type="button"
-                data-roachie-bed-action="pre-book"
-                onClick={onPreBook}
-                className="w-full rounded-lg bg-apg-orange py-2.5 text-sm font-semibold text-white apg-glow-btn hover:brightness-110"
-              >
-                {HOLD_THIS_BED}
-              </button>
-              {showReserve ? (
-                <button
-                  type="button"
-                  data-roachie-bed-action="reserve"
-                  onClick={onReserve}
-                  className="w-full rounded-lg border border-apg-orange/40 bg-apg-orange/10 py-2.5 text-sm font-semibold text-white hover:bg-apg-orange/20"
-                >
-                  {HOLD_THIS_BED} (50% rent)
-                </button>
-              ) : null}
-              <p className="text-xs leading-relaxed text-apg-silver">
-                <strong className="text-white">{HOLD_THIS_BED}</strong> — plan your move-in when this
-                bed opens{opensDateLabel ? ` (${opensDateLabel})` : ''}. Pay 50% rent to hold it
-                longer if you are not ready to move in yet.
-              </p>
-            </div>
-          ) : showBookActions ? (
-            <div className="mt-5 flex flex-col gap-2" data-roachie-tour="bed-sheet-actions">
-              {isFuturePreBook ? (
-                <button
-                  type="button"
-                  data-roachie-bed-action="pre-book"
-                  onClick={onPreBook}
-                  className="w-full rounded-lg bg-sky-600 py-2.5 text-sm font-semibold text-white hover:bg-sky-500"
-                >
-                  {HOLD_THIS_BED}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  data-roachie-bed-action="book"
-                  onClick={() => onBook()}
-                  className="w-full rounded-lg bg-apg-orange py-2.5 text-sm font-semibold text-white apg-glow-btn hover:brightness-110"
-                >
-                  {BOOK_THIS_BED}
-                </button>
-              )}
-              {showReserve ? (
-                <button
-                  type="button"
-                  data-roachie-bed-action="reserve"
-                  onClick={onReserve}
-                  className="w-full rounded-lg border border-apg-orange/40 bg-apg-orange/10 py-2.5 text-sm font-semibold text-white hover:bg-apg-orange/20"
-                >
-                  {HOLD_THIS_BED} (50% rent)
-                </button>
-              ) : null}
-              {showReserve ? (
-                <p className="text-xs leading-relaxed text-apg-silver">
-                  {isFuturePreBook ? (
-                    <>
-                      <strong className="text-white">{HOLD_THIS_BED}</strong> — move in when the bed
-                      opens{opensDateLabel ? ` (${opensDateLabel})` : ''}. Pay 50% rent to secure
-                      it sooner.
-                    </>
-                  ) : (
-                    <>
-                      <strong className="text-white">{BOOK_THIS_BED}</strong> — move in on your
-                      selected dates. <strong className="text-white">{HOLD_THIS_BED}</strong> — pay
-                      50% rent now and pick check-in when you arrive.
-                    </>
-                  )}
-                </p>
-              ) : null}
-            </div>
+          <p className="text-xs leading-relaxed text-apg-silver">
+            {opensDateLabel
+              ? `Available from ${opensDateLabel}. ${HOLD_THIS_BED} plans your move-in when this bed opens.`
+              : `${HOLD_THIS_BED} plans your move-in when this bed opens.`}
+          </p>
+        </div>
+      ) : showEnabledBookHold ? (
+        <div className="mt-5 flex flex-col gap-2" data-roachie-tour="bed-sheet-actions">
+          {isFuturePreBook ? (
+            <button
+              type="button"
+              data-roachie-bed-action="pre-book"
+              onClick={onPreBook}
+              className="w-full rounded-lg bg-sky-600 py-2.5 text-sm font-semibold text-white hover:bg-sky-500"
+            >
+              {HOLD_THIS_BED}
+            </button>
+          ) : (
+            <button
+              type="button"
+              data-roachie-bed-action="book"
+              onClick={() => onBook()}
+              className={CTA_ENABLED}
+            >
+              {BOOK_THIS_BED}
+            </button>
+          )}
+          {showReserve ? (
+            <button
+              type="button"
+              data-roachie-bed-action="reserve"
+              onClick={onReserve}
+              className={CTA_SECONDARY_ENABLED}
+            >
+              {HOLD_THIS_BED} — 50% rent
+            </button>
           ) : null}
+          <p className="text-xs leading-relaxed text-apg-silver">
+            {isFuturePreBook ? (
+              <>
+                <strong className="text-white">{HOLD_THIS_BED}</strong> — move in when the bed opens
+                {opensDateLabel ? ` (${opensDateLabel})` : ''}. Pay 50% rent to secure it sooner.
+              </>
+            ) : (
+              <>
+                <strong className="text-white">{BOOK_THIS_BED}</strong> — move in on your selected
+                dates. <strong className="text-white">{HOLD_THIS_BED}</strong> — pay 50% rent now and
+                pick check-in when you arrive.
+              </>
+            )}
+          </p>
+        </div>
+      ) : (
+        <div className="mt-5 flex flex-col gap-2" data-roachie-tour="bed-sheet-actions">
+          <button type="button" disabled aria-disabled className={CTA_DISABLED}>
+            {BOOK_THIS_BED}
+          </button>
+          <button type="button" disabled aria-disabled className={CTA_SECONDARY_DISABLED}>
+            {HOLD_THIS_BED} — 50% rent
+          </button>
+          <p className="text-xs leading-relaxed text-apg-silver">
+            {unavailableMessage({ kind: availability.kind, opensDateLabel })}
+          </p>
+        </div>
+      )}
     </>
   );
 
@@ -391,6 +479,7 @@ export function CustomerBedDetailSheet({
         className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-white/10 bg-[#1A1F27] p-5 shadow-2xl"
         role="dialog"
         aria-modal
+        aria-labelledby={titleId}
         data-roachie-tour="bed-detail-sheet"
         onClick={(e) => e.stopPropagation()}
       >

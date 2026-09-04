@@ -46,7 +46,7 @@ export function BedStateTile({
       type="button"
       onClick={onSelect}
       disabled={disabled}
-      className={`relative flex min-h-[108px] w-full min-w-0 flex-col items-center justify-center rounded-xl border-2 px-2 py-3 text-center transition focus:outline-none focus-visible:ring-2 focus-visible:ring-apg-orange disabled:cursor-not-allowed disabled:opacity-60 hover:-translate-y-0.5 hover:shadow-lg motion-reduce:transform-none ${tone}`}
+      className={`relative flex min-h-[108px] w-full min-w-0 cursor-pointer flex-col items-center justify-center rounded-xl border-2 px-2 py-3 text-center transition focus:outline-none focus-visible:ring-2 focus-visible:ring-apg-orange disabled:cursor-not-allowed disabled:opacity-60 hover:-translate-y-0.5 hover:shadow-lg motion-reduce:transform-none ${tone}`}
     >
       <span className="absolute left-2 top-2 text-[10px] opacity-70" aria-hidden>
         {stateIcon[visualState]}

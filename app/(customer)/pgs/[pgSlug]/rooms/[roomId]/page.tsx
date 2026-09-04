@@ -230,6 +230,7 @@ export default async function RoomDetailPage(
           <BedSelector
             beds={bedsForSelector}
             theme="dark"
+            pgName={room.pgName}
             roomLabel={`${room.floorLabel} · Room ${room.roomNumber}`}
           />
         )}
