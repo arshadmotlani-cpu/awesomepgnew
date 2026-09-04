@@ -26,7 +26,8 @@ test('settleRoomShiftRentSides — unpaid month charges old occupied rent only',
   });
   assert.equal(result.oldRentDuePaise, oldOccupied);
   assert.equal(result.unusedPrepaidCreditPaise, 0);
-  assert.ok(result.newRemainderPaise > 0);
+  assert.equal(result.newRemainderPaise, 35_000 - oldOccupied);
+  assert.equal(result.oldRentDuePaise + result.newRemainderPaise, 35_000);
 });
 
 test('settleRoomShiftRentSides — paid month credits unused prepaid remainder', () => {

@@ -122,14 +122,13 @@ export function settleRoomShiftRentSides(input: {
     input.shiftDate,
     input.oldMonthlyRentPaise,
   );
-  const newRemainderPaise = remainingInBillingMonth(
-    input.shiftDate,
-    input.newMonthlyRentPaise,
-  );
   if (input.currentMonthRentIsPaid) {
     return {
       oldOccupiedPaise,
-      newRemainderPaise,
+      newRemainderPaise: remainingInBillingMonth(
+        input.shiftDate,
+        input.newMonthlyRentPaise,
+      ),
       unusedPrepaidCreditPaise: remainingInBillingMonth(
         input.shiftDate,
         input.oldMonthlyRentPaise,
@@ -137,6 +136,9 @@ export function settleRoomShiftRentSides(input: {
       oldRentDuePaise: 0,
     };
   }
+  // Unpaid billing month: economic rent for the month resolves to the new-bed
+  // full monthly SSOT. Old-bed days stay at the old rate; new-bed charge tops up.
+  const newRemainderPaise = Math.max(0, input.newMonthlyRentPaise - oldOccupiedPaise);
   return {
     oldOccupiedPaise,
     newRemainderPaise,

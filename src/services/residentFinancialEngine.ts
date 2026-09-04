@@ -45,6 +45,7 @@ import {
   isElectricityAwaitingResidentPayment,
 } from '@/src/lib/billing/electricityCollectibility';
 import { computeRentDuePaise, projectInvoice } from '@/src/services/rentInvoices';
+import { ROOM_CHANGE_INVOICE_SOURCE } from '@/src/services/roomShiftQuote';
 import { firstOfMonth } from '@/src/services/billing';
 import {
   applyLedgerTotalsToSummary,
@@ -141,6 +142,79 @@ function buildRentCategory(
         roomNumber: meta.roomNumber,
       });
     }
+  }
+
+  items.sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''));
+  return { requiredPaise, paidPaise, outstandingPaise, items };
+}
+
+/** Room-change old/new rent invoices replace cancelled monthly rent — count as rent, not other. */
+async function appendRoomChangeRentToCategory(
+  bookingId: string,
+  rent: ResidentFinancialCategory,
+  meta: { pgId: string; pgName: string; roomNumber: string },
+): Promise<ResidentFinancialCategory> {
+  const rows = await db
+    .select({
+      id: financialInvoices.id,
+      invoiceNumber: financialInvoices.invoiceNumber,
+      sourceTable: financialInvoices.sourceTable,
+      amountPaise: financialInvoices.amountPaise,
+      status: financialInvoices.status,
+      dueDate: financialInvoices.dueDate,
+      notes: financialInvoices.notes,
+      createdAt: financialInvoices.createdAt,
+      breakdown: financialInvoices.breakdown,
+    })
+    .from(financialInvoices)
+    .where(
+      and(
+        eq(financialInvoices.bookingId, bookingId),
+        eq(financialInvoices.isDocumentOnly, false),
+        inArray(financialInvoices.status, ['draft', 'sent', 'overdue', 'partial']),
+        inArray(financialInvoices.sourceTable, [
+          ROOM_CHANGE_INVOICE_SOURCE.oldRent,
+          ROOM_CHANGE_INVOICE_SOURCE.newRent,
+        ]),
+      ),
+    );
+
+  if (rows.length === 0) return rent;
+
+  let requiredPaise = rent.requiredPaise;
+  let paidPaise = rent.paidPaise;
+  let outstandingPaise = rent.outstandingPaise;
+  const items = [...rent.items];
+
+  for (const inv of rows) {
+    const paidAmount =
+      inv.breakdown?.paidPaise ?? (inv.status === 'paid' ? inv.amountPaise : 0);
+    const outstanding =
+      inv.status === 'paid' || inv.status === 'cancelled' || inv.status === 'refunded'
+        ? 0
+        : Math.max(0, inv.amountPaise - paidAmount);
+    if (outstanding <= 0 && inv.status !== 'partial') continue;
+    requiredPaise += inv.amountPaise;
+    paidPaise += paidAmount;
+    outstandingPaise += outstanding;
+    items.push({
+      id: inv.id,
+      kind: 'rent',
+      label: inv.notes ?? 'Room change rent',
+      invoiceNumber: inv.invoiceNumber,
+      sourceTable: inv.sourceTable,
+      sourceId: inv.id,
+      financialInvoiceId: inv.id,
+      requiredPaise: inv.amountPaise,
+      paidPaise: paidAmount,
+      outstandingPaise: outstanding,
+      dueDate: inv.dueDate,
+      generatedAt: inv.createdAt.toISOString(),
+      status: inv.status,
+      pgId: meta.pgId,
+      pgName: meta.pgName,
+      roomNumber: meta.roomNumber,
+    });
   }
 
   items.sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''));
@@ -436,6 +510,12 @@ async function buildOtherCategory(
         : Math.max(0, fi.amountPaise - paidAmount);
     if (outstanding <= 0 && fi.status !== 'partial') continue;
     if (fi.sourceTable === 'room_change_pay_all') continue;
+    if (
+      fi.sourceTable === ROOM_CHANGE_INVOICE_SOURCE.oldRent ||
+      fi.sourceTable === ROOM_CHANGE_INVOICE_SOURCE.newRent
+    ) {
+      continue;
+    }
     requiredPaise += fi.amountPaise;
     paidPaise += paidAmount;
     outstandingPaise += outstanding;
@@ -624,7 +704,8 @@ export async function computeBookingFinancialSummaryCore(args: {
 
   const meta = { pgId: args.pgId, pgName: args.pgName, roomNumber: args.roomNumber };
 
-  const rent = buildRentCategory(rentRows, finIds.rent, meta, exitRentCaps);
+  const rentBase = buildRentCategory(rentRows, finIds.rent, meta, exitRentCaps);
+  const rent = await appendRoomChangeRentToCategory(args.bookingId, rentBase, meta);
   let electricity = buildElectricityCategory(elecRows, finIds.elec, meta);
   if (openVacating) {
     electricity = appendVacatingElectricityPlaceholders(electricity, {
