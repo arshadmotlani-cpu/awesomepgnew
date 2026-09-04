@@ -30,6 +30,8 @@ function row(overrides: Partial<ResidentListRow> = {}): ResidentListRow {
     bookingCode: 'APG-1',
     moveInDate: '2026-01-15',
     isLivingToday: true,
+    vacatingDate: null,
+    vacatingStatus: null,
     verificationSource: 'kyc',
     onboardingBookingId: null,
     onboardingBookingStatus: null,
@@ -46,11 +48,11 @@ test('parseResidentListStatusFilter defaults to active', () => {
   assert.equal(parseResidentListStatusFilter('bogus'), 'active');
 });
 
-test('matchesResidentListStatusFilter active excludes vacating and upcoming move-in', () => {
+test('matchesResidentListStatusFilter active includes vacating still living', () => {
   assert.equal(matchesResidentListStatusFilter(row(), 'active'), true);
   assert.equal(
     matchesResidentListStatusFilter(row({ tenancyStatus: 'vacating', isLivingToday: true }), 'active'),
-    false,
+    true,
   );
   assert.equal(
     matchesResidentListStatusFilter(
@@ -81,7 +83,8 @@ test('filterResidentsForAdminList searches within selected filter only', () => {
     statusFilter: 'active',
     query: 'Bob',
   });
-  assert.equal(activeOnly.length, 0);
+  assert.equal(activeOnly.length, 1);
+  assert.equal(activeOnly[0]?.id, 'c2');
 
   const vacatingBob = filterResidentsForAdminList(residents, {
     statusFilter: 'vacating',
@@ -103,8 +106,9 @@ test('compareResidentsAlphabetically sorts PG then resident name case-insensitiv
   );
 });
 
-test('isResidentActiveLiving requires active tenancy and living today', () => {
-  assert.equal(isResidentActiveLiving({ tenancyStatus: 'active', isLivingToday: true }), true);
-  assert.equal(isResidentActiveLiving({ tenancyStatus: 'active', isLivingToday: false }), false);
-  assert.equal(isResidentActiveLiving({ tenancyStatus: 'vacating', isLivingToday: true }), false);
+test('isResidentActiveLiving requires assigned bed and living today (includes vacating)', () => {
+  const assigned = { bedId: 'bed-1', bookingId: 'b1' };
+  assert.equal(isResidentActiveLiving({ tenancyStatus: 'active', isLivingToday: true, ...assigned }), true);
+  assert.equal(isResidentActiveLiving({ tenancyStatus: 'active', isLivingToday: false, ...assigned }), false);
+  assert.equal(isResidentActiveLiving({ tenancyStatus: 'vacating', isLivingToday: true, ...assigned }), true);
 });

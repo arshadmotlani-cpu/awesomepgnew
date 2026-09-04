@@ -80,10 +80,17 @@ test('isResidentBedAssignable is false when bed is assigned', () => {
   );
 });
 
-test('isResidentActiveLiving excludes vacating and future move-in', () => {
-  assert.equal(isResidentActiveLiving({ tenancyStatus: 'active', isLivingToday: true }), true);
-  assert.equal(isResidentActiveLiving({ tenancyStatus: 'vacating', isLivingToday: true }), false);
-  assert.equal(isResidentActiveLiving({ tenancyStatus: 'active', isLivingToday: false }), false);
+test('isResidentActiveLiving includes vacating until checkout; excludes future move-in', () => {
+  assert.equal(isResidentActiveLiving({ tenancyStatus: 'active', isLivingToday: true, bedId: 'b1', bookingId: 'bk1' }), true);
+  assert.equal(
+    isResidentActiveLiving({ tenancyStatus: 'vacating', isLivingToday: true, bedId: 'b1', bookingId: 'bk1' }),
+    true,
+  );
+  assert.equal(isResidentActiveLiving({ tenancyStatus: 'active', isLivingToday: false, bedId: 'b1', bookingId: 'bk1' }), false);
+  assert.equal(
+    isResidentActiveLiving({ tenancyStatus: 'vacating', isLivingToday: false, bedId: 'b1', bookingId: 'bk1' }),
+    false,
+  );
 });
 
 test('deriveTenancyStatus treats bedId as assigned even without booking id in status input', () => {

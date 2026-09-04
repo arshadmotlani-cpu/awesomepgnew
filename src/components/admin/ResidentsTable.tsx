@@ -6,7 +6,7 @@ import { useMemo, useState, useTransition } from 'react';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
 import { BulkKycWhatsAppReminder } from '@/src/components/admin/BulkKycWhatsAppReminder';
-import { formatDate, formatDateTime, titleCase } from '@/src/lib/format';
+import { formatDate, titleCase } from '@/src/lib/format';
 import {
   assignedBedShortLabel,
   isResidentBedAssignable,
@@ -32,7 +32,7 @@ function statusBadge(r: ResidentListRow) {
         {label ? ` · ${label}` : ''}
         {r.tenancyStatus === 'vacating' ? (
           <span className="ml-2 inline-flex rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-medium text-amber-100">
-            Vacating
+            Vacating{r.vacatingDate ? ` · ${formatDate(r.vacatingDate)}` : ''}
           </span>
         ) : null}
       </span>
@@ -42,7 +42,16 @@ function statusBadge(r: ResidentListRow) {
     return <Badge tone="amber">Unassigned</Badge>;
   }
   if (r.tenancyStatus === 'vacating') {
-    return <Badge tone="amber">Vacating</Badge>;
+    return (
+      <span className="text-sm text-white">
+        {r.pgName} · Room {r.roomNumber} · {r.bedCode}
+        {r.vacatingDate ? (
+          <span className="mt-0.5 block text-xs text-amber-200/90">
+            Move-out: {formatDate(r.vacatingDate)}
+          </span>
+        ) : null}
+      </span>
+    );
   }
   return (
     <span className="text-sm text-white">

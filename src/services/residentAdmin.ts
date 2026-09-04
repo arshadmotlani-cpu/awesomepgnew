@@ -65,6 +65,8 @@ export type ResidentListRow = {
   bookingCode: string | null;
   moveInDate: string | null;
   isLivingToday: boolean;
+  vacatingDate: string | null;
+  vacatingStatus: string | null;
   verificationSource: ResidentVerificationSource;
   onboardingBookingId: string | null;
   onboardingBookingStatus: string | null;
@@ -127,6 +129,8 @@ type ResidentListDbRow = {
   move_in_date: string | null;
   is_living_today: boolean | null;
   is_vacating: boolean;
+  vacating_date: string | null;
+  vacating_status: string | null;
   residency_status?: ResidencyStatus;
   is_website_signup: boolean;
   is_verified: boolean;
@@ -170,6 +174,8 @@ function mapResidentListRow(row: ResidentListDbRow): ResidentListRow {
     monthlyRentPaise: Number(row.monthly_rent_paise ?? 0),
     moveInDate: row.move_in_date ?? null,
     isLivingToday: Boolean(row.is_living_today),
+    vacatingDate: row.vacating_date ?? null,
+    vacatingStatus: row.vacating_status ?? null,
     tenancyStatus: deriveTenancyStatus({
       residencyStatus: row.residency_status,
       activeTenancy: row.booking_id
@@ -246,6 +252,8 @@ export async function listResidentsForAdmin(session: AdminSession): Promise<Resi
       t.pg_id,
       coalesce(t.is_living_today, false) AS is_living_today,
       coalesce(t.is_vacating, false) AS is_vacating,
+      t.vacating_date,
+      t.vacating_status,
       ${customerVerificationSelectSql},
       EXISTS (
         SELECT 1 FROM kyc_submissions ks
@@ -302,6 +310,8 @@ export async function listUnverifiedWebsiteSignupsForAdmin(
       t.pg_id,
       coalesce(t.is_living_today, false) AS is_living_today,
       coalesce(t.is_vacating, false) AS is_vacating,
+      t.vacating_date,
+      t.vacating_status,
       ${customerVerificationSelectSql},
       EXISTS (
         SELECT 1 FROM kyc_submissions ks
@@ -359,6 +369,8 @@ export async function searchResidentsForAdmin(
     bookingCode: r.bookingCode,
     moveInDate: null,
     isLivingToday: false,
+    vacatingDate: null,
+    vacatingStatus: null,
     verificationSource: r.kycStatus === 'approved' ? ('kyc' as const) : null,
     onboardingBookingId: null,
     onboardingBookingStatus: null,

@@ -1,4 +1,5 @@
 import type { ResidentListRow } from '@/src/services/residentAdmin';
+import { formatDate } from '@/src/lib/format';
 import { Badge } from '@/src/components/admin/Badge';
 
 export type ResidentLifecycleLabel =
@@ -37,5 +38,12 @@ export function deriveResidentLifecycleBadge(r: ResidentListRow): {
 
 export function ResidentLifecycleBadge({ resident }: { resident: ResidentListRow }) {
   const { label, tone } = deriveResidentLifecycleBadge(resident);
-  return <Badge tone={tone}>{label}</Badge>;
+  return (
+    <div className="flex flex-col gap-0.5">
+      <Badge tone={tone}>{label}</Badge>
+      {resident.tenancyStatus === 'vacating' && resident.vacatingDate ? (
+        <span className="text-[10px] text-amber-200/90">Move-out: {formatDate(resident.vacatingDate)}</span>
+      ) : null}
+    </div>
+  );
 }
