@@ -18,6 +18,18 @@ export function electricityBookingMonthKey(bookingId: string, billingMonth: stri
   return `${bookingId}:${billingMonth}`;
 }
 
+/** Resident already collected electricity at checkout for this room/month — do not show as payable. */
+export function isElectricityCoveredByPriorCollection(input: {
+  invoiceAmountPaise: number;
+  priorCollectionPaise: number;
+}): boolean {
+  return (
+    input.invoiceAmountPaise > 0 &&
+    input.priorCollectionPaise > 0 &&
+    input.priorCollectionPaise >= input.invoiceAmountPaise
+  );
+}
+
 /** Resident must upload payment — not in approval, not paid, not cancelled. */
 export function isElectricityAwaitingResidentPayment(
   row: ElectricityCollectibilityRow,

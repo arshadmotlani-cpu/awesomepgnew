@@ -1,70 +1,28 @@
 /**
  * Loads room occupancy timeline and builds checkout electricity allocation.
  */
-import { and, eq, sql } from 'drizzle-orm';
-import { db } from '@/src/db/client';
-import { beds, bookings, customers } from '@/src/db/schema';
 import { formatDate, parseDate } from '@/src/lib/dates';
 import {
   allocateRoomElectricityCheckout,
   type RoomElectricityCheckoutAllocation,
   type RoomOccupantSlice,
 } from '@/src/lib/checkout/roomElectricityAllocation';
+import { loadHistoricalRoomOccupantSlicesForPeriod } from '@/src/lib/billing/roomElectricityCheckoutOccupants';
 import { firstOfMonth, monthBounds } from '@/src/services/billing';
 
 export type { RoomElectricityCheckoutAllocation };
 
+/** Historical room occupancy for checkout — same SSOT as monthly electricity billing. */
 export async function loadRoomOccupantsForBillingPeriod(
   roomId: string,
   periodStart: string,
   periodEndExclusive: string,
 ): Promise<RoomOccupantSlice[]> {
-  const rows = await db
-    .select({
-      bookingId: bookings.id,
-      customerId: bookings.customerId,
-      customerName: customers.fullName,
-      lower: sql<string>`lower(bed_reservations.stay_range)::text`,
-      upper: sql<string | null>`upper(bed_reservations.stay_range)::text`,
-    })
-    .from(bookings)
-    .innerJoin(sql`bed_reservations`, sql`bed_reservations.booking_id = ${bookings.id}`)
-    .innerJoin(beds, sql`${beds.id} = bed_reservations.bed_id`)
-    .innerJoin(customers, eq(customers.id, bookings.customerId))
-    .where(
-      and(
-        eq(beds.roomId, roomId),
-        eq(bookings.status, 'confirmed'),
-        sql`bed_reservations.status = 'active'`,
-        sql`bed_reservations.kind = 'primary'`,
-        sql`bed_reservations.stay_range && daterange(${periodStart}::date, ${periodEndExclusive}::date, '[)')`,
-      ),
-    );
-
-  const byBooking = new Map<string, RoomOccupantSlice>();
-  for (const row of rows) {
-    const existing = byBooking.get(row.bookingId);
-    const stayStart = existing
-      ? row.lower < existing.stayStart
-        ? row.lower
-        : existing.stayStart
-      : row.lower;
-    const stayEndExclusive = (() => {
-      if (!row.upper && !existing?.stayEndExclusive) return null;
-      if (!row.upper) return existing!.stayEndExclusive;
-      if (!existing?.stayEndExclusive) return row.upper;
-      return row.upper > existing.stayEndExclusive ? row.upper : existing.stayEndExclusive;
-    })();
-    byBooking.set(row.bookingId, {
-      bookingId: row.bookingId,
-      customerId: row.customerId,
-      customerName: row.customerName,
-      stayStart,
-      stayEndExclusive,
-    });
-  }
-
-  return [...byBooking.values()];
+  return loadHistoricalRoomOccupantSlicesForPeriod({
+    roomId,
+    periodStart,
+    periodEndExclusive,
+  });
 }
 
 export type RoomElectricityCollectionRow = {

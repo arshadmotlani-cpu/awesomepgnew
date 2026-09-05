@@ -2509,17 +2509,27 @@ export async function approveCheckoutSettlement(input: {
       .set({ adminDepositRefundStatus: 'pending', updatedAt: new Date() })
       .where(eq(bookings.id, current.bookingId));
   }
-  try {
-    await recordCheckoutElectricityCollectionFromSettlementId(current.id, {
-      totalBillPaise: current.electricityCalculationMethod === 'manual_amount'
-        ? resolvedSharePaise
-        : undefined,
-    });
-  } catch (err) {
-    console.error('[checkout] recordCheckoutElectricityCollectionFromSettlementId failed', {
-      settlementId: current.id,
-      error: err instanceof Error ? err.message : err,
-    });
+  if (resolvedSharePaise > 0) {
+    try {
+      await recordCheckoutElectricityCollectionFromSettlementId(current.id, {
+        totalBillPaise: current.electricityCalculationMethod === 'manual_amount'
+          ? resolvedSharePaise
+          : undefined,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[checkout] recordCheckoutElectricityCollectionFromSettlementId failed', {
+        settlementId: current.id,
+        error: message,
+      });
+      return {
+        ok: false,
+        error:
+          'Checkout electricity collection could not be recorded for month-end reconciliation. ' +
+          'Retry after verifying electricity share, or contact support. ' +
+          message,
+      };
+    }
   }
 
   if (finalRefundPaise <= 0) {

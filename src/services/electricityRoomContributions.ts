@@ -347,18 +347,39 @@ function buildContributionsLoadResult(
   return { contributions, byCustomerId, totalPaise, contributorCustomerIds, usesLegacyFallback };
 }
 
-/** Load room contributions for allocation — table SSOT with legacy ledger fallback. */
+/** Load room contributions for allocation — table SSOT merged with legacy ledger rows. */
 export async function loadRoomElectricityContributionsForMonth(
   roomId: string,
   billingMonth: DateLike,
 ): Promise<RoomElectricityContributionsLoadResult> {
   const month = firstOfMonth(billingMonth);
   const tableRows = await loadContributionsFromTable(roomId, month);
-  if (tableRows.length > 0) {
+  const legacyRows = await loadLegacyContributionsForRoomMonth(roomId, month);
+
+  if (legacyRows.length === 0) {
     return buildContributionsLoadResult(tableRows, false);
   }
-  const legacyRows = await loadLegacyContributionsForRoomMonth(roomId, month);
-  return buildContributionsLoadResult(legacyRows, legacyRows.length > 0);
+
+  const seenSettlementIds = new Set(
+    tableRows.map((r) => r.checkoutSettlementId).filter(Boolean) as string[],
+  );
+  const seenLegacyKeys = new Set(
+    tableRows.map((r) => `${r.customerId}:${r.amountPaise}:${r.contributionDate}`),
+  );
+
+  const merged = [...tableRows];
+  for (const legacy of legacyRows) {
+    if (legacy.checkoutSettlementId && seenSettlementIds.has(legacy.checkoutSettlementId)) {
+      continue;
+    }
+    const key = `${legacy.customerId}:${legacy.amountPaise}:${legacy.contributionDate}`;
+    if (seenLegacyKeys.has(key)) continue;
+    merged.push(legacy);
+    if (legacy.checkoutSettlementId) seenSettlementIds.add(legacy.checkoutSettlementId);
+    seenLegacyKeys.add(key);
+  }
+
+  return buildContributionsLoadResult(merged, tableRows.length === 0 && legacyRows.length > 0);
 }
 
 export async function listRoomElectricityContributionsForMonth(

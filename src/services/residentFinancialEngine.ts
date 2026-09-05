@@ -43,7 +43,9 @@ import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import {
   buildPaidElectricityBookingMonthKeys,
   isElectricityAwaitingResidentPayment,
+  isElectricityCoveredByPriorCollection,
 } from '@/src/lib/billing/electricityCollectibility';
+import { loadPriorElectricityCollectionForCustomer } from '@/src/lib/billing/electricityPriorCollection';
 import { computeRentDuePaise, projectInvoice } from '@/src/services/rentInvoices';
 import { ROOM_CHANGE_INVOICE_SOURCE } from '@/src/services/roomShiftQuote';
 import { firstOfMonth } from '@/src/services/billing';
@@ -225,6 +227,7 @@ function buildElectricityCategory(
   invoices: ElectricityInvoice[],
   financialIdByElec: Map<string, string>,
   meta: { pgId: string; pgName: string; roomNumber: string },
+  priorCollectionByRoomMonth: Map<string, number> = new Map(),
 ): ResidentFinancialCategory {
   const items: ResidentFinancialLineItem[] = [];
   let requiredPaise = 0;
@@ -248,6 +251,14 @@ function buildElectricityCategory(
     const required = inv.amountPaise + lateFee;
     const paid = inv.paidPaise;
     const outstanding = Math.max(0, projected.outstandingPaise);
+    const priorCollectionPaise =
+      priorCollectionByRoomMonth.get(`${inv.roomId}:${firstOfMonth(inv.billingMonth)}`) ?? 0;
+    if (isElectricityCoveredByPriorCollection({
+      invoiceAmountPaise: inv.amountPaise,
+      priorCollectionPaise,
+    })) {
+      continue;
+    }
 
     if (
       !isElectricityAwaitingResidentPayment(
@@ -705,9 +716,19 @@ export async function computeBookingFinancialSummaryCore(args: {
 
   const meta = { pgId: args.pgId, pgName: args.pgName, roomNumber: args.roomNumber };
 
+  const priorCollectionByRoomMonth = await loadPriorElectricityCollectionForCustomer(
+    args.customerId,
+    elecRows,
+  );
+
   const rentBase = buildRentCategory(rentRows, finIds.rent, meta, exitRentCaps);
   const rent = await appendRoomChangeRentToCategory(args.bookingId, rentBase, meta);
-  let electricity = buildElectricityCategory(elecRows, finIds.elec, meta);
+  let electricity = buildElectricityCategory(
+    elecRows,
+    finIds.elec,
+    meta,
+    priorCollectionByRoomMonth,
+  );
   if (openVacating) {
     electricity = appendVacatingElectricityPlaceholders(electricity, {
       vacatingDate: openVacating.vacatingDate,

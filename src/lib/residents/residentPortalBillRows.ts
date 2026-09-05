@@ -2,7 +2,8 @@
  * Resident portal bill row builder — single source for due/paid/cancelled invoice rows.
  */
 import { isWithinLastDays } from '@/src/services/billingRevenueMetrics';
-import { isElectricityAwaitingAdminApproval } from '@/src/lib/billing/electricityCollectibility';
+import { isElectricityAwaitingAdminApproval, isElectricityCoveredByPriorCollection } from '@/src/lib/billing/electricityCollectibility';
+import { roomMonthCollectionKey } from '@/src/lib/billing/electricityPriorCollection';
 import type { PaymentProofRejection } from '@/src/db/schema/paymentProofRejections';
 import type {
   listElectricityInvoicesForBooking,
@@ -53,6 +54,8 @@ export type BuildResidentBillRowsOptions = {
   paidWindowDays?: number;
   activeRejections?: Map<string, PaymentProofRejection>;
   paymentProviders?: Map<string, string | null>;
+  /** bookingId → (roomId:billingMonth → prior collection paise) */
+  electricityPriorCollectionByBooking?: Map<string, Map<string, number>>;
 };
 
 export type BuildResidentBillRowsResult = {
@@ -261,6 +264,16 @@ export function buildResidentBillRowsFromDetail(
 
     for (const e of electricityRows) {
       try {
+      const priorCollection =
+        options.electricityPriorCollectionByBooking
+          ?.get(d.bookingId)
+          ?.get(roomMonthCollectionKey(e.roomId, e.billingMonth)) ?? 0;
+      if (isElectricityCoveredByPriorCollection({
+        invoiceAmountPaise: e.amountPaise,
+        priorCollectionPaise: priorCollection,
+      })) {
+        continue;
+      }
       if (isCancelledResidentInvoiceStatus(e.status)) {
         cancelledBillRows.push({
           id: e.id,

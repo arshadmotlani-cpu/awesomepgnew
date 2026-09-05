@@ -269,23 +269,28 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-09-04 16:11:16 UTC
+### Pending pre-commit sync · 2026-09-05 17:39:06 UTC
 
-**Areas touched:** [[Vacating]]
+**Areas touched:** [[Billing]], [[Residents]], [[Vacating]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
 - `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (5):**
-- `src/lib/vacating/canonicalRentThroughMoveOut.ts`
-- `src/lib/vacating/loadVacatingBillingPresentation.ts`
-- `src/lib/vacating/residentMoveOutRentPresentation.ts`
-- `src/services/vacating.ts`
-- `src/services/vacatingCheckoutBilling.ts`
+**Staged code files (9):**
+- `src/lib/billing/electricityCollectibility.ts`
+- `src/lib/billing/electricityPriorCollection.ts`
+- `src/lib/billing/pgElectricityBillingChecklist.ts`
+- `src/lib/billing/pgElectricityGenerationPreview.ts`
+- `src/lib/billing/pgElectricityGenerationPreviewPure.ts`
+- `src/lib/billing/roomElectricityCheckoutOccupants.ts`
+- `src/lib/residents/residentPortalBillRows.ts`
+- `src/services/checkoutSettlement.ts`
+- `src/services/residentFinancialEngine.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

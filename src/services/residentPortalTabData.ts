@@ -22,6 +22,7 @@ import { getDepositRefundSettlementPreview } from '@/src/lib/deposits/depositRef
 import type { ConciergeContext } from '@/src/lib/concierge/answers';
 import { loadResidentBrainSnapshot } from '@/src/lib/residents/loadResidentBrainSnapshot';
 import { buildResidentBillRowsFromDetail } from '@/src/lib/residents/residentPortalBillRows';
+import { loadPriorElectricityCollectionByBooking } from '@/src/lib/billing/electricityPriorCollection';
 import { listResidentFinancialInvoiceDueRows } from '@/src/lib/residents/residentFinancialInvoiceDueRows';
 import {
   buildResidentPayableNowRows,
@@ -440,7 +441,21 @@ export async function loadResidentPaymentsTabData(input: {
       }
     }
 
-    const rejectionOpts = { activeRejections, paymentProviders };
+    const electricityPriorCollectionByBooking = await loadPriorElectricityCollectionByBooking(
+      session.customerId,
+      detail.map((d) => ({
+        bookingId: d.bookingId,
+        electricity: d.electricity.ok
+          ? { ok: true as const, data: d.electricity.data }
+          : { ok: false as const, data: [] },
+      })),
+    );
+
+    const rejectionOpts = {
+      activeRejections,
+      paymentProviders,
+      electricityPriorCollectionByBooking,
+    };
     const allBills = buildResidentBillRowsFromDetail(detail, rejectionOpts);
     dueBillRows.push(...allBills.dueBillRows);
     pendingApprovalRows.push(...allBills.pendingApprovalRows);

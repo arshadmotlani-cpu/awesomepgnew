@@ -9,6 +9,7 @@ import {
 } from '@/app/(admin)/admin/billing/electricity/generate/actions';
 import type { PgElectricityBillingChecklist } from '@/src/lib/billing/pgElectricityBillingChecklist';
 import { DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE } from '@/src/lib/billing/constants';
+import { remainingElectricityAfterCollections } from '@/src/lib/billing/pgElectricityGenerationPreviewPure';
 import { paiseToInr } from '@/src/lib/format';
 
 type PgOption = { id: string; name: string };
@@ -147,13 +148,14 @@ export function PgElectricityBillingChecklistClient({
       <section className="rounded-2xl border border-white/10 bg-[#1A1F27] p-5">
         <h2 className="text-lg font-semibold text-white">Electricity billing</h2>
         <p className="mt-1 text-sm text-apg-silver">
-          Pick a month and one PG. Enter current meter readings — previous readings load
-          automatically.
+          Pick a consumption month and one PG. Enter current meter readings — previous readings load
+          automatically. Bills generated today use the selected month&apos;s historical occupancy (not
+          today&apos;s date).
         </p>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="block text-xs text-apg-silver">
-            Billing month
+            Billing month (consumption)
             <input
               type="month"
               value={monthValue}
@@ -255,6 +257,11 @@ export function PgElectricityBillingChecklistClient({
               const canSelect = room.status === 'reading_required' && !invalidCurrent && units != null && units >= 0;
               const isChecked = canSelect && selected[room.roomId] !== false;
               const result = lastResults.find((r) => r.roomId === room.roomId);
+
+              const remainingEstimated =
+                estimated != null && !invalidCurrent
+                  ? remainingElectricityAfterCollections(estimated, room.previouslyCollectedPaise)
+                  : null;
 
               return (
                 <article
@@ -410,6 +417,46 @@ export function PgElectricityBillingChecklistClient({
                           {estimated == null || invalidCurrent ? '—' : paiseToInr(estimated)}
                         </p>
                       </div>
+                    </div>
+                  ) : null}
+
+                  {(room.previouslyCollectedPaise > 0 || room.occupantsPreview.length > 0) &&
+                  room.status === 'reading_required' ? (
+                    <div className="mt-3 rounded-lg border border-white/10 bg-black/15 p-3 text-xs">
+                      <p className="font-medium text-white">Pre-generation reconciliation</p>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                        <div>
+                          <span className="text-apg-silver">Previously collected</span>
+                          <p className="text-white">{paiseToInr(room.previouslyCollectedPaise)}</p>
+                        </div>
+                        <div>
+                          <span className="text-apg-silver">Remaining to distribute</span>
+                          <p className="text-white">
+                            {remainingEstimated != null
+                              ? paiseToInr(remainingEstimated)
+                              : 'Enter current reading'}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-apg-silver">Historical occupants</span>
+                          <p className="text-white">{room.occupantsPreview.length}</p>
+                        </div>
+                      </div>
+                      {room.occupantsPreview.length > 0 ? (
+                        <ul className="mt-2 space-y-1 text-apg-silver">
+                          {room.occupantsPreview.map((o) => (
+                            <li key={o.customerId} className="flex flex-wrap justify-between gap-2">
+                              <span className="text-white">{o.customerName}</span>
+                              <span>
+                                {o.occupancyDays} day{o.occupancyDays === 1 ? '' : 's'}
+                                {o.previouslyCollectedPaise > 0
+                                  ? ` · collected ${paiseToInr(o.previouslyCollectedPaise)}`
+                                  : ''}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
                     </div>
                   ) : null}
 

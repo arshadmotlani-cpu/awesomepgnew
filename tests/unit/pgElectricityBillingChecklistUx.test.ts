@@ -24,7 +24,12 @@ test('PG checklist loads previous reading from meter SSOT automatically', () => 
   assert.match(checklist, /previous_unavailable/);
   assert.match(checklist, /maintenance_excluded/);
   assert.match(checklist, /activeBedCount === 0/);
-  assert.match(ui, /View bill/);
+  assert.match(checklist, /previouslyCollectedPaise/);
+  assert.match(checklist, /occupantsPreview/);
+  assert.match(checklist, /loadPgElectricityRoomGenerationPreview/);
+  assert.match(ui, /Pre-generation reconciliation/);
+  assert.match(ui, /Previously collected/);
+  assert.match(ui, /consumption month/);
   assert.match(ui, /\/admin\/electricity\/bills\/\$\{room\.billId\}/);
   assert.doesNotMatch(ui, /name="previousReading/);
   assert.match(ui, /Current must be ≥ previous/);

@@ -10,6 +10,10 @@ import { firstOfMonth } from '@/src/services/billing';
 import { resolveOfficialPreviousReading } from '@/src/services/meterTimelineService';
 import type { RoomPreviousMeterSource } from '@/src/lib/billing/roomMeterReadingSsot';
 import { loadRoomElectricityOccupantsForMonth } from '@/src/lib/billing/roomElectricityOccupants';
+import type { PgElectricityOccupantPreview } from '@/src/lib/billing/pgElectricityGenerationPreviewPure';
+import { loadPgElectricityRoomGenerationPreview } from '@/src/lib/billing/pgElectricityGenerationPreview';
+
+export type { PgElectricityOccupantPreview };
 
 export type PgElectricityRoomStatus =
   | 'already_billed'
@@ -34,6 +38,8 @@ export type PgElectricityChecklistRoom = {
   activeBedCount: number;
   maintenanceBedCount: number;
   billableOccupantCount: number;
+  previouslyCollectedPaise: number;
+  occupantsPreview: PgElectricityOccupantPreview[];
 };
 
 export type PgElectricityChecklistSummary = {
@@ -118,6 +124,20 @@ export async function loadPgElectricityBillingChecklist(input: {
 
   const checklistRooms: PgElectricityChecklistRoom[] = [];
 
+  async function pushRoomWithPreview(
+    base: Omit<PgElectricityChecklistRoom, 'previouslyCollectedPaise' | 'occupantsPreview'>,
+  ): Promise<void> {
+    const preview = await loadPgElectricityRoomGenerationPreview({
+      roomId: base.roomId,
+      billingMonth,
+    });
+    checklistRooms.push({
+      ...base,
+      previouslyCollectedPaise: preview.previouslyCollectedPaise,
+      occupantsPreview: preview.occupants,
+    });
+  }
+
   for (const room of acRooms) {
     const bedStats = await db.execute<{
       active_beds: number;
@@ -156,7 +176,7 @@ export async function loadPgElectricityBillingChecklist(input: {
       .limit(1);
 
     if (existingBill) {
-      checklistRooms.push({
+      await pushRoomWithPreview({
         roomId: room.roomId,
         roomNumber: room.roomNumber,
         status: 'already_billed',
@@ -177,7 +197,7 @@ export async function loadPgElectricityBillingChecklist(input: {
 
     // Whole room under maintenance: has beds, but none available for electricity occupancy.
     if (totalBeds > 0 && activeBedCount === 0) {
-      checklistRooms.push({
+      await pushRoomWithPreview({
         roomId: room.roomId,
         roomNumber: room.roomNumber,
         status: 'maintenance_excluded',
@@ -205,7 +225,7 @@ export async function loadPgElectricityBillingChecklist(input: {
     const billableOccupantCount = occupantLoad.occupants.length;
 
     if (billableOccupantCount === 0) {
-      checklistRooms.push({
+      await pushRoomWithPreview({
         roomId: room.roomId,
         roomNumber: room.roomNumber,
         status: 'not_eligible',
@@ -226,7 +246,7 @@ export async function loadPgElectricityBillingChecklist(input: {
 
     const baseline = await resolveOfficialPreviousReading(room.roomId, billingMonth);
     if (baseline.source === 'none') {
-      checklistRooms.push({
+      await pushRoomWithPreview({
         roomId: room.roomId,
         roomNumber: room.roomNumber,
         status: 'previous_unavailable',
@@ -245,7 +265,7 @@ export async function loadPgElectricityBillingChecklist(input: {
       continue;
     }
 
-    checklistRooms.push({
+    await pushRoomWithPreview({
       roomId: room.roomId,
       roomNumber: room.roomNumber,
       status: 'reading_required',
