@@ -13,6 +13,7 @@ requireDatabaseUrl('audit-rent-late-fee-grace');
 
 import { sql } from 'drizzle-orm';
 import { closeDb, db } from '@/src/db/client';
+import { rentInvoices } from '@/src/db/schema';
 import { paiseToInr } from '@/src/lib/format';
 
 const TODAY = process.argv[2] ?? '2026-09-06';
@@ -76,6 +77,49 @@ async function main() {
   }
 
   console.log(`Invoices with UTC/IST issue-date drift: ${shifted}/${rows.length}`);
+
+  // Historical exposure: invoices already paid a late fee computed from the
+  // UTC-shifted issue date. Reported only — never rewritten here.
+  const overcharged = await db.execute(sql`
+    SELECT ri.invoice_number, c.full_name, ri.status, ri.rent_paise, ri.paid_late_fee_paise
+    FROM rent_invoices ri
+    JOIN bookings b ON b.id = ri.booking_id
+    JOIN customers c ON c.id = b.customer_id
+    WHERE (ri.created_at AT TIME ZONE 'UTC')::date
+        <> (ri.created_at AT TIME ZONE 'Asia/Kolkata')::date
+      AND COALESCE(ri.paid_late_fee_paise, 0) > 0
+    ORDER BY ri.created_at
+  `);
+
+  console.log('\nHistorical over-charge (one extra grace day already collected):');
+  let totalOver = 0;
+  for (const r of overcharged as unknown as Record<string, string>[]) {
+    const overPaise = Math.floor(Number(r.rent_paise) / 100); // exactly one extra 1% day
+    totalOver += overPaise;
+    console.log(
+      `  ${r.invoice_number}  ${r.full_name}  [${r.status}]  ` +
+        `collected=${paiseToInr(Number(r.paid_late_fee_paise))}  over=${paiseToInr(overPaise)}`,
+    );
+  }
+  console.log(`  residents affected: ${overcharged.length}`);
+  console.log(`  total over-collected: ${paiseToInr(totalOver)}`);
+
+  // Canonical projection with the shipped engine — what every surface renders.
+  const { projectInvoice, rentInvoiceIssueDate } = await import('@/src/services/rentInvoices');
+  const invoices = await db
+    .select()
+    .from(rentInvoices)
+    .where(sql`${rentInvoices.billingMonth} = '2026-09-01'::date`);
+
+  console.log('\nCanonical projectInvoice() as of ' + TODAY + ':');
+  for (const inv of invoices) {
+    if (inv.status === 'cancelled' || inv.status === 'expired') continue;
+    const view = projectInvoice(inv, TODAY);
+    console.log(
+      `  ${inv.invoiceNumber}  issue=${rentInvoiceIssueDate(inv)}  grace_end=${view.graceEndDate ?? '-'}  ` +
+        `${view.lateFeePercent ?? 0}%  late_fee=${paiseToInr(view.accruedLateFeePaise)}  [${view.effectiveStatus}]`,
+    );
+  }
 }
 
 main()
