@@ -65,6 +65,7 @@ export type BedBrainSnapshot = {
 /** Room Brain V2 — electricity bill lifecycle for resident/admin UX (no UI inference). */
 export type NextElectricityBillStatus =
   | 'awaiting_meter'
+  | 'continuity_blocked'
   | 'bill_generating'
   | 'bill_ready'
   | 'paid'

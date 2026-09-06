@@ -63,6 +63,14 @@ describe('Room Brain V2 — nextElectricityBillStatus', () => {
     assert.equal(status, 'awaiting_meter');
   });
 
+  test('consumption continuity gap is a readable pending state, not a crash', () => {
+    assert.equal(isRoomAwaitingElectricityBillGeneration('continuity_blocked'), true);
+    assert.equal(
+      residentElectricityPendingMessage('continuity_blocked', 'September 2026'),
+      'Electricity billing for September 2026 is pending while the previous billing period is completed. No amount is due until a verified bill is generated.',
+    );
+  });
+
   test('active generation job → bill_generating', () => {
     const status = resolveNextElectricityBillStatus({
       meterReadingState: 'stale',

@@ -20,7 +20,12 @@ export type ResolveNextElectricityBillStatusInput = {
 export function isRoomAwaitingElectricityBillGeneration(
   status: NextElectricityBillStatus,
 ): boolean {
-  return status === 'awaiting_meter' || status === 'stale_meter' || status === 'bill_generating';
+  return (
+    status === 'awaiting_meter' ||
+    status === 'continuity_blocked' ||
+    status === 'stale_meter' ||
+    status === 'bill_generating'
+  );
 }
 
 export function resolveNextElectricityBillStatus(
@@ -62,6 +67,8 @@ export function nextElectricityBillStatusLabel(status: NextElectricityBillStatus
   switch (status) {
     case 'awaiting_meter':
       return 'Waiting for monthly meter reading';
+    case 'continuity_blocked':
+      return 'Previous electricity period pending';
     case 'stale_meter':
       return 'Awaiting meter reading';
     case 'bill_generating':
@@ -82,6 +89,8 @@ export function residentElectricityPendingMessage(
   billingMonthLabel: string,
 ): string {
   switch (status) {
+    case 'continuity_blocked':
+      return `Electricity billing for ${billingMonthLabel} is pending while the previous billing period is completed. No amount is due until a verified bill is generated.`;
     case 'awaiting_meter':
     case 'stale_meter':
       return `No electricity bill has been generated yet for ${billingMonthLabel}. The bill will appear once the admin records the room meter.`;

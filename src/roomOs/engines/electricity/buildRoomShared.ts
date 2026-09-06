@@ -56,9 +56,15 @@ export async function buildRoomSharedSnapshot(input: {
     )
     .limit(1);
 
+  // This is a read projection, not bill generation. Preserve fail-closed
+  // continuity as an explicit state instead of throwing and taking down
+  // resident/admin read surfaces. Generation still uses the enforcing default.
   const baseline = await resolveRoomPreviousMeterReading(input.roomId, {
     beforeBillingMonth: billingMonth,
+    enforceContinuity: false,
   });
+  const continuityFailure = baseline.continuity.ok ? null : baseline.continuity;
+  const continuityBlocked = continuityFailure != null;
   const roomBilling = await getRoomBillingConfig(input.roomId);
 
   const meterReadingState = resolveMeterReadingStateForMonth({
@@ -100,17 +106,21 @@ export async function buildRoomSharedSnapshot(input: {
     earliestUnpaidDueDate = unpaidRows[0]?.dueDate ?? null;
   }
 
-  const nextElectricityBillStatus = resolveNextElectricityBillStatus({
-    meterReadingState,
-    electricityStatus: status,
-    hasActiveGenerationJob: activeJob != null,
-    ledger,
-    earliestUnpaidDueDate,
-    asOf,
-  });
+  const nextElectricityBillStatus = continuityBlocked
+    ? 'continuity_blocked'
+    : resolveNextElectricityBillStatus({
+        meterReadingState,
+        electricityStatus: status,
+        hasActiveGenerationJob: activeJob != null,
+        ledger,
+        earliestUnpaidDueDate,
+        asOf,
+      });
 
   const lastReadingUnits =
-    billRow != null
+    continuityBlocked
+      ? null
+      : billRow != null
       ? Number(billRow.currentReadingUnits)
       : baseline.lastBillingMonth
         ? baseline.previousReadingUnits
@@ -124,7 +134,9 @@ export async function buildRoomSharedSnapshot(input: {
     billingMode: mapRoomBillingModeToSnapshot(roomBilling?.billingMode),
     meterReadingState,
     electricityStatus: status,
-    electricityStatusReason: reason,
+    electricityStatusReason: continuityBlocked
+      ? 'consumption_month_continuity_gap'
+      : reason,
     nextElectricityBillStatus,
     lastReadingUnits,
     lastBillMonth: baseline.lastBillingMonth,
@@ -135,7 +147,9 @@ export async function buildRoomSharedSnapshot(input: {
         stepId: 'electricity.meter_baseline',
         engine: 'Electricity',
         inputDigest: `room:${input.roomId}:month:${billingMonth}`,
-        outputDigest: meterReadingState,
+        outputDigest: continuityBlocked
+          ? `continuity_blocked:${continuityFailure.missingMonths.join(',')}`
+          : meterReadingState,
       },
       {
         stepId: 'electricity.room_status',

@@ -15,9 +15,20 @@ describe('Resident electricity billing pending UX', () => {
 
   it('awaiting states are not treated as financially clear', () => {
     assert.equal(isRoomAwaitingElectricityBillGeneration('awaiting_meter'), true);
+    assert.equal(isRoomAwaitingElectricityBillGeneration('continuity_blocked'), true);
     assert.equal(isRoomAwaitingElectricityBillGeneration('stale_meter'), true);
     assert.equal(isRoomAwaitingElectricityBillGeneration('paid'), false);
     assert.equal(isRoomAwaitingElectricityBillGeneration('bill_ready'), false);
+  });
+
+  it('Room shared read projection does not throw on continuity gaps', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'src/roomOs/engines/electricity/buildRoomShared.ts'),
+      'utf8',
+    );
+    assert.match(src, /enforceContinuity: false/);
+    assert.match(src, /continuity_blocked/);
+    assert.match(src, /lastReadingUnits[\s\S]*continuityBlocked[\s\S]*null/);
   });
 
   it('ResidentPaymentsV2Hub shows pending card and suppresses misleading ₹0', () => {

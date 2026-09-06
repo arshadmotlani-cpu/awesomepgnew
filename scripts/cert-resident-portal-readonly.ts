@@ -31,8 +31,24 @@ async function main() {
     }
   }
 
+  if (report.optionalDegraded.length > 0) {
+    console.log('\nSection failures (first 10):');
+    for (const row of report.optionalDegraded.slice(0, 10)) {
+      const failed = row.sections.filter((section) => section.status === 'FAILED');
+      for (const section of failed) {
+        console.log(
+          `  ${row.bookingCode ?? row.customerId.slice(0, 8)} ${section.section} ${section.loader} ` +
+            `${section.errorClass ?? 'Error'}: ${section.errorMessage ?? 'unknown'}`,
+        );
+        if (section.rootService) console.log(`    ${section.rootService}`);
+      }
+    }
+  }
+
   await closeDb();
-  if (report.summary.CORE_ERROR > 0) process.exit(1);
+  if (report.summary.CORE_ERROR > 0 || report.summary.OPTIONAL_DATA_DEGRADED > 0) {
+    process.exit(1);
+  }
 }
 
 main().catch((error) => {
