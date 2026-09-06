@@ -288,7 +288,7 @@ export async function loadResidentProfileTabData(input: {
       detail[0] ?? null,
     ) ?? primaryBooking;
 
-  const activeTenancy = await getActiveTenancyForCustomer(session.customerId);
+  const activeTenancy = await getPortalTenancyForCustomer(session.customerId);
   const refundSettlementPreview = walletBooking
     ? await getDepositRefundSettlementPreview(walletBooking.bookingId)
     : null;
@@ -665,7 +665,7 @@ export async function loadResidentRequestsTabData(input: {
   const [openRequests, checkoutMaps, activeTenancy, depositWallet] = await Promise.all([
     listOpenRequestsForCustomer(session.customerId),
     loadCheckoutSettlementMaps(session.customerId, detail),
-    getActiveTenancyForCustomer(session.customerId),
+    getPortalTenancyForCustomer(session.customerId),
     getCustomerDepositCredit(session.customerId),
   ]);
 

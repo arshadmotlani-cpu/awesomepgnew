@@ -54,7 +54,7 @@ test('certification: resident portal excludes reserve lifecycle and completed-on
   );
   assert.match(portalAccess, /customerHasOpenReserveLifecycle/);
   assert.match(portalAccess, /customerHasResidentPortalAccess/);
-  assert.match(portalAccess, /getActiveTenancyForCustomer/);
+  assert.match(portalAccess, /getPortalTenancyForCustomer/);
   assert.match(portalAccess, /durationMode !== 'reserve'/);
   assert.match(
     customerQuery,
