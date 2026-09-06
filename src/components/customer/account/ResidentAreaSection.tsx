@@ -85,13 +85,21 @@ export async function ResidentAreaSection({
 
       {activeTab === 'profile' && primaryBooking ? (
         <Suspense fallback={<ResidentProfileTabSkeleton />}>
-          <ResidentProfileTabSection
-            preloaded={preloaded}
+          <ResidentSectionErrorBoundary
+            page="resident_profile_tab"
             customerId={customerId}
-            profileSub={profileSub}
-            editExpanded={editExpanded}
-            developerTestMode={developerTestMode}
-          />
+            email={session.email}
+            bookingId={primaryBooking.bookingId}
+            title="Profile could not load"
+          >
+            <ResidentProfileTabSection
+              preloaded={preloaded}
+              customerId={customerId}
+              profileSub={profileSub}
+              editExpanded={editExpanded}
+              developerTestMode={developerTestMode}
+            />
+          </ResidentSectionErrorBoundary>
         </Suspense>
       ) : null}
 
@@ -134,13 +142,29 @@ export async function ResidentAreaSection({
 
       {activeTab === 'referrals' ? (
         <Suspense fallback={<ResidentReferralsTabSkeleton />}>
-          <ResidentReferralsTabSection preloaded={preloaded} customerId={customerId} />
+          <ResidentSectionErrorBoundary
+            page="resident_referrals_tab"
+            customerId={customerId}
+            email={session.email}
+            bookingId={primaryBooking?.bookingId ?? null}
+            title="Referrals could not load"
+          >
+            <ResidentReferralsTabSection preloaded={preloaded} customerId={customerId} />
+          </ResidentSectionErrorBoundary>
         </Suspense>
       ) : null}
 
       {activeTab === 'concierge' && primaryBooking ? (
         <Suspense fallback={<ResidentConciergeTabSkeleton />}>
-          <ResidentConciergeTabSection preloaded={preloaded} customerId={customerId} />
+          <ResidentSectionErrorBoundary
+            page="resident_concierge_tab"
+            customerId={customerId}
+            email={session.email}
+            bookingId={primaryBooking.bookingId}
+            title="Concierge could not load"
+          >
+            <ResidentConciergeTabSection preloaded={preloaded} customerId={customerId} />
+          </ResidentSectionErrorBoundary>
         </Suspense>
       ) : null}
     </ResidentHubShell>

@@ -54,12 +54,31 @@ export async function ResidentProfileTabSection({
     ? parseDevResidentDurationMode(cookieStore.get(DEV_RESIDENT_DURATION_COOKIE)?.value)
     : null;
 
-  const data = await loadResidentProfileTabData({
-    preloaded,
-    session,
-    developerTestMode,
-    simulatedDurationMode,
-  });
+  let data: Awaited<ReturnType<typeof loadResidentProfileTabData>>;
+  try {
+    data = await loadResidentProfileTabData({
+      preloaded,
+      session,
+      developerTestMode,
+      simulatedDurationMode,
+    });
+  } catch (error) {
+    logPortalLoaderFailure({
+      section: 'profile_tab',
+      customerId,
+      bookingId: preloaded.primaryBooking?.bookingId ?? null,
+      loader: 'ResidentProfileTabSection',
+      required: false,
+      error,
+    });
+    return (
+      <ResidentPortalSectionFallback
+        section="profile"
+        title="Profile could not load"
+        message="Your stay, deposit, and rent records are safe. Some profile details are temporarily unavailable — please try again."
+      />
+    );
+  }
 
   if (!data.primaryBooking) return null;
 
@@ -279,14 +298,32 @@ export async function ResidentReferralsTabSection({
   const session = await portalSession(customerId);
   if (!session) return null;
 
-  const referralSummary = await loadResidentReferralsTabData(customerId);
-  return (
-    <ReferralsPanel
-      customerId={session.customerId}
-      customerName={session.fullName || preloaded.customer.fullName || 'Resident'}
-      referralSummary={referralSummary}
-    />
-  );
+  try {
+    const referralSummary = await loadResidentReferralsTabData(customerId);
+    return (
+      <ReferralsPanel
+        customerId={session.customerId}
+        customerName={session.fullName || preloaded.customer.fullName || 'Resident'}
+        referralSummary={referralSummary}
+      />
+    );
+  } catch (error) {
+    logPortalLoaderFailure({
+      section: 'referrals_tab',
+      customerId,
+      bookingId: preloaded.primaryBooking?.bookingId ?? null,
+      loader: 'ResidentReferralsTabSection',
+      required: false,
+      error,
+    });
+    return (
+      <ResidentPortalSectionFallback
+        section="referrals"
+        title="Referrals could not load"
+        message="Your referral rewards are safe. This section is temporarily unavailable — please try again."
+      />
+    );
+  }
 }
 
 export async function ResidentConciergeTabSection({
@@ -299,7 +336,25 @@ export async function ResidentConciergeTabSection({
   const session = await portalSession(customerId);
   if (!session) return null;
 
-  const conciergeContext = await loadResidentConciergeTabData({ preloaded, session });
-  if (!conciergeContext) return null;
-  return <ResidentConciergeChat context={conciergeContext} />;
+  try {
+    const conciergeContext = await loadResidentConciergeTabData({ preloaded, session });
+    if (!conciergeContext) return null;
+    return <ResidentConciergeChat context={conciergeContext} />;
+  } catch (error) {
+    logPortalLoaderFailure({
+      section: 'concierge_tab',
+      customerId,
+      bookingId: preloaded.primaryBooking?.bookingId ?? null,
+      loader: 'ResidentConciergeTabSection',
+      required: false,
+      error,
+    });
+    return (
+      <ResidentPortalSectionFallback
+        section="concierge"
+        title="Concierge could not load"
+        message="Your stay and payment records are safe. Concierge is temporarily unavailable — please try again."
+      />
+    );
+  }
 }

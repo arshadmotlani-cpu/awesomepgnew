@@ -165,6 +165,39 @@ describe('portal architecture guards', () => {
     assert.match(src, /section="requests"/);
   });
 
+  test('every resident tab section isolates its loader locally', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'src/components/customer/account/ResidentAreaAsyncSections.tsx'),
+      'utf8',
+    );
+    for (const section of ['profile', 'payments', 'requests', 'referrals', 'concierge']) {
+      assert.match(src, new RegExp(`section="${section}"`), `${section} tab missing localized fallback`);
+    }
+    for (const section of ['profile_tab', 'payments_tab', 'requests_tab', 'referrals_tab', 'concierge_tab']) {
+      assert.match(
+        src,
+        new RegExp(`section: '${section}'`),
+        `${section} missing structured loader failure logging`,
+      );
+    }
+  });
+
+  test('every resident tab is wrapped in a section error boundary', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'src/components/customer/account/ResidentAreaSection.tsx'),
+      'utf8',
+    );
+    for (const page of [
+      'resident_profile_tab',
+      'resident_payments_tab',
+      'resident_requests_tab',
+      'resident_referrals_tab',
+      'resident_concierge_tab',
+    ]) {
+      assert.match(src, new RegExp(`page="${page}"`), `${page} not wrapped in ResidentSectionErrorBoundary`);
+    }
+  });
+
   test('hub shell no longer uses global stay dashboard error title', () => {
     const src = readFileSync(join(process.cwd(), 'src/components/customer/account/ResidentHubShell.tsx'), 'utf8');
     assert.doesNotMatch(src, /Your stay dashboard could not load/);
