@@ -115,13 +115,15 @@ describe('rent payment approval hot path', () => {
     assert.match(body, /creditReferralEarningOnBookingPayment/);
   });
 
-  it('payment review workspace does not await badge refresh before redirect', () => {
+  it('payment review workspace does not await badge refresh after approval', () => {
     const src = readFileSync(
       join(process.cwd(), 'src/components/admin/payment-review/PaymentReviewWorkspace.tsx'),
       'utf8',
     );
-    assert.match(src, /void refreshAdminNavBadges\(\)/);
-    assert.doesNotMatch(src, /await refreshAdminNavBadges\(\)/);
+    const approveFn = src.slice(src.indexOf('async function handleApprove'), src.indexOf('const kycTone'));
+    assert.match(approveFn, /void refreshAdminNavBadges\(\)/);
+    assert.doesNotMatch(approveFn, /await refreshAdminNavBadges\(\)/);
+    assert.doesNotMatch(approveFn, /router\.refresh\(\)/);
   });
 });
 

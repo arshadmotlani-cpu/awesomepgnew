@@ -99,14 +99,17 @@ describe('booking payment review acceptance contract', () => {
     assert.equal(isPaymentRecordEligibleForReview('approved', true), false);
   });
 
-  test('4 — stale deep link redirects safely without crashing', () => {
+  test('4 — stale deep link stays navigable without forcing operations redirect', () => {
     const operationsPage = read('app/(admin)/admin/operations/page.tsx');
     assert.match(operationsPage, /paymentReviewWorkspaceHref\(focus\)/);
 
     const reviewPage = read('app/(admin)/admin/payment-review/[reviewKey]/page.tsx');
-    assert.match(reviewPage, /already_processed/);
+    const resolved = read('src/components/admin/payment-review/PaymentReviewResolvedPanel.tsx');
+    assert.match(reviewPage, /PaymentReviewResolvedPanel/);
+    assert.match(resolved, /already_processed/);
     assert.match(reviewPage, /AdminSectionErrorBoundary/);
     assert.doesNotMatch(reviewPage, /throw new Error/);
+    assert.doesNotMatch(reviewPage, /redirect\(operationsFilterHref/);
   });
 
   test('5 — re-approve returns already-approved message (no throw)', () => {

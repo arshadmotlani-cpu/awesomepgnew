@@ -1,7 +1,6 @@
-import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
+import { PaymentReviewResolvedPanel } from '@/src/components/admin/payment-review/PaymentReviewResolvedPanel';
 import { PaymentReviewWorkspace } from '@/src/components/admin/payment-review/PaymentReviewWorkspace';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { requireAdminSession } from '@/src/lib/auth/guards';
@@ -43,10 +42,20 @@ export default async function PaymentReviewPage(props: PageProps<'/admin/payment
   }
 
   if (!result.ok) {
-    if (result.reason === 'already_processed') {
-      redirect(operationsFilterHref('waiting_for_approval'));
-    }
-    redirect(operationsFilterHref('waiting_for_approval'));
+    return (
+      <>
+        <ModuleBreadcrumbs
+          items={[
+            { label: 'Overview', href: moduleHref('overview') },
+            { label: ADMIN_MODULES.operations.label, href: operationsFilterHref('waiting_for_approval') },
+            { label: 'Payment review' },
+          ]}
+        />
+        <div data-payment-review-workspace className={styles.workspace}>
+          <PaymentReviewResolvedPanel reason={result.reason} />
+        </div>
+      </>
+    );
   }
 
   return (

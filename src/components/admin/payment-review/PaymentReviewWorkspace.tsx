@@ -14,6 +14,11 @@ import { refreshAdminNavBadges } from '@/src/lib/admin/refreshAdminNavBadges';
 import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
 import { paymentReviewWorkspaceHref } from '@/src/lib/operations/paymentReviewLinks';
 import { stashOperationsApprovedToast } from '@/src/lib/operations/operationsActionToastFlash';
+import {
+  PAYMENT_REVIEW_APPROVED_TOAST,
+  paymentReviewPostApprovalChrome,
+  resolvePaymentReviewApprovalPhase,
+} from '@/src/lib/operations/paymentReviewPostApprovalUx';
 import { buildPaymentReviewVerification } from '@/src/lib/operations/paymentReviewVerification';
 import { transactionRefLooksLikeUpiVpa } from '@/src/lib/payments/safePaymentApprovalError';
 import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
@@ -90,9 +95,15 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
 
   const verification = baseVerification;
   const diff = differenceDisplay(verification.differencePaise, verification.differenceTone);
-  const actionsDisabled = busy || approved;
+  const phase = resolvePaymentReviewApprovalPhase({
+    busy,
+    approved,
+    hasError: Boolean(error),
+  });
+  const chrome = paymentReviewPostApprovalChrome(phase);
 
   async function handleApprove() {
+    if (busy || approved) return;
     if (item.possibleDuplicate) {
       const msg =
         item.approveConfirmMessage ??
@@ -116,17 +127,13 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
         return;
       }
 
-      const successMessage = 'Payment approved successfully.';
-      stashOperationsApprovedToast(successMessage);
+      stashOperationsApprovedToast(PAYMENT_REVIEW_APPROVED_TOAST);
       setApproved(true);
-      showToast(successMessage, 'success');
+      setBusy(false);
+      showToast(PAYMENT_REVIEW_APPROVED_TOAST, 'success');
 
-      // Do not await badge/cache refresh — critical approval already succeeded.
+      // Badge/cache/queue refresh must not block sidebar navigation.
       void refreshAdminNavBadges();
-      router.refresh();
-
-      const redirectTo = operationsFilterHref('waiting_for_approval');
-      router.push(redirectTo);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Approval failed.');
       setBusy(false);
@@ -141,33 +148,12 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
         : 'amber';
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
+    <div
+      className="relative flex min-h-0 flex-1 flex-col"
+      data-payment-review-shell
+      data-navigation-blocked={chrome.shellNavigationBlocked ? 'true' : 'false'}
+    >
       {toastNode}
-
-      {(busy || approved) && (
-        <div
-          className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-[#0B0F14]/75 backdrop-blur-sm"
-          role="status"
-          aria-live="polite"
-          aria-busy={busy && !approved}
-        >
-          <div className="mx-4 max-w-sm rounded-2xl border border-white/10 bg-[#1A1F27] px-6 py-5 text-center shadow-2xl">
-            {approved ? (
-              <>
-                <p className="text-base font-semibold text-emerald-200">Payment approved successfully.</p>
-                <p className="mt-2 text-sm text-apg-silver">Returning to operations queue…</p>
-              </>
-            ) : (
-              <>
-                <div className="mx-auto flex h-10 w-10 items-center justify-center">
-                  <ApproveSpinner />
-                </div>
-                <p className="mt-3 text-sm font-medium text-white">Approving payment…</p>
-              </>
-            )}
-          </div>
-        </div>
-      )}
 
       {rejectOpen ? (
         <PaymentProofRejectionDialog
@@ -238,8 +224,21 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
         ) : null}
 
         {error ? (
-          <p className="border-b border-rose-400/20 bg-rose-500/10 px-5 py-3 text-sm text-rose-200">
+          <p
+            className="border-b border-rose-400/20 bg-rose-500/10 px-5 py-3 text-sm text-rose-200"
+            data-payment-review-error
+          >
             {error}
+          </p>
+        ) : null}
+
+        {chrome.successBannerVisible ? (
+          <p
+            className="border-b border-emerald-400/20 bg-emerald-500/10 px-5 py-3 text-sm text-emerald-100"
+            data-payment-review-success
+            role="status"
+          >
+            {PAYMENT_REVIEW_APPROVED_TOAST}
           </p>
         ) : null}
 
@@ -418,12 +417,12 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
           <div className="flex flex-wrap items-center justify-between gap-4">
             <Link
               href={operationsFilterHref('waiting_for_approval')}
-              aria-disabled={actionsDisabled}
+              aria-disabled={chrome.backToQueueDisabled}
               className={`rounded-lg border border-white/10 px-3.5 py-2 text-sm font-medium text-apg-silver transition hover:bg-white/5 hover:text-white ${
-                actionsDisabled ? 'pointer-events-none opacity-50' : ''
+                chrome.backToQueueDisabled ? 'pointer-events-none opacity-50' : ''
               }`}
               onClick={(e) => {
-                if (actionsDisabled) e.preventDefault();
+                if (chrome.backToQueueDisabled) e.preventDefault();
               }}
             >
               Back to queue
@@ -432,7 +431,7 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
               {item.canReject ? (
                 <button
                   type="button"
-                  disabled={actionsDisabled}
+                  disabled={chrome.rejectDisabled}
                   onClick={() => setRejectOpen(true)}
                   className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-200 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                 >
@@ -441,11 +440,11 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
               ) : null}
               <button
                 type="button"
-                disabled={actionsDisabled}
+                disabled={chrome.approveDisabled}
                 onClick={() => void handleApprove()}
                 className="inline-flex min-w-[120px] items-center justify-center gap-2 rounded-lg bg-apg-orange px-5 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {busy && !approved ? (
+                {chrome.showApprovingSpinner ? (
                   <>
                     <ApproveSpinner />
                     Approving…

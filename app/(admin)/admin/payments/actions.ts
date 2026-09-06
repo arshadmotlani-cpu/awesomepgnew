@@ -25,10 +25,10 @@ import { scheduleAfterPaymentApproval } from '@/src/lib/payments/scheduleAfterPa
 
 const PAYMENT_REVIEW_PATH = '/admin/operations';
 
-/** Fast path — only surfaces the admin is about to navigate to. */
+/** Fast path — do not revalidate the admin layout (that re-suspends the sidebar). */
 function revalidatePaymentReviewSurfacesFast(pgId: string) {
   revalidatePath(PAYMENT_REVIEW_PATH, 'page');
-  revalidatePath('/admin/payment-review', 'layout');
+  revalidatePath('/admin/payment-review/[reviewKey]', 'page');
   revalidatePath(`/admin/pgs/${pgId}/collections`);
 }
 
@@ -410,7 +410,7 @@ export async function approveRentProofAction(
   }
 
   // Allocation audit + heavy cache fan-out must not block the admin response.
-  // PaymentReviewWorkspace always redirects to the ops queue and ignores nextKey,
+  // Payment Review restores navigation immediately after commit and ignores nextKey,
   // so skip the expensive listPendingPaymentReviews rebuild here.
   scheduleAfterPaymentApproval(async () => {
     await persistApprovalAllocationAfterSuccess({

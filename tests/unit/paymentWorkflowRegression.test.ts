@@ -242,13 +242,19 @@ describe('payment workflow regression', () => {
     assert.match(workspace, /justify-between/);
   });
 
-  test('Payment Review approval refreshes badges without blocking redirect', () => {
+  test('Payment Review approval refreshes badges without blocking navigation', () => {
     const workspace = read('src/components/admin/payment-review/PaymentReviewWorkspace.tsx');
     const provider = read('src/components/admin/AdminLiveRefreshProvider.tsx');
     const flash = read('src/components/admin/operations/OperationsFlashToast.tsx');
-    assert.match(workspace, /void refreshAdminNavBadges\(\)/);
-    assert.doesNotMatch(workspace, /await refreshAdminNavBadges\(\)/);
-    assert.match(workspace, /router\.refresh\(\)/);
+    const approveFn = workspace.slice(
+      workspace.indexOf('async function handleApprove'),
+      workspace.indexOf('const kycTone'),
+    );
+    assert.match(approveFn, /void refreshAdminNavBadges\(\)/);
+    assert.doesNotMatch(approveFn, /await refreshAdminNavBadges\(\)/);
+    assert.doesNotMatch(approveFn, /router\.refresh\(\)/);
+    assert.doesNotMatch(approveFn, /router\.push\(redirectTo\)/);
+    assert.doesNotMatch(approveFn, /Returning to operations queue/);
     assert.match(provider, /ADMIN_BADGES_REFRESH_EVENT/);
     assert.match(provider, /ADMIN_BADGES_REFRESH_COMPLETE_EVENT/);
     assert.match(provider, /mergeBadgesPreferLowerOperations/);
