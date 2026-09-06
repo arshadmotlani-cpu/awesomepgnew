@@ -2,6 +2,7 @@
 
 import { Component, type ReactNode } from 'react';
 import { logResidentClientError } from '@/src/lib/client/residentClientLogger';
+import { ResidentPortalRefreshButton } from '@/src/components/customer/account/resident/ResidentPortalRefreshButton';
 
 type Props = {
   children: ReactNode;
@@ -43,13 +44,9 @@ export class ResidentSectionErrorBoundary extends Component<Props, State> {
             Something went wrong while opening this screen. Your booking and deposit are safe —
             please try again. If the problem continues, contact the PG office with a screenshot.
           </p>
-          <button
-            type="button"
-            onClick={() => this.setState({ hasError: false, errorMessage: null })}
+          <ResidentPortalRefreshButton
             className="mt-4 rounded-lg bg-rose-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-600"
-          >
-            Try again
-          </button>
+          />
         </div>
       );
     }

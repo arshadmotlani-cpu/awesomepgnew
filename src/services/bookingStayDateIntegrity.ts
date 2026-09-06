@@ -325,7 +325,7 @@ async function verifyRepairedResidents(
     const loginContextOk = contextLoad.ok;
     if (!loginContextOk) {
       notes.push(
-        contextLoad.reason === 'load_failed'
+        contextLoad.reason === 'core_error'
           ? `post-login context failed: ${contextLoad.errorMessage ?? 'unknown'}`
           : 'customer not found',
       );

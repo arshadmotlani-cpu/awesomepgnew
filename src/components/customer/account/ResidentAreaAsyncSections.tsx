@@ -3,6 +3,8 @@ import { ResidentConciergeChat } from '@/src/components/customer/account/Residen
 import { ResidentProfileHub } from '@/src/components/customer/account/resident/ResidentProfileHub';
 import { ResidentPaymentsV2Hub } from '@/src/components/customer/account/resident/ResidentPaymentsV2Hub';
 import { ResidentSectionErrorBoundary } from '@/src/components/customer/account/resident/ResidentSectionErrorBoundary';
+import { ResidentPortalSectionFallback } from '@/src/components/customer/account/resident/ResidentPortalSectionFallback';
+import { logPortalLoaderFailure } from '@/src/lib/residents/residentPortalLoaderSafety';
 import { RequestsHome } from '@/src/components/customer/account/resident/requests/RequestsHome';
 import type { ResidentPaymentsSub, ResidentProfileSub } from '@/src/lib/accountNavigation';
 import {
@@ -122,26 +124,52 @@ export async function ResidentPaymentsTabSection({
   const session = await portalSession(customerId);
   if (!session) return null;
 
-  const data = await loadResidentPaymentsTabData({ preloaded, session });
-  if (!data.primaryBooking) return null;
+  try {
+    const data = await loadResidentPaymentsTabData({ preloaded, session });
+    if (!data.primaryBooking) return null;
 
-  return (
-    <ResidentPaymentsV2Hub
-      sub={paymentsSub}
-      dueRows={data.enrichedDueRows}
-      pendingApprovalRows={data.pendingApprovalRows}
-      rejectedBillRows={data.rejectedBillRows}
-      paidBills={data.paidHistory}
-      cancelledBills={data.cancelledBillRows}
-      pendingRentNotice={data.pendingRentNotice?.message ?? null}
-      electricityBillingPending={data.electricityBillingPending}
-      electricityHistory={data.electricityHistory}
-      historyHref={data.historyHref}
-      lifetimeTotals={data.lifetimeTotals}
-      payableNowTotalPaise={data.payableNowTotalPaise}
-      payAll={data.payAll}
-    />
-  );
+    return (
+      <>
+        {data.optionalDegraded ? (
+          <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            Some payment details are temporarily unavailable. Your rent and deposit balances remain
+            accurate.
+          </p>
+        ) : null}
+        <ResidentPaymentsV2Hub
+          sub={paymentsSub}
+          dueRows={data.enrichedDueRows}
+          pendingApprovalRows={data.pendingApprovalRows}
+          rejectedBillRows={data.rejectedBillRows}
+          paidBills={data.paidHistory}
+          cancelledBills={data.cancelledBillRows}
+          pendingRentNotice={data.pendingRentNotice?.message ?? null}
+          electricityBillingPending={data.electricityBillingPending}
+          electricityHistory={data.electricityHistory}
+          historyHref={data.historyHref}
+          lifetimeTotals={data.lifetimeTotals}
+          payableNowTotalPaise={data.payableNowTotalPaise}
+          payAll={data.payAll}
+        />
+      </>
+    );
+  } catch (error) {
+    logPortalLoaderFailure({
+      section: 'payments_tab',
+      customerId,
+      bookingId: preloaded.primaryBooking?.bookingId ?? null,
+      loader: 'ResidentPaymentsTabSection',
+      required: false,
+      error,
+    });
+    return (
+      <ResidentPortalSectionFallback
+        section="payments"
+        title="Payments could not load"
+        message="Your rent and deposit information is safe. Some payment details are temporarily unavailable — please try again."
+      />
+    );
+  }
 }
 
 export async function ResidentRequestsTabSection({
@@ -167,22 +195,23 @@ export async function ResidentRequestsTabSection({
     ? parseDevResidentDurationMode(cookieStore.get(DEV_RESIDENT_DURATION_COOKIE)?.value)
     : null;
 
-  const data = await loadResidentRequestsTabData({
-    preloaded,
-    session,
-    developerTestMode,
-    simulatedDurationMode,
-  });
-  if (!data) return null;
+  try {
+    const data = await loadResidentRequestsTabData({
+      preloaded,
+      session,
+      developerTestMode,
+      simulatedDurationMode,
+    });
+    if (!data) return null;
 
-  return (
-    <ResidentSectionErrorBoundary
-      page="requests_home"
-      bookingId={data.primaryBooking.bookingId}
-      customerId={session.customerId}
-      title="Requests could not load"
-    >
-      <RequestsHome
+    return (
+      <ResidentSectionErrorBoundary
+        page="requests_home"
+        bookingId={data.primaryBooking.bookingId}
+        customerId={session.customerId}
+        title="Requests could not load"
+      >
+        <RequestsHome
         customerId={session.customerId}
         bookingId={data.primaryBooking.bookingId}
         bookingCode={data.primaryBooking.bookingCode}
@@ -220,7 +249,24 @@ export async function ResidentRequestsTabSection({
         exitBrainSnapshot={data.primaryExitBrainSnapshot}
       />
     </ResidentSectionErrorBoundary>
-  );
+    );
+  } catch (error) {
+    logPortalLoaderFailure({
+      section: 'requests_tab',
+      customerId,
+      bookingId: preloaded.primaryBooking?.bookingId ?? null,
+      loader: 'ResidentRequestsTabSection',
+      required: false,
+      error,
+    });
+    return (
+      <ResidentPortalSectionFallback
+        section="requests"
+        title="Requests could not load"
+        message="Your move-out and service requests are safe. Please try again to view request status."
+      />
+    );
+  }
 }
 
 export async function ResidentReferralsTabSection({

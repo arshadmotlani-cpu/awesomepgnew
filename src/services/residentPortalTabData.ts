@@ -21,6 +21,7 @@ import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
 import { getDepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
 import type { ConciergeContext } from '@/src/lib/concierge/answers';
 import { loadResidentBrainSnapshot } from '@/src/lib/residents/loadResidentBrainSnapshot';
+import { loadPortalSectionSafe } from '@/src/lib/residents/residentPortalLoaderSafety';
 import { buildResidentBillRowsFromDetail } from '@/src/lib/residents/residentPortalBillRows';
 import { loadPriorElectricityCollectionByBooking } from '@/src/lib/billing/electricityPriorCollection';
 import { listResidentFinancialInvoiceDueRows } from '@/src/lib/residents/residentFinancialInvoiceDueRows';
@@ -191,6 +192,25 @@ async function resolvePrimaryBooking(
   );
 }
 
+function resolvePrimaryBookingFromPreloaded(
+  preloaded: ResidentAccountContext,
+  detail: ResidentPortalBookingDetail[],
+): ResidentPortalBookingDetail | undefined {
+  if (preloaded.primaryBooking) {
+    return detail.find((d) => d.bookingId === preloaded.primaryBooking!.bookingId);
+  }
+  return undefined;
+}
+
+async function resolvePortalPrimaryBookingDetail(
+  preloaded: ResidentAccountContext,
+  customerId: string,
+  detail: ResidentPortalBookingDetail[],
+): Promise<ResidentPortalBookingDetail | undefined> {
+  return resolvePrimaryBookingFromPreloaded(preloaded, detail) ??
+    (await resolvePrimaryBooking(customerId, detail));
+}
+
 export async function loadResidentConciergeTabData(input: {
   preloaded: ResidentAccountContext;
   session: CustomerSession;
@@ -226,7 +246,7 @@ export async function loadResidentProfileTabData(input: {
   const { preloaded, session } = input;
   const customer = preloaded.customer;
   const detail = await loadResidentPortalBookingDetail(session.customerId);
-  const primaryBooking = await resolvePrimaryBooking(session.customerId, detail);
+  const primaryBooking = await resolvePortalPrimaryBookingDetail(preloaded, session.customerId, detail);
   const effectiveDurationMode =
     primaryBooking && input.developerTestMode && input.simulatedDurationMode
       ? mapDevDurationToBookingMode(input.simulatedDurationMode)
@@ -409,13 +429,27 @@ export async function loadResidentPaymentsTabData(input: {
 }) {
   const { preloaded, session } = input;
   const detail = await loadResidentPortalBookingDetail(session.customerId);
-  const primaryBooking = await resolvePrimaryBooking(session.customerId, detail);
+  const primaryBooking = await resolvePortalPrimaryBookingDetail(preloaded, session.customerId, detail);
 
-  const brain = await loadResidentBrainSnapshot({
-    customerId: session.customerId,
-    bookingIds: detail.map((d) => d.bookingId),
-    financialAccount: preloaded.financialSummary,
-  });
+  let optionalDegraded = preloaded.portalOptionalDegraded === true;
+
+  const brainLoad = await loadPortalSectionSafe(
+    {
+      section: 'brain_snapshot',
+      customerId: session.customerId,
+      bookingId: primaryBooking?.bookingId ?? null,
+      loader: 'loadResidentBrainSnapshot',
+      required: false,
+    },
+    () =>
+      loadResidentBrainSnapshot({
+        customerId: session.customerId,
+        bookingIds: detail.map((d) => d.bookingId),
+        financialAccount: preloaded.financialSummary,
+      }),
+  );
+  const brain = brainLoad.ok ? brainLoad.data : null;
+  if (!brainLoad.ok) optionalDegraded = true;
 
   const [activeRejectionsRaw, documentInvoices] = await Promise.all([
     listActiveRejectionsForCustomer(session.customerId),
@@ -442,15 +476,29 @@ export async function loadResidentPaymentsTabData(input: {
       }
     }
 
-    const electricityPriorCollectionByBooking = await loadPriorElectricityCollectionByBooking(
-      session.customerId,
-      detail.map((d) => ({
-        bookingId: d.bookingId,
-        electricity: d.electricity.ok
-          ? { ok: true as const, data: d.electricity.data }
-          : { ok: false as const, data: [] },
-      })),
+    const priorCollectionLoad = await loadPortalSectionSafe(
+      {
+        section: 'electricity_history',
+        customerId: session.customerId,
+        bookingId: primaryBooking?.bookingId ?? null,
+        loader: 'loadPriorElectricityCollectionByBooking',
+        required: false,
+      },
+      () =>
+        loadPriorElectricityCollectionByBooking(
+          session.customerId,
+          detail.map((d) => ({
+            bookingId: d.bookingId,
+            electricity: d.electricity.ok
+              ? { ok: true as const, data: d.electricity.data }
+              : { ok: false as const, data: [] },
+          })),
+        ),
     );
+    const electricityPriorCollectionByBooking = priorCollectionLoad.ok
+      ? priorCollectionLoad.data
+      : new Map<string, Map<string, number>>();
+    if (!priorCollectionLoad.ok) optionalDegraded = true;
 
     const rejectionOpts = {
       activeRejections,
@@ -555,10 +603,18 @@ export async function loadResidentPaymentsTabData(input: {
     .map((row) => row.electricityInvoiceId)
     .filter((id): id is string => Boolean(id))
     .concat(electricityHistory.map((item) => item.id));
-  const electricityExplanations = await loadResidentElectricityBillExplanations(
-    electricityInvoiceIds,
-    session.customerId,
+  const explanationsLoad = await loadPortalSectionSafe(
+    {
+      section: 'electricity_explanations',
+      customerId: session.customerId,
+      bookingId: primaryBooking?.bookingId ?? null,
+      loader: 'loadResidentElectricityBillExplanations',
+      required: false,
+    },
+    () => loadResidentElectricityBillExplanations(electricityInvoiceIds, session.customerId),
   );
+  const electricityExplanations = explanationsLoad.ok ? explanationsLoad.data : new Map();
+  if (!explanationsLoad.ok) optionalDegraded = true;
 
   const enrichedDueRows = dueBillRows.map((row) => {
     const enriched = enrichBillDueRow(row);
@@ -643,6 +699,7 @@ export async function loadResidentPaymentsTabData(input: {
       href: payAllHref,
       totalPaise: payableNowTotalPaise,
     },
+    optionalDegraded,
   };
 }
 
@@ -654,7 +711,7 @@ export async function loadResidentRequestsTabData(input: {
 }) {
   const { preloaded, session } = input;
   const detail = await loadResidentPortalBookingDetail(session.customerId);
-  const primaryBooking = await resolvePrimaryBooking(session.customerId, detail);
+  const primaryBooking = await resolvePortalPrimaryBookingDetail(preloaded, session.customerId, detail);
   if (!primaryBooking) return null;
 
   const effectiveDurationMode =
@@ -736,10 +793,22 @@ export async function loadResidentRequestsTabData(input: {
     null;
 
   if (primaryVacating) {
-    const { loadResidentExitBrainSnapshot } = await import(
-      '@/src/lib/exit/loadResidentExitBrainSnapshot'
+    const exitBrainLoad = await loadPortalSectionSafe(
+      {
+        section: 'exit_brain',
+        customerId: session.customerId,
+        bookingId: primaryBooking.bookingId,
+        loader: 'loadResidentExitBrainSnapshot',
+        required: false,
+      },
+      async () => {
+        const { loadResidentExitBrainSnapshot } = await import(
+          '@/src/lib/exit/loadResidentExitBrainSnapshot'
+        );
+        return loadResidentExitBrainSnapshot(primaryBooking.bookingId);
+      },
     );
-    primaryExitBrainSnapshot = await loadResidentExitBrainSnapshot(primaryBooking.bookingId);
+    primaryExitBrainSnapshot = exitBrainLoad.ok ? exitBrainLoad.data : null;
   }
 
   if (primaryVacating && ['pending', 'approved'].includes(primaryVacating.status)) {
@@ -747,30 +816,45 @@ export async function loadResidentRequestsTabData(input: {
       noticeGivenDate: primaryVacating.noticeGivenDate,
       originalNoticeSubmittedAt: primaryVacating.originalNoticeSubmittedAt,
     });
-    const { loadVacatingBillingPresentationBundle } = await import(
-      '@/src/lib/vacating/loadVacatingBillingPresentation'
-    );
-    const [bundle, pendingDateChange] = await Promise.all([
-      loadVacatingBillingPresentationBundle({
+    const settlementLoad = await loadPortalSectionSafe(
+      {
+        section: 'vacating_settlement',
+        customerId: session.customerId,
         bookingId: primaryBooking.bookingId,
-        noticeGivenDate: immutableNoticeDate,
-        vacatingDate: primaryVacating.vacatingDate,
-        monthlyRentPaiseSnapshot: primaryVacating.monthlyRentPaiseSnapshot,
-        durationMode: effectiveDurationMode ?? primaryBooking.booking.durationMode,
-        mode: 'estimate',
-        treatAsApprovedForTail: true,
-        explanationMeta: {
-          bookingCode: primaryBooking.bookingCode,
-          residentName: session.fullName || preloaded.customer.fullName || 'Resident',
-          vacatingRequestId: primaryVacating.id,
-        },
-      }),
-      getPendingVacatingDateChangeForBooking(primaryBooking.bookingId),
-    ]);
-    primaryEstimatedSettlement = bundle?.estimatedSettlement ?? null;
-    primaryNoticeDisplay = bundle?.noticeDisplay ?? null;
-    primaryPendingDateChangeRequestId = pendingDateChange?.id ?? null;
-    primaryPendingDateChangePreview = pendingDateChange?.preview ?? null;
+        loader: 'loadVacatingBillingPresentationBundle',
+        required: false,
+      },
+      async () => {
+        const { loadVacatingBillingPresentationBundle } = await import(
+          '@/src/lib/vacating/loadVacatingBillingPresentation'
+        );
+        const pendingDateChange = await getPendingVacatingDateChangeForBooking(primaryBooking.bookingId);
+        const bundle = await loadVacatingBillingPresentationBundle({
+          bookingId: primaryBooking.bookingId,
+          noticeGivenDate: immutableNoticeDate,
+          vacatingDate: primaryVacating.vacatingDate,
+          monthlyRentPaiseSnapshot: primaryVacating.monthlyRentPaiseSnapshot,
+          durationMode: effectiveDurationMode ?? primaryBooking.booking.durationMode,
+          mode: 'estimate',
+          treatAsApprovedForTail: true,
+          explanationMeta: {
+            bookingCode: primaryBooking.bookingCode,
+            residentName: session.fullName || preloaded.customer.fullName || 'Resident',
+            vacatingRequestId: primaryVacating.id,
+          },
+        });
+        return { bundle, pendingDateChange };
+      },
+    );
+
+    if (settlementLoad.ok) {
+      const { bundle, pendingDateChange } = settlementLoad.data;
+      primaryEstimatedSettlement = bundle?.estimatedSettlement ?? null;
+      primaryNoticeDisplay = bundle?.noticeDisplay ?? null;
+      primaryPendingDateChangeRequestId = pendingDateChange?.id ?? null;
+      primaryPendingDateChangePreview = pendingDateChange?.preview ?? null;
+    }
+
     primarySettlementContext = {
       vacatingRequestId: primaryVacating.id,
       bookingId: primaryBooking.bookingId,
@@ -780,13 +864,16 @@ export async function loadResidentRequestsTabData(input: {
       pgName: primaryBooking.booking.pgName,
       roomNumber: primaryBooking.booking.roomNumber,
       bedCode: primaryBooking.booking.bedCode,
-      noticeGivenDate: immutableNoticeDate,
+      noticeGivenDate: resolveNoticeGivenDateForVacating({
+        noticeGivenDate: primaryVacating.noticeGivenDate,
+        originalNoticeSubmittedAt: primaryVacating.originalNoticeSubmittedAt,
+      }),
       vacatingDate: String(primaryVacating.vacatingDate),
     };
     if (primaryEstimatedSettlement && primarySettlementContext) {
       primarySettlementDocument = buildSettlementStatementModel({
         preview: primaryEstimatedSettlement,
-        explanations: bundle?.settlementExplanations ?? null,
+        explanations: settlementLoad.ok ? settlementLoad.data.bundle?.settlementExplanations ?? null : null,
         vacatingRequestId: primaryVacating.id,
         bookingId: primaryBooking.bookingId,
         customerName: primarySettlementContext.customerName,
@@ -795,7 +882,7 @@ export async function loadResidentRequestsTabData(input: {
         pgName: primarySettlementContext.pgName,
         roomNumber: primarySettlementContext.roomNumber,
         bedCode: primarySettlementContext.bedCode,
-        noticeGivenDate: immutableNoticeDate,
+        noticeGivenDate: primarySettlementContext.noticeGivenDate,
         vacatingDate: primarySettlementContext.vacatingDate,
         letterhead: buildFallbackPgLetterhead(primarySettlementContext.pgName),
       });

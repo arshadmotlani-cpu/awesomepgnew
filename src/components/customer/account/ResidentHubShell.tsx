@@ -78,7 +78,7 @@ export function ResidentHubShell({
           bookingId={bookingId}
           customerId={customerId}
           email={customerEmail}
-          title="Your stay dashboard could not load"
+          title="This section could not load"
         >
           <div className="apg-resident-hub-content min-w-0 space-y-6 max-md:space-y-8">
             {children}

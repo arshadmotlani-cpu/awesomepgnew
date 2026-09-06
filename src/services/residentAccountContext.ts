@@ -32,6 +32,7 @@ import {
   loadResidentMonthlyRentDisplay,
 } from '@/src/lib/residents/residentPortalFinancials';
 import { resolveCanonicalResidentPortalBooking } from '@/src/lib/residents/residentPortalStay';
+import { loadPortalSectionSafe } from '@/src/lib/residents/residentPortalLoaderSafety';
 import { buildResidentRentBillPresentation } from '@/src/lib/residents/residentBillingPeriodDisplay';
 
 export type ResidentInvoiceCard = {
@@ -82,6 +83,8 @@ export type ResidentAccountContext = {
   /** Invoice-engine monthly rent — never pricing_snapshot. */
   monthlyRentPaise: number;
   billingCycleLabel: string;
+  /** True when optional financial enrichment failed but core stay context loaded. */
+  portalOptionalDegraded?: boolean;
 };
 
 function depositStatusLabel(input: {
@@ -140,9 +143,25 @@ export async function loadResidentAccountContext(
       : [];
   const primaryBooking = resolveCanonicalResidentPortalBooking(uniqueBookings, tenancy);
 
-  const financialSummary = primaryBooking
-    ? await getResidentFinancialAccount(customerId)
-    : null;
+  let financialSummary: ResidentFinancialAccount | null = null;
+  let portalOptionalDegraded = false;
+  if (primaryBooking) {
+    const financialLoad = await loadPortalSectionSafe(
+      {
+        section: 'financial_summary',
+        customerId,
+        bookingId: primaryBooking.bookingId,
+        loader: 'getResidentFinancialAccount',
+        required: false,
+      },
+      () => getResidentFinancialAccount(customerId),
+    );
+    if (financialLoad.ok) {
+      financialSummary = financialLoad.data;
+    } else {
+      portalOptionalDegraded = true;
+    }
+  }
   const rfeLineItems = buildRfeLineItemMap(financialSummary);
 
   const rentDisplay =
@@ -535,5 +554,6 @@ export async function loadResidentAccountContext(
     depositOutstandingPaise: financialSummary?.deposit.outstandingPaise ?? 0,
     monthlyRentPaise: rentDisplay?.monthlyRentPaise ?? 0,
     billingCycleLabel: rentDisplay?.billingCycleLabel ?? 'Monthly',
+    portalOptionalDegraded,
   };
 }

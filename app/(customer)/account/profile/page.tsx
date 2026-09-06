@@ -8,6 +8,7 @@ import { ResidentPageHeader } from '@/src/components/customer/account/resident/R
 import { ResidentSectionErrorBoundary } from '@/src/components/customer/account/resident/ResidentSectionErrorBoundary';
 import { PostLoginRouteObserver } from '@/src/components/customer/account/PostLoginRouteObserver';
 import { ResidentAccountIncompletePanel } from '@/src/components/customer/account/ResidentAccountIncompletePanel';
+import { ResidentPortalCoreErrorPanel } from '@/src/components/customer/account/ResidentPortalCoreErrorPanel';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 import {
   parseResidentTab,
@@ -74,8 +75,10 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
         />
         {contextLoad.reason === 'not_found' ? (
           <p className="text-sm text-rose-700">Account not found.</p>
-        ) : (
+        ) : contextLoad.reason === 'incomplete' ? (
           <ResidentAccountIncompletePanel />
+        ) : (
+          <ResidentPortalCoreErrorPanel />
         )}
       </main>
     );

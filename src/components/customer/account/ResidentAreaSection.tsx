@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { ResidentHubShell } from '@/src/components/customer/account/ResidentHubShell';
 import { ResidentIncompleteStayPanel } from '@/src/components/customer/account/resident/ResidentIncompleteStayPanel';
+import { ResidentSectionErrorBoundary } from '@/src/components/customer/account/resident/ResidentSectionErrorBoundary';
 import {
   ResidentConciergeTabSection,
   ResidentPaymentsTabSection,
@@ -96,22 +97,38 @@ export async function ResidentAreaSection({
 
       {activeTab === 'payments' && primaryBooking ? (
         <Suspense fallback={<ResidentPaymentsTabSkeleton />}>
-          <ResidentPaymentsTabSection
-            preloaded={preloaded}
+          <ResidentSectionErrorBoundary
+            page="resident_payments_tab"
             customerId={customerId}
-            paymentsSub={paymentsSub}
-          />
+            email={session.email}
+            bookingId={primaryBooking.bookingId}
+            title="Payments could not load"
+          >
+            <ResidentPaymentsTabSection
+              preloaded={preloaded}
+              customerId={customerId}
+              paymentsSub={paymentsSub}
+            />
+          </ResidentSectionErrorBoundary>
         </Suspense>
       ) : null}
 
       {activeTab === 'requests' && primaryBooking ? (
         <Suspense fallback={<ResidentRequestsTabSkeleton />}>
-          <ResidentRequestsTabSection
-            preloaded={preloaded}
+          <ResidentSectionErrorBoundary
+            page="resident_requests_tab"
             customerId={customerId}
-            developerTestMode={developerTestMode}
-            requestsQuery={requestsQuery}
-          />
+            email={session.email}
+            bookingId={primaryBooking.bookingId}
+            title="Requests could not load"
+          >
+            <ResidentRequestsTabSection
+              preloaded={preloaded}
+              customerId={customerId}
+              developerTestMode={developerTestMode}
+              requestsQuery={requestsQuery}
+            />
+          </ResidentSectionErrorBoundary>
         </Suspense>
       ) : null}
 

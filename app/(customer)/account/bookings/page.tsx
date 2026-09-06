@@ -13,6 +13,7 @@ import { ApplicationStatusTracker } from '@/src/components/customer/account/Appl
 import { ResidentSectionErrorBoundary } from '@/src/components/customer/account/resident/ResidentSectionErrorBoundary';
 import { PostLoginRouteObserver } from '@/src/components/customer/account/PostLoginRouteObserver';
 import { ResidentAccountIncompletePanel } from '@/src/components/customer/account/ResidentAccountIncompletePanel';
+import { ResidentPortalCoreErrorPanel } from '@/src/components/customer/account/ResidentPortalCoreErrorPanel';
 import { ACCOUNT_LINK_ON_DARK } from '@/src/components/customer/accountStyles';
 import { legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
 import { loadResidentAccountContextSafe } from '@/src/services/residentAccountContextSafe';
@@ -73,11 +74,15 @@ export default async function AccountBookingsPage() {
         <LogoutButton scope="customer" tone="dark" />
       </header>
 
-      {!contextLoad.ok && contextLoad.reason === 'load_failed' ? (
+      {!contextLoad.ok && contextLoad.reason === 'incomplete' ? (
         <ResidentAccountIncompletePanel
           title="We could not load your stay summary"
           message="Your sign-in worked, but part of your resident profile did not load. You can still open bookings below, or try again in a moment."
         />
+      ) : null}
+
+      {!contextLoad.ok && contextLoad.reason === 'core_error' ? (
+        <ResidentPortalCoreErrorPanel />
       ) : null}
 
       {ctx ? (

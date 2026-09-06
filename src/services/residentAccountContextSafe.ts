@@ -1,12 +1,20 @@
 import { logger } from '@/src/lib/logger';
+import { hasResidentPortalReadyStay } from '@/src/lib/residents/residentPortalStay';
+import { logPortalLoaderFailure } from '@/src/lib/residents/residentPortalLoaderSafety';
 import {
   loadResidentAccountContext,
   type ResidentAccountContext,
 } from '@/src/services/residentAccountContext';
+import { getCustomerById } from '@/src/services/profile';
+import { customerHasResidentPortalAccess } from '@/src/lib/residents/residentPortalAccess';
 
 export type ResidentAccountContextLoadResult =
   | { ok: true; ctx: ResidentAccountContext }
-  | { ok: false; reason: 'not_found' | 'load_failed'; errorMessage?: string };
+  | {
+      ok: false;
+      reason: 'not_found' | 'incomplete' | 'core_error';
+      errorMessage?: string;
+    };
 
 /**
  * Loads resident account context with step logging.
@@ -25,6 +33,17 @@ export async function loadResidentAccountContextSafe(
       return { ok: false, reason: 'not_found' };
     }
 
+    const portalReady = hasResidentPortalReadyStay(ctx);
+    if (ctx.hasResidentPortalAccess && !portalReady) {
+      logger.info('post-login resident context incomplete stay', {
+        customerId,
+        email,
+        hasResidentPortalAccess: ctx.hasResidentPortalAccess,
+        primaryBookingId: ctx.primaryBooking?.bookingId ?? null,
+      });
+      return { ok: false, reason: 'incomplete' };
+    }
+
     logger.info('post-login resident context load ok', {
       customerId,
       email,
@@ -33,17 +52,37 @@ export async function loadResidentAccountContextSafe(
       primaryBookingId: ctx.primaryBooking?.bookingId ?? null,
       primaryCheckInDate: ctx.primaryBooking?.checkInDate ?? null,
       invoiceCount: ctx.invoices.length,
+      financialSummaryLoaded: ctx.financialSummary != null,
+      optionalDegraded: ctx.portalOptionalDegraded,
     });
 
     return { ok: true, ctx };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    logPortalLoaderFailure({
+      section: 'core_context',
+      customerId,
+      loader: 'loadResidentAccountContext',
+      required: true,
+      error,
+    });
     logger.error('post-login resident context load failed', {
       customerId,
       email,
       error: errorMessage,
       stack: error instanceof Error ? error.stack : undefined,
     });
-    return { ok: false, reason: 'load_failed', errorMessage };
+
+    const customer = await getCustomerById(customerId).catch(() => null);
+    const hasPortalAccess = customer
+      ? await customerHasResidentPortalAccess(customerId).catch(() => false)
+      : false;
+    if (customer && hasPortalAccess) {
+      return { ok: false, reason: 'core_error', errorMessage };
+    }
+    if (customer) {
+      return { ok: false, reason: 'incomplete', errorMessage };
+    }
+    return { ok: false, reason: 'core_error', errorMessage };
   }
 }
