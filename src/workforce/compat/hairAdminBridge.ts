@@ -43,6 +43,7 @@ export function workforceGrantsToHairPermissions(
   }
   if (p.has('services.view')) out.add('page:services');
   if (p.has('packages.view')) out.add('page:packages');
+  if (p.has('packages.edit')) out.add('action:packages.edit');
   if (p.has('memberships.view')) out.add('page:memberships');
   if (p.has('inventory.view') || p.has('inventory.edit')) {
     out.add('page:inventory');

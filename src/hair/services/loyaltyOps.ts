@@ -128,6 +128,7 @@ export async function sellPackageWithDb(
     .where(and(orgFilter(fyhPackagePlans.organizationId, ctx), eq(fyhPackagePlans.id, planId)))
     .limit(1);
   if (!plan) throw new Error('Package not found');
+  if (!plan.isActive) throw new Error('Package is not available for purchase');
 
   const planItems = await db
     .select({

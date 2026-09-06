@@ -25,6 +25,7 @@ export const HAIR_ACTION_PERMISSIONS = [
   'action:settings.edit',
   'action:staff.commission_pay',
   'action:import.historical',
+  'action:packages.edit',
 ] as const;
 
 export const HAIR_PERMISSIONS = [
@@ -101,6 +102,12 @@ export const PERMISSIONS_CATALOG: ReadonlyArray<{
     label: 'Pay commissions',
     group: 'action',
     description: 'Mark staff commissions as paid',
+  },
+  {
+    key: 'action:packages.edit',
+    label: 'Edit packages',
+    group: 'action',
+    description: 'Create, edit, deactivate, or reactivate prepaid packages',
   },
   {
     key: 'action:import.historical',

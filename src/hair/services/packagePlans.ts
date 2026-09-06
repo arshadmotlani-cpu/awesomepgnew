@@ -54,7 +54,8 @@ async function loadServicePriceMap(
   return new Map(rows.map((r) => [r.id, { name: r.name, pricePaise: r.pricePaise }]));
 }
 
-function validatePlanItems(items: PackagePlanItemInput[]) {
+/** Shared create/update validation — at least one service, positive qty, no duplicates. */
+export function validatePackagePlanItems(items: PackagePlanItemInput[]) {
   if (!items.length) throw new Error('Package plan requires at least one service item');
   const seen = new Set<string>();
   for (const item of items) {
@@ -113,12 +114,10 @@ export async function listPackagePlansDetailed(
 
   return plans.map((plan) => {
     const items = itemsByPlan.get(plan.id) ?? [];
-    const normalValuePaise =
-      plan.normalValuePaise > 0
-        ? plan.normalValuePaise
-        : computePackageNormalValuePaise(
-            items.map((i) => ({ retailUnitPaise: i.retailUnitPaise, quantity: i.quantity })),
-          );
+    // Catalog display uses current service retail × qty (entitlements remain snapshotted at purchase).
+    const normalValuePaise = computePackageNormalValuePaise(
+      items.map((i) => ({ retailUnitPaise: i.retailUnitPaise, quantity: i.quantity })),
+    );
     const discount = computePackageDiscount(normalValuePaise, plan.pricePaise);
     return {
       id: plan.id,
@@ -148,7 +147,7 @@ export async function createPackagePlan(
   const name = input.name.trim();
   if (!name) throw new Error('Package name is required');
   if (input.offerPricePaise < 0) throw new Error('Offer price cannot be negative');
-  validatePlanItems(input.items);
+  validatePackagePlanItems(input.items);
 
   const serviceMap = await loadServicePriceMap(
     input.items.map((i) => i.serviceId),
@@ -212,7 +211,7 @@ export async function updatePackagePlan(
   const name = input.name.trim();
   if (!name) throw new Error('Package name is required');
   if (input.offerPricePaise < 0) throw new Error('Offer price cannot be negative');
-  validatePlanItems(input.items);
+  validatePackagePlanItems(input.items);
 
   const [existing] = await hairDb
     .select({ id: fyhPackagePlans.id })
@@ -277,6 +276,17 @@ export async function deactivatePackagePlan(planId: string, ctx?: TenantContext 
   const [plan] = await hairDb
     .update(fyhPackagePlans)
     .set({ isActive: false })
+    .where(and(orgFilter(fyhPackagePlans.organizationId, ctx), eq(fyhPackagePlans.id, planId)))
+    .returning();
+  if (!plan) throw new Error('Package plan not found');
+  return plan;
+}
+
+export async function reactivatePackagePlan(planId: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
+  const [plan] = await hairDb
+    .update(fyhPackagePlans)
+    .set({ isActive: true })
     .where(and(orgFilter(fyhPackagePlans.organizationId, ctx), eq(fyhPackagePlans.id, planId)))
     .returning();
   if (!plan) throw new Error('Package plan not found');

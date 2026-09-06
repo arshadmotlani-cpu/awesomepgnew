@@ -126,13 +126,16 @@ describe('Receptionist hair permission bridge', () => {
     assert.equal(hasPermission(receptionist, 'action:settings.edit'), false);
     assert.equal(hasPermission(receptionist, 'action:inventory.adjust'), false);
     assert.equal(hasPermission(receptionist, 'action:reports.export'), false);
+    assert.equal(hasPermission(receptionist, 'action:packages.edit'), false);
   });
 
   test('manager and owner retain broader access', () => {
     assert.ok(hasPermission(manager, 'page:expenses'));
     assert.ok(hasPermission(manager, 'page:dashboard_revenue'));
+    assert.ok(hasPermission(manager, 'action:packages.edit'));
     assert.ok(hasPermission(owner, 'page:settings'));
     assert.ok(hasPermission(owner, 'action:settings.edit'));
+    assert.ok(hasPermission(owner, 'action:packages.edit'));
   });
 });
 
