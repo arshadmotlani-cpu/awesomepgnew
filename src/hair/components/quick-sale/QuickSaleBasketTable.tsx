@@ -6,6 +6,11 @@ import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { priceLineFromParts } from '@/src/hair/domain/basket/gstInclusiveMath';
 import type { BasketLine } from '@/src/hair/domain/basket/types';
 import { discountPaiseFromBps } from '@/src/hair/lib/attributionMath';
+import {
+  discountBpsFromWholePercent,
+  parseWholeDiscountPercent,
+  wholeDiscountPercentFromBps,
+} from '@/src/hair/lib/quickSaleDiscountPercent';
 import { QuickSaleStaffRow } from '@/src/hair/components/quick-sale/QuickSaleStaffFields';
 
 type Props = {
@@ -36,26 +41,26 @@ export function QuickSaleBasketTable({
 }: Props) {
   if (lines.length === 0) {
     return (
-      <p className="py-12 text-center text-sm text-fyh-text-muted">
+      <p className="py-6 text-center text-sm text-fyh-text-muted">
         Search and add items to the basket
       </p>
     );
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="fyh-table-compact w-full min-w-[980px] text-left text-sm">
-        <thead>
+    <div className="qs-basket-scroll overflow-x-auto overflow-y-auto">
+      <table className="fyh-table-compact w-full min-w-[920px] text-left text-sm">
+        <thead className="sticky top-0 z-10 bg-[color:var(--fyh-bg-surface)]">
           <tr>
             <th>Item</th>
             <th className="text-right">Base</th>
             <th className="text-right">GST</th>
             <th className="text-right">Selling</th>
-            <th className="min-w-[11rem]">Staff</th>
-            <th className="w-16">Qty</th>
-            <th className="w-20 text-right">Disc %</th>
-            <th className="w-24 text-right">Final</th>
-            <th className="w-10" />
+            <th className="min-w-[9.5rem]">Staff</th>
+            <th className="w-14">Qty</th>
+            <th className="w-16 text-right">Disc %</th>
+            <th className="w-20 text-right">Final</th>
+            <th className="w-8" />
           </tr>
         </thead>
         <tbody className="divide-y divide-[color:var(--fyh-border)]">
@@ -70,18 +75,18 @@ export function QuickSaleBasketTable({
               gstBps: line.snapshot.gstBps,
               overridePricePaise: isPrepaid ? 0 : line.overridePricePaise,
             });
-            const gstPct = (line.snapshot.gstBps / 100).toFixed(1);
-            const discPctDisplay = (priced.discountBps / 100).toFixed(1);
+            const gstPct = (line.snapshot.gstBps / 100).toFixed(0);
+            const discPctDisplay = String(wholeDiscountPercentFromBps(priced.discountBps));
 
             return (
-              <tr key={line.lineId} className="align-top">
-                <td className="px-2 py-3">
-                  <p className="font-semibold text-fyh-text">{line.snapshot.name}</p>
+              <tr key={line.lineId} className="align-middle">
+                <td>
+                  <p className="font-medium leading-tight text-fyh-text">{line.snapshot.name}</p>
                   {line.snapshot.code ? (
-                    <p className="text-xs text-fyh-text-muted">{line.snapshot.code}</p>
+                    <p className="text-[11px] leading-tight text-fyh-text-muted">{line.snapshot.code}</p>
                   ) : null}
                   {isPrepaid ? (
-                    <p className="mt-1 text-[11px] font-medium text-fyh-accent">
+                    <p className="text-[10px] font-medium leading-tight text-fyh-accent">
                       Package Redemption · Prepaid · ₹0
                       {line.prepaidRedemption?.packageName
                         ? ` · ${line.prepaidRedemption.packageName}`
@@ -89,15 +94,15 @@ export function QuickSaleBasketTable({
                     </p>
                   ) : null}
                   {isPackagePurchase ? (
-                    <p className="mt-1 text-[11px] font-medium text-fyh-text-muted">
+                    <p className="text-[10px] font-medium leading-tight text-fyh-text-muted">
                       Prepaid package sale · No staff performance
                     </p>
                   ) : null}
                 </td>
-                <td className="px-2 py-3 text-right tabular-nums text-fyh-text-secondary">
+                <td className="text-right tabular-nums text-fyh-text-secondary">
                   {showsGstBreakdown(line) ? formatInrFromPaise(priced.basePaise) : '—'}
                 </td>
-                <td className="px-2 py-3 text-right tabular-nums text-fyh-text-secondary">
+                <td className="text-right tabular-nums text-fyh-text-secondary">
                   {showsGstBreakdown(line) ? (
                     <span>
                       {formatInrFromPaise(priced.gstPaise)}
@@ -107,10 +112,10 @@ export function QuickSaleBasketTable({
                     '—'
                   )}
                 </td>
-                <td className="px-2 py-3 text-right tabular-nums font-medium text-fyh-text">
+                <td className="text-right tabular-nums font-medium text-fyh-text">
                   {formatInrFromPaise(catalogGross)}
                 </td>
-                <td className="px-2 py-3">
+                <td>
                   <QuickSaleStaffRow
                     lineType={line.billableRef.type}
                     staff={line.staff}
@@ -119,7 +124,7 @@ export function QuickSaleBasketTable({
                     onChange={(staff) => onUpdateLine(line.lineId, { staff })}
                   />
                 </td>
-                <td className="px-2 py-3">
+                <td>
                   <Input
                     inputMode="decimal"
                     value={String(line.quantity)}
@@ -128,32 +133,37 @@ export function QuickSaleBasketTable({
                       const quantity = Math.max(0.001, Number(e.target.value) || 1);
                       onUpdateLine(line.lineId, { quantity });
                     }}
-                    className="h-9 w-16 text-center tabular-nums"
+                    className="h-8 w-14 text-center text-xs tabular-nums"
                     aria-label="Quantity"
                   />
                 </td>
-                <td className="px-2 py-3">
+                <td>
                   {isPrepaid ? (
                     <span className="block text-right tabular-nums text-fyh-text-muted">—</span>
                   ) : (
                     <Input
-                      inputMode="decimal"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      step={1}
+                      min={0}
+                      max={100}
                       value={discPctDisplay}
                       onChange={(e) => {
-                        const pct = parseRupeeInput(e.target.value);
+                        const pct = parseWholeDiscountPercent(e.target.value);
                         if (pct == null) return;
-                        const bps = Math.min(10_000, Math.round(Math.max(0, pct) * 100));
+                        const bps = discountBpsFromWholePercent(pct);
                         const discountPaise = discountPaiseFromBps(catalogGross, bps);
                         onUpdateLine(line.lineId, {
                           overridePricePaise: Math.max(0, catalogGross - discountPaise),
                         });
                       }}
-                      className="h-9 w-20 text-right tabular-nums"
+                      className="h-8 w-14 text-right text-xs tabular-nums"
                       aria-label="Discount percent"
+                      title="Whole-number discount 0–100%"
                     />
                   )}
                 </td>
-                <td className="px-2 py-3">
+                <td>
                   {isPrepaid ? (
                     <span className="block text-right font-semibold tabular-nums text-fyh-text">
                       {formatInrFromPaise(0)}
@@ -168,19 +178,19 @@ export function QuickSaleBasketTable({
                         const overridePricePaise = Math.round(Math.max(0, rupees) * 100);
                         onUpdateLine(line.lineId, { overridePricePaise });
                       }}
-                      className="h-9 w-24 text-right tabular-nums font-semibold"
+                      className="h-8 w-20 text-right text-xs tabular-nums font-semibold"
                       aria-label="Final amount"
                     />
                   )}
                 </td>
-                <td className="px-2 py-3">
+                <td>
                   <button
                     type="button"
-                    className="rounded-lg p-2 text-fyh-text-muted transition hover:bg-white/5 hover:text-fyh-danger"
+                    className="rounded-md p-1.5 text-fyh-text-muted transition hover:bg-white/5 hover:text-fyh-danger"
                     onClick={() => onRemoveLine(line.lineId)}
                     aria-label="Remove line"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </td>
               </tr>

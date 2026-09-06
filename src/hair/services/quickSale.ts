@@ -214,12 +214,15 @@ export async function previewQuickSaleTotals(
 export async function searchStaffForPos(query: string, limit = 20, ctx?: TenantContext | null) {
   ctx = await resolveTenantContextForService(ctx);
   const q = query.trim();
-  if (q.length < 1) return [];
-  const pattern = `%${q}%`;
+  const conditions = [orgFilter(fyhStaff.organizationId, ctx), eq(fyhStaff.isActive, true)];
+  // Empty query lists active staff for POS dropdown open (compact list + scroll).
+  if (q.length >= 1) {
+    conditions.push(ilike(fyhStaff.fullName, `%${q}%`));
+  }
   return hairDb
     .select({ id: fyhStaff.id, fullName: fyhStaff.fullName, role: fyhStaff.role })
     .from(fyhStaff)
-    .where(and(orgFilter(fyhStaff.organizationId, ctx), eq(fyhStaff.isActive, true), ilike(fyhStaff.fullName, pattern)))
+    .where(and(...conditions))
     .orderBy(asc(fyhStaff.fullName))
     .limit(limit);
 }

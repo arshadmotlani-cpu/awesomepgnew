@@ -413,42 +413,44 @@ export function QuickSaleShell({
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5 py-4">
-      {/* Customer */}
-      <section className="qs-section">
-        <p className="qs-section-label">{appointmentId ? 'Appointment checkout' : 'Customer'}</p>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1 space-y-2">
+    <div className="qs-pos-shell">
+      {/* Customer — compact header bar */}
+      <section className="qs-section shrink-0">
+        <div className="qs-customer-bar">
+          <div className="qs-customer-meta">
+            <p className="qs-section-label !mb-0">
+              {appointmentId ? 'Appointment' : 'Customer'}
+            </p>
             {customer ? (
-              <div className="fyh-panel !p-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-fyh-on-panel">{customer.fullName}</p>
-                    <p className="text-sm text-fyh-on-panel-muted">
-                      {customer.customerCode} · {customer.phone}
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setAvailableServicesOpen(true)}
-                  >
-                    Available Services
-                  </Button>
-                </div>
+              <>
+                <p className="truncate text-sm font-semibold text-fyh-text">
+                  {customer.fullName}
+                  <span className="ml-1.5 font-normal text-fyh-text-secondary">
+                    · {customer.customerCode}
+                  </span>
+                </p>
                 <FyhCustomerContextStrip
                   customerId={customer.id}
                   customerName={customer.fullName}
                   variant="compact"
-                  className="mt-2"
+                  className="!mt-0"
                 />
-              </div>
+              </>
             ) : (
               <p className="text-sm text-fyh-text-label">Select a customer to continue</p>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="qs-customer-actions">
+            {customer ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setAvailableServicesOpen(true)}
+              >
+                Available Services
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="ghost"
@@ -460,13 +462,13 @@ export function QuickSaleShell({
             </Button>
             <div className="relative">
               <Button type="button" variant="ghost" size="sm" onClick={() => setMenuOpen((o) => !o)}>
-                <MoreVertical className="h-5 w-5" />
+                <MoreVertical className="h-4 w-4" />
               </Button>
               {menuOpen ? (
                 <div className="absolute right-0 z-20 mt-1 min-w-[180px] rounded-lg border border-[color:var(--fyh-border)] bg-[color:var(--fyh-bg-surface)] py-1 shadow-xl">
                   <button
                     type="button"
-                    className="block w-full px-4 py-2.5 text-left text-sm hover:bg-white/5"
+                    className="block w-full px-4 py-2 text-left text-sm hover:bg-white/5"
                     disabled={pending || !customer || lines.length === 0}
                     onClick={() => {
                       setMenuOpen(false);
@@ -487,7 +489,7 @@ export function QuickSaleShell({
                   </button>
                   <button
                     type="button"
-                    className="block w-full px-4 py-2.5 text-left text-sm hover:bg-white/5"
+                    className="block w-full px-4 py-2 text-left text-sm hover:bg-white/5"
                     onClick={() => {
                       setMenuOpen(false);
                       startNewSale();
@@ -497,7 +499,7 @@ export function QuickSaleShell({
                   </button>
                   <button
                     type="button"
-                    className="block w-full px-4 py-2.5 text-left text-sm text-fyh-danger hover:bg-white/5"
+                    className="block w-full px-4 py-2 text-left text-sm text-fyh-danger hover:bg-white/5"
                     onClick={() => {
                       setMenuOpen(false);
                       cancelSale();
@@ -512,10 +514,9 @@ export function QuickSaleShell({
         </div>
       </section>
 
-      {/* Tabs */}
-      <section className="qs-section">
-        <p className="qs-section-label">Catalog</p>
-        <div className="flex gap-1 overflow-x-auto rounded-lg border border-[color:var(--fyh-border)] bg-black/15 p-1">
+      {/* Catalog + Search — one compact block */}
+      <section className="qs-section shrink-0 space-y-2">
+        <div className="flex gap-1 overflow-x-auto rounded-md border border-[color:var(--fyh-border)] bg-black/15 p-0.5">
           {(
             [
               ['service', 'Services'],
@@ -527,7 +528,7 @@ export function QuickSaleShell({
             <button
               key={id}
               type="button"
-              className={`shrink-0 rounded-md px-4 py-2 text-sm font-semibold transition ${
+              className={`shrink-0 rounded px-3 py-1.5 text-xs font-semibold transition ${
                 tab === id
                   ? 'bg-[color:var(--fyh-accent)] text-black shadow-sm'
                   : 'text-fyh-text-secondary hover:bg-white/5'
@@ -542,11 +543,6 @@ export function QuickSaleShell({
             </button>
           ))}
         </div>
-      </section>
-
-      {/* Search */}
-      <section className="qs-section">
-        <p className="qs-section-label">Search</p>
         <div className="relative">
           <Input
             ref={catalogSearchRef}
@@ -564,11 +560,11 @@ export function QuickSaleShell({
                 first?.focus();
               }
             }}
-            placeholder="Search name, code, or price… (Enter to add first match)"
-            className="h-11"
+            placeholder="Search name, code, or price…"
+            className="h-9 text-sm"
           />
           {catalogQ.trim() && filteredItems.length > 0 ? (
-            <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-bg-surface)] py-1 shadow-xl">
+            <ul className="absolute z-[80] mt-1 max-h-48 w-full overflow-auto rounded-lg border border-[color:var(--fyh-border)] bg-[color:var(--fyh-bg-surface)] py-1 shadow-xl">
               {filteredItems.slice(0, 20).map((item) => (
                 <li key={`${item.type}-${item.id}`}>
                   <button
@@ -598,9 +594,9 @@ export function QuickSaleShell({
         </div>
       </section>
 
-      {/* Basket */}
-      <section className="qs-section">
-        <p className="qs-section-label">Basket</p>
+      {/* Basket — primary working area; scrolls internally when tall */}
+      <section className="qs-section qs-basket-section">
+        <p className="qs-section-label shrink-0">Basket</p>
         <QuickSaleBasketTable
           lines={lines}
           staffNames={staffNames}
@@ -615,11 +611,10 @@ export function QuickSaleShell({
       </section>
 
       {priced ? (
-        <>
-          {/* Totals */}
-          <section className="fyh-panel-financial">
+        <div className="qs-footer-grid shrink-0">
+          <section className="fyh-panel-financial !p-3">
             <p className="qs-section-label">Totals</p>
-            <div className="space-y-2 text-sm">
+            <div className="space-y-1 text-sm">
               <div className="flex justify-between">
                 <span className="fyh-panel-label">Subtotal</span>
                 <span className="fyh-money-value tabular-nums">{formatInrFromPaise(priced.totals.subtotalBasePaise)}</span>
@@ -644,16 +639,15 @@ export function QuickSaleShell({
                   </span>
                 </div>
               ) : null}
-              <div className="flex justify-between border-t border-[color:var(--fyh-border-panel)] pt-3">
-                <span className="text-base font-semibold text-fyh-on-panel">Grand total</span>
-                <span className="fyh-money-value-accent tabular-nums text-lg">
+              <div className="flex justify-between border-t border-[color:var(--fyh-border-panel)] pt-2">
+                <span className="text-sm font-semibold text-fyh-on-panel">Grand total</span>
+                <span className="fyh-money-value-accent tabular-nums text-base">
                   {formatInrFromPaise(priced.totals.grandTotalPaise)}
                 </span>
               </div>
             </div>
           </section>
 
-          {/* Payment */}
           <section className="qs-section">
             <p className="qs-section-label">Payment</p>
             <QuickSalePaymentPanel
@@ -664,47 +658,48 @@ export function QuickSaleShell({
               onChangeFlags={setFlags}
             />
           </section>
-        </>
-      ) : null}
 
-      {error ? (
-        <p className="rounded-lg border border-fyh-danger/30 bg-fyh-danger/10 px-4 py-3 text-sm text-fyh-danger">
+          <section className="qs-section flex flex-col justify-end gap-2">
+            {error ? (
+              <p className="rounded-md border border-fyh-danger/30 bg-fyh-danger/10 px-3 py-2 text-xs text-fyh-danger">
+                {error}
+              </p>
+            ) : null}
+            <Button
+              type="button"
+              disabled={pending || !customer || lines.length === 0 || !basket}
+              className="h-10 w-full text-sm font-semibold"
+              onClick={() => {
+                if (!basket) return;
+                startTransition(async () => {
+                  setError(null);
+                  const res = await completeQuickSaleAction({
+                    basket: { ...basket, membershipDiscountPaise },
+                    holdInvoiceId,
+                    source: appointmentId ? 'appointment' : 'quick_sale',
+                    appointmentId: appointmentId ?? undefined,
+                  });
+                  if (res.error) setError(res.error);
+                  else if (res.invoiceId) {
+                    clearQuickSaleSession();
+                    setInvoiceId(res.invoiceId);
+                    setInvoiceNumber(res.invoiceNumber ?? null);
+                    setAdvancePaise(res.advancePaise ?? 0);
+                    setPrintHtml(res.printHtml ?? null);
+                    setStep('done');
+                  }
+                });
+              }}
+            >
+              {pending ? 'Processing…' : 'Confirm sale'}
+            </Button>
+          </section>
+        </div>
+      ) : error ? (
+        <p className="rounded-md border border-fyh-danger/30 bg-fyh-danger/10 px-3 py-2 text-sm text-fyh-danger">
           {error}
         </p>
       ) : null}
-
-      {/* Confirm */}
-      <section className="qs-section">
-        <p className="qs-section-label">Confirm sale</p>
-        <Button
-          type="button"
-          disabled={pending || !customer || lines.length === 0 || !basket}
-          className="h-12 w-full text-base font-semibold"
-          onClick={() => {
-            if (!basket) return;
-            startTransition(async () => {
-              setError(null);
-              const res = await completeQuickSaleAction({
-                basket: { ...basket, membershipDiscountPaise },
-                holdInvoiceId,
-                source: appointmentId ? 'appointment' : 'quick_sale',
-                appointmentId: appointmentId ?? undefined,
-              });
-              if (res.error) setError(res.error);
-              else if (res.invoiceId) {
-                clearQuickSaleSession();
-                setInvoiceId(res.invoiceId);
-                setInvoiceNumber(res.invoiceNumber ?? null);
-                setAdvancePaise(res.advancePaise ?? 0);
-                setPrintHtml(res.printHtml ?? null);
-                setStep('done');
-              }
-            });
-          }}
-        >
-          {pending ? 'Processing…' : 'Confirm sale'}
-        </Button>
-      </section>
 
       {customer ? (
         <AvailableServicesModal

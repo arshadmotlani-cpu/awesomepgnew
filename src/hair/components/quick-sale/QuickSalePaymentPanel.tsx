@@ -57,18 +57,18 @@ export function QuickSalePaymentPanel({
   );
 
   return (
-    <div className="space-y-5">
-      <div className="rounded-xl border border-[color:var(--fyh-border)] bg-black/20 p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-fyh-text-muted">Remaining</p>
-        <p className="fyh-kpi-hero mt-1 text-fyh-forest">{formatInrFromPaise(summary.remaining)}</p>
-        <p className="mt-2 text-xs text-fyh-text-muted">
+    <div className="space-y-2">
+      <div className="rounded-lg border border-[color:var(--fyh-border)] bg-black/20 px-3 py-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-fyh-text-muted">Remaining</p>
+        <p className="text-lg font-semibold tabular-nums text-fyh-forest">{formatInrFromPaise(summary.remaining)}</p>
+        <p className="text-[11px] text-fyh-text-muted">
           Paid {formatInrFromPaise(summary.paid)} of {formatInrFromPaise(grandTotalPaise)}
         </p>
       </div>
 
       <div className="flex flex-wrap items-end gap-2">
-        <div className="min-w-[7rem] flex-1">
-          <label className="mb-1 block text-xs font-medium text-fyh-text-muted">Amount ₹</label>
+        <div className="min-w-[6rem] flex-1">
+          <label className="mb-0.5 block text-[10px] font-medium text-fyh-text-muted">Amount ₹</label>
           <Input
             inputMode="decimal"
             placeholder="0"
@@ -80,15 +80,15 @@ export function QuickSalePaymentPanel({
                 addPayment();
               }
             }}
-            className="h-11"
+            className="h-9 text-sm"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-fyh-text-muted">Method</label>
+          <label className="mb-0.5 block text-[10px] font-medium text-fyh-text-muted">Method</label>
           <select
             value={draftMethod}
             onChange={(e) => setDraftMethod(e.target.value as PaymentMethod)}
-            className="fyh-select h-11 min-w-[6rem]"
+            className="fyh-select h-9 min-w-[5.5rem] text-sm"
           >
             {METHODS.map((m) => (
               <option key={m.id} value={m.id}>
@@ -97,23 +97,23 @@ export function QuickSalePaymentPanel({
             ))}
           </select>
         </div>
-        <Button type="button" variant="secondary" className="h-11" onClick={addPayment}>
-          Add payment
+        <Button type="button" variant="secondary" className="h-9" onClick={addPayment}>
+          Add
         </Button>
       </div>
 
       {payments.length > 0 ? (
-        <ul className="space-y-2 text-sm">
+        <ul className="space-y-1 text-sm">
           {payments.map((p) => (
             <li
               key={p.id}
-              className="flex items-center justify-between gap-2 rounded-lg border border-[color:var(--fyh-border)] bg-black/15 px-3 py-2"
+              className="flex items-center justify-between gap-2 rounded-md border border-[color:var(--fyh-border)] bg-black/15 px-2 py-1"
             >
-              <span className="capitalize font-medium text-fyh-text-secondary">{p.method}</span>
+              <span className="capitalize text-fyh-text-secondary">{p.method}</span>
               <span className="tabular-nums font-semibold">{formatInrFromPaise(p.amountPaise)}</span>
               <button
                 type="button"
-                className="text-xs text-fyh-danger hover:underline"
+                className="text-[11px] text-fyh-danger hover:underline"
                 onClick={() => onChangePayments(payments.filter((x) => x.id !== p.id))}
               >
                 Remove
@@ -124,7 +124,7 @@ export function QuickSalePaymentPanel({
       ) : null}
 
       {canAdvance ? (
-        <label className="flex items-center gap-2 text-sm text-fyh-text-secondary">
+        <label className="flex items-center gap-2 text-xs text-fyh-text-secondary">
           <input
             type="checkbox"
             checked={flags.creditOverpayAsAdvance ?? false}
@@ -137,22 +137,24 @@ export function QuickSalePaymentPanel({
       ) : null}
 
       {summary.remaining > 0 ? (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           <Button
             type="button"
             variant="secondary"
-            className="h-11 flex-1 sm:flex-none"
+            size="sm"
+            className="flex-1 sm:flex-none"
             onClick={() => onChangeFlags({ ...flags, markDue: true, markFullDue: false })}
           >
-            Mark as due ({formatInrFromPaise(summary.remaining)})
+            Mark due ({formatInrFromPaise(summary.remaining)})
           </Button>
           <Button
             type="button"
             variant="ghost"
-            className="h-11 flex-1 sm:flex-none"
+            size="sm"
+            className="flex-1 sm:flex-none"
             onClick={() => onChangeFlags({ ...flags, markFullDue: true, markDue: false })}
           >
-            Mark full due
+            Full due
           </Button>
         </div>
       ) : null}
