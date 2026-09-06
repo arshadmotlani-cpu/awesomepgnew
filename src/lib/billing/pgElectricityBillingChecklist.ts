@@ -7,7 +7,11 @@ import { db } from '@/src/db/client';
 import { beds, electricityBills, floors, pgs, roomTypes, rooms } from '@/src/db/schema';
 import { DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE } from '@/src/lib/billing/constants';
 import { firstOfMonth } from '@/src/services/billing';
-import { resolveOfficialPreviousReading } from '@/src/services/meterTimelineService';
+import {
+  assessConsumptionMonthContinuityForRoom,
+  ConsumptionMonthContinuityError,
+  resolveRoomPreviousMeterReading,
+} from '@/src/services/roomMeterReadingSsot';
 import type { RoomPreviousMeterSource } from '@/src/lib/billing/roomMeterReadingSsot';
 import { loadRoomElectricityOccupantsForMonth } from '@/src/lib/billing/roomElectricityOccupants';
 import type { PgElectricityOccupantPreview } from '@/src/lib/billing/pgElectricityGenerationPreviewPure';
@@ -19,6 +23,7 @@ export type PgElectricityRoomStatus =
   | 'already_billed'
   | 'reading_required'
   | 'previous_unavailable'
+  | 'consumption_month_blocked'
   | 'maintenance_excluded'
   | 'not_eligible'
   | 'needs_attention';
@@ -40,6 +45,9 @@ export type PgElectricityChecklistRoom = {
   billableOccupantCount: number;
   previouslyCollectedPaise: number;
   occupantsPreview: PgElectricityOccupantPreview[];
+  /** When status is consumption_month_blocked — operator-facing reason. */
+  blockedReason: string | null;
+  requiredBaselineMonthLabel: string | null;
 };
 
 export type PgElectricityChecklistSummary = {
@@ -56,6 +64,8 @@ export type PgElectricityChecklistSummary = {
 export type PgElectricityBillingChecklist = {
   billingMonth: string;
   monthLabel: string;
+  /** Calendar date when the checklist was loaded (generation context for operators). */
+  generationDateLabel: string;
   pgId: string;
   pgName: string;
   ratePerUnitPaise: number;
@@ -125,7 +135,13 @@ export async function loadPgElectricityBillingChecklist(input: {
   const checklistRooms: PgElectricityChecklistRoom[] = [];
 
   async function pushRoomWithPreview(
-    base: Omit<PgElectricityChecklistRoom, 'previouslyCollectedPaise' | 'occupantsPreview'>,
+    base: Omit<
+      PgElectricityChecklistRoom,
+      'previouslyCollectedPaise' | 'occupantsPreview' | 'blockedReason' | 'requiredBaselineMonthLabel'
+    > & {
+      blockedReason?: string | null;
+      requiredBaselineMonthLabel?: string | null;
+    },
   ): Promise<void> {
     const preview = await loadPgElectricityRoomGenerationPreview({
       roomId: base.roomId,
@@ -133,6 +149,8 @@ export async function loadPgElectricityBillingChecklist(input: {
     });
     checklistRooms.push({
       ...base,
+      blockedReason: base.blockedReason ?? null,
+      requiredBaselineMonthLabel: base.requiredBaselineMonthLabel ?? null,
       previouslyCollectedPaise: preview.previouslyCollectedPaise,
       occupantsPreview: preview.occupants,
     });
@@ -244,7 +262,64 @@ export async function loadPgElectricityBillingChecklist(input: {
       continue;
     }
 
-    const baseline = await resolveOfficialPreviousReading(room.roomId, billingMonth);
+    const continuity = await assessConsumptionMonthContinuityForRoom(room.roomId, billingMonth);
+    if (!continuity.ok) {
+      await pushRoomWithPreview({
+        roomId: room.roomId,
+        roomNumber: room.roomNumber,
+        status: 'consumption_month_blocked',
+        previousReadingUnits: null,
+        previousReadingSource: null,
+        previousBillingMonthLabel: continuity.lastFinalizedMonth
+          ? monthLabel(continuity.lastFinalizedMonth)
+          : null,
+        currentReadingUnits: null,
+        unitsConsumed: null,
+        ratePerUnitPaise: DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE,
+        billId: null,
+        billTotalPaise: null,
+        activeBedCount,
+        maintenanceBedCount,
+        billableOccupantCount,
+        blockedReason: continuity.message,
+        requiredBaselineMonthLabel: monthLabel(continuity.requiredBaselineMonth),
+      });
+      continue;
+    }
+
+    let baseline;
+    try {
+      baseline = await resolveRoomPreviousMeterReading(room.roomId, {
+        beforeBillingMonth: billingMonth,
+        enforceContinuity: true,
+      });
+    } catch (err) {
+      if (err instanceof ConsumptionMonthContinuityError) {
+        await pushRoomWithPreview({
+          roomId: room.roomId,
+          roomNumber: room.roomNumber,
+          status: 'consumption_month_blocked',
+          previousReadingUnits: null,
+          previousReadingSource: null,
+          previousBillingMonthLabel: err.assessment.lastFinalizedMonth
+            ? monthLabel(err.assessment.lastFinalizedMonth)
+            : null,
+          currentReadingUnits: null,
+          unitsConsumed: null,
+          ratePerUnitPaise: DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE,
+          billId: null,
+          billTotalPaise: null,
+          activeBedCount,
+          maintenanceBedCount,
+          billableOccupantCount,
+          blockedReason: err.message,
+          requiredBaselineMonthLabel: monthLabel(err.assessment.requiredBaselineMonth),
+        });
+        continue;
+      }
+      throw err;
+    }
+
     if (baseline.source === 'none') {
       await pushRoomWithPreview({
         roomId: room.roomId,
@@ -291,7 +366,10 @@ export async function loadPgElectricityBillingChecklist(input: {
     maintenanceExcluded: checklistRooms.filter((r) => r.status === 'maintenance_excluded').length,
     notEligible: checklistRooms.filter((r) => r.status === 'not_eligible').length,
     needsAttention: checklistRooms.filter(
-      (r) => r.status === 'previous_unavailable' || r.status === 'needs_attention',
+      (r) =>
+        r.status === 'previous_unavailable' ||
+        r.status === 'needs_attention' ||
+        r.status === 'consumption_month_blocked',
     ).length,
     hasAnyBillActivity: checklistRooms.some((r) => r.status === 'already_billed'),
   };
@@ -299,6 +377,12 @@ export async function loadPgElectricityBillingChecklist(input: {
   return {
     billingMonth,
     monthLabel: monthLabel(billingMonth),
+    generationDateLabel: new Date().toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    }),
     pgId: pg.id,
     pgName: pg.name,
     ratePerUnitPaise: DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE,

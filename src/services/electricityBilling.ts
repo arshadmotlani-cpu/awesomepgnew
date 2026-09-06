@@ -72,10 +72,14 @@ import { allocateMonthlyElectricityInvoices } from '../lib/billing/roomElectrici
 import { syncRoomElectricityLedgerCycleFromBillInTx, recordMonthlyInvoiceCollectionInTx } from './roomElectricityLedger';
 import { findActiveElectricityInvoiceForResidentMonth } from './electricityInvoiceDuplicates';
 import { sumManualElectricityCreditsForRoomMonth } from './electricitySettlementLedgerView';
-import { loadRoomElectricityContributionsForMonth } from './electricityRoomContributions';
+import { loadVerifiedPriorElectricityCollectionsForMonth } from '@/src/lib/billing/electricityVerifiedPriorCollections';
 import { getElectricityInvoiceSchemaCaps } from '@/src/lib/db/electricityInvoiceSchemaCaps';
 import { fetchElectricityInvoiceById } from '@/src/lib/db/electricityInvoiceSelect';
 import { validateContinuousPreviousReading } from '@/src/lib/billing/roomMeterReadingSsot';
+import {
+  assessConsumptionMonthContinuityForRoom,
+  ConsumptionMonthContinuityError,
+} from '@/src/services/roomMeterReadingSsot';
 import { resolveOfficialPreviousReading, advanceBaseline } from '@/src/services/meterTimelineService';
 import { countActiveBedsInRoom } from '@/src/lib/roomCapacitySsotDb';
 
@@ -330,14 +334,29 @@ export async function createElectricityBill(
 
   const billingMonth = firstOfMonth(input.billingMonth);
 
-  const baseline = await resolveOfficialPreviousReading(input.roomId, billingMonth);
-  const continuity = validateContinuousPreviousReading({
+  const continuity = await assessConsumptionMonthContinuityForRoom(input.roomId, billingMonth);
+  if (!continuity.ok) {
+    return { ok: false, kind: 'invalid_input', message: continuity.message };
+  }
+
+  let baseline;
+  try {
+    baseline = await resolveOfficialPreviousReading(input.roomId, billingMonth, {
+      enforceContinuity: true,
+    });
+  } catch (err) {
+    if (err instanceof ConsumptionMonthContinuityError) {
+      return { ok: false, kind: 'invalid_input', message: err.message };
+    }
+    throw err;
+  }
+  const readingContinuity = validateContinuousPreviousReading({
     providedPreviousUnits: input.previousReadingUnits,
     expectedPreviousUnits: baseline.previousReadingUnits,
     allowOverride: input.allowPreviousReadingOverride,
   });
-  if (!continuity.ok) {
-    return { ok: false, kind: 'invalid_input', message: continuity.message };
+  if (!readingContinuity.ok) {
+    return { ok: false, kind: 'invalid_input', message: readingContinuity.message };
   }
 
   const unitsConsumed = roundToHundredth(
@@ -393,7 +412,7 @@ export async function createElectricityBill(
     input.roomId,
     billingMonth,
   );
-  const contributionsLoad = await loadRoomElectricityContributionsForMonth(
+  const verifiedPrior = await loadVerifiedPriorElectricityCollectionsForMonth(
     input.roomId,
     billingMonth,
   );
@@ -404,8 +423,8 @@ export async function createElectricityBill(
     grossTotalPaise,
     prepaidCreditPaise: room.prepaidCreditPaise ?? 0,
     contributionsByCustomerId:
-      contributionsLoad.contributions.length > 0 ? contributionsLoad.byCustomerId : undefined,
-    manualCreditPaise: contributionsLoad.contributions.length > 0 ? undefined : manualCreditPaise,
+      verifiedPrior.totalPaise > 0 ? verifiedPrior.byCustomerId : undefined,
+    manualCreditPaise: verifiedPrior.totalPaise > 0 ? undefined : manualCreditPaise,
     occupants: occupantLoad.occupants,
     checkoutCollectedByCustomerId,
     useProRata: true,
@@ -498,16 +517,16 @@ export async function createElectricityBill(
       occupantLoad,
       invoiceAmountByBookingId: invoiceAllocationByBooking,
       allocation,
-      previousContributions: contributionsLoad.contributions.map((row) => ({
+      previousContributions: verifiedPrior.collections.map((row) => ({
         customerId: row.customerId,
-        customerName: row.customerName,
+        customerName: row.customerName ?? 'Unknown',
         bookingId: row.bookingId,
         amountPaise: row.amountPaise,
-        kind: row.kind,
-        reason: row.reason,
-        contributionDate: row.contributionDate,
-        occupancyStart: row.occupancyStart,
-        occupancyEnd: row.occupancyEnd,
+        kind: row.source === 'deposit_evidence' ? 'checkout_recovery' : 'checkout_recovery',
+        reason: row.evidence,
+        contributionDate: billingMonth,
+        occupancyStart: null,
+        occupancyEnd: null,
       })),
     });
     assertElectricityBreakdownCommitReady({

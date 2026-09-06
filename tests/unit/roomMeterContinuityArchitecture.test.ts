@@ -51,13 +51,15 @@ describe('continuous room meter architecture', () => {
 
   test('createElectricityBill validates continuity against month-scoped baseline', () => {
     const src = read('src/services/electricityBilling.ts');
-    assert.match(src, /resolveOfficialPreviousReading\(input\.roomId, billingMonth\)/);
+    assert.match(src, /assessConsumptionMonthContinuityForRoom\(input\.roomId, billingMonth\)/);
+    assert.match(src, /resolveOfficialPreviousReading\(input\.roomId, billingMonth/);
   });
 
   test('resolveRoomPreviousMeterReading requires beforeBillingMonth in signature', () => {
     const src = read('src/services/roomMeterReadingSsot.ts');
-    assert.match(src, /options: \{ beforeBillingMonth: string \}/);
+    assert.match(src, /beforeBillingMonth: string/);
     assert.doesNotMatch(src, /beforeBillingMonth\?:/);
+    assert.match(src, /enforceContinuity/);
   });
 
   test('resolveOfficialPreviousReading requires beforeBillingMonth in signature', () => {

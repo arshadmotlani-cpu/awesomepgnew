@@ -129,6 +129,18 @@ export async function loadRoomElectricityOccupantsForMonth(input: {
     checkoutCollectedByCustomerId.set(row.customerId, prev + row.amountPaise);
   }
 
+  const { loadVerifiedPriorElectricityCollectionsForMonth } = await import(
+    '@/src/lib/billing/electricityVerifiedPriorCollections'
+  );
+  const verifiedPrior = await loadVerifiedPriorElectricityCollectionsForMonth(
+    input.roomId,
+    input.billingMonth,
+  );
+  for (const [customerId, amount] of verifiedPrior.byCustomerId) {
+    const prev = checkoutCollectedByCustomerId.get(customerId) ?? 0;
+    checkoutCollectedByCustomerId.set(customerId, Math.max(prev, amount));
+  }
+
   const settledCustomerIds = await listCheckoutSettledCustomerIdsForRoomMonth(
     input.roomId,
     input.billingMonth,

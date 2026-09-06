@@ -4,6 +4,10 @@ import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { createElectricityBill } from '@/src/services/electricityBilling';
 import { findExistingElectricityBillForRoomMonth } from '@/src/services/electricityInvoiceDuplicates';
+import {
+  assessConsumptionMonthContinuityForRoom,
+  ConsumptionMonthContinuityError,
+} from '@/src/services/roomMeterReadingSsot';
 import { resolveOfficialPreviousReading } from '@/src/services/meterTimelineService';
 import { firstOfMonth } from '@/src/services/billing';
 
@@ -69,7 +73,34 @@ export async function generateSelectedElectricityBillsAction(input: {
         continue;
       }
 
-      const baseline = await resolveOfficialPreviousReading(room.roomId, billingMonth);
+      const continuity = await assessConsumptionMonthContinuityForRoom(room.roomId, billingMonth);
+      if (!continuity.ok) {
+        failed += 1;
+        results.push({
+          roomId: room.roomId,
+          ok: false,
+          message: continuity.message,
+        });
+        continue;
+      }
+
+      let baseline;
+      try {
+        baseline = await resolveOfficialPreviousReading(room.roomId, billingMonth, {
+          enforceContinuity: true,
+        });
+      } catch (err) {
+        failed += 1;
+        results.push({
+          roomId: room.roomId,
+          ok: false,
+          message:
+            err instanceof ConsumptionMonthContinuityError
+              ? err.message
+              : 'Could not resolve meter baseline.',
+        });
+        continue;
+      }
       if (baseline.source === 'none') {
         failed += 1;
         results.push({

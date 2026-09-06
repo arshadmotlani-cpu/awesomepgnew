@@ -18,6 +18,7 @@ const STATUS_LABEL: Record<string, string> = {
   already_billed: 'Already billed',
   reading_required: 'Reading required',
   previous_unavailable: 'Previous reading unavailable',
+  consumption_month_blocked: 'Blocked — prior consumption month missing',
   maintenance_excluded: 'Maintenance — excluded',
   not_eligible: 'Not eligible',
   needs_attention: 'Needs attention',
@@ -26,6 +27,7 @@ const STATUS_LABEL: Record<string, string> = {
 function statusTone(status: string): string {
   if (status === 'already_billed') return 'text-emerald-200';
   if (status === 'reading_required') return 'text-amber-200';
+  if (status === 'consumption_month_blocked') return 'text-rose-300';
   if (status === 'maintenance_excluded') return 'text-zinc-400';
   if (status === 'previous_unavailable' || status === 'needs_attention') return 'text-rose-200';
   return 'text-apg-silver';
@@ -202,7 +204,12 @@ export function PgElectricityBillingChecklistClient({
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-white">
                   {checklist.pgName}
                 </h3>
-                <p className="mt-0.5 text-xs text-apg-silver">{checklist.monthLabel}</p>
+                <p className="mt-0.5 text-xs text-apg-silver">
+                  Consumption: <span className="text-white">{checklist.monthLabel}</span>
+                </p>
+                <p className="mt-0.5 text-xs text-apg-silver">
+                  Generation: <span className="text-white">{checklist.generationDateLabel}</span>
+                </p>
               </div>
               {!checklist.summary.hasAnyBillActivity &&
               checklist.summary.readingRequired === 0 &&
@@ -354,6 +361,27 @@ export function PgElectricityBillingChecklistClient({
                     <p className="mt-2 text-xs text-apg-silver">
                       No monthly residents on available beds for this month.
                     </p>
+                  ) : null}
+
+                  {room.status === 'consumption_month_blocked' ? (
+                    <div className="mt-3 rounded-lg border border-rose-400/30 bg-rose-500/10 p-3 text-xs text-rose-100">
+                      <p className="font-medium text-rose-50">
+                        {checklist.monthLabel} consumption — blocked
+                      </p>
+                      {room.requiredBaselineMonthLabel ? (
+                        <p className="mt-2">
+                          Required baseline: {room.requiredBaselineMonthLabel} closing meter reading
+                        </p>
+                      ) : null}
+                      {room.previousBillingMonthLabel ? (
+                        <p className="mt-1">
+                          Last finalized consumption period: {room.previousBillingMonthLabel}
+                        </p>
+                      ) : null}
+                      {room.blockedReason ? (
+                        <p className="mt-2 text-rose-100/90">{room.blockedReason}</p>
+                      ) : null}
+                    </div>
                   ) : null}
 
                   {room.status === 'previous_unavailable' ? (

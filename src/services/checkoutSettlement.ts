@@ -62,7 +62,7 @@ import { finalizeVacatingOccupancy } from '@/src/services/vacating';
 import { scheduleAdminNotificationSync } from '@/src/services/adminLiveSync';
 import {
   getRoomElectricityLedgerCycle,
-  recordCheckoutElectricityCollectionFromSettlementId,
+  recordCheckoutElectricityCollectionInTx,
   type RoomElectricityLedgerCycleView,
 } from '@/src/services/roomElectricityLedger';
 import { buildRoomElectricityCheckoutAllocation } from '@/src/services/roomElectricityCheckout';
@@ -2415,6 +2415,36 @@ export async function approveCheckoutSettlement(input: {
       await tx.execute(
         sql`SELECT id FROM bookings WHERE id = ${current.bookingId} FOR UPDATE`,
       );
+
+      const deductionPaise = resolveCheckoutElectricityDeductionPaise(current);
+      if (deductionPaise > 0) {
+        const [bedRoom] = await tx
+          .select({ roomId: beds.roomId })
+          .from(bedReservations)
+          .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+          .where(
+            and(
+              eq(bedReservations.bookingId, current.bookingId),
+              eq(bedReservations.kind, 'primary'),
+            ),
+          )
+          .limit(1);
+        if (!bedRoom?.roomId) {
+          throw new Error(
+            'Checkout electricity collection could not be recorded — primary bed room not found.',
+          );
+        }
+        await recordCheckoutElectricityCollectionInTx(tx, {
+          settlement: current,
+          vacatingDate: stayCheckoutDate,
+          roomId: bedRoom.roomId,
+          totalBillPaise:
+            current.electricityCalculationMethod === 'manual_amount'
+              ? resolvedSharePaise
+              : undefined,
+        });
+      }
+
       await applyDepositDeductionsInTx(tx, {
         bookingId: current.bookingId,
         customerId: current.customerId,
@@ -2508,28 +2538,6 @@ export async function approveCheckoutSettlement(input: {
       .update(bookings)
       .set({ adminDepositRefundStatus: 'pending', updatedAt: new Date() })
       .where(eq(bookings.id, current.bookingId));
-  }
-  if (resolvedSharePaise > 0) {
-    try {
-      await recordCheckoutElectricityCollectionFromSettlementId(current.id, {
-        totalBillPaise: current.electricityCalculationMethod === 'manual_amount'
-          ? resolvedSharePaise
-          : undefined,
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error('[checkout] recordCheckoutElectricityCollectionFromSettlementId failed', {
-        settlementId: current.id,
-        error: message,
-      });
-      return {
-        ok: false,
-        error:
-          'Checkout electricity collection could not be recorded for month-end reconciliation. ' +
-          'Retry after verifying electricity share, or contact support. ' +
-          message,
-      };
-    }
   }
 
   if (finalRefundPaise <= 0) {

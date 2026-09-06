@@ -1,21 +1,34 @@
 /**
  * Continuous room meter SSOT — previous reading for the next monthly bill.
  *
- * Source of truth (in order):
- * 1. Latest non–pipeline-test electricity_bills.current_reading_units
- *    strictly before the target billing month
- * 2. Else latest meter_logs with reading_type = 'monthly' (bootstrap only)
- * 3. Else 0
+ * Consumption-month continuity: baseline must be the close reading of the
+ * immediately preceding consumption month (not an older bill when a gap exists).
  *
  * Checkout / check-in meter logs and move-out settlements NEVER advance this.
  */
 
-import { and, desc, eq, lt } from 'drizzle-orm';
+import { and, asc, desc, eq, lt } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { electricityBills, meterLogs } from '@/src/db/schema';
 import { DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE } from '@/src/lib/billing/constants';
-import type { RoomPreviousMeterSource } from '@/src/lib/billing/roomMeterReadingSsot';
+import {
+  assessConsumptionMonthContinuity,
+  type ConsumptionMonthContinuityAssessment,
+} from '@/src/lib/billing/consumptionMonthContinuity';
+import type { FinalizedBillReadingRow, RoomPreviousMeterSource } from '@/src/lib/billing/roomMeterReadingSsot';
 import { firstOfMonth } from '@/src/services/billing';
+
+export type { ConsumptionMonthContinuityAssessment };
+
+export class ConsumptionMonthContinuityError extends Error {
+  constructor(
+    message: string,
+    readonly assessment: ConsumptionMonthContinuityAssessment & { ok: false },
+  ) {
+    super(message);
+    this.name = 'ConsumptionMonthContinuityError';
+  }
+}
 
 export type ResolvedRoomPreviousMeterReading = {
   previousReadingUnits: number;
@@ -23,39 +36,86 @@ export type ResolvedRoomPreviousMeterReading = {
   lastBillingMonth: string | null;
   ratePerUnitPaise: number;
   lastBillMeterImageUrl: string | null;
+  continuity: ConsumptionMonthContinuityAssessment;
 };
 
-export async function resolveRoomPreviousMeterReading(
+async function loadFinalizedBillsBeforeMonth(
   roomId: string,
-  options: { beforeBillingMonth: string },
-): Promise<ResolvedRoomPreviousMeterReading> {
-  const beforeBillingMonth = firstOfMonth(options.beforeBillingMonth);
-
-  const billFilters = [
-    eq(electricityBills.roomId, roomId),
-    eq(electricityBills.isPipelineTest, false),
-    lt(electricityBills.billingMonth, beforeBillingMonth),
-  ];
-
-  const [lastBill] = await db
+  beforeBillingMonth: string,
+): Promise<FinalizedBillReadingRow[]> {
+  const rows = await db
     .select({
+      billingMonth: electricityBills.billingMonth,
       currentReadingUnits: electricityBills.currentReadingUnits,
       ratePerUnitPaise: electricityBills.ratePerUnitPaise,
-      billingMonth: electricityBills.billingMonth,
       meterImageUrl: electricityBills.meterImageUrl,
     })
     .from(electricityBills)
-    .where(and(...billFilters))
-    .orderBy(desc(electricityBills.billingMonth))
-    .limit(1);
+    .where(
+      and(
+        eq(electricityBills.roomId, roomId),
+        eq(electricityBills.isPipelineTest, false),
+        lt(electricityBills.billingMonth, beforeBillingMonth),
+      ),
+    )
+    .orderBy(asc(electricityBills.billingMonth));
 
-  if (lastBill?.currentReadingUnits != null) {
+  return rows.map((row) => ({
+    billingMonth: row.billingMonth,
+    currentReadingUnits: Number(row.currentReadingUnits),
+    ratePerUnitPaise: row.ratePerUnitPaise,
+    meterImageUrl: row.meterImageUrl,
+  }));
+}
+
+export async function assessConsumptionMonthContinuityForRoom(
+  roomId: string,
+  targetBillingMonth: string,
+): Promise<ConsumptionMonthContinuityAssessment> {
+  const target = firstOfMonth(targetBillingMonth);
+  const bills = await loadFinalizedBillsBeforeMonth(roomId, target);
+  return assessConsumptionMonthContinuity(bills, target);
+}
+
+export async function resolveRoomPreviousMeterReading(
+  roomId: string,
+  options: { beforeBillingMonth: string; enforceContinuity?: boolean },
+): Promise<ResolvedRoomPreviousMeterReading> {
+  const beforeBillingMonth = firstOfMonth(options.beforeBillingMonth);
+  const enforceContinuity = options.enforceContinuity !== false;
+  const priorBills = await loadFinalizedBillsBeforeMonth(roomId, beforeBillingMonth);
+  const continuity = assessConsumptionMonthContinuity(priorBills, beforeBillingMonth);
+
+  if (!continuity.ok && enforceContinuity) {
+    throw new ConsumptionMonthContinuityError(continuity.message, continuity);
+  }
+
+  if (continuity.ok && !continuity.isFirstConsumptionMonth && continuity.requiredBaselineMonth) {
+    const baselineBill = priorBills.find(
+      (bill) => bill.billingMonth === continuity.requiredBaselineMonth,
+    );
+    if (baselineBill) {
+      return {
+        previousReadingUnits: baselineBill.currentReadingUnits,
+        source: 'last_monthly_bill',
+        lastBillingMonth: baselineBill.billingMonth,
+        ratePerUnitPaise:
+          baselineBill.ratePerUnitPaise ?? DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE,
+        lastBillMeterImageUrl: baselineBill.meterImageUrl ?? null,
+        continuity,
+      };
+    }
+  }
+
+  if (priorBills.length > 0) {
+    const lastBill = [...priorBills].sort((a, b) => b.billingMonth.localeCompare(a.billingMonth))[0]!;
     return {
-      previousReadingUnits: Number(lastBill.currentReadingUnits),
+      previousReadingUnits: lastBill.currentReadingUnits,
       source: 'last_monthly_bill',
       lastBillingMonth: lastBill.billingMonth,
       ratePerUnitPaise: lastBill.ratePerUnitPaise ?? DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE,
       lastBillMeterImageUrl: lastBill.meterImageUrl ?? null,
+      continuity,
     };
   }
 
@@ -73,6 +133,7 @@ export async function resolveRoomPreviousMeterReading(
       lastBillingMonth: null,
       ratePerUnitPaise: DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE,
       lastBillMeterImageUrl: null,
+      continuity,
     };
   }
 
@@ -82,5 +143,6 @@ export async function resolveRoomPreviousMeterReading(
     lastBillingMonth: null,
     ratePerUnitPaise: DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE,
     lastBillMeterImageUrl: null,
+    continuity,
   };
 }

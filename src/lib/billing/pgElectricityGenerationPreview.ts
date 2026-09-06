@@ -2,7 +2,7 @@
  * Server-side pre-generation electricity preview for Billing Center.
  */
 import { loadRoomElectricityOccupantsForMonth } from '@/src/lib/billing/roomElectricityOccupants';
-import { loadRoomElectricityContributionsForMonth } from '@/src/services/electricityRoomContributions';
+import { loadVerifiedPriorElectricityCollectionsForMonth } from '@/src/lib/billing/electricityVerifiedPriorCollections';
 import type {
   PgElectricityOccupantPreview,
   PgElectricityRoomGenerationPreview,
@@ -14,17 +14,17 @@ export async function loadPgElectricityRoomGenerationPreview(input: {
   roomId: string;
   billingMonth: string;
 }): Promise<PgElectricityRoomGenerationPreview> {
-  const [occupantLoad, contributionsLoad] = await Promise.all([
+  const [occupantLoad, verifiedPrior] = await Promise.all([
     loadRoomElectricityOccupantsForMonth({
       roomId: input.roomId,
       billingMonth: input.billingMonth,
       includeFixedStay: true,
       useProRataByActiveDays: true,
     }),
-    loadRoomElectricityContributionsForMonth(input.roomId, input.billingMonth),
+    loadVerifiedPriorElectricityCollectionsForMonth(input.roomId, input.billingMonth),
   ]);
 
-  const collectedByCustomer = contributionsLoad.byCustomerId;
+  const collectedByCustomer = verifiedPrior.byCustomerId;
   const occupants: PgElectricityOccupantPreview[] = occupantLoad.occupants.map((o) => ({
     customerId: o.customerId,
     customerName: o.customerName ?? 'Resident',
@@ -33,7 +33,7 @@ export async function loadPgElectricityRoomGenerationPreview(input: {
   }));
 
   return {
-    previouslyCollectedPaise: contributionsLoad.totalPaise,
+    previouslyCollectedPaise: verifiedPrior.totalPaise,
     occupants,
   };
 }

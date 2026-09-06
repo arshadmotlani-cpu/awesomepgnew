@@ -86,14 +86,15 @@ test('portal bill rows skip electricity covered by prior checkout collection', (
   assert.equal(result.dueBillRows.length, 0);
 });
 
-test('checkout approval is fail-closed when electricity collection cannot be recorded', () => {
+test('checkout approval is atomic when electricity collection is required', () => {
   const src = readFileSync(
     join(process.cwd(), 'src/services/checkoutSettlement.ts'),
     'utf8',
   );
-  assert.match(src, /if \(resolvedSharePaise > 0\)/);
-  assert.match(src, /Checkout electricity collection could not be recorded/);
-  assert.match(src, /return \{\s*ok: false/);
+  assert.match(src, /recordCheckoutElectricityCollectionInTx\(tx/);
+  assert.match(src, /resolveCheckoutElectricityDeductionPaise\(current\)/);
+  assert.match(src, /applyDepositDeductionsInTx\(tx/);
+  assert.doesNotMatch(src, /recordCheckoutElectricityCollectionFromSettlementId\(current\.id/);
 });
 
 test('checkout occupant loader delegates to historical SSOT', () => {

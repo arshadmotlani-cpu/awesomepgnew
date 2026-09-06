@@ -3,7 +3,7 @@
  */
 import type { ElectricityInvoice } from '@/src/db/schema/electricityInvoices';
 import { firstOfMonth } from '@/src/services/billing';
-import { loadRoomElectricityContributionsForMonth } from '@/src/services/electricityRoomContributions';
+import { loadVerifiedPriorElectricityCollectionsForMonth } from '@/src/lib/billing/electricityVerifiedPriorCollections';
 
 export function roomMonthCollectionKey(roomId: string, billingMonth: string): string {
   return `${roomId}:${firstOfMonth(billingMonth)}`;
@@ -20,7 +20,7 @@ export async function loadPriorElectricityCollectionForCustomer(
   }
   const result = new Map<string, number>();
   for (const { roomId, billingMonth } of keys.values()) {
-    const load = await loadRoomElectricityContributionsForMonth(roomId, billingMonth);
+    const load = await loadVerifiedPriorElectricityCollectionsForMonth(roomId, billingMonth);
     const amount = load.byCustomerId.get(customerId) ?? 0;
     if (amount > 0) result.set(roomMonthCollectionKey(roomId, billingMonth), amount);
   }

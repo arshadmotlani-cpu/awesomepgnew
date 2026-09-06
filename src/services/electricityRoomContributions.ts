@@ -557,9 +557,13 @@ export async function loadRoomElectricityCollectedByCustomerForMonth(
     }
   }
 
-  const settlementShares = await loadCheckoutElectricitySharesFromSettlements(roomId, month);
-  for (const row of settlementShares) {
-    if (creditedSettlementIds.has(row.checkoutSettlementId)) continue;
+  const { loadVerifiedPriorElectricityCollectionsForMonth } = await import(
+    '@/src/lib/billing/electricityVerifiedPriorCollections'
+  );
+  const verifiedPrior = await loadVerifiedPriorElectricityCollectionsForMonth(roomId, month);
+  for (const row of verifiedPrior.collections) {
+    if (row.source !== 'deposit_evidence') continue;
+    if (row.checkoutSettlementId && creditedSettlementIds.has(row.checkoutSettlementId)) continue;
     addAmount(row.customerId, row.amountPaise, row.checkoutSettlementId);
   }
 

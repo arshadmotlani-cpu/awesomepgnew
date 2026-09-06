@@ -49,9 +49,15 @@ export class MeterTimelineError extends Error {
 export async function resolveOfficialPreviousReading(
   roomId: string,
   beforeBillingMonth: string,
+  options?: { enforceContinuity?: boolean },
 ): Promise<MeterTimelineBaseline> {
-  return resolveRoomPreviousMeterReading(roomId, { beforeBillingMonth });
+  return resolveRoomPreviousMeterReading(roomId, {
+    beforeBillingMonth,
+    enforceContinuity: options?.enforceContinuity,
+  });
 }
+
+export { assessConsumptionMonthContinuityForRoom } from '@/src/services/roomMeterReadingSsot';
 
 /** Human-readable timeline source label for admin diagnostics. */
 export function describeMeterBaselineSource(source: RoomPreviousMeterSource): string {

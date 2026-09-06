@@ -19,7 +19,10 @@ test('electricity generate page has one PG-wise checklist UI — no dual forms',
 test('PG checklist loads previous reading from meter SSOT automatically', () => {
   const checklist = read('src/lib/billing/pgElectricityBillingChecklist.ts');
   const ui = read('src/components/admin/electricity/PgElectricityBillingChecklist.tsx');
-  assert.match(checklist, /resolveOfficialPreviousReading/);
+  assert.match(checklist, /resolveRoomPreviousMeterReading/);
+  assert.match(checklist, /assessConsumptionMonthContinuityForRoom/);
+  assert.match(checklist, /consumption_month_blocked/);
+  assert.match(checklist, /generationDateLabel/);
   assert.match(checklist, /source === 'none'/);
   assert.match(checklist, /previous_unavailable/);
   assert.match(checklist, /maintenance_excluded/);
@@ -37,6 +40,7 @@ test('PG checklist loads previous reading from meter SSOT automatically', () => 
 
 test('generation action uses canonical createElectricityBill and is PG-scoped', () => {
   const actions = read('app/(admin)/admin/billing/electricity/generate/actions.ts');
+  assert.match(actions, /assessConsumptionMonthContinuityForRoom/);
   assert.match(actions, /createElectricityBill/);
   assert.match(actions, /resolveOfficialPreviousReading/);
   assert.match(actions, /pgId/);

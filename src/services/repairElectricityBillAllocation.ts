@@ -34,7 +34,7 @@ import { formatDate } from '@/src/lib/dates';
 import { composeElectricityBillBreakdown } from '@/src/lib/billing/buildElectricityBillBreakdown';
 import { assertElectricityBreakdownCommitReady } from '@/src/lib/billing/assertElectricityBreakdownCommitReady';
 import { electricityDueDate, firstOfMonth } from '@/src/services/billing';
-import { loadRoomElectricityContributionsForMonth } from '@/src/services/electricityRoomContributions';
+import { loadVerifiedPriorElectricityCollectionsForMonth } from '@/src/lib/billing/electricityVerifiedPriorCollections';
 import { sumManualElectricityCreditsForRoomMonth } from '@/src/services/electricitySettlementLedgerView';
 import { findActiveElectricityInvoiceForResidentMonth } from '@/src/services/electricityInvoiceDuplicates';
 import { nextElectricityInvoiceNumber } from '@/src/services/electricityBilling';
@@ -109,7 +109,7 @@ async function loadCanonicalDrafts(input: {
     includeFixedStay: true,
     useProRataByActiveDays: true,
   });
-  const contributionsLoad = await loadRoomElectricityContributionsForMonth(
+  const verifiedPrior = await loadVerifiedPriorElectricityCollectionsForMonth(
     input.roomId,
     input.billingMonth,
   );
@@ -123,8 +123,8 @@ async function loadCanonicalDrafts(input: {
     grossTotalPaise: input.grossTotalPaise,
     prepaidCreditPaise: Math.max(0, input.prepaidCreditPaise),
     contributionsByCustomerId:
-      contributionsLoad.contributions.length > 0 ? contributionsLoad.byCustomerId : undefined,
-    manualCreditPaise: contributionsLoad.contributions.length > 0 ? undefined : manualCreditPaise,
+      verifiedPrior.totalPaise > 0 ? verifiedPrior.byCustomerId : undefined,
+    manualCreditPaise: verifiedPrior.totalPaise > 0 ? undefined : manualCreditPaise,
     occupants: occupantLoad.occupants,
     checkoutCollectedByCustomerId: occupantLoad.checkoutCollectedByCustomerId,
     useProRata: true,
@@ -373,7 +373,7 @@ export async function repairElectricityBillAllocation(input: {
     (sum, line) => sum + (line.excludedBecauseCheckoutPaid ? 0 : line.amountPaise),
     0,
   );
-  const contributionsLoad = await loadRoomElectricityContributionsForMonth(
+  const verifiedPrior = await loadVerifiedPriorElectricityCollectionsForMonth(
     preview.roomId,
     preview.billingMonth,
   );
@@ -398,16 +398,16 @@ export async function repairElectricityBillAllocation(input: {
       occupantLoad: occupants,
       invoiceAmountByBookingId: invoiceAllocationByBooking,
       allocation,
-      previousContributions: contributionsLoad.contributions.map((row) => ({
+      previousContributions: verifiedPrior.collections.map((row) => ({
         customerId: row.customerId,
-        customerName: row.customerName,
+        customerName: row.customerName ?? 'Unknown',
         bookingId: row.bookingId,
         amountPaise: row.amountPaise,
-        kind: row.kind,
-        reason: row.reason,
-        contributionDate: row.contributionDate,
-        occupancyStart: row.occupancyStart,
-        occupancyEnd: row.occupancyEnd,
+        kind: 'checkout_recovery',
+        reason: row.evidence,
+        contributionDate: preview.billingMonth,
+        occupancyStart: null,
+        occupancyEnd: null,
       })),
     });
     assertElectricityBreakdownCommitReady({
