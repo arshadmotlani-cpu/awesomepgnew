@@ -1,4 +1,5 @@
 import { env } from '@/src/lib/env';
+import { billingBusinessDate } from '@/src/lib/dates/ist';
 
 /** SSOT timezone for rent billing anniversary dates. */
 export const DEFAULT_BILLING_TIMEZONE = 'Asia/Kolkata';
@@ -9,6 +10,9 @@ export function getBillingTimezone(): string {
 
 /** Calendar date YYYY-MM-DD in the billing timezone (default IST). */
 export function todayInBillingTimezone(now: Date = new Date()): string {
+  if (getBillingTimezone() === DEFAULT_BILLING_TIMEZONE) {
+    return billingBusinessDate(now);
+  }
   const tz = getBillingTimezone();
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: tz,

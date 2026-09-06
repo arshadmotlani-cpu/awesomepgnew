@@ -26,7 +26,7 @@ import {
 import { parseDaterange } from '@/src/services/availability';
 import { formatDate, titleCase } from '@/src/lib/format';
 import { formatPaymentModeLabel } from '@/src/lib/billing/paymentModeLabels';
-import { formatDate as formatIsoDate } from '@/src/lib/dates';
+import { billingBusinessDate } from '@/src/lib/dates/ist';
 import { getUnifiedInvoiceDetail } from '@/src/services/unifiedInvoices';
 import { assertCustomerOwnsFinancialInvoiceDetailed } from '@/src/lib/billing/residentInvoiceAccess';
 import { clampDueDateOnOrAfterIssueDate } from '@/src/lib/billing/invoiceDueDate';
@@ -507,8 +507,8 @@ export async function getInvoiceDocumentDetail(
     isDocumentOnly: Boolean(base.isDocumentOnly),
   });
 
-  const issuedAtIso = formatIsoDate(base.createdAt);
-  const issuedAt = formatDate(base.createdAt);
+  const issuedAtIso = billingBusinessDate(base.createdAt);
+  const issuedAt = formatDate(issuedAtIso);
   const dueDate =
     base.dueDate != null
       ? clampDueDateOnOrAfterIssueDate(base.dueDate, issuedAtIso)

@@ -9,6 +9,7 @@
  */
 
 import { addDays, addMonths, diffDays, formatDate, parseDate, type DateLike } from '../lib/dates';
+import { billingBusinessDate } from '../lib/dates/ist';
 import {
   chargeableLateFeeDaysFromIssue,
   daysUntilLateFeeFromIssue,
@@ -332,7 +333,7 @@ export function computeLateFee(args: {
   policy?: LateFeePolicySnapshot | null;
 }): number {
   if (args.rentPaise <= 0) return 0;
-  const today = args.today ?? formatDate(new Date());
+  const today = args.today != null ? billingBusinessDate(args.today) : billingBusinessDate();
   const chargeableDays =
     args.issueDate != null
       ? chargeableLateFeeDaysFromIssue(args.issueDate, today)

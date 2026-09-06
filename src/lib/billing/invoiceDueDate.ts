@@ -1,4 +1,5 @@
-import { formatDate, parseDate, type DateLike } from '@/src/lib/dates';
+import type { DateLike } from '@/src/lib/dates';
+import { billingBusinessDate } from '@/src/lib/dates/ist';
 
 /** Invoice due date must never precede the issue (created) date. */
 export function clampDueDateOnOrAfterIssueDate(
@@ -9,7 +10,7 @@ export function clampDueDateOnOrAfterIssueDate(
 }
 
 function toIsoDate(value: DateLike): string {
-  return formatDate(parseDate(value));
+  return billingBusinessDate(value);
 }
 
 export function resolveRentInvoiceDueDate(input: {

@@ -17,6 +17,7 @@ import {
 import { VACATING_FINAL_PERIOD_CANCEL_REASON_SUFFIX } from '@/src/lib/billing/vacatingFinalPeriodRent';
 import { ACTIVE_VACATING_STATUSES } from '@/src/lib/vacating/activeRequestPolicy';
 import { formatDate, parseDate } from '@/src/lib/dates';
+import { billingBusinessDate } from '@/src/lib/dates/ist';
 import {
   billingPeriodForPolicy,
   calendarMonthBillingPeriod,
@@ -289,7 +290,7 @@ async function createProratedVacatingRentInvoice(args: {
   actorId?: string | null;
   actorType?: 'admin' | 'system';
 }): Promise<{ id: string } | null> {
-  const issueDate = formatDate(new Date());
+  const issueDate = billingBusinessDate();
   const dueDate = formatDate(graceEndDateFromIssue(issueDate));
   const { nextInvoiceNumberForBillingMonth } = await import('@/src/services/rentInvoices');
 

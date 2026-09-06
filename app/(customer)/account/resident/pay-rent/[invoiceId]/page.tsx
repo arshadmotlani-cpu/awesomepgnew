@@ -31,6 +31,7 @@ import {
 import { loadRentInvoiceBreakdown } from '@/src/lib/billing/rentInvoiceBreakdown';
 import { buildResidentRentBillPresentation } from '@/src/lib/residents/residentBillingPeriodDisplay';
 import { formatDate, paiseToInr } from '@/src/lib/format';
+import { billingBusinessDate } from '@/src/lib/dates/ist';
 import { projectInvoice, rentInvoiceIssueDate } from '@/src/services/rentInvoices';
 import {
   ensureDefaultPaymentCategoriesForPg,
@@ -162,7 +163,7 @@ export default async function PayRentPage({
         </dl>
         {showCountdown ? (
           <div className="mt-3">
-            <LateFeeCountdown issueDate={issueDate} />
+            <LateFeeCountdown issueDate={issueDate} today={billingBusinessDate()} />
           </div>
         ) : null}
       </ApgCard>

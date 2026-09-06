@@ -53,7 +53,8 @@ import {
 } from './expressRentInvoiceRecovery';
 import { adminCanAccessPg } from '../lib/auth/roles';
 import type { AdminSession } from '../lib/auth/session';
-import { addDays, diffDays, formatDate, normalizeIsoDateOnly, parseDate, type DateLike } from '../lib/dates';
+import { addDays, diffDays, formatDate, parseDate, type DateLike } from '../lib/dates';
+import { billingBusinessDate } from '../lib/dates/ist';
 import { writeAuditLogNonBlocking } from '@/src/lib/audit/writeAuditLog';
 import { formatPostgresError } from '@/src/lib/db/postgresError';
 import {
@@ -71,6 +72,7 @@ import {
   firstPartialMonthPeriod,
   fullMonthlyRentPaise,
   graceEndDateFromIssue,
+  INVOICE_LATE_FEE_GRACE_DAYS,
   isResidentActiveOnDate,
   lateFeePercentFromIssue,
   monthBounds,
@@ -601,9 +603,9 @@ export type BillingCycleOperationRow = {
 
 /** Invoices due within the next day (operations visibility window). */
 export async function listBillingCycleOperations(
-  asOf: DateLike = formatDate(new Date()),
+  asOf: DateLike = billingBusinessDate(),
 ): Promise<{ dueSoon: BillingCycleOperationRow[]; generatedPending: BillingCycleOperationRow[] }> {
-  const today = formatDate(parseDate(asOf));
+  const today = billingBusinessDate(asOf);
   const tomorrow = formatDate(addDays(today, 1));
 
   const rows = await db
@@ -733,7 +735,7 @@ export async function evaluateAnniversaryRentGenerationEligibility(
   input: EvaluateAnniversaryRentGenerationInput,
 ): Promise<RentGenerationEligibility> {
   const billingMonth = firstOfMonth(input.billingMonth);
-  const asOf = formatDate(parseDate(input.asOf));
+  const asOf = billingBusinessDate(input.asOf);
 
   const [bookingRow] = await db
     .select({
@@ -1030,7 +1032,7 @@ export async function generateRentInvoicesForMonth(
   input: GenerateRentInvoicesInput,
 ): Promise<GenerateRentInvoicesResult> {
   const billingMonth = firstOfMonth(input.billingMonth);
-  const asOf = formatDate(parseDate(input.asOf ?? new Date()));
+  const asOf = billingBusinessDate(input.asOf ?? new Date());
   const { start: monthStart, end: monthEnd } = monthBounds(billingMonth);
   const monthStartIso = formatDate(monthStart);
   const monthEndIso = formatDate(monthEnd);
@@ -1379,9 +1381,10 @@ export async function generateRentInvoiceForBookingAnniversary(input: {
 // ───────────────────────────────────────────────────────────────────────────
 
 export async function markOverdueInvoices(
-  asOf: DateLike = formatDate(new Date()),
+  asOf: DateLike = billingBusinessDate(),
 ): Promise<{ updated: number; updatedInvoiceIds: string[] }> {
-  const today = formatDate(parseDate(asOf));
+  const today = billingBusinessDate(asOf);
+  const graceOffsetDays = INVOICE_LATE_FEE_GRACE_DAYS - 1;
   const rows = await db
     .update(rentInvoices)
     .set({ status: 'overdue', updatedAt: new Date() })
@@ -1389,8 +1392,8 @@ export async function markOverdueInvoices(
       and(
         eq(rentInvoices.status, 'pending'),
         ne(rentInvoices.invoiceSubtype, 'billing_cycle_transition'),
-        // due_date < today (overdue starts on the 6th — diffDays(due_date, today) > 0)
-        sql`${rentInvoices.dueDate} < ${today}::date`,
+        // IST issue date + 4 days < today (late fee starts the day after the last grace day)
+        sql`((${rentInvoices.createdAt} AT TIME ZONE 'Asia/Kolkata')::date + (${graceOffsetDays} * interval '1 day')) < ${today}::date`,
       ),
     )
     .returning({
@@ -1440,7 +1443,7 @@ export async function markOverdueInvoices(
 export async function expireRentInvoicesPastDue(
   opts?: { asOf?: DateLike; daysAfterDue?: number },
 ): Promise<{ expired: number; expiredInvoiceIds: string[] }> {
-  const today = formatDate(parseDate(opts?.asOf ?? new Date()));
+  const today = billingBusinessDate(opts?.asOf ?? new Date());
   const grace = opts?.daysAfterDue ?? RENT_INVOICE_EXPIRE_DAYS_AFTER_DUE;
   const cutoff = formatDate(addDays(today, -grace));
 
@@ -1735,6 +1738,7 @@ export async function recordRentPaymentSuccess(
       : computeLateFee({
           rentPaise: rentDuePaise,
           issueDate: rentInvoiceIssueDate(invoice),
+          today: billingBusinessDate(),
         });
 
   let remaining = input.amountPaise;
@@ -2151,7 +2155,7 @@ export function buildRentProofFinancialSnapshot(
   proofSnapshotLateFeePaise: number;
   proofSnapshotPrincipalDuePaise: number;
 } {
-  const live = projectInvoice(invoice, formatDate(submittedAt), { bypassProofSnapshot: true });
+  const live = projectInvoice(invoice, billingBusinessDate(submittedAt), { bypassProofSnapshot: true });
   const rentDuePaise = computeRentDuePaise(invoice.rentPaise, invoice.discountPaise);
   const principalDuePaise = Math.max(0, rentDuePaise - (invoice.paidPrincipalPaise ?? 0));
   return {
@@ -2252,14 +2256,7 @@ export function resolveRentInvoicePaymentApplication(input: {
 }
 
 export function rentInvoiceIssueDate(invoice: Pick<RentInvoiceProjectInput, 'createdAt'>): string {
-  if (invoice.createdAt instanceof Date) {
-    return formatDate(invoice.createdAt);
-  }
-  if (invoice.createdAt) {
-    const normalized = normalizeIsoDateOnly(String(invoice.createdAt));
-    if (normalized) return normalized;
-  }
-  return formatDate(new Date());
+  return billingBusinessDate(invoice.createdAt ?? new Date());
 }
 
 function rentLateFeeProjectionFields(issueDate: string, asOf: DateLike) {
@@ -2279,7 +2276,7 @@ function rentLateFeeProjectionFields(issueDate: string, asOf: DateLike) {
  */
 export function projectInvoice(
   invoice: RentInvoiceProjectInput,
-  asOf: DateLike = formatDate(new Date()),
+  asOf: DateLike = billingBusinessDate(),
   options?: ProjectInvoiceOptions,
 ): RentInvoiceView {
   const inv: RentInvoice = {
@@ -2426,9 +2423,9 @@ export function projectInvoice(
 export async function cancelFutureRentInvoices(
   bookingId: string,
   reason: string,
-  asOf: DateLike = formatDate(new Date()),
+  asOf: DateLike = billingBusinessDate(),
 ): Promise<{ cancelled: number; ids: string[] }> {
-  const today = formatDate(parseDate(asOf));
+  const today = billingBusinessDate(asOf);
   const rows = await db.transaction(async (tx) => {
     const cancelled = await tx
       .update(rentInvoices)
@@ -2504,8 +2501,8 @@ export async function createAdhocRentInvoice(input: {
     return { ok: false, error: 'Amount must be greater than zero.' };
   }
 
-  const billingMonth = firstOfMonth(formatDate(new Date()));
-  const issueDate = new Date();
+  const billingMonth = firstOfMonth(billingBusinessDate());
+  const issueDate = billingBusinessDate();
   const subtype = input.invoiceSubtype ?? 'standard';
   const dueDate =
     subtype === 'billing_cycle_transition'
@@ -3351,7 +3348,7 @@ export async function listRentBillingOverview(
   opts?: { pgId?: string },
 ): Promise<RentBillingOverviewRow[]> {
   const month = firstOfMonth(billingMonth);
-  const asOf = formatDate(new Date());
+  const asOf = billingBusinessDate();
   const { start: monthStart, end: monthEnd } = monthBounds(month);
   const monthStartIso = formatDate(monthStart);
   const monthEndIso = formatDate(monthEnd);
@@ -3513,7 +3510,7 @@ export async function cancelPendingRentInvoicesForMonth(
         eq(rentInvoices.isAdhoc, false),
         isNull(rentInvoices.paymentProofUrl),
         isNull(rentInvoices.paymentId),
-        sql`${rentInvoices.dueDate} < ${formatDate(new Date())}::date`,
+        sql`${rentInvoices.dueDate} < ${billingBusinessDate()}::date`,
         opts?.pgId ? eq(rentInvoices.pgId, opts.pgId) : sql`TRUE`,
         opts?.bookingIds?.length
           ? inArray(rentInvoices.bookingId, opts.bookingIds)
@@ -3619,7 +3616,7 @@ export async function repairRentInvoiceDueDatesBeforeIssue(): Promise<{
 
   for (const row of rows) {
     if (!row.dueDate) continue;
-    const issueDate = formatDate(row.createdAt);
+    const issueDate = billingBusinessDate(row.createdAt);
     const dueDate = clampDueDateOnOrAfterIssueDate(row.dueDate, issueDate);
     if (dueDate === row.dueDate) continue;
 
