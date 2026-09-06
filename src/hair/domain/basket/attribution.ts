@@ -8,6 +8,26 @@ function metricForType(type: PricedLine['billableRef']['type']): AttributionRow[
 export function buildAttributionPlan(lines: PricedLine[]): AttributionRow[] {
   const rows: AttributionRow[] = [];
   for (const line of lines) {
+    // Package purchase is cash revenue only — never staff performance.
+    if (line.billableRef.type === 'package') continue;
+
+    const prepaid = line.prepaidRedemption ?? null;
+    if (prepaid && line.staff.length > 0) {
+      const performanceBase = prepaid.effectiveUnitValuePaise * line.quantity;
+      if (performanceBase <= 0) continue;
+      for (const s of line.staff) {
+        rows.push({
+          lineId: line.lineId,
+          staffId: s.staffId,
+          role: 'serviced_by',
+          shareBps: s.shareBps,
+          attributedBasePaise: attributedNetForShare(performanceBase, s.shareBps),
+          revenueMetric: 'service',
+        });
+      }
+      continue;
+    }
+
     if (line.basePaise <= 0 || line.staff.length === 0) continue;
     const metric = metricForType(line.billableRef.type);
     const isMultiSplitLine =

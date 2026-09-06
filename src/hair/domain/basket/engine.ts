@@ -31,6 +31,7 @@ export function priceBasket(basket: Basket): PricedBasket {
       snapshot: line.snapshot,
       quantity: line.quantity,
       staff: line.staff,
+      prepaidRedemption: line.prepaidRedemption ?? null,
       ...priced,
       ...ids,
       primaryStaffId,

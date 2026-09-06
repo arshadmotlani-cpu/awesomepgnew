@@ -7,11 +7,13 @@ import {
   fyhCustomerTimeline,
   fyhCustomers,
   fyhMembershipPlans,
+  fyhPackagePlanItems,
   fyhPackagePlans,
   fyhBridalEvents,
   fyhBridalProfiles,
   fyhNotificationOutbox,
   fyhNotificationTemplates,
+  fyhServices,
   fyhStaff,
   type FyhMembershipTier,
   type FyhBridalEventType,
@@ -21,6 +23,11 @@ import type { FyhPaymentMethod } from '@/src/hair/db/schema/billing';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import {
+  allocateEffectiveUnitValues,
+  computePackageNormalValuePaise,
+} from '@/src/hair/domain/packages/economics';
+import { createCustomerPackageEntitlement } from '@/src/hair/domain/packages/credits';
 
 export async function listMembershipPlans(ctx?: TenantContext | null) {
   return hairDb
@@ -101,7 +108,7 @@ export async function listPackagePlans(ctx?: TenantContext | null) {
 
 export async function sellPackage(customerId: string, planId: string, ctx?: TenantContext | null) {
   return hairDb.transaction(async (tx) => {
-    return sellPackageWithDb(tx as unknown as typeof hairDb, customerId, planId);
+    return sellPackageWithDb(tx as unknown as typeof hairDb, customerId, planId, undefined, ctx);
   });
 }
 
@@ -109,29 +116,107 @@ export async function sellPackageWithDb(
   db: typeof hairDb,
   customerId: string,
   planId: string,
+  opts?: {
+    purchaseInvoiceId?: string | null;
+    purchaseInvoiceLineId?: string | null;
+  },
   ctx?: TenantContext | null,
 ) {
-  const [plan] = await db.select().from(fyhPackagePlans).where(and(orgFilter(fyhPackagePlans.organizationId, ctx), eq(fyhPackagePlans.id, planId))).limit(1);
+  const [plan] = await db
+    .select()
+    .from(fyhPackagePlans)
+    .where(and(orgFilter(fyhPackagePlans.organizationId, ctx), eq(fyhPackagePlans.id, planId)))
+    .limit(1);
   if (!plan) throw new Error('Package not found');
-  const expires = new Date();
-  expires.setDate(expires.getDate() + plan.validityDays);
-  const [row] = await db
-    .insert(fyhCustomerPackages)
-    .values({
+
+  const planItems = await db
+    .select({
+      serviceId: fyhPackagePlanItems.serviceId,
+      quantity: fyhPackagePlanItems.quantity,
+      serviceName: fyhServices.name,
+      retailUnitPaise: fyhServices.pricePaise,
+    })
+    .from(fyhPackagePlanItems)
+    .innerJoin(fyhServices, eq(fyhServices.id, fyhPackagePlanItems.serviceId))
+    .where(and(orgFilter(fyhPackagePlanItems.organizationId, ctx), eq(fyhPackagePlanItems.planId, planId)));
+
+  let entitlementItems: Array<{
+    serviceId: string;
+    serviceName: string;
+    quantity: number;
+    retailUnitPaise: number;
+  }>;
+
+  if (planItems.length > 0) {
+    entitlementItems = planItems.map((item) => ({
+      serviceId: item.serviceId,
+      serviceName: item.serviceName,
+      quantity: item.quantity,
+      retailUnitPaise: item.retailUnitPaise,
+    }));
+  } else if (plan.serviceId) {
+    const [service] = await db
+      .select({ id: fyhServices.id, name: fyhServices.name, pricePaise: fyhServices.pricePaise })
+      .from(fyhServices)
+      .where(and(orgFilter(fyhServices.organizationId, ctx), eq(fyhServices.id, plan.serviceId)))
+      .limit(1);
+    if (!service) throw new Error('Package service not found');
+    entitlementItems = [
+      {
+        serviceId: service.id,
+        serviceName: service.name,
+        quantity: Math.max(1, plan.totalSessions),
+        retailUnitPaise: service.pricePaise,
+      },
+    ];
+  } else {
+    throw new Error('Package plan has no services');
+  }
+
+  const offerPricePaise = plan.pricePaise;
+  const normalValuePaise =
+    plan.normalValuePaise > 0
+      ? plan.normalValuePaise
+      : computePackageNormalValuePaise(
+          entitlementItems.map((i) => ({ retailUnitPaise: i.retailUnitPaise, quantity: i.quantity })),
+        );
+  const allocated = allocateEffectiveUnitValues(
+    entitlementItems.map((i) => ({
+      serviceId: i.serviceId,
+      quantity: i.quantity,
+      retailUnitPaise: i.retailUnitPaise,
+    })),
+    offerPricePaise,
+  );
+  const allocatedByService = new Map(allocated.map((a) => [a.serviceId, a]));
+
+  const entitlementId = await createCustomerPackageEntitlement(
+    db,
+    {
       customerId,
       planId,
-      totalSessions: plan.totalSessions,
-      expiresOn: expires.toISOString().slice(0, 10),
-    })
-    .returning();
-  await db
-    .update(fyhCustomers)
-    .set({
-      packagesPurchased: sql`${fyhCustomers.packagesPurchased} + 1`,
-      updatedAt: new Date(),
-    })
-    .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, customerId)));
-  return row;
+      purchaseInvoiceId: opts?.purchaseInvoiceId ?? null,
+      purchaseInvoiceLineId: opts?.purchaseInvoiceLineId ?? null,
+      nameSnapshot: plan.name,
+      offerPricePaise,
+      normalValuePaise,
+      validityDays: plan.validityDays ?? null,
+      items: entitlementItems.map((item) => ({
+        serviceId: item.serviceId,
+        serviceName: item.serviceName,
+        quantity: item.quantity,
+        effectiveUnitPaise: allocatedByService.get(item.serviceId)?.effectiveUnitPaise ?? 0,
+      })),
+    },
+    ctx,
+  );
+
+  const [row] = await db
+    .select()
+    .from(fyhCustomerPackages)
+    .where(and(orgFilter(fyhCustomerPackages.organizationId, ctx), eq(fyhCustomerPackages.id, entitlementId)))
+    .limit(1);
+  return row!;
 }
 
 export async function listCommissionSummary(ctx?: TenantContext | null) {

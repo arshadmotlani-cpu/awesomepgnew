@@ -56,6 +56,7 @@ export function legacyLinesToBasket(
         quantity: line.quantity,
         overridePricePaise,
         staff,
+        prepaidRedemption: line.prepaidRedemption ?? null,
       };
     }),
     payments: [],
@@ -73,6 +74,7 @@ export function basketToLegacyLines(basket: Basket): QuickSaleLineInput[] {
       refId: line.billableRef.id,
       quantity: line.quantity,
       lineDiscountPaise,
+      prepaidRedemption: line.prepaidRedemption ?? null,
     };
     if (line.snapshot.staffMode === 'SERVICE') {
       base.servicedBy = line.staff.map((s) => ({ staffId: s.staffId, shareBps: s.shareBps }));

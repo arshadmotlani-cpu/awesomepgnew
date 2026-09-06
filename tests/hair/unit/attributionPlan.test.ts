@@ -48,16 +48,37 @@ test('buildAttributionPlan splits product revenue equally across staff', () => {
   assert.equal(rows.reduce((s, r) => s + r.attributedBasePaise, 0), 10_000);
 });
 
-test('buildAttributionPlan does not split package across multiple staff', () => {
+test('buildAttributionPlan skips package purchase even with staff', () => {
   const rows = buildAttributionPlan([
     pricedLine('package', 20_000, [
       { staffId: 's1', shareBps: 5000 },
       { staffId: 's2', shareBps: 5000 },
     ]),
   ]);
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0]!.staffId, 's1');
-  assert.equal(rows[0]!.attributedBasePaise, 20_000);
+  assert.equal(rows.length, 0);
+});
+
+test('buildAttributionPlan uses prepaid effective value for redemption performance', () => {
+  const line = pricedLine('service', 0, [
+    { staffId: 's1', shareBps: 5000 },
+    { staffId: 's2', shareBps: 5000 },
+  ]);
+  line.basePaise = 0;
+  line.finalLinePaise = 0;
+  line.quantity = 2;
+  line.prepaidRedemption = {
+    kind: 'package_redemption',
+    customerPackageId: 'pkg1',
+    creditId: 'cred1',
+    serviceId: 'ref1',
+    packageName: 'Wash Pack',
+    effectiveUnitValuePaise: 100_00,
+  };
+  const rows = buildAttributionPlan([line]);
+  assert.equal(rows.length, 2);
+  assert.equal(rows.every((r) => r.role === 'serviced_by'), true);
+  assert.equal(rows.every((r) => r.revenueMetric === 'service'), true);
+  assert.equal(rows.reduce((s, r) => s + r.attributedBasePaise, 0), 200_00);
 });
 
 test('buildAttributionRows splits multi-staff product via servicedBy legacy path', () => {

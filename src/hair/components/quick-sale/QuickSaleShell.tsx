@@ -14,10 +14,15 @@ import {
 import { QuickSaleBasketTable } from '@/src/hair/components/quick-sale/QuickSaleBasketTable';
 import { QuickSalePaymentPanel } from '@/src/hair/components/quick-sale/QuickSalePaymentPanel';
 import { QuickSaleSuccessDialog } from '@/src/hair/components/quick-sale/QuickSaleSuccessDialog';
+import {
+  AvailableServicesModal,
+  type AvailableServiceSelection,
+} from '@/src/hair/components/quick-sale/AvailableServicesModal';
 import { basketLineFromBillableItem, basketToLegacyLines } from '@/src/hair/domain/basket/legacyBridge';
 import { priceBasket } from '@/src/hair/domain/basket/engine';
 import type { Basket, BasketFlags, BasketLine, PaymentEntry } from '@/src/hair/domain/basket/types';
 import type { BillableItem, BillableItemType } from '@/src/hair/domain/catalog/types';
+import { SALON_GST_BPS } from '@/src/hair/lib/taxConfig';
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
@@ -90,6 +95,7 @@ export function QuickSaleShell({
   const [heldBills, setHeldBills] = useState<QuickSaleHoldSummary[]>([]);
   const [staffNames, setStaffNames] = useState<Record<string, string>>({});
   const [sessionHydrated, setSessionHydrated] = useState(false);
+  const [availableServicesOpen, setAvailableServicesOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const catalogSearchRef = useRef<HTMLInputElement>(null);
 
@@ -224,6 +230,43 @@ export function QuickSaleShell({
     setLines((prev) => [...prev, basketLineFromBillableItem(item)]);
     setCatalogQ('');
     catalogSearchRef.current?.focus();
+  };
+
+  const addPrepaidSelections = (selections: AvailableServiceSelection[]) => {
+    if (selections.length === 0) return;
+    setLines((prev) => {
+      const next = [...prev];
+      for (const sel of selections) {
+        const catalog = billableItems.find(
+          (b) => b.type === 'service' && b.id === sel.serviceId,
+        );
+        const retailPaise = catalog?.sellingPricePaise ?? sel.effectiveUnitValuePaise;
+        next.push({
+          lineId: `prepaid-${sel.creditId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          billableRef: { id: sel.serviceId, type: 'service' },
+          snapshot: {
+            name: sel.serviceName,
+            code: catalog?.code ?? null,
+            unitSellingPricePaise: retailPaise,
+            gstBps: catalog?.gstBps ?? SALON_GST_BPS,
+            staffMode: 'SERVICE',
+            category: 'Package Redemption',
+          },
+          quantity: sel.quantity,
+          overridePricePaise: 0,
+          staff: [],
+          prepaidRedemption: {
+            kind: 'package_redemption',
+            customerPackageId: sel.customerPackageId,
+            creditId: sel.creditId,
+            serviceId: sel.serviceId,
+            packageName: sel.packageName,
+            effectiveUnitValuePaise: sel.effectiveUnitValuePaise,
+          },
+        });
+      }
+      return next;
+    });
   };
 
   const clearSaleState = () => {
@@ -378,10 +421,22 @@ export function QuickSaleShell({
           <div className="min-w-0 flex-1 space-y-2">
             {customer ? (
               <div className="fyh-panel !p-3">
-                <p className="font-semibold text-fyh-on-panel">{customer.fullName}</p>
-                <p className="text-sm text-fyh-on-panel-muted">
-                  {customer.customerCode} · {customer.phone}
-                </p>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-fyh-on-panel">{customer.fullName}</p>
+                    <p className="text-sm text-fyh-on-panel-muted">
+                      {customer.customerCode} · {customer.phone}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setAvailableServicesOpen(true)}
+                  >
+                    Available Services
+                  </Button>
+                </div>
                 <FyhCustomerContextStrip
                   customerId={customer.id}
                   customerName={customer.fullName}
@@ -650,6 +705,15 @@ export function QuickSaleShell({
           {pending ? 'Processing…' : 'Confirm sale'}
         </Button>
       </section>
+
+      {customer ? (
+        <AvailableServicesModal
+          customerId={customer.id}
+          open={availableServicesOpen}
+          onClose={() => setAvailableServicesOpen(false)}
+          onConfirm={addPrepaidSelections}
+        />
+      ) : null}
     </div>
   );
 }

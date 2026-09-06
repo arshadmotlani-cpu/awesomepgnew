@@ -1,10 +1,8 @@
-import { PackagesList } from '@/src/hair/components/packages/PackagesUi';
-import { listPackagePlans } from '@/src/hair/services/loyaltyOps';
+import { PackagesUi } from '@/src/hair/components/packages/PackagesUi';
 
 export const dynamic = 'force-dynamic';
 
-/** Configuration catalog — service bundles (one-time purchase). */
-export default async function PackagesPage() {
-  const packages = await listPackagePlans().catch(() => []);
-  return <PackagesList packages={packages} />;
+/** Configuration catalog — prepaid multi-service packages. */
+export default function PackagesPage() {
+  return <PackagesUi />;
 }

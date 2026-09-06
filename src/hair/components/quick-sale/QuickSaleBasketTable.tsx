@@ -5,7 +5,7 @@ import { Input } from '@/src/hair/components/ui/input';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { priceLineFromParts } from '@/src/hair/domain/basket/gstInclusiveMath';
 import type { BasketLine } from '@/src/hair/domain/basket/types';
-import { discountBpsFromPaise, discountPaiseFromBps } from '@/src/hair/lib/attributionMath';
+import { discountPaiseFromBps } from '@/src/hair/lib/attributionMath';
 import { QuickSaleStaffRow } from '@/src/hair/components/quick-sale/QuickSaleStaffFields';
 
 type Props = {
@@ -60,13 +60,15 @@ export function QuickSaleBasketTable({
         </thead>
         <tbody className="divide-y divide-[color:var(--fyh-border)]">
           {lines.map((line) => {
+            const isPrepaid = Boolean(line.prepaidRedemption);
+            const isPackagePurchase = line.billableRef.type === 'package';
             const catalogGross = line.snapshot.unitSellingPricePaise * line.quantity;
-            const finalPaise = line.overridePricePaise ?? catalogGross;
+            const finalPaise = isPrepaid ? 0 : (line.overridePricePaise ?? catalogGross);
             const priced = priceLineFromParts({
               unitSellingPricePaise: line.snapshot.unitSellingPricePaise,
               quantity: line.quantity,
               gstBps: line.snapshot.gstBps,
-              overridePricePaise: line.overridePricePaise,
+              overridePricePaise: isPrepaid ? 0 : line.overridePricePaise,
             });
             const gstPct = (line.snapshot.gstBps / 100).toFixed(1);
             const discPctDisplay = (priced.discountBps / 100).toFixed(1);
@@ -77,6 +79,19 @@ export function QuickSaleBasketTable({
                   <p className="font-semibold text-fyh-text">{line.snapshot.name}</p>
                   {line.snapshot.code ? (
                     <p className="text-xs text-fyh-text-muted">{line.snapshot.code}</p>
+                  ) : null}
+                  {isPrepaid ? (
+                    <p className="mt-1 text-[11px] font-medium text-fyh-accent">
+                      Package Redemption · Prepaid · ₹0
+                      {line.prepaidRedemption?.packageName
+                        ? ` · ${line.prepaidRedemption.packageName}`
+                        : ''}
+                    </p>
+                  ) : null}
+                  {isPackagePurchase ? (
+                    <p className="mt-1 text-[11px] font-medium text-fyh-text-muted">
+                      Prepaid package sale · No staff performance
+                    </p>
                   ) : null}
                 </td>
                 <td className="px-2 py-3 text-right tabular-nums text-fyh-text-secondary">
@@ -108,6 +123,7 @@ export function QuickSaleBasketTable({
                   <Input
                     inputMode="decimal"
                     value={String(line.quantity)}
+                    disabled={isPrepaid}
                     onChange={(e) => {
                       const quantity = Math.max(0.001, Number(e.target.value) || 1);
                       onUpdateLine(line.lineId, { quantity });
@@ -117,35 +133,45 @@ export function QuickSaleBasketTable({
                   />
                 </td>
                 <td className="px-2 py-3">
-                  <Input
-                    inputMode="decimal"
-                    value={discPctDisplay}
-                    onChange={(e) => {
-                      const pct = parseRupeeInput(e.target.value);
-                      if (pct == null) return;
-                      const bps = Math.min(10_000, Math.round(Math.max(0, pct) * 100));
-                      const discountPaise = discountPaiseFromBps(catalogGross, bps);
-                      onUpdateLine(line.lineId, {
-                        overridePricePaise: Math.max(0, catalogGross - discountPaise),
-                      });
-                    }}
-                    className="h-9 w-20 text-right tabular-nums"
-                    aria-label="Discount percent"
-                  />
+                  {isPrepaid ? (
+                    <span className="block text-right tabular-nums text-fyh-text-muted">—</span>
+                  ) : (
+                    <Input
+                      inputMode="decimal"
+                      value={discPctDisplay}
+                      onChange={(e) => {
+                        const pct = parseRupeeInput(e.target.value);
+                        if (pct == null) return;
+                        const bps = Math.min(10_000, Math.round(Math.max(0, pct) * 100));
+                        const discountPaise = discountPaiseFromBps(catalogGross, bps);
+                        onUpdateLine(line.lineId, {
+                          overridePricePaise: Math.max(0, catalogGross - discountPaise),
+                        });
+                      }}
+                      className="h-9 w-20 text-right tabular-nums"
+                      aria-label="Discount percent"
+                    />
+                  )}
                 </td>
                 <td className="px-2 py-3">
-                  <Input
-                    inputMode="decimal"
-                    value={(finalPaise / 100).toFixed(2)}
-                    onChange={(e) => {
-                      const rupees = parseRupeeInput(e.target.value);
-                      if (rupees == null) return;
-                      const overridePricePaise = Math.round(Math.max(0, rupees) * 100);
-                      onUpdateLine(line.lineId, { overridePricePaise });
-                    }}
-                    className="h-9 w-24 text-right tabular-nums font-semibold"
-                    aria-label="Final amount"
-                  />
+                  {isPrepaid ? (
+                    <span className="block text-right font-semibold tabular-nums text-fyh-text">
+                      {formatInrFromPaise(0)}
+                    </span>
+                  ) : (
+                    <Input
+                      inputMode="decimal"
+                      value={(finalPaise / 100).toFixed(2)}
+                      onChange={(e) => {
+                        const rupees = parseRupeeInput(e.target.value);
+                        if (rupees == null) return;
+                        const overridePricePaise = Math.round(Math.max(0, rupees) * 100);
+                        onUpdateLine(line.lineId, { overridePricePaise });
+                      }}
+                      className="h-9 w-24 text-right tabular-nums font-semibold"
+                      aria-label="Final amount"
+                    />
+                  )}
                 </td>
                 <td className="px-2 py-3">
                   <button

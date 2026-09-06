@@ -92,6 +92,14 @@ export type QuickSaleLineInput = {
   lineDiscountBps?: number;
   servicedBy?: StaffAttributionInput[];
   soldByStaffId?: string | null;
+  prepaidRedemption?: {
+    kind: 'package_redemption';
+    customerPackageId: string;
+    creditId: string;
+    serviceId: string;
+    packageName: string;
+    effectiveUnitValuePaise: number;
+  } | null;
 };
 
 export async function listInvoices(limit = 50, ctx?: TenantContext | null) {
@@ -828,7 +836,12 @@ async function applyLegacyCommissionFallback(
   }
 }
 
-export async function applyPaidSideEffects(db: typeof hairDb, invoiceId: string, ctx?: TenantContext | null) {
+export async function applyPaidSideEffects(
+  db: typeof hairDb,
+  invoiceId: string,
+  ctx?: TenantContext | null,
+  opts?: { packageRedemptionCustomerPackageId?: string | null },
+) {
   ctx = await resolveTenantContextForService(ctx);
   const [invoice] = await db.select().from(fyhInvoices).where(and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx), eq(fyhInvoices.id, invoiceId))).limit(1);
   if (!invoice) return;
@@ -888,7 +901,16 @@ export async function applyPaidSideEffects(db: typeof hairDb, invoiceId: string,
         await sellMembershipWithDb(db, invoice.customerId, line.membershipId);
       }
       if (line.kind === 'package' && line.packageId) {
-        await sellPackageWithDb(db, invoice.customerId, line.packageId);
+        await sellPackageWithDb(
+          db,
+          invoice.customerId,
+          line.packageId,
+          {
+            purchaseInvoiceId: invoiceId,
+            purchaseInvoiceLineId: line.id,
+          },
+          ctx,
+        );
       }
     }
   }
@@ -900,8 +922,70 @@ export async function applyPaidSideEffects(db: typeof hairDb, invoiceId: string,
       .where(and(orgFilter(fyhAppointments.organizationId, ctx), locationFilter(fyhAppointments.locationId, ctx), eq(fyhAppointments.id, invoice.appointmentId)));
   }
 
-  // Burn one package session only when package credit was applied and service matches
-  if (!isQuickSale && invoice.packageRedemptionPaise > 0) {
+  // Legacy auto package-session burn (Quick Sale + appointment paths).
+  // Explicit prepaidRedemption lines are burned in checkout pipeline instead.
+  const legacyPackageId = opts?.packageRedemptionCustomerPackageId ?? null;
+  if (invoice.packageRedemptionPaise > 0 && legacyPackageId) {
+    const serviceIds = lines
+      .filter((l) => l.kind === 'service' && l.serviceId)
+      .map((l) => l.serviceId!);
+    if (serviceIds.length > 0) {
+      const { redeemPackageCredits } = await import('@/src/hair/domain/packages/credits');
+      const { fyhCustomerPackageCredits } = await import('@/src/hair/db/schema');
+      const [credit] = await db
+        .select({
+          id: fyhCustomerPackageCredits.id,
+          usedCredits: fyhCustomerPackageCredits.usedCredits,
+          totalCredits: fyhCustomerPackageCredits.totalCredits,
+        })
+        .from(fyhCustomerPackageCredits)
+        .where(
+          and(
+            orgFilter(fyhCustomerPackageCredits.organizationId, ctx),
+            eq(fyhCustomerPackageCredits.customerPackageId, legacyPackageId),
+            inArray(fyhCustomerPackageCredits.serviceId, serviceIds),
+            sql`${fyhCustomerPackageCredits.usedCredits} < ${fyhCustomerPackageCredits.totalCredits}`,
+          ),
+        )
+        .limit(1);
+      if (credit) {
+        const serviceLine = lines.find((l) => l.kind === 'service' && l.serviceId);
+        await redeemPackageCredits(
+          db,
+          {
+            customerId: invoice.customerId,
+            creditId: credit.id,
+            quantity: 1,
+            invoiceId,
+            invoiceLineId: serviceLine?.id ?? invoiceId,
+            idempotencyKey: `redeem:legacy:${invoiceId}`,
+          },
+          ctx,
+        );
+      } else {
+        const [pkg] = await db
+          .select({
+            id: fyhCustomerPackages.id,
+            usedSessions: fyhCustomerPackages.usedSessions,
+            totalSessions: fyhCustomerPackages.totalSessions,
+          })
+          .from(fyhCustomerPackages)
+          .where(
+            and(
+              orgFilter(fyhCustomerPackages.organizationId, ctx),
+              eq(fyhCustomerPackages.id, legacyPackageId),
+            ),
+          )
+          .limit(1);
+        if (pkg && pkg.usedSessions < pkg.totalSessions) {
+          await db
+            .update(fyhCustomerPackages)
+            .set({ usedSessions: pkg.usedSessions + 1 })
+            .where(and(orgFilter(fyhCustomerPackages.organizationId, ctx), eq(fyhCustomerPackages.id, pkg.id)));
+        }
+      }
+    }
+  } else if (!isQuickSale && invoice.packageRedemptionPaise > 0) {
     const serviceIds = lines
       .filter((l) => l.kind === 'service' && l.serviceId)
       .map((l) => l.serviceId!);

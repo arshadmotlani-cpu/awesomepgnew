@@ -74,22 +74,27 @@ function validateCheckoutPayments(
 }
 
 export async function enrichBasketWithRedemptions(basket: Basket, ctx?: TenantContext | null): Promise<Basket> {
+  const hasExplicitPrepaid = basket.lines.some((l) => Boolean(l.prepaidRedemption));
   const discountSubtotal = basket.lines
-    .filter((l) => l.billableRef.type === 'service' || l.billableRef.type === 'product')
+    .filter((l) => {
+      if (l.prepaidRedemption) return false;
+      return l.billableRef.type === 'service' || l.billableRef.type === 'product';
+    })
     .reduce((sum, l) => {
       const gross = l.snapshot.unitSellingPricePaise * l.quantity;
       const finalPaise = l.overridePricePaise ?? gross;
       return sum + finalPaise;
     }, 0);
   const serviceIds = basket.lines
-    .filter((l) => l.billableRef.type === 'service')
+    .filter((l) => l.billableRef.type === 'service' && !l.prepaidRedemption)
     .map((l) => l.billableRef.id);
   const redemptions = await computeRedemptions(basket.customerId, discountSubtotal, serviceIds, ctx);
   return {
     ...basket,
     membershipDiscountPaise: redemptions.membershipDiscountPaise,
-    packageRedemptionPaise: redemptions.packageRedeemPaise,
-    packageRedemptionCustomerPackageId: redemptions.packageId,
+    // Explicit prepaid redemption lines already price at ₹0 — do not also apply auto package burn.
+    packageRedemptionPaise: hasExplicitPrepaid ? 0 : redemptions.packageRedeemPaise,
+    packageRedemptionCustomerPackageId: hasExplicitPrepaid ? null : redemptions.packageId,
   };
 }
 
@@ -209,28 +214,76 @@ const invoiceId = await hairDb.transaction(async (tx) => {
     }
     if (!inv) throw new Error('Failed to create invoice');
 
+    const {
+      formatPackagePurchaseInvoiceName,
+      formatPackageRedemptionInvoiceName,
+    } = await import('@/src/hair/domain/packages/invoiceSnapshot');
+    const { listPackagePlansDetailed } = await import('@/src/hair/services/packagePlans');
+
+    const packagePlanIds = [
+      ...new Set(
+        priced.lines
+          .filter((l) => l.billableRef.type === 'package')
+          .map((l) => l.billableRef.id),
+      ),
+    ];
+    const packageDetailsById = new Map<
+      string,
+      Awaited<ReturnType<typeof listPackagePlansDetailed>>[number]
+    >();
+    if (packagePlanIds.length > 0) {
+      const detailed = await listPackagePlansDetailed({ includeInactive: true }, ctx);
+      for (const plan of detailed) {
+        if (packagePlanIds.includes(plan.id)) packageDetailsById.set(plan.id, plan);
+      }
+    }
+
     const insertedLines = await db
       .insert(fyhInvoiceLines)
       .values(
-        priced.lines.map((line, sortOrder) => ({
-          ...writeDefaults,
-          invoiceId: inv.id,
-          kind: line.billableRef.type,
-          serviceId: line.serviceId,
-          productId: line.productId,
-          packageId: line.packageId,
-          membershipId: line.membershipId,
-          staffId: line.primaryStaffId,
-          nameSnapshot: line.snapshot.name,
-          quantity: line.quantity,
-          unitPricePaise: line.snapshot.unitSellingPricePaise,
-          discountPaise: line.discountPaise,
-          discountBps: line.discountBps,
-          gstBps: line.snapshot.gstBps,
-          taxPaise: line.gstPaise,
-          lineTotalPaise: line.finalLinePaise,
-          sortOrder,
-        })),
+        priced.lines.map((line, sortOrder) => {
+          let nameSnapshot = line.snapshot.name;
+          if (line.billableRef.type === 'package') {
+            const plan = packageDetailsById.get(line.billableRef.id);
+            if (plan) {
+              nameSnapshot = formatPackagePurchaseInvoiceName({
+                packageName: plan.name,
+                normalValuePaise: plan.normalValuePaise,
+                offerPricePaise: plan.offerPricePaise,
+                validityDays: plan.validityDays,
+                includedServices: plan.items.map((i) => ({
+                  serviceName: i.serviceName,
+                  quantity: i.quantity,
+                })),
+              });
+            }
+          } else if (line.prepaidRedemption) {
+            nameSnapshot = formatPackageRedemptionInvoiceName({
+              serviceName: line.snapshot.name,
+              packageName: line.prepaidRedemption.packageName,
+              quantity: Math.max(1, Math.floor(line.quantity)),
+            });
+          }
+          return {
+            ...writeDefaults,
+            invoiceId: inv.id,
+            kind: line.billableRef.type,
+            serviceId: line.serviceId,
+            productId: line.productId,
+            packageId: line.packageId,
+            membershipId: line.membershipId,
+            staffId: line.primaryStaffId,
+            nameSnapshot,
+            quantity: line.quantity,
+            unitPricePaise: line.snapshot.unitSellingPricePaise,
+            discountPaise: line.discountPaise,
+            discountBps: line.discountBps,
+            gstBps: line.snapshot.gstBps,
+            taxPaise: line.gstPaise,
+            lineTotalPaise: line.finalLinePaise,
+            sortOrder,
+          };
+        }),
       )
       .returning();
 
@@ -323,7 +376,33 @@ const invoiceId = await hairDb.transaction(async (tx) => {
     }
 
     if (status === 'paid' || grandTotal === 0) {
-      await applyPaidSideEffects(db, inv.id, ctx);
+      const prepaidLines = enriched.lines.filter((l) => l.prepaidRedemption);
+      if (prepaidLines.length > 0) {
+        const { redeemPackageCredits } = await import('@/src/hair/domain/packages/credits');
+        const lineIdToInvoiceLineId = new Map(
+          priced.lines.map((line, idx) => [line.lineId, insertedLines[idx]!.id] as const),
+        );
+        for (const line of prepaidLines) {
+          const invoiceLineId = lineIdToInvoiceLineId.get(line.lineId);
+          if (!invoiceLineId || !line.prepaidRedemption) continue;
+          await redeemPackageCredits(
+            db,
+            {
+              customerId: enriched.customerId,
+              creditId: line.prepaidRedemption.creditId,
+              quantity: Math.max(1, Math.floor(line.quantity)),
+              invoiceId: inv.id,
+              invoiceLineId,
+              idempotencyKey: `redeem:${invoiceLineId}`,
+            },
+            ctx,
+          );
+        }
+      }
+
+      await applyPaidSideEffects(db, inv.id, ctx, {
+        packageRedemptionCustomerPackageId: enriched.packageRedemptionCustomerPackageId ?? null,
+      });
     }
 
     return inv.id;

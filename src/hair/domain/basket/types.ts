@@ -15,6 +15,15 @@ export type BasketLineSnapshot = {
   category: string | null;
 };
 
+export type PrepaidPackageRedemption = {
+  kind: 'package_redemption';
+  customerPackageId: string;
+  creditId: string;
+  serviceId: string;
+  packageName: string;
+  effectiveUnitValuePaise: number;
+};
+
 export type BasketLine = {
   lineId: string;
   billableRef: { id: string; type: BillableItemType };
@@ -22,6 +31,7 @@ export type BasketLine = {
   quantity: number;
   overridePricePaise: number | null;
   staff: StaffAllocation[];
+  prepaidRedemption?: PrepaidPackageRedemption | null;
 };
 
 export type PaymentMethod = 'cash' | 'upi' | 'card';
@@ -60,6 +70,7 @@ export type PricedLine = {
   basePaise: number;
   gstPaise: number;
   staff: StaffAllocation[];
+  prepaidRedemption?: PrepaidPackageRedemption | null;
   /** FK ids for persistence */
   serviceId: string | null;
   productId: string | null;

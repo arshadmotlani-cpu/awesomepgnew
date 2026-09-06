@@ -18,6 +18,18 @@ export function validateBasket(basket: Basket): string | null {
   if (!basket.customerId) return 'Select a customer';
   if (basket.lines.length === 0) return 'Add at least one item';
   for (const line of basket.lines) {
+    if (line.billableRef.type === 'package') {
+      // Package purchase has no staff performance — ignore any staff allocations.
+      continue;
+    }
+    if (line.prepaidRedemption) {
+      if (line.staff.length === 0) {
+        return `${line.snapshot.name}: Select staff for package redemption`;
+      }
+      const err = validateStaffAllocations(line);
+      if (err) return err;
+      continue;
+    }
     const err = validateStaffAllocations(line);
     if (err) return err;
   }
