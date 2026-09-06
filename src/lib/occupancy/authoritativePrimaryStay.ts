@@ -11,9 +11,11 @@ export type PrimaryStayCandidate = {
 };
 
 export function stayRank(row: PrimaryStayCandidate): number {
-  if (row.status === 'active' && row.inStayToday) return 3;
+  if (row.status === 'active' && row.inStayToday) return 4;
+  if (row.status === 'hold' && row.inStayToday) return 3;
   if (row.status === 'active' && row.upcomingMonthly) return 2;
   if (row.status === 'active') return 1;
+  if (row.status === 'hold') return 1;
   return 0;
 }
 

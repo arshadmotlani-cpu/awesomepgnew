@@ -9,7 +9,7 @@ const src = readFileSync(
 );
 
 test('resident portal SSOT: active stay unlocks portal before reserve block', () => {
-  assert.match(src, /getActiveTenancyForCustomer/);
+  assert.match(src, /getPortalTenancyForCustomer/);
   assert.match(src, /Active non-reserve tenancy unlocks the portal/);
   assert.match(src, /if \(tenancy && tenancy\.durationMode !== 'reserve'\) \{\s*return true;/);
 });
@@ -23,7 +23,7 @@ test('open reserve redirect suppressed when active tenancy exists', () => {
   assert.match(src, /Returns null when the customer already has an active non-reserve tenancy/);
   const fnStart = src.indexOf('export async function getOpenReserveBookingCode');
   const fn = src.slice(fnStart, fnStart + 900);
-  assert.match(fn, /getActiveTenancyForCustomer/);
+  assert.match(fn, /getPortalTenancyForCustomer/);
   assert.match(fn, /return null/);
 });
 

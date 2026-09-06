@@ -146,9 +146,18 @@ export async function loadVerifiedPriorElectricityCollectionsForMonth(
   roomId: string,
   billingMonth: DateLike,
 ): Promise<VerifiedPriorCollectionsLoadResult> {
+  const normalizedRoomId = roomId?.trim();
+  if (!normalizedRoomId) {
+    return {
+      collections: [],
+      byCustomerId: new Map(),
+      totalPaise: 0,
+      contributorCustomerIds: new Set(),
+    };
+  }
   const month = firstOfMonth(billingMonth);
-  const contributionsLoad = await loadRoomElectricityContributionsForMonth(roomId, month);
-  const depositEvidence = await loadDepositEvidenceCollectionsForRoomMonth(roomId, month);
+  const contributionsLoad = await loadRoomElectricityContributionsForMonth(normalizedRoomId, month);
+  const depositEvidence = await loadDepositEvidenceCollectionsForRoomMonth(normalizedRoomId, month);
 
   const seen = new Set<string>();
   const collections: VerifiedPriorCollection[] = [];

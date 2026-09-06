@@ -22,6 +22,7 @@ import {
 } from '@/src/lib/auth/developerTestResident.server';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import type { ResidentTab, ResidentProfileSub, ResidentPaymentsSub } from '@/src/lib/accountNavigation';
+import { hasResidentPortalReadyStay } from '@/src/lib/residents/residentPortalStay';
 import type { ResidentAccountContext } from '@/src/services/residentAccountContext';
 import { cookies } from 'next/headers';
 
@@ -62,7 +63,7 @@ export async function ResidentAreaSection({
     : null;
 
   const primaryBooking = preloaded.primaryBooking;
-  const hasConfirmedBookingWithoutDetail = preloaded.hasResidentPortalAccess;
+  const portalReady = hasResidentPortalReadyStay(preloaded);
 
   return (
     <ResidentHubShell
@@ -74,7 +75,7 @@ export async function ResidentAreaSection({
       actualDurationMode={primaryBooking?.durationMode ?? null}
       simulatedDurationMode={simulatedDurationMode}
     >
-      {!primaryBooking && hasConfirmedBookingWithoutDetail ? (
+      {!portalReady && preloaded.hasResidentPortalAccess ? (
         <ResidentIncompleteStayPanel
           customerEmail={session.email}
           developerTestMode={developerTestMode}

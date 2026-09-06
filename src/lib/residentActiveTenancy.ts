@@ -7,7 +7,11 @@ import { sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import type { ResidencyStatus } from '@/src/db/schema/enums';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
-import { occupancyReservationCoreSql_b, adminAssignedReservationSql_b } from '@/src/lib/occupancySsot';
+import {
+  adminAssignedReservationSql_b,
+  occupancyReservationCoreSql_b,
+  portalAssignedReservationSql_b,
+} from '@/src/lib/occupancySsot';
 
 /** Booking notes/snapshot markers — used by cleanup tools, not occupancy SSOT. */
 export const isNotOccupancyPlaceholderBookingSql = sql`NOT (
@@ -217,6 +221,23 @@ function mapActiveTenancyRow(row: ActiveTenancyDbRow): ActiveTenancy {
 export async function getActiveTenancyForCustomer(
   customerId: string,
 ): Promise<ActiveTenancy | null> {
+  return loadTenancyForCustomer(customerId, adminAssignedReservationSql_b);
+}
+
+/**
+ * Portal SSOT tenancy — active stay, checkout limbo (hold), and vacating residents
+ * until checkout completes. Used for resident dashboard routing and primary booking.
+ */
+export async function getPortalTenancyForCustomer(
+  customerId: string,
+): Promise<ActiveTenancy | null> {
+  return loadTenancyForCustomer(customerId, portalAssignedReservationSql_b);
+}
+
+async function loadTenancyForCustomer(
+  customerId: string,
+  reservationSql: ReturnType<typeof sql>,
+): Promise<ActiveTenancy | null> {
   const rows = await db.execute<ActiveTenancyDbRow>(sql`
     SELECT
       b.id::text AS booking_id,
@@ -275,9 +296,10 @@ export async function getActiveTenancyForCustomer(
     INNER JOIN floors f ON f.id = r.floor_id
     INNER JOIN pgs p ON p.id = f.pg_id
     WHERE b.customer_id = ${customerId}::uuid
-      AND ${adminAssignedReservationSql_b}
+      AND ${reservationSql}
     ORDER BY
       (CURRENT_DATE <@ br.stay_range) DESC,
+      (br.status = 'active') DESC,
       lower(br.stay_range) DESC
     LIMIT 1
   `);

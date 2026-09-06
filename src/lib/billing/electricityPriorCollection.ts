@@ -11,12 +11,14 @@ export function roomMonthCollectionKey(roomId: string, billingMonth: string): st
 
 export async function loadPriorElectricityCollectionForCustomer(
   customerId: string,
-  invoices: Array<{ roomId: string; billingMonth: string }>,
+  invoices: Array<{ roomId: string | null | undefined; billingMonth: string }>,
 ): Promise<Map<string, number>> {
   const keys = new Map<string, { roomId: string; billingMonth: string }>();
   for (const inv of invoices) {
+    const roomId = inv.roomId?.trim();
+    if (!roomId) continue;
     const month = firstOfMonth(inv.billingMonth);
-    keys.set(roomMonthCollectionKey(inv.roomId, month), { roomId: inv.roomId, billingMonth: month });
+    keys.set(roomMonthCollectionKey(roomId, month), { roomId, billingMonth: month });
   }
   const result = new Map<string, number>();
   for (const { roomId, billingMonth } of keys.values()) {

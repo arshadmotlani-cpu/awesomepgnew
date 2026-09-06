@@ -15,7 +15,7 @@
 import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { bedReservations, bedReserveHolds, bookings } from '@/src/db/schema';
-import { getActiveTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
+import { getPortalTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
 
 /** True while customer is in the reserve funnel (not yet converted to a stay). */
 export async function customerHasOpenReserveLifecycle(customerId: string): Promise<boolean> {
@@ -111,7 +111,7 @@ export async function customerHasCompletedStayPortalAccess(customerId: string): 
  * (active stay wins — unfinished reserves must not hijack the portal).
  */
 export async function getOpenReserveBookingCode(customerId: string): Promise<string | null> {
-  const tenancy = await getActiveTenancyForCustomer(customerId);
+  const tenancy = await getPortalTenancyForCustomer(customerId);
   if (tenancy && tenancy.durationMode !== 'reserve') {
     return null;
   }
@@ -141,7 +141,7 @@ export async function getOpenReserveBookingCode(customerId: string): Promise<str
  * Active non-reserve tenancy unlocks the portal even if an unfinished reserve exists.
  */
 export async function customerHasResidentPortalAccess(customerId: string): Promise<boolean> {
-  const tenancy = await getActiveTenancyForCustomer(customerId);
+  const tenancy = await getPortalTenancyForCustomer(customerId);
   if (tenancy && tenancy.durationMode !== 'reserve') {
     return true;
   }

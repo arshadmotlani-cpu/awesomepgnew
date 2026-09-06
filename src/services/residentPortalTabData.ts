@@ -41,7 +41,7 @@ import {
 } from '@/src/lib/residents/residentPortalFinancials';
 import { loadResidentElectricityBillingState } from '@/src/lib/residents/residentElectricityBillingState';
 import { requestTypeLabel, type ActiveRequestItem } from '@/src/lib/residents/requestCenter';
-import { getActiveTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
+import { getPortalTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
 import { getDepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
 import {
   buildSettlementStatementModel,
@@ -182,9 +182,10 @@ async function resolvePrimaryBooking(
   customerId: string,
   detail: ResidentPortalBookingDetail[],
 ): Promise<ResidentPortalBookingDetail | undefined> {
-  const activeTenancy = await getActiveTenancyForCustomer(customerId);
+  const portalTenancy = await getPortalTenancyForCustomer(customerId);
   return (
-    (activeTenancy ? detail.find((d) => d.bookingId === activeTenancy.bookingId) : null) ??
+    (portalTenancy ? detail.find((d) => d.bookingId === portalTenancy.bookingId) : null) ??
+    detail.find((d) => d.booking.status === 'confirmed') ??
     detail[0] ??
     undefined
   );

@@ -29,6 +29,28 @@ export const occupancyReservationCoreSql_b = sql`
 `;
 
 /**
+ * Resident portal tenancy — includes checkout limbo (hold) and approved/pending vacating
+ * stays even when stay_range no longer includes today.
+ */
+export const portalAssignedReservationSql_b = sql`
+  b.status = 'confirmed'
+  AND br.kind = 'primary'
+  AND br.status IN ('active', 'hold')
+  AND (
+    CURRENT_DATE <@ br.stay_range
+    OR (
+      lower(br.stay_range) > CURRENT_DATE
+      AND b.duration_mode IN ('monthly', 'open_ended')
+    )
+    OR EXISTS (
+      SELECT 1 FROM vacating_requests vr
+      WHERE vr.booking_id = b.id
+        AND vr.status IN ('pending', 'approved')
+    )
+  )
+`;
+
+/**
  * Admin residents UI — assigned today OR upcoming confirmed primary move-in.
  * Matches bed map `occ` (today, any duration) + `res` (future monthly/open_ended).
  */

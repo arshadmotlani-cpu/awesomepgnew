@@ -8,7 +8,7 @@ import {
   type ResidentBookingRow,
 } from '@/src/db/queries/customer';
 import { firstOfMonth } from '@/src/services/billing';
-import { getActiveTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
+import { getActiveTenancyForCustomer, getPortalTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
 import type {
   ResidentFinancialAccount,
   ResidentFinancialLineItem,
@@ -31,6 +31,7 @@ import {
   isVisibleResidentInvoiceStatus,
   loadResidentMonthlyRentDisplay,
 } from '@/src/lib/residents/residentPortalFinancials';
+import { resolveCanonicalResidentPortalBooking } from '@/src/lib/residents/residentPortalStay';
 import { buildResidentRentBillPresentation } from '@/src/lib/residents/residentBillingPeriodDisplay';
 
 export type ResidentInvoiceCard = {
@@ -127,28 +128,17 @@ export async function loadResidentAccountContext(
   );
   const hasResidentPortalAccess = await customerHasResidentPortalAccess(customerId);
   const hasConfirmedBooking = hasResidentPortalAccess;
-  const tenancy = await getActiveTenancyForCustomer(customerId);
-  const isActiveStay = customer.residencyStatus === 'active' && tenancy != null;
+  const tenancy = await getPortalTenancyForCustomer(customerId);
+  const isActiveStay =
+    customer.residencyStatus === 'active' &&
+    (tenancy != null || (await getActiveTenancyForCustomer(customerId)) != null);
 
   const bookings = await listResidentBookingsForCustomer(customerId);
   const uniqueBookings =
     bookings.ok && bookings.data.length > 0
       ? Array.from(new Map(bookings.data.map((b) => [b.bookingId, b])).values())
       : [];
-  let primaryBooking =
-    (tenancy ? uniqueBookings.find((b) => b.bookingId === tenancy.bookingId) : null) ??
-    uniqueBookings[0] ??
-    null;
-  if (primaryBooking && tenancy && primaryBooking.bookingId === tenancy.bookingId) {
-    primaryBooking = {
-      ...primaryBooking,
-      pgId: tenancy.pgId,
-      pgName: tenancy.pgName,
-      roomId: tenancy.roomId,
-      roomNumber: tenancy.roomNumber,
-      bedCode: tenancy.bedCode,
-    };
-  }
+  const primaryBooking = resolveCanonicalResidentPortalBooking(uniqueBookings, tenancy);
 
   const financialSummary = primaryBooking
     ? await getResidentFinancialAccount(customerId)
