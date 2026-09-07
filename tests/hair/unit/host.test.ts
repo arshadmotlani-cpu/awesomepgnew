@@ -36,6 +36,17 @@ test('maps /team for preview and fyhair public paths', () => {
   assert.equal(hairPublicToInternal('/team'), '/fyh/team');
 });
 
+test('maps attendance routes for fyhair public paths', () => {
+  assert.equal(isHairPublicPath('/attendance'), true);
+  assert.equal(isHairProtectedPath('/attendance'), true);
+  assert.equal(hairPublicToInternal('/attendance'), '/fyh/attendance');
+  assert.equal(isHairPublicPath('/attendance/manage'), true);
+  assert.equal(isHairProtectedPath('/attendance/manage'), true);
+  assert.equal(hairPublicToInternal('/attendance/manage'), '/fyh/attendance/manage');
+  assert.equal(isHairPublicPath('/settings/attendance'), true);
+  assert.equal(hairPublicToInternal('/settings/attendance'), '/fyh/settings/attendance');
+});
+
 test('protects app modules but not login', () => {
   assert.equal(isHairProtectedPath('/dashboard'), true);
   assert.equal(isHairProtectedPath('/login'), false);
