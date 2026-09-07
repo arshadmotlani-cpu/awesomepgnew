@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import { fyhStaff } from '@/src/hair/db/schema';
+import { filterSelectablePosStaff } from '@/src/hair/lib/posStaffRoster';
 import { orgFilter } from '@/src/hair/lib/tenant/filters';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import {
@@ -13,7 +14,14 @@ import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 export async function listBookableStaffForSalon(
   ctx?: TenantContext | null,
 ): Promise<
-  Array<{ id: string; fullName: string; phone: string | null; photoUrl: string | null; isActive: boolean }>
+  Array<{
+    id: string;
+    fullName: string;
+    phone: string | null;
+    photoUrl: string | null;
+    isActive: boolean;
+    role: string | null;
+  }>
 > {
   if (isWorkforceEngineEnabled()) {
     const rows = await listEmployeesForEngine('fyh_salon', {
@@ -21,13 +29,17 @@ export async function listBookableStaffForSalon(
       receiveBookingsOnly: true,
       organizationId: ctx?.organizationId,
     });
-    return rows.map((r) => ({
-      id: r.employee.id,
-      fullName: r.employee.fullName,
-      phone: r.employee.mobile,
-      photoUrl: r.employee.photoUrl ?? null,
-      isActive: true,
-    }));
+    const mapped = filterSelectablePosStaff(
+      rows.map((r) => ({
+        id: r.employee.id,
+        fullName: r.employee.fullName,
+        phone: r.employee.mobile,
+        photoUrl: r.employee.photoUrl ?? null,
+        isActive: true,
+        role: r.membership?.jobRole ?? null,
+      })),
+    );
+    if (mapped.length > 0) return mapped;
   }
 
   const rows = await hairDb
@@ -37,10 +49,11 @@ export async function listBookableStaffForSalon(
       phone: fyhStaff.phone,
       photoUrl: fyhStaff.photoUrl,
       isActive: fyhStaff.isActive,
+      role: fyhStaff.role,
     })
     .from(fyhStaff)
     .where(and(eq(fyhStaff.isActive, true), orgFilter(fyhStaff.organizationId, ctx)));
-  return rows;
+  return filterSelectablePosStaff(rows);
 }
 
 export async function listActiveSalonStaffRoster(): Promise<EmployeeWithMembership[] | null> {

@@ -1,11 +1,11 @@
 import { and, asc, eq, ilike, or, sql } from 'drizzle-orm';
+import { listBookableStaffForSalon } from '@/src/hair/adapters/workforceStaffAdapter';
 import { hairDb } from '@/src/hair/db/client';
 import {
   fyhCustomers,
   fyhProducts,
   fyhServiceCategories,
   fyhServices,
-  fyhStaff,
 } from '@/src/hair/db/schema';
 import { listMembershipPlans, listPackagePlans } from '@/src/hair/services/loyaltyOps';
 import { shouldHideServiceFromBillable } from '@/src/hair/lib/serviceCatalogHygiene';
@@ -139,11 +139,9 @@ export async function loadQuickSaleCatalog(ctx?: TenantContext | null): Promise<
         description: null as string | null,
       })),
     ),
-    hairDb
-      .select({ id: fyhStaff.id, fullName: fyhStaff.fullName })
-      .from(fyhStaff)
-      .where(and(orgFilter(fyhStaff.organizationId, ctx), eq(fyhStaff.isActive, true)))
-      .orderBy(asc(fyhStaff.fullName)),
+    listBookableStaffForSalon(ctx).then((rows) =>
+      rows.map((s) => ({ id: s.id, fullName: s.fullName })),
+    ),
   ]);
 
   const visibleServices = services.filter((s) => !shouldHideServiceFromBillable(s.name, s.code));
@@ -214,17 +212,15 @@ export async function previewQuickSaleTotals(
 export async function searchStaffForPos(query: string, limit = 20, ctx?: TenantContext | null) {
   ctx = await resolveTenantContextForService(ctx);
   const q = query.trim();
-  const conditions = [orgFilter(fyhStaff.organizationId, ctx), eq(fyhStaff.isActive, true)];
-  // Empty query lists active staff for POS dropdown open (compact list + scroll).
-  if (q.length >= 1) {
-    conditions.push(ilike(fyhStaff.fullName, `%${q}%`));
-  }
-  return hairDb
-    .select({ id: fyhStaff.id, fullName: fyhStaff.fullName, role: fyhStaff.role })
-    .from(fyhStaff)
-    .where(and(...conditions))
-    .orderBy(asc(fyhStaff.fullName))
-    .limit(limit);
+  const roster = await listBookableStaffForSalon(ctx);
+  const filtered = roster
+    .filter((row) => !q || row.fullName.toLowerCase().includes(q.toLowerCase()))
+    .slice(0, limit);
+  return filtered.map((row) => ({
+    id: row.id,
+    fullName: row.fullName,
+    role: row.role ?? null,
+  }));
 }
 
 export async function getCustomerWalletBalance(customerId: string, ctx?: TenantContext | null) {

@@ -64,12 +64,6 @@ async function seedRcFixtures(
       .limit(1);
     if (existing) {
       staffIds.push(existing.id);
-      if (!existing.isActive) {
-        await db
-          .update(fyhStaff)
-          .set({ isActive: true, updatedAt: new Date() })
-          .where(eq(fyhStaff.id, existing.id));
-      }
       continue;
     }
     const [row] = await db

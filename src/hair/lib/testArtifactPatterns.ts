@@ -33,6 +33,18 @@ export function testPurchaseVendorJoinWhere(vendorAlias = 'v'): string {
   return testVendorWhere(vendorAlias);
 }
 
+/** RC seed stylists and other demo/system POS identities — deactivate, do not delete. */
+export function testStaffWhere(alias = ''): string {
+  const name = alias ? `${alias}.full_name` : 'full_name';
+  const id = alias ? `${alias}.id` : 'id';
+  return `(
+    ${name} ILIKE 'RC Stylist %'
+    OR ${name} = 'Arshad'
+    OR ${id} = '00000000-0000-4000-8000-000000000001'::uuid
+    OR ${name} ~* '(^|[[:space:]])(uat|test|demo|placeholder|dummy)($|[[:space:]])'
+  )`;
+}
+
 export function testServiceWhere(alias = ''): string {
   const code = alias ? `${alias}.code` : 'code';
   const name = alias ? `${alias}.name` : 'name';
