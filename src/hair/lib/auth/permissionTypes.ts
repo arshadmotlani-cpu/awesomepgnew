@@ -184,6 +184,7 @@ export function pagePermissionForPath(pathname: string): HairPagePermission | nu
     ['/loyalty', 'page:customers'],
     ['/workforce', 'page:dashboard'],
     ['/me', 'page:appointments'],
+    ['/attendance', 'page:appointments'],
   ];
   for (const [prefix, key] of rules) {
     if (path === prefix || path.startsWith(`${prefix}/`)) return key;

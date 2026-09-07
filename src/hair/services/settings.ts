@@ -128,6 +128,7 @@ function normalizeSettingsRow(row: typeof fyhSettings.$inferSelect) {
     whatsappSettings: mergeSettings(DEFAULT_WHATSAPP_SETTINGS, row.whatsappSettings),
     inventorySettings: mergeSettings(DEFAULT_INVENTORY_SETTINGS, row.inventorySettings),
     securitySettings: row.securitySettings ?? null,
+    attendanceSettings: row.attendanceSettings ?? {},
   };
 }
 

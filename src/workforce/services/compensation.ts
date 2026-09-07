@@ -18,6 +18,7 @@ import {
   isPayrollGenerationWindowOpen,
   resolvePreviousMonthPeriod,
 } from '@/src/workforce/lib/payrollPeriod';
+import { computeAttendanceDeductionForPayroll } from '@/src/workforce/services/attendancePayroll';
 import type { WorkforceEngineId } from '@/src/workforce/types';
 
 export type CompensationSnapshot = {
@@ -259,6 +260,14 @@ export async function createDraftPayrollRun(input: {
     const snap = await getCompensationSnapshot(employeeId, engineId);
     if (!snap) continue;
 
+    const attendanceDeductionPaise = await computeAttendanceDeductionForPayroll({
+      employeeId,
+      periodStart,
+      periodEnd,
+      monthlySalaryPaise: snap.salaryPaise,
+      engineId,
+    });
+
     const incentives = await listIncentives({
       employeeId,
       engineId,
@@ -284,7 +293,7 @@ export async function createDraftPayrollRun(input: {
       salaryPaise: snap.salaryPaise,
       commissionPaise: 0,
       incentivePaise,
-      deductionsPaise: 0,
+      deductionsPaise: attendanceDeductionPaise,
     });
 
     await hairDb.insert(wfPayrollLines).values({
@@ -293,14 +302,16 @@ export async function createDraftPayrollRun(input: {
       salaryPaise: snap.salaryPaise,
       commissionPaise: 0,
       incentivePaise,
-      deductionsPaise: 0,
+      deductionsPaise: attendanceDeductionPaise,
       netPaise,
       notes:
-        attributed.incentiveEnabled
-          ? `Attributed incentive: service ₹${(attributed.serviceIncentivePaise / 100).toFixed(2)}, product ₹${(attributed.productIncentivePaise / 100).toFixed(2)}; manual adjustments ₹${(manualIncentivePaise / 100).toFixed(2)}`
-          : manualIncentivePaise > 0
-            ? `Manual incentive adjustments only`
-            : 'No incentive plan',
+        attendanceDeductionPaise > 0
+          ? `Attendance absence deduction: ₹${(attendanceDeductionPaise / 100).toFixed(2)}`
+          : attributed.incentiveEnabled
+            ? `Attributed incentive: service ₹${(attributed.serviceIncentivePaise / 100).toFixed(2)}, product ₹${(attributed.productIncentivePaise / 100).toFixed(2)}; manual adjustments ₹${(manualIncentivePaise / 100).toFixed(2)}`
+            : manualIncentivePaise > 0
+              ? `Manual incentive adjustments only`
+              : 'No incentive plan',
     });
   }
 

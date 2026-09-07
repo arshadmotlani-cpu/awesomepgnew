@@ -22,6 +22,7 @@ const MANAGER_TEMPLATE: WorkforcePermissionKey[] = ALL.filter(
       'system.settings',
       'settings.manage',
       'configuration.edit',
+      'attendance.manage_office',
     ].includes(k),
 );
 
@@ -68,6 +69,8 @@ const STAFF_TEMPLATE: WorkforcePermissionKey[] = [
   'appointments.receive_bookings',
   'calendar.view',
   'customers.view',
+  'attendance.view_own',
+  'attendance.mark',
 ];
 
 const TEMPLATE_BY_ROLE: Record<

@@ -3,9 +3,6 @@ import Link from 'next/link';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { requireHairHost } from '@/src/hair/lib/auth/guards';
 import { getEmployeeDashboard } from '@/src/workforce/brains/employeeBrain';
-import { clockInAction, clockOutAction } from '@/src/workforce/actions/operations';
-import { getCompensationSnapshot, listIncentives } from '@/src/workforce/services/compensation';
-import { normalizeCommissionType } from '@/src/workforce/lib/compensationMath';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
 import { workforceAccessRoleLabel } from '@/src/workforce/labels';
 import { hasWorkforcePermission } from '@/src/workforce/permissions/resolve';
@@ -30,19 +27,9 @@ export default async function TeamMemberMePage() {
     redirect('/workforce/home');
   }
 
-  const salaryInr = (dash.employee.salaryPaise / 100).toLocaleString('en-IN');
   const accessRoleLabel = dash.membership
     ? workforceAccessRoleLabel(dash.membership.jobRole)
     : 'Team member';
-  const today = new Date().toISOString().slice(0, 10);
-  const todayAttendance = dash.recentAttendance.find((a) => a.workDate === today);
-  const compensation = await getCompensationSnapshot(session.workforceEmployeeId, 'fyh_salon');
-  const commissionType = normalizeCommissionType(compensation?.commission.type);
-  const incentives = await listIncentives({
-    employeeId: session.workforceEmployeeId,
-    engineId: 'fyh_salon',
-    limit: 20,
-  });
 
   const settings = await getSalonSettings();
   const tz = settings.timezone?.trim() || 'Asia/Kolkata';
@@ -74,97 +61,23 @@ export default async function TeamMemberMePage() {
           </form>
         </header>
 
-        <section className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] p-5">
-            <p className="text-sm text-fyh-text-secondary">Salary</p>
-            <p className="mt-1 text-2xl font-semibold">₹{salaryInr}</p>
-          </div>
-          <div className="rounded-2xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] p-5">
-            <p className="text-sm text-fyh-text-secondary">My revenue (this month)</p>
-            <p className="mt-1 text-2xl font-semibold">
-              ₹{(ownRevenuePaise / 100).toLocaleString('en-IN')}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] p-5">
-            <p className="text-sm text-fyh-text-secondary">Commission</p>
-            <p className="mt-1 text-lg font-semibold capitalize">
-              {commissionType === 'none'
-                ? 'None'
-                : commissionType === 'fixed'
-                  ? `₹${((compensation?.commission.fixedPaise ?? 0) / 100).toLocaleString('en-IN')} fixed`
-                  : `${((compensation?.commission.percentBps ?? 0) / 100).toFixed(2)}%`}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] p-5">
-            <p className="text-sm text-fyh-text-secondary">Performance target</p>
-            <p className="mt-1 text-2xl font-semibold">
-              ₹{((compensation?.performanceTargetPaise ?? 0) / 100).toLocaleString('en-IN')}
-            </p>
-          </div>
-        </section>
-
         <section className="rounded-2xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-medium">My incentives</h2>
-          </div>
-          <ul className="mt-3 space-y-2 text-sm">
-            {incentives.length === 0 ? (
-              <li className="text-fyh-text-secondary">No incentives yet.</li>
-            ) : (
-              incentives.map((i) => (
-                <li key={i.id} className="flex justify-between gap-3">
-                  <span>
-                    {i.label} · {i.effectiveDate}
-                  </span>
-                  <span className="text-fyh-text-secondary">
-                    ₹{(i.amountPaise / 100).toLocaleString('en-IN')} · {i.status}
-                  </span>
-                </li>
-              ))
-            )}
-          </ul>
-        </section>
-
-        <section className="rounded-2xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-medium">Attendance today</h2>
-            <div className="flex gap-2">
-              <form action={clockInAction}>
-                <button
-                  type="submit"
-                  className="rounded-lg border border-[color:var(--fyh-border)] px-3 py-1.5 text-sm"
-                  disabled={Boolean(todayAttendance?.clockInAt)}
-                >
-                  Clock in
-                </button>
-              </form>
-              <form action={clockOutAction}>
-                <button
-                  type="submit"
-                  className="rounded-lg border border-[color:var(--fyh-border)] px-3 py-1.5 text-sm"
-                  disabled={!todayAttendance?.clockInAt || Boolean(todayAttendance?.clockOutAt)}
-                >
-                  Clock out
-                </button>
-              </form>
-            </div>
+            <h2 className="text-lg font-medium">Attendance</h2>
+            <Link href="/attendance" className="text-sm text-fyh-accent underline">
+              Open attendance
+            </Link>
           </div>
           <p className="mt-2 text-sm text-fyh-text-secondary">
-            {todayAttendance
-              ? `${todayAttendance.status}${todayAttendance.clockInAt ? ` · in ${new Date(todayAttendance.clockInAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : ''}${todayAttendance.clockOutAt ? ` · out ${new Date(todayAttendance.clockOutAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : ''}`
-              : 'Not clocked in yet.'}
+            Mark your daily presence from the Attendance page. Location is verified at the office.
           </p>
-          <ul className="mt-4 space-y-2 text-sm">
-            {dash.recentAttendance.length === 0 ? (
-              <li className="text-fyh-text-secondary">No recent attendance.</li>
-            ) : (
-              dash.recentAttendance.slice(0, 7).map((a) => (
-                <li key={a.id}>
-                  {a.workDate}: {a.status}
-                </li>
-              ))
-            )}
-          </ul>
+        </section>
+
+        <section className="rounded-2xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] p-5">
+          <p className="text-sm text-fyh-text-secondary">My revenue (this month)</p>
+          <p className="mt-1 text-2xl font-semibold">
+            ₹{(ownRevenuePaise / 100).toLocaleString('en-IN')}
+          </p>
         </section>
 
         <section className="rounded-2xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] p-5">
@@ -194,6 +107,9 @@ export default async function TeamMemberMePage() {
                 My appointments
               </Link>
             ) : null}
+            <Link href="/attendance" className="text-fyh-accent underline">
+              Attendance
+            </Link>
             <Link
               href={`/staff/${session.workforceEmployeeId}/performance`}
               className="text-fyh-accent underline"

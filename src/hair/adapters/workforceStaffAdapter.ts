@@ -50,12 +50,14 @@ export async function listBookableStaffForSalon(
       phone: r.employee.mobile,
       photoUrl: r.employee.photoUrl ?? null,
       isActive: true,
-      role: r.membership?.jobRole ?? null,
+      role: (r.membership?.jobRole ?? null) as string | null,
     })),
   );
   if (workforce.length === 0) return legacy;
 
-  const byId = new Map(workforce.map((row) => [row.id, row]));
+  const byId = new Map<string, (typeof legacy)[number]>(
+    workforce.map((row) => [row.id, row as (typeof legacy)[number]]),
+  );
   for (const row of legacy) {
     if (!byId.has(row.id)) byId.set(row.id, row);
   }

@@ -40,6 +40,15 @@ export type FyhInventorySettings = {
 
 export type FyhSecuritySettings = Record<string, never>;
 
+export type FyhAttendanceSettings = {
+  officeLatitude?: number | null;
+  officeLongitude?: number | null;
+  officeRadiusMetres?: number;
+  officeLabel?: string | null;
+};
+
+export const DEFAULT_ATTENDANCE_RADIUS_METRES = 50;
+
 export const fyhSettings = pgTable(
   'fyh_settings',
   {
@@ -65,6 +74,7 @@ export const fyhSettings = pgTable(
   whatsappSettings: jsonb('whatsapp_settings').$type<FyhWhatsappSettings>(),
   inventorySettings: jsonb('inventory_settings').$type<FyhInventorySettings>(),
   securitySettings: jsonb('security_settings').$type<FyhSecuritySettings>(),
+  attendanceSettings: jsonb('attendance_settings').$type<FyhAttendanceSettings>().notNull().default({}),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('fyh_settings_org_uidx').on(t.organizationId)],

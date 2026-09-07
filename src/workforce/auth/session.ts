@@ -4,14 +4,28 @@ import { hairDb } from '@/src/hair/db/client';
 import { wfAuthSessions, wfEmployees, type WfEmployee } from '@/src/workforce/db/schema';
 import {
   HAIR_SESSION_COOKIE,
-  HAIR_SESSION_TTL_DAYS,
-  HAIR_SESSION_TTL_DAYS_REMEMBER,
+  WORKFORCE_SESSION_TTL_DAYS,
 } from '@/src/hair/lib/auth/constants';
 import { randomToken, sha256 } from '@/src/hair/lib/auth/crypto';
-import {
-  hairSessionExpiry,
-  shouldRefreshHairSession,
-} from '@/src/hair/lib/auth/sessionPolicy';
+import { workforceSessionExpiry, workforceSessionMs } from '@/src/workforce/auth/sessionPolicy';
+import { shouldSlideSessionExpiry } from '@/src/lib/auth/sessionSliding';
+
+const REFRESH_THRESHOLD_DAYS = 7;
+const REFRESH_MIN_HOURS = 24;
+
+function lastWorkforceSessionSlideAt(expiresAt: Date): Date {
+  return new Date(expiresAt.getTime() - workforceSessionMs());
+}
+
+export function shouldRefreshWorkforceSession(expiresAt: Date, now = new Date()): boolean {
+  return shouldSlideSessionExpiry({
+    expiresAt,
+    lastSeenAt: lastWorkforceSessionSlideAt(expiresAt),
+    refreshThresholdMs: REFRESH_THRESHOLD_DAYS * 86_400_000,
+    refreshMinIntervalMs: REFRESH_MIN_HOURS * 3_600_000,
+    now,
+  });
+}
 import type { WorkforceEngineId } from '@/src/workforce/types';
 import { publishEmployeeEvent } from '@/src/workforce/events/publish';
 
@@ -28,14 +42,14 @@ export type WorkforceSession = {
 
 export async function createWorkforceSession(
   employeeId: string,
-  rememberMe = true,
+  _rememberMe = true,
   activeEngineId: WorkforceEngineId | null = 'fyh_salon',
   opts?: { organizationId?: string; locationId?: string | null },
 ): Promise<{ token: string; maxAgeDays: number }> {
   const token = randomToken(32);
   const tokenHash = sha256(token);
-  const maxAgeDays = rememberMe ? HAIR_SESSION_TTL_DAYS_REMEMBER : HAIR_SESSION_TTL_DAYS;
-  const expiresAt = hairSessionExpiry(rememberMe);
+  const maxAgeDays = WORKFORCE_SESSION_TTL_DAYS;
+  const expiresAt = workforceSessionExpiry();
   const hdrs = await headers();
   const [employee] = await hairDb
     .select({ organizationId: wfEmployees.organizationId })
@@ -115,13 +129,11 @@ export async function getWorkforceSession(): Promise<WorkforceSession | null> {
   if (row.employee.status !== 'active' || !row.employee.canLogin) return null;
   if (!row.organizationId) return null;
 
-  const rememberMe =
-    row.expiresAt.getTime() - row.createdAt.getTime() >
-    HAIR_SESSION_TTL_DAYS * 86_400_000;
+  const rememberMe = true;
 
   let expiresAt = row.expiresAt;
-  if (shouldRefreshHairSession(expiresAt, rememberMe, now)) {
-    expiresAt = hairSessionExpiry(rememberMe, now);
+  if (shouldRefreshWorkforceSession(expiresAt, now)) {
+    expiresAt = workforceSessionExpiry(now);
     await hairDb
       .update(wfAuthSessions)
       .set({ expiresAt })

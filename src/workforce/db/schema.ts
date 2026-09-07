@@ -3,6 +3,7 @@ import {
   bigint,
   boolean,
   date,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -183,6 +184,11 @@ export const wfAttendance = pgTable(
     clockOutAt: timestamp('clock_out_at', { withTimezone: true }),
     status: text('status').notNull().default('present'),
     notes: text('notes'),
+    clockInLatitude: doublePrecision('clock_in_latitude'),
+    clockInLongitude: doublePrecision('clock_in_longitude'),
+    gpsAccuracyMetres: integer('gps_accuracy_metres'),
+    distanceMetres: integer('distance_metres'),
+    lockedAt: timestamp('locked_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -192,6 +198,29 @@ export const wfAttendance = pgTable(
       t.workDate,
     ),
   ],
+);
+
+export const wfAttendanceCorrections = pgTable(
+  'wf_attendance_corrections',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    attendanceId: uuid('attendance_id')
+      .notNull()
+      .references(() => wfAttendance.id, { onDelete: 'restrict' }),
+    employeeId: uuid('employee_id')
+      .notNull()
+      .references(() => wfEmployees.id, { onDelete: 'restrict' }),
+    workDate: date('work_date').notNull(),
+    previousStatus: text('previous_status').notNull(),
+    newStatus: text('new_status').notNull(),
+    reason: text('reason').notNull(),
+    correctedByEmployeeId: uuid('corrected_by_employee_id').references(() => wfEmployees.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('wf_attendance_corrections_employee_date_idx').on(t.employeeId, t.workDate)],
 );
 
 /** Payroll foundation — draft runs; calculation expands later. */

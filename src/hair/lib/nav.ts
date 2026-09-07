@@ -87,6 +87,8 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
     permission: 'page:quick_sale',
   },
   { type: 'link', href: '/staff', label: 'Staff', iconKey: 'clipboard-list', permission: 'page:dashboard' },
+  { type: 'link', href: '/attendance', label: 'Attendance', iconKey: 'clipboard-list', permission: 'page:appointments' },
+  { type: 'link', href: '/attendance/manage', label: 'Team attendance', iconKey: 'clipboard-list', hidden: true, permission: 'page:dashboard' },
   {
     type: 'link',
     href: '/purchases',

@@ -71,6 +71,11 @@ export const WORKFORCE_PERMISSION_LIBRARY: readonly WorkforcePermissionDef[] = [
   { key: 'staff.view', label: 'Staff', group: 'staff', description: 'View team roster and profiles' },
   { key: 'staff.edit', label: 'Edit staff', group: 'staff', description: 'Update employee profiles' },
   { key: 'staff.add', label: 'Add staff', group: 'staff', description: 'Hire new employees' },
+  { key: 'attendance.view_own', label: 'Own attendance', group: 'staff', description: 'View and mark own attendance' },
+  { key: 'attendance.mark', label: 'Mark attendance', group: 'staff', description: 'Mark own daily attendance' },
+  { key: 'attendance.view_team', label: 'Team attendance', group: 'staff', description: 'View all staff attendance' },
+  { key: 'attendance.correct', label: 'Correct attendance', group: 'staff', description: 'Owner corrections with audit trail' },
+  { key: 'attendance.manage_office', label: 'Office location', group: 'settings', description: 'Configure attendance office geofence' },
   // Reports / Analytics
   { key: 'reports.view', label: 'Reports', group: 'reports', description: 'View analytics reports' },
   { key: 'reports.export', label: 'Export', group: 'reports', description: 'Download report exports' },
