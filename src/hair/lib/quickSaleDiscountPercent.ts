@@ -21,3 +21,34 @@ export function discountBpsFromWholePercent(percent: number): number {
   const pct = Math.min(100, Math.max(0, Math.floor(percent)));
   return pct * 100;
 }
+
+export type DiscountPercentDraftParse =
+  | { status: 'empty' }
+  | { status: 'invalid' }
+  | { status: 'valid'; percent: number };
+
+/** Parse in-progress discount text. Empty is allowed while editing. */
+export function parseDiscountPercentDraft(raw: string): DiscountPercentDraftParse {
+  const trimmed = raw.trim();
+  if (trimmed === '') return { status: 'empty' };
+  const pct = parseWholeDiscountPercent(trimmed);
+  if (pct == null) return { status: 'invalid' };
+  return { status: 'valid', percent: pct };
+}
+
+/** Normalize draft on blur: empty → 0%, invalid → revert to last committed percent. */
+export function normalizeDiscountPercentOnBlur(raw: string, committedPercent: number): number {
+  const parsed = parseDiscountPercentDraft(raw);
+  if (parsed.status === 'valid') return parsed.percent;
+  if (parsed.status === 'empty') return 0;
+  return committedPercent;
+}
+
+export function overridePricePaiseForDiscountPercent(
+  catalogGrossPaise: number,
+  percent: number,
+): number {
+  const bps = discountBpsFromWholePercent(percent);
+  const discountPaise = Math.round((catalogGrossPaise * bps) / 10_000);
+  return Math.max(0, catalogGrossPaise - discountPaise);
+}

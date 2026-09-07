@@ -191,5 +191,5 @@ test('POS shell uses compact viewport layout and basket-only scroll', () => {
   assert.match(css, /\.qs-pos-shell/);
   assert.match(css, /\.qs-basket-scroll/);
   assert.match(basket, /qs-basket-scroll/);
-  assert.match(basket, /parseWholeDiscountPercent/);
+  assert.match(basket, /QuickSaleDiscountPercentInput/);
 });

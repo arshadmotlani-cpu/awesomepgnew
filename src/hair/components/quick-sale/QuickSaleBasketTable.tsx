@@ -5,12 +5,7 @@ import { Input } from '@/src/hair/components/ui/input';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { priceLineFromParts } from '@/src/hair/domain/basket/gstInclusiveMath';
 import type { BasketLine } from '@/src/hair/domain/basket/types';
-import { discountPaiseFromBps } from '@/src/hair/lib/attributionMath';
-import {
-  discountBpsFromWholePercent,
-  parseWholeDiscountPercent,
-  wholeDiscountPercentFromBps,
-} from '@/src/hair/lib/quickSaleDiscountPercent';
+import { QuickSaleDiscountPercentInput } from '@/src/hair/components/quick-sale/QuickSaleDiscountPercentInput';
 import { QuickSaleStaffRow } from '@/src/hair/components/quick-sale/QuickSaleStaffFields';
 
 type Props = {
@@ -76,7 +71,6 @@ export function QuickSaleBasketTable({
               overridePricePaise: isPrepaid ? 0 : line.overridePricePaise,
             });
             const gstPct = (line.snapshot.gstBps / 100).toFixed(0);
-            const discPctDisplay = String(wholeDiscountPercentFromBps(priced.discountBps));
 
             return (
               <tr key={line.lineId} className="align-middle">
@@ -141,25 +135,13 @@ export function QuickSaleBasketTable({
                   {isPrepaid ? (
                     <span className="block text-right tabular-nums text-fyh-text-muted">—</span>
                   ) : (
-                    <Input
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      step={1}
-                      min={0}
-                      max={100}
-                      value={discPctDisplay}
-                      onChange={(e) => {
-                        const pct = parseWholeDiscountPercent(e.target.value);
-                        if (pct == null) return;
-                        const bps = discountBpsFromWholePercent(pct);
-                        const discountPaise = discountPaiseFromBps(catalogGross, bps);
-                        onUpdateLine(line.lineId, {
-                          overridePricePaise: Math.max(0, catalogGross - discountPaise),
-                        });
-                      }}
-                      className="h-8 w-14 text-right text-xs tabular-nums"
-                      aria-label="Discount percent"
-                      title="Whole-number discount 0–100%"
+                    <QuickSaleDiscountPercentInput
+                      lineId={line.lineId}
+                      discountBps={priced.discountBps}
+                      catalogGrossPaise={catalogGross}
+                      onCommit={(overridePricePaise) =>
+                        onUpdateLine(line.lineId, { overridePricePaise })
+                      }
                     />
                   )}
                 </td>
