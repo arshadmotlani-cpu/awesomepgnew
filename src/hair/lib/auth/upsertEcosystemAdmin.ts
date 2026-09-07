@@ -24,6 +24,18 @@ export async function upsertHairEcosystemAdmin(
   const email = resolveEcosystemAdminEmail();
   const passwordHash = hashPassword(password);
 
+  const [existingAdmin] = await db
+    .select({ id: fyhAdminUsers.id, email: fyhAdminUsers.email })
+    .from(fyhAdminUsers)
+    .limit(1);
+
+  if (existingAdmin) {
+    return {
+      action: 'skipped',
+      reason: `admin already exists (${existingAdmin.email}) — password/email preserved`,
+    };
+  }
+
   const [targetRow] = await db
     .select({ id: fyhAdminUsers.id, email: fyhAdminUsers.email })
     .from(fyhAdminUsers)
@@ -31,11 +43,7 @@ export async function upsertHairEcosystemAdmin(
     .limit(1);
 
   if (targetRow) {
-    await db
-      .update(fyhAdminUsers)
-      .set({ passwordHash, displayName: 'Administrator' })
-      .where(eq(fyhAdminUsers.id, targetRow.id));
-    return { action: 'updated', email, previousEmail: targetRow.email };
+    return { action: 'skipped', reason: `admin already exists (${targetRow.email})` };
   }
 
   const [legacyRow] = await db
@@ -50,19 +58,6 @@ export async function upsertHairEcosystemAdmin(
       .set({ email, passwordHash, displayName: 'Administrator', role: 'super_admin' })
       .where(eq(fyhAdminUsers.id, legacyRow.id));
     return { action: 'updated', email, previousEmail: legacyRow.email };
-  }
-
-  const [onlyAdmin] = await db
-    .select({ id: fyhAdminUsers.id, email: fyhAdminUsers.email })
-    .from(fyhAdminUsers)
-    .limit(1);
-
-  if (onlyAdmin) {
-    await db
-      .update(fyhAdminUsers)
-      .set({ email, passwordHash, displayName: 'Administrator', role: 'super_admin' })
-      .where(eq(fyhAdminUsers.id, onlyAdmin.id));
-    return { action: 'updated', email, previousEmail: onlyAdmin.email };
   }
 
   await db.insert(fyhAdminUsers).values({

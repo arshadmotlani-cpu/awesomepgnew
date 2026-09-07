@@ -23,26 +23,7 @@ export async function listBookableStaffForSalon(
     role: string | null;
   }>
 > {
-  if (isWorkforceEngineEnabled()) {
-    const rows = await listEmployeesForEngine('fyh_salon', {
-      activeOnly: true,
-      receiveBookingsOnly: true,
-      organizationId: ctx?.organizationId,
-    });
-    const mapped = filterSelectablePosStaff(
-      rows.map((r) => ({
-        id: r.employee.id,
-        fullName: r.employee.fullName,
-        phone: r.employee.mobile,
-        photoUrl: r.employee.photoUrl ?? null,
-        isActive: true,
-        role: r.membership?.jobRole ?? null,
-      })),
-    );
-    if (mapped.length > 0) return mapped;
-  }
-
-  const rows = await hairDb
+  const legacyRows = await hairDb
     .select({
       id: fyhStaff.id,
       fullName: fyhStaff.fullName,
@@ -53,7 +34,32 @@ export async function listBookableStaffForSalon(
     })
     .from(fyhStaff)
     .where(and(eq(fyhStaff.isActive, true), orgFilter(fyhStaff.organizationId, ctx)));
-  return filterSelectablePosStaff(rows);
+  const legacy = filterSelectablePosStaff(legacyRows);
+
+  if (!isWorkforceEngineEnabled()) return legacy;
+
+  const rows = await listEmployeesForEngine('fyh_salon', {
+    activeOnly: true,
+    receiveBookingsOnly: true,
+    organizationId: ctx?.organizationId,
+  });
+  const workforce = filterSelectablePosStaff(
+    rows.map((r) => ({
+      id: r.employee.id,
+      fullName: r.employee.fullName,
+      phone: r.employee.mobile,
+      photoUrl: r.employee.photoUrl ?? null,
+      isActive: true,
+      role: r.membership?.jobRole ?? null,
+    })),
+  );
+  if (workforce.length === 0) return legacy;
+
+  const byId = new Map(workforce.map((row) => [row.id, row]));
+  for (const row of legacy) {
+    if (!byId.has(row.id)) byId.set(row.id, row);
+  }
+  return filterSelectablePosStaff([...byId.values()]);
 }
 
 export async function listActiveSalonStaffRoster(): Promise<EmployeeWithMembership[] | null> {

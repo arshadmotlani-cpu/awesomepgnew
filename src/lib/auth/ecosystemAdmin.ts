@@ -10,7 +10,7 @@ export const LEGACY_PG_ADMIN_EMAILS = [
   'admin@foryour.in',
 ] as const;
 
-export const LEGACY_HAIR_ADMIN_EMAILS = ['admin@fyhair.local'] as const;
+export const LEGACY_HAIR_ADMIN_EMAILS = ['admin@fyhair.local', 'admin@foryour.co'] as const;
 
 export const LEGACY_OWNER_ADMIN_EMAILS = ['owner@awesomepg.in'] as const;
 
