@@ -78,7 +78,9 @@ export function buildRentInvoiceBreakdownFromContext(input: {
   proration?: RentInvoiceProration | null;
   asOf?: string;
 }): RentInvoiceBreakdown {
-  const projected = projectInvoice(input.invoice, input.asOf);
+  const projected = projectInvoice(input.invoice, input.asOf, {
+    lateFeeBasePaise: input.monthlyRentPaise > 0 ? input.monthlyRentPaise : undefined,
+  });
   const { discountsPaise, creditsPaise, previousBalancePaise } =
     discountsAndCreditsFromBreakdown(input.financialBreakdown);
 

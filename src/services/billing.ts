@@ -316,7 +316,8 @@ export function daysOverdueFromDueDate(dueDate: DateLike, today: DateLike): numb
  * Late fee accrued on the principal as of `today`, in paise.
  *
  * When `issueDate` is provided (invoice generation date), grace is computed
- * from generation: 5 inclusive days at 0%, then 1%/day linear on principal.
+ * from generation: 5 inclusive days at 0%, then 1%/day linear on the late-fee
+ * base (applicable monthly room rent, not a prorated invoice face).
  *
  * Legacy fallback (no issueDate): keyed off due_date or billing_month.
  *

@@ -21,8 +21,8 @@ import { rentInvoiceStatusEnum, rentInvoiceSubtypeEnum } from './enums';
  * Monthly rent invoice for a single (booking, billing_month) pair.
  *
  * - `billing_month` is always the 1st of the month (DB-enforced via CHECK).
- * - `due_date` is the 5th of the month — late fees kick in on the 6th
- *   at 1% of `rent_paise` per day, accrued linearly (NOT compounded).
+ * - `due_date` is the last grace day (generation + 4 days in IST) — late fees kick in the next day
+ *   at 1% of applicable monthly room rent (`late_fee_base_paise`) per day, accrued linearly (NOT compounded).
  * - While unpaid (no proof): late fee accrues dynamically from due date.
  * - On payment-proof upload: outstanding + late fee are frozen into
  *   `proof_snapshot_*` — payable amount never moves during admin review.
@@ -48,6 +48,8 @@ export const rentInvoices = pgTable(
     billingMonth: date('billing_month').notNull(),
     dueDate: date('due_date'),
     rentPaise: bigint('rent_paise', { mode: 'number' }).notNull(),
+    /** Applicable monthly room rent for late-fee math — never overwritten by move-out proration. */
+    lateFeeBasePaise: bigint('late_fee_base_paise', { mode: 'number' }).notNull().default(0),
     discountPaise: bigint('discount_paise', { mode: 'number' }).notNull().default(0),
     promoCode: text('promo_code'),
     paidPrincipalPaise: bigint('paid_principal_paise', { mode: 'number' })

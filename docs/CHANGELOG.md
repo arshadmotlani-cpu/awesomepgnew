@@ -269,25 +269,25 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-09-06 18:18:47 UTC
+### Pending pre-commit sync · 2026-09-07 06:11:48 UTC
 
-**Areas touched:** [[ROUTES]], [[Billing]], [[Vacating]]
+**Areas touched:** [[DATABASE]], [[Billing]], [[Vacating]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `DATABASE.md` — review for accuracy
 - `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
 **Staged code files (8):**
-- `app/(customer)/account/resident/pay-rent/[invoiceId]/page.tsx`
-- `src/lib/billing/billingTimezone.ts`
-- `src/lib/billing/invoiceDocumentModel.ts`
-- `src/lib/billing/invoiceDueDate.ts`
-- `src/lib/billing/lateFeeSchedule.ts`
+- `src/db/migrations/0150_rent_late_fee_base.sql`
+- `src/db/migrations/meta/_journal.json`
+- `src/db/schema/rentInvoices.ts`
+- `src/lib/billing/rentInvoiceBreakdown.ts`
+- `src/lib/billing/rentLateFeeBase.ts`
 - `src/services/billing.ts`
 - `src/services/rentInvoices.ts`
 - `src/services/vacatingCheckoutBilling.ts`

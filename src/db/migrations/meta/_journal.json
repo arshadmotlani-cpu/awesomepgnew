@@ -981,6 +981,13 @@
       "when": 1795400000000,
       "tag": "0149_room_change_engine",
       "breakpoints": true
+    },
+    {
+      "idx": 144,
+      "version": "7",
+      "when": 1795500000000,
+      "tag": "0150_rent_late_fee_base",
+      "breakpoints": true
     }
   ]
 }

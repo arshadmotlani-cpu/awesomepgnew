@@ -129,6 +129,8 @@ import {
   rentInvoiceWithoutSucceededProofPaymentSql,
 } from '@/src/lib/operations/paymentReviewQueueEligibility';
 
+import { resolveRentLateFeeBasePaise } from '@/src/lib/billing/rentLateFeeBase';
+
 const INVOICE_PREFIX = 'RNT';
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -703,6 +705,7 @@ export type RentGenerationEligibility =
       bedId: string;
       pgId: string;
       rentPaise: number;
+      lateFeeBasePaise: number;
       dueDate: string;
       billingMonth: string;
       invoiceNotes: string;
@@ -1017,6 +1020,7 @@ export async function evaluateAnniversaryRentGenerationEligibility(
     bedId,
     pgId,
     rentPaise,
+    lateFeeBasePaise: monthlyRent,
     dueDate,
     billingMonth,
     invoiceNotes,
@@ -1154,6 +1158,7 @@ export async function generateRentInvoicesForMonth(
       rentPaise,
       invoiceNotes,
       billingPeriod,
+      lateFeeBasePaise,
     } = eligibility;
 
     const dueDate = formatDate(graceEndDateFromIssue(asOf));
@@ -1175,6 +1180,7 @@ export async function generateRentInvoicesForMonth(
               billingMonth,
               dueDate,
               rentPaise,
+              lateFeeBasePaise,
               status: 'pending',
               notes: invoiceNotes,
             })
@@ -1731,12 +1737,16 @@ export async function recordRentPaymentSuccess(
 
   const rentDuePaise = computeRentDuePaise(invoice.rentPaise, invoice.discountPaise);
   const snapshotLateFee = rentProofSnapshotLateFeeOwedPaise(invoice as RentInvoice);
+  const lateFeeBasePaise = resolveRentLateFeeBasePaise({
+    monthlyRoomRentPaise: (invoice as RentInvoice).lateFeeBasePaise,
+    invoiceRentPaise: rentDuePaise,
+  });
   const lateFee = input.historical
     ? 0
     : snapshotLateFee != null
       ? (invoice.proofSnapshotLateFeePaise ?? 0)
       : computeLateFee({
-          rentPaise: rentDuePaise,
+          rentPaise: lateFeeBasePaise,
           issueDate: rentInvoiceIssueDate(invoice),
           today: billingBusinessDate(),
         });
@@ -2110,6 +2120,7 @@ export type RentInvoiceProjectInput = Omit<
   | 'paymentProofTransactionRef'
   | 'possibleDuplicate'
   | 'duplicateOfIds'
+  | 'lateFeeBasePaise'
 > & {
   discountPaise?: number;
   promoCode?: string | null;
@@ -2122,6 +2133,8 @@ export type RentInvoiceProjectInput = Omit<
   paymentProofTransactionRef?: string | null;
   possibleDuplicate?: boolean;
   duplicateOfIds?: string[] | null;
+  /** Applicable monthly room rent for late fee. 0/omit → fall back to invoice principal. */
+  lateFeeBasePaise?: number | null;
 };
 
 export type ProjectInvoiceOptions = {
@@ -2133,6 +2146,8 @@ export type ProjectInvoiceOptions = {
   waiverPaise?: number;
   /** Exit Brain — frozen late fee at vacating approval; never accrues further. */
   exitModeFrozenLateFeePaise?: number;
+  /** Override late-fee base (monthly room rent). */
+  lateFeeBasePaise?: number;
 };
 
 function hasFrozenProofSnapshot(
@@ -2291,6 +2306,7 @@ export function projectInvoice(
     paymentProofTransactionRef: invoice.paymentProofTransactionRef ?? null,
     possibleDuplicate: invoice.possibleDuplicate ?? false,
     duplicateOfIds: invoice.duplicateOfIds ?? [],
+    lateFeeBasePaise: invoice.lateFeeBasePaise ?? 0,
   };
   if (inv.status === 'paid') {
     return {
@@ -2362,9 +2378,13 @@ export function projectInvoice(
   const waiverPaise = Math.max(0, options?.waiverPaise ?? 0);
   const issueDate = rentInvoiceIssueDate(inv);
   const projectionFields = rentLateFeeProjectionFields(issueDate, asOf);
+  const lateFeeBasePaise = resolveRentLateFeeBasePaise({
+    monthlyRoomRentPaise: options?.lateFeeBasePaise ?? invoice.lateFeeBasePaise ?? inv.lateFeeBasePaise,
+    invoiceRentPaise: rentDuePaise,
+  });
   if (inv.status === 'payment_in_progress') {
     const rawLateFee = computeLateFee({
-      rentPaise: rentDuePaise,
+      rentPaise: lateFeeBasePaise,
       issueDate,
       today: asOf,
       policy: options?.lateFeePolicy,
@@ -2386,7 +2406,7 @@ export function projectInvoice(
     };
   }
   const rawLateFee = computeLateFee({
-    rentPaise: rentDuePaise,
+    rentPaise: lateFeeBasePaise,
     issueDate,
     today: asOf,
     policy: options?.lateFeePolicy,
@@ -2529,6 +2549,7 @@ export async function createAdhocRentInvoice(input: {
             billingMonth,
             dueDate,
             rentPaise: input.amountPaise,
+            lateFeeBasePaise: input.amountPaise,
             status: 'pending',
             notes,
             isAdhoc: true,

@@ -285,6 +285,7 @@ async function createProratedVacatingRentInvoice(args: {
   pgId: string;
   billingMonth: string;
   rentPaise: number;
+  monthlyRoomRentPaise?: number;
   notes: string;
   vacatingDate: string;
   actorId?: string | null;
@@ -293,6 +294,14 @@ async function createProratedVacatingRentInvoice(args: {
   const issueDate = billingBusinessDate();
   const dueDate = formatDate(graceEndDateFromIssue(issueDate));
   const { nextInvoiceNumberForBillingMonth } = await import('@/src/services/rentInvoices');
+  const { resolveMonthlyRentPaiseForBooking } = await import('@/src/lib/billing/rentPricingSsot');
+  const monthlyResolved = await resolveMonthlyRentPaiseForBooking(args.bookingId, args.billingMonth);
+  const lateFeeBasePaise =
+    args.monthlyRoomRentPaise && args.monthlyRoomRentPaise > 0
+      ? args.monthlyRoomRentPaise
+      : monthlyResolved.rentPaise > 0
+        ? monthlyResolved.rentPaise
+        : args.rentPaise;
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const invoiceNumber = await nextInvoiceNumberForBillingMonth(args.billingMonth, attempt);
@@ -309,6 +318,7 @@ async function createProratedVacatingRentInvoice(args: {
             billingMonth: args.billingMonth,
             dueDate,
             rentPaise: args.rentPaise,
+            lateFeeBasePaise,
             status: 'pending',
             notes: args.notes,
           })
