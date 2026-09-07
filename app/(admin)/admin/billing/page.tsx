@@ -36,6 +36,7 @@ import {
   buildCollectionsQueue,
 } from '@/src/lib/billing/collectionsQueue';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
+import { BillingSectionSubNav } from '@/src/components/admin/billing/BillingSectionSubNav';
 import { BillingPrimaryActions } from '@/src/components/admin/billing/BillingPrimaryActions';
 import {
   BillingFailuresPanel,
@@ -294,6 +295,8 @@ export default async function CollectionsModulePage({
           </Link>
         }
       />
+
+      <BillingSectionSubNav />
 
       <BillingPrimaryActions
         billingMonth={billingMonth}

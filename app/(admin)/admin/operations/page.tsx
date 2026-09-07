@@ -5,6 +5,7 @@ import {
   OperationsAttentionBoard,
 } from '@/src/components/admin/operations/OperationsAttentionBoard';
 import { buildOperationsAttentionCards } from '@/src/lib/operations/operationsAttentionCards';
+import { OperationsSectionSubNav } from '@/src/components/admin/operations/OperationsSectionSubNav';
 import { OperationsActivityFeed } from '@/src/components/admin/operations/OperationsActivityFeed';
 import { OperationsMasterQueue } from '@/src/components/admin/operations/OperationsMasterQueue';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
@@ -172,6 +173,8 @@ export default async function OperationsPage({
           { label: ADMIN_MODULES.operations.label },
         ]}
       />
+
+      <OperationsSectionSubNav />
 
       <AdminSectionErrorBoundary title="Operations">
         <div className="space-y-8">
