@@ -402,17 +402,13 @@ export function parseBillingPeriodFromInvoiceNotes(
 }
 
 function parseDisplayBillingDate(text: string): string | null {
-  const m = text.match(/(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})/);
-  if (!m) {
-    const parsed = Date.parse(text);
-    if (Number.isNaN(parsed)) return null;
-    return formatDate(new Date(parsed));
-  }
+  const m = text.match(/(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})/);
+  if (!m) return null;
   const months: Record<string, number> = {
     jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+    jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11,
   };
-  const mon = months[m[2]!.toLowerCase()];
+  const mon = months[m[2]!.toLowerCase()] ?? months[m[2]!.toLowerCase().slice(0, 3)];
   if (mon === undefined) return null;
   const day = Number(m[1]);
   const year = Number(m[3]);

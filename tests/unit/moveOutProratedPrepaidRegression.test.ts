@@ -7,6 +7,7 @@ import {
   buildBillingCoverageModel,
   dailyRateFromBillingPeriod,
   isInvoiceBillingPeriodWithinCalendarMonth,
+  parseBillingPeriodFromInvoiceNotes,
   resolveCalendarMonthPaidCoveragePeriod,
 } from '@/src/lib/billing/billingCoverageModel';
 import { assertCheckoutSettlementWaterfallConsistent } from '@/src/lib/checkout/settlementInvariants';
@@ -85,6 +86,22 @@ function waterfallFromCoverage(coverage: ReturnType<typeof coverageWithSeptember
   };
   return { ctx, waterfall: computeVacatingSettlementWaterfallFromContext(ctx) };
 }
+
+test('invoice notes with Sept spelling parse to correct prorated period', () => {
+  const notes = 'Billing period: 1 Sept 2026 → 11 Sept 2026 (move-out proration)';
+  const period = parseBillingPeriodFromInvoiceNotes(notes);
+  assert.deepEqual(period, { periodStart: '2026-09-01', periodEnd: '2026-09-11' });
+  const resolved = resolveCalendarMonthPaidCoveragePeriod({
+    billingMonth: '2026-09-01',
+    billingDay: 1,
+    invoiceId: 'inv-sept-spelling',
+    notesPeriod: period,
+    moveInDate: MOVE_IN,
+    dueDate: '2026-09-01',
+    paidPrincipalPaise: SEP_PRORATED_PAISE,
+  });
+  assert.equal(resolved.periodEnd, VACATE_PRORATED);
+});
 
 test('loader resolver trusts in-month prorated notes (Sep 1–11)', () => {
   const period = resolveCalendarMonthPaidCoveragePeriod({
