@@ -560,6 +560,60 @@ export function rawPeriodFromInvoiceDueDate(
   };
 }
 
+/** True when invoice note billing period lies within the invoice billing month. */
+export function isInvoiceBillingPeriodWithinCalendarMonth(
+  period: { periodStart: string; periodEnd: string },
+  billingMonth: string,
+): boolean {
+  const cal = calendarMonthBillingPeriod(firstOfMonth(billingMonth));
+  return period.periodStart >= cal.periodStart && period.periodEnd <= cal.periodEnd;
+}
+
+/**
+ * Calendar-month SSOT for paid invoice coverage:
+ * - Trust in-month notes (move-out proration or full calendar month).
+ * - Fall back to billing month when notes are missing or span outside the month (bad notes).
+ */
+export function resolveCalendarMonthPaidCoveragePeriod(args: {
+  billingMonth: string;
+  billingDay: number;
+  invoiceId: string;
+  notesPeriod: { periodStart: string; periodEnd: string } | null;
+  moveInDate?: string;
+  dueDate?: string | null;
+  paidPrincipalPaise: number;
+}): BillingCoveragePeriod {
+  const billingMonth = firstOfMonth(args.billingMonth);
+  const cal = calendarMonthBillingPeriod(billingMonth);
+
+  if (
+    args.notesPeriod &&
+    isInvoiceBillingPeriodWithinCalendarMonth(args.notesPeriod, billingMonth)
+  ) {
+    return {
+      periodStart: args.notesPeriod.periodStart,
+      periodEnd: args.notesPeriod.periodEnd,
+      source: 'rent_invoice',
+      sourceId: args.invoiceId,
+      paidPrincipalPaise: Math.max(0, args.paidPrincipalPaise),
+    };
+  }
+
+  return {
+    ...rawPeriodFromInvoiceDueDate(
+      args.dueDate ? String(args.dueDate) : cal.periodStart,
+      args.billingDay,
+      args.invoiceId,
+      {
+        billingCyclePolicy: 'calendar_month_1st',
+        billingMonth,
+        moveInDate: args.moveInDate,
+      },
+    ),
+    paidPrincipalPaise: Math.max(0, args.paidPrincipalPaise),
+  };
+}
+
 export type VacatingAwareRentBillingAction =
   | 'generate_full'
   | 'generate_prorated'

@@ -85,6 +85,19 @@ export function resolveCanonicalRentThroughMoveOut(input: {
     };
   }
 
+  // Prorated/reconciled paid invoice: principal already matches move-out liability.
+  if (tailRentPaise <= 0 && paidPaise > 0 && paidPaise < monthlyRentPaise) {
+    return {
+      scenario: 'paid',
+      monthlyRentPaise,
+      paidPaise,
+      rentThroughVacatingPaise: paidPaise,
+      remainingRentLiabilityPaise: 0,
+      unusedPrepaidRentPaise: 0,
+      finalRentSettlementPaise: 0,
+    };
+  }
+
   // Paid coverage through vacate without a full-month face (edge): consumed = monthly − unused.
   if (prepaidAfterVacatingPaise > 0 || paidPaise > 0) {
     const rentThroughVacatingPaise = Math.max(0, monthlyRentPaise - prepaidAfterVacatingPaise);

@@ -12,6 +12,7 @@ import { noticeDeductionAppliesToBooking } from '@/src/lib/checkout/noticeDeduct
 import {
   buildBillingCoverageModel,
   parseBillingPeriodFromInvoiceNotes,
+  resolveCalendarMonthPaidCoveragePeriod,
   rawPeriodFromInvoiceDueDate,
   type BillingCoverageModel,
   type BillingCoveragePeriod,
@@ -20,7 +21,6 @@ import { formatDate } from '@/src/lib/dates';
 import {
   anniversaryBillingPeriod,
   billingDayFromMoveIn,
-  calendarMonthBillingPeriod,
   dueDateForBillingDay,
   firstOfMonth,
   firstPartialMonthPeriod,
@@ -119,33 +119,23 @@ export async function loadBillingCoverageRawPeriods(bookingId: string): Promise<
     const notesPeriod = parseBillingPeriodFromInvoiceNotes(inv.notes);
 
     /**
-     * Calendar-month SSOT: regular monthly invoices cover the billing month
-     * (1st → last day), not free-text notes. Bad notes (e.g. Angatra August
-     * invoice labeled "1 Jul → 1 Aug") must not erase prepaid Aug days after
-     * vacate or invent deposit "tail rent" for already-paid days.
+     * Calendar-month SSOT: trust in-month invoice notes (prorated move-out or
+     * full month). Bad/out-of-month notes (e.g. Angatra August labeled
+     * "1 Jul → 1 Aug") fall back to the billing month so prepaid days are not lost.
      */
     if (billingCyclePolicy === 'calendar_month_1st' && inv.status === 'paid') {
-      const cal = calendarMonthBillingPeriod(billingMonth);
-      const notesMatchCalendar =
-        notesPeriod != null &&
-        notesPeriod.periodStart === cal.periodStart &&
-        notesPeriod.periodEnd === cal.periodEnd;
-      if (!notesPeriod || !notesMatchCalendar) {
-        rawPaidPeriods.push({
-          ...rawPeriodFromInvoiceDueDate(
-            inv.dueDate ? String(inv.dueDate) : cal.periodStart,
-            billingDay,
-            inv.id,
-            {
-              billingCyclePolicy,
-              billingMonth,
-              moveInDate: moveInDate ?? undefined,
-            },
-          ),
-          paidPrincipalPaise: Math.max(0, inv.paidPrincipalPaise),
-        });
-        continue;
-      }
+      rawPaidPeriods.push(
+        resolveCalendarMonthPaidCoveragePeriod({
+          billingMonth,
+          billingDay,
+          invoiceId: inv.id,
+          notesPeriod,
+          moveInDate: moveInDate ?? undefined,
+          dueDate: inv.dueDate,
+          paidPrincipalPaise: inv.paidPrincipalPaise,
+        }),
+      );
+      continue;
     }
 
     if (notesPeriod && inv.status === 'paid') {

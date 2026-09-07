@@ -269,21 +269,21 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-09-07 06:42:01 UTC
+### Pending pre-commit sync · 2026-09-07 07:14:54 UTC
 
-**Areas touched:** [[ROUTES]]
+**Areas touched:** [[Billing]], [[Vacating]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
+- `DECISIONS.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (5):**
-- `app/(admin)/admin/billing/page.tsx`
-- `app/(admin)/admin/billing/rent-payment-map/page.tsx`
-- `app/(admin)/admin/invoices/rent-payment-map/page.tsx`
-- `app/(admin)/admin/operations/page.tsx`
-- `app/(admin)/admin/operations/rent-payment-map/page.tsx`
+**Staged code files (2):**
+- `src/lib/billing/billingCoverageModel.ts`
+- `src/lib/vacating/canonicalRentThroughMoveOut.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

@@ -13,6 +13,7 @@ import { bedAvailableCalendarDate } from '@/src/lib/vacating/vacatingBedSemantic
 import { resolveNoticeGivenDateForVacating } from '@/src/lib/vacating/noticeDateSsot';
 import { noticeShortfallDays, VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 import { moveOutUnusedRentCreditReason } from '@/src/services/residentCreditLedger';
+import { resolveCalendarMonthPaidCoveragePeriod } from '@/src/lib/billing/billingCoverageModel';
 import type { MoveOutPipelineItemClient } from '@/src/lib/moveOut/moveOutPipeline';
 import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
 
@@ -216,11 +217,29 @@ test('wallet unused-rent credit reason is idempotent per vacating request', () =
   assert.match(source, /syncMoveOutUnusedRentWalletCredit/);
 });
 
-test('calendar-month coverage loader prefers billing month over bad invoice notes', () => {
-  const source = readFileSync('src/services/billingCoverage.ts', 'utf8');
-  assert.match(source, /calendar_month_1st/);
-  assert.match(source, /notesMatchCalendar/);
-  assert.match(source, /calendarMonthBillingPeriod/);
+test('calendar-month coverage loader trusts in-month notes and falls back for bad notes', () => {
+  const prorated = resolveCalendarMonthPaidCoveragePeriod({
+    billingMonth: '2026-09-01',
+    billingDay: 1,
+    invoiceId: 'inv-sep',
+    notesPeriod: { periodStart: '2026-09-01', periodEnd: '2026-09-11' },
+    moveInDate: '2026-06-01',
+    dueDate: '2026-09-01',
+    paidPrincipalPaise: 264_418,
+  });
+  assert.equal(prorated.periodEnd, '2026-09-11');
+
+  const badNotes = resolveCalendarMonthPaidCoveragePeriod({
+    billingMonth: '2026-08-01',
+    billingDay: 1,
+    invoiceId: 'inv-aug',
+    notesPeriod: { periodStart: '2026-07-01', periodEnd: '2026-08-01' },
+    moveInDate: '2026-08-01',
+    dueDate: '2026-08-01',
+    paidPrincipalPaise: 463_590,
+  });
+  assert.equal(badNotes.periodStart, '2026-08-01');
+  assert.equal(badNotes.periodEnd, '2026-08-31');
 });
 
 test('settlement context never charges deposit tail when vacating inside paid period', () => {
