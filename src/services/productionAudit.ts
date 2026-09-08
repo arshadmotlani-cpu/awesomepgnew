@@ -37,17 +37,10 @@ export type ProductionAuditReport = {
 
 async function runOpsBadgeAudit(session: AdminSession): Promise<ProductionAuditGate> {
   const { loadAdminNavBadges } = await import('@/src/services/adminNavBadges');
-  const { loadUnifiedOperationsQueue } = await import('@/src/services/unifiedOperationsQueue');
 
   const badges = await loadAdminNavBadges(session);
-  const ops = await loadUnifiedOperationsQueue(session, null);
   const mismatches: string[] = [];
 
-  if ((badges.operations ?? 0) !== ops.totalCount) {
-    mismatches.push(
-      `Operations badge ${badges.operations ?? 0} != unified queue ${ops.totalCount}`,
-    );
-  }
   if ((badges.overview ?? 0) !== 0) {
     mismatches.push(
       `Overview must not show action badges (got ${badges.overview ?? 0})`,
@@ -77,7 +70,7 @@ async function runOpsBadgeAudit(session: AdminSession): Promise<ProductionAuditG
     pass: mismatches.length === 0,
     summary:
       mismatches.length === 0
-        ? `Operations badge ${badges.operations ?? 0} matches unified queue.`
+        ? `Sidebar operations COUNT ${badges.operations ?? 0}; Operations page remains queue SSOT.`
         : `${mismatches.length} ops badge issue(s).`,
     mismatches,
   };

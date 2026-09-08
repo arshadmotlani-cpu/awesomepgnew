@@ -51,8 +51,10 @@ export async function register() {
   }
 
   try {
-    const { runHealthDiagnosis } = await import('./src/lib/healing/healthEngine');
-    await runHealthDiagnosis();
+    if (process.env.NODE_ENV !== 'production') {
+      const { runHealthDiagnosis } = await import('./src/lib/healing/healthEngine');
+      await runHealthDiagnosis();
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.warn(`[heal] Startup diagnosis skipped: ${message}`);

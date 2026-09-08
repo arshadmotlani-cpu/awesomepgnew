@@ -185,7 +185,10 @@ export function VisitorAnalyticsDashboard({
 
   useEffect(() => {
     void fetchLive();
-    const id = window.setInterval(() => void fetchLive(), 60_000);
+    const id = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      void fetchLive();
+    }, 10 * 60 * 1000);
     return () => window.clearInterval(id);
   }, [fetchLive]);
 

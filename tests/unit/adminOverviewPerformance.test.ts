@@ -10,10 +10,10 @@ test('getOperationsCenterData does not call loadUnifiedOperationsQueue (prevents
   assert.match(src, /getPendingPaymentReviewsForRequest/);
 });
 
-test('adminNavBadges uses single unified queue load', () => {
+test('adminNavBadges uses COUNT queries instead of the full operations queue', () => {
   const src = readFileSync(join(process.cwd(), 'src/services/adminNavBadges.ts'), 'utf8');
-  assert.match(src, /getUnifiedOperationsQueueForBadges/);
-  assert.match(src, /operationsTotalPendingCount/);
+  assert.match(src, /countOpenActionItems/);
+  assert.doesNotMatch(src, /getUnifiedOperationsQueueForBadges/);
   assert.doesNotMatch(src, /getWaitingForApprovalCount/);
   assert.doesNotMatch(src, /loadResidentOperationsResidentsPage/);
 });

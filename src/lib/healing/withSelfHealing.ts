@@ -14,8 +14,6 @@ const DEGRADED_BODY = {
 
 export function withSelfHealing(handler: RouteHandler, routeLabel?: string): RouteHandler {
   return async (req: NextRequest, ctx?: unknown) => {
-    await maybeRunRecoveryCheck();
-
     const startedAt = Date.now();
     const requestId = req.headers.get('x-request-id') ?? createRequestId();
     const route = routeLabel ?? req.nextUrl.pathname;
@@ -30,6 +28,7 @@ export function withSelfHealing(handler: RouteHandler, routeLabel?: string): Rou
       } catch (firstErr) {
         const message = firstErr instanceof Error ? firstErr.message : String(firstErr);
         logger.warn('api self-heal: retrying after failure', { route, requestId, message });
+        await maybeRunRecoveryCheck();
         response = await execute();
       }
 

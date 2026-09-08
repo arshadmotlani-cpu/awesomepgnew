@@ -96,8 +96,9 @@ export function CacheDiagnosticsPanel({ initial, initialError }: Props) {
 
   useEffect(() => {
     const id = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       void fetchData();
-    }, 60_000);
+    }, 10 * 60 * 1000);
     return () => clearInterval(id);
   }, [fetchData]);
 

@@ -1,37 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { shouldTrackPath } from '@/src/lib/analytics/pageKeys';
-import {
-  getVisitorSessionIdFromCookies,
-  heartbeatSession,
-} from '@/src/services/visitorAnalytics';
+import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-type Body = { path?: string };
-
-export async function POST(req: NextRequest) {
-  let body: Body;
-  try {
-    body = (await req.json()) as Body;
-  } catch {
-    return NextResponse.json({ ok: false, error: 'Invalid JSON' }, { status: 400 });
-  }
-
-  const path = body.path?.trim();
-  if (!path || !shouldTrackPath(path)) {
-    return NextResponse.json({ ok: true, skipped: true });
-  }
-
-  const sessionId = await getVisitorSessionIdFromCookies();
-  if (!sessionId) {
-    return NextResponse.json({ ok: true, skipped: true });
-  }
-
-  try {
-    await heartbeatSession({ sessionId, path });
-    return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ ok: false }, { status: 500 });
-  }
+/**
+ * No-op. Older clients used this to UPDATE visitor_sessions every 30s,
+ * which prevented Neon from scaling to zero. Page views still write via
+ * POST /api/analytics/track. Live-visitor admin counts use last_seen_at
+ * from those navigation events.
+ */
+export async function POST() {
+  return NextResponse.json({ ok: true, skipped: true, reason: 'heartbeat_disabled' });
 }

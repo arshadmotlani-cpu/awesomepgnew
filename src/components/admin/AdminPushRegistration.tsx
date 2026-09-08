@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useAdminNavBadges } from '@/src/components/admin/AdminLiveRefreshProvider';
 import {
   bootstrapAdminPushRegistration,
   clearPushBannerDismissed,
@@ -39,21 +40,17 @@ export function AdminPushRegistration() {
   const [registering, setRegistering] = useState(false);
   const registeringRef = useRef(false);
   const bootstrappedRef = useRef(false);
+  const badges = useAdminNavBadges();
 
-  const syncBadge = useCallback(async () => {
-    const res = await fetch('/api/admin/live', { cache: 'no-store' });
-    if (!res.ok) return;
-    const json = (await res.json()) as { unreadCount?: number };
-    if (typeof json.unreadCount === 'number') {
-      await updateBadge(json.unreadCount);
-    }
-  }, []);
+  const syncBadgeFromContext = useCallback(async () => {
+    await updateBadge(badges.notifications ?? 0);
+  }, [badges.notifications]);
 
   const applyBootstrapAction = useCallback(
     async (action: Awaited<ReturnType<typeof bootstrapAdminPushRegistration>>['action']) => {
       switch (action.kind) {
         case 'active':
-          await syncBadge();
+          await syncBadgeFromContext();
           setStatus('active');
           setErrorDetail(null);
           return;
@@ -80,7 +77,7 @@ export function AdminPushRegistration() {
           setStatus('active');
       }
     },
-    [syncBadge],
+    [syncBadgeFromContext],
   );
 
   const completeRegistration = useCallback(
@@ -93,7 +90,7 @@ export function AdminPushRegistration() {
         const result = await runAdminPushRegistration({ requestPermission });
         if (result.lastStep === 'complete') {
           clearPushBannerDismissed();
-          await syncBadge();
+          await syncBadgeFromContext();
           setStatus('active');
           return;
         }
@@ -126,8 +123,12 @@ export function AdminPushRegistration() {
         setRegistering(false);
       }
     },
-    [syncBadge],
+    [syncBadgeFromContext],
   );
+
+  useEffect(() => {
+    void updateBadge(badges.notifications ?? 0);
+  }, [badges.notifications]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

@@ -194,17 +194,6 @@ export async function trackPageView(input: {
     .where(eq(visitorSessions.id, input.sessionId));
 }
 
-export async function heartbeatSession(input: {
-  sessionId: string;
-  path: string;
-}): Promise<void> {
-  const now = new Date();
-  await db
-    .update(visitorSessions)
-    .set({ lastSeenAt: now, currentPath: input.path })
-    .where(eq(visitorSessions.id, input.sessionId));
-}
-
 /** Fails silently when analytics tables are not migrated yet. */
 export async function trackAnalyticsEvent(input: {
   eventType: AnalyticsEventType;

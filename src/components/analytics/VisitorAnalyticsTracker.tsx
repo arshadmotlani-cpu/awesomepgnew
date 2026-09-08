@@ -2,14 +2,13 @@
 
 import { useEffect, useRef } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
-import {
-  sendAnalyticsHeartbeat,
-  trackClientPageView,
-} from '@/src/lib/analytics/client';
+import { trackClientPageView } from '@/src/lib/analytics/client';
 import { shouldTrackPath } from '@/src/lib/analytics/pageKeys';
 
-const HEARTBEAT_MS = 30_000;
-
+/**
+ * Records page views on navigation only.
+ * Does not heartbeat Postgres on an interval — that kept Neon from scaling to zero.
+ */
 export function VisitorAnalyticsTracker() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -43,23 +42,8 @@ export function VisitorAnalyticsTracker() {
       credentials: 'same-origin',
       keepalive: true,
     }).catch(() => {
-      // Fallback to simpler helper.
       void trackClientPageView(fullPath);
     });
-  }, [pathname, searchParams]);
-
-  useEffect(() => {
-    if (!pathname || !shouldTrackPath(pathname)) return;
-
-    const fullPath = searchParams?.toString()
-      ? `${pathname}?${searchParams.toString()}`
-      : pathname;
-
-    const id = window.setInterval(() => {
-      void sendAnalyticsHeartbeat(fullPath);
-    }, HEARTBEAT_MS);
-
-    return () => window.clearInterval(id);
   }, [pathname, searchParams]);
 
   return null;

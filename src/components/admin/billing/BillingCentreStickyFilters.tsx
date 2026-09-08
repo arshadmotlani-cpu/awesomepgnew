@@ -110,7 +110,10 @@ export function BillingCentreAutoRefresh({ enabled }: { enabled: boolean }) {
 
   useEffect(() => {
     if (!enabled) return;
-    const id = window.setInterval(() => router.refresh(), 90_000);
+    const id = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      router.refresh();
+    }, 10 * 60 * 1000);
     return () => window.clearInterval(id);
   }, [enabled, router]);
 

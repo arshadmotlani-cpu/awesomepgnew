@@ -19,6 +19,8 @@ export type CounterParityRow = {
   destinationValue: number;
   destination: string;
   matches: boolean;
+  /** Sidebar COUNT badges are not the Operations queue SSOT. */
+  required?: boolean;
 };
 
 export type CounterParityReport = {
@@ -94,24 +96,26 @@ export async function runCounterParityAudit(
     metric: 'Operations queue total',
     overviewValue: navBadges.operations ?? 0,
     destinationValue: unifiedOpsAll.totalCount,
-    destination: 'loadUnifiedOperationsQueue.totalCount',
+    destination: 'loadUnifiedOperationsQueue.totalCount (informational — sidebar uses COUNT)',
     matches: (navBadges.operations ?? 0) === unifiedOpsAll.totalCount,
+    required: false,
   });
 
   rows.push({
     metric: 'Overview nav badge',
     overviewValue: navBadges.overview ?? 0,
-    destinationValue: unifiedOpsAll.totalCount,
-    destination: 'loadUnifiedOperationsQueue.totalCount',
-    matches: (navBadges.overview ?? 0) === unifiedOpsAll.totalCount,
+    destinationValue: 0,
+    destination: 'overview must not show action badges',
+    matches: (navBadges.overview ?? 0) === 0,
   });
 
   rows.push({
     metric: 'Payments nav badge',
     overviewValue: navBadges.payments ?? 0,
     destinationValue: approvalCounts.waitingForApprovalVisible,
-    destination: 'approvalService.waitingForApprovalVisible',
+    destination: 'approvalService.waitingForApprovalVisible (informational — sidebar uses COUNT)',
     matches: (navBadges.payments ?? 0) === approvalCounts.waitingForApprovalVisible,
+    required: false,
   });
 
   rows.push({
@@ -142,28 +146,32 @@ export async function runCounterParityAudit(
     metric: 'KYC nav badge',
     overviewValue: navBadges.kyc ?? 0,
     destinationValue: unifiedCounts.kyc_review ?? 0,
-    destination: 'loadUnifiedOperationsQueue.filterCounts.kyc_review',
+    destination: 'loadUnifiedOperationsQueue.filterCounts.kyc_review (informational — sidebar uses COUNT)',
     matches: (navBadges.kyc ?? 0) === (unifiedCounts.kyc_review ?? 0),
+    required: false,
   });
 
   rows.push({
     metric: 'Checkout settlements nav badge',
     overviewValue: navBadges.checkoutSettlements ?? 0,
     destinationValue: unifiedCounts.refund_due ?? 0,
-    destination: 'loadUnifiedOperationsQueue.filterCounts.refund_due',
+    destination: 'loadUnifiedOperationsQueue.filterCounts.refund_due (informational — sidebar uses COUNT)',
     matches: (navBadges.checkoutSettlements ?? 0) === (unifiedCounts.refund_due ?? 0),
+    required: false,
   });
 
   rows.push({
     metric: 'Move-out nav badge',
     overviewValue: navBadges.moveOut ?? 0,
     destinationValue: unifiedCounts.vacating_requests ?? 0,
-    destination: 'loadUnifiedOperationsQueue.filterCounts.vacating_requests',
+    destination: 'loadUnifiedOperationsQueue.filterCounts.vacating_requests (informational — sidebar uses COUNT)',
     matches: (navBadges.moveOut ?? 0) === (unifiedCounts.vacating_requests ?? 0),
+    required: false,
   });
 
-  const pass = rows.every((r) => r.matches);
-  const mismatches = rows.filter((r) => !r.matches);
+  const requiredRows = rows.filter((r) => r.required !== false);
+  const pass = requiredRows.every((r) => r.matches);
+  const mismatches = requiredRows.filter((r) => !r.matches);
 
   return {
     rows,

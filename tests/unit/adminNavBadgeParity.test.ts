@@ -59,20 +59,24 @@ describe('Admin nav badge parity', () => {
 });
 
 describe('Admin nav badge source contracts', () => {
-  test('adminNavBadges reads unified queue and actionable notification count', () => {
+  test('adminNavBadges uses COUNT queries and actionable notification count', () => {
     const badges = read('src/services/adminNavBadges.ts');
-    assert.match(badges, /getUnifiedOperationsQueueForBadges/);
+    assert.match(badges, /countOpenActionItems/);
     assert.match(badges, /countActionableUnreadForAdmin/);
+    assert.doesNotMatch(badges, /getUnifiedOperationsQueueForBadges/);
     assert.doesNotMatch(badges, /unresolvedActions/);
     assert.doesNotMatch(badges, /countUnreadForAdmin/);
   });
 
   test('notification bell uses actionable unread count', () => {
     const engine = read('src/services/notificationEngine.ts');
+    const badges = read('src/services/adminNavBadges.ts');
     const live = read('app/api/admin/live/route.ts');
     assert.match(engine, /countActionableUnreadForAdmin/);
     assert.match(engine, /action_items ai/);
-    assert.match(live, /countActionableUnreadForAdmin/);
+    assert.match(badges, /countActionableUnreadForAdmin/);
+    assert.match(live, /loadAdminNavBadges/);
+    assert.doesNotMatch(live, /getUnifiedOperationsQueueForBadges/);
   });
 
   test('action item sync archives stale notifications in notifications table', () => {

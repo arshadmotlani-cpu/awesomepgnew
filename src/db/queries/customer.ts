@@ -58,7 +58,6 @@ import { fetchBedOccupancyRows } from '@/src/services/bedOccupancyBatch';
 import { logger } from '@/src/lib/logger';
 import { safeQuery } from '@/src/lib/healing/safeQuery';
 import { traceQuery } from '@/src/lib/monitoring/traceQuery';
-import { maybeRunRecoveryCheck } from '@/src/lib/healing/healthEngine';
 
 export type QueryResult<T> =
   | { ok: true; data: T }
@@ -69,8 +68,6 @@ async function guard<T>(
   queryName = 'customerQuery',
   fallback?: T,
 ): Promise<QueryResult<T>> {
-  await maybeRunRecoveryCheck();
-
   const result = await safeQuery(
     queryName,
     () => traceQuery(queryName, fn),

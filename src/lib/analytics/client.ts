@@ -33,20 +33,6 @@ export async function trackClientPageView(path: string): Promise<void> {
   }
 }
 
-export async function sendAnalyticsHeartbeat(path: string): Promise<void> {
-  try {
-    await fetch('/api/analytics/heartbeat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path }),
-      credentials: 'same-origin',
-      keepalive: true,
-    });
-  } catch {
-    // Non-blocking.
-  }
-}
-
 export async function trackClientEvent(
   eventType: AnalyticsEventType,
   metadata?: Record<string, unknown>,

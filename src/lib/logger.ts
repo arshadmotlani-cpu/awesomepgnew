@@ -51,18 +51,25 @@ function write(
   }
 
   try {
-    enqueueLog({
-      level,
-      message,
-      route: route ?? null,
-      method: method ?? null,
-      userId: userId ?? null,
-      requestId: requestId ?? null,
-      meta: payload,
-    });
+    if (shouldPersistLog(level)) {
+      enqueueLog({
+        level,
+        message,
+        route: route ?? null,
+        method: method ?? null,
+        userId: userId ?? null,
+        requestId: requestId ?? null,
+        meta: payload,
+      });
+    }
   } catch {
     // Never block the request path if logging fails.
   }
+}
+
+function shouldPersistLog(level: LogLevel): boolean {
+  if (process.env.NODE_ENV !== 'production') return true;
+  return level === 'error' || level === 'warn';
 }
 
 export const logger = {

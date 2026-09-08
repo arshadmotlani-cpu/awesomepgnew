@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminSession } from '@/src/lib/auth/session';
 import { loadAdminNavBadges } from '@/src/services/adminNavBadges';
-import { countActionableUnreadForAdmin } from '@/src/services/notificationEngine';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -13,10 +12,8 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  const [badges, unreadCount] = await Promise.all([
-    loadAdminNavBadges(session, { pollCache: true }),
-    countActionableUnreadForAdmin(session),
-  ]);
+  const badges = await loadAdminNavBadges(session, { pollCache: true });
+  const unreadCount = badges.notifications ?? 0;
 
   return NextResponse.json({
     ok: true,

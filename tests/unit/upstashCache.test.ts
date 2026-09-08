@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { cacheKeys, cacheTtl, publicRoomDetailPatternForSlug, publicRoomsPatternForPg } from '@/src/lib/cache/keys';
 import { getCacheStatsSnapshot, recordCacheHit, recordCacheMiss } from '@/src/lib/cache/stats';
 import { isRedisConfigured } from '@/src/lib/cache/client';
@@ -37,5 +39,13 @@ describe('cache stats', () => {
 describe('redis optional', () => {
   test('isRedisConfigured is false without env in test runner', () => {
     assert.equal(isRedisConfigured(), false);
+  });
+
+  test('in-process fallback is used when Redis is absent', () => {
+    const src = readFileSync(join(process.cwd(), 'src/lib/cache/readThrough.ts'), 'utf8');
+    assert.match(src, /memoryGet/);
+    assert.match(src, /memorySet/);
+    assert.match(src, /invalidateMemoryKey/);
+    assert.match(src, /invalidateMemoryPattern/);
   });
 });

@@ -91,7 +91,7 @@ export function AdminNavLink({
   return (
     <Link
       href={href}
-      prefetch={true}
+      prefetch={false}
       scroll={false}
       onClick={handleClick}
       aria-current={active ? 'page' : undefined}

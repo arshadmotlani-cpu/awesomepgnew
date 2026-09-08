@@ -6,10 +6,12 @@ import {
   publicRoomDetailPatternForSlug,
   publicRoomsPatternForPg,
 } from '@/src/lib/cache/keys';
+import { invalidateMemoryKey, invalidateMemoryPattern } from '@/src/lib/cache/readThrough';
 
 async function deleteKeys(keys: string[]): Promise<number> {
+  for (const key of keys) invalidateMemoryKey(key);
   const redis = getRedisClient();
-  if (!redis || keys.length === 0) return 0;
+  if (!redis || keys.length === 0) return keys.length;
   try {
     await redis.del(...keys);
     return keys.length;
@@ -18,24 +20,25 @@ async function deleteKeys(keys: string[]): Promise<number> {
       count: keys.length,
       err: err instanceof Error ? err.message : String(err),
     });
-    return 0;
+    return keys.length;
   }
 }
 
 async function deleteByPattern(pattern: string): Promise<number> {
+  const memoryDeleted = invalidateMemoryPattern(pattern);
   const redis = getRedisClient();
-  if (!redis) return 0;
+  if (!redis) return memoryDeleted;
   try {
     const keys = await redis.keys(pattern);
-    if (!keys.length) return 0;
+    if (!keys.length) return memoryDeleted;
     await redis.del(...keys);
-    return keys.length;
+    return memoryDeleted + keys.length;
   } catch (err) {
     console.warn('[cache] invalidate pattern failed', {
       pattern,
       err: err instanceof Error ? err.message : String(err),
     });
-    return 0;
+    return memoryDeleted;
   }
 }
 

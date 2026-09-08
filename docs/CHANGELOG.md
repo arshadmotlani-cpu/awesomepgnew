@@ -269,27 +269,20 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-09-08 18:58:11 UTC
+### Pending pre-commit sync · 2026-09-08 19:34:42 UTC
 
-**Areas touched:** [[ROUTES]], [[Residents]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
-- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
-- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (9):**
-- `app/(customer)/account/payments/page.tsx`
-- `app/(customer)/account/profile/page.tsx`
-- `app/(customer)/account/resident/history/[bookingId]/page.tsx`
-- `app/(customer)/account/resident/page.tsx`
-- `app/(customer)/account/resident/pay-rent/[invoiceId]/page.tsx`
-- `app/(customer)/account/wallet/page.tsx`
-- `src/lib/residents/residentHomeState.ts`
-- `src/lib/residents/residentPortalLoaderSafety.ts`
-- `src/lib/residents/walletLedger.ts`
+**Staged code files (4):**
+- `app/api/admin/health/route.ts`
+- `app/api/admin/live/route.ts`
+- `app/api/analytics/heartbeat/route.ts`
+- `app/api/health/route.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

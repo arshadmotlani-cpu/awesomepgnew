@@ -12,8 +12,9 @@ export function RevenueLiveRefresh({ billingMonth }: { billingMonth: string }) {
     if (!isCurrentBillingMonth(billingMonth)) return;
 
     const id = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
       router.refresh();
-    }, 120_000);
+    }, 10 * 60 * 1000);
 
     return () => window.clearInterval(id);
   }, [billingMonth, router]);

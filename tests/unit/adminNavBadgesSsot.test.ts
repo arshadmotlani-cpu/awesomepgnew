@@ -49,19 +49,18 @@ test('empty booking approval does not keep a phantom pending total', () => {
   assert.equal(operationsTotalPendingCount(queue), 0);
 });
 
-test('adminNavBadges uses unified queue total — never residents parallel queue', () => {
+test('adminNavBadges uses COUNT queries for sidebar — never residents parallel queue', () => {
   const src = read('src/services/adminNavBadges.ts');
-  assert.match(src, /getUnifiedOperationsQueueForBadges/);
-  assert.match(src, /operationsTotalPendingCount/);
-  assert.match(src, /vacating_requests/);
+  assert.match(src, /countOpenActionItems/);
+  assert.match(src, /countActiveVacating/);
   assert.match(src, /badges\.moveOut/);
+  assert.doesNotMatch(src, /getUnifiedOperationsQueueForBadges/);
   assert.doesNotMatch(src, /loadResidentOperationsResidentsPage/);
   assert.doesNotMatch(src, /allQueueCount/);
   assert.doesNotMatch(src, /getWaitingForApprovalCount/);
   assert.doesNotMatch(src, /unresolvedActions/);
-  // Overview is a read-only owner dashboard — action badges live on Operations only.
   assert.doesNotMatch(src, /badges\.overview = pendingTotal/);
-  assert.match(src, /badges\.operations = pendingTotal/);
+  assert.match(src, /badges\.operations = operationsBadge/);
 });
 
 test('checkoutSettlements sidebar uses moveOut badge key', () => {
@@ -69,16 +68,17 @@ test('checkoutSettlements sidebar uses moveOut badge key', () => {
   assert.match(src, /checkoutSettlements:[\s\S]*badgeKey: 'moveOut'/);
 });
 
-test('production and counter parity audits compare badges to unified totalCount', () => {
+test('production and counter parity audits do not require sidebar COUNT == unified queue', () => {
   const production = read('src/services/productionAudit.ts');
-  assert.match(production, /loadUnifiedOperationsQueue/);
-  assert.match(production, /ops\.totalCount/);
+  assert.match(production, /loadAdminNavBadges/);
+  assert.doesNotMatch(production, /ops\.totalCount/);
   assert.doesNotMatch(production, /allQueueCount/);
 
   const parity = read('src/services/counterParityAudit.ts');
   assert.match(parity, /loadUnifiedOperationsQueue\.totalCount/);
   assert.match(parity, /Move-out nav badge/);
   assert.match(parity, /navBadges\.moveOut/);
+  assert.match(parity, /required: false/);
   assert.doesNotMatch(parity, /loadResidentOperationsResidentsPage\.allQueueCount/);
 });
 

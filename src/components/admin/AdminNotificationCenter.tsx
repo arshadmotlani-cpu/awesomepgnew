@@ -60,22 +60,6 @@ export function AdminNotificationCenter({ initialUnread = 0 }: { initialUnread?:
   }, []);
 
   useEffect(() => {
-    if (typeof document === 'undefined') return;
-    const timer = window.setInterval(() => {
-      if (document.visibilityState !== 'visible') return;
-      void fetch('/api/admin/live', { cache: 'no-store' })
-        .then((res) => res.json())
-        .then((json: { ok?: boolean; unreadCount?: number }) => {
-          if (json.ok && typeof json.unreadCount === 'number') {
-            setUnreadCount(json.unreadCount);
-          }
-        })
-        .catch(() => undefined);
-    }, 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
     if (open) void fetchNotifications();
   }, [open, fetchNotifications]);
 

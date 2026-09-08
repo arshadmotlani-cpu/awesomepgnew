@@ -4,10 +4,8 @@ import { getEnvHealthSummary } from '@/src/lib/healing/envHealer';
 import { getIntegrationsHealthSummaryWithBlobProbe } from '@/src/lib/integrations/status';
 import {
   getLatestPersistedHealth,
-  maybeRunRecoveryCheck,
   runHealthDiagnosis,
 } from '@/src/lib/healing/healthEngine';
-import { getSystemState } from '@/src/lib/healing/systemState';
 import { withSelfHealing } from '@/src/lib/healing/withSelfHealing';
 
 export const runtime = 'nodejs';
@@ -19,7 +17,6 @@ async function handle(_req: NextRequest) {
     return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  await maybeRunRecoveryCheck();
   const state = await runHealthDiagnosis();
   const persisted = await getLatestPersistedHealth();
   const envBase = getEnvHealthSummary();

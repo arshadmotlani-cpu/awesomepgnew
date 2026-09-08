@@ -1,6 +1,9 @@
 export const VISITOR_SESSION_COOKIE = 'apg_visitor_session';
 
-/** Sessions with activity within this window count as "live". */
+/**
+ * Sessions with a page-view (or other tracked event) within this window count
+ * as "live". last_seen_at is updated on navigation, not a Postgres heartbeat.
+ */
 export const LIVE_VISITOR_WINDOW_MS = 5 * 60 * 1000;
 
 export const TRAFFIC_SOURCES = [

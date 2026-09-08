@@ -61,7 +61,10 @@ export function DeploymentsDashboard({
   }, []);
 
   useEffect(() => {
-    const id = setInterval(() => void refresh(), 30_000);
+    const id = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      void refresh();
+    }, 10 * 60 * 1000);
     return () => clearInterval(id);
   }, [refresh]);
 

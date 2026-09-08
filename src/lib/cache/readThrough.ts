@@ -9,6 +9,47 @@ import {
   type CacheNamespace,
 } from '@/src/lib/cache/stats';
 
+type MemoryEntry = { expiresAt: number; payload: string };
+
+const memoryCache = new Map<string, MemoryEntry>();
+
+function memoryGet(key: string): string | null {
+  const entry = memoryCache.get(key);
+  if (!entry) return null;
+  if (Date.now() >= entry.expiresAt) {
+    memoryCache.delete(key);
+    return null;
+  }
+  return entry.payload;
+}
+
+function memorySet(key: string, payload: string, ttlSeconds: number): void {
+  memoryCache.set(key, { payload, expiresAt: Date.now() + ttlSeconds * 1000 });
+}
+
+function globToRegExp(pattern: string): RegExp {
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+  return new RegExp(`^${escaped}$`);
+}
+
+/** Drop an in-process cache key (used when Redis is not configured). */
+export function invalidateMemoryKey(key: string): void {
+  memoryCache.delete(key);
+}
+
+/** Drop in-process keys matching a Redis-style glob (e.g. `apg:v1:public:*`). */
+export function invalidateMemoryPattern(pattern: string): number {
+  const re = globToRegExp(pattern);
+  let n = 0;
+  for (const key of [...memoryCache.keys()]) {
+    if (re.test(key)) {
+      memoryCache.delete(key);
+      n += 1;
+    }
+  }
+  return n;
+}
+
 export async function cacheReadThrough<T>(opts: {
   key: string;
   ttlSeconds: number;
@@ -16,10 +57,22 @@ export async function cacheReadThrough<T>(opts: {
   fetch: () => Promise<T>;
 }): Promise<T> {
   const redis = getRedisClient();
+
   if (!redis) {
-    recordCacheBypass(opts.namespace);
+    const local = memoryGet(opts.key);
+    if (local != null) {
+      recordCacheHit(opts.namespace);
+      maybeLogCacheStats();
+      return JSON.parse(local) as T;
+    }
+    recordCacheMiss(opts.namespace);
     recordDbFetch(opts.namespace);
     const data = await opts.fetch();
+    try {
+      memorySet(opts.key, JSON.stringify(data), opts.ttlSeconds);
+    } catch {
+      recordCacheBypass(opts.namespace);
+    }
     maybeLogCacheStats();
     return data;
   }

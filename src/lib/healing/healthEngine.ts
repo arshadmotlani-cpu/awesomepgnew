@@ -86,14 +86,21 @@ export async function runHealthDiagnosis(): Promise<ReturnType<typeof getSystemS
       dbError: db.error ?? null,
       safeMode,
     });
+    void persistHealthSnapshot();
   }
 
-  void persistHealthSnapshot();
   return next;
 }
 
-/** Throttled recovery loop — safe on Vercel serverless. */
+/**
+ * Recovery probe after a genuine failure — not a keep-warm ping.
+ * Healthy isolates skip the extra SELECT 1 / system_health write.
+ */
 export async function maybeRunRecoveryCheck(): Promise<void> {
+  const prev = getSystemState();
+  if (prev.dbStatus === 'ok' && prev.consecutiveFailures === 0 && prev.status === 'HEALTHY') {
+    return;
+  }
   const now = Date.now();
   if (now - lastRecoveryAt() < RECOVERY_INTERVAL_MS) return;
   setLastRecoveryAt(now);

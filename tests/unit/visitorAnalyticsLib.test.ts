@@ -4,7 +4,6 @@ import { parseDeviceType } from '@/src/lib/analytics/device';
 import { pathToPageKey, shouldTrackPath } from '@/src/lib/analytics/pageKeys';
 import { shouldSkipAnalyticsUserAgent } from '@/src/lib/analytics/botFilter';
 import { classifyTrafficSource } from '@/src/lib/analytics/trafficSource';
-import { classifyTrafficSource } from '@/src/lib/analytics/trafficSource';
 
 test('pathToPageKey maps customer routes', () => {
   assert.equal(pathToPageKey('/'), 'Home');

@@ -1,17 +1,18 @@
 import { getDatabaseEnvStatus } from '@/src/lib/db/env';
-import { getIntegrationsHealthSummaryWithBlobProbe } from '@/src/lib/integrations/status';
-import { withSelfHealing } from '@/src/lib/healing/withSelfHealing';
-import { maybeRunRecoveryCheck } from '@/src/lib/healing/healthEngine';
+import { getIntegrationsHealthSummary } from '@/src/lib/integrations/status';
 import { getSystemState } from '@/src/lib/healing/systemState';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+/**
+ * Liveness — env and in-memory heal state only.
+ * Does not SELECT 1 or write system_health (that would keep Neon awake).
+ */
 async function handle() {
-  await maybeRunRecoveryCheck();
   const dbEnv = getDatabaseEnvStatus();
   const heal = getSystemState();
-  const integrations = await getIntegrationsHealthSummaryWithBlobProbe();
+  const integrations = getIntegrationsHealthSummary();
 
   return Response.json({
     ok: true,
@@ -39,4 +40,4 @@ async function handle() {
   });
 }
 
-export const GET = withSelfHealing(handle, '/api/health');
+export const GET = handle;

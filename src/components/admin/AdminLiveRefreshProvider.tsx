@@ -6,18 +6,17 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from 'react';
-import { usePathname } from 'next/navigation';
 import {
   ADMIN_BADGES_REFRESH_COMPLETE_EVENT,
   ADMIN_BADGES_REFRESH_EVENT,
 } from '@/src/lib/admin/refreshAdminNavBadges';
 import type { AdminNavBadges } from '@/src/services/adminNavBadges';
 
-const BADGE_POLL_MS = 60_000;
+/** Safety-net interval. Event-driven refresh is preferred. Must stay ≥ Neon idle timeout. */
+export const ADMIN_LIVE_POLL_MS = 10 * 60 * 1000;
 
 const AdminBadgesContext = createContext<AdminNavBadges>({});
 
@@ -42,9 +41,9 @@ function mergeBadgesPreferLowerOperations(
 }
 
 /**
- * Polls sidebar badge counts client-side only.
- * Does not call router.refresh() — that raced with Link navigation and blocked clicks
- * while the dynamic admin layout re-suspended.
+ * Single authoritative live-refresh for sidebar badges.
+ * Does not call router.refresh() — that raced with Link navigation.
+ * Other admin surfaces must listen to admin-badges-updated, not poll /api/admin/live.
  */
 export function AdminLiveRefreshProvider({
   initialBadges,
@@ -53,9 +52,7 @@ export function AdminLiveRefreshProvider({
   initialBadges: AdminNavBadges;
   children: ReactNode;
 }) {
-  const pathname = usePathname();
   const [badges, setBadges] = useState<AdminNavBadges>(initialBadges);
-  const hasPolledRef = useRef(false);
 
   const pollBadges = useCallback(async () => {
     try {
@@ -67,7 +64,6 @@ export function AdminLiveRefreshProvider({
         unreadCount?: number;
       };
       if (!json.ok || !json.badges) return;
-      hasPolledRef.current = true;
       setBadges((prev) => mergeBadgesPreferLowerOperations(prev, json.badges!));
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
@@ -85,9 +81,7 @@ export function AdminLiveRefreshProvider({
   }, []);
 
   useEffect(() => {
-    if (!hasPolledRef.current) {
-      setBadges(initialBadges);
-    }
+    setBadges(initialBadges);
   }, [initialBadges]);
 
   useEffect(() => {
@@ -97,11 +91,9 @@ export function AdminLiveRefreshProvider({
       if (document.visibilityState === 'visible') void pollBadges();
     };
 
-    void pollBadges();
-
     const badgeTimer = window.setInterval(() => {
       if (document.visibilityState === 'visible') void pollBadges();
-    }, BADGE_POLL_MS);
+    }, ADMIN_LIVE_POLL_MS);
 
     const onBadgesRefresh = () => {
       void pollBadges();
@@ -116,10 +108,6 @@ export function AdminLiveRefreshProvider({
       window.removeEventListener(ADMIN_BADGES_REFRESH_EVENT, onBadgesRefresh);
     };
   }, [pollBadges]);
-
-  useEffect(() => {
-    void pollBadges();
-  }, [pathname, pollBadges]);
 
   const value = useMemo(() => badges, [badges]);
 
