@@ -20,6 +20,8 @@ import {
   resolvePaymentReviewApprovalPhase,
 } from '@/src/lib/operations/paymentReviewPostApprovalUx';
 import { buildPaymentReviewVerification } from '@/src/lib/operations/paymentReviewVerification';
+import { buildPaymentReviewBookingPricingDisplay } from '@/src/lib/operations/paymentReviewBookingPricingDisplay';
+import { PaymentReviewBookingPricingRows } from '@/src/components/admin/operations/PaymentReviewBookingPricingRows';
 import { transactionRefLooksLikeUpiVpa } from '@/src/lib/payments/safePaymentApprovalError';
 import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import type { PaymentReviewWorkspaceData } from '@/src/services/paymentReviewWorkspace';
@@ -94,6 +96,14 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
   );
 
   const verification = baseVerification;
+  const pricingDisplay = buildPaymentReviewBookingPricingDisplay({
+    rentPaise: verification.monthlyRentPaise,
+    depositPaise: verification.depositRequiredPaise,
+    bookingDetails: item.bookingDetails,
+    bookingContext: item.bookingContext,
+    checkInDate: booking?.checkInDate,
+    expectedCheckoutDate: booking?.expectedCheckoutDate,
+  });
   const diff = differenceDisplay(verification.differencePaise, verification.differenceTone);
   const phase = resolvePaymentReviewApprovalPhase({
     busy,
@@ -269,24 +279,7 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
                       ) : null}
                     </>
                   ) : (
-                    <>
-                      <FieldRow
-                        label="Monthly rent"
-                        value={
-                          booking?.monthlyRentPaise == null && verification.monthlyRentPaise <= 0
-                            ? 'Unavailable'
-                            : paiseToInr(verification.monthlyRentPaise)
-                        }
-                      />
-                      <FieldRow
-                        label="Required deposit"
-                        value={
-                          !booking && verification.depositRequiredPaise <= 0
-                            ? 'Unavailable'
-                            : paiseToInr(verification.depositRequiredPaise)
-                        }
-                      />
-                    </>
+                    <PaymentReviewBookingPricingRows display={pricingDisplay} />
                   )}
                 </dl>
               </section>
@@ -379,9 +372,9 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
                 <FieldRow label="Difference" value={diff.text} emphasize className={diff.className} />
               </dl>
               <p className="mt-4 text-xs text-apg-silver">
-                Expected is this payment&apos;s amount (deposit link or invoice). Monthly rent and
-                required deposit come from the booking ledger — they are not zeroed for deposit
-                reviews. Verify the UPI transaction ID. Screenshot not required.
+                Expected is this payment&apos;s amount (deposit link or invoice). Quoted rent and
+                deposit come from the booking — they are not zeroed for deposit reviews. Verify the
+                UPI transaction ID. Screenshot not required.
               </p>
             </section>
 

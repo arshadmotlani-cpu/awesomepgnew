@@ -2,7 +2,9 @@
 
 import { paiseToInr } from '@/src/lib/format';
 import { buildPaymentReviewVerification } from '@/src/lib/operations/paymentReviewVerification';
+import { buildPaymentReviewBookingPricingDisplay } from '@/src/lib/operations/paymentReviewBookingPricingDisplay';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
+import { PaymentReviewBookingPricingRows } from '@/src/components/admin/operations/PaymentReviewBookingPricingRows';
 
 function Row({
   label,
@@ -43,6 +45,12 @@ function Row({
 /** Verification-only payment review — Expected / Screenshot / Difference. */
 export function PaymentReviewEssentials({ item }: { item: PendingPaymentReviewItem }) {
   const verification = buildPaymentReviewVerification(item);
+  const pricingDisplay = buildPaymentReviewBookingPricingDisplay({
+    rentPaise: verification.monthlyRentPaise,
+    depositPaise: verification.depositRequiredPaise,
+    bookingDetails: item.bookingDetails,
+    bookingContext: item.bookingContext,
+  });
   const contextLine = [item.pgName, item.roomNumber, item.bedCode ? `Bed ${item.bedCode}` : null]
     .filter(Boolean)
     .join(' · ');
@@ -86,8 +94,7 @@ export function PaymentReviewEssentials({ item }: { item: PendingPaymentReviewIt
       <dl className="space-y-2.5">
         {showBooking ? (
           <>
-            <Row label="Monthly rent" value={paiseToInr(verification.monthlyRentPaise)} />
-            <Row label="Required deposit" value={paiseToInr(verification.depositRequiredPaise)} />
+            <PaymentReviewBookingPricingRows display={pricingDisplay} />
             <Row
               label="Expected payment"
               value={paiseToInr(verification.expectedPaymentPaise)}
@@ -111,8 +118,8 @@ export function PaymentReviewEssentials({ item }: { item: PendingPaymentReviewIt
       </dl>
 
       <p className="mt-4 text-xs text-apg-silver">
-        Approve confirms the booking using contract rent and deposit values. The screenshot is
-        verification only.
+        Approve confirms the booking using contract rent and deposit values from the booking quote.
+        The screenshot is verification only.
       </p>
     </div>
   );
