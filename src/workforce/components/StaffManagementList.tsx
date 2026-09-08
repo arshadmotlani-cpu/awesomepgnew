@@ -1,7 +1,9 @@
 import Link from 'next/link';
+import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 import { listEmployeesForEngine } from '@/src/workforce/brains/employeeBrain';
 import { AddEmployeePopup } from '@/src/workforce/components/AddEmployeePopup';
 import { workforceAccessRoleLabel } from '@/src/workforce/labels';
+import { formatStaffDisplayName } from '@/src/workforce/lib/staffDisplayName';
 import { hasWorkforcePermission } from '@/src/workforce/permissions/presets';
 import type { WorkforcePermissionGrants } from '@/src/workforce/types';
 
@@ -11,9 +13,10 @@ type Props = {
 };
 
 export async function StaffManagementList({ canAdd, grants }: Props) {
+  const ctx = await getTenantContextForPage();
   const employees = await listEmployeesForEngine('fyh_salon', {
     activeOnly: false,
-    excludeSystemProviders: true,
+    organizationId: ctx?.organizationId,
   });
   const canViewOperations =
     grants === null || hasWorkforcePermission(grants, 'staff.view') || hasWorkforcePermission(grants, 'finance.view_salary');
@@ -67,7 +70,7 @@ export async function StaffManagementList({ canAdd, grants }: Props) {
                     href={`/staff/${row.employee.id}`}
                     className="text-fyh-accent underline-offset-2 hover:underline"
                   >
-                    {row.employee.fullName}
+                    {formatStaffDisplayName(row.employee.fullName)}
                   </Link>
                 </td>
                 <td className="px-4 py-3">{row.employee.mobile ?? '—'}</td>

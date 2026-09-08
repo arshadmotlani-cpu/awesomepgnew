@@ -94,7 +94,7 @@ export async function listTeamStaffForAttendance(
     })
     .from(fyhStaff)
     .where(and(eq(fyhStaff.isActive, true), orgFilter(fyhStaff.organizationId, ctx)));
-  const legacy = filterSelectablePosStaff(legacyRows).map(mapName);
+  const legacy = legacyRows.map(mapName);
 
   if (!isWorkforceEngineEnabled()) return legacy;
 
@@ -103,16 +103,16 @@ export async function listTeamStaffForAttendance(
     receiveBookingsOnly: false,
     organizationId: ctx?.organizationId,
   });
-  const workforce = filterSelectablePosStaff(
-    rows.map((r) => ({
+  const workforce = rows
+    .map((r) => ({
       id: r.employee.id,
       fullName: r.employee.fullName,
       phone: r.employee.mobile,
       photoUrl: r.employee.photoUrl ?? null,
       isActive: true,
       role: (r.membership?.jobRole ?? null) as string | null,
-    })),
-  ).map(mapName);
+    }))
+    .map(mapName);
   if (workforce.length === 0) return legacy;
 
   const byId = new Map<string, (typeof legacy)[number]>(
@@ -121,7 +121,9 @@ export async function listTeamStaffForAttendance(
   for (const row of legacy) {
     if (!byId.has(row.id)) byId.set(row.id, row);
   }
-  return filterSelectablePosStaff([...byId.values()]).map(mapName);
+  return [...byId.values()].sort((a, b) =>
+    a.fullName.localeCompare(b.fullName, undefined, { sensitivity: 'base' }),
+  );
 }
 
 export async function listActiveSalonStaffRoster(): Promise<EmployeeWithMembership[] | null> {

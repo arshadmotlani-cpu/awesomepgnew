@@ -11,7 +11,6 @@ import {
 } from '@/src/hair/lib/auth/staffManagementAccess';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
-import { isSystemProviderEmployee } from '@/src/workforce/services/systemOwnerProvider';
 
 type Props = {
   params: Promise<{ employeeId: string }>;
@@ -29,7 +28,6 @@ export default async function EmployeeProfilePage({ params }: Props) {
 
   const dash = await getEmployeeDashboard(employeeId, 'fyh_salon');
   if (!dash?.employee || !dash.membership || !dash.grants) notFound();
-  if (isSystemProviderEmployee(dash.employee)) notFound();
 
   const incentivePlan = await getIncentivePlan(employeeId, 'fyh_salon');
   const weekOffDays = weekOffDaysFromSchedule(dash.schedule);
