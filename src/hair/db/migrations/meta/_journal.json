@@ -316,6 +316,13 @@
       "when": 1759100000000,
       "tag": "0046_attendance_geolocation",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1759200000000,
+      "tag": "0047_attendance_photo_evidence",
+      "breakpoints": true
     }
   ]
 }
