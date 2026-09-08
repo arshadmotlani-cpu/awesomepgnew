@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { requireHairHost } from '@/src/hair/lib/auth/guards';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { listBookableStaffForSalon } from '@/src/hair/adapters/workforceStaffAdapter';
+import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 import { listTeamMonthAttendanceSummaries } from '@/src/workforce/services/attendancePayroll';
 import { employeeHasPermission } from '@/src/workforce/brains/employeeBrain';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
@@ -57,7 +58,8 @@ export default async function OwnerAttendanceManagePage({
 
   const params = await searchParams;
   const monthKey = params.month ?? new Date().toISOString().slice(0, 7);
-  const roster = await listBookableStaffForSalon();
+  const ctx = await getTenantContextForPage();
+  const roster = await listBookableStaffForSalon(ctx);
   const selectedId = params.employeeId ?? roster[0]?.id;
   const summaries = await listTeamMonthAttendanceSummaries({
     employeeIds: roster.map((r) => r.id),

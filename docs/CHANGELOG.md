@@ -269,7 +269,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-09-08 11:17:18 UTC
+### Pending pre-commit sync · 2026-09-08 11:41:10 UTC
 
 **Areas touched:** [[ROUTES]]
 
