@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { requireHairHost } from '@/src/hair/lib/auth/guards';
 import { getHairSession } from '@/src/hair/lib/auth/session';
+import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 import { OfficeLocationSettingsForm } from '@/src/workforce/components/attendance/OfficeLocationSettingsForm';
 import { getOfficeLocationConfig } from '@/src/workforce/services/officeLocation';
 import { employeeHasPermission } from '@/src/workforce/brains/employeeBrain';
@@ -11,23 +12,31 @@ export default async function AttendanceSettingsPage() {
   if (!isWorkforceEngineEnabled()) redirect('/settings');
 
   const session = await getHairSession();
-  if (!session?.workforceEmployeeId) redirect('/login');
+  if (!session) redirect('/login');
+  if (!session.workforceEmployeeId && session.admin.role !== 'super_admin') {
+    redirect('/login');
+  }
 
-  const allowed = await employeeHasPermission(
-    session.workforceEmployeeId,
-    'fyh_salon',
-    'attendance.manage_office',
-  );
+  const allowed =
+    session.admin.role === 'super_admin' ||
+    (session.workforceEmployeeId
+      ? await employeeHasPermission(
+          session.workforceEmployeeId,
+          'fyh_salon',
+          'attendance.manage_office',
+        )
+      : false);
   if (!allowed) redirect('/settings');
 
-  const office = await getOfficeLocationConfig();
+  const ctx = await getTenantContextForPage();
+  const office = await getOfficeLocationConfig(ctx);
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-2xl space-y-4">
       <div>
-        <h1 className="text-xl font-semibold">Attendance · Office location</h1>
+        <h1 className="text-xl font-semibold">Office location</h1>
         <p className="text-sm text-fyh-text-secondary">
-          Staff can mark present only within the configured radius of this point.
+          Attendance geofence for your organization. Each tenant saves its own office coordinates.
         </p>
       </div>
       <OfficeLocationSettingsForm

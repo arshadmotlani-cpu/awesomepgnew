@@ -13,10 +13,10 @@ import {
   type AttendanceDayClassification,
   classifyAttendanceDay,
 } from '@/src/workforce/lib/attendanceSalaryMath';
-import { listAttendance } from '@/src/workforce/services/attendance';
+import { listAttendance, type AttendanceStatus } from '@/src/workforce/services/attendance';
 import { getEmployeeSchedule } from '@/src/workforce/services/schedules';
+import { formatStaffDisplayName } from '@/src/workforce/lib/staffDisplayName';
 import type { WorkforceEngineId } from '@/src/workforce/types';
-import type { AttendanceStatus } from '@/src/workforce/services/attendance';
 
 export type StaffMonthAttendanceSummary = {
   employeeId: string;
@@ -29,6 +29,10 @@ export type StaffMonthAttendanceSummary = {
   absentDays: number;
   paidLeaveDays: number;
   weeklyOffDays: number;
+  /** HR entitlement field not yet on wf_employees — null until configured. */
+  paidLeaveAllocated: number | null;
+  paidLeaveRemaining: number | null;
+  extraUnpaidAbsenceDays: number;
   dailySalaryPaise: number;
   absenceDeductionPaise: number;
   finalSalaryPaise: number;
@@ -99,11 +103,14 @@ export async function buildStaffMonthAttendanceSummary(input: {
 
   return {
     employeeId: emp.id,
-    fullName: emp.fullName,
+    fullName: formatStaffDisplayName(emp.fullName),
     salaryPaise: emp.salaryPaise,
     monthStart,
     monthEnd,
     ...counts,
+    paidLeaveAllocated: null,
+    paidLeaveRemaining: null,
+    extraUnpaidAbsenceDays: counts.absentDays,
     dailySalaryPaise: payroll.dailySalaryPaise,
     absenceDeductionPaise: payroll.absenceDeductionPaise,
     finalSalaryPaise: payroll.netPaise,

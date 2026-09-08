@@ -27,7 +27,7 @@ describe('Attendance manage tenant scoping', () => {
     const page = read('app/(hair)/fyh/(app)/attendance/manage/page.tsx');
     assert.match(page, /getTenantContextForPage/);
     assert.match(page, /const ctx = await getTenantContextForPage\(\)/);
-    assert.match(page, /listBookableStaffForSalon\(ctx\)/);
+    assert.match(page, /listTeamStaffForAttendance\(ctx\)/);
     assert.doesNotMatch(page, /listBookableStaffForSalon\(\)/);
   });
 

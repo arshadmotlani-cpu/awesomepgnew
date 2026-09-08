@@ -1,13 +1,20 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { getSalonSettings } from '@/src/hair/services/settings';
 import { employeeHasPermission } from '@/src/workforce/brains/employeeBrain';
+import { persistAttendancePhotoFromFile } from '@/src/workforce/lib/persistAttendancePhoto';
+import {
+  ATTENDANCE_MANAGE_HREF,
+  ATTENDANCE_MAP_HREF,
+} from '@/src/workforce/lib/attendanceRoutes';
 import {
   AttendanceError,
   correctAttendanceByOwner,
   getTodayAttendance,
+  markPresentByOwner,
   markPresentWithGeolocation,
   type AttendanceStatus,
 } from '@/src/workforce/services/attendance';
@@ -23,6 +30,33 @@ async function requireSelfEmployeeId(): Promise<string> {
   const session = await getHairSession();
   if (!session?.workforceEmployeeId) throw new Error('Not signed in');
   return session.workforceEmployeeId;
+}
+
+export async function requireTeamAttendanceAccess(): Promise<{
+  session: NonNullable<Awaited<ReturnType<typeof getHairSession>>>;
+  isSuperAdmin: boolean;
+}> {
+  const session = await getHairSession();
+  if (!session) redirect('/login');
+
+  const isSuperAdmin = session.admin.role === 'super_admin';
+  if (!session.workforceEmployeeId && !isSuperAdmin) {
+    redirect('/login');
+  }
+
+  const canView =
+    isSuperAdmin ||
+    (session.workforceEmployeeId
+      ? await employeeHasPermission(
+          session.workforceEmployeeId,
+          'fyh_salon',
+          'attendance.view_team',
+        )
+      : false);
+
+  if (!canView) redirect('/attendance');
+
+  return { session, isSuperAdmin };
 }
 
 export async function markPresentAction(input: {
@@ -48,6 +82,61 @@ export async function markPresentAction(input: {
   }
 }
 
+export async function markPresentWithPhotoAction(formData: FormData): Promise<AttendanceActionState> {
+  try {
+    const employeeId = await requireSelfEmployeeId();
+    await requireWorkforcePermission('attendance.mark');
+
+    const photo = formData.get('photo');
+    if (!(photo instanceof File) || photo.size === 0) {
+      return { error: 'Camera access is required to mark attendance.' };
+    }
+
+    const latitude = Number(formData.get('latitude'));
+    const longitude = Number(formData.get('longitude'));
+    const accuracyRaw = formData.get('accuracyMetres');
+    const accuracyMetres = accuracyRaw != null && accuracyRaw !== '' ? Number(accuracyRaw) : null;
+
+    const photoUrl = await persistAttendancePhotoFromFile(photo);
+    await markPresentWithGeolocation({
+      employeeId,
+      latitude,
+      longitude,
+      accuracyMetres,
+      photoUrl,
+    });
+
+    revalidatePath('/attendance');
+    revalidatePath('/me');
+    return { success: 'Present marked successfully.' };
+  } catch (e) {
+    if (e instanceof AttendanceError) return { error: e.message };
+    return { error: e instanceof Error ? e.message : 'Could not mark attendance.' };
+  }
+}
+
+export async function markStaffPresentByOwnerAction(formData: FormData): Promise<AttendanceActionState> {
+  try {
+    const actorId = await requireSelfEmployeeId();
+    await requireWorkforcePermission('attendance.correct');
+    const employeeId = String(formData.get('employeeId') ?? '').trim();
+    if (!employeeId) return { error: 'Select a staff member.' };
+
+    await markPresentByOwner({
+      employeeId,
+      actorEmployeeId: actorId,
+      reason: String(formData.get('reason') ?? 'Owner marked present').trim() || 'Owner marked present',
+    });
+
+    revalidatePath(ATTENDANCE_MANAGE_HREF);
+    revalidatePath(ATTENDANCE_MAP_HREF);
+    return { success: 'Staff marked present for today.' };
+  } catch (e) {
+    if (e instanceof AttendanceError) return { error: e.message };
+    return { error: e instanceof Error ? e.message : 'Could not mark staff present.' };
+  }
+}
+
 export async function saveOfficeLocationAction(
   _prev: AttendanceActionState,
   formData: FormData,
@@ -57,10 +146,20 @@ export async function saveOfficeLocationAction(
     const latitude = Number(formData.get('officeLatitude'));
     const longitude = Number(formData.get('officeLongitude'));
     const officeLabel = String(formData.get('officeLabel') ?? '').trim() || null;
-    await updateOfficeLocationConfig({ officeLatitude: latitude, officeLongitude: longitude, officeLabel });
+    const radiusRaw = formData.get('officeRadiusMetres');
+    const officeRadiusMetres =
+      radiusRaw != null && String(radiusRaw).trim() !== '' ? Number(radiusRaw) : undefined;
+    await updateOfficeLocationConfig({
+      officeLatitude: latitude,
+      officeLongitude: longitude,
+      officeLabel,
+      officeRadiusMetres,
+    });
     revalidatePath('/settings');
+    revalidatePath('/settings/attendance');
     revalidatePath('/attendance');
-    revalidatePath('/attendance/manage');
+    revalidatePath(ATTENDANCE_MANAGE_HREF);
+    revalidatePath(ATTENDANCE_MAP_HREF);
     return { success: 'Office location saved.' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Could not save office location.' };
@@ -86,7 +185,8 @@ export async function correctAttendanceAction(
       reason,
       actorEmployeeId: actorId,
     });
-    revalidatePath('/attendance/manage');
+    revalidatePath(ATTENDANCE_MANAGE_HREF);
+    revalidatePath(ATTENDANCE_MAP_HREF);
     return { success: 'Attendance corrected.' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Could not correct attendance.' };
@@ -108,7 +208,8 @@ export async function loadOwnAttendancePageData() {
 
 export async function canViewTeamAttendance(): Promise<boolean> {
   const session = await getHairSession();
-  if (!session?.workforceEmployeeId) return false;
+  if (!session?.workforceEmployeeId) return session?.admin.role === 'super_admin';
+  if (session.admin.role === 'super_admin') return true;
   return employeeHasPermission(session.workforceEmployeeId, 'fyh_salon', 'attendance.view_team');
 }
 
@@ -117,8 +218,14 @@ export async function submitCorrectionForm(formData: FormData): Promise<void> {
   if (result.error) throw new Error(result.error);
 }
 
+export async function submitOwnerMarkPresentForm(formData: FormData): Promise<void> {
+  const result = await markStaffPresentByOwnerAction(formData);
+  if (result.error) throw new Error(result.error);
+}
+
 export async function canViewSalary(): Promise<boolean> {
   const session = await getHairSession();
-  if (!session?.workforceEmployeeId) return false;
+  if (!session?.workforceEmployeeId) return session?.admin.role === 'super_admin';
+  if (session.admin.role === 'super_admin') return true;
   return employeeHasPermission(session.workforceEmployeeId, 'fyh_salon', 'finance.view_salary');
 }

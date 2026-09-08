@@ -188,6 +188,7 @@ export const wfAttendance = pgTable(
     clockInLongitude: doublePrecision('clock_in_longitude'),
     gpsAccuracyMetres: integer('gps_accuracy_metres'),
     distanceMetres: integer('distance_metres'),
+    clockInPhotoUrl: text('clock_in_photo_url'),
     lockedAt: timestamp('locked_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

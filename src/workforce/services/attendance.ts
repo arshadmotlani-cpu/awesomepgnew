@@ -110,6 +110,7 @@ export async function markPresentWithGeolocation(input: {
   latitude: number;
   longitude: number;
   accuracyMetres?: number | null;
+  photoUrl?: string | null;
   engineId?: WorkforceEngineId;
   now?: Date;
 }): Promise<typeof wfAttendance.$inferSelect> {
@@ -198,6 +199,7 @@ export async function markPresentWithGeolocation(input: {
     clockInLongitude: input.longitude,
     gpsAccuracyMetres: input.accuracyMetres != null ? Math.round(input.accuracyMetres) : null,
     distanceMetres: distance,
+    clockInPhotoUrl: input.photoUrl ?? null,
     lockedAt: now,
   };
 
@@ -230,6 +232,82 @@ export async function markPresentWithGeolocation(input: {
   });
 
   return row;
+}
+
+export async function markPresentByOwner(input: {
+  employeeId: string;
+  actorEmployeeId: string;
+  engineId?: WorkforceEngineId;
+  workDate?: string;
+  now?: Date;
+  reason?: string;
+}): Promise<typeof wfAttendance.$inferSelect> {
+  const settings = await getSalonSettings();
+  const timezone = settings.timezone ?? 'Asia/Kolkata';
+  const now = input.now ?? new Date();
+  const workDate = input.workDate ?? canonicalBusinessDate(timezone, now);
+  const engineId = input.engineId ?? 'fyh_salon';
+
+  const [existing] = await hairDb
+    .select()
+    .from(wfAttendance)
+    .where(
+      and(
+        eq(wfAttendance.employeeId, input.employeeId),
+        eq(wfAttendance.engineId, engineId),
+        eq(wfAttendance.workDate, workDate),
+      ),
+    )
+    .limit(1);
+
+  if (existing?.lockedAt && existing.status === 'present' && existing.clockInAt) {
+    throw new AttendanceError('Attendance is already marked for today.', 'already_marked');
+  }
+
+  const reason = input.reason?.trim() || 'Owner marked present';
+
+  if (existing) {
+    return markAttendanceStatus({
+      employeeId: input.employeeId,
+      engineId,
+      workDate,
+      status: 'present',
+      actorEmployeeId: input.actorEmployeeId,
+      correctionReason: reason,
+    }).then(async (row) => {
+      const [updated] = await hairDb
+        .update(wfAttendance)
+        .set({
+          clockInAt: existing.clockInAt ?? now,
+          lockedAt: now,
+        })
+        .where(eq(wfAttendance.id, row.id))
+        .returning();
+      return updated!;
+    });
+  }
+
+  const [created] = await hairDb
+    .insert(wfAttendance)
+    .values({
+      employeeId: input.employeeId,
+      engineId,
+      workDate,
+      status: 'present',
+      clockInAt: now,
+      lockedAt: now,
+      notes: reason,
+    })
+    .returning();
+
+  await publishEmployeeEvent({
+    eventType: 'employee.attendance.clock_in',
+    employeeId: input.employeeId,
+    engineId,
+    payload: { workDate, attendanceId: created!.id, markedByOwner: true },
+  });
+
+  return created!;
 }
 
 export async function clockIn(input: {
