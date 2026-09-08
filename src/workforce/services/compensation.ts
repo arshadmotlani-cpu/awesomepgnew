@@ -191,6 +191,7 @@ export async function createDraftPayrollRun(input: {
   periodStart?: string;
   periodEnd?: string;
   employeeIds?: string[];
+  organizationId?: string;
   /** Use fixed salon cycle: previous month, only between 7th–10th. */
   useSalonCycle?: boolean;
   timezone?: string;
@@ -224,7 +225,8 @@ export async function createDraftPayrollRun(input: {
       engineId,
       periodStart,
       periodEnd,
-      status: 'draft',
+      status: 'generated',
+      ...(input.organizationId ? { organizationId: input.organizationId } : {}),
     })
     .returning();
 
@@ -234,8 +236,15 @@ export async function createDraftPayrollRun(input: {
       await hairDb
         .select({ employeeId: wfEngineMemberships.employeeId })
         .from(wfEngineMemberships)
+        .innerJoin(wfEmployees, eq(wfEmployees.id, wfEngineMemberships.employeeId))
         .where(
-          and(eq(wfEngineMemberships.engineId, engineId), eq(wfEngineMemberships.isActive, true)),
+          and(
+            eq(wfEngineMemberships.engineId, engineId),
+            eq(wfEngineMemberships.isActive, true),
+            ...(input.organizationId
+              ? [eq(wfEmployees.organizationId, input.organizationId)]
+              : []),
+          ),
         )
     );
 

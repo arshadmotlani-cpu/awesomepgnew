@@ -63,6 +63,18 @@ export default async function TeamMemberMePage() {
 
         <section className="rounded-2xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-medium">Salary</h2>
+            <Link href="/expenses/salary" className="text-sm text-fyh-accent underline">
+              View my salary
+            </Link>
+          </div>
+          <p className="mt-2 text-sm text-fyh-text-secondary">
+            See your monthly salary calculation, attendance deductions, and incentives.
+          </p>
+        </section>
+
+        <section className="rounded-2xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-medium">Attendance</h2>
             <Link href="/attendance" className="text-sm text-fyh-accent underline">
               Open attendance

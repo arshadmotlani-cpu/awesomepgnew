@@ -225,15 +225,26 @@ export const wfAttendanceCorrections = pgTable(
 );
 
 /** Payroll foundation — draft runs; calculation expands later. */
-export const wfPayrollRuns = pgTable('wf_payroll_runs', {
-  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+export const wfPayrollRuns = pgTable(
+  'wf_payroll_runs',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
     organizationId: organizationIdCol(),
-  engineId: text('engine_id').$type<WorkforceEngineId>().notNull(),
-  periodStart: date('period_start').notNull(),
-  periodEnd: date('period_end').notNull(),
-  status: text('status').notNull().default('draft'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+    engineId: text('engine_id').$type<WorkforceEngineId>().notNull(),
+    periodStart: date('period_start').notNull(),
+    periodEnd: date('period_end').notNull(),
+    status: text('status').notNull().default('draft'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('wf_payroll_runs_org_engine_period_uidx').on(
+      t.organizationId,
+      t.engineId,
+      t.periodStart,
+      t.periodEnd,
+    ),
+  ],
+);
 
 export const wfPayrollLines = pgTable(
   'wf_payroll_lines',
@@ -257,6 +268,36 @@ export const wfPayrollLines = pgTable(
   (t) => [
     uniqueIndex('wf_payroll_lines_run_employee_uidx').on(t.payrollRunId, t.employeeId),
     index('wf_payroll_lines_employee_idx').on(t.employeeId),
+  ],
+);
+
+export const wfPayrollPayments = pgTable(
+  'wf_payroll_payments',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    payrollRunId: uuid('payroll_run_id')
+      .notNull()
+      .references(() => wfPayrollRuns.id, { onDelete: 'restrict' }),
+    payrollLineId: uuid('payroll_line_id')
+      .notNull()
+      .references(() => wfPayrollLines.id, { onDelete: 'restrict' }),
+    employeeId: uuid('employee_id')
+      .notNull()
+      .references(() => wfEmployees.id, { onDelete: 'restrict' }),
+    amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
+    paymentMethod: text('payment_method').notNull().default('upi'),
+    paymentReference: text('payment_reference'),
+    paidAt: timestamp('paid_at', { withTimezone: true }).notNull().defaultNow(),
+    paidByEmployeeId: uuid('paid_by_employee_id').references(() => wfEmployees.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('wf_payroll_payments_line_uidx').on(t.payrollLineId),
+    index('wf_payroll_payments_run_idx').on(t.payrollRunId),
+    index('wf_payroll_payments_employee_idx').on(t.employeeId),
   ],
 );
 
