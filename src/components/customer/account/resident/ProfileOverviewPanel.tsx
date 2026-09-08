@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import { residentProfileRoomSharingLabel } from '@/src/lib/roomCapacitySsot';
-import { residentPaymentsHref } from '@/src/lib/accountNavigation';
+import { residentStayHref } from '@/src/lib/accountNavigation';
 import type { CheckoutSettlementWaterfall } from '@/src/lib/checkout/checkoutSettlementEngineV2';
 import type { ResidentBookingRow } from '@/src/db/queries/customer';
 
@@ -80,7 +80,7 @@ export function ProfileOverviewPanel({
       <ApgCard tier="resident">
         <p className="text-sm text-apg-silver">
           Bills and payment history live in{' '}
-          <Link href={residentPaymentsHref('due')} className="font-semibold text-apg-orange hover:underline">
+          <Link href={residentStayHref('due')} className="font-semibold text-apg-orange hover:underline">
             Payments
           </Link>
           .

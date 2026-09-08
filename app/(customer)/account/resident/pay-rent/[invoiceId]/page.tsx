@@ -23,7 +23,7 @@ import { ApgCard } from '@/src/components/customer/design-system';
 import { LateFeeCountdown } from '@/src/components/billing/LateFeeCountdown';
 import { RentInvoiceBreakdownPanel } from '@/src/components/billing/RentInvoiceBreakdownPanel';
 import { ViewBillDetailsCollapsible } from '@/src/components/billing/ViewBillDetailsCollapsible';
-import { residentTabHref } from '@/src/lib/accountNavigation';
+import { residentStayHref } from '@/src/lib/accountNavigation';
 import {
   ACCOUNT_BACK_LINK,
   ACCOUNT_PAGE_TITLE,
@@ -115,7 +115,7 @@ export default async function PayRentPage({
   });
   const amountLabel = paiseToInr(projected.outstandingPaise);
   const periodLabel = billPresentation.periodLabel;
-  const backHref = residentTabHref('payments');
+  const backHref = residentStayHref('payments');
   const issueDate = rentInvoiceIssueDate(row);
   const dueDateLabel = projected.graceEndDate ?? formatDate(row.dueDate);
   const rentAfterDiscount = row.rentPaise - (row.discountPaise ?? 0);

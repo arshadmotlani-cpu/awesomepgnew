@@ -12,7 +12,7 @@ const profilePage = readFileSync(
   join(process.cwd(), 'app/(customer)/account/profile/page.tsx'),
   'utf8',
 );
-const residentRedirect = readFileSync(
+const residentPage = readFileSync(
   join(process.cwd(), 'app/(customer)/account/resident/page.tsx'),
   'utf8',
 );
@@ -36,17 +36,16 @@ test('vacating approval recomputes notice from billing coverage SSOT', () => {
   assert.match(approveBlock, /frozenNoticePenaltyPaise: frozenNoticePaise/);
 });
 
-test('canonical resident routes: /account/resident aliases to V2 profile hub', () => {
-  assert.match(residentRedirect, /legacyResidentTabHref\('home'\)/);
-  assert.doesNotMatch(residentRedirect, /SimpleAccountHub/);
+test('canonical resident routes: /account/resident is My Stay hub with payments default', () => {
+  assert.match(residentPage, /ResidentStaySection/);
+  assert.match(residentPage, /staySub/);
+  assert.doesNotMatch(residentPage, /legacyResidentTabHref\('home'\)/);
 });
 
-test('profile page: resident portal wins over legacy SimpleAccountHub when access granted', () => {
-  assert.match(profilePage, /hasResidentPortalAccess && !explicitSettings/);
-  assert.match(profilePage, /ResidentAreaSection/);
-  const accessBranch = profilePage.indexOf('hasResidentPortalAccess && !explicitSettings');
-  const legacyHub = profilePage.indexOf('<SimpleAccountHub');
-  assert.ok(accessBranch > 0 && legacyHub > accessBranch, 'V2 hub branch precedes legacy hub render');
+test('profile page: residents see account profile, not stay dashboard', () => {
+  assert.match(profilePage, /ResidentAccountProfileSection/);
+  assert.match(profilePage, /redirect\('\/account\/resident'\)/);
+  assert.doesNotMatch(profilePage, /activeTab=\{residentTab\}[\s\S]*profileSub/);
 });
 
 test('Manju production identifiers documented for regression audits', () => {

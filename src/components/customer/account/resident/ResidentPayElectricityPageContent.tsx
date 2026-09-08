@@ -7,7 +7,7 @@ import { ResidentElectricityBillCalculationPanel } from '@/src/components/custom
 import { ElectricityDueCountdown } from '@/src/components/billing/ElectricityDueCountdown';
 import { ViewBillDetailsCollapsible } from '@/src/components/billing/ViewBillDetailsCollapsible';
 import { PaymentFlowErrorBoundary } from '@/src/components/customer/payments/PaymentFlowErrorBoundary';
-import { residentTabHref } from '@/src/lib/accountNavigation';
+import { residentStayHref } from '@/src/lib/accountNavigation';
 import {
   ACCOUNT_BACK_LINK,
   ACCOUNT_PAGE_TITLE,
@@ -40,7 +40,7 @@ export function ResidentPayElectricityPageContent({
   const outstanding = projection.outstandingPaise;
   const amountLabel = paiseToInr(outstanding);
   const periodLabel = formatDate(invoice.billingMonth);
-  const resolvedBackHref = backHref ?? residentTabHref('payments');
+  const resolvedBackHref = backHref ?? residentStayHref('payments');
   const dueDateLabel = invoice.dueDate;
   const showCountdown =
     projection.effectiveStatus !== 'paid' && projection.effectiveStatus !== 'cancelled';

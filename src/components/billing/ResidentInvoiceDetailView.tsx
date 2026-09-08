@@ -12,7 +12,7 @@ import {
 } from '@/src/lib/billing/residentInvoiceAccess';
 import { legacyResidentInvoiceSharePath } from '@/src/lib/billing/sendInvoiceOnWhatsApp';
 import { getCustomerSession } from '@/src/lib/auth/session';
-import { residentTabHref } from '@/src/lib/accountNavigation';
+import { residentStayHref } from '@/src/lib/accountNavigation';
 import {
   ACCOUNT_BACK_LINK,
   ACCOUNT_PAGE_SUBTITLE,
@@ -76,7 +76,7 @@ export async function ResidentInvoiceDetailView({ ref }: { ref: string }) {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-      <Link href={residentTabHref('payments')} className={ACCOUNT_BACK_LINK}>
+      <Link href={residentStayHref('payments')} className={ACCOUNT_BACK_LINK}>
         ← Back to payments
       </Link>
       <header className="mt-4 mb-6">

@@ -4,17 +4,8 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { StatusChip } from '@/src/components/customer/design-system';
-import { ResidentSubNav } from '@/src/components/customer/account/resident/ResidentSubpageLayout';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
-import { residentPaymentsHref } from '@/src/lib/accountNavigation';
-import type { ResidentPaymentsSub } from '@/src/lib/accountNavigation';
-import { InvoicePdfDownloadLink } from '@/src/components/billing/InvoicePdfDownloadLink';
-import { invoicePdfDownloadHref } from '@/src/lib/billing/invoicePdfLinks';
-import {
-  ResidentElectricityHistory,
-  type ResidentElectricityHistoryItem,
-} from '@/src/components/customer/account/resident/ResidentElectricityHistory';
-import { requestStatusTone, primaryBtn, secondaryBtn } from '@/src/lib/design-system/tokens';
+import { requestStatusTone, primaryBtn } from '@/src/lib/design-system/tokens';
 import { ResidentElectricityBillCalculationPanel } from '@/src/components/customer/account/resident/ResidentElectricityBillCalculationPanel';
 import { ResidentElectricityPendingCard } from '@/src/components/customer/account/resident/ResidentElectricityPendingCard';
 import { LateFeeCountdown } from '@/src/components/billing/LateFeeCountdown';
@@ -54,17 +45,11 @@ export type LifetimeTotals = {
 };
 
 type Props = {
-  sub: ResidentPaymentsSub;
   dueRows: BillDueRow[];
   pendingApprovalRows: PaymentDueRow[];
   rejectedBillRows?: PaymentDueRow[];
-  paidBills: PaidHistoryRow[];
-  cancelledBills?: PaidHistoryRow[];
   pendingRentNotice?: string | null;
   electricityBillingPending?: ResidentElectricityBillingState | null;
-  electricityHistory?: ResidentElectricityHistoryItem[];
-  historyHref: string | null;
-  lifetimeTotals: LifetimeTotals;
   payableNowTotalPaise: number;
   payAll: {
     visible: boolean;
@@ -163,26 +148,14 @@ function BillCard({ row }: { row: BillDueRow }) {
 }
 
 export function ResidentPaymentsV2Hub({
-  sub,
   dueRows,
   pendingApprovalRows,
   rejectedBillRows = [],
-  paidBills,
-  cancelledBills = [],
   pendingRentNotice = null,
   electricityBillingPending = null,
-  electricityHistory = [],
-  historyHref,
-  lifetimeTotals,
   payableNowTotalPaise,
   payAll,
 }: Props) {
-  const [showCancelled, setShowCancelled] = useState(false);
-  const subNav = [
-    { id: 'due', label: 'Bills Due', href: residentPaymentsHref('due') },
-    { id: 'invoices', label: 'Invoices', href: residentPaymentsHref('invoices') },
-  ];
-
   const payableDue = dueRows.filter((r) => r.href);
   const totalDuePaise = payableNowTotalPaise;
   const showElectricityPending = electricityBillingPending?.showPendingCard === true;
@@ -190,9 +163,6 @@ export function ResidentPaymentsV2Hub({
 
   return (
     <div className="apg-resident-panel-content">
-      <ResidentSubNav items={subNav} activeId={sub} />
-
-      {sub === 'due' ? (
         <div className="space-y-4 pb-2">
           <ApgCard tier="resident">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -284,134 +254,6 @@ export function ResidentPaymentsV2Hub({
             </ApgCard>
           ) : null}
         </div>
-      ) : (
-        <div className="space-y-4 pb-2">
-          <ApgCard tier="resident">
-            <h2 className="text-sm font-semibold text-white">Lifetime totals</h2>
-            <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div>
-                <dt className="text-[10px] uppercase text-apg-silver">Rent paid</dt>
-                <dd className="text-sm font-bold tabular-nums text-white">
-                  {paiseToInr(lifetimeTotals.rentPaidPaise)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[10px] uppercase text-apg-silver">Deposit paid</dt>
-                <dd className="text-sm font-bold tabular-nums text-white">
-                  {paiseToInr(lifetimeTotals.depositPaidPaise)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[10px] uppercase text-apg-silver">Electricity paid</dt>
-                <dd className="text-sm font-bold tabular-nums text-white">
-                  {paiseToInr(lifetimeTotals.electricityPaidPaise)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[10px] uppercase text-apg-silver">Other charges</dt>
-                <dd className="text-sm font-bold tabular-nums text-white">
-                  {paiseToInr(lifetimeTotals.otherPaidPaise)}
-                </dd>
-              </div>
-            </dl>
-          </ApgCard>
-
-          {electricityHistory.length > 0 ? (
-            <ApgCard tier="resident">
-              <ResidentElectricityHistory items={electricityHistory} theme="dark" />
-            </ApgCard>
-          ) : null}
-
-          {paidBills.length === 0 ? (
-            <ApgCard tier="resident">
-              <p className="text-sm text-apg-silver">No paid invoices yet.</p>
-            </ApgCard>
-          ) : (
-            <ApgCard tier="resident">
-              <h2 className="text-sm font-semibold text-white">Paid invoices</h2>
-              <ul className="mt-3 divide-y divide-white/10">
-                {paidBills.map((row) => (
-                  <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
-                    <div>
-                      <p className="text-sm font-medium text-white">{row.label}</p>
-                      {row.billingPeriodLabel ? (
-                        <p className="mt-0.5 text-xs text-apg-silver">{row.billingPeriodLabel}</p>
-                      ) : null}
-                      {row.paymentModeLabel ? (
-                        <p className="text-xs text-apg-silver">Paid via {row.paymentModeLabel}</p>
-                      ) : row.subtitle ? (
-                        <p className="text-xs text-apg-silver">{row.subtitle}</p>
-                      ) : null}
-                      {row.paidAt ? (
-                        <p className="text-xs text-apg-silver">Issued {row.paidAt}</p>
-                      ) : null}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-semibold tabular-nums text-white">
-                        {paiseToInr(row.amountPaise)}
-                      </span>
-                      {row.detailHref ? (
-                        <Link
-                          href={row.detailHref}
-                          className="rounded-lg border border-white/15 px-2 py-1 text-[11px] font-medium text-apg-silver hover:text-white"
-                        >
-                          View invoice
-                        </Link>
-                      ) : null}
-                      {row.invoiceNumber ? (
-                        <InvoicePdfDownloadLink
-                          href={invoicePdfDownloadHref(row.invoiceNumber)}
-                          label="Download PDF"
-                          className="rounded-lg border border-white/15 px-2 py-1 text-[11px] font-medium text-apg-silver hover:text-white"
-                        />
-                      ) : null}
-                      <StatusChip
-                        status={row.status === 'partial' ? 'Partially paid' : row.status}
-                        toneMap={requestStatusTone}
-                      />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </ApgCard>
-          )}
-
-          {cancelledBills.length > 0 ? (
-            <ApgCard tier="resident">
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-apg-silver">
-                <input
-                  type="checkbox"
-                  checked={showCancelled}
-                  onChange={(e) => setShowCancelled(e.target.checked)}
-                  className="rounded border-white/20"
-                />
-                Show cancelled invoices
-              </label>
-              {showCancelled ? (
-                <ul className="mt-3 divide-y divide-white/10">
-                  {cancelledBills.map((row) => (
-                    <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
-                      <div>
-                        <p className="text-sm font-medium text-white">{row.label}</p>
-                        <p className="text-xs text-apg-silver">Cancelled</p>
-                      </div>
-                      <span className="text-sm font-semibold tabular-nums text-apg-silver">
-                        {paiseToInr(row.amountPaise)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </ApgCard>
-          ) : null}
-
-          {historyHref ? (
-            <Link href={historyHref} className={`${secondaryBtn} w-full`}>
-              Full payment history →
-            </Link>
-          ) : null}
-        </div>
-      )}
     </div>
   );
 }

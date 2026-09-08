@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { GlossaryTip } from '@/src/components/customer/account/resident/GlossaryTip';
 import { formatDate, paiseToInr } from '@/src/lib/format';
-import { residentTabHref } from '@/src/lib/accountNavigation';
+import { residentStayHref } from '@/src/lib/accountNavigation';
 import type { UpcomingPaymentRow } from '@/src/components/customer/account/resident/ResidentUpcomingPayments';
 
 export function ResidentHomeNextPayment({ payment }: { payment: UpcomingPaymentRow | null }) {
@@ -44,7 +44,7 @@ export function ResidentHomeNextPayment({ payment }: { payment: UpcomingPaymentR
         </p>
       </div>
       <Link
-        href={residentTabHref('payments')}
+        href={residentStayHref('payments')}
         className="mt-4 inline-block text-xs font-semibold text-indigo-700 hover:text-indigo-600"
       >
         See all bills →

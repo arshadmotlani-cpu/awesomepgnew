@@ -116,12 +116,12 @@ export function deriveWalletPrimaryAction(input: {
   }
   if (input.amountDuePaise > 0) {
     return {
-      href: '/account/profile?section=resident&tab=payments',
+      href: '/account/resident',
       label: 'View bills to pay',
     };
   }
   return {
-    href: input.historyHref ?? '/account/profile?section=resident&tab=payments',
+    href: input.historyHref ?? '/account/resident',
     label: 'View history',
   };
 }

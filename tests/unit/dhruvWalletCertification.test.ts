@@ -63,8 +63,8 @@ test('certification: resident portal excludes reserve lifecycle and completed-on
 });
 
 test('certification: residents land on My Stay dashboard, not profile settings', () => {
-  assert.match(profilePage, /hasResidentPortalAccess && !explicitSettings/);
-  assert.match(profilePage, /preloaded={ctx}/);
+  assert.match(profilePage, /ResidentAccountProfileSection/);
+  assert.match(profilePage, /redirect\('\/account\/resident'\)/);
   assert.match(safeNext, /fallback = '\/account\/resident'/);
   assert.doesNotMatch(
     profilePage,
@@ -77,8 +77,7 @@ test('certification: wallet reads deposit_ledger refundable balance for historic
   assert.match(residentPortalTabData, /getDepositSummaryForBooking/);
   assert.match(residentPortalTabData, /walletBooking/);
   assert.match(residentPortalTabData, /refundableBalancePaise/);
-  assert.match(residentArea, /activeTab === 'profile' && primaryBooking/);
-  assert.match(residentArea, /ResidentProfileTabSection/);
+  assert.match(residentArea, /activeTab === 'invoices' && primaryBooking/);
   assert.doesNotMatch(
     residentArea,
     /activeTab === 'payments' && primaryBooking && financialAccount/,

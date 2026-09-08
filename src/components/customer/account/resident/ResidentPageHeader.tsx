@@ -34,7 +34,7 @@ export function ResidentPageHeader({ meta, backHref, backLabel }: Props) {
               /
             </span>
             <Link href={residentAccountSettingsHref()} className={ACCOUNT_BACK_LINK}>
-              Settings
+              Profile
             </Link>
           </>
         )}

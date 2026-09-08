@@ -4,15 +4,13 @@ import { ResidentIncompleteStayPanel } from '@/src/components/customer/account/r
 import { ResidentSectionErrorBoundary } from '@/src/components/customer/account/resident/ResidentSectionErrorBoundary';
 import {
   ResidentConciergeTabSection,
-  ResidentPaymentsTabSection,
-  ResidentProfileTabSection,
+  ResidentInvoicesTabSection,
   ResidentReferralsTabSection,
   ResidentRequestsTabSection,
 } from '@/src/components/customer/account/ResidentAreaAsyncSections';
 import {
   ResidentConciergeTabSkeleton,
-  ResidentPaymentsTabSkeleton,
-  ResidentProfileTabSkeleton,
+  ResidentInvoicesTabSkeleton,
   ResidentReferralsTabSkeleton,
   ResidentRequestsTabSkeleton,
 } from '@/src/components/customer/account/ResidentPortalSkeletons';
@@ -22,30 +20,21 @@ import {
   parseDevResidentDurationMode,
 } from '@/src/lib/auth/developerTestResident.server';
 import { getCustomerSession } from '@/src/lib/auth/session';
-import type { ResidentTab, ResidentProfileSub, ResidentPaymentsSub } from '@/src/lib/accountNavigation';
+import type { ResidentTab } from '@/src/lib/accountNavigation';
 import { hasResidentPortalReadyStay } from '@/src/lib/residents/residentPortalStay';
 import type { ResidentAccountContext } from '@/src/services/residentAccountContext';
 import { cookies } from 'next/headers';
 
-/**
- * Resident billing dashboard — shell + tab-scoped Suspense sections.
- * Preloaded context from the page avoids duplicate ResidentAccountContext loading.
- */
+/** Account features hub — Requests, Invoices, Referrals, Concierge. */
 export async function ResidentAreaSection({
   preloaded,
   customerId,
-  activeTab = 'profile',
-  profileSub = 'overview',
-  paymentsSub = 'due',
-  editExpanded = false,
+  activeTab = 'requests',
   requestsQuery = {},
 }: {
   preloaded: ResidentAccountContext;
   customerId: string;
   activeTab?: ResidentTab;
-  profileSub?: ResidentProfileSub;
-  paymentsSub?: ResidentPaymentsSub;
-  editExpanded?: boolean;
   requestsQuery?: {
     requestId?: string;
     make?: boolean;
@@ -83,40 +72,16 @@ export async function ResidentAreaSection({
         />
       ) : null}
 
-      {activeTab === 'profile' && primaryBooking ? (
-        <Suspense fallback={<ResidentProfileTabSkeleton />}>
+      {activeTab === 'invoices' && primaryBooking ? (
+        <Suspense fallback={<ResidentInvoicesTabSkeleton />}>
           <ResidentSectionErrorBoundary
-            page="resident_profile_tab"
+            page="resident_invoices_tab"
             customerId={customerId}
             email={session.email}
             bookingId={primaryBooking.bookingId}
-            title="Profile could not load"
+            title="Invoices could not load"
           >
-            <ResidentProfileTabSection
-              preloaded={preloaded}
-              customerId={customerId}
-              profileSub={profileSub}
-              editExpanded={editExpanded}
-              developerTestMode={developerTestMode}
-            />
-          </ResidentSectionErrorBoundary>
-        </Suspense>
-      ) : null}
-
-      {activeTab === 'payments' && primaryBooking ? (
-        <Suspense fallback={<ResidentPaymentsTabSkeleton />}>
-          <ResidentSectionErrorBoundary
-            page="resident_payments_tab"
-            customerId={customerId}
-            email={session.email}
-            bookingId={primaryBooking.bookingId}
-            title="Payments could not load"
-          >
-            <ResidentPaymentsTabSection
-              preloaded={preloaded}
-              customerId={customerId}
-              paymentsSub={paymentsSub}
-            />
+            <ResidentInvoicesTabSection preloaded={preloaded} customerId={customerId} />
           </ResidentSectionErrorBoundary>
         </Suspense>
       ) : null}

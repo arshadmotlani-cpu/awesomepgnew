@@ -62,16 +62,23 @@ describe('Phase 1 resident portal UI dedupe', () => {
     assert.match(src, /max-md:grid-cols-1/);
   });
 
-  it('ResidentPaymentsV2Hub hides cancelled invoices behind toggle', () => {
+  it('ResidentInvoicesHub hides cancelled invoices behind toggle', () => {
     const src = readFileSync(
-      join(process.cwd(), 'src/components/customer/account/resident/ResidentPaymentsV2Hub.tsx'),
+      join(process.cwd(), 'src/components/customer/account/resident/ResidentInvoicesHub.tsx'),
       'utf8',
     );
     assert.match(src, /showCancelled/);
     assert.match(src, /Show cancelled invoices/);
+  });
+
+  it('ResidentPaymentsV2Hub focuses on bills due only', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'src/components/customer/account/resident/ResidentPaymentsV2Hub.tsx'),
+      'utf8',
+    );
     assert.match(src, /payableNowTotalPaise/);
     assert.match(src, /Pay all/);
-    assert.match(src, /paymentModeLabel/);
+    assert.doesNotMatch(src, /Show cancelled invoices/);
   });
 
   it('resident portal tab data uses SSOT bill builder — not legacy panels', () => {
@@ -102,13 +109,13 @@ describe('Phase 1 resident portal UI dedupe', () => {
     assert.doesNotMatch(src, /function formatPaymentModeLabel/);
   });
 
-  it('payment history back link targets Profile wallet sub-tab', () => {
+  it('payment history back link targets My Stay wallet sub-tab', () => {
     const src = readFileSync(
       join(process.cwd(), 'app/(customer)/account/resident/history/[bookingId]/page.tsx'),
       'utf8',
     );
-    assert.match(src, /residentProfileHref\('wallet'\)/);
-    assert.match(src, /Back to Profile → Wallet/);
+    assert.match(src, /residentStayHref\('wallet'\)/);
+    assert.match(src, /Back to My Stay → Wallet/);
   });
 });
 

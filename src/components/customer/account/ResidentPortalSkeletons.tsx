@@ -56,6 +56,25 @@ export function ResidentReferralsTabSkeleton() {
   );
 }
 
+export function ResidentInvoicesTabSkeleton() {
+  return (
+    <div className="animate-pulse space-y-3" aria-hidden>
+      <div className="h-24 rounded-xl bg-white/5" />
+      <div className="h-40 rounded-xl bg-white/5" />
+    </div>
+  );
+}
+
+export function ResidentStayTabSkeleton() {
+  return (
+    <div className="animate-pulse space-y-4" aria-hidden>
+      <div className="h-10 w-full rounded-lg bg-white/10" />
+      <div className="h-32 rounded-xl bg-white/5" />
+      <div className="h-48 rounded-xl bg-white/5" />
+    </div>
+  );
+}
+
 export function ResidentConciergeTabSkeleton() {
   return (
     <div className="animate-pulse h-64 rounded-xl bg-white/5" aria-hidden />

@@ -11,8 +11,8 @@ const residentPortalTabData = readFileSync(
   join(process.cwd(), 'src/services/residentPortalTabData.ts'),
   'utf8',
 );
-const profileHub = readFileSync(
-  join(process.cwd(), 'src/components/customer/account/resident/ResidentProfileHub.tsx'),
+const stayHub = readFileSync(
+  join(process.cwd(), 'src/components/customer/account/resident/ResidentStayHub.tsx'),
   'utf8',
 );
 const profileWalletPanel = readFileSync(
@@ -37,16 +37,9 @@ const financialEngine = readFileSync(
 );
 
 test('wallet sub-tab is always available for residents with a booking', () => {
-  assert.match(residentAreaSection, /activeTab === 'profile' && primaryBooking/);
-  assert.match(residentAreaSection, /ResidentProfileTabSection/);
-  assert.match(profileHub, /id: 'wallet'/);
-  assert.match(profileHub, /<ProfileWalletPanel/);
+  assert.match(stayHub, /id: 'wallet'/);
+  assert.match(stayHub, /<ProfileWalletPanel/);
   assert.match(residentPortalTabData, /walletBooking/);
-  assert.doesNotMatch(
-    residentAreaSection,
-    /\{financialAccount \?\s*\(\s*\n\s*<ProfileWalletPanel/,
-    'wallet content must not be gated on financialAccount',
-  );
 });
 
 test('wallet sub-tab wires deposit balance, ledger, policy, and refund tracking', () => {
@@ -73,18 +66,19 @@ test('financial engine falls back to latest booking for wallet SSOT', () => {
   );
 });
 
-test('payments tab is not gated on financialAccount', () => {
-  assert.match(residentAreaSection, /activeTab === 'payments' && primaryBooking/);
+test('payments are on My Stay, not gated on financialAccount', () => {
+  assert.match(stayHub, /id: 'payments'/);
+  assert.match(stayHub, /ResidentPaymentsV2Hub/);
   assert.doesNotMatch(
     residentAreaSection,
     /activeTab === 'payments' && primaryBooking && financialAccount/,
   );
 });
 
-test('resident nav uses Profile and Payments labels', () => {
+test('account feature nav lists Requests and Invoices', () => {
   const nav = readFileSync(join(process.cwd(), 'src/lib/residentNavigation.ts'), 'utf8');
-  assert.match(nav, /label: 'Profile'/);
-  assert.match(nav, /label: 'Payments'/);
+  assert.match(nav, /label: 'Requests'/);
+  assert.match(nav, /label: 'Invoices'/);
 });
 
 test('restored deposit wallet components exist on disk', () => {

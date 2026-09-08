@@ -1,12 +1,13 @@
 import { ReferralsPanel } from '@/src/components/customer/account/ReferralsPanel';
 import { ResidentConciergeChat } from '@/src/components/customer/account/ResidentConciergeChat';
-import { ResidentProfileHub } from '@/src/components/customer/account/resident/ResidentProfileHub';
-import { ResidentPaymentsV2Hub } from '@/src/components/customer/account/resident/ResidentPaymentsV2Hub';
+import { ProfileEditSection } from '@/src/components/customer/account/resident/ProfileEditSection';
+import { ResidentStayHub } from '@/src/components/customer/account/resident/ResidentStayHub';
+import { ResidentInvoicesHub } from '@/src/components/customer/account/resident/ResidentInvoicesHub';
 import { ResidentSectionErrorBoundary } from '@/src/components/customer/account/resident/ResidentSectionErrorBoundary';
 import { ResidentPortalSectionFallback } from '@/src/components/customer/account/resident/ResidentPortalSectionFallback';
 import { logPortalLoaderFailure } from '@/src/lib/residents/residentPortalLoaderSafety';
 import { RequestsHome } from '@/src/components/customer/account/resident/requests/RequestsHome';
-import type { ResidentPaymentsSub, ResidentProfileSub } from '@/src/lib/accountNavigation';
+import type { ResidentStaySub } from '@/src/lib/accountNavigation';
 import {
   DEV_RESIDENT_DURATION_COOKIE,
   parseDevResidentDurationMode,
@@ -33,17 +34,64 @@ async function portalSession(customerId: string): Promise<PortalSession | null> 
   return session;
 }
 
-export async function ResidentProfileTabSection({
+export async function ResidentAccountProfileSection({
   preloaded,
   customerId,
-  profileSub,
   editExpanded,
+}: {
+  preloaded: ResidentAccountContext;
+  customerId: string;
+  editExpanded: boolean;
+}) {
+  const session = await portalSession(customerId);
+  if (!session) return null;
+
+  let data: Awaited<ReturnType<typeof loadResidentProfileTabData>>;
+  try {
+    data = await loadResidentProfileTabData({
+      preloaded,
+      session,
+      developerTestMode: false,
+      simulatedDurationMode: null,
+    });
+  } catch (error) {
+    logPortalLoaderFailure({
+      section: 'profile_tab',
+      customerId,
+      bookingId: preloaded.primaryBooking?.bookingId ?? null,
+      loader: 'ResidentAccountProfileSection',
+      required: false,
+      error,
+    });
+    return (
+      <ResidentPortalSectionFallback
+        section="profile"
+        title="Profile could not load"
+        message="Your account details are safe. Please try again."
+      />
+    );
+  }
+
+  return (
+    <ProfileEditSection
+      fullName={data.customer.fullName}
+      email={data.customer.email}
+      phoneLocal={indianLocalFromE164(data.customer.phone) ?? ''}
+      phoneDisplay={formatIndianPhoneDisplay(session.phone)}
+      defaultExpanded={editExpanded}
+    />
+  );
+}
+
+export async function ResidentStayTabSection({
+  preloaded,
+  customerId,
+  staySub,
   developerTestMode,
 }: {
   preloaded: ResidentAccountContext;
   customerId: string;
-  profileSub: ResidentProfileSub;
-  editExpanded: boolean;
+  staySub: ResidentStaySub;
   developerTestMode: boolean;
 }) {
   const session = await portalSession(customerId);
@@ -54,91 +102,103 @@ export async function ResidentProfileTabSection({
     ? parseDevResidentDurationMode(cookieStore.get(DEV_RESIDENT_DURATION_COOKIE)?.value)
     : null;
 
-  let data: Awaited<ReturnType<typeof loadResidentProfileTabData>>;
+  let profileData: Awaited<ReturnType<typeof loadResidentProfileTabData>>;
+  let paymentsData: Awaited<ReturnType<typeof loadResidentPaymentsTabData>>;
   try {
-    data = await loadResidentProfileTabData({
-      preloaded,
-      session,
-      developerTestMode,
-      simulatedDurationMode,
-    });
+    [profileData, paymentsData] = await Promise.all([
+      loadResidentProfileTabData({
+        preloaded,
+        session,
+        developerTestMode,
+        simulatedDurationMode,
+      }),
+      loadResidentPaymentsTabData({ preloaded, session }),
+    ]);
   } catch (error) {
     logPortalLoaderFailure({
-      section: 'profile_tab',
+      section: 'stay_tab',
       customerId,
       bookingId: preloaded.primaryBooking?.bookingId ?? null,
-      loader: 'ResidentProfileTabSection',
+      loader: 'ResidentStayTabSection',
       required: false,
       error,
     });
     return (
       <ResidentPortalSectionFallback
-        section="profile"
-        title="Profile could not load"
-        message="Your stay, deposit, and rent records are safe. Some profile details are temporarily unavailable — please try again."
+        section="stay"
+        title="My Stay could not load"
+        message="Your stay and payment records are safe. Please try again."
       />
     );
   }
 
-  if (!data.primaryBooking) return null;
+  if (!profileData.primaryBooking) return null;
 
   return (
-    <ResidentProfileHub
-      sub={profileSub}
-      booking={data.primaryBooking.booking}
-      billingCycleLabel={
-        data.monthlyRentDisplay?.billingCycleLabel ??
-        billingCycleLabel(data.primaryBooking.booking.checkInDate)
-      }
-      monthlyRentPaise={data.monthlyRentPaise}
-      depositRequiredPaise={
-        data.primaryDepositCard?.depositPaise ?? data.primaryBooking.booking.depositPaise
-      }
-      depositPaidPaise={
-        data.primaryDepositCard?.collectedPaise ?? data.primaryBooking.deposit?.collectedPaise ?? 0
-      }
-      depositBalancePaise={data.walletDepositHeldPaise}
-      depositDuePaise={data.primaryDepositCard?.depositDuePaise ?? 0}
-      moveOutStatus={data.moveOutStatus}
-      roommatesCount={data.roommatesCount}
-      roomCapacity={data.roomCapacity}
-      ps4Active={Boolean(data.ps4Membership)}
-      fullName={data.customer.fullName}
-      email={data.customer.email}
-      phoneLocal={indianLocalFromE164(data.customer.phone) ?? ''}
-      phoneDisplay={formatIndianPhoneDisplay(session.phone)}
-      editExpanded={editExpanded}
-      bookingId={data.primaryBooking.bookingId}
-      customerId={session.customerId}
-      availableRefundPaise={data.walletAvailableRefundPaise}
-      unusedPrepaidRentPaise={data.walletUnusedPrepaidRentPaise}
-      depositRefundablePaise={data.walletDepositRefundablePaise}
-      entries={data.depositEntries}
-      hasOpenVacating={data.hasOpenVacating}
-      refundEligibility={data.refundEligibility}
-      settlementPreview={data.refundSettlementPreview}
-      referralSummary={{
-        lockedPaise: data.referralSummary.lockedPaise,
-        availablePaise: data.referralSummary.availablePaise,
-        withdrawnPaise: data.referralSummary.withdrawnPaise,
-      }}
-      vacatingStatus={data.primaryVacating?.status ?? null}
-      checkoutStatus={data.checkoutByBooking.get(data.primaryBooking.bookingId) ?? null}
-      vacatingDate={data.primaryVacating?.vacatingDate ?? null}
-      settlementWaterfall={data.primaryCheckoutSettlement?.waterfall ?? null}
-      canRequestVacatingDateChange={data.canRequestVacatingDateChange}
-    />
+    <>
+      {paymentsData.optionalDegraded ? (
+        <p className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+          Some payment details are temporarily unavailable. Your rent and deposit balances remain
+          accurate.
+        </p>
+      ) : null}
+      <ResidentStayHub
+        sub={staySub}
+        overview={{
+          booking: profileData.primaryBooking.booking,
+          billingCycleLabel:
+            profileData.monthlyRentDisplay?.billingCycleLabel ??
+            billingCycleLabel(profileData.primaryBooking.booking.checkInDate),
+          monthlyRentPaise: profileData.monthlyRentPaise,
+          moveOutStatus: profileData.moveOutStatus,
+          roommatesCount: profileData.roommatesCount,
+          roomCapacity: profileData.roomCapacity,
+          ps4Active: Boolean(profileData.ps4Membership),
+          canRequestVacatingDateChange: profileData.canRequestVacatingDateChange,
+        }}
+        wallet={{
+          bookingId: profileData.primaryBooking.bookingId,
+          customerId: session.customerId,
+          depositBalancePaise: profileData.walletDepositHeldPaise,
+          depositDuePaise: profileData.primaryDepositCard?.depositDuePaise ?? 0,
+          availableRefundPaise: profileData.walletAvailableRefundPaise,
+          unusedPrepaidRentPaise: profileData.walletUnusedPrepaidRentPaise,
+          depositRefundablePaise: profileData.walletDepositRefundablePaise,
+          entries: profileData.depositEntries,
+          hasOpenVacating: profileData.hasOpenVacating,
+          refundEligibility: profileData.refundEligibility,
+          settlementPreview: profileData.refundSettlementPreview,
+          referralSummary: {
+            lockedPaise: profileData.referralSummary.lockedPaise,
+            availablePaise: profileData.referralSummary.availablePaise,
+            withdrawnPaise: profileData.referralSummary.withdrawnPaise,
+          },
+        }}
+        payments={{
+          dueRows: paymentsData.enrichedDueRows,
+          pendingApprovalRows: paymentsData.pendingApprovalRows,
+          rejectedBillRows: paymentsData.rejectedBillRows,
+          paidBills: paymentsData.paidHistory,
+          cancelledBills: paymentsData.cancelledBillRows,
+          pendingRentNotice: paymentsData.pendingRentNotice?.message ?? null,
+          electricityBillingPending: paymentsData.electricityBillingPending,
+          electricityHistory: paymentsData.electricityHistory,
+          historyHref: paymentsData.historyHref,
+          lifetimeTotals: paymentsData.lifetimeTotals,
+          payableNowTotalPaise: paymentsData.payableNowTotalPaise,
+          payAll: paymentsData.payAll,
+        }}
+      />
+    </>
   );
 }
 
-export async function ResidentPaymentsTabSection({
+export async function ResidentInvoicesTabSection({
   preloaded,
   customerId,
-  paymentsSub,
 }: {
   preloaded: ResidentAccountContext;
   customerId: string;
-  paymentsSub: ResidentPaymentsSub;
 }) {
   const session = await portalSession(customerId);
   if (!session) return null;
@@ -150,42 +210,33 @@ export async function ResidentPaymentsTabSection({
     return (
       <>
         {data.optionalDegraded ? (
-          <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-            Some payment details are temporarily unavailable. Your rent and deposit balances remain
-            accurate.
+          <p className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            Some invoice details are temporarily unavailable. Your billing records remain accurate.
           </p>
         ) : null}
-        <ResidentPaymentsV2Hub
-          sub={paymentsSub}
-          dueRows={data.enrichedDueRows}
-          pendingApprovalRows={data.pendingApprovalRows}
-          rejectedBillRows={data.rejectedBillRows}
+        <ResidentInvoicesHub
           paidBills={data.paidHistory}
           cancelledBills={data.cancelledBillRows}
-          pendingRentNotice={data.pendingRentNotice?.message ?? null}
-          electricityBillingPending={data.electricityBillingPending}
           electricityHistory={data.electricityHistory}
           historyHref={data.historyHref}
           lifetimeTotals={data.lifetimeTotals}
-          payableNowTotalPaise={data.payableNowTotalPaise}
-          payAll={data.payAll}
         />
       </>
     );
   } catch (error) {
     logPortalLoaderFailure({
-      section: 'payments_tab',
+      section: 'invoices_tab',
       customerId,
       bookingId: preloaded.primaryBooking?.bookingId ?? null,
-      loader: 'ResidentPaymentsTabSection',
+      loader: 'ResidentInvoicesTabSection',
       required: false,
       error,
     });
     return (
       <ResidentPortalSectionFallback
-        section="payments"
-        title="Payments could not load"
-        message="Your rent and deposit information is safe. Some payment details are temporarily unavailable — please try again."
+        section="invoices"
+        title="Invoices could not load"
+        message="Your invoice history is safe. Please try again."
       />
     );
   }

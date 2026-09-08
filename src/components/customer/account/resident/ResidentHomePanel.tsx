@@ -3,7 +3,7 @@ import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNoti
 import { MyServicesPanel } from '@/src/components/customer/MyServicesPanel';
 import { RoachieResidentBriefing } from '@/src/components/cockroach/RoachieResidentBriefing';
 import type { buildBriefingInputForBooking } from '@/src/lib/cockroach/briefingFromBooking';
-import { legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
+import { legacyResidentTabHref, residentStayHref } from '@/src/lib/accountNavigation';
 import { ResidentHomeActiveRequests } from '@/src/components/customer/account/resident/ResidentHomeActiveRequests';
 import { ResidentHomeAdminWaiting } from '@/src/components/customer/account/resident/ResidentHomeAdminWaiting';
 import { ResidentHomeNextPayment } from '@/src/components/customer/account/resident/ResidentHomeNextPayment';
@@ -162,7 +162,7 @@ export function ResidentHomePanel({
         <MyServicesPanel membership={ps4Membership} isActiveTenant={tenantActive} />
         <p className="text-xs text-zinc-600">
           Use the navigation bar for{' '}
-          <Link href={residentTabHref('payments')} className="font-semibold text-indigo-700">
+          <Link href={residentStayHref('payments')} className="font-semibold text-indigo-700">
             Payments
           </Link>
           ,{' '}

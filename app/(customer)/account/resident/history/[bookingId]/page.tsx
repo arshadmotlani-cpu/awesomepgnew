@@ -10,7 +10,7 @@ import {
   ACCOUNT_PAGE_SUBTITLE,
   ACCOUNT_PAGE_TITLE,
 } from '@/src/components/customer/accountStyles';
-import { residentProfileHref } from '@/src/lib/accountNavigation';
+import { residentStayHref } from '@/src/lib/accountNavigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,8 +42,8 @@ export default async function PaymentHistoryPage({
   return (
     <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-10 sm:px-6">
       <header>
-        <Link href={residentProfileHref('wallet')} className={ACCOUNT_BACK_LINK}>
-          ← Back to Profile → Wallet
+        <Link href={residentStayHref('wallet')} className={ACCOUNT_BACK_LINK}>
+          ← Back to My Stay → Wallet
         </Link>
         <h1 className={`mt-2 ${ACCOUNT_PAGE_TITLE}`}>Payment history</h1>
         <p className={ACCOUNT_PAGE_SUBTITLE}>

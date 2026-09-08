@@ -9,7 +9,7 @@ import { ResidentMoreSection } from '@/src/components/customer/account/resident/
 import { deriveWalletPrimaryAction } from '@/src/lib/residents/walletLedger';
 import { buildWalletTimelineView } from '@/src/lib/residents/walletPresentation';
 import { paiseToInr } from '@/src/lib/format';
-import { residentTabHref } from '@/src/lib/accountNavigation';
+import { residentStayHref } from '@/src/lib/accountNavigation';
 
 const PRIMARY_BTN =
   'flex w-full min-h-[52px] items-center justify-center rounded-xl bg-[#FF5A1F] px-6 py-3.5 text-base font-semibold text-white hover:brightness-110';
@@ -162,7 +162,7 @@ export function ResidentWalletView({
             </Link>
           ) : null}
           <Link
-            href={residentTabHref('payments')}
+            href={residentStayHref('payments')}
             className="rounded-lg border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-800 hover:bg-zinc-50"
           >
             Bills & payments →

@@ -1,5 +1,5 @@
 import { formatDate, paiseToInr } from '@/src/lib/format';
-import { accountProfileHref, legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
+import { accountProfileHref, legacyResidentTabHref, residentStayHref, residentTabHref } from '@/src/lib/accountNavigation';
 import { VACATING_JOURNEY_STAGES, vacatingStageIndex } from '@/src/lib/residents/vacatingJourney';
 import type { UpcomingPaymentRow } from '@/src/components/customer/account/resident/ResidentUpcomingPayments';
 
@@ -154,7 +154,7 @@ export function deriveResidentHomePrimaryAction(input: {
       };
     }
     return {
-      href: residentTabHref('payments'),
+      href: residentStayHref('payments'),
       label: `Pay ${paiseToInr(input.totalDuePaise)} now`,
     };
   }
@@ -167,7 +167,7 @@ export function deriveResidentHomePrimaryAction(input: {
   }
 
   return {
-    href: residentTabHref('payments'),
+    href: residentStayHref('payments'),
     label: 'View your bills',
   };
 }
