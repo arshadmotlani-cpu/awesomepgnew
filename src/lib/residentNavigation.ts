@@ -8,20 +8,8 @@ export type ResidentTabMeta = {
   subtitle: string;
 };
 
-/** Account feature nav — Profile and My Stay live in the site header. */
+/** Profile account features — My Stay holds Overview/Payments/Requests/Wallet. */
 export const RESIDENT_DESKTOP_NAV: ResidentTabMeta[] = [
-  {
-    tab: 'requests',
-    label: 'Requests',
-    title: 'Requests',
-    subtitle: 'Maintenance, room change, move-out, and support.',
-  },
-  {
-    tab: 'invoices',
-    label: 'Invoices',
-    title: 'Invoices',
-    subtitle: 'Paid invoices, downloads, and billing history.',
-  },
   {
     tab: 'referrals',
     label: 'Referrals',
@@ -62,6 +50,6 @@ export function residentProfilePageHref(): string {
   return '/account/profile';
 }
 
-export function residentBackToHubHref(tab: ResidentTab = 'requests'): string {
+export function residentBackToHubHref(tab: ResidentTab = 'referrals'): string {
   return residentTabHref(tab);
 }

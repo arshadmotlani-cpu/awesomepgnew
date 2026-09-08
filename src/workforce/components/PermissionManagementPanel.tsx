@@ -15,6 +15,8 @@ import {
   permissionsByGroup,
   type WorkforcePermissionKey,
 } from '@/src/workforce/types';
+import { AdditionalRightsChecklist } from '@/src/workforce/components/permissions/AdditionalRightsChecklist';
+import { isAdditionalRightKey } from '@/src/workforce/permissions/additionalRights';
 import { workforceAccessRoleLabel } from '@/src/workforce/labels';
 import { Button } from '@/src/hair/components/ui/button';
 import type { EmployeeWithMembership } from '@/src/workforce/brains/employeeBrain';
@@ -43,15 +45,19 @@ function PermissionChecklist({ selected }: { selected: Set<string> }) {
             {WORKFORCE_PERMISSION_GROUP_LABELS[group as keyof typeof WORKFORCE_PERMISSION_GROUP_LABELS] ?? group}
           </legend>
           <div className="grid gap-1 sm:grid-cols-2">
-            {defs.map((def) => (
-              <label key={def.key} className="flex items-center gap-2 text-xs">
+            {defs.filter((def) => !isAdditionalRightKey(def.key)).map((def) => (
+              <label key={def.key} className="flex items-start gap-2 text-xs">
                 <input
                   type="checkbox"
                   name="permissions"
                   value={def.key}
                   defaultChecked={selected.has(def.key)}
+                  className="mt-0.5"
                 />
-                <span>{def.label}</span>
+                <span>
+                  {def.label}
+                  <span className="block text-fyh-text-secondary">({def.description})</span>
+                </span>
               </label>
             ))}
           </div>
@@ -126,7 +132,14 @@ export function PermissionManagementPanel({ templates, employees }: Props) {
 
         <form action={templateAction} className="space-y-3">
           <input type="hidden" name="accessRole" value={selectedRole} />
-          <PermissionChecklist selected={new Set(roleTemplate.permissions)} />
+          <div>
+            <p className="mb-2 text-sm font-medium text-fyh-text">Additional rights</p>
+            <AdditionalRightsChecklist selected={roleTemplate.permissions} />
+          </div>
+          <div>
+            <p className="mb-2 text-sm font-medium text-fyh-text">All permissions</p>
+            <PermissionChecklist selected={new Set(roleTemplate.permissions)} />
+          </div>
           <div className="flex flex-wrap gap-2">
             <Button type="submit" disabled={templatePending}>
               {templatePending ? 'Saving…' : 'Save role template'}
@@ -177,7 +190,14 @@ export function PermissionManagementPanel({ templates, employees }: Props) {
                 </p>
                 <form action={empAction} className="space-y-3">
                   <input type="hidden" name="employeeId" value={employee.employee.id} />
-                  <PermissionChecklist selected={new Set(employee.grants.permissions)} />
+                  <div>
+                    <p className="mb-2 text-sm font-medium text-fyh-text">Additional rights</p>
+                    <AdditionalRightsChecklist selected={employee.grants.permissions} />
+                  </div>
+                  <div>
+                    <p className="mb-2 text-sm font-medium text-fyh-text">All permissions</p>
+                    <PermissionChecklist selected={new Set(employee.grants.permissions)} />
+                  </div>
                   <Button type="submit" disabled={empPending}>
                     {empPending ? 'Saving…' : 'Save employee override'}
                   </Button>

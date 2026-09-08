@@ -12,6 +12,12 @@ export type StaffManagementAccess = {
   grants: WorkforcePermissionGrants | null;
 };
 
+/** True when the viewer may see salary, incentives, credentials on employee profiles. */
+export function canViewStaffFinancialProfiles(access: StaffManagementAccess): boolean {
+  if (access.grants === null) return true;
+  return hasWorkforcePermission(access.grants, 'staff.view_financials');
+}
+
 /** True when the viewer may edit employee profiles (super_admin or staff.edit). */
 export function canEditStaffProfiles(access: StaffManagementAccess): boolean {
   if (access.grants === null) return true;

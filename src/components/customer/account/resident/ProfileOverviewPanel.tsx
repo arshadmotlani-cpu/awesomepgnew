@@ -80,7 +80,7 @@ export function ProfileOverviewPanel({
       <ApgCard tier="resident">
         <p className="text-sm text-apg-silver">
           Bills and payment history live in{' '}
-          <Link href={residentStayHref('due')} className="font-semibold text-apg-orange hover:underline">
+          <Link href={residentStayHref('payments')} className="font-semibold text-apg-orange hover:underline">
             Payments
           </Link>
           .

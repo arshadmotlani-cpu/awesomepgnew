@@ -2,12 +2,11 @@ import { ReferralsPanel } from '@/src/components/customer/account/ReferralsPanel
 import { ResidentConciergeChat } from '@/src/components/customer/account/ResidentConciergeChat';
 import { ProfileEditSection } from '@/src/components/customer/account/resident/ProfileEditSection';
 import { ResidentStayHub } from '@/src/components/customer/account/resident/ResidentStayHub';
-import { ResidentInvoicesHub } from '@/src/components/customer/account/resident/ResidentInvoicesHub';
 import { ResidentSectionErrorBoundary } from '@/src/components/customer/account/resident/ResidentSectionErrorBoundary';
 import { ResidentPortalSectionFallback } from '@/src/components/customer/account/resident/ResidentPortalSectionFallback';
 import { logPortalLoaderFailure } from '@/src/lib/residents/residentPortalLoaderSafety';
 import { RequestsHome } from '@/src/components/customer/account/resident/requests/RequestsHome';
-import type { ResidentStaySub } from '@/src/lib/accountNavigation';
+import type { ResidentPaymentsSub, ResidentStaySub } from '@/src/lib/accountNavigation';
 import {
   DEV_RESIDENT_DURATION_COOKIE,
   parseDevResidentDurationMode,
@@ -87,12 +86,20 @@ export async function ResidentStayTabSection({
   preloaded,
   customerId,
   staySub,
+  paymentsSub,
   developerTestMode,
+  requestsQuery = {},
 }: {
   preloaded: ResidentAccountContext;
   customerId: string;
   staySub: ResidentStaySub;
+  paymentsSub: ResidentPaymentsSub;
   developerTestMode: boolean;
+  requestsQuery?: {
+    requestId?: string;
+    make?: boolean;
+    category?: RequestCategoryId;
+  };
 }) {
   const session = await portalSession(customerId);
   if (!session) return null;
@@ -134,9 +141,94 @@ export async function ResidentStayTabSection({
 
   if (!profileData.primaryBooking) return null;
 
+  let requestsPanel = null;
+  if (staySub === 'requests') {
+    try {
+      const requestsData = await loadResidentRequestsTabData({
+        preloaded,
+        session,
+        developerTestMode,
+        simulatedDurationMode,
+      });
+      if (requestsData) {
+        requestsPanel = (
+          <ResidentSectionErrorBoundary
+            page="requests_home"
+            bookingId={requestsData.primaryBooking.bookingId}
+            customerId={session.customerId}
+            title="Requests could not load"
+          >
+            <RequestsHome
+              customerId={session.customerId}
+              bookingId={requestsData.primaryBooking.bookingId}
+              bookingCode={requestsData.primaryBooking.bookingCode}
+              pgId={requestsData.primaryBooking.booking.pgId}
+              fromBedId={requestsData.fromBedId}
+              roomLabel={requestsData.roomLabel}
+              refundableBalancePaise={requestsData.walletAvailableRefundPaise}
+              hasDepositDue={requestsData.hasDepositDue}
+              activeRequests={requestsData.activeRequests}
+              selectedRequestId={requestsQuery.requestId ?? null}
+              startMake={requestsQuery.make ?? false}
+              initialCategory={requestsQuery.category ?? null}
+              vacating={requestsData.primaryVacating}
+              bookingStatus={requestsData.primaryBooking.booking.status}
+              durationMode={
+                requestsData.effectiveDurationMode ?? requestsData.primaryBooking.booking.durationMode
+              }
+              expectedCheckoutDate={requestsData.primaryBooking.booking.expectedCheckoutDate}
+              bookingCreatedAt={
+                requestsData.primaryBooking.booking.createdAt instanceof Date
+                  ? requestsData.primaryBooking.booking.createdAt.toISOString()
+                  : String(requestsData.primaryBooking.booking.createdAt)
+              }
+              checkoutSettlementStatus={
+                requestsData.checkoutByBooking.get(requestsData.primaryBooking.bookingId) ?? null
+              }
+              checkoutSettlement={
+                requestsData.checkoutSettlementByBooking.get(requestsData.primaryBooking.bookingId) ??
+                null
+              }
+              checkoutSettlementSuppressed={
+                requestsData.primaryVacating?.checkoutSettlementSuppressed === true
+              }
+              monthlyRentPaise={requestsData.monthlyRentPaise}
+              depositHeldPaise={requestsData.walletDepositHeldPaise}
+              moveInDate={requestsData.primaryBooking.booking.checkInDate}
+              developerTestEmail={developerTestMode ? session.email : null}
+              estimatedSettlement={requestsData.primaryEstimatedSettlement}
+              pendingDateChangeRequestId={requestsData.primaryPendingDateChangeRequestId}
+              pendingDateChangePreview={requestsData.primaryPendingDateChangePreview}
+              settlementContext={requestsData.primarySettlementContext}
+              settlementDocument={requestsData.primarySettlementDocument}
+              settlementNoticeDisplay={requestsData.primaryNoticeDisplay}
+              exitBrainSnapshot={requestsData.primaryExitBrainSnapshot}
+            />
+          </ResidentSectionErrorBoundary>
+        );
+      }
+    } catch (error) {
+      logPortalLoaderFailure({
+        section: 'requests_tab',
+        customerId,
+        bookingId: preloaded.primaryBooking?.bookingId ?? null,
+        loader: 'ResidentStayTabSection_requests',
+        required: false,
+        error,
+      });
+      requestsPanel = (
+        <ResidentPortalSectionFallback
+          section="requests"
+          title="Requests could not load"
+          message="Your move-out and service requests are safe. Please try again to view request status."
+        />
+      );
+    }
+  }
+
   return (
     <>
-      {paymentsData.optionalDegraded ? (
+      {paymentsData.optionalDegraded && staySub === 'payments' ? (
         <p className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
           Some payment details are temporarily unavailable. Your rent and deposit balances remain
           accurate.
@@ -144,6 +236,7 @@ export async function ResidentStayTabSection({
       ) : null}
       <ResidentStayHub
         sub={staySub}
+        paymentsSub={paymentsSub}
         overview={{
           booking: profileData.primaryBooking.booking,
           billingCycleLabel:
@@ -188,58 +281,10 @@ export async function ResidentStayTabSection({
           payableNowTotalPaise: paymentsData.payableNowTotalPaise,
           payAll: paymentsData.payAll,
         }}
+        requestsPanel={requestsPanel}
       />
     </>
   );
-}
-
-export async function ResidentInvoicesTabSection({
-  preloaded,
-  customerId,
-}: {
-  preloaded: ResidentAccountContext;
-  customerId: string;
-}) {
-  const session = await portalSession(customerId);
-  if (!session) return null;
-
-  try {
-    const data = await loadResidentPaymentsTabData({ preloaded, session });
-    if (!data.primaryBooking) return null;
-
-    return (
-      <>
-        {data.optionalDegraded ? (
-          <p className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-            Some invoice details are temporarily unavailable. Your billing records remain accurate.
-          </p>
-        ) : null}
-        <ResidentInvoicesHub
-          paidBills={data.paidHistory}
-          cancelledBills={data.cancelledBillRows}
-          electricityHistory={data.electricityHistory}
-          historyHref={data.historyHref}
-          lifetimeTotals={data.lifetimeTotals}
-        />
-      </>
-    );
-  } catch (error) {
-    logPortalLoaderFailure({
-      section: 'invoices_tab',
-      customerId,
-      bookingId: preloaded.primaryBooking?.bookingId ?? null,
-      loader: 'ResidentInvoicesTabSection',
-      required: false,
-      error,
-    });
-    return (
-      <ResidentPortalSectionFallback
-        section="invoices"
-        title="Invoices could not load"
-        message="Your invoice history is safe. Please try again."
-      />
-    );
-  }
 }
 
 export async function ResidentRequestsTabSection({

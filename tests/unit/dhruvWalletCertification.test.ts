@@ -77,7 +77,7 @@ test('certification: wallet reads deposit_ledger refundable balance for historic
   assert.match(residentPortalTabData, /getDepositSummaryForBooking/);
   assert.match(residentPortalTabData, /walletBooking/);
   assert.match(residentPortalTabData, /refundableBalancePaise/);
-  assert.match(residentArea, /activeTab === 'invoices' && primaryBooking/);
+  assert.match(residentArea, /activeTab === 'referrals'/);
   assert.doesNotMatch(
     residentArea,
     /activeTab === 'payments' && primaryBooking && financialAccount/,

@@ -6,7 +6,6 @@ import { getHairSession } from '@/src/hair/lib/auth/session';
 import { EXPENSES_SALARY_HREF } from '@/src/hair/lib/expenseRoutes';
 import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 import { getSalonSettings } from '@/src/hair/services/settings';
-import { employeeHasPermission } from '@/src/workforce/brains/employeeBrain';
 import { defaultPayrollMonthKey } from '@/src/workforce/lib/payrollAvailability';
 import {
   loadOwnPayrollLineDetail,
@@ -14,6 +13,14 @@ import {
   recordPayrollPayment,
 } from '@/src/workforce/services/payroll';
 import { requireWorkforcePermission } from '@/src/workforce/permissions/guards';
+import {
+  canManagePayroll,
+  canPaySalary,
+  canViewOwnSalary,
+  canViewSalaryQr,
+  canViewTeamPayroll,
+  getPayrollUiPermissions,
+} from '@/src/workforce/permissions/payrollAccess';
 
 export type PayrollActionState = { error?: string; success?: string };
 
@@ -26,13 +33,7 @@ async function requirePayrollActor() {
   return session;
 }
 
-export async function canViewTeamPayroll(): Promise<boolean> {
-  const session = await getHairSession();
-  if (!session) return false;
-  if (session.admin.role === 'super_admin') return true;
-  if (!session.workforceEmployeeId) return false;
-  return employeeHasPermission(session.workforceEmployeeId, 'fyh_salon', 'finance.view_salary');
-}
+export { canViewTeamPayroll, canViewOwnSalary, getPayrollUiPermissions };
 
 export async function markPayrollPaidAction(
   _prev: PayrollActionState,
@@ -40,7 +41,7 @@ export async function markPayrollPaidAction(
 ): Promise<PayrollActionState> {
   try {
     const session = await requirePayrollActor();
-    await requireWorkforcePermission('finance.view_salary');
+    await requireWorkforcePermission('finance.pay_salary');
 
     const payrollLineId = String(formData.get('payrollLineId') ?? '').trim();
     const paymentMethod = String(formData.get('paymentMethod') ?? 'upi').trim();
@@ -65,18 +66,21 @@ export async function markPayrollPaidAction(
 
 export async function loadOwnerPayrollPage(monthKey?: string) {
   await requirePayrollActor();
-  const canTeam = await canViewTeamPayroll();
-  if (!canTeam) redirect('/expenses/salary');
+  await requireWorkforcePermission('finance.view_salary');
 
   const ctx = await getTenantContextForPage();
   const settings = await getSalonSettings();
   const timezone = settings.timezone ?? 'Asia/Kolkata';
+  const canManage = await canManagePayroll();
+  const uiPermissions = await getPayrollUiPermissions();
   const detail = await loadPayrollRunDetail({
     monthKey: monthKey ?? defaultPayrollMonthKey(timezone),
     timezone,
     ctx,
+    allowCreate: canManage,
+    includePaymentDetails: uiPermissions.canViewQr,
   });
-  return { detail, timezone };
+  return { detail, timezone, uiPermissions };
 }
 
 export async function loadStaffPayrollPage(monthKey?: string) {
@@ -85,6 +89,7 @@ export async function loadStaffPayrollPage(monthKey?: string) {
   if (canTeam) return { line: null, canTeam: true as const, monthKey: monthKey ?? null };
 
   if (!session.workforceEmployeeId) redirect('/login?next=/expenses/salary');
+  if (!(await canViewOwnSalary())) redirect('/me');
 
   const ctx = await getTenantContextForPage();
   const settings = await getSalonSettings();
@@ -95,6 +100,8 @@ export async function loadStaffPayrollPage(monthKey?: string) {
     monthKey: resolvedMonth,
     timezone,
     ctx,
+    allowCreate: false,
+    includePaymentDetails: true,
   });
   return { line, canTeam: false as const, monthKey: resolvedMonth };
 }

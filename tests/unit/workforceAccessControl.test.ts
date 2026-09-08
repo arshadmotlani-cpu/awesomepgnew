@@ -44,6 +44,14 @@ describe('Workforce permission library', () => {
     assert.equal(hasWorkforcePermission(biller, 'permissions.manage'), false);
   });
 
+  test('manager template excludes salary and team attendance by default', () => {
+    const manager = codeTemplateForAccessRole('manager');
+    assert.equal(hasWorkforcePermission(manager, 'finance.view_salary'), false);
+    assert.equal(hasWorkforcePermission(manager, 'finance.pay_salary'), false);
+    assert.equal(hasWorkforcePermission(manager, 'attendance.view_team'), false);
+    assert.ok(hasWorkforcePermission(manager, 'staff.view'));
+  });
+
   test('owner template grants permissions.manage', () => {
     const owner = codeTemplateForAccessRole('owner');
     assert.ok(hasWorkforcePermission(owner, 'permissions.manage'));

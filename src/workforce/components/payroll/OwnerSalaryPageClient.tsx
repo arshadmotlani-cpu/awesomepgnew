@@ -5,11 +5,19 @@ import type { PayrollRunDetail } from '@/src/workforce/services/payroll';
 import { payrollAvailabilityLabel, payrollPeriodLabel } from '@/src/workforce/lib/payrollAvailability';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 
-type Props = {
-  detail: PayrollRunDetail;
+type UiPermissions = {
+  canViewTeam: boolean;
+  canManage: boolean;
+  canPay: boolean;
+  canViewQr: boolean;
 };
 
-export function OwnerSalaryPageClient({ detail }: Props) {
+type Props = {
+  detail: PayrollRunDetail;
+  uiPermissions: UiPermissions;
+};
+
+export function OwnerSalaryPageClient({ detail, uiPermissions }: Props) {
   const monthLabel = payrollPeriodLabel(detail.monthKey);
 
   return (
@@ -67,9 +75,24 @@ export function OwnerSalaryPageClient({ detail }: Props) {
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {detail.lines.map((line) => (
-          <SalaryEmployeeCard key={line.lineId} line={line} monthLabel={monthLabel} ownerView />
-        ))}
+        {detail.lines.length === 0 ? (
+          <p className="text-sm text-fyh-text-secondary">
+            {uiPermissions.canManage
+              ? 'No payroll lines for this period yet.'
+              : 'Payroll has not been generated for this period. Ask an owner with Manage Salary access.'}
+          </p>
+        ) : (
+          detail.lines.map((line) => (
+            <SalaryEmployeeCard
+              key={line.lineId}
+              line={line}
+              monthLabel={monthLabel}
+              ownerView
+              canPay={uiPermissions.canPay}
+              canViewQr={uiPermissions.canViewQr}
+            />
+          ))
+        )}
       </div>
     </div>
   );

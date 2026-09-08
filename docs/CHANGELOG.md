@@ -269,7 +269,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-09-08 19:34:42 UTC
+### Pending pre-commit sync · 2026-09-08 19:56:32 UTC
 
 **Areas touched:** [[ROUTES]]
 
@@ -279,10 +279,10 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
 **Staged code files (4):**
-- `app/api/admin/health/route.ts`
-- `app/api/admin/live/route.ts`
-- `app/api/analytics/heartbeat/route.ts`
-- `app/api/health/route.ts`
+- `app/(customer)/account/profile/page.tsx`
+- `app/(customer)/account/resident/page.tsx`
+- `app/(hair)/fyh/(app)/expenses/salary/page.tsx`
+- `app/(hair)/fyh/me/page.tsx`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

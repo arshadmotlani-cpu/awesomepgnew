@@ -10,6 +10,8 @@ import {
   createWorkforceEmployeeAction,
   type WorkforceActionState,
 } from '@/src/workforce/actions/employees';
+import { AdditionalRightsChecklist } from '@/src/workforce/components/permissions/AdditionalRightsChecklist';
+import { isAdditionalRightKey } from '@/src/workforce/permissions/additionalRights';
 import {
   WORKFORCE_ACCESS_ROLES,
   WORKFORCE_PERMISSION_LIBRARY,
@@ -479,11 +481,12 @@ function AddEmployeeDialog({
                   <div className={panelClass(activeSection === 'rights')}>
                     <Section title="Additional rights">
                       <p className="text-sm text-fyh-text-secondary">
-                        Default permissions apply from the access role. Override only when needed.
+                        Default permissions apply from the access role. Grant only what is needed.
                       </p>
+                      <AdditionalRightsChecklist selected={[]} />
                       <button
                         type="button"
-                        className="text-sm text-fyh-accent underline-offset-2 hover:underline"
+                        className="mt-4 text-sm text-fyh-accent underline-offset-2 hover:underline"
                         onClick={() => setShowAdvanced((v) => !v)}
                       >
                         Advanced Permission Overrides
@@ -498,10 +501,15 @@ function AddEmployeeDialog({
                                 ] ?? group}
                               </legend>
                               <div className="grid gap-1 sm:grid-cols-2">
-                                {defs.map((def) => (
-                                  <label key={def.key} className="flex items-center gap-2 text-xs">
+                                {defs.filter((def) => !isAdditionalRightKey(def.key)).map((def) => (
+                                  <label key={def.key} className="flex items-start gap-2 text-xs">
                                     <input type="checkbox" name="permissions" value={def.key} />
-                                    <span>{def.label}</span>
+                                    <span>
+                                      {def.label}
+                                      <span className="block text-fyh-text-secondary">
+                                        ({def.description})
+                                      </span>
+                                    </span>
                                   </label>
                                 ))}
                               </div>

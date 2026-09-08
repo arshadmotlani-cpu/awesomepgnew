@@ -98,6 +98,8 @@ describe('Salary permissions and payment records', () => {
     const actions = read('src/workforce/actions/payroll.ts');
     assert.match(actions, /canViewTeamPayroll/);
     assert.match(actions, /finance\.view_salary/);
+    assert.match(actions, /canViewOwnSalary/);
+    assert.match(actions, /finance\.pay_salary/);
   });
 
   it('12/18 — payroll queries are tenant-scoped', () => {
@@ -127,10 +129,11 @@ describe('Salary permissions and payment records', () => {
     }
   });
 
-  it('13 — owner can view QR from salary payment panel', () => {
+  it('13 — owner can view QR from salary payment panel when permitted', () => {
     const card = read('src/workforce/components/payroll/SalaryEmployeeCard.tsx');
     assert.match(card, /View QR/);
-    assert.match(card, /qrCodeUrl/);
+    assert.match(card, /canViewQr/);
+    assert.match(card, /canPay/);
     assert.match(card, /Mark paid/);
   });
 

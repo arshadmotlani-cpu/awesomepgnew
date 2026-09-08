@@ -62,23 +62,16 @@ describe('Phase 1 resident portal UI dedupe', () => {
     assert.match(src, /max-md:grid-cols-1/);
   });
 
-  it('ResidentInvoicesHub hides cancelled invoices behind toggle', () => {
-    const src = readFileSync(
-      join(process.cwd(), 'src/components/customer/account/resident/ResidentInvoicesHub.tsx'),
-      'utf8',
-    );
-    assert.match(src, /showCancelled/);
-    assert.match(src, /Show cancelled invoices/);
-  });
-
-  it('ResidentPaymentsV2Hub focuses on bills due only', () => {
+  it('ResidentPaymentsV2Hub keeps invoices inside Payments sub-nav', () => {
     const src = readFileSync(
       join(process.cwd(), 'src/components/customer/account/resident/ResidentPaymentsV2Hub.tsx'),
       'utf8',
     );
+    assert.match(src, /id: 'due'/);
+    assert.match(src, /id: 'invoices'/);
+    assert.match(src, /id: 'history'/);
+    assert.match(src, /showCancelled/);
     assert.match(src, /payableNowTotalPaise/);
-    assert.match(src, /Pay all/);
-    assert.doesNotMatch(src, /Show cancelled invoices/);
   });
 
   it('resident portal tab data uses SSOT bill builder — not legacy panels', () => {

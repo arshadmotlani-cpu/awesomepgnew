@@ -67,18 +67,23 @@ test('financial engine falls back to latest booking for wallet SSOT', () => {
 });
 
 test('payments are on My Stay, not gated on financialAccount', () => {
+  assert.match(stayHub, /id: 'overview'/);
   assert.match(stayHub, /id: 'payments'/);
+  assert.match(stayHub, /id: 'requests'/);
+  assert.match(stayHub, /id: 'wallet'/);
   assert.match(stayHub, /ResidentPaymentsV2Hub/);
+  assert.doesNotMatch(stayHub, /Due Rent \/ Bill Due/);
   assert.doesNotMatch(
     residentAreaSection,
     /activeTab === 'payments' && primaryBooking && financialAccount/,
   );
 });
 
-test('account feature nav lists Requests and Invoices', () => {
+test('account feature nav lists Referrals only on profile hub', () => {
   const nav = readFileSync(join(process.cwd(), 'src/lib/residentNavigation.ts'), 'utf8');
-  assert.match(nav, /label: 'Requests'/);
-  assert.match(nav, /label: 'Invoices'/);
+  assert.match(nav, /label: 'Referrals'/);
+  assert.match(nav, /label: 'Concierge'/);
+  assert.doesNotMatch(nav, /label: 'Invoices'/);
 });
 
 test('restored deposit wallet components exist on disk', () => {

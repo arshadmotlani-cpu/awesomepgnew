@@ -144,7 +144,7 @@ export async function addIncentiveAction(formData: FormData): Promise<void> {
   const actorId = await requireActor();
   const canPay =
     (await employeeHasPermission(actorId, 'fyh_salon', 'staff.edit')) ||
-    (await employeeHasPermission(actorId, 'fyh_salon', 'finance.view_salary'));
+    (await employeeHasPermission(actorId, 'fyh_salon', 'finance.manage_salary'));
   if (!canPay) throw new Error('Not allowed');
 
   const employeeId = String(formData.get('employeeId') ?? '');

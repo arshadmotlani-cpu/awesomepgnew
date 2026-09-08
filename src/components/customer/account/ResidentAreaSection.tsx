@@ -4,15 +4,11 @@ import { ResidentIncompleteStayPanel } from '@/src/components/customer/account/r
 import { ResidentSectionErrorBoundary } from '@/src/components/customer/account/resident/ResidentSectionErrorBoundary';
 import {
   ResidentConciergeTabSection,
-  ResidentInvoicesTabSection,
   ResidentReferralsTabSection,
-  ResidentRequestsTabSection,
 } from '@/src/components/customer/account/ResidentAreaAsyncSections';
 import {
   ResidentConciergeTabSkeleton,
-  ResidentInvoicesTabSkeleton,
   ResidentReferralsTabSkeleton,
-  ResidentRequestsTabSkeleton,
 } from '@/src/components/customer/account/ResidentPortalSkeletons';
 import {
   DEV_RESIDENT_DURATION_COOKIE,
@@ -25,21 +21,15 @@ import { hasResidentPortalReadyStay } from '@/src/lib/residents/residentPortalSt
 import type { ResidentAccountContext } from '@/src/services/residentAccountContext';
 import { cookies } from 'next/headers';
 
-/** Account features hub — Requests, Invoices, Referrals, Concierge. */
+/** Profile account features — Referrals and Concierge. */
 export async function ResidentAreaSection({
   preloaded,
   customerId,
-  activeTab = 'requests',
-  requestsQuery = {},
+  activeTab = 'referrals',
 }: {
   preloaded: ResidentAccountContext;
   customerId: string;
   activeTab?: ResidentTab;
-  requestsQuery?: {
-    requestId?: string;
-    make?: boolean;
-    category?: import('@/src/lib/residents/requestCenter').RequestCategoryId;
-  };
 }) {
   const session = await getCustomerSession();
   if (!session || session.customerId !== customerId) {
@@ -70,39 +60,6 @@ export async function ResidentAreaSection({
           customerEmail={session.email}
           developerTestMode={developerTestMode}
         />
-      ) : null}
-
-      {activeTab === 'invoices' && primaryBooking ? (
-        <Suspense fallback={<ResidentInvoicesTabSkeleton />}>
-          <ResidentSectionErrorBoundary
-            page="resident_invoices_tab"
-            customerId={customerId}
-            email={session.email}
-            bookingId={primaryBooking.bookingId}
-            title="Invoices could not load"
-          >
-            <ResidentInvoicesTabSection preloaded={preloaded} customerId={customerId} />
-          </ResidentSectionErrorBoundary>
-        </Suspense>
-      ) : null}
-
-      {activeTab === 'requests' && primaryBooking ? (
-        <Suspense fallback={<ResidentRequestsTabSkeleton />}>
-          <ResidentSectionErrorBoundary
-            page="resident_requests_tab"
-            customerId={customerId}
-            email={session.email}
-            bookingId={primaryBooking.bookingId}
-            title="Requests could not load"
-          >
-            <ResidentRequestsTabSection
-              preloaded={preloaded}
-              customerId={customerId}
-              developerTestMode={developerTestMode}
-              requestsQuery={requestsQuery}
-            />
-          </ResidentSectionErrorBoundary>
-        </Suspense>
       ) : null}
 
       {activeTab === 'referrals' ? (

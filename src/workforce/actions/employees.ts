@@ -155,6 +155,10 @@ export async function updateWorkforceEmployeeAction(
     const section = formStr(formData, 'saveSection');
     const actorEmployeeId = session.workforceEmployeeId ?? null;
 
+    if (section === 'credentials' || section === 'salary') {
+      await requireWorkforcePermission('staff.view_financials');
+    }
+
     if (section === 'credentials') {
       const qrCodeUrl = await resolveQrCodeUrlFromForm(formData);
       const hr = parseHrFieldsFromForm(formData, { canToggleIncentive: false });

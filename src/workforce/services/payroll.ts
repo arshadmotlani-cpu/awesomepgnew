@@ -129,23 +129,47 @@ export async function loadPayrollRunDetail(input: {
   timezone?: string;
   ctx?: TenantContext | null;
   asOf?: Date;
+  allowCreate?: boolean;
+  includePaymentDetails?: boolean;
 }): Promise<PayrollRunDetail> {
   const ctx = await resolveTenantContextForService(input.ctx);
   const engineId = input.engineId ?? 'fyh_salon';
   const timezone = input.timezone ?? 'Asia/Kolkata';
   const period = payrollPeriodFromMonthKey(input.monthKey);
+  const allowCreate = input.allowCreate ?? true;
+  const includePaymentDetails = input.includePaymentDetails ?? false;
 
   if (!isPayrollPeriodAvailable(period, timezone, input.asOf)) {
     throw new Error('This salary period is not available yet.');
   }
 
-  const run = await getOrCreatePayrollRunForMonth({
-    monthKey: input.monthKey,
-    engineId,
-    timezone,
-    ctx,
-    asOf: input.asOf,
-  });
+  let run = await findRunForPeriod({ ...period, engineId, ctx });
+  if (!run) {
+    if (!allowCreate) {
+      return {
+        runId: '',
+        monthKey: input.monthKey,
+        periodStart: period.periodStart,
+        periodEnd: period.periodEnd,
+        status: 'pending',
+        employeeCount: 0,
+        totalSalaryPaise: 0,
+        totalIncentivePaise: 0,
+        totalDeductionsPaise: 0,
+        netPayablePaise: 0,
+        paidPaise: 0,
+        pendingPaise: 0,
+        lines: [],
+      };
+    }
+    run = await getOrCreatePayrollRunForMonth({
+      monthKey: input.monthKey,
+      engineId,
+      timezone,
+      ctx,
+      asOf: input.asOf,
+    });
+  }
 
   const rows = await hairDb
     .select({
@@ -188,8 +212,8 @@ export async function loadPayrollRunDetail(input: {
       lineId: row.line.id,
       employeeId: row.line.employeeId,
       fullName: formatStaffDisplayName(row.employee.fullName),
-      upiId: row.employee.upiId,
-      qrCodeUrl: row.employee.qrCodeUrl,
+      upiId: includePaymentDetails ? row.employee.upiId : null,
+      qrCodeUrl: includePaymentDetails ? row.employee.qrCodeUrl : null,
       salaryPaise: row.line.salaryPaise,
       commissionPaise: row.line.commissionPaise,
       incentivePaise: row.line.incentivePaise,
@@ -246,6 +270,8 @@ export async function loadOwnPayrollLineDetail(input: {
   timezone?: string;
   ctx?: TenantContext | null;
   asOf?: Date;
+  allowCreate?: boolean;
+  includePaymentDetails?: boolean;
 }): Promise<PayrollLineDetail | null> {
   const ctx = await resolveTenantContextForService(input.ctx);
   const timezone = input.timezone ?? 'Asia/Kolkata';
@@ -256,6 +282,8 @@ export async function loadOwnPayrollLineDetail(input: {
     timezone,
     ctx,
     asOf: input.asOf,
+    allowCreate: input.allowCreate ?? false,
+    includePaymentDetails: input.includePaymentDetails ?? true,
   });
   return detail.lines.find((l) => l.employeeId === input.employeeId) ?? null;
 }

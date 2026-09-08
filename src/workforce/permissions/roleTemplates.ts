@@ -15,16 +15,25 @@ const ALL = [...WORKFORCE_PERMISSION_KEYS] as WorkforcePermissionKey[];
 
 const OWNER_TEMPLATE: WorkforcePermissionKey[] = [...ALL];
 
-const MANAGER_TEMPLATE: WorkforcePermissionKey[] = ALL.filter(
-  (k) =>
-    ![
-      'permissions.manage',
-      'system.settings',
-      'settings.manage',
-      'configuration.edit',
-      'attendance.manage_office',
-    ].includes(k),
-);
+/** Owner-only by default — grant explicitly via Additional Rights. */
+const MANAGER_EXCLUDED: WorkforcePermissionKey[] = [
+  'permissions.manage',
+  'system.settings',
+  'settings.manage',
+  'configuration.edit',
+  'attendance.manage_office',
+  'attendance.view_team',
+  'attendance.correct',
+  'finance.view_salary',
+  'finance.manage_salary',
+  'finance.pay_salary',
+  'finance.view_salary_qr',
+  'finance.view_own_salary',
+  'staff.view_financials',
+  'payroll.view_reports',
+];
+
+const MANAGER_TEMPLATE: WorkforcePermissionKey[] = ALL.filter((k) => !MANAGER_EXCLUDED.includes(k));
 
 const BILLER_TEMPLATE: WorkforcePermissionKey[] = [
   'customers.view',

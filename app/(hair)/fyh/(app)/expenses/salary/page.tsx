@@ -29,11 +29,11 @@ export default async function ExpensesSalaryPage({
     const { OwnerSalaryPageClient } = await import(
       '@/src/workforce/components/payroll/OwnerSalaryPageClient'
     );
-    const { detail } = await loadOwnerPayrollPage(monthKey);
+    const { detail, uiPermissions } = await loadOwnerPayrollPage(monthKey);
     return (
       <>
         <ExpensesSectionSubNav />
-        <OwnerSalaryPageClient detail={detail} />
+        <OwnerSalaryPageClient detail={detail} uiPermissions={uiPermissions} />
       </>
     );
   }

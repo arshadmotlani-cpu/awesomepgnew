@@ -10,21 +10,30 @@ import {
   parseDevResidentDurationMode,
 } from '@/src/lib/auth/developerTestResident.server';
 import { getCustomerSession } from '@/src/lib/auth/session';
-import type { ResidentStaySub } from '@/src/lib/accountNavigation';
+import type { ResidentPaymentsSub, ResidentStaySub } from '@/src/lib/accountNavigation';
 import { hasResidentPortalReadyStay } from '@/src/lib/residents/residentPortalStay';
 import type { ResidentAccountContext } from '@/src/services/residentAccountContext';
+import type { RequestCategoryId } from '@/src/lib/residents/requestCenter';
 import { cookies } from 'next/headers';
 import { DeveloperTestResidentPanel } from '@/src/components/customer/account/resident/DeveloperTestResidentPanel';
 
-/** My Stay — payments, overview, wallet, and due rent. */
+/** My Stay — Overview, Payments, Requests, Wallet. */
 export async function ResidentStaySection({
   preloaded,
   customerId,
   staySub = 'payments',
+  paymentsSub = 'due',
+  requestsQuery = {},
 }: {
   preloaded: ResidentAccountContext;
   customerId: string;
   staySub?: ResidentStaySub;
+  paymentsSub?: ResidentPaymentsSub;
+  requestsQuery?: {
+    requestId?: string;
+    make?: boolean;
+    category?: RequestCategoryId;
+  };
 }) {
   const session = await getCustomerSession();
   if (!session || session.customerId !== customerId) {
@@ -81,7 +90,9 @@ export async function ResidentStaySection({
                 preloaded={preloaded}
                 customerId={customerId}
                 staySub={staySub}
+                paymentsSub={paymentsSub}
                 developerTestMode={developerTestMode}
+                requestsQuery={requestsQuery}
               />
             </ResidentSectionErrorBoundary>
           </Suspense>

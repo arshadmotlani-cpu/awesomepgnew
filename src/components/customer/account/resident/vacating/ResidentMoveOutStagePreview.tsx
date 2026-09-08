@@ -8,7 +8,7 @@ const CUSTOMER_ID = '00000000-0000-4000-8000-000000000001';
 
 export function ResidentMoveOutStagePreview({ cfg }: { cfg: ResidentMoveOutStageVacatingHomeProps }) {
   return (
-    <ResidentHubShell activeTab="requests">
+    <ResidentHubShell activeTab="referrals">
       <div className="mx-auto max-w-lg px-1 pb-8" data-move-out-stage={cfg.stage}>
         <VacatingHome
           bookingId={cfg.vacating.bookingId}

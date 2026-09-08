@@ -13,9 +13,17 @@ type Props = {
   line: PayrollLineDetail;
   monthLabel: string;
   ownerView?: boolean;
+  canPay?: boolean;
+  canViewQr?: boolean;
 };
 
-export function SalaryEmployeeCard({ line, monthLabel, ownerView = true }: Props) {
+export function SalaryEmployeeCard({
+  line,
+  monthLabel,
+  ownerView = true,
+  canPay = false,
+  canViewQr = false,
+}: Props) {
   const [expanded, setExpanded] = useState(false);
   const [showPay, setShowPay] = useState(false);
   const [showQr, setShowQr] = useState(false);
@@ -63,13 +71,15 @@ export function SalaryEmployeeCard({ line, monthLabel, ownerView = true }: Props
           >
             {expanded ? 'Hide detail' : 'View'}
           </button>
-          <button
-            type="button"
-            onClick={() => setShowPay((v) => !v)}
-            className="rounded bg-fyh-accent px-3 py-1.5 text-sm font-medium text-black"
-          >
-            Pay
-          </button>
+          {canPay ? (
+            <button
+              type="button"
+              onClick={() => setShowPay((v) => !v)}
+              className="rounded bg-fyh-accent px-3 py-1.5 text-sm font-medium text-black"
+            >
+              Pay
+            </button>
+          ) : null}
         </div>
       ) : null}
 
@@ -82,26 +92,34 @@ export function SalaryEmployeeCard({ line, monthLabel, ownerView = true }: Props
         </div>
       ) : null}
 
-      {showPay && ownerView && line.status !== 'paid' ? (
+      {showPay && ownerView && canPay && line.status !== 'paid' ? (
         <form action={formAction} className="mt-4 space-y-3 rounded-xl border border-[color:var(--fyh-border)] p-4">
           <input type="hidden" name="payrollLineId" value={line.lineId} />
           <p className="text-sm font-medium">Pay {line.fullName}</p>
           <p className="text-sm text-fyh-text-secondary">Salary for {monthLabel}</p>
           <p className="text-lg font-semibold">{inr(line.netPaise)}</p>
-          <p className="text-sm">
-            UPI ID:{' '}
-            <span className="font-medium">{line.upiId?.trim() || 'Not saved'}</span>
-          </p>
-          {line.qrCodeUrl ? (
-            <button
-              type="button"
-              onClick={() => setShowQr(true)}
-              className="rounded border border-[color:var(--fyh-border)] px-3 py-1.5 text-sm"
-            >
-              View QR
-            </button>
+          {canViewQr ? (
+            <>
+              <p className="text-sm">
+                UPI ID:{' '}
+                <span className="font-medium">{line.upiId?.trim() || 'Not saved'}</span>
+              </p>
+              {line.qrCodeUrl ? (
+                <button
+                  type="button"
+                  onClick={() => setShowQr(true)}
+                  className="rounded border border-[color:var(--fyh-border)] px-3 py-1.5 text-sm"
+                >
+                  View QR
+                </button>
+              ) : (
+                <p className="text-sm text-fyh-text-secondary">No salary payment QR saved.</p>
+              )}
+            </>
           ) : (
-            <p className="text-sm text-fyh-text-secondary">No salary payment QR saved.</p>
+            <p className="text-sm text-fyh-text-secondary">
+              Payment details hidden — View Salary QR permission required.
+            </p>
           )}
           <label className="block text-sm">
             Payment method
@@ -135,7 +153,7 @@ export function SalaryEmployeeCard({ line, monthLabel, ownerView = true }: Props
         </form>
       ) : null}
 
-      {showQr && line.qrCodeUrl ? (
+      {showQr && canViewQr && line.qrCodeUrl ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setShowQr(false)}>
           <div className="max-w-sm rounded-2xl bg-[color:var(--fyh-surface)] p-4" onClick={(e) => e.stopPropagation()}>
             <p className="mb-3 text-sm font-medium">{line.fullName} — payment QR</p>

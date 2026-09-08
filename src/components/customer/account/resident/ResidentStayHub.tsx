@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { ProfileOverviewPanel } from '@/src/components/customer/account/resident/ProfileOverviewPanel';
 import { ProfileWalletPanel } from '@/src/components/customer/account/resident/ProfileWalletPanel';
 import {
@@ -10,7 +11,7 @@ import {
 } from '@/src/components/customer/account/resident/ResidentPaymentsV2Hub';
 import { ResidentSubNav } from '@/src/components/customer/account/resident/ResidentSubpageLayout';
 import { residentStayHref, residentTabHref } from '@/src/lib/accountNavigation';
-import type { ResidentStaySub } from '@/src/lib/accountNavigation';
+import type { ResidentPaymentsSub, ResidentStaySub } from '@/src/lib/accountNavigation';
 import type { ResidentBookingRow } from '@/src/db/queries/customer';
 import type { DepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
 import type { DepositLedgerEntry } from '@/src/db/schema/depositLedger';
@@ -72,17 +73,26 @@ type StayPaymentsProps = {
 
 type Props = {
   sub: ResidentStaySub;
+  paymentsSub: ResidentPaymentsSub;
   overview: StayOverviewProps;
   wallet: StayWalletProps;
   payments: StayPaymentsProps;
+  requestsPanel?: ReactNode;
 };
 
-export function ResidentStayHub({ sub, overview, wallet, payments }: Props) {
-  const subNav = [
-    { id: 'payments', label: 'Payments', href: residentStayHref('payments') },
+export function ResidentStayHub({
+  sub,
+  paymentsSub,
+  overview,
+  wallet,
+  payments,
+  requestsPanel = null,
+}: Props) {
+  const primaryNav = [
     { id: 'overview', label: 'Overview', href: residentStayHref('overview') },
+    { id: 'payments', label: 'Payments', href: residentStayHref('payments') },
+    { id: 'requests', label: 'Requests', href: residentStayHref('requests') },
     { id: 'wallet', label: 'Wallet', href: residentStayHref('wallet') },
-    { id: 'due', label: 'Due Rent / Bill Due', href: residentStayHref('due') },
   ];
 
   const changeFinalStayHref = overview.canRequestVacatingDateChange
@@ -91,7 +101,7 @@ export function ResidentStayHub({ sub, overview, wallet, payments }: Props) {
 
   return (
     <div className="apg-resident-panel-content">
-      <ResidentSubNav items={subNav} activeId={sub} />
+      <ResidentSubNav items={primaryNav} activeId={sub} />
 
       {sub === 'overview' ? (
         <ProfileOverviewPanel
@@ -105,6 +115,26 @@ export function ResidentStayHub({ sub, overview, wallet, payments }: Props) {
           changeFinalStayHref={changeFinalStayHref}
         />
       ) : null}
+
+      {sub === 'payments' ? (
+        <ResidentPaymentsV2Hub
+          sub={paymentsSub}
+          dueRows={payments.dueRows}
+          pendingApprovalRows={payments.pendingApprovalRows}
+          rejectedBillRows={payments.rejectedBillRows}
+          paidBills={payments.paidBills}
+          cancelledBills={payments.cancelledBills}
+          pendingRentNotice={payments.pendingRentNotice}
+          electricityBillingPending={payments.electricityBillingPending}
+          electricityHistory={payments.electricityHistory}
+          historyHref={payments.historyHref}
+          lifetimeTotals={payments.lifetimeTotals}
+          payableNowTotalPaise={payments.payableNowTotalPaise}
+          payAll={payments.payAll}
+        />
+      ) : null}
+
+      {sub === 'requests' ? requestsPanel : null}
 
       {sub === 'wallet' ? (
         <ProfileWalletPanel
@@ -120,18 +150,6 @@ export function ResidentStayHub({ sub, overview, wallet, payments }: Props) {
           refundEligibility={wallet.refundEligibility}
           settlementPreview={wallet.settlementPreview}
           referralSummary={wallet.referralSummary}
-        />
-      ) : null}
-
-      {sub === 'payments' || sub === 'due' ? (
-        <ResidentPaymentsV2Hub
-          dueRows={payments.dueRows}
-          pendingApprovalRows={payments.pendingApprovalRows}
-          rejectedBillRows={payments.rejectedBillRows}
-          pendingRentNotice={payments.pendingRentNotice}
-          electricityBillingPending={payments.electricityBillingPending}
-          payableNowTotalPaise={payments.payableNowTotalPaise}
-          payAll={payments.payAll}
         />
       ) : null}
     </div>

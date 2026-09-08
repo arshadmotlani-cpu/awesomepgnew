@@ -19,6 +19,7 @@ import {
   parseResidentPaymentsSub,
   parseResidentStaySub,
   parseResidentTab,
+  residentPaymentsHref,
   residentStayHref,
   residentTabHref,
   type ResidentTab,
@@ -37,16 +38,8 @@ function parseLegacyHubTab(
 }
 
 function isAccountFeatureTab(tab: ResidentTab | undefined, tabParam: string | undefined): boolean {
-  if (tab === 'requests' || tab === 'invoices' || tab === 'referrals' || tab === 'concierge') {
-    return true;
-  }
-  return (
-    tabParam === 'requests' ||
-    tabParam === 'invoices' ||
-    tabParam === 'referrals' ||
-    tabParam === 'concierge' ||
-    tabParam === 'vacating'
-  );
+  if (tab === 'referrals' || tab === 'concierge') return true;
+  return tabParam === 'referrals' || tabParam === 'concierge';
 }
 
 export const dynamic = 'force-dynamic';
@@ -94,6 +87,7 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
 
   const tabParam = typeof sp.tab === 'string' ? sp.tab : undefined;
   const subParam = typeof sp.sub === 'string' ? sp.sub : undefined;
+  const payParam = typeof sp.pay === 'string' ? sp.pay : undefined;
   const residentTab = parseResidentTab(tabParam);
   const editExpanded = sp.edit === '1' || explicitSettings;
 
@@ -140,10 +134,11 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
     if (tabParam === 'home') redirect(residentStayHref('overview'));
     if (tabParam === 'wallet') redirect(residentStayHref('wallet'));
     if (tabParam === 'room' || tabParam === 'notifications') redirect(residentStayHref('overview'));
+    if (tabParam === 'requests') redirect(residentStayHref('requests'));
+    if (tabParam === 'vacating') redirect(residentTabHref('requests', { category: 'move_out' }));
+    if (tabParam === 'invoices') redirect(residentPaymentsHref('invoices'));
     if (tabParam === 'payments') {
-      const paymentsSub = parseResidentPaymentsSub(subParam);
-      if (paymentsSub === 'invoices') redirect(residentTabHref('invoices'));
-      redirect(residentStayHref(parseResidentStaySub(subParam ?? 'payments')));
+      redirect(residentPaymentsHref(parseResidentPaymentsSub(subParam ?? payParam)));
     }
     if (tabParam === 'profile' && sectionRaw === 'resident') {
       if (subParam === 'wallet') redirect(residentStayHref('wallet'));
@@ -175,11 +170,6 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
               preloaded={ctx}
               customerId={session.customerId}
               activeTab={residentTab}
-              requestsQuery={{
-                requestId: typeof sp.request === 'string' ? sp.request : undefined,
-                make: sp.make === '1' || categoryRaw === 'move_out' || tabParam === 'vacating',
-                category: requestCategory ?? undefined,
-              }}
             />
           </ResidentSectionErrorBoundary>
         </main>
@@ -214,8 +204,6 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
         >
           {(
             [
-              ['requests', 'Requests'],
-              ['invoices', 'Invoices'],
               ['referrals', 'Referrals'],
               ['concierge', 'Concierge'],
             ] as const

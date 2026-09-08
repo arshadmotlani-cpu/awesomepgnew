@@ -42,6 +42,9 @@ export default async function TeamMemberMePage() {
     monthPerf.packageRevenuePaise +
     monthPerf.membershipRevenuePaise;
 
+  const canViewOwnSalaryLink =
+    dash.grants != null && hasWorkforcePermission(dash.grants, 'finance.view_own_salary');
+
   return (
     <div className="min-h-screen bg-[color:var(--fyh-bg)] px-4 py-8 text-fyh-text">
       <div className="mx-auto max-w-3xl space-y-8">
@@ -61,17 +64,19 @@ export default async function TeamMemberMePage() {
           </form>
         </header>
 
-        <section className="rounded-2xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-medium">Salary</h2>
-            <Link href="/expenses/salary" className="text-sm text-fyh-accent underline">
-              View my salary
-            </Link>
-          </div>
-          <p className="mt-2 text-sm text-fyh-text-secondary">
-            See your monthly salary calculation, attendance deductions, and incentives.
-          </p>
-        </section>
+        {canViewOwnSalaryLink ? (
+          <section className="rounded-2xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-medium">Salary</h2>
+              <Link href="/expenses/salary" className="text-sm text-fyh-accent underline">
+                View my salary
+              </Link>
+            </div>
+            <p className="mt-2 text-sm text-fyh-text-secondary">
+              See your monthly salary calculation, attendance deductions, and incentives.
+            </p>
+          </section>
+        ) : null}
 
         <section className="rounded-2xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
