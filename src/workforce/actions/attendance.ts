@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { getSalonSettings } from '@/src/hair/services/settings';
 import { employeeHasPermission } from '@/src/workforce/brains/employeeBrain';
@@ -143,18 +144,22 @@ export async function saveOfficeLocationAction(
 ): Promise<AttendanceActionState> {
   try {
     await requireWorkforcePermission('attendance.manage_office');
+    const ctx = await getTenantContextForPage();
     const latitude = Number(formData.get('officeLatitude'));
     const longitude = Number(formData.get('officeLongitude'));
     const officeLabel = String(formData.get('officeLabel') ?? '').trim() || null;
     const radiusRaw = formData.get('officeRadiusMetres');
     const officeRadiusMetres =
       radiusRaw != null && String(radiusRaw).trim() !== '' ? Number(radiusRaw) : undefined;
-    await updateOfficeLocationConfig({
-      officeLatitude: latitude,
-      officeLongitude: longitude,
-      officeLabel,
-      officeRadiusMetres,
-    });
+    await updateOfficeLocationConfig(
+      {
+        officeLatitude: latitude,
+        officeLongitude: longitude,
+        officeLabel,
+        officeRadiusMetres,
+      },
+      ctx,
+    );
     revalidatePath('/settings');
     revalidatePath('/settings/attendance');
     revalidatePath('/attendance');
@@ -223,9 +228,14 @@ export async function submitOwnerMarkPresentForm(formData: FormData): Promise<vo
   if (result.error) throw new Error(result.error);
 }
 
-export async function canViewSalary(): Promise<boolean> {
+export async function canViewStaffFinancials(): Promise<boolean> {
   const session = await getHairSession();
   if (!session?.workforceEmployeeId) return session?.admin.role === 'super_admin';
   if (session.admin.role === 'super_admin') return true;
-  return employeeHasPermission(session.workforceEmployeeId, 'fyh_salon', 'finance.view_salary');
+  return employeeHasPermission(session.workforceEmployeeId, 'fyh_salon', 'staff.view_financials');
+}
+
+/** @deprecated Use canViewStaffFinancials — salary columns on attendance views. */
+export async function canViewSalary(): Promise<boolean> {
+  return canViewStaffFinancials();
 }
