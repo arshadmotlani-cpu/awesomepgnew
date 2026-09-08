@@ -219,12 +219,29 @@ export function isFrontDeskNavProfile(admin: PermissionAdmin): boolean {
   );
 }
 
+/** Staff self-service vs owner team attendance — same sidebar label, different canonical routes. */
+export function resolveAttendanceNavHref(admin: PermissionAdmin): string {
+  return hasPermission(admin, 'page:dashboard') ? '/attendance/manage' : '/attendance';
+}
+
+export function applyAttendanceNavHref(
+  admin: PermissionAdmin,
+  entries: HairNavEntry[],
+): HairNavEntry[] {
+  return entries.map((entry) => {
+    if (entry.type === 'link' && entry.label === 'Attendance' && entry.href === '/attendance') {
+      return { ...entry, href: resolveAttendanceNavHref(admin) };
+    }
+    return entry;
+  });
+}
+
 export function resolveNavEntries(
   admin: PermissionAdmin,
   entries: HairNavEntry[] = HAIR_NAV_ENTRIES,
 ): HairNavEntry[] {
   const source = isFrontDeskNavProfile(admin) ? FRONT_DESK_NAV_ENTRIES : entries;
-  return filterNavByPermissions(admin, source);
+  return applyAttendanceNavHref(admin, filterNavByPermissions(admin, source));
 }
 
 export function filterNavByPermissions(

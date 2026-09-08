@@ -18,25 +18,42 @@ export default async function OwnerAttendanceManagePage({
   if (!isWorkforceEngineEnabled()) redirect('/dashboard');
 
   const session = await getHairSession();
-  if (!session?.workforceEmployeeId) redirect('/login');
+  if (!session) redirect('/login?next=/attendance/manage');
 
-  const canView = await employeeHasPermission(
-    session.workforceEmployeeId,
-    'fyh_salon',
-    'attendance.view_team',
-  );
+  const isSuperAdmin = session.admin.role === 'super_admin';
+  if (!session.workforceEmployeeId && !isSuperAdmin) {
+    redirect('/login?next=/attendance/manage');
+  }
+
+  const canView =
+    isSuperAdmin ||
+    (session.workforceEmployeeId
+      ? await employeeHasPermission(
+          session.workforceEmployeeId,
+          'fyh_salon',
+          'attendance.view_team',
+        )
+      : false);
   if (!canView) redirect('/attendance');
 
-  const canSalary = await employeeHasPermission(
-    session.workforceEmployeeId,
-    'fyh_salon',
-    'finance.view_salary',
-  );
-  const canCorrect = await employeeHasPermission(
-    session.workforceEmployeeId,
-    'fyh_salon',
-    'attendance.correct',
-  );
+  const canSalary =
+    isSuperAdmin ||
+    (session.workforceEmployeeId
+      ? await employeeHasPermission(
+          session.workforceEmployeeId,
+          'fyh_salon',
+          'finance.view_salary',
+        )
+      : false);
+  const canCorrect =
+    isSuperAdmin ||
+    (session.workforceEmployeeId
+      ? await employeeHasPermission(
+          session.workforceEmployeeId,
+          'fyh_salon',
+          'attendance.correct',
+        )
+      : false);
 
   const params = await searchParams;
   const monthKey = params.month ?? new Date().toISOString().slice(0, 7);

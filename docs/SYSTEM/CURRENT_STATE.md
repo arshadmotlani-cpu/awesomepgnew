@@ -288,3 +288,6 @@ See [[BUGS]] for full list. Highlights:
 
 <!-- DOC_SYNC_TOUCH_2026-09-07 -->
 > **2026-09-07 06:11:48 UTC** — Code changed in: Database, Billing, Vacating. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-09-08 -->
+> **2026-09-08 11:17:18 UTC** — Code changed in: Routes. Manual review recommended.
