@@ -117,14 +117,47 @@ test('QuickSaleShell uses dedicated checkoutSubmitting — not shared pending on
   assert.match(shell, /emptyQuickSaleTransactionState/);
 });
 
-test('workspace lock overlay and aria-busy when submitting', () => {
+test('processing indicator and interaction shield portal to body without grey overlay', () => {
   const shell = readSrc('src/hair/components/quick-sale/QuickSaleShell.tsx');
-  assert.match(shell, /qs-pos-locked/);
+  assert.doesNotMatch(shell, /qs-pos-locked/);
   assert.match(shell, /aria-busy=\{workspaceLocked\}/);
-  assert.match(shell, /QuickSaleProcessingOverlay/);
+  assert.match(shell, /QuickSaleCheckoutProcessing/);
   const overlay = readSrc('src/hair/components/quick-sale/QuickSaleProcessingOverlay.tsx');
-  assert.match(overlay, /qs-processing-overlay/);
-  assert.match(overlay, /data-testid="qs-processing-overlay"/);
+  assert.match(overlay, /createPortal/);
+  assert.match(overlay, /document\.body/);
+  assert.match(overlay, /qs-processing-indicator/);
+  assert.match(overlay, /qs-interaction-shield/);
+  assert.match(overlay, /data-testid="qs-processing-indicator"/);
+  assert.match(overlay, /data-testid="qs-interaction-shield"/);
+  const css = readSrc('src/hair/styles/globals.css');
+  assert.match(css, /\.qs-processing-indicator/);
+  assert.match(css, /position:\s*fixed/);
+  assert.match(css, /bottom:\s*1\.25rem/);
+  assert.match(css, /\.qs-interaction-shield/);
+  assert.doesNotMatch(css, /\.qs-processing-overlay/);
+});
+
+test('submitCheckout always clears processing in finally', () => {
+  const shell = readSrc('src/hair/components/quick-sale/QuickSaleShell.tsx');
+  const fnStart = shell.indexOf('async function submitCheckout()');
+  const fnEnd = shell.indexOf('const addPrepaidSelections', fnStart);
+  assert.ok(fnStart > 0 && fnEnd > fnStart);
+  const block = shell.slice(fnStart, fnEnd);
+  assert.match(block, /finally/);
+  assert.match(block, /setCheckoutSubmitting\(false\)/);
+});
+
+test('checkout failure preserves basket and processing is not persisted', () => {
+  const shell = readSrc('src/hair/components/quick-sale/QuickSaleShell.tsx');
+  const fnStart = shell.indexOf('async function submitCheckout()');
+  const fnEnd = shell.indexOf('const addPrepaidSelections', fnStart);
+  assert.ok(fnStart > 0 && fnEnd > fnStart);
+  const block = shell.slice(fnStart, fnEnd);
+  assert.doesNotMatch(block, /resetTransactionState/);
+  assert.match(block, /finalizeSuccess/);
+  assert.match(shell, /QUICK_SALE_CHECKOUT_FAILED_ERROR/);
+  assert.doesNotMatch(shell, /checkoutSubmitting.*localStorage/);
+  assert.doesNotMatch(shell, /saveQuickSaleSession.*checkoutSubmitting/);
 });
 
 test('membership preview does not set checkout submitting', () => {

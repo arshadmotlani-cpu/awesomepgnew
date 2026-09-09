@@ -12,8 +12,9 @@ import {
   previewQuickSaleTotalsAction,
 } from '@/src/hair/actions/quickSale';
 import { QuickSaleBasketTable } from '@/src/hair/components/quick-sale/QuickSaleBasketTable';
+import { QuickSaleClearAllConfirm } from '@/src/hair/components/quick-sale/QuickSaleClearAllConfirm';
 import { QuickSalePaymentPanel } from '@/src/hair/components/quick-sale/QuickSalePaymentPanel';
-import { QuickSaleProcessingOverlay } from '@/src/hair/components/quick-sale/QuickSaleProcessingOverlay';
+import { QuickSaleCheckoutProcessing } from '@/src/hair/components/quick-sale/QuickSaleProcessingOverlay';
 import { QuickSaleSuccessDialog } from '@/src/hair/components/quick-sale/QuickSaleSuccessDialog';
 import {
   AvailableServicesModal,
@@ -28,8 +29,11 @@ import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import {
+  buildClearedQuickSaleDraftForCustomer,
   emptyQuickSaleTransactionState,
+  hasQuickSaleTransactionContent,
   QUICK_SALE_CHECKOUT_AMBIGUOUS_ERROR,
+  QUICK_SALE_CHECKOUT_FAILED_ERROR,
   QUICK_SALE_CHECKOUT_INTERRUPTED_ERROR,
 } from '@/src/hair/lib/quickSaleLifecycle';
 import {
@@ -104,6 +108,7 @@ export function QuickSaleShell({
   const [staffNames, setStaffNames] = useState<Record<string, string>>({});
   const [sessionHydrated, setSessionHydrated] = useState(false);
   const [availableServicesOpen, setAvailableServicesOpen] = useState(false);
+  const [clearAllConfirmOpen, setClearAllConfirmOpen] = useState(false);
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
   const [holdSubmitting, setHoldSubmitting] = useState(false);
   const [successGrandTotalPaise, setSuccessGrandTotalPaise] = useState(0);
@@ -111,6 +116,11 @@ export function QuickSaleShell({
   const checkoutSubmittingRef = useRef(false);
 
   const workspaceLocked = checkoutSubmitting || holdSubmitting;
+  const hasActiveTransaction = hasQuickSaleTransactionContent({
+    lines,
+    payments,
+    holdInvoiceId,
+  });
 
   const basket: Basket | null = customer
     ? {
@@ -206,6 +216,10 @@ export function QuickSaleShell({
   }, [step, refreshHeldBills]);
 
   useEffect(() => {
+    if (workspaceLocked) setClearAllConfirmOpen(false);
+  }, [workspaceLocked]);
+
+  useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
       const tag = (e.target as HTMLElement | null)?.tagName;
@@ -298,8 +312,13 @@ export function QuickSaleShell({
         source: appointmentId ? 'appointment' : 'quick_sale',
         appointmentId: appointmentId ?? undefined,
       });
-      if (res.error) setError(res.error);
-      else if (res.invoiceId) {
+      if (res.error) {
+        setError(
+          res.error === 'Could not complete sale'
+            ? QUICK_SALE_CHECKOUT_FAILED_ERROR
+            : res.error,
+        );
+      } else if (res.invoiceId) {
         finalizeSuccess({
           invoiceId: res.invoiceId,
           invoiceNumber: res.invoiceNumber ?? null,
@@ -361,6 +380,18 @@ export function QuickSaleShell({
     setTab(tx.tab);
     setMembershipDiscountPaise(tx.membershipDiscountPaise);
     setAppointmentId(null);
+  };
+
+  const clearCurrentTransaction = () => {
+    if (workspaceLocked) return;
+    resetTransactionState();
+    setError(null);
+    setClearAllConfirmOpen(false);
+    if (customer) {
+      saveQuickSaleSession(buildClearedQuickSaleDraftForCustomer(customer));
+    } else {
+      clearQuickSaleSession();
+    }
   };
 
   const finalizeSuccess = (res: {
@@ -517,12 +548,8 @@ export function QuickSaleShell({
   }
 
   return (
-    <div
-      className={`qs-pos-shell${workspaceLocked ? ' qs-pos-locked' : ''}`}
-      aria-busy={workspaceLocked}
-      data-testid="qs-pos-shell"
-    >
-      {workspaceLocked ? <QuickSaleProcessingOverlay /> : null}
+    <div className="qs-pos-shell" aria-busy={workspaceLocked} data-testid="qs-pos-shell">
+      {workspaceLocked ? <QuickSaleCheckoutProcessing /> : null}
       {/* Customer — compact header bar */}
       <section className="qs-section shrink-0">
         <div className="qs-customer-bar">
@@ -708,7 +735,28 @@ export function QuickSaleShell({
 
       {/* Basket — primary working area; scrolls internally when tall */}
       <section className="qs-section qs-basket-section">
-        <p className="qs-section-label shrink-0">Basket</p>
+        <div className="qs-basket-header shrink-0">
+          <p className="qs-section-label !mb-0">Basket</p>
+          {hasActiveTransaction ? (
+            <div className="relative">
+              <button
+                type="button"
+                className="qs-clear-all-trigger rounded px-1 py-0.5 transition hover:bg-white/5 disabled:opacity-40"
+                disabled={workspaceLocked}
+                data-testid="qs-clear-all-trigger"
+                onClick={() => setClearAllConfirmOpen(true)}
+              >
+                Clear all
+              </button>
+              {clearAllConfirmOpen ? (
+                <QuickSaleClearAllConfirm
+                  onKeep={() => setClearAllConfirmOpen(false)}
+                  onConfirm={clearCurrentTransaction}
+                />
+              ) : null}
+            </div>
+          ) : null}
+        </div>
         <QuickSaleBasketTable
           lines={lines}
           locked={workspaceLocked}

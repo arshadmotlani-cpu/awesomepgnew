@@ -1,20 +1,52 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Loader2 } from 'lucide-react';
 
-export function QuickSaleProcessingOverlay({ label = 'Processing…' }: { label?: string }) {
-  return (
+export function QuickSaleProcessingIndicator({ label = 'Processing…' }: { label?: string }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
     <div
-      className="qs-processing-overlay"
+      className="qs-processing-indicator"
       role="status"
       aria-live="polite"
-      aria-busy="true"
-      data-testid="qs-processing-overlay"
+      data-testid="qs-processing-indicator"
     >
-      <div className="qs-processing-banner">
-        <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden />
-        <span>{label}</span>
-      </div>
-    </div>
+      <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden />
+      <span>{label}</span>
+    </div>,
+    document.body,
+  );
+}
+
+export function QuickSaleInteractionShield() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="qs-interaction-shield" aria-hidden="true" data-testid="qs-interaction-shield" />,
+    document.body,
+  );
+}
+
+export function QuickSaleCheckoutProcessing({ label = 'Processing…' }: { label?: string }) {
+  return (
+    <>
+      <QuickSaleInteractionShield />
+      <QuickSaleProcessingIndicator label={label} />
+    </>
   );
 }

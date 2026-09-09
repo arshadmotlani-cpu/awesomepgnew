@@ -69,6 +69,7 @@ export function validatePackagePlanItems(items: PackagePlanItemInput[]) {
 export async function listPackagePlansDetailed(
   opts?: { includeInactive?: boolean },
   ctx?: TenantContext | null,
+  db: typeof hairDb = hairDb,
 ): Promise<PackagePlanDetailed[]> {
   ctx = await resolveTenantContextForService(ctx);
   const conditions = [orgFilter(fyhPackagePlans.organizationId, ctx)];
@@ -76,7 +77,7 @@ export async function listPackagePlansDetailed(
     conditions.push(eq(fyhPackagePlans.isActive, true));
   }
 
-  const plans = await hairDb
+  const plans = await db
     .select()
     .from(fyhPackagePlans)
     .where(and(...conditions))
@@ -85,7 +86,7 @@ export async function listPackagePlansDetailed(
   if (plans.length === 0) return [];
 
   const planIds = plans.map((p) => p.id);
-  const itemRows = await hairDb
+  const itemRows = await db
     .select({
       id: fyhPackagePlanItems.id,
       planId: fyhPackagePlanItems.planId,

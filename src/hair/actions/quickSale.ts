@@ -85,13 +85,22 @@ export async function completeQuickSaleAction(input: {
     if (input.source === 'appointment' || input.appointmentId) {
       revalidatePath('/appointments');
     }
-    const detail = await getInvoiceDetail(result.invoiceId, ctx);
-    const { buildInvoicePrintHtml } = await import('@/src/hair/services/invoices');
-    const printHtml = detail ? buildInvoicePrintHtml(detail) : undefined;
+    let invoiceNumber: string | undefined;
+    let printHtml: string | undefined;
+    try {
+      const detail = await getInvoiceDetail(result.invoiceId, ctx);
+      invoiceNumber = detail?.invoice.invoiceNumber;
+      if (detail) {
+        const { buildInvoicePrintHtml } = await import('@/src/hair/services/invoices');
+        printHtml = buildInvoicePrintHtml(detail);
+      }
+    } catch {
+      // Invoice is committed; print HTML is best-effort.
+    }
     return {
       success: 'Sale complete',
       invoiceId: result.invoiceId,
-      invoiceNumber: detail?.invoice.invoiceNumber,
+      invoiceNumber,
       printHtml,
       advancePaise: result.advancePaise,
     };

@@ -80,3 +80,35 @@ export const QUICK_SALE_CHECKOUT_AMBIGUOUS_ERROR =
 
 export const QUICK_SALE_CHECKOUT_INTERRUPTED_ERROR =
   'A previous checkout may not have finished. Verify Billing before retrying.';
+
+export const QUICK_SALE_CHECKOUT_FAILED_ERROR =
+  'Sale could not be completed. Nothing was charged or saved. Please try again.';
+
+export function hasQuickSaleTransactionContent(input: {
+  lines: BasketLine[];
+  payments: PaymentEntry[];
+  holdInvoiceId: string | null;
+}): boolean {
+  return (
+    input.lines.length > 0 || input.payments.length > 0 || input.holdInvoiceId != null
+  );
+}
+
+/** Empty active draft for the current customer — used by Clear all (customer is preserved). */
+export function buildClearedQuickSaleDraftForCustomer(
+  customer: PosCustomerHit,
+): QuickSaleSessionSnapshot {
+  const tx = emptyQuickSaleTransactionState();
+  return buildQuickSaleSessionSnapshot({
+    customer,
+    appointmentId: null,
+    tab: tx.tab,
+    catalogQ: tx.catalogQ,
+    lines: tx.lines,
+    payments: tx.payments,
+    flags: tx.flags,
+    holdInvoiceId: tx.holdInvoiceId,
+    staffNames: tx.staffNames,
+    lifecycle: 'active_draft',
+  });
+}

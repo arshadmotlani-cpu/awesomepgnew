@@ -127,7 +127,26 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
     .limit(1);
   if (!customerRow) throw new Error('Customer not found');
 
-const invoiceId = await hairDb.transaction(async (tx) => {
+  const { listPackagePlansDetailed } = await import('@/src/hair/services/packagePlans');
+  const packagePlanIds = [
+    ...new Set(
+      priced.lines
+        .filter((l) => l.billableRef.type === 'package')
+        .map((l) => l.billableRef.id),
+    ),
+  ];
+  const packageDetailsById = new Map<
+    string,
+    Awaited<ReturnType<typeof listPackagePlansDetailed>>[number]
+  >();
+  if (packagePlanIds.length > 0) {
+    const detailed = await listPackagePlansDetailed({ includeInactive: true }, ctx);
+    for (const plan of detailed) {
+      if (packagePlanIds.includes(plan.id)) packageDetailsById.set(plan.id, plan);
+    }
+  }
+
+  const invoiceId = await hairDb.transaction(async (tx) => {
     const db = tx as unknown as typeof hairDb;
 
     if (input.holdInvoiceId) {
@@ -218,25 +237,6 @@ const invoiceId = await hairDb.transaction(async (tx) => {
       formatPackagePurchaseInvoiceName,
       formatPackageRedemptionInvoiceName,
     } = await import('@/src/hair/domain/packages/invoiceSnapshot');
-    const { listPackagePlansDetailed } = await import('@/src/hair/services/packagePlans');
-
-    const packagePlanIds = [
-      ...new Set(
-        priced.lines
-          .filter((l) => l.billableRef.type === 'package')
-          .map((l) => l.billableRef.id),
-      ),
-    ];
-    const packageDetailsById = new Map<
-      string,
-      Awaited<ReturnType<typeof listPackagePlansDetailed>>[number]
-    >();
-    if (packagePlanIds.length > 0) {
-      const detailed = await listPackagePlansDetailed({ includeInactive: true }, ctx);
-      for (const plan of detailed) {
-        if (packagePlanIds.includes(plan.id)) packageDetailsById.set(plan.id, plan);
-      }
-    }
 
     const insertedLines = await db
       .insert(fyhInvoiceLines)
