@@ -500,3 +500,6 @@ Enforced by `tests/unit/roomOsArchitecture.test.ts`.
 
 <!-- DOC_SYNC_TOUCH_2026-09-07 -->
 > **2026-09-07 06:11:48 UTC** — Code changed in: Database, Billing, Vacating. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-09-09 -->
+> **2026-09-09 06:07:56 UTC** — Code changed in: Billing, Vacating. Manual review recommended.

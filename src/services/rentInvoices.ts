@@ -3119,7 +3119,7 @@ export async function rejectRentPaymentProof(
 export async function recalculatePendingRentInvoicesForBooking(args: {
   bookingId: string;
   pricingSnapshot: PricingSnapshot;
-  adminId: string;
+  adminId?: string | null;
 }): Promise<{
   updatedCount: number;
   invoiceChanges: Array<{
@@ -3170,8 +3170,8 @@ export async function recalculatePendingRentInvoicesForBooking(args: {
 
     if (invoiceChanges.length > 0) {
       await tx.insert(auditLog).values({
-        actorType: 'admin',
-        actorId: args.adminId,
+        actorType: args.adminId ? 'admin' : 'system',
+        actorId: args.adminId ?? null,
         entity: 'rent_invoice',
         entityId: args.bookingId,
         action: 'recalculate_pending',

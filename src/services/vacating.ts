@@ -136,14 +136,10 @@ async function restoreCheckoutRentAfterVacatingCancel(input: {
   adminId?: string | null;
   context: string;
 }) {
-  try {
-    await restoreRentBillingAfterVacatingCancel({
-      bookingId: input.bookingId,
-      adminId: input.adminId,
-    });
-  } catch (err) {
-    console.error(`[vacating] checkout rent restore failed (${input.context}):`, err);
-  }
+  await restoreRentBillingAfterVacatingCancel({
+    bookingId: input.bookingId,
+    adminId: input.adminId,
+  });
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -912,10 +908,26 @@ export async function cancelApprovedVacatingByCustomer(input: {
     await cancelVacatingDateChangeRequest({ requestId: row.id, customerId: input.customerId });
   }
 
-  await db.delete(vacatingRequests).where(eq(vacatingRequests.id, current.id));
+  const { revertScheduledTransfersOnVacatingCancel } = await import(
+    '@/src/services/roomTransferLifecycle'
+  );
+  await revertScheduledTransfersOnVacatingCancel({
+    vacatingRequestId: input.requestId,
+    reason: 'Occupant withdrew approved move-out — scheduled room transfer is on hold.',
+  });
 
   const { deactivateResidentExitBrain } = await import('@/src/lib/exit/activateResidentExitBrain');
   await deactivateResidentExitBrain(current.bookingId);
+
+  await db
+    .update(vacatingRequests)
+    .set({
+      status: 'rejected',
+      resolvedAt: new Date(),
+      notes: 'You withdrew your move-out request. Your stay continues as before.',
+      updatedAt: new Date(),
+    })
+    .where(eq(vacatingRequests.id, current.id));
 
   await db.insert(auditLog).values({
     actorType: 'customer',
@@ -928,6 +940,16 @@ export async function cancelApprovedVacatingByCustomer(input: {
       vacatingDate: current.vacatingDate,
       fromStatus: 'approved',
     },
+  });
+
+  const meta = await vacatingEmailMeta(current.bookingId);
+  const { notifyVacatingUpdate } = await import('@/src/lib/email/notifications');
+  notifyVacatingUpdate({
+    customerId: current.customerId,
+    bookingCode: meta.bookingCode,
+    status: 'rejected',
+    vacatingDate: current.vacatingDate,
+    note: 'You withdrew your move-out request. Your stay continues as before.',
   });
 
   scheduleAdminNotificationSync();
@@ -1456,15 +1478,34 @@ export async function adminWithdrawVacatingRequest(input: {
     if (!restored.ok) {
       return { ok: false, kind: 'cannot_restore', message: restored.reason };
     }
+
+    await restoreCheckoutRentAfterVacatingCancel({
+      bookingId: current.bookingId,
+      adminId: input.resolvedByAdminId ?? null,
+      context: 'withdraw',
+    });
+
+    const { deactivateResidentExitBrain } = await import('@/src/lib/exit/activateResidentExitBrain');
+    await deactivateResidentExitBrain(current.bookingId);
+
+    await db
+      .update(vacatingRequests)
+      .set({
+        status: 'rejected',
+        resolvedAt: new Date(),
+        notes: 'Move-out notice withdrawn by admin.',
+        updatedAt: new Date(),
+      })
+      .where(eq(vacatingRequests.id, current.id));
+  } else {
+    await restoreCheckoutRentAfterVacatingCancel({
+      bookingId: current.bookingId,
+      adminId: input.resolvedByAdminId ?? null,
+      context: 'withdraw',
+    });
+
+    await db.delete(vacatingRequests).where(eq(vacatingRequests.id, current.id));
   }
-
-  await restoreCheckoutRentAfterVacatingCancel({
-    bookingId: current.bookingId,
-    adminId: input.resolvedByAdminId ?? null,
-    context: 'withdraw',
-  });
-
-  await db.delete(vacatingRequests).where(eq(vacatingRequests.id, current.id));
 
   await db.insert(auditLog).values({
     actorType: input.resolvedByAdminId ? 'admin' : 'system',

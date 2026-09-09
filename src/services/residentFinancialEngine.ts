@@ -1128,7 +1128,7 @@ export async function recalculateBillingAfterVacatingRestore(args: {
   const result = await recalculatePendingRentInvoicesForBooking({
     bookingId: args.bookingId,
     pricingSnapshot: booking.pricingSnapshot,
-    adminId: args.adminId ?? 'system',
+    adminId: args.adminId ?? null,
   });
   return { updatedCount: result.updatedCount };
 }

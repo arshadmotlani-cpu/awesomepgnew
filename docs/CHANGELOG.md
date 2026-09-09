@@ -269,19 +269,21 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-09-09 05:26:03 UTC
+### Pending pre-commit sync · 2026-09-09 06:07:56 UTC
 
-**Areas touched:** [[Residents]], [[Vacating]]
+**Areas touched:** [[Billing]], [[Vacating]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
 - `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (2):**
-- `src/lib/residents/residentPortalVacating.ts`
+**Staged code files (3):**
+- `src/services/rentInvoices.ts`
+- `src/services/residentFinancialEngine.ts`
 - `src/services/vacating.ts`
 
 **Changed:**

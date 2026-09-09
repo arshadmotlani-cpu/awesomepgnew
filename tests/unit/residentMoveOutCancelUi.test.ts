@@ -123,13 +123,15 @@ test('c) move-out date picker receives normalized YYYY-MM-DD only', () => {
   assert.match(vacatingRequestForm, /normalizePortalDateOnly\(expectedCheckoutDate\)/);
 });
 
-test('d) approved customer cancel cleans up checkout settlement like pending cancel', () => {
+test('d) approved customer cancel cleans up checkout settlement and preserves terminal history', () => {
   const approvedCancel = vacatingService.slice(
     vacatingService.indexOf('export async function cancelApprovedVacatingByCustomer'),
     vacatingService.indexOf('export async function finalizeVacatingOccupancy'),
   );
   assert.match(approvedCancel, /cleanupCheckoutSettlementForVacating/);
-  assert.match(approvedCancel, /await db\.delete\(vacatingRequests\)/);
+  assert.match(approvedCancel, /deactivateResidentExitBrain\(current\.bookingId\)/);
+  assert.match(approvedCancel, /status: 'rejected'/);
+  assert.doesNotMatch(approvedCancel, /await db\.delete\(vacatingRequests\)/);
 });
 
 test('d) customer cancel service remains idempotent and generic', () => {
