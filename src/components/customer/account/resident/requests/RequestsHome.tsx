@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { RoomChangeFlow } from '@/src/components/customer/account/resident/requests/RoomChangeFlow';
@@ -183,6 +183,21 @@ export function RequestsHome(props: Props) {
 
   const moveOutActive =
     vacating != null && (vacating.status === 'pending' || vacating.status === 'approved');
+
+  const activeVacatingId = moveOutActive ? vacating!.id : null;
+  const prevActiveVacatingIdRef = useRef<string | null>(activeVacatingId);
+
+  useEffect(() => {
+    const hadActiveVacating = prevActiveVacatingIdRef.current != null;
+    if (hadActiveVacating && activeVacatingId == null) {
+      setOpenSection((current) => (current === 'move_out' ? null : current));
+      setMoveOutStage('closed');
+      if (selectedRequestId?.startsWith('vacating-')) {
+        router.replace(residentTabHref('requests'));
+      }
+    }
+    prevActiveVacatingIdRef.current = activeVacatingId;
+  }, [activeVacatingId, router, selectedRequestId]);
 
   function toggleSection(id: SectionId) {
     if (openSection === id) {

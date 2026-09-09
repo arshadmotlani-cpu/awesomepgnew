@@ -27,13 +27,17 @@ test('requests page initially offers only Move Out and Change Bed', () => {
   assert.doesNotMatch(requestsHome, /RequestsMakeFlow/);
 });
 
-test('requests page does not auto-open move-out or change-bed forms', () => {
+test('requests page does not auto-open move-out or change-bed forms on mount', () => {
   assert.match(requestsHome, /useState<SectionId \| null>\(null\)/);
   assert.match(requestsHome, /void props\.startMake/);
   assert.match(requestsHome, /void props\.initialCategory/);
-  assert.doesNotMatch(requestsHome, /useEffect/);
   assert.match(requestsHome, /moveOutStage === 'form' \? \(/);
   assert.match(requestsHome, /changeBedStage === 'form' \? \(/);
+});
+
+test('requests page clears move-out accordion when active vacating disappears', () => {
+  assert.match(requestsHome, /hadActiveVacating && activeVacatingId == null/);
+  assert.match(requestsHome, /setMoveOutStage\('closed'\)/);
 });
 
 test('accordion uses real buttons and exclusive open state', () => {

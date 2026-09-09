@@ -42,6 +42,7 @@ import {
 } from '@/src/lib/residents/residentPortalFinancials';
 import { loadResidentElectricityBillingState } from '@/src/lib/residents/residentElectricityBillingState';
 import { requestTypeLabel, type ActiveRequestItem } from '@/src/lib/residents/requestCenter';
+import { resolveActivePortalVacating } from '@/src/lib/residents/residentPortalVacating';
 import { getPortalTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
 import { getDepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
 import {
@@ -726,7 +727,7 @@ export async function loadResidentRequestsTabData(input: {
     getCustomerDepositCredit(session.customerId),
   ]);
 
-  const primaryVacating = primaryBooking.vacating.ok ? primaryBooking.vacating.data : null;
+  const primaryVacating = resolveActivePortalVacating(primaryBooking.vacating);
 
   const depositDueCards = await Promise.all(
     detail.map(async (d) => {

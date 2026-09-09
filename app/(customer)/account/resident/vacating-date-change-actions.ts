@@ -2,7 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 import { getCustomerSession } from '@/src/lib/auth/session';
-import { revalidateVacatingLifecycleForBooking } from '@/src/lib/vacating/revalidateVacatingViews';
+import {
+  revalidateResidentMoveOutCustomerViews,
+  revalidateVacatingLifecycleForBooking,
+} from '@/src/lib/vacating/revalidateVacatingViews';
 import {
   cancelApprovedVacatingByCustomer,
   cancelVacatingRequestByCustomer,
@@ -64,6 +67,7 @@ export async function cancelVacatingDateChangeRequestAction(
   });
   if (!result.ok) return { ok: false, error: result.error };
   revalidatePath('/account/profile');
+  revalidateResidentMoveOutCustomerViews();
   return { ok: true };
 }
 
@@ -90,6 +94,7 @@ export async function cancelApprovedVacatingAction(
   }
 
   revalidatePath('/account/profile');
+  revalidateResidentMoveOutCustomerViews();
   await revalidateVacatingLifecycleForBooking(result.bookingId, session.customerId);
   return { ok: true };
 }
@@ -115,6 +120,7 @@ export async function cancelPendingVacatingAction(
   }
 
   revalidatePath('/account/profile');
+  revalidateResidentMoveOutCustomerViews();
   await revalidateVacatingLifecycleForBooking(result.bookingId, session.customerId);
   return { ok: true };
 }
