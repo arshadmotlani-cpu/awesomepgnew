@@ -151,11 +151,13 @@ export async function runDailyRentBillingJob(opts?: {
 
   await autoRetryEligibleBillingFailures().catch(() => undefined);
 
-  const { healOrphanedVacatingProratedRentInvoices } = await import(
-    '@/src/services/vacatingCheckoutBilling'
-  );
+  const { healOrphanedVacatingProratedRentInvoices, healMisalignedBillingTransitionInvoices } =
+    await import('@/src/services/vacatingCheckoutBilling');
   await healOrphanedVacatingProratedRentInvoices().catch((err) => {
     console.error('[billing-scheduler] vacating proration heal failed', err);
+  });
+  await healMisalignedBillingTransitionInvoices().catch((err) => {
+    console.error('[billing-scheduler] billing transition heal failed', err);
   });
 
   const [run] = await db
