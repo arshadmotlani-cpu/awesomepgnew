@@ -1,0 +1,29 @@
+---
+description: Commit and push completed work to main without waiting for a separate approval step
+alwaysApply: true
+---
+
+# Always Commit and Push
+
+After completing a task that changes code or tests:
+
+1. **Commit** the changes with a clear message focused on *why*.
+2. **Push** to `origin/main` (or the branch the user specified).
+3. Report commit hash, message, and files included.
+
+## Do not commit
+
+- `.cursor/debug-*.log` and other local debug artifacts
+- Unrelated WIP the user asked to leave alone
+- Secrets (`.env`, credentials)
+- Files the user explicitly said to exclude in the same task
+
+## Deploy is separate
+
+Commit + push does **not** mean deploy. Do not deploy to production unless the user explicitly approves deployment.
+
+## When blocked
+
+If pre-commit hooks fail, fix the issue and create a **new** commit (do not amend unless hook rules allow).
+
+If push fails, report the error and retry once after resolving auth/conflicts.
