@@ -7,10 +7,12 @@ alwaysApply: true
 
 After completing a task that changes code or tests:
 
-1. **Commit and push automatically** — do not ask for permission first.
+1. **Commit and push immediately** — never wait for approval and never ask first.
 2. **Commit** with a clear message focused on *why*.
 3. **Push** to `origin/main` (or the branch the user specified).
 4. Report commit hash, message, and files included.
+
+This is the default. Do not end a coding task with uncommitted work unless the user explicitly said not to commit in that same task.
 
 ## Do not commit
 
