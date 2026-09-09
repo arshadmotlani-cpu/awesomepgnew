@@ -27,9 +27,9 @@
 <!-- DOC_SYNC_STATE_START -->
 ## Automated doc sync
 
-> **Last sync:** 2026-09-08 19:56:32 UTC  
-> **Areas touched:** [[ROUTES]]  
-> **Docs flagged:** CHANGELOG.md, ROUTES.md, SYSTEM/CURRENT_STATE.md  
-> **Staged code files:** 36  
-> **Action:** Review [[CHANGELOG#Pending pre-commit sync · 2026-09-08]] (Pending section) before push.
+> **Last sync:** 2026-09-09 04:36:48 UTC  
+> **Areas touched:** [[ROUTES]], [[Residents]]  
+> **Docs flagged:** CHANGELOG.md, PROJECT/features.md, ROUTES.md, SYSTEM/CURRENT_STATE.md, SYSTEM/WORKFLOWS.md  
+> **Staged code files:** 6  
+> **Action:** Review [[CHANGELOG#Pending pre-commit sync · 2026-09-09]] (Pending section) before push.
 <!-- DOC_SYNC_STATE_END -->
