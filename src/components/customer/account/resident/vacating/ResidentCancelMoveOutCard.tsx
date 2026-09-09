@@ -11,9 +11,11 @@ import {
 export function ResidentCancelMoveOutCard({
   requestId,
   vacatingStatus,
+  onCancelled,
 }: {
   requestId: string;
   vacatingStatus: string;
+  onCancelled?: () => void;
 }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
@@ -57,6 +59,7 @@ export function ResidentCancelMoveOutCard({
                   return;
                 }
                 setConfirming(false);
+                onCancelled?.();
                 router.refresh();
               })
             }

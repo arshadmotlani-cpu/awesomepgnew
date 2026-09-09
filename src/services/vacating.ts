@@ -885,6 +885,18 @@ export async function cancelApprovedVacatingByCustomer(input: {
     context: 'customer_cancel_approved',
   });
 
+  try {
+    const { cleanupCheckoutSettlementForVacating } = await import(
+      '@/src/services/checkoutSettlement'
+    );
+    await cleanupCheckoutSettlementForVacating({
+      vacatingRequestId: input.requestId,
+      adminId: null,
+    });
+  } catch (err) {
+    console.error('[vacating] checkout settlement cleanup on approved customer cancel failed', err);
+  }
+
   const { cancelVacatingDateChangeRequest } = await import('@/src/services/vacatingDateChange');
   const { vacatingDateChangeRequests } = await import('@/src/db/schema');
   const pendingChanges = await db

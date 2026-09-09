@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { RoomChangeFlow } from '@/src/components/customer/account/resident/requests/RoomChangeFlow';
@@ -11,6 +11,7 @@ import { residentTabHref } from '@/src/lib/accountNavigation';
 import { primaryBtn } from '@/src/lib/design-system/tokens';
 import { formatDate } from '@/src/lib/format';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
+import { isActivePortalVacatingStatus } from '@/src/lib/residents/residentPortalVacating';
 
 type Props = {
   customerId: string;
@@ -76,31 +77,33 @@ const CHANGE_BED_POINTS = [
   'Your current rent updates to the new bed after transfer.',
 ];
 
-function vacatingHomeProps(props: Props) {
+function vacatingHomeProps(props: Props, includeMoveOutSettlement: boolean) {
   return {
     bookingId: props.bookingId,
     bookingCode: props.bookingCode ?? '',
     roomLabel: props.roomLabel,
     customerId: props.customerId,
     vacating: props.vacating,
-    checkoutStatus: props.checkoutSettlementStatus ?? null,
-    checkoutSettlement: props.checkoutSettlement,
-    settlementWaterfall: props.checkoutSettlement?.waterfall ?? null,
-    totalRefundPaise: props.checkoutSettlement?.totalRefundPaise ?? null,
-    payoutUpiId: props.checkoutSettlement?.payoutUpiId ?? null,
-    refundPaidAt: props.checkoutSettlement?.refundPaidAt ?? null,
-    checkoutSettlementSuppressed: props.checkoutSettlementSuppressed,
+    checkoutStatus: includeMoveOutSettlement ? props.checkoutSettlementStatus ?? null : null,
+    checkoutSettlement: includeMoveOutSettlement ? props.checkoutSettlement : null,
+    settlementWaterfall: includeMoveOutSettlement ? props.checkoutSettlement?.waterfall ?? null : null,
+    totalRefundPaise: includeMoveOutSettlement ? props.checkoutSettlement?.totalRefundPaise ?? null : null,
+    payoutUpiId: includeMoveOutSettlement ? props.checkoutSettlement?.payoutUpiId ?? null : null,
+    refundPaidAt: includeMoveOutSettlement ? props.checkoutSettlement?.refundPaidAt ?? null : null,
+    checkoutSettlementSuppressed: includeMoveOutSettlement
+      ? props.checkoutSettlementSuppressed
+      : false,
     depositHeldPaise: props.depositHeldPaise ?? 0,
     durationMode: props.durationMode,
     expectedCheckoutDate: props.expectedCheckoutDate,
     monthlyRentPaise: props.monthlyRentPaise ?? 0,
-    estimatedSettlement: props.estimatedSettlement,
-    pendingDateChangeRequestId: props.pendingDateChangeRequestId,
-    pendingDateChangePreview: props.pendingDateChangePreview,
-    settlementContext: props.settlementContext,
-    settlementDocument: props.settlementDocument,
-    settlementNoticeDisplay: props.settlementNoticeDisplay,
-    exitBrainSnapshot: props.exitBrainSnapshot,
+    estimatedSettlement: includeMoveOutSettlement ? props.estimatedSettlement : null,
+    pendingDateChangeRequestId: includeMoveOutSettlement ? props.pendingDateChangeRequestId : null,
+    pendingDateChangePreview: includeMoveOutSettlement ? props.pendingDateChangePreview : null,
+    settlementContext: includeMoveOutSettlement ? props.settlementContext : null,
+    settlementDocument: includeMoveOutSettlement ? props.settlementDocument : null,
+    settlementNoticeDisplay: includeMoveOutSettlement ? props.settlementNoticeDisplay : null,
+    exitBrainSnapshot: includeMoveOutSettlement ? props.exitBrainSnapshot : null,
     bookingStatus: props.bookingStatus,
   };
 }
@@ -182,22 +185,26 @@ export function RequestsHome(props: Props) {
   );
 
   const moveOutActive =
-    vacating != null && (vacating.status === 'pending' || vacating.status === 'approved');
+    vacating != null && isActivePortalVacatingStatus(vacating.status);
 
   const activeVacatingId = moveOutActive ? vacating!.id : null;
   const prevActiveVacatingIdRef = useRef<string | null>(activeVacatingId);
 
+  const resetMoveOutAccordion = useCallback(() => {
+    setOpenSection(null);
+    setMoveOutStage('closed');
+  }, []);
+
   useEffect(() => {
     const hadActiveVacating = prevActiveVacatingIdRef.current != null;
     if (hadActiveVacating && activeVacatingId == null) {
-      setOpenSection((current) => (current === 'move_out' ? null : current));
-      setMoveOutStage('closed');
+      resetMoveOutAccordion();
       if (selectedRequestId?.startsWith('vacating-')) {
         router.replace(residentTabHref('requests'));
       }
     }
     prevActiveVacatingIdRef.current = activeVacatingId;
-  }, [activeVacatingId, router, selectedRequestId]);
+  }, [activeVacatingId, resetMoveOutAccordion, router, selectedRequestId]);
 
   function toggleSection(id: SectionId) {
     if (openSection === id) {
@@ -284,7 +291,8 @@ export function RequestsHome(props: Props) {
         >
           {moveOutStage === 'form' ? (
             <VacatingHome
-              {...vacatingHomeProps(props)}
+              {...vacatingHomeProps(props, moveOutActive)}
+              onMoveOutCancelled={resetMoveOutAccordion}
               onBackToRequests={() => setMoveOutStage('brief')}
             />
           ) : (

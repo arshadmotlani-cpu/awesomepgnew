@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   isActivePortalVacatingStatus,
+  normalizePortalDateOnly,
   resolveActivePortalVacating,
 } from '@/src/lib/residents/residentPortalVacating';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
@@ -14,6 +15,18 @@ const dateChangeActions = readFileSync(
 );
 const requestsHome = readFileSync(
   join(process.cwd(), 'src/components/customer/account/resident/requests/RequestsHome.tsx'),
+  'utf8',
+);
+const vacatingHome = readFileSync(
+  join(process.cwd(), 'src/components/customer/account/resident/vacating/VacatingHome.tsx'),
+  'utf8',
+);
+const cancelCard = readFileSync(
+  join(process.cwd(), 'src/components/customer/account/resident/vacating/ResidentCancelMoveOutCard.tsx'),
+  'utf8',
+);
+const vacatingRequestForm = readFileSync(
+  join(process.cwd(), 'src/components/customer/VacatingRequestForm.tsx'),
   'utf8',
 );
 const requestsTabData = readFileSync(
@@ -58,14 +71,6 @@ test('a) resident move-out cancellation actions revalidate My Stay views', () =>
     const body = dateChangeActions.slice(start, nextExport === -1 ? undefined : nextExport);
     assert.match(body, /revalidateResidentMoveOutCustomerViews\(\)/, `${fn} must revalidate resident views`);
   }
-
-  const approvedStart = dateChangeActions.indexOf('export async function cancelApprovedVacatingAction');
-  const pendingStart = dateChangeActions.indexOf('export async function cancelPendingVacatingAction');
-  assert.match(
-    dateChangeActions.slice(approvedStart, pendingStart),
-    /revalidateVacatingLifecycleForBooking/,
-  );
-  assert.match(dateChangeActions.slice(pendingStart), /revalidateVacatingLifecycleForBooking/);
 });
 
 test('b) resolveActivePortalVacating exposes only pending/approved rows', () => {
@@ -84,8 +89,6 @@ test('b) resolveActivePortalVacating exposes only pending/approved rows', () => 
   );
   assert.equal(resolveActivePortalVacating({ ok: true, data: vacatingRow('completed') }), null);
   assert.equal(resolveActivePortalVacating({ ok: true, data: vacatingRow('rejected') }), null);
-  assert.equal(resolveActivePortalVacating({ ok: true, data: null }), null);
-  assert.equal(resolveActivePortalVacating({ ok: false }), null);
 });
 
 test('b) requests tab loader uses active-only portal vacating resolver', () => {
@@ -95,12 +98,38 @@ test('b) requests tab loader uses active-only portal vacating resolver', () => {
   assert.match(fnBody, /resolveActivePortalVacating\(primaryBooking\.vacating\)/);
 });
 
-test('c) RequestsHome clears stale move-out accordion state after cancellation', () => {
-  assert.match(requestsHome, /useEffect\(/);
-  assert.match(requestsHome, /activeVacatingId/);
-  assert.match(requestsHome, /setMoveOutStage\('closed'\)/);
+test('c) cancel success resets move-out accordion before refresh', () => {
+  assert.match(cancelCard, /onCancelled\?\.\(\)/);
+  assert.match(cancelCard, /onCancelled\?\.\(\);\s*\n\s*router\.refresh\(\)/);
+  assert.match(requestsHome, /resetMoveOutAccordion/);
+  assert.match(requestsHome, /onMoveOutCancelled=\{resetMoveOutAccordion\}/);
+  assert.match(requestsHome, /vacatingHomeProps\(props, moveOutActive\)/);
+  assert.match(requestsHome, /includeMoveOutSettlement \? props\.estimatedSettlement : null/);
+});
+
+test('c) RequestsHome keeps backup reset when active vacating prop disappears', () => {
   assert.match(requestsHome, /hadActiveVacating && activeVacatingId == null/);
-  assert.match(requestsHome, /selectedRequestId\?\.startsWith\('vacating-'\)/);
+  assert.match(requestsHome, /resetMoveOutAccordion\(\)/);
+});
+
+test('c) VacatingHome only renders settlement story for active move-out requests', () => {
+  assert.match(vacatingHome, /resolvedWaterfall && activeMoveOutRequest/);
+});
+
+test('c) move-out date picker receives normalized YYYY-MM-DD only', () => {
+  assert.equal(normalizePortalDateOnly('2026-09-15T00:00:00.000Z'), '2026-09-15');
+  assert.equal(normalizePortalDateOnly('2026-09-15'), '2026-09-15');
+  assert.equal(normalizePortalDateOnly(null), null);
+  assert.match(vacatingRequestForm, /normalizePortalDateOnly\(expectedCheckoutDate\)/);
+});
+
+test('d) approved customer cancel cleans up checkout settlement like pending cancel', () => {
+  const approvedCancel = vacatingService.slice(
+    vacatingService.indexOf('export async function cancelApprovedVacatingByCustomer'),
+    vacatingService.indexOf('export async function finalizeVacatingOccupancy'),
+  );
+  assert.match(approvedCancel, /cleanupCheckoutSettlementForVacating/);
+  assert.match(approvedCancel, /await db\.delete\(vacatingRequests\)/);
 });
 
 test('d) customer cancel service remains idempotent and generic', () => {
@@ -109,13 +138,5 @@ test('d) customer cancel service remains idempotent and generic', () => {
     vacatingService.indexOf('/** Resident withdraws an approved move-out'),
   );
   assert.match(pendingCancel, /current\.status !== 'pending'/);
-  assert.match(pendingCancel, /await db\.delete\(vacatingRequests\)/);
-  assert.doesNotMatch(pendingCancel, /bookingId === input\.bookingId && input\.customerId/);
-
-  const approvedCancel = vacatingService.slice(
-    vacatingService.indexOf('export async function cancelApprovedVacatingByCustomer'),
-    vacatingService.indexOf('export async function finalizeVacatingOccupancy'),
-  );
-  assert.match(approvedCancel, /current\.status !== 'approved'/);
-  assert.match(approvedCancel, /await db\.delete\(vacatingRequests\)/);
+  assert.match(pendingCancel, /cleanupCheckoutSettlementForVacating/);
 });

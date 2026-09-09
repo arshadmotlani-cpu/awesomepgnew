@@ -58,6 +58,7 @@ type Props = {
   settlementDocument?: import('@/src/lib/vacating/settlementStatementModel').SettlementStatementDocumentModel | null;
   settlementNoticeDisplay?: import('@/src/lib/vacating/noticeDeductionPresentation').NoticeSettlementDisplay | null;
   exitBrainSnapshot?: ResidentExitBrainSnapshot | null;
+  onMoveOutCancelled?: () => void;
 };
 
 function safeDateString(value: unknown): string | null {
@@ -89,6 +90,7 @@ export function VacatingHome({
   settlementDocument = null,
   settlementNoticeDisplay = null,
   exitBrainSnapshot = null,
+  onMoveOutCancelled,
   onBackToRequests,
 }: Props & { onBackToRequests?: () => void }) {
   const router = useRouter();
@@ -116,6 +118,8 @@ export function VacatingHome({
 
   const isRejected = vacating?.status === 'rejected';
   const isMoveOutComplete = isMoveOutLifecycleComplete(lifecycle);
+  const activeMoveOutRequest =
+    vacating != null && (vacating.status === 'pending' || vacating.status === 'approved');
 
   const showRefundForm =
     refundGate.allowed &&
@@ -300,6 +304,7 @@ export function VacatingHome({
             <ResidentCancelMoveOutCard
               requestId={vacating.id}
               vacatingStatus={vacating.status}
+              onCancelled={onMoveOutCancelled}
             />
           ) : null}
 
@@ -310,7 +315,7 @@ export function VacatingHome({
             />
           ) : null}
 
-          {resolvedWaterfall ? (
+          {resolvedWaterfall && activeMoveOutRequest ? (
             <ResidentMoveOutSettlementStory
               noticeGivenDate={noticeGiven}
               vacatingDate={vacatingDate}

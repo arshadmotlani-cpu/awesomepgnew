@@ -18,3 +18,10 @@ export function resolveActivePortalVacating(
   if (!vacating?.ok || !vacating.data) return null;
   return isActivePortalVacatingStatus(vacating.data.status) ? vacating.data : null;
 }
+
+/** Portal date fields may arrive as ISO datetimes — MoveOutDatePicker requires YYYY-MM-DD. */
+export function normalizePortalDateOnly(value: unknown): string | null {
+  if (value == null) return null;
+  const s = String(value).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+}

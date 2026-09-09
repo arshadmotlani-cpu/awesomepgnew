@@ -36,8 +36,9 @@ test('requests page does not auto-open move-out or change-bed forms on mount', (
 });
 
 test('requests page clears move-out accordion when active vacating disappears', () => {
+  assert.match(requestsHome, /onMoveOutCancelled=\{resetMoveOutAccordion\}/);
+  assert.match(requestsHome, /resetMoveOutAccordion/);
   assert.match(requestsHome, /hadActiveVacating && activeVacatingId == null/);
-  assert.match(requestsHome, /setMoveOutStage\('closed'\)/);
 });
 
 test('accordion uses real buttons and exclusive open state', () => {

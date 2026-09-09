@@ -15,6 +15,7 @@ import { MoveOutDatePicker } from '@/src/components/customer/account/resident/va
 import { ResidentMoveOutRequestPreviewPanel } from '@/src/components/customer/account/resident/vacating/ResidentMoveOutRequestPreviewPanel';
 import { defaultVacatingDate } from '@/src/lib/dateDefaults';
 import { isOpenEndedStayEnd, todayString } from '@/src/lib/dates';
+import { normalizePortalDateOnly } from '@/src/lib/residents/residentPortalVacating';
 import type { ResidentMoveOutRequestPreview } from '@/src/lib/vacating/residentMoveOutRequestPreview';
 import { primaryBtn } from '@/src/lib/design-system/tokens';
 
@@ -36,10 +37,11 @@ export function VacatingRequestForm({
   onBack?: () => void;
 }) {
   const resident = variant === 'resident';
+  const checkoutDate = normalizePortalDateOnly(expectedCheckoutDate);
   const initialDate =
-    expectedCheckoutDate && !isOpenEndedStayEnd(expectedCheckoutDate)
-      ? expectedCheckoutDate >= todayString()
-        ? expectedCheckoutDate
+    checkoutDate && !isOpenEndedStayEnd(checkoutDate)
+      ? checkoutDate >= todayString()
+        ? checkoutDate
         : todayString()
       : defaultVacatingDate();
   const [state, action, pending] = useActionState(submitVacatingAction, idleState);

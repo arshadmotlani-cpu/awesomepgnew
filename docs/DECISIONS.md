@@ -334,3 +334,6 @@ Cross-links: [[ARCHITECTURE]] · [[WORKFLOWS]] · [[AI_CONTEXT]] · [[BUGS]]
 
 <!-- DOC_SYNC_TOUCH_2026-09-07 -->
 > **2026-09-07 06:11:48 UTC** — Code changed in: Database, Billing, Vacating. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-09-09 -->
+> **2026-09-09 05:26:03 UTC** — Code changed in: Residents, Vacating. Manual review recommended.
