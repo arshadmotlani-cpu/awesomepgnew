@@ -40,12 +40,14 @@ export function QuickSaleStaffRow({
   onChange,
   initialNames,
   onNameRegistered,
+  disabled = false,
 }: {
   lineType: BillableItemType;
   staff: StaffAllocation[];
   onChange: (staff: StaffAllocation[]) => void;
   initialNames?: Record<string, string>;
   onNameRegistered?: (staffId: string, fullName: string) => void;
+  disabled?: boolean;
 }) {
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<StaffHit[]>([]);
@@ -232,6 +234,7 @@ export function QuickSaleStaffRow({
                 type="button"
                 className="ml-0.5 text-fyh-text-muted hover:text-fyh-danger"
                 aria-label={`Remove ${nameById[s.staffId] ?? 'staff'}`}
+                disabled={disabled}
                 onClick={() => removeStaff(s.staffId)}
               >
                 ×
@@ -243,6 +246,7 @@ export function QuickSaleStaffRow({
       <div className="relative">
         <Input
           ref={inputRef}
+          disabled={disabled}
           value={inputValue}
           onChange={(e) => {
             setQ(e.target.value);
@@ -298,6 +302,7 @@ export function QuickSaleStaffRow({
         <button
           type="button"
           className="text-[10px] text-fyh-text-muted hover:text-fyh-danger"
+          disabled={disabled}
           onClick={() => removeStaff(staff[0]!.staffId)}
         >
           Clear staff

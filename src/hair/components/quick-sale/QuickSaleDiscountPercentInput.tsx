@@ -13,6 +13,7 @@ type Props = {
   lineId: string;
   discountBps: number;
   catalogGrossPaise: number;
+  disabled?: boolean;
   onCommit: (overridePricePaise: number) => void;
 };
 
@@ -24,6 +25,7 @@ export function QuickSaleDiscountPercentInput({
   lineId,
   discountBps,
   catalogGrossPaise,
+  disabled = false,
   onCommit,
 }: Props) {
   const committedPercent = wholeDiscountPercentFromBps(discountBps);
@@ -47,6 +49,7 @@ export function QuickSaleDiscountPercentInput({
       step={1}
       min={0}
       max={100}
+      disabled={disabled}
       value={draft}
       onFocus={() => {
         focusedRef.current = true;

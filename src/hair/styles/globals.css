@@ -914,6 +914,38 @@
   margin-inline: auto;
   padding-block: 0.5rem;
   min-height: 0;
+  position: relative;
+}
+
+.qs-pos-shell.qs-pos-locked {
+  pointer-events: none;
+  user-select: none;
+}
+
+.qs-processing-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 0.75rem;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--fyh-bg-base) 35%, transparent);
+}
+
+.qs-processing-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: var(--fyh-radius-md);
+  border: 1px solid var(--fyh-border);
+  background: var(--fyh-bg-surface);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--fyh-text);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
 }
 
 @media (min-width: 1024px) {

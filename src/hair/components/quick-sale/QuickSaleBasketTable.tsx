@@ -10,6 +10,7 @@ import { QuickSaleStaffRow } from '@/src/hair/components/quick-sale/QuickSaleSta
 
 type Props = {
   lines: BasketLine[];
+  locked?: boolean;
   staffNames?: Record<string, string>;
   onStaffNameRegistered?: (staffId: string, fullName: string) => void;
   onUpdateLine: (lineId: string, patch: Partial<BasketLine>) => void;
@@ -29,6 +30,7 @@ function parseRupeeInput(raw: string): number | null {
 
 export function QuickSaleBasketTable({
   lines,
+  locked = false,
   staffNames,
   onStaffNameRegistered,
   onUpdateLine,
@@ -113,6 +115,7 @@ export function QuickSaleBasketTable({
                   <QuickSaleStaffRow
                     lineType={line.billableRef.type}
                     staff={line.staff}
+                    disabled={locked}
                     initialNames={staffNames}
                     onNameRegistered={onStaffNameRegistered}
                     onChange={(staff) => onUpdateLine(line.lineId, { staff })}
@@ -122,7 +125,7 @@ export function QuickSaleBasketTable({
                   <Input
                     inputMode="decimal"
                     value={String(line.quantity)}
-                    disabled={isPrepaid}
+                    disabled={locked || isPrepaid}
                     onChange={(e) => {
                       const quantity = Math.max(0.001, Number(e.target.value) || 1);
                       onUpdateLine(line.lineId, { quantity });
@@ -139,6 +142,7 @@ export function QuickSaleBasketTable({
                       lineId={line.lineId}
                       discountBps={priced.discountBps}
                       catalogGrossPaise={catalogGross}
+                      disabled={locked}
                       onCommit={(overridePricePaise) =>
                         onUpdateLine(line.lineId, { overridePricePaise })
                       }
@@ -154,6 +158,7 @@ export function QuickSaleBasketTable({
                     <Input
                       inputMode="decimal"
                       value={(finalPaise / 100).toFixed(2)}
+                      disabled={locked}
                       onChange={(e) => {
                         const rupees = parseRupeeInput(e.target.value);
                         if (rupees == null) return;
@@ -169,6 +174,7 @@ export function QuickSaleBasketTable({
                   <button
                     type="button"
                     className="rounded-md p-1.5 text-fyh-text-muted transition hover:bg-white/5 hover:text-fyh-danger"
+                    disabled={locked}
                     onClick={() => onRemoveLine(line.lineId)}
                     aria-label="Remove line"
                   >

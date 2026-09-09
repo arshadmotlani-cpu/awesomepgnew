@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MoreVertical } from 'lucide-react';
 import { FyhCustomerSearch } from '@/src/hair/components/booking/FyhCustomerSearch';
 import { FyhCustomerContextStrip } from '@/src/hair/components/customers/FyhCustomerContextStrip';
@@ -13,6 +13,7 @@ import {
 } from '@/src/hair/actions/quickSale';
 import { QuickSaleBasketTable } from '@/src/hair/components/quick-sale/QuickSaleBasketTable';
 import { QuickSalePaymentPanel } from '@/src/hair/components/quick-sale/QuickSalePaymentPanel';
+import { QuickSaleProcessingOverlay } from '@/src/hair/components/quick-sale/QuickSaleProcessingOverlay';
 import { QuickSaleSuccessDialog } from '@/src/hair/components/quick-sale/QuickSaleSuccessDialog';
 import {
   AvailableServicesModal,
@@ -27,8 +28,15 @@ import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import {
+  emptyQuickSaleTransactionState,
+  QUICK_SALE_CHECKOUT_AMBIGUOUS_ERROR,
+  QUICK_SALE_CHECKOUT_INTERRUPTED_ERROR,
+} from '@/src/hair/lib/quickSaleLifecycle';
+import {
+  buildQuickSaleSessionSnapshot,
   clearQuickSaleSession,
   loadQuickSaleSession,
+  markQuickSaleCheckoutPending,
   saveQuickSaleSession,
   type QuickSaleTab,
 } from '@/src/hair/lib/quickSaleSession';
@@ -96,8 +104,13 @@ export function QuickSaleShell({
   const [staffNames, setStaffNames] = useState<Record<string, string>>({});
   const [sessionHydrated, setSessionHydrated] = useState(false);
   const [availableServicesOpen, setAvailableServicesOpen] = useState(false);
-  const [pending, startTransition] = useTransition();
+  const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
+  const [holdSubmitting, setHoldSubmitting] = useState(false);
+  const [successGrandTotalPaise, setSuccessGrandTotalPaise] = useState(0);
   const catalogSearchRef = useRef<HTMLInputElement>(null);
+  const checkoutSubmittingRef = useRef(false);
+
+  const workspaceLocked = checkoutSubmitting || holdSubmitting;
 
   const basket: Basket | null = customer
     ? {
@@ -121,14 +134,12 @@ export function QuickSaleShell({
     });
   }, [billableItems, tab, catalogQ]);
 
-  const refreshHeldBills = useCallback(() => {
-    startTransition(async () => {
-      try {
-        setHeldBills(await listQuickSaleHoldsAction());
-      } catch {
-        setHeldBills([]);
-      }
-    });
+  const refreshHeldBills = useCallback(async () => {
+    try {
+      setHeldBills(await listQuickSaleHoldsAction());
+    } catch {
+      setHeldBills([]);
+    }
   }, []);
 
   useEffect(() => {
@@ -136,37 +147,43 @@ export function QuickSaleShell({
       setSessionHydrated(true);
       return;
     }
-    const session = loadQuickSaleSession();
-    if (session) {
-      setCustomer(session.customer);
-      setAppointmentId(session.appointmentId);
-      setTab(session.tab);
-      setCatalogQ(session.catalogQ);
-      setLines(session.lines);
-      setPayments(session.payments);
-      setFlags(session.flags);
-      setHoldInvoiceId(session.holdInvoiceId);
-      setStaffNames(session.staffNames ?? {});
+    const loaded = loadQuickSaleSession();
+    if (loaded) {
+      const { snapshot, interruptedCheckout } = loaded;
+      setCustomer(snapshot.customer);
+      setAppointmentId(snapshot.appointmentId);
+      setTab(snapshot.tab);
+      setCatalogQ(snapshot.catalogQ);
+      setLines(snapshot.lines);
+      setPayments(snapshot.payments);
+      setFlags(snapshot.flags);
+      setHoldInvoiceId(snapshot.holdInvoiceId);
+      setStaffNames(snapshot.staffNames ?? {});
       setStep('sale');
+      if (interruptedCheckout) {
+        setError(QUICK_SALE_CHECKOUT_INTERRUPTED_ERROR);
+      }
     }
     setSessionHydrated(true);
   }, [appointmentPrefill]);
 
   useEffect(() => {
-    if (!sessionHydrated || step !== 'sale' || !customer) return;
+    if (!sessionHydrated || step !== 'sale' || !customer || workspaceLocked) return;
     const t = window.setTimeout(() => {
-      saveQuickSaleSession({
-        v: 1,
-        customer,
-        appointmentId,
-        tab,
-        catalogQ,
-        lines,
-        payments,
-        flags,
-        holdInvoiceId,
-        staffNames,
-      });
+      saveQuickSaleSession(
+        buildQuickSaleSessionSnapshot({
+          customer,
+          appointmentId,
+          tab,
+          catalogQ,
+          lines,
+          payments,
+          flags,
+          holdInvoiceId,
+          staffNames,
+          lifecycle: 'active_draft',
+        }),
+      );
     }, 300);
     return () => window.clearTimeout(t);
   }, [
@@ -181,6 +198,7 @@ export function QuickSaleShell({
     flags,
     holdInvoiceId,
     staffNames,
+    workspaceLocked,
   ]);
 
   useEffect(() => {
@@ -204,33 +222,96 @@ export function QuickSaleShell({
       setMembershipDiscountPaise(0);
       return;
     }
-    const t = window.setTimeout(() => {
-      startTransition(async () => {
-        const preview = await previewQuickSaleTotalsAction({
-          customerId: customer.id,
-          cartLines: lines.map((l) => {
-            const gross = l.snapshot.unitSellingPricePaise * l.quantity;
-            const finalPaise = l.overridePricePaise ?? gross;
-            return {
-              kind: l.billableRef.type,
-              unitPricePaise: l.snapshot.unitSellingPricePaise,
-              quantity: l.quantity,
-              lineDiscountPaise: Math.max(0, gross - finalPaise),
-              gstBps: l.snapshot.gstBps,
-            };
-          }),
-        });
-        setMembershipDiscountPaise(preview.membershipDiscountPaise);
+    let cancelled = false;
+    const t = window.setTimeout(async () => {
+      const preview = await previewQuickSaleTotalsAction({
+        customerId: customer.id,
+        cartLines: lines.map((l) => {
+          const gross = l.snapshot.unitSellingPricePaise * l.quantity;
+          const finalPaise = l.overridePricePaise ?? gross;
+          return {
+            kind: l.billableRef.type,
+            unitPricePaise: l.snapshot.unitSellingPricePaise,
+            quantity: l.quantity,
+            lineDiscountPaise: Math.max(0, gross - finalPaise),
+            gstBps: l.snapshot.gstBps,
+          };
+        }),
       });
+      if (!cancelled) setMembershipDiscountPaise(preview.membershipDiscountPaise);
     }, 250);
-    return () => window.clearTimeout(t);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
   }, [customer?.id, lines]);
 
   const addItem = (item: BillableItem) => {
+    if (workspaceLocked) return;
     setLines((prev) => [...prev, basketLineFromBillableItem(item)]);
     setCatalogQ('');
     catalogSearchRef.current?.focus();
   };
+
+  async function submitHoldBill() {
+    if (!customer || !basket || holdSubmitting) return;
+    setHoldSubmitting(true);
+    setError(null);
+    try {
+      const res = await holdQuickSaleAction({
+        customerId: customer.id,
+        lines: basketToLegacyLines(basket),
+        holdInvoiceId,
+      });
+      if (res.error) setError(res.error);
+      else resetForNext();
+    } finally {
+      setHoldSubmitting(false);
+    }
+  }
+
+  async function submitCheckout() {
+    if (!basket || checkoutSubmittingRef.current) return;
+    checkoutSubmittingRef.current = true;
+    setCheckoutSubmitting(true);
+    setError(null);
+    if (customer) {
+      markQuickSaleCheckoutPending(
+        buildQuickSaleSessionSnapshot({
+          customer,
+          appointmentId,
+          tab,
+          catalogQ,
+          lines,
+          payments,
+          flags,
+          holdInvoiceId,
+          staffNames,
+          lifecycle: 'checkout_pending',
+        }),
+      );
+    }
+    try {
+      const res = await completeQuickSaleAction({
+        basket: { ...basket, membershipDiscountPaise },
+        holdInvoiceId,
+        source: appointmentId ? 'appointment' : 'quick_sale',
+        appointmentId: appointmentId ?? undefined,
+      });
+      if (res.error) setError(res.error);
+      else if (res.invoiceId) {
+        finalizeSuccess({
+          invoiceId: res.invoiceId,
+          invoiceNumber: res.invoiceNumber ?? null,
+          advancePaise: res.advancePaise ?? 0,
+          printHtml: res.printHtml ?? null,
+        });
+      } else setError(QUICK_SALE_CHECKOUT_AMBIGUOUS_ERROR);
+    } finally {
+      checkoutSubmittingRef.current = false;
+      setCheckoutSubmitting(false);
+    }
+  }
 
   const addPrepaidSelections = (selections: AvailableServiceSelection[]) => {
     if (selections.length === 0) return;
@@ -269,21 +350,44 @@ export function QuickSaleShell({
     });
   };
 
+  const resetTransactionState = () => {
+    const tx = emptyQuickSaleTransactionState();
+    setLines(tx.lines);
+    setPayments(tx.payments);
+    setFlags(tx.flags);
+    setHoldInvoiceId(tx.holdInvoiceId);
+    setStaffNames(tx.staffNames);
+    setCatalogQ(tx.catalogQ);
+    setTab(tx.tab);
+    setMembershipDiscountPaise(tx.membershipDiscountPaise);
+    setAppointmentId(null);
+  };
+
+  const finalizeSuccess = (res: {
+    invoiceId: string;
+    invoiceNumber?: string | null;
+    advancePaise?: number;
+    printHtml?: string | null;
+  }) => {
+    setSuccessGrandTotalPaise(priced?.totals.grandTotalPaise ?? 0);
+    clearQuickSaleSession();
+    resetTransactionState();
+    setInvoiceId(res.invoiceId);
+    setInvoiceNumber(res.invoiceNumber ?? null);
+    setAdvancePaise(res.advancePaise ?? 0);
+    setPrintHtml(res.printHtml ?? null);
+    setError(null);
+    setStep('done');
+  };
+
   const clearSaleState = () => {
     clearQuickSaleSession();
     setCustomer(null);
-    setAppointmentId(null);
-    setLines([]);
-    setPayments([]);
-    setFlags({});
-    setHoldInvoiceId(null);
-    setStaffNames({});
+    resetTransactionState();
     setInvoiceId(null);
     setPrintHtml(null);
     setAdvancePaise(0);
     setError(null);
-    setCatalogQ('');
-    setTab('service');
   };
 
   const resetForNext = () => {
@@ -358,7 +462,7 @@ export function QuickSaleShell({
         invoiceNumber={invoiceNumber ?? undefined}
         customerName={customer.fullName}
         customerPhone={customer.phone}
-        grandTotalPaise={priced?.totals.grandTotalPaise ?? 0}
+        grandTotalPaise={successGrandTotalPaise}
         advancePaise={advancePaise}
         printHtml={printHtml}
         googleReviewUrl={googleReviewUrl}
@@ -413,7 +517,12 @@ export function QuickSaleShell({
   }
 
   return (
-    <div className="qs-pos-shell">
+    <div
+      className={`qs-pos-shell${workspaceLocked ? ' qs-pos-locked' : ''}`}
+      aria-busy={workspaceLocked}
+      data-testid="qs-pos-shell"
+    >
+      {workspaceLocked ? <QuickSaleProcessingOverlay /> : null}
       {/* Customer — compact header bar */}
       <section className="qs-section shrink-0">
         <div className="qs-customer-bar">
@@ -446,6 +555,7 @@ export function QuickSaleShell({
                 type="button"
                 variant="secondary"
                 size="sm"
+                disabled={workspaceLocked}
                 onClick={() => setAvailableServicesOpen(true)}
               >
                 Available Services
@@ -456,12 +566,19 @@ export function QuickSaleShell({
               variant="ghost"
               size="sm"
               className="text-fyh-text-muted"
+              disabled={workspaceLocked}
               onClick={() => setStep('customer')}
             >
               Change customer
             </Button>
             <div className="relative">
-              <Button type="button" variant="ghost" size="sm" onClick={() => setMenuOpen((o) => !o)}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={workspaceLocked}
+                onClick={() => setMenuOpen((o) => !o)}
+              >
                 <MoreVertical className="h-4 w-4" />
               </Button>
               {menuOpen ? (
@@ -469,20 +586,10 @@ export function QuickSaleShell({
                   <button
                     type="button"
                     className="block w-full px-4 py-2 text-left text-sm hover:bg-white/5"
-                    disabled={pending || !customer || lines.length === 0}
+                    disabled={workspaceLocked || !customer || lines.length === 0}
                     onClick={() => {
                       setMenuOpen(false);
-                      if (!customer || !basket) return;
-                      startTransition(async () => {
-                        setError(null);
-                        const res = await holdQuickSaleAction({
-                          customerId: customer.id,
-                          lines: basketToLegacyLines(basket),
-                          holdInvoiceId,
-                        });
-                        if (res.error) setError(res.error);
-                        else resetForNext();
-                      });
+                      void submitHoldBill();
                     }}
                   >
                     Hold bill
@@ -490,6 +597,7 @@ export function QuickSaleShell({
                   <button
                     type="button"
                     className="block w-full px-4 py-2 text-left text-sm hover:bg-white/5"
+                    disabled={workspaceLocked}
                     onClick={() => {
                       setMenuOpen(false);
                       startNewSale();
@@ -500,6 +608,7 @@ export function QuickSaleShell({
                   <button
                     type="button"
                     className="block w-full px-4 py-2 text-left text-sm text-fyh-danger hover:bg-white/5"
+                    disabled={workspaceLocked}
                     onClick={() => {
                       setMenuOpen(false);
                       cancelSale();
@@ -528,6 +637,7 @@ export function QuickSaleShell({
             <button
               key={id}
               type="button"
+              disabled={workspaceLocked}
               className={`shrink-0 rounded px-3 py-1.5 text-xs font-semibold transition ${
                 tab === id
                   ? 'bg-[color:var(--fyh-accent)] text-black shadow-sm'
@@ -547,6 +657,7 @@ export function QuickSaleShell({
           <Input
             ref={catalogSearchRef}
             aria-label="Search catalog items"
+            disabled={workspaceLocked}
             value={catalogQ}
             onChange={(e) => setCatalogQ(e.target.value)}
             onKeyDown={(e) => {
@@ -571,6 +682,7 @@ export function QuickSaleShell({
                     type="button"
                     data-qs-catalog-item
                     className="qs-catalog-row"
+                    disabled={workspaceLocked}
                     onClick={() => addItem(item)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -599,6 +711,7 @@ export function QuickSaleShell({
         <p className="qs-section-label shrink-0">Basket</p>
         <QuickSaleBasketTable
           lines={lines}
+          locked={workspaceLocked}
           staffNames={staffNames}
           onStaffNameRegistered={(staffId, fullName) =>
             setStaffNames((prev) => ({ ...prev, [staffId]: fullName }))
@@ -654,6 +767,7 @@ export function QuickSaleShell({
               grandTotalPaise={priced.totals.grandTotalPaise}
               payments={payments}
               flags={flags}
+              locked={workspaceLocked}
               onChangePayments={setPayments}
               onChangeFlags={setFlags}
             />
@@ -667,31 +781,14 @@ export function QuickSaleShell({
             ) : null}
             <Button
               type="button"
-              disabled={pending || !customer || lines.length === 0 || !basket}
+              disabled={checkoutSubmitting || holdSubmitting || !customer || lines.length === 0 || !basket}
               className="h-10 w-full text-sm font-semibold"
+              data-testid="qs-confirm-sale"
               onClick={() => {
-                if (!basket) return;
-                startTransition(async () => {
-                  setError(null);
-                  const res = await completeQuickSaleAction({
-                    basket: { ...basket, membershipDiscountPaise },
-                    holdInvoiceId,
-                    source: appointmentId ? 'appointment' : 'quick_sale',
-                    appointmentId: appointmentId ?? undefined,
-                  });
-                  if (res.error) setError(res.error);
-                  else if (res.invoiceId) {
-                    clearQuickSaleSession();
-                    setInvoiceId(res.invoiceId);
-                    setInvoiceNumber(res.invoiceNumber ?? null);
-                    setAdvancePaise(res.advancePaise ?? 0);
-                    setPrintHtml(res.printHtml ?? null);
-                    setStep('done');
-                  }
-                });
+                void submitCheckout();
               }}
             >
-              {pending ? 'Processing…' : 'Confirm sale'}
+              {checkoutSubmitting ? 'Processing…' : 'Confirm sale'}
             </Button>
           </section>
         </div>

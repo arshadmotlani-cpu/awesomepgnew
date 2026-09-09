@@ -16,6 +16,7 @@ type Props = {
   grandTotalPaise: number;
   payments: PaymentEntry[];
   flags: BasketFlags;
+  locked?: boolean;
   onChangePayments: (payments: PaymentEntry[]) => void;
   onChangeFlags: (flags: BasketFlags) => void;
 };
@@ -24,6 +25,7 @@ export function QuickSalePaymentPanel({
   grandTotalPaise,
   payments,
   flags,
+  locked = false,
   onChangePayments,
   onChangeFlags,
 }: Props) {
@@ -72,6 +74,7 @@ export function QuickSalePaymentPanel({
           <Input
             inputMode="decimal"
             placeholder="0"
+            disabled={locked}
             value={draftAmount}
             onChange={(e) => setDraftAmount(e.target.value)}
             onKeyDown={(e) => {
@@ -87,6 +90,7 @@ export function QuickSalePaymentPanel({
           <label className="mb-0.5 block text-[10px] font-medium text-fyh-text-muted">Method</label>
           <select
             value={draftMethod}
+            disabled={locked}
             onChange={(e) => setDraftMethod(e.target.value as PaymentMethod)}
             className="fyh-select h-9 min-w-[5.5rem] text-sm"
           >
@@ -97,7 +101,7 @@ export function QuickSalePaymentPanel({
             ))}
           </select>
         </div>
-        <Button type="button" variant="secondary" className="h-9" onClick={addPayment}>
+        <Button type="button" variant="secondary" className="h-9" disabled={locked} onClick={addPayment}>
           Add
         </Button>
       </div>
@@ -114,6 +118,7 @@ export function QuickSalePaymentPanel({
               <button
                 type="button"
                 className="text-[11px] text-fyh-danger hover:underline"
+                disabled={locked}
                 onClick={() => onChangePayments(payments.filter((x) => x.id !== p.id))}
               >
                 Remove
@@ -127,6 +132,7 @@ export function QuickSalePaymentPanel({
         <label className="flex items-center gap-2 text-xs text-fyh-text-secondary">
           <input
             type="checkbox"
+            disabled={locked}
             checked={flags.creditOverpayAsAdvance ?? false}
             onChange={(e) =>
               onChangeFlags({ ...flags, creditOverpayAsAdvance: e.target.checked })
@@ -143,6 +149,7 @@ export function QuickSalePaymentPanel({
             variant="secondary"
             size="sm"
             className="flex-1 sm:flex-none"
+            disabled={locked}
             onClick={() => onChangeFlags({ ...flags, markDue: true, markFullDue: false })}
           >
             Mark due ({formatInrFromPaise(summary.remaining)})
@@ -152,6 +159,7 @@ export function QuickSalePaymentPanel({
             variant="ghost"
             size="sm"
             className="flex-1 sm:flex-none"
+            disabled={locked}
             onClick={() => onChangeFlags({ ...flags, markFullDue: true, markDue: false })}
           >
             Full due
