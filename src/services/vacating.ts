@@ -876,6 +876,16 @@ export async function cancelApprovedVacatingByCustomer(input: {
     return { ok: false, kind: 'cannot_restore', message: restored.reason };
   }
 
+  await db
+    .update(vacatingRequests)
+    .set({
+      status: 'rejected',
+      resolvedAt: new Date(),
+      notes: 'You withdrew your move-out request. Your stay continues as before.',
+      updatedAt: new Date(),
+    })
+    .where(eq(vacatingRequests.id, current.id));
+
   await restoreCheckoutRentAfterVacatingCancel({
     bookingId: current.bookingId,
     context: 'customer_cancel_approved',
@@ -918,16 +928,6 @@ export async function cancelApprovedVacatingByCustomer(input: {
 
   const { deactivateResidentExitBrain } = await import('@/src/lib/exit/activateResidentExitBrain');
   await deactivateResidentExitBrain(current.bookingId);
-
-  await db
-    .update(vacatingRequests)
-    .set({
-      status: 'rejected',
-      resolvedAt: new Date(),
-      notes: 'You withdrew your move-out request. Your stay continues as before.',
-      updatedAt: new Date(),
-    })
-    .where(eq(vacatingRequests.id, current.id));
 
   await db.insert(auditLog).values({
     actorType: 'customer',
@@ -1479,15 +1479,6 @@ export async function adminWithdrawVacatingRequest(input: {
       return { ok: false, kind: 'cannot_restore', message: restored.reason };
     }
 
-    await restoreCheckoutRentAfterVacatingCancel({
-      bookingId: current.bookingId,
-      adminId: input.resolvedByAdminId ?? null,
-      context: 'withdraw',
-    });
-
-    const { deactivateResidentExitBrain } = await import('@/src/lib/exit/activateResidentExitBrain');
-    await deactivateResidentExitBrain(current.bookingId);
-
     await db
       .update(vacatingRequests)
       .set({
@@ -1497,6 +1488,15 @@ export async function adminWithdrawVacatingRequest(input: {
         updatedAt: new Date(),
       })
       .where(eq(vacatingRequests.id, current.id));
+
+    await restoreCheckoutRentAfterVacatingCancel({
+      bookingId: current.bookingId,
+      adminId: input.resolvedByAdminId ?? null,
+      context: 'withdraw',
+    });
+
+    const { deactivateResidentExitBrain } = await import('@/src/lib/exit/activateResidentExitBrain');
+    await deactivateResidentExitBrain(current.bookingId);
   } else {
     await restoreCheckoutRentAfterVacatingCancel({
       bookingId: current.bookingId,

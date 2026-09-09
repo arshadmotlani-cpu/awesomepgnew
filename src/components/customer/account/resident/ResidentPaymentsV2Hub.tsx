@@ -95,7 +95,7 @@ function BillCard({ row }: { row: BillDueRow }) {
           {row.dueDate ? (
             <p className="mt-1 text-xs text-apg-silver">Due {formatDate(row.dueDate)}</p>
           ) : null}
-          {row.kind === 'rent' && row.rentIssueDate ? (
+          {row.kind === 'rent' && row.rentIssueDate && !row.transitionExplanation ? (
             <div className="mt-1">
               <LateFeeCountdown issueDate={row.rentIssueDate} className="text-xs text-apg-silver" />
             </div>

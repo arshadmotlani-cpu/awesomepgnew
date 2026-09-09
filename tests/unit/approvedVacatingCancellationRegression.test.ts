@@ -65,12 +65,14 @@ test('approved customer cancel preserves vacating row as rejected terminal histo
   assert.match(body, /revertScheduledTransfersOnVacatingCancel/);
 });
 
-test('approved customer cancel deactivates Exit Brain before marking terminal status', () => {
+test('approved customer cancel marks terminal status before billing restore', () => {
   const body = approvedCancelBody();
-  const deactivateAt = body.indexOf('deactivateResidentExitBrain(current.bookingId)');
   const rejectAt = body.indexOf("status: 'rejected'");
-  assert.ok(deactivateAt >= 0 && rejectAt >= 0);
-  assert.ok(deactivateAt < rejectAt, 'Exit Brain must deactivate before terminal status update');
+  const restoreAt = body.indexOf('await restoreCheckoutRentAfterVacatingCancel(');
+  const deactivateAt = body.indexOf('deactivateResidentExitBrain(current.bookingId)');
+  assert.ok(rejectAt >= 0 && restoreAt >= 0 && deactivateAt >= 0);
+  assert.ok(rejectAt < restoreAt, 'Vacating must be rejected before billing restore');
+  assert.ok(restoreAt < deactivateAt, 'Exit Brain must deactivate after billing restore');
 });
 
 test('approved customer cancel does not swallow rent restoration failures', () => {

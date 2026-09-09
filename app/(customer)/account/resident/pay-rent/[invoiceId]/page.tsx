@@ -119,7 +119,10 @@ export default async function PayRentPage({
   const issueDate = rentInvoiceIssueDate(row);
   const dueDateLabel = projected.graceEndDate ?? formatDate(row.dueDate);
   const rentAfterDiscount = row.rentPaise - (row.discountPaise ?? 0);
-  const showCountdown = row.status !== 'paid' && row.status !== 'cancelled';
+  const showCountdown =
+    row.status !== 'paid' &&
+    row.status !== 'cancelled' &&
+    row.invoiceSubtype !== 'billing_cycle_transition';
 
   await ensureDefaultPaymentCategoriesForPg(row.pgId);
   const rentCategory = await getRentDepositBookingCategory(row.pgId);

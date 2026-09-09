@@ -3136,7 +3136,10 @@ export async function recalculatePendingRentInvoicesForBooking(args: {
     .where(
       and(
         eq(rentInvoices.bookingId, args.bookingId),
+        eq(rentInvoices.isAdhoc, false),
+        ne(rentInvoices.invoiceSubtype, 'billing_cycle_transition'),
         inArray(rentInvoices.status, ['pending', 'overdue']),
+        sql`${rentInvoices.notes} NOT LIKE ${`%${'(move-out proration)'}%`}`,
       ),
     );
 

@@ -129,9 +129,13 @@ test('d) approved customer cancel cleans up checkout settlement and preserves te
     vacatingService.indexOf('export async function finalizeVacatingOccupancy'),
   );
   assert.match(approvedCancel, /cleanupCheckoutSettlementForVacating/);
-  assert.match(approvedCancel, /deactivateResidentExitBrain\(current\.bookingId\)/);
   assert.match(approvedCancel, /status: 'rejected'/);
+  assert.match(approvedCancel, /await restoreCheckoutRentAfterVacatingCancel\(/);
+  assert.match(approvedCancel, /deactivateResidentExitBrain\(current\.bookingId\)/);
   assert.doesNotMatch(approvedCancel, /await db\.delete\(vacatingRequests\)/);
+  const rejectAt = approvedCancel.indexOf("status: 'rejected'");
+  const restoreAt = approvedCancel.indexOf('await restoreCheckoutRentAfterVacatingCancel(');
+  assert.ok(rejectAt < restoreAt, 'terminal status before billing restore');
 });
 
 test('d) customer cancel service remains idempotent and generic', () => {

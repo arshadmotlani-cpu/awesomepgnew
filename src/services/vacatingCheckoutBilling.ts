@@ -16,15 +16,20 @@ import {
 } from '@/src/lib/billing/billingCoverageModel';
 import { VACATING_FINAL_PERIOD_CANCEL_REASON_SUFFIX } from '@/src/lib/billing/vacatingFinalPeriodRent';
 import { ACTIVE_VACATING_STATUSES } from '@/src/lib/vacating/activeRequestPolicy';
-import { formatDate, parseDate } from '@/src/lib/dates';
+import { addDays, formatDate, parseDate } from '@/src/lib/dates';
 import { billingBusinessDate } from '@/src/lib/dates/ist';
 import {
   billingPeriodForPolicy,
   calendarMonthBillingPeriod,
   firstOfMonth,
   graceEndDateFromIssue,
+  prorateForMonth,
+  rentInvoiceBillingPeriodNoteForPolicy,
   type BillingCyclePolicy,
 } from '@/src/services/billing';
+import { parseBillingPeriodFromInvoiceNotes } from '@/src/lib/billing/billingCoverageModel';
+import { resolveMonthlyRentPaiseForBooking } from '@/src/lib/billing/rentPricingSsot';
+import { billingTransitionOverlapsPaidThrough } from '@/src/services/billingCycleMigration';
 import { loadBillingCoverageModel } from '@/src/services/billingCoverage';
 import { getBillingProfileForBooking } from '@/src/services/residentBillingProfiles';
 
@@ -765,11 +770,140 @@ export async function healOrphanedVacatingProratedRentInvoices(): Promise<{
   return { healedBookings: rows.length, healedInvoices };
 }
 
+/** Realign pending billing-cycle transition invoices after move-out cancel restores stay. */
+export async function realignBillingTransitionInvoicesAfterVacatingCancel(args: {
+  bookingId: string;
+  adminId?: string | null;
+}): Promise<{
+  realignedCount: number;
+  invoiceChanges: Array<{
+    invoiceId: string;
+    fromPeriodStart: string;
+    toPeriodStart: string;
+    fromPaise: number;
+    toPaise: number;
+  }>;
+}> {
+  const coverage = await loadBillingCoverageModel({ bookingId: args.bookingId });
+  const paidThrough = coverage?.paidUntilDate ?? null;
+  if (!paidThrough) return { realignedCount: 0, invoiceChanges: [] };
+
+  const transitions = await db
+    .select({
+      id: rentInvoices.id,
+      notes: rentInvoices.notes,
+      rentPaise: rentInvoices.rentPaise,
+      paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
+      status: rentInvoices.status,
+    })
+    .from(rentInvoices)
+    .where(
+      and(
+        eq(rentInvoices.bookingId, args.bookingId),
+        eq(rentInvoices.isAdhoc, true),
+        eq(rentInvoices.invoiceSubtype, 'billing_cycle_transition'),
+        inArray(rentInvoices.status, ['pending', 'overdue', 'payment_in_progress']),
+      ),
+    );
+
+  const invoiceChanges: Array<{
+    invoiceId: string;
+    fromPeriodStart: string;
+    toPeriodStart: string;
+    fromPaise: number;
+    toPaise: number;
+  }> = [];
+  const now = new Date();
+  const syncedIds: string[] = [];
+
+  await db.transaction(async (tx) => {
+    for (const inv of transitions) {
+      const parsed = parseBillingPeriodFromInvoiceNotes(inv.notes);
+      if (!parsed) continue;
+      if (!billingTransitionOverlapsPaidThrough(parsed.periodStart, paidThrough)) continue;
+
+      const newPeriodStart = formatDate(addDays(paidThrough, 1));
+      const periodEnd = parsed.periodEnd;
+      if (newPeriodStart > periodEnd) continue;
+
+      const billingMonth = firstOfMonth(newPeriodStart);
+      const resolved = await resolveMonthlyRentPaiseForBooking(args.bookingId, billingMonth);
+      const proration = prorateForMonth({
+        monthlyRatePaise: resolved.rentPaise,
+        billingMonth,
+        activeStart: newPeriodStart,
+        activeEnd: formatDate(addDays(parseDate(periodEnd), 1)),
+      });
+      if (proration.amountPaise <= 0) continue;
+
+      const periodNote = rentInvoiceBillingPeriodNoteForPolicy(
+        'calendar_month_1st',
+        newPeriodStart,
+        periodEnd,
+      );
+      const explanation = `Prorated bridge rent for ${proration.daysActive}/${proration.daysInMonth} days (${newPeriodStart} → ${periodEnd}) before regular 1st-of-month billing.`;
+      const notes = `Billing cycle transition rent — ${explanation} ${periodNote}`;
+
+      const paidPrincipal = inv.paidPrincipalPaise ?? 0;
+      const fullyPaid = paidPrincipal >= proration.amountPaise && proration.amountPaise > 0;
+
+      await tx
+        .update(rentInvoices)
+        .set({
+          rentPaise: proration.amountPaise,
+          notes,
+          dueDate: null,
+          paidLateFeePaise: 0,
+          proofSnapshotOutstandingPaise: null,
+          proofSnapshotLateFeePaise: null,
+          proofSnapshotPrincipalDuePaise: null,
+          createdAt: now,
+          updatedAt: now,
+          status: fullyPaid ? 'paid' : inv.status === 'overdue' ? 'pending' : inv.status,
+          paidAt: fullyPaid ? now : null,
+        })
+        .where(eq(rentInvoices.id, inv.id));
+
+      invoiceChanges.push({
+        invoiceId: inv.id,
+        fromPeriodStart: parsed.periodStart,
+        toPeriodStart: newPeriodStart,
+        fromPaise: inv.rentPaise,
+        toPaise: proration.amountPaise,
+      });
+      syncedIds.push(inv.id);
+    }
+
+    if (invoiceChanges.length > 0) {
+      await tx.insert(auditLog).values({
+        actorType: args.adminId ? 'admin' : 'system',
+        actorId: args.adminId ?? null,
+        entity: 'rent_invoice',
+        entityId: args.bookingId,
+        action: 'vacating_cancel_transition_realign',
+        diff: { invoiceChanges, paidThroughDate: paidThrough },
+      });
+    }
+  });
+
+  if (syncedIds.length > 0) {
+    const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
+    await syncManyToUnified(syncedIds, 'rent');
+  }
+
+  return { realignedCount: invoiceChanges.length, invoiceChanges };
+}
+
 /** Undo future-month cancellations when a vacating notice is withdrawn. */
 export async function restoreRentBillingAfterVacatingCancel(args: {
   bookingId: string;
   adminId?: string | null;
-}): Promise<{ uncancelled: number; recalculated: number; prorationRestored: number }> {
+}): Promise<{
+  uncancelled: number;
+  recalculated: number;
+  prorationRestored: number;
+  transitionRealigned: number;
+}> {
   const proration = await restoreVacatingProratedRentInvoicesForBooking({
     bookingId: args.bookingId,
     adminId: args.adminId,
@@ -800,6 +934,11 @@ export async function restoreRentBillingAfterVacatingCancel(args: {
     );
   }
 
+  const transition = await realignBillingTransitionInvoicesAfterVacatingCancel({
+    bookingId: args.bookingId,
+    adminId: args.adminId,
+  });
+
   const { recalculateBillingAfterVacatingRestore } = await import(
     '@/src/services/residentFinancialEngine'
   );
@@ -812,6 +951,7 @@ export async function restoreRentBillingAfterVacatingCancel(args: {
     uncancelled: uncancelledRows.length,
     recalculated: updatedCount,
     prorationRestored: proration.updatedCount,
+    transitionRealigned: transition.realignedCount,
   };
 }
 
