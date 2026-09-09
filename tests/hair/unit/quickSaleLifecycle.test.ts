@@ -117,6 +117,14 @@ test('QuickSaleShell uses dedicated checkoutSubmitting — not shared pending on
   assert.match(shell, /emptyQuickSaleTransactionState/);
 });
 
+test('mount restores checkout_pending before session draft and purges legacy local draft', () => {
+  const shell = readSrc('src/hair/components/quick-sale/QuickSaleShell.tsx');
+  assert.match(shell, /purgeLegacyLocalActiveDraft/);
+  assert.match(shell, /loadCheckoutPending\(\) \?\? loadSessionDraft\(\)/);
+  assert.match(shell, /saveSessionDraft/);
+  assert.match(shell, /saleCompletedRef/);
+});
+
 test('processing indicator and interaction shield portal to body without grey overlay', () => {
   const shell = readSrc('src/hair/components/quick-sale/QuickSaleShell.tsx');
   assert.doesNotMatch(shell, /qs-pos-locked/);
@@ -155,9 +163,10 @@ test('checkout failure preserves basket and processing is not persisted', () => 
   const block = shell.slice(fnStart, fnEnd);
   assert.doesNotMatch(block, /resetTransactionState/);
   assert.match(block, /finalizeSuccess/);
+  assert.match(block, /revertCheckoutPendingToSessionDraft/);
   assert.match(shell, /QUICK_SALE_CHECKOUT_FAILED_ERROR/);
   assert.doesNotMatch(shell, /checkoutSubmitting.*localStorage/);
-  assert.doesNotMatch(shell, /saveQuickSaleSession.*checkoutSubmitting/);
+  assert.doesNotMatch(shell, /saveSessionDraft.*checkoutSubmitting/);
 });
 
 test('membership preview does not set checkout submitting', () => {

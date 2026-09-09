@@ -12,6 +12,7 @@ import {
 } from '@/src/hair/db/schema';
 import { priceBasket } from '@/src/hair/domain/basket/engine';
 import type { Basket } from '@/src/hair/domain/basket/types';
+import { collectPaymentValidationErrors } from '@/src/hair/domain/basket/validateCheckout';
 import { validateBasket } from '@/src/hair/domain/basket/validate';
 import {
   creditWalletAdvance,
@@ -56,21 +57,8 @@ function validateCheckoutPayments(
   flags: Basket['flags'],
   allowUnpaid?: boolean,
 ): void {
-  if (grandTotalPaise === 0) return;
-  if (allowUnpaid && paySum === 0) return;
-  if (flags.markFullDue) return;
-  if (flags.markDue && paySum > 0 && paySum < grandTotalPaise) return;
-  if (flags.markDue && paySum === 0) {
-    throw new Error('Add a payment or use Mark Full Due');
-  }
-  if (paySum > grandTotalPaise && !flags.creditOverpayAsAdvance) {
-    throw new Error('Overpayment requires marking remaining as advance (Cash/Card only)');
-  }
-  if (!flags.markDue && paySum < grandTotalPaise) {
-    throw new Error(
-      `Payment total must cover amount due (₹${(grandTotalPaise / 100).toFixed(2)}). Use Mark as Due for partial payment.`,
-    );
-  }
+  const errors = collectPaymentValidationErrors(grandTotalPaise, paySum, flags, allowUnpaid);
+  if (errors.length > 0) throw new Error(errors[0]);
 }
 
 export async function enrichBasketWithRedemptions(basket: Basket, ctx?: TenantContext | null): Promise<Basket> {

@@ -11,8 +11,10 @@ import {
   hasQuickSaleTransactionContent,
 } from '@/src/hair/lib/quickSaleLifecycle';
 import {
-  loadQuickSaleSession,
-  saveQuickSaleSession,
+  loadSessionDraft,
+  LOCAL_PENDING_KEY,
+  saveSessionDraft,
+  SESSION_DRAFT_KEY,
   type QuickSaleSessionSnapshot,
 } from '@/src/hair/lib/quickSaleSession';
 
@@ -130,6 +132,8 @@ test('11–13 shell requires confirmation, keep sale, and disables clear while p
   assert.match(shell, /data-testid="qs-clear-all-trigger"/);
   assert.match(shell, /hasActiveTransaction \?/);
   assert.match(shell, /QuickSaleCheckoutProcessing/);
+  assert.match(shell, /saveSessionDraft\(buildClearedQuickSaleDraftForCustomer/);
+  assert.match(shell, /clearCheckoutPending/);
   const overlay = readSrc('src/hair/components/quick-sale/QuickSaleProcessingOverlay.tsx');
   assert.match(overlay, /qs-interaction-shield/);
 
@@ -140,17 +144,27 @@ test('11–13 shell requires confirmation, keep sale, and disables clear while p
   assert.match(confirm, /Clear all/);
 });
 
-test('14 cleared draft cannot be resurrected from persisted localStorage', () => {
-  const store = new Map<string, string>();
+test('14 cleared draft persists to sessionStorage only and cannot resurrect old basket', () => {
+  const localStore = new Map<string, string>();
+  const sessionStore = new Map<string, string>();
   const g = globalThis as typeof globalThis & { window?: Window };
   g.window = {
     localStorage: {
-      getItem: (k: string) => store.get(k) ?? null,
+      getItem: (k: string) => localStore.get(k) ?? null,
       setItem: (k: string, v: string) => {
-        store.set(k, v);
+        localStore.set(k, v);
       },
       removeItem: (k: string) => {
-        store.delete(k);
+        localStore.delete(k);
+      },
+    },
+    sessionStorage: {
+      getItem: (k: string) => sessionStore.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        sessionStore.set(k, v);
+      },
+      removeItem: (k: string) => {
+        sessionStore.delete(k);
       },
     },
   } as Window;
@@ -167,16 +181,19 @@ test('14 cleared draft cannot be resurrected from persisted localStorage', () =>
     staffNames: { st1: 'Rahul' },
     lifecycle: 'active_draft',
   });
-  saveQuickSaleSession(dirty);
+  saveSessionDraft(dirty);
+  assert.ok(sessionStore.has(SESSION_DRAFT_KEY));
+  assert.equal(localStore.has(SESSION_DRAFT_KEY), false);
 
-  saveQuickSaleSession(buildClearedQuickSaleDraftForCustomer(sampleCustomer));
-  const loaded = loadQuickSaleSession();
+  saveSessionDraft(buildClearedQuickSaleDraftForCustomer(sampleCustomer));
+  const loaded = loadSessionDraft();
   assert.ok(loaded);
   assert.equal(loaded.snapshot.lines.length, 0);
   assert.equal(loaded.snapshot.payments.length, 0);
   assert.equal(loaded.snapshot.holdInvoiceId, null);
   assert.deepEqual(loaded.snapshot.customer, sampleCustomer);
   assert.equal(loaded.interruptedCheckout, false);
+  assert.equal(localStore.has(LOCAL_PENDING_KEY), false);
 
   delete g.window;
 });

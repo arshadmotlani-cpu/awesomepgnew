@@ -16,6 +16,7 @@ import { QuickSaleClearAllConfirm } from '@/src/hair/components/quick-sale/Quick
 import { QuickSalePaymentPanel } from '@/src/hair/components/quick-sale/QuickSalePaymentPanel';
 import { QuickSaleCheckoutProcessing } from '@/src/hair/components/quick-sale/QuickSaleProcessingOverlay';
 import { QuickSaleSuccessDialog } from '@/src/hair/components/quick-sale/QuickSaleSuccessDialog';
+import { QuickSaleValidationToasts } from '@/src/hair/components/quick-sale/QuickSaleValidationToasts';
 import {
   AvailableServicesModal,
   type AvailableServiceSelection,
@@ -36,12 +37,17 @@ import {
   QUICK_SALE_CHECKOUT_FAILED_ERROR,
   QUICK_SALE_CHECKOUT_INTERRUPTED_ERROR,
 } from '@/src/hair/lib/quickSaleLifecycle';
+import { validateQuickSaleCheckout } from '@/src/hair/domain/basket/validateCheckout';
 import {
   buildQuickSaleSessionSnapshot,
+  clearCheckoutPending,
   clearQuickSaleSession,
-  loadQuickSaleSession,
+  loadCheckoutPending,
+  loadSessionDraft,
   markQuickSaleCheckoutPending,
-  saveQuickSaleSession,
+  purgeLegacyLocalActiveDraft,
+  revertCheckoutPendingToSessionDraft,
+  saveSessionDraft,
   type QuickSaleTab,
 } from '@/src/hair/lib/quickSaleSession';
 import type { AppointmentCheckoutPrefill } from '@/src/hair/domain/basket/appointmentBridge';
@@ -112,8 +118,10 @@ export function QuickSaleShell({
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
   const [holdSubmitting, setHoldSubmitting] = useState(false);
   const [successGrandTotalPaise, setSuccessGrandTotalPaise] = useState(0);
+  const [validationToasts, setValidationToasts] = useState<string[]>([]);
   const catalogSearchRef = useRef<HTMLInputElement>(null);
   const checkoutSubmittingRef = useRef(false);
+  const saleCompletedRef = useRef(false);
 
   const workspaceLocked = checkoutSubmitting || holdSubmitting;
   const hasActiveTransaction = hasQuickSaleTransactionContent({
@@ -157,7 +165,8 @@ export function QuickSaleShell({
       setSessionHydrated(true);
       return;
     }
-    const loaded = loadQuickSaleSession();
+    purgeLegacyLocalActiveDraft();
+    const loaded = loadCheckoutPending() ?? loadSessionDraft();
     if (loaded) {
       const { snapshot, interruptedCheckout } = loaded;
       setCustomer(snapshot.customer);
@@ -178,9 +187,17 @@ export function QuickSaleShell({
   }, [appointmentPrefill]);
 
   useEffect(() => {
-    if (!sessionHydrated || step !== 'sale' || !customer || workspaceLocked) return;
+    if (
+      !sessionHydrated ||
+      step !== 'sale' ||
+      !customer ||
+      workspaceLocked ||
+      saleCompletedRef.current
+    ) {
+      return;
+    }
     const t = window.setTimeout(() => {
-      saveQuickSaleSession(
+      saveSessionDraft(
         buildQuickSaleSessionSnapshot({
           customer,
           appointmentId,
@@ -284,27 +301,44 @@ export function QuickSaleShell({
     }
   }
 
+  function buildCurrentSessionSnapshot() {
+    if (!customer) return null;
+    return buildQuickSaleSessionSnapshot({
+      customer,
+      appointmentId,
+      tab,
+      catalogQ,
+      lines,
+      payments,
+      flags,
+      holdInvoiceId,
+      staffNames,
+      lifecycle: 'active_draft',
+    });
+  }
+
   async function submitCheckout() {
-    if (!basket || checkoutSubmittingRef.current) return;
+    if (!basket || !priced || checkoutSubmittingRef.current) return;
+
+    const validationErrors = validateQuickSaleCheckout(basket, priced);
+    if (validationErrors.length > 0) {
+      setValidationToasts(validationErrors);
+      return;
+    }
+
     checkoutSubmittingRef.current = true;
     setCheckoutSubmitting(true);
     setError(null);
-    if (customer) {
-      markQuickSaleCheckoutPending(
-        buildQuickSaleSessionSnapshot({
-          customer,
-          appointmentId,
-          tab,
-          catalogQ,
-          lines,
-          payments,
-          flags,
-          holdInvoiceId,
-          staffNames,
-          lifecycle: 'checkout_pending',
-        }),
-      );
+    setValidationToasts([]);
+
+    const sessionSnapshot = buildCurrentSessionSnapshot();
+    if (sessionSnapshot) {
+      markQuickSaleCheckoutPending({
+        ...sessionSnapshot,
+        lifecycle: 'checkout_pending',
+      });
     }
+
     try {
       const res = await completeQuickSaleAction({
         basket: { ...basket, membershipDiscountPaise },
@@ -313,6 +347,9 @@ export function QuickSaleShell({
         appointmentId: appointmentId ?? undefined,
       });
       if (res.error) {
+        if (sessionSnapshot) {
+          revertCheckoutPendingToSessionDraft(sessionSnapshot);
+        }
         setError(
           res.error === 'Could not complete sale'
             ? QUICK_SALE_CHECKOUT_FAILED_ERROR
@@ -325,7 +362,17 @@ export function QuickSaleShell({
           advancePaise: res.advancePaise ?? 0,
           printHtml: res.printHtml ?? null,
         });
-      } else setError(QUICK_SALE_CHECKOUT_AMBIGUOUS_ERROR);
+      } else {
+        if (sessionSnapshot) {
+          revertCheckoutPendingToSessionDraft(sessionSnapshot);
+        }
+        setError(QUICK_SALE_CHECKOUT_AMBIGUOUS_ERROR);
+      }
+    } catch {
+      if (sessionSnapshot) {
+        revertCheckoutPendingToSessionDraft(sessionSnapshot);
+      }
+      setError(QUICK_SALE_CHECKOUT_FAILED_ERROR);
     } finally {
       checkoutSubmittingRef.current = false;
       setCheckoutSubmitting(false);
@@ -387,8 +434,9 @@ export function QuickSaleShell({
     resetTransactionState();
     setError(null);
     setClearAllConfirmOpen(false);
+    clearCheckoutPending();
     if (customer) {
-      saveQuickSaleSession(buildClearedQuickSaleDraftForCustomer(customer));
+      saveSessionDraft(buildClearedQuickSaleDraftForCustomer(customer));
     } else {
       clearQuickSaleSession();
     }
@@ -400,6 +448,7 @@ export function QuickSaleShell({
     advancePaise?: number;
     printHtml?: string | null;
   }) => {
+    saleCompletedRef.current = true;
     setSuccessGrandTotalPaise(priced?.totals.grandTotalPaise ?? 0);
     clearQuickSaleSession();
     resetTransactionState();
@@ -412,6 +461,7 @@ export function QuickSaleShell({
   };
 
   const clearSaleState = () => {
+    saleCompletedRef.current = false;
     clearQuickSaleSession();
     setCustomer(null);
     resetTransactionState();
@@ -549,6 +599,10 @@ export function QuickSaleShell({
 
   return (
     <div className="qs-pos-shell" aria-busy={workspaceLocked} data-testid="qs-pos-shell">
+      <QuickSaleValidationToasts
+        messages={validationToasts}
+        onDismiss={() => setValidationToasts([])}
+      />
       {workspaceLocked ? <QuickSaleCheckoutProcessing /> : null}
       {/* Customer — compact header bar */}
       <section className="qs-section shrink-0">

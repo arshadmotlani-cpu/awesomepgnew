@@ -8,7 +8,12 @@ import {
 } from '@/src/hair/lib/quickSaleLifecycle';
 import type { PosCustomerHit } from '@/src/hair/services/quickSale';
 
-const STORAGE_KEY = 'fyh-quick-sale-session-v1';
+/** sessionStorage — tab-scoped active draft */
+export const SESSION_DRAFT_KEY = 'fyh-quick-sale-session-v1';
+/** localStorage — survives tab close for interrupted checkout recovery */
+export const LOCAL_PENDING_KEY = 'fyh-quick-sale-checkout-pending-v1';
+/** legacy localStorage key from previous implementation */
+const LEGACY_LOCAL_KEY = 'fyh-quick-sale-session-v1';
 
 export type QuickSaleTab = BillableItemType | 'all';
 
@@ -71,51 +76,153 @@ export type LoadedQuickSaleSession = {
   interruptedCheckout: boolean;
 };
 
-function isLoadableQuickSaleSession(
+function isCheckoutPendingSnapshot(
   snapshot: QuickSaleSessionSnapshot | null,
 ): snapshot is QuickSaleSessionSnapshot {
-  if (!snapshot?.customer?.id) return false;
-  return snapshot.lifecycle === 'active_draft' || snapshot.lifecycle === 'checkout_pending';
+  return Boolean(snapshot?.customer?.id && snapshot.lifecycle === 'checkout_pending');
 }
 
-export function loadQuickSaleSession(): LoadedQuickSaleSession | null {
-  if (typeof window === 'undefined') return null;
+function isActiveDraftSnapshot(
+  snapshot: QuickSaleSessionSnapshot | null,
+): snapshot is QuickSaleSessionSnapshot {
+  return Boolean(snapshot?.customer?.id && snapshot.lifecycle === 'active_draft');
+}
+
+function safeGetItem(storage: Storage, key: string): string | null {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = parseStoredSession(raw);
-    if (!parsed || !isLoadableQuickSaleSession(parsed)) return null;
-    const interruptedCheckout = parsed.lifecycle === 'checkout_pending';
-    const snapshot = normalizeRestoredQuickSaleSession(parsed);
-    return { snapshot, interruptedCheckout };
+    return storage.getItem(key);
   } catch {
     return null;
   }
 }
 
-export function saveQuickSaleSession(snapshot: QuickSaleSessionSnapshot): void {
-  if (typeof window === 'undefined') return;
-  if (!isRestorableQuickSaleSession(snapshot) && snapshot.lifecycle !== 'checkout_pending') {
-    return;
-  }
+function safeSetItem(storage: Storage, key: string, value: string): void {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+    storage.setItem(key, value);
   } catch {
     // quota / private mode — non-fatal
   }
 }
 
-export function markQuickSaleCheckoutPending(snapshot: QuickSaleSessionSnapshot): void {
-  saveQuickSaleSession({ ...snapshot, lifecycle: 'checkout_pending' });
-}
-
-export function clearQuickSaleSession(): void {
-  if (typeof window === 'undefined') return;
+function safeRemoveItem(storage: Storage, key: string): void {
   try {
-    window.localStorage.removeItem(STORAGE_KEY);
+    storage.removeItem(key);
   } catch {
     // ignore
   }
+}
+
+/**
+ * Remove legacy localStorage active drafts (never restore).
+ * Migrate legacy checkout_pending to LOCAL_PENDING_KEY.
+ */
+export function purgeLegacyLocalActiveDraft(): void {
+  if (typeof window === 'undefined') return;
+  const raw = safeGetItem(window.localStorage, LEGACY_LOCAL_KEY);
+  if (!raw) return;
+  try {
+    const parsed = parseStoredSession(raw);
+    if (!parsed) {
+      safeRemoveItem(window.localStorage, LEGACY_LOCAL_KEY);
+      return;
+    }
+    if (parsed.lifecycle === 'checkout_pending') {
+      safeSetItem(
+        window.localStorage,
+        LOCAL_PENDING_KEY,
+        JSON.stringify({ ...parsed, lifecycle: 'checkout_pending' }),
+      );
+    }
+    // active_draft (v1 or v2) — discard silently
+    safeRemoveItem(window.localStorage, LEGACY_LOCAL_KEY);
+  } catch {
+    safeRemoveItem(window.localStorage, LEGACY_LOCAL_KEY);
+  }
+}
+
+export function loadCheckoutPending(): LoadedQuickSaleSession | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = safeGetItem(window.localStorage, LOCAL_PENDING_KEY);
+    if (!raw) return null;
+    const parsed = parseStoredSession(raw);
+    if (!parsed || !isCheckoutPendingSnapshot(parsed)) return null;
+    const snapshot = normalizeRestoredQuickSaleSession(parsed);
+    return { snapshot, interruptedCheckout: true };
+  } catch {
+    return null;
+  }
+}
+
+export function loadSessionDraft(): LoadedQuickSaleSession | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = safeGetItem(window.sessionStorage, SESSION_DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = parseStoredSession(raw);
+    if (!parsed || !isActiveDraftSnapshot(parsed)) return null;
+    if (!isRestorableQuickSaleSession(parsed)) return null;
+    const snapshot = normalizeRestoredQuickSaleSession(parsed);
+    return { snapshot, interruptedCheckout: false };
+  } catch {
+    return null;
+  }
+}
+
+/** Mount order: checkout_pending (localStorage) then active_draft (sessionStorage). */
+export function loadQuickSaleSession(): LoadedQuickSaleSession | null {
+  return loadCheckoutPending() ?? loadSessionDraft();
+}
+
+export function saveSessionDraft(snapshot: QuickSaleSessionSnapshot): void {
+  if (typeof window === 'undefined') return;
+  if (!isRestorableQuickSaleSession(snapshot)) return;
+  safeSetItem(window.sessionStorage, SESSION_DRAFT_KEY, JSON.stringify(snapshot));
+}
+
+export function saveCheckoutPending(snapshot: QuickSaleSessionSnapshot): void {
+  if (typeof window === 'undefined') return;
+  if (snapshot.lifecycle !== 'checkout_pending') return;
+  safeSetItem(
+    window.localStorage,
+    LOCAL_PENDING_KEY,
+    JSON.stringify({ ...snapshot, lifecycle: 'checkout_pending' }),
+  );
+}
+
+/** @deprecated Use saveSessionDraft or saveCheckoutPending */
+export function saveQuickSaleSession(snapshot: QuickSaleSessionSnapshot): void {
+  if (snapshot.lifecycle === 'checkout_pending') {
+    saveCheckoutPending(snapshot);
+  } else if (isRestorableQuickSaleSession(snapshot)) {
+    saveSessionDraft(snapshot);
+  }
+}
+
+export function markQuickSaleCheckoutPending(snapshot: QuickSaleSessionSnapshot): void {
+  saveCheckoutPending({ ...snapshot, lifecycle: 'checkout_pending' });
+}
+
+/** Synchronous checkout-failure path: remove pending, persist tab-scoped draft. */
+export function revertCheckoutPendingToSessionDraft(snapshot: QuickSaleSessionSnapshot): void {
+  clearCheckoutPending();
+  saveSessionDraft({ ...snapshot, lifecycle: 'active_draft' });
+}
+
+export function clearSessionDraft(): void {
+  if (typeof window === 'undefined') return;
+  safeRemoveItem(window.sessionStorage, SESSION_DRAFT_KEY);
+}
+
+export function clearCheckoutPending(): void {
+  if (typeof window === 'undefined') return;
+  safeRemoveItem(window.localStorage, LOCAL_PENDING_KEY);
+  safeRemoveItem(window.localStorage, LEGACY_LOCAL_KEY);
+}
+
+export function clearQuickSaleSession(): void {
+  clearSessionDraft();
+  clearCheckoutPending();
 }
 
 export { buildQuickSaleSessionSnapshot, isRestorableQuickSaleSession };

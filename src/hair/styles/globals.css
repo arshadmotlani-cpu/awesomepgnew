@@ -1389,3 +1389,13 @@
   background: var(--fyh-scheduler-now);
   box-shadow: 0 0 6px color-mix(in srgb, var(--fyh-scheduler-now) 55%, transparent);
 }
+
+.qs-success-invoice-scroll {
+  overflow: auto;
+  max-height: calc(92vh - 5rem);
+}
+
+.qs-success-invoice-sheet {
+  margin: 0 auto;
+  max-width: 210mm;
+}
