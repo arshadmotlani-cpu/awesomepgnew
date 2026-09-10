@@ -2335,6 +2335,15 @@ export function projectInvoice(
 
   if (inv.invoiceSubtype === 'billing_cycle_transition') {
     const rentDuePaise = computeRentDuePaise(inv.rentPaise, inv.discountPaise);
+    if (!options?.bypassProofSnapshot && hasFrozenProofSnapshot(inv)) {
+      const outstandingPaise = Math.max(0, inv.proofSnapshotOutstandingPaise);
+      return {
+        ...inv,
+        accruedLateFeePaise: 0,
+        outstandingPaise,
+        effectiveStatus: 'payment_in_progress',
+      };
+    }
     const outstandingPaise = Math.max(
       0,
       rentDuePaise - inv.paidPrincipalPaise - inv.paidLateFeePaise,

@@ -1573,6 +1573,7 @@ export type RentInvoiceRow = {
   invoiceSubtype: 'standard' | 'billing_cycle_transition';
   notes: string | null;
   paymentProofUrl: string | null;
+  paymentProofTransactionRef: string | null;
   proofSubmittedAt: Date | null;
   proofSnapshotOutstandingPaise: number | null;
   proofSnapshotLateFeePaise: number | null;
@@ -1606,6 +1607,7 @@ export function listRentInvoicesForBooking(
         invoiceSubtype: rentInvoices.invoiceSubtype,
         notes: rentInvoices.notes,
         paymentProofUrl: rentInvoices.paymentProofUrl,
+        paymentProofTransactionRef: rentInvoices.paymentProofTransactionRef,
         proofSubmittedAt: rentInvoices.proofSubmittedAt,
         proofSnapshotOutstandingPaise: rentInvoices.proofSnapshotOutstandingPaise,
         proofSnapshotLateFeePaise: rentInvoices.proofSnapshotLateFeePaise,

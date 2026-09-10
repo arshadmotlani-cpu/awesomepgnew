@@ -21,6 +21,7 @@ import type { PaidHistoryRow } from '@/src/components/customer/account/resident/
 import type { PaymentDueRow } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
 import type { UpcomingPaymentRow } from '@/src/components/customer/account/resident/ResidentUpcomingPayments';
 import { isCancelledResidentInvoiceStatus } from '@/src/lib/residents/residentPortalDisplay';
+import { isRentInvoiceAwaitingPaymentReview } from '@/src/lib/operations/paymentReviewQueueEligibility';
 import { electricityUseProRataFromRow } from '@/src/lib/residents/residentElectricityHistoryPresentation';
 import { buildResidentRentBillPresentation } from '@/src/lib/residents/residentBillingPeriodDisplay';
 
@@ -183,7 +184,14 @@ export function buildResidentBillRowsFromDetail(
         continue;
       }
 
-      if (projected.effectiveStatus === 'payment_in_progress') {
+      const awaitingPaymentReview =
+        projected.effectiveStatus === 'payment_in_progress' ||
+        isRentInvoiceAwaitingPaymentReview({
+          status: r.status,
+          paymentProofUrl: r.paymentProofUrl,
+          paymentProofTransactionRef: r.paymentProofTransactionRef,
+        });
+      if (awaitingPaymentReview) {
         pendingApprovalRows.push({
           key: `rent-${r.id}`,
           label: display.label,
@@ -192,8 +200,8 @@ export function buildResidentBillRowsFromDetail(
           transitionExplanation: display.transitionExplanation,
           amountPaise: outstanding,
           dueDate: r.dueDate,
-          href: `/account/resident/pay-rent/${r.id}`,
-          status: 'Waiting for admin approval',
+          href: null,
+          status: 'Payment verification pending',
           invoiceNumber: r.invoiceNumber,
         });
         continue;
