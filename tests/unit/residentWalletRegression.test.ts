@@ -47,7 +47,7 @@ test('wallet sub-tab wires deposit balance, ledger, policy, and refund tracking'
   assert.match(profileWalletPanel, /RequestMoneySheet/);
   assert.match(profileWalletPanel, /Deposit deductions/);
   assert.match(profileWalletPanel, /Refund history/);
-  assert.match(profileWalletPanel, /Deposit refund not available yet/);
+  assert.doesNotMatch(profileWalletPanel, /Deposit refund not available yet/);
   assert.match(residentPortalTabData, /getDepositSummaryForBooking/);
   assert.match(residentPortalTabData, /refundableBalancePaise/);
 });

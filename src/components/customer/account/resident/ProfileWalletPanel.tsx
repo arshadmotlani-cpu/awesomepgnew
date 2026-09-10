@@ -256,21 +256,11 @@ export function ProfileWalletPanel({
         </ApgCard>
       ) : null}
 
-      {!refundEligibility.canRequestRefund && refundEligibility.lockReason ? (
-        <ApgCard tier="resident">
-          <p className="text-sm text-amber-200">
-            <span className="font-semibold text-white">Deposit refund not available yet.</span>{' '}
-            {refundEligibility.lockReason}
-          </p>
-        </ApgCard>
-      ) : null}
-
       <RequestMoneySheet
         bookingId={bookingId}
         customerId={customerId}
         refundableBalancePaise={availableRefundPaise}
         referralAvailablePaise={referralAvailable}
-        hasOpenVacating={hasOpenVacating}
         settlementPreview={settlementPreview}
         refundEligibility={refundEligibility}
       />

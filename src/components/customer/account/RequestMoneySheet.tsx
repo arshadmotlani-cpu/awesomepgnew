@@ -16,7 +16,6 @@ export function RequestMoneySheet({
   customerId,
   refundableBalancePaise,
   referralAvailablePaise,
-  hasOpenVacating,
   settlementPreview = null,
   refundEligibility = null,
 }: {
@@ -24,7 +23,6 @@ export function RequestMoneySheet({
   customerId: string;
   refundableBalancePaise: number;
   referralAvailablePaise: number;
-  hasOpenVacating: boolean;
   settlementPreview?: DepositRefundSettlementPreview | null;
   refundEligibility?: DepositRefundEligibility | null;
 }) {
@@ -125,16 +123,13 @@ export function RequestMoneySheet({
                 >
                   ← Back
                 </button>
-                {hasOpenVacating ? (
-                  <p className="mt-3 rounded-lg border border-sky-400/30 bg-sky-500/10 px-3 py-2 text-xs text-sky-100">
-                    You have a vacating notice on file. After checkout, submit your deposit refund with
-                    meter photo and UPI details.
-                  </p>
-                ) : null}
                 {refundableBalancePaise <= 0 ? (
                   <p className="mt-3 text-sm text-amber-200">No refundable deposit balance on file.</p>
                 ) : !canRequestRefund && refundLockReason ? (
-                  <p className="mt-3 text-sm text-amber-200">{refundLockReason}</p>
+                  <p className="mt-3 text-sm text-amber-200">
+                    <span className="font-semibold text-white">Security deposit refund not available yet.</span>{' '}
+                    {refundLockReason}
+                  </p>
                 ) : (
                   <DepositRefundRequestForm
                     bookingId={bookingId}
