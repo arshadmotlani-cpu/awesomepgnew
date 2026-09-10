@@ -32,6 +32,8 @@ export function SalaryEmployeeCard({
   const allocated =
     line.paidLeaveAllocated != null ? String(line.paidLeaveAllocated) : '—';
 
+  const hasQrImage = Boolean(line.qrCodeUrl?.trim());
+
   return (
     <section className="rounded-2xl border border-[color:var(--fyh-border)] bg-[color:var(--fyh-surface)] p-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
@@ -63,7 +65,7 @@ export function SalaryEmployeeCard({
           {line.payment.paymentReference ? ` · Ref ${line.payment.paymentReference}` : ''}
         </p>
       ) : ownerView ? (
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
@@ -79,6 +81,19 @@ export function SalaryEmployeeCard({
             >
               Pay
             </button>
+          ) : null}
+          {canViewQr ? (
+            hasQrImage ? (
+              <button
+                type="button"
+                onClick={() => setShowQr(true)}
+                className="rounded border border-[color:var(--fyh-border)] px-3 py-1.5 text-sm"
+              >
+                View QR
+              </button>
+            ) : (
+              <span className="text-sm text-fyh-text-secondary">QR not added</span>
+            )
           ) : null}
         </div>
       ) : null}
@@ -99,23 +114,10 @@ export function SalaryEmployeeCard({
           <p className="text-sm text-fyh-text-secondary">Salary for {monthLabel}</p>
           <p className="text-lg font-semibold">{inr(line.netPaise)}</p>
           {canViewQr ? (
-            <>
-              <p className="text-sm">
-                UPI ID:{' '}
-                <span className="font-medium">{line.upiId?.trim() || 'Not saved'}</span>
-              </p>
-              {line.qrCodeUrl ? (
-                <button
-                  type="button"
-                  onClick={() => setShowQr(true)}
-                  className="rounded border border-[color:var(--fyh-border)] px-3 py-1.5 text-sm"
-                >
-                  View QR
-                </button>
-              ) : (
-                <p className="text-sm text-fyh-text-secondary">No salary payment QR saved.</p>
-              )}
-            </>
+            <p className="text-sm">
+              UPI ID:{' '}
+              <span className="font-medium">{line.upiId?.trim() || 'Not saved'}</span>
+            </p>
           ) : (
             <p className="text-sm text-fyh-text-secondary">
               Payment details hidden — View Salary QR permission required.
@@ -153,14 +155,39 @@ export function SalaryEmployeeCard({
         </form>
       ) : null}
 
-      {showQr && canViewQr && line.qrCodeUrl ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setShowQr(false)}>
-          <div className="max-w-sm rounded-2xl bg-[color:var(--fyh-surface)] p-4" onClick={(e) => e.stopPropagation()}>
-            <p className="mb-3 text-sm font-medium">{line.fullName} — payment QR</p>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={line.qrCodeUrl} alt={`${line.fullName} payment QR`} className="mx-auto h-64 w-64 object-contain" />
-            {line.upiId ? <p className="mt-3 text-center text-sm">UPI: {line.upiId}</p> : null}
-            <button type="button" onClick={() => setShowQr(false)} className="mt-4 w-full rounded border border-[color:var(--fyh-border)] py-2 text-sm">
+      {showQr && canViewQr ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setShowQr(false)}
+        >
+          <div
+            className="max-w-sm rounded-2xl bg-[color:var(--fyh-surface)] p-4"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${line.fullName} payment QR`}
+          >
+            <p className="text-base font-semibold">{line.fullName}</p>
+            <p className="mt-1 text-sm text-fyh-text-secondary">
+              UPI ID: {line.upiId?.trim() || 'Not saved'}
+            </p>
+            {hasQrImage ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={line.qrCodeUrl!}
+                alt={`${line.fullName} payment QR`}
+                className="mx-auto mt-4 h-64 w-64 object-contain"
+              />
+            ) : (
+              <p className="mt-6 rounded-lg border border-dashed border-[color:var(--fyh-border)] px-4 py-10 text-center text-sm text-fyh-text-secondary">
+                QR not added
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowQr(false)}
+              className="mt-4 w-full rounded border border-[color:var(--fyh-border)] py-2 text-sm"
+            >
               Close
             </button>
           </div>

@@ -129,12 +129,18 @@ describe('Salary permissions and payment records', () => {
     }
   });
 
-  it('13 — owner can view QR from salary payment panel when permitted', () => {
+  it('13 — owner can view QR from salary card actions when permitted', () => {
     const card = read('src/workforce/components/payroll/SalaryEmployeeCard.tsx');
     assert.match(card, /View QR/);
+    assert.match(card, /QR not added/);
     assert.match(card, /canViewQr/);
     assert.match(card, /canPay/);
     assert.match(card, /Mark paid/);
+    const payIdx = card.indexOf('showPay && ownerView && canPay');
+    const cardActionsIdx = card.indexOf('ownerView ? (');
+    const viewQrOnCardIdx = card.indexOf('hasQrImage ? (');
+    assert.ok(cardActionsIdx > 0 && viewQrOnCardIdx > cardActionsIdx);
+    assert.ok(viewQrOnCardIdx < payIdx || payIdx < 0);
   });
 
   it('14/15/16 — payment creates persistent record with idempotency', () => {
