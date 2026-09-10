@@ -19,10 +19,13 @@ import {
 import { dividerClass, mutedClass } from '@/src/lib/billing/financialDocumentTheme';
 
 type Variant = 'admin' | 'resident';
+type PresentationMode = 'full' | 'share';
 
 type Props = {
   document: InvoiceDocumentModel;
   variant?: Variant;
+  /** Share links show one invoice only — no deposit/stay/booking summaries. */
+  presentationMode?: PresentationMode;
   className?: string;
 };
 
@@ -156,11 +159,17 @@ function buildTotalRows(doc: InvoiceDocumentModel): FinancialDocumentTotalRow[] 
   return rows;
 }
 
-export function InvoiceDocument({ document: doc, variant = 'admin', className = '' }: Props) {
+export function InvoiceDocument({
+  document: doc,
+  variant = 'admin',
+  presentationMode = 'full',
+  className = '',
+}: Props) {
   const status = statusStyle(doc.status);
   const surface = variant === 'resident' ? 'resident' : 'adminPage';
   const muted = mutedClass(surface);
   const divider = dividerClass(surface);
+  const shareMode = presentationMode === 'share';
 
   const badge = (
     <span
@@ -215,7 +224,7 @@ export function InvoiceDocument({ document: doc, variant = 'admin', className = 
           ),
         }}
         right={
-          doc.stayDates
+          doc.stayDates && !shareMode
             ? {
                 title: 'Stay',
                 children: (
@@ -263,7 +272,7 @@ export function InvoiceDocument({ document: doc, variant = 'admin', className = 
         emptyMessage={`${titleCase(doc.invoiceType.replace(/_/g, ' '))} — ${paiseToInr(doc.totals.totalPaise)}`}
       />
 
-      {doc.rentCalculationBreakdown ? (
+      {doc.rentCalculationBreakdown && !shareMode ? (
         <section className="mt-6 print:break-inside-avoid">
           <RentInvoiceBreakdownPanel
             breakdown={doc.rentCalculationBreakdown}
@@ -272,7 +281,7 @@ export function InvoiceDocument({ document: doc, variant = 'admin', className = 
         </section>
       ) : null}
 
-      {doc.electricityCalculationBreakdown ? (
+      {doc.electricityCalculationBreakdown && !shareMode ? (
         <section className="mt-6 print:break-inside-avoid">
           <ElectricityBillCalculationBreakdownPanel
             breakdown={doc.electricityCalculationBreakdown}
@@ -296,7 +305,7 @@ export function InvoiceDocument({ document: doc, variant = 'admin', className = 
 
       <FinancialDocumentTotals surface={surface} rows={buildTotalRows(doc)} />
 
-      {doc.bookingPaymentSummary ? (
+      {doc.bookingPaymentSummary && !shareMode ? (
         <section className={`mt-6 border-t pt-6 ${divider}`}>
           <h2 className={`text-[10px] font-semibold uppercase tracking-wide ${muted}`}>
             Booking payment summary
@@ -384,7 +393,7 @@ export function InvoiceDocument({ document: doc, variant = 'admin', className = 
               ) : null}
             </p>
           ) : null}
-          {doc.payment.paymentLinkUrl && doc.totals.balanceDuePaise > 0 ? (
+          {doc.payment.paymentLinkUrl && doc.totals.balanceDuePaise > 0 && !shareMode ? (
             <p className="mt-2 text-sm">
               Pay via UPI:{' '}
               <Link

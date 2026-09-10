@@ -423,3 +423,6 @@ See [[DECISIONS#Operations as action hub]].
 
 <!-- DOC_SYNC_TOUCH_2026-09-09 -->
 > **2026-09-09 04:36:48 UTC** — Code changed in: Routes, Residents. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-09-10 -->
+> **2026-09-10 10:23:12 UTC** — Code changed in: Routes, Billing. Manual review recommended.

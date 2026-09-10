@@ -62,10 +62,15 @@ async function findCollectibleRentInvoiceId(
   return row?.id ?? null;
 }
 
-async function resolveFinancialInvoiceIdForOutstandingLine(
+export async function resolveFinancialInvoiceIdForOutstandingLine(
   line: UnifiedOpsOutstandingLine,
 ): Promise<string | null> {
   if (line.financialInvoiceId) return line.financialInvoiceId;
+
+  if (line.sourceId && line.sourceTable) {
+    return await resolveFinancialInvoiceIdForSource(line.sourceTable, line.sourceId);
+  }
+
   if (!line.bookingId || !line.billingMonth) return null;
 
   const sourceId =

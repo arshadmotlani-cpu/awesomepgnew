@@ -7,6 +7,8 @@ import { financialInvoices } from '@/src/db/schema';
 import { getInvoiceDocumentDetail } from '@/src/lib/billing/invoiceDocumentModel';
 import { invoicePdfShareDownloadHref } from '@/src/lib/billing/invoicePdfLinks';
 import { resolveInvoiceIdByShareToken } from '@/src/lib/billing/invoiceShareToken';
+import { canShowPublicInvoiceSharePayCta } from '@/src/lib/billing/publicInvoiceSharePay';
+import { paymentProofTxnSubmitInstruction } from '@/src/lib/payments/paymentProofModel';
 import { recordElectricityInvoiceView } from '@/src/services/electricityInvoiceViews';
 
 export const dynamic = 'force-dynamic';
@@ -61,15 +63,19 @@ export default async function PublicInvoiceSharePage({
           </div>
         </header>
 
-        <InvoiceDocument document={document} variant="resident" />
+        <InvoiceDocument document={document} variant="resident" presentationMode="share" />
 
-        {document.payment.paymentLinkUrl && document.totals.balanceDuePaise > 0 ? (
-          <div className="mt-6 text-center print:hidden">
+        {canShowPublicInvoiceSharePayCta({
+          status: document.status,
+          balanceDuePaise: document.totals.balanceDuePaise,
+        }) && document.payment.paymentLinkUrl ? (
+          <div className="mt-6 space-y-3 text-center print:hidden">
+            <p className="text-sm text-zinc-600">{paymentProofTxnSubmitInstruction()}</p>
             <a
               href={document.payment.paymentLinkUrl}
               className="inline-flex min-h-[44px] items-center rounded-xl bg-[#FF5A1F] px-6 py-3 text-sm font-semibold text-white hover:brightness-110"
             >
-              Pay {paiseDisplay(document.totals.balanceDuePaise)}
+              Pay this bill · {paiseDisplay(document.totals.balanceDuePaise)}
             </a>
           </div>
         ) : null}

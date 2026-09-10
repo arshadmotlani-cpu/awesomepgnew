@@ -2521,6 +2521,7 @@ export async function createAdhocRentInvoice(input: {
   title: string;
   description?: string;
   dueDate?: string | null;
+  billingMonth?: string;
   invoiceSubtype?: 'standard' | 'billing_cycle_transition';
 }): Promise<
   | { ok: true; invoiceId: string; invoiceNumber: string }
@@ -2530,7 +2531,9 @@ export async function createAdhocRentInvoice(input: {
     return { ok: false, error: 'Amount must be greater than zero.' };
   }
 
-  const billingMonth = firstOfMonth(billingBusinessDate());
+  const billingMonth = input.billingMonth
+    ? firstOfMonth(input.billingMonth)
+    : firstOfMonth(billingBusinessDate());
   const issueDate = billingBusinessDate();
   const subtype = input.invoiceSubtype ?? 'standard';
   const dueDate =

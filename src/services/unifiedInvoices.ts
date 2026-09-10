@@ -1024,7 +1024,15 @@ export async function createPaymentLinkForInvoice(invoiceId: string) {
   if (!link.ok) return link;
 
   const linkId = link.link.id;
-  await db.update(paymentLinks).set({ invoiceId }).where(eq(paymentLinks.id, linkId));
+  const rentInvoiceId =
+    detail.sourceTable === 'rent_invoices' && detail.sourceId ? detail.sourceId : null;
+  await db
+    .update(paymentLinks)
+    .set({
+      invoiceId,
+      ...(rentInvoiceId ? { rentInvoiceId } : {}),
+    })
+    .where(eq(paymentLinks.id, linkId));
   await db
     .update(financialInvoices)
     .set({ paymentLinkId: linkId, updatedAt: new Date() })

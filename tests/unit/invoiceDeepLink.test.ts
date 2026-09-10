@@ -63,6 +63,29 @@ test('invoiceDetailHref resident canonical path unchanged', () => {
   );
 });
 
+test('operations WhatsApp rent message embeds canonical /i share URL', async () => {
+  const { buildOperationsPaymentWhatsAppMessage } = await import(
+    '@/src/lib/operations/operationsPaymentWhatsApp'
+  );
+  const token = 'abc123sharetoken';
+  const message = buildOperationsPaymentWhatsAppMessage({
+    residentName: 'Syed Ahmed',
+    pgName: 'Awesome PG',
+    lines: [
+      {
+        categoryLabel: 'Rent',
+        periodLabel: '31 Aug 2026 → 9 Sep 2026',
+        amountPaise: 220_000,
+        kind: 'rent',
+        billingMonth: '2026-09-01',
+        paymentUrl: `${CANONICAL_PRODUCTION_URL}/i/${token}`,
+      },
+    ],
+  });
+  assert.match(message, new RegExp(`/i/${token}`));
+  assert.doesNotMatch(message, /\/account\/resident/);
+});
+
 test('getAppUrl on Vercel production is always canonical www', () => {
   const prevEnv = process.env.VERCEL_ENV;
   const prevVercel = process.env.VERCEL_URL;

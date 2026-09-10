@@ -79,6 +79,8 @@ export type UnifiedOpsOutstandingLine = {
   kind: 'rent' | 'electricity' | 'deposit';
   billingMonth?: string | null;
   bookingId?: string | null;
+  sourceId?: string | null;
+  sourceTable?: 'rent_invoices' | 'electricity_invoices' | null;
   label?: string;
 };
 
@@ -242,6 +244,8 @@ function electricityCollectionToItem(row: CollectionQueueItem): UnifiedOpsItem {
     kind: 'electricity',
     billingMonth: row.billingMonth,
     bookingId: row.bookingId,
+    sourceId: row.sourceId,
+    sourceTable: row.sourceTable,
   };
 
   const daysOverdue = row.daysOverdue;
@@ -333,6 +337,8 @@ function residentsRowToItem(row: ResidentsQueueRow): UnifiedOpsItem | null {
             kind: 'rent',
             billingMonth: row.billingMonth,
             bookingId: row.bookingId,
+            sourceId: row.sourceId,
+            sourceTable: row.sourceTable,
           }
         : undefined;
 
@@ -371,6 +377,8 @@ function residentsRowToItem(row: ResidentsQueueRow): UnifiedOpsItem | null {
             kind: 'electricity',
             billingMonth: row.billingMonth,
             bookingId: row.bookingId,
+            sourceId: row.sourceId,
+            sourceTable: row.sourceTable,
           }
         : undefined;
 

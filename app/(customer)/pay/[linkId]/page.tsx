@@ -53,9 +53,13 @@ export default async function PaymentLinkPage({
     .orderBy(desc(bookings.createdAt))
     .limit(1);
 
-  const depositDuePaise = booking?.depositDuePaise ?? 0;
+  const invoiceScoped = Boolean(link.invoiceId);
+  const depositDuePaise = invoiceScoped ? 0 : (booking?.depositDuePaise ?? 0);
   const combinedDeposit =
-    link.purpose === 'rent' && depositDuePaise > 0 && link.amount > depositDuePaise
+    !invoiceScoped &&
+    link.purpose === 'rent' &&
+    depositDuePaise > 0 &&
+    link.amount > depositDuePaise
       ? depositDuePaise
       : 0;
   const rentPaise =
