@@ -13,14 +13,8 @@
  *
  *   Add --execute to write; omit for dry-run.
  */
-import { config } from 'dotenv';
-import { resolve } from 'node:path';
 import { and, eq, sql } from 'drizzle-orm';
-
-config({ path: resolve(process.cwd(), '.env.vercel.prod') });
-config({ path: resolve(process.cwd(), '.env.production.local') });
-config({ path: resolve(process.cwd(), '.env.local') });
-config({ path: resolve(process.cwd(), '.env') });
+import { loadProductionAuditEnv, requireDatabaseUrl } from '@/src/lib/db/loadEnv';
 
 function arg(name: string): string | undefined {
   const idx = process.argv.indexOf(`--${name}`);
@@ -31,10 +25,8 @@ function arg(name: string): string | undefined {
 import { formatAdhocRentNotes } from '../src/lib/billing/adhocRentInvoiceNotes';
 
 async function main() {
-  if (!process.env.DATABASE_URL) {
-    console.error('DATABASE_URL not set');
-    process.exit(1);
-  }
+  loadProductionAuditEnv();
+  requireDatabaseUrl('create-adhoc-rent-invoice.ts');
 
   const bookingCode = arg('booking-code');
   const amountPaise = Number(arg('amount-paise'));
@@ -52,7 +44,9 @@ async function main() {
   }
 
   const { db, closeDb } = await import('../src/db/client');
-  const { bookings, bedReservations, beds, rentInvoices } = await import('../src/db/schema');
+  const { bookings, bedReservations, beds, floors, pgs, rentInvoices, rooms } = await import(
+    '../src/db/schema'
+  );
   const { createAdhocRentInvoice } = await import('../src/services/rentInvoices');
   const { syncRentInvoiceToUnified, createPaymentLinkForInvoice } = await import(
  '../src/services/unifiedInvoices'
@@ -71,26 +65,23 @@ async function main() {
     .select({
       id: bookings.id,
       customerId: bookings.customerId,
-      pgId: bookings.pgId,
+      bedId: bedReservations.bedId,
+      pgId: pgs.id,
     })
     .from(bookings)
+    .innerJoin(
+      bedReservations,
+      and(eq(bedReservations.bookingId, bookings.id), eq(bedReservations.kind, 'primary')),
+    )
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .innerJoin(pgs, eq(pgs.id, floors.pgId))
     .where(eq(bookings.bookingCode, bookingCode))
     .limit(1);
 
-  if (!booking) {
-    console.error(`Booking not found: ${bookingCode}`);
-    process.exit(1);
-  }
-
-  const [bedRow] = await db
-    .select({ bedId: beds.id })
-    .from(bedReservations)
-    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
-    .where(and(eq(bedReservations.bookingId, booking.id), eq(bedReservations.kind, 'primary')))
-    .limit(1);
-
-  if (!bedRow) {
-    console.error(`No primary bed for booking ${bookingCode}`);
+  if (!booking?.bedId || !booking.pgId) {
+    console.error(`Booking not found or missing bed/pg context: ${bookingCode}`);
     process.exit(1);
   }
 
@@ -146,7 +137,7 @@ async function main() {
   const created = await createAdhocRentInvoice({
     bookingId: booking.id,
     customerId: booking.customerId,
-    bedId: bedRow.bedId,
+    bedId: booking.bedId,
     pgId: booking.pgId,
     amountPaise,
     title,
