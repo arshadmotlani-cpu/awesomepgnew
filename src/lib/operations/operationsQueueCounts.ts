@@ -58,3 +58,35 @@ export function recomputeOperationsFilterCounts(
 ): UnifiedOperationsQueue['filterCounts'] {
   return buildOperationsQueueFilterCounts(allItems);
 }
+
+/** Sidebar Operations-related badges — must mirror unified queue chip counts. */
+export type AdminOperationsNavBadgeCounts = {
+  operations: number;
+  moveOut: number;
+  payments: number;
+  kyc: number;
+  checkoutSettlements: number;
+};
+
+export function deriveAdminNavBadgesFromOperationsQueue(
+  queue: UnifiedOperationsQueue,
+): AdminOperationsNavBadgeCounts {
+  return {
+    operations: operationsTotalPendingCount(queue),
+    moveOut: operationsFilterCount(queue, 'vacating_requests'),
+    payments: operationsFilterCount(queue, 'waiting_for_approval'),
+    kyc: operationsFilterCount(queue, 'kyc_review'),
+    checkoutSettlements: operationsFilterCount(queue, 'refund_due'),
+  };
+}
+
+/** Hard invariant — Operations badge equals sum of actionable queue chips (one row, one queue). */
+export function assertOperationsNavBadgeParity(queue: UnifiedOperationsQueue): void {
+  const chipSum = queue.filterCounts.reduce((sum, chip) => sum + chip.count, 0);
+  const total = operationsTotalPendingCount(queue);
+  if (chipSum !== total) {
+    throw new Error(
+      `Operations nav badge parity violation: totalCount=${total} chipSum=${chipSum}`,
+    );
+  }
+}

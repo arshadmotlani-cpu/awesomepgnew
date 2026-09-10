@@ -37,13 +37,35 @@ export type ProductionAuditReport = {
 
 async function runOpsBadgeAudit(session: AdminSession): Promise<ProductionAuditGate> {
   const { loadAdminNavBadges } = await import('@/src/services/adminNavBadges');
+  const { getUnifiedOperationsQueueForBadges } = await import(
+    '@/src/services/unifiedOperationsQueue',
+  );
+  const { deriveAdminNavBadgesFromOperationsQueue } = await import(
+    '@/src/lib/operations/operationsQueueCounts',
+  );
 
-  const badges = await loadAdminNavBadges(session);
+  const [badges, queue] = await Promise.all([
+    loadAdminNavBadges(session),
+    getUnifiedOperationsQueueForBadges(session),
+  ]);
+  const opsBadges = deriveAdminNavBadgesFromOperationsQueue(queue);
   const mismatches: string[] = [];
 
   if ((badges.overview ?? 0) !== 0) {
     mismatches.push(
       `Overview must not show action badges (got ${badges.overview ?? 0})`,
+    );
+  }
+
+  if ((badges.operations ?? 0) !== opsBadges.operations) {
+    mismatches.push(
+      `Operations sidebar badge ${badges.operations ?? 0} != queue total ${opsBadges.operations}`,
+    );
+  }
+
+  if ((badges.moveOut ?? 0) !== opsBadges.moveOut) {
+    mismatches.push(
+      `Move-out sidebar badge ${badges.moveOut ?? 0} != queue vacating_requests ${opsBadges.moveOut}`,
     );
   }
 
@@ -70,7 +92,7 @@ async function runOpsBadgeAudit(session: AdminSession): Promise<ProductionAuditG
     pass: mismatches.length === 0,
     summary:
       mismatches.length === 0
-        ? `Sidebar operations COUNT ${badges.operations ?? 0}; Operations page remains queue SSOT.`
+        ? `Operations sidebar badge ${badges.operations ?? 0} matches unified queue total ${opsBadges.operations}.`
         : `${mismatches.length} ops badge issue(s).`,
     mismatches,
   };

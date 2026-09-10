@@ -6,9 +6,8 @@ function read(rel: string): string {
   return readFileSync(rel, 'utf8');
 }
 
-test('AdminLiveRefreshProvider is the single live poller and guards against badge inflation', () => {
+test('AdminLiveRefreshProvider is the single live poller', () => {
   const provider = read('src/components/admin/AdminLiveRefreshProvider.tsx');
-  assert.match(provider, /mergeBadgesPreferLowerOperations/);
   assert.match(provider, /ADMIN_LIVE_POLL_MS/);
   assert.match(provider, /ADMIN_BADGES_REFRESH_EVENT/);
   assert.match(provider, /visibilitychange/);
@@ -33,19 +32,18 @@ test('deposit_due excludes bookings with approved checkout payment proof', () =>
   assert.match(queue, /approvedCheckoutBookingIds\.has\(row\.bookingId\)/);
 });
 
-test('loadAdminNavBadges uses COUNT queries — not the full operations queue or unresolved_actions', () => {
+test('loadAdminNavBadges uses unified Operations queue SSOT', () => {
   const badges = read('src/services/adminNavBadges.ts');
   const queue = read('src/services/unifiedOperationsQueue.ts');
   const live = read('app/api/admin/live/route.ts');
-  assert.match(badges, /countOpenActionItems/);
-  assert.match(badges, /countPendingPaymentProofs/);
+  assert.match(badges, /getUnifiedOperationsQueueForBadges/);
+  assert.match(badges, /deriveAdminNavBadgesFromOperationsQueue/);
   assert.match(badges, /countActionableUnreadForAdmin/);
-  assert.doesNotMatch(badges, /getUnifiedOperationsQueueForBadges/);
+  assert.doesNotMatch(badges, /countOpenActionItems/);
   assert.doesNotMatch(badges, /unresolvedActions/);
   assert.doesNotMatch(badges, /badges\.overview\s*=/);
   assert.match(queue, /getUnifiedOperationsQueueForBadges/);
   assert.match(live, /loadAdminNavBadges/);
-  assert.doesNotMatch(live, /getUnifiedOperationsQueueForBadges/);
 });
 
 test('FyhDatePicker portals opaque panel above page content', () => {

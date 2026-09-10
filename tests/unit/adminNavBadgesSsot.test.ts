@@ -3,6 +3,7 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  deriveAdminNavBadgesFromOperationsQueue,
   operationsFilterCount,
   operationsTotalPendingCount,
 } from '../../src/lib/operations/operationsQueueCounts';
@@ -49,18 +50,33 @@ test('empty booking approval does not keep a phantom pending total', () => {
   assert.equal(operationsTotalPendingCount(queue), 0);
 });
 
-test('adminNavBadges uses COUNT queries for sidebar — never residents parallel queue', () => {
+test('adminNavBadges derives sidebar counts from unified Operations queue', () => {
   const src = read('src/services/adminNavBadges.ts');
-  assert.match(src, /countOpenActionItems/);
-  assert.match(src, /countActiveVacating/);
+  assert.match(src, /getUnifiedOperationsQueueForBadges/);
+  assert.match(src, /deriveAdminNavBadgesFromOperationsQueue/);
   assert.match(src, /badges\.moveOut/);
-  assert.doesNotMatch(src, /getUnifiedOperationsQueueForBadges/);
+  assert.match(src, /badges\.operations = operationsBadge/);
+  assert.doesNotMatch(src, /countOpenActionItems/);
+  assert.doesNotMatch(src, /countActiveVacating/);
   assert.doesNotMatch(src, /loadResidentOperationsResidentsPage/);
   assert.doesNotMatch(src, /allQueueCount/);
   assert.doesNotMatch(src, /getWaitingForApprovalCount/);
   assert.doesNotMatch(src, /unresolvedActions/);
   assert.doesNotMatch(src, /badges\.overview = pendingTotal/);
-  assert.match(src, /badges\.operations = operationsBadge/);
+});
+
+test('deriveAdminNavBadgesFromOperationsQueue maps move-out and operations independently', () => {
+  const queue = emptyQueue({
+    totalCount: 5,
+    filterCounts: emptyQueue().filterCounts.map((c) => {
+      if (c.id === 'rent_due') return { ...c, count: 3 };
+      if (c.id === 'electricity_due') return { ...c, count: 2 };
+      return c;
+    }),
+  });
+  const badges = deriveAdminNavBadgesFromOperationsQueue(queue);
+  assert.equal(badges.operations, 5);
+  assert.equal(badges.moveOut, 0);
 });
 
 test('checkoutSettlements sidebar uses moveOut badge key', () => {
@@ -68,17 +84,16 @@ test('checkoutSettlements sidebar uses moveOut badge key', () => {
   assert.match(src, /checkoutSettlements:[\s\S]*badgeKey: 'moveOut'/);
 });
 
-test('production and counter parity audits do not require sidebar COUNT == unified queue', () => {
+test('production and counter parity audits require sidebar badges match unified queue', () => {
   const production = read('src/services/productionAudit.ts');
-  assert.match(production, /loadAdminNavBadges/);
-  assert.doesNotMatch(production, /ops\.totalCount/);
-  assert.doesNotMatch(production, /allQueueCount/);
+  assert.match(production, /deriveAdminNavBadgesFromOperationsQueue/);
+  assert.match(production, /getUnifiedOperationsQueueForBadges/);
 
   const parity = read('src/services/counterParityAudit.ts');
   assert.match(parity, /loadUnifiedOperationsQueue\.totalCount/);
   assert.match(parity, /Move-out nav badge/);
   assert.match(parity, /navBadges\.moveOut/);
-  assert.match(parity, /required: false/);
+  assert.doesNotMatch(parity, /required: false/);
   assert.doesNotMatch(parity, /loadResidentOperationsResidentsPage\.allQueueCount/);
 });
 

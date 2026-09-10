@@ -24,22 +24,6 @@ export function useAdminNavBadges(): AdminNavBadges {
   return useContext(AdminBadgesContext);
 }
 
-function operationsBadgeCount(badges: AdminNavBadges): number {
-  return badges.operations ?? 0;
-}
-
-function mergeBadgesPreferLowerOperations(
-  current: AdminNavBadges,
-  incoming: AdminNavBadges,
-): AdminNavBadges {
-  const currentOps = operationsBadgeCount(current);
-  const incomingOps = operationsBadgeCount(incoming);
-  if (currentOps > 0 && incomingOps > 0 && incomingOps > currentOps) {
-    return { ...incoming, operations: currentOps };
-  }
-  return incoming;
-}
-
 /**
  * Single authoritative live-refresh for sidebar badges.
  * Does not call router.refresh() — that raced with Link navigation.
@@ -64,7 +48,7 @@ export function AdminLiveRefreshProvider({
         unreadCount?: number;
       };
       if (!json.ok || !json.badges) return;
-      setBadges((prev) => mergeBadgesPreferLowerOperations(prev, json.badges!));
+      setBadges(json.badges);
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
           new CustomEvent('admin-badges-updated', {

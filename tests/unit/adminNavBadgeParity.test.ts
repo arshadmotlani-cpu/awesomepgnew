@@ -3,6 +3,7 @@ import { describe, test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  deriveAdminNavBadgesFromOperationsQueue,
   operationsFilterCount,
   operationsTotalPendingCount,
 } from '../../src/lib/operations/operationsQueueCounts';
@@ -37,6 +38,7 @@ describe('Admin nav badge parity', () => {
   test('empty unified queue => Operations badge total 0', () => {
     const queue = emptyQueue({ totalCount: 0 });
     assert.equal(operationsTotalPendingCount(queue), 0);
+    assert.equal(deriveAdminNavBadgesFromOperationsQueue(queue).operations, 0);
     for (const chip of queue.filterCounts) {
       assert.equal(operationsFilterCount(queue, chip.id), 0);
     }
@@ -55,15 +57,17 @@ describe('Admin nav badge parity', () => {
       ),
     });
     assert.equal(operationsTotalPendingCount(queue), 3);
+    assert.equal(deriveAdminNavBadgesFromOperationsQueue(queue).operations, 3);
   });
 });
 
 describe('Admin nav badge source contracts', () => {
-  test('adminNavBadges uses COUNT queries and actionable notification count', () => {
+  test('adminNavBadges uses unified queue and actionable notification count', () => {
     const badges = read('src/services/adminNavBadges.ts');
-    assert.match(badges, /countOpenActionItems/);
+    assert.match(badges, /getUnifiedOperationsQueueForBadges/);
+    assert.match(badges, /deriveAdminNavBadgesFromOperationsQueue/);
     assert.match(badges, /countActionableUnreadForAdmin/);
-    assert.doesNotMatch(badges, /getUnifiedOperationsQueueForBadges/);
+    assert.doesNotMatch(badges, /countOpenActionItems/);
     assert.doesNotMatch(badges, /unresolvedActions/);
     assert.doesNotMatch(badges, /countUnreadForAdmin/);
   });
@@ -76,7 +80,6 @@ describe('Admin nav badge source contracts', () => {
     assert.match(engine, /action_items ai/);
     assert.match(badges, /countActionableUnreadForAdmin/);
     assert.match(live, /loadAdminNavBadges/);
-    assert.doesNotMatch(live, /getUnifiedOperationsQueueForBadges/);
   });
 
   test('action item sync archives stale notifications in notifications table', () => {

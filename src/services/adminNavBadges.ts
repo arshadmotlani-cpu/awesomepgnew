@@ -1,23 +1,12 @@
-import { and, count, eq, inArray, sql } from 'drizzle-orm';
-import { db } from '@/src/db/client';
-import {
-  actionItems,
-  bedReservations,
-  beds,
-  checkoutSettlements,
-  floors,
-  kycSubmissions,
-  pgPaymentRecords,
-  rooms,
-  vacatingRequests,
-} from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
 import type { AdminModule } from '@/src/lib/admin/navigation';
 import { adminRequestScopeKey } from '@/src/lib/admin/adminRequestCache';
-import { countActionableUnreadForAdmin } from '@/src/services/notificationEngine';
+import { deriveAdminNavBadgesFromOperationsQueue } from '@/src/lib/operations/operationsQueueCounts';
 import { profileAdminStep } from '@/src/lib/admin/adminProfile';
+import { countActionableUnreadForAdmin } from '@/src/services/notificationEngine';
+import { getUnifiedOperationsQueueForBadges } from '@/src/services/unifiedOperationsQueue';
 
-/** Sidebar badge keys — cheap COUNT queries, not the full Operations queue. */
+/** Sidebar badge keys — Operations counts come from the unified queue SSOT. */
 export type AdminNavBadges = Partial<
   Record<AdminModule | 'payments' | 'notifications' | 'moveOut', number>
 >;
@@ -35,117 +24,38 @@ function writeCachedBadges(scopeKey: string, badges: AdminNavBadges): void {
   badgeCache = { scopeKey, at: Date.now(), badges };
 }
 
-function pgScopeIds(session: AdminSession): string[] | null {
-  if (session.role === 'super_admin') return null;
-  if (!session.pgScope.length) return null;
-  return session.pgScope;
-}
-
 function positive(n: number): number | undefined {
   return n > 0 ? n : undefined;
 }
 
-async function countOpenActionItems(session: AdminSession): Promise<number> {
-  const scope = pgScopeIds(session);
-  const conditions = [inArray(actionItems.status, ['open', 'in_progress'])];
-  if (scope) conditions.push(inArray(actionItems.pgId, scope));
-  const [row] = await db.select({ n: count() }).from(actionItems).where(and(...conditions));
-  return Number(row?.n ?? 0);
-}
-
-async function countPendingPaymentProofs(session: AdminSession): Promise<number> {
-  const scope = pgScopeIds(session);
-  const conditions = [eq(pgPaymentRecords.status, 'pending')];
-  if (scope) conditions.push(inArray(pgPaymentRecords.pgId, scope));
-  const [row] = await db
-    .select({ n: count() })
-    .from(pgPaymentRecords)
-    .where(and(...conditions));
-  return Number(row?.n ?? 0);
-}
-
-async function countPendingKyc(session: AdminSession): Promise<number> {
-  const scope = pgScopeIds(session);
-  if (!scope) {
-    const [row] = await db
-      .select({ n: count() })
-      .from(kycSubmissions)
-      .where(eq(kycSubmissions.status, 'pending'));
-    return Number(row?.n ?? 0);
-  }
-
-  const [row] = await db
-    .select({ n: sql<number>`count(distinct ${kycSubmissions.id})::int` })
-    .from(kycSubmissions)
-    .innerJoin(bedReservations, eq(bedReservations.bookingId, kycSubmissions.bookingId))
-    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
-    .innerJoin(rooms, eq(rooms.id, beds.roomId))
-    .innerJoin(floors, eq(floors.id, rooms.floorId))
-    .where(and(eq(kycSubmissions.status, 'pending'), inArray(floors.pgId, scope)));
-  return Number(row?.n ?? 0);
-}
-
-async function countActiveVacating(session: AdminSession): Promise<number> {
-  const scope = pgScopeIds(session);
-  const statusFilter = inArray(vacatingRequests.status, ['pending', 'approved']);
-  if (!scope) {
-    const [row] = await db.select({ n: count() }).from(vacatingRequests).where(statusFilter);
-    return Number(row?.n ?? 0);
-  }
-
-  const [row] = await db
-    .select({ n: sql<number>`count(distinct ${vacatingRequests.id})::int` })
-    .from(vacatingRequests)
-    .innerJoin(bedReservations, eq(bedReservations.bookingId, vacatingRequests.bookingId))
-    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
-    .innerJoin(rooms, eq(rooms.id, beds.roomId))
-    .innerJoin(floors, eq(floors.id, rooms.floorId))
-    .where(and(statusFilter, inArray(floors.pgId, scope)));
-  return Number(row?.n ?? 0);
-}
-
-async function countRefundPending(session: AdminSession): Promise<number> {
-  const scope = pgScopeIds(session);
-  const statusFilter = eq(checkoutSettlements.status, 'refund_pending');
-  if (!scope) {
-    const [row] = await db.select({ n: count() }).from(checkoutSettlements).where(statusFilter);
-    return Number(row?.n ?? 0);
-  }
-
-  const [row] = await db
-    .select({ n: sql<number>`count(distinct ${checkoutSettlements.id})::int` })
-    .from(checkoutSettlements)
-    .innerJoin(bedReservations, eq(bedReservations.bookingId, checkoutSettlements.bookingId))
-    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
-    .innerJoin(rooms, eq(rooms.id, beds.roomId))
-    .innerJoin(floors, eq(floors.id, rooms.floorId))
-    .where(and(statusFilter, inArray(floors.pgId, scope)));
-  return Number(row?.n ?? 0);
-}
-
-/** Sidebar badges — COUNT queries only. Operations page still uses the unified queue. */
+/** Sidebar badges — unified Operations queue SSOT + independent notification bell. */
 async function loadAdminNavBadgeCounts(session: AdminSession): Promise<AdminNavBadges> {
-  const [operations, payments, kyc, moveOut, checkoutSettlementsCount, notifications] =
-    await Promise.all([
-      countOpenActionItems(session),
-      countPendingPaymentProofs(session),
-      countPendingKyc(session),
-      countActiveVacating(session),
-      countRefundPending(session),
-      countActionableUnreadForAdmin(session),
-    ]);
+  const queue = await getUnifiedOperationsQueueForBadges(session);
+  const opsBadges = deriveAdminNavBadgesFromOperationsQueue(queue);
 
+  let notifications = 0;
+  try {
+    notifications = await countActionableUnreadForAdmin(session);
+  } catch {
+    // Notification bell is independent — never block Operations badge counts.
+  }
   const badges: AdminNavBadges = {};
-  const operationsBadge = operations;
-  if (operationsBadge > 0) badges.operations = operationsBadge;
-  const paymentsBadge = positive(payments);
+
+  const operationsBadge = positive(opsBadges.operations);
+  if (operationsBadge) badges.operations = operationsBadge;
+
+  const paymentsBadge = positive(opsBadges.payments);
   if (paymentsBadge) badges.payments = paymentsBadge;
-  const kycBadge = positive(kyc);
+
+  const kycBadge = positive(opsBadges.kyc);
   if (kycBadge) badges.kyc = kycBadge;
-  const moveOutBadge = positive(moveOut);
+
+  const moveOutBadge = positive(opsBadges.moveOut);
   if (moveOutBadge) badges.moveOut = moveOutBadge;
-  const refundBadge = positive(checkoutSettlementsCount);
+
+  const refundBadge = positive(opsBadges.checkoutSettlements);
   if (refundBadge) badges.checkoutSettlements = refundBadge;
+
   if (notifications > 0) badges.notifications = notifications;
   return badges;
 }
@@ -153,13 +63,13 @@ async function loadAdminNavBadgeCounts(session: AdminSession): Promise<AdminNavB
 export type LoadAdminNavBadgesOptions = {
   /** Use in-memory TTL cache (layout SSR + live poll). */
   pollCache?: boolean;
-  /** @deprecated All badge loads use COUNT queries; kept for script compatibility. */
+  /** @deprecated All badge loads use the unified Operations queue SSOT. */
   fullQueue?: boolean;
 };
 
 /**
- * Sidebar badges — cheap COUNT queries.
- * The Operations page remains the SSOT via getUnifiedOperationsQueueForRequest.
+ * Sidebar badges — Operations workload from getUnifiedOperationsQueueForBadges.
+ * Notification bell uses actionable unread count only (never inflates Operations).
  */
 export async function loadAdminNavBadges(
   session: AdminSession,
