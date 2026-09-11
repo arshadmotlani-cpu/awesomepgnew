@@ -11,6 +11,8 @@ const UPLOAD_TYPES = new Set<ResidentUploadType>([
   'extension_payment',
   'deposit_link',
   'ps4_payment',
+  'meter_photo',
+  'refund_qr',
 ]);
 
 function parseUploadType(raw: string | null): ResidentUploadType {

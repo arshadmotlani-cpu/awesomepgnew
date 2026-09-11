@@ -1,14 +1,14 @@
 'use client';
 
 import { useActionState, useEffect, useState, type FormEvent } from 'react';
-import {
-  submitDepositRefundRequestAction,
-  uploadDepositRefundQrAction,
-  uploadDepositRefundMeterAction,
-  type RequestActionState,
-} from '@/app/(customer)/account/resident/request-actions';
+import { submitDepositRefundRequestAction, type RequestActionState } from '@/app/(customer)/account/resident/request-actions';
 import { ImageFileInputInline } from '@/src/components/shared/ImageFileInput';
+import {
+  uploadDepositRefundEvidenceClient,
+  type DepositRefundEvidenceUploadPhase,
+} from '@/src/lib/client/uploadDepositRefundEvidenceClient';
 import { logResidentClientError } from '@/src/lib/client/residentClientLogger';
+import { validateProofUploadFile } from '@/src/lib/payments/proofUploadLimits';
 import { coerceNonNegativePaise, paiseToInr } from '@/src/lib/format';
 import { PENDING_ELECTRICITY_LABEL } from '@/src/lib/checkout/settlementDisplayFormat';
 import { primaryBtn } from '@/src/lib/design-system/tokens';
@@ -49,6 +49,10 @@ export function DepositRefundRequestForm({
   const [qrUrl, setQrUrl] = useState('');
   const [uploadingMeter, setUploadingMeter] = useState(false);
   const [uploadingQr, setUploadingQr] = useState(false);
+  const [meterUploadPhase, setMeterUploadPhase] = useState<DepositRefundEvidenceUploadPhase | null>(
+    null,
+  );
+  const [qrUploadPhase, setQrUploadPhase] = useState<DepositRefundEvidenceUploadPhase | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [highlightMeter, setHighlightMeter] = useState(false);
@@ -64,8 +68,30 @@ export function DepositRefundRequestForm({
     settlementPreview?.refundAmountPaise ??
     depositHeld + unusedPrepaidPaise - coerceNonNegativePaise(settlementPreview?.electricityAdjustmentPaise ?? 0);
   const noticeDeduction = coerceNonNegativePaise(estimatedDeductionPaise);
-  const meterStatus = uploadStatusLabel(Boolean(meterUrl.trim()));
-  const qrStatus = uploadStatusLabel(Boolean(qrUrl.trim()));
+  function evidenceStatusLabel(input: {
+    uploading: boolean;
+    phase: DepositRefundEvidenceUploadPhase | null;
+    uploaded: boolean;
+  }): { text: string; className: string } {
+    if (input.uploading) {
+      return {
+        text: input.phase === 'preparing' ? 'Preparing…' : 'Uploading…',
+        className: 'text-zinc-500',
+      };
+    }
+    return uploadStatusLabel(input.uploaded);
+  }
+
+  const meterStatus = evidenceStatusLabel({
+    uploading: uploadingMeter,
+    phase: meterUploadPhase,
+    uploaded: Boolean(meterUrl.trim()),
+  });
+  const qrStatus = evidenceStatusLabel({
+    uploading: uploadingQr,
+    phase: qrUploadPhase,
+    uploaded: Boolean(qrUrl.trim()),
+  });
 
   useEffect(() => {
     if (state.ok) onSubmitted?.();
@@ -73,18 +99,27 @@ export function DepositRefundRequestForm({
 
   async function handleMeterFile(file: File | null) {
     if (!file) return;
+    const immediateError = validateProofUploadFile(file);
+    if (immediateError) {
+      setUploadError(immediateError);
+      setHighlightMeter(true);
+      return;
+    }
+
     setUploadError(null);
     setValidationError(null);
     setHighlightMeter(false);
     setUploadingMeter(true);
+    setMeterUploadPhase('preparing');
     try {
-      const fd = new FormData();
-      fd.set('file', file);
-      fd.set('bookingId', bookingId);
-      const url = await uploadDepositRefundMeterAction(fd);
-      setMeterUrl(url);
+      const result = await uploadDepositRefundEvidenceClient(
+        file,
+        { uploadType: 'meter_photo', bookingId },
+        setMeterUploadPhase,
+      );
+      setMeterUrl(result.url);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Upload failed.';
+      const message = err instanceof Error ? err.message : 'Upload failed. Tap to try again.';
       setUploadError(message);
       logResidentClientError('meter photo upload failed', err, {
         page: 'refund_request_form',
@@ -93,23 +128,33 @@ export function DepositRefundRequestForm({
       });
     } finally {
       setUploadingMeter(false);
+      setMeterUploadPhase(null);
     }
   }
 
   async function handleQrFile(file: File | null) {
     if (!file) return;
+    const immediateError = validateProofUploadFile(file);
+    if (immediateError) {
+      setUploadError(immediateError);
+      setHighlightQr(true);
+      return;
+    }
+
     setUploadError(null);
     setValidationError(null);
     setHighlightQr(false);
     setUploadingQr(true);
+    setQrUploadPhase('preparing');
     try {
-      const fd = new FormData();
-      fd.set('file', file);
-      fd.set('bookingId', bookingId);
-      const url = await uploadDepositRefundQrAction(fd);
-      setQrUrl(url);
+      const result = await uploadDepositRefundEvidenceClient(
+        file,
+        { uploadType: 'refund_qr', bookingId },
+        setQrUploadPhase,
+      );
+      setQrUrl(result.url);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Upload failed.';
+      const message = err instanceof Error ? err.message : 'Upload failed. Tap to try again.';
       setUploadError(message);
       logResidentClientError('refund qr upload failed', err, {
         page: 'refund_request_form',
@@ -118,6 +163,7 @@ export function DepositRefundRequestForm({
       });
     } finally {
       setUploadingQr(false);
+      setQrUploadPhase(null);
     }
   }
 
