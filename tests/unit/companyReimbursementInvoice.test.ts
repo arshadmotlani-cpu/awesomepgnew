@@ -8,6 +8,7 @@ import {
   DOCUMENT_ONLY_LINE_LABEL,
   hotelAccommodationLineLabel,
   displayRatePerDayPaise,
+  prepaidStayPackageLineLabel,
 } from '../../src/lib/billing/companyReimbursementCopy';
 import { computeInvoiceDocumentTotals } from '../../src/lib/billing/invoiceDocumentModel';
 import { isCompanyReimbursementInvoice } from '../../src/lib/billing/documentOnlyInvoice';
@@ -70,6 +71,25 @@ test('resident invoices list includes document-only financial invoices', () => {
   assert.match(svc, /isDocumentOnly/);
   assert.match(svc, /Tax Invoice · Accommodation/);
   assert.doesNotMatch(svc, /reimbursement/i);
+});
+
+test('prepaid stay package line shows inclusions and daily rate', () => {
+  const label = prepaidStayPackageLineLabel({
+    inclusions: ['AC Room', 'Breakfast', 'Dinner', 'Laundry'],
+    durationDays: 5,
+    ratePerDayPaise: 200_000,
+  });
+  assert.match(label, /AC Room · Breakfast · Dinner · Laundry/);
+  assert.match(label, /₹2,000\/day × 5 days/);
+});
+
+test('company reimbursement service supports stay-scoped idempotency keys', () => {
+  const svc = readFileSync(join(root, 'src/services/companyReimbursementInvoice.ts'), 'utf8');
+  assert.match(svc, /meta\?\.stayStart === input\.stayStart/);
+  assert.match(svc, /packageInclusions/);
+  assert.match(svc, /revenueImpact: false/);
+  assert.doesNotMatch(svc, /recordRentPaymentSuccess/);
+  assert.doesNotMatch(svc, /insert\(payments\)/);
 });
 
 test('admin revenue surfaces still exclude document-only invoices', () => {

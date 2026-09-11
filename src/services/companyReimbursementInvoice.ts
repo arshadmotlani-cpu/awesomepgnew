@@ -23,6 +23,7 @@ import {
   DOCUMENT_ONLY_PAYMENT_STATUS,
   displayRatePerDayPaise,
   hotelAccommodationLineLabel,
+  prepaidStayPackageLineLabel,
 } from '@/src/lib/billing/companyReimbursementCopy';
 import { formatDate } from '@/src/lib/dates';
 import { formatDate as formatDisplayDate } from '@/src/lib/format';
@@ -47,6 +48,10 @@ export type CreateCompanyReimbursementInvoiceInput = {
   expectedPhoneDigits?: string;
   /** Optional resident name substring check. */
   expectedNameIncludes?: string;
+  /** Package inclusions for prepaid stay document (e.g. AC Room, Breakfast). */
+  packageInclusions?: string[];
+  /** Resident-facing payment status on document-only invoice. */
+  paymentStatusLabel?: string;
   actorId?: string;
 };
 
@@ -128,7 +133,7 @@ export async function createCompanyReimbursementInvoice(
     }
   }
 
-  const [existing] = await db
+  const existingRows = await db
     .select({
       id: financialInvoices.id,
       invoiceNumber: financialInvoices.invoiceNumber,
@@ -143,8 +148,17 @@ export async function createCompanyReimbursementInvoice(
         eq(financialInvoices.invoiceType, 'company_reimbursement'),
         eq(financialInvoices.isDocumentOnly, true),
       ),
-    )
-    .limit(1);
+    );
+
+  const existing = existingRows.find((row) => {
+    const meta = row.breakdown?.documentOnly;
+    return (
+      row.amountPaise === input.totalPaise &&
+      meta?.stayStart === input.stayStart &&
+      meta?.stayEnd === input.stayEnd &&
+      meta?.durationDays === input.durationDays
+    );
+  });
 
   if (existing) {
     const ratePerDayPaise =
@@ -162,7 +176,15 @@ export async function createCompanyReimbursementInvoice(
 
   const ratePerDayPaise = displayRatePerDayPaise(input.totalPaise, input.durationDays);
   const period = stayPeriodLabel(input.stayStart, input.stayEnd);
-  const paymentStatusLabel = DOCUMENT_ONLY_PAYMENT_STATUS;
+  const paymentStatusLabel = input.paymentStatusLabel?.trim() || DOCUMENT_ONLY_PAYMENT_STATUS;
+  const lineLabel =
+    input.packageInclusions && input.packageInclusions.length > 0
+      ? prepaidStayPackageLineLabel({
+          inclusions: input.packageInclusions,
+          durationDays: input.durationDays,
+          ratePerDayPaise,
+        })
+      : hotelAccommodationLineLabel(input.durationDays, ratePerDayPaise);
 
   const breakdown: InvoiceBreakdown = {
     otherPaise: input.totalPaise,
@@ -176,7 +198,7 @@ export async function createCompanyReimbursementInvoice(
     lines: [
       {
         kind: 'company_reimbursement',
-        label: hotelAccommodationLineLabel(input.durationDays, ratePerDayPaise),
+        label: lineLabel,
         period,
         amountPaise: input.totalPaise,
       },
@@ -185,8 +207,12 @@ export async function createCompanyReimbursementInvoice(
 
   const invoiceNumber = await nextFinancialInvoiceNumber({ pgId: ctx.pgId });
   const shareToken = createInvoiceShareToken();
+  const packageSummary =
+    input.packageInclusions && input.packageInclusions.length > 0
+      ? input.packageInclusions.join(' · ')
+      : 'Accommodation with Breakfast, Lunch & Dinner';
   const notes = [
-    `Accommodation with Breakfast, Lunch & Dinner · Stay ${period} (${input.durationDays} days).`,
+    `${packageSummary} · Stay ${period} (${input.durationDays} days). ${paymentStatusLabel}.`,
     DOCUMENT_ONLY_INVOICE_FOOTER,
   ].join(' ');
 

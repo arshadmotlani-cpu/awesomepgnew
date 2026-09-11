@@ -32,3 +32,16 @@ export function displayRatePerDayPaise(totalPaise: number, durationDays: number)
   if (durationDays <= 0) return totalPaise;
   return Math.round(totalPaise / durationDays);
 }
+
+/** Prepaid stay package line — inclusions + daily rate × days. */
+export function prepaidStayPackageLineLabel(input: {
+  inclusions: string[];
+  durationDays: number;
+  ratePerDayPaise: number;
+}): string {
+  const pkg = input.inclusions.map((s) => s.trim()).filter(Boolean).join(' · ');
+  const dailyInr = (input.ratePerDayPaise / 100).toLocaleString('en-IN', {
+    maximumFractionDigits: 0,
+  });
+  return `${pkg} — ₹${dailyInr}/day × ${input.durationDays} days`;
+}
