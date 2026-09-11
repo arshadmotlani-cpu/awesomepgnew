@@ -7,7 +7,8 @@ import {
   fyhPackageCreditLedger,
 } from '@/src/hair/db/schema';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
-import { orgFilter, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { andTenant, orgFilter, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 function todayYmd(): string {
   return new Date().toISOString().slice(0, 10);
@@ -67,6 +68,7 @@ export async function listActivePackageCreditsForCustomer(
   customerId: string,
   ctx?: TenantContext | null,
 ): Promise<ActivePackageCreditRow[]> {
+  ctx = await resolveTenantContextForService(ctx);
   const rows = await db
     .select({
       creditId: fyhCustomerPackageCredits.id,
@@ -87,7 +89,7 @@ export async function listActivePackageCreditsForCustomer(
       eq(fyhCustomerPackages.id, fyhCustomerPackageCredits.customerPackageId),
     )
     .where(
-      and(
+      andTenant(
         orgFilter(fyhCustomerPackages.organizationId, ctx),
         eq(fyhCustomerPackages.customerId, customerId),
         eq(fyhCustomerPackages.isActive, true),

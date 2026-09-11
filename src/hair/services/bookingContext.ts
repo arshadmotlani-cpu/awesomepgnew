@@ -13,7 +13,14 @@ import { formatSalonDisplayDate } from '@/src/hair/lib/formatSalonDate';
 import { getCustomerFinancialSummary } from '@/src/hair/services/customerTimeline';
 import { searchCustomersForPos } from '@/src/hair/services/quickSale';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
-import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import {
+  andTenant,
+  orgFilter,
+  locationFilter,
+  tenantWriteDefaults,
+  tenantOrgDefaults,
+} from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 export type BookingServiceHit = {
   id: string;
@@ -55,6 +62,7 @@ export type CustomerBookingContext = {
 
 
 export async function searchServicesForBooking(query: string, limit = 25, ctx?: TenantContext | null): Promise<BookingServiceHit[]> {
+  ctx = await resolveTenantContextForService(ctx);
   const q = query.trim();
   if (q.length < 1) return [];
   const pattern = `%${q}%`;
@@ -70,7 +78,8 @@ export async function searchServicesForBooking(query: string, limit = 25, ctx?: 
     })
     .from(fyhServices)
     .where(
-      and(
+      andTenant(
+        orgFilter(fyhServices.organizationId, ctx),
         eq(fyhServices.isActive, true),
         or(
           ilike(fyhServices.name, pattern),
@@ -96,6 +105,7 @@ export async function searchServicesForBooking(query: string, limit = 25, ctx?: 
 }
 
 export async function getCustomerBookingContext(customerId: string, ctx?: TenantContext | null): Promise<CustomerBookingContext> {
+  ctx = await resolveTenantContextForService(ctx);
   const [customer] = await hairDb
     .select({
       id: fyhCustomers.id,
@@ -104,7 +114,9 @@ export async function getCustomerBookingContext(customerId: string, ctx?: Tenant
       walletBalancePaise: fyhCustomers.walletBalancePaise,
     })
     .from(fyhCustomers)
-    .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, customerId)))
+    .where(
+      andTenant(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, customerId)),
+    )
     .limit(1);
 
   if (!customer) throw new Error('Customer not found');
@@ -118,7 +130,9 @@ export async function getCustomerBookingContext(customerId: string, ctx?: Tenant
     })
     .from(fyhAppointments)
     .where(
-      and(
+      andTenant(
+        orgFilter(fyhAppointments.organizationId, ctx),
+        locationFilter(fyhAppointments.locationId, ctx),
         eq(fyhAppointments.customerId, customerId),
         sql`${fyhAppointments.status} IN ('completed', 'paid')`,
       ),
@@ -149,7 +163,10 @@ export async function getCustomerBookingContext(customerId: string, ctx?: Tenant
 
 export async function getCustomerVisitHistory(
   customerId: string,
-  limit = 30, ctx?: TenantContext | null): Promise<CustomerVisitRow[]> {
+  limit = 30,
+  ctx?: TenantContext | null,
+): Promise<CustomerVisitRow[]> {
+  ctx = await resolveTenantContextForService(ctx);
   const rows = await hairDb
     .select({
       appointmentId: fyhAppointments.id,
@@ -165,7 +182,9 @@ export async function getCustomerVisitHistory(
     .innerJoin(fyhStaff, eq(fyhStaff.id, fyhAppointments.staffId))
     .leftJoin(fyhInvoices, eq(fyhInvoices.id, fyhAppointments.invoiceId))
     .where(
-      and(
+      andTenant(
+        orgFilter(fyhAppointments.organizationId, ctx),
+        locationFilter(fyhAppointments.locationId, ctx),
         eq(fyhAppointments.customerId, customerId),
         sql`${fyhAppointments.status} IN ('completed', 'paid', 'booked', 'confirmed', 'arrived', 'in_service')`,
       ),

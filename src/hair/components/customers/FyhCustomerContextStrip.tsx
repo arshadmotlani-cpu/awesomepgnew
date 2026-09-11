@@ -31,11 +31,15 @@ export function FyhCustomerContextStrip({
     setLoading(true);
     setError(null);
     loadCustomerContextForPosAction(customerId)
-      .then((data) => {
-        if (!cancelled) {
-          setCtx(data);
+      .then((res) => {
+        if (cancelled) return;
+        if (res.ok) {
+          setCtx(res.data);
           setError(null);
+          return;
         }
+        setCtx(null);
+        setError(res.error);
       })
       .catch((err) => {
         if (!cancelled) {

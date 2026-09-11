@@ -14,8 +14,8 @@ import {
   getCustomerVisitHistory,
   searchCustomersForPos,
   searchServicesForBooking,
+  type CustomerBookingContext,
 } from '@/src/hair/services/bookingContext';
-import { getTenantContextForAction } from '@/src/hair/lib/tenant/getTenantContext';
 
 async function requireCustomerContextPermission() {
   const admin = await requireHairAuth();
@@ -42,21 +42,35 @@ export async function searchServicesForBookingAction(query: string) {
 
 export async function loadCustomerBookingContextAction(customerId: string) {
   await requirePermission('page:appointments');
-  const ctx = await getTenantContextForAction();
-  return getCustomerBookingContext(customerId, ctx);
+  return getCustomerBookingContext(customerId);
 }
 
+export type LoadCustomerContextForPosResult =
+  | { ok: true; data: CustomerBookingContext }
+  | { ok: false; error: string };
+
 /** Customer wallet / last visit — Quick Sale, appointments, billing. */
-export async function loadCustomerContextForPosAction(customerId: string) {
-  await requireCustomerContextPermission();
-  const ctx = await getTenantContextForAction();
-  return getCustomerBookingContext(customerId, ctx);
+export async function loadCustomerContextForPosAction(
+  customerId: string,
+): Promise<LoadCustomerContextForPosResult> {
+  try {
+    await requireCustomerContextPermission();
+    if (!customerId?.trim()) {
+      return { ok: false, error: 'Customer required' };
+    }
+    const data = await getCustomerBookingContext(customerId);
+    return { ok: true, data };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'Failed to load customer context',
+    };
+  }
 }
 
 export async function loadCustomerVisitHistoryAction(customerId: string) {
   await requireCustomerContextPermission();
-  const ctx = await getTenantContextForAction();
-  return getCustomerVisitHistory(customerId, undefined, ctx);
+  return getCustomerVisitHistory(customerId);
 }
 
 export async function addAdvanceFromBookingAction(input: {

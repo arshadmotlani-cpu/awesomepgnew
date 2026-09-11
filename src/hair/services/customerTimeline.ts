@@ -37,7 +37,14 @@ export {
   sortUnifiedTimeline,
 } from '@/src/hair/domain/customerTimeline/types';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
-import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import {
+  andTenant,
+  orgFilter,
+  locationFilter,
+  tenantWriteDefaults,
+  tenantOrgDefaults,
+} from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 const TIMELINE_ONLY_EVENT_TYPES = new Set<FyhTimelineEventType>([
   'customer_created',
@@ -438,7 +445,10 @@ export async function getUnifiedCustomerTimeline(
   return sortUnifiedTimeline(events);
 }
 
-async function sumCustomerAdvanceCreditPaise(customerId: string): Promise<number> {
+async function sumCustomerAdvanceCreditPaise(
+  customerId: string,
+  ctx?: TenantContext | null,
+): Promise<number> {
   const rows = await hairDb
     .select({
       kind: fyhFinancialLedger.kind,
@@ -447,7 +457,8 @@ async function sumCustomerAdvanceCreditPaise(customerId: string): Promise<number
     })
     .from(fyhFinancialLedger)
     .where(
-      and(
+      andTenant(
+        orgFilter(fyhFinancialLedger.organizationId, ctx),
         eq(fyhFinancialLedger.customerId, customerId),
         eq(fyhFinancialLedger.kind, 'advance_credit'),
         eq(fyhFinancialLedger.direction, 'credit'),
@@ -458,11 +469,14 @@ async function sumCustomerAdvanceCreditPaise(customerId: string): Promise<number
 }
 
 export async function getCustomerFinancialSummary(
-  customerId: string, ctx?: TenantContext | null): Promise<CustomerFinancialSummary> {
+  customerId: string,
+  ctx?: TenantContext | null,
+): Promise<CustomerFinancialSummary> {
+  ctx = await resolveTenantContextForService(ctx);
   const [duePaise, advancePaise, walletLedgerRows, activeMembershipRow, activePackageRow] =
     await Promise.all([
-      sumCustomerReceivablePaise(hairDb, customerId),
-      sumCustomerAdvanceCreditPaise(customerId),
+      sumCustomerReceivablePaise(hairDb, customerId, ctx),
+      sumCustomerAdvanceCreditPaise(customerId, ctx),
       hairDb
         .select({
           kind: fyhFinancialLedger.kind,
@@ -470,7 +484,12 @@ export async function getCustomerFinancialSummary(
           amountPaise: fyhFinancialLedger.amountPaise,
         })
         .from(fyhFinancialLedger)
-        .where(and(orgFilter(fyhFinancialLedger.organizationId, ctx), eq(fyhFinancialLedger.customerId, customerId))),
+        .where(
+          andTenant(
+            orgFilter(fyhFinancialLedger.organizationId, ctx),
+            eq(fyhFinancialLedger.customerId, customerId),
+          ),
+        ),
       hairDb
         .select({
           id: fyhCustomerMemberships.id,
@@ -480,7 +499,8 @@ export async function getCustomerFinancialSummary(
         .from(fyhCustomerMemberships)
         .innerJoin(fyhMembershipPlans, eq(fyhMembershipPlans.id, fyhCustomerMemberships.planId))
         .where(
-          and(
+          andTenant(
+            orgFilter(fyhCustomerMemberships.organizationId, ctx),
             eq(fyhCustomerMemberships.customerId, customerId),
             eq(fyhCustomerMemberships.isActive, true),
           ),
@@ -498,7 +518,11 @@ export async function getCustomerFinancialSummary(
         .from(fyhCustomerPackages)
         .innerJoin(fyhPackagePlans, eq(fyhPackagePlans.id, fyhCustomerPackages.planId))
         .where(
-          and(eq(fyhCustomerPackages.customerId, customerId), eq(fyhCustomerPackages.isActive, true)),
+          andTenant(
+            orgFilter(fyhCustomerPackages.organizationId, ctx),
+            eq(fyhCustomerPackages.customerId, customerId),
+            eq(fyhCustomerPackages.isActive, true),
+          ),
         )
         .orderBy(desc(fyhCustomerPackages.createdAt))
         .limit(1),
