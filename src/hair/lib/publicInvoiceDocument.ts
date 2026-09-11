@@ -1,6 +1,7 @@
 import { paiseToIndianWords } from '@/src/hair/lib/amountInWords';
 import { INVOICE_BRAND_LOGO, INVOICE_BUSINESS } from '@/src/hair/lib/invoiceBranding';
 import { escapeHtml } from '@/src/hair/lib/salonTime';
+import { isPackageRedemptionLineName } from '@/src/hair/domain/packages/availableServices';
 import type { InvoiceDetail } from '@/src/hair/services/invoices';
 import type { FyhInvoiceStatus, FyhPaymentMethod } from '@/src/hair/db/schema/billing';
 import type { FyhBillingSettings } from '@/src/hair/db/schema/settings';
@@ -129,6 +130,20 @@ export function buildPublicInvoiceViewModel(detail: InvoiceDetail): PublicInvoic
       const gross = line.unitPricePaise * qty;
       const taxable = Math.max(0, gross - line.discountPaise);
       const gstPct = (line.gstBps / 100).toFixed(line.gstBps % 100 === 0 ? 0 : 1);
+      const isPackageRedemption = isPackageRedemptionLineName(line.nameSnapshot);
+      if (isPackageRedemption) {
+        return {
+          name: line.nameSnapshot,
+          qty: formatQty(qty),
+          rateLabel: money(line.unitPricePaise),
+          discountLabel:
+            line.discountPaise > 0 ? `− ${money(line.discountPaise)}` : '—',
+          taxableLabel: money(0),
+          gstLabel: '—',
+          gstPct: 'Prepaid',
+          totalLabel: money(0),
+        };
+      }
       return {
         name: line.nameSnapshot,
         qty: formatQty(qty),

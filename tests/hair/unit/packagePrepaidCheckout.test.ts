@@ -12,6 +12,7 @@ import {
   formatPackagePurchaseInvoiceName,
   formatPackageRedemptionInvoiceName,
 } from '@/src/hair/domain/packages/invoiceSnapshot';
+import { projectPackageRedemptionDisplay } from '@/src/hair/domain/packages/availableServices';
 
 test('15-wash package: normal ₹3000 offer ₹1500 → 50% discount', () => {
   const normal = computePackageNormalValuePaise([{ retailUnitPaise: 20_000, quantity: 15 }]);
@@ -44,8 +45,8 @@ test('priceBasket: package redemption customer payable is ₹0 and cash revenue 
         snapshot: {
           name: 'Hair Wash',
           code: null,
-          unitSellingPricePaise: 20_000,
-          gstBps: 1800,
+          unitSellingPricePaise: 10_000,
+          gstBps: 0,
           staffMode: 'SERVICE',
           category: 'Package Redemption',
         },
@@ -66,9 +67,23 @@ test('priceBasket: package redemption customer payable is ₹0 and cash revenue 
   const priced = priceBasket(basket);
   assert.equal(priced.totals.grandTotalPaise, 0);
   assert.equal(priced.lines[0]!.finalLinePaise, 0);
+  assert.equal(priced.lines[0]!.discountPaise, 10_000);
+  assert.equal(priced.totals.lineDiscountPaise, 10_000);
   assert.equal(priced.attributions.length, 1);
   assert.equal(priced.attributions[0]!.attributedBasePaise, 10_000);
   assert.equal(priced.attributions[0]!.revenueMetric, 'service');
+});
+
+test('projectPackageRedemptionDisplay uses effective unit SSOT for qty 2', () => {
+  const display = projectPackageRedemptionDisplay({
+    effectiveUnitValuePaise: 20_300,
+    quantity: 2,
+  });
+  assert.equal(display.unitValuePaise, 20_300);
+  assert.equal(display.packageValuePaise, 40_600);
+  assert.equal(display.packageDiscountPaise, 40_600);
+  assert.equal(display.customerPayablePaise, 0);
+  assert.equal(display.paymentLabel, 'Prepaid / Package');
 });
 
 test('priceBasket: package purchase has revenue and zero performance attributions', () => {
@@ -168,12 +183,15 @@ test('redemption performance scales with qty at effective unit value', () => {
   assert.equal(two[0]!.staffId, 'staff-b');
 });
 
-test('formatPackageRedemptionInvoiceName marks prepaid ₹0', () => {
+test('formatPackageRedemptionInvoiceName shows unit value and package value', () => {
   const name = formatPackageRedemptionInvoiceName({
     serviceName: 'Hair Wash',
     packageName: 'Big Regular Hair Wash',
-    quantity: 1,
+    quantity: 2,
+    effectiveUnitValuePaise: 20_300,
   });
   assert.match(name, /Package Redemption/);
   assert.match(name, /Prepaid ₹0/);
+  assert.match(name, /Unit ₹203/);
+  assert.match(name, /Value ₹406/);
 });

@@ -418,15 +418,14 @@ export function QuickSaleShell({
         const catalog = billableItems.find(
           (b) => b.type === 'service' && b.id === sel.serviceId,
         );
-        const retailPaise = catalog?.sellingPricePaise ?? sel.effectiveUnitValuePaise;
         next.push({
           lineId: `prepaid-${sel.creditId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           billableRef: { id: sel.serviceId, type: 'service' },
           snapshot: {
             name: sel.serviceName,
             code: catalog?.code ?? null,
-            unitSellingPricePaise: retailPaise,
-            gstBps: catalog?.gstBps ?? SALON_GST_BPS,
+            unitSellingPricePaise: sel.effectiveUnitValuePaise,
+            gstBps: 0,
             staffMode: 'SERVICE',
             category: 'Package Redemption',
           },

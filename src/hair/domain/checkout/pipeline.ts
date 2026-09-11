@@ -250,8 +250,10 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
               serviceName: line.snapshot.name,
               packageName: line.prepaidRedemption.packageName,
               quantity: Math.max(1, Math.floor(line.quantity)),
+              effectiveUnitValuePaise: line.prepaidRedemption.effectiveUnitValuePaise,
             });
           }
+          const isPrepaidRedemption = Boolean(line.prepaidRedemption);
           return {
             ...writeDefaults,
             invoiceId: inv.id,
@@ -266,8 +268,8 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
             unitPricePaise: line.snapshot.unitSellingPricePaise,
             discountPaise: line.discountPaise,
             discountBps: line.discountBps,
-            gstBps: line.snapshot.gstBps,
-            taxPaise: line.gstPaise,
+            gstBps: isPrepaidRedemption ? 0 : line.snapshot.gstBps,
+            taxPaise: isPrepaidRedemption ? 0 : line.gstPaise,
             lineTotalPaise: line.finalLinePaise,
             sortOrder,
           };

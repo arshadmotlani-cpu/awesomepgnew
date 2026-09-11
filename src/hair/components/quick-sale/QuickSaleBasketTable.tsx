@@ -5,6 +5,7 @@ import { Input } from '@/src/hair/components/ui/input';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { priceLineFromParts } from '@/src/hair/domain/basket/gstInclusiveMath';
 import type { BasketLine } from '@/src/hair/domain/basket/types';
+import { projectPackageRedemptionDisplay } from '@/src/hair/domain/packages/availableServices';
 import { QuickSaleDiscountPercentInput } from '@/src/hair/components/quick-sale/QuickSaleDiscountPercentInput';
 import { QuickSaleStaffRow } from '@/src/hair/components/quick-sale/QuickSaleStaffFields';
 
@@ -19,7 +20,17 @@ type Props = {
 };
 
 function showsGstBreakdown(line: BasketLine): boolean {
+  if (line.prepaidRedemption) return false;
   return line.billableRef.type === 'service' || line.billableRef.type === 'product';
+}
+
+function PrepaidPriceCell({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="text-right tabular-nums">
+      <span className="block text-[10px] leading-tight text-fyh-text-muted">{label}</span>
+      <span className="font-medium text-fyh-text">{value}</span>
+    </div>
+  );
 }
 
 function parseRupeeInput(raw: string): number | null {
@@ -75,6 +86,12 @@ export function QuickSaleBasketTable({
               overridePricePaise: isPrepaid ? 0 : line.overridePricePaise,
             });
             const gstPct = (line.snapshot.gstBps / 100).toFixed(0);
+            const prepaidDisplay = isPrepaid && line.prepaidRedemption
+              ? projectPackageRedemptionDisplay({
+                  effectiveUnitValuePaise: line.prepaidRedemption.effectiveUnitValuePaise,
+                  quantity: line.quantity,
+                })
+              : null;
 
             return (
               <tr key={line.lineId} className="align-middle">
@@ -85,7 +102,7 @@ export function QuickSaleBasketTable({
                   ) : null}
                   {isPrepaid ? (
                     <p className="text-[10px] font-medium leading-tight text-fyh-accent">
-                      Package Redemption · Prepaid · ₹0
+                      Package Redemption · Prepaid
                       {line.prepaidRedemption?.packageName
                         ? ` · ${line.prepaidRedemption.packageName}`
                         : ''}
@@ -98,10 +115,24 @@ export function QuickSaleBasketTable({
                   ) : null}
                 </td>
                 <td className="text-right tabular-nums text-fyh-text-secondary">
-                  {showsGstBreakdown(line) ? formatInrFromPaise(priced.basePaise) : '—'}
+                  {prepaidDisplay ? (
+                    <PrepaidPriceCell
+                      label="Unit value"
+                      value={formatInrFromPaise(prepaidDisplay.unitValuePaise)}
+                    />
+                  ) : showsGstBreakdown(line) ? (
+                    formatInrFromPaise(priced.basePaise)
+                  ) : (
+                    '—'
+                  )}
                 </td>
                 <td className="text-right tabular-nums text-fyh-text-secondary">
-                  {showsGstBreakdown(line) ? (
+                  {prepaidDisplay ? (
+                    <PrepaidPriceCell
+                      label="Value"
+                      value={formatInrFromPaise(prepaidDisplay.packageValuePaise)}
+                    />
+                  ) : showsGstBreakdown(line) ? (
                     <span>
                       {formatInrFromPaise(priced.gstPaise)}
                       <span className="block text-[10px] text-fyh-text-muted">({gstPct}%)</span>
@@ -111,7 +142,14 @@ export function QuickSaleBasketTable({
                   )}
                 </td>
                 <td className="text-right tabular-nums font-medium text-fyh-text">
-                  {formatInrFromPaise(catalogGross)}
+                  {prepaidDisplay ? (
+                    <PrepaidPriceCell
+                      label="Package discount"
+                      value={`−${formatInrFromPaise(prepaidDisplay.packageDiscountPaise)}`}
+                    />
+                  ) : (
+                    formatInrFromPaise(catalogGross)
+                  )}
                 </td>
                 <td>
                   <QuickSaleStaffRow
@@ -139,7 +177,9 @@ export function QuickSaleBasketTable({
                 </td>
                 <td>
                   {isPrepaid ? (
-                    <span className="block text-right tabular-nums text-fyh-text-muted">—</span>
+                    <span className="block text-right text-[10px] font-medium leading-tight text-fyh-accent">
+                      {prepaidDisplay?.paymentLabel ?? 'Prepaid / Package'}
+                    </span>
                   ) : (
                     <QuickSaleDiscountPercentInput
                       lineId={line.lineId}
@@ -154,9 +194,10 @@ export function QuickSaleBasketTable({
                 </td>
                 <td>
                   {isPrepaid ? (
-                    <span className="block text-right font-semibold tabular-nums text-fyh-text">
-                      {formatInrFromPaise(0)}
-                    </span>
+                    <PrepaidPriceCell
+                      label="Payable"
+                      value={formatInrFromPaise(0)}
+                    />
                   ) : (
                     <Input
                       inputMode="decimal"

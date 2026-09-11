@@ -77,6 +77,52 @@ function mockDetail(overrides: Partial<InvoiceDetail> = {}): InvoiceDetail {
 }
 
 describe('buildPublicInvoiceViewModel', () => {
+  it('renders package redemption lines with prepaid presentation', () => {
+    const vm = buildPublicInvoiceViewModel(
+      mockDetail({
+        invoice: {
+          ...mockDetail().invoice,
+          subtotalPaise: 0,
+          discountPaise: 40_600,
+          taxPaise: 0,
+          grandTotalPaise: 0,
+          amountPaidPaise: 0,
+        },
+        lines: [
+          {
+            id: 'line-prepaid',
+            invoiceId: 'inv-1',
+            kind: 'service',
+            serviceId: 'svc-1',
+            productId: null,
+            packageId: null,
+            membershipId: null,
+            staffId: 'staff-1',
+            nameSnapshot:
+              'LUXURY HAIR WASH · Package Redemption · Qty 2 · Unit ₹203 · Value ₹406 · Prepaid ₹0 · Wash Pack',
+            quantity: 2,
+            unitPricePaise: 20_300,
+            discountPaise: 40_600,
+            discountBps: 10_000,
+            gstBps: 0,
+            taxPaise: 0,
+            lineTotalPaise: 0,
+            sortOrder: 0,
+            createdAt: new Date('2026-07-30T10:00:00Z'),
+          },
+        ],
+        payments: [],
+      }),
+    );
+    assert.equal(vm.lines.length, 1);
+    assert.match(vm.lines[0]!.rateLabel, /203/);
+    assert.match(vm.lines[0]!.discountLabel, /406/);
+    assert.equal(vm.lines[0]!.taxableLabel, '₹0');
+    assert.equal(vm.lines[0]!.gstLabel, '—');
+    assert.equal(vm.lines[0]!.totalLabel, '₹0');
+    assert.equal(vm.lines[0]!.gstPct, 'Prepaid');
+  });
+
   it('uses invoice-only business constants regardless of DB settings', () => {
     const vm = buildPublicInvoiceViewModel(mockDetail());
     assert.equal(vm.businessName, INVOICE_BUSINESS.name);

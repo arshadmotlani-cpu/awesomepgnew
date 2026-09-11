@@ -35,6 +35,18 @@ test('Quick Sale adds prepaid basket lines with empty staff for basket selection
   const fn = shell.slice(shell.indexOf('addPrepaidSelections'), shell.indexOf('resetTransactionState'));
   assert.match(fn, /staff: \[\]/);
   assert.doesNotMatch(fn, /staff: sel\.staff/);
+  assert.match(fn, /unitSellingPricePaise: sel\.effectiveUnitValuePaise/);
+  assert.doesNotMatch(fn, /retailPaise/);
+});
+
+test('Basket table shows package redemption value/discount/payable labels', () => {
+  const table = read('src/hair/components/quick-sale/QuickSaleBasketTable.tsx');
+  assert.match(table, /projectPackageRedemptionDisplay/);
+  assert.match(table, /Unit value/);
+  assert.match(table, /Package discount/);
+  assert.match(table, /Payable/);
+  assert.match(table, /Prepaid \/ Package/);
+  assert.doesNotMatch(table, /Package Redemption · Prepaid · ₹0/);
 });
 
 test('Quick Sale preloads staff roster when customer sale step is active', () => {

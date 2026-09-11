@@ -41,3 +41,32 @@ export function buildRedemptionBasketLine(input: {
     cashPaise: 0,
   };
 }
+
+/** Display economics for package redemption lines — SSOT for basket + invoice presentation. */
+export type PackageRedemptionDisplay = {
+  unitValuePaise: number;
+  packageValuePaise: number;
+  packageDiscountPaise: number;
+  customerPayablePaise: 0;
+  paymentLabel: 'Prepaid / Package';
+};
+
+export function projectPackageRedemptionDisplay(input: {
+  effectiveUnitValuePaise: number;
+  quantity: number;
+}): PackageRedemptionDisplay {
+  const quantity = Math.max(0, Number(input.quantity) || 0);
+  const unitValuePaise = Math.max(0, Math.floor(Number(input.effectiveUnitValuePaise) || 0));
+  const packageValuePaise = unitValuePaise * quantity;
+  return {
+    unitValuePaise,
+    packageValuePaise,
+    packageDiscountPaise: packageValuePaise,
+    customerPayablePaise: 0,
+    paymentLabel: 'Prepaid / Package',
+  };
+}
+
+export function isPackageRedemptionLineName(nameSnapshot: string): boolean {
+  return nameSnapshot.includes('Package Redemption');
+}

@@ -30,6 +30,18 @@ export function formatPackageRedemptionInvoiceName(input: {
   serviceName: string;
   packageName: string;
   quantity: number;
+  effectiveUnitValuePaise: number;
 }): string {
-  return `${input.serviceName} · Package Redemption · Qty ${input.quantity} · Prepaid ₹0 · ${input.packageName}`;
+  const qty = Math.max(1, Math.floor(Number(input.quantity) || 0));
+  const unitValuePaise = Math.max(0, Math.floor(Number(input.effectiveUnitValuePaise) || 0));
+  const packageValuePaise = unitValuePaise * qty;
+  return [
+    input.serviceName,
+    'Package Redemption',
+    `Qty ${qty}`,
+    `Unit ${formatInrFromPaise(unitValuePaise)}`,
+    `Value ${formatInrFromPaise(packageValuePaise)}`,
+    'Prepaid ₹0',
+    input.packageName,
+  ].join(' · ');
 }
