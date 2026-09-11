@@ -90,37 +90,24 @@ export function CheckoutSettlementElectricitySection({
   const [deductFromDeposit, setDeductFromDeposit] = useState(
     detail.electricityDeductFromDeposit !== false,
   );
-  const [roomDataHint, setRoomDataHint] = useState<string | null>(null);
+
+  const previousReadingLocked = detail.electricityPreviousReadingAuto === true;
+  const previousReadingUnavailable = detail.electricityPreviousReadingAvailable === false;
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (!editable || !detail.roomId) return;
-    let cancelled = false;
-    const billingMonth = `${detail.vacatingDate.slice(0, 7)}-01`;
-    void fetch(
-      `/api/admin/rooms/${detail.roomId}/last-electricity-reading?billingMonth=${encodeURIComponent(billingMonth)}`,
-    )
-      .then((res) => res.json())
-      .then((body: { ok?: boolean; data?: { previousReadingUnits?: number; ratePerUnitPaise?: number } }) => {
-        if (cancelled || !body.ok || !body.data) return;
-        const d = body.data;
-        if (!previousReading && d.previousReadingUnits != null && d.previousReadingUnits > 0) {
-          setPreviousReading(String(d.previousReadingUnits));
-        }
-        if (d.ratePerUnitPaise != null && ratePerUnitInr === '16') {
-          setRatePerUnitInr((d.ratePerUnitPaise / 100).toFixed(2));
-        }
-        setRoomDataHint('Room meter history loaded');
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- prefetch once per room
-  }, [detail.roomId, editable]);
+    setPreviousReading(detail.electricityPreviousReading ?? '');
+    if (detail.electricityUnitRatePaise != null) {
+      setRatePerUnitInr((detail.electricityUnitRatePaise / 100).toFixed(2));
+    }
+  }, [
+    detail.id,
+    detail.electricityPreviousReading,
+    detail.electricityUnitRatePaise,
+  ]);
 
   useEffect(() => {
     if (settlementIdRef.current !== detail.id) {
@@ -304,20 +291,6 @@ export function CheckoutSettlementElectricitySection({
     const saved = lastSavedSnapshotRef.current ?? baselineSavedSnapshot;
     if (formSnapshot === saved) return;
     const timer = window.setTimeout(() => {
-      // #region agent log
-      fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'b2af77' },
-        body: JSON.stringify({
-          sessionId: 'b2af77',
-          hypothesisId: 'H1',
-          location: 'CheckoutSettlementElectricitySection:autosave',
-          message: 'autosave submit',
-          data: { settlementId: detail.id },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       formRef.current?.requestSubmit();
     }, 700);
     return () => window.clearTimeout(timer);
@@ -355,23 +328,6 @@ export function CheckoutSettlementElectricitySection({
             error?: string;
             data?: RoomElectricityCheckoutAllocation;
           };
-          // #region agent log
-          fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Debug-Session-Id': 'b2af77',
-            },
-            body: JSON.stringify({
-              sessionId: 'b2af77',
-              hypothesisId: 'H5',
-              location: 'CheckoutSettlementElectricitySection:preview',
-              message: 'room-electricity-preview response',
-              data: { status: res.status, ok: body.ok, error: body.error, settlementId: detail.id },
-              timestamp: Date.now(),
-            }),
-          }).catch(() => {});
-          // #endregion
           if (body.ok && body.data) setTimelineAllocation(body.data);
         })
         .catch(() => undefined)
@@ -428,9 +384,22 @@ export function CheckoutSettlementElectricitySection({
                     min="0"
                     step="1"
                     value={previousReading}
+                    readOnly={previousReadingLocked}
                     onChange={(e) => setPreviousReading(e.target.value)}
-                    className={FIELD}
+                    className={
+                      FIELD + (previousReadingLocked ? ' cursor-not-allowed opacity-80' : '')
+                    }
                   />
+                  {previousReadingLocked && detail.electricityPreviousReadingSourceLabel ? (
+                    <span className="mt-1 block text-[10px] text-sky-200/90">
+                      Auto-filled from {detail.electricityPreviousReadingSourceLabel}
+                    </span>
+                  ) : null}
+                  {previousReadingUnavailable && !previousReading ? (
+                    <span className="mt-1 block text-[10px] text-amber-200/90">
+                      No previous reading available for this room
+                    </span>
+                  ) : null}
                 </label>
                 <label className="block text-xs">
                   <span className="text-apg-silver">Current reading</span>
@@ -547,8 +516,6 @@ export function CheckoutSettlementElectricitySection({
       ) : (
         <p className="text-sm text-apg-silver">Awaiting resident meter photo or admin settlement.</p>
       )}
-      {roomDataHint ? <p className="text-xs text-sky-200">{roomDataHint}</p> : null}
-
       <section className="rounded-xl border border-white/10 bg-[#12161C] p-4 text-sm">
         <h4 className="font-semibold text-white">Sharing detection</h4>
         <p className="mt-1 text-xs text-apg-silver">
@@ -643,9 +610,23 @@ export function CheckoutSettlementElectricitySection({
                   min="0"
                   step="1"
                   value={previousReading}
+                  readOnly={previousReadingLocked}
                   onChange={(e) => setPreviousReading(e.target.value)}
-                  className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-white"
+                  className={
+                    'apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-white' +
+                    (previousReadingLocked ? ' cursor-not-allowed opacity-80' : '')
+                  }
                 />
+                {previousReadingLocked && detail.electricityPreviousReadingSourceLabel ? (
+                  <span className="mt-1 block text-xs text-sky-200/90">
+                    Auto-filled from {detail.electricityPreviousReadingSourceLabel}
+                  </span>
+                ) : null}
+                {previousReadingUnavailable && !previousReading ? (
+                  <span className="mt-1 block text-xs text-amber-200/90">
+                    No previous reading available for this room
+                  </span>
+                ) : null}
               </label>
               <label className="text-sm">
                 <span className="text-apg-silver">Current meter reading</span>

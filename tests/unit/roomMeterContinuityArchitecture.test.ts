@@ -93,9 +93,11 @@ describe('continuous room meter architecture', () => {
     assert.match(src, /params\.set\('billingMonth', effectiveBillingMonth\)/);
   });
 
-  test('checkout settlement electricity prefetch sends billingMonth', () => {
-    const src = read('src/components/admin/CheckoutSettlementElectricitySection.tsx');
-    assert.match(src, /last-electricity-reading\?billingMonth=/);
-    assert.match(src, /detail\.vacatingDate/);
+  test('checkout settlement loads previous reading from server SSOT, not client prefetch', () => {
+    const detailLoader = read('src/services/checkoutSettlement.ts');
+    assert.match(detailLoader, /resolveCheckoutPreviousMeterReading/);
+    const ui = read('src/components/admin/CheckoutSettlementElectricitySection.tsx');
+    assert.doesNotMatch(ui, /last-electricity-reading\?billingMonth=/);
+    assert.match(ui, /detail\.electricityPreviousReading/);
   });
 });

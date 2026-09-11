@@ -80,7 +80,7 @@ export async function resolveRoomMonthlyOccupantCount(bookingId: string): Promis
   return ctx.autoDetectedCount;
 }
 
-/** Resolve room id for a booking's primary bed. */
+/** Resolve room id for a booking's primary bed (latest assignment — prefer bookingRoomIdAtDate at checkout). */
 export async function bookingRoomId(bookingId: string): Promise<string | null> {
   const [row] = await db
     .select({ roomId: beds.roomId })
@@ -90,4 +90,16 @@ export async function bookingRoomId(bookingId: string): Promise<string | null> {
     .where(and(eq(bookings.id, bookingId), eq(bedReservations.kind, 'primary')))
     .limit(1);
   return row?.roomId ?? null;
+}
+
+/** Room occupied at a specific date (stay_range SSOT — handles room transfers). */
+export async function bookingRoomIdAtDate(
+  bookingId: string,
+  asOfDate: string,
+): Promise<string | null> {
+  const { resolveCheckoutSettlementRoomContext } = await import(
+    '@/src/lib/checkout/checkoutSettlementRoomContext'
+  );
+  const ctx = await resolveCheckoutSettlementRoomContext(bookingId, asOfDate);
+  return ctx?.roomId ?? null;
 }
