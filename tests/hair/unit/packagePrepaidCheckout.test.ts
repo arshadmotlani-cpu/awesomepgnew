@@ -3,9 +3,11 @@ import test from 'node:test';
 import { priceBasket } from '@/src/hair/domain/basket/engine';
 import type { Basket } from '@/src/hair/domain/basket/types';
 import {
+  allocateEffectiveUnitValues,
   computePackageDiscount,
   computePackageNormalValuePaise,
 } from '@/src/hair/domain/packages/economics';
+import { buildAttributionPlan } from '@/src/hair/domain/basket/attribution';
 import {
   formatPackagePurchaseInvoiceName,
   formatPackageRedemptionInvoiceName,
@@ -109,6 +111,61 @@ test('formatPackagePurchaseInvoiceName preserves economics text', () => {
   assert.match(name, /Hair Wash × 15/);
   assert.match(name, /Discount 50%/);
   assert.match(name, /Validity Forever/);
+});
+
+test('₹3000 / 15 Hair Wash package allocates ₹200 effective unit each', () => {
+  const allocated = allocateEffectiveUnitValues(
+    [{ serviceId: 'wash', quantity: 15, retailUnitPaise: 20_000 }],
+    300_000,
+  );
+  assert.equal(allocated.length, 1);
+  assert.equal(allocated[0]!.effectiveUnitPaise, 20_000);
+});
+
+test('redemption performance scales with qty at effective unit value', () => {
+  const makeRedemptionLine = (qty: number, staffId: string) => ({
+    lineId: `r-${qty}`,
+    billableRef: { id: 'wash', type: 'service' as const },
+    snapshot: {
+      name: 'Hair Wash',
+      code: null,
+      unitSellingPricePaise: 20_000,
+      gstBps: 1800,
+      staffMode: 'SERVICE' as const,
+      category: 'Package Redemption',
+    },
+    quantity: qty,
+    catalogGrossPaise: 0,
+    finalLinePaise: 0,
+    discountPaise: 0,
+    discountBps: 0,
+    basePaise: 0,
+    gstPaise: 0,
+    staff: [{ staffId, shareBps: 10_000 }],
+    serviceId: 'wash',
+    productId: null,
+    packageId: null,
+    membershipId: null,
+    primaryStaffId: staffId,
+    prepaidRedemption: {
+      kind: 'package_redemption' as const,
+      customerPackageId: 'cp1',
+      creditId: 'cr1',
+      serviceId: 'wash',
+      packageName: '15 Hair Wash',
+      effectiveUnitValuePaise: 20_000,
+    },
+  });
+
+  const one = buildAttributionPlan([makeRedemptionLine(1, 'staff-a')]);
+  assert.equal(one.length, 1);
+  assert.equal(one[0]!.attributedBasePaise, 20_000);
+  assert.equal(one[0]!.staffId, 'staff-a');
+
+  const two = buildAttributionPlan([makeRedemptionLine(2, 'staff-b')]);
+  assert.equal(two.length, 1);
+  assert.equal(two[0]!.attributedBasePaise, 40_000);
+  assert.equal(two[0]!.staffId, 'staff-b');
 });
 
 test('formatPackageRedemptionInvoiceName marks prepaid ₹0', () => {

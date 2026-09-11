@@ -381,7 +381,7 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
               quantity: Math.max(1, Math.floor(line.quantity)),
               invoiceId: inv.id,
               invoiceLineId,
-              idempotencyKey: `redeem:${invoiceLineId}`,
+              idempotencyKey: `redeem:${inv.id}:${line.prepaidRedemption.creditId}`,
             },
             ctx,
           );

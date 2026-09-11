@@ -27,6 +27,7 @@ import {
 } from '@/src/hair/services/staffPerformance';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 export type StaffKpiTotals = {
   serviceRevenuePaise: number;
@@ -454,7 +455,8 @@ export async function getStaffPerformanceCommandCenter(input?: {
   staffIds?: string[];
   category?: StaffRevenueCategory;
 }, ctx?: TenantContext | null): Promise<StaffPerformanceCommandCenterSnapshot> {
-  const settings = await getSalonSettings();
+  ctx = await resolveTenantContextForService(ctx);
+  const settings = await getSalonSettings(ctx);
   const timezone = settings.timezone?.trim() || 'Asia/Kolkata';
   const salonName = settings.businessName?.trim() || 'Salon';
   const preset = input?.period ?? 'month';

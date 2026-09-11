@@ -3,6 +3,7 @@ import { requirePermissionPage } from '@/src/hair/lib/auth/permissions';
 import { StaffPerformanceCommandCenter } from '@/src/hair/components/dashboard/StaffPerformanceCommandCenter';
 import { parseStaffPerformanceSearchParams } from '@/src/hair/lib/staffPerformancePeriod';
 import { getStaffPerformanceCommandCenter } from '@/src/hair/services/staffPerformanceDashboard';
+import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -23,13 +24,17 @@ export default async function StaffPerformanceDashboardPage({ searchParams }: Pr
     category: first(sp.category),
   });
 
-  const data = await getStaffPerformanceCommandCenter({
-    period: parsed.preset,
-    from: parsed.from,
-    to: parsed.to,
-    staffIds: parsed.staffIds,
-    category: parsed.category,
-  });
+  const ctx = await getTenantContextForPage();
+  const data = await getStaffPerformanceCommandCenter(
+    {
+      period: parsed.preset,
+      from: parsed.from,
+      to: parsed.to,
+      staffIds: parsed.staffIds,
+      category: parsed.category,
+    },
+    ctx,
+  );
 
   return (
     <Suspense

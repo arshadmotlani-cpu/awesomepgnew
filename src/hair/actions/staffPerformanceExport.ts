@@ -7,6 +7,7 @@ import {
   type StaffRevenueCategory,
 } from '@/src/hair/lib/staffPerformancePeriod';
 import { getStaffPerformanceCommandCenter } from '@/src/hair/services/staffPerformanceDashboard';
+import { getTenantContextForAction } from '@/src/hair/lib/tenant/getTenantContext';
 import {
   exportStaffPerformanceCsv,
   exportStaffPerformanceExcel,
@@ -32,15 +33,19 @@ export async function exportStaffPerformanceAction(input: {
   format: StaffPerformanceExportFormat;
 }): Promise<ExportStaffPerformanceResult> {
   try {
-    await requirePermission('page:dashboard');
+    await requirePermission('page:dashboard_staff');
+    const ctx = await getTenantContextForAction();
     const parsed = parseStaffPerformanceSearchParams(input.filters);
-    const snapshot = await getStaffPerformanceCommandCenter({
-      period: parsed.preset as StaffPerformancePeriodPreset,
-      from: parsed.from,
-      to: parsed.to,
-      staffIds: parsed.staffIds,
-      category: parsed.category as StaffRevenueCategory,
-    });
+    const snapshot = await getStaffPerformanceCommandCenter(
+      {
+        period: parsed.preset as StaffPerformancePeriodPreset,
+        from: parsed.from,
+        to: parsed.to,
+        staffIds: parsed.staffIds,
+        category: parsed.category as StaffRevenueCategory,
+      },
+      ctx,
+    );
 
     const stamp = new Date().toISOString().slice(0, 10);
     const base = `fyh-staff-performance-${stamp}`;

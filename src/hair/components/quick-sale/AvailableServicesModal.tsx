@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { listAvailablePackageServicesAction } from '@/src/hair/actions/packages';
+import { QuickSaleStaffRow } from '@/src/hair/components/quick-sale/QuickSaleStaffFields';
 import { Button } from '@/src/hair/components/ui/button';
+import type { StaffAllocation } from '@/src/hair/domain/basket/types';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 
 export type AvailableServiceSelection = {
@@ -14,6 +16,7 @@ export type AvailableServiceSelection = {
   quantity: number;
   effectiveUnitValuePaise: number;
   remaining: number;
+  staff: StaffAllocation[];
 };
 
 type CreditRow = {
@@ -36,7 +39,9 @@ type Props = {
 export function AvailableServicesModal({ customerId, open, onClose, onConfirm }: Props) {
   const [credits, setCredits] = useState<CreditRow[]>([]);
   const [qtyByCredit, setQtyByCredit] = useState<Record<string, number>>({});
+  const [staffByCredit, setStaffByCredit] = useState<Record<string, StaffAllocation[]>>({});
   const [error, setError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -52,15 +57,18 @@ export function AvailableServicesModal({ customerId, open, onClose, onConfirm }:
     if (!open || !customerId) return;
     startTransition(async () => {
       setError(null);
+      setValidationError(null);
       const res = await listAvailablePackageServicesAction(customerId);
       if (res.error) {
         setError(res.error);
         setCredits([]);
         setQtyByCredit({});
+        setStaffByCredit({});
         return;
       }
       setCredits(res.credits);
       setQtyByCredit({});
+      setStaffByCredit({});
     });
   }, [open, customerId]);
 
@@ -86,6 +94,18 @@ export function AvailableServicesModal({ customerId, open, onClose, onConfirm }:
       }
       return { ...prev, [creditId]: clamped };
     });
+    if (clamped <= 0) {
+      setStaffByCredit((prev) => {
+        const { [creditId]: _, ...rest } = prev;
+        return rest;
+      });
+    }
+    setValidationError(null);
+  };
+
+  const setStaff = (creditId: string, staff: StaffAllocation[]) => {
+    setStaffByCredit((prev) => ({ ...prev, [creditId]: staff }));
+    setValidationError(null);
   };
 
   const confirm = () => {
@@ -93,6 +113,15 @@ export function AvailableServicesModal({ customerId, open, onClose, onConfirm }:
     for (const row of credits) {
       const quantity = qtyByCredit[row.creditId] ?? 0;
       if (quantity <= 0) continue;
+      const staff = staffByCredit[row.creditId] ?? [];
+      if (staff.length === 0) {
+        setValidationError(`${row.serviceName}: Select the staff member who performed this service`);
+        return;
+      }
+      if (staff.length !== 1 || staff[0]!.shareBps !== 10_000) {
+        setValidationError(`${row.serviceName}: Assign one performer at 100%`);
+        return;
+      }
       selections.push({
         creditId: row.creditId,
         customerPackageId: row.customerPackageId,
@@ -102,11 +131,18 @@ export function AvailableServicesModal({ customerId, open, onClose, onConfirm }:
         quantity,
         effectiveUnitValuePaise: row.effectiveUnitValuePaise,
         remaining: row.remaining,
+        staff,
       });
+    }
+    if (selections.length === 0) {
+      setValidationError('Select at least one prepaid service to redeem');
+      return;
     }
     onConfirm(selections);
     onClose();
   };
+
+  const hasSelections = Object.values(qtyByCredit).some((qty) => qty > 0);
 
   return (
     <div
@@ -131,6 +167,7 @@ export function AvailableServicesModal({ customerId, open, onClose, onConfirm }:
         </header>
         <div className="fyh-modal-body space-y-4">
           {error ? <p className="fyh-alert-danger-box text-sm">{error}</p> : null}
+          {validationError ? <p className="fyh-alert-danger-box text-sm">{validationError}</p> : null}
           {pending && credits.length === 0 && !error ? (
             <p className="text-sm text-fyh-text-muted">Loading prepaid services…</p>
           ) : null}
@@ -143,43 +180,53 @@ export function AvailableServicesModal({ customerId, open, onClose, onConfirm }:
               <ul className="divide-y divide-[color:var(--fyh-border)] rounded-lg border border-[color:var(--fyh-border)]">
                 {rows.map((row) => {
                   const qty = qtyByCredit[row.creditId] ?? 0;
+                  const staff = staffByCredit[row.creditId] ?? [];
                   return (
-                    <li
-                      key={row.creditId}
-                      className="flex items-center justify-between gap-3 px-3 py-2.5"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-fyh-text">{row.serviceName}</p>
-                        <p className="text-xs text-fyh-text-muted">
-                          {row.remaining} available · {formatInrFromPaise(row.effectiveUnitValuePaise)}{' '}
-                          perf/unit
-                        </p>
+                    <li key={row.creditId} className="space-y-2 px-3 py-2.5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-fyh-text">{row.serviceName}</p>
+                          <p className="text-xs text-fyh-text-muted">
+                            {row.remaining} available · {formatInrFromPaise(row.effectiveUnitValuePaise)}{' '}
+                            perf/unit
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="h-8 w-8 px-0"
+                            disabled={qty <= 0}
+                            onClick={() => setQty(row.creditId, row.remaining, qty - 1)}
+                            aria-label="Decrease quantity"
+                          >
+                            −
+                          </Button>
+                          <span className="w-8 text-center tabular-nums text-sm font-semibold">{qty}</span>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="h-8 w-8 px-0"
+                            disabled={qty >= row.remaining}
+                            onClick={() => setQty(row.creditId, row.remaining, qty + 1)}
+                            aria-label="Increase quantity"
+                          >
+                            +
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          className="h-8 w-8 px-0"
-                          disabled={qty <= 0}
-                          onClick={() => setQty(row.creditId, row.remaining, qty - 1)}
-                          aria-label="Decrease quantity"
-                        >
-                          −
-                        </Button>
-                        <span className="w-8 text-center tabular-nums text-sm font-semibold">{qty}</span>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          className="h-8 w-8 px-0"
-                          disabled={qty >= row.remaining}
-                          onClick={() => setQty(row.creditId, row.remaining, qty + 1)}
-                          aria-label="Increase quantity"
-                        >
-                          +
-                        </Button>
-                      </div>
+                      {qty > 0 ? (
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-fyh-text-secondary">Performed by</p>
+                          <QuickSaleStaffRow
+                            lineType="service"
+                            staff={staff}
+                            onChange={(next) => setStaff(row.creditId, next)}
+                          />
+                        </div>
+                      ) : null}
                     </li>
                   );
                 })}
@@ -191,7 +238,7 @@ export function AvailableServicesModal({ customerId, open, onClose, onConfirm }:
           <Button type="button" variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="button" onClick={confirm} disabled={pending}>
+          <Button type="button" onClick={confirm} disabled={pending || !hasSelections}>
             Add to basket
           </Button>
         </footer>
