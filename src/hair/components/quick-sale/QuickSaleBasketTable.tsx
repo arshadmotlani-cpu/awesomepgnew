@@ -12,6 +12,7 @@ type Props = {
   lines: BasketLine[];
   locked?: boolean;
   staffNames?: Record<string, string>;
+  preloadedStaff?: Array<{ id: string; fullName: string }>;
   onStaffNameRegistered?: (staffId: string, fullName: string) => void;
   onUpdateLine: (lineId: string, patch: Partial<BasketLine>) => void;
   onRemoveLine: (lineId: string) => void;
@@ -32,6 +33,7 @@ export function QuickSaleBasketTable({
   lines,
   locked = false,
   staffNames,
+  preloadedStaff,
   onStaffNameRegistered,
   onUpdateLine,
   onRemoveLine,
@@ -117,6 +119,7 @@ export function QuickSaleBasketTable({
                     staff={line.staff}
                     disabled={locked}
                     initialNames={staffNames}
+                    preloadedStaff={preloadedStaff}
                     onNameRegistered={onStaffNameRegistered}
                     onChange={(staff) => onUpdateLine(line.lineId, { staff })}
                   />

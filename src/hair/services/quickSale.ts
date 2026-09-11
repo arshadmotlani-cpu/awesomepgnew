@@ -209,6 +209,16 @@ export async function previewQuickSaleTotals(
   };
 }
 
+export async function listStaffForPosRoster(ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
+  const roster = await listBookableStaffForSalon(ctx);
+  return roster.map((row) => ({
+    id: row.id,
+    fullName: row.fullName,
+    role: row.role ?? null,
+  }));
+}
+
 export async function searchStaffForPos(query: string, limit = 20, ctx?: TenantContext | null) {
   ctx = await resolveTenantContextForService(ctx);
   const q = query.trim();

@@ -2,9 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { listAvailablePackageServicesAction } from '@/src/hair/actions/packages';
-import { QuickSaleStaffRow } from '@/src/hair/components/quick-sale/QuickSaleStaffFields';
 import { Button } from '@/src/hair/components/ui/button';
-import type { StaffAllocation } from '@/src/hair/domain/basket/types';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 
 export type AvailableServiceSelection = {
@@ -16,7 +14,6 @@ export type AvailableServiceSelection = {
   quantity: number;
   effectiveUnitValuePaise: number;
   remaining: number;
-  staff: StaffAllocation[];
 };
 
 type CreditRow = {
@@ -39,7 +36,6 @@ type Props = {
 export function AvailableServicesModal({ customerId, open, onClose, onConfirm }: Props) {
   const [credits, setCredits] = useState<CreditRow[]>([]);
   const [qtyByCredit, setQtyByCredit] = useState<Record<string, number>>({});
-  const [staffByCredit, setStaffByCredit] = useState<Record<string, StaffAllocation[]>>({});
   const [error, setError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -63,12 +59,10 @@ export function AvailableServicesModal({ customerId, open, onClose, onConfirm }:
         setError(res.error);
         setCredits([]);
         setQtyByCredit({});
-        setStaffByCredit({});
         return;
       }
       setCredits(res.credits);
       setQtyByCredit({});
-      setStaffByCredit({});
     });
   }, [open, customerId]);
 
@@ -94,17 +88,6 @@ export function AvailableServicesModal({ customerId, open, onClose, onConfirm }:
       }
       return { ...prev, [creditId]: clamped };
     });
-    if (clamped <= 0) {
-      setStaffByCredit((prev) => {
-        const { [creditId]: _, ...rest } = prev;
-        return rest;
-      });
-    }
-    setValidationError(null);
-  };
-
-  const setStaff = (creditId: string, staff: StaffAllocation[]) => {
-    setStaffByCredit((prev) => ({ ...prev, [creditId]: staff }));
     setValidationError(null);
   };
 
@@ -113,15 +96,6 @@ export function AvailableServicesModal({ customerId, open, onClose, onConfirm }:
     for (const row of credits) {
       const quantity = qtyByCredit[row.creditId] ?? 0;
       if (quantity <= 0) continue;
-      const staff = staffByCredit[row.creditId] ?? [];
-      if (staff.length === 0) {
-        setValidationError(`${row.serviceName}: Select the staff member who performed this service`);
-        return;
-      }
-      if (staff.length !== 1 || staff[0]!.shareBps !== 10_000) {
-        setValidationError(`${row.serviceName}: Assign one performer at 100%`);
-        return;
-      }
       selections.push({
         creditId: row.creditId,
         customerPackageId: row.customerPackageId,
@@ -131,7 +105,6 @@ export function AvailableServicesModal({ customerId, open, onClose, onConfirm }:
         quantity,
         effectiveUnitValuePaise: row.effectiveUnitValuePaise,
         remaining: row.remaining,
-        staff,
       });
     }
     if (selections.length === 0) {
@@ -180,9 +153,8 @@ export function AvailableServicesModal({ customerId, open, onClose, onConfirm }:
               <ul className="divide-y divide-[color:var(--fyh-border)] rounded-lg border border-[color:var(--fyh-border)]">
                 {rows.map((row) => {
                   const qty = qtyByCredit[row.creditId] ?? 0;
-                  const staff = staffByCredit[row.creditId] ?? [];
                   return (
-                    <li key={row.creditId} className="space-y-2 px-3 py-2.5">
+                    <li key={row.creditId} className="px-3 py-2.5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium text-fyh-text">{row.serviceName}</p>
@@ -217,16 +189,6 @@ export function AvailableServicesModal({ customerId, open, onClose, onConfirm }:
                           </Button>
                         </div>
                       </div>
-                      {qty > 0 ? (
-                        <div className="space-y-1">
-                          <p className="text-xs font-medium text-fyh-text-secondary">Performed by</p>
-                          <QuickSaleStaffRow
-                            lineType="service"
-                            staff={staff}
-                            onChange={(next) => setStaff(row.creditId, next)}
-                          />
-                        </div>
-                      ) : null}
                     </li>
                   );
                 })}

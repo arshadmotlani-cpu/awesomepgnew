@@ -8,6 +8,7 @@ import {
   completeQuickSaleAction,
   holdQuickSaleAction,
   listQuickSaleHoldsAction,
+  listStaffForPosRosterAction,
   loadQuickSaleHoldAction,
   previewQuickSaleTotalsAction,
 } from '@/src/hair/actions/quickSale';
@@ -110,6 +111,9 @@ export function QuickSaleShell({
   const [holdInvoiceId, setHoldInvoiceId] = useState<string | null>(null);
   const [heldBills, setHeldBills] = useState<QuickSaleHoldSummary[]>([]);
   const [staffNames, setStaffNames] = useState<Record<string, string>>({});
+  const [preloadedStaff, setPreloadedStaff] = useState<
+    Array<{ id: string; fullName: string }>
+  >([]);
   const [sessionHydrated, setSessionHydrated] = useState(false);
   const [availableServicesOpen, setAvailableServicesOpen] = useState(false);
   const [clearAllConfirmOpen, setClearAllConfirmOpen] = useState(false);
@@ -242,6 +246,27 @@ export function QuickSaleShell({
   useEffect(() => {
     if (step === 'customer') refreshHeldBills();
   }, [step, refreshHeldBills]);
+
+  useEffect(() => {
+    if (step !== 'sale' || !customer) return;
+    let cancelled = false;
+    void listStaffForPosRosterAction()
+      .then((rows) => {
+        if (cancelled) return;
+        setPreloadedStaff(rows.map((r) => ({ id: r.id, fullName: r.fullName })));
+        setStaffNames((prev) => {
+          const next = { ...prev };
+          for (const row of rows) next[row.id] = row.fullName;
+          return next;
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setPreloadedStaff([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [step, customer?.id]);
 
   useEffect(() => {
     if (workspaceLocked) setClearAllConfirmOpen(false);
@@ -407,7 +432,7 @@ export function QuickSaleShell({
           },
           quantity: sel.quantity,
           overridePricePaise: 0,
-          staff: sel.staff,
+          staff: [],
           prepaidRedemption: {
             kind: 'package_redemption',
             customerPackageId: sel.customerPackageId,
@@ -805,6 +830,7 @@ export function QuickSaleShell({
           lines={lines}
           locked={workspaceLocked}
           staffNames={staffNames}
+          preloadedStaff={preloadedStaff}
           onStaffNameRegistered={(staffId, fullName) =>
             setStaffNames((prev) => ({ ...prev, [staffId]: fullName }))
           }

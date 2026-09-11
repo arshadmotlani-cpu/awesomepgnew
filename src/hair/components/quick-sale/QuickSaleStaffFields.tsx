@@ -8,7 +8,7 @@ import type { BillableItemType } from '@/src/hair/domain/catalog/types';
 import type { StaffAllocation } from '@/src/hair/domain/basket/types';
 import { normalizeEqualShares } from '@/src/hair/lib/attributionMath';
 
-type StaffHit = { id: string; fullName: string };
+export type QuickSaleStaffHit = { id: string; fullName: string };
 
 const DROPDOWN_MAX_H = 220;
 const DROPDOWN_GAP = 4;
@@ -34,11 +34,20 @@ function clampDropdownPosition(trigger: DOMRect, width: number): { top: number; 
   return { top, left, width: w };
 }
 
+function filterStaffHits(roster: QuickSaleStaffHit[], query: string, limit = 20): QuickSaleStaffHit[] {
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? roster.filter((row) => row.fullName.toLowerCase().includes(q))
+    : roster;
+  return filtered.slice(0, limit);
+}
+
 export function QuickSaleStaffRow({
   lineType,
   staff,
   onChange,
   initialNames,
+  preloadedStaff,
   onNameRegistered,
   disabled = false,
 }: {
@@ -46,11 +55,12 @@ export function QuickSaleStaffRow({
   staff: StaffAllocation[];
   onChange: (staff: StaffAllocation[]) => void;
   initialNames?: Record<string, string>;
+  preloadedStaff?: QuickSaleStaffHit[];
   onNameRegistered?: (staffId: string, fullName: string) => void;
   disabled?: boolean;
 }) {
   const [q, setQ] = useState('');
-  const [hits, setHits] = useState<StaffHit[]>([]);
+  const [hits, setHits] = useState<QuickSaleStaffHit[]>([]);
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [highlight, setHighlight] = useState(0);
@@ -77,13 +87,24 @@ export function QuickSaleStaffRow({
       setHighlight(0);
       return;
     }
+
+    if (preloadedStaff && preloadedStaff.length > 0) {
+      setHits(filterStaffHits(preloadedStaff, q));
+      setHighlight(0);
+      const t = window.setTimeout(async () => {
+        const rows = await searchStaffForPosAction(q);
+        setHits(rows.map((r) => ({ id: r.id, fullName: r.fullName })));
+      }, 400);
+      return () => window.clearTimeout(t);
+    }
+
     const t = window.setTimeout(async () => {
       const rows = await searchStaffForPosAction(q);
       setHits(rows.map((r) => ({ id: r.id, fullName: r.fullName })));
       setHighlight(0);
     }, 80);
     return () => window.clearTimeout(t);
-  }, [q, open]);
+  }, [q, open, preloadedStaff]);
 
   const updatePosition = useCallback(() => {
     const el = inputRef.current;
@@ -143,7 +164,7 @@ export function QuickSaleStaffRow({
     }, 0);
   };
 
-  const addStaff = (pick: StaffHit) => {
+  const addStaff = (pick: QuickSaleStaffHit) => {
     if (staff.some((s) => s.staffId === pick.id)) {
       closeDropdown(staff.length === 1 ? pick.fullName : '');
       return;
@@ -197,7 +218,7 @@ export function QuickSaleStaffRow({
           >
             {hits.length === 0 ? (
               <li className="px-3 py-2 text-sm text-fyh-text-muted">
-                {q.trim() ? 'No matching staff' : 'Loading…'}
+                {q.trim() ? 'No matching staff' : preloadedStaff?.length ? 'No staff' : 'Loading…'}
               </li>
             ) : (
               hits.map((h, idx) => (

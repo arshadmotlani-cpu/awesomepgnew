@@ -14,7 +14,12 @@ import {
   renderPublicInvoiceSheetHtml,
 } from '@/src/hair/lib/publicInvoiceDocument';
 import type { QuickSaleLineInput } from '@/src/hair/services/invoices';
-import { previewQuickSaleTotals, searchCustomersForPos, searchStaffForPos } from '@/src/hair/services/quickSale';
+import {
+  listStaffForPosRoster,
+  previewQuickSaleTotals,
+  searchCustomersForPos,
+  searchStaffForPos,
+} from '@/src/hair/services/quickSale';
 import {
   listQuickSaleHolds,
   loadQuickSaleHold,
@@ -33,6 +38,12 @@ export async function searchCustomersForPosAction(query: string) {
 export async function searchStaffForPosAction(query: string) {
   await requirePermission('page:quick_sale');
   return searchStaffForPos(query);
+}
+
+/** Full bookable staff roster for Quick Sale — preload once per sale session. */
+export async function listStaffForPosRosterAction() {
+  await requirePermission('page:quick_sale');
+  return listStaffForPosRoster();
 }
 
 /** @deprecated Prefer createQuickCustomerFromForm — kept for useActionState callers. */
