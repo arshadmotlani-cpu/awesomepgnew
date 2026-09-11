@@ -5,7 +5,14 @@ import { requirePermission } from '@/src/hair/lib/auth/permissions';
 import { createQuickCustomerFromForm } from '@/src/hair/actions/quickSaleCustomer';
 import type { Basket } from '@/src/hair/domain/basket/types';
 import { enrichBasketWithRedemptions, checkoutFromBasket } from '@/src/hair/domain/checkout/pipeline';
-import { getInvoiceDetail } from '@/src/hair/services/invoices';
+import {
+  buildPublicInvoicePrintHtml,
+  getInvoiceDetail,
+} from '@/src/hair/services/invoices';
+import {
+  buildPublicInvoiceViewModel,
+  renderPublicInvoiceSheetHtml,
+} from '@/src/hair/lib/publicInvoiceDocument';
 import type { QuickSaleLineInput } from '@/src/hair/services/invoices';
 import { previewQuickSaleTotals, searchCustomersForPos, searchStaffForPos } from '@/src/hair/services/quickSale';
 import {
@@ -66,7 +73,7 @@ export async function completeQuickSaleAction(input: {
   source?: 'quick_sale' | 'appointment';
   appointmentId?: string;
 }): Promise<
-  QuickSaleActionState & { printHtml?: string; advancePaise?: number; invoiceNumber?: string }
+  QuickSaleActionState & { advancePaise?: number; invoiceNumber?: string }
 > {
   try {
     await requirePermission('action:billing.checkout');
@@ -86,26 +93,79 @@ export async function completeQuickSaleAction(input: {
       revalidatePath('/appointments');
     }
     let invoiceNumber: string | undefined;
-    let printHtml: string | undefined;
     try {
       const detail = await getInvoiceDetail(result.invoiceId, ctx);
       invoiceNumber = detail?.invoice.invoiceNumber;
-      if (detail) {
-        const { buildInvoicePrintHtml } = await import('@/src/hair/services/invoices');
-        printHtml = buildInvoicePrintHtml(detail);
-      }
     } catch {
-      // Invoice is committed; print HTML is best-effort.
+      // Invoice is committed; invoice number is best-effort.
     }
     return {
       success: 'Sale complete',
       invoiceId: result.invoiceId,
       invoiceNumber,
-      printHtml,
       advancePaise: result.advancePaise,
     };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Could not complete sale' };
+  }
+}
+
+export type QuickSaleInvoicePreviewResult =
+  | {
+      ok: true;
+      sheetHtml: string;
+      printDocumentHtml: string;
+      invoiceNumber: string;
+      publicAccessToken: string;
+      customerName: string;
+      customerPhone: string;
+      stylistName: string | null;
+      grandTotalLabel: string;
+      paidLabel: string;
+      paymentModes: string;
+      statusLabel: string;
+      invoiceDateTime: string;
+    }
+  | { ok: false; error: string };
+
+function formatQuickSaleInvoiceDateTime(date: Date): string {
+  return new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(date);
+}
+
+export async function getQuickSaleInvoicePreviewAction(
+  invoiceId: string,
+): Promise<QuickSaleInvoicePreviewResult> {
+  try {
+    await requirePermission('page:quick_sale');
+    const ctx = await getTenantContextForAction();
+    const detail = await getInvoiceDetail(invoiceId, ctx);
+    if (!detail) return { ok: false, error: 'Invoice not found' };
+    const vm = buildPublicInvoiceViewModel(detail);
+    return {
+      ok: true,
+      sheetHtml: renderPublicInvoiceSheetHtml(detail),
+      printDocumentHtml: buildPublicInvoicePrintHtml(detail),
+      invoiceNumber: detail.invoice.invoiceNumber,
+      publicAccessToken: detail.invoice.publicAccessToken,
+      customerName: detail.customerName,
+      customerPhone: detail.customerPhone,
+      stylistName: detail.stylistName ?? null,
+      grandTotalLabel: vm.grandTotalLabel,
+      paidLabel: vm.paidLabel,
+      paymentModes: vm.paymentModes,
+      statusLabel: vm.statusLabel,
+      invoiceDateTime: formatQuickSaleInvoiceDateTime(detail.invoice.createdAt),
+    };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Failed to load invoice' };
   }
 }
 

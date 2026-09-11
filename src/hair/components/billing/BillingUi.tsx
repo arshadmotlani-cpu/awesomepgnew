@@ -114,7 +114,7 @@ export function BillingUi({ invoices }: { invoices: BillingInvoiceRow[] }) {
   );
 }
 
-export function PrintInvoiceButton({ html }: { html: string }) {
+export function PrintInvoiceButton({ html, label = 'Print' }: { html: string; label?: string }) {
   return (
     <Button
       type="button"
@@ -130,7 +130,7 @@ export function PrintInvoiceButton({ html }: { html: string }) {
         w.print();
       }}
     >
-      Print
+      {label}
     </Button>
   );
 }

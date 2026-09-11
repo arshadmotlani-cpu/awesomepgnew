@@ -3,6 +3,10 @@
 import { useEffect, useState, useTransition } from 'react';
 import { getInvoicePreviewAction } from '@/src/hair/actions/invoiceRegister';
 import { PublicFyhInvoiceActions } from '@/src/hair/components/billing/PublicFyhInvoiceActions';
+import {
+  FYH_INVOICE_MODAL_PRINT_STYLES,
+  FYH_INVOICE_MODAL_SCREEN_STYLES,
+} from '@/src/hair/components/billing/fyhInvoiceModalStyles';
 import { PUBLIC_INVOICE_STYLES } from '@/src/hair/lib/publicInvoiceDocument';
 
 type PreviewData = {
@@ -113,7 +117,10 @@ export function InvoicePreviewModal({ invoiceId, onClose }: Props) {
                 <>
                   <style
                     dangerouslySetInnerHTML={{
-                      __html: PUBLIC_INVOICE_STYLES + MODAL_SCREEN_STYLES + MODAL_PRINT_STYLES,
+                      __html:
+                        PUBLIC_INVOICE_STYLES +
+                        FYH_INVOICE_MODAL_SCREEN_STYLES +
+                        FYH_INVOICE_MODAL_PRINT_STYLES,
                     }}
                   />
                   <div dangerouslySetInnerHTML={{ __html: preview.sheetHtml }} />
@@ -126,50 +133,3 @@ export function InvoicePreviewModal({ invoiceId, onClose }: Props) {
     </div>
   );
 }
-
-const MODAL_SCREEN_STYLES = `
-.fyh-invoice-modal-scroll {
-  overflow: auto;
-  max-height: calc(92vh - 3.5rem);
-  padding: 16px 0 24px;
-}
-.fyh-invoice-modal-panel .fyh-invoice-sheet {
-  width: 210mm;
-  min-width: 210mm;
-  max-width: 210mm;
-  margin: 0 auto;
-}
-.fyh-invoice-modal-panel .fyh-invoice-body {
-  overflow-x: auto;
-}
-`;
-
-const MODAL_PRINT_STYLES = `
-@media print {
-  body * { visibility: hidden !important; }
-  .fyh-invoice-modal-root,
-  .fyh-invoice-modal-root * { visibility: visible !important; }
-  .fyh-invoice-modal-backdrop,
-  .fyh-invoice-modal-panel > .fyh-invoice-body > .fyh-invoice-page > .fyh-invoice-toolbar {
-    display: none !important;
-  }
-  .fyh-invoice-modal-root {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 100% !important;
-    padding: 0 !important;
-    background: #fff !important;
-  }
-  .fyh-invoice-modal-panel {
-    max-width: none !important;
-    width: 100% !important;
-  }
-  .fyh-invoice-modal-scroll {
-    max-height: none !important;
-    overflow: visible !important;
-    padding: 0 !important;
-    background: #fff !important;
-  }
-}
-`;

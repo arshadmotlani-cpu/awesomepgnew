@@ -105,9 +105,6 @@ export function QuickSaleShell({
   const [membershipDiscountPaise, setMembershipDiscountPaise] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [invoiceId, setInvoiceId] = useState<string | null>(null);
-  const [invoiceNumber, setInvoiceNumber] = useState<string | null>(null);
-  const [advancePaise, setAdvancePaise] = useState(0);
-  const [printHtml, setPrintHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [holdInvoiceId, setHoldInvoiceId] = useState<string | null>(null);
   const [heldBills, setHeldBills] = useState<QuickSaleHoldSummary[]>([]);
@@ -117,7 +114,6 @@ export function QuickSaleShell({
   const [clearAllConfirmOpen, setClearAllConfirmOpen] = useState(false);
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
   const [holdSubmitting, setHoldSubmitting] = useState(false);
-  const [successGrandTotalPaise, setSuccessGrandTotalPaise] = useState(0);
   const [validationToasts, setValidationToasts] = useState<string[]>([]);
   const catalogSearchRef = useRef<HTMLInputElement>(null);
   const checkoutSubmittingRef = useRef(false);
@@ -356,12 +352,7 @@ export function QuickSaleShell({
             : res.error,
         );
       } else if (res.invoiceId) {
-        finalizeSuccess({
-          invoiceId: res.invoiceId,
-          invoiceNumber: res.invoiceNumber ?? null,
-          advancePaise: res.advancePaise ?? 0,
-          printHtml: res.printHtml ?? null,
-        });
+        finalizeSuccess({ invoiceId: res.invoiceId });
       } else {
         if (sessionSnapshot) {
           revertCheckoutPendingToSessionDraft(sessionSnapshot);
@@ -401,7 +392,7 @@ export function QuickSaleShell({
           },
           quantity: sel.quantity,
           overridePricePaise: 0,
-          staff: [],
+          staff: sel.staff,
           prepaidRedemption: {
             kind: 'package_redemption',
             customerPackageId: sel.customerPackageId,
@@ -442,20 +433,11 @@ export function QuickSaleShell({
     }
   };
 
-  const finalizeSuccess = (res: {
-    invoiceId: string;
-    invoiceNumber?: string | null;
-    advancePaise?: number;
-    printHtml?: string | null;
-  }) => {
+  const finalizeSuccess = (res: { invoiceId: string }) => {
     saleCompletedRef.current = true;
-    setSuccessGrandTotalPaise(priced?.totals.grandTotalPaise ?? 0);
     clearQuickSaleSession();
     resetTransactionState();
     setInvoiceId(res.invoiceId);
-    setInvoiceNumber(res.invoiceNumber ?? null);
-    setAdvancePaise(res.advancePaise ?? 0);
-    setPrintHtml(res.printHtml ?? null);
     setError(null);
     setStep('done');
   };
@@ -466,8 +448,6 @@ export function QuickSaleShell({
     setCustomer(null);
     resetTransactionState();
     setInvoiceId(null);
-    setPrintHtml(null);
-    setAdvancePaise(0);
     setError(null);
   };
 
@@ -540,12 +520,7 @@ export function QuickSaleShell({
     return (
       <QuickSaleSuccessDialog
         invoiceId={invoiceId}
-        invoiceNumber={invoiceNumber ?? undefined}
-        customerName={customer.fullName}
-        customerPhone={customer.phone}
-        grandTotalPaise={successGrandTotalPaise}
-        advancePaise={advancePaise}
-        printHtml={printHtml}
+        customerId={customer.id}
         googleReviewUrl={googleReviewUrl}
         onDone={resetForNext}
       />

@@ -1390,12 +1390,41 @@
   box-shadow: 0 0 6px color-mix(in srgb, var(--fyh-scheduler-now) 55%, transparent);
 }
 
-.qs-success-invoice-scroll {
-  overflow: auto;
-  max-height: calc(92vh - 5rem);
+.qs-success-root {
+  -webkit-overflow-scrolling: touch;
 }
 
-.qs-success-invoice-sheet {
-  margin: 0 auto;
-  max-width: 210mm;
+.qs-success-panel {
+  animation: qs-success-enter 0.22s ease-out;
+}
+
+@keyframes qs-success-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.qs-success-body {
+  min-height: 0;
+}
+
+.qs-success-invoice-scroll {
+  overflow: auto;
+  max-height: min(72vh, calc(100vh - 14rem));
+}
+
+@media (min-width: 1024px) {
+  .qs-success-invoice-scroll {
+    max-height: min(78vh, calc(100vh - 12rem));
+  }
+
+  .qs-success-actions {
+    max-height: calc(100vh - 8rem);
+    overflow-y: auto;
+  }
 }
