@@ -23,14 +23,27 @@ export function FyhCustomerContextStrip({
 }: Props) {
   const [ctx, setCtx] = useState<CustomerBookingContext | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setError(null);
     loadCustomerContextForPosAction(customerId)
       .then((data) => {
-        if (!cancelled) setCtx(data);
+        if (!cancelled) {
+          setCtx(data);
+          setError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setCtx(null);
+          setError(
+            err instanceof Error ? err.message : 'Failed to load customer context',
+          );
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -48,11 +61,25 @@ export function FyhCustomerContextStrip({
     );
   }
 
-  const walletPaise = ctx?.financial.walletPaise ?? 0;
-  const duePaise = ctx?.financial.duePaise ?? 0;
-  const lastVisitLabel = ctx?.lastVisit?.displayDate
-    ? ctx.lastVisit.displayDate
-    : 'Never';
+  if (error) {
+    return (
+      <div className={cn('fyh-customer-context text-sm text-fyh-warning', className)}>
+        {error}
+      </div>
+    );
+  }
+
+  if (!ctx) {
+    return (
+      <div className={cn('fyh-customer-context text-sm text-fyh-text-secondary', className)}>
+        Customer context unavailable
+      </div>
+    );
+  }
+
+  const walletPaise = ctx.financial.walletPaise;
+  const duePaise = ctx.financial.duePaise;
+  const lastVisitLabel = ctx.lastVisit?.displayDate ?? 'Never';
 
   return (
     <>

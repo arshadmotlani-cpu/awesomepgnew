@@ -15,6 +15,7 @@ import {
   searchCustomersForPos,
   searchServicesForBooking,
 } from '@/src/hair/services/bookingContext';
+import { getTenantContextForAction } from '@/src/hair/lib/tenant/getTenantContext';
 
 async function requireCustomerContextPermission() {
   const admin = await requireHairAuth();
@@ -41,18 +42,21 @@ export async function searchServicesForBookingAction(query: string) {
 
 export async function loadCustomerBookingContextAction(customerId: string) {
   await requirePermission('page:appointments');
-  return getCustomerBookingContext(customerId);
+  const ctx = await getTenantContextForAction();
+  return getCustomerBookingContext(customerId, ctx);
 }
 
 /** Customer wallet / last visit — Quick Sale, appointments, billing. */
 export async function loadCustomerContextForPosAction(customerId: string) {
   await requireCustomerContextPermission();
-  return getCustomerBookingContext(customerId);
+  const ctx = await getTenantContextForAction();
+  return getCustomerBookingContext(customerId, ctx);
 }
 
 export async function loadCustomerVisitHistoryAction(customerId: string) {
   await requireCustomerContextPermission();
-  return getCustomerVisitHistory(customerId);
+  const ctx = await getTenantContextForAction();
+  return getCustomerVisitHistory(customerId, undefined, ctx);
 }
 
 export async function addAdvanceFromBookingAction(input: {

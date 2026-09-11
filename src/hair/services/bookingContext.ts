@@ -109,7 +109,7 @@ export async function getCustomerBookingContext(customerId: string, ctx?: Tenant
 
   if (!customer) throw new Error('Customer not found');
 
-  const financial = await getCustomerFinancialSummary(customerId);
+  const financial = await getCustomerFinancialSummary(customerId, ctx);
 
   const [lastRow] = await hairDb
     .select({

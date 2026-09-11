@@ -14,6 +14,7 @@ import {
   type PackagePlanItemInput,
 } from '@/src/hair/services/packagePlans';
 import { listBookableServices } from '@/src/hair/services/salonServices';
+import { getTenantContextForAction } from '@/src/hair/lib/tenant/getTenantContext';
 
 export type PackageActionState = { error?: string; success?: string };
 
@@ -149,7 +150,8 @@ export async function listAvailablePackageServicesAction(customerId: string): Pr
   try {
     await requireHairAuth();
     if (!customerId) return { credits: [], error: 'Customer required' };
-    const rows = await listActivePackageCreditsForCustomer(hairDb, customerId);
+    const ctx = await getTenantContextForAction();
+    const rows = await listActivePackageCreditsForCustomer(hairDb, customerId, ctx);
     return {
       credits: rows.map((r) => ({
         creditId: r.creditId,
