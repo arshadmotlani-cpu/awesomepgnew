@@ -175,6 +175,21 @@ test('16–17 package prefetch and print failure contracts unchanged', () => {
   assert.match(action, /invoiceId: result\.invoiceId/);
 });
 
+test('markFullDue allows zero-payment due sale', () => {
+  const b = basket({ payments: [], flags: { markFullDue: true, markDue: false } });
+  const priced = priceBasket(b);
+  assert.deepEqual(validateQuickSaleCheckout(b, priced), []);
+});
+
+test('split payment plus markDue validates when partial paid', () => {
+  const b = basket({
+    payments: [{ id: 'p1', method: 'cash', amountPaise: 50_000 }],
+    flags: { markDue: true, markFullDue: false },
+  });
+  const priced = priceBasket(b);
+  assert.deepEqual(validateQuickSaleCheckout(b, priced), []);
+});
+
 test('normal services without staff are allowed at checkout validation', () => {
   const b = basket({ lines: [serviceLine] });
   const priced = priceBasket(b);

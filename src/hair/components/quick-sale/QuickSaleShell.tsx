@@ -29,6 +29,7 @@ import { SALON_GST_BPS } from '@/src/hair/lib/taxConfig';
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
+import { computePaymentPanelSummary } from '@/src/hair/lib/quickSalePaymentPanelState';
 import {
   buildClearedQuickSaleDraftForCustomer,
   emptyQuickSaleTransactionState,
@@ -140,6 +141,20 @@ export function QuickSaleShell({
     () => (basket ? priceBasket(basket) : null),
     [basket, lines, payments, flags, membershipDiscountPaise],
   );
+
+  const paymentSummary = useMemo(
+    () =>
+      priced
+        ? computePaymentPanelSummary({
+            grandTotalPaise: priced.totals.grandTotalPaise,
+            payments,
+            flags,
+          })
+        : null,
+    [priced, payments, flags],
+  );
+
+  const canCompleteSale = Boolean(basket && priced && paymentSummary?.isComplete);
 
   const filteredItems = useMemo(() => {
     return billableItems.filter((item) => {
@@ -858,14 +873,21 @@ export function QuickSaleShell({
             ) : null}
             <Button
               type="button"
-              disabled={checkoutSubmitting || holdSubmitting || !customer || lines.length === 0 || !basket}
+              disabled={
+                checkoutSubmitting ||
+                holdSubmitting ||
+                !customer ||
+                lines.length === 0 ||
+                !basket ||
+                !canCompleteSale
+              }
               className="h-10 w-full text-sm font-semibold"
               data-testid="qs-confirm-sale"
               onClick={() => {
                 void submitCheckout();
               }}
             >
-              {checkoutSubmitting ? 'Processing…' : 'Confirm sale'}
+              {checkoutSubmitting ? 'Processing…' : 'Complete Sale'}
             </Button>
           </section>
         </div>

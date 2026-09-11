@@ -181,6 +181,17 @@ test('1–9 staff dropdown architecture: portal, close, keyboard, no left/right 
   assert.match(staff, /suppressOpenRef/);
 });
 
+test('payment panel exposes POS allocation summary and due action', () => {
+  const panel = readSrc('src/hair/components/quick-sale/QuickSalePaymentPanel.tsx');
+  const shell = readSrc('src/hair/components/quick-sale/QuickSaleShell.tsx');
+  assert.match(panel, /Remaining to allocate/i);
+  assert.match(panel, /Mark .* as Due/);
+  assert.match(panel, /\+ Add Payment/);
+  assert.match(panel, /Payments received/);
+  assert.match(shell, /Complete Sale/);
+  assert.match(shell, /canCompleteSale/);
+});
+
 test('POS shell uses compact viewport layout and basket-only scroll', () => {
   const shell = readSrc('src/hair/components/quick-sale/QuickSaleShell.tsx');
   const css = readSrc('src/hair/styles/globals.css');
