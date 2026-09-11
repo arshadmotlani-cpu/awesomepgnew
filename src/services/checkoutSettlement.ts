@@ -2235,11 +2235,6 @@ export async function updateCheckoutElectricitySettlement(input: {
     .from(bookings)
     .where(eq(bookings.id, current.bookingId))
     .limit(1);
-  const [vacatingRow] = await db
-    .select({ vacatingDate: vacatingRequests.vacatingDate })
-    .from(vacatingRequests)
-    .where(eq(vacatingRequests.id, current.vacatingRequestId))
-    .limit(1);
   if (vacatingRow?.vacatingDate) {
     try {
       await recomputeAndPersistV2Snapshot({
