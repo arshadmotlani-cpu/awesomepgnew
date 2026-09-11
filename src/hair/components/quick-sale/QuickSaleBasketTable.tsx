@@ -5,7 +5,10 @@ import { Input } from '@/src/hair/components/ui/input';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { priceLineFromParts } from '@/src/hair/domain/basket/gstInclusiveMath';
 import type { BasketLine } from '@/src/hair/domain/basket/types';
-import { projectPackageRedemptionDisplay } from '@/src/hair/domain/packages/availableServices';
+import {
+  computePackageRedemptionUnitDiscount,
+  formatPackageRedemptionDiscountLabel,
+} from '@/src/hair/domain/packages/availableServices';
 import { QuickSaleDiscountPercentInput } from '@/src/hair/components/quick-sale/QuickSaleDiscountPercentInput';
 import { QuickSaleStaffRow } from '@/src/hair/components/quick-sale/QuickSaleStaffFields';
 
@@ -22,15 +25,6 @@ type Props = {
 function showsGstBreakdown(line: BasketLine): boolean {
   if (line.prepaidRedemption) return false;
   return line.billableRef.type === 'service' || line.billableRef.type === 'product';
-}
-
-function PrepaidPriceCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="text-right tabular-nums">
-      <span className="block text-[10px] leading-tight text-fyh-text-muted">{label}</span>
-      <span className="font-medium text-fyh-text">{value}</span>
-    </div>
-  );
 }
 
 function parseRupeeInput(raw: string): number | null {
@@ -59,17 +53,16 @@ export function QuickSaleBasketTable({
 
   return (
     <div className="qs-basket-scroll overflow-x-auto overflow-y-auto">
-      <table className="fyh-table-compact w-full min-w-[920px] text-left text-sm">
+      <table className="fyh-table-compact qs-basket-table w-full min-w-[860px] text-left text-sm">
         <thead className="sticky top-0 z-10 bg-[color:var(--fyh-bg-surface)]">
           <tr>
-            <th>Item</th>
-            <th className="text-right">Base</th>
-            <th className="text-right">GST</th>
-            <th className="text-right">Selling</th>
+            <th>Service</th>
             <th className="min-w-[9.5rem]">Staff</th>
-            <th className="w-14">Qty</th>
-            <th className="w-16 text-right">Disc %</th>
-            <th className="w-20 text-right">Final</th>
+            <th className="qs-basket-col-qty w-14 text-center">Qty</th>
+            <th className="qs-basket-col-money text-right">Base</th>
+            <th className="qs-basket-col-money text-right">GST</th>
+            <th className="qs-basket-col-money text-right">Discount</th>
+            <th className="qs-basket-col-money w-20 text-right">Final</th>
             <th className="w-8" />
           </tr>
         </thead>
@@ -86,12 +79,19 @@ export function QuickSaleBasketTable({
               overridePricePaise: isPrepaid ? 0 : line.overridePricePaise,
             });
             const gstPct = (line.snapshot.gstBps / 100).toFixed(0);
-            const prepaidDisplay = isPrepaid && line.prepaidRedemption
-              ? projectPackageRedemptionDisplay({
-                  effectiveUnitValuePaise: line.prepaidRedemption.effectiveUnitValuePaise,
-                  quantity: line.quantity,
-                })
-              : null;
+            const retailUnitPaise = line.prepaidRedemption?.retailUnitValuePaise ?? 0;
+            const prepaidRetailGross = retailUnitPaise * line.quantity;
+            const prepaidDiscountPercent =
+              isPrepaid && line.prepaidRedemption && retailUnitPaise > 0
+                ? computePackageRedemptionUnitDiscount(
+                    retailUnitPaise,
+                    line.prepaidRedemption.effectiveUnitValuePaise,
+                  )
+                : null;
+            const prepaidDiscountLabel =
+              prepaidDiscountPercent != null
+                ? formatPackageRedemptionDiscountLabel(prepaidDiscountPercent)
+                : null;
 
             return (
               <tr key={line.lineId} className="align-middle">
@@ -114,43 +114,6 @@ export function QuickSaleBasketTable({
                     </p>
                   ) : null}
                 </td>
-                <td className="text-right tabular-nums text-fyh-text-secondary">
-                  {prepaidDisplay ? (
-                    <PrepaidPriceCell
-                      label="Unit value"
-                      value={formatInrFromPaise(prepaidDisplay.unitValuePaise)}
-                    />
-                  ) : showsGstBreakdown(line) ? (
-                    formatInrFromPaise(priced.basePaise)
-                  ) : (
-                    '—'
-                  )}
-                </td>
-                <td className="text-right tabular-nums text-fyh-text-secondary">
-                  {prepaidDisplay ? (
-                    <PrepaidPriceCell
-                      label="Value"
-                      value={formatInrFromPaise(prepaidDisplay.packageValuePaise)}
-                    />
-                  ) : showsGstBreakdown(line) ? (
-                    <span>
-                      {formatInrFromPaise(priced.gstPaise)}
-                      <span className="block text-[10px] text-fyh-text-muted">({gstPct}%)</span>
-                    </span>
-                  ) : (
-                    '—'
-                  )}
-                </td>
-                <td className="text-right tabular-nums font-medium text-fyh-text">
-                  {prepaidDisplay ? (
-                    <PrepaidPriceCell
-                      label="Package discount"
-                      value={`−${formatInrFromPaise(prepaidDisplay.packageDiscountPaise)}`}
-                    />
-                  ) : (
-                    formatInrFromPaise(catalogGross)
-                  )}
-                </td>
                 <td>
                   <QuickSaleStaffRow
                     lineType={line.billableRef.type}
@@ -162,7 +125,7 @@ export function QuickSaleBasketTable({
                     onChange={(staff) => onUpdateLine(line.lineId, { staff })}
                   />
                 </td>
-                <td>
+                <td className="qs-basket-col-qty text-center">
                   <Input
                     inputMode="decimal"
                     value={String(line.quantity)}
@@ -171,15 +134,38 @@ export function QuickSaleBasketTable({
                       const quantity = Math.max(0.001, Number(e.target.value) || 1);
                       onUpdateLine(line.lineId, { quantity });
                     }}
-                    className="h-8 w-14 text-center text-xs tabular-nums"
+                    className="mx-auto h-8 w-14 text-center text-xs tabular-nums"
                     aria-label="Quantity"
                   />
                 </td>
-                <td>
+                <td className="qs-basket-col-money text-right tabular-nums text-fyh-text-secondary">
                   {isPrepaid ? (
-                    <span className="block text-right text-[10px] font-medium leading-tight text-fyh-accent">
-                      {prepaidDisplay?.paymentLabel ?? 'Prepaid / Package'}
+                    retailUnitPaise > 0 ? formatInrFromPaise(prepaidRetailGross) : '—'
+                  ) : showsGstBreakdown(line) ? (
+                    formatInrFromPaise(priced.basePaise)
+                  ) : (
+                    '—'
+                  )}
+                </td>
+                <td className="qs-basket-col-money text-right tabular-nums text-fyh-text-secondary">
+                  {isPrepaid ? (
+                    '—'
+                  ) : showsGstBreakdown(line) ? (
+                    <span>
+                      {formatInrFromPaise(priced.gstPaise)}
+                      <span className="block text-[10px] text-fyh-text-muted">({gstPct}%)</span>
                     </span>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+                <td className="qs-basket-col-money text-right tabular-nums">
+                  {isPrepaid ? (
+                    prepaidDiscountLabel ? (
+                      <span className="text-xs font-medium text-fyh-accent">{prepaidDiscountLabel}</span>
+                    ) : (
+                      '—'
+                    )
                   ) : (
                     <QuickSaleDiscountPercentInput
                       lineId={line.lineId}
@@ -192,12 +178,9 @@ export function QuickSaleBasketTable({
                     />
                   )}
                 </td>
-                <td>
+                <td className="qs-basket-col-money text-right tabular-nums font-semibold text-fyh-text">
                   {isPrepaid ? (
-                    <PrepaidPriceCell
-                      label="Payable"
-                      value={formatInrFromPaise(0)}
-                    />
+                    formatInrFromPaise(0)
                   ) : (
                     <Input
                       inputMode="decimal"
@@ -209,7 +192,7 @@ export function QuickSaleBasketTable({
                         const overridePricePaise = Math.round(Math.max(0, rupees) * 100);
                         onUpdateLine(line.lineId, { overridePricePaise });
                       }}
-                      className="h-8 w-20 text-right text-xs tabular-nums font-semibold"
+                      className="ml-auto h-8 w-20 text-right text-xs tabular-nums font-semibold"
                       aria-label="Final amount"
                     />
                   )}

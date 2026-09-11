@@ -73,6 +73,7 @@ test('buildAttributionPlan uses prepaid effective value for redemption performan
     serviceId: 'ref1',
     packageName: 'Wash Pack',
     effectiveUnitValuePaise: 100_00,
+    retailUnitValuePaise: 200_00,
   };
   const rows = buildAttributionPlan([line]);
   assert.equal(rows.length, 2);

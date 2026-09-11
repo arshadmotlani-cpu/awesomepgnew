@@ -74,10 +74,13 @@ import {
   calculateManualElectricityCharge,
   defaultElectricityRatePaise,
   effectiveSharingCount,
-  bookingRoomId,
+  bookingRoomIdAtDate,
   resolveRoomOccupancyContext,
   type RoomOccupancyContext,
 } from '@/src/lib/checkout/electricitySettlement';
+import { applyCheckoutPreviousMeterReadingPresentation } from '@/src/lib/checkout/applyCheckoutPreviousMeterReading';
+import { resolveCheckoutPreviousMeterReading } from '@/src/lib/checkout/checkoutPreviousMeterReading';
+import { resolveCheckoutSettlementRoomContext } from '@/src/lib/checkout/checkoutSettlementRoomContext';
 import {
   resolveCheckoutElectricityDeductionPaise,
   resolveCheckoutElectricitySharePaise,
@@ -174,6 +177,11 @@ export type CheckoutSettlementDetail = CheckoutSettlementRow & {
   settlementNoticeDisplay?: NoticeSettlementDisplay | null;
   /** Days paid row from BillingCoverageModel (settlement audit SSOT). */
   billingCoverageDaysPaid?: DaysPaidDisplayRow;
+  /** SSOT auto-fill — previous reading came from room meter history, not manual entry. */
+  electricityPreviousReadingAuto?: boolean;
+  electricityPreviousReadingAvailable?: boolean;
+  electricityPreviousReadingSource?: import('@/src/lib/billing/roomMeterReadingSsot').RoomPreviousMeterSource | null;
+  electricityPreviousReadingSourceLabel?: string | null;
 };
 
 export { hasCheckoutElectricityEvidence } from '@/src/lib/checkout/checkoutElectricityEvidence';
@@ -1372,6 +1380,40 @@ async function buildCheckoutSettlementDetailFromJoinRow(
     row.vacating_date,
     { stayType: row.stay_type, durationMode: row.duration_mode },
   );
+
+  const checkoutRoom =
+    (await resolveCheckoutSettlementRoomContext(row.booking_id, row.vacating_date)) ?? null;
+  const checkoutRoomId = checkoutRoom?.roomId ?? row.room_id;
+
+  let previousMeterPresentation = applyCheckoutPreviousMeterReadingPresentation(settlement, null);
+  if (checkoutRoomId) {
+    try {
+      const baseline = await resolveCheckoutPreviousMeterReading(
+        checkoutRoomId,
+        row.vacating_date,
+      );
+      previousMeterPresentation = applyCheckoutPreviousMeterReadingPresentation(
+        settlement,
+        baseline,
+      );
+    } catch (err) {
+      console.error('[checkout] resolveCheckoutPreviousMeterReading failed', {
+        settlementId: settlement.id,
+        roomId: checkoutRoomId,
+        error: err instanceof Error ? err.message : err,
+      });
+    }
+  }
+
+  if (previousMeterPresentation.electricityPreviousReading != null) {
+    settlement = {
+      ...settlement,
+      electricityPreviousReading: previousMeterPresentation.electricityPreviousReading,
+      electricityUnitRatePaise:
+        previousMeterPresentation.electricityUnitRatePaise ?? settlement.electricityUnitRatePaise,
+    };
+  }
+
   const roomOccupancy = await resolveRoomOccupancyContext(row.booking_id);
   const sharingUsed = effectiveSharingCount({
     autoDetectedCount: roomOccupancy.autoDetectedCount,
@@ -1407,10 +1449,10 @@ async function buildCheckoutSettlementDetailFromJoinRow(
   }
 
   let roomElectricityAllocation: RoomElectricityCheckoutAllocation | null = null;
-  if (row.room_id && electricityTotalBillPaise > 0) {
+  if (checkoutRoomId && electricityTotalBillPaise > 0) {
     try {
       roomElectricityAllocation = await buildRoomElectricityCheckoutAllocation({
-        roomId: row.room_id,
+        roomId: checkoutRoomId,
         customerId: settlement.customerId,
         vacatingDate: row.vacating_date,
         totalBillPaise: electricityTotalBillPaise,
@@ -1451,9 +1493,9 @@ async function buildCheckoutSettlementDetailFromJoinRow(
   }
 
   let roomElectricityLedger: RoomElectricityLedgerCycleView | null = null;
-  if (row.room_id && resolvedSharePaise > 0) {
+  if (checkoutRoomId && resolvedSharePaise > 0) {
     try {
-      roomElectricityLedger = await getRoomElectricityLedgerCycle(row.room_id, row.vacating_date, {
+      roomElectricityLedger = await getRoomElectricityLedgerCycle(checkoutRoomId, row.vacating_date, {
         fallbackTotalBillPaise: electricityTotalBillPaise,
       });
       if (roomElectricityLedger) {
@@ -1481,8 +1523,20 @@ async function buildCheckoutSettlementDetailFromJoinRow(
     }
   }
 
+  const mappedRow = mapJoinRow(row);
+  if (checkoutRoom) {
+    mappedRow.roomId = checkoutRoom.roomId;
+    mappedRow.roomNumber = checkoutRoom.roomNumber;
+    mappedRow.bedCode = checkoutRoom.bedCode;
+    mappedRow.pgName = checkoutRoom.pgName;
+  }
+  mappedRow.electricityPreviousReading = settlement.electricityPreviousReading;
+  if (settlement.electricityUnitRatePaise != null) {
+    mappedRow.electricityUnitRatePaise = settlement.electricityUnitRatePaise;
+  }
+
   return enrichCheckoutSettlementImageEvidence({
-    ...mapJoinRow(row),
+    ...mappedRow,
     stayType: row.stay_type ?? null,
     durationMode: row.duration_mode ?? null,
     depositCollectedPaise: paiseField(wallet?.collectedPaise ?? 0),
@@ -1525,6 +1579,11 @@ async function buildCheckoutSettlementDetailFromJoinRow(
         return {};
       }
     })()),
+    electricityPreviousReadingAuto: previousMeterPresentation.electricityPreviousReadingAuto,
+    electricityPreviousReadingAvailable: previousMeterPresentation.electricityPreviousReadingAvailable,
+    electricityPreviousReadingSource: previousMeterPresentation.electricityPreviousReadingSource,
+    electricityPreviousReadingSourceLabel:
+      previousMeterPresentation.electricityPreviousReadingSourceLabel,
   });
 }
 
@@ -2103,14 +2162,20 @@ export async function updateCheckoutElectricitySettlement(input: {
   let timelineSharePaise: number | null = null;
   let roomElectricityAllocation: RoomElectricityCheckoutAllocation | null = null;
   const skipTimelineAllocation = input.calculationMethod === 'manual_amount';
-  const checkoutRoomId = await bookingRoomId(current.bookingId);
+  const [vacatingRow] = await db
+    .select({ vacatingDate: vacatingRequests.vacatingDate })
+    .from(checkoutSettlements)
+    .innerJoin(vacatingRequests, eq(vacatingRequests.id, checkoutSettlements.vacatingRequestId))
+    .where(eq(checkoutSettlements.id, input.settlementId))
+    .limit(1);
+  const checkoutRoomId =
+    vacatingRow?.vacatingDate != null
+      ? await bookingRoomIdAtDate(
+          current.bookingId,
+          String(vacatingRow.vacatingDate).slice(0, 10),
+        )
+      : null;
   if (!skipTimelineAllocation && checkoutRoomId && computed.calc.totalBillPaise > 0) {
-    const [vacatingRow] = await db
-      .select({ vacatingDate: vacatingRequests.vacatingDate })
-      .from(checkoutSettlements)
-      .innerJoin(vacatingRequests, eq(vacatingRequests.id, checkoutSettlements.vacatingRequestId))
-      .where(eq(checkoutSettlements.id, input.settlementId))
-      .limit(1);
     if (vacatingRow?.vacatingDate) {
       try {
         roomElectricityAllocation = await buildRoomElectricityCheckoutAllocation({

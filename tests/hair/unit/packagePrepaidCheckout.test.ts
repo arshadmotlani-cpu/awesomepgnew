@@ -60,6 +60,7 @@ test('priceBasket: package redemption customer payable is ₹0 and cash revenue 
           serviceId: 'svc1',
           packageName: 'Big Regular Hair Wash',
           effectiveUnitValuePaise: 10_000,
+          retailUnitValuePaise: 20_000,
         },
       },
     ],
@@ -169,6 +170,7 @@ test('redemption performance scales with qty at effective unit value', () => {
       serviceId: 'wash',
       packageName: '15 Hair Wash',
       effectiveUnitValuePaise: 20_000,
+      retailUnitValuePaise: 40_000,
     },
   });
 

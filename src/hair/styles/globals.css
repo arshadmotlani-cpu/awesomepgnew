@@ -969,6 +969,15 @@
   max-height: min(42vh, calc(100dvh - 22rem));
 }
 
+.qs-basket-col-qty {
+  width: 3.5rem;
+}
+
+.qs-basket-col-money {
+  min-width: 4.5rem;
+  white-space: nowrap;
+}
+
 .qs-basket-header {
   display: flex;
   align-items: center;

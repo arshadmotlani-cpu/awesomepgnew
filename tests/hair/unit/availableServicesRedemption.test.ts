@@ -36,17 +36,28 @@ test('Quick Sale adds prepaid basket lines with empty staff for basket selection
   assert.match(fn, /staff: \[\]/);
   assert.doesNotMatch(fn, /staff: sel\.staff/);
   assert.match(fn, /unitSellingPricePaise: sel\.effectiveUnitValuePaise/);
-  assert.doesNotMatch(fn, /retailPaise/);
+  assert.match(fn, /retailUnitValuePaise: catalog\?\.sellingPricePaise/);
 });
 
-test('Basket table shows package redemption value/discount/payable labels', () => {
+test('Basket table shows package redemption discount percent and column order', () => {
   const table = read('src/hair/components/quick-sale/QuickSaleBasketTable.tsx');
-  assert.match(table, /projectPackageRedemptionDisplay/);
-  assert.match(table, /Unit value/);
-  assert.match(table, /Package discount/);
-  assert.match(table, /Payable/);
-  assert.match(table, /Prepaid \/ Package/);
+  assert.match(table, /computePackageRedemptionUnitDiscount/);
+  assert.match(table, /formatPackageRedemptionDiscountLabel/);
+  assert.match(table, />Service</);
+  assert.match(table, />Staff</);
+  assert.match(table, />Qty</);
+  assert.match(table, />Discount</);
+  assert.doesNotMatch(table, /Prepaid \/ Package/);
   assert.doesNotMatch(table, /Package Redemption · Prepaid · ₹0/);
+});
+
+test('Available Services modal receives basketLines for draft-aware availability', () => {
+  const modal = read('src/hair/components/quick-sale/AvailableServicesModal.tsx');
+  const shell = read('src/hair/components/quick-sale/QuickSaleShell.tsx');
+  assert.match(modal, /basketLines: BasketLine\[\]/);
+  assert.match(modal, /sumDraftReservedQtyByCreditId/);
+  assert.match(modal, /computeDraftAvailableCredits/);
+  assert.match(shell, /basketLines=\{lines\}/);
 });
 
 test('Quick Sale preloads staff roster when customer sale step is active', () => {
@@ -101,6 +112,7 @@ test('package redemption performance: ₹3,000 / 15 = ₹200 per redeemed unit',
       serviceId: 'svc-wash',
       packageName: 'Wash Pack',
       effectiveUnitValuePaise: 20_000,
+      retailUnitValuePaise: 40_000,
     },
   };
   const rows = buildAttributionPlan([line]);
@@ -142,6 +154,7 @@ test('package redemption performance scales with quantity', () => {
       serviceId: 'svc-wash',
       packageName: 'Wash Pack',
       effectiveUnitValuePaise: 20_000,
+      retailUnitValuePaise: 40_000,
     },
   };
   const rows = buildAttributionPlan([line]);

@@ -60,6 +60,7 @@ test('validateBasket requires staff for prepaid redemption', () => {
           serviceId: 'svc1',
           packageName: 'Wash Pack',
           effectiveUnitValuePaise: 10000,
+          retailUnitValuePaise: 20000,
         },
       }),
     ]),

@@ -22,6 +22,8 @@ export type PrepaidPackageRedemption = {
   serviceId: string;
   packageName: string;
   effectiveUnitValuePaise: number;
+  /** Catalog retail unit at basket add — display only; does not affect payable or attribution */
+  retailUnitValuePaise: number;
 };
 
 export type BasketLine = {

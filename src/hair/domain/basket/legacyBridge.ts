@@ -56,7 +56,12 @@ export function legacyLinesToBasket(
         quantity: line.quantity,
         overridePricePaise,
         staff,
-        prepaidRedemption: line.prepaidRedemption ?? null,
+        prepaidRedemption: line.prepaidRedemption
+          ? {
+              ...line.prepaidRedemption,
+              retailUnitValuePaise: line.prepaidRedemption.retailUnitValuePaise ?? 0,
+            }
+          : null,
       };
     }),
     payments: [],

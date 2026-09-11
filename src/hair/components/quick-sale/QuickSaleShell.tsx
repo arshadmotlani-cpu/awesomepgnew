@@ -439,6 +439,7 @@ export function QuickSaleShell({
             serviceId: sel.serviceId,
             packageName: sel.packageName,
             effectiveUnitValuePaise: sel.effectiveUnitValuePaise,
+            retailUnitValuePaise: catalog?.sellingPricePaise ?? 0,
           },
         });
       }
@@ -925,6 +926,7 @@ export function QuickSaleShell({
       {customer ? (
         <AvailableServicesModal
           customerId={customer.id}
+          basketLines={lines}
           open={availableServicesOpen}
           onClose={() => setAvailableServicesOpen(false)}
           onConfirm={addPrepaidSelections}

@@ -59,6 +59,7 @@ const prepaidLine: BasketLine = {
     serviceId: 's2',
     packageName: 'Pack',
     effectiveUnitValuePaise: 50_000,
+    retailUnitValuePaise: 100_000,
   },
 };
 

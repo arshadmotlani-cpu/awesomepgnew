@@ -99,6 +99,7 @@ export type QuickSaleLineInput = {
     serviceId: string;
     packageName: string;
     effectiveUnitValuePaise: number;
+    retailUnitValuePaise?: number;
   } | null;
 };
 

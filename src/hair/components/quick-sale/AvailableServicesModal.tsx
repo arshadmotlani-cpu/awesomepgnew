@@ -3,6 +3,12 @@
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { listAvailablePackageServicesAction } from '@/src/hair/actions/packages';
 import { Button } from '@/src/hair/components/ui/button';
+import type { BasketLine } from '@/src/hair/domain/basket/types';
+import {
+  computeDraftAvailableCredits,
+  sumDraftReservedQtyByCreditId,
+  validateDraftRedemptionQty,
+} from '@/src/hair/domain/packages/availableServices';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 
 export type AvailableServiceSelection = {
@@ -28,12 +34,19 @@ type CreditRow = {
 
 type Props = {
   customerId: string;
+  basketLines: BasketLine[];
   open: boolean;
   onClose: () => void;
   onConfirm: (selections: AvailableServiceSelection[]) => void;
 };
 
-export function AvailableServicesModal({ customerId, open, onClose, onConfirm }: Props) {
+export function AvailableServicesModal({
+  customerId,
+  basketLines,
+  open,
+  onClose,
+  onConfirm,
+}: Props) {
   const [credits, setCredits] = useState<CreditRow[]>([]);
   const [qtyByCredit, setQtyByCredit] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +79,11 @@ export function AvailableServicesModal({ customerId, open, onClose, onConfirm }:
     });
   }, [open, customerId]);
 
+  const draftReservedByCreditId = useMemo(
+    () => sumDraftReservedQtyByCreditId(basketLines),
+    [basketLines],
+  );
+
   const grouped = useMemo(() => {
     const map = new Map<string, CreditRow[]>();
     for (const row of credits) {
@@ -76,6 +94,13 @@ export function AvailableServicesModal({ customerId, open, onClose, onConfirm }:
     }
     return Array.from(map.entries());
   }, [credits]);
+
+  const availableForCredit = (row: CreditRow): number =>
+    computeDraftAvailableCredits({
+      persistedRemaining: row.remaining,
+      creditId: row.creditId,
+      draftReservedByCreditId,
+    });
 
   if (!open) return null;
 
@@ -96,13 +121,23 @@ export function AvailableServicesModal({ customerId, open, onClose, onConfirm }:
     for (const row of credits) {
       const quantity = qtyByCredit[row.creditId] ?? 0;
       if (quantity <= 0) continue;
+      const validation = validateDraftRedemptionQty({
+        requestedQty: quantity,
+        persistedRemaining: row.remaining,
+        creditId: row.creditId,
+        draftReservedByCreditId,
+      });
+      if (!validation.ok) {
+        setValidationError(validation.error);
+        return;
+      }
       selections.push({
         creditId: row.creditId,
         customerPackageId: row.customerPackageId,
         serviceId: row.serviceId,
         serviceName: row.serviceName,
         packageName: row.packageName,
-        quantity,
+        quantity: validation.quantity,
         effectiveUnitValuePaise: row.effectiveUnitValuePaise,
         remaining: row.remaining,
       });
@@ -153,13 +188,14 @@ export function AvailableServicesModal({ customerId, open, onClose, onConfirm }:
               <ul className="divide-y divide-[color:var(--fyh-border)] rounded-lg border border-[color:var(--fyh-border)]">
                 {rows.map((row) => {
                   const qty = qtyByCredit[row.creditId] ?? 0;
+                  const available = availableForCredit(row);
                   return (
                     <li key={row.creditId} className="px-3 py-2.5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium text-fyh-text">{row.serviceName}</p>
                           <p className="text-xs text-fyh-text-muted">
-                            {row.remaining} available · {formatInrFromPaise(row.effectiveUnitValuePaise)}{' '}
+                            {available} available · {formatInrFromPaise(row.effectiveUnitValuePaise)}{' '}
                             perf/unit
                           </p>
                         </div>
@@ -169,8 +205,8 @@ export function AvailableServicesModal({ customerId, open, onClose, onConfirm }:
                             variant="secondary"
                             size="sm"
                             className="h-8 w-8 px-0"
-                            disabled={qty <= 0}
-                            onClick={() => setQty(row.creditId, row.remaining, qty - 1)}
+                            disabled={qty <= 0 || available <= 0}
+                            onClick={() => setQty(row.creditId, available, qty - 1)}
                             aria-label="Decrease quantity"
                           >
                             −
@@ -181,8 +217,8 @@ export function AvailableServicesModal({ customerId, open, onClose, onConfirm }:
                             variant="secondary"
                             size="sm"
                             className="h-8 w-8 px-0"
-                            disabled={qty >= row.remaining}
-                            onClick={() => setQty(row.creditId, row.remaining, qty + 1)}
+                            disabled={qty >= available || available <= 0}
+                            onClick={() => setQty(row.creditId, available, qty + 1)}
                             aria-label="Increase quantity"
                           >
                             +
