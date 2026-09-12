@@ -676,7 +676,7 @@ export function QuickSaleShell({
           onAddItem={addItem}
         />
 
-        {priced ? (
+        {priced && customer ? (
           <QuickSaleCheckoutColumn
             customerId={customer.id}
             lines={lines}
