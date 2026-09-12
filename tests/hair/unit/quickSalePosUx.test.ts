@@ -211,8 +211,13 @@ test('compact POS uses search autocomplete and bottom checkout bar', () => {
   assert.doesNotMatch(shell, /QuickSaleCheckoutColumn/);
   assert.match(search, /qs-compact-search-results/);
   assert.match(search, /ArrowDown/);
-  assert.match(header, /qs-compact-customer-line/);
+  assert.match(header, /qs-compact-customer-name/);
+  assert.match(header, /customer\.fullName/);
   assert.match(header, /customer\.phone/);
+  assert.match(header, /Services:/);
+  assert.match(header, /Advance:/);
+  assert.doesNotMatch(header, /Credits \{context/);
+  assert.match(header, /qs-available-services-btn/);
   assert.match(checkout, /qs-customer-outstanding/);
   assert.match(checkout, /Not included in this invoice total/);
   assert.match(checkout, /View dues/);

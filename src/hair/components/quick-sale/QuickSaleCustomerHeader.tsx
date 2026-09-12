@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { MoreVertical } from 'lucide-react';
 import { CustomerVisitHistoryPanel } from '@/src/hair/components/booking/CustomerVisitHistoryPanel';
 import { Button } from '@/src/hair/components/ui/button';
@@ -25,7 +25,7 @@ type Props = {
   onCancelSale: () => void;
 };
 
-function Sep() {
+function MetaSep() {
   return <span className="qs-compact-sep" aria-hidden="true">·</span>;
 }
 
@@ -46,56 +46,95 @@ export function QuickSaleCustomerHeader({
   onCancelSale,
 }: Props) {
   const [historyOpen, setHistoryOpen] = useState(false);
-
-  const metaParts: ReactNode[] = [
-    <span key="name" className="qs-compact-customer-name">{customer.fullName}</span>,
-    <Sep key="s1" />,
-    <span key="id" className="tabular-nums">{customer.customerCode ?? '—'}</span>,
-    <Sep key="s2" />,
-    <span key="phone" className="tabular-nums" data-testid="qs-customer-phone">
-      {customer.phone || '—'}
-    </span>,
-  ];
-
-  if (contextLoading) {
-    metaParts.push(<Sep key="s3" />, <span key="ctx">Loading…</span>);
-  } else if (contextError) {
-    metaParts.push(<Sep key="s3" />, <span key="err" className="text-orange-400">{contextError}</span>);
-  } else if (context) {
-    metaParts.push(
-      <Sep key="s3" />,
-      <span key="visit">
-        Last visit{' '}
-        <button type="button" className="qs-customer-field-link" onClick={() => setHistoryOpen(true)}>
-          {context.lastVisitLabel}
-        </button>
-      </span>,
-      <Sep key="s4" />,
-      <span key="credits">Credits {context.packageCreditsRemaining}</span>,
-    );
-    if (context.duePaise > 0) {
-      metaParts.push(
-        <Sep key="s5" />,
-        <span key="due" className="qs-compact-customer-due">
-          Due {formatInrFromPaise(context.duePaise)}
-        </span>,
-      );
-    }
-  }
+  const packageServicesRemaining = context?.packageCreditsRemaining ?? 0;
+  const walletAdvancePaise = context?.walletPaise ?? 0;
 
   return (
     <>
       <section className="qs-compact-customer-header" data-testid="qs-customer-header">
-        <p className="qs-compact-customer-line">
+        <div className="qs-compact-customer-identity">
           {appointmentId ? (
-            <>
-              <span className="qs-compact-customer-eyebrow">Appointment</span>
-              <Sep />
-            </>
+            <span className="qs-compact-customer-eyebrow">Appointment checkout</span>
           ) : null}
-          {metaParts}
-        </p>
+          <p className="qs-compact-customer-name">{customer.fullName}</p>
+          <p className="qs-compact-customer-meta">
+            <span className="tabular-nums">{customer.customerCode ?? '—'}</span>
+            <MetaSep />
+            <span className="qs-compact-customer-phone tabular-nums" data-testid="qs-customer-phone">
+              {customer.phone || '—'}
+            </span>
+            {contextLoading ? (
+              <>
+                <MetaSep />
+                <span>Loading…</span>
+              </>
+            ) : contextError ? (
+              <>
+                <MetaSep />
+                <span className="text-orange-400">{contextError}</span>
+              </>
+            ) : context ? (
+              <>
+                <MetaSep />
+                <span>
+                  Last visit:{' '}
+                  <button
+                    type="button"
+                    className="qs-customer-field-link"
+                    onClick={() => setHistoryOpen(true)}
+                  >
+                    {context.lastVisitLabel}
+                  </button>
+                </span>
+                {packageServicesRemaining > 0 ? (
+                  <>
+                    <MetaSep />
+                    <span data-testid="qs-customer-services">
+                      Services: <strong>{packageServicesRemaining}</strong>
+                    </span>
+                  </>
+                ) : null}
+                {walletAdvancePaise > 0 ? (
+                  <>
+                    <MetaSep />
+                    <span data-testid="qs-customer-advance">
+                      Advance:{' '}
+                      <strong className="tabular-nums">
+                        {formatInrFromPaise(walletAdvancePaise)}
+                      </strong>
+                    </span>
+                  </>
+                ) : null}
+                {context.duePaise > 0 ? (
+                  <>
+                    <MetaSep />
+                    <span className="qs-compact-customer-due" data-testid="qs-customer-due">
+                      Due:{' '}
+                      <strong className="tabular-nums">
+                        {formatInrFromPaise(context.duePaise)}
+                      </strong>
+                    </span>
+                  </>
+                ) : null}
+              </>
+            ) : null}
+          </p>
+        </div>
         <div className="qs-compact-customer-actions">
+          <button
+            type="button"
+            className="qs-compact-action-btn qs-compact-action-btn-services"
+            disabled={workspaceLocked}
+            data-testid="qs-available-services-btn"
+            onClick={onAvailableServices}
+          >
+            Available Services
+            {packageServicesRemaining > 0 ? (
+              <span className="qs-compact-services-badge" aria-hidden="true">
+                {packageServicesRemaining}
+              </span>
+            ) : null}
+          </button>
           <button
             type="button"
             className="qs-compact-action-btn"
@@ -103,14 +142,6 @@ export function QuickSaleCustomerHeader({
             onClick={onChangeCustomer}
           >
             Change customer
-          </button>
-          <button
-            type="button"
-            className="qs-compact-action-btn qs-compact-action-btn-primary"
-            disabled={workspaceLocked}
-            onClick={onAvailableServices}
-          >
-            Available Services
           </button>
           <div className="relative">
             <Button
