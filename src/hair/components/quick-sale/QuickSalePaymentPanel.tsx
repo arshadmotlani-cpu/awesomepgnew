@@ -244,6 +244,24 @@ export function QuickSalePaymentPanel({
             <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-fyh-text-muted">
               Payment method
             </label>
+            <div className="qs-pay-method-chips">
+              {QUICK_SALE_PAYMENT_METHODS.map((method) => (
+                <button
+                  key={method.id}
+                  type="button"
+                  disabled={locked}
+                  className={`qs-pay-method-chip${
+                    draftMethod === method.id ? ' qs-pay-method-chip-active' : ''
+                  }`}
+                  onClick={() => {
+                    setDraftMethod(method.id);
+                    setDraftError(null);
+                  }}
+                >
+                  {method.label}
+                </button>
+              ))}
+            </div>
             <select
               value={draftMethod}
               disabled={locked}

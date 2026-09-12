@@ -27,12 +27,14 @@ export default async function QuickSalePage({
     appointmentPrefill && 'error' in appointmentPrefill ? appointmentPrefill.error : null;
 
   return (
-    <QuickSaleShell
-      billableItems={billableItems}
-      googleReviewUrl={settings.googleReviewUrl}
-      billingDefaults={settings.billingSettings}
-      appointmentPrefill={prefill}
-      appointmentError={appointmentError}
-    />
+    <div className="qs-page">
+      <QuickSaleShell
+        billableItems={billableItems}
+        googleReviewUrl={settings.googleReviewUrl}
+        billingDefaults={settings.billingSettings}
+        appointmentPrefill={prefill}
+        appointmentError={appointmentError}
+      />
+    </div>
   );
 }

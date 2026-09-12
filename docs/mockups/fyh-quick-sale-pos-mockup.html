@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1440, initial-scale=1" />
+  <title>FYHAIR Quick Sale POS — Design Mockup</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+      background: #1a1f2e;
+      color: #1e293b;
+      min-height: 100vh;
+      padding: 0;
+    }
+    .app-chrome {
+      background: #0b0f17;
+      border-bottom: 1px solid #1e293b;
+      padding: 0.4rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #94a3b8;
+      font-size: 0.6875rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .app-chrome .brand { color: #22d3ee; font-weight: 700; font-size: 0.75rem; }
+    .app-chrome .nav { display: flex; gap: 1.25rem; }
+    .app-chrome .nav span.active { color: #f8fafc; border-bottom: 2px solid #f97316; padding-bottom: 2px; }
+
+    .pos {
+      width: 1440px;
+      height: 900px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      background: #eef1f6;
+      overflow: hidden;
+    }
+
+    /* Customer bar */
+    .customer-bar {
+      background: #101827;
+      color: #e2e8f0;
+      padding: 0.5rem 0.75rem;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+      border-bottom: 1px solid #1e293b;
+      flex-shrink: 0;
+    }
+    .customer-bar .eyebrow {
+      font-size: 0.5625rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 0.2rem;
+    }
+    .customer-fields {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.15rem 1.25rem;
+      align-items: baseline;
+    }
+    .field { display: flex; gap: 0.35rem; align-items: baseline; font-size: 0.75rem; }
+    .field .lbl { color: #64748b; font-size: 0.5625rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+    .field .val { font-weight: 600; color: #f1f5f9; }
+    .field .val.phone { color: #22d3ee; }
+    .field .val.warn { color: #fb923c; }
+    .field .val.link { color: #22d3ee; text-decoration: underline; cursor: default; }
+    .customer-actions { display: flex; gap: 0.35rem; align-items: center; flex-shrink: 0; }
+    .btn {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      padding: 0.3rem 0.55rem;
+      border-radius: 3px;
+      border: 1px solid #334155;
+      background: #1e293b;
+      color: #e2e8f0;
+      cursor: default;
+    }
+    .btn.primary { background: #0e7490; border-color: #0891b2; color: #fff; }
+    .btn.accent { background: #ea580c; border-color: #f97316; color: #fff; }
+    .btn.ghost { background: transparent; border-color: transparent; color: #94a3b8; }
+    .search-mini {
+      font-size: 0.6875rem;
+      padding: 0.28rem 0.5rem;
+      border: 1px solid #334155;
+      border-radius: 3px;
+      background: #0f172a;
+      color: #64748b;
+      width: 9rem;
+    }
+
+    /* Workstation */
+    .workstation {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1.15fr;
+      gap: 0;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* Catalog */
+    .catalog {
+      background: #f8fafc;
+      border-right: 1px solid #cbd5e1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .catalog-toolbar {
+      padding: 0.4rem 0.5rem;
+      border-bottom: 1px solid #e2e8f0;
+      background: #fff;
+      flex-shrink: 0;
+    }
+    .tabs {
+      display: flex;
+      gap: 0;
+      border: 1px solid #cbd5e1;
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 0.35rem;
+    }
+    .tab {
+      flex: 1;
+      text-align: center;
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 0.35rem 0.25rem;
+      background: #f1f5f9;
+      color: #64748b;
+      border-right: 1px solid #cbd5e1;
+    }
+    .tab:last-child { border-right: none; }
+    .tab.on { background: #0891b2; color: #fff; }
+    .search-row {
+      display: flex;
+      gap: 0.35rem;
+    }
+    .search-row input {
+      flex: 1;
+      font-size: 0.75rem;
+      padding: 0.35rem 0.5rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 3px;
+      background: #fff;
+    }
+    .search-row select {
+      font-size: 0.625rem;
+      padding: 0.35rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 3px;
+      background: #fff;
+      color: #475569;
+    }
+    .kbd { font-size: 0.5625rem; color: #94a3b8; margin-top: 0.2rem; }
+
+    .catalog-table-wrap { flex: 1; overflow: auto; }
+    table.catalog-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.75rem;
+    }
+    .catalog-table th {
+      position: sticky;
+      top: 0;
+      background: #f1f5f9;
+      text-align: left;
+      font-size: 0.5625rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #64748b;
+      padding: 0.3rem 0.5rem;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .catalog-table th.r { text-align: right; }
+    .catalog-table td {
+      padding: 0.32rem 0.5rem;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: middle;
+    }
+    .catalog-table tr:hover td { background: #f0f9ff; }
+    .catalog-table .cat { font-size: 0.625rem; color: #94a3b8; margin-left: 0.25rem; }
+    .catalog-table .price { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .add-btn {
+      font-size: 0.625rem;
+      font-weight: 700;
+      padding: 0.15rem 0.45rem;
+      border-radius: 2px;
+      border: 1px solid #0891b2;
+      background: #ecfeff;
+      color: #0e7490;
+      float: right;
+    }
+
+    /* Checkout column */
+    .checkout {
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .checkout-head {
+      padding: 0.35rem 0.5rem;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .checkout-head h2 {
+      font-size: 0.5625rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #64748b;
+    }
+    .checkout-head a { font-size: 0.625rem; color: #94a3b8; text-decoration: underline; }
+
+    .basket-wrap { flex: 1; overflow: auto; min-height: 0; }
+    table.basket {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.6875rem;
+    }
+    .basket th {
+      position: sticky;
+      top: 0;
+      background: #f8fafc;
+      font-size: 0.5rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #64748b;
+      padding: 0.25rem 0.35rem;
+      border-bottom: 1px solid #e2e8f0;
+      text-align: left;
+    }
+    .basket th.r, .basket td.r { text-align: right; }
+    .basket th.c { text-align: center; }
+    .basket td {
+      padding: 0.3rem 0.35rem;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: top;
+    }
+    .svc-name { font-weight: 600; color: #0f172a; line-height: 1.2; }
+    .svc-meta { font-size: 0.5625rem; color: #0891b2; font-weight: 600; margin-top: 1px; }
+    .staff-sel {
+      font-size: 0.625rem;
+      padding: 0.15rem 0.3rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 2px;
+      background: #fff;
+      min-width: 4.5rem;
+    }
+    .qty-ctrl {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.15rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .qty-ctrl button {
+      width: 1rem;
+      height: 1rem;
+      font-size: 0.625rem;
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      border-radius: 2px;
+      line-height: 1;
+    }
+    .disc { color: #0e7490; font-weight: 600; font-size: 0.625rem; }
+    .disc-amt { color: #dc2626; font-size: 0.625rem; }
+    .final { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .remove { color: #94a3b8; font-size: 0.75rem; cursor: default; }
+
+    /* Footer checkout */
+    .checkout-footer {
+      border-top: 1px solid #e2e8f0;
+      background: #f8fafc;
+      padding: 0.4rem 0.5rem;
+      display: grid;
+      grid-template-columns: 0.9fr 0.85fr 1.1fr auto;
+      gap: 0.5rem;
+      align-items: start;
+      flex-shrink: 0;
+    }
+    .panel-title {
+      font-size: 0.5rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 0.25rem;
+    }
+    .totals .row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.6875rem;
+      color: #475569;
+      padding: 0.05rem 0;
+    }
+    .totals .row strong { color: #0f172a; }
+    .totals .row.grand {
+      border-top: 1px solid #e2e8f0;
+      margin-top: 0.15rem;
+      padding-top: 0.2rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .totals .row.grand .amt { color: #0891b2; font-size: 0.8125rem; }
+
+    .outstanding-box {
+      border: 1px dashed #fdba74;
+      background: #fff7ed;
+      border-radius: 3px;
+      padding: 0.35rem 0.4rem;
+    }
+    .outstanding-box .row { display: flex; justify-content: space-between; font-size: 0.6875rem; }
+    .outstanding-box .amt { color: #ea580c; font-weight: 700; }
+    .outstanding-box .note { font-size: 0.5rem; color: #94a3b8; margin-top: 0.15rem; }
+    .outstanding-box .view { font-size: 0.5625rem; color: #0891b2; text-decoration: underline; margin-top: 0.15rem; display: inline-block; }
+
+    .payment .pay-summary .row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.6875rem;
+      padding: 0.05rem 0;
+    }
+    .payment .pay-summary .due { color: #ea580c; font-weight: 700; }
+    .pay-methods {
+      display: flex;
+      gap: 0.2rem;
+      margin: 0.25rem 0;
+    }
+    .pay-methods .m {
+      font-size: 0.5625rem;
+      font-weight: 700;
+      padding: 0.2rem 0.4rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 2px;
+      background: #fff;
+      color: #475569;
+    }
+    .pay-methods .m.on { background: #0891b2; color: #fff; border-color: #0891b2; }
+    .pay-input {
+      display: flex;
+      gap: 0.25rem;
+      margin-top: 0.2rem;
+    }
+    .pay-input input, .pay-input select {
+      font-size: 0.625rem;
+      padding: 0.2rem 0.35rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 2px;
+      flex: 1;
+    }
+    .pay-list {
+      font-size: 0.5625rem;
+      color: #64748b;
+      margin-top: 0.2rem;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 0.2rem;
+    }
+    .mark-due {
+      font-size: 0.5625rem;
+      color: #ea580c;
+      margin-top: 0.15rem;
+      text-decoration: underline;
+    }
+
+    .complete-col {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: 0.25rem;
+      min-width: 6.5rem;
+    }
+    .complete-btn {
+      background: #ea580c;
+      color: #fff;
+      border: none;
+      border-radius: 3px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.55rem 0.75rem;
+      text-align: center;
+      cursor: default;
+    }
+    .complete-btn .sub { font-size: 0.5rem; font-weight: 500; opacity: 0.85; display: block; margin-top: 2px; }
+    .avail-svc {
+      font-size: 0.5625rem;
+      color: #64748b;
+      text-align: center;
+    }
+
+    .status-bar {
+      background: #0f172a;
+      color: #64748b;
+      font-size: 0.5625rem;
+      padding: 0.2rem 0.75rem;
+      display: flex;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .status-bar kbd {
+      background: #1e293b;
+      padding: 0 0.25rem;
+      border-radius: 2px;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-chrome">
+    <span class="brand">FYHAIR</span>
+    <div class="nav">
+      <span>Dashboard</span>
+      <span>Appointments</span>
+      <span class="active">Quick Sale</span>
+      <span>Customers</span>
+      <span>Billing</span>
+    </div>
+    <span>Shantinagar · Sat 12 Sep 2026</span>
+  </div>
+
+  <div class="pos">
+    <!-- CUSTOMER BAR -->
+    <div class="customer-bar">
+      <div>
+        <div class="eyebrow">Customer</div>
+        <div class="customer-fields">
+          <div class="field"><span class="lbl">Name</span><span class="val">Priya Sharma</span></div>
+          <div class="field"><span class="lbl">ID</span><span class="val">FYH-10482</span></div>
+          <div class="field"><span class="lbl">Phone</span><span class="val phone">+91 98765 43210</span></div>
+          <div class="field"><span class="lbl">Last visit</span><span class="val link">28 Aug 2026</span></div>
+          <div class="field"><span class="lbl">Pkg credits</span><span class="val">13</span></div>
+          <div class="field"><span class="lbl">Outstanding</span><span class="val warn">₹350</span></div>
+        </div>
+      </div>
+      <div class="customer-actions">
+        <input class="search-mini" placeholder="Search customer…" readonly />
+        <button class="btn primary">Available Services</button>
+        <button class="btn">Change customer</button>
+        <button class="btn ghost">⋮</button>
+      </div>
+    </div>
+
+    <div class="workstation">
+      <!-- CATALOG -->
+      <div class="catalog">
+        <div class="catalog-toolbar">
+          <div class="tabs">
+            <div class="tab on">Services</div>
+            <div class="tab">Products</div>
+            <div class="tab">Packages</div>
+            <div class="tab">Memberships</div>
+          </div>
+          <div class="search-row">
+            <input value="hair wash" readonly />
+            <select><option>All categories</option></select>
+          </div>
+          <div class="kbd">Press <strong>/</strong> to search · <strong>Enter</strong> to add first result</div>
+        </div>
+        <div class="catalog-table-wrap">
+          <table class="catalog-table">
+            <thead>
+              <tr>
+                <th>Service</th>
+                <th>Code</th>
+                <th class="r">Price</th>
+                <th class="r" style="width:3rem">Add</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Luxury Hair Wash<span class="cat">Hair Care</span></td>
+                <td>SRV-042</td>
+                <td class="price">₹550</td>
+                <td class="price"><span class="add-btn">+ Add</span></td>
+              </tr>
+              <tr>
+                <td>Hair Cut — Women<span class="cat">Styling</span></td>
+                <td>SRV-018</td>
+                <td class="price">₹1,200</td>
+                <td class="price"><span class="add-btn">+ Add</span></td>
+              </tr>
+              <tr>
+                <td>Blow Dry<span class="cat">Styling</span></td>
+                <td>SRV-031</td>
+                <td class="price">₹450</td>
+                <td class="price"><span class="add-btn">+ Add</span></td>
+              </tr>
+              <tr>
+                <td>Root Touch-up<span class="cat">Colour</span></td>
+                <td>SRV-067</td>
+                <td class="price">₹2,500</td>
+                <td class="price"><span class="add-btn">+ Add</span></td>
+              </tr>
+              <tr>
+                <td>Head Massage<span class="cat">Spa</span></td>
+                <td>SRV-089</td>
+                <td class="price">₹350</td>
+                <td class="price"><span class="add-btn">+ Add</span></td>
+              </tr>
+              <tr>
+                <td>Keratin Treatment<span class="cat">Treatment</span></td>
+                <td>SRV-112</td>
+                <td class="price">₹4,500</td>
+                <td class="price"><span class="add-btn">+ Add</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- CHECKOUT -->
+      <div class="checkout">
+        <div class="checkout-head">
+          <h2>Current sale</h2>
+          <a href="#">Clear all</a>
+        </div>
+
+        <div class="basket-wrap">
+          <table class="basket">
+            <thead>
+              <tr>
+                <th>Service</th>
+                <th>Staff</th>
+                <th class="c">Qty</th>
+                <th class="r">Price</th>
+                <th class="r">Discount</th>
+                <th class="r">Final</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div class="svc-name">Hair Cut — Women</div>
+                </td>
+                <td><select class="staff-sel"><option>Oscar ▼</option></select></td>
+                <td class="c"><span class="qty-ctrl"><button>−</button>1<button>+</button></span></td>
+                <td class="r">₹1,017</td>
+                <td class="r"><span class="disc">10% off</span><br><span class="disc-amt">−₹113</span></td>
+                <td class="r final">₹1,017</td>
+                <td class="remove">×</td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="svc-name">Hair Wash &amp; Blow Dry</div>
+                  <div class="svc-meta">Package Redemption · Prepaid · Wash Pack</div>
+                </td>
+                <td><select class="staff-sel"><option>Oscar ▼</option></select></td>
+                <td class="c"><span class="qty-ctrl"><button>−</button>2<button>+</button></span></td>
+                <td class="r">₹550</td>
+                <td class="r"><span class="disc">63.09% off</span><br><span class="disc-amt">−₹407</span></td>
+                <td class="r final">₹0</td>
+                <td class="remove">×</td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="svc-name">Keratin Shampoo 250ml</div>
+                  <div class="svc-meta" style="color:#94a3b8">Product · Retail</div>
+                </td>
+                <td><select class="staff-sel"><option>—</option></select></td>
+                <td class="c"><span class="qty-ctrl"><button>−</button>1<button>+</button></span></td>
+                <td class="r">₹783</td>
+                <td class="r"><span class="disc" style="color:#94a3b8">—</span></td>
+                <td class="r final">₹783</td>
+                <td class="remove">×</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="checkout-footer">
+          <div class="totals">
+            <div class="panel-title">Current sale</div>
+            <div class="row"><span>Subtotal</span><span>₹1,525</span></div>
+            <div class="row"><span>GST (18%)</span><span>₹275</span></div>
+            <div class="row"><span>Line discount</span><span style="color:#dc2626">−₹113</span></div>
+            <div class="row grand"><span>Current sale</span><span class="amt">₹1,800</span></div>
+          </div>
+
+          <div class="outstanding-box">
+            <div class="panel-title">Customer outstanding</div>
+            <div class="row"><span>Previous dues</span><span class="amt">₹350</span></div>
+            <div class="note">Not included in this invoice total</div>
+            <span class="view">View dues</span>
+          </div>
+
+          <div class="payment">
+            <div class="panel-title">Payment</div>
+            <div class="pay-summary">
+              <div class="row"><span>Total</span><strong>₹1,800</strong></div>
+              <div class="row"><span>Paid</span><strong>₹1,000</strong></div>
+              <div class="row due"><span>Due (this sale)</span><span>₹800</span></div>
+            </div>
+            <div class="pay-methods">
+              <span class="m on">Cash</span>
+              <span class="m">Card</span>
+              <span class="m">UPI</span>
+              <span class="m">Split</span>
+            </div>
+            <div class="pay-input">
+              <input value="₹ 800.00" readonly />
+              <select><option>Cash</option></select>
+            </div>
+            <div class="pay-list">Cash ₹500 · UPI ₹500 <span style="color:#94a3b8">×</span></div>
+            <div class="mark-due">Mark ₹800 as Due</div>
+          </div>
+
+          <div class="complete-col">
+            <button class="complete-btn">
+              Complete Sale
+              <span class="sub">F2 · Enter to confirm</span>
+            </button>
+            <div class="avail-svc">Hold bill · Notes · ⋮</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <span>Quick Sale · Session active · 3 items</span>
+      <span><kbd>/</kbd> search · <kbd>Esc</kbd> close menu</span>
+    </div>
+  </div>
+</body>
+</html>

@@ -78,11 +78,11 @@ test('globals.css defines bounded picker dropdown scroll', () => {
   assert.match(css, /\.fyh-booking-modal[\s\S]*max-height/);
 });
 
-test('QuickSaleShell uses shared FyhCustomerSearch', () => {
+test('QuickSaleShell uses shared FyhCustomerSearch and POS customer header', () => {
   const src = readFileSync(join(root, 'src/hair/components/quick-sale/QuickSaleShell.tsx'), 'utf8');
   assert.match(src, /FyhCustomerSearch/);
-  assert.match(src, /FyhCustomerContextStrip/);
-  assert.match(src, /fyh-panel-financial/);
+  assert.match(src, /QuickSaleCustomerHeader/);
+  assert.match(src, /useQuickSaleCustomerContext/);
   assert.doesNotMatch(src, /QuickAddCustomerModal/);
 });
 

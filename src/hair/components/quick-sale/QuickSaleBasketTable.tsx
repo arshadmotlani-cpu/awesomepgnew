@@ -11,6 +11,7 @@ import {
 } from '@/src/hair/domain/packages/availableServices';
 import { QuickSaleDiscountPercentInput } from '@/src/hair/components/quick-sale/QuickSaleDiscountPercentInput';
 import { QuickSaleStaffRow } from '@/src/hair/components/quick-sale/QuickSaleStaffFields';
+import { wholeDiscountPercentFromBps } from '@/src/hair/lib/quickSaleDiscountPercent';
 
 type Props = {
   lines: BasketLine[];
@@ -21,11 +22,6 @@ type Props = {
   onUpdateLine: (lineId: string, patch: Partial<BasketLine>) => void;
   onRemoveLine: (lineId: string) => void;
 };
-
-function showsGstBreakdown(line: BasketLine): boolean {
-  if (line.prepaidRedemption) return false;
-  return line.billableRef.type === 'service' || line.billableRef.type === 'product';
-}
 
 function parseRupeeInput(raw: string): number | null {
   const trimmed = raw.trim();
@@ -45,7 +41,7 @@ export function QuickSaleBasketTable({
 }: Props) {
   if (lines.length === 0) {
     return (
-      <p className="py-6 text-center text-sm text-fyh-text-muted">
+      <p className="py-6 text-center text-sm text-slate-500">
         Search and add items to the basket
       </p>
     );
@@ -53,20 +49,19 @@ export function QuickSaleBasketTable({
 
   return (
     <div className="qs-basket-scroll overflow-x-auto overflow-y-auto">
-      <table className="fyh-table-compact qs-basket-table w-full min-w-[860px] text-left text-sm">
-        <thead className="sticky top-0 z-10 bg-[color:var(--fyh-bg-surface)]">
+      <table className="fyh-table-compact qs-basket-table w-full min-w-[720px] text-left text-sm">
+        <thead className="sticky top-0 z-10 bg-slate-50">
           <tr>
             <th>Service</th>
             <th className="min-w-[9.5rem]">Staff</th>
             <th className="qs-basket-col-qty w-14 text-center">Qty</th>
-            <th className="qs-basket-col-money text-right">Base</th>
-            <th className="qs-basket-col-money text-right">GST</th>
+            <th className="qs-basket-col-money text-right">Price</th>
             <th className="qs-basket-col-money text-right">Discount</th>
             <th className="qs-basket-col-money w-20 text-right">Final</th>
             <th className="w-8" />
           </tr>
         </thead>
-        <tbody className="divide-y divide-[color:var(--fyh-border)]">
+        <tbody className="divide-y divide-slate-100">
           {lines.map((line) => {
             const isPrepaid = Boolean(line.prepaidRedemption);
             const isPackagePurchase = line.billableRef.type === 'package';
@@ -78,7 +73,6 @@ export function QuickSaleBasketTable({
               gstBps: line.snapshot.gstBps,
               overridePricePaise: isPrepaid ? 0 : line.overridePricePaise,
             });
-            const gstPct = (line.snapshot.gstBps / 100).toFixed(0);
             const retailUnitPaise = line.prepaidRedemption?.retailUnitValuePaise ?? 0;
             const prepaidRetailGross = retailUnitPaise * line.quantity;
             const prepaidDiscountPercent =
@@ -92,16 +86,18 @@ export function QuickSaleBasketTable({
               prepaidDiscountPercent != null
                 ? formatPackageRedemptionDiscountLabel(prepaidDiscountPercent)
                 : null;
+            const prepaidDiscountPaise = Math.max(0, prepaidRetailGross);
+            const discountPercent = wholeDiscountPercentFromBps(priced.discountBps);
 
             return (
               <tr key={line.lineId} className="align-middle">
                 <td>
-                  <p className="font-medium leading-tight text-fyh-text">{line.snapshot.name}</p>
+                  <p className="font-medium leading-tight text-slate-900">{line.snapshot.name}</p>
                   {line.snapshot.code ? (
-                    <p className="text-[11px] leading-tight text-fyh-text-muted">{line.snapshot.code}</p>
+                    <p className="text-[11px] leading-tight text-slate-500">{line.snapshot.code}</p>
                   ) : null}
                   {isPrepaid ? (
-                    <p className="text-[10px] font-medium leading-tight text-fyh-accent">
+                    <p className="text-[10px] font-medium leading-tight text-cyan-700">
                       Package Redemption · Prepaid
                       {line.prepaidRedemption?.packageName
                         ? ` · ${line.prepaidRedemption.packageName}`
@@ -109,7 +105,7 @@ export function QuickSaleBasketTable({
                     </p>
                   ) : null}
                   {isPackagePurchase ? (
-                    <p className="text-[10px] font-medium leading-tight text-fyh-text-muted">
+                    <p className="text-[10px] font-medium leading-tight text-slate-500">
                       Prepaid package sale · No staff performance
                     </p>
                   ) : null}
@@ -138,34 +134,47 @@ export function QuickSaleBasketTable({
                     aria-label="Quantity"
                   />
                 </td>
-                <td className="qs-basket-col-money text-right tabular-nums text-fyh-text-secondary">
-                  {isPrepaid ? (
-                    retailUnitPaise > 0 ? formatInrFromPaise(prepaidRetailGross) : '—'
-                  ) : showsGstBreakdown(line) ? (
-                    formatInrFromPaise(priced.basePaise)
-                  ) : (
-                    '—'
-                  )}
-                </td>
-                <td className="qs-basket-col-money text-right tabular-nums text-fyh-text-secondary">
-                  {isPrepaid ? (
-                    '—'
-                  ) : showsGstBreakdown(line) ? (
-                    <span>
-                      {formatInrFromPaise(priced.gstPaise)}
-                      <span className="block text-[10px] text-fyh-text-muted">({gstPct}%)</span>
-                    </span>
-                  ) : (
-                    '—'
-                  )}
+                <td className="qs-basket-col-money text-right tabular-nums text-slate-600">
+                  {isPrepaid
+                    ? retailUnitPaise > 0
+                      ? formatInrFromPaise(prepaidRetailGross)
+                      : '—'
+                    : formatInrFromPaise(catalogGross)}
                 </td>
                 <td className="qs-basket-col-money text-right tabular-nums">
                   {isPrepaid ? (
                     prepaidDiscountLabel ? (
-                      <span className="text-xs font-medium text-fyh-accent">{prepaidDiscountLabel}</span>
+                      <div className="flex flex-col items-end gap-0.5">
+                        <span className="qs-basket-discount-pct">{prepaidDiscountLabel}</span>
+                        {prepaidDiscountPaise > 0 ? (
+                          <span className="qs-basket-discount-amt">
+                            −{formatInrFromPaise(prepaidDiscountPaise)}
+                          </span>
+                        ) : null}
+                      </div>
                     ) : (
                       '—'
                     )
+                  ) : priced.discountPaise > 0 || discountPercent > 0 ? (
+                    <div className="flex flex-col items-end gap-0.5">
+                      <div className="flex items-center gap-0.5">
+                        <QuickSaleDiscountPercentInput
+                          lineId={line.lineId}
+                          discountBps={priced.discountBps}
+                          catalogGrossPaise={catalogGross}
+                          disabled={locked}
+                          onCommit={(overridePricePaise) =>
+                            onUpdateLine(line.lineId, { overridePricePaise })
+                          }
+                        />
+                        <span className="qs-basket-discount-pct">% off</span>
+                      </div>
+                      {priced.discountPaise > 0 ? (
+                        <span className="qs-basket-discount-amt">
+                          −{formatInrFromPaise(priced.discountPaise)}
+                        </span>
+                      ) : null}
+                    </div>
                   ) : (
                     <QuickSaleDiscountPercentInput
                       lineId={line.lineId}
@@ -178,7 +187,7 @@ export function QuickSaleBasketTable({
                     />
                   )}
                 </td>
-                <td className="qs-basket-col-money text-right tabular-nums font-semibold text-fyh-text">
+                <td className="qs-basket-col-money text-right tabular-nums font-semibold text-slate-900">
                   {isPrepaid ? (
                     formatInrFromPaise(0)
                   ) : (
@@ -200,7 +209,7 @@ export function QuickSaleBasketTable({
                 <td>
                   <button
                     type="button"
-                    className="rounded-md p-1.5 text-fyh-text-muted transition hover:bg-white/5 hover:text-fyh-danger"
+                    className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-red-600"
                     disabled={locked}
                     onClick={() => onRemoveLine(line.lineId)}
                     aria-label="Remove line"
