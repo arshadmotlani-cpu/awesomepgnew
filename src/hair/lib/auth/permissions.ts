@@ -48,6 +48,20 @@ export async function requirePermissionPage(key: HairPermission): Promise<HairAd
 
 export async function requirePagePermissionForPath(pathname: string): Promise<HairAdmin> {
   const admin = await requireHairAuthPage();
+  const { getHairSession } = await import('@/src/hair/lib/auth/session');
+  const session = await getHairSession();
+
+  // Workforce RBAC path check (v2 keys with alias fallback)
+  if (session?.workforceEmployeeId) {
+    const { resolvePermissions } = await import('@/src/workforce/brains/employeeBrain');
+    const { grantsAllowPath } = await import('@/src/workforce/permissions/pagePermissions');
+    const grants = await resolvePermissions(session.workforceEmployeeId, 'fyh_salon');
+    if (!grantsAllowPath(grants, pathname)) {
+      redirect(await hairAppRedirect('/access-denied'));
+    }
+    return admin;
+  }
+
   const key = pagePermissionForPath(pathname);
   if (key && !checkPermission(admin, key)) {
     redirect(await hairAppRedirect('/access-denied'));

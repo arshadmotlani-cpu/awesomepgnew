@@ -57,16 +57,24 @@ export type { WorkforcePermissionKey, WorkforcePermissionGroup, WorkforcePermiss
 export {
   WORKFORCE_PERMISSION_KEYS,
   WORKFORCE_PERMISSION_LIBRARY,
+  WORKFORCE_PERMISSION_LIBRARY_FULL,
   WORKFORCE_PERMISSION_GROUP_LABELS,
+  WORKFORCE_MODULE_LABELS,
   isWorkforcePermissionKey,
   permissionDef,
   permissionsByGroup,
+  permissionsByModule,
 } from '@/src/workforce/permissions/library';
 
-export type WorkforcePermissionGrants = {
-  permissions: WorkforcePermissionKey[];
+export type WorkforcePermissionConstraints = {
   /** null = unlimited (Owner) */
   maxBackdateDays: number | null;
+  /** null = unlimited; enforced on quick_sale.discount.apply */
+  maxDiscountPercent: number | null;
+};
+
+export type WorkforcePermissionGrants = WorkforcePermissionConstraints & {
+  permissions: WorkforcePermissionKey[];
 };
 
 export const RANK_ORDER: Record<WorkforceRank, number> = {

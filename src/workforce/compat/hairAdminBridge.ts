@@ -24,8 +24,16 @@ export function workforceGrantsToHairPermissions(
     out.add('page:dashboard');
   }
   if (p.has('dashboard.view_revenue')) out.add('page:dashboard_revenue');
-  if (p.has('dashboard.view_staff')) out.add('page:dashboard_staff');
-  if (p.has('customers.view') || p.has('dashboard.view_customers')) out.add('page:customers');
+  if (p.has('dashboard.view_staff') || p.has('performance.all.view')) {
+    out.add('page:dashboard_staff');
+  }
+  if (
+    p.has('customers.view') ||
+    p.has('customers.customer.view') ||
+    p.has('dashboard.view_customers')
+  ) {
+    out.add('page:customers');
+  }
   if (
     p.has('appointments.view_all') ||
     p.has('appointments.view_own') ||
@@ -37,7 +45,12 @@ export function workforceGrantsToHairPermissions(
   if (p.has('billing.view') || p.has('billing.create_invoice') || p.has('billing.edit_invoice')) {
     out.add('page:billing');
   }
-  if (p.has('billing.create_invoice') || p.has('billing.edit_invoice')) {
+  if (
+    p.has('billing.create_invoice') ||
+    p.has('billing.edit_invoice') ||
+    p.has('quick_sale.access') ||
+    p.has('quick_sale.sale.complete')
+  ) {
     out.add('page:quick_sale');
     out.add('action:billing.checkout');
   }

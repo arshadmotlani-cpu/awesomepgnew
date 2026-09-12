@@ -2,14 +2,17 @@ import { normalizeAccessRole } from '@/src/workforce/accessRoles';
 import type { WorkforceJobRole } from '@/src/workforce/types';
 import {
   WORKFORCE_PERMISSION_KEYS,
+  WORKFORCE_PERMISSION_LIBRARY_FULL,
   type WorkforcePermissionKey,
 } from '@/src/workforce/permissions/library';
 
-export type WorkforcePermissionGrants = {
-  permissions: WorkforcePermissionKey[];
-  /** null = unlimited (Owner) */
-  maxBackdateDays: number | null;
-};
+const OWNER_ONLY_KEYS = new Set(
+  WORKFORCE_PERMISSION_LIBRARY_FULL.filter((d) => d.ownerOnly).map((d) => d.key),
+);
+
+import type { WorkforcePermissionGrants as Grants } from '@/src/workforce/types';
+
+export type WorkforcePermissionGrants = Grants;
 
 const ALL = [...WORKFORCE_PERMISSION_KEYS] as WorkforcePermissionKey[];
 
@@ -33,23 +36,56 @@ const MANAGER_EXCLUDED: WorkforcePermissionKey[] = [
   'payroll.view_reports',
 ];
 
-const MANAGER_TEMPLATE: WorkforcePermissionKey[] = ALL.filter((k) => !MANAGER_EXCLUDED.includes(k));
+const MANAGER_TEMPLATE: WorkforcePermissionKey[] = ALL.filter(
+  (k) => !MANAGER_EXCLUDED.includes(k) && !OWNER_ONLY_KEYS.has(k),
+);
 
 const BILLER_TEMPLATE: WorkforcePermissionKey[] = [
   'customers.view',
   'customers.edit',
+  'customers.customer.view',
+  'customers.customer.create',
+  'customers.customer.edit',
+  'customers.phone.view',
+  'customers.balance.view',
+  'customers.package_credits.view',
   'appointments.receive_bookings',
   'appointments.view_own',
   'appointments.view_all',
   'appointments.edit',
+  'appointments.appointment.view',
+  'appointments.appointment.manage_all',
   'billing.view',
   'billing.create_invoice',
   'billing.edit_invoice',
   'billing.backdate_invoice',
+  'billing.invoice.view',
+  'billing.invoice.create',
+  'billing.invoice.edit',
+  'billing.payment.record',
+  'quick_sale.access',
+  'quick_sale.customer.search',
+  'quick_sale.sale.create',
+  'quick_sale.sale.complete',
+  'quick_sale.sale.hold',
+  'quick_sale.sale.resume',
+  'quick_sale.line.add_service',
+  'quick_sale.line.add_product',
+  'quick_sale.line.add_package',
+  'quick_sale.line.remove',
+  'quick_sale.discount.apply',
+  'quick_sale.payment.record',
+  'quick_sale.package.redeem',
+  'quick_sale.balance.view',
+  'packages.view',
+  'packages.package.sell',
+  'packages.package.redeem',
+  'memberships.view',
+  'payments.cash.record',
+  'payments.upi.record',
+  'payments.card.record',
   'expenses.view',
   'expenses.edit',
-  'packages.view',
-  'memberships.view',
   'calendar.view',
   'cash_drawer.view',
   'cash_drawer.manage',
@@ -76,27 +112,38 @@ const RECEPTIONIST_TEMPLATE: WorkforcePermissionKey[] = [
 const STAFF_TEMPLATE: WorkforcePermissionKey[] = [
   'appointments.view_own',
   'appointments.receive_bookings',
+  'appointments.appointment.manage_own',
   'calendar.view',
   'customers.view',
+  'customers.customer.view',
   'attendance.view_own',
   'attendance.mark',
+  'attendance.own.view',
+  'attendance.own.mark',
+  'performance.own.view',
+  'payroll.own.salary.view',
+  'payroll.own.payments.view',
+  'payroll.own.advance.view',
+  'payroll.own.tips.view',
+  'payroll.own.incentive.view',
+  'finance.view_own_salary',
 ];
 
 const TEMPLATE_BY_ROLE: Record<
   'owner' | 'manager' | 'receptionist' | 'biller' | 'staff',
-  { permissions: WorkforcePermissionKey[]; maxBackdateDays: number | null }
+  { permissions: WorkforcePermissionKey[]; maxBackdateDays: number | null; maxDiscountPercent: number | null }
 > = {
-  owner: { permissions: OWNER_TEMPLATE, maxBackdateDays: null },
-  manager: { permissions: MANAGER_TEMPLATE, maxBackdateDays: 7 },
-  receptionist: { permissions: RECEPTIONIST_TEMPLATE, maxBackdateDays: 0 },
-  biller: { permissions: BILLER_TEMPLATE, maxBackdateDays: 2 },
-  staff: { permissions: STAFF_TEMPLATE, maxBackdateDays: 0 },
+  owner: { permissions: OWNER_TEMPLATE, maxBackdateDays: null, maxDiscountPercent: null },
+  manager: { permissions: MANAGER_TEMPLATE, maxBackdateDays: 7, maxDiscountPercent: 25 },
+  receptionist: { permissions: RECEPTIONIST_TEMPLATE, maxBackdateDays: 0, maxDiscountPercent: 10 },
+  biller: { permissions: BILLER_TEMPLATE, maxBackdateDays: 2, maxDiscountPercent: 15 },
+  staff: { permissions: STAFF_TEMPLATE, maxBackdateDays: 0, maxDiscountPercent: 0 },
 };
 
 /** Code-default permission templates for the four access roles. */
 export const CODE_ROLE_TEMPLATES: Record<
   WorkforceJobRole,
-  { permissions: WorkforcePermissionKey[]; maxBackdateDays: number | null }
+  { permissions: WorkforcePermissionKey[]; maxBackdateDays: number | null; maxDiscountPercent: number | null }
 > = {
   owner: TEMPLATE_BY_ROLE.owner,
   manager: TEMPLATE_BY_ROLE.manager,
@@ -125,5 +172,6 @@ export function codeTemplateForAccessRole(accessRole: WorkforceJobRole): Workfor
   return {
     permissions: [...tpl.permissions],
     maxBackdateDays: tpl.maxBackdateDays,
+    maxDiscountPercent: tpl.maxDiscountPercent,
   };
 }

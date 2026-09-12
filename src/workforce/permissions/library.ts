@@ -3,6 +3,8 @@
  * Access Roles (job titles) load default templates from these keys; grants may override.
  */
 
+import { FYH_PERMISSION_CATALOG_V2 } from '@/src/workforce/permissions/catalogV2';
+
 export type WorkforcePermissionGroup =
   | 'dashboard'
   | 'customers'
@@ -25,13 +27,25 @@ export type WorkforcePermissionGroup =
   | 'records'
   | 'approvals'
   | 'permissions'
-  | 'ecosystem';
+  | 'ecosystem'
+  | 'quick_sale'
+  | 'performance'
+  | 'payments'
+  | 'payroll'
+  | 'petty_cash'
+  | 'leave'
+  | 'shifts';
 
 export type WorkforcePermissionDef = {
   key: string;
   label: string;
   group: WorkforcePermissionGroup;
   description: string;
+  module?: string;
+  resource?: string;
+  action?: string;
+  ownerOnly?: boolean;
+  sensitive?: boolean;
 };
 
 /** Every toggleable permission in the Workforce ERP. */
@@ -118,7 +132,13 @@ export const WORKFORCE_PERMISSION_LIBRARY: readonly WorkforcePermissionDef[] = [
   { key: 'ecosystem.pg', label: 'PG', group: 'ecosystem', description: 'Awesome PG engine access' },
 ] as const;
 
-export const WORKFORCE_PERMISSION_KEYS = WORKFORCE_PERMISSION_LIBRARY.map((p) => p.key);
+/** v1 + v2 merged catalog — v1 keys retained for backward compatibility. */
+export const WORKFORCE_PERMISSION_LIBRARY_FULL: readonly WorkforcePermissionDef[] = [
+  ...WORKFORCE_PERMISSION_LIBRARY,
+  ...FYH_PERMISSION_CATALOG_V2,
+];
+
+export const WORKFORCE_PERMISSION_KEYS = WORKFORCE_PERMISSION_LIBRARY_FULL.map((p) => p.key);
 
 export type WorkforcePermissionKey = (typeof WORKFORCE_PERMISSION_KEYS)[number];
 
@@ -129,13 +149,23 @@ export function isWorkforcePermissionKey(value: string): value is WorkforcePermi
 }
 
 export function permissionDef(key: string): WorkforcePermissionDef | undefined {
-  return WORKFORCE_PERMISSION_LIBRARY.find((p) => p.key === key);
+  return WORKFORCE_PERMISSION_LIBRARY_FULL.find((p) => p.key === key);
 }
 
 export function permissionsByGroup(): Record<WorkforcePermissionGroup, WorkforcePermissionDef[]> {
   const out = {} as Record<WorkforcePermissionGroup, WorkforcePermissionDef[]>;
-  for (const def of WORKFORCE_PERMISSION_LIBRARY) {
+  for (const def of WORKFORCE_PERMISSION_LIBRARY_FULL) {
     (out[def.group] ??= []).push(def);
+  }
+  return out;
+}
+
+/** Group permissions by module for permission matrix UI. */
+export function permissionsByModule(): Record<string, WorkforcePermissionDef[]> {
+  const out: Record<string, WorkforcePermissionDef[]> = {};
+  for (const def of WORKFORCE_PERMISSION_LIBRARY_FULL) {
+    const mod = def.module ?? def.key.split('.')[0] ?? 'other';
+    (out[mod] ??= []).push(def);
   }
   return out;
 }
@@ -163,4 +193,34 @@ export const WORKFORCE_PERMISSION_GROUP_LABELS: Record<WorkforcePermissionGroup,
   approvals: 'Approvals',
   permissions: 'Permissions',
   ecosystem: 'Ecosystem',
+  quick_sale: 'Quick Sale',
+  performance: 'Staff Performance',
+  payments: 'Payments',
+  payroll: 'Payroll',
+  petty_cash: 'Petty Cash',
+  leave: 'Leave',
+  shifts: 'Shifts',
+};
+
+export const WORKFORCE_MODULE_LABELS: Record<string, string> = {
+  dashboard: 'Dashboard',
+  customers: 'Customers',
+  appointments: 'Appointments',
+  quick_sale: 'Quick Sale',
+  packages: 'Packages',
+  billing: 'Billing',
+  payments: 'Payments',
+  performance: 'Staff Performance',
+  attendance: 'Attendance',
+  leave: 'Leave',
+  shifts: 'Shifts',
+  payroll: 'Payroll',
+  staff: 'Staff',
+  inventory: 'Inventory',
+  expenses: 'Expenses',
+  petty_cash: 'Petty Cash',
+  reports: 'Reports',
+  settings: 'Settings',
+  configuration: 'Configuration',
+  permissions: 'Permissions',
 };

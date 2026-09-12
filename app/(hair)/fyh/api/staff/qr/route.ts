@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getHairAuthOptional } from '@/src/hair/lib/auth/guards';
+import { getHairSession } from '@/src/hair/lib/auth/session';
+import { employeeHasPermission } from '@/src/workforce/brains/employeeBrain';
 import { persistEmployeeQrFromFile } from '@/src/workforce/lib/persistEmployeeQr';
 import { sanitizeWorkforceEmployeeError } from '@/src/workforce/lib/workforceDbError';
 
@@ -7,6 +9,18 @@ export async function POST(request: Request) {
   const admin = await getHairAuthOptional();
   if (!admin) {
     return NextResponse.json({ error: 'You must be signed in to upload a QR code.' }, { status: 401 });
+  }
+
+  const session = await getHairSession();
+  if (session?.admin.role !== 'super_admin' && session?.workforceEmployeeId) {
+    const allowed = await employeeHasPermission(
+      session.workforceEmployeeId,
+      'fyh_salon',
+      'finance.view_salary_qr',
+    );
+    if (!allowed) {
+      return NextResponse.json({ error: 'Permission denied.' }, { status: 403 });
+    }
   }
 
   let file: File | null = null;

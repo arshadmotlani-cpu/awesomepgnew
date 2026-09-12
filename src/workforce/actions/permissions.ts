@@ -49,12 +49,20 @@ export async function updateRoleTemplateAction(
           ? null
           : 0
         : Number(backdateRaw);
+    const discountRaw = String(formData.get('maxDiscountPercent') ?? '').trim();
+    const maxDiscountPercent =
+      discountRaw === '' || discountRaw === 'unlimited'
+        ? accessRole === 'owner'
+          ? null
+          : 0
+        : Number(discountRaw);
 
     await upsertRoleTemplate({
       engineId: 'fyh_salon',
       accessRole,
       permissions,
       maxBackdateDays,
+      maxDiscountPercent,
     });
     revalidatePath('/settings/permissions');
     return { success: `Updated ${accessRole} template.` };

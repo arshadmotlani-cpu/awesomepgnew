@@ -3,7 +3,8 @@
 import { put } from '@vercel/blob';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { requirePermission } from '@/src/hair/lib/auth/permissions';
+import { requireFyhPermission } from '@/src/workforce/permissions/guards';
+import { listCustomersForActor } from '@/src/hair/services/customerAccess';
 import {
   FYH_CUSTOMER_GENDERS,
   FYH_CUSTOMER_SOURCES,
@@ -19,7 +20,6 @@ import {
   archiveCustomer,
   createCustomer,
   findSimilarCustomers,
-  listCustomers,
   type SimilarCustomer,
   updateCustomer,
   updateCustomerPhoto,
@@ -34,9 +34,9 @@ export type CustomerActionState = {
 };
 
 export async function listCustomersAction(q?: string): Promise<FyhCustomer[]> {
-  await requirePermission('page:customers');
+  const permCtx = await requireFyhPermission({ permission: 'customers.customer.view', scope: 'org' });
   const ctx = await getTenantContextForAction();
-  return listCustomers({ q: q?.trim() || undefined }, ctx);
+  return listCustomersForActor(permCtx, { q: q?.trim() || undefined }, ctx);
 }
 
 function formStr(formData: FormData, key: string): string {
@@ -97,7 +97,7 @@ export async function checkSimilarCustomersAction(
   formData: FormData,
 ): Promise<CustomerActionState> {
   try {
-    await requirePermission('page:customers');
+    await requireFyhPermission({ permission: 'customers.customer.create', scope: 'org' });
     const ctx = await getTenantContextForAction();
     const similar = await findSimilarCustomers({
       phone: formStr(formData, 'phone'),
@@ -116,7 +116,7 @@ export async function createCustomerAction(
   formData: FormData,
 ): Promise<CustomerActionState> {
   try {
-    await requirePermission('page:customers');
+    await requireFyhPermission({ permission: 'customers.customer.create', scope: 'org' });
     const ctx = await getTenantContextForAction();
     const customer = await createCustomer(parseCustomerForm(formData), ctx);
     revalidatePath('/customers');
@@ -139,7 +139,7 @@ export async function updateCustomerAction(
   formData: FormData,
 ): Promise<CustomerActionState> {
   try {
-    await requirePermission('page:customers');
+    await requireFyhPermission({ permission: 'customers.customer.edit', scope: 'org' });
     const ctx = await getTenantContextForAction();
     const id = formStr(formData, 'id');
     if (!id) return { error: 'Missing customer id' };
@@ -158,7 +158,7 @@ export async function archiveCustomerAction(
   formData: FormData,
 ): Promise<CustomerActionState> {
   try {
-    await requirePermission('page:customers');
+    await requireFyhPermission({ permission: 'customers.customer.archive', scope: 'org' });
     const ctx = await getTenantContextForAction();
     const id = formStr(formData, 'id');
     if (!id) return { error: 'Missing customer id' };
@@ -177,7 +177,9 @@ export async function addCustomerNoteAction(
   formData: FormData,
 ): Promise<CustomerActionState> {
   try {
-    const admin = await requirePermission('page:customers');
+    const permCtx = await requireFyhPermission({ permission: 'customers.customer.edit', scope: 'org' });
+    const { getHairSession } = await import('@/src/hair/lib/auth/session');
+    const session = await getHairSession();
     const ctx = await getTenantContextForAction();
     const id = formStr(formData, 'customerId');
     if (!id) return { error: 'Missing customer' };
@@ -185,7 +187,7 @@ export async function addCustomerNoteAction(
       customerId: id,
       body: formStr(formData, 'body'),
       isAlert: formStr(formData, 'isAlert') === 'on' || formStr(formData, 'isAlert') === '1',
-      adminId: admin.id,
+      adminId: session?.admin.id ?? permCtx.session.workforceEmployeeId ?? '',
     }, ctx);
     revalidatePath(`/customers/${id}`);
     return { success: 'Note added.' };
@@ -199,7 +201,7 @@ export async function uploadCustomerPhotoAction(
   formData: FormData,
 ): Promise<CustomerActionState> {
   try {
-    await requirePermission('page:customers');
+    await requireFyhPermission({ permission: 'customers.customer.edit', scope: 'org' });
     const ctx = await getTenantContextForAction();
     const id = formStr(formData, 'customerId');
     if (!id) return { error: 'Missing customer' };

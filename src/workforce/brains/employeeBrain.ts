@@ -48,6 +48,7 @@ async function loadGrants(
       ? {
           permissions: row.permissions,
           maxBackdateDays: row.maxBackdateDays,
+          maxDiscountPercent: row.maxDiscountPercent,
           usesRoleTemplate: row.usesRoleTemplate,
         }
       : null,

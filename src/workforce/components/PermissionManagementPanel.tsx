@@ -8,15 +8,12 @@ import {
   updateRoleTemplateAction,
   type PermissionActionState,
 } from '@/src/workforce/actions/permissions';
-import {
-  WORKFORCE_ACCESS_ROLES,
-  WORKFORCE_PERMISSION_GROUP_LABELS,
-  WORKFORCE_PERMISSION_LIBRARY,
-  permissionsByGroup,
-  type WorkforcePermissionKey,
-} from '@/src/workforce/types';
+import { WORKFORCE_ACCESS_ROLES, type WorkforcePermissionKey } from '@/src/workforce/types';
 import { AdditionalRightsChecklist } from '@/src/workforce/components/permissions/AdditionalRightsChecklist';
-import { isAdditionalRightKey } from '@/src/workforce/permissions/additionalRights';
+import {
+  EffectivePermissionsPreview,
+  PermissionMatrix,
+} from '@/src/workforce/components/permissions/PermissionMatrix';
 import { workforceAccessRoleLabel } from '@/src/workforce/labels';
 import { Button } from '@/src/hair/components/ui/button';
 import type { EmployeeWithMembership } from '@/src/workforce/brains/employeeBrain';
@@ -25,6 +22,7 @@ type TemplateRow = {
   accessRole: string;
   permissions: WorkforcePermissionKey[];
   maxBackdateDays: number | null;
+  maxDiscountPercent?: number | null;
 };
 
 type Props = {
@@ -33,39 +31,6 @@ type Props = {
 };
 
 const initial: PermissionActionState = {};
-
-function PermissionChecklist({ selected }: { selected: Set<string> }) {
-  const groups = permissionsByGroup();
-
-  return (
-    <div className="max-h-72 space-y-3 overflow-y-auto rounded-lg border border-[color:var(--fyh-border)] p-3">
-      {Object.entries(groups).map(([group, defs]) => (
-        <fieldset key={group} className="space-y-1">
-          <legend className="text-xs font-semibold uppercase tracking-wide text-fyh-text-secondary">
-            {WORKFORCE_PERMISSION_GROUP_LABELS[group as keyof typeof WORKFORCE_PERMISSION_GROUP_LABELS] ?? group}
-          </legend>
-          <div className="grid gap-1 sm:grid-cols-2">
-            {defs.filter((def) => !isAdditionalRightKey(def.key)).map((def) => (
-              <label key={def.key} className="flex items-start gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  name="permissions"
-                  value={def.key}
-                  defaultChecked={selected.has(def.key)}
-                  className="mt-0.5"
-                />
-                <span>
-                  {def.label}
-                  <span className="block text-fyh-text-secondary">({def.description})</span>
-                </span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      ))}
-    </div>
-  );
-}
 
 export function PermissionManagementPanel({ templates, employees }: Props) {
   const [selectedRole, setSelectedRole] = useState<string>(WORKFORCE_ACCESS_ROLES[0]);
@@ -95,6 +60,7 @@ export function PermissionManagementPanel({ templates, employees }: Props) {
       accessRole: selectedRole,
       permissions: [],
       maxBackdateDays: 0,
+      maxDiscountPercent: 0,
     };
   const employee = employees.find((e) => e.employee.id === selectedEmployeeId);
 
@@ -104,17 +70,13 @@ export function PermissionManagementPanel({ templates, employees }: Props) {
         <p className="fyh-section-eyebrow">Access control</p>
         <h2 className="fyh-display mt-1 text-2xl font-semibold">Permission management</h2>
         <p className="mt-1 text-sm text-fyh-text-secondary">
-          Access Roles are job titles only. Permissions are independent — edit role templates or
-          override individual employees.
+          Grant capabilities by module. Sensitive permissions are flagged. Constraints (max discount,
+          backdate days) apply per role or employee override.
         </p>
       </div>
 
       <section className="space-y-4 rounded-xl border border-[color:var(--fyh-border)] p-5">
         <h3 className="text-lg font-medium text-fyh-text">Role templates</h3>
-        <p className="text-sm text-fyh-text-secondary">
-          Default permissions applied when an employee uses their Access Role template (no custom
-          override).
-        </p>
         <label className="block text-sm">
           <span className="font-medium">Access Role</span>
           <select
@@ -130,21 +92,52 @@ export function PermissionManagementPanel({ templates, employees }: Props) {
           </select>
         </label>
 
-        <form action={templateAction} className="space-y-3">
+        <form action={templateAction} className="space-y-4">
           <input type="hidden" name="accessRole" value={selectedRole} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block text-sm">
+              <span className="font-medium">Max backdate days</span>
+              <input
+                type="text"
+                name="maxBackdateDays"
+                className="fyh-input mt-1 w-full"
+                placeholder={selectedRole === 'owner' ? 'unlimited' : '0'}
+                defaultValue={
+                  roleTemplate.maxBackdateDays === null
+                    ? 'unlimited'
+                    : String(roleTemplate.maxBackdateDays ?? 0)
+                }
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="font-medium">Max discount %</span>
+              <input
+                type="number"
+                name="maxDiscountPercent"
+                className="fyh-input mt-1 w-full"
+                min={0}
+                max={100}
+                placeholder={selectedRole === 'owner' ? 'unlimited' : '15'}
+                defaultValue={
+                  roleTemplate.maxDiscountPercent === null
+                    ? ''
+                    : String(roleTemplate.maxDiscountPercent ?? '')
+                }
+              />
+            </label>
+          </div>
           <div>
-            <p className="mb-2 text-sm font-medium text-fyh-text">Additional rights</p>
+            <p className="mb-2 text-sm font-medium text-fyh-text">Additional rights (sensitive)</p>
             <AdditionalRightsChecklist selected={roleTemplate.permissions} />
           </div>
           <div>
-            <p className="mb-2 text-sm font-medium text-fyh-text">All permissions</p>
-            <PermissionChecklist selected={new Set(roleTemplate.permissions)} />
+            <p className="mb-2 text-sm font-medium text-fyh-text">All permissions by module</p>
+            <PermissionMatrix selected={new Set(roleTemplate.permissions)} />
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={templatePending}>
-              {templatePending ? 'Saving…' : 'Save role template'}
-            </Button>
-          </div>
+          <EffectivePermissionsPreview permissions={roleTemplate.permissions} />
+          <Button type="submit" disabled={templatePending}>
+            {templatePending ? 'Saving…' : 'Save role template'}
+          </Button>
           {templateState.error ? <p className="fyh-alert-danger text-sm">{templateState.error}</p> : null}
           {templateState.success ? (
             <p className="fyh-alert-success text-sm">{templateState.success}</p>
@@ -185,10 +178,8 @@ export function PermissionManagementPanel({ templates, employees }: Props) {
 
             {employee ? (
               <>
-                <p className="text-xs text-fyh-text-secondary">
-                  Effective permissions: {employee.grants.permissions.length} keys
-                </p>
-                <form action={empAction} className="space-y-3">
+                <EffectivePermissionsPreview permissions={employee.grants.permissions} />
+                <form action={empAction} className="space-y-4">
                   <input type="hidden" name="employeeId" value={employee.employee.id} />
                   <div>
                     <p className="mb-2 text-sm font-medium text-fyh-text">Additional rights</p>
@@ -196,7 +187,7 @@ export function PermissionManagementPanel({ templates, employees }: Props) {
                   </div>
                   <div>
                     <p className="mb-2 text-sm font-medium text-fyh-text">All permissions</p>
-                    <PermissionChecklist selected={new Set(employee.grants.permissions)} />
+                    <PermissionMatrix selected={new Set(employee.grants.permissions)} />
                   </div>
                   <Button type="submit" disabled={empPending}>
                     {empPending ? 'Saving…' : 'Save employee override'}

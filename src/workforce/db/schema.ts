@@ -121,6 +121,7 @@ export const wfPermissionGrants = pgTable(
       .references(() => wfEngineMemberships.id, { onDelete: 'cascade' }),
     permissions: jsonb('permissions').$type<WorkforcePermissionKey[]>().notNull().default([]),
     maxBackdateDays: integer('max_backdate_days'),
+    maxDiscountPercent: integer('max_discount_percent'),
     /** When true, effective permissions come from the Access Role template. */
     usesRoleTemplate: boolean('uses_role_template').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -139,6 +140,7 @@ export const wfRoleTemplates = pgTable(
     accessRole: text('access_role').$type<WorkforceJobRole>().notNull(),
     permissions: jsonb('permissions').$type<WorkforcePermissionKey[]>().notNull().default([]),
     maxBackdateDays: integer('max_backdate_days'),
+    maxDiscountPercent: integer('max_discount_percent'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -20,6 +20,7 @@ export async function getRoleTemplateFromDb(
   return {
     permissions: (row.permissions ?? []) as WorkforcePermissionKey[],
     maxBackdateDays: row.maxBackdateDays,
+    maxDiscountPercent: row.maxDiscountPercent ?? null,
   };
 }
 
@@ -36,6 +37,7 @@ export async function upsertRoleTemplate(input: {
   accessRole: WorkforceJobRole;
   permissions: WorkforcePermissionKey[];
   maxBackdateDays: number | null;
+  maxDiscountPercent?: number | null;
 }) {
   const engineId = input.engineId ?? 'fyh_salon';
   const accessRole = normalizeAccessRole(input.accessRole);
@@ -51,6 +53,7 @@ export async function upsertRoleTemplate(input: {
       .set({
         permissions: input.permissions,
         maxBackdateDays: input.maxBackdateDays,
+        maxDiscountPercent: input.maxDiscountPercent ?? null,
         updatedAt: new Date(),
       })
       .where(eq(wfRoleTemplates.id, existing.id));
@@ -62,6 +65,7 @@ export async function upsertRoleTemplate(input: {
     accessRole,
     permissions: input.permissions,
     maxBackdateDays: input.maxBackdateDays,
+    maxDiscountPercent: input.maxDiscountPercent ?? null,
   });
 }
 

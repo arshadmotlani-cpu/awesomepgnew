@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requirePermission } from '@/src/hair/lib/auth/permissions';
+import { requireFyhPermission } from '@/src/workforce/permissions/guards';
 import { createQuickCustomerFromForm } from '@/src/hair/actions/quickSaleCustomer';
 import type { Basket } from '@/src/hair/domain/basket/types';
 import { enrichBasketWithRedemptions, checkoutFromBasket } from '@/src/hair/domain/checkout/pipeline';
@@ -31,18 +31,18 @@ import { getTenantContextForAction } from '@/src/hair/lib/tenant/getTenantContex
 export type QuickSaleActionState = { error?: string; success?: string; invoiceId?: string };
 
 export async function searchCustomersForPosAction(query: string) {
-  await requirePermission('page:quick_sale');
+  await requireFyhPermission({ permission: 'quick_sale.customer.search', scope: 'org' });
   return searchCustomersForPos(query);
 }
 
 export async function searchStaffForPosAction(query: string) {
-  await requirePermission('page:quick_sale');
+  await requireFyhPermission({ permission: 'quick_sale.access', scope: 'org' });
   return searchStaffForPos(query);
 }
 
 /** Full bookable staff roster for Quick Sale — preload once per sale session. */
 export async function listStaffForPosRosterAction() {
-  await requirePermission('page:quick_sale');
+  await requireFyhPermission({ permission: 'quick_sale.access', scope: 'org' });
   return listStaffForPosRoster();
 }
 
@@ -74,7 +74,7 @@ export async function previewQuickSaleTotalsAction(input: {
   tipPaise?: number;
   roundOffPaise?: number;
 }) {
-  await requirePermission('page:quick_sale');
+  await requireFyhPermission({ permission: 'quick_sale.sale.create', scope: 'org' });
   return previewQuickSaleTotals(input.customerId, input.cartLines, input);
 }
 
@@ -87,7 +87,7 @@ export async function completeQuickSaleAction(input: {
   QuickSaleActionState & { advancePaise?: number; invoiceNumber?: string }
 > {
   try {
-    await requirePermission('action:billing.checkout');
+    await requireFyhPermission({ permission: 'quick_sale.sale.complete', scope: 'org' });
     const ctx = await getTenantContextForAction();
     const enriched = await enrichBasketWithRedemptions(input.basket);
     const result = await checkoutFromBasket({
@@ -155,7 +155,7 @@ export async function getQuickSaleInvoicePreviewAction(
   invoiceId: string,
 ): Promise<QuickSaleInvoicePreviewResult> {
   try {
-    await requirePermission('page:quick_sale');
+    await requireFyhPermission({ permission: 'quick_sale.access', scope: 'org' });
     const ctx = await getTenantContextForAction();
     const detail = await getInvoiceDetail(invoiceId, ctx);
     if (!detail) return { ok: false, error: 'Invoice not found' };
@@ -199,7 +199,7 @@ export async function completeQuickSaleLegacyAction(input: {
     '@/src/hair/services/invoices'
   );
   try {
-    await requirePermission('action:billing.checkout');
+    await requireFyhPermission({ permission: 'quick_sale.sale.complete', scope: 'org' });
     const ctx = await getTenantContextForAction();
     const invoiceId = await finalizeQuickSale(input);
     revalidatePath('/billing');
@@ -214,12 +214,12 @@ export async function completeQuickSaleLegacyAction(input: {
 }
 
 export async function listQuickSaleHoldsAction() {
-  await requirePermission('page:quick_sale');
+  await requireFyhPermission({ permission: 'quick_sale.sale.resume', scope: 'org' });
   return listQuickSaleHolds();
 }
 
 export async function loadQuickSaleHoldAction(invoiceId: string) {
-  await requirePermission('page:quick_sale');
+  await requireFyhPermission({ permission: 'quick_sale.sale.resume', scope: 'org' });
   return loadQuickSaleHold(invoiceId);
 }
 
@@ -234,7 +234,7 @@ export async function holdQuickSaleAction(input: {
   roundOffPaise?: number;
 }): Promise<QuickSaleActionState & { holdInvoiceId?: string }> {
   try {
-    await requirePermission('page:quick_sale');
+    await requireFyhPermission({ permission: 'quick_sale.sale.hold', scope: 'org' });
     const holdInvoiceId = await saveQuickSaleHold(input);
     revalidatePath('/quick-sale');
     return { success: 'Bill held', holdInvoiceId };

@@ -45,11 +45,12 @@ test('getQuickSaleInvoicePreviewAction uses public invoice SSOT', () => {
   assert.match(action, /renderPublicInvoiceSheetHtml/);
   assert.match(action, /buildPublicInvoicePrintHtml/);
   assert.match(action, /buildPublicInvoiceViewModel/);
-  assert.match(action, /page:quick_sale/);
+  assert.match(action, /requireFyhPermission\(\{ permission: 'quick_sale\.access'/);
   const checkoutFn = action.slice(
     action.indexOf('export async function completeQuickSaleAction'),
     action.indexOf('export type QuickSaleInvoicePreviewResult'),
   );
+  assert.match(checkoutFn, /requireFyhPermission\(\{ permission: 'quick_sale\.sale\.complete'/);
   assert.match(checkoutFn, /advancePaise: result\.advancePaise/);
   assert.doesNotMatch(checkoutFn, /buildInvoicePrintHtml/);
   assert.doesNotMatch(checkoutFn, /printHtml/);

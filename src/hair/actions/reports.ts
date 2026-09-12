@@ -1,6 +1,7 @@
 'use server';
 
 import { requirePermission } from '@/src/hair/lib/auth/permissions';
+import { requireFyhPermission } from '@/src/workforce/permissions/guards';
 import { rowsToCsv, paiseToCsvRupees } from '@/src/hair/lib/export/csv';
 import { getReportsSnapshot } from '@/src/hair/services/reports';
 import { salonDayBounds, salonMonthStartUtc } from '@/src/hair/lib/salonTime';
@@ -289,13 +290,31 @@ export async function exportReportsOverviewAction(): Promise<ReportExportActionS
   }
 }
 
+const REPORT_VIEW_PERMISSION: Record<FyhReportKey, string> = {
+  overview: 'reports.revenue.view',
+  discounts: 'reports.sales.view',
+  'gst-detail': 'reports.sales.view',
+  'payment-methods': 'reports.payments.view',
+  loyalty: 'reports.customer.view',
+  memberships: 'reports.customer.view',
+  packages: 'reports.sales.view',
+  products: 'reports.inventory.view',
+  stock: 'reports.inventory.view',
+  'low-stock': 'reports.inventory.view',
+  receivables: 'reports.payments.view',
+  advances: 'reports.payments.view',
+  'wallet-balances': 'reports.customer.view',
+};
+
 /** Dynamic-import report queries then emit CSV or print-ready HTML. */
 export async function exportReportAction(input: {
   reportKey: FyhReportKey;
   format: FyhExportFormat;
 }): Promise<ExportReportResult> {
   try {
-    await requirePermission('action:reports.export');
+    const viewKey = REPORT_VIEW_PERMISSION[input.reportKey] ?? 'reports.revenue.view';
+    await requireFyhPermission({ permission: viewKey, scope: 'org' });
+    await requireFyhPermission({ permission: 'reports.export', scope: 'org' });
     const data = await loadReportRows(input.reportKey);
     const stamp = new Date().toISOString().slice(0, 10);
     const filename = `fyh-${input.reportKey}-${stamp}.${input.format === 'csv' ? 'csv' : 'html'}`;

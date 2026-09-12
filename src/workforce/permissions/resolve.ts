@@ -2,11 +2,13 @@ import type { WorkforceJobRole, WorkforcePermissionGrants } from '@/src/workforc
 import { normalizeAccessRole } from '@/src/workforce/accessRoles';
 import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
 import type { WorkforcePermissionKey } from '@/src/workforce/permissions/library';
+import { permissionSatisfied } from '@/src/workforce/permissions/aliases';
 import { getRoleTemplateFromDb } from '@/src/workforce/services/roleTemplates';
 
 export type GrantRow = {
   permissions: WorkforcePermissionKey[] | null;
   maxBackdateDays: number | null;
+  maxDiscountPercent?: number | null;
   usesRoleTemplate: boolean;
 };
 
@@ -23,6 +25,7 @@ export async function resolveEffectiveGrants(input: {
     return {
       permissions: [...grant.permissions],
       maxBackdateDays: grant.maxBackdateDays,
+      maxDiscountPercent: grant.maxDiscountPercent ?? null,
     };
   }
 
@@ -34,6 +37,10 @@ export async function resolveEffectiveGrants(input: {
         grant?.maxBackdateDays !== undefined && grant?.maxBackdateDays !== null
           ? grant.maxBackdateDays
           : fromDb.maxBackdateDays,
+      maxDiscountPercent:
+        grant?.maxDiscountPercent !== undefined && grant?.maxDiscountPercent !== null
+          ? grant.maxDiscountPercent
+          : fromDb.maxDiscountPercent ?? null,
     };
   }
 
@@ -42,10 +49,10 @@ export async function resolveEffectiveGrants(input: {
 
 export function hasWorkforcePermission(
   grants: WorkforcePermissionGrants | null | undefined,
-  key: WorkforcePermissionKey,
+  key: string,
 ): boolean {
   if (!grants) return false;
-  return grants.permissions.includes(key);
+  return permissionSatisfied(grants.permissions, key);
 }
 
 export function hasAnyWorkforcePermission(

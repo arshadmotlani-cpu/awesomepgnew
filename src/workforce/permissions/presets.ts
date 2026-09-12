@@ -32,6 +32,10 @@ export function mergeGrants(
       overrides && 'maxBackdateDays' in overrides
         ? overrides.maxBackdateDays ?? null
         : base.maxBackdateDays,
+    maxDiscountPercent:
+      overrides && 'maxDiscountPercent' in overrides
+        ? overrides.maxDiscountPercent ?? null
+        : base.maxDiscountPercent,
   };
 }
 
@@ -80,5 +84,6 @@ export function mapLegacyHairPermissions(
   return {
     permissions: [...mapped],
     maxBackdateDays: 7,
+    maxDiscountPercent: 15,
   };
 }
