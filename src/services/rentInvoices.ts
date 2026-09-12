@@ -1887,7 +1887,7 @@ export async function recordRentPaymentSuccess(
             paidPrincipalPaise: newPaidPrincipal,
             paidLateFeePaise: newPaidLate,
             lateFeeLockedPaise: fullyPaid ? lateFee : invoice.lateFeeLockedPaise,
-            outstandingPaise: Math.max(0, newOutstanding),
+            outstandingPaise: afterPayment.outstandingPaise,
           },
         });
         if (!auditResult.ok) {
@@ -1907,7 +1907,7 @@ export async function recordRentPaymentSuccess(
           payload: {
             paymentId,
             amountPaise: input.amountPaise,
-            outstandingPaise: Math.max(0, newOutstanding),
+            outstandingPaise: afterPayment.outstandingPaise,
             provider,
           },
         });
@@ -2476,7 +2476,7 @@ export async function reconcileRentInvoiceCanonicalPaidState(
     layer: 'rent',
     previousStatus,
     newStatus: 'paid',
-    source: 'canonical_reconcile',
+    source: 'reconcile',
     meta: { lateFeeLockedPaise: lateFeeLocked },
   });
 

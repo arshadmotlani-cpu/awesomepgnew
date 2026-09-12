@@ -678,7 +678,7 @@ export function QuickSaleShell({
 
         {priced && customer ? (
           <QuickSaleCheckoutColumn
-            customerId={customer.id}
+            customerId={customer!.id}
             lines={lines}
             priced={priced}
             membershipDiscountPaise={membershipDiscountPaise}
