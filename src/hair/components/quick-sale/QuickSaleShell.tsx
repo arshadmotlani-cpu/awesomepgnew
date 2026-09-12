@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FyhCustomerSearch } from '@/src/hair/components/booking/FyhCustomerSearch';
-import { QuickSaleCatalogPanel } from '@/src/hair/components/quick-sale/QuickSaleCatalogPanel';
-import { QuickSaleCheckoutColumn } from '@/src/hair/components/quick-sale/QuickSaleCheckoutColumn';
+import { QuickSaleBasketTable } from '@/src/hair/components/quick-sale/QuickSaleBasketTable';
+import { QuickSaleCheckoutBar } from '@/src/hair/components/quick-sale/QuickSaleCheckoutBar';
+import { QuickSaleClearAllConfirm } from '@/src/hair/components/quick-sale/QuickSaleClearAllConfirm';
 import { QuickSaleCustomerHeader } from '@/src/hair/components/quick-sale/QuickSaleCustomerHeader';
+import { QuickSaleItemSearch } from '@/src/hair/components/quick-sale/QuickSaleItemSearch';
 import { useQuickSaleCustomerContext } from '@/src/hair/components/quick-sale/useQuickSaleCustomerContext';
 import {
   completeQuickSaleAction,
@@ -24,7 +26,7 @@ import {
 import { basketLineFromBillableItem, basketToLegacyLines } from '@/src/hair/domain/basket/legacyBridge';
 import { priceBasket } from '@/src/hair/domain/basket/engine';
 import type { Basket, BasketFlags, BasketLine, PaymentEntry } from '@/src/hair/domain/basket/types';
-import type { BillableItem, BillableItemType } from '@/src/hair/domain/catalog/types';
+import type { BillableItem } from '@/src/hair/domain/catalog/types';
 import { SALON_GST_BPS } from '@/src/hair/lib/taxConfig';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { computePaymentPanelSummary } from '@/src/hair/lib/quickSalePaymentPanelState';
@@ -163,12 +165,11 @@ export function QuickSaleShell({
     context: customerContext,
   } = useQuickSaleCustomerContext(customer?.id ?? null);
 
-  const filteredItems = useMemo(() => {
-    return billableItems.filter((item) => {
-      if (tab !== 'all' && item.type !== tab) return false;
-      return matchesBillable(item, catalogQ);
-    });
-  }, [billableItems, tab, catalogQ]);
+  const searchResults = useMemo(() => {
+    const q = catalogQ.trim();
+    if (!q) return [];
+    return billableItems.filter((item) => matchesBillable(item, q)).slice(0, 10);
+  }, [billableItems, catalogQ]);
 
   const refreshHeldBills = useCallback(async () => {
     try {
@@ -661,25 +662,58 @@ export function QuickSaleShell({
         />
       ) : null}
 
-      <div className="qs-workstation">
-        <QuickSaleCatalogPanel
-          tab={tab}
+      <div className="qs-compact-workspace">
+        <QuickSaleItemSearch
           catalogQ={catalogQ}
-          filteredItems={filteredItems}
+          results={searchResults}
           workspaceLocked={workspaceLocked}
-          catalogSearchRef={catalogSearchRef}
-          onTabChange={(nextTab) => {
-            setTab(nextTab);
-            setCatalogQ('');
-          }}
+          searchRef={catalogSearchRef}
           onCatalogQChange={setCatalogQ}
-          onAddItem={addItem}
+          onSelectItem={addItem}
+          onClose={() => setCatalogQ('')}
         />
 
-        {priced && customer ? (
-          <QuickSaleCheckoutColumn
-            customerId={customer!.id}
+        <div className="qs-compact-basket-area">
+          <div className="qs-compact-basket-toolbar">
+            <span className="qs-compact-basket-label">Current sale</span>
+            {hasActiveTransaction ? (
+              <div className="relative">
+                <button
+                  type="button"
+                  className="qs-clear-all-trigger"
+                  disabled={workspaceLocked}
+                  data-testid="qs-clear-all-trigger"
+                  onClick={() => setClearAllConfirmOpen(true)}
+                >
+                  Clear all
+                </button>
+                {clearAllConfirmOpen ? (
+                  <QuickSaleClearAllConfirm
+                    onKeep={() => setClearAllConfirmOpen(false)}
+                    onConfirm={clearCurrentTransaction}
+                  />
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+          <QuickSaleBasketTable
             lines={lines}
+            locked={workspaceLocked}
+            staffNames={staffNames}
+            preloadedStaff={preloadedStaff}
+            onStaffNameRegistered={(staffId, fullName) =>
+              setStaffNames((prev) => ({ ...prev, [staffId]: fullName }))
+            }
+            onUpdateLine={(lineId, patch) =>
+              setLines((prev) => prev.map((l) => (l.lineId === lineId ? { ...l, ...patch } : l)))
+            }
+            onRemoveLine={(lineId) => setLines((prev) => prev.filter((l) => l.lineId !== lineId))}
+          />
+        </div>
+
+        {priced && customer ? (
+          <QuickSaleCheckoutBar
+            customerId={customer.id}
             priced={priced}
             membershipDiscountPaise={membershipDiscountPaise}
             customerOutstandingPaise={customerContext?.duePaise ?? 0}
@@ -690,21 +724,8 @@ export function QuickSaleShell({
             holdSubmitting={holdSubmitting}
             canCompleteSale={canCompleteSale}
             canHoldBill={Boolean(customer && lines.length > 0)}
-            hasActiveTransaction={hasActiveTransaction}
-            clearAllConfirmOpen={clearAllConfirmOpen}
+            linesCount={lines.length}
             error={error}
-            staffNames={staffNames}
-            preloadedStaff={preloadedStaff}
-            onStaffNameRegistered={(staffId, fullName) =>
-              setStaffNames((prev) => ({ ...prev, [staffId]: fullName }))
-            }
-            onUpdateLine={(lineId, patch) =>
-              setLines((prev) => prev.map((l) => (l.lineId === lineId ? { ...l, ...patch } : l)))
-            }
-            onRemoveLine={(lineId) => setLines((prev) => prev.filter((l) => l.lineId !== lineId))}
-            onOpenClearAll={() => setClearAllConfirmOpen(true)}
-            onKeepClearAll={() => setClearAllConfirmOpen(false)}
-            onConfirmClearAll={clearCurrentTransaction}
             onChangePayments={setPayments}
             onChangeFlags={setFlags}
             onHoldBill={() => {
@@ -717,6 +738,13 @@ export function QuickSaleShell({
         ) : error ? (
           <p className="qs-checkout-error">{error}</p>
         ) : null}
+
+        <div className="qs-compact-footer">
+          <span>
+            <kbd>/</kbd> search · <kbd>Esc</kbd> close · {lines.length} item
+            {lines.length === 1 ? '' : 's'}
+          </span>
+        </div>
       </div>
 
       {customer ? (

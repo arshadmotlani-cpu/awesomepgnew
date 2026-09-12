@@ -186,54 +186,41 @@ test('1–9 staff dropdown architecture: portal, close, keyboard, no left/right 
 test('payment panel exposes POS allocation summary and due action', () => {
   const panel = readSrc('src/hair/components/quick-sale/QuickSalePaymentPanel.tsx');
   const shell = readSrc('src/hair/components/quick-sale/QuickSaleShell.tsx');
-  const checkout = readSrc('src/hair/components/quick-sale/QuickSaleCheckoutColumn.tsx');
+  const checkout = readSrc('src/hair/components/quick-sale/QuickSaleCheckoutBar.tsx');
   assert.match(panel, /Remaining to allocate/i);
   assert.match(panel, /Mark .* as Due/);
   assert.match(panel, /\+ Add Payment/);
-  assert.match(panel, /Payments received/);
   assert.match(checkout, /Complete Sale/);
   assert.match(shell, /canCompleteSale/);
 });
 
-test('POS shell uses workstation layout with visible customer phone', () => {
+test('compact POS uses search autocomplete and bottom checkout bar', () => {
   const shell = readSrc('src/hair/components/quick-sale/QuickSaleShell.tsx');
   const header = readSrc('src/hair/components/quick-sale/QuickSaleCustomerHeader.tsx');
+  const search = readSrc('src/hair/components/quick-sale/QuickSaleItemSearch.tsx');
   const css = readSrc('src/hair/styles/globals.css');
   const basket = readSrc('src/hair/components/quick-sale/QuickSaleBasketTable.tsx');
-  const checkout = readSrc('src/hair/components/quick-sale/QuickSaleCheckoutColumn.tsx');
+  const checkout = readSrc('src/hair/components/quick-sale/QuickSaleCheckoutBar.tsx');
+  const page = readSrc('app/(hair)/fyh/(app)/quick-sale/page.tsx');
+  assert.match(page, /qs-page/);
   assert.match(shell, /qs-pos-shell/);
-  assert.match(shell, /qs-workstation/);
-  assert.match(shell, /QuickSaleCatalogPanel/);
-  assert.match(shell, /QuickSaleCheckoutColumn/);
-  assert.match(header, /Phone/);
+  assert.match(shell, /qs-compact-workspace/);
+  assert.match(shell, /QuickSaleItemSearch/);
+  assert.match(shell, /QuickSaleCheckoutBar/);
+  assert.doesNotMatch(shell, /QuickSaleCatalogPanel/);
+  assert.doesNotMatch(shell, /QuickSaleCheckoutColumn/);
+  assert.match(search, /qs-compact-search-results/);
+  assert.match(search, /ArrowDown/);
+  assert.match(header, /qs-compact-customer-line/);
   assert.match(header, /customer\.phone/);
   assert.match(checkout, /qs-customer-outstanding/);
   assert.match(checkout, /Not included in this invoice total/);
-  assert.match(css, /\.qs-workstation/);
-  assert.match(css, /\.qs-catalog-panel/);
-  assert.match(basket, /qs-basket-scroll/);
-  assert.match(basket, /QuickSaleDiscountPercentInput/);
-});
-
-test('POS workstation matches mockup layout contracts', () => {
-  const catalog = readSrc('src/hair/components/quick-sale/QuickSaleCatalogPanel.tsx');
-  const checkout = readSrc('src/hair/components/quick-sale/QuickSaleCheckoutColumn.tsx');
-  const payment = readSrc('src/hair/components/quick-sale/QuickSalePaymentPanel.tsx');
-  const header = readSrc('src/hair/components/quick-sale/QuickSaleCustomerHeader.tsx');
-  const css = readSrc('src/hair/styles/globals.css');
-  const page = readSrc('app/(hair)/fyh/(app)/quick-sale/page.tsx');
-  assert.match(page, /qs-page/);
-  assert.match(catalog, /qs-catalog-category-filter/);
-  assert.match(catalog, /<th>#<\/th>/);
-  const basket = readSrc('src/hair/components/quick-sale/QuickSaleBasketTable.tsx');
-  assert.match(basket, />Price</);
-  assert.match(basket, /qs-basket-discount-amt/);
   assert.match(checkout, /View dues/);
   assert.match(checkout, /qs-hold-bill/);
   assert.match(checkout, /TOTAL/);
-  assert.match(payment, /qs-pay-method-chip/);
-  assert.match(header, /qs-customer-avatar/);
-  assert.match(header, /MessageCircle/);
-  assert.match(css, /\.qs-complete-sale/);
-  assert.match(css, /#ea580c/);
+  assert.match(css, /\.qs-compact-checkout/);
+  assert.match(css, /\.qs-compact-basket-table/);
+  assert.match(basket, /qs-basket-discount-amt/);
+  assert.match(basket, /No items yet/);
+  assert.match(basket, /QuickSaleDiscountPercentInput/);
 });

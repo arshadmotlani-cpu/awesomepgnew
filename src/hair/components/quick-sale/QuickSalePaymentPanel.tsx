@@ -24,6 +24,7 @@ type Props = {
   payments: PaymentEntry[];
   flags: BasketFlags;
   locked?: boolean;
+  variant?: 'default' | 'compact';
   onChangePayments: (payments: PaymentEntry[]) => void;
   onChangeFlags: (flags: BasketFlags) => void;
 };
@@ -68,12 +69,14 @@ export function QuickSalePaymentPanel({
   payments,
   flags,
   locked = false,
+  variant = 'default',
   onChangePayments,
   onChangeFlags,
 }: Props) {
   const [draftAmount, setDraftAmount] = useState('');
   const [draftMethod, setDraftMethod] = useState<PaymentMethod | ''>('');
   const [draftError, setDraftError] = useState<string | null>(null);
+  const [splitMode, setSplitMode] = useState(false);
   const isEditingAmountRef = useRef(false);
   const lastPrefillRemainingRef = useRef<number | null>(null);
 
@@ -174,9 +177,10 @@ export function QuickSalePaymentPanel({
 
   if (summary.isZeroTotal) {
     return (
-      <div className="rounded-lg border border-[color:var(--fyh-border)] bg-black/20 px-3 py-3">
-        <p className="text-sm font-medium text-fyh-text">Package redemption</p>
-        <p className="mt-1 text-xs text-fyh-text-muted">No payment required for this sale.</p>
+      <div className={variant === 'compact' ? 'qs-compact-pay-zero' : 'rounded-lg border border-[color:var(--fyh-border)] bg-black/20 px-3 py-3'}>
+        <p className={variant === 'compact' ? 'text-xs text-slate-600' : 'text-sm font-medium text-fyh-text'}>
+          Package redemption — no payment required
+        </p>
       </div>
     );
   }
@@ -190,6 +194,148 @@ export function QuickSalePaymentPanel({
       draftPaise: parseDraftAmountRupee(draftAmount),
       remainingToAllocatePaise: summary.remainingToAllocatePaise,
     });
+
+  const showAddRow = summary.remainingToAllocatePaise > 0 && (splitMode || payments.length === 0);
+
+  if (variant === 'compact') {
+    return (
+      <div className="qs-compact-payment" data-testid="qs-payment-panel">
+        <div className="qs-compact-payment-summary">
+          <span>Paid <strong className="tabular-nums">{formatInrFromPaise(summary.paidPaise)}</strong></span>
+          {summary.isDueMarked || summary.remainingToAllocatePaise > 0 ? (
+            <span className="qs-compact-payment-due">
+              Due{' '}
+              <strong className="tabular-nums">
+                {formatInrFromPaise(
+                  summary.isDueMarked ? summary.duePaise : summary.remainingToAllocatePaise,
+                )}
+              </strong>
+            </span>
+          ) : null}
+          {summary.remainingToAllocatePaise > 0 ? (
+            <span className="qs-compact-payment-remaining">
+              Remaining to allocate{' '}
+              <strong className="tabular-nums">
+                {formatInrFromPaise(summary.remainingToAllocatePaise)}
+              </strong>
+            </span>
+          ) : summary.isComplete ? (
+            <span className="text-emerald-700">Complete</span>
+          ) : null}
+        </div>
+
+        {showAddRow ? (
+          <div className="qs-compact-payment-entry">
+            <div className="qs-pay-method-chips">
+              {QUICK_SALE_PAYMENT_METHODS.map((method) => (
+                <button
+                  key={method.id}
+                  type="button"
+                  disabled={locked}
+                  className={`qs-pay-method-chip${
+                    draftMethod === method.id ? ' qs-pay-method-chip-active' : ''
+                  }`}
+                  onClick={() => {
+                    setDraftMethod(method.id);
+                    setDraftError(null);
+                  }}
+                >
+                  {method.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                disabled={locked}
+                className={`qs-pay-method-chip${splitMode ? ' qs-pay-method-chip-active' : ''}`}
+                onClick={() => setSplitMode((v) => !v)}
+              >
+                Split
+              </button>
+            </div>
+            <div className="qs-compact-payment-row">
+              <Input
+                inputMode="decimal"
+                placeholder="Amount"
+                disabled={locked}
+                value={draftAmount}
+                onFocus={() => {
+                  isEditingAmountRef.current = true;
+                }}
+                onBlur={() => {
+                  isEditingAmountRef.current = false;
+                }}
+                onChange={(e) => {
+                  setDraftAmount(e.target.value);
+                  setDraftError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addPayment();
+                  }
+                }}
+                className="qs-compact-pay-amount"
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                className="qs-compact-pay-add"
+                disabled={!canAddPayment}
+                onClick={addPayment}
+              >
+                + Add Payment
+              </Button>
+            </div>
+            {draftError ? <p className="text-[10px] text-fyh-danger">{draftError}</p> : null}
+          </div>
+        ) : null}
+
+        {payments.length > 0 ? (
+          <ul className="qs-compact-payment-list">
+            {payments.map((payment) => (
+              <li key={payment.id}>
+                <span>{quickSalePaymentMethodLabel(payment.method)}</span>
+                <span className="tabular-nums">{formatInrFromPaise(payment.amountPaise)}</span>
+                <button
+                  type="button"
+                  disabled={locked}
+                  aria-label={`Remove ${quickSalePaymentMethodLabel(payment.method)} payment`}
+                  onClick={() => removePayment(payment.id)}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        {canAdvance ? (
+          <label className="qs-compact-pay-advance">
+            <input
+              type="checkbox"
+              disabled={locked}
+              checked={flags.creditOverpayAsAdvance ?? false}
+              onChange={(e) =>
+                onChangeFlags({ ...flags, creditOverpayAsAdvance: e.target.checked })
+              }
+            />
+            Advance {formatInrFromPaise(summary.overpayPaise)}
+          </label>
+        ) : null}
+
+        {summary.remainingToAllocatePaise > 0 && !summary.isDueMarked ? (
+          <button
+            type="button"
+            className="qs-compact-mark-due"
+            disabled={locked}
+            onClick={markRemainingAsDue}
+          >
+            Mark {formatInrFromPaise(summary.remainingToAllocatePaise)} as Due
+          </button>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">

@@ -111,7 +111,7 @@ test('QuickSaleShell uses dedicated checkoutSubmitting — not shared pending on
   assert.match(shell, /holdSubmitting/);
   assert.doesNotMatch(shell, /useTransition/);
   assert.doesNotMatch(shell, /\{pending \? 'Processing…'/);
-  const checkout = readSrc('src/hair/components/quick-sale/QuickSaleCheckoutColumn.tsx');
+  const checkout = readSrc('src/hair/components/quick-sale/QuickSaleCheckoutBar.tsx');
   assert.match(checkout, /\{checkoutSubmitting \? 'Processing…' : 'Complete Sale'\}/);
   assert.match(shell, /QUICK_SALE_CHECKOUT_AMBIGUOUS_ERROR/);
   assert.match(shell, /finalizeSuccess/);

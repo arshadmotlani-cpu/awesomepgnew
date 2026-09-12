@@ -1,6 +1,6 @@
 'use client';
 
-import { Trash2 } from 'lucide-react';
+import { Minus, Plus, Trash2 } from 'lucide-react';
 import { Input } from '@/src/hair/components/ui/input';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { priceLineFromParts } from '@/src/hair/domain/basket/gstInclusiveMath';
@@ -41,27 +41,30 @@ export function QuickSaleBasketTable({
 }: Props) {
   if (lines.length === 0) {
     return (
-      <p className="py-6 text-center text-sm text-slate-500">
-        Search and add items to the basket
-      </p>
+      <div className="qs-compact-basket-empty">
+        <p className="font-medium text-slate-600">No items yet</p>
+        <p className="text-xs text-slate-400">
+          Search for a service, product or package to add it.
+        </p>
+      </div>
     );
   }
 
   return (
-    <div className="qs-basket-scroll overflow-x-auto overflow-y-auto">
-      <table className="fyh-table-compact qs-basket-table w-full min-w-[720px] text-left text-sm">
-        <thead className="sticky top-0 z-10 bg-slate-50">
+    <div className="qs-basket-scroll">
+      <table className="qs-compact-basket-table">
+        <thead>
           <tr>
             <th>Service</th>
-            <th className="min-w-[9.5rem]">Staff</th>
-            <th className="qs-basket-col-qty w-14 text-center">Qty</th>
-            <th className="qs-basket-col-money text-right">Price</th>
-            <th className="qs-basket-col-money text-right">Discount</th>
-            <th className="qs-basket-col-money w-20 text-right">Final</th>
-            <th className="w-8" />
+            <th>Staff</th>
+            <th className="text-center">Qty</th>
+            <th className="text-right">Price</th>
+            <th className="text-right">Discount</th>
+            <th className="text-right">Final</th>
+            <th className="text-center">Action</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody>
           {lines.map((line) => {
             const isPrepaid = Boolean(line.prepaidRedemption);
             const isPackagePurchase = line.billableRef.type === 'package';
@@ -90,14 +93,14 @@ export function QuickSaleBasketTable({
             const discountPercent = wholeDiscountPercentFromBps(priced.discountBps);
 
             return (
-              <tr key={line.lineId} className="align-middle">
+              <tr key={line.lineId}>
                 <td>
-                  <p className="font-medium leading-tight text-slate-900">{line.snapshot.name}</p>
+                  <p className="qs-compact-line-name">{line.snapshot.name}</p>
                   {line.snapshot.code ? (
-                    <p className="text-[11px] leading-tight text-slate-500">{line.snapshot.code}</p>
+                    <p className="qs-compact-line-meta">{line.snapshot.code}</p>
                   ) : null}
                   {isPrepaid ? (
-                    <p className="text-[10px] font-medium leading-tight text-cyan-700">
+                    <p className="qs-compact-line-meta qs-compact-line-prepaid">
                       Package Redemption · Prepaid
                       {line.prepaidRedemption?.packageName
                         ? ` · ${line.prepaidRedemption.packageName}`
@@ -105,9 +108,7 @@ export function QuickSaleBasketTable({
                     </p>
                   ) : null}
                   {isPackagePurchase ? (
-                    <p className="text-[10px] font-medium leading-tight text-slate-500">
-                      Prepaid package sale · No staff performance
-                    </p>
+                    <p className="qs-compact-line-meta">Prepaid package sale</p>
                   ) : null}
                 </td>
                 <td>
@@ -121,30 +122,44 @@ export function QuickSaleBasketTable({
                     onChange={(staff) => onUpdateLine(line.lineId, { staff })}
                   />
                 </td>
-                <td className="qs-basket-col-qty text-center">
-                  <Input
-                    inputMode="decimal"
-                    value={String(line.quantity)}
-                    disabled={locked || isPrepaid}
-                    onChange={(e) => {
-                      const quantity = Math.max(0.001, Number(e.target.value) || 1);
-                      onUpdateLine(line.lineId, { quantity });
-                    }}
-                    className="mx-auto h-8 w-14 text-center text-xs tabular-nums"
-                    aria-label="Quantity"
-                  />
+                <td className="text-center">
+                  <div className="qs-compact-qty">
+                    <button
+                      type="button"
+                      className="qs-compact-qty-btn"
+                      disabled={locked || isPrepaid || line.quantity <= 1}
+                      onClick={() =>
+                        onUpdateLine(line.lineId, {
+                          quantity: Math.max(1, line.quantity - 1),
+                        })
+                      }
+                      aria-label="Decrease quantity"
+                    >
+                      <Minus className="h-2.5 w-2.5" />
+                    </button>
+                    <span className="qs-compact-qty-val tabular-nums">{line.quantity}</span>
+                    <button
+                      type="button"
+                      className="qs-compact-qty-btn"
+                      disabled={locked || isPrepaid}
+                      onClick={() => onUpdateLine(line.lineId, { quantity: line.quantity + 1 })}
+                      aria-label="Increase quantity"
+                    >
+                      <Plus className="h-2.5 w-2.5" />
+                    </button>
+                  </div>
                 </td>
-                <td className="qs-basket-col-money text-right tabular-nums text-slate-600">
+                <td className="text-right tabular-nums">
                   {isPrepaid
                     ? retailUnitPaise > 0
                       ? formatInrFromPaise(prepaidRetailGross)
                       : '—'
                     : formatInrFromPaise(catalogGross)}
                 </td>
-                <td className="qs-basket-col-money text-right tabular-nums">
+                <td className="text-right tabular-nums">
                   {isPrepaid ? (
                     prepaidDiscountLabel ? (
-                      <div className="flex flex-col items-end gap-0.5">
+                      <div className="qs-compact-discount-col">
                         <span className="qs-basket-discount-pct">{prepaidDiscountLabel}</span>
                         {prepaidDiscountPaise > 0 ? (
                           <span className="qs-basket-discount-amt">
@@ -155,9 +170,9 @@ export function QuickSaleBasketTable({
                     ) : (
                       '—'
                     )
-                  ) : priced.discountPaise > 0 || discountPercent > 0 ? (
-                    <div className="flex flex-col items-end gap-0.5">
-                      <div className="flex items-center gap-0.5">
+                  ) : (
+                    <div className="qs-compact-discount-col">
+                      <div className="flex items-center justify-end gap-0.5">
                         <QuickSaleDiscountPercentInput
                           lineId={line.lineId}
                           discountBps={priced.discountBps}
@@ -167,7 +182,9 @@ export function QuickSaleBasketTable({
                             onUpdateLine(line.lineId, { overridePricePaise })
                           }
                         />
-                        <span className="qs-basket-discount-pct">% off</span>
+                        {discountPercent > 0 ? (
+                          <span className="qs-basket-discount-pct text-[10px]">%</span>
+                        ) : null}
                       </div>
                       {priced.discountPaise > 0 ? (
                         <span className="qs-basket-discount-amt">
@@ -175,19 +192,9 @@ export function QuickSaleBasketTable({
                         </span>
                       ) : null}
                     </div>
-                  ) : (
-                    <QuickSaleDiscountPercentInput
-                      lineId={line.lineId}
-                      discountBps={priced.discountBps}
-                      catalogGrossPaise={catalogGross}
-                      disabled={locked}
-                      onCommit={(overridePricePaise) =>
-                        onUpdateLine(line.lineId, { overridePricePaise })
-                      }
-                    />
                   )}
                 </td>
-                <td className="qs-basket-col-money text-right tabular-nums font-semibold text-slate-900">
+                <td className="text-right tabular-nums font-semibold">
                   {isPrepaid ? (
                     formatInrFromPaise(0)
                   ) : (
@@ -198,23 +205,24 @@ export function QuickSaleBasketTable({
                       onChange={(e) => {
                         const rupees = parseRupeeInput(e.target.value);
                         if (rupees == null) return;
-                        const overridePricePaise = Math.round(Math.max(0, rupees) * 100);
-                        onUpdateLine(line.lineId, { overridePricePaise });
+                        onUpdateLine(line.lineId, {
+                          overridePricePaise: Math.round(Math.max(0, rupees) * 100),
+                        });
                       }}
-                      className="ml-auto h-8 w-20 text-right text-xs tabular-nums font-semibold"
+                      className="qs-compact-final-input"
                       aria-label="Final amount"
                     />
                   )}
                 </td>
-                <td>
+                <td className="text-center">
                   <button
                     type="button"
-                    className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-red-600"
+                    className="qs-compact-remove-btn"
                     disabled={locked}
                     onClick={() => onRemoveLine(line.lineId)}
                     aria-label="Remove line"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-3 w-3" />
                   </button>
                 </td>
               </tr>
