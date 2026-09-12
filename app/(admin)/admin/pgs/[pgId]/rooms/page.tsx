@@ -7,7 +7,11 @@ import { RoomElectricityPendingWarningCard } from '@/src/components/admin/electr
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { isBlobPublicConfigured } from '@/src/lib/storage/blob';
 import { getPgAvailabilitySummary } from '@/src/services/availabilityService';
-import { getPgInventory } from '@/src/services/pgInventory';
+import {
+  getArchivedBedCodesByRoom,
+  getOccupiedBedIdsForPg,
+  getPgInventory,
+} from '@/src/services/pgInventory';
 import { getPgForAdmin } from '@/src/services/pgAdmin';
 import { loadRoomExitQueuesForPg } from '@/src/lib/exit/loadRoomExitQueue';
 import { getRoomIntegrityReportForPg } from '@/src/services/roomIntegrityValidator';
@@ -21,7 +25,11 @@ export default async function PgRoomsPage({ params }: { params: Promise<{ pgId: 
   const pg = await getPgForAdmin(pgId, session);
   if (!pg) notFound();
 
-  const inventory = await getPgInventory(session, pgId);
+  const [inventory, archivedBedCodesByRoom, occupiedBedIds] = await Promise.all([
+    getPgInventory(session, pgId),
+    getArchivedBedCodesByRoom(session, pgId),
+    getOccupiedBedIdsForPg(session, pgId),
+  ]);
   const availabilitySummary = await getPgAvailabilitySummary(pgId);
   const integrityReport = await getRoomIntegrityReportForPg(pgId);
   const electricityPending = await loadRoomElectricityPendingForPg({ pgId });
@@ -51,6 +59,8 @@ export default async function PgRoomsPage({ params }: { params: Promise<{ pgId: 
         availabilitySummary={availabilitySummary}
         roomIntegrity={integrityReport.rooms}
         roomExitQueues={roomExitQueues}
+        archivedBedCodesByRoom={archivedBedCodesByRoom}
+        occupiedBedIds={[...occupiedBedIds]}
       />
     </section>
   );

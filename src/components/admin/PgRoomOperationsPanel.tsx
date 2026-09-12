@@ -47,6 +47,8 @@ export function PgRoomOperationsPanel({
   availabilitySummary,
   roomIntegrity = [],
   roomExitQueues = {},
+  archivedBedCodesByRoom = {},
+  occupiedBedIds = [],
 }: {
   pgId: string;
   floors: FloorRow[];
@@ -60,11 +62,15 @@ export function PgRoomOperationsPanel({
   };
   roomIntegrity?: RoomIntegrityResult[];
   roomExitQueues?: Record<string, RoomExitQueueItem[]>;
+  archivedBedCodesByRoom?: Record<string, string[]>;
+  occupiedBedIds?: string[];
 }) {
   const { showToast, toastNode } = useOperationsActionToast();
   const [showAddRoom, setShowAddRoom] = useState(beds.length === 0);
   const [showPricingTable, setShowPricingTable] = useState(false);
   const [rateOverrides, setRateOverrides] = useState<Record<string, RoomRateSnapshot>>({});
+
+  const occupiedBedIdSet = useMemo(() => new Set(occupiedBedIds), [occupiedBedIds]);
 
   const integrityByRoomId = useMemo(
     () => new Map(roomIntegrity.map((r) => [r.roomId, r])),
@@ -250,6 +256,8 @@ export function PgRoomOperationsPanel({
               rateOverride={rateOverrides[room.roomId]}
               onRateSaved={handleRateSaved}
               onToast={handleToast}
+              archivedBedCodes={archivedBedCodesByRoom[room.roomId] ?? []}
+              occupiedBedIds={occupiedBedIdSet}
             />
           ))}
         </div>

@@ -43,6 +43,8 @@ export type RoomOperationalCardProps = {
   rateOverride?: RoomRateSnapshot | null;
   onRateSaved: (roomId: string, rates: RoomRateSnapshot) => void;
   onToast: (message: string, tone: 'success' | 'error') => void;
+  archivedBedCodes?: string[];
+  occupiedBedIds?: Set<string>;
 };
 
 export function RoomOperationalCard({
@@ -66,6 +68,8 @@ export function RoomOperationalCard({
   onRateSaved,
   onToast,
   floorNumber,
+  archivedBedCodes = [],
+  occupiedBedIds = new Set<string>(),
 }: RoomOperationalCardProps) {
   const [rentOpen, setRentOpen] = useState(false);
   const [typeOpen, setTypeOpen] = useState(false);
@@ -173,6 +177,8 @@ export function RoomOperationalCard({
           roomTypeName={roomTypeName}
           beds={beds}
           integrity={integrity}
+          archivedBedCodes={archivedBedCodes}
+          occupiedBedIds={occupiedBedIds}
           onToast={onToast}
         />
       ) : null}

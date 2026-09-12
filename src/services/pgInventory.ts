@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { autoBedCodes, nextBedCodesForRoom, sharingTypeName, wizardBedCodes, MAX_ROOM_BEDS } from '@/src/lib/roomSharing';
 import type { RoomDimensions } from '@/src/lib/roomListing';
 import { parseRoomDimensions } from '@/src/lib/roomListing';
@@ -30,11 +30,92 @@ import {
   assertCapacityReductionAllowed,
 } from '@/src/lib/roomIntegrity/proposedChanges';
 import { assertRoomTypeNameMatchesBedCount } from '@/src/lib/roomIntegrity/validateRoomIntegrity';
-import { monthStartFor, writeBedPriceVersion } from '@/src/services/pgInventoryPricing';
+import { planRoomCapacityIncrease } from '@/src/lib/roomCapacityBedPlanner';
+import {
+  monthStartFor,
+  writeBedPriceVersion,
+  type BedPriceVersionInput,
+} from '@/src/services/pgInventoryPricing';
 import {
   assertRoomIntegrityOrThrow,
   validateRoomById,
 } from '@/src/services/roomIntegrityValidator';
+
+type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+function bedPricingToVersionInput(bedId: string, pricing: BedPricingInput): BedPriceVersionInput {
+  const monthlyDep = pricing.monthlyDepositPaise ?? 0;
+  return {
+    bedId,
+    dailyRatePaise: pricing.dailyRatePaise,
+    weeklyRatePaise: pricing.weeklyRatePaise,
+    monthlyRatePaise: pricing.monthlyRatePaise,
+    securityDepositPaise: monthlyDep,
+    dailySecurityDepositPaise: pricing.dailyDepositPaise ?? 0,
+    weeklySecurityDepositPaise: pricing.weeklyDepositPaise ?? 0,
+    monthlySecurityDepositPaise: monthlyDep,
+  };
+}
+
+/**
+ * Add beds to an existing room — reactivates archived beds before inserting new ones.
+ * Preserves existing bed UUIDs and naming convention (B4 → B5, not A1).
+ */
+async function addBedsToRoomInTx(
+  tx: DbTx,
+  roomId: string,
+  input: { bedsToAdd: number; sharingCount: number; pricing: BedPricingInput },
+): Promise<{ bedIds: string[]; bedCodes: string[] }> {
+  const activeRows = await tx
+    .select({ id: beds.id, bedCode: beds.bedCode })
+    .from(beds)
+    .where(and(eq(beds.roomId, roomId), isNull(beds.archivedAt)));
+
+  const archivedRows = await tx
+    .select({ id: beds.id, bedCode: beds.bedCode })
+    .from(beds)
+    .where(and(eq(beds.roomId, roomId), isNotNull(beds.archivedAt)));
+
+  assertBedAdditionAllowed({
+    currentPhysicalBeds: activeRows.length,
+    bedsToAdd: input.bedsToAdd,
+    sharingCount: input.sharingCount,
+    isNewRoom: false,
+  });
+
+  const plan = planRoomCapacityIncrease({
+    activeBeds: activeRows,
+    archivedBeds: archivedRows,
+    bedsToAdd: input.bedsToAdd,
+  });
+
+  const monthStart = monthStartFor(todayString());
+  const bedIds: string[] = [];
+  const bedCodes: string[] = [];
+
+  for (const bedId of plan.reactivateBedIds) {
+    await tx
+      .update(beds)
+      .set({ archivedAt: null, status: 'available', updatedAt: new Date() })
+      .where(eq(beds.id, bedId));
+    await writeBedPriceVersion(bedPricingToVersionInput(bedId, input.pricing), monthStart, tx);
+    bedIds.push(bedId);
+  }
+  bedCodes.push(...plan.reactivatedBedCodes);
+
+  for (const bedCode of plan.createBedCodes) {
+    const [bed] = await tx
+      .insert(beds)
+      .values({ roomId, bedCode, status: 'available' })
+      .returning();
+    if (!bed) throw new Error(`Failed to create bed ${bedCode}.`);
+    await writeBedPriceVersion(bedPricingToVersionInput(bed.id, input.pricing), monthStart, tx);
+    bedIds.push(bed.id);
+    bedCodes.push(bedCode);
+  }
+
+  return { bedIds, bedCodes };
+}
 
 export type PgPricingRateTier = 'daily' | 'weekly' | 'monthly';
 
@@ -389,6 +470,61 @@ export async function getPgInventory(session: AdminSession, pgId: string) {
   return { floors: floorRows, beds: normalizedBeds as PgInventoryBedRow[] };
 }
 
+/** Bed IDs with a confirmed primary stay covering today — capacity-change preview. */
+export async function getOccupiedBedIdsForPg(
+  session: AdminSession,
+  pgId: string,
+): Promise<Set<string>> {
+  assertPgAccess(session, pgId);
+
+  const result = await db.execute<{ bed_id: string }>(sql`
+    SELECT DISTINCT br.bed_id
+    FROM bed_reservations br
+    INNER JOIN bookings bk ON bk.id = br.booking_id
+    INNER JOIN beds b ON b.id = br.bed_id
+    INNER JOIN rooms r ON r.id = b.room_id
+    INNER JOIN floors f ON f.id = r.floor_id
+    WHERE f.pg_id = ${pgId}::uuid
+      AND bk.status = 'confirmed'
+      AND br.status = 'active'
+      AND br.kind = 'primary'
+      AND CURRENT_DATE <@ br.stay_range
+      AND b.archived_at IS NULL
+  `);
+
+  const rows = (Array.isArray(result) ? result : []) as Array<{ bed_id: string }>;
+  return new Set(rows.map((r) => r.bed_id));
+}
+
+/** Archived bed codes per room — used for capacity-change preview (reactivate vs create). */
+export async function getArchivedBedCodesByRoom(
+  session: AdminSession,
+  pgId: string,
+): Promise<Record<string, string[]>> {
+  assertPgAccess(session, pgId);
+
+  const rows = await db
+    .select({ roomId: beds.roomId, bedCode: beds.bedCode })
+    .from(beds)
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .where(
+      and(
+        eq(floors.pgId, pgId),
+        isNotNull(beds.archivedAt),
+        isNull(rooms.archivedAt),
+        isNull(floors.archivedAt),
+      ),
+    );
+
+  const byRoom: Record<string, string[]> = {};
+  for (const row of rows) {
+    if (!byRoom[row.roomId]) byRoom[row.roomId] = [];
+    byRoom[row.roomId]!.push(row.bedCode);
+  }
+  return byRoom;
+}
+
 export type QuickAddRoomBedsInput = {
   floorNumber: number;
   floorLabel?: string;
@@ -543,48 +679,44 @@ async function quickAddBedsInternal(
     assertRoomTypeNameMatchesBedCount(input.roomTypeName.trim(), input.bedsToAdd);
   }
 
-  const existingCodes = isNewRoom
-    ? []
-    : (
-        await db
-          .select({ bedCode: beds.bedCode })
-          .from(beds)
-          .where(and(eq(beds.roomId, room.id), isNull(beds.archivedAt)))
-      ).map((b) => b.bedCode);
+  const pricing: BedPricingInput = {
+    dailyRatePaise: input.dailyRatePaise,
+    weeklyRatePaise: input.weeklyRatePaise,
+    monthlyRatePaise: input.monthlyRatePaise,
+    dailyDepositPaise: input.dailyDepositPaise ?? 0,
+    weeklyDepositPaise: input.weeklyDepositPaise ?? 0,
+    monthlyDepositPaise: input.monthlyDepositPaise ?? 0,
+  };
 
-  const bedCodes = isNewRoom
-    ? wizardBedCodes(0, input.bedsToAdd)
-    : nextBedCodesForRoom(existingCodes, input.bedsToAdd);
-  const monthStart = monthStartFor(todayString());
-  const bedIds: string[] = [];
+  const { bedIds, bedCodes } = await db.transaction(async (tx) => {
+    if (isNewRoom) {
+      const newCodes = wizardBedCodes(0, input.bedsToAdd);
+      const monthStart = monthStartFor(todayString());
+      const createdIds: string[] = [];
 
-  for (const bedCode of bedCodes) {
-    const [bed] = await db
-      .insert(beds)
-      .values({
-        roomId: room.id,
-        bedCode,
-        status: 'available',
-      })
-      .returning();
+      for (const bedCode of newCodes) {
+        const [bed] = await tx
+          .insert(beds)
+          .values({ roomId: room.id, bedCode, status: 'available' })
+          .returning();
+        if (!bed) throw new Error(`Failed to create bed ${bedCode}.`);
+        await writeBedPriceVersion(bedPricingToVersionInput(bed.id, pricing), monthStart, tx);
+        createdIds.push(bed.id);
+      }
 
-    const monthlyDep = input.monthlyDepositPaise ?? 0;
-    await db.insert(bedPrices).values({
-      bedId: bed.id,
-      dailyRatePaise: input.dailyRatePaise,
-      weeklyRatePaise: input.weeklyRatePaise,
-      monthlyRatePaise: input.monthlyRatePaise,
-      securityDepositPaise: monthlyDep,
-      dailySecurityDepositPaise: input.dailyDepositPaise ?? 0,
-      weeklySecurityDepositPaise: input.weeklyDepositPaise ?? 0,
-      monthlySecurityDepositPaise: monthlyDep,
-      effectiveFrom: monthStart,
+      await syncRoomCapacityFromActiveBeds(room.id, tx);
+      return { bedIds: createdIds, bedCodes: newCodes };
+    }
+
+    const added = await addBedsToRoomInTx(tx, room.id, {
+      bedsToAdd: input.bedsToAdd,
+      sharingCount: input.sharingCount,
+      pricing,
     });
+    await syncRoomCapacityFromActiveBeds(room.id, tx);
+    return added;
+  });
 
-    bedIds.push(bed.id);
-  }
-
-  await syncRoomCapacityFromActiveBeds(room.id);
   await assertRoomIntegrityOrThrow(room.id);
 
   return {
@@ -1168,75 +1300,67 @@ export async function resizeRoomCapacity(
     .orderBy(asc(beds.bedCode));
 
   const delta = input.targetBedCount - currentBeds.length;
+  const pricing = input.pricing;
 
   if (delta > 0) {
-    const pricing = input.pricing;
     if (
       !pricing ||
       (pricing.monthlyRatePaise <= 0 && pricing.dailyRatePaise <= 0 && pricing.weeklyRatePaise <= 0)
     ) {
       throw new Error('Set rent for new beds before increasing room capacity.');
     }
-
-    const [roomRow] = await db
-      .select({ roomNumber: rooms.roomNumber, floorId: rooms.floorId, roomTypeId: rooms.roomTypeId })
-      .from(rooms)
-      .where(eq(rooms.id, roomId))
-      .limit(1);
-    const [floorRow] = roomRow
-      ? await db
-          .select({ floorNumber: floors.floorNumber })
-          .from(floors)
-          .where(eq(floors.id, roomRow.floorId))
-          .limit(1)
-      : [];
-    const [typeRow] = roomRow
-      ? await db
-          .select({ hasAc: roomTypes.hasAc })
-          .from(roomTypes)
-          .where(eq(roomTypes.id, roomRow.roomTypeId))
-          .limit(1)
-      : [];
-
-    if (!roomRow || !floorRow) throw new Error('Room not found.');
-
-    await quickAddRoomBeds(session, pgId, {
-      floorNumber: floorRow.floorNumber,
-      roomNumber: roomRow.roomNumber,
-      roomTypeName: input.roomTypeName,
-      sharingCount: input.targetBedCount,
-      bedsToAdd: delta,
-      hasAc: input.hasAc ?? typeRow?.hasAc ?? false,
-      dailyRatePaise: pricing.dailyRatePaise,
-      weeklyRatePaise: pricing.weeklyRatePaise,
-      monthlyRatePaise: pricing.monthlyRatePaise,
-      dailyDepositPaise: pricing.dailyDepositPaise,
-      weeklyDepositPaise: pricing.weeklyDepositPaise,
-      monthlyDepositPaise: pricing.monthlyDepositPaise,
-    });
-  } else if (delta < 0) {
-    const toRemove = Math.abs(delta);
-    const removable = [...currentBeds].reverse();
-    let removed = 0;
-
-    for (const bed of removable) {
-      if (removed >= toRemove) break;
-      const block = await import('@/src/lib/bedOccupancyCheck').then((m) =>
-        m.getBedArchiveBlockReason(bed.bedId),
-      );
-      if (block) {
-        throw new Error(
-          `Cannot reduce to ${input.targetBedCount} beds — ${bed.bedCode} is blocked: ${block.message}`,
-        );
-      }
-      await archiveBed(session, pgId, bed.bedId);
-      removed += 1;
-    }
-
-    if (removed < toRemove) {
-      throw new Error('Could not remove enough empty beds to reduce room capacity.');
-    }
   }
+
+  await db.transaction(async (tx) => {
+    if (delta > 0 && pricing) {
+      await addBedsToRoomInTx(tx, roomId, {
+        bedsToAdd: delta,
+        sharingCount: input.targetBedCount,
+        pricing,
+      });
+    } else if (delta < 0) {
+      const toRemove = Math.abs(delta);
+      const { compareBedCodes } = await import('@/src/lib/roomCapacityBedPlanner');
+      const removable = [...currentBeds].sort((a, b) => compareBedCodes(b.bedCode, a.bedCode));
+      let removed = 0;
+
+      for (const bed of removable) {
+        if (removed >= toRemove) break;
+        const block = await import('@/src/lib/bedOccupancyCheck').then((m) =>
+          m.getBedArchiveBlockReason(bed.bedId),
+        );
+        if (block) {
+          throw new Error(
+            `Cannot reduce to ${input.targetBedCount} Sharing. ${bed.bedCode} is blocked: ${block.message}`,
+          );
+        }
+
+        const [bedRow] = await tx
+          .select({ roomId: beds.roomId, status: beds.status })
+          .from(beds)
+          .where(eq(beds.id, bed.bedId))
+          .limit(1);
+        if (bedRow?.roomId) {
+          const roomSnap = await validateRoomById(bedRow.roomId);
+          if (roomSnap) {
+            assertBedRemovalAllowed(roomSnap, bedRow.status);
+          }
+        }
+
+        await tx
+          .update(beds)
+          .set({ archivedAt: new Date(), updatedAt: new Date() })
+          .where(eq(beds.id, bed.bedId));
+        removed += 1;
+      }
+
+      if (removed < toRemove) {
+        throw new Error('Could not remove enough empty beds to reduce room capacity.');
+      }
+
+      await syncRoomCapacityFromActiveBeds(roomId, tx);
+    }
+  });
 
   const [roomMeta] = await db
     .select({ roomTypeId: rooms.roomTypeId })
@@ -1325,17 +1449,22 @@ export async function moveBedToRoom(
   if (!bedRow) throw new Error('Bed not found.');
   if (bedRow.roomId === targetRoomId) throw new Error('Bed is already in this room.');
 
-  const targetBeds = await db
+  const targetActiveBeds = await db
     .select({ bedCode: beds.bedCode })
     .from(beds)
     .where(and(eq(beds.roomId, targetRoomId), isNull(beds.archivedAt)));
 
-  if (targetBeds.length >= MAX_ROOM_BEDS) {
+  if (targetActiveBeds.length >= MAX_ROOM_BEDS) {
     throw new Error(`Target room already has the maximum of ${MAX_ROOM_BEDS} beds.`);
   }
 
+  const allTargetCodes = await db
+    .select({ bedCode: beds.bedCode })
+    .from(beds)
+    .where(eq(beds.roomId, targetRoomId));
+
   const [newCode] = nextBedCodesForRoom(
-    targetBeds.map((b) => b.bedCode),
+    allTargetCodes.map((b) => b.bedCode),
     1,
   );
   if (!newCode) throw new Error('Could not assign a bed code in the target room.');

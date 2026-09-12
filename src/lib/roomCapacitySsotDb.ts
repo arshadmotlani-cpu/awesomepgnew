@@ -9,9 +9,11 @@ import {
   roomCapacityFromActiveBedCount,
 } from '@/src/lib/roomCapacitySsot';
 
+type DbExecutor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 export async function countActiveBedsInRoom(
   roomId: string,
-  executor: typeof db = db,
+  executor: DbExecutor = db,
 ): Promise<number> {
   const [{ bedCount }] = await executor
     .select({ bedCount: count() })
@@ -29,7 +31,7 @@ export async function countActiveBedsInRoom(
  */
 export async function syncRoomCapacityFromActiveBeds(
   roomId: string,
-  executor: typeof db = db,
+  executor: DbExecutor = db,
 ): Promise<number> {
   const activeBedCount = await countActiveBedsInRoom(roomId, executor);
   const [room] = await executor

@@ -41,29 +41,42 @@ export function wizardBedCodes(existingCount: number, bedsToAdd: number): string
   return codes;
 }
 
-/** Continue bed code sequence in a room (prefers existing letter prefix). */
-export function nextBedCodesForRoom(existingCodes: string[], bedsToAdd: number): string[] {
-  if (existingCodes.length === 0) {
+/**
+ * Continue bed code sequence in a room (prefers existing letter prefix).
+ *
+ * Pass ALL bed codes ever used in the room (active + archived) so new codes never
+ * collide with the unique (room_id, bed_code) index.
+ */
+export function nextBedCodesForRoom(allRoomBedCodes: string[], bedsToAdd: number): string[] {
+  if (bedsToAdd <= 0) return [];
+  const codeSet = new Set(allRoomBedCodes.map((c) => c.trim()));
+
+  if (allRoomBedCodes.length === 0) {
     return wizardBedCodes(0, bedsToAdd);
   }
 
-  const parsed = existingCodes
+  const parsed = allRoomBedCodes
     .map((code) => {
-      const match = /^([A-Za-z]+)(\d+)$/.exec(code.trim());
+      const match = /^([A-Za-z-]+)(\d+)$/.exec(code.trim());
       if (!match) return null;
-      return { prefix: match[1], num: Number.parseInt(match[2], 10) };
+      return { prefix: match[1]!, num: Number.parseInt(match[2]!, 10) };
     })
     .filter((v): v is { prefix: string; num: number } => v != null);
 
   if (parsed.length === 0) {
-    return autoBedCodes(existingCodes.length, bedsToAdd);
+    return autoBedCodes(allRoomBedCodes.length, bedsToAdd);
   }
 
   const prefix = parsed[0]!.prefix;
-  const maxNum = Math.max(...parsed.map((p) => p.num));
+  let nextNum = Math.max(...parsed.map((p) => p.num));
   const codes: string[] = [];
-  for (let i = 0; i < bedsToAdd; i += 1) {
-    codes.push(`${prefix}${maxNum + i + 1}`);
+  while (codes.length < bedsToAdd) {
+    nextNum += 1;
+    const candidate = `${prefix}${nextNum}`;
+    if (!codeSet.has(candidate)) {
+      codes.push(candidate);
+      codeSet.add(candidate);
+    }
   }
   return codes;
 }
