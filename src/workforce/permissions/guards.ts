@@ -61,7 +61,7 @@ function checkDiscountConstraint(
 ): void {
   if (discountPercent === undefined) return;
   const max = grants.maxDiscountPercent;
-  if (max === null) return;
+  if (max === null || max === undefined) return;
   if (discountPercent > max) {
     throw new WorkforcePermissionError(
       `Discount ${discountPercent}% exceeds allowed maximum ${max}%`,
