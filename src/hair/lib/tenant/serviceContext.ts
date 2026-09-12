@@ -12,5 +12,9 @@ export async function resolveTenantContextForService(
 ): Promise<TenantContext | null> {
   if (ctx) return ctx;
   if (!isFyhSaasTenantEnabled()) return null;
+  // Reuse request-cached page context when loaders run inside Server Components.
+  const { getTenantContextForPage } = await import('./getTenantContext');
+  const pageCtx = await getTenantContextForPage();
+  if (pageCtx) return pageCtx;
   return resolveTenantContextOptional();
 }

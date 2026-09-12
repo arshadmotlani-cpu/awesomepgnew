@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { chartRows } from '../../../src/hair/lib/chartRows';
 import {
@@ -46,6 +48,27 @@ describe('chartRows', () => {
   it('returns empty array for undefined', () => {
     assert.deepEqual(chartRows(undefined), []);
     assert.deepEqual(chartRows(null), []);
+  });
+});
+
+describe('Revenue dashboard page tenant wiring', () => {
+  it('passes request tenant context into getRevenueDashboardSnapshot', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'app/(hair)/fyh/(app)/dashboard/revenue/page.tsx'),
+      'utf8',
+    );
+    assert.match(src, /getTenantContextForPage/);
+    assert.match(src, /getRevenueDashboardSnapshot\(ctx\)/);
+  });
+});
+
+describe('resolveTenantContextForService', () => {
+  it('prefers cached page tenant context in SaaS mode', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'src/hair/lib/tenant/serviceContext.ts'),
+      'utf8',
+    );
+    assert.match(src, /getTenantContextForPage/);
   });
 });
 
