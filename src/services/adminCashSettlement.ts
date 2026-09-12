@@ -183,7 +183,13 @@ export async function getCashSettlementEligibility(
 
   if (base.sourceTable === 'rent_invoices' && base.sourceId) {
     const [ri] = await db.select().from(rentInvoices).where(eq(rentInvoices.id, base.sourceId)).limit(1);
-    if (ri) balanceDuePaise = projectInvoice(ri).outstandingPaise;
+    if (ri) {
+      balanceDuePaise = projectInvoice(ri).outstandingPaise;
+      if (balanceDuePaise <= 0 && ['pending', 'overdue', 'payment_in_progress'].includes(ri.status)) {
+        const { reconcileRentInvoiceCanonicalPaidState } = await import('@/src/services/rentInvoices');
+        await reconcileRentInvoiceCanonicalPaidState(base.sourceId);
+      }
+    }
   } else if (base.sourceTable === 'electricity_invoices' && base.sourceId) {
     const ei = await fetchElectricityInvoiceById(base.sourceId);
     if (ei) balanceDuePaise = computeElectricityInvoiceOutstandingPaise(ei);

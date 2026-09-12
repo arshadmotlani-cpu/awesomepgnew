@@ -342,3 +342,6 @@ flowchart TD
 
 <!-- DOC_SYNC_TOUCH_2026-09-11 -->
 > **2026-09-11 07:41:37 UTC** — Code changed in: Billing. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-09-12 -->
+> **2026-09-12 06:24:34 UTC** — Code changed in: Billing. Manual review recommended.

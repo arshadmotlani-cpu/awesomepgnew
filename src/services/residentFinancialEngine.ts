@@ -46,6 +46,7 @@ import {
   isElectricityCoveredByPriorCollection,
 } from '@/src/lib/billing/electricityCollectibility';
 import { loadPriorElectricityCollectionForCustomer } from '@/src/lib/billing/electricityPriorCollection';
+import { buildRentInvoiceProjectInput } from '@/src/lib/billing/rentInvoiceProjectInput';
 import { computeRentDuePaise, projectInvoice } from '@/src/services/rentInvoices';
 import { ROOM_CHANGE_INVOICE_SOURCE } from '@/src/services/roomShiftQuote';
 import { firstOfMonth } from '@/src/services/billing';
@@ -66,6 +67,13 @@ export function projectRentInvoiceAdminView(
     effectiveStatus: projected.effectiveStatus,
     accruedLateFeePaise: projected.accruedLateFeePaise,
   };
+}
+
+/** Project admin rent row using canonical input builder (includes lateFeeBasePaise). */
+export function projectAdminRentInvoiceRow<
+  T extends Parameters<typeof buildRentInvoiceProjectInput>[0],
+>(row: T) {
+  return projectRentInvoiceAdminView(buildRentInvoiceProjectInput(row));
 }
 
 function emptyCategory(): ResidentFinancialCategory {

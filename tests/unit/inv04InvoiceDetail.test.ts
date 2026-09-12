@@ -18,7 +18,9 @@ test('residentAccountContext maps RFE line items for open bills', () => {
   assert.match(src, /rfeLineItems\.get/);
 });
 
-test('admin open rent invoices use RFE projection helper', () => {
+test('admin open rent invoices use canonical rent projection helper', () => {
   const src = readFileSync(join(process.cwd(), 'src/db/queries/admin.ts'), 'utf8');
-  assert.match(src, /projectRentInvoiceAdminView/);
+  assert.match(src, /projectAdminRentInvoiceRow/);
+  assert.match(src, /lateFeeBasePaise: rentInvoices\.lateFeeBasePaise/);
+  assert.match(src, /\.filter\(\(r\) => r\.outstandingPaise > 0\)/);
 });

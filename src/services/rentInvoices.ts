@@ -80,6 +80,7 @@ import {
   rentInvoiceBillingPeriodNoteForPolicy,
   type BillingCyclePolicy,
 } from './billing';
+import { buildRentInvoiceProjectInput } from '@/src/lib/billing/rentInvoiceProjectInput';
 import { capLateFeeAtPrincipalPercent } from './lateFeePolicyCore';
 import type { AnyPaymentProvider } from './bookingLifecycle';
 import type { ProviderName } from './payments';
@@ -1630,26 +1631,7 @@ export async function recordRentPaymentSuccess(
   input: RecordRentPaymentSuccessInput,
 ): Promise<RecordRentPaymentSuccessResult> {
   const [invoice] = await db
-    .select({
-      id: rentInvoices.id,
-      bookingId: rentInvoices.bookingId,
-      customerId: rentInvoices.customerId,
-      status: rentInvoices.status,
-      rentPaise: rentInvoices.rentPaise,
-      discountPaise: rentInvoices.discountPaise,
-      billingMonth: rentInvoices.billingMonth,
-      dueDate: rentInvoices.dueDate,
-      paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
-      paidLateFeePaise: rentInvoices.paidLateFeePaise,
-      lateFeeLockedPaise: rentInvoices.lateFeeLockedPaise,
-      paymentId: rentInvoices.paymentId,
-      paymentProofUrl: rentInvoices.paymentProofUrl,
-      proofSubmittedAt: rentInvoices.proofSubmittedAt,
-      proofSnapshotOutstandingPaise: rentInvoices.proofSnapshotOutstandingPaise,
-      proofSnapshotLateFeePaise: rentInvoices.proofSnapshotLateFeePaise,
-      proofSnapshotPrincipalDuePaise: rentInvoices.proofSnapshotPrincipalDuePaise,
-      createdAt: rentInvoices.createdAt,
-    })
+    .select()
     .from(rentInvoices)
     .where(eq(rentInvoices.id, input.invoiceId))
     .limit(1);
@@ -1722,9 +1704,10 @@ export async function recordRentPaymentSuccess(
     };
   }
 
-  const projected = projectInvoice(invoice as RentInvoice);
+  const projectInput = buildRentInvoiceProjectInput(invoice);
+  const projected = projectInvoice(projectInput);
   const maxPayablePaise =
-    rentProofApprovalAmountPaise(invoice as RentInvoice) ?? projected.outstandingPaise;
+    rentProofApprovalAmountPaise(invoice) ?? projected.outstandingPaise;
   if (input.amountPaise <= 0) {
     return { ok: false, reason: 'payment amount must be > 0' };
   }
@@ -1736,9 +1719,9 @@ export async function recordRentPaymentSuccess(
   }
 
   const rentDuePaise = computeRentDuePaise(invoice.rentPaise, invoice.discountPaise);
-  const snapshotLateFee = rentProofSnapshotLateFeeOwedPaise(invoice as RentInvoice);
+  const snapshotLateFee = rentProofSnapshotLateFeeOwedPaise(invoice);
   const lateFeeBasePaise = resolveRentLateFeeBasePaise({
-    monthlyRoomRentPaise: (invoice as RentInvoice).lateFeeBasePaise,
+    monthlyRoomRentPaise: invoice.lateFeeBasePaise,
     invoiceRentPaise: rentDuePaise,
   });
   const lateFee = input.historical
@@ -1747,7 +1730,7 @@ export async function recordRentPaymentSuccess(
       ? (invoice.proofSnapshotLateFeePaise ?? 0)
       : computeLateFee({
           rentPaise: lateFeeBasePaise,
-          issueDate: rentInvoiceIssueDate(invoice),
+          issueDate: rentInvoiceIssueDate(projectInput),
           today: billingBusinessDate(),
         });
 
@@ -1759,8 +1742,12 @@ export async function recordRentPaymentSuccess(
   const principalPaid = Math.min(remaining, principalOwed);
   const newPaidLate = invoice.paidLateFeePaise + latePaid;
   const newPaidPrincipal = invoice.paidPrincipalPaise + principalPaid;
-  const newOutstanding = rentDuePaise + lateFee - newPaidPrincipal - newPaidLate;
-  const fullyPaid = newOutstanding <= 0;
+  const afterPayment = projectInvoice({
+    ...projectInput,
+    paidPrincipalPaise: newPaidPrincipal,
+    paidLateFeePaise: newPaidLate,
+  });
+  const fullyPaid = afterPayment.outstandingPaise <= 0;
   const paidAt = input.paidAt ?? new Date();
 
   let paymentId: string;
@@ -2443,6 +2430,57 @@ export function projectInvoice(
     effectiveStatus,
     ...projectionFields,
   };
+}
+
+/**
+ * When cumulative payments satisfy the canonical collectible balance but DB status
+ * is still open (e.g. stale overdue), transition to paid and lock late fee.
+ */
+export async function reconcileRentInvoiceCanonicalPaidState(
+  invoiceId: string,
+): Promise<{ reconciled: boolean; previousStatus?: string }> {
+  const [invoice] = await db
+    .select()
+    .from(rentInvoices)
+    .where(eq(rentInvoices.id, invoiceId))
+    .limit(1);
+  if (!invoice) return { reconciled: false };
+  if (invoice.status === 'paid' || invoice.status === 'cancelled' || invoice.status === 'expired') {
+    return { reconciled: false };
+  }
+
+  const projected = projectInvoice(buildRentInvoiceProjectInput(invoice));
+  if (projected.outstandingPaise > 0) return { reconciled: false };
+
+  const lateFeeLocked = projected.accruedLateFeePaise;
+  const paidAt = invoice.paidAt ?? new Date();
+  const previousStatus = invoice.status;
+
+  await db
+    .update(rentInvoices)
+    .set({
+      status: 'paid',
+      lateFeeLockedPaise: lateFeeLocked,
+      paidAt,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(rentInvoices.id, invoiceId),
+        inArray(rentInvoices.status, ['pending', 'overdue', 'payment_in_progress']),
+      ),
+    );
+
+  logInvoiceStateTransition({
+    invoiceId,
+    layer: 'rent',
+    previousStatus,
+    newStatus: 'paid',
+    source: 'canonical_reconcile',
+    meta: { lateFeeLockedPaise: lateFeeLocked },
+  });
+
+  return { reconciled: true, previousStatus };
 }
 
 /**

@@ -1403,13 +1403,25 @@ export function listAdminRentInvoices(
         billingMonth: rentInvoices.billingMonth,
         dueDate: rentInvoices.dueDate,
         rentPaise: rentInvoices.rentPaise,
+        lateFeeBasePaise: rentInvoices.lateFeeBasePaise,
         discountPaise: rentInvoices.discountPaise,
         paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
         paidLateFeePaise: rentInvoices.paidLateFeePaise,
         lateFeeLockedPaise: rentInvoices.lateFeeLockedPaise,
         status: rentInvoices.status,
         paidAt: rentInvoices.paidAt,
+        paymentId: rentInvoices.paymentId,
+        paymentProofUrl: rentInvoices.paymentProofUrl,
+        proofSubmittedAt: rentInvoices.proofSubmittedAt,
+        proofSnapshotOutstandingPaise: rentInvoices.proofSnapshotOutstandingPaise,
+        proofSnapshotLateFeePaise: rentInvoices.proofSnapshotLateFeePaise,
+        proofSnapshotPrincipalDuePaise: rentInvoices.proofSnapshotPrincipalDuePaise,
+        cancelledAt: rentInvoices.cancelledAt,
+        cancellationReason: rentInvoices.cancellationReason,
+        isAdhoc: rentInvoices.isAdhoc,
+        invoiceSubtype: rentInvoices.invoiceSubtype,
         createdAt: rentInvoices.createdAt,
+        updatedAt: rentInvoices.updatedAt,
         notes: rentInvoices.notes,
         paymentProvider: payments.provider,
         paymentRawPayload: payments.rawPayload,
@@ -1424,33 +1436,9 @@ export function listAdminRentInvoices(
       .where(where)
       .orderBy(desc(rentInvoices.billingMonth), desc(rentInvoices.createdAt));
 
-    const { projectRentInvoiceAdminView } = await import('@/src/services/residentFinancialEngine');
+    const { projectAdminRentInvoiceRow } = await import('@/src/services/residentFinancialEngine');
     return rows.map((r) => {
-      const projected = projectRentInvoiceAdminView({
-        id: r.id,
-        invoiceNumber: r.invoiceNumber,
-        bookingId: r.bookingId,
-        customerId: r.customerId,
-        bedId: r.bedId,
-        pgId: r.pgId,
-        billingMonth: r.billingMonth,
-        dueDate: r.dueDate,
-        rentPaise: r.rentPaise,
-        discountPaise: r.discountPaise,
-        paidPrincipalPaise: r.paidPrincipalPaise,
-        paidLateFeePaise: r.paidLateFeePaise,
-        lateFeeLockedPaise: r.lateFeeLockedPaise,
-        status: r.status,
-        paidAt: r.paidAt,
-        paymentId: null,
-        paymentProofUrl: null,
-        notes: null,
-        cancelledAt: null,
-        cancellationReason: null,
-        isAdhoc: false,
-        createdAt: r.createdAt,
-        updatedAt: r.createdAt,
-      });
+      const projected = projectAdminRentInvoiceRow(r);
       return {
         ...r,
         outstandingPaise: projected.outstandingPaise,
@@ -1490,13 +1478,16 @@ export function listAdminOpenRentInvoices(filter?: {
         billingMonth: rentInvoices.billingMonth,
         dueDate: rentInvoices.dueDate,
         rentPaise: rentInvoices.rentPaise,
+        lateFeeBasePaise: rentInvoices.lateFeeBasePaise,
         discountPaise: rentInvoices.discountPaise,
         paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
         paidLateFeePaise: rentInvoices.paidLateFeePaise,
         lateFeeLockedPaise: rentInvoices.lateFeeLockedPaise,
         status: rentInvoices.status,
         paidAt: rentInvoices.paidAt,
+        paymentId: rentInvoices.paymentId,
         createdAt: rentInvoices.createdAt,
+        updatedAt: rentInvoices.updatedAt,
         notes: rentInvoices.notes,
         paymentProvider: payments.provider,
         paymentRawPayload: payments.rawPayload,
@@ -1505,6 +1496,8 @@ export function listAdminOpenRentInvoices(filter?: {
         proofSnapshotOutstandingPaise: rentInvoices.proofSnapshotOutstandingPaise,
         proofSnapshotLateFeePaise: rentInvoices.proofSnapshotLateFeePaise,
         proofSnapshotPrincipalDuePaise: rentInvoices.proofSnapshotPrincipalDuePaise,
+        cancelledAt: rentInvoices.cancelledAt,
+        cancellationReason: rentInvoices.cancellationReason,
         isAdhoc: rentInvoices.isAdhoc,
         invoiceSubtype: rentInvoices.invoiceSubtype,
       })
@@ -1518,46 +1511,19 @@ export function listAdminOpenRentInvoices(filter?: {
       .where(and(...conditions))
       .orderBy(desc(rentInvoices.billingMonth), desc(rentInvoices.createdAt));
 
-    const { projectRentInvoiceAdminView } = await import('@/src/services/residentFinancialEngine');
-    return rows.map((r) => {
-      const projected = projectRentInvoiceAdminView({
-        id: r.id,
-        invoiceNumber: r.invoiceNumber,
-        bookingId: r.bookingId,
-        customerId: r.customerId,
-        bedId: r.bedId,
-        pgId: r.pgId,
-        billingMonth: r.billingMonth,
-        dueDate: r.dueDate,
-        rentPaise: r.rentPaise,
-        discountPaise: r.discountPaise,
-        paidPrincipalPaise: r.paidPrincipalPaise,
-        paidLateFeePaise: r.paidLateFeePaise,
-        lateFeeLockedPaise: r.lateFeeLockedPaise,
-        status: r.status,
-        paidAt: r.paidAt,
-        paymentId: null,
-        paymentProofUrl: r.paymentProofUrl,
-        proofSubmittedAt: r.proofSubmittedAt,
-        proofSnapshotOutstandingPaise: r.proofSnapshotOutstandingPaise,
-        proofSnapshotLateFeePaise: r.proofSnapshotLateFeePaise,
-        proofSnapshotPrincipalDuePaise: r.proofSnapshotPrincipalDuePaise,
-        notes: r.notes,
-        cancelledAt: null,
-        cancellationReason: null,
-        isAdhoc: r.isAdhoc ?? false,
-        invoiceSubtype: r.invoiceSubtype ?? 'standard',
-        createdAt: r.createdAt,
-        updatedAt: r.createdAt,
-      });
-      return {
-        ...r,
-        outstandingPaise: projected.outstandingPaise,
-        effectiveStatus: projected.effectiveStatus,
-        invoiceSubtype: r.invoiceSubtype ?? 'standard',
-        isAdhoc: r.isAdhoc ?? false,
-      };
-    });
+    const { projectAdminRentInvoiceRow } = await import('@/src/services/residentFinancialEngine');
+    return rows
+      .map((r) => {
+        const projected = projectAdminRentInvoiceRow(r);
+        return {
+          ...r,
+          outstandingPaise: projected.outstandingPaise,
+          effectiveStatus: projected.effectiveStatus,
+          invoiceSubtype: r.invoiceSubtype ?? 'standard',
+          isAdhoc: r.isAdhoc ?? false,
+        };
+      })
+      .filter((r) => r.outstandingPaise > 0);
   });
 }
 
