@@ -44,6 +44,7 @@ export async function requireStaffManagementAccess(): Promise<StaffManagementAcc
     const grants: WorkforcePermissionGrants = {
       permissions: Array.isArray(session.admin.permissions) ? session.admin.permissions : [],
       maxBackdateDays: null,
+      maxDiscountPercent: null,
     };
     if (!hasWorkforcePermission(grants, 'staff.view')) {
       redirect('/me');

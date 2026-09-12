@@ -20,6 +20,7 @@ export async function buildPermissionContext(
   if (!session?.workforceEmployeeId) return null;
 
   const grants = await resolvePermissions(session.workforceEmployeeId, engineId);
+  if (!grants) return null;
   return {
     grants,
     engineId,
@@ -27,7 +28,7 @@ export async function buildPermissionContext(
       workforceEmployeeId: session.workforceEmployeeId,
       organizationId: session.organizationId ?? null,
       locationId: session.locationId ?? null,
-      accessRole: session.workforceAccessRole ?? null,
+      accessRole: null,
     },
   };
 }

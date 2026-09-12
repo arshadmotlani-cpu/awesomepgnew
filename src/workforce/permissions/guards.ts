@@ -51,6 +51,7 @@ async function resolveSessionGrants(
 
   if (!session.workforceEmployeeId) throw new WorkforcePermissionError();
   const grants = await resolvePermissions(session.workforceEmployeeId, engineId);
+  if (!grants) throw new WorkforcePermissionError();
   return { session, grants };
 }
 

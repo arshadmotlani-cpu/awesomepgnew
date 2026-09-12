@@ -70,7 +70,7 @@ export type WorkforcePermissionConstraints = {
   /** null = unlimited (Owner) */
   maxBackdateDays: number | null;
   /** null = unlimited; enforced on quick_sale.discount.apply */
-  maxDiscountPercent: number | null;
+  maxDiscountPercent?: number | null;
 };
 
 export type WorkforcePermissionGrants = WorkforcePermissionConstraints & {

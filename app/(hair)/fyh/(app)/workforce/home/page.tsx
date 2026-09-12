@@ -15,7 +15,7 @@ import { isWorkforceEngineEnabled, type WorkforcePermissionKey } from '@/src/wor
 
 function filterNav(
   links: RoleNavLink[],
-  grants: { permissions: WorkforcePermissionKey[]; maxBackdateDays: number | null },
+  grants: { permissions: WorkforcePermissionKey[]; maxBackdateDays: number | null; maxDiscountPercent?: number | null },
 ): RoleNavLink[] {
   return links.filter((l) => {
     if (!l.permission) return true;

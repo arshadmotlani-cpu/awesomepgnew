@@ -56,7 +56,7 @@ export async function requirePagePermissionForPath(pathname: string): Promise<Ha
     const { resolvePermissions } = await import('@/src/workforce/brains/employeeBrain');
     const { grantsAllowPath } = await import('@/src/workforce/permissions/pagePermissions');
     const grants = await resolvePermissions(session.workforceEmployeeId, 'fyh_salon');
-    if (!grantsAllowPath(grants, pathname)) {
+    if (!grants || !grantsAllowPath(grants, pathname)) {
       redirect(await hairAppRedirect('/access-denied'));
     }
     return admin;

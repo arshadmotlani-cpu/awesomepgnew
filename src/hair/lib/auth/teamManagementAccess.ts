@@ -57,7 +57,7 @@ function grantsFromSession(session: Awaited<ReturnType<typeof getHairSession>>):
   const permissions = Array.isArray(session.admin.permissions)
     ? (session.admin.permissions as WorkforcePermissionGrants['permissions'])
     : [];
-  return { permissions, maxBackdateDays: null };
+  return { permissions, maxBackdateDays: null, maxDiscountPercent: null };
 }
 
 export function teamCapsForMembershipRole(
