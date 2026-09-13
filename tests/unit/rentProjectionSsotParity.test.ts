@@ -104,28 +104,42 @@ function adminRowFromInvoice(inv: RentInvoice): AdminRentInvoiceRow {
 }
 
 test('prorated lateFeeBasePaise: canonical outstanding is zero when fully paid', () => {
-  const inv = stubProratedInvoice();
+  const inv = stubProratedInvoice({
+    updatedAt: new Date('2026-09-10T12:00:00.000Z'),
+  });
   const projected = projectInvoice(buildRentInvoiceProjectInput(inv));
   assert.equal(projected.outstandingPaise, 0, 'fully paid prorated invoice must show ₹0');
-  const inflated = projectInvoice(
-    buildRentInvoiceProjectInput({ ...inv, lateFeeBasePaise: 0 }),
-  );
-  assert.ok(
-    inflated.accruedLateFeePaise > projected.accruedLateFeePaise,
-    'late fee must use prorated base, not full rent',
-  );
 });
 
 test('dropping lateFeeBasePaise inflates outstanding (regression guard)', () => {
-  const inv = stubProratedInvoice();
+  const inv = stubProratedInvoice({
+    paidPrincipalPaise: 0,
+    paidLateFeePaise: 0,
+    status: 'overdue',
+  });
   const canonical = projectInvoice(buildRentInvoiceProjectInput(inv));
   const broken = projectInvoice(
     buildRentInvoiceProjectInput({ ...inv, lateFeeBasePaise: 0 }),
   );
-  assert.equal(canonical.outstandingPaise, 0);
+  assert.ok(canonical.outstandingPaise > inv.rentPaise);
   assert.ok(
     broken.outstandingPaise > canonical.outstandingPaise,
     'missing lateFeeBasePaise must inflate outstanding vs canonical SSOT',
+  );
+});
+
+test('post-payment late fee does not accrue on calendar days after last payment update', () => {
+  const inv = stubProratedInvoice({
+    updatedAt: new Date('2026-09-10T12:00:00.000Z'),
+  });
+  const frozen = projectInvoice(buildRentInvoiceProjectInput(inv));
+  assert.equal(frozen.outstandingPaise, 0, 'economically settled invoice must not show phantom due');
+
+  const liveDrift = projectInvoice(buildRentInvoiceProjectInput(inv), new Date('2026-12-31'));
+  assert.equal(
+    liveDrift.outstandingPaise,
+    0,
+    'asOf later than payment freeze must not re-open balance',
   );
 });
 

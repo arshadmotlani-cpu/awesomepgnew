@@ -1742,10 +1742,15 @@ export async function recordRentPaymentSuccess(
   const principalPaid = Math.min(remaining, principalOwed);
   const newPaidLate = invoice.paidLateFeePaise + latePaid;
   const newPaidPrincipal = invoice.paidPrincipalPaise + principalPaid;
+  const lateFeeLockedAfterPayment =
+    invoice.lateFeeLockedPaise != null
+      ? Math.max(invoice.lateFeeLockedPaise, lateFee)
+      : lateFee;
   const afterPayment = projectInvoice({
     ...projectInput,
     paidPrincipalPaise: newPaidPrincipal,
     paidLateFeePaise: newPaidLate,
+    lateFeeLockedPaise: lateFeeLockedAfterPayment,
   });
   const fullyPaid = afterPayment.outstandingPaise <= 0;
   const paidAt = input.paidAt ?? new Date();
@@ -1782,7 +1787,11 @@ export async function recordRentPaymentSuccess(
           status: fullyPaid ? 'paid' : invoice.status === 'overdue' ? 'overdue' : 'pending',
           paidPrincipalPaise: newPaidPrincipal,
           paidLateFeePaise: newPaidLate,
-          lateFeeLockedPaise: fullyPaid ? lateFee : invoice.lateFeeLockedPaise,
+          lateFeeLockedPaise: fullyPaid
+            ? lateFee
+            : invoice.lateFeeLockedPaise != null
+              ? Math.max(invoice.lateFeeLockedPaise, lateFee)
+              : lateFee,
           paymentId: fullyPaid ? payment.id : null,
           paidAt: fullyPaid ? paidAt : undefined,
           updatedAt: new Date(),
@@ -1886,7 +1895,11 @@ export async function recordRentPaymentSuccess(
             rentPaise: invoice.rentPaise,
             paidPrincipalPaise: newPaidPrincipal,
             paidLateFeePaise: newPaidLate,
-            lateFeeLockedPaise: fullyPaid ? lateFee : invoice.lateFeeLockedPaise,
+            lateFeeLockedPaise: fullyPaid
+              ? lateFee
+              : invoice.lateFeeLockedPaise != null
+                ? Math.max(invoice.lateFeeLockedPaise, lateFee)
+                : lateFee,
             outstandingPaise: afterPayment.outstandingPaise,
           },
         });
@@ -2269,12 +2282,57 @@ function rentLateFeeProjectionFields(issueDate: string, asOf: DateLike) {
   };
 }
 
+/** Late fee collectible on open invoices — locked column, or frozen at last payment / row update. */
+function resolveOpenInvoiceAccruedLateFeePaise(params: {
+  inv: Pick<
+    RentInvoice,
+    | 'lateFeeLockedPaise'
+    | 'paidPrincipalPaise'
+    | 'paidLateFeePaise'
+    | 'paidAt'
+    | 'updatedAt'
+  >;
+  lateFeeBasePaise: number;
+  issueDate: string;
+  asOf: DateLike;
+  waiverPaise: number;
+  lateFeePolicy?: ProjectInvoiceOptions['lateFeePolicy'];
+  exitModeFrozenLateFeePaise?: number;
+}): number {
+  if (params.inv.lateFeeLockedPaise != null) {
+    return params.inv.lateFeeLockedPaise;
+  }
+
+  const computeAt = (today: DateLike) => {
+    const rawLateFee = computeLateFee({
+      rentPaise: params.lateFeeBasePaise,
+      issueDate: params.issueDate,
+      today,
+      policy: params.lateFeePolicy,
+    });
+    let lateFee = Math.max(0, rawLateFee - params.waiverPaise);
+    if (params.exitModeFrozenLateFeePaise !== undefined) {
+      lateFee = params.exitModeFrozenLateFeePaise;
+    }
+    return lateFee;
+  };
+
+  const hasPayments =
+    params.inv.paidPrincipalPaise > 0 || params.inv.paidLateFeePaise > 0;
+  if (hasPayments) {
+    const freezeAsOf = params.inv.paidAt ?? params.inv.updatedAt ?? params.asOf;
+    return computeAt(freezeAsOf);
+  }
+
+  return computeAt(params.asOf);
+}
+
 /**
  * Augment a stored `rent_invoices` row with late fee and effective UI status.
  *
  * - Before proof upload: late fee accrues live from billing month / due date.
  * - After proof upload: uses `proof_snapshot_*` — payable never moves during review.
- * - After payment: uses `late_fee_locked_paise`.
+ * - After payment: uses `late_fee_locked_paise` (set on any payment; stops post-payment accrual drift).
  */
 export function projectInvoice(
   invoice: RentInvoiceProjectInput,
@@ -2379,16 +2437,15 @@ export function projectInvoice(
     invoiceRentPaise: rentDuePaise,
   });
   if (inv.status === 'payment_in_progress') {
-    const rawLateFee = computeLateFee({
-      rentPaise: lateFeeBasePaise,
+    const lateFee = resolveOpenInvoiceAccruedLateFeePaise({
+      inv,
+      lateFeeBasePaise,
       issueDate,
-      today: asOf,
-      policy: options?.lateFeePolicy,
+      asOf,
+      waiverPaise,
+      lateFeePolicy: options?.lateFeePolicy,
+      exitModeFrozenLateFeePaise: options?.exitModeFrozenLateFeePaise,
     });
-    let lateFee = Math.max(0, rawLateFee - waiverPaise);
-    if (options?.exitModeFrozenLateFeePaise !== undefined) {
-      lateFee = options.exitModeFrozenLateFeePaise;
-    }
     const outstandingPaise = Math.max(
       0,
       rentDuePaise + lateFee - inv.paidPrincipalPaise - inv.paidLateFeePaise,
@@ -2401,16 +2458,15 @@ export function projectInvoice(
       ...projectionFields,
     };
   }
-  const rawLateFee = computeLateFee({
-    rentPaise: lateFeeBasePaise,
+  const lateFee = resolveOpenInvoiceAccruedLateFeePaise({
+    inv,
+    lateFeeBasePaise,
     issueDate,
-    today: asOf,
-    policy: options?.lateFeePolicy,
+    asOf,
+    waiverPaise,
+    lateFeePolicy: options?.lateFeePolicy,
+    exitModeFrozenLateFeePaise: options?.exitModeFrozenLateFeePaise,
   });
-  let lateFee = Math.max(0, rawLateFee - waiverPaise);
-  if (options?.exitModeFrozenLateFeePaise !== undefined) {
-    lateFee = options.exitModeFrozenLateFeePaise;
-  }
   const outstanding = rentDuePaise + lateFee
     - inv.paidPrincipalPaise
     - inv.paidLateFeePaise;
