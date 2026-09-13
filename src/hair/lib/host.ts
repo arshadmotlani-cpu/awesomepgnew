@@ -77,6 +77,7 @@ export const HAIR_PUBLIC_PREFIXES = [
   '/reports',
   '/settings',
   '/profile',
+  '/access-denied',
   '/select-organization',
   '/subscribe',
   '/team',

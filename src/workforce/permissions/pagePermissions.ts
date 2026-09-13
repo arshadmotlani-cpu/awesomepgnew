@@ -67,3 +67,26 @@ export function grantsAllowPath(grants: WorkforcePermissionGrants, pathname: str
 export function legacyPageKeyForPath(pathname: string): HairPagePermission | null {
   return legacyPagePermissionForPath(pathname);
 }
+
+/** First FYHAIR app route the workforce grants can access (post-login / bind default). */
+const LANDING_ROUTE_PRIORITY = [
+  '/quick-sale',
+  '/billing/invoices',
+  '/customers',
+  '/appointments',
+  '/dashboard/front-desk',
+  '/dashboard/revenue',
+  '/reports',
+  '/expenses',
+  '/inventory',
+  '/staff',
+  '/settings',
+  '/profile',
+] as const;
+
+export function resolveDefaultLandingPathForGrants(grants: WorkforcePermissionGrants): string {
+  for (const path of LANDING_ROUTE_PRIORITY) {
+    if (grantsAllowPath(grants, path)) return path;
+  }
+  return '/access-denied';
+}

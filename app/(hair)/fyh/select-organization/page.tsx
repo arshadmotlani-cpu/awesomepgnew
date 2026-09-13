@@ -15,6 +15,7 @@ import {
 import { resolvePlatformUserIdForHairSession } from '@/src/hair/lib/tenant/sessionIdentity';
 import { listActiveMembershipsForUser } from '@/src/platform/services/memberships';
 import { Button } from '@/src/hair/components/ui/button';
+import { resolveSessionDefaultLandingPath } from '@/src/hair/lib/auth/landingPath';
 
 export default async function SelectOrganizationPage({
   searchParams,
@@ -22,14 +23,15 @@ export default async function SelectOrganizationPage({
   searchParams: Promise<{ error?: string; next?: string; nobind?: string }>;
 }) {
   const params = await searchParams;
-  const next = params.next ?? '/dashboard/revenue';
+  const defaultLanding = await resolveSessionDefaultLandingPath();
+  const next = params.next ?? defaultLanding;
   const homePath =
     next.startsWith('/') &&
     !next.startsWith('//') &&
     !next.startsWith('/select-organization') &&
     next !== '/login'
       ? next
-      : '/dashboard/revenue';
+      : defaultLanding;
 
   if (!isFyhSaasTenantEnabled()) {
     redirect('/dashboard/revenue');

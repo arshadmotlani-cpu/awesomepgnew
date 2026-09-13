@@ -4,9 +4,17 @@ import { persistTenantCookies } from '@/src/hair/lib/tenant/persistTenantCookies
 import { pickResolvableMembership } from '@/src/hair/lib/tenant/selectOrganizationNav';
 import { resolvePlatformUserIdForHairSession } from '@/src/hair/lib/tenant/sessionIdentity';
 import { listActiveMembershipsForUser } from '@/src/platform/services/memberships';
+import { resolvePermissions } from '@/src/workforce/brains/employeeBrain';
+import { resolveDefaultLandingPathForGrants } from '@/src/workforce/permissions/pagePermissions';
 
 export async function GET(request: NextRequest) {
-  const nextRaw = request.nextUrl.searchParams.get('next') ?? '/dashboard/revenue';
+  const sessionForDefault = await getHairSession();
+  let defaultNext = '/dashboard/revenue';
+  if (sessionForDefault?.workforceEmployeeId) {
+    const grants = await resolvePermissions(sessionForDefault.workforceEmployeeId, 'fyh_salon');
+    defaultNext = grants ? resolveDefaultLandingPathForGrants(grants) : '/quick-sale';
+  }
+  const nextRaw = request.nextUrl.searchParams.get('next') ?? defaultNext;
   const next =
     nextRaw.startsWith('/') &&
     !nextRaw.startsWith('//') &&

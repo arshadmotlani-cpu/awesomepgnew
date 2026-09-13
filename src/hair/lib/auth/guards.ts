@@ -141,7 +141,7 @@ export function safeHairNextPath(next: string, admin?: PermissionAdmin): string 
       path = path.replace(/^\/fyh/, '') || '/';
     }
     if (path === '/dashboard' || path === '/dashboard/') {
-      return admin ? resolveDashboardChildPath(admin) : '/dashboard/revenue';
+      return admin ? resolveDashboardChildPath(admin) : '/appointments';
     }
     if (path === '/landing' || path === '/landing/') {
       return admin ? resolveDefaultLandingPath(admin) : '/appointments';

@@ -88,6 +88,12 @@ test('select-organization is tenant-exempt on public and /fyh paths', () => {
   assert.equal(isHairTenantExemptPath('/landing'), false);
 });
 
+test('access-denied is publicly routable on fyhair host', () => {
+  assert.equal(isHairPublicPath('/access-denied'), true);
+  assert.equal(isHairProtectedPath('/access-denied'), true);
+  assert.equal(hairPublicToInternal('/access-denied'), '/fyh/access-denied');
+});
+
 test('subscribe paywall is tenant-exempt and publicly routable', () => {
   assert.equal(isHairTenantExemptPath('/subscribe'), true);
   assert.equal(isHairTenantExemptPath('/fyh/subscribe'), true);
