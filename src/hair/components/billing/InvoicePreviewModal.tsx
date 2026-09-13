@@ -7,6 +7,7 @@ import {
   FYH_INVOICE_MODAL_PRINT_STYLES,
   FYH_INVOICE_MODAL_SCREEN_STYLES,
 } from '@/src/hair/components/billing/fyhInvoiceModalStyles';
+import { FyhInvoicePreviewViewport } from '@/src/hair/components/billing/FyhInvoicePreviewViewport';
 import { PUBLIC_INVOICE_STYLES } from '@/src/hair/lib/publicInvoiceDocument';
 
 type PreviewData = {
@@ -123,7 +124,9 @@ export function InvoicePreviewModal({ invoiceId, onClose }: Props) {
                         FYH_INVOICE_MODAL_PRINT_STYLES,
                     }}
                   />
-                  <div dangerouslySetInnerHTML={{ __html: preview.sheetHtml }} />
+                  <FyhInvoicePreviewViewport className="fyh-invoice-modal-scroll fyh-invoice-preview-viewport">
+                    <div dangerouslySetInnerHTML={{ __html: preview.sheetHtml }} />
+                  </FyhInvoicePreviewViewport>
                 </>
               ) : null}
             </div>

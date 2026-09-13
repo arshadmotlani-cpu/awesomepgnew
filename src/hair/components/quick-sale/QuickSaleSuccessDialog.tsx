@@ -12,6 +12,7 @@ import {
 } from '@/src/hair/components/billing/fyhInvoiceModalStyles';
 import { Button } from '@/src/hair/components/ui/button';
 import { invoicePublicPrintUrl, invoicePublicViewUrl } from '@/src/hair/lib/invoicePublicLinks';
+import { FyhInvoicePreviewViewport } from '@/src/hair/components/billing/FyhInvoicePreviewViewport';
 import { PUBLIC_INVOICE_STYLES } from '@/src/hair/lib/publicInvoiceDocument';
 
 type PreviewData = Extract<QuickSaleInvoicePreviewResult, { ok: true }>;
@@ -87,7 +88,7 @@ export function QuickSaleSuccessDialog({
   const title = preview ? `Invoice ${preview.invoiceNumber}` : 'Sale completed';
 
   return (
-    <div className="qs-success-root fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto p-3 md:p-6">
+    <div className="qs-success-root fixed inset-0 z-[100] flex items-center justify-center overflow-hidden p-3 md:p-6">
       <button
         type="button"
         className="qs-success-backdrop fixed inset-0 bg-black/70"
@@ -98,9 +99,9 @@ export function QuickSaleSuccessDialog({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="qs-success-panel relative z-[101] my-4 w-full max-w-6xl"
+        className="qs-success-panel relative z-[101] flex max-h-[min(96dvh,100vh)] w-full max-w-6xl flex-col"
       >
-        <div className="overflow-hidden rounded-2xl border border-[color:var(--fyh-border)] bg-[var(--fyh-bg-elevated)] shadow-2xl shadow-black/25">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[color:var(--fyh-border)] bg-[var(--fyh-bg-elevated)] shadow-2xl shadow-black/25">
           <header className="qs-success-header relative border-b border-fyh-accent/20 bg-fyh-accent/10 px-5 py-5 md:px-6 md:py-6">
             <button
               type="button"
@@ -135,15 +136,15 @@ export function QuickSaleSuccessDialog({
             </div>
           </header>
 
-          <div className="qs-success-body grid gap-0 lg:grid-cols-[1fr_280px]">
-            <div className="min-w-0 border-b border-[color:var(--fyh-border)] lg:border-b-0 lg:border-r">
+          <div className="qs-success-body grid min-h-0 flex-1 gap-0 lg:grid-cols-[1fr_280px]">
+            <div className="flex min-h-0 min-w-0 flex-col border-b border-[color:var(--fyh-border)] lg:border-b-0 lg:border-r">
               {preview?.stylistName ? (
                 <div className="border-b border-[color:var(--fyh-border)] bg-[#faf6ee] px-4 py-2.5 text-sm text-[#6b6358] md:px-5">
                   <span className="font-medium text-[#2c2416]">Staff:</span>{' '}
                   {preview.stylistName}
                 </div>
               ) : null}
-              <div className="qs-success-invoice-scroll bg-[#f7f5f0]">
+              <div className="qs-success-invoice-scroll flex min-h-0 flex-1 flex-col bg-[#f7f5f0]">
                 {pending && !preview ? (
                   <p className="flex items-center justify-center gap-2 py-20 text-sm text-[#6b6358]">
                     <Loader2 className="size-4 animate-spin" aria-hidden />
@@ -173,7 +174,9 @@ export function QuickSaleSuccessDialog({
                           FYH_INVOICE_MODAL_PRINT_STYLES,
                       }}
                     />
-                    <div dangerouslySetInnerHTML={{ __html: preview.sheetHtml }} />
+                    <FyhInvoicePreviewViewport className="fyh-invoice-preview-viewport">
+                      <div dangerouslySetInnerHTML={{ __html: preview.sheetHtml }} />
+                    </FyhInvoicePreviewViewport>
                   </>
                 ) : null}
               </div>

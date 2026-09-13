@@ -2500,17 +2500,11 @@
 }
 
 .qs-success-invoice-scroll {
-  overflow: auto;
-  max-height: min(72vh, calc(100vh - 14rem));
+  min-height: 0;
 }
 
 @media (min-width: 1024px) {
-  .qs-success-invoice-scroll {
-    max-height: min(78vh, calc(100vh - 12rem));
-  }
-
   .qs-success-actions {
-    max-height: calc(100vh - 8rem);
     overflow-y: auto;
   }
 }

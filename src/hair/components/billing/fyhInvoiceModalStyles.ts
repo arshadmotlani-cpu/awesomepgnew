@@ -1,21 +1,33 @@
 /** Screen layout overrides when embedding the public invoice sheet in a modal. */
 export const FYH_INVOICE_MODAL_SCREEN_STYLES = `
-.fyh-invoice-modal-scroll,
-.qs-success-invoice-scroll {
+.fyh-invoice-preview-viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 12px 8px 16px;
+  -webkit-overflow-scrolling: touch;
+}
+.fyh-invoice-preview-measure {
+  display: flex;
+  justify-content: center;
+}
+.fyh-invoice-modal-scroll:not(.fyh-invoice-preview-viewport),
+.qs-success-invoice-scroll:not(.fyh-invoice-preview-viewport) {
   overflow: auto;
   max-height: calc(92vh - 3.5rem);
   padding: 16px 0 24px;
 }
 .fyh-invoice-modal-panel .fyh-invoice-sheet,
+.fyh-invoice-preview-viewport .fyh-invoice-sheet,
 .qs-success-invoice-scroll .fyh-invoice-sheet {
   width: 210mm;
   min-width: 210mm;
   max-width: 210mm;
   margin: 0 auto;
-}
-.fyh-invoice-modal-panel .fyh-invoice-body,
-.qs-success-invoice-scroll {
-  overflow-x: auto;
 }
 `;
 
