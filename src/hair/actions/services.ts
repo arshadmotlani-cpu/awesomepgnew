@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireHairAuth } from '@/src/hair/lib/auth/guards';
 import { hasPermission } from '@/src/hair/lib/auth/permissions';
+import { getTenantContextForAction } from '@/src/hair/lib/tenant/getTenantContext';
 import { canonicalServiceName } from '@/src/hair/lib/serviceName';
 import {
   archiveService,
@@ -83,7 +84,11 @@ export async function createServiceAction(
 ): Promise<ServiceActionState> {
   try {
     const admin = await requireHairAuth();
-    await createService(parseServiceForm(formData, { allowCost: hasPermission(admin, 'page:inventory') }));
+    const ctx = await getTenantContextForAction();
+    await createService(
+      parseServiceForm(formData, { allowCost: hasPermission(admin, 'page:inventory') }),
+      ctx,
+    );
     revalidatePath('/services');
     revalidatePath('/services/new');
     return {
@@ -108,16 +113,17 @@ export async function updateServiceAction(
 ): Promise<ServiceActionState> {
   try {
     const admin = await requireHairAuth();
+    const ctx = await getTenantContextForAction();
     const id = formStr(formData, 'id');
     if (!id) return { error: 'Missing service id' };
     const allowCost = hasPermission(admin, 'page:inventory');
     const input = parseServiceForm(formData, { allowCost });
     if (!allowCost) {
       const { getService } = await import('@/src/hair/services/salonServices');
-      const existing = await getService(id);
+      const existing = await getService(id, ctx);
       if (existing) input.costPriceRupees = existing.costPricePaise / 100;
     }
-    await updateService(id, input);
+    await updateService(id, input, ctx);
     revalidatePath('/services');
     revalidatePath(`/services/${id}`);
     return { success: 'Changes saved successfully.' };
@@ -138,9 +144,10 @@ export async function archiveServiceAction(
 ): Promise<ServiceActionState> {
   try {
     await requireHairAuth();
+    const ctx = await getTenantContextForAction();
     const id = formStr(formData, 'id');
     if (!id) return { error: 'Missing service id' };
-    await archiveService(id);
+    await archiveService(id, ctx);
     revalidatePath('/services');
     revalidatePath(`/services/${id}`);
     redirect('/services?status=inactive');
@@ -156,9 +163,10 @@ export async function restoreServiceAction(
 ): Promise<ServiceActionState> {
   try {
     await requireHairAuth();
+    const ctx = await getTenantContextForAction();
     const id = formStr(formData, 'id');
     if (!id) return { error: 'Missing service id' };
-    await restoreService(id);
+    await restoreService(id, ctx);
     revalidatePath('/services');
     revalidatePath(`/services/${id}`);
     redirect(`/services/${id}`);
@@ -174,9 +182,10 @@ export async function deleteServiceAction(
 ): Promise<ServiceActionState> {
   try {
     await requireHairAuth();
+    const ctx = await getTenantContextForAction();
     const id = formStr(formData, 'id');
     if (!id) return { error: 'Missing service id' };
-    await deleteService(id);
+    await deleteService(id, ctx);
     revalidatePath('/services');
     redirect('/services');
   } catch (e) {

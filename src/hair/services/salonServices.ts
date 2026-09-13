@@ -22,6 +22,7 @@ import {
 } from '@/src/hair/lib/serviceCatalogHygiene';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 function toPaise(rupees: number): number {
   return Math.round(Number(rupees || 0) * 100);
@@ -59,11 +60,16 @@ export class DuplicateServiceError extends Error {
   }
 }
 
-async function findServiceByNormalizedName(name: string, excludeId?: string) {
+async function findServiceByNormalizedName(
+  name: string,
+  excludeId?: string,
+  ctx?: TenantContext | null,
+) {
   const target = normalizeServiceName(name);
   const rows = await hairDb
     .select({ id: fyhServices.id, name: fyhServices.name })
-    .from(fyhServices);
+    .from(fyhServices)
+    .where(orgFilter(fyhServices.organizationId, ctx));
   for (const row of rows) {
     if (excludeId && row.id === excludeId) continue;
     if (normalizeServiceName(row.name) === target) return row;
@@ -71,8 +77,12 @@ async function findServiceByNormalizedName(name: string, excludeId?: string) {
   return null;
 }
 
-async function assertUniqueServiceName(name: string, excludeId?: string) {
-  const dup = await findServiceByNormalizedName(name, excludeId);
+async function assertUniqueServiceName(
+  name: string,
+  excludeId?: string,
+  ctx?: TenantContext | null,
+) {
+  const dup = await findServiceByNormalizedName(name, excludeId, ctx);
   if (dup) throw new DuplicateServiceError(dup.id);
 }
 
@@ -131,6 +141,7 @@ export async function ensureCategory(name: string, ctx?: TenantContext | null) {
 }
 
 export async function listActiveStaff(ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   return hairDb
     .select()
     .from(fyhStaff)
@@ -139,7 +150,8 @@ export async function listActiveStaff(ctx?: TenantContext | null) {
 }
 
 export async function listServices(filters: ServiceListFilters = {}, ctx?: TenantContext | null) {
-  const conditions = [];
+  ctx = await resolveTenantContextForService(ctx);
+  const conditions = [orgFilter(fyhServices.organizationId, ctx)];
   const status = filters.status ?? 'active';
   if (status === 'active') conditions.push(eq(fyhServices.isActive, true));
   if (status === 'inactive') conditions.push(eq(fyhServices.isActive, false));
@@ -164,7 +176,7 @@ export async function listServices(filters: ServiceListFilters = {}, ctx?: Tenan
     .select({ service: fyhServices })
     .from(fyhServices)
     .leftJoin(fyhServiceCategories, eq(fyhServices.category, fyhServiceCategories.name))
-    .where(conditions.length ? and(...conditions) : undefined)
+    .where(and(...conditions))
     .orderBy(
       asc(sql`coalesce(${fyhServiceCategories.displayOrder}, 999)`),
       asc(fyhServices.name),
@@ -179,11 +191,13 @@ export async function listServices(filters: ServiceListFilters = {}, ctx?: Tenan
 }
 
 export async function getService(id: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const [row] = await hairDb.select().from(fyhServices).where(and(orgFilter(fyhServices.organizationId, ctx), eq(fyhServices.id, id))).limit(1);
   return row ?? null;
 }
 
 export async function getServiceStaffIds(serviceId: string, ctx?: TenantContext | null): Promise<string[]> {
+  ctx = await resolveTenantContextForService(ctx);
   const rows = await hairDb
     .select({ staffId: fyhServiceStaff.staffId })
     .from(fyhServiceStaff)
@@ -192,6 +206,7 @@ export async function getServiceStaffIds(serviceId: string, ctx?: TenantContext 
 }
 
 export async function getServiceConsumables(serviceId: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   return hairDb
     .select()
     .from(fyhServiceConsumables)
@@ -199,11 +214,12 @@ export async function getServiceConsumables(serviceId: string, ctx?: TenantConte
 }
 
 export async function getServiceDetail(id: string, ctx?: TenantContext | null) {
-  const service = await getService(id);
+  ctx = await resolveTenantContextForService(ctx);
+  const service = await getService(id, ctx);
   if (!service) return null;
   const [staffIds, consumables] = await Promise.all([
-    getServiceStaffIds(id),
-    getServiceConsumables(id),
+    getServiceStaffIds(id, ctx),
+    getServiceConsumables(id, ctx),
   ]);
   return { service, staffIds, consumables };
 }
@@ -236,7 +252,7 @@ async function syncStaff(serviceId: string, staffIds: string[] | undefined, ctx?
   const unique = [...new Set((staffIds ?? []).filter(Boolean))];
   if (!unique.length) return;
   await hairDb.insert(fyhServiceStaff).values(
-    unique.map((staffId) => ({ serviceId, staffId })),
+    unique.map((staffId) => ({ serviceId, staffId, ...tenantOrgDefaults(ctx) })),
   );
 }
 
@@ -265,13 +281,14 @@ async function syncConsumables(
   const productRows = await hairDb
     .select({ id: fyhProducts.id, productType: fyhProducts.productType })
     .from(fyhProducts)
-    .where(inArray(fyhProducts.id, productIds));
+    .where(and(orgFilter(fyhProducts.organizationId, ctx), inArray(fyhProducts.id, productIds)));
   const professionalByProduct = new Map(
     productRows.map((p) => [p.id, p.productType === 'professional'] as const),
   );
 
   await hairDb.insert(fyhServiceConsumables).values(
     rows.map((c) => ({
+      ...tenantOrgDefaults(ctx),
       serviceId,
       productId: c.productId,
       quantity: c.quantity,
@@ -286,9 +303,10 @@ async function syncConsumables(
 }
 
 export async function createService(input: ServiceInput, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const name = canonicalServiceName(input.name);
   if (!name) throw new Error('Service name is required');
-  await assertUniqueServiceName(name);
+  await assertUniqueServiceName(name, undefined, ctx);
   const durationMinutes = Math.round(input.durationMinutes);
   if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
     throw new Error('Duration must be a positive number of minutes');
@@ -314,6 +332,7 @@ export async function createService(input: ServiceInput, ctx?: TenantContext | n
   const [row] = await hairDb
     .insert(fyhServices)
     .values({
+      ...tenantOrgDefaults(ctx),
       name,
       code,
       category,
@@ -338,9 +357,10 @@ export async function createService(input: ServiceInput, ctx?: TenantContext | n
 }
 
 export async function updateService(id: string, input: ServiceInput, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const name = canonicalServiceName(input.name);
   if (!name) throw new Error('Service name is required');
-  await assertUniqueServiceName(name, id);
+  await assertUniqueServiceName(name, id, ctx);
   const durationMinutes = Math.round(input.durationMinutes);
   if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
     throw new Error('Duration must be a positive number of minutes');
@@ -383,6 +403,7 @@ export async function updateService(id: string, input: ServiceInput, ctx?: Tenan
 
 /** Soft-archive: keep row for historical invoices; block new bookings. */
 export async function archiveService(id: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const [row] = await hairDb
     .update(fyhServices)
     .set({
@@ -397,6 +418,7 @@ export async function archiveService(id: string, ctx?: TenantContext | null) {
 }
 
 export async function restoreService(id: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const [row] = await hairDb
     .update(fyhServices)
     .set({ isActive: true, archivedAt: null, updatedAt: new Date() })
@@ -407,7 +429,8 @@ export async function restoreService(id: string, ctx?: TenantContext | null) {
 }
 
 export async function deleteService(id: string, ctx?: TenantContext | null) {
-  const existing = await getService(id);
+  ctx = await resolveTenantContextForService(ctx);
+  const existing = await getService(id, ctx);
   if (!existing) throw new Error('Service not found');
   try {
     await hairDb.delete(fyhServices).where(and(orgFilter(fyhServices.organizationId, ctx), eq(fyhServices.id, id)));
