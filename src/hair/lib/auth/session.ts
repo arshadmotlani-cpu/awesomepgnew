@@ -18,23 +18,9 @@ import {
   revokeWorkforceSession,
   updateWorkforceSessionTenant,
 } from '@/src/workforce/auth/session';
-import { listMemberships, resolvePermissions } from '@/src/workforce/brains/employeeBrain';
+import { resolveEffectiveGrantsForEmployee } from '@/src/workforce/brains/employeeBrain';
 import { loadLinkedWorkforceEmployee } from '@/src/hair/lib/tenant/sessionIdentity';
 import { employeeToHairAdmin } from '@/src/workforce/compat/hairAdminBridge';
-import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
-import { isWorkforceMembershipAuthEnabled } from '@/src/hair/lib/tenant/flags';
-import {
-  listActiveMembershipsForUser,
-  loadMembershipForUserOrg,
-} from '@/src/platform/services/memberships';
-
-function templateForMembershipRole(role: string) {
-  if (role === 'owner' || role === 'co_owner') return codeTemplateForAccessRole('owner');
-  if (role === 'manager') return codeTemplateForAccessRole('manager');
-  if (role === 'receptionist') return codeTemplateForAccessRole('receptionist');
-  if (role === 'biller') return codeTemplateForAccessRole('biller');
-  return codeTemplateForAccessRole('staff');
-}
 
 export type HairAdmin = typeof fyhAdminUsers.$inferSelect;
 
@@ -105,28 +91,7 @@ export async function getHairSession(): Promise<HairSession | null> {
   if (isWorkforceEngineEnabled()) {
     const wf = await getWorkforceSession();
     if (wf) {
-      let grants = codeTemplateForAccessRole('staff');
-      if (isWorkforceMembershipAuthEnabled() && wf.employee.userId) {
-        const membership = await loadMembershipForUserOrg(
-          wf.employee.userId,
-          wf.organizationId,
-        );
-        const membershipsForUser = membership
-          ? []
-          : await listActiveMembershipsForUser(wf.employee.userId);
-        const effectiveMembership =
-          membership ?? (membershipsForUser.length === 1 ? membershipsForUser[0] : null);
-        grants = templateForMembershipRole(
-          effectiveMembership?.accessRole || effectiveMembership?.role || 'staff',
-        );
-      } else {
-        const memberships = await listMemberships(wf.employee.id);
-        const salon = memberships.find((m) => m.engineId === 'fyh_salon') ?? memberships[0];
-        grants = salon
-          ? (await resolvePermissions(wf.employee.id, salon.engineId)) ??
-            codeTemplateForAccessRole(salon.jobRole)
-          : codeTemplateForAccessRole('staff');
-      }
+      const grants = await resolveEffectiveGrantsForEmployee(wf.employee.id, 'fyh_salon');
       return {
         sessionId: wf.sessionId,
         admin: employeeToHairAdmin(wf.employee, grants),

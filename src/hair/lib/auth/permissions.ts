@@ -53,9 +53,9 @@ export async function requirePagePermissionForPath(pathname: string): Promise<Ha
 
   // Workforce RBAC path check (v2 keys with alias fallback)
   if (session?.workforceEmployeeId) {
-    const { resolvePermissions } = await import('@/src/workforce/brains/employeeBrain');
+    const { resolveEffectiveGrantsForEmployee } = await import('@/src/workforce/brains/employeeBrain');
     const { grantsAllowPath } = await import('@/src/workforce/permissions/pagePermissions');
-    const grants = await resolvePermissions(session.workforceEmployeeId, 'fyh_salon');
+    const grants = await resolveEffectiveGrantsForEmployee(session.workforceEmployeeId, 'fyh_salon');
     if (!grants || !grantsAllowPath(grants, pathname)) {
       redirect(await hairAppRedirect('/access-denied'));
     }

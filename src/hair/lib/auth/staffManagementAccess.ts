@@ -1,10 +1,9 @@
 import { redirect } from 'next/navigation';
-import { getEmployeeDashboard } from '@/src/workforce/brains/employeeBrain';
+import { resolveEffectiveGrantsForEmployee } from '@/src/workforce/brains/employeeBrain';
 import { hasWorkforcePermission } from '@/src/workforce/permissions/presets';
 import type { WorkforcePermissionGrants } from '@/src/workforce/types';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { requireHairAuthPage } from '@/src/hair/lib/auth/guards';
-import { isWorkforceMembershipAuthEnabled } from '@/src/hair/lib/tenant/flags';
 
 export type StaffManagementAccess = {
   canView: true;
@@ -40,29 +39,10 @@ export async function requireStaffManagementAccess(): Promise<StaffManagementAcc
     redirect('/appointments');
   }
 
-  if (isWorkforceMembershipAuthEnabled()) {
-    const grants: WorkforcePermissionGrants = {
-      permissions: Array.isArray(session.admin.permissions) ? session.admin.permissions : [],
-      maxBackdateDays: null,
-      maxDiscountPercent: null,
-    };
-    if (!hasWorkforcePermission(grants, 'staff.view')) {
-      redirect('/me');
-    }
-    return {
-      canView: true,
-      canAdd: hasWorkforcePermission(grants, 'staff.add'),
-      grants,
-    };
-  }
-
-  const dash = await getEmployeeDashboard(session.workforceEmployeeId, 'fyh_salon');
-  const grants = dash?.grants ?? null;
-
+  const grants = await resolveEffectiveGrantsForEmployee(session.workforceEmployeeId, 'fyh_salon');
   if (!hasWorkforcePermission(grants, 'staff.view')) {
     redirect('/me');
   }
-
   return {
     canView: true,
     canAdd: hasWorkforcePermission(grants, 'staff.add'),

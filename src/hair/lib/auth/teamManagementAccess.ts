@@ -3,10 +3,10 @@ import { hairAppRedirect } from '@/src/hair/lib/host';
 import { requireHairAuthPage } from '@/src/hair/lib/auth/guards';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
-import { isFyhSaasTenantEnabled, isWorkforceMembershipAuthEnabled } from '@/src/hair/lib/tenant/flags';
+import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
+import { resolveEffectiveGrantsForEmployee } from '@/src/workforce/brains/employeeBrain';
 import type { MembershipRole } from '@/src/hair/lib/tenant/types';
 import type { PlatformMembershipRole } from '@/src/platform/db/schema';
-import { getEmployeeDashboard } from '@/src/workforce/brains/employeeBrain';
 import { hasWorkforcePermission } from '@/src/workforce/permissions/presets';
 import type { WorkforcePermissionGrants } from '@/src/workforce/types';
 
@@ -102,9 +102,7 @@ async function resolveWorkforceGrants(
   session: Awaited<ReturnType<typeof getHairSession>>,
 ): Promise<WorkforcePermissionGrants | null> {
   if (!session?.workforceEmployeeId) return grantsFromSession(session);
-  if (isWorkforceMembershipAuthEnabled()) return grantsFromSession(session);
-  const dash = await getEmployeeDashboard(session.workforceEmployeeId, 'fyh_salon');
-  return dash?.grants ?? grantsFromSession(session);
+  return resolveEffectiveGrantsForEmployee(session.workforceEmployeeId, 'fyh_salon');
 }
 
 export async function canViewTeamManagement(): Promise<boolean> {

@@ -24,6 +24,7 @@ import type {
 } from '@/src/workforce/types';
 import { normalizeMobile } from '@/src/workforce/auth/mobile';
 import { ensureRoleTemplatesSeeded } from '@/src/workforce/services/roleTemplates';
+import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
 
 export type EmployeeWithMembership = {
   employee: WfEmployee;
@@ -110,6 +111,21 @@ export async function listEmployeesForEngine(
     out.push({ employee: row.employee, membership: row.membership, grants });
   }
   return out.sort((a, b) => a.employee.fullName.localeCompare(b.employee.fullName));
+}
+
+/**
+ * Canonical FYHAIR workforce grant resolver (role template + wf_permission_grants overrides).
+ * Use this for sessions, tenant context, and server authorization — not platform role templates alone.
+ */
+export async function resolveEffectiveGrantsForEmployee(
+  employeeId: string,
+  engineId: WorkforceEngineId = 'fyh_salon',
+): Promise<WorkforcePermissionGrants> {
+  const grants = await resolvePermissions(employeeId, engineId);
+  if (grants) return grants;
+  const memberships = await listMemberships(employeeId);
+  const salon = memberships.find((m) => m.engineId === engineId) ?? memberships[0];
+  return codeTemplateForAccessRole(salon?.jobRole ?? 'staff');
 }
 
 export async function resolvePermissions(

@@ -54,14 +54,20 @@ export function workforceGrantsToHairPermissions(
     out.add('page:quick_sale');
     out.add('action:billing.checkout');
   }
-  if (p.has('services.view')) out.add('page:services');
+  if (p.has('services.view') || p.has('services.edit')) out.add('page:services');
   if (p.has('packages.view')) out.add('page:packages');
   if (p.has('packages.edit')) out.add('action:packages.edit');
   if (p.has('memberships.view')) out.add('page:memberships');
-  if (p.has('inventory.view') || p.has('inventory.edit')) {
+  if (
+    p.has('inventory.view') ||
+    p.has('inventory.edit') ||
+    p.has('inventory.product.view') ||
+    p.has('products.view') ||
+    p.has('products.edit')
+  ) {
     out.add('page:inventory');
     out.add('page:purchases');
-    if (p.has('inventory.edit')) out.add('action:inventory.adjust');
+    if (p.has('inventory.edit') || p.has('products.edit')) out.add('action:inventory.adjust');
   }
   if (p.has('expenses.view') || p.has('expenses.edit')) {
     out.add('page:expenses');

@@ -1,9 +1,9 @@
 import { cookies, headers } from 'next/headers';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
-import { listMemberships, resolvePermissions } from '@/src/workforce/brains/employeeBrain';
+import { resolveEffectiveGrantsForEmployee } from '@/src/workforce/brains/employeeBrain';
 import { loadMembershipForUserOrg } from '@/src/platform/services/memberships';
-import { isFyhSaasTenantEnabled, isWorkforceMembershipAuthEnabled } from './flags';
+import { isFyhSaasTenantEnabled } from './flags';
 import { FYH_ORG_COOKIE, FYH_LOCATION_COOKIE } from './cookies';
 import { resolvePlatformUserIdForHairSession } from './sessionIdentity';
 import {
@@ -37,22 +37,6 @@ async function resolveUserIdFromSession(
     adminId: session.admin.id,
     adminEmail: session.admin.email,
   });
-}
-
-async function resolveWorkforcePermissions(
-  employeeId: string,
-  membershipRole: MembershipRole,
-): Promise<WorkforcePermissionKey[]> {
-  const fallbackRole = membershipRole === 'staff' || membershipRole === 'biller' ? membershipRole : 'manager';
-  const memberships = await listMemberships(employeeId);
-  const salon = memberships.find((m) => m.engineId === 'fyh_salon') ?? memberships[0];
-  if (salon) {
-    const grants =
-      (await resolvePermissions(employeeId, salon.engineId)) ??
-      codeTemplateForAccessRole(salon.jobRole);
-    return grants.permissions;
-  }
-  return codeTemplateForAccessRole(fallbackRole).permissions;
 }
 
 function resolveMembershipTemplatePermissions(
@@ -121,11 +105,9 @@ export async function resolveTenantContext(): Promise<TenantContext | null> {
   if (!locationId) return null;
 
   const membershipRole = (membershipRow.accessRole || membershipRow.role) as MembershipRole;
-  const permissions = isWorkforceMembershipAuthEnabled()
-    ? resolveMembershipTemplatePermissions(membershipRole)
-    : session.workforceEmployeeId
-      ? await resolveWorkforcePermissions(session.workforceEmployeeId, membershipRole)
-      : resolveMembershipTemplatePermissions(membershipRole);
+  const permissions = session.workforceEmployeeId
+    ? (await resolveEffectiveGrantsForEmployee(session.workforceEmployeeId)).permissions
+    : resolveMembershipTemplatePermissions(membershipRole);
 
   return {
     userId,
