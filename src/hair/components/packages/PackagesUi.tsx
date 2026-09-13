@@ -16,6 +16,7 @@ import {
   computePackageDiscount,
   computePackageNormalValuePaise,
 } from '@/src/hair/domain/packages/economics';
+import { filterPackagePlansByName } from '@/src/hair/lib/packages/catalogSearch';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import type { PackagePlanDetailed } from '@/src/hair/services/packagePlans';
 
@@ -68,6 +69,7 @@ export function PackagesUi() {
   const [pending, startTransition] = useTransition();
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<PackagePlanDetailed | null>(null);
+  const [catalogSearch, setCatalogSearch] = useState('');
 
   const [createState, createAction, createPending] = useActionState(
     createPackagePlanAction,
@@ -165,6 +167,11 @@ export function PackagesUi() {
   const selectedServiceIds = useMemo(
     () => new Set(items.map((i) => i.serviceId).filter(Boolean)),
     [items],
+  );
+
+  const filteredPlans = useMemo(
+    () => filterPackagePlansByName(plans, catalogSearch),
+    [plans, catalogSearch],
   );
 
   const formError = editingPlanId ? updateState.error : createState.error;
@@ -344,11 +351,43 @@ export function PackagesUi() {
           </Button>
         </div>
 
+        {plans.length > 0 ? (
+          <div className="relative max-w-md">
+            <Input
+              type="search"
+              value={catalogSearch}
+              onChange={(e) => setCatalogSearch(e.target.value)}
+              placeholder="Search by package name"
+              aria-label="Search package catalog"
+              className="h-9 pr-9 text-sm"
+              autoComplete="off"
+            />
+            {catalogSearch.trim() ? (
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 flex size-6 -translate-y-1/2 items-center justify-center rounded-md text-fyh-text-muted transition hover:bg-[color:var(--fyh-surface-muted)] hover:text-fyh-text"
+                aria-label="Clear search"
+                onClick={() => setCatalogSearch('')}
+              >
+                ×
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
         {plans.length === 0 ? (
           <div className="fyh-glass px-6 py-12 text-center">
             <p className="fyh-display text-xl font-semibold">No packages yet</p>
             <p className="mt-2 text-sm text-fyh-text-muted">
               Create a prepaid package above to sell it from Express Sale.
+            </p>
+          </div>
+        ) : filteredPlans.length === 0 ? (
+          <div className="fyh-glass px-6 py-10 text-center">
+            <p className="font-semibold text-fyh-text">No packages found</p>
+            <p className="mt-1 text-sm text-fyh-text-muted">
+              No package names match “{catalogSearch.trim()}”. Try another search or clear the
+              field.
             </p>
           </div>
         ) : (
@@ -367,7 +406,7 @@ export function PackagesUi() {
                 </tr>
               </thead>
               <tbody>
-                {plans.map((pkg) => (
+                {filteredPlans.map((pkg) => (
                   <tr
                     key={pkg.id}
                     className="border-t border-[color:var(--fyh-border)] text-fyh-text"

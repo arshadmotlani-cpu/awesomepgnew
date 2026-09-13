@@ -10,6 +10,7 @@ import { validatePackagePlanItems } from '@/src/hair/services/packagePlans';
 import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
 import { workforceGrantsToHairPermissions } from '@/src/workforce/compat/hairAdminBridge';
 import { hasPermission, type PermissionAdmin } from '@/src/hair/lib/auth/permissionTypes';
+import { filterPackagePlansByName } from '@/src/hair/lib/packages/catalogSearch';
 
 const root = process.cwd();
 
@@ -210,4 +211,20 @@ test('Packages UI exposes Edit · Deactivate / Activate and status', () => {
   assert.match(ui, /Deactivated/);
   assert.match(ui, /updatePackagePlanAction/);
   assert.match(ui, /Existing customer packages and unused credits will remain valid/);
+});
+
+test('package catalog search filters by plan name only (client-side)', () => {
+  const plans = [
+    { id: '1', name: 'Bridal Glow' },
+    { id: '2', name: 'Hair Spa Bundle' },
+    { id: '3', name: 'bridal touch-up' },
+  ];
+  assert.deepEqual(filterPackagePlansByName(plans, 'bridal').map((p) => p.id), ['1', '3']);
+  assert.deepEqual(filterPackagePlansByName(plans, 'SPA').map((p) => p.id), ['2']);
+  assert.equal(filterPackagePlansByName(plans, '   ').length, 3);
+  assert.equal(filterPackagePlansByName(plans, 'nope').length, 0);
+  const ui = readSrc('src/hair/components/packages/PackagesUi.tsx');
+  assert.match(ui, /filterPackagePlansByName/);
+  assert.match(ui, /No packages found/);
+  assert.match(ui, /Search package catalog/);
 });
