@@ -1020,17 +1020,14 @@ export async function evaluateAnniversaryRentGenerationEligibility(
 
   const {
     shouldSkipMonthlyRentBecauseAdhocCoversStay,
-    inclusiveStayEndDate,
   } = await import('@/src/lib/billing/rentOverlapLiability');
   const liabilityRows = await loadRentLiabilityInvoiceRowsForBooking(input.bookingId);
-  const stayEndInclusive = inclusiveStayEndDate(stay, billingPeriod.periodEnd);
   if (
     shouldSkipMonthlyRentBecauseAdhocCoversStay({
       billingMonth,
       billingPeriod,
       invoices: liabilityRows,
-      stayStart: stay.start,
-      stayEndInclusive,
+      stay,
       billingDay,
       billingCyclePolicy,
     })
@@ -2671,14 +2668,12 @@ export async function cancelSupersededMonthlyRentInvoicesForBooking(
   const billingCyclePolicy = (profile?.billingCyclePolicy ??
     'anniversary') as BillingCyclePolicy;
   const rows = await loadRentLiabilityInvoiceRowsForBooking(bookingId);
-  const stayEndInclusive = inclusiveStayEndDate(stay, billingBusinessDate());
-
   const targetIds = findStandardMonthlyInvoicesSupersededByAdhoc({
     invoices: rows,
-    stayStart: stay.start,
-    stayEndInclusive,
+    stay,
     billingDay,
     billingCyclePolicy,
+    fallbackInclusiveEnd: billingBusinessDate(),
   });
   if (targetIds.length === 0) return { cancelled: [] };
 

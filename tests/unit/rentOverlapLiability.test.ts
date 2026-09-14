@@ -18,6 +18,23 @@ import type { AdminRentInvoiceRow } from '@/src/db/queries/admin';
 const STAY_START = '2026-08-31';
 const STAY_END_EXCLUSIVE = '2026-09-10';
 const STAY_END_INCLUSIVE = '2026-09-09';
+const OPEN_ENDED_STAY = { start: '2026-07-28', end: null as string | null };
+
+function superseded(
+  invoices: RentLiabilityInvoiceRow[],
+  stay: { start: string; end: string | null } = {
+    start: STAY_START,
+    end: STAY_END_EXCLUSIVE,
+  },
+) {
+  return findStandardMonthlyInvoicesSupersededByAdhoc({
+    invoices,
+    stay,
+    billingDay: 5,
+    billingCyclePolicy: 'calendar_month_1st',
+    fallbackInclusiveEnd: '2026-09-30',
+  });
+}
 
 function row(over: Partial<RentLiabilityInvoiceRow> & Pick<RentLiabilityInvoiceRow, 'id' | 'isAdhoc'>): RentLiabilityInvoiceRow {
   return {
@@ -41,14 +58,7 @@ test('A — monthly rent alone is not superseded', () => {
     isAdhoc: false,
     notes: 'Billing period: 1 Sept 2026 → 30 Sept 2026',
   });
-  const ids = findStandardMonthlyInvoicesSupersededByAdhoc({
-    invoices: [monthly],
-    stayStart: STAY_START,
-    stayEndInclusive: STAY_END_INCLUSIVE,
-    billingDay: 5,
-    billingCyclePolicy: 'calendar_month_1st',
-  });
-  assert.deepEqual(ids, []);
+  assert.deepEqual(superseded([monthly]), []);
 });
 
 test('B — adhoc rent alone is not superseded by itself', () => {
@@ -57,16 +67,8 @@ test('B — adhoc rent alone is not superseded by itself', () => {
     isAdhoc: true,
     notes:
       'Daily rent — ₹220/day × 10 days (2026-08-31 → 2026-09-09). Billing period: 31 Aug 2026 → 9 Sep 2026',
-    rentPaise: 220_000,
   });
-  const ids = findStandardMonthlyInvoicesSupersededByAdhoc({
-    invoices: [adhoc],
-    stayStart: STAY_START,
-    stayEndInclusive: STAY_END_INCLUSIVE,
-    billingDay: 5,
-    billingCyclePolicy: 'calendar_month_1st',
-  });
-  assert.deepEqual(ids, []);
+  assert.deepEqual(superseded([adhoc]), []);
 });
 
 test('C — adhoc overlapping September stay supersedes unpaid monthly (Syed case)', () => {
@@ -93,14 +95,23 @@ test('C — adhoc overlapping September stay supersedes unpaid monthly (Syed cas
       billingCyclePolicy: 'calendar_month_1st',
     }),
   );
-  const ids = findStandardMonthlyInvoicesSupersededByAdhoc({
-    invoices: [adhoc, monthly],
-    stayStart: STAY_START,
-    stayEndInclusive: STAY_END_INCLUSIVE,
-    billingDay: 5,
-    billingCyclePolicy: 'calendar_month_1st',
+  assert.deepEqual(superseded([adhoc, monthly]), ['monthly-13']);
+});
+
+test('C2 — open-ended stay: adhoc end date defines chargeable window (Syed production shape)', () => {
+  const adhoc = row({
+    id: 'adhoc-19',
+    isAdhoc: true,
+    notes:
+      'Daily rent — ₹220/day × 10 days (2026-08-31 → 2026-09-09). Billing period: 31 Aug 2026 → 9 Sep 2026',
   });
-  assert.deepEqual(ids, ['monthly-13']);
+  const monthly = row({
+    id: 'monthly-13',
+    isAdhoc: false,
+    status: 'overdue',
+    notes: 'Billing period: 1 Sept 2026 → 30 Sept 2026',
+  });
+  assert.deepEqual(superseded([adhoc, monthly], OPEN_ENDED_STAY), ['monthly-13']);
 });
 
 test('D — paid adhoc blocks duplicate monthly generation for same month', () => {
@@ -116,8 +127,7 @@ test('D — paid adhoc blocks duplicate monthly generation for same month', () =
     billingMonth: '2026-09-01',
     billingPeriod: { periodStart: '2026-09-01', periodEnd: '2026-09-30' },
     invoices: [adhocPaid],
-    stayStart: STAY_START,
-    stayEndInclusive: STAY_END_INCLUSIVE,
+    stay: { start: STAY_START, end: STAY_END_EXCLUSIVE },
     billingDay: 5,
     billingCyclePolicy: 'calendar_month_1st',
   });
@@ -137,14 +147,7 @@ test('E — non-overlapping rent periods: July monthly stays collectible with Se
     notes:
       'Daily rent — ₹220/day × 10 days (2026-08-31 → 2026-09-09). Billing period: 31 Aug 2026 → 9 Sep 2026',
   });
-  const ids = findStandardMonthlyInvoicesSupersededByAdhoc({
-    invoices: [julyMonthly, sepAdhoc],
-    stayStart: STAY_START,
-    stayEndInclusive: STAY_END_INCLUSIVE,
-    billingDay: 5,
-    billingCyclePolicy: 'calendar_month_1st',
-  });
-  assert.deepEqual(ids, []);
+  assert.deepEqual(superseded([julyMonthly, sepAdhoc]), []);
 });
 
 test('F — Operations queue includes adhoc due, not superseded monthly', () => {
@@ -207,14 +210,7 @@ test('G — protected paid monthly is never marked superseded', () => {
     notes: 'Billing period: 1 Sept 2026 → 30 Sept 2026',
   });
   assert.ok(isProtectedRentInvoice(paidMonthly));
-  const ids = findStandardMonthlyInvoicesSupersededByAdhoc({
-    invoices: [adhoc, paidMonthly],
-    stayStart: STAY_START,
-    stayEndInclusive: STAY_END_INCLUSIVE,
-    billingDay: 5,
-    billingCyclePolicy: 'calendar_month_1st',
-  });
-  assert.deepEqual(ids, []);
+  assert.deepEqual(superseded([adhoc, paidMonthly]), []);
 });
 
 test('H — cancelSupersededMonthlyRentInvoicesForBooking is wired in rentInvoices', async () => {

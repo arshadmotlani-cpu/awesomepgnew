@@ -149,12 +149,43 @@ export function isStandardMonthlyRentSupersededByAdhocLiability(args: {
   );
 }
 
-export function findStandardMonthlyInvoicesSupersededByAdhoc(args: {
+export function resolveRentOverlapEffectiveStayEndInclusive(args: {
+  stay: { start: string; end: string | null };
+  billingMonth: string;
   invoices: RentLiabilityInvoiceRow[];
-  stayStart: string;
-  stayEndInclusive: string;
   billingDay: number;
   billingCyclePolicy: BillingCyclePolicy;
+  fallbackInclusiveEnd: string;
+}): string {
+  const reservationEnd = inclusiveStayEndDate(args.stay, args.fallbackInclusiveEnd);
+  const cal = calendarMonthBillingPeriod(firstOfMonth(args.billingMonth));
+  let end = reservationEnd > cal.periodEnd ? cal.periodEnd : reservationEnd;
+
+  const adhocEnds: string[] = [];
+  for (const inv of args.invoices) {
+    if (!inv.isAdhoc) continue;
+    if (!isCollectibleOpenRentInvoice(inv) && inv.status !== 'paid') continue;
+    const period = resolveRentLiabilityCoveragePeriod(inv, {
+      billingDay: args.billingDay,
+      billingCyclePolicy: args.billingCyclePolicy,
+      moveInDate: args.stay.start,
+    });
+    if (!period) continue;
+    if (period.periodEnd < cal.periodEnd && period.periodEnd <= end) {
+      adhocEnds.push(period.periodEnd);
+    }
+  }
+  if (adhocEnds.length === 0) return end;
+  const latestAdhocEnd = adhocEnds.sort().slice(-1)[0]!;
+  return latestAdhocEnd < end ? latestAdhocEnd : end;
+}
+
+export function findStandardMonthlyInvoicesSupersededByAdhoc(args: {
+  invoices: RentLiabilityInvoiceRow[];
+  stay: { start: string; end: string | null };
+  billingDay: number;
+  billingCyclePolicy: BillingCyclePolicy;
+  fallbackInclusiveEnd: string;
 }): string[] {
   const adhocLike = args.invoices.filter(
     (i) => i.isAdhoc || i.invoiceSubtype === 'billing_cycle_transition',
@@ -166,15 +197,26 @@ export function findStandardMonthlyInvoicesSupersededByAdhoc(args: {
   const supersededIds = new Set<string>();
   for (const monthly of standard) {
     if (isProtectedRentInvoice(monthly)) continue;
+    const billingMonth = firstOfMonth(String(monthly.billingMonth));
+    const stayEndForMonth = resolveRentOverlapEffectiveStayEndInclusive({
+      stay: args.stay,
+      billingMonth,
+      invoices: args.invoices,
+      billingDay: args.billingDay,
+      billingCyclePolicy: args.billingCyclePolicy,
+      fallbackInclusiveEnd: args.fallbackInclusiveEnd,
+    });
     for (const adhoc of adhocLike) {
-      if (isStandardMonthlyRentSupersededByAdhocLiability({
-        standardInvoice: monthly,
-        adhocOrTransitionInvoice: adhoc,
-        stayStart: args.stayStart,
-        stayEndInclusive: args.stayEndInclusive,
-        billingDay: args.billingDay,
-        billingCyclePolicy: args.billingCyclePolicy,
-      })) {
+      if (
+        isStandardMonthlyRentSupersededByAdhocLiability({
+          standardInvoice: monthly,
+          adhocOrTransitionInvoice: adhoc,
+          stayStart: args.stay.start,
+          stayEndInclusive: stayEndForMonth,
+          billingDay: args.billingDay,
+          billingCyclePolicy: args.billingCyclePolicy,
+        })
+      ) {
         supersededIds.add(monthly.id);
         break;
       }
@@ -251,15 +293,24 @@ export function shouldSkipMonthlyRentBecauseAdhocCoversStay(args: {
   billingMonth: string;
   billingPeriod: { periodStart: string; periodEnd: string };
   invoices: RentLiabilityInvoiceRow[];
-  stayStart: string;
-  stayEndInclusive: string;
+  stay: { start: string; end: string | null };
   billingDay: number;
   billingCyclePolicy: BillingCyclePolicy;
 }): boolean {
+  const fallbackInclusiveEnd = args.billingPeriod.periodEnd;
+  const effectiveStayEnd = resolveRentOverlapEffectiveStayEndInclusive({
+    stay: args.stay,
+    billingMonth: args.billingMonth,
+    invoices: args.invoices,
+    billingDay: args.billingDay,
+    billingCyclePolicy: args.billingCyclePolicy,
+    fallbackInclusiveEnd,
+  });
+
   const adhocLike = args.invoices.filter(
     (i) =>
       (i.isAdhoc || i.invoiceSubtype === 'billing_cycle_transition') &&
-      isCollectibleOpenRentInvoice(i),
+      (isCollectibleOpenRentInvoice(i) || i.status === 'paid'),
   );
   const standardOpen = args.invoices.filter(
     (i) => !i.isAdhoc && i.invoiceSubtype === 'standard' && isCollectibleOpenRentInvoice(i),
@@ -271,8 +322,8 @@ export function shouldSkipMonthlyRentBecauseAdhocCoversStay(args: {
         isStandardMonthlyRentSupersededByAdhocLiability({
           standardInvoice: monthly,
           adhocOrTransitionInvoice: adhoc,
-          stayStart: args.stayStart,
-          stayEndInclusive: args.stayEndInclusive,
+          stayStart: args.stay.start,
+          stayEndInclusive: effectiveStayEnd,
           billingDay: args.billingDay,
           billingCyclePolicy: args.billingCyclePolicy,
         })
@@ -285,13 +336,13 @@ export function shouldSkipMonthlyRentBecauseAdhocCoversStay(args: {
   const liabilityPeriods = buildOpenRentLiabilityCoveragePeriods(args.invoices, {
     billingDay: args.billingDay,
     billingCyclePolicy: args.billingCyclePolicy,
-    moveInDate: args.stayStart,
+    moveInDate: args.stay.start,
   });
 
   return isBillingMonthCoveredByRentLiability({
     billingMonth: args.billingMonth,
-    stayStart: args.stayStart,
-    stayEndInclusive: args.stayEndInclusive,
+    stayStart: args.stay.start,
+    stayEndInclusive: effectiveStayEnd,
     liabilityPeriods,
   });
 }

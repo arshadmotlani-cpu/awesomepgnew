@@ -269,9 +269,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-09-14 17:14:16 UTC
+### Pending pre-commit sync · 2026-09-14 17:27:41 UTC
 
-**Areas touched:** [[Billing]], [[Residents]]
+**Areas touched:** [[Billing]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
@@ -280,11 +280,8 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (5):**
-- `src/lib/billing/billingCoverageModel.ts`
+**Staged code files (2):**
 - `src/lib/billing/rentOverlapLiability.ts`
-- `src/lib/residents/residentBillingPeriodDisplay.ts`
-- `src/lib/residents/residentPortalBillRows.ts`
 - `src/services/rentInvoices.ts`
 
 **Changed:**
