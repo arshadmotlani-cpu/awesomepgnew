@@ -29,6 +29,7 @@ export type ResidentBillRentInvoice = {
   billingMonth: string;
   notes: string | null;
   invoiceSubtype: 'standard' | 'billing_cycle_transition';
+  isAdhoc?: boolean;
 };
 
 function rentBillDisplayFields(r: ResidentBillRentInvoice) {
@@ -36,6 +37,7 @@ function rentBillDisplayFields(r: ResidentBillRentInvoice) {
     billingMonth: r.billingMonth,
     notes: r.notes,
     invoiceSubtype: r.invoiceSubtype,
+    isAdhoc: r.isAdhoc,
   });
   return {
     label: pres.listLabel,

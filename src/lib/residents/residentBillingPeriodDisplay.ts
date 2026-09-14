@@ -12,6 +12,7 @@ export type ResidentRentBillPeriodInput = {
   billingMonth: string;
   notes?: string | null;
   invoiceSubtype?: 'standard' | 'billing_cycle_transition' | null;
+  isAdhoc?: boolean | null;
 };
 
 export type ResidentRentBillPresentation = {
@@ -96,9 +97,11 @@ export function buildResidentRentBillPresentation(
   const { periodStart, periodEndInclusive } = resolveRentInvoiceBillingPeriod(input);
   const periodLabel = formatResidentBillingPeriodRange(periodStart, periodEndInclusive);
   const billingPeriodLine = `Billing period: ${periodLabel}`;
-  const titleLabel = isTransition
-    ? 'Billing transition'
-    : `Rent · ${formatBillingMonthLabel(input.billingMonth)}`;
+  const titleLabel = input.isAdhoc
+    ? 'Adhoc rent'
+    : isTransition
+      ? 'Billing transition'
+      : `Rent · ${formatBillingMonthLabel(input.billingMonth)}`;
 
   return {
     titleLabel,

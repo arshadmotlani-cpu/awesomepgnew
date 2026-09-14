@@ -59,6 +59,7 @@ import { writeAuditLogNonBlocking } from '@/src/lib/audit/writeAuditLog';
 import { formatPostgresError } from '@/src/lib/db/postgresError';
 import {
   anniversaryBillingPeriod,
+  billingDayFromMoveIn,
   billingPeriodForPolicy,
   chargeableLateFeeDaysFromIssue,
   computeLateFee,
@@ -1013,6 +1014,28 @@ export async function evaluateAnniversaryRentGenerationEligibility(
     ) {
       return { eligible: false, skipCode: 'already_covered' };
     }
+  }
+
+  await cancelSupersededMonthlyRentInvoicesForBooking(input.bookingId);
+
+  const {
+    shouldSkipMonthlyRentBecauseAdhocCoversStay,
+    inclusiveStayEndDate,
+  } = await import('@/src/lib/billing/rentOverlapLiability');
+  const liabilityRows = await loadRentLiabilityInvoiceRowsForBooking(input.bookingId);
+  const stayEndInclusive = inclusiveStayEndDate(stay, billingPeriod.periodEnd);
+  if (
+    shouldSkipMonthlyRentBecauseAdhocCoversStay({
+      billingMonth,
+      billingPeriod,
+      invoices: liabilityRows,
+      stayStart: stay.start,
+      stayEndInclusive,
+      billingDay,
+      billingCyclePolicy,
+    })
+  ) {
+    return { eligible: false, skipCode: 'adhoc_rent_covers_stay' };
   }
 
   return {
@@ -2603,6 +2626,121 @@ export async function cancelFutureRentInvoices(
   return { cancelled: rows.length, ids: rows.map((r) => r.id) };
 }
 
+async function loadRentLiabilityInvoiceRowsForBooking(bookingId: string) {
+  return db
+    .select({
+      id: rentInvoices.id,
+      isAdhoc: rentInvoices.isAdhoc,
+      invoiceSubtype: rentInvoices.invoiceSubtype,
+      status: rentInvoices.status,
+      paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
+      paidLateFeePaise: rentInvoices.paidLateFeePaise,
+      paymentProofUrl: rentInvoices.paymentProofUrl,
+      proofSubmittedAt: rentInvoices.proofSubmittedAt,
+      proofSnapshotOutstandingPaise: rentInvoices.proofSnapshotOutstandingPaise,
+      billingMonth: rentInvoices.billingMonth,
+      dueDate: rentInvoices.dueDate,
+      notes: rentInvoices.notes,
+    })
+    .from(rentInvoices)
+    .where(eq(rentInvoices.bookingId, bookingId));
+}
+
+/**
+ * Cancel unpaid standard monthly invoices superseded by adhoc/daily rent covering the same stay.
+ * Never touches paid or in-review invoices.
+ */
+export async function cancelSupersededMonthlyRentInvoicesForBooking(
+  bookingId: string,
+  reason?: string,
+): Promise<{ cancelled: string[] }> {
+  const {
+    ADHOC_RENT_SUPERSEDES_MONTHLY_CANCEL_REASON,
+    findStandardMonthlyInvoicesSupersededByAdhoc,
+    inclusiveStayEndDate,
+  } = await import('@/src/lib/billing/rentOverlapLiability');
+
+  const stay = await loadStayWindow(bookingId);
+  if (!stay) return { cancelled: [] };
+
+  let profile = await getBillingProfileForBooking(bookingId);
+  if (!profile) {
+    profile = await ensureBillingProfileForBooking(bookingId);
+  }
+  const billingDay = profile?.billingDay ?? billingDayFromMoveIn(stay.start);
+  const billingCyclePolicy = (profile?.billingCyclePolicy ??
+    'anniversary') as BillingCyclePolicy;
+  const rows = await loadRentLiabilityInvoiceRowsForBooking(bookingId);
+  const stayEndInclusive = inclusiveStayEndDate(stay, billingBusinessDate());
+
+  const targetIds = findStandardMonthlyInvoicesSupersededByAdhoc({
+    invoices: rows,
+    stayStart: stay.start,
+    stayEndInclusive,
+    billingDay,
+    billingCyclePolicy,
+  });
+  if (targetIds.length === 0) return { cancelled: [] };
+
+  const cancelReason = reason ?? ADHOC_RENT_SUPERSEDES_MONTHLY_CANCEL_REASON;
+  const cancelledRows = await db.transaction(async (tx) => {
+    const cancelled = await tx
+      .update(rentInvoices)
+      .set({
+        status: 'cancelled',
+        cancelledAt: new Date(),
+        cancellationReason: cancelReason,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          inArray(rentInvoices.id, targetIds),
+          eq(rentInvoices.isAdhoc, false),
+          eq(rentInvoices.invoiceSubtype, 'standard'),
+          inArray(rentInvoices.status, ['pending', 'overdue']),
+          eq(rentInvoices.paidPrincipalPaise, 0),
+          eq(rentInvoices.paidLateFeePaise, 0),
+          isNull(rentInvoices.paymentProofUrl),
+          isNull(rentInvoices.proofSubmittedAt),
+        ),
+      )
+      .returning({ id: rentInvoices.id });
+
+    if (cancelled.length > 0) {
+      await tx.insert(auditLog).values(
+        cancelled.map((r) => ({
+          actorType: 'system' as const,
+          actorId: null,
+          entity: 'rent_invoice',
+          entityId: r.id,
+          action: 'cancelled',
+          diff: { reason: cancelReason, bookingId },
+        })),
+      );
+      const { enqueuePropertyIndexRebuildFromWriter, resolvePgIdForBooking } = await import(
+        '@/src/roomOs/outbox/writerRebuild'
+      );
+      const rebuildPgId = await resolvePgIdForBooking(bookingId, tx);
+      if (rebuildPgId) {
+        await enqueuePropertyIndexRebuildFromWriter(tx, {
+          pgId: rebuildPgId,
+          sourceRef: 'rentInvoices.cancelSupersededMonthlyRentInvoicesForBooking',
+        });
+      }
+    }
+    return cancelled;
+  });
+
+  if (cancelledRows.length > 0) {
+    const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
+    await syncManyToUnified(
+      cancelledRows.map((r) => r.id),
+      'rent',
+    );
+  }
+  return { cancelled: cancelledRows.map((r) => r.id) };
+}
+
 // Re-exports so callers don't have to import from two places.
 export { customers };
 
@@ -2701,6 +2839,8 @@ export async function createAdhocRentInvoice(input: {
           title: input.title.trim(),
         },
       });
+
+      await cancelSupersededMonthlyRentInvoicesForBooking(input.bookingId);
 
       return { ok: true, invoiceId: created.id, invoiceNumber: created.invoiceNumber };
     } catch (err) {

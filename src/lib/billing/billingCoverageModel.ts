@@ -217,7 +217,7 @@ export function expandMoveInCheckoutPeriodCoverage(
   return out.sort((a, b) => a.periodStart.localeCompare(b.periodStart));
 }
 
-function intersectInclusive(
+export function intersectInclusive(
   aStart: string,
   aEnd: string,
   bStart: string,
