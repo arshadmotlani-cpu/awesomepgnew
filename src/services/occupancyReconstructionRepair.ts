@@ -7,7 +7,7 @@
 
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { auditLog, bedReservations, beds, pgs } from '@/src/db/schema';
+import { auditLog, bedReservations, pgs } from '@/src/db/schema';
 import { reconcileBookingOccupancy } from '@/src/lib/occupancySync';
 
 export const OCCUPANCY_REPAIR_PG_NAME_PATTERNS = ['central', 'trimurti'] as const;
@@ -108,33 +108,6 @@ async function findBrokenConfirmedStays(pgIds: string[]): Promise<BrokenStayRow[
           AND cs.status IN ('refund_paid', 'completed')
       )
     ORDER BY p.name, bk.booking_code
-  `);
-}
-
-async function findStaleManualOccupied(pgIds: string[]) {
-  if (pgIds.length === 0) return [];
-  return db.execute<{
-    bed_id: string;
-    bed_code: string;
-    pg_name: string;
-  }>(sql`
-    SELECT bd.id::text AS bed_id, bd.bed_code, p.name AS pg_name
-    FROM beds bd
-    INNER JOIN rooms r ON r.id = bd.room_id
-    INNER JOIN floors f ON f.id = r.floor_id
-    INNER JOIN pgs p ON p.id = f.pg_id
-    WHERE bd.archived_at IS NULL
-      AND bd.manual_occupied = true
-      AND f.pg_id = ANY(${sql.raw(`'{${pgIds.join(',')}}'::uuid[]`)})
-      AND NOT EXISTS (
-        SELECT 1 FROM bed_reservations br
-        INNER JOIN bookings bk ON bk.id = br.booking_id
-        WHERE br.bed_id = bd.id
-          AND br.status = 'active'
-          AND br.kind = 'primary'
-          AND bk.status = 'confirmed'
-          AND CURRENT_DATE <@ br.stay_range
-      )
   `);
 }
 
@@ -257,28 +230,6 @@ export async function reconstructOccupancyFromBookingHistory(): Promise<Occupanc
         reason: 'No repair action matched (already consistent or fixed-term stay)',
       });
     }
-  }
-
-  const staleManual = await findStaleManualOccupied(pgIds);
-  for (const row of staleManual) {
-    const cleared = await db
-      .update(beds)
-      .set({ manualOccupied: false, updatedAt: new Date() })
-      .where(and(eq(beds.id, row.bed_id), eq(beds.manualOccupied, true)))
-      .returning({ id: beds.id });
-    if (cleared.length === 0) continue;
-    manualFlagsCleared += 1;
-    actions.push({
-      bookingId: '',
-      bookingCode: '',
-      pgName: row.pg_name,
-      bedCode: row.bed_code,
-      reservationId: '',
-      reservationStatus: '',
-      stayRange: '',
-      action: 'clear_manual_occupied',
-      reason: 'No confirmed active reservation — cleared stale manual flag',
-    });
   }
 
   return {

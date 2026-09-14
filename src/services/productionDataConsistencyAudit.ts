@@ -11,7 +11,7 @@ import {
   type OccupancyReconstructionResult,
 } from '@/src/services/occupancyReconstructionRepair';
 import { getPgAvailabilitySummaries } from '@/src/services/availabilityService';
-import { runBedAudit, repairBedAuditIssue, type BedAuditIssue } from '@/src/services/bedAudit';
+import { runBedAudit, type BedAuditIssue } from '@/src/services/bedAudit';
 import { rebuildOccupancyState } from '@/src/services/occupancyDiagnostics';
 import { reconcileOrphanBedReservations } from '@/src/lib/occupancySync';
 import { resolveDuplicateBookingPaymentProofs } from '@/src/services/paymentProofReviewCleanup';
@@ -88,35 +88,14 @@ export type ProductionDataConsistencyReport = {
 };
 
 async function auditGhostOccupied() {
-  const rows = await db.execute<{
-    bed_id: string;
-    bed_code: string;
-    pg_name: string;
-    room_number: string;
-    bed_status: string;
-  }>(sql`
-    SELECT bd.id::text AS bed_id, bd.bed_code, p.name AS pg_name, r.room_number,
-           bd.status::text AS bed_status
-    FROM beds bd
-    INNER JOIN rooms r ON r.id = bd.room_id
-    INNER JOIN floors f ON f.id = r.floor_id
-    INNER JOIN pgs p ON p.id = f.pg_id
-    WHERE bd.archived_at IS NULL AND bd.manual_occupied = true
-      AND NOT EXISTS (
-        SELECT 1 FROM bed_reservations br
-        INNER JOIN bookings bk ON bk.id = br.booking_id
-        WHERE br.bed_id = bd.id AND br.status = 'active' AND br.kind = 'primary'
-          AND bk.status = 'confirmed' AND CURRENT_DATE <@ br.stay_range
-      )
-    ORDER BY p.name, r.room_number, bd.bed_code
-  `);
-  return rows.map((r) => ({
-    bedId: r.bed_id,
-    bedCode: r.bed_code,
-    pgName: r.pg_name,
-    roomNumber: r.room_number,
-    bedStatus: r.bed_status,
-  }));
+  /** Admin manual_occupied without a booking is valid — see bedManualOccupancySsot. */
+  return [] as Array<{
+    bedId: string;
+    bedCode: string;
+    pgName: string;
+    roomNumber: string;
+    bedStatus: string;
+  }>;
 }
 
 async function auditActiveBookingNoFlag() {
@@ -424,11 +403,7 @@ export type ProductionDataConsistencyRepairResult = {
 export async function runProductionDataConsistencyRepair(
   report: ProductionDataConsistencyReport,
 ): Promise<ProductionDataConsistencyRepairResult> {
-  let ghostCleared = 0;
-  for (const issue of report.bedAuditIssues.filter((i) => i.kind === 'ghost_occupied')) {
-    const result = await repairBedAuditIssue(issue, 'prod-data-repair');
-    if (result.ok) ghostCleared += 1;
-  }
+  const ghostCleared = 0;
 
   const orphansClosed = await reconcileOrphanBedReservations();
 

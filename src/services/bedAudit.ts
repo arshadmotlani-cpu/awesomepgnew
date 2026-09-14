@@ -18,7 +18,7 @@ import { clearBedAdminMarks } from '@/src/services/bookingAdminOps';
 import { formatDate } from '@/src/lib/dates';
 
 export type BedAuditIssue = {
-  kind: 'ghost_occupied' | 'double_assignment' | 'missing_assignment';
+  kind: 'double_assignment' | 'missing_assignment';
   bedId: string;
   bedCode: string;
   roomNumber: string;
@@ -77,18 +77,6 @@ export async function runBedAudit(): Promise<BedAuditReport> {
       );
 
     const confirmed = activeReservations.filter((r) => r.bookingStatus === 'confirmed');
-
-    if (bed.manualOccupied && confirmed.length === 0) {
-      issues.push({
-        kind: 'ghost_occupied',
-        bedId: bed.bedId,
-        bedCode: bed.bedCode,
-        roomNumber: bed.roomNumber,
-        pgId: bed.pgId,
-        pgName: bed.pgName,
-        detail: 'Bed marked manually occupied but no active confirmed reservation.',
-      });
-    }
 
     if (confirmed.length > 1) {
       issues.push({
@@ -166,15 +154,6 @@ export async function repairBedAuditIssue(
       diff,
     });
   };
-
-  if (issue.kind === 'ghost_occupied' && issue.bedId) {
-    await db
-      .update(beds)
-      .set({ manualOccupied: false, updatedAt: new Date() })
-      .where(eq(beds.id, issue.bedId));
-    await logRepair('bed_repair_clear_ghost_occupancy', { bedId: issue.bedId, issue: issue.kind });
-    return { ok: true, message: 'Cleared manual occupied flag.' };
-  }
 
   if (issue.kind === 'missing_assignment' && issue.bedId && issue.bookingId) {
     await logRepair('bed_repair_reservation_sync', {

@@ -135,9 +135,7 @@ export default async function BedAuditPage() {
                     )}
                   </TD>
                   <TD className="text-right">
-                    {['ghost_occupied', 'missing_assignment', 'double_assignment'].includes(
-                      issue.kind,
-                    ) ? (
+                    {['missing_assignment', 'double_assignment'].includes(issue.kind) ? (
                       <RepairBedIssueButton issue={issue} />
                     ) : (
                       '—'
