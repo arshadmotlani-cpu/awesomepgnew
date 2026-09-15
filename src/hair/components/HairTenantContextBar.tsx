@@ -19,27 +19,33 @@ export async function HairTenantContextBar() {
   const currentLocation = locations.find((l) => l.locationId === ctx.locationId);
   const switchableLocations = locations.filter((l) => l.isActive && l.locationId !== ctx.locationId);
 
+  const orgLabel = currentOrg?.organizationName ?? ctx.organizationId;
+  const locationLabel = currentLocation?.locationName ?? ctx.locationId;
+
   return (
-    <div className="border-b border-[color:var(--fyh-border-strong)] bg-fyh-forest/10 px-3 py-2 text-xs text-fyh-text-secondary sm:px-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <p>
+    <div className="min-w-0 border-b border-[color:var(--fyh-border-strong)] bg-fyh-forest/10 px-2 py-2 text-xs text-fyh-text-secondary sm:px-3 lg:px-4">
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-col gap-0.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2 sm:gap-y-1">
+          <p className="min-w-0 truncate">
             Organization ·{' '}
-            <span className="font-medium text-fyh-text">
-              {currentOrg?.organizationName ?? ctx.organizationId}
+            <span className="font-medium text-fyh-text" title={orgLabel}>
+              {orgLabel}
             </span>
           </p>
-          <span aria-hidden>•</span>
-          <p>
+          <span className="hidden sm:inline" aria-hidden>•</span>
+          <p className="min-w-0 truncate">
             Location ·{' '}
-            <span className="font-medium text-fyh-text">
-              {currentLocation?.locationName ?? ctx.locationId}
+            <span className="font-medium text-fyh-text" title={locationLabel}>
+              {locationLabel}
             </span>
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 sm:justify-end">
           {switchableLocations.length > 0 ? (
-            <form action={switchLocationAction} className="flex items-center gap-2">
+            <form
+              action={switchLocationAction}
+              className="flex min-w-0 max-w-full flex-wrap items-center gap-2"
+            >
               <label htmlFor="fyh-location-switch" className="sr-only">
                 Switch location
               </label>
@@ -47,7 +53,7 @@ export async function HairTenantContextBar() {
                 id="fyh-location-switch"
                 name="locationId"
                 defaultValue=""
-                className="rounded-md border border-[color:var(--fyh-border)] bg-[color:var(--fyh-bg)] px-2 py-1 text-xs text-fyh-text"
+                className="max-w-[min(100%,12rem)] min-w-0 rounded-md border border-[color:var(--fyh-border)] bg-[color:var(--fyh-bg)] px-2 py-1 text-xs text-fyh-text"
               >
                 <option value="" disabled>
                   Switch location
@@ -60,13 +66,16 @@ export async function HairTenantContextBar() {
               </select>
               <button
                 type="submit"
-                className="rounded-md border border-[color:var(--fyh-border)] px-2 py-1 text-xs text-fyh-text hover:bg-fyh-forest/10"
+                className="shrink-0 rounded-md border border-[color:var(--fyh-border)] px-2 py-1 text-xs text-fyh-text hover:bg-fyh-forest/10"
               >
                 Apply
               </button>
             </form>
           ) : null}
-          <Link href="/select-organization" className="text-fyh-accent hover:underline">
+          <Link
+            href="/select-organization"
+            className="shrink-0 text-fyh-accent hover:underline"
+          >
             Switch organization
           </Link>
         </div>

@@ -32,10 +32,14 @@ export function FyhMark({
       width={FYH_MARK_INTRINSIC.width}
       height={FYH_MARK_INTRINSIC.height}
       draggable={false}
-      className={['block max-w-none shrink-0 object-contain object-center', className]
+      className={['block shrink-0 object-contain object-left', className]
         .filter(Boolean)
         .join(' ')}
-      style={{ height: size, width: 'auto' }}
+      style={{
+        height: size,
+        width: 'auto',
+        maxWidth: Math.round(size * (FYH_MARK_INTRINSIC.width / FYH_MARK_INTRINSIC.height)),
+      }}
     />
   );
 }

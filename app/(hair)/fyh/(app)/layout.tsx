@@ -69,7 +69,7 @@ export default async function HairAppLayout({ children }: { children: React.Reac
   }
 
   return (
-    <div className="flex min-h-screen flex-col md:flex-row">
+    <div className="flex min-h-screen min-w-0 flex-col overflow-x-hidden lg:flex-row">
       <HairSidebar entries={navEntries} />
       <div className="flex min-w-0 flex-1 flex-col">
         <HairAppHeader admin={admin} navEntries={navEntries} />

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Menu, X } from 'lucide-react';
+import { LogOut, Menu, UserRound, X } from 'lucide-react';
 import { logoutAction } from '@/src/hair/actions/auth';
 import { FyhMark } from '@/src/components/brand/fyh/FyhMark';
 import { ThemeToggle } from '@/src/hair/components/ThemeToggle';
@@ -23,14 +23,19 @@ export function HairAppHeader({ admin, navEntries }: HairAppHeaderProps) {
 
   return (
     <>
-      <header className="sticky top-0 z-[100] border-b border-[color:var(--fyh-border-strong)] bg-fyh-elevated/90 backdrop-blur-xl">
-        <div className="flex h-11 min-h-11 items-center gap-2 px-3 sm:gap-2.5 sm:px-3.5 md:px-4">
-          <FyhMark size={32} className="shrink-0" title="SOFT" />
+      <header className="sticky top-0 z-[100] w-full min-w-0 overflow-x-hidden border-b border-[color:var(--fyh-border-strong)] bg-fyh-elevated/90 backdrop-blur-xl">
+        <div className="flex h-11 min-h-11 min-w-0 items-center gap-1.5 px-2 sm:gap-2 sm:px-3 lg:px-4">
+          {/* Logo in header when sidebar drawer is active (< lg). Sidebar brand covers lg+. */}
+          <FyhMark
+            size={32}
+            className="shrink-0 lg:hidden"
+            title="SOFT"
+          />
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="shrink-0 md:hidden"
+            className="shrink-0 lg:hidden"
             aria-label="Open navigation"
             onClick={() => setMobileNavOpen(true)}
           >
@@ -39,21 +44,27 @@ export function HairAppHeader({ admin, navEntries }: HairAppHeaderProps) {
 
           <HairQuickActionsMenu staffName={admin.displayName ?? 'Staff'} />
 
-          <div className="flex min-w-0 flex-1 justify-center px-2 sm:px-4">
+          <div className="min-w-0 flex-1 px-1 sm:px-2 md:px-3">
             <HairGlobalSearch />
           </div>
 
-          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-            <ThemeToggle />
-            <Link href="/profile" className="hidden text-right lg:block">
-              <p className="text-xs font-medium text-fyh-text">{admin.displayName ?? 'Admin'}</p>
-              <p className="max-w-[9rem] truncate text-xs text-fyh-text-secondary">
-                {admin.email}
-              </p>
+          <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+            <ThemeToggle className="shrink-0" />
+            <Link
+              href="/profile"
+              className="flex shrink-0 items-center justify-center rounded-md p-1.5 text-fyh-text transition hover:bg-[color:var(--fyh-surface-muted)] lg:hidden"
+              aria-label="Profile"
+            >
+              <UserRound className="h-4 w-4" />
             </Link>
-            <form action={logoutAction} className="hidden sm:block">
-              <Button type="submit" variant="ghost" size="sm">
-                Sign out
+            <Link href="/profile" className="hidden min-w-0 max-w-[8.5rem] shrink-0 text-right lg:block xl:max-w-[9rem]">
+              <p className="truncate text-xs font-medium text-fyh-text">{admin.displayName ?? 'Admin'}</p>
+              <p className="truncate text-xs text-fyh-text-secondary">{admin.email}</p>
+            </Link>
+            <form action={logoutAction} className="shrink-0">
+              <Button type="submit" variant="ghost" size="sm" className="px-2 sm:px-3" aria-label="Sign out">
+                <LogOut className="h-4 w-4 sm:hidden" aria-hidden />
+                <span className="hidden sm:inline">Sign out</span>
               </Button>
             </form>
           </div>
@@ -61,7 +72,7 @@ export function HairAppHeader({ admin, navEntries }: HairAppHeaderProps) {
       </header>
 
       {mobileNavOpen ? (
-        <div className="fixed inset-0 z-[250] md:hidden">
+        <div className="fixed inset-0 z-[250] lg:hidden">
           <button
             type="button"
             className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"

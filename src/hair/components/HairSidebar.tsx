@@ -123,7 +123,7 @@ export function HairSidebar({
   return (
     <aside
       className={cn(
-        'hidden w-44 shrink-0 border-r border-[color:var(--fyh-border-strong)] bg-fyh-elevated/95 backdrop-blur-xl md:flex md:flex-col',
+        'hidden w-[min(100%,9.5rem)] shrink-0 border-r border-[color:var(--fyh-border-strong)] bg-fyh-elevated/95 backdrop-blur-xl lg:flex lg:w-40 lg:flex-col xl:w-44',
         className,
       )}
     >
