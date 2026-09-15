@@ -21,7 +21,7 @@ import {
   Warehouse,
   type LucideIcon,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FyhSidebarBrand } from '@/src/components/brand/fyh/FyhSidebarBrand';
 import {
   visibleHairNavEntries,
@@ -59,7 +59,7 @@ function NavLink({ item }: { item: HairNavLink }) {
       className={cn('fyh-nav-link', active && 'fyh-nav-link-active')}
     >
       <Icon className="h-4 w-4 shrink-0" />
-      {item.label}
+      <span className="min-w-0 truncate">{item.label}</span>
     </Link>
   );
 }
@@ -72,22 +72,30 @@ function NavGroup({ group }: { group: HairNavGroup }) {
   const [open, setOpen] = useState(group.defaultExpanded ?? childActive);
   const Icon = NAV_ICONS[group.iconKey];
 
+  useEffect(() => {
+    if (childActive) setOpen(true);
+  }, [childActive]);
+
   return (
-    <div className="space-y-0.5">
+    <div className="fyh-nav-group min-w-0 space-y-0.5">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
         className={cn(
-          'fyh-nav-link w-full',
+          'fyh-nav-link w-full min-w-0',
           childActive && 'text-fyh-text',
         )}
       >
         <Icon className="h-4 w-4 shrink-0" />
-        <span className="flex-1 text-left">{group.label}</span>
-        <ChevronDown className={cn('h-4 w-4 transition-transform', open && 'rotate-180')} />
+        <span className="min-w-0 flex-1 truncate text-left">{group.label}</span>
+        <ChevronDown
+          className={cn('h-4 w-4 shrink-0 transition-transform', open && 'rotate-180')}
+          aria-hidden
+        />
       </button>
       {open ? (
-        <div className="ml-3 space-y-0.5 border-l border-[color:var(--fyh-border)] pl-2">
+        <div className="fyh-nav-group-children space-y-0.5">
           {group.children.map((c) => {
             const active =
               c.href === '/billing'
@@ -97,7 +105,7 @@ function NavGroup({ group }: { group: HairNavGroup }) {
               <Link
                 key={c.href}
                 href={c.href}
-                className={cn('fyh-nav-sublink', active && 'fyh-nav-sublink-active')}
+                className={cn('fyh-nav-sublink truncate', active && 'fyh-nav-sublink-active')}
               >
                 {c.label}
               </Link>
@@ -128,7 +136,7 @@ export function HairSidebar({
       )}
     >
       {showBrand ? <FyhSidebarBrand /> : null}
-      <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
+      <nav className="flex-1 space-y-0.5 overflow-y-auto overscroll-contain p-2">
         {navEntries.map((entry) =>
           entry.type === 'link' ? (
             <NavLink key={entry.href} item={entry} />
@@ -138,11 +146,8 @@ export function HairSidebar({
         )}
       </nav>
       <div className="border-t border-[color:var(--fyh-border)] p-2">
-        <Link
-          href="/profile"
-          className="fyh-nav-link"
-        >
-          <UserRound className="h-4 w-4" />
+        <Link href="/profile" className="fyh-nav-link">
+          <UserRound className="h-4 w-4 shrink-0" />
           Profile
         </Link>
       </div>

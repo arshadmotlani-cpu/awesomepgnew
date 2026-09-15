@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireHairAuth } from '@/src/hair/lib/auth/guards';
 import { hasPermission, requirePermission } from '@/src/hair/lib/auth/permissions';
+import { getTenantContextForAction } from '@/src/hair/lib/tenant/getTenantContext';
 import { parseProductType } from '@/src/hair/lib/productTypes';
 import { getProduct } from '@/src/hair/services/products';
 import {
@@ -50,6 +51,7 @@ function parseProductForm(formData: FormData, opts?: { allowCost?: boolean }): P
   return {
     name,
     brandId,
+    category: formStr(formData, 'category') || null,
     description: formStr(formData, 'description') || null,
     productType,
     costPriceRupees: opts?.allowCost ? costPriceRupees : 0,
@@ -78,11 +80,14 @@ export async function createProductAction(
 ): Promise<ProductActionState> {
   try {
     const admin = await requireHairAuth();
+    const ctx = await getTenantContextForAction();
     const product = await createProduct(
       parseProductForm(formData, { allowCost: hasPermission(admin, 'page:inventory') }),
+      ctx,
     );
     revalidatePath('/products');
     revalidatePath('/inventory/stock');
+    revalidatePath('/quick-sale');
     redirect(`/products/${product.id}`);
   } catch (e) {
     if (e && typeof e === 'object' && 'digest' in e) throw e;
@@ -96,21 +101,23 @@ export async function updateProductAction(
 ): Promise<ProductActionState> {
   try {
     const admin = await requireHairAuth();
+    const ctx = await getTenantContextForAction();
     const id = formStr(formData, 'id');
     if (!id) return { error: 'Missing product id' };
     const allowCost = hasPermission(admin, 'page:inventory');
     const input = parseProductForm(formData, { allowCost });
     if (!allowCost) {
-      const existing = await getProduct(id);
+      const existing = await getProduct(id, ctx);
       if (existing) {
         input.costPriceRupees = existing.costPricePaise / 100;
         input.stockQty = Number(existing.stockQty);
       }
     }
-    await updateProduct(id, input);
+    await updateProduct(id, input, ctx);
     revalidatePath('/products');
     revalidatePath(`/products/${id}`);
     revalidatePath('/inventory/stock');
+    revalidatePath('/quick-sale');
     return { success: 'Product updated.' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to update product' };
@@ -123,11 +130,13 @@ export async function archiveProductAction(
 ): Promise<ProductActionState> {
   try {
     await requireHairAuth();
+    const ctx = await getTenantContextForAction();
     const id = formStr(formData, 'id');
     if (!id) return { error: 'Missing product id' };
-    await archiveProduct(id);
+    await archiveProduct(id, ctx);
     revalidatePath('/products');
     revalidatePath('/inventory/stock');
+    revalidatePath('/quick-sale');
     redirect('/products?status=inactive');
   } catch (e) {
     if (e && typeof e === 'object' && 'digest' in e) throw e;
@@ -141,11 +150,13 @@ export async function deleteProductAction(
 ): Promise<ProductActionState> {
   try {
     await requireHairAuth();
+    const ctx = await getTenantContextForAction();
     const id = formStr(formData, 'id');
     if (!id) return { error: 'Missing product id' };
-    await deleteProduct(id);
+    await deleteProduct(id, ctx);
     revalidatePath('/products');
     revalidatePath('/inventory/stock');
+    revalidatePath('/quick-sale');
     redirect('/products');
   } catch (e) {
     if (e && typeof e === 'object' && 'digest' in e) throw e;

@@ -30,7 +30,7 @@ const serviceLine: BasketLine = {
   },
   quantity: 1,
   overridePricePaise: null,
-  staff: [],
+  staff: [{ staffId: 'staff-1', shareBps: 10_000 }],
 };
 
 const prepaidLine: BasketLine = {
@@ -191,10 +191,33 @@ test('split payment plus markDue validates when partial paid', () => {
   assert.deepEqual(validateQuickSaleCheckout(b, priced), []);
 });
 
-test('normal services without staff are allowed at checkout validation', () => {
-  const b = basket({ lines: [serviceLine] });
-  const priced = priceBasket(b);
+test('paid service without staff is blocked at checkout validation', () => {
+  const lineWithoutStaff: BasketLine = { ...serviceLine, staff: [] };
+  const b = basket({ lines: [lineWithoutStaff], payments: [] });
+  const priced = priceBasket({ ...b, customerId: sampleCustomerId });
   const errors = collectBasketValidationErrors(b);
-  assert.deepEqual(errors, []);
+  assert.ok(errors.some((e) => e.includes('Select staff for this service')));
+  assert.ok(validateQuickSaleCheckout(b, priced).some((e) => e.includes('Select staff')));
+});
+
+test('product-only sale without staff remains allowed', () => {
+  const productLine: BasketLine = {
+    lineId: 'p1',
+    billableRef: { id: 'prod-1', type: 'product' },
+    snapshot: {
+      name: 'Shampoo',
+      code: null,
+      unitSellingPricePaise: 50000,
+      gstBps: 1800,
+      staffMode: 'SALE',
+      category: 'Retail',
+    },
+    quantity: 1,
+    overridePricePaise: null,
+    staff: [],
+  };
+  const b = basket({ lines: [productLine] });
+  const priced = priceBasket(b);
+  assert.deepEqual(collectBasketValidationErrors(b), []);
   assert.deepEqual(validateQuickSaleCheckout(b, priced), []);
 });

@@ -52,4 +52,20 @@ describe('FYHAIR app shell responsive layout', () => {
     assert.match(mark, /FYH_MARK_INTRINSIC\.width/);
     assert.match(mark, /maxWidth:/);
   });
+
+  it('sidebar nav uses compact focus-visible rings (not default browser outline)', () => {
+    const css = read('src/hair/styles/globals.css');
+    assert.match(css, /\.fyh-nav-link:focus-visible/);
+    assert.match(css, /\.fyh-nav-sublink:focus-visible/);
+    assert.match(css, /fyh-nav-group-children/);
+    const sidebar = read('src/hair/components/HairSidebar.tsx');
+    assert.match(sidebar, /aria-expanded/);
+    assert.match(sidebar, /fyh-nav-group-children/);
+  });
+
+  it('app header preserves safe-area insets on touch devices', () => {
+    const header = read('src/hair/components/HairAppHeader.tsx');
+    assert.match(header, /safe-area-inset-top/);
+    assert.match(header, /safe-area-inset-left/);
+  });
 });

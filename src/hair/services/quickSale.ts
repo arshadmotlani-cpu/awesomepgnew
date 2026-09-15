@@ -1,8 +1,9 @@
 import { and, asc, eq, ilike, or, sql } from 'drizzle-orm';
 import { listBookableStaffForSalon } from '@/src/hair/adapters/workforceStaffAdapter';
 import { hairDb } from '@/src/hair/db/client';
-import { fyhCustomers, fyhProducts } from '@/src/hair/db/schema';
+import { fyhCustomers } from '@/src/hair/db/schema';
 import { listMembershipPlans, listPackagePlans } from '@/src/hair/services/loyaltyOps';
+import { listBookableRetailProducts } from '@/src/hair/services/products';
 import { listBookableServices } from '@/src/hair/services/salonServices';
 import { SALON_GST_BPS } from '@/src/hair/lib/taxConfig';
 import { computeRedemptions } from '@/src/hair/services/invoices';
@@ -91,17 +92,7 @@ export async function loadQuickSaleCatalog(ctx?: TenantContext | null): Promise<
   ctx = await resolveTenantContextForService(ctx);
   const [serviceRows, products, packages, memberships, staff] = await Promise.all([
     listBookableServices(ctx),
-    hairDb
-      .select({
-        id: fyhProducts.id,
-        name: fyhProducts.name,
-        category: fyhProducts.category,
-        description: fyhProducts.description,
-        pricePaise: fyhProducts.sellingPricePaise,
-      })
-      .from(fyhProducts)
-      .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.isActive, true), eq(fyhProducts.productType, 'retail')))
-      .orderBy(asc(fyhProducts.name)),
+    listBookableRetailProducts(ctx),
     listPackagePlans(ctx).then((rows) =>
       rows.map((p) => ({
         id: p.id,
@@ -134,7 +125,14 @@ export async function loadQuickSaleCatalog(ctx?: TenantContext | null): Promise<
 
   return {
     services,
-    products: products.map((p) => ({ ...p, gstBps: SALON_GST_BPS })),
+    products: products.map((p) => ({
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      description: p.description,
+      pricePaise: p.sellingPricePaise,
+      gstBps: SALON_GST_BPS,
+    })),
     packages,
     memberships,
     staff,

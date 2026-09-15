@@ -23,8 +23,8 @@ export function HairAppHeader({ admin, navEntries }: HairAppHeaderProps) {
 
   return (
     <>
-      <header className="sticky top-0 z-[100] w-full min-w-0 overflow-x-hidden border-b border-[color:var(--fyh-border-strong)] bg-fyh-elevated/90 backdrop-blur-xl">
-        <div className="flex h-11 min-h-11 min-w-0 items-center gap-1.5 px-2 sm:gap-2 sm:px-3 lg:px-4">
+      <header className="sticky top-0 z-[100] w-full min-w-0 overflow-x-hidden border-b border-[color:var(--fyh-border-strong)] bg-fyh-elevated/90 pt-[env(safe-area-inset-top,0px)] backdrop-blur-xl">
+        <div className="flex h-11 min-h-11 min-w-0 items-center gap-1.5 px-2 pl-[max(0.5rem,env(safe-area-inset-left,0px))] pr-[max(0.5rem,env(safe-area-inset-right,0px))] sm:gap-2 sm:px-3 lg:px-4">
           {/* Logo in header when sidebar drawer is active (< lg). Sidebar brand covers lg+. */}
           <FyhMark
             size={32}

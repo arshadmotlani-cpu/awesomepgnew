@@ -18,6 +18,15 @@ export function collectBasketValidationErrors(basket: Basket): string[] {
       continue;
     }
 
+    if (
+      line.snapshot.staffMode === 'SERVICE' &&
+      line.billableRef.type === 'service' &&
+      line.staff.length === 0
+    ) {
+      errors.push(`${line.snapshot.name}: Select staff for this service`);
+      continue;
+    }
+
     const err = validateStaffAllocations(line);
     if (err) errors.push(err);
   }

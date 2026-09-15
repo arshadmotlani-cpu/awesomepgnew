@@ -185,6 +185,17 @@ export function ProductForm({
           </label>
           <Input id="name" name="name" required defaultValue={product?.name ?? ''} />
         </div>
+        <div className="space-y-2">
+          <label className="fyh-label" htmlFor="category">
+            Category
+          </label>
+          <Input
+            id="category"
+            name="category"
+            placeholder="e.g. Hair care, Retail"
+            defaultValue={product?.category ?? ''}
+          />
+        </div>
         <div className="space-y-2 sm:col-span-2">
           <label className="fyh-label" htmlFor="brandId">
             Brand *

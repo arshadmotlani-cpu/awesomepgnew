@@ -16,6 +16,7 @@ function toPaise(rupees: number): number {
 export type ProductInput = {
   name: string;
   brandId: string;
+  category?: string | null;
   description?: string | null;
   productType: FyhProductType;
   costPriceRupees?: number;
@@ -73,6 +74,12 @@ export async function listProducts(
   return rows.map((r) => ({ ...r.product, brandName: r.brandName }));
 }
 
+/** Active retail products for POS / Quick Sale — same SSOT as Configuration → Products. */
+export async function listBookableRetailProducts(ctx?: TenantContext | null) {
+  const rows = await listProducts({ status: 'active' }, ctx);
+  return rows.filter((p) => p.productType === 'retail');
+}
+
 /** Professional products for service consumable kits. */
 export async function listConsumableProducts(ctx?: TenantContext | null) {
   ctx = await resolveTenantContextForService(ctx);
@@ -119,6 +126,7 @@ export async function createProduct(input: ProductInput, ctx?: TenantContext | n
         ...tenantOrgDefaults(ctx),
         name,
         brandId: input.brandId,
+        category: input.category?.trim() || null,
         description: input.description?.trim() || null,
         productType,
         sellingPricePaise,
@@ -168,6 +176,7 @@ export async function updateProduct(id: string, input: ProductInput, ctx?: Tenan
       .set({
         name,
         brandId: input.brandId,
+        category: input.category?.trim() || null,
         description: input.description?.trim() || null,
         productType,
         sellingPricePaise,
