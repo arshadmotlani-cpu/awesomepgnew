@@ -15,18 +15,22 @@ export function priceLineFromParts(opts: {
   unitSellingPricePaise: number;
   quantity: number;
   gstBps: number;
+  /** Defaults to catalog unit × qty — use POS line gross when price was overridden. */
+  pricingGrossPaise?: number;
   overridePricePaise: number | null;
 }) {
   const catalogGrossPaise = Math.max(0, opts.unitSellingPricePaise * opts.quantity);
+  const lineGrossPaise = Math.max(0, opts.pricingGrossPaise ?? catalogGrossPaise);
   const finalLinePaise = Math.max(
     0,
-    opts.overridePricePaise != null ? opts.overridePricePaise : catalogGrossPaise,
+    opts.overridePricePaise != null ? opts.overridePricePaise : lineGrossPaise,
   );
-  const discountPaise = Math.max(0, catalogGrossPaise - finalLinePaise);
-  const discountBps = discountBpsFromPaise(catalogGrossPaise, discountPaise);
+  const discountPaise = Math.max(0, lineGrossPaise - finalLinePaise);
+  const discountBps = discountBpsFromPaise(lineGrossPaise, discountPaise);
   const { basePaise, gstPaise } = decomposeInclusive(finalLinePaise, opts.gstBps);
   return {
     catalogGrossPaise,
+    lineGrossPaise,
     finalLinePaise,
     discountPaise,
     discountBps,

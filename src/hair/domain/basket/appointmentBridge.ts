@@ -61,6 +61,7 @@ export async function buildBasketFromAppointment(appointmentId: string): Promise
       category: s.category ?? null,
     },
     quantity: 1,
+    lineGrossOverridePaise: null,
     overridePricePaise: null,
     staff: [{ staffId: appt.staffId, shareBps: 10_000 }],
   }));

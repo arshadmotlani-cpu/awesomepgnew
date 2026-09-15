@@ -17,11 +17,17 @@ function refIds(type: PricedLine['billableRef']['type'], id: string) {
 
 export function priceBasket(basket: Basket): PricedBasket {
   const lines: PricedLine[] = basket.lines.map((line) => {
+    const catalogGrossPaise = Math.max(0, line.snapshot.unitSellingPricePaise * line.quantity);
+    const isPrepaid = Boolean(line.prepaidRedemption);
+    const lineGrossForPricing = isPrepaid
+      ? catalogGrossPaise
+      : (line.lineGrossOverridePaise ?? catalogGrossPaise);
     const priced = priceLineFromParts({
       unitSellingPricePaise: line.snapshot.unitSellingPricePaise,
       quantity: line.quantity,
       gstBps: line.snapshot.gstBps,
-      overridePricePaise: line.overridePricePaise,
+      pricingGrossPaise: lineGrossForPricing,
+      overridePricePaise: isPrepaid ? 0 : line.overridePricePaise,
     });
     const ids = refIds(line.billableRef.type, line.billableRef.id);
     const primaryStaffId = line.staff[0]?.staffId ?? null;

@@ -10,6 +10,7 @@ export function basketLineFromBillableItem(item: BillableItem, lineId?: string):
     billableRef: { id: item.id, type: item.type },
     snapshot: billableItemToSnapshot(item),
     quantity: 1,
+    lineGrossOverridePaise: null,
     overridePricePaise: null,
     staff: [],
   };
@@ -27,11 +28,26 @@ export function legacyLinesToBasket(
       const snapshot = snapshots.get(key);
       if (!snapshot) throw new Error(`Missing snapshot for ${key}`);
       const catalogGross = snapshot.unitSellingPricePaise * line.quantity;
+      const lineGross =
+        line.lineGrossOverridePaise != null && line.lineGrossOverridePaise >= 0
+          ? line.lineGrossOverridePaise
+          : catalogGross;
       const lineDiscountPaise = Math.max(0, line.lineDiscountPaise ?? 0);
+      const finalFromDiscount = Math.max(0, lineGross - lineDiscountPaise);
       const overridePricePaise =
-        line.lineDiscountPaise != null || line.lineDiscountBps != null
-          ? Math.max(0, catalogGross - lineDiscountPaise)
-          : null;
+        line.prepaidRedemption != null
+          ? 0
+          : line.lineDiscountPaise != null ||
+              line.lineDiscountBps != null ||
+              line.lineGrossOverridePaise != null
+            ? finalFromDiscount
+            : null;
+      const lineGrossOverridePaise =
+        line.lineGrossOverridePaise != null
+          ? line.lineGrossOverridePaise
+          : lineGross !== catalogGross
+            ? lineGross
+            : null;
 
       let staff: StaffAllocation[] = [];
       if (line.servicedBy?.length) {
@@ -54,6 +70,7 @@ export function legacyLinesToBasket(
         billableRef: { id: line.refId, type: line.kind },
         snapshot,
         quantity: line.quantity,
+        lineGrossOverridePaise,
         overridePricePaise,
         staff,
         prepaidRedemption: line.prepaidRedemption
@@ -72,13 +89,17 @@ export function legacyLinesToBasket(
 export function basketToLegacyLines(basket: Basket): QuickSaleLineInput[] {
   return basket.lines.map((line) => {
     const catalogGross = line.snapshot.unitSellingPricePaise * line.quantity;
-    const finalPaise = line.overridePricePaise ?? catalogGross;
-    const lineDiscountPaise = Math.max(0, catalogGross - finalPaise);
+    const lineGross = line.lineGrossOverridePaise ?? catalogGross;
+    const finalPaise = line.prepaidRedemption
+      ? 0
+      : (line.overridePricePaise ?? lineGross);
+    const lineDiscountPaise = Math.max(0, lineGross - finalPaise);
     const base: QuickSaleLineInput = {
       kind: line.billableRef.type,
       refId: line.billableRef.id,
       quantity: line.quantity,
       lineDiscountPaise,
+      lineGrossOverridePaise: line.lineGrossOverridePaise ?? undefined,
       prepaidRedemption: line.prepaidRedemption ?? null,
     };
     if (line.snapshot.staffMode === 'SERVICE') {

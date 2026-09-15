@@ -69,8 +69,8 @@ export async function enrichBasketWithRedemptions(basket: Basket, ctx?: TenantCo
       return l.billableRef.type === 'service' || l.billableRef.type === 'product';
     })
     .reduce((sum, l) => {
-      const gross = l.snapshot.unitSellingPricePaise * l.quantity;
-      const finalPaise = l.overridePricePaise ?? gross;
+      const gross = l.lineGrossOverridePaise ?? l.snapshot.unitSellingPricePaise * l.quantity;
+      const finalPaise = l.prepaidRedemption ? 0 : (l.overridePricePaise ?? gross);
       return sum + finalPaise;
     }, 0);
   const serviceIds = basket.lines
@@ -265,7 +265,12 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
             staffId: line.primaryStaffId,
             nameSnapshot,
             quantity: line.quantity,
-            unitPricePaise: line.snapshot.unitSellingPricePaise,
+            unitPricePaise: isPrepaidRedemption
+              ? line.snapshot.unitSellingPricePaise
+              : Math.max(
+                  0,
+                  Math.round(line.lineGrossPaise / Math.max(1, Math.floor(line.quantity))),
+                ),
             discountPaise: line.discountPaise,
             discountBps: line.discountBps,
             gstBps: isPrepaidRedemption ? 0 : line.snapshot.gstBps,

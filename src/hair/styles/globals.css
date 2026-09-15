@@ -1889,6 +1889,24 @@
   font-size: 0.625rem !important;
 }
 
+.qs-compact-price-input {
+  width: 3.25rem !important;
+  margin-left: auto;
+  text-align: right;
+  font-weight: 500 !important;
+  background: #fffbeb !important;
+  border-color: #fcd34d !important;
+}
+
+.qs-compact-final-display {
+  display: inline-block;
+  min-width: 3.25rem;
+  padding: 0 0.25rem;
+  color: #334155;
+  background: #f1f5f9;
+  border-radius: 2px;
+}
+
 .qs-compact-final-input {
   width: 3.25rem !important;
   margin-left: auto;

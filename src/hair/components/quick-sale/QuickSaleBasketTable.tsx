@@ -3,7 +3,6 @@
 import { Minus, Plus, Trash2 } from 'lucide-react';
 import { Input } from '@/src/hair/components/ui/input';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
-import { priceLineFromParts } from '@/src/hair/domain/basket/gstInclusiveMath';
 import type { BasketLine } from '@/src/hair/domain/basket/types';
 import {
   computePackageRedemptionUnitDiscount,
@@ -11,7 +10,14 @@ import {
 } from '@/src/hair/domain/packages/availableServices';
 import { QuickSaleDiscountPercentInput } from '@/src/hair/components/quick-sale/QuickSaleDiscountPercentInput';
 import { QuickSaleStaffRow } from '@/src/hair/components/quick-sale/QuickSaleStaffFields';
-import { wholeDiscountPercentFromBps } from '@/src/hair/lib/quickSaleDiscountPercent';
+import {
+  discountPercentForLine,
+  effectiveLineGrossPaise,
+  parseQuickSalePriceRupees,
+  patchLineFromPriceRupees,
+  patchLineQuantityChange,
+  pricedPartsForBasketLine,
+} from '@/src/hair/lib/quickSaleLinePricing';
 
 type Props = {
   lines: BasketLine[];
@@ -22,13 +28,6 @@ type Props = {
   onUpdateLine: (lineId: string, patch: Partial<BasketLine>) => void;
   onRemoveLine: (lineId: string) => void;
 };
-
-function parseRupeeInput(raw: string): number | null {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  const n = Number(trimmed.replace(/[^\d.]/g, ''));
-  return Number.isFinite(n) ? n : null;
-}
 
 export function QuickSaleBasketTable({
   lines,
@@ -68,14 +67,9 @@ export function QuickSaleBasketTable({
           {lines.map((line) => {
             const isPrepaid = Boolean(line.prepaidRedemption);
             const isPackagePurchase = line.billableRef.type === 'package';
-            const catalogGross = line.snapshot.unitSellingPricePaise * line.quantity;
-            const finalPaise = isPrepaid ? 0 : (line.overridePricePaise ?? catalogGross);
-            const priced = priceLineFromParts({
-              unitSellingPricePaise: line.snapshot.unitSellingPricePaise,
-              quantity: line.quantity,
-              gstBps: line.snapshot.gstBps,
-              overridePricePaise: isPrepaid ? 0 : line.overridePricePaise,
-            });
+            const lineGrossPaise = isPrepaid ? 0 : effectiveLineGrossPaise(line);
+            const priced = pricedPartsForBasketLine(line);
+            const finalPaise = isPrepaid ? 0 : priced.finalLinePaise;
             const retailUnitPaise = line.prepaidRedemption?.retailUnitValuePaise ?? 0;
             const prepaidRetailGross = retailUnitPaise * line.quantity;
             const prepaidDiscountPercent =
@@ -90,7 +84,7 @@ export function QuickSaleBasketTable({
                 ? formatPackageRedemptionDiscountLabel(prepaidDiscountPercent)
                 : null;
             const prepaidDiscountPaise = Math.max(0, prepaidRetailGross);
-            const discountPercent = wholeDiscountPercentFromBps(priced.discountBps);
+            const discountPercent = discountPercentForLine(line);
 
             return (
               <tr key={line.lineId}>
@@ -129,9 +123,7 @@ export function QuickSaleBasketTable({
                       className="qs-compact-qty-btn"
                       disabled={locked || isPrepaid || line.quantity <= 1}
                       onClick={() =>
-                        onUpdateLine(line.lineId, {
-                          quantity: Math.max(1, line.quantity - 1),
-                        })
+                        onUpdateLine(line.lineId, patchLineQuantityChange(line, line.quantity - 1))
                       }
                       aria-label="Decrease quantity"
                     >
@@ -142,7 +134,9 @@ export function QuickSaleBasketTable({
                       type="button"
                       className="qs-compact-qty-btn"
                       disabled={locked || isPrepaid}
-                      onClick={() => onUpdateLine(line.lineId, { quantity: line.quantity + 1 })}
+                      onClick={() =>
+                        onUpdateLine(line.lineId, patchLineQuantityChange(line, line.quantity + 1))
+                      }
                       aria-label="Increase quantity"
                     >
                       <Plus className="h-2.5 w-2.5" />
@@ -150,11 +144,29 @@ export function QuickSaleBasketTable({
                   </div>
                 </td>
                 <td className="text-right tabular-nums">
-                  {isPrepaid
-                    ? retailUnitPaise > 0
-                      ? formatInrFromPaise(prepaidRetailGross)
-                      : '—'
-                    : formatInrFromPaise(catalogGross)}
+                  {isPrepaid ? (
+                    retailUnitPaise > 0 ? (
+                      formatInrFromPaise(prepaidRetailGross)
+                    ) : (
+                      '—'
+                    )
+                  ) : (
+                    <Input
+                      inputMode="decimal"
+                      value={(lineGrossPaise / 100).toFixed(2)}
+                      disabled={locked}
+                      onChange={(e) => {
+                        const patch = patchLineFromPriceRupees(
+                          line,
+                          parseQuickSalePriceRupees(e.target.value),
+                        );
+                        if (patch) onUpdateLine(line.lineId, patch);
+                      }}
+                      className="qs-compact-price-input"
+                      aria-label="Line price before discount"
+                      data-testid="qs-line-price-input"
+                    />
+                  )}
                 </td>
                 <td className="text-right tabular-nums">
                   {isPrepaid ? (
@@ -176,7 +188,7 @@ export function QuickSaleBasketTable({
                         <QuickSaleDiscountPercentInput
                           lineId={line.lineId}
                           discountBps={priced.discountBps}
-                          catalogGrossPaise={catalogGross}
+                          lineGrossPaise={lineGrossPaise}
                           disabled={locked}
                           onCommit={(overridePricePaise) =>
                             onUpdateLine(line.lineId, { overridePricePaise })
@@ -198,20 +210,9 @@ export function QuickSaleBasketTable({
                   {isPrepaid ? (
                     formatInrFromPaise(0)
                   ) : (
-                    <Input
-                      inputMode="decimal"
-                      value={(finalPaise / 100).toFixed(2)}
-                      disabled={locked}
-                      onChange={(e) => {
-                        const rupees = parseRupeeInput(e.target.value);
-                        if (rupees == null) return;
-                        onUpdateLine(line.lineId, {
-                          overridePricePaise: Math.round(Math.max(0, rupees) * 100),
-                        });
-                      }}
-                      className="qs-compact-final-input"
-                      aria-label="Final amount"
-                    />
+                    <span className="qs-compact-final-display" data-testid="qs-line-final-display">
+                      {formatInrFromPaise(finalPaise)}
+                    </span>
                   )}
                 </td>
                 <td className="text-center">

@@ -90,6 +90,8 @@ export type QuickSaleLineInput = {
   quantity: number;
   lineDiscountPaise?: number;
   lineDiscountBps?: number;
+  /** POS line gross (inclusive) for this sale — does not update catalog master price. */
+  lineGrossOverridePaise?: number;
   servicedBy?: StaffAttributionInput[];
   soldByStaffId?: string | null;
   prepaidRedemption?: {

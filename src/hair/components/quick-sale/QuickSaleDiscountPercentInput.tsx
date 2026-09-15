@@ -12,19 +12,20 @@ import {
 type Props = {
   lineId: string;
   discountBps: number;
-  catalogGrossPaise: number;
+  lineGrossPaise: number;
   disabled?: boolean;
-  onCommit: (overridePricePaise: number) => void;
+  onCommit: (overridePricePaise: number | null) => void;
 };
 
-function commitPercent(catalogGrossPaise: number, percent: number): number {
-  return overridePricePaiseForDiscountPercent(catalogGrossPaise, percent);
+function commitPercent(lineGrossPaise: number, percent: number): number | null {
+  const finalPaise = overridePricePaiseForDiscountPercent(lineGrossPaise, percent);
+  return finalPaise === lineGrossPaise ? null : finalPaise;
 }
 
 export function QuickSaleDiscountPercentInput({
   lineId,
   discountBps,
-  catalogGrossPaise,
+  lineGrossPaise,
   disabled = false,
   onCommit,
 }: Props) {
@@ -36,10 +37,10 @@ export function QuickSaleDiscountPercentInput({
     if (!focusedRef.current) {
       setDraft(String(committedPercent));
     }
-  }, [lineId, committedPercent]);
+  }, [lineId, committedPercent, lineGrossPaise]);
 
   const applyPercent = (percent: number) => {
-    onCommit(commitPercent(catalogGrossPaise, percent));
+    onCommit(commitPercent(lineGrossPaise, percent));
   };
 
   return (

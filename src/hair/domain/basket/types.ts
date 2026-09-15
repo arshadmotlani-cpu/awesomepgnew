@@ -31,6 +31,8 @@ export type BasketLine = {
   billableRef: { id: string; type: BillableItemType };
   snapshot: BasketLineSnapshot;
   quantity: number;
+  /** POS line gross override for this sale only — does not change catalog snapshot. */
+  lineGrossOverridePaise: number | null;
   overridePricePaise: number | null;
   staff: StaffAllocation[];
   prepaidRedemption?: PrepaidPackageRedemption | null;
@@ -66,6 +68,8 @@ export type PricedLine = {
   snapshot: BasketLineSnapshot;
   quantity: number;
   catalogGrossPaise: number;
+  /** Inclusive line gross used for discount % (catalog or POS override). */
+  lineGrossPaise: number;
   finalLinePaise: number;
   discountPaise: number;
   discountBps: number;

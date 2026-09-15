@@ -226,6 +226,9 @@ test('compact POS uses search autocomplete and bottom checkout bar', () => {
   assert.match(css, /\.qs-compact-checkout/);
   assert.match(css, /\.qs-compact-basket-table/);
   assert.match(basket, /qs-basket-discount-amt/);
+  assert.match(basket, /qs-compact-price-input/);
+  assert.match(basket, /qs-line-final-display/);
+  assert.doesNotMatch(basket, /qs-compact-final-input/);
   assert.match(basket, /No items yet/);
   assert.match(basket, /QuickSaleDiscountPercentInput/);
 });

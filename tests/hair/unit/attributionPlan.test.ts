@@ -22,6 +22,7 @@ function pricedLine(
     },
     quantity: 1,
     catalogGrossPaise: basePaise,
+    lineGrossPaise: basePaise,
     finalLinePaise: basePaise,
     discountPaise: 0,
     discountBps: 0,

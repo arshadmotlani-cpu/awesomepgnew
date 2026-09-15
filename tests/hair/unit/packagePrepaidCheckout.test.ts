@@ -152,6 +152,7 @@ test('redemption performance scales with qty at effective unit value', () => {
     },
     quantity: qty,
     catalogGrossPaise: 0,
+    lineGrossPaise: 0,
     finalLinePaise: 0,
     discountPaise: 0,
     discountBps: 0,

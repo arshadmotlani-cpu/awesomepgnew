@@ -15,10 +15,14 @@ export function isRestorableQuickSaleSession(
 export function normalizeRestoredQuickSaleSession(
   snapshot: QuickSaleSessionSnapshot,
 ): QuickSaleSessionSnapshot {
+  const lines = snapshot.lines.map((line) => ({
+    ...line,
+    lineGrossOverridePaise: line.lineGrossOverridePaise ?? null,
+  }));
   if (snapshot.lifecycle === 'checkout_pending') {
-    return { ...snapshot, lifecycle: 'active_draft' };
+    return { ...snapshot, lines, lifecycle: 'active_draft' };
   }
-  return snapshot;
+  return { ...snapshot, lines };
 }
 
 export type QuickSaleDraftSessionInput = {

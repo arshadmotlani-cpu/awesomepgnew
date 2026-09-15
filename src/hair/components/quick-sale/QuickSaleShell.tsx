@@ -30,6 +30,7 @@ import type { BillableItem } from '@/src/hair/domain/catalog/types';
 import { SALON_GST_BPS } from '@/src/hair/lib/taxConfig';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { computePaymentPanelSummary } from '@/src/hair/lib/quickSalePaymentPanelState';
+import { pricedPartsForBasketLine } from '@/src/hair/lib/quickSaleLinePricing';
 import {
   buildClearedQuickSaleDraftForCustomer,
   emptyQuickSaleTransactionState,
@@ -298,13 +299,12 @@ export function QuickSaleShell({
       const preview = await previewQuickSaleTotalsAction({
         customerId: customer.id,
         cartLines: lines.map((l) => {
-          const gross = l.snapshot.unitSellingPricePaise * l.quantity;
-          const finalPaise = l.overridePricePaise ?? gross;
+          const priced = pricedPartsForBasketLine(l);
           return {
             kind: l.billableRef.type,
             unitPricePaise: l.snapshot.unitSellingPricePaise,
             quantity: l.quantity,
-            lineDiscountPaise: Math.max(0, gross - finalPaise),
+            lineDiscountPaise: priced.discountPaise,
             gstBps: l.snapshot.gstBps,
           };
         }),
@@ -434,6 +434,7 @@ export function QuickSaleShell({
             category: 'Package Redemption',
           },
           quantity: sel.quantity,
+          lineGrossOverridePaise: null,
           overridePricePaise: 0,
           staff: [],
           prepaidRedemption: {
@@ -537,6 +538,7 @@ export function QuickSaleShell({
           category: null,
         },
         quantity: line.quantity,
+        lineGrossOverridePaise: null,
         overridePricePaise:
           line.lineDiscountPaise > 0
             ? Math.max(
