@@ -1,4 +1,5 @@
 import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
+import { adminRentCollectionLabels } from '@/src/lib/billing/adminRentCollectionPresentation';
 import { parseBillingPeriodFromInvoiceNotes } from '@/src/lib/billing/billingCoverageModel';
 import { addDays, diffDays, formatDate, parseDate } from '@/src/lib/dates';
 import type { AdminElectricityInvoiceReminderRow } from '@/src/db/queries/admin';
@@ -139,6 +140,13 @@ export function rentRowToQueueItem(row: AdminRentInvoiceRow, today: string): Col
 
   const daysOverdue = Math.max(0, diffDays(row.dueDate, today));
 
+  const labels = adminRentCollectionLabels({
+    billingMonth: row.billingMonth,
+    notes: row.notes,
+    invoiceSubtype: row.invoiceSubtype,
+    isAdhoc: row.isAdhoc,
+  });
+
   return {
     id: `rent-${row.id}`,
     kind: 'rent',
@@ -158,10 +166,10 @@ export function rentRowToQueueItem(row: AdminRentInvoiceRow, today: string): Col
     daysOverdue,
     priority,
     effectiveStatus: row.effectiveStatus,
-    invoiceLabel: `Rent · ${row.billingMonth.slice(0, 7)}`,
+    invoiceLabel: labels.invoiceLabel,
     billingMonth: row.billingMonth,
-    categoryLabel: 'Rent',
-    periodLabel: billingPeriodLabel(row.billingMonth),
+    categoryLabel: labels.categoryLabel,
+    periodLabel: labels.periodLabel,
   };
 }
 

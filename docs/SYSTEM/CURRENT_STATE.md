@@ -309,3 +309,6 @@ See [[BUGS]] for full list. Highlights:
 
 <!-- DOC_SYNC_TOUCH_2026-09-14 -->
 > **2026-09-14 17:14:16 UTC** — Code changed in: Billing, Residents. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-09-15 -->
+> **2026-09-15 09:18:42 UTC** — Code changed in: Billing, Residents. Manual review recommended.

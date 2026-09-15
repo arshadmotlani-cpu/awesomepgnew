@@ -9,6 +9,9 @@ import {
   formatFinalStayDateLabel,
 } from '@/src/lib/vacating/vacatingBedSemantics';
 import { isActiveCheckoutSettlement } from '@/src/lib/residents/residentLifecycleState';
+import {
+  pendingRentInvoiceIdsFromPaymentReviews,
+} from '@/src/lib/billing/adminRentCollectionPresentation';
 import type { CollectionQueueItem } from '@/src/lib/billing/collectionsQueue';
 import type { KycSubmissionListRow } from '@/src/services/kyc';
 import type { PendingPaymentReviewItem } from '@/src/services/paymentProofQueue';
@@ -306,9 +309,7 @@ export function buildResidentOperationsDashboard(input: {
     });
   }
 
-  const proofCustomerIds = new Set(
-    input.paymentProofs.map((p) => p.customerId).filter(Boolean) as string[],
-  );
+  const pendingRentInvoiceIds = pendingRentInvoiceIdsFromPaymentReviews(input.paymentProofs);
   const pendingElecInvoiceIds = new Set(
     input.paymentProofs
       .filter((p) => p.kind === 'electricity')
@@ -319,7 +320,7 @@ export function buildResidentOperationsDashboard(input: {
   for (const b of input.unpaidBilling) {
     if (activeCheckoutCustomerIds.has(b.customerId)) continue;
     const isRent = b.kind === 'rent';
-    if (isRent && proofCustomerIds.has(b.customerId)) continue;
+    if (isRent && pendingRentInvoiceIds.has(b.sourceId)) continue;
     if (!isRent && pendingElecInvoiceIds.has(b.sourceId)) continue;
 
     const category: ResidentOpsQueueCategory = isRent

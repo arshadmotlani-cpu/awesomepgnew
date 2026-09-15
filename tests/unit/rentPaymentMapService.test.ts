@@ -35,8 +35,8 @@ test('invoice command center is not used by rent payment map service', () => {
   assert.doesNotMatch(service, /InvoiceDayList/);
 });
 
-test('rent payment map classifies via projectInvoice SSOT', () => {
+test('rent payment map loads open rent including adhoc for occupied beds', () => {
   const service = read('src/services/rentPaymentMap.ts');
-  assert.match(service, /projectInvoice/);
-  assert.match(service, /classifyRentPaymentMapBed/);
+  assert.doesNotMatch(service, /eq\(rentInvoices\.isAdhoc, false\)/);
+  assert.match(service, /rentInvoiceRelevantToBillingMonth/);
 });

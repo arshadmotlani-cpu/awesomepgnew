@@ -19,6 +19,8 @@ import {
   type RentPaymentMapSummary,
 } from '@/src/lib/billing/rentPaymentMapStatus';
 import { formatDate } from '@/src/lib/dates';
+import { buildRentInvoiceProjectInput } from '@/src/lib/billing/rentInvoiceProjectInput';
+import { resolveRentLiabilityCoveragePeriod } from '@/src/lib/billing/rentOverlapLiability';
 import { firstOfMonth, monthBounds } from '@/src/services/billing';
 import { projectInvoice, type RentInvoiceProjectInput } from '@/src/services/rentInvoices';
 
@@ -146,27 +148,87 @@ async function loadStructureRows(
   return rows;
 }
 
+function rentInvoiceRelevantToBillingMonth(
+  row: (typeof rentInvoices.$inferSelect),
+  billingMonth: string,
+): boolean {
+  const month = firstOfMonth(billingMonth);
+  if (!row.isAdhoc) {
+    return firstOfMonth(String(row.billingMonth)) === month;
+  }
+  const period = resolveRentLiabilityCoveragePeriod(
+    {
+      id: row.id,
+      isAdhoc: true,
+      invoiceSubtype: row.invoiceSubtype,
+      status: row.status,
+      paidPrincipalPaise: row.paidPrincipalPaise,
+      paidLateFeePaise: row.paidLateFeePaise,
+      paymentProofUrl: row.paymentProofUrl,
+      proofSubmittedAt: row.proofSubmittedAt,
+      proofSnapshotOutstandingPaise: row.proofSnapshotOutstandingPaise,
+      billingMonth: row.billingMonth,
+      dueDate: row.dueDate,
+      notes: row.notes,
+    },
+    { billingDay: 5, billingCyclePolicy: 'calendar_month_1st' },
+  );
+  if (!period) return firstOfMonth(String(row.billingMonth)) === month;
+  const { start, end } = monthBounds(month);
+  const monthStart = formatDate(start);
+  const monthEnd = formatDate(end);
+  return period.periodStart <= monthEnd && period.periodEnd >= monthStart;
+}
+
+function pickRentInvoiceForPaymentMap(
+  candidates: RentInvoiceProjectInput[],
+): RentInvoiceProjectInput | undefined {
+  let best: { input: RentInvoiceProjectInput; score: number } | undefined;
+  for (const input of candidates) {
+    const projected = projectInvoice(input);
+    if (projected.outstandingPaise <= 0 && projected.effectiveStatus !== 'payment_in_progress') {
+      continue;
+    }
+    const score =
+      projected.effectiveStatus === 'payment_in_progress'
+        ? 1_000_000_000 + projected.outstandingPaise
+        : projected.outstandingPaise;
+    if (!best || score > best.score) {
+      best = { input, score };
+    }
+  }
+  return best?.input;
+}
+
 async function loadRentInvoicesForBookings(
   bookingIds: string[],
   billingMonth: string,
 ): Promise<Map<string, RentInvoiceProjectInput>> {
   if (bookingIds.length === 0) return new Map();
 
-  const month = firstOfMonth(billingMonth);
   const rows = await db
     .select()
     .from(rentInvoices)
     .where(
       and(
-        eq(rentInvoices.billingMonth, month),
-        eq(rentInvoices.isAdhoc, false),
         inArray(rentInvoices.bookingId, bookingIds),
+        inArray(rentInvoices.status, ['pending', 'overdue', 'payment_in_progress']),
       ),
     );
 
-  const byBooking = new Map<string, RentInvoiceProjectInput>();
+  const grouped = new Map<string, RentInvoiceProjectInput[]>();
   for (const row of rows) {
-    byBooking.set(row.bookingId, row);
+    if (!rentInvoiceRelevantToBillingMonth(row, billingMonth)) continue;
+    const input = buildRentInvoiceProjectInput(row);
+    const list = grouped.get(row.bookingId) ?? [];
+    list.push(input);
+    grouped.set(row.bookingId, list);
+  }
+
+  const byBooking = new Map<string, RentInvoiceProjectInput>();
+  for (const [bookingId, candidates] of grouped) {
+    const picked = pickRentInvoiceForPaymentMap(candidates);
+    if (picked) byBooking.set(bookingId, picked);
   }
   return byBooking;
 }
