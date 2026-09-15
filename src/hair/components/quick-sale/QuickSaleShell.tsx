@@ -39,7 +39,9 @@ import {
   QUICK_SALE_CHECKOUT_FAILED_ERROR,
   QUICK_SALE_CHECKOUT_INTERRUPTED_ERROR,
 } from '@/src/hair/lib/quickSaleLifecycle';
-import { validateQuickSaleCheckout } from '@/src/hair/domain/basket/validateCheckout';
+import { analyzeQuickSaleCheckoutValidation } from '@/src/hair/domain/basket/validateCheckout';
+import { findLinesMissingStaffPerformer } from '@/src/hair/domain/basket/validate';
+import type { StaffRequiredCheckoutAlert } from '@/src/hair/domain/basket/staffRequired';
 import {
   buildQuickSaleSessionSnapshot,
   clearCheckoutPending,
@@ -120,6 +122,10 @@ export function QuickSaleShell({
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
   const [holdSubmitting, setHoldSubmitting] = useState(false);
   const [validationToasts, setValidationToasts] = useState<string[]>([]);
+  const [staffValidationAlert, setStaffValidationAlert] = useState<StaffRequiredCheckoutAlert | null>(
+    null,
+  );
+  const [staffErrorLineIds, setStaffErrorLineIds] = useState<string[]>([]);
   const catalogSearchRef = useRef<HTMLInputElement>(null);
   const checkoutSubmittingRef = useRef(false);
   const saleCompletedRef = useRef(false);
@@ -158,7 +164,17 @@ export function QuickSaleShell({
     [priced, payments, flags],
   );
 
-  const canCompleteSale = Boolean(basket && priced && paymentSummary?.isComplete);
+  const missingStaffLines = useMemo(
+    () => (basket ? findLinesMissingStaffPerformer(basket) : []),
+    [basket, lines],
+  );
+
+  const canCompleteSale = Boolean(
+    basket &&
+      priced &&
+      paymentSummary?.isComplete &&
+      missingStaffLines.length === 0,
+  );
 
   const {
     loading: customerContextLoading,
@@ -171,6 +187,13 @@ export function QuickSaleShell({
     if (!q) return [];
     return billableItems.filter((item) => matchesBillable(item, q)).slice(0, 10);
   }, [billableItems, catalogQ]);
+
+  useEffect(() => {
+    if (missingStaffLines.length === 0) {
+      setStaffErrorLineIds([]);
+      setStaffValidationAlert(null);
+    }
+  }, [missingStaffLines.length]);
 
   const refreshHeldBills = useCallback(async () => {
     try {
@@ -360,11 +383,29 @@ export function QuickSaleShell({
   async function submitCheckout() {
     if (!basket || !priced || checkoutSubmittingRef.current) return;
 
-    const validationErrors = validateQuickSaleCheckout(basket, priced);
-    if (validationErrors.length > 0) {
-      setValidationToasts(validationErrors);
+    const validation = analyzeQuickSaleCheckoutValidation(basket, priced);
+    if (validation.errors.length > 0) {
+      setValidationToasts(validation.errors);
+      setStaffValidationAlert(validation.staffAlert);
+      setStaffErrorLineIds(validation.staffRequiredLineIds);
+      if (validation.staffRequiredLineIds.length > 0) {
+        const firstId = validation.staffRequiredLineIds[0]!;
+        window.requestAnimationFrame(() => {
+          document
+            .querySelector(`[data-qs-line-id="${firstId}"] [data-testid="qs-staff-field"]`)
+            ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          (
+            document.querySelector(
+              `[data-qs-line-id="${firstId}"] [data-testid="qs-staff-field"] input`,
+            ) as HTMLInputElement | null
+          )?.focus();
+        });
+      }
       return;
     }
+
+    setStaffValidationAlert(null);
+    setStaffErrorLineIds([]);
 
     checkoutSubmittingRef.current = true;
     setCheckoutSubmitting(true);
@@ -632,7 +673,11 @@ export function QuickSaleShell({
     <div className="qs-pos-shell" aria-busy={workspaceLocked} data-testid="qs-pos-shell">
       <QuickSaleValidationToasts
         messages={validationToasts}
-        onDismiss={() => setValidationToasts([])}
+        staffAlert={staffValidationAlert}
+        onDismiss={() => {
+          setValidationToasts([]);
+          setStaffValidationAlert(null);
+        }}
       />
       {workspaceLocked ? <QuickSaleCheckoutProcessing /> : null}
 
@@ -703,12 +748,16 @@ export function QuickSaleShell({
             locked={workspaceLocked}
             staffNames={staffNames}
             preloadedStaff={preloadedStaff}
+            staffErrorLineIds={staffErrorLineIds}
             onStaffNameRegistered={(staffId, fullName) =>
               setStaffNames((prev) => ({ ...prev, [staffId]: fullName }))
             }
-            onUpdateLine={(lineId, patch) =>
-              setLines((prev) => prev.map((l) => (l.lineId === lineId ? { ...l, ...patch } : l)))
-            }
+            onUpdateLine={(lineId, patch) => {
+              setLines((prev) => prev.map((l) => (l.lineId === lineId ? { ...l, ...patch } : l)));
+              if ('staff' in patch && (patch.staff?.length ?? 0) > 0) {
+                setStaffErrorLineIds((prev) => prev.filter((id) => id !== lineId));
+              }
+            }}
             onRemoveLine={(lineId) => setLines((prev) => prev.filter((l) => l.lineId !== lineId))}
           />
         </div>
@@ -725,6 +774,8 @@ export function QuickSaleShell({
             checkoutSubmitting={checkoutSubmitting}
             holdSubmitting={holdSubmitting}
             canCompleteSale={canCompleteSale}
+            staffRequiredCount={missingStaffLines.length}
+            showStaffRequiredHint={Boolean(paymentSummary?.isComplete && missingStaffLines.length > 0)}
             canHoldBill={Boolean(customer && lines.length > 0)}
             linesCount={lines.length}
             error={error}

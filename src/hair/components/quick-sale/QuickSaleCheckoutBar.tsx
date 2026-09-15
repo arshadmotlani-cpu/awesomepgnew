@@ -19,6 +19,8 @@ type Props = {
   holdSubmitting: boolean;
   canCompleteSale: boolean;
   canHoldBill: boolean;
+  staffRequiredCount?: number;
+  showStaffRequiredHint?: boolean;
   linesCount: number;
   error: string | null;
   onChangePayments: (payments: PaymentEntry[]) => void;
@@ -39,6 +41,8 @@ export function QuickSaleCheckoutBar({
   holdSubmitting,
   canCompleteSale,
   canHoldBill,
+  staffRequiredCount = 0,
+  showStaffRequiredHint = false,
   linesCount,
   error,
   onChangePayments,
@@ -99,6 +103,13 @@ export function QuickSaleCheckoutBar({
         ) : null}
 
         {error ? <p className="qs-checkout-error">{error}</p> : null}
+
+        {showStaffRequiredHint && staffRequiredCount > 0 ? (
+          <p className="qs-checkout-staff-hint" data-testid="qs-staff-required-hint">
+            Select staff for {staffRequiredCount} service
+            {staffRequiredCount === 1 ? '' : 's'} before completing the sale.
+          </p>
+        ) : null}
 
         <div className="qs-checkout-actions">
           <Button

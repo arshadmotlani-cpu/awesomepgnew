@@ -2177,6 +2177,22 @@
   background: rgba(255, 255, 255, 0.05);
 }
 
+.qs-staff-field-error input {
+  border-color: #dc2626 !important;
+  background: #fef2f2 !important;
+}
+
+.qs-staff-field-error .qs-staff-chip {
+  border-color: #fca5a5;
+}
+
+.qs-checkout-staff-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #b45309;
+}
+
 .qs-staff-chip {
   display: inline-flex;
   align-items: center;

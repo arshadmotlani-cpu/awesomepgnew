@@ -24,6 +24,7 @@ type Props = {
   locked?: boolean;
   staffNames?: Record<string, string>;
   preloadedStaff?: Array<{ id: string; fullName: string }>;
+  staffErrorLineIds?: string[];
   onStaffNameRegistered?: (staffId: string, fullName: string) => void;
   onUpdateLine: (lineId: string, patch: Partial<BasketLine>) => void;
   onRemoveLine: (lineId: string) => void;
@@ -34,6 +35,7 @@ export function QuickSaleBasketTable({
   locked = false,
   staffNames,
   preloadedStaff,
+  staffErrorLineIds = [],
   onStaffNameRegistered,
   onUpdateLine,
   onRemoveLine,
@@ -87,7 +89,7 @@ export function QuickSaleBasketTable({
             const discountPercent = discountPercentForLine(line);
 
             return (
-              <tr key={line.lineId}>
+              <tr key={line.lineId} data-qs-line-id={line.lineId}>
                 <td>
                   <p className="qs-compact-line-name">{line.snapshot.name}</p>
                   {line.snapshot.code ? (
@@ -110,6 +112,7 @@ export function QuickSaleBasketTable({
                     lineType={line.billableRef.type}
                     staff={line.staff}
                     disabled={locked}
+                    showError={staffErrorLineIds.includes(line.lineId)}
                     initialNames={staffNames}
                     preloadedStaff={preloadedStaff}
                     onNameRegistered={onStaffNameRegistered}

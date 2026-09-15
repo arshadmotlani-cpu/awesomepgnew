@@ -29,6 +29,7 @@ const serviceLine: BasketLine = {
     category: null,
   },
   quantity: 1,
+  lineGrossOverridePaise: null,
   overridePricePaise: null,
   staff: [{ staffId: 'staff-1', shareBps: 10_000 }],
 };
@@ -45,6 +46,7 @@ const prepaidLine: BasketLine = {
     category: 'Package Redemption',
   },
   quantity: 1,
+  lineGrossOverridePaise: null,
   overridePricePaise: 0,
   staff: [],
   prepaidRedemption: {
@@ -78,7 +80,7 @@ test('1 missing prepaid staff produces validation error', () => {
   const b = basket({ lines: [prepaidLine], payments: [] });
   const priced = priceBasket(b);
   const errors = validateQuickSaleCheckout(b, priced);
-  assert.ok(errors.some((e) => e.includes('Select staff for package redemption')));
+  assert.ok(errors.some((e) => e.includes('Staff member is required for')));
 });
 
 test('2 missing payment coverage produces validation error', () => {
@@ -108,7 +110,7 @@ test('4 multiple missing fields collected together', () => {
   const priced = priceBasket({ ...b, customerId: sampleCustomerId });
   const basketErrors = collectBasketValidationErrors(b);
   assert.ok(basketErrors.includes('Select a customer'));
-  assert.ok(basketErrors.some((e) => e.includes('Select staff for package redemption')));
+  assert.ok(basketErrors.some((e) => e.includes('Staff member is required for')));
   const payErrors = collectPaymentValidationErrors(priced.totals.grandTotalPaise, 0, b.flags);
   assert.ok(payErrors.length > 0);
 });
@@ -119,7 +121,7 @@ test('5–8 submitCheckout validates before processing and checkout', () => {
   const fnEnd = shell.indexOf('const addPrepaidSelections', fnStart);
   assert.ok(fnStart > 0 && fnEnd > fnStart);
   const block = shell.slice(fnStart, fnEnd);
-  const validateIdx = block.indexOf('validateQuickSaleCheckout');
+  const validateIdx = block.indexOf('analyzeQuickSaleCheckoutValidation');
   const submittingIdx = block.indexOf('checkoutSubmittingRef.current = true');
   const pendingIdx = block.indexOf('markQuickSaleCheckoutPending');
   const actionIdx = block.indexOf('completeQuickSaleAction');
@@ -127,7 +129,8 @@ test('5–8 submitCheckout validates before processing and checkout', () => {
   assert.ok(validateIdx < submittingIdx);
   assert.ok(submittingIdx < pendingIdx);
   assert.ok(pendingIdx < actionIdx);
-  assert.match(block, /setValidationToasts\(validationErrors\)/);
+  assert.match(block, /setStaffValidationAlert/);
+  assert.match(block, /setStaffErrorLineIds/);
   assert.match(block, /return;/);
 });
 
@@ -169,6 +172,7 @@ test('13–15 success clears storage; failure reverts pending synchronously', ()
 test('16–17 package prefetch and print failure contracts unchanged', () => {
   const pipeline = readSrc('src/hair/domain/checkout/pipeline.ts');
   assert.match(pipeline, /collectPaymentValidationErrors/);
+  assert.match(pipeline, /collectBasketLineValidationErrors\(input\.basket\)/);
   const prefetchIdx = pipeline.indexOf('listPackagePlansDetailed({ includeInactive: true }, ctx)');
   const txIdx = pipeline.indexOf('const invoiceId = await hairDb.transaction');
   assert.ok(prefetchIdx > 0 && txIdx > prefetchIdx);
@@ -196,8 +200,8 @@ test('paid service without staff is blocked at checkout validation', () => {
   const b = basket({ lines: [lineWithoutStaff], payments: [] });
   const priced = priceBasket({ ...b, customerId: sampleCustomerId });
   const errors = collectBasketValidationErrors(b);
-  assert.ok(errors.some((e) => e.includes('Select staff for this service')));
-  assert.ok(validateQuickSaleCheckout(b, priced).some((e) => e.includes('Select staff')));
+  assert.ok(errors.some((e) => e.includes('Staff member is required for')));
+  assert.ok(validateQuickSaleCheckout(b, priced).some((e) => e.includes('Cannot complete sale')));
 });
 
 test('product-only sale without staff remains allowed', () => {
@@ -213,6 +217,7 @@ test('product-only sale without staff remains allowed', () => {
       category: 'Retail',
     },
     quantity: 1,
+    lineGrossOverridePaise: null,
     overridePricePaise: null,
     staff: [],
   };

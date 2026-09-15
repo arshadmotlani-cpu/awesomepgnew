@@ -1,37 +1,14 @@
 import type { Basket, BasketFlags, PricedBasket } from '@/src/hair/domain/basket/types';
-import { validateStaffAllocations } from '@/src/hair/domain/basket/validate';
+import { collectBasketLineValidationErrors } from '@/src/hair/domain/basket/validate';
+import {
+  findLinesMissingStaffPerformer,
+  staffRequiredCheckoutDetail,
+  type StaffRequiredCheckoutAlert,
+} from '@/src/hair/domain/basket/staffRequired';
 
+/** @deprecated Prefer collectBasketLineValidationErrors */
 export function collectBasketValidationErrors(basket: Basket): string[] {
-  const errors: string[] = [];
-  if (!basket.customerId) errors.push('Select a customer');
-  if (basket.lines.length === 0) errors.push('Add at least one item');
-
-  for (const line of basket.lines) {
-    if (line.billableRef.type === 'package') continue;
-
-    if (line.prepaidRedemption) {
-      if (line.staff.length === 0) {
-        errors.push(`${line.snapshot.name}: Select staff for package redemption`);
-      }
-      const err = validateStaffAllocations(line);
-      if (err) errors.push(err);
-      continue;
-    }
-
-    if (
-      line.snapshot.staffMode === 'SERVICE' &&
-      line.billableRef.type === 'service' &&
-      line.staff.length === 0
-    ) {
-      errors.push(`${line.snapshot.name}: Select staff for this service`);
-      continue;
-    }
-
-    const err = validateStaffAllocations(line);
-    if (err) errors.push(err);
-  }
-
-  return errors;
+  return collectBasketLineValidationErrors(basket);
 }
 
 export function collectPaymentValidationErrors(
@@ -58,10 +35,30 @@ export function collectPaymentValidationErrors(
   return [];
 }
 
-export function validateQuickSaleCheckout(basket: Basket, priced: PricedBasket): string[] {
+export type QuickSaleCheckoutValidation = {
+  errors: string[];
+  staffAlert: StaffRequiredCheckoutAlert | null;
+  staffRequiredLineIds: string[];
+};
+
+export function analyzeQuickSaleCheckoutValidation(
+  basket: Basket,
+  priced: PricedBasket,
+): QuickSaleCheckoutValidation {
   const paySum = basket.payments.reduce((s, p) => s + p.amountPaise, 0);
-  return [
-    ...collectBasketValidationErrors(basket),
+  const missingStaff = findLinesMissingStaffPerformer(basket);
+  const staffAlert = missingStaff.length > 0 ? staffRequiredCheckoutDetail(missingStaff) : null;
+  const errors = [
+    ...collectBasketLineValidationErrors(basket),
     ...collectPaymentValidationErrors(priced.totals.grandTotalPaise, paySum, basket.flags),
   ];
+  return {
+    errors,
+    staffAlert,
+    staffRequiredLineIds: missingStaff.map((l) => l.lineId),
+  };
+}
+
+export function validateQuickSaleCheckout(basket: Basket, priced: PricedBasket): string[] {
+  return analyzeQuickSaleCheckoutValidation(basket, priced).errors;
 }

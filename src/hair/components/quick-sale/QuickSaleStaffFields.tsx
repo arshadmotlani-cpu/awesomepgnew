@@ -50,6 +50,7 @@ export function QuickSaleStaffRow({
   preloadedStaff,
   onNameRegistered,
   disabled = false,
+  showError = false,
 }: {
   lineType: BillableItemType;
   staff: StaffAllocation[];
@@ -58,6 +59,7 @@ export function QuickSaleStaffRow({
   preloadedStaff?: QuickSaleStaffHit[];
   onNameRegistered?: (staffId: string, fullName: string) => void;
   disabled?: boolean;
+  showError?: boolean;
 }) {
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<QuickSaleStaffHit[]>([]);
@@ -245,7 +247,11 @@ export function QuickSaleStaffRow({
       : null;
 
   return (
-    <div ref={rootRef} className="min-w-[9rem] space-y-1" data-testid="qs-staff-row">
+    <div
+      ref={rootRef}
+      className={`min-w-[9rem] space-y-1 ${showError ? 'qs-staff-field-error' : ''}`}
+      data-testid="qs-staff-row"
+    >
       {staff.length > 1 ? (
         <div className="flex flex-wrap gap-1">
           {staff.map((s) => (
@@ -264,7 +270,7 @@ export function QuickSaleStaffRow({
           ))}
         </div>
       ) : null}
-      <div className="relative">
+      <div className="relative" data-testid="qs-staff-field">
         <Input
           ref={inputRef}
           disabled={disabled}

@@ -13,7 +13,7 @@ import {
 import { priceBasket } from '@/src/hair/domain/basket/engine';
 import type { Basket } from '@/src/hair/domain/basket/types';
 import { collectPaymentValidationErrors } from '@/src/hair/domain/basket/validateCheckout';
-import { validateBasket } from '@/src/hair/domain/basket/validate';
+import { collectBasketLineValidationErrors } from '@/src/hair/domain/basket/validate';
 import {
   creditWalletAdvance,
   postLedgerEntries,
@@ -87,8 +87,8 @@ export async function enrichBasketWithRedemptions(basket: Basket, ctx?: TenantCo
 }
 
 export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promise<CheckoutFromBasketResult> {
-  const err = validateBasket(input.basket);
-  if (err) throw new Error(err);
+  const basketErrors = collectBasketLineValidationErrors(input.basket);
+  if (basketErrors.length > 0) throw new Error(basketErrors[0]);
   const ctx = await resolveTenantContextForService(input.ctx);
   const writeDefaults = tenantWriteDefaults(ctx);
 
