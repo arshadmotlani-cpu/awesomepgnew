@@ -1,14 +1,9 @@
 import { and, asc, eq, ilike, or, sql } from 'drizzle-orm';
 import { listBookableStaffForSalon } from '@/src/hair/adapters/workforceStaffAdapter';
 import { hairDb } from '@/src/hair/db/client';
-import {
-  fyhCustomers,
-  fyhProducts,
-  fyhServiceCategories,
-  fyhServices,
-} from '@/src/hair/db/schema';
+import { fyhCustomers, fyhProducts } from '@/src/hair/db/schema';
 import { listMembershipPlans, listPackagePlans } from '@/src/hair/services/loyaltyOps';
-import { shouldHideServiceFromBillable } from '@/src/hair/lib/serviceCatalogHygiene';
+import { listBookableServices } from '@/src/hair/services/salonServices';
 import { SALON_GST_BPS } from '@/src/hair/lib/taxConfig';
 import { computeRedemptions } from '@/src/hair/services/invoices';
 import {
@@ -94,24 +89,8 @@ export type QuickSaleCatalog = {
 
 export async function loadQuickSaleCatalog(ctx?: TenantContext | null): Promise<QuickSaleCatalog> {
   ctx = await resolveTenantContextForService(ctx);
-  const [services, products, packages, memberships, staff] = await Promise.all([
-    hairDb
-      .select({
-        id: fyhServices.id,
-        name: fyhServices.name,
-        code: fyhServices.code,
-        category: fyhServices.category,
-        description: fyhServices.description,
-        pricePaise: fyhServices.pricePaise,
-        gstBps: fyhServices.gstBps,
-      })
-      .from(fyhServices)
-      .leftJoin(fyhServiceCategories, eq(fyhServices.category, fyhServiceCategories.name))
-      .where(and(orgFilter(fyhServices.organizationId, ctx), eq(fyhServices.isActive, true)))
-      .orderBy(
-        asc(sql`coalesce(${fyhServiceCategories.displayOrder}, 999)`),
-        asc(fyhServices.name),
-      ),
+  const [serviceRows, products, packages, memberships, staff] = await Promise.all([
+    listBookableServices(ctx),
     hairDb
       .select({
         id: fyhProducts.id,
@@ -144,10 +123,17 @@ export async function loadQuickSaleCatalog(ctx?: TenantContext | null): Promise<
     ),
   ]);
 
-  const visibleServices = services.filter((s) => !shouldHideServiceFromBillable(s.name, s.code));
+  const services = serviceRows.map((s) => ({
+    id: s.id,
+    name: s.name,
+    category: s.category,
+    description: s.description,
+    pricePaise: s.pricePaise,
+    gstBps: s.gstBps,
+  }));
 
   return {
-    services: visibleServices,
+    services,
     products: products.map((p) => ({ ...p, gstBps: SALON_GST_BPS })),
     packages,
     memberships,

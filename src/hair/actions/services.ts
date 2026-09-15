@@ -91,6 +91,7 @@ export async function createServiceAction(
     );
     revalidatePath('/services');
     revalidatePath('/services/new');
+    revalidatePath('/quick-sale');
     return {
       success: 'Service created successfully.',
       created: true,
@@ -126,6 +127,7 @@ export async function updateServiceAction(
     await updateService(id, input, ctx);
     revalidatePath('/services');
     revalidatePath(`/services/${id}`);
+    revalidatePath('/quick-sale');
     return { success: 'Changes saved successfully.' };
   } catch (e) {
     if (e instanceof DuplicateServiceError) {
@@ -150,6 +152,7 @@ export async function archiveServiceAction(
     await archiveService(id, ctx);
     revalidatePath('/services');
     revalidatePath(`/services/${id}`);
+    revalidatePath('/quick-sale');
     redirect('/services?status=inactive');
   } catch (e) {
     if (e && typeof e === 'object' && 'digest' in e) throw e;
@@ -169,6 +172,7 @@ export async function restoreServiceAction(
     await restoreService(id, ctx);
     revalidatePath('/services');
     revalidatePath(`/services/${id}`);
+    revalidatePath('/quick-sale');
     redirect(`/services/${id}`);
   } catch (e) {
     if (e && typeof e === 'object' && 'digest' in e) throw e;

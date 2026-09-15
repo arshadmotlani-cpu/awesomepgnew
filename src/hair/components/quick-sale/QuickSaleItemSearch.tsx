@@ -93,6 +93,10 @@ export function QuickSaleItemSearch({
                   {item.name}
                   <span className="qs-compact-search-result-type">
                     {TYPE_LABEL[item.type] ?? item.type}
+                    {item.type === 'service' && item.category ? ` · ${item.category}` : ''}
+                    {item.type === 'service' && item.durationMinutes
+                      ? ` · ${item.durationMinutes}m`
+                      : ''}
                   </span>
                 </span>
                 <span className="qs-compact-search-result-price tabular-nums">

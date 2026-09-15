@@ -1,38 +1,39 @@
 import { and, asc, eq } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
-import {
-  fyhProducts,
-  fyhServiceCategories,
-  fyhServices,
-} from '@/src/hair/db/schema';
+import { fyhProducts, type FyhService } from '@/src/hair/db/schema';
 import type { BillableItem, BillableItemType } from '@/src/hair/domain/catalog/types';
 import { staffModeForType } from '@/src/hair/domain/catalog/types';
-import { shouldHideServiceFromBillable } from '@/src/hair/lib/serviceCatalogHygiene';
 import { SALON_GST_BPS } from '@/src/hair/lib/taxConfig';
 import { listMembershipPlans, listPackagePlans } from '@/src/hair/services/loyaltyOps';
+import { listBookableServices } from '@/src/hair/services/salonServices';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
+
+/** Map a Configuration catalog service row to a Quick Sale billable item (no duplicate catalog). */
+export function mapServiceToBillableItem(service: FyhService): BillableItem {
+  return {
+    id: service.id,
+    type: 'service',
+    name: service.name,
+    code: service.code,
+    sellingPricePaise: service.pricePaise,
+    gstBps: service.gstBps,
+    category: service.category,
+    durationMinutes: service.durationMinutes,
+    staffMode: staffModeForType('service'),
+    active: service.isActive,
+  };
+}
 
 /**
  * Billable catalog for POS / Quick Sale.
- * Always org-scoped (Phase C): never returns another salon's catalog rows.
+ * Services: same SSOT as Configuration → Services (`listBookableServices`).
  */
 export async function loadBillableCatalog(ctx?: TenantContext | null): Promise<BillableItem[]> {
-  const [services, products, packages, memberships] = await Promise.all([
-    hairDb
-      .select({
-        id: fyhServices.id,
-        name: fyhServices.name,
-        code: fyhServices.code,
-        category: fyhServices.category,
-        pricePaise: fyhServices.pricePaise,
-        gstBps: fyhServices.gstBps,
-        isActive: fyhServices.isActive,
-      })
-      .from(fyhServices)
-      .leftJoin(fyhServiceCategories, eq(fyhServices.category, fyhServiceCategories.name))
-      .where(and(orgFilter(fyhServices.organizationId, ctx), eq(fyhServices.isActive, true)))
-      .orderBy(asc(fyhServices.name)),
+  ctx = await resolveTenantContextForService(ctx);
+  const [serviceRows, products, packages, memberships] = await Promise.all([
+    listBookableServices(ctx),
     hairDb
       .select({
         id: fyhProducts.id,
@@ -54,22 +55,8 @@ export async function loadBillableCatalog(ctx?: TenantContext | null): Promise<B
     listMembershipPlans(ctx),
   ]);
 
-  const items: BillableItem[] = [];
+  const items: BillableItem[] = serviceRows.map(mapServiceToBillableItem);
 
-  for (const s of services) {
-    if (shouldHideServiceFromBillable(s.name, s.code)) continue;
-    items.push({
-      id: s.id,
-      type: 'service',
-      name: s.name,
-      code: s.code,
-      sellingPricePaise: s.pricePaise,
-      gstBps: s.gstBps,
-      category: s.category,
-      staffMode: staffModeForType('service'),
-      active: s.isActive,
-    });
-  }
   for (const p of products) {
     items.push({
       id: p.id,
@@ -118,17 +105,7 @@ export async function resolveBillableItem(
   id: string,
   ctx?: TenantContext | null,
 ): Promise<BillableItem | null> {
+  ctx = await resolveTenantContextForService(ctx);
   const catalog = await loadBillableCatalog(ctx);
   return catalog.find((c) => c.type === type && c.id === id) ?? null;
-}
-
-export function billableItemToSnapshot(item: BillableItem) {
-  return {
-    name: item.name,
-    code: item.code,
-    unitSellingPricePaise: item.sellingPricePaise,
-    gstBps: item.gstBps,
-    staffMode: item.staffMode,
-    category: item.category,
-  };
 }

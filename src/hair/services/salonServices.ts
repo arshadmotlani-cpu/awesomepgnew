@@ -16,10 +16,7 @@ import {
   canonicalServiceName,
   normalizeServiceName,
 } from '@/src/hair/lib/serviceName';
-import {
-  shouldHideServiceFromBillable,
-  shouldHideServiceFromCatalog,
-} from '@/src/hair/lib/serviceCatalogHygiene';
+import { shouldHideServiceFromCatalog } from '@/src/hair/lib/serviceCatalogHygiene';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
@@ -442,6 +439,7 @@ export async function deleteService(id: string, ctx?: TenantContext | null) {
 }
 
 /** Services available for new appointments (active only). */
+/** Active salon services for POS, appointments, and Configuration (same filters as listServices). */
 export async function listBookableServices(ctx?: TenantContext | null) {
-  return listServices({ status: 'active' });
+  return listServices({ status: 'active' }, ctx);
 }

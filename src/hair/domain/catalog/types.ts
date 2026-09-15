@@ -10,6 +10,8 @@ export type BillableItem = {
   sellingPricePaise: number;
   gstBps: number;
   category: string | null;
+  /** Salon services — mirrors Configuration → Services duration. */
+  durationMinutes?: number | null;
   staffMode: StaffMode;
   active: boolean;
 };
