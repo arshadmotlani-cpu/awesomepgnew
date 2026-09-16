@@ -38,9 +38,27 @@ test('Invoice modal styles support Quick Sale viewer fit', () => {
   assert.match(styles, /\.fyh-invoice-preview-viewport/);
 });
 
-test('Shell returns to Quick Sale workspace on Done (not customer step)', () => {
+test('Shell resets to fresh customer step when invoice viewer closes', () => {
   const shell = readSrc('src/hair/components/quick-sale/QuickSaleShell.tsx');
   assert.match(shell, /closeCompletedInvoiceViewer/);
-  assert.match(shell, /setStep\('sale'\)/);
+  assert.match(shell, /closeCompletedInvoiceViewer[\s\S]*resetForNext\(\)/);
   assert.match(shell, /onDone=\{closeCompletedInvoiceViewer\}/);
+  const closeFn = shell.slice(
+    shell.indexOf('const closeCompletedInvoiceViewer'),
+    shell.indexOf('const cancelSale'),
+  );
+  assert.doesNotMatch(closeFn, /setStep\('sale'\)/);
+  assert.match(closeFn, /resetForNext/);
+});
+
+test('post-checkout close clears customer and session draft (no stale restore)', () => {
+  const shell = readSrc('src/hair/components/quick-sale/QuickSaleShell.tsx');
+  const clearBlock = shell.slice(
+    shell.indexOf('const clearSaleState'),
+    shell.indexOf('const resetForNext'),
+  );
+  assert.match(clearBlock, /setCustomer\(null\)/);
+  assert.match(clearBlock, /clearQuickSaleSession\(\)/);
+  assert.match(clearBlock, /clearCheckoutPending\(\)/);
+  assert.match(shell, /finalizeSuccess[\s\S]*clearQuickSaleSession/);
 });

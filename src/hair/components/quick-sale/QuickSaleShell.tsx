@@ -531,10 +531,17 @@ export function QuickSaleShell({
   const clearSaleState = () => {
     saleCompletedRef.current = false;
     clearQuickSaleSession();
+    clearCheckoutPending();
     setCustomer(null);
     resetTransactionState();
     setInvoiceId(null);
     setError(null);
+    setValidationToasts([]);
+    setStaffValidationAlert(null);
+    setStaffErrorLineIds([]);
+    setAvailableServicesOpen(false);
+    setMenuOpen(false);
+    setClearAllConfirmOpen(false);
   };
 
   const resetForNext = () => {
@@ -542,9 +549,9 @@ export function QuickSaleShell({
     setStep('customer');
   };
 
+  /** After completed sale: full reset so the next sale starts at customer search. */
   const closeCompletedInvoiceViewer = () => {
-    setInvoiceId(null);
-    setStep('sale');
+    resetForNext();
   };
 
   const cancelSale = () => {
