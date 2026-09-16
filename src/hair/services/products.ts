@@ -1,6 +1,6 @@
 import { and, asc, eq, ilike, or } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
-import { fyhBrands, fyhProducts } from '@/src/hair/db/schema';
+import { fyhBrands, fyhProducts, fyhVendors } from '@/src/hair/db/schema';
 import type { FyhProduct } from '@/src/hair/db/schema';
 import type { FyhProductType } from '@/src/hair/lib/productTypes';
 import { parseProductType } from '@/src/hair/lib/productTypes';
@@ -25,7 +25,11 @@ export type ProductInput = {
   isActive?: boolean;
 };
 
-export type ProductWithBrand = FyhProduct & { brandName: string };
+export type ProductWithBrand = FyhProduct & {
+  brandName: string;
+  vendorId?: string | null;
+  vendorName?: string | null;
+};
 
 function normalizeProductName(name: string): string {
   return name.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -87,14 +91,22 @@ export async function listProducts(
     .select({
       product: fyhProducts,
       brandName: fyhBrands.name,
+      vendorId: fyhBrands.vendorId,
+      vendorName: fyhVendors.name,
     })
     .from(fyhProducts)
     .innerJoin(fyhBrands, eq(fyhBrands.id, fyhProducts.brandId))
+    .leftJoin(fyhVendors, eq(fyhVendors.id, fyhBrands.vendorId))
     .where(and(...conditions))
     .orderBy(asc(fyhProducts.name))
     .limit(300);
 
-  return rows.map((r) => ({ ...r.product, brandName: r.brandName }));
+  return rows.map((r) => ({
+    ...r.product,
+    brandName: r.brandName,
+    vendorId: r.vendorId,
+    vendorName: r.vendorName,
+  }));
 }
 
 /** Active retail products for POS / Quick Sale — same SSOT as Configuration → Products. */
@@ -125,12 +137,22 @@ export async function getProduct(id: string, ctx?: TenantContext | null): Promis
     .select({
       product: fyhProducts,
       brandName: fyhBrands.name,
+      vendorId: fyhBrands.vendorId,
+      vendorName: fyhVendors.name,
     })
     .from(fyhProducts)
     .innerJoin(fyhBrands, eq(fyhBrands.id, fyhProducts.brandId))
+    .leftJoin(fyhVendors, eq(fyhVendors.id, fyhBrands.vendorId))
     .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.id, id)))
     .limit(1);
-  return row ? { ...row.product, brandName: row.brandName } : null;
+  return row
+    ? {
+        ...row.product,
+        brandName: row.brandName,
+        vendorId: row.vendorId,
+        vendorName: row.vendorName,
+      }
+    : null;
 }
 
 export async function createProduct(input: ProductInput, ctx?: TenantContext | null) {
@@ -178,12 +200,7 @@ export async function createProduct(input: ProductInput, ctx?: TenantContext | n
   });
 }
 
-export async function updateProduct(
-  id: string,
-  input: ProductInput,
-  ctx?: TenantContext | null,
-  opts?: { stockAdjustmentReason?: string | null },
-) {
+export async function updateProduct(id: string, input: ProductInput, ctx?: TenantContext | null) {
   ctx = await resolveTenantContextForService(ctx);
   const name = validateProductInput(input);
   await assertUniqueProductIdentity(name, input.brandId, id, ctx);
@@ -195,50 +212,65 @@ export async function updateProduct(
   const existing = await getProduct(id, ctx);
   if (!existing) throw new Error('Product not found');
 
-  const desiredQty = input.stockQty ?? Number(existing.stockQty);
-  const currentQty = Number(existing.stockQty);
-  const delta = desiredQty - currentQty;
+  await hairDb
+    .update(fyhProducts)
+    .set({
+      name,
+      brandId: input.brandId,
+      category: input.category?.trim() || null,
+      description: input.description?.trim() || null,
+      productType,
+      sellingPricePaise,
+      costPricePaise: toPaise(input.costPriceRupees ?? 0),
+      isActive,
+      archivedAt: isActive ? null : new Date(),
+      updatedAt: new Date(),
+    })
+    .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.id, id)));
 
-  return hairDb.transaction(async (tx) => {
-    const db = tx as unknown as typeof hairDb;
-    await tx
-      .update(fyhProducts)
-      .set({
-        name,
-        brandId: input.brandId,
-        category: input.category?.trim() || null,
-        description: input.description?.trim() || null,
-        productType,
-        sellingPricePaise,
-        costPricePaise: toPaise(input.costPriceRupees ?? 0),
-        isActive,
-        archivedAt: isActive ? null : new Date(),
-        updatedAt: new Date(),
-      })
-      .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.id, id)));
+  const updated = await getProduct(id, ctx);
+  return updated!;
+}
 
-    if (delta !== 0) {
-      const reason = opts?.stockAdjustmentReason?.trim();
-      if (!reason) {
-        throw new Error('Stock adjustment requires a reason');
-      }
-      await applyMovement(
-        db,
-        {
-          productId: id,
-          quantityDelta: delta,
-          movementType: 'adjustment',
-          referenceType: 'product_edit',
-          referenceId: id,
-          notes: reason,
-        },
-        ctx,
-      );
-    }
+export async function adjustProductStock(
+  productId: string,
+  quantityDelta: number,
+  reason: string,
+  ctx?: TenantContext | null,
+) {
+  ctx = await resolveTenantContextForService(ctx);
+  const trimmed = reason.trim();
+  if (!trimmed) throw new Error('Adjustment reason is required');
+  const delta = Number(quantityDelta);
+  if (!Number.isFinite(delta) || delta === 0) {
+    throw new Error('Enter a non-zero quantity change (+ or −)');
+  }
+  const existing = await getProduct(productId, ctx);
+  if (!existing) throw new Error('Product not found');
+  await applyMovement(
+    hairDb,
+    {
+      productId,
+      quantityDelta: delta,
+      movementType: 'adjustment',
+      referenceType: 'product_adjust',
+      referenceId: productId,
+      notes: trimmed,
+    },
+    ctx,
+  );
+  return getProduct(productId, ctx);
+}
 
-    const updated = await getProduct(id, ctx);
-    return updated!;
-  });
+export async function restoreProduct(id: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
+  const [row] = await hairDb
+    .update(fyhProducts)
+    .set({ isActive: true, archivedAt: null, updatedAt: new Date() })
+    .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.id, id)))
+    .returning();
+  if (!row) throw new Error('Product not found');
+  return row;
 }
 
 export async function archiveProduct(id: string, ctx?: TenantContext | null) {

@@ -18,6 +18,7 @@ import {
   type VendorInput,
 } from '@/src/hair/services/vendors';
 import { hairDb } from '@/src/hair/db/client';
+import { getTenantContextForAction } from '@/src/hair/lib/tenant/getTenantContext';
 
 export type InventoryActionState = { error?: string; success?: string };
 
@@ -83,12 +84,17 @@ export async function adjustStockAction(input: {
 }): Promise<InventoryActionState> {
   try {
     await requirePermission('action:inventory.adjust');
-    await applyMovement(hairDb, {
-      productId: input.productId,
-      quantityDelta: input.quantityDelta,
-      movementType: 'adjustment',
-      notes: input.notes ?? null,
-    });
+    const ctx = await getTenantContextForAction();
+    await applyMovement(
+      hairDb,
+      {
+        productId: input.productId,
+        quantityDelta: input.quantityDelta,
+        movementType: 'adjustment',
+        notes: input.notes ?? null,
+      },
+      ctx,
+    );
     revalidatePath('/inventory');
     revalidatePath('/products');
     revalidatePath('/reports');

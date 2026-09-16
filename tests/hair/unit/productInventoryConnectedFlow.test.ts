@@ -16,10 +16,12 @@ function read(rel: string) {
 }
 
 describe('Product inventory connected flow (SaaS + SSOT)', () => {
-  it('new product page resolves tenant before listBrands', () => {
-    const page = read('app/(hair)/fyh/(app)/products/new/page.tsx');
-    assert.match(page, /getTenantContextForPage\(\)/);
-    assert.match(page, /listBrands\(ctx\)/);
+  it('new product route redirects to list add drawer; master page resolves tenant', () => {
+    const redirectPage = read('app/(hair)/fyh/(app)/products/new/page.tsx');
+    assert.match(redirectPage, /redirect\('\/products\?add=1'\)/);
+    const listPage = read('app/(hair)/fyh/(app)/products/page.tsx');
+    assert.match(listPage, /getTenantContextForPage\(\)/);
+    assert.match(listPage, /listBrands\(ctx\)/);
   });
 
   it('listBrands resolves tenant context for orgFilter', () => {
@@ -38,7 +40,7 @@ describe('Product inventory connected flow (SaaS + SSOT)', () => {
     const products = read('src/hair/services/products.ts');
     assert.match(products, /assertUniqueProductIdentity/);
     assert.match(products, /movementType: 'opening'/);
-    assert.match(products, /Stock adjustment requires a reason/);
+    assert.match(products, /export async function adjustProductStock/);
   });
 
   it('Quick Sale catalog uses listBookableRetailProducts SSOT', () => {

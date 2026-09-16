@@ -1,23 +1,23 @@
 'use client';
 
-import { useActionState, useState } from 'react';
-import Link from 'next/link';
-import { Plus, Search } from 'lucide-react';
+import { useActionState, useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Plus, Search, X } from 'lucide-react';
 import {
+  adjustProductStockAction,
   archiveProductAction,
   createProductAction,
-  deleteProductAction,
+  quickCreateVendorForProductAction,
+  restoreProductAction,
   updateProductAction,
   type ProductActionState,
 } from '@/src/hair/actions/products';
 import { Button } from '@/src/hair/components/ui/button';
 import { Input } from '@/src/hair/components/ui/input';
-import type { FyhBrand } from '@/src/hair/db/schema';
+import type { FyhBrand, FyhVendor } from '@/src/hair/db/schema';
 import type { ProductWithBrand } from '@/src/hair/services/products';
 import {
   FYH_PRODUCT_TYPES,
-  productMarginPercent,
-  productProfitPaise,
   productTypeLabel,
   type FyhProductType,
 } from '@/src/hair/lib/productTypes';
@@ -28,104 +28,47 @@ const initialState: ProductActionState = {};
 const fieldClass =
   'fyh-input w-full text-[0.8125rem] outline-none focus:border-fyh-accent/50';
 
-export function ProductsList({
-  products,
-  q,
-  status,
-}: {
+export type ProductsMasterProps = {
   products: ProductWithBrand[];
+  brands: FyhBrand[];
+  vendors: FyhVendor[];
   q?: string;
   status?: string;
+};
+
+function DrawerShell({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="fyh-section-eyebrow">Inventory</p>
-          <h1 className="fyh-display mt-1 font-semibold">Products</h1>
-          <p className="mt-1 text-sm text-fyh-text-secondary">
-            Professional supplies for services · Retail items for billing
-          </p>
-        </div>
-        <Link href="/products/new">
-          <Button type="button">
-            <Plus className="mr-2 h-4 w-4" />
-            Add product
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
+      <button
+        type="button"
+        className="absolute inset-0 cursor-default"
+        aria-label="Close dialog"
+        onClick={onClose}
+      />
+      <div
+        className="relative z-10 flex max-h-[min(92vh,720px)] w-full max-w-lg flex-col overflow-hidden border border-[color:var(--fyh-border)] bg-fyh-elevated shadow-2xl sm:rounded-2xl"
+      >
+        <div className="flex shrink-0 items-center justify-between border-b border-[color:var(--fyh-border)] px-4 py-3">
+          <h2 className="fyh-display text-lg font-semibold">{title}</h2>
+          <Button type="button" variant="ghost" size="sm" onClick={onClose} aria-label="Close">
+            <X className="h-4 w-4" />
           </Button>
-        </Link>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">{children}</div>
       </div>
-
-      <form method="get" className="fyh-glass flex flex-wrap items-end gap-3 p-3">
-        <div className="relative min-w-[14rem] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fyh-text-muted" />
-          <Input
-            name="q"
-            defaultValue={q ?? ''}
-            placeholder="Search name or brand"
-            className="pl-9"
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="fyh-label">Status</label>
-          <select name="status" defaultValue={status ?? 'active'} className={fieldClass}>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="all">All</option>
-          </select>
-        </div>
-        <Button type="submit" variant="secondary">
-          Filter
-        </Button>
-      </form>
-
-      {products.length === 0 ? (
-        <div className="fyh-glass px-6 py-16 text-center">
-          <p className="fyh-display text-xl font-semibold">No products yet</p>
-          <Link href="/products/new" className="mt-6 inline-block">
-            <Button type="button">Add product</Button>
-          </Link>
-        </div>
-      ) : (
-        <div className="fyh-glass overflow-x-auto">
-          <table className="w-full min-w-[36rem] text-left text-sm">
-            <thead>
-              <tr>
-                <th>Product</th>
-                <th>Type</th>
-                <th>Stock</th>
-                <th>Price</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[color:var(--fyh-border)]">
-              {products.map((p) => (
-                <tr key={p.id} className="hover:bg-white/[0.03]">
-                  <td className="px-4 py-3">
-                    <Link href={`/products/${p.id}`} className="font-medium hover:text-fyh-accent">
-                      {p.name}
-                    </Link>
-                    {p.brandName ? (
-                      <p className="text-xs text-fyh-text-muted">{p.brandName}</p>
-                    ) : null}
-                  </td>
-                  <td className="px-4 py-3 text-fyh-text-muted">
-                    {productTypeLabel(p.productType)}
-                  </td>
-                  <td className="px-4 py-3 tabular-nums">{p.stockQty}</td>
-                  <td className="px-4 py-3 tabular-nums text-fyh-accent">
-                    {p.productType === 'retail' ? formatInrFromPaise(p.sellingPricePaise) : '—'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={p.isActive ? 'text-fyh-success' : 'text-fyh-text-muted'}>
-                      {p.isActive ? 'Active' : 'Archived'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 }
@@ -138,11 +81,11 @@ function ProductTypeRadios({
   onChange?: (type: FyhProductType) => void;
 }) {
   return (
-    <fieldset className="space-y-2">
-      <legend className="fyh-label">Product type</legend>
-      <div className="flex flex-wrap gap-4 text-sm">
+    <fieldset className="space-y-1.5">
+      <legend className="fyh-label text-xs">Product type</legend>
+      <div className="flex flex-wrap gap-3 text-sm">
         {FYH_PRODUCT_TYPES.map((t) => (
-          <label key={t} className="flex items-center gap-2">
+          <label key={t} className="flex items-center gap-1.5">
             <input
               type="radio"
               name="productType"
@@ -158,80 +101,127 @@ function ProductTypeRadios({
   );
 }
 
-export function ProductForm({
+function ProductFormFields({
   mode,
   product,
   brands,
+  vendors,
+  onVendorCreated,
 }: {
   mode: 'create' | 'edit';
   product?: ProductWithBrand;
   brands: FyhBrand[];
+  vendors: FyhVendor[];
+  onVendorCreated?: (vendor: { id: string; name: string }) => void;
 }) {
-  const action = mode === 'create' ? createProductAction : updateProductAction;
-  const [state, formAction, pending] = useActionState(action, initialState);
-  const [productType, setProductType] = useState<FyhProductType>(
-    product?.productType ?? 'retail',
-  );
+  const [productType, setProductType] = useState<FyhProductType>(product?.productType ?? 'retail');
+  const [vendorId, setVendorId] = useState(product?.vendorId ?? '');
+  const [showNewVendor, setShowNewVendor] = useState(false);
+  const [newVendorName, setNewVendorName] = useState('');
+  const [vendorBusy, setVendorBusy] = useState(false);
+  const [vendorError, setVendorError] = useState<string | null>(null);
+
+  const filteredBrands = useMemo(() => {
+    if (!vendorId) return brands;
+    return brands.filter((b) => b.vendorId === vendorId || !b.vendorId);
+  }, [brands, vendorId]);
+
+  async function submitNewVendor() {
+    setVendorBusy(true);
+    setVendorError(null);
+    const res = await quickCreateVendorForProductAction(newVendorName);
+    setVendorBusy(false);
+    if (res.error) {
+      setVendorError(res.error);
+      return;
+    }
+    if (res.vendor) {
+      onVendorCreated?.(res.vendor);
+      setVendorId(res.vendor.id);
+      setShowNewVendor(false);
+      setNewVendorName('');
+    }
+  }
 
   return (
-    <form action={formAction} className="fyh-glass space-y-4 p-5">
+    <>
+      <input type="hidden" name="returnToList" value="1" />
       {mode === 'edit' && product ? <input type="hidden" name="id" value={product.id} /> : null}
-      <input type="hidden" name="isActive" value={product?.isActive === false ? 'false' : 'true'} />
+      <input
+        type="hidden"
+        name="isActive"
+        value={product?.isActive === false ? 'false' : 'true'}
+      />
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2 sm:col-span-2">
-          <label className="fyh-label" htmlFor="name">
-            Product name *
-          </label>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1 sm:col-span-2">
+          <label className="fyh-label text-xs" htmlFor="name">Product name *</label>
           <Input id="name" name="name" required defaultValue={product?.name ?? ''} />
         </div>
-        <div className="space-y-2">
-          <label className="fyh-label" htmlFor="category">
-            Category
-          </label>
-          <Input
-            id="category"
-            name="category"
-            placeholder="e.g. Hair care, Retail"
-            defaultValue={product?.category ?? ''}
-          />
+        <div className="space-y-1">
+          <label className="fyh-label text-xs" htmlFor="category">Category</label>
+          <Input id="category" name="category" defaultValue={product?.category ?? ''} />
         </div>
-        <div className="space-y-2 sm:col-span-2">
-          <label className="fyh-label" htmlFor="brandId">
-            Brand *
-          </label>
+        <div className="space-y-1">
+          <label className="fyh-label text-xs" htmlFor="vendorId">Preferred vendor</label>
+          <select
+            id="vendorId"
+            name="vendorId"
+            className={fieldClass}
+            value={vendorId}
+            onChange={(e) => setVendorId(e.target.value)}
+          >
+            <option value="">Any vendor</option>
+            {vendors.map((v) => (
+              <option key={v.id} value={v.id}>{v.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-wrap items-end gap-2 sm:col-span-2">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowNewVendor((s) => !s)}
+          >
+            + Add vendor
+          </Button>
+        </div>
+        {showNewVendor ? (
+          <div className="flex flex-wrap gap-2 sm:col-span-2">
+            <Input
+              placeholder="Vendor name"
+              value={newVendorName}
+              onChange={(e) => setNewVendorName(e.target.value)}
+              className="min-w-0 flex-1"
+            />
+            <Button type="button" size="sm" disabled={vendorBusy} onClick={() => void submitNewVendor()}>
+              Save vendor
+            </Button>
+            {vendorError ? <p className="text-xs text-fyh-danger w-full">{vendorError}</p> : null}
+          </div>
+        ) : null}
+        <div className="space-y-1 sm:col-span-2">
+          <label className="fyh-label text-xs" htmlFor="brandId">Brand *</label>
           <select
             id="brandId"
             name="brandId"
-            required
             className={fieldClass}
             defaultValue={product?.brandId ?? ''}
           >
-            <option value="" disabled>
-              Select brand
-            </option>
-            {brands.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
+            <option value="">Select existing brand</option>
+            {filteredBrands.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
             ))}
           </select>
-          {brands.length === 0 ? (
-            <p className="text-xs text-fyh-text-muted">
-              Add brands on a vendor first — Vendors in the sidebar.
-            </p>
-          ) : null}
+          <p className="text-[0.7rem] text-fyh-text-muted">Or add a new brand name below (linked to vendor when selected).</p>
+          <Input name="newBrandName" placeholder="New brand name (optional)" />
         </div>
-        <div className="space-y-2 sm:col-span-2">
-          <ProductTypeRadios
-            defaultValue={product?.productType ?? 'retail'}
-            onChange={setProductType}
-          />
+        <div className="sm:col-span-2">
+          <ProductTypeRadios defaultValue={product?.productType ?? 'retail'} onChange={setProductType} />
         </div>
-        <div className="space-y-2">
-          <label className="fyh-label" htmlFor="costPriceRupees">
-            Cost price (₹)
-          </label>
+        <div className="space-y-1">
+          <label className="fyh-label text-xs" htmlFor="costPriceRupees">Cost price (₹)</label>
           <Input
             id="costPriceRupees"
             name="costPriceRupees"
@@ -241,10 +231,8 @@ export function ProductForm({
           />
         </div>
         {productType === 'retail' ? (
-          <div className="space-y-2">
-            <label className="fyh-label" htmlFor="sellingPriceRupees">
-              Selling price (₹) *
-            </label>
+          <div className="space-y-1">
+            <label className="fyh-label text-xs" htmlFor="sellingPriceRupees">Selling price (₹) *</label>
             <Input
               id="sellingPriceRupees"
               name="sellingPriceRupees"
@@ -257,133 +245,402 @@ export function ProductForm({
         ) : (
           <input type="hidden" name="sellingPriceRupees" value="0" />
         )}
-        <div className="space-y-2">
-          <label className="fyh-label" htmlFor="stockQty">
-            Current stock
-          </label>
-          <Input
-            id="stockQty"
-            name="stockQty"
-            type="number"
-            min={0}
-            step="any"
-            defaultValue={product?.stockQty ?? 0}
-          />
-        </div>
-        {mode === 'edit' ? (
-          <div className="space-y-2 sm:col-span-2">
-            <label className="fyh-label" htmlFor="stockAdjustmentReason">
-              Stock adjustment reason
-            </label>
+        {mode === 'create' ? (
+          <div className="space-y-1 sm:col-span-2">
+            <label className="fyh-label text-xs" htmlFor="openingStockQty">Opening stock</label>
             <Input
-              id="stockAdjustmentReason"
-              name="stockAdjustmentReason"
-              placeholder="Required when changing stock (e.g. Opening stock correction)"
+              id="openingStockQty"
+              name="openingStockQty"
+              type="number"
+              min={0}
+              step="any"
+              defaultValue={0}
             />
-            <p className="text-xs text-fyh-text-muted">
-              Stock changes are recorded as auditable movements — not silent overwrites.
+            <p className="text-[0.7rem] text-fyh-text-muted">
+              Recorded as an auditable opening-stock movement — not a silent quantity.
             </p>
           </div>
         ) : null}
-        <div className="space-y-2 sm:col-span-2">
-          <label className="fyh-label" htmlFor="description">
-            Description
-          </label>
+        <div className="space-y-1 sm:col-span-2">
+          <label className="fyh-label text-xs" htmlFor="description">Description</label>
           <textarea
             id="description"
             name="description"
-            rows={3}
+            rows={2}
             defaultValue={product?.description ?? ''}
             className={fieldClass}
           />
         </div>
       </div>
-
-      {state.error ? <p className="text-sm text-fyh-danger">{state.error}</p> : null}
-      {state.success ? <p className="text-sm text-fyh-success">{state.success}</p> : null}
-
-      <div className="flex gap-2">
-        <Button type="submit" disabled={pending}>
-          {pending ? 'Saving…' : mode === 'create' ? 'Create product' : 'Save changes'}
-        </Button>
-        <Link href="/products">
-          <Button type="button" variant="ghost">
-            Cancel
-          </Button>
-        </Link>
-      </div>
-    </form>
+    </>
   );
 }
 
-export function ProductDetailActions({ product }: { product: ProductWithBrand }) {
-  const [archiveState, archiveAction, archivePending] = useActionState(
-    archiveProductAction,
-    initialState,
-  );
-  const [deleteState, deleteAction, deletePending] = useActionState(
-    deleteProductAction,
-    initialState,
-  );
+function ProductFormDrawer({
+  mode,
+  product,
+  brands,
+  vendors,
+  open,
+  onClose,
+  onSuccess,
+}: {
+  mode: 'create' | 'edit';
+  product?: ProductWithBrand;
+  brands: FyhBrand[];
+  vendors: FyhVendor[];
+  open: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const action = mode === 'create' ? createProductAction : updateProductAction;
+  const [state, formAction, pending] = useActionState(action, initialState);
+  const [vendorList, setVendorList] = useState(vendors);
+
+  useEffect(() => {
+    setVendorList(vendors);
+  }, [vendors]);
+
+  useEffect(() => {
+    if (state.success) {
+      onSuccess();
+      onClose();
+    }
+  }, [state.success, onClose, onSuccess]);
+
+  if (!open) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <a href="#edit">
-        <Button type="button" variant="secondary" size="sm">
-          Edit
-        </Button>
-      </a>
+    <DrawerShell title={mode === 'create' ? 'Add product' : 'Edit product'} onClose={onClose}>
+      <form action={formAction} className="space-y-3">
+        <ProductFormFields
+          mode={mode}
+          product={product}
+          brands={brands}
+          vendors={vendorList}
+          onVendorCreated={(v) =>
+            setVendorList((prev) => {
+              if (prev.some((x) => x.id === v.id)) return prev;
+              return [
+                ...prev,
+                {
+                  id: v.id,
+                  name: v.name,
+                  organizationId: '',
+                  locationId: null,
+                  companyName: null,
+                  contactName: null,
+                  phone: null,
+                  email: null,
+                  gstin: null,
+                  address: null,
+                  bankDetails: null,
+                  upiId: null,
+                  qrCodeUrl: null,
+                  notes: null,
+                  isActive: true,
+                  createdAt: new Date(),
+                },
+              ];
+            })
+          }
+        />
+        {state.error ? <p className="text-sm text-fyh-danger">{state.error}</p> : null}
+        <div className="flex gap-2 pt-1">
+          <Button type="submit" disabled={pending} className="flex-1 sm:flex-none">
+            {pending ? 'Saving…' : mode === 'create' ? 'Create product' : 'Save changes'}
+          </Button>
+          <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+        </div>
+      </form>
+    </DrawerShell>
+  );
+}
+
+function StockAdjustDrawer({
+  product,
+  open,
+  onClose,
+  onSuccess,
+}: {
+  product: ProductWithBrand | null;
+  open: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [state, formAction, pending] = useActionState(adjustProductStockAction, initialState);
+
+  useEffect(() => {
+    if (state.success) {
+      onSuccess();
+      onClose();
+    }
+  }, [state.success, onClose, onSuccess]);
+
+  if (!open || !product) return null;
+
+  return (
+    <DrawerShell title="Adjust stock" onClose={onClose}>
+      <p className="mb-3 text-sm text-fyh-text-secondary">
+        <span className="font-medium text-fyh-text">{product.name}</span>
+        <span className="text-fyh-text-muted"> · Current </span>
+        <span className="tabular-nums font-medium">{product.stockQty}</span>
+      </p>
+      <form action={formAction} className="space-y-3">
+        <input type="hidden" name="id" value={product.id} />
+        <div className="space-y-1">
+          <label className="fyh-label text-xs" htmlFor="quantityDelta">Quantity change</label>
+          <Input
+            id="quantityDelta"
+            name="quantityDelta"
+            type="number"
+            step="any"
+            required
+            placeholder="e.g. 5 or -2"
+          />
+          <p className="text-[0.7rem] text-fyh-text-muted">Use + to add, − to remove.</p>
+        </div>
+        <div className="space-y-1">
+          <label className="fyh-label text-xs" htmlFor="reason">Reason *</label>
+          <Input id="reason" name="reason" required placeholder="e.g. Opening stock correction" />
+        </div>
+        {state.error ? <p className="text-sm text-fyh-danger">{state.error}</p> : null}
+        <Button type="submit" disabled={pending}>{pending ? 'Saving…' : 'Apply adjustment'}</Button>
+      </form>
+    </DrawerShell>
+  );
+}
+
+function ProductRowActions({
+  product,
+  onEdit,
+  onAdjustStock,
+}: {
+  product: ProductWithBrand;
+  onEdit: () => void;
+  onAdjustStock: () => void;
+}) {
+  const [archiveState, archiveAction, archivePending] = useActionState(archiveProductAction, initialState);
+  const [restoreState, restoreAction, restorePending] = useActionState(restoreProductAction, initialState);
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      <Button type="button" variant="secondary" size="sm" onClick={onEdit}>Edit</Button>
+      <Button type="button" variant="secondary" size="sm" onClick={onAdjustStock}>Stock</Button>
       {product.isActive ? (
         <form action={archiveAction}>
           <input type="hidden" name="id" value={product.id} />
-          <Button type="submit" variant="secondary" size="sm" disabled={archivePending}>
-            Archive
-          </Button>
+          <Button type="submit" variant="ghost" size="sm" disabled={archivePending}>Deactivate</Button>
         </form>
-      ) : null}
-      <form
-        action={deleteAction}
-        onSubmit={(e) => {
-          if (!confirm('Delete this product permanently?')) e.preventDefault();
-        }}
-      >
-        <input type="hidden" name="id" value={product.id} />
-        <Button type="submit" variant="ghost" size="sm" disabled={deletePending}>
-          Delete
-        </Button>
-      </form>
-      {archiveState.error ? (
-        <span className="text-xs text-fyh-danger">{archiveState.error}</span>
-      ) : null}
-      {deleteState.error ? (
-        <span className="text-xs text-fyh-danger">{deleteState.error}</span>
-      ) : null}
+      ) : (
+        <form action={restoreAction}>
+          <input type="hidden" name="id" value={product.id} />
+          <Button type="submit" variant="ghost" size="sm" disabled={restorePending}>Activate</Button>
+        </form>
+      )}
+      {archiveState.error ? <span className="text-xs text-fyh-danger">{archiveState.error}</span> : null}
+      {restoreState.error ? <span className="text-xs text-fyh-danger">{restoreState.error}</span> : null}
     </div>
   );
 }
 
-export function ProductProfitSummary({ product }: { product: ProductWithBrand }) {
-  if (product.productType !== 'retail') return null;
-  const profit = productProfitPaise(product);
-  const margin = productMarginPercent(product);
+export function ProductsMaster({
+  products,
+  brands,
+  vendors,
+  q,
+  status,
+}: ProductsMasterProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [addOpen, setAddOpen] = useState(false);
+  const [editProduct, setEditProduct] = useState<ProductWithBrand | null>(null);
+  const [adjustProduct, setAdjustProduct] = useState<ProductWithBrand | null>(null);
+
+  const refresh = useCallback(() => {
+    router.refresh();
+  }, [router]);
+
+  useEffect(() => {
+    if (searchParams.get('add') === '1') setAddOpen(true);
+    const editId = searchParams.get('edit');
+    if (editId) {
+      const p = products.find((x) => x.id === editId);
+      if (p) setEditProduct(p);
+    }
+  }, [searchParams, products]);
+
+  const closeAdd = () => {
+    setAddOpen(false);
+    if (searchParams.get('add')) router.replace('/products');
+  };
+
+  const closeEdit = () => {
+    setEditProduct(null);
+    if (searchParams.get('edit')) router.replace('/products');
+  };
+
   return (
-    <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-      <div>
-        <p className="text-fyh-text-muted">Cost</p>
-        <p className="font-medium tabular-nums">{formatInrFromPaise(product.costPricePaise)}</p>
+    <div className="mx-auto w-full max-w-6xl space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="fyh-section-eyebrow">Configuration</p>
+          <h1 className="fyh-display mt-0.5 text-xl font-semibold sm:text-2xl">Products</h1>
+        </div>
+        <Button type="button" onClick={() => setAddOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add product
+        </Button>
       </div>
-      <div>
-        <p className="text-fyh-text-muted">Selling</p>
-        <p className="font-medium tabular-nums">{formatInrFromPaise(product.sellingPricePaise)}</p>
-      </div>
-      <div>
-        <p className="text-fyh-text-muted">Profit</p>
-        <p className="font-medium tabular-nums text-fyh-success">{formatInrFromPaise(profit)}</p>
-      </div>
-      <div>
-        <p className="text-fyh-text-muted">Margin</p>
-        <p className="font-medium tabular-nums">{margin}%</p>
-      </div>
+
+      <form method="get" className="fyh-glass flex flex-wrap items-end gap-2 p-3">
+        <div className="relative min-w-0 flex-1 basis-[12rem]">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fyh-text-muted" />
+          <Input name="q" defaultValue={q ?? ''} placeholder="Search product or brand" className="pl-9" />
+        </div>
+        <div className="space-y-0.5">
+          <label className="fyh-label text-xs">Status</label>
+          <select name="status" defaultValue={status ?? 'active'} className={fieldClass}>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="all">All</option>
+          </select>
+        </div>
+        <Button type="submit" variant="secondary" size="sm">Filter</Button>
+      </form>
+
+      {products.length === 0 ? (
+        <div className="fyh-glass px-4 py-8 text-center sm:py-10">
+          <p className="font-medium">No products yet</p>
+          <p className="mt-1 text-sm text-fyh-text-secondary">
+            Add your first product to start selling and tracking stock.
+          </p>
+          <Button type="button" className="mt-4" onClick={() => setAddOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add product
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="hidden overflow-x-auto fyh-glass md:block">
+            <table className="w-full min-w-[52rem] text-left text-sm">
+              <thead>
+                <tr className="text-fyh-text-muted">
+                  <th className="px-3 py-2 font-medium">Product</th>
+                  <th className="px-3 py-2 font-medium">Brand</th>
+                  <th className="px-3 py-2 font-medium">Category</th>
+                  <th className="px-3 py-2 font-medium">Type</th>
+                  <th className="px-3 py-2 font-medium">Cost</th>
+                  <th className="px-3 py-2 font-medium">Sell</th>
+                  <th className="px-3 py-2 font-medium">Stock</th>
+                  <th className="px-3 py-2 font-medium">Vendor</th>
+                  <th className="px-3 py-2 font-medium">Status</th>
+                  <th className="px-3 py-2 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[color:var(--fyh-border)]">
+                {products.map((p) => (
+                  <tr key={p.id} className="hover:bg-white/[0.02]">
+                    <td className="px-3 py-2 font-medium">{p.name}</td>
+                    <td className="px-3 py-2 text-fyh-text-muted">{p.brandName}</td>
+                    <td className="px-3 py-2 text-fyh-text-muted">{p.category ?? '—'}</td>
+                    <td className="px-3 py-2">{productTypeLabel(p.productType)}</td>
+                    <td className="px-3 py-2 tabular-nums">{formatInrFromPaise(p.costPricePaise)}</td>
+                    <td className="px-3 py-2 tabular-nums text-fyh-accent">
+                      {p.productType === 'retail' ? formatInrFromPaise(p.sellingPricePaise) : '—'}
+                    </td>
+                    <td className="px-3 py-2 tabular-nums">{p.stockQty}</td>
+                    <td className="px-3 py-2 text-fyh-text-muted">{p.vendorName ?? '—'}</td>
+                    <td className="px-3 py-2">
+                      <span className={p.isActive ? 'text-fyh-success' : 'text-fyh-text-muted'}>
+                        {p.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      <ProductRowActions
+                        product={p}
+                        onEdit={() => setEditProduct(p)}
+                        onAdjustStock={() => setAdjustProduct(p)}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="space-y-2 md:hidden">
+            {products.map((p) => (
+              <div key={p.id} className="fyh-glass space-y-2 p-3 text-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium">{p.name}</p>
+                    <p className="text-xs text-fyh-text-muted">{p.brandName} · {productTypeLabel(p.productType)}</p>
+                  </div>
+                  <span className={p.isActive ? 'text-xs text-fyh-success' : 'text-xs text-fyh-text-muted'}>
+                    {p.isActive ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                  <span className="text-fyh-text-muted">Stock</span>
+                  <span className="tabular-nums">{p.stockQty}</span>
+                  <span className="text-fyh-text-muted">Sell</span>
+                  <span className="tabular-nums">
+                    {p.productType === 'retail' ? formatInrFromPaise(p.sellingPricePaise) : '—'}
+                  </span>
+                  <span className="text-fyh-text-muted">Vendor</span>
+                  <span>{p.vendorName ?? '—'}</span>
+                </div>
+                <ProductRowActions
+                  product={p}
+                  onEdit={() => setEditProduct(p)}
+                  onAdjustStock={() => setAdjustProduct(p)}
+                />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <ProductFormDrawer
+        mode="create"
+        brands={brands}
+        vendors={vendors}
+        open={addOpen}
+        onClose={closeAdd}
+        onSuccess={refresh}
+      />
+      <ProductFormDrawer
+        mode="edit"
+        product={editProduct ?? undefined}
+        brands={brands}
+        vendors={vendors}
+        open={editProduct !== null}
+        onClose={closeEdit}
+        onSuccess={refresh}
+      />
+      <StockAdjustDrawer
+        product={adjustProduct}
+        open={adjustProduct !== null}
+        onClose={() => setAdjustProduct(null)}
+        onSuccess={refresh}
+      />
     </div>
   );
+}
+
+/** @deprecated Use ProductsMaster on /products */
+export function ProductsList(props: ProductsMasterProps) {
+  return <ProductsMaster {...props} />;
+}
+
+export function ProductForm() {
+  return null;
+}
+
+export function ProductDetailActions() {
+  return null;
+}
+
+export function ProductProfitSummary() {
+  return null;
 }
