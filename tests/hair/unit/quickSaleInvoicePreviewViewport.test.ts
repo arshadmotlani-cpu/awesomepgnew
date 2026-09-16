@@ -8,12 +8,16 @@ function readSrc(rel: string) {
   return readFileSync(join(root, rel), 'utf8');
 }
 
-test('Quick Sale success dialog fits invoice preview in viewport scaler', () => {
+test('Quick Sale invoice viewer is portaled and viewport-fitted', () => {
   const dialog = readSrc('src/hair/components/quick-sale/QuickSaleSuccessDialog.tsx');
-  assert.match(dialog, /FyhInvoicePreviewViewport/);
-  assert.match(dialog, /max-h-\[min\(96dvh/);
-  assert.match(dialog, /overflow-hidden/);
-  assert.doesNotMatch(dialog, /overflow-y-auto p-3 md:p-6/);
+  assert.match(dialog, /createPortal/);
+  assert.match(dialog, /document\.body/);
+  assert.match(dialog, /qs-invoice-viewer-root/);
+  assert.match(dialog, /qs-invoice-viewer-body/);
+  const css = readSrc('src/hair/styles/globals.css');
+  assert.match(css, /\.qs-invoice-viewer-root[\s\S]*100dvh/);
+  assert.doesNotMatch(dialog, /qs-success-root/);
+  assert.doesNotMatch(dialog, /qs-success-backdrop/);
 });
 
 test('FyhInvoicePreviewViewport scales sheet with transform (not font overrides)', () => {
@@ -24,8 +28,16 @@ test('FyhInvoicePreviewViewport scales sheet with transform (not font overrides)
   assert.match(viewport, /data-invoice-preview-scale/);
 });
 
-test('Invoice modal styles support preview viewport fit', () => {
+test('Invoice modal styles support Quick Sale viewer fit', () => {
   const styles = readSrc('src/hair/components/billing/fyhInvoiceModalStyles.ts');
+  assert.match(styles, /QS_INVOICE_VIEWER_SCREEN_STYLES/);
+  assert.match(styles, /qs-invoice-viewer-preview/);
   assert.match(styles, /\.fyh-invoice-preview-viewport/);
-  assert.match(styles, /\.fyh-invoice-preview-measure/);
+});
+
+test('Shell returns to Quick Sale workspace on Done (not customer step)', () => {
+  const shell = readSrc('src/hair/components/quick-sale/QuickSaleShell.tsx');
+  assert.match(shell, /closeCompletedInvoiceViewer/);
+  assert.match(shell, /setStep\('sale'\)/);
+  assert.match(shell, /onDone=\{closeCompletedInvoiceViewer\}/);
 });

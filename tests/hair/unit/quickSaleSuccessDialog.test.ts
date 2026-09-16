@@ -16,21 +16,19 @@ test('Quick Sale success dialog loads public invoice preview action', () => {
   assert.doesNotMatch(dialog, /getNotificationPreviewAction/);
 });
 
-test('Quick Sale success dialog uses redesigned layout and actions', () => {
+test('Quick Sale success dialog uses full-screen viewer and actions', () => {
   const dialog = readSrc('src/hair/components/quick-sale/QuickSaleSuccessDialog.tsx');
-  assert.match(dialog, /qs-success-root/);
-  assert.match(dialog, /qs-success-header/);
-  assert.match(dialog, /qs-success-body/);
-  assert.match(dialog, /qs-success-actions/);
+  assert.match(dialog, /qs-invoice-viewer-root/);
+  assert.match(dialog, /qs-invoice-viewer-header/);
+  assert.match(dialog, /qs-invoice-viewer-actions/);
   assert.match(dialog, /Sale Completed/);
   assert.match(dialog, /Print Invoice/);
   assert.match(dialog, /Download PDF/);
   assert.match(dialog, /Share on WhatsApp/);
   assert.match(dialog, /Open Invoice/);
-  assert.match(dialog, /View Customer/);
-  assert.match(dialog, /Create Next Appointment/);
   assert.match(dialog, /invoicePublicPrintUrl/);
   assert.match(dialog, /invoicePublicViewUrl/);
+  assert.match(dialog, /createPortal/);
 });
 
 test('Quick Sale shell passes customerId to success dialog', () => {
@@ -61,6 +59,6 @@ test('Shared invoice modal styles extracted for preview and success', () => {
   const preview = readSrc('src/hair/components/billing/InvoicePreviewModal.tsx');
   assert.match(styles, /FYH_INVOICE_MODAL_SCREEN_STYLES/);
   assert.match(styles, /FYH_INVOICE_MODAL_PRINT_STYLES/);
-  assert.match(styles, /qs-success-invoice-scroll/);
+  assert.match(styles, /QS_INVOICE_VIEWER_SCREEN_STYLES/);
   assert.match(preview, /fyhInvoiceModalStyles/);
 });

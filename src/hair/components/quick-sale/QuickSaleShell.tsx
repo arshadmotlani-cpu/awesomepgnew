@@ -542,6 +542,11 @@ export function QuickSaleShell({
     setStep('customer');
   };
 
+  const closeCompletedInvoiceViewer = () => {
+    setInvoiceId(null);
+    setStep('sale');
+  };
+
   const cancelSale = () => {
     clearSaleState();
     setStep('customer');
@@ -609,7 +614,7 @@ export function QuickSaleShell({
         invoiceId={invoiceId}
         customerId={customer.id}
         googleReviewUrl={googleReviewUrl}
-        onDone={resetForNext}
+        onDone={closeCompletedInvoiceViewer}
       />
     );
   }

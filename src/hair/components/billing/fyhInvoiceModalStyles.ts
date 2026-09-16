@@ -1,3 +1,21 @@
+/** Quick Sale full-screen invoice viewer — no outer page scroll; sheet scales inside pane. */
+export const QS_INVOICE_VIEWER_SCREEN_STYLES = `
+.qs-invoice-viewer-preview.fyh-invoice-preview-viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+}
+.qs-invoice-viewer-preview .fyh-invoice-sheet {
+  width: 210mm;
+  min-width: 210mm;
+  max-width: 210mm;
+  margin: 0 auto;
+}
+`;
+
 /** Screen layout overrides when embedding the public invoice sheet in a modal. */
 export const FYH_INVOICE_MODAL_SCREEN_STYLES = `
 .fyh-invoice-preview-viewport {
@@ -37,18 +55,17 @@ export const FYH_INVOICE_MODAL_PRINT_STYLES = `
   body * { visibility: hidden !important; }
   .fyh-invoice-modal-root,
   .fyh-invoice-modal-root *,
-  .qs-success-root,
-  .qs-success-root * { visibility: visible !important; }
+  .qs-invoice-viewer-root,
+  .qs-invoice-viewer-root * { visibility: visible !important; }
   .fyh-invoice-modal-backdrop,
   .fyh-invoice-modal-panel > .fyh-invoice-body > .fyh-invoice-page > .fyh-invoice-toolbar,
-  .qs-success-backdrop,
-  .qs-success-header,
-  .qs-success-actions,
-  .qs-success-close {
+  .qs-invoice-viewer-header,
+  .qs-invoice-viewer-actions,
+  .qs-invoice-viewer-close {
     display: none !important;
   }
   .fyh-invoice-modal-root,
-  .qs-success-root {
+  .qs-invoice-viewer-root {
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;
@@ -57,20 +74,20 @@ export const FYH_INVOICE_MODAL_PRINT_STYLES = `
     background: #fff !important;
   }
   .fyh-invoice-modal-panel,
-  .qs-success-panel {
+  .qs-invoice-viewer-body {
     max-width: none !important;
     width: 100% !important;
     box-shadow: none !important;
     border: none !important;
   }
   .fyh-invoice-modal-scroll,
-  .qs-success-invoice-scroll {
+  .qs-invoice-viewer-sheet-wrap {
     max-height: none !important;
     overflow: visible !important;
     padding: 0 !important;
     background: #fff !important;
   }
-  .qs-success-body {
+  .qs-invoice-viewer-body {
     display: block !important;
   }
 }
