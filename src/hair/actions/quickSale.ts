@@ -11,7 +11,7 @@ import {
 } from '@/src/hair/services/invoices';
 import {
   buildPublicInvoiceViewModel,
-  renderPublicInvoiceSheetHtml,
+  renderQuickSaleInvoiceSheetHtml,
 } from '@/src/hair/lib/publicInvoiceDocument';
 import type { QuickSaleLineInput } from '@/src/hair/services/invoices';
 import {
@@ -136,6 +136,7 @@ export type QuickSaleInvoicePreviewResult =
       paymentModes: string;
       statusLabel: string;
       invoiceDateTime: string;
+      invoiceDate: string;
     }
   | { ok: false; error: string };
 
@@ -162,7 +163,7 @@ export async function getQuickSaleInvoicePreviewAction(
     const vm = buildPublicInvoiceViewModel(detail);
     return {
       ok: true,
-      sheetHtml: renderPublicInvoiceSheetHtml(detail),
+      sheetHtml: renderQuickSaleInvoiceSheetHtml(detail),
       printDocumentHtml: buildPublicInvoicePrintHtml(detail),
       invoiceNumber: detail.invoice.invoiceNumber,
       publicAccessToken: detail.invoice.publicAccessToken,
@@ -174,6 +175,7 @@ export async function getQuickSaleInvoicePreviewAction(
       paymentModes: vm.paymentModes,
       statusLabel: vm.statusLabel,
       invoiceDateTime: formatQuickSaleInvoiceDateTime(detail.invoice.createdAt),
+      invoiceDate: vm.invoiceDate,
     };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Failed to load invoice' };

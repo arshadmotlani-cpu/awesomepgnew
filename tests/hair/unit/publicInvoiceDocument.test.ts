@@ -4,6 +4,7 @@ import {
   PUBLIC_INVOICE_STYLES,
   buildPublicInvoiceDocumentHtml,
   buildPublicInvoiceViewModel,
+  renderQuickSaleInvoiceSheetHtml,
 } from '@/src/hair/lib/publicInvoiceDocument';
 import { INVOICE_BUSINESS } from '@/src/hair/lib/invoiceBranding';
 import type { InvoiceDetail } from '@/src/hair/services/invoices';
@@ -123,6 +124,47 @@ describe('buildPublicInvoiceViewModel', () => {
     assert.equal(vm.lines[0]!.gstPct, 'Prepaid');
   });
 
+  it('shows GST-exclusive taxable base for inclusive GST lines', () => {
+    const vm = buildPublicInvoiceViewModel(
+      mockDetail({
+        invoice: {
+          ...mockDetail().invoice,
+          subtotalPaise: 50_847,
+          discountPaise: 0,
+          taxPaise: 9_153,
+          grandTotalPaise: 60_000,
+          amountPaidPaise: 60_000,
+        },
+        lines: [
+          {
+            id: 'line-gel',
+            invoiceId: 'inv-1',
+            kind: 'service',
+            serviceId: 'svc-1',
+            productId: null,
+            packageId: null,
+            membershipId: null,
+            staffId: null,
+            nameSnapshot: 'GEL X NAIL EXTENSIONS',
+            quantity: 1,
+            unitPricePaise: 60_000,
+            discountPaise: 0,
+            discountBps: 0,
+            gstBps: 1800,
+            taxPaise: 9_153,
+            lineTotalPaise: 60_000,
+            sortOrder: 0,
+            createdAt: new Date('2026-07-30T10:00:00Z'),
+          },
+        ],
+      }),
+    );
+    assert.equal(vm.lines[0]!.taxableLabel, '₹508.47');
+    assert.equal(vm.lines[0]!.gstLabel, '₹91.53');
+    assert.equal(vm.lines[0]!.totalLabel, '₹600');
+    assert.match(vm.gstSummaryLabel, /18%/);
+  });
+
   it('uses invoice-only business constants regardless of DB settings', () => {
     const vm = buildPublicInvoiceViewModel(mockDetail());
     assert.equal(vm.businessName, INVOICE_BUSINESS.name);
@@ -136,6 +178,16 @@ describe('buildPublicInvoiceViewModel', () => {
     assert.equal(vm.showDiscount, true);
     assert.equal(vm.showBalance, false);
     assert.match(vm.amountInWords, /Rupees/i);
+  });
+});
+
+describe('renderQuickSaleInvoiceSheetHtml', () => {
+  it('uses compact QS preview sheet without full A4 min-height', () => {
+    const html = renderQuickSaleInvoiceSheetHtml(mockDetail());
+    assert.match(html, /fyh-invoice-sheet--qs-preview/);
+    assert.match(html, /Item/);
+    assert.match(html, /Grand total/);
+    assert.doesNotMatch(html, /Authorized signatory/);
   });
 });
 

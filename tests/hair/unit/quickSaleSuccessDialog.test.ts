@@ -20,11 +20,10 @@ test('Quick Sale success dialog uses full-screen viewer and actions', () => {
   const dialog = readSrc('src/hair/components/quick-sale/QuickSaleSuccessDialog.tsx');
   assert.match(dialog, /qs-invoice-viewer-root/);
   assert.match(dialog, /qs-invoice-viewer-header/);
-  assert.match(dialog, /qs-invoice-viewer-actions/);
-  assert.match(dialog, /Sale Completed/);
-  assert.match(dialog, /Print Invoice/);
+  assert.match(dialog, /qs-invoice-viewer-toolbar/);
+  assert.match(dialog, /Sale completed/);
   assert.match(dialog, /Download PDF/);
-  assert.match(dialog, /Share on WhatsApp/);
+  assert.match(dialog, /WhatsApp/);
   assert.match(dialog, /Open Invoice/);
   assert.match(dialog, /invoicePublicPrintUrl/);
   assert.match(dialog, /invoicePublicViewUrl/);
@@ -40,7 +39,8 @@ test('Quick Sale shell passes customerId to success dialog', () => {
 test('getQuickSaleInvoicePreviewAction uses public invoice SSOT', () => {
   const action = readSrc('src/hair/actions/quickSale.ts');
   assert.match(action, /getQuickSaleInvoicePreviewAction/);
-  assert.match(action, /renderPublicInvoiceSheetHtml/);
+  assert.match(action, /renderQuickSaleInvoiceSheetHtml/);
+  assert.match(action, /invoiceDate: vm\.invoiceDate/);
   assert.match(action, /buildPublicInvoicePrintHtml/);
   assert.match(action, /buildPublicInvoiceViewModel/);
   assert.match(action, /requireFyhPermission\(\{ permission: 'quick_sale\.access'/);

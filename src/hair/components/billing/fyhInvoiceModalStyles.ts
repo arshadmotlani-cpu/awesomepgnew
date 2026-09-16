@@ -1,4 +1,4 @@
-/** Quick Sale full-screen invoice viewer — no outer page scroll; sheet scales inside pane. */
+/** Quick Sale full-screen invoice viewer — compact sheet scales inside pane (no page scroll). */
 export const QS_INVOICE_VIEWER_SCREEN_STYLES = `
 .qs-invoice-viewer-preview.fyh-invoice-preview-viewport {
   flex: 1 1 auto;
@@ -6,13 +6,87 @@ export const QS_INVOICE_VIEWER_SCREEN_STYLES = `
   overflow: hidden;
   align-items: center;
   justify-content: center;
-  padding: 8px;
+  padding: 4px;
 }
-.qs-invoice-viewer-preview .fyh-invoice-sheet {
-  width: 210mm;
-  min-width: 210mm;
-  max-width: 210mm;
+.qs-invoice-viewer-preview .fyh-invoice-sheet--qs-preview {
+  width: 100mm;
+  min-width: 100mm;
+  max-width: 100mm;
+  min-height: 0;
   margin: 0 auto;
+  padding: 6mm 7mm 5mm;
+  box-shadow: 0 8px 28px rgba(26, 20, 16, 0.12);
+}
+.qs-invoice-viewer-preview .fyh-invoice-sheet--qs-preview .fyh-invoice-brand-logo {
+  max-width: 140px;
+  max-height: 56px;
+  margin-bottom: 6px;
+}
+.qs-invoice-viewer-preview .fyh-invoice-sheet--qs-preview .fyh-invoice-legal-name {
+  font-size: 13px;
+  margin-bottom: 0;
+}
+.qs-invoice-viewer-preview .fyh-invoice-sheet--qs-preview .fyh-invoice-doc-title {
+  font-size: 18px;
+  margin-bottom: 8px;
+  letter-spacing: 0.08em;
+}
+.qs-invoice-viewer-preview .fyh-invoice-sheet--qs-preview .fyh-invoice-hero {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+}
+.qs-invoice-viewer-preview .fyh-invoice-sheet--qs-preview .fyh-invoice-meta {
+  margin-bottom: 12px;
+}
+.qs-invoice-viewer-preview .fyh-invoice-sheet--qs-preview .fyh-invoice-meta-block h2 {
+  margin-bottom: 4px;
+}
+.qs-invoice-viewer-preview .fyh-invoice-sheet--qs-preview .fyh-invoice-meta-block .highlight {
+  font-size: 14px;
+}
+.qs-invoice-viewer-preview .fyh-invoice-sheet--qs-preview .fyh-invoice-table-wrap {
+  margin-bottom: 12px;
+}
+.qs-invoice-viewer-preview .fyh-invoice-sheet--qs-preview .fyh-invoice-table {
+  font-size: 11px;
+}
+.qs-invoice-viewer-preview .fyh-invoice-sheet--qs-preview .fyh-invoice-table thead th {
+  padding: 6px 4px;
+  font-size: 9px;
+}
+.qs-invoice-viewer-preview .fyh-invoice-sheet--qs-preview .fyh-invoice-table tbody td {
+  padding: 6px 4px;
+}
+.qs-invoice-viewer-preview .fyh-invoice-sheet--qs-preview .fyh-invoice-table tbody td.service {
+  min-width: 0;
+  max-width: 42mm;
+  word-break: break-word;
+}
+.qs-invoice-viewer-preview .fyh-invoice-sheet--qs-preview .fyh-invoice-totals {
+  font-size: 12px;
+}
+.qs-invoice-viewer-preview .fyh-invoice-sheet--qs-preview .fyh-invoice-totals-row.grand {
+  font-size: 15px;
+  margin-top: 6px;
+  padding-top: 8px;
+}
+.qs-invoice-viewer-preview .fyh-invoice-sheet--qs-preview .fyh-invoice-footer--compact {
+  padding-top: 10px;
+  border-top: 1px solid var(--fyh-border);
+}
+.qs-invoice-viewer-preview .fyh-invoice-sheet--qs-preview .fyh-invoice-thanks {
+  font-size: 12px;
+  margin: 0;
+}
+.qs-invoice-viewer-preview .fyh-invoice-id-grid--compact {
+  margin-bottom: 8px;
+}
+.qs-invoice-viewer-preview .fyh-invoice-id-grid--compact .fyh-invoice-id-row {
+  font-size: 11px;
+}
+.qs-invoice-viewer-preview .fyh-invoice-id-grid--compact .value {
+  font-size: 12px;
+  min-width: auto;
 }
 `;
 
@@ -22,12 +96,11 @@ export const FYH_INVOICE_MODAL_SCREEN_STYLES = `
   flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
-  overflow: auto;
+  overflow: hidden;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   padding: 12px 8px 16px;
-  -webkit-overflow-scrolling: touch;
 }
 .fyh-invoice-preview-measure {
   display: flex;
@@ -39,9 +112,9 @@ export const FYH_INVOICE_MODAL_SCREEN_STYLES = `
   max-height: calc(92vh - 3.5rem);
   padding: 16px 0 24px;
 }
-.fyh-invoice-modal-panel .fyh-invoice-sheet,
-.fyh-invoice-preview-viewport .fyh-invoice-sheet,
-.qs-success-invoice-scroll .fyh-invoice-sheet {
+.fyh-invoice-modal-panel .fyh-invoice-sheet:not(.fyh-invoice-sheet--qs-preview),
+.fyh-invoice-preview-viewport .fyh-invoice-sheet:not(.fyh-invoice-sheet--qs-preview),
+.qs-success-invoice-scroll .fyh-invoice-sheet:not(.fyh-invoice-sheet--qs-preview) {
   width: 210mm;
   min-width: 210mm;
   max-width: 210mm;
@@ -60,7 +133,7 @@ export const FYH_INVOICE_MODAL_PRINT_STYLES = `
   .fyh-invoice-modal-backdrop,
   .fyh-invoice-modal-panel > .fyh-invoice-body > .fyh-invoice-page > .fyh-invoice-toolbar,
   .qs-invoice-viewer-header,
-  .qs-invoice-viewer-actions,
+  .qs-invoice-viewer-toolbar,
   .qs-invoice-viewer-close {
     display: none !important;
   }
@@ -74,7 +147,7 @@ export const FYH_INVOICE_MODAL_PRINT_STYLES = `
     background: #fff !important;
   }
   .fyh-invoice-modal-panel,
-  .qs-invoice-viewer-body {
+  .qs-invoice-viewer-main {
     max-width: none !important;
     width: 100% !important;
     box-shadow: none !important;
@@ -86,9 +159,6 @@ export const FYH_INVOICE_MODAL_PRINT_STYLES = `
     overflow: visible !important;
     padding: 0 !important;
     background: #fff !important;
-  }
-  .qs-invoice-viewer-body {
-    display: block !important;
   }
 }
 `;

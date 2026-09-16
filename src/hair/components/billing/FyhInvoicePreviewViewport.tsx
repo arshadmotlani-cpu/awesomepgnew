@@ -36,16 +36,13 @@ export function FyhInvoicePreviewViewport({ children, className, fitHeight = tru
       const pad = 12;
       const availW = Math.max(0, viewport.clientWidth - pad);
       const availH = Math.max(0, viewport.clientHeight - pad);
-      const scaleW = Math.min(availW / naturalWidth, 1);
+      const scaleW = availW / naturalWidth;
+      const scaleH = availH / naturalHeight;
       let scale = scaleW;
       if (fitHeight) {
-        const heightAtWidth = naturalHeight * scaleW;
-        if (heightAtWidth <= availH) {
-          const scaleH = availH / naturalHeight;
-          scale = Math.min(scaleW, scaleH, 1);
-        } else {
-          scale = scaleW;
-        }
+        scale = Math.min(scaleW, scaleH, 1);
+      } else {
+        scale = Math.min(scaleW, 1);
       }
 
       setLayout({

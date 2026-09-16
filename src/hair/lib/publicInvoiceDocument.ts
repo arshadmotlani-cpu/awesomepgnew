@@ -61,6 +61,8 @@ export type PublicInvoiceViewModel = {
   terms: string | null;
   showDiscount: boolean;
   showBalance: boolean;
+  /** e.g. "GST (18%)" for summary rows */
+  gstSummaryLabel: string;
 };
 
 function formatInvoiceDate(date: Date): string {
@@ -103,6 +105,13 @@ export function buildPublicInvoiceViewModel(detail: InvoiceDetail): PublicInvoic
 
   const money = formatInrPlainFromPaise;
   const balancePaise = Math.max(0, invoice.grandTotalPaise - invoice.amountPaidPaise);
+  const gstBpsSample = lines.find(
+    (l) => l.gstBps > 0 && !isPackageRedemptionLineName(l.nameSnapshot),
+  )?.gstBps;
+  const gstSummaryLabel =
+    invoice.taxPaise > 0 && gstBpsSample != null
+      ? `GST (${(gstBpsSample / 100).toFixed(gstBpsSample % 100 === 0 ? 0 : 1)}%)`
+      : 'GST';
 
   return {
     businessName: INVOICE_BUSINESS.name,
@@ -119,10 +128,9 @@ export function buildPublicInvoiceViewModel(detail: InvoiceDetail): PublicInvoic
     customerCode: customerCode ?? null,
     lines: lines.map((line) => {
       const qty = Number(line.quantity);
-      const gross = line.unitPricePaise * qty;
-      const taxable = Math.max(0, gross - line.discountPaise);
       const gstPct = (line.gstBps / 100).toFixed(line.gstBps % 100 === 0 ? 0 : 1);
       const isPackageRedemption = isPackageRedemptionLineName(line.nameSnapshot);
+      const lineTaxablePaise = Math.max(0, line.lineTotalPaise - line.taxPaise);
       if (isPackageRedemption) {
         return {
           name: line.nameSnapshot,
@@ -141,7 +149,7 @@ export function buildPublicInvoiceViewModel(detail: InvoiceDetail): PublicInvoic
         qty: formatQty(qty),
         rateLabel: money(line.unitPricePaise),
         discountLabel: line.discountPaise > 0 ? money(line.discountPaise) : '—',
-        taxableLabel: money(taxable),
+        taxableLabel: money(lineTaxablePaise),
         gstLabel: money(line.taxPaise),
         gstPct: `${gstPct}%`,
         totalLabel: money(line.lineTotalPaise),
@@ -158,6 +166,7 @@ export function buildPublicInvoiceViewModel(detail: InvoiceDetail): PublicInvoic
     terms: invoiceNotes?.trim() || null,
     showDiscount: invoice.discountPaise > 0,
     showBalance: balancePaise > 0,
+    gstSummaryLabel,
   };
 }
 
@@ -842,4 +851,108 @@ export function buildPublicInvoiceDocumentHtml(detail: InvoiceDetail): string {
 /** Sheet markup only — for embedding in React page with shared CSS. */
 export function renderPublicInvoiceSheetHtml(detail: InvoiceDetail): string {
   return renderInvoiceSheetHtml(buildPublicInvoiceViewModel(detail));
+}
+
+/** Compact salon receipt layout for Quick Sale post-checkout preview (screen only). */
+function renderQuickSaleCompactInvoiceSheetHtml(vm: PublicInvoiceViewModel): string {
+  const logo = INVOICE_BRAND_LOGO;
+
+  const lineRows = vm.lines
+    .map(
+      (line) => `<tr>
+        <td class="service">${escapeHtml(line.name)}</td>
+        <td class="num">${escapeHtml(line.qty)}</td>
+        <td class="num">${escapeHtml(line.rateLabel)}</td>
+        <td class="num">${escapeHtml(line.discountLabel)}</td>
+        <td class="num">${escapeHtml(line.totalLabel)}</td>
+      </tr>`,
+    )
+    .join('');
+
+  const discountRow = vm.showDiscount
+    ? `<div class="fyh-invoice-totals-row"><span>Discount</span><span>− ${escapeHtml(vm.discountLabel)}</span></div>`
+    : '';
+
+  const balanceRow = vm.showBalance
+    ? `<div class="fyh-invoice-totals-row balance"><span>Balance</span><span>${escapeHtml(vm.balanceLabel)}</span></div>`
+    : '';
+
+  const customerIdRow = vm.customerCode
+    ? `<p class="muted">Customer ID: ${escapeHtml(vm.customerCode)}</p>`
+    : '';
+
+  return `<article class="fyh-invoice-sheet fyh-invoice-sheet--qs-preview">
+  <header class="fyh-invoice-hero fyh-invoice-hero--compact">
+    <div class="fyh-invoice-hero-top">
+      <div class="fyh-invoice-brand-col">
+        <img
+          class="fyh-invoice-brand-logo"
+          src="${logo.src}"
+          alt="${escapeHtml(logo.alt)}"
+          width="${logo.width}"
+          height="${logo.height}"
+        />
+        <p class="fyh-invoice-legal-name">${escapeHtml(vm.businessName)}</p>
+      </div>
+      <div class="fyh-invoice-title-block">
+        <p class="fyh-invoice-doc-title">Tax Invoice</p>
+        <span class="${statusClass(vm.status)}">${escapeHtml(vm.statusLabel)}</span>
+        <div class="fyh-invoice-id-grid fyh-invoice-id-grid--compact">
+          <div class="fyh-invoice-id-row">
+            <span class="label">Invoice No.</span>
+            <span class="value">${escapeHtml(vm.invoiceNumber)}</span>
+          </div>
+          <div class="fyh-invoice-id-row">
+            <span class="label">Date</span>
+            <span class="value">${escapeHtml(vm.invoiceDate)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <section class="fyh-invoice-meta fyh-invoice-meta--compact">
+    <div class="fyh-invoice-meta-block">
+      <h2>Bill to</h2>
+      <p class="highlight">${escapeHtml(vm.customerName)}</p>
+      <p class="muted">${escapeHtml(vm.customerPhone)}</p>
+      ${customerIdRow}
+    </div>
+  </section>
+
+  <div class="fyh-invoice-table-wrap">
+    <table class="fyh-invoice-table fyh-invoice-table--qs">
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th class="num">Qty</th>
+          <th class="num">Rate</th>
+          <th class="num">Disc.</th>
+          <th class="num">Total</th>
+        </tr>
+      </thead>
+      <tbody>${lineRows}</tbody>
+    </table>
+  </div>
+
+  <section class="fyh-invoice-summary">
+    <div class="fyh-invoice-totals">
+      <div class="fyh-invoice-totals-row"><span>Subtotal</span><span>${escapeHtml(vm.subtotalLabel)}</span></div>
+      ${discountRow}
+      <div class="fyh-invoice-totals-row"><span>${escapeHtml(vm.gstSummaryLabel)}</span><span>${escapeHtml(vm.gstLabel)}</span></div>
+      <div class="fyh-invoice-totals-row grand"><span>Grand total</span><span>${escapeHtml(vm.grandTotalLabel)}</span></div>
+      <div class="fyh-invoice-totals-row"><span>Paid</span><span>${escapeHtml(vm.paidLabel)}</span></div>
+      ${balanceRow}
+    </div>
+  </section>
+
+  <footer class="fyh-invoice-footer fyh-invoice-footer--compact">
+    <p class="fyh-invoice-thanks">Thank you for visiting ${escapeHtml(vm.businessName)}.</p>
+  </footer>
+</article>`;
+}
+
+/** Quick Sale completed-sale screen — compact sheet; print/PDF still use full document. */
+export function renderQuickSaleInvoiceSheetHtml(detail: InvoiceDetail): string {
+  return renderQuickSaleCompactInvoiceSheetHtml(buildPublicInvoiceViewModel(detail));
 }

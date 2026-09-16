@@ -13,7 +13,9 @@ test('Quick Sale invoice viewer is portaled and viewport-fitted', () => {
   assert.match(dialog, /createPortal/);
   assert.match(dialog, /document\.body/);
   assert.match(dialog, /qs-invoice-viewer-root/);
-  assert.match(dialog, /qs-invoice-viewer-body/);
+  assert.match(dialog, /qs-invoice-viewer-main/);
+  assert.match(dialog, /qs-invoice-viewer-toolbar/);
+  assert.match(dialog, /qs-invoice-viewer-header--compact/);
   const css = readSrc('src/hair/styles/globals.css');
   assert.match(css, /\.qs-invoice-viewer-root[\s\S]*100dvh/);
   assert.doesNotMatch(dialog, /qs-success-root/);
@@ -26,6 +28,7 @@ test('FyhInvoicePreviewViewport scales sheet with transform (not font overrides)
   assert.match(viewport, /\.fyh-invoice-sheet/);
   assert.match(viewport, /ResizeObserver/);
   assert.match(viewport, /data-invoice-preview-scale/);
+  assert.match(viewport, /Math\.min\(scaleW, scaleH, 1\)/);
 });
 
 test('Invoice modal styles support Quick Sale viewer fit', () => {

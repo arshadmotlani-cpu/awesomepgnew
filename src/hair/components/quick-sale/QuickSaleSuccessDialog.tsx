@@ -96,6 +96,25 @@ export function QuickSaleSuccessDialog({
 
   const title = preview ? `Invoice ${preview.invoiceNumber}` : 'Sale completed';
 
+  const headerMeta = preview ? (
+    <p className="qs-invoice-viewer-header-meta">
+      <span>Invoice: {preview.invoiceNumber}</span>
+      <span className="qs-invoice-viewer-meta-sep">·</span>
+      <span>Date: {preview.invoiceDate}</span>
+      {preview.stylistName ? (
+        <>
+          <span className="qs-invoice-viewer-meta-sep">·</span>
+          <span>Staff: {preview.stylistName}</span>
+        </>
+      ) : null}
+    </p>
+  ) : pending ? (
+    <p className="qs-invoice-viewer-header-meta flex items-center gap-2">
+      <Loader2 className="size-3.5 animate-spin" aria-hidden />
+      Loading invoice…
+    </p>
+  ) : null;
+
   const viewer = (
     <div
       className="qs-invoice-viewer-root"
@@ -104,27 +123,13 @@ export function QuickSaleSuccessDialog({
       aria-label={title}
       data-testid="qs-invoice-viewer"
     >
-      <header className="qs-invoice-viewer-header">
-        <div className="qs-invoice-viewer-header-main">
-          <div className="qs-invoice-viewer-icon" aria-hidden>
-            <CircleCheck className="size-6" strokeWidth={2} />
-          </div>
-          <div className="min-w-0">
-            <p className="qs-invoice-viewer-eyebrow">Payment received</p>
-            <h1 className="qs-invoice-viewer-title">Sale Completed</h1>
-            {preview ? (
-              <p className="qs-invoice-viewer-meta">
-                <span className="font-medium">{preview.invoiceNumber}</span>
-                <span className="qs-invoice-viewer-meta-sep">·</span>
-                <span>{preview.invoiceDateTime}</span>
-              </p>
-            ) : pending ? (
-              <p className="qs-invoice-viewer-meta flex items-center gap-2">
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-                Loading invoice…
-              </p>
-            ) : null}
-          </div>
+      <header className="qs-invoice-viewer-header qs-invoice-viewer-header--compact">
+        <div className="min-w-0 flex-1">
+          <h1 className="qs-invoice-viewer-heading">
+            <CircleCheck className="size-4 shrink-0 text-[color:var(--fyh-accent)]" aria-hidden />
+            Sale completed
+          </h1>
+          {headerMeta}
         </div>
         <button
           type="button"
@@ -136,113 +141,99 @@ export function QuickSaleSuccessDialog({
         </button>
       </header>
 
-      <div className="qs-invoice-viewer-body">
-        <div className="qs-invoice-viewer-sheet-pane">
-          {preview?.stylistName ? (
-            <p className="qs-invoice-viewer-staff">
-              <span className="font-medium">Staff:</span> {preview.stylistName}
+      <div className="qs-invoice-viewer-toolbar" aria-label="Invoice actions">
+        {preview ? (
+          <PrintInvoiceButton html={preview.printDocumentHtml} label="Print" />
+        ) : (
+          <Button type="button" variant="secondary" size="sm" disabled>
+            Print
+          </Button>
+        )}
+        {preview ? (
+          <a
+            href={invoicePublicPrintUrl(preview.publicAccessToken)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="qs-invoice-viewer-link-btn"
+          >
+            Download PDF
+          </a>
+        ) : (
+          <Button type="button" variant="secondary" size="sm" disabled>
+            Download PDF
+          </Button>
+        )}
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled={!preview}
+          onClick={shareWhatsApp}
+        >
+          WhatsApp
+        </Button>
+        {googleReviewUrl ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={!preview}
+            onClick={shareGoogleReview}
+          >
+            Google Review
+          </Button>
+        ) : null}
+        <Link href={`/billing/${invoiceId}`}>
+          <Button type="button" variant="secondary" size="sm" disabled={!preview}>
+            Open Invoice
+          </Button>
+        </Link>
+        <Button type="button" size="sm" variant="primary" onClick={onDone}>
+          Done
+        </Button>
+      </div>
+
+      <div className="qs-invoice-viewer-main">
+        <div className="qs-invoice-viewer-sheet-wrap">
+          {pending && !preview ? (
+            <p className="qs-invoice-viewer-loading">
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+              Loading invoice…
             </p>
           ) : null}
-          <div className="qs-invoice-viewer-sheet-wrap">
-            {pending && !preview ? (
-              <p className="qs-invoice-viewer-loading">
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-                Loading invoice…
-              </p>
-            ) : null}
-            {error ? (
-              <div className="qs-invoice-viewer-error">
-                <p>{error}</p>
-                <p>Invoice saved successfully. Open the invoice for full details.</p>
-                <Link href={`/billing/${invoiceId}`}>
-                  <Button type="button" variant="secondary" size="sm">
-                    Open Invoice
-                  </Button>
-                </Link>
-              </div>
-            ) : null}
-            {preview ? (
-              <>
-                <style
-                  dangerouslySetInnerHTML={{
-                    __html:
-                      PUBLIC_INVOICE_STYLES +
-                      FYH_INVOICE_MODAL_SCREEN_STYLES +
-                      QS_INVOICE_VIEWER_SCREEN_STYLES +
-                      FYH_INVOICE_MODAL_PRINT_STYLES,
-                  }}
-                />
-                <FyhInvoicePreviewViewport
-                  className="fyh-invoice-preview-viewport qs-invoice-viewer-preview"
-                  fitHeight
-                >
-                  <div dangerouslySetInnerHTML={{ __html: preview.sheetHtml }} />
-                </FyhInvoicePreviewViewport>
-              </>
-            ) : null}
-          </div>
+          {error ? (
+            <div className="qs-invoice-viewer-error">
+              <p>{error}</p>
+              <p>Invoice saved successfully. Open the invoice for full details.</p>
+              <Link href={`/billing/${invoiceId}`}>
+                <Button type="button" variant="secondary" size="sm">
+                  Open Invoice
+                </Button>
+              </Link>
+            </div>
+          ) : null}
+          {preview ? (
+            <>
+              <style
+                dangerouslySetInnerHTML={{
+                  __html:
+                    PUBLIC_INVOICE_STYLES +
+                    FYH_INVOICE_MODAL_SCREEN_STYLES +
+                    QS_INVOICE_VIEWER_SCREEN_STYLES +
+                    FYH_INVOICE_MODAL_PRINT_STYLES,
+                }}
+              />
+              <FyhInvoicePreviewViewport
+                className="fyh-invoice-preview-viewport qs-invoice-viewer-preview"
+                fitHeight
+              >
+                <div dangerouslySetInnerHTML={{ __html: preview.sheetHtml }} />
+              </FyhInvoicePreviewViewport>
+            </>
+          ) : null}
         </div>
-
-        <aside className="qs-invoice-viewer-actions" aria-label="Invoice actions">
-          <div className="qs-invoice-viewer-action-grid">
-            {preview ? (
-              <PrintInvoiceButton html={preview.printDocumentHtml} label="Print Invoice" />
-            ) : (
-              <Button type="button" variant="secondary" size="sm" disabled>
-                Print Invoice
-              </Button>
-            )}
-            {preview ? (
-              <a
-                href={invoicePublicPrintUrl(preview.publicAccessToken)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="qs-invoice-viewer-link-btn"
-              >
-                Download PDF
-              </a>
-            ) : (
-              <Button type="button" variant="secondary" size="sm" disabled>
-                Download PDF
-              </Button>
-            )}
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={!preview}
-              onClick={shareWhatsApp}
-            >
-              Share on WhatsApp
-            </Button>
-            {googleReviewUrl ? (
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                disabled={!preview}
-                onClick={shareGoogleReview}
-              >
-                Google Review
-              </Button>
-            ) : null}
-            <Link href={`/billing/${invoiceId}`} className="qs-invoice-viewer-action-span">
-              <Button type="button" variant="secondary" size="sm" className="w-full">
-                Open Invoice
-              </Button>
-            </Link>
-            <Button
-              type="button"
-              size="sm"
-              className="qs-invoice-viewer-action-span"
-              onClick={onDone}
-            >
-              Done
-            </Button>
-          </div>
-          <input type="hidden" name="customerId" value={customerId} readOnly aria-hidden />
-        </aside>
       </div>
+      <input type="hidden" name="customerId" value={customerId} readOnly aria-hidden />
     </div>
   );
 
