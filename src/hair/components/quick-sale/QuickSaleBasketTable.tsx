@@ -2,7 +2,7 @@
 
 import { Minus, Plus, Trash2 } from 'lucide-react';
 import { Input } from '@/src/hair/components/ui/input';
-import { formatInrFromPaise } from '@/src/hair/lib/money';
+import { formatInrFromPaise, formatRupeeInputFromPaise } from '@/src/hair/lib/money';
 import type { BasketLine } from '@/src/hair/domain/basket/types';
 import {
   computePackageRedemptionUnitDiscount,
@@ -156,7 +156,7 @@ export function QuickSaleBasketTable({
                   ) : (
                     <Input
                       inputMode="decimal"
-                      value={(lineGrossPaise / 100).toFixed(2)}
+                      value={formatRupeeInputFromPaise(lineGrossPaise)}
                       disabled={locked}
                       onChange={(e) => {
                         const patch = patchLineFromPriceRupees(

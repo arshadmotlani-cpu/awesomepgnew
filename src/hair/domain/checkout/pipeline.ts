@@ -25,6 +25,7 @@ import type { PaymentSplitInput } from '@/src/hair/services/invoices';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults } from '@/src/hair/lib/tenant/filters';
 import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
+import { formatInrFromPaise } from '@/src/hair/lib/money';
 
 export type CheckoutFromBasketInput = {
   basket: Basket;
@@ -340,8 +341,8 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
         : `Quick Sale · ${inv.invoiceNumber}`;
     const timelineBody =
       source === 'appointment'
-        ? `Checkout from appointment · total ₹${(grandTotal / 100).toFixed(2)} · paid ₹${(payApplied / 100).toFixed(2)}`
-        : `Total ₹${(grandTotal / 100).toFixed(2)} · paid ₹${(payApplied / 100).toFixed(2)}`;
+        ? `Checkout from appointment · total ${formatInrFromPaise(grandTotal)} · paid ${formatInrFromPaise(payApplied)}`
+        : `Total ${formatInrFromPaise(grandTotal)} · paid ${formatInrFromPaise(payApplied)}`;
 
     await db.insert(fyhCustomerTimeline).values({
       ...writeDefaults,

@@ -7,6 +7,7 @@ import {
   type AdvancePaymentMethod,
 } from '@/src/hair/services/loyaltyOps';
 import { searchCustomersForPos } from '@/src/hair/services/quickSale';
+import { formatInrFromPaise } from '@/src/hair/lib/money';
 
 export type AdvancePaymentActionState = { error?: string; success?: string };
 
@@ -29,7 +30,7 @@ export async function submitAdvancePaymentAction(input: {
     revalidatePath(`/customers/${input.customerId}`);
     revalidatePath('/advance-payment');
     return {
-      success: `Wallet credited · balance ${(result.walletBalancePaise / 100).toFixed(2)}`,
+      success: `Wallet credited · balance ${formatInrFromPaise(result.walletBalancePaise)}`,
       walletBalancePaise: result.walletBalancePaise,
     };
   } catch (e) {

@@ -1,4 +1,5 @@
 import { paiseToIndianWords } from '@/src/hair/lib/amountInWords';
+import { formatInrPlainFromPaise } from '@/src/hair/lib/money';
 import { INVOICE_BRAND_LOGO, INVOICE_BUSINESS } from '@/src/hair/lib/invoiceBranding';
 import { escapeHtml } from '@/src/hair/lib/salonTime';
 import { isPackageRedemptionLineName } from '@/src/hair/domain/packages/availableServices';
@@ -62,15 +63,6 @@ export type PublicInvoiceViewModel = {
   showBalance: boolean;
 };
 
-function formatInrPlain(paise: number): string {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 0,
-  }).format(paise / 100);
-}
-
 function formatInvoiceDate(date: Date): string {
   return new Intl.DateTimeFormat('en-IN', {
     timeZone: 'Asia/Kolkata',
@@ -109,7 +101,7 @@ export function buildPublicInvoiceViewModel(detail: InvoiceDetail): PublicInvoic
     payments,
   } = detail;
 
-  const money = formatInrPlain;
+  const money = formatInrPlainFromPaise;
   const balancePaise = Math.max(0, invoice.grandTotalPaise - invoice.amountPaidPaise);
 
   return {

@@ -15,6 +15,7 @@ import { fyhPublicBaseUrl } from '@/src/hair/lib/invoicePublicLinks';
 import { escapeHtml } from '@/src/hair/lib/salonTime';
 import type { SalonSettings } from '@/src/hair/services/settings';
 import type { InvoiceRegisterRow } from '@/src/hair/services/invoiceRegisterQueries';
+import { formatInrFromPaise } from '@/src/hair/lib/money';
 
 const TZ_DEFAULT = 'Asia/Kolkata';
 
@@ -54,15 +55,6 @@ export type InvoiceRegisterPdfSummary = {
   averageInvoicePaise: number;
   payments: InvoiceRegisterPdfPaymentBreakdown;
 };
-
-function formatInrPaise(paise: number): string {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(paise / 100);
-}
 
 function formatReportDate(date: Date, timezone: string): string {
   return new Intl.DateTimeFormat('en-IN', {
@@ -234,7 +226,7 @@ export function renderInvoiceRegisterPdfHtml(input: {
   const autoPrint = input.autoPrint !== false;
   const generated = formatGeneratedStamp(generatedAt, branding.timezone);
   const periodLabels = formatPeriodLabel(period, branding.timezone, rows);
-  const money = formatInrPaise;
+  const money = formatInrFromPaise;
 
   const contactBits = [
     branding.phone ? `Mobile ${escapeHtml(branding.phone)}` : null,

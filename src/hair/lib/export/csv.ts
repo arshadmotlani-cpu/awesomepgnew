@@ -14,7 +14,9 @@ export function rowsToCsv(headers: string[], rows: unknown[][]): string {
   return lines.join('\n');
 }
 
-/** Paise → rupees string for CSV (2 decimal places). */
+import { formatRupeeInputFromPaise } from '@/src/hair/lib/money';
+
+/** Paise → rupees string for CSV export (whole rupees omit .00). */
 export function paiseToCsvRupees(paise: number): string {
-  return (Math.round(paise) / 100).toFixed(2);
+  return formatRupeeInputFromPaise(paise);
 }

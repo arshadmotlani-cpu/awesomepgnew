@@ -1,4 +1,5 @@
 import type { Basket, BasketFlags, PricedBasket } from '@/src/hair/domain/basket/types';
+import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { collectBasketLineValidationErrors } from '@/src/hair/domain/basket/validate';
 import {
   findLinesMissingStaffPerformer,
@@ -29,7 +30,7 @@ export function collectPaymentValidationErrors(
   }
   if (!flags.markDue && paySum < grandTotalPaise) {
     return [
-      `Payment total must cover amount due (₹${(grandTotalPaise / 100).toFixed(2)}). Use Mark as Due for partial payment.`,
+      `Payment total must cover amount due (${formatInrFromPaise(grandTotalPaise)}). Use Mark as Due for partial payment.`,
     ];
   }
   return [];

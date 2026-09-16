@@ -1,4 +1,5 @@
 import type { BasketFlags, PaymentEntry } from '@/src/hair/domain/basket/types';
+import { formatInrFromPaise, formatRupeeInputFromPaise } from '@/src/hair/lib/money';
 
 export type PaymentPanelSummary = {
   paidPaise: number;
@@ -53,8 +54,7 @@ export function parseDraftAmountRupee(input: string): number {
 
 export function formatDraftAmountFromPaise(paise: number): string {
   if (paise <= 0) return '';
-  const rupees = paise / 100;
-  return Number.isInteger(rupees) ? String(rupees) : rupees.toFixed(2);
+  return formatRupeeInputFromPaise(paise);
 }
 
 export function validateDraftPayment(input: {
@@ -63,7 +63,7 @@ export function validateDraftPayment(input: {
 }): string | null {
   if (input.draftPaise <= 0) return 'Enter an amount greater than zero';
   if (input.draftPaise > input.remainingToAllocatePaise) {
-    return `Amount cannot exceed remaining ${(input.remainingToAllocatePaise / 100).toFixed(2)}`;
+    return `Amount cannot exceed remaining ${formatInrFromPaise(input.remainingToAllocatePaise)}`;
   }
   return null;
 }
