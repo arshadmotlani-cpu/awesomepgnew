@@ -69,12 +69,12 @@ export default async function HairAppLayout({ children }: { children: React.Reac
   }
 
   return (
-    <div className="flex min-h-screen min-w-0 flex-col overflow-x-hidden lg:flex-row">
+    <div className="fyh-app-shell flex min-w-0 flex-col lg:flex-row">
       <HairSidebar entries={navEntries} />
       <div className="flex min-w-0 flex-1 flex-col">
         <HairAppHeader admin={admin} navEntries={navEntries} />
         <HairTenantContextBar />
-        <main className="relative z-0 flex-1 overflow-auto p-[var(--fyh-space-page)] md:p-[var(--fyh-space-page-md)]">
+        <main className="relative z-0 min-w-0 flex-1 overflow-x-clip overflow-y-auto p-[var(--fyh-space-page)] md:p-[var(--fyh-space-page-md)]">
           <PastDueBillingBanner />
           {children}
         </main>
