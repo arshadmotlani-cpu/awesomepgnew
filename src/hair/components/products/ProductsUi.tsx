@@ -86,8 +86,8 @@ export function ProductsList({
           </Link>
         </div>
       ) : (
-        <div className="fyh-glass overflow-hidden">
-          <table className="w-full text-left text-sm">
+        <div className="fyh-glass overflow-x-auto">
+          <table className="w-full min-w-[36rem] text-left text-sm">
             <thead>
               <tr>
                 <th>Product</th>
@@ -270,6 +270,21 @@ export function ProductForm({
             defaultValue={product?.stockQty ?? 0}
           />
         </div>
+        {mode === 'edit' ? (
+          <div className="space-y-2 sm:col-span-2">
+            <label className="fyh-label" htmlFor="stockAdjustmentReason">
+              Stock adjustment reason
+            </label>
+            <Input
+              id="stockAdjustmentReason"
+              name="stockAdjustmentReason"
+              placeholder="Required when changing stock (e.g. Opening stock correction)"
+            />
+            <p className="text-xs text-fyh-text-muted">
+              Stock changes are recorded as auditable movements — not silent overwrites.
+            </p>
+          </div>
+        ) : null}
         <div className="space-y-2 sm:col-span-2">
           <label className="fyh-label" htmlFor="description">
             Description

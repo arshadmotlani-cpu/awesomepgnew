@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { ProductForm } from '@/src/hair/components/products/ProductsUi';
 import { Button } from '@/src/hair/components/ui/button';
+import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 import { listBrands } from '@/src/hair/services/brands';
 
 export default async function NewProductPage() {
-  const brands = await listBrands();
+  const ctx = await getTenantContextForPage();
+  const brands = await listBrands(ctx);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">

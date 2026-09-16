@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { requirePermission } from '@/src/hair/lib/auth/permissions';
+import { getTenantContextForAction } from '@/src/hair/lib/tenant/getTenantContext';
 import { parseVendorPaymentMethod } from '@/src/hair/lib/vendorPaymentMethods';
 import { uploadVendorAttachment } from '@/src/hair/lib/vendorAttachmentUpload';
 import { addVendorNote } from '@/src/hair/services/vendorBrain';
@@ -66,7 +67,8 @@ function revalidateVendorLedger(vendorId: string) {
 
 export async function getPurchaseReturnContextAction(purchaseId: string) {
   await requirePermission('page:inventory');
-  return getPurchaseEngineDetail(purchaseId);
+  const ctx = await getTenantContextForAction();
+  return getPurchaseEngineDetail(purchaseId, ctx);
 }
 
 export async function recordVendorPaymentAction(
@@ -101,19 +103,23 @@ export async function recordVendorPaymentAction(
       attachmentContentType = uploaded.contentType;
     }
 
-    await recordVendorPayment({
-      vendorId,
-      amountPaise: rupeesToPaise(amountRupees),
-      paymentMethod: parseVendorPaymentMethod(formStr(formData, 'paymentMethod')),
-      paymentDate,
-      reference: formStr(formData, 'reference') || null,
-      notes: formStr(formData, 'notes') || null,
-      attachmentUrl,
-      attachmentContentType,
-      staffName,
-      staffEmployeeId: session?.workforceEmployeeId ?? null,
-      allocations,
-    });
+    const ctx = await getTenantContextForAction();
+    await recordVendorPayment(
+      {
+        vendorId,
+        amountPaise: rupeesToPaise(amountRupees),
+        paymentMethod: parseVendorPaymentMethod(formStr(formData, 'paymentMethod')),
+        paymentDate,
+        reference: formStr(formData, 'reference') || null,
+        notes: formStr(formData, 'notes') || null,
+        attachmentUrl,
+        attachmentContentType,
+        staffName,
+        staffEmployeeId: session?.workforceEmployeeId ?? null,
+        allocations,
+      },
+      ctx,
+    );
 
     revalidateVendorLedger(vendorId);
     return { success: 'Payment recorded.' };

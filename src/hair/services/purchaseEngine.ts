@@ -19,6 +19,7 @@ import { applyMovement, updateWeightedAverageCost } from '@/src/hair/services/st
 import { refreshPayableBalance } from '@/src/hair/services/vendorPaymentEngine';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 export type PurchaseLineInput = {
   productId: string;
@@ -58,8 +59,38 @@ function validateLines(lines: PurchaseLineInput[]) {
   }
 }
 
+async function findPostedPurchaseByVendorInvoice(
+  vendorId: string,
+  vendorInvoiceRef: string,
+  ctx: TenantContext | null,
+) {
+  const ref = vendorInvoiceRef.trim();
+  if (!ref) return null;
+  const [row] = await hairDb
+    .select()
+    .from(fyhPurchases)
+    .where(
+      and(
+        orgFilter(fyhPurchases.organizationId, ctx),
+        locationFilter(fyhPurchases.locationId, ctx),
+        eq(fyhPurchases.vendorId, vendorId),
+        eq(fyhPurchases.vendorInvoiceRef, ref),
+        eq(fyhPurchases.status, 'posted'),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
 export async function createPurchase(input: CreatePurchaseInput, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   validateLines(input.lines);
+
+  const invoiceRef = input.vendorInvoiceRef?.trim();
+  if (invoiceRef) {
+    const existing = await findPostedPurchaseByVendorInvoice(input.vendorId, invoiceRef, ctx);
+    if (existing) return existing;
+  }
 
   const [vendor] = await hairDb
     .select()
@@ -83,6 +114,7 @@ export async function createPurchase(input: CreatePurchaseInput, ctx?: TenantCon
     const [purchase] = await tx
       .insert(fyhPurchases)
       .values({
+        ...tenantWriteDefaults(ctx),
         vendorId: input.vendorId,
         purchaseNumber,
         vendorInvoiceRef: input.vendorInvoiceRef?.trim() || null,
@@ -97,6 +129,7 @@ export async function createPurchase(input: CreatePurchaseInput, ctx?: TenantCon
 
     for (const line of lineTotals) {
       await tx.insert(fyhPurchaseLines).values({
+        ...tenantWriteDefaults(ctx),
         purchaseId: purchase!.id,
         productId: line.productId,
         quantity: line.qty,
@@ -104,19 +137,24 @@ export async function createPurchase(input: CreatePurchaseInput, ctx?: TenantCon
         lineTotalPaise: line.lineTotalPaise,
       });
 
-      await updateWeightedAverageCost(db, line.productId, line.qty, line.unitCostPaise);
+      await updateWeightedAverageCost(db, line.productId, line.qty, line.unitCostPaise, ctx);
 
-      await applyMovement(db, {
-        productId: line.productId,
-        quantityDelta: line.qty,
-        movementType: 'purchase',
-        referenceType: 'purchase',
-        referenceId: purchase!.id,
-        notes: `Purchase ${purchaseNumber} from ${vendor.name}`,
-      });
+      await applyMovement(
+        db,
+        {
+          productId: line.productId,
+          quantityDelta: line.qty,
+          movementType: 'purchase',
+          referenceType: 'purchase',
+          referenceId: purchase!.id,
+          notes: `Purchase ${purchaseNumber} from ${vendor.name}`,
+        },
+        ctx,
+      );
     }
 
     await tx.insert(fyhVendorPayables).values({
+      ...tenantOrgDefaults(ctx),
       vendorId: input.vendorId,
       purchaseId: purchase!.id,
       amountPaise: totalPaise,
@@ -125,6 +163,7 @@ export async function createPurchase(input: CreatePurchaseInput, ctx?: TenantCon
     });
 
     await tx.insert(fyhExpenses).values({
+      ...tenantWriteDefaults(ctx),
       title: `Purchase ${purchaseNumber} — ${vendor.name}`,
       category: 'inventory_purchase',
       expenseDate: input.purchaseDate,
@@ -150,6 +189,7 @@ export async function createPurchase(input: CreatePurchaseInput, ctx?: TenantCon
 }
 
 export async function getPurchaseEngineDetail(purchaseId: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const [header] = await hairDb
     .select({
       purchase: fyhPurchases,
@@ -199,6 +239,7 @@ export async function attachPurchaseInvoice(
   },
   ctx?: TenantContext | null,
 ) {
+  ctx = await resolveTenantContextForService(ctx);
   const [updated] = await hairDb
     .update(fyhPurchases)
     .set({
@@ -215,6 +256,7 @@ export async function attachPurchaseInvoice(
 }
 
 export async function updatePurchase(purchaseId: string, input: UpdatePurchaseInput, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   validateLines(input.lines);
 
   return hairDb.transaction(async (tx) => {
@@ -280,23 +322,28 @@ export async function updatePurchase(purchaseId: string, input: UpdatePurchaseIn
       const newQty = newLine?.qty ?? 0;
       const delta = newQty - oldQty;
       if (delta !== 0) {
-        await applyMovement(db, {
-          productId,
-          quantityDelta: delta,
-          movementType: 'adjustment',
-          referenceType: 'purchase_edit',
-          referenceId: purchaseId,
-          notes: `Purchase edit ${purchase.purchaseNumber}`,
-        });
+        await applyMovement(
+          db,
+          {
+            productId,
+            quantityDelta: delta,
+            movementType: 'adjustment',
+            referenceType: 'purchase_edit',
+            referenceId: purchaseId,
+            notes: `Purchase edit ${purchase.purchaseNumber}`,
+          },
+          ctx,
+        );
       }
       if (delta > 0 && newLine) {
-        await updateWeightedAverageCost(db, productId, delta, newLine.unitCostPaise);
+        await updateWeightedAverageCost(db, productId, delta, newLine.unitCostPaise, ctx);
       }
     }
 
     await tx.delete(fyhPurchaseLines).where(and(orgFilter(fyhPurchaseLines.organizationId, ctx), locationFilter(fyhPurchaseLines.locationId, ctx), eq(fyhPurchaseLines.purchaseId, purchaseId)));
     for (const line of lineTotals) {
       await tx.insert(fyhPurchaseLines).values({
+        ...tenantWriteDefaults(ctx),
         purchaseId,
         productId: line.productId,
         quantity: line.qty,
@@ -321,7 +368,7 @@ export async function updatePurchase(purchaseId: string, input: UpdatePurchaseIn
       .set({ amountPaise: newTotalPaise, updatedAt: new Date() })
       .where(and(orgFilter(fyhVendorPayables.organizationId, ctx), eq(fyhVendorPayables.id, payable.id)));
 
-    await refreshPayableBalance(db, payable.id);
+    await refreshPayableBalance(db, payable.id, ctx);
 
     await tx
       .update(fyhExpenses)
@@ -334,6 +381,7 @@ export async function updatePurchase(purchaseId: string, input: UpdatePurchaseIn
       .where(and(orgFilter(fyhExpenses.organizationId, ctx), locationFilter(fyhExpenses.locationId, ctx), eq(fyhExpenses.purchaseId, purchaseId)));
 
     await tx.insert(fyhPurchaseAuditEvents).values({
+      ...tenantWriteDefaults(ctx),
       purchaseId,
       action: 'purchase_edited',
       diff: {

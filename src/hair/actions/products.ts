@@ -113,7 +113,9 @@ export async function updateProductAction(
         input.stockQty = Number(existing.stockQty);
       }
     }
-    await updateProduct(id, input, ctx);
+    await updateProduct(id, input, ctx, {
+      stockAdjustmentReason: formStr(formData, 'stockAdjustmentReason') || null,
+    });
     revalidatePath('/products');
     revalidatePath(`/products/${id}`);
     revalidatePath('/inventory/stock');

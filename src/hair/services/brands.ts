@@ -2,9 +2,11 @@ import { and, asc, eq, ilike, inArray } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import { fyhBrands } from '@/src/hair/db/schema';
 import { orgFilter, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 
 export async function listBrands(ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   return hairDb
     .select()
     .from(fyhBrands)
@@ -13,6 +15,7 @@ export async function listBrands(ctx?: TenantContext | null) {
 }
 
 export async function listBrandsForVendor(vendorId: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   return hairDb
     .select()
     .from(fyhBrands)
@@ -21,6 +24,7 @@ export async function listBrandsForVendor(vendorId: string, ctx?: TenantContext 
 }
 
 export async function getBrand(id: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   const [row] = await hairDb
     .select()
     .from(fyhBrands)
@@ -34,6 +38,7 @@ export async function findOrCreateBrand(
   vendorId?: string | null,
   ctx?: TenantContext | null,
 ) {
+  ctx = await resolveTenantContextForService(ctx);
   const trimmed = name.trim();
   if (!trimmed) throw new Error('Brand name is required');
   const [existing] = await hairDb
@@ -62,6 +67,7 @@ export async function syncVendorBrands(
   brandNames: string[],
   ctx?: TenantContext | null,
 ) {
+  ctx = await resolveTenantContextForService(ctx);
   const names = [...new Set(brandNames.map((n) => n.trim()).filter(Boolean))];
   const existing = await listBrandsForVendor(vendorId, ctx);
   const existingNames = new Set(existing.map((b) => b.name.toLowerCase()));
@@ -84,6 +90,7 @@ export async function syncVendorBrands(
 }
 
 export async function detachBrandsFromVendor(vendorId: string, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   await hairDb
     .update(fyhBrands)
     .set({ vendorId: null })
@@ -91,6 +98,7 @@ export async function detachBrandsFromVendor(vendorId: string, ctx?: TenantConte
 }
 
 export async function getBrandNamesByIds(ids: string[], ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   if (!ids.length) return new Map<string, string>();
   const rows = await hairDb
     .select()

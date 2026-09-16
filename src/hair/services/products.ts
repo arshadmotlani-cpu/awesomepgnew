@@ -27,6 +27,29 @@ export type ProductInput = {
 
 export type ProductWithBrand = FyhProduct & { brandName: string };
 
+function normalizeProductName(name: string): string {
+  return name.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+async function assertUniqueProductIdentity(
+  name: string,
+  brandId: string,
+  excludeId?: string,
+  ctx?: TenantContext | null,
+) {
+  const target = normalizeProductName(name);
+  const rows = await hairDb
+    .select({ id: fyhProducts.id, name: fyhProducts.name, brandId: fyhProducts.brandId })
+    .from(fyhProducts)
+    .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.brandId, brandId)));
+  for (const row of rows) {
+    if (excludeId && row.id === excludeId) continue;
+    if (normalizeProductName(row.name) === target) {
+      throw new Error('A product with this name already exists for the selected brand');
+    }
+  }
+}
+
 function validateProductInput(input: ProductInput) {
   const name = input.name.trim();
   if (!name) throw new Error('Product name is required');
@@ -113,6 +136,7 @@ export async function getProduct(id: string, ctx?: TenantContext | null): Promis
 export async function createProduct(input: ProductInput, ctx?: TenantContext | null) {
   ctx = await resolveTenantContextForService(ctx);
   const name = validateProductInput(input);
+  await assertUniqueProductIdentity(name, input.brandId, undefined, ctx);
   const openingQty = input.stockQty ?? 0;
   const productType = parseProductType(input.productType);
   const sellingPricePaise =
@@ -154,9 +178,15 @@ export async function createProduct(input: ProductInput, ctx?: TenantContext | n
   });
 }
 
-export async function updateProduct(id: string, input: ProductInput, ctx?: TenantContext | null) {
+export async function updateProduct(
+  id: string,
+  input: ProductInput,
+  ctx?: TenantContext | null,
+  opts?: { stockAdjustmentReason?: string | null },
+) {
   ctx = await resolveTenantContextForService(ctx);
   const name = validateProductInput(input);
+  await assertUniqueProductIdentity(name, input.brandId, id, ctx);
   const isActive = input.isActive !== false;
   const productType = parseProductType(input.productType);
   const sellingPricePaise =
@@ -188,6 +218,10 @@ export async function updateProduct(id: string, input: ProductInput, ctx?: Tenan
       .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.id, id)));
 
     if (delta !== 0) {
+      const reason = opts?.stockAdjustmentReason?.trim();
+      if (!reason) {
+        throw new Error('Stock adjustment requires a reason');
+      }
       await applyMovement(
         db,
         {
@@ -196,7 +230,7 @@ export async function updateProduct(id: string, input: ProductInput, ctx?: Tenan
           movementType: 'adjustment',
           referenceType: 'product_edit',
           referenceId: id,
-          notes: 'Stock corrected via product edit',
+          notes: reason,
         },
         ctx,
       );

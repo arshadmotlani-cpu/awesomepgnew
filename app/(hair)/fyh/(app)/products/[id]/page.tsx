@@ -6,6 +6,7 @@ import {
   ProductProfitSummary,
 } from '@/src/hair/components/products/ProductsUi';
 import { productTypeLabel } from '@/src/hair/lib/productTypes';
+import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 import { listBrands } from '@/src/hair/services/brands';
 import { getProduct } from '@/src/hair/services/products';
 
@@ -13,7 +14,8 @@ type Props = { params: Promise<{ id: string }> };
 
 export default async function ProductDetailPage({ params }: Props) {
   const { id } = await params;
-  const [product, brands] = await Promise.all([getProduct(id), listBrands()]);
+  const ctx = await getTenantContextForPage();
+  const [product, brands] = await Promise.all([getProduct(id, ctx), listBrands(ctx)]);
   if (!product) notFound();
 
   return (

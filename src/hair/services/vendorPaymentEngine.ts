@@ -11,6 +11,7 @@ import type { FyhVendorPaymentMethod } from '@/src/hair/lib/vendorPaymentMethods
 import type { HairDb } from '@/src/hair/services/stock';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 export type VendorPaymentAllocationInput = {
   payableId: string;
@@ -153,6 +154,7 @@ export async function nextVendorPaymentNumber(ctx?: TenantContext | null): Promi
 }
 
 export async function recordVendorPayment(input: RecordVendorPaymentInput, ctx?: TenantContext | null) {
+  ctx = await resolveTenantContextForService(ctx);
   if (input.amountPaise <= 0) throw new Error('Payment amount must be positive');
   const allocations = input.allocations ?? [];
   validateAllocations(input.amountPaise, allocations);

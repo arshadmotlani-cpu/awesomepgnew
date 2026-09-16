@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { requirePermission } from '@/src/hair/lib/auth/permissions';
+import { getTenantContextForAction } from '@/src/hair/lib/tenant/getTenantContext';
 import { parseExpensePaymentMethod } from '@/src/hair/lib/expenseCategories';
 import {
   attachPurchaseInvoice,
@@ -52,17 +53,21 @@ export async function createPurchaseAction(
     if (!purchaseDate) return { error: 'Purchase date is required' };
 
     const lines = parseLinesJson(formStr(formData, 'linesJson'));
+    const ctx = await getTenantContextForAction();
 
-    const purchase = await createPurchase({
-      vendorId,
-      purchaseDate,
-      vendorInvoiceRef: formStr(formData, 'vendorInvoiceRef') || null,
-      notes: formStr(formData, 'notes') || null,
-      lines,
-      staffName,
-      staffEmployeeId: session?.workforceEmployeeId ?? null,
-      paymentMethod: parseExpensePaymentMethod(formStr(formData, 'paymentMethod') || 'online'),
-    });
+    const purchase = await createPurchase(
+      {
+        vendorId,
+        purchaseDate,
+        vendorInvoiceRef: formStr(formData, 'vendorInvoiceRef') || null,
+        notes: formStr(formData, 'notes') || null,
+        lines,
+        staffName,
+        staffEmployeeId: session?.workforceEmployeeId ?? null,
+        paymentMethod: parseExpensePaymentMethod(formStr(formData, 'paymentMethod') || 'online'),
+      },
+      ctx,
+    );
 
     revalidatePath('/purchases');
     revalidatePath('/inventory/stock');
@@ -93,15 +98,20 @@ export async function updatePurchaseAction(
     if (!purchaseDate) return { error: 'Purchase date is required' };
 
     const lines = parseLinesJson(formStr(formData, 'linesJson'));
+    const ctx = await getTenantContextForAction();
 
-    await updatePurchase(purchaseId, {
-      purchaseDate,
-      vendorInvoiceRef: formStr(formData, 'vendorInvoiceRef') || null,
-      notes: formStr(formData, 'notes') || null,
-      lines,
-      staffName,
-      staffEmployeeId: session?.workforceEmployeeId ?? null,
-    });
+    await updatePurchase(
+      purchaseId,
+      {
+        purchaseDate,
+        vendorInvoiceRef: formStr(formData, 'vendorInvoiceRef') || null,
+        notes: formStr(formData, 'notes') || null,
+        lines,
+        staffName,
+        staffEmployeeId: session?.workforceEmployeeId ?? null,
+      },
+      ctx,
+    );
 
     revalidatePath(`/purchases/${purchaseId}`);
     revalidatePath('/purchases');
