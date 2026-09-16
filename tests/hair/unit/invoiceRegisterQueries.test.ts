@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import {
+  invoiceRegisterNavigateDay,
+  shiftInvoiceRegisterDayIso,
+} from '@/src/hair/lib/billing/invoiceRegisterDayNav';
 import { parseRegisterFiltersFromSearchParams } from '@/src/hair/services/invoiceRegisterQueries';
 
 describe('parseRegisterFiltersFromSearchParams', () => {
@@ -37,5 +41,56 @@ describe('parseRegisterFiltersFromSearchParams', () => {
     assert.equal(filters.pageSize, 50);
     assert.equal(filters.sort, 'created_at');
     assert.equal(filters.sortDir, 'desc');
+  });
+});
+
+describe('invoiceRegister day navigation', () => {
+  const fallback = '2026-09-16';
+
+  it('single day: previous and next', () => {
+    assert.deepEqual(
+      invoiceRegisterNavigateDay({
+        from: '2026-09-16',
+        to: '2026-09-16',
+        direction: -1,
+        fallbackDayIso: fallback,
+      }),
+      { from: '2026-09-15', to: '2026-09-15' },
+    );
+    assert.deepEqual(
+      invoiceRegisterNavigateDay({
+        from: '2026-09-16',
+        to: '2026-09-16',
+        direction: 1,
+        fallbackDayIso: fallback,
+      }),
+      { from: '2026-09-17', to: '2026-09-17' },
+    );
+  });
+
+  it('crosses month boundaries', () => {
+    assert.equal(shiftInvoiceRegisterDayIso('2026-09-01', -1), '2026-08-31');
+    assert.equal(shiftInvoiceRegisterDayIso('2026-09-30', 1), '2026-10-01');
+  });
+
+  it('multi-day range: prev collapses to day before from; next to day after to', () => {
+    assert.deepEqual(
+      invoiceRegisterNavigateDay({
+        from: '2026-09-10',
+        to: '2026-09-16',
+        direction: -1,
+        fallbackDayIso: fallback,
+      }),
+      { from: '2026-09-09', to: '2026-09-09' },
+    );
+    assert.deepEqual(
+      invoiceRegisterNavigateDay({
+        from: '2026-09-10',
+        to: '2026-09-16',
+        direction: 1,
+        fallbackDayIso: fallback,
+      }),
+      { from: '2026-09-17', to: '2026-09-17' },
+    );
   });
 });

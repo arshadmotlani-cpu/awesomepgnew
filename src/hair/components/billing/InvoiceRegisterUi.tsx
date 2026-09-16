@@ -28,6 +28,7 @@ import {
   type FyhInvoiceStatus,
 } from '@/src/hair/db/schema/billing';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
+import { invoiceRegisterNavigateDay } from '@/src/hair/lib/billing/invoiceRegisterDayNav';
 import type { InvoiceRegisterRow } from '@/src/hair/services/invoiceRegisterQueries';
 import { cn } from '@/src/hair/lib/utils';
 
@@ -37,6 +38,8 @@ export type InvoiceRegisterUiProps = {
   page: number;
   pageSize: number;
   filters: Record<string, string>;
+  /** Salon-local today (YYYY-MM-DD) for day navigation when no range is selected. */
+  salonTodayIso: string;
 };
 
 const STATUS_LABELS: Record<FyhInvoiceStatus, string> = {
@@ -249,9 +252,11 @@ function InvoiceRowActions({
 
 function RegisterFilterBar({
   filters,
+  salonTodayIso,
   onReplace,
 }: {
   filters: Record<string, string>;
+  salonTodayIso: string;
   onReplace: (patch: Record<string, string | undefined>) => void;
 }) {
   const [fromDate, setFromDate] = useState(filters.from ?? '');
@@ -275,32 +280,70 @@ function RegisterFilterBar({
     return () => window.clearTimeout(timer);
   }, [toDate, filters.to, onReplace]);
 
+  function navigateDay(direction: -1 | 1) {
+    const next = invoiceRegisterNavigateDay({
+      from: fromDate || undefined,
+      to: toDate || undefined,
+      direction,
+      fallbackDayIso: salonTodayIso,
+    });
+    setFromDate(next.from);
+    setToDate(next.to);
+    onReplace({ from: next.from, to: next.to, all: undefined, page: '1' });
+  }
+
   return (
     <div className="sticky top-0 z-20 -mx-4 border-b border-[color:var(--fyh-border)] bg-fyh-base/95 px-4 py-2.5 backdrop-blur md:-mx-8 md:px-8">
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        <div className="space-y-1">
-          <label className="fyh-label text-xs" htmlFor="from">
-            From
-          </label>
-          <FyhDatePicker
-            id="from"
-            value={fromDate}
-            onChange={setFromDate}
-            placeholder="From date"
-            aria-label="From date"
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="fyh-label text-xs" htmlFor="to">
-            To
-          </label>
-          <FyhDatePicker
-            id="to"
-            value={toDate}
-            onChange={setToDate}
-            placeholder="To date"
-            aria-label="To date"
-          />
+        <div className="col-span-2 flex min-w-0 items-end gap-1 md:col-span-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 shrink-0 p-0"
+            title="Previous day"
+            aria-label="Previous day"
+            onClick={() => navigateDay(-1)}
+          >
+            <ChevronLeft className="h-4 w-4" aria-hidden />
+          </Button>
+          <div className="grid min-w-0 flex-1 grid-cols-2 gap-2">
+            <div className="min-w-0 space-y-1">
+              <label className="fyh-label text-xs" htmlFor="from">
+                From
+              </label>
+              <FyhDatePicker
+                id="from"
+                value={fromDate}
+                onChange={setFromDate}
+                placeholder="From date"
+                aria-label="From date"
+              />
+            </div>
+            <div className="min-w-0 space-y-1">
+              <label className="fyh-label text-xs" htmlFor="to">
+                To
+              </label>
+              <FyhDatePicker
+                id="to"
+                value={toDate}
+                onChange={setToDate}
+                placeholder="To date"
+                aria-label="To date"
+              />
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 shrink-0 p-0"
+            title="Next day"
+            aria-label="Next day"
+            onClick={() => navigateDay(1)}
+          >
+            <ChevronRight className="h-4 w-4" aria-hidden />
+          </Button>
         </div>
         <div className="space-y-1">
           <label className="fyh-label text-xs" htmlFor="paymentMode">
@@ -379,6 +422,7 @@ export function InvoiceRegisterUi({
   page,
   pageSize,
   filters,
+  salonTodayIso,
 }: InvoiceRegisterUiProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -497,7 +541,12 @@ export function InvoiceRegisterUi({
 
       {exportError ? <p className="mb-3 text-sm text-fyh-danger">{exportError}</p> : null}
 
-      <RegisterFilterBar key={filterBarKey} filters={filters} onReplace={replaceFilters} />
+      <RegisterFilterBar
+        key={filterBarKey}
+        filters={filters}
+        salonTodayIso={salonTodayIso}
+        onReplace={replaceFilters}
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm text-fyh-text-secondary">
         <span>

@@ -34,6 +34,10 @@ async function InvoiceRegisterPageInner({ searchParams }: PageProps) {
     redirect(`/billing/invoices?from=${today}&to=${today}`);
   }
 
+  const ctx = await getTenantContextForPage();
+  const settings = await getSalonSettings(ctx);
+  const salonTodayIso = invoiceRegisterTodayIso(settings.timezone || 'Asia/Kolkata');
+
   const filters = parseRegisterFiltersFromSearchParams(params);
   const result = await queryInvoiceRegister(filters);
 
@@ -44,6 +48,7 @@ async function InvoiceRegisterPageInner({ searchParams }: PageProps) {
       page={result.page}
       pageSize={result.pageSize}
       filters={filtersToRecord(params)}
+      salonTodayIso={salonTodayIso}
     />
   );
 }
