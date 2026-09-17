@@ -210,7 +210,7 @@ export function QuickSaleStaffRow({
             ref={panelRef}
             role="listbox"
             data-testid="qs-staff-dropdown"
-            className="fixed z-[700] overflow-auto rounded-lg border border-[color:var(--fyh-border)] bg-[color:var(--fyh-bg-surface)] py-1 shadow-2xl"
+            className="qs-staff-dropdown"
             style={{
               top: panelPos.top,
               left: panelPos.left,
@@ -219,7 +219,7 @@ export function QuickSaleStaffRow({
             }}
           >
             {hits.length === 0 ? (
-              <li className="px-3 py-2 text-sm text-fyh-text-muted">
+              <li className="qs-staff-dropdown-empty">
                 {q.trim() ? 'No matching staff' : preloadedStaff?.length ? 'No staff' : 'Loading…'}
               </li>
             ) : (
@@ -227,9 +227,7 @@ export function QuickSaleStaffRow({
                 <li key={h.id} role="option" aria-selected={idx === highlight}>
                   <button
                     type="button"
-                    className={`block w-full px-3 py-1.5 text-left text-sm ${
-                      idx === highlight ? 'bg-white/10' : 'hover:bg-white/5'
-                    }`}
+                    className={`qs-staff-dropdown-option${idx === highlight ? ' qs-staff-dropdown-option-active' : ''}`}
                     onMouseEnter={() => setHighlight(idx)}
                     onMouseDown={(e) => {
                       e.preventDefault();
@@ -247,6 +245,7 @@ export function QuickSaleStaffRow({
       : null;
 
   return (
+    <>
     <div
       ref={rootRef}
       className={`min-w-[9rem] space-y-1 ${showError ? 'qs-staff-field-error' : ''}`}
@@ -323,7 +322,6 @@ export function QuickSaleStaffRow({
             }
           }}
         />
-        {dropdown}
       </div>
       {staff.length === 1 ? (
         <button
@@ -336,5 +334,7 @@ export function QuickSaleStaffRow({
         </button>
       ) : null}
     </div>
+    {dropdown}
+    </>
   );
 }
