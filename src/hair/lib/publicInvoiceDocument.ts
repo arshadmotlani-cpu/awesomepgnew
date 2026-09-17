@@ -3,6 +3,7 @@ import { formatInrPlainFromPaise } from '@/src/hair/lib/money';
 import { INVOICE_BRAND_LOGO, INVOICE_BUSINESS } from '@/src/hair/lib/invoiceBranding';
 import { escapeHtml } from '@/src/hair/lib/salonTime';
 import { isPackageRedemptionLineName } from '@/src/hair/domain/packages/availableServices';
+import { linkedServiceRetailUnitPaise } from '@/src/hair/domain/packages/packageRedemptionInvoiceDisplay';
 import type { InvoiceDetail } from '@/src/hair/services/invoices';
 import type { FyhInvoiceStatus, FyhPaymentMethod } from '@/src/hair/db/schema/billing';
 import type { FyhBillingSettings } from '@/src/hair/db/schema/settings';
@@ -28,6 +29,8 @@ const STATUS_LABELS: Record<FyhInvoiceStatus, string> = {
 export type PublicInvoiceLineView = {
   name: string;
   qty: string;
+  /** Package redemption only — linked service catalog price per unit. */
+  normalRateLabel: string | null;
   rateLabel: string;
   discountLabel: string;
   taxableLabel: string;
@@ -113,6 +116,8 @@ export function buildPublicInvoiceViewModel(detail: InvoiceDetail): PublicInvoic
       ? `GST (${(gstBpsSample / 100).toFixed(gstBpsSample % 100 === 0 ? 0 : 1)}%)`
       : 'GST';
 
+  const serviceSellingPricePaiseById = detail.serviceSellingPricePaiseById ?? {};
+
   return {
     businessName: INVOICE_BUSINESS.name,
     businessAddressLines: INVOICE_BUSINESS.addressLines,
@@ -131,10 +136,14 @@ export function buildPublicInvoiceViewModel(detail: InvoiceDetail): PublicInvoic
       const gstPct = (line.gstBps / 100).toFixed(line.gstBps % 100 === 0 ? 0 : 1);
       const isPackageRedemption = isPackageRedemptionLineName(line.nameSnapshot);
       const lineTaxablePaise = Math.max(0, line.lineTotalPaise - line.taxPaise);
+      const normalUnitPaise = linkedServiceRetailUnitPaise(line, serviceSellingPricePaiseById);
+      const normalRateLabel =
+        normalUnitPaise != null && normalUnitPaise > 0 ? money(normalUnitPaise) : null;
       if (isPackageRedemption) {
         return {
           name: line.nameSnapshot,
           qty: formatQty(qty),
+          normalRateLabel,
           rateLabel: money(line.unitPricePaise),
           discountLabel:
             line.discountPaise > 0 ? `− ${money(line.discountPaise)}` : '—',
@@ -147,6 +156,7 @@ export function buildPublicInvoiceViewModel(detail: InvoiceDetail): PublicInvoic
       return {
         name: line.nameSnapshot,
         qty: formatQty(qty),
+        normalRateLabel: null,
         rateLabel: money(line.unitPricePaise),
         discountLabel: line.discountPaise > 0 ? money(line.discountPaise) : '—',
         taxableLabel: money(lineTaxablePaise),
@@ -471,6 +481,16 @@ html, body {
   white-space: nowrap;
 }
 
+.fyh-inv-normal-rate {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fyh-muted);
+  margin-bottom: 2px;
+}
+
 .fyh-invoice-table tbody td.service {
   font-weight: 500;
   min-width: 120px;
@@ -689,6 +709,15 @@ function statusClass(status: FyhInvoiceStatus): string {
   return `fyh-invoice-status fyh-invoice-status--${status}`;
 }
 
+function renderInvoiceRateCellHtml(line: PublicInvoiceLineView): string {
+  const normal =
+    line.normalRateLabel != null
+      ? `<span class="fyh-inv-normal-rate">Normal Rate ${escapeHtml(line.normalRateLabel)}</span>`
+      : '';
+  const rate = escapeHtml(line.rateLabel);
+  return normal ? `${normal}<br/>${rate}` : rate;
+}
+
 function renderInvoiceSheetHtml(vm: PublicInvoiceViewModel): string {
   const logo = INVOICE_BRAND_LOGO;
 
@@ -713,7 +742,7 @@ function renderInvoiceSheetHtml(vm: PublicInvoiceViewModel): string {
       (line) => `<tr>
         <td class="service">${escapeHtml(line.name)}</td>
         <td class="num">${escapeHtml(line.qty)}</td>
-        <td class="num">${escapeHtml(line.rateLabel)}</td>
+        <td class="num">${renderInvoiceRateCellHtml(line)}</td>
         <td class="num">${escapeHtml(line.discountLabel)}</td>
         <td class="num">${escapeHtml(line.taxableLabel)}</td>
         <td class="num">${escapeHtml(line.gstLabel)}<br/><span class="gst-pct">${escapeHtml(line.gstPct)}</span></td>
@@ -862,7 +891,7 @@ function renderQuickSaleCompactInvoiceSheetHtml(vm: PublicInvoiceViewModel): str
       (line) => `<tr>
         <td class="service">${escapeHtml(line.name)}</td>
         <td class="num">${escapeHtml(line.qty)}</td>
-        <td class="num">${escapeHtml(line.rateLabel)}</td>
+        <td class="num">${renderInvoiceRateCellHtml(line)}</td>
         <td class="num">${escapeHtml(line.discountLabel)}</td>
         <td class="num">${escapeHtml(line.totalLabel)}</td>
       </tr>`,

@@ -73,6 +73,7 @@ function mockDetail(overrides: Partial<InvoiceDetail> = {}): InvoiceDetail {
       },
     ],
     payments: [{ id: 'pay-1', invoiceId: 'inv-1', method: 'upi', amountPaise: 113_000, reference: null, createdAt: new Date('2026-07-30T10:00:00Z') }],
+    serviceSellingPricePaiseById: {},
   };
   return { ...base, ...overrides };
 }
@@ -113,9 +114,11 @@ describe('buildPublicInvoiceViewModel', () => {
           },
         ],
         payments: [],
+        serviceSellingPricePaiseById: { 'svc-1': 40_600 },
       }),
     );
     assert.equal(vm.lines.length, 1);
+    assert.equal(vm.lines[0]!.normalRateLabel, '₹406');
     assert.match(vm.lines[0]!.rateLabel, /203/);
     assert.match(vm.lines[0]!.discountLabel, /406/);
     assert.equal(vm.lines[0]!.taxableLabel, '₹0');

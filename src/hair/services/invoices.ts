@@ -39,8 +39,38 @@ import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
 import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
+import { isPackageRedemptionLineName } from '@/src/hair/domain/packages/availableServices';
 
 export type PaymentSplitInput = { method: FyhPaymentMethod; amountPaise: number; reference?: string };
+
+export type InvoiceDetailServicePrices = Record<string, number>;
+
+async function loadServiceSellingPricesForRedemptionLines(
+  lines: Array<{ serviceId: string | null; nameSnapshot: string }>,
+  organizationId: string | null | undefined,
+  ctx?: TenantContext | null,
+): Promise<InvoiceDetailServicePrices> {
+  const serviceIds = [
+    ...new Set(
+      lines
+        .filter((l) => l.serviceId && isPackageRedemptionLineName(l.nameSnapshot))
+        .map((l) => l.serviceId as string),
+    ),
+  ];
+  if (serviceIds.length === 0) return {};
+
+  const orgClause =
+    organizationId != null
+      ? eq(fyhServices.organizationId, organizationId)
+      : orgFilter(fyhServices.organizationId, ctx);
+
+  const rows = await hairDb
+    .select({ id: fyhServices.id, pricePaise: fyhServices.pricePaise })
+    .from(fyhServices)
+    .where(and(orgClause, inArray(fyhServices.id, serviceIds)));
+
+  return Object.fromEntries(rows.map((r) => [r.id, r.pricePaise]));
+}
 
 export type InvoiceLineDraft = {
   kind: FyhInvoiceLineKind;
@@ -170,7 +200,13 @@ export async function getInvoiceDetail(invoiceId: string, ctx?: TenantContext | 
     .from(fyhInvoicePayments)
     .where(and(orgFilter(fyhInvoicePayments.organizationId, ctx), locationFilter(fyhInvoicePayments.locationId, ctx), eq(fyhInvoicePayments.invoiceId, invoiceId)));
 
-  return { ...invoice, lines, payments };
+  const serviceSellingPricePaiseById = await loadServiceSellingPricesForRedemptionLines(
+    lines,
+    invoice.invoice.organizationId,
+    ctx,
+  );
+
+  return { ...invoice, lines, payments, serviceSellingPricePaiseById };
 }
 
 export type InvoiceDetail = NonNullable<Awaited<ReturnType<typeof getInvoiceDetail>>>;
@@ -222,7 +258,13 @@ export async function getInvoiceDetailByNumber(rawInvoiceNumber: string, ctx?: T
     .from(fyhInvoicePayments)
     .where(and(orgFilter(fyhInvoicePayments.organizationId, ctx), locationFilter(fyhInvoicePayments.locationId, ctx), eq(fyhInvoicePayments.invoiceId, invoice.invoice.id)));
 
-  return { ...invoice, lines, payments };
+  const serviceSellingPricePaiseById = await loadServiceSellingPricesForRedemptionLines(
+    lines,
+    invoice.invoice.organizationId,
+    ctx,
+  );
+
+  return { ...invoice, lines, payments, serviceSellingPricePaiseById };
 }
 
 
@@ -268,7 +310,13 @@ export async function getInvoiceDetailByPublicToken(rawToken: string) {
     .from(fyhInvoicePayments)
     .where(eq(fyhInvoicePayments.invoiceId, invoice.invoice.id));
 
-  return { ...invoice, lines, payments };
+  const serviceSellingPricePaiseById = await loadServiceSellingPricesForRedemptionLines(
+    lines,
+    invoice.invoice.organizationId,
+    null,
+  );
+
+  return { ...invoice, lines, payments, serviceSellingPricePaiseById };
 }
 
 export function buildPublicInvoicePrintHtml(detail: InvoiceDetail): string {
