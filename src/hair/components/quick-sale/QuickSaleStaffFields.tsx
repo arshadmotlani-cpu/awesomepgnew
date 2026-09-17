@@ -180,8 +180,13 @@ export function QuickSaleStaffRow({
         shareBps: entry.shareBps ?? 0,
       })),
     );
-    // Persist selected name in the field for the common single-staff case.
-    closeDropdown(nextIds.length === 1 ? pick.fullName : '');
+    if (nextIds.length === 1) {
+      closeDropdown(pick.fullName);
+    } else {
+      setQ('');
+      setHighlight(0);
+      window.setTimeout(() => inputRef.current?.focus(), 0);
+    }
   };
 
   const removeStaff = (staffId: string) => {

@@ -41,6 +41,33 @@ export function attributedNetForShare(
   return Math.round((lineNetPaise * shareBps) / denom);
 }
 
+/** Split performance value across staff; corrects rounding drift in paise deterministically. */
+export function allocatePerformancePaise(
+  totalPaise: number,
+  staff: StaffAttributionInput[],
+): Array<{ staffId: string; shareBps: number; attributedPaise: number }> {
+  if (!staff.length || totalPaise <= 0) return [];
+  const normalized = staff.some((s) => s.shareBps != null)
+    ? staff.map((s) => ({
+        staffId: s.staffId,
+        shareBps: s.shareBps ?? Math.floor(10_000 / staff.length),
+      }))
+    : normalizeEqualShares(staff.map((s) => s.staffId));
+  const totalBps = normalized.reduce((s, x) => s + (x.shareBps ?? 0), 0) || 10_000;
+  const amounts = normalized.map((s) =>
+    attributedNetForShare(totalPaise, s.shareBps ?? 0, totalBps),
+  );
+  const drift = totalPaise - amounts.reduce((a, b) => a + b, 0);
+  if (drift !== 0 && amounts.length > 0) {
+    amounts[0]! += drift;
+  }
+  return normalized.map((s, i) => ({
+    staffId: s.staffId,
+    shareBps: s.shareBps ?? 0,
+    attributedPaise: amounts[i]!,
+  }));
+}
+
 export function lineNetPaiseFromParts(
   unitPricePaise: number,
   quantity: number,
@@ -90,15 +117,12 @@ export function buildAttributionRows(input: LineAttributionInput): Array<{
       serviced = [{ staffId: input.legacyStaffId, shareBps: 10_000 }];
     }
     if (!serviced.length) return [];
-    const totalBps = serviced.reduce((s, x) => s + (x.shareBps ?? 0), 0) || 10_000;
-    for (const s of serviced) {
-      const shareBps = s.shareBps ?? Math.floor(10_000 / serviced.length);
-      const share = totalBps > 0 ? shareBps / totalBps : 1 / serviced.length;
+    for (const alloc of allocatePerformancePaise(input.lineNetPaise, serviced)) {
       rows.push({
-        staffId: s.staffId,
+        staffId: alloc.staffId,
         role: 'serviced_by',
-        shareBps,
-        attributedNetPaise: Math.round(input.lineNetPaise * share),
+        shareBps: alloc.shareBps,
+        attributedNetPaise: alloc.attributedPaise,
         revenueMetric: 'service',
       });
     }
@@ -128,14 +152,12 @@ export function buildAttributionRows(input: LineAttributionInput): Array<{
       });
       return rows;
     }
-    const totalBps = sellers.reduce((s, x) => s + (x.shareBps ?? 0), 0) || 10_000;
-    for (const s of sellers) {
-      const shareBps = s.shareBps ?? Math.floor(10_000 / sellers.length);
+    for (const alloc of allocatePerformancePaise(input.lineNetPaise, sellers)) {
       rows.push({
-        staffId: s.staffId,
+        staffId: alloc.staffId,
         role: 'sold_by',
-        shareBps,
-        attributedNetPaise: attributedNetForShare(input.lineNetPaise, shareBps, totalBps),
+        shareBps: alloc.shareBps,
+        attributedNetPaise: alloc.attributedPaise,
         revenueMetric: 'product',
       });
     }

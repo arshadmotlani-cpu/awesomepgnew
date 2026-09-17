@@ -1,5 +1,5 @@
 import type { AttributionRow, PricedLine } from '@/src/hair/domain/basket/types';
-import { attributedNetForShare } from '@/src/hair/lib/attributionMath';
+import { allocatePerformancePaise } from '@/src/hair/lib/attributionMath';
 
 function metricForType(type: PricedLine['billableRef']['type']): AttributionRow['revenueMetric'] {
   return type;
@@ -15,13 +15,13 @@ export function buildAttributionPlan(lines: PricedLine[]): AttributionRow[] {
     if (prepaid && line.staff.length > 0) {
       const performanceBase = prepaid.effectiveUnitValuePaise * line.quantity;
       if (performanceBase <= 0) continue;
-      for (const s of line.staff) {
+      for (const alloc of allocatePerformancePaise(performanceBase, line.staff)) {
         rows.push({
           lineId: line.lineId,
-          staffId: s.staffId,
+          staffId: alloc.staffId,
           role: 'serviced_by',
-          shareBps: s.shareBps,
-          attributedBasePaise: attributedNetForShare(performanceBase, s.shareBps),
+          shareBps: alloc.shareBps,
+          attributedBasePaise: alloc.attributedPaise,
           revenueMetric: 'service',
         });
       }
@@ -34,13 +34,14 @@ export function buildAttributionPlan(lines: PricedLine[]): AttributionRow[] {
       line.billableRef.type === 'service' || line.billableRef.type === 'product';
 
     if (line.snapshot.staffMode === 'SERVICE' || (isMultiSplitLine && line.staff.length > 1)) {
-      for (const s of line.staff) {
+      const role = line.snapshot.staffMode === 'SERVICE' ? 'serviced_by' : 'sold_by';
+      for (const alloc of allocatePerformancePaise(line.basePaise, line.staff)) {
         rows.push({
           lineId: line.lineId,
-          staffId: s.staffId,
-          role: line.snapshot.staffMode === 'SERVICE' ? 'serviced_by' : 'sold_by',
-          shareBps: s.shareBps,
-          attributedBasePaise: attributedNetForShare(line.basePaise, s.shareBps),
+          staffId: alloc.staffId,
+          role,
+          shareBps: alloc.shareBps,
+          attributedBasePaise: alloc.attributedPaise,
           revenueMetric: metric,
         });
       }
