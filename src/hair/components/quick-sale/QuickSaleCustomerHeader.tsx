@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MoreVertical } from 'lucide-react';
+import { X } from 'lucide-react';
 import { CustomerVisitHistoryPanel } from '@/src/hair/components/booking/CustomerVisitHistoryPanel';
 import { Button } from '@/src/hair/components/ui/button';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
@@ -15,13 +15,8 @@ type Props = {
   contextError: string | null;
   context: QuickSaleCustomerContext | null;
   workspaceLocked: boolean;
-  canHoldBill: boolean;
-  menuOpen: boolean;
   onAvailableServices: () => void;
   onChangeCustomer: () => void;
-  onMenuToggle: () => void;
-  onHoldBill: () => void;
-  onNewSale: () => void;
   onCancelSale: () => void;
 };
 
@@ -36,13 +31,8 @@ export function QuickSaleCustomerHeader({
   contextError,
   context,
   workspaceLocked,
-  canHoldBill,
-  menuOpen,
   onAvailableServices,
   onChangeCustomer,
-  onMenuToggle,
-  onHoldBill,
-  onNewSale,
   onCancelSale,
 }: Props) {
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -143,37 +133,18 @@ export function QuickSaleCustomerHeader({
           >
             Change customer
           </button>
-          <div className="relative">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-6 w-6 px-0 text-slate-400"
-              disabled={workspaceLocked}
-              onClick={onMenuToggle}
-              aria-label="Sale actions"
-            >
-              <MoreVertical className="h-3.5 w-3.5" />
-            </Button>
-            {menuOpen ? (
-              <div className="qs-sale-menu">
-                <button type="button" disabled={workspaceLocked || !canHoldBill} onClick={onHoldBill}>
-                  Hold bill
-                </button>
-                <button type="button" disabled={workspaceLocked} onClick={onNewSale}>
-                  New sale
-                </button>
-                <button
-                  type="button"
-                  className="text-fyh-danger"
-                  disabled={workspaceLocked}
-                  onClick={onCancelSale}
-                >
-                  Cancel sale
-                </button>
-              </div>
-            ) : null}
-          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 shrink-0 px-0 text-slate-400"
+            disabled={workspaceLocked}
+            onClick={onCancelSale}
+            aria-label="Cancel sale"
+            data-testid="qs-cancel-sale"
+          >
+            <X className="h-4 w-4" aria-hidden />
+          </Button>
         </div>
       </section>
 

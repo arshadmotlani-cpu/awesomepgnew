@@ -16,16 +16,13 @@ type Props = {
   flags: BasketFlags;
   workspaceLocked: boolean;
   checkoutSubmitting: boolean;
-  holdSubmitting: boolean;
   canCompleteSale: boolean;
-  canHoldBill: boolean;
   staffRequiredCount?: number;
   showStaffRequiredHint?: boolean;
   linesCount: number;
   error: string | null;
   onChangePayments: (payments: PaymentEntry[]) => void;
   onChangeFlags: (flags: BasketFlags) => void;
-  onHoldBill: () => void;
   onCompleteSale: () => void;
 };
 
@@ -38,16 +35,13 @@ export function QuickSaleCheckoutBar({
   flags,
   workspaceLocked,
   checkoutSubmitting,
-  holdSubmitting,
   canCompleteSale,
-  canHoldBill,
   staffRequiredCount = 0,
   showStaffRequiredHint = false,
   linesCount,
   error,
   onChangePayments,
   onChangeFlags,
-  onHoldBill,
   onCompleteSale,
 }: Props) {
   const combinedDiscountPaise =
@@ -114,19 +108,7 @@ export function QuickSaleCheckoutBar({
         <div className="qs-checkout-actions">
           <Button
             type="button"
-            variant="secondary"
-            disabled={workspaceLocked || holdSubmitting || !canHoldBill}
-            className="qs-hold-bill-btn"
-            data-testid="qs-hold-bill"
-            onClick={onHoldBill}
-          >
-            {holdSubmitting ? 'Holding…' : 'Hold Bill'}
-          </Button>
-          <Button
-            type="button"
-            disabled={
-              checkoutSubmitting || holdSubmitting || linesCount === 0 || !canCompleteSale
-            }
+            disabled={checkoutSubmitting || linesCount === 0 || !canCompleteSale}
             className="qs-complete-sale"
             data-testid="qs-confirm-sale"
             onClick={onCompleteSale}

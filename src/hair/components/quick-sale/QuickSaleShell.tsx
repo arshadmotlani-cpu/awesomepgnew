@@ -107,7 +107,7 @@ export function QuickSaleShell({
     creditOverpayAsAdvance: billingDefaults?.defaultCreditOverpayAsAdvance,
   }));
   const [membershipDiscountPaise, setMembershipDiscountPaise] = useState(0);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [cancelSaleConfirmOpen, setCancelSaleConfirmOpen] = useState(false);
   const [invoiceId, setInvoiceId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [holdInvoiceId, setHoldInvoiceId] = useState<string | null>(null);
@@ -540,8 +540,8 @@ export function QuickSaleShell({
     setStaffValidationAlert(null);
     setStaffErrorLineIds([]);
     setAvailableServicesOpen(false);
-    setMenuOpen(false);
     setClearAllConfirmOpen(false);
+    setCancelSaleConfirmOpen(false);
   };
 
   const resetForNext = () => {
@@ -559,9 +559,13 @@ export function QuickSaleShell({
     setStep('customer');
   };
 
-  const startNewSale = () => {
-    clearSaleState();
-    setStep('customer');
+  const requestCancelSale = () => {
+    if (workspaceLocked) return;
+    if (hasActiveTransaction) {
+      setCancelSaleConfirmOpen(true);
+      return;
+    }
+    cancelSale();
   };
 
   async function resumeHold(id: string) {
@@ -694,31 +698,33 @@ export function QuickSaleShell({
       {workspaceLocked ? <QuickSaleCheckoutProcessing /> : null}
 
       {customer ? (
-        <QuickSaleCustomerHeader
-          customer={customer}
-          appointmentId={appointmentId}
-          contextLoading={customerContextLoading}
-          contextError={customerContextError}
-          context={customerContext}
-          workspaceLocked={workspaceLocked}
-          canHoldBill={Boolean(customer && lines.length > 0)}
-          menuOpen={menuOpen}
-          onAvailableServices={() => setAvailableServicesOpen(true)}
-          onChangeCustomer={() => setStep('customer')}
-          onMenuToggle={() => setMenuOpen((o) => !o)}
-          onHoldBill={() => {
-            setMenuOpen(false);
-            void submitHoldBill();
-          }}
-          onNewSale={() => {
-            setMenuOpen(false);
-            startNewSale();
-          }}
-          onCancelSale={() => {
-            setMenuOpen(false);
-            cancelSale();
-          }}
-        />
+        <div className="relative">
+          <QuickSaleCustomerHeader
+            customer={customer}
+            appointmentId={appointmentId}
+            contextLoading={customerContextLoading}
+            contextError={customerContextError}
+            context={customerContext}
+            workspaceLocked={workspaceLocked}
+            onAvailableServices={() => setAvailableServicesOpen(true)}
+            onChangeCustomer={() => setStep('customer')}
+            onCancelSale={requestCancelSale}
+          />
+          {cancelSaleConfirmOpen ? (
+            <QuickSaleClearAllConfirm
+              testId="qs-cancel-sale-confirm"
+              title="Cancel this sale?"
+              description="All unsaved items and payment entries will be cleared."
+              keepLabel="Keep sale"
+              confirmLabel="Cancel sale"
+              onKeep={() => setCancelSaleConfirmOpen(false)}
+              onConfirm={() => {
+                setCancelSaleConfirmOpen(false);
+                cancelSale();
+              }}
+            />
+          ) : null}
+        </div>
       ) : null}
 
       <div className="qs-compact-workspace">
@@ -784,18 +790,13 @@ export function QuickSaleShell({
             flags={flags}
             workspaceLocked={workspaceLocked}
             checkoutSubmitting={checkoutSubmitting}
-            holdSubmitting={holdSubmitting}
             canCompleteSale={canCompleteSale}
             staffRequiredCount={missingStaffLines.length}
             showStaffRequiredHint={Boolean(paymentSummary?.isComplete && missingStaffLines.length > 0)}
-            canHoldBill={Boolean(customer && lines.length > 0)}
             linesCount={lines.length}
             error={error}
             onChangePayments={setPayments}
             onChangeFlags={setFlags}
-            onHoldBill={() => {
-              void submitHoldBill();
-            }}
             onCompleteSale={() => {
               void submitCheckout();
             }}

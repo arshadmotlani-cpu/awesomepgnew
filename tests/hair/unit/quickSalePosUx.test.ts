@@ -169,9 +169,10 @@ test('15–16 package performance uses effective value; normal service unchanged
 
 test('1–9 staff dropdown architecture: portal, close, keyboard, no left/right nav', () => {
   const staff = readSrc('src/hair/components/quick-sale/QuickSaleStaffFields.tsx');
+  const css = readSrc('src/hair/styles/globals.css');
   assert.match(staff, /createPortal/);
   assert.match(staff, /document\.body/);
-  assert.match(staff, /z-\[700\]/);
+  assert.match(staff, /className="qs-staff-dropdown"/);
   assert.match(staff, /data-testid="qs-staff-dropdown"/);
   assert.match(staff, /Escape/);
   assert.match(staff, /mousedown/);
@@ -181,6 +182,17 @@ test('1–9 staff dropdown architecture: portal, close, keyboard, no left/right 
   assert.match(staff, /do not change highlighted staff/i);
   assert.match(staff, /closeDropdown/);
   assert.match(staff, /suppressOpenRef/);
+  assert.match(staff, /\{dropdown\}\s*<\/>/);
+});
+
+test('staff dropdown portaled panel uses opaque theme backgrounds (dark + light)', () => {
+  const css = readSrc('src/hair/styles/globals.css');
+  assert.match(css, /\.qs-staff-dropdown\s*\{[\s\S]*position:\s*fixed/);
+  assert.match(css, /\.qs-staff-dropdown\s*\{[\s\S]*z-index:\s*700/);
+  assert.match(css, /\.qs-staff-dropdown\s*\{[\s\S]*background:\s*var\(--fyh-bg-elevated\)/);
+  assert.match(css, /\.qs-staff-dropdown\s*\{[\s\S]*isolation:\s*isolate/);
+  assert.match(css, /\.fyh-theme-light \.qs-staff-dropdown[\s\S]*background:\s*#ffffff/);
+  assert.match(css, /\.qs-staff-dropdown-option-active/);
 });
 
 test('payment panel exposes POS allocation summary and due action', () => {
@@ -221,7 +233,8 @@ test('compact POS uses search autocomplete and bottom checkout bar', () => {
   assert.match(checkout, /qs-customer-outstanding/);
   assert.match(checkout, /Not included in this invoice total/);
   assert.match(checkout, /View dues/);
-  assert.match(checkout, /qs-hold-bill/);
+  assert.match(header, /qs-cancel-sale/);
+  assert.doesNotMatch(checkout, /qs-hold-bill/);
   assert.match(checkout, /TOTAL/);
   assert.match(css, /\.qs-compact-checkout/);
   assert.match(css, /\.qs-compact-basket-table/);
