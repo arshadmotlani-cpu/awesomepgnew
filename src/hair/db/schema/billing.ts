@@ -40,7 +40,11 @@ export const FYH_INVOICE_LINE_KINDS = [
   'custom',
 ] as const;
 export type FyhInvoiceLineKind = (typeof FYH_INVOICE_LINE_KINDS)[number];
-export type FyhInvoiceSource = 'appointment' | 'quick_sale' | 'historical_import';
+export type FyhInvoiceSource =
+  | 'appointment'
+  | 'quick_sale'
+  | 'historical_import'
+  | 'advance_payment';
 
 /** Stored on draft quick-sale invoices (`status = draft`) until payment. */
 export type QuickSalePosDraft = {
@@ -57,7 +61,12 @@ export type QuickSalePosDraft = {
   roundOffPaise?: number;
 };
 
-export const FYH_INVOICE_SOURCES = ['appointment', 'quick_sale', 'historical_import'] as const;
+export const FYH_INVOICE_SOURCES = [
+  'appointment',
+  'quick_sale',
+  'historical_import',
+  'advance_payment',
+] as const;
 
 /**
  * Salon invoices — single money engine for checkout (Phase 2+).

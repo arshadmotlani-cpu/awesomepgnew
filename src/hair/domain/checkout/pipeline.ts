@@ -110,11 +110,18 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
 
   
   const [customerRow] = await hairDb
-    .select({ id: fyhCustomers.id })
+    .select({ id: fyhCustomers.id, walletBalancePaise: fyhCustomers.walletBalancePaise })
     .from(fyhCustomers)
     .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, enriched.customerId)))
     .limit(1);
   if (!customerRow) throw new Error('Customer not found');
+
+  const walletPayPaise = payments
+    .filter((p) => p.method === 'wallet')
+    .reduce((s, p) => s + Math.max(0, p.amountPaise), 0);
+  if (walletPayPaise > customerRow.walletBalancePaise) {
+    throw new Error('Insufficient customer credit');
+  }
 
   const { listPackagePlansDetailed } = await import('@/src/hair/services/packagePlans');
   const packagePlanIds = [
@@ -168,6 +175,10 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
     const finalNumber = invoiceNumber;
 
     const grandTotal = priced.totals.grandTotalPaise;
+    const walletRedeemPaise = payments
+      .filter((p) => p.method === 'wallet')
+      .reduce((s, p) => s + Math.max(0, p.amountPaise), 0);
+
     const payApplied = Math.min(paySum, grandTotal);
     const isFullDue = enriched.flags.markFullDue && paySum === 0;
     const isPartial =
@@ -199,7 +210,7 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
       taxPaise: priced.totals.taxPaise,
       membershipRedemptionPaise: priced.totals.membershipDiscountPaise,
       packageRedemptionPaise: priced.totals.packageRedemptionPaise,
-      walletRedemptionPaise: 0,
+      walletRedemptionPaise: walletRedeemPaise,
       giftCardRedemptionPaise: 0,
       tipPaise: 0,
       roundOffPaise: 0,

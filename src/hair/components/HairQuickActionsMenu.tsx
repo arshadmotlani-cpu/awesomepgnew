@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Banknote, Receipt, ReceiptText, type LucideIcon } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { AdvancePaymentModal } from '@/src/hair/components/advance-payment/AdvancePaymentModal';
 import { NewExpenseModal } from '@/src/hair/components/expenses/NewExpenseModal';
 import { cn } from '@/src/hair/lib/utils';
 
@@ -20,7 +21,7 @@ type ModalAction = {
   label: string;
   description: string;
   Icon: LucideIcon;
-  opens: 'expense_modal';
+  opens: 'expense_modal' | 'advance_modal';
 };
 
 const NAV_ACTIONS: NavAction[] = [
@@ -31,16 +32,16 @@ const NAV_ACTIONS: NavAction[] = [
     href: '/quick-sale',
     Icon: Receipt,
   },
-  {
-    id: 'advance_payment',
-    label: 'Advance Payment',
-    description: 'Receive advance without invoice',
-    href: '/advance-payment',
-    Icon: Banknote,
-  },
 ];
 
 const MODAL_ACTIONS: ModalAction[] = [
+  {
+    id: 'advance_payment',
+    label: 'Advance Payment',
+    description: 'Receive customer credit',
+    Icon: Banknote,
+    opens: 'advance_modal',
+  },
   {
     id: 'add_expense',
     label: 'Add Expense',
@@ -59,6 +60,7 @@ export function HairQuickActionsMenu({ staffName }: Props) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
+  const [advanceModalOpen, setAdvanceModalOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [panelPos, setPanelPos] = useState({ top: 56, left: 16 });
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -144,7 +146,8 @@ export function HairQuickActionsMenu({ staffName }: Props) {
                 item={item}
                 onSelect={() => {
                   setOpen(false);
-                  setExpenseModalOpen(true);
+                  if (item.opens === 'advance_modal') setAdvanceModalOpen(true);
+                  else setExpenseModalOpen(true);
                 }}
               />
             ))}
@@ -176,6 +179,7 @@ export function HairQuickActionsMenu({ staffName }: Props) {
         </span>
       </button>
       {mounted && panel ? createPortal(panel, document.body) : null}
+      <AdvancePaymentModal open={advanceModalOpen} onClose={() => setAdvanceModalOpen(false)} />
       <NewExpenseModal
         open={expenseModalOpen}
         onClose={() => setExpenseModalOpen(false)}

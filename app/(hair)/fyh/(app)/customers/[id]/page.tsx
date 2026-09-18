@@ -7,6 +7,10 @@ import {
   getCustomerFinancialSummary,
   getUnifiedCustomerTimeline,
 } from '@/src/hair/services/customerTimeline';
+import {
+  getCustomerCreditSummary,
+  listCustomerCreditHistory,
+} from '@/src/hair/services/customerAdvance';
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -17,9 +21,11 @@ async function CustomerAccountData({ id }: { id: string }) {
   const profile = await getCustomerProfile(id, ctx);
   if (!profile) notFound();
 
-  const [unifiedTimeline, financialSummary] = await Promise.all([
+  const [unifiedTimeline, financialSummary, creditSummary, creditHistory] = await Promise.all([
     getUnifiedCustomerTimeline(id),
     getCustomerFinancialSummary(id),
+    getCustomerCreditSummary(id, ctx),
+    listCustomerCreditHistory(id, ctx),
   ]);
 
   return (
@@ -28,6 +34,8 @@ async function CustomerAccountData({ id }: { id: string }) {
       notes={profile.notes}
       unifiedTimeline={unifiedTimeline}
       financialSummary={financialSummary}
+      creditSummary={creditSummary}
+      creditHistory={creditHistory}
     />
   );
 }

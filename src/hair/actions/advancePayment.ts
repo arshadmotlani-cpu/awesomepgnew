@@ -22,16 +22,27 @@ export async function submitAdvancePaymentAction(input: {
   method: AdvancePaymentMethod;
   reference?: string | null;
   notes?: string | null;
-}): Promise<AdvancePaymentActionState & { walletBalancePaise?: number }> {
+  paidOn?: string | null;
+  idempotencyKey?: string | null;
+}): Promise<
+  AdvancePaymentActionState & {
+    walletBalancePaise?: number;
+    invoiceId?: string;
+    invoiceNumber?: string;
+  }
+> {
   try {
     await requirePermission('action:billing.checkout');
     const result = await recordAdvancePayment(input);
     revalidatePath('/dashboard/revenue');
+    revalidatePath('/billing/invoices');
     revalidatePath(`/customers/${input.customerId}`);
     revalidatePath('/advance-payment');
     return {
-      success: `Wallet credited · balance ${formatInrFromPaise(result.walletBalancePaise)}`,
+      success: `Customer credit updated · balance ${formatInrFromPaise(result.walletBalancePaise)}`,
       walletBalancePaise: result.walletBalancePaise,
+      invoiceId: result.invoiceId,
+      invoiceNumber: result.invoiceNumber,
     };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Could not record advance payment' };

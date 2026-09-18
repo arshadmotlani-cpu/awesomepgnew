@@ -38,7 +38,7 @@ export type BasketLine = {
   prepaidRedemption?: PrepaidPackageRedemption | null;
 };
 
-export type PaymentMethod = 'cash' | 'upi' | 'card';
+export type PaymentMethod = 'cash' | 'upi' | 'card' | 'wallet';
 
 export type PaymentEntry = {
   id: string;

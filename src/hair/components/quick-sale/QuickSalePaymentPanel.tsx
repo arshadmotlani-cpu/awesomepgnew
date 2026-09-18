@@ -25,6 +25,7 @@ type Props = {
   flags: BasketFlags;
   locked?: boolean;
   variant?: 'default' | 'compact';
+  availableCreditPaise?: number;
   onChangePayments: (payments: PaymentEntry[]) => void;
   onChangeFlags: (flags: BasketFlags) => void;
 };
@@ -70,6 +71,7 @@ export function QuickSalePaymentPanel({
   flags,
   locked = false,
   variant = 'default',
+  availableCreditPaise = 0,
   onChangePayments,
   onChangeFlags,
 }: Props) {
@@ -88,6 +90,29 @@ export function QuickSalePaymentPanel({
   const canAdvance =
     summary.overpayPaise > 0 &&
     payments.some((p) => p.amountPaise > 0 && (p.method === 'cash' || p.method === 'card'));
+
+  const walletAppliedPaise = payments
+    .filter((p) => p.method === 'wallet')
+    .reduce((s, p) => s + p.amountPaise, 0);
+  const creditRemainingPaise = Math.max(0, availableCreditPaise - walletAppliedPaise);
+  const canUseCredit =
+    !locked && creditRemainingPaise > 0 && summary.remainingToAllocatePaise > 0;
+
+  const applyCustomerCredit = () => {
+    const amountPaise = Math.min(creditRemainingPaise, summary.remainingToAllocatePaise);
+    if (amountPaise <= 0) return;
+    const existingWallet = payments.find((p) => p.method === 'wallet');
+    const nextPayments = existingWallet
+      ? payments.map((p) =>
+          p.method === 'wallet' ? { ...p, amountPaise: p.amountPaise + amountPaise } : p,
+        )
+      : [
+          ...payments,
+          { id: `pay-wallet-${Date.now()}`, method: 'wallet' as const, amountPaise },
+        ];
+    onChangePayments(nextPayments);
+    syncFlagsAfterPayments(nextPayments);
+  };
 
   useEffect(() => {
     if (isEditingAmountRef.current) return;
@@ -197,9 +222,35 @@ export function QuickSalePaymentPanel({
 
   const showAddRow = summary.remainingToAllocatePaise > 0 && (splitMode || payments.length === 0);
 
+  const creditBanner =
+    availableCreditPaise > 0 ? (
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[color:var(--fyh-border)] bg-black/15 px-2.5 py-2 text-xs">
+        <span className="text-fyh-text-secondary">
+          Available credit{' '}
+          <strong className="tabular-nums text-fyh-text">
+            {formatInrFromPaise(creditRemainingPaise)}
+          </strong>
+        </span>
+        {canUseCredit ? (
+          <button
+            type="button"
+            className="font-semibold text-fyh-accent hover:underline"
+            onClick={applyCustomerCredit}
+          >
+            Use credit
+          </button>
+        ) : walletAppliedPaise > 0 ? (
+          <span className="text-fyh-text-muted">
+            Credit applied {formatInrFromPaise(walletAppliedPaise)}
+          </span>
+        ) : null}
+      </div>
+    ) : null;
+
   if (variant === 'compact') {
     return (
       <div className="qs-compact-payment" data-testid="qs-payment-panel">
+        {creditBanner}
         <div className="qs-compact-payment-summary">
           <span>Paid <strong className="tabular-nums">{formatInrFromPaise(summary.paidPaise)}</strong></span>
           {summary.isDueMarked || summary.remainingToAllocatePaise > 0 ? (

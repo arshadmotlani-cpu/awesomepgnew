@@ -19,6 +19,16 @@ test('Quick Actions contains Express Sale, Advance Payment, and Add Expense', ()
   assert.match(src, /Record a new business expense/);
 });
 
+test('Advance Payment opens AdvancePaymentModal without route navigation', () => {
+  const src = readFileSync(
+    join(root, 'src/hair/components/HairQuickActionsMenu.tsx'),
+    'utf8',
+  );
+  assert.match(src, /AdvancePaymentModal/);
+  assert.match(src, /setAdvanceModalOpen\(true\)/);
+  assert.doesNotMatch(src, /href:\s*['"]\/advance-payment['"]/);
+});
+
 test('Add Expense opens NewExpenseModal directly without expenses route navigation', () => {
   const src = readFileSync(
     join(root, 'src/hair/components/HairQuickActionsMenu.tsx'),

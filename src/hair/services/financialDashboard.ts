@@ -179,6 +179,7 @@ async function monthlyRevenueTrend(timezone: string, endDayKey: string, ctx?: Te
           orgFilter(fyhInvoices.organizationId, ctx),
           locationFilter(fyhInvoices.locationId, ctx),
           eq(fyhInvoices.status, 'paid'),
+          sql`${fyhInvoices.source} <> 'advance_payment'`,
           gte(fyhInvoices.paidAt, rangeStart),
           lt(fyhInvoices.paidAt, rangeEnd),
         ),

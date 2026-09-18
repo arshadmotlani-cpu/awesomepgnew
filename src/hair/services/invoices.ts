@@ -631,7 +631,14 @@ export async function finalizeQuickSale(input: {
     input.customerId,
     input.lines,
     input.payments
-      .filter((p) => p.amountPaise > 0 && (p.method === 'cash' || p.method === 'upi' || p.method === 'card'))
+      .filter(
+        (p) =>
+          p.amountPaise > 0 &&
+          (p.method === 'cash' ||
+            p.method === 'upi' ||
+            p.method === 'card' ||
+            p.method === 'wallet'),
+      )
       .map((p, i) => ({
         id: `pay-${i}`,
         method: p.method as 'cash' | 'upi' | 'card',
@@ -896,7 +903,7 @@ export async function applyPaidSideEffects(
   ctx = await resolveTenantContextForService(ctx);
   const [invoice] = await db.select().from(fyhInvoices).where(and(orgFilter(fyhInvoices.organizationId, ctx), locationFilter(fyhInvoices.locationId, ctx), eq(fyhInvoices.id, invoiceId))).limit(1);
   if (!invoice) return;
-  if (invoice.source === 'historical_import') return;
+  if (invoice.source === 'historical_import' || invoice.source === 'advance_payment') return;
 
   const lines = await db.select().from(fyhInvoiceLines).where(and(orgFilter(fyhInvoiceLines.organizationId, ctx), locationFilter(fyhInvoiceLines.locationId, ctx), eq(fyhInvoiceLines.invoiceId, invoiceId)));
   const isQuickSale = invoice.source === 'quick_sale';
@@ -1099,6 +1106,7 @@ export async function todayRevenuePaise(ctx?: TenantContext | null) {
         orgFilter(fyhInvoices.organizationId, ctx),
         locationFilter(fyhInvoices.locationId, ctx),
         eq(fyhInvoices.status, 'paid'),
+        sql`${fyhInvoices.source} <> 'advance_payment'`,
         gte(fyhInvoices.paidAt, start),
         lt(fyhInvoices.paidAt, end),
       ),
@@ -1117,7 +1125,11 @@ export function buildInvoicePrintHtml(
     new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
       p / 100,
     );
-  return `<!doctype html><html><head><meta charset="utf-8"/><title>${escapeHtml(invoice.invoiceNumber)}</title>
+  const docTitle =
+    invoice.source === 'advance_payment'
+      ? `Advance receipt ${invoice.invoiceNumber}`
+      : `Invoice ${invoice.invoiceNumber}`;
+  return `<!doctype html><html><head><meta charset="utf-8"/><title>${escapeHtml(docTitle)}</title>
   <style>
     body{font-family:Georgia,serif;color:#14261c;padding:24px;max-width:720px;margin:0 auto}
     h1{font-size:22px;margin:0} .muted{color:#5c6b62;font-size:12px}
@@ -1127,7 +1139,7 @@ export function buildInvoicePrintHtml(
   </style></head><body>
   <h1>${escapeHtml(businessName ?? 'For Your Hair')}</h1>
   <p class="muted">${escapeHtml(businessAddress ?? '')}${gstin ? ` · GSTIN ${escapeHtml(gstin)}` : ''}</p>
-  <p><strong>Invoice ${escapeHtml(invoice.invoiceNumber)}</strong><br/>
+  <p><strong>${escapeHtml(invoice.source === 'advance_payment' ? 'Advance receipt' : 'Invoice')} ${escapeHtml(invoice.invoiceNumber)}</strong><br/>
   ${escapeHtml(customerName)} · ${escapeHtml(customerPhone)}<br/>
   ${showStaff && stylistName ? `Stylist: ${escapeHtml(stylistName)}<br/>` : ''}
   Date: ${escapeHtml(invoice.createdAt.toISOString().slice(0, 10))}</p>

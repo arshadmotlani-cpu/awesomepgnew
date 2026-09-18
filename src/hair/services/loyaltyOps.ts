@@ -376,45 +376,15 @@ export async function recordAdvancePayment(input: {
   method: AdvancePaymentMethod;
   reference?: string | null;
   notes?: string | null;
+  paidOn?: string | null;
+  idempotencyKey?: string | null;
 }, ctx?: TenantContext | null) {
-  if (input.amountPaise <= 0) throw new Error('Amount must be positive');
-
-  return hairDb.transaction(async (tx) => {
-    const db = tx as unknown as typeof hairDb;
-    const [customer] = await tx
-      .select()
-      .from(fyhCustomers)
-      .where(and(eq(fyhCustomers.id, input.customerId), eq(fyhCustomers.isActive, true)))
-      .limit(1);
-    if (!customer) throw new Error('Customer not found');
-
-    const { creditWalletAdvance } = await import('@/src/hair/domain/ledger/service');
-    await creditWalletAdvance(db, {
-      customerId: customer.id,
-      invoiceId: null,
-      amountPaise: input.amountPaise,
-      reference: input.reference ?? input.method,
-    });
-
-    const [updated] = await tx
-      .select({ walletBalancePaise: fyhCustomers.walletBalancePaise })
-      .from(fyhCustomers)
-      .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, customer.id)))
-      .limit(1);
-
-    await tx.insert(fyhCustomerTimeline).values({
-      customerId: customer.id,
-      eventType: 'wallet',
-      title: 'Advance payment',
-      body: `${formatInrFromPaise(input.amountPaise)} via ${input.method}${input.notes ? ` · ${input.notes}` : ''}`,
-      metadata: {
-        source: 'advance_payment',
-        method: input.method,
-        amountPaise: input.amountPaise,
-        reference: input.reference ?? null,
-      },
-    });
-
-    return { walletBalancePaise: updated?.walletBalancePaise ?? customer.walletBalancePaise };
-  });
+  const { receiveCustomerAdvancePayment } = await import('@/src/hair/services/customerAdvance');
+  const result = await receiveCustomerAdvancePayment(input, ctx);
+  return {
+    walletBalancePaise: result.walletBalancePaise,
+    invoiceId: result.invoiceId,
+    invoiceNumber: result.invoiceNumber,
+    reused: result.reused,
+  };
 }

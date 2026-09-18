@@ -445,7 +445,7 @@ export async function getUnifiedCustomerTimeline(
   return sortUnifiedTimeline(events);
 }
 
-async function sumCustomerAdvanceCreditPaise(
+export async function sumCustomerAdvanceCreditPaise(
   customerId: string,
   ctx?: TenantContext | null,
 ): Promise<number> {

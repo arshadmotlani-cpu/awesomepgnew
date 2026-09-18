@@ -43,6 +43,11 @@ import {
   filterUnifiedTimeline,
   paginateUnifiedTimeline,
 } from '@/src/hair/domain/customerTimeline/types';
+import { CustomerCreditPanel } from '@/src/hair/components/customers/CustomerCreditPanel';
+import type {
+  CustomerCreditHistoryRow,
+  CustomerCreditSummary,
+} from '@/src/hair/services/customerAdvance';
 
 const initialState: CustomerActionState = {};
 
@@ -83,12 +88,16 @@ export function CustomerProfile({
   notes,
   unifiedTimeline,
   financialSummary,
+  creditSummary,
+  creditHistory,
   timelineLoading = false,
 }: {
   customer: FyhCustomer;
   notes: FyhCustomerNote[];
   unifiedTimeline: UnifiedTimelineEvent[];
   financialSummary: CustomerFinancialSummary;
+  creditSummary: CustomerCreditSummary;
+  creditHistory: CustomerCreditHistoryRow[];
   timelineLoading?: boolean;
 }) {
   const [tab, setTab] = useState<TabId>('overview');
@@ -219,8 +228,14 @@ export function CustomerProfile({
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="Due" value={formatInrFromPaise(financialSummary.duePaise)} />
         <Stat label="Advance" value={formatInrFromPaise(financialSummary.advancePaise)} />
-        <Stat label="Wallet" value={formatInrFromPaise(financialSummary.walletPaise)} />
+        <Stat label="Credit available" value={formatInrFromPaise(financialSummary.walletPaise)} />
       </div>
+
+      <CustomerCreditPanel
+        customerId={customer.id}
+        summary={creditSummary}
+        history={creditHistory}
+      />
 
       {/* Summary cards */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">

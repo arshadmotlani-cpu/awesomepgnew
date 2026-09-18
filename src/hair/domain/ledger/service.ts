@@ -107,3 +107,52 @@ export async function creditWalletAdvance(
   );
   await reconcileCustomerWalletCache(db, input.customerId, ctx);
 }
+
+function tenderAccountForMethod(
+  method: 'cash' | 'upi' | 'card' | 'bank',
+): 'cash' | 'upi' | 'card' | 'bank' {
+  return method;
+}
+
+/** Record customer advance: tender in + wallet credit (no service revenue). */
+export async function postCustomerAdvanceReceiveLedger(
+  db: typeof hairDb,
+  input: {
+    customerId: string;
+    invoiceId: string;
+    amountPaise: number;
+    method: 'cash' | 'upi' | 'card' | 'bank';
+    idempotencyReference: string;
+  },
+  ctx?: TenantContext | null,
+) {
+  if (input.amountPaise <= 0) return;
+  const tender = tenderAccountForMethod(input.method);
+  await postLedgerEntries(
+    db,
+    {
+      customerId: input.customerId,
+      invoiceId: input.invoiceId,
+      entries: [
+        {
+          account: tender,
+          direction: 'debit',
+          amountPaise: input.amountPaise,
+          method: input.method === 'bank' ? null : input.method,
+          kind: 'payment_received',
+          reference: input.idempotencyReference,
+        },
+        {
+          account: 'customer_wallet',
+          direction: 'credit',
+          amountPaise: input.amountPaise,
+          method: null,
+          kind: 'advance_credit',
+          reference: input.idempotencyReference,
+        },
+      ],
+    },
+    ctx,
+  );
+  await reconcileCustomerWalletCache(db, input.customerId, ctx);
+}

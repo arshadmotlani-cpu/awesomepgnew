@@ -786,6 +786,9 @@ export function QuickSaleShell({
             priced={priced}
             membershipDiscountPaise={membershipDiscountPaise}
             customerOutstandingPaise={customerContext?.duePaise ?? 0}
+            availableCreditPaise={
+              customerContext?.walletPaise ?? customer.walletBalancePaise ?? 0
+            }
             payments={payments}
             flags={flags}
             workspaceLocked={workspaceLocked}

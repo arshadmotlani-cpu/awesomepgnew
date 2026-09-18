@@ -12,6 +12,7 @@ type Props = {
   priced: PricedBasket;
   membershipDiscountPaise: number;
   customerOutstandingPaise: number;
+  availableCreditPaise?: number;
   payments: PaymentEntry[];
   flags: BasketFlags;
   workspaceLocked: boolean;
@@ -31,6 +32,7 @@ export function QuickSaleCheckoutBar({
   priced,
   membershipDiscountPaise,
   customerOutstandingPaise,
+  availableCreditPaise = 0,
   payments,
   flags,
   workspaceLocked,
@@ -74,6 +76,7 @@ export function QuickSaleCheckoutBar({
         <QuickSalePaymentPanel
           variant="compact"
           grandTotalPaise={priced.totals.grandTotalPaise}
+          availableCreditPaise={availableCreditPaise}
           payments={payments}
           flags={flags}
           locked={workspaceLocked}

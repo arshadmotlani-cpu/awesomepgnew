@@ -24,6 +24,23 @@ export function planCheckoutLedger(input: {
 
   for (const p of payments) {
     if (p.amountPaise <= 0) continue;
+    if (p.method === 'wallet') {
+      entries.push({
+        account: 'customer_wallet',
+        direction: 'debit',
+        amountPaise: p.amountPaise,
+        method: null,
+        kind: 'wallet_redemption',
+      });
+      entries.push({
+        account: 'accounts_receivable',
+        direction: 'credit',
+        amountPaise: p.amountPaise,
+        method: null,
+        kind: 'payment_received',
+      });
+      continue;
+    }
     entries.push({
       account: p.method,
       direction: 'debit',

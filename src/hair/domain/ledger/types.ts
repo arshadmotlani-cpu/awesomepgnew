@@ -3,7 +3,8 @@ export type LedgerAccount =
   | 'accounts_receivable'
   | 'cash'
   | 'upi'
-  | 'card';
+  | 'card'
+  | 'bank';
 
 export type LedgerKind =
   | 'invoice_charge'

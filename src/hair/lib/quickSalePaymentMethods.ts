@@ -15,5 +15,6 @@ export const QUICK_SALE_PAYMENT_METHODS: QuickSalePaymentMethodOption[] = [
 const LABEL_BY_ID = new Map(QUICK_SALE_PAYMENT_METHODS.map((m) => [m.id, m.label]));
 
 export function quickSalePaymentMethodLabel(method: PaymentMethod): string {
+  if (method === 'wallet') return 'Customer credit';
   return LABEL_BY_ID.get(method) ?? method;
 }
