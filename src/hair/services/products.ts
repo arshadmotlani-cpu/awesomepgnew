@@ -4,7 +4,8 @@ import { fyhBrands, fyhProducts, fyhVendors } from '@/src/hair/db/schema';
 import type { FyhProduct } from '@/src/hair/db/schema';
 import type { FyhProductType } from '@/src/hair/lib/productTypes';
 import { parseProductType } from '@/src/hair/lib/productTypes';
-import { applyMovement } from '@/src/hair/services/stock';
+import { findOrCreateBrandInDb } from '@/src/hair/services/brands';
+import { applyMovement, type HairDb } from '@/src/hair/services/stock';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
@@ -35,14 +36,15 @@ function normalizeProductName(name: string): string {
   return name.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
-async function assertUniqueProductIdentity(
+async function assertUniqueProductIdentityInDb(
+  db: HairDb,
   name: string,
   brandId: string,
   excludeId?: string,
   ctx?: TenantContext | null,
 ) {
   const target = normalizeProductName(name);
-  const rows = await hairDb
+  const rows = await db
     .select({ id: fyhProducts.id, name: fyhProducts.name, brandId: fyhProducts.brandId })
     .from(fyhProducts)
     .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.brandId, brandId)));
@@ -53,6 +55,51 @@ async function assertUniqueProductIdentity(
     }
   }
 }
+
+async function assertUniqueProductIdentity(
+  name: string,
+  brandId: string,
+  excludeId?: string,
+  ctx?: TenantContext | null,
+) {
+  return assertUniqueProductIdentityInDb(hairDb, name, brandId, excludeId, ctx);
+}
+
+async function getProductWithBrandFromDb(
+  db: HairDb,
+  id: string,
+  ctx?: TenantContext | null,
+): Promise<ProductWithBrand | null> {
+  ctx = await resolveTenantContextForService(ctx);
+  const [row] = await db
+    .select({
+      product: fyhProducts,
+      brandName: fyhBrands.name,
+      vendorId: fyhBrands.vendorId,
+      vendorName: fyhVendors.name,
+    })
+    .from(fyhProducts)
+    .innerJoin(fyhBrands, eq(fyhBrands.id, fyhProducts.brandId))
+    .leftJoin(fyhVendors, eq(fyhVendors.id, fyhBrands.vendorId))
+    .where(and(orgFilter(fyhProducts.organizationId, ctx), eq(fyhProducts.id, id)))
+    .limit(1);
+  return row
+    ? {
+        ...row.product,
+        brandName: row.brandName,
+        vendorId: row.vendorId,
+        vendorName: row.vendorName,
+      }
+    : null;
+}
+
+export type CreateProductConfigurationOpts = {
+  /** Resolved catalog brand id */
+  brandId?: string;
+  /** Create/link brand inside product transaction */
+  newBrandName?: string | null;
+  vendorId?: string | null;
+};
 
 function validateProductInput(input: ProductInput) {
   const name = input.name.trim();
@@ -155,23 +202,37 @@ export async function getProduct(id: string, ctx?: TenantContext | null): Promis
     : null;
 }
 
-export async function createProduct(input: ProductInput, ctx?: TenantContext | null) {
+export async function createProductFromConfiguration(
+  input: ProductInput,
+  brandOpts: CreateProductConfigurationOpts,
+  ctx?: TenantContext | null,
+): Promise<ProductWithBrand> {
   ctx = await resolveTenantContextForService(ctx);
   const name = validateProductInput(input);
-  await assertUniqueProductIdentity(name, input.brandId, undefined, ctx);
   const openingQty = input.stockQty ?? 0;
   const productType = parseProductType(input.productType);
   const sellingPricePaise =
     productType === 'retail' ? toPaise(input.sellingPriceRupees ?? 0) : 0;
 
   return hairDb.transaction(async (tx) => {
-    const db = tx as unknown as typeof hairDb;
+    const db = tx as unknown as HairDb;
+
+    let brandId = brandOpts.brandId?.trim() || input.brandId?.trim();
+    if (!brandId || brandId === '__pending__') {
+      const newName = brandOpts.newBrandName?.trim();
+      if (!newName) throw new Error('Brand is required');
+      const brand = await findOrCreateBrandInDb(db, newName, brandOpts.vendorId ?? null, ctx);
+      brandId = brand.id;
+    }
+
+    await assertUniqueProductIdentityInDb(db, name, brandId, undefined, ctx);
+
     const [row] = await tx
       .insert(fyhProducts)
       .values({
         ...tenantOrgDefaults(ctx),
         name,
-        brandId: input.brandId,
+        brandId,
         category: input.category?.trim() || null,
         description: input.description?.trim() || null,
         productType,
@@ -182,11 +243,13 @@ export async function createProduct(input: ProductInput, ctx?: TenantContext | n
       })
       .returning();
 
+    if (!row) throw new Error('Failed to create product');
+
     if (openingQty > 0) {
       await applyMovement(
         db,
         {
-          productId: row!.id,
+          productId: row.id,
           quantityDelta: openingQty,
           movementType: 'opening',
           notes: 'Opening stock',
@@ -195,9 +258,19 @@ export async function createProduct(input: ProductInput, ctx?: TenantContext | n
       );
     }
 
-    const created = await getProduct(row!.id, ctx);
-    return created!;
+    const created = await getProductWithBrandFromDb(db, row.id, ctx);
+    if (!created) throw new Error('Failed to load created product');
+    return created;
   });
+}
+
+/** @deprecated Prefer createProductFromConfiguration for brand+product atomicity */
+export async function createProduct(input: ProductInput, ctx?: TenantContext | null) {
+  const brandId = input.brandId?.trim();
+  if (!brandId || brandId === '__pending__') {
+    throw new Error('Brand is required');
+  }
+  return createProductFromConfiguration(input, { brandId }, ctx);
 }
 
 export async function updateProduct(id: string, input: ProductInput, ctx?: TenantContext | null) {

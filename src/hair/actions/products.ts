@@ -4,14 +4,20 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireHairAuth } from '@/src/hair/lib/auth/guards';
 import { hasPermission, requirePermission } from '@/src/hair/lib/auth/permissions';
+import {
+  mapProductServiceErrorToFields,
+  parseProductConfigurationForm,
+  productFormValuesFromFormData,
+  type ProductFormFieldKey,
+  type ProductFormValues,
+} from '@/src/hair/lib/productConfigurationForm';
 import { getTenantContextForAction } from '@/src/hair/lib/tenant/getTenantContext';
-import { parseProductType } from '@/src/hair/lib/productTypes';
 import { findOrCreateBrand } from '@/src/hair/services/brands';
 import { createVendor } from '@/src/hair/services/vendors';
 import {
   adjustProductStock,
   archiveProduct,
-  createProduct,
+  createProductFromConfiguration,
   deleteProduct,
   getProduct,
   restoreProduct,
@@ -23,17 +29,18 @@ export type ProductActionState = {
   error?: string;
   success?: string;
   productId?: string;
+  fieldErrors?: Partial<Record<ProductFormFieldKey, string>>;
+  values?: ProductFormValues;
+  stockValues?: StockAdjustFormValues;
+};
+
+export type StockAdjustFormValues = {
+  quantityDelta: string;
+  reason: string;
 };
 
 function formStr(formData: FormData, key: string): string {
   return String(formData.get(key) ?? '').trim();
-}
-
-function formNum(formData: FormData, key: string, fallback = 0): number {
-  const raw = formStr(formData, key);
-  if (!raw) return fallback;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : fallback;
 }
 
 async function resolveBrandIdFromForm(
@@ -49,38 +56,15 @@ async function resolveBrandIdFromForm(
   return brand.id;
 }
 
-function parseProductForm(
-  formData: FormData,
-  opts?: { allowCost?: boolean; includeOpeningStock?: boolean },
-): ProductInput {
-  const name = formStr(formData, 'name');
-  if (!name) throw new Error('Product name is required');
-  const brandId = formStr(formData, 'brandId');
-  if (!brandId && !formStr(formData, 'newBrandName')) {
-    throw new Error('Brand is required');
-  }
-  const productType = parseProductType(formStr(formData, 'productType'));
-  const costPriceRupees = formNum(formData, 'costPriceRupees', 0);
-  if (!opts?.allowCost && costPriceRupees !== 0) {
-    throw new Error('Product cost requires inventory permission');
-  }
-  const stockQty = opts?.includeOpeningStock ? formNum(formData, 'openingStockQty', 0) : 0;
-  if (!opts?.allowCost && stockQty !== 0) {
-    throw new Error('Opening stock requires inventory permission');
-  }
-  const sellingPriceRupees =
-    productType === 'retail' ? formNum(formData, 'sellingPriceRupees', 0) : 0;
-
+function failureState(
+  error: string,
+  values: ProductFormValues,
+  fieldErrors?: Partial<Record<ProductFormFieldKey, string>>,
+): ProductActionState {
   return {
-    name,
-    brandId: brandId || '__pending__',
-    category: formStr(formData, 'category') || null,
-    description: formStr(formData, 'description') || null,
-    productType,
-    costPriceRupees: opts?.allowCost ? costPriceRupees : 0,
-    sellingPriceRupees,
-    stockQty: opts?.allowCost ? stockQty : 0,
-    isActive: formData.get('isActive') !== 'false',
+    error,
+    values,
+    fieldErrors: fieldErrors ?? mapProductServiceErrorToFields(error, values),
   };
 }
 
@@ -101,13 +85,29 @@ export async function createProductAction(
   _prev: ProductActionState,
   formData: FormData,
 ): Promise<ProductActionState> {
+  const values = productFormValuesFromFormData(formData);
   try {
     const admin = await requireHairAuth();
     const ctx = await getTenantContextForAction();
     const allowCost = hasPermission(admin, 'page:inventory');
-    const input = parseProductForm(formData, { allowCost, includeOpeningStock: true });
-    input.brandId = await resolveBrandIdFromForm(formData, ctx);
-    const product = await createProduct(input, ctx);
+    const parsed = parseProductConfigurationForm(formData, {
+      allowCost,
+      includeOpeningStock: true,
+    });
+    if (!parsed.ok) {
+      return failureState(parsed.error, parsed.values, parsed.fieldErrors);
+    }
+
+    const product = await createProductFromConfiguration(
+      parsed.productInput as ProductInput,
+      {
+        brandId: parsed.values.brandId || undefined,
+        newBrandName: parsed.newBrandName,
+        vendorId: parsed.vendorId,
+      },
+      ctx,
+    );
+
     revalidatePath('/products');
     revalidatePath('/inventory/stock');
     revalidatePath('/quick-sale');
@@ -117,7 +117,8 @@ export async function createProductAction(
     redirect(`/products/${product.id}`);
   } catch (e) {
     if (e && typeof e === 'object' && 'digest' in e) throw e;
-    return { error: e instanceof Error ? e.message : 'Failed to create product' };
+    const message = e instanceof Error ? e.message : 'Failed to create product';
+    return failureState(message, values);
   }
 }
 
@@ -125,13 +126,18 @@ export async function updateProductAction(
   _prev: ProductActionState,
   formData: FormData,
 ): Promise<ProductActionState> {
+  const values = productFormValuesFromFormData(formData);
   try {
     const admin = await requireHairAuth();
     const ctx = await getTenantContextForAction();
     const id = formStr(formData, 'id');
-    if (!id) return { error: 'Missing product id' };
+    if (!id) return { error: 'Missing product id', values };
     const allowCost = hasPermission(admin, 'page:inventory');
-    const input = parseProductForm(formData, { allowCost });
+    const parsed = parseProductConfigurationForm(formData, { allowCost });
+    if (!parsed.ok) {
+      return failureState(parsed.error, parsed.values, parsed.fieldErrors);
+    }
+    const input = parsed.productInput as ProductInput;
     input.brandId = await resolveBrandIdFromForm(formData, ctx);
     if (!allowCost) {
       const existing = await getProduct(id, ctx);
@@ -149,29 +155,43 @@ export async function updateProductAction(
     }
     return { success: 'Product updated.' };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : 'Failed to update product' };
+    const message = e instanceof Error ? e.message : 'Failed to update product';
+    return failureState(message, values);
   }
 }
 
 export async function adjustProductStockAction(
-  _prev: ProductActionState,
+  _prev: ProductActionState & { stockValues?: StockAdjustFormValues },
   formData: FormData,
-): Promise<ProductActionState> {
+): Promise<ProductActionState & { stockValues?: StockAdjustFormValues }> {
+  const stockValues: StockAdjustFormValues = {
+    quantityDelta: formStr(formData, 'quantityDelta'),
+    reason: formStr(formData, 'reason'),
+  };
   try {
     await requireHairAuth();
     await requirePermission('page:inventory');
     const ctx = await getTenantContextForAction();
     const id = formStr(formData, 'id');
-    if (!id) return { error: 'Missing product id' };
-    const delta = Number(formStr(formData, 'quantityDelta'));
-    const reason = formStr(formData, 'reason');
+    if (!id) return { error: 'Missing product id', stockValues };
+    const delta = Number(stockValues.quantityDelta);
+    const reason = stockValues.reason;
+    if (!reason) {
+      return { error: 'Adjustment reason is required', stockValues };
+    }
+    if (!Number.isFinite(delta) || delta === 0) {
+      return { error: 'Enter a non-zero quantity change (+ or −)', stockValues };
+    }
     await adjustProductStock(id, delta, reason, ctx);
     revalidatePath('/products');
     revalidatePath('/inventory/stock');
     revalidatePath('/quick-sale');
     return { success: 'Stock adjusted.' };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : 'Stock adjustment failed' };
+    return {
+      error: e instanceof Error ? e.message : 'Stock adjustment failed',
+      stockValues,
+    };
   }
 }
 

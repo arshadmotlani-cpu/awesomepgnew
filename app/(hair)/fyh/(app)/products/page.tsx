@@ -1,5 +1,7 @@
 import { Suspense } from 'react';
 import { ProductsMaster } from '@/src/hair/components/products/ProductsUi';
+import { getHairSession } from '@/src/hair/lib/auth/session';
+import { hasPermission } from '@/src/hair/lib/auth/permissions';
 import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 import { listBrands } from '@/src/hair/services/brands';
 import { listProducts } from '@/src/hair/services/products';
@@ -22,13 +24,24 @@ async function ProductsPageInner({ searchParams }: Props) {
       ? statusRaw
       : 'active';
   const ctx = await getTenantContextForPage();
-  const [products, brands, vendors] = await Promise.all([
+  const [products, brands, vendors, session] = await Promise.all([
     listProducts({ q, status }, ctx),
     listBrands(ctx),
     listVendors({ status: 'active' }, ctx),
+    getHairSession(),
   ]);
+  const canManageInventory = session?.admin
+    ? hasPermission(session.admin, 'page:inventory')
+    : false;
   return (
-    <ProductsMaster products={products} brands={brands} vendors={vendors} q={q} status={status} />
+    <ProductsMaster
+      products={products}
+      brands={brands}
+      vendors={vendors}
+      q={q}
+      status={status}
+      canManageInventory={canManageInventory}
+    />
   );
 }
 

@@ -4,6 +4,7 @@ import { fyhBrands } from '@/src/hair/db/schema';
 import { orgFilter, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import type { HairDb } from '@/src/hair/services/stock';
 
 export async function listBrands(ctx?: TenantContext | null) {
   ctx = await resolveTenantContextForService(ctx);
@@ -33,7 +34,8 @@ export async function getBrand(id: string, ctx?: TenantContext | null) {
   return row ?? null;
 }
 
-export async function findOrCreateBrand(
+export async function findOrCreateBrandInDb(
+  db: HairDb,
   name: string,
   vendorId?: string | null,
   ctx?: TenantContext | null,
@@ -41,25 +43,34 @@ export async function findOrCreateBrand(
   ctx = await resolveTenantContextForService(ctx);
   const trimmed = name.trim();
   if (!trimmed) throw new Error('Brand name is required');
-  const [existing] = await hairDb
+  const [existing] = await db
     .select()
     .from(fyhBrands)
     .where(and(orgFilter(fyhBrands.organizationId, ctx), ilike(fyhBrands.name, trimmed)))
     .limit(1);
   if (existing) {
     if (vendorId && !existing.vendorId) {
-      await hairDb
+      await db
         .update(fyhBrands)
         .set({ vendorId })
         .where(and(orgFilter(fyhBrands.organizationId, ctx), eq(fyhBrands.id, existing.id)));
+      return { ...existing, vendorId };
     }
     return existing;
   }
-  const [row] = await hairDb
+  const [row] = await db
     .insert(fyhBrands)
     .values({ name: trimmed, vendorId: vendorId ?? null, ...tenantOrgDefaults(ctx) })
     .returning();
   return row!;
+}
+
+export async function findOrCreateBrand(
+  name: string,
+  vendorId?: string | null,
+  ctx?: TenantContext | null,
+) {
+  return findOrCreateBrandInDb(hairDb, name, vendorId, ctx);
 }
 
 export async function syncVendorBrands(

@@ -41,6 +41,17 @@ describe('Product inventory connected flow (SaaS + SSOT)', () => {
     assert.match(products, /assertUniqueProductIdentity/);
     assert.match(products, /movementType: 'opening'/);
     assert.match(products, /export async function adjustProductStock/);
+    assert.match(products, /createProductFromConfiguration/);
+    assert.match(products, /findOrCreateBrandInDb/);
+    assert.match(products, /getProductWithBrandFromDb/);
+    assert.doesNotMatch(products, /getProduct\(row!\.id, ctx\)/);
+  });
+
+  it('createProductAction uses atomic configuration orchestrator', () => {
+    const actions = read('src/hair/actions/products.ts');
+    assert.match(actions, /createProductFromConfiguration/);
+    assert.match(actions, /parseProductConfigurationForm/);
+    assert.match(actions, /fieldErrors/);
   });
 
   it('Quick Sale catalog uses listBookableRetailProducts SSOT', () => {

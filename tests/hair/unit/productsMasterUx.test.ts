@@ -33,7 +33,19 @@ describe('Products master UX (list-first)', () => {
     assert.match(ui, /Preferred vendor/);
     assert.match(ui, /md:hidden/);
     assert.match(ui, /max-w-6xl/);
+    assert.match(ui, /max-w-3xl/);
+    assert.match(ui, /lg:grid-cols-3/);
+    assert.match(ui, /canManageInventory/);
+    assert.match(ui, /clientValidateProductForm/);
+    assert.match(ui, /data-product-field/);
+    assert.match(ui, /product-form-drawer/);
     assert.doesNotMatch(ui, /href="\/products\/new"/);
+  });
+
+  it('products page passes canManageInventory from session', () => {
+    const page = read('app/(hair)/fyh/(app)/products/page.tsx');
+    assert.match(page, /canManageInventory/);
+    assert.match(page, /page:inventory/);
   });
 
   it('create product returns to list and revalidates quick-sale', () => {
