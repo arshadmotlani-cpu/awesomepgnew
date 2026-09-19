@@ -16,6 +16,14 @@ test('invoicePdfFilename sanitizes invoice numbers for Content-Disposition', () 
   assert.equal(invoicePdfFilename('INV/2026\\test'), 'INV-2026-test.pdf');
 });
 
+test('invoice PDF logo path uses static segments for build tracing', () => {
+  const pdf = read('src/lib/billing/invoicePdf.ts');
+  assert.match(
+    pdf,
+    /join\(process\.cwd\(\),\s*'public',\s*'brand',\s*'awesome-pg-256\.png'\)/,
+  );
+});
+
 test('SSOT invoice PDF generator and download routes exist', () => {
   const pdf = read('src/lib/billing/invoicePdf.ts');
   assert.match(pdf, /export async function generateInvoicePdf/);
