@@ -36,6 +36,25 @@ function normalizeProductName(name: string): string {
   return name.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
+async function assertBrandAllowedForVendor(
+  brandId: string,
+  vendorId: string | null | undefined,
+  db: HairDb,
+  ctx?: TenantContext | null,
+) {
+  const vendor = vendorId?.trim();
+  if (!vendor) return;
+  const [row] = await db
+    .select({ vendorId: fyhBrands.vendorId })
+    .from(fyhBrands)
+    .where(and(orgFilter(fyhBrands.organizationId, ctx), eq(fyhBrands.id, brandId)))
+    .limit(1);
+  if (!row) throw new Error('Brand not found');
+  if (row.vendorId && row.vendorId !== vendor) {
+    throw new Error('Selected brand is not supplied by this vendor');
+  }
+}
+
 async function assertUniqueProductIdentityInDb(
   db: HairDb,
   name: string,
@@ -225,6 +244,7 @@ export async function createProductFromConfiguration(
       brandId = brand.id;
     }
 
+    await assertBrandAllowedForVendor(brandId, brandOpts.vendorId ?? null, db, ctx);
     await assertUniqueProductIdentityInDb(db, name, brandId, undefined, ctx);
 
     const [row] = await tx

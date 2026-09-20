@@ -73,31 +73,44 @@ export async function findOrCreateBrand(
   return findOrCreateBrandInDb(hairDb, name, vendorId, ctx);
 }
 
-export async function syncVendorBrands(
+export async function syncVendorBrandsInDb(
+  db: HairDb,
   vendorId: string,
   brandNames: string[],
   ctx?: TenantContext | null,
 ) {
   ctx = await resolveTenantContextForService(ctx);
   const names = [...new Set(brandNames.map((n) => n.trim()).filter(Boolean))];
-  const existing = await listBrandsForVendor(vendorId, ctx);
+  const existing = await db
+    .select()
+    .from(fyhBrands)
+    .where(and(orgFilter(fyhBrands.organizationId, ctx), eq(fyhBrands.vendorId, vendorId)))
+    .orderBy(asc(fyhBrands.name));
   const existingNames = new Set(existing.map((b) => b.name.toLowerCase()));
 
   for (const name of names) {
     if (!existingNames.has(name.toLowerCase())) {
-      await findOrCreateBrand(name, vendorId, ctx);
+      await findOrCreateBrandInDb(db, name, vendorId, ctx);
     }
   }
 
   const keepLower = new Set(names.map((n) => n.toLowerCase()));
   for (const brand of existing) {
     if (!keepLower.has(brand.name.toLowerCase())) {
-      await hairDb
+      await db
         .update(fyhBrands)
         .set({ vendorId: null })
         .where(and(orgFilter(fyhBrands.organizationId, ctx), eq(fyhBrands.id, brand.id)));
     }
   }
+}
+
+export async function syncVendorBrands(
+  vendorId: string,
+  brandNames: string[],
+  ctx?: TenantContext | null,
+) {
+  return syncVendorBrandsInDb(hairDb, vendorId, brandNames, ctx);
 }
 
 export async function detachBrandsFromVendor(vendorId: string, ctx?: TenantContext | null) {

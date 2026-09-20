@@ -13,7 +13,6 @@ import {
 } from '@/src/hair/lib/productConfigurationForm';
 import { getTenantContextForAction } from '@/src/hair/lib/tenant/getTenantContext';
 import { findOrCreateBrand } from '@/src/hair/services/brands';
-import { createVendor } from '@/src/hair/services/vendors';
 import {
   adjustProductStock,
   archiveProduct,
@@ -210,23 +209,6 @@ export async function restoreProductAction(
     return { success: 'Product activated.' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to activate product' };
-  }
-}
-
-export async function quickCreateVendorForProductAction(
-  name: string,
-): Promise<{ error?: string; vendor?: { id: string; name: string } }> {
-  try {
-    await requireHairAuth();
-    const ctx = await getTenantContextForAction();
-    const trimmed = name.trim();
-    if (!trimmed) return { error: 'Vendor name is required' };
-    const vendor = await createVendor({ name: trimmed, isActive: true }, ctx);
-    revalidatePath('/products');
-    revalidatePath('/vendors');
-    return { vendor: { id: vendor.id, name: vendor.name } };
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : 'Failed to create vendor' };
   }
 }
 

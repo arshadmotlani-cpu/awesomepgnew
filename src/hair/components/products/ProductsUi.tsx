@@ -15,7 +15,6 @@ import {
   adjustProductStockAction,
   archiveProductAction,
   createProductAction,
-  quickCreateVendorForProductAction,
   restoreProductAction,
   updateProductAction,
   type ProductActionState,
@@ -28,6 +27,7 @@ import type { ProductFormFieldKey, ProductFormValues } from '@/src/hair/lib/prod
 import type { ProductWithBrand } from '@/src/hair/services/products';
 import { FYH_PRODUCT_TYPES, productTypeLabel } from '@/src/hair/lib/productTypes';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
+import { VendorFormDrawer } from '@/src/hair/components/vendors/VendorFormDrawer';
 
 const initialState: ProductActionState = {};
 
@@ -170,7 +170,6 @@ function ProductFormFields({
   brands,
   vendors,
   canManageInventory,
-  onVendorCreated,
 }: {
   mode: 'create' | 'edit';
   values: ProductFormValues;
@@ -179,37 +178,26 @@ function ProductFormFields({
   brands: FyhBrand[];
   vendors: FyhVendor[];
   canManageInventory: boolean;
-  onVendorCreated?: (vendor: { id: string; name: string }) => void;
 }) {
-  const [showNewVendor, setShowNewVendor] = useState(false);
-  const [newVendorName, setNewVendorName] = useState('');
-  const [vendorBusy, setVendorBusy] = useState(false);
-  const [vendorError, setVendorError] = useState<string | null>(null);
-
   const filteredBrands = useMemo(() => {
     if (!values.vendorId) return brands;
-    return brands.filter((b) => b.vendorId === values.vendorId || !b.vendorId);
+    return brands.filter((b) => b.vendorId === values.vendorId);
   }, [brands, values.vendorId]);
-
-  async function submitNewVendor() {
-    setVendorBusy(true);
-    setVendorError(null);
-    const res = await quickCreateVendorForProductAction(newVendorName);
-    setVendorBusy(false);
-    if (res.error) {
-      setVendorError(res.error);
-      return;
-    }
-    if (res.vendor) {
-      onVendorCreated?.(res.vendor);
-      setValues((v) => ({ ...v, vendorId: res.vendor!.id }));
-      setShowNewVendor(false);
-      setNewVendorName('');
-    }
-  }
 
   const patch = (partial: Partial<ProductFormValues>) => {
     setValues((v) => ({ ...v, ...partial }));
+  };
+
+  const onVendorChange = (vendorId: string) => {
+    setValues((v) => {
+      let brandId = v.brandId;
+      if (vendorId && brandId) {
+        const brand = brands.find((b) => b.id === brandId);
+        if (brand?.vendorId && brand.vendorId !== vendorId) brandId = '';
+      }
+      if (!vendorId) return { ...v, vendorId: '', brandId };
+      return { ...v, vendorId, brandId };
+    });
   };
 
   return (
@@ -251,40 +239,14 @@ function ProductFormFields({
             className={fieldClass}
             data-product-field="vendorId"
             value={values.vendorId}
-            onChange={(e) => patch({ vendorId: e.target.value })}
+            onChange={(e) => onVendorChange(e.target.value)}
           >
-            <option value="">Any vendor</option>
+            <option value="">Select vendor</option>
             {vendors.map((v) => (
               <option key={v.id} value={v.id}>{v.name}</option>
             ))}
           </select>
         </div>
-
-        <div className="flex items-center md:col-span-2 lg:col-span-3">
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => setShowNewVendor((s) => !s)}
-          >
-            {showNewVendor ? 'Cancel new vendor' : '+ Add vendor'}
-          </Button>
-        </div>
-
-        {showNewVendor ? (
-          <div className="flex flex-wrap gap-2 md:col-span-2 lg:col-span-3">
-            <Input
-              placeholder="Vendor name"
-              value={newVendorName}
-              onChange={(e) => setNewVendorName(e.target.value)}
-              className="min-w-0 flex-1"
-            />
-            <Button type="button" size="sm" disabled={vendorBusy} onClick={() => void submitNewVendor()}>
-              Save vendor
-            </Button>
-            {vendorError ? <p className="w-full text-xs text-fyh-danger">{vendorError}</p> : null}
-          </div>
-        ) : null}
 
         <div className="space-y-1">
           <label className="fyh-label text-xs" htmlFor="brandId">Brand *</label>
@@ -311,7 +273,7 @@ function ProductFormFields({
             id="newBrandName"
             name="newBrandName"
             data-product-field="newBrandName"
-            placeholder="Or type a new brand (links to vendor when selected)"
+            placeholder="Or type a new brand for the selected vendor"
             value={values.newBrandName}
             onChange={(e) => patch({ newBrandName: e.target.value })}
             aria-invalid={Boolean(fieldErrors.newBrandName)}
@@ -443,14 +405,9 @@ function ProductFormDrawer({
 }) {
   const action = mode === 'create' ? createProductAction : updateProductAction;
   const [state, formAction, pending] = useActionState(action, initialState);
-  const [vendorList, setVendorList] = useState(vendors);
   const [values, setValues] = useState<ProductFormValues>(emptyProductFormValues());
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<ProductFormFieldKey, string>>>({});
   const wasOpenRef = useRef(false);
-
-  useEffect(() => {
-    setVendorList(vendors);
-  }, [vendors]);
 
   useEffect(() => {
     if (open && !wasOpenRef.current) {
@@ -531,34 +488,8 @@ function ProductFormDrawer({
           setValues={setValues}
           fieldErrors={fieldErrors}
           brands={brands}
-          vendors={vendorList}
+          vendors={vendors}
           canManageInventory={canManageInventory}
-          onVendorCreated={(v) =>
-            setVendorList((prev) => {
-              if (prev.some((x) => x.id === v.id)) return prev;
-              return [
-                ...prev,
-                {
-                  id: v.id,
-                  name: v.name,
-                  organizationId: '',
-                  locationId: null,
-                  companyName: null,
-                  contactName: null,
-                  phone: null,
-                  email: null,
-                  gstin: null,
-                  address: null,
-                  bankDetails: null,
-                  upiId: null,
-                  qrCodeUrl: null,
-                  notes: null,
-                  isActive: true,
-                  createdAt: new Date(),
-                },
-              ];
-            })
-          }
         />
       </form>
     </DrawerShell>
@@ -702,6 +633,7 @@ export function ProductsMaster({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [addOpen, setAddOpen] = useState(false);
+  const [vendorOpen, setVendorOpen] = useState(false);
   const [editProduct, setEditProduct] = useState<ProductWithBrand | null>(null);
   const [adjustProduct, setAdjustProduct] = useState<ProductWithBrand | null>(null);
 
@@ -735,10 +667,18 @@ export function ProductsMaster({
           <p className="fyh-section-eyebrow">Configuration</p>
           <h1 className="fyh-display mt-0.5 text-xl font-semibold sm:text-2xl">Products</h1>
         </div>
-        <Button type="button" onClick={() => setAddOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add product
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {canManageInventory ? (
+            <Button type="button" variant="secondary" onClick={() => setVendorOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add vendor
+            </Button>
+          ) : null}
+          <Button type="button" onClick={() => setAddOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add product
+          </Button>
+        </div>
       </div>
 
       <form method="get" className="fyh-glass flex flex-wrap items-end gap-2 p-3">
@@ -874,6 +814,13 @@ export function ProductsMaster({
         onClose={() => setAdjustProduct(null)}
         onSuccess={refresh}
       />
+      {canManageInventory ? (
+        <VendorFormDrawer
+          open={vendorOpen}
+          onClose={() => setVendorOpen(false)}
+          onCreated={() => refresh()}
+        />
+      ) : null}
     </div>
   );
 }

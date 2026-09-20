@@ -28,7 +28,7 @@ export function vendorAttachmentExtension(mime: string): string {
 
 export async function uploadVendorAttachment(
   file: File,
-  folder: 'vendor-payments' | 'purchase-invoices',
+  folder: 'vendor-payments' | 'purchase-invoices' | 'vendor-qr',
   entityId: string,
 ): Promise<{ url: string; contentType: string }> {
   const mime = file.type || 'application/octet-stream';

@@ -207,10 +207,16 @@ export function VendorForm({
             <Input id="companyName" name="companyName" defaultValue={vendor?.companyName ?? ''} />
           </div>
           <div className="space-y-2">
-            <label className="fyh-label" htmlFor="phone">
-              Phone
+            <label className="fyh-label" htmlFor="contactName">
+              Contact person
             </label>
-            <Input id="phone" name="phone" defaultValue={vendor?.phone ?? ''} />
+            <Input id="contactName" name="contactName" defaultValue={vendor?.contactName ?? ''} />
+          </div>
+          <div className="space-y-2">
+            <label className="fyh-label" htmlFor="phone">
+              Phone *
+            </label>
+            <Input id="phone" name="phone" required defaultValue={vendor?.phone ?? ''} />
           </div>
           <div className="space-y-2">
             <label className="fyh-label" htmlFor="email">

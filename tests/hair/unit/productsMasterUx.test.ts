@@ -26,6 +26,9 @@ describe('Products master UX (list-first)', () => {
     const ui = read('src/hair/components/products/ProductsUi.tsx');
     assert.match(ui, /export function ProductsMaster/);
     assert.match(ui, /Add product/);
+    assert.match(ui, /Add vendor/);
+    assert.match(ui, /VendorFormDrawer/);
+    assert.doesNotMatch(ui, /quickCreateVendorForProductAction/);
     assert.match(ui, /ProductFormDrawer/);
     assert.match(ui, /No products yet/);
     assert.match(ui, /openingStockQty/);
