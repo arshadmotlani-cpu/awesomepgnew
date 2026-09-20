@@ -2,26 +2,35 @@
 
 import { useEffect } from 'react';
 import {
+  cleanDeployRecoveryParamsFromLocation,
+  fetchLiveDeployIdFromDocument,
+  getBundledDeployId,
   isDeployChunkFailure,
-  scheduleDeployChunkReload,
+  scheduleDeployChunkRecovery,
+  shouldRecoverAfterBfcache,
 } from '@/src/lib/reliability/deployChunkRecovery';
 
 /**
- * Automatically recovers from stale JS chunks after a deployment.
- * Reloads once per deployment — not a user-facing retry control.
+ * Recovers from stale JS/CSS chunks and deploy skew after a production release.
+ * Uses bounded, cache-busting same-origin navigation (cookies and route preserved).
  */
 export function DeployChunkRecovery() {
   useEffect(() => {
+    cleanDeployRecoveryParamsFromLocation();
+  }, []);
+
+  useEffect(() => {
     function handleError(event: ErrorEvent) {
-      if (!isDeployChunkFailure(event.error ?? event.message)) return;
+      const source = event.filename || null;
+      if (!isDeployChunkFailure(event.error ?? event.message, { source })) return;
       event.preventDefault();
-      scheduleDeployChunkReload();
+      scheduleDeployChunkRecovery();
     }
 
     function handleRejection(event: PromiseRejectionEvent) {
       if (!isDeployChunkFailure(event.reason)) return;
       event.preventDefault();
-      scheduleDeployChunkReload();
+      scheduleDeployChunkRecovery();
     }
 
     window.addEventListener('error', handleError);
@@ -30,6 +39,22 @@ export function DeployChunkRecovery() {
       window.removeEventListener('error', handleError);
       window.removeEventListener('unhandledrejection', handleRejection);
     };
+  }, []);
+
+  useEffect(() => {
+    function onPageShow(event: PageTransitionEvent) {
+      if (!event.persisted) return;
+
+      void (async () => {
+        const bundled = getBundledDeployId();
+        const live = await fetchLiveDeployIdFromDocument(fetch, window.location);
+        if (!shouldRecoverAfterBfcache(bundled, live)) return;
+        scheduleDeployChunkRecovery();
+      })();
+    }
+
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
   }, []);
 
   return null;

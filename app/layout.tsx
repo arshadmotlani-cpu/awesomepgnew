@@ -36,11 +36,16 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const deployId = process.env.NEXT_PUBLIC_DEPLOY_ID?.trim() || 'development';
+
   return (
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        <meta name="apg-deploy-id" content={deployId} />
+      </head>
       <body className="min-h-full flex flex-col">
         <DeployChunkRecovery />
         <PostHogProvider>
