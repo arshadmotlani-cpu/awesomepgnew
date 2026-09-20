@@ -2,6 +2,9 @@
 # Vercel build entrypoint — production always migrates; preview can build when DB is unset.
 set -euo pipefail
 
+# shellcheck source=scripts/vercel-build-phase.sh
+source "$(dirname "$0")/vercel-build-phase.sh"
+
 has_db_url() {
   [[ -n "${DATABASE_URL:-}" ]] || [[ -n "${POSTGRES_URL:-}" ]] || [[ -n "${POSTGRES_PRISMA_URL:-}" ]]
 }
@@ -16,8 +19,9 @@ run_migrate() {
 
 if has_db_url; then
   if is_production_deployment; then
+    vercel_build_phase "PG database migrations (npm run db:migrate)"
     run_migrate
-    echo "=== Production data consistency audit (read-only) ==="
+    vercel_build_phase "Production data consistency audit (read-only)"
     npx tsx scripts/audit-production-data-consistency.ts || true
   elif ! run_migrate; then
     echo "⚠ Non-production: db:migrate failed — continuing build so the PR preview can still deploy."
@@ -39,7 +43,7 @@ has_invest_db_url() {
 }
 
 if has_invest_db_url; then
-  echo "=== Capital database migrations ==="
+  vercel_build_phase "Capital database migrations"
   if is_production_deployment; then
     npm run capital:db:migrate
     npm run capital:db:seed || true
@@ -78,7 +82,7 @@ has_platform_db_url() {
 }
 
 if has_hair_db_url; then
-  echo "=== For Your Hair database migrations ==="
+  vercel_build_phase "For Your Hair database migrations"
   if is_production_deployment; then
     npm run hair:db:migrate
     npm run hair:db:seed || true
@@ -100,7 +104,7 @@ has_owner_db_url() {
 }
 
 if has_owner_db_url; then
-  echo "=== Owner OS database migrations ==="
+  vercel_build_phase "Owner OS database migrations"
   if is_production_deployment; then
     npm run owner:db:migrate
     npm run owner:db:seed || true
@@ -114,7 +118,7 @@ else
 fi
 
 if has_platform_db_url; then
-  echo "=== Platform database migrations ==="
+  vercel_build_phase "Platform database migrations"
   if is_production_deployment; then
     npm run platform:db:migrate
   elif npm run platform:db:migrate; then
@@ -131,10 +135,14 @@ bash scripts/vercel-build-repair.sh
 # Monorepo TS graph OOMs under Node's default ~2GB heap; 8GB is the known-working ceiling.
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}"
 
-echo "=== Deploy typecheck (app graph, excludes tests) ==="
+vercel_build_phase "Deploy typecheck (next typegen + tsc -p tsconfig.deploy.json)"
 # Generate Next PageProps/Route types first — plain tsc cannot see them until typegen/build.
 npx next typegen
 # Fail with the full app error list before Next's first-error typecheck.
 npx tsc -p tsconfig.deploy.json --noEmit --pretty false
 
+# Deploy graph is already typechecked above. Next's second TypeScript worker pass is redundant
+# on Vercel (2-core builders) and has hung until the 45m platform limit without logging progress.
+export SKIP_NEXT_BUILDTIME_TYPECHECK=1
+vercel_build_phase "Next production build (SKIP_NEXT_BUILDTIME_TYPECHECK=1 — deploy tsc is SSOT)"
 next build

@@ -1,7 +1,15 @@
 import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs';
 
+const skipNextBuildtimeTypecheck = process.env.SKIP_NEXT_BUILDTIME_TYPECHECK === '1';
+
 const nextConfig: NextConfig = {
+  typescript: {
+    // When set (vercel-build.sh after `tsc -p tsconfig.deploy.json`), skip Next's duplicate
+    // build-time typecheck — avoids redundant work and rare 45m hangs on constrained CI CPUs.
+    ignoreBuildErrors: skipNextBuildtimeTypecheck,
+    tsconfigPath: 'tsconfig.deploy.json',
+  },
   env: {
     NEXT_PUBLIC_DEPLOY_ID:
       process.env.VERCEL_GIT_COMMIT_SHA ??
