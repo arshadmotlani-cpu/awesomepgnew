@@ -12,9 +12,15 @@ type Props = {
   customerId: string;
   summary: CustomerCreditSummary;
   history: CustomerCreditHistoryRow[];
+  canReceiveAdvance: boolean;
 };
 
-export function CustomerCreditPanel({ customerId, summary, history }: Props) {
+export function CustomerCreditPanel({
+  customerId,
+  summary,
+  history,
+  canReceiveAdvance,
+}: Props) {
   const [advanceOpen, setAdvanceOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
@@ -33,9 +39,11 @@ export function CustomerCreditPanel({ customerId, summary, history }: Props) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" variant="primary" onClick={() => setAdvanceOpen(true)}>
-            Receive advance
-          </Button>
+          {canReceiveAdvance ? (
+            <Button type="button" size="sm" variant="primary" onClick={() => setAdvanceOpen(true)}>
+              Receive advance
+            </Button>
+          ) : null}
           <Link href="/advance-payment">
             <Button type="button" size="sm" variant="secondary">Full screen</Button>
           </Link>
@@ -106,7 +114,11 @@ export function CustomerCreditPanel({ customerId, summary, history }: Props) {
         </div>
       ) : null}
 
-      <AdvancePaymentModal open={advanceOpen} onClose={() => setAdvanceOpen(false)} />
+      <AdvancePaymentModal
+        open={advanceOpen}
+        onClose={() => setAdvanceOpen(false)}
+        canReceiveAdvance={canReceiveAdvance}
+      />
     </section>
   );
 }

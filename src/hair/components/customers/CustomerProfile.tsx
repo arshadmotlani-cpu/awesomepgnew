@@ -91,6 +91,7 @@ export function CustomerProfile({
   creditSummary,
   creditHistory,
   timelineLoading = false,
+  canReceiveAdvance = false,
 }: {
   customer: FyhCustomer;
   notes: FyhCustomerNote[];
@@ -99,6 +100,7 @@ export function CustomerProfile({
   creditSummary: CustomerCreditSummary;
   creditHistory: CustomerCreditHistoryRow[];
   timelineLoading?: boolean;
+  canReceiveAdvance?: boolean;
 }) {
   const [tab, setTab] = useState<TabId>('overview');
   const [timelineFilter, setTimelineFilter] = useState<UnifiedTimelineFilter>('all');
@@ -235,6 +237,7 @@ export function CustomerProfile({
         customerId={customer.id}
         summary={creditSummary}
         history={creditHistory}
+        canReceiveAdvance={canReceiveAdvance}
       />
 
       {/* Summary cards */}

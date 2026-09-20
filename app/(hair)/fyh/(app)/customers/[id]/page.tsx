@@ -11,6 +11,9 @@ import {
   getCustomerCreditSummary,
   listCustomerCreditHistory,
 } from '@/src/hair/services/customerAdvance';
+import { requireHairAuthPage } from '@/src/hair/lib/auth/guards';
+import { hasPermission } from '@/src/hair/lib/auth/permissionTypes';
+import { ADVANCE_RECEIVE_PERMISSION } from '@/src/hair/lib/advancePaymentPermissions';
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -18,6 +21,8 @@ type Props = {
 
 async function CustomerAccountData({ id }: { id: string }) {
   const ctx = await getTenantContextForPage();
+  const admin = await requireHairAuthPage();
+  const canReceiveAdvance = hasPermission(admin, ADVANCE_RECEIVE_PERMISSION);
   const profile = await getCustomerProfile(id, ctx);
   if (!profile) notFound();
 
@@ -36,6 +41,7 @@ async function CustomerAccountData({ id }: { id: string }) {
       financialSummary={financialSummary}
       creditSummary={creditSummary}
       creditHistory={creditHistory}
+      canReceiveAdvance={canReceiveAdvance}
     />
   );
 }

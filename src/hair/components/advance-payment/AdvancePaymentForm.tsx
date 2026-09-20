@@ -51,6 +51,7 @@ export function AdvancePaymentForm({
           <p className="text-sm font-medium text-fyh-text">Customer *</p>
           <FyhCustomerSearch
             autoFocus
+            searchSource="advance"
             createContext="advance_payment"
             placeholder="Search name, mobile, or customer code…"
             onSelect={(hit) => {
@@ -165,10 +166,14 @@ export function AdvancePaymentForm({
                 setError(res.error);
                 return;
               }
+              if (!res.invoiceId || !res.invoiceNumber) {
+                setError('Advance saved but receipt id missing — open Invoices to verify.');
+                return;
+              }
               onSuccess?.({
                 customer,
-                invoiceId: res.invoiceId!,
-                invoiceNumber: res.invoiceNumber!,
+                invoiceId: res.invoiceId,
+                invoiceNumber: res.invoiceNumber,
                 walletBalancePaise: res.walletBalancePaise ?? customer.walletBalancePaise,
               });
             });

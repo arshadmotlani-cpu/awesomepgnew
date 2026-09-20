@@ -53,9 +53,10 @@ const MODAL_ACTIONS: ModalAction[] = [
 
 type Props = {
   staffName: string;
+  canReceiveAdvance: boolean;
 };
 
-export function HairQuickActionsMenu({ staffName }: Props) {
+export function HairQuickActionsMenu({ staffName, canReceiveAdvance }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -140,7 +141,9 @@ export function HairQuickActionsMenu({ staffName }: Props) {
                 }}
               />
             ))}
-            {MODAL_ACTIONS.map((item) => (
+            {MODAL_ACTIONS.map((item) => {
+              if (item.opens === 'advance_modal' && !canReceiveAdvance) return null;
+              return (
               <QuickActionModalRow
                 key={item.id}
                 item={item}
@@ -150,7 +153,8 @@ export function HairQuickActionsMenu({ staffName }: Props) {
                   else setExpenseModalOpen(true);
                 }}
               />
-            ))}
+              );
+            })}
           </div>
         </div>
       </>
@@ -179,7 +183,11 @@ export function HairQuickActionsMenu({ staffName }: Props) {
         </span>
       </button>
       {mounted && panel ? createPortal(panel, document.body) : null}
-      <AdvancePaymentModal open={advanceModalOpen} onClose={() => setAdvanceModalOpen(false)} />
+      <AdvancePaymentModal
+        open={advanceModalOpen}
+        onClose={() => setAdvanceModalOpen(false)}
+        canReceiveAdvance={canReceiveAdvance}
+      />
       <NewExpenseModal
         open={expenseModalOpen}
         onClose={() => setExpenseModalOpen(false)}

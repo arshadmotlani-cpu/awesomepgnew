@@ -12,6 +12,8 @@ import { HairQuickActionsMenu } from '@/src/hair/components/HairQuickActionsMenu
 import { HairSidebar } from '@/src/hair/components/HairSidebar';
 import { Button } from '@/src/hair/components/ui/button';
 import type { HairAdmin } from '@/src/hair/lib/auth/session';
+import { hasPermission } from '@/src/hair/lib/auth/permissionTypes';
+import { ADVANCE_RECEIVE_PERMISSION } from '@/src/hair/lib/advancePaymentPermissions';
 import type { HairNavEntry } from '@/src/hair/lib/nav';
 
 type HairAppHeaderProps = {
@@ -55,7 +57,10 @@ export function HairAppHeader({ admin, navEntries }: HairAppHeaderProps) {
             <Menu className="h-4 w-4" />
           </Button>
 
-          <HairQuickActionsMenu staffName={admin.displayName ?? 'Staff'} />
+          <HairQuickActionsMenu
+            staffName={admin.displayName ?? 'Staff'}
+            canReceiveAdvance={hasPermission(admin, ADVANCE_RECEIVE_PERMISSION)}
+          />
 
           <div className="min-w-0 flex-1 px-1 sm:px-2 md:px-3">
             <HairGlobalSearch />

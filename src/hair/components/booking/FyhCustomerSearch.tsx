@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
+import { searchCustomersForAdvanceAction } from '@/src/hair/actions/advancePayment';
 import { searchCustomersForBookingAction } from '@/src/hair/actions/booking';
 import { Input } from '@/src/hair/components/ui/input';
 import { inferQuickSaleCustomerPrefill } from '@/src/hair/lib/quickSaleCustomerPrefill';
@@ -23,6 +24,8 @@ type Props = {
   inputClassName?: string;
   createContext?: SalonCustomerCreateContext;
   showCreateButton?: boolean;
+  /** Advance payment uses checkout permission + tenant-scoped POS search. */
+  searchSource?: 'booking' | 'advance';
 };
 
 export function FyhCustomerSearch({
@@ -33,9 +36,11 @@ export function FyhCustomerSearch({
   inputClassName,
   createContext = 'appointment_booking',
   showCreateButton = true,
+  searchSource = 'booking',
 }: Props) {
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<PosCustomerHit[]>([]);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createPrefill, setCreatePrefill] = useState<FyhCustomerCreatePrefill>({
@@ -51,14 +56,25 @@ export function FyhCustomerSearch({
     }
     const t = window.setTimeout(async () => {
       setSearching(true);
+      setSearchError(null);
       try {
+        if (searchSource === 'advance') {
+          const res = await searchCustomersForAdvanceAction(q);
+          if (!res.ok) {
+            setHits([]);
+            setSearchError(res.error);
+            return;
+          }
+          setHits(res.hits);
+          return;
+        }
         setHits(await searchCustomersForBookingAction(q));
       } finally {
         setSearching(false);
       }
     }, 150);
     return () => window.clearTimeout(t);
-  }, [query]);
+  }, [query, searchSource]);
 
   const trimmed = query.trim();
   const showResults = trimmed.length >= 1;
@@ -92,6 +108,12 @@ export function FyhCustomerSearch({
           <FyhCustomerCreateButton onClick={() => openCreate()} />
         ) : null}
       </div>
+
+      {searchError ? (
+        <p className="mt-2 text-sm text-fyh-danger" role="alert">
+          {searchError}
+        </p>
+      ) : null}
 
       {showResults ? (
         <ul
