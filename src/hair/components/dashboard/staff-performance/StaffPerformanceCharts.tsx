@@ -43,6 +43,85 @@ function ChartWrap({
   );
 }
 
+export function StaffTopTenBarChart({
+  rows,
+  valueLabel,
+}: {
+  rows: { staffId: string; name: string; amountPaise: number }[];
+  valueLabel: string;
+}) {
+  const chartData = (rows ?? []).map((d) => ({
+    name: d.name.split(' ')[0] || d.name,
+    fullName: d.name,
+    value: d.amountPaise / 100,
+  }));
+  const hasData = chartHasData(chartData.map((d) => d.value));
+
+  return (
+    <ChartWrap hasData={hasData} height={240}>
+      <BarChart layout="vertical" data={chartData} margin={{ left: 8, right: 16 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />
+        <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => formatChartInr(Number(v) * 100)} />
+        <YAxis type="category" dataKey="name" width={56} tick={{ fontSize: 10 }} />
+        <Tooltip
+          contentStyle={FYH_CHART_TOOLTIP}
+          labelFormatter={(_l, payload) =>
+            String((payload?.[0]?.payload as { fullName?: string } | undefined)?.fullName ?? _l)
+          }
+          formatter={(v) => [formatChartInr(Math.round(Number(v ?? 0) * 100)), valueLabel]}
+        />
+        <Bar dataKey="value" fill="#C9A227" radius={[0, 4, 4, 0]} maxBarSize={18} />
+      </BarChart>
+    </ChartWrap>
+  );
+}
+
+export function StaffPeriodComparisonChart({
+  comparison,
+  metric,
+}: {
+  comparison: {
+    currentSalesTotalPaise: number;
+    previousSalesTotalPaise: number;
+    currentPerformanceTotalPaise: number;
+    previousPerformanceTotalPaise: number;
+  };
+  metric: 'sales' | 'performance';
+}) {
+  const current =
+    metric === 'sales'
+      ? comparison.currentSalesTotalPaise
+      : comparison.currentPerformanceTotalPaise;
+  const previous =
+    metric === 'sales'
+      ? comparison.previousSalesTotalPaise
+      : comparison.previousPerformanceTotalPaise;
+
+  const chartData = [
+    { label: 'Previous', value: previous / 100 },
+    { label: 'Current', value: current / 100 },
+  ];
+  const hasData = chartHasData(chartData.map((d) => d.value));
+
+  return (
+    <ChartWrap hasData={hasData} height={220}>
+      <BarChart data={chartData}>
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+        <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+        <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => formatChartInr(Number(v) * 100)} width={64} />
+        <Tooltip
+          contentStyle={FYH_CHART_TOOLTIP}
+          formatter={(v) => [
+            formatChartInr(Math.round(Number(v ?? 0) * 100)),
+            metric === 'sales' ? 'Sales' : 'Performance Amount',
+          ]}
+        />
+        <Bar dataKey="value" fill="var(--fyh-accent)" radius={[4, 4, 0, 0]} maxBarSize={48} />
+      </BarChart>
+    </ChartWrap>
+  );
+}
+
 export function StaffRevenueDonut({
   data,
 }: {

@@ -1,6 +1,6 @@
-import { Suspense } from 'react';
 import { requirePermissionPage } from '@/src/hair/lib/auth/permissions';
 import { StaffPerformanceCommandCenter } from '@/src/hair/components/dashboard/StaffPerformanceCommandCenter';
+import { listTenantLocationOptions } from '@/src/hair/actions/tenant';
 import { parseStaffPerformanceSearchParams } from '@/src/hair/lib/staffPerformancePeriod';
 import { getStaffPerformanceCommandCenter } from '@/src/hair/services/staffPerformanceDashboard';
 import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
@@ -22,25 +22,26 @@ export default async function StaffPerformanceDashboardPage({ searchParams }: Pr
     to: first(sp.to),
     staff: first(sp.staff),
     category: first(sp.category),
+    locations: first(sp.locations),
+    compare: first(sp.compare),
   });
 
   const ctx = await getTenantContextForPage();
-  const data = await getStaffPerformanceCommandCenter(
-    {
-      period: parsed.preset,
-      from: parsed.from,
-      to: parsed.to,
-      staffIds: parsed.staffIds,
-      category: parsed.category,
-    },
-    ctx,
-  );
+  const [data, locationOptions] = await Promise.all([
+    getStaffPerformanceCommandCenter(
+      {
+        period: parsed.preset,
+        from: parsed.from,
+        to: parsed.to,
+        staffIds: parsed.staffIds,
+        category: parsed.category,
+        locationIds: parsed.locationIds,
+        comparisonMode: parsed.comparisonMode,
+      },
+      ctx,
+    ),
+    listTenantLocationOptions(),
+  ]);
 
-  return (
-    <Suspense
-      fallback={<div className="p-6 text-sm text-fyh-text-muted">Loading staff performance…</div>}
-    >
-      <StaffPerformanceCommandCenter data={data} />
-    </Suspense>
-  );
+  return <StaffPerformanceCommandCenter data={data} locationOptions={locationOptions} />;
 }

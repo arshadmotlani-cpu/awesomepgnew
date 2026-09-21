@@ -2,7 +2,7 @@
  * Staff Performance Command Center — single SSR snapshot (no N+1).
  */
 
-import { and, asc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, lt, ne, sql } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import {
   fyhCommissionEntries,
@@ -16,17 +16,21 @@ import {
 import {
   momDeltaPct,
   resolveStaffPerformanceRange,
+  sameMtdLastMonthPreviousRange,
   sortStaffByRevenue,
+  type StaffPerformanceComparisonMode,
   type StaffPerformancePeriodPreset,
   type StaffRevenueCategory,
 } from '@/src/hair/lib/staffPerformancePeriod';
 import { getSalonSettings } from '@/src/hair/services/settings';
+import type { RevenueDashboardLocationFilter } from '@/src/hair/services/revenueDashboardReportTypes';
 import {
-  salonMetricTotal,
+  performanceAmountFromMetricParts,
+  salesTotalPaiseFromSummary,
   type DateRange,
 } from '@/src/hair/services/staffPerformance';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
-import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { orgFilter, locationsInFilter } from '@/src/hair/lib/tenant/filters';
 import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 export type StaffKpiTotals = {
@@ -83,6 +87,41 @@ export type StaffCustomerMetrics = {
   lowestBillPaise: number;
 };
 
+export type StaffTopTenRow = {
+  staffId: string;
+  name: string;
+  photoUrl: string | null;
+  amountPaise: number;
+};
+
+export type StaffSalesSummaryRow = {
+  staffId: string;
+  name: string;
+  servicePaise: number;
+  productPaise: number;
+  packagePaise: number;
+  membershipPaise: number;
+  giftCardPaise: number;
+  totalPaise: number;
+};
+
+export type StaffPerformanceAmountRow = {
+  staffId: string;
+  name: string;
+  netServicePaise: number;
+  membershipPaise: number;
+  packagePaise: number;
+  totalPaise: number;
+};
+
+export type StaffPeriodComparison = {
+  mode: StaffPerformanceComparisonMode;
+  currentSalesTotalPaise: number;
+  previousSalesTotalPaise: number;
+  currentPerformanceTotalPaise: number;
+  previousPerformanceTotalPaise: number;
+};
+
 export type StaffPerformanceCommandCenterSnapshot = {
   timezone: string;
   salonName: string;
@@ -92,6 +131,8 @@ export type StaffPerformanceCommandCenterSnapshot = {
   rangeToIso: string;
   category: StaffRevenueCategory;
   staffIdsFilter: string[];
+  locationIds: RevenueDashboardLocationFilter;
+  comparisonMode: StaffPerformanceComparisonMode;
   kpis: StaffKpiTotals;
   leaderboard: StaffLeaderboardRow[];
   distribution: { staffId: string; name: string; revenuePaise: number; pct: number }[];
@@ -102,14 +143,29 @@ export type StaffPerformanceCommandCenterSnapshot = {
   membershipTable: StaffCategoryRow[];
   customerMetrics: StaffCustomerMetrics;
   staffOptions: { id: string; name: string }[];
+  topTenSales: StaffTopTenRow[];
+  topTenPerformance: StaffTopTenRow[];
+  totalSalesPaise: number;
+  totalPerformanceAmountPaise: number;
+  salesSummaryTable: StaffSalesSummaryRow[];
+  performanceAmountTable: StaffPerformanceAmountRow[];
+  periodComparison: StaffPeriodComparison;
 };
 
 /** @deprecated Prefer StaffPerformanceCommandCenterSnapshot */
 export type StaffPerformanceDashboardSnapshot = StaffPerformanceCommandCenterSnapshot;
 
-function paidAttrWhere(range: DateRange, staffIds?: string[]) {
+function paidAttrWhere(
+  range: DateRange,
+  ctx: TenantContext | null,
+  locationIds: RevenueDashboardLocationFilter,
+  staffIds?: string[],
+) {
   const parts = [
+    orgFilter(fyhInvoices.organizationId, ctx),
+    locationsInFilter(fyhInvoices.locationId, ctx, locationIds),
     eq(fyhInvoices.status, 'paid'),
+    ne(fyhInvoices.source, 'advance_payment'),
     gte(fyhInvoices.paidAt, range.from),
     lt(fyhInvoices.paidAt, range.to),
   ];
@@ -119,22 +175,17 @@ function paidAttrWhere(range: DateRange, staffIds?: string[]) {
   return and(...parts);
 }
 
-async function metricTotals(range: DateRange, staffIds?: string[]): Promise<{
+async function metricTotals(
+  range: DateRange,
+  ctx: TenantContext | null,
+  locationIds: RevenueDashboardLocationFilter,
+  staffIds?: string[],
+): Promise<{
   service: number;
   product: number;
   package: number;
   membership: number;
 }> {
-  if (!staffIds?.length) {
-    const [service, product, pkg, membership] = await Promise.all([
-      salonMetricTotal('service', range),
-      salonMetricTotal('product', range),
-      salonMetricTotal('package', range),
-      salonMetricTotal('membership', range),
-    ]);
-    return { service, product, package: pkg, membership };
-  }
-
   const rows = await hairDb
     .select({
       metric: fyhInvoiceLineAttributions.revenueMetric,
@@ -143,7 +194,7 @@ async function metricTotals(range: DateRange, staffIds?: string[]): Promise<{
     .from(fyhInvoiceLineAttributions)
     .innerJoin(fyhInvoiceLines, eq(fyhInvoiceLines.id, fyhInvoiceLineAttributions.invoiceLineId))
     .innerJoin(fyhInvoices, eq(fyhInvoices.id, fyhInvoiceLines.invoiceId))
-    .where(paidAttrWhere(range, staffIds))
+    .where(paidAttrWhere(range, ctx, locationIds, staffIds))
     .groupBy(fyhInvoiceLineAttributions.revenueMetric);
 
   const out = { service: 0, product: 0, package: 0, membership: 0 };
@@ -178,6 +229,8 @@ type StaffAggRow = {
 
 async function staffAttributedAggregates(
   range: DateRange,
+  ctx: TenantContext | null,
+  locationIds: RevenueDashboardLocationFilter,
   staffIds?: string[],
 ): Promise<StaffAggRow[]> {
   const [rows, customerRows] = await Promise.all([
@@ -196,7 +249,7 @@ async function staffAttributedAggregates(
       .innerJoin(fyhInvoiceLines, eq(fyhInvoiceLines.id, fyhInvoiceLineAttributions.invoiceLineId))
       .innerJoin(fyhInvoices, eq(fyhInvoices.id, fyhInvoiceLines.invoiceId))
       .innerJoin(fyhStaff, eq(fyhStaff.id, fyhInvoiceLineAttributions.staffId))
-      .where(paidAttrWhere(range, staffIds))
+      .where(paidAttrWhere(range, ctx, locationIds, staffIds))
       .groupBy(
         fyhInvoiceLineAttributions.staffId,
         fyhStaff.fullName,
@@ -212,7 +265,7 @@ async function staffAttributedAggregates(
       .from(fyhInvoiceLineAttributions)
       .innerJoin(fyhInvoiceLines, eq(fyhInvoiceLines.id, fyhInvoiceLineAttributions.invoiceLineId))
       .innerJoin(fyhInvoices, eq(fyhInvoices.id, fyhInvoiceLines.invoiceId))
-      .where(paidAttrWhere(range, staffIds))
+      .where(paidAttrWhere(range, ctx, locationIds, staffIds))
       .groupBy(fyhInvoiceLineAttributions.staffId),
   ]);
 
@@ -273,10 +326,18 @@ async function staffAttributedAggregates(
   return [...byStaff.values()];
 }
 
-async function commissionByStaff(range: DateRange, staffIds?: string[]) {
+async function commissionByStaff(
+  range: DateRange,
+  ctx: TenantContext | null,
+  staffIds?: string[],
+) {
   const fromKey = range.from.toISOString().slice(0, 10);
   const toKey = range.to.toISOString().slice(0, 10);
-  const parts = [gte(fyhCommissionEntries.periodDate, fromKey), lt(fyhCommissionEntries.periodDate, toKey)];
+  const parts = [
+    orgFilter(fyhCommissionEntries.organizationId, ctx),
+    gte(fyhCommissionEntries.periodDate, fromKey),
+    lt(fyhCommissionEntries.periodDate, toKey),
+  ];
   if (staffIds && staffIds.length > 0) {
     parts.push(inArray(fyhCommissionEntries.staffId, staffIds));
   }
@@ -356,6 +417,8 @@ async function refundsByStaff(range: DateRange, staffIds?: string[]) {
 
 async function customerMetrics(
   range: DateRange,
+  ctx: TenantContext | null,
+  locationIds: RevenueDashboardLocationFilter,
   staffIds?: string[],
 ): Promise<StaffCustomerMetrics> {
   const invoiceRows = await hairDb
@@ -367,7 +430,7 @@ async function customerMetrics(
     .from(fyhInvoiceLineAttributions)
     .innerJoin(fyhInvoiceLines, eq(fyhInvoiceLines.id, fyhInvoiceLineAttributions.invoiceLineId))
     .innerJoin(fyhInvoices, eq(fyhInvoices.id, fyhInvoiceLines.invoiceId))
-    .where(paidAttrWhere(range, staffIds))
+    .where(paidAttrWhere(range, ctx, locationIds, staffIds))
     .groupBy(fyhInvoices.customerId, fyhInvoices.id);
 
   const byCustomer = new Map<string, { invoices: number; spend: number }>();
@@ -454,6 +517,8 @@ export async function getStaffPerformanceCommandCenter(input?: {
   to?: string | null;
   staffIds?: string[];
   category?: StaffRevenueCategory;
+  locationIds?: RevenueDashboardLocationFilter;
+  comparisonMode?: StaffPerformanceComparisonMode;
 }, ctx?: TenantContext | null): Promise<StaffPerformanceCommandCenterSnapshot> {
   ctx = await resolveTenantContextForService(ctx);
   const settings = await getSalonSettings(ctx);
@@ -462,13 +527,20 @@ export async function getStaffPerformanceCommandCenter(input?: {
   const preset = input?.period ?? 'month';
   const category = input?.category ?? 'combined';
   const staffIds = input?.staffIds?.filter(Boolean) ?? [];
+  const locationIds = input?.locationIds ?? 'all';
+  const comparisonMode = input?.comparisonMode ?? 'previous_period';
 
-  const { range, previousRange, label } = resolveStaffPerformanceRange({
+  const { range, previousRange: defaultPrevious, label } = resolveStaffPerformanceRange({
     timezone,
     preset,
     from: input?.from,
     to: input?.to,
   });
+
+  const previousRange =
+    comparisonMode === 'same_mtd_last_month'
+      ? sameMtdLastMonthPreviousRange(range, timezone)
+      : defaultPrevious;
 
   const staffFilter = staffIds.length > 0 ? staffIds : undefined;
 
@@ -476,17 +548,19 @@ export async function getStaffPerformanceCommandCenter(input?: {
     currentTotals,
     previousTotals,
     staffAggs,
+    previousStaffAggs,
     commissionMap,
     refundMap,
     customers,
     staffOptions,
   ] = await Promise.all([
-    metricTotals(range, staffFilter),
-    metricTotals(previousRange, staffFilter),
-    staffAttributedAggregates(range, staffFilter),
-    commissionByStaff(range, staffFilter),
+    metricTotals(range, ctx, locationIds, staffFilter),
+    metricTotals(previousRange, ctx, locationIds, staffFilter),
+    staffAttributedAggregates(range, ctx, locationIds, staffFilter),
+    staffAttributedAggregates(previousRange, ctx, locationIds, staffFilter),
+    commissionByStaff(range, ctx, staffFilter),
     refundsByStaff(range, staffFilter),
-    customerMetrics(range, staffFilter),
+    customerMetrics(range, ctx, locationIds, staffFilter),
     hairDb
       .select({ id: fyhStaff.id, name: fyhStaff.fullName })
       .from(fyhStaff)
@@ -494,12 +568,29 @@ export async function getStaffPerformanceCommandCenter(input?: {
       .orderBy(asc(fyhStaff.fullName)),
   ]);
 
-  const combined = currentTotals.service + currentTotals.product + currentTotals.package + currentTotals.membership;
-  const prevCombined =
-    previousTotals.service +
-    previousTotals.product +
-    previousTotals.package +
-    previousTotals.membership;
+  const combined = salesTotalPaiseFromSummary({
+    serviceRevenuePaise: currentTotals.service,
+    productRevenuePaise: currentTotals.product,
+    packageRevenuePaise: currentTotals.package,
+    membershipRevenuePaise: currentTotals.membership,
+  });
+  const prevCombined = salesTotalPaiseFromSummary({
+    serviceRevenuePaise: previousTotals.service,
+    productRevenuePaise: previousTotals.product,
+    packageRevenuePaise: previousTotals.package,
+    membershipRevenuePaise: previousTotals.membership,
+  });
+
+  const totalPerformanceAmountPaise = performanceAmountFromMetricParts(
+    currentTotals.service,
+    currentTotals.package,
+    currentTotals.membership,
+  );
+  const previousPerformanceTotalPaise = performanceAmountFromMetricParts(
+    previousTotals.service,
+    previousTotals.package,
+    previousTotals.membership,
+  );
 
   const kpis: StaffKpiTotals = {
     serviceRevenuePaise: currentTotals.service,
@@ -514,25 +605,95 @@ export async function getStaffPerformanceCommandCenter(input?: {
     combinedDeltaPct: momDeltaPct(combined, prevCombined),
   };
 
-  const leaderboardBase = sortStaffByRevenue(
+  const salesSummaryTable: StaffSalesSummaryRow[] = sortStaffByRevenue(
+    staffAggs.map((s) => ({
+      staffId: s.staffId,
+      name: s.name,
+      servicePaise: s.servicePaise,
+      productPaise: s.productPaise,
+      packagePaise: s.packagePaise,
+      membershipPaise: s.membershipPaise,
+      giftCardPaise: 0,
+      totalPaise: s.combinedPaise,
+      revenuePaise: s.combinedPaise,
+    })),
+  ).map(({ revenuePaise: _r, ...row }) => row);
+
+  const performanceAmountTable: StaffPerformanceAmountRow[] = sortStaffByRevenue(
+    staffAggs.map((s) => {
+      const total = performanceAmountFromMetricParts(
+        s.servicePaise,
+        s.packagePaise,
+        s.membershipPaise,
+      );
+      return {
+        staffId: s.staffId,
+        name: s.name,
+        netServicePaise: s.servicePaise,
+        membershipPaise: s.membershipPaise,
+        packagePaise: s.packagePaise,
+        totalPaise: total,
+        revenuePaise: total,
+      };
+    }),
+  ).map(({ revenuePaise: _r, ...row }) => row);
+
+  const topTenSales: StaffTopTenRow[] = sortStaffByRevenue(
     staffAggs.map((s) => ({
       staffId: s.staffId,
       name: s.name,
       photoUrl: s.photoUrl,
+      amountPaise: s.combinedPaise,
       revenuePaise: s.combinedPaise,
-      customersServed: s.customersServed,
-      averageBillPaise: s.invoiceCount > 0 ? Math.round(s.combinedPaise / s.invoiceCount) : 0,
-      servicesSoldCount: Math.round(s.servicesSoldCount),
-      productsSoldCount: Math.round(s.productsSoldCount),
     })),
-  );
+  )
+    .slice(0, 10)
+    .map(({ revenuePaise: _r, ...row }) => row);
 
-  const totalForPct = leaderboardBase.reduce((a, r) => a + r.revenuePaise, 0) || 1;
-  const distribution = leaderboardBase.map((r) => ({
+  const topTenPerformance: StaffTopTenRow[] = sortStaffByRevenue(
+    staffAggs.map((s) => {
+      const amount = performanceAmountFromMetricParts(
+        s.servicePaise,
+        s.packagePaise,
+        s.membershipPaise,
+      );
+      return {
+        staffId: s.staffId,
+        name: s.name,
+        photoUrl: s.photoUrl,
+        amountPaise: amount,
+        revenuePaise: amount,
+      };
+    }),
+  )
+    .slice(0, 10)
+    .map(({ revenuePaise: _r, ...row }) => row);
+
+  const leaderboardBase = topTenSales.map((r) => ({
     staffId: r.staffId,
     name: r.name,
-    revenuePaise: r.revenuePaise,
-    pct: Math.round((r.revenuePaise / totalForPct) * 1000) / 10,
+    photoUrl: r.photoUrl,
+    revenuePaise: r.amountPaise,
+    customersServed:
+      staffAggs.find((s) => s.staffId === r.staffId)?.customersServed ?? 0,
+    averageBillPaise: (() => {
+      const agg = staffAggs.find((s) => s.staffId === r.staffId);
+      return agg && agg.invoiceCount > 0 ? Math.round(agg.combinedPaise / agg.invoiceCount) : 0;
+    })(),
+    servicesSoldCount: Math.round(
+      staffAggs.find((s) => s.staffId === r.staffId)?.servicesSoldCount ?? 0,
+    ),
+    productsSoldCount: Math.round(
+      staffAggs.find((s) => s.staffId === r.staffId)?.productsSoldCount ?? 0,
+    ),
+  }));
+
+  const totalForPct = combined || 1;
+  const distribution = salesSummaryTable.map((r) => ({
+    staffId: r.staffId,
+    name: r.name,
+    revenuePaise: r.totalPaise,
+    pct: Math.round((r.totalPaise / totalForPct) * 1000) / 10,
   }));
 
   const comparison: StaffComparisonPoint[] = sortStaffByRevenue(
@@ -561,6 +722,17 @@ export async function getStaffPerformanceCommandCenter(input?: {
       }),
     );
 
+  const previousSalesTotal = previousStaffAggs.reduce((a, s) => a + s.combinedPaise, 0);
+  const currentSalesTotal = staffAggs.reduce((a, s) => a + s.combinedPaise, 0);
+  const currentPerformanceFromAggs = staffAggs.reduce(
+    (a, s) => a + performanceAmountFromMetricParts(s.servicePaise, s.packagePaise, s.membershipPaise),
+    0,
+  );
+  const previousPerformanceFromAggs = previousStaffAggs.reduce(
+    (a, s) => a + performanceAmountFromMetricParts(s.servicePaise, s.packagePaise, s.membershipPaise),
+    0,
+  );
+
   return {
     timezone,
     salonName,
@@ -570,6 +742,8 @@ export async function getStaffPerformanceCommandCenter(input?: {
     rangeToIso: range.to.toISOString(),
     category,
     staffIdsFilter: staffIds,
+    locationIds,
+    comparisonMode,
     kpis,
     leaderboard: leaderboardBase,
     distribution,
@@ -580,12 +754,25 @@ export async function getStaffPerformanceCommandCenter(input?: {
     membershipTable: buildTable('membership'),
     customerMetrics: customers,
     staffOptions: staffOptions.map((s) => ({ id: s.id, name: s.name })),
+    topTenSales,
+    topTenPerformance,
+    totalSalesPaise: currentSalesTotal,
+    totalPerformanceAmountPaise: currentPerformanceFromAggs,
+    salesSummaryTable,
+    performanceAmountTable,
+    periodComparison: {
+      mode: comparisonMode,
+      currentSalesTotalPaise: currentSalesTotal,
+      previousSalesTotalPaise: previousSalesTotal,
+      currentPerformanceTotalPaise: currentPerformanceFromAggs,
+      previousPerformanceTotalPaise: previousPerformanceFromAggs,
+    },
   };
 }
 
 /** Back-compat wrapper used by older imports. */
 export async function getStaffPerformanceDashboardSnapshot(ctx?: TenantContext | null): Promise<StaffPerformanceCommandCenterSnapshot> {
-  return getStaffPerformanceCommandCenter({ period: 'month' });
+  return getStaffPerformanceCommandCenter({ period: 'month' }, ctx);
 }
 
 export function buildStaffPerformanceDashboard(

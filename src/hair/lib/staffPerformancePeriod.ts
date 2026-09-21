@@ -127,18 +127,65 @@ export function resolveStaffPerformanceRange(input: {
   return { range, previousRange: previousEqualRange(range), label };
 }
 
+/** Same calendar day span in the immediately previous month (MTD-style). */
+export function sameMtdLastMonthPreviousRange(
+  range: DateRange,
+  timezone: string,
+): DateRange {
+  const fromKey = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(range.from);
+  const toExclusive = range.to;
+  const toInclusive = new Date(toExclusive.getTime() - 86_400_000);
+  const toKey = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(toInclusive);
+
+  const [fy, fm, fd] = fromKey.split('-').map(Number);
+  const [ty, tm, td] = toKey.split('-').map(Number);
+  const prevMonth = fm === 1 ? 12 : fm - 1;
+  const prevYear = fm === 1 ? fy - 1 : fy;
+  const lastDayPrevMonth = new Date(prevYear, prevMonth, 0).getDate();
+  const prevFromDay = Math.min(fd, lastDayPrevMonth);
+  const prevToDay = Math.min(td, lastDayPrevMonth);
+
+  const prevFrom = zonedLocalToUtc(
+    `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(prevFromDay).padStart(2, '0')}T00:00:00`,
+    timezone,
+  );
+  const prevTo = new Date(
+    zonedLocalToUtc(
+      `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(prevToDay).padStart(2, '0')}T00:00:00`,
+      timezone,
+    ).getTime() + 86_400_000,
+  );
+  return { from: prevFrom, to: prevTo };
+}
+
+export type StaffPerformanceComparisonMode = 'previous_period' | 'same_mtd_last_month';
+
 export function parseStaffPerformanceSearchParams(sp: {
   period?: string;
   from?: string;
   to?: string;
   staff?: string;
   category?: string;
+  locations?: string;
+  compare?: string;
 }): {
   preset: StaffPerformancePeriodPreset;
   from: string | null;
   to: string | null;
   staffIds: string[];
   category: StaffRevenueCategory;
+  locationIds: string[] | 'all';
+  comparisonMode: StaffPerformanceComparisonMode;
 } {
   const raw = (sp.period ?? 'month').toLowerCase();
   const preset: StaffPerformancePeriodPreset =
@@ -166,12 +213,27 @@ export function parseStaffPerformanceSearchParams(sp: {
     .map((s) => s.trim())
     .filter(Boolean);
 
+  const locRaw = sp.locations?.trim();
+  const locationIds: string[] | 'all' =
+    !locRaw || locRaw === 'all'
+      ? 'all'
+      : locRaw
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+  const compareRaw = (sp.compare ?? 'previous_period').toLowerCase();
+  const comparisonMode: StaffPerformanceComparisonMode =
+    compareRaw === 'same_mtd_last_month' ? 'same_mtd_last_month' : 'previous_period';
+
   return {
     preset,
     from: sp.from?.slice(0, 10) ?? null,
     to: sp.to?.slice(0, 10) ?? null,
     staffIds,
     category,
+    locationIds: locationIds === 'all' || (Array.isArray(locationIds) && locationIds.length === 0) ? 'all' : locationIds,
+    comparisonMode,
   };
 }
 

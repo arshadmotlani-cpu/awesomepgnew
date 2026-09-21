@@ -88,6 +88,8 @@ function emptySnapshot(): StaffPerformanceCommandCenterSnapshot {
     rangeToIso: '2026-08-16T00:00:00.000Z',
     category: 'combined',
     staffIdsFilter: [],
+    locationIds: 'all',
+    comparisonMode: 'previous_period',
     kpis: {
       serviceRevenuePaise: 0,
       productRevenuePaise: 0,
@@ -127,6 +129,19 @@ function emptySnapshot(): StaffPerformanceCommandCenterSnapshot {
       lowestBillPaise: 0,
     },
     staffOptions: [],
+    topTenSales: [{ staffId: 's1', name: 'Ava', photoUrl: null, amountPaise: 50_000 }],
+    topTenPerformance: [{ staffId: 's1', name: 'Ava', photoUrl: null, amountPaise: 40_000 }],
+    totalSalesPaise: 50_000,
+    totalPerformanceAmountPaise: 40_000,
+    salesSummaryTable: [],
+    performanceAmountTable: [],
+    periodComparison: {
+      mode: 'previous_period',
+      currentSalesTotalPaise: 50_000,
+      previousSalesTotalPaise: 40_000,
+      currentPerformanceTotalPaise: 40_000,
+      previousPerformanceTotalPaise: 30_000,
+    },
   };
 }
 

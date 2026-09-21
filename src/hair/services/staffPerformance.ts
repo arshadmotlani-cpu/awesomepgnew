@@ -154,6 +154,29 @@ export function summaryTotalPaise(summary: StaffPerformanceSummary): number {
   );
 }
 
+/**
+ * Staff Performance Amount SSOT (same as workforce service incentive input):
+ * attributed net for service, package, and membership — excludes product retail.
+ */
+export function performanceAmountPaiseFromSummary(summary: StaffPerformanceSummary): number {
+  return (
+    summary.serviceRevenuePaise + summary.packageRevenuePaise + summary.membershipRevenuePaise
+  );
+}
+
+/** Total attributed sales including product (all revenue metrics). */
+export function salesTotalPaiseFromSummary(summary: StaffPerformanceSummary): number {
+  return summaryTotalPaise(summary);
+}
+
+export function performanceAmountFromMetricParts(
+  servicePaise: number,
+  packagePaise: number,
+  membershipPaise: number,
+): number {
+  return servicePaise + packagePaise + membershipPaise;
+}
+
 export type StaffDetailPerformance = {
   summary: StaffPerformanceSummary;
   totalRevenuePaise: number;

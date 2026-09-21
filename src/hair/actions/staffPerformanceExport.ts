@@ -43,6 +43,8 @@ export async function exportStaffPerformanceAction(input: {
         to: parsed.to,
         staffIds: parsed.staffIds,
         category: parsed.category as StaffRevenueCategory,
+        locationIds: parsed.locationIds,
+        comparisonMode: parsed.comparisonMode,
       },
       ctx,
     );

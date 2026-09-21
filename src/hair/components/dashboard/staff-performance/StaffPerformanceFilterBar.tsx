@@ -8,9 +8,11 @@ import {
 } from '@/src/hair/actions/staffPerformanceExport';
 import { FyhDatePicker } from '@/src/hair/components/ui/FyhDatePicker';
 import type {
+  StaffPerformanceComparisonMode,
   StaffPerformancePeriodPreset,
   StaffRevenueCategory,
 } from '@/src/hair/lib/staffPerformancePeriod';
+import type { RevenueDashboardLocationFilter } from '@/src/hair/services/revenueDashboardReportTypes';
 
 const PRESETS: { id: StaffPerformancePeriodPreset; label: string }[] = [
   { id: 'today', label: 'Today' },
@@ -42,6 +44,9 @@ export function StaffPerformanceFilterBar({
   from,
   to,
   staffOptions,
+  locationOptions,
+  locationIds,
+  comparisonMode,
 }: {
   salonName: string;
   periodPreset: StaffPerformancePeriodPreset;
@@ -50,6 +55,9 @@ export function StaffPerformanceFilterBar({
   from: string | null;
   to: string | null;
   staffOptions: { id: string; name: string }[];
+  locationOptions: { locationId: string; locationName: string; isActive: boolean }[];
+  locationIds: RevenueDashboardLocationFilter;
+  comparisonMode: StaffPerformanceComparisonMode;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -58,6 +66,14 @@ export function StaffPerformanceFilterBar({
   const [exportError, setExportError] = useState<string | null>(null);
   const [staffOpen, setStaffOpen] = useState(false);
 
+  const showBranchPicker = locationOptions.length > 1;
+  const selectedLocations = useMemo(() => {
+    if (locationIds === 'all' || !Array.isArray(locationIds)) {
+      return new Set(locationOptions.map((l) => l.locationId));
+    }
+    return new Set(locationIds);
+  }, [locationIds, locationOptions]);
+
   const filterRecord = useMemo(
     () => ({
       period: periodPreset,
@@ -65,8 +81,15 @@ export function StaffPerformanceFilterBar({
       to: to ?? undefined,
       staff: staffIds.length ? staffIds.join(',') : undefined,
       category,
+      locations:
+        locationIds === 'all' || (Array.isArray(locationIds) && locationIds.length >= locationOptions.length)
+          ? 'all'
+          : Array.isArray(locationIds)
+            ? locationIds.join(',')
+            : 'all',
+      compare: comparisonMode,
     }),
-    [periodPreset, from, to, staffIds, category],
+    [periodPreset, from, to, staffIds, category, locationIds, locationOptions.length, comparisonMode],
   );
 
   function push(next: Record<string, string | null | undefined>) {
@@ -130,8 +153,45 @@ export function StaffPerformanceFilterBar({
     });
   }
 
+  function toggleLocation(id: string) {
+    const set = new Set(selectedLocations);
+    if (set.has(id)) set.delete(id);
+    else set.add(id);
+    if (set.size >= locationOptions.length) push({ locations: 'all' });
+    else push({ locations: [...set].join(',') || null });
+  }
+
   return (
-    <div className="fyh-glass space-y-4 p-4">
+    <div className="fyh-dashboard-card space-y-4 p-4">
+      {showBranchPicker ? (
+        <div>
+          <p className="fyh-label text-xs">Branch</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => push({ locations: 'all' })}
+              className="rounded border border-[color:var(--fyh-border)] px-2 py-1 text-xs"
+            >
+              Select all
+            </button>
+            {locationOptions.map((loc) => (
+              <label
+                key={loc.locationId}
+                className="flex cursor-pointer items-center gap-1.5 rounded border border-[color:var(--fyh-border)] px-2 py-1 text-xs"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedLocations.has(loc.locationId)}
+                  onChange={() => toggleLocation(loc.locationId)}
+                  className="accent-fyh-accent"
+                />
+                {loc.locationName}
+              </label>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-2">
         {PRESETS.map((p) => (
           <button
@@ -240,6 +300,36 @@ export function StaffPerformanceFilterBar({
                 {c.label}
               </button>
             ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-1 text-[10px] uppercase tracking-wide text-fyh-text-muted">Compare</p>
+          <div className="flex flex-wrap gap-1">
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => push({ compare: 'previous_period' })}
+              className={`rounded-md px-2.5 py-1.5 text-xs ${
+                comparisonMode === 'previous_period'
+                  ? 'bg-fyh-forest/25 text-fyh-forest'
+                  : 'bg-black/20 text-fyh-text-secondary'
+              }`}
+            >
+              Previous period
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => push({ compare: 'same_mtd_last_month' })}
+              className={`rounded-md px-2.5 py-1.5 text-xs ${
+                comparisonMode === 'same_mtd_last_month'
+                  ? 'bg-fyh-forest/25 text-fyh-forest'
+                  : 'bg-black/20 text-fyh-text-secondary'
+              }`}
+            >
+              Same MTD last month
+            </button>
           </div>
         </div>
 
