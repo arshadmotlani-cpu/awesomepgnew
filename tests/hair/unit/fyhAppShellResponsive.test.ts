@@ -50,6 +50,16 @@ describe('FYHAIR app shell responsive layout', () => {
     assert.match(layout, /overflow-x-clip/);
     assert.match(layout, /min-w-0/);
     assert.match(layout, /lg:flex-row/);
+    assert.match(layout, /lg:h-dvh/);
+    assert.match(layout, /lg:overflow-hidden/);
+    assert.match(layout, /min-h-0/);
+  });
+
+  it('desktop sidebar is viewport-height with internal nav scroll', () => {
+    const sidebar = read('src/hair/components/HairSidebar.tsx');
+    assert.match(sidebar, /lg:h-dvh/);
+    assert.match(sidebar, /lg:overflow-hidden/);
+    assert.match(sidebar, /overflow-y-auto/);
   });
 
   it('shell tokens define sidebar and drawer widths with tablet drawer override', () => {

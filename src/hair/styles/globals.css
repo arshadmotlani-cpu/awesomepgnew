@@ -857,6 +857,15 @@
   overflow-x: clip;
 }
 
+/* Desktop/tablet: shell fills viewport; main column scrolls, sidebar stays anchored. */
+@media (min-width: 1024px) {
+  .fyh-app-shell {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
+}
+
 .fyh-nav-drawer-root {
   position: fixed;
   inset: 0;

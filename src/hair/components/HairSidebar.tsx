@@ -153,7 +153,7 @@ export function HairSidebar({
         'fyh-sidebar-nav shrink-0 border-r border-[color:var(--fyh-border-strong)] bg-fyh-elevated/95 backdrop-blur-xl',
         isDrawer
           ? 'flex h-full w-full flex-col border-0 bg-transparent backdrop-blur-none'
-          : 'hidden lg:flex lg:w-[var(--fyh-sidebar-width)] lg:flex-col',
+          : 'hidden lg:flex lg:h-dvh lg:max-h-dvh lg:w-[var(--fyh-sidebar-width)] lg:min-h-0 lg:flex-col lg:overflow-hidden',
         className,
       )}
     >
