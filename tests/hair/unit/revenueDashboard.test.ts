@@ -52,13 +52,13 @@ describe('chartRows', () => {
 });
 
 describe('Revenue dashboard page tenant wiring', () => {
-  it('passes request tenant context into getRevenueDashboardSnapshot', () => {
+  it('passes request tenant context into getRevenueDashboardReportForPage', () => {
     const src = readFileSync(
       join(process.cwd(), 'app/(hair)/fyh/(app)/dashboard/revenue/page.tsx'),
       'utf8',
     );
     assert.match(src, /getTenantContextForPage/);
-    assert.match(src, /getRevenueDashboardSnapshot\(ctx\)/);
+    assert.match(src, /getRevenueDashboardReportForPage/);
   });
 });
 

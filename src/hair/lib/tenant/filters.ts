@@ -1,4 +1,4 @@
-import { and, eq, sql, type SQL, type AnyColumn } from 'drizzle-orm';
+import { and, eq, inArray, sql, type SQL, type AnyColumn } from 'drizzle-orm';
 import type { TenantContext } from './types';
 import { isFyhSaasTenantEnabled } from './flags';
 
@@ -69,6 +69,33 @@ export function tenantWriteDefaults(ctx?: TenantContext | null): {
   locationId?: string;
 } {
   return { ...tenantOrgDefaults(ctx), ...tenantLocationDefaults(ctx) };
+}
+
+/**
+ * Multi-branch dashboard filter. Intersects selected IDs with ctx.allowedLocationIds.
+ * `'all'` uses all allowed locations; falls back to locationFilter when a single branch.
+ */
+export function locationsInFilter(
+  column: AnyColumn,
+  ctx: TenantContext | null | undefined,
+  selected: string[] | 'all',
+): SQL | undefined {
+  const allowed = (ctx?.allowedLocationIds ?? []).filter(Boolean);
+  let ids: string[];
+  if (selected === 'all' || (Array.isArray(selected) && selected.length === 0)) {
+    if (allowed.length > 1) {
+      ids = allowed;
+    } else {
+      return locationFilter(column, ctx);
+    }
+  } else {
+    const allowedSet = new Set(allowed.length > 0 ? allowed : selected);
+    ids = selected.filter((id) => allowedSet.has(id));
+    if (ids.length === 0 && allowed.length > 0) ids = allowed;
+    if (ids.length === 0) return locationFilter(column, ctx);
+  }
+  if (ids.length === 1) return eq(column, ids[0]!);
+  return inArray(column, ids);
 }
 
 /** Combine drizzle `and()` args, skipping undefined tenant filters. */

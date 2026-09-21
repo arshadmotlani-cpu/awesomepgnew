@@ -4,7 +4,9 @@
 import { and, gte, lte, sum } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import { fyhExpenses } from '@/src/hair/db/schema';
-import { getRevenueDashboardSnapshot } from '@/src/hair/services/revenueDashboard';
+import { salonMonthStartUtc, zonedLocalToUtc } from '@/src/hair/lib/salonTime';
+import { salesGrossPaiseExcludingAdvances } from '@/src/hair/services/revenueDashboardReport';
+import { getSalonSettings } from '@/src/hair/services/settings';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
@@ -40,8 +42,11 @@ export async function getFyhOwnerFinancialSummary(
   const billingMonth = resolveBillingMonth(opts?.month);
   const { start, end } = monthBounds(billingMonth);
 
-  const snap = await getRevenueDashboardSnapshot(ctx);
-  const revenuePaise = snap.mtdRevenuePaise ?? 0;
+  const settings = await getSalonSettings(ctx);
+  const timezone = settings.timezone?.trim() || 'Asia/Kolkata';
+  const monthStart = salonMonthStartUtc(timezone, new Date(`${billingMonth}-15T12:00:00Z`));
+  const monthEndExclusive = new Date(zonedLocalToUtc(`${end}T00:00:00`, timezone).getTime() + 86_400_000);
+  const revenuePaise = await salesGrossPaiseExcludingAdvances(monthStart, monthEndExclusive, ctx);
 
   const [expenseRow] = await hairDb
     .select({ total: sum(fyhExpenses.amountPaise) })

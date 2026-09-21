@@ -1,158 +1,257 @@
 'use client';
 
-import {
-  Banknote,
-  CalendarDays,
-  CreditCard,
-  IndianRupee,
-  Receipt,
-  Smartphone,
-  TrendingUp,
-  Users,
-  Wallet,
-} from 'lucide-react';
-import {
-  CategoryBarChart,
-  HourlyRevenueChart,
-  PaymentMethodDonut,
-  RevenueByStaffChart,
-  RevenueTrend12Chart,
-  RevenueTrend30Chart,
-} from '@/src/hair/components/dashboard/RevenueCharts';
-import {
-  ChartPanel,
-  DashboardShell,
-  HeroKpi,
-  SegmentCardUi,
-} from '@/src/hair/components/dashboard/DashboardShell';
+import { Info } from 'lucide-react';
+import { DashboardShell } from '@/src/hair/components/dashboard/DashboardShell';
+import { RevenueDashboardFilters } from '@/src/hair/components/dashboard/RevenueDashboardFilters';
+import { InvoicesDayWiseChart } from '@/src/hair/components/dashboard/RevenueCharts';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
-import type { RevenueDashboardSnapshot } from '@/src/hair/services/revenueDashboard';
+import type { TenantLocationOption } from '@/src/hair/actions/tenant';
+import type { RevenueDashboardReport, TenderBreakdown } from '@/src/hair/services/revenueDashboardReportTypes';
 
-function BreakdownRow({ label, value }: { label: string; value: string }) {
+function MetricRow({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-[color:var(--fyh-border)] py-3 text-sm last:border-0">
+    <div className="flex items-center justify-between gap-3 border-b border-[color:var(--fyh-border)] py-2.5 text-sm last:border-0">
       <span className="text-fyh-text-secondary">{label}</span>
-      <span className="tabular-nums font-semibold text-fyh-text">{value}</span>
+      <span className="text-right">
+        <span className="tabular-nums font-semibold text-fyh-text">{value}</span>
+        {sub ? <span className="mt-0.5 block text-xs font-normal text-fyh-text-muted">{sub}</span> : null}
+      </span>
     </div>
   );
 }
 
-export function RevenueDashboard({ data }: { data: RevenueDashboardSnapshot }) {
+function TenderRows({ data, title }: { data: TenderBreakdown; title?: string }) {
+  return (
+    <div className="fyh-dashboard-card p-4">
+      {title ? <h3 className="fyh-card-title text-base">{title}</h3> : null}
+      <div className={title ? 'mt-3' : ''}>
+        <MetricRow label="Cash" value={formatInrFromPaise(data.cashPaise)} />
+        <MetricRow label="Card" value={formatInrFromPaise(data.cardPaise)} />
+        <MetricRow label="UPI / Online" value={formatInrFromPaise(data.upiPaise)} />
+        <MetricRow label="Other" value={formatInrFromPaise(data.otherPaise)} />
+        <MetricRow label="Total" value={formatInrFromPaise(data.totalPaise)} />
+      </div>
+    </div>
+  );
+}
+
+function DeltaBadge({ deltaPaise }: { deltaPaise: number | null | undefined }) {
+  if (deltaPaise == null) return null;
+  if (deltaPaise === 0) return <span className="text-xs text-fyh-text-muted">vs prev period: —</span>;
+  const sign = deltaPaise > 0 ? '+' : '';
+  return (
+    <span className={`text-xs ${deltaPaise > 0 ? 'text-fyh-forest' : 'text-fyh-accent'}`}>
+      vs prev period: {sign}
+      {formatInrFromPaise(deltaPaise)}
+    </span>
+  );
+}
+
+type Props = {
+  report: RevenueDashboardReport;
+  locationOptions: TenantLocationOption[];
+  fromDayKey: string;
+  toDayKey: string;
+  locationsParam: string;
+};
+
+export function RevenueDashboard({ report, locationOptions, fromDayKey, toDayKey, locationsParam }: Props) {
+  const { sales, netContribution, comparison } = report;
+
   return (
     <DashboardShell
-      eyebrow="Live intelligence"
+      eyebrow="Finance"
       title="Revenue Dashboard"
-      subtitle="CEO view · business health, collections, and revenue analytics"
+      subtitle="Sales, collection, and contribution from live billing data"
     >
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
-        <HeroKpi label="Today's Revenue" value={formatInrFromPaise(data.todayRevenuePaise)} icon={IndianRupee} accent />
-        <HeroKpi label="MTD Revenue" value={formatInrFromPaise(data.mtdRevenuePaise)} icon={TrendingUp} />
-        <HeroKpi label="Outstanding Receivables" value={formatInrFromPaise(data.outstandingDuePaise)} icon={Wallet} />
-        <HeroKpi label="Advance Liability" value={formatInrFromPaise(data.advanceLiabilityPaise)} icon={Wallet} />
-        <HeroKpi label="Cash Collected" value={formatInrFromPaise(data.cashCollectedPaise)} icon={Banknote} />
-        <HeroKpi label="UPI Collected" value={formatInrFromPaise(data.upiCollectedPaise)} icon={Smartphone} />
-        <HeroKpi label="Card Collected" value={formatInrFromPaise(data.cardCollectedPaise)} icon={CreditCard} />
-        <HeroKpi label="Wallet Balance" value={formatInrFromPaise(data.walletBalancePaise)} icon={Wallet} />
-        <HeroKpi label="Average Bill" value={formatInrFromPaise(data.averageBillTodayPaise)} icon={Receipt} />
-        <HeroKpi label="Invoices Today" value={String(data.invoicesToday)} icon={Receipt} />
-        <HeroKpi label="Appointments Today" value={String(data.appointmentsToday)} icon={CalendarDays} />
+      <RevenueDashboardFilters
+        fromDayKey={fromDayKey}
+        toDayKey={toDayKey}
+        locationsParam={locationsParam}
+        locationOptions={locationOptions}
+      />
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section className="fyh-dashboard-card p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="fyh-card-title">Sales</h2>
+            <DeltaBadge deltaPaise={comparison?.salesTotalDeltaPaise} />
+          </div>
+          <p className="mt-1 text-xs text-fyh-text-muted">Gross sales by category (excludes customer advances)</p>
+          <div className="mt-3">
+            <MetricRow label="Net Service" value={formatInrFromPaise(sales.netServicePaise)} />
+            <MetricRow label="Package" value={formatInrFromPaise(sales.packagePaise)} />
+            <MetricRow label="Product" value={formatInrFromPaise(sales.productPaise)} />
+            <MetricRow label="Membership" value={formatInrFromPaise(sales.membershipPaise)} />
+            <MetricRow
+              label="Gift card"
+              value={formatInrFromPaise(sales.giftCardPaise)}
+              sub={sales.giftCardPaise === 0 ? 'Not tracked separately in billing' : undefined}
+            />
+            <MetricRow label="Total" value={formatInrFromPaise(sales.totalPaise)} />
+          </div>
+        </section>
+
+        <section className="fyh-dashboard-card p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="fyh-card-title">Net Collection / Contribution</h2>
+            <DeltaBadge deltaPaise={comparison?.netContributionDeltaPaise} />
+          </div>
+          <p className="mt-1 flex items-start gap-1.5 text-xs text-fyh-text-muted">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+            Direct product/service cost only. Salary, rent, and other expenses are not deducted here — see Expenses
+            below. Costs use current catalog prices; historical contribution may shift if costs change later.
+          </p>
+          <div className="mt-3">
+            <MetricRow label="Gross sales" value={formatInrFromPaise(netContribution.grossSalesPaise)} />
+            <MetricRow label="Direct cost" value={formatInrFromPaise(netContribution.directCostPaise)} />
+            <MetricRow
+              label="Net collection"
+              value={formatInrFromPaise(netContribution.netCollectionContributionPaise)}
+            />
+          </div>
+        </section>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-2">
-        <ChartPanel title="Revenue trend · 30 days" subtitle="Paid invoice revenue">
-          <RevenueTrend30Chart data={data.trend30Days} />
-        </ChartPanel>
-        <ChartPanel title="Revenue trend · 12 months" subtitle="Monthly rollup">
-          <RevenueTrend12Chart data={data.trend12Months} />
-        </ChartPanel>
-        <ChartPanel title="Revenue by staff" subtitle="MTD attributed net">
-          <RevenueByStaffChart data={data.revenueByStaff} />
-        </ChartPanel>
-        <ChartPanel title="Revenue by category" subtitle="Service categories">
-          <CategoryBarChart data={data.revenueByCategory} />
-        </ChartPanel>
-        <ChartPanel title="Payment method breakdown" subtitle="MTD collections">
-          <PaymentMethodDonut data={data.paymentMethodBreakdown} />
-        </ChartPanel>
-        <ChartPanel title="Hourly revenue" subtitle="Today by hour">
-          <HourlyRevenueChart data={data.hourlyRevenueToday} />
-        </ChartPanel>
-      </div>
-
-      <section className="space-y-4">
-        <h2 className="fyh-card-title">Business health</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-          <HeroKpi label="Customers Today" value={String(data.customersToday)} icon={Users} />
-          <HeroKpi label="Repeat Customers" value={String(data.repeatCustomersToday)} />
-          <HeroKpi label="New Customers" value={String(data.newCustomersToday)} />
-          <HeroKpi label="Conversion" value={`${data.appointmentConversionPct}%`} />
-          <HeroKpi label="Cancellation Rate" value={`${data.cancellationRatePct}%`} />
-          <HeroKpi label="No-show Rate" value={`${data.noShowRatePct}%`} />
-          <HeroKpi label="Avg Customer Spend" value={formatInrFromPaise(data.averageCustomerSpendPaise)} />
+      <section className="fyh-dashboard-card p-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="fyh-card-title">Actual Collection</h2>
+          <DeltaBadge deltaPaise={comparison?.actualCollectionDeltaPaise} />
+        </div>
+        <p className="mt-1 text-xs text-fyh-text-muted">Money received by tender (checkout only; excludes advances)</p>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          {(
+            [
+              ['Cash', report.actualCollection.cashPaise],
+              ['Card', report.actualCollection.cardPaise],
+              ['UPI / Online', report.actualCollection.upiPaise],
+              ['Other', report.actualCollection.otherPaise],
+              ['Total', report.actualCollection.totalPaise],
+            ] as const
+          ).map(([label, paise]) => (
+            <div key={label} className="rounded-lg border border-[color:var(--fyh-border)] p-3">
+              <p className="text-xs text-fyh-text-muted">{label}</p>
+              <p className="fyh-display mt-1 text-lg font-semibold tabular-nums">{formatInrFromPaise(paise)}</p>
+            </div>
+          ))}
         </div>
       </section>
 
-      <div className="grid gap-5 xl:grid-cols-2">
-        <section className="fyh-dashboard-card p-5">
-          <h2 className="fyh-card-title">Revenue breakdown</h2>
-          <div className="mt-4">
-            <BreakdownRow label="Services" value={formatInrFromPaise(data.servicesRevenuePaise)} />
-            <BreakdownRow label="Products" value={formatInrFromPaise(data.productsRevenuePaise)} />
-            <BreakdownRow label="Membership" value={formatInrFromPaise(data.membershipRevenuePaise)} />
-            <BreakdownRow label="Packages" value={formatInrFromPaise(data.packagesRevenuePaise)} />
-            <BreakdownRow label="Gift cards" value={formatInrFromPaise(data.giftCardsRevenuePaise)} />
-            <BreakdownRow label="Refunds" value={formatInrFromPaise(data.refundsPaise)} />
-            <BreakdownRow label="Discounts" value={formatInrFromPaise(data.discountsPaise)} />
-            <BreakdownRow label="Net revenue" value={formatInrFromPaise(data.netRevenuePaise)} />
-            <BreakdownRow label="Gross revenue" value={formatInrFromPaise(data.grossRevenuePaise)} />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <TenderRows data={report.advances} title="Advances" />
+        <div className="fyh-dashboard-card p-4">
+          <h3 className="fyh-card-title text-base">Refunds</h3>
+          <p className="mt-1 text-xs text-fyh-text-muted">Credit notes in period (by method when available)</p>
+          <div className="mt-3">
+            <MetricRow label="Total" value={formatInrFromPaise(report.refunds.totalPaise)} />
           </div>
-        </section>
-
-        <section className="fyh-dashboard-card p-5">
-          <h2 className="fyh-card-title">Top services & products</h2>
-          <div className="mt-4 grid gap-6 sm:grid-cols-2">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-fyh-text-muted">Services</p>
-              <ul className="mt-2 space-y-2 text-sm">
-                {(data.topServices ?? []).slice(0, 5).map((s) => (
-                  <li key={s.id} className="flex justify-between gap-2">
-                    <span className="truncate text-fyh-text-secondary">{s.name}</span>
-                    <span className="tabular-nums text-fyh-forest">{formatInrFromPaise(s.revenuePaise)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-fyh-text-muted">Products</p>
-              <ul className="mt-2 space-y-2 text-sm">
-                {(data.topProducts ?? []).slice(0, 5).map((p) => (
-                  <li key={p.id} className="flex justify-between gap-2">
-                    <span className="truncate text-fyh-text-secondary">{p.name}</span>
-                    <span className="tabular-nums text-fyh-forest">{formatInrFromPaise(p.revenuePaise)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </section>
+        </div>
+        <div className="fyh-dashboard-card p-4">
+          <h3 className="fyh-card-title text-base">Tip</h3>
+          <p className="mt-3 fyh-display text-xl font-semibold tabular-nums">
+            {formatInrFromPaise(report.tipsTotalPaise)}
+          </p>
+        </div>
+        <div className="fyh-dashboard-card p-4">
+          <h3 className="fyh-card-title text-base">Dues</h3>
+          <p className="mt-1 text-xs text-fyh-text-muted">Current outstanding (live; not filtered by date above)</p>
+          <p className="mt-3 fyh-display text-xl font-semibold tabular-nums">
+            {formatInrFromPaise(report.duesCurrentOutstandingPaise)}
+          </p>
+        </div>
       </div>
 
-      {(data.segmentCards ?? []).length > 0 ? (
-        <section className="space-y-4">
-          <h2 className="fyh-card-title">Category performance</h2>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {(data.segmentCards ?? []).map((card) => (
-              <SegmentCardUi
-                key={card.category}
-                title={card.category}
-                revenue={formatInrFromPaise(card.revenuePaise)}
-                growth={card.growthPct != null ? `${card.growthPct > 0 ? '+' : ''}${card.growthPct}%` : null}
-                sparkline={card.sparkline}
-              />
-            ))}
-          </div>
+      <section className="fyh-dashboard-card p-4">
+        <h2 className="fyh-card-title">Redemption</h2>
+        <div className="mt-3 grid gap-4 sm:grid-cols-3">
+          <MetricRow label="Net service" value={formatInrFromPaise(report.redemption.netServicePaise)} />
+          <MetricRow label="Discount" value={formatInrFromPaise(report.redemption.discountPaise)} />
+          <MetricRow label="Total" value={formatInrFromPaise(report.redemption.totalPaise)} />
+        </div>
+      </section>
+
+      <section className="fyh-dashboard-card p-4">
+        <h2 className="fyh-card-title">Invoices — Day wise</h2>
+        <p className="mt-1 text-xs text-fyh-text-muted">Paid invoices in selected range (salon timezone)</p>
+        <div className="mt-4 overflow-x-auto">
+          <InvoicesDayWiseChart data={report.invoicesDayWise} />
+        </div>
+        {report.invoicesDayWise.length > 0 ? (
+          <table className="mt-4 w-full min-w-[28rem] text-left text-sm">
+            <thead>
+              <tr className="border-b border-[color:var(--fyh-border)] text-xs text-fyh-text-muted">
+                <th className="py-2 pr-4">Day</th>
+                <th className="py-2 pr-4 text-right">Invoice amt.</th>
+                <th className="py-2 pr-4 text-right">Discount</th>
+                <th className="py-2 text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.invoicesDayWise.map((row) => (
+                <tr key={row.dayKey} className="border-b border-[color:var(--fyh-border)] last:border-0">
+                  <td className="py-2 pr-4">{row.label}</td>
+                  <td className="py-2 pr-4 text-right tabular-nums">{formatInrFromPaise(row.invoiceAmountPaise)}</td>
+                  <td className="py-2 pr-4 text-right tabular-nums">{formatInrFromPaise(row.discountPaise)}</td>
+                  <td className="py-2 text-right tabular-nums">{formatInrFromPaise(row.totalPaise)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
+      </section>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section className="fyh-dashboard-card p-4">
+          <h2 className="fyh-card-title">Staff pay</h2>
+          {report.staffPay.payrollPeriodLabel ? (
+            <p className="mt-1 text-xs text-fyh-text-muted">Payroll period: {report.staffPay.payrollPeriodLabel}</p>
+          ) : null}
+          {report.staffPay.rows.length === 0 ? (
+            <p className="mt-4 text-sm text-fyh-text-muted">No payroll data for this period.</p>
+          ) : (
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full min-w-[20rem] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-[color:var(--fyh-border)] text-xs text-fyh-text-muted">
+                    <th className="py-2 pr-2">Staff</th>
+                    <th className="py-2 pr-2 text-right">Advance salary</th>
+                    <th className="py-2 pr-2 text-right">Incentive</th>
+                    <th className="py-2 text-right">Salary</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.staffPay.rows.map((row) => (
+                    <tr key={row.staffName} className="border-b border-[color:var(--fyh-border)] last:border-0">
+                      <td className="py-2 pr-2">{row.staffName}</td>
+                      <td className="py-2 pr-2 text-right tabular-nums text-fyh-text-muted">—</td>
+                      <td className="py-2 pr-2 text-right tabular-nums">
+                        {formatInrFromPaise(row.incentivePaise)}
+                      </td>
+                      <td className="py-2 text-right tabular-nums">{formatInrFromPaise(row.salaryPaise)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
-      ) : null}
+
+        <section className="fyh-dashboard-card p-4">
+          <h2 className="fyh-card-title">Expense</h2>
+          <p className="mt-1 text-xs text-fyh-text-muted">
+            Total {formatInrFromPaise(report.expensesTotalPaise)} in selected range
+          </p>
+          {report.expenses.length === 0 ? (
+            <p className="mt-4 text-sm text-fyh-text-muted">No expenses in this range.</p>
+          ) : (
+            <div className="mt-3">
+              {report.expenses.map((row) => (
+                <MetricRow key={row.category} label={row.label} value={formatInrFromPaise(row.amountPaise)} />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </DashboardShell>
   );
 }

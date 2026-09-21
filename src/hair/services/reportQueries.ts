@@ -131,11 +131,16 @@ export async function paymentMethodSplit(range: ReportDateRange, ctx?: TenantCon
       entryCount: sql<number>`count(*)::int`,
     })
     .from(fyhFinancialLedger)
+    .innerJoin(fyhInvoices, eq(fyhInvoices.id, fyhFinancialLedger.invoiceId))
     .where(
       and(
+        orgFilter(fyhFinancialLedger.organizationId, ctx),
+        orgFilter(fyhInvoices.organizationId, ctx),
+        locationFilter(fyhInvoices.locationId, ctx),
         eq(fyhFinancialLedger.kind, 'payment_received'),
         eq(fyhFinancialLedger.direction, 'debit'),
-        sql`${fyhFinancialLedger.account} in ('cash', 'upi', 'card')`,
+        sql`${fyhFinancialLedger.account} in ('cash', 'upi', 'card', 'bank')`,
+        sql`${fyhInvoices.source} <> 'advance_payment'`,
         gte(fyhFinancialLedger.createdAt, range.from),
         lt(fyhFinancialLedger.createdAt, range.to),
       ),
@@ -239,6 +244,7 @@ export async function receivablesReport(page?: ReportPageOptions, ctx?: TenantCo
     })
     .from(fyhFinancialLedger)
     .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhFinancialLedger.customerId))
+    .where(and(orgFilter(fyhFinancialLedger.organizationId, ctx), orgFilter(fyhCustomers.organizationId, ctx)))
     .groupBy(fyhFinancialLedger.customerId, fyhCustomers.fullName, fyhCustomers.phone)
     .having(sql`${balanceExpr} > 0`)
     .orderBy(desc(balanceExpr))
