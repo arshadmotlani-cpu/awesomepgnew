@@ -1,22 +1,53 @@
 import type { LucideIcon } from 'lucide-react';
+import { cn } from '@/src/hair/lib/utils';
 
 export function DashboardShell({
   eyebrow,
   title,
   subtitle,
   children,
+  rootClassName,
+  headerDensity = 'default',
 }: {
   eyebrow: string;
   title: string;
   subtitle?: string;
   children: React.ReactNode;
+  rootClassName?: string;
+  headerDensity?: 'default' | 'compact';
 }) {
+  const compact = headerDensity === 'compact';
+
   return (
-    <div className="fyh-page pb-6">
-      <div>
+    <div
+      className={cn(
+        'fyh-page pb-6',
+        compact && 'gap-3 sm:gap-[var(--fyh-space-section)]',
+        rootClassName,
+      )}
+    >
+      <div className={compact ? 'space-y-0.5' : undefined}>
         <p className="fyh-section-eyebrow">{eyebrow}</p>
-        <h1 className="fyh-display mt-1 font-semibold tracking-tight text-fyh-text">{title}</h1>
-        {subtitle ? <p className="mt-1 text-sm text-fyh-text-secondary">{subtitle}</p> : null}
+        <h1
+          className={cn(
+            'mt-1 font-semibold tracking-tight text-fyh-text',
+            compact
+              ? 'text-[1.75rem] leading-tight sm:fyh-display'
+              : 'fyh-display',
+          )}
+        >
+          {title}
+        </h1>
+        {subtitle ? (
+          <p
+            className={cn(
+              'text-fyh-text-secondary',
+              compact ? 'text-[0.875rem] leading-snug sm:mt-1 sm:text-sm' : 'mt-1 text-sm',
+            )}
+          >
+            {subtitle}
+          </p>
+        ) : null}
       </div>
       {children}
     </div>

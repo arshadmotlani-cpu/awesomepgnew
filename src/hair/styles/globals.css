@@ -698,6 +698,12 @@
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
 }
 
+@media (max-width: 639px) {
+  .fyh-revenue-dashboard.fyh-page {
+    gap: 0.75rem;
+  }
+}
+
 .fyh-chart-panel {
   background: var(--fyh-bg-surface);
   border: 1px solid var(--fyh-border-strong);

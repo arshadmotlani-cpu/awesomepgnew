@@ -11,6 +11,9 @@ type Props = {
   locationOptions: TenantLocationOption[];
 };
 
+const dateInputClass =
+  'mt-0.5 block h-9 min-h-9 w-full min-w-0 rounded border border-[color:var(--fyh-border)] bg-transparent px-2 py-1 text-sm';
+
 export function RevenueDashboardFilters({
   fromDayKey,
   toDayKey,
@@ -60,23 +63,23 @@ export function RevenueDashboardFilters({
   return (
     <form
       onSubmit={apply}
-      className="fyh-dashboard-card flex flex-col gap-4 p-4 sm:flex-row sm:flex-wrap sm:items-end"
+      className="border-b border-[color:var(--fyh-border)] pb-3 sm:fyh-dashboard-card sm:rounded-lg sm:border sm:p-3 sm:pb-3"
     >
       {showBranchPicker ? (
-        <div className="min-w-[12rem] flex-1">
-          <p className="fyh-label text-xs">Branch</p>
-          <div className="mt-2 flex flex-wrap gap-2">
+        <div className="mb-2 sm:mb-3">
+          <p className="fyh-label text-[0.6875rem]">Branch</p>
+          <div className="mt-1 flex max-h-20 flex-wrap gap-1.5 overflow-y-auto sm:max-h-none">
             <button
               type="button"
               onClick={selectAll}
-              className="rounded border border-[color:var(--fyh-border)] px-2 py-1 text-xs text-fyh-text-secondary hover:bg-fyh-surface-muted"
+              className="rounded border border-[color:var(--fyh-border)] px-2 py-0.5 text-[0.6875rem] text-fyh-text-secondary hover:bg-fyh-surface-muted"
             >
               Select all
             </button>
             {locationOptions.map((loc) => (
               <label
                 key={loc.locationId}
-                className="flex cursor-pointer items-center gap-1.5 rounded border border-[color:var(--fyh-border)] px-2 py-1 text-xs"
+                className="flex cursor-pointer items-center gap-1 rounded border border-[color:var(--fyh-border)] px-1.5 py-0.5 text-[0.6875rem]"
               >
                 <input
                   type="checkbox"
@@ -91,30 +94,22 @@ export function RevenueDashboardFilters({
         </div>
       ) : null}
 
-      <label className="text-sm">
-        <span className="fyh-label text-xs">From</span>
-        <input
-          name="from"
-          type="date"
-          defaultValue={fromDayKey}
-          className="mt-1 block w-full min-w-[10rem] rounded border border-[color:var(--fyh-border)] bg-transparent px-2 py-1.5"
-        />
-      </label>
-      <label className="text-sm">
-        <span className="fyh-label text-xs">To</span>
-        <input
-          name="to"
-          type="date"
-          defaultValue={toDayKey}
-          className="mt-1 block w-full min-w-[10rem] rounded border border-[color:var(--fyh-border)] bg-transparent px-2 py-1.5"
-        />
-      </label>
-      <button
-        type="submit"
-        className="rounded bg-fyh-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-      >
-        Apply
-      </button>
+      <div className="grid grid-cols-2 items-end gap-x-2 gap-y-2 sm:flex sm:flex-wrap sm:gap-3">
+        <label className="min-w-0">
+          <span className="fyh-label text-[0.6875rem]">From</span>
+          <input name="from" type="date" defaultValue={fromDayKey} className={dateInputClass} />
+        </label>
+        <label className="min-w-0">
+          <span className="fyh-label text-[0.6875rem]">To</span>
+          <input name="to" type="date" defaultValue={toDayKey} className={dateInputClass} />
+        </label>
+        <button
+          type="submit"
+          className="fyh-btn-primary col-span-2 h-9 min-h-9 w-full px-3 text-sm max-[360px]:w-full sm:col-span-1 sm:w-auto"
+        >
+          Apply
+        </button>
+      </div>
     </form>
   );
 }
