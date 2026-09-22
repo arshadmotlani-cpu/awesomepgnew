@@ -35,6 +35,11 @@ import { escapeHtml, salonDayBounds } from '@/src/hair/lib/salonTime';
 import { SALON_GST_BPS } from '@/src/hair/lib/taxConfig';
 import { buildPublicInvoiceDocumentHtml } from '@/src/hair/lib/publicInvoiceDocument';
 import { sumInclusiveCartLines } from '@/src/hair/domain/basket/gstInclusiveMath';
+import { planInvoiceSettlementLedger } from '@/src/hair/domain/ledger/plan';
+import {
+  postLedgerEntries,
+  reconcileCustomerWalletCache,
+} from '@/src/hair/domain/ledger/service';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 import { isFyhSaasTenantEnabled } from '@/src/hair/lib/tenant/flags';
@@ -733,13 +738,6 @@ export async function recordInvoicePayments(
         if (!customer || customer.walletBalancePaise < p.amountPaise) {
           throw new Error('Insufficient wallet balance');
         }
-        await tx
-          .update(fyhCustomers)
-          .set({
-            walletBalancePaise: customer.walletBalancePaise - p.amountPaise,
-            updatedAt: new Date(),
-          })
-          .where(and(orgFilter(fyhCustomers.organizationId, ctx), eq(fyhCustomers.id, customer.id)));
       }
       if (p.method === 'gift_card') {
         throw new Error('Gift card payments are not available yet');
@@ -751,6 +749,36 @@ export async function recordInvoicePayments(
         amountPaise: p.amountPaise,
         reference: p.reference ?? null,
       });
+    }
+
+    const settlementEntries = planInvoiceSettlementLedger(
+      payments
+        .filter(
+          (p) =>
+            p.amountPaise > 0 &&
+            (p.method === 'cash' ||
+              p.method === 'upi' ||
+              p.method === 'card' ||
+              p.method === 'wallet'),
+        )
+        .map((p) => ({
+          method: p.method as 'cash' | 'upi' | 'card' | 'wallet',
+          amountPaise: p.amountPaise,
+        })),
+    );
+    if (settlementEntries.length > 0) {
+      await postLedgerEntries(
+        tx as unknown as typeof hairDb,
+        {
+          customerId: invoice.customerId,
+          invoiceId,
+          entries: settlementEntries,
+        },
+        ctx,
+      );
+      if (payments.some((p) => p.method === 'wallet' && p.amountPaise > 0)) {
+        await reconcileCustomerWalletCache(tx as unknown as typeof hairDb, invoice.customerId, ctx);
+      }
     }
 
     const amountPaidPaise = Math.min(

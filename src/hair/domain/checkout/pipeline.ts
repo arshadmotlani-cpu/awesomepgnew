@@ -181,21 +181,26 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
 
     const payApplied = Math.min(paySum, grandTotal);
     const isFullDue = enriched.flags.markFullDue && paySum === 0;
-    const isPartial =
-      enriched.flags.markDue && paySum > 0 && paySum < grandTotal;
+    const opensReceivable =
+      isFullDue || (enriched.flags.markDue && paySum > 0 && paySum < grandTotal);
+    const isPartial = opensReceivable && paySum > 0 && paySum < grandTotal;
     const paid = payApplied >= grandTotal && grandTotal > 0;
     const status: FyhInvoiceStatus =
       grandTotal === 0
         ? 'paid'
         : paid
           ? 'paid'
-          : enriched.flags.markFullDue
+          : isFullDue
             ? 'unpaid'
-            : isPartial || payApplied > 0
+            : isPartial
               ? 'partial'
-              : input.allowUnpaid
+              : opensReceivable
                 ? 'unpaid'
-                : 'unpaid';
+                : payApplied > 0
+                  ? 'partial'
+                  : input.allowUnpaid
+                    ? 'unpaid'
+                    : 'unpaid';
 
     const invoiceValues = {
       ...writeDefaults,

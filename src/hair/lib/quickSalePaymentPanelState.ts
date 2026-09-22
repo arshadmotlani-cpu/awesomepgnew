@@ -3,6 +3,8 @@ import { formatInrFromPaise, formatRupeeInputFromPaise } from '@/src/hair/lib/mo
 
 export type PaymentPanelSummary = {
   paidPaise: number;
+  /** Remaining invoice balance (total − paid), shown before and after Mark as Due. */
+  remainingPaise: number;
   duePaise: number;
   remainingToAllocatePaise: number;
   overpayPaise: number;
@@ -35,6 +37,7 @@ export function computePaymentPanelSummary(input: {
 
   return {
     paidPaise,
+    remainingPaise: rawRemaining,
     duePaise,
     remainingToAllocatePaise,
     overpayPaise,
@@ -94,6 +97,20 @@ export function clearDueFlagsIfFullyPaid(
     markDue: false,
     markFullDue: false,
   };
+}
+
+/** After payment lines change: clear due flags when fully paid or when partially paid (must re-mark remainder). */
+export function syncDueFlagsAfterPaymentChange(
+  flags: BasketFlags,
+  paidPaise: number,
+  grandTotalPaise: number,
+): BasketFlags {
+  const next = clearDueFlagsIfFullyPaid(flags, paidPaise, grandTotalPaise);
+  if (grandTotalPaise <= 0) return next;
+  if (paidPaise > 0 && paidPaise < grandTotalPaise) {
+    return { ...next, markDue: false, markFullDue: false };
+  }
+  return next;
 }
 
 export function mergeDueFlags(flags: BasketFlags, nextDueFlags: BasketFlags): BasketFlags {

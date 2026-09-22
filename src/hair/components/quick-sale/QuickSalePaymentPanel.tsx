@@ -10,12 +10,12 @@ import {
   quickSalePaymentMethodLabel,
 } from '@/src/hair/lib/quickSalePaymentMethods';
 import {
-  clearDueFlagsIfFullyPaid,
   computePaymentPanelSummary,
   flagsForMarkRemainingDue,
   formatDraftAmountFromPaise,
   mergeDueFlags,
   parseDraftAmountRupee,
+  syncDueFlagsAfterPaymentChange,
   validateDraftPayment,
 } from '@/src/hair/lib/quickSalePaymentPanelState';
 
@@ -114,6 +114,10 @@ export function QuickSalePaymentPanel({
     syncFlagsAfterPayments(nextPayments);
   };
 
+  const displayRemainingPaise = summary.isDueMarked
+    ? summary.duePaise
+    : summary.remainingPaise;
+
   useEffect(() => {
     if (isEditingAmountRef.current) return;
     if (summary.isZeroTotal) {
@@ -136,7 +140,7 @@ export function QuickSalePaymentPanel({
 
   const syncFlagsAfterPayments = (nextPayments: PaymentEntry[]) => {
     const nextPaid = nextPayments.reduce((sum, payment) => sum + payment.amountPaise, 0);
-    onChangeFlags(clearDueFlagsIfFullyPaid(flags, nextPaid, grandTotalPaise));
+    onChangeFlags(syncDueFlagsAfterPaymentChange(flags, nextPaid, grandTotalPaise));
   };
 
   const addPayment = () => {
@@ -253,22 +257,10 @@ export function QuickSalePaymentPanel({
         {creditBanner}
         <div className="qs-compact-payment-summary">
           <span>Paid <strong className="tabular-nums">{formatInrFromPaise(summary.paidPaise)}</strong></span>
-          {summary.isDueMarked || summary.remainingToAllocatePaise > 0 ? (
+          {displayRemainingPaise > 0 ? (
             <span className="qs-compact-payment-due">
-              Due{' '}
-              <strong className="tabular-nums">
-                {formatInrFromPaise(
-                  summary.isDueMarked ? summary.duePaise : summary.remainingToAllocatePaise,
-                )}
-              </strong>
-            </span>
-          ) : null}
-          {summary.remainingToAllocatePaise > 0 ? (
-            <span className="qs-compact-payment-remaining">
-              Remaining to allocate{' '}
-              <strong className="tabular-nums">
-                {formatInrFromPaise(summary.remainingToAllocatePaise)}
-              </strong>
+              {summary.isDueMarked ? 'Due' : 'Remaining'}{' '}
+              <strong className="tabular-nums">{formatInrFromPaise(displayRemainingPaise)}</strong>
             </span>
           ) : summary.isComplete ? (
             <span className="text-emerald-700">Complete</span>
@@ -393,14 +385,11 @@ export function QuickSalePaymentPanel({
       <div className="space-y-1.5 rounded-lg border border-[color:var(--fyh-border)] bg-black/20 px-3 py-2.5">
         <SummaryRow label="Total" value={formatInrFromPaise(grandTotalPaise)} accent />
         <SummaryRow label="Paid" value={formatInrFromPaise(summary.paidPaise)} />
-        {summary.isDueMarked ? (
-          <SummaryRow label="Due" value={formatInrFromPaise(summary.duePaise)} />
-        ) : null}
-        {summary.remainingToAllocatePaise > 0 ? (
+        {displayRemainingPaise > 0 ? (
           <SummaryRow
-            label="Remaining to allocate"
-            value={formatInrFromPaise(summary.remainingToAllocatePaise)}
-            muted
+            label={summary.isDueMarked ? 'Due' : 'Remaining'}
+            value={formatInrFromPaise(displayRemainingPaise)}
+            accent={summary.isDueMarked}
           />
         ) : summary.isComplete ? (
           <p className="pt-1 text-xs font-medium text-fyh-forest">Payment complete</p>
@@ -459,22 +448,16 @@ export function QuickSalePaymentPanel({
                 </button>
               ))}
             </div>
-            <select
-              value={draftMethod}
-              disabled={locked}
-              onChange={(e) => {
-                setDraftMethod(e.target.value as PaymentMethod | '');
-                setDraftError(null);
-              }}
-              className="fyh-select h-9 w-full text-sm"
-            >
-              <option value="">Select method</option>
-              {QUICK_SALE_PAYMENT_METHODS.map((method) => (
-                <option key={method.id} value={method.id}>
-                  {method.label}
-                </option>
-              ))}
-            </select>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={locked}
+                className={`qs-pay-method-chip${splitMode ? ' qs-pay-method-chip-active' : ''}`}
+                onClick={() => setSplitMode((v) => !v)}
+              >
+                Split payment
+              </button>
+            </div>
           </div>
           {draftError ? <p className="text-xs text-fyh-danger">{draftError}</p> : null}
           <Button

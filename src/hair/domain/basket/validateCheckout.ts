@@ -20,7 +20,7 @@ export function collectPaymentValidationErrors(
 ): string[] {
   if (grandTotalPaise === 0) return [];
   if (allowUnpaid && paySum === 0) return [];
-  if (flags.markFullDue) return [];
+  if (flags.markFullDue && paySum === 0) return [];
   if (flags.markDue && paySum > 0 && paySum < grandTotalPaise) return [];
   if (flags.markDue && paySum === 0) {
     return ['Add a payment or use Mark Full Due'];

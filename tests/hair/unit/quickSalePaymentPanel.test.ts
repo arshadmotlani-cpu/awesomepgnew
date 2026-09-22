@@ -127,6 +127,7 @@ test('4 partial Cash + remaining Due', () => {
   assert.equal(flags.markDue, true);
   assert.equal(summary.paidPaise, 50_000);
   assert.equal(summary.duePaise, 50_000);
+  assert.equal(summary.remainingPaise, 50_000);
   assert.equal(summary.remainingToAllocatePaise, 0);
   const priced = priceBasket(basket({ payments, flags }));
   assert.equal(validateQuickSaleCheckout(basket({ payments, flags }), priced).length, 0);
@@ -160,7 +161,7 @@ test('6 after adding half payment remaining prefill becomes 500', () => {
 test('7 payment panel resets method after add', () => {
   const panel = readSrc('src/hair/components/quick-sale/QuickSalePaymentPanel.tsx');
   assert.match(panel, /setDraftMethod\(''\)/);
-  assert.match(panel, /Select method/);
+  assert.match(panel, /Split payment/);
 });
 
 test('8 cannot add more than remaining amount', () => {
