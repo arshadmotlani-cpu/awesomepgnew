@@ -28,7 +28,10 @@ import {
   resolvePermissions,
 } from '@/src/workforce/brains/employeeBrain';
 import { createWorkforceSession } from '@/src/workforce/auth/session';
-import { findEmployeeByLoginId } from '@/src/workforce/auth/identity';
+import {
+  findEmployeeByLoginId,
+  workforceEmployeeForAuthentication,
+} from '@/src/workforce/auth/identity';
 import { employeeToHairAdmin } from '@/src/workforce/compat/hairAdminBridge';
 import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
 import { hasWorkforcePermission } from '@/src/workforce/permissions/resolve';
@@ -78,7 +81,8 @@ export async function loginAction(
   }
 
   if (isWorkforceEngineEnabled()) {
-    let emp = await findEmployeeByLoginId(loginId);
+    const workforceMatch = await findEmployeeByLoginId(loginId);
+    let emp = workforceEmployeeForAuthentication(workforceMatch);
 
     // Fallback: legacy admin email during transition
     if (!emp && loginId.includes('@')) {

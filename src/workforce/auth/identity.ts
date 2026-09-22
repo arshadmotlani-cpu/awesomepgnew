@@ -46,3 +46,37 @@ export async function findEmployeeByLoginId(loginId: string) {
 
   return null;
 }
+
+/** Fields required to decide whether a wf_employees row may authenticate (not POS-only). */
+export type WorkforceAuthenticationIdentity = Pick<
+  typeof wfEmployees.$inferSelect,
+  'canLogin' | 'status' | 'passwordHash'
+>;
+
+/**
+ * True when this workforce row is an intentional login account.
+ * Non-login staff rows (can_login=false, missing hash) must not participate in auth.
+ */
+export function isWorkforceAuthenticationIdentity(
+  emp: WorkforceAuthenticationIdentity | null | undefined,
+): boolean {
+  if (!emp) return false;
+  return (
+    emp.canLogin === true &&
+    emp.status === 'active' &&
+    Boolean(emp.passwordHash?.trim())
+  );
+}
+
+/** Drop workforce matches that must not block legacy admin login for the same login id. */
+export function workforceEmployeeForAuthentication<T extends WorkforceAuthenticationIdentity>(
+  emp: T | null,
+): T | null {
+  if (!emp || !isWorkforceAuthenticationIdentity(emp)) return null;
+  return emp;
+}
+
+/** When true, failed password must not fall through to fyh_admin_users for the same id. */
+export function workforceLoginExclusive(emp: WorkforceAuthenticationIdentity | null): boolean {
+  return isWorkforceAuthenticationIdentity(emp);
+}
