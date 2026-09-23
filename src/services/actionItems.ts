@@ -194,12 +194,25 @@ export async function resolveStaleFinancialAuditActionItems(): Promise<{ resolve
       AND ai.source_key LIKE 'financial_audit:MISSING_RENT_INVOICE:%'
       AND EXISTS (
         SELECT 1 FROM rent_invoices ri
-        WHERE ri.is_adhoc = false
-          AND ri.status != 'cancelled'
+        WHERE ri.status NOT IN ('cancelled', 'expired')
           AND (
             ri.booking_id::text = split_part(ai.source_key, ':', 3)
             OR (ai.metadata->>'bookingId') IS NOT NULL
               AND ri.booking_id::text = ai.metadata->>'bookingId'
+          )
+      )
+      OR EXISTS (
+        SELECT 1 FROM bookings b
+        WHERE b.duration_mode = 'fixed_stay'
+          AND COALESCE(b.rent_received_paise, 0) > 0
+          AND COALESCE(b.rent_received_paise, 0) >= GREATEST(
+            0,
+            COALESCE(b.subtotal_paise, 0) - COALESCE(b.discount_paise, 0) - COALESCE(b.deposit_paise, 0)
+          )
+          AND (
+            b.id::text = split_part(ai.source_key, ':', 3)
+            OR (ai.metadata->>'bookingId') IS NOT NULL
+              AND b.id::text = ai.metadata->>'bookingId'
           )
       )
     RETURNING ai.id

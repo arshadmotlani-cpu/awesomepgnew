@@ -13,10 +13,17 @@ import {
   rentInvoices,
 } from '@/src/db/schema';
 import type { FinancialInvoice, InvoiceBreakdown } from '@/src/db/schema/financialInvoices';
+import {
+  decideMissingRentInvoiceForFixedStay,
+  decideMissingRentInvoiceForRecurringStay,
+  type MissingRentInvoiceDecision,
+} from '@/src/lib/billing/missingRentInvoiceAudit';
 import { firstOfMonth } from '@/src/services/billing';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { getResidentFinancialSummary } from '@/src/services/residentFinancialEngine';
 import { todayString } from '@/src/lib/dates';
+import { getBookingMoneyBalances } from '@/src/services/bookingMoneyBalances';
+import { evaluateAnniversaryRentGenerationEligibility } from '@/src/services/rentInvoices';
 
 export const FINANCIAL_INTEGRITY_CHECK_TYPES = [
   'DEPOSIT_SHORTFALL_NOT_INVOICED',
@@ -235,33 +242,90 @@ async function checkDepositLedgerNegative(
   };
 }
 
+export async function evaluateMissingRentInvoiceForBooking(
+  bookingId: string,
+  options?: { billingMonth?: string; asOf?: string },
+): Promise<MissingRentInvoiceDecision> {
+  const billingMonth = firstOfMonth(options?.billingMonth ?? todayString());
+  const asOf = options?.asOf ?? todayString();
+
+  const [booking] = await db
+    .select({ durationMode: bookings.durationMode })
+    .from(bookings)
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+  if (!booking) {
+    return {
+      missing: false,
+      reason: 'booking_not_found',
+      metadata: { bookingId, billingMonth },
+    };
+  }
+
+  const invoiceRows = await db
+    .select({
+      status: rentInvoices.status,
+      isAdhoc: rentInvoices.isAdhoc,
+      billingMonth: rentInvoices.billingMonth,
+    })
+    .from(rentInvoices)
+    .where(eq(rentInvoices.bookingId, bookingId));
+
+  if (booking.durationMode === 'fixed_stay') {
+    const balances = await getBookingMoneyBalances(bookingId, { repairDepositCache: false });
+    const rent = balances?.rent ?? {
+      requiredPaise: 0,
+      receivedPaise: 0,
+      outstandingPaise: 0,
+    };
+    return decideMissingRentInvoiceForFixedStay({
+      billingMonth,
+      rent,
+      invoices: invoiceRows.map((row) => ({
+        status: row.status,
+        isAdhoc: row.isAdhoc,
+        billingMonth: String(row.billingMonth),
+      })),
+    });
+  }
+
+  const eligibility = await evaluateAnniversaryRentGenerationEligibility({
+    bookingId,
+    billingMonth,
+    asOf,
+  });
+
+  const hasStandardMonthlyInvoice = invoiceRows.some(
+    (row) =>
+      !row.isAdhoc &&
+      row.status !== 'cancelled' &&
+      row.status !== 'expired' &&
+      firstOfMonth(String(row.billingMonth)) === billingMonth,
+  );
+
+  return decideMissingRentInvoiceForRecurringStay({
+    billingMonth,
+    generationEligible: eligibility.eligible,
+    skipCode: eligibility.eligible ? undefined : eligibility.skipCode,
+    hasStandardMonthlyInvoice,
+  });
+}
+
 async function checkMissingRentInvoice(
   customerId: string,
   customerName: string,
   bookingId: string,
 ): Promise<FinancialIntegrityIssue | null> {
-  const billingMonth = firstOfMonth(todayString());
-  const [existing] = await db
-    .select({ id: rentInvoices.id })
-    .from(rentInvoices)
-    .where(
-      and(
-        eq(rentInvoices.bookingId, bookingId),
-        eq(rentInvoices.billingMonth, billingMonth),
-        sql`${rentInvoices.status} != 'cancelled'`,
-        eq(rentInvoices.isAdhoc, false),
-      ),
-    )
-    .limit(1);
-  if (existing) return null;
+  const decision = await evaluateMissingRentInvoiceForBooking(bookingId);
+  if (!decision.missing) return null;
 
   return {
     checkType: 'MISSING_RENT_INVOICE',
     customerId,
     customerName,
     bookingId,
-    detail: `No rent invoice for billing month ${billingMonth}`,
-    metadata: { billingMonth },
+    detail: decision.detail,
+    metadata: decision.metadata,
     autoRepairable: false,
   };
 }
