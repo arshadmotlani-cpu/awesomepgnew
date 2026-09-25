@@ -11,16 +11,14 @@ import {
 } from '@/src/workforce/services/roleTemplates';
 import { resetEmployeePermissionsToRoleTemplate, updateEmployee } from '@/src/workforce/services/employees';
 import { WORKFORCE_ACCESS_ROLES, type WorkforceJobRole } from '@/src/workforce/types';
-import { WORKFORCE_PERMISSION_KEYS, type WorkforcePermissionKey } from '@/src/workforce/types';
+import type { WorkforcePermissionKey } from '@/src/workforce/types';
 import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
+import { parseStaffRightsFromForm } from '@/src/workforce/permissions/parseStaffRights';
 
 export type PermissionActionState = { error?: string; success?: string };
 
 function parsePermissions(formData: FormData): WorkforcePermissionKey[] {
-  return formData
-    .getAll('permissions')
-    .map(String)
-    .filter((k) => (WORKFORCE_PERMISSION_KEYS as readonly string[]).includes(k)) as WorkforcePermissionKey[];
+  return parseStaffRightsFromForm(formData) as WorkforcePermissionKey[];
 }
 
 export async function loadPermissionManagementData() {
@@ -105,6 +103,8 @@ export async function updateEmployeePermissionsAction(
     const permissions = parsePermissions(formData);
     await updateEmployee(employeeId, {
       permissions,
+      permissionsOverride: true,
+      receiveBookings: permissions.includes('appointments.bookable'),
       actorEmployeeId: session?.workforceEmployeeId ?? null,
     });
     revalidatePath('/settings/permissions');
@@ -114,6 +114,12 @@ export async function updateEmployeePermissionsAction(
     revalidatePath('/appointments');
     revalidatePath('/billing/invoices');
     revalidatePath('/expenses');
+    revalidatePath('/dashboard', 'layout');
+    revalidatePath('/customers', 'layout');
+    revalidatePath('/appointments', 'layout');
+    revalidatePath('/billing', 'layout');
+    revalidatePath('/reports', 'layout');
+    revalidatePath('/settings', 'layout');
     return { success: 'Employee permissions updated.' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to update employee permissions' };
@@ -121,7 +127,10 @@ export async function updateEmployeePermissionsAction(
 }
 
 /** Reset every employee in the salon engine to role-template grants (no custom overrides). */
-export async function resetAllEmployeePermissionsToTemplateAction(): Promise<PermissionActionState> {
+export async function resetAllEmployeePermissionsToTemplateAction(
+  _prev: PermissionActionState,
+  _formData?: FormData,
+): Promise<PermissionActionState> {
   try {
     await requireWorkforcePermission('permissions.manage');
     const session = await getHairSession();

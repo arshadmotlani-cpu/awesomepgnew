@@ -1,16 +1,14 @@
 'use client';
 
 import { useActionState, useEffect, useId, useState, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   updateWorkforceEmployeeAction,
   type WorkforceActionState,
 } from '@/src/workforce/actions/employees';
-import {
-  WORKFORCE_ACCESS_ROLES,
-  WORKFORCE_PERMISSION_LIBRARY,
-  WORKFORCE_PERMISSION_GROUP_LABELS,
-} from '@/src/workforce/types';
+import { WORKFORCE_ACCESS_ROLES } from '@/src/workforce/types';
+import { StaffRightsEditor } from '@/src/workforce/components/permissions/StaffRightsEditor';
 import { WORKFORCE_PAYMENT_METHODS, type WorkforcePaymentMethod } from '@/src/workforce/types/hr';
 import {
   defaultSalonRulesConfig,
@@ -102,7 +100,7 @@ export function EmployeeProfilePanel({
   const [qrBusy, setQrBusy] = useState(false);
   const [clientError, setClientError] = useState<string | null>(null);
   const busy = pending || qrBusy;
-  const [showAdvanced, setShowAdvanced] = useState(true);
+  const router = useRouter();
   const [qrPreview, setQrPreview] = useState<string | null>(employee.qrCodeUrl);
   const [receiveBookings, setReceiveBookings] = useState(
     grants.permissions.includes('appointments.receive_bookings'),
@@ -113,15 +111,11 @@ export function EmployeeProfilePanel({
   const canEditIncentiveRules = canEdit && canToggleIncentive;
 
   useEffect(() => {
-    if (state.success) window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [state.success]);
-
-  const permissionGroups = WORKFORCE_PERMISSION_LIBRARY.reduce<
-    Record<string, Array<(typeof WORKFORCE_PERMISSION_LIBRARY)[number]>>
-  >((acc, def) => {
-    (acc[def.group] ??= []).push(def);
-    return acc;
-  }, {});
+    if (state.success) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      router.refresh();
+    }
+  }, [state.success, router]);
 
   async function handleProfileSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -523,51 +517,19 @@ export function EmployeeProfilePanel({
 
         {activeSection === 'rights' ? (
           <div className="space-y-6">
-            <Section title="Additional rights">
-            <p className="text-sm text-fyh-text-secondary">
-              Role: {workforceAccessRoleLabel(membership.jobRole)}. Use overrides only when needed.
-            </p>
-            {canEdit ? (
-              <>
-                <button
-                  type="button"
-                  className="text-sm text-fyh-accent underline-offset-2 hover:underline"
-                  onClick={() => setShowAdvanced((v) => !v)}
-                >
-                  Advanced Permission Overrides
-                </button>
-                {showAdvanced ? (
-                  <div className="mt-3 max-h-64 space-y-3 overflow-y-auto rounded-lg border border-[color:var(--fyh-border)] p-3">
-                    {Object.entries(permissionGroups).map(([group, defs]) => (
-                      <fieldset key={group} className="space-y-1">
-                        <legend className="text-xs font-medium text-fyh-text-secondary">
-                          {WORKFORCE_PERMISSION_GROUP_LABELS[
-                            group as keyof typeof WORKFORCE_PERMISSION_GROUP_LABELS
-                          ] ?? group}
-                        </legend>
-                        <div className="grid gap-1 sm:grid-cols-2">
-                          {defs.map((def) => (
-                            <label key={def.key} className="flex items-center gap-2 text-xs">
-                              <input
-                                type="checkbox"
-                                name="permissions"
-                                value={def.key}
-                                defaultChecked={grants.permissions.includes(def.key)}
-                              />
-                              <span>{def.label}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </fieldset>
-                    ))}
-                  </div>
-                ) : null}
-              </>
-            ) : (
+            <Section title="Staff rights">
               <p className="text-sm text-fyh-text-secondary">
-                {grants.permissions.length} permissions from role and overrides.
+                Role baseline: {workforceAccessRoleLabel(membership.jobRole)}. Checked rights override
+                the role template for this employee.
               </p>
-            )}
+              {canEdit ? (
+                <>
+                  <input type="hidden" name="rightsOverride" value="1" />
+                  <StaffRightsEditor granted={grants.permissions} disabled={!canEdit} />
+                </>
+              ) : (
+                <StaffRightsEditor granted={grants.permissions} disabled />
+              )}
             </Section>
             <SectionSaveFooter
               canEdit={canEdit}

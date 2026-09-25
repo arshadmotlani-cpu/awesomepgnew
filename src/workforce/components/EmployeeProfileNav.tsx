@@ -6,7 +6,7 @@ export const EMPLOYEE_PROFILE_SECTIONS = [
   { id: 'staff-details', label: 'Staff Details' },
   { id: 'credentials', label: 'Credentials' },
   { id: 'salary', label: 'Salary & Incentives' },
-  { id: 'rights', label: 'Additional Rights' },
+  { id: 'rights', label: 'Staff Rights' },
   { id: 'schedule', label: 'Shift Schedule' },
 ] as const;
 

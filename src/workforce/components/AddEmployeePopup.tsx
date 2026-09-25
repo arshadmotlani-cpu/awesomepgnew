@@ -10,13 +10,8 @@ import {
   createWorkforceEmployeeAction,
   type WorkforceActionState,
 } from '@/src/workforce/actions/employees';
-import { AdditionalRightsChecklist } from '@/src/workforce/components/permissions/AdditionalRightsChecklist';
-import { isAdditionalRightKey } from '@/src/workforce/permissions/additionalRights';
-import {
-  WORKFORCE_ACCESS_ROLES,
-  WORKFORCE_PERMISSION_LIBRARY,
-  WORKFORCE_PERMISSION_GROUP_LABELS,
-} from '@/src/workforce/types';
+import { StaffRightsEditor } from '@/src/workforce/components/permissions/StaffRightsEditor';
+import { WORKFORCE_ACCESS_ROLES } from '@/src/workforce/types';
 import { WORKFORCE_PAYMENT_METHODS } from '@/src/workforce/types/hr';
 import { defaultSalonRulesConfig } from '@/src/workforce/lib/incentiveRuleEngine';
 import { IncentiveRuleBuilder } from '@/src/workforce/components/IncentiveRuleBuilder';
@@ -109,7 +104,6 @@ function AddEmployeeDialog({
   const [activeSection, setActiveSection] = useState<EmployeeProfileSectionId>('staff-details');
   const [receiveBookings, setReceiveBookings] = useState(true);
   const [salaryInr, setSalaryInr] = useState('');
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [qrPreview, setQrPreview] = useState<string | null>(null);
   const [qrBusy, setQrBusy] = useState(false);
   const [clientError, setClientError] = useState<string | null>(null);
@@ -120,13 +114,6 @@ function AddEmployeeDialog({
   const defaultRules = defaultSalonRulesConfig();
   const sectionIndex = SECTION_ORDER.indexOf(activeSection);
   const isLastSection = sectionIndex === SECTION_ORDER.length - 1;
-
-  const permissionGroups = WORKFORCE_PERMISSION_LIBRARY.reduce<
-    Record<string, Array<(typeof WORKFORCE_PERMISSION_LIBRARY)[number]>>
-  >((acc, def) => {
-    (acc[def.group] ??= []).push(def);
-    return acc;
-  }, {});
 
   useEffect(() => {
     if (state.success) onCreated(state.success);
@@ -479,44 +466,12 @@ function AddEmployeeDialog({
                   </div>
 
                   <div className={panelClass(activeSection === 'rights')}>
-                    <Section title="Additional rights">
+                    <Section title="Staff rights">
                       <p className="text-sm text-fyh-text-secondary">
-                        Default permissions apply from the access role. Grant only what is needed.
+                        Optional overrides for this employee. Leave unchecked to use the access role
+                        template only.
                       </p>
-                      <AdditionalRightsChecklist selected={[]} />
-                      <button
-                        type="button"
-                        className="mt-4 text-sm text-fyh-accent underline-offset-2 hover:underline"
-                        onClick={() => setShowAdvanced((v) => !v)}
-                      >
-                        Advanced Permission Overrides
-                      </button>
-                      {showAdvanced ? (
-                        <div className="mt-3 max-h-64 space-y-3 overflow-y-auto rounded-lg border border-[color:var(--fyh-border)] p-3">
-                          {Object.entries(permissionGroups).map(([group, defs]) => (
-                            <fieldset key={group} className="space-y-1">
-                              <legend className="text-xs font-medium text-fyh-text-secondary">
-                                {WORKFORCE_PERMISSION_GROUP_LABELS[
-                                  group as keyof typeof WORKFORCE_PERMISSION_GROUP_LABELS
-                                ] ?? group}
-                              </legend>
-                              <div className="grid gap-1 sm:grid-cols-2">
-                                {defs.filter((def) => !isAdditionalRightKey(def.key)).map((def) => (
-                                  <label key={def.key} className="flex items-start gap-2 text-xs">
-                                    <input type="checkbox" name="permissions" value={def.key} />
-                                    <span>
-                                      {def.label}
-                                      <span className="block text-fyh-text-secondary">
-                                        ({def.description})
-                                      </span>
-                                    </span>
-                                  </label>
-                                ))}
-                              </div>
-                            </fieldset>
-                          ))}
-                        </div>
-                      ) : null}
+                      <StaffRightsEditor granted={[]} />
                     </Section>
                   </div>
 

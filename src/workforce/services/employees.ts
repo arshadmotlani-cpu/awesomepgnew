@@ -85,6 +85,8 @@ export type UpsertEmployeeInput = {
   canLogin?: boolean;
   /** Adjust bookable flag without opening permission matrix. */
   receiveBookings?: boolean;
+  /** When true, persist custom grant list even if empty (Staff Rights editor). */
+  permissionsOverride?: boolean;
   actorEmployeeId?: string | null;
   /** Preserve UUID when mirroring legacy staff */
   id?: string;
@@ -474,9 +476,11 @@ export async function updateEmployee(
       .set({ rank, jobRole: role, updatedAt: new Date() })
       .where(eq(wfEngineMemberships.id, mem.id));
 
-    const usesCustom = Boolean(input.permissions && input.permissions.length > 0);
+    const usesCustom =
+      input.permissionsOverride === true ||
+      Boolean(input.permissions && input.permissions.length > 0);
     const template = codeTemplateForAccessRole(role);
-    let permissions = usesCustom ? [...input.permissions!] : [...template.permissions];
+    let permissions = usesCustom ? [...(input.permissions ?? [])] : [...template.permissions];
     if (!usesCustom && input.receiveBookings !== undefined) {
       const without = permissions.filter((k) => k !== 'appointments.receive_bookings');
       permissions = input.receiveBookings

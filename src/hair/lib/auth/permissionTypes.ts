@@ -15,6 +15,7 @@ export const HAIR_PAGE_PERMISSIONS = [
   'page:expenses',
   'page:reports',
   'page:settings',
+  'page:staff',
 ] as const;
 
 /** Action keys — gate destructive or sensitive server actions. */
@@ -73,6 +74,7 @@ export const PERMISSIONS_CATALOG: ReadonlyArray<{
   { key: 'page:expenses', label: 'Expenses', group: 'page', description: 'Salon expense records' },
   { key: 'page:reports', label: 'Reports', group: 'page', description: 'Analytics and exports' },
   { key: 'page:settings', label: 'Settings', group: 'page', description: 'Salon configuration' },
+  { key: 'page:staff', label: 'Staff', group: 'page', description: 'Team roster and employee profiles' },
   {
     key: 'action:inventory.adjust',
     label: 'Adjust stock',
@@ -175,8 +177,8 @@ export function pagePermissionForPath(pathname: string): HairPagePermission | nu
     ['/settings', 'page:settings'],
     // Workforce pages self-guard with staff.* / finance.* — do not require settings.manage
     // (managers have staff admin without settings).
-    ['/staff', 'page:dashboard'],
-    ['/team', 'page:dashboard'],
+    ['/staff', 'page:staff'],
+    ['/team', 'page:staff'],
     ['/services', 'page:services'],
     ['/products', 'page:settings'],
     ['/packages', 'page:packages'],

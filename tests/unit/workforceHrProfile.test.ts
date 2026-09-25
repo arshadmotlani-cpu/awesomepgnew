@@ -132,7 +132,7 @@ describe('Workforce HR UI contracts', () => {
     assert.match(navSrc, /Staff Details/);
     assert.match(navSrc, /Credentials/);
     assert.match(navSrc, /Salary & Incentives/);
-    assert.match(navSrc, /Additional Rights/);
+    assert.match(navSrc, /Staff Rights/);
     assert.match(navSrc, /Shift Schedule/);
     assert.match(profileSrc, /activeSection === 'staff-details'/);
     assert.match(profileSrc, /activeSection === 'credentials'/);

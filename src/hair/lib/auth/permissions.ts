@@ -32,6 +32,18 @@ export class HairPermissionError extends Error {
 
 export async function requirePermission(key: HairPermission): Promise<HairAdmin> {
   const admin = await requireHairAuth();
+  const { getHairSession } = await import('@/src/hair/lib/auth/session');
+  const session = await getHairSession();
+  if (session?.workforceEmployeeId && session.admin.role !== 'super_admin') {
+    const { resolveEffectiveGrantsForEmployee } = await import('@/src/workforce/brains/employeeBrain');
+    const { permissionSatisfied } = await import('@/src/workforce/permissions/aliases');
+    const { legacyHairKeyToV2 } = await import('@/src/workforce/permissions/aliases');
+    const grants = await resolveEffectiveGrantsForEmployee(session.workforceEmployeeId, 'fyh_salon');
+    if (grants) {
+      const v2 = legacyHairKeyToV2(key);
+      if (v2.some((k) => permissionSatisfied(grants.permissions, k))) return admin;
+    }
+  }
   if (!checkPermission(admin, key)) {
     throw new HairPermissionError(`Missing permission: ${key}`);
   }

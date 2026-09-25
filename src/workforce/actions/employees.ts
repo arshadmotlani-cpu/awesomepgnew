@@ -18,7 +18,7 @@ import {
   WORKFORCE_ACCESS_ROLES,
   type WorkforceJobRole,
 } from '@/src/workforce/types';
-import { WORKFORCE_PERMISSION_KEYS, type WorkforcePermissionKey } from '@/src/workforce/types';
+import { parseStaffRightsFromForm } from '@/src/workforce/permissions/parseStaffRights';
 import { codeTemplateForAccessRole } from '@/src/workforce/permissions/roleTemplates';
 import { parseHrFieldsFromForm, parseScheduleDaysFromForm } from '@/src/workforce/actions/parseHrForm';
 import {
@@ -69,13 +69,9 @@ export async function createWorkforceEmployeeAction(
     const password = formStr(formData, 'password');
     const receiveBookings = formData.get('receiveBookings') === '1';
 
-    const advancedPerms = formData
-      .getAll('permissions')
-      .map(String)
-      .filter((k) => (WORKFORCE_PERMISSION_KEYS as readonly string[]).includes(k)) as WorkforcePermissionKey[];
-
+    const staffRights = parseStaffRightsFromForm(formData);
     const template = codeTemplateForAccessRole(accessRole);
-    const permissions = advancedPerms.length ? advancedPerms : undefined;
+    const permissions = staffRights.length ? staffRights : undefined;
     const maxBackdateDays = template.maxBackdateDays;
 
     const email = formStr(formData, 'email');
@@ -213,14 +209,13 @@ export async function updateWorkforceEmployeeAction(
       });
     } else if (section === 'rights') {
       const accessRole = parseAccessRole(formStr(formData, 'accessRole'));
-      const perms = formData
-        .getAll('permissions')
-        .map(String)
-        .filter((k) => (WORKFORCE_PERMISSION_KEYS as readonly string[]).includes(k)) as WorkforcePermissionKey[];
+      const perms = parseStaffRightsFromForm(formData);
       const template = codeTemplateForAccessRole(accessRole);
       await updateEmployee(id, {
         accessRole,
         permissions: perms,
+        permissionsOverride: true,
+        receiveBookings: perms.includes('appointments.bookable'),
         maxBackdateDays: template.maxBackdateDays,
         actorEmployeeId,
       });
@@ -250,6 +245,13 @@ export async function updateWorkforceEmployeeAction(
     revalidatePath('/workforce');
     revalidatePath('/staff');
     revalidatePath(`/staff/${id}`);
+    revalidatePath('/dashboard', 'layout');
+    revalidatePath('/customers', 'layout');
+    revalidatePath('/appointments', 'layout');
+    revalidatePath('/billing', 'layout');
+    revalidatePath('/expenses', 'layout');
+    revalidatePath('/reports', 'layout');
+    revalidatePath('/settings', 'layout');
 
     const successBySection: Record<string, string> = {
       'staff-details': 'Staff details saved.',

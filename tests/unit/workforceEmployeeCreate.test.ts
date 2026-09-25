@@ -108,7 +108,7 @@ describe('Add Employee form submission guards', () => {
     assert.match(navBlock, /EmployeeProfileNav/);
     assert.match(nav, /type="button"/);
     assert.match(nav, /Shift Schedule/);
-    for (const label of ['Staff Details', 'Credentials', 'Salary & Incentives', 'Additional Rights', 'Shift Schedule']) {
+    for (const label of ['Staff Details', 'Credentials', 'Salary & Incentives', 'Staff Rights', 'Shift Schedule']) {
       assert.match(nav, new RegExp(label));
     }
     assert.doesNotMatch(nav, /type="submit"/);

@@ -3,107 +3,121 @@ import type { HairAdmin } from '@/src/hair/lib/auth/session';
 import type { WfEmployee } from '@/src/workforce/db/schema';
 import type { WorkforcePermissionGrants } from '@/src/workforce/types';
 import { hasWorkforcePermission } from '@/src/workforce/permissions/resolve';
+import { permissionSatisfied } from '@/src/workforce/permissions/aliases';
 
 /** Map Workforce grants → legacy HairPermission keys for existing FYH guards/nav. */
 export function workforceGrantsToHairPermissions(
   grants: WorkforcePermissionGrants,
 ): HairPermission[] {
   const out = new Set<HairPermission>();
-  const p = new Set(grants.permissions);
+  const has = (key: string) => permissionSatisfied(grants.permissions, key);
+
+  const dashboardAny =
+    has('dashboard.full') ||
+    has('dashboard.view') ||
+    has('dashboard.view_expenses') ||
+    has('dashboard.view_appointments') ||
+    has('dashboard.revenue.personal') ||
+    has('dashboard.revenue.salon') ||
+    has('dashboard.view_revenue') ||
+    has('dashboard.view_staff') ||
+    has('dashboard.view_customers');
+
+  if (dashboardAny) out.add('page:dashboard');
 
   if (
-    p.has('dashboard.view') ||
-    p.has('dashboard.view_revenue') ||
-    p.has('dashboard.view_expenses') ||
-    p.has('dashboard.view_staff') ||
-    p.has('dashboard.view_customers') ||
-    p.has('staff.view') ||
-    p.has('staff.edit') ||
-    p.has('staff.add')
+    has('dashboard.full') ||
+    has('dashboard.revenue.salon') ||
+    has('dashboard.revenue.personal') ||
+    has('dashboard.view_revenue')
   ) {
-    out.add('page:dashboard');
+    out.add('page:dashboard_revenue');
   }
-  if (p.has('dashboard.view_revenue')) out.add('page:dashboard_revenue');
+
   if (
-    p.has('dashboard.view_staff') ||
-    p.has('performance.all.view') ||
-    p.has('dashboard.revenue.personal') ||
-    p.has('dashboard.revenue.salon') ||
-    p.has('dashboard.full')
+    has('dashboard.full') ||
+    has('dashboard.revenue.salon') ||
+    has('dashboard.revenue.personal') ||
+    has('dashboard.view_staff') ||
+    has('performance.all.view')
   ) {
     out.add('page:dashboard_staff');
   }
-  if (p.has('customers.view')) {
+
+  if (has('customers.view') || has('customers.customer.view')) {
     out.add('page:customers');
   }
-  if (p.has('billing.bill.create') || p.has('billing.invoices.view')) {
+
+  if (
+    has('appointments.view_all') ||
+    has('appointments.view_own') ||
+    has('appointments.add') ||
+    has('appointments.edit')
+  ) {
+    out.add('page:appointments');
+  }
+
+  if (
+    has('billing.invoices.view') ||
+    has('billing.bill.create') ||
+    has('billing.bill.edit') ||
+    has('billing.view')
+  ) {
     out.add('page:billing');
   }
-  if (p.has('configuration.view')) {
-    out.add('page:settings');
+
+  if (has('billing.bill.create') || has('billing.create_invoice') || has('quick_sale.access')) {
+    out.add('page:quick_sale');
+    out.add('action:billing.checkout');
+  }
+
+  if (has('configuration.view') || has('settings.view')) {
     out.add('page:services');
     out.add('page:packages');
     out.add('page:memberships');
   }
-  if (p.has('expenses.general.view') || p.has('expenses.salary.view')) {
+
+  if (has('configuration.view') || has('configuration.edit') || has('settings.view')) {
+    out.add('page:settings');
+  }
+
+  if (has('configuration.edit') || has('settings.manage')) {
+    out.add('action:settings.edit');
+    out.add('action:packages.edit');
+  }
+
+  if (has('expenses.general.view') || has('expenses.salary.view')) {
     out.add('page:expenses');
   }
-  if (
-    p.has('customers.view') ||
-    p.has('customers.customer.view') ||
-    p.has('dashboard.view_customers')
-  ) {
-    out.add('page:customers');
+
+  if (has('reports.view') || has('analytics.view')) {
+    out.add('page:reports');
   }
-  if (
-    p.has('appointments.view_all') ||
-    p.has('appointments.view_own') ||
-    p.has('appointments.edit') ||
-    p.has('appointments.bookable') ||
-    p.has('appointments.receive_bookings')
-  ) {
-    out.add('page:appointments');
+  if (has('reports.export')) {
+    out.add('action:reports.export');
   }
-  if (p.has('billing.view') || p.has('billing.create_invoice') || p.has('billing.edit_invoice')) {
-    out.add('page:billing');
+
+  if (has('staff.view') || has('staff.edit')) {
+    out.add('page:staff');
   }
+
   if (
-    p.has('billing.create_invoice') ||
-    p.has('billing.edit_invoice') ||
-    p.has('quick_sale.access') ||
-    p.has('quick_sale.sale.complete')
-  ) {
-    out.add('page:quick_sale');
-    out.add('action:billing.checkout');
-  }
-  if (p.has('services.view') || p.has('services.edit')) out.add('page:services');
-  if (p.has('packages.view')) out.add('page:packages');
-  if (p.has('packages.edit')) out.add('action:packages.edit');
-  if (p.has('memberships.view')) out.add('page:memberships');
-  if (
-    p.has('inventory.view') ||
-    p.has('inventory.edit') ||
-    p.has('inventory.product.view') ||
-    p.has('products.view') ||
-    p.has('products.edit')
+    has('inventory.view') ||
+    has('inventory.edit') ||
+    has('inventory.product.view') ||
+    has('products.view') ||
+    has('products.edit')
   ) {
     out.add('page:inventory');
     out.add('page:purchases');
-    if (p.has('inventory.edit') || p.has('products.edit')) out.add('action:inventory.adjust');
+    if (has('inventory.edit') || has('products.edit')) out.add('action:inventory.adjust');
   }
-  if (p.has('expenses.view') || p.has('expenses.edit')) {
-    out.add('page:expenses');
-  }
-  if (p.has('reports.view') || p.has('analytics.view')) out.add('page:reports');
-  if (p.has('reports.export')) out.add('action:reports.export');
-  if (p.has('settings.view') || p.has('settings.manage') || p.has('configuration.view')) {
-    out.add('page:settings');
-    if (p.has('settings.manage') || p.has('configuration.edit')) out.add('action:settings.edit');
-  }
-  if (p.has('permissions.manage') || p.has('system.settings')) {
+
+  if (has('permissions.manage') || has('system.settings')) {
     out.add('page:settings');
     out.add('action:settings.edit');
   }
+
   return [...out];
 }
 
@@ -131,6 +145,7 @@ export function employeeToHairAdmin(
 export function canManagePermissions(grants: WorkforcePermissionGrants): boolean {
   return (
     hasWorkforcePermission(grants, 'permissions.manage') ||
-    hasWorkforcePermission(grants, 'system.settings')
+    hasWorkforcePermission(grants, 'system.settings') ||
+    hasWorkforcePermission(grants, 'staff.edit')
   );
 }

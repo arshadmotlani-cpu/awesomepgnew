@@ -35,7 +35,7 @@ export type HairNavGroup = {
   iconKey: HairNavIconKey;
   defaultExpanded?: boolean;
   permission?: HairPagePermission;
-  children: Array<{ href: string; label: string }>;
+  children: Array<{ href: string; label: string; permission?: HairPagePermission }>;
 };
 
 export type HairNavEntry = HairNavLink | HairNavGroup;
@@ -49,8 +49,8 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
     defaultExpanded: true,
     permission: 'page:dashboard',
     children: [
-      { href: '/dashboard/revenue', label: 'Revenue Dashboard' },
-      { href: '/dashboard/staff-performance', label: 'Staff Performance' },
+      { href: '/dashboard/revenue', label: 'Revenue Dashboard', permission: 'page:dashboard_revenue' },
+      { href: '/dashboard/staff-performance', label: 'Staff Performance', permission: 'page:dashboard_staff' },
     ],
   },
   {
@@ -86,7 +86,7 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
     hidden: true,
     permission: 'page:quick_sale',
   },
-  { type: 'link', href: '/staff', label: 'Staff', iconKey: 'clipboard-list', permission: 'page:dashboard' },
+  { type: 'link', href: '/staff', label: 'Staff', iconKey: 'clipboard-list', permission: 'page:staff' },
   { type: 'link', href: '/attendance', label: 'Attendance', iconKey: 'clipboard-list', permission: 'page:appointments' },
   { type: 'link', href: '/attendance/manage', label: 'Team attendance', iconKey: 'clipboard-list', hidden: true, permission: 'page:dashboard' },
   {
@@ -248,15 +248,28 @@ export function filterNavByPermissions(
   admin: PermissionAdmin,
   entries: HairNavEntry[] = HAIR_NAV_ENTRIES,
 ): HairNavEntry[] {
-  return entries.filter((entry) => {
-    if (entry.type === 'link') {
-      if (entry.hidden) return false;
-      if (!entry.permission) return true;
+  return entries
+    .map((entry) => {
+      if (entry.type === 'group') {
+        const children = entry.children.filter((c) => {
+          if (!c.permission) return true;
+          return hasPermission(admin, c.permission);
+        });
+        if (children.length === 0) return null;
+        return { ...entry, children };
+      }
+      return entry;
+    })
+    .filter((entry): entry is HairNavEntry => {
+      if (!entry) return false;
+      if (entry.type === 'link') {
+        if (entry.hidden) return false;
+        if (!entry.permission) return true;
+        return hasPermission(admin, entry.permission);
+      }
+      if (!entry.permission) return entry.children.length > 0;
       return hasPermission(admin, entry.permission);
-    }
-    if (!entry.permission) return true;
-    return hasPermission(admin, entry.permission);
-  });
+    });
 }
 
 /** @deprecated use HAIR_NAV_ENTRIES */

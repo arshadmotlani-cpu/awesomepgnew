@@ -2,25 +2,22 @@
 
 import { useActionState, useState } from 'react';
 import {
+  resetAllEmployeePermissionsToTemplateAction,
   resetEmployeePermissionsAction,
   resetRoleTemplateAction,
   updateEmployeePermissionsAction,
   updateRoleTemplateAction,
   type PermissionActionState,
 } from '@/src/workforce/actions/permissions';
-import { WORKFORCE_ACCESS_ROLES, type WorkforcePermissionKey } from '@/src/workforce/types';
-import { AdditionalRightsChecklist } from '@/src/workforce/components/permissions/AdditionalRightsChecklist';
-import {
-  EffectivePermissionsPreview,
-  PermissionMatrix,
-} from '@/src/workforce/components/permissions/PermissionMatrix';
+import { WORKFORCE_ACCESS_ROLES } from '@/src/workforce/types';
+import { StaffRightsEditor } from '@/src/workforce/components/permissions/StaffRightsEditor';
 import { workforceAccessRoleLabel } from '@/src/workforce/labels';
 import { Button } from '@/src/hair/components/ui/button';
 import type { EmployeeWithMembership } from '@/src/workforce/brains/employeeBrain';
 
 type TemplateRow = {
   accessRole: string;
-  permissions: WorkforcePermissionKey[];
+  permissions: string[];
   maxBackdateDays: number | null;
   maxDiscountPercent?: number | null;
 };
@@ -54,6 +51,10 @@ export function PermissionManagementPanel({ templates, employees }: Props) {
     resetEmployeePermissionsAction,
     initial,
   );
+  const [resetAllState, resetAllAction, resetAllPending] = useActionState(
+    resetAllEmployeePermissionsToTemplateAction,
+    initial,
+  );
 
   const roleTemplate =
     templates.find((t) => t.accessRole === selectedRole) ?? {
@@ -68,17 +69,17 @@ export function PermissionManagementPanel({ templates, employees }: Props) {
     <div className="space-y-10">
       <div>
         <p className="fyh-section-eyebrow">Access control</p>
-        <h2 className="fyh-display mt-1 text-2xl font-semibold">Permission management</h2>
+        <h2 className="fyh-display mt-1 text-2xl font-semibold">Staff rights</h2>
         <p className="mt-1 text-sm text-fyh-text-secondary">
-          Grant capabilities by module. Sensitive permissions are flagged. Constraints (max discount,
-          backdate days) apply per role or employee override.
+          Grant capabilities by section. Implied rights (for example Edit includes View) are applied
+          automatically.
         </p>
       </div>
 
       <section className="space-y-4 rounded-xl border border-[color:var(--fyh-border)] p-5">
         <h3 className="text-lg font-medium text-fyh-text">Role templates</h3>
         <label className="block text-sm">
-          <span className="font-medium">Access Role</span>
+          <span className="font-medium">Access role</span>
           <select
             className="fyh-select mt-1 w-full max-w-xs"
             value={selectedRole}
@@ -126,15 +127,7 @@ export function PermissionManagementPanel({ templates, employees }: Props) {
               />
             </label>
           </div>
-          <div>
-            <p className="mb-2 text-sm font-medium text-fyh-text">Additional rights (sensitive)</p>
-            <AdditionalRightsChecklist selected={roleTemplate.permissions} />
-          </div>
-          <div>
-            <p className="mb-2 text-sm font-medium text-fyh-text">All permissions by module</p>
-            <PermissionMatrix selected={new Set(roleTemplate.permissions)} />
-          </div>
-          <EffectivePermissionsPreview permissions={roleTemplate.permissions} />
+          <StaffRightsEditor granted={roleTemplate.permissions} />
           <Button type="submit" disabled={templatePending}>
             {templatePending ? 'Saving…' : 'Save role template'}
           </Button>
@@ -178,19 +171,12 @@ export function PermissionManagementPanel({ templates, employees }: Props) {
 
             {employee ? (
               <>
-                <EffectivePermissionsPreview permissions={employee.grants.permissions} />
                 <form action={empAction} className="space-y-4">
                   <input type="hidden" name="employeeId" value={employee.employee.id} />
-                  <div>
-                    <p className="mb-2 text-sm font-medium text-fyh-text">Additional rights</p>
-                    <AdditionalRightsChecklist selected={employee.grants.permissions} />
-                  </div>
-                  <div>
-                    <p className="mb-2 text-sm font-medium text-fyh-text">All permissions</p>
-                    <PermissionMatrix selected={new Set(employee.grants.permissions)} />
-                  </div>
+                  <input type="hidden" name="rightsOverride" value="1" />
+                  <StaffRightsEditor granted={employee.grants.permissions} />
                   <Button type="submit" disabled={empPending}>
-                    {empPending ? 'Saving…' : 'Save employee override'}
+                    {empPending ? 'Saving…' : 'Save employee rights'}
                   </Button>
                   {empState.error ? <p className="fyh-alert-danger text-sm">{empState.error}</p> : null}
                   {empState.success ? (
@@ -210,6 +196,25 @@ export function PermissionManagementPanel({ templates, employees }: Props) {
             ) : null}
           </>
         )}
+      </section>
+
+      <section className="rounded-xl border border-[color:var(--fyh-border)] p-5">
+        <h3 className="text-lg font-medium text-fyh-text">Reset all custom rights</h3>
+        <p className="mt-1 text-sm text-fyh-text-secondary">
+          Clears per-employee permission overrides and restores each staff member to their access-role
+          template. Does not delete employees, payroll, or sales history.
+        </p>
+        <form action={resetAllAction} className="mt-4">
+          <Button type="submit" variant="secondary" disabled={resetAllPending}>
+            {resetAllPending ? 'Resetting…' : 'Reset all staff to role templates'}
+          </Button>
+          {resetAllState.error ? (
+            <p className="mt-2 fyh-alert-danger text-sm">{resetAllState.error}</p>
+          ) : null}
+          {resetAllState.success ? (
+            <p className="mt-2 fyh-alert-success text-sm">{resetAllState.success}</p>
+          ) : null}
+        </form>
       </section>
     </div>
   );
