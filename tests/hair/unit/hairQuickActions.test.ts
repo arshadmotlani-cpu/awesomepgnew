@@ -68,6 +68,7 @@ test('createExpenseAction returns success and revalidates expenses path', () => 
   const src = readFileSync(join(root, 'src/hair/actions/expenses.ts'), 'utf8');
   assert.match(src, /revalidatePath\('\/expenses'\)/);
   assert.match(src, /return \{ success: 'Expense recorded\.' \}/);
+  assert.match(src, /cancelExpenseAction/);
   assert.doesNotMatch(src, /redirect\(/);
 });
 
@@ -87,6 +88,7 @@ test('HairAppHeader passes staffName into Quick Actions', () => {
   const src = readFileSync(join(root, 'src/hair/components/HairAppHeader.tsx'), 'utf8');
   assert.match(src, /HairQuickActionsMenu[\s\S]*staffName=\{admin\.displayName/);
   assert.match(src, /canReceiveAdvance=\{hasPermission\(admin, ADVANCE_RECEIVE_PERMISSION\)\}/);
+  assert.match(src, /canAddGeneralExpense/);
 });
 
 test('HairGlobalSearch uses Input with leading-icon padding (not raw fyh-input)', () => {

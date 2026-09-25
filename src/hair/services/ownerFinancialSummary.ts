@@ -1,14 +1,12 @@
 /**
  * Owner-level FYH financial summary for Owner OS integration.
  */
-import { and, gte, lte, sum } from 'drizzle-orm';
-import { hairDb } from '@/src/hair/db/client';
-import { fyhExpenses } from '@/src/hair/db/schema';
 import { salonMonthStartUtc, zonedLocalToUtc } from '@/src/hair/lib/salonTime';
 import { salesGrossPaiseExcludingAdvances } from '@/src/hair/services/revenueDashboardReport';
+import { sumGeneralExpensesPaise } from '@/src/hair/services/expenseAggregation';
 import { getSalonSettings } from '@/src/hair/services/settings';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
-import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 function resolveBillingMonth(month?: string): string {
   if (month && /^\d{4}-\d{2}$/.test(month)) return month;
@@ -48,18 +46,12 @@ export async function getFyhOwnerFinancialSummary(
   const monthEndExclusive = new Date(zonedLocalToUtc(`${end}T00:00:00`, timezone).getTime() + 86_400_000);
   const revenuePaise = await salesGrossPaiseExcludingAdvances(monthStart, monthEndExclusive, ctx);
 
-  const [expenseRow] = await hairDb
-    .select({ total: sum(fyhExpenses.amountPaise) })
-    .from(fyhExpenses)
-    .where(
-      and(
-        orgFilter(fyhExpenses.organizationId, ctx),
-        gte(fyhExpenses.expenseDate, start),
-        lte(fyhExpenses.expenseDate, end),
-      ),
-    );
-
-  const expensePaise = Number(expenseRow?.total ?? 0);
+  const tenantCtx = await resolveTenantContextForService(ctx);
+  const expensePaise = await sumGeneralExpensesPaise(
+    tenantCtx,
+    'all',
+    { fromDay: start, toDay: end },
+  );
 
   return {
     periodStart: start,

@@ -169,10 +169,15 @@ export async function createPurchase(input: CreatePurchaseInput, ctx?: TenantCon
       expenseDate: input.purchaseDate,
       amountPaise: totalPaise,
       paymentMethod: input.paymentMethod ?? 'online',
+      expenseFor: 'vendor',
+      paidBy: 'business_cash',
+      source: 'purchase',
+      status: 'active',
       notes: input.notes?.trim() || null,
       staffName: input.staffName.trim(),
-      staffEmployeeId: input.staffEmployeeId ?? null,
+      staffEmployeeId: null,
       purchaseId: purchase!.id,
+      createdByEmployeeId: input.staffEmployeeId ?? null,
     });
 
     emitPurchaseRecordedEvent(
@@ -376,6 +381,8 @@ export async function updatePurchase(purchaseId: string, input: UpdatePurchaseIn
         amountPaise: newTotalPaise,
         expenseDate: input.purchaseDate,
         notes: input.notes?.trim() || null,
+        source: 'purchase',
+        updatedByEmployeeId: input.staffEmployeeId ?? null,
         updatedAt: new Date(),
       })
       .where(and(orgFilter(fyhExpenses.organizationId, ctx), locationFilter(fyhExpenses.locationId, ctx), eq(fyhExpenses.purchaseId, purchaseId)));

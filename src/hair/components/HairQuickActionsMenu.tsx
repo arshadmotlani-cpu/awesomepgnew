@@ -54,9 +54,16 @@ const MODAL_ACTIONS: ModalAction[] = [
 type Props = {
   staffName: string;
   canReceiveAdvance: boolean;
+  canAddGeneralExpense?: boolean;
+  staffOptions?: { id: string; name: string }[];
 };
 
-export function HairQuickActionsMenu({ staffName, canReceiveAdvance }: Props) {
+export function HairQuickActionsMenu({
+  staffName,
+  canReceiveAdvance,
+  canAddGeneralExpense = false,
+  staffOptions = [],
+}: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -143,6 +150,7 @@ export function HairQuickActionsMenu({ staffName, canReceiveAdvance }: Props) {
             ))}
             {MODAL_ACTIONS.map((item) => {
               if (item.opens === 'advance_modal' && !canReceiveAdvance) return null;
+              if (item.opens === 'expense_modal' && !canAddGeneralExpense) return null;
               return (
               <QuickActionModalRow
                 key={item.id}
@@ -192,6 +200,7 @@ export function HairQuickActionsMenu({ staffName, canReceiveAdvance }: Props) {
         open={expenseModalOpen}
         onClose={() => setExpenseModalOpen(false)}
         staffName={staffName}
+        staffOptions={staffOptions}
       />
     </div>
   );

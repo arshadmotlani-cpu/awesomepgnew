@@ -16,6 +16,8 @@ import {
 } from '@/src/platform/services/memberships';
 import { redirect } from 'next/navigation';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
+import { sessionHasPermission } from '@/src/workforce/permissions/guards';
+import { listStaff } from '@/src/hair/services/staff';
 import { ensureSalonOwnerProvider } from '@/src/workforce/services/systemOwnerProvider';
 import { headers } from 'next/headers';
 
@@ -68,11 +70,27 @@ export default async function HairAppLayout({ children }: { children: React.Reac
     });
   }
 
+  const canAddGeneralExpense = isWorkforceEngineEnabled()
+    ? await sessionHasPermission('expenses.general.add')
+    : false;
+  const expenseQuickActionStaff =
+    canAddGeneralExpense
+      ? (await listStaff(false, await getTenantContextForPage())).map((s) => ({
+          id: s.id,
+          name: s.fullName,
+        }))
+      : [];
+
   return (
     <div className="fyh-app-shell flex min-w-0 flex-col lg:h-dvh lg:max-h-dvh lg:flex-row lg:overflow-hidden">
       <HairSidebar entries={navEntries} />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:overflow-hidden">
-        <HairAppHeader admin={admin} navEntries={navEntries} />
+        <HairAppHeader
+          admin={admin}
+          navEntries={navEntries}
+          canAddGeneralExpense={canAddGeneralExpense}
+          expenseQuickActionStaff={expenseQuickActionStaff}
+        />
         <HairTenantContextBar />
         <main className="relative z-0 min-h-0 min-w-0 flex-1 overflow-x-clip overflow-y-auto p-[var(--fyh-space-page)] md:p-[var(--fyh-space-page-md)]">
           <PastDueBillingBanner />

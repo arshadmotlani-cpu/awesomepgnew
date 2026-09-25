@@ -32,7 +32,7 @@ describe('Expenses salary navigation', () => {
   it('2 — General Expenses route remains functional', () => {
     const page = read('app/(hair)/fyh/(app)/expenses/page.tsx');
     assert.match(page, /ExpensesPageUi/);
-    assert.match(page, /listExpenses/);
+    assert.match(page, /listGeneralExpenses/);
     const ui = read('src/hair/components/expenses/ExpensesUi.tsx');
     assert.match(ui, /Add expense/);
   });

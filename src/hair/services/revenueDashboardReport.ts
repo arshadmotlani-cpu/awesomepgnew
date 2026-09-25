@@ -381,39 +381,24 @@ async function aggregateExpenses(
   ctx: TenantContext | null,
   locationIds: RevenueDashboardLocationFilter,
 ) {
-  const fromDay = salonDayBounds(timezone, from).dayKey;
-  const toDay = salonDayBounds(timezone, new Date(to.getTime() - 1)).dayKey;
-
-  const rows = await hairDb
-    .select({
-      category: fyhExpenses.category,
-      total: sql<number>`coalesce(sum(${fyhExpenses.amountPaise}), 0)::bigint`,
-    })
-    .from(fyhExpenses)
-    .where(
-      and(
-        orgFilter(fyhExpenses.organizationId, ctx),
-        locationsInFilter(fyhExpenses.locationId, ctx, locationIds),
-        gte(fyhExpenses.expenseDate, fromDay),
-        sql`${fyhExpenses.expenseDate} <= ${toDay}`,
-      ),
-    )
-    .groupBy(fyhExpenses.category);
-
-  const out: RevenueDashboardReport['expenses'] = [];
-  let expensesTotalPaise = 0;
-  for (const r of rows) {
-    const category = r.category as FyhExpenseCategory;
-    const amountPaise = Number(r.total ?? 0);
-    expensesTotalPaise += amountPaise;
-    out.push({
-      category,
-      label: FYH_EXPENSE_CATEGORY_LABELS[category] ?? category,
-      amountPaise,
-    });
-  }
-  out.sort((a, b) => b.amountPaise - a.amountPaise);
-  return { rows: out, expensesTotalPaise };
+  const { aggregateGeneralExpensesByCategory } = await import(
+    '@/src/hair/services/expenseAggregation'
+  );
+  const { rows, expensesTotalPaise } = await aggregateGeneralExpensesByCategory(
+    from,
+    to,
+    timezone,
+    ctx,
+    locationIds,
+  );
+  return {
+    rows: rows.map((r) => ({
+      category: r.category,
+      label: r.label,
+      amountPaise: r.amountPaise,
+    })),
+    expensesTotalPaise,
+  };
 }
 
 async function loadStaffPaySection(

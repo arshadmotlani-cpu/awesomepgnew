@@ -7,7 +7,7 @@ import { loadStaffPayrollPage } from '@/src/workforce/actions/payroll';
 import { defaultPayrollMonthKey, payrollPeriodLabel } from '@/src/workforce/lib/payrollAvailability';
 import { getSalonSettings } from '@/src/hair/services/settings';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
-import { requireFyhPermission } from '@/src/workforce/permissions/guards';
+import { requireFyhPermission, sessionHasPermission } from '@/src/workforce/permissions/guards';
 
 export default async function ExpensesSalaryPage({
   searchParams,
@@ -25,6 +25,7 @@ export default async function ExpensesSalaryPage({
   const monthKey = params.month ?? defaultMonth;
 
   const { line, canTeam } = await loadStaffPayrollPage(monthKey);
+  const canGeneral = await sessionHasPermission('expenses.general.view');
 
   if (canTeam) {
     const { loadOwnerPayrollPage } = await import('@/src/workforce/actions/payroll');
@@ -34,7 +35,7 @@ export default async function ExpensesSalaryPage({
     const { detail, uiPermissions } = await loadOwnerPayrollPage(monthKey);
     return (
       <>
-        <ExpensesSectionSubNav />
+        <ExpensesSectionSubNav showGeneral={canGeneral} showSalary />
         <OwnerSalaryPageClient detail={detail} uiPermissions={uiPermissions} />
       </>
     );
@@ -44,7 +45,7 @@ export default async function ExpensesSalaryPage({
 
   return (
     <>
-      <ExpensesSectionSubNav />
+      <ExpensesSectionSubNav showGeneral={canGeneral} showSalary />
       <div className="mx-auto max-w-2xl space-y-6">
         <header>
           <p className="fyh-section-eyebrow">Finance</p>

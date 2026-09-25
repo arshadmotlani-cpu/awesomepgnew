@@ -7,27 +7,43 @@ import {
   EXPENSES_SALARY_HREF,
 } from '@/src/hair/lib/expenseRoutes';
 
-const SECTIONS = [
-  {
-    id: 'general',
-    label: 'General Expenses',
-    href: EXPENSES_GENERAL_HREF,
-    isActive: (pathname: string) => pathname === EXPENSES_GENERAL_HREF,
-  },
-  {
-    id: 'salary',
-    label: 'Salary',
-    href: EXPENSES_SALARY_HREF,
-    isActive: (pathname: string) => pathname.startsWith(EXPENSES_SALARY_HREF),
-  },
-];
-
-export function ExpensesSectionSubNav() {
+export function ExpensesSectionSubNav({
+  showGeneral = true,
+  showSalary = true,
+}: {
+  showGeneral?: boolean;
+  showSalary?: boolean;
+}) {
   const pathname = usePathname();
+  if (!showGeneral && !showSalary) return null;
+
+  const sections = [
+    showGeneral
+      ? {
+          id: 'general',
+          label: 'General Expenses',
+          href: EXPENSES_GENERAL_HREF,
+          isActive: (p: string) => p === EXPENSES_GENERAL_HREF,
+        }
+      : null,
+    showSalary
+      ? {
+          id: 'salary',
+          label: 'Salary',
+          href: EXPENSES_SALARY_HREF,
+          isActive: (p: string) => p.startsWith(EXPENSES_SALARY_HREF),
+        }
+      : null,
+  ].filter(Boolean) as Array<{
+    id: string;
+    label: string;
+    href: string;
+    isActive: (p: string) => boolean;
+  }>;
 
   return (
     <nav className="mb-6 flex flex-wrap gap-2" aria-label="Expenses sections">
-      {SECTIONS.map((section) => {
+      {sections.map((section) => {
         const active = section.isActive(pathname);
         return (
           <Link

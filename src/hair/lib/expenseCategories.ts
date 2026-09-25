@@ -16,6 +16,11 @@ export const FYH_EXPENSE_CATEGORIES = [
 
 export type FyhExpenseCategory = (typeof FYH_EXPENSE_CATEGORIES)[number];
 
+/** Manual general expenses — salary must use payroll SSOT, not new fyh_expenses rows. */
+export const FYH_MANUAL_GENERAL_EXPENSE_CATEGORIES = FYH_EXPENSE_CATEGORIES.filter(
+  (c) => c !== 'salary',
+);
+
 export const FYH_EXPENSE_CATEGORY_LABELS: Record<FyhExpenseCategory, string> = {
   general: 'General',
   utilities: 'Utilities',

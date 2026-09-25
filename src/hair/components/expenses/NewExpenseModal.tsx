@@ -2,15 +2,16 @@
 
 import { useEffect } from 'react';
 import { Button } from '@/src/hair/components/ui/button';
-import { ExpenseForm } from '@/src/hair/components/expenses/ExpenseForm';
+import { ExpenseForm, type StaffOption } from '@/src/hair/components/expenses/ExpenseForm';
 
 type Props = {
   open: boolean;
   onClose: () => void;
   staffName: string;
+  staffOptions: StaffOption[];
 };
 
-export function NewExpenseModal({ open, onClose, staffName }: Props) {
+export function NewExpenseModal({ open, onClose, staffName, staffOptions }: Props) {
   useEffect(() => {
     if (!open) return;
     const prevOverflow = document.body.style.overflow;
@@ -41,8 +42,8 @@ export function NewExpenseModal({ open, onClose, staffName }: Props) {
             Close
           </Button>
         </header>
-        <div className="fyh-modal-body">
-          <ExpenseForm staffName={staffName} onSaved={onClose} />
+        <div className="fyh-modal-body max-h-[min(70vh,640px)] overflow-y-auto">
+          <ExpenseForm staffName={staffName} staffOptions={staffOptions} onSaved={onClose} />
         </div>
       </div>
     </div>

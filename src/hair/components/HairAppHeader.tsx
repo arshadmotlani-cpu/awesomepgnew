@@ -19,9 +19,16 @@ import type { HairNavEntry } from '@/src/hair/lib/nav';
 type HairAppHeaderProps = {
   admin: HairAdmin;
   navEntries?: HairNavEntry[];
+  canAddGeneralExpense?: boolean;
+  expenseQuickActionStaff?: { id: string; name: string }[];
 };
 
-export function HairAppHeader({ admin, navEntries }: HairAppHeaderProps) {
+export function HairAppHeader({
+  admin,
+  navEntries,
+  canAddGeneralExpense = false,
+  expenseQuickActionStaff = [],
+}: HairAppHeaderProps) {
   const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -60,6 +67,8 @@ export function HairAppHeader({ admin, navEntries }: HairAppHeaderProps) {
           <HairQuickActionsMenu
             staffName={admin.displayName ?? 'Staff'}
             canReceiveAdvance={hasPermission(admin, ADVANCE_RECEIVE_PERMISSION)}
+            canAddGeneralExpense={canAddGeneralExpense}
+            staffOptions={expenseQuickActionStaff}
           />
 
           <div className="min-w-0 flex-1 px-1 sm:px-2 md:px-3">
