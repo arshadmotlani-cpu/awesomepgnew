@@ -97,22 +97,22 @@ export function StaffPerformanceCommandCenter({
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="fyh-dashboard-card p-4">
-          <h2 className="fyh-card-title">Top 10 Staff — Sales</h2>
+          <h2 className="fyh-card-title">Top 10 Staff — Product Sales</h2>
           <p className="mt-1 text-xs text-fyh-text-muted">
-            Total Sales · {formatInrFromPaise(data.totalSalesPaise)}
+            Total product sales · {formatInrFromPaise(data.totalProductSalesPaise)}
           </p>
           <div className="mt-4">
             <StaffTopTenBarChart rows={data.topTenSales} valueLabel="Sales" />
           </div>
         </section>
         <section className="fyh-dashboard-card p-4">
-          <h2 className="fyh-card-title">Top 10 Staff — Performance Amount</h2>
+          <h2 className="fyh-card-title">Top 10 Staff — Service Performance</h2>
           <p className="mt-1 text-xs text-fyh-text-muted">
-            Total Performance Amount · {formatInrFromPaise(data.totalPerformanceAmountPaise)}
+            Total service performance · {formatInrFromPaise(data.totalServicePerformancePaise)}
           </p>
           <p className="text-[10px] text-fyh-text-muted">
-            Service, package & membership attribution — excludes product retail (not salary or
-            payout).
+            Performed services only (includes package/membership redemptions at allocated service
+            value). Not payroll or incentives.
           </p>
           <div className="mt-4">
             <StaffTopTenBarChart rows={data.topTenPerformance} valueLabel="Performance" />
@@ -121,8 +121,8 @@ export function StaffPerformanceCommandCenter({
       </div>
 
       <SummaryTable
-        title="Total Sales"
-        subtitle="Attributed net sales by category"
+        title="Product sales by staff"
+        subtitle="Product column total is product sales; other columns are context only"
         headers={[
           'Staff Name',
           'Service (₹)',
@@ -156,9 +156,9 @@ export function StaffPerformanceCommandCenter({
       />
 
       <SummaryTable
-        title="Total Performance Amount"
-        subtitle="Existing staff-performance SSOT (attributed net)"
-        headers={['Staff Name', 'Net Service (₹)', 'Membership (₹)', 'Package (₹)', 'Total (₹)']}
+        title="Service performance by staff"
+        subtitle="Total column is service performance only (performed services)"
+        headers={['Staff Name', 'Service (₹)', 'Membership purchase (₹)', 'Package purchase (₹)', 'Total (₹)']}
         rows={data.performanceAmountTable}
         renderRow={(row) => {
           const r = row as StaffPerformanceCommandCenterSnapshot['performanceAmountTable'][number];

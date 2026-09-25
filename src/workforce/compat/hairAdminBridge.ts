@@ -24,8 +24,29 @@ export function workforceGrantsToHairPermissions(
     out.add('page:dashboard');
   }
   if (p.has('dashboard.view_revenue')) out.add('page:dashboard_revenue');
-  if (p.has('dashboard.view_staff') || p.has('performance.all.view')) {
+  if (
+    p.has('dashboard.view_staff') ||
+    p.has('performance.all.view') ||
+    p.has('dashboard.revenue.personal') ||
+    p.has('dashboard.revenue.salon') ||
+    p.has('dashboard.full')
+  ) {
     out.add('page:dashboard_staff');
+  }
+  if (p.has('customers.view')) {
+    out.add('page:customers');
+  }
+  if (p.has('billing.bill.create') || p.has('billing.invoices.view')) {
+    out.add('page:billing');
+  }
+  if (p.has('configuration.view')) {
+    out.add('page:settings');
+    out.add('page:services');
+    out.add('page:packages');
+    out.add('page:memberships');
+  }
+  if (p.has('expenses.general.view') || p.has('expenses.salary.view')) {
+    out.add('page:expenses');
   }
   if (
     p.has('customers.view') ||
@@ -38,6 +59,7 @@ export function workforceGrantsToHairPermissions(
     p.has('appointments.view_all') ||
     p.has('appointments.view_own') ||
     p.has('appointments.edit') ||
+    p.has('appointments.bookable') ||
     p.has('appointments.receive_bookings')
   ) {
     out.add('page:appointments');

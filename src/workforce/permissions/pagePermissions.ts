@@ -11,7 +11,7 @@ import type { WorkforcePermissionGrants } from '@/src/workforce/types';
 /** v2 permission required for route access (first match wins). */
 const ROUTE_PERMISSION_RULES: Array<[prefix: string, permission: string]> = [
   ['/dashboard/revenue', 'dashboard.view_revenue'],
-  ['/dashboard/staff-performance', 'performance.all.view'],
+  ['/dashboard/staff-performance', 'dashboard.revenue.personal'],
   ['/dashboard', 'dashboard.view'],
   ['/customers', 'customers.customer.view'],
   ['/appointments', 'appointments.appointment.view'],
@@ -21,7 +21,8 @@ const ROUTE_PERMISSION_RULES: Array<[prefix: string, permission: string]> = [
   ['/inventory', 'inventory.product.view'],
   ['/vendors', 'inventory.product.view'],
   ['/purchases', 'inventory.purchase.create'],
-  ['/expenses', 'expenses.expense.view'],
+  ['/expenses/salary', 'expenses.salary.view'],
+  ['/expenses', 'expenses.general.view'],
   ['/reports', 'reports.revenue.view'],
   ['/settings', 'settings.view'],
   ['/staff', 'staff.profile.view'],

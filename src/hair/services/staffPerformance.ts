@@ -1,6 +1,11 @@
-import { and, eq, gte, lt, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, lt, ne, sql, type SQL } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import { zonedLocalToUtc } from '@/src/hair/lib/salonTime';
+import {
+  staffCombinedFromSummary,
+  staffProductSalesFromSummary,
+  staffServicePerformanceFromSummary,
+} from '@/src/hair/domain/staffPerformance/metrics';
 import {
   fyhCommissionEntries,
   fyhCustomers,
@@ -10,8 +15,9 @@ import {
   fyhStaff,
   type FyhRevenueMetric,
 } from '@/src/hair/db/schema';
+import type { RevenueDashboardLocationFilter } from '@/src/hair/services/revenueDashboardReportTypes';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
-import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
+import { orgFilter, locationFilter, locationsInFilter } from '@/src/hair/lib/tenant/filters';
 
 export type StaffPerformanceSummary = {
   serviceRevenuePaise: number;
@@ -21,6 +27,29 @@ export type StaffPerformanceSummary = {
 };
 
 export type DateRange = { from: Date; to: Date };
+
+/** Shared paid-invoice attribution filter for staff performance queries. */
+export function paidAttributionWhere(
+  range: DateRange,
+  ctx: TenantContext | null,
+  locationIds: RevenueDashboardLocationFilter = 'all',
+  staffIds?: string[],
+): SQL | undefined {
+  const parts: SQL[] = [
+    eq(fyhInvoices.status, 'paid'),
+    ne(fyhInvoices.source, 'advance_payment'),
+    gte(fyhInvoices.paidAt, range.from),
+    lt(fyhInvoices.paidAt, range.to),
+  ];
+  const org = orgFilter(fyhInvoices.organizationId, ctx);
+  if (org) parts.unshift(org);
+  const loc = locationsInFilter(fyhInvoices.locationId, ctx, locationIds);
+  if (loc) parts.push(loc);
+  if (staffIds && staffIds.length > 0) {
+    parts.push(inArray(fyhInvoiceLineAttributions.staffId, staffIds));
+  }
+  return and(...parts);
+}
 
 function emptySummary(): StaffPerformanceSummary {
   return {
@@ -33,7 +62,10 @@ function emptySummary(): StaffPerformanceSummary {
 
 export async function getStaffPerformanceSummary(
   staffId: string,
-  range: DateRange, ctx?: TenantContext | null): Promise<StaffPerformanceSummary> {
+  range: DateRange,
+  ctx?: TenantContext | null,
+  locationIds: RevenueDashboardLocationFilter = 'all',
+): Promise<StaffPerformanceSummary> {
   const rows = await hairDb
     .select({
       metric: fyhInvoiceLineAttributions.revenueMetric,
@@ -45,9 +77,7 @@ export async function getStaffPerformanceSummary(
     .where(
       and(
         eq(fyhInvoiceLineAttributions.staffId, staffId),
-        eq(fyhInvoices.status, 'paid'),
-        gte(fyhInvoices.paidAt, range.from),
-        lt(fyhInvoices.paidAt, range.to),
+        paidAttributionWhere(range, ctx ?? null, locationIds),
       ),
     )
     .groupBy(fyhInvoiceLineAttributions.revenueMetric);
@@ -145,41 +175,44 @@ export async function salonMetricTotal(metric: FyhRevenueMetric, range: DateRang
   return Number(rows[0]?.total ?? 0);
 }
 
+/** Combined attributed net (all metrics) — label as Combined Revenue in UI, not Sales/Performance. */
 export function summaryTotalPaise(summary: StaffPerformanceSummary): number {
-  return (
-    summary.serviceRevenuePaise +
-    summary.productRevenuePaise +
-    summary.packageRevenuePaise +
-    summary.membershipRevenuePaise
-  );
+  return staffCombinedFromSummary(summary);
 }
 
-/**
- * Staff Performance Amount SSOT (same as workforce service incentive input):
- * attributed net for service, package, and membership — excludes product retail.
- */
+/** Service performance only (includes package/membership redemptions via service metric). */
 export function performanceAmountPaiseFromSummary(summary: StaffPerformanceSummary): number {
-  return (
-    summary.serviceRevenuePaise + summary.packageRevenuePaise + summary.membershipRevenuePaise
-  );
+  return staffServicePerformanceFromSummary(summary);
 }
 
-/** Total attributed sales including product (all revenue metrics). */
+/** Product sales only. */
 export function salesTotalPaiseFromSummary(summary: StaffPerformanceSummary): number {
-  return summaryTotalPaise(summary);
+  return staffProductSalesFromSummary(summary);
 }
 
 export function performanceAmountFromMetricParts(
   servicePaise: number,
-  packagePaise: number,
-  membershipPaise: number,
+  _packagePaise: number,
+  _membershipPaise: number,
 ): number {
-  return servicePaise + packagePaise + membershipPaise;
+  return servicePaise;
+}
+
+export function productSalesFromMetricParts(
+  _servicePaise: number,
+  productPaise: number,
+  _packagePaise: number,
+  _membershipPaise: number,
+): number {
+  return productPaise;
 }
 
 export type StaffDetailPerformance = {
   summary: StaffPerformanceSummary;
+  /** Combined attributed net — label as combined revenue in UI. */
   totalRevenuePaise: number;
+  productSalesPaise: number;
+  servicePerformancePaise: number;
   invoiceCount: number;
   avgTicketPaise: number;
 };
@@ -190,6 +223,8 @@ export async function getStaffDetailPerformance(
 ): Promise<StaffDetailPerformance> {
   const summary = await getStaffPerformanceSummary(staffId, range);
   const totalRevenuePaise = summaryTotalPaise(summary);
+  const productSalesPaise = salesTotalPaiseFromSummary(summary);
+  const servicePerformancePaise = performanceAmountPaiseFromSummary(summary);
 
   const [countRow] = await hairDb
     .select({
@@ -211,7 +246,14 @@ export async function getStaffDetailPerformance(
   const avgTicketPaise =
     invoiceCount > 0 ? Math.round(totalRevenuePaise / invoiceCount) : 0;
 
-  return { summary, totalRevenuePaise, invoiceCount, avgTicketPaise };
+  return {
+    summary,
+    totalRevenuePaise,
+    productSalesPaise,
+    servicePerformancePaise,
+    invoiceCount,
+    avgTicketPaise,
+  };
 }
 
 export type StaffMonthlyTrendPoint = {
@@ -274,7 +316,7 @@ export async function getStaffTargetProgress(
 
   const targetPaise = Number(staff?.performanceTargetPaise ?? 0);
   const detail = await getStaffDetailPerformance(staffId, range);
-  const actualPaise = detail.totalRevenuePaise;
+  const actualPaise = detail.servicePerformancePaise;
   const progressBps =
     targetPaise > 0 ? Math.min(10_000, Math.round((actualPaise * 10_000) / targetPaise)) : 0;
 

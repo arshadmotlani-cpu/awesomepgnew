@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { getHairSession } from '@/src/hair/lib/auth/session';
-import { requirePermission } from '@/src/hair/lib/auth/permissions';
+import { requireFyhPermission } from '@/src/workforce/permissions/guards';
 import {
   parseExpenseCategory,
   parseExpensePaymentMethod,
@@ -20,7 +20,7 @@ export async function createExpenseAction(
   formData: FormData,
 ): Promise<ExpenseActionState> {
   try {
-    await requirePermission('page:expenses');
+    await requireFyhPermission({ permission: 'expenses.general.add', scope: 'org' });
     const session = await getHairSession();
     const staffName = session?.admin.displayName?.trim();
     if (!staffName) return { error: 'Could not determine logged-in staff' };
@@ -61,7 +61,7 @@ export async function deleteExpenseAction(
   formData: FormData,
 ): Promise<ExpenseActionState> {
   try {
-    await requirePermission('page:expenses');
+    await requireFyhPermission({ permission: 'expenses.general.edit', scope: 'org' });
     const id = formStr(formData, 'id');
     if (!id) return { error: 'Missing expense id' };
     await deleteExpense(id);

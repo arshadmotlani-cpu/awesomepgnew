@@ -45,11 +45,11 @@ export function buildStaffPerformanceExportSheets(
   snapshot: StaffPerformanceCommandCenterSnapshot,
 ): StaffPerformanceExportSheet[] {
   const leaderboard: StaffPerformanceExportSheet = {
-    name: 'Leaderboard',
+    name: 'Product sales leaderboard',
     headers: [
       'Rank',
       'Staff',
-      'Revenue (₹)',
+      'Product sales (₹)',
       'Customers',
       'Avg bill (₹)',
       'Services sold',

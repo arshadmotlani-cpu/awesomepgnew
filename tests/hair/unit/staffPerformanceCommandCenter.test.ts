@@ -131,6 +131,9 @@ function emptySnapshot(): StaffPerformanceCommandCenterSnapshot {
     staffOptions: [],
     topTenSales: [{ staffId: 's1', name: 'Ava', photoUrl: null, amountPaise: 50_000 }],
     topTenPerformance: [{ staffId: 's1', name: 'Ava', photoUrl: null, amountPaise: 40_000 }],
+    totalProductSalesPaise: 50_000,
+    totalServicePerformancePaise: 40_000,
+    totalCombinedAttributedPaise: 90_000,
     totalSalesPaise: 50_000,
     totalPerformanceAmountPaise: 40_000,
     salesSummaryTable: [],
@@ -147,9 +150,9 @@ function emptySnapshot(): StaffPerformanceCommandCenterSnapshot {
 
 test('buildStaffPerformanceExportSheets includes leaderboard columns', () => {
   const sheets = buildStaffPerformanceExportSheets(emptySnapshot());
-  assert.equal(sheets[0]!.name, 'Leaderboard');
+  assert.equal(sheets[0]!.name, 'Product sales leaderboard');
   assert.ok(sheets[0]!.headers.includes('Staff'));
-  assert.ok(sheets[0]!.headers.includes('Revenue (₹)'));
+  assert.ok(sheets[0]!.headers.includes('Product sales (₹)'));
   assert.equal(sheets[0]!.rows.length, 1);
   assert.equal(sheets[0]!.rows[0]![1], 'Ava');
   assert.equal(sheets.length, 5);

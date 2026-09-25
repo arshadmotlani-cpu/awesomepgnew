@@ -95,11 +95,17 @@ export default async function StaffPerformancePage({ params }: Props) {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <KpiCard
-          label="Total revenue"
-          value={formatInrFromPaise(detail.totalRevenuePaise)}
+          label="Service performance"
+          value={formatInrFromPaise(detail.servicePerformancePaise)}
           icon={IndianRupee}
           accent
-          hint="All attributed categories"
+          hint="Performed services (incl. redemptions)"
+        />
+        <KpiCard
+          label="Product sales"
+          value={formatInrFromPaise(detail.productSalesPaise)}
+          icon={IndianRupee}
+          hint="Retail attributed to this staff member"
         />
         <KpiCard
           label="Invoices"

@@ -2,7 +2,7 @@
  * Staff Performance Command Center — single SSR snapshot (no N+1).
  */
 
-import { and, asc, eq, gte, inArray, lt, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import {
   fyhCommissionEntries,
@@ -25,12 +25,19 @@ import {
 import { getSalonSettings } from '@/src/hair/services/settings';
 import type { RevenueDashboardLocationFilter } from '@/src/hair/services/revenueDashboardReportTypes';
 import {
+  staffCombinedAttributedPaise,
+  staffProductSalesPaise,
+  staffServicePerformancePaise,
+} from '@/src/hair/domain/staffPerformance/metrics';
+import {
+  paidAttributionWhere,
   performanceAmountFromMetricParts,
+  productSalesFromMetricParts,
   salesTotalPaiseFromSummary,
   type DateRange,
 } from '@/src/hair/services/staffPerformance';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
-import { orgFilter, locationsInFilter } from '@/src/hair/lib/tenant/filters';
+import { orgFilter } from '@/src/hair/lib/tenant/filters';
 import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 
 export type StaffKpiTotals = {
@@ -145,7 +152,12 @@ export type StaffPerformanceCommandCenterSnapshot = {
   staffOptions: { id: string; name: string }[];
   topTenSales: StaffTopTenRow[];
   topTenPerformance: StaffTopTenRow[];
+  totalProductSalesPaise: number;
+  totalServicePerformancePaise: number;
+  totalCombinedAttributedPaise: number;
+  /** @deprecated Use totalProductSalesPaise */
   totalSalesPaise: number;
+  /** @deprecated Use totalServicePerformancePaise */
   totalPerformanceAmountPaise: number;
   salesSummaryTable: StaffSalesSummaryRow[];
   performanceAmountTable: StaffPerformanceAmountRow[];
@@ -155,24 +167,13 @@ export type StaffPerformanceCommandCenterSnapshot = {
 /** @deprecated Prefer StaffPerformanceCommandCenterSnapshot */
 export type StaffPerformanceDashboardSnapshot = StaffPerformanceCommandCenterSnapshot;
 
-function paidAttrWhere(
-  range: DateRange,
-  ctx: TenantContext | null,
-  locationIds: RevenueDashboardLocationFilter,
-  staffIds?: string[],
-) {
-  const parts = [
-    orgFilter(fyhInvoices.organizationId, ctx),
-    locationsInFilter(fyhInvoices.locationId, ctx, locationIds),
-    eq(fyhInvoices.status, 'paid'),
-    ne(fyhInvoices.source, 'advance_payment'),
-    gte(fyhInvoices.paidAt, range.from),
-    lt(fyhInvoices.paidAt, range.to),
-  ];
-  if (staffIds && staffIds.length > 0) {
-    parts.push(inArray(fyhInvoiceLineAttributions.staffId, staffIds));
-  }
-  return and(...parts);
+function staffPartsFromAgg(s: StaffAggRow) {
+  return {
+    servicePaise: s.servicePaise,
+    productPaise: s.productPaise,
+    packagePaise: s.packagePaise,
+    membershipPaise: s.membershipPaise,
+  };
 }
 
 async function metricTotals(
@@ -194,7 +195,7 @@ async function metricTotals(
     .from(fyhInvoiceLineAttributions)
     .innerJoin(fyhInvoiceLines, eq(fyhInvoiceLines.id, fyhInvoiceLineAttributions.invoiceLineId))
     .innerJoin(fyhInvoices, eq(fyhInvoices.id, fyhInvoiceLines.invoiceId))
-    .where(paidAttrWhere(range, ctx, locationIds, staffIds))
+    .where(paidAttributionWhere(range, ctx, locationIds, staffIds))
     .groupBy(fyhInvoiceLineAttributions.revenueMetric);
 
   const out = { service: 0, product: 0, package: 0, membership: 0 };
@@ -249,7 +250,7 @@ async function staffAttributedAggregates(
       .innerJoin(fyhInvoiceLines, eq(fyhInvoiceLines.id, fyhInvoiceLineAttributions.invoiceLineId))
       .innerJoin(fyhInvoices, eq(fyhInvoices.id, fyhInvoiceLines.invoiceId))
       .innerJoin(fyhStaff, eq(fyhStaff.id, fyhInvoiceLineAttributions.staffId))
-      .where(paidAttrWhere(range, ctx, locationIds, staffIds))
+      .where(paidAttributionWhere(range, ctx, locationIds, staffIds))
       .groupBy(
         fyhInvoiceLineAttributions.staffId,
         fyhStaff.fullName,
@@ -265,7 +266,7 @@ async function staffAttributedAggregates(
       .from(fyhInvoiceLineAttributions)
       .innerJoin(fyhInvoiceLines, eq(fyhInvoiceLines.id, fyhInvoiceLineAttributions.invoiceLineId))
       .innerJoin(fyhInvoices, eq(fyhInvoices.id, fyhInvoiceLines.invoiceId))
-      .where(paidAttrWhere(range, ctx, locationIds, staffIds))
+      .where(paidAttributionWhere(range, ctx, locationIds, staffIds))
       .groupBy(fyhInvoiceLineAttributions.staffId),
   ]);
 
@@ -430,7 +431,7 @@ async function customerMetrics(
     .from(fyhInvoiceLineAttributions)
     .innerJoin(fyhInvoiceLines, eq(fyhInvoiceLines.id, fyhInvoiceLineAttributions.invoiceLineId))
     .innerJoin(fyhInvoices, eq(fyhInvoices.id, fyhInvoiceLines.invoiceId))
-    .where(paidAttrWhere(range, ctx, locationIds, staffIds))
+    .where(paidAttributionWhere(range, ctx, locationIds, staffIds))
     .groupBy(fyhInvoices.customerId, fyhInvoices.id);
 
   const byCustomer = new Map<string, { invoices: number; spend: number }>();
@@ -519,6 +520,8 @@ export async function getStaffPerformanceCommandCenter(input?: {
   category?: StaffRevenueCategory;
   locationIds?: RevenueDashboardLocationFilter;
   comparisonMode?: StaffPerformanceComparisonMode;
+  /** When set and salon revenue is off, all aggregates are scoped to this staff id. */
+  personalScopeStaffId?: string | null;
 }, ctx?: TenantContext | null): Promise<StaffPerformanceCommandCenterSnapshot> {
   ctx = await resolveTenantContextForService(ctx);
   const settings = await getSalonSettings(ctx);
@@ -542,7 +545,10 @@ export async function getStaffPerformanceCommandCenter(input?: {
       ? sameMtdLastMonthPreviousRange(range, timezone)
       : defaultPrevious;
 
-  const staffFilter = staffIds.length > 0 ? staffIds : undefined;
+  let staffFilter = staffIds.length > 0 ? staffIds : undefined;
+  if (input?.personalScopeStaffId) {
+    staffFilter = [input.personalScopeStaffId];
+  }
 
   const [
     currentTotals,
@@ -581,7 +587,13 @@ export async function getStaffPerformanceCommandCenter(input?: {
     membershipRevenuePaise: previousTotals.membership,
   });
 
-  const totalPerformanceAmountPaise = performanceAmountFromMetricParts(
+  const totalProductSalesPaise = salesTotalPaiseFromSummary({
+    serviceRevenuePaise: currentTotals.service,
+    productRevenuePaise: currentTotals.product,
+    packageRevenuePaise: currentTotals.package,
+    membershipRevenuePaise: currentTotals.membership,
+  });
+  const totalServicePerformancePaise = performanceAmountFromMetricParts(
     currentTotals.service,
     currentTotals.package,
     currentTotals.membership,
@@ -606,26 +618,27 @@ export async function getStaffPerformanceCommandCenter(input?: {
   };
 
   const salesSummaryTable: StaffSalesSummaryRow[] = sortStaffByRevenue(
-    staffAggs.map((s) => ({
-      staffId: s.staffId,
-      name: s.name,
-      servicePaise: s.servicePaise,
-      productPaise: s.productPaise,
-      packagePaise: s.packagePaise,
-      membershipPaise: s.membershipPaise,
-      giftCardPaise: 0,
-      totalPaise: s.combinedPaise,
-      revenuePaise: s.combinedPaise,
-    })),
+    staffAggs.map((s) => {
+      const parts = staffPartsFromAgg(s);
+      const productTotal = staffProductSalesPaise(parts);
+      return {
+        staffId: s.staffId,
+        name: s.name,
+        servicePaise: s.servicePaise,
+        productPaise: s.productPaise,
+        packagePaise: s.packagePaise,
+        membershipPaise: s.membershipPaise,
+        giftCardPaise: 0,
+        totalPaise: productTotal,
+        revenuePaise: productTotal,
+      };
+    }),
   ).map(({ revenuePaise: _r, ...row }) => row);
 
   const performanceAmountTable: StaffPerformanceAmountRow[] = sortStaffByRevenue(
     staffAggs.map((s) => {
-      const total = performanceAmountFromMetricParts(
-        s.servicePaise,
-        s.packagePaise,
-        s.membershipPaise,
-      );
+      const parts = staffPartsFromAgg(s);
+      const total = staffServicePerformancePaise(parts);
       return {
         staffId: s.staffId,
         name: s.name,
@@ -639,13 +652,21 @@ export async function getStaffPerformanceCommandCenter(input?: {
   ).map(({ revenuePaise: _r, ...row }) => row);
 
   const topTenSales: StaffTopTenRow[] = sortStaffByRevenue(
-    staffAggs.map((s) => ({
-      staffId: s.staffId,
-      name: s.name,
-      photoUrl: s.photoUrl,
-      amountPaise: s.combinedPaise,
-      revenuePaise: s.combinedPaise,
-    })),
+    staffAggs.map((s) => {
+      const amount = productSalesFromMetricParts(
+        s.servicePaise,
+        s.productPaise,
+        s.packagePaise,
+        s.membershipPaise,
+      );
+      return {
+        staffId: s.staffId,
+        name: s.name,
+        photoUrl: s.photoUrl,
+        amountPaise: amount,
+        revenuePaise: amount,
+      };
+    }),
   )
     .slice(0, 10)
     .map(({ revenuePaise: _r, ...row }) => row);
@@ -688,7 +709,7 @@ export async function getStaffPerformanceCommandCenter(input?: {
     ),
   }));
 
-  const totalForPct = combined || 1;
+  const totalForPct = totalProductSalesPaise || 1;
   const distribution = salesSummaryTable.map((r) => ({
     staffId: r.staffId,
     name: r.name,
@@ -722,8 +743,14 @@ export async function getStaffPerformanceCommandCenter(input?: {
       }),
     );
 
-  const previousSalesTotal = previousStaffAggs.reduce((a, s) => a + s.combinedPaise, 0);
-  const currentSalesTotal = staffAggs.reduce((a, s) => a + s.combinedPaise, 0);
+  const previousSalesTotal = previousStaffAggs.reduce(
+    (a, s) => a + productSalesFromMetricParts(s.servicePaise, s.productPaise, s.packagePaise, s.membershipPaise),
+    0,
+  );
+  const currentSalesTotal = staffAggs.reduce(
+    (a, s) => a + productSalesFromMetricParts(s.servicePaise, s.productPaise, s.packagePaise, s.membershipPaise),
+    0,
+  );
   const currentPerformanceFromAggs = staffAggs.reduce(
     (a, s) => a + performanceAmountFromMetricParts(s.servicePaise, s.packagePaise, s.membershipPaise),
     0,
@@ -754,8 +781,11 @@ export async function getStaffPerformanceCommandCenter(input?: {
     membershipTable: buildTable('membership'),
     customerMetrics: customers,
     staffOptions: staffOptions.map((s) => ({ id: s.id, name: s.name })),
-    topTenSales,
-    topTenPerformance,
+    topTenSales: category === 'service' ? [] : topTenSales,
+    topTenPerformance: category === 'product' ? [] : topTenPerformance,
+    totalProductSalesPaise: currentSalesTotal,
+    totalServicePerformancePaise: currentPerformanceFromAggs,
+    totalCombinedAttributedPaise: combined,
     totalSalesPaise: currentSalesTotal,
     totalPerformanceAmountPaise: currentPerformanceFromAggs,
     salesSummaryTable,

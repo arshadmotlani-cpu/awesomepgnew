@@ -5,6 +5,7 @@
 
 import type { HairPermission } from '@/src/hair/lib/auth/permissionTypes';
 import type { WorkforcePermissionKey } from '@/src/workforce/permissions/library';
+import { expandGrantedPermissions, grantSetSatisfies } from '@/src/workforce/permissions/implications';
 
 /** v2 required key → v1 workforce keys that satisfy it. */
 export const V2_TO_V1_ALIASES: Record<string, readonly WorkforcePermissionKey[]> = {
@@ -144,7 +145,12 @@ export const V2_TO_V1_ALIASES: Record<string, readonly WorkforcePermissionKey[]>
 export const LEGACY_HAIR_TO_V2: Record<HairPermission, readonly string[]> = {
   'page:dashboard': ['dashboard.view'],
   'page:dashboard_revenue': ['dashboard.view_revenue', 'reports.revenue.view'],
-  'page:dashboard_staff': ['dashboard.view_staff', 'performance.all.view'],
+  'page:dashboard_staff': [
+    'dashboard.view_staff',
+    'performance.all.view',
+    'dashboard.revenue.personal',
+    'dashboard.revenue.salon',
+  ],
   'page:customers': ['customers.customer.view'],
   'page:appointments': ['appointments.appointment.view'],
   'page:billing': ['billing.invoice.view'],
@@ -201,16 +207,18 @@ export function permissionSatisfied(
   grantedKeys: readonly string[],
   requiredKey: string,
 ): boolean {
-  if (grantedKeys.includes(requiredKey)) return true;
+  const expanded = expandGrantedPermissions(grantedKeys);
+  if (grantSetSatisfies(expanded, requiredKey)) return true;
+  if (expanded.has(requiredKey)) return true;
 
-  for (const grant of grantedKeys) {
+  for (const grant of expanded) {
     const satisfies = SATISFACTION_INDEX.get(grant);
     if (satisfies?.has(requiredKey)) return true;
   }
 
   // Direct v1 alias check for required v2 key
   const v1Aliases = V2_TO_V1_ALIASES[requiredKey];
-  if (v1Aliases?.some((v1) => grantedKeys.includes(v1))) return true;
+  if (v1Aliases?.some((v1) => expanded.has(v1))) return true;
 
   return false;
 }

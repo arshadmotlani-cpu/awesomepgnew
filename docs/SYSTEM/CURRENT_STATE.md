@@ -330,3 +330,6 @@ See [[BUGS]] for full list. Highlights:
 
 <!-- DOC_SYNC_TOUCH_2026-09-23 -->
 > **2026-09-23 07:03:03 UTC** — Code changed in: Billing, Action Center. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-09-25 -->
+> **2026-09-25 10:04:44 UTC** — Code changed in: Routes. Manual review recommended.

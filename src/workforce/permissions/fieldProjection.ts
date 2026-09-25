@@ -6,6 +6,7 @@ import type { WorkforcePermissionGrants } from '@/src/workforce/types';
 import { permissionSatisfied } from '@/src/workforce/permissions/aliases';
 
 export type CustomerFieldMask = {
+  hasFullView: boolean;
   phone?: boolean;
   whatsapp?: boolean;
   email?: boolean;
@@ -24,13 +25,18 @@ const REDACTED_PHONE = '••••••••••';
 const REDACTED = '[restricted]';
 
 export function customerFieldMask(grants: WorkforcePermissionGrants): CustomerFieldMask {
+  const fullView =
+    permissionSatisfied(grants.permissions, 'customers.view') ||
+    permissionSatisfied(grants.permissions, 'customers.customer.view');
   return {
-    phone: permissionSatisfied(grants.permissions, 'customers.phone.view'),
-    whatsapp: permissionSatisfied(grants.permissions, 'customers.phone.view'),
-    email: permissionSatisfied(grants.permissions, 'customers.pii.view'),
-    pii: permissionSatisfied(grants.permissions, 'customers.pii.view'),
-    balance: permissionSatisfied(grants.permissions, 'customers.balance.view'),
-    packageCredits: permissionSatisfied(grants.permissions, 'customers.package_credits.view'),
+    hasFullView: fullView,
+    phone: fullView || permissionSatisfied(grants.permissions, 'customers.phone.view'),
+    whatsapp: fullView || permissionSatisfied(grants.permissions, 'customers.phone.view'),
+    email: fullView || permissionSatisfied(grants.permissions, 'customers.pii.view'),
+    pii: fullView || permissionSatisfied(grants.permissions, 'customers.pii.view'),
+    balance: fullView || permissionSatisfied(grants.permissions, 'customers.balance.view'),
+    packageCredits:
+      fullView || permissionSatisfied(grants.permissions, 'customers.package_credits.view'),
   };
 }
 
@@ -43,11 +49,19 @@ export function staffFieldMask(grants: WorkforcePermissionGrants): StaffFieldMas
   };
 }
 
+function firstNameOnly(fullName: unknown): string {
+  if (typeof fullName !== 'string' || !fullName.trim()) return 'Guest';
+  return fullName.trim().split(/\s+/)[0] ?? 'Guest';
+}
+
 export function projectCustomerFields<T extends Record<string, unknown>>(
   customer: T,
   mask: CustomerFieldMask,
 ): T {
   const out: Record<string, unknown> = { ...customer };
+  if (!mask.hasFullView && 'fullName' in out) {
+    out.fullName = firstNameOnly(out.fullName);
+  }
   if (!mask.phone && 'phone' in out) out.phone = REDACTED_PHONE;
   if (!mask.whatsapp && 'whatsapp' in out) out.whatsapp = null;
   if (!mask.email && 'email' in out) out.email = null;

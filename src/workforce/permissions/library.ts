@@ -4,6 +4,7 @@
  */
 
 import { FYH_PERMISSION_CATALOG_V2 } from '@/src/workforce/permissions/catalogV2';
+import { FYH_RIGHTS_CATALOG } from '@/src/workforce/permissions/catalogFyhRights';
 
 export type WorkforcePermissionGroup =
   | 'dashboard'
@@ -136,6 +137,7 @@ export const WORKFORCE_PERMISSION_LIBRARY: readonly WorkforcePermissionDef[] = [
 export const WORKFORCE_PERMISSION_LIBRARY_FULL: readonly WorkforcePermissionDef[] = [
   ...WORKFORCE_PERMISSION_LIBRARY,
   ...FYH_PERMISSION_CATALOG_V2,
+  ...FYH_RIGHTS_CATALOG,
 ];
 
 export const WORKFORCE_PERMISSION_KEYS = WORKFORCE_PERMISSION_LIBRARY_FULL.map((p) => p.key);

@@ -7,6 +7,7 @@ import { loadStaffPayrollPage } from '@/src/workforce/actions/payroll';
 import { defaultPayrollMonthKey, payrollPeriodLabel } from '@/src/workforce/lib/payrollAvailability';
 import { getSalonSettings } from '@/src/hair/services/settings';
 import { isWorkforceEngineEnabled } from '@/src/workforce/types';
+import { requireFyhPermission } from '@/src/workforce/permissions/guards';
 
 export default async function ExpensesSalaryPage({
   searchParams,
@@ -15,6 +16,7 @@ export default async function ExpensesSalaryPage({
 }) {
   await requireHairHost();
   if (!isWorkforceEngineEnabled()) redirect('/expenses');
+  await requireFyhPermission({ permission: 'expenses.salary.view', scope: 'org' });
 
   const params = await searchParams;
   const settings = await getSalonSettings();

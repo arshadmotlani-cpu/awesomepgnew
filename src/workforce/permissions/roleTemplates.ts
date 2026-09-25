@@ -110,7 +110,9 @@ const RECEPTIONIST_TEMPLATE: WorkforcePermissionKey[] = [
 ];
 
 const STAFF_TEMPLATE: WorkforcePermissionKey[] = [
+  'dashboard.revenue.personal',
   'appointments.view_own',
+  'appointments.bookable',
   'appointments.receive_bookings',
   'appointments.appointment.manage_own',
   'calendar.view',

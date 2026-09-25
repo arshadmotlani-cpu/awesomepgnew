@@ -65,6 +65,7 @@ export async function updateRoleTemplateAction(
       maxDiscountPercent,
     });
     revalidatePath('/settings/permissions');
+    revalidatePath('/dashboard/staff-performance');
     return { success: `Updated ${accessRole} template.` };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to update template' };
@@ -108,9 +109,36 @@ export async function updateEmployeePermissionsAction(
     });
     revalidatePath('/settings/permissions');
     revalidatePath('/staff');
+    revalidatePath('/dashboard/staff-performance');
+    revalidatePath('/customers');
+    revalidatePath('/appointments');
+    revalidatePath('/billing/invoices');
+    revalidatePath('/expenses');
     return { success: 'Employee permissions updated.' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to update employee permissions' };
+  }
+}
+
+/** Reset every employee in the salon engine to role-template grants (no custom overrides). */
+export async function resetAllEmployeePermissionsToTemplateAction(): Promise<PermissionActionState> {
+  try {
+    await requireWorkforcePermission('permissions.manage');
+    const session = await getHairSession();
+    const employees = await listEmployeesForEngine('fyh_salon', { activeOnly: false });
+    for (const row of employees) {
+      await resetEmployeePermissionsToRoleTemplate(
+        row.employee.id,
+        'fyh_salon',
+        session?.workforceEmployeeId ?? null,
+      );
+    }
+    revalidatePath('/settings/permissions');
+    revalidatePath('/staff');
+    revalidatePath('/dashboard/staff-performance');
+    return { success: `Reset ${employees.length} employees to role templates.` };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to reset all employees' };
   }
 }
 
