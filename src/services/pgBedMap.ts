@@ -158,6 +158,7 @@ type RawRow = {
   review_move_in: string | null;
   review_rent_paise: number | null;
   transfer_hold_request_id: string | null;
+  transfer_hold_transfer_date: string | null;
 };
 
 function buildOccupant(
@@ -272,6 +273,8 @@ function buildBed(row: RawRow, occupancy?: RawBedOccupancyFacts): PgBedMapBed {
     underReviewRequest: occupancy?.underReviewRequest ?? Boolean(underReview),
     underReviewMoveIn: row.review_move_in,
     transferHoldActive: occupancy?.transferHoldActive ?? Boolean(row.transfer_hold_request_id),
+    transferHoldTransferDate:
+      occupancy?.transferHoldTransferDate ?? row.transfer_hold_transfer_date,
     maintenanceReason: occupancy?.maintenanceReason ?? row.maintenance_reason,
     maintenanceReasonCustom:
       occupancy?.maintenanceReasonCustom ?? row.maintenance_reason_custom,
@@ -335,7 +338,9 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
   const transferHoldJoin = hasRoomChangeEngineSchema
     ? sql`
     LEFT JOIN LATERAL (
-      SELECT rcr.id::text AS transfer_hold_request_id
+      SELECT
+        rcr.id::text AS transfer_hold_request_id,
+        rth.transfer_date::text AS transfer_hold_transfer_date
       FROM room_transfer_bed_holds rth
       INNER JOIN room_change_requests rcr ON rcr.id = rth.room_change_request_id
       WHERE rth.bed_id = b.id
@@ -348,7 +353,9 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
     ) xfer ON true`
     : sql`
     LEFT JOIN LATERAL (
-      SELECT rcr.id::text AS transfer_hold_request_id
+      SELECT
+        rcr.id::text AS transfer_hold_request_id,
+        rth.transfer_date::text AS transfer_hold_transfer_date
       FROM room_transfer_bed_holds rth
       INNER JOIN room_change_requests rcr ON rcr.id = rth.room_change_request_id
       WHERE rth.bed_id = b.id
@@ -420,7 +427,8 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
       review_req.review_booking_code,
       review_req.review_move_in,
       review_req.review_rent_paise,
-      xfer.transfer_hold_request_id
+      xfer.transfer_hold_request_id,
+      xfer.transfer_hold_transfer_date
     FROM beds b
     INNER JOIN rooms r ON r.id = b.room_id AND r.archived_at IS NULL
     INNER JOIN floors f ON f.id = r.floor_id AND f.archived_at IS NULL

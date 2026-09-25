@@ -78,6 +78,8 @@ export type BedOccupancyInput = {
   underReviewRequest?: boolean;
   underReviewMoveIn?: string | null;
   transferHoldActive?: boolean;
+  /** Earliest transfer date when an active room-change hold exists on this bed. */
+  transferHoldTransferDate?: string | null;
   availableUntilDate?: string | null;
 
   maintenanceReason?: string | null;
@@ -299,6 +301,18 @@ export function computeBedOccupancySnapshot(input: BedOccupancyInput): BedOccupa
     };
   }
 
+  if (input.isOccupiedToday && input.transferHoldActive) {
+    return {
+      publicState: 'occupied',
+      adminState: 'occupied',
+      bookableFromDate:
+        input.transferHoldTransferDate ?? resolveBookableFromDate(input),
+      checkoutSettlementId: null,
+      isMonthlyTenancy: monthly,
+      isFixedTenancy: fixed,
+    };
+  }
+
   if (input.isOccupiedToday) {
     return {
       publicState: 'occupied',
@@ -445,7 +459,12 @@ export function toCustomerAvailabilityView(
   if (snap.publicState === 'occupied' && input.isOccupiedToday) {
     const checkout = resolveContractualCheckoutDate(input);
     const bookable = snap.bookableFromDate;
+    const transferHoldSublabel =
+      input.transferHoldActive && input.transferHoldTransferDate
+        ? `Transfer reserved from ${formatShortDate(input.transferHoldTransferDate)}`
+        : undefined;
     const sublabel =
+      transferHoldSublabel ??
       fixedTenancySublabel(input, checkout, bookable) ??
       (checkout && !isMonthlyTenancy(input) ? `Until ${formatShortDate(checkout)}` : undefined);
     return { kind: 'occupied', label: 'Occupied', sublabel };
@@ -587,7 +606,9 @@ export function toAdminAvailabilityView(
     const checkout = resolveContractualCheckoutDate(input);
     const bookable = snap.bookableFromDate;
     let sublabel: string | undefined;
-    if (isFixedTenancy(input) && checkout) {
+    if (input.transferHoldActive && input.transferHoldTransferDate) {
+      sublabel = `Transfer reserved from ${formatAdminShortDate(input.transferHoldTransferDate)}`;
+    } else if (isFixedTenancy(input) && checkout) {
       sublabel = bookable
         ? `Available from ${formatAdminShortDate(bookable)}`
         : `Until ${formatAdminShortDate(checkout)}`;

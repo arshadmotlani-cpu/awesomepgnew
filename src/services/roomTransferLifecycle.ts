@@ -46,6 +46,14 @@ import {
 } from '@/src/services/roomChangeEvents';
 
 const OPEN_TRANSFER_STATUSES = ['submitted', 'approved', 'waiting'] as const;
+const OPEN_ROOM_CHANGE_WORKFLOW: RoomChangeWorkflowState[] = [
+  'REQUESTED',
+  'QUOTED',
+  'TARGET_HELD',
+  'PAYMENT_PENDING',
+  'READY_TO_TRANSFER',
+  'TRANSFERRING',
+];
 
 export async function recordSelfServiceRoomChange(requestId: string): Promise<void> {
   const [row] = await db
@@ -522,7 +530,10 @@ export async function cancelRoomChangeRequest(input: {
     .where(eq(roomChangeRequests.id, input.requestId))
     .limit(1);
   if (!current) return { ok: false, message: 'Request not found.' };
-  if (!OPEN_TRANSFER_STATUSES.includes(current.status as (typeof OPEN_TRANSFER_STATUSES)[number])) {
+  if (
+    !OPEN_ROOM_CHANGE_WORKFLOW.includes(current.workflowState as RoomChangeWorkflowState) &&
+    !OPEN_TRANSFER_STATUSES.includes(current.status as (typeof OPEN_TRANSFER_STATUSES)[number])
+  ) {
     return { ok: false, message: `Cannot cancel request in status ${current.status}.` };
   }
   if (input.actorType === 'customer' && current.customerId !== input.actorId) {

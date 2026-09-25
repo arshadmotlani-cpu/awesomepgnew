@@ -340,3 +340,6 @@ Cross-links: [[ARCHITECTURE]] · [[WORKFLOWS]] · [[AI_CONTEXT]] · [[BUGS]]
 
 <!-- DOC_SYNC_TOUCH_2026-09-11 -->
 > **2026-09-11 18:15:39 UTC** — Code changed in: Vacating. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-09-25 -->
+> **2026-09-25 16:44:54 UTC** — Code changed in: Routes, Residents, Bed Assignment, Vacating. Manual review recommended.

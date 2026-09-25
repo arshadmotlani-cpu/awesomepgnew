@@ -69,6 +69,10 @@ import { listActiveRejectionsForCustomer } from '@/src/services/paymentProofReje
 import { getLatestPaymentLinkForResident } from '@/src/services/paymentLinks';
 import { listResidentDocumentInvoicesForCustomer } from '@/src/services/residentDocumentInvoices';
 import { listOpenRequestsForCustomer } from '@/src/services/residentRequests';
+import {
+  listOpenRoomChangeRequestsForCustomer,
+  openRoomChangeStatusLabel,
+} from '@/src/lib/roomTransfer/openRoomChangeRequests';
 import { getMembershipForDashboard, isActiveTenant } from '@/src/services/playstationMembership';
 import { getReferralSummaryForCustomer } from '@/src/services/referrals';
 import type { ResidentAccountContext } from '@/src/services/residentAccountContext';
@@ -313,7 +317,10 @@ export async function loadResidentProfileTabData(input: {
   const refundSettlementPreview = walletBooking
     ? await getDepositRefundSettlementPreview(walletBooking.bookingId)
     : null;
-  const { getResidentCreditBalance } = await import('@/src/services/residentCreditLedger');
+  const { getResidentCreditBalance, reconcileStaleMoveOutUnusedRentWalletCredits } = await import(
+    '@/src/services/residentCreditLedger'
+  );
+  await reconcileStaleMoveOutUnusedRentWalletCredits({ customerId: session.customerId });
   const residentCreditBalancePaise = await getResidentCreditBalance(session.customerId);
 
   const refundEligibility = walletBooking
@@ -346,10 +353,16 @@ export async function loadResidentProfileTabData(input: {
     primaryBooking?.deposit?.refundableBalancePaise ??
     depositWallet.availableCreditPaise + residentCreditBalancePaise;
 
-  const walletUnusedPrepaidRentPaise = Math.max(
-    refundSettlementPreview?.unusedPrepaidRentPaise ?? 0,
-    residentCreditBalancePaise,
-  );
+  const walletVacatingActive =
+    walletBooking?.vacating.ok &&
+    walletBooking.vacating.data &&
+    ['pending', 'approved'].includes(walletBooking.vacating.data.status)
+      ? walletBooking.vacating.data
+      : null;
+
+  const walletUnusedPrepaidRentPaise = walletVacatingActive
+    ? (refundSettlementPreview?.unusedPrepaidRentPaise ?? 0)
+    : 0;
   const walletDepositRefundablePaise =
     refundSettlementPreview?.depositRefundablePaise ??
     walletBooking?.deposit?.refundableBalancePaise ??
@@ -720,8 +733,9 @@ export async function loadResidentRequestsTabData(input: {
       ? mapDevDurationToBookingMode(input.simulatedDurationMode)
       : primaryBooking.booking.durationMode;
 
-  const [openRequests, checkoutMaps, activeTenancy, depositWallet] = await Promise.all([
+  const [openRequests, openRoomChanges, checkoutMaps, activeTenancy, depositWallet] = await Promise.all([
     listOpenRequestsForCustomer(session.customerId),
+    listOpenRoomChangeRequestsForCustomer(session.customerId),
     loadCheckoutSettlementMaps(session.customerId, detail),
     getPortalTenancyForCustomer(session.customerId),
     getCustomerDepositCredit(session.customerId),
@@ -899,6 +913,21 @@ export async function loadResidentRequestsTabData(input: {
       status: r.status,
       createdAt: r.createdAt,
       adminNotes: r.adminNotes,
+    });
+  }
+  for (const rc of openRoomChanges) {
+    if (rc.bookingId !== primaryBooking.bookingId) continue;
+    activeRequests.unshift({
+      id: rc.id,
+      type: 'room_change',
+      typeLabel: requestTypeLabel('room_change'),
+      status: openRoomChangeStatusLabel(rc.workflowState, rc.transferMode),
+      createdAt: rc.createdAt,
+      roomChangeRequestId: rc.id,
+      expectedTransferDate: rc.expectedTransferDate ?? rc.requestedShiftDate,
+      toBedLabel: `R${rc.toRoomNumber} · ${rc.toBedCode}`,
+      transferMode: rc.transferMode,
+      canCancel: true,
     });
   }
   if (primaryVacating && ['pending', 'approved'].includes(primaryVacating.status)) {

@@ -90,6 +90,19 @@ test('vacating restore billing does not pass system string as audit actor id', (
   assert.match(rentInvoices, /actorId: args\.adminId \?\? null/);
 });
 
+test('getVacatingForBooking excludes rejected terminal history from SSOT query', () => {
+  const customerQueries = readFileSync(
+    join(process.cwd(), 'src/db/queries/customer.ts'),
+    'utf8',
+  );
+  const fn = customerQueries.slice(
+    customerQueries.indexOf('export function getVacatingForBooking'),
+    customerQueries.indexOf('export function', customerQueries.indexOf('export function getVacatingForBooking') + 1),
+  );
+  assert.match(fn, /inArray\(vacatingRequests\.status, \['pending', 'approved', 'completed'\]\)/);
+  assert.doesNotMatch(fn, /'rejected'/);
+});
+
 test('rejected historical vacating is not treated as primaryVacating', () => {
   assert.equal(isActivePortalVacatingStatus('rejected'), false);
   assert.equal(
@@ -106,6 +119,25 @@ test('approved admin withdraw preserves approved rows referenced by Exit Brain',
   assert.match(body, /if \(current\.status === 'approved'\)/);
   assert.match(body, /deactivateResidentExitBrain\(current\.bookingId\)/);
   assert.match(body, /status: 'rejected'/);
+  assert.match(body, /reverseMoveOutUnusedRentWalletCredit/);
+});
+
+test('admin revert approval reverses unused prepaid rent wallet credit', () => {
+  const start = vacatingService.indexOf('export async function revertVacatingApproval');
+  const end = vacatingService.indexOf('/** Extend or shorten an active vacating date');
+  const body = vacatingService.slice(start, end);
+  assert.match(body, /reverseMoveOutUnusedRentWalletCredit/);
+});
+
+test('approved customer cancel reverses unused prepaid rent wallet credit', () => {
+  assert.match(approvedCancelBody(), /reverseMoveOutUnusedRentWalletCredit/);
+});
+
+test('vacating reject reverses unused prepaid rent wallet credit', () => {
+  const start = vacatingService.indexOf('export async function rejectVacatingRequest');
+  const end = vacatingService.indexOf('export async function cancelVacatingRequestByCustomer');
+  const body = vacatingService.slice(start, end);
+  assert.match(body, /reverseMoveOutUnusedRentWalletCredit/);
 });
 
 test('pending customer cancel still deletes pending rows without Exit Brain', () => {

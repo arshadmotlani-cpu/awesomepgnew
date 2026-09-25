@@ -2,11 +2,13 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { StatusChip, StatusTimeline } from '@/src/components/customer/design-system';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { ResidentMoreSection } from '@/src/components/customer/account/resident/ResidentMoreSection';
 import { siteWhatsAppUrl } from '@/src/lib/siteContact';
 import { formatDate } from '@/src/lib/format';
+import { cancelRoomChangeAction } from '@/app/(customer)/account/resident/room-change-actions';
 import {
   nextStepForRequest,
   REQUEST_TIMELINE_STAGES,
@@ -24,10 +26,31 @@ export function RequestDetailView({
   request: ActiveRequestItem;
   onBack: () => void;
 }) {
+  const router = useRouter();
   const [message, setMessage] = useState('');
+  const [cancelPending, setCancelPending] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
   const isRejected = request.status === 'rejected';
+  const isRoomChange = request.type === 'room_change';
   const stages = request.isVacating ? VACATING_TIMELINE_STAGES : REQUEST_TIMELINE_STAGES;
   const activeIndex = requestStatusToTimelineIndex(request.status);
+
+  async function cancelRoomChange() {
+    const requestId = request.roomChangeRequestId ?? request.id;
+    setCancelError(null);
+    setCancelPending(true);
+    try {
+      const result = await cancelRoomChangeAction({ requestId });
+      if (!result.ok) {
+        setCancelError(result.message);
+        return;
+      }
+      router.refresh();
+      onBack();
+    } finally {
+      setCancelPending(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -63,6 +86,38 @@ export function RequestDetailView({
             <p className="mt-2 text-xs text-zinc-500">Last update: {request.adminNotes}</p>
           ) : null}
         </section>
+
+        {isRoomChange ? (
+          <section className="mt-5 space-y-2 rounded-lg border border-zinc-200 bg-white p-4 text-sm text-zinc-700">
+            <p>
+              <span className="font-medium text-zinc-900">Requested bed:</span>{' '}
+              {request.toBedLabel ?? '—'}
+            </p>
+            {request.expectedTransferDate ? (
+              <p>
+                <span className="font-medium text-zinc-900">Earliest transfer:</span>{' '}
+                {formatDate(request.expectedTransferDate)}
+              </p>
+            ) : null}
+            {request.transferMode === 'scheduled' ? (
+              <p className="text-xs text-zinc-500">
+                You stay on your current bed until the destination is free. The ₹90 shift fee stays
+                on your account while this request is open.
+              </p>
+            ) : null}
+            {request.canCancel ? (
+              <button
+                type="button"
+                disabled={cancelPending}
+                onClick={() => void cancelRoomChange()}
+                className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800 hover:bg-red-100 disabled:opacity-60"
+              >
+                {cancelPending ? 'Cancelling…' : 'Cancel bed transfer request'}
+              </button>
+            ) : null}
+            {cancelError ? <p className="text-xs text-red-600">{cancelError}</p> : null}
+          </section>
+        ) : null}
 
         <ResidentMoreSection title="Add a message" description="Send an update to the office on WhatsApp.">
           <textarea

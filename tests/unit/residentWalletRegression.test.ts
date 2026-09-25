@@ -86,6 +86,28 @@ test('account feature nav lists Referrals only on profile hub', () => {
   assert.doesNotMatch(nav, /label: 'Invoices'/);
 });
 
+test('wallet load reconciles stale move-out unused rent credits', () => {
+  assert.match(residentPortalTabData, /reconcileStaleMoveOutUnusedRentWalletCredits/);
+  const ledger = readFileSync(
+    join(process.cwd(), 'src/services/residentCreditLedger.ts'),
+    'utf8',
+  );
+  assert.match(ledger, /reconcileStaleMoveOutUnusedRentWalletCredits/);
+  assert.match(ledger, /reverseMoveOutUnusedRentWalletCredit/);
+});
+
+test('wallet unused prepaid rent uses active vacating settlement only', () => {
+  assert.match(residentPortalTabData, /walletUnusedPrepaidRentPaise = walletVacatingActive/);
+  assert.match(
+    residentPortalTabData,
+    /refundSettlementPreview\?\.unusedPrepaidRentPaise \?\? 0/,
+  );
+  assert.doesNotMatch(
+    residentPortalTabData,
+    /Math\.max\([\s\S]*unusedPrepaidRentPaise[\s\S]*residentCreditBalancePaise/,
+  );
+});
+
 test('restored deposit wallet components exist on disk', () => {
   const files = [
     'src/components/customer/account/ResidentRequestForms.tsx',

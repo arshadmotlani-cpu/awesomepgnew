@@ -199,6 +199,108 @@ export async function syncMoveOutUnusedRentWalletCredit(input: {
   return { ok: true, creditedPaise: amountPaise, skipped: false };
 }
 
+const MOVE_OUT_UNUSED_REVERSAL_PREFIX = 'move_out_unused_rent_reversal:';
+
+export function moveOutUnusedRentReversalReason(vacatingRequestId: string): string {
+  return `${MOVE_OUT_UNUSED_REVERSAL_PREFIX}${vacatingRequestId}`;
+}
+
+/**
+ * Reverse wallet credit posted for an approved vacating notice when the notice is withdrawn.
+ * Idempotent — safe to call multiple times after cancel/reject.
+ */
+export async function reverseMoveOutUnusedRentWalletCredit(input: {
+  vacatingRequestId: string;
+  adminId?: string | null;
+  note?: string;
+}): Promise<{ ok: true; reversedPaise: number; skipped: boolean }> {
+  const creditPrefix = moveOutUnusedRentCreditReason(input.vacatingRequestId);
+  const reversalPrefix = moveOutUnusedRentReversalReason(input.vacatingRequestId);
+
+  const [creditRow] = await db
+    .select({
+      customerId: residentCreditLedger.customerId,
+      bookingId: residentCreditLedger.bookingId,
+      amountPaise: residentCreditLedger.amountPaise,
+    })
+    .from(residentCreditLedger)
+    .where(
+      and(
+        sql`${residentCreditLedger.reason} LIKE ${`${creditPrefix}%`}`,
+        eq(residentCreditLedger.entryKind, 'credit'),
+      ),
+    )
+    .orderBy(sql`${residentCreditLedger.createdAt} DESC`)
+    .limit(1);
+
+  if (!creditRow?.amountPaise || creditRow.amountPaise <= 0) {
+    return { ok: true, reversedPaise: 0, skipped: true };
+  }
+
+  const alreadyReversed = await hasResidentCreditEntryWithReasonPrefix(
+    creditRow.customerId,
+    reversalPrefix,
+  );
+  if (alreadyReversed) {
+    return { ok: true, reversedPaise: 0, skipped: true };
+  }
+
+  await recordResidentCreditDebit({
+    customerId: creditRow.customerId,
+    bookingId: creditRow.bookingId,
+    amountPaise: creditRow.amountPaise,
+    reason: `${reversalPrefix} ${input.note ?? 'Vacating notice withdrawn — unused prepaid rent credit reversed'}`,
+    createdByAdminId: input.adminId ?? null,
+  });
+
+  return { ok: true, reversedPaise: creditRow.amountPaise, skipped: false };
+}
+
+/**
+ * Reverse move-out unused-rent credits when the linked vacating notice is no longer active
+ * (e.g. cancelled after approval). Idempotent; safe on every wallet load.
+ */
+export async function reconcileStaleMoveOutUnusedRentWalletCredits(input: {
+  customerId: string;
+  adminId?: string | null;
+}): Promise<void> {
+  const creditRows = await db
+    .select({ reason: residentCreditLedger.reason })
+    .from(residentCreditLedger)
+    .where(
+      and(
+        eq(residentCreditLedger.customerId, input.customerId),
+        eq(residentCreditLedger.entryKind, 'credit'),
+        sql`${residentCreditLedger.reason} LIKE ${`${MOVE_OUT_UNUSED_RENT_MARKER}:%`}`,
+      ),
+    );
+
+  const vacatingIds = new Set<string>();
+  for (const row of creditRows) {
+    const afterMarker = row.reason.slice(MOVE_OUT_UNUSED_RENT_MARKER.length + 1);
+    const id = afterMarker.split(/[\s:]/)[0]?.trim();
+    if (id) vacatingIds.add(id);
+  }
+  if (vacatingIds.size === 0) return;
+
+  const { vacatingRequests } = await import('@/src/db/schema');
+  for (const vacatingRequestId of vacatingIds) {
+    const [vr] = await db
+      .select({ status: vacatingRequests.status })
+      .from(vacatingRequests)
+      .where(eq(vacatingRequests.id, vacatingRequestId))
+      .limit(1);
+    if (vr && ['approved', 'completed'].includes(vr.status)) continue;
+    await reverseMoveOutUnusedRentWalletCredit({
+      vacatingRequestId,
+      adminId: input.adminId ?? null,
+      note: 'Vacating no longer active — unused prepaid rent credit reversed',
+    }).catch((err) => {
+      console.error('[residentCreditLedger] stale unused rent reconciliation failed:', err);
+    });
+  }
+}
+
 /**
  * Auto-apply available credit to a newly issued rent invoice (default on).
  * Idempotent via unique index on related_rent_invoice_id.

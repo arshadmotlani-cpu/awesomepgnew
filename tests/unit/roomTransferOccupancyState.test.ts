@@ -155,3 +155,16 @@ test('K — pending transfer preserves held target without occupying old twice',
   assert.equal(beforeTransferNew.isOpenNow, false);
   assert.equal(beforeTransferNew.isBookable, false);
 });
+
+test('occupied destination with transfer hold shows reserved-from date on customer view', () => {
+  const customer = toCustomerAvailabilityView({
+    ...baseInput,
+    isOccupiedToday: true,
+    isAvailableNow: false,
+    transferHoldActive: true,
+    transferHoldTransferDate: '2026-09-21',
+  });
+  assert.equal(customer.label, 'Occupied');
+  assert.match(customer.sublabel ?? '', /Transfer reserved from/i);
+  assert.match(customer.sublabel ?? '', /21/i);
+});

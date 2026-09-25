@@ -113,6 +113,11 @@ export type ActiveRequestItem = {
   createdAt: Date | string;
   adminNotes?: string | null;
   isVacating?: boolean;
+  roomChangeRequestId?: string;
+  expectedTransferDate?: string | null;
+  toBedLabel?: string | null;
+  transferMode?: 'immediate' | 'scheduled' | null;
+  canCancel?: boolean;
 };
 
 export function requestTypeLabel(type: string): string {

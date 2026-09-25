@@ -53,7 +53,8 @@ test('accordion uses real buttons and exclusive open state', () => {
 
 test('active request status is compact and not an auto-open form', () => {
   assert.match(requestsHome, /Move-out request/);
-  assert.match(requestsHome, /Change bed/);
+  assert.match(requestsHome, /Bed transfer/);
+  assert.match(requestsHome, /Requested:/);
   assert.match(requestsHome, /View details/);
   assert.match(requestsHome, /setMoveOutStage\('form'\)/);
 });

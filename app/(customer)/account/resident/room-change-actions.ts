@@ -403,7 +403,10 @@ export async function cancelRoomChangeAction(input: {
     actorId: session.customerId,
     reason: 'Cancelled by resident',
   });
-  if (result.ok) revalidatePath('/account/profile');
+  if (result.ok) {
+    revalidatePath('/account/profile');
+    revalidatePath('/account/resident/requests');
+  }
   return result;
 }
 

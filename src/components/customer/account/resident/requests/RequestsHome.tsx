@@ -265,9 +265,17 @@ export function RequestsHome(props: Props) {
       {changeBedRequest ? (
         <ApgCard tier="resident">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-apg-orange">
-            Change bed
+            Bed transfer
           </p>
-          <p className="mt-1 text-sm text-white">Current: {roomLabel}</p>
+          <p className="mt-1 text-sm text-white">Current bed: {roomLabel}</p>
+          {changeBedRequest.toBedLabel ? (
+            <p className="mt-0.5 text-sm text-white">Requested: {changeBedRequest.toBedLabel}</p>
+          ) : null}
+          {changeBedRequest.expectedTransferDate ? (
+            <p className="mt-0.5 text-xs text-apg-silver">
+              Destination available from {formatDate(changeBedRequest.expectedTransferDate)}
+            </p>
+          ) : null}
           <p className="mt-0.5 text-xs capitalize text-apg-silver">
             Status: {changeBedRequest.status.replace(/_/g, ' ')}
           </p>

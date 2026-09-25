@@ -1731,9 +1731,14 @@ export function getVacatingForBooking(
     const [row] = await db
       .select()
       .from(vacatingRequests)
-      .where(eq(vacatingRequests.bookingId, bookingId))
+      .where(
+        and(
+          eq(vacatingRequests.bookingId, bookingId),
+          inArray(vacatingRequests.status, ['pending', 'approved', 'completed']),
+        ),
+      )
       .orderBy(
-        sql`CASE WHEN ${vacatingRequests.status} IN ('pending', 'approved') THEN 0 ELSE 1 END`,
+        sql`CASE WHEN ${vacatingRequests.status} IN ('pending', 'approved') THEN 0 WHEN ${vacatingRequests.status} = 'completed' THEN 1 ELSE 2 END`,
         desc(vacatingRequests.createdAt),
       )
       .limit(1);

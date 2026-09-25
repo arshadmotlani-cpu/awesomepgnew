@@ -740,6 +740,17 @@ export async function rejectVacatingRequest(input: {
     context: 'reject',
   });
 
+  const { reverseMoveOutUnusedRentWalletCredit } = await import(
+    '@/src/services/residentCreditLedger'
+  );
+  await reverseMoveOutUnusedRentWalletCredit({
+    vacatingRequestId: input.requestId,
+    adminId: input.resolvedByAdminId ?? null,
+    note: 'Vacating notice rejected — unused prepaid rent credit reversed',
+  }).catch((err) => {
+    console.error('[vacating] unused rent wallet reversal failed on reject:', err);
+  });
+
   const { revertScheduledTransfersOnVacatingCancel } = await import(
     '@/src/services/roomTransferLifecycle'
   );
@@ -889,6 +900,16 @@ export async function cancelApprovedVacatingByCustomer(input: {
   await restoreCheckoutRentAfterVacatingCancel({
     bookingId: current.bookingId,
     context: 'customer_cancel_approved',
+  });
+
+  const { reverseMoveOutUnusedRentWalletCredit } = await import(
+    '@/src/services/residentCreditLedger'
+  );
+  await reverseMoveOutUnusedRentWalletCredit({
+    vacatingRequestId: input.requestId,
+    note: 'Move-out cancelled — unused prepaid rent credit reversed',
+  }).catch((err) => {
+    console.error('[vacating] unused rent wallet reversal failed on approved cancel:', err);
   });
 
   try {
@@ -1495,6 +1516,17 @@ export async function adminWithdrawVacatingRequest(input: {
       context: 'withdraw',
     });
 
+    const { reverseMoveOutUnusedRentWalletCredit } = await import(
+      '@/src/services/residentCreditLedger'
+    );
+    await reverseMoveOutUnusedRentWalletCredit({
+      vacatingRequestId: current.id,
+      adminId: input.resolvedByAdminId ?? null,
+      note: 'Move-out notice withdrawn by admin — unused prepaid rent credit reversed',
+    }).catch((err) => {
+      console.error('[vacating] unused rent wallet reversal failed on admin withdraw:', err);
+    });
+
     const { deactivateResidentExitBrain } = await import('@/src/lib/exit/activateResidentExitBrain');
     await deactivateResidentExitBrain(current.bookingId);
   } else {
@@ -1548,6 +1580,17 @@ export async function revertVacatingApproval(input: {
     bookingId: current.bookingId,
     adminId: input.resolvedByAdminId ?? null,
     context: 'revert_approval',
+  });
+
+  const { reverseMoveOutUnusedRentWalletCredit } = await import(
+    '@/src/services/residentCreditLedger'
+  );
+  await reverseMoveOutUnusedRentWalletCredit({
+    vacatingRequestId: current.id,
+    adminId: input.resolvedByAdminId ?? null,
+    note: 'Vacating approval reverted — unused prepaid rent credit reversed',
+  }).catch((err) => {
+    console.error('[vacating] unused rent wallet reversal failed on revert approval:', err);
   });
 
   const { cleanupCheckoutSettlementForVacating } = await import('./checkoutSettlement');

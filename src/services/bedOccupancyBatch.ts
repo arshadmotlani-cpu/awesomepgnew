@@ -50,6 +50,15 @@ export async function fetchBedOccupancyRows(
 ): Promise<BedOccupancyBatchRow[]> {
   const refDate = filter.asOfDate ?? todayString();
   const hasRoomChangeEngineSchema = await roomChangeEngineSchemaReady();
+  const transferHoldTransferDateSql = hasRoomChangeEngineSchema
+    ? sql<string | null>`(
+        SELECT rth.transfer_date::text
+        FROM room_transfer_bed_holds rth
+        WHERE rth.bed_id = ${beds.id}
+          AND rth.status = 'active'
+        LIMIT 1
+      )`
+    : sql<string | null>`NULL`;
   const transferHoldActiveSql = hasRoomChangeEngineSchema
     ? sql<boolean>`EXISTS (
         SELECT 1 FROM room_transfer_bed_holds rth
@@ -228,6 +237,7 @@ export async function fetchBedOccupancyRows(
           AND ${refDate}::date <@ br.stay_range
       )`,
       transferHoldActive: transferHoldActiveSql,
+      transferHoldTransferDate: transferHoldTransferDateSql,
     })
     .from(beds)
     .innerJoin(rooms, eq(rooms.id, beds.roomId))
@@ -259,6 +269,7 @@ export async function fetchBedOccupancyRows(
     holdInterestCount: row.holdInterestCount,
     underReviewRequest: row.underReviewRequest,
     transferHoldActive: row.transferHoldActive,
+    transferHoldTransferDate: row.transferHoldTransferDate,
   }));
 }
 
