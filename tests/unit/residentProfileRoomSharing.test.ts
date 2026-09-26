@@ -43,8 +43,8 @@ test('resident profile does not hardcode 4-sharing', () => {
   );
   assert.doesNotMatch(section, /roomCapacity=\{4\}/);
   assert.doesNotMatch(section, /Math\.max\(0,\s*4\s*-\s*1\)/);
-  assert.match(section, /roomCapacity=\{data\.roomCapacity\}/);
-  assert.match(section, /roommatesCount=\{data\.roommatesCount\}/);
+  assert.match(section, /roomCapacity: profileData\.roomCapacity/);
+  assert.match(section, /roommatesCount: profileData\.roommatesCount/);
 
   const loader = readFileSync(
     join(process.cwd(), 'src/services/residentPortalTabData.ts'),
