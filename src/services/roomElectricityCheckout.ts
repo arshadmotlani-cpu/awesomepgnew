@@ -1,5 +1,13 @@
 /**
  * Loads room occupancy timeline and builds checkout electricity allocation.
+ *
+ * Authoritative checkout electricity pipeline:
+ * ROOM PERIOD → meter total bill → historical occupancy slices →
+ * allocateRoomElectricityCheckout (per-resident fair share & collections) →
+ * currentResidentSharePaise saved on checkout_settlements.
+ *
+ * Room/month collections SSOT: loadRoomElectricityCollectedByCustomerForMonth.
+ * Room/month ledger SSOT: getElectricitySettlementLedgerView.
  */
 import { formatDate, parseDate } from '@/src/lib/dates';
 import {
@@ -9,6 +17,7 @@ import {
 } from '@/src/lib/checkout/roomElectricityAllocation';
 import { loadHistoricalRoomOccupantSlicesForPeriod } from '@/src/lib/billing/roomElectricityCheckoutOccupants';
 import { firstOfMonth, monthBounds } from '@/src/services/billing';
+import { resolveAuthoritativeRoomElectricityBillPaiseForCheckout } from '@/src/lib/checkout/roomElectricityCheckoutBill';
 
 export type { RoomElectricityCheckoutAllocation };
 
@@ -67,6 +76,29 @@ export function buildCollectedByCustomerIdForCheckout(input: {
     );
   }
   return collectedByCustomerId;
+}
+
+export async function buildRoomElectricityCheckoutAllocationForVacating(input: {
+  roomId: string;
+  customerId: string;
+  vacatingDate: string;
+  meterDerivedTotalPaise: number;
+  unitsConsumed?: number | null;
+  excludeCheckoutSettlementId?: string | null;
+}): Promise<RoomElectricityCheckoutAllocation> {
+  const { totalBillPaise } = await resolveAuthoritativeRoomElectricityBillPaiseForCheckout({
+    roomId: input.roomId,
+    vacatingDate: input.vacatingDate,
+    meterDerivedTotalPaise: input.meterDerivedTotalPaise,
+  });
+  return buildRoomElectricityCheckoutAllocation({
+    roomId: input.roomId,
+    customerId: input.customerId,
+    vacatingDate: input.vacatingDate,
+    totalBillPaise,
+    unitsConsumed: input.unitsConsumed,
+    excludeCheckoutSettlementId: input.excludeCheckoutSettlementId,
+  });
 }
 
 export async function buildRoomElectricityCheckoutAllocation(input: {

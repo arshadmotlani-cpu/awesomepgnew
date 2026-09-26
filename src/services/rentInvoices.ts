@@ -3601,9 +3601,9 @@ export type RentBillingOverviewRow = {
   depositDuePaise: number;
   depositCollectionStatus: string;
   isDueForGeneration: boolean;
-  /** Configuration-effective sharing capacity for this billing month. */
+  /** Configuration-effective sharing slots for this billing month. */
   roomCapacity: number;
-  /** Active confirmed residents in room today. */
+  /** Active confirmed residents in the room today (physical — not month-average). */
   roomOccupied: number;
   roomTypeName: string;
 };

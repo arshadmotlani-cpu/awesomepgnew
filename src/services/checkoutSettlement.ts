@@ -65,7 +65,7 @@ import {
   recordCheckoutElectricityCollectionInTx,
   type RoomElectricityLedgerCycleView,
 } from '@/src/services/roomElectricityLedger';
-import { buildRoomElectricityCheckoutAllocation } from '@/src/services/roomElectricityCheckout';
+import { buildRoomElectricityCheckoutAllocationForVacating } from '@/src/services/roomElectricityCheckout';
 import type { RoomElectricityCheckoutAllocation } from '@/src/lib/checkout/roomElectricityAllocation';
 import { assessCheckoutSettlementReadiness } from '@/src/lib/checkout/checkoutSettlementReadiness';
 import {
@@ -1453,16 +1453,19 @@ async function buildCheckoutSettlementDetailFromJoinRow(
   let roomElectricityAllocation: RoomElectricityCheckoutAllocation | null = null;
   if (checkoutRoomId && electricityTotalBillPaise > 0) {
     try {
-      roomElectricityAllocation = await buildRoomElectricityCheckoutAllocation({
+      roomElectricityAllocation = await buildRoomElectricityCheckoutAllocationForVacating({
         roomId: checkoutRoomId,
         customerId: settlement.customerId,
         vacatingDate: row.vacating_date,
-        totalBillPaise: electricityTotalBillPaise,
+        meterDerivedTotalPaise: electricityTotalBillPaise,
         unitsConsumed: unitsForAllocation,
         excludeCheckoutSettlementId: settlement.id,
       });
     } catch {
       roomElectricityAllocation = null;
+    }
+    if (roomElectricityAllocation) {
+      electricityTotalBillPaise = roomElectricityAllocation.totalBillPaise;
     }
   }
 
@@ -2185,11 +2188,11 @@ export async function updateCheckoutElectricitySettlement(input: {
   if (!skipTimelineAllocation && checkoutRoomId && computed.calc.totalBillPaise > 0) {
     if (vacatingRow?.vacatingDate) {
       try {
-        roomElectricityAllocation = await buildRoomElectricityCheckoutAllocation({
+        roomElectricityAllocation = await buildRoomElectricityCheckoutAllocationForVacating({
           roomId: checkoutRoomId,
           customerId: current.customerId,
           vacatingDate: String(vacatingRow.vacatingDate),
-          totalBillPaise: computed.calc.totalBillPaise,
+          meterDerivedTotalPaise: computed.calc.totalBillPaise,
           unitsConsumed: computed.calc.unitsConsumed,
           excludeCheckoutSettlementId: input.settlementId,
         });

@@ -251,10 +251,19 @@ export function BillingOverviewPanel({
                     Bed
                   </th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-apg-silver">
-                    Capacity
+                    Room type
                   </th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase text-apg-silver">
-                    Occupied
+                  <th
+                    className="px-4 py-3 text-xs font-semibold uppercase text-apg-silver"
+                    title="Configuration-effective sharing slots for this billing month"
+                  >
+                    Sharing (month)
+                  </th>
+                  <th
+                    className="px-4 py-3 text-xs font-semibold uppercase text-apg-silver"
+                    title="Active confirmed residents in the room today (physical occupancy)"
+                  >
+                    In room today
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-apg-silver">
                     Current monthly rent
@@ -357,9 +366,8 @@ function OverviewRow({
         R{row.roomNumber} · {row.bedCode}
       </td>
       <td className="px-4 py-3 text-xs text-apg-silver">{row.roomTypeName}</td>
-      <td className="px-4 py-3 text-xs text-apg-silver">
-        {row.roomOccupied} / {row.roomCapacity}
-      </td>
+      <td className="px-4 py-3 text-xs tabular-nums text-apg-silver">{row.roomCapacity}</td>
+      <td className="px-4 py-3 text-xs tabular-nums text-apg-silver">{row.roomOccupied}</td>
       <td className="px-4 py-3 text-right tabular-nums text-white">
         {paiseToInr(row.expectedRentPaise)}
       </td>

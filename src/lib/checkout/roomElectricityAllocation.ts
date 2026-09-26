@@ -35,8 +35,19 @@ export type RoomElectricityCheckoutAllocation = {
   periodEndExclusive: string;
   unitsConsumed: number | null;
   totalBillPaise: number;
+  /** Sum of all residents' attributed collections this period (room-level). */
   alreadyCollectedPaise: number;
   remainingToRecoverPaise: number;
+  /** Collections attributed to other residents in the room this period. */
+  otherResidentsCollectedPaise: number;
+  /** This resident's fair share for the period (occupancy-weighted). */
+  currentResidentFairSharePaise: number;
+  /** Electricity already attributed to this resident for this period. */
+  currentResidentCollectedPaise: number;
+  /** This resident's remaining checkout due (never includes others' payments). */
+  currentResidentRemainingDuePaise: number;
+  /** Room-level collections that exceed the bill or cannot be tied to a resident. */
+  unallocatedCollectedPaise: number;
   occupants: OccupantElectricityLine[];
   currentResidentSharePaise: number;
 };
@@ -96,40 +107,61 @@ export function allocateRoomElectricityCheckout(input: {
     0,
   );
   const remainingToRecoverPaise = Math.max(0, input.totalBillPaise - alreadyCollectedPaise);
+  const unallocatedCollectedPaise = Math.max(0, alreadyCollectedPaise - input.totalBillPaise);
 
-  const unsettled = weighted.filter(
-    (row) => (input.collectedByCustomerId.get(row.occupant.customerId) ?? 0) <= 0,
-  );
-  const unsettledWeights = unsettled.map((row) => row.days);
-  const { shares: remainingShares } = splitElectricityWeighted({
-    totalPaise: remainingToRecoverPaise,
-    weights: unsettledWeights.length > 0 ? unsettledWeights : [1],
+  const lineMeta = weighted.map((row, index) => {
+    const fairSharePaise = fairShares[index] ?? 0;
+    const collectedPaise = input.collectedByCustomerId.get(row.occupant.customerId) ?? 0;
+    const stillOwesPaise = Math.max(0, fairSharePaise - collectedPaise);
+    return { row, fairSharePaise, collectedPaise, stillOwesPaise, days: row.days };
   });
 
-  const occupants: OccupantElectricityLine[] = weighted.map((row, index) => {
-    const collectedPaise = input.collectedByCustomerId.get(row.occupant.customerId) ?? 0;
-    const isPaid = collectedPaise > 0;
-    const unsettledIndex = unsettled.findIndex(
-      (candidate) => candidate.occupant.customerId === row.occupant.customerId,
-    );
-    const checkoutSharePaise =
-      unsettledIndex >= 0 ? (remainingShares[unsettledIndex] ?? 0) : 0;
-    const isCurrent = row.occupant.customerId === input.currentCustomerId;
+  const totalStillOwesPaise = lineMeta.reduce((sum, line) => sum + line.stillOwesPaise, 0);
+  const recoverPoolPaise =
+    totalStillOwesPaise > 0
+      ? Math.min(remainingToRecoverPaise, totalStillOwesPaise)
+      : 0;
+
+  const checkoutShareByCustomerId = new Map<string, number>();
+  if (recoverPoolPaise > 0 && totalStillOwesPaise > 0) {
+    const { shares } = splitElectricityWeighted({
+      totalPaise: recoverPoolPaise,
+      weights: lineMeta.map((line) => line.stillOwesPaise),
+    });
+    lineMeta.forEach((line, index) => {
+      checkoutShareByCustomerId.set(line.row.occupant.customerId, shares[index] ?? 0);
+    });
+  }
+
+  const occupants: OccupantElectricityLine[] = lineMeta.map((line) => {
+    const isCurrent = line.row.occupant.customerId === input.currentCustomerId;
+    const checkoutSharePaise = checkoutShareByCustomerId.get(line.row.occupant.customerId) ?? 0;
+    const isPaid = line.collectedPaise >= line.fairSharePaise && line.fairSharePaise > 0;
 
     return {
-      bookingId: row.occupant.bookingId,
-      customerId: row.occupant.customerId,
-      customerName: row.occupant.customerName,
-      occupancyDays: row.days,
-      fairSharePaise: fairShares[index] ?? 0,
-      collectedPaise,
+      bookingId: line.row.occupant.bookingId,
+      customerId: line.row.occupant.customerId,
+      customerName: line.row.occupant.customerName,
+      occupancyDays: line.days,
+      fairSharePaise: line.fairSharePaise,
+      collectedPaise: line.collectedPaise,
       settlementStatus: isPaid ? 'paid' : isCurrent ? 'pending' : 'estimated',
       checkoutSharePaise,
     };
   });
 
+  const currentLine = lineMeta.find(
+    (line) => line.row.occupant.customerId === input.currentCustomerId,
+  );
+  const currentResidentFairSharePaise = currentLine?.fairSharePaise ?? 0;
+  const currentResidentCollectedPaise = currentLine?.collectedPaise ?? 0;
   const currentResidentSharePaise =
-    occupants.find((line) => line.customerId === input.currentCustomerId)?.checkoutSharePaise ?? 0;
+    checkoutShareByCustomerId.get(input.currentCustomerId) ?? 0;
+  const currentResidentRemainingDuePaise = currentResidentSharePaise;
+  const otherResidentsCollectedPaise = Math.max(
+    0,
+    alreadyCollectedPaise - currentResidentCollectedPaise,
+  );
 
   return {
     billingMonth: input.billingMonth,
@@ -139,6 +171,11 @@ export function allocateRoomElectricityCheckout(input: {
     totalBillPaise: input.totalBillPaise,
     alreadyCollectedPaise,
     remainingToRecoverPaise,
+    otherResidentsCollectedPaise,
+    currentResidentFairSharePaise,
+    currentResidentCollectedPaise,
+    currentResidentRemainingDuePaise,
+    unallocatedCollectedPaise,
     occupants,
     currentResidentSharePaise,
   };

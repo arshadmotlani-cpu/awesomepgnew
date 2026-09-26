@@ -6,7 +6,7 @@ import { getAdminSession } from '@/src/lib/auth/session';
 import { adminHasPermission } from '@/src/lib/auth/roles';
 import { calculateCheckoutElectricity } from '@/src/lib/checkout/electricitySettlementCalc';
 import { bookingRoomId } from '@/src/lib/checkout/electricitySettlement';
-import { buildRoomElectricityCheckoutAllocation } from '@/src/services/roomElectricityCheckout';
+import { buildRoomElectricityCheckoutAllocationForVacating } from '@/src/services/roomElectricityCheckout';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -63,11 +63,11 @@ export async function GET(
     return Response.json({ ok: false, error: bill.error }, { status: 400 });
   }
 
-  const allocation = await buildRoomElectricityCheckoutAllocation({
+  const allocation = await buildRoomElectricityCheckoutAllocationForVacating({
     roomId,
     customerId: row.customerId,
     vacatingDate: String(row.vacatingDate),
-    totalBillPaise: bill.calc.totalBillPaise,
+    meterDerivedTotalPaise: bill.calc.totalBillPaise,
     unitsConsumed: bill.calc.unitsConsumed,
     excludeCheckoutSettlementId: settlementId,
   });

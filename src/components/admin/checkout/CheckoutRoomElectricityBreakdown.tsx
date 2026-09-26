@@ -25,9 +25,17 @@ export function CheckoutRoomElectricityBreakdown({
   if (!allocation && liveTotalBillPaise == null) return null;
 
   const totalBillPaise = liveTotalBillPaise ?? allocation?.totalBillPaise ?? 0;
-  const currentSharePaise = liveSharePaise ?? allocation?.currentResidentSharePaise ?? 0;
-  const alreadyCollected = allocation?.alreadyCollectedPaise ?? 0;
-  const remaining = allocation?.remainingToRecoverPaise ?? Math.max(0, totalBillPaise - alreadyCollected);
+  const currentSharePaise =
+    liveSharePaise ??
+    allocation?.currentResidentRemainingDuePaise ??
+    allocation?.currentResidentSharePaise ??
+    0;
+  const roomCollected = allocation?.alreadyCollectedPaise ?? 0;
+  const remainingRoom = allocation?.remainingToRecoverPaise ?? Math.max(0, totalBillPaise - roomCollected);
+  const residentPaid = allocation?.currentResidentCollectedPaise ?? 0;
+  const residentFair = allocation?.currentResidentFairSharePaise ?? 0;
+  const othersPaid = allocation?.otherResidentsCollectedPaise ?? Math.max(0, roomCollected - residentPaid);
+  const unallocated = allocation?.unallocatedCollectedPaise ?? 0;
 
   return (
     <section
@@ -46,18 +54,59 @@ export function CheckoutRoomElectricityBreakdown({
           </dd>
         </div>
         <div>
-          <dt className="text-[10px] text-apg-silver">Already collected</dt>
+          <dt className="text-[10px] text-apg-silver">Collected in room (all residents)</dt>
           <dd className={compact ? 'text-base font-semibold text-emerald-400' : 'text-xl font-semibold text-emerald-400'}>
-            {inr(alreadyCollected)}
+            {inr(roomCollected)}
           </dd>
+          {!compact && othersPaid > 0 ? (
+            <dd className="mt-0.5 text-[10px] text-apg-silver">
+              Other residents: {inr(othersPaid)}
+            </dd>
+          ) : null}
         </div>
         <div>
-          <dt className="text-[10px] text-apg-silver">Remaining to recover</dt>
+          <dt className="text-[10px] text-apg-silver">Remaining for room</dt>
           <dd className={compact ? 'text-base font-semibold text-amber-300' : 'text-xl font-semibold text-amber-300'}>
-            {inr(remaining)}
+            {inr(remainingRoom)}
           </dd>
         </div>
       </dl>
+
+      <div
+        className={
+          compact
+            ? 'mt-3 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2'
+            : 'mt-4 rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3'
+        }
+      >
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-apg-silver">
+          This resident
+        </p>
+        <dl className="mt-2 grid gap-2 sm:grid-cols-3 text-sm">
+          <div>
+            <dt className="text-[10px] text-apg-silver">Fair share (occupancy)</dt>
+            <dd className="font-semibold text-white">{inr(residentFair)}</dd>
+          </div>
+          <div>
+            <dt className="text-[10px] text-apg-silver">Already paid (this resident)</dt>
+            <dd className="font-semibold text-emerald-400">{inr(residentPaid)}</dd>
+          </div>
+          <div>
+            <dt className="text-[10px] text-apg-silver">Due at checkout</dt>
+            <dd className="font-semibold text-white">
+              {inr(currentSharePaise)}
+              {loading ? (
+                <span className="ml-2 text-xs font-normal text-apg-silver">Updating…</span>
+              ) : null}
+            </dd>
+          </div>
+        </dl>
+        {unallocated > 0 ? (
+          <p className="mt-2 text-[11px] text-amber-200">
+            Unallocated room collections: {inr(unallocated)} (not assigned to this resident)
+          </p>
+        ) : null}
+      </div>
 
       {allocation && allocation.occupants.length > 0 && !compact ? (
         <div className="mt-5">
@@ -67,31 +116,18 @@ export function CheckoutRoomElectricityBreakdown({
               <li key={line.bookingId} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
                 <span className="font-medium text-white">{line.customerName}</span>
                 <span className="text-apg-silver">
+                  Fair {inr(line.fairSharePaise)} · paid {inr(line.collectedPaise)} ·{' '}
                   {line.settlementStatus === 'paid'
-                    ? `Paid ${inr(line.collectedPaise)}`
+                    ? 'settled'
                     : line.settlementStatus === 'pending'
-                      ? `Pending · ${inr(line.checkoutSharePaise)}`
-                      : `Estimated ${inr(line.checkoutSharePaise)}`}
+                      ? `due ${inr(line.checkoutSharePaise)}`
+                      : `est. ${inr(line.checkoutSharePaise)}`}
                 </span>
               </li>
             ))}
           </ul>
         </div>
       ) : null}
-
-      <div
-        className={
-          compact
-            ? 'mt-2 rounded-xl bg-white/[0.04] px-3 py-2'
-            : 'mt-5 rounded-xl bg-white/[0.04] px-4 py-3'
-        }
-      >
-        <p className="text-[10px] text-apg-silver">Current resident share</p>
-        <p className={compact ? 'text-lg font-semibold text-white' : 'text-2xl font-semibold text-white'}>
-          {inr(currentSharePaise)}
-          {loading ? <span className="ml-2 text-xs font-normal text-apg-silver">Updating…</span> : null}
-        </p>
-      </div>
     </section>
   );
 }
