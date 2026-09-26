@@ -15,6 +15,7 @@ import {
 import { getPgForAdmin } from '@/src/services/pgAdmin';
 import { loadRoomExitQueuesForPg } from '@/src/lib/exit/loadRoomExitQueue';
 import { getRoomIntegrityReportForPg } from '@/src/services/roomIntegrityValidator';
+import { getScheduledRoomConfigurationsByRoomForPg } from '@/src/services/roomConfigurationSchedule';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -34,6 +35,8 @@ export default async function PgRoomsPage({ params }: { params: Promise<{ pgId: 
   const integrityReport = await getRoomIntegrityReportForPg(pgId);
   const electricityPending = await loadRoomElectricityPendingForPg({ pgId });
   const roomExitQueues = await loadRoomExitQueuesForPg(pgId);
+  const scheduledByRoom = await getScheduledRoomConfigurationsByRoomForPg(pgId);
+  const scheduledConfigurationsByRoom = Object.fromEntries(scheduledByRoom);
 
   return (
     <section>
@@ -61,6 +64,7 @@ export default async function PgRoomsPage({ params }: { params: Promise<{ pgId: 
         roomExitQueues={roomExitQueues}
         archivedBedCodesByRoom={archivedBedCodesByRoom}
         occupiedBedIds={[...occupiedBedIds]}
+        scheduledConfigurationsByRoom={scheduledConfigurationsByRoom}
       />
     </section>
   );

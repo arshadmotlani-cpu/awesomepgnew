@@ -160,6 +160,13 @@ export async function runDailyRentBillingJob(opts?: {
     console.error('[billing-scheduler] billing transition heal failed', err);
   });
 
+  const { applyDueRoomConfigurationSchedules } = await import(
+    '@/src/services/roomConfigurationSchedule'
+  );
+  await applyDueRoomConfigurationSchedules(runDate).catch((err) => {
+    console.error('[billing-scheduler] room configuration apply failed', err);
+  });
+
   const [run] = await db
     .insert(billingGenerationRuns)
     .values({

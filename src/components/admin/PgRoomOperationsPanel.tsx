@@ -13,7 +13,7 @@ import {
   resolveRoomTypeNameForCapacity,
   roomCapacityFromActiveBedCount,
 } from '@/src/lib/roomCapacitySsot';
-import type { RoomDimensions } from '@/src/lib/roomListing';
+import type { ScheduledRoomConfigurationSummary } from '@/src/services/roomConfigurationSchedule';
 
 type FloorRow = {
   id: string;
@@ -49,6 +49,7 @@ export function PgRoomOperationsPanel({
   roomExitQueues = {},
   archivedBedCodesByRoom = {},
   occupiedBedIds = [],
+  scheduledConfigurationsByRoom = {},
 }: {
   pgId: string;
   floors: FloorRow[];
@@ -64,6 +65,7 @@ export function PgRoomOperationsPanel({
   roomExitQueues?: Record<string, RoomExitQueueItem[]>;
   archivedBedCodesByRoom?: Record<string, string[]>;
   occupiedBedIds?: string[];
+  scheduledConfigurationsByRoom?: Record<string, ScheduledRoomConfigurationSummary[]>;
 }) {
   const { showToast, toastNode } = useOperationsActionToast();
   const [showAddRoom, setShowAddRoom] = useState(beds.length === 0);
@@ -258,6 +260,7 @@ export function PgRoomOperationsPanel({
               onToast={handleToast}
               archivedBedCodes={archivedBedCodesByRoom[room.roomId] ?? []}
               occupiedBedIds={occupiedBedIdSet}
+              scheduledConfigurations={scheduledConfigurationsByRoom[room.roomId] ?? []}
             />
           ))}
         </div>

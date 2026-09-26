@@ -82,6 +82,7 @@ import {
 } from '@/src/services/roomMeterReadingSsot';
 import { resolveOfficialPreviousReading, advanceBaseline } from '@/src/services/meterTimelineService';
 import { countActiveBedsInRoom } from '@/src/lib/roomCapacitySsotDb';
+import { resolveEffectiveBedCountForRoom } from '@/src/services/roomConfigurationSchedule';
 
 const INVOICE_PREFIX = 'ELE';
 
@@ -418,7 +419,7 @@ export async function createElectricityBill(
   );
 
   const grossTotalPaise = Math.round(unitsConsumed * input.ratePerUnitPaise);
-  const activeBedCount = await countActiveBedsInRoom(input.roomId);
+  const activeBedCount = await resolveEffectiveBedCountForRoom(input.roomId, billingMonth);
   const allocation = allocateMonthlyElectricityInvoices({
     grossTotalPaise,
     prepaidCreditPaise: room.prepaidCreditPaise ?? 0,

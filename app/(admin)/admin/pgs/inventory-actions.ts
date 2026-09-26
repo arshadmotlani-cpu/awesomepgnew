@@ -11,18 +11,23 @@ import {
   getRoomConfigurationPreset,
   type RoomConfigurationPresetId,
 } from '@/src/lib/roomConfigurationPresets';
+import { eq } from 'drizzle-orm';
+import { db } from '@/src/db/client';
+import { rooms, roomTypes } from '@/src/db/schema';
 import {
   archiveBed,
   archiveRoom,
   configureRoomFromPreset,
   moveBedToRoom,
   quickAddRoomBeds,
-  resizeRoomCapacity,
   updateBedCode,
-  updateRoomBedPricing,
   updateRoomDetails,
   updateRoomListing,
 } from '@/src/services/pgInventory';
+import {
+  defaultRoomConfigurationEffectiveFrom,
+  scheduleRoomConfigurationChange,
+} from '@/src/services/roomConfigurationSchedule';
 import { updateBedInventoryStatus } from '@/src/services/bookingAdminOps';
 import { markPgFullyOccupied, clearPgOccupancyPlaceholders } from '@/src/services/occupancyAdmin';
 
@@ -264,6 +269,9 @@ export type ResizeRoomCapacitySuccess = {
   ok: true;
   capacity: number;
   roomTypeName: string;
+  scheduled: true;
+  effectiveFrom: string;
+  scheduleId: string;
 };
 
 export type ResizeRoomCapacityActionResult =
@@ -289,18 +297,26 @@ export async function resizeRoomCapacityAction(
     const dailyDepositPaise = parseRupeesPaise(formData.get('dailyDeposit')?.toString()) ?? 0;
     const weeklyDepositPaise = parseRupeesPaise(formData.get('weeklyDeposit')?.toString()) ?? 0;
     const monthlyDepositPaise = parseRupeesPaise(formData.get('monthlyDeposit')?.toString()) ?? 0;
+    const effectiveFrom =
+      formData.get('effectiveFrom')?.toString()?.trim() ||
+      defaultRoomConfigurationEffectiveFrom();
 
-    const result = await resizeRoomCapacity(session, pgId, roomId, {
+    const pricing = {
+      dailyRatePaise: Math.round(daily * 100),
+      weeklyRatePaise: Math.round(weekly * 100),
+      monthlyRatePaise: Math.round(monthly * 100),
+      dailyDepositPaise,
+      weeklyDepositPaise,
+      monthlyDepositPaise,
+    };
+
+    const scheduled = await scheduleRoomConfigurationChange(session, pgId, {
+      roomId,
+      effectiveFrom,
       targetBedCount: preset.bedCount,
       roomTypeName: preset.roomTypeName,
-      pricing: {
-        dailyRatePaise: Math.round(daily * 100),
-        weeklyRatePaise: Math.round(weekly * 100),
-        monthlyRatePaise: Math.round(monthly * 100),
-        dailyDepositPaise,
-        weeklyDepositPaise,
-        monthlyDepositPaise,
-      },
+      hasAc: formData.get('hasAc') === 'on',
+      pricing,
     });
 
     revalidatePgAdminPages(pgId);
@@ -309,8 +325,11 @@ export async function resizeRoomCapacityAction(
     revalidatePath('/admin/pricing');
     return {
       ok: true,
-      capacity: result.targetBedCount,
-      roomTypeName: result.roomTypeName,
+      capacity: preset.bedCount,
+      roomTypeName: preset.roomTypeName,
+      scheduled: true,
+      effectiveFrom,
+      scheduleId: scheduled.scheduleId,
     };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -453,6 +472,8 @@ export type UpdateRoomPricingSuccess = {
     monthlyPaise: number;
     bedCount: number;
   };
+  scheduled: true;
+  effectiveFrom: string;
 };
 
 export type UpdateRoomPricingResult = UpdateRoomPricingSuccess | { ok: false; error: string };
@@ -474,14 +495,35 @@ export async function updateRoomPricingAction(
     const dailyDepositPaise = parseRupeesPaise(formData.get('dailyDeposit')?.toString()) ?? 0;
     const weeklyDepositPaise = parseRupeesPaise(formData.get('weeklyDeposit')?.toString()) ?? 0;
     const monthlyDepositPaise = parseRupeesPaise(formData.get('monthlyDeposit')?.toString()) ?? 0;
+    const effectiveFrom =
+      formData.get('effectiveFrom')?.toString()?.trim() ||
+      defaultRoomConfigurationEffectiveFrom();
 
-    const rates = await updateRoomBedPricing(session, pgId, roomId, {
+    const { countActiveBedsInRoom } = await import('@/src/lib/roomCapacitySsotDb');
+    const bedCount = await countActiveBedsInRoom(roomId);
+    const [roomMeta] = await db
+      .select({ name: roomTypes.name, hasAc: roomTypes.hasAc })
+      .from(rooms)
+      .innerJoin(roomTypes, eq(roomTypes.id, rooms.roomTypeId))
+      .where(eq(rooms.id, roomId))
+      .limit(1);
+
+    const pricing = {
       dailyRatePaise: Math.round(daily * 100),
       weeklyRatePaise: Math.round(weekly * 100),
       monthlyRatePaise: Math.round(monthly * 100),
       dailyDepositPaise,
       weeklyDepositPaise,
       monthlyDepositPaise,
+    };
+
+    await scheduleRoomConfigurationChange(session, pgId, {
+      roomId,
+      effectiveFrom,
+      targetBedCount: bedCount,
+      roomTypeName: roomMeta?.name ?? 'Room',
+      hasAc: roomMeta?.hasAc ?? false,
+      pricing,
     });
 
     revalidatePgAdminPages(pgId);
@@ -490,11 +532,13 @@ export async function updateRoomPricingAction(
     return {
       ok: true,
       rates: {
-        dailyPaise: rates.dailyRatePaise,
-        weeklyPaise: rates.weeklyRatePaise,
-        monthlyPaise: rates.monthlyRatePaise,
-        bedCount: rates.bedCount,
+        dailyPaise: pricing.dailyRatePaise,
+        weeklyPaise: pricing.weeklyRatePaise,
+        monthlyPaise: pricing.monthlyRatePaise,
+        bedCount,
       },
+      scheduled: true as const,
+      effectiveFrom,
     };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };

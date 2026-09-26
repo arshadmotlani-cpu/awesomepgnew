@@ -89,3 +89,4 @@ export * from './referralWithdrawalRequests';
 export * from './collectionsOps';
 export * from './adminResidentImpersonations';
 export * from './brainRepairEngine';
+export * from './roomConfigurationSchedules';

@@ -13,12 +13,13 @@ import {
   ratesFromBeds,
   type RoomRateSnapshot,
 } from '@/src/components/admin/rooms/roomCardFormatters';
-import { paiseToInr } from '@/src/lib/format';
+import { formatDate, paiseToInr } from '@/src/lib/format';
 import type { RoomIntegrityResult } from '@/src/lib/roomIntegrity/types';
 import type { RoomExitQueueItem } from '@/src/lib/exit/loadRoomExitQueue';
 import type { RoomDimensions } from '@/src/lib/roomListing';
 import type { PgInventoryBedRow } from '@/src/services/pgInventory';
-import { formatDate } from '@/src/lib/format';
+import type { ScheduledRoomConfigurationSummary } from '@/src/services/roomConfigurationSchedule';
+import { RoomConfigurationSchedulePanel } from '@/src/components/admin/rooms/RoomConfigurationSchedulePanel';
 
 type MoveTarget = { roomId: string; label: string };
 
@@ -45,6 +46,7 @@ export type RoomOperationalCardProps = {
   onToast: (message: string, tone: 'success' | 'error') => void;
   archivedBedCodes?: string[];
   occupiedBedIds?: Set<string>;
+  scheduledConfigurations?: ScheduledRoomConfigurationSummary[];
 };
 
 export function RoomOperationalCard({
@@ -70,6 +72,7 @@ export function RoomOperationalCard({
   floorNumber,
   archivedBedCodes = [],
   occupiedBedIds = new Set<string>(),
+  scheduledConfigurations = [],
 }: RoomOperationalCardProps) {
   const [rentOpen, setRentOpen] = useState(false);
   const [typeOpen, setTypeOpen] = useState(false);
@@ -84,6 +87,15 @@ export function RoomOperationalCard({
 
   return (
     <article className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
+      <RoomConfigurationSchedulePanel
+        pgId={pgId}
+        roomNumber={roomNumber}
+        currentBedCount={beds.length}
+        currentMonthlyRentPaise={rates?.monthlyPaise ?? beds[0]?.monthlyRatePaise ?? 0}
+        currentMonthlyDepositPaise={beds[0]?.monthlyDepositPaise ?? 0}
+        scheduled={scheduledConfigurations}
+        onToast={onToast}
+      />
       {exitQueue?.length ? (
         <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-sm">
           <p className="font-medium text-amber-100">Leaving soon</p>
@@ -179,6 +191,7 @@ export function RoomOperationalCard({
           integrity={integrity}
           archivedBedCodes={archivedBedCodes}
           occupiedBedIds={occupiedBedIds}
+          hasAc={hasAc}
           onToast={onToast}
         />
       ) : null}

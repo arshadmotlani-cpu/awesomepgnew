@@ -8,7 +8,8 @@ import {
   formatRentSuccessMessage,
   type RoomRateSnapshot,
 } from '@/src/components/admin/rooms/roomCardFormatters';
-import type { PgInventoryBedRow } from '@/src/services/pgInventory';
+import { formatDate, paiseToInr } from '@/src/lib/format';
+import { defaultRoomConfigurationEffectiveFrom } from '@/src/lib/roomConfiguration/effectiveDate';
 
 type Props = {
   open: boolean;
@@ -40,6 +41,7 @@ export function RoomRentEditorDialog({
     weeklyRate: first ? String(first.weeklyRatePaise / 100) : '',
     monthlyRate: first ? String(first.monthlyRatePaise / 100) : '',
   }));
+  const [effectiveFrom, setEffectiveFrom] = useState(() => defaultRoomConfigurationEffectiveFrom());
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,6 +57,7 @@ export function RoomRentEditorDialog({
     fd.set('dailyDeposit', String(first.dailyDepositPaise / 100));
     fd.set('weeklyDeposit', String(first.weeklyDepositPaise / 100));
     fd.set('monthlyDeposit', String(first.monthlyDepositPaise / 100));
+    fd.set('effectiveFrom', effectiveFrom);
     const result = await updateRoomPricingAction(pgId, fd);
     setPending(false);
     if (!result.ok) {
@@ -69,7 +72,7 @@ export function RoomRentEditorDialog({
       monthlyPaise: result.rates.monthlyPaise,
     };
     onSaved(rates);
-    onToast(formatRentSuccessMessage(rates), 'success');
+    onToast(`✓ Rent scheduled from ${formatDate(effectiveFrom)}`, 'success');
     onClose();
     router.refresh();
   }
@@ -111,9 +114,19 @@ export function RoomRentEditorDialog({
         className="space-y-4"
       >
         <p className="text-sm text-zinc-400">
-          Applies to all {beds.length} bed{beds.length === 1 ? '' : 's'} in this room. Existing
-          resident bookings keep their locked pricing snapshot.
+          Schedules new rent/deposit for all beds from the effective date. Does not change issued
+          invoices.
         </p>
+        <label className="block text-sm text-zinc-300">
+          <span className="text-zinc-400">Financial effective date</span>
+          <input
+            type="date"
+            value={effectiveFrom}
+            min={defaultRoomConfigurationEffectiveFrom()}
+            onChange={(e) => setEffectiveFrom(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-white"
+          />
+        </label>
         <div className="grid gap-3 sm:grid-cols-3">
           {(
             [
