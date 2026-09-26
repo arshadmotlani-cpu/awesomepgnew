@@ -17,7 +17,7 @@ import {
 } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
-import { formatDate, todayString } from '@/src/lib/dates';
+import { formatDate, parseDate, todayString } from '@/src/lib/dates';
 import {
   assertFutureEffectiveDate,
   defaultRoomConfigurationEffectiveFrom,
@@ -146,7 +146,6 @@ export async function previewRoomConfigurationSchedule(
       })
       .from(beds)
       .where(and(eq(beds.roomId, roomId), isNull(beds.archivedAt)));
-    const occupied = await countOccupiedBedsInRoom(roomId);
     const occupiedSet = new Set<string>();
     for (const bed of activeBeds) {
       const { getBedArchiveBlockReason } = await import('@/src/lib/bedOccupancyCheck');
@@ -165,10 +164,10 @@ export async function previewRoomConfigurationSchedule(
       blocked = true;
       blockMessage = plan.blockMessage;
     }
-    const occupied = await countOccupiedBedsInRoom(roomId);
-    if (occupied > input.targetBedCount) {
+    const occupiedCount = await countOccupiedBedsInRoom(roomId);
+    if (occupiedCount > input.targetBedCount) {
       blocked = true;
-      blockMessage = `Room has ${occupied} active resident${occupied === 1 ? '' : 's'} but the new configuration allows ${input.targetBedCount}. Resolve move-outs or transfers before scheduling.`;
+      blockMessage = `Room has ${occupiedCount} active resident${occupiedCount === 1 ? '' : 's'} but the new configuration allows ${input.targetBedCount}. Resolve move-outs or transfers before scheduling.`;
     }
   }
 
@@ -206,7 +205,7 @@ async function assertNoScheduleConflict(roomId: string, effectiveFrom: string): 
     )
     .limit(1);
   if (existing) {
-    throw new Error(`A configuration change is already scheduled for ${formatDate(effectiveFrom)}.`);
+    throw new Error(`A configuration change is already scheduled for ${formatDate(parseDate(effectiveFrom))}.`);
   }
 }
 
@@ -638,7 +637,10 @@ export async function getRoomConfigurationEffectiveOn(
         physicalBedCount,
         fromSchedule: true,
         scheduleId: schedule.id,
-        scheduleStatus: schedule.status,
+        scheduleStatus:
+          schedule.status === 'applied' || schedule.status === 'scheduled'
+            ? schedule.status
+            : undefined,
       };
     }
   }

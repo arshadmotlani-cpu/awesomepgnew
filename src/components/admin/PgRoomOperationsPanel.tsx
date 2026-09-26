@@ -13,6 +13,7 @@ import {
   resolveRoomTypeNameForCapacity,
   roomCapacityFromActiveBedCount,
 } from '@/src/lib/roomCapacitySsot';
+import type { RoomDimensions } from '@/src/lib/roomListing';
 import type { ScheduledRoomConfigurationSummary } from '@/src/services/roomConfigurationSchedule';
 
 type FloorRow = {

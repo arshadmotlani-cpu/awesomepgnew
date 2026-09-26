@@ -8,6 +8,7 @@ import {
   formatRentSuccessMessage,
   type RoomRateSnapshot,
 } from '@/src/components/admin/rooms/roomCardFormatters';
+import type { PgInventoryBedRow } from '@/src/services/pgInventory';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import { defaultRoomConfigurationEffectiveFrom } from '@/src/lib/roomConfiguration/effectiveDate';
 
