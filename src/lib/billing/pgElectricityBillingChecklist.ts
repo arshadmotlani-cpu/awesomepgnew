@@ -16,6 +16,7 @@ import type { RoomPreviousMeterSource } from '@/src/lib/billing/roomMeterReading
 import { loadRoomElectricityOccupantsForMonth } from '@/src/lib/billing/roomElectricityOccupants';
 import type { PgElectricityOccupantPreview } from '@/src/lib/billing/pgElectricityGenerationPreviewPure';
 import { loadPgElectricityRoomGenerationPreview } from '@/src/lib/billing/pgElectricityGenerationPreview';
+import { resolveEffectiveBedCountForRoom } from '@/src/services/roomConfigurationSchedule';
 
 export type { PgElectricityOccupantPreview };
 
@@ -170,9 +171,10 @@ export async function loadPgElectricityBillingChecklist(input: {
       WHERE bd.room_id = ${room.roomId}::uuid
         AND bd.archived_at IS NULL
     `);
-    const activeBedCount = Number(bedStats[0]?.active_beds ?? 0);
+    const physicalActiveBedCount = Number(bedStats[0]?.active_beds ?? 0);
     const maintenanceBedCount = Number(bedStats[0]?.maintenance_beds ?? 0);
     const totalBeds = Number(bedStats[0]?.total_beds ?? 0);
+    const activeBedCount = await resolveEffectiveBedCountForRoom(room.roomId, billingMonth);
 
     const [existingBill] = await db
       .select({
@@ -214,7 +216,7 @@ export async function loadPgElectricityBillingChecklist(input: {
     }
 
     // Whole room under maintenance: has beds, but none available for electricity occupancy.
-    if (totalBeds > 0 && activeBedCount === 0) {
+    if (totalBeds > 0 && physicalActiveBedCount === 0) {
       await pushRoomWithPreview({
         roomId: room.roomId,
         roomNumber: room.roomNumber,

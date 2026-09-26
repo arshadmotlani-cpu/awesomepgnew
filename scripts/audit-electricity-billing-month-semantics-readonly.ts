@@ -13,7 +13,7 @@ import { closeDb, db } from '@/src/db/client';
 import { loadRoomElectricityOccupantsForMonth } from '@/src/lib/billing/roomElectricityOccupants';
 import { allocateMonthlyElectricityInvoices } from '@/src/lib/billing/roomElectricityMonthlyAllocation';
 import { loadRoomElectricityContributionsForMonth } from '@/src/services/electricityRoomContributions';
-import { countActiveBedsInRoom } from '@/src/lib/roomCapacitySsotDb';
+import { resolveEffectiveBedCountForRoom } from '@/src/services/roomConfigurationSchedule';
 import { resolveOfficialPreviousReading } from '@/src/services/meterTimelineService';
 import { paiseToInr } from '@/src/lib/format';
 
@@ -115,7 +115,7 @@ async function main() {
       room102.room_id,
       '2026-09-01',
     );
-    const activeBedCount = await countActiveBedsInRoom(room102.room_id);
+    const activeBedCount = await resolveEffectiveBedCountForRoom(room102.room_id, '2026-09-01');
     const gross = Number(sepBill.total_paise);
     const prepaid = Number(sepBill.prepaid_credit_applied_paise ?? 0);
 

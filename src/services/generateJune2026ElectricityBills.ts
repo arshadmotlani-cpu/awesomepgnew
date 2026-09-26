@@ -29,7 +29,7 @@ import { DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE } from '@/src/lib/billing/const
 import { computeElectricitySettlementLedgerReconciliation } from '@/src/lib/billing/electricitySettlementLedgerReconciliation';
 import { allocateMonthlyElectricityInvoices } from '@/src/lib/billing/roomElectricityMonthlyAllocation';
 import { loadRoomElectricityOccupantsForMonth } from '@/src/lib/billing/roomElectricityOccupants';
-import { countActiveBedsInRoom } from '@/src/lib/roomCapacitySsotDb';
+import { resolveEffectiveBedCountForRoom } from '@/src/services/roomConfigurationSchedule';
 import { createElectricityBill } from '@/src/services/electricityBilling';
 import { firstOfMonth, monthBounds } from '@/src/services/billing';
 import { listCheckoutElectricityLedgerForRoomMonth } from '@/src/services/electricitySettlementLedger';
@@ -367,7 +367,7 @@ async function preflightRoom(
     occupants,
     checkoutCollectedByCustomerId,
     useProRata: totalWeight > 0,
-    activeBedCount: await countActiveBedsInRoom(ctx.roomId),
+    activeBedCount: await resolveEffectiveBedCountForRoom(ctx.roomId, ctx.billingMonth),
     billingDays,
   });
 

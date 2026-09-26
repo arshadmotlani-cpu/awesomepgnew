@@ -26,7 +26,7 @@ test('PG checklist loads previous reading from meter SSOT automatically', () => 
   assert.match(checklist, /source === 'none'/);
   assert.match(checklist, /previous_unavailable/);
   assert.match(checklist, /maintenance_excluded/);
-  assert.match(checklist, /activeBedCount === 0/);
+  assert.match(checklist, /physicalActiveBedCount === 0/);
   assert.match(checklist, /previouslyCollectedPaise/);
   assert.match(checklist, /occupantsPreview/);
   assert.match(checklist, /loadPgElectricityRoomGenerationPreview/);

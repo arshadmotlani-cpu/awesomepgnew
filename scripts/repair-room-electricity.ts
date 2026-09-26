@@ -27,7 +27,7 @@ import { recordHistoricalElectricityContribution } from '@/src/services/electric
 import { loadRoomElectricityContributionsForMonth } from '@/src/services/electricityRoomContributions';
 import { allocateMonthlyElectricityInvoices } from '@/src/lib/billing/roomElectricityMonthlyAllocation';
 import { loadRoomElectricityOccupantsForMonth } from '@/src/lib/billing/roomElectricityOccupants';
-import { countActiveBedsInRoom } from '@/src/lib/roomCapacitySsotDb';
+import { resolveEffectiveBedCountForRoom } from '@/src/services/roomConfigurationSchedule';
 import { paiseToInr } from '@/src/lib/format';
 
 type ContributionArg = {
@@ -193,7 +193,7 @@ async function main() {
     occupants: occupantLoad.occupants,
     checkoutCollectedByCustomerId: new Map(),
     useProRata: true,
-    activeBedCount: await countActiveBedsInRoom(room.roomId),
+    activeBedCount: await resolveEffectiveBedCountForRoom(room.roomId, args.billingMonth),
     billingDays: occupantLoad.billingDays,
   });
   console.log('  Allocation preview:');

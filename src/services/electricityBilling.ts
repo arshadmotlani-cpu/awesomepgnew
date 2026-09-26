@@ -81,7 +81,6 @@ import {
   ConsumptionMonthContinuityError,
 } from '@/src/services/roomMeterReadingSsot';
 import { resolveOfficialPreviousReading, advanceBaseline } from '@/src/services/meterTimelineService';
-import { countActiveBedsInRoom } from '@/src/lib/roomCapacitySsotDb';
 import { resolveEffectiveBedCountForRoom } from '@/src/services/roomConfigurationSchedule';
 
 const INVOICE_PREFIX = 'ELE';

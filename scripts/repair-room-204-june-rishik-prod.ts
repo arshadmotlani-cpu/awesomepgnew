@@ -24,7 +24,7 @@ import {
 } from '../src/services/electricityRoomContributions';
 import { allocateMonthlyElectricityInvoices } from '../src/lib/billing/roomElectricityMonthlyAllocation';
 import { loadRoomElectricityOccupantsForMonth } from '../src/lib/billing/roomElectricityOccupants';
-import { countActiveBedsInRoom } from '../src/lib/roomCapacitySsotDb';
+import { resolveEffectiveBedCountForRoom } from '../src/services/roomConfigurationSchedule';
 import { listAdminElectricityInvoicesForReminders } from '../src/db/queries/admin';
 import { getResidentFinancialSummary } from '../src/services/residentFinancialEngine';
 
@@ -420,7 +420,7 @@ async function verifySurfaces(
     occupants: occupantLoad.occupants,
     checkoutCollectedByCustomerId: new Map(),
     useProRata: true,
-    activeBedCount: await countActiveBedsInRoom(ROOM_ID),
+    activeBedCount: await resolveEffectiveBedCountForRoom(ROOM_ID, BILLING_MONTH),
     billingDays: occupantLoad.billingDays,
   });
 

@@ -6,7 +6,8 @@ import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { bedReservations, beds, bookings } from '@/src/db/schema';
 import { occupancyReservationCoreSql_b } from '@/src/lib/occupancySsot';
-import { asPlainNumber } from '@/src/lib/format';
+import { todayString } from '@/src/lib/dates';
+import { resolveEffectiveBedCountForRoom } from '@/src/services/roomConfigurationSchedule';
 
 export type { CheckoutElectricityCalc, ElectricityCalculationMethod } from '@/src/lib/checkout/electricitySettlementCalc';
 export {
@@ -26,21 +27,24 @@ export type RoomOccupancyContext = {
   isSingleOccupancy: boolean;
 };
 
-/** Active residents in the same room today — used for electricity sharing. */
+export type ResolveRoomOccupancyContextOptions = {
+  /** Financial sharing divisor date (billing month / checkout electricity period). Defaults to today. */
+  asOfDate?: string;
+};
+
+/** Active residents in the same room today; sharing divisor uses room configuration effective on `asOfDate`. */
 export async function resolveRoomOccupancyContext(
   bookingId: string,
+  opts?: ResolveRoomOccupancyContextOptions,
 ): Promise<RoomOccupancyContext> {
+  const asOfDate = opts?.asOfDate ?? todayString();
   const rows = await db.execute<{
     full_name: string;
     room_number: string;
-    room_capacity: number;
+    room_id: string;
   }>(sql`
     WITH ctx AS (
-      SELECT bd.room_id, r.room_number,
-        (
-          SELECT count(*)::int FROM beds b_count
-          WHERE b_count.room_id = bd.room_id AND b_count.archived_at IS NULL
-        ) AS room_capacity
+      SELECT bd.room_id, r.room_number
       FROM bookings b
       INNER JOIN bed_reservations br ON br.booking_id = b.id AND br.kind = 'primary'
       INNER JOIN beds bd ON bd.id = br.bed_id
@@ -48,7 +52,7 @@ export async function resolveRoomOccupancyContext(
       WHERE b.id = ${bookingId}::uuid
       LIMIT 1
     )
-    SELECT DISTINCT c.full_name, ctx.room_number, ctx.room_capacity
+    SELECT DISTINCT c.full_name, ctx.room_number, ctx.room_id::text AS room_id
     FROM ctx
     INNER JOIN beds bd ON bd.room_id = ctx.room_id
     INNER JOIN bed_reservations br ON br.bed_id = bd.id
@@ -60,7 +64,10 @@ export async function resolveRoomOccupancyContext(
 
   const list = Array.from(rows);
   const roomNumber = list[0]?.room_number ?? '—';
-  const roomCapacity = Math.max(1, asPlainNumber(list[0]?.room_capacity ?? 1));
+  const roomId = list[0]?.room_id ?? null;
+  const roomCapacity = roomId
+    ? Math.max(1, await resolveEffectiveBedCountForRoom(roomId, asOfDate))
+    : 1;
   const occupantNames = list.map((r) => r.full_name);
   const autoDetectedCount = Math.max(1, occupantNames.length);
 
@@ -69,7 +76,7 @@ export async function resolveRoomOccupancyContext(
     occupantNames,
     roomCapacity,
     roomNumber,
-    source: 'Active residents in room (bed_reservations SSOT)',
+    source: `Configuration-effective sharing on ${asOfDate} (occupants: live bed_reservations SSOT)`,
     isSingleOccupancy: roomCapacity <= 1,
   };
 }

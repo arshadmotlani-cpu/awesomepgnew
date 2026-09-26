@@ -19,7 +19,7 @@ import {
 import { DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE } from '@/src/lib/billing/constants';
 import { allocateMonthlyElectricityInvoices } from '@/src/lib/billing/roomElectricityMonthlyAllocation';
 import { loadRoomElectricityOccupantsForMonth } from '@/src/lib/billing/roomElectricityOccupants';
-import { countActiveBedsInRoom } from '@/src/lib/roomCapacitySsotDb';
+import { resolveEffectiveBedCountForRoom } from '@/src/services/roomConfigurationSchedule';
 import { paiseToInr } from '@/src/lib/format';
 import { loadBedPrice } from '@/src/services/pricing';
 import {
@@ -120,7 +120,7 @@ async function expectedAllocation(roomId: string, spec: (typeof ROOM_SPECS)[numb
     occupants,
     checkoutCollectedByCustomerId,
     useProRata: totalWeight > 0,
-    activeBedCount: await countActiveBedsInRoom(roomId),
+    activeBedCount: await resolveEffectiveBedCountForRoom(roomId, BILLING_MONTH),
     billingDays,
   });
 }

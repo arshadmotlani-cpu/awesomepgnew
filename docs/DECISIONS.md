@@ -343,3 +343,6 @@ Cross-links: [[ARCHITECTURE]] · [[WORKFLOWS]] · [[AI_CONTEXT]] · [[BUGS]]
 
 <!-- DOC_SYNC_TOUCH_2026-09-25 -->
 > **2026-09-25 16:44:54 UTC** — Code changed in: Routes, Residents, Bed Assignment, Vacating. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-09-26 -->
+> **2026-09-26 19:08:36 UTC** — Code changed in: Billing, Vacating, Electricity. Manual review recommended.

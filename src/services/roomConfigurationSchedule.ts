@@ -26,6 +26,10 @@ import {
   pricingFromScheduleRow,
   type RoomConfigurationEffectiveOn,
 } from '@/src/lib/roomConfiguration/ssot';
+import {
+  resolveFinancialSharingBedCount,
+  scheduleAppliesToFinancialDate,
+} from '@/src/lib/roomConfiguration/effectiveSharingCapacity';
 import { countActiveBedsInRoom } from '@/src/lib/roomCapacitySsotDb';
 import { planRoomCapacityDecrease } from '@/src/lib/roomCapacityBedPlanner';
 import { validateRoomById } from '@/src/services/roomIntegrityValidator';
@@ -624,13 +628,19 @@ export async function getRoomConfigurationEffectiveOn(
     .limit(1);
 
   if (schedule) {
-    const appliedOrDue =
-      schedule.status === 'applied' ||
-      (schedule.status === 'scheduled' && schedule.effectiveFrom <= asOfDate);
-    if (appliedOrDue) {
+    const scheduleSlice = {
+      effectiveFrom: schedule.effectiveFrom,
+      targetBedCount: schedule.targetBedCount,
+      status: schedule.status,
+    };
+    if (scheduleAppliesToFinancialDate(scheduleSlice, asOfDate)) {
       return {
         asOfDate,
-        sharingCapacity: schedule.targetBedCount,
+        sharingCapacity: resolveFinancialSharingBedCount({
+          physicalBedCount,
+          schedule: scheduleSlice,
+          asOfDate,
+        }),
         roomTypeName: schedule.roomTypeName,
         hasAc: schedule.hasAc,
         pricing: pricingFromScheduleRow(schedule),
@@ -675,7 +685,11 @@ export async function getRoomConfigurationEffectiveOn(
 
   return {
     asOfDate,
-    sharingCapacity: physicalBedCount,
+    sharingCapacity: resolveFinancialSharingBedCount({
+      physicalBedCount,
+      schedule: null,
+      asOfDate,
+    }),
     roomTypeName: current.roomTypeName,
     hasAc: current.hasAc,
     pricing,

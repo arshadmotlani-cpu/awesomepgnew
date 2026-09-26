@@ -3601,7 +3601,7 @@ export type RentBillingOverviewRow = {
   depositDuePaise: number;
   depositCollectionStatus: string;
   isDueForGeneration: boolean;
-  /** Room inventory capacity (bed count). */
+  /** Configuration-effective sharing capacity for this billing month. */
   roomCapacity: number;
   /** Active confirmed residents in room today. */
   roomOccupied: number;
@@ -3693,7 +3693,7 @@ export async function listRentBillingOverview(
     `);
     if (!bedMeta) continue;
 
-    const roomOccupancy = await resolveRoomOccupancyContext(c.bookingId);
+    const roomOccupancy = await resolveRoomOccupancyContext(c.bookingId, { asOfDate: month });
 
     const [inv] = await db
       .select({

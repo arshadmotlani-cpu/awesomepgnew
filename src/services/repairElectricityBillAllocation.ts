@@ -29,7 +29,7 @@ import type {
   ExistingElectricityInvoiceFact,
 } from '@/src/lib/billing/electricityBillMissingInvoiceRepairPlan';
 import { getElectricityInvoiceSchemaCaps } from '@/src/lib/db/electricityInvoiceSchemaCaps';
-import { countActiveBedsInRoom } from '@/src/lib/roomCapacitySsotDb';
+import { resolveEffectiveBedCountForRoom } from '@/src/services/roomConfigurationSchedule';
 import { formatDate } from '@/src/lib/dates';
 import { composeElectricityBillBreakdown } from '@/src/lib/billing/buildElectricityBillBreakdown';
 import { assertElectricityBreakdownCommitReady } from '@/src/lib/billing/assertElectricityBreakdownCommitReady';
@@ -117,7 +117,10 @@ async function loadCanonicalDrafts(input: {
     input.roomId,
     input.billingMonth,
   );
-  const activeBedCount = await countActiveBedsInRoom(input.roomId);
+  const activeBedCount = await resolveEffectiveBedCountForRoom(
+    input.roomId,
+    input.billingMonth,
+  );
 
   const allocation = allocateMonthlyElectricityInvoices({
     grossTotalPaise: input.grossTotalPaise,

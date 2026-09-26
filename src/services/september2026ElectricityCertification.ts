@@ -14,7 +14,7 @@ import { loadFleetElectricityBillingSummary } from '@/src/lib/billing/fleetElect
 import { loadRoomElectricityOccupantsForMonth } from '@/src/lib/billing/roomElectricityOccupants';
 import { reconcileRoomElectricityBilling } from '@/src/lib/billing/roomElectricityReconciliation';
 import { auditElectricityInvoiceOwnership } from '@/src/services/electricityInvoiceOwnership';
-import { countActiveBedsInRoom } from '@/src/lib/roomCapacitySsotDb';
+import { resolveEffectiveBedCountForRoom } from '@/src/services/roomConfigurationSchedule';
 import { loadRoomElectricityContributionsForMonth } from '@/src/services/electricityRoomContributions';
 import { listCheckoutElectricityLedgerForRoomMonth } from '@/src/services/electricitySettlementLedger';
 import { sumManualElectricityCreditsForRoomMonth } from '@/src/services/electricitySettlementLedgerView';
@@ -110,7 +110,10 @@ async function computeCanonicalAllocationPaise(input: {
     includeFixedStay: true,
     useProRataByActiveDays: true,
   });
-  const activeBedCount = await countActiveBedsInRoom(input.roomId);
+  const activeBedCount = await resolveEffectiveBedCountForRoom(
+    input.roomId,
+    input.billingMonth,
+  );
 
   const allocation = allocateMonthlyElectricityInvoices({
     grossTotalPaise: input.grossTotalPaise,

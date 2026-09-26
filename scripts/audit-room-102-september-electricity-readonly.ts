@@ -17,7 +17,7 @@ import { loadRoomElectricityOccupantsForMonth } from '@/src/lib/billing/roomElec
 import { loadRoomElectricityContributionsForMonth } from '@/src/services/electricityRoomContributions';
 import { listCheckoutElectricityLedgerForRoomMonth } from '@/src/services/electricitySettlementLedger';
 import { sumManualElectricityCreditsForRoomMonth } from '@/src/services/electricitySettlementLedgerView';
-import { countActiveBedsInRoom } from '@/src/lib/roomCapacitySsotDb';
+import { resolveEffectiveBedCountForRoom } from '@/src/services/roomConfigurationSchedule';
 import { paiseToInr } from '@/src/lib/format';
 
 const BILLING_MONTH = '2026-09-01';
@@ -143,7 +143,7 @@ async function main() {
     room.room_id,
     BILLING_MONTH,
   );
-  const activeBedCount = await countActiveBedsInRoom(room.room_id);
+  const activeBedCount = await resolveEffectiveBedCountForRoom(room.room_id, BILLING_MONTH);
 
   const allocation = allocateMonthlyElectricityInvoices({
     grossTotalPaise: Number(bill.total_paise),

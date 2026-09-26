@@ -59,7 +59,7 @@ test('15–16 electricity billing uses effective bed count for month', () => {
 });
 
 test('17 occupancy conflict blocks schedule when too many residents for target capacity', () => {
-  assert.match(scheduleService, /occupied > input\.targetBedCount/);
+  assert.match(scheduleService, /occupiedCount > input\.targetBedCount/);
 });
 
 test('20 scheduled change can be cancelled before effective date', () => {

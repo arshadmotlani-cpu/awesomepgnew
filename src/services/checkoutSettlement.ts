@@ -1414,7 +1414,9 @@ async function buildCheckoutSettlementDetailFromJoinRow(
     };
   }
 
-  const roomOccupancy = await resolveRoomOccupancyContext(row.booking_id);
+  const roomOccupancy = await resolveRoomOccupancyContext(row.booking_id, {
+    asOfDate: firstOfMonth(row.vacating_date),
+  });
   const sharingUsed = effectiveSharingCount({
     autoDetectedCount: roomOccupancy.autoDetectedCount,
     roomCapacity: roomOccupancy.roomCapacity,
@@ -2121,7 +2123,18 @@ export async function updateCheckoutElectricitySettlement(input: {
     };
   }
 
-  const roomOccupancy = await resolveRoomOccupancyContext(current.bookingId);
+  const [vacatingRow] = await db
+    .select({ vacatingDate: vacatingRequests.vacatingDate })
+    .from(vacatingRequests)
+    .where(eq(vacatingRequests.id, current.vacatingRequestId))
+    .limit(1);
+  const electricityAsOf = vacatingRow?.vacatingDate
+    ? firstOfMonth(String(vacatingRow.vacatingDate))
+    : todayString();
+
+  const roomOccupancy = await resolveRoomOccupancyContext(current.bookingId, {
+    asOfDate: electricityAsOf,
+  });
   const effectiveOccupants = effectiveSharingCount({
     autoDetectedCount: roomOccupancy.autoDetectedCount,
     roomCapacity: roomOccupancy.roomCapacity,
@@ -2162,12 +2175,6 @@ export async function updateCheckoutElectricitySettlement(input: {
   let timelineSharePaise: number | null = null;
   let roomElectricityAllocation: RoomElectricityCheckoutAllocation | null = null;
   const skipTimelineAllocation = input.calculationMethod === 'manual_amount';
-  const [vacatingRow] = await db
-    .select({ vacatingDate: vacatingRequests.vacatingDate })
-    .from(checkoutSettlements)
-    .innerJoin(vacatingRequests, eq(vacatingRequests.id, checkoutSettlements.vacatingRequestId))
-    .where(eq(checkoutSettlements.id, input.settlementId))
-    .limit(1);
   const checkoutRoomId =
     vacatingRow?.vacatingDate != null
       ? await bookingRoomIdAtDate(
