@@ -7,6 +7,8 @@ import {
 } from '@/app/(admin)/admin/checkout-settlements/actions';
 import type { CheckoutSettlementActionState } from '@/src/lib/checkout/checkoutSettlementActionTypes';
 import { CheckoutRoomElectricityBreakdown } from '@/src/components/admin/checkout/CheckoutRoomElectricityBreakdown';
+import { CheckoutElectricityOperatorAuditPanel } from '@/src/components/admin/checkout/CheckoutElectricityOperatorAuditPanel';
+import { operatorDisplayRoomBillPaise } from '@/src/lib/checkout/checkoutElectricityOperatorAudit';
 import {
   calculateCheckoutElectricity,
   calculateManualElectricityCharge,
@@ -168,20 +170,29 @@ export function CheckoutSettlementElectricitySection({
     detail.roomOccupancy.autoDetectedCount,
   ]);
 
-  const previewTotalBillPaise = live?.ok
-    ? live.calc.totalBillPaise
-    : detail.electricityTotalBillPaise;
+  const operatorAudit = detail.electricityOperatorAudit;
+
+  const previewTotalBillPaise =
+    operatorAudit != null
+      ? operatorDisplayRoomBillPaise(operatorAudit)
+      : live?.ok
+        ? live.calc.totalBillPaise
+        : detail.electricityTotalBillPaise;
   const timelineSharePaise = timelineAllocation?.currentResidentSharePaise;
+  const invoiceRemainingPaise = operatorAudit?.electricityRemainingPaise;
+  const persistedDepositDeductionPaise = operatorAudit?.depositDeductionPaise ?? detail.electricitySharePaise;
   const previewSharePaise =
     method === 'manual_amount'
       ? live?.ok
         ? live.calc.sharePaise
         : detail.manualChargePaise ?? detail.electricitySharePaise
-      : timelineSharePaise != null
-        ? timelineSharePaise
-        : live?.ok
-          ? live.calc.sharePaise
-          : detail.electricitySharePaise;
+      : invoiceRemainingPaise != null && operatorAudit?.usesPersistedInvoiceForDisplay
+        ? invoiceRemainingPaise
+        : timelineSharePaise != null
+          ? timelineSharePaise
+          : live?.ok
+            ? live.calc.sharePaise
+            : persistedDepositDeductionPaise;
   const electricityDeductionPaise = deductFromDeposit ? previewSharePaise : 0;
   const unitsConsumed =
     live?.ok && live.calc.unitsConsumed != null
@@ -339,6 +350,10 @@ export function CheckoutSettlementElectricitySection({
   if (operatorMode) {
     return (
       <div className="space-y-4">
+        {operatorAudit ? (
+          <CheckoutElectricityOperatorAuditPanel audit={operatorAudit} />
+        ) : null}
+
         {editable ? (
           <form ref={formRef} action={action} className="space-y-4">
             <input type="hidden" name="settlementId" value={detail.id} />
@@ -475,29 +490,38 @@ export function CheckoutSettlementElectricitySection({
         ) : null}
 
         <div className="grid gap-2 rounded-2xl bg-[#12161C]/80 p-3 sm:grid-cols-3">
-          <LiveStat label="Units consumed" value={unitsConsumed != null ? String(unitsConsumed) : '—'} compact />
-          <LiveStat label="Resident share" value={paiseToInr(previewSharePaise)} compact />
+          <LiveStat label="Electricity remaining" value={paiseToInr(invoiceRemainingPaise ?? previewSharePaise)} compact />
           <LiveStat
-            label="Electricity deduction"
-            value={deductFromDeposit ? `−${paiseToInr(electricityDeductionPaise)}` : 'Not deducted'}
+            label="Deduction from deposit"
+            value={deductFromDeposit ? `−${paiseToInr(electricityDeductionPaise)}` : '₹0'}
             accent
             compact
           />
+          <LiveStat label="Historical room bill" value={paiseToInr(previewTotalBillPaise)} compact />
         </div>
 
-        <CheckoutRoomElectricityBreakdown
-          allocation={timelineAllocation}
-          liveTotalBillPaise={previewTotalBillPaise}
-          liveSharePaise={previewSharePaise}
-          loading={timelineLoading}
-          compact
-        />
+        <details className="rounded-2xl border border-white/[0.06] bg-white/[0.02]">
+          <summary className="cursor-pointer px-4 py-3 text-xs font-medium uppercase tracking-wider text-apg-silver hover:text-white">
+            Timeline allocation (diagnostic)
+          </summary>
+          <div className="border-t border-white/[0.06] px-2 py-2">
+            <CheckoutRoomElectricityBreakdown
+              allocation={timelineAllocation}
+              liveTotalBillPaise={null}
+              liveSharePaise={timelineSharePaise ?? null}
+              loading={timelineLoading}
+              compact
+            />
+          </div>
+        </details>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      {operatorAudit ? <CheckoutElectricityOperatorAuditPanel audit={operatorAudit} /> : null}
+
       {detail.meterPhotoEvidence.fetchable && detail.meterPhotoEvidence.viewUrl ? (
         <a
           href={detail.meterPhotoEvidence.viewUrl}
@@ -699,40 +723,42 @@ export function CheckoutSettlementElectricitySection({
 
       <dl className="grid gap-2 rounded-xl border border-emerald-400/20 bg-emerald-500/5 p-4 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-apg-silver">Units consumed</dt>
-          <dd className="text-white">
-            {live?.ok && live.calc.unitsConsumed != null
-              ? live.calc.unitsConsumed
-              : detail.electricityUnits ?? '—'}
+          <dt className="text-apg-silver">Historical room bill</dt>
+          <dd className="font-semibold text-white">{paiseToInr(previewTotalBillPaise)}</dd>
+        </div>
+        <div>
+          <dt className="text-apg-silver">Already collected (this resident)</dt>
+          <dd className="text-emerald-300">
+            {paiseToInr(operatorAudit?.alreadyCollectedPaise ?? 0)}
           </dd>
         </div>
         <div>
-          <dt className="text-apg-silver">Total room bill</dt>
-          <dd className="text-white">{paiseToInr(previewTotalBillPaise)}</dd>
-        </div>
-        <div>
-          <dt className="text-apg-silver">Occupants (detected / used)</dt>
-          <dd className="text-white">
-            {detail.roomOccupancy.autoDetectedCount} detected · {occupants} used
-          </dd>
-        </div>
-        <div>
-          <dt className="text-apg-silver">Resident share</dt>
-          <dd className="font-semibold text-white">{paiseToInr(previewSharePaise)}</dd>
+          <dt className="text-apg-silver">Electricity remaining</dt>
+          <dd className="text-white">{paiseToInr(invoiceRemainingPaise ?? previewSharePaise)}</dd>
         </div>
         <div>
           <dt className="text-apg-silver">Deposit deduction</dt>
           <dd className="text-rose-300">
-            {deductFromDeposit ? `−${paiseToInr(electricityDeductionPaise)}` : 'Not deducted'}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-apg-silver">Final refund impact</dt>
-          <dd className="font-semibold text-emerald-300">
-            −{paiseToInr(electricityDeductionPaise)} from deposit refund
+            {deductFromDeposit ? `−${paiseToInr(electricityDeductionPaise)}` : '₹0'}
           </dd>
         </div>
       </dl>
+
+      {timelineAllocation ? (
+        <details className="rounded-xl border border-white/10 bg-[#12161C]">
+          <summary className="cursor-pointer px-4 py-3 text-xs font-medium uppercase tracking-wider text-apg-silver">
+            Timeline allocation (diagnostic)
+          </summary>
+          <div className="border-t border-white/10 p-2">
+            <CheckoutRoomElectricityBreakdown
+              allocation={timelineAllocation}
+              liveTotalBillPaise={null}
+              liveSharePaise={null}
+              loading={false}
+            />
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }

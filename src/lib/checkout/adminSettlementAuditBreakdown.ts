@@ -37,6 +37,98 @@ export function buildAdminSettlementAuditBreakdown(
 ): AdminSettlementAuditBreakdown {
   const waterfall = detail.waterfall ?? null;
   const usesV2 = Boolean(waterfall) || (detail.settlementEngineVersion ?? 1) >= 2;
+  const operatorElectricity = detail.electricityOperatorAudit ?? null;
+
+  if (usesV2 && waterfall && operatorElectricity) {
+    return buildOperatorFocusedRefundAudit(detail, waterfall, operatorElectricity);
+  }
+
+  return buildLegacyAdminSettlementAuditBreakdown(detail, waterfall, usesV2);
+}
+
+function buildOperatorFocusedRefundAudit(
+  detail: CheckoutSettlementDetail,
+  waterfall: NonNullable<CheckoutSettlementDetail['waterfall']>,
+  operatorElectricity: NonNullable<CheckoutSettlementDetail['electricityOperatorAudit']>,
+): AdminSettlementAuditBreakdown {
+  const preview = detail.preview;
+  const electricityDeductPaise = waterfall.depositBucket.electricityPaise;
+  const otherDeductionsPaise = waterfall.depositBucket.otherPaise;
+  const depositReceivedPaise = waterfall.depositBucket.collectedPaise;
+  const depositRemainingPaise = waterfall.depositBucket.refundablePaise;
+  const unusedRentPaise = waterfall.refund.unusedRentPortionPaise;
+  const finalRefundPaise = waterfall.refund.totalPaise;
+
+  const securityDeposit: AdminSettlementAuditSection = {
+    title: 'Security deposit',
+    rows: [
+      {
+        id: 'deposit_received',
+        label: 'Deposit received',
+        value: formatSettlementPaise(depositReceivedPaise),
+      },
+      {
+        id: 'electricity_deduct',
+        label: 'Electricity deduction',
+        value: formatSettlementPaise(electricityDeductPaise, true),
+        deduct: electricityDeductPaise > 0,
+        hint:
+          operatorElectricity.usesPersistedInvoiceForDisplay
+            ? `Invoice collected ${formatSettlementPaise(operatorElectricity.alreadyCollectedPaise)} · remaining ${formatSettlementPaise(operatorElectricity.electricityRemainingPaise)}`
+            : undefined,
+      },
+      {
+        id: 'other_deduct',
+        label: 'Other deductions',
+        value: formatSettlementPaise(otherDeductionsPaise, true),
+        deduct: otherDeductionsPaise > 0,
+      },
+      {
+        id: 'deposit_remaining',
+        label: 'Deposit remaining',
+        value: formatSettlementPaise(depositRemainingPaise),
+        emphasis: true,
+      },
+    ],
+  };
+
+  const prepaidRent: AdminSettlementAuditSection = {
+    title: 'Prepaid rent',
+    rows: [
+      {
+        id: 'unused_prepaid',
+        label: 'Unused prepaid rent',
+        value: formatSettlementPaise(unusedRentPaise),
+      },
+    ],
+  };
+
+  const finalRefund: AdminSettlementAuditSection = {
+    title: 'Final refund',
+    rows: [
+      {
+        id: 'final_refund',
+        label: 'Pay resident',
+        value: formatSettlementPaise(finalRefundPaise),
+        emphasis: true,
+        hint: `${formatSettlementPaise(depositRemainingPaise)} deposit + ${formatSettlementPaise(unusedRentPaise)} unused rent`,
+      },
+    ],
+  };
+
+  void preview;
+  void operatorElectricity;
+  return {
+    sections: [securityDeposit, prepaidRent, finalRefund],
+    usesV2: true,
+  };
+}
+
+function buildLegacyAdminSettlementAuditBreakdown(
+  detail: CheckoutSettlementDetail,
+  waterfall: CheckoutSettlementDetail['waterfall'],
+  usesV2: boolean,
+): AdminSettlementAuditBreakdown {
   const preview = detail.preview;
   const notice = detail.settlementNoticeDisplay ?? null;
 

@@ -110,6 +110,34 @@ function kunalLikeDetail(): CheckoutSettlementDetail {
   } as CheckoutSettlementDetail;
 }
 
+test('operator-focused refund audit when electricityOperatorAudit present', () => {
+  const detail = kunalLikeDetail();
+  detail.electricityOperatorAudit = {
+    billingMonth: '2026-07-01',
+    historicalBillPaise: 90_000,
+    billSource: 'electricity_bill',
+    hasFinalizedHistoricalBill: true,
+    staleMeterDerivedBillPaise: null,
+    residentInvoice: {
+      billingMonth: '2026-07-01',
+      amountPaise: 32_533,
+      paidPaise: 32_533,
+      status: 'paid',
+    },
+    residentBilledPaise: 32_533,
+    alreadyCollectedPaise: 32_533,
+    electricityRemainingPaise: 0,
+    depositDeductionPaise: 0,
+    usesPersistedInvoiceForDisplay: true,
+  };
+  const audit = buildAdminSettlementAuditBreakdown(detail);
+  assert.equal(audit.sections[0]?.title, 'Security deposit');
+  assert.equal(audit.sections[1]?.title, 'Prepaid rent');
+  assert.equal(audit.sections[2]?.title, 'Final refund');
+  assert.ok(findRow(audit, 'deposit_received'));
+  assert.ok(findRow(audit, 'final_refund'));
+});
+
 test('formatAudit helpers treat zero as valid, null as dash', () => {
   assert.equal(isAuditEmpty(null), true);
   assert.equal(isAuditEmpty(undefined), true);
