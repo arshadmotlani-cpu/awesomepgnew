@@ -28,10 +28,12 @@ import {
 } from '@/src/lib/billing/productionDataFilter';
 import { firstOfMonth } from '@/src/services/billing';
 import { loadBedPrice } from '@/src/services/pricing';
+import { getRoomConfigurationEffectiveOn } from '@/src/services/roomConfigurationSchedule';
 import { getBillingProfileForBooking } from '@/src/services/residentBillingProfiles';
 
 export type RentPricingSource =
   | 'bed_price'
+  | 'room_configuration_schedule'
   | 'private_room_config'
   | 'billing_profile'
   | 'room_change_frozen_quote'
@@ -80,6 +82,15 @@ async function activeBedIdForBooking(bookingId: string): Promise<string | null> 
     )
     .limit(1);
   return row?.bedId ?? null;
+}
+
+async function roomIdForBed(bedId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ roomId: beds.roomId })
+    .from(beds)
+    .where(eq(beds.id, bedId))
+    .limit(1);
+  return row?.roomId ?? null;
 }
 
 /** Resolve monthly rent from the canonical pricing chain for a billing month. */
@@ -167,6 +178,17 @@ export async function resolveMonthlyRentPaiseForBooking(
       }
     }
 
+    const roomId = await roomIdForBed(bedId);
+    if (roomId) {
+      const config = await getRoomConfigurationEffectiveOn(roomId, month);
+      if (config.fromSchedule && config.pricing.monthlyRatePaise > 0) {
+        return {
+          rentPaise: config.pricing.monthlyRatePaise,
+          source: 'room_configuration_schedule',
+        };
+      }
+    }
+
     const bedPrice = await loadBedPrice(bedId, month);
     if (bedPrice && bedPrice.monthlyRatePaise > 0) {
       return { rentPaise: bedPrice.monthlyRatePaise, source: 'bed_price' };
@@ -187,6 +209,7 @@ export async function resolveMonthlyRentPaiseForBooking(
 function isCanonicalSource(source: RentPricingSource): boolean {
   return (
     source === 'bed_price' ||
+    source === 'room_configuration_schedule' ||
     source === 'private_room_config' ||
     source === 'room_change_frozen_quote'
   );

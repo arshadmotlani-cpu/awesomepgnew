@@ -197,7 +197,10 @@ export async function previewRoomConfigurationSchedule(
   };
 }
 
-async function assertNoScheduleConflict(roomId: string, effectiveFrom: string): Promise<void> {
+async function findScheduledRoomConfiguration(
+  roomId: string,
+  effectiveFrom: string,
+): Promise<{ id: string } | null> {
   const [existing] = await db
     .select({ id: roomConfigurationSchedules.id })
     .from(roomConfigurationSchedules)
@@ -209,9 +212,42 @@ async function assertNoScheduleConflict(roomId: string, effectiveFrom: string): 
       ),
     )
     .limit(1);
+  return existing ?? null;
+}
+
+/** @deprecated Use upsert in scheduleRoomConfigurationChange — kept for tests referencing conflict helper. */
+async function assertNoScheduleConflict(roomId: string, effectiveFrom: string): Promise<void> {
+  const existing = await findScheduledRoomConfiguration(roomId, effectiveFrom);
   if (existing) {
     throw new Error(`A configuration change is already scheduled for ${formatDate(parseDate(effectiveFrom))}.`);
   }
+}
+
+export async function getScheduledRoomConfigurationForEffectiveDate(
+  roomId: string,
+  effectiveFrom: string,
+): Promise<ScheduledRoomConfigurationSummary | null> {
+  const [row] = await db
+    .select()
+    .from(roomConfigurationSchedules)
+    .where(
+      and(
+        eq(roomConfigurationSchedules.roomId, roomId),
+        eq(roomConfigurationSchedules.status, 'scheduled'),
+        eq(roomConfigurationSchedules.effectiveFrom, effectiveFrom),
+      ),
+    )
+    .limit(1);
+  if (!row) return null;
+  return {
+    scheduleId: row.id,
+    roomId: row.roomId,
+    effectiveFrom: row.effectiveFrom,
+    targetBedCount: row.targetBedCount,
+    roomTypeName: row.roomTypeName,
+    monthlyRatePaise: row.monthlyRatePaise,
+    monthlyDepositPaise: row.monthlyDepositPaise,
+  };
 }
 
 async function writeScheduledBedPricesForRoom(
@@ -351,7 +387,45 @@ export async function scheduleRoomConfigurationChange(
   if (preview.blocked) {
     throw new Error(preview.blockMessage ?? 'Cannot schedule this configuration change.');
   }
-  await assertNoScheduleConflict(input.roomId, input.effectiveFrom);
+
+  const existingScheduled = await findScheduledRoomConfiguration(input.roomId, input.effectiveFrom);
+  if (existingScheduled) {
+    await revertFutureBedPricesForSchedule(input.roomId, input.effectiveFrom);
+    await db
+      .update(roomConfigurationSchedules)
+      .set({
+        targetBedCount: input.targetBedCount,
+        roomTypeName: input.roomTypeName,
+        hasAc: input.hasAc,
+        dailyRatePaise: input.pricing.dailyRatePaise,
+        weeklyRatePaise: input.pricing.weeklyRatePaise,
+        monthlyRatePaise: input.pricing.monthlyRatePaise,
+        dailyDepositPaise: input.pricing.dailyDepositPaise,
+        weeklyDepositPaise: input.pricing.weeklyDepositPaise,
+        monthlyDepositPaise: input.pricing.monthlyDepositPaise,
+        updatedAt: new Date(),
+      })
+      .where(eq(roomConfigurationSchedules.id, existingScheduled.id));
+
+    await writeScheduledBedPricesForRoom(input.roomId, input.effectiveFrom, input.pricing);
+
+    await db.insert(auditLog).values({
+      actorType: 'admin',
+      actorId: session.adminId,
+      entity: 'room_configuration_schedule',
+      entityId: existingScheduled.id,
+      action: 'updated',
+      diff: {
+        roomId: input.roomId,
+        effectiveFrom: input.effectiveFrom,
+        targetBedCount: input.targetBedCount,
+        monthlyRatePaise: input.pricing.monthlyRatePaise,
+        monthlyDepositPaise: input.pricing.monthlyDepositPaise,
+      },
+    });
+
+    return { scheduleId: existingScheduled.id };
+  }
 
   const current = await currentRoomCatalogSnapshot(input.roomId);
 
@@ -679,6 +753,7 @@ export async function applyDueRoomConfigurationSchedules(
 
 /**
  * Authoritative room configuration for billing / electricity / reports on `asOfDate`.
+ * Alias: getEffectiveRoomConfiguration (same function).
  */
 export async function getRoomConfigurationEffectiveOn(
   roomId: string,
@@ -782,3 +857,6 @@ export async function resolveEffectiveBedCountForRoom(
 }
 
 export { defaultRoomConfigurationEffectiveFrom } from '@/src/lib/roomConfiguration/effectiveDate';
+
+/** Public alias — configuration effective date → type + capacity + rent + deposit. */
+export const getEffectiveRoomConfiguration = getRoomConfigurationEffectiveOn;

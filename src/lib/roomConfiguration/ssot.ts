@@ -1,7 +1,8 @@
 /**
  * Room configuration SSOT — sharing capacity + catalog pricing effective on a date.
  *
- * Physical beds change only when a schedule is applied; pricing uses bed_prices windows.
+ * Resolve via `getEffectiveRoomConfiguration` / `getRoomConfigurationEffectiveOn` in
+ * `roomConfigurationSchedule.ts` (single authoritative effective-date layer).
  */
 import type { BedPricingInput } from '@/src/services/pgInventory';
 

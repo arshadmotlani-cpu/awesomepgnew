@@ -77,8 +77,9 @@ test('22 historical invoices — schedule does not call pending invoice sync', (
   assert.doesNotMatch(scheduleService, /recalculatePendingRentInvoicesForBooking/);
 });
 
-test('25 overlapping scheduled effective dates rejected per room', () => {
-  assert.match(scheduleService, /assertNoScheduleConflict/);
+test('25 same effective date merges into one scheduled configuration', () => {
+  assert.match(scheduleService, /findScheduledRoomConfiguration/);
+  assert.match(scheduleService, /action: 'updated'/);
 });
 
 test('default effective date is next calendar month start', () => {

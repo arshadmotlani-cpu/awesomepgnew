@@ -537,6 +537,14 @@ export async function updateRoomPricingAction(
       .where(eq(rooms.id, roomId))
       .limit(1);
 
+    const { getScheduledRoomConfigurationForEffectiveDate } = await import(
+      '@/src/services/roomConfigurationSchedule'
+    );
+    const existingSchedule = await getScheduledRoomConfigurationForEffectiveDate(
+      roomId,
+      effectiveFrom,
+    );
+
     const pricing = {
       dailyRatePaise: Math.round(daily * 100),
       weeklyRatePaise: Math.round(weekly * 100),
@@ -549,8 +557,8 @@ export async function updateRoomPricingAction(
     await scheduleRoomConfigurationChange(session, pgId, {
       roomId,
       effectiveFrom,
-      targetBedCount: bedCount,
-      roomTypeName: roomMeta?.name ?? 'Room',
+      targetBedCount: existingSchedule?.targetBedCount ?? bedCount,
+      roomTypeName: existingSchedule?.roomTypeName ?? roomMeta?.name ?? 'Room',
       hasAc: roomMeta?.hasAc ?? false,
       pricing,
     });

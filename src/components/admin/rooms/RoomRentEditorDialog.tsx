@@ -10,7 +10,10 @@ import {
 } from '@/src/components/admin/rooms/roomCardFormatters';
 import type { PgInventoryBedRow } from '@/src/services/pgInventory';
 import { formatDate, paiseToInr } from '@/src/lib/format';
-import { defaultRoomConfigurationEffectiveFrom } from '@/src/lib/roomConfiguration/effectiveDate';
+import {
+  defaultRoomConfigurationEffectiveFrom,
+  minScheduledRoomConfigurationEffectiveFrom,
+} from '@/src/lib/roomConfiguration/effectiveDate';
 
 type Props = {
   open: boolean;
@@ -115,15 +118,15 @@ export function RoomRentEditorDialog({
         className="space-y-4"
       >
         <p className="text-sm text-zinc-400">
-          Schedules new rent/deposit for all beds from the effective date. Does not change issued
-          invoices.
+          Updates the scheduled room configuration for the effective date (sharing, capacity, rent,
+          and deposit together). Does not change issued invoices or charge deposit now.
         </p>
         <label className="block text-sm text-zinc-300">
           <span className="text-zinc-400">Financial effective date</span>
           <input
             type="date"
             value={effectiveFrom}
-            min={defaultRoomConfigurationEffectiveFrom()}
+            min={minScheduledRoomConfigurationEffectiveFrom()}
             onChange={(e) => setEffectiveFrom(e.target.value)}
             className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-white"
           />

@@ -68,7 +68,17 @@ export function RoomTypeChangeDialog({
   const preset = getRoomConfigurationPreset(presetId);
   const targetChanged = preset.bedCount !== beds.length || preset.roomTypeName !== roomTypeName;
   const firstBed = beds[0];
-  const monthlyRatePaise = firstBed?.monthlyRatePaise ?? 0;
+  const [pricing, setPricing] = useState(() => ({
+    monthlyRate: firstBed ? String(firstBed.monthlyRatePaise / 100) : '',
+    weeklyRate: firstBed ? String(firstBed.weeklyRatePaise / 100) : '',
+    dailyRate: firstBed ? String(firstBed.dailyRatePaise / 100) : '',
+    monthlyDeposit: firstBed ? String(firstBed.monthlyDepositPaise / 100) : '',
+  }));
+
+  const monthlyRatePaise = Math.round(Number.parseFloat(pricing.monthlyRate || '0') * 100);
+  const weeklyRatePaise = Math.round(Number.parseFloat(pricing.weeklyRate || '0') * 100);
+  const dailyRatePaise = Math.round(Number.parseFloat(pricing.dailyRate || '0') * 100);
+  const depositPaise = Math.round(Number.parseFloat(pricing.monthlyDeposit || '0') * 100);
 
   const effectiveFromDisplay = timing === 'immediate' ? today : scheduledEffectiveFrom;
 
@@ -96,7 +106,7 @@ export function RoomTypeChangeDialog({
   );
 
   const previewBlocked = capacityPreview.blocked;
-  const currentDepositPaise = firstBed?.monthlyDepositPaise ?? 0;
+  const currentDepositPaise = depositPaise;
 
   async function onApply() {
     setPending(true);
@@ -109,14 +119,12 @@ export function RoomTypeChangeDialog({
       fd.set('effectiveFrom', scheduledEffectiveFrom);
     }
     if (hasAc) fd.set('hasAc', 'on');
-    if (firstBed) {
-      fd.set('dailyRate', String(firstBed.dailyRatePaise / 100));
-      fd.set('weeklyRate', String(firstBed.weeklyRatePaise / 100));
-      fd.set('monthlyRate', String(firstBed.monthlyRatePaise / 100));
-      fd.set('dailyDeposit', String(firstBed.dailyDepositPaise / 100));
-      fd.set('weeklyDeposit', String(firstBed.weeklyDepositPaise / 100));
-      fd.set('monthlyDeposit', String(firstBed.monthlyDepositPaise / 100));
-    }
+    fd.set('dailyRate', pricing.dailyRate);
+    fd.set('weeklyRate', pricing.weeklyRate);
+    fd.set('monthlyRate', pricing.monthlyRate);
+    fd.set('dailyDeposit', pricing.monthlyDeposit);
+    fd.set('weeklyDeposit', pricing.monthlyDeposit);
+    fd.set('monthlyDeposit', pricing.monthlyDeposit);
     const result = await resizeRoomCapacityAction(pgId, fd);
     setPending(false);
     if (!result.ok) {
@@ -229,6 +237,35 @@ export function RoomTypeChangeDialog({
         ) : null}
         <RoomTypeSelector value={presetId} onChange={setPresetId} disabled={pending} />
         {targetChanged ? (
+          <div className="rounded-lg border border-zinc-800 p-3 space-y-3">
+            <p className="text-sm font-medium text-zinc-200">
+              Future pricing (effective together with sharing change)
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(
+                [
+                  { key: 'monthlyRate' as const, label: 'Monthly rent (₹)' },
+                  { key: 'weeklyRate' as const, label: 'Weekly rent (₹)' },
+                  { key: 'dailyRate' as const, label: 'Daily rent (₹)' },
+                  { key: 'monthlyDeposit' as const, label: 'Deposit (₹)' },
+                ] as const
+              ).map(({ key, label }) => (
+                <label key={key} className="text-sm">
+                  <span className="text-zinc-400">{label}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={pricing[key]}
+                    onChange={(e) => setPricing((p) => ({ ...p, [key]: e.target.value }))}
+                    className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-white"
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {targetChanged ? (
           <RoomCapacityChangePreview
             currentBeds={previewBeds}
             archivedBedCodes={archivedBedCodes}
@@ -251,10 +288,10 @@ export function RoomTypeChangeDialog({
             </p>
             <ul className="mt-2 space-y-1 text-xs">
               <li>
-                {timing === 'immediate' ? 'Effective: today' : 'Effective'} ({effectiveFromDisplay})
+                From {formatDate(effectiveFromDisplay)} — {preset.label} (capacity {preset.bedCount})
               </li>
-              <li>New rent (per bed): {paiseToInr(monthlyRatePaise)}</li>
-              <li>Deposit (per bed): {paiseToInr(currentDepositPaise)}</li>
+              <li>Monthly: {paiseToInr(monthlyRatePaise)} · Weekly: {paiseToInr(weeklyRatePaise)} · Daily: {paiseToInr(dailyRatePaise)}</li>
+              <li>Deposit (per bed): {paiseToInr(depositPaise)}</li>
               {timing === 'scheduled' ? (
                 <li>No immediate rent invoice or deposit charge until the effective date.</li>
               ) : (
