@@ -47,7 +47,7 @@ import { assertElectricityBreakdownCommitReady } from '@/src/lib/billing/assertE
 import { composeElectricityBillBreakdown, loadElectricityBillBreakdown, personalizeElectricityBreakdown } from '@/src/lib/billing/buildElectricityBillBreakdown';
 import type { ElectricityBillCalculationBreakdown } from '@/src/lib/billing/electricityBillBreakdownTypes';
 import type { NewElectricityInvoice } from '../db/schema/electricityInvoices';
-import { diffDays, formatDate, normalizeIsoDateOnly, parseDate, type DateLike } from '../lib/dates';
+import { diffDays, formatDate, normalizeIsoDateOnly, parseDate, addDays, type DateLike } from '../lib/dates';
 import {
   chargeableLateFeeDaysFromIssue,
   computeElectricityLateFee,

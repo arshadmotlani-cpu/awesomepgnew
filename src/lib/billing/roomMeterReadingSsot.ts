@@ -52,12 +52,16 @@ export function pickPreviousMeterReadingFromFinalizedBills(
   void _beforeBillingMonth;
   const last = lastFinalizedBill(asMeterPeriodRows(bills));
   if (!last) return null;
+  const src = bills.find(
+    (b) =>
+      b.billingMonth === last.billingMonth && b.currentReadingUnits === last.currentReadingUnits,
+  );
   return {
     previousReadingUnits: last.currentReadingUnits,
     source: 'last_monthly_bill',
     lastBillingMonth: last.billingMonth,
-    ratePerUnitPaise: last.ratePerUnitPaise ?? null,
-    meterImageUrl: last.meterImageUrl ?? null,
+    ratePerUnitPaise: src?.ratePerUnitPaise ?? null,
+    meterImageUrl: src?.meterImageUrl ?? null,
   };
 }
 

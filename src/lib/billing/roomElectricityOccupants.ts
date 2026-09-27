@@ -26,7 +26,7 @@ import {
   type RoomElectricityCoverageInterval,
 } from '@/src/lib/billing/roomElectricityOccupancyCoverage';
 import { resolveElectricityStayEndExclusive } from '@/src/lib/billing/resolveElectricityStayEndExclusive';
-import { diffDays, formatDate, tryParseDateBound } from '@/src/lib/dates';
+import { diffDays, formatDate, parseDate, tryParseDateBound } from '@/src/lib/dates';
 import { paiseToInr } from '@/src/lib/format';
 import { monthBounds } from '@/src/services/billing';
 import { listCheckoutElectricityLedgerForRoomMonth } from '@/src/services/electricitySettlementLedger';
