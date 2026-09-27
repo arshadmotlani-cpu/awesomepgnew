@@ -17,7 +17,8 @@ import {
 } from '@/src/db/schema';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { firstOfMonth } from '@/src/services/billing';
-import { formatDate } from '@/src/lib/dates';
+import { formatDate, parseDate } from '@/src/lib/dates';
+import { stayRangeExclusiveEnd } from '@/src/lib/vacating/vacatingBedSemantics';
 import { isBedAvailable } from '@/src/services/availability';
 import { assertBookingExitOperationsAllowed } from '@/src/lib/exit/exitBrainGuards';
 import { assertBookingOperationalGates } from '@/src/lib/occupancyEligibility';
@@ -59,6 +60,8 @@ export async function applyResidentBedTransfer(input: {
   skipExitGuard?: boolean;
   roomChangeRequestId?: string;
   settledAt?: Date;
+  /** Admin relocation: keep booked rates; only move bed assignment in snapshot. */
+  preservePricingSnapshot?: boolean;
 }): Promise<{ ok: true; fromBedId: string; pgId: string } | { ok: false; message: string }> {
   if (!input.skipExitGuard) {
     const exitGuard = await assertBookingExitOperationsAllowed({
@@ -71,15 +74,6 @@ export async function applyResidentBedTransfer(input: {
   const gates = await assertBookingOperationalGates(input.bookingId);
   if (!gates.ok) return { ok: false, message: gates.reason };
 
-  const available = await isBedAvailable({
-    bedId: input.toBedId,
-    startDate: input.transferDate,
-    endDate: null,
-  }, { skipRoomTransferHoldCheck: Boolean(input.roomChangeRequestId) });
-  if (!available) {
-    return { ok: false, message: 'Destination bed is not available for the transfer date.' };
-  }
-
   const [booking] = await db
     .select({
       id: bookings.id,
@@ -87,12 +81,30 @@ export async function applyResidentBedTransfer(input: {
       status: bookings.status,
       pricingSnapshot: bookings.pricingSnapshot,
       blocksRoomAvailability: bookings.blocksRoomAvailability,
+      expectedCheckoutDate: bookings.expectedCheckoutDate,
     })
     .from(bookings)
     .where(eq(bookings.id, input.bookingId))
     .limit(1);
   if (!booking || booking.status !== 'confirmed') {
     return { ok: false, message: 'Booking is not an active tenancy.' };
+  }
+
+  const availabilityEnd =
+    booking.expectedCheckoutDate != null
+      ? formatDate(parseDate(String(booking.expectedCheckoutDate)))
+      : null;
+
+  const available = await isBedAvailable(
+    {
+      bedId: input.toBedId,
+      startDate: input.transferDate,
+      endDate: availabilityEnd,
+    },
+    { skipRoomTransferHoldCheck: Boolean(input.roomChangeRequestId) },
+  );
+  if (!available) {
+    return { ok: false, message: 'Destination bed is not available for the transfer date.' };
   }
 
   const [fromCtx] = await db
@@ -117,12 +129,19 @@ export async function applyResidentBedTransfer(input: {
     perBed: [],
     computedAt: new Date().toISOString(),
   }) as PricingSnapshot;
-  const ongoingMonthlyRent =
-    (await resolvePostTransferMonthlyRentPaise(input.toBedId, input.transferDate)) ??
-    (await loadBedPrice(input.toBedId, input.transferDate))?.monthlyRatePaise;
-  if (ongoingMonthlyRent == null) {
+  const ongoingMonthlyRent = input.preservePricingSnapshot
+    ? null
+    : ((await resolvePostTransferMonthlyRentPaise(input.toBedId, input.transferDate)) ??
+      (await loadBedPrice(input.toBedId, input.transferDate))?.monthlyRatePaise ??
+      null);
+  if (!input.preservePricingSnapshot && ongoingMonthlyRent == null) {
     return { ok: false, message: 'Could not load destination bed pricing.' };
   }
+
+  const newStayExclusiveEnd =
+    booking.expectedCheckoutDate != null
+      ? stayRangeExclusiveEnd(formatDate(parseDate(String(booking.expectedCheckoutDate))))
+      : null;
 
   const blocksWholeRoom = booking.blocksRoomAvailability;
   const reservationBedIds = blocksWholeRoom
@@ -219,22 +238,30 @@ export async function applyResidentBedTransfer(input: {
         await tx.insert(bedReservations).values({
           bookingId: input.bookingId,
           bedId,
-          stayRange: sql`daterange(${input.transferDate}::date, NULL, '[)')` as unknown as string,
+          stayRange: (newStayExclusiveEnd
+            ? sql`daterange(${input.transferDate}::date, ${newStayExclusiveEnd}::date, '[)')`
+            : sql`daterange(${input.transferDate}::date, NULL, '[)')`) as unknown as string,
           kind: 'primary',
           status: 'active',
         });
       }
 
-      if (snapshot.perBed[0]) {
-        snapshot.perBed[0].bedId = input.toBedId;
-        snapshot.perBed[0].monthlyRatePaise = ongoingMonthlyRent;
-        snapshot.perBed[0].lineTotalPaise =
-          ongoingMonthlyRent * Math.max(1, snapshot.perBed[0].units ?? 1);
-      }
-      const subtotalPaise = snapshot.perBed.reduce(
+      let subtotalPaise = snapshot.perBed.reduce(
         (acc, bed) => acc + (bed.lineTotalPaise ?? 0),
         0,
       );
+      if (snapshot.perBed[0]) {
+        snapshot.perBed[0].bedId = input.toBedId;
+        if (!input.preservePricingSnapshot && ongoingMonthlyRent != null) {
+          snapshot.perBed[0].monthlyRatePaise = ongoingMonthlyRent;
+          snapshot.perBed[0].lineTotalPaise =
+            ongoingMonthlyRent * Math.max(1, snapshot.perBed[0].units ?? 1);
+          subtotalPaise = snapshot.perBed.reduce(
+            (acc, bed) => acc + (bed.lineTotalPaise ?? 0),
+            0,
+          );
+        }
+      }
 
       await tx
         .update(bookings)
@@ -255,6 +282,8 @@ export async function applyResidentBedTransfer(input: {
           fromBedId: fromCtx.bedId,
           toBedId: input.toBedId,
           transferDate: input.transferDate,
+          preservePricingSnapshot: input.preservePricingSnapshot ?? false,
+          expectedCheckoutDate: booking.expectedCheckoutDate ?? null,
         },
       });
 
