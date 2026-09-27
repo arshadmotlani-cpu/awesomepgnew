@@ -67,6 +67,9 @@ test('immediate mode does not create a schedule row — service exports apply im
   assert.ok(immediateStart >= 0 && scheduleStart > immediateStart);
   const immediateBody = scheduleService.slice(immediateStart, scheduleStart);
   assert.doesNotMatch(immediateBody, /insert\(roomConfigurationSchedules\)/);
+  assert.match(immediateBody, /cancelAllScheduledRoomConfigurationsForRoom/);
+  assert.match(immediateBody, /assertImmediateEffectiveDate/);
+  assert.match(immediateBody, /assertConfigurationPricingPositive/);
 });
 
 test('scheduled mode still creates date-aware schedule rows', () => {
@@ -79,6 +82,11 @@ test('inventory action routes immediate vs scheduled timing', () => {
   assert.match(inventoryActions, /configurationTiming/);
   assert.match(inventoryActions, /applyRoomConfigurationChangeImmediately/);
   assert.match(inventoryActions, /scheduleRoomConfigurationChange/);
+});
+
+test('RoomTypeChangeDialog clears pending state on failure', () => {
+  assert.match(roomTypeDialog, /finally\s*\{/);
+  assert.match(roomTypeDialog, /setPending\(false\)/);
 });
 
 test('RoomTypeChangeDialog exposes Apply immediately vs Schedule', () => {

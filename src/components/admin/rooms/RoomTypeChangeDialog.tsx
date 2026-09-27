@@ -127,42 +127,52 @@ export function RoomTypeChangeDialog({
   async function onApply() {
     setPending(true);
     setError(null);
-    const fd = new FormData();
-    fd.set('roomId', roomId);
-    fd.set('presetId', presetId);
-    fd.set('configurationTiming', timing);
-    if (timing === 'scheduled') {
-      fd.set('effectiveFrom', scheduledEffectiveFrom);
-    }
-    if (editingSchedule?.scheduleId) {
-      fd.set('editingScheduleId', editingSchedule.scheduleId);
-    }
-    if (hasAc) fd.set('hasAc', 'on');
-    fd.set('dailyRate', pricing.dailyRate);
-    fd.set('weeklyRate', pricing.weeklyRate);
-    fd.set('monthlyRate', pricing.monthlyRate);
-    fd.set('dailyDeposit', pricing.monthlyDeposit);
-    fd.set('weeklyDeposit', pricing.monthlyDeposit);
-    fd.set('monthlyDeposit', pricing.monthlyDeposit);
-    const result = await resizeRoomCapacityAction(pgId, fd);
-    setPending(false);
-    if (!result.ok) {
-      const msg = result.error ?? "Couldn't save changes. Nothing was changed.";
+    try {
+      const fd = new FormData();
+      fd.set('roomId', roomId);
+      fd.set('presetId', presetId);
+      fd.set('configurationTiming', timing);
+      if (timing === 'scheduled') {
+        fd.set('effectiveFrom', scheduledEffectiveFrom);
+      }
+      if (editingSchedule?.scheduleId) {
+        fd.set('editingScheduleId', editingSchedule.scheduleId);
+      }
+      if (hasAc) fd.set('hasAc', 'on');
+      fd.set('dailyRate', pricing.dailyRate);
+      fd.set('weeklyRate', pricing.weeklyRate);
+      fd.set('monthlyRate', pricing.monthlyRate);
+      fd.set('dailyDeposit', pricing.monthlyDeposit);
+      fd.set('weeklyDeposit', pricing.monthlyDeposit);
+      fd.set('monthlyDeposit', pricing.monthlyDeposit);
+      const result = await resizeRoomCapacityAction(pgId, fd);
+      if (!result.ok) {
+        const msg = result.error ?? "Couldn't save changes. Nothing was changed.";
+        setError(msg);
+        onToast(msg, 'error');
+        return;
+      }
+      if (result.timing === 'immediate') {
+        onToast(
+          `✓ Applied ${preset.label} immediately (effective ${formatDate(result.effectiveFrom)})`,
+          'success',
+        );
+      } else {
+        onToast(
+          `✓ Scheduled ${preset.label} from ${formatDate(result.effectiveFrom)} — no billing change until then`,
+          'success',
+        );
+      }
+      setConfirmOpen(false);
+      onClose();
+      router.refresh();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
       onToast(msg, 'error');
-      return;
+    } finally {
+      setPending(false);
     }
-    if (result.timing === 'immediate') {
-      onToast(`✓ Applied ${preset.label} immediately (effective ${formatDate(result.effectiveFrom)})`, 'success');
-    } else {
-      onToast(
-        `✓ Scheduled ${preset.label} from ${formatDate(result.effectiveFrom)} — no billing change until then`,
-        'success',
-      );
-    }
-    setConfirmOpen(false);
-    onClose();
-    router.refresh();
   }
 
   return (

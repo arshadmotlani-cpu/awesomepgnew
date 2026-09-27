@@ -326,6 +326,7 @@ export async function resizeRoomCapacityAction(
         roomTypeName: preset.roomTypeName,
         hasAc: formData.get('hasAc') === 'on',
         pricing,
+        editingScheduleId,
       });
     } else {
       const scheduled = await scheduleRoomConfigurationChange(session, pgId, {

@@ -86,6 +86,29 @@ test('5 → 4 with empty B5: archives B5 only', () => {
   assert.deepEqual(plan.preserveBedIds, ['b1', 'b2', 'b3', 'b4']);
 });
 
+test('2 → 1 private with vacant B2: archives B2, keeps B1', () => {
+  const plan = planRoomCapacityDecrease({
+    activeBeds: [
+      { id: 'b1', bedCode: 'B1', occupied: true },
+      { id: 'b2', bedCode: 'B2', occupied: false },
+    ],
+    targetBedCount: 1,
+  });
+  assert.equal(plan.blocked, false);
+  assert.deepEqual(plan.archiveBedCodes, ['B2']);
+  assert.deepEqual(plan.preserveBedIds, ['b1']);
+});
+
+test('resizeRoomCapacity validates archive blockers before transaction', () => {
+  const src = readFileSync(join(process.cwd(), 'src/services/pgInventory.ts'), 'utf8');
+  const resizeStart = src.indexOf('export async function resizeRoomCapacity');
+  const resizeEnd = src.indexOf('export async function updateBedCode', resizeStart);
+  const resizeFn = src.slice(resizeStart, resizeEnd);
+  assert.match(resizeFn, /bedIdsToArchive/);
+  assert.match(resizeFn, /getBedArchiveBlockReason/);
+  assert.doesNotMatch(resizeFn, /validateRoomById\(bedRow\.roomId\)/);
+});
+
 test('5 → 4 with occupied B5: blocked, zero archive', () => {
   const plan = planRoomCapacityDecrease({
     activeBeds: [

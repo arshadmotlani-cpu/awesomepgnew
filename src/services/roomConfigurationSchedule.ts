@@ -79,6 +79,16 @@ function assertPgRoomAccess(session: AdminSession, pgId: string, roomId: string)
   void roomId;
 }
 
+function assertConfigurationPricingPositive(pricing: BedPricingInput): void {
+  if (
+    pricing.monthlyRatePaise <= 0 &&
+    pricing.weeklyRatePaise <= 0 &&
+    pricing.dailyRatePaise <= 0
+  ) {
+    throw new Error('Set at least one rent rate before applying this configuration.');
+  }
+}
+
 async function roomPgId(roomId: string): Promise<string | null> {
   const [row] = await db
     .select({ pgId: floors.pgId })
@@ -370,6 +380,7 @@ export async function applyRoomConfigurationChangeImmediately(
   assertPgRoomAccess(session, pgId, input.roomId);
   const today = todayString();
   assertImmediateEffectiveDate(input.effectiveFrom, today);
+  assertConfigurationPricingPositive(input.pricing);
 
   const preview = await previewRoomConfigurationSchedule(input.roomId, {
     effectiveFrom: input.effectiveFrom,
@@ -381,6 +392,13 @@ export async function applyRoomConfigurationChangeImmediately(
   if (preview.blocked) {
     throw new Error(preview.blockMessage ?? 'Cannot apply this configuration change.');
   }
+
+  await cancelAllScheduledRoomConfigurationsForRoom(
+    session,
+    pgId,
+    input.roomId,
+    'Superseded by apply immediately',
+  );
 
   await executeRoomConfigurationApply(session, pgId, input.roomId, {
     targetBedCount: input.targetBedCount,
@@ -435,6 +453,7 @@ export async function scheduleRoomConfigurationChange(
   if (roomPg !== pgId) throw new Error('Room not found.');
   assertPgRoomAccess(session, pgId, input.roomId);
   assertScheduledEffectiveDate(input.effectiveFrom);
+  assertConfigurationPricingPositive(input.pricing);
 
   const preview = await previewRoomConfigurationSchedule(input.roomId, input);
   if (preview.blocked) {
@@ -732,6 +751,52 @@ async function revertFutureBedPricesForSchedule(roomId: string, effectiveFrom: s
       }
     }
   });
+}
+
+/** Cancel future scheduled rows so immediate apply does not leave orphan schedules. */
+async function cancelAllScheduledRoomConfigurationsForRoom(
+  session: AdminSession,
+  pgId: string,
+  roomId: string,
+  reason: string,
+): Promise<void> {
+  const rows = await db
+    .select()
+    .from(roomConfigurationSchedules)
+    .where(
+      and(
+        eq(roomConfigurationSchedules.roomId, roomId),
+        eq(roomConfigurationSchedules.pgId, pgId),
+        eq(roomConfigurationSchedules.status, 'scheduled'),
+      ),
+    );
+
+  for (const row of rows) {
+    await revertFutureBedPricesForSchedule(row.roomId, row.effectiveFrom);
+    await db
+      .update(roomConfigurationSchedules)
+      .set({
+        status: 'cancelled',
+        cancelledAt: new Date(),
+        cancelReason: reason,
+        updatedAt: new Date(),
+      })
+      .where(eq(roomConfigurationSchedules.id, row.id));
+
+    await db.insert(auditLog).values({
+      actorType: 'admin',
+      actorId: session.adminId,
+      entity: 'room_configuration_schedule',
+      entityId: row.id,
+      action: 'cancelled',
+      diff: {
+        roomId: row.roomId,
+        effectiveFrom: row.effectiveFrom,
+        reason,
+        supersededBy: 'configuration_applied_immediately',
+      },
+    });
+  }
 }
 
 export async function cancelRoomConfigurationSchedule(

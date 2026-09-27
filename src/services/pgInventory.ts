@@ -28,6 +28,7 @@ import {
   assertBedAdditionAllowed,
   assertBedRemovalAllowed,
   assertCapacityReductionAllowed,
+  roomSnapshotAfterBedRemoval,
 } from '@/src/lib/roomIntegrity/proposedChanges';
 import { assertRoomTypeNameMatchesBedCount } from '@/src/lib/roomIntegrity/validateRoomIntegrity';
 import { planRoomCapacityIncrease } from '@/src/lib/roomCapacityBedPlanner';
@@ -1311,6 +1312,34 @@ export async function resizeRoomCapacity(
     }
   }
 
+  let bedIdsToArchive: string[] = [];
+  if (delta < 0) {
+    const toRemove = Math.abs(delta);
+    const { compareBedCodes } = await import('@/src/lib/roomCapacityBedPlanner');
+    const { getBedArchiveBlockReason } = await import('@/src/lib/bedOccupancyCheck');
+    const removable = [...currentBeds].sort((a, b) => compareBedCodes(b.bedCode, a.bedCode));
+    const roomSnap = await validateRoomById(roomId);
+    if (!roomSnap) throw new Error('Room not found.');
+    let snap: import('@/src/lib/roomIntegrity/types').RoomIntegritySnapshot = roomSnap;
+
+    for (const bed of removable) {
+      if (bedIdsToArchive.length >= toRemove) break;
+      const block = await getBedArchiveBlockReason(bed.bedId);
+      if (block) {
+        throw new Error(
+          `Cannot reduce to ${input.targetBedCount} Sharing. ${bed.bedCode} is blocked: ${block.message}`,
+        );
+      }
+      assertBedRemovalAllowed(snap, bed.status as 'available' | 'maintenance' | 'blocked');
+      bedIdsToArchive.push(bed.bedId);
+      snap = roomSnapshotAfterBedRemoval(snap, bed.status as 'available' | 'maintenance' | 'blocked');
+    }
+
+    if (bedIdsToArchive.length < toRemove) {
+      throw new Error('Could not remove enough empty beds to reduce room capacity.');
+    }
+  }
+
   await db.transaction(async (tx) => {
     if (delta > 0 && pricing) {
       await addBedsToRoomInTx(tx, roomId, {
@@ -1319,45 +1348,12 @@ export async function resizeRoomCapacity(
         pricing,
       });
     } else if (delta < 0) {
-      const toRemove = Math.abs(delta);
-      const { compareBedCodes } = await import('@/src/lib/roomCapacityBedPlanner');
-      const removable = [...currentBeds].sort((a, b) => compareBedCodes(b.bedCode, a.bedCode));
-      let removed = 0;
-
-      for (const bed of removable) {
-        if (removed >= toRemove) break;
-        const block = await import('@/src/lib/bedOccupancyCheck').then((m) =>
-          m.getBedArchiveBlockReason(bed.bedId),
-        );
-        if (block) {
-          throw new Error(
-            `Cannot reduce to ${input.targetBedCount} Sharing. ${bed.bedCode} is blocked: ${block.message}`,
-          );
-        }
-
-        const [bedRow] = await tx
-          .select({ roomId: beds.roomId, status: beds.status })
-          .from(beds)
-          .where(eq(beds.id, bed.bedId))
-          .limit(1);
-        if (bedRow?.roomId) {
-          const roomSnap = await validateRoomById(bedRow.roomId);
-          if (roomSnap) {
-            assertBedRemovalAllowed(roomSnap, bedRow.status);
-          }
-        }
-
+      for (const bedId of bedIdsToArchive) {
         await tx
           .update(beds)
           .set({ archivedAt: new Date(), updatedAt: new Date() })
-          .where(eq(beds.id, bed.bedId));
-        removed += 1;
+          .where(eq(beds.id, bedId));
       }
-
-      if (removed < toRemove) {
-        throw new Error('Could not remove enough empty beds to reduce room capacity.');
-      }
-
       await syncRoomCapacityFromActiveBeds(roomId, tx);
     }
   });

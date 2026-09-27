@@ -52,6 +52,28 @@ export function assertBedStatusChangeAllowed(
   });
 }
 
+/** Simulate room counts after one bed is archived (for multi-bed decrease planning). */
+export function roomSnapshotAfterBedRemoval(
+  room: RoomIntegritySnapshot,
+  removedBedStatus: BedStatus,
+): RoomIntegritySnapshot {
+  const newPhysical = room.physicalBeds - 1;
+  let { bookableBeds, blockedBeds, maintenanceBeds } = room;
+  if (removedBedStatus === 'available') bookableBeds = Math.max(0, bookableBeds - 1);
+  else if (removedBedStatus === 'blocked') blockedBeds = Math.max(0, blockedBeds - 1);
+  else if (removedBedStatus === 'maintenance') maintenanceBeds = Math.max(0, maintenanceBeds - 1);
+
+  return {
+    ...room,
+    physicalBeds: newPhysical,
+    storedCapacity: Math.max(1, roomCapacityFromActiveBedCount(newPhysical)),
+    bookableBeds,
+    blockedBeds,
+    maintenanceBeds,
+    roomTypeName: resolveRoomTypeNameForCapacity(room.roomTypeName, newPhysical),
+  };
+}
+
 /** Validate inventory after removing one physical bed. */
 export function assertBedRemovalAllowed(
   room: RoomIntegritySnapshot,
