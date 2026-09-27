@@ -19,7 +19,8 @@ import type { AdminSession } from '@/src/lib/auth/session';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import { formatDate, parseDate, todayString } from '@/src/lib/dates';
 import {
-  assertFutureEffectiveDate,
+  assertImmediateEffectiveDate,
+  assertScheduledEffectiveDate,
   defaultRoomConfigurationEffectiveFrom,
 } from '@/src/lib/roomConfiguration/effectiveDate';
 import {
@@ -240,6 +241,102 @@ async function writeScheduledBedPricesForRoom(
   }
 }
 
+async function executeRoomConfigurationApply(
+  session: AdminSession,
+  pgId: string,
+  roomId: string,
+  row: {
+    targetBedCount: number;
+    roomTypeName: string;
+    hasAc: boolean;
+    dailyRatePaise: number;
+    weeklyRatePaise: number;
+    monthlyRatePaise: number;
+    dailyDepositPaise: number;
+    weeklyDepositPaise: number;
+    monthlyDepositPaise: number;
+  },
+): Promise<void> {
+  const currentBedCount = await countActiveBedsInRoom(roomId);
+  const pricing: BedPricingInput = {
+    dailyRatePaise: row.dailyRatePaise,
+    weeklyRatePaise: row.weeklyRatePaise,
+    monthlyRatePaise: row.monthlyRatePaise,
+    dailyDepositPaise: row.dailyDepositPaise,
+    weeklyDepositPaise: row.weeklyDepositPaise,
+    monthlyDepositPaise: row.monthlyDepositPaise,
+  };
+  if (row.targetBedCount !== currentBedCount) {
+    const resizeInput: ResizeRoomCapacityInput = {
+      targetBedCount: row.targetBedCount,
+      roomTypeName: row.roomTypeName,
+      hasAc: row.hasAc,
+      pricing: row.targetBedCount > currentBedCount ? pricing : undefined,
+    };
+    await resizeRoomCapacity(session, pgId, roomId, resizeInput);
+  } else {
+    await resizeRoomCapacity(session, pgId, roomId, {
+      targetBedCount: row.targetBedCount,
+      roomTypeName: row.roomTypeName,
+      hasAc: row.hasAc,
+    });
+  }
+}
+
+/** Apply room configuration now (today) — no schedule row. */
+export async function applyRoomConfigurationChangeImmediately(
+  session: AdminSession,
+  pgId: string,
+  input: ScheduleRoomConfigurationInput,
+): Promise<void> {
+  const roomPg = await roomPgId(input.roomId);
+  if (roomPg !== pgId) throw new Error('Room not found.');
+  assertPgRoomAccess(session, pgId, input.roomId);
+  const today = todayString();
+  assertImmediateEffectiveDate(input.effectiveFrom, today);
+
+  const preview = await previewRoomConfigurationSchedule(input.roomId, {
+    effectiveFrom: input.effectiveFrom,
+    targetBedCount: input.targetBedCount,
+    roomTypeName: input.roomTypeName,
+    hasAc: input.hasAc,
+    pricing: input.pricing,
+  });
+  if (preview.blocked) {
+    throw new Error(preview.blockMessage ?? 'Cannot apply this configuration change.');
+  }
+
+  await executeRoomConfigurationApply(session, pgId, input.roomId, {
+    targetBedCount: input.targetBedCount,
+    roomTypeName: input.roomTypeName,
+    hasAc: input.hasAc,
+    dailyRatePaise: input.pricing.dailyRatePaise,
+    weeklyRatePaise: input.pricing.weeklyRatePaise,
+    monthlyRatePaise: input.pricing.monthlyRatePaise,
+    dailyDepositPaise: input.pricing.dailyDepositPaise,
+    weeklyDepositPaise: input.pricing.weeklyDepositPaise,
+    monthlyDepositPaise: input.pricing.monthlyDepositPaise,
+  });
+
+  await writeScheduledBedPricesForRoom(input.roomId, today, input.pricing);
+  await applyDepositAdjustmentsForRoom(input.roomId, today, session.adminId);
+
+  await db.insert(auditLog).values({
+    actorType: 'admin',
+    actorId: session.adminId,
+    entity: 'room',
+    entityId: input.roomId,
+    action: 'configuration_applied_immediately',
+    diff: {
+      roomId: input.roomId,
+      effectiveFrom: today,
+      targetBedCount: input.targetBedCount,
+      monthlyRatePaise: input.pricing.monthlyRatePaise,
+      monthlyDepositPaise: input.pricing.monthlyDepositPaise,
+    },
+  });
+}
+
 export async function scheduleRoomConfigurationChange(
   session: AdminSession,
   pgId: string,
@@ -248,7 +345,7 @@ export async function scheduleRoomConfigurationChange(
   const roomPg = await roomPgId(input.roomId);
   if (roomPg !== pgId) throw new Error('Room not found.');
   assertPgRoomAccess(session, pgId, input.roomId);
-  assertFutureEffectiveDate(input.effectiveFrom);
+  assertScheduledEffectiveDate(input.effectiveFrom);
 
   const preview = await previewRoomConfigurationSchedule(input.roomId, input);
   if (preview.blocked) {
@@ -521,31 +618,7 @@ async function applySingleRoomConfigurationSchedule(
   if (!row || row.status !== 'scheduled') return;
   if (row.effectiveFrom > runDate) return;
 
-  const currentBedCount = await countActiveBedsInRoom(row.roomId);
-  if (row.targetBedCount !== currentBedCount) {
-    const pricing: BedPricingInput = {
-      dailyRatePaise: row.dailyRatePaise,
-      weeklyRatePaise: row.weeklyRatePaise,
-      monthlyRatePaise: row.monthlyRatePaise,
-      dailyDepositPaise: row.dailyDepositPaise,
-      weeklyDepositPaise: row.weeklyDepositPaise,
-      monthlyDepositPaise: row.monthlyDepositPaise,
-    };
-    const resizeInput: ResizeRoomCapacityInput = {
-      targetBedCount: row.targetBedCount,
-      roomTypeName: row.roomTypeName,
-      hasAc: row.hasAc,
-      pricing: row.targetBedCount > currentBedCount ? pricing : undefined,
-    };
-    await resizeRoomCapacity(session, row.pgId, row.roomId, resizeInput);
-  } else {
-    await resizeRoomCapacity(session, row.pgId, row.roomId, {
-      targetBedCount: row.targetBedCount,
-      roomTypeName: row.roomTypeName,
-      hasAc: row.hasAc,
-    });
-  }
-
+  await executeRoomConfigurationApply(session, row.pgId, row.roomId, row);
   await applyDepositAdjustmentsForRoom(row.roomId, row.effectiveFrom, session.adminId);
 
   await db

@@ -25,9 +25,11 @@ import {
   updateRoomListing,
 } from '@/src/services/pgInventory';
 import {
+  applyRoomConfigurationChangeImmediately,
   defaultRoomConfigurationEffectiveFrom,
   scheduleRoomConfigurationChange,
 } from '@/src/services/roomConfigurationSchedule';
+import { todayString } from '@/src/lib/dates';
 import { updateBedInventoryStatus } from '@/src/services/bookingAdminOps';
 import { markPgFullyOccupied, clearPgOccupancyPlaceholders } from '@/src/services/occupancyAdmin';
 
@@ -269,9 +271,9 @@ export type ResizeRoomCapacitySuccess = {
   ok: true;
   capacity: number;
   roomTypeName: string;
-  scheduled: true;
+  timing: 'immediate' | 'scheduled';
   effectiveFrom: string;
-  scheduleId: string;
+  scheduleId?: string;
 };
 
 export type ResizeRoomCapacityActionResult =
@@ -297,9 +299,14 @@ export async function resizeRoomCapacityAction(
     const dailyDepositPaise = parseRupeesPaise(formData.get('dailyDeposit')?.toString()) ?? 0;
     const weeklyDepositPaise = parseRupeesPaise(formData.get('weeklyDeposit')?.toString()) ?? 0;
     const monthlyDepositPaise = parseRupeesPaise(formData.get('monthlyDeposit')?.toString()) ?? 0;
+    const timingRaw = formData.get('configurationTiming')?.toString()?.trim();
+    const timing: 'immediate' | 'scheduled' =
+      timingRaw === 'immediate' ? 'immediate' : 'scheduled';
     const effectiveFrom =
-      formData.get('effectiveFrom')?.toString()?.trim() ||
-      defaultRoomConfigurationEffectiveFrom();
+      timing === 'immediate'
+        ? todayString()
+        : formData.get('effectiveFrom')?.toString()?.trim() ||
+          defaultRoomConfigurationEffectiveFrom();
 
     const pricing = {
       dailyRatePaise: Math.round(daily * 100),
@@ -310,14 +317,37 @@ export async function resizeRoomCapacityAction(
       monthlyDepositPaise,
     };
 
-    const scheduled = await scheduleRoomConfigurationChange(session, pgId, {
-      roomId,
-      effectiveFrom,
-      targetBedCount: preset.bedCount,
-      roomTypeName: preset.roomTypeName,
-      hasAc: formData.get('hasAc') === 'on',
-      pricing,
-    });
+    if (timing === 'immediate') {
+      await applyRoomConfigurationChangeImmediately(session, pgId, {
+        roomId,
+        effectiveFrom,
+        targetBedCount: preset.bedCount,
+        roomTypeName: preset.roomTypeName,
+        hasAc: formData.get('hasAc') === 'on',
+        pricing,
+      });
+    } else {
+      const scheduled = await scheduleRoomConfigurationChange(session, pgId, {
+        roomId,
+        effectiveFrom,
+        targetBedCount: preset.bedCount,
+        roomTypeName: preset.roomTypeName,
+        hasAc: formData.get('hasAc') === 'on',
+        pricing,
+      });
+      revalidatePgAdminPages(pgId);
+      revalidatePublicPgBrowseCache({ pgId });
+      revalidatePath('/admin/beds');
+      revalidatePath('/admin/pricing');
+      return {
+        ok: true,
+        capacity: preset.bedCount,
+        roomTypeName: preset.roomTypeName,
+        timing: 'scheduled',
+        effectiveFrom,
+        scheduleId: scheduled.scheduleId,
+      };
+    }
 
     revalidatePgAdminPages(pgId);
     revalidatePublicPgBrowseCache({ pgId });
@@ -327,9 +357,8 @@ export async function resizeRoomCapacityAction(
       ok: true,
       capacity: preset.bedCount,
       roomTypeName: preset.roomTypeName,
-      scheduled: true,
+      timing: 'immediate',
       effectiveFrom,
-      scheduleId: scheduled.scheduleId,
     };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };

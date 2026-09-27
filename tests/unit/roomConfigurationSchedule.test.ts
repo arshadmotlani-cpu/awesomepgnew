@@ -29,6 +29,7 @@ const electricityBilling = readFileSync(
 test('1–3 sharing decrease/increase schedules via inventory actions not immediate resize', () => {
   assert.doesNotMatch(inventoryActions, /await resizeRoomCapacity\(session, pgId, roomId/);
   assert.match(inventoryActions, /scheduleRoomConfigurationChange/);
+  assert.match(inventoryActions, /applyRoomConfigurationChangeImmediately/);
 });
 
 test('4–7 rent/deposit changes route through schedule + future bed_prices', () => {
