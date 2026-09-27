@@ -988,6 +988,13 @@
       "when": 1795500000000,
       "tag": "0150_rent_late_fee_base",
       "breakpoints": true
+    },
+    {
+      "idx": 145,
+      "version": "7",
+      "when": 1795600000000,
+      "tag": "0151_room_configuration_schedules",
+      "breakpoints": true
     }
   ]
 }
