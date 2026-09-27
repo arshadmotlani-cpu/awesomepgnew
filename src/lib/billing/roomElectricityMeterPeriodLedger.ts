@@ -5,10 +5,12 @@
  * that bill's closing reading, unbilled consumption is modeled as a separate tail period
  * (e.g. 424→479) without rebilling the finalized interval (337→424).
  */
-import { formatDate, parseDate } from '@/src/lib/dates';
+import { addDays, formatDate, parseDate } from '@/src/lib/dates';
+import { resolveTailOccupancyPeriod } from '@/src/lib/billing/electricityMeterPeriodSsot';
 import {
   allocateRoomElectricityCheckout,
   type RoomOccupantSlice,
+  type OccupantElectricityLine,
 } from '@/src/lib/checkout/roomElectricityAllocation';
 
 export type FinalizedBillMeterPeriod = {
@@ -17,7 +19,9 @@ export type FinalizedBillMeterPeriod = {
   closingUnits: number;
   grossPaise: number;
   ratePerUnitPaise: number;
-  /** Date the bill was finalized (consumption tail starts here). */
+  periodStartDate: string;
+  periodEndDate: string;
+  /** Day after periodEndDate — tail meter interval starts here. */
   finalizedOnDate: string;
 };
 
@@ -54,8 +58,21 @@ export type CurrentResidentMeterCheckoutLine = {
   customerId: string;
   occupancyStart: string;
   occupancyEndExclusive: string | null;
+  /** Occupancy-weighted share of unbilled tail gross only. */
+  tailCalculatedSharePaise: number;
+  /** Payments credited to tail period only (not finalized invoice). */
+  tailAlreadyCollectedPaise: number;
+  /** Outstanding tail share after tail collections. */
+  tailRemainingPaise: number;
+  /** Unpaid portion of finalized electricity invoice for this resident. */
+  finalizedInvoiceRemainingPaise: number;
+  /** Total deposit deduction = finalized invoice remaining + tail remaining. */
+  totalElectricityDeductionPaise: number;
+  /** @deprecated Use tailCalculatedSharePaise — kept for transitional UI. */
   calculatedSharePaise: number;
+  /** @deprecated Split fields above — do not add finalized + tail paid together. */
   alreadyCollectedPaise: number;
+  /** Same as totalElectricityDeductionPaise. */
   remainingPaise: number;
   depositDeductionPaise: number;
 };
@@ -68,6 +85,7 @@ export type RoomElectricityMeterPeriodLedger = {
   totalCollectedPaise: number;
   totalRemainingRoomPaise: number;
   primaryPeriodId: string | null;
+  tailAllocationLines: OccupantElectricityLine[];
   currentResident: CurrentResidentMeterCheckoutLine;
   suggestedDepositDeductionPaise: number;
 };
@@ -82,6 +100,8 @@ export type BuildRoomElectricityMeterPeriodLedgerInput = {
   invoiceCredits: ResidentInvoiceCredit[];
   extraCollectedByCustomerId?: Map<string, number>;
   occupants: RoomOccupantSlice[];
+  /** Occupants for tail allocation — when omitted, uses `occupants`. */
+  tailOccupants?: RoomOccupantSlice[];
   currentCustomerId: string;
   electricityDeductFromDeposit: boolean;
 };
@@ -141,9 +161,15 @@ function allocateTailPeriod(input: {
   currentSharePaise: number;
   currentCollectedPaise: number;
   currentRemainingPaise: number;
+  occupants: OccupantElectricityLine[];
 } {
   if (input.grossPaise <= 0) {
-    return { currentSharePaise: 0, currentCollectedPaise: 0, currentRemainingPaise: 0 };
+    return {
+      currentSharePaise: 0,
+      currentCollectedPaise: 0,
+      currentRemainingPaise: 0,
+      occupants: [],
+    };
   }
   const allocation = allocateRoomElectricityCheckout({
     billingMonth: input.billingMonth,
@@ -159,6 +185,7 @@ function allocateTailPeriod(input: {
     currentSharePaise: allocation.currentResidentFairSharePaise,
     currentCollectedPaise: allocation.currentResidentCollectedPaise,
     currentRemainingPaise: Math.max(0, allocation.currentResidentRemainingDuePaise),
+    occupants: allocation.occupants,
   };
 }
 
@@ -172,6 +199,7 @@ export function buildRoomElectricityMeterPeriodLedger(
   let tailRemainingForCurrent = 0;
   let tailShare = 0;
   let tailCollected = 0;
+  let tailAllocationLines: OccupantElectricityLine[] = [];
   let primaryPeriodId: string | null = null;
 
   const collectionRows = buildCollectionRows(input.invoiceCredits);
@@ -193,7 +221,7 @@ export function buildRoomElectricityMeterPeriodLedger(
       collectedPaise: collected,
       remainingPaise: remaining,
       locked: true,
-      periodStart: input.billingMonth,
+      periodStart: fb.periodStartDate,
       periodEndExclusive: fb.finalizedOnDate,
     });
     finalizedRemainingForCurrent = residentInvoiceRemaining(
@@ -213,8 +241,19 @@ export function buildRoomElectricityMeterPeriodLedger(
   if (hasTail) {
     const tailUnits = input.checkoutClosingUnits - tailOpening;
     const tailGross = grossFromUnits(tailUnits, input.ratePerUnitPaise);
-    const tailStart = input.finalizedBill?.finalizedOnDate ?? input.billingMonth;
-    const tailEnd = periodEndForVacating;
+    const tailOccupancy =
+      input.finalizedBill != null
+        ? resolveTailOccupancyPeriod({
+            finalizedPeriodEndDate: input.finalizedBill.periodEndDate,
+            vacatingDate: input.vacatingDate,
+          })
+        : {
+            periodStart: input.billingMonth,
+            periodEndExclusive: periodEndForVacating,
+          };
+    const tailStart = tailOccupancy.periodStart;
+    const tailEnd = tailOccupancy.periodEndExclusive;
+    const tailOccupants = input.tailOccupants ?? input.occupants;
     const tailCollectedMap = new Map<string, number>();
     if (input.extraCollectedByCustomerId) {
       for (const [cid, amt] of input.extraCollectedByCustomerId) {
@@ -244,13 +283,14 @@ export function buildRoomElectricityMeterPeriodLedger(
       periodEndExclusive: tailEnd,
       grossPaise: tailGross,
       unitsConsumed: tailUnits,
-      occupants: input.occupants,
+      occupants: tailOccupants,
       collectedByCustomerId: tailCollectedMap,
       currentCustomerId: input.currentCustomerId,
     });
     tailShare = tailAlloc.currentSharePaise;
     tailCollected = tailAlloc.currentCollectedPaise;
     tailRemainingForCurrent = tailAlloc.currentRemainingPaise;
+    tailAllocationLines = tailAlloc.occupants;
   } else if (!input.finalizedBill && input.chainOpeningUnits != null) {
     const opening = input.chainOpeningUnits;
     const closing = input.checkoutClosingUnits;
@@ -311,8 +351,8 @@ export function buildRoomElectricityMeterPeriodLedger(
     ? residentTotalRemaining
     : 0;
 
-  const calculatedSharePaise =
-    tailShare + (finalizedRemainingForCurrent > 0 ? 0 : 0);
+  const currentInvoicePaid =
+    input.invoiceCredits.find((i) => i.customerId === input.currentCustomerId)?.paidPaise ?? 0;
 
   return {
     billingMonth: input.billingMonth,
@@ -322,15 +362,19 @@ export function buildRoomElectricityMeterPeriodLedger(
     totalCollectedPaise: totalCollected,
     totalRemainingRoomPaise: periods.reduce((s, p) => s + p.remainingPaise, 0),
     primaryPeriodId,
+    tailAllocationLines,
     currentResident: {
       customerId: input.currentCustomerId,
       occupancyStart: currentOccupant?.stayStart ?? input.billingMonth,
       occupancyEndExclusive:
         currentOccupant?.stayEndExclusive ?? vacatingExclusiveEnd(input.vacatingDate),
-      calculatedSharePaise: tailShare > 0 ? tailShare : calculatedSharePaise,
-      alreadyCollectedPaise:
-        (input.invoiceCredits.find((i) => i.customerId === input.currentCustomerId)?.paidPaise ??
-          0) + tailCollected,
+      tailCalculatedSharePaise: tailShare,
+      tailAlreadyCollectedPaise: tailCollected,
+      tailRemainingPaise: tailRemainingForCurrent,
+      finalizedInvoiceRemainingPaise: finalizedRemainingForCurrent,
+      totalElectricityDeductionPaise: suggestedDepositDeductionPaise,
+      calculatedSharePaise: tailShare,
+      alreadyCollectedPaise: currentInvoicePaid + tailCollected,
       remainingPaise: residentTotalRemaining,
       depositDeductionPaise: suggestedDepositDeductionPaise,
     },

@@ -19,6 +19,7 @@ import {
   CheckoutSettlementResidentEvidenceStrip,
 } from '@/src/components/admin/checkout/CheckoutSettlementResidentEvidence';
 import { buildCheckoutJourneyTimeline, wizardStepFromDetail } from '@/src/lib/checkout/checkoutJourneyTimeline';
+import { buildOperatorFinalRefundBreakdown } from '@/src/lib/checkout/checkoutOperatorFinalRefund';
 import { hasCheckoutElectricityEvidence } from '@/src/lib/checkout/checkoutElectricityEvidence';
 import { assessCheckoutSettlementReadiness } from '@/src/lib/checkout/checkoutSettlementReadiness';
 import { useOperationsActionToast } from '@/src/components/admin/operations/OperationsActionToast';
@@ -57,20 +58,13 @@ function CheckoutSettlementWizardInner({ detail }: { detail: CheckoutSettlementD
   const { showToast, toastNode } = useOperationsActionToast();
   const readiness = assessCheckoutSettlementReadiness(detail);
   const preview = detail.preview;
-  const zeroRefund = preview.finalRefundPaise <= 0;
-  const waitingResident = detail.status === 'awaiting_resident_details';
-  const canApprove = readiness.ready && !detail.amountsLocked;
-  const canMarkPaid = detail.status === 'refund_pending' && !zeroRefund;
-  const canReject = detail.status === 'awaiting_admin_review';
-  const canEditElectricity =
-    !detail.amountsLocked &&
-    (detail.status === 'awaiting_admin_review' || detail.status === 'awaiting_resident_details');
-  const isFinished =
-    detail.status === 'completed' || detail.status === 'refund_paid' || (detail.amountsLocked && zeroRefund);
-
-  const [step, setStep] = useState<WizardStep>(() => wizardStepFromDetail(detail));
   const { livePreview: liveElectricity, setLivePreview: setLiveElectricity } =
     useCheckoutElectricityDraft();
+  const operatorRefund = buildOperatorFinalRefundBreakdown(
+    detail,
+    liveElectricity?.electricityDeductionPaise,
+  );
+  const zeroRefund = operatorRefund.finalRefundPaise <= 0;
   const handleLivePreviewChange = useCallback(
     (preview: ElectricityLivePreview | null) => {
       setLiveElectricity(preview);
@@ -84,6 +78,20 @@ function CheckoutSettlementWizardInner({ detail }: { detail: CheckoutSettlementD
     },
     [showToast],
   );
+
+  const waitingResident = detail.status === 'awaiting_resident_details';
+  const canApprove = readiness.ready && !detail.amountsLocked;
+  const canMarkPaid = detail.status === 'refund_pending' && !zeroRefund;
+  const canReject = detail.status === 'awaiting_admin_review';
+  const canEditElectricity =
+    !detail.amountsLocked &&
+    (detail.status === 'awaiting_admin_review' || detail.status === 'awaiting_resident_details');
+  const isFinished =
+    detail.status === 'completed' ||
+    detail.status === 'refund_paid' ||
+    (detail.amountsLocked && zeroRefund);
+
+  const [step, setStep] = useState<WizardStep>(() => wizardStepFromDetail(detail));
 
   const steps = useMemo(() => {
     if (waitingResident) return [1] as WizardStep[];

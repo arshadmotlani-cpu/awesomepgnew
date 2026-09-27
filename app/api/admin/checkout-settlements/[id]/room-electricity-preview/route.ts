@@ -7,6 +7,8 @@ import { adminHasPermission } from '@/src/lib/auth/roles';
 import { calculateCheckoutElectricity } from '@/src/lib/checkout/electricitySettlementCalc';
 import { bookingRoomId } from '@/src/lib/checkout/electricitySettlement';
 import { buildRoomElectricityCheckoutAllocationForVacating } from '@/src/services/roomElectricityCheckout';
+import { loadCheckoutElectricityOperatorAudit } from '@/src/services/checkoutElectricityOperatorAudit';
+import { defaultElectricityRatePaise } from '@/src/lib/checkout/electricitySettlementCalc';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -72,5 +74,34 @@ export async function GET(
     excludeCheckoutSettlementId: settlementId,
   });
 
-  return Response.json({ ok: true, data: allocation });
+  const [settlementRow] = await db
+    .select({
+      bookingId: checkoutSettlements.bookingId,
+      electricitySharePaise: checkoutSettlements.electricitySharePaise,
+      electricityCalculationMethod: checkoutSettlements.electricityCalculationMethod,
+      manualChargePaise: checkoutSettlements.manualChargePaise,
+      electricityDeductFromDeposit: checkoutSettlements.electricityDeductFromDeposit,
+    })
+    .from(checkoutSettlements)
+    .where(eq(checkoutSettlements.id, settlementId))
+    .limit(1);
+
+  const operatorAudit = settlementRow
+    ? await loadCheckoutElectricityOperatorAudit({
+        roomId,
+        bookingId: settlementRow.bookingId,
+        customerId: row.customerId,
+        vacatingDate: String(row.vacatingDate).slice(0, 10),
+        checkoutPreviousUnits: previousReading,
+        checkoutCurrentUnits: currentReading,
+        ratePerUnitPaise: Math.round(ratePerUnitInr * 100) || defaultElectricityRatePaise(),
+        electricityCalculationMethod: settlementRow.electricityCalculationMethod,
+        electricitySharePaise: settlementRow.electricitySharePaise,
+        manualChargePaise: settlementRow.manualChargePaise,
+        electricityDeductFromDeposit: settlementRow.electricityDeductFromDeposit !== false,
+        excludeCheckoutSettlementId: settlementId,
+      })
+    : null;
+
+  return Response.json({ ok: true, data: allocation, operatorAudit });
 }

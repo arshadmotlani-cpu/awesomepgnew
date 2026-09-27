@@ -8,6 +8,7 @@ import {
 import type { CheckoutSettlementActionState } from '@/src/lib/checkout/checkoutSettlementActionTypes';
 import { CheckoutRoomElectricityBreakdown } from '@/src/components/admin/checkout/CheckoutRoomElectricityBreakdown';
 import { CheckoutElectricityOperatorAuditPanel } from '@/src/components/admin/checkout/CheckoutElectricityOperatorAuditPanel';
+import type { CheckoutElectricityOperatorAudit } from '@/src/lib/checkout/checkoutElectricityOperatorAudit';
 import {
   calculateCheckoutElectricity,
   calculateManualElectricityCharge,
@@ -57,6 +58,8 @@ export function CheckoutSettlementElectricitySection({
   const [mounted, setMounted] = useState(false);
   const [timelineAllocation, setTimelineAllocation] =
     useState<RoomElectricityCheckoutAllocation | null>(detail.roomElectricityAllocation);
+  const [liveOperatorAudit, setLiveOperatorAudit] =
+    useState<CheckoutElectricityOperatorAudit | null>(null);
   const [timelineLoading, setTimelineLoading] = useState(false);
 
   const [method, setMethod] = useState<ElectricityCalculationMethod>(() => {
@@ -170,7 +173,8 @@ export function CheckoutSettlementElectricitySection({
   ]);
 
   const operatorAudit = detail.electricityOperatorAudit;
-  const ledger = operatorAudit?.meterPeriodLedger;
+  const activeOperatorAudit = liveOperatorAudit ?? operatorAudit;
+  const ledger = activeOperatorAudit?.meterPeriodLedger;
 
   const previewTotalBillPaise =
     ledger?.primaryPeriodId != null
@@ -204,7 +208,7 @@ export function CheckoutSettlementElectricitySection({
   useEffect(() => {
     if (!onLivePreviewChange) return;
     const timer = window.setTimeout(() => {
-      if (!live?.ok) {
+      if (!live?.ok && !activeOperatorAudit) {
         onLivePreviewChange(null);
         return;
       }
@@ -218,6 +222,7 @@ export function CheckoutSettlementElectricitySection({
   }, [
     onLivePreviewChange,
     live?.ok,
+    activeOperatorAudit,
     electricityDeductionPaise,
     unitsConsumed,
     previewSharePaise,
@@ -278,8 +283,8 @@ export function CheckoutSettlementElectricitySection({
   useEffect(() => {
     if (state.status === 'ok') {
       lastSavedSnapshotRef.current = formSnapshot;
-      if (!autoSave) router.refresh();
-      else if (onAutosaveFeedback) {
+      router.refresh();
+      if (!autoSave && onAutosaveFeedback) {
         onAutosaveFeedback({ tone: 'success', message: state.message });
       }
     } else if (state.status === 'error' && autoSave && onAutosaveFeedback) {
@@ -338,8 +343,10 @@ export function CheckoutSettlementElectricitySection({
             ok?: boolean;
             error?: string;
             data?: RoomElectricityCheckoutAllocation;
+            operatorAudit?: CheckoutElectricityOperatorAudit;
           };
           if (body.ok && body.data) setTimelineAllocation(body.data);
+          if (body.ok && body.operatorAudit) setLiveOperatorAudit(body.operatorAudit);
         })
         .catch(() => undefined)
         .finally(() => setTimelineLoading(false));
@@ -350,10 +357,6 @@ export function CheckoutSettlementElectricitySection({
   if (operatorMode) {
     return (
       <div className="space-y-4">
-        {operatorAudit ? (
-          <CheckoutElectricityOperatorAuditPanel audit={operatorAudit} vacatingDate={detail.vacatingDate} />
-        ) : null}
-
         {editable ? (
           <form ref={formRef} action={action} className="space-y-4">
             <input type="hidden" name="settlementId" value={detail.id} />
@@ -487,6 +490,13 @@ export function CheckoutSettlementElectricitySection({
               </button>
             ) : null}
           </form>
+        ) : null}
+
+        {activeOperatorAudit ? (
+          <CheckoutElectricityOperatorAuditPanel
+            audit={activeOperatorAudit}
+            vacatingDate={detail.vacatingDate}
+          />
         ) : null}
 
         <div className="grid gap-2 rounded-2xl bg-[#12161C]/80 p-3 sm:grid-cols-3">

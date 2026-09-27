@@ -107,6 +107,8 @@ test('checkout uses last finalized closing as tail opening (424→479 not 337→
       closingUnits: 424,
       grossPaise: 139_200,
       ratePerUnitPaise: 1600,
+      periodStartDate: '2026-09-01',
+      periodEndDate: '2026-09-04',
       finalizedOnDate: '2026-09-05',
     },
     invoiceCredits: [{ customerId: 'c1', customerName: 'R', amountPaise: 139_200, paidPaise: 139_100, status: 'paid' }],

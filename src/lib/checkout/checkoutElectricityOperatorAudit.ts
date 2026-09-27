@@ -35,6 +35,7 @@ export type BuildCheckoutElectricityOperatorAuditInput = {
   finalizedBill: FinalizedBillMeterPeriod | null;
   invoiceCredits: ResidentInvoiceCredit[];
   occupants: RoomOccupantSlice[];
+  tailOccupants?: RoomOccupantSlice[];
   currentCustomerId: string;
   electricityCalculationMethod: string;
   electricitySharePaise: number;
@@ -73,6 +74,7 @@ export function buildCheckoutElectricityOperatorAudit(
     invoiceCredits: input.invoiceCredits,
     extraCollectedByCustomerId: input.extraCollectedByCustomerId,
     occupants: input.occupants,
+    tailOccupants: input.tailOccupants,
     currentCustomerId: input.currentCustomerId,
     electricityDeductFromDeposit: input.electricityDeductFromDeposit,
   });

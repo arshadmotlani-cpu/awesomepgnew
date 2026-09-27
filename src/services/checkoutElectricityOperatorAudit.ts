@@ -5,7 +5,10 @@ import {
   buildCheckoutElectricityOperatorAudit,
   type CheckoutElectricityOperatorAudit,
 } from '@/src/lib/checkout/checkoutElectricityOperatorAudit';
-import { pickFinalizedBillForCheckout } from '@/src/lib/billing/electricityMeterPeriodSsot';
+import {
+  pickFinalizedBillForCheckout,
+  resolveTailOccupancyPeriod,
+} from '@/src/lib/billing/electricityMeterPeriodSsot';
 import { addDays, formatDate, parseDate } from '@/src/lib/dates';
 import { loadHistoricalRoomOccupantSlicesForPeriod } from '@/src/lib/billing/roomElectricityCheckoutOccupants';
 import { firstOfMonth } from '@/src/services/billing';
@@ -89,9 +92,9 @@ export async function loadCheckoutElectricityOperatorAudit(input: {
         closingUnits: Number(billRow.closing),
         grossPaise: Number(billRow.totalPaise),
         ratePerUnitPaise: Number(billRow.ratePerUnitPaise ?? input.ratePerUnitPaise),
-        finalizedOnDate: formatDate(addDays(parseDate(periodEnd), 1)),
         periodStartDate: periodStart,
         periodEndDate: periodEnd,
+        finalizedOnDate: formatDate(addDays(parseDate(periodEnd), 1)),
       };
     }
   }
@@ -132,6 +135,17 @@ export async function loadCheckoutElectricityOperatorAudit(input: {
     periodEndExclusive,
   });
 
+  const tailOccupants =
+    finalizedBill != null
+      ? await loadHistoricalRoomOccupantSlicesForPeriod({
+          roomId: input.roomId,
+          ...resolveTailOccupancyPeriod({
+            finalizedPeriodEndDate: finalizedBill.periodEndDate,
+            vacatingDate: input.vacatingDate,
+          }),
+        })
+      : occupants;
+
   const collectedByCustomer = await loadRoomElectricityCollectedByCustomerForMonth(
     input.roomId,
     billingMonth,
@@ -163,6 +177,8 @@ export async function loadCheckoutElectricityOperatorAudit(input: {
           closingUnits: finalizedBill.closingUnits,
           grossPaise: finalizedBill.grossPaise,
           ratePerUnitPaise: finalizedBill.ratePerUnitPaise,
+          periodStartDate: finalizedBill.periodStartDate,
+          periodEndDate: finalizedBill.periodEndDate,
           finalizedOnDate: finalizedBill.finalizedOnDate,
         }
       : null,
@@ -174,6 +190,7 @@ export async function loadCheckoutElectricityOperatorAudit(input: {
       status: String(r.status),
     })),
     occupants,
+    tailOccupants,
     currentCustomerId: input.customerId,
     extraCollectedByCustomerId: extraCollected,
     electricityCalculationMethod: input.electricityCalculationMethod,

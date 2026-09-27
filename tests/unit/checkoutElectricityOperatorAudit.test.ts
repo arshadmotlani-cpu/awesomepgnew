@@ -36,6 +36,8 @@ test('meter-period ledger: finalized 337→424 plus tail 424→479', () => {
       closingUnits: 424,
       grossPaise: 139_200,
       ratePerUnitPaise: 1600,
+      periodStartDate: '2026-09-01',
+      periodEndDate: '2026-09-03',
       finalizedOnDate: '2026-09-04',
     },
     invoiceCredits: [
@@ -68,6 +70,8 @@ test('save path uses ledger suggested deduction not raw meter share', () => {
       closingUnits: 424,
       grossPaise: 139_200,
       ratePerUnitPaise: 1600,
+      periodStartDate: '2026-09-01',
+      periodEndDate: '2026-09-03',
       finalizedOnDate: '2026-09-04',
     },
     invoiceCredits: [

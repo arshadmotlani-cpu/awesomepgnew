@@ -2,6 +2,7 @@
  * Room electricity identity = meter interval (opening → closing), not calendar month.
  * billing_month on electricity_bills is reporting / invoice labeling only.
  */
+import { addDays, formatDate, parseDate } from '@/src/lib/dates';
 import { readingsMatch } from '@/src/lib/billing/roomMeterReadingSsot';
 
 export type MeterPeriodBillRow = {
@@ -151,4 +152,24 @@ export function rejectsFullSpanCheckoutWhenFinalizedExists(input: {
     readingsMatch(input.checkoutPreviousUnits, input.finalizedBill.previousReadingUnits) &&
     !readingsMatch(input.checkoutPreviousUnits, tailOpening);
   return wrongSpan || usesFinalizedOpenAsCheckoutOpen;
+}
+
+/**
+ * Half-open occupancy window for allocating unbilled tail gross across residents.
+ * When vacating falls on the finalized bill period end, include the vacating day
+ * (otherwise tail start = day-after-period-end equals vacating exclusive end → zero days).
+ */
+export function resolveTailOccupancyPeriod(input: {
+  finalizedPeriodEndDate: string;
+  vacatingDate: string;
+}): { periodStart: string; periodEndExclusive: string } {
+  const periodEndExclusive = formatDate(addDays(parseDate(input.vacatingDate), 1));
+  let periodStart = formatDate(addDays(parseDate(input.finalizedPeriodEndDate), 1));
+  if (periodStart >= periodEndExclusive) {
+    periodStart =
+      input.finalizedPeriodEndDate <= input.vacatingDate
+        ? input.finalizedPeriodEndDate
+        : input.vacatingDate;
+  }
+  return { periodStart, periodEndExclusive };
 }

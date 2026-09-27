@@ -2,11 +2,13 @@
 
 import Image from 'next/image';
 import { useState } from 'react';
+import { buildOperatorFinalRefundBreakdown } from '@/src/lib/checkout/checkoutOperatorFinalRefund';
 import { resolveBlobImageDisplaySrc } from '@/src/lib/storage/blobImageDisplay';
 import { paiseToInr } from '@/src/lib/format';
 import { formatBillingMonthLabel } from '@/src/lib/billing/formatBillingMonth';
 import type { CheckoutSettlementImageEvidence } from '@/src/lib/checkout/checkoutSettlementImages';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
+import { CheckoutOperatorFinalRefundHero } from '@/src/components/admin/checkout/CheckoutOperatorFinalRefundHero';
 import { CheckoutSettlementAuditBreakdown } from '@/src/components/admin/checkout/CheckoutSettlementAuditBreakdown';
 import { NoticeSettlementPanel } from '@/src/components/shared/NoticeDeductionBreakdown';
 
@@ -32,23 +34,12 @@ export function CheckoutRefundSummaryRail({
 }) {
   const preview = detail.preview;
   const usesV2 = Boolean(detail.waterfall) || (detail.settlementEngineVersion ?? 1) >= 2;
-  const electricityDeduction =
-    overrides?.electricityDeductionPaise ?? preview.electricityDeductionPaise;
-  const damagePaise = preview.damageChargePaise ?? 0;
-  const otherCharges =
-    (preview.cleaningChargePaise ?? 0) + (preview.customChargePaise ?? 0);
-  const finalRefund =
-    overrides?.electricityDeductionPaise != null && !usesV2
-      ? Math.max(
-          0,
-          detail.depositRefundablePaise -
-            preview.noticeDeductionPaise -
-            (preview.electricityDeductFromDeposit ? electricityDeduction : 0) -
-            (preview.outstandingRentDeductionPaise ?? 0) -
-            damagePaise -
-            otherCharges,
-        )
-      : preview.finalRefundPaise;
+  const operatorBreakdown = buildOperatorFinalRefundBreakdown(
+    detail,
+    overrides?.electricityDeductionPaise,
+  );
+  const finalRefund = operatorBreakdown.finalRefundPaise;
+  const electricityDeduction = operatorBreakdown.electricityDeductionPaise;
 
   const noticeBreakdown = detail.settlementNoticeDisplay ?? null;
 
@@ -59,16 +50,27 @@ export function CheckoutRefundSummaryRail({
         className
       }
     >
-      <p className="text-xs font-medium uppercase tracking-wider text-apg-silver">
-        {usesV2 ? 'Settlement audit' : 'Refund summary'}
-      </p>
+      <CheckoutOperatorFinalRefundHero
+        detail={detail}
+        electricityDeductionOverridePaise={overrides?.electricityDeductionPaise}
+      />
 
-      {detail.waterfall ? (
-        <div className="mt-5">
-          <CheckoutSettlementAuditBreakdown detail={detail} />
-        </div>
-      ) : (
+      {usesV2 && detail.electricityOperatorAudit ? (
+        <details className="mt-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 text-sm">
+          <summary className="cursor-pointer font-medium text-apg-silver">
+            Full settlement audit
+          </summary>
+          <div className="mt-4">
+            <CheckoutSettlementAuditBreakdown detail={detail} />
+          </div>
+        </details>
+      ) : null}
+
+      {!usesV2 ? (
         <>
+          <p className="mt-6 text-xs font-medium uppercase tracking-wider text-apg-silver">
+            Refund summary
+          </p>
           {noticeBreakdown ? (
             <div className="mt-5">
               <NoticeSettlementPanel settlement={noticeBreakdown} variant="admin" compact />
@@ -108,21 +110,19 @@ export function CheckoutRefundSummaryRail({
               muted
             />
           ) : null}
-          <SummaryRow label="Damage" value={`−${paiseToInr(damagePaise)}`} muted />
-          <SummaryRow label="Other charges" value={`−${paiseToInr(otherCharges)}`} muted />
+          <SummaryRow label="Damage" value={`−${paiseToInr(preview.damageChargePaise ?? 0)}`} muted />
+          <SummaryRow
+            label="Other charges"
+            value={`−${paiseToInr((preview.cleaningChargePaise ?? 0) + (preview.customChargePaise ?? 0))}`}
+            muted
+          />
         </dl>
         </>
-      )}
+      ) : null}
 
-      <div className="my-5 border-t border-white/[0.08]" />
-
-      <div className="flex items-end justify-between gap-3">
-        <p className="text-sm font-medium text-apg-silver">Total refund</p>
-        <p className="text-3xl font-semibold tracking-tight text-white">{paiseToInr(finalRefund)}</p>
-      </div>
       {usesV2 && preview.unusedRentRefundPaise != null && preview.unusedRentRefundPaise > 0 ? (
-        <p className="mt-2 text-xs text-apg-silver">
-          Includes {paiseToInr(preview.unusedRentRefundPaise)} unused rent credit (single UPI payout).
+        <p className="mt-4 text-xs text-apg-silver">
+          Single UPI payout — deposit remainder plus unused prepaid rent shown above.
         </p>
       ) : null}
 

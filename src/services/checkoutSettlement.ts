@@ -1515,10 +1515,21 @@ async function buildCheckoutSettlementDetailFromJoinRow(
   }
 
   const resolvedSharePaise = resolveCheckoutElectricitySharePaise(settlement);
+  const ledgerSuggestedShare =
+    electricityOperatorAudit?.meterPeriodLedger.suggestedDepositDeductionPaise ?? null;
+  const previewElectricitySharePaise =
+    !settlement.amountsLocked &&
+    settlement.electricityCalculationMethod === 'meter_reading' &&
+    settlement.electricityDeductFromDeposit !== false &&
+    ledgerSuggestedShare != null
+      ? ledgerSuggestedShare
+      : resolvedSharePaise;
   const previewSettlement =
-    resolvedSharePaise !== settlement.electricitySharePaise
-      ? { ...settlement, electricitySharePaise: resolvedSharePaise }
-      : settlement;
+    previewElectricitySharePaise !== settlement.electricitySharePaise
+      ? { ...settlement, electricitySharePaise: previewElectricitySharePaise }
+      : resolvedSharePaise !== settlement.electricitySharePaise
+        ? { ...settlement, electricitySharePaise: resolvedSharePaise }
+        : settlement;
 
   let preview: CheckoutSettlementDetail['preview'];
   let waterfall: CheckoutSettlementDetail['waterfall'] = null;

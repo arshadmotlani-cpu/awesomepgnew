@@ -8,6 +8,19 @@ import type { RoomOccupantSlice } from '@/src/lib/checkout/roomElectricityAlloca
 
 const RATE = 1600;
 
+function sep337To424Finalized(periodEndDate = '2026-09-03') {
+  return {
+    billingMonth: '2026-09-01',
+    openingUnits: 337,
+    closingUnits: 424,
+    grossPaise: 139_200,
+    ratePerUnitPaise: RATE,
+    periodStartDate: '2026-09-01',
+    periodEndDate,
+    finalizedOnDate: '2026-09-04',
+  };
+}
+
 function room102SepInvoices(): ResidentInvoiceCredit[] {
   return [
     { customerId: 'dhruv', customerName: 'Dhruv', amountPaise: 62_600, paidPaise: 62_600, status: 'paid' },
@@ -56,14 +69,7 @@ test('337→424 finalized at ₹1,392 remains locked historical period', () => {
     ratePerUnitPaise: RATE,
     chainOpeningUnits: 337,
     checkoutClosingUnits: 424,
-    finalizedBill: {
-      billingMonth: '2026-09-01',
-      openingUnits: 337,
-      closingUnits: 424,
-      grossPaise: 139_200,
-      ratePerUnitPaise: RATE,
-      finalizedOnDate: '2026-09-04',
-    },
+    finalizedBill: sep337To424Finalized(),
     invoiceCredits: room102SepInvoices(),
     occupants: room102Occupants(),
     currentCustomerId: 'dhruv',
@@ -84,14 +90,7 @@ test('reading 479 does not rebill 337→424 — incremental tail 424→479 = ₹
     ratePerUnitPaise: RATE,
     chainOpeningUnits: 337,
     checkoutClosingUnits: 479,
-    finalizedBill: {
-      billingMonth: '2026-09-01',
-      openingUnits: 337,
-      closingUnits: 424,
-      grossPaise: 139_200,
-      ratePerUnitPaise: RATE,
-      finalizedOnDate: '2026-09-04',
-    },
+    finalizedBill: sep337To424Finalized(),
     invoiceCredits: room102SepInvoices(),
     occupants: room102Occupants(),
     currentCustomerId: 'dhruv',
@@ -114,14 +113,7 @@ test('previous resident collections credited on finalized period only once', () 
     ratePerUnitPaise: RATE,
     chainOpeningUnits: 337,
     checkoutClosingUnits: 479,
-    finalizedBill: {
-      billingMonth: '2026-09-01',
-      openingUnits: 337,
-      closingUnits: 424,
-      grossPaise: 139_200,
-      ratePerUnitPaise: RATE,
-      finalizedOnDate: '2026-09-04',
-    },
+    finalizedBill: sep337To424Finalized(),
     invoiceCredits: room102SepInvoices(),
     occupants: room102Occupants(),
     currentCustomerId: 'dhruv',
@@ -139,14 +131,7 @@ test('paid resident with no outstanding finalized invoice gets ₹0 from finaliz
     ratePerUnitPaise: RATE,
     chainOpeningUnits: 337,
     checkoutClosingUnits: 479,
-    finalizedBill: {
-      billingMonth: '2026-09-01',
-      openingUnits: 337,
-      closingUnits: 424,
-      grossPaise: 139_200,
-      ratePerUnitPaise: RATE,
-      finalizedOnDate: '2026-09-04',
-    },
+    finalizedBill: sep337To424Finalized(),
     invoiceCredits: room102SepInvoices(),
     occupants: room102Occupants(),
     currentCustomerId: 'dhruv',
@@ -163,14 +148,7 @@ test('checkout deduction equals resident remaining liability (tail allocation)',
     ratePerUnitPaise: RATE,
     chainOpeningUnits: 337,
     checkoutClosingUnits: 479,
-    finalizedBill: {
-      billingMonth: '2026-09-01',
-      openingUnits: 337,
-      closingUnits: 424,
-      grossPaise: 139_200,
-      ratePerUnitPaise: RATE,
-      finalizedOnDate: '2026-09-04',
-    },
+    finalizedBill: sep337To424Finalized(),
     invoiceCredits: room102SepInvoices(),
     occupants: room102Occupants(),
     currentCustomerId: 'dhruv',
@@ -191,14 +169,7 @@ test('outstanding invoice balance adds to deposit deduction', () => {
     ratePerUnitPaise: RATE,
     chainOpeningUnits: 337,
     checkoutClosingUnits: 424,
-    finalizedBill: {
-      billingMonth: '2026-09-01',
-      openingUnits: 337,
-      closingUnits: 424,
-      grossPaise: 139_200,
-      ratePerUnitPaise: RATE,
-      finalizedOnDate: '2026-09-04',
-    },
+    finalizedBill: sep337To424Finalized(),
     invoiceCredits: invoices,
     occupants: room102Occupants(),
     currentCustomerId: 'dhruv',
@@ -214,14 +185,7 @@ test('historical finalized gross unchanged when tail added', () => {
     ratePerUnitPaise: RATE,
     chainOpeningUnits: 337,
     checkoutClosingUnits: 424,
-    finalizedBill: {
-      billingMonth: '2026-09-01',
-      openingUnits: 337,
-      closingUnits: 424,
-      grossPaise: 139_200,
-      ratePerUnitPaise: RATE,
-      finalizedOnDate: '2026-09-04',
-    },
+    finalizedBill: sep337To424Finalized(),
     invoiceCredits: room102SepInvoices(),
     occupants: room102Occupants(),
     currentCustomerId: 'dhruv',
@@ -233,14 +197,7 @@ test('historical finalized gross unchanged when tail added', () => {
     ratePerUnitPaise: RATE,
     chainOpeningUnits: 337,
     checkoutClosingUnits: 479,
-    finalizedBill: {
-      billingMonth: '2026-09-01',
-      openingUnits: 337,
-      closingUnits: 424,
-      grossPaise: 139_200,
-      ratePerUnitPaise: RATE,
-      finalizedOnDate: '2026-09-04',
-    },
+    finalizedBill: sep337To424Finalized(),
     invoiceCredits: room102SepInvoices(),
     occupants: room102Occupants(),
     currentCustomerId: 'dhruv',
@@ -250,4 +207,52 @@ test('historical finalized gross unchanged when tail added', () => {
     base.periods.find((p) => p.id === 'finalized')!.grossPaise,
     withTail.periods.find((p) => p.id === 'finalized')!.grossPaise,
   );
+});
+
+test('vacating on finalized period end still allocates tail by occupancy (not zero days)', () => {
+  const ledger = buildRoomElectricityMeterPeriodLedger({
+    billingMonth: '2026-09-01',
+    vacatingDate: '2026-09-25',
+    ratePerUnitPaise: RATE,
+    chainOpeningUnits: 424,
+    checkoutClosingUnits: 479,
+    finalizedBill: sep337To424Finalized('2026-09-25'),
+    invoiceCredits: [
+      {
+        customerId: 'dhruv',
+        customerName: 'Dhruv',
+        amountPaise: 62_600,
+        paidPaise: 62_600,
+        status: 'paid',
+      },
+    ],
+    occupants: room102Occupants(),
+    currentCustomerId: 'dhruv',
+    electricityDeductFromDeposit: true,
+  });
+  const tail = ledger.periods.find((p) => p.id === 'unbilled_tail');
+  assert.ok(tail);
+  assert.equal(tail!.periodStart, '2026-09-25');
+  assert.equal(tail!.periodEndExclusive, '2026-09-26');
+  assert.ok(ledger.currentResident.tailCalculatedSharePaise > 0);
+  assert.equal(ledger.currentResident.tailAlreadyCollectedPaise, 0);
+  assert.equal(ledger.currentResident.finalizedInvoiceRemainingPaise, 0);
+  assert.ok(ledger.suggestedDepositDeductionPaise > 0);
+});
+
+test('September invoice payment is not credited against unbilled tail', () => {
+  const ledger = buildRoomElectricityMeterPeriodLedger({
+    billingMonth: '2026-09-01',
+    vacatingDate: '2026-09-25',
+    ratePerUnitPaise: RATE,
+    chainOpeningUnits: 424,
+    checkoutClosingUnits: 479,
+    finalizedBill: sep337To424Finalized('2026-09-25'),
+    invoiceCredits: room102SepInvoices(),
+    occupants: room102Occupants(),
+    currentCustomerId: 'dhruv',
+    electricityDeductFromDeposit: true,
+  });
+  assert.equal(ledger.currentResident.tailAlreadyCollectedPaise, 0);
+  assert.equal(ledger.periods.find((p) => p.id === 'unbilled_tail')!.collectedPaise, 0);
 });

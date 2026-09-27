@@ -21,6 +21,7 @@ import {
 } from '@/src/components/admin/checkout/resolveCheckoutCompleteClientOutcome';
 import { CheckoutPaymentPanel } from '@/src/components/admin/checkout/CheckoutPaymentPanel';
 import { useCheckoutElectricityDraft } from '@/src/components/admin/checkout/CheckoutElectricityDraftContext';
+import { buildOperatorFinalRefundBreakdown } from '@/src/lib/checkout/checkoutOperatorFinalRefund';
 import { CheckoutRefundReceiptFromDetail } from '@/src/components/admin/checkout/CheckoutRefundReceipt';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 
@@ -56,19 +57,12 @@ export function CheckoutCompleteStep({
   const router = useRouter();
   const preview = detail.preview;
   const { livePreview } = useCheckoutElectricityDraft();
-  const electricityDeductionPaise =
-    livePreview?.electricityDeductionPaise ?? preview.electricityDeductionPaise;
-  const finalRefundPaise =
-    livePreview?.electricityDeductionPaise != null
-      ? Math.max(
-          0,
-          detail.depositRefundablePaise -
-            preview.noticeDeductionPaise -
-            (preview.electricityDeductFromDeposit ? electricityDeductionPaise : 0) -
-            (preview.damageChargePaise ?? 0) -
-            ((preview.cleaningChargePaise ?? 0) + (preview.customChargePaise ?? 0)),
-        )
-      : preview.finalRefundPaise;
+  const refundBreakdown = buildOperatorFinalRefundBreakdown(
+    detail,
+    livePreview?.electricityDeductionPaise,
+  );
+  const finalRefundPaise = refundBreakdown.finalRefundPaise;
+  const electricityDeductionPaise = refundBreakdown.electricityDeductionPaise;
   const isFinished =
     detail.status === 'completed' ||
     detail.status === 'refund_paid' ||
