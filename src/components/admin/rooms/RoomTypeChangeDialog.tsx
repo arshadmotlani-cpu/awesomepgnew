@@ -147,7 +147,9 @@ export function RoomTypeChangeDialog({
       fd.set('monthlyDeposit', pricing.monthlyDeposit);
       const result = await resizeRoomCapacityAction(pgId, fd);
       if (!result.ok) {
-        const msg = result.error ?? "Couldn't save changes. Nothing was changed.";
+        const msg =
+          result.error ??
+          "Couldn't save changes. Nothing was changed.";
         setError(msg);
         onToast(msg, 'error');
         return;
@@ -167,7 +169,10 @@ export function RoomTypeChangeDialog({
       onClose();
       router.refresh();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const raw = err instanceof Error ? err.message : String(err);
+      const msg = /unexpected response was received from the server/i.test(raw)
+        ? 'The server timed out or failed before completing this change. Nothing was saved — refresh the room list and try again; contact support if it repeats.'
+        : raw;
       setError(msg);
       onToast(msg, 'error');
     } finally {

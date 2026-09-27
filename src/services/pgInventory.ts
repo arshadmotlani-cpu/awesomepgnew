@@ -65,7 +65,13 @@ function bedPricingToVersionInput(bedId: string, pricing: BedPricingInput): BedP
 async function addBedsToRoomInTx(
   tx: DbTx,
   roomId: string,
-  input: { bedsToAdd: number; sharingCount: number; pricing: BedPricingInput },
+  input: {
+    bedsToAdd: number;
+    sharingCount: number;
+    pricing: BedPricingInput;
+    /** When set (room configuration apply), must match scheduled/immediate effective date — not month start. */
+    pricingEffectiveFrom?: string;
+  },
 ): Promise<{ bedIds: string[]; bedCodes: string[] }> {
   const activeRows = await tx
     .select({ id: beds.id, bedCode: beds.bedCode })
@@ -90,7 +96,8 @@ async function addBedsToRoomInTx(
     bedsToAdd: input.bedsToAdd,
   });
 
-  const monthStart = monthStartFor(todayString());
+  const pricingEffectiveFrom =
+    input.pricingEffectiveFrom?.trim() || monthStartFor(todayString());
   const bedIds: string[] = [];
   const bedCodes: string[] = [];
 
@@ -99,7 +106,11 @@ async function addBedsToRoomInTx(
       .update(beds)
       .set({ archivedAt: null, status: 'available', updatedAt: new Date() })
       .where(eq(beds.id, bedId));
-    await writeBedPriceVersion(bedPricingToVersionInput(bedId, input.pricing), monthStart, tx);
+    await writeBedPriceVersion(
+      bedPricingToVersionInput(bedId, input.pricing),
+      pricingEffectiveFrom,
+      tx,
+    );
     bedIds.push(bedId);
   }
   bedCodes.push(...plan.reactivatedBedCodes);
@@ -110,10 +121,16 @@ async function addBedsToRoomInTx(
       .values({ roomId, bedCode, status: 'available' })
       .returning();
     if (!bed) throw new Error(`Failed to create bed ${bedCode}.`);
-    await writeBedPriceVersion(bedPricingToVersionInput(bed.id, input.pricing), monthStart, tx);
+    await writeBedPriceVersion(
+      bedPricingToVersionInput(bed.id, input.pricing),
+      pricingEffectiveFrom,
+      tx,
+    );
     bedIds.push(bed.id);
     bedCodes.push(bedCode);
   }
+
+  await syncRoomCapacityFromActiveBeds(roomId, tx);
 
   return { bedIds, bedCodes };
 }
@@ -841,7 +858,7 @@ async function assignRoomTypeForRoom(
   tx?: DbTx,
 ): Promise<string> {
   const runner = tx ?? db;
-  const activeBedCount = await countActiveBedsInRoom(roomId);
+  const activeBedCount = await countActiveBedsInRoom(roomId, runner);
   const effectiveSharing = roomCapacityFromActiveBedCount(activeBedCount);
   const typeName =
     input.roomTypeName.trim() || sharingTypeName(Math.max(1, effectiveSharing));
@@ -1266,6 +1283,8 @@ export type ResizeRoomCapacityInput = {
   roomTypeName: string;
   hasAc?: boolean;
   pricing?: BedPricingInput;
+  /** Bed price versioning date for restored/new beds (room configuration SSOT). */
+  pricingEffectiveFrom?: string;
 };
 
 export type ResizeRoomCapacityResult = {
@@ -1297,7 +1316,8 @@ export async function resizeRoomCapacity(
     input.targetBedCount,
   );
 
-  const currentBeds = await db
+  const runner = opts?.tx ?? db;
+  const currentBeds = await runner
     .select({ bedId: beds.id, bedCode: beds.bedCode, status: beds.status })
     .from(beds)
     .where(and(eq(beds.roomId, roomId), isNull(beds.archivedAt)))
@@ -1349,6 +1369,7 @@ export async function resizeRoomCapacity(
         bedsToAdd: delta,
         sharingCount: input.targetBedCount,
         pricing,
+        pricingEffectiveFrom: input.pricingEffectiveFrom,
       });
     } else if (delta < 0) {
       for (const bedId of bedIdsToArchive) {

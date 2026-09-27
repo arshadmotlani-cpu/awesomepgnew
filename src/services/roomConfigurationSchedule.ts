@@ -347,8 +347,10 @@ async function executeRoomConfigurationApply(
     monthlyDepositPaise: number;
   },
   tx?: DbTx,
+  options?: { pricingEffectiveFrom: string },
 ): Promise<void> {
-  const currentBedCount = await countActiveBedsInRoom(roomId);
+  const runner = tx ?? db;
+  const currentBedCount = await countActiveBedsInRoom(roomId, runner);
   const pricing: BedPricingInput = {
     dailyRatePaise: row.dailyRatePaise,
     weeklyRatePaise: row.weeklyRatePaise,
@@ -363,6 +365,7 @@ async function executeRoomConfigurationApply(
       roomTypeName: row.roomTypeName,
       hasAc: row.hasAc,
       pricing: row.targetBedCount > currentBedCount ? pricing : undefined,
+      pricingEffectiveFrom: options?.pricingEffectiveFrom,
     };
     await resizeRoomCapacity(session, pgId, roomId, resizeInput, tx ? { tx } : undefined);
   } else {
@@ -438,6 +441,7 @@ export async function applyRoomConfigurationChangeImmediately(
           monthlyDepositPaise: input.pricing.monthlyDepositPaise,
         },
         tx,
+        { pricingEffectiveFrom: today },
       );
 
       await writeScheduledBedPricesForRoom(input.roomId, today, input.pricing, tx);
@@ -747,7 +751,7 @@ async function revertFutureBedPricesForSchedule(
   effectiveFrom: string,
   tx?: DbTx,
 ): Promise<void> {
-  const bedRows = await db
+  const bedRows = await (tx ?? db)
     .select({ bedId: beds.id })
     .from(beds)
     .where(eq(beds.roomId, roomId));
@@ -801,7 +805,8 @@ async function cancelAllScheduledRoomConfigurationsForRoom(
   reason: string,
   tx?: DbTx,
 ): Promise<void> {
-  const rows = await db
+  const runner = tx ?? db;
+  const rows = await runner
     .select()
     .from(roomConfigurationSchedules)
     .where(
@@ -947,7 +952,9 @@ async function applySingleRoomConfigurationSchedule(
   if (!row || row.status !== 'scheduled') return;
   if (row.effectiveFrom > runDate) return;
 
-  await executeRoomConfigurationApply(session, row.pgId, row.roomId, row);
+  await executeRoomConfigurationApply(session, row.pgId, row.roomId, row, undefined, {
+    pricingEffectiveFrom: row.effectiveFrom,
+  });
   await applyDepositAdjustmentsForRoom(row.roomId, row.effectiveFrom, session.adminId);
 
   await db

@@ -17,6 +17,11 @@ test('same effectiveFrom updates rates in place without changing window start', 
   assert.match(src, /effectiveTo: active\.effectiveTo/);
 });
 
+test('capacity increase uses configuration effective date for restored bed pricing', () => {
+  const src = readFileSync(join(process.cwd(), 'src/services/pgInventory.ts'), 'utf8');
+  assert.match(src, /pricingEffectiveFrom/);
+});
+
 test('apply immediately runs capacity + pricing in one transaction', () => {
   const src = readFileSync(
     join(process.cwd(), 'src/services/roomConfigurationSchedule.ts'),
