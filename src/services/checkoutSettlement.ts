@@ -69,6 +69,7 @@ import { buildRoomElectricityCheckoutAllocationForVacating } from '@/src/service
 import type { RoomElectricityCheckoutAllocation } from '@/src/lib/checkout/roomElectricityAllocation';
 import { loadCheckoutElectricityOperatorAudit } from '@/src/services/checkoutElectricityOperatorAudit';
 import { resolveCheckoutElectricityDepositDeductionForSave } from '@/src/lib/checkout/checkoutElectricityOperatorAudit';
+import { resolveCheckoutMeterOpeningUnits } from '@/src/lib/billing/roomElectricityMeterPeriodLedger';
 import type { CheckoutElectricityOperatorAudit } from '@/src/lib/checkout/checkoutElectricityOperatorAudit';
 import { assessCheckoutSettlementReadiness } from '@/src/lib/checkout/checkoutSettlementReadiness';
 import {
@@ -1477,20 +1478,33 @@ async function buildCheckoutSettlementDetailFromJoinRow(
   let electricityOperatorAudit: CheckoutElectricityOperatorAudit | null = null;
   if (checkoutRoomId) {
     try {
+      const prevUnits = settlement.electricityPreviousReading
+        ? Number(settlement.electricityPreviousReading)
+        : null;
+      const curUnits = settlement.electricityCurrentReading
+        ? Number(settlement.electricityCurrentReading)
+        : null;
+      const ratePaise =
+        settlement.electricityUnitRatePaise ?? defaultElectricityRatePaise();
       electricityOperatorAudit = await loadCheckoutElectricityOperatorAudit({
         roomId: checkoutRoomId,
         bookingId: row.booking_id,
         customerId: settlement.customerId,
         vacatingDate: row.vacating_date,
-        meterDerivedTotalPaise: meterDerivedBillPaise,
+        checkoutPreviousUnits: prevUnits,
+        checkoutCurrentUnits: curUnits,
+        ratePerUnitPaise: ratePaise,
         electricityCalculationMethod: settlement.electricityCalculationMethod,
         electricitySharePaise: settlement.electricitySharePaise,
         manualChargePaise: settlement.manualChargePaise,
         electricityDeductFromDeposit: settlement.electricityDeductFromDeposit,
         excludeCheckoutSettlementId: settlement.id,
       });
-      if (electricityOperatorAudit.historicalBillPaise > 0) {
-        electricityTotalBillPaise = electricityOperatorAudit.historicalBillPaise;
+      if (electricityOperatorAudit?.meterPeriodLedger.primaryPeriodId) {
+        const primary = electricityOperatorAudit.meterPeriodLedger.periods.find(
+          (p) => p.id === electricityOperatorAudit!.meterPeriodLedger.primaryPeriodId,
+        );
+        if (primary) electricityTotalBillPaise = primary.grossPaise;
       }
     } catch (err) {
       console.error('[checkout] loadCheckoutElectricityOperatorAudit failed', {
@@ -2246,7 +2260,9 @@ export async function updateCheckoutElectricitySettlement(input: {
         bookingId: current.bookingId,
         customerId: current.customerId,
         vacatingDate: String(vacatingRow.vacatingDate),
-        meterDerivedTotalPaise: computed.calc.totalBillPaise,
+        checkoutPreviousUnits: input.previousReading ?? null,
+        checkoutCurrentUnits: input.currentReading ?? null,
+        ratePerUnitPaise: Math.round((input.ratePerUnitInr ?? 16) * 100),
         electricityCalculationMethod: input.calculationMethod,
         electricitySharePaise: current.electricitySharePaise,
         manualChargePaise: current.manualChargePaise,
@@ -2258,31 +2274,51 @@ export async function updateCheckoutElectricitySettlement(input: {
     }
   }
 
-  const finalSharePaise =
-    input.calculationMethod === 'manual_amount'
-      ? computed.calc.sharePaise
-      : resolveCheckoutElectricityDepositDeductionForSave({
-          residentInvoice: operatorAuditForSave?.residentInvoice ?? null,
-          timelineSharePaise: timelineSharePaise ?? 0,
-          meterSharePaise: computed.calc.sharePaise,
-          electricityDeductFromDeposit: input.deductFromDeposit,
-        });
+  const finalSharePaise = resolveCheckoutElectricityDepositDeductionForSave({
+    meterPeriodLedger: operatorAuditForSave?.meterPeriodLedger ?? null,
+    timelineSharePaise: timelineSharePaise ?? 0,
+    meterSharePaise: computed.calc.sharePaise,
+    electricityDeductFromDeposit: input.deductFromDeposit,
+    electricityCalculationMethod: input.calculationMethod,
+  });
+  const tailPeriod = operatorAuditForSave?.meterPeriodLedger.periods.find(
+    (p) => p.id === 'unbilled_tail',
+  );
+  const finalizedPeriod = operatorAuditForSave?.meterPeriodLedger.periods.find(
+    (p) => p.id === 'finalized',
+  );
+  const persistedPreviousUnits =
+    input.calculationMethod === 'meter_reading'
+      ? resolveCheckoutMeterOpeningUnits({
+          finalizedBillClosingUnits: finalizedPeriod?.closingUnits ?? null,
+          chainOpeningUnits: input.previousReading ?? null,
+          settlementPreviousUnits: input.previousReading ?? null,
+        })
+      : null;
+  const persistedPreviousReading =
+    input.calculationMethod === 'meter_reading' && persistedPreviousUnits != null
+      ? String(persistedPreviousUnits)
+      : input.calculationMethod === 'meter_reading' && input.previousReading != null
+        ? String(input.previousReading)
+        : null;
+  const persistedUnits =
+    tailPeriod != null
+      ? tailPeriod.unitsConsumed
+      : computed.calc.unitsConsumed != null
+        ? computed.calc.unitsConsumed
+        : null;
   const finalCalc = { ...computed.calc, sharePaise: finalSharePaise };
 
   await db
     .update(checkoutSettlements)
     .set({
       electricityCalculationMethod: input.calculationMethod,
-      electricityPreviousReading:
-        input.calculationMethod === 'meter_reading' && input.previousReading != null
-          ? String(input.previousReading)
-          : null,
+      electricityPreviousReading: persistedPreviousReading,
       electricityCurrentReading:
         input.calculationMethod === 'meter_reading' && input.currentReading != null
           ? String(input.currentReading)
           : null,
-      electricityUnits:
-        computed.calc.unitsConsumed != null ? String(computed.calc.unitsConsumed) : null,
+      electricityUnits: persistedUnits != null ? String(persistedUnits) : null,
       electricityOccupants: effectiveOccupants,
       autoDetectedSharingCount: roomOccupancy.autoDetectedCount,
       electricitySharingOverride: input.sharingOverride,

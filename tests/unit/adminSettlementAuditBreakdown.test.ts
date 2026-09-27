@@ -6,6 +6,7 @@ import {
   formatAuditPaise,
   isAuditEmpty,
 } from '../../src/lib/checkout/adminSettlementAuditBreakdown';
+import { buildCheckoutElectricityOperatorAudit } from '../../src/lib/checkout/checkoutElectricityOperatorAudit';
 import { computeCheckoutSettlementV2 } from '../../src/lib/checkout/checkoutSettlementEngineV2';
 import type { CheckoutSettlementDetail } from '../../src/services/checkoutSettlement';
 
@@ -112,24 +113,28 @@ function kunalLikeDetail(): CheckoutSettlementDetail {
 
 test('operator-focused refund audit when electricityOperatorAudit present', () => {
   const detail = kunalLikeDetail();
-  detail.electricityOperatorAudit = {
+  detail.electricityOperatorAudit = buildCheckoutElectricityOperatorAudit({
     billingMonth: '2026-07-01',
-    historicalBillPaise: 90_000,
-    billSource: 'electricity_bill',
-    hasFinalizedHistoricalBill: true,
-    staleMeterDerivedBillPaise: null,
-    residentInvoice: {
-      billingMonth: '2026-07-01',
-      amountPaise: 32_533,
-      paidPaise: 32_533,
-      status: 'paid',
-    },
-    residentBilledPaise: 32_533,
-    alreadyCollectedPaise: 32_533,
-    electricityRemainingPaise: 0,
-    depositDeductionPaise: 0,
-    usesPersistedInvoiceForDisplay: true,
-  };
+    vacatingDate: detail.vacatingDate,
+    ratePerUnitPaise: 1600,
+    chainOpeningUnits: 241,
+    checkoutClosingUnits: 337,
+    finalizedBill: null,
+    invoiceCredits: [
+      {
+        customerId: 'kunal',
+        customerName: 'Kunal',
+        amountPaise: 32_533,
+        paidPaise: 32_533,
+        status: 'paid',
+      },
+    ],
+    occupants: [],
+    currentCustomerId: 'kunal',
+    electricityCalculationMethod: 'meter_reading',
+    electricitySharePaise: 0,
+    electricityDeductFromDeposit: true,
+  });
   const audit = buildAdminSettlementAuditBreakdown(detail);
   assert.equal(audit.sections[0]?.title, 'Security deposit');
   assert.equal(audit.sections[1]?.title, 'Prepaid rent');

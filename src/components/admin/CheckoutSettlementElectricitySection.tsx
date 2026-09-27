@@ -8,7 +8,6 @@ import {
 import type { CheckoutSettlementActionState } from '@/src/lib/checkout/checkoutSettlementActionTypes';
 import { CheckoutRoomElectricityBreakdown } from '@/src/components/admin/checkout/CheckoutRoomElectricityBreakdown';
 import { CheckoutElectricityOperatorAuditPanel } from '@/src/components/admin/checkout/CheckoutElectricityOperatorAuditPanel';
-import { operatorDisplayRoomBillPaise } from '@/src/lib/checkout/checkoutElectricityOperatorAudit';
 import {
   calculateCheckoutElectricity,
   calculateManualElectricityCharge,
@@ -171,28 +170,29 @@ export function CheckoutSettlementElectricitySection({
   ]);
 
   const operatorAudit = detail.electricityOperatorAudit;
+  const ledger = operatorAudit?.meterPeriodLedger;
 
   const previewTotalBillPaise =
-    operatorAudit != null
-      ? operatorDisplayRoomBillPaise(operatorAudit)
-      : live?.ok
-        ? live.calc.totalBillPaise
-        : detail.electricityTotalBillPaise;
+    ledger?.primaryPeriodId != null
+      ? (ledger.periods.find((p) => p.id === ledger.primaryPeriodId)?.grossPaise ??
+        detail.electricityTotalBillPaise)
+      : ledger?.periods.find((p) => p.id === 'finalized')?.grossPaise ??
+        (live?.ok ? live.calc.totalBillPaise : detail.electricityTotalBillPaise);
   const timelineSharePaise = timelineAllocation?.currentResidentSharePaise;
-  const invoiceRemainingPaise = operatorAudit?.electricityRemainingPaise;
-  const persistedDepositDeductionPaise = operatorAudit?.depositDeductionPaise ?? detail.electricitySharePaise;
+  const residentRemainingPaise = ledger?.currentResident.remainingPaise;
+  const suggestedDeductionPaise = ledger?.suggestedDepositDeductionPaise;
   const previewSharePaise =
     method === 'manual_amount'
       ? live?.ok
         ? live.calc.sharePaise
         : detail.manualChargePaise ?? detail.electricitySharePaise
-      : invoiceRemainingPaise != null && operatorAudit?.usesPersistedInvoiceForDisplay
-        ? invoiceRemainingPaise
+      : suggestedDeductionPaise != null
+        ? suggestedDeductionPaise
         : timelineSharePaise != null
           ? timelineSharePaise
           : live?.ok
             ? live.calc.sharePaise
-            : persistedDepositDeductionPaise;
+            : detail.electricitySharePaise;
   const electricityDeductionPaise = deductFromDeposit ? previewSharePaise : 0;
   const unitsConsumed =
     live?.ok && live.calc.unitsConsumed != null
@@ -351,7 +351,7 @@ export function CheckoutSettlementElectricitySection({
     return (
       <div className="space-y-4">
         {operatorAudit ? (
-          <CheckoutElectricityOperatorAuditPanel audit={operatorAudit} />
+          <CheckoutElectricityOperatorAuditPanel audit={operatorAudit} vacatingDate={detail.vacatingDate} />
         ) : null}
 
         {editable ? (
@@ -490,7 +490,7 @@ export function CheckoutSettlementElectricitySection({
         ) : null}
 
         <div className="grid gap-2 rounded-2xl bg-[#12161C]/80 p-3 sm:grid-cols-3">
-          <LiveStat label="Electricity remaining" value={paiseToInr(invoiceRemainingPaise ?? previewSharePaise)} compact />
+          <LiveStat label="Electricity remaining" value={paiseToInr(residentRemainingPaise ?? previewSharePaise)} compact />
           <LiveStat
             label="Deduction from deposit"
             value={deductFromDeposit ? `−${paiseToInr(electricityDeductionPaise)}` : '₹0'}
@@ -520,7 +520,9 @@ export function CheckoutSettlementElectricitySection({
 
   return (
     <div className="space-y-4">
-      {operatorAudit ? <CheckoutElectricityOperatorAuditPanel audit={operatorAudit} /> : null}
+      {operatorAudit ? (
+        <CheckoutElectricityOperatorAuditPanel audit={operatorAudit} vacatingDate={detail.vacatingDate} />
+      ) : null}
 
       {detail.meterPhotoEvidence.fetchable && detail.meterPhotoEvidence.viewUrl ? (
         <a
@@ -729,12 +731,12 @@ export function CheckoutSettlementElectricitySection({
         <div>
           <dt className="text-apg-silver">Already collected (this resident)</dt>
           <dd className="text-emerald-300">
-            {paiseToInr(operatorAudit?.alreadyCollectedPaise ?? 0)}
+            {paiseToInr(ledger?.currentResident.alreadyCollectedPaise ?? 0)}
           </dd>
         </div>
         <div>
           <dt className="text-apg-silver">Electricity remaining</dt>
-          <dd className="text-white">{paiseToInr(invoiceRemainingPaise ?? previewSharePaise)}</dd>
+          <dd className="text-white">{paiseToInr(residentRemainingPaise ?? previewSharePaise)}</dd>
         </div>
         <div>
           <dt className="text-apg-silver">Deposit deduction</dt>

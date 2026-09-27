@@ -73,9 +73,9 @@ function buildOperatorFocusedRefundAudit(
         value: formatSettlementPaise(electricityDeductPaise, true),
         deduct: electricityDeductPaise > 0,
         hint:
-          operatorElectricity.usesPersistedInvoiceForDisplay
-            ? `Invoice collected ${formatSettlementPaise(operatorElectricity.alreadyCollectedPaise)} · remaining ${formatSettlementPaise(operatorElectricity.electricityRemainingPaise)}`
-            : undefined,
+          operatorElectricity.meterPeriodLedger.currentResident.remainingPaise === 0
+            ? 'No outstanding electricity for this resident'
+            : `Remaining ${formatSettlementPaise(operatorElectricity.meterPeriodLedger.currentResident.remainingPaise)}`,
       },
       {
         id: 'other_deduct',
