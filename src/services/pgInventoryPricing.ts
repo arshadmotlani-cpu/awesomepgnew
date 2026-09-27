@@ -25,15 +25,25 @@ function monthStartFor(dateIso: string): string {
   return formatDate(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)));
 }
 
+function normalizeEffectiveDate(iso: string): string {
+  return formatDate(parseDate(iso.slice(0, 10)));
+}
+
 /**
  * Close the active price row (if any) and insert a new effective window.
  * Does NOT touch bookings or invoices.
+ *
+ * Versioning rules:
+ * - effectiveFrom in the future: close current at effectiveFrom, insert new row (historical rows unchanged).
+ * - effectiveFrom === active.effectiveFrom: update rates on that row only (same window start).
+ * - effectiveFrom < active.effectiveFrom: rejected (no backdating).
  */
-export async function writeBedPriceVersion(
+export async function writeBedPriceVersionInTx(
+  tx: DbTx,
   input: BedPriceVersionInput,
   effectiveFrom: string,
-  tx: DbTx = db as unknown as DbTx,
 ): Promise<void> {
+  const effectiveFromDate = normalizeEffectiveDate(effectiveFrom);
   const priceValues = {
     dailyRatePaise: input.dailyRatePaise,
     weeklyRatePaise: input.weeklyRatePaise,
@@ -58,35 +68,63 @@ export async function writeBedPriceVersion(
     .orderBy(desc(bedPrices.effectiveFrom))
     .limit(1);
 
-  if (active) {
-    if (active.effectiveFrom < effectiveFrom) {
-      await tx
-        .update(bedPrices)
-        .set({ effectiveTo: effectiveFrom, updatedAt: new Date() })
-        .where(eq(bedPrices.id, active.id));
-      await tx.insert(bedPrices).values({
-        bedId: input.bedId,
-        ...priceValues,
-        effectiveFrom,
-      });
-    } else {
-      await tx
-        .update(bedPrices)
-        .set({
-          ...priceValues,
-          effectiveFrom,
-          effectiveTo: null,
-          updatedAt: new Date(),
-        })
-        .where(eq(bedPrices.id, active.id));
-    }
-  } else {
+  if (!active) {
     await tx.insert(bedPrices).values({
       bedId: input.bedId,
       ...priceValues,
-      effectiveFrom,
+      effectiveFrom: effectiveFromDate,
     });
+    return;
   }
+
+  const activeFrom = normalizeEffectiveDate(String(active.effectiveFrom));
+
+  if (effectiveFromDate < activeFrom) {
+    throw new Error(
+      `Cannot backdate bed pricing to ${effectiveFromDate} — active window starts ${activeFrom}.`,
+    );
+  }
+
+  if (effectiveFromDate === activeFrom) {
+    await tx
+      .update(bedPrices)
+      .set({
+        ...priceValues,
+        effectiveTo: active.effectiveTo,
+        updatedAt: new Date(),
+      })
+      .where(eq(bedPrices.id, active.id));
+    return;
+  }
+
+  // Mid-window change: close historical row at new effective date, insert successor (immutable past rates).
+  await tx
+    .update(bedPrices)
+    .set({
+      effectiveTo: effectiveFromDate,
+      updatedAt: new Date(),
+    })
+    .where(eq(bedPrices.id, active.id));
+
+  await tx.insert(bedPrices).values({
+    bedId: input.bedId,
+    ...priceValues,
+    effectiveFrom: effectiveFromDate,
+  });
+}
+
+export async function writeBedPriceVersion(
+  input: BedPriceVersionInput,
+  effectiveFrom: string,
+  tx?: DbTx,
+): Promise<void> {
+  if (tx) {
+    await writeBedPriceVersionInTx(tx, input, effectiveFrom);
+    return;
+  }
+  await db.transaction(async (innerTx) => {
+    await writeBedPriceVersionInTx(innerTx, input, effectiveFrom);
+  });
 }
 
 export { monthStartFor };

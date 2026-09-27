@@ -838,7 +838,9 @@ async function assignRoomTypeForRoom(
   roomId: string,
   currentRoomTypeId: string,
   input: { roomTypeName: string; sharingCount: number; hasAc: boolean },
+  tx?: DbTx,
 ): Promise<string> {
+  const runner = tx ?? db;
   const activeBedCount = await countActiveBedsInRoom(roomId);
   const effectiveSharing = roomCapacityFromActiveBedCount(activeBedCount);
   const typeName =
@@ -848,14 +850,14 @@ async function assignRoomTypeForRoom(
     throw new Error(`Sharing type must be between 1 and ${MAX_ROOM_BEDS}.`);
   }
 
-  const [{ roomCount }] = await db
+  const [{ roomCount }] = await runner
     .select({ roomCount: count() })
     .from(rooms)
     .where(and(eq(rooms.roomTypeId, currentRoomTypeId), isNull(rooms.archivedAt)));
 
   if (roomCount === 1) {
     const capacity = Math.max(1, effectiveSharing);
-    await db
+    await runner
       .update(roomTypes)
       .set({
         name: typeName,
@@ -868,7 +870,7 @@ async function assignRoomTypeForRoom(
   }
 
   const capacity = Math.max(1, effectiveSharing);
-  let [targetType] = await db
+  let [targetType] = await runner
     .select()
     .from(roomTypes)
     .where(
@@ -882,7 +884,7 @@ async function assignRoomTypeForRoom(
     .limit(1);
 
   if (!targetType) {
-    [targetType] = await db
+    [targetType] = await runner
       .insert(roomTypes)
       .values({
         pgId,
@@ -893,7 +895,7 @@ async function assignRoomTypeForRoom(
       .returning();
   }
 
-  await db
+  await runner
     .update(rooms)
     .set({ roomTypeId: targetType.id, updatedAt: new Date() })
     .where(eq(rooms.id, roomId));
@@ -1277,6 +1279,7 @@ export async function resizeRoomCapacity(
   pgId: string,
   roomId: string,
   input: ResizeRoomCapacityInput,
+  opts?: { tx?: DbTx },
 ): Promise<ResizeRoomCapacityResult> {
   assertPgAccess(session, pgId);
   await assertRoomInPg(pgId, roomId);
@@ -1340,7 +1343,7 @@ export async function resizeRoomCapacity(
     }
   }
 
-  await db.transaction(async (tx) => {
+  const applyArchive = async (tx: DbTx) => {
     if (delta > 0 && pricing) {
       await addBedsToRoomInTx(tx, roomId, {
         bedsToAdd: delta,
@@ -1356,9 +1359,12 @@ export async function resizeRoomCapacity(
       }
       await syncRoomCapacityFromActiveBeds(roomId, tx);
     }
-  });
+  };
 
-  const [roomMeta] = await db
+  if (opts?.tx) await applyArchive(opts.tx);
+  else await db.transaction(applyArchive);
+
+  const [roomMeta] = await (opts?.tx ?? db)
     .select({ roomTypeId: rooms.roomTypeId })
     .from(rooms)
     .where(eq(rooms.id, roomId))
@@ -1369,9 +1375,11 @@ export async function resizeRoomCapacity(
     roomTypeName: input.roomTypeName,
     sharingCount: input.targetBedCount,
     hasAc: input.hasAc ?? false,
-  });
+  }, opts?.tx);
 
-  await assertRoomIntegrityOrThrow(roomId);
+  if (!opts?.tx) {
+    await assertRoomIntegrityOrThrow(roomId);
+  }
 
   return {
     targetBedCount: input.targetBedCount,

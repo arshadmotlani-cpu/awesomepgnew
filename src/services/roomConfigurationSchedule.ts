@@ -41,6 +41,8 @@ import { writeBedPriceVersion } from '@/src/services/pgInventoryPricing';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { sharingTypeName } from '@/src/lib/roomSharing';
 
+type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 export type ScheduleRoomConfigurationInput = {
   roomId: string;
   effectiveFrom: string;
@@ -304,8 +306,9 @@ async function writeScheduledBedPricesForRoom(
   roomId: string,
   effectiveFrom: string,
   pricing: BedPricingInput,
+  tx?: DbTx,
 ): Promise<void> {
-  const roomBeds = await db
+  const roomBeds = await (tx ?? db)
     .select({ bedId: beds.id })
     .from(beds)
     .where(and(eq(beds.roomId, roomId), isNull(beds.archivedAt)));
@@ -323,6 +326,7 @@ async function writeScheduledBedPricesForRoom(
         monthlySecurityDepositPaise: monthlyDep,
       },
       effectiveFrom,
+      tx,
     );
   }
 }
@@ -342,6 +346,7 @@ async function executeRoomConfigurationApply(
     weeklyDepositPaise: number;
     monthlyDepositPaise: number;
   },
+  tx?: DbTx,
 ): Promise<void> {
   const currentBedCount = await countActiveBedsInRoom(roomId);
   const pricing: BedPricingInput = {
@@ -359,14 +364,28 @@ async function executeRoomConfigurationApply(
       hasAc: row.hasAc,
       pricing: row.targetBedCount > currentBedCount ? pricing : undefined,
     };
-    await resizeRoomCapacity(session, pgId, roomId, resizeInput);
+    await resizeRoomCapacity(session, pgId, roomId, resizeInput, tx ? { tx } : undefined);
   } else {
     await resizeRoomCapacity(session, pgId, roomId, {
       targetBedCount: row.targetBedCount,
       roomTypeName: row.roomTypeName,
       hasAc: row.hasAc,
-    });
+    }, tx ? { tx } : undefined);
   }
+}
+
+function formatBedPricingApplyError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  if (raw.includes('bed_prices_no_overlap_per_bed') || raw.includes('exclusion constraint')) {
+    return 'Could not save new bed pricing — overlapping price windows. No configuration change was saved.';
+  }
+  if (raw.includes('bed_prices_effective_window_valid')) {
+    return 'Invalid pricing effective dates. No configuration change was saved.';
+  }
+  if (raw.startsWith('Failed query:')) {
+    return 'Could not save bed pricing for this room. No configuration change was saved. Contact support if this repeats.';
+  }
+  return raw;
 }
 
 /** Apply room configuration now (today) — no schedule row. */
@@ -393,26 +412,40 @@ export async function applyRoomConfigurationChangeImmediately(
     throw new Error(preview.blockMessage ?? 'Cannot apply this configuration change.');
   }
 
-  await cancelAllScheduledRoomConfigurationsForRoom(
-    session,
-    pgId,
-    input.roomId,
-    'Superseded by apply immediately',
-  );
+  try {
+    await db.transaction(async (tx) => {
+      await cancelAllScheduledRoomConfigurationsForRoom(
+        session,
+        pgId,
+        input.roomId,
+        'Superseded by apply immediately',
+        tx,
+      );
 
-  await executeRoomConfigurationApply(session, pgId, input.roomId, {
-    targetBedCount: input.targetBedCount,
-    roomTypeName: input.roomTypeName,
-    hasAc: input.hasAc,
-    dailyRatePaise: input.pricing.dailyRatePaise,
-    weeklyRatePaise: input.pricing.weeklyRatePaise,
-    monthlyRatePaise: input.pricing.monthlyRatePaise,
-    dailyDepositPaise: input.pricing.dailyDepositPaise,
-    weeklyDepositPaise: input.pricing.weeklyDepositPaise,
-    monthlyDepositPaise: input.pricing.monthlyDepositPaise,
-  });
+      await executeRoomConfigurationApply(
+        session,
+        pgId,
+        input.roomId,
+        {
+          targetBedCount: input.targetBedCount,
+          roomTypeName: input.roomTypeName,
+          hasAc: input.hasAc,
+          dailyRatePaise: input.pricing.dailyRatePaise,
+          weeklyRatePaise: input.pricing.weeklyRatePaise,
+          monthlyRatePaise: input.pricing.monthlyRatePaise,
+          dailyDepositPaise: input.pricing.dailyDepositPaise,
+          weeklyDepositPaise: input.pricing.weeklyDepositPaise,
+          monthlyDepositPaise: input.pricing.monthlyDepositPaise,
+        },
+        tx,
+      );
 
-  await writeScheduledBedPricesForRoom(input.roomId, today, input.pricing);
+      await writeScheduledBedPricesForRoom(input.roomId, today, input.pricing, tx);
+    });
+  } catch (err) {
+    throw new Error(formatBedPricingApplyError(err));
+  }
+
   await applyDepositAdjustmentsForRoom(input.roomId, today, session.adminId);
 
   await db.insert(auditLog).values({
@@ -709,7 +742,11 @@ export async function getActiveScheduledRoomConfiguration(roomId: string) {
   return row ?? null;
 }
 
-async function revertFutureBedPricesForSchedule(roomId: string, effectiveFrom: string): Promise<void> {
+async function revertFutureBedPricesForSchedule(
+  roomId: string,
+  effectiveFrom: string,
+  tx?: DbTx,
+): Promise<void> {
   const bedRows = await db
     .select({ bedId: beds.id })
     .from(beds)
@@ -718,8 +755,8 @@ async function revertFutureBedPricesForSchedule(roomId: string, effectiveFrom: s
   if (bedIds.length === 0) return;
 
   const today = todayString();
-  await db.transaction(async (tx) => {
-    const futureRows = await tx
+  const run = async (inner: DbTx) => {
+    const futureRows = await inner
       .select()
       .from(bedPrices)
       .where(
@@ -730,8 +767,8 @@ async function revertFutureBedPricesForSchedule(roomId: string, effectiveFrom: s
         ),
       );
     for (const row of futureRows) {
-      await tx.delete(bedPrices).where(eq(bedPrices.id, row.id));
-      const [prior] = await tx
+      await inner.delete(bedPrices).where(eq(bedPrices.id, row.id));
+      const [prior] = await inner
         .select()
         .from(bedPrices)
         .where(
@@ -744,13 +781,16 @@ async function revertFutureBedPricesForSchedule(roomId: string, effectiveFrom: s
         .orderBy(desc(bedPrices.effectiveFrom))
         .limit(1);
       if (prior && prior.effectiveTo === effectiveFrom) {
-        await tx
+        await inner
           .update(bedPrices)
           .set({ effectiveTo: null, updatedAt: new Date() })
           .where(eq(bedPrices.id, prior.id));
       }
     }
-  });
+  };
+
+  if (tx) await run(tx);
+  else await db.transaction(run);
 }
 
 /** Cancel future scheduled rows so immediate apply does not leave orphan schedules. */
@@ -759,6 +799,7 @@ async function cancelAllScheduledRoomConfigurationsForRoom(
   pgId: string,
   roomId: string,
   reason: string,
+  tx?: DbTx,
 ): Promise<void> {
   const rows = await db
     .select()
@@ -772,8 +813,9 @@ async function cancelAllScheduledRoomConfigurationsForRoom(
     );
 
   for (const row of rows) {
-    await revertFutureBedPricesForSchedule(row.roomId, row.effectiveFrom);
-    await db
+    await revertFutureBedPricesForSchedule(row.roomId, row.effectiveFrom, tx);
+    const updateDb = tx ?? db;
+    await updateDb
       .update(roomConfigurationSchedules)
       .set({
         status: 'cancelled',
@@ -783,7 +825,7 @@ async function cancelAllScheduledRoomConfigurationsForRoom(
       })
       .where(eq(roomConfigurationSchedules.id, row.id));
 
-    await db.insert(auditLog).values({
+    await (tx ?? db).insert(auditLog).values({
       actorType: 'admin',
       actorId: session.adminId,
       entity: 'room_configuration_schedule',

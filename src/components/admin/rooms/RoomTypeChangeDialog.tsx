@@ -274,7 +274,11 @@ export function RoomTypeChangeDialog({
             </p>
             <ul className="mt-2 space-y-1 text-xs">
               <li>
-                From {formatDate(effectiveFromDisplay)} — {preset.label} (capacity {preset.bedCount})
+                Current: {roomTypeName} ({beds.length} bed{beds.length === 1 ? '' : 's'})
+              </li>
+              <li>
+                After apply ({formatDate(effectiveFromDisplay)}): {preset.label} (capacity{' '}
+                {preset.bedCount})
               </li>
               <li>Monthly: {paiseToInr(monthlyRatePaise)} · Weekly: {paiseToInr(weeklyRatePaise)} · Daily: {paiseToInr(dailyRatePaise)}</li>
               <li>Deposit (per bed): {paiseToInr(depositPaise)}</li>
