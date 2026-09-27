@@ -28,6 +28,7 @@ test('apply immediately runs capacity + pricing in one transaction', () => {
     'utf8',
   );
   assert.match(src, /await db\.transaction\(async \(tx\)/);
+  assert.match(src, /if \(input\.targetBedCount <= bedCountBefore\)/);
   assert.match(src, /writeScheduledBedPricesForRoom\(input\.roomId, today, input\.pricing, tx\)/);
   assert.match(src, /resizeRoomCapacity\(session, pgId, roomId, resizeInput, tx \? \{ tx \}/);
 });

@@ -1093,8 +1093,10 @@ async function assertBedInPg(pgId: string, bedId: string) {
   if (!row) throw new Error('Bed not found.');
 }
 
-async function assertRoomInPg(pgId: string, roomId: string) {
-  const [row] = await db
+type DbExecutor = typeof db | DbTx;
+
+async function assertRoomInPg(pgId: string, roomId: string, executor: DbExecutor = db) {
+  const [row] = await executor
     .select({ roomId: rooms.id })
     .from(rooms)
     .innerJoin(floors, eq(floors.id, rooms.floorId))
@@ -1301,22 +1303,25 @@ export async function resizeRoomCapacity(
   opts?: { tx?: DbTx },
 ): Promise<ResizeRoomCapacityResult> {
   assertPgAccess(session, pgId);
-  await assertRoomInPg(pgId, roomId);
+  const runner = opts?.tx ?? db;
+  await assertRoomInPg(pgId, roomId, runner);
 
   if (!Number.isInteger(input.targetBedCount) || input.targetBedCount < 1 || input.targetBedCount > MAX_ROOM_BEDS) {
     throw new Error(`Room capacity must be between 1 and ${MAX_ROOM_BEDS} beds.`);
   }
 
-  const roomIntegrity = await validateRoomById(roomId);
-  if (!roomIntegrity) throw new Error('Room not found.');
+  // When called inside an outer transaction (Vercel pool max=1), never use global `db` here —
+  // preview / pre-tx validation already ran; a second connection would block until timeout.
+  if (!opts?.tx) {
+    const roomIntegrity = await validateRoomById(roomId);
+    if (!roomIntegrity) throw new Error('Room not found.');
 
-  assertCapacityReductionAllowed(
-    roomIntegrity.occupiedBeds,
-    roomIntegrity.physicalBeds,
-    input.targetBedCount,
-  );
-
-  const runner = opts?.tx ?? db;
+    assertCapacityReductionAllowed(
+      roomIntegrity.occupiedBeds,
+      roomIntegrity.physicalBeds,
+      input.targetBedCount,
+    );
+  }
   const currentBeds = await runner
     .select({ bedId: beds.id, bedCode: beds.bedCode, status: beds.status })
     .from(beds)
@@ -1339,23 +1344,31 @@ export async function resizeRoomCapacity(
   if (delta < 0) {
     const toRemove = Math.abs(delta);
     const { compareBedCodes } = await import('@/src/lib/roomCapacityBedPlanner');
-    const { getBedArchiveBlockReason } = await import('@/src/lib/bedOccupancyCheck');
     const removable = [...currentBeds].sort((a, b) => compareBedCodes(b.bedCode, a.bedCode));
-    const roomSnap = await validateRoomById(roomId);
-    if (!roomSnap) throw new Error('Room not found.');
-    let snap: import('@/src/lib/roomIntegrity/types').RoomIntegritySnapshot = roomSnap;
 
-    for (const bed of removable) {
-      if (bedIdsToArchive.length >= toRemove) break;
-      const block = await getBedArchiveBlockReason(bed.bedId);
-      if (block) {
-        throw new Error(
-          `Cannot reduce to ${input.targetBedCount} Sharing. ${bed.bedCode} is blocked: ${block.message}`,
-        );
+    if (opts?.tx) {
+      for (const bed of removable) {
+        if (bedIdsToArchive.length >= toRemove) break;
+        bedIdsToArchive.push(bed.bedId);
       }
-      assertBedRemovalAllowed(snap, bed.status as 'available' | 'maintenance' | 'blocked');
-      bedIdsToArchive.push(bed.bedId);
-      snap = roomSnapshotAfterBedRemoval(snap, bed.status as 'available' | 'maintenance' | 'blocked');
+    } else {
+      const { getBedArchiveBlockReason } = await import('@/src/lib/bedOccupancyCheck');
+      const roomSnap = await validateRoomById(roomId);
+      if (!roomSnap) throw new Error('Room not found.');
+      let snap: import('@/src/lib/roomIntegrity/types').RoomIntegritySnapshot = roomSnap;
+
+      for (const bed of removable) {
+        if (bedIdsToArchive.length >= toRemove) break;
+        const block = await getBedArchiveBlockReason(bed.bedId);
+        if (block) {
+          throw new Error(
+            `Cannot reduce to ${input.targetBedCount} Sharing. ${bed.bedCode} is blocked: ${block.message}`,
+          );
+        }
+        assertBedRemovalAllowed(snap, bed.status as 'available' | 'maintenance' | 'blocked');
+        bedIdsToArchive.push(bed.bedId);
+        snap = roomSnapshotAfterBedRemoval(snap, bed.status as 'available' | 'maintenance' | 'blocked');
+      }
     }
 
     if (bedIdsToArchive.length < toRemove) {

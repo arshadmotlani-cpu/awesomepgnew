@@ -417,6 +417,8 @@ export async function applyRoomConfigurationChangeImmediately(
 
   try {
     await db.transaction(async (tx) => {
+      const bedCountBefore = await countActiveBedsInRoom(input.roomId, tx);
+
       await cancelAllScheduledRoomConfigurationsForRoom(
         session,
         pgId,
@@ -444,7 +446,10 @@ export async function applyRoomConfigurationChangeImmediately(
         { pricingEffectiveFrom: today },
       );
 
-      await writeScheduledBedPricesForRoom(input.roomId, today, input.pricing, tx);
+      // Capacity increase prices restored/new beds inside resize; avoid duplicate writes.
+      if (input.targetBedCount <= bedCountBefore) {
+        await writeScheduledBedPricesForRoom(input.roomId, today, input.pricing, tx);
+      }
     });
   } catch (err) {
     throw new Error(formatBedPricingApplyError(err));
