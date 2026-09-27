@@ -307,6 +307,7 @@ export async function resizeRoomCapacityAction(
         ? todayString()
         : formData.get('effectiveFrom')?.toString()?.trim() ||
           defaultRoomConfigurationEffectiveFrom();
+    const editingScheduleId = formData.get('editingScheduleId')?.toString()?.trim() || undefined;
 
     const pricing = {
       dailyRatePaise: Math.round(daily * 100),
@@ -334,6 +335,7 @@ export async function resizeRoomCapacityAction(
         roomTypeName: preset.roomTypeName,
         hasAc: formData.get('hasAc') === 'on',
         pricing,
+        editingScheduleId,
       });
       revalidatePgAdminPages(pgId);
       revalidatePublicPgBrowseCache({ pgId });
@@ -501,7 +503,7 @@ export type UpdateRoomPricingSuccess = {
     monthlyPaise: number;
     bedCount: number;
   };
-  scheduled: true;
+  timing: 'immediate' | 'scheduled';
   effectiveFrom: string;
 };
 
@@ -524,9 +526,15 @@ export async function updateRoomPricingAction(
     const dailyDepositPaise = parseRupeesPaise(formData.get('dailyDeposit')?.toString()) ?? 0;
     const weeklyDepositPaise = parseRupeesPaise(formData.get('weeklyDeposit')?.toString()) ?? 0;
     const monthlyDepositPaise = parseRupeesPaise(formData.get('monthlyDeposit')?.toString()) ?? 0;
+    const timingRaw = formData.get('configurationTiming')?.toString()?.trim();
+    const timing: 'immediate' | 'scheduled' =
+      timingRaw === 'immediate' ? 'immediate' : 'scheduled';
     const effectiveFrom =
-      formData.get('effectiveFrom')?.toString()?.trim() ||
-      defaultRoomConfigurationEffectiveFrom();
+      timing === 'immediate'
+        ? todayString()
+        : formData.get('effectiveFrom')?.toString()?.trim() ||
+          defaultRoomConfigurationEffectiveFrom();
+    const editingScheduleId = formData.get('editingScheduleId')?.toString()?.trim() || undefined;
 
     const { countActiveBedsInRoom } = await import('@/src/lib/roomCapacitySsotDb');
     const bedCount = await countActiveBedsInRoom(roomId);
@@ -537,13 +545,16 @@ export async function updateRoomPricingAction(
       .where(eq(rooms.id, roomId))
       .limit(1);
 
-    const { getScheduledRoomConfigurationForEffectiveDate } = await import(
-      '@/src/services/roomConfigurationSchedule'
-    );
-    const existingSchedule = await getScheduledRoomConfigurationForEffectiveDate(
-      roomId,
-      effectiveFrom,
-    );
+    const {
+      getScheduledRoomConfigurationById,
+      getScheduledRoomConfigurationForEffectiveDate,
+    } = await import('@/src/services/roomConfigurationSchedule');
+    const existingSchedule = editingScheduleId
+      ? await getScheduledRoomConfigurationById(editingScheduleId)
+      : await getScheduledRoomConfigurationForEffectiveDate(roomId, effectiveFrom);
+    if (existingSchedule && existingSchedule.roomId !== roomId) {
+      return { ok: false, error: 'Schedule not found.' };
+    }
 
     const pricing = {
       dailyRatePaise: Math.round(daily * 100),
@@ -554,14 +565,21 @@ export async function updateRoomPricingAction(
       monthlyDepositPaise,
     };
 
-    await scheduleRoomConfigurationChange(session, pgId, {
+    const scheduleInput = {
       roomId,
       effectiveFrom,
       targetBedCount: existingSchedule?.targetBedCount ?? bedCount,
       roomTypeName: existingSchedule?.roomTypeName ?? roomMeta?.name ?? 'Room',
       hasAc: roomMeta?.hasAc ?? false,
       pricing,
-    });
+      editingScheduleId,
+    };
+
+    if (timing === 'immediate') {
+      await applyRoomConfigurationChangeImmediately(session, pgId, scheduleInput);
+    } else {
+      await scheduleRoomConfigurationChange(session, pgId, scheduleInput);
+    }
 
     revalidatePgAdminPages(pgId);
     revalidatePublicPgBrowseCache({ pgId });
@@ -574,7 +592,7 @@ export async function updateRoomPricingAction(
         monthlyPaise: pricing.monthlyRatePaise,
         bedCount,
       },
-      scheduled: true as const,
+      timing,
       effectiveFrom,
     };
   } catch (err) {

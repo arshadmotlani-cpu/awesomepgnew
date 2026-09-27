@@ -13,15 +13,18 @@ import {
 } from '@/src/lib/roomConfigurationPresets';
 import { buildRoomCapacityChangePreview } from '@/src/lib/roomCapacityChangePreview';
 import {
-  defaultRoomConfigurationEffectiveFrom,
-  minScheduledRoomConfigurationEffectiveFrom,
-} from '@/src/lib/roomConfiguration/effectiveDate';
+  RoomConfigurationEffectiveDateFields,
+  type RoomConfigurationTiming,
+} from '@/src/components/admin/rooms/RoomConfigurationEffectiveDateFields';
+import { pickPrimaryScheduledConfigurationForEditing } from '@/src/lib/roomConfiguration/editingSchedule';
+import { defaultRoomConfigurationEffectiveFrom } from '@/src/lib/roomConfiguration/effectiveDate';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import { todayString } from '@/src/lib/dates';
 import type { RoomIntegrityResult } from '@/src/lib/roomIntegrity/types';
 import type { PgInventoryBedRow } from '@/src/services/pgInventory';
+import type { ScheduledRoomConfigurationSummary } from '@/src/services/roomConfigurationSchedule';
 
-export type RoomConfigurationTiming = 'immediate' | 'scheduled';
+export type { RoomConfigurationTiming };
 
 type Props = {
   open: boolean;
@@ -35,6 +38,7 @@ type Props = {
   archivedBedCodes?: string[];
   occupiedBedIds?: Set<string>;
   hasAc?: boolean;
+  scheduledConfigurations?: ScheduledRoomConfigurationSummary[];
   onToast: (message: string, tone: 'success' | 'error') => void;
 };
 
@@ -50,16 +54,22 @@ export function RoomTypeChangeDialog({
   archivedBedCodes = [],
   occupiedBedIds = new Set<string>(),
   hasAc = false,
+  scheduledConfigurations = [],
   onToast,
 }: Props) {
   const router = useRouter();
   const today = todayString();
+  const editingSchedule = pickPrimaryScheduledConfigurationForEditing(scheduledConfigurations);
   const [presetId, setPresetId] = useState<RoomConfigurationPresetId>(() =>
-    presetIdFromBedCountAndName(beds.length, roomTypeName),
+    editingSchedule
+      ? presetIdFromBedCountAndName(editingSchedule.targetBedCount, editingSchedule.roomTypeName)
+      : presetIdFromBedCountAndName(beds.length, roomTypeName),
   );
-  const [timing, setTiming] = useState<RoomConfigurationTiming>('scheduled');
+  const [timing, setTiming] = useState<RoomConfigurationTiming>(() =>
+    editingSchedule ? 'scheduled' : 'scheduled',
+  );
   const [scheduledEffectiveFrom, setScheduledEffectiveFrom] = useState(() =>
-    defaultRoomConfigurationEffectiveFrom(),
+    editingSchedule?.effectiveFrom ?? defaultRoomConfigurationEffectiveFrom(today),
   );
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -68,12 +78,18 @@ export function RoomTypeChangeDialog({
   const preset = getRoomConfigurationPreset(presetId);
   const targetChanged = preset.bedCount !== beds.length || preset.roomTypeName !== roomTypeName;
   const firstBed = beds[0];
-  const [pricing, setPricing] = useState(() => ({
-    monthlyRate: firstBed ? String(firstBed.monthlyRatePaise / 100) : '',
-    weeklyRate: firstBed ? String(firstBed.weeklyRatePaise / 100) : '',
-    dailyRate: firstBed ? String(firstBed.dailyRatePaise / 100) : '',
-    monthlyDeposit: firstBed ? String(firstBed.monthlyDepositPaise / 100) : '',
-  }));
+  const [pricing, setPricing] = useState(() => {
+    const source = editingSchedule ?? firstBed;
+    if (!source) {
+      return { monthlyRate: '', weeklyRate: '', dailyRate: '', monthlyDeposit: '' };
+    }
+    return {
+      monthlyRate: String(source.monthlyRatePaise / 100),
+      weeklyRate: String(source.weeklyRatePaise / 100),
+      dailyRate: String(source.dailyRatePaise / 100),
+      monthlyDeposit: String(source.monthlyDepositPaise / 100),
+    };
+  });
 
   const monthlyRatePaise = Math.round(Number.parseFloat(pricing.monthlyRate || '0') * 100);
   const weeklyRatePaise = Math.round(Number.parseFloat(pricing.weeklyRate || '0') * 100);
@@ -117,6 +133,9 @@ export function RoomTypeChangeDialog({
     fd.set('configurationTiming', timing);
     if (timing === 'scheduled') {
       fd.set('effectiveFrom', scheduledEffectiveFrom);
+    }
+    if (editingSchedule?.scheduleId) {
+      fd.set('editingScheduleId', editingSchedule.scheduleId);
     }
     if (hasAc) fd.set('hasAc', 'on');
     fd.set('dailyRate', pricing.dailyRate);
@@ -183,58 +202,15 @@ export function RoomTypeChangeDialog({
           Choose whether to apply the new sharing and catalog configuration today or schedule it for
           a future billing date. Historical invoices are never rewritten.
         </p>
-        <fieldset className="space-y-2">
-          <legend className="text-sm text-zinc-400">When should this take effect?</legend>
-          <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-zinc-800 px-3 py-2 hover:border-zinc-600">
-            <input
-              type="radio"
-              name="configurationTiming"
-              checked={timing === 'immediate'}
-              onChange={() => setTiming('immediate')}
-              disabled={pending}
-              className="mt-1"
-            />
-            <span>
-              <span className="block text-sm font-medium text-white">Apply immediately</span>
-              <span className="block text-xs text-zinc-500">
-                Effective today ({formatDate(today)}). Room sharing and bed catalog update now; rent
-                and deposit versions start today.
-              </span>
-            </span>
-          </label>
-          <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-zinc-800 px-3 py-2 hover:border-zinc-600">
-            <input
-              type="radio"
-              name="configurationTiming"
-              checked={timing === 'scheduled'}
-              onChange={() => setTiming('scheduled')}
-              disabled={pending}
-              className="mt-1"
-            />
-            <span>
-              <span className="block text-sm font-medium text-white">Schedule for a date</span>
-              <span className="block text-xs text-zinc-500">
-                Current residents stay on today&apos;s configuration until the effective date.
-              </span>
-            </span>
-          </label>
-        </fieldset>
-        {timing === 'scheduled' ? (
-          <label className="block text-sm text-zinc-300">
-            <span className="text-zinc-400">Scheduled effective date</span>
-            <input
-              type="date"
-              value={scheduledEffectiveFrom}
-              min={minScheduledRoomConfigurationEffectiveFrom()}
-              onChange={(e) => setScheduledEffectiveFrom(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-white"
-            />
-            <span className="mt-1 block text-xs text-zinc-500">
-              Default: next billing cycle ({defaultRoomConfigurationEffectiveFrom()}). Must be after
-              today — use Apply immediately for same-day changes.
-            </span>
-          </label>
-        ) : null}
+        <RoomConfigurationEffectiveDateFields
+          today={today}
+          timing={timing}
+          onTimingChange={setTiming}
+          scheduledEffectiveFrom={scheduledEffectiveFrom}
+          onScheduledEffectiveFromChange={setScheduledEffectiveFrom}
+          disabled={pending}
+          editingScheduledDate={editingSchedule?.effectiveFrom ?? null}
+        />
         <RoomTypeSelector value={presetId} onChange={setPresetId} disabled={pending} />
         {targetChanged ? (
           <div className="rounded-lg border border-zinc-800 p-3 space-y-3">

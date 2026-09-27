@@ -1,19 +1,23 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { updateRoomPricingAction } from '@/app/(admin)/admin/pgs/inventory-actions';
 import { AdminOpsDialog } from '@/src/components/admin/rooms/AdminOpsDialog';
+import {
+  RoomConfigurationEffectiveDateFields,
+  type RoomConfigurationTiming,
+} from '@/src/components/admin/rooms/RoomConfigurationEffectiveDateFields';
 import {
   formatRentSuccessMessage,
   type RoomRateSnapshot,
 } from '@/src/components/admin/rooms/roomCardFormatters';
+import { todayString } from '@/src/lib/dates';
+import { pickPrimaryScheduledConfigurationForEditing } from '@/src/lib/roomConfiguration/editingSchedule';
+import { defaultRoomConfigurationEffectiveFrom } from '@/src/lib/roomConfiguration/effectiveDate';
+import { formatDate } from '@/src/lib/format';
 import type { PgInventoryBedRow } from '@/src/services/pgInventory';
-import { formatDate, paiseToInr } from '@/src/lib/format';
-import {
-  defaultRoomConfigurationEffectiveFrom,
-  minScheduledRoomConfigurationEffectiveFrom,
-} from '@/src/lib/roomConfiguration/effectiveDate';
+import type { ScheduledRoomConfigurationSummary } from '@/src/services/roomConfigurationSchedule';
 
 type Props = {
   open: boolean;
@@ -23,6 +27,7 @@ type Props = {
   roomNumber: string;
   floorLabel: string;
   beds: PgInventoryBedRow[];
+  scheduledConfigurations?: ScheduledRoomConfigurationSummary[];
   onSaved: (rates: RoomRateSnapshot) => void;
   onToast: (message: string, tone: 'success' | 'error') => void;
 };
@@ -35,17 +40,41 @@ export function RoomRentEditorDialog({
   roomNumber,
   floorLabel,
   beds,
+  scheduledConfigurations = [],
   onSaved,
   onToast,
 }: Props) {
   const router = useRouter();
+  const today = todayString();
+  const editingSchedule = useMemo(
+    () => pickPrimaryScheduledConfigurationForEditing(scheduledConfigurations),
+    [scheduledConfigurations],
+  );
   const first = beds[0];
+  const rateSource = editingSchedule ?? first;
   const [values, setValues] = useState(() => ({
-    dailyRate: first ? String(first.dailyRatePaise / 100) : '',
-    weeklyRate: first ? String(first.weeklyRatePaise / 100) : '',
-    monthlyRate: first ? String(first.monthlyRatePaise / 100) : '',
+    dailyRate: rateSource
+      ? String(
+          (editingSchedule ? editingSchedule.dailyRatePaise : first!.dailyRatePaise) / 100,
+        )
+      : '',
+    weeklyRate: rateSource
+      ? String(
+          (editingSchedule ? editingSchedule.weeklyRatePaise : first!.weeklyRatePaise) / 100,
+        )
+      : '',
+    monthlyRate: rateSource
+      ? String(
+          (editingSchedule ? editingSchedule.monthlyRatePaise : first!.monthlyRatePaise) / 100,
+        )
+      : '',
   }));
-  const [effectiveFrom, setEffectiveFrom] = useState(() => defaultRoomConfigurationEffectiveFrom());
+  const [timing, setTiming] = useState<RoomConfigurationTiming>(() =>
+    editingSchedule ? 'scheduled' : 'scheduled',
+  );
+  const [scheduledEffectiveFrom, setScheduledEffectiveFrom] = useState(() =>
+    editingSchedule?.effectiveFrom ?? defaultRoomConfigurationEffectiveFrom(today),
+  );
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,13 +84,20 @@ export function RoomRentEditorDialog({
     setError(null);
     const fd = new FormData();
     fd.set('roomId', roomId);
+    fd.set('configurationTiming', timing);
+    if (timing === 'scheduled') {
+      fd.set('effectiveFrom', scheduledEffectiveFrom);
+    }
+    if (editingSchedule?.scheduleId) {
+      fd.set('editingScheduleId', editingSchedule.scheduleId);
+    }
     fd.set('dailyRate', values.dailyRate);
     fd.set('weeklyRate', values.weeklyRate);
     fd.set('monthlyRate', values.monthlyRate);
-    fd.set('dailyDeposit', String(first.dailyDepositPaise / 100));
-    fd.set('weeklyDeposit', String(first.weeklyDepositPaise / 100));
-    fd.set('monthlyDeposit', String(first.monthlyDepositPaise / 100));
-    fd.set('effectiveFrom', effectiveFrom);
+    const depositSource = editingSchedule ?? first;
+    fd.set('dailyDeposit', String(depositSource.dailyDepositPaise / 100));
+    fd.set('weeklyDeposit', String(depositSource.weeklyDepositPaise / 100));
+    fd.set('monthlyDeposit', String(depositSource.monthlyDepositPaise / 100));
     const result = await updateRoomPricingAction(pgId, fd);
     setPending(false);
     if (!result.ok) {
@@ -76,7 +112,11 @@ export function RoomRentEditorDialog({
       monthlyPaise: result.rates.monthlyPaise,
     };
     onSaved(rates);
-    onToast(`✓ Rent scheduled from ${formatDate(effectiveFrom)}`, 'success');
+    if (result.timing === 'immediate') {
+      onToast(formatRentSuccessMessage(rates), 'success');
+    } else {
+      onToast(`✓ Rent scheduled from ${formatDate(result.effectiveFrom)}`, 'success');
+    }
     onClose();
     router.refresh();
   }
@@ -121,16 +161,15 @@ export function RoomRentEditorDialog({
           Updates the scheduled room configuration for the effective date (sharing, capacity, rent,
           and deposit together). Does not change issued invoices or charge deposit now.
         </p>
-        <label className="block text-sm text-zinc-300">
-          <span className="text-zinc-400">Financial effective date</span>
-          <input
-            type="date"
-            value={effectiveFrom}
-            min={minScheduledRoomConfigurationEffectiveFrom()}
-            onChange={(e) => setEffectiveFrom(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-white"
-          />
-        </label>
+        <RoomConfigurationEffectiveDateFields
+          today={today}
+          timing={timing}
+          onTimingChange={setTiming}
+          scheduledEffectiveFrom={scheduledEffectiveFrom}
+          onScheduledEffectiveFromChange={setScheduledEffectiveFrom}
+          disabled={pending}
+          editingScheduledDate={editingSchedule?.effectiveFrom ?? null}
+        />
         <div className="grid gap-3 sm:grid-cols-3">
           {(
             [

@@ -15,8 +15,10 @@ test('updateRoomPricingAction returns persisted rates shape', () => {
   assert.match(src, /export type UpdateRoomPricingSuccess/);
   assert.match(src, /rates:\s*\{/);
   assert.match(src, /dailyPaise: pricing\.dailyRatePaise/);
-  assert.match(src, /scheduled: true as const/);
+  assert.match(src, /timing: 'immediate' \| 'scheduled'/);
   assert.match(src, /scheduleRoomConfigurationChange/);
+  assert.match(src, /applyRoomConfigurationChangeImmediately/);
+  assert.match(src, /editingScheduleId/);
 });
 
 test('updateRoomBedPricing returns RoomBedPricingResult', () => {

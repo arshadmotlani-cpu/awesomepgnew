@@ -82,9 +82,14 @@ test('inventory action routes immediate vs scheduled timing', () => {
 });
 
 test('RoomTypeChangeDialog exposes Apply immediately vs Schedule', () => {
-  assert.match(roomTypeDialog, /Apply immediately/);
-  assert.match(roomTypeDialog, /Schedule for a date/);
+  assert.match(roomTypeDialog, /RoomConfigurationEffectiveDateFields/);
   assert.match(roomTypeDialog, /configurationTiming/);
+  const sharedFields = readFileSync(
+    join(process.cwd(), 'src/components/admin/rooms/RoomConfigurationEffectiveDateFields.tsx'),
+    'utf8',
+  );
+  assert.match(sharedFields, /Apply immediately/);
+  assert.match(sharedFields, /Schedule for a date/);
 });
 
 test('default scheduled date remains next billing cycle', () => {

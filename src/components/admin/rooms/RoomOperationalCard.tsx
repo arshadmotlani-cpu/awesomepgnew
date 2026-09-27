@@ -175,6 +175,7 @@ export function RoomOperationalCard({
           roomNumber={roomNumber}
           floorLabel={floorLabel}
           beds={beds}
+          scheduledConfigurations={scheduledConfigurations}
           onSaved={(rates) => onRateSaved(roomId, rates)}
           onToast={onToast}
         />
@@ -188,6 +189,7 @@ export function RoomOperationalCard({
           roomNumber={roomNumber}
           roomTypeName={roomTypeName}
           beds={beds}
+          scheduledConfigurations={scheduledConfigurations}
           integrity={integrity}
           archivedBedCodes={archivedBedCodes}
           occupiedBedIds={occupiedBedIds}

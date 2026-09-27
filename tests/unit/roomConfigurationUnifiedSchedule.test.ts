@@ -58,6 +58,7 @@ test('rent edit updates existing schedule instead of conflict error', () => {
   );
   assert.match(src, /findScheduledRoomConfiguration/);
   assert.match(src, /action: 'updated'/);
+  assert.match(src, /assertNoConflictingSchedule/);
   assert.doesNotMatch(
     src,
     /await assertNoScheduleConflict\(input\.roomId, input\.effectiveFrom\)/,

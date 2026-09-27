@@ -48,6 +48,8 @@ export type ScheduleRoomConfigurationInput = {
   roomTypeName: string;
   hasAc: boolean;
   pricing: BedPricingInput;
+  /** When set, updates or moves this schedule row instead of creating a duplicate. */
+  editingScheduleId?: string;
 };
 
 export type RoomConfigurationSchedulePreview = {
@@ -215,12 +217,46 @@ async function findScheduledRoomConfiguration(
   return existing ?? null;
 }
 
-/** @deprecated Use upsert in scheduleRoomConfigurationChange — kept for tests referencing conflict helper. */
-async function assertNoScheduleConflict(roomId: string, effectiveFrom: string): Promise<void> {
+async function assertNoConflictingSchedule(
+  roomId: string,
+  effectiveFrom: string,
+  exceptScheduleId?: string,
+): Promise<void> {
   const existing = await findScheduledRoomConfiguration(roomId, effectiveFrom);
-  if (existing) {
-    throw new Error(`A configuration change is already scheduled for ${formatDate(parseDate(effectiveFrom))}.`);
+  if (existing && existing.id !== exceptScheduleId) {
+    throw new Error(
+      `A configuration change is already scheduled for ${formatDate(parseDate(effectiveFrom))}.`,
+    );
   }
+}
+
+/** @deprecated Use assertNoConflictingSchedule — kept for tests referencing conflict helper. */
+async function assertNoScheduleConflict(roomId: string, effectiveFrom: string): Promise<void> {
+  await assertNoConflictingSchedule(roomId, effectiveFrom);
+}
+
+export async function getScheduledRoomConfigurationById(
+  scheduleId: string,
+): Promise<ScheduledRoomConfigurationSummary | null> {
+  const [row] = await db
+    .select()
+    .from(roomConfigurationSchedules)
+    .where(eq(roomConfigurationSchedules.id, scheduleId))
+    .limit(1);
+  if (!row || row.status !== 'scheduled') return null;
+  return {
+    scheduleId: row.id,
+    roomId: row.roomId,
+    effectiveFrom: row.effectiveFrom,
+    targetBedCount: row.targetBedCount,
+    roomTypeName: row.roomTypeName,
+    dailyRatePaise: row.dailyRatePaise,
+    weeklyRatePaise: row.weeklyRatePaise,
+    monthlyRatePaise: row.monthlyRatePaise,
+    dailyDepositPaise: row.dailyDepositPaise,
+    weeklyDepositPaise: row.weeklyDepositPaise,
+    monthlyDepositPaise: row.monthlyDepositPaise,
+  };
 }
 
 export async function getScheduledRoomConfigurationForEffectiveDate(
@@ -245,7 +281,11 @@ export async function getScheduledRoomConfigurationForEffectiveDate(
     effectiveFrom: row.effectiveFrom,
     targetBedCount: row.targetBedCount,
     roomTypeName: row.roomTypeName,
+    dailyRatePaise: row.dailyRatePaise,
+    weeklyRatePaise: row.weeklyRatePaise,
     monthlyRatePaise: row.monthlyRatePaise,
+    dailyDepositPaise: row.dailyDepositPaise,
+    weeklyDepositPaise: row.weeklyDepositPaise,
     monthlyDepositPaise: row.monthlyDepositPaise,
   };
 }
@@ -373,6 +413,19 @@ export async function applyRoomConfigurationChangeImmediately(
   });
 }
 
+/** Move or update an existing scheduled row (same generic input as create). */
+export async function rescheduleRoomConfigurationChange(
+  session: AdminSession,
+  pgId: string,
+  scheduleId: string,
+  input: ScheduleRoomConfigurationInput,
+): Promise<{ scheduleId: string }> {
+  return scheduleRoomConfigurationChange(session, pgId, {
+    ...input,
+    editingScheduleId: scheduleId,
+  });
+}
+
 export async function scheduleRoomConfigurationChange(
   session: AdminSession,
   pgId: string,
@@ -386,6 +439,93 @@ export async function scheduleRoomConfigurationChange(
   const preview = await previewRoomConfigurationSchedule(input.roomId, input);
   if (preview.blocked) {
     throw new Error(preview.blockMessage ?? 'Cannot schedule this configuration change.');
+  }
+
+  if (input.editingScheduleId) {
+    const [editingRow] = await db
+      .select()
+      .from(roomConfigurationSchedules)
+      .where(eq(roomConfigurationSchedules.id, input.editingScheduleId))
+      .limit(1);
+    if (!editingRow || editingRow.roomId !== input.roomId || editingRow.pgId !== pgId) {
+      throw new Error('Schedule not found.');
+    }
+    if (editingRow.status !== 'scheduled') {
+      throw new Error('Only scheduled changes can be edited.');
+    }
+
+    const scheduleFields = {
+      targetBedCount: input.targetBedCount,
+      roomTypeName: input.roomTypeName,
+      hasAc: input.hasAc,
+      dailyRatePaise: input.pricing.dailyRatePaise,
+      weeklyRatePaise: input.pricing.weeklyRatePaise,
+      monthlyRatePaise: input.pricing.monthlyRatePaise,
+      dailyDepositPaise: input.pricing.dailyDepositPaise,
+      weeklyDepositPaise: input.pricing.weeklyDepositPaise,
+      monthlyDepositPaise: input.pricing.monthlyDepositPaise,
+      updatedAt: new Date(),
+    };
+
+    if (input.effectiveFrom !== editingRow.effectiveFrom) {
+      await assertNoConflictingSchedule(
+        input.roomId,
+        input.effectiveFrom,
+        input.editingScheduleId,
+      );
+      await revertFutureBedPricesForSchedule(input.roomId, editingRow.effectiveFrom);
+      await db
+        .update(roomConfigurationSchedules)
+        .set({
+          effectiveFrom: input.effectiveFrom,
+          ...scheduleFields,
+        })
+        .where(eq(roomConfigurationSchedules.id, input.editingScheduleId));
+
+      await writeScheduledBedPricesForRoom(input.roomId, input.effectiveFrom, input.pricing);
+
+      await db.insert(auditLog).values({
+        actorType: 'admin',
+        actorId: session.adminId,
+        entity: 'room_configuration_schedule',
+        entityId: input.editingScheduleId,
+        action: 'rescheduled',
+        diff: {
+          roomId: input.roomId,
+          previousEffectiveFrom: editingRow.effectiveFrom,
+          effectiveFrom: input.effectiveFrom,
+          targetBedCount: input.targetBedCount,
+          monthlyRatePaise: input.pricing.monthlyRatePaise,
+        },
+      });
+
+      return { scheduleId: input.editingScheduleId };
+    }
+
+    await revertFutureBedPricesForSchedule(input.roomId, input.effectiveFrom);
+    await db
+      .update(roomConfigurationSchedules)
+      .set(scheduleFields)
+      .where(eq(roomConfigurationSchedules.id, input.editingScheduleId));
+
+    await writeScheduledBedPricesForRoom(input.roomId, input.effectiveFrom, input.pricing);
+
+    await db.insert(auditLog).values({
+      actorType: 'admin',
+      actorId: session.adminId,
+      entity: 'room_configuration_schedule',
+      entityId: input.editingScheduleId,
+      action: 'updated',
+      diff: {
+        roomId: input.roomId,
+        effectiveFrom: input.effectiveFrom,
+        targetBedCount: input.targetBedCount,
+        monthlyRatePaise: input.pricing.monthlyRatePaise,
+        monthlyDepositPaise: input.pricing.monthlyDepositPaise,
+      },
+    });
+
+    return { scheduleId: input.editingScheduleId };
   }
 
   const existingScheduled = await findScheduledRoomConfiguration(input.roomId, input.effectiveFrom);
@@ -494,7 +634,11 @@ export type ScheduledRoomConfigurationSummary = {
   effectiveFrom: string;
   targetBedCount: number;
   roomTypeName: string;
+  dailyRatePaise: number;
+  weeklyRatePaise: number;
   monthlyRatePaise: number;
+  dailyDepositPaise: number;
+  weeklyDepositPaise: number;
   monthlyDepositPaise: number;
 };
 
@@ -511,7 +655,11 @@ export async function getScheduledRoomConfigurationsByRoomForPg(
       effectiveFrom: row.effectiveFrom,
       targetBedCount: row.targetBedCount,
       roomTypeName: row.roomTypeName,
+      dailyRatePaise: row.dailyRatePaise,
+      weeklyRatePaise: row.weeklyRatePaise,
       monthlyRatePaise: row.monthlyRatePaise,
+      dailyDepositPaise: row.dailyDepositPaise,
+      weeklyDepositPaise: row.weeklyDepositPaise,
       monthlyDepositPaise: row.monthlyDepositPaise,
     });
     map.set(row.roomId, list);
