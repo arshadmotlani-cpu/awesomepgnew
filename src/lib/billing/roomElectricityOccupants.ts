@@ -20,6 +20,7 @@ import type { MonthlyElectricityOccupant } from '@/src/lib/billing/roomElectrici
 import { isMonthlyElectricityBillableOccupant } from '@/src/lib/billing/electricityOccupancyEligibility';
 import {
   billingMonthCalendarDays,
+  calendarDaysBetween,
   mergeRoomElectricityCoverage,
   totalRoomResidentDays,
   type RoomElectricityCoverageInterval,
@@ -112,11 +113,15 @@ export async function loadRoomElectricityOccupantsForMonth(input: {
   billingMonth: string;
   includeFixedStay?: boolean;
   useProRataByActiveDays?: boolean;
+  /** Meter-period occupancy window (overrides calendar month clipping). */
+  meterPeriod?: { startDate: string; endDateExclusive: string };
 }): Promise<RoomElectricityOccupantLoadResult> {
   const { start: monthStart, end: monthEnd } = monthBounds(input.billingMonth);
   const monthStartIso = formatDate(monthStart);
   const monthEndIso = formatDate(monthEnd);
-  const daysInMonth = diffDays(monthStart, monthEnd);
+  const windowStartIso = input.meterPeriod?.startDate ?? monthStartIso;
+  const windowEndExclusiveIso = input.meterPeriod?.endDateExclusive ?? monthEndIso;
+  const daysInMonth = diffDays(parseDate(windowStartIso), parseDate(windowEndExclusiveIso));
 
   const checkoutCollectedByCustomerId = new Map<string, number>();
   const checkoutRows = await listCheckoutElectricityLedgerForRoomMonth(
@@ -196,7 +201,7 @@ export async function loadRoomElectricityOccupantsForMonth(input: {
         inArray(bookings.status, ['confirmed', 'completed', 'superseded']),
         eq(bookings.isTest, false),
         eq(customers.isTest, false),
-        sql`${bedReservations.stayRange} && daterange(${monthStartIso}::date, ${monthEndIso}::date, '[)')`,
+        sql`${bedReservations.stayRange} && daterange(${windowStartIso}::date, ${windowEndExclusiveIso}::date, '[)')`,
       ),
     );
 
@@ -258,7 +263,7 @@ export async function loadRoomElectricityOccupantsForMonth(input: {
     // raw open-ended stay_range still intersects the month window.
     if (endDateExclusive) {
       const end = tryParseDateBound(endDateExclusive);
-      if (end && end <= monthStartIso) {
+      if (end && end <= windowStartIso) {
         exclusionTraces.push({
           customerId: row.customerId,
           bookingId: row.bookingId,
@@ -282,6 +287,9 @@ export async function loadRoomElectricityOccupantsForMonth(input: {
     roomId: input.roomId,
     billingMonth: input.billingMonth,
     segments: eligibleSegments,
+    occupancyWindow: input.meterPeriod
+      ? { startIso: windowStartIso, endExclusiveIso: windowEndExclusiveIso }
+      : undefined,
   });
   const occupants: RoomElectricityOccupantRow[] = coverage.map((resident) => ({
     bookingId: resident.invoiceBookingId,
@@ -300,7 +308,9 @@ export async function loadRoomElectricityOccupantsForMonth(input: {
     occupants,
     totalWeight,
     daysInMonth,
-    billingDays: billingMonthCalendarDays(input.billingMonth),
+    billingDays: input.meterPeriod
+      ? calendarDaysBetween(windowStartIso, windowEndExclusiveIso)
+      : billingMonthCalendarDays(input.billingMonth),
     checkoutCollectedByCustomerId,
     excludedCustomerIds: [...excludedCustomerIds],
     exclusionTraces,

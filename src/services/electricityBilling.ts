@@ -12,11 +12,9 @@
  * overlapping the billing month). Daily/weekly residents are excluded.
  *
  * Idempotency:
- *   - UNIQUE(room_id, billing_month) at the storage layer means a
- *     duplicate submission for the same room+month fails fast with
- *     SQLSTATE 23505. We catch that and return a structured
- *     {ok: false, kind: 'already_exists'} so the admin UI can show the
- *     existing bill instead.
+ *   - UNIQUE(room_id, previous_reading_units, current_reading_units) means a
+ *     duplicate submission for the same meter interval fails fast with
+ *     SQLSTATE 23505. billing_month may repeat for multiple intervals in one calendar month.
  *   - The bill row + N invoice rows are written in ONE transaction
  *     (`db.transaction(...)`) so a crash in the middle can't leave a
  *     "bill with no invoices" / "invoices with no bill" split state.
@@ -77,7 +75,6 @@ import { getElectricityInvoiceSchemaCaps } from '@/src/lib/db/electricityInvoice
 import { fetchElectricityInvoiceById } from '@/src/lib/db/electricityInvoiceSelect';
 import { validateContinuousPreviousReading } from '@/src/lib/billing/roomMeterReadingSsot';
 import {
-  assessConsumptionMonthContinuityForRoom,
   ConsumptionMonthContinuityError,
 } from '@/src/services/roomMeterReadingSsot';
 import { resolveOfficialPreviousReading, advanceBaseline } from '@/src/services/meterTimelineService';
@@ -113,6 +110,10 @@ export type CreateElectricityBillInput = {
    * continuous previous reading from the last finalized monthly bill.
    */
   allowPreviousReadingOverride?: boolean;
+  /** Authoritative consumption interval (opening reading date). */
+  periodStartDate?: string | null;
+  /** Authoritative consumption interval (closing reading date). */
+  periodEndDate?: string | null;
 };
 
 export type CreateElectricityBillResult =
@@ -334,11 +335,6 @@ export async function createElectricityBill(
 
   const billingMonth = firstOfMonth(input.billingMonth);
 
-  const continuity = await assessConsumptionMonthContinuityForRoom(input.roomId, billingMonth);
-  if (!continuity.ok) {
-    return { ok: false, kind: 'invalid_input', message: continuity.message };
-  }
-
   let baseline;
   try {
     baseline = await resolveOfficialPreviousReading(input.roomId, billingMonth, {
@@ -365,6 +361,12 @@ export async function createElectricityBill(
   const { start: monthStart, end: monthEnd } = monthBounds(billingMonth);
   const monthStartIso = formatDate(monthStart);
   const monthEndIso = formatDate(monthEnd);
+  const periodStartIso =
+    normalizeIsoDateOnly(input.periodStartDate ?? '') || monthStartIso;
+  const periodEndDateIso =
+    normalizeIsoDateOnly(input.periodEndDate ?? '') ||
+    formatDate(addDays(parseDate(monthEndIso), -1));
+  const periodEndExclusiveIso = formatDate(addDays(parseDate(periodEndDateIso), 1));
 
   // 1. Resolve room → pg + pending offline prepaid credit.
   const [room] = await db
@@ -395,6 +397,10 @@ export async function createElectricityBill(
     billingMonth,
     includeFixedStay: Boolean(input.includeFixedStayOccupants),
     useProRataByActiveDays: Boolean(input.useProRataByActiveDays),
+    meterPeriod: {
+      startDate: periodStartIso,
+      endDateExclusive: periodEndExclusiveIso,
+    },
   });
 
   const totalOccupantsAll = occupantLoad.occupants.length;
@@ -564,6 +570,8 @@ export async function createElectricityBill(
           pgId: room.pgId,
           roomId: input.roomId,
           billingMonth,
+          periodStartDate: periodStartIso,
+          periodEndDate: periodEndDateIso,
           previousReadingUnits: input.previousReadingUnits.toString(),
           currentReadingUnits: input.currentReadingUnits.toString(),
           unitsConsumed: unitsConsumed.toString(),
@@ -842,14 +850,15 @@ export async function createElectricityBill(
       code: pgErrorCode(err),
     });
     if (pgErrorCode(err) === '23505') {
-      // Duplicate on (room_id, billing_month) → already-exists.
       const [existing] = await db
         .select({ id: electricityBills.id })
         .from(electricityBills)
         .where(
           and(
             eq(electricityBills.roomId, input.roomId),
-            eq(electricityBills.billingMonth, billingMonth),
+            eq(electricityBills.previousReadingUnits, input.previousReadingUnits.toString()),
+            eq(electricityBills.currentReadingUnits, input.currentReadingUnits.toString()),
+            eq(electricityBills.isPipelineTest, false),
           ),
         )
         .limit(1);

@@ -1,7 +1,7 @@
 /**
- * Consumption-month continuity — billing_month is the electricity consumption period.
- * Generation may occur in a later calendar month; meter baseline must be the
- * immediately preceding consumption month's close reading.
+ * Legacy consumption-month helpers — calendar month is reporting only.
+ * Generation must NOT fail when a calendar month has no bill if the meter chain is continuous.
+ * See `electricityMeterPeriodSsot.ts` for authoritative interval identity.
  */
 import { parseDate, addMonths } from '@/src/lib/dates';
 import { firstOfMonth } from '@/src/services/billing';

@@ -24,6 +24,10 @@ import { rooms } from './rooms';
  * billing for that room that month. Per-resident `electricity_invoices`
  * fan out in the same transaction.
  *
+ * Identity SSOT: meter interval `(previous_reading_units → current_reading_units)`
+ * with optional `period_start_date` / `period_end_date`. `billing_month` is
+ * reporting / invoice labeling only — multiple bills may share a month.
+ *
  * `monthly_occupant_count = 0` is a valid state — the operator entered
  * usage for a room that had no monthly residents that month. We still
  * keep the bill row so the audit trail captures that the operator
@@ -45,6 +49,10 @@ export const electricityBills = pgTable(
       .notNull()
       .references(() => rooms.id, { onDelete: 'restrict' }),
     billingMonth: date('billing_month').notNull(),
+    /** Opening meter reading date — authoritative consumption interval start. */
+    periodStartDate: date('period_start_date'),
+    /** Closing meter reading date — authoritative consumption interval end. */
+    periodEndDate: date('period_end_date'),
     previousReadingUnits: numeric('previous_reading_units', { precision: 10, scale: 2 }).notNull(),
     currentReadingUnits: numeric('current_reading_units', { precision: 10, scale: 2 }).notNull(),
     unitsConsumed: numeric('units_consumed', { precision: 10, scale: 2 }).notNull(),
@@ -86,11 +94,16 @@ export const electricityBills = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex('electricity_bills_room_month_unique')
-      .on(t.roomId, t.billingMonth)
+    uniqueIndex('electricity_bills_room_meter_interval_unique')
+      .on(t.roomId, t.previousReadingUnits, t.currentReadingUnits)
       .where(sql`${t.isPipelineTest} = false`),
     index('electricity_bills_pg_month_idx').on(t.pgId, t.billingMonth),
     index('electricity_bills_room_idx').on(t.roomId),
+    index('electricity_bills_room_period_idx').on(
+      t.roomId,
+      t.periodStartDate,
+      t.periodEndDate,
+    ),
   ],
 );
 

@@ -3,9 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { createElectricityBill } from '@/src/services/electricityBilling';
-import { findExistingElectricityBillForRoomMonth } from '@/src/services/electricityInvoiceDuplicates';
+import { findExistingElectricityBillForMeterInterval } from '@/src/services/electricityInvoiceDuplicates';
 import {
-  assessConsumptionMonthContinuityForRoom,
   ConsumptionMonthContinuityError,
 } from '@/src/services/roomMeterReadingSsot';
 import { resolveOfficialPreviousReading } from '@/src/services/meterTimelineService';
@@ -61,29 +60,6 @@ export async function generateSelectedElectricityBillsAction(input: {
         continue;
       }
 
-      const existing = await findExistingElectricityBillForRoomMonth(room.roomId, billingMonth);
-      if (existing) {
-        results.push({
-          roomId: room.roomId,
-          ok: true,
-          billId: existing.id,
-          duplicate: true,
-          message: 'Already billed',
-        });
-        continue;
-      }
-
-      const continuity = await assessConsumptionMonthContinuityForRoom(room.roomId, billingMonth);
-      if (!continuity.ok) {
-        failed += 1;
-        results.push({
-          roomId: room.roomId,
-          ok: false,
-          message: continuity.message,
-        });
-        continue;
-      }
-
       let baseline;
       try {
         baseline = await resolveOfficialPreviousReading(room.roomId, billingMonth, {
@@ -107,6 +83,22 @@ export async function generateSelectedElectricityBillsAction(input: {
           roomId: room.roomId,
           ok: false,
           message: 'Previous reading unavailable — record an opening reading first.',
+        });
+        continue;
+      }
+
+      const existingInterval = await findExistingElectricityBillForMeterInterval(
+        room.roomId,
+        baseline.previousReadingUnits,
+        room.currentReadingUnits,
+      );
+      if (existingInterval) {
+        results.push({
+          roomId: room.roomId,
+          ok: true,
+          billId: existingInterval.id,
+          duplicate: true,
+          message: 'Already billed for this meter interval',
         });
         continue;
       }

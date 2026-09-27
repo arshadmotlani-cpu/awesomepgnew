@@ -520,7 +520,7 @@ export async function cancelPendingElectricityWhenBookingMonthPaid(input?: {
   return { ok: true, cancelled };
 }
 
-/** Verify bill exists for room+month (used by generation idempotency). */
+/** Verify bill exists for room+month (legacy reporting label — not unique). */
 export async function findExistingElectricityBillForRoomMonth(
   roomId: string,
   billingMonth: DateLike,
@@ -533,6 +533,27 @@ export async function findExistingElectricityBillForRoomMonth(
       and(
         eq(electricityBills.roomId, roomId),
         eq(electricityBills.billingMonth, month),
+        isProductionElectricityBillFilter(),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+/** Idempotency for generation — same meter interval, not same calendar month. */
+export async function findExistingElectricityBillForMeterInterval(
+  roomId: string,
+  previousReadingUnits: number,
+  currentReadingUnits: number,
+): Promise<{ id: string } | null> {
+  const [row] = await db
+    .select({ id: electricityBills.id })
+    .from(electricityBills)
+    .where(
+      and(
+        eq(electricityBills.roomId, roomId),
+        eq(electricityBills.previousReadingUnits, previousReadingUnits.toString()),
+        eq(electricityBills.currentReadingUnits, currentReadingUnits.toString()),
         isProductionElectricityBillFilter(),
       ),
     )

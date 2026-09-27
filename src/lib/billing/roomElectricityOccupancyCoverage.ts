@@ -49,6 +49,12 @@ type MutableCoverage = {
 
 export function billingMonthCalendarDays(billingMonth: string): string[] {
   const { start, end } = monthBounds(billingMonth);
+  return calendarDaysBetween(formatDate(start), formatDate(end));
+}
+
+export function calendarDaysBetween(startIso: string, endExclusiveIso: string): string[] {
+  const start = parseDate(startIso);
+  const end = parseDate(endExclusiveIso);
   const days: string[] = [];
   for (let cursor = start; cursor < end; cursor = addDays(cursor, 1)) {
     days.push(formatDate(cursor));
@@ -60,8 +66,16 @@ export function mergeRoomElectricityCoverage(input: {
   roomId: string;
   billingMonth: string;
   segments: RoomElectricityReservationSegment[];
+  /** When set, clip occupancy to the meter period instead of the billing month. */
+  occupancyWindow?: { startIso: string; endExclusiveIso: string };
 }): RoomElectricityResidentCoverage[] {
   const { start: monthStart, end: monthEnd } = monthBounds(input.billingMonth);
+  const windowStart = input.occupancyWindow
+    ? parseDate(input.occupancyWindow.startIso)
+    : monthStart;
+  const windowEnd = input.occupancyWindow
+    ? parseDate(input.occupancyWindow.endExclusiveIso)
+    : monthEnd;
   const byResident = new Map<string, MutableCoverage>();
 
   for (const segment of input.segments) {
@@ -71,9 +85,9 @@ export function mergeRoomElectricityCoverage(input: {
     if (!startIso) continue;
     const endIso = tryParseDateBound(segment.endDateExclusive);
     const rawStart = parseDate(startIso);
-    const rawEnd = endIso ? parseDate(endIso) : monthEnd;
-    const start = rawStart > monthStart ? rawStart : monthStart;
-    const end = rawEnd < monthEnd ? rawEnd : monthEnd;
+    const rawEnd = endIso ? parseDate(endIso) : windowEnd;
+    const start = rawStart > windowStart ? rawStart : windowStart;
+    const end = rawEnd < windowEnd ? rawEnd : windowEnd;
     if (end <= start) continue;
 
     const key = `${segment.roomId}:${segment.customerId}`;

@@ -5,11 +5,15 @@ import {
   buildCheckoutElectricityOperatorAudit,
   type CheckoutElectricityOperatorAudit,
 } from '@/src/lib/checkout/checkoutElectricityOperatorAudit';
-import { formatDate } from '@/src/lib/dates';
+import { pickFinalizedBillForCheckout } from '@/src/lib/billing/electricityMeterPeriodSsot';
+import { addDays, formatDate, parseDate } from '@/src/lib/dates';
 import { loadHistoricalRoomOccupantSlicesForPeriod } from '@/src/lib/billing/roomElectricityCheckoutOccupants';
-import { firstOfMonth, monthBounds } from '@/src/services/billing';
+import { firstOfMonth } from '@/src/services/billing';
 import { loadRoomElectricityCollectedByCustomerForMonth } from '@/src/services/electricityRoomContributions';
-import { resolveRoomPreviousMeterReading } from '@/src/services/roomMeterReadingSsot';
+import {
+  loadFinalizedElectricityBillsForRoom,
+  resolveRoomPreviousMeterReading,
+} from '@/src/services/roomMeterReadingSsot';
 import { isProductionElectricityBillFilter } from '@/src/lib/billing/electricityProductionFilter';
 
 export async function loadCheckoutElectricityOperatorAudit(input: {
@@ -31,44 +35,65 @@ export async function loadCheckoutElectricityOperatorAudit(input: {
   }
 
   const billingMonth = firstOfMonth(input.vacatingDate);
-  const { start: monthStart, end: monthEnd } = monthBounds(billingMonth);
-  const periodEndExclusive = formatDate(
-    new Date(
-      Math.min(
-        new Date(input.vacatingDate).getTime() + 86_400_000,
-        monthEnd.getTime(),
-      ),
-    ),
+  const vacatingExclusive = formatDate(addDays(parseDate(input.vacatingDate), 1));
+
+  const finalizedRows = await loadFinalizedElectricityBillsForRoom(input.roomId);
+  const meterPeriodRows = finalizedRows.map((b) => ({
+    id: undefined,
+    billingMonth: b.billingMonth,
+    previousReadingUnits: b.previousReadingUnits ?? 0,
+    currentReadingUnits: b.currentReadingUnits,
+    periodStartDate: b.periodStartDate,
+    periodEndDate: b.periodEndDate,
+    createdAt: b.createdAt,
+  }));
+  const picked = pickFinalizedBillForCheckout(
+    meterPeriodRows,
+    input.checkoutCurrentUnits,
   );
 
-  const [billRow] = await db
-    .select({
-      opening: electricityBills.previousReadingUnits,
-      closing: electricityBills.currentReadingUnits,
-      totalPaise: electricityBills.totalPaise,
-      ratePerUnitPaise: electricityBills.ratePerUnitPaise,
-      createdAt: electricityBills.createdAt,
-    })
-    .from(electricityBills)
-    .where(
-      and(
-        eq(electricityBills.roomId, input.roomId),
-        eq(electricityBills.billingMonth, billingMonth),
-        isProductionElectricityBillFilter(),
-      ),
-    )
-    .limit(1);
-
   let finalizedBill = null;
-  if (billRow) {
-    finalizedBill = {
-      billingMonth,
-      openingUnits: Number(billRow.opening),
-      closingUnits: Number(billRow.closing),
-      grossPaise: Number(billRow.totalPaise),
-      ratePerUnitPaise: Number(billRow.ratePerUnitPaise ?? input.ratePerUnitPaise),
-      finalizedOnDate: formatDate(billRow.createdAt),
-    };
+  let invoiceBillId: string | null = null;
+  if (picked) {
+    const [billRow] = await db
+      .select({
+        id: electricityBills.id,
+        opening: electricityBills.previousReadingUnits,
+        closing: electricityBills.currentReadingUnits,
+        totalPaise: electricityBills.totalPaise,
+        ratePerUnitPaise: electricityBills.ratePerUnitPaise,
+        periodStartDate: electricityBills.periodStartDate,
+        periodEndDate: electricityBills.periodEndDate,
+        createdAt: electricityBills.createdAt,
+      })
+      .from(electricityBills)
+      .where(
+        and(
+          eq(electricityBills.roomId, input.roomId),
+          eq(electricityBills.previousReadingUnits, picked.previousReadingUnits.toString()),
+          eq(electricityBills.currentReadingUnits, picked.currentReadingUnits.toString()),
+          isProductionElectricityBillFilter(),
+        ),
+      )
+      .limit(1);
+    if (billRow) {
+      invoiceBillId = billRow.id;
+      const periodStart =
+        billRow.periodStartDate ??
+        picked.periodStartDate ??
+        firstOfMonth(picked.billingMonth);
+      const periodEnd = billRow.periodEndDate ?? picked.periodEndDate ?? input.vacatingDate;
+      finalizedBill = {
+        billingMonth: picked.billingMonth,
+        openingUnits: Number(billRow.opening),
+        closingUnits: Number(billRow.closing),
+        grossPaise: Number(billRow.totalPaise),
+        ratePerUnitPaise: Number(billRow.ratePerUnitPaise ?? input.ratePerUnitPaise),
+        finalizedOnDate: formatDate(addDays(parseDate(periodEnd), 1)),
+        periodStartDate: periodStart,
+        periodEndDate: periodEnd,
+      };
+    }
   }
 
   const baseline = await resolveRoomPreviousMeterReading(input.roomId, {
@@ -76,28 +101,34 @@ export async function loadCheckoutElectricityOperatorAudit(input: {
     enforceContinuity: false,
   });
 
-  const invoiceRows = await db
-    .select({
-      customerId: electricityInvoices.customerId,
-      customerName: customers.fullName,
-      amountPaise: electricityInvoices.amountPaise,
-      paidPaise: electricityInvoices.paidPaise,
-      status: electricityInvoices.status,
-    })
-    .from(electricityInvoices)
-    .innerJoin(electricityBills, eq(electricityBills.id, electricityInvoices.electricityBillId))
-    .innerJoin(customers, eq(customers.id, electricityInvoices.customerId))
-    .where(
-      and(
-        eq(electricityBills.roomId, input.roomId),
-        eq(electricityInvoices.billingMonth, billingMonth),
-        ne(electricityInvoices.status, 'cancelled'),
-      ),
-    );
+  const invoiceRows = invoiceBillId
+    ? await db
+        .select({
+          customerId: electricityInvoices.customerId,
+          customerName: customers.fullName,
+          amountPaise: electricityInvoices.amountPaise,
+          paidPaise: electricityInvoices.paidPaise,
+          status: electricityInvoices.status,
+        })
+        .from(electricityInvoices)
+        .innerJoin(customers, eq(customers.id, electricityInvoices.customerId))
+        .where(
+          and(
+            eq(electricityInvoices.electricityBillId, invoiceBillId),
+            ne(electricityInvoices.status, 'cancelled'),
+          ),
+        )
+    : [];
+
+  const tailStart =
+    finalizedBill?.periodEndDate != null
+      ? formatDate(addDays(parseDate(finalizedBill.periodEndDate), 1))
+      : finalizedBill?.finalizedOnDate ?? billingMonth;
+  const periodEndExclusive = vacatingExclusive;
 
   const occupants = await loadHistoricalRoomOccupantSlicesForPeriod({
     roomId: input.roomId,
-    periodStart: formatDate(monthStart),
+    periodStart: finalizedBill?.periodStartDate ?? tailStart,
     periodEndExclusive,
   });
 
@@ -116,7 +147,7 @@ export async function loadCheckoutElectricityOperatorAudit(input: {
   }
 
   const chainOpening =
-    finalizedBill?.openingUnits ??
+    finalizedBill?.closingUnits ??
     (baseline.source !== 'none' ? baseline.previousReadingUnits : input.checkoutPreviousUnits);
 
   return buildCheckoutElectricityOperatorAudit({
@@ -125,7 +156,16 @@ export async function loadCheckoutElectricityOperatorAudit(input: {
     ratePerUnitPaise: input.ratePerUnitPaise,
     chainOpeningUnits: chainOpening ?? null,
     checkoutClosingUnits: input.checkoutCurrentUnits,
-    finalizedBill,
+    finalizedBill: finalizedBill
+      ? {
+          billingMonth: finalizedBill.billingMonth,
+          openingUnits: finalizedBill.openingUnits,
+          closingUnits: finalizedBill.closingUnits,
+          grossPaise: finalizedBill.grossPaise,
+          ratePerUnitPaise: finalizedBill.ratePerUnitPaise,
+          finalizedOnDate: finalizedBill.finalizedOnDate,
+        }
+      : null,
     invoiceCredits: invoiceRows.map((r) => ({
       customerId: r.customerId,
       customerName: r.customerName,

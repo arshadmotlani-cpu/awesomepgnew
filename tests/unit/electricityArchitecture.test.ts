@@ -28,7 +28,8 @@ describe('consumption month continuity', () => {
     assert.equal(assessment.ok, true);
     if (!assessment.ok) return;
     assert.equal(assessment.requiredBaselineMonth, '2026-07-01');
-    const baseline = pickPreviousMeterReadingFromFinalizedBills(bills, '2026-08-01');
+    const beforeAugust = bills.filter((b) => b.billingMonth < '2026-08-01');
+    const baseline = pickPreviousMeterReadingFromFinalizedBills(beforeAugust, '2026-08-01');
     assert.ok(baseline);
     assert.equal(baseline.previousReadingUnits, 707);
   });
@@ -171,28 +172,20 @@ describe('checkout atomicity wiring', () => {
   });
 });
 
-describe('generation fail-closed guards', () => {
-  test('createElectricityBill assesses continuity before baseline', () => {
+describe('generation guards use meter chain not calendar gap', () => {
+  test('createElectricityBill resolves baseline without calendar-month continuity gate', () => {
     const src = readFileSync(join(process.cwd(), 'src/services/electricityBilling.ts'), 'utf8');
-    assert.match(src, /assessConsumptionMonthContinuityForRoom/);
+    assert.doesNotMatch(src, /assessConsumptionMonthContinuityForRoom\(input\.roomId/);
+    assert.match(src, /resolveOfficialPreviousReading/);
   });
 
-  test('generate action assesses continuity', () => {
+  test('generate action dedupes by meter interval', () => {
     const src = readFileSync(
       join(process.cwd(), 'app/(admin)/admin/billing/electricity/generate/actions.ts'),
       'utf8',
     );
-    assert.match(src, /assessConsumptionMonthContinuityForRoom/);
-  });
-
-  test('Billing Center shows consumption vs generation', () => {
-    const ui = readFileSync(
-      join(process.cwd(), 'src/components/admin/electricity/PgElectricityBillingChecklist.tsx'),
-      'utf8',
-    );
-    assert.match(ui, /Consumption:/);
-    assert.match(ui, /Generation:/);
-    assert.match(ui, /consumption_month_blocked/);
+    assert.match(src, /findExistingElectricityBillForMeterInterval/);
+    assert.doesNotMatch(src, /assessConsumptionMonthContinuityForRoom/);
   });
 });
 

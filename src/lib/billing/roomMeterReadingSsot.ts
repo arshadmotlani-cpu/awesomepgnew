@@ -1,8 +1,13 @@
 /**
  * Pure helpers for continuous room meter SSOT.
- * Room previous reading advances ONLY when a monthly electricity bill is finalized.
+ * Room previous reading advances ONLY when an electricity bill is finalized.
  * Move-out settlements never contribute to this chain.
  */
+import {
+  expectedOpeningReadingForNewBill,
+  lastFinalizedBill,
+  type MeterPeriodBillRow,
+} from '@/src/lib/billing/electricityMeterPeriodSsot';
 
 export type RoomPreviousMeterSource =
   | 'last_monthly_bill'
@@ -11,18 +16,32 @@ export type RoomPreviousMeterSource =
 
 export type FinalizedBillReadingRow = {
   billingMonth: string;
+  previousReadingUnits?: number;
   currentReadingUnits: number;
   ratePerUnitPaise?: number | null;
   meterImageUrl?: string | null;
+  periodStartDate?: string | null;
+  periodEndDate?: string | null;
+  createdAt?: string | null;
 };
 
+function asMeterPeriodRows(bills: FinalizedBillReadingRow[]): MeterPeriodBillRow[] {
+  return bills.map((b) => ({
+    billingMonth: b.billingMonth,
+    previousReadingUnits: b.previousReadingUnits ?? 0,
+    currentReadingUnits: b.currentReadingUnits,
+    periodStartDate: b.periodStartDate,
+    periodEndDate: b.periodEndDate,
+    createdAt: b.createdAt,
+  }));
+}
+
 /**
- * Pick the opening meter reading for a target billing month from finalized bills.
- * Uses the latest bill strictly before `beforeBillingMonth`.
+ * Opening reading for the next bill — last finalized closing on the meter chain.
  */
 export function pickPreviousMeterReadingFromFinalizedBills(
   bills: FinalizedBillReadingRow[],
-  beforeBillingMonth: string,
+  _beforeBillingMonth?: string,
 ): {
   previousReadingUnits: number;
   source: 'last_monthly_bill';
@@ -30,17 +49,20 @@ export function pickPreviousMeterReadingFromFinalizedBills(
   ratePerUnitPaise: number | null;
   meterImageUrl: string | null;
 } | null {
-  const eligible = bills.filter((bill) => bill.billingMonth < beforeBillingMonth);
-  if (eligible.length === 0) return null;
-
-  const lastBill = [...eligible].sort((a, b) => b.billingMonth.localeCompare(a.billingMonth))[0]!;
+  void _beforeBillingMonth;
+  const last = lastFinalizedBill(asMeterPeriodRows(bills));
+  if (!last) return null;
   return {
-    previousReadingUnits: lastBill.currentReadingUnits,
+    previousReadingUnits: last.currentReadingUnits,
     source: 'last_monthly_bill',
-    lastBillingMonth: lastBill.billingMonth,
-    ratePerUnitPaise: lastBill.ratePerUnitPaise ?? null,
-    meterImageUrl: lastBill.meterImageUrl ?? null,
+    lastBillingMonth: last.billingMonth,
+    ratePerUnitPaise: last.ratePerUnitPaise ?? null,
+    meterImageUrl: last.meterImageUrl ?? null,
   };
+}
+
+export function expectedOpeningFromFinalizedBills(bills: FinalizedBillReadingRow[]): number {
+  return expectedOpeningReadingForNewBill(asMeterPeriodRows(bills));
 }
 
 export function readingsMatch(a: number, b: number): boolean {
@@ -61,7 +83,7 @@ export function validateContinuousPreviousReading(input: {
     ok: false,
     message:
       `Previous meter reading must be ${input.expectedPreviousUnits} ` +
-      `(last finalized monthly reading for this room). ` +
+      `(last finalized closing reading for this room). ` +
       `Got ${input.providedPreviousUnits}. ` +
       `Move-out settlements do not change the room previous reading.`,
   };

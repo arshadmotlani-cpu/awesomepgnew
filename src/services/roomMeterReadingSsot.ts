@@ -1,20 +1,21 @@
 /**
- * Continuous room meter SSOT — previous reading for the next monthly bill.
+ * Continuous room meter SSOT — previous reading for the next electricity bill.
  *
- * Consumption-month continuity: baseline must be the close reading of the
- * immediately preceding consumption month (not an older bill when a gap exists).
+ * Meter interval continuity: baseline is the last finalized closing reading on
+ * the room chain (by applied order). Calendar billing_month gaps are normal.
  *
  * Checkout / check-in meter logs and move-out settlements NEVER advance this.
  */
 
-import { and, asc, desc, eq, lt } from 'drizzle-orm';
+import { and, asc, desc, eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { electricityBills, meterLogs } from '@/src/db/schema';
 import { DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE } from '@/src/lib/billing/constants';
 import {
-  assessConsumptionMonthContinuity,
-  type ConsumptionMonthContinuityAssessment,
-} from '@/src/lib/billing/consumptionMonthContinuity';
+  assessMeterPeriodChainContinuity,
+  type MeterPeriodBillRow,
+} from '@/src/lib/billing/electricityMeterPeriodSsot';
+import type { ConsumptionMonthContinuityAssessment } from '@/src/lib/billing/consumptionMonthContinuity';
 import type { FinalizedBillReadingRow, RoomPreviousMeterSource } from '@/src/lib/billing/roomMeterReadingSsot';
 import { firstOfMonth } from '@/src/services/billing';
 
@@ -39,82 +40,103 @@ export type ResolvedRoomPreviousMeterReading = {
   continuity: ConsumptionMonthContinuityAssessment;
 };
 
-async function loadFinalizedBillsBeforeMonth(
+function mapBillRow(row: {
+  billingMonth: string;
+  previousReadingUnits: string;
+  currentReadingUnits: string;
+  ratePerUnitPaise: number;
+  meterImageUrl: string | null;
+  periodStartDate: string | null;
+  periodEndDate: string | null;
+  createdAt: Date;
+}): FinalizedBillReadingRow {
+  return {
+    billingMonth: row.billingMonth,
+    previousReadingUnits: Number(row.previousReadingUnits),
+    currentReadingUnits: Number(row.currentReadingUnits),
+    ratePerUnitPaise: row.ratePerUnitPaise,
+    meterImageUrl: row.meterImageUrl,
+    periodStartDate: row.periodStartDate,
+    periodEndDate: row.periodEndDate,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+export async function loadFinalizedElectricityBillsForRoom(
   roomId: string,
-  beforeBillingMonth: string,
 ): Promise<FinalizedBillReadingRow[]> {
   const rows = await db
     .select({
       billingMonth: electricityBills.billingMonth,
+      previousReadingUnits: electricityBills.previousReadingUnits,
       currentReadingUnits: electricityBills.currentReadingUnits,
       ratePerUnitPaise: electricityBills.ratePerUnitPaise,
       meterImageUrl: electricityBills.meterImageUrl,
+      periodStartDate: electricityBills.periodStartDate,
+      periodEndDate: electricityBills.periodEndDate,
+      createdAt: electricityBills.createdAt,
     })
     .from(electricityBills)
-    .where(
-      and(
-        eq(electricityBills.roomId, roomId),
-        eq(electricityBills.isPipelineTest, false),
-        lt(electricityBills.billingMonth, beforeBillingMonth),
-      ),
-    )
-    .orderBy(asc(electricityBills.billingMonth));
+    .where(and(eq(electricityBills.roomId, roomId), eq(electricityBills.isPipelineTest, false)))
+    .orderBy(asc(electricityBills.createdAt));
 
-  return rows.map((row) => ({
-    billingMonth: row.billingMonth,
-    currentReadingUnits: Number(row.currentReadingUnits),
-    ratePerUnitPaise: row.ratePerUnitPaise,
-    meterImageUrl: row.meterImageUrl,
+  return rows.map(mapBillRow);
+}
+
+function toMeterPeriodRows(bills: FinalizedBillReadingRow[]): MeterPeriodBillRow[] {
+  return bills.map((b) => ({
+    billingMonth: b.billingMonth,
+    previousReadingUnits: b.previousReadingUnits ?? 0,
+    currentReadingUnits: b.currentReadingUnits,
+    periodStartDate: b.periodStartDate,
+    periodEndDate: b.periodEndDate,
+    createdAt: b.createdAt,
   }));
 }
 
+function continuityAssessmentFromChain(
+  chain: ReturnType<typeof assessMeterPeriodChainContinuity>,
+): ConsumptionMonthContinuityAssessment {
+  return {
+    ok: true,
+    isFirstConsumptionMonth: chain.isFirstPeriod,
+    requiredBaselineMonth: chain.lastFinalizedBill?.billingMonth ?? null,
+  };
+}
+
+/** @deprecated Calendar-month gap checks removed — returns meter-chain assessment (always ok). */
 export async function assessConsumptionMonthContinuityForRoom(
   roomId: string,
   targetBillingMonth: string,
 ): Promise<ConsumptionMonthContinuityAssessment> {
-  const target = firstOfMonth(targetBillingMonth);
-  const bills = await loadFinalizedBillsBeforeMonth(roomId, target);
-  return assessConsumptionMonthContinuity(bills, target);
+  void firstOfMonth(targetBillingMonth);
+  const bills = await loadFinalizedElectricityBillsForRoom(roomId);
+  const chain = assessMeterPeriodChainContinuity(toMeterPeriodRows(bills));
+  return continuityAssessmentFromChain(chain);
 }
 
 export async function resolveRoomPreviousMeterReading(
   roomId: string,
   options: { beforeBillingMonth: string; enforceContinuity?: boolean },
 ): Promise<ResolvedRoomPreviousMeterReading> {
-  const beforeBillingMonth = firstOfMonth(options.beforeBillingMonth);
-  const enforceContinuity = options.enforceContinuity !== false;
-  const priorBills = await loadFinalizedBillsBeforeMonth(roomId, beforeBillingMonth);
-  const continuity = assessConsumptionMonthContinuity(priorBills, beforeBillingMonth);
+  void firstOfMonth(options.beforeBillingMonth);
+  const allBills = await loadFinalizedElectricityBillsForRoom(roomId);
+  const chain = assessMeterPeriodChainContinuity(toMeterPeriodRows(allBills));
+  const continuity = continuityAssessmentFromChain(chain);
 
-  if (!continuity.ok && enforceContinuity) {
-    throw new ConsumptionMonthContinuityError(continuity.message, continuity);
-  }
-
-  if (continuity.ok && !continuity.isFirstConsumptionMonth && continuity.requiredBaselineMonth) {
-    const baselineBill = priorBills.find(
-      (bill) => bill.billingMonth === continuity.requiredBaselineMonth,
+  if (chain.lastFinalizedBill) {
+    const last = chain.lastFinalizedBill;
+    const row = allBills.find(
+      (b) =>
+        b.billingMonth === last.billingMonth &&
+        b.currentReadingUnits === last.currentReadingUnits,
     );
-    if (baselineBill) {
-      return {
-        previousReadingUnits: baselineBill.currentReadingUnits,
-        source: 'last_monthly_bill',
-        lastBillingMonth: baselineBill.billingMonth,
-        ratePerUnitPaise:
-          baselineBill.ratePerUnitPaise ?? DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE,
-        lastBillMeterImageUrl: baselineBill.meterImageUrl ?? null,
-        continuity,
-      };
-    }
-  }
-
-  if (priorBills.length > 0) {
-    const lastBill = [...priorBills].sort((a, b) => b.billingMonth.localeCompare(a.billingMonth))[0]!;
     return {
-      previousReadingUnits: lastBill.currentReadingUnits,
+      previousReadingUnits: last.currentReadingUnits,
       source: 'last_monthly_bill',
-      lastBillingMonth: lastBill.billingMonth,
-      ratePerUnitPaise: lastBill.ratePerUnitPaise ?? DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE,
-      lastBillMeterImageUrl: lastBill.meterImageUrl ?? null,
+      lastBillingMonth: last.billingMonth,
+      ratePerUnitPaise: row?.ratePerUnitPaise ?? DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE,
+      lastBillMeterImageUrl: row?.meterImageUrl ?? null,
       continuity,
     };
   }
