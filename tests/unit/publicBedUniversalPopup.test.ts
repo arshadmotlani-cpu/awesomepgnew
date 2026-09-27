@@ -100,7 +100,13 @@ test('notice availability date uses vacating SSOT — not a local invent', () =>
   );
 });
 
-test('parents open the same universal sheet — no second popup', () => {
+test('PgBlockBooking lists rooms without public room-type category cards', () => {
+  const block = read('src/components/customer/block/PgBlockBooking.tsx');
+  assert.doesNotMatch(block, /Room types/);
+  assert.doesNotMatch(block, /PgRoomTypeCards/);
+  assert.match(block, /id="pg-room-blocks"/);
+  assert.match(block, /BlockRoomCard/);
+});
   const selector = read('src/components/customer/BedSelector.tsx');
   const block = read('src/components/customer/block/PgBlockBooking.tsx');
   const map = read('src/components/customer/CustomerBedMap.tsx');

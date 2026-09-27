@@ -5,7 +5,6 @@ import { BookingFunnelShell } from '@/src/components/customer/checkout/BookingFu
 import type { CustomerRoomBedMap } from '@/src/components/customer/CustomerBedMap';
 import { AnalyticsMountEvent } from '@/src/components/analytics/AnalyticsMountEvent';
 import { getPgBySlug, getRoomDetail, listRoomsForPg, type CustomerRoomCard, type CustomerRoomDetail } from '@/src/services/publicPgReadCache';
-import { buildSingleSharedSummaries } from '@/src/lib/booking/pgRoomTypeSummaries';
 import { enrichBedsWithQuotedMonthlyDeposit } from '@/src/lib/booking/publicQuote';
 import { trackAnalyticsEvent } from '@/src/services/visitorAnalytics';
 
@@ -30,7 +29,6 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
 
   const roomsResult = await listRoomsForPg(pg.id);
   const roomList: CustomerRoomCard[] = roomsResult.ok ? roomsResult.data : [];
-  const roomTypeSummaries = buildSingleSharedSummaries(roomList);
 
   const roomDetailResults = await Promise.all(
     roomList.map((r) => getRoomDetail(pg.slug, r.roomId)),
@@ -120,7 +118,6 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
           amenities={(pg.amenities ?? {}) as Record<string, unknown>}
           rooms={roomList}
           bedMapRooms={bedMapRooms}
-          roomTypeSummaries={roomTypeSummaries}
         />
       </BookingFunnelShell>
     </div>

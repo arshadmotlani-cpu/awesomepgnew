@@ -5,7 +5,6 @@ import { BedBookingPanel } from '@/src/components/customer/BedBookingPanel';
 import { BedReservePanel } from '@/src/components/customer/BedReservePanel';
 import { useBookingFunnel } from '@/src/components/customer/checkout/BookingFunnelShell';
 import { PgMobileHero } from '@/src/components/customer/block/PgMobileHero';
-import { PgRoomTypeCards } from '@/src/components/customer/block/PgRoomTypeCards';
 import type { CustomerRoomBedMap } from '@/src/components/customer/CustomerBedMap';
 import {
   CUSTOMER_BED_KIND_CLASS,
@@ -14,8 +13,6 @@ import {
 } from '@/src/components/customer/customerBedUi';
 import type { BedSelectorBed } from '@/src/components/customer/customerBedTypes';
 import { bookingFunnelStartingRentLabel } from '@/src/lib/booking/bookingFunnelPricing';
-import type { PgRoomTypeSummary } from '@/src/lib/booking/pgRoomTypeSummaries';
-import { pgRoomTypeFilterKey } from '@/src/lib/booking/pgRoomTypeSummaries';
 import type { CustomerRoomCard } from '@/src/db/queries/customer';
 import { dispatchRoachieReminder } from '@/src/lib/cockroach/roachieReminders';
 import type { BedAvailabilityKind } from '@/src/lib/bedAvailabilityState';
@@ -28,7 +25,6 @@ type Props = {
   amenities: Record<string, unknown>;
   rooms: CustomerRoomCard[];
   bedMapRooms: CustomerRoomBedMap[];
-  roomTypeSummaries: PgRoomTypeSummary[];
 };
 
 const LEGEND: { label: string; kind: BedAvailabilityKind }[] = [
@@ -100,9 +96,7 @@ export function PgBlockBooking({
   amenities,
   rooms,
   bedMapRooms,
-  roomTypeSummaries,
 }: Props) {
-  const [categoryFilter, setCategoryFilter] = useState<string | 'all'>('all');
   const [selectedBedId, setSelectedBedId] = useState<string | null>(null);
   const [panelBeds, setPanelBeds] = useState<BedSelectorBed[]>([]);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -127,13 +121,6 @@ export function PgBlockBooking({
       .filter(Boolean) as PgRoomRow[];
   }, [rooms, bedMapRooms]);
 
-  const filteredRooms = useMemo(() => {
-    if (categoryFilter === 'all') return roomRows;
-    return roomRows.filter(
-      (row) => pgRoomTypeFilterKey(row.roomCard.roomType, row.roomCard.capacity) === categoryFilter,
-    );
-  }, [roomRows, categoryFilter]);
-
   const mergeBed = useCallback(
     (bed: BedSelectorBed): BedSelectorBed => {
       const count = interestOverrides[bed.bedId];
@@ -154,14 +141,6 @@ export function PgBlockBooking({
   const scrollToRooms = useCallback(() => {
     document.getElementById('pg-room-blocks')?.scrollIntoView({ behavior: 'smooth' });
   }, []);
-
-  const pickCategory = useCallback(
-    (roomTypeKey: string) => {
-      setCategoryFilter(roomTypeKey);
-      scrollToRooms();
-    },
-    [scrollToRooms],
-  );
 
   const openPanel = useCallback(
     (bed: BedSelectorBed, options?: { shortStayOnly?: boolean; reserveCheckIn?: string }) => {
@@ -211,12 +190,6 @@ export function PgBlockBooking({
         onViewRooms={scrollToRooms}
       />
 
-      <PgRoomTypeCards
-        summaries={roomTypeSummaries}
-        active={categoryFilter}
-        onSelect={pickCategory}
-      />
-
       <div className="mt-4 flex flex-wrap gap-2 text-[10px] text-apg-silver">
         {LEGEND.map((item) => (
           <span key={item.kind} className="inline-flex items-center gap-1">
@@ -232,23 +205,13 @@ export function PgBlockBooking({
       <section id="pg-room-blocks" className="mt-5 scroll-mt-4 pb-24">
         <h2 className="text-[17px] font-semibold text-white">Rooms</h2>
 
-        {categoryFilter !== 'all' ? (
-          <button
-            type="button"
-            onClick={() => setCategoryFilter('all')}
-            className="mt-2 text-xs font-medium text-apg-cyan"
-          >
-            Show all rooms
-          </button>
-        ) : null}
-
-        {filteredRooms.length === 0 ? (
+        {roomRows.length === 0 ? (
           <p className="mt-5 rounded-[16px] border border-dashed border-white/10 px-5 py-10 text-center text-sm text-apg-silver">
-            No rooms in this category right now.
+            No rooms listed right now.
           </p>
         ) : (
           <div className="mt-3 flex flex-col gap-3">
-            {filteredRooms.map((row) => (
+            {roomRows.map((row) => (
               <BlockRoomCard
                 key={row.bedRoom.roomId}
                 row={row}
