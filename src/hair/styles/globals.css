@@ -926,6 +926,16 @@
   padding-left: 0.5rem;
 }
 
+.fyh-nav-subheading {
+  margin: 0.5rem 0 0.125rem;
+  padding: 0 0.4375rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fyh-text-muted);
+}
+
 .fyh-nav-sublink:hover {
   color: var(--fyh-text-primary);
 }

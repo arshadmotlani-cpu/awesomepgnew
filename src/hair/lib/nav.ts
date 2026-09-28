@@ -35,7 +35,13 @@ export type HairNavGroup = {
   iconKey: HairNavIconKey;
   defaultExpanded?: boolean;
   permission?: HairPagePermission;
-  children: Array<{ href: string; label: string; permission?: HairPagePermission }>;
+  children: Array<{
+    href: string;
+    label: string;
+    permission?: HairPagePermission;
+    /** Non-clickable group label shown above the first child in that section. */
+    section?: string;
+  }>;
 };
 
 export type HairNavEntry = HairNavLink | HairNavGroup;
@@ -113,22 +119,22 @@ export const HAIR_NAV_ENTRIES: HairNavEntry[] = [
     permission: 'page:reports',
     children: [
       { href: '/reports', label: 'Overview' },
-      { href: '/reports/revenue/daily', label: 'Revenue · Daily' },
-      { href: '/reports/revenue/monthly', label: 'Revenue · Monthly' },
-      { href: '/reports/revenue/yearly', label: 'Revenue · Yearly' },
-      { href: '/reports/staff/service', label: 'Staff · Service revenue' },
-      { href: '/reports/staff/product', label: 'Staff · Product revenue' },
-      { href: '/reports/staff/package', label: 'Staff · Package revenue' },
-      { href: '/reports/staff/membership', label: 'Staff · Membership revenue' },
-      { href: '/reports/inventory/products', label: 'Inventory · Products' },
-      { href: '/reports/inventory/stock', label: 'Inventory · Stock movement' },
-      { href: '/reports/inventory/low-stock', label: 'Inventory · Low stock' },
-      { href: '/reports/customers/loyalty', label: 'Customers · Loyalty' },
-      { href: '/reports/customers/memberships', label: 'Customers · Memberships' },
-      { href: '/reports/customers/packages', label: 'Customers · Packages' },
-      { href: '/reports/finance/gst', label: 'Finance · GST' },
-      { href: '/reports/finance/payments', label: 'Finance · Payments' },
-      { href: '/reports/finance/discounts', label: 'Finance · Discounts' },
+      { href: '/reports/revenue/daily', label: 'Daily', section: 'Revenue' },
+      { href: '/reports/revenue/monthly', label: 'Monthly', section: 'Revenue' },
+      { href: '/reports/revenue/yearly', label: 'Yearly', section: 'Revenue' },
+      { href: '/reports/staff/service', label: 'Service Revenue', section: 'Staff' },
+      { href: '/reports/staff/product', label: 'Product Revenue', section: 'Staff' },
+      { href: '/reports/staff/package', label: 'Package Revenue', section: 'Staff' },
+      { href: '/reports/staff/membership', label: 'Membership Revenue', section: 'Staff' },
+      { href: '/reports/inventory/products', label: 'Products', section: 'Inventory' },
+      { href: '/reports/inventory/stock', label: 'Stock Movement', section: 'Inventory' },
+      { href: '/reports/inventory/low-stock', label: 'Low Stock', section: 'Inventory' },
+      { href: '/reports/customers/loyalty', label: 'Loyalty', section: 'Customers' },
+      { href: '/reports/customers/memberships', label: 'Memberships', section: 'Customers' },
+      { href: '/reports/customers/packages', label: 'Packages', section: 'Customers' },
+      { href: '/reports/finance/gst', label: 'GST', section: 'Finance' },
+      { href: '/reports/finance/payments', label: 'Payments', section: 'Finance' },
+      { href: '/reports/finance/discounts', label: 'Discounts', section: 'Finance' },
     ],
   },
   {

@@ -63,6 +63,43 @@ describe('FYH sidebar navigation', () => {
     }
   });
 
+  it('keeps every report page under one Reports group', () => {
+    const reports = HAIR_NAV_ENTRIES.find((e) => e.type === 'group' && e.id === 'reports');
+    assert.ok(reports && reports.type === 'group');
+    assert.equal(reports.label, 'Reports');
+    assert.equal(reports.permission, 'page:reports');
+    const topLevelReportLinks = HAIR_NAV_ENTRIES.filter(
+      (e) => e.type === 'link' && e.href.startsWith('/reports'),
+    );
+    assert.equal(topLevelReportLinks.length, 0);
+    assert.deepEqual(
+      reports.children.map((c) => c.href),
+      [
+        '/reports',
+        '/reports/revenue/daily',
+        '/reports/revenue/monthly',
+        '/reports/revenue/yearly',
+        '/reports/staff/service',
+        '/reports/staff/product',
+        '/reports/staff/package',
+        '/reports/staff/membership',
+        '/reports/inventory/products',
+        '/reports/inventory/stock',
+        '/reports/inventory/low-stock',
+        '/reports/customers/loyalty',
+        '/reports/customers/memberships',
+        '/reports/customers/packages',
+        '/reports/finance/gst',
+        '/reports/finance/payments',
+        '/reports/finance/discounts',
+      ],
+    );
+    assert.deepEqual(
+      [...new Set(reports.children.map((c) => c.section).filter(Boolean))],
+      ['Revenue', 'Staff', 'Inventory', 'Customers', 'Finance'],
+    );
+  });
+
   it('keeps billing, purchases, expenses, and catalog routes reachable from nav', () => {
     const hrefs: string[] = [];
     for (const entry of HAIR_NAV_ENTRIES) {

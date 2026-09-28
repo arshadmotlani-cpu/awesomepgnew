@@ -21,7 +21,7 @@ import {
   Warehouse,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Fragment, useState } from 'react';
 import { FyhSidebarBrand } from '@/src/components/brand/fyh/FyhSidebarBrand';
 import {
   visibleHairNavEntries,
@@ -71,6 +71,13 @@ function NavLink({
   );
 }
 
+function navChildIsActive(pathname: string, href: string): boolean {
+  if (href === '/reports' || href === '/billing' || href === '/dashboard') {
+    return pathname === href || pathname === `${href}/`;
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 function NavGroup({
   group,
   onNavigate,
@@ -82,18 +89,15 @@ function NavGroup({
   const childActive = group.children.some(
     (c) => pathname === c.href || pathname.startsWith(`${c.href}/`),
   );
-  const [open, setOpen] = useState(group.defaultExpanded ?? childActive);
+  const [pinnedOpen, setPinnedOpen] = useState(group.defaultExpanded ?? false);
+  const open = pinnedOpen || childActive;
   const Icon = NAV_ICONS[group.iconKey];
-
-  useEffect(() => {
-    if (childActive) setOpen(true);
-  }, [childActive]);
 
   return (
     <div className="fyh-nav-group min-w-0 space-y-0.5">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setPinnedOpen(!open)}
         aria-expanded={open}
         className={cn(
           'fyh-nav-link w-full min-w-0',
@@ -109,20 +113,21 @@ function NavGroup({
       </button>
       {open ? (
         <div className="fyh-nav-group-children space-y-0.5">
-          {group.children.map((c) => {
-            const active =
-              c.href === '/billing'
-                ? pathname === '/billing' || pathname === '/billing/'
-                : pathname === c.href || pathname.startsWith(`${c.href}/`);
+          {group.children.map((c, index) => {
+            const active = navChildIsActive(pathname, c.href);
+            const showSection = Boolean(c.section) && c.section !== group.children[index - 1]?.section;
             return (
-              <Link
-                key={c.href}
-                href={c.href}
-                onClick={() => onNavigate?.()}
-                className={cn('fyh-nav-sublink', active && 'fyh-nav-sublink-active')}
-              >
-                {c.label}
-              </Link>
+              <Fragment key={c.href}>
+                {showSection ? <p className="fyh-nav-subheading">{c.section}</p> : null}
+                <Link
+                  href={c.href}
+                  onClick={() => onNavigate?.()}
+                  className={cn('fyh-nav-sublink', active && 'fyh-nav-sublink-active')}
+                  aria-current={active ? 'page' : undefined}
+                >
+                  {c.label}
+                </Link>
+              </Fragment>
             );
           })}
         </div>
