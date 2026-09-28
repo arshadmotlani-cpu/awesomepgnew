@@ -11,7 +11,8 @@ import {
   Printer,
   Share2,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from 'react';
+import { createPortal } from 'react-dom';
 import {
   exportInvoiceRegisterAction,
   getInvoicePrintHtmlAction,
@@ -29,6 +30,7 @@ import {
 } from '@/src/hair/db/schema/billing';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { invoiceRegisterNavigateDay } from '@/src/hair/lib/billing/invoiceRegisterDayNav';
+import { placeAnchoredMenu } from '@/src/hair/lib/ui/placeAnchoredMenu';
 import type { InvoiceRegisterRow } from '@/src/hair/services/invoiceRegisterQueries';
 import { cn } from '@/src/hair/lib/utils';
 
@@ -114,14 +116,63 @@ function InvoiceRowActions({
   onPreview: (invoiceId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const updateMenuPosition = useCallback(() => {
+    const button = buttonRef.current;
+    const menu = menuRef.current;
+    if (!button || !menu) return;
+    const next = placeAnchoredMenu({
+      trigger: button.getBoundingClientRect(),
+      menuWidth: menu.offsetWidth,
+      menuHeight: menu.offsetHeight,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    });
+    menu.style.top = `${next.top}px`;
+    menu.style.left = `${next.left}px`;
+    menu.style.visibility = 'visible';
+    menu.style.pointerEvents = 'auto';
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    updateMenuPosition();
+    const onReposition = () => updateMenuPosition();
+    window.addEventListener('resize', onReposition);
+    window.addEventListener('scroll', onReposition, true);
+    return () => {
+      window.removeEventListener('resize', onReposition);
+      window.removeEventListener('scroll', onReposition, true);
+    };
+  }, [open, updateMenuPosition]);
 
   useEffect(() => {
     if (!open) return;
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') setOpen(false);
     }
+    function onPointerDown(event: MouseEvent | TouchEvent) {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (buttonRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setOpen(false);
+    }
     document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+    };
   }, [open]);
 
   const [printHtml, setPrintHtml] = useState<string | null>(null);
@@ -155,27 +206,16 @@ function InvoiceRowActions({
     });
   }
 
-  return (
-    <div className="relative">
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="h-7 w-7 p-0"
-        aria-label="Invoice actions"
-        onClick={() => setOpen((v) => !v)}
-      >
-        <MoreHorizontal className="h-4 w-4" />
-      </Button>
-      {open ? (
-        <>
-          <button
-            type="button"
-            className="fixed inset-0 z-40 cursor-default"
-            aria-label="Close menu"
-            onClick={() => setOpen(false)}
-          />
-          <div className="absolute right-0 z-50 mt-1 min-w-[11rem] rounded-xl border border-[color:var(--fyh-border-strong)] bg-fyh-elevated py-1 shadow-xl">
+  const menu =
+    mounted && open
+      ? createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            data-testid="invoice-row-actions"
+            className="fixed z-[700] min-w-[11rem] rounded-xl border border-[color:var(--fyh-border-strong)] bg-fyh-elevated py-1 shadow-xl"
+            style={{ top: 0, left: 0, visibility: 'hidden', pointerEvents: 'none' }}
+          >
             <button
               type="button"
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-fyh-text hover:bg-white/6"
@@ -238,9 +278,27 @@ function InvoiceRowActions({
             >
               <Share2 className="h-3.5 w-3.5" /> Share
             </button>
-          </div>
-        </>
-      ) : null}
+          </div>,
+          document.body,
+        )
+      : null;
+
+  return (
+    <div>
+      <Button
+        ref={buttonRef}
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-7 w-7 p-0"
+        aria-label="Invoice actions"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <MoreHorizontal className="h-4 w-4" />
+      </Button>
+      {menu}
       {printHtml ? (
         <span className="sr-only">
           <PrintInvoiceButton html={printHtml} />
