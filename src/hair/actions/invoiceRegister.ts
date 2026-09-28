@@ -31,8 +31,9 @@ export type ExportInvoiceRegisterResult =
 
 function filtersFromRecord(
   raw: Record<string, string | string[] | undefined>,
+  timezone: string,
 ): InvoiceRegisterFilters {
-  return parseRegisterFiltersFromSearchParams(raw);
+  return parseRegisterFiltersFromSearchParams(raw, timezone);
 }
 
 export async function exportInvoiceRegisterAction(input: {
@@ -42,7 +43,8 @@ export async function exportInvoiceRegisterAction(input: {
   try {
     await requirePermission('page:billing');
     const ctx = await getTenantContextForAction();
-    const filters = filtersFromRecord(input.filters);
+    const settings = await getSalonSettings(ctx);
+    const filters = filtersFromRecord(input.filters, settings.timezone || 'Asia/Kolkata');
     const rows = await queryInvoiceRegisterForExport(filters);
     const stamp = new Date().toISOString().slice(0, 10);
 
@@ -65,7 +67,6 @@ export async function exportInvoiceRegisterAction(input: {
       };
     }
 
-    const settings = await getSalonSettings(ctx);
     return {
       ok: true,
       format: 'pdf',

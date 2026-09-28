@@ -10,6 +10,8 @@ import {
   shouldDefaultInvoiceRegisterToToday,
 } from '@/src/hair/services/invoiceRegisterQueries';
 
+export const dynamic = 'force-dynamic';
+
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
@@ -38,7 +40,7 @@ async function InvoiceRegisterPageInner({ searchParams }: PageProps) {
   const settings = await getSalonSettings(ctx);
   const salonTodayIso = invoiceRegisterTodayIso(settings.timezone || 'Asia/Kolkata');
 
-  const filters = parseRegisterFiltersFromSearchParams(params);
+  const filters = parseRegisterFiltersFromSearchParams(params, settings.timezone || 'Asia/Kolkata');
   const result = await queryInvoiceRegister(filters);
 
   return (

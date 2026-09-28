@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   ChevronLeft,
   ChevronRight,
@@ -11,7 +11,7 @@ import {
   Printer,
   Share2,
 } from 'lucide-react';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, useTransition } from 'react';
 import { createPortal } from 'react-dom';
 import {
   exportInvoiceRegisterAction,
@@ -29,7 +29,12 @@ import {
   type FyhInvoiceStatus,
 } from '@/src/hair/db/schema/billing';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
-import { invoiceRegisterNavigateDay } from '@/src/hair/lib/billing/invoiceRegisterDayNav';
+import {
+  applyInvoiceRegisterSearchPatch,
+  invoiceRegisterNavigateDay,
+  invoiceRegisterSearchHref,
+  isStaleInvoiceRegisterNavigation,
+} from '@/src/hair/lib/billing/invoiceRegisterDayNav';
 import { placeAnchoredMenu } from '@/src/hair/lib/ui/placeAnchoredMenu';
 import type { InvoiceRegisterRow } from '@/src/hair/services/invoiceRegisterQueries';
 import { cn } from '@/src/hair/lib/utils';
@@ -74,15 +79,6 @@ const PAYMENT_LABELS: Record<string, string> = {
 const fieldClass =
   'fyh-select h-9 w-full min-w-0 text-[0.8125rem] outline-none focus:border-fyh-accent/50';
 
-function buildQuery(base: Record<string, string>, patch: Record<string, string | undefined>): string {
-  const next: Record<string, string> = { ...base };
-  for (const [key, value] of Object.entries(patch)) {
-    if (value) next[key] = value;
-    else delete next[key];
-  }
-  const qs = new URLSearchParams(next).toString();
-  return qs ? `?${qs}` : '';
-}
 
 function StatusBadge({ status }: { status: FyhInvoiceStatus }) {
   return (
@@ -310,45 +306,28 @@ function InvoiceRowActions({
 
 function RegisterFilterBar({
   filters,
-  salonTodayIso,
   onReplace,
+  onNavigateDay,
 }: {
   filters: Record<string, string>;
-  salonTodayIso: string;
   onReplace: (patch: Record<string, string | undefined>) => void;
+  onNavigateDay: (direction: -1 | 1) => void;
 }) {
-  const [fromDate, setFromDate] = useState(filters.from ?? '');
-  const [toDate, setToDate] = useState(filters.to ?? '');
-  const [paymentMode, setPaymentMode] = useState(filters.paymentMode ?? '');
-  const [status, setStatus] = useState(filters.status ?? '');
+  const fromDate = filters.from ?? '';
+  const toDate = filters.to ?? '';
+  const paymentMode = filters.paymentMode ?? '';
+  const status = filters.status ?? '';
 
-  useEffect(() => {
-    if ((filters.from ?? '') === fromDate) return;
-    const timer = window.setTimeout(() => {
-      onReplace({ from: fromDate || undefined });
-    }, 300);
-    return () => window.clearTimeout(timer);
-  }, [fromDate, filters.from, onReplace]);
-
-  useEffect(() => {
-    if ((filters.to ?? '') === toDate) return;
-    const timer = window.setTimeout(() => {
-      onReplace({ to: toDate || undefined });
-    }, 300);
-    return () => window.clearTimeout(timer);
-  }, [toDate, filters.to, onReplace]);
-
-  function navigateDay(direction: -1 | 1) {
-    const next = invoiceRegisterNavigateDay({
-      from: fromDate || undefined,
-      to: toDate || undefined,
-      direction,
-      fallbackDayIso: salonTodayIso,
+  function commitRange(next: { from?: string; to?: string }) {
+    const hasRange = Boolean(next.from || next.to);
+    onReplace({
+      from: next.from,
+      to: next.to,
+      all: hasRange ? undefined : '1',
+      page: '1',
     });
-    setFromDate(next.from);
-    setToDate(next.to);
-    onReplace({ from: next.from, to: next.to, all: undefined, page: '1' });
   }
+
 
   return (
     <div className="sticky top-0 z-20 -mx-4 border-b border-[color:var(--fyh-border)] bg-fyh-base/95 px-4 py-2.5 backdrop-blur md:-mx-8 md:px-8">
@@ -361,7 +340,7 @@ function RegisterFilterBar({
             className="h-9 w-9 shrink-0 p-0"
             title="Previous day"
             aria-label="Previous day"
-            onClick={() => navigateDay(-1)}
+            onClick={() => onNavigateDay(-1)}
           >
             <ChevronLeft className="h-4 w-4" aria-hidden />
           </Button>
@@ -373,7 +352,7 @@ function RegisterFilterBar({
               <FyhDatePicker
                 id="from"
                 value={fromDate}
-                onChange={setFromDate}
+                onChange={(value) => commitRange({ from: value || undefined, to: toDate || undefined })}
                 placeholder="From date"
                 aria-label="From date"
               />
@@ -385,7 +364,7 @@ function RegisterFilterBar({
               <FyhDatePicker
                 id="to"
                 value={toDate}
-                onChange={setToDate}
+                onChange={(value) => commitRange({ from: fromDate || undefined, to: value || undefined })}
                 placeholder="To date"
                 aria-label="To date"
               />
@@ -398,7 +377,7 @@ function RegisterFilterBar({
             className="h-9 w-9 shrink-0 p-0"
             title="Next day"
             aria-label="Next day"
-            onClick={() => navigateDay(1)}
+            onClick={() => onNavigateDay(1)}
           >
             <ChevronRight className="h-4 w-4" aria-hidden />
           </Button>
@@ -412,8 +391,7 @@ function RegisterFilterBar({
             value={paymentMode}
             onChange={(e) => {
               const value = e.target.value;
-              setPaymentMode(value);
-              onReplace({ paymentMode: value || undefined });
+              onReplace({ paymentMode: value || undefined, page: '1' });
             }}
             className={fieldClass}
           >
@@ -434,8 +412,7 @@ function RegisterFilterBar({
             value={status}
             onChange={(e) => {
               const value = e.target.value;
-              setStatus(value);
-              onReplace({ status: value || undefined });
+              onReplace({ status: value || undefined, page: '1' });
             }}
             className={fieldClass}
           >
@@ -459,8 +436,6 @@ function RegisterFilterBar({
             type="button"
             className="text-xs font-medium text-fyh-accent hover:underline"
             onClick={() => {
-              setFromDate('');
-              setToDate('');
               onReplace({ from: undefined, to: undefined, all: '1', page: '1' });
             }}
           >
@@ -483,7 +458,13 @@ export function InvoiceRegisterUi({
   salonTodayIso,
 }: InvoiceRegisterUiProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const [optimisticFilters, setOptimisticFilters] = useState<Record<string, string> | null>(null);
+  const [navPending, startNav] = useTransition();
+  const displayedFilters =
+    optimisticFilters && isStaleInvoiceRegisterNavigation(optimisticFilters, filters)
+      ? optimisticFilters
+      : filters;
+  const committedRef = useRef(filters);
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportPending, startExport] = useTransition();
   const [previewInvoiceId, setPreviewInvoiceId] = useState<string | null>(null);
@@ -492,30 +473,57 @@ export function InvoiceRegisterUi({
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
-  const filterRecord = useMemo(() => {
-    const raw: Record<string, string> = {};
-    searchParams.forEach((value, key) => {
-      raw[key] = value;
-    });
-    return raw;
-  }, [searchParams]);
-
   const replaceFilters = useCallback(
     (patch: Record<string, string | undefined>) => {
-      const href = `/billing/invoices${buildQuery(filterRecord, { ...patch, page: patch.page ?? '1' })}`;
-      router.replace(href);
+      const next = applyInvoiceRegisterSearchPatch(committedRef.current, {
+        ...patch,
+        page: patch.page ?? '1',
+      });
+      committedRef.current = next;
+      setOptimisticFilters(next);
+      startNav(() => {
+        router.replace(invoiceRegisterSearchHref(next));
+      });
     },
-    [filterRecord, router],
+    [router],
   );
 
-  const filterBarKey = `${filters.from ?? ''}|${filters.to ?? ''}|${filters.paymentMode ?? ''}|${filters.status ?? ''}|${filters.all ?? ''}`;
+  const navigateDay = useCallback(
+    (direction: -1 | 1) => {
+      const current = committedRef.current;
+      const next = invoiceRegisterNavigateDay({
+        from: current.from,
+        to: current.to,
+        direction,
+        fallbackDayIso: salonTodayIso,
+      });
+      replaceFilters({ from: next.from, to: next.to, all: undefined, page: '1' });
+    },
+    [replaceFilters, salonTodayIso],
+  );
 
-  const isSingleDayFilter = Boolean(filters.from && filters.to && filters.from === filters.to);
+  const isSingleDayFilter = Boolean(
+    displayedFilters.from && displayedFilters.to && displayedFilters.from === displayedFilters.to,
+  );
+  const resultsStale =
+    navPending ||
+    (displayedFilters.from ?? '') !== (filters.from ?? '') ||
+    (displayedFilters.to ?? '') !== (filters.to ?? '') ||
+    (displayedFilters.all ?? '') !== (filters.all ?? '');
+
+  useEffect(() => {
+    if (optimisticFilters && isStaleInvoiceRegisterNavigation(optimisticFilters, filters)) {
+      committedRef.current = optimisticFilters;
+      router.replace(invoiceRegisterSearchHref(optimisticFilters));
+      return;
+    }
+    committedRef.current = filters;
+  }, [optimisticFilters, filters, router]);
 
   function runExport(format: InvoiceRegisterExportFormat) {
     setExportError(null);
     startExport(async () => {
-      const result = await exportInvoiceRegisterAction({ filters: filterRecord, format });
+      const result = await exportInvoiceRegisterAction({ filters: committedRef.current, format });
       if (!result.ok) {
         setExportError(result.error);
         return;
@@ -600,10 +608,9 @@ export function InvoiceRegisterUi({
       {exportError ? <p className="mb-3 text-sm text-fyh-danger">{exportError}</p> : null}
 
       <RegisterFilterBar
-        key={filterBarKey}
-        filters={filters}
-        salonTodayIso={salonTodayIso}
+        filters={displayedFilters}
         onReplace={replaceFilters}
+        onNavigateDay={navigateDay}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm text-fyh-text-secondary">
@@ -630,7 +637,11 @@ export function InvoiceRegisterUi({
         </div>
       </div>
 
-      {rows.length === 0 ? (
+      {resultsStale ? (
+        <div className="flex flex-1 items-center justify-center px-6 py-16 text-center text-sm text-fyh-text-muted">
+          Loading invoices…
+        </div>
+      ) : rows.length === 0 ? (
         <div className="flex flex-1 items-center justify-center px-6 py-16 text-center">
           <div>
             <p className="fyh-display text-xl font-semibold">
@@ -767,9 +778,11 @@ export function InvoiceRegisterUi({
           </p>
           <div className="flex items-center gap-2">
             <Link
-              href={`/billing/invoices${buildQuery(filterRecord, {
-                page: String(Math.max(1, page - 1)),
-              })}`}
+              href={invoiceRegisterSearchHref(
+                applyInvoiceRegisterSearchPatch(displayedFilters, {
+                  page: String(Math.max(1, page - 1)),
+                }),
+              )}
               aria-disabled={page <= 1}
               className={cn(page <= 1 && 'pointer-events-none opacity-40')}
             >
@@ -779,9 +792,11 @@ export function InvoiceRegisterUi({
               </Button>
             </Link>
             <Link
-              href={`/billing/invoices${buildQuery(filterRecord, {
-                page: String(Math.min(totalPages, page + 1)),
-              })}`}
+              href={invoiceRegisterSearchHref(
+                applyInvoiceRegisterSearchPatch(displayedFilters, {
+                  page: String(Math.min(totalPages, page + 1)),
+                }),
+              )}
               aria-disabled={page >= totalPages}
               className={cn(page >= totalPages && 'pointer-events-none opacity-40')}
             >

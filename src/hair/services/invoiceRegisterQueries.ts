@@ -26,6 +26,11 @@ import {
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 import { salonTodayKey } from '@/src/hair/lib/appointmentDate';
+import {
+  normalizeInvoiceRegisterDayKeys,
+  shiftInvoiceRegisterDayIso,
+} from '@/src/hair/lib/billing/invoiceRegisterDayNav';
+import { zonedLocalToUtc } from '@/src/hair/lib/salonTime';
 
 export const DEFAULT_REGISTER_PAGE_SIZE = 50;
 
@@ -294,8 +299,25 @@ export async function queryInvoiceRegisterForExport(
   );
 }
 
+/** Inclusive salon calendar days → [start, end) instants. */
+export function invoiceRegisterCalendarBounds(
+  from?: string,
+  to?: string,
+  timezone = 'Asia/Kolkata',
+): { from?: Date; to?: Date } {
+  const range = normalizeInvoiceRegisterDayKeys(from, to);
+  if (!range.from && !range.to) return {};
+  const startKey = range.from ?? range.to!;
+  const endKey = range.to ?? range.from!;
+  return {
+    from: zonedLocalToUtc(`${startKey}T00:00:00`, timezone),
+    to: zonedLocalToUtc(`${shiftInvoiceRegisterDayIso(endKey, 1)}T00:00:00`, timezone),
+  };
+}
+
 export function parseRegisterFiltersFromSearchParams(
   params: Record<string, string | string[] | undefined>,
+  timezone = 'Asia/Kolkata',
 ): InvoiceRegisterFilters {
   const pick = (key: string) => {
     const v = params[key];
@@ -304,16 +326,15 @@ export function parseRegisterFiltersFromSearchParams(
 
   const page = Number.parseInt(pick('page'), 10);
   const pageSize = Number.parseInt(pick('pageSize'), 10);
-  const fromStr = pick('from');
-  const toStr = pick('to');
+  const bounds = invoiceRegisterCalendarBounds(pick('from'), pick('to'), timezone);
 
   const paymentMode = pick('paymentMode');
   const status = pick('status');
 
   return {
     q: pick('q') || undefined,
-    from: fromStr ? new Date(`${fromStr}T00:00:00.000Z`) : undefined,
-    to: toStr ? new Date(`${toStr}T23:59:59.999Z`) : undefined,
+    from: bounds.from,
+    to: bounds.to,
     customer: pick('customer') || undefined,
     mobile: pick('mobile') || undefined,
     invoiceNumber: pick('invoiceNumber') || undefined,
