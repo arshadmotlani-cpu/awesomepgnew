@@ -8,7 +8,7 @@ import {
   fyhInvoicePayments,
   fyhInvoices,
 } from '@/src/hair/db/schema';
-import { postCustomerAdvanceReceiveLedger } from '@/src/hair/domain/ledger/service';
+import { excludeVoidInvoiceLedger, postCustomerAdvanceReceiveLedger } from '@/src/hair/domain/ledger/service';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, tenantWriteDefaults } from '@/src/hair/lib/tenant/filters';
@@ -51,10 +51,12 @@ export async function getCustomerCreditSummary(
         amountPaise: fyhFinancialLedger.amountPaise,
       })
       .from(fyhFinancialLedger)
+      .leftJoin(fyhInvoices, eq(fyhInvoices.id, fyhFinancialLedger.invoiceId))
       .where(
         and(
           orgFilter(fyhFinancialLedger.organizationId, ctx),
           eq(fyhFinancialLedger.customerId, customerId),
+          excludeVoidInvoiceLedger(),
         ),
       ),
   ]);

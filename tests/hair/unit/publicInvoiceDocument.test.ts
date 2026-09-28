@@ -179,7 +179,9 @@ describe('buildPublicInvoiceViewModel', () => {
     assert.equal(vm.lines.length, 1);
     assert.equal(vm.lines[0]!.name, 'Haircut & Styling');
     assert.equal(vm.showDiscount, true);
-    assert.equal(vm.showBalance, false);
+    assert.equal(vm.showBalance, true);
+    assert.equal(vm.dueLabel, '₹0');
+    assert.match(vm.upiCollectedLabel ?? '', /1,130/);
     assert.match(vm.amountInWords, /Rupees/i);
   });
 });

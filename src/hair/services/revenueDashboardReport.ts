@@ -187,6 +187,7 @@ async function aggregateTenderLedger(
         locationsInFilter(fyhInvoices.locationId, ctx, locationIds),
         eq(fyhFinancialLedger.kind, 'payment_received'),
         eq(fyhFinancialLedger.direction, 'debit'),
+        ne(fyhInvoices.status, 'void'),
         sql`${fyhFinancialLedger.account} in ('cash', 'upi', 'card', 'bank')`,
         sourcePredicate,
         gte(fyhFinancialLedger.createdAt, from),

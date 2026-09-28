@@ -12,6 +12,7 @@ import {
   FYH_INVOICE_MODAL_SCREEN_STYLES,
   QS_INVOICE_VIEWER_SCREEN_STYLES,
 } from '@/src/hair/components/billing/fyhInvoiceModalStyles';
+import { InvoiceBillCorrectionDialog } from '@/src/hair/components/billing/InvoiceBillCorrection';
 import { Button } from '@/src/hair/components/ui/button';
 import { invoicePublicPrintUrl, invoicePublicViewUrl } from '@/src/hair/lib/invoicePublicLinks';
 import { FyhInvoicePreviewViewport } from '@/src/hair/components/billing/FyhInvoicePreviewViewport';
@@ -41,6 +42,7 @@ export function QuickSaleSuccessDialog({
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [correction, setCorrection] = useState<'edit' | 'cancel' | null>(null);
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -188,10 +190,28 @@ export function QuickSaleSuccessDialog({
             Open Invoice
           </Button>
         </Link>
+        {preview ? (
+          <>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setCorrection('edit')}>
+              Edit bill
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setCorrection('cancel')}>
+              Cancel bill
+            </Button>
+          </>
+        ) : null}
         <Button type="button" size="sm" variant="primary" onClick={onDone}>
           Done
         </Button>
       </div>
+      {correction && preview ? (
+        <InvoiceBillCorrectionDialog
+          invoiceId={invoiceId}
+          invoiceNumber={preview.invoiceNumber}
+          mode={correction}
+          onClose={() => setCorrection(null)}
+        />
+      ) : null}
 
       <div className="qs-invoice-viewer-main">
         <div className="qs-invoice-viewer-sheet-wrap">

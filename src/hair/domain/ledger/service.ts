@@ -1,6 +1,6 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
-import { fyhCustomers, fyhFinancialLedger } from '@/src/hair/db/schema';
+import { fyhCustomers, fyhFinancialLedger, fyhInvoices } from '@/src/hair/db/schema';
 import type { FinancialLedgerEntryDraft } from '@/src/hair/domain/ledger/types';
 import { walletBalanceFromLedger } from '@/src/hair/domain/ledger/plan';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
@@ -35,6 +35,11 @@ export async function postLedgerEntries(
   );
 }
 
+/** Ledger rows on a cancelled invoice stay stored and drop out of active balances. */
+export function excludeVoidInvoiceLedger(): SQL {
+  return or(isNull(fyhFinancialLedger.invoiceId), ne(fyhInvoices.status, 'void'))!;
+}
+
 export async function reconcileCustomerWalletCache(
   db: typeof hairDb,
   customerId: string,
@@ -47,8 +52,13 @@ export async function reconcileCustomerWalletCache(
       amountPaise: fyhFinancialLedger.amountPaise,
     })
     .from(fyhFinancialLedger)
+    .leftJoin(fyhInvoices, eq(fyhInvoices.id, fyhFinancialLedger.invoiceId))
     .where(
-      and(orgFilter(fyhFinancialLedger.organizationId, ctx), eq(fyhFinancialLedger.customerId, customerId)),
+      and(
+        orgFilter(fyhFinancialLedger.organizationId, ctx),
+        eq(fyhFinancialLedger.customerId, customerId),
+        excludeVoidInvoiceLedger(),
+      ),
     );
 
   const balance = walletBalanceFromLedger(rows);
@@ -70,8 +80,13 @@ export async function sumCustomerReceivablePaise(
       settled: sql<number>`coalesce(sum(case when ${fyhFinancialLedger.kind} in ('payment_received', 'receivable_settled') and ${fyhFinancialLedger.account} = 'accounts_receivable' and ${fyhFinancialLedger.direction} = 'credit' then ${fyhFinancialLedger.amountPaise} else 0 end), 0)`,
     })
     .from(fyhFinancialLedger)
+    .leftJoin(fyhInvoices, eq(fyhInvoices.id, fyhFinancialLedger.invoiceId))
     .where(
-      and(orgFilter(fyhFinancialLedger.organizationId, ctx), eq(fyhFinancialLedger.customerId, customerId)),
+      and(
+        orgFilter(fyhFinancialLedger.organizationId, ctx),
+        eq(fyhFinancialLedger.customerId, customerId),
+        excludeVoidInvoiceLedger(),
+      ),
     );
   return Math.max(0, Number(row?.open ?? 0) - Number(row?.settled ?? 0));
 }

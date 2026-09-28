@@ -1,4 +1,4 @@
-import { and, eq, gte, lt, sql } from 'drizzle-orm';
+import { and, eq, gte, lt, ne, sql } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import { fyhFinancialLedger, fyhInvoices } from '@/src/hair/db/schema';
 import { salonDayBounds, salonDayKeyOffset } from '@/src/hair/lib/salonTime';
@@ -232,6 +232,7 @@ async function dueCollectedBetween(from: Date, to: Date, ctx?: TenantContext | n
           locationFilter(fyhInvoices.locationId, ctx),
           eq(fyhFinancialLedger.kind, 'payment_received'),
           eq(fyhFinancialLedger.account, 'accounts_receivable'),
+          ne(fyhInvoices.status, 'void'),
           eq(fyhFinancialLedger.direction, 'credit'),
           lt(fyhInvoices.createdAt, from),
           gte(fyhFinancialLedger.createdAt, from),

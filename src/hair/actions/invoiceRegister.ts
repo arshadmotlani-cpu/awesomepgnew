@@ -105,6 +105,7 @@ export async function getInvoicePreviewAction(invoiceId: string): Promise<
       customerName: string;
       customerPhone: string;
       grandTotalLabel: string;
+      status: string;
     }
   | { ok: false; error: string }
 > {
@@ -121,6 +122,7 @@ export async function getInvoicePreviewAction(invoiceId: string): Promise<
       customerName: detail.customerName,
       customerPhone: detail.customerPhone,
       grandTotalLabel: formatInrFromPaise(detail.invoice.grandTotalPaise),
+      status: detail.invoice.status,
     };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Failed to load invoice' };

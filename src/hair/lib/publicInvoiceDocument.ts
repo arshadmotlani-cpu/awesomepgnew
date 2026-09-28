@@ -1,4 +1,5 @@
 import { paiseToIndianWords } from '@/src/hair/lib/amountInWords';
+import { summarizeInvoiceSettlement } from '@/src/hair/lib/billing/invoiceSettlement';
 import { formatInrPlainFromPaise } from '@/src/hair/lib/money';
 import { INVOICE_BRAND_LOGO, INVOICE_BUSINESS } from '@/src/hair/lib/invoiceBranding';
 import { escapeHtml } from '@/src/hair/lib/salonTime';
@@ -22,7 +23,7 @@ const STATUS_LABELS: Record<FyhInvoiceStatus, string> = {
   unpaid: 'Unpaid',
   partial: 'Partially paid',
   draft: 'Draft',
-  void: 'Void',
+  void: 'Cancelled',
   refunded: 'Refunded',
 };
 
@@ -59,6 +60,13 @@ export type PublicInvoiceViewModel = {
   grandTotalLabel: string;
   paidLabel: string;
   balanceLabel: string;
+  creditUsedLabel: string | null;
+  cashCollectedLabel: string | null;
+  upiCollectedLabel: string | null;
+  cardCollectedLabel: string | null;
+  otherCollectedLabel: string | null;
+  totalCollectedLabel: string;
+  dueLabel: string;
   paymentModes: string;
   amountInWords: string;
   terms: string | null;
@@ -107,7 +115,19 @@ export function buildPublicInvoiceViewModel(detail: InvoiceDetail): PublicInvoic
   } = detail;
 
   const money = formatInrPlainFromPaise;
-  const balancePaise = Math.max(0, invoice.grandTotalPaise - invoice.amountPaidPaise);
+  const settlement = summarizeInvoiceSettlement({
+    subtotalPaise: invoice.subtotalPaise,
+    discountPaise: invoice.discountPaise,
+    taxPaise: invoice.taxPaise,
+    grandTotalPaise: invoice.grandTotalPaise,
+    status: invoice.status,
+    payments: payments.map((payment) => ({
+      method: payment.method,
+      amountPaise: payment.amountPaise,
+    })),
+  });
+  const balancePaise = settlement.duePaise;
+  const optionalMoney = (paise: number) => (paise > 0 ? money(paise) : null);
   const gstBpsSample = lines.find(
     (l) => l.gstBps > 0 && !isPackageRedemptionLineName(l.nameSnapshot),
   )?.gstBps;
@@ -126,8 +146,8 @@ export function buildPublicInvoiceViewModel(detail: InvoiceDetail): PublicInvoic
     gstin: gstin ?? null,
     invoiceNumber: invoice.invoiceNumber,
     invoiceDate: formatInvoiceDate(invoice.createdAt),
-    status: invoice.status,
-    statusLabel: STATUS_LABELS[invoice.status] ?? invoice.status,
+    status: settlement.displayStatus,
+    statusLabel: STATUS_LABELS[settlement.displayStatus] ?? settlement.displayStatus,
     customerName,
     customerPhone,
     customerCode: customerCode ?? null,
@@ -169,13 +189,20 @@ export function buildPublicInvoiceViewModel(detail: InvoiceDetail): PublicInvoic
     discountLabel: money(invoice.discountPaise),
     gstLabel: money(invoice.taxPaise),
     grandTotalLabel: money(invoice.grandTotalPaise),
-    paidLabel: money(invoice.amountPaidPaise),
+    paidLabel: money(settlement.totalCollectedPaise),
     balanceLabel: money(balancePaise),
+    creditUsedLabel: optionalMoney(settlement.creditUsedPaise),
+    cashCollectedLabel: optionalMoney(settlement.cashPaise),
+    upiCollectedLabel: optionalMoney(settlement.upiPaise),
+    cardCollectedLabel: optionalMoney(settlement.cardPaise),
+    otherCollectedLabel: optionalMoney(settlement.otherCollectedPaise),
+    totalCollectedLabel: money(settlement.totalCollectedPaise),
+    dueLabel: money(balancePaise),
     paymentModes: paymentModesFromDetail(payments),
     amountInWords: paiseToIndianWords(invoice.grandTotalPaise),
     terms: invoiceNotes?.trim() || null,
     showDiscount: invoice.discountPaise > 0,
-    showBalance: balancePaise > 0,
+    showBalance: true,
     gstSummaryLabel,
   };
 }
@@ -218,14 +245,19 @@ html, body {
 }
 
 .fyh-invoice-toolbar {
-  width: 210mm;
-  min-width: 210mm;
-  max-width: 210mm;
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  width: min(100%, 100vw);
+  max-width: 100vw;
+  min-width: 0;
   margin: 0 auto 16px;
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
+  background: var(--fyh-canvas);
 }
 
 .fyh-invoice-btn {
@@ -705,6 +737,23 @@ html, body {
 }
 `;
 
+function settlementRow(label: string, value: string | null, extraClass = ''): string {
+  if (!value) return '';
+  return `<div class="fyh-invoice-totals-row${extraClass ? ` ${extraClass}` : ''}"><span>${escapeHtml(label)}</span><span>${escapeHtml(value)}</span></div>`;
+}
+
+function renderSettlementRowsHtml(vm: PublicInvoiceViewModel): string {
+  return [
+    settlementRow('Advance/Credit used', vm.creditUsedLabel),
+    settlementRow('Cash collected', vm.cashCollectedLabel),
+    settlementRow('UPI collected', vm.upiCollectedLabel),
+    settlementRow('Card collected', vm.cardCollectedLabel),
+    settlementRow('Other collected', vm.otherCollectedLabel),
+    settlementRow('Total collected', vm.totalCollectedLabel),
+    `<div class="fyh-invoice-totals-row balance"><span>Due</span><span>${escapeHtml(vm.dueLabel)}</span></div>`,
+  ].join('');
+}
+
 function statusClass(status: FyhInvoiceStatus): string {
   return `fyh-invoice-status fyh-invoice-status--${status}`;
 }
@@ -753,10 +802,6 @@ function renderInvoiceSheetHtml(vm: PublicInvoiceViewModel): string {
 
   const discountRow = vm.showDiscount
     ? `<div class="fyh-invoice-totals-row"><span>Discount</span><span>− ${escapeHtml(vm.discountLabel)}</span></div>`
-    : '';
-
-  const balanceRow = vm.showBalance
-    ? `<div class="fyh-invoice-totals-row balance"><span>Balance due</span><span>${escapeHtml(vm.balanceLabel)}</span></div>`
     : '';
 
   const customerIdRow = vm.customerCode
@@ -831,8 +876,7 @@ function renderInvoiceSheetHtml(vm: PublicInvoiceViewModel): string {
       ${discountRow}
       <div class="fyh-invoice-totals-row"><span>GST</span><span>${escapeHtml(vm.gstLabel)}</span></div>
       <div class="fyh-invoice-totals-row grand"><span>Grand total</span><span>${escapeHtml(vm.grandTotalLabel)}</span></div>
-      <div class="fyh-invoice-totals-row"><span>Paid</span><span>${escapeHtml(vm.paidLabel)}</span></div>
-      ${balanceRow}
+      ${renderSettlementRowsHtml(vm)}
     </div>
   </section>
 
@@ -902,10 +946,6 @@ function renderQuickSaleCompactInvoiceSheetHtml(vm: PublicInvoiceViewModel): str
     ? `<div class="fyh-invoice-totals-row"><span>Discount</span><span>− ${escapeHtml(vm.discountLabel)}</span></div>`
     : '';
 
-  const balanceRow = vm.showBalance
-    ? `<div class="fyh-invoice-totals-row balance"><span>Balance</span><span>${escapeHtml(vm.balanceLabel)}</span></div>`
-    : '';
-
   const customerIdRow = vm.customerCode
     ? `<p class="muted">Customer ID: ${escapeHtml(vm.customerCode)}</p>`
     : '';
@@ -970,8 +1010,7 @@ function renderQuickSaleCompactInvoiceSheetHtml(vm: PublicInvoiceViewModel): str
       ${discountRow}
       <div class="fyh-invoice-totals-row"><span>${escapeHtml(vm.gstSummaryLabel)}</span><span>${escapeHtml(vm.gstLabel)}</span></div>
       <div class="fyh-invoice-totals-row grand"><span>Grand total</span><span>${escapeHtml(vm.grandTotalLabel)}</span></div>
-      <div class="fyh-invoice-totals-row"><span>Paid</span><span>${escapeHtml(vm.paidLabel)}</span></div>
-      ${balanceRow}
+      ${renderSettlementRowsHtml(vm)}
     </div>
   </section>
 

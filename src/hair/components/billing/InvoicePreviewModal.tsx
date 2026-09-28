@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { getInvoicePreviewAction } from '@/src/hair/actions/invoiceRegister';
+import { InvoiceBillCorrectionDialog } from '@/src/hair/components/billing/InvoiceBillCorrection';
 import { PublicFyhInvoiceActions } from '@/src/hair/components/billing/PublicFyhInvoiceActions';
+import { invoiceCanBeCancelled } from '@/src/hair/lib/billing/invoiceCancellationPlan';
 import {
   FYH_INVOICE_MODAL_PRINT_STYLES,
   FYH_INVOICE_MODAL_SCREEN_STYLES,
@@ -17,6 +19,7 @@ type PreviewData = {
   customerName: string;
   customerPhone: string;
   grandTotalLabel: string;
+  status: string;
 };
 
 type Props = {
@@ -28,6 +31,7 @@ export function InvoicePreviewModal({ invoiceId, onClose }: Props) {
   const [pending, startTransition] = useTransition();
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [correction, setCorrection] = useState<'edit' | 'cancel' | null>(null);
 
   useEffect(() => {
     if (!invoiceId) {
@@ -53,6 +57,7 @@ export function InvoicePreviewModal({ invoiceId, onClose }: Props) {
         customerName: res.customerName,
         customerPhone: res.customerPhone,
         grandTotalLabel: res.grandTotalLabel,
+        status: res.status,
       });
     });
 
@@ -92,22 +97,34 @@ export function InvoicePreviewModal({ invoiceId, onClose }: Props) {
         className="fyh-invoice-modal-panel relative z-[101] my-4 w-[min(95vw,240mm)]"
       >
         <div className="fyh-invoice-body overflow-hidden rounded-lg">
-          <div className="fyh-invoice-page !min-h-0 !p-0">
-            <div className="fyh-invoice-toolbar !mb-0 !max-w-none sticky top-0 z-10 flex items-center justify-end gap-2 rounded-t-lg border-b border-[#e8dcc8] bg-[#faf6ee] px-4 py-2.5">
+          <div className="fyh-invoice-page !min-h-0 !w-full !min-w-0 !max-w-full !overflow-hidden !p-0">
+            <div className="fyh-invoice-toolbar !mb-0 !w-full !min-w-0 !max-w-full sticky top-0 z-10 flex items-center gap-2 rounded-t-lg border-b border-[#e8dcc8] bg-[#faf6ee] px-3 py-2.5">
               {preview ? (
-                <PublicFyhInvoiceActions
-                  invoiceNumber={preview.invoiceNumber}
-                  publicAccessToken={preview.publicAccessToken}
-                  customerPhone={preview.customerPhone}
-                  customerName={preview.customerName}
-                  grandTotalLabel={preview.grandTotalLabel}
-                  onClose={onClose}
-                />
+                <>
+                  <PublicFyhInvoiceActions
+                    invoiceNumber={preview.invoiceNumber}
+                    publicAccessToken={preview.publicAccessToken}
+                    customerPhone={preview.customerPhone}
+                    customerName={preview.customerName}
+                    grandTotalLabel={preview.grandTotalLabel}
+                    onClose={onClose}
+                  />
+                  {invoiceCanBeCancelled(preview.status) ? (
+                    <>
+                      <button type="button" className="fyh-invoice-btn" onClick={() => setCorrection('edit')}>
+                        Edit bill
+                      </button>
+                      <button type="button" className="fyh-invoice-btn" onClick={() => setCorrection('cancel')}>
+                        Cancel bill
+                      </button>
+                    </>
+                  ) : null}
+                </>
               ) : pending ? (
                 <span className="text-sm text-[#6b6358]">Loading…</span>
               ) : null}
             </div>
-            <div className="fyh-invoice-modal-scroll bg-[#f7f5f0]">
+            <div className="fyh-invoice-modal-scroll !w-full !min-w-0 bg-[#f7f5f0]">
               {pending && !preview ? (
                 <p className="py-16 text-center text-sm text-[#6b6358]">Loading invoice…</p>
               ) : null}
@@ -133,6 +150,14 @@ export function InvoicePreviewModal({ invoiceId, onClose }: Props) {
           </div>
         </div>
       </div>
+      {correction && preview ? (
+        <InvoiceBillCorrectionDialog
+          invoiceId={invoiceId}
+          invoiceNumber={preview.invoiceNumber}
+          mode={correction}
+          onClose={() => setCorrection(null)}
+        />
+      ) : null}
     </div>
   );
 }

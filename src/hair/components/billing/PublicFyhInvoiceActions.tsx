@@ -44,6 +44,11 @@ export function PublicFyhInvoiceActions({
 
   return (
     <>
+      {onClose ? (
+        <button type="button" onClick={onClose} className="fyh-invoice-btn mr-auto shrink-0">
+          Close
+        </button>
+      ) : null}
       <a href={pdfUrl} className="fyh-invoice-btn">
         Download PDF
       </a>
@@ -53,11 +58,6 @@ export function PublicFyhInvoiceActions({
       <button type="button" onClick={shareWhatsApp} className="fyh-invoice-btn">
         Share
       </button>
-      {onClose ? (
-        <button type="button" onClick={onClose} className="fyh-invoice-btn">
-          Close
-        </button>
-      ) : null}
     </>
   );
 }

@@ -335,7 +335,16 @@ export async function getStaffCommissionTotals(staffId: string, ctx?: TenantCont
       paidPaise: sql<number>`coalesce(sum(case when ${fyhCommissionEntries.status} = 'paid' then ${fyhCommissionEntries.amountPaise} else 0 end), 0)::bigint`,
     })
     .from(fyhCommissionEntries)
-    .where(and(orgFilter(fyhCommissionEntries.organizationId, ctx), locationFilter(fyhCommissionEntries.locationId, ctx), eq(fyhCommissionEntries.staffId, staffId)));
+    .innerJoin(fyhInvoiceLines, eq(fyhInvoiceLines.id, fyhCommissionEntries.invoiceLineId))
+    .innerJoin(fyhInvoices, eq(fyhInvoices.id, fyhInvoiceLines.invoiceId))
+    .where(
+      and(
+        orgFilter(fyhCommissionEntries.organizationId, ctx),
+        locationFilter(fyhCommissionEntries.locationId, ctx),
+        eq(fyhCommissionEntries.staffId, staffId),
+        ne(fyhInvoices.status, 'void'),
+      ),
+    );
 
   return {
     pendingPaise: Number(row?.pendingPaise ?? 0),
@@ -355,11 +364,14 @@ export async function getStaffCommissionInRange(
       totalPaise: sql<number>`coalesce(sum(${fyhCommissionEntries.amountPaise}), 0)::bigint`,
     })
     .from(fyhCommissionEntries)
+    .innerJoin(fyhInvoiceLines, eq(fyhInvoiceLines.id, fyhCommissionEntries.invoiceLineId))
+    .innerJoin(fyhInvoices, eq(fyhInvoices.id, fyhInvoiceLines.invoiceId))
     .where(
       and(
         eq(fyhCommissionEntries.staffId, staffId),
         gte(fyhCommissionEntries.periodDate, fromKey),
         lt(fyhCommissionEntries.periodDate, toKey),
+        ne(fyhInvoices.status, 'void'),
       ),
     );
 

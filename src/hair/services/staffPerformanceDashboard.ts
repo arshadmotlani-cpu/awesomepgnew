@@ -2,7 +2,7 @@
  * Staff Performance Command Center — single SSR snapshot (no N+1).
  */
 
-import { and, asc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, lt, ne, sql } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import {
   fyhCommissionEntries,
@@ -349,7 +349,9 @@ async function commissionByStaff(
       total: sql<number>`coalesce(sum(${fyhCommissionEntries.amountPaise}), 0)::bigint`,
     })
     .from(fyhCommissionEntries)
-    .where(and(...parts))
+    .innerJoin(fyhInvoiceLines, eq(fyhInvoiceLines.id, fyhCommissionEntries.invoiceLineId))
+    .innerJoin(fyhInvoices, eq(fyhInvoices.id, fyhInvoiceLines.invoiceId))
+    .where(and(...parts, ne(fyhInvoices.status, 'void')))
     .groupBy(fyhCommissionEntries.staffId);
 
   const map = new Map<string, number>();

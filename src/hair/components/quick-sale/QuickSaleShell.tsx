@@ -176,6 +176,11 @@ export function QuickSaleShell({
       missingStaffLines.length === 0,
   );
 
+  useEffect(() => {
+    if (!priced || missingStaffLines.length > 0 || paymentSummary?.isComplete) return;
+    document.querySelector('[data-testid="qs-checkout-bar"]')?.scrollIntoView({ block: 'nearest' });
+  }, [priced, missingStaffLines.length, paymentSummary?.isComplete]);
+
   const {
     loading: customerContextLoading,
     error: customerContextError,

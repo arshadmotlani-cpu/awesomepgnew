@@ -5,6 +5,7 @@ import {
 } from '@/src/hair/components/billing/BillingUi';
 import { InternalInvoiceActions } from '@/src/hair/components/billing/InternalInvoiceActions';
 import { Button } from '@/src/hair/components/ui/button';
+import { summarizeInvoiceSettlement } from '@/src/hair/lib/billing/invoiceSettlement';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { getInvoiceDetail } from '@/src/hair/services/invoices';
 import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
@@ -12,6 +13,28 @@ import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext'
 type Props = {
   params: Promise<{ invoiceId: string }>;
 };
+
+function SettlementRow({
+  label,
+  paise,
+  strong = false,
+  signed = false,
+}: {
+  label: string;
+  paise: number;
+  strong?: boolean;
+  signed?: boolean;
+}) {
+  return (
+    <div className={`flex justify-between gap-3 ${strong ? 'font-semibold' : ''}`}>
+      <span className="text-fyh-text-secondary">{label}</span>
+      <span className="tabular-nums">
+        {signed ? '−' : ''}
+        {formatInrFromPaise(paise)}
+      </span>
+    </div>
+  );
+}
 
 export default async function InvoiceDetailPage({ params }: Props) {
   const { invoiceId } = await params;
@@ -21,12 +44,24 @@ export default async function InvoiceDetailPage({ params }: Props) {
 
   const { invoice, customerName, customerPhone, stylistName, lines, payments, walletBalancePaise } =
     detail;
-  const duePaise = Math.max(0, invoice.grandTotalPaise - invoice.amountPaidPaise);
-  const unpaid = invoice.status === 'unpaid' || invoice.status === 'partial';
+  const settlement = summarizeInvoiceSettlement({
+    subtotalPaise: invoice.subtotalPaise,
+    discountPaise: invoice.discountPaise,
+    taxPaise: invoice.taxPaise,
+    grandTotalPaise: invoice.grandTotalPaise,
+    status: invoice.status,
+    payments: payments.map((payment) => ({
+      method: payment.method,
+      amountPaise: payment.amountPaise,
+    })),
+  });
+  const duePaise = settlement.duePaise;
+  const unpaid =
+    settlement.displayStatus === 'unpaid' || settlement.displayStatus === 'partial';
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="sticky top-0 z-20 flex flex-wrap items-start justify-between gap-3 bg-[color:var(--fyh-bg)] py-2">
         <div>
           <p className="fyh-section-eyebrow">Invoice · Staff</p>
           <h1 className="fyh-display mt-1 text-3xl font-semibold">{invoice.invoiceNumber}</h1>
@@ -41,23 +76,48 @@ export default async function InvoiceDetailPage({ params }: Props) {
               Back to register
             </Button>
           </Link>
-          <InternalInvoiceActions invoiceNumber={invoice.invoiceNumber} publicAccessToken={invoice.publicAccessToken} status={invoice.status} />
+          <InternalInvoiceActions
+            invoiceId={invoice.id}
+            invoiceNumber={invoice.invoiceNumber}
+            publicAccessToken={invoice.publicAccessToken}
+            status={invoice.status}
+          />
         </div>
       </div>
 
       <div className="fyh-glass grid gap-4 p-4 sm:grid-cols-3">
         <div>
           <p className="text-xs uppercase tracking-wide text-fyh-text-muted">Status</p>
-          <p className="mt-1 capitalize">{invoice.status}</p>
+          <p className="mt-1 capitalize">{settlement.displayStatus === 'void' ? 'Cancelled' : settlement.displayStatus}</p>
         </div>
         <div>
           <p className="text-xs uppercase tracking-wide text-fyh-text-muted">Grand total</p>
           <p className="mt-1 tabular-nums">{formatInrFromPaise(invoice.grandTotalPaise)}</p>
         </div>
         <div>
-          <p className="text-xs uppercase tracking-wide text-fyh-text-muted">Paid</p>
-          <p className="mt-1 tabular-nums">{formatInrFromPaise(invoice.amountPaidPaise)}</p>
+          <p className="text-xs uppercase tracking-wide text-fyh-text-muted">Due</p>
+          <p className="mt-1 tabular-nums">{formatInrFromPaise(settlement.duePaise)}</p>
         </div>
+      </div>
+
+      <div className="fyh-glass space-y-1 p-4 text-sm" data-testid="invoice-settlement">
+        <SettlementRow label="Subtotal" paise={settlement.subtotalPaise} />
+        {settlement.discountPaise > 0 ? (
+          <SettlementRow label="Discount" paise={settlement.discountPaise} signed />
+        ) : null}
+        <SettlementRow label="GST" paise={settlement.taxPaise} />
+        <SettlementRow label="Grand total" paise={settlement.grandTotalPaise} strong />
+        {settlement.creditUsedPaise > 0 ? (
+          <SettlementRow label="Advance/Credit used" paise={settlement.creditUsedPaise} />
+        ) : null}
+        {settlement.cashPaise > 0 ? <SettlementRow label="Cash collected" paise={settlement.cashPaise} /> : null}
+        {settlement.upiPaise > 0 ? <SettlementRow label="UPI collected" paise={settlement.upiPaise} /> : null}
+        {settlement.cardPaise > 0 ? <SettlementRow label="Card collected" paise={settlement.cardPaise} /> : null}
+        {settlement.otherCollectedPaise > 0 ? (
+          <SettlementRow label="Other collected" paise={settlement.otherCollectedPaise} />
+        ) : null}
+        <SettlementRow label="Total collected" paise={settlement.totalCollectedPaise} />
+        <SettlementRow label="Due" paise={settlement.duePaise} strong />
       </div>
 
       <div className="fyh-glass overflow-hidden">
@@ -82,20 +142,6 @@ export default async function InvoiceDetailPage({ params }: Props) {
           </tbody>
         </table>
       </div>
-
-      {payments.length > 0 ? (
-        <div className="fyh-glass p-4">
-          <p className="mb-2 text-xs uppercase tracking-wide text-fyh-text-muted">Payments</p>
-          <ul className="space-y-1 text-sm">
-            {payments.map((p) => (
-              <li key={p.id} className="flex justify-between">
-                <span className="capitalize text-fyh-text-secondary">{p.method}</span>
-                <span className="tabular-nums">{formatInrFromPaise(p.amountPaise)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
 
       {unpaid ? (
         <InvoicePayForm

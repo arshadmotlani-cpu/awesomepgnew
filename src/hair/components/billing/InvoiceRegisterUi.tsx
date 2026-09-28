@@ -20,6 +20,10 @@ import {
   type InvoiceRegisterExportFormat,
 } from '@/src/hair/actions/invoiceRegister';
 import { PrintInvoiceButton } from '@/src/hair/components/billing/BillingUi';
+import {
+  InvoiceBillCorrectionDialog,
+  InvoiceCorrectionMenuItems,
+} from '@/src/hair/components/billing/InvoiceBillCorrection';
 import { InvoicePreviewModal } from '@/src/hair/components/billing/InvoicePreviewModal';
 import { Button } from '@/src/hair/components/ui/button';
 import { FyhDatePicker } from '@/src/hair/components/ui/FyhDatePicker';
@@ -35,6 +39,8 @@ import {
   invoiceRegisterSearchHref,
   isStaleInvoiceRegisterNavigation,
 } from '@/src/hair/lib/billing/invoiceRegisterDayNav';
+import { displayInvoiceStatus } from '@/src/hair/lib/billing/invoiceSettlement';
+import { invoiceActionsUseSheet } from '@/src/hair/lib/ui/invoiceActionLayout';
 import { placeAnchoredMenu } from '@/src/hair/lib/ui/placeAnchoredMenu';
 import type { InvoiceRegisterRow } from '@/src/hair/services/invoiceRegisterQueries';
 import { cn } from '@/src/hair/lib/utils';
@@ -54,7 +60,7 @@ const STATUS_LABELS: Record<FyhInvoiceStatus, string> = {
   unpaid: 'Unpaid',
   partial: 'Partial',
   paid: 'Paid',
-  void: 'Void',
+  void: 'Cancelled',
   refunded: 'Refunded',
 };
 
@@ -104,12 +110,22 @@ function PaymentBadge({ modes }: { modes: string }) {
   );
 }
 
+function rowDisplayStatus(row: InvoiceRegisterRow): FyhInvoiceStatus {
+  return displayInvoiceStatus({
+    status: row.status,
+    grandTotalPaise: row.grandTotalPaise,
+    amountPaidPaise: row.paidPaise,
+  });
+}
+
 function InvoiceRowActions({
   row,
   onPreview,
+  onCorrect,
 }: {
   row: InvoiceRegisterRow;
   onPreview: (invoiceId: string) => void;
+  onCorrect: (mode: 'edit' | 'cancel') => void;
 }) {
   const [open, setOpen] = useState(false);
   const mounted = useSyncExternalStore(
@@ -119,6 +135,15 @@ function InvoiceRowActions({
   );
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const viewportWidth = useSyncExternalStore(
+    (onStoreChange) => {
+      window.addEventListener('resize', onStoreChange);
+      return () => window.removeEventListener('resize', onStoreChange);
+    },
+    () => window.innerWidth,
+    () => 1280,
+  );
+  const useSheet = invoiceActionsUseSheet(viewportWidth);
 
   const updateMenuPosition = useCallback(() => {
     const button = buttonRef.current;
@@ -138,7 +163,7 @@ function InvoiceRowActions({
   }, []);
 
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!open || useSheet) return;
     updateMenuPosition();
     const onReposition = () => updateMenuPosition();
     window.addEventListener('resize', onReposition);
@@ -147,7 +172,7 @@ function InvoiceRowActions({
       window.removeEventListener('resize', onReposition);
       window.removeEventListener('scroll', onReposition, true);
     };
-  }, [open, updateMenuPosition]);
+  }, [open, updateMenuPosition, useSheet]);
 
   useEffect(() => {
     if (!open) return;
@@ -202,79 +227,130 @@ function InvoiceRowActions({
     });
   }
 
+  const menuItems = (
+    <>
+      <button
+        type="button"
+        role="menuitem"
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-fyh-text hover:bg-white/6"
+        onClick={() => {
+          onPreview(row.id);
+          setOpen(false);
+        }}
+      >
+        <ExternalLink className="h-3.5 w-3.5" /> View
+      </button>
+      <InvoiceCorrectionMenuItems
+        status={row.status}
+        onEdit={() => {
+          onCorrect('edit');
+          setOpen(false);
+        }}
+        onCancel={() => {
+          onCorrect('cancel');
+          setOpen(false);
+        }}
+      />
+      <Link
+        href={`/billing/${row.id}`}
+        role="menuitem"
+        className="flex items-center gap-2 px-3 py-2.5 text-sm text-fyh-text-muted hover:bg-white/6"
+        onClick={() => setOpen(false)}
+      >
+        Staff detail
+      </Link>
+      <a
+        href={pdfHref}
+        role="menuitem"
+        className="flex items-center gap-2 px-3 py-2.5 text-sm text-fyh-text hover:bg-white/6"
+        onClick={() => setOpen(false)}
+      >
+        <Download className="h-3.5 w-3.5" /> Download PDF
+      </a>
+      <button
+        type="button"
+        role="menuitem"
+        disabled={pending}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-fyh-text hover:bg-white/6 disabled:opacity-50"
+        onClick={() => {
+          if (printHtml) {
+            const w = window.open('', '_blank', 'width=800,height=900');
+            if (w) {
+              w.document.write(printHtml);
+              w.document.close();
+              w.focus();
+              w.print();
+            }
+            setOpen(false);
+            return;
+          }
+          loadPrintHtml((html) => {
+            const w = window.open('', '_blank', 'width=800,height=900');
+            if (w) {
+              w.document.write(html);
+              w.document.close();
+              w.focus();
+              w.print();
+            }
+            setOpen(false);
+          });
+        }}
+      >
+        <Printer className="h-3.5 w-3.5" /> Print
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        disabled={pending}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-fyh-text hover:bg-white/6 disabled:opacity-50"
+        onClick={share}
+      >
+        <Share2 className="h-3.5 w-3.5" /> Share
+      </button>
+    </>
+  );
+
   const menu =
     mounted && open
       ? createPortal(
-          <div
-            ref={menuRef}
-            role="menu"
-            data-testid="invoice-row-actions"
-            className="fixed z-[700] min-w-[11rem] rounded-xl border border-[color:var(--fyh-border-strong)] bg-fyh-elevated py-1 shadow-xl"
-            style={{ top: 0, left: 0, visibility: 'hidden', pointerEvents: 'none' }}
-          >
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-fyh-text hover:bg-white/6"
-              onClick={() => {
-                onPreview(row.id);
-                setOpen(false);
-              }}
+          useSheet ? (
+            <div className="fixed inset-0 z-[700]" data-testid="invoice-action-sheet">
+              <button
+                type="button"
+                className="absolute inset-0 bg-black/50"
+                aria-label="Close invoice actions"
+                onClick={() => setOpen(false)}
+              />
+              <div
+                ref={menuRef}
+                role="menu"
+                data-testid="invoice-row-actions"
+                className="absolute inset-x-0 bottom-0 max-h-[80dvh] overflow-auto rounded-t-2xl border border-[color:var(--fyh-border-strong)] bg-fyh-elevated py-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-xl"
+              >
+                <div className="flex items-center justify-between px-3 py-2">
+                  <p className="text-sm font-semibold text-fyh-text">{row.invoiceNumber}</p>
+                  <button
+                    type="button"
+                    className="text-sm font-semibold text-fyh-accent"
+                    onClick={() => setOpen(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+                {menuItems}
+              </div>
+            </div>
+          ) : (
+            <div
+              ref={menuRef}
+              role="menu"
+              data-testid="invoice-row-actions"
+              className="fixed z-[700] min-w-[11rem] rounded-xl border border-[color:var(--fyh-border-strong)] bg-fyh-elevated py-1 shadow-xl"
+              style={{ top: 0, left: 0, visibility: 'hidden', pointerEvents: 'none' }}
             >
-              <ExternalLink className="h-3.5 w-3.5" /> View
-            </button>
-            <Link
-              href={`/billing/${row.id}`}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-fyh-text-muted hover:bg-white/6"
-              onClick={() => setOpen(false)}
-            >
-              Staff detail
-            </Link>
-            <a
-              href={pdfHref}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-fyh-text hover:bg-white/6"
-              onClick={() => setOpen(false)}
-            >
-              <Download className="h-3.5 w-3.5" /> Download PDF
-            </a>
-            <button
-              type="button"
-              disabled={pending}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-fyh-text hover:bg-white/6 disabled:opacity-50"
-              onClick={() => {
-                if (printHtml) {
-                  const w = window.open('', '_blank', 'width=800,height=900');
-                  if (w) {
-                    w.document.write(printHtml);
-                    w.document.close();
-                    w.focus();
-                    w.print();
-                  }
-                  setOpen(false);
-                  return;
-                }
-                loadPrintHtml((html) => {
-                  const w = window.open('', '_blank', 'width=800,height=900');
-                  if (w) {
-                    w.document.write(html);
-                    w.document.close();
-                    w.focus();
-                    w.print();
-                  }
-                  setOpen(false);
-                });
-              }}
-            >
-              <Printer className="h-3.5 w-3.5" /> Print
-            </button>
-            <button
-              type="button"
-              disabled={pending}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-fyh-text hover:bg-white/6 disabled:opacity-50"
-              onClick={share}
-            >
-              <Share2 className="h-3.5 w-3.5" /> Share
-            </button>
-          </div>,
+              {menuItems}
+            </div>
+          ),
           document.body,
         )
       : null;
@@ -468,6 +544,11 @@ export function InvoiceRegisterUi({
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportPending, startExport] = useTransition();
   const [previewInvoiceId, setPreviewInvoiceId] = useState<string | null>(null);
+  const [correction, setCorrection] = useState<{
+    invoiceId: string;
+    invoiceNumber: string;
+    mode: 'edit' | 'cancel';
+  } | null>(null);
   const openPreview = useCallback((invoiceId: string) => setPreviewInvoiceId(invoiceId), []);
   const closePreview = useCallback(() => setPreviewInvoiceId(null), []);
 
@@ -678,7 +759,17 @@ export function InvoiceRegisterUi({
                   >
                     {row.invoiceNumber}
                   </button>
-                  <InvoiceRowActions row={row} onPreview={openPreview} />
+                  <InvoiceRowActions
+                    row={row}
+                    onPreview={openPreview}
+                    onCorrect={(mode) =>
+                      setCorrection({
+                        invoiceId: row.id,
+                        invoiceNumber: row.invoiceNumber,
+                        mode,
+                      })
+                    }
+                  />
                 </div>
                 <p className="mt-1 text-sm font-medium">{row.customerName}</p>
                 <p className="text-xs text-fyh-text-muted">{row.mobile}</p>
@@ -686,7 +777,7 @@ export function InvoiceRegisterUi({
                   <span className="text-xs text-fyh-text-secondary">
                     {row.invoiceDate.toISOString().slice(0, 10)}
                   </span>
-                  <StatusBadge status={row.status} />
+                  <StatusBadge status={rowDisplayStatus(row)} />
                   <PaymentBadge modes={row.paymentModes} />
                 </div>
                 <p className="mt-2 text-sm font-semibold tabular-nums text-fyh-text">
@@ -758,10 +849,20 @@ export function InvoiceRegisterUi({
                       {formatInrFromPaise(row.grandTotalPaise)}
                     </td>
                     <td className="px-2 py-2">
-                      <StatusBadge status={row.status} />
+                      <StatusBadge status={rowDisplayStatus(row)} />
                     </td>
                     <td className="px-2 py-2">
-                      <InvoiceRowActions row={row} onPreview={openPreview} />
+                      <InvoiceRowActions
+                    row={row}
+                    onPreview={openPreview}
+                    onCorrect={(mode) =>
+                      setCorrection({
+                        invoiceId: row.id,
+                        invoiceNumber: row.invoiceNumber,
+                        mode,
+                      })
+                    }
+                  />
                     </td>
                   </tr>
                 ))}
@@ -810,6 +911,14 @@ export function InvoiceRegisterUi({
       ) : null}
 
       <InvoicePreviewModal invoiceId={previewInvoiceId} onClose={closePreview} />
+      {correction ? (
+        <InvoiceBillCorrectionDialog
+          invoiceId={correction.invoiceId}
+          invoiceNumber={correction.invoiceNumber}
+          mode={correction.mode}
+          onClose={() => setCorrection(null)}
+        />
+      ) : null}
     </div>
   );
 }

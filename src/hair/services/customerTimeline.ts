@@ -15,7 +15,7 @@ import {
 import type { FyhTimelineEventType } from '@/src/hair/db/schema/customerActivity';
 import type { LedgerKind } from '@/src/hair/domain/ledger/types';
 import { walletBalanceFromLedger } from '@/src/hair/domain/ledger/plan';
-import { sumCustomerReceivablePaise } from '@/src/hair/domain/ledger/service';
+import { excludeVoidInvoiceLedger, sumCustomerReceivablePaise } from '@/src/hair/domain/ledger/service';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import {
   sortUnifiedTimeline,
@@ -456,12 +456,14 @@ export async function sumCustomerAdvanceCreditPaise(
       amountPaise: fyhFinancialLedger.amountPaise,
     })
     .from(fyhFinancialLedger)
+    .leftJoin(fyhInvoices, eq(fyhInvoices.id, fyhFinancialLedger.invoiceId))
     .where(
       andTenant(
         orgFilter(fyhFinancialLedger.organizationId, ctx),
         eq(fyhFinancialLedger.customerId, customerId),
         eq(fyhFinancialLedger.kind, 'advance_credit'),
         eq(fyhFinancialLedger.direction, 'credit'),
+        excludeVoidInvoiceLedger(),
       ),
     );
 
@@ -484,10 +486,12 @@ export async function getCustomerFinancialSummary(
           amountPaise: fyhFinancialLedger.amountPaise,
         })
         .from(fyhFinancialLedger)
+        .leftJoin(fyhInvoices, eq(fyhInvoices.id, fyhFinancialLedger.invoiceId))
         .where(
           andTenant(
             orgFilter(fyhFinancialLedger.organizationId, ctx),
             eq(fyhFinancialLedger.customerId, customerId),
+            excludeVoidInvoiceLedger(),
           ),
         ),
       hairDb

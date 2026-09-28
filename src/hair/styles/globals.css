@@ -2216,6 +2216,19 @@
   }
 }
 
+@media (max-width: 767px) {
+  .qs-compact-checkout {
+    grid-template-columns: 1fr;
+    max-height: min(52dvh, 28rem);
+    overflow: auto;
+  }
+
+  .qs-invoice-viewer-toolbar {
+    max-height: 40dvh;
+    overflow: auto;
+  }
+}
+
 .qs-customer-bar {
   display: flex;
   flex-wrap: wrap;

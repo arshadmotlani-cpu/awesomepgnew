@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, gt, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, gt, lt, ne, or, sql } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import {
   fyhCustomerMemberships,
@@ -12,6 +12,7 @@ import {
   fyhBrands,
 } from '@/src/hair/db/schema';
 import { walletBalanceFromLedger } from '@/src/hair/domain/ledger/plan';
+import { excludeVoidInvoiceLedger } from '@/src/hair/domain/ledger/service';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults, tenantOrgDefaults } from '@/src/hair/lib/tenant/filters';
 
@@ -139,6 +140,7 @@ export async function paymentMethodSplit(range: ReportDateRange, ctx?: TenantCon
         locationFilter(fyhInvoices.locationId, ctx),
         eq(fyhFinancialLedger.kind, 'payment_received'),
         eq(fyhFinancialLedger.direction, 'debit'),
+        ne(fyhInvoices.status, 'void'),
         sql`${fyhFinancialLedger.account} in ('cash', 'upi', 'card', 'bank')`,
         sql`${fyhInvoices.source} <> 'advance_payment'`,
         gte(fyhFinancialLedger.createdAt, range.from),
@@ -302,10 +304,14 @@ export async function walletBalancesReport(page?: ReportPageOptions, ctx?: Tenan
     })
     .from(fyhFinancialLedger)
     .innerJoin(fyhCustomers, eq(fyhCustomers.id, fyhFinancialLedger.customerId))
+    .leftJoin(fyhInvoices, eq(fyhInvoices.id, fyhFinancialLedger.invoiceId))
     .where(
-      or(
-        eq(fyhFinancialLedger.kind, 'advance_credit'),
-        eq(fyhFinancialLedger.kind, 'wallet_redemption'),
+      and(
+        or(
+          eq(fyhFinancialLedger.kind, 'advance_credit'),
+          eq(fyhFinancialLedger.kind, 'wallet_redemption'),
+        ),
+        excludeVoidInvoiceLedger(),
       ),
     );
 
