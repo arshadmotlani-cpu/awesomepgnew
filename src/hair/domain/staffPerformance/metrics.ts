@@ -1,9 +1,13 @@
 /**
  * Staff performance accounting SSOT (FYH).
  *
- * Sales = attributed product retail only.
- * Performance = attributed service delivery only (includes package/membership redemptions
- * because those attributions are stored with revenue_metric = 'service').
+ * Product sales = attributed physical/retail product lines only (`revenue_metric = product`).
+ * Service performance = every service-family attribution:
+ *   performed services and prepaid redemptions (`service`),
+ *   membership purchases (`membership`),
+ *   package purchases (`package`).
+ * Those three metrics are separate rows, so summing them does not double-count.
+ * Gift cards are not a revenue metric and are not product sales.
  */
 
 import type { FyhRevenueMetric } from '@/src/hair/db/schema';
@@ -22,7 +26,7 @@ export type StaffPerformanceSummaryLike = {
   membershipRevenuePaise: number;
 };
 
-/** Product sales attributed to staff (retail). */
+/** Physical product sales attributed to staff. Services, memberships, and packages are excluded. */
 export function staffProductSalesPaise(parts: StaffMetricParts): number {
   return parts.productPaise;
 }
@@ -31,13 +35,17 @@ export function staffProductSalesFromSummary(summary: StaffPerformanceSummaryLik
   return summary.productRevenuePaise;
 }
 
-/** Service performance attributed to staff (performed services, incl. prepaid redemptions). */
+/** Service-family performance: performed services + membership + package attributions. */
 export function staffServicePerformancePaise(parts: StaffMetricParts): number {
-  return parts.servicePaise;
+  return parts.servicePaise + parts.membershipPaise + parts.packagePaise;
 }
 
 export function staffServicePerformanceFromSummary(summary: StaffPerformanceSummaryLike): number {
-  return summary.serviceRevenuePaise;
+  return (
+    summary.serviceRevenuePaise +
+    summary.membershipRevenuePaise +
+    summary.packageRevenuePaise
+  );
 }
 
 /** Package/membership purchase attribution (collection at sale) — not sales or service performance. */
@@ -80,7 +88,7 @@ export function metricAmountFromParts(
 }
 
 export function isPerformanceRevenueMetric(metric: FyhRevenueMetric): boolean {
-  return metric === 'service';
+  return metric === 'service' || metric === 'package' || metric === 'membership';
 }
 
 export function isProductSalesRevenueMetric(metric: FyhRevenueMetric): boolean {

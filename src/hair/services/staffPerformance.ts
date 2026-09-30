@@ -180,7 +180,7 @@ export function summaryTotalPaise(summary: StaffPerformanceSummary): number {
   return staffCombinedFromSummary(summary);
 }
 
-/** Service performance only (includes package/membership redemptions via service metric). */
+/** Service-family performance (services, memberships, packages). Excludes product retail. */
 export function performanceAmountPaiseFromSummary(summary: StaffPerformanceSummary): number {
   return staffServicePerformanceFromSummary(summary);
 }
@@ -192,10 +192,10 @@ export function salesTotalPaiseFromSummary(summary: StaffPerformanceSummary): nu
 
 export function performanceAmountFromMetricParts(
   servicePaise: number,
-  _packagePaise: number,
-  _membershipPaise: number,
+  packagePaise: number,
+  membershipPaise: number,
 ): number {
-  return servicePaise;
+  return servicePaise + packagePaise + membershipPaise;
 }
 
 export function productSalesFromMetricParts(

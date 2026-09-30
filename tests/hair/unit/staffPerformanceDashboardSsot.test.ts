@@ -17,13 +17,13 @@ test('performanceAmountPaiseFromSummary excludes product retail', () => {
     packageRevenuePaise: 2_000,
     membershipRevenuePaise: 1_000,
   };
-  assert.equal(performanceAmountPaiseFromSummary(summary), 10_000);
+  assert.equal(performanceAmountPaiseFromSummary(summary), 13_000);
   assert.equal(salesTotalPaiseFromSummary(summary), 5_000);
   assert.notEqual(performanceAmountPaiseFromSummary(summary), salesTotalPaiseFromSummary(summary));
 });
 
-test('performanceAmountFromMetricParts is service performance only', () => {
-  assert.equal(performanceAmountFromMetricParts(100, 50, 25), 100);
+test('performanceAmountFromMetricParts includes membership and package, not as a separate product total', () => {
+  assert.equal(performanceAmountFromMetricParts(100, 50, 25), 175);
 });
 
 test('parseStaffPerformanceSearchParams reads locations and compare mode', () => {

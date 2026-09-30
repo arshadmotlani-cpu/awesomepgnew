@@ -104,11 +104,7 @@ export type StaffTopTenRow = {
 export type StaffSalesSummaryRow = {
   staffId: string;
   name: string;
-  servicePaise: number;
   productPaise: number;
-  packagePaise: number;
-  membershipPaise: number;
-  giftCardPaise: number;
   totalPaise: number;
 };
 
@@ -626,11 +622,7 @@ export async function getStaffPerformanceCommandCenter(input?: {
       return {
         staffId: s.staffId,
         name: s.name,
-        servicePaise: s.servicePaise,
         productPaise: s.productPaise,
-        packagePaise: s.packagePaise,
-        membershipPaise: s.membershipPaise,
-        giftCardPaise: 0,
         totalPaise: productTotal,
         revenuePaise: productTotal,
       };

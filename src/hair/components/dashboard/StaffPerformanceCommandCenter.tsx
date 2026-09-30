@@ -111,8 +111,8 @@ export function StaffPerformanceCommandCenter({
             Total service performance · {formatInrFromPaise(data.totalServicePerformancePaise)}
           </p>
           <p className="text-[10px] text-fyh-text-muted">
-            Performed services only (includes package/membership redemptions at allocated service
-            value). Not payroll or incentives.
+            Services, memberships, and packages. Product sales are separate. Not payroll or
+            incentives.
           </p>
           <div className="mt-4">
             <StaffTopTenBarChart rows={data.topTenPerformance} valueLabel="Performance" />
@@ -122,18 +122,10 @@ export function StaffPerformanceCommandCenter({
 
       <SummaryTable
         title="Product sales by staff"
-        subtitle="Product column total is product sales; other columns are context only"
-        headers={[
-          'Staff Name',
-          'Service (₹)',
-          'Product (₹)',
-          'Package (₹)',
-          'Membership (₹)',
-          'Gift Card (₹)',
-          'Total (₹)',
-        ]}
+        subtitle="Physical retail products only. Services, memberships, and packages are not included."
+        headers={['Staff Name', 'Product (₹)', 'Total (₹)']}
         rows={data.salesSummaryTable}
-        renderRow={(row, idx) => {
+        renderRow={(row) => {
           const r = row as StaffPerformanceCommandCenterSnapshot['salesSummaryTable'][number];
           return (
             <tr key={r.staffId} className="border-b border-[color:var(--fyh-border)] last:border-0">
@@ -142,13 +134,7 @@ export function StaffPerformanceCommandCenter({
                   {r.name}
                 </Link>
               </td>
-              <td className="py-2 pr-3 tabular-nums">{formatInrFromPaise(r.servicePaise)}</td>
               <td className="py-2 pr-3 tabular-nums">{formatInrFromPaise(r.productPaise)}</td>
-              <td className="py-2 pr-3 tabular-nums">{formatInrFromPaise(r.packagePaise)}</td>
-              <td className="py-2 pr-3 tabular-nums">{formatInrFromPaise(r.membershipPaise)}</td>
-              <td className="py-2 pr-3 tabular-nums text-fyh-text-muted">
-                {r.giftCardPaise === 0 ? '—' : formatInrFromPaise(r.giftCardPaise)}
-              </td>
               <td className="py-2 tabular-nums font-medium">{formatInrFromPaise(r.totalPaise)}</td>
             </tr>
           );
@@ -157,8 +143,14 @@ export function StaffPerformanceCommandCenter({
 
       <SummaryTable
         title="Service performance by staff"
-        subtitle="Total column is service performance only (performed services)"
-        headers={['Staff Name', 'Service (₹)', 'Membership purchase (₹)', 'Package purchase (₹)', 'Total (₹)']}
+        subtitle="Total is service + membership + package. Product sales are not included."
+        headers={[
+          'Staff Name',
+          'Service (₹)',
+          'Membership (₹)',
+          'Package (₹)',
+          'Total service performance (₹)',
+        ]}
         rows={data.performanceAmountTable}
         renderRow={(row) => {
           const r = row as StaffPerformanceCommandCenterSnapshot['performanceAmountTable'][number];

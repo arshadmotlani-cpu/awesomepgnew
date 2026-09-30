@@ -15,6 +15,15 @@ test('Part 12 scenario — product sales vs service performance', () => {
   assert.equal(staffServicePerformancePaise(staff2), 40_000);
   assert.equal(staffProductSalesPaise(staff3), 150_000);
   assert.equal(staffProductSalesPaise(staff1), 0);
+  assert.equal(
+    staffServicePerformancePaise({
+      servicePaise: 10_000,
+      productPaise: 99_000,
+      packagePaise: 4_000,
+      membershipPaise: 6_000,
+    }),
+    20_000,
+  );
 
   const collection = staffCombinedAttributedPaise(staff1) + staffCombinedAttributedPaise(staff3);
   assert.equal(collection, 250_000);
