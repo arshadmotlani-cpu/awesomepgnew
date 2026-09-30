@@ -185,7 +185,7 @@ export type OccupancyAggregateCounts = {
   futureOpenings: Array<{ availableFromDate: string; bedCount: number }>;
 };
 
-export function resolveFromSelectorBed(bed: {
+export type SelectorBedOccupancyInput = {
   bedId: string;
   status: 'available' | 'maintenance' | 'blocked';
   isAvailableNow?: boolean;
@@ -202,8 +202,11 @@ export function resolveFromSelectorBed(bed: {
   interestCount?: number;
   noticeInterestCount?: number;
   availableUntilDate?: string | null;
-}): ResolvedBedOccupancy {
-  return resolveBedOccupancy({
+  transferHoldActive?: boolean;
+};
+
+function selectorBedToOccupancyFacts(bed: SelectorBedOccupancyInput): RawBedOccupancyFacts {
+  return {
     bedId: bed.bedId,
     bedStatus: bed.status,
     isOccupiedToday: Boolean(bed.isOccupiedToday),
@@ -218,8 +221,18 @@ export function resolveFromSelectorBed(bed: {
     reservedFrom: bed.reservedFrom,
     noticeInterestCount: bed.noticeInterestCount,
     holdInterestCount: bed.interestCount,
+    transferHoldActive: bed.transferHoldActive,
     availableUntilDate: bed.availableUntilDate,
-  });
+  };
+}
+
+/** Server-safe bookability check — same SSOT as customer `canBookBed`. */
+export function canBookSelectorBed(bed: SelectorBedOccupancyInput): boolean {
+  return resolveBedOccupancy(selectorBedToOccupancyFacts(bed)).isBookable;
+}
+
+export function resolveFromSelectorBed(bed: SelectorBedOccupancyInput): ResolvedBedOccupancy {
+  return resolveBedOccupancy(selectorBedToOccupancyFacts(bed));
 }
 
 export function aggregateOccupancyCounts(

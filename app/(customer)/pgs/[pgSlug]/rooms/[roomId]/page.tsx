@@ -6,8 +6,8 @@ import {
   BedSelector,
   type BedSelectorBed,
 } from '@/src/components/customer/BedSelector';
-import { canBookBed } from '@/src/components/customer/customerBedUi';
-import { resolveFromSelectorBed } from '@/src/lib/bedOccupancyResolve';
+import { parseSharedBedQueryParam } from '@/src/lib/booking/sharedBedDeepLink';
+import { canBookSelectorBed, resolveFromSelectorBed } from '@/src/lib/bedOccupancyResolve';
 import { StickyBookCta } from '@/src/components/customer/marketing/StickyBookCta';
 import { CountUpNumber } from '@/src/components/customer/design-system';
 import { RoomDetailInsights } from '@/src/components/customer/RoomDetailInsights';
@@ -30,13 +30,7 @@ export default async function RoomDetailPage(
 ) {
   const { pgSlug, roomId } = await props.params;
   const searchParams = await props.searchParams;
-  const sharedBedParam = searchParams.bed;
-  const sharedBedId =
-    typeof sharedBedParam === 'string'
-      ? sharedBedParam
-      : Array.isArray(sharedBedParam)
-        ? sharedBedParam[0] ?? null
-        : null;
+  const sharedBedId = parseSharedBedQueryParam(searchParams.bed);
 
   const detail = await getRoomDetail(pgSlug, roomId);
 
@@ -105,7 +99,7 @@ export default async function RoomDetailPage(
   }));
 
   const availableNowCount = bedsForSelector.filter((b) => resolveFromSelectorBed(b).isOpenNow).length;
-  const bookableCount = bedsForSelector.filter((b) => canBookBed(b)).length;
+  const bookableCount = bedsForSelector.filter((b) => canBookSelectorBed(b)).length;
 
   const rateSample = bedsForSelector.find((b) => b.monthlyRatePaise > 0) ?? bedsForSelector[0];
 

@@ -7,7 +7,7 @@ import {
   deriveCustomerBedAvailabilityView,
   type BedAvailabilityKind,
 } from '@/src/lib/bedAvailabilityState';
-import { resolveBedOccupancy } from '@/src/lib/bedOccupancyResolve';
+import { canBookSelectorBed } from '@/src/lib/bedOccupancyResolve';
 import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
 import { BOOK_THIS_BED, HOLD_THIS_BED } from '@/src/lib/booking/bookingFunnelLabels';
 import { displayMonthlyDepositPaise } from '@/src/lib/customerDepositDisplay';
@@ -43,24 +43,7 @@ function bedAvailability(bed: BedSelectorBed) {
 }
 
 export function canBookBed(bed: BedSelectorBed): boolean {
-  return resolveBedOccupancy({
-    bedId: bed.bedId,
-    bedStatus: bed.status,
-    isOccupiedToday: Boolean(bed.isOccupiedToday),
-    manualOccupied: bed.manualOccupied,
-    stayType: bed.stayType,
-    durationMode: bed.durationMode,
-    expectedCheckoutDate: bed.expectedCheckoutDate,
-    stayUpper: bed.nextAvailableDate,
-    vacatingDate: bed.vacatingDate,
-    vacatingStatus: bed.vacatingStatus,
-    activeBedReserveCheckIn: bed.activeBedReserveCheckIn,
-    reservedFrom: bed.reservedFrom,
-    noticeInterestCount: bed.noticeInterestCount,
-    holdInterestCount: bed.interestCount,
-    transferHoldActive: bed.transferHoldActive,
-    availableUntilDate: bed.availableUntilDate,
-  }).isBookable;
+  return canBookSelectorBed(bed);
 }
 
 function visualStateForKind(kind: BedAvailabilityKind, selected?: boolean): BedVisualState {

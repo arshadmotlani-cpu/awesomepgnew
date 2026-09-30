@@ -13,6 +13,12 @@ import {
 import { copyBedShareLink, requestNativeBedShare } from '../../src/lib/booking/shareBedLink';
 import { clampSharePopoverPosition } from '../../src/lib/booking/sharePopoverPosition';
 import {
+  escapeCssAttributeSelectorValue,
+  isSharedBedUuid,
+  parseSharedBedQueryParam,
+} from '../../src/lib/booking/sharedBedDeepLink';
+import { canBookSelectorBed } from '../../src/lib/bedOccupancyResolve';
+import {
   applySharedBedSelection,
   resolveSharedBedPrompt,
   sharedBedPromptCopy,
@@ -353,4 +359,78 @@ test('public bed tiles render the share control', () => {
   assert.match(tile, /CustomerBedTile/);
   assert.match(read('src/components/customer/block/PgBlockBooking.tsx'), /PublicBedTile/);
   assert.match(read('src/components/customer/BedSelector.tsx'), /PublicBedTile/);
+});
+
+test('room page server component does not import client-only bed UI', () => {
+  const roomPage = read('app/(customer)/pgs/[pgSlug]/rooms/[roomId]/page.tsx');
+  assert.doesNotMatch(roomPage, /customerBedUi/);
+  assert.match(roomPage, /canBookSelectorBed/);
+  assert.match(roomPage, /parseSharedBedQueryParam/);
+});
+
+test('shared bed query parsing and deep-link helpers never throw', () => {
+  assert.equal(parseSharedBedQueryParam(undefined), null);
+  assert.equal(parseSharedBedQueryParam('  '), null);
+  assert.equal(parseSharedBedQueryParam(BED), BED);
+  assert.equal(parseSharedBedQueryParam(['', BED]), BED);
+  assert.equal(isSharedBedUuid('33333333-3333-4333-8333-333333333333'), true);
+  assert.equal(isSharedBedUuid('not-a-uuid'), false);
+  assert.equal(escapeCssAttributeSelectorValue('a"b\\'), 'a\\"b\\\\');
+  assert.doesNotThrow(() =>
+    resolveSharedBedPrompt({
+      sharedBedId: 'not-a-uuid',
+      dismissed: false,
+      roomLabel: 'Room 201',
+      beds: [],
+    }),
+  );
+});
+
+test('invalid or missing shared bed id does not block prompt resolution', () => {
+  const missing = resolveSharedBedPrompt({
+    sharedBedId: '00000000-0000-4000-8000-000000000099',
+    dismissed: false,
+    roomLabel: 'Room 201',
+    beds: [bookable],
+  });
+  assert.equal(missing.phase, 'open');
+  if (missing.phase === 'open') {
+    assert.equal(missing.availability, 'archived');
+    assert.equal(missing.canSelect, false);
+  }
+});
+
+test('canBookSelectorBed matches public selector bookability SSOT', () => {
+  assert.equal(
+    canBookSelectorBed({
+      bedId: BED,
+      status: 'available',
+      isOccupiedToday: false,
+      manualOccupied: false,
+      nextAvailableDate: null,
+    }),
+    true,
+  );
+  assert.equal(
+    canBookSelectorBed({
+      bedId: BED,
+      status: 'maintenance',
+      isOccupiedToday: false,
+    }),
+    false,
+  );
+});
+
+test('BedSelector deep-link scroll uses safe CSS escaping and guards', () => {
+  const selector = read('src/components/customer/BedSelector.tsx');
+  assert.match(selector, /escapeCssAttributeSelectorValue/);
+  assert.match(selector, /beds\.some\(\(b\) => b\.bedId === sharedBedId\)/);
+  assert.doesNotMatch(selector, /CSS\.escape/);
+});
+
+test('BedShareButton does not touch window or document during initial render', () => {
+  const ui = read('src/components/customer/BedShareButton.tsx');
+  assert.match(ui, /useEffect\(\(\) => setMounted\(true\)/);
+  assert.match(ui, /mounted && popover \? createPortal/);
+  assert.doesNotMatch(ui, /^\s*const url = window/m);
 });

@@ -8,6 +8,7 @@ import { BedBookingPanel } from './BedBookingPanel';
 import { BedReservePanel } from './BedReservePanel';
 import { CustomerBedDetailSheet, canBookBed } from './customerBedUi';
 import type { BedSelectorBed } from './customerBedTypes';
+import { escapeCssAttributeSelectorValue } from '@/src/lib/booking/sharedBedDeepLink';
 import {
   applySharedBedSelection,
   resolveSharedBedPrompt,
@@ -93,9 +94,15 @@ export function BedSelector({
 
   useEffect(() => {
     if (!sharedBedId) return;
-    const el = document.querySelector(`[data-bed-id="${CSS.escape(sharedBedId)}"]`);
-    el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [sharedBedId]);
+    if (!beds.some((b) => b.bedId === sharedBedId)) return;
+    try {
+      const safeId = escapeCssAttributeSelectorValue(sharedBedId);
+      const el = document.querySelector(`[data-bed-id="${safeId}"]`);
+      el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    } catch {
+      // Deep-link scroll must never break the room page.
+    }
+  }, [sharedBedId, beds]);
 
   function openPanelForBed(
     bedId: string,
@@ -126,7 +133,7 @@ export function BedSelector({
                   <PublicBedTile
                     bed={view}
                     isSelected={selected.has(bed.bedId)}
-                    highlighted={sharedBedId === bed.bedId}
+                    highlighted={Boolean(sharedBedId && sharedBedId === bed.bedId)}
                     pgSlug={pgSlug}
                     roomId={roomId}
                     roomLabel={roomLabel}
