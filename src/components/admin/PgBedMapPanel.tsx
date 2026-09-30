@@ -84,12 +84,14 @@ function blockReasonLabel(reason: PgBedMapBed['blockReason']): string | null {
 function BedDetailPanel({
   ctx,
   pgId,
+  pgSlug = null,
   moveBedOptions,
   onClose,
   inlineAssign,
 }: {
   ctx: SelectedContext;
   pgId: string;
+  pgSlug?: string | null;
   moveBedOptions: BedOption[];
   onClose: () => void;
   inlineAssign?: InlineAssignContext | null;
@@ -175,7 +177,14 @@ function BedDetailPanel({
               </p>
             </section>
 
-            <BedDetailPrimaryActions pgId={pgId} bed={bed} person={person} />
+            <BedDetailPrimaryActions
+              pgId={pgId}
+              pgSlug={pgSlug}
+              roomId={room.roomId}
+              roomLabel={`${floor.floorLabel} · Room ${room.roomNumber}`}
+              bed={bed}
+              person={person}
+            />
             <BedDetailAdvancedTools
               bed={bed}
               room={room}
@@ -186,7 +195,13 @@ function BedDetailPanel({
           </>
         ) : (
           <>
-            <EmptyBedPrimaryActions pgId={pgId} bed={bed} />
+            <EmptyBedPrimaryActions
+              pgId={pgId}
+              pgSlug={pgSlug}
+              roomId={room.roomId}
+              roomLabel={`${floor.floorLabel} · Room ${room.roomNumber}`}
+              bed={bed}
+            />
             {inlineAssign && inlineAssign.bedId === bed.bedId ? (
               <BedInlineAssignForm
                 beds={inlineAssign.beds}
@@ -291,6 +306,7 @@ function RoomCard({
 export function PgBedMapPanel({
   map,
   moveBedOptions,
+  pgSlug = null,
   hideSummary = false,
   commandCenterMode = false,
   initialSelectedBedId = null,
@@ -298,6 +314,7 @@ export function PgBedMapPanel({
 }: {
   map: PgBedMap;
   moveBedOptions: BedOption[];
+  pgSlug?: string | null;
   hideSummary?: boolean;
   commandCenterMode?: boolean;
   initialSelectedBedId?: string | null;
@@ -371,6 +388,7 @@ export function PgBedMapPanel({
             <BedDetailPanel
               ctx={selectedCtx}
               pgId={map.pgId}
+              pgSlug={pgSlug}
               moveBedOptions={moveBedOptions}
               onClose={() => setSelectedBedId(null)}
               inlineAssign={inlineAssign}

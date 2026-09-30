@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { BedSelectorBed } from '@/src/components/customer/customerBedTypes';
-import { CustomerBedTile } from '@/src/components/customer/customerBedUi';
+import { PublicBedTile } from '@/src/components/customer/PublicBedTile';
+import { buildPublicBedSharePath } from '@/src/lib/booking/publicBedShareUrl';
 import { RoomTheaterVideo } from '@/src/components/world/RoomTheaterVideo';
 import { getFloorColor } from '@/src/lib/roomWorld/floorColors';
 import type { PgSpineRoom } from '@/src/lib/roomWorld/pgSpineRoom';
@@ -106,10 +107,13 @@ export function RoomDetailSheet({
               ) : (
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-2">
                   {room.beds.map((bed: BedSelectorBed) => (
-                    <CustomerBedTile
+                    <PublicBedTile
                       key={bed.bedId}
                       bed={bed}
                       isSelected={selectedBedId === bed.bedId}
+                      pgSlug={pgSlug}
+                      roomId={room.roomId}
+                      roomLabel={`Room ${room.roomNumber}`}
                       onSelect={() => onSelectBed(bed.bedId)}
                     />
                   ))}
@@ -125,7 +129,11 @@ export function RoomDetailSheet({
           </p>
           {selectedBedId ? (
             <Link
-              href={`/pgs/${pgSlug}/rooms/${room.roomId}?bed=${selectedBedId}#bed-selector`}
+              href={`${buildPublicBedSharePath({
+                pgSlug,
+                roomId: room.roomId,
+                bedId: selectedBedId,
+              })}#bed-selector`}
               className="rounded-lg bg-apg-orange px-4 py-2 text-sm font-semibold text-white apg-glow-btn hover:brightness-110"
             >
               Continue →

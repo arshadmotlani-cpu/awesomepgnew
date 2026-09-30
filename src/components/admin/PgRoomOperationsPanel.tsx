@@ -42,6 +42,7 @@ type RoomGroup = {
 
 export function PgRoomOperationsPanel({
   pgId,
+  pgSlug,
   floors,
   beds,
   blobUploadConfigured = false,
@@ -53,6 +54,7 @@ export function PgRoomOperationsPanel({
   scheduledConfigurationsByRoom = {},
 }: {
   pgId: string;
+  pgSlug: string;
   floors: FloorRow[];
   beds: PgInventoryBedRow[];
   blobUploadConfigured?: boolean;
@@ -240,6 +242,7 @@ export function PgRoomOperationsPanel({
             <RoomOperationalCard
               key={room.roomId}
               pgId={pgId}
+              pgSlug={pgSlug}
               roomId={room.roomId}
               roomNumber={room.roomNumber}
               floorNumber={room.floorNumber}

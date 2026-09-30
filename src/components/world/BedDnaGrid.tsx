@@ -18,7 +18,6 @@ export function BedDnaGrid({ children, className = '', onRipple }: Props) {
     <motion.div
       className={`world-bed-dna grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-3 ${className}`}
       data-roachie-focus="bed-pick"
-      data-roachie-tour="bed-grid"
       initial={reduced ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5, ease: WORLD_EASE.cinematic }}

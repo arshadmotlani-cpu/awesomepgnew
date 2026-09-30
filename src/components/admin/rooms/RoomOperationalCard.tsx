@@ -25,6 +25,7 @@ type MoveTarget = { roomId: string; label: string };
 
 export type RoomOperationalCardProps = {
   pgId: string;
+  pgSlug: string;
   roomId: string;
   roomNumber: string;
   floorNumber: number;
@@ -51,6 +52,7 @@ export type RoomOperationalCardProps = {
 
 export function RoomOperationalCard({
   pgId,
+  pgSlug,
   roomId,
   roomNumber,
   floorLabel,
@@ -202,6 +204,7 @@ export function RoomOperationalCard({
           open
           onClose={() => setBedsOpen(false)}
           pgId={pgId}
+          pgSlug={pgSlug}
           roomId={roomId}
           roomNumber={roomNumber}
           beds={beds}

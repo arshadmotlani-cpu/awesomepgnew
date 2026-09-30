@@ -217,11 +217,6 @@ export const env = {
     return optional('ADMIN_NOTIFICATION_EMAIL');
   },
 
-  /** Set to "false" to hide the Cockroach AI guide on customer pages. */
-  get COCKROACH_AI_ENABLED() {
-    return process.env.COCKROACH_AI_ENABLED !== 'false';
-  },
-
   // ── Analytics & observability ─────────────────────────────────────────────
   get NEXT_PUBLIC_POSTHOG_KEY() {
     return optional('NEXT_PUBLIC_POSTHOG_KEY');

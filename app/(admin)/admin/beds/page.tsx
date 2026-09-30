@@ -8,7 +8,7 @@ import { BedSmartRecommendations } from '@/src/components/admin/beds/BedSmartRec
 import { PgBedMapPanel } from '@/src/components/admin/PgBedMapPanel';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { db } from '@/src/db/client';
-import { customers } from '@/src/db/schema';
+import { customers, pgs } from '@/src/db/schema';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import {
   loadBedAssignmentCommand,
@@ -48,9 +48,10 @@ export default async function BedAssignmentCommandCenterPage({
     );
   }
 
-  const [{ map, moveBedOptions }, assignableRows] = await Promise.all([
+  const [{ map, moveBedOptions }, assignableRows, slugRows] = await Promise.all([
     loadPgBedMapForCommand(session, pgId),
     listAssignableBedsWithRoom(session),
+    db.select({ slug: pgs.slug }).from(pgs).where(eq(pgs.id, pgId)).limit(1),
   ]);
 
   if (!map) notFound();
@@ -147,6 +148,7 @@ export default async function BedAssignmentCommandCenterPage({
         <PgBedMapPanel
           map={map}
           moveBedOptions={moveBedOptions}
+          pgSlug={slugRows[0]?.slug ?? null}
           hideSummary
           commandCenterMode
           initialSelectedBedId={bedId}

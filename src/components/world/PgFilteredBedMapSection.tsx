@@ -52,7 +52,7 @@ export function PgFilteredBedMapSection({ pgSlug, rooms }: Props) {
           Open full room view →
         </Link>
       </div>
-      <CustomerBedMap rooms={[selectedRoom]} filterRoomId={selectedRoom.roomId} />
+      <CustomerBedMap pgSlug={pgSlug} rooms={[selectedRoom]} filterRoomId={selectedRoom.roomId} />
     </div>
   );
 }

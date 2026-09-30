@@ -29,6 +29,14 @@ export default async function RoomDetailPage(
   props: PageProps<'/pgs/[pgSlug]/rooms/[roomId]'>,
 ) {
   const { pgSlug, roomId } = await props.params;
+  const searchParams = await props.searchParams;
+  const sharedBedParam = searchParams.bed;
+  const sharedBedId =
+    typeof sharedBedParam === 'string'
+      ? sharedBedParam
+      : Array.isArray(sharedBedParam)
+        ? sharedBedParam[0] ?? null
+        : null;
 
   const detail = await getRoomDetail(pgSlug, roomId);
 
@@ -151,10 +159,7 @@ export default async function RoomDetailPage(
         <span className="text-white">Room {room.roomNumber}</span>
       </nav>
 
-      <header
-        className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"
-        data-roachie-tour="room"
-      >
+      <header className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-apg-orange">
             {room.floorLabel}
@@ -226,14 +231,18 @@ export default async function RoomDetailPage(
           <p className="rounded-2xl border border-dashed border-white/10 apg-glass-light p-8 text-center text-sm text-apg-silver">
             This room has no beds configured yet.
           </p>
-        ) : (
+        ) : null}
+        {bedsForSelector.length > 0 || sharedBedId ? (
           <BedSelector
             beds={bedsForSelector}
             theme="dark"
             pgName={room.pgName}
+            pgSlug={room.pgSlug}
+            roomId={room.roomId}
+            sharedBedId={sharedBedId}
             roomLabel={`${room.floorLabel} · Room ${room.roomNumber}`}
           />
-        )}
+        ) : null}
       </section>
       <StickyBookCta href="#bed-selector" label="Pick a bed to continue" />
       </BookingFunnelShell>

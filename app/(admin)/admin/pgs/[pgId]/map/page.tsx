@@ -49,7 +49,7 @@ export default async function PgBedMapPage({ params }: { params: Promise<{ pgId:
         title={`Bed map — ${pg.name}`}
         description="Tap a bed to assign a resident, change rooms, or start move-out."
       />
-      <PgBedMapPanel map={map} moveBedOptions={moveBedOptions} />
+      <PgBedMapPanel map={map} moveBedOptions={moveBedOptions} pgSlug={pg.slug} />
     </>
   );
 }

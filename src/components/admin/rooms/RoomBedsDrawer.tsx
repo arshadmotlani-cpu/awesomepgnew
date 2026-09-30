@@ -11,6 +11,7 @@ type Props = {
   open: boolean;
   onClose: () => void;
   pgId: string;
+  pgSlug: string;
   roomId: string;
   roomNumber: string;
   beds: PgInventoryBedRow[];
@@ -22,6 +23,7 @@ export function RoomBedsDrawer({
   open,
   onClose,
   pgId,
+  pgSlug,
   roomId,
   roomNumber,
   beds,
@@ -45,6 +47,8 @@ export function RoomBedsDrawer({
       </p>
       <BedManagementTable
         pgId={pgId}
+        pgSlug={pgSlug}
+        roomLabel={`Room ${roomNumber}`}
         beds={beds}
         moveTargets={moveTargets.filter((t) => t.roomId !== roomId)}
         onError={setError}

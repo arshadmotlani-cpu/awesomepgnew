@@ -107,12 +107,14 @@ test('PgBlockBooking lists rooms without public room-type category cards', () =>
   assert.match(block, /id="pg-room-blocks"/);
   assert.match(block, /BlockRoomCard/);
 });
+
+test('bed map surfaces keep one detail sheet and the public bed tile', () => {
   const selector = read('src/components/customer/BedSelector.tsx');
   const block = read('src/components/customer/block/PgBlockBooking.tsx');
   const map = read('src/components/customer/CustomerBedMap.tsx');
   for (const src of [selector, block, map]) {
     assert.match(src, /CustomerBedDetailSheet/);
-    assert.match(src, /CustomerBedTile/);
+    assert.match(src, /PublicBedTile/);
     assert.doesNotMatch(src, /OccupiedBedModal|MaintenanceBedPopup|NoticeOnlySheet/);
   }
 });

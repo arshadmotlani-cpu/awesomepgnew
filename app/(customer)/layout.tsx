@@ -5,21 +5,15 @@ import { CustomerSessionRefresh } from '@/src/components/auth/CustomerSessionRef
 import { ImpersonationBanner } from '@/src/components/auth/ImpersonationBanner';
 import { ImpersonationDebugPanel } from '@/src/components/auth/ImpersonationDebugPanel';
 import { PostLoginGlobalErrorObserver } from '@/src/components/customer/account/PostLoginGlobalErrorObserver';
-import { CockroachAI } from '@/src/components/cockroach/CockroachAI';
 import { WorldShell } from '@/src/components/world';
 import { getActiveImpersonationContext } from '@/src/lib/auth/impersonation';
 import { getCustomerSession } from '@/src/lib/auth/session';
-
-function isCockroachGuideEnabled(): boolean {
-  return process.env.COCKROACH_AI_ENABLED !== 'false';
-}
 
 export default async function CustomerLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const cockroachEnabled = isCockroachGuideEnabled();
   const [impersonation, customerSession] = await Promise.all([
     getActiveImpersonationContext(),
     getCustomerSession(),
@@ -36,7 +30,6 @@ export default async function CustomerLayout({
       </main>
       <SiteFooter />
       <WhatsAppSupportButton />
-      <CockroachAI enabled={cockroachEnabled} />
       {impersonation ? (
         <ImpersonationDebugPanel
           context={impersonation}

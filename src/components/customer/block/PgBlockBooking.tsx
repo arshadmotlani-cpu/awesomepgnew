@@ -9,12 +9,11 @@ import type { CustomerRoomBedMap } from '@/src/components/customer/CustomerBedMa
 import {
   CUSTOMER_BED_KIND_CLASS,
   CustomerBedDetailSheet,
-  CustomerBedTile,
 } from '@/src/components/customer/customerBedUi';
+import { PublicBedTile } from '@/src/components/customer/PublicBedTile';
 import type { BedSelectorBed } from '@/src/components/customer/customerBedTypes';
 import { bookingFunnelStartingRentLabel } from '@/src/lib/booking/bookingFunnelPricing';
 import type { CustomerRoomCard } from '@/src/db/queries/customer';
-import { dispatchRoachieReminder } from '@/src/lib/cockroach/roachieReminders';
 import type { BedAvailabilityKind } from '@/src/lib/bedAvailabilityState';
 
 type Props = {
@@ -40,17 +39,20 @@ type PgRoomRow = {
 };
 
 function BlockRoomCard({
+  pgSlug,
   row,
   selectedBedId,
   onSelectBed,
   mergeBed,
 }: {
+  pgSlug: string;
   row: PgRoomRow;
   selectedBedId: string | null;
   onSelectBed: (bedId: string) => void;
   mergeBed: (bed: BedSelectorBed) => BedSelectorBed;
 }) {
   const { bedRoom, roomCard } = row;
+  const roomLabel = `Room ${roomCard.roomNumber}`;
   const openCount = bedRoom.beds.filter((b) => b.status === 'available' && b.isAvailableNow).length;
 
   return (
@@ -74,10 +76,13 @@ function BlockRoomCard({
         {bedRoom.beds.map((bed) => {
           const viewBed = mergeBed(bed);
           return (
-            <CustomerBedTile
+            <PublicBedTile
               key={bed.bedId}
               bed={viewBed}
               isSelected={selectedBedId === bed.bedId}
+              pgSlug={pgSlug}
+              roomId={bedRoom.roomId}
+              roomLabel={roomLabel}
               onSelect={() => onSelectBed(bed.bedId)}
             />
           );
@@ -214,6 +219,7 @@ export function PgBlockBooking({
             {roomRows.map((row) => (
               <BlockRoomCard
                 key={row.bedRoom.roomId}
+                pgSlug={pgSlug}
                 row={row}
                 selectedBedId={selectedBedId}
                 onSelectBed={setSelectedBedId}
@@ -232,12 +238,8 @@ export function PgBlockBooking({
           roomLabel={`Room ${selectedBed.bedRoom.roomNumber} · ${selectedBed.roomCard.roomType}`}
           onClose={() => setSelectedBedId(null)}
           onBook={(options) => openPanel(selectedBed.bed, options)}
-          onPreBook={() => {
-            dispatchRoachieReminder('pre-book');
-            openPanel(selectedBed.bed);
-          }}
+          onPreBook={() => openPanel(selectedBed.bed)}
           onReserve={() => {
-            dispatchRoachieReminder('reserve');
             setReservePanelBed(selectedBed.bed);
             setSelectedBedId(null);
           }}

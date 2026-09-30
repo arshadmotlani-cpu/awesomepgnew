@@ -10,7 +10,8 @@ import {
 } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import type { BedSelectorBed } from '@/src/components/customer/customerBedTypes';
-import { CustomerBedTile } from '@/src/components/customer/customerBedUi';
+import { PublicBedTile } from '@/src/components/customer/PublicBedTile';
+import { buildPublicBedSharePath } from '@/src/lib/booking/publicBedShareUrl';
 import { GlitchTransition } from '@/src/components/world/GlitchTransition';
 import { RoomTheaterVideo } from '@/src/components/world/RoomTheaterVideo';
 import { getFloorColor } from '@/src/lib/roomWorld/floorColors';
@@ -264,10 +265,13 @@ export function RoomTheater({ pgId, pgSlug, rooms, initialRoomId = null }: Props
           ) : (
             <div className="room-theater-bed-strip flex gap-3 overflow-x-auto pb-1">
               {displayRoom.beds.map((bed) => (
-                <div key={bed.bedId} className="min-w-[7rem] shrink-0">
-                  <CustomerBedTile
+                <div key={bed.bedId} className="min-w-[7.5rem] shrink-0">
+                  <PublicBedTile
                     bed={bed}
                     isSelected={selectedBedId === bed.bedId}
+                    pgSlug={pgSlug}
+                    roomId={displayRoom.roomId}
+                    roomLabel={`Room ${displayRoom.roomNumber}`}
                     onSelect={() => setSelectedBedId(bed.bedId)}
                   />
                 </div>
@@ -282,7 +286,11 @@ export function RoomTheater({ pgId, pgSlug, rooms, initialRoomId = null }: Props
           </p>
           {selectedBedId ? (
             <Link
-              href={`/pgs/${pgSlug}/rooms/${displayRoom.roomId}?bed=${selectedBedId}#bed-selector`}
+              href={`${buildPublicBedSharePath({
+                pgSlug,
+                roomId: displayRoom.roomId,
+                bedId: selectedBedId,
+              })}#bed-selector`}
               className="rounded-lg bg-apg-orange px-5 py-2.5 text-sm font-semibold text-white apg-glow-btn transition hover:brightness-110"
             >
               Continue →

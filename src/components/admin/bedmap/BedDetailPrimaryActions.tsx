@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { BedShareButton } from '@/src/components/customer/BedShareButton';
 import type { PgBedMapBed } from '@/src/services/pgBedMap';
 import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
 
@@ -11,10 +12,16 @@ type Person = NonNullable<PgBedMapBed['occupant']> | NonNullable<PgBedMapBed['re
 
 export function BedDetailPrimaryActions({
   pgId,
+  pgSlug,
+  roomId,
+  roomLabel,
   bed,
   person,
 }: {
   pgId: string;
+  pgSlug?: string | null;
+  roomId: string;
+  roomLabel: string;
   bed: PgBedMapBed;
   person: Person;
 }) {
@@ -70,11 +77,32 @@ export function BedDetailPrimaryActions({
           </Link>
         ) : null}
       </nav>
+      {pgSlug ? (
+        <BedShareButton
+          pgSlug={pgSlug}
+          roomId={roomId}
+          bedId={bed.bedId}
+          bedCode={bed.bedCode}
+          roomLabel={roomLabel}
+        />
+      ) : null}
     </section>
   );
 }
 
-export function EmptyBedPrimaryActions({ pgId, bed }: { pgId: string; bed: PgBedMapBed }) {
+export function EmptyBedPrimaryActions({
+  pgId,
+  pgSlug,
+  roomId,
+  roomLabel,
+  bed,
+}: {
+  pgId: string;
+  pgSlug?: string | null;
+  roomId: string;
+  roomLabel: string;
+  bed: PgBedMapBed;
+}) {
   return (
     <section className="space-y-2">
       <h3 className="text-xs font-semibold uppercase tracking-wide text-apg-silver">What to do next</h3>
@@ -94,6 +122,15 @@ export function EmptyBedPrimaryActions({ pgId, bed }: { pgId: string; bed: PgBed
           <span aria-hidden>→</span>
         </a>
       </nav>
+      {pgSlug ? (
+        <BedShareButton
+          pgSlug={pgSlug}
+          roomId={roomId}
+          bedId={bed.bedId}
+          bedCode={bed.bedCode}
+          roomLabel={roomLabel}
+        />
+      ) : null}
     </section>
   );
 }

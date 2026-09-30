@@ -1,51 +1,39 @@
 'use client';
 
-import { useMemo, useState, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BedDnaGrid, BedDnaRipple } from '@/src/components/world/BedDnaGrid';
-import { dispatchRoachieReminder } from '@/src/lib/cockroach/roachieReminders';
-import { displayMonthlyDepositPaise } from '@/src/lib/customerDepositDisplay';
-import { BookingEducationBar } from './BookingEducationBar';
+import { PublicBedTile } from '@/src/components/customer/PublicBedTile';
+import { SharedBedPrompt } from '@/src/components/customer/SharedBedPrompt';
 import { BedBookingPanel } from './BedBookingPanel';
 import { BedReservePanel } from './BedReservePanel';
-import { CustomerBedDetailSheet, CustomerBedTile, canBookBed } from './customerBedUi';
-import { RoachieTourDemoBeds } from './RoachieTourDemoBeds';
+import { CustomerBedDetailSheet, canBookBed } from './customerBedUi';
 import type { BedSelectorBed } from './customerBedTypes';
+import {
+  applySharedBedSelection,
+  resolveSharedBedPrompt,
+  type SharedBedCandidate,
+} from '@/src/lib/booking/sharedBedPrompt';
 
 export type { BedSelectorBed } from './customerBedTypes';
-
-type TourRole = 'bed-available' | 'bed-notice' | 'bed-capped' | null;
 
 type Props = {
   beds: BedSelectorBed[];
   theme?: 'dark' | 'light';
   roomLabel?: string;
   pgName?: string;
+  pgSlug: string;
+  roomId: string;
+  sharedBedId?: string | null;
 };
 
-function assignTourRoles(beds: BedSelectorBed[]): Map<string, TourRole> {
-  const roles = new Map<string, TourRole>();
-  let hasAvailable = false;
-  let hasNotice = false;
-  let hasCapped = false;
-
-  for (const bed of beds) {
-    if (bed.status !== 'available') continue;
-    if (!hasAvailable && bed.isAvailableNow) {
-      roles.set(bed.bedId, 'bed-available');
-      hasAvailable = true;
-      continue;
-    }
-    if (!hasNotice && !bed.isAvailableNow && bed.nextAvailableDate && bed.vacatingDate) {
-      roles.set(bed.bedId, 'bed-notice');
-      hasNotice = true;
-      continue;
-    }
-    if (!hasCapped && bed.availableUntilDate) {
-      roles.set(bed.bedId, 'bed-capped');
-      hasCapped = true;
-    }
-  }
-  return roles;
+function candidateFor(bed: BedSelectorBed): SharedBedCandidate {
+  return {
+    bedId: bed.bedId,
+    bedCode: bed.bedCode,
+    status: bed.status,
+    bookable: canBookBed(bed),
+    occupied: Boolean(bed.isOccupiedToday || bed.manualOccupied),
+  };
 }
 
 export function BedSelector({
@@ -53,6 +41,9 @@ export function BedSelector({
   theme = 'light',
   roomLabel = 'This room',
   pgName,
+  pgSlug,
+  roomId,
+  sharedBedId = null,
 }: Props) {
   const dark = theme === 'dark';
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -65,6 +56,7 @@ export function BedSelector({
   const [reservePanelBed, setReservePanelBed] = useState<BedSelectorBed | null>(null);
   const [interestOverrides, setInterestOverrides] = useState<Record<string, number>>({});
   const [rippleBedId, setRippleBedId] = useState<string | null>(null);
+  const [promptDismissed, setPromptDismissed] = useState(false);
 
   const mergeBed = useCallback(
     (bed: BedSelectorBed): BedSelectorBed => {
@@ -78,7 +70,6 @@ export function BedSelector({
     setInterestOverrides((prev) => ({ ...prev, [bedId]: count }));
   }, []);
 
-  const tourRoles = useMemo(() => assignTourRoles(beds), [beds]);
   const detailBed = beds.find((b) => b.bedId === detailBedId);
   const detailBedView = detailBed ? mergeBed(detailBed) : null;
 
@@ -87,8 +78,24 @@ export function BedSelector({
     [beds, selected],
   );
 
-  const sampleBed = beds.find((b) => b.monthlyRatePaise > 0) ?? beds[0];
   const bookableCount = beds.filter((b) => canBookBed(b)).length;
+
+  const prompt = useMemo(
+    () =>
+      resolveSharedBedPrompt({
+        sharedBedId,
+        dismissed: promptDismissed,
+        roomLabel,
+        beds: beds.map(candidateFor),
+      }),
+    [sharedBedId, promptDismissed, roomLabel, beds],
+  );
+
+  useEffect(() => {
+    if (!sharedBedId) return;
+    const el = document.querySelector(`[data-bed-id="${CSS.escape(sharedBedId)}"]`);
+    el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [sharedBedId]);
 
   function openPanelForBed(
     bedId: string,
@@ -100,46 +107,41 @@ export function BedSelector({
     setPanelOpen(true);
   }
 
+  function selectSharedBed() {
+    const picked = applySharedBedSelection(prompt);
+    if (!picked) return;
+    setPromptDismissed(true);
+    openPanelForBed(picked.bedId);
+  }
+
   return (
     <>
       <div className="space-y-4">
-        <BedDnaGrid>
-          {beds.map((bed) => {
-            const tourRole = tourRoles.get(bed.bedId) ?? null;
-            return (
-              <div
-                key={bed.bedId}
-                className="relative"
-                {...(tourRole ? { 'data-roachie-tour': tourRole } : {})}
-              >
-                <CustomerBedTile
-                  bed={mergeBed(bed)}
-                  isSelected={selected.has(bed.bedId)}
-                  onSelect={() => {
-                    setDetailBedId(bed.bedId);
-                    setRippleBedId(bed.bedId);
-                    window.setTimeout(() => setRippleBedId(null), 650);
-                  }}
-                />
-                <BedDnaRipple active={rippleBedId === bed.bedId} />
-              </div>
-            );
-          })}
-        </BedDnaGrid>
-
-        <RoachieTourDemoBeds
-          showNotice={![...tourRoles.values()].includes('bed-notice')}
-          showCapped={![...tourRoles.values()].includes('bed-capped')}
-          theme={theme}
-        />
-
-        <BookingEducationBar
-          theme={theme}
-          sampleMonthlyPaise={sampleBed?.monthlyRatePaise || 12_000_00}
-          sampleDepositPaise={
-            sampleBed ? displayMonthlyDepositPaise(sampleBed) : 5_000_00
-          }
-        />
+        {beds.length > 0 ? (
+          <BedDnaGrid>
+            {beds.map((bed) => {
+              const view = mergeBed(bed);
+              return (
+                <div key={bed.bedId} className="relative">
+                  <PublicBedTile
+                    bed={view}
+                    isSelected={selected.has(bed.bedId)}
+                    highlighted={sharedBedId === bed.bedId}
+                    pgSlug={pgSlug}
+                    roomId={roomId}
+                    roomLabel={roomLabel}
+                    onSelect={() => {
+                      setDetailBedId(bed.bedId);
+                      setRippleBedId(bed.bedId);
+                      window.setTimeout(() => setRippleBedId(null), 650);
+                    }}
+                  />
+                  <BedDnaRipple active={rippleBedId === bed.bedId} />
+                </div>
+              );
+            })}
+          </BedDnaGrid>
+        ) : null}
 
         <div
           className={
@@ -168,12 +170,8 @@ export function BedSelector({
           roomLabel={roomLabel}
           onClose={() => setDetailBedId(null)}
           onBook={(options) => openPanelForBed(detailBedView.bedId, options)}
-          onPreBook={() => {
-            dispatchRoachieReminder('pre-book');
-            openPanelForBed(detailBedView.bedId);
-          }}
+          onPreBook={() => openPanelForBed(detailBedView.bedId)}
           onReserve={() => {
-            dispatchRoachieReminder('reserve');
             setReservePanelBed(detailBedView);
             setDetailBedId(null);
           }}
@@ -193,6 +191,14 @@ export function BedSelector({
 
       {reservePanelBed ? (
         <BedReservePanel bed={reservePanelBed} onClose={() => setReservePanelBed(null)} />
+      ) : null}
+
+      {prompt.phase === 'open' ? (
+        <SharedBedPrompt
+          state={prompt}
+          onClose={() => setPromptDismissed(true)}
+          onSelect={selectSharedBed}
+        />
       ) : null}
     </>
   );

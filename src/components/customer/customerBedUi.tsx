@@ -298,7 +298,6 @@ export function CustomerBedDetailSheet({
 
       <div
         className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm"
-        data-roachie-tour="bed-sheet-pricing"
       >
         <dl className="space-y-2">
           <div className="flex items-baseline justify-between gap-3">
@@ -331,7 +330,7 @@ export function CustomerBedDetailSheet({
       ) : null}
 
       {isReserved && reserveCheckIn ? (
-        <div className="mt-5 flex flex-col gap-2" data-roachie-tour="bed-sheet-actions">
+        <div className="mt-5 flex flex-col gap-2">
           <button
             type="button"
             data-roachie-bed-action="book-short-stay"
@@ -360,7 +359,7 @@ export function CustomerBedDetailSheet({
           </button>
         </div>
       ) : isNotice ? (
-        <div className="mt-5 flex flex-col gap-2" data-roachie-tour="bed-sheet-actions">
+        <div className="mt-5 flex flex-col gap-2">
           <button type="button" disabled aria-disabled className={CTA_DISABLED}>
             {BOOK_THIS_BED}
           </button>
@@ -393,7 +392,7 @@ export function CustomerBedDetailSheet({
           </p>
         </div>
       ) : showEnabledBookHold ? (
-        <div className="mt-5 flex flex-col gap-2" data-roachie-tour="bed-sheet-actions">
+        <div className="mt-5 flex flex-col gap-2">
           {isFuturePreBook ? (
             <button
               type="button"
@@ -439,7 +438,7 @@ export function CustomerBedDetailSheet({
           </p>
         </div>
       ) : (
-        <div className="mt-5 flex flex-col gap-2" data-roachie-tour="bed-sheet-actions">
+        <div className="mt-5 flex flex-col gap-2">
           <button type="button" disabled aria-disabled className={CTA_DISABLED}>
             {BOOK_THIS_BED}
           </button>
@@ -460,7 +459,6 @@ export function CustomerBedDetailSheet({
         <div
           id={sheetRootId}
           className="max-h-[calc(min(88vh,100dvh)-2.5rem)] overflow-y-auto overscroll-contain px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-0 sm:max-h-[min(80vh,640px)]"
-          data-roachie-tour="bed-detail-sheet"
         >
           {body}
         </div>
@@ -480,7 +478,6 @@ export function CustomerBedDetailSheet({
         role="dialog"
         aria-modal
         aria-labelledby={titleId}
-        data-roachie-tour="bed-detail-sheet"
         onClick={(e) => e.stopPropagation()}
       >
         {body}

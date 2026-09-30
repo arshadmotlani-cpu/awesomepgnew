@@ -56,6 +56,7 @@ export default async function PgRoomsPage({ params }: { params: Promise<{ pgId: 
       ) : null}
       <PgRoomOperationsPanel
         pgId={pgId}
+        pgSlug={pg.slug}
         floors={inventory.floors}
         beds={inventory.beds}
         blobUploadConfigured={isBlobPublicConfigured()}

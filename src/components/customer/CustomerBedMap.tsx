@@ -2,13 +2,12 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { resolveFromSelectorBed } from '@/src/lib/bedOccupancyResolve';
-import { dispatchRoachieReminder } from '@/src/lib/cockroach/roachieReminders';
+import { PublicBedTile } from '@/src/components/customer/PublicBedTile';
 import { BedBookingPanel } from './BedBookingPanel';
 import { BedReservePanel } from './BedReservePanel';
 import {
   CUSTOMER_BED_KIND_CLASS,
   CustomerBedDetailSheet,
-  CustomerBedTile,
 } from './customerBedUi';
 import type { BedSelectorBed } from './customerBedTypes';
 
@@ -36,11 +35,13 @@ const LEGEND = [
 ];
 
 function RoomBedCard({
+  pgSlug,
   room,
   selectedBedId,
   onSelectBed,
   mergeBed,
 }: {
+  pgSlug: string;
   room: CustomerRoomBedMap;
   selectedBedId: string | null;
   onSelectBed: (bedId: string) => void;
@@ -69,10 +70,13 @@ function RoomBedCard({
         {room.beds.map((bed) => {
           const viewBed = mergeBed(bed);
           return (
-            <CustomerBedTile
+            <PublicBedTile
               key={bed.bedId}
               bed={viewBed}
               isSelected={selectedBedId === bed.bedId}
+              pgSlug={pgSlug}
+              roomId={room.roomId}
+              roomLabel={`${room.floorLabel} · Room ${room.roomNumber}`}
               onSelect={() => onSelectBed(bed.bedId)}
             />
           );
@@ -83,9 +87,11 @@ function RoomBedCard({
 }
 
 export function CustomerBedMap({
+  pgSlug,
   rooms,
   filterRoomId,
 }: {
+  pgSlug: string;
   rooms: CustomerRoomBedMap[];
   /** When set, only render beds for this room (Room World flow). */
   filterRoomId?: string | null;
@@ -148,10 +154,7 @@ export function CustomerBedMap({
 
   return (
     <>
-      <div
-        className="mb-4 flex flex-wrap gap-2 text-[11px] text-apg-silver"
-        data-roachie-tour="bed-map-legend"
-      >
+      <div className="mb-4 flex flex-wrap gap-2 text-[11px] text-apg-silver">
         {LEGEND.map((item) => (
           <span key={item.label} className="inline-flex items-center gap-1.5">
             <span
@@ -162,7 +165,7 @@ export function CustomerBedMap({
         ))}
       </div>
 
-      <div className="space-y-8" data-roachie-tour="bed-map">
+      <div className="space-y-8">
         {floors.map(([floorNumber, floor]) => (
           <section key={floorNumber}>
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-apg-silver">
@@ -172,6 +175,7 @@ export function CustomerBedMap({
               {floor.rooms.map((room) => (
                 <RoomBedCard
                   key={room.roomId}
+                  pgSlug={pgSlug}
                   room={room}
                   selectedBedId={selectedBedId}
                   onSelectBed={setSelectedBedId}
@@ -189,12 +193,8 @@ export function CustomerBedMap({
           roomLabel={`${selectedBed.room.floorLabel} · Room ${selectedBed.room.roomNumber}`}
           onClose={() => setSelectedBedId(null)}
           onBook={(options) => openPanel(selectedBed.bed, options)}
-          onPreBook={() => {
-            dispatchRoachieReminder('pre-book');
-            openPanel(selectedBed.bed);
-          }}
+          onPreBook={() => openPanel(selectedBed.bed)}
           onReserve={() => {
-            dispatchRoachieReminder('reserve');
             setReservePanelBed(selectedBed.bed);
             setSelectedBedId(null);
           }}

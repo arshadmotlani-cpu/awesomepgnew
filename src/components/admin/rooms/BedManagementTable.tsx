@@ -8,6 +8,7 @@ import {
   renameBedCodeAction,
   updateBedStatusInventoryAction,
 } from '@/app/(admin)/admin/pgs/inventory-actions';
+import { BedShareButton } from '@/src/components/customer/BedShareButton';
 import { paiseToInr } from '@/src/lib/format';
 import type { PgInventoryBedRow } from '@/src/services/pgInventory';
 
@@ -15,12 +16,16 @@ type MoveTarget = { roomId: string; label: string };
 
 export function BedManagementTable({
   pgId,
+  pgSlug,
+  roomLabel,
   beds,
   moveTargets,
   onError,
   onSuccess,
 }: {
   pgId: string;
+  pgSlug: string;
+  roomLabel: string;
   beds: PgInventoryBedRow[];
   moveTargets: MoveTarget[];
   onError?: (msg: string | null) => void;
@@ -97,7 +102,14 @@ export function BedManagementTable({
                 </td>
                 <td className="py-2 pr-3">{paiseToInr(bed.monthlyRatePaise)}</td>
                 <td className="py-2">
-                  <div className="flex flex-wrap gap-2 text-xs">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <BedShareButton
+                      pgSlug={pgSlug}
+                      roomId={bed.roomId}
+                      bedId={bed.bedId}
+                      bedCode={bed.bedCode}
+                      roomLabel={roomLabel}
+                    />
                     {bed.bedStatus === 'available' ? (
                       <button
                         type="button"

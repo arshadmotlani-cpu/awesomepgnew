@@ -1,6 +1,6 @@
 import type { ResidentBriefingInput } from '@/src/lib/cockroach/residentBriefing';
 import { buildResidentBriefingMessage } from '@/src/lib/cockroach/residentBriefing';
-import { RoachieBriefingTrigger } from '@/src/components/cockroach/RoachieRecall';
+import { RoachieBriefingTrigger, RoachieRecall } from '@/src/components/cockroach/RoachieRecall';
 
 type Props = ResidentBriefingInput & {
   sessionKey: string;
@@ -11,10 +11,13 @@ export function RoachieResidentBriefing(props: Props) {
   const { sessionKey, ...input } = props;
   const message = buildResidentBriefingMessage(input);
   return (
-    <RoachieBriefingTrigger
-      message={message}
-      sessionKey={sessionKey}
-      autoOpen
-    />
+    <>
+      <RoachieRecall />
+      <RoachieBriefingTrigger
+        message={message}
+        sessionKey={sessionKey}
+        autoOpen
+      />
+    </>
   );
 }
