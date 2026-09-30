@@ -31,14 +31,15 @@ export async function nextFinancialInvoiceNumber(
   const propertyCode = derivePropertyCode(pg.slug, pg.name);
   const prefix = invoiceNumberPrefix(year, propertyCode);
 
-  const rows = await db.execute<{ c: number }>(sql`
-    SELECT count(*)::int AS c
+  const rows = await db.execute<{ max_seq: number | null }>(sql`
+    SELECT max(
+      nullif(substring(invoice_number from '([0-9]+)$'), '')::int
+    ) AS max_seq
     FROM financial_invoices
-    WHERE pg_id = ${input.pgId}
-      AND invoice_number LIKE ${prefix + '%'}
+    WHERE invoice_number LIKE ${prefix + '%'}
   `);
 
-  const seq = Number(rows[0]?.c ?? 0) + 1;
+  const seq = Number(rows[0]?.max_seq ?? 0) + 1;
   return buildFinancialInvoiceNumber(year, propertyCode, seq);
 }
 
