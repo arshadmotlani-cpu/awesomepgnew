@@ -16,6 +16,7 @@ import {
   financialInvoices,
   floors,
   pgs,
+  paymentLinks,
   playstationMemberships,
   rentInvoices,
   rooms,
@@ -49,6 +50,7 @@ import { loadPriorElectricityCollectionForCustomer } from '@/src/lib/billing/ele
 import { buildRentInvoiceProjectInput } from '@/src/lib/billing/rentInvoiceProjectInput';
 import { computeRentDuePaise, projectInvoice } from '@/src/services/rentInvoices';
 import { ROOM_CHANGE_INVOICE_SOURCE } from '@/src/services/roomShiftQuote';
+import { isFinancialInvoiceAwaitingPaymentLinkReview } from '@/src/lib/residents/financialInvoicePaymentReviewState';
 import { firstOfMonth } from '@/src/services/billing';
 import {
   applyLedgerTotalsToSummary,
@@ -504,7 +506,13 @@ async function buildOtherCategory(
       and(
         eq(financialInvoices.customerId, customerId),
         eq(financialInvoices.isDocumentOnly, false),
-        inArray(financialInvoices.status, ['draft', 'sent', 'overdue', 'partial']),
+        inArray(financialInvoices.status, [
+          'draft',
+          'sent',
+          'overdue',
+          'partial',
+          'payment_in_progress',
+        ]),
         or(
           inArray(financialInvoices.invoiceType, [
             'custom',
@@ -521,6 +529,27 @@ async function buildOtherCategory(
       ),
     );
 
+  const linkIds = [
+    ...new Set(
+      customInvoices
+        .map((fi) => fi.paymentLinkId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const paymentLinkRows =
+    linkIds.length > 0
+      ? await db
+          .select({
+            id: paymentLinks.id,
+            status: paymentLinks.status,
+            paymentProofUrl: paymentLinks.paymentProofUrl,
+            paymentProofTransactionRef: paymentLinks.paymentProofTransactionRef,
+          })
+          .from(paymentLinks)
+          .where(inArray(paymentLinks.id, linkIds))
+      : [];
+  const paymentLinkById = new Map(paymentLinkRows.map((row) => [row.id, row]));
+
   for (const fi of customInvoices) {
     const paidAmount = fi.breakdown?.paidPaise ?? (fi.status === 'paid' ? fi.amountPaise : 0);
     const outstanding =
@@ -536,8 +565,38 @@ async function buildOtherCategory(
     ) {
       continue;
     }
+    const paymentLink = fi.paymentLinkId ? paymentLinkById.get(fi.paymentLinkId) : null;
+    const awaitingPaymentReview = isFinancialInvoiceAwaitingPaymentLinkReview({
+      invoiceStatus: fi.status,
+      outstandingPaise: outstanding,
+      paymentLink: paymentLink ?? null,
+    });
+
     requiredPaise += fi.amountPaise;
     paidPaise += paidAmount;
+
+    if (awaitingPaymentReview) {
+      items.push({
+        id: fi.id,
+        kind: fi.invoiceType === 'ps4' ? 'ps4' : 'custom',
+        label: fi.notes ?? fi.invoiceType,
+        invoiceNumber: fi.invoiceNumber,
+        sourceTable: 'financial_invoices',
+        sourceId: fi.id,
+        financialInvoiceId: fi.id,
+        requiredPaise: fi.amountPaise,
+        paidPaise: paidAmount,
+        outstandingPaise: outstanding,
+        dueDate: fi.dueDate,
+        generatedAt: fi.createdAt.toISOString(),
+        status: 'payment_in_progress',
+        pgId: fi.pgId,
+        pgName: meta.pgName,
+        roomNumber: fi.roomNumber,
+      });
+      continue;
+    }
+
     outstandingPaise += outstanding;
     items.push({
       id: fi.id,

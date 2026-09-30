@@ -4,12 +4,17 @@
  */
 import { and, eq, inArray, or } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { financialInvoices } from '@/src/db/schema';
+import { financialInvoices, paymentLinks } from '@/src/db/schema';
 import { invoiceDetailHref } from '@/src/lib/billing/invoiceRoutes';
 import { isResidentPortalPayAllSource } from '@/src/lib/residents/residentPayableNowProjection';
 import { ROOM_CHANGE_INVOICE_SOURCE } from '@/src/services/roomShiftQuote';
 import type { PaymentDueRow } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
 import { titleCase } from '@/src/lib/format';
+import {
+  FINANCIAL_INVOICE_PENDING_REVIEW_STATUS,
+  isFinancialInvoiceAwaitingPaymentLinkReview,
+  type PaymentLinkProofSnapshot,
+} from '@/src/lib/residents/financialInvoicePaymentReviewState';
 
 function labelStatus(value: string): string {
   return titleCase(value.replace(/_/g, ' '));
@@ -53,15 +58,24 @@ export function mapFinancialInvoiceToDueRow(input: {
   roomNumber: string | null;
   bedCode: string | null;
   paymentLinkId: string | null;
+  paymentLink?: PaymentLinkProofSnapshot | null;
 }): PaymentDueRow | null {
   if (isRoomChangePayAllSource(input.sourceTable)) return null;
   if (isResidentPortalPayAllSource(input.sourceTable)) return null;
   const outstanding = Math.max(0, input.amountPaise - input.paidPaise);
   if (outstanding <= 0) return null;
 
-  const href = input.paymentLinkId
-    ? `/pay/${input.paymentLinkId}`
-    : invoiceDetailHref(input.id, 'resident');
+  const awaitingReview = isFinancialInvoiceAwaitingPaymentLinkReview({
+    invoiceStatus: input.status,
+    outstandingPaise: outstanding,
+    paymentLink: input.paymentLink,
+  });
+
+  const href = awaitingReview
+    ? null
+    : input.paymentLinkId
+      ? `/pay/${input.paymentLinkId}`
+      : invoiceDetailHref(input.id, 'resident');
 
   return {
     key: `fi-${input.id}`,
@@ -74,18 +88,23 @@ export function mapFinancialInvoiceToDueRow(input: {
     amountPaise: outstanding,
     dueDate: input.dueDate,
     href,
-    status: labelStatus(input.status),
+    status: awaitingReview ? FINANCIAL_INVOICE_PENDING_REVIEW_STATUS : labelStatus(input.status),
     invoiceNumber: input.invoiceNumber,
   };
 }
+
+export type ResidentFinancialInvoiceBillRows = {
+  dueBillRows: PaymentDueRow[];
+  pendingApprovalRows: PaymentDueRow[];
+};
 
 /**
  * Payable non-rent/non-electricity financial invoices for Bills Due.
  * Includes room-change children + room-change deposit top-ups; excludes pay-all.
  */
-export async function listResidentFinancialInvoiceDueRows(
+export async function listResidentFinancialInvoiceBillRows(
   customerId: string,
-): Promise<PaymentDueRow[]> {
+): Promise<ResidentFinancialInvoiceBillRows> {
   const rows = await db
     .select({
       id: financialInvoices.id,
@@ -100,13 +119,17 @@ export async function listResidentFinancialInvoiceDueRows(
       paymentLinkId: financialInvoices.paymentLinkId,
       breakdown: financialInvoices.breakdown,
       invoiceType: financialInvoices.invoiceType,
+      linkStatus: paymentLinks.status,
+      linkProofUrl: paymentLinks.paymentProofUrl,
+      linkProofTxn: paymentLinks.paymentProofTransactionRef,
     })
     .from(financialInvoices)
+    .leftJoin(paymentLinks, eq(paymentLinks.id, financialInvoices.paymentLinkId))
     .where(
       and(
         eq(financialInvoices.customerId, customerId),
         eq(financialInvoices.isDocumentOnly, false),
-        inArray(financialInvoices.status, ['draft', 'sent', 'overdue', 'partial']),
+        inArray(financialInvoices.status, ['draft', 'sent', 'overdue', 'partial', 'payment_in_progress']),
         or(
           inArray(financialInvoices.invoiceType, [
             'custom',
@@ -123,12 +146,21 @@ export async function listResidentFinancialInvoiceDueRows(
       ),
     );
 
-  const due: PaymentDueRow[] = [];
+  const dueBillRows: PaymentDueRow[] = [];
+  const pendingApprovalRows: PaymentDueRow[] = [];
+
   for (const row of rows) {
     if (isRoomChangePayAllSource(row.sourceTable)) continue;
     if (isResidentPortalPayAllSource(row.sourceTable)) continue;
     const paidPaise =
       row.breakdown?.paidPaise ?? (row.status === 'paid' ? row.amountPaise : 0);
+    const paymentLink: PaymentLinkProofSnapshot | null = row.paymentLinkId
+      ? {
+          status: row.linkStatus ?? 'active',
+          paymentProofUrl: row.linkProofUrl,
+          paymentProofTransactionRef: row.linkProofTxn,
+        }
+      : null;
     const mapped = mapFinancialInvoiceToDueRow({
       id: row.id,
       invoiceNumber: row.invoiceNumber,
@@ -141,8 +173,22 @@ export async function listResidentFinancialInvoiceDueRows(
       roomNumber: row.roomNumber,
       bedCode: row.bedCode,
       paymentLinkId: row.paymentLinkId,
+      paymentLink,
     });
-    if (mapped) due.push(mapped);
+    if (!mapped) continue;
+    if (mapped.status === FINANCIAL_INVOICE_PENDING_REVIEW_STATUS) {
+      pendingApprovalRows.push(mapped);
+    } else {
+      dueBillRows.push(mapped);
+    }
   }
-  return due;
+  return { dueBillRows, pendingApprovalRows };
+}
+
+/** @deprecated Use listResidentFinancialInvoiceBillRows — due rows only (legacy callers). */
+export async function listResidentFinancialInvoiceDueRows(
+  customerId: string,
+): Promise<PaymentDueRow[]> {
+  const { dueBillRows } = await listResidentFinancialInvoiceBillRows(customerId);
+  return dueBillRows;
 }

@@ -3,9 +3,16 @@
  * Idempotent on (sourceTable, sourceId) unique index.
  */
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { financialInvoices, roomChangeRequests, rooms, beds, floors } from '@/src/db/schema';
+import {
+  financialInvoices,
+  paymentLinks,
+  roomChangeRequests,
+  rooms,
+  beds,
+  floors,
+} from '@/src/db/schema';
 import type { InvoiceBreakdown } from '@/src/db/schema/financialInvoices';
 import { formatDate } from '@/src/lib/dates';
 import { nextFinancialInvoiceNumber } from '@/src/lib/billing/invoiceNumbering.server';
@@ -375,6 +382,70 @@ export async function applyRoomChangeWalletSurplusOnComplete(input: {
     amountPaise: input.walletSurplusPaise,
     reason,
   });
+}
+
+const OPEN_ROOM_CHANGE_INVOICE_STATUSES = [
+  'draft',
+  'sent',
+  'payment_in_progress',
+  'processing',
+  'partial',
+  'overdue',
+] as const;
+
+/**
+ * When room-change children are fully paid individually, close the stale pay-all aggregate
+ * so admin/resident do not see a duplicate ₹ obligation on the same request.
+ */
+export async function reconcileRoomChangePayAllAfterChildSettlement(
+  requestId: string,
+): Promise<{ cancelledPayAllIds: string[] }> {
+  const invoices = await db
+    .select({
+      id: financialInvoices.id,
+      sourceTable: financialInvoices.sourceTable,
+      status: financialInvoices.status,
+      amountPaise: financialInvoices.amountPaise,
+      breakdown: financialInvoices.breakdown,
+    })
+    .from(financialInvoices)
+    .where(eq(financialInvoices.sourceId, requestId));
+
+  if (invoices.length === 0) return { cancelledPayAllIds: [] };
+  if (!roomChangeChargesSettledFromRows(invoices)) return { cancelledPayAllIds: [] };
+
+  const openPayAll = invoices.filter(
+    (row) =>
+      row.sourceTable === ROOM_CHANGE_INVOICE_SOURCE.payAll &&
+      OPEN_ROOM_CHANGE_INVOICE_STATUSES.includes(
+        row.status as (typeof OPEN_ROOM_CHANGE_INVOICE_STATUSES)[number],
+      ),
+  );
+  if (openPayAll.length === 0) return { cancelledPayAllIds: [] };
+
+  const payAllIds = openPayAll.map((row) => row.id);
+  await db.transaction(async (tx) => {
+    await tx
+      .update(financialInvoices)
+      .set({
+        status: 'cancelled',
+        cancelledAt: new Date(),
+        cancellationReason: 'Room-change charges settled via individual invoices',
+        updatedAt: new Date(),
+      })
+      .where(inArray(financialInvoices.id, payAllIds));
+    await tx
+      .update(paymentLinks)
+      .set({ status: 'expired' })
+      .where(
+        and(
+          inArray(paymentLinks.invoiceId, payAllIds),
+          eq(paymentLinks.status, 'active'),
+        ),
+      );
+  });
+
+  return { cancelledPayAllIds: payAllIds };
 }
 
 export async function markRoomChangeChildInvoicesPaidFromPayAll(payAllInvoiceId: string): Promise<void> {

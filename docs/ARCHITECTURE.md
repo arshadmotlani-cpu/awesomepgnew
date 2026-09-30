@@ -533,3 +533,6 @@ Enforced by `tests/unit/roomOsArchitecture.test.ts`.
 
 <!-- DOC_SYNC_TOUCH_2026-09-27 -->
 > **2026-09-27 07:23:33 UTC** — Code changed in: Billing, Vacating. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-09-30 -->
+> **2026-09-30 06:42:46 UTC** — Code changed in: Residents, Billing. Manual review recommended.

@@ -342,3 +342,6 @@ See [[BUGS]] for full list. Highlights:
 
 <!-- DOC_SYNC_TOUCH_2026-09-28 -->
 > **2026-09-28 08:17:21 UTC** — Code changed in: Routes. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-09-30 -->
+> **2026-09-30 06:42:46 UTC** — Code changed in: Residents, Billing. Manual review recommended.

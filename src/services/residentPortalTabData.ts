@@ -24,7 +24,7 @@ import { loadResidentBrainSnapshot } from '@/src/lib/residents/loadResidentBrain
 import { loadPortalSectionSafe } from '@/src/lib/residents/residentPortalLoaderSafety';
 import { buildResidentBillRowsFromDetail } from '@/src/lib/residents/residentPortalBillRows';
 import { loadPriorElectricityCollectionByBooking } from '@/src/lib/billing/electricityPriorCollection';
-import { listResidentFinancialInvoiceDueRows } from '@/src/lib/residents/residentFinancialInvoiceDueRows';
+import { listResidentFinancialInvoiceBillRows } from '@/src/lib/residents/residentFinancialInvoiceDueRows';
 import {
   buildResidentPayableNowRows,
   computeResidentPayableNowTotalPaise,
@@ -527,8 +527,9 @@ export async function loadResidentPaymentsTabData(input: {
     cancelledBillRows.push(...allBills.cancelledBillRows);
 
     // Room-change / custom financial invoices (not rent_invoices / electricity_invoices).
-    const financialDue = await listResidentFinancialInvoiceDueRows(session.customerId);
-    dueBillRows.push(...financialDue);
+    const financialDue = await listResidentFinancialInvoiceBillRows(session.customerId);
+    dueBillRows.push(...financialDue.dueBillRows);
+    pendingApprovalRows.push(...financialDue.pendingApprovalRows);
 
     const primaryDepositCard = detail[0]
       ? await getBookingFinancialAccount({

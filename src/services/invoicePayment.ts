@@ -5,6 +5,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { financialInvoices, rentInvoices } from '@/src/db/schema';
+import { ROOM_CHANGE_INVOICE_SOURCE } from '@/src/services/roomShiftQuote';
 import type { FinancialInvoice, InvoiceBreakdown } from '@/src/db/schema/financialInvoices';
 import { syncDepositCollectionFromLedger } from '@/src/services/depositCollection';
 import {
@@ -161,6 +162,19 @@ export async function allocateInvoicePayment(input: {
     await tryCompleteRoomChangeAfterInvoice(input.invoiceId).catch((err) => {
       console.error('[room-transfer] complete after invoice failed', input.invoiceId, err);
     });
+
+    if (
+      inv.sourceId &&
+      inv.sourceTable?.startsWith('room_change_') &&
+      inv.sourceTable !== ROOM_CHANGE_INVOICE_SOURCE.payAll
+    ) {
+      const { reconcileRoomChangePayAllAfterChildSettlement } = await import(
+        '@/src/services/roomTransferBilling'
+      );
+      await reconcileRoomChangePayAllAfterChildSettlement(inv.sourceId).catch((err) => {
+        console.error('[room-transfer] pay-all reconcile failed', inv.sourceId, err);
+      });
+    }
   }
 
   return { ok: true };
