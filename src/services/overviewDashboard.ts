@@ -294,6 +294,27 @@ export function buildOverviewDashboard(
         countMetric('maintenance_beds', 'Maintenance Beds', d?.maintenanceBeds ?? 0, {
           hint: 'Beds marked under maintenance on the PG map',
         }),
+        moneyMetric(
+          'estimated_revenue_monthly',
+          'Estimated Revenue / Month',
+          ctx.estimatedRevenue?.monthlyRevenuePaise ?? 0,
+          {
+            hint: `${ctx.estimatedRevenue?.rentableBeds ?? 0} rentable beds · baseline monthly rent`,
+          },
+        ),
+        moneyMetric(
+          'estimated_revenue_yearly',
+          'Estimated Revenue / Year',
+          ctx.estimatedRevenue?.yearlyRevenuePaise ?? 0,
+          {
+            hint: 'Monthly baseline × 12',
+          },
+        ),
+        countMetric(
+          'estimated_rentable_beds',
+          'Rentable Beds (estimate basis)',
+          ctx.estimatedRevenue?.rentableBeds ?? 0,
+        ),
         moneyMetric('deposit_liability', 'Deposit Liability', exec?.depositLiabilityPaise ?? 0, {
           href: '/admin/deposits',
         }),

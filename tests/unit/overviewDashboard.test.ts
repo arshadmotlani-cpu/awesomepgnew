@@ -169,6 +169,17 @@ function sampleSnapshot(overrides: Partial<OverviewReportingSnapshot> = {}): Ove
       activeVacatingRequestIds: [],
     },
     pgCount: 4,
+    estimatedRevenue: {
+      asOfDate: '2026-06-01',
+      monthlyRevenuePaise: 0,
+      yearlyRevenuePaise: 0,
+      rentableBeds: 0,
+      occupiedBeds: 0,
+      vacantRentableBeds: 0,
+      maintenanceBeds: 0,
+      blockedBeds: 0,
+      byPg: [],
+    },
     ...overrides,
   };
 }

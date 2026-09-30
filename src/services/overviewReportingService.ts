@@ -5,6 +5,7 @@
 
 import { listPgs, type DashboardStats } from '@/src/db/queries/admin';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
+import { todayString } from '@/src/lib/dates';
 import { OPS_QUEUE_FILTERS, type OpsQueueFilter } from '@/src/lib/operations/operationsFilterLinks';
 import type { AdminSession } from '@/src/lib/auth/session';
 import {
@@ -23,6 +24,10 @@ import {
 import { getMoveOutPipelineSnapshot } from '@/src/services/moveOutPipelineService';
 import { getUpcomingCheckinsCount } from '@/src/services/operationsCenter';
 import { getRevenueCommandCenterData, type RevenueCommandCenterData } from '@/src/services/revenueCommandCenter';
+import {
+  loadEstimatedRevenueSnapshot,
+  type EstimatedRevenueSnapshot,
+} from '@/src/services/estimatedRevenueService';
 import { getUnifiedOperationsQueueForRequest, emptyUnifiedOperationsQueue } from '@/src/services/unifiedOperationsQueue';
 import { getActiveTenantCount } from '@/src/services/visitorAnalytics';
 
@@ -43,6 +48,7 @@ export type OverviewReportingSnapshot = {
   upcomingCheckins: number;
   moveOutPipeline: Awaited<ReturnType<typeof getMoveOutPipelineSnapshot>>;
   pgCount: number;
+  estimatedRevenue: EstimatedRevenueSnapshot;
 };
 
 const EMPTY_VISITORS = {
@@ -96,6 +102,7 @@ export async function loadOverviewReportingSnapshot(
     upcomingCheckins,
     moveOutPipeline,
     pgs,
+    estimatedRevenue,
   ] = await Promise.all([
     loadRentInvoiceStats(session, invoiceSnapshot).catch(() => null),
     getRevenueCommandCenterData({
@@ -133,6 +140,20 @@ export async function loadOverviewReportingSnapshot(
       };
     }),
     listPgs().catch(() => ({ ok: false as const, error: '' })),
+    loadEstimatedRevenueSnapshot().catch((err) => {
+      console.error('[overview] estimated revenue failed', err);
+      return {
+        asOfDate: todayString(),
+        monthlyRevenuePaise: 0,
+        yearlyRevenuePaise: 0,
+        rentableBeds: 0,
+        occupiedBeds: 0,
+        vacantRentableBeds: 0,
+        maintenanceBeds: 0,
+        blockedBeds: 0,
+        byPg: [],
+      } satisfies EstimatedRevenueSnapshot;
+    }),
   ]);
 
   return {
@@ -150,5 +171,6 @@ export async function loadOverviewReportingSnapshot(
     upcomingCheckins,
     moveOutPipeline,
     pgCount: pgs.ok ? pgs.data.length : revenue.byPg.length,
+    estimatedRevenue,
   };
 }

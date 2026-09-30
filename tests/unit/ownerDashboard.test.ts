@@ -141,9 +141,39 @@ function sampleSnapshot(overrides: Partial<OverviewReportingSnapshot> = {}): Ove
     upcomingCheckins: 0,
     moveOutPipeline: { counts: { bedsReleasing30Days: 1 }, stages: [] } as never,
     pgCount: 1,
+    estimatedRevenue: {
+      asOfDate: '2026-06-15',
+      monthlyRevenuePaise: 1_000_000,
+      yearlyRevenuePaise: 12_000_000,
+      rentableBeds: 20,
+      occupiedBeds: 16,
+      vacantRentableBeds: 4,
+      maintenanceBeds: 0,
+      blockedBeds: 0,
+      byPg: [
+        {
+          pgId: 'pg-1',
+          pgName: 'Central PG',
+          monthlyRevenuePaise: 1_000_000,
+          yearlyRevenuePaise: 12_000_000,
+          rentableBeds: 20,
+          occupiedBeds: 16,
+          vacantRentableBeds: 4,
+          maintenanceBeds: 0,
+          blockedBeds: 0,
+        },
+      ],
+    },
     ...overrides,
   };
 }
+
+test('buildOwnerDashboard exposes estimated revenue KPIs', () => {
+  const data = buildOwnerDashboard(sampleSnapshot());
+  assert.ok(data.kpis.some((k) => k.id === 'estimated_revenue_monthly'));
+  assert.equal(data.estimatedRevenue.monthlyRevenuePaise, 1_000_000);
+  assert.equal(data.pgCards[0]?.estimatedMonthlyRevenuePaise, 1_000_000);
+});
 
 test('buildOwnerDashboard maps security deposits held from ledger SSOT', () => {
   const data = buildOwnerDashboard(sampleSnapshot());

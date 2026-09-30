@@ -34,6 +34,18 @@ function OwnerPgCard({ card }: { card: OwnerDashboardData['pgCards'][0] }) {
       </p>
       <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
         <div>
+          <p className="text-apg-silver">Est. / month</p>
+          <p className="font-semibold tabular-nums text-indigo-200">
+            {paiseToInr(card.estimatedMonthlyRevenuePaise)}
+          </p>
+        </div>
+        <div>
+          <p className="text-apg-silver">Est. / year</p>
+          <p className="font-semibold tabular-nums text-indigo-200">
+            {paiseToInr(card.estimatedYearlyRevenuePaise)}
+          </p>
+        </div>
+        <div>
           <p className="text-apg-silver">Revenue MTD</p>
           <p className="font-semibold tabular-nums text-white">{paiseToInr(card.operatingRevenuePaise)}</p>
         </div>
@@ -50,6 +62,10 @@ function OwnerPgCard({ card }: { card: OwnerDashboardData['pgCards'][0] }) {
           <p className="font-semibold tabular-nums text-emerald-300">{card.collectionPct}%</p>
         </div>
       </div>
+      <p className="mt-2 text-[10px] text-apg-silver">
+        {card.rentableBeds} rentable · {card.occupiedBeds} occupied · {card.vacantRentableBeds} vacant
+        {card.maintenanceBeds > 0 ? ` · ${card.maintenanceBeds} maintenance` : ''}
+      </p>
       <div className="mt-3">
         <OwnerPgSparkline values={card.sparklineRevenuePaise} />
       </div>
@@ -78,6 +94,41 @@ export function OwnerDashboard({
       </header>
 
       <OwnerKpiStrip kpis={data.kpis} />
+
+      <section className="rounded-xl border border-white/10 bg-[#1A1F27] p-4">
+        <h2 className="text-sm font-semibold text-white">Estimated revenue (rentable inventory baseline)</h2>
+        <p className="mt-1 text-xs text-apg-silver">
+          Sum of each rentable bed&apos;s configured monthly rent — not collected revenue and not adjusted for
+          occupancy. Maintenance and blocked beds are excluded.
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-apg-silver">Estimated / month</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-indigo-200">
+              {paiseToInr(data.estimatedRevenue.monthlyRevenuePaise)}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-apg-silver">Estimated / year</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-indigo-200">
+              {paiseToInr(data.estimatedRevenue.yearlyRevenuePaise)}
+            </p>
+          </div>
+          <div className="sm:col-span-2">
+            <p className="text-[10px] uppercase tracking-wide text-apg-silver">Basis</p>
+            <p className="mt-1 text-sm text-white">
+              {data.estimatedRevenue.rentableBeds} rentable beds
+            </p>
+            <p className="mt-1 text-xs text-apg-silver">
+              Occupied {data.estimatedRevenue.occupiedBeds} · Vacant {data.estimatedRevenue.vacantRentableBeds}
+              · Maintenance {data.estimatedRevenue.maintenanceBeds}
+              {data.estimatedRevenue.blockedBeds > 0
+                ? ` · Blocked ${data.estimatedRevenue.blockedBeds}`
+                : ''}
+            </p>
+          </div>
+        </div>
+      </section>
 
       <OwnerEcosystemHealthPanel snapshot={data.ecosystemHealth ?? null} />
 

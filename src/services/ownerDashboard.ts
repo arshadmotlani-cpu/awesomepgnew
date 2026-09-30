@@ -41,6 +41,11 @@ export type OwnerPgCard = {
   depositHeldPaise: number;
   collectionPct: number;
   sparklineRevenuePaise: number[];
+  estimatedMonthlyRevenuePaise: number;
+  estimatedYearlyRevenuePaise: number;
+  rentableBeds: number;
+  vacantRentableBeds: number;
+  maintenanceBeds: number;
 };
 
 export type OwnerActionItem = {
@@ -62,6 +67,7 @@ export type OwnerDashboardData = {
   billingMonth: string;
   monthLabel: string;
   kpis: OwnerKpi[];
+  estimatedRevenue: import('@/src/services/estimatedRevenueService').EstimatedRevenueSnapshot;
   revenueComposition: {
     rentPaise: number;
     electricityPaise: number;
@@ -123,6 +129,7 @@ function buildPgCards(
   outstandingMap: Map<string, number>,
   billingMonth: string,
   sparklinesByPg: Map<string, number[]>,
+  estimatedByPg: Map<string, import('@/src/services/estimatedRevenueService').EstimatedRevenuePgRow>,
 ): OwnerPgCard[] {
   return rows.map((row) => {
     const outstandingPaise = outstandingMap.get(row.pgId) ?? 0;
@@ -131,6 +138,7 @@ function buildPgCards(
       collected + outstandingPaise > 0
         ? Math.round((collected / (collected + outstandingPaise)) * 1000) / 10
         : 0;
+    const estimate = estimatedByPg.get(row.pgId);
 
     return {
       pgId: row.pgId,
@@ -144,6 +152,11 @@ function buildPgCards(
       depositHeldPaise: row.depositHeldPaise ?? 0,
       collectionPct,
       sparklineRevenuePaise: sparklinesByPg.get(row.pgId) ?? [],
+      estimatedMonthlyRevenuePaise: estimate?.monthlyRevenuePaise ?? 0,
+      estimatedYearlyRevenuePaise: estimate?.yearlyRevenuePaise ?? 0,
+      rentableBeds: estimate?.rentableBeds ?? 0,
+      vacantRentableBeds: estimate?.vacantRentableBeds ?? 0,
+      maintenanceBeds: estimate?.maintenanceBeds ?? 0,
     };
   });
 }
@@ -188,6 +201,8 @@ export function buildOwnerDashboard(
 
   const outstandingMap = outstandingByPg(ctx);
   const sparklines = sparklinesFromTrends(trends);
+  const estimated = ctx.estimatedRevenue;
+  const estimatedByPg = new Map(estimated.byPg.map((row) => [row.pgId, row]));
 
   const kpis: OwnerKpi[] = [
     {
@@ -250,6 +265,22 @@ export function buildOwnerDashboard(
       href: '/admin/pgs',
       accent: 'sky',
     },
+    {
+      id: 'estimated_revenue_monthly',
+      label: 'Estimated Revenue / Month',
+      kind: 'money',
+      value: estimated.monthlyRevenuePaise,
+      hint: `${estimated.rentableBeds} rentable beds · baseline monthly rent`,
+      accent: 'indigo',
+    },
+    {
+      id: 'estimated_revenue_yearly',
+      label: 'Estimated Revenue / Year',
+      kind: 'money',
+      value: estimated.yearlyRevenuePaise,
+      hint: 'Monthly baseline × 12 · not collected revenue',
+      accent: 'indigo',
+    },
   ];
 
   const mtdCollected = r.mtd.totalPaise;
@@ -264,11 +295,12 @@ export function buildOwnerDashboard(
     { id: 'overdue', label: 'Overdue', paise: overdueEstimatePaise, color: '#F87171' },
   ].filter((s) => s.paise > 0);
 
-  const pgCards = buildPgCards(r.byPg ?? [], outstandingMap, month, sparklines);
+  const pgCards = buildPgCards(r.byPg ?? [], outstandingMap, month, sparklines, estimatedByPg);
 
   return {
     billingMonth: month,
     monthLabel: ctx.monthLabel,
+    estimatedRevenue: estimated,
     kpis,
     revenueComposition: {
       rentPaise: r.mtd?.rentPaise ?? 0,
