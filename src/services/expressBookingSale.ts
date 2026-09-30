@@ -15,7 +15,6 @@ import {
 import { getActiveTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
 import { mergeOrUpsertCustomerForAdminWalkIn } from '@/src/services/adminCustomerMerge';
 import { createBooking } from '@/src/services/booking';
-import { clearBedAdminMarks } from '@/src/services/bookingAdminOps';
 import { applyDepositCreditToBooking, getCustomerDepositCredit } from '@/src/services/depositCredit';
 import { syncDepositCollectionFromLedger } from '@/src/services/depositCollection';
 import { recordExpressCollection } from '@/src/services/expressCollection';
@@ -385,7 +384,6 @@ export async function executeExpressBookingSale(
     );
   }
 
-  await clearBedAdminMarks(input.bedId);
   await reconcileOrphanBedReservations(input.bedId);
 
   const reservationEnd =
@@ -399,7 +397,6 @@ export async function executeExpressBookingSale(
       startDate: input.checkInDate,
       endDate: reservationEnd,
     },
-    { ignoreManualOccupied: true },
   );
   if (!available) {
     return abortSale('Selected bed is not available for these dates.');

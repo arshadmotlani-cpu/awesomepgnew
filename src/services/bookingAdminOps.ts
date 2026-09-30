@@ -264,6 +264,7 @@ export async function updateBedInventoryStatus(
   scheduleAvailabilityCacheInvalidation({ bedId });
 }
 
+/** Clears manual reserve fields. Prefer `setBedManualOccupied(session, bedId, false)` — not for lifecycle/cron. */
 export async function clearBedAdminMarks(bedId: string): Promise<void> {
   await db
     .update(beds)

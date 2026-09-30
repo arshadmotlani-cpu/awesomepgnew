@@ -141,3 +141,42 @@ test('K — manual occupied save revalidates occupancy views', () => {
   const setFn = opsSrc.slice(opsSrc.indexOf('export async function setBedManualOccupied'));
   assert.match(setFn.slice(0, 2200), /scheduleAvailabilityCacheInvalidation/);
 });
+
+function readSrc(rel: string): string {
+  return readFileSync(join(process.cwd(), rel), 'utf8');
+}
+
+test('L — occupancySync must not auto-clear manual_occupied', () => {
+  const src = readSrc('src/lib/occupancySync.ts');
+  assert.doesNotMatch(src, /clearBedAdminMarks/);
+});
+
+test('M — reconcileBookingOccupancy callers must not rely on side-effect clear', () => {
+  for (const rel of [
+    'src/services/bookingLifecycle.ts',
+    'src/services/vacatingAudit.ts',
+    'src/services/bedAudit.ts',
+    'src/services/tenantAssignment.ts',
+    'src/services/expressBookingSale.ts',
+    'src/services/residentAdmin.ts',
+  ]) {
+    assert.doesNotMatch(readSrc(rel), /clearBedAdminMarks/, rel);
+  }
+});
+
+test('N — express walk-in respects manual occupied (no ignoreManualOccupied bypass)', () => {
+  const src = readSrc('src/services/expressBookingSale.ts');
+  assert.doesNotMatch(src, /ignoreManualOccupied:\s*true/);
+});
+
+test('O — only bookingAdminOps may reference clearBedAdminMarks in src/', () => {
+  const hits: string[] = [];
+  for (const rel of [
+    'src/lib/occupancySync.ts',
+    'src/services/productionDataConsistencyAudit.ts',
+    'src/services/occupancyDiagnostics.ts',
+  ]) {
+    if (/clearBedAdminMarks/.test(readSrc(rel))) hits.push(rel);
+  }
+  assert.deepEqual(hits, []);
+});

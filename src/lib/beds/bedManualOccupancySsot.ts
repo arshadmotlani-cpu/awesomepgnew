@@ -17,7 +17,7 @@ export function isAdminManualOccupiedMark(manualOccupied: boolean | null | undef
 
 /**
  * Legacy audits treated manual_occupied without a booking as "ghost" data.
- * Product semantics: that state is valid until admin clears it or checkout lifecycle runs.
+ * Product semantics: that state is valid until an admin explicitly clears it (Mark Available).
  */
 export function isStaleManualOccupiedWithoutBooking(_manualOccupied: boolean): boolean {
   return false;

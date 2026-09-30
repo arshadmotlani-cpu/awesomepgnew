@@ -801,9 +801,6 @@ export async function activateReservationNow(
       AND status = 'active'
   `);
 
-  const { clearBedAdminMarks } = await import('@/src/services/bookingAdminOps');
-  await clearBedAdminMarks(ctx.bedId);
-
   const { reconcileBookingOccupancy } = await import('@/src/lib/occupancySync');
   await reconcileBookingOccupancy(input.bookingId);
 

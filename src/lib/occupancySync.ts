@@ -9,7 +9,6 @@ import { bedReservations, bookings, vacatingRequests } from '@/src/db/schema';
 import { scheduleAvailabilityCacheInvalidation } from '@/src/lib/cache/invalidateAvailability';
 import { revalidateReservationLifecycleViews } from '@/src/lib/occupancyRevalidate';
 import { stayRangeExclusiveEnd } from '@/src/lib/vacating/vacatingBedSemantics';
-import { clearBedAdminMarks } from '@/src/services/bookingAdminOps';
 
 /**
  * Cancel active/hold reservations whose parent booking is no longer live
@@ -36,9 +35,6 @@ export async function reconcileOrphanBedReservations(bedId?: string): Promise<nu
 
   const rows = (result as unknown as { rows?: { id?: string; bed_id?: string }[] }).rows ?? result;
   const count = Array.isArray(rows) ? rows.length : 0;
-  if (bedId && count > 0) {
-    await clearBedAdminMarks(bedId);
-  }
   return count;
 }
 
@@ -94,7 +90,7 @@ export async function syncApprovedVacatingStayRange(bookingId: string): Promise<
   return Array.isArray(rows) ? rows.length : 0;
 }
 
-/** Reconcile all beds touched by a booking, then clear stale manual marks. */
+/** Reconcile reservations for a booking — does not mutate admin manual_occupied marks. */
 export async function reconcileBookingOccupancy(
   bookingId: string,
   opts?: { revalidate?: boolean },
@@ -124,7 +120,6 @@ export async function reconcileBookingOccupancy(
     const id = row.bed_id;
     if (id) {
       bedsTouched.push(id);
-      await clearBedAdminMarks(id);
     }
   }
 

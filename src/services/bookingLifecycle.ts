@@ -798,29 +798,6 @@ export async function recordPaymentSuccess(
       return { paymentId: payment.id, isReserveBooking };
     });
 
-    if (!result.isReserveBooking && (
-      wasAwaitingConfirm &&
-      (booking.durationMode === 'monthly' || booking.durationMode === 'open_ended')
-    )) {
-      try {
-        const { clearBedAdminMarks } = await import('./bookingAdminOps');
-        const assignedBeds = await db
-          .select({ bedId: bedReservations.bedId })
-          .from(bedReservations)
-          .where(
-            and(
-              eq(bedReservations.bookingId, booking.id),
-              eq(bedReservations.kind, 'primary'),
-            ),
-          );
-        for (const row of assignedBeds) {
-          await clearBedAdminMarks(row.bedId);
-        }
-      } catch (markErr) {
-        console.error('clear admin bed marks after payment failed:', markErr);
-      }
-    }
-
     if (
       !isReserveBooking &&
       wasAwaitingConfirm &&

@@ -13,7 +13,6 @@ import {
 } from '@/src/db/schema';
 import { formatDate } from '@/src/lib/dates';
 import { reconcileBookingOccupancy } from '@/src/lib/occupancySync';
-import { clearBedAdminMarks } from '@/src/services/bookingAdminOps';
 
 export type VacatingAuditIssue = {
   code: string;
@@ -175,15 +174,9 @@ export async function repairVacatingAuditIssues(
     }
 
     if (issue.code === 'ghost_occupied_after_vacating' && issue.bookingId) {
-      const bedRows = await db
-        .select({ bedId: bedReservations.bedId })
-        .from(bedReservations)
-        .where(eq(bedReservations.bookingId, issue.bookingId));
-      for (const row of bedRows) {
-        await clearBedAdminMarks(row.bedId);
-      }
-      messages.push(`Cleared manual marks for ${issue.bookingCode}`);
-      repaired += 1;
+      messages.push(
+        `${issue.bookingCode}: manual inventory marks are not auto-cleared on vacating — use bed map if needed`,
+      );
     }
 
     if (issue.code === 'approved_past_due' && issue.bookingId) {

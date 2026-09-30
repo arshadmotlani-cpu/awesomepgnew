@@ -14,7 +14,6 @@ import {
   pgs,
   rooms,
 } from '@/src/db/schema';
-import { clearBedAdminMarks } from '@/src/services/bookingAdminOps';
 import { formatDate } from '@/src/lib/dates';
 
 export type BedAuditIssue = {
@@ -159,10 +158,9 @@ export async function repairBedAuditIssue(
     await logRepair('bed_repair_reservation_sync', {
       bedId: issue.bedId,
       bookingId: issue.bookingId,
-      note: 'Reservation is SSOT — cleared stale manual mark only',
+      note: 'Reservation is SSOT for booking occupancy; manual_occupied inventory mark unchanged',
     });
-    await clearBedAdminMarks(issue.bedId);
-    return { ok: true, message: 'Cleared stale manual mark; reservation is source of truth.' };
+    return { ok: true, message: 'Reservation is source of truth for booking occupancy.' };
   }
 
   if (issue.kind === 'double_assignment' && issue.bedId) {
@@ -197,7 +195,6 @@ export async function repairBedAuditIssue(
         .where(eq(bedReservations.id, r.reservationId));
     }
 
-    await clearBedAdminMarks(issue.bedId);
 
     await logRepair('bed_repair_double_assignment', {
       bedId: issue.bedId,

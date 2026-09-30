@@ -8,7 +8,6 @@ import { quoteMonthlyBedDepositPaise } from '@/src/lib/booking/publicQuote';
 import { getActiveTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
 import { getCustomerVerificationStatus } from '@/src/services/residentAdmin';
 import { createBooking } from '@/src/services/booking';
-import { clearBedAdminMarks } from '@/src/services/bookingAdminOps';
 import { reconcileOrphanBedReservations } from '@/src/lib/occupancySync';
 import { bedBlocksInventory } from '@/src/lib/inventoryBlocking';
 import { isBedAvailable } from '@/src/services/availability';
@@ -54,8 +53,6 @@ export async function assignTenantToBed(
     return { ok: false, error: 'You do not have access to this PG.' };
   }
 
-  // Admin assignment replaces any manual occupied/reserved marks on the bed.
-  await clearBedAdminMarks(input.bedId);
   await reconcileOrphanBedReservations(input.bedId);
 
   const available = await isBedAvailable({

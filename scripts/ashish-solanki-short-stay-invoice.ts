@@ -29,13 +29,14 @@ import {
 } from '../src/db/schema';
 import { diffDays } from '../src/lib/dates';
 import { normaliseIndianPhone } from '../src/lib/phone';
+import { ensureInvoiceShareToken } from '../src/lib/billing/invoiceShareToken';
+import { buildInvoicePublicUrl } from '../src/lib/billing/sendInvoiceOnWhatsApp';
 import { paymentLinkPublicUrl } from '../src/lib/billing/paymentLinkUrl';
 import { CANONICAL_PRODUCTION_URL } from '../src/lib/url';
 import { isBedInventoryAvailable } from '../src/lib/inventoryBlocking';
 import { reconcileOrphanBedReservations } from '../src/lib/occupancySync';
 import { mergeOrUpsertCustomerForAdminWalkIn } from '../src/services/adminCustomerMerge';
 import { isBedAvailable } from '../src/services/availability';
-import { clearBedAdminMarks } from '../src/services/bookingAdminOps';
 import { createBooking } from '../src/services/booking';
 import { createResidentCharge } from '../src/services/residentCharges';
 import { quoteAdminTenantAssignment } from '../src/services/pricing';
@@ -157,7 +158,6 @@ async function findFourAvailableBeds(): Promise<{ pgName: string; roomNumber: st
     ) {
       continue;
     }
-    await clearBedAdminMarks(row.bed_id);
     await reconcileOrphanBedReservations(row.bed_id);
     if (
       !(await isBedAvailable({
@@ -211,18 +211,23 @@ async function reportLookup() {
       billingMonth: inv.billingMonth,
     });
   }
-  console.log('\n=== Financial invoices ===');
+  console.log('\n=== Financial invoices (authoritative SSOT) ===');
   for (const inv of financial) {
+    const shareToken = inv.shareToken ?? (await ensureInvoiceShareToken(inv.id));
     console.log({
       id: inv.id,
       number: inv.invoiceNumber,
       bookingId: inv.bookingId,
       totalPaise: inv.amountPaise,
       status: inv.status,
+      INVOICE_LINK: buildInvoicePublicUrl(shareToken, CANONICAL_PRODUCTION_URL),
       paymentLinkId: inv.paymentLinkId,
+      PAYMENT_LINK: inv.paymentLinkId
+        ? paymentLinkPublicUrl(inv.paymentLinkId, CANONICAL_PRODUCTION_URL)
+        : null,
     });
   }
-  console.log('\n=== Payment links ===');
+  console.log('\n=== Payment links (pay only — not invoice view) ===');
   for (const link of links) {
     console.log({
       id: link.id,
@@ -244,34 +249,23 @@ function productionPaymentUrl(linkId: string): string {
 
 async function applyFlow(actorId: string) {
   const state = await reportLookup();
-  if (state.correctFin?.paymentLinkId) {
-    const link = state.links.find((l) => l.id === state.correctFin!.paymentLinkId);
-    if (link && link.status === 'active') {
-      console.log('\n=== Reusing existing invoice + link (no writes) ===');
-      console.log({
-        customerId: state.rows[0]?.id,
-        bookingId: state.correctFin.bookingId,
-        invoiceId: state.correctFin.id,
-        invoiceNumber: state.correctFin.invoiceNumber,
-        paymentLinkUrl: productionPaymentUrl(link.id),
-      });
-      return;
-    }
-  }
-
-  if (state.correctInvoice && state.links.length > 0) {
-    const link = state.links.find((l) => l.amountPaise === EXPECTED_TOTAL_PAISE && l.status === 'active');
-    if (link) {
-      console.log('\n=== Reusing existing invoice + link (no writes) ===');
-      console.log({
-        customerId: state.rows[0]?.id,
-        bookingId: state.correctInvoice.bookingId,
-        invoiceId: state.correctInvoice.id,
-        invoiceNumber: state.correctInvoice.invoiceNumber,
-        paymentLinkUrl: paymentLinkPublicUrl(link.id),
-      });
-      return;
-    }
+  if (state.correctFin && state.correctFin.amountPaise === EXPECTED_TOTAL_PAISE) {
+    const shareToken =
+      state.correctFin.shareToken ?? (await ensureInvoiceShareToken(state.correctFin.id));
+    const invoiceLink = buildInvoicePublicUrl(shareToken, CANONICAL_PRODUCTION_URL);
+    const payLink = state.correctFin.paymentLinkId
+      ? productionPaymentUrl(state.correctFin.paymentLinkId)
+      : null;
+    console.log('\n=== Reusing existing authoritative invoice (no writes) ===');
+    console.log({
+      customerId: state.rows[0]?.id,
+      bookingId: state.correctFin.bookingId,
+      invoiceId: state.correctFin.id,
+      invoiceNumber: state.correctFin.invoiceNumber,
+      INVOICE_LINK: invoiceLink,
+      PAYMENT_LINK: payLink,
+    });
+    return;
   }
 
   let customerId = state.rows[0]?.id;
