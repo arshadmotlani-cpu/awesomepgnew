@@ -11,8 +11,8 @@ export function isShareCancel(err: unknown): boolean {
 }
 
 /**
- * Prefer the OS share sheet. Missing API or a non-cancel failure falls back
- * to the small copy/WhatsApp popover. User dismiss is not a fallback.
+ * Invoke the OS share sheet from the bed share popover "Share" row only.
+ * Missing API returns fallback; user dismiss (AbortError) is not a fallback.
  */
 export async function requestNativeBedShare(
   payload: NativeSharePayload,

@@ -11,6 +11,7 @@ import {
   whatsAppShareHref,
 } from '../../src/lib/booking/publicBedShareUrl';
 import { copyBedShareLink, requestNativeBedShare } from '../../src/lib/booking/shareBedLink';
+import { clampSharePopoverPosition } from '../../src/lib/booking/sharePopoverPosition';
 import {
   applySharedBedSelection,
   resolveSharedBedPrompt,
@@ -69,14 +70,27 @@ test('bed share URL resolves to the PG, room, and exact bed', () => {
   );
 });
 
-test('share button generates the canonical URL and prefers the Web Share API', async () => {
+test('share icon opens popover first — not immediate native share on trigger click', () => {
   const ui = read('src/components/customer/BedShareButton.tsx');
-  assert.match(ui, /buildPublicBedShareUrl/);
-  assert.match(ui, /requestNativeBedShare/);
-  assert.match(ui, /Link copied/);
+  assert.match(ui, /onToggleIcon/);
+  assert.match(ui, /setOpen\(\(prev\) => !prev\)/);
+  assert.doesNotMatch(ui, /onClick=\{onShare\}/);
+  assert.match(ui, /aria-expanded=\{open\}/);
+  assert.match(ui, /Share Bed \$\{bedCode\} booking link/);
+});
+
+test('share popover contains Share, Copy link, WhatsApp, and bed header', () => {
+  const ui = read('src/components/customer/BedShareButton.tsx');
+  assert.match(ui, /Bed \{bedCode\}/);
+  assert.match(ui, /onShareRow/);
+  assert.match(ui, /\n\s*Share\n/);
   assert.match(ui, /Copy link/);
   assert.match(ui, /WhatsApp/);
+  assert.match(ui, /createPortal/);
+  assert.match(ui, /clampSharePopoverPosition/);
+});
 
+test('Share row uses requestNativeBedShare with canonical bed URL', async () => {
   const url = buildPublicBedShareUrl({ pgSlug: PG, roomId: ROOM, bedId: BED }, 'https://awesomepg.in');
   let shared: string | null = null;
   const outcome = await requestNativeBedShare(
@@ -87,9 +101,101 @@ test('share button generates the canonical URL and prefers the Web Share API', a
   );
   assert.equal(outcome, 'shared');
   assert.equal(shared, url);
+  assert.match(read('src/components/customer/BedShareButton.tsx'), /onShareRow/);
+  assert.match(read('src/components/customer/BedShareButton.tsx'), /requestNativeBedShare/);
 });
 
-test('copy fallback works when Web Share API is unavailable and cancel does not fall back', async () => {
+test('Copy link uses clipboard SSOT and shows Link copied confirmation', async () => {
+  const url = buildPublicBedShareUrl({ pgSlug: PG, roomId: ROOM, bedId: BED }, 'https://awesomepg.in');
+  let copied = '';
+  assert.equal(
+    await copyBedShareLink(url, async (value) => {
+      copied = value;
+    }),
+    true,
+  );
+  assert.equal(copied, url);
+  const ui = read('src/components/customer/BedShareButton.tsx');
+  assert.match(ui, /copyBedShareLink/);
+  assert.match(ui, /buildPublicBedShareUrl/);
+  assert.match(ui, /Link copied/);
+  assert.match(ui, /Copy Bed \$\{bedCode\} booking link/);
+});
+
+test('WhatsApp uses the same canonical URL as copy', () => {
+  const url = buildPublicBedShareUrl({ pgSlug: PG, roomId: ROOM, bedId: BED }, 'https://awesomepg.in');
+  const href = whatsAppShareHref(url, 'Room 201 · Bed B2');
+  assert.match(href, /wa\.me/);
+  assert.ok(href.includes(encodeURIComponent(url)));
+  assert.match(read('src/components/customer/BedShareButton.tsx'), /whatsAppShareHref\(url/);
+});
+
+test('popover dismisses on outside click and Escape', () => {
+  const ui = read('src/components/customer/BedShareButton.tsx');
+  assert.match(ui, /document\.addEventListener\('mousedown'/);
+  assert.match(ui, /document\.addEventListener\('keydown'/);
+  assert.match(ui, /e\.key === 'Escape'/);
+  assert.match(ui, /setOpen\(false\)/);
+});
+
+test('clampSharePopoverPosition keeps panel inside viewport near edges', () => {
+  const panelWidth = 176;
+  const panelHeight = 168;
+  const padding = 12;
+  const viewportWidth = 390;
+  const viewportHeight = 844;
+
+  const bottomRight = clampSharePopoverPosition({
+    triggerRect: {
+      top: 800,
+      left: 350,
+      right: 390,
+      bottom: 832,
+      width: 40,
+      height: 32,
+    },
+    panelWidth,
+    panelHeight,
+    padding,
+    viewportWidth,
+    viewportHeight,
+  });
+  assert.ok(bottomRight.top >= padding);
+  assert.ok(bottomRight.top + panelHeight <= viewportHeight - padding);
+  assert.ok(bottomRight.left >= padding);
+  assert.ok(bottomRight.left + panelWidth <= viewportWidth - padding);
+
+  const topLeft = clampSharePopoverPosition({
+    triggerRect: {
+      top: 20,
+      left: 8,
+      right: 48,
+      bottom: 52,
+      width: 40,
+      height: 32,
+    },
+    panelWidth,
+    panelHeight,
+    padding,
+    viewportWidth,
+    viewportHeight,
+  });
+  assert.ok(topLeft.left >= padding);
+  assert.ok(topLeft.top >= padding);
+});
+
+test('share UX does not introduce duplicate booking or pricing logic', () => {
+  for (const file of [
+    'src/components/customer/BedShareButton.tsx',
+    'src/lib/booking/sharePopoverPosition.ts',
+    'src/lib/booking/shareBedLink.ts',
+  ]) {
+    const src = read(file);
+    assert.doesNotMatch(src, /createBooking|computePriceBreakdown|quoteBookingPrice/);
+  }
+});
+
+test('native share cancel does not imply fallback', async () => {
   const url = buildPublicBedShareUrl({ pgSlug: PG, roomId: ROOM, bedId: BED }, 'https://awesomepg.in');
   assert.equal(await requestNativeBedShare({ url, title: 'Bed', text: 'Stay' }), 'fallback');
 
@@ -101,17 +207,6 @@ test('copy fallback works when Web Share API is unavailable and cancel does not 
     }),
     'cancelled',
   );
-
-  let copied = '';
-  assert.equal(
-    await copyBedShareLink(url, async (value) => {
-      copied = value;
-    }),
-    true,
-  );
-  assert.equal(copied, url);
-  assert.match(whatsAppShareHref(url, 'Room 201 · Bed B2'), /wa\.me/);
-  assert.match(read('src/components/customer/BedShareButton.tsx'), /Link copied/);
 });
 
 test('old tour and cockroach guide do not render on the public site', () => {
