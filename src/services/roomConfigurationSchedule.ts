@@ -41,6 +41,19 @@ import { writeBedPriceVersion } from '@/src/services/pgInventoryPricing';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { sharingTypeName } from '@/src/lib/roomSharing';
 
+const ADMIN_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function auditActorForSession(session: AdminSession): {
+  actorType: 'admin' | 'system';
+  actorId: string | null;
+} {
+  if (session.adminId && ADMIN_UUID_RE.test(session.adminId)) {
+    return { actorType: 'admin', actorId: session.adminId };
+  }
+  return { actorType: 'system', actorId: null };
+}
+
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export type ScheduleRoomConfigurationInput = {
@@ -984,9 +997,10 @@ async function applySingleRoomConfigurationSchedule(
           ),
         );
 
+      const auditActor = auditActorForSession(session);
       await tx.insert(auditLog).values({
-        actorType: session.adminId ? 'admin' : 'system',
-        actorId: session.adminId,
+        actorType: auditActor.actorType,
+        actorId: auditActor.actorId,
         entity: 'room_configuration_schedule',
         entityId: scheduleId,
         action: 'applied',

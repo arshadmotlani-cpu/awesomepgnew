@@ -86,6 +86,12 @@ test('already-applied schedule is skipped (idempotent early return)', () => {
   assert.match(fn, /row\.status !== 'scheduled'\) return false/);
 });
 
+test('cron apply uses system audit actor when adminId is not a UUID', () => {
+  assert.match(scheduleService, /function auditActorForSession/);
+  assert.match(scheduleService, /actorType: auditActor\.actorType/);
+  assert.match(scheduleService, /actorId: auditActor\.actorId/);
+});
+
 test('deposit adjustment still runs after successful transactional apply', () => {
   const fnStart = scheduleService.indexOf('async function applySingleRoomConfigurationSchedule');
   const fnEnd = scheduleService.indexOf('export const SYSTEM_ROOM_CONFIGURATION_SESSION', fnStart);
