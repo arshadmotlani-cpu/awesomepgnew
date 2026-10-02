@@ -1510,6 +1510,23 @@ export async function adminWithdrawVacatingRequest(input: {
       })
       .where(eq(vacatingRequests.id, current.id));
 
+    const { vacatingDateChangeRequests } = await import('@/src/db/schema');
+    const pendingChanges = await db
+      .select({ id: vacatingDateChangeRequests.id })
+      .from(vacatingDateChangeRequests)
+      .where(
+        and(
+          eq(vacatingDateChangeRequests.vacatingRequestId, current.id),
+          eq(vacatingDateChangeRequests.status, 'pending'),
+        ),
+      );
+    for (const pending of pendingChanges) {
+      await db
+        .update(vacatingDateChangeRequests)
+        .set({ status: 'cancelled', updatedAt: new Date() })
+        .where(eq(vacatingDateChangeRequests.id, pending.id));
+    }
+
     await restoreCheckoutRentAfterVacatingCancel({
       bookingId: current.bookingId,
       adminId: input.resolvedByAdminId ?? null,

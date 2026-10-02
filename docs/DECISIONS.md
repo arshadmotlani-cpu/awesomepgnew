@@ -349,3 +349,6 @@ Cross-links: [[ARCHITECTURE]] · [[WORKFLOWS]] · [[AI_CONTEXT]] · [[BUGS]]
 
 <!-- DOC_SYNC_TOUCH_2026-09-27 -->
 > **2026-09-27 05:55:10 UTC** — Code changed in: Vacating. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-10-02 -->
+> **2026-10-02 05:16:53 UTC** — Code changed in: Vacating. Manual review recommended.

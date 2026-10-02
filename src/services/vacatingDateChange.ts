@@ -361,6 +361,75 @@ export async function submitVacatingDateChangeRequest(input: {
   return { ok: true, requestId: created.id };
 }
 
+function vacatingRejectedDueToWithdraw(
+  vacating: typeof vacatingRequests.$inferSelect,
+): boolean {
+  if (vacating.status !== 'rejected') return false;
+  const notes = vacating.notes ?? '';
+  return (
+    notes.includes('withdrew your move-out') ||
+    notes.includes('withdrawn by admin') ||
+    notes.includes('Move-out notice withdrawn')
+  );
+}
+
+/**
+ * Resident withdrew move-out but a pending date-change may remain (orphan).
+ * Reinstate approved move-out at the requested date so admin approval can complete.
+ */
+export async function tryReinstateWithdrawnVacatingForPendingDateChange(input: {
+  vacating: typeof vacatingRequests.$inferSelect;
+  row: typeof vacatingDateChangeRequests.$inferSelect;
+  resolvedByAdminId?: string | null;
+}): Promise<typeof vacatingRequests.$inferSelect | null> {
+  if (!vacatingRejectedDueToWithdraw(input.vacating)) return null;
+
+  const newDate = normalizeIsoDateOnly(String(input.row.requestedVacatingDate));
+  const noticeBreakdown = await computeNoticeDeductionForBooking({
+    bookingId: input.vacating.bookingId,
+    noticeGivenDate: String(input.vacating.noticeGivenDate),
+    vacatingDate: newDate,
+    monthlyRentPaise: input.vacating.monthlyRentPaiseSnapshot,
+  });
+
+  const [reinstated] = await db
+    .update(vacatingRequests)
+    .set({
+      status: 'approved',
+      vacatingDate: newDate,
+      resolvedAt: null,
+      noticeCompliant: isNoticeCompliant({
+        noticeGivenDate: input.vacating.noticeGivenDate,
+        vacatingDate: newDate,
+      }),
+      deductionPaise: noticeBreakdown.noticeDeductionPaise,
+      noticeRentCoveredDays: noticeBreakdown.rentCoveredDays,
+      noticeChargeableDays: noticeBreakdown.chargeableNoticeDays,
+      noticeBreakdownJson: noticeBreakdown as unknown as Partial<NoticeDeductionBreakdown>,
+      updatedAt: new Date(),
+    })
+    .where(eq(vacatingRequests.id, input.vacating.id))
+    .returning();
+
+  if (!reinstated) return null;
+
+  await db.insert(auditLog).values({
+    actorType: input.resolvedByAdminId ? 'admin' : 'system',
+    actorId: input.resolvedByAdminId ?? null,
+    entity: 'vacating_request',
+    entityId: reinstated.id,
+    action: 'reinstated_for_date_change',
+    diff: {
+      dateChangeRequestId: input.row.id,
+      vacatingDate: newDate,
+      noticeChargeableDays: noticeBreakdown.chargeableNoticeDays,
+      noticeDeductionPaise: noticeBreakdown.noticeDeductionPaise,
+    },
+  });
+
+  return reinstated;
+}
+
 export async function applyApprovedVacatingDateChange(args: {
   vacating: typeof vacatingRequests.$inferSelect;
   newVacatingDate: string;
@@ -479,23 +548,71 @@ export async function approveVacatingDateChangeRequest(input: {
     .where(eq(vacatingDateChangeRequests.id, input.requestId))
     .limit(1);
   if (!row) return { ok: false, error: 'Date change request not found.' };
-  if (row.status !== 'pending') return { ok: false, error: 'This request is no longer pending.' };
+  if (row.status === 'approved') return { ok: true };
+  if (row.status !== 'pending') {
+    return { ok: false, error: 'This request is no longer pending.' };
+  }
 
-  const [vacating] = await db
+  let [vacating] = await db
     .select()
     .from(vacatingRequests)
     .where(eq(vacatingRequests.id, row.vacatingRequestId))
     .limit(1);
-  if (!vacating || vacating.status !== 'approved') {
-    return { ok: false, error: 'Move-out request is no longer active.' };
+  if (!vacating) {
+    return { ok: false, error: 'Move-out request not found.' };
   }
 
-  await applyApprovedVacatingDateChange({
-    vacating,
-    newVacatingDate: String(row.requestedVacatingDate),
-    resolvedByAdminId: input.resolvedByAdminId,
-    fromDateChangeRequestId: row.id,
-  });
+  if (vacating.status !== 'approved') {
+    const reinstated = await tryReinstateWithdrawnVacatingForPendingDateChange({
+      vacating,
+      row,
+      resolvedByAdminId: input.resolvedByAdminId,
+    });
+    if (!reinstated) {
+      return { ok: false, error: 'Move-out request is no longer active. Approve a new move-out notice first.' };
+    }
+    vacating = reinstated;
+  }
+
+  const requestedDate = normalizeIsoDateOnly(String(row.requestedVacatingDate));
+  const currentDate = normalizeIsoDateOnly(String(vacating.vacatingDate));
+
+  if (currentDate === requestedDate) {
+    try {
+      await applyApprovedVacatingDateChange({
+        vacating,
+        newVacatingDate: requestedDate,
+        resolvedByAdminId: input.resolvedByAdminId,
+        fromDateChangeRequestId: row.id,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: message };
+    }
+    await db
+      .update(vacatingDateChangeRequests)
+      .set({
+        status: 'approved',
+        adminNotes: input.adminNotes?.trim() || null,
+        reviewedByAdminId: input.resolvedByAdminId ?? null,
+        reviewedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(vacatingDateChangeRequests.id, row.id));
+    return { ok: true };
+  }
+
+  try {
+    await applyApprovedVacatingDateChange({
+      vacating,
+      newVacatingDate: requestedDate,
+      resolvedByAdminId: input.resolvedByAdminId,
+      fromDateChangeRequestId: row.id,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message };
+  }
 
   await db
     .update(vacatingDateChangeRequests)
@@ -715,6 +832,7 @@ export async function listPendingVacatingDateChangesForOps(
     INNER JOIN floors f ON f.id = r.floor_id
     INNER JOIN pgs p ON p.id = f.pg_id
     WHERE vdcr.status = 'pending'
+      AND vr.status = 'approved'
     ORDER BY vdcr.created_at DESC
     LIMIT ${limit}
   `);

@@ -50,3 +50,19 @@ test('resident portal tab data exposes vacating date change eligibility', () => 
 test('stayRangeExclusiveEnd aligns bed release with vacating semantics', () => {
   assert.equal(stayRangeExclusiveEnd('2026-08-20'), '2026-08-21');
 });
+
+test('approve path handles withdrawn move-out with orphan pending date change', () => {
+  assert.match(vacatingDateChangeSource, /tryReinstateWithdrawnVacatingForPendingDateChange/);
+  assert.match(vacatingDateChangeSource, /vacatingRejectedDueToWithdraw/);
+  assert.match(vacatingDateChangeSource, /reinstated_for_date_change/);
+  assert.match(vacatingDateChangeSource, /if \(row\.status === 'approved'\) return \{ ok: true \}/);
+});
+
+test('admin date-change panel surfaces server action errors', () => {
+  const panel = readFileSync(
+    join(process.cwd(), 'src/components/admin/vacating/VacatingDateChangeApprovalPanel.tsx'),
+    'utf8',
+  );
+  assert.match(panel, /actionError/);
+  assert.match(panel, /result\.status === 'error'/);
+});
