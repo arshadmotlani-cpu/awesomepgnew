@@ -60,7 +60,7 @@ export type BillingCentrePendingRow = {
   priority: string;
   paymentStatus: string;
   financialInvoiceId: string | null;
-  lastReminderSentAt: Date | null;
+  lastReminderSentAt: string | null;
   reminderCount: number;
 };
 
@@ -270,7 +270,7 @@ export function buildPendingCollectionRows(input: {
       priority: item.priority,
       paymentStatus: item.effectiveStatus,
       financialInvoiceId: item.financialInvoiceId ?? null,
-      lastReminderSentAt: stats?.lastSentAt ?? null,
+      lastReminderSentAt: stats?.lastSentAt?.toISOString() ?? null,
       reminderCount: stats?.count ?? 0,
     });
   }
@@ -390,6 +390,26 @@ export function applyBillingCentreDashboardFilters(
         matchesResident(r.residentName, r.residentPhone ?? '', filters.residentQuery) &&
         (!filters.pgId || r.pgId === filters.pgId),
     ),
+  };
+}
+
+/** RSC → client: Dates must be JSON-serializable (Next.js client component props). */
+export function serializeBillingCentreDashboardViewForClient(
+  view: BillingCentreDashboardView,
+): BillingCentreDashboardView {
+  return {
+    ...view,
+    pendingCollections: view.pendingCollections.map((row) => ({
+      ...row,
+      lastReminderSentAt:
+        row.lastReminderSentAt instanceof Date
+          ? row.lastReminderSentAt.toISOString()
+          : row.lastReminderSentAt,
+    })),
+    recentlyPaid: view.recentlyPaid.map((row) => ({
+      ...row,
+      paidAt: row.paidAt instanceof Date ? row.paidAt.toISOString() : row.paidAt,
+    })),
   };
 }
 

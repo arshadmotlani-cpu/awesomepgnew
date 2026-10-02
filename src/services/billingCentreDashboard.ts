@@ -27,6 +27,7 @@ import {
   buildApprovalRows,
   buildGeneratedTodayRows,
   buildPendingCollectionRows,
+  serializeBillingCentreDashboardViewForClient,
   buildSummaryCards,
   type BillingCentreDashboardFilters,
   type BillingCentreDashboardView,
@@ -37,6 +38,7 @@ import { isRoomOsBillingCentreEnabled } from '@/src/lib/operations/featureFlag';
 import { todayInBillingTimezone } from '@/src/lib/billing/billingTimezone';
 import { formatDate } from '@/src/lib/dates';
 import { resolveFinancialInvoiceIdMap } from '@/src/services/adminCashSettlement';
+import type { BillingCommandCenterSnapshot } from '@/src/services/billingCommandCenter';
 import { loadBillingCommandCenterSnapshot } from '@/src/services/billingCommandCenter';
 import { loadBillingOperationsDashboard } from '@/src/services/billingOperationsDashboard';
 import { listOutstandingDeposits } from '@/src/services/depositCollection';
@@ -166,8 +168,15 @@ export async function loadBillingCentreDashboardSnapshot(
   session: AdminSession,
   billingMonth: string,
   filters: BillingCentreDashboardFilters = {},
+  opts?: {
+    /** When the page already loads command center data, pass it to avoid duplicate DB work. */
+    commandSnapshot?: Promise<BillingCommandCenterSnapshot>;
+  },
 ): Promise<BillingCentreDashboardView> {
   const todayIso = todayInBillingTimezone();
+
+  const commandSnapshotPromise =
+    opts?.commandSnapshot ?? loadBillingCommandCenterSnapshot(session, billingMonth);
 
   const [
     operations,
@@ -181,7 +190,7 @@ export async function loadBillingCentreDashboardSnapshot(
     depositsToday,
   ] = await Promise.all([
     loadBillingOperationsDashboard(),
-    loadBillingCommandCenterSnapshot(session, billingMonth),
+    commandSnapshotPromise,
     listOutstandingDeposits(),
     getMoveOutPipelineSnapshot(session),
     getUnifiedOperationsQueueForBadges(session),
@@ -260,5 +269,7 @@ export async function loadBillingCentreDashboardSnapshot(
     pgs: operations.pgs,
   };
 
-  return applyBillingCentreDashboardFilters(view, filters);
+  return serializeBillingCentreDashboardViewForClient(
+    applyBillingCentreDashboardFilters(view, filters),
+  );
 }

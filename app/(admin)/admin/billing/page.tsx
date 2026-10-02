@@ -30,7 +30,7 @@ import { adminHasPermission } from '@/src/lib/auth/roles';
 import { ADMIN_MODULES, moduleHref, modulePgHref } from '@/src/lib/admin/navigation';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
-import { isRentBillingOverviewActionable } from '@/src/lib/billing/rentBillingOverview';
+import { deriveRentBillingOverviewCounts } from '@/src/lib/billing/rentBillingOverview';
 import {
   buildCollectionsCommandStats,
   buildCollectionsQueue,
@@ -68,7 +68,7 @@ import {
   mergeBillingRecentCollections,
 } from '@/src/lib/admin/billingCollectionsPresentation';
 import { loadBillingCentreDashboardSnapshot } from '@/src/services/billingCentreDashboard';
-import { listRentBillingOverview, listBillingCycleOperations, type BillingCycleOperationRow } from '@/src/services/rentInvoices';
+import { listRentBillingOverview, listBillingCycleOperations, summarizeRentBillingOverviewCounts, type BillingCycleOperationRow } from '@/src/services/rentInvoices';
 import { listRoomsMissingElectricityBill } from '@/src/services/electricityBilling';
 import { loadFleetElectricityBillingSummary } from '@/src/lib/billing/fleetElectricityBillingStatus';
 import type { AdminRentInvoiceRow } from '@/src/db/queries/admin';
@@ -144,14 +144,22 @@ export default async function CollectionsModulePage({
   const canGenerateRent = adminHasPermission(session.role, 'rent:write');
   const canSendLinks = adminHasPermission(session.role, 'payments:write');
 
+  const needsFullBillingOverview = tab === 'billing' || tab === 'rent';
+  const needsElectricityFleetSummary =
+    tab === 'dashboard' || tab === 'billing' || tab === 'electricity';
+
+  const billingCommandCenterPromise = loadBillingCommandCenterSnapshot(session, billingMonth, {
+    reconcile: false,
+  });
+
   const dashboardSnapshotPromise =
     tab === 'dashboard'
-      ? loadBillingCentreDashboardSnapshot(session, billingMonth, dashboardFilters).catch(
-          (err) => {
-            console.error('[billing-center] dashboard snapshot failed', err);
-            return null;
-          },
-        )
+      ? loadBillingCentreDashboardSnapshot(session, billingMonth, dashboardFilters, {
+          commandSnapshot: billingCommandCenterPromise,
+        }).catch((err) => {
+          console.error('[billing-center] dashboard snapshot failed', err);
+          return null;
+        })
       : Promise.resolve(null);
 
   const needsPaidData = tab === 'billing' || tab === 'paid';
@@ -163,7 +171,7 @@ export default async function CollectionsModulePage({
     openRent,
     elecPending,
     pgs,
-    billingOverview,
+    billingOverviewBundle,
     roomsMissingElectricity,
     fleetElectricitySummary,
     billingHealth,
@@ -181,11 +189,34 @@ export default async function CollectionsModulePage({
     listAdminOpenRentInvoices(),
     listAdminElectricityInvoicesForReminders(),
     listPgs(),
-    listRentBillingOverview(billingMonth),
-    listRoomsMissingElectricityBill(billingMonth),
-    loadFleetElectricityBillingSummary(billingMonth),
+    needsFullBillingOverview
+      ? listRentBillingOverview(billingMonth).then((rows) => ({
+          rows,
+          counts: deriveRentBillingOverviewCounts(rows),
+        }))
+      : summarizeRentBillingOverviewCounts(billingMonth).then((counts) => ({
+          rows: [] as Awaited<ReturnType<typeof listRentBillingOverview>>,
+          counts,
+        })),
+    needsElectricityFleetSummary
+      ? listRoomsMissingElectricityBill(billingMonth)
+      : Promise.resolve([]),
+    needsElectricityFleetSummary
+      ? loadFleetElectricityBillingSummary(billingMonth)
+      : Promise.resolve({
+          billingMonth,
+          pgCount: 0,
+          totalRooms: 0,
+          alreadyBilled: 0,
+          needMeterReading: 0,
+          needBill: 0,
+          maintenanceExcluded: 0,
+          notEligible: 0,
+          previousUnavailable: 0,
+          checklists: [],
+        }),
     getBillingHealthSnapshot(),
-    loadBillingCommandCenterSnapshot(session, billingMonth, { reconcile: false }),
+    billingCommandCenterPromise,
     needsPaidData
       ? listAdminRentInvoices({ status: 'paid' })
       : Promise.resolve({ ok: true as const, data: [] as AdminRentInvoiceRow[] }),
@@ -202,6 +233,9 @@ export default async function CollectionsModulePage({
     needsDiagnosticsTab ? listStrayZeroProductionInvoices() : Promise.resolve([]),
     dashboardSnapshotPromise,
   ]);
+
+  const billingOverview = billingOverviewBundle.rows;
+  const rentOverviewCounts = billingOverviewBundle.counts;
 
   const allUnpaidRent = mergeUnpaidRent(openRent.ok ? openRent.data : []);
   const rentPendingRows = allUnpaidRent.filter((r) => r.effectiveStatus !== 'payment_in_progress');
@@ -241,13 +275,9 @@ export default async function CollectionsModulePage({
 
   const pgNameById = new Map(pgs.ok ? pgs.data.map((p) => [p.id, p.name]) : []);
 
-  const needsBillCount = billingOverview.filter(
-    (r) => isRentBillingOverviewActionable(r) && r.isDueForGeneration,
-  ).length;
-  const rentGeneratedCount = billingOverview.filter((r) => r.invoiceStatus !== 'none').length;
-  const rentPendingCount = billingOverview.filter(
-    (r) => isRentBillingOverviewActionable(r) && r.invoiceStatus === 'none',
-  ).length;
+  const needsBillCount = rentOverviewCounts.needsBillCount;
+  const rentGeneratedCount = rentOverviewCounts.generatedCount;
+  const rentPendingCount = rentOverviewCounts.pendingCount;
   const rentStatusLabel =
     rentPendingCount === 0 && rentGeneratedCount > 0
       ? 'Generated'
@@ -307,7 +337,7 @@ export default async function CollectionsModulePage({
             statusLabel: rentStatusLabel,
             generatedCount: rentGeneratedCount,
             pendingCount: rentPendingCount,
-            candidateCount: billingOverview.length,
+            candidateCount: rentOverviewCounts.candidateCount,
           },
           electricity: {
             statusLabel: electricityStatusLabel,
@@ -369,6 +399,8 @@ export default async function CollectionsModulePage({
             adminName={session.fullName ?? session.email}
           />
         </AdminSectionErrorBoundary>
+      ) : tab === 'dashboard' ? (
+        <DbStatusBanner error="Billing dashboard could not load. Other tabs may still work — try Rent bills or Diagnostics." />
       ) : null}
 
       {tab === 'generated' ? (

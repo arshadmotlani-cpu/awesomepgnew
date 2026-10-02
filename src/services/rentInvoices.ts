@@ -3591,6 +3591,97 @@ export type RentBillingOverviewRow = {
   roomTypeName: string;
 };
 
+export type { RentBillingOverviewCounts } from '@/src/lib/billing/rentBillingOverview';
+
+/**
+ * Fast Billing Center header stats — same resident set as listRentBillingOverview without
+ * per-booking rent resolution (avoids N+1 on default dashboard load).
+ */
+export async function summarizeRentBillingOverviewCounts(
+  billingMonth: DateLike,
+  opts?: { pgId?: string },
+): Promise<import('@/src/lib/billing/rentBillingOverview').RentBillingOverviewCounts> {
+  const month = firstOfMonth(billingMonth);
+  const { start: monthStart, end: monthEnd } = monthBounds(month);
+  const monthStartIso = formatDate(monthStart);
+  const monthEndIso = formatDate(monthEnd);
+
+  const rows = await db
+    .selectDistinct({
+      bookingId: bookings.id,
+      depositDuePaise: bookings.depositDuePaise,
+    })
+    .from(bookings)
+    .innerJoin(customers, eq(customers.id, bookings.customerId))
+    .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
+    .where(
+      and(
+        eq(bookings.status, 'confirmed'),
+        isProductionBookingFilter(),
+        isProductionCustomerFilter(),
+        isActiveResidentFilter(),
+        inArray(bookings.durationMode, ['monthly', 'open_ended']),
+        eq(bedReservations.status, 'active'),
+        eq(bedReservations.kind, 'primary'),
+        sql`${bedReservations.stayRange} && daterange(${monthStartIso}::date, ${monthEndIso}::date, '[)')`,
+        opts?.pgId
+          ? sql`EXISTS (
+              SELECT 1 FROM beds b
+              JOIN rooms r ON r.id = b.room_id
+              JOIN floors f ON f.id = r.floor_id
+              WHERE b.id = ${bedReservations.bedId} AND f.pg_id = ${opts.pgId}
+            )`
+          : sql`TRUE`,
+      ),
+    );
+
+  const byBooking = new Map<string, (typeof rows)[0]>();
+  for (const row of rows) {
+    if (!byBooking.has(row.bookingId)) byBooking.set(row.bookingId, row);
+  }
+
+  const bookingIds = [...byBooking.keys()];
+  if (bookingIds.length === 0) {
+    return { candidateCount: 0, generatedCount: 0, pendingCount: 0, needsBillCount: 0 };
+  }
+
+  const invoiceRows = await db
+    .select({
+      bookingId: rentInvoices.bookingId,
+      status: rentInvoices.status,
+    })
+    .from(rentInvoices)
+    .where(and(inArray(rentInvoices.bookingId, bookingIds), eq(rentInvoices.billingMonth, month)));
+
+  const statusByBooking = new Map<string, RentBillingOverviewRow['invoiceStatus']>();
+  for (const inv of invoiceRows) {
+    statusByBooking.set(inv.bookingId, inv.status as RentBillingOverviewRow['invoiceStatus']);
+  }
+
+  let generatedCount = 0;
+  let pendingCount = 0;
+  let needsBillCount = 0;
+
+  for (const c of byBooking.values()) {
+    const invoiceStatus = statusByBooking.get(c.bookingId) ?? 'none';
+    const depositDuePaise = Math.max(0, c.depositDuePaise ?? 0);
+    const actionable = depositDuePaise > 0 || invoiceStatus === 'none';
+
+    if (invoiceStatus !== 'none') generatedCount += 1;
+    if (actionable && invoiceStatus === 'none') pendingCount += 1;
+    if (actionable && invoiceStatus === 'none' && depositDuePaise === 0) {
+      needsBillCount += 1;
+    }
+  }
+
+  return {
+    candidateCount: byBooking.size,
+    generatedCount,
+    pendingCount,
+    needsBillCount,
+  };
+}
+
 export async function listRentBillingOverview(
   billingMonth: DateLike,
   opts?: { pgId?: string },
