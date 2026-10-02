@@ -724,6 +724,8 @@ export type EvaluateAnniversaryRentGenerationInput = {
   pricingSnapshot?: PricingSnapshot | null;
   forceAll?: boolean;
   collectionDueDay?: number;
+  /** Audit/preview — skip profile sync and superseded-invoice cancellation. */
+  readonly?: boolean;
 };
 
 async function loadRepresentativeBedId(bookingId: string): Promise<string | null> {
@@ -766,7 +768,9 @@ export async function evaluateAnniversaryRentGenerationEligibility(
     return { eligible: false, skipCode: 'no_active_bed' };
   }
 
-  await syncBillingProfileRentFromSsot(input.bookingId, billingMonth);
+  if (!input.readonly) {
+    await syncBillingProfileRentFromSsot(input.bookingId, billingMonth);
+  }
   let profile = await getBillingProfileForBooking(input.bookingId);
   if (!profile) {
     profile = await ensureBillingProfileForBooking(input.bookingId);
@@ -1016,7 +1020,9 @@ export async function evaluateAnniversaryRentGenerationEligibility(
     }
   }
 
-  await cancelSupersededMonthlyRentInvoicesForBooking(input.bookingId);
+  if (!input.readonly) {
+    await cancelSupersededMonthlyRentInvoicesForBooking(input.bookingId);
+  }
 
   const {
     shouldSkipMonthlyRentBecauseAdhocCoversStay,
