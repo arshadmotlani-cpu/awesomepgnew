@@ -177,7 +177,7 @@ export function deriveAdminInventoryStatusFromBedMap(bed: PgBedMapBed): AdminInv
   if (block === 'occupied') return 'occupied';
   if (!bed.isAvailableNow && bed.availability.kind !== 'open_now') {
     const kind = bed.availability.kind;
-    if (kind === 'under_review' || kind === 'booked' || kind === 'reserved' || kind === 'held') {
+    if (kind === 'under_review' || kind === 'booked' || kind === 'reserved') {
       return 'reserved';
     }
     if (kind === 'occupied' || kind === 'notice' || kind === 'pre_bookable') {
