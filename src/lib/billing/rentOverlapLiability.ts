@@ -289,7 +289,11 @@ export function isBillingMonthCoveredByRentLiability(args: {
   return coveredDays >= requiredDays;
 }
 
-export function shouldSkipMonthlyRentBecauseAdhocCoversStay(args: {
+/**
+ * Monthly rent generation must never skip because adhoc/custom rent exists.
+ * Adhoc charges are separate liabilities — mandatory calendar monthly rent still applies.
+ */
+export function shouldSkipMonthlyRentBecauseAdhocCoversStay(_args: {
   billingMonth: string;
   billingPeriod: { periodStart: string; periodEnd: string };
   invoices: RentLiabilityInvoiceRow[];
@@ -297,54 +301,7 @@ export function shouldSkipMonthlyRentBecauseAdhocCoversStay(args: {
   billingDay: number;
   billingCyclePolicy: BillingCyclePolicy;
 }): boolean {
-  const fallbackInclusiveEnd = args.billingPeriod.periodEnd;
-  const effectiveStayEnd = resolveRentOverlapEffectiveStayEndInclusive({
-    stay: args.stay,
-    billingMonth: args.billingMonth,
-    invoices: args.invoices,
-    billingDay: args.billingDay,
-    billingCyclePolicy: args.billingCyclePolicy,
-    fallbackInclusiveEnd,
-  });
-
-  const adhocLike = args.invoices.filter(
-    (i) =>
-      (i.isAdhoc || i.invoiceSubtype === 'billing_cycle_transition') &&
-      (isCollectibleOpenRentInvoice(i) || i.status === 'paid'),
-  );
-  const standardOpen = args.invoices.filter(
-    (i) => !i.isAdhoc && i.invoiceSubtype === 'standard' && isCollectibleOpenRentInvoice(i),
-  );
-
-  for (const adhoc of adhocLike) {
-    for (const monthly of standardOpen) {
-      if (
-        isStandardMonthlyRentSupersededByAdhocLiability({
-          standardInvoice: monthly,
-          adhocOrTransitionInvoice: adhoc,
-          stayStart: args.stay.start,
-          stayEndInclusive: effectiveStayEnd,
-          billingDay: args.billingDay,
-          billingCyclePolicy: args.billingCyclePolicy,
-        })
-      ) {
-        return true;
-      }
-    }
-  }
-
-  const liabilityPeriods = buildOpenRentLiabilityCoveragePeriods(args.invoices, {
-    billingDay: args.billingDay,
-    billingCyclePolicy: args.billingCyclePolicy,
-    moveInDate: args.stay.start,
-  });
-
-  return isBillingMonthCoveredByRentLiability({
-    billingMonth: args.billingMonth,
-    stayStart: args.stay.start,
-    stayEndInclusive: effectiveStayEnd,
-    liabilityPeriods,
-  });
+  return false;
 }
 
 export const ADHOC_RENT_SUPERSEDES_MONTHLY_CANCEL_REASON =

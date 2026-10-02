@@ -114,7 +114,7 @@ test('C2 — open-ended stay: adhoc end date defines chargeable window (Syed pro
   assert.deepEqual(superseded([adhoc, monthly], OPEN_ENDED_STAY), ['monthly-13']);
 });
 
-test('D — paid adhoc blocks duplicate monthly generation for same month', () => {
+test('D — adhoc liability does not suppress monthly rent generation', () => {
   const adhocPaid = row({
     id: 'a-paid',
     isAdhoc: true,
@@ -131,7 +131,7 @@ test('D — paid adhoc blocks duplicate monthly generation for same month', () =
     billingDay: 5,
     billingCyclePolicy: 'calendar_month_1st',
   });
-  assert.equal(skip, true);
+  assert.equal(skip, false);
 });
 
 test('E — non-overlapping rent periods: July monthly stays collectible with September adhoc', () => {
@@ -213,13 +213,12 @@ test('G — protected paid monthly is never marked superseded', () => {
   assert.deepEqual(superseded([adhoc, paidMonthly]), []);
 });
 
-test('H — cancelSupersededMonthlyRentInvoicesForBooking is wired in rentInvoices', async () => {
+test('H — monthly rent eligibility does not skip for adhoc_rent_covers_stay', async () => {
   const { readFileSync } = await import('node:fs');
   const { resolve } = await import('node:path');
   const src = readFileSync(resolve(process.cwd(), 'src/services/rentInvoices.ts'), 'utf8');
-  assert.match(src, /cancelSupersededMonthlyRentInvoicesForBooking/);
-  assert.match(src, /adhoc_rent_covers_stay/);
-  assert.match(src, /isNull\(rentInvoices\.paymentProofUrl\)/);
+  assert.doesNotMatch(src, /skipCode: 'adhoc_rent_covers_stay'/);
+  assert.doesNotMatch(src, /shouldSkipMonthlyRentBecauseAdhocCoversStay/);
 });
 
 test('resolveRentLiabilityCoveragePeriod parses adhoc ISO notes', () => {

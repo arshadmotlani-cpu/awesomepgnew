@@ -39,7 +39,6 @@ import {
 
 const BILLING_MONTH = '2026-10-01';
 const AS_OF = '2026-10-01';
-const COLLECTION_DUE_DAY = 15;
 
 type RowClass =
   | 'BILL_EXISTS'
@@ -163,7 +162,6 @@ async function classifyRow(c: Awaited<ReturnType<typeof loadCandidates>>[number]
     billingMonth: BILLING_MONTH,
     asOf: AS_OF,
     forceAll: true,
-    collectionDueDay: COLLECTION_DUE_DAY,
     readonly: true,
   });
 
@@ -180,9 +178,15 @@ async function classifyRow(c: Awaited<ReturnType<typeof loadCandidates>>[number]
     action = 'Review duplicates';
     detail = `${invoices.length} October rows: ${invoices.map((i) => i.invoiceNumber).join(', ')}`;
   } else if (active) {
-    classification = 'BILL_EXISTS';
-    action = 'None';
-    detail = active.invoiceNumber;
+    if (eligibility.eligible && active.rentPaise !== eligibility.rentPaise) {
+      classification = 'BILL_EXISTS';
+      action = 'Sync SSOT amount';
+      detail = `${active.invoiceNumber}: ${fmtRs(active.rentPaise)} → ${fmtRs(eligibility.rentPaise)}`;
+    } else {
+      classification = 'BILL_EXISTS';
+      action = 'None';
+      detail = active.invoiceNumber;
+    }
   } else if (cancelledOnly) {
     if (eligibility.eligible) {
       classification = 'BILL_CANCELLED';
@@ -203,7 +207,6 @@ async function classifyRow(c: Awaited<ReturnType<typeof loadCandidates>>[number]
       'vacating_generate_prorated',
       'vacating_adjust_existing',
       'already_covered',
-      'adhoc_rent_covers_stay',
       'private_room_duplicate',
     ]);
     if (specialSkips.has(skip) || skip.startsWith('vacating_')) {
@@ -318,28 +321,51 @@ async function main() {
   const toGenerate = pre.filter(
     (r) => r.classification === 'BILL_MISSING' || r.classification === 'BILL_CANCELLED',
   );
+  const syncTargets = pre.filter((r) => r.action === 'Sync SSOT amount');
   const totalPaise = toGenerate.reduce((s, r) => s + r.octRentPaise, 0);
+
+  const saswat = pre.find((r) => /saswat/i.test(r.resident));
+  if (saswat) {
+    console.log('\n--- Saswat Baral (production snapshot) ---');
+    console.log(JSON.stringify(saswat, null, 2));
+  }
 
   if (auditOnly) {
     console.log(`\nWould create up to ${toGenerate.length} invoices totaling ${fmtRs(totalPaise)} via generateRentInvoicesForMonth.`);
+    console.log(`Would SSOT-sync ${syncTargets.length} invoice amount(s).`);
     console.log('Re-run with --apply to execute.');
     await closeDb();
     return;
   }
 
-  if (toGenerate.length === 0) {
-    console.log('\nNo missing October bills to generate.');
+  if (toGenerate.length === 0 && syncTargets.length === 0) {
+    console.log('\nNo missing October bills to generate and no SSOT amount sync needed.');
     await closeDb();
     return;
   }
 
-  console.log(`\nExecuting generateRentInvoicesForMonth for ${toGenerate.length} expected rows (${fmtRs(totalPaise)})…`);
-  const gen = await generateRentInvoicesForMonth({
-    billingMonth: BILLING_MONTH,
-    forceAll: true,
-    asOf: AS_OF,
-    collectionDueDay: COLLECTION_DUE_DAY,
-  });
+  if (toGenerate.length === 0) {
+    console.log('\nNo missing October bills; running SSOT sync only.');
+  }
+
+  console.log(`\nSSOT sync for ${syncTargets.length} invoice(s)…`);
+  const { syncPendingRentInvoicesFromSsot } = await import('../src/lib/billing/rentPricingSsot');
+  for (const r of syncTargets) {
+    const synced = await syncPendingRentInvoicesFromSsot(r.bookingId, BILLING_MONTH);
+    console.log(`SSOT sync ${r.resident} (${r.bookingCode}):`, synced);
+  }
+
+  let gen = { invoicesCreated: 0, invoicesSkipped: 0, candidateBookings: 0 };
+  if (toGenerate.length > 0) {
+    console.log(
+      `\nExecuting generateRentInvoicesForMonth for ${toGenerate.length} expected rows (${fmtRs(totalPaise)})…`,
+    );
+    gen = await generateRentInvoicesForMonth({
+      billingMonth: BILLING_MONTH,
+      forceAll: true,
+      asOf: AS_OF,
+    });
+  }
   console.log('Generator result:', gen);
 
   const post = await runAudit();

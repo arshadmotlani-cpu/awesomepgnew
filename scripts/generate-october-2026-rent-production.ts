@@ -20,7 +20,6 @@ async function main() {
     billingMonth,
     forceAll: true,
     asOf,
-    collectionDueDay: 15,
   });
   console.log('Result:', result);
   await closeDb();

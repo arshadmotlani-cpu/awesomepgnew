@@ -398,10 +398,13 @@ export async function syncPendingRentInvoicesFromSsot(
 
   await syncBillingProfileRentFromSsot(bookingId, month);
 
+  const activeBedId = await activeBedIdForBooking(bookingId);
+
   const pending = await db
     .select({
       id: rentInvoices.id,
       rentPaise: rentInvoices.rentPaise,
+      bedId: rentInvoices.bedId,
       status: rentInvoices.status,
     })
     .from(rentInvoices)
@@ -419,10 +422,17 @@ export async function syncPendingRentInvoicesFromSsot(
   const now = new Date();
 
   for (const inv of pending) {
-    if (inv.rentPaise === resolved.rentPaise) continue;
+    const amountMismatch = inv.rentPaise !== resolved.rentPaise;
+    const bedMismatch = activeBedId != null && inv.bedId !== activeBedId;
+    if (!amountMismatch && !bedMismatch) continue;
     await db
       .update(rentInvoices)
-      .set({ rentPaise: resolved.rentPaise, updatedAt: now })
+      .set({
+        rentPaise: resolved.rentPaise,
+        lateFeeBasePaise: resolved.rentPaise,
+        ...(activeBedId ? { bedId: activeBedId } : {}),
+        updatedAt: now,
+      })
       .where(eq(rentInvoices.id, inv.id));
     const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
     await syncRentInvoiceToUnified(inv.id);

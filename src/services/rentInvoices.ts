@@ -1020,27 +1020,6 @@ export async function evaluateAnniversaryRentGenerationEligibility(
     }
   }
 
-  if (!input.readonly) {
-    await cancelSupersededMonthlyRentInvoicesForBooking(input.bookingId);
-  }
-
-  const {
-    shouldSkipMonthlyRentBecauseAdhocCoversStay,
-  } = await import('@/src/lib/billing/rentOverlapLiability');
-  const liabilityRows = await loadRentLiabilityInvoiceRowsForBooking(input.bookingId);
-  if (
-    shouldSkipMonthlyRentBecauseAdhocCoversStay({
-      billingMonth,
-      billingPeriod,
-      invoices: liabilityRows,
-      stay,
-      billingDay,
-      billingCyclePolicy,
-    })
-  ) {
-    return { eligible: false, skipCode: 'adhoc_rent_covers_stay' };
-  }
-
   return {
     eligible: true,
     customerId,
@@ -2840,8 +2819,6 @@ export async function createAdhocRentInvoice(input: {
           title: input.title.trim(),
         },
       });
-
-      await cancelSupersededMonthlyRentInvoicesForBooking(input.bookingId);
 
       return { ok: true, invoiceId: created.id, invoiceNumber: created.invoiceNumber };
     } catch (err) {
