@@ -22,6 +22,10 @@ function bed(partial: Partial<PgBedMapBed>): PgBedMapBed {
     maintenanceStartedAt: null,
     maintenanceExpectedCompletion: null,
     maintenanceNotes: null,
+    blockReason: 'none',
+    underReview: null,
+    bedReserveCheckIn: null,
+    isOccupiedToday: false,
     ...partial,
   } as PgBedMapBed;
 }
@@ -60,4 +64,26 @@ test('deriveBedDisplayStatus — manual website marks', () => {
 
 test('deriveBedDisplayStatus — available when empty', () => {
   assert.equal(deriveBedDisplayStatus(bed({})), 'available');
+});
+
+test('deriveBedDisplayStatus — under review uses reserved (tenancy SSOT)', () => {
+  assert.equal(
+    deriveBedDisplayStatus(
+      bed({
+        isAvailableNow: false,
+        blockReason: 'under_review',
+        underReview: {
+          bookingId: 'b1',
+          customerId: 'c1',
+          customerName: 'Pending',
+          customerPhone: '1',
+          bookingCode: 'BK1',
+          moveInDate: '2026-10-05',
+          monthlyRentPaise: 760000,
+          kycStatus: 'pending',
+        },
+      }),
+    ),
+    'reserved',
+  );
 });

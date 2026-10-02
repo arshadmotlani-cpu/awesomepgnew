@@ -13,6 +13,7 @@ import { AdminConfirmDialog } from '@/src/components/admin/AdminConfirmDialog';
 import { RESERVE_MIN_PERIOD_DAYS } from '@/src/lib/bedReservePolicy';
 import { BED_MAINTENANCE_MARKED_MESSAGE } from '@/src/lib/bedOccupancyMessages';
 import { addDays, formatDate, todayString } from '@/src/lib/dates';
+import { deriveAdminInventoryStatusFromBedMap } from '@/src/lib/bedOccupancyResolve';
 import type { PgBedMapBed } from '@/src/services/pgBedMap';
 
 export type BedDisplayStatus = 'available' | 'occupied' | 'reserved' | 'maintenance';
@@ -25,16 +26,13 @@ const STATUS_OPTIONS: Array<{ value: BedDisplayStatus; label: string }> = [
 ];
 
 export function deriveBedDisplayStatus(bed: PgBedMapBed): BedDisplayStatus {
-  if (bed.bedStatus === 'maintenance') return 'maintenance';
-  if (bed.occupant || bed.manualOccupied) return 'occupied';
-  if (bed.reserved || bed.manualReservedCheckIn) return 'reserved';
-  return 'available';
+  return deriveAdminInventoryStatusFromBedMap(bed);
 }
 
 export function BedStatusControl({ pgId, bed }: { pgId: string; bed: PgBedMapBed }) {
   const router = useRouter();
   const current = useMemo(() => deriveBedDisplayStatus(bed), [bed]);
-  const hasTenant = Boolean(bed.occupant || bed.reserved);
+  const hasTenant = Boolean(bed.occupant || bed.reserved || bed.underReview || bed.tenancyBlocksBookability);
   const [selected, setSelected] = useState<BedDisplayStatus>(current);
   const [reserveStart, setReserveStart] = useState(todayString());
   const [checkInDate, setCheckInDate] = useState(() =>

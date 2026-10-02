@@ -85,6 +85,29 @@ export const bedOccupiedTodayExistsSql = sql`
 `;
 
 /**
+ * Confirmed primary still `active` after stay_range ended — checkout/move-out not finished.
+ * Must not show as bookable on admin/public maps until reservation is closed.
+ */
+export const bedUnclosedTenancyBlocksBookabilitySql = sql`
+  EXISTS (
+    SELECT 1
+    FROM bed_reservations br
+    INNER JOIN bookings bk ON bk.id = br.booking_id
+    WHERE br.bed_id = beds.id
+      AND bk.status = 'confirmed'
+      AND br.status = 'active'
+      AND br.kind = 'primary'
+      AND lower(br.stay_range) <= CURRENT_DATE
+      AND NOT (CURRENT_DATE <@ br.stay_range)
+  )
+`;
+
+/** Any live or limbo tenancy that must block new bookings (display + guards). */
+export const bedTenancyBlocksBookabilityExistsSql = sql`
+  (${bedOccupiedTodayExistsSql} OR ${bedUnclosedTenancyBlocksBookabilitySql})
+`;
+
+/**
  * EXISTS filter for customer row aliased as `c` — has active bed assignment today.
  */
 export const customerOccupiedTodayExistsSql = sql`

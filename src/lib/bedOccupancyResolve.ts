@@ -4,6 +4,8 @@
  */
 
 import type { BedAvailabilityView, CustomerBedAvailabilityView } from '@/src/lib/bedAvailabilityState';
+import type { PgBedMapBed } from '@/src/services/pgBedMap';
+import type { BedBlockReason } from '@/src/lib/inventoryBlocking';
 import {
   canBookBedFromSnapshot,
   computeBedOccupancySnapshot,
@@ -44,6 +46,8 @@ export type RawBedOccupancyFacts = {
   maintenanceStartedAt?: string | null;
   maintenanceExpectedCompletion?: string | null;
   maintenanceNotes?: string | null;
+  /** Active/limbo primary tenancy — blocks bookability even when inventory column is available. */
+  tenancyBlocksBookability?: boolean;
 };
 
 export type ResolvedBedOccupancy = {
@@ -88,6 +92,7 @@ export function rawFactsToInput(facts: RawBedOccupancyFacts): BedOccupancyInput 
     maintenanceStartedAt: facts.maintenanceStartedAt,
     maintenanceExpectedCompletion: facts.maintenanceExpectedCompletion,
     maintenanceNotes: facts.maintenanceNotes,
+    tenancyBlocksBookability: facts.tenancyBlocksBookability,
   };
 }
 
@@ -143,11 +148,43 @@ export function isOccupiedForKpi(
 ): boolean {
   if (input.bedStatus === 'maintenance' || input.bedStatus === 'blocked') return false;
   if (input.isOccupiedToday) return true;
+  if (input.tenancyBlocksBookability) return true;
   if (input.manualOccupied) return true;
   if (snapshot.publicState === 'occupied' || snapshot.publicState === 'notice_period') {
     return true;
   }
   return false;
+}
+
+export type AdminInventoryDisplayStatus = 'available' | 'occupied' | 'reserved' | 'maintenance';
+
+/**
+ * Admin bed-status dropdown SSOT — same tenancy signals as the map tile / engine.
+ * Inventory column (`bed.bedStatus`) alone must not show Available when tenancy blocks booking.
+ */
+export function deriveAdminInventoryStatusFromBedMap(bed: PgBedMapBed): AdminInventoryDisplayStatus {
+  if (bed.bedStatus === 'maintenance') return 'maintenance';
+  if (bed.isOccupiedToday || bed.occupant || bed.manualOccupied || bed.tenancyBlocksBookability) {
+    return 'occupied';
+  }
+  if (bed.underReview || bed.reserved || bed.manualReservedCheckIn || bed.bedReserveCheckIn) {
+    return 'reserved';
+  }
+  const block: BedBlockReason = bed.blockReason;
+  if (block === 'under_review' || block === 'reserved_incoming' || block === 'transfer_hold' || block === 'bed_reserve') {
+    return 'reserved';
+  }
+  if (block === 'occupied') return 'occupied';
+  if (!bed.isAvailableNow && bed.availability.kind !== 'open_now') {
+    const kind = bed.availability.kind;
+    if (kind === 'under_review' || kind === 'booked' || kind === 'reserved' || kind === 'held') {
+      return 'reserved';
+    }
+    if (kind === 'occupied' || kind === 'notice' || kind === 'pre_bookable') {
+      return 'occupied';
+    }
+  }
+  return 'available';
 }
 
 export function resolveBedOccupancy(facts: RawBedOccupancyFacts): ResolvedBedOccupancy {

@@ -9,11 +9,12 @@ import {
   bedReserveHolds,
   beds,
   bookings,
+  customers,
   floors,
   rooms,
   vacatingRequests,
 } from '@/src/db/schema';
-import { bedOccupiedTodayExistsSql } from '@/src/lib/occupancySsot';
+import { bedOccupiedTodayExistsSql, bedTenancyBlocksBookabilityExistsSql } from '@/src/lib/occupancySsot';
 import {
   RESERVATION_REQUEST_INTEREST_PAIR_SQL,
   UNDER_REVIEW_RESERVATION_PAIR_SQL,
@@ -109,6 +110,26 @@ export async function fetchBedOccupancyRows(
       maintenanceExpectedCompletion: beds.maintenanceExpectedCompletion,
       maintenanceNotes: beds.maintenanceNotes,
       isOccupiedToday: sql<boolean>`(${bedOccupiedTodayExistsSql})`,
+      tenancyBlocksBookability: sql<boolean>`(${bedTenancyBlocksBookabilityExistsSql})`,
+      occupantFirstName: sql<string | null>`(
+        SELECT split_part(c.full_name, ' ', 1)
+        FROM ${bedReservations} br
+        INNER JOIN ${bookings} bk ON bk.id = br.booking_id
+        INNER JOIN ${customers} c ON c.id = bk.customer_id
+        WHERE br.bed_id = beds.id
+          AND bk.status = 'confirmed'
+          AND br.status = 'active'
+          AND br.kind = 'primary'
+          AND (
+            ${refDate}::date <@ br.stay_range
+            OR (
+              lower(br.stay_range) <= ${refDate}::date
+              AND NOT (${refDate}::date <@ br.stay_range)
+            )
+          )
+        ORDER BY lower(br.stay_range) DESC
+        LIMIT 1
+      )`,
       stayType: sql<string | null>`(
         SELECT bk.stay_type::text
         FROM ${bedReservations} br
@@ -252,6 +273,7 @@ export async function fetchBedOccupancyRows(
     bedStatus: row.bedStatus,
     asOfDate: refDate,
     isOccupiedToday: row.isOccupiedToday,
+    tenancyBlocksBookability: row.tenancyBlocksBookability,
     manualOccupied: row.manualOccupied ?? false,
     maintenanceReason: row.maintenanceReason,
     maintenanceReasonCustom: row.maintenanceReasonCustom,
@@ -266,6 +288,7 @@ export async function fetchBedOccupancyRows(
     vacatingStatus: row.vacatingStatus,
     reservedFrom: row.reservedFrom,
     activeBedReserveCheckIn: row.activeBedReserveCheckIn,
+    occupantFirstName: row.occupantFirstName,
     holdInterestCount: row.holdInterestCount,
     underReviewRequest: row.underReviewRequest,
     transferHoldActive: row.transferHoldActive,

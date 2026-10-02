@@ -595,6 +595,8 @@ export function getRoomDetail(
           holdInterestCount: occupancy?.holdInterestCount,
           underReviewRequest: occupancy?.underReviewRequest,
           transferHoldActive: occupancy?.transferHoldActive,
+          tenancyBlocksBookability: occupancy?.tenancyBlocksBookability,
+          occupantFirstName: occupancy?.occupantFirstName,
         });
         return {
           bedId: row.bedId,

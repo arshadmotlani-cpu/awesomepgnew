@@ -50,6 +50,8 @@ export type PgBedMapBed = {
   isOccupiedToday: boolean;
   isAvailableNow: boolean;
   manualOccupied: boolean;
+  /** Primary tenancy in-range or unclosed limbo — not bookable. */
+  tenancyBlocksBookability: boolean;
   manualReservedStart: string | null;
   manualReservedCheckIn: string | null;
   bedReserveCheckIn: string | null;
@@ -267,7 +269,8 @@ function buildBed(row: RawRow, occupancy?: RawBedOccupancyFacts): PgBedMapBed {
     manualReservedCheckIn: effectiveReserveCheckIn,
     activeBedReserveCheckIn: occupancy?.activeBedReserveCheckIn ?? bedReserveCheckIn,
     reservedFrom: occupancy?.reservedFrom ?? row.reserved_from,
-    occupantFirstName: occupant?.customerName.split(' ')[0],
+    occupantFirstName:
+      occupant?.customerName.split(' ')[0] ?? occupancy?.occupantFirstName ?? undefined,
     interestCount: occupancy?.holdInterestCount ?? row.interest_count,
     noticeInterestCount: row.notice_interest_count,
     underReviewRequest: occupancy?.underReviewRequest ?? Boolean(underReview),
@@ -275,6 +278,7 @@ function buildBed(row: RawRow, occupancy?: RawBedOccupancyFacts): PgBedMapBed {
     transferHoldActive: occupancy?.transferHoldActive ?? Boolean(row.transfer_hold_request_id),
     transferHoldTransferDate:
       occupancy?.transferHoldTransferDate ?? row.transfer_hold_transfer_date,
+    tenancyBlocksBookability: occupancy?.tenancyBlocksBookability ?? false,
     maintenanceReason: occupancy?.maintenanceReason ?? row.maintenance_reason,
     maintenanceReasonCustom:
       occupancy?.maintenanceReasonCustom ?? row.maintenance_reason_custom,
@@ -292,6 +296,7 @@ function buildBed(row: RawRow, occupancy?: RawBedOccupancyFacts): PgBedMapBed {
   else if (resolved.input.transferHoldActive) blockReason = 'transfer_hold';
   else if (reserved) blockReason = 'reserved_incoming';
   else if (isOccupiedToday) blockReason = 'occupied';
+  else if (resolved.input.tenancyBlocksBookability) blockReason = 'occupied';
   else if (bedReserveCheckIn) blockReason = 'bed_reserve';
   else if (row.bed_status === 'maintenance') blockReason = 'maintenance';
 
@@ -307,6 +312,7 @@ function buildBed(row: RawRow, occupancy?: RawBedOccupancyFacts): PgBedMapBed {
     isOccupiedToday,
     isAvailableNow,
     manualOccupied,
+    tenancyBlocksBookability: resolved.input.tenancyBlocksBookability ?? false,
     manualReservedStart: row.manual_reserved_start,
     manualReservedCheckIn,
     bedReserveCheckIn,

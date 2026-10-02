@@ -87,6 +87,8 @@ export type BedOccupancyInput = {
   maintenanceStartedAt?: string | null;
   maintenanceExpectedCompletion?: string | null;
   maintenanceNotes?: string | null;
+  /** Confirmed primary tenancy (in-range or unclosed limbo) — blocks public booking. */
+  tenancyBlocksBookability?: boolean;
 };
 
 export type BedOccupancySnapshot = {
@@ -230,6 +232,17 @@ export function computeBedOccupancySnapshot(input: BedOccupancyInput): BedOccupa
     };
   }
 
+  if (input.tenancyBlocksBookability && !input.isOccupiedToday) {
+    return {
+      publicState: 'occupied',
+      adminState: 'occupied',
+      bookableFromDate: null,
+      checkoutSettlementId: null,
+      isMonthlyTenancy: monthly,
+      isFixedTenancy: fixed,
+    };
+  }
+
   if (input.underReviewRequest && !input.isOccupiedToday) {
     return {
       publicState: 'reserved',
@@ -358,10 +371,12 @@ export function computeBedOccupancySnapshot(input: BedOccupancyInput): BedOccupa
     };
   }
 
+  // Vacant inventory with no bookable-from date — do not mark occupied (avoids
+  // "Open · book now" labels on beds that are not actually bookable).
   return {
-    publicState: 'occupied',
-    adminState: 'occupied',
-    bookableFromDate: null,
+    publicState: 'available',
+    adminState: 'available',
+    bookableFromDate: bookable,
     checkoutSettlementId: null,
     isMonthlyTenancy: monthly,
     isFixedTenancy: fixed,
@@ -602,7 +617,7 @@ export function toAdminAvailabilityView(
     };
   }
 
-  if (snap.adminState === 'occupied' && input.isOccupiedToday) {
+  if (snap.adminState === 'occupied' && (input.isOccupiedToday || input.tenancyBlocksBookability)) {
     const checkout = resolveContractualCheckoutDate(input);
     const bookable = snap.bookableFromDate;
     let sublabel: string | undefined;
@@ -652,7 +667,24 @@ export function toAdminAvailabilityView(
   }
 
   if (input.bedStatus === 'available' && !input.isOccupiedToday && !input.manualOccupied) {
-    return { kind: 'open_now', label: 'Open · book now' };
+    if (canBookBedFromSnapshot(input, snap)) {
+      return { kind: 'open_now', label: 'Open · book now' };
+    }
+    if (input.reservedFrom) {
+      return {
+        kind: 'booked',
+        label: 'Booked',
+        sublabel: `Move-in ${formatAdminShortDate(input.reservedFrom)}`,
+      };
+    }
+    if (input.underReviewRequest) {
+      return {
+        kind: 'under_review',
+        label: 'Under review',
+        sublabel: 'Reservation request · awaiting admin approval',
+      };
+    }
+    return { kind: 'blocked', label: 'Unavailable' };
   }
 
   return { kind: 'blocked', label: 'Blocked' };
@@ -664,8 +696,11 @@ export function canBookBedFromSnapshot(
 ): boolean {
   const snap = snapshot ?? computeBedOccupancySnapshot(input);
   if (snap.publicState === 'maintenance' || input.bedStatus !== 'available') return false;
+  if (input.tenancyBlocksBookability) return false;
+  if (input.underReviewRequest) return false;
   if (input.transferHoldActive) return false;
   if (input.manualOccupied || input.isOccupiedToday) return false;
+  if (input.reservedFrom && !input.isOccupiedToday) return false;
   if (input.vacatingDate && input.asOfDate) {
     const releaseDay = bedAvailableCalendarDate(input.vacatingDate);
     if (input.asOfDate < releaseDay) return false;
