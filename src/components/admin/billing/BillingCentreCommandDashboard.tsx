@@ -1,7 +1,10 @@
 'use client';
 
 import type { BillingCollectionDateFilter } from '@/src/lib/admin/billingCollectionsFilter';
-import type { BillingCentreDashboardFilters, BillingCentreDashboardView } from '@/src/lib/admin/billingCentreDashboardPresentation';
+import type {
+  BillingCentreDashboardClientView,
+  BillingCentreDashboardFilters,
+} from '@/src/lib/admin/billingCentreDashboardPresentation';
 import { BillingUpcomingGenerationSection } from '@/src/components/admin/billing/BillingUpcomingGenerationSection';
 import {
   BillingCentreAutoRefresh,
@@ -28,7 +31,7 @@ export function BillingCentreCommandDashboard({
   canGenerateRent,
   adminName,
 }: {
-  view: BillingCentreDashboardView;
+  view: BillingCentreDashboardClientView;
   filters: BillingCentreDashboardFilters;
   canMarkCash: boolean;
   canGenerateRent: boolean;

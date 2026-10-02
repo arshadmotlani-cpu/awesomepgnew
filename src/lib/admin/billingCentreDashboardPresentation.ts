@@ -103,6 +103,11 @@ export type BillingCentreDashboardView = {
   pgs: Array<{ id: string; name: string }>;
 };
 
+/** Client-safe dashboard payload (Date fields serialized to ISO strings). */
+export type BillingCentreDashboardClientView = Omit<BillingCentreDashboardView, 'recentlyPaid'> & {
+  recentlyPaid: Array<Omit<BillingRecentCollectionRow, 'paidAt'> & { paidAt: string | null }>;
+};
+
 const APPROVAL_QUEUES = new Set([
   'waiting_for_approval',
   'kyc_review',
@@ -396,16 +401,17 @@ export function applyBillingCentreDashboardFilters(
 /** RSC → client: Dates must be JSON-serializable (Next.js client component props). */
 export function serializeBillingCentreDashboardViewForClient(
   view: BillingCentreDashboardView,
-): BillingCentreDashboardView {
+): BillingCentreDashboardClientView {
   return {
     ...view,
-    pendingCollections: view.pendingCollections.map((row) => ({
-      ...row,
-      lastReminderSentAt:
-        row.lastReminderSentAt instanceof Date
-          ? row.lastReminderSentAt.toISOString()
-          : row.lastReminderSentAt,
-    })),
+    pendingCollections: view.pendingCollections.map((row) => {
+      const reminderSent = row.lastReminderSentAt as string | Date | null;
+      return {
+        ...row,
+        lastReminderSentAt:
+          reminderSent instanceof Date ? reminderSent.toISOString() : reminderSent,
+      };
+    }),
     recentlyPaid: view.recentlyPaid.map((row) => ({
       ...row,
       paidAt: row.paidAt instanceof Date ? row.paidAt.toISOString() : row.paidAt,

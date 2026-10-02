@@ -3,14 +3,14 @@
 import Link from 'next/link';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
-import type { BillingRecentCollectionRow } from '@/src/lib/admin/billingCollectionsFilter';
+import type { BillingCentreDashboardClientView } from '@/src/lib/admin/billingCentreDashboardPresentation';
 import { formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
 
 export function BillingCentreRecentlyPaidSection({
   rows,
   paidPeriodLabel,
 }: {
-  rows: BillingRecentCollectionRow[];
+  rows: BillingCentreDashboardClientView['recentlyPaid'];
   paidPeriodLabel: string;
 }) {
   return (

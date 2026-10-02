@@ -29,6 +29,7 @@ import {
   buildPendingCollectionRows,
   serializeBillingCentreDashboardViewForClient,
   buildSummaryCards,
+  type BillingCentreDashboardClientView,
   type BillingCentreDashboardFilters,
   type BillingCentreDashboardView,
 } from '@/src/lib/admin/billingCentreDashboardPresentation';
@@ -172,7 +173,7 @@ export async function loadBillingCentreDashboardSnapshot(
     /** When the page already loads command center data, pass it to avoid duplicate DB work. */
     commandSnapshot?: Promise<BillingCommandCenterSnapshot>;
   },
-): Promise<BillingCentreDashboardView> {
+): Promise<BillingCentreDashboardClientView> {
   const todayIso = todayInBillingTimezone();
 
   const commandSnapshotPromise =
