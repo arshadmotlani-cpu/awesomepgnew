@@ -54,5 +54,5 @@ test('resizeRoomCapacity avoids second pool connection while participating in ou
   assert.match(fn, /const runner = opts\?\.tx \?\? db/);
   assert.match(fn, /await assertRoomInPg\(pgId, roomId, runner\)/);
   assert.match(fn, /if \(!opts\?\.tx\) {\s*\n\s*const roomIntegrity = await validateRoomById/);
-  assert.match(fn, /if \(opts\?\.tx\) {\s*\n\s*for \(const bed of removable\)/);
+  assert.match(fn, /for \(const bedId of bedIdsToArchive\)/);
 });

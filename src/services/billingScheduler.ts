@@ -163,9 +163,13 @@ export async function runDailyRentBillingJob(opts?: {
   const { applyDueRoomConfigurationSchedules } = await import(
     '@/src/services/roomConfigurationSchedule'
   );
-  await applyDueRoomConfigurationSchedules(runDate).catch((err) => {
+  const roomConfigApply = await applyDueRoomConfigurationSchedules(runDate).catch((err) => {
     console.error('[billing-scheduler] room configuration apply failed', err);
+    return null;
   });
+  if (roomConfigApply && roomConfigApply.failed > 0) {
+    console.error('[billing-scheduler] room configuration apply partial failure', roomConfigApply);
+  }
 
   const [run] = await db
     .insert(billingGenerationRuns)

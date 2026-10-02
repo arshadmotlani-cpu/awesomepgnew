@@ -99,12 +99,12 @@ test('2 → 1 private with vacant B2: archives B2, keeps B1', () => {
   assert.deepEqual(plan.preserveBedIds, ['b1']);
 });
 
-test('resizeRoomCapacity validates archive blockers before transaction', () => {
+test('resizeRoomCapacity uses bed planner for capacity decrease', () => {
   const src = readFileSync(join(process.cwd(), 'src/services/pgInventory.ts'), 'utf8');
   const resizeStart = src.indexOf('export async function resizeRoomCapacity');
   const resizeEnd = src.indexOf('export async function updateBedCode', resizeStart);
   const resizeFn = src.slice(resizeStart, resizeEnd);
-  assert.match(resizeFn, /bedIdsToArchive/);
+  assert.match(resizeFn, /planRoomCapacityDecrease/);
   assert.match(resizeFn, /getBedArchiveBlockReason/);
   assert.doesNotMatch(resizeFn, /validateRoomById\(bedRow\.roomId\)/);
 });

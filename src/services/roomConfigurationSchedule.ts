@@ -944,41 +944,61 @@ async function applyDepositAdjustmentsForRoom(
   return adjusted;
 }
 
+export type ApplyDueRoomConfigurationSchedulesResult = {
+  attempted: number;
+  applied: number;
+  failed: number;
+  errors: Array<{ scheduleId: string; message: string }>;
+};
+
 async function applySingleRoomConfigurationSchedule(
   session: AdminSession,
   scheduleId: string,
   runDate: string,
-): Promise<void> {
+): Promise<boolean> {
   const [row] = await db
     .select()
     .from(roomConfigurationSchedules)
     .where(eq(roomConfigurationSchedules.id, scheduleId))
     .limit(1);
-  if (!row || row.status !== 'scheduled') return;
-  if (row.effectiveFrom > runDate) return;
+  if (!row || row.status !== 'scheduled') return false;
+  if (row.effectiveFrom > runDate) return false;
 
-  await executeRoomConfigurationApply(session, row.pgId, row.roomId, row, undefined, {
-    pricingEffectiveFrom: row.effectiveFrom,
-  });
+  try {
+    await db.transaction(async (tx) => {
+      await executeRoomConfigurationApply(session, row.pgId, row.roomId, row, tx, {
+        pricingEffectiveFrom: row.effectiveFrom,
+      });
+
+      await tx
+        .update(roomConfigurationSchedules)
+        .set({
+          status: 'applied',
+          appliedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(roomConfigurationSchedules.id, scheduleId),
+            eq(roomConfigurationSchedules.status, 'scheduled'),
+          ),
+        );
+
+      await tx.insert(auditLog).values({
+        actorType: session.adminId ? 'admin' : 'system',
+        actorId: session.adminId,
+        entity: 'room_configuration_schedule',
+        entityId: scheduleId,
+        action: 'applied',
+        diff: { runDate, effectiveFrom: row.effectiveFrom },
+      });
+    });
+  } catch (err) {
+    throw new Error(formatBedPricingApplyError(err));
+  }
+
   await applyDepositAdjustmentsForRoom(row.roomId, row.effectiveFrom, session.adminId);
-
-  await db
-    .update(roomConfigurationSchedules)
-    .set({
-      status: 'applied',
-      appliedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(eq(roomConfigurationSchedules.id, scheduleId));
-
-  await db.insert(auditLog).values({
-    actorType: session.adminId ? 'admin' : 'system',
-    actorId: session.adminId,
-    entity: 'room_configuration_schedule',
-    entityId: scheduleId,
-    action: 'applied',
-    diff: { runDate, effectiveFrom: row.effectiveFrom },
-  });
+  return true;
 }
 
 export const SYSTEM_ROOM_CONFIGURATION_SESSION: AdminSession = {
@@ -998,7 +1018,7 @@ export const SYSTEM_ROOM_CONFIGURATION_SESSION: AdminSession = {
 export async function applyDueRoomConfigurationSchedules(
   runDate: string,
   session: AdminSession = SYSTEM_ROOM_CONFIGURATION_SESSION,
-): Promise<{ applied: number }> {
+): Promise<ApplyDueRoomConfigurationSchedulesResult> {
   const due = await db
     .select({ id: roomConfigurationSchedules.id })
     .from(roomConfigurationSchedules)
@@ -1011,11 +1031,23 @@ export async function applyDueRoomConfigurationSchedules(
     .orderBy(asc(roomConfigurationSchedules.effectiveFrom));
 
   let applied = 0;
+  let failed = 0;
+  const errors: ApplyDueRoomConfigurationSchedulesResult['errors'] = [];
+
   for (const row of due) {
-    await applySingleRoomConfigurationSchedule(session, row.id, runDate);
-    applied += 1;
+    try {
+      const didApply = await applySingleRoomConfigurationSchedule(session, row.id, runDate);
+      if (didApply) applied += 1;
+    } catch (err) {
+      failed += 1;
+      errors.push({
+        scheduleId: row.id,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
-  return { applied };
+
+  return { attempted: due.length, applied, failed, errors };
 }
 
 /**
