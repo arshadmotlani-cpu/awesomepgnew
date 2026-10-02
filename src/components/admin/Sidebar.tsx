@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
+import { adminNavPathOnly } from '@/src/lib/admin/adminNavLinkLogic';
 import { DraggableSidebarNav } from '@/src/components/admin/sidebar/DraggableSidebarNav';
 import { SidebarDragStatusBanner } from '@/src/components/admin/sidebar/SidebarDragStatusBanner';
 import { ApgOsSidebarBrand } from '@/src/components/brand/apg-os/ApgOsSidebarBrand';
@@ -18,7 +19,8 @@ export function Sidebar({
 
   useEffect(() => {
     if (!optimisticHref) return;
-    if (pathname === optimisticHref || pathname.startsWith(`${optimisticHref}/`)) {
+    const optimisticPath = adminNavPathOnly(optimisticHref);
+    if (pathname === optimisticPath || pathname.startsWith(`${optimisticPath}/`)) {
       setOptimisticHref(null);
       return;
     }

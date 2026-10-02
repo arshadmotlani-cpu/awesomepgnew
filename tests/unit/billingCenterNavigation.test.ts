@@ -80,6 +80,13 @@ test('AdminNavLink is a real Link to Billing Center href', () => {
   const row = read('src/components/admin/sidebar/DraggableSidebarRow.tsx');
   assert.match(nav, /from 'next\/link'/);
   assert.match(nav, /<Link/);
+  assert.match(nav, /router\.push\(href\)/);
   assert.match(row, /href=\{item\.href\}/);
   assert.match(row, /isModuleActive\(activePath, item\.module\)/);
+});
+
+test('Billing sidebar module is not aliased to collections', () => {
+  assert.equal(SIDEBAR_MODULE_REGISTRY.billing.module, 'billing');
+  assert.notEqual(SIDEBAR_MODULE_REGISTRY.billing.module, 'collections');
+  assert.equal(SIDEBAR_MODULE_REGISTRY.collections.module, 'collections');
 });

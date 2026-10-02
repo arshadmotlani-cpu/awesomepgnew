@@ -9,14 +9,19 @@ import {
   type SVGProps,
 } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import {
+  adminNavClickIsNoOp,
+  adminNavModuleFor,
+  adminNavPathOnly,
+  adminNavShouldClientNavigate,
+} from '@/src/lib/admin/adminNavLinkLogic';
 import {
   logAdminNavClick,
   logAdminNavComplete,
   logAdminNavRouteStart,
   type AdminNavTiming,
 } from '@/src/lib/admin/navInstrumentation';
-import { pathnameToModule } from '@/src/lib/admin/navigation';
 
 type AdminNavLinkProps = {
   href: string;
@@ -39,16 +44,18 @@ export function AdminNavLink({
   truncateLabel = true,
 }: AdminNavLinkProps) {
   const pathname = usePathname() ?? '/admin';
+  const router = useRouter();
   const timingRef = useRef<AdminNavTiming | null>(null);
   const pendingHrefRef = useRef<string | null>(null);
 
   useEffect(() => {
     const pending = pendingHrefRef.current;
     if (!pending) return;
+    const pendingPath = adminNavPathOnly(pending);
     const moduleMatch =
-      pathname === pending ||
-      pathname.startsWith(`${pending}/`) ||
-      pathnameToModule(pathname) === pathnameToModule(pending);
+      pathname === pendingPath ||
+      pathname.startsWith(`${pendingPath}/`) ||
+      adminNavModuleFor(pathname) === adminNavModuleFor(pending);
     if (moduleMatch) {
       if (timingRef.current) {
         logAdminNavComplete(timingRef.current, pathname);
@@ -70,11 +77,7 @@ export function AdminNavLink({
         return;
       }
 
-      const sameModule =
-        pathname === href ||
-        (pathnameToModule(pathname) != null &&
-          pathnameToModule(pathname) === pathnameToModule(href));
-      if (sameModule && pathname === href) {
+      if (adminNavClickIsNoOp(pathname, href)) {
         onNavigateStart?.(href);
         return;
       }
@@ -84,8 +87,13 @@ export function AdminNavLink({
       pendingHrefRef.current = href;
       logAdminNavRouteStart(timing, href);
       onNavigateStart?.(href);
+
+      if (adminNavShouldClientNavigate(pathname, href)) {
+        event.preventDefault();
+        router.push(href);
+      }
     },
-    [href, onNavigateStart, pathname],
+    [href, onNavigateStart, pathname, router],
   );
 
   return (
