@@ -39,8 +39,9 @@ describe('PG electricity checklist not eligible copy', () => {
     assert.doesNotMatch(ui, /available beds/i);
   });
 
-  it('AC checklist still filters has_ac rooms only (Room 203 non-AC excluded)', () => {
+  it('electricity checklist inventory must not gate on has_ac (non-AC billed rooms included)', () => {
     const checklist = read('src/lib/billing/pgElectricityBillingChecklist.ts');
-    assert.match(checklist, /eq\(roomTypes\.hasAc, true\)/);
+    assert.doesNotMatch(checklist, /eq\(roomTypes\.hasAc, true\)/);
+    assert.match(checklist, /listPgRoomsForElectricityBillingInventory/);
   });
 });

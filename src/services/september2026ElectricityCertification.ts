@@ -1,6 +1,6 @@
 /**
  * September 2026 electricity fleet certification — read-only.
- * Audits every PG / AC room from canonical room inventory + historical occupancy SSOT.
+ * Audits every PG room from canonical room inventory + historical occupancy SSOT.
  */
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';

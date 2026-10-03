@@ -4,8 +4,9 @@
  */
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { beds, electricityBills, floors, pgs, roomTypes, rooms } from '@/src/db/schema';
+import { beds, electricityBills, pgs } from '@/src/db/schema';
 import { DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE } from '@/src/lib/billing/constants';
+import { listPgRoomsForElectricityBillingInventory } from '@/src/lib/billing/pgElectricityBillingRoomInventory';
 import { firstOfMonth } from '@/src/services/billing';
 import {
   assessConsumptionMonthContinuityForRoom,
@@ -103,7 +104,7 @@ export async function listActivePgsForElectricityBilling(): Promise<
 }
 
 /**
- * Full AC-room checklist for one PG + billing month.
+ * Full PG room inventory checklist for one billing month.
  * Room under maintenance = every non-archived bed is maintenance (room-level effect).
  * One bed in maintenance does NOT exclude the room.
  */
@@ -120,22 +121,7 @@ export async function loadPgElectricityBillingChecklist(input: {
     .limit(1);
   if (!pg) return null;
 
-  const acRooms = await db
-    .select({
-      roomId: rooms.id,
-      roomNumber: rooms.roomNumber,
-    })
-    .from(rooms)
-    .innerJoin(floors, eq(floors.id, rooms.floorId))
-    .innerJoin(roomTypes, eq(roomTypes.id, rooms.roomTypeId))
-    .where(
-      and(
-        eq(floors.pgId, input.pgId),
-        sql`${rooms.archivedAt} IS NULL`,
-        eq(roomTypes.hasAc, true),
-      ),
-    )
-    .orderBy(rooms.roomNumber);
+  const inventoryRooms = await listPgRoomsForElectricityBillingInventory(input.pgId);
 
   const checklistRooms: PgElectricityChecklistRoom[] = [];
 
@@ -162,7 +148,7 @@ export async function loadPgElectricityBillingChecklist(input: {
     });
   }
 
-  for (const room of acRooms) {
+  for (const room of inventoryRooms) {
     const bedStats = await db.execute<{
       active_beds: number;
       maintenance_beds: number;

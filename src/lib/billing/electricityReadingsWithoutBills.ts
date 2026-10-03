@@ -69,8 +69,8 @@ export async function runElectricityReadingsWithoutBillsAudit(opts: {
       JOIN rooms r ON r.id = ml.room_id
       JOIN floors f ON f.id = r.floor_id
       JOIN pgs p ON p.id = f.pg_id
-      JOIN room_types rt ON rt.id = r.room_type_id AND rt.has_ac = true
       WHERE ml.reading_type = 'monthly'
+        AND r.archived_at IS NULL
         AND date_trunc('month', ml.recorded_at::timestamp)::date = ${billingMonth}::date
         AND NOT EXISTS (
           SELECT 1 FROM electricity_bills eb

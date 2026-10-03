@@ -269,29 +269,22 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-10-03 06:20:05 UTC
+### Pending pre-commit sync · 2026-10-03 06:30:08 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]]
+**Areas touched:** [[Billing]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (9):**
-- `app/(customer)/account/resident/room-change-actions.ts`
-- `app/api/admin/meter-log/[id]/image/route.ts`
-- `src/db/migrations/0153_room_change_transfer_meter.sql`
-- `src/db/migrations/meta/_journal.json`
-- `src/db/schema/enums.ts`
-- `src/db/schema/roomChangeRequests.ts`
+**Staged code files (4):**
+- `src/lib/billing/electricityReadingsWithoutBills.ts`
 - `src/lib/billing/pgElectricityBillingChecklist.ts`
-- `src/lib/billing/pgElectricityGenerationPreview.ts`
-- `src/lib/billing/pgElectricityGenerationPreviewPure.ts`
+- `src/lib/billing/pgElectricityBillingRoomInventory.ts`
+- `src/lib/billing/pgElectricityBillingRoomInventoryPure.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed
