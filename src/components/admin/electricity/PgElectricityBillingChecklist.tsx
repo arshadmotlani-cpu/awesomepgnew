@@ -359,7 +359,7 @@ export function PgElectricityBillingChecklistClient({
 
                   {room.status === 'not_eligible' ? (
                     <p className="mt-2 text-xs text-apg-silver">
-                      No monthly residents on available beds for this month.
+                      No billable monthly residents for this month.
                     </p>
                   ) : null}
 
