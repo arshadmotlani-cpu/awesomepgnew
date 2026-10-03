@@ -36,6 +36,11 @@ import {
 } from '@/src/lib/roomTransfer/stateMachine';
 import { scheduleAvailabilityCacheInvalidation } from '@/src/lib/cache/invalidateAvailability';
 import { appendRoomChangeEvent } from '@/src/services/roomChangeEvents';
+import {
+  crossRoomTransferRequired,
+  loadBedRoomContext,
+  submitRoomChangeTransferMeterEvidence,
+} from '@/src/lib/roomTransfer/roomChangeTransferMeterEvidence';
 
 type ActionResult<T = void> =
   | { ok: true; data?: T }
@@ -88,6 +93,7 @@ export async function fetchRoomChangeAvailabilityAction(input: {
     .select({
       bedId: beds.id,
       bedCode: beds.bedCode,
+      roomId: rooms.id,
       roomNumber: rooms.roomNumber,
     })
     .from(beds)
@@ -105,6 +111,7 @@ export async function fetchRoomChangeAvailabilityAction(input: {
       if (!price) continue;
       available.push({
         bedId: row.bedId,
+        roomId: row.roomId,
         roomNumber: row.roomNumber,
         bedCode: row.bedCode,
         monthlyRentPaise: price.monthlyRatePaise,
@@ -212,6 +219,8 @@ export type RoomChangeSubmitResult = {
   /** Whether tryCompleteRoomChangeRequest succeeded after submit. */
   completionOk: boolean;
   completionMessage?: string;
+  /** Cross-room move requires old-room meter evidence before occupancy transfer. */
+  requiresTransferMeterEvidence: boolean;
   expiresAt: string;
   payAllHref: string | null;
   individual: Array<{ label: string; amountPaise: number; href: string | null; invoiceId: string }>;
@@ -365,13 +374,13 @@ export async function submitRoomChangeAction(input: {
 
   await recordSelfServiceRoomChange(inserted.id);
 
-  const completion = await tryCompleteRoomChangeRequest(inserted.id);
-  if (!completion.ok) {
-    console.error('[room-change] tryComplete after submit failed', {
-      requestId: inserted.id,
-      message: completion.message,
-      transferDate,
-    });
+  const needsTransferMeter = await crossRoomTransferRequired(fromBedId, input.toBedId);
+  let completion: { ok: true; status: string } | { ok: false; message: string } = {
+    ok: true,
+    status: needsTransferMeter ? 'awaiting_meter' : 'submitted',
+  };
+  if (!needsTransferMeter) {
+    completion = await tryCompleteRoomChangeRequest(inserted.id);
   }
 
   revalidatePath('/account/profile');
@@ -385,6 +394,7 @@ export async function submitRoomChangeAction(input: {
       status: completion.ok ? completion.status : 'submitted',
       completionOk: completion.ok,
       completionMessage: completion.ok ? undefined : completion.message,
+      requiresTransferMeterEvidence: needsTransferMeter && !completion.ok,
       expiresAt: expiresAt.toISOString(),
       payAllHref: billing.payAllHref,
       individual: billing.individual,
@@ -408,6 +418,50 @@ export async function cancelRoomChangeAction(input: {
     revalidatePath('/account/resident/requests');
   }
   return result;
+}
+
+export async function submitRoomChangeTransferMeterAction(input: {
+  requestId: string;
+  readingUnits: number;
+  meterImageUrl: string;
+}): Promise<
+  | {
+      ok: true;
+      meterLogId: string;
+      completionOk: boolean;
+      completionMessage?: string;
+    }
+  | { ok: false; message: string }
+> {
+  const session = await requireCustomerSession('/account/profile');
+  const result = await submitRoomChangeTransferMeterEvidence({
+    requestId: input.requestId,
+    customerId: session.customerId,
+    readingUnits: input.readingUnits,
+    meterImageUrl: input.meterImageUrl,
+  });
+  if (!result.ok) return result;
+
+  revalidatePath('/account/profile');
+  revalidatePath('/account/resident');
+  revalidatePath('/account/resident/requests');
+  revalidatePath('/account');
+
+  return {
+    ok: true,
+    meterLogId: result.meterLogId,
+    completionOk: result.completionOk,
+    completionMessage: result.completionMessage,
+  };
+}
+
+export async function loadRoomChangeFromRoomContextAction(input: {
+  fromBedId: string;
+}): Promise<{ ok: true; roomId: string } | { ok: false; message: string }> {
+  await requireCustomerSession('/account/profile');
+  const ctx = await loadBedRoomContext(input.fromBedId);
+  if (!ctx) return { ok: false, message: 'Current bed not found.' };
+  return { ok: true, roomId: ctx.roomId };
 }
 
 export async function joinBedWaitlistAction(input: {

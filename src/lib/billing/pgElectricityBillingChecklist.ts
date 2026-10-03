@@ -14,7 +14,10 @@ import {
 } from '@/src/services/roomMeterReadingSsot';
 import type { RoomPreviousMeterSource } from '@/src/lib/billing/roomMeterReadingSsot';
 import { loadRoomElectricityOccupantsForMonth } from '@/src/lib/billing/roomElectricityOccupants';
-import type { PgElectricityOccupantPreview } from '@/src/lib/billing/pgElectricityGenerationPreviewPure';
+import type {
+  PgElectricityOccupantPreview,
+  PgElectricityTransferEvidencePreview,
+} from '@/src/lib/billing/pgElectricityGenerationPreviewPure';
 import { loadPgElectricityRoomGenerationPreview } from '@/src/lib/billing/pgElectricityGenerationPreview';
 import { resolveEffectiveBedCountForRoom } from '@/src/services/roomConfigurationSchedule';
 
@@ -46,6 +49,7 @@ export type PgElectricityChecklistRoom = {
   billableOccupantCount: number;
   previouslyCollectedPaise: number;
   occupantsPreview: PgElectricityOccupantPreview[];
+  transferEvidencePreview: PgElectricityTransferEvidencePreview[];
   /** When status is consumption_month_blocked — operator-facing reason. */
   blockedReason: string | null;
   requiredBaselineMonthLabel: string | null;
@@ -138,7 +142,7 @@ export async function loadPgElectricityBillingChecklist(input: {
   async function pushRoomWithPreview(
     base: Omit<
       PgElectricityChecklistRoom,
-      'previouslyCollectedPaise' | 'occupantsPreview' | 'blockedReason' | 'requiredBaselineMonthLabel'
+      'previouslyCollectedPaise' | 'occupantsPreview' | 'transferEvidencePreview' | 'blockedReason' | 'requiredBaselineMonthLabel'
     > & {
       blockedReason?: string | null;
       requiredBaselineMonthLabel?: string | null;
@@ -154,6 +158,7 @@ export async function loadPgElectricityBillingChecklist(input: {
       requiredBaselineMonthLabel: base.requiredBaselineMonthLabel ?? null,
       previouslyCollectedPaise: preview.previouslyCollectedPaise,
       occupantsPreview: preview.occupants,
+      transferEvidencePreview: preview.transferEvidenceRows,
     });
   }
 

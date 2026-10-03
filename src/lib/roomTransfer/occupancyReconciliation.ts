@@ -97,6 +97,7 @@ export async function reconcileCompletedRoomChangeBedAssignments(): Promise<{
       actorType: 'system',
       actorId: 'room-transfer-occupancy-reconcile',
       skipExitGuard: true,
+      skipTransferMeterEvidence: true,
     });
     if (moved.ok) repaired += 1;
   }

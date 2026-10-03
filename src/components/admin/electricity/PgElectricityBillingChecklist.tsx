@@ -471,18 +471,78 @@ export function PgElectricityBillingChecklistClient({
                         </div>
                       </div>
                       {room.occupantsPreview.length > 0 ? (
-                        <ul className="mt-2 space-y-1 text-apg-silver">
+                        <ul className="mt-2 space-y-2 text-apg-silver">
                           {room.occupantsPreview.map((o) => (
-                            <li key={o.customerId} className="flex flex-wrap justify-between gap-2">
-                              <span className="text-white">{o.customerName}</span>
-                              <span>
-                                {o.occupancyDays} day{o.occupancyDays === 1 ? '' : 's'}
-                                {o.previouslyCollectedPaise > 0
-                                  ? ` · collected ${paiseToInr(o.previouslyCollectedPaise)}`
-                                  : ''}
-                              </span>
+                            <li key={o.customerId} className="rounded border border-white/5 p-2">
+                              <div className="flex flex-wrap justify-between gap-2">
+                                <span className="text-white">{o.customerName}</span>
+                                <span>
+                                  {o.occupancyDays} day{o.occupancyDays === 1 ? '' : 's'}
+                                  {o.previouslyCollectedPaise > 0
+                                    ? ` · collected ${paiseToInr(o.previouslyCollectedPaise)}`
+                                    : ''}
+                                </span>
+                              </div>
+                              {o.transferEvidence ? (
+                                <div className="mt-2 space-y-1 text-[11px] text-apg-silver">
+                                  <p>
+                                    Transfer {o.transferEvidence.transferDate} ·{' '}
+                                    {o.transferEvidence.fromRoomLabel} / Bed{' '}
+                                    {o.transferEvidence.fromBedCode}
+                                  </p>
+                                  <p>
+                                    Previous room meter:{' '}
+                                    {o.transferEvidence.previousFinalizedReadingUnits ?? '—'} →
+                                    transfer {o.transferEvidence.transferReadingUnits}
+                                  </p>
+                                  {o.transferEvidence.meterPhotoViewUrl ? (
+                                    <a
+                                      href={o.transferEvidence.meterPhotoViewUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-sky-300 underline"
+                                    >
+                                      View transfer meter photo
+                                    </a>
+                                  ) : null}
+                                </div>
+                              ) : null}
                             </li>
                           ))}
+                        </ul>
+                      ) : null}
+                      {room.transferEvidencePreview.length > 0 ? (
+                        <ul className="mt-2 space-y-2 text-apg-silver">
+                          {room.transferEvidencePreview
+                            .filter(
+                              (ev) =>
+                                !room.occupantsPreview.some((o) => o.customerId === ev.customerId),
+                            )
+                            .map((ev) => (
+                              <li
+                                key={ev.roomChangeRequestId}
+                                className="rounded border border-amber-500/20 p-2 text-[11px]"
+                              >
+                                <p className="text-white">Transfer evidence (historical)</p>
+                                <p>
+                                  {ev.fromRoomLabel} / Bed {ev.fromBedCode} · {ev.transferDate}
+                                </p>
+                                <p>
+                                  Meter {ev.previousFinalizedReadingUnits ?? '—'} →{' '}
+                                  {ev.transferReadingUnits}
+                                </p>
+                                {ev.meterPhotoViewUrl ? (
+                                  <a
+                                    href={ev.meterPhotoViewUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-sky-300 underline"
+                                  >
+                                    View meter photo
+                                  </a>
+                                ) : null}
+                              </li>
+                            ))}
                         </ul>
                       ) : null}
                     </div>

@@ -20,7 +20,11 @@ import {
   joinBedWaitlistAction,
   quoteRoomChangeAction,
   submitRoomChangeAction,
+  submitRoomChangeTransferMeterAction,
+  loadRoomChangeFromRoomContextAction,
 } from '@/app/(customer)/account/resident/room-change-actions';
+import { uploadDepositRefundEvidenceClient } from '@/src/lib/client/uploadDepositRefundEvidenceClient';
+import { isCrossRoomBedTransfer } from '@/src/lib/roomTransfer/roomChangeTransferMeterEvidencePure';
 
 type Props = {
   bookingId: string;
@@ -33,7 +37,7 @@ type Props = {
   onClose: () => void;
 };
 
-type Step = 'pg' | 'beds' | 'review' | 'payment' | 'done';
+type Step = 'pg' | 'beds' | 'review' | 'meter' | 'payment' | 'done';
 
 function scenarioBadgeClass(mode: 'immediate' | 'scheduled' | 'waitlist'): string {
   if (mode === 'immediate') {
@@ -63,6 +67,10 @@ export function RoomChangeFlow({
   const [selectedBedId, setSelectedBedId] = useState<string | null>(null);
   const [quote, setQuote] = useState<RoomShiftQuoteSnapshot | null>(null);
   const [submitResult, setSubmitResult] = useState<RoomChangeSubmitResult | null>(null);
+  const [fromRoomId, setFromRoomId] = useState<string | null>(null);
+  const [meterReading, setMeterReading] = useState('');
+  const [meterPhotoUrl, setMeterPhotoUrl] = useState<string | null>(null);
+  const [meterUploadPhase, setMeterUploadPhase] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -83,6 +91,13 @@ export function RoomChangeFlow({
       if (current) setSelectedPgId(current.id);
     });
   }, [pgId]);
+
+  useEffect(() => {
+    startTransition(async () => {
+      const res = await loadRoomChangeFromRoomContextAction({ fromBedId });
+      if (res.ok) setFromRoomId(res.roomId);
+    });
+  }, [fromBedId]);
 
   useEffect(() => {
     if (!submitResult?.expiresAt) return;
@@ -151,6 +166,65 @@ export function RoomChangeFlow({
     });
   }
 
+  const crossRoomSelected =
+    Boolean(fromRoomId && selectedBed?.roomId) &&
+    isCrossRoomBedTransfer(fromRoomId!, selectedBed!.roomId);
+
+  async function onMeterPhotoSelected(file: File | null) {
+    if (!file) return;
+    setError(null);
+    setMeterUploadPhase('preparing');
+    try {
+      const uploaded = await uploadDepositRefundEvidenceClient(
+        file,
+        { uploadType: 'meter_photo', bookingId },
+        (phase) => setMeterUploadPhase(phase),
+      );
+      setMeterPhotoUrl(uploaded.url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not upload photo.');
+    } finally {
+      setMeterUploadPhase(null);
+    }
+  }
+
+  function submitMeterEvidence() {
+    if (!submitResult) return;
+    const units = Number(meterReading);
+    if (!meterPhotoUrl || !Number.isFinite(units)) {
+      setError('Enter the meter reading and upload a photo.');
+      return;
+    }
+    startTransition(async () => {
+      setError(null);
+      const res = await submitRoomChangeTransferMeterAction({
+        requestId: submitResult.requestId,
+        readingUnits: units,
+        meterImageUrl: meterPhotoUrl,
+      });
+      if (!res.ok) {
+        setError(res.message);
+        return;
+      }
+      if (!res.completionOk) {
+        setError(res.completionMessage ?? 'Could not complete room change yet.');
+        return;
+      }
+      setSubmitResult((prev) =>
+        prev
+          ? {
+              ...prev,
+              completionOk: true,
+              status: 'completed',
+              requiresTransferMeterEvidence: false,
+            }
+          : prev,
+      );
+      setStep(submitResult.totalDuePaise > 0 ? 'payment' : 'done');
+      router.refresh();
+    });
+  }
+
   function submit() {
     if (!selectedBed || !quote) return;
     startTransition(async () => {
@@ -168,8 +242,11 @@ export function RoomChangeFlow({
         return;
       }
       setSubmitResult(res.data);
-      // Occupancy may already be complete; unpaid Change Bed charges still need a pay surface.
-      setStep(res.data.totalDuePaise > 0 ? 'payment' : 'done');
+      if (res.data.requiresTransferMeterEvidence) {
+        setStep('meter');
+      } else {
+        setStep(res.data.totalDuePaise > 0 ? 'payment' : 'done');
+      }
       router.refresh();
     });
   }
@@ -477,6 +554,12 @@ export function RoomChangeFlow({
           <p className="mt-4 text-lg font-bold text-apg-orange">
             Total due: {paiseToInr(quote.totalDuePaise)}
           </p>
+          {crossRoomSelected ? (
+            <p className="mt-3 text-xs text-amber-200/90">
+              After you confirm, you will need to photograph your current room&apos;s electricity
+              meter and enter the reading before the room change completes.
+            </p>
+          ) : null}
           <button type="button" onClick={submit} disabled={pending} className={`${primaryBtn} mt-4 w-full`}>
             {pending ? 'Confirming…' : 'Confirm Change Bed'}
           </button>
@@ -489,6 +572,54 @@ export function RoomChangeFlow({
             className="mt-2 w-full text-center text-xs text-apg-silver hover:text-white"
           >
             Back to bed list
+          </button>
+        </ApgCard>
+      ) : null}
+
+      {step === 'meter' && submitResult ? (
+        <ApgCard tier="resident">
+          <h3 className="text-sm font-semibold text-white">Before changing rooms</h3>
+          <p className="mt-2 text-sm text-apg-silver">
+            Please upload a photo of the electricity meter in your current room and enter the meter
+            reading.
+          </p>
+          <label className="mt-4 block text-xs text-apg-silver">
+            Meter reading
+            <input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step="0.01"
+              value={meterReading}
+              onChange={(e) => setMeterReading(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white"
+            />
+          </label>
+          <label className="mt-3 block text-xs text-apg-silver">
+            Meter photo
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="mt-1 block w-full text-sm text-apg-silver"
+              onChange={(e) => void onMeterPhotoSelected(e.target.files?.[0] ?? null)}
+            />
+          </label>
+          {meterUploadPhase ? (
+            <p className="mt-2 text-xs text-apg-silver">
+              {meterUploadPhase === 'uploading' ? 'Uploading…' : 'Preparing photo…'}
+            </p>
+          ) : null}
+          {meterPhotoUrl ? (
+            <p className="mt-2 text-xs text-emerald-300">Photo uploaded.</p>
+          ) : null}
+          <button
+            type="button"
+            onClick={submitMeterEvidence}
+            disabled={pending}
+            className={`${primaryBtn} mt-4 w-full`}
+          >
+            {pending ? 'Saving…' : 'Submit meter reading'}
           </button>
         </ApgCard>
       ) : null}

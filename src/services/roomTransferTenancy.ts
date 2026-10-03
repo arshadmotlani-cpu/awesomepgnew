@@ -31,6 +31,7 @@ import {
 import { resolvePostTransferMonthlyRentPaise } from '@/src/lib/billing/postTransferRentPricing';
 import { reconcileBookingOccupancy } from '@/src/lib/occupancySync';
 import { appendRoomChangeEvent } from '@/src/services/roomChangeEvents';
+import { assertTransferMeterEvidenceForBedMove } from '@/src/lib/roomTransfer/roomChangeTransferMeterEvidence';
 import {
   assertRoomChangeTransition,
   type RoomChangeWorkflowState,
@@ -62,6 +63,10 @@ export async function applyResidentBedTransfer(input: {
   settledAt?: Date;
   /** Admin relocation: keep booked rates; only move bed assignment in snapshot. */
   preservePricingSnapshot?: boolean;
+  /** Cross-room admin/system repair — skip old-room meter evidence gate. */
+  skipTransferMeterEvidence?: boolean;
+  /** Admin cross-room transfer after recording meter log. */
+  transferMeterLogId?: string | null;
 }): Promise<{ ok: true; fromBedId: string; pgId: string } | { ok: false; message: string }> {
   if (!input.skipExitGuard) {
     const exitGuard = await assertBookingExitOperationsAllowed({
@@ -110,6 +115,7 @@ export async function applyResidentBedTransfer(input: {
   const [fromCtx] = await db
     .select({
       bedId: beds.id,
+      roomId: beds.roomId,
       pgId: floors.pgId,
     })
     .from(bedReservations)
@@ -125,6 +131,25 @@ export async function applyResidentBedTransfer(input: {
     )
     .limit(1);
   if (!fromCtx) return { ok: false, message: 'No active bed assignment found.' };
+
+  let linkedTransferMeterLogId = input.transferMeterLogId ?? null;
+  if (input.roomChangeRequestId) {
+    const [meterRow] = await db
+      .select({ transferMeterLogId: roomChangeRequests.transferMeterLogId })
+      .from(roomChangeRequests)
+      .where(eq(roomChangeRequests.id, input.roomChangeRequestId))
+      .limit(1);
+    linkedTransferMeterLogId = meterRow?.transferMeterLogId ?? null;
+  }
+
+  const meterGate = await assertTransferMeterEvidenceForBedMove({
+    fromBedId: fromCtx.bedId,
+    toBedId: input.toBedId,
+    transferMeterLogId: linkedTransferMeterLogId,
+    skipTransferMeterEvidence: input.skipTransferMeterEvidence,
+  });
+  if (!meterGate.ok) return meterGate;
+
   const snapshot = (booking.pricingSnapshot ?? {
     perBed: [],
     computedAt: new Date().toISOString(),

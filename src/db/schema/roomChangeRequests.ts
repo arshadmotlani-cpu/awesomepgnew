@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import { bookings } from './bookings';
 import { customers } from './customers';
 import { beds } from './beds';
+import { meterLogs } from './meterLogs';
 import { adminUsers } from './adminUsers';
 import { vacatingRequests } from './vacatingRequests';
 import type { RoomChangeWorkflowState } from '@/src/lib/roomTransfer/stateMachine';
@@ -62,6 +63,9 @@ export const roomChangeRequests = pgTable(
       onDelete: 'set null',
     }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
+    transferMeterLogId: uuid('transfer_meter_log_id').references(() => meterLogs.id, {
+      onDelete: 'restrict',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -215,6 +215,7 @@ export const meterReadingTypeEnum = pgEnum('meter_reading_type', [
   'checkin',
   'monthly',
   'checkout',
+  'room_transfer',
 ]);
 
 export const meterRecordedByEnum = pgEnum('meter_recorded_by', ['admin', 'tenant', 'system']);

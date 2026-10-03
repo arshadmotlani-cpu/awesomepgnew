@@ -36,6 +36,7 @@ export type TransferAvailabilityScenario = {
 
 export type TransferBedOption = {
   bedId: string;
+  roomId: string;
   roomNumber: string;
   bedCode: string;
   monthlyRentPaise: number;
