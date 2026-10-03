@@ -42,3 +42,27 @@ test('monthly electricity excludes vacated residency', () => {
     false,
   );
 });
+
+test('cancelled booking with vacated residency is not billable even if stay_range stays open in DB', () => {
+  assert.equal(
+    isMonthlyElectricityBillableOccupant({
+      reservationStatus: 'cancelled',
+      bookingStatus: 'cancelled',
+      residencyStatus: 'vacated',
+      customerEmail: 'ameet@example.com',
+    }),
+    false,
+  );
+});
+
+test('cancelled booking must not become billable when only reservation status is active', () => {
+  assert.equal(
+    isMonthlyElectricityBillableOccupant({
+      reservationStatus: 'active',
+      bookingStatus: 'cancelled',
+      residencyStatus: 'active',
+      customerEmail: 'resident@example.com',
+    }),
+    false,
+  );
+});

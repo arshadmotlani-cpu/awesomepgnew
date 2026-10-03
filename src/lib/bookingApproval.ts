@@ -25,6 +25,8 @@ import { isTerminalBookingLifecycleStatus } from '@/src/lib/booking/bookingStatu
 import { formatDate } from '@/src/lib/dates';
 import { todayInBillingTimezone } from '@/src/lib/billing/billingTimezone';
 
+type DbExecutor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 export type BookingApprovalPhase =
   | 'awaiting_payment'
   | 'awaiting_admin_approval'
@@ -100,7 +102,7 @@ export async function markBookingAwaitingApproval(bookingId: string): Promise<vo
 async function closePrimaryStayRangesOnRejection(
   bookingId: string,
   cancelEndExclusiveIso: string,
-  executor: typeof db = db,
+  executor: DbExecutor = db,
 ): Promise<void> {
   await executor.execute(sql`
     UPDATE bed_reservations br
@@ -267,6 +269,22 @@ export async function reinstateRejectedBookingRequest(input: {
     .limit(1);
 
   if (!booking) return { ok: false, reason: 'Booking not found.' };
+  if (booking.status === 'confirmed') {
+    const [activeRes] = await db
+      .select({ id: bedReservations.id })
+      .from(bedReservations)
+      .where(
+        and(
+          eq(bedReservations.bookingId, input.bookingId),
+          eq(bedReservations.kind, 'primary'),
+          eq(bedReservations.status, 'active'),
+        ),
+      )
+      .limit(1);
+    if (activeRes) {
+      return { ok: true, bookingId: booking.id, bookingCode: booking.bookingCode };
+    }
+  }
   if (booking.status !== 'cancelled') {
     return { ok: false, reason: `Booking is ${booking.status}, not cancelled.` };
   }
