@@ -166,7 +166,11 @@ export async function loadRoomElectricityOccupantsForMonth(input: {
   includeFixedStay?: boolean;
   useProRataByActiveDays?: boolean;
   /** Meter-period occupancy window (overrides calendar month clipping). */
-  meterPeriod?: { startDate: string; endDateExclusive: string };
+  meterPeriod?: {
+    startDate: string;
+    endDateExclusive: string;
+    previousFinalizedReadingUnits?: number | null;
+  };
 }): Promise<RoomElectricityOccupantLoadResult> {
   const { start: monthStart, end: monthEnd } = monthBounds(input.billingMonth);
   const monthStartIso = formatDate(monthStart);
@@ -187,6 +191,7 @@ export async function loadRoomElectricityOccupantsForMonth(input: {
       reportingBillingMonth: input.billingMonth,
       periodStartDate: windowStartIso,
       periodEndExclusive: windowEndExclusiveIso,
+      previousFinalizedReadingUnits: input.meterPeriod.previousFinalizedReadingUnits,
     });
     for (const [customerId, amount] of verifiedPrior.byCustomerId) {
       checkoutCollectedByCustomerId.set(customerId, amount);

@@ -367,6 +367,7 @@ export async function loadPgElectricityBillingChecklist(input: {
       meterPeriod: {
         startDate: meterPeriodResolved.periodStartDate,
         endDateExclusive: periodEndExclusiveIso,
+        previousFinalizedReadingUnits: baseline.previousReadingUnits,
       },
     });
     const billableOccupantCount = occupantLoad.occupants.length;

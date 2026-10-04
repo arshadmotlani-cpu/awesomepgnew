@@ -99,6 +99,7 @@ export async function loadPgElectricityRoomGenerationPreview(input: {
         reportingBillingMonth: billingMonth,
         periodStartDate: periodStartIso,
         periodEndExclusive: periodEndExclusiveIso,
+        previousFinalizedReadingUnits: previousReadingUnits,
       }),
       loadRoomTransferMeterEvidenceForRoomMonth({
         roomId: input.roomId,

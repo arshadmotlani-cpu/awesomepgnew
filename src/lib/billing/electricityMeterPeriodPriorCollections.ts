@@ -19,6 +19,10 @@ import type {
   VerifiedPriorCollectionsLoadResult,
 } from '@/src/lib/billing/electricityVerifiedPriorCollections';
 import { firstOfMonth } from '@/src/services/billing';
+import {
+  priorCollectionBelongsToOpenMeterPeriod,
+  resolvePriorCollectionAttributionDate,
+} from '@/src/lib/billing/electricityPriorCollectionMeterPeriodAttribution';
 
 const CHECKOUT_COLLECTION_STATUSES = [
   'awaiting_admin_review',
@@ -58,6 +62,8 @@ export async function loadVerifiedPriorElectricityCollectionsForOpenMeterPeriod(
   reportingBillingMonth: string;
   periodStartDate: string;
   periodEndExclusive: string;
+  /** Last finalized closing reading — excludes prior-cycle checkout tails (e.g. 337→358 before 424). */
+  previousFinalizedReadingUnits?: number | null;
 }): Promise<VerifiedPriorCollectionsLoadResult> {
   const roomId = input.roomId?.trim();
   if (!roomId) {
@@ -92,6 +98,16 @@ export async function loadVerifiedPriorElectricityCollectionsForOpenMeterPeriod(
     );
 
   for (const row of contributionRows) {
+    if (
+      !priorCollectionBelongsToOpenMeterPeriod({
+        periodStartDate: periodStart,
+        periodEndExclusive,
+        previousFinalizedReadingUnits: input.previousFinalizedReadingUnits,
+        contributionDate: String(row.contributionDate).slice(0, 10),
+      })
+    ) {
+      continue;
+    }
     const verified: VerifiedPriorCollection = {
       customerId: row.customerId,
       customerName: row.customerName,
@@ -123,10 +139,17 @@ export async function loadVerifiedPriorElectricityCollectionsForOpenMeterPeriod(
       electricityBillId: electricitySettlementLedger.electricityBillId,
       stayPeriodStart: electricitySettlementLedger.stayPeriodStart,
       stayPeriodEnd: electricitySettlementLedger.stayPeriodEnd,
-      createdAt: electricitySettlementLedger.createdAt,
+      vacatingDate: vacatingRequests.vacatingDate,
+      electricityPreviousReading: checkoutSettlements.electricityPreviousReading,
+      electricityCurrentReading: checkoutSettlements.electricityCurrentReading,
     })
     .from(electricitySettlementLedger)
     .innerJoin(customers, eq(customers.id, electricitySettlementLedger.customerId))
+    .innerJoin(
+      checkoutSettlements,
+      eq(checkoutSettlements.id, electricitySettlementLedger.checkoutSettlementId),
+    )
+    .innerJoin(vacatingRequests, eq(vacatingRequests.id, checkoutSettlements.vacatingRequestId))
     .where(
       and(
         eq(electricitySettlementLedger.roomId, roomId),
@@ -137,14 +160,33 @@ export async function loadVerifiedPriorElectricityCollectionsForOpenMeterPeriod(
     );
 
   for (const row of ledgerRows) {
-    const createdDate = formatDate(row.createdAt);
-    const inRange =
-      dateInHalfOpenRange(createdDate, periodStart, periodEndExclusive) ||
-      (row.stayPeriodStart != null &&
-        row.stayPeriodEnd != null &&
-        row.stayPeriodStart < periodEndExclusive &&
-        row.stayPeriodEnd >= periodStart);
-    if (!inRange) continue;
+    const attributionDate = resolvePriorCollectionAttributionDate({
+      periodStartDate: periodStart,
+      periodEndExclusive,
+      vacatingDate: row.vacatingDate ? String(row.vacatingDate) : null,
+      stayPeriodStart: row.stayPeriodStart ? String(row.stayPeriodStart) : null,
+      stayPeriodEnd: row.stayPeriodEnd ? String(row.stayPeriodEnd) : null,
+    });
+    if (
+      !priorCollectionBelongsToOpenMeterPeriod({
+        periodStartDate: periodStart,
+        periodEndExclusive,
+        previousFinalizedReadingUnits: input.previousFinalizedReadingUnits,
+        vacatingDate: row.vacatingDate ? String(row.vacatingDate) : null,
+        stayPeriodStart: row.stayPeriodStart ? String(row.stayPeriodStart) : null,
+        stayPeriodEnd: row.stayPeriodEnd ? String(row.stayPeriodEnd) : null,
+        checkoutMeter: {
+          previousReadingUnits: row.electricityPreviousReading != null
+            ? Number(row.electricityPreviousReading)
+            : null,
+          currentReadingUnits: row.electricityCurrentReading != null
+            ? Number(row.electricityCurrentReading)
+            : null,
+        },
+      })
+    ) {
+      continue;
+    }
 
     const verified: VerifiedPriorCollection = {
       customerId: row.customerId,
@@ -155,7 +197,9 @@ export async function loadVerifiedPriorElectricityCollectionsForOpenMeterPeriod(
       amountPaise: row.amountPaise,
       checkoutSettlementId: row.checkoutSettlementId,
       source: 'checkout_ledger',
-      evidence: `electricity_settlement_ledger id=${row.id} unapplied collected`,
+      evidence:
+        `electricity_settlement_ledger id=${row.id} unapplied collected` +
+        (attributionDate ? ` attribution=${attributionDate}` : ''),
     };
     const key = dedupeKey(verified);
     if (seen.has(key)) continue;

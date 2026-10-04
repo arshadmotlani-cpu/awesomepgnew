@@ -48,6 +48,7 @@ async function main() {
     reportingBillingMonth: BILLING_MONTH,
     periodStartDate: preview.meterPeriod.periodStartDate,
     periodEndExclusive: formatDate(addDays(parseDate(preview.meterPeriod.periodEndDate), 1)),
+    previousFinalizedReadingUnits: PREV,
   });
 
   const oldMonthOnlyDays = preview.occupants.reduce((s, o) => s + o.occupancyDays, 0);

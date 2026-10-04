@@ -425,6 +425,7 @@ export async function createElectricityBill(
     meterPeriod: {
       startDate: periodStartIso,
       endDateExclusive: periodEndExclusiveIso,
+      previousFinalizedReadingUnits: input.previousReadingUnits,
     },
   });
 
@@ -449,6 +450,7 @@ export async function createElectricityBill(
     reportingBillingMonth: billingMonth,
     periodStartDate: periodStartIso,
     periodEndExclusive: periodEndExclusiveIso,
+    previousFinalizedReadingUnits: input.previousReadingUnits,
   });
 
   const grossTotalPaise = Math.round(unitsConsumed * input.ratePerUnitPaise);

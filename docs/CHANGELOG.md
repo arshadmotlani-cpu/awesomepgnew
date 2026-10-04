@@ -269,26 +269,22 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-10-04 17:14:52 UTC
+### Pending pre-commit sync · 2026-10-04 18:51:25 UTC
 
-**Areas touched:** [[ROUTES]], [[Billing]], [[Electricity]]
+**Areas touched:** [[Billing]], [[Electricity]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (9):**
-- `app/(admin)/admin/billing/electricity/generate/actions.ts`
-- `app/(admin)/admin/billing/page.tsx`
-- `src/lib/billing/fleetElectricityBillingStatus.ts`
+**Staged code files (6):**
+- `src/lib/billing/electricityMeterPeriodPriorCollections.ts`
+- `src/lib/billing/electricityPriorCollectionMeterPeriodAttribution.ts`
 - `src/lib/billing/pgElectricityBillingChecklist.ts`
 - `src/lib/billing/pgElectricityGenerationPreview.ts`
-- `src/lib/billing/pgElectricityGenerationPreviewPure.ts`
-- `src/lib/billing/roomElectricityMonthlyAllocation.ts`
 - `src/lib/billing/roomElectricityOccupants.ts`
 - `src/services/electricityBilling.ts`
 
