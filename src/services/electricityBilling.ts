@@ -70,7 +70,8 @@ import { allocateMonthlyElectricityInvoices } from '../lib/billing/roomElectrici
 import { syncRoomElectricityLedgerCycleFromBillInTx, recordMonthlyInvoiceCollectionInTx } from './roomElectricityLedger';
 import { findActiveElectricityInvoiceForResidentMonth } from './electricityInvoiceDuplicates';
 import { sumManualElectricityCreditsForRoomMonth } from './electricitySettlementLedgerView';
-import { loadVerifiedPriorElectricityCollectionsForMonth } from '@/src/lib/billing/electricityVerifiedPriorCollections';
+import { loadVerifiedPriorElectricityCollectionsForOpenMeterPeriod } from '@/src/lib/billing/electricityMeterPeriodPriorCollections';
+import { resolveElectricityGenerationMeterPeriod } from '@/src/lib/billing/resolveElectricityGenerationMeterPeriod';
 import { getElectricityInvoiceSchemaCaps } from '@/src/lib/db/electricityInvoiceSchemaCaps';
 import { fetchElectricityInvoiceById } from '@/src/lib/db/electricityInvoiceSelect';
 import { validateContinuousPreviousReading } from '@/src/lib/billing/roomMeterReadingSsot';
@@ -81,6 +82,24 @@ import { resolveOfficialPreviousReading, advanceBaseline } from '@/src/services/
 import { resolveEffectiveBedCountForRoom } from '@/src/services/roomConfigurationSchedule';
 
 const INVOICE_PREFIX = 'ELE';
+
+async function sumManualElectricityCreditsOverlappingPeriod(
+  roomId: string,
+  periodStartIso: string,
+  periodEndExclusiveIso: string,
+): Promise<number> {
+  let cursor = firstOfMonth(periodStartIso);
+  const lastDay = formatDate(addDays(parseDate(periodEndExclusiveIso), -1));
+  const endMonth = firstOfMonth(lastDay);
+  let total = 0;
+  while (cursor <= endMonth) {
+    total += await sumManualElectricityCreditsForRoomMonth(roomId, cursor);
+    const d = parseDate(cursor);
+    d.setUTCMonth(d.getUTCMonth() + 1);
+    cursor = formatDate(d);
+  }
+  return total;
+}
 
 // ───────────────────────────────────────────────────────────────────────────
 // Public types
@@ -114,6 +133,7 @@ export type CreateElectricityBillInput = {
   periodStartDate?: string | null;
   /** Authoritative consumption interval (closing reading date). */
   periodEndDate?: string | null;
+  readingRecordedDate?: string | null;
 };
 
 export type CreateElectricityBillResult =
@@ -358,14 +378,19 @@ export async function createElectricityBill(
   const unitsConsumed = roundToHundredth(
     input.currentReadingUnits - input.previousReadingUnits,
   );
-  const { start: monthStart, end: monthEnd } = monthBounds(billingMonth);
-  const monthStartIso = formatDate(monthStart);
-  const monthEndIso = formatDate(monthEnd);
+  const meterPeriodResolved = await resolveElectricityGenerationMeterPeriod({
+    roomId: input.roomId,
+    reportingBillingMonth: billingMonth,
+    previousReadingUnits: input.previousReadingUnits,
+    readingDate:
+      normalizeIsoDateOnly(input.readingRecordedDate ?? '') ||
+      normalizeIsoDateOnly(input.periodEndDate ?? '') ||
+      undefined,
+  });
   const periodStartIso =
-    normalizeIsoDateOnly(input.periodStartDate ?? '') || monthStartIso;
+    normalizeIsoDateOnly(input.periodStartDate ?? '') || meterPeriodResolved.periodStartDate;
   const periodEndDateIso =
-    normalizeIsoDateOnly(input.periodEndDate ?? '') ||
-    formatDate(addDays(parseDate(monthEndIso), -1));
+    normalizeIsoDateOnly(input.periodEndDate ?? '') || meterPeriodResolved.periodEndDate;
   const periodEndExclusiveIso = formatDate(addDays(parseDate(periodEndDateIso), 1));
 
   // 1. Resolve room → pg + pending offline prepaid credit.
@@ -414,14 +439,17 @@ export async function createElectricityBill(
     });
   }
 
-  const manualCreditPaise = await sumManualElectricityCreditsForRoomMonth(
+  const manualCreditPaise = await sumManualElectricityCreditsOverlappingPeriod(
     input.roomId,
-    billingMonth,
+    periodStartIso,
+    periodEndExclusiveIso,
   );
-  const verifiedPrior = await loadVerifiedPriorElectricityCollectionsForMonth(
-    input.roomId,
-    billingMonth,
-  );
+  const verifiedPrior = await loadVerifiedPriorElectricityCollectionsForOpenMeterPeriod({
+    roomId: input.roomId,
+    reportingBillingMonth: billingMonth,
+    periodStartDate: periodStartIso,
+    periodEndExclusive: periodEndExclusiveIso,
+  });
 
   const grossTotalPaise = Math.round(unitsConsumed * input.ratePerUnitPaise);
   const activeBedCount = await resolveEffectiveBedCountForRoom(input.roomId, billingMonth);

@@ -30,6 +30,8 @@ test('PG checklist loads previous reading from meter SSOT automatically', () => 
   assert.match(checklist, /previouslyCollectedPaise/);
   assert.match(checklist, /occupantsPreview/);
   assert.match(checklist, /loadPgElectricityRoomGenerationPreview/);
+  assert.match(checklist, /resolveElectricityGenerationMeterPeriod/);
+  assert.match(ui, /Meter period \(financial boundary\)/);
   assert.match(ui, /Pre-generation reconciliation/);
   assert.match(ui, /Previously collected/);
   assert.match(ui, /consumption month/);
@@ -40,7 +42,7 @@ test('PG checklist loads previous reading from meter SSOT automatically', () => 
 
 test('generation action uses canonical createElectricityBill and is PG-scoped', () => {
   const actions = read('app/(admin)/admin/billing/electricity/generate/actions.ts');
-  assert.match(actions, /assessConsumptionMonthContinuityForRoom/);
+  assert.match(actions, /previewPgElectricityRoomGenerationAction/);
   assert.match(actions, /createElectricityBill/);
   assert.match(actions, /resolveOfficialPreviousReading/);
   assert.match(actions, /pgId/);
@@ -60,6 +62,8 @@ test('room meter continuity and electricity late fee contracts unchanged', () =>
   const billing = read('src/services/electricityBilling.ts');
   const continuity = read('tests/unit/roomMeterContinuityArchitecture.test.ts');
   assert.match(billing, /resolveOfficialPreviousReading/);
+  assert.match(billing, /resolveElectricityGenerationMeterPeriod/);
+  assert.match(billing, /loadVerifiedPriorElectricityCollectionsForOpenMeterPeriod/);
   assert.match(billing, /createElectricityBill/);
   assert.match(continuity, /resolveOfficialPreviousReading/);
 });

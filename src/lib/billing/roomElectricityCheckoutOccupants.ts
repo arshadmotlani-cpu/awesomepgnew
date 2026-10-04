@@ -19,6 +19,10 @@ export async function loadHistoricalRoomOccupantSlicesForPeriod(input: {
     billingMonth,
     includeFixedStay: true,
     useProRataByActiveDays: true,
+    meterPeriod: {
+      startDate: input.periodStart,
+      endDateExclusive: input.periodEndExclusive,
+    },
   });
 
   const slices: RoomOccupantSlice[] = [];
