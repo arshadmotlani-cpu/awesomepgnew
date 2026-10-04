@@ -36,6 +36,7 @@ describe('PG electricity billing room inventory (no AC gate)', () => {
   test('fleet status derives from checklist inventory (shared SSOT)', () => {
     const fleet = read('src/lib/billing/fleetElectricityBillingStatus.ts');
     assert.match(fleet, /loadPgElectricityBillingChecklist/);
+    assert.match(fleet, /includeGenerationPreview:\s*false/);
     assert.doesNotMatch(fleet, /has_ac/);
   });
 

@@ -4,6 +4,7 @@
  *
  * USE_PRODUCTION_DB=1 npx tsx scripts/audit-room-102-meter-period-reconciliation-readonly.ts
  */
+import { addDays, formatDate, parseDate } from '@/src/lib/dates';
 import { loadProductionAuditEnv, requireDatabaseUrl } from '@/src/lib/db/loadEnv';
 
 loadProductionAuditEnv();
@@ -29,12 +30,24 @@ async function main() {
     `)
   ) as { id: string }[];
 
+  const { loadVerifiedPriorElectricityCollectionsForOpenMeterPeriod } = await import(
+    '@/src/lib/billing/electricityMeterPeriodPriorCollections'
+  );
+
   const preview = await loadPgElectricityRoomGenerationPreview({
     roomId: room.id,
     billingMonth: BILLING_MONTH,
     previousReadingUnits: PREV,
     currentReadingUnits: CURR,
     ratePerUnitPaise: 1600,
+    readingDate: '2026-10-04',
+  });
+
+  const priorDetail = await loadVerifiedPriorElectricityCollectionsForOpenMeterPeriod({
+    roomId: room.id,
+    reportingBillingMonth: BILLING_MONTH,
+    periodStartDate: preview.meterPeriod.periodStartDate,
+    periodEndExclusive: formatDate(addDays(parseDate(preview.meterPeriod.periodEndDate), 1)),
   });
 
   const oldMonthOnlyDays = preview.occupants.reduce((s, o) => s + o.occupancyDays, 0);
@@ -47,6 +60,14 @@ async function main() {
         scenario: `${PREV}→${CURR}`,
         meterPeriod: preview.meterPeriod,
         priorCollections: preview.priorCollections,
+        priorCollectionRows: priorDetail.collections.map((c) => ({
+          customerId: c.customerId,
+          customerName: c.customerName,
+          amountPaise: c.amountPaise,
+          source: c.source,
+          evidence: c.evidence,
+          billingMonth: c.billingMonth,
+        })),
         occupants: preview.occupants.map((o) => ({
           name: o.customerName,
           start: o.occupancyStart,

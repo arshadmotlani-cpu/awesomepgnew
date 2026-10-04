@@ -20,7 +20,13 @@ import type {
   PgElectricityTransferEvidencePreview,
 } from '@/src/lib/billing/pgElectricityGenerationPreviewPure';
 import { loadPgElectricityRoomGenerationPreview } from '@/src/lib/billing/pgElectricityGenerationPreview';
+import type {
+  PgElectricityAllocationPreview,
+  PgElectricityMeterPeriodPreview,
+} from '@/src/lib/billing/pgElectricityGenerationPreviewPure';
+import { resolveElectricityGenerationMeterPeriod } from '@/src/lib/billing/resolveElectricityGenerationMeterPeriod';
 import { resolveEffectiveBedCountForRoom } from '@/src/services/roomConfigurationSchedule';
+import { addDays, formatDate, parseDate } from '@/src/lib/dates';
 
 export type { PgElectricityOccupantPreview };
 
@@ -51,6 +57,8 @@ export type PgElectricityChecklistRoom = {
   previouslyCollectedPaise: number;
   occupantsPreview: PgElectricityOccupantPreview[];
   transferEvidencePreview: PgElectricityTransferEvidencePreview[];
+  meterPeriodPreview: PgElectricityMeterPeriodPreview | null;
+  allocationPreview: PgElectricityAllocationPreview | null;
   /** When status is consumption_month_blocked — operator-facing reason. */
   blockedReason: string | null;
   requiredBaselineMonthLabel: string | null;
@@ -111,8 +119,14 @@ export async function listActivePgsForElectricityBilling(): Promise<
 export async function loadPgElectricityBillingChecklist(input: {
   pgId: string;
   billingMonth: string;
+  /**
+   * Full generation preview is required on the electricity generation checklist UI only.
+   * Billing Centre fleet summaries must skip it (avoids meter-period throws + N+1).
+   */
+  includeGenerationPreview?: boolean;
 }): Promise<PgElectricityBillingChecklist | null> {
   const billingMonth = firstOfMonth(input.billingMonth);
+  const includeGenerationPreview = input.includeGenerationPreview !== false;
 
   const [pg] = await db
     .select({ id: pgs.id, name: pgs.name })
@@ -128,16 +142,46 @@ export async function loadPgElectricityBillingChecklist(input: {
   async function pushRoomWithPreview(
     base: Omit<
       PgElectricityChecklistRoom,
-      'previouslyCollectedPaise' | 'occupantsPreview' | 'transferEvidencePreview' | 'blockedReason' | 'requiredBaselineMonthLabel'
+      | 'previouslyCollectedPaise'
+      | 'occupantsPreview'
+      | 'transferEvidencePreview'
+      | 'meterPeriodPreview'
+      | 'allocationPreview'
+      | 'blockedReason'
+      | 'requiredBaselineMonthLabel'
     > & {
       blockedReason?: string | null;
       requiredBaselineMonthLabel?: string | null;
     },
   ): Promise<void> {
+    const skipPreview =
+      !includeGenerationPreview ||
+      base.status === 'already_billed' ||
+      base.previousReadingUnits == null;
+
+    if (skipPreview) {
+      checklistRooms.push({
+        ...base,
+        blockedReason: base.blockedReason ?? null,
+        requiredBaselineMonthLabel: base.requiredBaselineMonthLabel ?? null,
+        previouslyCollectedPaise: 0,
+        occupantsPreview: [],
+        transferEvidencePreview: [],
+        meterPeriodPreview: null,
+        allocationPreview: null,
+      });
+      return;
+    }
+
+    const previousReadingUnits = base.previousReadingUnits as number;
     const preview = await loadPgElectricityRoomGenerationPreview({
       roomId: base.roomId,
       billingMonth,
+      previousReadingUnits,
+      currentReadingUnits: base.currentReadingUnits,
+      ratePerUnitPaise: base.ratePerUnitPaise,
     });
+
     checklistRooms.push({
       ...base,
       blockedReason: base.blockedReason ?? null,
@@ -145,6 +189,8 @@ export async function loadPgElectricityBillingChecklist(input: {
       previouslyCollectedPaise: preview.previouslyCollectedPaise,
       occupantsPreview: preview.occupants,
       transferEvidencePreview: preview.transferEvidenceRows,
+      meterPeriodPreview: preview.meterPeriod,
+      allocationPreview: preview.allocationPreview,
     });
   }
 
@@ -227,34 +273,6 @@ export async function loadPgElectricityBillingChecklist(input: {
       continue;
     }
 
-    const occupantLoad = await loadRoomElectricityOccupantsForMonth({
-      roomId: room.roomId,
-      billingMonth,
-      includeFixedStay: true,
-      useProRataByActiveDays: true,
-    });
-    const billableOccupantCount = occupantLoad.occupants.length;
-
-    if (billableOccupantCount === 0) {
-      await pushRoomWithPreview({
-        roomId: room.roomId,
-        roomNumber: room.roomNumber,
-        status: 'not_eligible',
-        previousReadingUnits: null,
-        previousReadingSource: null,
-        previousBillingMonthLabel: null,
-        currentReadingUnits: null,
-        unitsConsumed: null,
-        ratePerUnitPaise: DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE,
-        billId: null,
-        billTotalPaise: null,
-        activeBedCount,
-        maintenanceBedCount,
-        billableOccupantCount,
-      });
-      continue;
-    }
-
     const continuity = await assessConsumptionMonthContinuityForRoom(room.roomId, billingMonth);
     if (!continuity.ok) {
       await pushRoomWithPreview({
@@ -273,7 +291,7 @@ export async function loadPgElectricityBillingChecklist(input: {
         billTotalPaise: null,
         activeBedCount,
         maintenanceBedCount,
-        billableOccupantCount,
+        billableOccupantCount: 0,
         blockedReason: continuity.message,
         requiredBaselineMonthLabel: monthLabel(continuity.requiredBaselineMonth),
       });
@@ -304,7 +322,7 @@ export async function loadPgElectricityBillingChecklist(input: {
           billTotalPaise: null,
           activeBedCount,
           maintenanceBedCount,
-          billableOccupantCount,
+          billableOccupantCount: 0,
           blockedReason: err.message,
           requiredBaselineMonthLabel: monthLabel(err.assessment.requiredBaselineMonth),
         });
@@ -321,6 +339,46 @@ export async function loadPgElectricityBillingChecklist(input: {
         previousReadingUnits: null,
         previousReadingSource: 'none',
         previousBillingMonthLabel: null,
+        currentReadingUnits: null,
+        unitsConsumed: null,
+        ratePerUnitPaise: baseline.ratePerUnitPaise,
+        billId: null,
+        billTotalPaise: null,
+        activeBedCount,
+        maintenanceBedCount,
+        billableOccupantCount: 0,
+      });
+      continue;
+    }
+
+    const meterPeriodResolved = await resolveElectricityGenerationMeterPeriod({
+      roomId: room.roomId,
+      reportingBillingMonth: billingMonth,
+      previousReadingUnits: baseline.previousReadingUnits,
+    });
+    const periodEndExclusiveIso = formatDate(
+      addDays(parseDate(meterPeriodResolved.periodEndDate), 1),
+    );
+    const occupantLoad = await loadRoomElectricityOccupantsForMonth({
+      roomId: room.roomId,
+      billingMonth,
+      includeFixedStay: true,
+      useProRataByActiveDays: true,
+      meterPeriod: {
+        startDate: meterPeriodResolved.periodStartDate,
+        endDateExclusive: periodEndExclusiveIso,
+      },
+    });
+    const billableOccupantCount = occupantLoad.occupants.length;
+
+    if (billableOccupantCount === 0) {
+      await pushRoomWithPreview({
+        roomId: room.roomId,
+        roomNumber: room.roomNumber,
+        status: 'not_eligible',
+        previousReadingUnits: baseline.previousReadingUnits,
+        previousReadingSource: baseline.source,
+        previousBillingMonthLabel: billingMonthLabel(baseline.lastBillingMonth),
         currentReadingUnits: null,
         unitsConsumed: null,
         ratePerUnitPaise: baseline.ratePerUnitPaise,

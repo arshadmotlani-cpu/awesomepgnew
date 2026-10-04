@@ -69,8 +69,10 @@ import {
 } from '@/src/lib/admin/billingCollectionsPresentation';
 import { loadBillingCentreDashboardSnapshot } from '@/src/services/billingCentreDashboard';
 import { listRentBillingOverview, listBillingCycleOperations, summarizeRentBillingOverviewCounts, type BillingCycleOperationRow } from '@/src/services/rentInvoices';
-import { listRoomsMissingElectricityBill } from '@/src/services/electricityBilling';
-import { loadFleetElectricityBillingSummary } from '@/src/lib/billing/fleetElectricityBillingStatus';
+import {
+  fleetRoomsMissingElectricityFromSummary,
+  loadFleetElectricityBillingSummary,
+} from '@/src/lib/billing/fleetElectricityBillingStatus';
 import type { AdminRentInvoiceRow } from '@/src/db/queries/admin';
 
 export const dynamic = 'force-dynamic';
@@ -148,6 +150,23 @@ export default async function CollectionsModulePage({
   const needsElectricityFleetSummary =
     tab === 'dashboard' || tab === 'billing' || tab === 'electricity';
 
+  const emptyFleetSummary = {
+    billingMonth,
+    pgCount: 0,
+    totalRooms: 0,
+    alreadyBilled: 0,
+    needMeterReading: 0,
+    needBill: 0,
+    maintenanceExcluded: 0,
+    notEligible: 0,
+    previousUnavailable: 0,
+    checklists: [],
+  };
+
+  const fleetElectricitySummaryPromise = needsElectricityFleetSummary
+    ? loadFleetElectricityBillingSummary(billingMonth)
+    : Promise.resolve(emptyFleetSummary);
+
   const billingCommandCenterPromise = loadBillingCommandCenterSnapshot(session, billingMonth, {
     reconcile: false,
   });
@@ -199,22 +218,16 @@ export default async function CollectionsModulePage({
           counts,
         })),
     needsElectricityFleetSummary
-      ? listRoomsMissingElectricityBill(billingMonth)
+      ? fleetElectricitySummaryPromise.then((fleet) =>
+          fleetRoomsMissingElectricityFromSummary(fleet).map((row) => ({
+            roomId: row.roomId,
+            roomNumber: row.roomNumber,
+            pgId: row.pgId,
+            pgName: row.pgName,
+          })),
+        )
       : Promise.resolve([]),
-    needsElectricityFleetSummary
-      ? loadFleetElectricityBillingSummary(billingMonth)
-      : Promise.resolve({
-          billingMonth,
-          pgCount: 0,
-          totalRooms: 0,
-          alreadyBilled: 0,
-          needMeterReading: 0,
-          needBill: 0,
-          maintenanceExcluded: 0,
-          notEligible: 0,
-          previousUnavailable: 0,
-          checklists: [],
-        }),
+    needsElectricityFleetSummary ? fleetElectricitySummaryPromise : Promise.resolve(emptyFleetSummary),
     getBillingHealthSnapshot(),
     billingCommandCenterPromise,
     needsPaidData

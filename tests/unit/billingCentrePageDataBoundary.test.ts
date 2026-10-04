@@ -10,6 +10,12 @@ import {
   type BillingCentreDashboardView,
 } from '../../src/lib/admin/billingCentreDashboardPresentation';
 import type { RentBillingOverviewRow } from '../../src/services/rentInvoices';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  fleetRoomsMissingElectricityFromSummary,
+  type FleetElectricityBillingSummary,
+} from '../../src/lib/billing/fleetElectricityBillingStatus';
 
 function overviewRow(
   overrides: Partial<RentBillingOverviewRow>,
@@ -155,5 +161,124 @@ describe('Billing Center page data boundary', () => {
       serialized.pendingCollections[0]?.lastReminderSentAt,
       reminderAt.toISOString(),
     );
+  });
+
+  it('Billing Center page loads fleet electricity summary once and derives missing rooms', () => {
+    const page = readFileSync(
+      join(process.cwd(), 'app/(admin)/admin/billing/page.tsx'),
+      'utf8',
+    );
+    assert.match(page, /fleetElectricitySummaryPromise/);
+    assert.doesNotMatch(page, /listRoomsMissingElectricityBill/);
+    assert.match(page, /fleetRoomsMissingElectricityFromSummary/);
+  });
+
+  it('fleetRoomsMissingElectricityFromSummary filters reading_required and previous_unavailable only', () => {
+    const fleet: FleetElectricityBillingSummary = {
+      billingMonth: '2026-10-01',
+      pgCount: 1,
+      totalRooms: 3,
+      alreadyBilled: 1,
+      needMeterReading: 1,
+      needBill: 2,
+      maintenanceExcluded: 0,
+      notEligible: 0,
+      previousUnavailable: 1,
+      checklists: [
+        {
+          billingMonth: '2026-10-01',
+          monthLabel: 'October 2026',
+          generationDateLabel: '4 October 2026',
+          pgId: 'pg1',
+          pgName: 'Test PG',
+          ratePerUnitPaise: 800,
+          rooms: [
+            {
+              roomId: 'r1',
+              roomNumber: '101',
+              status: 'already_billed',
+              previousReadingUnits: 1,
+              previousReadingSource: 'last_monthly_bill',
+              previousBillingMonthLabel: 'Oct',
+              currentReadingUnits: 2,
+              unitsConsumed: 1,
+              ratePerUnitPaise: 800,
+              billId: 'b1',
+              billTotalPaise: 800,
+              activeBedCount: 2,
+              maintenanceBedCount: 0,
+              billableOccupantCount: 0,
+              previouslyCollectedPaise: 0,
+              occupantsPreview: [],
+              transferEvidencePreview: [],
+              meterPeriodPreview: null,
+              allocationPreview: null,
+              blockedReason: null,
+              requiredBaselineMonthLabel: null,
+            },
+            {
+              roomId: 'r2',
+              roomNumber: '102',
+              status: 'reading_required',
+              previousReadingUnits: 1,
+              previousReadingSource: 'last_monthly_bill',
+              previousBillingMonthLabel: 'Sep',
+              currentReadingUnits: null,
+              unitsConsumed: null,
+              ratePerUnitPaise: 800,
+              billId: null,
+              billTotalPaise: null,
+              activeBedCount: 2,
+              maintenanceBedCount: 0,
+              billableOccupantCount: 1,
+              previouslyCollectedPaise: 0,
+              occupantsPreview: [],
+              transferEvidencePreview: [],
+              meterPeriodPreview: null,
+              allocationPreview: null,
+              blockedReason: null,
+              requiredBaselineMonthLabel: null,
+            },
+            {
+              roomId: 'r3',
+              roomNumber: '103',
+              status: 'not_eligible',
+              previousReadingUnits: null,
+              previousReadingSource: null,
+              previousBillingMonthLabel: null,
+              currentReadingUnits: null,
+              unitsConsumed: null,
+              ratePerUnitPaise: 800,
+              billId: null,
+              billTotalPaise: null,
+              activeBedCount: 2,
+              maintenanceBedCount: 0,
+              billableOccupantCount: 0,
+              previouslyCollectedPaise: 0,
+              occupantsPreview: [],
+              transferEvidencePreview: [],
+              meterPeriodPreview: null,
+              allocationPreview: null,
+              blockedReason: null,
+              requiredBaselineMonthLabel: null,
+            },
+          ],
+          summary: {
+            totalRooms: 3,
+            alreadyBilled: 1,
+            readingRequired: 1,
+            previousUnavailable: 0,
+            maintenanceExcluded: 0,
+            notEligible: 1,
+            needsAttention: 0,
+            hasAnyBillActivity: true,
+          },
+        },
+      ],
+    };
+
+    const missing = fleetRoomsMissingElectricityFromSummary(fleet);
+    assert.equal(missing.length, 1);
+    assert.equal(missing[0]?.roomId, 'r2');
   });
 });

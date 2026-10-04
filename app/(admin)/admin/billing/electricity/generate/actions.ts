@@ -2,6 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
+import { loadPgElectricityRoomGenerationPreview } from '@/src/lib/billing/pgElectricityGenerationPreview';
+import type { PgElectricityRoomGenerationPreview } from '@/src/lib/billing/pgElectricityGenerationPreviewPure';
 import { createElectricityBill } from '@/src/services/electricityBilling';
 import { findExistingElectricityBillForMeterInterval } from '@/src/services/electricityInvoiceDuplicates';
 import {
@@ -27,6 +29,46 @@ export type PgElectricityGenerateRoomResult = {
 export type PgElectricityGenerateResult =
   | { ok: true; results: PgElectricityGenerateRoomResult[]; generated: number; failed: number }
   | { ok: false; message: string };
+
+export type PgElectricityPreviewResult =
+  | { ok: true; preview: PgElectricityRoomGenerationPreview }
+  | { ok: false; message: string };
+
+/** Read-only meter-period allocation preview (no bill writes). */
+export async function previewPgElectricityRoomGenerationAction(input: {
+  roomId: string;
+  billingMonth: string;
+  previousReadingUnits: number;
+  currentReadingUnits: number;
+  ratePerUnitPaise: number;
+}): Promise<PgElectricityPreviewResult> {
+  try {
+    await requireAdminPermission('electricity:write');
+    if (!input.roomId) return { ok: false, message: 'Room is required.' };
+    if (!Number.isFinite(input.previousReadingUnits) || !Number.isFinite(input.currentReadingUnits)) {
+      return { ok: false, message: 'Enter valid meter readings.' };
+    }
+    if (input.currentReadingUnits < input.previousReadingUnits) {
+      return {
+        ok: false,
+        message: `Current reading must be ≥ previous reading (${input.previousReadingUnits}).`,
+      };
+    }
+    const preview = await loadPgElectricityRoomGenerationPreview({
+      roomId: input.roomId,
+      billingMonth: firstOfMonth(input.billingMonth),
+      previousReadingUnits: input.previousReadingUnits,
+      currentReadingUnits: input.currentReadingUnits,
+      ratePerUnitPaise: input.ratePerUnitPaise,
+    });
+    return { ok: true, preview };
+  } catch (err) {
+    return {
+      ok: false,
+      message: err instanceof Error ? err.message : 'Preview failed.',
+    };
+  }
+}
 
 /**
  * Generate electricity bills for selected rooms in one PG/month.

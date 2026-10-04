@@ -170,7 +170,7 @@ export async function getBillingHealthSnapshot(): Promise<BillingHealthSnapshot>
           eq(electricityInvoices.status, 'pending'),
         ),
       ),
-    loadUpcomingRentSchedule({ fromDate: todayIst, horizonDays: 14 }).catch(() => ({
+    loadUpcomingRentSchedule({ fromDate: todayIst, horizonDays: 8 }).catch(() => ({
       totalScheduledResidents: 0,
       days: [],
       fromDate: todayIst,

@@ -218,7 +218,21 @@ function allocateDailyRoomElectricity(input: {
   const manualCreditAppliedPaise = useContributionsSsot
     ? 0
     : Math.min(Math.max(0, input.manualCreditPaise ?? 0), input.afterPrepaidPaise);
-  const roomPoolPaise = Math.max(0, input.afterPrepaidPaise - manualCreditAppliedPaise);
+  const occupantByCustomerIdEarly = new Map(
+    input.occupants.map((occupant) => [occupant.customerId, occupant]),
+  );
+  let orphanContributionPaise = 0;
+  if (useContributionsSsot) {
+    for (const [customerId, amount] of contributionSource) {
+      if (amount > 0 && !occupantByCustomerIdEarly.has(customerId)) {
+        orphanContributionPaise += amount;
+      }
+    }
+  }
+  const roomPoolPaise = Math.max(
+    0,
+    input.afterPrepaidPaise - manualCreditAppliedPaise - orphanContributionPaise,
+  );
   const baseDailyPaise = Math.floor(roomPoolPaise / input.billingDays.length);
   const dailyPoolRemainder = roomPoolPaise % input.billingDays.length;
 
@@ -274,10 +288,8 @@ function allocateDailyRoomElectricity(input: {
 
   const contributionAppliedByCustomerId = new Map<string, number>();
   const invoices: MonthlyElectricityInvoiceLine[] = [];
-  let roomContributionsAppliedPaise = 0;
-  const occupantByCustomerId = new Map(
-    input.occupants.map((occupant) => [occupant.customerId, occupant]),
-  );
+  let roomContributionsAppliedPaise = orphanContributionPaise;
+  const occupantByCustomerId = occupantByCustomerIdEarly;
 
   for (const [customerId, calculatedShare] of calculatedShareByCustomerId) {
     const contribution = Math.max(0, contributionSource.get(customerId) ?? 0);

@@ -12,6 +12,7 @@ import {
   type RentGenerationEligibility,
 } from '@/src/services/rentInvoices';
 import { and, eq, inArray } from 'drizzle-orm';
+import { cache } from 'react';
 import { db } from '@/src/db/client';
 import {
   bedReservations,
@@ -133,12 +134,10 @@ async function loadDisplayProfilesByBooking(
   return map;
 }
 
-export async function loadUpcomingRentSchedule(opts?: {
-  fromDate?: string;
-  horizonDays?: number;
-}): Promise<UpcomingRentSchedule> {
-  const fromDate = opts?.fromDate ?? todayInBillingTimezone();
-  const horizonDays = opts?.horizonDays ?? DEFAULT_HORIZON_DAYS;
+async function loadUpcomingRentScheduleImpl(
+  fromDate: string,
+  horizonDays: number,
+): Promise<UpcomingRentSchedule> {
   const dates = upcomingScheduleDates(fromDate, horizonDays);
   const throughDate = dates[dates.length - 1]!;
 
@@ -286,4 +285,16 @@ export async function loadUpcomingRentSchedule(opts?: {
     totalScheduledResidents: allScheduled.length,
     totalExpectedPaise: allScheduled.reduce((s, r) => s + r.expectedRentPaise, 0),
   };
+}
+
+const loadUpcomingRentScheduleCached = cache(loadUpcomingRentScheduleImpl);
+
+/** Deduped within a single admin RSC request (health card + operations dashboard). */
+export async function loadUpcomingRentSchedule(opts?: {
+  fromDate?: string;
+  horizonDays?: number;
+}): Promise<UpcomingRentSchedule> {
+  const fromDate = opts?.fromDate ?? todayInBillingTimezone();
+  const horizonDays = opts?.horizonDays ?? DEFAULT_HORIZON_DAYS;
+  return loadUpcomingRentScheduleCached(fromDate, horizonDays);
 }

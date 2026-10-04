@@ -463,7 +463,7 @@ export async function createElectricityBill(
     checkoutCollectedByCustomerId,
     useProRata: true,
     activeBedCount,
-    billingDays: occupantLoad.billingDays,
+    billingDays: meterPeriodResolved.billingDays,
   });
 
   const prepaidCreditAppliedPaise = allocation.prepaidCreditAppliedPaise;

@@ -42,6 +42,7 @@ export async function loadFleetElectricityBillingSummary(
     const checklist = await loadPgElectricityBillingChecklist({
       pgId: pg.id,
       billingMonth,
+      includeGenerationPreview: false,
     });
     if (checklist) checklists.push(checklist);
   }
@@ -63,11 +64,10 @@ export async function loadFleetElectricityBillingSummary(
   };
 }
 
-/** Rooms without a September bill that are billable (excludes maintenance + no-liability). */
-export async function listFleetRoomsMissingElectricityBill(
-  billingMonthInput: string,
-): Promise<FleetRoomMissingElectricityRow[]> {
-  const fleet = await loadFleetElectricityBillingSummary(billingMonthInput);
+/** Rooms without a bill that still need meter attention — derived from a fleet summary. */
+export function fleetRoomsMissingElectricityFromSummary(
+  fleet: FleetElectricityBillingSummary,
+): FleetRoomMissingElectricityRow[] {
   const rows: FleetRoomMissingElectricityRow[] = [];
   for (const checklist of fleet.checklists) {
     for (const room of checklist.rooms) {
@@ -88,6 +88,14 @@ export async function listFleetRoomsMissingElectricityBill(
   return rows.sort((a, b) =>
     a.pgName.localeCompare(b.pgName) || a.roomNumber.localeCompare(b.roomNumber, undefined, { numeric: true }),
   );
+}
+
+/** Rooms without a September bill that are billable (excludes maintenance + no-liability). */
+export async function listFleetRoomsMissingElectricityBill(
+  billingMonthInput: string,
+): Promise<FleetRoomMissingElectricityRow[]> {
+  const fleet = await loadFleetElectricityBillingSummary(billingMonthInput);
+  return fleetRoomsMissingElectricityFromSummary(fleet);
 }
 
 /** Billable rooms that need a current meter reading before generation. */

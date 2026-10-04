@@ -145,6 +145,27 @@ test('vacating clamp shortens occupancy within meter window', () => {
   assert.equal(coverage[0]!.occupiedDates.at(-1), '2026-10-02');
 });
 
+test('orphan prior contribution reduces daily room pool when payer left before meter period', () => {
+  const days = calendarDaysBetween('2026-09-05', '2026-09-15');
+  const occupants = [
+    { bookingId: 'bk-b', customerId: 'b', bedCount: 1, weight: 10, occupiedDates: days },
+  ];
+  const gross = 10000;
+  const allocation = allocateMonthlyElectricityInvoices({
+    grossTotalPaise: gross,
+    prepaidCreditPaise: 0,
+    contributionsByCustomerId: new Map([['former', 3000]]),
+    occupants,
+    checkoutCollectedByCustomerId: new Map(),
+    useProRata: true,
+    activeBedCount: 1,
+    billingDays: days,
+  });
+  const invoiceTotal = allocation.invoices.reduce((s, i) => s + i.amountPaise, 0);
+  assert.equal(allocation.roomContributionsAppliedPaise, 3000);
+  assert.equal(invoiceTotal + allocation.remainderPaise, 7000);
+});
+
 test('missing August bill does not reset opening reading', () => {
   const mp = resolveElectricityGenerationMeterPeriodFromBills({
     reportingBillingMonth: '2026-10-01',

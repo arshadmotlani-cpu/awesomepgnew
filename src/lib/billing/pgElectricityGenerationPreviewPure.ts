@@ -17,15 +17,51 @@ export type PgElectricityTransferEvidencePreview = {
 export type PgElectricityOccupantPreview = {
   customerId: string;
   customerName: string;
+  occupancyStart: string;
+  occupancyEnd: string;
   occupancyDays: number;
   previouslyCollectedPaise: number;
   transferEvidence?: PgElectricityTransferEvidencePreview | null;
 };
 
+export type PgElectricityAllocationPreviewLine = {
+  customerId: string;
+  customerName: string;
+  occupancyStart: string;
+  occupancyEnd: string;
+  occupancyDays: number;
+  grossAllocationPaise: number;
+  previouslyCollectedPaise: number;
+  finalInvoicePaise: number;
+};
+
+export type PgElectricityAllocationPreview = {
+  grossTotalPaise: number;
+  invoiceTotalPaise: number;
+  remainderPaise: number;
+  lines: PgElectricityAllocationPreviewLine[];
+};
+
+export type PgElectricityMeterPeriodPreview = {
+  reportingBillingMonth: string;
+  periodStartDate: string;
+  periodEndDate: string;
+  previousReadingUnits: number;
+  currentReadingUnits: number | null;
+  unitsConsumed: number | null;
+};
+
+export type PgElectricityPriorCollectionsPreview = {
+  totalPaise: number;
+};
+
 export type PgElectricityRoomGenerationPreview = {
+  meterPeriod: PgElectricityMeterPeriodPreview;
+  priorCollections: PgElectricityPriorCollectionsPreview;
   previouslyCollectedPaise: number;
   occupants: PgElectricityOccupantPreview[];
   transferEvidenceRows: PgElectricityTransferEvidencePreview[];
+  allocationPreview: PgElectricityAllocationPreview | null;
 };
 
 /** Remaining room electricity after prior collections (gross from meter entry). */

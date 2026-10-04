@@ -26,10 +26,62 @@ import {
   type RoomElectricityCoverageInterval,
 } from '@/src/lib/billing/roomElectricityOccupancyCoverage';
 import { resolveElectricityStayEndExclusive } from '@/src/lib/billing/resolveElectricityStayEndExclusive';
-import { diffDays, formatDate, parseDate, tryParseDateBound } from '@/src/lib/dates';
+import { addDays, diffDays, formatDate, parseDate, tryParseDateBound } from '@/src/lib/dates';
 import { paiseToInr } from '@/src/lib/format';
-import { monthBounds } from '@/src/services/billing';
+import { firstOfMonth, monthBounds } from '@/src/services/billing';
 import { listCheckoutElectricityLedgerForRoomMonth } from '@/src/services/electricitySettlementLedger';
+
+function monthsOverlappingHalfOpenPeriod(periodStart: string, periodEndExclusive: string): string[] {
+  const months: string[] = [];
+  let cursor = firstOfMonth(periodStart);
+  const endMonth = firstOfMonth(formatDate(addDays(parseDate(periodEndExclusive), -1)));
+  while (cursor <= endMonth) {
+    months.push(cursor);
+    const d = parseDate(cursor);
+    d.setUTCMonth(d.getUTCMonth() + 1);
+    cursor = formatDate(d);
+  }
+  return months;
+}
+
+async function listCheckoutSettledCustomerIdsForRoomWindow(
+  roomId: string,
+  windowStartIso: string,
+  windowEndExclusiveIso: string,
+): Promise<Set<string>> {
+  const excluded = new Set<string>();
+  for (const month of monthsOverlappingHalfOpenPeriod(windowStartIso, windowEndExclusiveIso)) {
+    const ledgerRows = await listCheckoutElectricityLedgerForRoomMonth(roomId, month, {
+      status: 'all',
+    });
+    for (const row of ledgerRows) {
+      if (row.amountPaise > 0) excluded.add(row.customerId);
+    }
+  }
+
+  const settlementRows = await db
+    .select({
+      customerId: checkoutSettlements.customerId,
+    })
+    .from(checkoutSettlements)
+    .innerJoin(vacatingRequests, eq(vacatingRequests.id, checkoutSettlements.vacatingRequestId))
+    .innerJoin(bedReservations, eq(bedReservations.bookingId, checkoutSettlements.bookingId))
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .where(
+      and(
+        eq(beds.roomId, roomId),
+        eq(bedReservations.kind, 'primary'),
+        sql`${bedReservations.stayRange} && daterange(${windowStartIso}::date, ${windowEndExclusiveIso}::date, '[)')`,
+        sql`${checkoutSettlements.status} IN ('approved', 'refund_pending', 'completed', 'awaiting_admin_review', 'refund_paid')`,
+      ),
+    );
+
+  for (const row of settlementRows) {
+    excluded.add(row.customerId);
+  }
+
+  return excluded;
+}
 
 export type RoomElectricityOccupantRow = MonthlyElectricityOccupant & {
   bedIds: string[];
@@ -124,42 +176,73 @@ export async function loadRoomElectricityOccupantsForMonth(input: {
   const daysInMonth = diffDays(parseDate(windowStartIso), parseDate(windowEndExclusiveIso));
 
   const checkoutCollectedByCustomerId = new Map<string, number>();
-  const checkoutRows = await listCheckoutElectricityLedgerForRoomMonth(
-    input.roomId,
-    input.billingMonth,
-    { status: 'all' },
-  );
-  for (const row of checkoutRows) {
-    const prev = checkoutCollectedByCustomerId.get(row.customerId) ?? 0;
-    checkoutCollectedByCustomerId.set(row.customerId, prev + row.amountPaise);
-  }
+  const settledCustomerIds = new Set<string>();
 
-  const { loadVerifiedPriorElectricityCollectionsForMonth } = await import(
-    '@/src/lib/billing/electricityVerifiedPriorCollections'
-  );
-  const verifiedPrior = await loadVerifiedPriorElectricityCollectionsForMonth(
-    input.roomId,
-    input.billingMonth,
-  );
-  for (const [customerId, amount] of verifiedPrior.byCustomerId) {
-    const prev = checkoutCollectedByCustomerId.get(customerId) ?? 0;
-    checkoutCollectedByCustomerId.set(customerId, Math.max(prev, amount));
-  }
+  if (input.meterPeriod) {
+    const { loadVerifiedPriorElectricityCollectionsForOpenMeterPeriod } = await import(
+      '@/src/lib/billing/electricityMeterPeriodPriorCollections'
+    );
+    const verifiedPrior = await loadVerifiedPriorElectricityCollectionsForOpenMeterPeriod({
+      roomId: input.roomId,
+      reportingBillingMonth: input.billingMonth,
+      periodStartDate: windowStartIso,
+      periodEndExclusive: windowEndExclusiveIso,
+    });
+    for (const [customerId, amount] of verifiedPrior.byCustomerId) {
+      checkoutCollectedByCustomerId.set(customerId, amount);
+    }
+    for (const customerId of verifiedPrior.contributorCustomerIds) {
+      settledCustomerIds.add(customerId);
+    }
+    const windowSettled = await listCheckoutSettledCustomerIdsForRoomWindow(
+      input.roomId,
+      windowStartIso,
+      windowEndExclusiveIso,
+    );
+    for (const customerId of windowSettled) {
+      settledCustomerIds.add(customerId);
+    }
+  } else {
+    const checkoutRows = await listCheckoutElectricityLedgerForRoomMonth(
+      input.roomId,
+      input.billingMonth,
+      { status: 'all' },
+    );
+    for (const row of checkoutRows) {
+      const prev = checkoutCollectedByCustomerId.get(row.customerId) ?? 0;
+      checkoutCollectedByCustomerId.set(row.customerId, prev + row.amountPaise);
+    }
 
-  const settledCustomerIds = await listCheckoutSettledCustomerIdsForRoomMonth(
-    input.roomId,
-    input.billingMonth,
-  );
+    const { loadVerifiedPriorElectricityCollectionsForMonth } = await import(
+      '@/src/lib/billing/electricityVerifiedPriorCollections'
+    );
+    const verifiedPrior = await loadVerifiedPriorElectricityCollectionsForMonth(
+      input.roomId,
+      input.billingMonth,
+    );
+    for (const [customerId, amount] of verifiedPrior.byCustomerId) {
+      const prev = checkoutCollectedByCustomerId.get(customerId) ?? 0;
+      checkoutCollectedByCustomerId.set(customerId, Math.max(prev, amount));
+    }
 
-  const { loadRoomElectricityContributionsForMonth } = await import(
-    '@/src/services/electricityRoomContributions'
-  );
-  const contributionsLoad = await loadRoomElectricityContributionsForMonth(
-    input.roomId,
-    input.billingMonth,
-  );
-  for (const customerId of contributionsLoad.contributorCustomerIds) {
-    settledCustomerIds.add(customerId);
+    const monthSettled = await listCheckoutSettledCustomerIdsForRoomMonth(
+      input.roomId,
+      input.billingMonth,
+    );
+    for (const customerId of monthSettled) {
+      settledCustomerIds.add(customerId);
+    }
+
+    const { loadRoomElectricityContributionsForMonth } = await import(
+      '@/src/services/electricityRoomContributions'
+    );
+    const contributionsLoad = await loadRoomElectricityContributionsForMonth(
+      input.roomId,
+      input.billingMonth,
+    );
+    for (const customerId of contributionsLoad.contributorCustomerIds) {
+      settledCustomerIds.add(customerId);
+    }
   }
 
   const occupantRows = await db

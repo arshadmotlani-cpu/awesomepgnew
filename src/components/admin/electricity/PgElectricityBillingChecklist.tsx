@@ -359,7 +359,7 @@ export function PgElectricityBillingChecklistClient({
 
                   {room.status === 'not_eligible' ? (
                     <p className="mt-2 text-xs text-apg-silver">
-                      No billable monthly residents for this month.
+                      No billable residents in the open meter period (not calendar month only).
                     </p>
                   ) : null}
 
@@ -448,6 +448,27 @@ export function PgElectricityBillingChecklistClient({
                     </div>
                   ) : null}
 
+                  {room.meterPeriodPreview && room.status === 'reading_required' ? (
+                    <div className="mt-3 rounded-lg border border-sky-500/20 bg-sky-500/5 p-3 text-xs">
+                      <p className="font-medium text-white">Meter period (financial boundary)</p>
+                      <p className="mt-1 text-apg-silver">
+                        Generated for: <span className="text-white">{checklist.monthLabel}</span>{' '}
+                        (reporting month only — allocation uses the meter period below)
+                      </p>
+                      <p className="mt-2 text-white">
+                        {room.meterPeriodPreview.previousReadingUnits.toLocaleString('en-IN')} →{' '}
+                        {currentRaw && !invalidCurrent
+                          ? Number(currentRaw).toLocaleString('en-IN')
+                          : '—'}{' '}
+                        units
+                      </p>
+                      <p className="text-apg-silver">
+                        {room.meterPeriodPreview.periodStartDate} →{' '}
+                        {room.meterPeriodPreview.periodEndDate}
+                      </p>
+                    </div>
+                  ) : null}
+
                   {(room.previouslyCollectedPaise > 0 || room.occupantsPreview.length > 0) &&
                   room.status === 'reading_required' ? (
                     <div className="mt-3 rounded-lg border border-white/10 bg-black/15 p-3 text-xs">
@@ -477,7 +498,8 @@ export function PgElectricityBillingChecklistClient({
                               <div className="flex flex-wrap justify-between gap-2">
                                 <span className="text-white">{o.customerName}</span>
                                 <span>
-                                  {o.occupancyDays} day{o.occupancyDays === 1 ? '' : 's'}
+                                  {o.occupancyStart} → {o.occupancyEnd} · {o.occupancyDays} day
+                                  {o.occupancyDays === 1 ? '' : 's'}
                                   {o.previouslyCollectedPaise > 0
                                     ? ` · collected ${paiseToInr(o.previouslyCollectedPaise)}`
                                     : ''}
