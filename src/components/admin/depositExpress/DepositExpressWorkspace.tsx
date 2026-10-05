@@ -315,7 +315,7 @@ export function DepositExpressWorkspace({
     <div className="-mx-3 flex min-h-0 flex-1 flex-col overflow-hidden bg-[#0B0F14] sm:-mx-4 lg:-mx-8">
       <header className="shrink-0 border-b border-white/10 bg-[#0B0F14]/95 px-4 py-4 backdrop-blur sm:px-6 lg:px-8">
         <div className="mx-auto max-w-4xl">
-          <h1 className="text-xl font-semibold text-white sm:text-2xl">Deposit Express</h1>
+          <h1 className="text-xl font-semibold text-white sm:text-2xl">Collect deposit</h1>
           <p className="text-sm text-apg-silver">Search resident → select booking → collect security deposit only</p>
         </div>
       </header>
