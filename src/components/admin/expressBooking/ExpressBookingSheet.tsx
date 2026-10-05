@@ -30,6 +30,11 @@ import { defaultCheckOutDate } from '@/src/lib/dateDefaults';
 import { todayString } from '@/src/lib/dates';
 import { expressSaleInvoiceHref } from '@/src/lib/expressBooking/expressSaleLinks';
 import { buildExpressWalkInWhatsAppUrl } from '@/src/lib/billing/expressWalkInWhatsApp';
+import {
+  saleIntentLabel,
+  type ExpressBookingSaleIntent,
+} from '@/src/lib/expressBooking/expressBookingSaleIntent';
+import { paiseToInr } from '@/src/lib/format';
 
 function defaultCheckInDate(): string {
   return todayString();
@@ -51,6 +56,7 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
   const [email, setEmail] = useState('');
   const [gender, setGender] = useState<'male' | 'female' | 'other'>('male');
   const [adminVerifiedKyc, setAdminVerifiedKyc] = useState(true);
+  const [saleIntent, setSaleIntent] = useState<ExpressBookingSaleIntent>('sale');
 
   const [checkInDate, setCheckInDate] = useState(defaultCheckInDate());
   const [stayType, setStayType] = useState<ExpressBookingStayType>('continue');
@@ -62,7 +68,12 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
   const [selectedPgId, setSelectedPgId] = useState('');
   const [bedId, setBedId] = useState('');
 
+  const [depositRequiredInr, setDepositRequiredInr] = useState('');
   const [depositPaidInr, setDepositPaidInr] = useState('');
+  const [paymentReference, setPaymentReference] = useState('');
+  const [paymentDate, setPaymentDate] = useState(defaultCheckInDate());
+  const [payerName, setPayerName] = useState('');
+  const [paymentNotes, setPaymentNotes] = useState('');
   const [useWalletCredit, setUseWalletCredit] = useState(false);
   const [walletCreditInr, setWalletCreditInr] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'bank_transfer' | 'other'>(
@@ -131,11 +142,19 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
   }, [stayType]);
 
   useEffect(() => {
-    if (stayType !== 'continue' || !quote || depositPaidInr) return;
-    if (quote.depositPaise > 0) {
-      setDepositPaidInr(String(quote.depositPaise / 100));
+    if (stayType !== 'continue' || !quote) return;
+    const defaultDeposit = String(quote.depositPaise / 100);
+    if (!depositRequiredInr) setDepositRequiredInr(defaultDeposit);
+    if (!depositPaidInr && quote.depositPaise > 0) {
+      setDepositPaidInr(defaultDeposit);
     }
-  }, [stayType, quote, depositPaidInr]);
+  }, [stayType, quote, depositPaidInr, depositRequiredInr]);
+
+  useEffect(() => {
+    if (saleIntent === 'manual_onboarding') {
+      setStayType('continue');
+    }
+  }, [saleIntent]);
 
   useEffect(() => {
     if (ctx && ctx.walletCreditPaise > 0 && stayType === 'continue') {
@@ -235,9 +254,33 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
     startSubmit(async () => {
       try {
       const rentInr = quote.rentPaise / 100;
-      const depositRequiredInr = stayType === 'continue' ? quote.depositPaise / 100 : 0;
+      const depositRequired =
+        stayType === 'continue'
+          ? inrToNumber(depositRequiredInr || String(quote.depositPaise / 100))
+          : 0;
+      const depositPaid =
+        stayType === 'continue' ? inrToNumber(depositPaidInr) : 0;
+
+      if (saleIntent === 'manual_onboarding' && isNewResident && !adminVerifiedKyc) {
+        setSubmitError('Confirm admin-verified KYC before onboarding a new resident.');
+        setConfirmOpen(false);
+        idempotencyKeyRef.current = null;
+        return;
+      }
+      if (
+        saleIntent === 'manual_onboarding' &&
+        paymentMethod === 'bank_transfer' &&
+        paymentStatus !== 'due_bill' &&
+        !paymentReference.trim()
+      ) {
+        setSubmitError('Enter a payment reference for bank transfer.');
+        setConfirmOpen(false);
+        idempotencyKeyRef.current = null;
+        return;
+      }
 
       const res = await expressWalkInSaleAction({
+        saleIntent,
         customerId,
         fullName,
         phone,
@@ -250,8 +293,8 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
         checkOutDate: stayType === 'fixed' ? checkOutDate : null,
         blocksWholeRoom,
         rentAmountInr: rentInr,
-        depositRequiredInr,
-        depositPaidInr: stayType === 'continue' ? inrToNumber(depositPaidInr) : 0,
+        depositRequiredInr: depositRequired,
+        depositPaidInr: depositPaid,
         rentPaidInr:
           paymentStatus === 'paid_in_full'
             ? rentInr
@@ -263,6 +306,10 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
         paymentStatus,
         amountReceivedInr:
           paymentStatus === 'partially_paid' ? inrToNumber(amountReceivedInr) : undefined,
+        paymentReference: paymentReference.trim() || undefined,
+        paymentDate: paymentDate.trim() || undefined,
+        payerName: payerName.trim() || undefined,
+        notes: paymentNotes.trim() || undefined,
         idempotencyKey: idempotencyKeyRef.current ?? undefined,
       });
       if (!res.ok) {
@@ -554,20 +601,38 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
       {stayType === 'continue' ? (
         <div className={posGlassCard}>
           <p className="text-xs font-semibold uppercase tracking-wide text-apg-muted">
-            Deposit (monthly only)
+            Security deposit
           </p>
-          <label className="mt-3 block text-xs text-apg-silver">
-            Deposit collected (₹)
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={depositPaidInr}
-              onChange={(e) => setDepositPaidInr(e.target.value)}
-              className={posInputClass}
-              readOnly={Boolean(quote)}
-            />
-          </label>
+          {quote ? (
+            <p className="mt-1 text-xs text-apg-silver">
+              Catalog default: {paiseToInr(quote.depositPaise)}
+            </p>
+          ) : null}
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className="block text-xs text-apg-silver">
+              Deposit obligation (₹)
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={depositRequiredInr}
+                onChange={(e) => setDepositRequiredInr(e.target.value)}
+                className={posInputClass}
+                readOnly={saleIntent === 'sale' && Boolean(quote)}
+              />
+            </label>
+            <label className="block text-xs text-apg-silver">
+              Deposit collected now (₹)
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={depositPaidInr}
+                onChange={(e) => setDepositPaidInr(e.target.value)}
+                className={posInputClass}
+              />
+            </label>
+          </div>
           {ctx && ctx.walletCreditPaise > 0 ? (
             <label className="mt-3 flex items-center gap-2 text-xs text-apg-silver">
               <input
@@ -590,21 +655,100 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
           setPaymentMethod={setPaymentMethod}
           amountReceivedInr={amountReceivedInr}
           setAmountReceivedInr={setAmountReceivedInr}
+          paymentReference={paymentReference}
+          setPaymentReference={setPaymentReference}
+          paymentDate={paymentDate}
+          setPaymentDate={setPaymentDate}
+          payerName={payerName}
+          setPayerName={setPayerName}
+          paymentNotes={paymentNotes}
+          setPaymentNotes={setPaymentNotes}
           disabled={isProcessing}
         />
       </div>
     </fieldset>
   ) : null;
 
+  const depositRequiredPaiseForPreview =
+    stayType === 'continue'
+      ? Math.round(
+          inrToNumber(depositRequiredInr || (quote ? String(quote.depositPaise / 100) : '0')) *
+            100,
+        )
+      : 0;
+  const depositPaidPaisePreview = Math.round(inrToNumber(depositPaidInr) * 100);
+  const rentPaisePreview = quote?.rentPaise ?? 0;
+  const dueNowPaise =
+    rentPaisePreview +
+    depositRequiredPaiseForPreview -
+    (paymentStatus === 'paid_in_full'
+      ? rentPaisePreview
+      : paymentStatus === 'partially_paid'
+        ? Math.round(inrToNumber(amountReceivedInr) * 100)
+        : 0) -
+    depositPaidPaisePreview;
+
   const confirmPanel = confirmOpen ? (
     <div className={`${posGlassCard} border-[#FF5A1F]/30`}>
       <p className="text-[10px] font-semibold uppercase tracking-wider text-[#FF5A1F]">
-        Step 2 of 2
+        Confirm
       </p>
-      <p className="mt-1 text-lg font-semibold text-white">Confirm booking</p>
-      <p className="mt-2 text-sm text-apg-silver">
-        Create {stayType === 'fixed' ? 'fixed stay' : 'monthly stay'} for {fullName}? This will
-        create the booking, invoice, and payment records.
+      <p className="mt-1 text-lg font-semibold text-white">
+        {saleIntent === 'manual_onboarding' ? 'Onboard resident' : 'Confirm booking'}
+      </p>
+      <dl className="mt-4 space-y-2 text-sm">
+        <div className="flex justify-between gap-4">
+          <dt className="text-apg-silver">Resident</dt>
+          <dd className="text-right text-white">{fullName}</dd>
+        </div>
+        {selectedBed?.label ? (
+          <div className="flex justify-between gap-4">
+            <dt className="text-apg-silver">Room / bed</dt>
+            <dd className="text-right text-white">{selectedBed.label}</dd>
+          </div>
+        ) : null}
+        <div className="flex justify-between gap-4">
+          <dt className="text-apg-silver">Check-in</dt>
+          <dd className="text-white">{checkInDate}</dd>
+        </div>
+        {quote ? (
+          <>
+            <div className="flex justify-between gap-4">
+              <dt className="text-apg-silver">Monthly rent</dt>
+              <dd className="text-white">{paiseToInr(rentPaisePreview)}</dd>
+            </div>
+            {stayType === 'continue' ? (
+              <div className="flex justify-between gap-4">
+                <dt className="text-apg-silver">Security deposit</dt>
+                <dd className="text-white">{paiseToInr(depositRequiredPaiseForPreview)}</dd>
+              </div>
+            ) : null}
+            <div className="flex justify-between gap-4">
+              <dt className="text-apg-silver">Deposit collected</dt>
+              <dd className="text-white">{paiseToInr(depositPaidPaisePreview)}</dd>
+            </div>
+            <div className="flex justify-between gap-4 border-t border-white/10 pt-2">
+              <dt className="text-apg-silver">Remaining balance</dt>
+              <dd className="font-semibold text-white">{paiseToInr(Math.max(0, dueNowPaise))}</dd>
+            </div>
+          </>
+        ) : null}
+        {payerName.trim() ? (
+          <div className="flex justify-between gap-4">
+            <dt className="text-apg-silver">Payer</dt>
+            <dd className="text-white">{payerName.trim()}</dd>
+          </div>
+        ) : null}
+        {paymentReference.trim() ? (
+          <div className="flex justify-between gap-4">
+            <dt className="text-apg-silver">Reference</dt>
+            <dd className="text-white">{paymentReference.trim()}</dd>
+          </div>
+        ) : null}
+      </dl>
+      <p className="mt-3 text-xs text-apg-silver">
+        Creates booking, bed assignment, rent invoice, and deposit ledger entries — same as normal
+        resident onboarding.
       </p>
       <div className="mt-4 flex gap-3">
         <button
@@ -621,7 +765,11 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
           onClick={submitBooking}
           className="flex-1 rounded-xl bg-[#FF5A1F] py-3 text-sm font-semibold text-white disabled:opacity-50"
         >
-          {isProcessing ? 'Creating booking…' : 'Confirm & create'}
+          {isProcessing
+            ? 'Processing…'
+            : saleIntent === 'manual_onboarding'
+              ? 'Confirm & onboard resident'
+              : 'Confirm & create'}
         </button>
       </div>
     </div>
@@ -634,7 +782,8 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
         ctx={ctx}
         stayType={stayType}
         quote={quote}
-        depositPaidPaise={Math.round(inrToNumber(depositPaidInr) * 100)}
+        depositPaidPaise={depositPaidPaisePreview}
+        depositRequiredPaise={depositRequiredPaiseForPreview}
         amountReceivedPaise={Math.round(inrToNumber(amountReceivedInr) * 100)}
         paymentStatus={paymentStatus}
         selectedBedLabel={selectedBed?.label ?? null}
@@ -648,6 +797,14 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
           setPaymentMethod={setPaymentMethod}
           amountReceivedInr={amountReceivedInr}
           setAmountReceivedInr={setAmountReceivedInr}
+          paymentReference={paymentReference}
+          setPaymentReference={setPaymentReference}
+          paymentDate={paymentDate}
+          setPaymentDate={setPaymentDate}
+          payerName={payerName}
+          setPayerName={setPayerName}
+          paymentNotes={paymentNotes}
+          setPaymentNotes={setPaymentNotes}
           disabled={isProcessing}
         />
       </div>
@@ -687,7 +844,9 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-semibold text-white sm:text-2xl">Sale Express</h1>
-            <p className="text-sm text-apg-silver">Walk-in booking & invoice workspace</p>
+            <p className="text-sm text-apg-silver">
+              {saleIntentLabel(saleIntent)} · one resident at a time
+            </p>
           </div>
           <button
             type="button"
@@ -714,7 +873,38 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
             </div>
           ) : null}
           {!hasIdentity ? (
-            <div className="mx-auto w-full max-w-6xl">
+            <div className="mx-auto w-full max-w-6xl space-y-4">
+              <div className={posGlassCard}>
+                <p className="text-xs font-semibold uppercase tracking-wide text-apg-muted">
+                  Workflow
+                </p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {(
+                    [
+                      ['sale', 'Rent & walk-in sale', 'Bill existing or new stays, rent collection'],
+                      [
+                        'manual_onboarding',
+                        'New resident / manual onboarding',
+                        'Create resident, bed, rent, custom deposit & payment in one flow',
+                      ],
+                    ] as const
+                  ).map(([value, title, desc]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setSaleIntent(value)}
+                      className={`rounded-xl border p-4 text-left transition ${
+                        saleIntent === value
+                          ? 'border-[#FF5A1F]/50 bg-[#FF5A1F]/10'
+                          : 'border-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      <p className="font-semibold text-white">{title}</p>
+                      <p className="mt-1 text-xs text-apg-silver">{desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
               <ExpressBookingSearchPanel
                 variant="hero"
                 onSelect={selectResident}
@@ -782,6 +972,14 @@ function PaymentControls({
   setPaymentMethod,
   amountReceivedInr,
   setAmountReceivedInr,
+  paymentReference,
+  setPaymentReference,
+  paymentDate,
+  setPaymentDate,
+  payerName,
+  setPayerName,
+  paymentNotes,
+  setPaymentNotes,
   disabled = false,
 }: {
   paymentStatus: ExpressBookingPaymentStatus;
@@ -790,6 +988,14 @@ function PaymentControls({
   setPaymentMethod: (v: 'cash' | 'upi' | 'bank_transfer' | 'other') => void;
   amountReceivedInr: string;
   setAmountReceivedInr: (v: string) => void;
+  paymentReference: string;
+  setPaymentReference: (v: string) => void;
+  paymentDate: string;
+  setPaymentDate: (v: string) => void;
+  payerName: string;
+  setPayerName: (v: string) => void;
+  paymentNotes: string;
+  setPaymentNotes: (v: string) => void;
   disabled?: boolean;
 }) {
   return (
@@ -838,8 +1044,46 @@ function PaymentControls({
           <option value="upi">UPI</option>
           <option value="cash">Cash</option>
           <option value="bank_transfer">Bank transfer</option>
-          <option value="other">Other</option>
+          <option value="other">Other / external</option>
         </select>
+      </label>
+      <label className="block text-xs text-apg-silver">
+        Payment date
+        <input
+          type="date"
+          value={paymentDate}
+          onChange={(e) => setPaymentDate(e.target.value)}
+          className={posInputClass}
+          disabled={disabled}
+        />
+      </label>
+      <label className="block text-xs text-apg-silver">
+        Payment reference
+        <input
+          value={paymentReference}
+          onChange={(e) => setPaymentReference(e.target.value)}
+          className={posInputClass}
+          placeholder="UTR / receipt no."
+          disabled={disabled}
+        />
+      </label>
+      <label className="block text-xs text-apg-silver">
+        Payer (optional — e.g. company name)
+        <input
+          value={payerName}
+          onChange={(e) => setPayerName(e.target.value)}
+          className={posInputClass}
+          disabled={disabled}
+        />
+      </label>
+      <label className="block text-xs text-apg-silver">
+        Notes
+        <input
+          value={paymentNotes}
+          onChange={(e) => setPaymentNotes(e.target.value)}
+          className={posInputClass}
+          disabled={disabled}
+        />
       </label>
     </div>
   );

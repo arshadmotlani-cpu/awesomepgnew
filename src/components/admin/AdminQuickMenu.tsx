@@ -14,13 +14,13 @@ const ACTIONS: Array<{
   {
     id: 'sale_express',
     label: 'Sale Express',
-    description: 'Walk-in booking, rent & invoice POS',
+    description: 'Onboard residents, rent, deposit & payments',
     accent: 'border-[#FF5A1F]/40 bg-[#FF5A1F]/10 hover:bg-[#FF5A1F]/20',
   },
   {
     id: 'deposit_express',
-    label: 'Deposit Express',
-    description: 'Collect security deposits only',
+    label: 'Collect deposit',
+    description: 'Add deposit for an existing booking',
     accent: 'border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20',
   },
   {
@@ -94,7 +94,7 @@ export function AdminQuickMenu() {
             Quick actions
           </p>
           <p className="px-1 pb-3 text-[11px] text-apg-silver">
-            Sale, deposit collection, and deposit refunds — one tap each.
+            Sale Express onboarding, extra deposit collection, and refunds.
           </p>
           <div className="grid grid-cols-1 gap-2">
             {visibleActions.map((item) => (

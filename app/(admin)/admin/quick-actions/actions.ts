@@ -508,6 +508,7 @@ export async function listExpressWalkInBedsAction(
 }
 
 export async function expressWalkInSaleAction(input: {
+  saleIntent?: 'sale' | 'manual_onboarding';
   customerId?: string;
   fullName: string;
   phone: string;
@@ -527,6 +528,9 @@ export async function expressWalkInSaleAction(input: {
   paymentMethod: ExpressWalkInPaymentMethod;
   paymentStatus?: ExpressBookingPaymentStatus;
   amountReceivedInr?: number;
+  paymentReference?: string;
+  paymentDate?: string;
+  payerName?: string;
   notes?: string;
   idempotencyKey?: string;
 }): Promise<QuickActionResult> {
@@ -547,6 +551,7 @@ export async function expressWalkInSaleAction(input: {
     const toPaise = (inr: number) => Math.round(inr * 100);
 
     const result = await executeExpressBookingSale(session, {
+      saleIntent: input.saleIntent ?? 'sale',
       customerId: input.customerId,
       fullName: input.fullName.trim(),
       phone: input.phone.trim(),
@@ -566,6 +571,9 @@ export async function expressWalkInSaleAction(input: {
       paymentMethod: input.paymentMethod,
       paymentStatus: input.paymentStatus,
       amountReceivedPaise: input.amountReceivedInr ? toPaise(input.amountReceivedInr) : undefined,
+      paymentReference: input.paymentReference?.trim(),
+      paymentDate: input.paymentDate?.trim(),
+      payerName: input.payerName?.trim(),
       notes: input.notes,
       idempotencyKey: input.idempotencyKey,
     });

@@ -15,6 +15,7 @@ export function ExpressBookingReceipt({
   stayType,
   quote,
   depositPaidPaise,
+  depositRequiredPaise,
   amountReceivedPaise,
   paymentStatus,
   selectedBedLabel,
@@ -24,13 +25,18 @@ export function ExpressBookingReceipt({
   stayType: ExpressBookingStayType;
   quote: ExpressBookingQuote | null;
   depositPaidPaise: number;
+  /** Obligation (may differ from catalog default in manual onboarding). */
+  depositRequiredPaise?: number;
   amountReceivedPaise: number;
   paymentStatus: ExpressBookingPaymentStatus;
   selectedBedLabel: string | null;
 }) {
   const rentPaise = quote?.rentPaise ?? 0;
-  const totalPaise =
-    stayType === 'continue' ? rentPaise + (quote?.depositPaise ?? 0) : rentPaise;
+  const depositObligationPaise =
+    stayType === 'continue'
+      ? (depositRequiredPaise ?? quote?.depositPaise ?? 0)
+      : 0;
+  const totalPaise = stayType === 'continue' ? rentPaise + depositObligationPaise : rentPaise;
 
   let alreadyPaid = depositPaidPaise;
   if (paymentStatus === 'paid_in_full') {
@@ -89,10 +95,10 @@ export function ExpressBookingReceipt({
           <span className="text-apg-silver">Total rent</span>
           <span className="text-white">{paiseToInr(rentPaise)}</span>
         </div>
-        {stayType === 'continue' && quote ? (
+        {stayType === 'continue' && depositObligationPaise > 0 ? (
           <div className="flex justify-between gap-4">
-            <span className="text-apg-silver">Deposit</span>
-            <span className="text-white">{paiseToInr(quote.depositPaise)}</span>
+            <span className="text-apg-silver">Security deposit</span>
+            <span className="text-white">{paiseToInr(depositObligationPaise)}</span>
           </div>
         ) : null}
         <div className="flex justify-between gap-4">

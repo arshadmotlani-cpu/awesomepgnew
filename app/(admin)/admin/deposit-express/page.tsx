@@ -6,7 +6,7 @@ import { loadDepositExpressContext } from '@/src/services/depositExpress';
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Deposit Express · Admin',
+  title: 'Collect deposit · Admin',
 };
 
 function assertClientSerializable<T>(value: T): T {

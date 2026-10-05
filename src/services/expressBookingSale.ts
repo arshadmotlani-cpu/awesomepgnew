@@ -35,12 +35,18 @@ import {
   failExpressBookingIdempotency,
   type ExpressBookingIdempotencyPayload,
 } from '@/src/services/expressBookingIdempotency';
+import { validateExpressBookingDepositTerms } from '@/src/lib/expressBooking/expressBookingDepositValidation';
+import {
+  allowsCustomDepositOverride,
+  type ExpressBookingSaleIntent,
+} from '@/src/lib/expressBooking/expressBookingSaleIntent';
 
 export type ExpressBookingStayType = 'fixed' | 'continue';
 export type ExpressWalkInStayType = ExpressBookingStayType;
 export type ExpressWalkInPaymentMethod = 'cash' | 'upi' | 'bank_transfer' | 'other';
 
 export type ExpressBookingSaleInput = {
+  saleIntent?: ExpressBookingSaleIntent;
   customerId?: string;
   fullName: string;
   phone: string;
@@ -63,6 +69,10 @@ export type ExpressBookingSaleInput = {
   paymentMethod: ExpressWalkInPaymentMethod;
   paymentStatus?: ExpressBookingPaymentStatus;
   amountReceivedPaise?: number;
+  paymentReference?: string;
+  paymentDate?: string;
+  /** Third-party payer label (e.g. company name) — not a corporate booking entity. */
+  payerName?: string;
 
   notes?: string;
   /** Stable key from client or derived server-side — prevents duplicate bookings on double submit. */
@@ -92,9 +102,24 @@ export type ExpressBookingSaleResult =
 export type ExpressWalkInSaleInput = ExpressBookingSaleInput;
 export type ExpressWalkInSaleResult = ExpressBookingSaleResult;
 
+function paymentMetaLine(input: ExpressBookingSaleInput): string | null {
+  const parts: string[] = [];
+  if (input.payerName?.trim()) parts.push(`Payer: ${input.payerName.trim()}`);
+  if (input.paymentReference?.trim()) parts.push(`Payment ref: ${input.paymentReference.trim()}`);
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
+function collectionPaymentDate(input: ExpressBookingSaleInput): string {
+  const raw = input.paymentDate?.trim();
+  if (raw && /^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  return formatDate(new Date());
+}
+
 function invoiceNotes(input: ExpressBookingSaleInput, walletApplied: number): string {
   const lines = [
-    `Express booking · ${input.stayType === 'fixed' ? 'Fixed Stay' : 'Monthly Stay'}`,
+    input.saleIntent === 'manual_onboarding'
+      ? 'Sale Express · manual resident onboarding'
+      : `Express booking · ${input.stayType === 'fixed' ? 'Fixed Stay' : 'Monthly Stay'}`,
     `Check-in ${input.checkInDate}${input.stayType === 'fixed' && input.checkOutDate ? ` · Check-out ${input.checkOutDate}` : ''}`,
   ];
   if (input.stayType === 'fixed' && input.checkOutDate) {
@@ -119,6 +144,8 @@ function invoiceNotes(input: ExpressBookingSaleInput, walletApplied: number): st
   if (walletApplied > 0) {
     lines.push(`Wallet credit applied: ₹${(walletApplied / 100).toLocaleString('en-IN')}`);
   }
+  const meta = paymentMetaLine(input);
+  if (meta) lines.push(meta);
   if (input.notes?.trim()) lines.push(input.notes.trim());
   return lines.join(' · ');
 }
@@ -152,9 +179,6 @@ async function validateQuote(input: ExpressBookingSaleInput): Promise<
       stayType: input.stayType,
     });
 
-    if (input.stayType === 'fixed' && input.depositRequiredPaise > 0) {
-      return { ok: false, error: 'Fixed stays do not include deposit.' };
-    }
     if (input.stayType === 'fixed' && (input.walletCreditPaise ?? 0) > 0) {
       return { ok: false, error: 'Wallet credit applies to monthly stays only.' };
     }
@@ -166,14 +190,19 @@ async function validateQuote(input: ExpressBookingSaleInput): Promise<
         error: `Rent mismatch — expected ₹${(quote.rentPaise / 100).toLocaleString('en-IN')} from catalog pricing.`,
       };
     }
-    if (
-      input.stayType === 'continue' &&
-      Math.abs(quote.depositPaise - input.depositRequiredPaise) > tolerance
-    ) {
-      return {
-        ok: false,
-        error: `Deposit mismatch — expected ₹${(quote.depositPaise / 100).toLocaleString('en-IN')}.`,
-      };
+
+    const allowCustomDeposit = allowsCustomDepositOverride(
+      input.saleIntent ?? 'sale',
+    );
+    const depositCheck = validateExpressBookingDepositTerms({
+      stayType: input.stayType,
+      quoteDepositPaise: quote.depositPaise,
+      depositRequiredPaise: input.depositRequiredPaise,
+      depositPaidPaise: input.depositPaidPaise,
+      allowCustomDeposit,
+    });
+    if (!depositCheck.ok) {
+      return depositCheck;
     }
 
     return { ok: true, quote };
@@ -220,6 +249,8 @@ async function executeHistoricalSale(
       paymentStatus,
       paymentMethod: input.paymentMethod,
       notes: collectionNotes,
+      paymentReference: input.paymentReference ?? null,
+      paymentDate: collectionPaymentDate(input),
       actorId: session.adminId,
     });
     if (!rentPayment.ok) {
@@ -237,8 +268,9 @@ async function executeHistoricalSale(
       bookingId: activeTenancy.bookingId,
       chargeType: 'deposit',
       amountPaise: input.depositPaidPaise,
-      paymentDate: formatDate(new Date()),
+      paymentDate: collectionPaymentDate(input),
       paymentMethod: input.paymentMethod,
+      referenceNumber: input.paymentReference ?? null,
       notes: collectionNotes,
       createAsPaid: true,
       actorId: session.adminId,
@@ -517,8 +549,9 @@ export async function executeExpressBookingSale(
       bookingId,
       chargeType: 'deposit',
       amountPaise: cashDepositPaise,
-      paymentDate: formatDate(new Date()),
+      paymentDate: collectionPaymentDate(input),
       paymentMethod: input.paymentMethod,
+      referenceNumber: input.paymentReference ?? null,
       notes: collectionNotes,
       createAsPaid: true,
       actorId: session.adminId,
@@ -546,6 +579,8 @@ export async function executeExpressBookingSale(
         paymentStatus,
         paymentMethod: input.paymentMethod,
         notes: collectionNotes,
+        paymentReference: input.paymentReference ?? null,
+        paymentDate: collectionPaymentDate(input),
         actorId: session.adminId,
       });
       if (!rentPayment.ok) {
@@ -563,8 +598,9 @@ export async function executeExpressBookingSale(
         chargeType: 'rent',
         amountPaise: rentPaid,
         billingMonth: input.checkInDate.slice(0, 7) + '-01',
-        paymentDate: formatDate(new Date()),
+        paymentDate: collectionPaymentDate(input),
         paymentMethod: input.paymentMethod,
+        referenceNumber: input.paymentReference ?? null,
         notes: collectionNotes,
         createAsPaid: true,
         actorId: session.adminId,
@@ -638,6 +674,31 @@ export async function executeExpressBookingSale(
       ? Math.max(0, input.depositRequiredPaise - depositRecordedPaise - walletCreditApplied)
       : 0,
   );
+
+  await db.insert(auditLog).values({
+    actorType: 'admin',
+    actorId: session.adminId,
+    entity: 'booking',
+    entityId: bookingId,
+    action:
+      input.saleIntent === 'manual_onboarding'
+        ? 'sale_express_manual_onboarding'
+        : 'express_booking_sale',
+    diff: {
+      customerId,
+      bedId: input.bedId,
+      checkInDate: input.checkInDate,
+      stayType: input.stayType,
+      rentAmountPaise: input.rentAmountPaise,
+      depositRequiredPaise: input.depositRequiredPaise,
+      depositRecordedPaise,
+      rentRecordedPaise,
+      payerName: input.payerName?.trim() || null,
+      paymentReference: input.paymentReference?.trim() || null,
+      paymentMethod: input.paymentMethod,
+      paymentStatus: input.paymentStatus ?? 'paid_in_full',
+    },
+  });
 
   const successResult = {
     ok: true as const,

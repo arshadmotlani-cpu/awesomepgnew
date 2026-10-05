@@ -20,6 +20,8 @@ export type ExpressBookingPaymentInput = {
   paymentStatus: ExpressBookingPaymentStatus;
   paymentMethod: ExpressWalkInPaymentMethod;
   notes?: string;
+  paymentReference?: string | null;
+  paymentDate?: string;
   actorId: string;
 };
 
@@ -92,8 +94,9 @@ export async function recordExpressBookingPayment(
     chargeType: 'rent',
     amountPaise: amountToRecord,
     billingMonth,
-    paymentDate: formatDate(new Date()),
+    paymentDate: input.paymentDate?.trim() || formatDate(new Date()),
     paymentMethod: input.paymentMethod,
+    referenceNumber: input.paymentReference ?? null,
     notes: input.notes,
     createAsPaid: true,
     actorId: input.actorId,
