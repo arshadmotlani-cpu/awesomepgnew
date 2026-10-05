@@ -269,7 +269,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-10-04 18:51:25 UTC
+### Pending pre-commit sync · 2026-10-05 04:47:18 UTC
 
 **Areas touched:** [[Billing]], [[Electricity]]
 
@@ -281,11 +281,11 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
 **Staged code files (6):**
-- `src/lib/billing/electricityMeterPeriodPriorCollections.ts`
-- `src/lib/billing/electricityPriorCollectionMeterPeriodAttribution.ts`
+- `src/lib/billing/electricityMeterPeriodResidentSettlement.ts`
+- `src/lib/billing/pendingMeterPeriodElectricityDepositAdjustment.ts`
 - `src/lib/billing/pgElectricityBillingChecklist.ts`
 - `src/lib/billing/pgElectricityGenerationPreview.ts`
-- `src/lib/billing/roomElectricityOccupants.ts`
+- `src/lib/billing/pgElectricityGenerationPreviewPure.ts`
 - `src/services/electricityBilling.ts`
 
 **Changed:**

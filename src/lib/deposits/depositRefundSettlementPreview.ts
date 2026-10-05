@@ -4,6 +4,7 @@ import { getVacatingForBooking } from '@/src/db/queries/customer';
 import { firstOfMonth } from '@/src/services/billing';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { buildVacatingSettlementPreview } from '@/src/lib/vacating/computeVacatingSettlementPreview';
+import { resolveMeterPeriodElectricityDepositAdjustmentForBooking } from '@/src/lib/billing/pendingMeterPeriodElectricityDepositAdjustment';
 import { db } from '@/src/db/client';
 import { bookings, bedReservations, beds, rooms } from '@/src/db/schema';
 import { and, eq } from 'drizzle-orm';
@@ -92,6 +93,25 @@ export async function getDepositRefundSettlementPreview(
 
   const electricityAdjustmentPaise = elecAccount.netOutstandingPaise;
   const grossBeforeElec = depositRefundablePaise + unusedPrepaidRentPaise;
+
+  const meterPeriodDepositAdjustment =
+    electricityAdjustmentPaise <= 0
+      ? await resolveMeterPeriodElectricityDepositAdjustmentForBooking(bookingId)
+      : null;
+  if (meterPeriodDepositAdjustment && meterPeriodDepositAdjustment.adjustmentPaise > 0) {
+    const adj = meterPeriodDepositAdjustment.adjustmentPaise;
+    return {
+      depositBalancePaise,
+      depositRefundablePaise,
+      unusedPrepaidRentPaise,
+      electricityAdjustmentPaise: adj,
+      refundAmountPaise: Math.max(0, grossBeforeElec - adj),
+      electricityPending: false,
+      electricityBillingMonth: meterPeriodDepositAdjustment.billingMonth?.slice(0, 7) ?? null,
+      paidUntilDate,
+      vacatingDate,
+    };
+  }
 
   if (electricityAdjustmentPaise > 0) {
     const latestInvoice = elecAccount.invoices.find((i) => i.outstandingPaise > 0);

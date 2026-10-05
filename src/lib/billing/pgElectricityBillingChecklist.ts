@@ -23,6 +23,7 @@ import { loadPgElectricityRoomGenerationPreview } from '@/src/lib/billing/pgElec
 import type {
   PgElectricityAllocationPreview,
   PgElectricityMeterPeriodPreview,
+  PgElectricitySettlementPreview,
 } from '@/src/lib/billing/pgElectricityGenerationPreviewPure';
 import { resolveElectricityGenerationMeterPeriod } from '@/src/lib/billing/resolveElectricityGenerationMeterPeriod';
 import { resolveEffectiveBedCountForRoom } from '@/src/services/roomConfigurationSchedule';
@@ -59,6 +60,7 @@ export type PgElectricityChecklistRoom = {
   transferEvidencePreview: PgElectricityTransferEvidencePreview[];
   meterPeriodPreview: PgElectricityMeterPeriodPreview | null;
   allocationPreview: PgElectricityAllocationPreview | null;
+  settlementPreview: PgElectricitySettlementPreview | null;
   /** When status is consumption_month_blocked — operator-facing reason. */
   blockedReason: string | null;
   requiredBaselineMonthLabel: string | null;
@@ -147,6 +149,7 @@ export async function loadPgElectricityBillingChecklist(input: {
       | 'transferEvidencePreview'
       | 'meterPeriodPreview'
       | 'allocationPreview'
+      | 'settlementPreview'
       | 'blockedReason'
       | 'requiredBaselineMonthLabel'
     > & {
@@ -169,6 +172,7 @@ export async function loadPgElectricityBillingChecklist(input: {
         transferEvidencePreview: [],
         meterPeriodPreview: null,
         allocationPreview: null,
+        settlementPreview: null,
       });
       return;
     }
@@ -191,6 +195,7 @@ export async function loadPgElectricityBillingChecklist(input: {
       transferEvidencePreview: preview.transferEvidenceRows,
       meterPeriodPreview: preview.meterPeriod,
       allocationPreview: preview.allocationPreview,
+      settlementPreview: preview.settlementPreview,
     });
   }
 

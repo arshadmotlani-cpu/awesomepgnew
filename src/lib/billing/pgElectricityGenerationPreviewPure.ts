@@ -42,6 +42,34 @@ export type PgElectricityAllocationPreview = {
   lines: PgElectricityAllocationPreviewLine[];
 };
 
+export type PgElectricitySettlementPreviewLine = {
+  customerId: string;
+  customerName: string;
+  occupancyStart: string;
+  occupancyEnd: string;
+  occupancyDays: number;
+  grossAllocationPaise: number;
+  previouslyCollectedPaise: number;
+  refundableBalanceBeforePaise: number;
+  depositElectricityDeductionPaise: number;
+  newDuesPaise: number;
+  remainingRefundableBalancePaise: number;
+  remainingElectricityPaise: number;
+  category: string;
+  settlementNotes: string[];
+};
+
+export type PgElectricitySettlementPreview = {
+  lines: PgElectricitySettlementPreviewLine[];
+  totals: {
+    grossAllocationPaise: number;
+    previouslyCollectedPaise: number;
+    depositElectricityDeductionPaise: number;
+    newDuesPaise: number;
+    remainingElectricityPaise: number;
+  };
+};
+
 export type PgElectricityMeterPeriodPreview = {
   reportingBillingMonth: string;
   periodStartDate: string;
@@ -62,6 +90,7 @@ export type PgElectricityRoomGenerationPreview = {
   occupants: PgElectricityOccupantPreview[];
   transferEvidenceRows: PgElectricityTransferEvidencePreview[];
   allocationPreview: PgElectricityAllocationPreview | null;
+  settlementPreview: PgElectricitySettlementPreview | null;
 };
 
 /** Remaining room electricity after prior collections (gross from meter entry). */

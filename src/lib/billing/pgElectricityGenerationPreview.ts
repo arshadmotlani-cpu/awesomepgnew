@@ -9,6 +9,7 @@ import { loadRoomElectricityOccupantsForMonth } from '@/src/lib/billing/roomElec
 import type { RoomElectricityOccupantRow } from '@/src/lib/billing/roomElectricityOccupants';
 import { loadVerifiedPriorElectricityCollectionsForOpenMeterPeriod } from '@/src/lib/billing/electricityMeterPeriodPriorCollections';
 import { buildElectricityGenerationAllocation } from '@/src/lib/billing/electricityGenerationAllocation';
+import { buildElectricityRoomSettlementPreview } from '@/src/lib/billing/electricityMeterPeriodResidentSettlement';
 import { resolveElectricityGenerationMeterPeriod } from '@/src/lib/billing/resolveElectricityGenerationMeterPeriod';
 import { loadRoomTransferMeterEvidenceForRoomMonth } from '@/src/lib/roomTransfer/roomChangeTransferMeterEvidence';
 import { addDays, formatDate, parseDate } from '@/src/lib/dates';
@@ -121,6 +122,7 @@ export async function loadPgElectricityRoomGenerationPreview(input: {
       : null;
 
   let allocationPreview: PgElectricityRoomGenerationPreview['allocationPreview'] = null;
+  let settlementPreview: PgElectricityRoomGenerationPreview['settlementPreview'] = null;
   if (currentReadingUnits != null && unitsConsumed != null) {
     const manualCreditPaise = await sumManualElectricityCreditsOverlappingPeriod(
       input.roomId,
@@ -138,28 +140,49 @@ export async function loadPgElectricityRoomGenerationPreview(input: {
       occupantLoad,
       activeBedCount,
     });
-    const grossByCustomer = built.allocation.calculatedShareByCustomerId;
-    const collectedByCustomer = verifiedPrior.byCustomerId;
+    const settlement = await buildElectricityRoomSettlementPreview({
+      roomId: input.roomId,
+      periodStartDate: periodStartIso,
+      periodEndExclusive: periodEndExclusiveIso,
+      previousFinalizedReadingUnits: previousReadingUnits,
+      occupants: occupantLoad.occupants,
+      allocation: built.allocation,
+      verifiedPrior,
+      meterPeriodElectricityEstablished: true,
+    });
+    settlementPreview = {
+      lines: settlement.lines.map((line) => ({
+        customerId: line.customerId,
+        customerName: line.customerName,
+        occupancyStart: line.occupancyStart,
+        occupancyEnd: line.occupancyEnd,
+        occupancyDays: line.occupancyDays,
+        grossAllocationPaise: line.grossAllocationPaise,
+        previouslyCollectedPaise: line.previouslyCollectedPaise,
+        refundableBalanceBeforePaise: line.refundableBalanceBeforePaise,
+        depositElectricityDeductionPaise: line.depositElectricityDeductionPaise,
+        newDuesPaise: line.newDuesPaise,
+        remainingRefundableBalancePaise: line.remainingRefundableBalancePaise,
+        remainingElectricityPaise: line.remainingElectricityPaise,
+        category: line.category,
+        settlementNotes: line.settlementNotes,
+      })),
+      totals: settlement.totals,
+    };
     allocationPreview = {
       grossTotalPaise: built.grossTotalPaise,
-      invoiceTotalPaise: built.allocation.invoices.reduce((s, i) => s + i.amountPaise, 0),
+      invoiceTotalPaise: settlement.totals.newDuesPaise,
       remainderPaise: built.allocation.remainderPaise,
-      lines: occupantLoad.occupants.map((o) => {
-        const bounds = occupancyBounds(o);
-        const grossAllocationPaise = grossByCustomer.get(o.customerId) ?? 0;
-        const previouslyCollectedPaise = collectedByCustomer.get(o.customerId) ?? 0;
-        const invoiceLine = built.allocation.invoices.find((i) => i.customerId === o.customerId);
-        return {
-          customerId: o.customerId,
-          customerName: o.customerName ?? 'Resident',
-          occupancyStart: bounds.occupancyStart,
-          occupancyEnd: bounds.occupancyEnd,
-          occupancyDays: o.occupiedDates?.length ?? o.weight,
-          grossAllocationPaise,
-          previouslyCollectedPaise,
-          finalInvoicePaise: invoiceLine?.amountPaise ?? 0,
-        };
-      }),
+      lines: settlement.lines.map((line) => ({
+        customerId: line.customerId,
+        customerName: line.customerName,
+        occupancyStart: line.occupancyStart,
+        occupancyEnd: line.occupancyEnd,
+        occupancyDays: line.occupancyDays,
+        grossAllocationPaise: line.grossAllocationPaise,
+        previouslyCollectedPaise: line.previouslyCollectedPaise,
+        finalInvoicePaise: line.newDuesPaise,
+      })),
     };
   }
 
@@ -194,5 +217,6 @@ export async function loadPgElectricityRoomGenerationPreview(input: {
     occupants,
     transferEvidenceRows,
     allocationPreview,
+    settlementPreview,
   };
 }

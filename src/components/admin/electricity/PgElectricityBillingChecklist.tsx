@@ -1,15 +1,19 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   generateSelectedElectricityBillsAction,
+  previewPgElectricityRoomGenerationAction,
   type PgElectricityGenerateRoomResult,
 } from '@/app/(admin)/admin/billing/electricity/generate/actions';
 import type { PgElectricityBillingChecklist } from '@/src/lib/billing/pgElectricityBillingChecklist';
 import { DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE } from '@/src/lib/billing/constants';
-import { remainingElectricityAfterCollections } from '@/src/lib/billing/pgElectricityGenerationPreviewPure';
+import {
+  remainingElectricityAfterCollections,
+  type PgElectricitySettlementPreview,
+} from '@/src/lib/billing/pgElectricityGenerationPreviewPure';
 import { paiseToInr } from '@/src/lib/format';
 
 type PgOption = { id: string; name: string };
@@ -52,8 +56,42 @@ export function PgElectricityBillingChecklistClient({
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
   const [lastResults, setLastResults] = useState<PgElectricityGenerateRoomResult[]>([]);
+  const [settlementByRoomId, setSettlementByRoomId] = useState<
+    Record<string, PgElectricitySettlementPreview | null>
+  >({});
 
   const ratePaise = checklist?.ratePerUnitPaise ?? DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE;
+
+  useEffect(() => {
+    if (!checklist) return;
+    let cancelled = false;
+    for (const room of checklist.rooms) {
+      if (room.status !== 'reading_required' || room.previousReadingUnits == null) continue;
+      const raw = readings[room.roomId]?.trim();
+      if (!raw) {
+        setSettlementByRoomId((s) => ({ ...s, [room.roomId]: null }));
+        continue;
+      }
+      const current = Number(raw);
+      if (!Number.isFinite(current) || current < room.previousReadingUnits) continue;
+      void previewPgElectricityRoomGenerationAction({
+        roomId: room.roomId,
+        billingMonth,
+        previousReadingUnits: room.previousReadingUnits,
+        currentReadingUnits: current,
+        ratePerUnitPaise: room.ratePerUnitPaise,
+      }).then((res) => {
+        if (cancelled) return;
+        setSettlementByRoomId((s) => ({
+          ...s,
+          [room.roomId]: res.ok ? res.preview.settlementPreview : null,
+        }));
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [checklist, readings, billingMonth]);
   const rateLabel = paiseToInr(ratePaise);
 
   const readyRooms = useMemo(() => {
@@ -264,6 +302,8 @@ export function PgElectricityBillingChecklistClient({
               const canSelect = room.status === 'reading_required' && !invalidCurrent && units != null && units >= 0;
               const isChecked = canSelect && selected[room.roomId] !== false;
               const result = lastResults.find((r) => r.roomId === room.roomId);
+              const settlementPreview =
+                settlementByRoomId[room.roomId] ?? room.settlementPreview;
 
               const remainingEstimated =
                 estimated != null && !invalidCurrent
@@ -566,6 +606,49 @@ export function PgElectricityBillingChecklistClient({
                               </li>
                             ))}
                         </ul>
+                      ) : null}
+                      {settlementPreview && settlementPreview.lines.length > 0 ? (
+                        <div className="mt-3 overflow-x-auto">
+                          <p className="mb-2 font-medium text-white">Deposit-aware settlement</p>
+                          <table className="w-full min-w-[640px] text-left text-[11px]">
+                            <thead className="text-apg-silver">
+                              <tr>
+                                <th className="py-1 pr-2">Resident</th>
+                                <th className="py-1 pr-2">Gross</th>
+                                <th className="py-1 pr-2">Prior settled</th>
+                                <th className="py-1 pr-2">Refundable</th>
+                                <th className="py-1 pr-2">Deposit ded.</th>
+                                <th className="py-1 pr-2">New dues</th>
+                                <th className="py-1 pr-2">Ref. after</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {settlementPreview.lines.map((line) => (
+                                <tr key={line.customerId} className="border-t border-white/5">
+                                  <td className="py-1.5 pr-2 text-white">{line.customerName}</td>
+                                  <td className="py-1.5 pr-2 tabular-nums">
+                                    {paiseToInr(line.grossAllocationPaise)}
+                                  </td>
+                                  <td className="py-1.5 pr-2 tabular-nums">
+                                    {paiseToInr(line.previouslyCollectedPaise)}
+                                  </td>
+                                  <td className="py-1.5 pr-2 tabular-nums">
+                                    {paiseToInr(line.refundableBalanceBeforePaise)}
+                                  </td>
+                                  <td className="py-1.5 pr-2 tabular-nums">
+                                    {paiseToInr(line.depositElectricityDeductionPaise)}
+                                  </td>
+                                  <td className="py-1.5 pr-2 tabular-nums">
+                                    {paiseToInr(line.newDuesPaise)}
+                                  </td>
+                                  <td className="py-1.5 pr-2 tabular-nums">
+                                    {paiseToInr(line.remainingRefundableBalancePaise)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       ) : null}
                     </div>
                   ) : null}

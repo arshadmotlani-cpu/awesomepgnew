@@ -71,7 +71,13 @@ import { syncRoomElectricityLedgerCycleFromBillInTx, recordMonthlyInvoiceCollect
 import { findActiveElectricityInvoiceForResidentMonth } from './electricityInvoiceDuplicates';
 import { sumManualElectricityCreditsForRoomMonth } from './electricitySettlementLedgerView';
 import { loadVerifiedPriorElectricityCollectionsForOpenMeterPeriod } from '@/src/lib/billing/electricityMeterPeriodPriorCollections';
+import {
+  buildElectricityRoomSettlementPreview,
+  METER_PERIOD_ELECTRICITY_DEPOSIT_REASON,
+} from '@/src/lib/billing/electricityMeterPeriodResidentSettlement';
 import { resolveElectricityGenerationMeterPeriod } from '@/src/lib/billing/resolveElectricityGenerationMeterPeriod';
+import { applyDepositDeductionsInTx } from '@/src/services/depositSettlement';
+import { recordHistoricalElectricityContributionInTx } from '@/src/services/electricityRoomContributions';
 import { getElectricityInvoiceSchemaCaps } from '@/src/lib/db/electricityInvoiceSchemaCaps';
 import { fetchElectricityInvoiceById } from '@/src/lib/db/electricityInvoiceSelect';
 import { validateContinuousPreviousReading } from '@/src/lib/billing/roomMeterReadingSsot';
@@ -475,10 +481,17 @@ export async function createElectricityBill(
   const perResidentPaise = allocation.perResidentPaise;
   const remainderPaise = allocation.remainderPaise;
   const billableOccupantCount = allocation.billableOccupantCount;
-  const residentInvoiceTotalPaise = allocation.invoices.reduce(
-    (sum, invoice) => sum + invoice.amountPaise,
-    0,
-  );
+  const settlementPreview = await buildElectricityRoomSettlementPreview({
+    roomId: input.roomId,
+    periodStartDate: periodStartIso,
+    periodEndExclusive: periodEndExclusiveIso,
+    previousFinalizedReadingUnits: input.previousReadingUnits,
+    occupants: occupantLoad.occupants,
+    allocation,
+    verifiedPrior,
+    meterPeriodElectricityEstablished: true,
+  });
+  const residentInvoiceTotalPaise = settlementPreview.totals.newDuesPaise;
 
   logElectricityBillCreate('occupants_loaded', {
     requestId,
@@ -505,9 +518,9 @@ export async function createElectricityBill(
 
   const useProRata = true;
   const invoiceAllocationByBooking = new Map(
-    allocation.invoices
-      .filter((line) => !line.excludedBecauseCheckoutPaid && line.amountPaise > 0)
-      .map((line) => [line.bookingId, line.amountPaise]),
+    settlementPreview.lines
+      .filter((line) => line.newDuesPaise > 0)
+      .map((line) => [line.bookingId, line.newDuesPaise]),
   );
 
   // Invoice due date = bill issuance date + 3 days. We pick the date
@@ -624,6 +637,32 @@ export async function createElectricityBill(
         billId: bill.id,
         grossTotalPaise,
       });
+
+      for (const line of settlementPreview.lines) {
+        if (line.depositElectricityDeductionPaise <= 0) continue;
+        await applyDepositDeductionsInTx(tx, {
+          bookingId: line.bookingId,
+          customerId: line.customerId,
+          adminId: input.createdByAdminId ?? null,
+          deductions: [
+            {
+              amountPaise: line.depositElectricityDeductionPaise,
+              reason: METER_PERIOD_ELECTRICITY_DEPOSIT_REASON,
+              deductionCategory: 'electricity',
+            },
+          ],
+        });
+        await recordHistoricalElectricityContributionInTx(tx, {
+          roomId: input.roomId,
+          billingMonth,
+          customerId: line.customerId,
+          bookingId: line.bookingId,
+          amountPaise: line.depositElectricityDeductionPaise,
+          reason: METER_PERIOD_ELECTRICITY_DEPOSIT_REASON,
+          contributionDate: periodEndDateIso,
+          createdByAdminId: input.createdByAdminId ?? null,
+        });
+      }
 
       const invoiceIds: string[] = [];
       if (invoiceAllocationByBooking.size > 0 && netSplittablePaise > 0) {
