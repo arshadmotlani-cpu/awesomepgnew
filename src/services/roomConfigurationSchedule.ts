@@ -14,10 +14,11 @@ import {
   roomConfigurationSchedules,
   rooms,
   roomTypes,
+  rentInvoices,
 } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
-import { formatDate, parseDate, todayString } from '@/src/lib/dates';
+import { addDays, formatDate, parseDate, todayString } from '@/src/lib/dates';
 import {
   assertImmediateEffectiveDate,
   assertScheduledEffectiveDate,
@@ -40,6 +41,14 @@ import { resizeRoomCapacity, type ResizeRoomCapacityInput } from '@/src/services
 import { writeBedPriceVersion } from '@/src/services/pgInventoryPricing';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { sharingTypeName } from '@/src/lib/roomSharing';
+import {
+  computeRoomConfigurationDepositAdjustment,
+} from '@/src/lib/deposits/roomConfigurationDepositAdjustment';
+import {
+  computeRoomConfigurationUnusedRentCreditPaise,
+  roomConfigurationUnusedRentCreditReason,
+} from '@/src/lib/deposits/roomConfigurationRentCredit';
+import { firstOfMonth } from '@/src/services/billing';
 
 const ADMIN_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -935,26 +944,129 @@ async function applyDepositAdjustmentsForRoom(
     const rate = await loadBedPrice(row.bedId, effectiveFrom);
     if (!rate) continue;
     const newRequired = computeMonthlyDepositPaise(rate);
-    if (newRequired <= row.depositPaise) continue;
     const summary = await getDepositSummaryForBooking(row.bookingId);
     const collected = summary?.collectedPaise ?? 0;
-    const depositDuePaise = Math.max(0, newRequired - collected);
+    const adjustment = computeRoomConfigurationDepositAdjustment({
+      newRequiredDepositPaise: newRequired,
+      collectedDepositPaise: collected,
+    });
+
     await db
       .update(bookings)
       .set({
-        depositPaise: newRequired,
-        depositDuePaise,
+        depositPaise: adjustment.depositPaise,
+        depositDuePaise: adjustment.depositDuePaise,
         updatedAt: new Date(),
       })
       .where(eq(bookings.id, row.bookingId));
-    adjusted += 1;
-    if (depositDuePaise > 0) {
+
+    const { syncDepositCollectionFromLedger } = await import('@/src/services/depositCollection');
+    await syncDepositCollectionFromLedger(row.bookingId);
+
+    if (adjustment.depositDuePaise > 0) {
       const { ensureDepositDuePaymentLink } = await import('@/src/services/depositCollection');
       await ensureDepositDuePaymentLink(row.bookingId).catch(() => undefined);
     }
+
+    adjusted += 1;
     void adminId;
   }
   return adjusted;
+}
+
+async function applyRoomConfigurationRentCreditsForRoom(
+  roomId: string,
+  effectiveFrom: string,
+  scheduleId: string,
+  newMonthlyRentPaise: number,
+): Promise<number> {
+  const dayBefore = formatDate(addDays(parseDate(effectiveFrom), -1));
+  const billingMonth = firstOfMonth(effectiveFrom);
+
+  const activeBookings = await db
+    .select({
+      bookingId: bookings.id,
+      customerId: bookings.customerId,
+      bedId: beds.id,
+    })
+    .from(bedReservations)
+    .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .where(
+      and(
+        eq(beds.roomId, roomId),
+        eq(bedReservations.status, 'active'),
+        eq(bedReservations.kind, 'primary'),
+        eq(bookings.status, 'confirmed'),
+        sql`CURRENT_DATE <@ ${bedReservations.stayRange}`,
+      ),
+    );
+
+  const { hasResidentCreditEntryWithReasonPrefix, recordResidentCredit } = await import(
+    '@/src/services/residentCreditLedger'
+  );
+
+  let credited = 0;
+  for (const row of activeBookings) {
+    const oldRate = await loadBedPrice(row.bedId, dayBefore);
+    if (!oldRate) continue;
+
+    const [paidMonth] = await db
+      .select({ status: rentInvoices.status, paidPrincipalPaise: rentInvoices.paidPrincipalPaise })
+      .from(rentInvoices)
+      .where(
+        and(
+          eq(rentInvoices.bookingId, row.bookingId),
+          eq(rentInvoices.billingMonth, billingMonth),
+          eq(rentInvoices.isAdhoc, false),
+        ),
+      )
+      .limit(1);
+    const currentMonthRentIsPaid =
+      paidMonth?.status === 'paid' ||
+      (paidMonth != null && paidMonth.paidPrincipalPaise > 0 && paidMonth.status !== 'cancelled');
+
+    const creditPaise = computeRoomConfigurationUnusedRentCreditPaise({
+      effectiveFrom,
+      oldMonthlyRentPaise: oldRate.monthlyRatePaise,
+      newMonthlyRentPaise,
+      currentMonthRentIsPaid,
+    });
+    if (creditPaise <= 0) continue;
+
+    const reasonPrefix = roomConfigurationUnusedRentCreditReason(scheduleId, row.bookingId);
+    const already = await hasResidentCreditEntryWithReasonPrefix(row.customerId, reasonPrefix);
+    if (already) continue;
+
+    await recordResidentCredit({
+      customerId: row.customerId,
+      bookingId: row.bookingId,
+      amountPaise: creditPaise,
+      reason: `${reasonPrefix} effective ${effectiveFrom}`,
+    });
+    credited += 1;
+  }
+  return credited;
+}
+
+/** Re-run deposit + rent credit reconciliation after configuration apply (idempotent). */
+export async function reconcileRoomConfigurationDepositsForRoom(
+  roomId: string,
+  effectiveFrom: string,
+  adminId: string | null,
+  opts?: { scheduleId?: string; newMonthlyRentPaise?: number },
+): Promise<{ depositAdjustments: number; rentCredits: number }> {
+  const depositAdjustments = await applyDepositAdjustmentsForRoom(roomId, effectiveFrom, adminId);
+  let rentCredits = 0;
+  if (opts?.scheduleId && opts.newMonthlyRentPaise != null) {
+    rentCredits = await applyRoomConfigurationRentCreditsForRoom(
+      roomId,
+      effectiveFrom,
+      opts.scheduleId,
+      opts.newMonthlyRentPaise,
+    );
+  }
+  return { depositAdjustments, rentCredits };
 }
 
 export type ApplyDueRoomConfigurationSchedulesResult = {
@@ -1012,6 +1124,12 @@ async function applySingleRoomConfigurationSchedule(
   }
 
   await applyDepositAdjustmentsForRoom(row.roomId, row.effectiveFrom, session.adminId);
+  await applyRoomConfigurationRentCreditsForRoom(
+    row.roomId,
+    row.effectiveFrom,
+    scheduleId,
+    row.monthlyRatePaise,
+  );
   return true;
 }
 

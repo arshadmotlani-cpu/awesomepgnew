@@ -97,6 +97,8 @@ test('deposit adjustment runs on apply not on schedule create', () => {
     'utf8',
   );
   assert.match(src, /applyDepositAdjustmentsForRoom/);
+  assert.match(src, /computeRoomConfigurationDepositAdjustment/);
+  assert.match(src, /applyRoomConfigurationRentCreditsForRoom/);
   const fnStart = src.indexOf('export async function scheduleRoomConfigurationChange');
   const fnEnd = src.indexOf('export async function listScheduledRoomConfigurationsForPg', fnStart);
   const scheduleFn = src.slice(fnStart, fnEnd);
