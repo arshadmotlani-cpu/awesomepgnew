@@ -27,6 +27,7 @@ import { projectInvoice } from '../src/services/rentInvoices';
 
 const BILLING_MONTH = '2026-10-01';
 const SHANTINAGAR_LIKE = '%Shantinagar%';
+const ALL_PGS = process.env.RPM_AUDIT_ALL_PGS === '1';
 
 function rentInvoiceRelevantToBillingMonth(
   row: (typeof rentInvoices.$inferSelect),
@@ -59,11 +60,17 @@ function rentInvoiceRelevantToBillingMonth(
 }
 
 async function main() {
-  const pgRows = await db.execute<{ id: string; name: string }>(sql`
-    SELECT id::text, name FROM pgs WHERE name ILIKE ${SHANTINAGAR_LIKE} AND archived_at IS NULL LIMIT 1
-  `);
-  const pg = pgRows[0];
-  if (!pg) throw new Error('Shantinagar PG not found');
+  const pgRows = ALL_PGS
+    ? await db.execute<{ id: string; name: string }>(sql`
+        SELECT id::text, name FROM pgs WHERE archived_at IS NULL ORDER BY name
+      `)
+    : await db.execute<{ id: string; name: string }>(sql`
+        SELECT id::text, name FROM pgs WHERE name ILIKE ${SHANTINAGAR_LIKE} AND archived_at IS NULL LIMIT 1
+      `);
+  if (pgRows.length === 0) throw new Error('No PGs found for audit');
+
+  const pgIds = pgRows.map((p) => p.id);
+  const pgLabel = ALL_PGS ? 'All PGs' : pgRows[0]!.name;
 
   const month = firstOfMonth(BILLING_MONTH);
   const { start, end } = monthBounds(month);
@@ -93,7 +100,7 @@ async function main() {
         AND br.stay_range && daterange(${monthStartIso}::date, ${monthEndIso}::date, '[)')
       ORDER BY lower(br.stay_range) DESC LIMIT 1
     ) occ ON true
-    WHERE p.id = ${pg.id}::uuid AND b.archived_at IS NULL
+    WHERE p.id = ANY(${sql.raw(`'{${pgIds.join(',')}}'::uuid[]`)}) AND b.archived_at IS NULL
     ORDER BY r.room_number, b.bed_code
   `);
 
@@ -190,7 +197,7 @@ async function main() {
     bedStatuses.map((b) => ({ status: b.legacy as 'paid' | 'not_paid' | 'payment_submitted' | 'partially_paid' })),
   );
 
-  console.log('\n=== October 2026 Rent Payment Map (Shantinagar) ===\n');
+  console.log(`\n=== October 2026 Rent Payment Map (${pgLabel}) ===\n`);
   console.log('Fixed map summary:', summary);
   console.log('Legacy map summary (pre-fix query):', legacySummary);
   console.log('\nFinancial rollup (picked invoice per occupied bed):');
