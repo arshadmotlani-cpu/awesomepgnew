@@ -22,7 +22,7 @@ import { formatDate, parseDate } from '@/src/lib/dates';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { getDepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
 import { getVacatingForBooking } from '@/src/db/queries/customer';
-import { settleDepositWithDeductions } from '@/src/services/depositSettlement';
+import { settleDepositWithDeductions, settleDepositRefund } from '@/src/services/depositSettlement';
 import { syncResidentRequestActionItems } from '@/src/services/residentRequestActions';
 import { refreshAdminNotificationsFromActionItems } from '@/src/services/actionItems';
 import { writeAuditLogNonBlocking } from '@/src/lib/audit/writeAuditLog';
@@ -34,6 +34,20 @@ import {
   validateDepositRefundSubmission,
   DEPOSIT_REFUND_MISSING_DETAILS_MESSAGE,
 } from '@/src/lib/billing/depositRefundRequirements';
+import {
+  assertPrepaidRentRefundRequestAmountPaise,
+  computePrepaidRentRefundCeiling,
+  getPrepaidRentRefundCeilingForBooking,
+} from '@/src/lib/billing/prepaidRentRefundCeiling';
+import {
+  assertCombinedRefundRequestAmountPaise,
+  getResidentRefundableNowForBooking,
+} from '@/src/lib/billing/residentRefundableNow';
+import { validatePayoutQrRefundSubmission } from '@/src/lib/billing/prepaidRentRefundRequirements';
+import {
+  prepaidRentRefundPayoutDebitReason,
+  recordResidentCreditDebit,
+} from '@/src/services/residentCreditLedger';
 import {
   assertDepositRefundRequestAmountPaise,
   getDepositRefundCeilingForBooking,
@@ -87,15 +101,6 @@ export async function submitDepositRefundRequest(input: {
   const ctx = await bookingContext(input.bookingId);
   if (!ctx || ctx.customerId !== input.customerId) {
     return { ok: false as const, error: 'Booking not found.' };
-  }
-
-  const submission = validateDepositRefundSubmission({
-    meterReadingPhotoUrl: input.meterReadingPhotoUrl,
-    payoutUpiId: input.payoutUpiId,
-    payoutQrUrl: input.payoutQrUrl,
-  });
-  if (!submission.ok) {
-    return { ok: false as const, error: submission.error };
   }
 
   const summary = await getDepositSummaryForBooking(input.bookingId);
@@ -157,10 +162,37 @@ export async function submitDepositRefundRequest(input: {
     monthlyRentPaise,
   });
   if (!refundEligibility.canRequestRefund) {
-    return {
-      ok: false as const,
-      error: refundEligibility.lockReason ?? 'Deposit refund is not available yet.',
-    };
+    const midStayExcessOnly =
+      requestedAmountPaise > 0 &&
+      requestedAmountPaise <= ceiling.availableToRequestPaise &&
+      ceiling.refundableDepositPaise > 0;
+    if (!midStayExcessOnly) {
+      return {
+        ok: false as const,
+        error: refundEligibility.lockReason ?? 'Deposit refund is not available yet.',
+      };
+    }
+  }
+
+  const midStayExcessOnly =
+    !refundEligibility.canRequestRefund &&
+    requestedAmountPaise <= ceiling.availableToRequestPaise;
+
+  if (midStayExcessOnly) {
+    const { validatePayoutQrRefundSubmission } = await import(
+      '@/src/lib/billing/prepaidRentRefundRequirements'
+    );
+    const payout = validatePayoutQrRefundSubmission({ payoutQrUrl: input.payoutQrUrl });
+    if (!payout.ok) return { ok: false as const, error: payout.error };
+  } else {
+    const submission = validateDepositRefundSubmission({
+      meterReadingPhotoUrl: input.meterReadingPhotoUrl,
+      payoutUpiId: input.payoutUpiId,
+      payoutQrUrl: input.payoutQrUrl,
+    });
+    if (!submission.ok) {
+      return { ok: false as const, error: submission.error };
+    }
   }
 
   try {
@@ -220,6 +252,257 @@ export async function submitDepositRefundRequest(input: {
     return { ok: false as const, error: 'A refund request is already open for this booking.' };
   }
 }
+
+async function linkRefundRequestUploads(input: {
+  customerId: string;
+  bookingId: string;
+  pgId: string;
+  requestId: string;
+  payoutQrUrl?: string | null;
+  meterReadingPhotoUrl?: string | null;
+}) {
+  const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
+  if (input.meterReadingPhotoUrl?.trim()) {
+    await linkResidentUpload({
+      storagePath: input.meterReadingPhotoUrl.trim(),
+      adminQueue: 'requests',
+      linkedEntity: 'resident_request',
+      linkedEntityId: input.requestId,
+      bookingId: input.bookingId,
+      pgId: input.pgId,
+    }).catch(() => undefined);
+  }
+  if (input.payoutQrUrl?.trim()) {
+    await linkResidentUpload({
+      storagePath: input.payoutQrUrl.trim(),
+      adminQueue: 'requests',
+      linkedEntity: 'resident_request',
+      linkedEntityId: input.requestId,
+      bookingId: input.bookingId,
+      pgId: input.pgId,
+    }).catch(() => undefined);
+  }
+}
+
+export async function submitPrepaidRentRefundRequest(input: {
+  customerId: string;
+  bookingId: string;
+  notes?: string;
+  payoutQrUrl?: string | null;
+  requestedAmountPaise?: number;
+}) {
+  const ctx = await bookingContext(input.bookingId);
+  if (!ctx || ctx.customerId !== input.customerId) {
+    return { ok: false as const, error: 'Booking not found.' };
+  }
+
+  const payout = validatePayoutQrRefundSubmission({ payoutQrUrl: input.payoutQrUrl });
+  if (!payout.ok) return { ok: false as const, error: payout.error };
+
+  const ceiling = await getPrepaidRentRefundCeilingForBooking({
+    customerId: input.customerId,
+    bookingId: input.bookingId,
+  });
+  if (ceiling.availableToRequestPaise <= 0) {
+    return {
+      ok: false as const,
+      error: 'No unused prepaid rent is available to refund right now.',
+    };
+  }
+
+  const requestedAmountPaise =
+    input.requestedAmountPaise != null && input.requestedAmountPaise > 0
+      ? input.requestedAmountPaise
+      : ceiling.availableToRequestPaise;
+  const amountCheck = assertPrepaidRentRefundRequestAmountPaise(requestedAmountPaise, ceiling);
+  if (!amountCheck.ok) {
+    return { ok: false as const, error: amountCheck.error };
+  }
+
+  try {
+    const [row] = await db
+      .insert(residentRequests)
+      .values({
+        customerId: input.customerId,
+        bookingId: input.bookingId,
+        pgId: ctx.pgId,
+        type: 'prepaid_rent_refund',
+        status: 'submitted',
+        amountPaise: requestedAmountPaise,
+        notes: input.notes ?? null,
+        payoutQrUrl: input.payoutQrUrl?.trim() || null,
+      })
+      .returning();
+
+    await db.insert(auditLog).values({
+      actorType: 'customer',
+      actorId: input.customerId,
+      entity: 'resident_request',
+      entityId: row.id,
+      action: 'prepaid_rent_refund_submitted',
+      diff: { bookingId: input.bookingId, amountPaise: requestedAmountPaise },
+    });
+
+    await linkRefundRequestUploads({
+      customerId: input.customerId,
+      bookingId: input.bookingId,
+      pgId: ctx.pgId,
+      requestId: row.id,
+      payoutQrUrl: input.payoutQrUrl,
+    });
+
+    await syncResidentRequestActionItems();
+    await refreshAdminNotificationsFromActionItems();
+
+    return { ok: true as const, request: row };
+  } catch {
+    return {
+      ok: false as const,
+      error: 'A prepaid rent refund request is already open for this booking.',
+    };
+  }
+}
+
+/**
+ * Single resident UX — server splits into prepaid_rent_refund + deposit_refund rows.
+ * Allocation: unused prepaid rent first, then deposit excess (see residentRefundableNow).
+ */
+export async function submitResidentRefundNowRequest(input: {
+  customerId: string;
+  bookingId: string;
+  notes?: string;
+  payoutQrUrl?: string | null;
+  meterReadingPhotoUrl?: string | null;
+  requestedTotalPaise: number;
+}) {
+  const ctx = await bookingContext(input.bookingId);
+  if (!ctx || ctx.customerId !== input.customerId) {
+    return { ok: false as const, error: 'Booking not found.' };
+  }
+
+  const refundable = await getResidentRefundableNowForBooking({
+    customerId: input.customerId,
+    bookingId: input.bookingId,
+  });
+  if (!refundable || refundable.totalRefundableNowPaise <= 0) {
+    return { ok: false as const, error: 'No refundable balance is available right now.' };
+  }
+
+  const combined = assertCombinedRefundRequestAmountPaise(
+    input.requestedTotalPaise,
+    refundable,
+  );
+  if (!combined.ok) {
+    return { ok: false as const, error: combined.error };
+  }
+
+  const { prepaidRentPaise, depositPaise } = combined.allocation;
+  if (prepaidRentPaise <= 0 && depositPaise <= 0) {
+    return { ok: false as const, error: 'Refund amount must be greater than zero.' };
+  }
+
+  const payout = validatePayoutQrRefundSubmission({ payoutQrUrl: input.payoutQrUrl });
+  if (!payout.ok) return { ok: false as const, error: payout.error };
+
+  if (depositPaise > 0 && prepaidRentPaise <= 0) {
+    return submitDepositRefundRequest({
+      customerId: input.customerId,
+      bookingId: input.bookingId,
+      notes: input.notes,
+      payoutQrUrl: input.payoutQrUrl,
+      meterReadingPhotoUrl: input.meterReadingPhotoUrl,
+      requestedAmountPaise: depositPaise,
+    });
+  }
+
+  if (prepaidRentPaise > 0 && depositPaise <= 0) {
+    return submitPrepaidRentRefundRequest({
+      customerId: input.customerId,
+      bookingId: input.bookingId,
+      notes: input.notes,
+      payoutQrUrl: input.payoutQrUrl,
+      requestedAmountPaise: prepaidRentPaise,
+    });
+  }
+
+  try {
+    const requests = await db.transaction(async (tx) => {
+      const created: Array<typeof residentRequests.$inferSelect> = [];
+      const [prepaidRow] = await tx
+        .insert(residentRequests)
+        .values({
+          customerId: input.customerId,
+          bookingId: input.bookingId,
+          pgId: ctx.pgId,
+          type: 'prepaid_rent_refund',
+          status: 'submitted',
+          amountPaise: prepaidRentPaise,
+          notes: input.notes ?? null,
+          payoutQrUrl: input.payoutQrUrl?.trim() || null,
+        })
+        .returning();
+      created.push(prepaidRow);
+
+      const [depositRow] = await tx
+        .insert(residentRequests)
+        .values({
+          customerId: input.customerId,
+          bookingId: input.bookingId,
+          pgId: ctx.pgId,
+          type: 'deposit_refund',
+          status: 'submitted',
+          amountPaise: depositPaise,
+          notes: input.notes ?? null,
+          meterReadingPhotoUrl: input.meterReadingPhotoUrl?.trim() || null,
+          payoutQrUrl: input.payoutQrUrl?.trim() || null,
+        })
+        .returning();
+      created.push(depositRow);
+
+      return created;
+    });
+
+    for (const row of requests) {
+      await db.insert(auditLog).values({
+        actorType: 'customer',
+        actorId: input.customerId,
+        entity: 'resident_request',
+        entityId: row.id,
+        action:
+          row.type === 'prepaid_rent_refund'
+            ? 'prepaid_rent_refund_submitted'
+            : 'deposit_refund_submitted',
+        diff: {
+          bookingId: input.bookingId,
+          amountPaise: row.amountPaise,
+          bundle: true,
+          prepaidRentPaise,
+          depositPaise,
+        },
+      });
+      await linkRefundRequestUploads({
+        customerId: input.customerId,
+        bookingId: input.bookingId,
+        pgId: ctx.pgId,
+        requestId: row.id,
+        payoutQrUrl: input.payoutQrUrl,
+        meterReadingPhotoUrl: input.meterReadingPhotoUrl,
+      });
+    }
+
+    await syncResidentRequestActionItems();
+    await refreshAdminNotificationsFromActionItems();
+
+    return { ok: true as const, requests };
+  } catch {
+    return {
+      ok: false as const,
+      error: 'Could not submit refund — an open request may already exist for this booking.',
+    };
+  }
+}
+
+export { getResidentRefundableNowForBooking } from '@/src/lib/billing/residentRefundableNow';
 
 export async function submitDepositDueExtensionRequest(input: {
   customerId: string;
@@ -382,9 +665,31 @@ export async function adminReviewResidentRequest(input: {
     }
 
     if (current.type === 'deposit_refund') {
-      const submission = validateDepositRefundSubmission(current);
-      if (!submission.ok) {
-        return { ok: false as const, error: DEPOSIT_REFUND_MISSING_DETAILS_MESSAGE };
+      const depositCeiling = await getDepositRefundCeilingForBooking(current.bookingId);
+      const requestPaise = current.amountPaise ?? 0;
+      const midStayExcessOnly =
+        depositCeiling != null &&
+        requestPaise > 0 &&
+        requestPaise <= depositCeiling.availableToRequestPaise &&
+        !current.meterReadingPhotoUrl?.trim();
+
+      if (midStayExcessOnly) {
+        const payout = validatePayoutQrRefundSubmission({ payoutQrUrl: current.payoutQrUrl });
+        if (!payout.ok) {
+          return { ok: false as const, error: payout.error };
+        }
+      } else {
+        const submission = validateDepositRefundSubmission(current);
+        if (!submission.ok) {
+          return { ok: false as const, error: DEPOSIT_REFUND_MISSING_DETAILS_MESSAGE };
+        }
+      }
+    }
+
+    if (current.type === 'prepaid_rent_refund') {
+      const payout = validatePayoutQrRefundSubmission({ payoutQrUrl: current.payoutQrUrl });
+      if (!payout.ok) {
+        return { ok: false as const, error: payout.error };
       }
     }
 
@@ -424,10 +729,80 @@ export async function adminReviewResidentRequest(input: {
   }
 
   if (input.action === 'complete') {
+    if (current.type === 'prepaid_rent_refund') {
+      const payout = validatePayoutQrRefundSubmission({ payoutQrUrl: current.payoutQrUrl });
+      if (!payout.ok) {
+        return { ok: false as const, error: payout.error };
+      }
+
+      const ceiling = await getPrepaidRentRefundCeilingForBooking({
+        customerId: current.customerId,
+        bookingId: current.bookingId,
+      });
+      const payoutPaise = current.amountPaise ?? 0;
+      const adjustedCeiling = computePrepaidRentRefundCeiling({
+        netUnusedPrepaidRentPaise: ceiling.netUnusedPrepaidRentPaise,
+        pendingRefundPaise: Math.max(0, ceiling.pendingRefundPaise - payoutPaise),
+      });
+      const amountCheck = assertPrepaidRentRefundRequestAmountPaise(payoutPaise, adjustedCeiling);
+      if (!amountCheck.ok) {
+        return { ok: false as const, error: amountCheck.error };
+      }
+
+      await recordResidentCreditDebit({
+        customerId: current.customerId,
+        bookingId: current.bookingId,
+        amountPaise: payoutPaise,
+        reason: prepaidRentRefundPayoutDebitReason(input.requestId),
+        createdByAdminId: input.adminId,
+      });
+
+      const [updated] = await db
+        .update(residentRequests)
+        .set({
+          status: 'completed',
+          adminNotes: input.adminNotes ?? current.adminNotes,
+          finalRefundPaise: payoutPaise,
+          refundMethod: input.refundCompletion?.refundMethod ?? null,
+          refundPaidAt: new Date(),
+          resolvedByAdminId: input.adminId,
+          resolvedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(residentRequests.id, input.requestId))
+        .returning();
+
+      void writeAuditLogNonBlocking(db, {
+        actorType: 'admin',
+        actorId: input.adminId,
+        entity: 'resident_request',
+        entityId: input.requestId,
+        action: 'complete',
+        diff: { type: current.type, finalRefundPaise: payoutPaise },
+      });
+      await syncResidentRequestActionItems();
+      return { ok: true as const, request: updated };
+    }
+
     if (current.type === 'deposit_refund') {
-      const submission = validateDepositRefundSubmission(current);
-      if (!submission.ok) {
-        return { ok: false as const, error: DEPOSIT_REFUND_MISSING_DETAILS_MESSAGE };
+      const requestPaise = current.amountPaise ?? 0;
+      const depositCeiling = await getDepositRefundCeilingForBooking(current.bookingId);
+      const midStayExcessOnly =
+        depositCeiling != null &&
+        requestPaise > 0 &&
+        requestPaise <= depositCeiling.refundableDepositPaise &&
+        !current.meterReadingPhotoUrl?.trim();
+
+      if (midStayExcessOnly) {
+        const payout = validatePayoutQrRefundSubmission({ payoutQrUrl: current.payoutQrUrl });
+        if (!payout.ok) {
+          return { ok: false as const, error: payout.error };
+        }
+      } else {
+        const submission = validateDepositRefundSubmission(current);
+        if (!submission.ok) {
+          return { ok: false as const, error: DEPOSIT_REFUND_MISSING_DETAILS_MESSAGE };
+        }
       }
 
       const legacyGuard = await import('@/src/lib/deposits/depositRefundGuard').then((m) =>
@@ -437,19 +812,45 @@ export async function adminReviewResidentRequest(input: {
         return { ok: false as const, error: legacyGuard.error };
       }
 
-      const settlement = await settleDepositWithDeductions({
-        bookingId: current.bookingId,
-        customerId: current.customerId,
-        idempotencyKey: `resident_request:${input.requestId}`,
-        source: 'resident_request',
-        sourceId: input.requestId,
-        adminId: input.adminId,
-        refundCompletion: input.refundCompletion,
-        refundAudit: {
-          refundMethod: input.refundCompletion?.refundMethod ?? null,
-        },
-        markBookingRefunded: true,
-      });
+      const midStayPartial =
+        depositCeiling != null &&
+        requestPaise > 0 &&
+        requestPaise <= depositCeiling.refundableDepositPaise;
+
+      let settlement:
+        | Awaited<ReturnType<typeof settleDepositWithDeductions>>
+        | Awaited<ReturnType<typeof settleDepositRefund>>;
+
+      if (midStayPartial) {
+        settlement = await settleDepositRefund({
+          bookingId: current.bookingId,
+          customerId: current.customerId,
+          idempotencyKey: `resident_request:${input.requestId}`,
+          source: 'resident_request',
+          sourceId: input.requestId,
+          adminId: input.adminId,
+          refundPaise: requestPaise,
+          reason: `Deposit excess refund — resident request ${input.requestId}`,
+          markBookingRefunded: false,
+          refundAudit: {
+            refundMethod: input.refundCompletion?.refundMethod ?? null,
+          },
+        });
+      } else {
+        settlement = await settleDepositWithDeductions({
+          bookingId: current.bookingId,
+          customerId: current.customerId,
+          idempotencyKey: `resident_request:${input.requestId}`,
+          source: 'resident_request',
+          sourceId: input.requestId,
+          adminId: input.adminId,
+          refundCompletion: input.refundCompletion,
+          refundAudit: {
+            refundMethod: input.refundCompletion?.refundMethod ?? null,
+          },
+          markBookingRefunded: true,
+        });
+      }
       if (!settlement.ok) {
         return { ok: false as const, error: settlement.error };
       }

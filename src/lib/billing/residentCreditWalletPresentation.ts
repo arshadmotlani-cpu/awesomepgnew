@@ -15,6 +15,8 @@ export type ResidentCreditWalletLine = {
   includedInCheckoutSettlement: boolean;
   /** Mid-stay deposit-refund request must not consume this balance. */
   separateFromDepositRefund: true;
+  /** Unused prepaid rent eligible for mid-stay refund request (when > 0). */
+  refundableNowPaise?: number;
 };
 
 export function classifyResidentCreditReason(reason: string): {
@@ -43,8 +45,9 @@ export function buildResidentCreditWalletLine(input: {
   balancePaise: number;
   primaryReason?: string | null;
   hasOpenVacating: boolean;
+  refundableNowPaise?: number;
 }): ResidentCreditWalletLine | null {
-  if (input.balancePaise <= 0) return null;
+  if (input.balancePaise <= 0 && (input.refundableNowPaise ?? 0) <= 0) return null;
   const classified = input.primaryReason
     ? classifyResidentCreditReason(input.primaryReason)
     : { kind: 'other' as const, sourceLabel: 'Account credit' };
@@ -55,9 +58,16 @@ export function buildResidentCreditWalletLine(input: {
   let statusLabel =
     'Available — applies automatically to your next rent bills until used.';
   if (classified.kind === 'room_change_unused_rent') {
-    statusLabel = input.hasOpenVacating
-      ? 'Included in your checkout settlement estimate when you move out.'
-      : 'Applies to upcoming rent automatically; also part of checkout settlement when you vacate.';
+    const refundableNow = input.refundableNowPaise ?? 0;
+    if (refundableNow > 0 && !input.hasOpenVacating) {
+      statusLabel =
+        'Unused prepaid rent — refundable now via Request money, or applies to upcoming rent until used.';
+    } else if (input.hasOpenVacating) {
+      statusLabel = 'Included in your checkout settlement estimate when you move out.';
+    } else {
+      statusLabel =
+        'Applies to upcoming rent automatically; also part of checkout settlement when you vacate.';
+    }
   }
 
   return {
@@ -67,6 +77,7 @@ export function buildResidentCreditWalletLine(input: {
     spendableOnFutureRent,
     includedInCheckoutSettlement,
     separateFromDepositRefund: true,
+    refundableNowPaise: input.refundableNowPaise,
   };
 }
 

@@ -31,6 +31,10 @@ export async function syncResidentRequestActionItems(): Promise<void> {
           eq(residentRequests.type, 'deposit_refund'),
           inArray(residentRequests.status, ['submitted', 'under_review', 'approved']),
         ),
+        and(
+          eq(residentRequests.type, 'prepaid_rent_refund'),
+          inArray(residentRequests.status, ['submitted', 'under_review', 'approved']),
+        ),
       ),
     );
 
@@ -42,16 +46,22 @@ export async function syncResidentRequestActionItems(): Promise<void> {
         ? row.status === 'submitted'
           ? 'refund_request_submitted'
           : 'deposit_refund_request'
-        : row.type === 'deposit_due_extension'
-          ? 'extension_request'
-          : 'extension_request';
+        : row.type === 'prepaid_rent_refund'
+          ? row.status === 'submitted'
+            ? 'refund_request_submitted'
+            : 'deposit_refund_request'
+          : row.type === 'deposit_due_extension'
+            ? 'extension_request'
+            : 'extension_request';
     const sourceKey = `resident_request:${row.id}`;
     openKeys.add(sourceKey);
 
     const title =
       row.type === 'deposit_refund'
         ? `Deposit refund — ${row.residentName ?? 'Resident'}`
-        : row.type === 'deposit_due_extension'
+        : row.type === 'prepaid_rent_refund'
+          ? `Unused prepaid rent refund — ${row.residentName ?? 'Resident'}`
+          : row.type === 'deposit_due_extension'
           ? `Deposit due extension — ${row.residentName ?? 'Resident'} to ${row.requestedEndDate ?? '?'}`
           : `Stay extension — ${row.residentName ?? 'Resident'} until ${row.requestedEndDate ?? '?'}`;
 

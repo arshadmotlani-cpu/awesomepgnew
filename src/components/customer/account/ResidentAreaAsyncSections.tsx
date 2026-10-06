@@ -266,6 +266,7 @@ export async function ResidentStayTabSection({
           checkoutDepositEstimatePaise: profileData.walletCheckoutDepositEstimatePaise ?? 0,
           depositRefundMaxPaise:
             profileData.walletDepositRefundMaxPaise ?? profileData.walletAvailableRefundPaise,
+          walletRefundableNow: profileData.walletRefundableNow ?? null,
           referralSummary: {
             lockedPaise: profileData.referralSummary.lockedPaise,
             availablePaise: profileData.referralSummary.availablePaise,

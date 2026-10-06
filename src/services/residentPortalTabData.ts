@@ -86,6 +86,7 @@ import {
 import type { DepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
 import type { DepositRefundCeiling } from '@/src/lib/deposits/depositRefundCeiling';
 import type { ResidentCreditWalletLine } from '@/src/lib/billing/residentCreditWalletPresentation';
+import type { ResidentRefundableNow } from '@/src/lib/billing/residentRefundableNow';
 
 async function buildWalletBalancePresentation(input: {
   walletBookingId: string | null;
@@ -100,12 +101,22 @@ async function buildWalletBalancePresentation(input: {
   walletResidentCreditBalancePaise: number;
   walletResidentCreditLine: ResidentCreditWalletLine | null;
   walletAvailableRefundPaise: number;
+  walletRefundableNow: ResidentRefundableNow | null;
 }> {
   const { getBookingMoneyBalances } = await import('@/src/services/bookingMoneyBalances');
   const { getLatestResidentCreditReason } = await import('@/src/services/residentCreditLedger');
   const { buildResidentCreditWalletLine, computeDepositCheckoutEstimatePaise } = await import(
     '@/src/lib/billing/residentCreditWalletPresentation'
   );
+  const { getResidentRefundableNowForBooking } = await import('@/src/services/residentRequests');
+
+  const walletRefundableNow =
+    input.walletBookingId != null
+      ? await getResidentRefundableNowForBooking({
+          customerId: input.customerId,
+          bookingId: input.walletBookingId,
+        })
+      : null;
 
   const walletMoneyBalances = input.walletBookingId
     ? await getBookingMoneyBalances(input.walletBookingId)
@@ -115,6 +126,7 @@ async function buildWalletBalancePresentation(input: {
     balancePaise: input.residentCreditBalancePaise,
     primaryReason: latestCreditReason,
     hasOpenVacating: input.hasOpenVacating,
+    refundableNowPaise: walletRefundableNow?.prepaidRentRefundableNowPaise ?? 0,
   });
 
   const walletDepositRefundMaxPaise =
@@ -145,6 +157,7 @@ async function buildWalletBalancePresentation(input: {
     walletResidentCreditBalancePaise: input.residentCreditBalancePaise,
     walletResidentCreditLine,
     walletAvailableRefundPaise: walletDepositRefundMaxPaise,
+    walletRefundableNow,
   };
 }
 
@@ -430,6 +443,7 @@ export async function loadResidentProfileTabData(input: {
   const walletCheckoutDepositEstimatePaise = walletPresentation.walletCheckoutDepositEstimatePaise;
   const walletResidentCreditBalancePaise = walletPresentation.walletResidentCreditBalancePaise;
   const walletResidentCreditLine = walletPresentation.walletResidentCreditLine;
+  const walletRefundableNow = walletPresentation.walletRefundableNow;
 
   const walletVacatingActive =
     walletBooking?.vacating.ok &&
@@ -502,6 +516,7 @@ export async function loadResidentProfileTabData(input: {
     walletCheckoutDepositEstimatePaise,
     walletResidentCreditBalancePaise,
     walletResidentCreditLine,
+    walletRefundableNow,
     walletUnusedPrepaidRentPaise,
     walletDepositRefundablePaise,
     depositRefundCeiling,
@@ -885,6 +900,7 @@ export async function loadResidentRequestsTabData(input: {
   const walletCheckoutDepositEstimatePaise = walletPresentation.walletCheckoutDepositEstimatePaise;
   const walletResidentCreditBalancePaise = walletPresentation.walletResidentCreditBalancePaise;
   const walletResidentCreditLine = walletPresentation.walletResidentCreditLine;
+  const walletRefundableNow = walletPresentation.walletRefundableNow;
 
   const walletDepositHeldPaise =
     depositRefundCeiling?.heldPaise ??
@@ -1056,6 +1072,7 @@ export async function loadResidentRequestsTabData(input: {
     walletCheckoutDepositEstimatePaise,
     walletResidentCreditBalancePaise,
     walletResidentCreditLine,
+    walletRefundableNow,
     depositRefundCeiling,
     hasDepositDue: hasDepositDueFlag,
     activeRequests,

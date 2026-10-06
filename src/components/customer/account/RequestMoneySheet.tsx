@@ -7,11 +7,13 @@ import { ReferralWithdrawalForm } from '@/src/components/customer/account/Referr
 import type { DepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
 import type { DepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
 import type { ResidentCreditWalletLine } from '@/src/lib/billing/residentCreditWalletPresentation';
+import type { ResidentRefundableNow } from '@/src/lib/billing/residentRefundableNow';
+import { RefundAvailableNowForm } from '@/src/components/customer/account/RefundAvailableNowForm';
 import type { DepositRefundCeiling } from '@/src/lib/deposits/depositRefundCeiling';
 import { primaryBtn } from '@/src/lib/design-system/tokens';
 import { paiseToInr } from '@/src/lib/format';
 
-type MoneyRequestKind = 'deposit_refund' | 'referral_withdrawal' | null;
+type MoneyRequestKind = 'refund_now' | 'deposit_refund' | 'referral_withdrawal' | null;
 
 export function RequestMoneySheet({
   bookingId,
@@ -22,6 +24,7 @@ export function RequestMoneySheet({
   refundableDepositExcessPaise,
   depositRefundCeiling = null,
   residentCreditLine = null,
+  refundableNow = null,
   referralAvailablePaise,
   settlementPreview = null,
   refundEligibility = null,
@@ -35,13 +38,16 @@ export function RequestMoneySheet({
   refundableDepositExcessPaise?: number;
   depositRefundCeiling?: DepositRefundCeiling | null;
   residentCreditLine?: ResidentCreditWalletLine | null;
+  refundableNow?: ResidentRefundableNow | null;
   referralAvailablePaise: number;
   settlementPreview?: DepositRefundSettlementPreview | null;
   refundEligibility?: DepositRefundEligibility | null;
 }) {
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<MoneyRequestKind>(null);
-  const canRequestRefund = refundEligibility?.canRequestRefund ?? refundableBalancePaise > 0;
+  const totalRefundableNowPaise = refundableNow?.totalRefundableNowPaise ?? 0;
+  const canRequestRefundNow = totalRefundableNowPaise > 0;
+  const canRequestDepositRefund = refundEligibility?.canRequestRefund ?? refundableBalancePaise > 0;
   const refundLockReason = refundEligibility?.lockReason ?? null;
 
   useEffect(() => {
@@ -61,7 +67,7 @@ export function RequestMoneySheet({
       <ApgCard tier="resident">
         <h3 className="text-sm font-semibold text-white">Request money</h3>
         <p className="mt-1 text-xs text-apg-silver">
-          Deposit refunds and referral withdrawals use separate ledgers — choose the right request.
+          Unused prepaid rent and deposit excess are refunded separately — choose the right request.
         </p>
         <button type="button" onClick={() => setOpen(true)} className={`${primaryBtn} mt-4 w-full`}>
           Request money
@@ -90,6 +96,24 @@ export function RequestMoneySheet({
                 </h2>
                 <p className="mt-1 text-xs text-apg-silver">Select one — workflows stay separate.</p>
                 <div className="mt-5 space-y-3">
+                  {canRequestRefundNow && refundableNow ? (
+                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-apg-orange/30 bg-apg-orange/5 p-4 hover:border-apg-orange/50">
+                      <input
+                        type="radio"
+                        name="moneyKind"
+                        className="mt-1 accent-[#FF5A1F]"
+                        onChange={() => setKind('refund_now')}
+                      />
+                      <span>
+                        <span className="block text-sm font-semibold text-white">
+                          Refund available now
+                        </span>
+                        <span className="mt-0.5 block text-xs text-apg-silver">
+                          Prepaid rent + deposit excess · {paiseToInr(totalRefundableNowPaise)} max
+                        </span>
+                      </span>
+                    </label>
+                  ) : null}
                   <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-4 hover:border-apg-orange/40">
                     <input
                       type="radio"
@@ -127,6 +151,25 @@ export function RequestMoneySheet({
                   Cancel
                 </button>
               </>
+            ) : kind === 'refund_now' && refundableNow ? (
+              <>
+                <button
+                  type="button"
+                  className="text-xs text-apg-silver hover:text-white"
+                  onClick={() => setKind(null)}
+                >
+                  ← Back
+                </button>
+                <RefundAvailableNowForm
+                  bookingId={bookingId}
+                  customerId={customerId}
+                  refundableNow={refundableNow}
+                  onSubmitted={() => {
+                    setOpen(false);
+                    setKind(null);
+                  }}
+                />
+              </>
             ) : kind === 'deposit_refund' ? (
               <>
                 <button
@@ -136,9 +179,16 @@ export function RequestMoneySheet({
                 >
                   ← Back
                 </button>
-                {refundableBalancePaise <= 0 ? (
+                {refundableBalancePaise <= 0 &&
+                !(refundableNow?.depositRefundableNowPaise ?? 0) ? (
                   <p className="mt-3 text-sm text-amber-200">No refundable deposit balance on file.</p>
-                ) : !canRequestRefund && refundLockReason ? (
+                ) : !canRequestDepositRefund &&
+                  (refundableNow?.depositRefundableNowPaise ?? 0) > 0 ? (
+                  <p className="mt-3 text-sm text-amber-200">
+                    Use <span className="font-semibold text-white">Refund available now</span> for
+                    deposit excess while you are still staying.
+                  </p>
+                ) : !canRequestDepositRefund && refundLockReason ? (
                   <p className="mt-3 text-sm text-amber-200">
                     <span className="font-semibold text-white">Security deposit refund not available yet.</span>{' '}
                     {refundLockReason}

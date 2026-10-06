@@ -5,6 +5,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { residentCreditLedger } from '@/src/db/schema';
+import { ROOM_CHANGE_CREDIT_REASON_PREFIX } from '@/src/services/roomTransferBilling';
 
 export type ResidentCreditBalance = {
   customerId: string;
@@ -105,6 +106,25 @@ export function isAdvanceRentLedgerReason(reason: string): boolean {
     reason === ADVANCE_RENT_REASON_MARKER ||
     reason.startsWith(`${ADVANCE_RENT_REASON_MARKER}:`)
   );
+}
+
+export const PREPAID_RENT_REFUND_PAYOUT_PREFIX = 'prepaid_rent_refund_payout:';
+
+export function prepaidRentRefundPayoutDebitReason(residentRequestId: string): string {
+  return `${PREPAID_RENT_REFUND_PAYOUT_PREFIX}${residentRequestId}`;
+}
+
+export function isPrepaidRentRefundPayoutDebitReason(reason: string): boolean {
+  return reason.startsWith(PREPAID_RENT_REFUND_PAYOUT_PREFIX);
+}
+
+const ROOM_CHANGE_UNUSED_RENT_RECON_PREFIX = 'room_change_unused_rent_reconciliation:';
+
+/** Unused prepaid rent from room change (incl. idempotent reconciliation credits). */
+export function isRefundableUnusedPrepaidRentLedgerReason(reason: string): boolean {
+  if (reason.startsWith(ROOM_CHANGE_CREDIT_REASON_PREFIX)) return true;
+  if (reason.startsWith(ROOM_CHANGE_UNUSED_RENT_RECON_PREFIX)) return true;
+  return false;
 }
 
 export async function recordResidentCreditDebit(input: {

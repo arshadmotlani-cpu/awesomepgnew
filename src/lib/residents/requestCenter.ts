@@ -124,6 +124,7 @@ export function requestTypeLabel(type: string): string {
   if (type === 'vacating' || type === 'move_out') return 'Move-out notice';
   if (type === 'room_change') return 'Change Bed';
   if (type === 'deposit_refund') return 'Deposit refund';
+  if (type === 'prepaid_rent_refund') return 'Unused prepaid rent refund';
   if (type === 'deposit_due_extension') return 'More time for deposit';
   if (type === 'stay_extension') return 'Stay extension';
   const cat = REQUEST_CATEGORIES.find((c) => c.id === type);

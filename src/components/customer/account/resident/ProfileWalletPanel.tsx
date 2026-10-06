@@ -9,6 +9,7 @@ import type { DepositLedgerEntry } from '@/src/db/schema/depositLedger';
 import type { DepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
 import type { DepositRefundCeiling } from '@/src/lib/deposits/depositRefundCeiling';
 import type { ResidentCreditWalletLine } from '@/src/lib/billing/residentCreditWalletPresentation';
+import type { ResidentRefundableNow } from '@/src/lib/billing/residentRefundableNow';
 
 type ReferralSummary = {
   lockedPaise: number;
@@ -33,6 +34,7 @@ type Props = {
   residentCreditLine?: ResidentCreditWalletLine | null;
   checkoutDepositEstimatePaise?: number;
   depositRefundMaxPaise?: number;
+  walletRefundableNow?: ResidentRefundableNow | null;
 };
 
 function WalletMetricCard({
@@ -117,6 +119,7 @@ export function ProfileWalletPanel({
   residentCreditLine = null,
   checkoutDepositEstimatePaise = 0,
   depositRefundMaxPaise,
+  walletRefundableNow = null,
 }: Props) {
   const deductions = entries
     .filter((e) => e.entryKind === 'deducted')
@@ -174,6 +177,37 @@ export function ProfileWalletPanel({
 
   return (
     <div className="space-y-4 pb-2 max-md:space-y-3">
+      {walletRefundableNow && walletRefundableNow.totalRefundableNowPaise > 0 ? (
+        <ApgCard tier="resident">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-apg-silver">
+            Refund available now
+          </h3>
+          <ul className="mt-3 space-y-2 text-sm">
+            <li className="flex justify-between gap-2">
+              <span className="text-apg-silver">Unused prepaid rent — refundable now</span>
+              <span className="tabular-nums font-medium text-emerald-300">
+                {paiseToInr(walletRefundableNow.prepaidRentRefundableNowPaise)}
+              </span>
+            </li>
+            <li className="flex justify-between gap-2">
+              <span className="text-apg-silver">Refundable deposit excess</span>
+              <span className="tabular-nums font-medium text-white">
+                {paiseToInr(walletRefundableNow.depositRefundableNowPaise)}
+              </span>
+            </li>
+            <li className="flex justify-between gap-2 border-t border-white/10 pt-2 font-semibold">
+              <span className="text-white">Total available to request</span>
+              <span className="tabular-nums text-apg-orange">
+                {paiseToInr(walletRefundableNow.totalRefundableNowPaise)}
+              </span>
+            </li>
+          </ul>
+          <p className="mt-2 text-[11px] text-apg-silver">
+            Required deposit locked until checkout:{' '}
+            {paiseToInr(walletRefundableNow.requiredDepositLockedPaise)}
+          </p>
+        </ApgCard>
+      ) : null}
       {depositRefundCeiling && !hasOpenVacating ? (
         <ApgCard tier="resident">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-apg-silver">
@@ -348,6 +382,7 @@ export function ProfileWalletPanel({
         refundableDepositExcessPaise={refundableDepositExcessPaise}
         depositRefundCeiling={depositRefundCeiling}
         residentCreditLine={residentCreditLine}
+        refundableNow={walletRefundableNow}
         referralAvailablePaise={referralAvailable}
         settlementPreview={settlementPreview}
         refundEligibility={refundEligibility}

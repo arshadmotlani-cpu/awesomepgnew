@@ -87,6 +87,37 @@ export async function submitDepositRefundRequestAction(
   return { ok: true };
 }
 
+export async function submitResidentRefundNowRequestAction(
+  _prev: RequestActionState,
+  formData: FormData,
+): Promise<RequestActionState> {
+  const session = await getCustomerSession();
+  if (!session) return { ok: false, error: 'Sign in required.' };
+
+  const bookingId = formData.get('bookingId')?.toString() ?? '';
+  const payoutQrUrl = formData.get('payoutQrUrl')?.toString()?.trim() || null;
+  const requestedRaw = formData.get('requestedTotalPaise')?.toString() ?? '';
+  const requestedTotalPaise = Number.parseInt(requestedRaw, 10);
+
+  if (!Number.isFinite(requestedTotalPaise) || requestedTotalPaise <= 0) {
+    return { ok: false, error: 'Enter a valid refund amount.' };
+  }
+
+  const { submitResidentRefundNowRequest } = await import('@/src/services/residentRequests');
+  const result = await submitResidentRefundNowRequest({
+    customerId: session.customerId,
+    bookingId,
+    payoutQrUrl,
+    requestedTotalPaise,
+  });
+
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath('/account/profile');
+  revalidatePath('/account/resident');
+  return { ok: true };
+}
+
 export async function submitStayExtensionRequestAction(
   _prev: RequestActionState,
   formData: FormData,

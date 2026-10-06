@@ -335,6 +335,7 @@ export const paymentLinkStatusEnum = pgEnum('payment_link_status', [
 
 export const residentRequestTypeEnum = pgEnum('resident_request_type', [
   'deposit_refund',
+  'prepaid_rent_refund',
   'stay_extension',
   'deposit_due_extension',
 ]);
