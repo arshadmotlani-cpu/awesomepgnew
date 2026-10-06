@@ -134,7 +134,10 @@ export function RefundAvailableNowForm({
 
       <div>
         <p className="text-xs font-medium text-white">UPI QR for payout</p>
-        <ImageFileInputInline onFile={handleQrFile} disabled={uploadingQr || pending} />
+        <ImageFileInputInline
+          onFileSelected={(file) => void handleQrFile(file ?? null)}
+          disabled={uploadingQr || pending}
+        />
         <p className={`mt-1 text-[11px] ${qrUrl ? 'text-emerald-400' : 'text-amber-300'}`}>
           {uploadingQr
             ? qrUploadPhase === 'preparing'
