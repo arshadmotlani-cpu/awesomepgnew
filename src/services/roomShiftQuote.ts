@@ -112,6 +112,8 @@ export function settleRoomShiftRentSides(input: {
   newMonthlyRentPaise: number;
   shiftDate: string;
   currentMonthRentIsPaid: boolean;
+  /** When the billing month is paid, cap unused prepaid to principal actually prepaid. */
+  prepaidPrincipalCapPaise?: number | null;
 }): {
   oldOccupiedPaise: number;
   newRemainderPaise: number;
@@ -123,16 +125,23 @@ export function settleRoomShiftRentSides(input: {
     input.oldMonthlyRentPaise,
   );
   if (input.currentMonthRentIsPaid) {
+    let unusedPrepaidCreditPaise = remainingInBillingMonth(
+      input.shiftDate,
+      input.oldMonthlyRentPaise,
+    );
+    if (input.prepaidPrincipalCapPaise != null) {
+      unusedPrepaidCreditPaise = Math.min(
+        unusedPrepaidCreditPaise,
+        Math.max(0, input.prepaidPrincipalCapPaise - oldOccupiedPaise),
+      );
+    }
     return {
       oldOccupiedPaise,
       newRemainderPaise: remainingInBillingMonth(
         input.shiftDate,
         input.newMonthlyRentPaise,
       ),
-      unusedPrepaidCreditPaise: remainingInBillingMonth(
-        input.shiftDate,
-        input.oldMonthlyRentPaise,
-      ),
+      unusedPrepaidCreditPaise,
       oldRentDuePaise: 0,
     };
   }
@@ -235,6 +244,135 @@ export async function loadCurrentMonthRentPaid(bookingId: string, shiftDate: str
   };
 }
 
+export type CurrentMonthRentPaidSnapshot = Awaited<ReturnType<typeof loadCurrentMonthRentPaid>>;
+
+export type OldBedRentBasisSource = 'paid_month_invoice' | 'bed_price_ssot' | 'caller_fallback';
+
+/** Financial monthly rent basis for old-bed proration (not historical pricingSnapshot). */
+export function resolveOldBedRentBasisForRoomShift(input: {
+  canonicalOldBedMonthlyRentPaise: number | null;
+  snapshotFallbackPaise: number;
+  monthPay: CurrentMonthRentPaidSnapshot | null;
+}): {
+  oldMonthlyRentPaise: number;
+  basisSource: OldBedRentBasisSource;
+  canonicalBedPricePaise: number | null;
+  paidPrincipalPaise: number;
+  invoicedRentPaise: number;
+} {
+  const monthPay = input.monthPay;
+  const canonical = input.canonicalOldBedMonthlyRentPaise;
+
+  if (monthPay?.isPaid && monthPay.invoicedPaise > 0) {
+    return {
+      oldMonthlyRentPaise: monthPay.invoicedPaise,
+      basisSource: 'paid_month_invoice',
+      canonicalBedPricePaise: canonical,
+      paidPrincipalPaise: monthPay.paidPaise,
+      invoicedRentPaise: monthPay.invoicedPaise,
+    };
+  }
+
+  if (canonical != null && canonical > 0) {
+    return {
+      oldMonthlyRentPaise: canonical,
+      basisSource: 'bed_price_ssot',
+      canonicalBedPricePaise: canonical,
+      paidPrincipalPaise: monthPay?.paidPaise ?? 0,
+      invoicedRentPaise: monthPay?.invoicedPaise ?? 0,
+    };
+  }
+
+  return {
+    oldMonthlyRentPaise: input.snapshotFallbackPaise,
+    basisSource: 'caller_fallback',
+    canonicalBedPricePaise: null,
+    paidPrincipalPaise: monthPay?.paidPaise ?? 0,
+    invoicedRentPaise: monthPay?.invoicedPaise ?? 0,
+  };
+}
+
+export function computeRoomChangeWalletSurplusPaise(input: {
+  shiftDate: string;
+  oldMonthlyRentPaise: number;
+  newMonthlyRentPaise: number;
+  currentMonthRentIsPaid: boolean;
+  prepaidPrincipalCapPaise?: number | null;
+  shiftFeePaise: number;
+  depositTopUpPaise: number;
+}): number {
+  const sides = settleRoomShiftRentSides({
+    oldMonthlyRentPaise: input.oldMonthlyRentPaise,
+    newMonthlyRentPaise: input.newMonthlyRentPaise,
+    shiftDate: input.shiftDate,
+    currentMonthRentIsPaid: input.currentMonthRentIsPaid,
+    prepaidPrincipalCapPaise: input.prepaidPrincipalCapPaise,
+  });
+  const waterfall = applyRoomShiftCreditWaterfall({
+    oldRentDuePaise: sides.oldRentDuePaise,
+    newRentChargePaise: sides.newRemainderPaise,
+    shiftFeePaise: input.shiftFeePaise,
+    depositTopUpPaise: input.depositTopUpPaise,
+    unusedPrepaidCreditPaise: sides.unusedPrepaidCreditPaise,
+  });
+  return waterfall.walletSurplusPaise;
+}
+
+export async function recomputeRoomChangeWalletSurplusFromFacts(input: {
+  bookingId: string;
+  fromBedId: string;
+  toBedId: string;
+  shiftDate: string;
+  depositHeldPaise: number;
+  snapshotFallbackOldRentPaise: number;
+  shiftFeePaise?: number;
+  /** Use frozen quote deposit top-up when reconciling historical transfers. */
+  depositTopUpPaise?: number;
+}): Promise<{
+  walletSurplusPaise: number;
+  basis: ReturnType<typeof resolveOldBedRentBasisForRoomShift>;
+  currentMonthRentIsPaid: boolean;
+  newMonthlyRentPaise: number;
+  recordedQuoteOldRentPaise: number;
+}> {
+  const shiftFeePaise = input.shiftFeePaise ?? ROOM_SHIFT_FEE_PAISE;
+  const oldBedPrice = await loadBedPrice(input.fromBedId, input.shiftDate);
+  const newPrice = await loadBedPrice(input.toBedId, input.shiftDate);
+  if (!newPrice) {
+    throw new Error('Could not load pricing for target bed.');
+  }
+  const newMonthlyRentPaise = newPrice.monthlyRatePaise;
+  const newDepositRequired = computeMonthlyDepositPaise(newPrice);
+  const depositDeltaPaise =
+    input.depositTopUpPaise ??
+    Math.max(0, newDepositRequired - input.depositHeldPaise);
+
+  const monthPay = await loadCurrentMonthRentPaid(input.bookingId, input.shiftDate);
+  const basis = resolveOldBedRentBasisForRoomShift({
+    canonicalOldBedMonthlyRentPaise: oldBedPrice?.monthlyRatePaise ?? null,
+    snapshotFallbackPaise: input.snapshotFallbackOldRentPaise,
+    monthPay,
+  });
+
+  const walletSurplusPaise = computeRoomChangeWalletSurplusPaise({
+    shiftDate: input.shiftDate,
+    oldMonthlyRentPaise: basis.oldMonthlyRentPaise,
+    newMonthlyRentPaise,
+    currentMonthRentIsPaid: monthPay.isPaid,
+    prepaidPrincipalCapPaise: monthPay.isPaid ? monthPay.paidPaise : null,
+    shiftFeePaise,
+    depositTopUpPaise: depositDeltaPaise,
+  });
+
+  return {
+    walletSurplusPaise,
+    basis,
+    currentMonthRentIsPaid: monthPay.isPaid,
+    newMonthlyRentPaise,
+    recordedQuoteOldRentPaise: input.snapshotFallbackOldRentPaise,
+  };
+}
+
 export async function computeRoomShiftQuote(input: {
   fromBedId: string;
   toBedId: string;
@@ -260,17 +398,26 @@ export async function computeRoomShiftQuote(input: {
 
   let currentMonthRentIsPaid = false;
   let oldRentPaidPaise = 0;
+  let monthPay: CurrentMonthRentPaidSnapshot | null = null;
   if (input.bookingId) {
-    const monthPay = await loadCurrentMonthRentPaid(input.bookingId, shiftDate);
+    monthPay = await loadCurrentMonthRentPaid(input.bookingId, shiftDate);
     currentMonthRentIsPaid = monthPay.isPaid;
     oldRentPaidPaise = monthPay.paidPaise;
   }
 
+  const oldBedPrice = await loadBedPrice(input.fromBedId, shiftDate);
+  const rentBasis = resolveOldBedRentBasisForRoomShift({
+    canonicalOldBedMonthlyRentPaise: oldBedPrice?.monthlyRatePaise ?? null,
+    snapshotFallbackPaise: input.oldMonthlyRentPaise,
+    monthPay,
+  });
+
   const sides = settleRoomShiftRentSides({
-    oldMonthlyRentPaise: input.oldMonthlyRentPaise,
+    oldMonthlyRentPaise: rentBasis.oldMonthlyRentPaise,
     newMonthlyRentPaise,
     shiftDate,
     currentMonthRentIsPaid,
+    prepaidPrincipalCapPaise: currentMonthRentIsPaid ? oldRentPaidPaise : null,
   });
 
   const depositDeltaPaise = Math.max(0, newDepositRequired - input.depositHeldPaise);
@@ -360,7 +507,7 @@ export async function computeRoomShiftQuote(input: {
     toRoomNumber: input.toRoomNumber,
     toBedCode: input.toBedCode,
     fromRoomLabel: input.fromRoomLabel,
-    oldMonthlyRentPaise: input.oldMonthlyRentPaise,
+    oldMonthlyRentPaise: rentBasis.oldMonthlyRentPaise,
     newMonthlyRentPaise,
     oldRentObligationPaise: sides.oldOccupiedPaise,
     oldRentPaidPaise,

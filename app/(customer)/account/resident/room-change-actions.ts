@@ -181,6 +181,7 @@ export async function quoteRoomChangeAction(input: {
   if (!deposit) return { ok: false, message: 'Deposit summary unavailable.' };
 
   const snapshot = booking.pricingSnapshot as { perBed?: Array<{ monthlyRatePaise?: number; bedId?: string }> } | null;
+  /** Fallback only — computeRoomShiftQuote resolves paid-month / bed-price SSOT. */
   const oldMonthlyRentPaise =
     snapshot?.perBed?.[0]?.monthlyRatePaise ?? booking.subtotalPaise;
   const fromBedId = snapshot?.perBed?.[0]?.bedId;
