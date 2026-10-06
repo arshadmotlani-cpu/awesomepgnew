@@ -10,10 +10,27 @@ After completing a task that changes code or tests:
 1. **Commit and push immediately** — never wait for approval and never ask first.
 2. **Commit** with a clear message focused on *why*.
 3. **Push** to `origin/main` (or the branch the user specified).
-4. **Deploy to production** via `vercel deploy --prod --yes` (use `--force` if a concurrent git deploy canceled).
-5. Report commit hash, deployment id, and production URL.
+4. **Production deploy** is triggered by **Git → Vercel** on push to `main`. Monitor that deployment until **Ready** or **Error** (e.g. `vercel ls`, `vercel inspect awesomepg.in` — read-only).
+5. Report commit hash, deployment id, and production URL from the **Git-triggered** deployment.
 
-This is the default. Do not end a coding task with uncommitted or undeployed production fixes unless the user explicitly said not to commit or deploy in that same task.
+This is the default. Do not end a coding task with uncommitted production fixes unless the user explicitly said not to commit in that same task.
+
+## Do NOT run manual Vercel production deploys
+
+This repo is connected to Vercel production through **GitHub / main**.
+
+**Never** run for the same commit:
+
+- `vercel deploy --prod`
+- `vercel deploy --prod --yes`
+- `vercel deploy --prod --force`
+- Any other CLI command that creates a second production deployment
+
+A successful `git push origin main` is the deployment trigger. Do not duplicate it with the CLI.
+
+If no deployment appears after push, wait briefly and recheck the Vercel dashboard or `vercel ls --prod`. Only if Git integration is genuinely broken (no deployment after several minutes), report to the operator — do not silently run `vercel deploy --prod` unless the user explicitly asks for a manual deploy in that task.
+
+If a Git-triggered deploy is **Canceled** because another deploy for the same commit is already running, monitor the surviving deployment — do not start a manual prod deploy to “retry.”
 
 ## Do not commit
 
@@ -26,7 +43,6 @@ This is the default. Do not end a coding task with uncommitted or undeployed pro
 
 - Production aliases: `https://www.awesomepg.in`, `https://awesomepg.in`
 - Billing-related releases: run read-only production audits when stability rules require them; report results in the reply.
-- If deploy is canceled by a concurrent git hook deploy, retry with `--force` and confirm the Ready deployment serves the latest commit.
 
 ## When blocked
 
