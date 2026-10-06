@@ -8,13 +8,14 @@ const METRICS: Array<{
   { key: 'totalOccupied', label: 'Total occupied', tone: 'text-white' },
   { key: 'paid', label: 'Paid', tone: 'text-emerald-400' },
   { key: 'paymentSubmitted', label: 'Payment submitted', tone: 'text-amber-400' },
+  { key: 'partiallyPaid', label: 'Partially paid', tone: 'text-orange-400' },
   { key: 'notPaid', label: 'Not paid', tone: 'text-rose-400' },
   { key: 'availableBeds', label: 'Available beds', tone: 'text-apg-silver' },
 ];
 
 export function RentPaymentMapSummaryStrip({ summary }: { summary: RentPaymentMapSummary }) {
   return (
-    <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
       {METRICS.map((metric) => (
         <div
           key={metric.key}

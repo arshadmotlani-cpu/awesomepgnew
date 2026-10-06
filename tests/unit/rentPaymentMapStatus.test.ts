@@ -127,6 +127,16 @@ test('rentPaymentMapBedHref — available opens bed command center', () => {
   assert.equal(href, '/admin/beds?pgId=pg-1&bedId=bed-9');
 });
 
+test('classifyRentPaymentMapBed — partially paid when projected partial', () => {
+  assert.equal(
+    classifyRentPaymentMapBed({
+      isOccupiedInMonth: true,
+      projected: { effectiveStatus: 'partial', outstandingPaise: 300000 },
+    }),
+    'partially_paid',
+  );
+});
+
 test('aggregateRentPaymentMapSummary matches displayed beds', () => {
   const summary = aggregateRentPaymentMapSummary([
     { status: 'paid' },
@@ -140,6 +150,7 @@ test('aggregateRentPaymentMapSummary matches displayed beds', () => {
     totalOccupied: 4,
     paid: 2,
     paymentSubmitted: 1,
+    partiallyPaid: 0,
     notPaid: 1,
     availableBeds: 2,
   });

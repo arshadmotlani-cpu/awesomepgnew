@@ -8,6 +8,7 @@ import type { RentPaymentMapData } from '@/src/services/rentPaymentMap';
 const STATUS_TILE_CLASS: Record<RentPaymentMapStatus, string> = {
   paid: 'border-emerald-400/50 bg-emerald-500/10',
   payment_submitted: 'border-amber-400/50 bg-amber-500/10',
+  partially_paid: 'border-orange-400/50 bg-orange-500/10',
   not_paid: 'border-rose-400/50 bg-rose-500/10',
   available: 'border-zinc-500/40 bg-zinc-700/25',
 };
@@ -15,6 +16,7 @@ const STATUS_TILE_CLASS: Record<RentPaymentMapStatus, string> = {
 const STATUS_TEXT_CLASS: Record<RentPaymentMapStatus, string> = {
   paid: 'text-emerald-300',
   payment_submitted: 'text-amber-300',
+  partially_paid: 'text-orange-300',
   not_paid: 'text-rose-300',
   available: 'text-apg-silver',
 };
@@ -78,7 +80,8 @@ export function RentPaymentMapPanel({ data }: { data: RentPaymentMapData }) {
                         <h4 className="text-sm font-bold text-white">Room {room.roomNumber}</h4>
                         <p className="mt-1 text-[11px] text-apg-silver">
                           {room.summary.total} beds · Paid: {room.summary.paid} · Submitted:{' '}
-                          {room.summary.submitted} · Not paid: {room.summary.notPaid}
+                          {room.summary.submitted} · Partial: {room.summary.partiallyPaid} · Not
+                          paid: {room.summary.notPaid}
                         </p>
                       </header>
                       <div className="grid grid-cols-2 gap-2">

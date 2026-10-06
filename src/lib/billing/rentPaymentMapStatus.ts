@@ -10,11 +10,17 @@ import {
 } from '@/src/lib/billing/residentBillingLinks';
 import type { RentInvoiceView } from '@/src/services/rentInvoices';
 
-export type RentPaymentMapStatus = 'paid' | 'payment_submitted' | 'not_paid' | 'available';
+export type RentPaymentMapStatus =
+  | 'paid'
+  | 'payment_submitted'
+  | 'partially_paid'
+  | 'not_paid'
+  | 'available';
 
 export const RENT_PAYMENT_MAP_STATUS_LABEL: Record<RentPaymentMapStatus, string> = {
   paid: 'PAID',
   payment_submitted: 'PAYMENT SUBMITTED',
+  partially_paid: 'PARTIALLY PAID',
   not_paid: 'NOT PAID',
   available: 'AVAILABLE',
 };
@@ -36,6 +42,9 @@ export function classifyRentPaymentMapBed(input: ClassifyRentPaymentMapBedInput)
     }
     if (projected.effectiveStatus === 'payment_in_progress') {
       return 'payment_submitted';
+    }
+    if (projected.effectiveStatus === 'partial') {
+      return 'partially_paid';
     }
   }
 
@@ -66,6 +75,12 @@ export function rentPaymentMapBedHref(target: RentPaymentMapClickTarget): string
       if (target.invoiceId) return paymentApprovalDeepLink(`rent-${target.invoiceId}`);
       if (target.customerId) return `${residentProfileHref(target.customerId)}#open-bills`;
       return `/admin/beds?pgId=${target.pgId}`;
+    case 'partially_paid':
+      if (target.invoiceId && target.customerId) {
+        return residentBillingInvoiceHref(target.invoiceId, target.customerId);
+      }
+      if (target.customerId) return `${residentProfileHref(target.customerId)}#open-bills`;
+      return `/admin/beds?pgId=${target.pgId}`;
     case 'not_paid':
       if (target.customerId) return `${residentProfileHref(target.customerId)}#open-bills`;
       return `/admin/beds?pgId=${target.pgId}`;
@@ -81,6 +96,7 @@ export type RentPaymentMapSummary = {
   totalOccupied: number;
   paid: number;
   paymentSubmitted: number;
+  partiallyPaid: number;
   notPaid: number;
   availableBeds: number;
 };
@@ -88,6 +104,7 @@ export type RentPaymentMapSummary = {
 export type RentPaymentMapRoomSummary = {
   paid: number;
   submitted: number;
+  partiallyPaid: number;
   notPaid: number;
   total: number;
 };
@@ -97,6 +114,7 @@ export function aggregateRentPaymentMapRoomSummary(
 ): RentPaymentMapRoomSummary {
   let paid = 0;
   let submitted = 0;
+  let partiallyPaid = 0;
   let notPaid = 0;
   for (const bed of beds) {
     switch (bed.status) {
@@ -106,6 +124,9 @@ export function aggregateRentPaymentMapRoomSummary(
       case 'payment_submitted':
         submitted++;
         break;
+      case 'partially_paid':
+        partiallyPaid++;
+        break;
       case 'not_paid':
         notPaid++;
         break;
@@ -113,7 +134,7 @@ export function aggregateRentPaymentMapRoomSummary(
         break;
     }
   }
-  return { paid, submitted, notPaid, total: beds.length };
+  return { paid, submitted, partiallyPaid, notPaid, total: beds.length };
 }
 
 export function aggregateRentPaymentMapSummary(beds: RentPaymentMapBedLike[]): RentPaymentMapSummary {
@@ -123,9 +144,11 @@ export function aggregateRentPaymentMapSummary(beds: RentPaymentMapBedLike[]): R
     if (bed.status === 'available') availableBeds++;
   }
   return {
-    totalOccupied: roomCounts.paid + roomCounts.submitted + roomCounts.notPaid,
+    totalOccupied:
+      roomCounts.paid + roomCounts.submitted + roomCounts.partiallyPaid + roomCounts.notPaid,
     paid: roomCounts.paid,
     paymentSubmitted: roomCounts.submitted,
+    partiallyPaid: roomCounts.partiallyPaid,
     notPaid: roomCounts.notPaid,
     availableBeds,
   };

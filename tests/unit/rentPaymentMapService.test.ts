@@ -40,3 +40,10 @@ test('rent payment map loads open rent including adhoc for occupied beds', () =>
   assert.doesNotMatch(service, /eq\(rentInvoices\.isAdhoc, false\)/);
   assert.match(service, /rentInvoiceRelevantToBillingMonth/);
 });
+
+test('rent payment map invoice query includes paid status for canonical reconciliation', () => {
+  const service = read('src/services/rentPaymentMap.ts');
+  assert.match(service, /RENT_PAYMENT_MAP_RENT_INVOICE_DB_STATUSES/);
+  const selection = read('src/lib/billing/rentPaymentMapInvoiceSelection.ts');
+  assert.match(selection, /'paid'/);
+});

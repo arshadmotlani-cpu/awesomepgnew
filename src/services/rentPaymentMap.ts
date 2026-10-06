@@ -22,6 +22,10 @@ import { formatDate } from '@/src/lib/dates';
 import { buildRentInvoiceProjectInput } from '@/src/lib/billing/rentInvoiceProjectInput';
 import { resolveRentLiabilityCoveragePeriod } from '@/src/lib/billing/rentOverlapLiability';
 import { firstOfMonth, monthBounds } from '@/src/services/billing';
+import {
+  pickRentInvoiceForPaymentMap,
+  RENT_PAYMENT_MAP_RENT_INVOICE_DB_STATUSES,
+} from '@/src/lib/billing/rentPaymentMapInvoiceSelection';
 import { projectInvoice, type RentInvoiceProjectInput } from '@/src/services/rentInvoices';
 
 export type RentPaymentMapBed = {
@@ -180,26 +184,6 @@ function rentInvoiceRelevantToBillingMonth(
   return period.periodStart <= monthEnd && period.periodEnd >= monthStart;
 }
 
-function pickRentInvoiceForPaymentMap(
-  candidates: RentInvoiceProjectInput[],
-): RentInvoiceProjectInput | undefined {
-  let best: { input: RentInvoiceProjectInput; score: number } | undefined;
-  for (const input of candidates) {
-    const projected = projectInvoice(input);
-    if (projected.outstandingPaise <= 0 && projected.effectiveStatus !== 'payment_in_progress') {
-      continue;
-    }
-    const score =
-      projected.effectiveStatus === 'payment_in_progress'
-        ? 1_000_000_000 + projected.outstandingPaise
-        : projected.outstandingPaise;
-    if (!best || score > best.score) {
-      best = { input, score };
-    }
-  }
-  return best?.input;
-}
-
 async function loadRentInvoicesForBookings(
   bookingIds: string[],
   billingMonth: string,
@@ -212,7 +196,7 @@ async function loadRentInvoicesForBookings(
     .where(
       and(
         inArray(rentInvoices.bookingId, bookingIds),
-        inArray(rentInvoices.status, ['pending', 'overdue', 'payment_in_progress']),
+        inArray(rentInvoices.status, [...RENT_PAYMENT_MAP_RENT_INVOICE_DB_STATUSES]),
       ),
     );
 
@@ -304,6 +288,7 @@ export async function loadRentPaymentMap(
         totalOccupied: 0,
         paid: 0,
         paymentSubmitted: 0,
+        partiallyPaid: 0,
         notPaid: 0,
         availableBeds: 0,
       },
