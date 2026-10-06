@@ -18,6 +18,7 @@ import type { DepositLedgerEntry } from '@/src/db/schema/depositLedger';
 import type { DepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
 import type { DepositRefundCeiling } from '@/src/lib/deposits/depositRefundCeiling';
 import type { ResidentCreditWalletLine } from '@/src/lib/billing/residentCreditWalletPresentation';
+import type { ResidentRefundableNow } from '@/src/lib/billing/residentRefundableNow';
 import type { ResidentElectricityBillingState } from '@/src/lib/residents/residentElectricityBillingState';
 import type { PaymentDueRow } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
 import type { ResidentElectricityHistoryItem } from '@/src/components/customer/account/resident/ResidentElectricityHistory';
@@ -56,6 +57,7 @@ type StayWalletProps = {
   residentCreditLine?: ResidentCreditWalletLine | null;
   checkoutDepositEstimatePaise?: number;
   depositRefundMaxPaise?: number;
+  walletRefundableNow?: ResidentRefundableNow | null;
 };
 
 type StayPaymentsProps = {
