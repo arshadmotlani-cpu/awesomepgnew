@@ -98,6 +98,11 @@ export async function getBookingMoneyBalances(
     'balances.depositReceived',
   );
 
+  const { getDepositRefundCeilingForBooking } = await import(
+    '@/src/lib/deposits/depositRefundCeiling'
+  );
+  const refundCeiling = await getDepositRefundCeilingForBooking(bookingId);
+
   const rentRequired = breakdown.rentDuePaise;
   const invoiceRent = await sumPaidRentInvoicesPaise(bookingId);
   const rentReceived = Math.max(
@@ -118,7 +123,7 @@ export async function getBookingMoneyBalances(
     deposit: {
       ...computeMoneySlice(depositRequired, depositReceived),
       refundablePaise: guardDepositPaise(
-        wallet?.refundableBalancePaise ?? 0,
+        refundCeiling?.refundableDepositPaise ?? 0,
         'balances.refundable',
       ),
     },

@@ -6,6 +6,7 @@ import { DepositRefundRequestForm } from '@/src/components/customer/account/Depo
 import { ReferralWithdrawalForm } from '@/src/components/customer/account/ReferralWithdrawalForm';
 import type { DepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
 import type { DepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
+import type { DepositRefundCeiling } from '@/src/lib/deposits/depositRefundCeiling';
 import { primaryBtn } from '@/src/lib/design-system/tokens';
 import { paiseToInr } from '@/src/lib/format';
 
@@ -15,13 +16,22 @@ export function RequestMoneySheet({
   bookingId,
   customerId,
   refundableBalancePaise,
+  depositHeldPaise,
+  requiredDepositPaise = 0,
+  refundableDepositExcessPaise,
+  depositRefundCeiling = null,
   referralAvailablePaise,
   settlementPreview = null,
   refundEligibility = null,
 }: {
   bookingId: string;
   customerId: string;
+  /** Max new security-deposit refund request (excess over required). */
   refundableBalancePaise: number;
+  depositHeldPaise?: number;
+  requiredDepositPaise?: number;
+  refundableDepositExcessPaise?: number;
+  depositRefundCeiling?: DepositRefundCeiling | null;
   referralAvailablePaise: number;
   settlementPreview?: DepositRefundSettlementPreview | null;
   refundEligibility?: DepositRefundEligibility | null;
@@ -87,7 +97,7 @@ export function RequestMoneySheet({
                     <span>
                       <span className="block text-sm font-semibold text-white">Deposit refund</span>
                       <span className="mt-0.5 block text-xs text-apg-silver">
-                        Refundable deposit · {paiseToInr(refundableBalancePaise)} available
+                        Refundable deposit excess · {paiseToInr(refundableBalancePaise)} max request
                       </span>
                     </span>
                   </label>
@@ -135,6 +145,7 @@ export function RequestMoneySheet({
                     bookingId={bookingId}
                     customerId={customerId}
                     refundableBalancePaise={refundableBalancePaise}
+                    depositRefundCeiling={depositRefundCeiling}
                     settlementPreview={settlementPreview}
                     onSubmitted={() => {
                       setOpen(false);

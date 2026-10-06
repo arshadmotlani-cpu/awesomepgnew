@@ -16,6 +16,7 @@ import type { DepositRefundSettlementPreview } from '@/src/lib/deposits/depositR
 import { getDepositRefundValidationMessage } from '@/src/lib/billing/depositRefundRequirements';
 import { ExitBrainRefundBreakdown } from '@/src/components/customer/account/resident/vacating/ExitBrainRefundBreakdown';
 import type { ResidentExitBrainSnapshot } from '@/src/lib/exit/exitBrainTypes';
+import type { DepositRefundCeiling } from '@/src/lib/deposits/depositRefundCeiling';
 
 const idle: RequestActionState = { ok: false };
 
@@ -32,6 +33,7 @@ export function DepositRefundRequestForm({
   estimatedDeductionPaise = 0,
   settlementPreview = null,
   exitBrainSnapshot = null,
+  depositRefundCeiling = null,
   onSubmitted,
   compact = false,
 }: {
@@ -41,6 +43,7 @@ export function DepositRefundRequestForm({
   estimatedDeductionPaise?: number;
   settlementPreview?: DepositRefundSettlementPreview | null;
   exitBrainSnapshot?: ResidentExitBrainSnapshot | null;
+  depositRefundCeiling?: DepositRefundCeiling | null;
   onSubmitted?: () => void;
   compact?: boolean;
 }) {
@@ -64,6 +67,15 @@ export function DepositRefundRequestForm({
       refundableBalancePaise,
   );
   const unusedPrepaidPaise = coerceNonNegativePaise(settlementPreview?.unusedPrepaidRentPaise ?? 0);
+  const maxRefundRequestPaise = coerceNonNegativePaise(
+    depositRefundCeiling?.availableToRequestPaise ?? refundableBalancePaise,
+  );
+  const depositHeldDisplay = depositRefundCeiling?.heldPaise ?? depositHeld;
+  const requiredDepositDisplay = depositRefundCeiling?.requiredPaise ?? 0;
+  const refundableExcessDisplay =
+    depositRefundCeiling?.refundableDepositPaise ??
+    maxRefundRequestPaise;
+
   const totalRefundablePaise =
     settlementPreview?.refundAmountPaise ??
     depositHeld + unusedPrepaidPaise - coerceNonNegativePaise(settlementPreview?.electricityAdjustmentPaise ?? 0);
@@ -173,7 +185,10 @@ export function DepositRefundRequestForm({
         meterReadingPhotoUrl: meterUrl,
         payoutQrUrl: qrUrl,
       },
-      { expectedRefundPaise: totalRefundablePaise },
+      {
+        expectedRefundPaise:
+          settlementPreview?.refundAmountPaise ?? maxRefundRequestPaise,
+      },
     );
     if (message) {
       event.preventDefault();
@@ -197,7 +212,31 @@ export function DepositRefundRequestForm({
       <input type="hidden" name="meterReadingPhotoUrl" value={meterUrl} />
       <input type="hidden" name="payoutQrUrl" value={qrUrl} />
 
+      <input type="hidden" name="requestedAmountPaise" value={String(maxRefundRequestPaise)} />
+
       <h4 className="text-sm font-semibold text-zinc-900">Request deposit refund</h4>
+      {depositRefundCeiling && !settlementPreview?.refundAmountPaise ? (
+        <ul className="mt-2 space-y-1 rounded-lg border border-zinc-200 bg-white p-3 text-xs text-zinc-700">
+          <li className="flex justify-between gap-2">
+            <span>Security deposit held</span>
+            <span className="tabular-nums font-medium">{paiseToInr(depositHeldDisplay)}</span>
+          </li>
+          <li className="flex justify-between gap-2">
+            <span>Required deposit</span>
+            <span className="tabular-nums font-medium">{paiseToInr(requiredDepositDisplay)}</span>
+          </li>
+          <li className="flex justify-between gap-2">
+            <span>Refundable deposit</span>
+            <span className="tabular-nums font-medium text-emerald-800">
+              {paiseToInr(refundableExcessDisplay)}
+            </span>
+          </li>
+          <li className="flex justify-between gap-2 border-t border-zinc-200 pt-1 font-semibold text-zinc-900">
+            <span>Maximum refund request</span>
+            <span className="tabular-nums">{paiseToInr(maxRefundRequestPaise)}</span>
+          </li>
+        </ul>
+      ) : null}
       <p className="mt-1 text-xs text-zinc-600">
         Upload your final AC meter photo and payment QR image. Admin will verify and confirm your
         final refund.

@@ -261,6 +261,7 @@ export async function ResidentStayTabSection({
           hasOpenVacating: profileData.hasOpenVacating,
           refundEligibility: profileData.refundEligibility,
           settlementPreview: profileData.refundSettlementPreview,
+          depositRefundCeiling: profileData.depositRefundCeiling ?? null,
           referralSummary: {
             lockedPaise: profileData.referralSummary.lockedPaise,
             availablePaise: profileData.referralSummary.availablePaise,

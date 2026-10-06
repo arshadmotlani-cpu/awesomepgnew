@@ -317,6 +317,13 @@ export async function loadResidentProfileTabData(input: {
   const refundSettlementPreview = walletBooking
     ? await getDepositRefundSettlementPreview(walletBooking.bookingId)
     : null;
+
+  const { getDepositRefundCeilingForBooking } = await import(
+    '@/src/lib/deposits/depositRefundCeiling'
+  );
+  const depositRefundCeiling = walletBooking
+    ? await getDepositRefundCeilingForBooking(walletBooking.bookingId)
+    : null;
   const { getResidentCreditBalance, reconcileStaleMoveOutUnusedRentWalletCredits } = await import(
     '@/src/services/residentCreditLedger'
   );
@@ -339,19 +346,19 @@ export async function loadResidentProfileTabData(input: {
     : { canRequestRefund: false, lockReason: 'No active booking found.' };
 
   const walletDepositHeldPaise =
-    depositWallet.totalHeldPaise > 0
+    depositRefundCeiling?.heldPaise ??
+    (depositWallet.totalHeldPaise > 0
       ? depositWallet.totalHeldPaise
       : (walletBooking?.deposit?.refundableBalancePaise ??
         primaryBooking?.deposit?.refundableBalancePaise ??
-        0);
+        0));
   const walletAvailableRefundPaise =
     refundSettlementPreview?.refundAmountPaise ??
     (refundSettlementPreview
       ? refundSettlementPreview.depositRefundablePaise + refundSettlementPreview.unusedPrepaidRentPaise
       : null) ??
-    walletBooking?.deposit?.refundableBalancePaise ??
-    primaryBooking?.deposit?.refundableBalancePaise ??
-    depositWallet.availableCreditPaise + residentCreditBalancePaise;
+    depositRefundCeiling?.availableToRequestPaise ??
+    0;
 
   const walletVacatingActive =
     walletBooking?.vacating.ok &&
@@ -365,8 +372,7 @@ export async function loadResidentProfileTabData(input: {
     : 0;
   const walletDepositRefundablePaise =
     refundSettlementPreview?.depositRefundablePaise ??
-    walletBooking?.deposit?.refundableBalancePaise ??
-    primaryBooking?.deposit?.refundableBalancePaise ??
+    depositRefundCeiling?.refundableDepositPaise ??
     0;
 
   const referralSummary = await getReferralSummaryForCustomer(session.customerId);
@@ -423,6 +429,7 @@ export async function loadResidentProfileTabData(input: {
     walletAvailableRefundPaise,
     walletUnusedPrepaidRentPaise,
     walletDepositRefundablePaise,
+    depositRefundCeiling,
     depositEntries,
     refundEligibility,
     refundSettlementPreview,
@@ -777,17 +784,25 @@ export async function loadResidentRequestsTabData(input: {
     ? await getDepositRefundSettlementPreview(walletBooking.bookingId)
     : null;
 
+  const { getDepositRefundCeilingForBooking } = await import(
+    '@/src/lib/deposits/depositRefundCeiling'
+  );
+  const depositRefundCeiling = walletBooking
+    ? await getDepositRefundCeilingForBooking(walletBooking.bookingId)
+    : null;
+
   const walletAvailableRefundPaise =
     refundSettlementPreview?.refundAmountPaise ??
     (refundSettlementPreview
       ? refundSettlementPreview.depositRefundablePaise + refundSettlementPreview.unusedPrepaidRentPaise
       : null) ??
-    walletBooking?.deposit?.refundableBalancePaise ??
-    depositWallet.availableCreditPaise;
+    depositRefundCeiling?.availableToRequestPaise ??
+    0;
   const walletDepositHeldPaise =
-    depositWallet.totalHeldPaise > 0
+    depositRefundCeiling?.heldPaise ??
+    (depositWallet.totalHeldPaise > 0
       ? depositWallet.totalHeldPaise
-      : (walletBooking?.deposit?.refundableBalancePaise ?? 0);
+      : (walletBooking?.deposit?.refundableBalancePaise ?? 0));
 
   const monthlyRentDisplay = await loadResidentMonthlyRentDisplay({
     bookingId: primaryBooking.bookingId,
@@ -949,6 +964,7 @@ export async function loadResidentRequestsTabData(input: {
     roomLabel: `${primaryBooking.booking.pgName} · R${primaryBooking.booking.roomNumber}`,
     walletAvailableRefundPaise,
     walletDepositHeldPaise,
+    depositRefundCeiling,
     hasDepositDue: hasDepositDueFlag,
     activeRequests,
     monthlyRentPaise,

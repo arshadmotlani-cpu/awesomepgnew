@@ -5,6 +5,7 @@ import { firstOfMonth } from '@/src/services/billing';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { buildVacatingSettlementPreview } from '@/src/lib/vacating/computeVacatingSettlementPreview';
 import { resolveMeterPeriodElectricityDepositAdjustmentForBooking } from '@/src/lib/billing/pendingMeterPeriodElectricityDepositAdjustment';
+import { getDepositRefundCeilingForBooking } from '@/src/lib/deposits/depositRefundCeiling';
 import { db } from '@/src/db/client';
 import { bookings, bedReservations, beds, rooms } from '@/src/db/schema';
 import { and, eq } from 'drizzle-orm';
@@ -50,10 +51,13 @@ export async function getDepositRefundSettlementPreview(
       .then((rows) => rows[0] ?? null),
   ]);
 
-  const depositBalancePaise = Math.max(0, depositSummary?.refundableBalancePaise ?? 0);
+  const refundCeiling = await getDepositRefundCeilingForBooking(bookingId);
+  const depositBalancePaise = Math.max(0, refundCeiling?.heldPaise ?? depositSummary?.refundableBalancePaise ?? 0);
   const vacating = vacatingRes.ok && vacatingRes.data ? vacatingRes.data : null;
 
-  let depositRefundablePaise = depositBalancePaise;
+  let depositRefundablePaise =
+    refundCeiling?.refundableDepositPaise ??
+    Math.max(0, depositBalancePaise - (refundCeiling?.requiredPaise ?? 0));
   let unusedPrepaidRentPaise = 0;
   let paidUntilDate: string | null = null;
   let vacatingDate: string | null = null;

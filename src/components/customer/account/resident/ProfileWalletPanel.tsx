@@ -7,6 +7,7 @@ import { formatDate, paiseToInr } from '@/src/lib/format';
 import type { DepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
 import type { DepositLedgerEntry } from '@/src/db/schema/depositLedger';
 import type { DepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
+import type { DepositRefundCeiling } from '@/src/lib/deposits/depositRefundCeiling';
 
 type ReferralSummary = {
   lockedPaise: number;
@@ -27,6 +28,7 @@ type Props = {
   refundEligibility: DepositRefundEligibility;
   settlementPreview: DepositRefundSettlementPreview | null;
   referralSummary?: ReferralSummary;
+  depositRefundCeiling?: DepositRefundCeiling | null;
 };
 
 function WalletMetricCard({
@@ -107,6 +109,7 @@ export function ProfileWalletPanel({
   refundEligibility,
   settlementPreview,
   referralSummary,
+  depositRefundCeiling = null,
 }: Props) {
   const deductions = entries
     .filter((e) => e.entryKind === 'deducted')
@@ -147,8 +150,51 @@ export function ProfileWalletPanel({
         ? 'After notice, unused rent, and electricity'
         : 'After notice and deductions';
 
+  const requiredDepositPaise = depositRefundCeiling?.requiredPaise ?? 0;
+  const maxRefundRequestPaise =
+    depositRefundCeiling?.availableToRequestPaise ?? availableRefundPaise;
+  const refundableDepositExcessPaise =
+    depositRefundCeiling?.refundableDepositPaise ?? depositRefundable;
+
   return (
     <div className="space-y-4 pb-2 max-md:space-y-3">
+      {depositRefundCeiling && !hasOpenVacating ? (
+        <ApgCard tier="resident">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-apg-silver">
+            Security deposit refund
+          </h3>
+          <ul className="mt-3 space-y-2 text-sm">
+            <li className="flex justify-between gap-2">
+              <span className="text-apg-silver">Security deposit held</span>
+              <span className="tabular-nums font-medium text-white">
+                {paiseToInr(depositRefundCeiling.heldPaise)}
+              </span>
+            </li>
+            <li className="flex justify-between gap-2">
+              <span className="text-apg-silver">Required deposit</span>
+              <span className="tabular-nums font-medium text-white">
+                {paiseToInr(requiredDepositPaise)}
+              </span>
+            </li>
+            <li className="flex justify-between gap-2">
+              <span className="text-apg-silver">Refundable deposit</span>
+              <span className="tabular-nums font-medium text-apg-orange">
+                {paiseToInr(refundableDepositExcessPaise)}
+              </span>
+            </li>
+            <li className="flex justify-between gap-2 border-t border-white/10 pt-2 font-semibold">
+              <span className="text-white">Maximum refund request</span>
+              <span className="tabular-nums text-apg-orange">
+                {paiseToInr(maxRefundRequestPaise)}
+              </span>
+            </li>
+          </ul>
+          <p className="mt-2 text-[11px] text-apg-silver">
+            Required deposit stays held during your stay. Unused rent credit is separate from
+            security deposit refunds.
+          </p>
+        </ApgCard>
+      ) : null}
       <div
         className={`grid gap-3 max-md:grid-cols-1 ${showUnusedPrepaid ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3'}`}
       >
@@ -259,7 +305,11 @@ export function ProfileWalletPanel({
       <RequestMoneySheet
         bookingId={bookingId}
         customerId={customerId}
-        refundableBalancePaise={availableRefundPaise}
+        refundableBalancePaise={maxRefundRequestPaise}
+        depositHeldPaise={depositBalancePaise}
+        requiredDepositPaise={requiredDepositPaise}
+        refundableDepositExcessPaise={refundableDepositExcessPaise}
+        depositRefundCeiling={depositRefundCeiling}
         referralAvailablePaise={referralAvailable}
         settlementPreview={settlementPreview}
         refundEligibility={refundEligibility}

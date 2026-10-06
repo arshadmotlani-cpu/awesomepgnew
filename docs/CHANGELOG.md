@@ -269,9 +269,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-10-06 07:31:17 UTC
+### Pending pre-commit sync · 2026-10-06 10:24:53 UTC
 
-**Areas touched:** [[Billing]]
+**Areas touched:** [[Bookings]], [[Billing]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
@@ -281,8 +281,8 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
 **Staged code files (2):**
-- `src/lib/billing/rentPaymentMapInvoiceSelection.ts`
-- `src/lib/billing/rentPaymentMapStatus.ts`
+- `src/services/bookingMoneyBalances.ts`
+- `src/services/residentFinancialEngine.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

@@ -34,6 +34,10 @@ import {
   validateDepositRefundSubmission,
   DEPOSIT_REFUND_MISSING_DETAILS_MESSAGE,
 } from '@/src/lib/billing/depositRefundRequirements';
+import {
+  assertDepositRefundRequestAmountPaise,
+  getDepositRefundCeilingForBooking,
+} from '@/src/lib/deposits/depositRefundCeiling';
 
 export type { RefundCompletionInput } from '@/src/lib/refundDeductions';
 export { computeRefundDeductions } from '@/src/lib/refundDeductions';
@@ -77,6 +81,8 @@ export async function submitDepositRefundRequest(input: {
   useAverageBillingFallback?: boolean;
   payoutUpiId?: string | null;
   payoutQrUrl?: string | null;
+  /** Paise requested — must not exceed server-computed available ceiling. */
+  requestedAmountPaise?: number;
 }) {
   const ctx = await bookingContext(input.bookingId);
   if (!ctx || ctx.customerId !== input.customerId) {
@@ -93,8 +99,25 @@ export async function submitDepositRefundRequest(input: {
   }
 
   const summary = await getDepositSummaryForBooking(input.bookingId);
-  if (!summary || summary.refundableBalancePaise <= 0) {
+  if (!summary || summary.collectedPaise <= 0) {
     return { ok: false as const, error: 'No refundable deposit balance on this booking.' };
+  }
+
+  const ceiling = await getDepositRefundCeilingForBooking(input.bookingId);
+  if (!ceiling || ceiling.availableToRequestPaise <= 0) {
+    return {
+      ok: false as const,
+      error: 'No refundable deposit excess is available on this booking.',
+    };
+  }
+
+  const requestedAmountPaise =
+    input.requestedAmountPaise != null && input.requestedAmountPaise > 0
+      ? input.requestedAmountPaise
+      : ceiling.availableToRequestPaise;
+  const amountCheck = assertDepositRefundRequestAmountPaise(requestedAmountPaise, ceiling);
+  if (!amountCheck.ok) {
+    return { ok: false as const, error: amountCheck.error };
   }
 
   const [bookingRow] = await db
@@ -149,7 +172,7 @@ export async function submitDepositRefundRequest(input: {
         pgId: ctx.pgId,
         type: 'deposit_refund',
         status: 'submitted',
-        amountPaise: summary.refundableBalancePaise,
+        amountPaise: requestedAmountPaise,
         notes: input.notes ?? null,
         meterReadingPhotoUrl: input.meterReadingPhotoUrl?.trim() || null,
         useAverageBillingFallback: Boolean(input.useAverageBillingFallback),
@@ -164,7 +187,7 @@ export async function submitDepositRefundRequest(input: {
       entity: 'resident_request',
       entityId: row.id,
       action: 'deposit_refund_submitted',
-      diff: { bookingId: input.bookingId, amountPaise: summary.refundableBalancePaise },
+      diff: { bookingId: input.bookingId, amountPaise: requestedAmountPaise },
     });
 
     const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');

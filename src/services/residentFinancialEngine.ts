@@ -697,12 +697,12 @@ function projectSummaryToAccount(
 
   return {
     ...summary,
-    depositHeldPaise: summary.deposit.refundablePaise,
+    depositHeldPaise: depositSummary?.refundableBalancePaise ?? summary.deposit.paidPaise,
     rentOutstandingPaise: summary.rent.outstandingPaise,
     electricityOutstandingPaise: summary.electricity.outstandingPaise,
     otherChargesOutstandingPaise: summary.other.outstandingPaise,
     creditsPaise: 0,
-    refundBalancePaise: depositSummary?.refundableBalancePaise ?? summary.deposit.refundablePaise,
+    refundBalancePaise: summary.deposit.refundablePaise,
     totalOutstandingPaise: summary.totals.outstandingPaise,
     ledgerTimeline,
   };

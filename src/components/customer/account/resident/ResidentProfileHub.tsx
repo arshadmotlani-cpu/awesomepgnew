@@ -10,6 +10,7 @@ import type { ResidentBookingRow } from '@/src/db/queries/customer';
 import type { DepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
 import type { DepositLedgerEntry } from '@/src/db/schema/depositLedger';
 import type { DepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
+import type { DepositRefundCeiling } from '@/src/lib/deposits/depositRefundCeiling';
 import type { CheckoutSettlementWaterfall } from '@/src/lib/checkout/checkoutSettlementEngineV2';
 
 type ReferralSummary = {
@@ -46,6 +47,7 @@ type Props = {
   refundEligibility: DepositRefundEligibility;
   settlementPreview: DepositRefundSettlementPreview | null;
   referralSummary?: ReferralSummary;
+  depositRefundCeiling?: DepositRefundCeiling | null;
   vacatingStatus?: string | null;
   checkoutStatus?: string | null;
   vacatingDate?: string | null;
@@ -81,6 +83,7 @@ export function ResidentProfileHub({
   refundEligibility,
   settlementPreview,
   referralSummary,
+  depositRefundCeiling = null,
   vacatingStatus = null,
   checkoutStatus = null,
   vacatingDate = null,
@@ -136,6 +139,7 @@ export function ResidentProfileHub({
           refundEligibility={refundEligibility}
           settlementPreview={settlementPreview}
           referralSummary={referralSummary}
+          depositRefundCeiling={depositRefundCeiling}
         />
       )}
     </div>
