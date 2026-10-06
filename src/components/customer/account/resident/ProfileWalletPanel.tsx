@@ -8,6 +8,7 @@ import type { DepositRefundEligibility } from '@/src/lib/vacating/depositRefundE
 import type { DepositLedgerEntry } from '@/src/db/schema/depositLedger';
 import type { DepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
 import type { DepositRefundCeiling } from '@/src/lib/deposits/depositRefundCeiling';
+import type { ResidentCreditWalletLine } from '@/src/lib/billing/residentCreditWalletPresentation';
 
 type ReferralSummary = {
   lockedPaise: number;
@@ -29,6 +30,9 @@ type Props = {
   settlementPreview: DepositRefundSettlementPreview | null;
   referralSummary?: ReferralSummary;
   depositRefundCeiling?: DepositRefundCeiling | null;
+  residentCreditLine?: ResidentCreditWalletLine | null;
+  checkoutDepositEstimatePaise?: number;
+  depositRefundMaxPaise?: number;
 };
 
 function WalletMetricCard({
@@ -110,6 +114,9 @@ export function ProfileWalletPanel({
   settlementPreview,
   referralSummary,
   depositRefundCeiling = null,
+  residentCreditLine = null,
+  checkoutDepositEstimatePaise = 0,
+  depositRefundMaxPaise,
 }: Props) {
   const deductions = entries
     .filter((e) => e.entryKind === 'deducted')
@@ -152,7 +159,16 @@ export function ProfileWalletPanel({
 
   const requiredDepositPaise = depositRefundCeiling?.requiredPaise ?? 0;
   const maxRefundRequestPaise =
-    depositRefundCeiling?.availableToRequestPaise ?? availableRefundPaise;
+    depositRefundMaxPaise ??
+    depositRefundCeiling?.availableToRequestPaise ??
+    availableRefundPaise;
+  const checkoutEstimatePaise = checkoutDepositEstimatePaise;
+  const checkoutEstimateLabel = hasOpenVacating
+    ? 'Est. total checkout refund'
+    : 'Est. deposit after electricity';
+  const checkoutEstimateHint = hasOpenVacating
+    ? refundHint
+    : 'Deposit excess minus outstanding electricity — does not include unused rent credit.';
   const refundableDepositExcessPaise =
     depositRefundCeiling?.refundableDepositPaise ?? depositRefundable;
 
@@ -195,8 +211,29 @@ export function ProfileWalletPanel({
           </p>
         </ApgCard>
       ) : null}
+      {residentCreditLine ? (
+        <ApgCard tier="resident">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-apg-silver">
+            Unused rent credit
+          </h3>
+          <ul className="mt-3 space-y-2 text-sm">
+            <li className="flex justify-between gap-2">
+              <span className="text-apg-silver">Available unused rent credit</span>
+              <span className="tabular-nums font-medium text-emerald-300">
+                {paiseToInr(residentCreditLine.balancePaise)}
+              </span>
+            </li>
+            <li className="text-[11px] text-apg-silver">{residentCreditLine.sourceLabel}</li>
+            <li className="text-[11px] text-apg-silver">{residentCreditLine.statusLabel}</li>
+          </ul>
+          <p className="mt-2 text-[11px] text-apg-silver">
+            This is not part of your security deposit. It is not included in the maximum deposit
+            refund amount above.
+          </p>
+        </ApgCard>
+      ) : null}
       <div
-        className={`grid gap-3 max-md:grid-cols-1 ${showUnusedPrepaid ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3'}`}
+        className={`grid gap-3 max-md:grid-cols-1 ${showUnusedPrepaid || residentCreditLine ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3'}`}
       >
         <WalletMetricCard
           label="Security deposit held"
@@ -216,14 +253,14 @@ export function ProfileWalletPanel({
           />
         ) : null}
         <WalletMetricCard
-          label="Refundable at checkout"
+          label={checkoutEstimateLabel}
           value={
-            settlementPreview?.electricityPending && availableRefundPaise <= 0
+            settlementPreview?.electricityPending && checkoutEstimatePaise <= 0
               ? 'Pending'
-              : paiseToInr(availableRefundPaise)
+              : paiseToInr(checkoutEstimatePaise)
           }
-          hint={refundHint}
-          accent={availableRefundPaise > 0}
+          hint={checkoutEstimateHint}
+          accent={checkoutEstimatePaise > 0}
         />
         <WalletMetricCard
           label="Referral earnings"
@@ -310,6 +347,7 @@ export function ProfileWalletPanel({
         requiredDepositPaise={requiredDepositPaise}
         refundableDepositExcessPaise={refundableDepositExcessPaise}
         depositRefundCeiling={depositRefundCeiling}
+        residentCreditLine={residentCreditLine}
         referralAvailablePaise={referralAvailable}
         settlementPreview={settlementPreview}
         refundEligibility={refundEligibility}

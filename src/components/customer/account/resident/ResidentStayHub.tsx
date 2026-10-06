@@ -17,6 +17,7 @@ import type { DepositRefundEligibility } from '@/src/lib/vacating/depositRefundE
 import type { DepositLedgerEntry } from '@/src/db/schema/depositLedger';
 import type { DepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
 import type { DepositRefundCeiling } from '@/src/lib/deposits/depositRefundCeiling';
+import type { ResidentCreditWalletLine } from '@/src/lib/billing/residentCreditWalletPresentation';
 import type { ResidentElectricityBillingState } from '@/src/lib/residents/residentElectricityBillingState';
 import type { PaymentDueRow } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
 import type { ResidentElectricityHistoryItem } from '@/src/components/customer/account/resident/ResidentElectricityHistory';
@@ -52,6 +53,9 @@ type StayWalletProps = {
   settlementPreview: DepositRefundSettlementPreview | null;
   referralSummary?: ReferralSummary;
   depositRefundCeiling?: DepositRefundCeiling | null;
+  residentCreditLine?: ResidentCreditWalletLine | null;
+  checkoutDepositEstimatePaise?: number;
+  depositRefundMaxPaise?: number;
 };
 
 type StayPaymentsProps = {
@@ -153,6 +157,9 @@ export function ResidentStayHub({
           settlementPreview={wallet.settlementPreview}
           referralSummary={wallet.referralSummary}
           depositRefundCeiling={wallet.depositRefundCeiling ?? null}
+          residentCreditLine={wallet.residentCreditLine ?? null}
+          checkoutDepositEstimatePaise={wallet.checkoutDepositEstimatePaise ?? 0}
+          depositRefundMaxPaise={wallet.depositRefundMaxPaise}
         />
       ) : null}
     </div>

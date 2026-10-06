@@ -108,6 +108,15 @@ test('wallet unused prepaid rent uses active vacating settlement only', () => {
   );
 });
 
+test('wallet exposes resident credit ledger separately from deposit refund ceiling', () => {
+  assert.match(residentPortalTabData, /buildWalletBalancePresentation/);
+  assert.match(residentPortalTabData, /walletResidentCreditLine/);
+  assert.match(residentPortalTabData, /walletDepositRefundMaxPaise/);
+  assert.match(residentPortalTabData, /walletCheckoutDepositEstimatePaise/);
+  assert.match(profileWalletPanel, /residentCreditLine/);
+  assert.match(profileWalletPanel, /Maximum refund request/);
+});
+
 test('restored deposit wallet components exist on disk', () => {
   const files = [
     'src/components/customer/account/ResidentRequestForms.tsx',

@@ -21,6 +21,22 @@ export async function getResidentCreditBalance(customerId: string): Promise<numb
   return Math.max(0, row?.total ?? 0);
 }
 
+/** Most recent credit row reason (for wallet source label). */
+export async function getLatestResidentCreditReason(customerId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ reason: residentCreditLedger.reason })
+    .from(residentCreditLedger)
+    .where(
+      and(
+        eq(residentCreditLedger.customerId, customerId),
+        eq(residentCreditLedger.entryKind, 'credit'),
+      ),
+    )
+    .orderBy(sql`${residentCreditLedger.createdAt} DESC`)
+    .limit(1);
+  return row?.reason ?? null;
+}
+
 export async function recordResidentCredit(input: {
   customerId: string;
   bookingId?: string | null;

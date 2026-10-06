@@ -11,6 +11,7 @@ import type { DepositRefundEligibility } from '@/src/lib/vacating/depositRefundE
 import type { DepositLedgerEntry } from '@/src/db/schema/depositLedger';
 import type { DepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
 import type { DepositRefundCeiling } from '@/src/lib/deposits/depositRefundCeiling';
+import type { ResidentCreditWalletLine } from '@/src/lib/billing/residentCreditWalletPresentation';
 import type { CheckoutSettlementWaterfall } from '@/src/lib/checkout/checkoutSettlementEngineV2';
 
 type ReferralSummary = {
@@ -48,6 +49,9 @@ type Props = {
   settlementPreview: DepositRefundSettlementPreview | null;
   referralSummary?: ReferralSummary;
   depositRefundCeiling?: DepositRefundCeiling | null;
+  residentCreditLine?: ResidentCreditWalletLine | null;
+  checkoutDepositEstimatePaise?: number;
+  depositRefundMaxPaise?: number;
   vacatingStatus?: string | null;
   checkoutStatus?: string | null;
   vacatingDate?: string | null;
@@ -84,6 +88,9 @@ export function ResidentProfileHub({
   settlementPreview,
   referralSummary,
   depositRefundCeiling = null,
+  residentCreditLine = null,
+  checkoutDepositEstimatePaise = 0,
+  depositRefundMaxPaise,
   vacatingStatus = null,
   checkoutStatus = null,
   vacatingDate = null,
@@ -140,6 +147,9 @@ export function ResidentProfileHub({
           settlementPreview={settlementPreview}
           referralSummary={referralSummary}
           depositRefundCeiling={depositRefundCeiling}
+          residentCreditLine={residentCreditLine}
+          checkoutDepositEstimatePaise={checkoutDepositEstimatePaise}
+          depositRefundMaxPaise={depositRefundMaxPaise}
         />
       )}
     </div>

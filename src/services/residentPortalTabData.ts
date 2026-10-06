@@ -83,6 +83,70 @@ import {
   resolveEffectiveRoomCapacity,
   roommateCountFromRoomCapacity,
 } from '@/src/lib/roomCapacitySsot';
+import type { DepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
+import type { DepositRefundCeiling } from '@/src/lib/deposits/depositRefundCeiling';
+import type { ResidentCreditWalletLine } from '@/src/lib/billing/residentCreditWalletPresentation';
+
+async function buildWalletBalancePresentation(input: {
+  walletBookingId: string | null;
+  customerId: string;
+  hasOpenVacating: boolean;
+  refundSettlementPreview: DepositRefundSettlementPreview | null;
+  depositRefundCeiling: DepositRefundCeiling | null;
+  residentCreditBalancePaise: number;
+}): Promise<{
+  walletDepositRefundMaxPaise: number;
+  walletCheckoutDepositEstimatePaise: number;
+  walletResidentCreditBalancePaise: number;
+  walletResidentCreditLine: ResidentCreditWalletLine | null;
+  walletAvailableRefundPaise: number;
+}> {
+  const { getBookingMoneyBalances } = await import('@/src/services/bookingMoneyBalances');
+  const { getLatestResidentCreditReason } = await import('@/src/services/residentCreditLedger');
+  const { buildResidentCreditWalletLine, computeDepositCheckoutEstimatePaise } = await import(
+    '@/src/lib/billing/residentCreditWalletPresentation'
+  );
+
+  const walletMoneyBalances = input.walletBookingId
+    ? await getBookingMoneyBalances(input.walletBookingId)
+    : null;
+  const latestCreditReason = await getLatestResidentCreditReason(input.customerId);
+  const walletResidentCreditLine = buildResidentCreditWalletLine({
+    balancePaise: input.residentCreditBalancePaise,
+    primaryReason: latestCreditReason,
+    hasOpenVacating: input.hasOpenVacating,
+  });
+
+  const walletDepositRefundMaxPaise =
+    input.depositRefundCeiling?.availableToRequestPaise ??
+    input.refundSettlementPreview?.depositRefundablePaise ??
+    0;
+
+  const depositExcess =
+    input.depositRefundCeiling?.refundableDepositPaise ??
+    input.refundSettlementPreview?.depositRefundablePaise ??
+    0;
+  const electricityOutstandingPaise =
+    input.refundSettlementPreview?.electricityAdjustmentPaise ??
+    walletMoneyBalances?.electricity.outstandingPaise ??
+    0;
+
+  const walletCheckoutDepositEstimatePaise =
+    input.hasOpenVacating && input.refundSettlementPreview?.refundAmountPaise != null
+      ? input.refundSettlementPreview.refundAmountPaise
+      : computeDepositCheckoutEstimatePaise({
+          depositRefundableExcessPaise: depositExcess,
+          electricityOutstandingPaise,
+        });
+
+  return {
+    walletDepositRefundMaxPaise,
+    walletCheckoutDepositEstimatePaise,
+    walletResidentCreditBalancePaise: input.residentCreditBalancePaise,
+    walletResidentCreditLine,
+    walletAvailableRefundPaise: walletDepositRefundMaxPaise,
+  };
+}
 
 export type ResidentPortalBookingDetail = {
   booking: ResidentBookingRow;
@@ -352,13 +416,20 @@ export async function loadResidentProfileTabData(input: {
       : (walletBooking?.deposit?.refundableBalancePaise ??
         primaryBooking?.deposit?.refundableBalancePaise ??
         0));
-  const walletAvailableRefundPaise =
-    refundSettlementPreview?.refundAmountPaise ??
-    (refundSettlementPreview
-      ? refundSettlementPreview.depositRefundablePaise + refundSettlementPreview.unusedPrepaidRentPaise
-      : null) ??
-    depositRefundCeiling?.availableToRequestPaise ??
-    0;
+
+  const walletPresentation = await buildWalletBalancePresentation({
+    walletBookingId: walletBooking?.bookingId ?? null,
+    customerId: session.customerId,
+    hasOpenVacating,
+    refundSettlementPreview,
+    depositRefundCeiling,
+    residentCreditBalancePaise,
+  });
+  const walletAvailableRefundPaise = walletPresentation.walletAvailableRefundPaise;
+  const walletDepositRefundMaxPaise = walletPresentation.walletDepositRefundMaxPaise;
+  const walletCheckoutDepositEstimatePaise = walletPresentation.walletCheckoutDepositEstimatePaise;
+  const walletResidentCreditBalancePaise = walletPresentation.walletResidentCreditBalancePaise;
+  const walletResidentCreditLine = walletPresentation.walletResidentCreditLine;
 
   const walletVacatingActive =
     walletBooking?.vacating.ok &&
@@ -427,6 +498,10 @@ export async function loadResidentProfileTabData(input: {
     moveOutStatus,
     walletDepositHeldPaise,
     walletAvailableRefundPaise,
+    walletDepositRefundMaxPaise,
+    walletCheckoutDepositEstimatePaise,
+    walletResidentCreditBalancePaise,
+    walletResidentCreditLine,
     walletUnusedPrepaidRentPaise,
     walletDepositRefundablePaise,
     depositRefundCeiling,
@@ -791,13 +866,26 @@ export async function loadResidentRequestsTabData(input: {
     ? await getDepositRefundCeilingForBooking(walletBooking.bookingId)
     : null;
 
-  const walletAvailableRefundPaise =
-    refundSettlementPreview?.refundAmountPaise ??
-    (refundSettlementPreview
-      ? refundSettlementPreview.depositRefundablePaise + refundSettlementPreview.unusedPrepaidRentPaise
-      : null) ??
-    depositRefundCeiling?.availableToRequestPaise ??
-    0;
+  const { getResidentCreditBalance } = await import('@/src/services/residentCreditLedger');
+  const residentCreditBalancePaise = await getResidentCreditBalance(session.customerId);
+  const hasOpenVacatingRequests = Boolean(
+    primaryVacating && ['pending', 'approved'].includes(primaryVacating.status),
+  );
+
+  const walletPresentation = await buildWalletBalancePresentation({
+    walletBookingId: walletBooking?.bookingId ?? null,
+    customerId: session.customerId,
+    hasOpenVacating: hasOpenVacatingRequests,
+    refundSettlementPreview,
+    depositRefundCeiling,
+    residentCreditBalancePaise,
+  });
+  const walletAvailableRefundPaise = walletPresentation.walletAvailableRefundPaise;
+  const walletDepositRefundMaxPaise = walletPresentation.walletDepositRefundMaxPaise;
+  const walletCheckoutDepositEstimatePaise = walletPresentation.walletCheckoutDepositEstimatePaise;
+  const walletResidentCreditBalancePaise = walletPresentation.walletResidentCreditBalancePaise;
+  const walletResidentCreditLine = walletPresentation.walletResidentCreditLine;
+
   const walletDepositHeldPaise =
     depositRefundCeiling?.heldPaise ??
     (depositWallet.totalHeldPaise > 0
@@ -964,6 +1052,10 @@ export async function loadResidentRequestsTabData(input: {
     roomLabel: `${primaryBooking.booking.pgName} · R${primaryBooking.booking.roomNumber}`,
     walletAvailableRefundPaise,
     walletDepositHeldPaise,
+    walletDepositRefundMaxPaise,
+    walletCheckoutDepositEstimatePaise,
+    walletResidentCreditBalancePaise,
+    walletResidentCreditLine,
     depositRefundCeiling,
     hasDepositDue: hasDepositDueFlag,
     activeRequests,

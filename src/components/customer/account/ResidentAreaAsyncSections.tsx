@@ -262,6 +262,10 @@ export async function ResidentStayTabSection({
           refundEligibility: profileData.refundEligibility,
           settlementPreview: profileData.refundSettlementPreview,
           depositRefundCeiling: profileData.depositRefundCeiling ?? null,
+          residentCreditLine: profileData.walletResidentCreditLine ?? null,
+          checkoutDepositEstimatePaise: profileData.walletCheckoutDepositEstimatePaise ?? 0,
+          depositRefundMaxPaise:
+            profileData.walletDepositRefundMaxPaise ?? profileData.walletAvailableRefundPaise,
           referralSummary: {
             lockedPaise: profileData.referralSummary.lockedPaise,
             availablePaise: profileData.referralSummary.availablePaise,

@@ -6,6 +6,7 @@ import { DepositRefundRequestForm } from '@/src/components/customer/account/Depo
 import { ReferralWithdrawalForm } from '@/src/components/customer/account/ReferralWithdrawalForm';
 import type { DepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
 import type { DepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
+import type { ResidentCreditWalletLine } from '@/src/lib/billing/residentCreditWalletPresentation';
 import type { DepositRefundCeiling } from '@/src/lib/deposits/depositRefundCeiling';
 import { primaryBtn } from '@/src/lib/design-system/tokens';
 import { paiseToInr } from '@/src/lib/format';
@@ -20,6 +21,7 @@ export function RequestMoneySheet({
   requiredDepositPaise = 0,
   refundableDepositExcessPaise,
   depositRefundCeiling = null,
+  residentCreditLine = null,
   referralAvailablePaise,
   settlementPreview = null,
   refundEligibility = null,
@@ -32,6 +34,7 @@ export function RequestMoneySheet({
   requiredDepositPaise?: number;
   refundableDepositExcessPaise?: number;
   depositRefundCeiling?: DepositRefundCeiling | null;
+  residentCreditLine?: ResidentCreditWalletLine | null;
   referralAvailablePaise: number;
   settlementPreview?: DepositRefundSettlementPreview | null;
   refundEligibility?: DepositRefundEligibility | null;
@@ -141,17 +144,25 @@ export function RequestMoneySheet({
                     {refundLockReason}
                   </p>
                 ) : (
-                  <DepositRefundRequestForm
-                    bookingId={bookingId}
-                    customerId={customerId}
-                    refundableBalancePaise={refundableBalancePaise}
-                    depositRefundCeiling={depositRefundCeiling}
-                    settlementPreview={settlementPreview}
-                    onSubmitted={() => {
-                      setOpen(false);
-                      setKind(null);
-                    }}
-                  />
+                  <>
+                    {residentCreditLine ? (
+                      <p className="mb-3 text-xs text-apg-silver">
+                        Unused rent credit {paiseToInr(residentCreditLine.balancePaise)} — applies to
+                        rent bills separately (not added to deposit refund max).
+                      </p>
+                    ) : null}
+                    <DepositRefundRequestForm
+                      bookingId={bookingId}
+                      customerId={customerId}
+                      refundableBalancePaise={refundableBalancePaise}
+                      depositRefundCeiling={depositRefundCeiling}
+                      settlementPreview={settlementPreview}
+                      onSubmitted={() => {
+                        setOpen(false);
+                        setKind(null);
+                      }}
+                    />
+                  </>
                 )}
               </>
             ) : (

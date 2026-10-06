@@ -57,7 +57,8 @@ describe('Phase 1 resident portal UI dedupe', () => {
       'utf8',
     );
     assert.match(src, /Security deposit held/);
-    assert.match(src, /Refundable at checkout/);
+    assert.match(src, /Est\. deposit after electricity/);
+    assert.match(src, /Unused rent credit/);
     assert.doesNotMatch(src, /Deposit details/);
     assert.match(src, /max-md:grid-cols-1/);
   });
