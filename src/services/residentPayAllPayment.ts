@@ -3,6 +3,7 @@
  * Settles each underlying payable once via invoice breakdown lines (SSOT: allocateInvoicePayment).
  */
 import { and, eq, inArray } from 'drizzle-orm';
+import type { FinancialInvoiceStatus } from '@/src/db/schema/enums';
 import { db } from '@/src/db/client';
 import { financialInvoices, paymentLinks } from '@/src/db/schema';
 import type { InvoiceBreakdown } from '@/src/db/schema/financialInvoices';
@@ -82,6 +83,24 @@ async function loadRoomChangePayAllHref(
   return null;
 }
 
+/** Statuses where the aggregate invoice row is still the live Pay All target. */
+const RESIDENT_PAY_ALL_OPEN_STATUSES: FinancialInvoiceStatus[] = [
+  'draft',
+  'sent',
+  'payment_in_progress',
+  'processing',
+  'partial',
+  'overdue',
+];
+
+function payAllInvoiceStatusAfterRefresh(
+  previous: FinancialInvoiceStatus,
+): FinancialInvoiceStatus {
+  if (RESIDENT_PAY_ALL_OPEN_STATUSES.includes(previous)) return previous;
+  // Re-open terminal rows when new payables exist (same source_id — unique index).
+  return 'sent';
+}
+
 function payablesAreRoomChangeFinancialChildrenOnly(payables: ResidentPayableNowRow[]): boolean {
   return (
     payables.length > 0 &&
@@ -130,7 +149,6 @@ export async function ensureResidentPayAllPaymentHref(input: {
         eq(financialInvoices.customerId, input.customerId),
         eq(financialInvoices.sourceTable, RESIDENT_PORTAL_PAY_ALL_SOURCE),
         eq(financialInvoices.sourceId, input.customerId),
-        inArray(financialInvoices.status, ['draft', 'sent', 'overdue', 'partial', 'payment_in_progress']),
       ),
     )
     .limit(1);
@@ -151,6 +169,10 @@ export async function ensureResidentPayAllPaymentHref(input: {
         roomNumber: input.roomNumber,
         bedCode: input.bedCode,
         notes: 'All bills due',
+        status: payAllInvoiceStatusAfterRefresh(existing!.status),
+        ...(RESIDENT_PAY_ALL_OPEN_STATUSES.includes(existing!.status)
+          ? {}
+          : { sentAt: new Date() }),
         updatedAt: new Date(),
       })
       .where(eq(financialInvoices.id, invoiceId));
