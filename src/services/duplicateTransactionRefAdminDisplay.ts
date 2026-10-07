@@ -96,7 +96,8 @@ async function conflictViewForRegistryRow(row: {
       .select({
         customerId: rentInvoices.customerId,
         bookingId: rentInvoices.bookingId,
-        amountPaise: rentInvoices.amountPaise,
+        amountPaise: rentInvoices.proofSnapshotOutstandingPaise,
+        rentPaise: rentInvoices.rentPaise,
       })
       .from(rentInvoices)
       .where(eq(rentInvoices.id, row.sourceId))
@@ -120,7 +121,7 @@ async function conflictViewForRegistryRow(row: {
       ...base,
       residentName: customer?.name ?? null,
       bookingCode: booking?.bookingCode ?? null,
-      amountPaise: r.amountPaise,
+      amountPaise: r.amountPaise ?? r.rentPaise,
     };
   }
 
