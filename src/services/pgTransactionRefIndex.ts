@@ -7,12 +7,17 @@ import { db } from '@/src/db/client';
 import {
   electricityInvoices,
   paymentLinks,
-  pgApprovedTransactionRefs,
   pgPaymentRecords,
   playstationMemberships,
   rentInvoices,
   stayExtensions,
 } from '@/src/db/schema';
+import {
+  findApprovedTxnRefBySource,
+  insertApprovedTxnRefRow,
+  listApprovedTxnRefsByNormalizedRef,
+} from '@/src/services/pgApprovedTxnRefRegistry';
+import { getPgApprovedTxnRefSchemaMode } from '@/src/lib/db/pgApprovedTxnRefSchema';
 import type { PgApprovedTxnSourceKind } from '@/src/db/schema/pgApprovedTransactionRefs';
 import {
   assertTransactionRefRequired,
@@ -216,10 +221,7 @@ async function findApprovedRegistrySiblings(input: {
   normalizedRef: string;
   exclude?: { sourceKind: PgTxnSourceKind; sourceId: string };
 }) {
-  const rows = await db
-    .select()
-    .from(pgApprovedTransactionRefs)
-    .where(eq(pgApprovedTransactionRefs.transactionRefNormalized, input.normalizedRef));
+  const rows = await listApprovedTxnRefsByNormalizedRef(input.normalizedRef);
   return rows.filter(
     (row) =>
       !(
@@ -343,6 +345,10 @@ export async function insertApprovedTransactionRefOrThrow(input: {
     if (!input.duplicateOverride) {
       throw new Error(approvedTransactionRefConflictMessage());
     }
+    const schemaMode = await getPgApprovedTxnRefSchemaMode();
+    if (schemaMode === 'legacy_ref_pk') {
+      throw new Error(approvedTransactionRefConflictMessage());
+    }
     const reasonCheck = validateDuplicateTransactionRefOverrideReason(
       input.duplicateOverride.reason,
     );
@@ -366,20 +372,14 @@ export async function insertApprovedTransactionRefOrThrow(input: {
     });
   }
 
-  const [existingSelf] = await db
-    .select()
-    .from(pgApprovedTransactionRefs)
-    .where(
-      and(
-        eq(pgApprovedTransactionRefs.sourceKind, input.sourceKind),
-        eq(pgApprovedTransactionRefs.sourceId, input.sourceId),
-      ),
-    )
-    .limit(1);
+  const existingSelf = await findApprovedTxnRefBySource({
+    sourceKind: input.sourceKind,
+    sourceId: input.sourceId,
+  });
   if (existingSelf) return;
 
   try {
-    await db.insert(pgApprovedTransactionRefs).values({
+    await insertApprovedTxnRefRow({
       transactionRefNormalized: normalized,
       sourceKind: input.sourceKind,
       sourceId: input.sourceId,
@@ -387,16 +387,10 @@ export async function insertApprovedTransactionRefOrThrow(input: {
     });
   } catch (err) {
     if (isApprovedTransactionRefUniqueViolation(err)) {
-      const [existingSelfRetry] = await db
-        .select()
-        .from(pgApprovedTransactionRefs)
-        .where(
-          and(
-            eq(pgApprovedTransactionRefs.sourceKind, input.sourceKind),
-            eq(pgApprovedTransactionRefs.sourceId, input.sourceId),
-          ),
-        )
-        .limit(1);
+      const existingSelfRetry = await findApprovedTxnRefBySource({
+        sourceKind: input.sourceKind,
+        sourceId: input.sourceId,
+      });
       if (existingSelfRetry) return;
       throw new Error(approvedTransactionRefConflictMessage());
     }
