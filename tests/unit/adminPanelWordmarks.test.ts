@@ -21,19 +21,6 @@ test('Awesome PG admin header uses the finalized PG mark, not a text wordmark', 
   );
 });
 
-test('Automotive Capital admin header uses CapitalOsMark PNG, not a text wordmark', () => {
-  const source = read('src/capital/components/CapitalTopBar.tsx');
-  assert.match(source, /from '@\/src\/components\/brand\/capital-os\/CapitalOsMark'/);
-  assert.match(source, /<CapitalOsMark\b/);
-  assert.doesNotMatch(source, /CAPITAL_OS\.name/, 'header must not render Capital OS text');
-  assert.doesNotMatch(source, /CAPITAL_OS\.legalName/, 'header must not render Automotive Capital text');
-  assert.doesNotMatch(
-    source,
-    /font-extrabold[^>]*>\s*Capital\s*<\/span>/s,
-    'header must not render a text "Capital" wordmark in place of the logo',
-  );
-});
-
 test('Salon Software admin header uses FyhMark PNG, not a text wordmark', () => {
   const source = read('src/hair/components/HairAppHeader.tsx');
   assert.match(source, /from '@\/src\/components\/brand\/fyh\/FyhMark'/);

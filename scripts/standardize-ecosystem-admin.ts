@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * Standardize ecosystem admin credentials across PG, Hair, Capital, and Owner OS.
+ * Standardize ecosystem admin credentials across PG, Hair, and Owner OS.
  *
  *   ECOSYSTEM_ADMIN_PASSWORD='…' npx tsx scripts/standardize-ecosystem-admin.ts
  *
@@ -11,11 +11,9 @@ loadAppEnv();
 
 import { createClient, closeDb } from '@/src/db/client';
 import { createHairClient } from '@/src/hair/db/client';
-import { createCapitalClient } from '@/src/capital/db/client';
 import { createOwnerClient } from '@/src/owner/db/client';
 import { upsertPgEcosystemAdmin } from '@/src/lib/auth/upsertEcosystemAdminPg';
 import { upsertHairEcosystemAdmin } from '@/src/hair/lib/auth/upsertEcosystemAdmin';
-import { upsertCapitalEcosystemAdmin } from '@/src/capital/lib/auth/upsertEcosystemAdmin';
 import { upsertOwnerEcosystemAdmin } from '@/src/owner/lib/auth/upsertEcosystemAdmin';
 import {
   resolveEcosystemAdminEmail,
@@ -95,49 +93,6 @@ async function runHair(): Promise<EngineResult> {
   }
 }
 
-async function runCapital(): Promise<EngineResult> {
-  if (!process.env.INVEST_DATABASE_URL?.trim() && !process.env.INVEST_DATABASE_DATABASE_URL?.trim()) {
-    return {
-      engine: 'Automotive Capital',
-      database: 'INVEST_DATABASE_URL',
-      ok: false,
-      detail: 'not configured',
-    };
-  }
-  const { db, close } = createCapitalClient({ max: 1 });
-  try {
-    const result = await upsertCapitalEcosystemAdmin(db);
-    if (result.action === 'skipped') {
-      return {
-        engine: 'Automotive Capital',
-        database: 'INVEST_DATABASE_URL',
-        ok: false,
-        detail: result.reason,
-      };
-    }
-    return {
-      engine: 'Automotive Capital',
-      database: 'INVEST_DATABASE_URL',
-      ok: true,
-      detail:
-        result.action === 'created'
-          ? `created ${result.email}`
-          : result.previousEmail !== result.email
-            ? `updated ${result.previousEmail} → ${result.email}`
-            : `password refreshed for ${result.email}`,
-    };
-  } catch (err) {
-    return {
-      engine: 'Automotive Capital',
-      database: 'INVEST_DATABASE_URL',
-      ok: false,
-      detail: err instanceof Error ? err.message : String(err),
-    };
-  } finally {
-    await close();
-  }
-}
-
 async function runOwner(): Promise<EngineResult> {
   if (!hasOwnerDatabaseUrl()) {
     return { engine: 'Owner OS', database: 'OWNER_DATABASE_URL', ok: false, detail: 'not configured' };
@@ -181,7 +136,7 @@ async function main() {
   const email = resolveEcosystemAdminEmail();
   console.log(`Standardizing ecosystem admin → ${email}\n`);
 
-  const results = await Promise.all([runPg(), runHair(), runCapital(), runOwner()]);
+  const results = await Promise.all([runPg(), runHair(), runOwner()]);
   try {
     await closeDb();
   } catch {

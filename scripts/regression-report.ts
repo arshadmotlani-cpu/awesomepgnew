@@ -54,8 +54,6 @@ const PG_GLOBS = [
 ];
 
 const HAIR_GLOBS = [/^src\/hair\//, /^tests\/hair\//, /^hair\//];
-const CAPITAL_GLOBS = [/^src\/capital\//, /^tests\/capital\//, /^capital\//];
-
 function run(cmd: string, args: string[]): StepResult {
   const display = [cmd, ...args].join(' ');
   const result = spawnSync(cmd, args, { stdio: 'inherit', shell: process.platform === 'win32' });
@@ -80,12 +78,11 @@ function matchesAny(path: string, patterns: RegExp[]): boolean {
   return patterns.some((p) => p.test(path));
 }
 
-function inferProducts(files: string[]): Set<'pg' | 'hair' | 'capital'> {
-  const products = new Set<'pg' | 'hair' | 'capital'>();
+function inferProducts(files: string[]): Set<'pg' | 'hair'> {
+  const products = new Set<'pg' | 'hair'>();
   for (const f of files) {
     if (matchesAny(f, HAIR_GLOBS)) products.add('hair');
-    if (matchesAny(f, CAPITAL_GLOBS)) products.add('capital');
-    if (matchesAny(f, PG_GLOBS) && !matchesAny(f, HAIR_GLOBS) && !matchesAny(f, CAPITAL_GLOBS)) {
+    if (matchesAny(f, PG_GLOBS) && !matchesAny(f, HAIR_GLOBS)) {
       products.add('pg');
     }
   }
@@ -103,7 +100,6 @@ function inferModules(files: string[]): string[] {
     if (matchesAny(f, BILLING_CENTRE_GLOBS)) modules.add('billing-centre');
     if (f.includes('roomIntegrity') || f.includes('roomCapacity')) modules.add('room-inventory');
     if (f.startsWith('src/hair/')) modules.add('hair');
-    if (f.startsWith('src/capital/')) modules.add('capital');
     if (f.startsWith('tests/')) modules.add('tests');
     if (f.startsWith('app/')) modules.add('app-routes');
   }
@@ -223,10 +219,6 @@ async function main() {
   if (products.has('hair')) {
     steps.push(run('npm', ['run', 'test:hair']));
   }
-  if (products.has('capital')) {
-    steps.push(run('npm', ['run', 'test:capital']));
-  }
-
   if (billingTouched) {
     console.log('\n── Billing settlement suite ──');
     steps.push(run('npm', ['run', 'test:billing-settlement']));

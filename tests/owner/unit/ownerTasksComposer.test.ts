@@ -63,6 +63,5 @@ describe('Owner tasks composer', () => {
     assert.match(src, /listOpenActionItemsForOwnerRead/);
     assert.match(src, /getOwnerWorkforceDashboard/);
     assert.match(src, /getRevenueDashboardSnapshot/);
-    assert.match(src, /countCapitalSoldAwaitingSettlement/);
   });
 });

@@ -1,7 +1,6 @@
 /**
  * Owner Ledger adapter — feeds Personal Finance Brain from Owner DB wealth services.
  */
-import { loadCapitalContribution } from '@/src/personalFinance/adapters/capital';
 import { moneyValue } from '@/src/personalFinance/explain';
 import type { EngineContribution } from '@/src/personalFinance/types';
 import { getWealthSnapshot } from '@/src/owner/services/wealthCalculation';
@@ -19,10 +18,7 @@ export type OwnerLedgerContribution = {
 
 export async function loadOwnerLedgerContribution(): Promise<OwnerLedgerContribution> {
   try {
-    const capital = await loadCapitalContribution();
-    const investmentValuePaise = capital.assetsPaise.paise;
-
-    const wealth = await getWealthSnapshot({ investmentValuePaise });
+    const wealth = await getWealthSnapshot({ investmentValuePaise: 0 });
 
     return {
       bankBalancePaise: wealth.bankBalancePaise,

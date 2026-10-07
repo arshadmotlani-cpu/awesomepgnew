@@ -25,7 +25,7 @@ const SAAS_SURFACES = [
 ];
 
 const ADMIN_BRAND_IMPORTS =
-  /ApgOsMark|FyhMark|CapitalOsMark|OwnerOsMark|ApgOsLogoLockup|CapitalOsLogoLockup|FyhSidebarBrand|FyhLoginBrandHeader/;
+  /ApgOsMark|FyhMark|OwnerOsMark|ApgOsLogoLockup|FyhSidebarBrand|FyhLoginBrandHeader/;
 
 test('SaaS marketing, Platform, and customer sites do not import admin product marks', () => {
   for (const file of SAAS_SURFACES) {
@@ -59,10 +59,9 @@ test('Platform chrome keeps FYHAIR SaaS / Platform identity', () => {
   assert.doesNotMatch(topBar, /FyhMark|soft-admin-mark/);
 });
 
-test('Admin mark PNG components are isolated to SOFT/AUTO/NET WORTH wrappers', () => {
+test('Admin mark PNG components are isolated to SOFT/NET WORTH wrappers', () => {
   const importers = [
     'src/components/brand/fyh/FyhMark.tsx',
-    'src/components/brand/capital-os/CapitalOsMark.tsx',
     'src/components/brand/owner-os/OwnerOsMark.tsx',
   ];
   for (const file of importers) {

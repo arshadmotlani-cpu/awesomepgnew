@@ -11,31 +11,25 @@ function read(rel: string) {
 
 const ADMIN_FAVICON_DIRS = [
   'public/fyh',
-  'public/capital-os',
   'public/owner-os',
 ];
 
 const METADATA_AND_MANIFESTS = [
   'src/lib/brand/fyhMetadata.ts',
-  'src/lib/brand/capitalOsMetadata.ts',
   'src/lib/brand/ownerOsMetadata.ts',
   'public/fyh/manifest.webmanifest',
-  'public/capital/manifest.webmanifest',
   'public/owner-os/manifest.webmanifest',
 ];
 
 const WORDMARK_PNGS = [
   'public/fyh/soft-admin-mark.png',
-  'public/capital-os/auto-admin-mark.png',
   'public/owner-os/net-worth-admin-mark.png',
 ];
 
 test('admin chrome uses dedicated transparent wordmark PNGs (not favicon squares)', () => {
   const fyh = read('src/components/brand/fyh/FyhMark.tsx');
-  const capital = read('src/components/brand/capital-os/CapitalOsMark.tsx');
   const owner = read('src/components/brand/owner-os/OwnerOsMark.tsx');
   assert.match(fyh, /soft-admin-mark\.png/);
-  assert.match(capital, /auto-admin-mark\.png/);
   assert.match(owner, /net-worth-admin-mark\.png/);
   for (const file of WORDMARK_PNGS) {
     assert.equal(existsSync(join(root, file)), true, `${file} must exist`);
@@ -74,15 +68,13 @@ test('admin favicon SVG masters are square compact marks, not wordmark plates', 
   }
 });
 
-test('logo generator script exists for SOFT, AUTO, and NET WORTH wordmarks + favicons', () => {
+test('logo generator script exists for SOFT and NET WORTH wordmarks + favicons', () => {
   const script = read('scripts/generate-admin-product-logos.mjs');
   assert.match(script, /ADMIN_WORDMARK_MASTERS/);
   assert.match(script, /ADMIN_FAVICON_MASTERS/);
   assert.match(script, /soft:/);
-  assert.match(script, /auto:/);
   assert.match(script, /netWorth:/);
   assert.match(script, /soft-admin-mark\.png/);
-  assert.match(script, /auto-admin-mark\.png/);
   assert.match(script, /net-worth-admin-mark\.png/);
 });
 
@@ -90,8 +82,6 @@ test('generated favicon PNGs exist for browser tab sizes', () => {
   const required = [
     'public/fyh/favicon-16.png',
     'public/fyh/favicon-32.png',
-    'public/capital-os/favicon-16.png',
-    'public/capital-os/favicon-32.png',
     'public/owner-os/favicon-16.png',
     'public/owner-os/favicon-32.png',
   ];

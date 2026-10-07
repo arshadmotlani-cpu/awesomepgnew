@@ -2,8 +2,6 @@
  * Personal Finance Brain — Owner life financial intelligence.
  * Consumes Engine Brain APIs via adapters. Does not duplicate rent/TVI/salon math.
  */
-import { getDealershipReportKpis } from '@/src/capital/services/analytics';
-import { loadCapitalContribution } from '@/src/personalFinance/adapters/capital';
 import { loadOwnerLedgerContribution } from '@/src/personalFinance/adapters/ownerLedger';
 import { loadPgContribution } from '@/src/personalFinance/adapters/pg';
 import { loadSalonContribution } from '@/src/personalFinance/adapters/salon';
@@ -28,15 +26,13 @@ export async function getPersonalFinanceSnapshot(opts?: {
 }): Promise<PersonalFinanceSnapshot> {
   const includeWorkforce = opts?.includeWorkforce !== false;
 
-  const [pg, salon, capital, workforce, billingOps, capitalKpis, ownerLedger] = await Promise.all([
+  const [pg, salon, workforce, billingOps, ownerLedger] = await Promise.all([
     loadPgContribution(opts?.billingMonth),
     loadSalonContribution(),
-    loadCapitalContribution(),
     includeWorkforce
       ? loadWorkforceContribution()
       : Promise.resolve(null as EngineContribution | null),
     loadBillingOperationsDashboard().catch(() => null),
-    getDealershipReportKpis().catch(() => null),
     loadOwnerLedgerContribution().catch(() => ({
       available: false as const,
       bankBalancePaise: 0,
@@ -49,14 +45,14 @@ export async function getPersonalFinanceSnapshot(opts?: {
     })),
   ]);
 
-  const contributions: EngineContribution[] = [pg, salon, capital];
+  const contributions: EngineContribution[] = [pg, salon];
   if (workforce) contributions.push(workforce);
 
   const businessRevenue = sumMoney(
     'business_revenue',
     'Business Revenue',
-    [pg.revenuePaise, salon.revenuePaise, capital.revenuePaise],
-    'Σ engine revenues (PG operating + Salon MTD + Capital monthly profit)',
+    [pg.revenuePaise, salon.revenuePaise],
+    'Σ engine revenues (PG operating + Salon MTD)',
   );
 
   const businessExpenses = sumMoney(
@@ -65,7 +61,6 @@ export async function getPersonalFinanceSnapshot(opts?: {
     [
       pg.expensesPaise,
       salon.expensesPaise,
-      capital.expensesPaise,
       ...(workforce ? [workforce.expensesPaise] : []),
     ],
     'Σ engine expenses + workforce salary liability (provisional where APIs missing)',
@@ -100,13 +95,16 @@ export async function getPersonalFinanceSnapshot(opts?: {
       })
     : notConnectedMoney('property_value', 'Property Value', 'Real Estate Engine');
 
-  const vehiclePortfolio = capital.assetsPaise;
+  const vehiclePortfolio = notConnectedMoney(
+    'vehicle_portfolio',
+    'Vehicle Portfolio',
+    'Automotive Capital removed',
+  );
 
-  const investmentValue = sumMoney(
+  const investmentValue = notConnectedMoney(
     'investment_value',
     'Investment Value',
-    [vehiclePortfolio],
-    'Σ connected investment Engines (Capital vehicle portfolio today)',
+    'No connected investment engines',
   );
 
   const bankBalance = ownerLedger.available
@@ -217,20 +215,19 @@ export async function getPersonalFinanceSnapshot(opts?: {
     ],
   });
 
-  const freeCashPaise = Number(capitalKpis?.freeCashPaise ?? 0) || 0;
-  const cashAvailable = capital.available
+  const cashAvailable = bankBalance.connected !== false
     ? moneyValue({
         id: 'cash_available',
         label: 'Cash Available',
-        paise: freeCashPaise,
+        paise: bankBalance.paise,
         brain: 'personal_finance',
-        engine: 'automotive_capital',
-        calculation: 'getDealershipReportKpis().freeCashPaise',
-        sourceApi: 'getDealershipReportKpis',
+        engine: 'personal_finance',
+        calculation: 'Owner bank balance (journal-derived)',
+        sourceApi: 'journal.getTotalBankBalancePaise',
         connected: true,
-        lineage: [{ label: 'Capital free cash', paise: freeCashPaise }],
+        lineage: [{ label: 'Bank balance', paise: bankBalance.paise }],
       })
-    : notConnectedMoney('cash_available', 'Cash Available', 'Bank / Capital free cash');
+    : notConnectedMoney('cash_available', 'Cash Available', 'Owner bank ledger');
 
   const salonTodayPaise =
     salon.revenuePaise.lineage.find((l) => l.label === 'Today')?.paise ?? 0;
@@ -252,18 +249,11 @@ export async function getPersonalFinanceSnapshot(opts?: {
     ],
   });
 
-  const yearlyProfitPaise = Number(capitalKpis?.yearlyProfitPaise ?? 0) || 0;
-  const yearlyProfit = moneyValue({
-    id: 'yearly_profit',
-    label: 'Yearly Profit',
-    paise: yearlyProfitPaise,
-    brain: 'personal_finance',
-    engine: 'automotive_capital',
-    calculation: 'getDealershipReportKpis().yearlyProfitPaise (+ Capital engines)',
-    sourceApi: 'getDealershipReportKpis',
-    connected: capital.available,
-    lineage: [{ label: 'Yearly profit (entitled)', paise: yearlyProfitPaise }],
-  });
+  const yearlyProfit = notConnectedMoney(
+    'yearly_profit',
+    'Yearly Profit',
+    'Trend / annual rollup engine',
+  );
   const monthlyIncome = moneyValue({
     id: 'monthly_income',
     label: 'Monthly Income',
@@ -299,23 +289,11 @@ export async function getPersonalFinanceSnapshot(opts?: {
     lineage: [{ label: pg.revenuePaise.label, paise: pg.revenuePaise.paise, ref: pg.revenuePaise.id }],
   });
 
-  const passiveIncome = moneyValue({
-    id: 'passive_income',
-    label: 'Passive Income',
-    paise: capital.revenuePaise.paise,
-    brain: 'personal_finance',
-    engine: 'automotive_capital',
-    calculation: 'Capital monthly profit as passive/portfolio income proxy',
-    sourceApi: 'getDealershipReportKpis',
-    connected: capital.available,
-    lineage: [
-      {
-        label: capital.revenuePaise.label,
-        paise: capital.revenuePaise.paise,
-        ref: capital.revenuePaise.id,
-      },
-    ],
-  });
+  const passiveIncome = notConnectedMoney(
+    'passive_income',
+    'Passive Income',
+    'Investment income engines',
+  );
 
   const cashflow = moneyValue({
     id: 'cashflow',
@@ -348,26 +326,7 @@ export async function getPersonalFinanceSnapshot(opts?: {
     ],
   });
 
-  const roiPct =
-    capital.available &&
-    vehiclePortfolio.connected !== false &&
-    vehiclePortfolio.paise > 0
-      ? percentValue({
-          id: 'roi_pct',
-          label: 'ROI',
-          percent:
-            Math.round((capital.revenuePaise.paise * 10000) / vehiclePortfolio.paise) / 100,
-          brain: 'personal_finance',
-          engine: 'automotive_capital',
-          calculation: '(capital monthly profit ÷ vehicle portfolio) × 100',
-          sourceApi: 'getDealershipReportKpis',
-          connected: true,
-          lineage: [
-            { label: 'Monthly profit', paise: capital.revenuePaise.paise },
-            { label: 'Portfolio', paise: vehiclePortfolio.paise },
-          ],
-        })
-      : notConnectedPercent('roi_pct', 'ROI', 'Capital portfolio ROI');
+  const roiPct = notConnectedPercent('roi_pct', 'ROI', 'Investment portfolio ROI');
 
   const profitTrendPct = notConnectedPercent('profit_trend_pct', 'Profit Trend', 'Trend Engine');
 

@@ -2,16 +2,14 @@ import { OwnerHomeDashboard } from '@/src/owner/components/OwnerHomeDashboard';
 import { getOwnerOsSnapshot } from '@/src/owner/brains/ownerBrain';
 import { getWealthSnapshot } from '@/src/owner/services/wealthCalculation';
 import { listLiabilities, getLiabilityDue } from '@/src/owner/services/liabilities';
-import { loadCapitalContribution } from '@/src/personalFinance/adapters/capital';
 import { coerceWealthPaise } from '@/src/owner/lib/wealth/paiseCoercion';
 
 export default async function OwnerDashboardPage() {
-  const [snapshot, capital, wealth] = await Promise.all([
+  const [snapshot, wealth] = await Promise.all([
     getOwnerOsSnapshot().catch((e) => {
       console.error('[owner] dashboard snapshot failed', e);
       return null;
     }),
-    loadCapitalContribution().catch(() => null),
     getWealthSnapshot({
       investmentValuePaise: 0,
     }).catch(() => null),
@@ -38,12 +36,6 @@ export default async function OwnerDashboardPage() {
     // ledger not migrated yet
   }
 
-  const investmentPaise = capital?.assetsPaise?.paise ?? 0;
-  const wealthWithInvestments =
-    wealth && investmentPaise > 0
-      ? await getWealthSnapshot({ investmentValuePaise: investmentPaise }).catch(() => wealth)
-      : wealth;
-
   if (!snapshot) {
     return (
       <div className="rounded-xl border border-white/10 bg-[color:var(--oo-surface)] p-5">
@@ -59,7 +51,7 @@ export default async function OwnerDashboardPage() {
   return (
     <OwnerHomeDashboard
       snapshot={snapshot}
-      wealth={wealthWithInvestments}
+      wealth={wealth}
       upcomingDues={upcomingDues}
     />
   );

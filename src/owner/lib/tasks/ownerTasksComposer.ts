@@ -6,14 +6,11 @@ import { listOpenActionItemsForOwnerRead } from '@/src/services/actionItems';
 import type { PersonalFinanceSnapshot } from '@/src/personalFinance/types';
 import { getRevenueDashboardSnapshot } from '@/src/hair/services/revenueDashboard';
 import { getOwnerWorkforceDashboard } from '@/src/workforce/connectors/ownerBridge';
-import { countCapitalSoldAwaitingSettlement } from '@/src/owner/lib/tasks/capitalAttention';
-
 export type OwnerTaskSource =
   | 'operations'
   | 'workforce'
   | 'personal_finance'
   | 'finance'
-  | 'capital'
   | 'salon';
 
 export type OwnerTaskPriority = 'low' | 'medium' | 'high' | 'critical';
@@ -40,10 +37,6 @@ function pgHost(): string {
 
 function salonHost(): string {
   return (process.env.NEXT_PUBLIC_SALON_URL ?? 'https://fyhair.awesomepg.in').replace(/\/$/, '');
-}
-
-function capitalHost(): string {
-  return (process.env.NEXT_PUBLIC_CAPITAL_URL ?? 'https://invest.awesomepg.in').replace(/\/$/, '');
 }
 
 function mapOpsPriority(p: 'low' | 'medium' | 'high'): OwnerTaskPriority {
@@ -117,25 +110,6 @@ async function loadSalonTasks(): Promise<OwnerTaskItem[]> {
   }
 }
 
-async function loadCapitalTasks(): Promise<OwnerTaskItem[]> {
-  try {
-    const count = await countCapitalSoldAwaitingSettlement();
-    if (count <= 0) return [];
-    return [
-      {
-        id: 'capital-sold-awaiting-settlement',
-        source: 'capital',
-        priority: 'medium',
-        reason: 'Vehicles sold but not yet settled in Capital Engine',
-        title: `${count} vehicle${count === 1 ? '' : 's'} awaiting settlement`,
-        href: `${capitalHost()}/assets?tab=sold`,
-      },
-    ];
-  } catch {
-    return [];
-  }
-}
-
 function loadConnectLaterTasks(finance: PersonalFinanceSnapshot | null): OwnerTaskItem[] {
   if (!finance) return [];
   const financeIds = new Set(['bank_balance', 'loans', 'emis', 'insurance', 'upcoming_payments', 'upcoming_loan_emis']);
@@ -152,13 +126,12 @@ function loadConnectLaterTasks(finance: PersonalFinanceSnapshot | null): OwnerTa
 export async function loadOwnerTasks(
   finance?: PersonalFinanceSnapshot | null,
 ): Promise<OwnerTaskItem[]> {
-  const [operations, workforce, salon, capital, connectLater] = await Promise.all([
+  const [operations, workforce, salon, connectLater] = await Promise.all([
     loadOperationsTasks(),
     loadWorkforceTasks(),
     loadSalonTasks(),
-    loadCapitalTasks(),
     Promise.resolve(loadConnectLaterTasks(finance ?? null)),
   ]);
 
-  return mergeTasks([...operations, ...workforce, ...salon, ...capital, ...connectLater]);
+  return mergeTasks([...operations, ...workforce, ...salon, ...connectLater]);
 }

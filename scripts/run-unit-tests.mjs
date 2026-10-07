@@ -6,7 +6,6 @@
  * Usage:
  *   node scripts/run-unit-tests.mjs           — full monorepo
  *   node scripts/run-unit-tests.mjs hair      — tests/hair only (default serial: --test-concurrency=1)
- *   node scripts/run-unit-tests.mjs capital   — tests/capital only
  *   node scripts/run-unit-tests.mjs pg        — Awesome PG (default serial: --test-concurrency=1)
  *
  * Override concurrency: TEST_CONCURRENCY=4 node scripts/run-unit-tests.mjs hair
@@ -32,7 +31,6 @@ function collectTests(dir, out = []) {
 
 const PRODUCTS = {
   hair: ['tests/hair'],
-  capital: ['tests/capital'],
   owner: ['tests/owner'],
   pg: ['tests/unit', 'tests/integration'],
 };
@@ -40,7 +38,6 @@ const PRODUCTS = {
 const ALL_DIRS = [
   'tests/unit',
   'tests/integration',
-  'tests/capital',
   'tests/hair',
   'tests/owner',
 ];
@@ -53,7 +50,7 @@ if (!productArg) {
   dirs = PRODUCTS[productArg];
 } else {
   console.error(
-    `Unknown product "${process.argv[2]}". Use: hair | capital | owner | pg (or omit for full repo).`,
+    `Unknown product "${process.argv[2]}". Use: hair | owner | pg (or omit for full repo).`,
   );
   process.exit(1);
 }

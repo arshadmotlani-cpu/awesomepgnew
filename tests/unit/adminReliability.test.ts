@@ -209,16 +209,6 @@ describe('appTodayIso', () => {
   });
 });
 
-describe('capital service worker', () => {
-  test('does not intercept Next.js chunks or API routes', () => {
-    const sw = readFileSync(join(process.cwd(), 'public/capital/sw.js'), 'utf8');
-    assert.match(sw, /\/_next\//);
-    assert.match(sw, /\/api\//);
-    assert.match(sw, /request\.mode !== 'navigate'/);
-    assert.doesNotMatch(sw, /event\.respondWith\([\s\S]*fetch\(event\.request\)[\s\S]*if \(url\.pathname\.startsWith\('\/_next/);
-  });
-});
-
 describe('DeployChunkRecovery client wiring', () => {
   test('handles bfcache pageshow persisted events', () => {
     const src = readFileSync(

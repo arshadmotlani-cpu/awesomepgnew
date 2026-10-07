@@ -21,21 +21,13 @@ import {
 
 loadAppEnv();
 
-type Product = 'pg' | 'hair' | 'capital' | 'platform';
+type Product = 'pg' | 'hair' | 'platform';
 
 function productFromArgv(): Product {
   const flag = process.argv.find((a) => a.startsWith('--product='));
   const value = flag?.split('=')[1]?.trim().toLowerCase();
-  if (value === 'hair' || value === 'capital' || value === 'pg' || value === 'platform') return value;
+  if (value === 'hair' || value === 'pg' || value === 'platform') return value;
   return 'pg';
-}
-
-function capitalUrl(): string | undefined {
-  return (
-    process.env.INVEST_DATABASE_URL?.trim() ||
-    process.env.INVEST_DATABASE_DATABASE_URL?.trim() ||
-    process.env.INVEST_POSTGRES_URL?.trim()
-  );
 }
 
 function envLine(key: string, value: string | undefined): string {
@@ -48,7 +40,6 @@ function printMonorepoOverview() {
   console.log('MONOREPO DATABASE KEYS (overview)');
   console.log(`  ${envLine('DATABASE_URL', process.env.DATABASE_URL?.trim())}`);
   console.log(`  ${envLine('HAIR_DATABASE_URL', resolveHairDatabaseUrl())}`);
-  console.log(`  ${envLine('INVEST_DATABASE_URL', capitalUrl())}`);
   console.log(`  ${envLine('PLATFORM_DATABASE_URL', resolvePlatformDatabaseUrl())}`);
   console.log('');
   console.log('Contract: docs/ENV_CONTRACT.md');
@@ -75,23 +66,6 @@ if (product === 'platform') {
   }
   const host = getPlatformDatabaseHost();
   console.log(`Platform DB: resolved → ${host ?? 'unknown host'}`);
-  process.exit(0);
-}
-
-if (product === 'capital') {
-  const url = capitalUrl();
-  if (!url) {
-    console.error(
-      'INVEST_DATABASE_URL is not set.\nAdd Automotive Capital Neon URL to .env.local (see docs/ENV_CONTRACT.md).',
-    );
-    process.exit(1);
-  }
-  try {
-    const host = new URL(url.replace(/^postgres:/, 'postgresql:')).hostname;
-    console.log(`Capital DB: resolved → ${host}`);
-  } catch {
-    console.log('Capital DB: resolved (URL present)');
-  }
   process.exit(0);
 }
 

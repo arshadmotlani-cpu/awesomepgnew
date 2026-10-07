@@ -10,11 +10,9 @@ loadAppEnv();
 import { eq } from 'drizzle-orm';
 import { createClient, closeDb } from '@/src/db/client';
 import { createHairClient } from '@/src/hair/db/client';
-import { createCapitalClient } from '@/src/capital/db/client';
 import { createOwnerClient } from '@/src/owner/db/client';
 import { adminUsers } from '@/src/db/schema';
 import { fyhAdminUsers } from '@/src/hair/db/schema';
-import { acAdminUsers } from '@/src/capital/db/schema';
 import { ooAdminUsers } from '@/src/owner/db/schema';
 import { verifyPassword } from '@/src/lib/auth/crypto';
 import {
@@ -69,33 +67,6 @@ async function checkHair(email: string, password: string): Promise<Check> {
   }
 }
 
-async function checkCapital(email: string, password: string): Promise<Check> {
-  if (!process.env.INVEST_DATABASE_URL?.trim() && !process.env.INVEST_DATABASE_DATABASE_URL?.trim()) {
-    return {
-      system: 'Automotive Capital Admin',
-      ok: false,
-      detail: 'INVEST_DATABASE_URL not configured',
-    };
-  }
-  const { db, close } = createCapitalClient({ max: 1 });
-  try {
-    const [row] = await db
-      .select({ email: acAdminUsers.email, passwordHash: acAdminUsers.passwordHash })
-      .from(acAdminUsers)
-      .where(eq(acAdminUsers.email, email))
-      .limit(1);
-    if (!row) return { system: 'Automotive Capital Admin', ok: false, detail: `${email} not found` };
-    const ok = verifyPassword(password, row.passwordHash);
-    return {
-      system: 'Automotive Capital Admin',
-      ok,
-      detail: ok ? `login OK for ${row.email}` : 'password hash mismatch',
-    };
-  } finally {
-    await close();
-  }
-}
-
 async function checkOwner(email: string, password: string): Promise<Check> {
   if (!hasOwnerDatabaseUrl()) {
     return { system: 'Owner OS Admin', ok: false, detail: 'OWNER_DATABASE_URL not configured' };
@@ -131,7 +102,6 @@ async function main() {
   const checks = await Promise.all([
     checkPg(email, password),
     checkHair(email, password),
-    checkCapital(email, password),
     checkOwner(email, password),
   ]);
 

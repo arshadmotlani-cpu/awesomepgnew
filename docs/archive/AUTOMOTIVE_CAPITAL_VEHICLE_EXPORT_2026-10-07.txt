@@ -1,0 +1,669 @@
+=== CAPITAL VEHICLE EXPORT ===
+Export timestamp: 2026-10-07T09:37:34.845Z
+Total ac_assets rows: 6
+Total ac_automotive_details rows: 6
+
+CAR 1
+- Vehicle ID: a5115b91-a5cd-49ee-bca1-277025df19c7
+- Display name: 2012 Fiat lenia
+- Asset class: automotive
+- Current status: ready
+- Registration number: not present
+- Make: Fiat
+- Model: lenia
+- Variant: not present
+- Year: 2012
+- Color: not present
+- Fuel: diesel
+- Ownership: first_owner
+- VIN/chassis number: not present
+- Engine number: not present
+- Purchase notes (automotive): not present
+- Purchase date: 2026-05-08
+- Purchase price (legacy purchase_price_paise): ₹1,30,000.00 (13000000 paise)
+- Seller price: ₹1,30,000.00 (13000000 paise)
+- Expected total investment: ₹1,41,800.00 (14180000 paise)
+- Current investment: ₹1,41,800.00 (14180000 paise)
+- Total investment (alias): ₹1,41,800.00 (14180000 paise)
+- Budget remaining: ₹0.00 (0 paise)
+- Expected sale price: not present
+- Actual sale price: not present
+- Sale date: not present
+- Buyer: not present
+- Total expense: ₹11,800.00 (1180000 paise)
+- Repair total: ₹11,800.00 (1180000 paise)
+- Dealer refund total: ₹0.00 (0 paise)
+- Additional income total: ₹0.00 (0 paise)
+- Profit: not present
+- ROI (bps): not present
+- Profit distribution mode: not present
+- Profit share mode: not present
+- Partner share % (bps): not present
+- My share % (bps): not present
+- My investment % (bps): 10000
+- Partner share (paise): not present
+- Operating partner profit: not present
+- Investor profit pool: not present
+- My share profit: not present
+- Business ROI (bps): not present
+- My ROI (bps): not present
+- Capital returned: ₹0.00 (0 paise)
+- Profit received: ₹0.00 (0 paise)
+- Outstanding: ₹0.00 (0 paise)
+- Settlement % (bps): not present
+- Holding days: 118
+- Notes: not present
+- Cancelled at: not present
+- Cancel reason: not present
+- Cover document ID: not present
+- Created at: 2026-07-11T08:12:17.650Z
+- Updated at: 2026-09-03T11:47:48.900Z
+- Expenses (ac_expenses) count: 0
+- Vehicle costs (ac_vehicle_costs) count: 3
+  VEHICLE_COST {
+  "id": "1326c92e-ed84-4665-8fcb-808221c1ef99",
+  "assetId": "a5115b91-a5cd-49ee-bca1-277025df19c7",
+  "costType": "miscellaneous",
+  "entryKind": "cost",
+  "amountPaise": 700000,
+  "occurredAt": "2026-08-06",
+  "title": "Repairs",
+  "notes": null,
+  "activityId": null,
+  "ledgerEntryId": null,
+  "isReversed": false,
+  "reversalOfId": null,
+  "createdAt": "2026-08-07T03:44:31.711Z",
+  "updatedAt": "2026-08-07T03:44:31.711Z"
+}
+  VEHICLE_COST {
+  "id": "b007b757-f160-4465-9c49-d77745ef7800",
+  "assetId": "a5115b91-a5cd-49ee-bca1-277025df19c7",
+  "costType": "miscellaneous",
+  "entryKind": "cost",
+  "amountPaise": 170000,
+  "occurredAt": "2026-08-24",
+  "title": "Glass repair",
+  "notes": null,
+  "activityId": null,
+  "ledgerEntryId": null,
+  "isReversed": false,
+  "reversalOfId": null,
+  "createdAt": "2026-08-24T14:01:53.814Z",
+  "updatedAt": "2026-08-24T14:01:53.814Z"
+}
+  VEHICLE_COST {
+  "id": "acae4891-952d-4243-b899-007465c2e444",
+  "assetId": "a5115b91-a5cd-49ee-bca1-277025df19c7",
+  "costType": "miscellaneous",
+  "entryKind": "cost",
+  "amountPaise": 310000,
+  "occurredAt": "2026-09-03",
+  "title": "Repairs",
+  "notes": null,
+  "activityId": null,
+  "ledgerEntryId": null,
+  "isReversed": false,
+  "reversalOfId": null,
+  "createdAt": "2026-09-03T11:47:39.696Z",
+  "updatedAt": "2026-09-03T11:47:39.696Z"
+}
+- Seller payments (ac_seller_payments) count: 0
+- Buyer payments (ac_payments_received) count: 0
+- Additional income rows: 0
+- Asset investors (ac_asset_investors) count: 0
+- Vehicle activities count: 0
+- Repair advances count: 0
+- Settlements count: 0
+- Ledger entries count: 0
+- Documents count: 0
+- Activity log (entity_id=asset) count: 8
+  ACTIVITY id=f6c92482-c80d-4148-b838-e5802cc27784 action=asset_details_updated entity=asset at=2026-07-26T15:17:25.437Z
+  ACTIVITY id=2570558f-bb7c-4f68-a7dc-ae82e6495bae action=asset_details_updated entity=asset at=2026-07-26T15:17:49.377Z
+  ACTIVITY id=bce60a60-88dc-4aa9-a9b1-e69483cc3158 action=asset_details_updated entity=asset at=2026-08-07T03:44:46.729Z
+  ACTIVITY id=12a09d39-9f3d-4cb6-a9b0-32f537d9c71e action=asset_details_updated entity=asset at=2026-08-07T03:44:54.324Z
+  ACTIVITY id=b3ec14bc-d7c1-4e6d-a054-f5f1b543570e action=asset_details_updated entity=asset at=2026-08-07T03:44:58.225Z
+  ACTIVITY id=909ec300-0ec0-418b-a312-5e9fb366c5f1 action=asset_details_updated entity=asset at=2026-08-07T03:45:08.878Z
+  ACTIVITY id=3c1ba423-6594-4676-8fcb-340790b5ed1e action=asset_details_updated entity=asset at=2026-08-24T14:02:10.070Z
+  ACTIVITY id=990c2d6c-b9e3-46f2-91a5-69844dbbde54 action=asset_details_updated entity=asset at=2026-09-03T11:47:48.916Z
+
+CAR 2
+- Vehicle ID: 56c5192f-0cf2-4aa0-9bad-832ba6b1b1c6
+- Display name: 2022 Tata Harrier half half 
+- Asset class: automotive
+- Current status: settled
+- Registration number: not present
+- Make: Tata
+- Model: Harrier half half 
+- Variant: not present
+- Year: 2022
+- Color: not present
+- Fuel: diesel
+- Ownership: first_owner
+- VIN/chassis number: not present
+- Engine number: not present
+- Purchase notes (automotive): not present
+- Purchase date: 2026-05-16
+- Purchase price (legacy purchase_price_paise): ₹6,83,000.00 (68300000 paise)
+- Seller price: ₹6,83,000.00 (68300000 paise)
+- Expected total investment: ₹6,83,000.00 (68300000 paise)
+- Current investment: ₹6,83,000.00 (68300000 paise)
+- Total investment (alias): ₹6,83,000.00 (68300000 paise)
+- Budget remaining: ₹0.00 (0 paise)
+- Expected sale price: not present
+- Actual sale price: ₹7,43,000.00 (74300000 paise)
+- Sale date: 2026-08-12
+- Buyer: not present
+- Total expense: ₹0.00 (0 paise)
+- Repair total: ₹0.00 (0 paise)
+- Dealer refund total: ₹0.00 (0 paise)
+- Additional income total: ₹0.00 (0 paise)
+- Profit: ₹60,000.00 (6000000 paise)
+- ROI (bps): 878
+- Profit distribution mode: SELF
+- Profit share mode: percentage
+- Partner share % (bps): 0
+- My share % (bps): 10000
+- My investment % (bps): 10000
+- Partner share (paise): ₹0.00 (0 paise)
+- Operating partner profit: ₹0.00 (0 paise)
+- Investor profit pool: ₹60,000.00 (6000000 paise)
+- My share profit: ₹60,000.00 (6000000 paise)
+- Business ROI (bps): 878
+- My ROI (bps): 878
+- Capital returned: ₹0.00 (0 paise)
+- Profit received: ₹0.00 (0 paise)
+- Outstanding: ₹0.00 (0 paise)
+- Settlement % (bps): not present
+- Holding days: 88
+- Notes: not present
+- Cancelled at: not present
+- Cancel reason: not present
+- Cover document ID: not present
+- Created at: 2026-07-14T08:19:56.252Z
+- Updated at: 2026-08-13T04:18:47.805Z
+- Expenses (ac_expenses) count: 0
+- Vehicle costs (ac_vehicle_costs) count: 0
+- Seller payments (ac_seller_payments) count: 0
+- Buyer payments (ac_payments_received) count: 0
+- Additional income rows: 0
+- Asset investors (ac_asset_investors) count: 0
+- Vehicle activities count: 0
+- Repair advances count: 0
+- Settlements count: 1
+  SETTLEMENT {
+  "id": "9bbaa315-7539-4c78-a351-9929366c8da8",
+  "assetId": "56c5192f-0cf2-4aa0-9bad-832ba6b1b1c6",
+  "settledAt": "2026-08-13",
+  "totalInvestmentPaise": 68300000,
+  "totalReceivedPaise": 0,
+  "grossProfitPaise": 6000000,
+  "adminSharePaise": 6000000,
+  "partnerSharePaise": 0,
+  "notes": null,
+  "createdAt": "2026-08-13T04:18:47.767Z"
+}
+- Ledger entries count: 1
+  LEDGER id=34807750-99b3-423d-99b8-b316da0547bd type=settlement dir=credit amount=₹0.00 (0 paise) desc=Deal closed: 2022 Tata Harrier half half  source=ac_settlements/9bbaa315-7539-4c78-a351-9929366c8da8 reversal_of= meta={"recoveredPaise":0,"adminSharePaise":6000000,"grossProfitPaise":6000000,"partnerSharePaise":0,"totalReceivedPaise":0} at=2026-08-13T04:18:47.767Z
+- Documents count: 0
+- Activity log (entity_id=asset) count: 6
+  ACTIVITY id=458d8df8-8e77-4153-80ab-494eb0cfc357 action=asset_details_updated entity=asset at=2026-07-31T15:21:45.376Z
+  ACTIVITY id=20f32960-6bff-40f7-97e8-f26279be0929 action=asset_details_updated entity=asset at=2026-07-31T15:21:52.244Z
+  ACTIVITY id=117a1f6f-ef5e-46d3-a91d-641bb395a730 action=asset_status_changed entity=asset at=2026-08-13T04:18:39.379Z
+  ACTIVITY id=b28fbb13-5494-41e3-96cd-9bb9a0312c08 action=sale_recorded entity=asset at=2026-08-13T04:18:39.384Z
+  ACTIVITY id=8b8090cd-bb6c-4da4-ae8f-36d1a8cb6c08 action=asset_status_changed entity=asset at=2026-08-13T04:18:47.767Z
+  ACTIVITY id=bc82ae00-974c-47a4-a2a4-b8eb2dfdd2fc action=settlement_created entity=asset at=2026-08-13T04:18:47.767Z
+
+CAR 3
+- Vehicle ID: f5b61756-8fdb-4412-8356-f75a479ef089
+- Display name: 2021 MG Hector 9291
+- Asset class: automotive
+- Current status: ready
+- Registration number: not present
+- Make: MG
+- Model: Hector 9291
+- Variant: not present
+- Year: 2021
+- Color: not present
+- Fuel: diesel
+- Ownership: first_owner
+- VIN/chassis number: not present
+- Engine number: not present
+- Purchase notes (automotive): not present
+- Purchase date: 2026-06-16
+- Purchase price (legacy purchase_price_paise): ₹9,70,000.00 (97000000 paise)
+- Seller price: ₹9,70,000.00 (97000000 paise)
+- Expected total investment: ₹9,90,000.00 (99000000 paise)
+- Current investment: ₹9,90,000.00 (99000000 paise)
+- Total investment (alias): ₹9,90,000.00 (99000000 paise)
+- Budget remaining: ₹0.00 (0 paise)
+- Expected sale price: not present
+- Actual sale price: not present
+- Sale date: not present
+- Buyer: not present
+- Total expense: ₹20,000.00 (2000000 paise)
+- Repair total: ₹20,000.00 (2000000 paise)
+- Dealer refund total: ₹0.00 (0 paise)
+- Additional income total: ₹0.00 (0 paise)
+- Profit: not present
+- ROI (bps): not present
+- Profit distribution mode: not present
+- Profit share mode: not present
+- Partner share % (bps): not present
+- My share % (bps): not present
+- My investment % (bps): 10000
+- Partner share (paise): not present
+- Operating partner profit: not present
+- Investor profit pool: not present
+- My share profit: not present
+- Business ROI (bps): not present
+- My ROI (bps): not present
+- Capital returned: ₹0.00 (0 paise)
+- Profit received: ₹0.00 (0 paise)
+- Outstanding: ₹0.00 (0 paise)
+- Settlement % (bps): not present
+- Holding days: 41
+- Notes: not present
+- Cancelled at: not present
+- Cancel reason: not present
+- Cover document ID: not present
+- Created at: 2026-07-12T14:55:42.117Z
+- Updated at: 2026-07-27T18:17:24.801Z
+- Expenses (ac_expenses) count: 0
+- Vehicle costs (ac_vehicle_costs) count: 1
+  VEHICLE_COST {
+  "id": "ef3e61f4-8f6c-488b-bcdc-d034c930c3b6",
+  "assetId": "f5b61756-8fdb-4412-8356-f75a479ef089",
+  "costType": "miscellaneous",
+  "entryKind": "cost",
+  "amountPaise": 2000000,
+  "occurredAt": "2026-07-27",
+  "title": "Repairs",
+  "notes": null,
+  "activityId": null,
+  "ledgerEntryId": null,
+  "isReversed": false,
+  "reversalOfId": null,
+  "createdAt": "2026-07-27T18:17:24.787Z",
+  "updatedAt": "2026-07-27T18:17:24.787Z"
+}
+- Seller payments (ac_seller_payments) count: 0
+- Buyer payments (ac_payments_received) count: 0
+- Additional income rows: 0
+- Asset investors (ac_asset_investors) count: 0
+- Vehicle activities count: 0
+- Repair advances count: 0
+- Settlements count: 0
+- Ledger entries count: 0
+- Documents count: 0
+- Activity log (entity_id=asset) count: 7
+  ACTIVITY id=2b1ff18e-e27c-41ca-b74b-ee39a466d1b4 action=asset_details_updated entity=asset at=2026-07-27T09:39:45.440Z
+  ACTIVITY id=d39dde80-b686-433e-afac-f836d2e0e367 action=asset_details_updated entity=asset at=2026-07-27T09:46:04.538Z
+  ACTIVITY id=b314a29c-71eb-457a-bf7c-0902a5500b00 action=asset_details_updated entity=asset at=2026-07-27T09:46:08.941Z
+  ACTIVITY id=96d68a97-5a34-439a-9936-99f8ce135791 action=asset_details_updated entity=asset at=2026-07-27T18:14:49.858Z
+  ACTIVITY id=d8fca97d-8e45-4b71-b46d-eadd0fccb653 action=asset_details_updated entity=asset at=2026-07-27T18:14:50.863Z
+  ACTIVITY id=a2afadb1-5890-492c-bcf2-18cddd25300d action=asset_details_updated entity=asset at=2026-07-27T18:16:55.363Z
+  ACTIVITY id=76b5eb47-678b-441e-ae4e-0655b65f0364 action=asset_details_updated entity=asset at=2026-07-27T18:17:16.437Z
+
+CAR 4
+- Vehicle ID: 964a124b-0a15-4a00-b3ea-12b07742e447
+- Display name: 2021 Tata harrier
+- Asset class: automotive
+- Current status: ready
+- Registration number: not present
+- Make: Tata
+- Model: harrier
+- Variant: not present
+- Year: 2021
+- Color: not present
+- Fuel: diesel
+- Ownership: first_owner
+- VIN/chassis number: not present
+- Engine number: not present
+- Purchase notes (automotive): not present
+- Purchase date: 2026-06-16
+- Purchase price (legacy purchase_price_paise): ₹10,30,000.00 (103000000 paise)
+- Seller price: ₹10,30,000.00 (103000000 paise)
+- Expected total investment: ₹10,30,000.00 (103000000 paise)
+- Current investment: ₹10,30,000.00 (103000000 paise)
+- Total investment (alias): ₹10,30,000.00 (103000000 paise)
+- Budget remaining: ₹0.00 (0 paise)
+- Expected sale price: not present
+- Actual sale price: not present
+- Sale date: not present
+- Buyer: not present
+- Total expense: ₹0.00 (0 paise)
+- Repair total: ₹0.00 (0 paise)
+- Dealer refund total: ₹0.00 (0 paise)
+- Additional income total: ₹0.00 (0 paise)
+- Profit: not present
+- ROI (bps): not present
+- Profit distribution mode: not present
+- Profit share mode: not present
+- Partner share % (bps): not present
+- My share % (bps): not present
+- My investment % (bps): 10000
+- Partner share (paise): not present
+- Operating partner profit: not present
+- Investor profit pool: not present
+- My share profit: not present
+- Business ROI (bps): not present
+- My ROI (bps): not present
+- Capital returned: ₹0.00 (0 paise)
+- Profit received: ₹0.00 (0 paise)
+- Outstanding: ₹0.00 (0 paise)
+- Settlement % (bps): not present
+- Holding days: 41
+- Notes: 
+- Cancelled at: not present
+- Cancel reason: not present
+- Cover document ID: not present
+- Created at: 2026-07-11T16:21:19.910Z
+- Updated at: 2026-07-27T18:15:15.180Z
+- Expenses (ac_expenses) count: 0
+- Vehicle costs (ac_vehicle_costs) count: 0
+- Seller payments (ac_seller_payments) count: 0
+- Buyer payments (ac_payments_received) count: 0
+- Additional income rows: 0
+- Asset investors (ac_asset_investors) count: 0
+- Vehicle activities count: 0
+- Repair advances count: 0
+- Settlements count: 0
+- Ledger entries count: 0
+- Documents count: 0
+- Activity log (entity_id=asset) count: 2
+  ACTIVITY id=5ff63b0e-aedc-4c78-8cb2-b92da8a61c17 action=asset_details_updated entity=asset at=2026-07-27T18:15:14.255Z
+  ACTIVITY id=8a5519c0-a09c-49a2-90ca-c01d23b58113 action=asset_details_updated entity=asset at=2026-07-27T18:15:15.189Z
+
+CAR 5
+- Vehicle ID: b6f926dc-2336-4820-9e8f-87e173e129ed
+- Display name: 2021 MG hector 
+- Asset class: automotive
+- Current status: ready
+- Registration number: MH04KR8686
+- Make: MG
+- Model: hector 
+- Variant: not present
+- Year: 2021
+- Color: not present
+- Fuel: diesel
+- Ownership: first_owner
+- VIN/chassis number: not present
+- Engine number: not present
+- Purchase notes (automotive): not present
+- Purchase date: 2026-07-26
+- Purchase price (legacy purchase_price_paise): ₹9,10,000.00 (91000000 paise)
+- Seller price: ₹9,10,000.00 (91000000 paise)
+- Expected total investment: ₹9,60,000.00 (96000000 paise)
+- Current investment: ₹9,60,000.00 (96000000 paise)
+- Total investment (alias): ₹9,60,000.00 (96000000 paise)
+- Budget remaining: ₹0.00 (0 paise)
+- Expected sale price: not present
+- Actual sale price: not present
+- Sale date: not present
+- Buyer: not present
+- Total expense: ₹50,000.00 (5000000 paise)
+- Repair total: ₹50,000.00 (5000000 paise)
+- Dealer refund total: ₹0.00 (0 paise)
+- Additional income total: ₹0.00 (0 paise)
+- Profit: not present
+- ROI (bps): not present
+- Profit distribution mode: not present
+- Profit share mode: not present
+- Partner share % (bps): not present
+- My share % (bps): not present
+- My investment % (bps): 10000
+- Partner share (paise): not present
+- Operating partner profit: not present
+- Investor profit pool: not present
+- My share profit: not present
+- Business ROI (bps): not present
+- My ROI (bps): not present
+- Capital returned: ₹0.00 (0 paise)
+- Profit received: ₹0.00 (0 paise)
+- Outstanding: ₹0.00 (0 paise)
+- Settlement % (bps): not present
+- Holding days: 1
+- Notes: 
+- Cancelled at: not present
+- Cancel reason: not present
+- Cover document ID: not present
+- Created at: 2026-07-26T01:06:30.580Z
+- Updated at: 2026-07-27T18:14:32.148Z
+- Expenses (ac_expenses) count: 0
+- Vehicle costs (ac_vehicle_costs) count: 4
+  VEHICLE_COST {
+  "id": "118a8d10-99c6-404c-99cc-3dcccdadb3f8",
+  "assetId": "b6f926dc-2336-4820-9e8f-87e173e129ed",
+  "costType": "miscellaneous",
+  "entryKind": "cost",
+  "amountPaise": 1000000,
+  "occurredAt": "2026-07-27",
+  "title": "transport",
+  "notes": null,
+  "activityId": null,
+  "ledgerEntryId": null,
+  "isReversed": false,
+  "reversalOfId": null,
+  "createdAt": "2026-07-27T09:26:20.591Z",
+  "updatedAt": "2026-07-27T09:26:20.591Z"
+}
+  VEHICLE_COST {
+  "id": "b6dfb5a3-eb6c-447e-b860-f58bd7b2adce",
+  "assetId": "b6f926dc-2336-4820-9e8f-87e173e129ed",
+  "costType": "miscellaneous",
+  "entryKind": "cost",
+  "amountPaise": 2000000,
+  "occurredAt": "2026-07-27",
+  "title": "repairs",
+  "notes": null,
+  "activityId": null,
+  "ledgerEntryId": null,
+  "isReversed": false,
+  "reversalOfId": null,
+  "createdAt": "2026-07-27T09:26:33.371Z",
+  "updatedAt": "2026-07-27T09:26:33.371Z"
+}
+  VEHICLE_COST {
+  "id": "bb0733a8-5933-4b9f-a7e6-098ac50e6091",
+  "assetId": "b6f926dc-2336-4820-9e8f-87e173e129ed",
+  "costType": "miscellaneous",
+  "entryKind": "cost",
+  "amountPaise": 2000000,
+  "occurredAt": "2026-07-27",
+  "title": "commission",
+  "notes": null,
+  "activityId": null,
+  "ledgerEntryId": null,
+  "isReversed": true,
+  "reversalOfId": null,
+  "createdAt": "2026-07-27T09:25:08.856Z",
+  "updatedAt": "2026-07-27T18:14:14.062Z"
+}
+  VEHICLE_COST {
+  "id": "310d221b-e143-462a-b22e-35f0c29125ab",
+  "assetId": "b6f926dc-2336-4820-9e8f-87e173e129ed",
+  "costType": "miscellaneous",
+  "entryKind": "cost",
+  "amountPaise": 2000000,
+  "occurredAt": "2026-07-27",
+  "title": "Commission",
+  "notes": null,
+  "activityId": null,
+  "ledgerEntryId": null,
+  "isReversed": false,
+  "reversalOfId": null,
+  "createdAt": "2026-07-27T18:14:32.089Z",
+  "updatedAt": "2026-07-27T18:14:32.089Z"
+}
+- Seller payments (ac_seller_payments) count: 0
+- Buyer payments (ac_payments_received) count: 0
+- Additional income rows: 0
+- Asset investors (ac_asset_investors) count: 0
+- Vehicle activities count: 0
+- Repair advances count: 0
+- Settlements count: 0
+- Ledger entries count: 0
+- Documents count: 0
+- Activity log (entity_id=asset) count: 2
+  ACTIVITY id=bc414525-2f24-43de-acca-8a4b0749c44b action=asset_details_updated entity=asset at=2026-07-27T06:57:40.647Z
+  ACTIVITY id=0a80dac9-3822-479b-9e65-eab2c6d1f2e5 action=asset_details_updated entity=asset at=2026-07-27T06:59:02.246Z
+
+CAR 6
+- Vehicle ID: c98515a8-3349-4e5e-85f9-ea6cc96eb5df
+- Display name: 2023 MG Hector 
+- Asset class: automotive
+- Current status: purchased
+- Registration number: MH43
+- Make: MG
+- Model: Hector 
+- Variant: not present
+- Year: 2023
+- Color: not present
+- Fuel: diesel
+- Ownership: first_owner
+- VIN/chassis number: not present
+- Engine number: not present
+- Purchase notes (automotive): not present
+- Purchase date: 2026-08-14
+- Purchase price (legacy purchase_price_paise): ₹7,58,000.00 (75800000 paise)
+- Seller price: ₹7,58,000.00 (75800000 paise)
+- Expected total investment: ₹13,00,000.00 (130000000 paise)
+- Current investment: ₹13,00,000.00 (130000000 paise)
+- Total investment (alias): ₹13,00,000.00 (130000000 paise)
+- Budget remaining: ₹0.00 (0 paise)
+- Expected sale price: not present
+- Actual sale price: not present
+- Sale date: not present
+- Buyer: not present
+- Total expense: ₹5,42,000.00 (54200000 paise)
+- Repair total: ₹5,42,000.00 (54200000 paise)
+- Dealer refund total: ₹0.00 (0 paise)
+- Additional income total: ₹0.00 (0 paise)
+- Profit: not present
+- ROI (bps): not present
+- Profit distribution mode: not present
+- Profit share mode: not present
+- Partner share % (bps): not present
+- My share % (bps): not present
+- My investment % (bps): 10000
+- Partner share (paise): not present
+- Operating partner profit: not present
+- Investor profit pool: not present
+- My share profit: not present
+- Business ROI (bps): not present
+- My ROI (bps): not present
+- Capital returned: ₹0.00 (0 paise)
+- Profit received: ₹0.00 (0 paise)
+- Outstanding: ₹0.00 (0 paise)
+- Settlement % (bps): not present
+- Holding days: 6
+- Notes: not present
+- Cancelled at: not present
+- Cancel reason: not present
+- Cover document ID: 13a2353b-2892-4ae2-9648-76e7ade68fc3
+- Created at: 2026-08-16T16:52:19.606Z
+- Updated at: 2026-08-20T00:42:55.779Z
+- Expenses (ac_expenses) count: 0
+- Vehicle costs (ac_vehicle_costs) count: 2
+  VEHICLE_COST {
+  "id": "84233475-fb90-48ad-9c34-afaecd1a2b68",
+  "assetId": "c98515a8-3349-4e5e-85f9-ea6cc96eb5df",
+  "costType": "miscellaneous",
+  "entryKind": "cost",
+  "amountPaise": 50000000,
+  "occurredAt": "2026-08-16",
+  "title": "Bank",
+  "notes": null,
+  "activityId": null,
+  "ledgerEntryId": null,
+  "isReversed": false,
+  "reversalOfId": null,
+  "createdAt": "2026-08-16T16:53:16.365Z",
+  "updatedAt": "2026-08-16T16:53:16.365Z"
+}
+  VEHICLE_COST {
+  "id": "230f3259-634b-4a2f-aaab-4a820e3f3a54",
+  "assetId": "c98515a8-3349-4e5e-85f9-ea6cc96eb5df",
+  "costType": "miscellaneous",
+  "entryKind": "cost",
+  "amountPaise": 4200000,
+  "occurredAt": "2026-08-20",
+  "title": "Repairs",
+  "notes": null,
+  "activityId": null,
+  "ledgerEntryId": null,
+  "isReversed": false,
+  "reversalOfId": null,
+  "createdAt": "2026-08-20T00:42:55.757Z",
+  "updatedAt": "2026-08-20T00:42:55.757Z"
+}
+- Seller payments (ac_seller_payments) count: 0
+- Buyer payments (ac_payments_received) count: 0
+- Additional income rows: 0
+- Asset investors (ac_asset_investors) count: 0
+- Vehicle activities count: 1
+  VEHICLE_ACTIVITY {
+  "id": "674aef04-003a-4af8-a861-592cde59e52b",
+  "assetId": "c98515a8-3349-4e5e-85f9-ea6cc96eb5df",
+  "activityType": "photo_upload",
+  "activityAt": "2026-08-16",
+  "amountPaise": null,
+  "title": "Photo Upload",
+  "notes": "6b2520aa-4e53-4fbc-a790-c9965153b4a7.jpeg",
+  "metadata": {
+    "documentId": "13a2353b-2892-4ae2-9648-76e7ade68fc3"
+  },
+  "documentId": "13a2353b-2892-4ae2-9648-76e7ade68fc3",
+  "ledgerEntryId": null,
+  "repairAdvanceId": null,
+  "isReversed": false,
+  "createdAt": "2026-08-16T16:52:21.489Z",
+  "updatedAt": "2026-08-16T16:52:21.489Z"
+}
+- Repair advances count: 0
+- Settlements count: 0
+- Ledger entries count: 0
+- Documents count: 1
+  DOCUMENT id=13a2353b-2892-4ae2-9648-76e7ade68fc3 type=photo file=6b2520aa-4e53-4fbc-a790-c9965153b4a7.jpeg blob=capital/documents/c98515a8-3349-4e5e-85f9-ea6cc96eb5df/photo/1786899139663-6b2520aa-4e53-4fbc-a790-c9965153b4a7.jpeg mime=image/jpeg size=277516 notes=
+- Activity log (entity_id=asset) count: 3
+  ACTIVITY id=a1afc37b-3a20-4b38-8e7e-399144cd7e3e action=asset_created entity=asset at=2026-08-16T16:52:19.606Z
+  ACTIVITY id=af203ce3-cd53-4ecb-a454-0f7fa7cc8d5a action=asset_details_updated entity=asset at=2026-08-16T16:52:52.826Z
+  ACTIVITY id=6ba61d46-fbd1-4db2-a0e8-45664b983c4f action=asset_details_updated entity=asset at=2026-08-20T00:42:22.694Z
+
+=== PORTFOLIO CAPITAL INVESTMENTS (not per-vehicle) ===
+Count: 0
+=== MANUAL PROFITS (portfolio-level, not per-vehicle) ===
+Count: 2
+  MANUAL_PROFIT {
+  "id": "57e3fae0-85f6-4fbb-9d8b-cc52a459b94b",
+  "amountPaise": 60000000,
+  "profitDate": "2026-07-28",
+  "source": "Car profit",
+  "description": "Car profit",
+  "category": "investment_return",
+  "profitShareMode": "fixed",
+  "partnerSharePctBps": 0,
+  "mySharePctBps": 10000,
+  "partnerSharePaise": 0,
+  "mySharePaise": 60000000,
+  "isReversed": false,
+  "reversedAt": null,
+  "createdAt": "2026-07-28T12:19:29.195Z"
+}
+  MANUAL_PROFIT {
+  "id": "26979860-4eea-4a5e-a99a-5c63e6c08918",
+  "amountPaise": 1500000,
+  "profitDate": "2026-08-14",
+  "source": "Exchange car resale",
+  "description": "Resale of exchange car",
+  "category": "investment_return",
+  "profitShareMode": "fixed",
+  "partnerSharePctBps": 0,
+  "mySharePctBps": 10000,
+  "partnerSharePaise": 0,
+  "mySharePaise": 1500000,
+  "isReversed": false,
+  "reversedAt": null,
+  "createdAt": "2026-08-14T18:38:52.708Z"
+}

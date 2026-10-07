@@ -8,10 +8,6 @@ import {
 import { PLATFORM_SESSION_COOKIE } from '@/src/platform/lib/auth/constants';
 import { readPlatformSessionCookiePayloadEdge } from '@/src/platform/lib/auth/sessionCookieEdge';
 import {
-  capitalMiddleware,
-  shouldRunCapitalMiddleware,
-} from '@/src/capital/middleware/capitalMiddleware';
-import {
   hairMiddleware,
   shouldRunHairMiddleware,
 } from '@/src/hair/middleware/hairMiddleware';
@@ -145,10 +141,6 @@ export async function middleware(request: NextRequest) {
 
   if (shouldRunHairMiddleware(request)) {
     return hairMiddleware(request);
-  }
-
-  if (shouldRunCapitalMiddleware(request)) {
-    return capitalMiddleware(request);
   }
 
   if (shouldRunOwnerMiddleware(request)) {

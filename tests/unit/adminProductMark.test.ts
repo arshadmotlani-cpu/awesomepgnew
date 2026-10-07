@@ -17,12 +17,6 @@ const MARK_COMPONENTS = [
     intrinsicKey: 'soft',
   },
   {
-    product: 'AUTO',
-    file: 'src/components/brand/capital-os/CapitalOsMark.tsx',
-    src: '/capital-os/auto-admin-mark.png',
-    intrinsicKey: 'auto',
-  },
-  {
     product: 'NET WORTH',
     file: 'src/components/brand/owner-os/OwnerOsMark.tsx',
     src: '/owner-os/net-worth-admin-mark.png',

@@ -15,7 +15,8 @@ import { paiseToInr } from '../src/lib/format';
 import { getBookingFinancialAccount } from '../src/services/residentFinancialEngine';
 import { getDepositSummaryForBooking } from '../src/services/deposits';
 import { getBookingMoneyBalances } from '../src/services/bookingMoneyBalances';
-import { resolveMonthlyRentPaiseForBooking } from '../src/lib/billing/rentPricingSsot';
+import { firstOfMonth } from '../src/services/billing';
+import { todayString } from '../src/lib/dates';
 import { getResidentCreditBalance } from '../src/services/residentCreditLedger';
 import { projectInvoice } from '../src/services/rentInvoices';
 import { buildRentInvoiceProjectInput } from '../src/lib/billing/rentInvoiceProjectInput';
@@ -23,7 +24,7 @@ import { buildRentInvoiceProjectInput } from '../src/lib/billing/rentInvoiceProj
 const CODE = process.argv[2] ?? 'APG-2026-0112';
 
 async function main() {
-  const [row] = await db.execute<{
+  const [ctx] = await db.execute<{
     booking_id: string;
     customer_id: string;
     customer_name: string;
@@ -31,17 +32,23 @@ async function main() {
     bed_code: string;
     deposit_paise: number;
     deposit_due_paise: number;
+    pg_id: string;
+    pg_name: string;
   }>(sql`
     SELECT bk.id::text AS booking_id, c.id::text AS customer_id, c.full_name AS customer_name,
-           r.room_number, b.bed_code, bk.deposit_paise, coalesce(bk.deposit_due_paise,0) AS deposit_due_paise
+           r.room_number, b.bed_code, bk.deposit_paise, coalesce(bk.deposit_due_paise,0) AS deposit_due_paise,
+           f.pg_id::text AS pg_id, p.name AS pg_name
     FROM bookings bk
     INNER JOIN customers c ON c.id = bk.customer_id
     INNER JOIN bed_reservations br ON br.booking_id = bk.id AND br.kind='primary' AND br.status='active'
     INNER JOIN beds b ON b.id = br.bed_id
     INNER JOIN rooms r ON r.id = b.room_id
+    INNER JOIN floors f ON f.id = r.floor_id
+    INNER JOIN pgs p ON p.id = f.pg_id
     WHERE bk.booking_code = ${CODE}
     LIMIT 1
   `);
+  const row = ctx;
   if (!row) throw new Error(`Booking ${CODE} not found`);
   console.log('\n=== RESIDENT ===');
   console.log(row);
@@ -55,8 +62,8 @@ async function main() {
     customerName: cust!.fullName,
     customerPhone: cust!.phone ?? '',
     bookingCode: bk!.bookingCode,
-    pgId: bk!.pgId,
-    pgName: 'PG',
+    pgId: row.pg_id,
+    pgName: row.pg_name,
     roomNumber: row.room_number,
     depositPaise: bk!.depositPaise,
     depositDuePaise: bk!.depositDuePaise ?? 0,
@@ -75,7 +82,8 @@ async function main() {
   const depositSummary = await getDepositSummaryForBooking(bk!.id);
   const money = await getBookingMoneyBalances(bk!.id);
   const credit = await getResidentCreditBalance(bk!.customerId);
-  const monthlyRent = await resolveMonthlyRentPaiseForBooking(bk!.id);
+  const { resolveMonthlyRentPaiseForBooking } = await import('../src/lib/billing/rentPricingSsot');
+  const monthlyRent = await resolveMonthlyRentPaiseForBooking(bk!.id, firstOfMonth(todayString()));
 
   console.log('\n=== DEPOSIT SUMMARY / MONEY BALANCES / CREDIT ===');
   console.log({ depositSummary, money, creditPaise: credit, monthlyRentSsot: monthlyRent });

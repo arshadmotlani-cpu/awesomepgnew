@@ -10,7 +10,6 @@ export const metadata: Metadata = {
 const links = [
   { href: '/brand/awesomepg', label: 'Awesome PG' },
   { href: '/brand/apgos', label: 'APG OS' },
-  { href: '/brand/capital', label: 'Capital OS' },
   { href: '/brand/fyhair', label: 'For Your Hair ERP' },
 ] as const;
 

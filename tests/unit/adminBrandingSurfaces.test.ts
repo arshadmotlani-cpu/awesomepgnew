@@ -15,14 +15,6 @@ const PG_SURFACES = [
   'src/components/brand/apg-os/AdminLoginShell.tsx',
 ];
 
-const CAPITAL_SURFACES = [
-  'src/capital/components/CapitalTopBar.tsx',
-  'src/capital/components/CapitalSidebar.tsx',
-  'src/capital/components/CapitalMobileNav.tsx',
-  'app/(capital)/auth/login/page.tsx',
-  'app/(capital)/not-found.tsx',
-];
-
 const SOFT_SURFACES = [
   'src/hair/components/HairAppHeader.tsx',
   'src/components/brand/fyh/FyhSidebarBrand.tsx',
@@ -66,28 +58,6 @@ test('PG admin branding surfaces show mark only — no legacy wordmarks', () => 
     const source = read(file);
     assert.match(source, /ApgOsMark/, `${file} must render ApgOsMark`);
     assert.match(source, /pg-admin-mark\.png|ApgOsMark/, `${file} must use PG mark`);
-    assertNoForbiddenBranding(file, forbidden);
-  }
-});
-
-test('Capital admin branding surfaces show AUTO mark only — no legacy lockup text', () => {
-  const forbidden = [
-    /CAPITAL_OS\.name/,
-    /CAPITAL_OS\.legalName/,
-    /CAPITAL_OS\.tagline/,
-    />\s*Capital\s*OS\s*</,
-    />\s*Automotive\s*Capital\s*</,
-    /auto-admin-mark\.png/,
-    /\bADMIN\b/,
-    /\bERP\b/,
-  ];
-  for (const file of CAPITAL_SURFACES) {
-    const source = read(file);
-    assert.match(
-      source,
-      /CapitalOsMark|CapitalOsLogoLockup|CapitalBrandLogo/,
-      `${file} must render Capital mark`,
-    );
     assertNoForbiddenBranding(file, forbidden);
   }
 });

@@ -1,22 +1,12 @@
 import { getWealthSnapshot } from '@/src/owner/services/wealthCalculation';
 import { listLiabilities, getLiabilityDue } from '@/src/owner/services/liabilities';
-import { loadCapitalContribution } from '@/src/personalFinance/adapters/capital';
 import { coerceWealthPaise } from '@/src/owner/lib/wealth/paiseCoercion';
 import { NetWorthStatement } from '@/src/owner/components/NetWorthStatement';
 
 export const dynamic = 'force-dynamic';
 
 export default async function NetWorthPage() {
-  const [capital, wealthBase] = await Promise.all([
-    loadCapitalContribution().catch(() => null),
-    getWealthSnapshot({ investmentValuePaise: 0 }).catch(() => null),
-  ]);
-
-  const investmentPaise = capital?.assetsPaise?.paise ?? 0;
-  const wealth =
-    wealthBase && investmentPaise > 0
-      ? await getWealthSnapshot({ investmentValuePaise: investmentPaise }).catch(() => wealthBase)
-      : wealthBase;
+  const wealth = await getWealthSnapshot({ investmentValuePaise: 0 }).catch(() => null);
 
   if (!wealth) {
     return (

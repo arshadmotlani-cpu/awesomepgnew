@@ -97,9 +97,6 @@ export async function syncAllEngineFacts(month?: string): Promise<SyncResult[]> 
   const fyhResult = await syncFyhFacts(month);
   results.push(fyhResult);
 
-  const capitalResult = await syncCapitalFacts(month);
-  results.push(capitalResult);
-
   return results;
 }
 
@@ -240,60 +237,3 @@ export async function syncFyhFacts(month?: string): Promise<SyncResult> {
   return { sourceSystem: 'FYHAIR', factsUpserted, errors };
 }
 
-export async function syncCapitalFacts(month?: string): Promise<SyncResult> {
-  const errors: string[] = [];
-  let factsUpserted = 0;
-
-  try {
-    const { getCapitalOwnerWealthSummary } = await import(
-      '@/src/capital/services/ownerWealthSummary'
-    );
-    const summary = await getCapitalOwnerWealthSummary({ month });
-    const periodStart = summary.periodStart;
-    const periodEnd = summary.periodEnd;
-
-    const facts: IntegrationFactInput[] = [
-      {
-        sourceSystem: 'CAPITAL',
-        externalRef: `capital:revenue:${periodStart}:${periodEnd}`,
-        periodStart,
-        periodEnd,
-        kind: 'REVENUE',
-        amountPaise: summary.revenuePaise,
-      },
-      {
-        sourceSystem: 'CAPITAL',
-        externalRef: `capital:expense:${periodStart}:${periodEnd}`,
-        periodStart,
-        periodEnd,
-        kind: 'EXPENSE',
-        amountPaise: summary.expensePaise,
-      },
-      {
-        sourceSystem: 'CAPITAL',
-        externalRef: `capital:profit:${periodStart}:${periodEnd}`,
-        periodStart,
-        periodEnd,
-        kind: 'PROFIT',
-        amountPaise: summary.profitPaise,
-      },
-      {
-        sourceSystem: 'CAPITAL',
-        externalRef: `capital:asset_value:${periodEnd}`,
-        periodStart,
-        periodEnd,
-        kind: 'ASSET_VALUE',
-        amountPaise: summary.portfolioValuePaise,
-      },
-    ];
-
-    for (const fact of facts) {
-      await upsertIntegrationFact(fact);
-      factsUpserted += 1;
-    }
-  } catch (e) {
-    errors.push(e instanceof Error ? e.message : 'Capital sync failed');
-  }
-
-  return { sourceSystem: 'CAPITAL', factsUpserted, errors };
-}

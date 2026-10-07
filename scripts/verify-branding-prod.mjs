@@ -90,83 +90,22 @@ try {
     await page.close();
   }
 
-  // --- Capital ---
   {
-    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-    const login = await page.goto('https://invest.awesomepg.in/login', {
-      waitUntil: 'networkidle',
-      timeout: 90000,
-    });
-    ok('invest login', login?.ok() === true, `status ${login?.status()}`);
-    const capMark = page.locator('svg[aria-label="Capital OS"]').first();
-    await capMark.waitFor({ timeout: 15000 });
-    ok('invest login Capital OS mark', true);
-
-    // No letter A placeholder
-    const letterA = await page.locator('text=/^A$/').count();
-    // The gradient "A" box should be gone — check for old class pattern
-    const oldBox = await page.locator('.from-ac-accent.to-ac-violet').count();
-    ok('invest no gradient A mark', oldBox === 0, `letterA=${letterA}`);
-
-    const html = await page.content();
-    ok('invest apple-touch meta', html.includes('apple-touch.png') || html.includes('apple-touch-icon'));
-    ok('invest favicon meta', html.includes('capital/icons/favicon') || html.includes('favicon-32'));
-
-    const fav = await checkAsset(page, 'https://invest.awesomepg.in/capital/icons/favicon-32.png', 800);
-    ok('invest favicon asset', fav.ok, `${fav.status} ${fav.bytes}b hash=${fav.hash}`);
-    const apple = await checkAsset(page, 'https://invest.awesomepg.in/capital/icons/apple-touch.png', 5000);
-    ok('invest apple-touch asset', apple.ok, `${apple.status} ${apple.bytes}b hash=${apple.hash}`);
-    const i192 = await checkAsset(page, 'https://invest.awesomepg.in/capital/icons/icon-192.png', 10000);
-    ok('invest pwa 192', i192.ok, `${i192.status} ${i192.bytes}b hash=${i192.hash}`);
-    const i512 = await checkAsset(page, 'https://invest.awesomepg.in/capital/icons/icon-512.png', 50000);
-    ok('invest pwa 512', i512.ok, `${i512.status} ${i512.bytes}b hash=${i512.hash}`);
-    ok('invest icons not old placeholders', i512.bytes > 50000 && i192.bytes > 10000);
-
-    const man = await (await page.request.get('https://invest.awesomepg.in/capital/manifest.webmanifest', {
-      headers: { 'Cache-Control': 'no-cache' },
-    })).json();
-    ok(
-      'invest manifest',
-      man.short_name === 'Capital OS' && man.icons?.some((i) => i.src.includes('icon-512')),
-      `short=${man.short_name} icons=${man.icons?.length}`,
-    );
-
-    // Login and check dashboard sidebar logo
-    const email = process.env.INVEST_ADMIN_EMAIL || 'admin@foryour.in';
-    const password = process.env.INVEST_ADMIN_PASSWORD || '@Admin1345';
-    await page.locator('input[type="email"]').fill(email);
-    await page.locator('input[type="password"]').fill(password);
-    await page.locator('button[type="submit"]').click();
-    await page.waitForURL(/dashboard/, { timeout: 45000 });
-    ok('invest dashboard', /dashboard/.test(page.url()), page.url());
-    const sideMark = page.locator('aside svg[aria-label="Capital OS"]').first();
-    await sideMark.waitFor({ timeout: 15000 });
-    ok('invest sidebar Capital OS mark', true);
-
-    // SW cache version string
-    const sw = await page.request.get('https://invest.awesomepg.in/capital/sw.js', {
-      headers: { 'Cache-Control': 'no-cache' },
-    });
-    const swText = await sw.text();
-    ok('invest SW cache bumped', swText.includes('capital-shell-v2-brand'));
-
-    const apgSw = await page.request.get('https://awesomepg.in/sw.js', {
-      headers: { 'Cache-Control': 'no-cache' },
-    });
-    const apgSwText = await apgSw.text();
-    ok('apg SW cache bumped', apgSwText.includes('apg-admin-v2-brand'));
-
-    await page.close();
+    const apgSw = await (await browser.newPage().then(async (page) => {
+      const res = await page.request.get('https://awesomepg.in/sw.js', {
+        headers: { 'Cache-Control': 'no-cache' },
+      });
+      const text = await res.text();
+      await page.close();
+      return text;
+    }));
+    ok('apg SW cache bumped', apgSw.includes('apg-admin-v2-brand'));
   }
 
-  // Cross-check old capital placeholder size (~11KB) vs new (~300KB)
   {
     const page = await browser.newPage();
-    // Ensure OG images exist
     const og1 = await checkAsset(page, 'https://awesomepg.in/og/awesome-pg.png', 20000);
-    const og2 = await checkAsset(page, 'https://invest.awesomepg.in/og/automotive-capital.png', 20000);
     ok('og awesome-pg', og1.ok, `${og1.bytes}b`);
-    ok('og automotive-capital', og2.ok, `${og2.bytes}b`);
     await page.close();
   }
 } catch (e) {

@@ -12,7 +12,7 @@ export const AWESOME_PG_FAMILY = {
   microLabelClass: 'text-[11px] font-medium uppercase tracking-[0.2em]',
 } as const;
 
-export type FamilyProductId = 'awesomepg' | 'apgos' | 'capital' | 'fyhair';
+export type FamilyProductId = 'awesomepg' | 'apgos' | 'fyhair';
 
 export const FAMILY_PRODUCTS: Record<
   FamilyProductId,
@@ -27,11 +27,6 @@ export const FAMILY_PRODUCTS: Record<
     slug: 'admin-os',
     previewPath: '/brand/apgos',
     titleTemplate: '%s · APG OS',
-  },
-  capital: {
-    slug: 'capital-os',
-    previewPath: '/brand/capital',
-    titleTemplate: '%s · Capital OS',
   },
   fyhair: {
     slug: 'fyh',

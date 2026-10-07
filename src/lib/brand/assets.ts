@@ -3,7 +3,6 @@ import type { FamilyProductId } from '@/src/lib/brand/familyTokens';
 const PNG_BY_PRODUCT: Record<FamilyProductId, string> = {
   awesomepg: 'public/brand/awesome-pg-256.png',
   apgos: 'public/admin-os/icon-512.png',
-  capital: 'public/capital/icons/icon-256.png',
   fyhair: 'public/fyh/icons/icon-192.png',
 };
 
@@ -12,8 +11,6 @@ export function getProductBrandLogoPng(product: FamilyProductId = 'awesomepg'): 
   switch (product) {
     case 'awesomepg':
       return '/brand/awesome-pg-256.png';
-    case 'capital':
-      return '/capital/icons/icon-256.png';
     case 'fyhair':
       return '/fyh/icons/icon-192.png';
     case 'apgos':
