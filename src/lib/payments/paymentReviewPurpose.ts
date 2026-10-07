@@ -5,6 +5,7 @@
  * review channel; that must not force the "Deposit Collection" label.
  */
 
+import { isResidentPortalPayAllSource } from '@/src/lib/residents/residentPayableNowProjection';
 import { ROOM_CHANGE_INVOICE_SOURCE, ROOM_SHIFT_FEE_PAISE } from '@/src/services/roomShiftQuote';
 
 export type PaymentReviewPurposeCode =
@@ -178,14 +179,14 @@ export function resolvePaymentReviewPurpose(input: {
   const sameRoom = input.roomChange?.sameRoom === true;
   const isRoomChangeInvoice =
     input.invoiceType === 'room_shift' ||
-    isRoomChangeInvoiceSource(input.invoiceSourceTable) ||
-    Boolean(input.roomChange && (input.invoiceSourceTable || input.invoiceType === 'room_shift'));
+    isRoomChangeInvoiceSource(input.invoiceSourceTable);
 
+  // Never treat resident Pay All (electricity/rent bundle) as room-change settlement
+  // just because the booking has a completed room-change quote on file.
   const linkedToRoomChange =
-    isRoomChangeInvoice ||
-    (input.roomChange != null &&
-      (input.paymentLinkPurpose === 'combined' ||
-        isRoomChangeInvoiceSource(input.invoiceSourceTable)));
+    isRoomChangeInvoice &&
+    !isResidentPortalPayAllSource(input.invoiceSourceTable) &&
+    input.roomChange != null;
 
   if (linkedToRoomChange && input.roomChange) {
     const simple = isSimpleRoomChangeFeeReview({

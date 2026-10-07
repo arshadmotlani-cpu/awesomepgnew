@@ -30,6 +30,7 @@ import {
 import type { RoomShiftQuoteSnapshot } from '@/src/services/roomShiftQuote';
 import { ROOM_SHIFT_FEE_PAISE } from '@/src/services/roomShiftQuote';
 import { formatRoomChangeQuoteForDisplay } from '@/src/lib/roomTransfer/quoteDisplay';
+import { isRoomChangeInvoiceSource } from '@/src/lib/payments/paymentReviewPurpose';
 import { projectRoomChangeSettlementStatus } from '@/src/lib/roomTransfer/roomChangeSettlementStatus';
 import {
   isSameRoomBedChangeFromLabels,
@@ -384,14 +385,9 @@ export async function loadPaymentReviewWorkspace(
     }
   }
 
-  const paymentPurpose = resolvePaymentReviewPurpose({
-    kind: item.kind,
-    amountPaise: item.amountPaise,
-    invoiceType,
-    invoiceNotes,
-    invoiceSourceTable,
-    paymentLinkPurpose,
-    roomChange: booking?.roomChange
+  const roomChangeForPurpose =
+    booking?.roomChange &&
+    (invoiceType === 'room_shift' || isRoomChangeInvoiceSource(invoiceSourceTable))
       ? {
           sameRoom: booking.roomChange.sameRoom,
           shiftFeePaise: booking.roomChange.shiftFeePaise,
@@ -401,7 +397,16 @@ export async function loadPaymentReviewWorkspace(
           oldRentDuePaise: booking.roomChange.oldRentDuePaise,
           totalDuePaise: booking.roomChange.totalDuePaise,
         }
-      : null,
+      : null;
+
+  const paymentPurpose = resolvePaymentReviewPurpose({
+    kind: item.kind,
+    amountPaise: item.amountPaise,
+    invoiceType,
+    invoiceNotes,
+    invoiceSourceTable,
+    paymentLinkPurpose,
+    roomChange: roomChangeForPurpose,
   });
 
   let duplicateTransactionRef: DuplicateTransactionRefReviewContextEnriched | null = null;

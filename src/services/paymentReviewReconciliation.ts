@@ -258,6 +258,7 @@ export async function reconcileBookingPaymentReviewQueue(): Promise<PaymentRevie
 export type InvoicePaymentReviewReconciliationReport = {
   healedRentInvoices: number;
   healedElectricityInvoices: number;
+  healedDepositLinkProofs: number;
 };
 
 /**
@@ -277,7 +278,26 @@ export async function reconcileInvoicePaymentReviewQueue(): Promise<InvoicePayme
     if (healed) healedRentInvoices += 1;
   }
 
-  return { healedRentInvoices, healedElectricityInvoices: 0 };
+  const healedLinks = await db.execute<{ id: string }>(sql`
+    UPDATE payment_links pl
+    SET status = 'paid', updated_at = now()
+    FROM financial_invoices fi
+    WHERE pl.invoice_id = fi.id
+      AND pl.status = 'active'
+      AND (
+        pl.payment_proof_url IS NOT NULL AND trim(pl.payment_proof_url) <> ''
+        OR pl.payment_proof_transaction_ref IS NOT NULL
+          AND trim(pl.payment_proof_transaction_ref) <> ''
+      )
+      AND fi.status IN ('paid', 'settled')
+    RETURNING pl.id::text AS id
+  `);
+
+  return {
+    healedRentInvoices,
+    healedElectricityInvoices: 0,
+    healedDepositLinkProofs: healedLinks.length,
+  };
 }
 
 export type RejectedProofQueueReconciliationReport = {

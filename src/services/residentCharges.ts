@@ -691,7 +691,11 @@ export async function approveDepositLinkPaymentProof(
       providerPaymentId: `invoice-link-proof-${linkId}`,
       offlineProvider: 'upi_manual',
     });
-    if (!paymentResult.ok) {
+    if (
+      !paymentResult.ok &&
+      paymentResult.error !== 'Invoice is already paid.' &&
+      paymentResult.error !== 'Nothing due on this invoice.'
+    ) {
       return { ok: false, message: paymentResult.error };
     }
 

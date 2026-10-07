@@ -6,6 +6,7 @@ import {
   paymentReviewPurposeLabel,
   resolvePaymentReviewPurpose,
 } from '@/src/lib/payments/paymentReviewPurpose';
+import { RESIDENT_PORTAL_PAY_ALL_SOURCE } from '@/src/lib/residents/residentPayableNowProjection';
 import { ROOM_CHANGE_INVOICE_SOURCE, ROOM_SHIFT_FEE_PAISE } from '@/src/services/roomShiftQuote';
 import { readFileSync } from 'node:fs';
 
@@ -100,6 +101,29 @@ describe('payment review purpose — room-change vs deposit', () => {
     });
     assert.equal(purpose.purpose, 'ELECTRICITY');
     assert.equal(purpose.label, 'Electricity');
+  });
+
+  test('pay-all electricity bundle on booking with completed room change stays COMBINED', () => {
+    const purpose = resolvePaymentReviewPurpose({
+      kind: 'deposit_link',
+      amountPaise: 17_890,
+      invoiceType: 'combined',
+      invoiceNotes: 'All bills due',
+      invoiceSourceTable: RESIDENT_PORTAL_PAY_ALL_SOURCE,
+      paymentLinkPurpose: 'combined',
+      roomChange: {
+        sameRoom: false,
+        shiftFeePaise: ROOM_SHIFT_FEE_PAISE,
+        feeDuePaise: 0,
+        newRentDuePaise: 0,
+        depositDuePaise: 0,
+        oldRentDuePaise: 0,
+        totalDuePaise: ROOM_SHIFT_FEE_PAISE,
+      },
+    });
+    assert.equal(purpose.purpose, 'COMBINED');
+    assert.equal(purpose.showRoomChangeWaterfall, false);
+    assert.equal(purpose.label, 'Combined Invoice');
   });
 
   test('12 — different-room rent difference keeps settlement waterfall', () => {

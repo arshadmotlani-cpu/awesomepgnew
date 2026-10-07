@@ -41,7 +41,7 @@ async function applyLinePayment(
   }
 
   if (line.sourceTable === 'electricity_invoices' && line.sourceId) {
-    await applyApprovedPaymentAtomic({
+    const result = await applyApprovedPaymentAtomic({
       purpose: 'electricity',
       provider: 'mock',
       offlineProvider,
@@ -49,6 +49,9 @@ async function applyLinePayment(
       amountPaise,
       invoiceId: line.sourceId,
     });
+    if (!result.ok) {
+      throw new Error(result.reason);
+    }
     return;
   }
 
