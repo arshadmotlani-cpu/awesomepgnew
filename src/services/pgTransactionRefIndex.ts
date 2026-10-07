@@ -22,6 +22,12 @@ import {
   normalizeTransactionRef,
   type TransactionRefMatch,
 } from '@/src/lib/payments/transactionRefDuplicate';
+import {
+  validateDuplicateTransactionRefOverrideReason,
+  type DuplicateTransactionRefOverrideInput,
+  type DuplicateTransactionRefReviewContext,
+} from '@/src/lib/payments/duplicateTransactionRefOverride';
+import { writeAuditLogNonBlocking } from '@/src/lib/audit/writeAuditLog';
 
 export type PgTxnSourceKind = PgApprovedTxnSourceKind;
 
@@ -206,43 +212,112 @@ export async function resolveDuplicateFlagsForSubmit(input: {
   return { normalizedRef, matches, ...flags };
 }
 
+async function findApprovedRegistrySiblings(input: {
+  normalizedRef: string;
+  exclude?: { sourceKind: PgTxnSourceKind; sourceId: string };
+}) {
+  const rows = await db
+    .select()
+    .from(pgApprovedTransactionRefs)
+    .where(eq(pgApprovedTransactionRefs.transactionRefNormalized, input.normalizedRef));
+  return rows.filter(
+    (row) =>
+      !(
+        input.exclude &&
+        row.sourceKind === input.exclude.sourceKind &&
+        row.sourceId === input.exclude.sourceId
+      ),
+  );
+}
+
+async function logDuplicateTransactionRefOverrideAudit(input: {
+  normalizedRef: string;
+  sourceKind: PgTxnSourceKind;
+  sourceId: string;
+  adminId: string;
+  reason: string;
+  conflicting: Array<{ sourceKind: string; sourceId: string }>;
+}): Promise<void> {
+  void writeAuditLogNonBlocking(db, {
+    actorType: 'admin',
+    actorId: input.adminId,
+    entity: 'payment_proof',
+    entityId: input.sourceId,
+    action: 'duplicate_transaction_ref_override',
+    diff: {
+      transactionRefNormalized: input.normalizedRef,
+      sourceKind: input.sourceKind,
+      conflictingPayments: input.conflicting,
+      overrideReason: input.reason,
+    },
+  });
+}
+
+export async function resolveDuplicateTransactionRefReviewContext(input: {
+  transactionRef: string | null | undefined;
+  exclude?: { kind: PgTxnSourceKind; id: string };
+}): Promise<DuplicateTransactionRefReviewContext> {
+  const normalizedRef = normalizeTransactionRef(input.transactionRef);
+  if (!normalizedRef) {
+    return {
+      requiresOverride: false,
+      normalizedRef: null,
+      approvedRegistryConflicts: [],
+      crossMatches: [],
+    };
+  }
+  const exclude =
+    input.exclude != null
+      ? { sourceKind: input.exclude.kind, sourceId: input.exclude.id }
+      : undefined;
+  const registryConflicts = await findApprovedRegistrySiblings({
+    normalizedRef,
+    exclude,
+  });
+  const matches = await findPgTransactionRefMatches({
+    normalizedRef,
+    exclude: input.exclude,
+  });
+  return {
+    requiresOverride: registryConflicts.length > 0,
+    normalizedRef,
+    approvedRegistryConflicts: registryConflicts.map((row) => ({
+      sourceKind: row.sourceKind,
+      sourceId: row.sourceId,
+      approvedAt: row.approvedAt?.toISOString?.() ?? null,
+      approvedByAdminId: row.approvedByAdminId ?? null,
+    })),
+    crossMatches: matches.map((m) => ({
+      id: m.id,
+      status: m.status,
+      sourceKind: m.sourceKind,
+    })),
+  };
+}
+
+export function reviewKindToTxnSourceKind(
+  kind: 'qr' | 'rent' | 'electricity' | 'extension' | 'deposit_link',
+): PgTxnSourceKind {
+  if (kind === 'qr') return 'pg_payment_record';
+  if (kind === 'rent') return 'rent_invoice';
+  if (kind === 'electricity') return 'electricity_invoice';
+  if (kind === 'extension') return 'stay_extension';
+  return 'payment_link';
+}
+
 export async function registerApprovedTransactionRef(input: {
   transactionRef: string | null | undefined;
   sourceKind: PgTxnSourceKind;
   sourceId: string;
   approvedByAdminId?: string | null;
+  duplicateOverride?: DuplicateTransactionRefOverrideInput | null;
 }): Promise<{ ok: true } | { ok: false; message: string }> {
-  const normalized = normalizeTransactionRef(input.transactionRef);
-  if (!normalized) return { ok: true };
-
   try {
-    await db
-      .insert(pgApprovedTransactionRefs)
-      .values({
-        transactionRefNormalized: normalized,
-        sourceKind: input.sourceKind,
-        sourceId: input.sourceId,
-        approvedByAdminId: input.approvedByAdminId ?? null,
-      })
-      .onConflictDoNothing();
-
-    // If another source already owns this ref, conflict unless it is us.
-    const [existing] = await db
-      .select()
-      .from(pgApprovedTransactionRefs)
-      .where(eq(pgApprovedTransactionRefs.transactionRefNormalized, normalized))
-      .limit(1);
-
-    if (
-      existing &&
-      (existing.sourceKind !== input.sourceKind || existing.sourceId !== input.sourceId)
-    ) {
-      return { ok: false, message: approvedTransactionRefConflictMessage() };
-    }
+    await insertApprovedTransactionRefOrThrow(input);
     return { ok: true };
   } catch (err) {
-    if (isApprovedTransactionRefUniqueViolation(err)) {
-      return { ok: false, message: approvedTransactionRefConflictMessage() };
+    if (err instanceof Error && err.message === approvedTransactionRefConflictMessage()) {
+      return { ok: false, message: err.message };
     }
     throw err;
   }
@@ -254,9 +329,54 @@ export async function insertApprovedTransactionRefOrThrow(input: {
   sourceKind: PgTxnSourceKind;
   sourceId: string;
   approvedByAdminId?: string | null;
+  duplicateOverride?: DuplicateTransactionRefOverrideInput | null;
 }): Promise<void> {
   const normalized = normalizeTransactionRef(input.transactionRef);
   if (!normalized) return;
+
+  const siblings = await findApprovedRegistrySiblings({
+    normalizedRef: normalized,
+    exclude: { sourceKind: input.sourceKind, sourceId: input.sourceId },
+  });
+
+  if (siblings.length > 0) {
+    if (!input.duplicateOverride) {
+      throw new Error(approvedTransactionRefConflictMessage());
+    }
+    const reasonCheck = validateDuplicateTransactionRefOverrideReason(
+      input.duplicateOverride.reason,
+    );
+    if (!reasonCheck.ok) {
+      throw new Error(reasonCheck.message);
+    }
+    const adminId = input.approvedByAdminId;
+    if (!adminId) {
+      throw new Error('Admin session required for duplicate transaction override.');
+    }
+    await logDuplicateTransactionRefOverrideAudit({
+      normalizedRef: normalized,
+      sourceKind: input.sourceKind,
+      sourceId: input.sourceId,
+      adminId,
+      reason: reasonCheck.reason,
+      conflicting: siblings.map((s) => ({
+        sourceKind: s.sourceKind,
+        sourceId: s.sourceId,
+      })),
+    });
+  }
+
+  const [existingSelf] = await db
+    .select()
+    .from(pgApprovedTransactionRefs)
+    .where(
+      and(
+        eq(pgApprovedTransactionRefs.sourceKind, input.sourceKind),
+        eq(pgApprovedTransactionRefs.sourceId, input.sourceId),
+      ),
+    )
+    .limit(1);
+  if (existingSelf) return;
 
   try {
     await db.insert(pgApprovedTransactionRefs).values({
@@ -267,19 +387,40 @@ export async function insertApprovedTransactionRefOrThrow(input: {
     });
   } catch (err) {
     if (isApprovedTransactionRefUniqueViolation(err)) {
-      const [existing] = await db
+      const [existingSelfRetry] = await db
         .select()
         .from(pgApprovedTransactionRefs)
-        .where(eq(pgApprovedTransactionRefs.transactionRefNormalized, normalized))
+        .where(
+          and(
+            eq(pgApprovedTransactionRefs.sourceKind, input.sourceKind),
+            eq(pgApprovedTransactionRefs.sourceId, input.sourceId),
+          ),
+        )
         .limit(1);
-      if (
-        existing &&
-        existing.sourceKind === input.sourceKind &&
-        existing.sourceId === input.sourceId
-      ) {
-        return;
-      }
+      if (existingSelfRetry) return;
       throw new Error(approvedTransactionRefConflictMessage());
+    }
+    throw err;
+  }
+}
+
+/** Shared approve path — returns user-facing message instead of throwing on duplicate block. */
+export async function registerApprovedTransactionRefForProofApproval(input: {
+  transactionRef: string | null | undefined;
+  sourceKind: PgTxnSourceKind;
+  sourceId: string;
+  approvedByAdminId: string;
+  duplicateOverride?: DuplicateTransactionRefOverrideInput | null;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    await insertApprovedTransactionRefOrThrow(input);
+    return { ok: true };
+  } catch (err) {
+    if (err instanceof Error && err.message === approvedTransactionRefConflictMessage()) {
+      return { ok: false, message: err.message };
+    }
+    if (err instanceof Error) {
+      return { ok: false, message: err.message };
     }
     throw err;
   }

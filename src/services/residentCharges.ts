@@ -601,6 +601,7 @@ export async function listPendingDepositLinkProofsForPg(pgId: string) {
 export async function approveDepositLinkPaymentProof(
   session: AdminSession,
   linkId: string,
+  opts?: { duplicateTransactionRefOverride?: { reason: string } },
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const [link] = await db
     .select()
@@ -669,24 +670,18 @@ export async function approveDepositLinkPaymentProof(
       return { ok: false, message: paymentReviewInvariantErrorMessage(invariant) };
     }
 
-    try {
-      const { insertApprovedTransactionRefOrThrow } = await import(
-        '@/src/services/pgTransactionRefIndex'
-      );
-      await insertApprovedTransactionRefOrThrow({
-        transactionRef: link.paymentProofTransactionRef,
-        sourceKind: 'payment_link',
-        sourceId: link.id,
-        approvedByAdminId: session.adminId,
-      });
-    } catch (err) {
-      const { approvedTransactionRefConflictMessage } = await import(
-        '@/src/lib/payments/transactionRefDuplicate'
-      );
-      if (err instanceof Error && err.message === approvedTransactionRefConflictMessage()) {
-        return { ok: false, message: err.message };
-      }
-      throw err;
+    const { registerApprovedTransactionRefForProofApproval } = await import(
+      '@/src/services/pgTransactionRefIndex'
+    );
+    const regInvoiceLink = await registerApprovedTransactionRefForProofApproval({
+      transactionRef: link.paymentProofTransactionRef,
+      sourceKind: 'payment_link',
+      sourceId: link.id,
+      approvedByAdminId: session.adminId,
+      duplicateOverride: opts?.duplicateTransactionRefOverride ?? null,
+    });
+    if (!regInvoiceLink.ok) {
+      return { ok: false, message: regInvoiceLink.message };
     }
 
     const { allocateInvoicePayment } = await import('@/src/services/invoicePayment');
@@ -758,27 +753,18 @@ export async function approveDepositLinkPaymentProof(
   }
 
 
-  try {
-    const { insertApprovedTransactionRefOrThrow } = await import(
-      '@/src/services/pgTransactionRefIndex'
-    );
-    const { approvedTransactionRefConflictMessage } = await import(
-      '@/src/lib/payments/transactionRefDuplicate'
-    );
-    await insertApprovedTransactionRefOrThrow({
-      transactionRef: link.paymentProofTransactionRef,
-      sourceKind: 'payment_link',
-      sourceId: link.id,
-      approvedByAdminId: session.adminId,
-    });
-  } catch (err) {
-    const { approvedTransactionRefConflictMessage } = await import(
-      '@/src/lib/payments/transactionRefDuplicate'
-    );
-    if (err instanceof Error && err.message === approvedTransactionRefConflictMessage()) {
-      return { ok: false, message: err.message };
-    }
-    throw err;
+  const { registerApprovedTransactionRefForProofApproval } = await import(
+    '@/src/services/pgTransactionRefIndex'
+  );
+  const regDeposit = await registerApprovedTransactionRefForProofApproval({
+    transactionRef: link.paymentProofTransactionRef,
+    sourceKind: 'payment_link',
+    sourceId: link.id,
+    approvedByAdminId: session.adminId,
+    duplicateOverride: opts?.duplicateTransactionRefOverride ?? null,
+  });
+  if (!regDeposit.ok) {
+    return { ok: false, message: regDeposit.message };
   }
 
   const providerPaymentId = `deposit-link-proof-${linkId}`;

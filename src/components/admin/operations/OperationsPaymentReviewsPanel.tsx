@@ -3,7 +3,11 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { startTransition, useMemo, useState } from 'react';
-import { approvePaymentReviewVerificationAction } from '@/app/(admin)/admin/payments/actions';
+import {
+  approvePaymentReviewVerificationAction,
+  fetchPaymentReviewDuplicateContextAction,
+} from '@/app/(admin)/admin/payments/actions';
+import { DuplicateTransactionRefOverrideDialog } from '@/src/components/admin/payment-review/DuplicateTransactionRefReview';
 import { PaymentReviewEssentials } from '@/src/components/admin/operations/PaymentReviewEssentials';
 import { PaymentProofRejectionDialog } from '@/src/components/admin/operations/PaymentProofRejectionDialog';
 import { PaymentProofRejectionHistory } from '@/src/components/admin/operations/PaymentProofRejectionHistory';
@@ -50,6 +54,7 @@ export function OperationsPaymentReviewsPanel({
     null,
   );
   const [duplicatesOnly, setDuplicatesOnly] = useState(false);
+  const [overrideItem, setOverrideItem] = useState<PendingPaymentReviewItem | null>(null);
   const { showToast, toastNode } = useOperationsActionToast();
 
   const filteredItems = useMemo(() => {
@@ -83,11 +88,29 @@ export function OperationsPaymentReviewsPanel({
     });
   }
 
-  async function handleApprove(item: PendingPaymentReviewItem) {
-    if (item.possibleDuplicate) {
+  async function handleApprove(
+    item: PendingPaymentReviewItem,
+    meta?: { duplicateTransactionRefOverride?: { reason: string } },
+  ) {
+    if (!meta && item.referenceNumber?.trim()) {
+      try {
+        const dupCtx = await fetchPaymentReviewDuplicateContextAction(
+          item.kind,
+          item.entityId,
+          item.referenceNumber,
+        );
+        if (dupCtx.requiresOverride) {
+          setOverrideItem(item);
+          return;
+        }
+      } catch {
+        // Fall through — server will enforce on approve.
+      }
+    }
+    if (!meta && item.possibleDuplicate) {
       const msg =
         item.approveConfirmMessage ??
-        'This transaction ID is flagged as a possible duplicate of another payment. Approving again may fail if it was already approved. Continue?';
+        'This transaction ID is flagged as a possible duplicate of another payment. Continue only if this is a separate legitimate payment.';
       if (typeof window !== 'undefined' && !window.confirm(msg)) return;
     }
     setBusyKey(item.key);
@@ -98,7 +121,7 @@ export function OperationsPaymentReviewsPanel({
         item.kind,
         item.entityId,
         item.pgId,
-        undefined,
+        meta,
         item.key,
       );
       if (!result.ok) {
@@ -147,6 +170,18 @@ export function OperationsPaymentReviewsPanel({
         </button>
         <span className="text-apg-silver">{filteredItems.length} shown</span>
       </div>
+      {overrideItem ? (
+        <DuplicateTransactionRefOverrideDialog
+          open
+          busy={busyKey === overrideItem.key}
+          onClose={() => setOverrideItem(null)}
+          onConfirm={(reason) =>
+            void handleApprove(overrideItem, {
+              duplicateTransactionRefOverride: { reason },
+            }).then(() => setOverrideItem(null))
+          }
+        />
+      ) : null}
       {rejectDialogItem ? (
         <PaymentProofRejectionDialog
           item={rejectDialogItem}

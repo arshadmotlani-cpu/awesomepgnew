@@ -6,7 +6,8 @@ import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
  * Written only on approve; two pendings with the same ref are allowed.
  */
 export const pgApprovedTransactionRefs = pgTable('pg_approved_transaction_refs', {
-  transactionRefNormalized: text('transaction_ref_normalized').primaryKey(),
+  id: uuid('id').primaryKey().defaultRandom(),
+  transactionRefNormalized: text('transaction_ref_normalized').notNull(),
   sourceKind: text('source_kind').notNull(),
   sourceId: uuid('source_id').notNull(),
   approvedAt: timestamp('approved_at', { withTimezone: true }).notNull().defaultNow(),

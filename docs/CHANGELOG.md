@@ -269,9 +269,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-10-06 13:16:11 UTC
+### Pending pre-commit sync · 2026-10-07 09:32:37 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Residents]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Electricity]], [[Billing]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
@@ -282,15 +282,12 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (8):**
-- `app/(customer)/account/resident/request-actions.ts`
-- `src/db/migrations/0154_prepaid_rent_refund_request.sql`
-- `src/db/schema/enums.ts`
-- `src/lib/billing/prepaidRentRefundCeiling.ts`
-- `src/lib/billing/prepaidRentRefundRequirements.ts`
-- `src/lib/billing/residentCreditWalletPresentation.ts`
-- `src/lib/billing/residentRefundableNow.ts`
-- `src/lib/residents/requestCenter.ts`
+**Staged code files (5):**
+- `app/(admin)/admin/payments/actions.ts`
+- `src/db/migrations/0155_pg_approved_txn_ref_multi.sql`
+- `src/db/schema/pgApprovedTransactionRefs.ts`
+- `src/services/meterElectricity.ts`
+- `src/services/rentInvoices.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

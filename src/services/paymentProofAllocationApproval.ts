@@ -365,6 +365,7 @@ export async function approvePaymentProofWithAllocation(
     reviewMeta?: {
       reviewNotes?: string;
       approvalNotes?: string;
+      duplicateTransactionRefOverride?: { reason: string };
     };
   },
 ): Promise<
@@ -383,6 +384,7 @@ export async function approvePaymentProofWithAllocation(
       const result = await reviewPaymentRecord(session, input.entityId, 'approved', {
         paymentAllocation: input.allocation,
         reviewMeta: input.reviewMeta,
+        duplicateTransactionRefOverride: input.reviewMeta?.duplicateTransactionRefOverride,
       });
       return { ok: true, outcome: result.outcome };
     }

@@ -46,6 +46,12 @@ import {
   reviewKindToEntityType,
   type PaymentProofRejectionHistoryRowClient,
 } from '@/src/services/paymentProofRejectionService';
+import {
+  resolveDuplicateTransactionRefReviewContext,
+  reviewKindToTxnSourceKind,
+} from '@/src/services/pgTransactionRefIndex';
+import { enrichDuplicateTransactionRefReviewContext } from '@/src/services/duplicateTransactionRefAdminDisplay';
+import type { DuplicateTransactionRefReviewContextEnriched } from '@/src/lib/payments/duplicateTransactionRefOverride';
 
 export type PaymentReviewRoomChangeLine = {
   label: string;
@@ -106,6 +112,7 @@ export type PaymentReviewWorkspaceData = {
   nextReviewKey: string | null;
   bookingLoadError: string | null;
   paymentPurpose: PaymentReviewPurposeResolution;
+  duplicateTransactionRef: DuplicateTransactionRefReviewContextEnriched | null;
 };
 
 export type LoadPaymentReviewWorkspaceResult =
@@ -397,6 +404,20 @@ export async function loadPaymentReviewWorkspace(
       : null,
   });
 
+  let duplicateTransactionRef: DuplicateTransactionRefReviewContextEnriched | null = null;
+  try {
+    const txnRef = item.referenceNumber?.trim() || null;
+    if (txnRef) {
+      const rawCtx = await resolveDuplicateTransactionRefReviewContext({
+        transactionRef: txnRef,
+        exclude: { kind: reviewKindToTxnSourceKind(item.kind), id: item.entityId },
+      });
+      duplicateTransactionRef = await enrichDuplicateTransactionRefReviewContext(rawCtx);
+    }
+  } catch {
+    duplicateTransactionRef = null;
+  }
+
   const classifiedItem: PendingPaymentReviewItem = {
     ...item,
     paymentTypeLabel: paymentPurpose.label,
@@ -432,6 +453,7 @@ export async function loadPaymentReviewWorkspace(
       nextReviewKey,
       bookingLoadError,
       paymentPurpose,
+      duplicateTransactionRef,
     },
   };
 }

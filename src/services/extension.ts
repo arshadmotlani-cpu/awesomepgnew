@@ -727,6 +727,7 @@ export async function listPendingExtensionProofsForPg(pgId: string) {
 export async function approveExtensionPaymentProof(
   session: AdminSession,
   extensionId: string,
+  opts?: { duplicateTransactionRefOverride?: { reason: string } },
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const [ext] = await db
     .select()
@@ -811,27 +812,18 @@ export async function approveExtensionPaymentProof(
   }
 
 
-  try {
-    const { insertApprovedTransactionRefOrThrow } = await import(
-      '@/src/services/pgTransactionRefIndex'
-    );
-    const { approvedTransactionRefConflictMessage } = await import(
-      '@/src/lib/payments/transactionRefDuplicate'
-    );
-    await insertApprovedTransactionRefOrThrow({
-      transactionRef: ext.paymentProofTransactionRef,
-      sourceKind: 'stay_extension',
-      sourceId: ext.id,
-      approvedByAdminId: session.adminId,
-    });
-  } catch (err) {
-    const { approvedTransactionRefConflictMessage } = await import(
-      '@/src/lib/payments/transactionRefDuplicate'
-    );
-    if (err instanceof Error && err.message === approvedTransactionRefConflictMessage()) {
-      return { ok: false, message: err.message };
-    }
-    throw err;
+  const { registerApprovedTransactionRefForProofApproval } = await import(
+    '@/src/services/pgTransactionRefIndex'
+  );
+  const reg = await registerApprovedTransactionRefForProofApproval({
+    transactionRef: ext.paymentProofTransactionRef,
+    sourceKind: 'stay_extension',
+    sourceId: ext.id,
+    approvedByAdminId: session.adminId,
+    duplicateOverride: opts?.duplicateTransactionRefOverride ?? null,
+  });
+  if (!reg.ok) {
+    return { ok: false, message: reg.message };
   }
 
   const { recordExtensionPaymentSuccess } = await import('./bookingLifecycle');

@@ -3098,6 +3098,7 @@ export async function listPendingRentProofsForPg(pgId: string) {
 export async function approveRentPaymentProof(
   session: AdminSession,
   invoiceId: string,
+  opts?: { duplicateTransactionRefOverride?: { reason: string } },
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const timer = (await import('@/src/lib/payments/paymentApprovalTiming')).startPaymentApprovalTimer(
     'approveRentPaymentProof',
@@ -3184,27 +3185,18 @@ export async function approveRentPaymentProof(
   }
 
 
-  try {
-    const { insertApprovedTransactionRefOrThrow } = await import(
-      '@/src/services/pgTransactionRefIndex'
-    );
-    const { approvedTransactionRefConflictMessage } = await import(
-      '@/src/lib/payments/transactionRefDuplicate'
-    );
-    await insertApprovedTransactionRefOrThrow({
-      transactionRef: invoice.paymentProofTransactionRef,
-      sourceKind: 'rent_invoice',
-      sourceId: invoice.id,
-      approvedByAdminId: session.adminId,
-    });
-  } catch (err) {
-    const { approvedTransactionRefConflictMessage } = await import(
-      '@/src/lib/payments/transactionRefDuplicate'
-    );
-    if (err instanceof Error && err.message === approvedTransactionRefConflictMessage()) {
-      return { ok: false, message: err.message };
-    }
-    throw err;
+  const { registerApprovedTransactionRefForProofApproval } = await import(
+    '@/src/services/pgTransactionRefIndex'
+  );
+  const reg = await registerApprovedTransactionRefForProofApproval({
+    transactionRef: invoice.paymentProofTransactionRef,
+    sourceKind: 'rent_invoice',
+    sourceId: invoice.id,
+    approvedByAdminId: session.adminId,
+    duplicateOverride: opts?.duplicateTransactionRefOverride ?? null,
+  });
+  if (!reg.ok) {
+    return { ok: false, message: reg.message };
   }
 
   const invoiceWithSnapshot = (await ensureRentProofSnapshot(invoiceId)) ?? invoice;

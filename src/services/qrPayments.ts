@@ -960,6 +960,7 @@ export async function reviewPaymentRecord(
       reviewNotes?: string;
       approvalNotes?: string;
     };
+    duplicateTransactionRefOverride?: { reason: string };
     /** Verification-only approve — confirm booking without rent/deposit allocation. */
     verificationOnly?: boolean;
   },
@@ -979,24 +980,18 @@ export async function reviewPaymentRecord(
   assertPgAccess(session, record.pgId);
 
   if (record.status === 'pending') {
-    try {
-      const { insertApprovedTransactionRefOrThrow } = await import(
-        '@/src/services/pgTransactionRefIndex'
-      );
-      await insertApprovedTransactionRefOrThrow({
-        transactionRef: record.transactionRef,
-        sourceKind: 'pg_payment_record',
-        sourceId: record.id,
-        approvedByAdminId: session.adminId,
-      });
-    } catch (err) {
-      const { approvedTransactionRefConflictMessage } = await import(
-        '@/src/lib/payments/transactionRefDuplicate'
-      );
-      if (err instanceof Error && err.message === approvedTransactionRefConflictMessage()) {
-        throw err;
-      }
-      throw err;
+    const { registerApprovedTransactionRefForProofApproval } = await import(
+      '@/src/services/pgTransactionRefIndex'
+    );
+    const reg = await registerApprovedTransactionRefForProofApproval({
+      transactionRef: record.transactionRef,
+      sourceKind: 'pg_payment_record',
+      sourceId: record.id,
+      approvedByAdminId: session.adminId,
+      duplicateOverride: opts?.duplicateTransactionRefOverride ?? null,
+    });
+    if (!reg.ok) {
+      throw new Error(reg.message);
     }
   }
 

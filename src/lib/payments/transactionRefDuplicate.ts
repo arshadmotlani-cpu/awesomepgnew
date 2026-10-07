@@ -115,9 +115,9 @@ function formatWhen(value: string | Date): string {
   }
 }
 
-/** User-facing error when partial unique on approved txn ID fires. */
+/** User-facing error when approval is blocked pending admin override. */
 export function approvedTransactionRefConflictMessage(): string {
-  return 'This transaction ID is already approved on another payment. Reject this submission or use a different ID.';
+  return 'This transaction ID is already approved on another payment. Use “Approve anyway” with a reason, or reject this submission.';
 }
 
 function approvedTransactionRefUniqueViolationOnNode(err: unknown): boolean {

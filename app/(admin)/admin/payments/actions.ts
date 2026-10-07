@@ -22,6 +22,16 @@ import { formatPostgresError } from '@/src/lib/db/postgresError';
 import { userFacingPaymentApprovalError } from '@/src/lib/payments/safePaymentApprovalError';
 import { startPaymentApprovalTimer } from '@/src/lib/payments/paymentApprovalTiming';
 import { scheduleAfterPaymentApproval } from '@/src/lib/payments/scheduleAfterPaymentApproval';
+import {
+  duplicateTransactionRefBlockedMessage,
+  validateDuplicateTransactionRefOverrideReason,
+} from '@/src/lib/payments/duplicateTransactionRefOverride';
+import {
+  resolveDuplicateTransactionRefReviewContext,
+  reviewKindToTxnSourceKind,
+} from '@/src/services/pgTransactionRefIndex';
+import { loadTransactionRefForPaymentReview } from '@/src/services/paymentReviewTransactionRef';
+import { enrichDuplicateTransactionRefReviewContext } from '@/src/services/duplicateTransactionRefAdminDisplay';
 
 const PAYMENT_REVIEW_PATH = '/admin/operations';
 
@@ -66,7 +76,45 @@ type ReviewMeta = {
   overpaymentDisposition?: OverpaymentDisposition;
   reviewNotes?: string;
   approvalNotes?: string;
+  duplicateTransactionRefOverride?: { reason: string };
 };
+
+async function assertDuplicateTxnRefOverrideAllowed(
+  kind: PendingPaymentReviewItem['kind'],
+  entityId: string,
+  meta?: ReviewMeta,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const transactionRef = await loadTransactionRefForPaymentReview(kind, entityId);
+  const ctx = await resolveDuplicateTransactionRefReviewContext({
+    transactionRef,
+    exclude: { kind: reviewKindToTxnSourceKind(kind), id: entityId },
+  });
+  if (ctx.requiresOverride && !meta?.duplicateTransactionRefOverride) {
+    return { ok: false, message: duplicateTransactionRefBlockedMessage() };
+  }
+  if (meta?.duplicateTransactionRefOverride) {
+    const reasonCheck = validateDuplicateTransactionRefOverrideReason(
+      meta.duplicateTransactionRefOverride.reason,
+    );
+    if (!reasonCheck.ok) {
+      return { ok: false, message: reasonCheck.message };
+    }
+  }
+  return { ok: true };
+}
+
+export async function fetchPaymentReviewDuplicateContextAction(
+  kind: PendingPaymentReviewItem['kind'],
+  entityId: string,
+  transactionRef: string | null | undefined,
+) {
+  await requireAdminPermission('payments:write');
+  const rawCtx = await resolveDuplicateTransactionRefReviewContext({
+    transactionRef,
+    exclude: { kind: reviewKindToTxnSourceKind(kind), id: entityId },
+  });
+  return enrichDuplicateTransactionRefReviewContext(rawCtx);
+}
 
 export async function approvePaymentReviewVerificationAction(
   kind: PendingPaymentReviewItem['kind'],
@@ -77,10 +125,15 @@ export async function approvePaymentReviewVerificationAction(
 ) {
   const session = await requireAdminPermission('payments:write');
   try {
+    const dupGate = await assertDuplicateTxnRefOverrideAllowed(kind, entityId, meta);
+    if (!dupGate.ok) {
+      return { ok: false as const, message: dupGate.message };
+    }
     if (kind === 'qr') {
       const result = await reviewPaymentRecord(session, entityId, 'approved', {
         reviewMeta: meta,
         verificationOnly: true,
+        duplicateTransactionRefOverride: meta?.duplicateTransactionRefOverride,
       });
       revalidatePaymentReviewSurfaces(pgId);
       revalidatePath('/admin/collections');
@@ -96,16 +149,16 @@ export async function approvePaymentReviewVerificationAction(
       return withNextReviewKey(session, currentKey, { ok: true });
     }
     if (kind === 'rent') {
-      return approveRentProofAction(entityId, pgId, currentKey);
+      return approveRentProofAction(entityId, pgId, currentKey, meta);
     }
     if (kind === 'electricity') {
-      return approveElectricityProofAction(entityId, pgId, currentKey);
+      return approveElectricityProofAction(entityId, pgId, currentKey, meta);
     }
     if (kind === 'extension') {
-      return approveExtensionProofAction(entityId, pgId, currentKey);
+      return approveExtensionProofAction(entityId, pgId, currentKey, meta);
     }
     if (kind === 'deposit_link') {
-      return approveDepositLinkProofAction(entityId, pgId, currentKey);
+      return approveDepositLinkProofAction(entityId, pgId, currentKey, meta);
     }
     return { ok: false as const, message: 'Unsupported payment review kind.' };
   } catch (err) {
@@ -229,6 +282,10 @@ export async function approvePaymentProofWithAllocationAction(
 ) {
   const session = await requireAdminPermission('payments:write');
   try {
+    const dupGate = await assertDuplicateTxnRefOverrideAllowed(kind, entityId, meta);
+    if (!dupGate.ok) {
+      return { ok: false as const, message: dupGate.message };
+    }
     const { approvePaymentProofWithAllocation } = await import(
       '@/src/services/paymentProofAllocationApproval'
     );
@@ -396,12 +453,15 @@ export async function approveRentProofAction(
   invoiceId: string,
   pgId: string,
   currentKey?: string,
+  meta?: ReviewMeta,
 ) {
   const timer = startPaymentApprovalTimer('approveRentProofAction');
   const session = await requireAdminPermission('payments:write');
   timer.mark('auth');
 
-  const result = await approveRentPaymentProof(session, invoiceId);
+  const result = await approveRentPaymentProof(session, invoiceId, {
+    duplicateTransactionRefOverride: meta?.duplicateTransactionRefOverride,
+  });
   timer.mark('settle_critical');
 
   if (!result.ok) {
@@ -444,12 +504,15 @@ export async function approveElectricityProofAction(
   invoiceId: string,
   pgId: string,
   currentKey?: string,
+  meta?: ReviewMeta,
 ) {
   const timer = startPaymentApprovalTimer('approveElectricityProofAction');
   const session = await requireAdminPermission('payments:write');
   timer.mark('auth');
 
-  const result = await approveElectricityPaymentProof(session, invoiceId);
+  const result = await approveElectricityPaymentProof(session, invoiceId, {
+    duplicateTransactionRefOverride: meta?.duplicateTransactionRefOverride,
+  });
   timer.mark('settle_critical');
 
   if (!result.ok) {
@@ -489,12 +552,15 @@ export async function approveExtensionProofAction(
   extensionId: string,
   pgId: string,
   currentKey?: string,
+  meta?: ReviewMeta,
 ) {
   const timer = startPaymentApprovalTimer('approveExtensionProofAction');
   const session = await requireAdminPermission('payments:write');
   timer.mark('auth');
 
-  const result = await approveExtensionPaymentProof(session, extensionId);
+  const result = await approveExtensionPaymentProof(session, extensionId, {
+    duplicateTransactionRefOverride: meta?.duplicateTransactionRefOverride,
+  });
   timer.mark('settle_critical');
 
   if (!result.ok) {
@@ -534,13 +600,16 @@ export async function approveDepositLinkProofAction(
   linkId: string,
   pgId: string,
   currentKey?: string,
+  meta?: ReviewMeta,
 ) {
   const timer = startPaymentApprovalTimer('approveDepositLinkProofAction');
   try {
     const session = await requireAdminPermission('payments:write');
     timer.mark('auth');
 
-    const result = await approveDepositLinkPaymentProof(session, linkId);
+    const result = await approveDepositLinkPaymentProof(session, linkId, {
+      duplicateTransactionRefOverride: meta?.duplicateTransactionRefOverride,
+    });
     timer.mark('settle_critical');
 
     if (!result.ok) {

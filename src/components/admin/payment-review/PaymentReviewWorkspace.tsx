@@ -25,6 +25,10 @@ import { PaymentReviewBookingPricingRows } from '@/src/components/admin/operatio
 import { transactionRefLooksLikeUpiVpa } from '@/src/lib/payments/safePaymentApprovalError';
 import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import type { PaymentReviewWorkspaceData } from '@/src/services/paymentReviewWorkspace';
+import {
+  DuplicateTransactionRefOverrideDialog,
+  DuplicateTransactionRefWarningBanner,
+} from '@/src/components/admin/payment-review/DuplicateTransactionRefReview';
 
 function differenceDisplay(differencePaise: number, tone: 'exact' | 'short' | 'excess'): {
   text: string;
@@ -83,7 +87,12 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
   const [approved, setApproved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  const [approvedWithDuplicateOverride, setApprovedWithDuplicateOverride] = useState(false);
   const { showToast, toastNode } = useOperationsActionToast();
+
+  const duplicateCtx = data.duplicateTransactionRef;
+  const requiresDuplicateOverride = Boolean(duplicateCtx?.requiresOverride);
 
   const baseVerification = buildPaymentReviewVerification(
     item,
@@ -112,14 +121,8 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
   });
   const chrome = paymentReviewPostApprovalChrome(phase);
 
-  async function handleApprove() {
+  async function runApproval(meta?: { duplicateTransactionRefOverride?: { reason: string } }) {
     if (busy || approved) return;
-    if (item.possibleDuplicate) {
-      const msg =
-        item.approveConfirmMessage ??
-        'This transaction ID is flagged as a possible duplicate of another payment. Approving again may fail if it was already approved. Continue?';
-      if (typeof window !== 'undefined' && !window.confirm(msg)) return;
-    }
     setBusy(true);
     setApproved(false);
     setError(null);
@@ -128,7 +131,7 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
         item.kind,
         item.entityId,
         item.pgId,
-        undefined,
+        meta,
         data.reviewKey,
       );
       if (!result.ok) {
@@ -139,6 +142,8 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
 
       stashOperationsApprovedToast(PAYMENT_REVIEW_APPROVED_TOAST);
       setApproved(true);
+      setApprovedWithDuplicateOverride(Boolean(meta?.duplicateTransactionRefOverride));
+      setOverrideOpen(false);
       setBusy(false);
       showToast(PAYMENT_REVIEW_APPROVED_TOAST, 'success');
 
@@ -148,6 +153,26 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
       setError(err instanceof Error ? err.message : 'Approval failed.');
       setBusy(false);
     }
+  }
+
+  async function handleApprove() {
+    if (requiresDuplicateOverride) {
+      setError(
+        'This transaction ID is already approved elsewhere. Use Approve anyway after verifying the existing payment.',
+      );
+      return;
+    }
+    if (item.possibleDuplicate) {
+      const msg =
+        item.approveConfirmMessage ??
+        'This transaction ID is flagged as a possible duplicate of another payment. Continue only if this is a separate legitimate payment.';
+      if (typeof window !== 'undefined' && !window.confirm(msg)) return;
+    }
+    await runApproval();
+  }
+
+  async function handleApproveAnywayConfirm(reason: string) {
+    await runApproval({ duplicateTransactionRefOverride: { reason } });
   }
 
   const kycTone =
@@ -164,6 +189,15 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
       data-navigation-blocked={chrome.shellNavigationBlocked ? 'true' : 'false'}
     >
       {toastNode}
+
+      {overrideOpen ? (
+        <DuplicateTransactionRefOverrideDialog
+          open
+          busy={busy}
+          onClose={() => setOverrideOpen(false)}
+          onConfirm={(reason) => void handleApproveAnywayConfirm(reason)}
+        />
+      ) : null}
 
       {rejectOpen ? (
         <PaymentProofRejectionDialog
@@ -327,6 +361,10 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
               </section>
             ) : null}
 
+            {duplicateCtx?.requiresOverride ? (
+              <DuplicateTransactionRefWarningBanner context={duplicateCtx} />
+            ) : null}
+
             {item.referenceNumber ? (
               <section className="rounded-xl border border-white/10 bg-[#121820] p-5">
                 <h2 className="text-base font-semibold text-white">Payment proof: Transaction ID</h2>
@@ -338,8 +376,8 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
                     resident&apos;s payment app when possible.
                   </p>
                 ) : null}
-                {item.possibleDuplicate ? (
-                  <p className="mt-2 text-xs font-medium text-amber-300">Duplicate reference ID</p>
+                {item.possibleDuplicate && !requiresDuplicateOverride ? (
+                  <p className="mt-2 text-xs font-medium text-amber-300">Possible duplicate reference ID</p>
                 ) : null}
               </section>
             ) : (
@@ -377,6 +415,13 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
                 UPI transaction ID. Screenshot not required.
               </p>
             </section>
+
+            {approvedWithDuplicateOverride ? (
+              <p className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+                Approved with duplicate transaction ID override. The override is recorded in the audit
+                log.
+              </p>
+            ) : null}
 
             {rejectionHistory.length > 0 ? (
               <section className="border-t border-white/10 pt-6">
@@ -431,21 +476,39 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
                   Reject
                 </button>
               ) : null}
-              <button
-                type="button"
-                disabled={chrome.approveDisabled}
-                onClick={() => void handleApprove()}
-                className="inline-flex min-w-[120px] items-center justify-center gap-2 rounded-lg bg-apg-orange px-5 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {chrome.showApprovingSpinner ? (
-                  <>
-                    <ApproveSpinner />
-                    Approving…
-                  </>
-                ) : (
-                  'Approve'
-                )}
-              </button>
+              {requiresDuplicateOverride ? (
+                <button
+                  type="button"
+                  disabled={chrome.approveDisabled}
+                  onClick={() => setOverrideOpen(true)}
+                  className="inline-flex min-w-[140px] items-center justify-center gap-2 rounded-lg border border-amber-400/50 bg-amber-500/20 px-5 py-2 text-sm font-semibold text-amber-50 hover:bg-amber-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {chrome.showApprovingSpinner ? (
+                    <>
+                      <ApproveSpinner />
+                      Approving…
+                    </>
+                  ) : (
+                    'Approve anyway'
+                  )}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={chrome.approveDisabled}
+                  onClick={() => void handleApprove()}
+                  className="inline-flex min-w-[120px] items-center justify-center gap-2 rounded-lg bg-apg-orange px-5 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {chrome.showApprovingSpinner ? (
+                    <>
+                      <ApproveSpinner />
+                      Approving…
+                    </>
+                  ) : (
+                    'Approve'
+                  )}
+                </button>
+              )}
             </div>
           </div>
         </footer>
