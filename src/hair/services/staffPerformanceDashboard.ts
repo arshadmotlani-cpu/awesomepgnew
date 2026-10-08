@@ -14,10 +14,10 @@ import {
   type FyhRevenueMetric,
 } from '@/src/hair/db/schema';
 import {
-  momDeltaPct,
-  resolveStaffPerformanceRange,
-  sameMtdLastMonthPreviousRange,
   sortStaffByRevenue,
+  staffPerformanceDayKeysToDateRange,
+  staffPerformanceDefaultDayRange,
+  staffPerformanceRangeLabel,
   type StaffPerformanceComparisonMode,
   type StaffPerformancePeriodPreset,
   type StaffRevenueCategory,
@@ -129,12 +129,16 @@ export type StaffPerformanceCommandCenterSnapshot = {
   timezone: string;
   salonName: string;
   periodLabel: string;
+  fromDayKey: string;
+  toDayKey: string;
+  /** @deprecated Always `custom` — date range is fromDayKey/toDayKey. */
   periodPreset: StaffPerformancePeriodPreset;
   rangeFromIso: string;
   rangeToIso: string;
   category: StaffRevenueCategory;
   staffIdsFilter: string[];
   locationIds: RevenueDashboardLocationFilter;
+  /** @deprecated Comparison UI removed. */
   comparisonMode: StaffPerformanceComparisonMode;
   kpis: StaffKpiTotals;
   leaderboard: StaffLeaderboardRow[];
@@ -511,13 +515,11 @@ function categoryRow(
 }
 
 export async function getStaffPerformanceCommandCenter(input?: {
-  period?: StaffPerformancePeriodPreset;
-  from?: string | null;
-  to?: string | null;
+  fromDayKey?: string;
+  toDayKey?: string;
   staffIds?: string[];
   category?: StaffRevenueCategory;
   locationIds?: RevenueDashboardLocationFilter;
-  comparisonMode?: StaffPerformanceComparisonMode;
   /** When set and salon revenue is off, all aggregates are scoped to this staff id. */
   personalScopeStaffId?: string | null;
 }, ctx?: TenantContext | null): Promise<StaffPerformanceCommandCenterSnapshot> {
@@ -525,64 +527,40 @@ export async function getStaffPerformanceCommandCenter(input?: {
   const settings = await getSalonSettings(ctx);
   const timezone = settings.timezone?.trim() || 'Asia/Kolkata';
   const salonName = settings.businessName?.trim() || 'Salon';
-  const preset = input?.period ?? 'month';
   const category = input?.category ?? 'combined';
   const staffIds = input?.staffIds?.filter(Boolean) ?? [];
   const locationIds = input?.locationIds ?? 'all';
-  const comparisonMode = input?.comparisonMode ?? 'previous_period';
 
-  const { range, previousRange: defaultPrevious, label } = resolveStaffPerformanceRange({
-    timezone,
-    preset,
-    from: input?.from,
-    to: input?.to,
-  });
-
-  const previousRange =
-    comparisonMode === 'same_mtd_last_month'
-      ? sameMtdLastMonthPreviousRange(range, timezone)
-      : defaultPrevious;
+  const defaults = staffPerformanceDefaultDayRange(timezone);
+  const fromDayKey = input?.fromDayKey?.slice(0, 10) ?? defaults.fromDayKey;
+  const toDayKey = input?.toDayKey?.slice(0, 10) ?? defaults.toDayKey;
+  const range = staffPerformanceDayKeysToDateRange(timezone, fromDayKey, toDayKey);
+  const label = staffPerformanceRangeLabel(fromDayKey, toDayKey);
 
   let staffFilter = staffIds.length > 0 ? staffIds : undefined;
   if (input?.personalScopeStaffId) {
     staffFilter = [input.personalScopeStaffId];
   }
 
-  const [
-    currentTotals,
-    previousTotals,
-    staffAggs,
-    previousStaffAggs,
-    commissionMap,
-    refundMap,
-    customers,
-    staffOptions,
-  ] = await Promise.all([
-    metricTotals(range, ctx, locationIds, staffFilter),
-    metricTotals(previousRange, ctx, locationIds, staffFilter),
-    staffAttributedAggregates(range, ctx, locationIds, staffFilter),
-    staffAttributedAggregates(previousRange, ctx, locationIds, staffFilter),
-    commissionByStaff(range, ctx, staffFilter),
-    refundsByStaff(range, staffFilter),
-    customerMetrics(range, ctx, locationIds, staffFilter),
-    hairDb
-      .select({ id: fyhStaff.id, name: fyhStaff.fullName })
-      .from(fyhStaff)
-      .where(and(orgFilter(fyhStaff.organizationId, ctx), eq(fyhStaff.isActive, true)))
-      .orderBy(asc(fyhStaff.fullName)),
-  ]);
+  const [currentTotals, staffAggs, commissionMap, refundMap, customers, staffOptions] =
+    await Promise.all([
+      metricTotals(range, ctx, locationIds, staffFilter),
+      staffAttributedAggregates(range, ctx, locationIds, staffFilter),
+      commissionByStaff(range, ctx, staffFilter),
+      refundsByStaff(range, staffFilter),
+      customerMetrics(range, ctx, locationIds, staffFilter),
+      hairDb
+        .select({ id: fyhStaff.id, name: fyhStaff.fullName })
+        .from(fyhStaff)
+        .where(and(orgFilter(fyhStaff.organizationId, ctx), eq(fyhStaff.isActive, true)))
+        .orderBy(asc(fyhStaff.fullName)),
+    ]);
 
   const combined = salesTotalPaiseFromSummary({
     serviceRevenuePaise: currentTotals.service,
     productRevenuePaise: currentTotals.product,
     packageRevenuePaise: currentTotals.package,
     membershipRevenuePaise: currentTotals.membership,
-  });
-  const prevCombined = salesTotalPaiseFromSummary({
-    serviceRevenuePaise: previousTotals.service,
-    productRevenuePaise: previousTotals.product,
-    packageRevenuePaise: previousTotals.package,
-    membershipRevenuePaise: previousTotals.membership,
   });
 
   const totalProductSalesPaise = salesTotalPaiseFromSummary({
@@ -596,23 +574,17 @@ export async function getStaffPerformanceCommandCenter(input?: {
     currentTotals.package,
     currentTotals.membership,
   );
-  const previousPerformanceTotalPaise = performanceAmountFromMetricParts(
-    previousTotals.service,
-    previousTotals.package,
-    previousTotals.membership,
-  );
-
   const kpis: StaffKpiTotals = {
     serviceRevenuePaise: currentTotals.service,
     productRevenuePaise: currentTotals.product,
     packageRevenuePaise: currentTotals.package,
     membershipRevenuePaise: currentTotals.membership,
     combinedRevenuePaise: combined,
-    serviceDeltaPct: momDeltaPct(currentTotals.service, previousTotals.service),
-    productDeltaPct: momDeltaPct(currentTotals.product, previousTotals.product),
-    packageDeltaPct: momDeltaPct(currentTotals.package, previousTotals.package),
-    membershipDeltaPct: momDeltaPct(currentTotals.membership, previousTotals.membership),
-    combinedDeltaPct: momDeltaPct(combined, prevCombined),
+    serviceDeltaPct: null,
+    productDeltaPct: null,
+    packageDeltaPct: null,
+    membershipDeltaPct: null,
+    combinedDeltaPct: null,
   };
 
   const salesSummaryTable: StaffSalesSummaryRow[] = sortStaffByRevenue(
@@ -737,10 +709,6 @@ export async function getStaffPerformanceCommandCenter(input?: {
       }),
     );
 
-  const previousSalesTotal = previousStaffAggs.reduce(
-    (a, s) => a + productSalesFromMetricParts(s.servicePaise, s.productPaise, s.packagePaise, s.membershipPaise),
-    0,
-  );
   const currentSalesTotal = staffAggs.reduce(
     (a, s) => a + productSalesFromMetricParts(s.servicePaise, s.productPaise, s.packagePaise, s.membershipPaise),
     0,
@@ -749,22 +717,19 @@ export async function getStaffPerformanceCommandCenter(input?: {
     (a, s) => a + performanceAmountFromMetricParts(s.servicePaise, s.packagePaise, s.membershipPaise),
     0,
   );
-  const previousPerformanceFromAggs = previousStaffAggs.reduce(
-    (a, s) => a + performanceAmountFromMetricParts(s.servicePaise, s.packagePaise, s.membershipPaise),
-    0,
-  );
-
   return {
     timezone,
     salonName,
     periodLabel: label,
-    periodPreset: preset,
+    fromDayKey,
+    toDayKey,
+    periodPreset: 'custom',
     rangeFromIso: range.from.toISOString(),
     rangeToIso: range.to.toISOString(),
     category,
     staffIdsFilter: staffIds,
     locationIds,
-    comparisonMode,
+    comparisonMode: 'previous_period',
     kpis,
     leaderboard: leaderboardBase,
     distribution,
@@ -785,18 +750,18 @@ export async function getStaffPerformanceCommandCenter(input?: {
     salesSummaryTable,
     performanceAmountTable,
     periodComparison: {
-      mode: comparisonMode,
+      mode: 'previous_period',
       currentSalesTotalPaise: currentSalesTotal,
-      previousSalesTotalPaise: previousSalesTotal,
+      previousSalesTotalPaise: 0,
       currentPerformanceTotalPaise: currentPerformanceFromAggs,
-      previousPerformanceTotalPaise: previousPerformanceFromAggs,
+      previousPerformanceTotalPaise: 0,
     },
   };
 }
 
 /** Back-compat wrapper used by older imports. */
 export async function getStaffPerformanceDashboardSnapshot(ctx?: TenantContext | null): Promise<StaffPerformanceCommandCenterSnapshot> {
-  return getStaffPerformanceCommandCenter({ period: 'month' }, ctx);
+  return getStaffPerformanceCommandCenter({}, ctx);
 }
 
 export function buildStaffPerformanceDashboard(

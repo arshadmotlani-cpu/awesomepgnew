@@ -1,13 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { DashboardShell } from '@/src/hair/components/dashboard/DashboardShell';
-import {
-  StaffPeriodComparisonChart,
-  StaffTopTenBarChart,
-} from '@/src/hair/components/dashboard/staff-performance/StaffPerformanceCharts';
+import { StaffTopTenBarChart } from '@/src/hair/components/dashboard/staff-performance/StaffPerformanceCharts';
 import { StaffPerformanceFilterBar } from '@/src/hair/components/dashboard/staff-performance/StaffPerformanceFilterBar';
+import { formatStaffPerformanceDayLabel } from '@/src/hair/lib/formatStaffPerformanceDay';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import type { StaffPerformanceCommandCenterSnapshot } from '@/src/hair/services/staffPerformanceDashboard';
 
@@ -25,8 +23,8 @@ function SummaryTable({
   renderRow: (row: unknown, idx: number) => React.ReactNode;
 }) {
   return (
-    <section className="fyh-dashboard-card p-4">
-      <h2 className="fyh-card-title">{title}</h2>
+    <section className="rounded-lg border border-[color:var(--fyh-border)] bg-white p-4 shadow-sm">
+      <h2 className="fyh-card-title text-fyh-text">{title}</h2>
       <p className="mt-1 text-xs text-fyh-text-muted">{subtitle}</p>
       {rows.length === 0 ? (
         <p className="py-8 text-center text-sm text-fyh-text-muted">No data available</p>
@@ -50,10 +48,6 @@ function SummaryTable({
   );
 }
 
-function inclusiveToDayKey(rangeToIso: string): string {
-  return new Date(new Date(rangeToIso).getTime() - 86_400_000).toISOString().slice(0, 10);
-}
-
 export function StaffPerformanceCommandCenter({
   data,
   locationOptions,
@@ -61,157 +55,119 @@ export function StaffPerformanceCommandCenter({
   data: StaffPerformanceCommandCenterSnapshot;
   locationOptions: { locationId: string; locationName: string; isActive: boolean }[];
 }) {
-  const [compareMetric, setCompareMetric] = useState<'sales' | 'performance'>('sales');
-
   const periodTitle = useMemo(() => {
-    const from = data.rangeFromIso.slice(0, 10);
-    const to =
-      data.periodPreset === 'custom'
-        ? inclusiveToDayKey(data.rangeToIso)
-        : data.rangeToIso.slice(0, 10);
-    return data.periodLabel.includes('→') ? data.periodLabel : `${from} → ${to}`;
-  }, [data]);
+    if (data.fromDayKey === data.toDayKey) {
+      return formatStaffPerformanceDayLabel(data.fromDayKey);
+    }
+    return `${formatStaffPerformanceDayLabel(data.fromDayKey)} → ${formatStaffPerformanceDayLabel(data.toDayKey)}`;
+  }, [data.fromDayKey, data.toDayKey]);
 
   return (
-    <DashboardShell
-      eyebrow="Team analytics"
-      title="Staff Performance"
-      subtitle={`${periodTitle} · ${data.salonName}`}
-    >
-      <StaffPerformanceFilterBar
-        salonName={data.salonName}
-        periodPreset={data.periodPreset}
-        category={data.category}
-        staffIds={data.staffIdsFilter}
-        from={data.rangeFromIso.slice(0, 10)}
-        to={
-          data.periodPreset === 'custom'
-            ? inclusiveToDayKey(data.rangeToIso)
-            : data.rangeToIso.slice(0, 10)
-        }
-        staffOptions={data.staffOptions}
-        locationOptions={locationOptions}
-        locationIds={data.locationIds}
-        comparisonMode={data.comparisonMode}
-      />
+    <div className="fyh-theme-light -mx-[var(--fyh-space-page)] min-h-full bg-[#f4f6f8] px-[var(--fyh-space-page)] pb-8 md:-mx-[var(--fyh-space-page-md)] md:px-[var(--fyh-space-page-md)]">
+      <DashboardShell
+        eyebrow="Team analytics"
+        title="Staff Performance"
+        subtitle={`${periodTitle} · ${data.salonName}`}
+        rootClassName="!bg-transparent"
+      >
+        <StaffPerformanceFilterBar
+          salonName={data.salonName}
+          fromDayKey={data.fromDayKey}
+          toDayKey={data.toDayKey}
+          category={data.category}
+          staffIds={data.staffIdsFilter}
+          staffOptions={data.staffOptions}
+          locationOptions={locationOptions}
+          locationIds={data.locationIds}
+        />
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="fyh-dashboard-card p-4">
-          <h2 className="fyh-card-title">Top 10 Staff — Product Sales</h2>
-          <p className="mt-1 text-xs text-fyh-text-muted">
-            Total product sales · {formatInrFromPaise(data.totalProductSalesPaise)}
-          </p>
-          <div className="mt-4">
-            <StaffTopTenBarChart rows={data.topTenSales} valueLabel="Sales" />
-          </div>
-        </section>
-        <section className="fyh-dashboard-card p-4">
-          <h2 className="fyh-card-title">Top 10 Staff — Service Performance</h2>
-          <p className="mt-1 text-xs text-fyh-text-muted">
-            Total service performance · {formatInrFromPaise(data.totalServicePerformancePaise)}
-          </p>
-          <p className="text-[10px] text-fyh-text-muted">
-            Services, memberships, and packages. Product sales are separate. Not payroll or
-            incentives.
-          </p>
-          <div className="mt-4">
-            <StaffTopTenBarChart rows={data.topTenPerformance} valueLabel="Performance" />
-          </div>
-        </section>
-      </div>
-
-      <SummaryTable
-        title="Product sales by staff"
-        subtitle="Physical retail products only. Services, memberships, and packages are not included."
-        headers={['Staff Name', 'Product (₹)', 'Total (₹)']}
-        rows={data.salesSummaryTable}
-        renderRow={(row) => {
-          const r = row as StaffPerformanceCommandCenterSnapshot['salesSummaryTable'][number];
-          return (
-            <tr key={r.staffId} className="border-b border-[color:var(--fyh-border)] last:border-0">
-              <td className="py-2 pr-3">
-                <Link href={`/staff/${r.staffId}/performance`} className="text-fyh-accent hover:underline">
-                  {r.name}
-                </Link>
-              </td>
-              <td className="py-2 pr-3 tabular-nums">{formatInrFromPaise(r.productPaise)}</td>
-              <td className="py-2 tabular-nums font-medium">{formatInrFromPaise(r.totalPaise)}</td>
-            </tr>
-          );
-        }}
-      />
-
-      <SummaryTable
-        title="Service performance by staff"
-        subtitle="Total is service + membership + package. Product sales are not included."
-        headers={[
-          'Staff Name',
-          'Service (₹)',
-          'Membership (₹)',
-          'Package (₹)',
-          'Total service performance (₹)',
-        ]}
-        rows={data.performanceAmountTable}
-        renderRow={(row) => {
-          const r = row as StaffPerformanceCommandCenterSnapshot['performanceAmountTable'][number];
-          return (
-            <tr key={r.staffId} className="border-b border-[color:var(--fyh-border)] last:border-0">
-              <td className="py-2 pr-3">
-                <Link href={`/staff/${r.staffId}/performance`} className="text-fyh-accent hover:underline">
-                  {r.name}
-                </Link>
-              </td>
-              <td className="py-2 pr-3 tabular-nums">{formatInrFromPaise(r.netServicePaise)}</td>
-              <td className="py-2 pr-3 tabular-nums">{formatInrFromPaise(r.membershipPaise)}</td>
-              <td className="py-2 pr-3 tabular-nums">{formatInrFromPaise(r.packagePaise)}</td>
-              <td className="py-2 tabular-nums font-medium">{formatInrFromPaise(r.totalPaise)}</td>
-            </tr>
-          );
-        }}
-      />
-
-      <section className="fyh-dashboard-card p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="fyh-card-title">Previous period vs current period</h2>
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <section className="rounded-lg border border-[color:var(--fyh-border)] bg-white p-4 shadow-sm">
+            <h2 className="fyh-card-title text-fyh-text">Top 10 Staff — Product Sales</h2>
             <p className="mt-1 text-xs text-fyh-text-muted">
-              {data.comparisonMode === 'same_mtd_last_month'
-                ? 'Same MTD last month'
-                : 'Previous equivalent period'}
+              Total product sales · {formatInrFromPaise(data.totalProductSalesPaise)}
             </p>
-          </div>
-          <div className="flex gap-1 rounded-md border border-[color:var(--fyh-border)] p-0.5">
-            <button
-              type="button"
-              onClick={() => setCompareMetric('sales')}
-              className={`rounded px-3 py-1 text-xs ${
-                compareMetric === 'sales'
-                  ? 'bg-fyh-accent/20 text-fyh-accent'
-                  : 'text-fyh-text-secondary'
-              }`}
-            >
-              Sales
-            </button>
-            <button
-              type="button"
-              onClick={() => setCompareMetric('performance')}
-              className={`rounded px-3 py-1 text-xs ${
-                compareMetric === 'performance'
-                  ? 'bg-fyh-accent/20 text-fyh-accent'
-                  : 'text-fyh-text-secondary'
-              }`}
-            >
-              Performance Amount
-            </button>
-          </div>
+            <div className="mt-4">
+              <StaffTopTenBarChart rows={data.topTenSales} valueLabel="Sales" variant="light" />
+            </div>
+          </section>
+          <section className="rounded-lg border border-[color:var(--fyh-border)] bg-white p-4 shadow-sm">
+            <h2 className="fyh-card-title text-fyh-text">Top 10 Staff — Service Performance</h2>
+            <p className="mt-1 text-xs text-fyh-text-muted">
+              Total service performance · {formatInrFromPaise(data.totalServicePerformancePaise)}
+            </p>
+            <p className="text-[10px] text-fyh-text-muted">
+              Services, memberships, and packages. Product sales are separate. Not payroll or
+              incentives.
+            </p>
+            <div className="mt-4">
+              <StaffTopTenBarChart
+                rows={data.topTenPerformance}
+                valueLabel="Performance"
+                variant="light"
+              />
+            </div>
+          </section>
         </div>
-        <div className="mt-4">
-          <StaffPeriodComparisonChart
-            comparison={data.periodComparison}
-            metric={compareMetric}
+
+        <div className="mt-4 space-y-4">
+          <SummaryTable
+            title="Product sales by staff"
+            subtitle="Physical retail products only. Services, memberships, and packages are not included."
+            headers={['Staff Name', 'Product (₹)', 'Total (₹)']}
+            rows={data.salesSummaryTable}
+            renderRow={(row) => {
+              const r = row as StaffPerformanceCommandCenterSnapshot['salesSummaryTable'][number];
+              return (
+                <tr key={r.staffId} className="border-b border-[color:var(--fyh-border)] last:border-0">
+                  <td className="py-2 pr-3">
+                    <Link
+                      href={`/staff/${r.staffId}/performance`}
+                      className="text-fyh-accent hover:underline"
+                    >
+                      {r.name}
+                    </Link>
+                  </td>
+                  <td className="py-2 pr-3 tabular-nums">{formatInrFromPaise(r.productPaise)}</td>
+                  <td className="py-2 tabular-nums font-medium">{formatInrFromPaise(r.totalPaise)}</td>
+                </tr>
+              );
+            }}
+          />
+
+          <SummaryTable
+            title="Service performance by staff"
+            subtitle="Total is service + membership + package. Product sales are not included."
+            headers={[
+              'Staff Name',
+              'Service (₹)',
+              'Membership (₹)',
+              'Package (₹)',
+              'Total service performance (₹)',
+            ]}
+            rows={data.performanceAmountTable}
+            renderRow={(row) => {
+              const r = row as StaffPerformanceCommandCenterSnapshot['performanceAmountTable'][number];
+              return (
+                <tr key={r.staffId} className="border-b border-[color:var(--fyh-border)] last:border-0">
+                  <td className="py-2 pr-3">
+                    <Link
+                      href={`/staff/${r.staffId}/performance`}
+                      className="text-fyh-accent hover:underline"
+                    >
+                      {r.name}
+                    </Link>
+                  </td>
+                  <td className="py-2 pr-3 tabular-nums">{formatInrFromPaise(r.netServicePaise)}</td>
+                  <td className="py-2 pr-3 tabular-nums">{formatInrFromPaise(r.membershipPaise)}</td>
+                  <td className="py-2 pr-3 tabular-nums">{formatInrFromPaise(r.packagePaise)}</td>
+                  <td className="py-2 tabular-nums font-medium">{formatInrFromPaise(r.totalPaise)}</td>
+                </tr>
+              );
+            }}
           />
         </div>
-      </section>
-    </DashboardShell>
+      </DashboardShell>
+    </div>
   );
 }

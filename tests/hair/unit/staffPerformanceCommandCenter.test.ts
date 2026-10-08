@@ -51,11 +51,16 @@ test('resolveStaffPerformanceRange month preset is non-empty', () => {
 });
 
 test('parseStaffPerformanceSearchParams defaults and staff split', () => {
-  const parsed = parseStaffPerformanceSearchParams({
-    staff: 'a, b,,c',
-    category: 'service',
-  });
-  assert.equal(parsed.preset, 'month');
+  const now = new Date('2026-10-08T10:00:00.000Z');
+  const parsed = parseStaffPerformanceSearchParams(
+    {
+      staff: 'a, b,,c',
+      category: 'service',
+    },
+    'Asia/Kolkata',
+    now,
+  );
+  assert.equal(parsed.fromDayKey, parsed.toDayKey);
   assert.equal(parsed.category, 'service');
   assert.deepEqual(parsed.staffIds, ['a', 'b', 'c']);
 });
@@ -82,8 +87,10 @@ function emptySnapshot(): StaffPerformanceCommandCenterSnapshot {
   return {
     timezone: 'Asia/Kolkata',
     salonName: 'FYH',
-    periodLabel: 'This month',
-    periodPreset: 'month',
+    periodLabel: '2026-08-01 → 2026-08-15',
+    fromDayKey: '2026-08-01',
+    toDayKey: '2026-08-15',
+    periodPreset: 'custom',
     rangeFromIso: '2026-08-01T00:00:00.000Z',
     rangeToIso: '2026-08-16T00:00:00.000Z',
     category: 'combined',

@@ -1,13 +1,10 @@
 'use server';
 
 import { requirePermission } from '@/src/hair/lib/auth/permissions';
-import {
-  parseStaffPerformanceSearchParams,
-  type StaffPerformancePeriodPreset,
-  type StaffRevenueCategory,
-} from '@/src/hair/lib/staffPerformancePeriod';
+import { parseStaffPerformanceSearchParams } from '@/src/hair/lib/staffPerformancePeriod';
 import { getStaffPerformanceCommandCenter } from '@/src/hair/services/staffPerformanceDashboard';
 import { getTenantContextForAction } from '@/src/hair/lib/tenant/getTenantContext';
+import { getSalonSettings } from '@/src/hair/services/settings';
 import {
   exportStaffPerformanceCsv,
   exportStaffPerformanceExcel,
@@ -24,33 +21,32 @@ export type ExportStaffPerformanceResult =
 
 export async function exportStaffPerformanceAction(input: {
   filters: {
-    period?: string;
     from?: string;
     to?: string;
     staff?: string;
     category?: string;
+    locations?: string;
   };
   format: StaffPerformanceExportFormat;
 }): Promise<ExportStaffPerformanceResult> {
   try {
     await requirePermission('page:dashboard_staff');
     const ctx = await getTenantContextForAction();
-    const parsed = parseStaffPerformanceSearchParams(input.filters);
+    const settings = await getSalonSettings(ctx);
+    const timezone = settings.timezone?.trim() || 'Asia/Kolkata';
+    const parsed = parseStaffPerformanceSearchParams(input.filters, timezone);
     const snapshot = await getStaffPerformanceCommandCenter(
       {
-        period: parsed.preset as StaffPerformancePeriodPreset,
-        from: parsed.from,
-        to: parsed.to,
+        fromDayKey: parsed.fromDayKey,
+        toDayKey: parsed.toDayKey,
         staffIds: parsed.staffIds,
-        category: parsed.category as StaffRevenueCategory,
+        category: parsed.category,
         locationIds: parsed.locationIds,
-        comparisonMode: parsed.comparisonMode,
       },
       ctx,
     );
 
-    const stamp = new Date().toISOString().slice(0, 10);
-    const base = `fyh-staff-performance-${stamp}`;
+    const base = `fyh-staff-performance-${parsed.fromDayKey}_to_${parsed.toDayKey}`;
 
     if (input.format === 'xlsx') {
       const buf = await exportStaffPerformanceExcel(snapshot);

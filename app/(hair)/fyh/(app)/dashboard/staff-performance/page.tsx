@@ -2,6 +2,7 @@ import { StaffPerformanceCommandCenter } from '@/src/hair/components/dashboard/S
 import { listTenantLocationOptions } from '@/src/hair/actions/tenant';
 import { parseStaffPerformanceSearchParams } from '@/src/hair/lib/staffPerformancePeriod';
 import { getStaffPerformanceCommandCenter } from '@/src/hair/services/staffPerformanceDashboard';
+import { getSalonSettings } from '@/src/hair/services/settings';
 import { getTenantContextForPage } from '@/src/hair/lib/tenant/getTenantContext';
 import { getHairSession } from '@/src/hair/lib/auth/session';
 import { resolveEffectiveGrantsForEmployee } from '@/src/workforce/brains/employeeBrain';
@@ -30,28 +31,32 @@ export default async function StaffPerformanceDashboardPage({ searchParams }: Pr
   const personalScopeStaffId =
     !canSalonRevenue && session?.workforceEmployeeId ? session.workforceEmployeeId : null;
 
-  const sp = await searchParams;
-  const parsed = parseStaffPerformanceSearchParams({
-    period: first(sp.period),
-    from: first(sp.from),
-    to: first(sp.to),
-    staff: first(sp.staff),
-    category: first(sp.category),
-    locations: first(sp.locations),
-    compare: first(sp.compare),
-  });
-
   const ctx = await getTenantContextForPage();
+  const settings = await getSalonSettings(ctx);
+  const timezone = settings.timezone?.trim() || 'Asia/Kolkata';
+
+  const sp = await searchParams;
+  const parsed = parseStaffPerformanceSearchParams(
+    {
+      period: first(sp.period),
+      from: first(sp.from),
+      to: first(sp.to),
+      staff: first(sp.staff),
+      category: first(sp.category),
+      locations: first(sp.locations),
+      compare: first(sp.compare),
+    },
+    timezone,
+  );
+
   const [data, locationOptions] = await Promise.all([
     getStaffPerformanceCommandCenter(
       {
-        period: parsed.preset,
-        from: parsed.from,
-        to: parsed.to,
+        fromDayKey: parsed.fromDayKey,
+        toDayKey: parsed.toDayKey,
         staffIds: parsed.staffIds,
         category: parsed.category,
         locationIds: parsed.locationIds,
-        comparisonMode: parsed.comparisonMode,
         personalScopeStaffId,
       },
       ctx,

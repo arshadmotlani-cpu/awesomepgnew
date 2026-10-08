@@ -46,10 +46,14 @@ function ChartWrap({
 export function StaffTopTenBarChart({
   rows,
   valueLabel,
+  variant = 'dark',
 }: {
   rows: { staffId: string; name: string; amountPaise: number }[];
   valueLabel: string;
+  variant?: 'dark' | 'light';
 }) {
+  const gridStroke = variant === 'light' ? 'rgba(15,23,42,0.08)' : 'rgba(255,255,255,0.06)';
+  const tickFill = variant === 'light' ? '#475569' : undefined;
   const chartData = (rows ?? []).map((d) => ({
     name: d.name.split(' ')[0] || d.name,
     fullName: d.name,
@@ -60,9 +64,13 @@ export function StaffTopTenBarChart({
   return (
     <ChartWrap hasData={hasData} height={240}>
       <BarChart layout="vertical" data={chartData} margin={{ left: 8, right: 16 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />
-        <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => formatChartInr(Number(v) * 100)} />
-        <YAxis type="category" dataKey="name" width={56} tick={{ fontSize: 10 }} />
+        <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} horizontal={false} />
+        <XAxis
+          type="number"
+          tick={{ fontSize: 10, fill: tickFill }}
+          tickFormatter={(v) => formatChartInr(Number(v) * 100)}
+        />
+        <YAxis type="category" dataKey="name" width={56} tick={{ fontSize: 10, fill: tickFill }} />
         <Tooltip
           contentStyle={FYH_CHART_TOOLTIP}
           labelFormatter={(_l, payload) =>

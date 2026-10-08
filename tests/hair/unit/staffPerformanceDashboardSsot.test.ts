@@ -26,13 +26,14 @@ test('performanceAmountFromMetricParts includes membership and package, not as a
   assert.equal(performanceAmountFromMetricParts(100, 50, 25), 175);
 });
 
-test('parseStaffPerformanceSearchParams reads locations and compare mode', () => {
+test('parseStaffPerformanceSearchParams reads locations and ignores legacy compare', () => {
   const parsed = parseStaffPerformanceSearchParams({
     locations: 'loc-a,loc-b',
     compare: 'same_mtd_last_month',
   });
   assert.deepEqual(parsed.locationIds, ['loc-a', 'loc-b']);
-  assert.equal(parsed.comparisonMode, 'same_mtd_last_month');
+  assert.ok(parsed.fromDayKey);
+  assert.ok(parsed.toDayKey);
 });
 
 test('sameMtdLastMonthPreviousRange aligns day span to prior month', () => {
