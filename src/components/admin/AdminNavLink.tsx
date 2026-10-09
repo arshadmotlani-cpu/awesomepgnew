@@ -16,6 +16,7 @@ import {
   adminNavPathOnly,
   adminNavShouldClientNavigate,
 } from '@/src/lib/admin/adminNavLinkLogic';
+import { CLIENT_NAV_FALLBACK_MS } from '@/src/lib/reliability/clientNavigationFallback';
 import {
   logAdminNavClick,
   logAdminNavComplete,
@@ -90,7 +91,13 @@ export function AdminNavLink({
 
       if (adminNavShouldClientNavigate(pathname, href)) {
         event.preventDefault();
+        const targetPath = adminNavPathOnly(href);
         router.push(href);
+        window.setTimeout(() => {
+          const current = window.location.pathname;
+          if (current === targetPath || current.startsWith(`${targetPath}/`)) return;
+          window.location.assign(href);
+        }, CLIENT_NAV_FALLBACK_MS);
       }
     },
     [href, onNavigateStart, pathname, router],

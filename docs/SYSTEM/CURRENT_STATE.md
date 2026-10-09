@@ -366,3 +366,6 @@ See [[BUGS]] for full list. Highlights:
 
 <!-- DOC_SYNC_TOUCH_2026-10-08 -->
 > **2026-10-08 13:56:13 UTC** — Code changed in: Routes. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-10-09 -->
+> **2026-10-09 12:32:19 UTC** — Code changed in: Routes. Manual review recommended.
