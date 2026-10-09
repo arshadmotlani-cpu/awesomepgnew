@@ -64,6 +64,7 @@ describe('invoice register defaults to today', () => {
 describe('integration test artifact patterns', () => {
   it('matches RC customers and Inv Ops products', () => {
     assert.match(testCustomerWhere(), /RC Customer %/);
+    assert.match(testCustomerWhere(), /Test QS/);
     assert.match(testProductWhere(), /Inv Ops %/);
   });
 

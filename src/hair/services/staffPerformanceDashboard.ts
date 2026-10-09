@@ -39,6 +39,7 @@ import {
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter } from '@/src/hair/lib/tenant/filters';
 import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
+import { isPosExcludedStaff } from '@/src/hair/lib/posStaffRoster';
 
 export type StaffKpiTotals = {
   serviceRevenuePaise: number;
@@ -324,7 +325,9 @@ async function staffAttributedAggregates(
     }
   }
 
-  return [...byStaff.values()];
+  return [...byStaff.values()].filter(
+    (row) => !isPosExcludedStaff({ id: row.staffId, fullName: row.name }),
+  );
 }
 
 async function commissionByStaff(

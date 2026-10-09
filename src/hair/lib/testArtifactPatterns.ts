@@ -5,7 +5,13 @@
 
 export function testCustomerWhere(alias = ''): string {
   const col = alias ? `${alias}.full_name` : 'full_name';
-  return `(${col} LIKE 'RC Customer %' OR ${col} LIKE 'Tenant %' OR ${col} LIKE 'Hostile %')`;
+  return `(
+    ${col} LIKE 'RC Customer %'
+    OR ${col} LIKE 'Tenant %'
+    OR ${col} LIKE 'Hostile %'
+    OR ${col} = 'Test QS'
+    OR ${col} ILIKE 'Test QS %'
+  )`;
 }
 
 export function testProductWhere(alias = ''): string {
