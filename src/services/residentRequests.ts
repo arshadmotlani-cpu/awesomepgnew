@@ -51,6 +51,7 @@ import {
 import {
   assertDepositRefundRequestAmountPaise,
   getDepositRefundCeilingForBooking,
+  isMidStayDepositExcessRefundRequest,
 } from '@/src/lib/deposits/depositRefundCeiling';
 
 export type { RefundCompletionInput } from '@/src/lib/refundDeductions';
@@ -669,9 +670,11 @@ export async function adminReviewResidentRequest(input: {
       const requestPaise = current.amountPaise ?? 0;
       const midStayExcessOnly =
         depositCeiling != null &&
-        requestPaise > 0 &&
-        requestPaise <= depositCeiling.availableToRequestPaise &&
-        !current.meterReadingPhotoUrl?.trim();
+        isMidStayDepositExcessRefundRequest(
+          requestPaise,
+          depositCeiling,
+          Boolean(current.meterReadingPhotoUrl?.trim()),
+        );
 
       if (midStayExcessOnly) {
         const payout = validatePayoutQrRefundSubmission({ payoutQrUrl: current.payoutQrUrl });

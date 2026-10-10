@@ -54,6 +54,19 @@ export function computeDepositRefundCeiling(input: {
   };
 }
 
+/** Approve/complete mid-stay deposit excess — use refundable excess, not available (reserved by open request). */
+export function isMidStayDepositExcessRefundRequest(
+  requestPaise: number,
+  ceiling: DepositRefundCeiling,
+  hasMeterReadingPhoto: boolean,
+): boolean {
+  return (
+    requestPaise > 0 &&
+    requestPaise <= ceiling.refundableDepositPaise &&
+    !hasMeterReadingPhoto
+  );
+}
+
 export function assertDepositRefundRequestAmountPaise(
   requestedPaise: number,
   ceiling: DepositRefundCeiling,

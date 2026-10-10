@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   assertDepositRefundRequestAmountPaise,
   computeDepositRefundCeiling,
+  isMidStayDepositExcessRefundRequest,
 } from '../../src/lib/deposits/depositRefundCeiling';
 
 describe('depositRefundCeiling', () => {
@@ -40,6 +41,20 @@ describe('depositRefundCeiling', () => {
     });
     assert.equal(c.refundableDepositPaise, 51_510);
     assert.equal(c.availableToRequestPaise, 31_510);
+  });
+
+  it('full pending reservation: approve mid-stay excess via refundable, not available', () => {
+    const c = computeDepositRefundCeiling({
+      heldPaise: 412_080,
+      requiredPaise: 360_570,
+      pendingRefundPaise: 51_510,
+    });
+    assert.equal(c.availableToRequestPaise, 0);
+    assert.equal(
+      isMidStayDepositExcessRefundRequest(51_510, c, false),
+      true,
+    );
+    assert.equal(assertDepositRefundRequestAmountPaise(51_510, c).ok, false);
   });
 
   it('reserved deposit reduces refundable', () => {
